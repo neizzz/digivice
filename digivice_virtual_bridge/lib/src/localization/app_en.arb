@@ -1,0 +1,6 @@
+{
+  "appTitle": "digivice_virtual_bridge",
+  "@appTitle": {
+    "description": "The title of the application"
+  }
+}
