@@ -1,0 +1,14 @@
+{
+  "name": "@digivice/root",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "npm run dev --workspace @digivice/client"
+  },
+  "workspaces": [
+    "apps/*"
+  ],
+  "author": "",
+  "license": "ISC",
+  "description": ""
+}
