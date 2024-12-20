@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- <resources> -->
+    <!-- Application Name -->
+    <!-- <string name="app_name">My Application</string> -->
+
+    <!-- Host Apdu Service Description -->
+    <!-- <string name="host_apdu_service_description">My NFC Host Card Emulation Service</string> -->
+
+    <!-- AID Group Description -->
+    <!-- <string name="aid_group_description">My Application Identifier Group</string> -->
+
+    <!-- General Strings -->
+    <!-- <string name="welcome_message">Welcome to My App!</string>
+    <string name="error_message">An error occurred, please try again.</string>
+    <string name="success_message">Operation completed successfully.</string> -->
+
+    <!-- Button Labels -->
+    <!-- <string name="button_start">Start</string>
+    <string name="button_stop">Stop</string>
+    <string name="button_retry">Retry</string> -->
+
+    <!-- NFC Specific Strings -->
+    <!-- <string name="nfc_required_message">NFC is required to use this feature.</string>
+    <string name="nfc_not_supported_message">This device does not support NFC.</string>
+    <string name="nfc_disabled_message">Please enable NFC in your device settings.</string> -->
+<!-- </resources> -->
+
+<resources>
+  <string name="servicedesc">servicedesc</string>
+  <string name="aiddescription">aiddescription</string>
+</resources>

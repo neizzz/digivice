@@ -14,6 +14,8 @@ dependencies:
     sdk: flutter
   nfc_manager: ^3.5.0
   webview_flutter: ^4.10.0
+  android_intent_plus: ^5.2.1
+  flutter_nfc_hce: ^0.1.8
 
 dev_dependencies:
   flutter_lints: ^4.0.0
