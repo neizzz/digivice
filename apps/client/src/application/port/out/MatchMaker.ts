@@ -6,5 +6,6 @@ export type MatchRequest = {
 export type MatchInfo = {};
 
 export interface MatchMaker {
+  isInitialized: () => boolean;
   findMatch: (matchRequest: MatchRequest) => Promise<MatchInfo>;
 }

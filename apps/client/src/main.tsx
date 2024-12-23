@@ -7,5 +7,6 @@ import PrototypeApp from "./PrototypeApp.tsx";
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <PrototypeApp />
+    {/* <App /> */}
   </StrictMode>
 );
