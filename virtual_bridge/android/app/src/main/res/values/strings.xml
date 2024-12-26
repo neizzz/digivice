@@ -26,6 +26,6 @@
 <!-- </resources> -->
 
 <resources>
-  <string name="servicedesc">servicedesc</string>
-  <string name="aiddescription">aiddescription</string>
+  <string name="servicedesc">digivice_virtual_bridge</string>
+  <string name="aiddescription">digivice_virtual_bridge</string>
 </resources>

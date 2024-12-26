@@ -23,7 +23,9 @@ class NfcHceWritter {
     return result;
   }
 
-  void stopWriting() async {
+  Future<void> stopWriting() async {
+    print('[NfcHceWritter::stopWriting] try to stop');
     await _flutterNfcHcePlugin.stopNfcHce();
+    print('[NfcHceWritter::stopWriting] success to stop');
   }
 }
