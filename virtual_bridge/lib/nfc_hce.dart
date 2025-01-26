@@ -2,7 +2,7 @@
 
 import 'package:flutter_nfc_hce/flutter_nfc_hce.dart';
 
-class NfcHceWritter {
+class NfcHceController {
   // plugin instance
   final _flutterNfcHcePlugin = FlutterNfcHce();
 
@@ -14,12 +14,9 @@ class NfcHceWritter {
 
     print(
         '[NfcHceWritter::startWriting] $platformVersion, $isSecureNfcEnabled, $isNfcEnabled');
-
     String? result =
         await _flutterNfcHcePlugin.startNfcHce(message, persistMessage: false);
-
     print('[NfcHceWritter::startWriting] result: $result');
-
     return result;
   }
 

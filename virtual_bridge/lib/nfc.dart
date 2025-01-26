@@ -2,11 +2,13 @@
 
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:android_intent_plus/android_intent.dart';
 import 'package:digivice_virtual_bridge/model/record.dart';
 import 'package:digivice_virtual_bridge/nfc_hce.dart';
 import 'package:nfc_manager/nfc_manager.dart';
+import 'package:nfc_manager/platform_tags.dart';
 
 typedef NdefReadCallback = void Function({required String readMessage});
 typedef NdefWrittenCallback = void Function({required String writtenMessage});
@@ -14,7 +16,7 @@ typedef NdefWrittenCallback = void Function({required String writtenMessage});
 class NfcController {
   NfcController();
 
-  final NfcHceWritter _writter = NfcHceWritter();
+  final NfcHceController _hceController = NfcHceController();
 
   void startReading({required NdefReadCallback onRead}) async {
     try {
@@ -35,25 +37,52 @@ class NfcController {
       await NfcManager.instance.startSession(
           pollingOptions: {NfcPollingOption.iso14443},
           onDiscovered: (NfcTag tag) async {
-            final ndef = Ndef.from(tag);
-            if (ndef == null) {
+            final handle = tag.handle;
+            print('[NfcController::startReading] read tag: $handle');
+
+            final isoDep = IsoDep.from(tag);
+            if (isoDep == null) {
               NfcManager.instance.stopSession(errorMessage: 'Tag is null');
               return;
             }
 
-            WellknownTextRecord firstRecord =
-                WellknownTextRecord.fromNdefRecord(
-                    ndef.cachedMessage!.records[0]);
+            print(
+                '[NfcController::startReading] read isoDep: \n\tidentifier:${isoDep.identifier},\n\tmaxTransceiveLength:${isoDep.maxTransceiveLength},\n\ttimeout:${isoDep.timeout},\n\thiLayerResponse:${isoDep.hiLayerResponse},\n\thistoricalBytes:${isoDep.historicalBytes},\n\tisExtendedLengthApduSupported:${isoDep.isExtendedLengthApduSupported}');
 
-            onRead(readMessage: firstRecord.toString());
+            Uint8List selectCommandApdu = Uint8List.fromList([
+              0x00, // CLA	- Class - Class of instruction
+              0xA4, // INS	- Instruction - Instruction code
+              0x04, // P1	- Parameter 1 - Instruction parameter 1
+              0x00, // P2	- Parameter 2 - Instruction parameter 2
+              0x07, // Lc field	- Number of bytes present in the data field of the command
+              0xD2, 0x76, 0x00, 0x00, 0x85, 0x01,
+              0x01, // NDEF Tag Application name
+              0x00, // Le field	- Maximum number of bytes expected in the data field of the response to the command
+            ]);
+            Uint8List responseApdu =
+                await isoDep.transceive(data: selectCommandApdu);
+            print(
+                '[NfcController::startReading] responseApdu of select: $responseApdu,\n\thistoricalBytes:${isoDep.historicalBytes}');
 
-            // NOTE: [workaround]
-            // 바로 세션을 종료하게 되면, android에서 'New tag scanned' 팝업이 뜨게됨
-            // TODO: 좀 더 정교하게 통신할 수 있는 자체 프로토콜 정의 및 구현 필요
-            Timer(const Duration(seconds: 1), () {
-              NfcManager.instance.stopSession();
-              print('[NfcController::startReading] stop session');
-            });
+            // final ndef = Ndef.from(tag);
+            // if (ndef == null) {
+            //   NfcManager.instance.stopSession(errorMessage: 'Tag is null');
+            //   return;
+            // }
+
+            // WellknownTextRecord firstRecord =
+            //     WellknownTextRecord.fromNdefRecord(
+            //         ndef.cachedMessage!.records[0]);
+
+            // onRead(readMessage: firstRecord.toString());
+
+            // // NOTE: [workaround]
+            // // 바로 세션을 종료하게 되면, android에서 'New tag scanned' 팝업이 뜨게됨
+            // // TODO: 좀 더 정교하게 통신할 수 있는 자체 프로토콜 정의 및 구현 필요
+            // Timer(const Duration(seconds: 1), () {
+            //   NfcManager.instance.stopSession();
+            //   print('[NfcController::startReading] stop session');
+            // });
           });
     } catch (e) {
       // TODO:
@@ -63,7 +92,7 @@ class NfcController {
   void startWriting(
       {required String message, NdefWrittenCallback? onWritten}) async {
     try {
-      await _writter.startWriting(message);
+      await _hceController.startWriting(message);
       onWritten!(writtenMessage: message);
       // await _writter.stopWriting();
 
@@ -106,7 +135,7 @@ class NfcController {
   }
 
   void stop({void Function()? onStop}) async {
-    await _writter.stopWriting();
+    await _hceController.stopWriting();
     await NfcManager.instance.stopSession();
     onStop!();
   }
