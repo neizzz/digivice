@@ -16,6 +16,8 @@ dependencies:
   webview_flutter: ^4.10.0
   android_intent_plus: ^5.2.1
   flutter_nfc_hce: ^0.1.8
+  # flutter_in_app_pip: ^1.7.4
+  flutter_overlay_window: ^0.4.5
 
 dev_dependencies:
   flutter_lints: ^4.0.0

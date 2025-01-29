@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { NfcMatchMakerAdapter } from "./adapter/NfcMatchMakerAdapter";
+import { MiniViewControlAdapter } from "./adapter/MiniViewControlAdapter";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
@@ -11,6 +12,7 @@ window.onerror = (err) => {
 };
 
 const matchMaker = new NfcMatchMakerAdapter();
+const miniViewController = new MiniViewControlAdapter();
 
 const PLACE_HOLDER = "@#test#@";
 
@@ -25,6 +27,7 @@ const PrototypeApp = () => {
   // }, []);
 
   const inputElRef = useRef<HTMLInputElement>(null);
+  // for nfc logs
   const [logs, setLogs] = useState<string[]>(window.errorLogs);
   const [status, setStatus] = useState<string>("idle");
 
@@ -100,6 +103,23 @@ const PrototypeApp = () => {
           }}
         >
           stop
+        </button>
+      </div>
+
+      <div style={{ display: "flex", gap: "1em", flexWrap: "wrap" }}>
+        <button
+          onClick={() => {
+            miniViewController.enterMiniViewMode();
+          }}
+        >
+          enter mini view
+        </button>
+        <button
+          onClick={() => {
+            miniViewController.exitMiniViewMode();
+          }}
+        >
+          exit mini view
         </button>
       </div>
       <div

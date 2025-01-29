@@ -1,6 +1,8 @@
 // ignore_for_file: avoid_print
 
 import 'package:digivice_virtual_bridge/nfc.dart';
+import 'package:digivice_virtual_bridge/pip.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'dart:convert';
@@ -11,30 +13,6 @@ String mapToString(Map<String, dynamic> map) {
       .join(", ");
 }
 
-// class JavaScriptInterfaceArgsMapType {
-//   final String id;
-//   final Map<String, dynamic> args;
-
-//   JavaScriptInterfaceArgsMapType({required this.id, required this.args});
-
-//   Map<String, dynamic> toJson() {
-//     return {'name': id, 'args': args};
-//   }
-
-//   factory JavaScriptInterfaceArgsMapType.fromJson(Map<String, dynamic> json) {
-//     return JavaScriptInterfaceArgsMapType(
-//       id: json['id'] as String,
-//       args: json['args'] as Map<String, dynamic>,
-//     );
-//   }
-
-//   @override
-//   String toString() {
-//     String serializedArgs = mapToString(args);
-//     return '(id: $id, args: $serializedArgs)';
-//   }
-// }
-
 void main() {
   runApp(
     WidgetsApp(
@@ -44,9 +22,20 @@ void main() {
   );
 }
 
+// overlay entry point
+@pragma("vm:entry-point")
+void overlayMain() {
+  runApp(const MaterialApp(
+      color: Color.fromARGB(255, 255, 0, 0),
+      debugShowCheckedModeBanner: true,
+      home: Material(child: Text("My overlay"))));
+}
+
 // ignore: must_be_immutable
 class WebView extends StatelessWidget {
   final WebViewController _controller = WebViewController();
+  final AndroidOverlayController _androidOverlayController =
+      AndroidOverlayController();
   late NfcController _nfcController;
 
   WebView({super.key});
@@ -67,7 +56,11 @@ class WebView extends StatelessWidget {
           onMessageReceived: _handleNfcWrite)
       ..addJavaScriptChannel('__native_nfcStop',
           onMessageReceived: _handleNfcStop)
-      ..loadRequest(Uri.parse('http://172.20.37.209:5173'));
+      ..addJavaScriptChannel('__native_pipEnter',
+          onMessageReceived: _handlePipEnter)
+      ..addJavaScriptChannel('__native_pipExit',
+          onMessageReceived: _handlePipExit)
+      ..loadRequest(Uri.parse('http://172.30.1.26:5173/'));
 
     return WebViewWidget(
       controller: _controller,
@@ -100,6 +93,26 @@ class WebView extends StatelessWidget {
       print('onStop called');
       _resolvePromise(id: jsArgs['id']);
     });
+  }
+
+  void _handlePipEnter(JavaScriptMessage message) async {
+    Map<String, dynamic> jsArgs = jsonDecode(message.message);
+    try {
+      _androidOverlayController.showOverlay();
+      _resolvePromise(id: jsArgs['id'], data: 'PiP enabled');
+    } catch (e) {
+      _resolvePromise(id: jsArgs['id'], data: 'Error: ${e.toString()}');
+    }
+  }
+
+  void _handlePipExit(JavaScriptMessage message) async {
+    Map<String, dynamic> jsArgs = jsonDecode(message.message);
+    try {
+      _androidOverlayController.closeOverlay();
+      _resolvePromise(id: jsArgs['id'], data: 'PiP disabled');
+    } catch (e) {
+      _resolvePromise(id: jsArgs['id'], data: 'Error: ${e.toString()}');
+    }
   }
 
   /// apps/client/src/global.d.ts의 window 타입과 싱크
@@ -170,7 +183,21 @@ class WebView extends StatelessWidget {
           });
           return promise;
         }
-      }
+      };
+      window.pipController = {
+        enterPipMode: (rawArgObj = {}) => {
+          return __createPromise((id) => {
+            const argObj = { id, args: rawArgObj };
+            __native_pipEnter.postMessage(JSON.stringify(argObj));
+          });
+        },
+        exitPipMode: (rawArgObj = {}) => {
+          return __createPromise((id) => {
+            const argObj = { id, args: rawArgObj };
+            __native_pipExit.postMessage(JSON.stringify(argObj));
+          });
+        }
+      };
       console.log('Javascript interfaces was initialized.');
     ''');
   }
