@@ -1,9 +1,9 @@
 // ignore_for_file: avoid_print
 
 import 'package:digivice_virtual_bridge/nfc.dart';
+import 'package:digivice_virtual_bridge/nfc_p2p.dart';
 import 'package:digivice_virtual_bridge/pip.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/widgets.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'dart:convert';
 
@@ -22,7 +22,7 @@ void main() {
   );
 }
 
-// overlay entry point
+// overlay entry point (2025.02.05 기준, for only Android)
 @pragma("vm:entry-point")
 void overlayMain() {
   runApp(const MaterialApp(
@@ -36,13 +36,15 @@ class WebView extends StatelessWidget {
   final WebViewController _controller = WebViewController();
   final AndroidOverlayController _androidOverlayController =
       AndroidOverlayController();
-  late NfcController _nfcController;
+  // late NfcController _nfcController;
+  late NfcP2pController _nfcP2pController;
 
   WebView({super.key});
 
   @override
   Widget build(BuildContext context) {
-    _nfcController = NfcController();
+    // _nfcController = NfcController();
+    _nfcP2pController = NfcP2pController();
     _controller
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setOnConsoleMessage((JavaScriptConsoleMessage consoleMessage) {
@@ -60,7 +62,7 @@ class WebView extends StatelessWidget {
           onMessageReceived: _handlePipEnter)
       ..addJavaScriptChannel('__native_pipExit',
           onMessageReceived: _handlePipExit)
-      ..loadRequest(Uri.parse('http://172.30.1.26:5173/'));
+      ..loadRequest(Uri.parse('http://172.20.37.209:5173/'));
 
     return WebViewWidget(
       controller: _controller,
@@ -69,30 +71,35 @@ class WebView extends StatelessWidget {
 
   /// message.message: {id: string, message: string}
   void _handleNfcRead(JavaScriptMessage message) async {
-    await _log(message.message);
+    await _log('_handleNfcRead message: $message.message');
     var jsArgs = jsonDecode(message.message);
-    _nfcController.startReading(onRead: ({required String readMessage}) {
-      print('onRead called');
-      _resolvePromise(id: jsArgs['id'], data: readMessage);
-    });
+    await _log('_handleNfcRead message: $jsArgs');
+    // _nfcController.startReading(onRead: ({required String readMessage}) {
+    //   print('onRead called');
+    //   _resolvePromise(id: jsArgs['id'], data: readMessage);
+    // });
+    _nfcP2pController.startRequestSession(message: jsArgs['args']['message']);
   }
 
   void _handleNfcWrite(JavaScriptMessage message) async {
     Map<String, dynamic> jsArgs = jsonDecode(message.message);
-    _nfcController.startWriting(
-        message: jsArgs['args']['message'],
-        onWritten: ({required String writtenMessage}) {
-          print('onWritten called');
-          _resolvePromise(id: jsArgs['id'], data: writtenMessage);
-        });
+    // _nfcController.startWriting(
+    //     message: jsArgs['args']['message'],
+    //     onWritten: ({required String writtenMessage}) {
+    //       print('onWritten called');
+    //       _resolvePromise(id: jsArgs['id'], data: writtenMessage);
+    //     });
+    _nfcP2pController.startRespondSession(message: jsArgs['args']['message']);
   }
 
   void _handleNfcStop(JavaScriptMessage message) async {
     Map<String, dynamic> jsArgs = jsonDecode(message.message);
-    _nfcController.stop(onStop: () {
-      print('onStop called');
-      _resolvePromise(id: jsArgs['id']);
-    });
+    // _nfcController.stop(onStop: () {
+    //   print('onStop called');
+    //   _resolvePromise(id: jsArgs['id']);
+    // })
+
+    // TODO: _nfcP2pController.stopRespondSession();
   }
 
   void _handlePipEnter(JavaScriptMessage message) async {
@@ -202,8 +209,8 @@ class WebView extends StatelessWidget {
     ''');
   }
 
-  Future<void> _log(String text) async {
-    await _controller.runJavaScript('console.log(`$text`)');
+  Future<void> _log(String message) async {
+    await _controller.runJavaScript('console.log(`[WebView] $message`)');
   }
 
   void _resolvePromise({required String id, String? data}) {
