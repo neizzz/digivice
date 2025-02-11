@@ -1,6 +1,5 @@
 // ignore_for_file: avoid_print
 
-import 'package:digivice_virtual_bridge/nfc.dart';
 import 'package:digivice_virtual_bridge/nfc_p2p.dart';
 import 'package:digivice_virtual_bridge/pip.dart';
 import 'package:flutter/material.dart';
@@ -71,8 +70,7 @@ class WebView extends StatelessWidget {
 
   /// message.message: {id: string, message: string}
   void _handleNfcRead(JavaScriptMessage message) async {
-    await _log('_handleNfcRead message: $message.message');
-    var jsArgs = jsonDecode(message.message);
+    Map<String, dynamic> jsArgs = jsonDecode(message.message);
     await _log('_handleNfcRead message: $jsArgs');
     // _nfcController.startReading(onRead: ({required String readMessage}) {
     //   print('onRead called');
@@ -83,6 +81,7 @@ class WebView extends StatelessWidget {
 
   void _handleNfcWrite(JavaScriptMessage message) async {
     Map<String, dynamic> jsArgs = jsonDecode(message.message);
+    await _log('_handleNfcRead message: $jsArgs');
     // _nfcController.startWriting(
     //     message: jsArgs['args']['message'],
     //     onWritten: ({required String writtenMessage}) {

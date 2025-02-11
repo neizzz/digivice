@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -10,6 +11,49 @@ typedef MessageReadCallback = void Function({required String readMessage});
 typedef MessageWrittenCallback = void Function(
     {required String writtenMessage});
 
+// aos: android/app/main/res/xml/apduservice.xml에 정의된 aid
+// ios: (TODO)
+const CUSTOM_HCE_AID = [0xF1, 0x6D, 0x61, 0x6D, 0x6F, 0x6E];
+
+// NOTE: 수정 시, native단 APDU_SELECT_COMMAND 상수값과 싱크 맞춰야함.
+const APDU_SELECT_COMMAND = [
+  0x00, // CLA	- Class - Class of instruction
+  0xA4, // INS	- Instruction - Instruction code
+  0x04, // P1	- Parameter 1 - Instruction parameter 1
+  0x00, // P2	- Parameter 2 - Instruction parameter 2
+  0x06, // Lc field	- Number of bytes present in the data field of the command (여기서는 length of 'CUSTOM_HCE_AID')
+  ...CUSTOM_HCE_AID,
+  // 0x00, // Le field	- Maximum number of bytes expected in the data field of the response to the command
+];
+
+// NOTE: for private apdu commands
+// const APDU_REQUEST_MATCH_COMMAND_HEADER = [
+//   0x80, // CLS
+//   0x01, // INS
+// ];
+
+// Uint8List createApduRequestMatchCommand({required String data}) {
+//   Uint8List dataBytes = utf8.encode(data);
+
+//   // 데이터 길이를 2바이트로 제한 (최대 65535)
+//   int length = dataBytes.length;
+//   if (length > 0xFFFF) {
+//     throw Exception(
+//         'REQUEST_MATCH command\'s data length exceeds maximum size of 65535 bytes');
+//   }
+
+//   // 길이를 2바이트 Uint8List로 변환
+//   Uint8List lengthBytes = Uint8List(2);
+//   lengthBytes[0] = (length >> 8) & 0xFF; // 상위 바이트
+//   lengthBytes[1] = length & 0xFF;
+
+//   return Uint8List.fromList([
+//     ...APDU_REQUEST_MATCH_COMMAND_HEADER,
+//     ...lengthBytes, // 2바이트 길이 추가
+//     ...dataBytes
+//   ]);
+// }
+
 class NfcP2pController {
   // Single instance of the class
   static final NfcP2pController _instance = NfcP2pController._internal();
@@ -21,6 +65,7 @@ class NfcP2pController {
   NfcP2pController._internal();
 
   final _customHce = FlutterCustomHce();
+  var _initialized = false;
 
   // TODO: current session state
 
@@ -32,6 +77,11 @@ class NfcP2pController {
 
   Future<void> startRespondSession({required String message}) async {
     try {
+      _log(message);
+      if (!_initialized) {
+        _customHce.initialize(aid: Uint8List.fromList(CUSTOM_HCE_AID));
+        _initialized = true;
+      }
       await _customHce.startHce(data: message);
     } catch (e) {
       _log(
@@ -81,21 +131,27 @@ class NfcP2pController {
             _log(
                 'read isoDep: \n\tidentifier:${isoDep.identifier},\n\tmaxTransceiveLength:${isoDep.maxTransceiveLength},\n\ttimeout:${isoDep.timeout},\n\thiLayerResponse:${isoDep.hiLayerResponse},\n\thistoricalBytes:${isoDep.historicalBytes},\n\tisExtendedLengthApduSupported:${isoDep.isExtendedLengthApduSupported}');
 
-            Uint8List selectCommandApdu = Uint8List.fromList([
-              0x00, // CLA	- Class - Class of instruction
-              0xA4, // INS	- Instruction - Instruction code
-              0x04, // P1	- Parameter 1 - Instruction parameter 1
-              0x00, // P2	- Parameter 2 - Instruction parameter 2
-              0x07, // Lc field	- Number of bytes present in the data field of the command
-              0xD2, 0x76, 0x00, 0x00, 0x85, 0x01,
-              0x01, // Application ID (AID) - Application ID value (TODO: 상수화)
-              0x00, // Le field	- Maximum number of bytes expected in the data field of the response to the command
-            ]);
+            Uint8List apduSelectCommand =
+                Uint8List.fromList(APDU_SELECT_COMMAND);
             Uint8List responseApdu =
-                await isoDep.transceive(data: selectCommandApdu);
-            _log(
-                'responseApdu of SELECT: $responseApdu,\n\thistoricalBytes:${isoDep.historicalBytes}');
+                await isoDep.transceive(data: apduSelectCommand);
 
+            _log('responseApdu: $responseApdu');
+
+            String responseApduString =
+                utf8.decode(responseApdu, allowMalformed: true);
+
+            _log(
+                'responseApdu of SELECT: $responseApduString,\n\thistoricalBytes:${isoDep.historicalBytes}');
+
+            // if (responseApduString == '0000') {
+            //   Uint8List apduRequestMatchCommand =
+            //       createApduRequestMatchCommand(data: message);
+            //   responseApdu =
+            //       await isoDep.transceive(data: apduRequestMatchCommand);
+            //   _log(
+            //       'responseApdu of REQUEST_MATCH: $responseApdu,\n\thistoricalBytes:${isoDep.historicalBytes}');
+            // }
             // // NOTE: [workaround]
             // // 바로 세션을 종료하게 되면, android에서 'New tag scanned' 팝업이 뜨게됨
             // // TODO: 좀 더 정교하게 통신할 수 있는 자체 프로토콜 정의 및 구현 필요

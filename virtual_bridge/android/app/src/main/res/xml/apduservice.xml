@@ -1,6 +1,7 @@
 <host-apdu-service xmlns:android="http://schemas.android.com/apk/res/android"
                    android:description="@string/servicedesc" android:requireDeviceScreenOn="true" android:requireDeviceUnlock="true" android:exported="true">
     <aid-group android:description="@string/aiddescription"  android:category="other" >
-        <aid-filter android:name="D2760000850101"/>
+        <!-- <aid-filter android:name="D2760000850101"/> -->
+        <aid-filter android:name="F16D616D6F6E"/>
     </aid-group>
 </host-apdu-service>
