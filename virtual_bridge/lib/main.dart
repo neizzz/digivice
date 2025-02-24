@@ -35,7 +35,6 @@ class WebView extends StatelessWidget {
   final WebViewController _controller = WebViewController();
   final AndroidOverlayController _androidOverlayController =
       AndroidOverlayController();
-  // late NfcController _nfcController;
   late NfcP2pController _nfcP2pController;
 
   WebView({super.key});

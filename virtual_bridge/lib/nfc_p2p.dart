@@ -27,7 +27,6 @@ const APDU_SELECT_COMMAND = [
   ...CUSTOM_HCE_AID,
   // 0x00, // Le field	- Maximum number of bytes expected in the data field of the response to the command
 ];
-
 const APDU_OKAY = [0x90, 0x00];
 const APDU_ERROR = [0x6F, 0x00];
 
@@ -36,25 +35,26 @@ const APDU_REQUEST_VERSUS_COMMAND_HEADER = [
   0x80, // CLS
   0x01, // INS
 ];
+const APDU_OKAY_WITH_DATA_HEADER = [0x91, 0x00];
 
 Uint8List createApduRequestVersusCommand({required String data}) {
   Uint8List dataBytes = utf8.encode(data);
 
-  // 데이터 길이를 2바이트로 제한 (최대 65535)
-  int length = dataBytes.length;
-  if (length > 0xFFFF) {
-    throw Exception(
-        'REQUEST_VERSUS command\'s data length exceeds maximum size of 65535 bytes');
-  }
-
-  // 길이를 2바이트 Uint8List로 변환
-  Uint8List lengthBytes = Uint8List(2);
-  lengthBytes[0] = (length >> 8) & 0xFF; // 상위 바이트
-  lengthBytes[1] = length & 0xFF;
+  // NOTE: data의 길이 계산이 현재로선 필요 없음
+  // // 데이터 길이를 2바이트로 제한 (최대 65535)
+  // int length = dataBytes.length;
+  // if (length > 0xFFFF) {
+  //   throw Exception(
+  //       'REQUEST_VERSUS command\'s data length exceeds maximum size of 65535 bytes');
+  // }
+  // // 길이를 2바이트 Uint8List로 변환
+  // Uint8List lengthBytes = Uint8List(2);
+  // lengthBytes[0] = (length >> 8) & 0xFF; // 상위 바이트
+  // lengthBytes[1] = length & 0xFF;
 
   return Uint8List.fromList([
     ...APDU_REQUEST_VERSUS_COMMAND_HEADER,
-    ...lengthBytes, // 2바이트 길이 추가
+    // ...lengthBytes, // 2바이트 길이 추가
     ...dataBytes
   ]);
 }
@@ -98,14 +98,7 @@ class NfcP2pController {
         _initialized = true;
       }
 
-      // String? result =
       await _customHce.startHce(data: message, onReceived: onReceived);
-
-      // if (result != null) {
-      // onReceived.call(receivedMessage);
-      // } else {
-      //   throw Exception('receivedMessage is null');
-      // }
     } catch (e) {
       _log(
         'Error starting respond session: $e ',
@@ -126,7 +119,7 @@ class NfcP2pController {
 
   Future<void> startRequestSession(
       {required String message,
-      Function(String)? onReceived,
+      required Function(String) onReceived,
       Function(String)? onError}) async {
     try {
       bool isAvailable = await NfcManager.instance.isAvailable();
@@ -169,30 +162,17 @@ class NfcP2pController {
             Uint8List apduRequestVersusCommandResponse =
                 await isoDep.transceive(data: apduRequestVersusCommand);
             _log(
-                "REQUEST_VERSUS's response: ${utf8.decode(apduRequestVersusCommandResponse)}($apduRequestVersusCommandResponse)");
+                "REQUEST_VERSUS's raw response: $apduRequestVersusCommandResponse");
 
-            if (apduRequestVersusCommandResponse.join() == APDU_ERROR.join()) {
-              throw Exception('Error from REQUEST_VERSUS command');
+            Uint8List apduRequestVersusCommandResponseHeader =
+                apduRequestVersusCommandResponse.sublist(0, 2);
+            if (apduRequestVersusCommandResponseHeader.join() ==
+                APDU_OKAY_WITH_DATA_HEADER.join()) {
+              onReceived.call(
+                  utf8.decode(apduRequestVersusCommandResponse.sublist(2)));
             } else {
-              onReceived?.call(utf8.decode(apduRequestVersusCommandResponse));
+              throw Exception('Error from REQUEST_VERSUS command');
             }
-            // TODO: error handling
-
-            // if (responseApduString == '0000') {
-            //   Uint8List apduRequestMatchCommand =
-            //       createApduRequestMatchCommand(data: message);
-            //   responseApdu =
-            //       await isoDep.transceive(data: apduRequestMatchCommand);
-            //   _log(
-            //       'responseApdu of REQUEST_MATCH: $responseApdu,\n\thistoricalBytes:${isoDep.historicalBytes}');
-            // }
-            // // NOTE: [workaround]
-            // // 바로 세션을 종료하게 되면, android에서 'New tag scanned' 팝업이 뜨게됨
-            // // TODO: 좀 더 정교하게 통신할 수 있는 자체 프로토콜 정의 및 구현 필요
-            // Timer(const Duration(seconds: 1), () {
-            //   NfcManager.instance.stopSession();
-            //   print('[NfcController::startReading] stop session');
-            // });
           });
     } catch (e) {
       _log('Error starting request session: $e');
@@ -208,7 +188,4 @@ class NfcP2pController {
       rethrow;
     }
   }
-
-  // Stream<String> get onMessageReceived => _nfcP2p.onMessageReceived;
-  // Stream<bool> get onConnectionStateChanged => _nfcP2p.onConnectionStateChanged;
 }
