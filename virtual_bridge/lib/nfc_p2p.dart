@@ -3,6 +3,8 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:android_intent_plus/android_intent.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_custom_hce/flutter_custom_hce.dart';
 import 'package:nfc_manager/nfc_manager.dart';
 import 'package:nfc_manager/platform_tags.dart';
@@ -26,35 +28,40 @@ const APDU_SELECT_COMMAND = [
   // 0x00, // Le field	- Maximum number of bytes expected in the data field of the response to the command
 ];
 
-// NOTE: for private apdu commands
-// const APDU_REQUEST_MATCH_COMMAND_HEADER = [
-//   0x80, // CLS
-//   0x01, // INS
-// ];
+const APDU_OKAY = [0x90, 0x00];
+const APDU_ERROR = [0x6F, 0x00];
 
-// Uint8List createApduRequestMatchCommand({required String data}) {
-//   Uint8List dataBytes = utf8.encode(data);
+// NOTE: digivice proprietary
+const APDU_REQUEST_VERSUS_COMMAND_HEADER = [
+  0x80, // CLS
+  0x01, // INS
+];
 
-//   // 데이터 길이를 2바이트로 제한 (최대 65535)
-//   int length = dataBytes.length;
-//   if (length > 0xFFFF) {
-//     throw Exception(
-//         'REQUEST_MATCH command\'s data length exceeds maximum size of 65535 bytes');
-//   }
+Uint8List createApduRequestVersusCommand({required String data}) {
+  Uint8List dataBytes = utf8.encode(data);
 
-//   // 길이를 2바이트 Uint8List로 변환
-//   Uint8List lengthBytes = Uint8List(2);
-//   lengthBytes[0] = (length >> 8) & 0xFF; // 상위 바이트
-//   lengthBytes[1] = length & 0xFF;
+  // 데이터 길이를 2바이트로 제한 (최대 65535)
+  int length = dataBytes.length;
+  if (length > 0xFFFF) {
+    throw Exception(
+        'REQUEST_VERSUS command\'s data length exceeds maximum size of 65535 bytes');
+  }
 
-//   return Uint8List.fromList([
-//     ...APDU_REQUEST_MATCH_COMMAND_HEADER,
-//     ...lengthBytes, // 2바이트 길이 추가
-//     ...dataBytes
-//   ]);
-// }
+  // 길이를 2바이트 Uint8List로 변환
+  Uint8List lengthBytes = Uint8List(2);
+  lengthBytes[0] = (length >> 8) & 0xFF; // 상위 바이트
+  lengthBytes[1] = length & 0xFF;
+
+  return Uint8List.fromList([
+    ...APDU_REQUEST_VERSUS_COMMAND_HEADER,
+    ...lengthBytes, // 2바이트 길이 추가
+    ...dataBytes
+  ]);
+}
 
 class NfcP2pController {
+  final _methodChannel = const MethodChannel('flutter_custom_hce');
+
   // Single instance of the class
   static final NfcP2pController _instance = NfcP2pController._internal();
 
@@ -67,26 +74,43 @@ class NfcP2pController {
   final _customHce = FlutterCustomHce();
   var _initialized = false;
 
-  // TODO: current session state
-
   Future<void> _log(String message) async {
     final platformVersion = await _customHce.getPlatformVersion();
     // ignore: avoid_print
     print('[NfcP2pController] $message ($platformVersion)');
   }
 
-  Future<void> startRespondSession({required String message}) async {
+  Future<void> startRespondSession(
+      {required String message,
+      required Function(String) onReceived,
+      Function(String)? onError}) async {
     try {
-      _log(message);
       if (!_initialized) {
+        _methodChannel.setMethodCallHandler((call) async {
+          debugPrint("call.method: ${call.method}(${call.arguments})");
+          if (call.method == 'receiveData') {
+            onReceived.call(call.arguments);
+            return "success";
+          }
+        });
+        _customHce.setMethodChannel(_methodChannel);
         _customHce.initialize(aid: Uint8List.fromList(CUSTOM_HCE_AID));
         _initialized = true;
       }
-      await _customHce.startHce(data: message);
+
+      // String? result =
+      await _customHce.startHce(data: message, onReceived: onReceived);
+
+      // if (result != null) {
+      // onReceived.call(receivedMessage);
+      // } else {
+      //   throw Exception('receivedMessage is null');
+      // }
     } catch (e) {
       _log(
         'Error starting respond session: $e ',
       );
+      onError?.call('Error starting respond session: $e');
       rethrow;
     }
   }
@@ -100,7 +124,10 @@ class NfcP2pController {
     }
   }
 
-  Future<void> startRequestSession({required String message}) async {
+  Future<void> startRequestSession(
+      {required String message,
+      Function(String)? onReceived,
+      Function(String)? onError}) async {
     try {
       bool isAvailable = await NfcManager.instance.isAvailable();
 
@@ -133,16 +160,23 @@ class NfcP2pController {
 
             Uint8List apduSelectCommand =
                 Uint8List.fromList(APDU_SELECT_COMMAND);
-            Uint8List responseApdu =
+            Uint8List apduSelectCommandResponse =
                 await isoDep.transceive(data: apduSelectCommand);
+            _log("Apdu SELECT's response: $apduSelectCommandResponse");
 
-            _log('responseApdu: $responseApdu');
-
-            String responseApduString =
-                utf8.decode(responseApdu, allowMalformed: true);
-
+            Uint8List apduRequestVersusCommand =
+                createApduRequestVersusCommand(data: message);
+            Uint8List apduRequestVersusCommandResponse =
+                await isoDep.transceive(data: apduRequestVersusCommand);
             _log(
-                'responseApdu of SELECT: $responseApduString,\n\thistoricalBytes:${isoDep.historicalBytes}');
+                "REQUEST_VERSUS's response: ${utf8.decode(apduRequestVersusCommandResponse)}($apduRequestVersusCommandResponse)");
+
+            if (apduRequestVersusCommandResponse.join() == APDU_ERROR.join()) {
+              throw Exception('Error from REQUEST_VERSUS command');
+            } else {
+              onReceived?.call(utf8.decode(apduRequestVersusCommandResponse));
+            }
+            // TODO: error handling
 
             // if (responseApduString == '0000') {
             //   Uint8List apduRequestMatchCommand =
@@ -162,6 +196,7 @@ class NfcP2pController {
           });
     } catch (e) {
       _log('Error starting request session: $e');
+      onError?.call('Error starting request session: $e');
     }
   }
 

@@ -52,11 +52,11 @@ class WebView extends StatelessWidget {
       ..addJavaScriptChannel('__initJavascriptInterfaces',
           onMessageReceived: _initJavascriptInterfaces)
       ..addJavaScriptChannel('__native_nfcRead',
-          onMessageReceived: _handleNfcRead)
+          onMessageReceived: _handleStartNfcP2pRequest)
       ..addJavaScriptChannel('__native_nfcWrite',
-          onMessageReceived: _handleNfcWrite)
+          onMessageReceived: _handleStartNfcP2pRespond)
       ..addJavaScriptChannel('__native_nfcStop',
-          onMessageReceived: _handleNfcStop)
+          onMessageReceived: _handleStopNfcP2pRespond)
       ..addJavaScriptChannel('__native_pipEnter',
           onMessageReceived: _handlePipEnter)
       ..addJavaScriptChannel('__native_pipExit',
@@ -69,36 +69,34 @@ class WebView extends StatelessWidget {
   }
 
   /// message.message: {id: string, message: string}
-  void _handleNfcRead(JavaScriptMessage message) async {
+  void _handleStartNfcP2pRequest(JavaScriptMessage message) async {
     Map<String, dynamic> jsArgs = jsonDecode(message.message);
-    await _log('_handleNfcRead message: $jsArgs');
-    // _nfcController.startReading(onRead: ({required String readMessage}) {
-    //   print('onRead called');
-    //   _resolvePromise(id: jsArgs['id'], data: readMessage);
-    // });
-    _nfcP2pController.startRequestSession(message: jsArgs['args']['message']);
+    await _log('_handleStartNfcP2pRequest message: $jsArgs');
+    _nfcP2pController.startRequestSession(
+        message: jsArgs['args']['message'],
+        onReceived: (String receivedMessage) {
+          _resolvePromise(id: jsArgs['id'], data: receivedMessage);
+        },
+        onError: (String errorMessage) {
+          _resolvePromise(id: jsArgs['id'], data: errorMessage);
+        });
   }
 
-  void _handleNfcWrite(JavaScriptMessage message) async {
+  void _handleStartNfcP2pRespond(JavaScriptMessage message) async {
     Map<String, dynamic> jsArgs = jsonDecode(message.message);
-    await _log('_handleNfcRead message: $jsArgs');
-    // _nfcController.startWriting(
-    //     message: jsArgs['args']['message'],
-    //     onWritten: ({required String writtenMessage}) {
-    //       print('onWritten called');
-    //       _resolvePromise(id: jsArgs['id'], data: writtenMessage);
-    //     });
-    _nfcP2pController.startRespondSession(message: jsArgs['args']['message']);
+    await _log('_handleStartNfcP2pRespond message: $jsArgs');
+    _nfcP2pController.startRespondSession(
+        message: jsArgs['args']['message'],
+        onReceived: (String receivedMessage) {
+          _resolvePromise(id: jsArgs['id'], data: receivedMessage);
+        },
+        onError: (errorMessage) =>
+            _resolvePromise(id: jsArgs['id'], data: errorMessage));
   }
 
-  void _handleNfcStop(JavaScriptMessage message) async {
-    Map<String, dynamic> jsArgs = jsonDecode(message.message);
-    // _nfcController.stop(onStop: () {
-    //   print('onStop called');
-    //   _resolvePromise(id: jsArgs['id']);
-    // })
-
-    // TODO: _nfcP2pController.stopRespondSession();
+  void _handleStopNfcP2pRespond(JavaScriptMessage message) async {
+    // Map<String, dynamic> jsArgs = jsonDecode(message.message);
+    _nfcP2pController.stopRespondSession();
   }
 
   void _handlePipEnter(JavaScriptMessage message) async {
