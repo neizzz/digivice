@@ -14,7 +14,7 @@ window.onerror = (err) => {
 const matchMaker = new NfcMatchMakerAdapter();
 const miniViewController = new MiniViewControlAdapter();
 
-const PLACE_HOLDER = "@#test#@";
+const PLACE_HOLDER = "12345";
 
 const PrototypeApp = () => {
   // useEffect(() => {
@@ -43,7 +43,7 @@ const PrototypeApp = () => {
         padding: "1em",
         display: "flex",
         flexDirection: "column",
-        gap: "0.8em",
+        gap: "0.6em",
       }}
     >
       <input
@@ -64,32 +64,40 @@ const PrototypeApp = () => {
       <div style={{ display: "flex", gap: "1em" }}>
         <button
           onClick={() => {
+            setStatus("hce");
             matchMaker
-              .testWrite(inputElRef.current?.value || PLACE_HOLDER)
+              .testHce(inputElRef.current?.value || PLACE_HOLDER)
               .then((log) => {
                 setLogs((logs) => [
                   `[${new Date().toLocaleString()}] ${log}`,
                   ...logs,
                 ]);
-                setStatus("writing");
+                matchMaker.testStop();
+                setStatus("idle");
               });
           }}
         >
-          testWrite
+          startHce
         </button>
         <button
           onClick={() => {
-            setStatus("reading");
-            matchMaker.testRead().then((log) => {
-              setLogs((logs) => [
-                `[${new Date().toLocaleString()}] ${log}`,
-                ...logs,
-              ]);
-            });
+            setStatus("read/write");
+            matchMaker
+              .testReadWrite(inputElRef.current?.value || PLACE_HOLDER)
+              .then((log) => {
+                setLogs((logs) => [
+                  `[${new Date().toLocaleString()}] ${log}`,
+                  ...logs,
+                ]);
+                matchMaker.testStop();
+                setStatus("idle");
+              });
           }}
         >
-          testRead
+          read/write
         </button>
+      </div>
+      <div style={{ display: "flex", gap: "0.6em" }}>
         <button
           style={{ backgroundColor: "#c6320d" }}
           onClick={() => {
@@ -104,9 +112,17 @@ const PrototypeApp = () => {
         >
           stop
         </button>
+        <button
+          style={{ backgroundColor: "#0dc67f" }}
+          onClick={() => {
+            setLogs([]);
+          }}
+        >
+          clearLogs
+        </button>
       </div>
 
-      <div style={{ display: "flex", gap: "1em", flexWrap: "wrap" }}>
+      {/* <div style={{ display: "flex", gap: "1em", flexWrap: "wrap" }}>
         <button
           onClick={() => {
             miniViewController.enterMiniViewMode();
@@ -121,7 +137,7 @@ const PrototypeApp = () => {
         >
           exit mini view
         </button>
-      </div>
+      </div> */}
       <div
         style={{
           border: "1px solid green",

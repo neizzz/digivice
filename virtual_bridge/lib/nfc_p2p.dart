@@ -86,19 +86,22 @@ class NfcP2pController {
       Function(String)? onError}) async {
     try {
       if (!_initialized) {
-        _methodChannel.setMethodCallHandler((call) async {
-          debugPrint("call.method: ${call.method}(${call.arguments})");
-          if (call.method == 'receiveData') {
-            onReceived.call(call.arguments);
-            return "success";
-          }
-        });
         _customHce.setMethodChannel(_methodChannel);
         _customHce.initialize(aid: Uint8List.fromList(CUSTOM_HCE_AID));
         _initialized = true;
       }
 
-      await _customHce.startHce(data: message, onReceived: onReceived);
+      // NOTE: 일회용
+      _methodChannel.setMethodCallHandler((call) async {
+        debugPrint("call.method: ${call.method}(${call.arguments})");
+        if (call.method == 'receiveData') {
+          onReceived.call(call.arguments);
+          _methodChannel.setMethodCallHandler(null);
+          return "success";
+        }
+      });
+
+      await _customHce.startHce(data: message);
     } catch (e) {
       _log(
         'Error starting respond session: $e ',
@@ -180,7 +183,7 @@ class NfcP2pController {
     }
   }
 
-  Future<void> stopRequestSession(String message) async {
+  Future<void> stopRequestSession() async {
     try {
       await NfcManager.instance.stopSession();
     } catch (e) {

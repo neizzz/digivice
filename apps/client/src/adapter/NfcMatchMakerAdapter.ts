@@ -4,8 +4,8 @@ import {
 } from "../application/port/out/MatchMakerPort";
 
 type InfraNfcController = {
-  readMessage: (argObj: object) => Promise<string>;
-  writeMessage: (argObj: object) => Promise<string>;
+  startReadWrite: (argObj: object) => Promise<string>;
+  startHce: (argObj: object) => Promise<string>;
   stop: (argObj: object) => Promise<string>;
 };
 
@@ -23,25 +23,26 @@ export class NfcMatchMakerAdapter implements MatchMakerPort {
     return Promise.resolve({});
   }
 
-  async testWrite(message: unknown): Promise<string> {
+  async testReadWrite(message: string): Promise<string> {
     // const receivedMessage = await this._getNfcController().readMessage({
     //   test: 123,
     // });
-    console.log("testWrite:", message);
-    const tagMessage = await this._getNfcController().writeMessage({
+    const receivedMessage = await this._getNfcController().startReadWrite({
       message,
     });
-    return `tag created with a message: "${tagMessage}"`;
+    return `received message: ${receivedMessage}`;
   }
 
-  async testRead(): Promise<string> {
-    const receivedMessage = await this._getNfcController().readMessage({});
-    return `onRead: ${receivedMessage}`;
+  async testHce(message: string): Promise<string> {
+    const receivedMessage = await this._getNfcController().startHce({
+      message,
+    });
+    return `received message: ${receivedMessage}`;
   }
 
   async testStop(): Promise<string> {
-    const receivedMessage = await this._getNfcController().stop({});
-    return `onStop: ${receivedMessage}`;
+    const result = await this._getNfcController().stop({});
+    return `stop: ${result}`;
   }
 
   private _getNfcController(): InfraNfcController {

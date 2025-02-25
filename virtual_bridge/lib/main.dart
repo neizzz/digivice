@@ -50,12 +50,12 @@ class WebView extends StatelessWidget {
       })
       ..addJavaScriptChannel('__initJavascriptInterfaces',
           onMessageReceived: _initJavascriptInterfaces)
-      ..addJavaScriptChannel('__native_nfcRead',
+      ..addJavaScriptChannel('__native_nfcReadWrite',
           onMessageReceived: _handleStartNfcP2pRequest)
-      ..addJavaScriptChannel('__native_nfcWrite',
+      ..addJavaScriptChannel('__native_nfcHce',
           onMessageReceived: _handleStartNfcP2pRespond)
       ..addJavaScriptChannel('__native_nfcStop',
-          onMessageReceived: _handleStopNfcP2pRespond)
+          onMessageReceived: _handleStopNfcP2p)
       ..addJavaScriptChannel('__native_pipEnter',
           onMessageReceived: _handlePipEnter)
       ..addJavaScriptChannel('__native_pipExit',
@@ -73,7 +73,8 @@ class WebView extends StatelessWidget {
     await _log('_handleStartNfcP2pRequest message: $jsArgs');
     _nfcP2pController.startRequestSession(
         message: jsArgs['args']['message'],
-        onReceived: (String receivedMessage) {
+        onReceived: (String receivedMessage) async {
+          // await _nfcP2pController.stopRequestSession();
           _resolvePromise(id: jsArgs['id'], data: receivedMessage);
         },
         onError: (String errorMessage) {
@@ -87,15 +88,23 @@ class WebView extends StatelessWidget {
     _nfcP2pController.startRespondSession(
         message: jsArgs['args']['message'],
         onReceived: (String receivedMessage) {
+          // await _nfcP2pController.stopRespondSession();
+          // await _log(jsArgs.toString());
           _resolvePromise(id: jsArgs['id'], data: receivedMessage);
         },
         onError: (errorMessage) =>
             _resolvePromise(id: jsArgs['id'], data: errorMessage));
   }
 
-  void _handleStopNfcP2pRespond(JavaScriptMessage message) async {
-    // Map<String, dynamic> jsArgs = jsonDecode(message.message);
-    _nfcP2pController.stopRespondSession();
+  void _handleStopNfcP2p(JavaScriptMessage message) async {
+    Map<String, dynamic> jsArgs = jsonDecode(message.message);
+    try {
+      await _nfcP2pController.stopRequestSession();
+      await _nfcP2pController.stopRespondSession();
+      _resolvePromise(id: jsArgs['id'], data: 'success');
+    } catch (e) {
+      _resolvePromise(id: jsArgs['id'], data: 'Error: ${e.toString()}');
+    }
   }
 
   void _handlePipEnter(JavaScriptMessage message) async {
@@ -153,25 +162,25 @@ class WebView extends StatelessWidget {
         return promise;
       }
       window.nfcController = {
-        readMessage: (rawArgObj = {}) => {
+        startReadWrite: (rawArgObj = {}) => {
           const promise = __createPromise((id) => {
             const argObj = {
               id,
               args: rawArgObj
             };
             const serializedArgObj = JSON.stringify(argObj);
-            __native_nfcRead.postMessage(serializedArgObj);
+            __native_nfcReadWrite.postMessage(serializedArgObj);
           });
           return promise;
         },
-        writeMessage: (rawArgObj) => {
+        startHce: (rawArgObj) => {
           const promise = __createPromise((id) => {
             const argObj = {
               id,
               args: rawArgObj
             };
             const serializedArgObj = JSON.stringify(argObj);
-            __native_nfcWrite.postMessage(serializedArgObj);
+            __native_nfcHce.postMessage(serializedArgObj);
           });
           return promise;
         },
