@@ -1,6 +1,7 @@
 import {
   MatchInfo,
   MatchMakerPort,
+  MatchRequest,
 } from "../application/port/out/MatchMakerPort";
 
 type InfraNfcController = {
@@ -18,31 +19,40 @@ export class NfcMatchMakerAdapter implements MatchMakerPort {
     return !!window.nfcController;
   }
 
-  // TODO:
-  findMatch(): Promise<MatchInfo> {
-    return Promise.resolve({});
-  }
-
-  async testReadWrite(message: string): Promise<string> {
-    // const receivedMessage = await this._getNfcController().readMessage({
-    //   test: 123,
-    // });
-    const receivedMessage = await this._getNfcController().startReadWrite({
-      message,
+  proposeMatch(matchRequest: MatchRequest): Promise<MatchInfo> {
+    return new Promise((resolve, reject) => {
+      this._getNfcController()
+        .startReadWrite({ data: JSON.stringify(matchRequest) })
+        .then((result: string) => {
+          resolve(JSON.parse(result));
+        })
+        .catch((err: Error) => {
+          reject(err);
+        })
+        .finally(() => {
+          this._getNfcController().stop({});
+        });
     });
-    return `received message: ${receivedMessage}`;
   }
 
-  async testHce(message: string): Promise<string> {
-    const receivedMessage = await this._getNfcController().startHce({
-      message,
+  receiveMatch(matchRequest: MatchRequest): Promise<MatchInfo> {
+    return new Promise((resolve, reject) => {
+      this._getNfcController()
+        .startHce({ data: JSON.stringify(matchRequest) })
+        .then((result: string) => {
+          resolve(JSON.parse(result));
+        })
+        .catch((err: Error) => {
+          reject(err);
+        })
+        .finally(() => {
+          this._getNfcController().stop({});
+        });
     });
-    return `received message: ${receivedMessage}`;
   }
 
-  async testStop(): Promise<string> {
-    const result = await this._getNfcController().stop({});
-    return `stop: ${result}`;
+  async cancelMatch(): Promise<string> {
+    return await this._getNfcController().stop({});
   }
 
   private _getNfcController(): InfraNfcController {

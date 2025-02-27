@@ -1,10 +1,14 @@
 // ignore_for_file: avoid_print
 
-import 'package:digivice_virtual_bridge/nfc_p2p.dart';
-import 'package:digivice_virtual_bridge/pip.dart';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
-import 'dart:convert';
+import 'dart:async';
+import './nfc/nfc_controller.dart';
+import './pip/pip_controller.dart';
+import './webview_streaming/screen_capture_service.dart';
+import './webview_streaming/streaming_controller.dart';
 
 String mapToString(Map<String, dynamic> map) {
   return map.entries
@@ -33,16 +37,35 @@ void overlayMain() {
 // ignore: must_be_immutable
 class WebView extends StatelessWidget {
   final WebViewController _controller = WebViewController();
-  final AndroidOverlayController _androidOverlayController =
-      AndroidOverlayController();
-  late NfcP2pController _nfcP2pController;
 
-  WebView({super.key});
+  // 컨트롤러 인스턴스 선언
+  late NfcController _nfcController;
+  late PipController _pipController;
+  late StreamingController _streamingController;
+  final ScreenCaptureService _captureService = ScreenCaptureService();
+
+  WebView({super.key}) {
+    // 컨트롤러 초기화
+    _nfcController = NfcController(
+      runJavaScript: (jsCode) => _controller.runJavaScript(jsCode),
+      resolvePromise: _resolvePromise,
+      log: _log,
+    );
+
+    _pipController = PipController(
+      runJavaScript: (jsCode) => _controller.runJavaScript(jsCode),
+      resolvePromise: _resolvePromise,
+      log: _log,
+    );
+
+    _streamingController = StreamingController(
+      captureWebView: (param) => _captureService.captureWebView(_controller),
+      runJavaScript: (jsCode) => _controller.runJavaScript(jsCode),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    // _nfcController = NfcController();
-    _nfcP2pController = NfcP2pController();
     _controller
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setOnConsoleMessage((JavaScriptConsoleMessage consoleMessage) {
@@ -50,16 +73,27 @@ class WebView extends StatelessWidget {
       })
       ..addJavaScriptChannel('__initJavascriptInterfaces',
           onMessageReceived: _initJavascriptInterfaces)
+      // NFC 채널
       ..addJavaScriptChannel('__native_nfcReadWrite',
-          onMessageReceived: _handleStartNfcP2pRequest)
+          onMessageReceived: _nfcController.handleStartReadWrite)
       ..addJavaScriptChannel('__native_nfcHce',
-          onMessageReceived: _handleStartNfcP2pRespond)
+          onMessageReceived: _nfcController.handleStartHce)
       ..addJavaScriptChannel('__native_nfcStop',
-          onMessageReceived: _handleStopNfcP2p)
+          onMessageReceived: _nfcController.handleStop)
+      // PIP 채널
       ..addJavaScriptChannel('__native_pipEnter',
-          onMessageReceived: _handlePipEnter)
+          onMessageReceived: _pipController.handleEnterPip)
       ..addJavaScriptChannel('__native_pipExit',
-          onMessageReceived: _handlePipExit)
+          onMessageReceived: _pipController.handleExitPip)
+      // 스트리밍 채널
+      ..addJavaScriptChannel('StreamingChannel',
+          onMessageReceived: (message) =>
+              _streamingController.handleJsMessage(message.message))
+      // ..setNavigationDelegate(
+      //   NavigationDelegate(
+      //     onPageFinished: (url) {},
+      //   ),
+      // )
       ..loadRequest(Uri.parse('http://172.20.37.209:5173/'));
 
     return WebViewWidget(
@@ -67,70 +101,13 @@ class WebView extends StatelessWidget {
     );
   }
 
-  /// message.message: {id: string, message: string}
-  void _handleStartNfcP2pRequest(JavaScriptMessage message) async {
-    Map<String, dynamic> jsArgs = jsonDecode(message.message);
-    await _log('_handleStartNfcP2pRequest message: $jsArgs');
-    _nfcP2pController.startRequestSession(
-        message: jsArgs['args']['message'],
-        onReceived: (String receivedMessage) async {
-          // await _nfcP2pController.stopRequestSession();
-          _resolvePromise(id: jsArgs['id'], data: receivedMessage);
-        },
-        onError: (String errorMessage) {
-          _resolvePromise(id: jsArgs['id'], data: errorMessage);
-        });
-  }
-
-  void _handleStartNfcP2pRespond(JavaScriptMessage message) async {
-    Map<String, dynamic> jsArgs = jsonDecode(message.message);
-    await _log('_handleStartNfcP2pRespond message: $jsArgs');
-    _nfcP2pController.startRespondSession(
-        message: jsArgs['args']['message'],
-        onReceived: (String receivedMessage) {
-          // await _nfcP2pController.stopRespondSession();
-          // await _log(jsArgs.toString());
-          _resolvePromise(id: jsArgs['id'], data: receivedMessage);
-        },
-        onError: (errorMessage) =>
-            _resolvePromise(id: jsArgs['id'], data: errorMessage));
-  }
-
-  void _handleStopNfcP2p(JavaScriptMessage message) async {
-    Map<String, dynamic> jsArgs = jsonDecode(message.message);
-    try {
-      await _nfcP2pController.stopRequestSession();
-      await _nfcP2pController.stopRespondSession();
-      _resolvePromise(id: jsArgs['id'], data: 'success');
-    } catch (e) {
-      _resolvePromise(id: jsArgs['id'], data: 'Error: ${e.toString()}');
-    }
-  }
-
-  void _handlePipEnter(JavaScriptMessage message) async {
-    Map<String, dynamic> jsArgs = jsonDecode(message.message);
-    try {
-      _androidOverlayController.showOverlay();
-      _resolvePromise(id: jsArgs['id'], data: 'PiP enabled');
-    } catch (e) {
-      _resolvePromise(id: jsArgs['id'], data: 'Error: ${e.toString()}');
-    }
-  }
-
-  void _handlePipExit(JavaScriptMessage message) async {
-    Map<String, dynamic> jsArgs = jsonDecode(message.message);
-    try {
-      _androidOverlayController.closeOverlay();
-      _resolvePromise(id: jsArgs['id'], data: 'PiP disabled');
-    } catch (e) {
-      _resolvePromise(id: jsArgs['id'], data: 'Error: ${e.toString()}');
-    }
-  }
-
   /// apps/client/src/global.d.ts의 window 타입과 싱크
   void _initJavascriptInterfaces(JavaScriptMessage message) {
+    // 기본 유틸리티 함수 주입
     _controller.runJavaScript('''
-      console.log(`Early errors: \${window.errorLogs}`);
+      console.log(`Early errors: \${window.errorLogs || '없음'}`);
+      
+      // 공통 유틸리티 함수
       window.__generateId = () => {
         return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
           const r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
@@ -140,7 +117,7 @@ class WebView extends StatelessWidget {
       window.__promises = {};
       window.__resolvePromise = (promiseId, data, error) => {
         if (error) {
-          __promises[promiseId].reject(error);
+         __promises[promiseId].reject(error);
         } else {
           __promises[promiseId].resolve(data);
         }
@@ -161,57 +138,10 @@ class WebView extends StatelessWidget {
         });
         return promise;
       }
-      window.nfcController = {
-        startReadWrite: (rawArgObj = {}) => {
-          const promise = __createPromise((id) => {
-            const argObj = {
-              id,
-              args: rawArgObj
-            };
-            const serializedArgObj = JSON.stringify(argObj);
-            __native_nfcReadWrite.postMessage(serializedArgObj);
-          });
-          return promise;
-        },
-        startHce: (rawArgObj) => {
-          const promise = __createPromise((id) => {
-            const argObj = {
-              id,
-              args: rawArgObj
-            };
-            const serializedArgObj = JSON.stringify(argObj);
-            __native_nfcHce.postMessage(serializedArgObj);
-          });
-          return promise;
-        },
-        stop: (rawArgObj) => {
-          const promise = __createPromise((id) => {
-            const argObj = {
-              id,
-              args: rawArgObj
-            };
-            const serializedArgObj = JSON.stringify(argObj);
-            __native_nfcStop.postMessage(serializedArgObj);
-          });
-          return promise;
-        }
-      };
-      window.pipController = {
-        enterPipMode: (rawArgObj = {}) => {
-          return __createPromise((id) => {
-            const argObj = { id, args: rawArgObj };
-            __native_pipEnter.postMessage(JSON.stringify(argObj));
-          });
-        },
-        exitPipMode: (rawArgObj = {}) => {
-          return __createPromise((id) => {
-            const argObj = { id, args: rawArgObj };
-            __native_pipExit.postMessage(JSON.stringify(argObj));
-          });
-        }
-      };
-      console.log('Javascript interfaces was initialized.');
     ''');
+    _controller.runJavaScript(_nfcController.getJavaScriptInterface());
+    _controller.runJavaScript(_pipController.getJavaScriptInterface());
+    _controller.runJavaScript(_streamingController.getJavaScriptInterface());
   }
 
   Future<void> _log(String message) async {
@@ -219,6 +149,10 @@ class WebView extends StatelessWidget {
   }
 
   void _resolvePromise({required String id, String? data}) {
-    _controller.runJavaScript('__resolvePromise(`$id`, `$data`)');
+    _log('Resolving promise: $id, $data');
+    // NOTE: 문자열 양 끝에 "가 붙어있는 경우 제거
+    // 제거하지 않으면 웹뷰단에서 JSON.parse() 시 오류 발생
+    _controller.runJavaScript(
+        '__resolvePromise(`$id`, `${data?.substring(1, data.length - 1)}`)');
   }
 }

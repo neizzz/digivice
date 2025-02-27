@@ -66,44 +66,46 @@ const PrototypeApp = () => {
           onClick={() => {
             setStatus("hce");
             matchMaker
-              .testHce(inputElRef.current?.value || PLACE_HOLDER)
+              .receiveMatch({
+                testMessage: inputElRef.current?.value || PLACE_HOLDER,
+              })
               .then((log) => {
                 setLogs((logs) => [
-                  `[${new Date().toLocaleString()}] ${log}`,
+                  `[${new Date().toLocaleString()}] ${JSON.stringify(log)}`,
                   ...logs,
                 ]);
-                matchMaker.testStop();
                 setStatus("idle");
               });
           }}
         >
-          startHce
+          receiveMatch
         </button>
         <button
           onClick={() => {
             setStatus("read/write");
             matchMaker
-              .testReadWrite(inputElRef.current?.value || PLACE_HOLDER)
+              .proposeMatch({
+                testMessage: inputElRef.current?.value || PLACE_HOLDER,
+              })
               .then((log) => {
                 setLogs((logs) => [
-                  `[${new Date().toLocaleString()}] ${log}`,
+                  `[${new Date().toLocaleString()}] ${JSON.stringify(log)}`,
                   ...logs,
                 ]);
-                matchMaker.testStop();
                 setStatus("idle");
               });
           }}
         >
-          read/write
+          propseMatch
         </button>
       </div>
       <div style={{ display: "flex", gap: "0.6em" }}>
         <button
           style={{ backgroundColor: "#c6320d" }}
           onClick={() => {
-            matchMaker.testStop().then((log) => {
+            matchMaker.cancelMatch().then((log) => {
               setLogs((logs) => [
-                `[${new Date().toLocaleString()}] ${log}`,
+                `[${new Date().toLocaleString()}] ${JSON.stringify(log)}`,
                 ...logs,
               ]);
               setStatus("idle");
