@@ -10,7 +10,7 @@ export type MatchInfo = {
 };
 
 export interface MatchMakerPort {
-  isInitialized: () => boolean;
+  // isInitialized: () => boolean;
 
   /**
    * Proposes a match to another user by sending the current user's information.

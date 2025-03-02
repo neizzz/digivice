@@ -1,7 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
-import 'package:path_provider/path_provider.dart';
+import 'package:flutter/foundation.dart';
 
 class ServerInfo {
   final String host;
@@ -12,181 +13,168 @@ class ServerInfo {
 
 class StreamingServer {
   HttpServer? _server;
-  List<WebSocket> _clients = [];
+  final List<WebSocket> _clients = [];
   final StreamController<Uint8List> _frameController =
       StreamController<Uint8List>.broadcast();
-  final int _port = 8888;
+  bool _isRunning = false;
 
+  /// 스트리밍 서버 시작
   Future<ServerInfo> start() async {
-    if (_server != null) {
-      return ServerInfo(await _getLocalIpAddress(), _port);
+    if (_isRunning) {
+      final server = _server!;
+      return ServerInfo(server.address.address, server.port);
     }
 
-    _server = await HttpServer.bind(InternetAddress.anyIPv4, _port);
-    print('스트리밍 서버 시작됨: ${_server!.address.address}:${_server!.port}');
+    // 서버 생성
+    _server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    final server = _server!;
 
-    _server!.listen((HttpRequest request) async {
-      if (WebSocketTransformer.isUpgradeRequest(request)) {
-        // WebSocket 연결 처리
-        final socket = await WebSocketTransformer.upgrade(request);
-        _handleWebSocket(socket);
+    _isRunning = true;
+    print('스트리밍 서버가 시작되었습니다: ${server.address.address}:${server.port}');
+
+    // 요청 처리
+    server.listen((HttpRequest request) {
+      final path = request.uri.path;
+
+      if (path == '/stream' || path == '/stream/') {
+        _handleWebSocket(request);
+      } else if (path == '/stream.html') {
+        _handleStreamPage(request);
       } else {
-        // 일반 HTTP 요청 처리
-        switch (request.uri.path) {
-          case '/':
-          case '/index.html':
-            _serveMinimalHtmlPage(request);
-            break;
-          case '/stream':
-            _serveStreamPage(request);
-            break;
-          case '/video':
-            _handleVideoStream(request);
-            break;
-          default:
-            request.response.statusCode = HttpStatus.notFound;
-            request.response.close();
+        request.response.statusCode = HttpStatus.notFound;
+        request.response.close();
+      }
+    });
+
+    // 프레임 처리
+    _frameController.stream.listen((frame) {
+      if (_clients.isEmpty) return;
+
+      final base64Frame = base64Encode(frame);
+      for (var client in _clients) {
+        try {
+          client.add(base64Frame);
+        } catch (e) {
+          print('클라이언트 전송 오류: $e');
         }
       }
     });
 
-    return ServerInfo(await _getLocalIpAddress(), _port);
+    return ServerInfo(server.address.address, server.port);
   }
 
-  void _handleWebSocket(WebSocket socket) {
-    _clients.add(socket);
-
-    socket.listen((data) {
-      // 클라이언트로부터의 메시지 처리
-      print('WebSocket 메시지 수신: $data');
-    }, onDone: () {
-      _clients.remove(socket);
-    }, onError: (error) {
-      print('WebSocket 오류: $error');
-      _clients.remove(socket);
-    });
+  /// 프레임 전송
+  Future<void> sendFrame(Uint8List frame) async {
+    if (!_isRunning || _clients.isEmpty) return;
+    _frameController.add(frame);
   }
 
-  // UI를 최소화한 HTML 페이지 제공
-  void _serveMinimalHtmlPage(HttpRequest request) {
-    request.response
-      ..headers.contentType = ContentType.html
-      ..write('''
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>WebView Stream</title>
-        </head>
-        <body style="margin:0;padding:0;text-align:center;">
-          <img id="stream" src="/video" alt="Stream" style="max-width:100%;">
-        </body>
-        </html>
-      ''')
-      ..close();
-  }
-
-  void _serveStreamPage(HttpRequest request) async {
-    request.response.headers.add('Content-Type', 'image/jpeg');
-    request.response.bufferOutput = false;
-
-    // 최신 프레임이 도착할 때까지 대기
-    final completer = Completer<Uint8List>();
-    late StreamSubscription subscription;
-
-    subscription = _frameController.stream.listen((frame) {
-      if (!completer.isCompleted) {
-        completer.complete(frame);
-        subscription.cancel();
-      }
-    });
-
-    // 타임아웃 설정
-    Future.delayed(Duration(seconds: 5), () {
-      if (!completer.isCompleted) {
-        completer.completeError('타임아웃');
-        subscription.cancel();
-      }
-    });
-
+  /// WebSocket 연결 처리
+  void _handleWebSocket(HttpRequest request) async {
     try {
-      final frame = await completer.future;
-      request.response.add(frame);
+      final socket = await WebSocketTransformer.upgrade(request);
+      _clients.add(socket);
+
+      print('새로운 WebSocket 클라이언트가 연결되었습니다. 총 ${_clients.length}개');
+
+      socket.listen((data) {
+        // 클라이언트 메시지 처리 (필요한 경우)
+      }, onDone: () {
+        _clients.remove(socket);
+        print('WebSocket 클라이언트 연결이 종료되었습니다. 남은 수: ${_clients.length}');
+      }, onError: (error) {
+        _clients.remove(socket);
+        print('WebSocket 오류: $error');
+      });
     } catch (e) {
-      print('스트림 페이지 에러: $e');
-    } finally {
-      await request.response.close();
+      print('WebSocket 연결 실패: $e');
+      request.response.statusCode = HttpStatus.internalServerError;
+      request.response.close();
     }
   }
 
-  void _handleVideoStream(HttpRequest request) {
-    // MJPEG 스트림 구현 (Motion JPEG)
-    request.response.headers
-        .set('Content-Type', 'multipart/x-mixed-replace; boundary=frame');
-    request.response.bufferOutput = false;
-
-    final streamSubscription = _frameController.stream.listen((frame) {
-      request.response.write('--frame\r\n'
-          'Content-Type: image/jpeg\r\n'
-          'Content-Length: ${frame.length}\r\n\r\n');
-      request.response.add(frame);
-      request.response.write('\r\n');
-    });
-
-    request.response.done.then((_) {
-      streamSubscription.cancel();
-    }).catchError((e) {
-      streamSubscription.cancel();
-    });
-  }
-
-  Future<String> _getLocalIpAddress() async {
-    try {
-      final interfaces = await NetworkInterface.list(
-        includeLoopback: false,
-        type: InternetAddressType.IPv4,
-      );
-
-      if (interfaces.isNotEmpty) {
-        for (var interface in interfaces) {
-          if (interface.name.contains('wlan') ||
-              interface.name.contains('en0')) {
-            if (interface.addresses.isNotEmpty) {
-              return interface.addresses.first.address;
-            }
+  /// 스트리밍 페이지 응답
+  void _handleStreamPage(HttpRequest request) {
+    request.response.headers.contentType = ContentType.html;
+    request.response.write('''
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>WebView Stream</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+          body, html { margin: 0; padding: 0; width: 100%; height: 100%; }
+          #videoCanvas { width: 100%; height: 100%; object-fit: contain; }
+        </style>
+      </head>
+      <body>
+        <canvas id="videoCanvas"></canvas>
+        <script>
+          const canvas = document.getElementById('videoCanvas');
+          const ctx = canvas.getContext('2d');
+          const wsUrl = 'ws://' + window.location.host + '/stream';
+          let ws;
+          let reconnectTimer;
+          
+          function setupWebSocket() {
+            ws = new WebSocket(wsUrl);
+            
+            ws.onopen = () => {
+              console.log('WebSocket 연결됨');
+              clearTimeout(reconnectTimer);
+            };
+            
+            ws.onmessage = (event) => {
+              const img = new Image();
+              img.onload = () => {
+                canvas.width = img.width;
+                canvas.height = img.height;
+                ctx.drawImage(img, 0, 0);
+              };
+              img.src = 'data:image/jpeg;base64,' + event.data;
+            };
+            
+            ws.onclose = () => {
+              console.log('WebSocket 연결 종료, 재연결 시도 중...');
+              reconnectTimer = setTimeout(setupWebSocket, 1000);
+            };
+            
+            ws.onerror = (error) => {
+              console.error('WebSocket 오류:', error);
+              ws.close();
+            };
           }
-        }
-        // fallback
-        return interfaces.first.addresses.first.address;
-      }
-    } catch (e) {
-      print('IP 주소 확인 실패: $e');
-    }
-    return '127.0.0.1';
+          
+          setupWebSocket();
+        </script>
+      </body>
+      </html>
+    ''');
+    request.response.close();
   }
 
-  void sendFrame(Uint8List frameData) {
-    _frameController.add(frameData);
-
-    // WebSocket 클라이언트들에게 전송
-    for (var client in _clients) {
-      try {
-        client.add(frameData);
-      } catch (e) {
-        print('WebSocket 전송 오류: $e');
-      }
-    }
-  }
-
+  /// 서버 중지
   Future<void> stop() async {
-    await _server?.close();
-    _server = null;
+    if (!_isRunning) return;
 
-    // WebSocket 연결 종료
-    for (var client in _clients) {
+    // 연결된 클라이언트 모두 종료
+    for (var client in List.from(_clients)) {
       await client.close();
     }
     _clients.clear();
+
+    // 서버 종료
+    await _server?.close(force: true);
+    _server = null;
+    _isRunning = false;
+
+    print('스트리밍 서버가 중지되었습니다');
+  }
+
+  /// 리소스 정리
+  Future<void> dispose() async {
+    await stop();
+    await _frameController.close();
   }
 }

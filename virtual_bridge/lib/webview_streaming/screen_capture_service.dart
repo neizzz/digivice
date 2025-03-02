@@ -3,11 +3,21 @@ import 'dart:typed_data';
 import 'package:webview_flutter/webview_flutter.dart';
 
 class ScreenCaptureService {
-  Future<Uint8List?> captureWebView(WebViewController controller) async {
+  WebViewController? _controller;
+
+  void initialize(WebViewController controller) {
+    _controller = controller;
+  }
+
+  Future<Uint8List?> captureWebView([Uint8List? placeholder]) async {
+    if (_controller == null) {
+      return placeholder;
+    }
+
     try {
       // WebView 화면을 캡처하는 JavaScript 실행
       final String screenshotBase64 =
-          await controller.runJavaScriptReturningResult('''
+          await _controller!.runJavaScriptReturningResult('''
         (function() {
           try {
             const canvas = document.createElement("canvas");
@@ -41,13 +51,13 @@ class ScreenCaptureService {
 
       // 따옴표 제거 (JavaScript 문자열 반환값 처리)
       final cleanBase64 = screenshotBase64.replaceAll('"', '');
-      if (cleanBase64.isEmpty) return null;
+      if (cleanBase64.isEmpty) return placeholder;
 
       // Base64 디코딩
       return base64Decode(cleanBase64);
     } catch (e) {
       print('WebView 캡처 실패: $e');
-      return null;
+      return placeholder;
     }
   }
 }

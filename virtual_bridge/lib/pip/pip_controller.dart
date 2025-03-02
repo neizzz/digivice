@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:digivice_virtual_bridge/pip.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
+/// NOTE: 안드로이드에서 사용
 /// PIP(Picture-in-Picture) 기능의 JavaScript 인터페이스를 관리하는 컨트롤러
 class PipController {
   final AndroidOverlayController _androidOverlayController =

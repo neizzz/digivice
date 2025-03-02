@@ -13,11 +13,11 @@ type InfraNfcController = {
 export class NfcMatchMakerAdapter implements MatchMakerPort {
   constructor() {}
 
-  isInitialized(): boolean {
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore
-    return !!window.nfcController;
-  }
+  // isInitialized(): boolean {
+  //   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  //   // @ts-ignore
+  //   return !!window.nfcController;
+  // }
 
   proposeMatch(matchRequest: MatchRequest): Promise<MatchInfo> {
     return new Promise((resolve, reject) => {

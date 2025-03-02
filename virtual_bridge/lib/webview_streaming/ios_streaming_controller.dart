@@ -1,12 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
+import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'streaming_server.dart';
 
-/// WebView 스트리밍 기능을 위한 통합 컨트롤러
-/// 미니뷰 개념은 웹뷰 측에서만 추상화하여 관리
-class StreamingController {
+/// iOS 환경에서 WebView 스트리밍을 관리하는 컨트롤러
+class IOSStreamingController {
   final Function(String jsCode) runJavaScript;
   final Function({required String id, String? data}) resolvePromise;
   final Function(String message) log;
@@ -19,7 +19,7 @@ class StreamingController {
   int _captureRate = 250; // ms (4프레임/초)
   String _currentQuality = 'medium';
 
-  StreamingController({
+  IOSStreamingController({
     required this.runJavaScript,
     required this.resolvePromise,
     required this.captureWebView,
@@ -29,68 +29,29 @@ class StreamingController {
   /// JavaScript 인터페이스 코드를 반환합니다.
   String getJavaScriptInterface() {
     return '''
-      // StreamingChannel 인터페이스
-      window.StreamingChannel = {
-        postMessage: (rawMessage) => {
-          try {
-            const message = JSON.parse(rawMessage);
-            const { action, data, promiseId } = message;
-            
-            const argObj = { id: promiseId, action, data };
-            __native_streamingRequest.postMessage(JSON.stringify(argObj));
-          } catch (e) {
-            console.error('StreamingChannel error:', e);
-          }
-        }
-      };
-      
-      // WebViewStreamingAPI - 직접 호출 메서드
       window.WebViewStreamingAPI = {
         startStreaming: function() {
-          return StreamingChannel.postMessage(JSON.stringify({
+          StreamingChannel.postMessage(JSON.stringify({
             action: 'startStreaming',
-            data: {},
             promiseId: 'direct_start'
           }));
+          return "스트리밍을 시작합니다";
         },
         
         stopStreaming: function() {
-          return StreamingChannel.postMessage(JSON.stringify({
+          StreamingChannel.postMessage(JSON.stringify({
             action: 'stopStreaming',
-            data: {},
             promiseId: 'direct_stop'
           }));
+          return "스트리밍을 중지합니다";
         },
         
         getStreamingUrl: function() {
-          return StreamingChannel.postMessage(JSON.stringify({
+          StreamingChannel.postMessage(JSON.stringify({
             action: 'getStreamingUrl',
-            data: {},
             promiseId: 'direct_url'
           }));
-        }
-      };
-      
-      // 미니뷰 모드를 위한 더미 인터페이스 (웹뷰에서 처리)
-      window.MiniViewController = {
-        postMessage: (rawMessage) => {
-          try {
-            const message = JSON.parse(rawMessage);
-            const { action, data, promiseId } = message;
-            
-            // 미니뷰는 웹뷰에서만 추상화하여 자체 처리
-            console.log('MiniView action: ' + action);
-            
-            // 성공 응답 반환
-            if (window.__resolvePromise && promiseId) {
-              window.__resolvePromise(promiseId, {
-                success: true,
-                message: 'MiniView action processed in WebView: ' + action
-              });
-            }
-          } catch (e) {
-            console.error('MiniViewController error:', e);
-          }
+          return "스트리밍 URL 요청 중...";
         }
       };
       
@@ -100,6 +61,7 @@ class StreamingController {
           detail: { type: eventName, data: data } 
         });
         document.dispatchEvent(event);
+        console.log('스트리밍 이벤트:', eventName, data);
       };
     ''';
   }
@@ -117,7 +79,7 @@ class StreamingController {
 
     final String action = jsArgs['action'] ?? '';
     final Map<String, dynamic> data = jsArgs['data'] ?? {};
-    final String promiseId = jsArgs['id'] ?? '';
+    final String promiseId = jsArgs['promiseId'] ?? '';
 
     try {
       switch (action) {
@@ -158,8 +120,7 @@ class StreamingController {
             resolvePromise(id: promiseId, data: jsonEncode(status));
           break;
 
-        case 'updateStreamingConfig':
-        case 'updateIosStreamingConfig': // iOS 호환성 유지
+        case 'updateIosStreamingConfig':
           final result = await _updateStreamingConfig(
               quality: data['quality'], captureRate: data['captureRate']);
           if (promiseId.isNotEmpty)
@@ -177,7 +138,7 @@ class StreamingController {
           break;
 
         default:
-          if (promiseId.isNotEmpty && !promiseId.startsWith('direct_'))
+          if (promiseId.isNotEmpty)
             resolvePromise(
                 id: promiseId,
                 data: jsonEncode(
