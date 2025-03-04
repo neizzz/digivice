@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'bridge_configurator.dart';
 
 String mapToString(Map<String, dynamic> map) {
@@ -44,10 +45,18 @@ class WebView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 기본 User Agent 문자열에 플랫폼 정보 추가
+    final String platformInfo = Platform.isAndroid
+        ? 'DigiviceApp-Android'
+        : Platform.isIOS
+            ? 'DigiviceApp-iOS'
+            : 'DigiviceApp-${Platform.operatingSystem}';
+
     // WebViewController 기본 설정
     _controller
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..loadRequest(Uri.parse('http://192.168.219.114:5173/'));
+      ..setUserAgent(platformInfo)
+      ..loadRequest(Uri.parse('http://169.254.217.184:5173/'));
 
     // 브릿지 설정
     _bridgeConfigurator.setupBridge();

@@ -1,13 +1,8 @@
 declare global {
   interface Window {
-    errorLogs: string[];
-    setLogs: (logs: string[]) => string[];
-    pipController?: {
+    PipController?: {
       enterPipMode: () => Promise<void>;
       exitPipMode: () => Promise<void>;
-    };
-    MiniViewController?: {
-      postMessage: (message: string) => void;
     };
     WebViewStreamingAPI?: {
       startStreaming: () => string;

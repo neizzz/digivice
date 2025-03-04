@@ -1,8 +1,7 @@
 import { useRef, useState } from "react";
 import { NfcMatchMakerAdapter } from "./adapter/NfcMatchMakerAdapter";
-import { getMiniViewService, getStreamingService } from "./main";
+import { getMiniViewService } from "./main";
 
-// 타입 에러 제거 - window.errorLogs가 이미 global.d.ts에 정의되어 있음
 window.errorLogs = window.errorLogs || [];
 window.onerror = (err) => {
   window.errorLogs.push(String(err));
@@ -119,7 +118,7 @@ const PrototypeApp = () => {
               const quality = inputElRef.current?.value || "medium";
               getMiniViewService()
                 .enterMiniViewMode(quality)
-                .then((result: MiniViewServiceResult) => {
+                .then((result: unknown) => {
                   setLogs((logs) => [
                     `[${new Date().toLocaleString()}] Mini View Mode Started: ${JSON.stringify(
                       result
@@ -147,7 +146,7 @@ const PrototypeApp = () => {
               setStatus("exiting mini view mode");
               getMiniViewService()
                 .exitMiniViewMode()
-                .then((result: MiniViewServiceResult) => {
+                .then((result: unknown) => {
                   setLogs((logs) => [
                     `[${new Date().toLocaleString()}] Mini View Mode Ended: ${JSON.stringify(
                       result
@@ -168,126 +167,6 @@ const PrototypeApp = () => {
             }}
           >
             Exit Mini View Mode
-          </button>
-        </div>
-      </div>
-
-      {/* Streaming 테스트 버튼들 */}
-      <div style={{ marginTop: "1em" }}>
-        <h3>Streaming Channel Tests</h3>
-        <div style={{ display: "flex", gap: "1em", flexWrap: "wrap" }}>
-          <button
-            style={{ backgroundColor: "#8a2be2" }}
-            onClick={() => {
-              setStatus("starting streaming");
-              const quality = inputElRef.current?.value || "medium";
-              getStreamingService()
-                .startStreaming({ quality, fps: 30 })
-                .then((result: StreamingServiceResult) => {
-                  setLogs((logs) => [
-                    `[${new Date().toLocaleString()}] Start Streaming: ${JSON.stringify(
-                      result
-                    )}`,
-                    ...logs,
-                  ]);
-                  setStatus("idle");
-                })
-                .catch((error) => {
-                  setLogs((logs) => [
-                    `[${new Date().toLocaleString()}] Error: ${JSON.stringify(
-                      error
-                    )}`,
-                    ...logs,
-                  ]);
-                  setStatus("idle");
-                });
-            }}
-          >
-            Start Streaming
-          </button>
-          <button
-            style={{ backgroundColor: "#ff6347" }}
-            onClick={() => {
-              setStatus("stopping streaming");
-              getStreamingService()
-                .stopStreaming()
-                .then((result: StreamingServiceResult) => {
-                  setLogs((logs) => [
-                    `[${new Date().toLocaleString()}] Stop Streaming: ${JSON.stringify(
-                      result
-                    )}`,
-                    ...logs,
-                  ]);
-                  setStatus("idle");
-                })
-                .catch((error) => {
-                  setLogs((logs) => [
-                    `[${new Date().toLocaleString()}] Error: ${JSON.stringify(
-                      error
-                    )}`,
-                    ...logs,
-                  ]);
-                  setStatus("idle");
-                });
-            }}
-          >
-            Stop Streaming
-          </button>
-          <button
-            style={{ backgroundColor: "#3cb371" }}
-            onClick={() => {
-              setStatus("capturing webview");
-              getStreamingService()
-                .captureWebView()
-                .then((result: StreamingServiceResult) => {
-                  setLogs((logs) => [
-                    `[${new Date().toLocaleString()}] Capture WebView: ${JSON.stringify(
-                      result
-                    )}`,
-                    ...logs,
-                  ]);
-                  setStatus("idle");
-                })
-                .catch((error) => {
-                  setLogs((logs) => [
-                    `[${new Date().toLocaleString()}] Error: ${JSON.stringify(
-                      error
-                    )}`,
-                    ...logs,
-                  ]);
-                  setStatus("idle");
-                });
-            }}
-          >
-            Capture WebView
-          </button>
-          <button
-            style={{ backgroundColor: "#4682b4" }}
-            onClick={() => {
-              setStatus("checking status");
-              getStreamingService()
-                .getStreamingStatus()
-                .then((result: StreamingServiceResult) => {
-                  setLogs((logs) => [
-                    `[${new Date().toLocaleString()}] Streaming Status: ${JSON.stringify(
-                      result
-                    )}`,
-                    ...logs,
-                  ]);
-                  setStatus("idle");
-                })
-                .catch((error) => {
-                  setLogs((logs) => [
-                    `[${new Date().toLocaleString()}] Error: ${JSON.stringify(
-                      error
-                    )}`,
-                    ...logs,
-                  ]);
-                  setStatus("idle");
-                });
-            }}
-          >
-            Get Status
           </button>
         </div>
       </div>

@@ -1,12 +1,15 @@
 import 'dart:convert';
-import 'package:digivice_virtual_bridge/pip.dart';
+import 'dart:io';
+import './aos_overlay_controller.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
-/// NOTE: 안드로이드에서 사용
 /// PIP(Picture-in-Picture) 기능의 JavaScript 인터페이스를 관리하는 컨트롤러
 class PipController {
   final AndroidOverlayController _androidOverlayController =
       AndroidOverlayController();
+
+  /// TODO: ios
+
   final Function(String jsCode) runJavaScript;
   final Function({required String id, String? data}) resolvePromise;
   final Function(String message) log;
@@ -42,7 +45,11 @@ class PipController {
     Map<String, dynamic> jsArgs = jsonDecode(message.message);
     try {
       await log('Enter PIP mode request');
-      _androidOverlayController.showOverlay();
+      if (Platform.isAndroid) {
+        _androidOverlayController.showOverlay();
+      } else if (Platform.isIOS) {
+        /// TODO:
+      }
       resolvePromise(id: jsArgs['id'], data: 'PiP enabled');
     } catch (e) {
       resolvePromise(id: jsArgs['id'], data: 'Error: ${e.toString()}');
@@ -54,7 +61,12 @@ class PipController {
     Map<String, dynamic> jsArgs = jsonDecode(message.message);
     try {
       await log('Exit PIP mode request');
-      _androidOverlayController.closeOverlay();
+      if (Platform.isAndroid) {
+        _androidOverlayController.closeOverlay();
+      } else if (Platform.isIOS) {
+        /// TODO:
+      }
+
       resolvePromise(id: jsArgs['id'], data: 'PiP disabled');
     } catch (e) {
       resolvePromise(id: jsArgs['id'], data: 'Error: ${e.toString()}');
@@ -64,7 +76,7 @@ class PipController {
   /// 리소스를 정리합니다.
   void dispose() {
     try {
-      _androidOverlayController.closeOverlay();
+      /// TODO:
     } catch (e) {
       print('PIP 컨트롤러 정리 중 오류: $e');
     }

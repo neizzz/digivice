@@ -1,37 +1,19 @@
-import 'dart:convert';
-import 'dart:typed_data';
-import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
-import 'webview_streaming/streaming_controller.dart';
-import 'webview_streaming/streaming_server.dart';
 import 'nfc/nfc_controller.dart';
 import 'pip/pip_controller.dart';
-import 'webview_streaming/screen_capture_service.dart';
 
 /// WebView와 네이티브 코드 간 브릿지 설정을 담당하는 클래스
 class BridgeConfigurator {
   final WebViewController webViewController;
   final Function(String message) logCallback;
 
-  late final StreamingController _streamingController;
   late final NfcController _nfcController;
   late final PipController _pipController;
-  final ScreenCaptureService _captureService = ScreenCaptureService();
 
   BridgeConfigurator({
     required this.webViewController,
     required this.logCallback,
   }) {
-    // 캡처 서비스 초기화
-    _captureService.initialize(webViewController);
-
-    _streamingController = StreamingController(
-      runJavaScript: _runJavaScript,
-      resolvePromise: _resolvePromise,
-      captureWebView: _handleCaptureWebView,
-      log: logCallback,
-    );
-
     _nfcController = NfcController(
       runJavaScript: _runJavaScript,
       resolvePromise: _resolvePromise,
@@ -51,19 +33,17 @@ class BridgeConfigurator {
     await _setupControllers();
 
     await _addJavaScriptChannels({
-      'initJavascriptInterfaces': (JavaScriptMessage message) =>
+      '__initJavascriptInterfaces': (JavaScriptMessage message) =>
           _initJavascriptInterfaces(message),
-      'native_streamingRequest': (JavaScriptMessage message) =>
-          _streamingController.handleStreamingRequest(message),
-      'native_nfcReadWrite': (JavaScriptMessage message) =>
+      '__native_nfcReadWrite': (JavaScriptMessage message) =>
           _nfcController.handleStartReadWrite(message),
-      'native_nfcHce': (JavaScriptMessage message) =>
+      '__native_nfcHce': (JavaScriptMessage message) =>
           _nfcController.handleStartHce(message),
-      'native_nfcStop': (JavaScriptMessage message) =>
+      '__native_nfcStop': (JavaScriptMessage message) =>
           _nfcController.handleStop(message),
-      'native_pipEnter': (JavaScriptMessage message) =>
+      '__native_pipEnter': (JavaScriptMessage message) =>
           _pipController.handleEnterPip(message),
-      'native_pipExit': (JavaScriptMessage message) =>
+      '__native_pipExit': (JavaScriptMessage message) =>
           _pipController.handleExitPip(message),
     });
 
@@ -99,7 +79,6 @@ class BridgeConfigurator {
 
   /// 컨트롤러 설정
   Future<void> _setupControllers() async {
-    await _runJavaScript(_streamingController.getJavaScriptInterface());
     await _runJavaScript(_nfcController.getJavaScriptInterface());
     await _runJavaScript(_pipController.getJavaScriptInterface());
   }
@@ -137,11 +116,6 @@ class BridgeConfigurator {
     await _runJavaScript(jsCode);
   }
 
-  /// WebView 캡처 처리
-  Future<Uint8List?> _handleCaptureWebView(Uint8List? placeholder) async {
-    return _captureService.captureWebView(placeholder);
-  }
-
   /// JavaScript 인터페이스 초기화
   Future<void> _initJavascriptInterfaces(JavaScriptMessage message) async {
     await _runJavaScript('''
@@ -152,7 +126,6 @@ class BridgeConfigurator {
 
   /// 리소스 정리
   void dispose() {
-    _streamingController.dispose();
     _nfcController.dispose();
     _pipController.dispose();
   }
