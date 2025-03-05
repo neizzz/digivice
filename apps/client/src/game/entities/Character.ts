@@ -1,10 +1,20 @@
 import * as PIXI from "pixi.js";
+import { applyRandomMovement } from "../utils/MovementHelper";
+import {
+  RandomMovementController,
+  MovementOptions,
+} from "../controllers/RandomMovementController";
 
 export class Character extends PIXI.Container {
-  private animatedSprite: PIXI.AnimatedSprite | undefined;
+  public animatedSprite: PIXI.AnimatedSprite | undefined;
+  private movementController: RandomMovementController | null = null;
+  public name: string;
 
-  constructor(spritesheet: PIXI.Spritesheet) {
+  constructor(spritesheet: PIXI.Spritesheet, name: string) {
     super();
+
+    // 캐릭터 이름 설정
+    this.name = name;
 
     try {
       // 사용 가능한 애니메이션 목록 확인 (디버깅용)
@@ -46,5 +56,46 @@ export class Character extends PIXI.Container {
   // 명시적으로 캐릭터 위치 설정하는 메서드 추가
   public setPosition(x: number, y: number): void {
     this.position.set(x, y);
+  }
+
+  /**
+   * 캐릭터에 랜덤 움직임을 적용합니다.
+   * @param app PIXI Application 인스턴스
+   * @param options 움직임 옵션
+   * @returns 생성된 RandomMovementController 인스턴스
+   */
+  public applyRandomMovement(
+    app: PIXI.Application,
+    options?: MovementOptions
+  ): RandomMovementController | null {
+    if (!this.animatedSprite) {
+      console.error("Cannot apply movement: animatedSprite is not initialized");
+      return null;
+    }
+
+    console.log("Applying random movement to character container");
+
+    // 기존 컨트롤러가 있다면 제거
+    this.stopRandomMovement();
+
+    // 애니메이션된 스프라이트 대신 캐릭터 컨테이너에 랜덤 움직임 적용
+    // 이렇게 하면 컨테이너가 움직이고, 스프라이트는 컨테이너에 상대적으로 고정됨
+    this.movementController = applyRandomMovement(
+      this, // 'this.animatedSprite' 대신 'this'를 사용하여 컨테이너에 직접 적용
+      app,
+      options
+    );
+
+    return this.movementController;
+  }
+
+  /**
+   * 적용된 랜덤 움직임을 중지합니다.
+   */
+  public stopRandomMovement(): void {
+    if (this.movementController) {
+      this.movementController.destroy();
+      this.movementController = null;
+    }
   }
 }
