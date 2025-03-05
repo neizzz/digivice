@@ -47,7 +47,7 @@
     "idle": ["idle_0", "idle_1", "idle_2", "idle_3", "idle_4", "idle_5"]
   },
   "meta": {
-    "app": "https://github.com/pixijs/pixijs",
+    "app": "digivice",
     "image": "/game/assets/sprites/test-slime/sprite-sheet.png",
     "format": "RGBA8888",
     "size": { "w": 3780, "h": 480 },
