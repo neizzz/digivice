@@ -23,7 +23,7 @@ class PipController {
   /// JavaScript에 PIP 인터페이스를 제공하는 코드를 반환합니다.
   String getJavaScriptInterface() {
     return '''
-      window.pipController = {
+      window.PipController = {
         enterPipMode: (rawArgObj = {}) => {
           return __createPromise((id) => {
             const argObj = { id, args: rawArgObj };

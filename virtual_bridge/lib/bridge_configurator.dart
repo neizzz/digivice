@@ -32,25 +32,36 @@ class BridgeConfigurator {
     await _setupBasePromiseSystem();
     await _setupControllers();
 
-    await _addJavaScriptChannels({
-      '__initJavascriptInterfaces': (JavaScriptMessage message) =>
-          _initJavascriptInterfaces(message),
-      '__native_nfcReadWrite': (JavaScriptMessage message) =>
-          _nfcController.handleStartReadWrite(message),
-      '__native_nfcHce': (JavaScriptMessage message) =>
-          _nfcController.handleStartHce(message),
-      '__native_nfcStop': (JavaScriptMessage message) =>
-          _nfcController.handleStop(message),
-      '__native_pipEnter': (JavaScriptMessage message) =>
-          _pipController.handleEnterPip(message),
-      '__native_pipExit': (JavaScriptMessage message) =>
-          _pipController.handleExitPip(message),
-    });
-
-    await webViewController
-        .setOnConsoleMessage((JavaScriptConsoleMessage consoleMessage) {
-      logCallback(consoleMessage.message);
-    });
+    // JavaScriptChannel 직접 추가
+    webViewController
+      ..addJavaScriptChannel(
+        '__native_nfcReadWrite',
+        onMessageReceived: (JavaScriptMessage message) =>
+            _nfcController.handleStartReadWrite(message),
+      )
+      ..addJavaScriptChannel(
+        '__native_nfcHce',
+        onMessageReceived: (JavaScriptMessage message) =>
+            _nfcController.handleStartHce(message),
+      )
+      ..addJavaScriptChannel(
+        '__native_nfcStop',
+        onMessageReceived: (JavaScriptMessage message) =>
+            _nfcController.handleStop(message),
+      )
+      ..addJavaScriptChannel(
+        '__native_pipEnter',
+        onMessageReceived: (JavaScriptMessage message) =>
+            _pipController.handleEnterPip(message),
+      )
+      ..addJavaScriptChannel(
+        '__native_pipExit',
+        onMessageReceived: (JavaScriptMessage message) =>
+            _pipController.handleExitPip(message),
+      )
+      ..setOnConsoleMessage((JavaScriptConsoleMessage consoleMessage) {
+        logCallback(consoleMessage.message);
+      });
   }
 
   /// 기본 프로미스 시스템 설정
@@ -83,17 +94,6 @@ class BridgeConfigurator {
     await _runJavaScript(_pipController.getJavaScriptInterface());
   }
 
-  /// JavaScript 채널 추가
-  Future<void> _addJavaScriptChannels(
-      Map<String, void Function(JavaScriptMessage)> channels) async {
-    for (final entry in channels.entries) {
-      await webViewController.addJavaScriptChannel(
-        '__${entry.key}',
-        onMessageReceived: entry.value,
-      );
-    }
-  }
-
   /// JavaScript 코드 실행
   Future<void> _runJavaScript(String javaScript) async {
     try {
@@ -114,14 +114,6 @@ class BridgeConfigurator {
       );
     ''';
     await _runJavaScript(jsCode);
-  }
-
-  /// JavaScript 인터페이스 초기화
-  Future<void> _initJavascriptInterfaces(JavaScriptMessage message) async {
-    await _runJavaScript('''
-      console.log(`Early errors: \${window.errorLogs || '없음'}`);
-    ''');
-    // 컨트롤러는 이미 setupBridge에서 설정되었으므로 별도의 설정은 필요 없음
   }
 
   /// 리소스 정리
