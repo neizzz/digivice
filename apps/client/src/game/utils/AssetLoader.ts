@@ -6,7 +6,7 @@ export interface GameAssets {
 }
 
 export class AssetLoader {
-  private static assets: GameAssets;
+  private static assets?: GameAssets;
   private static isLoading: boolean = false;
   private static loadingPromise: Promise<GameAssets> | null = null;
 

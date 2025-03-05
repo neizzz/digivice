@@ -13,7 +13,7 @@ export class Game {
       height: parentElement.clientHeight,
       backgroundColor: 0xaaaaaa,
       autoDensity: true,
-      // resolution: window.devicePixelRatio || 1,
+      resolution: window.devicePixelRatio || 2, // 해상도를 디바이스 픽셀 비율로 설정하거나 원하는 값(예: 2)으로 설정
     });
 
     // DOM에 캔버스 추가
@@ -25,6 +25,7 @@ export class Game {
 
     // PIXI 앱이 완전히 초기화된 후 init 메서드 실행
     this.waitForAppInitialization().then(() => {
+      console.log("PIXI 애플리케이션 초기화 완료");
       this.init();
     });
   }
@@ -56,6 +57,9 @@ export class Game {
 
     const { width, height } = parent.getBoundingClientRect();
     this.app.renderer.resize(width, height);
+
+    // 리사이징 시에도 해상도 설정 유지
+    this.app.renderer.resolution = window.devicePixelRatio || 2;
 
     if (this.currentScene) {
       this.currentScene.onResize(width, height);

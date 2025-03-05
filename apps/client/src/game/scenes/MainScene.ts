@@ -28,10 +28,8 @@ export class MainScene extends PIXI.Container {
   }
 
   private positionCharacter(): void {
-    this.character.position.set(
-      this.app.view.width / 2,
-      this.app.view.height / 2
-    );
+    const { width, height } = this.app.screen;
+    this.character.position.set(width / 2, height / 2);
   }
 
   public onResize(width: number, height: number): void {
