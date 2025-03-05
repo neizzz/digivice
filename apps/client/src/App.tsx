@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { Game } from "./game";
+import "./App.css"; // CSS 파일을 임포트합니다
 
 const App: React.FC = () => {
   const gameContainerRef = useRef<HTMLDivElement>(null);
@@ -8,10 +9,7 @@ const App: React.FC = () => {
   useEffect(() => {
     // 게임 컨테이너가 준비되면 게임 인스턴스 초기화
     if (gameContainerRef.current) {
-      const containerId = "game-container";
-      gameContainerRef.current.id = containerId;
-
-      gameInstanceRef.current = new Game(containerId);
+      gameInstanceRef.current = new Game(gameContainerRef.current);
     }
 
     // 컴포넌트 언마운트 시 게임 리소스 정리
@@ -24,16 +22,8 @@ const App: React.FC = () => {
   }, []);
 
   return (
-    <div
-      className="app-container"
-      style={{ width: "100%", height: "100vh", overflow: "hidden" }}
-    >
-      <main style={{ width: "100%", height: "calc(100% - 60px)" }}>
-        <div
-          ref={gameContainerRef}
-          style={{ width: "100%", height: "100%", background: "#222" }}
-        />
-      </main>
+    <div id="app-container">
+      <main id="game-container" ref={gameContainerRef}></main>
     </div>
   );
 };

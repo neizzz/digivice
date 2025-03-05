@@ -6,6 +6,7 @@ export class GameEngine {
   private physics: Matter.Engine;
   private runner: Matter.Runner;
   private isRunning: boolean = false;
+  private gameObjects: { sprite: PIXI.Sprite; body: Matter.Body }[] = [];
 
   constructor(width: number = 800, height: number = 600) {
     // PIXI 앱 설정
@@ -68,5 +69,17 @@ export class GameEngine {
       baseTexture: true,
     });
     Matter.Engine.clear(this.physics);
+  }
+
+  // 화면 크기 조정 메서드 추가
+  public resize(width: number, height: number) {
+    this.app.renderer.resize(width, height);
+
+    // 필요하다면 물리 엔진의 크기 제약 조건도 업데이트
+    const bounds = this.physics.world.bounds;
+    if (bounds) {
+      bounds.max.x = width;
+      bounds.max.y = height;
+    }
   }
 }

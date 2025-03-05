@@ -1,0 +1,61 @@
+{
+  "frames": {
+    "idle_0": {
+      "frame": { "x": 0, "y": 0, "w": 630, "h": 480 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 630, "h": 480 },
+      "sourceSize": { "w": 630, "h": 480 }
+    },
+    "idle_1": {
+      "frame": { "x": 630, "y": 0, "w": 630, "h": 480 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 630, "h": 480 },
+      "sourceSize": { "w": 630, "h": 480 }
+    },
+    "idle_2": {
+      "frame": { "x": 1260, "y": 0, "w": 630, "h": 480 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 630, "h": 480 },
+      "sourceSize": { "w": 630, "h": 480 }
+    },
+    "idle_3": {
+      "frame": { "x": 1890, "y": 0, "w": 630, "h": 480 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 630, "h": 480 },
+      "sourceSize": { "w": 630, "h": 480 }
+    },
+    "idle_4": {
+      "frame": { "x": 2520, "y": 0, "w": 630, "h": 480 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 630, "h": 480 },
+      "sourceSize": { "w": 630, "h": 480 }
+    },
+    "idle_5": {
+      "frame": { "x": 3150, "y": 0, "w": 630, "h": 480 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 630, "h": 480 },
+      "sourceSize": { "w": 630, "h": 480 }
+    }
+  },
+  "animations": {
+    "idle": ["idle_0", "idle_1", "idle_2", "idle_3", "idle_4", "idle_5"]
+  },
+  "meta": {
+    "app": "https://github.com/pixijs/pixijs",
+    "image": "/game/assets/sprites/test-slime/sprite-sheet.png",
+    "format": "RGBA8888",
+    "size": { "w": 3780, "h": 480 },
+    "scale": "1",
+    "frameTags": [
+      { "name": "idle", "from": 0, "to": 5, "direction": "forward" }
+    ],
+    "sliceTags": [],
+    "layers": []
+  }
+}
