@@ -25,8 +25,13 @@ export class MainScene extends PIXI.Container {
     this.background = new Background(assets.backgroundTexture);
     this.addChild(this.background);
 
-    // 캐릭터 생성 및 추가 (이름 매개변수 추가)
-    this.character = new Character(assets.slimeSprites, "Slime");
+    // 캐릭터 생성 및 추가 (속도를 더 높게 설정)
+    this.character = new Character({
+      spritesheet: assets.slimeSprites,
+      name: "Slime",
+      initialPosition: { x: window.innerWidth / 2, y: window.innerHeight / 2 },
+      speed: 1,
+    });
     this.addChild(this.character);
 
     // 캐릭터를 씬 중앙에 배치
@@ -59,7 +64,7 @@ export class MainScene extends PIXI.Container {
         maxIdleTime: 5000, // 최대 5초 대기
         minMoveTime: 1500, // 최소 1.5초 이동
         maxMoveTime: 4000, // 최대 4초 이동
-        moveSpeed: 1.5, // 이동 속도 증가
+        // moveSpeed 옵션 제거 - 캐릭터의 speed 속성을 사용함
         boundaryPadding: 50, // 화면 경계 여백
       });
 

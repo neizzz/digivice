@@ -111,6 +111,9 @@ export class RandomMovementController {
     // 각도에서 방향 벡터 계산
     this.direction.x = Math.cos(angle);
     this.direction.y = Math.sin(angle);
+
+    // (cos(angle), sin(angle)) 벡터는 길이가 1인 단위 벡터입니다
+    // √(cos²(angle) + sin²(angle)) = 1 이므로 정규화가 필요 없음
   }
 
   private randomRange(min: number, max: number): number {
@@ -147,10 +150,11 @@ export class RandomMovementController {
 
     // 이동 상태이면 오브젝트 이동
     if (this.state === MovementState.MOVING) {
-      this.sprite.position.x +=
-        this.direction.x * (this.options.moveSpeed || 2);
-      this.sprite.position.y +=
-        this.direction.y * (this.options.moveSpeed || 2);
+      const speed = this.options.moveSpeed || 2;
+
+      // 방향 벡터에 속도 적용 - 단위 벡터이므로 모든 방향에서 같은 속도 유지
+      this.sprite.position.x += this.direction.x * speed;
+      this.sprite.position.y += this.direction.y * speed;
 
       // scale 속성이 있는지 확인하고 이동 방향에 따라 스케일 조정
       if ("scale" in this.sprite) {

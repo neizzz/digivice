@@ -51,7 +51,7 @@
     "image": "/game/assets/sprites/test-slime/sprite-sheet.png",
     "format": "RGBA8888",
     "size": { "w": 3780, "h": 480 },
-    "scale": "2",
+    "scale": "1.4",
     "frameTags": [
       { "name": "idle", "from": 0, "to": 5, "direction": "forward" }
     ],

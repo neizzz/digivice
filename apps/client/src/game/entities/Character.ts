@@ -4,25 +4,41 @@ import {
   RandomMovementController,
   MovementOptions,
 } from "../controllers/RandomMovementController";
+import { Position } from "../types/Position";
 
 export class Character extends PIXI.Container {
   public animatedSprite: PIXI.AnimatedSprite | undefined;
   private movementController: RandomMovementController | null = null;
   public name: string;
+  private speed: number; // 캐릭터 이동 속도
 
-  constructor(spritesheet: PIXI.Spritesheet, name: string) {
+  constructor(params: {
+    spritesheet?: PIXI.Spritesheet;
+    name: string;
+    initialPosition: Position;
+    speed: number;
+  }) {
     super();
 
     // 캐릭터 이름 설정
-    this.name = name;
+    this.name = params.name;
+    this.position.set(params.initialPosition.x, params.initialPosition.y);
+    this.speed = params.speed;
 
     try {
-      // 사용 가능한 애니메이션 목록 확인 (디버깅용)
-      console.log("Available animations:", Object.keys(spritesheet.animations));
+      if (!params.spritesheet) {
+        console.warn("Spritesheet not provided for character");
+        return;
+      }
 
-      // 슬라임 애니메이션 생성 - AssetLoader에서 추가한 접두어 확인
-      // AssetLoader에서 "slime_sprite_" 접두어를 추가했으므로 애니메이션 이름이 그대로인지 확인
-      const idleFrames = spritesheet.animations["idle"];
+      // 사용 가능한 애니메이션 목록 확인 (디버깅용)
+      console.log(
+        "Available animations:",
+        Object.keys(params.spritesheet.animations)
+      );
+
+      // 슬라임 애니메이션 생성
+      const idleFrames = params.spritesheet.animations["idle"];
       if (!idleFrames || idleFrames.length === 0) {
         throw new Error("Idle animation frames not found in spritesheet");
       }
@@ -38,10 +54,6 @@ export class Character extends PIXI.Container {
       // 적절한 크기로 조정
       this.animatedSprite.scale.set(0.3);
 
-      // 명시적으로 위치 설정 (화면 중앙에 배치)
-      this.position.set(window.innerWidth / 2, window.innerHeight / 2);
-
-      // 디버깅용: 스프라이트가 표시되는지 확인
       console.log("Character created successfully:", this.animatedSprite);
     } catch (error) {
       console.error("Error creating character:", error);
@@ -78,13 +90,16 @@ export class Character extends PIXI.Container {
     // 기존 컨트롤러가 있다면 제거
     this.stopRandomMovement();
 
+    // 캐릭터의 speed 속성을 직접 moveSpeed로 사용
+    const updatedOptions: MovementOptions = {
+      ...(options || {}),
+      moveSpeed: this.speed, // 캐릭터의 speed 속성을 직접 사용
+    };
+
+    console.log(`Using character speed for movement: ${this.speed}`);
+
     // 애니메이션된 스프라이트 대신 캐릭터 컨테이너에 랜덤 움직임 적용
-    // 이렇게 하면 컨테이너가 움직이고, 스프라이트는 컨테이너에 상대적으로 고정됨
-    this.movementController = applyRandomMovement(
-      this, // 'this.animatedSprite' 대신 'this'를 사용하여 컨테이너에 직접 적용
-      app,
-      options
-    );
+    this.movementController = applyRandomMovement(this, app, updatedOptions);
 
     return this.movementController;
   }

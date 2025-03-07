@@ -3,7 +3,10 @@ import * as PIXI from "pixi.js";
 export class DebugHelper {
   private static debugContainers: Map<PIXI.DisplayObject, PIXI.Container> =
     new Map();
-  private static updateFunctions: Map<PIXI.DisplayObject, Function> = new Map();
+  private static updateFunctions: Map<
+    PIXI.DisplayObject,
+    PIXI.TickerCallback<unknown>
+  > = new Map();
   private static enabled: boolean = false;
   private static app: PIXI.Application | null = null;
 
