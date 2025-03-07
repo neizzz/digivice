@@ -6,6 +6,7 @@ import "./index.css";
 import { AosMiniViewAdapter } from "./adapter/AosMiniViewAdapter.ts";
 import { PlatformAdapter } from "./adapter/PlatformAdapter.ts";
 import { MiniViewService } from "./application/service/MiniViewService.ts";
+import SimpleLogViewer from "../components/SimpleLogViewer/SimpleLogViewer.tsx";
 
 // 미니뷰 서비스 등 기존 코드
 export const getMiniViewService = () => {
@@ -44,12 +45,15 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // 환경변수를 사용하여 테스트 모드 확인
-const isTestMode = import.meta.env.NATIVE_FEATURE_TEST_MODE === "true";
-console.log(`애플리케이션 모드: ${isTestMode ? "TEST" : "NORMAL"}`);
+const isNativeFeatureTestMode =
+  import.meta.env.NATIVE_FEATURE_TEST_MODE === "true";
+console.log(
+  `애플리케이션 모드: ${isNativeFeatureTestMode ? "TEST" : "NORMAL"}`
+);
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    {/* 개발 모드에서는 테스트 모드면 PrototypeApp을, 아니면 App을 사용 */}
-    {isTestMode ? <PrototypeApp /> : <App />}
+    {isNativeFeatureTestMode ? <PrototypeApp /> : <App />}
+    <SimpleLogViewer position="top-right" initialOpen={false} />
   </React.StrictMode>
 );

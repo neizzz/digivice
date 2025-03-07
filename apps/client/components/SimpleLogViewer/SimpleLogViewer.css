@@ -1,0 +1,168 @@
+.simple-log-viewer {
+  position: fixed;
+  z-index: 9999;
+  width: 400px;
+  max-width: 90vw;
+}
+
+.simple-log-viewer.bottom-right {
+  right: 20px;
+  bottom: 20px;
+}
+
+.simple-log-viewer.bottom-left {
+  left: 20px;
+  bottom: 20px;
+}
+
+.simple-log-viewer.top-right {
+  right: 20px;
+  top: 20px;
+}
+
+.simple-log-viewer.top-left {
+  left: 20px;
+  top: 20px;
+}
+
+.simple-log-viewer-toggle {
+  position: absolute;
+  padding: 5px 10px;
+  background-color: #333;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  z-index: 10000;
+}
+
+.simple-log-viewer-toggle:hover {
+  opacity: 1;
+}
+
+/* 위치에 따른 토글 버튼 배치 */
+.simple-log-viewer.bottom-right .simple-log-viewer-toggle,
+.simple-log-viewer.bottom-left .simple-log-viewer-toggle {
+  right: 0;
+  bottom: 100%;
+  margin-bottom: 5px;
+}
+
+.simple-log-viewer.top-right .simple-log-viewer-toggle,
+.simple-log-viewer.top-left .simple-log-viewer-toggle {
+  right: 0;
+  top: 100%;
+  margin-top: 5px;
+}
+
+.simple-log-viewer-container {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+  overflow: hidden;
+  font-family: monospace;
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+}
+
+.simple-log-viewer-container:hover {
+  opacity: 1;
+}
+
+.simple-log-viewer.closed .simple-log-viewer-container {
+  display: none;
+}
+
+.simple-log-viewer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(221, 221, 221, 0.2);
+  color: rgb(0, 255, 0);
+}
+
+.simple-log-viewer-header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* 헤더 내 버튼 그룹에 대한 스타일 추가 */
+.log-header-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+/* 닫기 버튼 스타일 */
+.close-logs-button {
+  background-color: #333;
+  border: 1px solid rgba(204, 204, 204, 0.7);
+  border-radius: 3px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background-color 0.2s;
+}
+
+.clear-logs-button {
+  background-color: #333;
+  border: 1px solid rgba(204, 204, 204, 0.7);
+  border-radius: 3px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background-color 0.2s;
+}
+
+.simple-log-entries-container {
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.simple-log-entry {
+  margin-bottom: 4px;
+  padding: 4px 8px;
+  border-radius: 2px;
+  font-size: 13px;
+  line-height: 1.4;
+  word-break: break-all;
+  white-space: pre-wrap;
+  background-color: rgba(255, 255, 255, 0.5);
+}
+
+.simple-log-empty-message {
+  color: #888;
+  text-align: center;
+  padding: 20px;
+  font-style: italic;
+}
+
+.simple-log-timestamp {
+  color: #666;
+  margin-right: 6px;
+}
+
+.simple-log-level-info {
+  border-left: 3px solid rgba(33, 150, 243, 0.8);
+}
+
+.simple-log-level-warning {
+  border-left: 3px solid rgba(255, 152, 0, 0.8);
+  background-color: rgba(255, 152, 0, 0.05);
+}
+
+.simple-log-level-error {
+  border-left: 3px solid rgba(244, 67, 54, 0.8);
+  background-color: rgba(244, 67, 54, 0.05);
+}
+
+.simple-log-level-success {
+  border-left: 3px solid rgba(76, 175, 80, 0.8);
+  background-color: rgba(76, 175, 80, 0.05);
+}
+
+.simple-log-level-debug {
+  border-left: 3px solid rgba(158, 158, 158, 0.8);
+  color: #666;
+}
