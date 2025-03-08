@@ -41,9 +41,9 @@ export class AssetLoader {
     try {
       // 에셋 경로 설정
       const assetMap = {
-        backgroundTile: "/game/assets/tiles/grass-tile.jpg",
-        slimeSheet: "/game/assets/sprites/test-slime/sprite-sheet.png",
-        slimeData: "/game/assets/sprites/test-slime/metadata.json",
+        backgroundTile: "/game/tiles/grass-tile.jpg",
+        slimeSheet: "/game/sprites/test-slime/sprite-sheet.png",
+        slimeData: "/game/sprites/test-slime/metadata.json",
       };
 
       // 에셋 로딩
@@ -62,12 +62,17 @@ export class AssetLoader {
         delete slimeData.frames[frameKey];
       }
 
-      // 애니메이션 ID도 업데이트
+      // 애니메이션 ID는 그대로 유지하고 프레임만 업데이트 (중요 변경)
       for (const animKey in slimeData.animations) {
         slimeData.animations[animKey] = slimeData.animations[animKey].map(
           (frameId: string) => uniquePrefix + frameId
         );
       }
+
+      console.log(
+        "Animation data after processing:",
+        Object.keys(slimeData.animations)
+      );
 
       // 배경 텍스처 생성
       const backgroundTexture = PIXI.Texture.from(assetMap.backgroundTile);
@@ -76,6 +81,12 @@ export class AssetLoader {
       const baseTexture = PIXI.BaseTexture.from(assetMap.slimeSheet);
       const slimeSprites = new PIXI.Spritesheet(baseTexture, slimeData);
       await slimeSprites.parse();
+
+      // 로딩된 스프라이트시트 확인
+      console.log(
+        "Spritesheet parsed successfully:",
+        Object.keys(slimeSprites.animations)
+      );
 
       // 로딩된 에셋 저장
       this.assets = {
