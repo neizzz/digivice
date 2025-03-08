@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from "react";
-import { Game } from "./game";
-import "./App.css"; // CSS 파일을 임포트합니다
+import { Game } from "@digivice/game";
+import "./App.css";
 
 const App: React.FC = () => {
   const gameContainerRef = useRef<HTMLDivElement>(null);

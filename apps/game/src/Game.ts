@@ -3,15 +3,7 @@ import { Scene } from "./interfaces/Scene";
 import { MainScene } from "./scenes/MainScene";
 import { AssetLoader } from "./utils/AssetLoader";
 import { DebugHelper } from "./utils/DebugHelper";
-
-// Scene 키를 열거형으로 정의하여 타입 안전성 확보
-export enum SceneKey {
-  MAIN = "main",
-  // 나중에 추가될 씬들
-  // BATTLE = "battle",
-  // INVENTORY = "inventory",
-  // 등등...
-}
+import { SceneKey } from "./SceneKey";
 
 export class Game {
   private app: PIXI.Application;
@@ -48,16 +40,16 @@ export class Game {
    */
   private waitForAppInitialization(): Promise<void> {
     return new Promise<void>((resolve) => {
-      // 첫 번째 렌더링 후에는 초기화가 완료된 것으로 간주
-      const renderer = this.app.renderer;
-      renderer.on("postrender", function onPostRender() {
-        // 핸들러는 한 번만 실행되도록 제거
-        renderer.off("postrender", onPostRender);
+      // PIXI v7에서는 렌더러의 postrender 이벤트 대신
+      // app.ticker를 이용해 첫 프레임 렌더링 확인
+      const onFirstRender = () => {
+        // 한 번 실행 후 제거
+        this.app.ticker.remove(onFirstRender);
         resolve();
-      });
+      };
 
-      // 안전장치: 일정 시간 후에도 이벤트가 발생하지 않으면 resolve
-      // setTimeout(resolve, 1000);
+      // 다음 프레임에서 초기화 완료로 간주
+      this.app.ticker.add(onFirstRender);
     });
   }
 
