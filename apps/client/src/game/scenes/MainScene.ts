@@ -1,10 +1,11 @@
 import * as PIXI from "pixi.js";
+import { Scene } from "../interfaces/Scene";
 import { Background } from "../entities/Background";
 import { Character } from "../entities/Character";
 import { AssetLoader } from "../utils/AssetLoader";
 import { DebugHelper } from "../utils/DebugHelper";
 
-export class MainScene extends PIXI.Container {
+export class MainScene extends PIXI.Container implements Scene {
   private app: PIXI.Application;
   private background: Background;
   private character: Character;
