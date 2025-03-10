@@ -71,11 +71,9 @@ export class MainScene extends PIXI.Container implements Scene {
    * 캐릭터에 랜덤 움직임을 적용하는 메서드
    */
   private applyCharacterMovement(): void {
-    console.log("Applying movement to character in MainScene");
-
     // 약간의 딜레이를 주어 캐릭터가 완전히 초기화된 후에 움직임을 적용
     setTimeout(() => {
-      const controller = this.character.applyRandomMovement(this.app, {
+      this.character.applyRandomMovement(this.app, {
         minIdleTime: 2000, // 최소 2초 대기
         maxIdleTime: 5000, // 최대 5초 대기
         minMoveTime: 1500, // 최소 1.5초 이동
@@ -83,8 +81,6 @@ export class MainScene extends PIXI.Container implements Scene {
         // moveSpeed 옵션 제거 - 캐릭터의 speed 속성을 사용함
         boundaryPadding: 50, // 화면 경계 여백
       });
-
-      console.log("Movement controller created:", controller);
     }, 500);
   }
 

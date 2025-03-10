@@ -136,7 +136,7 @@ export class Character extends PIXI.Container {
       return null;
     }
 
-    console.log("Applying random movement to character container");
+    console.log(`Initializing random movement for character: ${this.name}`);
 
     // 기존 컨트롤러가 있다면 제거
     this.stopRandomMovement();

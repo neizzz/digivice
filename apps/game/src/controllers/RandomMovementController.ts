@@ -89,7 +89,7 @@ export class RandomMovementController {
         this.options.maxMoveTime || 5000
       );
       this.chooseRandomDirection();
-      console.log("Changed to MOVING state", this.direction);
+      console.debug("Changed to MOVING state", this.direction);
     } else {
       this.state = MovementState.IDLE;
       this.currentStateDuration = this.randomRange(
@@ -98,7 +98,7 @@ export class RandomMovementController {
       );
       this.direction.x = 0;
       this.direction.y = 0;
-      console.log("Changed to IDLE state");
+      console.debug("Changed to IDLE state");
     }
 
     this.stateTimer = 0;

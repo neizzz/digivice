@@ -8,6 +8,7 @@ interface LogEntry {
   message: string;
   timestamp: Date;
   level: LogLevel;
+  source?: string; // 로그 출처 정보 추가
 }
 
 interface SimpleLogViewerProps {
@@ -18,12 +19,16 @@ interface SimpleLogViewerProps {
   title?: string;
 }
 
+// Vite 빌드타임에 환경 변수 값을 정적으로 대체
+const IS_LOG_VIEWER_ENABLED = import.meta.env.VITE_ENABLE_LOG_VIEWER === true;
+
 // 싱글톤으로 로그 관리
 class LogManager {
   private static instance: LogManager;
   private logs: LogEntry[] = [];
   private maxLogs: number = 100;
   private listeners: ((logs: LogEntry[]) => void)[] = [];
+  private enabled: boolean = IS_LOG_VIEWER_ENABLED;
 
   private constructor() {}
 
@@ -42,16 +47,28 @@ class LogManager {
     return [...this.logs];
   }
 
+  public isEnabled(): boolean {
+    return this.enabled;
+  }
+
   private generateId(): string {
     return Date.now().toString() + Math.random().toString(36).substr(2, 9);
   }
 
-  public addLog(message: string, level: LogLevel = "info"): void {
+  public addLog(
+    message: string,
+    level: LogLevel = "info",
+    source?: string
+  ): void {
+    // 빌드 타임에 결정되는 상수를 사용하여 조건부 컴파일
+    if (!IS_LOG_VIEWER_ENABLED) return;
+
     const newLog: LogEntry = {
       id: this.generateId(),
       message,
       level,
       timestamp: new Date(),
+      source,
     };
 
     this.logs.push(newLog);
@@ -82,64 +99,106 @@ class LogManager {
   }
 
   // 편의성 메서드들
-  public info(message: string): void {
-    this.addLog(message, "info");
+  public info(message: string, source?: string): void {
+    this.addLog(message, "info", source);
   }
 
-  public warn(message: string): void {
-    this.addLog(message, "warning");
+  public warn(message: string, source?: string): void {
+    this.addLog(message, "warning", source);
   }
 
-  public error(message: string): void {
-    this.addLog(message, "error");
+  public error(message: string, source?: string): void {
+    this.addLog(message, "error", source);
   }
 
-  public success(message: string): void {
-    this.addLog(message, "success");
+  public success(message: string, source?: string): void {
+    this.addLog(message, "success", source);
   }
 
-  public debug(message: string): void {
-    this.addLog(message, "debug");
+  public debug(message: string, source?: string): void {
+    this.addLog(message, "debug", source);
   }
 }
 
 // 전역 로그 매니저 인스턴스
 export const logManager = LogManager.getInstance();
 
-// console 메서드 오버라이드 (단순화된 버전)
-const overrideConsole = () => {
-  const originalConsoleLog = console.log;
-  const originalConsoleWarn = console.warn;
-  const originalConsoleError = console.error;
+// 호출 위치를 파악하는 유틸리티 함수
+// Vite는 빌드 시점에 IS_LOG_VIEWER_ENABLED가 false인 경우 데드 코드로 간주하고 제거
+const getCallerInfo = IS_LOG_VIEWER_ENABLED
+  ? () => {
+      try {
+        const stackLines = new Error().stack?.split("\n");
+        if (stackLines && stackLines.length >= 4) {
+          // 0: Error, 1: getCallerInfo, 2: 오버라이드된 콘솔 메서드, 3: 실제 호출자
+          const callerLine = stackLines[3].trim();
+          // "at 함수명 (파일:행:열)" 형식에서 정보 추출
+          const match = callerLine.match(/at\s+(.*)\s+\((.*):(\d+):(\d+)\)/);
+          if (match) {
+            const [, , filePath, line] = match;
+            // 파일 경로에서 파일명만 추출
+            const fileName = filePath.split("/").pop() || filePath;
+            return `${fileName}:${line}`;
+          }
 
-  console.log = (...args) => {
-    // 단순히 첫 번째 인자만 문자열로 취급
-    const message = String(args[0] || "");
-    logManager.info(message);
-    originalConsoleLog.apply(console, args);
-  };
+          // 기타 형식의 스택 트레이스 처리 ("at 파일:행:열" 형식)
+          const altMatch = callerLine.match(/at\s+(.*):(\d+):(\d+)/);
+          if (altMatch) {
+            const [, filePath, line] = altMatch;
+            const fileName = filePath.split("/").pop() || filePath;
+            return `${fileName}:${line}`;
+          }
+        }
+      } catch (err) {
+        // 에러 발생 시 무시
+      }
+      return "unknown";
+    }
+  : () => "unknown";
 
-  console.warn = (...args) => {
-    const message = String(args[0] || "");
-    logManager.warn(message);
-    originalConsoleWarn.apply(console, args);
-  };
+// console 메서드 오버라이드 (조건부 컴파일 적용)
+const overrideConsole = IS_LOG_VIEWER_ENABLED
+  ? () => {
+      const originalConsoleLog = console.log;
+      const originalConsoleWarn = console.warn;
+      const originalConsoleError = console.error;
 
-  console.error = (...args) => {
-    const message = String(args[0] || "");
-    logManager.error(message);
-    originalConsoleError.apply(console, args);
-  };
-};
+      console.log = (...args) => {
+        const source = getCallerInfo();
+        const message = String(args[0] || "");
+        logManager.info(message, source);
+        originalConsoleLog.apply(console, args);
+      };
 
-// 실제 컴포넌트
-const SimpleLogViewer: React.FC<SimpleLogViewerProps> = ({
-  initialOpen = false,
-  position = "top-right", // 기본값을 top-right로 변경
-  maxHeight = "300px",
-  maxLogs = 500,
-  title = "로그 뷰어",
-}) => {
+      console.warn = (...args) => {
+        const source = getCallerInfo();
+        const message = String(args[0] || "");
+        logManager.warn(message, source);
+        originalConsoleWarn.apply(console, args);
+      };
+
+      console.error = (...args) => {
+        const source = getCallerInfo();
+        const message = String(args[0] || "");
+        logManager.error(message, source);
+        originalConsoleError.apply(console, args);
+      };
+    }
+  : () => {};
+
+// 실제 컴포넌트 (조건부 컴파일 적용)
+const SimpleLogViewer: React.FC<SimpleLogViewerProps> = (props) => {
+  // 환경 변수가 false인 경우 빌드타임에 제거됨
+  if (!IS_LOG_VIEWER_ENABLED) return null;
+
+  const {
+    initialOpen = false,
+    position = "top-right",
+    maxHeight = "300px",
+    maxLogs = 500,
+    title = "로그 뷰어",
+  } = props;
+
   const [isOpen, setIsOpen] = useState(initialOpen);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const logContainerRef = useRef<HTMLDivElement>(null);
@@ -239,6 +298,9 @@ const SimpleLogViewer: React.FC<SimpleLogViewerProps> = ({
                   <span className="simple-log-timestamp">
                     [{formatTime(log.timestamp)}]
                   </span>
+                  {log.source && (
+                    <span className="simple-log-source">[{log.source}]</span>
+                  )}
                   <span className="simple-log-message">{log.message}</span>
                 </div>
               ))
@@ -250,4 +312,8 @@ const SimpleLogViewer: React.FC<SimpleLogViewerProps> = ({
   );
 };
 
+// 빌드 시점에 환경 변수 값에 따른 조건부 내보내기
 export default SimpleLogViewer;
+
+// 유틸리티 함수: 로그 관리자가 활성화되어 있는지 확인
+export const isLogViewerEnabled = () => IS_LOG_VIEWER_ENABLED;
