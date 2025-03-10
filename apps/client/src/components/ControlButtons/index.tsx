@@ -3,8 +3,8 @@ import styled from "styled-components";
 import ControlButton, { ControlButtonType } from "./ControlButton";
 
 interface ControlButtonsProps {
-  onLeftClick?: () => void;
-  onRightClick?: () => void;
+  onCancelClick?: () => void; // 왼쪽 버튼을 Cancel 기능으로 변경
+  onNextClick?: () => void; // onRightClick에서 onNextClick으로 변경
   onSelectClick?: () => void;
 }
 
@@ -17,16 +17,16 @@ const ButtonContainer = styled.div`
 `;
 
 const ControlButtons: React.FC<ControlButtonsProps> = ({
-  onLeftClick,
-  onRightClick,
+  onCancelClick,
+  onNextClick, // onRightClick에서 onNextClick으로 변경
   onSelectClick,
 }) => {
   return (
     <ButtonContainer>
-      {/* 왼쪽 버튼 */}
+      {/* 왼쪽 버튼 - Cancel 기능 */}
       <ControlButton
         buttonType={ControlButtonType.GRAY}
-        onClick={onLeftClick}
+        onClick={onCancelClick}
       />
 
       {/* 가운데 선택 버튼 */}
@@ -35,10 +35,10 @@ const ControlButtons: React.FC<ControlButtonsProps> = ({
         onClick={onSelectClick}
       />
 
-      {/* 오른쪽 버튼 */}
+      {/* 오른쪽 버튼 - Next 기능 */}
       <ControlButton
         buttonType={ControlButtonType.GREEN}
-        onClick={onRightClick}
+        onClick={onNextClick} // onRightClick에서 onNextClick으로 변경
       />
     </ButtonContainer>
   );

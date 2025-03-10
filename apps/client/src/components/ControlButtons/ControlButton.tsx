@@ -1,4 +1,4 @@
-import React, { MouseEvent, useState } from "react";
+import React, { useState } from "react";
 import styled from "styled-components";
 
 // 버튼 타입 정의 (새로운 색상으로 업데이트)
@@ -72,26 +72,20 @@ const ControlButton: React.FC<ControlButtonProps> = ({
   // 버튼 누름 상태에 따른 스프라이트 정보 선택
   const spriteState = isPressed ? "pressed" : "normal";
   const spriteInfo = buttonSpriteMap[buttonType][spriteState];
-  console.log(spriteInfo);
 
-  const handleMouseDown = (e: MouseEvent) => {
-    e.preventDefault();
+  // 이벤트 처리를 단순화하고 최적화
+  const handlePointerDown = () => {
     setIsPressed(true);
   };
 
-  const handleMouseUp = (e: MouseEvent) => {
-    e.preventDefault();
+  const handlePointerUp = () => {
     setIsPressed(false);
-  };
-
-  const handleMouseLeave = (e: MouseEvent) => {
-    e.preventDefault();
-    if (isPressed) setIsPressed(false);
-  };
-
-  const handleClick = (e: MouseEvent) => {
-    e.preventDefault();
+    // 버튼을 눌렀다가 뗄 때 onClick 핸들러 호출
     if (onClick) onClick();
+  };
+
+  const handlePointerLeave = () => {
+    if (isPressed) setIsPressed(false);
   };
 
   return (
@@ -100,11 +94,9 @@ const ControlButton: React.FC<ControlButtonProps> = ({
       y={spriteInfo.y}
       width={spriteInfo.width}
       height={spriteInfo.height}
-      onClick={handleClick}
-      onPointerDown={handleMouseDown}
-      onPointerUp={handleMouseUp}
-      onPointerLeave={handleMouseLeave}
-      onContextMenu={(e) => e.preventDefault()}
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      onPointerLeave={handlePointerLeave}
       className={className}
       aria-label={`${buttonType} Control Button`}
     />

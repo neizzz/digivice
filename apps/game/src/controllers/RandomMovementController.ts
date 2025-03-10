@@ -65,7 +65,7 @@ export class RandomMovementController {
     // 업데이트 이벤트 리스너 등록
     this.app.ticker.add(this.update, this);
 
-    console.log("RandomMovementController initialized", this.sprite);
+    console.debug("RandomMovementController initialized", this.sprite);
   }
 
   private updateBounds(): void {
