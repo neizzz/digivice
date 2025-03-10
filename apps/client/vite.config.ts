@@ -1,6 +1,29 @@
-import { defineConfig, loadEnv } from "vite";
+import { defineConfig, loadEnv, Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import { resolve } from "path";
+import fs from "fs";
+
+// 디버그 플러그인 생성
+const createDebugPlugin = (): Plugin => ({
+  name: "debug-plugin",
+  configureServer(server) {
+    server.middlewares.use((req, res, next) => {
+      console.log(`[Debug] Request: ${req.method} ${req.url}`);
+      if (req.url?.startsWith("/game/")) {
+        console.log(`[Asset] Loading game asset: ${req.url}`);
+
+        // 파일 존재 확인
+        const filePath = resolve(__dirname, "public", req.url);
+        if (fs.existsSync(filePath)) {
+          console.log(`[Asset] File exists at: ${filePath}`);
+        } else {
+          console.error(`[Asset] File not found: ${filePath}`);
+        }
+      }
+      next();
+    });
+  },
+});
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
@@ -9,30 +32,68 @@ export default defineConfig(({ mode }) => {
 
   // 테스트 모드 확인
   const isTestMode = env.NATIVE_FEATURE_TEST_MODE === "true";
-  const isDev = mode === "development";
 
   console.log(`Building in ${isTestMode ? "TEST" : "NORMAL"} mode`);
 
+  // 에셋 디버깅: 공용 폴더 내용 확인
+  const publicDir = resolve(__dirname, "public");
+  const gameDir = resolve(publicDir, "game");
+
+  console.log(">>> Checking directories at startup:");
+
+  if (fs.existsSync(publicDir)) {
+    console.log(`Public dir exists: ${publicDir}`);
+    console.log(`Contents: ${fs.readdirSync(publicDir).join(", ")}`);
+  } else {
+    console.error(`Public dir missing: ${publicDir}`);
+    // 필요한 경우 디렉토리 생성
+    fs.mkdirSync(publicDir, { recursive: true });
+    console.log("Created public directory");
+  }
+
+  if (fs.existsSync(gameDir)) {
+    console.log(`Game dir exists: ${gameDir}`);
+    console.log(`Contents: ${fs.readdirSync(gameDir).join(", ")}`);
+
+    // sprites 폴더 확인
+    const spritesDir = resolve(gameDir, "sprites");
+    if (fs.existsSync(spritesDir)) {
+      console.log(`Sprites dir exists: ${spritesDir}`);
+      console.log(`Contents: ${fs.readdirSync(spritesDir).join(", ")}`);
+
+      // test-slime 폴더 확인
+      const slimeDir = resolve(spritesDir, "test-slime");
+      if (fs.existsSync(slimeDir)) {
+        console.log(`Slime dir exists: ${slimeDir}`);
+        console.log(`Contents: ${fs.readdirSync(slimeDir).join(", ")}`);
+      } else {
+        console.error(`Slime dir missing: ${slimeDir}`);
+      }
+    } else {
+      console.error(`Sprites dir missing: ${spritesDir}`);
+    }
+  } else {
+    console.error(`Game dir missing: ${gameDir}`);
+    // 필요한 경우 게임 디렉토리 생성
+    fs.mkdirSync(gameDir, { recursive: true });
+    console.log("Created game directory");
+  }
+
   return {
-    plugins: [react()],
+    plugins: [react(), createDebugPlugin()],
     define: {
-      // 클라이언트에서 사용하기 위해 전역 변수로 설정 (선택사항)
       __TEST_MODE__: isTestMode,
     },
-    // game 라이브러리와의 통합을 위한 설정
     resolve: {
       alias: {
-        // 개발환경에서는 소스 코드 직접 참조, 프로덕션에서는 빌드된 버전 사용
-        "@digivice/game": isDev
-          ? resolve(__dirname, "../game/src")
-          : resolve(__dirname, "../game/dist"),
+        "@digivice/game": resolve(__dirname, "../game/src"),
       },
     },
+    // 정적 파일 디렉토리 명시적 설정
+    publicDir: "public",
     optimizeDeps: {
-      // TypeScript 파일을 직접 포함
       include: ["pixi.js", "matter-js"],
       esbuildOptions: {
-        // .ts 파일도 처리하도록 설정
         loader: {
           ".ts": "tsx",
         },
@@ -40,7 +101,6 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       watch: {
-        // game 패키지의 변경사항 감지
         ignored: ["!**/node_modules/**"],
       },
     },

@@ -10,6 +10,7 @@ export class Game {
   private currentScene?: Scene;
   private scenes: Map<SceneKey, Scene> = new Map();
   private currentSceneKey?: SceneKey;
+  private assetsLoaded: boolean = false;
 
   constructor(parentElement: HTMLElement) {
     // PIXI 애플리케이션 생성
@@ -28,10 +29,53 @@ export class Game {
     window.addEventListener("resize", this.onResize.bind(this));
     this.onResize();
 
-    // PIXI 앱이 완전히 초기화된 후 init 메서드 실행
+    // 초기화 프로세스 시작
+    this.startInitialization();
+  }
+
+  /**
+   * 초기화 프로세스를 시작합니다 (비동기 작업을 동기적으로 관리)
+   */
+  private startInitialization(): void {
+    console.log("게임 초기화 프로세스 시작");
+
+    // PIXI 앱이 렌더링 준비되면 에셋 로딩 시작
     this.waitForAppInitialization().then(() => {
       console.log("PIXI 애플리케이션 초기화 완료");
-      this.init();
+
+      // 에셋 로딩 시작 (비동기 작업이지만 동기적으로 관리)
+      AssetLoader.loadAssets()
+        .then(() => {
+          this.assetsLoaded = true;
+          console.log("에셋 로딩 완료");
+
+          // 기본 씬 설정
+          this.setupInitialScene();
+
+          // 게임 루프 설정
+          this.setupGameLoop();
+        })
+        .catch((error) => {
+          console.error("에셋 로딩 오류:", error);
+        });
+    });
+  }
+
+  /**
+   * 기본 씬을 설정합니다
+   */
+  private setupInitialScene(): void {
+    this.changeScene(SceneKey.MAIN);
+  }
+
+  /**
+   * 게임 루프를 설정합니다
+   */
+  private setupGameLoop(): void {
+    // 고정 델타타임으로 업데이트 설정 (250ms)
+    this.app.ticker.add(() => {
+      const fixedDelta = (250 / 1000) * 60;
+      this.update(fixedDelta);
     });
   }
 
@@ -71,41 +115,30 @@ export class Game {
     }
   }
 
-  private async init(): Promise<void> {
-    try {
-      // 에셋 로딩 - Scene 생성 전에 먼저 실행
-      await AssetLoader.loadAssets();
-
-      // 모든 씬을 내부적으로 생성하고 등록
-      this.initializeScenes();
-
-      // 기본적으로 메인 씬으로 시작
-      this.changeScene(SceneKey.MAIN);
-
-      // Override ticker to use fixed deltaTime of 250ms;
-      this.app.ticker.add(() => {
-        // Convert 250ms to PIXI's delta time format (60 = 1 second)
-        const fixedDelta = (250 / 1000) * 60;
-        this.update(fixedDelta);
-      });
-    } catch (error) {
-      console.error("게임 초기화 오류:", error);
-    }
-  }
-
   /**
-   * 게임에 필요한 모든 씬을 초기화하고 등록합니다
+   * SceneKey에 맞는 씬 객체를 생성합니다
+   * @param key 생성할 씬의 키
+   * @returns 생성된 씬 객체
    */
-  private initializeScenes(): void {
-    // 메인 씬 생성 및 등록
-    const mainScene = new MainScene(this.app);
-    this.scenes.set(SceneKey.MAIN, mainScene);
+  private createScene(key: SceneKey): Scene {
+    console.log(`Creating new scene: ${key}`);
 
-    // 여기에 다른 씬들을 추가로 초기화하고 등록할 수 있습니다
-    // 예: const battleScene = new BattleScene(this.app);
-    //     this.scenes.set(SceneKey.BATTLE, battleScene);
+    // 에셋이 로드되지 않았으면 오류 표시
+    if (!this.assetsLoaded) {
+      console.warn(
+        "에셋이 아직 로드되지 않았습니다. 씬이 제대로 표시되지 않을 수 있습니다."
+      );
+    }
 
-    console.log("All scenes initialized successfully");
+    switch (key) {
+      case SceneKey.MAIN:
+        return new MainScene(this.app);
+      // 추가 씬을 여기에 구현할 수 있습니다
+      // case SceneKey.BATTLE:
+      //   return new BattleScene(this.app);
+      default:
+        throw new Error(`Unknown scene key: ${key}`);
+    }
   }
 
   private update(deltaTime: number): void {
@@ -121,33 +154,48 @@ export class Game {
    * @returns 성공 여부
    */
   public changeScene(key: SceneKey): boolean {
-    if (!this.scenes.has(key)) {
-      console.error(`Scene '${key}' not found`);
+    try {
+      // 기존 씬과 같은 씬으로 전환하는 경우 무시
+      if (this.currentSceneKey === key) {
+        console.log(`Already in scene '${key}'`);
+        return true;
+      }
+
+      // 캐시된 씬이 없으면 새로 생성
+      if (!this.scenes.has(key)) {
+        const newScene = this.createScene(key);
+        this.scenes.set(key, newScene);
+      }
+
+      const nextScene = this.scenes.get(key)!;
+
+      // 기존 씬이 있으면 제거
+      if (
+        this.currentScene &&
+        this.currentScene instanceof PIXI.DisplayObject
+      ) {
+        this.app.stage.removeChild(this.currentScene);
+      }
+
+      // 새 씬 설정
+      this.currentScene = nextScene;
+      this.currentSceneKey = key;
+
+      // 새 씬이 DisplayObject이면 스테이지에 추가
+      if (this.currentScene instanceof PIXI.DisplayObject) {
+        this.app.stage.addChild(this.currentScene);
+      }
+
+      // 새 씬의 크기 조정
+      const { width, height } = this.app.renderer.screen;
+      this.currentScene.onResize(width, height);
+
+      console.log(`Changed to scene '${key}'`);
+      return true;
+    } catch (error) {
+      console.error(`Error changing to scene '${key}':`, error);
       return false;
     }
-
-    const newScene = this.scenes.get(key)!;
-
-    // 기존 씬이 있으면 제거
-    if (this.currentScene && this.currentScene instanceof PIXI.DisplayObject) {
-      this.app.stage.removeChild(this.currentScene);
-    }
-
-    // 새 씬 설정
-    this.currentScene = newScene;
-    this.currentSceneKey = key;
-
-    // 새 씬이 DisplayObject이면 스테이지에 추가
-    if (this.currentScene instanceof PIXI.DisplayObject) {
-      this.app.stage.addChild(this.currentScene);
-    }
-
-    // 새 씬의 크기 조정
-    const { width, height } = this.app.renderer.screen;
-    this.currentScene.onResize(width, height);
-
-    console.log(`Changed to scene '${key}'`);
-    return true;
   }
 
   /**
@@ -161,7 +209,7 @@ export class Game {
    * 사용 가능한 모든 씬 키 목록을 반환합니다
    */
   public getAvailableSceneKeys(): SceneKey[] {
-    return Array.from(this.scenes.keys());
+    return Object.values(SceneKey);
   }
 
   public destroy(): void {

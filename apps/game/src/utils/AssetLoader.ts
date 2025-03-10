@@ -1,111 +1,287 @@
 import * as PIXI from "pixi.js";
 
 export interface GameAssets {
-  backgroundTexture: PIXI.Texture;
-  slimeSprites: PIXI.Spritesheet;
+  backgroundTexture?: PIXI.Texture;
+  slimeSprites?: PIXI.Spritesheet;
 }
 
 export class AssetLoader {
-  private static assets?: GameAssets;
+  private static assets: GameAssets = {};
   private static isLoading: boolean = false;
   private static loadingPromise: Promise<GameAssets> | null = null;
 
-  public static async loadAssets(): Promise<GameAssets> {
-    // 이미 로딩된 에셋이 있으면 반환
-    if (this.assets) {
-      return this.assets;
-    }
+  // 개발 환경에서는 /game 경로 사용
+  private static readonly BASE_PATH = "/game";
 
-    // 이미 로딩 중이면 현재 진행 중인 Promise 반환
-    if (this.isLoading && this.loadingPromise) {
-      return this.loadingPromise;
-    }
-
-    this.isLoading = true;
-
-    // 로딩 Promise 생성 및 저장
-    this.loadingPromise = this.loadAssetsInternal();
-
+  public static async loadAssets(): Promise<void> {
     try {
-      // 로딩 완료 대기
-      return await this.loadingPromise;
-    } finally {
-      // 로딩 완료 후 상태 초기화
-      this.isLoading = false;
-      this.loadingPromise = null;
-    }
-  }
-
-  // 실제 에셋 로딩을 처리하는 내부 메서드
-  private static async loadAssetsInternal(): Promise<GameAssets> {
-    try {
-      // 에셋 경로 설정
-      const assetMap = {
-        backgroundTile: "/game/tiles/grass-tile.jpg",
-        slimeSheet: "/game/sprites/test-slime/sprite-sheet.png",
-        slimeData: "/game/sprites/test-slime/metadata.json",
-      };
-
-      // 에셋 로딩
-      await PIXI.Assets.load([assetMap.backgroundTile, assetMap.slimeSheet]);
-      const slimeData = await fetch(assetMap.slimeData).then((res) =>
-        res.json()
+      console.log(
+        "[AssetLoader] Starting to load assets from:",
+        this.BASE_PATH
       );
 
-      // 고유 ID 접두사 추가
-      const uniquePrefix = "slime_sprite_";
-
-      // 프레임 ID에 접두사 추가
-      for (const frameKey in slimeData.frames) {
-        const newFrameKey = uniquePrefix + frameKey;
-        slimeData.frames[newFrameKey] = slimeData.frames[frameKey];
-        delete slimeData.frames[frameKey];
-      }
-
-      // 애니메이션 ID는 그대로 유지하고 프레임만 업데이트 (중요 변경)
-      for (const animKey in slimeData.animations) {
-        slimeData.animations[animKey] = slimeData.animations[animKey].map(
-          (frameId: string) => uniquePrefix + frameId
+      // 이미 로딩 중인지 확인
+      if (this.isLoading) {
+        console.log(
+          "[AssetLoader] Assets are already being loaded, waiting..."
         );
+        await this.loadingPromise;
+        return;
       }
 
-      console.log(
-        "Animation data after processing:",
-        Object.keys(slimeData.animations)
-      );
+      this.isLoading = true;
+      this.loadingPromise = this._loadAllAssets();
 
-      // 배경 텍스처 생성
-      const backgroundTexture = PIXI.Texture.from(assetMap.backgroundTile);
-
-      // 슬라임 스프라이트시트 생성
-      const baseTexture = PIXI.BaseTexture.from(assetMap.slimeSheet);
-      const slimeSprites = new PIXI.Spritesheet(baseTexture, slimeData);
-      await slimeSprites.parse();
-
-      // 로딩된 스프라이트시트 확인
-      console.log(
-        "Spritesheet parsed successfully:",
-        Object.keys(slimeSprites.animations)
-      );
-
-      // 로딩된 에셋 저장
-      this.assets = {
-        backgroundTexture,
-        slimeSprites,
-      };
-
-      return this.assets;
+      await this.loadingPromise;
+      this.isLoading = false;
+      console.log("[AssetLoader] All assets loaded successfully");
     } catch (error) {
-      console.error("Error loading assets:", error);
+      this.isLoading = false;
+      console.error("[AssetLoader] Error loading assets:", error);
       throw error;
     }
   }
 
-  public static getAssets(): GameAssets {
-    if (!this.assets) {
-      throw new Error("Assets not loaded yet. Call loadAssets first.");
+  /**
+   * 현재 로드된 에셋을 반환합니다.
+   * 로딩이 진행 중인 경우 완료될 때까지 대기합니다.
+   * @returns 로드된 게임 에셋 객체를 포함한 Promise
+   */
+  public static async getAssets(): Promise<GameAssets> {
+    // 에셋이 로딩 중이면 완료될 때까지 기다림
+    if (this.isLoading) {
+      console.log(
+        "[AssetLoader] Assets are still loading, waiting for completion..."
+      );
+
+      if (this.loadingPromise) {
+        try {
+          await this.loadingPromise;
+          console.log(
+            "[AssetLoader] Asset loading completed, returning assets"
+          );
+        } catch (error) {
+          console.error(
+            "[AssetLoader] Error while waiting for assets to load:",
+            error
+          );
+        }
+      }
     }
+
+    // 기본 텍스처가 없는 경우 임시 텍스처 생성
+    if (!this.assets.backgroundTexture) {
+      console.warn(
+        "[AssetLoader] Background texture not loaded, using fallback"
+      );
+      this.assets.backgroundTexture = PIXI.Texture.WHITE;
+    }
+
+    // 스프라이트시트가 없는 경우 임시 객체 생성
+    if (!this.assets.slimeSprites) {
+      console.warn("[AssetLoader] Slime sprites not loaded, using fallback");
+      this.assets.slimeSprites = {} as PIXI.Spritesheet;
+    }
+
     return this.assets;
+  }
+
+  private static async _loadAllAssets(): Promise<GameAssets> {
+    try {
+      // 배경 텍스처 로드
+      await this.loadBackgroundTexture();
+
+      // 스프라이트시트 로드
+      await this.loadSpriteSheets();
+
+      return this.assets;
+    } catch (error) {
+      console.error("[AssetLoader] Failed to load all assets:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * 배경 텍스처를 로드합니다
+   */
+  private static async loadBackgroundTexture(): Promise<void> {
+    try {
+      console.log("[AssetLoader] Loading background texture");
+
+      // 배경 텍스처 경로 설정 (기본 배경 이미지)
+      const bgPath = `${this.BASE_PATH}/tiles/grass-tile.jpg`;
+
+      try {
+        // 실제 배경 이미지 로드 시도
+        this.assets.backgroundTexture = await PIXI.Assets.load(bgPath);
+        console.log("[AssetLoader] Background texture loaded successfully");
+      } catch (bgError) {
+        // 이미지 로드 실패 시 단색 텍스처 생성
+        console.warn(
+          `[AssetLoader] Failed to load background image at ${bgPath}:`,
+          bgError
+        );
+        console.log("[AssetLoader] Creating solid color background texture");
+
+        // 단색 배경 만들기 (연한 파란색)
+        const graphics = new PIXI.Graphics();
+        graphics.beginFill(0x87cefa); // 연한 파란색
+        graphics.drawRect(0, 0, 800, 600); // 기본 크기 설정
+        graphics.endFill();
+
+        this.assets.backgroundTexture = PIXI.RenderTexture.create({
+          width: 800,
+          height: 600,
+          resolution: 1,
+        });
+
+        // 그래픽을 텍스처로 렌더링
+        const renderer = PIXI.autoDetectRenderer();
+        if (renderer) {
+          renderer.render(graphics, {
+            renderTexture: this.assets.backgroundTexture,
+          });
+          console.log("[AssetLoader] Created solid color background texture");
+        }
+      }
+    } catch (error) {
+      console.error(
+        "[AssetLoader] Failed to create background texture:",
+        error
+      );
+      // 기본 텍스처 설정 (흰색)
+      this.assets.backgroundTexture = PIXI.Texture.WHITE;
+    }
+  }
+
+  private static async loadSpriteSheets(): Promise<void> {
+    try {
+      // 슬라임 스프라이트시트 메타데이터 로드
+      const slimeMetadataPath = `${this.BASE_PATH}/sprites/test-slime/metadata.json`;
+      console.log("[AssetLoader] Loading metadata from:", slimeMetadataPath);
+
+      // 직접 파일 시스템 경로 확인 (디버깅용)
+      console.log(
+        "[AssetLoader] Full URL path:",
+        new URL(slimeMetadataPath, window.location.origin).href
+      );
+
+      const response = await fetch(slimeMetadataPath, {
+        method: "GET",
+        headers: {
+          "Cache-Control": "no-cache",
+          Pragma: "no-cache",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          `Failed to load metadata: ${response.status} ${response.statusText}`
+        );
+      }
+
+      const slimeMetadata = await response.json();
+      console.log("[AssetLoader] Metadata loaded successfully");
+      console.log(
+        "[AssetLoader] Metadata animations:",
+        slimeMetadata.animations
+      );
+
+      // 스프라이트시트 이미지 경로 로깅
+      const imagePath = slimeMetadata.meta.image;
+      console.log("[AssetLoader] Loading sprite sheet from:", imagePath);
+
+      try {
+        // 스프라이트시트 텍스처 로드
+        const baseTexture = await PIXI.Assets.load(imagePath);
+        console.log("[AssetLoader] Sprite sheet texture loaded successfully");
+
+        // 간소화된 스프라이트시트 생성 방법 사용
+        // PIXI의 내장 메서드를 활용하여 spritesheet 생성
+        const spritesheet = new PIXI.Spritesheet(baseTexture, {
+          frames: slimeMetadata.frames,
+          meta: slimeMetadata.meta,
+          animations: slimeMetadata.animations,
+        });
+
+        // 비동기적으로 스프라이트시트 파싱
+        console.log("[AssetLoader] Parsing spritesheet...");
+        await spritesheet.parse();
+
+        // 파싱 결과 확인
+        const animationKeys = Object.keys(spritesheet.animations || {});
+        console.log(
+          "[AssetLoader] Spritesheet parsed successfully with animations:",
+          animationKeys
+        );
+
+        if (animationKeys.length === 0) {
+          console.warn(
+            "[AssetLoader] No animations found in parsed spritesheet!"
+          );
+        }
+
+        // idle 애니메이션 확인
+        if (spritesheet.animations && spritesheet.animations.idle) {
+          const frames = spritesheet.animations.idle;
+          console.log(
+            `[AssetLoader] Idle animation found with ${frames.length} frames`
+          );
+        } else {
+          console.warn(
+            "[AssetLoader] 'idle' animation not found in spritesheet"
+          );
+        }
+
+        // 파싱된 스프라이트시트 저장
+        this.assets.slimeSprites = spritesheet;
+      } catch (textureError) {
+        console.error(
+          "[AssetLoader] Failed to load/parse spritesheet:",
+          textureError
+        );
+        // 스프라이트시트 초기화 실패 시 대체 스프라이트시트 생성
+        this.createFallbackSpritesheet();
+      }
+    } catch (error) {
+      console.error("[AssetLoader] Failed to load sprite sheets:", error);
+      this.createFallbackSpritesheet();
+    }
+  }
+
+  /**
+   * 스프라이트시트 로딩 실패 시 기본 스프라이트시트를 생성합니다.
+   */
+  private static createFallbackSpritesheet(): void {
+    console.log("[AssetLoader] Creating fallback spritesheet");
+
+    // 단색 텍스처 생성
+    const texture = PIXI.Texture.WHITE.clone();
+    texture.width = 64;
+    texture.height = 64;
+
+    // 최소 구현의 스프라이트시트 객체 생성
+    const spritesheet = new PIXI.Spritesheet(texture.baseTexture, {
+      frames: {
+        idle_0: { frame: { x: 0, y: 0, w: 64, h: 64 } },
+      },
+      meta: {
+        scale: "1",
+      },
+      animations: {
+        idle: ["idle_0"],
+      },
+    });
+
+    // 스프라이트시트 파싱
+    spritesheet.parse().then(() => {
+      console.log(
+        "[AssetLoader] Fallback spritesheet created with animations:",
+        Object.keys(spritesheet.animations || {})
+      );
+
+      this.assets.slimeSprites = spritesheet;
+    });
   }
 
   // 필요시 에셋 캐시를 지우는 메서드 추가

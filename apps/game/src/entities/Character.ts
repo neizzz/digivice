@@ -28,35 +28,86 @@ export class Character extends PIXI.Container {
     try {
       if (!params.spritesheet) {
         console.warn("Spritesheet not provided for character");
+        this.createFallbackAnimation();
         return;
       }
 
-      // 사용 가능한 애니메이션 목록 확인 (디버깅용)
-      console.log(
-        "Available animations:",
-        Object.keys(params.spritesheet.animations)
-      );
+      // spritesheet.animations이 정의되어 있는지 확인
+      if (params.spritesheet.animations) {
+        console.log(
+          "Available animations:",
+          Object.keys(params.spritesheet.animations)
+        );
 
-      // 슬라임 애니메이션 생성
-      const idleFrames = params.spritesheet.animations["idle"];
-      if (!idleFrames || idleFrames.length === 0) {
-        throw new Error("Idle animation frames not found in spritesheet");
+        // 정상적으로 animations이 있는 경우 idle 애니메이션 로드 시도
+        const idleFrames = params.spritesheet.animations["idle"];
+        if (idleFrames && idleFrames.length > 0) {
+          this.animatedSprite = new PIXI.AnimatedSprite(idleFrames);
+          this.addChild(this.animatedSprite);
+
+          // 애니메이션 설정
+          this.animatedSprite.anchor.set(0.5);
+          this.animatedSprite.animationSpeed = 0.1;
+          this.animatedSprite.play();
+
+          // 적절한 크기로 조정
+          this.animatedSprite.scale.set(0.3);
+
+          console.log(
+            "Character created successfully with spritesheet animations"
+          );
+          return;
+        }
       }
 
-      this.animatedSprite = new PIXI.AnimatedSprite(idleFrames);
-      this.addChild(this.animatedSprite);
-
-      // 애니메이션 설정
-      this.animatedSprite.anchor.set(0.5);
-      this.animatedSprite.animationSpeed = 0.1;
-      this.animatedSprite.play();
-
-      // 적절한 크기로 조정
-      this.animatedSprite.scale.set(0.3);
-
-      console.log("Character created successfully:", this.animatedSprite);
+      // animations이 없거나 idle 프레임이 없는 경우 대체 애니메이션 생성
+      console.warn("No valid animations found in spritesheet, using fallback");
+      this.createFallbackAnimation();
     } catch (error) {
       console.error("Error creating character:", error);
+      this.createFallbackAnimation();
+    }
+  }
+
+  /**
+   * 스프라이트시트가 없거나 유효하지 않을 때 대체 애니메이션을 생성합니다
+   */
+  private createFallbackAnimation(): void {
+    try {
+      console.log("Creating fallback animation for character");
+
+      // 복잡한 렌더 텍스처 생성 대신 기본 텍스처 사용
+      const texture = PIXI.Texture.WHITE;
+
+      // 빨간색 착색 필터 생성
+      const colorMatrix = new PIXI.ColorMatrixFilter();
+      colorMatrix.tint(0xff3300); // 빨간색
+
+      // 단일 프레임으로 애니메이션 생성
+      this.animatedSprite = new PIXI.AnimatedSprite([texture]);
+      this.addChild(this.animatedSprite);
+
+      // 필터 적용
+      this.animatedSprite.filters = [colorMatrix];
+
+      // 기본 속성 설정
+      this.animatedSprite.anchor.set(0.5);
+      this.animatedSprite.width = 50;
+      this.animatedSprite.height = 50;
+
+      console.log("Fallback animation created successfully");
+    } catch (error) {
+      // 최후의 방어선: 모든 것이 실패한 경우 빈 컨테이너만 유지
+      console.error("Failed to create even fallback animation:", error);
+
+      // animatedSprite가 생성되지 않았으면 null 참조 방지
+      if (!this.animatedSprite) {
+        // 빈 스프라이트라도 만들어 두기
+        const emptyTexture = PIXI.Texture.EMPTY;
+        this.animatedSprite = new PIXI.AnimatedSprite([emptyTexture]);
+        this.addChild(this.animatedSprite);
+        this.animatedSprite.anchor.set(0.5);
+      }
     }
   }
 

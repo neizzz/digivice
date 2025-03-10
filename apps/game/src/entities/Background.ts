@@ -1,32 +1,53 @@
 import * as PIXI from "pixi.js";
 
+/**
+ * 게임 배경을 관리하는 클래스입니다.
+ * 화면 크기에 맞게 배경을 자동 조정합니다.
+ */
 export class Background extends PIXI.Container {
-  private tileSprite: PIXI.TilingSprite;
+  private bgSprite: PIXI.Sprite;
 
+  /**
+   * 배경 객체를 생성합니다.
+   * @param texture 배경에 사용할 텍스처
+   */
   constructor(texture: PIXI.Texture) {
     super();
 
-    // 타일링 스프라이트 생성
-    this.tileSprite = new PIXI.TilingSprite(texture, 800, 600);
+    // 배경 스프라이트 생성
+    this.bgSprite = new PIXI.Sprite(texture);
+    this.bgSprite.anchor.set(0.5); // 중앙 기준점으로 설정
+    this.addChild(this.bgSprite);
 
-    // 타일 크기 조정 - 값이 작을수록 타일이 더 작게(자주) 반복됨
-    this.tileSprite.tileScale.set(0.5, 0.5);
-
-    // 필요하다면 초기 타일 위치 설정
-    this.tileSprite.tilePosition.set(0, 0);
-
-    this.addChild(this.tileSprite);
+    console.log("[Background] Created with texture:", texture);
   }
 
+  /**
+   * 배경 크기를 화면 크기에 맞게 조정합니다.
+   * @param width 화면 너비
+   * @param height 화면 높이
+   */
   public resize(width: number, height: number): void {
-    // 화면 크기에 맞게 타일링 스프라이트 크기 조정
-    this.tileSprite.width = width;
-    this.tileSprite.height = height;
+    // 배경 위치를 화면 중앙으로 설정
+    this.position.set(width / 2, height / 2);
+
+    // 화면을 완전히 채우도록 비율 조정
+    const scaleX = width / this.bgSprite.texture.width;
+    const scaleY = height / this.bgSprite.texture.height;
+
+    // 더 큰 스케일 값을 사용하여 화면을 완전히 커버
+    const scale = Math.max(scaleX, scaleY);
+    this.bgSprite.scale.set(scale);
+
+    console.log(`[Background] Resized to ${width}x${height}, scale: ${scale}`);
   }
 
-  // 선택적: 배경 타일을 움직이는 메서드 추가 (필요시 사용)
-  public updateTilePosition(deltaX: number, deltaY: number): void {
-    this.tileSprite.tilePosition.x += deltaX;
-    this.tileSprite.tilePosition.y += deltaY;
+  /**
+   * 배경 텍스처를 변경합니다.
+   * @param newTexture 새 배경 텍스처
+   */
+  public changeTexture(newTexture: PIXI.Texture): void {
+    this.bgSprite.texture = newTexture;
+    console.log("[Background] Texture changed");
   }
 }

@@ -9,6 +9,7 @@ export class MainScene extends PIXI.Container implements Scene {
   private app: PIXI.Application;
   private background: Background;
   private character: Character;
+  private initialized: boolean = false;
 
   constructor(app: PIXI.Application) {
     super();
@@ -16,35 +17,49 @@ export class MainScene extends PIXI.Container implements Scene {
 
     // 디버그 헬퍼 초기화
     DebugHelper.init(app);
-    // 디버그 시각화 기본 활성화
     DebugHelper.setEnabled(true);
 
-    // 에셋 가져오기
-    const assets = AssetLoader.getAssets();
+    // 동기적 초기화 수행
+    this.setupScene();
+  }
 
-    // 배경 생성 및 추가
-    this.background = new Background(assets.backgroundTexture);
-    this.addChild(this.background);
+  /**
+   * 씬을 동기적으로 설정합니다.
+   */
+  private setupScene(): void {
+    // 에셋 동기적으로 가져오기
+    AssetLoader.getAssets()
+      .then((assets) => {
+        // 배경 생성 및 추가
+        this.background = new Background(assets.backgroundTexture);
+        this.addChild(this.background);
 
-    // 캐릭터 생성 및 추가 (속도를 더 높게 설정)
-    this.character = new Character({
-      spritesheet: assets.slimeSprites,
-      name: "Slime",
-      initialPosition: { x: window.innerWidth / 2, y: window.innerHeight / 2 },
-      speed: 1,
-    });
-    this.addChild(this.character);
+        // 캐릭터 생성 및 추가
+        this.character = new Character({
+          spritesheet: assets.slimeSprites,
+          name: "Slime",
+          initialPosition: {
+            x: this.app.screen.width / 2,
+            y: this.app.screen.height / 2,
+          },
+          speed: 1,
+        });
+        this.addChild(this.character);
 
-    // 캐릭터를 씬 중앙에 배치
-    this.positionCharacter();
+        // 초기 설정 완료
+        this.positionCharacter();
+        this.applyCharacterMovement();
+        this.setupDebugVisualization();
+        this.initialized = true;
 
-    // 캐릭터에 랜덤 움직임 적용
-    this.applyCharacterMovement();
+        // 화면 크기에 맞게 조정
+        this.onResize(this.app.screen.width, this.app.screen.height);
 
-    // 캐릭터에 디버그 시각화 추가
-    this.setupDebugVisualization();
-
-    console.log("MainScene created successfully");
+        console.log("MainScene setup completed");
+      })
+      .catch((error) => {
+        console.error("Error setting up MainScene:", error);
+      });
   }
 
   private positionCharacter(): void {
@@ -92,19 +107,29 @@ export class MainScene extends PIXI.Container implements Scene {
   }
 
   public onResize(width: number, height: number): void {
+    // 초기화 전에는 리사이징 무시
+    if (!this.initialized) return;
+
     // 화면 크기 변경 시 배경 크기 조정
-    this.background.resize(width, height);
+    if (this.background) {
+      this.background.resize(width, height);
+    }
 
     // 캐릭터 위치 재조정
-    this.positionCharacter();
-
-    // 움직임 컨트롤러 재설정 (화면 크기 변경으로 경계가 바뀌었으므로)
-    this.character.stopRandomMovement();
-    this.applyCharacterMovement();
+    if (this.character) {
+      this.positionCharacter();
+      this.character.stopRandomMovement();
+      this.applyCharacterMovement();
+    }
   }
 
   public update(deltaTime: number): void {
+    // 초기화 전에는 업데이트 무시
+    if (!this.initialized) return;
+
     // 캐릭터 업데이트
-    this.character.update(deltaTime);
+    if (this.character) {
+      this.character.update(deltaTime);
+    }
   }
 }
