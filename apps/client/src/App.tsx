@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { Game } from "@digivice/game";
 import "./App.css";
+import ControlButtons from "./components/ControlButtons";
 
 const App: React.FC = () => {
   const gameContainerRef = useRef<HTMLDivElement>(null);
@@ -24,6 +25,9 @@ const App: React.FC = () => {
   return (
     <div id="app-container">
       <main id="game-container" ref={gameContainerRef}></main>
+      <div id="control-buttons-container" style={{ marginTop: "20%" }}>
+        <ControlButtons />
+      </div>
     </div>
   );
 };
