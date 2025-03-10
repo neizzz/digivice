@@ -4,6 +4,7 @@ import { MainScene } from "./scenes/MainScene";
 import { AssetLoader } from "./utils/AssetLoader";
 import { DebugHelper } from "./utils/DebugHelper";
 import { SceneKey } from "./SceneKey";
+import { ControlButtonType } from "./ui/types";
 
 export class Game {
   private app: PIXI.Application;
@@ -59,6 +60,17 @@ export class Game {
           console.error("에셋 로딩 오류:", error);
         });
     });
+  }
+
+  /**
+   * ControlButton 클릭 이벤트를 처리합니다
+   * @param buttonType 클릭된 버튼 타입
+   */
+  public handleControlButtonClick(buttonType: ControlButtonType): void {
+    // 현재 씬이 MainScene인 경우 해당 씬에 컨트롤 이벤트 전달
+    if (this.currentScene instanceof MainScene) {
+      (this.currentScene as MainScene).handleControlButtonClick(buttonType);
+    }
   }
 
   /**
@@ -220,6 +232,14 @@ export class Game {
       texture: true,
       baseTexture: true,
     });
+
+    // 현재 씬이 MainScene이면 destroy 호출
+    if (
+      this.currentScene &&
+      typeof (this.currentScene as any).destroy === "function"
+    ) {
+      (this.currentScene as any).destroy();
+    }
 
     // 디버그 헬퍼 정리
     DebugHelper.removeAll();

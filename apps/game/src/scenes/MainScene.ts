@@ -4,12 +4,18 @@ import { Background } from "../entities/Background";
 import { Character } from "../entities/Character";
 import { AssetLoader } from "../utils/AssetLoader";
 import { DebugHelper } from "../utils/DebugHelper";
+import { GameMenu, GameMenuOptions } from "../ui/GameMenu";
+import { ControlButtonType, NavigationAction } from "../ui/types";
 
 export class MainScene extends PIXI.Container implements Scene {
   private app: PIXI.Application;
   private background: Background;
   private character: Character;
   private initialized: boolean = false;
+
+  // GameMenu 관련 필드
+  private gameMenu: GameMenu | null = null;
+  private navigationIndex: number = 0;
 
   constructor(app: PIXI.Application) {
     super();
@@ -62,6 +68,9 @@ export class MainScene extends PIXI.Container implements Scene {
     } catch (error) {
       console.error("Error setting up MainScene:", error);
     }
+
+    // GameMenu 초기화
+    this.initGameMenu();
   }
 
   private positionCharacter(): void {
@@ -104,6 +113,95 @@ export class MainScene extends PIXI.Container implements Scene {
     }, 1000);
   }
 
+  /**
+   * GameMenu를 초기화합니다
+   */
+  private initGameMenu(): void {
+    // 기존 메뉴가 있다면 정리
+    if (this.gameMenu) {
+      this.gameMenu.destroy();
+      this.gameMenu = null;
+    }
+
+    // PIXI 뷰의 부모 요소를 찾음
+    const parent = this.app.view.parentElement;
+    if (!parent) {
+      console.error("PIXI view has no parent element");
+      return;
+    }
+
+    // 게임 내부에서 처리할 콜백 정의
+    const gameMenuOptions: GameMenuOptions = {
+      onTypeASelect: () => this.handleMenuSelect("typeA"),
+      onTypeBSelect: () => this.handleMenuSelect("typeB"),
+      onTypeCSelect: () => this.handleMenuSelect("typeC"),
+      onTypeDSelect: () => this.handleMenuSelect("typeD"),
+      onTypeESelect: () => this.handleMenuSelect("typeE"),
+      onTypeFSelect: () => this.handleMenuSelect("typeF"),
+      onCancel: () => this.handleMenuCancel(),
+      onNavigationProcessed: () => {},
+    };
+
+    // 메뉴 생성 - 뷰 요소의 부모에 직접 추가
+    this.gameMenu = new GameMenu(parent, gameMenuOptions);
+    console.log("Game Menu initialized in MainScene");
+  }
+
+  /**
+   * 메뉴 선택 처리
+   */
+  private handleMenuSelect(menuType: string): void {
+    console.log(`메뉴 항목 선택: ${menuType}`);
+    // 여기에 메뉴 항목별 로직 구현
+  }
+
+  /**
+   * 메뉴 취소 처리
+   */
+  private handleMenuCancel(): void {
+    console.log("메뉴 취소");
+    // 여기에 취소 동작 로직 구현
+  }
+
+  /**
+   * ControlButton 클릭 처리
+   */
+  public handleControlButtonClick(buttonType: ControlButtonType): void {
+    console.log(`MainScene에서 버튼 클릭 처리: ${buttonType}`);
+
+    if (!this.gameMenu) {
+      console.error("GameMenu is not initialized in MainScene");
+      return;
+    }
+
+    // 버튼 타입에 따라 적절한 액션 처리
+    switch (buttonType) {
+      case ControlButtonType.LEFT:
+        this.sendNavigationAction(NavigationAction.CANCEL);
+        break;
+      case ControlButtonType.CENTER:
+        this.sendNavigationAction(NavigationAction.NEXT);
+        break;
+      case ControlButtonType.RIGHT:
+        this.sendNavigationAction(NavigationAction.SELECT);
+        break;
+    }
+  }
+
+  /**
+   * 네비게이션 액션을 GameMenu에 전달
+   */
+  private sendNavigationAction(action: NavigationAction): void {
+    if (!this.gameMenu) return;
+
+    this.navigationIndex++;
+
+    this.gameMenu.processNavigationAction({
+      type: action,
+      index: this.navigationIndex,
+    });
+  }
+
   public onResize(width: number, height: number): void {
     // 초기화 전에는 리사이징 무시
     if (!this.initialized) return;
@@ -129,5 +227,21 @@ export class MainScene extends PIXI.Container implements Scene {
     if (this.character) {
       this.character.update(deltaTime);
     }
+  }
+
+  // 씬 정리를 위한 메서드 추가
+  public destroy(): void {
+    // GameMenu 정리
+    if (this.gameMenu) {
+      this.gameMenu.destroy();
+      this.gameMenu = null;
+    }
+
+    // 캐릭터 정리
+    if (this.character) {
+      this.character.stopRandomMovement();
+    }
+
+    // 다른 리소스 정리 로직...
   }
 }

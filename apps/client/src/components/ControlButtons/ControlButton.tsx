@@ -1,42 +1,35 @@
 import React, { useState } from "react";
 import styled from "styled-components";
-
-// 버튼 타입 정의 (새로운 색상으로 업데이트)
-export enum ControlButtonType {
-  ORANGE = "orange",
-  GREEN = "green",
-  GRAY = "gray",
-  PINK = "pink",
-}
+import { ControlButtonStyleType } from "@digivice/game";
 
 // 각 버튼 타입 및 상태(기본/누름)에 대한 스프라이트 좌표 매핑
 const buttonSpriteMap: Record<
-  ControlButtonType,
+  ControlButtonStyleType,
   {
     normal: { x: number; y: number; width: number; height: number };
     pressed: { x: number; y: number; width: number; height: number };
   }
 > = {
-  [ControlButtonType.GRAY]: {
+  [ControlButtonStyleType.GRAY]: {
     normal: { x: 0, y: 88, width: 42, height: 42 },
     pressed: { x: 43, y: 88, width: 42, height: 42 },
   },
-  [ControlButtonType.ORANGE]: {
+  [ControlButtonStyleType.ORANGE]: {
     normal: { x: 0, y: 131, width: 42, height: 42 },
     pressed: { x: 43, y: 131, width: 42, height: 42 },
   },
-  [ControlButtonType.GREEN]: {
+  [ControlButtonStyleType.GREEN]: {
     normal: { x: 0, y: 174, width: 42, height: 42 },
     pressed: { x: 43, y: 174, width: 42, height: 42 },
   },
-  [ControlButtonType.PINK]: {
+  [ControlButtonStyleType.PINK]: {
     normal: { x: 0, y: 304, width: 42, height: 42 },
     pressed: { x: 43, y: 304, width: 42, height: 42 },
   },
 };
 
 interface ControlButtonProps {
-  buttonType: ControlButtonType; // 버튼 색상 타입 (필수)
+  buttonStyleType: ControlButtonStyleType; // 버튼 색상 타입 (필수)
   onClick?: () => void; // 클릭 이벤트 핸들러
   className?: string; // 추가 스타일링을 위한 클래스
 }
@@ -63,7 +56,7 @@ const StyledButton = styled.button<{
 `;
 
 const ControlButton: React.FC<ControlButtonProps> = ({
-  buttonType,
+  buttonStyleType,
   onClick,
   className,
 }) => {
@@ -71,7 +64,7 @@ const ControlButton: React.FC<ControlButtonProps> = ({
 
   // 버튼 누름 상태에 따른 스프라이트 정보 선택
   const spriteState = isPressed ? "pressed" : "normal";
-  const spriteInfo = buttonSpriteMap[buttonType][spriteState];
+  const spriteInfo = buttonSpriteMap[buttonStyleType][spriteState];
 
   // 이벤트 처리를 단순화하고 최적화
   const handlePointerDown = () => {
@@ -98,7 +91,6 @@ const ControlButton: React.FC<ControlButtonProps> = ({
       onPointerUp={handlePointerUp}
       onPointerLeave={handlePointerLeave}
       className={className}
-      aria-label={`${buttonType} Control Button`}
     />
   );
 };

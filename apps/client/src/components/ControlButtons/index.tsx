@@ -1,46 +1,36 @@
 import React from "react";
 import styled from "styled-components";
-import ControlButton, { ControlButtonType } from "./ControlButton";
+import ControlButton from "./ControlButton";
+import { ControlButtonType, ControlButtonStyleType } from "@digivice/game";
 
 interface ControlButtonsProps {
-  onCancelClick?: () => void; // 왼쪽 버튼을 Cancel 기능으로 변경
-  onNextClick?: () => void; // onRightClick에서 onNextClick으로 변경
-  onSelectClick?: () => void;
+  onButtonPress: (buttonType: ControlButtonType) => void;
 }
 
-const ButtonContainer = styled.div`
+const ControlButtonsContainer = styled.div`
+  width: 80%;
+  max-width: 300px;
   display: flex;
   justify-content: space-between;
-  width: 100%;
-  max-width: 300px;
   margin: 0 auto;
 `;
 
-const ControlButtons: React.FC<ControlButtonsProps> = ({
-  onCancelClick,
-  onNextClick, // onRightClick에서 onNextClick으로 변경
-  onSelectClick,
-}) => {
+const ControlButtons: React.FC<ControlButtonsProps> = ({ onButtonPress }) => {
   return (
-    <ButtonContainer>
-      {/* 왼쪽 버튼 - Cancel 기능 */}
+    <ControlButtonsContainer>
       <ControlButton
-        buttonType={ControlButtonType.GRAY}
-        onClick={onCancelClick}
+        buttonStyleType={ControlButtonStyleType.GRAY}
+        onClick={() => onButtonPress(ControlButtonType.LEFT)}
       />
-
-      {/* 가운데 선택 버튼 */}
       <ControlButton
-        buttonType={ControlButtonType.ORANGE}
-        onClick={onSelectClick}
+        buttonStyleType={ControlButtonStyleType.ORANGE}
+        onClick={() => onButtonPress(ControlButtonType.CENTER)}
       />
-
-      {/* 오른쪽 버튼 - Next 기능 */}
       <ControlButton
-        buttonType={ControlButtonType.GREEN}
-        onClick={onNextClick} // onRightClick에서 onNextClick으로 변경
+        buttonStyleType={ControlButtonStyleType.GREEN}
+        onClick={() => onButtonPress(ControlButtonType.CENTER)}
       />
-    </ButtonContainer>
+    </ControlButtonsContainer>
   );
 };
 

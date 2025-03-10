@@ -4,5 +4,4 @@
 export { Game } from "./Game";
 export { SceneKey } from "./SceneKey";
 
-// ButtonType도 export
-export { ButtonType } from "./types/GameControllerTypes";
+export * from "./ui/types";
