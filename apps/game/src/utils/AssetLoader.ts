@@ -124,7 +124,7 @@ export class AssetLoader {
         const renderer = PIXI.autoDetectRenderer();
         if (renderer) {
           renderer.render(graphics, {
-            renderTexture: this.assets.backgroundTexture,
+            renderTexture: this.assets.backgroundTexture as PIXI.RenderTexture,
           });
           console.log("[AssetLoader] Created solid color background texture");
         }
@@ -225,48 +225,10 @@ export class AssetLoader {
           "[AssetLoader] Failed to load/parse spritesheet:",
           textureError
         );
-        // 스프라이트시트 초기화 실패 시 대체 스프라이트시트 생성
-        this.createFallbackSpritesheet();
       }
     } catch (error) {
       console.error("[AssetLoader] Failed to load sprite sheets:", error);
-      this.createFallbackSpritesheet();
     }
-  }
-
-  /**
-   * 스프라이트시트 로딩 실패 시 기본 스프라이트시트를 생성합니다.
-   */
-  private static createFallbackSpritesheet(): void {
-    console.log("[AssetLoader] Creating fallback spritesheet");
-
-    // 단색 텍스처 생성
-    const texture = PIXI.Texture.WHITE.clone();
-    texture.width = 64;
-    texture.height = 64;
-
-    // 최소 구현의 스프라이트시트 객체 생성
-    const spritesheet = new PIXI.Spritesheet(texture.baseTexture, {
-      frames: {
-        idle_0: { frame: { x: 0, y: 0, w: 64, h: 64 } },
-      },
-      meta: {
-        scale: "1",
-      },
-      animations: {
-        idle: ["idle_0"],
-      },
-    });
-
-    // 스프라이트시트 파싱
-    spritesheet.parse().then(() => {
-      console.log(
-        "[AssetLoader] Fallback spritesheet created with animations:",
-        Object.keys(spritesheet.animations || {})
-      );
-
-      this.assets.slimeSprites = spritesheet;
-    });
   }
 
   // 필요시 에셋 캐시를 지우는 메서드 추가
@@ -288,7 +250,7 @@ export class AssetLoader {
         this.assets.backgroundTexture.destroy(true);
       }
 
-      this.assets = undefined;
+      this.assets = {};
     }
 
     // PIXI 캐시 정리
