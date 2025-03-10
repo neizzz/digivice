@@ -44,29 +44,14 @@ export class AssetLoader {
 
   /**
    * 현재 로드된 에셋을 반환합니다.
-   * 로딩이 진행 중인 경우 완료될 때까지 대기합니다.
-   * @returns 로드된 게임 에셋 객체를 포함한 Promise
+   * @returns 로드된 게임 에셋 객체
    */
-  public static async getAssets(): Promise<GameAssets> {
-    // 에셋이 로딩 중이면 완료될 때까지 기다림
+  public static getAssets(): GameAssets {
+    // 에셋이 로딩 중이면 경고 표시
     if (this.isLoading) {
-      console.log(
-        "[AssetLoader] Assets are still loading, waiting for completion..."
+      console.warn(
+        "[AssetLoader] Assets are still loading, this may cause issues. Consider waiting for loadAssets() to complete."
       );
-
-      if (this.loadingPromise) {
-        try {
-          await this.loadingPromise;
-          console.log(
-            "[AssetLoader] Asset loading completed, returning assets"
-          );
-        } catch (error) {
-          console.error(
-            "[AssetLoader] Error while waiting for assets to load:",
-            error
-          );
-        }
-      }
     }
 
     // 기본 텍스처가 없는 경우 임시 텍스처 생성

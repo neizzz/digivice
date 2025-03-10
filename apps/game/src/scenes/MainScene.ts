@@ -19,7 +19,24 @@ export class MainScene extends PIXI.Container implements Scene {
     DebugHelper.init(app);
     DebugHelper.setEnabled(true);
 
-    // 동기적 초기화 수행
+    // 에셋 가져오기 (이미 로드되었으므로 즉시 반환됨)
+    const assets = AssetLoader.getAssets();
+
+    // 배경 생성 및 추가
+    const backgroundTexture = assets.backgroundTexture || PIXI.Texture.WHITE;
+    this.background = new Background(backgroundTexture);
+
+    // 캐릭터 생성 및 추가
+    this.character = new Character({
+      spritesheet: assets.slimeSprites,
+      name: "Slime",
+      initialPosition: {
+        x: this.app.screen.width / 2,
+        y: this.app.screen.height / 2,
+      },
+      speed: 1,
+    });
+
     this.setupScene();
   }
 
@@ -27,39 +44,24 @@ export class MainScene extends PIXI.Container implements Scene {
    * 씬을 동기적으로 설정합니다.
    */
   private setupScene(): void {
-    // 에셋 동기적으로 가져오기
-    AssetLoader.getAssets()
-      .then((assets) => {
-        // 배경 생성 및 추가
-        this.background = new Background(assets.backgroundTexture);
-        this.addChild(this.background);
+    // 에셋이 이미 로드되었다고 가정하고 동기적으로 처리
+    try {
+      this.addChild(this.background);
+      this.addChild(this.character);
 
-        // 캐릭터 생성 및 추가
-        this.character = new Character({
-          spritesheet: assets.slimeSprites,
-          name: "Slime",
-          initialPosition: {
-            x: this.app.screen.width / 2,
-            y: this.app.screen.height / 2,
-          },
-          speed: 1,
-        });
-        this.addChild(this.character);
+      // 초기 설정 완료
+      this.positionCharacter();
+      this.applyCharacterMovement();
+      this.setupDebugVisualization();
+      this.initialized = true;
 
-        // 초기 설정 완료
-        this.positionCharacter();
-        this.applyCharacterMovement();
-        this.setupDebugVisualization();
-        this.initialized = true;
+      // 화면 크기에 맞게 조정
+      this.onResize(this.app.screen.width, this.app.screen.height);
 
-        // 화면 크기에 맞게 조정
-        this.onResize(this.app.screen.width, this.app.screen.height);
-
-        console.log("MainScene setup completed");
-      })
-      .catch((error) => {
-        console.error("Error setting up MainScene:", error);
-      });
+      console.log("MainScene setup completed");
+    } catch (error) {
+      console.error("Error setting up MainScene:", error);
+    }
   }
 
   private positionCharacter(): void {
