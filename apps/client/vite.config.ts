@@ -12,12 +12,28 @@ const createDebugPlugin = (): Plugin => ({
       if (req.url?.startsWith("/game/")) {
         console.log(`[Asset] Loading game asset: ${req.url}`);
 
+        // 슬래시로 시작하는 경우 첫 문자를 제거
+        const urlPath = req.url?.replace(/^\//, "");
+        const filePath = resolve(__dirname, "public", urlPath || "");
+
+        console.log(`[Asset] Looking for file at: ${filePath}`);
+
         // 파일 존재 확인
-        const filePath = resolve(__dirname, "public", req.url);
         if (fs.existsSync(filePath)) {
           console.log(`[Asset] File exists at: ${filePath}`);
         } else {
           console.error(`[Asset] File not found: ${filePath}`);
+          console.log(`[Asset] Current directory: ${__dirname}`);
+          console.log(`[Asset] Checking public directory content...`);
+
+          const publicDir = resolve(__dirname, "public");
+          if (fs.existsSync(publicDir)) {
+            console.log(
+              `[Asset] Public dir contents: ${fs
+                .readdirSync(publicDir)
+                .join(", ")}`
+            );
+          }
         }
       }
       next();
