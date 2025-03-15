@@ -28,7 +28,7 @@ const ControlButtons: React.FC<ControlButtonsProps> = ({ onButtonPress }) => {
       />
       <ControlButton
         buttonStyleType={ControlButtonStyleType.GREEN}
-        onClick={() => onButtonPress(ControlButtonType.CENTER)}
+        onClick={() => onButtonPress(ControlButtonType.RIGHT)}
       />
     </ControlButtonsContainer>
   );

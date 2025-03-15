@@ -139,12 +139,10 @@ export class MainScene extends PIXI.Container implements Scene {
       onTypeESelect: () => this.handleMenuSelect("typeE"),
       onTypeFSelect: () => this.handleMenuSelect("typeF"),
       onCancel: () => this.handleMenuCancel(),
-      onNavigationProcessed: () => {},
     };
 
     // 메뉴 생성 - 뷰 요소의 부모에 직접 추가
     this.gameMenu = new GameMenu(parent, gameMenuOptions);
-    console.log("Game Menu initialized in MainScene");
   }
 
   /**
@@ -167,8 +165,6 @@ export class MainScene extends PIXI.Container implements Scene {
    * ControlButton 클릭 처리
    */
   public handleControlButtonClick(buttonType: ControlButtonType): void {
-    console.log(`MainScene에서 버튼 클릭 처리: ${buttonType}`);
-
     if (!this.gameMenu) {
       console.error("GameMenu is not initialized in MainScene");
       return;
@@ -180,10 +176,10 @@ export class MainScene extends PIXI.Container implements Scene {
         this.sendNavigationAction(NavigationAction.CANCEL);
         break;
       case ControlButtonType.CENTER:
-        this.sendNavigationAction(NavigationAction.NEXT);
+        this.sendNavigationAction(NavigationAction.SELECT);
         break;
       case ControlButtonType.RIGHT:
-        this.sendNavigationAction(NavigationAction.SELECT);
+        this.sendNavigationAction(NavigationAction.NEXT);
         break;
     }
   }

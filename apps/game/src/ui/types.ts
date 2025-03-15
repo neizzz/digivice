@@ -18,10 +18,12 @@ export enum ControlButtonType {
   RIGHT = "right",
 }
 
-// 버튼 타입 정의 (새로운 색상으로 업데이트)
+// 버튼 스타일 타입
 export enum ControlButtonStyleType {
   ORANGE = "orange",
   GREEN = "green",
   GRAY = "gray",
   PINK = "pink",
 }
+
+// 게임 메뉴 아이템 타입은 GameMenuItem.ts로 이동되어 이 파일에서는 제거

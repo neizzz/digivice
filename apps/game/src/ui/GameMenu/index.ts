@@ -32,7 +32,6 @@ export class GameMenu {
   private options: GameMenuOptions;
 
   constructor(parentElement: HTMLElement, options: GameMenuOptions = {}) {
-    console.log("✅");
     this.options = options;
 
     // 컨테이너 생성
@@ -44,7 +43,7 @@ export class GameMenu {
   }
 
   private initializeMenuItems(): void {
-    this.menuItems.forEach((itemType, index) => {
+    this.menuItems.forEach((itemType) => {
       const menuItem = new GameMenuItem(itemType);
       this.menuItemElements.push(menuItem);
       this.container.appendChild(menuItem.getElement());
@@ -103,22 +102,22 @@ export class GameMenu {
 
     const selectedMenu = this.menuItems[index];
     switch (selectedMenu) {
-      case MenuItemType.TYPE_A:
+      case GameMenuItemType.TYPE_A:
         if (this.options.onTypeASelect) this.options.onTypeASelect();
         break;
-      case MenuItemType.TYPE_B:
+      case GameMenuItemType.TYPE_B:
         if (this.options.onTypeBSelect) this.options.onTypeBSelect();
         break;
-      case MenuItemType.TYPE_C:
+      case GameMenuItemType.TYPE_C:
         if (this.options.onTypeCSelect) this.options.onTypeCSelect();
         break;
-      case MenuItemType.TYPE_D:
+      case GameMenuItemType.TYPE_D:
         if (this.options.onTypeDSelect) this.options.onTypeDSelect();
         break;
-      case MenuItemType.TYPE_E:
+      case GameMenuItemType.TYPE_E:
         if (this.options.onTypeESelect) this.options.onTypeESelect();
         break;
-      case MenuItemType.TYPE_F:
+      case GameMenuItemType.TYPE_F:
         if (this.options.onTypeFSelect) this.options.onTypeFSelect();
         break;
     }

@@ -67,9 +67,9 @@ export class Game {
    * @param buttonType 클릭된 버튼 타입
    */
   public handleControlButtonClick(buttonType: ControlButtonType): void {
-    // 현재 씬이 MainScene인 경우 해당 씬에 컨트롤 이벤트 전달
-    if (this.currentScene instanceof MainScene) {
-      (this.currentScene as MainScene).handleControlButtonClick(buttonType);
+    // 현재 씬이 있으면 컨트롤 이벤트 전달
+    if (this.currentScene) {
+      this.currentScene.handleControlButtonClick(buttonType);
     }
   }
 
