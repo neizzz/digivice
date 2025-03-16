@@ -3,6 +3,7 @@ import * as PIXI from "pixi.js";
 export interface GameAssets {
   backgroundTexture?: PIXI.Texture;
   slimeSprites?: PIXI.Spritesheet;
+  tilesetSprites?: PIXI.Spritesheet; // 추가: 타일셋 스프라이트시트
 }
 
 export class AssetLoader {
@@ -66,6 +67,11 @@ export class AssetLoader {
     if (!this.assets.slimeSprites) {
       console.warn("[AssetLoader] Slime sprites not loaded, using fallback");
       this.assets.slimeSprites = {} as PIXI.Spritesheet;
+    }
+
+    // 타일셋 스프라이트시트가 없는 경우 경고
+    if (!this.assets.tilesetSprites) {
+      console.warn("[AssetLoader] Tileset sprites not loaded, using fallback");
     }
 
     return this.assets;
@@ -141,9 +147,27 @@ export class AssetLoader {
 
   private static async loadSpriteSheets(): Promise<void> {
     try {
+      // 슬라임 스프라이트시트 로드
+      await this.loadSlimeSpritesheet();
+
+      // 타일셋 스프라이트시트 로드
+      await this.loadTilesetSpritesheet();
+    } catch (error) {
+      console.error("[AssetLoader] Failed to load sprite sheets:", error);
+    }
+  }
+
+  /**
+   * 슬라임 스프라이트시트를 로드합니다
+   */
+  private static async loadSlimeSpritesheet(): Promise<void> {
+    try {
       // 슬라임 스프라이트시트 메타데이터 로드
-      const slimeMetadataPath = `${this.BASE_PATH}/sprites/test-slime/metadata.json`;
-      console.log("[AssetLoader] Loading metadata from:", slimeMetadataPath);
+      const slimeMetadataPath = `${this.BASE_PATH}/sprites/monsters/test-slime/metadata.json`;
+      console.log(
+        "[AssetLoader] Loading slime metadata from:",
+        slimeMetadataPath
+      );
 
       // 직접 파일 시스템 경로 확인 (디버깅용)
       console.log(
@@ -166,7 +190,7 @@ export class AssetLoader {
       }
 
       const slimeMetadata = await response.json();
-      console.log("[AssetLoader] Metadata loaded successfully");
+      console.log("[AssetLoader] Slime metadata loaded successfully");
       console.log(
         "[AssetLoader] Metadata animations:",
         slimeMetadata.animations
@@ -227,7 +251,75 @@ export class AssetLoader {
         );
       }
     } catch (error) {
-      console.error("[AssetLoader] Failed to load sprite sheets:", error);
+      console.error("[AssetLoader] Failed to load slime sprites:", error);
+    }
+  }
+
+  /**
+   * 타일셋 스프라이트시트를 로드합니다
+   */
+  private static async loadTilesetSpritesheet(): Promise<void> {
+    try {
+      // 타일셋 스프라이트시트 메타데이터 로드
+      const tilesetMetadataPath = `${this.BASE_PATH}/sprites/tiles/game-tileset/metadata.json`;
+      console.log(
+        "[AssetLoader] Loading tileset metadata from:",
+        tilesetMetadataPath
+      );
+
+      const response = await fetch(tilesetMetadataPath, {
+        method: "GET",
+        headers: {
+          "Cache-Control": "no-cache",
+          Pragma: "no-cache",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          `Failed to load tileset metadata: ${response.status} ${response.statusText}`
+        );
+      }
+
+      const tilesetMetadata = await response.json();
+      console.log("[AssetLoader] Tileset metadata loaded successfully");
+
+      // 스프라이트시트 이미지 경로
+      const imagePath = tilesetMetadata.meta.image;
+      console.log("[AssetLoader] Loading tileset from:", imagePath);
+
+      try {
+        // 스프라이트시트 텍스처 로드
+        const baseTexture = await PIXI.Assets.load(imagePath);
+        console.log("[AssetLoader] Tileset texture loaded successfully");
+
+        // 스프라이트시트 생성
+        const spritesheet = new PIXI.Spritesheet(baseTexture, {
+          frames: tilesetMetadata.frames,
+          meta: tilesetMetadata.meta,
+        });
+
+        // 비동기적으로 스프라이트시트 파싱
+        console.log("[AssetLoader] Parsing tileset spritesheet...");
+        await spritesheet.parse();
+
+        // 파싱된 프레임 확인
+        const frameKeys = Object.keys(spritesheet.textures || {});
+        console.log(
+          "[AssetLoader] Tileset spritesheet parsed successfully with frames:",
+          frameKeys
+        );
+
+        // 파싱된 스프라이트시트 저장
+        this.assets.tilesetSprites = spritesheet;
+      } catch (textureError) {
+        console.error(
+          "[AssetLoader] Failed to load/parse tileset spritesheet:",
+          textureError
+        );
+      }
+    } catch (error) {
+      console.error("[AssetLoader] Failed to load tileset sprites:", error);
     }
   }
 
@@ -243,6 +335,11 @@ export class AssetLoader {
       // 스프라이트시트의 텍스처 해제
       if (this.assets.slimeSprites) {
         this.assets.slimeSprites.destroy(true);
+      }
+
+      // 타일셋 스프라이트시트 해제
+      if (this.assets.tilesetSprites) {
+        this.assets.tilesetSprites.destroy(true);
       }
 
       // 배경 텍스처 해제
