@@ -123,9 +123,20 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
       this.addChild(this.ground);
       this.addChild(this.bird);
 
+      // 점수 텍스트 추가 - 항상 최상위에 표시
+      this.addChild(this.scoreText);
+
       // 게임 엔진에 물리 객체 추가
       this.gameEngine.addGameObject(this.bird, this.birdBody);
       this.gameEngine.addGameObject(this.ground, this.groundBody);
+
+      // 바닥 스프라이트의 앵커 설정 추가 - 중앙 기준점으로 변경
+      this.ground.anchor.set(0.5, 0.5);
+      // 바닥 위치 재조정
+      this.ground.position.set(
+        this.app.screen.width / 2,
+        this.app.screen.height - this.ground.height / 2
+      );
 
       // 강제로 새의 정적 상태 해제
       if (this.birdBody.isStatic) {
@@ -277,7 +288,14 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
    */
   private jump(): void {
     // 점프 높이를 -12에서 -6으로 변경 (절반 높이)
-    Matter.Body.setVelocity(this.birdBody, { x: 0, y: -6 });
+    Matter.Body.setVelocity(this.birdBody, { x: 0, y: -8 });
+  }
+
+  // 점수 업데이트 함수 - 시각적 효과 제거
+  private updateScore(): void {
+    this.score++;
+    this.scoreText.text = `Score: ${this.score}`;
+    // 크기 변경 효과 제거
   }
 
   private createPipePair(): void {
@@ -294,13 +312,12 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
       (gapHeight + minPipeHeight * 2);
     const topPipeHeight = minPipeHeight + Math.random() * availableHeight;
 
-    // 상단 파이프 생성
+    // 상단 파이프 생성 - 앵커 수정
     const topPipe = new PIXI.Sprite(PIXI.Texture.WHITE);
     topPipe.width = pipeWidth;
     topPipe.height = topPipeHeight;
     topPipe.tint = 0x00aa00; // 녹색
-    topPipe.anchor.set(0.5, 0); // 중앙 상단 기준점 설정
-    topPipe.position.set(this.app.screen.width + pipeWidth / 2, 0);
+    topPipe.anchor.set(0.5, 0.5); // 중앙 기준점으로 변경
 
     // 상단 파이프 물리 바디 생성
     const topPipeBody = Matter.Bodies.rectangle(
@@ -311,25 +328,36 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
       { isStatic: true, label: "pipe" }
     );
 
-    // 하단 파이프 생성
+    // 위치 설정 - 물리 바디의 중심점과 일치시킴
+    topPipe.position.set(
+      this.app.screen.width + pipeWidth / 2,
+      topPipeHeight / 2
+    );
+
+    // 하단 파이프 생성 - 앵커 수정
     const bottomPipe = new PIXI.Sprite(PIXI.Texture.WHITE);
     bottomPipe.width = pipeWidth;
     bottomPipe.height =
       this.app.screen.height - topPipeHeight - gapHeight - this.ground.height;
     bottomPipe.tint = 0x00aa00; // 녹색
-    bottomPipe.anchor.set(0.5, 0); // 중앙 상단 기준점 설정
-    bottomPipe.position.set(
-      this.app.screen.width + pipeWidth / 2,
-      topPipeHeight + gapHeight
-    );
+    bottomPipe.anchor.set(0.5, 0.5); // 중앙 기준점으로 변경
+
+    // 하단 파이프 물리 바디 위치 계산
+    const bottomPipeBodyY = topPipeHeight + gapHeight + bottomPipe.height / 2;
 
     // 하단 파이프 물리 바디 생성
     const bottomPipeBody = Matter.Bodies.rectangle(
       this.app.screen.width + pipeWidth / 2,
-      topPipeHeight + gapHeight + bottomPipe.height / 2,
+      bottomPipeBodyY,
       pipeWidth,
       bottomPipe.height,
       { isStatic: true, label: "pipe" }
+    );
+
+    // 위치 설정 - 물리 바디의 중심점과 일치시킴
+    bottomPipe.position.set(
+      this.app.screen.width + pipeWidth / 2,
+      bottomPipeBodyY
     );
 
     // 파이프 컨테이너에 추가
@@ -365,8 +393,8 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
         !pair.top.userData?.passed
       ) {
         pair.top.userData = { passed: true };
-        this.score++;
-        this.scoreText.text = `Score: ${this.score}`;
+        // 점수 업데이트 함수 호출로 변경
+        this.updateScore();
       }
 
       if (pair.topBody.position.x < -pair.top.width) {
@@ -402,6 +430,8 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
 
     // 게임 오버 시 게임 엔진 일시 중지
     this.gameEngine.pause();
+
+    // 최종 점수 표시 제거 (Final Score 텍스트 추가 코드 삭제)
 
     const gameOverText = new PIXI.Text("Game Over", {
       fontFamily: "Arial",
@@ -440,6 +470,7 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
     this.gameOver = false;
     this.score = 0;
     this.scoreText.text = "Score: 0";
+    // 크기 리셋 코드 제거 (크기 변경이 없으므로 필요 없음)
 
     // 게임 재시작 시 게임 엔진 재개
     this.gameEngine.resume();
@@ -499,7 +530,8 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
 
     if (this.ground && this.groundBody) {
       this.ground.width = width;
-      this.ground.y = height - this.ground.height;
+      // 바닥의 앵커가 중앙이므로 위치 조정 방식 변경
+      this.ground.position.set(width / 2, height - this.ground.height / 2);
 
       Matter.Body.setPosition(this.groundBody, {
         x: width / 2,
