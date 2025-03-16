@@ -1,6 +1,7 @@
 import * as PIXI from "pixi.js";
 import { Scene } from "./interfaces/Scene";
 import { MainScene } from "./scenes/MainScene";
+import { FlappyBirdGameScene } from "./scenes/FlappyBirdGameScene"; // FlappyBirdGameScene 임포트
 import { AssetLoader } from "./utils/AssetLoader";
 import { DebugHelper } from "./utils/DebugHelper";
 import { SceneKey } from "./SceneKey";
@@ -142,15 +143,25 @@ export class Game {
       );
     }
 
+    let scene: Scene;
+
     switch (key) {
       case SceneKey.MAIN:
-        return new MainScene(this.app);
-      // 추가 씬을 여기에 구현할 수 있습니다
-      // case SceneKey.BATTLE:
-      //   return new BattleScene(this.app);
+        scene = new MainScene(this.app);
+        break;
+      case SceneKey.FLAPPY_BIRD_GAME:
+        scene = new FlappyBirdGameScene(this.app);
+        break;
       default:
         throw new Error(`Unknown scene key: ${key}`);
     }
+
+    // Scene 인터페이스의 setSceneChangeCallback 메서드를 통해 씬 전환 콜백 설정
+    scene.setSceneChangeCallback((targetKey: SceneKey) => {
+      this.changeScene(targetKey);
+    });
+
+    return scene;
   }
 
   private update(deltaTime: number): void {
@@ -167,14 +178,17 @@ export class Game {
    */
   public changeScene(key: SceneKey): boolean {
     try {
+      console.log(`씬 전환 요청: ${key}`);
+
       // 기존 씬과 같은 씬으로 전환하는 경우 무시
       if (this.currentSceneKey === key) {
-        console.log(`Already in scene '${key}'`);
+        console.log(`이미 ${key} 씬에 있습니다`);
         return true;
       }
 
       // 캐시된 씬이 없으면 새로 생성
       if (!this.scenes.has(key)) {
+        console.log(`새로운 씬 생성: ${key}`);
         const newScene = this.createScene(key);
         this.scenes.set(key, newScene);
       }
@@ -186,6 +200,7 @@ export class Game {
         this.currentScene &&
         this.currentScene instanceof PIXI.DisplayObject
       ) {
+        console.log(`기존 씬 제거: ${this.currentSceneKey}`);
         this.app.stage.removeChild(this.currentScene);
       }
 
@@ -202,10 +217,10 @@ export class Game {
       const { width, height } = this.app.renderer.screen;
       this.currentScene.onResize(width, height);
 
-      console.log(`Changed to scene '${key}'`);
+      console.log(`씬 전환 완료: ${key}`);
       return true;
     } catch (error) {
-      console.error(`Error changing to scene '${key}':`, error);
+      console.error(`씬 전환 오류 (${key}):`, error);
       return false;
     }
   }

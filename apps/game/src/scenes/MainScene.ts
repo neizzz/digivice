@@ -6,6 +6,7 @@ import { AssetLoader } from "../utils/AssetLoader";
 import { DebugHelper } from "../utils/DebugHelper";
 import { GameMenu, GameMenuOptions } from "../ui/GameMenu";
 import { ControlButtonType, NavigationAction } from "../ui/types";
+import { SceneKey } from "../SceneKey";
 
 export class MainScene extends PIXI.Container implements Scene {
   private app: PIXI.Application;
@@ -17,7 +18,11 @@ export class MainScene extends PIXI.Container implements Scene {
   private gameMenu: GameMenu | null = null;
   private navigationIndex: number = 0;
 
+  // 씬 변경을 위한 콜백 함수
+  private onSceneChange: ((key: SceneKey) => void) | null = null;
+
   constructor(app: PIXI.Application) {
+    // onSceneChange 매개변수 제거
     super();
     this.app = app;
 
@@ -44,6 +49,13 @@ export class MainScene extends PIXI.Container implements Scene {
     });
 
     this.setupScene();
+  }
+
+  /**
+   * 씬 전환 콜백을 설정합니다
+   */
+  public setSceneChangeCallback(callback: (key: SceneKey) => void): void {
+    this.onSceneChange = callback;
   }
 
   /**
@@ -150,7 +162,44 @@ export class MainScene extends PIXI.Container implements Scene {
    */
   private handleMenuSelect(menuType: string): void {
     console.log(`메뉴 항목 선택: ${menuType}`);
-    // 여기에 메뉴 항목별 로직 구현
+
+    switch (menuType) {
+      case "typeA":
+        console.log("A 타입 버튼으로 플래피 버드 게임으로 전환 요청");
+        if (this.onSceneChange) {
+          // GameMenu 제거
+          if (this.gameMenu) {
+            this.gameMenu.destroy();
+            this.gameMenu = null;
+          }
+
+          // 캐릭터의 움직임 중지 (필요한 정리 작업)
+          if (this.character) {
+            this.character.stopRandomMovement();
+          }
+
+          // 씬 전환 실행
+          this.onSceneChange(SceneKey.FLAPPY_BIRD_GAME);
+        } else {
+          console.warn("씬 전환 콜백이 설정되지 않았습니다");
+        }
+        break;
+
+      // 다른 메뉴 항목들 처리
+      case "typeB":
+        console.log("B 타입 버튼 선택");
+        // B 타입 메뉴 처리 로직
+        break;
+
+      case "typeC":
+        console.log("C 타입 버튼 선택");
+        // C 타입 메뉴 처리 로직
+        break;
+
+      // 기타 메뉴 항목 처리...
+      default:
+        console.log(`${menuType} 메뉴 항목에 대한 처리가 구현되지 않았습니다`);
+    }
   }
 
   /**
@@ -176,6 +225,7 @@ export class MainScene extends PIXI.Container implements Scene {
         this.sendNavigationAction(NavigationAction.CANCEL);
         break;
       case ControlButtonType.CENTER:
+        console.log("CENTER 버튼 클릭 - 선택 액션 전송");
         this.sendNavigationAction(NavigationAction.SELECT);
         break;
       case ControlButtonType.RIGHT:
