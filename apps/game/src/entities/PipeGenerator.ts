@@ -8,39 +8,21 @@ export interface PipePair {
   bottom: PIXI.Sprite | PIXI.Container;
   topBody: Matter.Body;
   bottomBody: Matter.Body;
+  passed: boolean;
 }
 
 export class PipeGenerator {
   private app: PIXI.Application;
   private gameEngine: GameEngine;
-  private pipes: PIXI.Container;
-  private pipesPairs: PipePair[] = [];
-  private pipeSpeed: number = 2;
-  private pipeSpawnInterval: number = 2000; // 2초마다 파이프 생성
-  private lastPipeSpawnTime: number = 0;
-  private ground: PIXI.DisplayObject;
-  private birdBody: Matter.Body;
-  private onScoreCallback: () => void;
-  private gameOver: boolean = false;
 
   // 텍스처 캐싱
   private pipeBodyTexture: PIXI.Texture;
   private pipeEndTexture: PIXI.Texture;
+  private pipeEndTopTexture: PIXI.Texture;
 
-  constructor(
-    app: PIXI.Application,
-    gameEngine: GameEngine,
-    pipes: PIXI.Container,
-    ground: PIXI.DisplayObject,
-    birdBody: Matter.Body,
-    onScoreCallback: () => void
-  ) {
+  constructor(app: PIXI.Application, gameEngine: GameEngine) {
     this.app = app;
     this.gameEngine = gameEngine;
-    this.pipes = pipes;
-    this.ground = ground;
-    this.birdBody = birdBody;
-    this.onScoreCallback = onScoreCallback;
 
     // 텍스처 초기화
     this.initTextures();
@@ -63,71 +45,66 @@ export class PipeGenerator {
       }
       if (assets.tilesetSprites.textures["pipe-end"]) {
         this.pipeEndTexture = assets.tilesetSprites.textures["pipe-end"];
-        // 렌더 텍스처 방식은 제거 - 직접 스프라이트 뒤집기로 변경
       }
     }
   }
 
   /**
-   * 파이프 쌍을 생성합니다.
+   * 파이프 쌍을 생성하여 반환합니다.
    */
-  public createPipePair(): void {
-    if (this.gameOver) return;
-
+  public createPipePair(groundHeight: number, tileSize: number): PipePair {
     // 기본 변수 설정
-    const tileSize = 32; // 기본 타일 크기
-    const pipeWidth = tileSize * 1.5; // 파이프 너비
-    const minPipeSegments = 3; // 최소 파이프 세그먼트 수
-    const gapHeight = pipeWidth * 3; // 파이프 사이 간격을 너비의 3배로 설정
+    const pipeWidth = tileSize;
+    const minPipeHeight = 2 * tileSize; // 최소 파이프 높이
 
-    // 사용 가능한 공간 계산 (세그먼트 단위)
-    const screenHeightInSegments = Math.floor(
-      (this.app.screen.height - this.ground.height) / pipeWidth
+    // 화면 가용 높이 (지면 제외)
+    const availableHeight = this.app.screen.height - groundHeight;
+
+    // 새가 지나갈 통로 높이 범위 설정 (화면 높이의 20%~30%)
+    const minPassageHeight = Math.max(60, availableHeight * 0.2); // 최소 60px 또는 화면 높이의 20%
+    const maxPassageHeight = Math.max(80, availableHeight * 0.3); // 최대 80px 또는 화면 높이의 30%
+
+    // 통로 높이 랜덤 설정 (타일 크기의 배수로 반올림)
+    let passageHeight =
+      minPassageHeight + Math.random() * (maxPassageHeight - minPassageHeight);
+    passageHeight = Math.ceil(passageHeight / tileSize) * tileSize; // 타일 크기의 배수로 반올림
+
+    // 상단 파이프 높이 계산 및 타일 크기의 배수로 반올림
+    let topPipeHeight = Math.max(
+      minPipeHeight,
+      minPipeHeight +
+        Math.random() * (availableHeight - passageHeight - minPipeHeight * 2)
     );
-    const minGapSegments = Math.ceil(gapHeight / pipeWidth);
-    const availableSegments =
-      screenHeightInSegments - minGapSegments - minPipeSegments * 2;
+    topPipeHeight = Math.floor(topPipeHeight / tileSize) * tileSize; // 타일 크기의 배수로 내림
 
-    // 상단 파이프 높이 계산 (세그먼트 단위로)
-    const topSegments =
-      minPipeSegments + Math.floor(Math.random() * availableSegments);
-    const topPipeHeight = topSegments * pipeWidth; // 정확히 너비의 배수로 설정
+    // 하단 파이프 타일 개수 계산 (지면에서부터 상단 파이프 아래쪽까지의 공간)
+    const groundY = this.app.screen.height - groundHeight; // 지면의 y좌표
+    const bottomPipeMaxHeight =
+      this.app.screen.height - groundHeight - (topPipeHeight + passageHeight);
+    const bottomPipeTiles = Math.floor(bottomPipeMaxHeight / tileSize);
+    const bottomPipeHeight = bottomPipeTiles * tileSize; // 타일 단위로 딱 맞게 조정
 
-    // 하단 파이프 높이 계산 (남은 공간 모두 사용)
-    const bottomSegments =
-      screenHeightInSegments - topSegments - minGapSegments;
-    const bottomPipeHeight = bottomSegments * pipeWidth;
-
-    // 파이프 쌍 생성
+    // 상단 파이프 생성
     const { pipe: topPipe, body: topPipeBody } = this.createTopPipe(
       topPipeHeight,
       pipeWidth
     );
 
+    // 하단 파이프 생성 - 지면 높이만 전달
     const { pipe: bottomPipe, body: bottomPipeBody } = this.createBottomPipe(
       bottomPipeHeight,
       pipeWidth,
-      pipeWidth, // tileSize 대신 pipeWidth 사용
-      topPipeHeight,
-      gapHeight
+      groundY // 지면 y좌표만 전달
     );
 
-    // 파이프 컨테이너에 추가
-    this.pipes.addChild(topPipe);
-    this.pipes.addChild(bottomPipe);
-
-    // 게임 엔진에 파이프 물리 바디 추가
-    this.gameEngine.addGameObject(topPipe, topPipeBody);
-    this.gameEngine.addGameObject(bottomPipe, bottomPipeBody);
-
-    // 파이프 쌍 추적
-    topPipe.userData = { passed: false };
-    this.pipesPairs.push({
+    // 생성된 파이프 쌍 반환
+    return {
       top: topPipe,
       bottom: bottomPipe,
       topBody: topPipeBody,
       bottomBody: bottomPipeBody,
-    });
+      passed: false,
+    };
   }
 
   /**
@@ -139,53 +116,46 @@ export class PipeGenerator {
   ): { pipe: PIXI.Container; body: Matter.Body } {
     // 상단 파이프 생성
     const pipe = new PIXI.Container();
-    pipe.width = width;
-    pipe.height = height;
 
-    // 세그먼트 수 계산 (마지막 1개는 파이프 끝부분용)
-    const segmentsCount = Math.floor(height / width) - 1;
+    // 파이프 타일 개수 계산 (정수 타일 개수)
+    const segmentsCount = Math.floor(height / width);
+    const actualHeight = segmentsCount * width; // 정확한 높이 재계산
 
-    // 파이프 본체 세그먼트 생성 - 각 세그먼트를 정사각형으로 유지
-    for (let i = 0; i < segmentsCount; i++) {
+    // 파이프 본체 세그먼트 생성 (마지막 하나는 파이프 끝부분용)
+    for (let i = 0; i < segmentsCount - 1; i++) {
       const segment = new PIXI.Sprite(this.pipeBodyTexture);
       segment.width = width;
-      segment.height = width; // width를 높이로 사용하여 정사각형 유지
+      segment.height = width;
       segment.position.x = 0;
       segment.position.y = i * width;
       pipe.addChild(segment);
     }
 
-    // 상단 파이프 끝부분 추가 - 스케일링 대신 회전 사용
+    // 상단 파이프 끝부분 추가
     const pipeEnd = new PIXI.Sprite(this.pipeEndTexture);
     pipeEnd.width = width;
     pipeEnd.height = width;
-
-    // 원본 크기와 비율 유지
-    pipeEnd.texture.baseTexture.scaleMode = PIXI.SCALE_MODES.LINEAR;
-
-    // 앵커 포인트를 중앙으로 설정하고 180도 회전
     pipeEnd.anchor.set(0.5, 0.5);
-    pipeEnd.rotation = Math.PI;
-
-    // 위치 조정 - 파이프 하단에 정확히 위치시키기
+    pipeEnd.rotation = Math.PI; // 180도 회전
     pipeEnd.position.x = width / 2;
-    pipeEnd.position.y = segmentsCount * width + width / 2;
-
+    pipeEnd.position.y = (segmentsCount - 1) * width + width / 2;
     pipe.addChild(pipeEnd);
 
-    // 앵커 설정
+    // 컨테이너 크기 명시적으로 지정
+    pipe.width = width;
+    pipe.height = actualHeight;
+
+    // 앵커 및 위치 설정
     pipe.pivot.x = width / 2;
-    pipe.pivot.y = height / 2;
+    pipe.pivot.y = actualHeight / 2;
+    pipe.position.set(this.app.screen.width + width / 2, actualHeight / 2);
 
-    // 위치 설정
-    pipe.position.set(this.app.screen.width + width / 2, height / 2);
-
-    // 물리 바디 생성
+    // 물리 바디 생성 - 실제 높이 사용
     const body = Matter.Bodies.rectangle(
       this.app.screen.width + width / 2,
-      height / 2,
+      actualHeight / 2,
       width,
-      height,
+      actualHeight,
       { isStatic: true, label: "pipe" }
     );
 
@@ -194,152 +164,61 @@ export class PipeGenerator {
 
   /**
    * 하단 파이프를 생성합니다.
+   * @param height 파이프 높이
+   * @param width 파이프 너비
+   * @param groundY 지면의 y좌표
    */
   private createBottomPipe(
     height: number,
     width: number,
-    segmentSize: number,
-    topPipeHeight: number,
-    gapHeight: number
+    groundY: number
   ): { pipe: PIXI.Container; body: Matter.Body } {
     // 하단 파이프 생성
     const pipe = new PIXI.Container();
-    pipe.width = width;
-    pipe.height = height;
 
-    // 파이프 끝부분 추가
+    // 정확한 타일 개수 계산
+    const segmentsCount = Math.floor(height / width);
+    const actualHeight = segmentsCount * width; // 정확한 높이 재계산
+
+    // 앵커 포인트 설정 - 하단 중앙이 기준점
+    pipe.pivot.x = width / 2;
+    pipe.pivot.y = height / 2; // 상단을 기준점으로 변경
+
+    // 파이프를 상단 파이프와 간격 위치에 배치
+    const topPipeAndGap = groundY - actualHeight;
+    pipe.position.set(this.app.screen.width + width / 2, topPipeAndGap);
+
+    // 파이프 끝부분 추가 - 맨 위에 위치
     const pipeEnd = new PIXI.Sprite(this.pipeEndTexture);
     pipeEnd.width = width;
-    pipeEnd.height = segmentSize; // 너비와 동일하게 설정
+    pipeEnd.height = width;
     pipeEnd.position.x = 0;
-    pipeEnd.position.y = 0;
+    pipeEnd.position.y = 0; // 상단 기준점에서 시작
     pipe.addChild(pipeEnd);
 
-    // 파이프 본체 세그먼트 생성 - 각 세그먼트를 정사각형으로 유지
-    const segmentsNeeded = Math.ceil((height - segmentSize) / segmentSize);
-
-    for (let i = 0; i < segmentsNeeded; i++) {
+    // 파이프 본체 세그먼트 생성 - 위에서 아래로
+    for (let i = 1; i < segmentsCount; i++) {
       const segment = new PIXI.Sprite(this.pipeBodyTexture);
       segment.width = width;
-      segment.height = segmentSize; // 너비와 동일하게 설정
+      segment.height = width;
       segment.position.x = 0;
-      segment.position.y = segmentSize + i * segmentSize; // 끝부분 다음부터 시작
+      segment.position.y = i * width; // 상단부터 아래로 측정
       pipe.addChild(segment);
     }
 
-    // 앵커 및 위치 설정
-    pipe.pivot.x = width / 2;
-    pipe.pivot.y = 0; // 상단을 기준점으로 유지
+    // 컨테이너 크기 명시적으로 지정
+    pipe.width = width;
+    pipe.height = actualHeight;
 
-    const yPos = topPipeHeight + gapHeight;
-    pipe.position.set(this.app.screen.width + width / 2, yPos);
-
-    // 물리 바디 생성
+    // 물리 바디 생성 - 파이프의 중앙에 배치
     const body = Matter.Bodies.rectangle(
       this.app.screen.width + width / 2,
-      yPos + height / 2, // 파이프의 중심에 바디 배치
+      topPipeAndGap + actualHeight / 2, // 파이프 중앙 위치
       width,
-      height,
+      actualHeight,
       { isStatic: true, label: "pipe" }
     );
 
     return { pipe, body };
-  }
-
-  /**
-   * 파이프를 이동시킵니다.
-   */
-  public movePipes(): void {
-    for (let i = 0; i < this.pipesPairs.length; i++) {
-      const pair = this.pipesPairs[i];
-
-      // 물리 바디 이동
-      Matter.Body.translate(pair.topBody, { x: -this.pipeSpeed, y: 0 });
-      Matter.Body.translate(pair.bottomBody, { x: -this.pipeSpeed, y: 0 });
-
-      // 렌더링 객체 위치 업데이트
-      pair.top.position.x = pair.topBody.position.x;
-      pair.bottom.position.x = pair.bottomBody.position.x;
-
-      // 점수 처리
-      if (
-        pair.topBody.position.x < this.birdBody.position.x &&
-        !pair.top.userData?.passed
-      ) {
-        pair.top.userData = { passed: true };
-        this.onScoreCallback();
-      }
-
-      // 화면 밖으로 나간 파이프 제거
-      if (pair.topBody.position.x < -pair.top.width) {
-        this.removePipePair(i);
-        i--;
-      }
-    }
-  }
-
-  /**
-   * 특정 인덱스의 파이프 쌍을 제거합니다.
-   */
-  private removePipePair(index: number): void {
-    const pair = this.pipesPairs[index];
-
-    // 디스플레이 객체 제거
-    this.pipes.removeChild(pair.top);
-    this.pipes.removeChild(pair.bottom);
-
-    // 물리 바디 제거
-    Matter.Composite.remove(this.gameEngine["physics"].world, pair.topBody);
-    Matter.Composite.remove(this.gameEngine["physics"].world, pair.bottomBody);
-
-    // 배열에서 제거
-    this.pipesPairs.splice(index, 1);
-  }
-
-  /**
-   * 파이프 생성 로직을 업데이트합니다.
-   */
-  public update(deltaTime: number): void {
-    if (this.gameOver) return;
-
-    const currentTime = Date.now();
-    if (currentTime - this.lastPipeSpawnTime > this.pipeSpawnInterval) {
-      this.createPipePair();
-      this.lastPipeSpawnTime = currentTime;
-    }
-
-    this.movePipes();
-  }
-
-  /**
-   * 모든 파이프를 제거합니다.
-   */
-  public clearPipes(): void {
-    // 모든 파이프 쌍을 삭제
-    while (this.pipesPairs.length > 0) {
-      this.removePipePair(0);
-    }
-    this.lastPipeSpawnTime = 0;
-  }
-
-  /**
-   * 게임 오버 상태를 설정합니다.
-   */
-  public setGameOver(isGameOver: boolean): void {
-    this.gameOver = isGameOver;
-  }
-
-  /**
-   * 파이프 속도를 설정합니다.
-   */
-  public setPipeSpeed(speed: number): void {
-    this.pipeSpeed = speed;
-  }
-
-  /**
-   * 파이프 생성 간격을 설정합니다.
-   */
-  public setPipeSpawnInterval(interval: number): void {
-    this.pipeSpawnInterval = interval;
   }
 }

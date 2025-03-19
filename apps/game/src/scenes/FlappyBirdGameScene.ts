@@ -18,6 +18,7 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
   private birdBody: Matter.Body;
   private pipes: PIXI.Container;
   private pipeGenerator: PipeGenerator; // PipeGenerator 인스턴스 추가
+  private pipesPairs: PipePair[] = []; // 파이프 쌍을 관리하는 배열 추가
   private scoreText: PIXI.Text;
   private score: number = 0;
   private gameOver: boolean = false;
@@ -76,19 +77,19 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
     const assets = AssetLoader.getAssets();
     const tilesetSprites = assets.tilesetSprites;
 
+    // 타일 크기를 텍스처 프레임 기반으로 결정
+    let tileSize = 32; // 기본값
+
     // 바닥 생성 - 타일셋 사용
-    let groundTexture = PIXI.Texture.WHITE; // 기본값
     if (tilesetSprites && tilesetSprites.textures["ground-1"]) {
-      groundTexture = tilesetSprites.textures["ground-1"];
+      const groundTexture = tilesetSprites.textures["ground-1"];
+      tileSize = groundTexture.frame.width; // 텍스처 프레임 크기 사용
       console.log("[FlappyBirdGameScene] Using tileset texture for ground");
     } else {
       console.warn(
         "[FlappyBirdGameScene] Tileset texture not found for ground, using default"
       );
     }
-
-    // 타일 크기를 정사각형으로 유지하기 위한 기본 크기 설정
-    const tileSize = 32; // 타일 크기를 32x32로 설정 (원래 16x16의 2배)
 
     // 지면 컨테이너 생성 - 타입 캐스팅 대신 명시적 선언
     const groundContainer = new PIXI.Container();
@@ -184,15 +185,8 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
         this.app.screen.height - tileSize / 2
       );
 
-      // PipeGenerator 초기화
-      this.pipeGenerator = new PipeGenerator(
-        this.app,
-        this.gameEngine,
-        this.pipes,
-        this.ground,
-        this.birdBody,
-        this.updateScore.bind(this)
-      );
+      // PipeGenerator 초기화 - 간소화된 생성자로 수정
+      this.pipeGenerator = new PipeGenerator(this.app, this.gameEngine);
 
       // 강제로 새의 정적 상태 해제
       if (this.birdBody.isStatic) {
@@ -374,9 +368,6 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
   private handleGameOver(): void {
     this.gameOver = true;
 
-    // PipeGenerator에 게임 오버 상태 전달
-    this.pipeGenerator.setGameOver(true);
-
     // 게임 오버 시 게임 엔진 일시 중지
     this.gameEngine.pause();
 
@@ -421,9 +412,10 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
     // 게임 재시작 시 게임 엔진 재개
     this.gameEngine.resume();
 
-    // PipeGenerator 상태 초기화
-    this.pipeGenerator.setGameOver(false);
-    this.pipeGenerator.clearPipes();
+    // 모든 파이프 제거
+    while (this.pipesPairs.length > 0) {
+      this.removePipePair(0);
+    }
 
     Matter.Body.setPosition(this.birdBody, {
       x: this.app.screen.width / 3,
@@ -468,10 +460,14 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
     }
 
     if (this.ground && this.groundBody) {
-      const tileSize = 32; // 정사각형 타일 크기
+      // 텍스처 기반으로 타일 크기 결정
+      const assets = AssetLoader.getAssets();
+      const tileSize =
+        assets.tilesetSprites && assets.tilesetSprites.textures["ground-1"]
+          ? assets.tilesetSprites.textures["ground-1"].frame.width
+          : 32;
 
       // 바닥 텍스처를 타일 형태로 반복 - tilesetSprites가 있는 경우
-      const assets = AssetLoader.getAssets();
       if (assets.tilesetSprites && assets.tilesetSprites.textures["ground-1"]) {
         // 바닥 스프라이트를 컨테이너로 교체하여 타일 패턴 생성
         this.removeChild(this.ground);
@@ -551,6 +547,90 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
     }
   }
 
+  /**
+   * 파이프를 생성하는 메서드
+   */
+  private createPipePair(): void {
+    if (this.gameOver) return;
+
+    // 텍스처 기반으로 타일 크기 결정
+    const assets = AssetLoader.getAssets();
+
+    if (
+      !assets.tilesetSprites ||
+      !assets.tilesetSprites.textures["pipe-body"]
+    ) {
+      throw new Error("Pipe textures not found in assets");
+    }
+
+    const texture = assets.tilesetSprites.textures["pipe-body"];
+    const tileSize = texture.frame.width;
+
+    // PipeGenerator에서 파이프 쌍 생성 - 정확한 타일 크기 전달
+    const pipePair = this.pipeGenerator.createPipePair(
+      this.ground.height,
+      tileSize
+    );
+
+    // 파이프 컨테이너에 추가
+    this.pipes.addChild(pipePair.top);
+    this.pipes.addChild(pipePair.bottom);
+
+    // 게임 엔진에 파이프 물리 바디 추가
+    this.gameEngine.addGameObject(pipePair.top, pipePair.topBody);
+    this.gameEngine.addGameObject(pipePair.bottom, pipePair.bottomBody);
+
+    // 파이프 쌍 추적
+    this.pipesPairs.push(pipePair);
+  }
+
+  /**
+   * 파이프를 이동시키는 메서드
+   */
+  private movePipes(): void {
+    for (let i = 0; i < this.pipesPairs.length; i++) {
+      const pair = this.pipesPairs[i];
+
+      // 물리 바디 이동
+      Matter.Body.translate(pair.topBody, { x: -this.pipeSpeed, y: 0 });
+      Matter.Body.translate(pair.bottomBody, { x: -this.pipeSpeed, y: 0 });
+
+      // 렌더링 객체 위치 업데이트
+      pair.top.position.x = pair.topBody.position.x;
+      pair.bottom.position.x = pair.bottomBody.position.x;
+
+      // 점수 처리
+      if (pair.topBody.position.x < this.birdBody.position.x && !pair.passed) {
+        pair.passed = true;
+        this.updateScore();
+      }
+
+      // 화면 밖으로 나간 파이프 제거
+      if (pair.topBody.position.x < -pair.top.width) {
+        this.removePipePair(i);
+        i--;
+      }
+    }
+  }
+
+  /**
+   * 특정 인덱스의 파이프 쌍을 제거합니다.
+   */
+  private removePipePair(index: number): void {
+    const pair = this.pipesPairs[index];
+
+    // 디스플레이 객체 제거
+    this.pipes.removeChild(pair.top);
+    this.pipes.removeChild(pair.bottom);
+
+    // 물리 바디 제거
+    Matter.Composite.remove(this.gameEngine["physics"].world, pair.topBody);
+    Matter.Composite.remove(this.gameEngine["physics"].world, pair.bottomBody);
+
+    // 배열에서 제거
+    this.pipesPairs.splice(index, 1);
+  }
+
   public update(deltaTime: number): void {
     if (!this.initialized) return;
 
@@ -560,25 +640,26 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
       this.bird.position.x = this.birdBody.position.x;
       this.bird.position.y = this.birdBody.position.y;
 
-      // PipeGenerator의 update 메서드 호출
-      this.pipeGenerator.update(deltaTime);
+      // 파이프 생성 로직
+      if (currentTime - this.lastPipeSpawnTime > this.pipeSpawnInterval) {
+        this.createPipePair();
+        this.lastPipeSpawnTime = currentTime;
+      }
+
+      // 파이프 이동 로직
+      this.movePipes();
 
       this.checkCollisions();
     }
-    // 게임 오버 상태에서는 더 이상 새 위치를 업데이트하지 않음
-    // else if (this.gameOver) {
-    //   this.bird.position.x = this.birdBody.position.x;
-    //   this.bird.position.y = this.birdBody.position.y;
-    // }
   }
 
   public destroy(): void {
     window.removeEventListener("keydown", this.handleKeyDown.bind(this));
     this.cleanupDebugRenderer();
 
-    // 기존 파이프 쌍 배열 대신 PipeGenerator의 clearPipes 메서드 사용
-    if (this.pipeGenerator) {
-      this.pipeGenerator.clearPipes();
+    // 모든 파이프 제거
+    while (this.pipesPairs.length > 0) {
+      this.removePipePair(0);
     }
 
     if (this.birdBody) {

@@ -34,7 +34,7 @@
     "image": "/game/sprites/tiles/game-tileset/game-tileset.png",
     "format": "RGBA8888",
     "size": { "w": 256, "h": 256 },
-    "scale": "1.4",
+    "scale": "0.5",
     "sliceTags": [],
     "layers": []
   }
