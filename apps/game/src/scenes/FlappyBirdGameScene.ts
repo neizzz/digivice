@@ -161,39 +161,23 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
       this.addChild(this.pipes);
       this.addChild(this.ground);
       this.addChild(this.bird);
-
-      // 점수 텍스트 추가 - 항상 최상위에 표시
       this.addChild(this.scoreText);
 
       // 게임 엔진에 물리 객체 추가
       this.gameEngine.addGameObject(this.bird, this.birdBody);
       this.gameEngine.addGameObject(this.ground, this.groundBody);
 
-      // Container에는 anchor 속성이 없으므로 pivot 속성 사용
-      const tileSize = 32; // 이미 정의된 타일 크기
-      if (this.ground instanceof PIXI.Container) {
-        this.ground.pivot.x = this.app.screen.width / 2;
-        this.ground.pivot.y = tileSize / 2;
-      } else if (this.ground instanceof PIXI.Sprite) {
-        // Sprite인 경우에만 anchor 사용
-        this.ground.anchor.set(0.5, 0.5);
-      }
-
       // 바닥 위치 재조정
+      const tileSize = 32;
       this.ground.position.set(
         this.app.screen.width / 2,
         this.app.screen.height - tileSize / 2
       );
 
-      // PipeGenerator 초기화 - 간소화된 생성자로 수정
+      // PipeGenerator 초기화
       this.pipeGenerator = new PipeGenerator(this.app, this.gameEngine);
 
-      // 강제로 새의 정적 상태 해제
-      if (this.birdBody.isStatic) {
-        Matter.Body.setStatic(this.birdBody, false);
-      }
-
-      // 위치 설정
+      // 새 물리 설정
       Matter.Body.setPosition(this.birdBody, {
         x: this.app.screen.width / 4,
         y: this.app.screen.height / 2,
@@ -339,18 +323,16 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
   }
 
   /**
-   * 새 캐릭터 점프 - 높이를 반으로 줄임
+   * 새 캐릭터 점프
    */
   private jump(): void {
-    // 점프 높이를 -12에서 -6으로 변경 (절반 높이)
     Matter.Body.setVelocity(this.birdBody, { x: 0, y: -8 });
   }
 
-  // 점수 업데이트 함수 - 시각적 효과 제거
+  // 점수 업데이트 함수
   private updateScore(): void {
     this.score++;
     this.scoreText.text = `Score: ${this.score}`;
-    // 크기 변경 효과 제거
   }
 
   private checkCollisions(): void {
@@ -467,19 +449,16 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
           ? assets.tilesetSprites.textures["ground-1"].frame.width
           : 32;
 
-      // 바닥 텍스처를 타일 형태로 반복 - tilesetSprites가 있는 경우
+      // 바닥 텍스처를 타일 형태로 반복
       if (assets.tilesetSprites && assets.tilesetSprites.textures["ground-1"]) {
-        // 바닥 스프라이트를 컨테이너로 교체하여 타일 패턴 생성
         this.removeChild(this.ground);
         const groundContainer = new PIXI.Container();
         groundContainer.width = width;
         groundContainer.height = tileSize;
 
-        // 타일 패턴으로 바닥 채우기
         const tilesNeeded = Math.ceil(width / tileSize);
 
         for (let i = 0; i < tilesNeeded; i++) {
-          // 번갈아가며 ground-1과 ground-2 타일 사용
           const tileTexture =
             i % 2 === 0
               ? assets.tilesetSprites.textures["ground-1"]
@@ -487,12 +466,11 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
 
           const tile = new PIXI.Sprite(tileTexture);
           tile.width = tileSize;
-          tile.height = tileSize; // 높이도 tileSize로 설정하여 정사각형 유지
+          tile.height = tileSize;
           tile.position.x = i * tileSize;
           groundContainer.addChild(tile);
         }
 
-        // 앵커 및 위치 설정
         groundContainer.pivot.x = width / 2;
         groundContainer.pivot.y = tileSize / 2;
         groundContainer.position.set(width / 2, height - tileSize / 2);
@@ -500,19 +478,16 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
         this.addChild(groundContainer);
         this.ground = groundContainer;
       } else {
-        // 기존 방식 (타일셋이 없을 경우)
         this.ground.width = width;
         this.ground.height = tileSize;
         this.ground.position.set(width / 2, height - tileSize / 2);
       }
 
-      // 바닥 물리 바디 위치와 크기 조정
+      // 바닥 물리 바디 업데이트
       Matter.Body.setPosition(this.groundBody, {
         x: width / 2,
         y: height - tileSize / 2,
       });
-
-      // 바닥 물리 바디 크기 변경
       Matter.Body.setVertices(
         this.groundBody,
         Matter.Vertices.fromPath(
@@ -521,6 +496,7 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
       );
     }
 
+    // UI 요소 위치 업데이트
     if (this.scoreText) {
       this.scoreText.position.set(width / 2, 20);
     }
@@ -535,10 +511,7 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
       restartText.position.set(width / 2, height / 2);
     }
 
-    if (this.gameEngine) {
-      this.gameEngine.resize(width, height);
-    }
-
+    // 디버그 렌더러 업데이트
     if (this.debugMode && this.debugRenderer && this.debugCanvas) {
       this.debugRenderer.options.width = width;
       this.debugRenderer.options.height = height;
