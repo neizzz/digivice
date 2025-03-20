@@ -28,6 +28,11 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
   private lastPipeSpawnTime: number = 0;
   private ground: PIXI.Sprite;
   private groundBody: Matter.Body;
+  // 바닥 타일 관련 속성 추가
+  private groundTiles: PIXI.Sprite[] = [];
+  private groundTileSize: number = 32;
+  private lastGroundTileX: number = 0; // 마지막으로 생성된 타일의 X 위치
+  private groundContainer: PIXI.Container; // 바닥 타일을 담을 컨테이너
   // 디버그 모드 설정
   private debugMode: boolean = true;
   private debugRenderer: Matter.Render;
@@ -73,61 +78,35 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
     // 파이프 컨테이너 생성
     this.pipes = new PIXI.Container();
 
+    // 바닥 컨테이너 생성
+    this.groundContainer = new PIXI.Container();
+    this.ground = this.groundContainer as any;
+
     // AssetLoader에서 타일셋 가져오기
     const assets = AssetLoader.getAssets();
     const tilesetSprites = assets.tilesetSprites;
 
     // 타일 크기를 텍스처 프레임 기반으로 결정
-    let tileSize = 32; // 기본값
-
-    // 바닥 생성 - 타일셋 사용
     if (tilesetSprites && tilesetSprites.textures["ground-1"]) {
-      const groundTexture = tilesetSprites.textures["ground-1"];
-      tileSize = groundTexture.frame.width; // 텍스처 프레임 크기 사용
-      console.log("[FlappyBirdGameScene] Using tileset texture for ground");
-    } else {
-      console.warn(
-        "[FlappyBirdGameScene] Tileset texture not found for ground, using default"
+      this.groundTileSize = tilesetSprites.textures["ground-1"].frame.width;
+      console.log(
+        "[FlappyBirdGameScene] Using tileset texture for ground, size:",
+        this.groundTileSize
       );
-    }
-
-    // 지면 컨테이너 생성 - 타입 캐스팅 대신 명시적 선언
-    const groundContainer = new PIXI.Container();
-    groundContainer.width = this.app.screen.width;
-    groundContainer.height = tileSize;
-    this.ground = groundContainer as any; // 인터페이스 호환을 위해 any로 캐스팅
-
-    // 지면에 타일 추가 (초기 상태)
-    if (tilesetSprites && tilesetSprites.textures["ground-1"]) {
-      const tilesNeeded = Math.ceil(this.app.screen.width / tileSize);
-
-      for (let i = 0; i < tilesNeeded; i++) {
-        const tileTexture =
-          i % 2 === 0
-            ? tilesetSprites.textures["ground-1"]
-            : tilesetSprites.textures["ground-2"];
-
-        const tile = new PIXI.Sprite(tileTexture);
-        tile.width = tileSize;
-        tile.height = tileSize;
-        tile.position.x = i * tileSize;
-        groundContainer.addChild(tile);
-      }
     } else {
-      // 타일셋이 없는 경우 단색 사각형 추가
-      const fallbackGround = new PIXI.Graphics();
-      fallbackGround.beginFill(0x967969);
-      fallbackGround.drawRect(0, 0, this.app.screen.width, tileSize);
-      fallbackGround.endFill();
-      groundContainer.addChild(fallbackGround);
+      this.groundTileSize = 32; // 기본값
+      console.warn(
+        "[FlappyBirdGameScene] Tileset texture not found for ground, using default size:",
+        this.groundTileSize
+      );
     }
 
     // 지면 물리 바디 생성
     this.groundBody = Matter.Bodies.rectangle(
       this.app.screen.width / 2,
-      this.app.screen.height - tileSize / 2,
+      this.app.screen.height - this.groundTileSize / 2,
       this.app.screen.width,
-      tileSize,
+      this.groundTileSize,
       { isStatic: true, label: "ground" }
     );
 
@@ -159,19 +138,19 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
       // 씬 요소 추가
       this.addChild(this.background);
       this.addChild(this.pipes);
-      this.addChild(this.ground);
+      this.addChild(this.groundContainer); // groundContainer를 직접 추가
       this.addChild(this.bird);
       this.addChild(this.scoreText);
 
       // 게임 엔진에 물리 객체 추가
       this.gameEngine.addGameObject(this.bird, this.birdBody);
-      this.gameEngine.addGameObject(this.ground, this.groundBody);
+      this.gameEngine.addGameObject(this.groundContainer, this.groundBody); // groundContainer 사용
 
-      // 바닥 위치 재조정
-      const tileSize = 32;
-      this.ground.position.set(
-        this.app.screen.width / 2,
-        this.app.screen.height - tileSize / 2
+      // 바닥 위치 재조정 및 타일 초기화
+      this.setupGround();
+      console.log(
+        "[FlappyBirdGameScene] Ground setup complete, tiles:",
+        this.groundTiles.length
       );
 
       // PipeGenerator 초기화
@@ -202,6 +181,105 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
       this.setupKeyboardListeners();
     } catch (error) {
       console.error("Error setting up FlappyBirdGameScene:", error);
+    }
+  }
+
+  /**
+   * 바닥 타일을 설정하는 메서드
+   */
+  private setupGround(): void {
+    // 기존 타일 제거
+    this.groundContainer.removeChildren();
+    this.groundTiles = [];
+    this.lastGroundTileX = 0;
+
+    const assets = AssetLoader.getAssets();
+    const tilesetSprites = assets.tilesetSprites;
+
+    if (tilesetSprites && tilesetSprites.textures["ground-1"]) {
+      // 초기 화면을 채울 타일 생성
+      const tilesNeeded =
+        Math.ceil(this.app.screen.width / this.groundTileSize) + 2;
+
+      for (let i = 0; i < tilesNeeded; i++) {
+        this.createGroundTile();
+      }
+
+      // 바닥 위치 설정 (중요: 정확한 위치로 설정)
+      this.groundContainer.pivot.x = this.app.screen.width / 2;
+      this.groundContainer.pivot.y = this.groundTileSize / 2;
+      this.groundContainer.position.y =
+        this.app.screen.height - this.groundTileSize;
+    } else {
+      console.warn("[FlappyBirdGameScene] Failed to find ground textures");
+    }
+
+    // 바닥 물리 바디 위치 조정
+    Matter.Body.setPosition(this.groundBody, {
+      x: this.app.screen.width / 2,
+      y: this.app.screen.height - this.groundTileSize / 2,
+    });
+  }
+
+  /**
+   * 새 바닥 타일을 생성하는 메서드
+   */
+  private createGroundTile(): void {
+    const assets = AssetLoader.getAssets();
+    const tilesetSprites = assets.tilesetSprites;
+
+    if (tilesetSprites && tilesetSprites.textures["ground-1"]) {
+      const tileIndex = this.groundTiles.length % 2;
+      const tileTexture =
+        tileIndex === 0
+          ? tilesetSprites.textures["ground-1"]
+          : tilesetSprites.textures["ground-2"];
+
+      const tile = new PIXI.Sprite(tileTexture);
+      tile.width = this.groundTileSize;
+      tile.height = this.groundTileSize;
+      tile.position.x = this.lastGroundTileX;
+
+      // 타일 추가
+      this.groundContainer.addChild(tile);
+      this.groundTiles.push(tile);
+
+      // 다음 타일 위치 업데이트
+      this.lastGroundTileX += this.groundTileSize;
+    }
+  }
+
+  /**
+   * 바닥 타일을 이동시키는 메서드
+   */
+  private moveGround(): void {
+    if (!this.groundTiles.length) {
+      console.warn("[FlappyBirdGameScene] No ground tiles to move!");
+      return;
+    }
+
+    // 모든 타일 이동
+    for (let i = 0; i < this.groundTiles.length; i++) {
+      const tile = this.groundTiles[i];
+      tile.position.x -= this.pipeSpeed; // 파이프와 같은 속도로 이동
+
+      // 타일이 화면 왼쪽으로 완전히 벗어났는지 확인
+      if (tile.position.x + this.groundTileSize < 0) {
+        // 타일 제거
+        this.groundContainer.removeChild(tile);
+        this.groundTiles.splice(i, 1);
+        i--;
+      }
+    }
+
+    // 화면 오른쪽 끝에 새 타일이 필요한지 확인
+    const lastTile = this.groundTiles[this.groundTiles.length - 1];
+    const rightEdge = this.app.screen.width;
+
+    // 마지막 타일의 오른쪽 가장자리가 화면 오른쪽 끝보다 작으면 새 타일 추가
+    if (lastTile && lastTile.position.x + this.groundTileSize < rightEdge) {
+      this.lastGroundTileX = lastTile.position.x + this.groundTileSize;
+      this.createGroundTile();
     }
   }
 
@@ -416,6 +494,9 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
       this.removeChild(restartText);
     }
 
+    // 바닥 타일도 재설정 (추가)
+    this.setupGround();
+
     this.lastPipeSpawnTime = 0;
   }
 
@@ -434,6 +515,7 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
   public onResize(width: number, height: number): void {
     if (!this.initialized) return;
 
+    // 배경 리사이징
     if (this.background instanceof PIXI.Graphics) {
       this.background.clear();
       this.background.beginFill(0x87ceeb);
@@ -441,66 +523,12 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
       this.background.endFill();
     }
 
-    if (this.ground && this.groundBody) {
-      // 텍스처 기반으로 타일 크기 결정
-      const assets = AssetLoader.getAssets();
-      const tileSize =
-        assets.tilesetSprites && assets.tilesetSprites.textures["ground-1"]
-          ? assets.tilesetSprites.textures["ground-1"].frame.width
-          : 32;
-
-      // 바닥 텍스처를 타일 형태로 반복
-      if (assets.tilesetSprites && assets.tilesetSprites.textures["ground-1"]) {
-        this.removeChild(this.ground);
-        const groundContainer = new PIXI.Container();
-        groundContainer.width = width;
-        groundContainer.height = tileSize;
-
-        const tilesNeeded = Math.ceil(width / tileSize);
-
-        for (let i = 0; i < tilesNeeded; i++) {
-          const tileTexture =
-            i % 2 === 0
-              ? assets.tilesetSprites.textures["ground-1"]
-              : assets.tilesetSprites.textures["ground-2"];
-
-          const tile = new PIXI.Sprite(tileTexture);
-          tile.width = tileSize;
-          tile.height = tileSize;
-          tile.position.x = i * tileSize;
-          groundContainer.addChild(tile);
-        }
-
-        groundContainer.pivot.x = width / 2;
-        groundContainer.pivot.y = tileSize / 2;
-        groundContainer.position.set(width / 2, height - tileSize / 2);
-
-        this.addChild(groundContainer);
-        this.ground = groundContainer;
-      } else {
-        this.ground.width = width;
-        this.ground.height = tileSize;
-        this.ground.position.set(width / 2, height - tileSize / 2);
-      }
-
-      // 바닥 물리 바디 업데이트
-      Matter.Body.setPosition(this.groundBody, {
-        x: width / 2,
-        y: height - tileSize / 2,
-      });
-      Matter.Body.setVertices(
-        this.groundBody,
-        Matter.Vertices.fromPath(
-          `0 0 ${width} 0 ${width} ${tileSize} 0 ${tileSize}`
-        )
-      );
-    }
-
     // UI 요소 위치 업데이트
     if (this.scoreText) {
       this.scoreText.position.set(width / 2, 20);
     }
 
+    // 게임오버 관련 UI 위치 업데이트
     const gameOverText = this.getChildByName("gameOverText");
     if (gameOverText) {
       gameOverText.position.set(width / 2, height / 3);
@@ -621,6 +649,15 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
 
       // 파이프 이동 로직
       this.movePipes();
+
+      // 바닥 이동 로직을 확실하게 호출
+      if (this.groundTiles.length > 0) {
+        this.moveGround();
+      } else {
+        console.warn("[FlappyBirdGameScene] No ground tiles in update!");
+        // 만약 타일이 없다면 다시 설정
+        this.setupGround();
+      }
 
       this.checkCollisions();
     }
