@@ -5,12 +5,16 @@ import {
   MovementOptions,
 } from "../controllers/RandomMovementController";
 import { Position } from "../types/Position";
+import { spriteManager } from "../utils/spriteManager";
+import { SpriteMetadata } from "../types/sprites";
 
 export class Character extends PIXI.Container {
   public animatedSprite: PIXI.AnimatedSprite | undefined;
   private movementController: RandomMovementController | null = null;
   public name: string;
   private speed: number; // 캐릭터 이동 속도
+  private currentAnimation: string = "idle"; // 현재 애니메이션 상태
+  private spritesheet?: PIXI.Spritesheet; // spritesheet 객체
 
   constructor(params: {
     spritesheet?: PIXI.Spritesheet;
@@ -25,42 +29,35 @@ export class Character extends PIXI.Container {
     this.position.set(params.initialPosition.x, params.initialPosition.y);
     this.speed = params.speed;
 
+    this.loadCharacterSprite(params.spritesheet);
+  }
+
+  private async loadCharacterSprite(
+    spritesheet?: PIXI.Spritesheet
+  ): Promise<void> {
     try {
-      if (!params.spritesheet) {
+      if (!spritesheet) {
         console.warn("Spritesheet not provided for character");
         this.createFallbackAnimation();
         return;
       }
 
+      // spritesheet 설정
+      this.spritesheet = spritesheet;
+
       // spritesheet.animations이 정의되어 있는지 확인
-      if (params.spritesheet.animations) {
+      if (spritesheet.animations) {
         console.log(
           "Available animations:",
-          Object.keys(params.spritesheet.animations)
+          Object.keys(spritesheet.animations)
         );
 
-        // 정상적으로 animations이 있는 경우 idle 애니메이션 로드 시도
-        const idleFrames = params.spritesheet.animations["idle"];
-        if (idleFrames && idleFrames.length > 0) {
-          this.animatedSprite = new PIXI.AnimatedSprite(idleFrames);
-          this.addChild(this.animatedSprite);
-
-          // 애니메이션 설정
-          this.animatedSprite.anchor.set(0.5);
-          this.animatedSprite.animationSpeed = 0.1;
-          this.animatedSprite.play();
-
-          // 적절한 크기로 조정
-          this.animatedSprite.scale.set(0.3);
-
-          console.log(
-            "Character created successfully with spritesheet animations"
-          );
-          return;
-        }
+        // 초기 애니메이션 설정
+        await this.setAnimation(this.currentAnimation);
+        return;
       }
 
-      // animations이 없거나 idle 프레임이 없는 경우 대체 애니메이션 생성
+      // animations이 없거나 유효하지 않은 경우 대체 애니메이션 생성
       console.warn("No valid animations found in spritesheet, using fallback");
       this.createFallbackAnimation();
     } catch (error) {
@@ -69,9 +66,46 @@ export class Character extends PIXI.Container {
     }
   }
 
-  /**
-   * 스프라이트시트가 없거나 유효하지 않을 때 대체 애니메이션을 생성합니다
-   */
+  public async setAnimation(animationName: string): Promise<boolean> {
+    if (!this.spritesheet) {
+      console.error("Cannot set animation, spritesheet is not loaded");
+      return false;
+    }
+
+    const textures = this.spritesheet.animations[animationName];
+    if (!textures || textures.length === 0) {
+      console.error(
+        `Animation not found: ${animationName} for character ${this.name}`
+      );
+      return false;
+    }
+
+    // 기존 애니메이션 제거
+    if (this.animatedSprite) {
+      this.removeChild(this.animatedSprite);
+      this.animatedSprite.destroy();
+    }
+
+    // 새 애니메이션 생성
+    this.animatedSprite = new PIXI.AnimatedSprite(textures);
+
+    // 애니메이션 설정
+    this.animatedSprite.animationSpeed = 0.1; // 기본 애니메이션 속도 설정
+    this.animatedSprite.loop = true; // 기본 루프 설정
+
+    // 스프라이트 설정
+    this.animatedSprite.width = textures[0].width;
+    this.animatedSprite.height = textures[0].height;
+    this.animatedSprite.play();
+    this.addChild(this.animatedSprite);
+
+    // pivot과 anchor 설정
+    this.animatedSprite.anchor.set(0.5, 0.5);
+
+    this.currentAnimation = animationName;
+    return true;
+  }
+
   private createFallbackAnimation(): void {
     try {
       console.log("Creating fallback animation for character");
@@ -112,8 +146,16 @@ export class Character extends PIXI.Container {
   }
 
   public update(deltaTime: number): void {
-    // 애니메이션은 PIXI에서 자동 업데이트됨
-    // 필요한 경우 여기에 추가 로직 구현
+    // 캐릭터 상태에 따른 애니메이션 변경 로직 추가
+    if (this.movementController && this.movementController.isMoving()) {
+      if (this.currentAnimation !== "walking") {
+        this.setAnimation("walking");
+      }
+    } else {
+      if (this.currentAnimation !== "idle") {
+        this.setAnimation("idle");
+      }
+    }
   }
 
   // 명시적으로 캐릭터 위치 설정하는 메서드 추가

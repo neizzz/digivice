@@ -48,7 +48,7 @@
   },
   "meta": {
     "app": "digivice",
-    "image": "/game/sprites/monsters/test-slime/sprite-sheet.png",
+    "image": "/game/sprites/monsters/test-slime.png",
     "format": "RGBA8888",
     "size": { "w": 3780, "h": 480 },
     "scale": "1.4",

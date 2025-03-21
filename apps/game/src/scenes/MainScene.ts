@@ -36,8 +36,8 @@ export class MainScene extends PIXI.Container implements Scene {
 
     // 캐릭터 생성 및 추가
     this.character = new Character({
-      spritesheet: assets.slimeSprites,
-      name: "Slime",
+      spritesheet: assets.mushroomSprites,
+      name: "Mushroom",
       initialPosition: {
         x: this.app.screen.width / 2,
         y: this.app.screen.height / 2,
@@ -80,6 +80,9 @@ export class MainScene extends PIXI.Container implements Scene {
 
     // GameMenu 초기화
     this.initGameMenu();
+
+    // 캐릭터 애니메이션 설정
+    this.character.setAnimation("idle");
   }
 
   private positionCharacter(): void {
@@ -101,6 +104,9 @@ export class MainScene extends PIXI.Container implements Scene {
         // moveSpeed 옵션 제거 - 캐릭터의 speed 속성을 사용함
         boundaryPadding: 50, // 화면 경계 여백
       });
+
+      // 캐릭터 애니메이션 변경
+      this.character.setAnimation("walking");
     }, 500);
   }
 

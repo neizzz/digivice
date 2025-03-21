@@ -169,6 +169,11 @@ export class RandomMovementController {
     }
   }
 
+  public isMoving(): boolean {
+    // 캐릭터가 움직이고 있는지 여부를 반환하는 로직 추가
+    return this.state === MovementState.MOVING;
+  }
+
   public destroy(): void {
     // 컨트롤러 정리
     this.app.ticker.remove(this.update, this);
