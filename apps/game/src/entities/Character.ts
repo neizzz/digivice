@@ -5,8 +5,6 @@ import {
   MovementOptions,
 } from "../controllers/RandomMovementController";
 import { Position } from "../types/Position";
-import { spriteManager } from "../utils/spriteManager";
-import { SpriteMetadata } from "../types/sprites";
 
 export class Character extends PIXI.Container {
   public animatedSprite: PIXI.AnimatedSprite | undefined;
@@ -15,12 +13,14 @@ export class Character extends PIXI.Container {
   private speed: number; // 캐릭터 이동 속도
   private currentAnimation: string = "idle"; // 현재 애니메이션 상태
   private spritesheet?: PIXI.Spritesheet; // spritesheet 객체
+  private scaleFactor: number; // 캐릭터 크기 조정 인자
 
   constructor(params: {
     spritesheet?: PIXI.Spritesheet;
     name: string;
     initialPosition: Position;
     speed: number;
+    scale?: number; // scale 파라미터 추가
   }) {
     super();
 
@@ -28,6 +28,7 @@ export class Character extends PIXI.Container {
     this.name = params.name;
     this.position.set(params.initialPosition.x, params.initialPosition.y);
     this.speed = params.speed;
+    this.scaleFactor = params.scale || 2; // 기본값 1로 설정
 
     this.loadCharacterSprite(params.spritesheet);
   }
@@ -94,8 +95,8 @@ export class Character extends PIXI.Container {
     this.animatedSprite.loop = true; // 기본 루프 설정
 
     // 스프라이트 설정
-    this.animatedSprite.width = textures[0].width;
-    this.animatedSprite.height = textures[0].height;
+    this.animatedSprite.width = textures[0].width * this.scaleFactor;
+    this.animatedSprite.height = textures[0].height * this.scaleFactor;
     this.animatedSprite.play();
     this.addChild(this.animatedSprite);
 
@@ -126,8 +127,8 @@ export class Character extends PIXI.Container {
 
       // 기본 속성 설정
       this.animatedSprite.anchor.set(0.5);
-      this.animatedSprite.width = 50;
-      this.animatedSprite.height = 50;
+      this.animatedSprite.width = 50 * this.scaleFactor;
+      this.animatedSprite.height = 50 * this.scaleFactor;
 
       console.log("Fallback animation created successfully");
     } catch (error) {

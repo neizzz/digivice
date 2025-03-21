@@ -43,6 +43,7 @@ export class MainScene extends PIXI.Container implements Scene {
         y: this.app.screen.height / 2,
       },
       speed: 1,
+      scale: 3, // 캐릭터 크기 조정
     });
 
     this.setupScene();
