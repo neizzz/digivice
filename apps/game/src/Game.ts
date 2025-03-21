@@ -1,9 +1,9 @@
 import * as PIXI from "pixi.js";
 import { Scene } from "./interfaces/Scene";
 import { MainScene } from "./scenes/MainScene";
-import { FlappyBirdGameScene } from "./scenes/FlappyBirdGameScene"; // FlappyBirdGameScene 임포트
+import { FlappyBirdGameScene } from "./scenes/FlappyBirdGameScene";
 import { AssetLoader } from "./utils/AssetLoader";
-import { DebugHelper } from "./utils/DebugHelper";
+// DebugHelper import 제거
 import { SceneKey } from "./SceneKey";
 import { ControlButtonType } from "./ui/types";
 
@@ -256,7 +256,6 @@ export class Game {
       (this.currentScene as any).destroy();
     }
 
-    // 디버그 헬퍼 정리
-    DebugHelper.removeAll();
+    // DebugHelper.removeAll() 호출 제거
   }
 }

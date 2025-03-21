@@ -3,7 +3,7 @@ import { Scene } from "../interfaces/Scene";
 import { Background } from "../entities/Background";
 import { Character } from "../entities/Character";
 import { AssetLoader } from "../utils/AssetLoader";
-import { DebugHelper } from "../utils/DebugHelper";
+// DebugHelper import 제거
 import { GameMenu, GameMenuOptions } from "../ui/GameMenu";
 import { ControlButtonType, NavigationAction } from "../ui/types";
 import { SceneKey } from "../SceneKey";
@@ -22,13 +22,10 @@ export class MainScene extends PIXI.Container implements Scene {
   private onSceneChange: ((key: SceneKey) => void) | null = null;
 
   constructor(app: PIXI.Application) {
-    // onSceneChange 매개변수 제거
     super();
     this.app = app;
 
-    // 디버그 헬퍼 초기화
-    DebugHelper.init(app);
-    DebugHelper.setEnabled(true);
+    // DebugHelper 초기화 코드 제거
 
     // 에셋 가져오기 (이미 로드되었으므로 즉시 반환됨)
     const assets = AssetLoader.getAssets();
@@ -70,7 +67,7 @@ export class MainScene extends PIXI.Container implements Scene {
       // 초기 설정 완료
       this.positionCharacter();
       this.applyCharacterMovement();
-      this.setupDebugVisualization();
+      // setupDebugVisualization 호출 제거
       this.initialized = true;
 
       // 화면 크기에 맞게 조정
@@ -105,24 +102,6 @@ export class MainScene extends PIXI.Container implements Scene {
         boundaryPadding: 50, // 화면 경계 여백
       });
     }, 500);
-  }
-
-  /**
-   * 디버그 시각화 설정
-   */
-  private setupDebugVisualization(): void {
-    // 약간의 지연 후에 디버그 시각화 추가 (캐릭터가 완전히 초기화된 후)
-    setTimeout(() => {
-      if (this.character && this.character.animatedSprite) {
-        console.log("Adding debug visualization");
-
-        DebugHelper.addDebugger(this.character, this.app);
-      } else {
-        console.error(
-          "Character or animatedSprite not available for debugging"
-        );
-      }
-    }, 1000);
   }
 
   /**

@@ -3,7 +3,6 @@ import * as Matter from "matter-js";
 import { Scene } from "../interfaces/Scene";
 import { Background } from "../entities/Background";
 import { AssetLoader } from "../utils/AssetLoader";
-import { DebugHelper } from "../utils/DebugHelper";
 import { GameEngine } from "../GameEngine";
 import { PipeGenerator } from "../entities/PipeGenerator";
 
@@ -45,10 +44,6 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
     this.container = app.view.parentElement || document.body;
     this.gameEngine =
       gameEngine || new GameEngine(app.screen.width, app.screen.height);
-
-    // 디버그 헬퍼 초기화
-    DebugHelper.init(app);
-    DebugHelper.setEnabled(true);
 
     // 하늘색 배경 생성
     const skyBlueColor = 0x87ceeb;
