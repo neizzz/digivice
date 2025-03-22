@@ -5,32 +5,34 @@ import {
   MovementOptions,
 } from "../controllers/RandomMovementController";
 import { Position } from "../types/Position";
+import { CharacterKey } from "../types/CharacterKey";
+import { AssetLoader } from "../utils/AssetLoader";
 
 export class Character extends PIXI.Container {
   public animatedSprite: PIXI.AnimatedSprite | undefined;
   private movementController: RandomMovementController | null = null;
-  public name: string;
   private speed: number; // 캐릭터 이동 속도
   private currentAnimation: string = "idle"; // 현재 애니메이션 상태
   private spritesheet?: PIXI.Spritesheet; // spritesheet 객체
   private scaleFactor: number; // 캐릭터 크기 조정 인자
 
   constructor(params: {
-    spritesheet?: PIXI.Spritesheet;
-    name: string;
+    characterKey: CharacterKey; // CharacterKey 사용
     initialPosition: Position;
     speed: number;
     scale?: number; // scale 파라미터 추가
   }) {
     super();
 
-    // 캐릭터 이름 설정
-    this.name = params.name;
     this.position.set(params.initialPosition.x, params.initialPosition.y);
     this.speed = params.speed;
     this.scaleFactor = params.scale || 2; // 기본값 1로 설정
 
-    this.loadCharacterSprite(params.spritesheet);
+    // AssetLoader에서 스프라이트시트 가져오기
+    const assets = AssetLoader.getAssets();
+    this.spritesheet = assets.characterSprites[params.characterKey];
+
+    this.loadCharacterSprite(this.spritesheet);
   }
 
   private async loadCharacterSprite(
@@ -47,10 +49,10 @@ export class Character extends PIXI.Container {
       this.spritesheet = spritesheet;
 
       // spritesheet.animations이 정의되어 있는지 확인
-      if (spritesheet.animations) {
+      if (this.spritesheet.animations) {
         console.log(
           "Available animations:",
-          Object.keys(spritesheet.animations)
+          Object.keys(this.spritesheet.animations)
         );
 
         // 초기 애니메이션 설정
@@ -75,9 +77,7 @@ export class Character extends PIXI.Container {
 
     const textures = this.spritesheet.animations[animationName];
     if (!textures || textures.length === 0) {
-      console.error(
-        `Animation not found: ${animationName} for character ${this.name}`
-      );
+      console.error(`Animation not found: ${animationName}`);
       return false;
     }
 

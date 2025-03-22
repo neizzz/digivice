@@ -6,6 +6,7 @@ import { AssetLoader } from "./utils/AssetLoader";
 // DebugHelper import 제거
 import { SceneKey } from "./SceneKey";
 import { ControlButtonType } from "./ui/types";
+import { CharacterKey } from "./types/CharacterKey";
 
 export class Game {
   private app: PIXI.Application;
@@ -150,7 +151,8 @@ export class Game {
         scene = new MainScene(this.app);
         break;
       case SceneKey.FLAPPY_BIRD_GAME:
-        scene = new FlappyBirdGameScene(this.app);
+        const characterKey = CharacterKey.Mushroom2;
+        scene = new FlappyBirdGameScene(this.app, characterKey);
         break;
       default:
         throw new Error(`Unknown scene key: ${key}`);

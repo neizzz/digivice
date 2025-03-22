@@ -5,6 +5,7 @@ import { Background } from "../entities/Background";
 import { AssetLoader } from "../utils/AssetLoader";
 import { GameEngine } from "../GameEngine";
 import { PipeGenerator } from "../entities/PipeGenerator";
+import { CharacterKey } from "types/CharacterKey";
 
 export class FlappyBirdGameScene extends PIXI.Container implements Scene {
   private app: PIXI.Application;
@@ -35,13 +36,15 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
   // 디버그 모드 설정
   private debugMode: boolean = true;
   private debugRenderer: Matter.Render;
-  private debugCanvas: HTMLCanvasElement;
-  private container: HTMLElement;
 
-  constructor(app: PIXI.Application, gameEngine?: GameEngine) {
+  constructor(
+    app: PIXI.Application,
+    characterKey: CharacterKey,
+    gameEngine?: GameEngine
+  ) {
     super();
     this.app = app;
-    this.container = app.view.parentElement || document.body;
+    // this.container = app.view.parentElement || document.body;
     this.gameEngine =
       gameEngine || new GameEngine(app.screen.width, app.screen.height);
 
@@ -54,7 +57,29 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
     this.background = backgroundGraphics;
 
     // 새 캐릭터 생성
-    this.bird = new PIXI.Sprite(PIXI.Texture.WHITE);
+    const assets = AssetLoader.getAssets();
+    const characterSpritesheet = assets.characterSprites[characterKey];
+    if (!characterSpritesheet) {
+      throw new Error(
+        `Character spritesheet not found for key: ${characterKey}`
+      );
+    }
+
+    const birdTexture = characterSpritesheet.textures["bird"];
+    const inBasketTexture = characterSpritesheet.textures["in-basket"];
+
+    const birdSprite = new PIXI.Sprite(birdTexture);
+    const inBasketSprite = new PIXI.Sprite(inBasketTexture);
+
+    // in-basket 스프라이트 위에 bird 스프라이트를 조합
+    inBasketSprite.addChild(birdSprite);
+    birdSprite.anchor.set(0.5);
+    birdSprite.position.set(
+      inBasketSprite.width / 2,
+      inBasketSprite.height / 2
+    );
+
+    this.bird = inBasketSprite;
     this.bird.width = 40;
     this.bird.height = 40;
     this.bird.anchor.set(0.5);
@@ -78,7 +103,6 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
     this.ground = this.groundContainer as any;
 
     // AssetLoader에서 타일셋 가져오기
-    const assets = AssetLoader.getAssets();
     const tilesetSprites = assets.tilesetSprites;
 
     // 타일 크기를 텍스처 프레임 기반으로 결정
@@ -284,22 +308,9 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
   private setupDebugRenderer(): void {
     this.cleanupDebugRenderer();
 
-    this.debugCanvas = document.createElement("canvas");
-    this.debugCanvas.width = this.app.screen.width;
-    this.debugCanvas.height = this.app.screen.height;
-    this.debugCanvas.style.position = "absolute";
-    this.debugCanvas.style.top = "0";
-    this.debugCanvas.style.left = "0";
-    this.debugCanvas.style.pointerEvents = "none";
-    this.debugCanvas.style.opacity = "0.7";
-    this.debugCanvas.id = "debug-canvas";
-    this.debugCanvas.style.zIndex = "1000";
-    this.container.appendChild(this.debugCanvas);
-
     const brightGreen = "#26ff00";
 
     this.debugRenderer = Matter.Render.create({
-      canvas: this.debugCanvas,
       engine: this.gameEngine.getPhysicsEngine(),
       options: {
         width: this.app.screen.width,
@@ -331,16 +342,6 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
     if (this.debugRenderer) {
       Matter.Render.stop(this.debugRenderer);
       this.debugRenderer = null;
-    }
-
-    if (this.debugCanvas && this.debugCanvas.parentElement) {
-      this.debugCanvas.parentElement.removeChild(this.debugCanvas);
-      this.debugCanvas = null;
-    }
-
-    const existingCanvas = document.getElementById("debug-canvas");
-    if (existingCanvas) {
-      existingCanvas.parentElement.removeChild(existingCanvas);
     }
   }
 

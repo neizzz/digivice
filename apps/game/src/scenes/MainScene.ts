@@ -7,6 +7,7 @@ import { AssetLoader } from "../utils/AssetLoader";
 import { GameMenu, GameMenuOptions } from "../ui/GameMenu";
 import { ControlButtonType, NavigationAction } from "../ui/types";
 import { SceneKey } from "../SceneKey";
+import { CharacterKey } from "../types/CharacterKey";
 
 export class MainScene extends PIXI.Container implements Scene {
   private app: PIXI.Application;
@@ -36,8 +37,7 @@ export class MainScene extends PIXI.Container implements Scene {
 
     // 캐릭터 생성 및 추가
     this.character = new Character({
-      spritesheet: assets.mushroomSprites,
-      name: "Mushroom",
+      characterKey: CharacterKey.Mushroom2,
       initialPosition: {
         x: this.app.screen.width / 2,
         y: this.app.screen.height / 2,

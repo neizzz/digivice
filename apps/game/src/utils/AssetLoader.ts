@@ -1,12 +1,12 @@
 import * as PIXI from "pixi.js";
+import { CharacterKey } from "../types/CharacterKey";
 
 export interface GameAssets {
-  backgroundTexture?: PIXI.Texture;
-  slimeSprites?: PIXI.Spritesheet;
-  tilesetSprites?: PIXI.Spritesheet; // 추가: 타일셋 스프라이트시트
-  birdSprites?: PIXI.Spritesheet; // 추가: 새 스프라이트시트
-  foodSprites?: PIXI.Spritesheet; // 추가: 음식 스프라이트시트
-  mushroomSprites?: PIXI.Spritesheet; // 추가: 버섯 스프라이트시트
+  backgroundTexture: PIXI.Texture;
+  tilesetSprites: PIXI.Spritesheet; // flappy bird 미니게임 타일 시트
+  birdSprites: PIXI.Spritesheet; // flappy bird
+  foodSprites: PIXI.Spritesheet; // 추가: 음식 스프라이트시트
+  characterSprites: { [key in CharacterKey]?: PIXI.Spritesheet }; // 캐릭터 스프라이트시트 저장용 맵
 }
 
 // 로드할 에셋 정의
@@ -16,8 +16,18 @@ interface AssetDefinition {
   key: keyof GameAssets;
 }
 
+// 캐릭터 전용 에셋 정의
+interface CharacterAssetDefinition {
+  type: "spritesheet";
+  path: string;
+  key: "characterSprites";
+  characterKey: CharacterKey;
+}
+
 export class AssetLoader {
-  private static assets: GameAssets = {};
+  private static assets: GameAssets = {
+    characterSprites: {},
+  };
   private static isLoading: boolean = false;
   private static loadingPromise: Promise<GameAssets> | null = null;
 
@@ -30,11 +40,6 @@ export class AssetLoader {
       type: "texture",
       path: "/tiles/grass-tile.jpg",
       key: "backgroundTexture",
-    },
-    {
-      type: "spritesheet",
-      path: "/sprites/monsters/test-slime.json",
-      key: "slimeSprites",
     },
     {
       type: "spritesheet",
@@ -51,12 +56,16 @@ export class AssetLoader {
       path: "/sprites/food.json",
       key: "foodSprites",
     },
-    {
-      type: "spritesheet",
-      path: "/sprites/monsters/mushroom2.json",
-      key: "mushroomSprites",
-    },
   ];
+
+  // 캐릭터 전용 에셋 정의
+  private static readonly CHARACTER_ASSETS_TO_LOAD: CharacterAssetDefinition[] =
+    Object.values(CharacterKey).map((key) => ({
+      type: "spritesheet",
+      path: `/sprites/monsters/${key}.json`,
+      key: "characterSprites",
+      characterKey: key,
+    }));
 
   public static async loadAssets(): Promise<void> {
     try {
@@ -107,12 +116,6 @@ export class AssetLoader {
       this.assets.backgroundTexture = PIXI.Texture.WHITE;
     }
 
-    // 스프라이트시트가 없는 경우 임시 객체 생성
-    if (!this.assets.slimeSprites) {
-      console.warn("[AssetLoader] Slime sprites not loaded, using fallback");
-      this.assets.slimeSprites = {} as PIXI.Spritesheet;
-    }
-
     // 타일셋 스프라이트시트가 없는 경우 경고
     if (!this.assets.tilesetSprites) {
       console.warn("[AssetLoader] Tileset sprites not loaded, using fallback");
@@ -128,14 +131,26 @@ export class AssetLoader {
       console.warn("[AssetLoader] Food sprites not loaded, using fallback");
     }
 
+    // 캐릭터 스프라이트시트가 없는 경우 경고
+    Object.values(CharacterKey).forEach((key) => {
+      if (!this.assets.characterSprites[key]) {
+        console.warn(
+          `[AssetLoader] Character sprites not loaded for key: ${key}, using fallback`
+        );
+      }
+    });
+
     return this.assets;
   }
 
   private static async _loadAllAssets(): Promise<GameAssets> {
     try {
-      const loadPromises = this.ASSETS_TO_LOAD.map((asset) =>
-        this._loadAsset(asset)
-      );
+      const loadPromises = [
+        ...this.ASSETS_TO_LOAD.map((asset) => this._loadAsset(asset)),
+        ...this.CHARACTER_ASSETS_TO_LOAD.map((asset) =>
+          this._loadCharacterAsset(asset)
+        ),
+      ];
 
       await Promise.all(loadPromises);
       return this.assets;
@@ -163,12 +178,7 @@ export class AssetLoader {
         case "spritesheet":
           await this._loadSpritesheet(
             fullPath,
-            assetDef.key as
-              | "slimeSprites"
-              | "tilesetSprites"
-              | "birdSprites"
-              | "foodSprites"
-              | "mushroomSprites"
+            assetDef.key as "tilesetSprites" | "birdSprites" | "foodSprites"
           );
           break;
         default:
@@ -181,6 +191,75 @@ export class AssetLoader {
         `[AssetLoader] Failed to load asset ${assetDef.key}:`,
         error
       );
+    }
+  }
+
+  /**
+   * 캐릭터 에셋을 로드합니다
+   */
+  private static async _loadCharacterAsset(
+    assetDef: CharacterAssetDefinition
+  ): Promise<void> {
+    try {
+      const fullPath = `${this.BASE_PATH}${assetDef.path}`;
+      console.log(`[AssetLoader] Loading ${assetDef.type} from: ${fullPath}`);
+
+      const response = await fetch(fullPath, {
+        method: "GET",
+        headers: {
+          "Cache-Control": "no-cache",
+          Pragma: "no-cache",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          `Failed to load metadata: ${response.status} ${response.statusText}`
+        );
+      }
+
+      const metadata = await response.json();
+      console.log(`[AssetLoader] ${assetDef.key} metadata loaded successfully`);
+
+      // 스프라이트시트 이미지 경로
+      const imagePath = metadata.meta.image;
+      console.log(`[AssetLoader] Loading ${assetDef.key} from: ${imagePath}`);
+
+      try {
+        // 스프라이트시트 텍스처 로드
+        const baseTexture = await PIXI.Assets.load(imagePath);
+        console.log(
+          `[AssetLoader] ${assetDef.key} texture loaded successfully`
+        );
+
+        // 스프라이트시트 생성
+        const spritesheet = new PIXI.Spritesheet(baseTexture, {
+          frames: metadata.frames,
+          meta: metadata.meta,
+          animations: metadata.animations,
+        });
+
+        // 비동기적으로 스프라이트시트 파싱
+        console.log(`[AssetLoader] Parsing ${assetDef.key} spritesheet...`);
+        await spritesheet.parse();
+
+        // 로그 관련 정보 출력
+        const frameKeys = Object.keys(spritesheet.textures || {});
+        console.log(
+          `[AssetLoader] ${assetDef.key} parsed with frames:`,
+          frameKeys
+        );
+
+        // 파싱된 스프라이트시트 저장
+        this.assets.characterSprites[assetDef.characterKey] = spritesheet;
+      } catch (textureError) {
+        console.error(
+          `[AssetLoader] Failed to load/parse ${assetDef.key}:`,
+          textureError
+        );
+      }
+    } catch (error) {
+      console.error(`[AssetLoader] Failed to load ${assetDef.key}:`, error);
     }
   }
 
@@ -224,17 +303,9 @@ export class AssetLoader {
     }
   }
 
-  /**
-   * 스프라이트시트를 로드합니다
-   */
   private static async _loadSpritesheet(
     path: string,
-    key:
-      | "slimeSprites"
-      | "tilesetSprites"
-      | "birdSprites"
-      | "foodSprites"
-      | "mushroomSprites" // 추가: 버섯 스프라이트시트
+    key: "tilesetSprites" | "birdSprites" | "foodSprites"
   ): Promise<void> {
     try {
       const response = await fetch(path, {
@@ -278,7 +349,6 @@ export class AssetLoader {
         const frameKeys = Object.keys(spritesheet.textures || {});
         console.log(`[AssetLoader] ${key} parsed with frames:`, frameKeys);
 
-        // 파싱된 스프라이트시트 저장
         this.assets[key] = spritesheet;
       } catch (textureError) {
         console.error(
@@ -301,11 +371,6 @@ export class AssetLoader {
 
     if (this.assets) {
       // 스프라이트시트의 텍스처 해제
-      if (this.assets.slimeSprites) {
-        this.assets.slimeSprites.destroy(true);
-      }
-
-      // 타일셋 스프라이트시트 해제
       if (this.assets.tilesetSprites) {
         this.assets.tilesetSprites.destroy(true);
       }
@@ -315,7 +380,9 @@ export class AssetLoader {
         this.assets.backgroundTexture.destroy(true);
       }
 
-      this.assets = {};
+      this.assets = {
+        characterSprites: {},
+      };
     }
 
     // PIXI 캐시 정리
