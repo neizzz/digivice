@@ -84,8 +84,8 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
         this.bird.play(); // 애니메이션 시작
 
         // 크기 및 앵커 설정
-        this.bird.width = 30;
-        this.bird.height = 30;
+        this.bird.width = 32 * 1.4;
+        this.bird.height = 32 * 1.4;
         this.bird.anchor.set(0.5);
       } else {
         console.warn(
@@ -683,7 +683,7 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
       // bird 위치 업데이트 - bird보다 살짝 위에 위치
       if (this.bird) {
         this.bird.position.x = this.basketBody.position.x;
-        this.bird.position.y = this.basketBody.position.y - 30; // 20픽셀 위에 배치
+        this.bird.position.y = this.basketBody.position.y - 31; // 20픽셀 위에 배치
       }
 
       // 파이프 생성 로직
