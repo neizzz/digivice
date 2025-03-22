@@ -14,8 +14,9 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
   private initialized: boolean = false;
 
   // 플래피 버드 게임 요소
-  private bird: PIXI.Sprite;
-  private birdBody: Matter.Body;
+  private bird: PIXI.AnimatedSprite; // bird 타입을 AnimatedSprite로 변경
+  private basket: PIXI.Sprite;
+  private basketBody: Matter.Body;
   private pipes: PIXI.Container;
   private pipeGenerator: PipeGenerator; // PipeGenerator 인스턴스 추가
   private pipesPairs: PipePair[] = []; // 파이프 쌍을 관리하는 배열 추가
@@ -64,33 +65,49 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
         `Character spritesheet not found for key: ${characterKey}`
       );
     }
-
-    const birdTexture = characterSpritesheet.textures["bird"];
     const inBasketTexture = characterSpritesheet.textures["in-basket"];
 
-    const birdSprite = new PIXI.Sprite(birdTexture);
     const inBasketSprite = new PIXI.Sprite(inBasketTexture);
 
-    // in-basket 스프라이트 위에 bird 스프라이트를 조합
-    inBasketSprite.addChild(birdSprite);
-    birdSprite.anchor.set(0.5);
-    birdSprite.position.set(
-      inBasketSprite.width / 2,
-      inBasketSprite.height / 2
-    );
+    // bird 애니메이션 스프라이트 생성
+    const birdSpritesheet = assets.birdSprites;
+    if (birdSpritesheet) {
+      // 'fly' 애니메이션 프레임 가져오기
+      // const flyFrames = birdSpritesheet.animations["fly"];
+      const textures = birdSpritesheet.animations["fly"];
+      if (textures && textures.length > 0) {
+        // 애니메이션 프레임으로 AnimatedSprite 생성
+        this.bird = new PIXI.AnimatedSprite(textures);
 
-    this.bird = inBasketSprite;
-    this.bird.width = 40;
-    this.bird.height = 40;
-    this.bird.anchor.set(0.5);
+        // 애니메이션 설정
+        this.bird.animationSpeed = 0.1; // 애니메이션 속도 조절
+        this.bird.play(); // 애니메이션 시작
+
+        // 크기 및 앵커 설정
+        this.bird.width = 30;
+        this.bird.height = 30;
+        this.bird.anchor.set(0.5);
+      } else {
+        console.warn(
+          "[FlappyBirdGameScene] Bird 'fly' animation frames not found"
+        );
+      }
+    } else {
+      console.warn("[FlappyBirdGameScene] Bird spritesheet not found");
+    }
+
+    this.basket = inBasketSprite;
+    this.basket.width = 40;
+    this.basket.height = 40;
+    this.basket.anchor.set(0.5);
 
     // 새를 위한 물리 바디 생성
-    this.birdBody = Matter.Bodies.circle(
+    this.basketBody = Matter.Bodies.circle(
       this.app.screen.width / 3,
       this.app.screen.height / 2,
-      this.bird.width / 2,
+      this.basket.width / 2,
       {
-        label: "bird",
+        label: "basket",
         isStatic: false,
       }
     );
@@ -158,11 +175,12 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
       this.addChild(this.background);
       this.addChild(this.pipes);
       this.addChild(this.groundContainer); // groundContainer를 직접 추가
+      this.addChild(this.basket);
       this.addChild(this.bird);
       this.addChild(this.scoreText);
 
       // 게임 엔진에 물리 객체 추가
-      this.gameEngine.addGameObject(this.bird, this.birdBody);
+      this.gameEngine.addGameObject(this.basket, this.basketBody);
       this.gameEngine.addGameObject(this.groundContainer, this.groundBody); // groundContainer 사용
 
       // 바닥 위치 재조정 및 타일 초기화
@@ -176,11 +194,11 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
       this.pipeGenerator = new PipeGenerator(this.app, this.gameEngine);
 
       // 새 물리 설정
-      Matter.Body.setPosition(this.birdBody, {
+      Matter.Body.setPosition(this.basketBody, {
         x: this.app.screen.width / 4,
         y: this.app.screen.height / 2,
       });
-      Matter.Body.setVelocity(this.birdBody, { x: 0, y: 0 });
+      Matter.Body.setVelocity(this.basketBody, { x: 0, y: 0 });
 
       // 충돌 이벤트 리스너 설정
       this.setupCollisionListeners();
@@ -352,9 +370,9 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
       for (let i = 0; i < pairs.length; i++) {
         const pair = pairs[i];
         if (
-          (pair.bodyA.label === "bird" &&
+          (pair.bodyA.label === "basket" &&
             (pair.bodyB.label === "ground" || pair.bodyB.label === "pipe")) ||
-          (pair.bodyB.label === "bird" &&
+          (pair.bodyB.label === "basket" &&
             (pair.bodyA.label === "ground" || pair.bodyA.label === "pipe"))
         ) {
           if (!this.gameOver) {
@@ -393,14 +411,14 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
 
   private startGame(): void {
     this.gameStarted = true;
-    Matter.Body.setVelocity(this.birdBody, { x: 0, y: 0 });
+    Matter.Body.setVelocity(this.basketBody, { x: 0, y: 0 });
   }
 
   /**
    * 새 캐릭터 점프
    */
   private jump(): void {
-    Matter.Body.setVelocity(this.birdBody, { x: 0, y: -8 });
+    Matter.Body.setVelocity(this.basketBody, { x: 0, y: -8 });
   }
 
   // 점수 업데이트 함수
@@ -412,17 +430,22 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
   private checkCollisions(): void {
     if (this.gameOver) return;
 
-    if (this.birdBody.position.y - this.bird.height / 2 <= 0) {
-      Matter.Body.setPosition(this.birdBody, {
-        x: this.birdBody.position.x,
-        y: this.bird.height / 2,
+    if (this.basketBody.position.y - this.basket.height / 2 <= 0) {
+      Matter.Body.setPosition(this.basketBody, {
+        x: this.basketBody.position.x,
+        y: this.basket.height / 2,
       });
-      Matter.Body.setVelocity(this.birdBody, { x: 0, y: 0 });
+      Matter.Body.setVelocity(this.basketBody, { x: 0, y: 0 });
     }
   }
 
   private handleGameOver(): void {
     this.gameOver = true;
+
+    // 애니메이션 정지
+    if (this.bird) {
+      this.bird.stop();
+    }
 
     // 게임 오버 시 게임 엔진 일시 중지
     this.gameEngine.pause();
@@ -473,12 +496,12 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
       this.removePipePair(0);
     }
 
-    Matter.Body.setPosition(this.birdBody, {
+    Matter.Body.setPosition(this.basketBody, {
       x: this.app.screen.width / 3,
       y: this.app.screen.height / 2,
     });
-    Matter.Body.setVelocity(this.birdBody, { x: 0, y: 0 });
-    Matter.Body.setAngle(this.birdBody, 0);
+    Matter.Body.setVelocity(this.basketBody, { x: 0, y: 0 });
+    Matter.Body.setAngle(this.basketBody, 0);
 
     const gameOverText = this.getChildByName("gameOverText");
     if (gameOverText) {
@@ -492,6 +515,11 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
 
     // 바닥 타일도 재설정 (추가)
     this.setupGround();
+
+    // 애니메이션 다시 시작
+    if (this.bird) {
+      this.bird.play();
+    }
 
     this.lastPipeSpawnTime = 0;
   }
@@ -536,11 +564,9 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
     }
 
     // 디버그 렌더러 업데이트
-    if (this.debugMode && this.debugRenderer && this.debugCanvas) {
+    if (this.debugMode && this.debugRenderer) {
       this.debugRenderer.options.width = width;
       this.debugRenderer.options.height = height;
-      this.debugCanvas.width = width;
-      this.debugCanvas.height = height;
     }
   }
 
@@ -597,7 +623,10 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
       pair.bottom.position.x = pair.bottomBody.position.x;
 
       // 점수 처리
-      if (pair.topBody.position.x < this.birdBody.position.x && !pair.passed) {
+      if (
+        pair.topBody.position.x < this.basketBody.position.x &&
+        !pair.passed
+      ) {
         pair.passed = true;
         this.updateScore();
       }
@@ -634,8 +663,14 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
     const currentTime = Date.now();
 
     if (this.gameStarted && !this.gameOver) {
-      this.bird.position.x = this.birdBody.position.x;
-      this.bird.position.y = this.birdBody.position.y;
+      this.basket.position.x = this.basketBody.position.x;
+      this.basket.position.y = this.basketBody.position.y;
+
+      // bird 위치 업데이트 - bird보다 살짝 위에 위치
+      if (this.bird) {
+        this.bird.position.x = this.basketBody.position.x;
+        this.bird.position.y = this.basketBody.position.y - 30; // 20픽셀 위에 배치
+      }
 
       // 파이프 생성 로직
       if (currentTime - this.lastPipeSpawnTime > this.pipeSpawnInterval) {
@@ -668,8 +703,11 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
       this.removePipePair(0);
     }
 
-    if (this.birdBody) {
-      Matter.Composite.remove(this.gameEngine["physics"].world, this.birdBody);
+    if (this.basketBody) {
+      Matter.Composite.remove(
+        this.gameEngine["physics"].world,
+        this.basketBody
+      );
     }
 
     if (this.groundBody) {
