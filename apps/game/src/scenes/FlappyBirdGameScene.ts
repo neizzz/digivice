@@ -496,12 +496,26 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
       this.removePipePair(0);
     }
 
-    Matter.Body.setPosition(this.basketBody, {
-      x: this.app.screen.width / 3,
-      y: this.app.screen.height / 2,
-    });
-    Matter.Body.setVelocity(this.basketBody, { x: 0, y: 0 });
-    Matter.Body.setAngle(this.basketBody, 0);
+    // 기존 바스켓 물리 바디 제거
+    Matter.Composite.remove(this.gameEngine["physics"].world, this.basketBody);
+
+    // 새 바스켓 물리 바디 생성 - 회전 문제를 완전히 해결하기 위함
+    this.basketBody = Matter.Bodies.circle(
+      this.app.screen.width / 3,
+      this.app.screen.height / 2,
+      this.basket.width / 2,
+      {
+        label: "basket",
+        isStatic: false,
+        angle: 0,
+        angularVelocity: 0,
+        inertia: Infinity, // 회전 관성을 무한대로 설정하여 회전을 방지
+        frictionAir: 0.01, // 적당한 공기 마찰력 설정
+      }
+    );
+
+    // 새로 생성한 물리 바디를 게임 엔진에 추가
+    this.gameEngine.addGameObject(this.basket, this.basketBody);
 
     const gameOverText = this.getChildByName("gameOverText");
     if (gameOverText) {
@@ -513,7 +527,7 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
       this.removeChild(restartText);
     }
 
-    // 바닥 타일도 재설정 (추가)
+    // 바닥 타일도 재설정
     this.setupGround();
 
     // 애니메이션 다시 시작
