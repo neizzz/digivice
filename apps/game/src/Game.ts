@@ -86,10 +86,8 @@ export class Game {
    * 게임 루프를 설정합니다
    */
   private setupGameLoop(): void {
-    // 고정 델타타임으로 업데이트 설정 (250ms)
     this.app.ticker.add(() => {
-      const fixedDelta = (250 / 1000) * 60;
-      this.update(fixedDelta);
+      this.update(this.app.ticker.deltaMS);
     });
   }
 

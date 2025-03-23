@@ -4,7 +4,10 @@ import * as Matter from "matter-js";
 export class GameEngine {
   private physics: Matter.Engine;
   private isRunning: boolean = false;
-  private gameObjects: { sprite: PIXI.Sprite; body: Matter.Body }[] = [];
+  private gameObjects: {
+    displayObject: PIXI.Sprite | PIXI.Container;
+    body: Matter.Body;
+  }[] = [];
   private pixiApp: PIXI.Application | null = null;
   private _frameCount: number = 0;
   private physicsUpdateBound: (delta: number) => void;
@@ -45,44 +48,38 @@ export class GameEngine {
 
     try {
       Matter.Engine.update(this.physics, this.pixiApp.ticker.deltaMS);
-      this.syncSprites();
+      this.syncDisplayObjects();
     } catch (error) {
       console.error("[Physics] 물리 업데이트 오류:", error);
     }
   }
 
-  private syncSprites(): void {
+  private syncDisplayObjects(): void {
     for (const obj of this.gameObjects) {
-      if (!obj.sprite || !obj.body) continue;
+      if (!obj.displayObject || !obj.body) continue;
 
-      obj.sprite.position.x = obj.body.position.x;
-      obj.sprite.position.y = obj.body.position.y;
+      if (obj.displayObject instanceof PIXI.Sprite) {
+        // PIXI.Sprite
+        obj.displayObject.position.x = obj.body.position.x;
+        obj.displayObject.position.y = obj.body.position.y;
+      } else {
+        // PIXI.Container
+        obj.displayObject.position.x = obj.body.bounds.min.x;
+        obj.displayObject.position.y = obj.body.bounds.min.y;
+      }
 
       if (!obj.body.isStatic) {
-        obj.sprite.rotation = obj.body.angle;
+        obj.displayObject.rotation = obj.body.angle;
       }
     }
   }
 
-  public addGameObject(sprite: PIXI.Sprite, body: Matter.Body): void {
-    if (body.label === "bird") {
-      body.isStatic = false;
-
-      Matter.Body.set(body, {
-        inertia: Infinity,
-        friction: 0.0,
-        frictionAir: 0.01,
-        restitution: 0.0,
-        density: 0.01,
-      });
-    }
-
+  public addGameObject(
+    displayObject: PIXI.Sprite | PIXI.Container,
+    body: Matter.Body
+  ): void {
     Matter.Composite.add(this.physics.world, body);
-
-    sprite.position.x = body.position.x;
-    sprite.position.y = body.position.y;
-
-    this.gameObjects.push({ sprite, body });
+    this.gameObjects.push({ displayObject, body });
     this._frameCount = 0;
   }
 

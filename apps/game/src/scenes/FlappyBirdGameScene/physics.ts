@@ -42,8 +42,21 @@ export class PhysicsManager {
   /**
    * 물체를 물리 엔진에 추가합니다.
    */
-  public addToEngine(sprite: PIXI.Sprite, body: Matter.Body): void {
-    this.gameEngine.addGameObject(sprite, body);
+  public addToEngine(
+    displayObject: PIXI.Sprite | PIXI.Container,
+    body: Matter.Body
+  ): void {
+    this.gameEngine.addGameObject(displayObject, body);
+
+    if (body.label === "basket") {
+      Matter.Body.set(body, {
+        inertia: Infinity,
+        friction: 0.0,
+        frictionAir: 0.01,
+        restitution: 0.0,
+        density: 0.01,
+      });
+    }
   }
 
   /**

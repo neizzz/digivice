@@ -3,7 +3,7 @@ import { Scene } from "../../interfaces/Scene";
 import { AssetLoader } from "../../utils/AssetLoader";
 import { GameEngine } from "../../GameEngine";
 import { CharacterKey } from "../../types/CharacterKey";
-import { GameOptions, GameState, SceneKey } from "./models";
+import { GameOptions, GameState } from "./models";
 import { GameOverUI, ScoreUI } from "./ui";
 import { GroundManager, PipeManager, PlayerManager } from "./gameLogic";
 import { PhysicsManager } from "./physics";
@@ -212,13 +212,13 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
    * 게임 오버 처리 메서드
    */
   private handleGameOver(): void {
+    console.log(0, this.playerManager.getBasketBody().position);
+    // 그 다음 게임 상태 변경 및 물리 엔진 정지
     this.gameState = GameState.GAME_OVER;
+    this.gameEngine.pause();
 
     // 애니메이션 정지
     this.playerManager.stopAnimation();
-
-    // 게임 엔진 일시 중지
-    this.gameEngine.pause();
 
     // 게임 오버 UI 표시
     this.gameOverUI.show();
@@ -312,14 +312,13 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
    * 매 프레임마다 실행되는 업데이트 메서드
    */
   public update(deltaTime: number): void {
-    if (!this.initialized || this.gameState === GameState.GAME_OVER) return;
+    if (!this.initialized) return;
 
     const currentTime = Date.now();
 
-    if (this.gameState === GameState.PLAYING) {
-      // 플레이어 위치 업데이트
-      this.playerManager.updatePosition();
+    this.playerManager.update();
 
+    if (this.gameState === GameState.PLAYING) {
       // 플레이어 경계 충돌 체크
       this.playerManager.checkCollisions();
 
