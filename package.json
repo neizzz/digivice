@@ -1,6 +1,7 @@
 {
   "name": "digivice",
   "version": "1.0.0",
+  "private": true,
   "scripts": {
     "dev": "cd apps/client && pnpm run dev",
     "build": "cd apps/client && pnpm run build"

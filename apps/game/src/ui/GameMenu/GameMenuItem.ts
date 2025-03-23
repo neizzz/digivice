@@ -1,46 +1,31 @@
-// 메뉴 아이템 타입 (마이그레이션됨)
 export enum GameMenuItemType {
-  TYPE_A = "TYPE_A",
-  TYPE_B = "TYPE_B",
-  TYPE_C = "TYPE_C",
-  TYPE_D = "TYPE_D",
-  TYPE_E = "TYPE_E",
-  TYPE_F = "TYPE_F",
+  MiniGame = "mini-game",
+  Feed = "feed",
+  Versus = "versus",
+  Drug = "drug",
+  Clean = "clean",
+  Information = "information",
+  Training = "training",
 }
-
-// 각 메뉴 아이템 타입에 대한 스프라이트 좌표 매핑
-const menuItemSpriteMap: Record<
-  GameMenuItemType,
-  { x: number; y: number; width: number; height: number }
-> = {
-  [GameMenuItemType.TYPE_A]: { x: 0, y: 0, width: 68, height: 68 },
-  [GameMenuItemType.TYPE_B]: { x: 68, y: 0, width: 68, height: 68 },
-  [GameMenuItemType.TYPE_C]: { x: 136, y: 0, width: 68, height: 68 },
-  [GameMenuItemType.TYPE_D]: { x: 204, y: 0, width: 68, height: 68 },
-  [GameMenuItemType.TYPE_E]: { x: 272, y: 0, width: 68, height: 68 },
-  [GameMenuItemType.TYPE_F]: { x: 340, y: 0, width: 68, height: 68 },
-};
 
 export class GameMenuItem {
   private element: HTMLDivElement;
   private itemType: GameMenuItemType;
   private isFocused: boolean = false;
 
-  constructor(itemType: GameMenuItemType) {
+  constructor(itemType: GameMenuItemType, index: number) {
     this.itemType = itemType;
     this.element = document.createElement("div");
     this.element.className = "game-menu-item";
 
-    // 타입별 클래스 추가
-    this.element.classList.add(`type-${itemType.toLowerCase()}`);
-
-    // 스프라이트 정보 가져오기
-    const spriteInfo = menuItemSpriteMap[this.itemType];
+    // 타입별 클래스 추가 - 이미 kebab-case로 변경되어 있으므로 그대로 사용
+    this.element.classList.add(`type-${itemType}`);
 
     // 스프라이트 위치 설정
-    this.element.style.width = `${spriteInfo.width}px`;
-    this.element.style.height = `${spriteInfo.height}px`;
-    this.element.style.backgroundPosition = `-${spriteInfo.x}px -${spriteInfo.y}px`;
+    const size = document.body.clientWidth / 7;
+    this.element.style.width = `${size}px`;
+    this.element.style.height = `${size}px`;
+    this.element.style.backgroundPosition = `-${index * size}px 0px`;
 
     // 초기 포커스 상태 설정
     this.updateFocusState();

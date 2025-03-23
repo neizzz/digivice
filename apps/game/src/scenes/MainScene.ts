@@ -8,6 +8,7 @@ import { ControlButtonType, NavigationAction } from "../ui/types";
 import { SceneKey } from "../SceneKey";
 import { CharacterKey } from "../types/CharacterKey";
 import { Game } from "../Game";
+import { GameMenuItemType } from "../ui/GameMenu/GameMenuItem";
 
 export class MainScene extends PIXI.Container implements Scene {
   private app: PIXI.Application;
@@ -122,12 +123,14 @@ export class MainScene extends PIXI.Container implements Scene {
 
     // 게임 내부에서 처리할 콜백 정의
     const gameMenuOptions: GameMenuOptions = {
-      onTypeASelect: () => this.handleMenuSelect("typeA"),
-      onTypeBSelect: () => this.handleMenuSelect("typeB"),
-      onTypeCSelect: () => this.handleMenuSelect("typeC"),
-      onTypeDSelect: () => this.handleMenuSelect("typeD"),
-      onTypeESelect: () => this.handleMenuSelect("typeE"),
-      onTypeFSelect: () => this.handleMenuSelect("typeF"),
+      onMiniGameSelect: () => this.handleMenuSelect(GameMenuItemType.MiniGame),
+      onFeedSelect: () => this.handleMenuSelect(GameMenuItemType.Feed),
+      onVersusSelect: () => this.handleMenuSelect(GameMenuItemType.Versus),
+      onDrugSelect: () => this.handleMenuSelect(GameMenuItemType.Drug),
+      onCleanSelect: () => this.handleMenuSelect(GameMenuItemType.Clean),
+      onTrainingSelect: () => this.handleMenuSelect(GameMenuItemType.Training),
+      onInformationSelect: () =>
+        this.handleMenuSelect(GameMenuItemType.Information),
       onCancel: () => this.handleMenuCancel(),
     };
 
@@ -145,12 +148,12 @@ export class MainScene extends PIXI.Container implements Scene {
   /**
    * 메뉴 선택 처리
    */
-  private handleMenuSelect(menuType: string): void {
+  private handleMenuSelect(menuType: GameMenuItemType): void {
     console.log(`메뉴 항목 선택: ${menuType}`);
 
     switch (menuType) {
-      case "typeA":
-        console.log("A 타입 버튼으로 플래피 버드 게임으로 전환 요청");
+      case GameMenuItemType.MiniGame:
+        console.log("미니게임 버튼으로 플래피 버드 게임으로 전환 요청");
         if (this.game) {
           // GameMenu 제거
           if (this.gameMenu) {
@@ -171,17 +174,36 @@ export class MainScene extends PIXI.Container implements Scene {
         break;
 
       // 다른 메뉴 항목들 처리
-      case "typeB":
-        console.log("B 타입 버튼 선택");
-        // B 타입 메뉴 처리 로직
+      case GameMenuItemType.Feed:
+        console.log("먹이 버튼 선택");
+        // 먹이 기능 구현 로직
         break;
 
-      case "typeC":
-        console.log("C 타입 버튼 선택");
-        // C 타입 메뉴 처리 로직
+      case GameMenuItemType.Versus:
+        console.log("배틀 버튼 선택");
+        // 배틀 로직
         break;
 
-      // 기타 메뉴 항목 처리...
+      case GameMenuItemType.Drug:
+        console.log("약 버튼 선택");
+        // 약 관련 로직
+        break;
+
+      case GameMenuItemType.Clean:
+        console.log("청소 버튼 선택");
+        // 청소 관련 로직
+        break;
+
+      case GameMenuItemType.Training:
+        console.log("훈련 버튼 선택");
+        // 훈련 관련 로직
+        break;
+
+      case GameMenuItemType.Information:
+        console.log("정보 버튼 선택");
+        // 정보 관련 로직
+        break;
+
       default:
         console.log(`${menuType} 메뉴 항목에 대한 처리가 구현되지 않았습니다`);
     }

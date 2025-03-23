@@ -1,6 +1,6 @@
 .game-menu-container {
   position: absolute;
-  bottom: 0;
+  bottom: 6px;
   display: flex;
   justify-content: space-around;
   width: 100%;
@@ -8,15 +8,14 @@
 }
 
 .game-menu-item {
-  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   background-image: url("/game/sprites/menu-items.png");
   background-repeat: no-repeat;
-  background-size: auto;
+  background-size: cover;
   user-select: none;
-  scale: 0.5;
+  scale: 0.7;
   opacity: 0.6;
 }
 

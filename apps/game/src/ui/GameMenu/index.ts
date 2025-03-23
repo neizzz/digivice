@@ -6,25 +6,28 @@ import "./style.css";
 export type UIEventCallback = () => void;
 
 export interface GameMenuOptions {
-  onTypeASelect?: () => void;
-  onTypeBSelect?: () => void;
-  onTypeCSelect?: () => void;
-  onTypeDSelect?: () => void;
-  onTypeESelect?: () => void;
-  onTypeFSelect?: () => void;
+  onMiniGameSelect?: () => void;
+  onFeedSelect?: () => void;
+  onVersusSelect?: () => void;
+  onDrugSelect?: () => void;
+  onCleanSelect?: () => void;
+  onTrainingSelect?: () => void;
+  onInformationSelect?: () => void;
   onCancel?: () => void;
   onNavigationProcessed?: () => void;
 }
 
 export class GameMenu {
   private container: HTMLDivElement;
+  // 메뉴 아이템 순서 반영 배열
   private menuItems: GameMenuItemType[] = [
-    GameMenuItemType.TYPE_A,
-    GameMenuItemType.TYPE_B,
-    GameMenuItemType.TYPE_C,
-    GameMenuItemType.TYPE_D,
-    GameMenuItemType.TYPE_E,
-    GameMenuItemType.TYPE_F,
+    GameMenuItemType.MiniGame,
+    GameMenuItemType.Feed,
+    GameMenuItemType.Versus,
+    GameMenuItemType.Drug,
+    GameMenuItemType.Clean,
+    GameMenuItemType.Training,
+    GameMenuItemType.Information,
   ];
   private focusedIndex: number | null = null;
   private lastProcessedIndex = -1;
@@ -43,8 +46,8 @@ export class GameMenu {
   }
 
   private initializeMenuItems(): void {
-    this.menuItems.forEach((itemType) => {
-      const menuItem = new GameMenuItem(itemType);
+    this.menuItems.forEach((itemType, index) => {
+      const menuItem = new GameMenuItem(itemType, index);
       this.menuItemElements.push(menuItem);
       this.container.appendChild(menuItem.getElement());
     });
@@ -102,23 +105,27 @@ export class GameMenu {
 
     const selectedMenu = this.menuItems[index];
     switch (selectedMenu) {
-      case GameMenuItemType.TYPE_A:
-        if (this.options.onTypeASelect) this.options.onTypeASelect();
+      case GameMenuItemType.MiniGame:
+        if (this.options.onMiniGameSelect) this.options.onMiniGameSelect();
         break;
-      case GameMenuItemType.TYPE_B:
-        if (this.options.onTypeBSelect) this.options.onTypeBSelect();
+      case GameMenuItemType.Feed:
+        if (this.options.onFeedSelect) this.options.onFeedSelect();
         break;
-      case GameMenuItemType.TYPE_C:
-        if (this.options.onTypeCSelect) this.options.onTypeCSelect();
+      case GameMenuItemType.Versus:
+        if (this.options.onVersusSelect) this.options.onVersusSelect();
         break;
-      case GameMenuItemType.TYPE_D:
-        if (this.options.onTypeDSelect) this.options.onTypeDSelect();
+      case GameMenuItemType.Drug:
+        if (this.options.onDrugSelect) this.options.onDrugSelect();
         break;
-      case GameMenuItemType.TYPE_E:
-        if (this.options.onTypeESelect) this.options.onTypeESelect();
+      case GameMenuItemType.Clean:
+        if (this.options.onCleanSelect) this.options.onCleanSelect();
         break;
-      case GameMenuItemType.TYPE_F:
-        if (this.options.onTypeFSelect) this.options.onTypeFSelect();
+      case GameMenuItemType.Training:
+        if (this.options.onTrainingSelect) this.options.onTrainingSelect();
+        break;
+      case GameMenuItemType.Information:
+        if (this.options.onInformationSelect)
+          this.options.onInformationSelect();
         break;
     }
   }
