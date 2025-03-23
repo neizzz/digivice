@@ -14,14 +14,14 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
   // 핵심 컴포넌트
   private app: PIXI.Application;
   private gameEngine: GameEngine;
-  private background: PIXI.Graphics;
+  private background!: PIXI.Graphics;
   private initialized: boolean = false;
 
   // 게임 매니저
   private physicsManager: PhysicsManager;
   private playerManager: PlayerManager;
   private groundManager: GroundManager;
-  private pipeManager: PipeManager;
+  private pipeManager!: PipeManager;
 
   // UI 요소
   private scoreUI: ScoreUI;
@@ -36,11 +36,8 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
   };
   private lastPipeSpawnTime: number = 0;
 
-  // 씬 전환 콜백
-  private onSceneChange: ((key: SceneKey) => void) | null = null;
-
   // 게임 인스턴스 참조
-  private game: Game;
+  private game!: Game;
 
   constructor(
     app: PIXI.Application,
@@ -131,6 +128,8 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
 
       // 화면 크기에 맞게 조정
       this.onResize(this.app.screen.width, this.app.screen.height);
+
+      this.physicsManager.toggleDebugMode(this.app);
 
       // 바로 게임 시작
       this.startGame();

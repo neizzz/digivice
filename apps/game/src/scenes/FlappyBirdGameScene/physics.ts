@@ -7,7 +7,7 @@ import { GameEngine } from "../../GameEngine";
  */
 export class PhysicsManager {
   private gameEngine: GameEngine;
-  private debugRenderer: Matter.Render;
+  private debugRenderer?: Matter.Render;
   private debugMode: boolean = false;
 
   constructor(gameEngine: GameEngine) {
@@ -103,52 +103,56 @@ export class PhysicsManager {
   }
 
   /**
-   * 디버그 모드를 전환합니다.
-   */
-  public toggleDebugMode(app: PIXI.Application): boolean {
-    this.debugMode = !this.debugMode;
-
-    if (this.debugMode) {
-      this.setupDebugRenderer(app);
-    } else {
-      this.cleanupDebugRenderer();
-    }
-
-    return this.debugMode;
-  }
-
-  /**
    * 디버그 렌더러를 설정합니다.
    */
   public setupDebugRenderer(app: PIXI.Application): void {
     this.cleanupDebugRenderer();
 
-    const brightGreen = "#26ff00";
+    // 더 밝고 눈에 띄는 색상 사용
+    const highlightColor = "#FF00FF"; // 밝은 마젠타
+
+    // 디버그 렌더러용 canvas 요소 생성
+    const canvas = document.createElement("canvas");
+    canvas.width = app.screen.width;
+    canvas.height = app.screen.height;
+    canvas.style.position = "absolute";
+    canvas.style.top = "0";
+    canvas.style.left = "0";
+    canvas.style.pointerEvents = "none";
+
+    const gameContainer = document.getElementById(
+      "game-container"
+    ) as HTMLDivElement;
+    gameContainer.appendChild(canvas);
 
     this.debugRenderer = Matter.Render.create({
+      canvas,
       engine: this.gameEngine.getPhysicsEngine(),
       options: {
         width: app.screen.width,
         height: app.screen.height,
-        wireframes: true,
+        wireframes: true, // 실제 스타일 사용
         showBounds: true,
         showCollisions: true,
         showVelocity: true,
         showAngleIndicator: true,
-        wireframeBackground: "transparent",
+        // background: "rgba(0, 0, 0, 0.1)", // 약간의 배경색 추가
         showPositions: true,
-        wireframeStrokeStyle: brightGreen,
-        collisionStrokeStyle: brightGreen,
-        boundsStrokeStyle: brightGreen,
-        constraintStrokeStyle: brightGreen,
-        background: "transparent",
-        showSleeping: true,
-        showIds: false,
-        showVertexNumbers: false,
-        showConvexHulls: true,
+        wireframeBackground: "transparent",
+        wireframeStrokeStyle: highlightColor,
+        lineWidth: 2, // 더 두꺼운 선
+        collisionStrokeStyle: highlightColor,
+        boundsStrokeStyle: highlightColor,
+        constraintStrokeStyle: highlightColor,
+        // showSleeping: true,
+        // showIds: true, // ID 표시
+        // showVertexNumbers: true, // 꼭지점 번호 표시
+        // showConvexHulls: true,
+        zIndex: 1000,
       },
     });
 
+    this.debugMode = true;
     Matter.Render.run(this.debugRenderer);
   }
 
@@ -157,8 +161,18 @@ export class PhysicsManager {
    */
   public cleanupDebugRenderer(): void {
     if (this.debugRenderer) {
+      // canvas 요소를 DOM에서 제거
+      if (
+        this.debugRenderer.canvas &&
+        this.debugRenderer.canvas.parentElement
+      ) {
+        this.debugRenderer.canvas.parentElement.removeChild(
+          this.debugRenderer.canvas
+        );
+      }
       Matter.Render.stop(this.debugRenderer);
-      this.debugRenderer = null;
+      this.debugRenderer = undefined;
+      this.debugMode = false;
     }
   }
 
@@ -177,6 +191,17 @@ export class PhysicsManager {
    */
   public isDebugMode(): boolean {
     return this.debugMode;
+  }
+
+  /**
+   * 디버그 모드를 토글합니다.
+   */
+  public toggleDebugMode(app: PIXI.Application): void {
+    if (this.debugMode) {
+      this.cleanupDebugRenderer();
+    } else {
+      this.setupDebugRenderer(app);
+    }
   }
 
   /**
