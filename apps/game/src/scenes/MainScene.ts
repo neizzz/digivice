@@ -61,7 +61,6 @@ export class MainScene extends PIXI.Container implements Scene {
       // 초기 설정 완료
       this.positionCharacter();
       this.applyCharacterMovement();
-      // setupDebugVisualization 호출 제거
       this.initialized = true;
 
       // 화면 크기에 맞게 조정
