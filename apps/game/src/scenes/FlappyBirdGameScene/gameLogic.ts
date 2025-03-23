@@ -36,17 +36,14 @@ export class GroundManager {
     // 지면 물리 바디 생성
     this.groundBody = this.physicsManager.createRectangleBody(
       this.app.screen.width / 2,
-      this.app.screen.height - this.groundTileSize / 2,
+      this.app.screen.height,
       this.app.screen.width,
       this.groundTileSize,
       { isStatic: true, label: "ground" }
     );
 
     // 물리 엔진에 추가
-    this.physicsManager.addToEngine(
-      this.groundContainer as any,
-      this.groundBody
-    );
+    this.physicsManager.addToEngine(this.groundContainer, this.groundBody);
   }
 
   /**
@@ -69,17 +66,7 @@ export class GroundManager {
       for (let i = 0; i < tilesNeeded; i++) {
         this.createGroundTile();
       }
-
-      // 바닥 위치 설정
-      this.groundContainer.position.y =
-        this.app.screen.height - this.groundTileSize;
     }
-
-    // 바닥 물리 바디 위치 조정
-    this.physicsManager.setPosition(this.groundBody, {
-      x: this.app.screen.width / 2,
-      y: this.app.screen.height - this.groundTileSize / 2,
-    });
   }
 
   /**
@@ -293,7 +280,7 @@ export class PipeManager {
     // 상단 파이프 생성
     const top = new PIXI.Container();
 
-    for (let i = 0; i < Math.floor(topPipeHeight / tileSize) - 1; i++) {
+    for (let i = 0; i < Math.round(topPipeHeight / tileSize) - 1; i++) {
       const segment = new PIXI.Sprite(pipeBodyTexture);
       segment.width = tileSize;
       segment.height = tileSize;
@@ -304,9 +291,8 @@ export class PipeManager {
     const topEnd = new PIXI.Sprite(pipeEndTexture);
     topEnd.width = tileSize;
     topEnd.height = tileSize;
-    topEnd.anchor.set(0.5);
     topEnd.rotation = Math.PI;
-    topEnd.position.set(tileSize / 2, topPipeHeight - tileSize / 2);
+    topEnd.position.set(tileSize, topPipeHeight);
     top.addChild(topEnd);
 
     // 하단 파이프 생성
@@ -318,7 +304,7 @@ export class PipeManager {
     bottomEnd.position.set(0, 0);
     bottom.addChild(bottomEnd);
 
-    for (let i = 1; i < Math.floor(bottomPipeHeight / tileSize); i++) {
+    for (let i = 1; i < Math.round(bottomPipeHeight / tileSize); i++) {
       const segment = new PIXI.Sprite(pipeBodyTexture);
       segment.width = tileSize;
       segment.height = tileSize;
@@ -330,7 +316,11 @@ export class PipeManager {
     const topBodyX = this.app.screen.width + tileSize / 2;
     const topBodyY = topPipeHeight / 2;
     const bottomBodyX = topBodyX;
-    const bottomBodyY = topPipeHeight + passageHeight + bottomPipeHeight / 2;
+    const bottomBodyY =
+      topPipeHeight +
+      passageHeight +
+      bottomPipeHeight / 2 +
+      tileSize / 2; /* ground 높이 */
 
     // 물리 바디 생성
     const topBody = this.physicsManager.createRectangleBody(
@@ -365,10 +355,6 @@ export class PipeManager {
         x: -this.speed,
         y: 0,
       });
-
-      // 렌더링 객체 위치 업데이트
-      pair.top.position.x = pair.topBody.position.x;
-      pair.bottom.position.x = pair.bottomBody.position.x;
 
       // 점수 처리
       if (pair.topBody.position.x < playerBody.position.x && !pair.passed) {
@@ -517,15 +503,10 @@ export class PlayerManager {
   /**
    * 플레이어 위치를 업데이트합니다.
    */
-  public updatePosition(): void {
-    // 바구니 위치 업데이트
-    this.basket.position.x = this.basketBody.position.x;
-    this.basket.position.y = this.basketBody.position.y;
-
-    // 새 위치 업데이트
+  public update(): void {
     if (this.bird) {
-      this.bird.position.x = this.basketBody.position.x;
-      this.bird.position.y = this.basketBody.position.y - 31; // 바구니 위에 위치
+      this.bird.position.x = this.basketBody.position.x + 4;
+      this.bird.position.y = this.basketBody.position.y - 36; // 바구니 위에 위치
     }
   }
 

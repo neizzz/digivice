@@ -13,11 +13,6 @@ export interface PipePair {
 }
 
 /**
- * 씬 키 타입 - SceneKey 사용
- */
-export type SceneKey = string;
-
-/**
  * 게임 구성 옵션
  */
 export interface GameOptions {
