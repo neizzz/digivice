@@ -8,6 +8,7 @@ import { GameOverUI, ScoreUI } from "./ui";
 import { GroundManager, PipeManager, PlayerManager } from "./gameLogic";
 import { PhysicsManager } from "./physics";
 import { ControlButtonType } from "../../ui/types";
+import { Game } from "../../Game";
 
 export class FlappyBirdGameScene extends PIXI.Container implements Scene {
   // 핵심 컴포넌트
@@ -37,6 +38,9 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
 
   // 씬 전환 콜백
   private onSceneChange: ((key: SceneKey) => void) | null = null;
+
+  // 게임 인스턴스 참조
+  private game: Game;
 
   constructor(
     app: PIXI.Application,
@@ -254,10 +258,24 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
   }
 
   /**
-   * Scene 인터페이스 구현 메서드
+   * Scene 인터페이스 구현 메서드: Game 참조 설정
    */
-  public setSceneChangeCallback(callback: (key: SceneKey) => void): void {
-    this.onSceneChange = callback;
+  public setGameReference(game: Game): void {
+    this.game = game;
+  }
+
+  /**
+   * 다른 씬으로 전환합니다.
+   */
+  private navigateToScene(sceneKey: SceneKey): void {
+    if (this.game) {
+      this.game.changeScene(sceneKey);
+    } else {
+      console.error(
+        "Game reference not set. Cannot navigate to scene:",
+        sceneKey
+      );
+    }
   }
 
   /**

@@ -158,10 +158,8 @@ export class Game {
         throw new Error(`Unknown scene key: ${key}`);
     }
 
-    // Scene 인터페이스의 setSceneChangeCallback 메서드를 통해 씬 전환 콜백 설정
-    scene.setSceneChangeCallback((targetKey: SceneKey) => {
-      this.changeScene(targetKey);
-    });
+    // Game 객체 참조를 씬에 전달
+    scene.setGameReference(this);
 
     return scene;
   }

@@ -3,11 +3,11 @@ import { Scene } from "../interfaces/Scene";
 import { Background } from "../entities/Background";
 import { Character } from "../entities/Character";
 import { AssetLoader } from "../utils/AssetLoader";
-// DebugHelper import 제거
 import { GameMenu, GameMenuOptions } from "../ui/GameMenu";
 import { ControlButtonType, NavigationAction } from "../ui/types";
 import { SceneKey } from "../SceneKey";
 import { CharacterKey } from "../types/CharacterKey";
+import { Game } from "../Game";
 
 export class MainScene extends PIXI.Container implements Scene {
   private app: PIXI.Application;
@@ -19,8 +19,8 @@ export class MainScene extends PIXI.Container implements Scene {
   private gameMenu: GameMenu | null = null;
   private navigationIndex: number = 0;
 
-  // 씬 변경을 위한 콜백 함수
-  private onSceneChange: ((key: SceneKey) => void) | null = null;
+  // Game 인스턴스 참조
+  private game: Game;
 
   constructor(app: PIXI.Application) {
     super();
@@ -47,13 +47,6 @@ export class MainScene extends PIXI.Container implements Scene {
     });
 
     this.setupScene();
-  }
-
-  /**
-   * 씬 전환 콜백을 설정합니다
-   */
-  public setSceneChangeCallback(callback: (key: SceneKey) => void): void {
-    this.onSceneChange = callback;
   }
 
   /**
@@ -144,6 +137,13 @@ export class MainScene extends PIXI.Container implements Scene {
   }
 
   /**
+   * Game 객체 참조를 설정합니다
+   */
+  public setGameReference(game: Game): void {
+    this.game = game;
+  }
+
+  /**
    * 메뉴 선택 처리
    */
   private handleMenuSelect(menuType: string): void {
@@ -152,7 +152,7 @@ export class MainScene extends PIXI.Container implements Scene {
     switch (menuType) {
       case "typeA":
         console.log("A 타입 버튼으로 플래피 버드 게임으로 전환 요청");
-        if (this.onSceneChange) {
+        if (this.game) {
           // GameMenu 제거
           if (this.gameMenu) {
             this.gameMenu.destroy();
@@ -164,10 +164,10 @@ export class MainScene extends PIXI.Container implements Scene {
             this.character.stopRandomMovement();
           }
 
-          // 씬 전환 실행
-          this.onSceneChange(SceneKey.FLAPPY_BIRD_GAME);
+          // Game 인스턴스의 changeScene 호출
+          this.game.changeScene(SceneKey.FLAPPY_BIRD_GAME);
         } else {
-          console.warn("씬 전환 콜백이 설정되지 않았습니다");
+          console.warn("Game 객체 참조가 설정되지 않았습니다");
         }
         break;
 
