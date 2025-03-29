@@ -38,12 +38,12 @@ export class MainScene extends PIXI.Container implements Scene {
 
     // 캐릭터 생성 및 추가
     this.character = new Character({
-      characterKey: CharacterKey.Mushroom2,
+      characterKey: CharacterKey.GreenSlime,
       initialPosition: {
         x: this.app.screen.width / 2,
         y: this.app.screen.height / 2,
       },
-      speed: 1,
+      speed: 0.6,
       scale: 3, // 캐릭터 크기 조정
     });
 
