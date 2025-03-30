@@ -1,10 +1,10 @@
 import * as PIXI from "pixi.js";
 import type { Game } from "../Game";
 import { SceneKey } from "../SceneKey";
+import { RandomMovementController } from "../controllers/RandomMovementController";
 import { Background } from "../entities/Background";
 import { Character } from "../entities/Character";
 import type { Scene } from "../interfaces/Scene";
-import { CharacterKey } from "../types/CharacterKey";
 import { GameMenu, type GameMenuOptions } from "../ui/GameMenu";
 import { GameMenuItemType } from "../ui/GameMenu/GameMenuItem";
 import {
@@ -13,11 +13,13 @@ import {
 	NavigationAction,
 } from "../ui/types";
 import { AssetLoader } from "../utils/AssetLoader";
+import GameDataManager from "../utils/GameDataManager";
 
 enum MainSceneControlButtonsSetType {
 	Default = "default",
 	ActiveMenuItem = "active-menu-item",
 }
+
 const CONTROL_BUTTONS_SET: Record<
 	MainSceneControlButtonsSetType,
 	[ControlButtonParams, ControlButtonParams, ControlButtonParams]
@@ -39,6 +41,9 @@ export class MainScene extends PIXI.Container implements Scene {
 	private character: Character;
 	private initialized = false;
 
+	// RandomMovementController 관련 필드
+	private randomMovementController: RandomMovementController | null = null;
+
 	// GameMenu 관련 필드
 	private gameMenu: GameMenu | null = null;
 	private navigationIndex = 0;
@@ -50,10 +55,16 @@ export class MainScene extends PIXI.Container implements Scene {
 		super();
 		this.game = game;
 
-		// DebugHelper 초기화 코드 제거
-
 		// 에셋 가져오기 (이미 로드되었으므로 즉시 반환됨)
 		const assets = AssetLoader.getAssets();
+
+		// GameDataManager를 통해 저장된 데이터 로드
+		const gameData = GameDataManager.loadData();
+
+		if (!gameData) {
+			// TODO: 이름 setup씬으로 이동
+			throw new Error("게임 데이터가 없습니다"); // 임시
+		}
 
 		// 배경 생성 및 추가
 		const backgroundTexture = assets.backgroundTexture || PIXI.Texture.WHITE;
@@ -61,7 +72,7 @@ export class MainScene extends PIXI.Container implements Scene {
 
 		// 캐릭터 생성 및 추가
 		this.character = new Character({
-			characterKey: CharacterKey.GreenSlime,
+			characterKey: gameData.character.key,
 			initialPosition: {
 				x: this.game.app.screen.width / 2,
 				y: this.game.app.screen.height / 2,
@@ -111,20 +122,34 @@ export class MainScene extends PIXI.Container implements Scene {
 	 * 캐릭터에 랜덤 움직임을 적용하는 메서드
 	 */
 	private applyCharacterMovement(): void {
-		// 약간의 딜레이를 주어 캐릭터가 완전히 초기화된 후에 움직임을 적용
-		setTimeout(() => {
-			this.character.applyRandomMovement(this.game.app, {
-				minIdleTime: 2000, // 최소 2초 대기
-				maxIdleTime: 5000, // 최대 5초 대기
-				minMoveTime: 1500, // 최소 1.5초 이동
-				maxMoveTime: 4000, // 최대 4초 이동
-				// moveSpeed 옵션 제거 - 캐릭터의 speed 속성을 사용함
-				boundaryPadding: 50, // 화면 경계 여백
-			});
+		// 기존 RandomMovementController가 있다면 제거
+		if (this.randomMovementController) {
+			this.randomMovementController.destroy();
+		}
 
-			// 캐릭터 애니메이션 변경
-			this.character.setAnimation("walking");
-		}, 500);
+		// 새로운 RandomMovementController 생성
+		this.randomMovementController = new RandomMovementController(
+			this.character,
+			this.game.app,
+			{
+				minIdleTime: 3000, // 최소 3초 대기
+				maxIdleTime: 8000, // 최대 8초 대기
+				minMoveTime: 2000, // 최소 2초 이동
+				maxMoveTime: 7000, // 최대 7초 이동
+				moveSpeed: this.character.getSpeed(),
+				// boundaryPadding: 50, // 화면 경계 여백
+			},
+		);
+	}
+
+	/**
+	 * 랜덤 움직임을 중지합니다.
+	 */
+	private stopRandomMovement(): void {
+		if (this.randomMovementController) {
+			this.randomMovementController.destroy();
+			this.randomMovementController = null;
+		}
 	}
 
 	/**
@@ -202,7 +227,7 @@ export class MainScene extends PIXI.Container implements Scene {
 
 					// 캐릭터의 움직임 중지 (필요한 정리 작업)
 					if (this.character) {
-						this.character.stopRandomMovement();
+						this.stopRandomMovement();
 					}
 
 					// Game 인스턴스의 changeScene 호출
@@ -211,8 +236,7 @@ export class MainScene extends PIXI.Container implements Scene {
 					console.warn("Game 객체 참조가 설정되지 않았습니다");
 				}
 				break;
-
-			// 다른 메뉴 항목들 처리
+			// 다른 메뉴 항목들 처리 ㅇ
 			case GameMenuItemType.Feed:
 				console.log("먹이 버튼 선택");
 				// 먹이 기능 구현 로직
@@ -300,7 +324,7 @@ export class MainScene extends PIXI.Container implements Scene {
 		// 캐릭터 위치 재조정
 		if (this.character) {
 			this.positionCharacter();
-			this.character.stopRandomMovement();
+			this.stopRandomMovement();
 			this.applyCharacterMovement();
 		}
 	}
@@ -309,9 +333,9 @@ export class MainScene extends PIXI.Container implements Scene {
 		// 초기화 전에는 업데이트 무시
 		if (!this.initialized) return;
 
-		// 캐릭터 업데이트
-		if (this.character) {
-			this.character.update(deltaTime);
+		// RandomMovementController가 있으면 업데이트
+		if (this.randomMovementController) {
+			this.randomMovementController.update(deltaTime);
 		}
 	}
 
@@ -323,10 +347,8 @@ export class MainScene extends PIXI.Container implements Scene {
 			this.gameMenu = null;
 		}
 
-		// 캐릭터 정리
-		if (this.character) {
-			this.character.stopRandomMovement();
-		}
+		// 랜덤 움직임 중지
+		this.stopRandomMovement();
 
 		// 다른 리소스 정리 로직...
 	}

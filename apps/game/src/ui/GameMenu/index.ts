@@ -2,9 +2,6 @@ import { NavigationAction, type NavigationActionPayload } from "../types";
 import { GameMenuItem, GameMenuItemType } from "./GameMenuItem";
 import "./style.css";
 
-// 이벤트 콜백 타입
-export type UIEventCallback = () => void;
-
 export interface GameMenuOptions {
 	onMiniGameSelect?: () => void;
 	onFeedSelect?: () => void;
@@ -48,7 +45,7 @@ export class GameMenu {
 
 	private initializeMenuItems(): void {
 		this.menuItems.forEach((itemType, index) => {
-			const menuItem = new GameMenuItem(itemType, index);
+			const menuItem = new GameMenuItem(itemType);
 			this.menuItemElements.push(menuItem);
 			this.container.appendChild(menuItem.getElement());
 		});

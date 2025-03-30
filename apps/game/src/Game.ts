@@ -4,24 +4,8 @@ import { SceneKey } from "./SceneKey";
 import type { Scene } from "./interfaces/Scene";
 import { FlappyBirdGameScene } from "./scenes/FlappyBirdGameScene";
 import { MainScene } from "./scenes/MainScene";
-import { CharacterKey } from "./types/CharacterKey";
 import type { ControlButtonParams, ControlButtonType } from "./ui/types";
 import { AssetLoader } from "./utils/AssetLoader";
-
-// export const BUTTON_SETS: Record<ControlButtonUseCase, [ControlButtonParams, ControlButtonParams, ControlButtonParams]> = {
-//   [ControlButtonUseCase.Default]: [{
-//     type: ControlButtonType.Cancel,
-//     onClick: () => console.log("Cancel button clicked"),
-//   }, {
-//     type: ControlButtonType.Settings,
-//     onClick: () => console.log("Confirm button clicked"),
-//   }, {
-//     type: ControlButtonType.Next,
-//     onClick: () => console.log("Settings button clicked"),
-//   }],
-// [ControlButtonUseCase.ActiveMenuItem]: [ControlButtonType.Cancel, ControlButtonType.Confirm, ControlButtonType.Next],
-// [ControlButtonUseCase.GameFlappyBird]: [ControlButtonType.Attack, ControlButtonType.DoubleJump, ControlButtonType.Jump],
-// };
 
 export type ControlButtonsChangeCallback = (
 	controlButtonParamsSet: [
@@ -47,7 +31,6 @@ export class Game {
 		const { parentElement, changeControlButtons } = params;
 		this.changeControlButtons = changeControlButtons;
 		// PIXI 애플리케이션을 생성하고 DOM에 추가합니다
-		// PIXI 애플리케이션 생성
 		this.app = new PIXI.Application({
 			width: parentElement.clientWidth,
 			height: parentElement.clientHeight,
@@ -180,15 +163,11 @@ export class Game {
 				scene = new MainScene(this);
 				break;
 			case SceneKey.FLAPPY_BIRD_GAME:
-				const characterKey = CharacterKey.Mushroom2;
-				scene = new FlappyBirdGameScene(this.app, characterKey);
+				scene = new FlappyBirdGameScene(this);
 				break;
 			default:
 				throw new Error(`Unknown scene key: ${key}`);
 		}
-
-		// Game 객체 참조를 씬에 전달
-		scene.setGameReference(this);
 
 		return scene;
 	}
@@ -222,8 +201,6 @@ export class Game {
 				this.scenes.set(key, newScene);
 			}
 
-			const nextScene = this.scenes.get(key)!;
-
 			// 기존 씬이 있으면 제거
 			if (
 				this.currentScene &&
@@ -234,7 +211,7 @@ export class Game {
 			}
 
 			// 새 씬 설정
-			this.currentScene = nextScene;
+			this.currentScene = this.scenes.get(key) as Scene;
 			this.currentSceneKey = key;
 
 			// 새 씬이 DisplayObject이면 스테이지에 추가
@@ -278,13 +255,6 @@ export class Game {
 		});
 
 		// 현재 씬이 MainScene이면 destroy 호출
-		if (
-			this.currentScene &&
-			typeof (this.currentScene as any).destroy === "function"
-		) {
-			(this.currentScene as any).destroy();
-		}
-
-		// DebugHelper.removeAll() 호출 제거
+		this.currentScene?.destroy?.();
 	}
 }
