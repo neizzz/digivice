@@ -2,12 +2,33 @@ import * as PIXI from "pixi.js";
 import type { Game } from "../../Game";
 import { GameEngine } from "../../GameEngine";
 import type { Scene } from "../../interfaces/Scene";
-import type { ControlButtonType } from "../../ui/types";
+import { type ControlButtonParams, ControlButtonType } from "../../ui/types";
 import GameDataManager, { type GameData } from "../../utils/GameDataManager";
 import { GroundManager, PipeManager, PlayerManager } from "./gameLogic";
 import { type GameOptions, GameState } from "./models";
 import { PhysicsManager } from "./physics";
 import { GameOverUI, ScoreUI } from "./ui";
+
+enum FlappyBirdGameSceneControlButtonsSetType {
+	GamePlay = "game-play",
+	GameEnd = "game-end",
+}
+
+const CONTROL_BUTTONS_SET: Record<
+	FlappyBirdGameSceneControlButtonsSetType,
+	[ControlButtonParams, ControlButtonParams, ControlButtonParams]
+> = {
+	[FlappyBirdGameSceneControlButtonsSetType.GamePlay]: [
+		{ type: ControlButtonType.Attack },
+		{ type: ControlButtonType.DoubleJump },
+		{ type: ControlButtonType.Jump },
+	],
+	[FlappyBirdGameSceneControlButtonsSetType.GameEnd]: [
+		{ type: ControlButtonType.Cancel },
+		{ type: ControlButtonType.Confirm },
+		{ type: ControlButtonType.Next },
+	],
+};
 
 export class FlappyBirdGameScene extends PIXI.Container implements Scene {
 	// 핵심 컴포넌트
@@ -72,6 +93,9 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
 		// UI 초기화
 		this.scoreUI = new ScoreUI();
 		this.gameOverUI = new GameOverUI();
+		this.game.changeControlButtons(
+			CONTROL_BUTTONS_SET[FlappyBirdGameSceneControlButtonsSetType.GamePlay],
+		);
 
 		// 씬 설정
 		this.setupScene();
@@ -209,7 +233,6 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
 	 * 게임 오버 처리 메서드
 	 */
 	private handleGameOver(): void {
-		console.log(0, this.playerManager.getBasketBody().position);
 		// 그 다음 게임 상태 변경 및 물리 엔진 정지
 		this.gameState = GameState.GAME_OVER;
 		this.gameEngine.pause();
@@ -254,13 +277,6 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
 	}
 
 	/**
-	 * Scene 인터페이스 구현 메서드: Game 참조 설정
-	 */
-	public setGameReference(game: Game): void {
-		this.game = game;
-	}
-
-	/**
 	 * 화면 크기 변경 처리
 	 */
 	public onResize(width: number, height: number): void {
@@ -284,10 +300,18 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
 	 * 컨트롤 버튼 클릭 핸들러
 	 */
 	public handleControlButtonClick(buttonType: ControlButtonType): void {
-		if (this.gameState === GameState.GAME_OVER) {
-			this.restartGame();
-		} else if (this.gameState === GameState.PLAYING) {
-			this.jump();
+		switch (buttonType) {
+			case ControlButtonType.Attack:
+				// TODO:
+				break;
+			case ControlButtonType.DoubleJump:
+				// TODO:
+				break;
+			case ControlButtonType.Jump:
+				this.jump();
+				break;
+			default:
+				throw new Error("Invalid button type");
 		}
 	}
 
