@@ -230,6 +230,13 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
 	}
 
 	/**
+	 * 강화된 점프 메서드
+	 */
+	private doubleJump(): void {
+		this.playerManager.jump(this.gameOptions.jumpVelocity * 1.5); // 기존 점프 속도의 1.5배
+	}
+
+	/**
 	 * 게임 오버 처리 메서드
 	 */
 	private handleGameOver(): void {
@@ -305,7 +312,7 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
 				// TODO:
 				break;
 			case ControlButtonType.DoubleJump:
-				// TODO:
+				this.doubleJump();
 				break;
 			case ControlButtonType.Jump:
 				this.jump();
