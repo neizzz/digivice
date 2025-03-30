@@ -11,8 +11,9 @@
   ],
   "author": "",
   "description": "",
-  "devDependencies": {},
-  "dependencies": {},
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4"
+  },
   "keywords": [],
   "license": "ISC",
   "packageManager": "pnpm@10.6.2"
