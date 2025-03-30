@@ -7,6 +7,8 @@ import { MainScene } from "./scenes/MainScene";
 import type { ControlButtonParams, ControlButtonType } from "./ui/types";
 import { AssetLoader } from "./utils/AssetLoader";
 
+PIXI.BaseTexture.defaultOptions.scaleMode = PIXI.SCALE_MODES.NEAREST;
+
 export type ControlButtonsChangeCallback = (
 	controlButtonParamsSet: [
 		ControlButtonParams,
