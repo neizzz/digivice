@@ -72,6 +72,9 @@ importers:
 
   apps/game:
     dependencies:
+      '@shared/storage':
+        specifier: workspace:*
+        version: link:../../shared/storage
       matter-js:
         specifier: ^0.20.0
         version: 0.20.0
@@ -100,6 +103,8 @@ importers:
       typescript-eslint:
         specifier: ^8.15.0
         version: 8.26.1(eslint@9.22.0)(typescript@5.6.3)
+
+  shared/storage: {}
 
 packages:
 
