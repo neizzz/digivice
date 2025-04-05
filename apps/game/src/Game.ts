@@ -1,5 +1,4 @@
 import * as PIXI from "pixi.js";
-// DebugHelper import 제거
 import { SceneKey } from "./SceneKey";
 import type { Scene } from "./interfaces/Scene";
 import { FlappyBirdGameScene } from "./scenes/FlappyBirdGameScene";

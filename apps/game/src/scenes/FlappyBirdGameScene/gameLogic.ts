@@ -305,7 +305,7 @@ export class PipeManager {
 		bottomEnd.position.set(0, 0);
 		bottom.addChild(bottomEnd);
 
-		for (let i = 1; i < Math.round(bottomPipeHeight / tileSize); i++) {
+		for (let i = 1; i <= Math.round(bottomPipeHeight / tileSize); i++) {
 			const segment = new PIXI.Sprite(pipeBodyTexture);
 			segment.width = tileSize;
 			segment.height = tileSize;
