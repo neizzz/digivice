@@ -1,6 +1,8 @@
 import { NavigationAction, type NavigationActionPayload } from "../types";
 import { GameMenuItem, GameMenuItemType } from "./GameMenuItem";
 import "./style.css";
+import { AssetLoader } from "../../utils/AssetLoader";
+import { ThrowSprite } from "../../utils/ThrowSprite";
 
 export interface GameMenuOptions {
 	onMiniGameSelect?: () => void;
@@ -107,7 +109,7 @@ export class GameMenu {
 				if (this.options.onMiniGameSelect) this.options.onMiniGameSelect();
 				break;
 			case GameMenuItemType.Feed:
-				if (this.options.onFeedSelect) this.options.onFeedSelect();
+				if (this.options.onFeedSelect) this.options.onFeedSelect(); // 외부 주입된 메서드 호출
 				break;
 			case GameMenuItemType.Versus:
 				if (this.options.onVersusSelect) this.options.onVersusSelect();
