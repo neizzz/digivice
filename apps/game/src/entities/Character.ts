@@ -3,12 +3,22 @@ import type { CharacterKey } from "../types/CharacterKey";
 import type { Position } from "../types/Position";
 import { AssetLoader } from "../utils/AssetLoader";
 
+// 캐릭터 상태를 나타내는 enum 추가
+export enum CharacterState {
+	IDLE = "idle",
+	WALKING = "walking",
+	// RUNNING = "running",
+	// JUMPING = "jumping",
+	// 추후 상태 추가 가능
+}
+
 export class Character extends PIXI.Container {
 	public animatedSprite: PIXI.AnimatedSprite | undefined;
 	private speed: number; // 캐릭터 이동 속도
 	private currentAnimation = "idle"; // 현재 애니메이션 상태
 	private spritesheet?: PIXI.Spritesheet; // spritesheet 객체
 	private scaleFactor: number; // 캐릭터 크기 조정 인자
+	private currentState: CharacterState = CharacterState.IDLE; // 현재 상태
 
 	constructor(params: {
 		characterKey: CharacterKey; // CharacterKey 사용
@@ -140,18 +150,12 @@ export class Character extends PIXI.Container {
 		}
 	}
 
-	// public update(deltaTime: number): void {
-	// 	// 캐릭터 상태에 따른 애니메이션 변경 로직 추가
-	// 	if (this.movementController?.isMoving()) {
-	// 		if (this.currentAnimation !== "walking") {
-	// 			this.setAnimation("walking");
-	// 		}
-	// 	} else {
-	// 		if (this.currentAnimation !== "idle") {
-	// 			this.setAnimation("idle");
-	// 		}
-	// 	}
-	// }
+	public update(state: CharacterState): void {
+		if (this.currentState !== state) {
+			this.currentState = state;
+			this.setAnimation(state);
+		}
+	}
 
 	// 명시적으로 캐릭터 위치 설정하는 메서드 추가
 	public setPosition(x: number, y: number): void {

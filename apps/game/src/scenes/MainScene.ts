@@ -195,10 +195,6 @@ export class MainScene extends PIXI.Container implements Scene {
 
 				// ThrowSprite 유틸리티를 사용하여 음식 던지기
 				new ThrowSprite(this.game.app, texture, {
-					finalPosition: {
-						x: 0,
-						y: 0,
-					},
 					initialScale: 3,
 					finalScale: 1,
 					velocity: { x: Math.random() * 4 - 2, y: -Math.random() * 4 - 2 },

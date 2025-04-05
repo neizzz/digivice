@@ -1,4 +1,10 @@
 import * as PIXI from "pixi.js";
+import { CharacterState } from "../entities/Character";
+
+// Updatable 인터페이스 정의
+interface Updatable {
+	update(state: CharacterState): void;
+}
 
 export enum MovementState {
 	MOVING = 0,
@@ -15,7 +21,7 @@ export interface MovementOptions {
 }
 
 export class RandomMovementController {
-	private sprite: PIXI.DisplayObject; // 더 일반적인 타입으로 변경
+	private sprite: PIXI.Container & Updatable; // PIXI.Container와 Updatable 결합
 	private state: MovementState = MovementState.IDLE;
 	private direction: PIXI.Point = new PIXI.Point(0, 0);
 	private stateTimer = 0;
@@ -34,7 +40,7 @@ export class RandomMovementController {
 	};
 
 	constructor(
-		sprite: PIXI.DisplayObject, // 더 일반적인 타입으로 변경
+		sprite: PIXI.Container & Updatable, // PIXI.Container와 Updatable 결합
 		app: PIXI.Application,
 		options?: MovementOptions,
 	) {
@@ -42,14 +48,10 @@ export class RandomMovementController {
 		this.app = app;
 
 		// scale 속성이 있는지 확인
-		if ("scale" in this.sprite) {
-			this.originalScale = new PIXI.Point(
-				(sprite.scale as PIXI.Point).x,
-				(sprite.scale as PIXI.Point).y,
-			);
-		} else {
-			this.originalScale = new PIXI.Point(1, 1);
-		}
+		this.originalScale = new PIXI.Point(
+			this.sprite.scale.x,
+			this.sprite.scale.y,
+		);
 
 		// 옵션 병합
 		if (options) {
@@ -158,17 +160,20 @@ export class RandomMovementController {
 			this.sprite.position.x += this.direction.x * speed * (deltaTime / 1000);
 			this.sprite.position.y += this.direction.y * speed * (deltaTime / 1000);
 
-			// scale 속성이 있는지 확인하고 이동 방향에 따라 스케일 조정
-			if ("scale" in this.sprite) {
-				if (this.direction.x < 0) {
-					(this.sprite.scale as PIXI.Point).x = -Math.abs(this.originalScale.x);
-				} else if (this.direction.x > 0) {
-					(this.sprite.scale as PIXI.Point).x = Math.abs(this.originalScale.x);
-				}
-			}
+			// 이동 방향에 따라 스케일 조정
+			this.sprite.scale.x =
+				this.direction.x < 0
+					? -Math.abs(this.originalScale.x)
+					: Math.abs(this.originalScale.x);
 
 			this.containInBounds();
 		}
+
+		// 캐릭터의 상태를 업데이트
+		const state = this.isMoving()
+			? CharacterState.WALKING
+			: CharacterState.IDLE;
+		this.sprite.update(state);
 	}
 
 	public isMoving(): boolean {
