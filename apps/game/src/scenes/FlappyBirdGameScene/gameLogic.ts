@@ -1,5 +1,5 @@
 import * as PIXI from "pixi.js";
-import type { CharacterKey } from "types/CharacterKey";
+import type { CharacterKey } from "types/Character";
 import { AssetLoader, type GameAssets } from "../../utils/AssetLoader";
 import type { PipePair } from "./models";
 import type { PhysicsManager } from "./physics";

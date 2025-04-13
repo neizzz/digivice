@@ -1,8 +1,6 @@
 import { NavigationAction, type NavigationActionPayload } from "../types";
 import { GameMenuItem, GameMenuItemType } from "./GameMenuItem";
 import "./style.css";
-import { AssetLoader } from "../../utils/AssetLoader";
-import { ThrowSprite } from "../../utils/ThrowSprite";
 
 export interface GameMenuOptions {
 	onMiniGameSelect?: () => void;
@@ -23,11 +21,11 @@ export class GameMenu {
 	private menuItems: GameMenuItemType[] = [
 		GameMenuItemType.Information,
 		GameMenuItemType.MiniGame,
-		GameMenuItemType.Feed,
 		GameMenuItemType.Versus,
-		GameMenuItemType.Drug,
+		GameMenuItemType.Feed,
 		GameMenuItemType.Clean,
-		GameMenuItemType.Training,
+		GameMenuItemType.Drug,
+		// GameMenuItemType.Training,
 	];
 	private focusedIndex: number | null = null;
 	private lastProcessedIndex = -1;

@@ -1,40 +1,53 @@
-import type { CharacterKey } from "types/CharacterKey";
+import { FlutterStorage, type Storage, WebLocalStorage } from "@shared/storage";
+import type { GameData } from "types/GameData";
 
-export interface GameData {
-	character: {
-		key: CharacterKey;
-		// TODO:
-	};
-}
-
-class GameDataManager {
+class _GameDataManager {
 	private data: GameData | null = null;
+	private storage: Storage;
+	private readonly GAME_DATA_KEY = "digivice_game_data";
 
-	public saveData(data: GameData): GameData {
+	constructor() {
+		if (typeof window !== "undefined" && "storageController" in window) {
+			this.storage = new FlutterStorage();
+		} else {
+			this.storage = new WebLocalStorage();
+		}
+	}
+
+	public async saveData(data: GameData): Promise<GameData> {
 		this.data = Object.freeze(data);
-		localStorage.setItem("gameData", JSON.stringify(data));
+		await this.storage.setItem(this.GAME_DATA_KEY, JSON.stringify(data));
 		return this.data;
 	}
 
-	public loadData(): GameData | null {
-		// FIXME: 임시. 아래 주석처리한 부분이 원래 코드
-		return {
-			character: {
-				// @ts-ignore
-				key: "green-slime",
-			},
-		};
+	public async loadData(): Promise<GameData | undefined> {
+		if (this.data) return this.data;
 
-		// if (this.data) {
-		// 	return this.data;
-		// }
-		// const savedData = localStorage.getItem("gameData");
-		// if (savedData) {
-		// 	this.data = Object.freeze(JSON.parse(savedData)); // 데이터 수정 불가 처리
-		// 	return this.data;
-		// }
-		// return null;
+		const savedData = await this.storage.getItem(this.GAME_DATA_KEY);
+
+		if (!savedData) {
+			console.warn("게임 데이터가 없습니다.");
+			return undefined;
+		}
+
+		try {
+			this.data = Object.freeze(JSON.parse(savedData) as GameData);
+			return this.data;
+		} catch (e) {
+			throw new Error(`게임 데이터 로드 실패: ${e}`);
+		}
+	}
+
+	public async updateData(partialData: Partial<GameData>): Promise<GameData> {
+		const currentData = await this.loadData();
+		const updatedData = { ...currentData, ...partialData } as GameData;
+		return this.saveData(updatedData);
+	}
+
+	public async clearData(): Promise<void> {
+		this.data = null;
+		await this.storage.removeItem(this.GAME_DATA_KEY);
 	}
 }
 
-export default new GameDataManager();
+export const GameDataManager = new _GameDataManager();

@@ -1,16 +1,11 @@
 import * as PIXI from "pixi.js";
-import type { CharacterKey } from "../types/CharacterKey";
+import {
+	CharacterDictionary,
+	type CharacterKey,
+	CharacterState,
+} from "../types/Character";
 import type { Position } from "../types/Position";
 import { AssetLoader } from "../utils/AssetLoader";
-
-// 캐릭터 상태를 나타내는 enum 추가
-export enum CharacterState {
-	IDLE = "idle",
-	WALKING = "walking",
-	// RUNNING = "running",
-	// JUMPING = "jumping",
-	// 추후 상태 추가 가능
-}
 
 export class Character extends PIXI.Container {
 	public animatedSprite: PIXI.AnimatedSprite | undefined;
@@ -19,22 +14,26 @@ export class Character extends PIXI.Container {
 	private spritesheet?: PIXI.Spritesheet; // spritesheet 객체
 	private scaleFactor: number; // 캐릭터 크기 조정 인자
 	private currentState: CharacterState = CharacterState.IDLE; // 현재 상태
+	private animationMapping: Record<CharacterState, string>; // 상태와 애니메이션 이름 매핑
 
 	constructor(params: {
 		characterKey: CharacterKey; // CharacterKey 사용
 		initialPosition: Position;
-		speed: number;
-		scale?: number; // scale 파라미터 추가
 	}) {
 		super();
 
+		const characterInfo = CharacterDictionary[params.characterKey];
+
 		this.position.set(params.initialPosition.x, params.initialPosition.y);
-		this.speed = params.speed;
-		this.scaleFactor = params.scale || 2; // 기본값 1로 설정
+		this.speed = characterInfo.speed;
+		this.scaleFactor = characterInfo.scale;
+		this.animationMapping = characterInfo.animationMapping;
 
 		// AssetLoader에서 스프라이트시트 가져오기
 		const assets = AssetLoader.getAssets();
 		this.spritesheet = assets.characterSprites[params.characterKey];
+
+		// 기본 매핑 설정 (외부에서 주입된 매핑이 있으면 덮어씀)
 
 		this.loadCharacterSprite(this.spritesheet);
 	}
@@ -94,9 +93,12 @@ export class Character extends PIXI.Container {
 		// 새 애니메이션 생성
 		this.animatedSprite = new PIXI.AnimatedSprite(textures);
 
-		// 애니메이션 설정
-		this.animatedSprite.animationSpeed = 0.1; // 기본 애니메이션 속도 설정
-		this.animatedSprite.loop = true; // 기본 루프 설정
+		// 프레임 개수에 따라 애니메이션 속도 설정
+		const frameCount = textures.length;
+		this.animatedSprite.animationSpeed = 0.02 * frameCount;
+
+		// 기본 루프 설정
+		this.animatedSprite.loop = true;
 
 		// 스프라이트 설정
 		this.animatedSprite.width = textures[0].width * this.scaleFactor;
@@ -153,7 +155,13 @@ export class Character extends PIXI.Container {
 	public update(state: CharacterState): void {
 		if (this.currentState !== state) {
 			this.currentState = state;
-			this.setAnimation(state);
+			// 상태에 따른 애니메이션 이름 가져오기
+			const animationName = this.animationMapping[state];
+			if (animationName) {
+				this.setAnimation(animationName);
+			} else {
+				console.warn(`No animation mapped for state: ${state}`);
+			}
 		}
 	}
 

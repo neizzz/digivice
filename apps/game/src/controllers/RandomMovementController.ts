@@ -1,5 +1,5 @@
 import * as PIXI from "pixi.js";
-import { CharacterState } from "../entities/Character";
+import { CharacterState } from "../types/Character";
 
 // Updatable 인터페이스 정의
 interface Updatable {
@@ -36,7 +36,7 @@ export class RandomMovementController {
 		minMoveTime: 1000,
 		maxMoveTime: 5000,
 		moveSpeed: 2,
-		boundaryPadding: 20,
+		boundaryPadding: 40,
 	};
 
 	constructor(
@@ -156,7 +156,6 @@ export class RandomMovementController {
 		if (this.state === MovementState.MOVING) {
 			const speed = this.options.moveSpeed || 1;
 
-			// 방향 벡터에 속도와 deltaTime 적용
 			this.sprite.position.x += this.direction.x * speed * (deltaTime / 1000);
 			this.sprite.position.y += this.direction.y * speed * (deltaTime / 1000);
 

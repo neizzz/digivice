@@ -147,7 +147,7 @@ export class Game {
 	 * @param key 생성할 씬의 키
 	 * @returns 생성된 씬 객체
 	 */
-	private createScene(key: SceneKey): Scene {
+	private async createScene(key: SceneKey): Promise<Scene> {
 		console.log(`Creating new scene: ${key}`);
 
 		// 에셋이 로드되지 않았으면 오류 표시
@@ -157,20 +157,14 @@ export class Game {
 			);
 		}
 
-		let scene: Scene;
-
 		switch (key) {
 			case SceneKey.MAIN:
-				scene = new MainScene(this);
-				break;
+				return new MainScene(this).init();
 			case SceneKey.FLAPPY_BIRD_GAME:
-				scene = new FlappyBirdGameScene(this);
-				break;
+				return new FlappyBirdGameScene(this).init();
 			default:
 				throw new Error(`Unknown scene key: ${key}`);
 		}
-
-		return scene;
 	}
 
 	private update(deltaTime: number): void {
@@ -185,7 +179,7 @@ export class Game {
 	 * @param key 전환할 씬의 키
 	 * @returns 성공 여부
 	 */
-	public changeScene(key: SceneKey): boolean {
+	public async changeScene(key: SceneKey): Promise<boolean> {
 		try {
 			console.log(`씬 전환 요청: ${key}`);
 
@@ -198,7 +192,7 @@ export class Game {
 			// 캐시된 씬이 없으면 새로 생성
 			if (!this.scenes.has(key)) {
 				console.log(`새로운 씬 생성: ${key}`);
-				const newScene = this.createScene(key);
+				const newScene = await this.createScene(key);
 				this.scenes.set(key, newScene);
 			}
 

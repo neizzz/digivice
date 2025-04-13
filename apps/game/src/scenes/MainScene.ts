@@ -13,7 +13,7 @@ import {
 	NavigationAction,
 } from "../ui/types";
 import { AssetLoader } from "../utils/AssetLoader";
-import GameDataManager from "../utils/GameDataManager";
+import { GameDataManager } from "../utils/GameDataManager";
 import { ThrowSprite } from "../utils/ThrowSprite";
 
 enum MainSceneControlButtonsSetType {
@@ -39,7 +39,7 @@ const CONTROL_BUTTONS_SET: Record<
 
 export class MainScene extends PIXI.Container implements Scene {
 	private background: Background;
-	private character: Character;
+	private character!: Character;
 	private initialized = false;
 
 	// RandomMovementController 관련 필드
@@ -56,33 +56,35 @@ export class MainScene extends PIXI.Container implements Scene {
 		super();
 		this.game = game;
 
-		// 에셋 가져오기 (이미 로드되었으므로 즉시 반환됨)
 		const assets = AssetLoader.getAssets();
-
-		// GameDataManager를 통해 저장된 데이터 로드
-		const gameData = GameDataManager.loadData();
-
-		if (!gameData) {
-			// TODO: 이름 setup씬으로 이동
-			throw new Error("게임 데이터가 없습니다"); // 임시
-		}
-
 		// 배경 생성 및 추가
 		const backgroundTexture = assets.backgroundTexture || PIXI.Texture.WHITE;
 		this.background = new Background(backgroundTexture);
+	}
 
-		// 캐릭터 생성 및 추가
-		this.character = new Character({
-			characterKey: gameData.character.key,
-			initialPosition: {
-				x: this.game.app.screen.width / 2,
-				y: this.game.app.screen.height / 2,
-			},
-			speed: 0.6,
-			scale: 3, // 캐릭터 크기 조정
-		});
+	public async init(): Promise<MainScene> {
+		try {
+			const gameData = await GameDataManager.loadData();
 
-		this.setupScene();
+			if (!gameData) {
+				// TODO: 이름 setup씬으로 이동
+				throw new Error("게임 데이터가 없습니다"); // 임시
+			}
+
+			// 캐릭터 생성 및 추가
+			this.character = new Character({
+				characterKey: gameData.character.key,
+				initialPosition: {
+					x: this.game.app.screen.width / 2,
+					y: this.game.app.screen.height / 2,
+				},
+			});
+
+			this.setupScene();
+		} catch (error) {
+			console.error("Error during MainScene initialization:", error);
+		}
+		return this;
 	}
 
 	/**
@@ -138,7 +140,6 @@ export class MainScene extends PIXI.Container implements Scene {
 				minMoveTime: 2000, // 최소 2초 이동
 				maxMoveTime: 7000, // 최대 7초 이동
 				moveSpeed: this.character.getSpeed(),
-				// boundaryPadding: 50, // 화면 경계 여백
 			},
 		);
 	}

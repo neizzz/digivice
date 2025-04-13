@@ -1,5 +1,5 @@
 import * as PIXI from "pixi.js";
-import { CharacterKey } from "../types/CharacterKey";
+import { CharacterKey } from "../types/Character";
 
 interface AssetDefinition {
 	type: "texture" | "spritesheet";

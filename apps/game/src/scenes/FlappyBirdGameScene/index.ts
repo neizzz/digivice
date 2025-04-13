@@ -3,7 +3,7 @@ import type { Game } from "../../Game";
 import { GameEngine } from "../../GameEngine";
 import type { Scene } from "../../interfaces/Scene";
 import { type ControlButtonParams, ControlButtonType } from "../../ui/types";
-import GameDataManager, { type GameData } from "../../utils/GameDataManager";
+import { type GameData, GameDataManager } from "../../utils/GameDataManager";
 import { GroundManager, PipeManager, PlayerManager } from "./gameLogic";
 import { type GameOptions, GameState } from "./models";
 import { PhysicsManager } from "./physics";
@@ -74,7 +74,15 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
 		// 물리 시스템 초기화
 		this.physicsManager = new PhysicsManager(this.gameEngine);
 
-		const data = GameDataManager.loadData() as GameData;
+		// const data = GameDataManager.loadData() as GameData;
+	}
+
+	public async init(): Promise<FlappyBirdGameScene> {
+		const data = await GameDataManager.loadData();
+
+		if (!data) {
+			throw new Error("게임 데이터가 없습니다");
+		}
 
 		// 플레이어 초기화
 		this.playerManager = new PlayerManager(
@@ -99,6 +107,8 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
 
 		// 씬 설정
 		this.setupScene();
+
+		return this;
 	}
 
 	/**

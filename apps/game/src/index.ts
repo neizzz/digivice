@@ -3,5 +3,7 @@
 // Game 클래스와 관련 타입 export
 export { Game } from "./Game";
 export { SceneKey } from "./SceneKey";
+export * from "./utils/GameDataManager";
 
 export * from "./ui/types";
+export * from "./types/Character";

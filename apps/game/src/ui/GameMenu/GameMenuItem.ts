@@ -19,7 +19,7 @@ const getBackgroundPosition = (type: GameMenuItemType, size: number) => {
 		case GameMenuItemType.Drug:
 			return `-${3 * size}px 0px`;
 		case GameMenuItemType.Clean:
-			return `-${4 * size}px 0px`;
+			return `-${4 * size + 1}px 0px`;
 		case GameMenuItemType.Information:
 			return `-${5 * size}px 0px`;
 		case GameMenuItemType.Training:
