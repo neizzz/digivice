@@ -1,34 +1,12 @@
 import { ControlButtonType } from "@digivice/game";
 import type React from "react";
 import { useState } from "react";
-import styled from "styled-components";
 
 interface ControlButtonProps {
 	type: ControlButtonType;
 	onClick?: () => void; // 클릭 이벤트 핸들러
 	className?: string; // 추가 스타일링을 위한 클래스
 }
-
-const StyledButton = styled.button<{
-	x: number;
-	y: number;
-	width: number;
-	height: number;
-}>`
-  width: ${(props) => props.width}px;
-  height: ${(props) => props.height}px;
-  background-image: url("/ui/sprites/control-buttons.png");
-  background-position: -${(props) => props.x}px -${(props) => props.y}px;
-  background-repeat: no-repeat;
-  border: none;
-  /* cursor: pointer; */
-  background-color: transparent;
-  padding: 0;
-  outline: none;
-  user-select: none;
-  -webkit-tap-highlight-color: transparent;
-  scale: 1.4;
-`;
 
 const spriteInfoMap: Record<
 	ControlButtonType,
@@ -98,16 +76,21 @@ const ControlButton: React.FC<ControlButtonProps> = ({
 		if (isPressed) setIsPressed(false);
 	};
 
+	const buttonStyle = {
+		width: `${size}px`,
+		height: `${size}px`,
+		backgroundImage: `url("/ui/sprites/control-buttons.png")`,
+		backgroundPosition: `-${spriteInfo.x}px -${spriteInfo.y}px`,
+	};
+
 	return (
-		<StyledButton
-			x={spriteInfo.x}
-			y={spriteInfo.y}
-			width={size}
-			height={size}
+		<button
+			type={"button"}
+			style={buttonStyle}
 			onPointerDown={handlePointerDown}
 			onPointerUp={handlePointerUp}
 			onPointerLeave={handlePointerLeave}
-			className={className}
+			className={`bg-no-repeat border-none bg-transparent p-0 outline-none select-none [-webkit-tap-highlight-color:transparent] scale-[1.4] ${className || ""}`}
 		/>
 	);
 };

@@ -51,20 +51,29 @@ const GameContainer: React.FC = () => {
 	);
 
 	return (
-		<>
-			<div id="game-container" ref={gameContainerRef}>
+		<div
+			className={
+				"h-full w-full relative flex flex-col items-center justify-center"
+			}
+		>
+			{/* 게임 캔버스 */}
+			<div
+				id="game-container"
+				ref={gameContainerRef}
+				className={"relative m-0 p-0 w-full aspect-1/1"}
+			>
 				{/* 게임 캔버스가 여기에 렌더링됨 */}
 			</div>
 
 			{buttonTypes && (
-				<div style={{ marginTop: "40px" }}>
+				<div className={"w-full mt-14"}>
 					<ControlButtons
 						buttonTypes={buttonTypes}
 						onButtonPress={handleButtonPress}
 					/>
 				</div>
 			)}
-		</>
+		</div>
 	);
 };
 
