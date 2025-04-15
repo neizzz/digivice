@@ -178,34 +178,35 @@ export class MainScene extends PIXI.Container implements Scene {
 		// 게임 내부에서 처리할 콜백 정의
 		const gameMenuOptions: GameMenuOptions = {
 			onMiniGameSelect: () => this.handleMenuSelect(GameMenuItemType.MiniGame),
-			onFeedSelect: () => {
-				const assets = AssetLoader.getAssets();
-				const foodSprites = assets.foodSprites?.textures;
+			onFeedSelect: () => this.handleMenuSelect(GameMenuItemType.Feed),
+			// () => {
+			// 	const assets = AssetLoader.getAssets();
+			// 	const foodSprites = assets.foodSprites?.textures;
 
-				if (!foodSprites) {
-					console.warn("Food sprites not loaded.");
-					return;
-				}
+			// 	if (!foodSprites) {
+			// 		console.warn("Food sprites not loaded.");
+			// 		return;
+			// 	}
 
-				// 랜덤으로 foodSprites 중 하나 선택
-				const foodKeys = Object.keys(foodSprites);
-				const randomKey = foodKeys[Math.floor(Math.random() * foodKeys.length)];
-				const texture = foodSprites[randomKey];
+			// 	// 랜덤으로 foodSprites 중 하나 선택
+			// 	const foodKeys = Object.keys(foodSprites);
+			// 	const randomKey = foodKeys[Math.floor(Math.random() * foodKeys.length)];
+			// 	const texture = foodSprites[randomKey];
 
-				if (!texture) {
-					console.warn(`Texture not found for key: ${randomKey}`);
-					return;
-				}
+			// 	if (!texture) {
+			// 		console.warn(`Texture not found for key: ${randomKey}`);
+			// 		return;
+			// 	}
 
-				// ThrowSprite 유틸리티를 사용하여 음식 던지기
-				new ThrowSprite(this.game.app, this, texture, {
-					initialScale: 3,
-					finalScale: 1,
-					velocity: { x: Math.random() * 4 - 2, y: -Math.random() * 4 - 2 },
-					duration: 1000,
-					onComplete: () => console.log("Food throw animation completed!"),
-				});
-			},
+			// 	// ThrowSprite 유틸리티를 사용하여 음식 던지기
+			// 	new ThrowSprite(this.game.app, this, texture, {
+			// 		initialScale: 3,
+			// 		finalScale: 1,
+			// 		velocity: { x: Math.random() * 4 - 2, y: -Math.random() * 4 - 2 },
+			// 		duration: 1000,
+			// 		onComplete: () => console.log("Food throw animation completed!"),
+			// 	});
+			// },
 			onVersusSelect: () => this.handleMenuSelect(GameMenuItemType.Versus),
 			onDrugSelect: () => this.handleMenuSelect(GameMenuItemType.Drug),
 			onCleanSelect: () => this.handleMenuSelect(GameMenuItemType.Clean),
@@ -268,11 +269,57 @@ export class MainScene extends PIXI.Container implements Scene {
 					console.warn("Game 객체 참조가 설정되지 않았습니다");
 				}
 				break;
-			// 다른 메뉴 항목들 처리 ㅇ
-			case GameMenuItemType.Feed:
+			// 다른 메뉴 항목들 처리
+			case GameMenuItemType.Feed: {
 				console.log("먹이 버튼 선택");
-				// 먹이 기능 구현 로직
+				const assets = AssetLoader.getAssets();
+				const foodSprites = assets.foodSprites?.textures;
+
+				if (!foodSprites) {
+					console.warn("Food sprites not loaded.");
+					return;
+				}
+
+				// 랜덤으로 foodSprites 중 하나 선택
+				const foodKeys = Object.keys(foodSprites);
+				const randomKey = foodKeys[Math.floor(Math.random() * foodKeys.length)];
+				const texture = foodSprites[randomKey];
+
+				if (!texture) {
+					console.warn(`Texture not found for key: ${randomKey}`);
+					return;
+				}
+
+				// 캐릭터의 움직임 잠시 중지
+				if (this.randomMovementController) {
+					this.stopRandomMovement();
+				}
+
+				// ThrowSprite 변수 생성 - 나중에 참조하기 위함
+				const throwSprite = new ThrowSprite(this.game.app, this, texture, {
+					initialScale: 3,
+					finalScale: 1.5,
+					velocity: { x: Math.random() * 4 - 2, y: -Math.random() * 4 - 2 },
+					duration: 1000,
+					onComplete: (foodPosition) => {
+						console.log("Food landed at position:", foodPosition);
+
+						// 캐릭터가 음식으로 이동
+						if (this.character) {
+							// 음식 왼쪽에 위치시키기
+							const targetX = foodPosition.x - 30;
+							const targetY = foodPosition.y;
+
+							// 캐릭터 위치 설정
+							this.character.setPosition(targetX, targetY);
+
+							// 음식 먹기 시작
+							throwSprite.startEating(this.character);
+						}
+					},
+				});
 				break;
+			}
 
 			case GameMenuItemType.Versus:
 				console.log("배틀 버튼 선택");

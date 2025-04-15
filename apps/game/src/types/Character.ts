@@ -8,6 +8,7 @@ export enum CharacterState {
 	IDLE = "idle",
 	WALKING = "walking",
 	SLEEPING = "sleeping",
+	EATING = "eating", // 먹는 상태 추가
 }
 
 export type CharacterMetadata = {
@@ -26,6 +27,7 @@ export const CharacterDictionary: Record<CharacterKey, CharacterMetadata> = {
 			[CharacterState.IDLE]: "idle",
 			[CharacterState.WALKING]: "walking",
 			[CharacterState.SLEEPING]: "sleeping",
+			[CharacterState.EATING]: "eating", // 먹는 애니메이션 매핑 추가
 		},
 	},
 	// [CharacterKey.Mushroom2]: {
@@ -35,6 +37,7 @@ export const CharacterDictionary: Record<CharacterKey, CharacterMetadata> = {
 	// 		[CharacterState.IDLE]: "idle",
 	// 		[CharacterState.WALKING]: "walking",
 	// 		[CharacterState.SLEEPING]: "sleeping",
+	// 		[CharacterState.EATING]: "eating", // 먹는 애니메이션 매핑 추가
 	// 	},
 	// },
 	// 다른 캐릭터 추가 가능
