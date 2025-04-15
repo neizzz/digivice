@@ -93,6 +93,9 @@ export class MainScene extends PIXI.Container implements Scene {
 	private setupScene(): void {
 		// 에셋이 이미 로드되었다고 가정하고 동기적으로 처리
 		try {
+			// zIndex 기반 정렬을 활성화
+			this.sortableChildren = true;
+
 			this.addChild(this.background);
 			this.addChild(this.character);
 
@@ -195,7 +198,7 @@ export class MainScene extends PIXI.Container implements Scene {
 				}
 
 				// ThrowSprite 유틸리티를 사용하여 음식 던지기
-				new ThrowSprite(this.game.app, texture, {
+				new ThrowSprite(this.game.app, this, texture, {
 					initialScale: 3,
 					finalScale: 1,
 					velocity: { x: Math.random() * 4 - 2, y: -Math.random() * 4 - 2 },

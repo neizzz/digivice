@@ -5,7 +5,6 @@ export interface ThrowSpriteOptions {
 	finalScale: number; // 최종 크기
 	velocity: { x: number; y: number }; // 초기 속도
 	duration: number; // 애니메이션 지속 시간 (ms)
-	gravity?: number; // 중력 가속도 (기본값: 0.5)
 	onComplete?: () => void; // 애니메이션 완료 콜백
 }
 
@@ -14,18 +13,17 @@ export class ThrowSprite {
 	private app: PIXI.Application;
 	private options: ThrowSpriteOptions;
 	private elapsedTime = 0;
-	private gravity: number;
 	private initialPosition: { x: number; y: number };
 	private finalPosition: { x: number; y: number };
 
 	constructor(
 		app: PIXI.Application,
+		parent: PIXI.Container,
 		texture: PIXI.Texture,
 		options: ThrowSpriteOptions,
 	) {
 		this.app = app;
 		this.options = options;
-		this.gravity = options.gravity ?? 0.5;
 
 		// 초기 위치와 최종 위치를 랜덤으로 결정
 		this.initialPosition = this.getRandomInitialPosition();
@@ -38,7 +36,7 @@ export class ThrowSprite {
 		this.sprite.anchor.set(0.5);
 
 		// 스테이지에 추가
-		this.app.stage.addChild(this.sprite);
+		parent.addChild(this.sprite);
 
 		// 애니메이션 시작
 		this.app.ticker.add(this.update, this);
@@ -78,13 +76,16 @@ export class ThrowSprite {
 
 		// 중력 효과를 포함한 y 위치 계산 - 포물선 효과를 유지하면서 finalPosition에 도달
 		// 포물선 궤적: 4 * h * (progress - progress^2) 공식 사용 (h는 최대 높이)
-		const maxHeight = 250; // 포물선의 최대 높이
+		const maxHeight = 200; // 포물선의 최대 높이
 		const gravity = 4 * maxHeight * (progress - progress * progress);
 
 		this.sprite.position.y =
 			this.initialPosition.y +
 			(this.finalPosition.y - this.initialPosition.y) * progress -
 			gravity; // gravity를 빼서 위로 올라가는 효과
+
+		// y좌표에 따라 zIndex 설정 (y값이 클수록 앞에 표시)
+		this.sprite.zIndex = this.sprite.position.y;
 
 		// 크기 업데이트 (선형 보간)
 		const scale =
@@ -94,7 +95,6 @@ export class ThrowSprite {
 
 		// 애니메이션 완료 처리
 		if (progress >= 1) {
-			console.log("Complete:", this.sprite.position);
 			this.app.ticker.remove(this.update, this);
 
 			// 완료 콜백 호출

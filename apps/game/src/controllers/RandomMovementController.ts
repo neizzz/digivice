@@ -158,6 +158,7 @@ export class RandomMovementController {
 
 			this.sprite.position.x += this.direction.x * speed * (deltaTime / 1000);
 			this.sprite.position.y += this.direction.y * speed * (deltaTime / 1000);
+			this.sprite.zIndex = this.sprite.position.y; // y좌표에 따라 zIndex 설정
 
 			// 이동 방향에 따라 스케일 조정
 			this.sprite.scale.x =
