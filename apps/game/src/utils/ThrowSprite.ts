@@ -61,7 +61,7 @@ export class ThrowSprite {
 		// 배경 내 랜덤 위치 (y축은 화면 절반 위로 제한)
 		return {
 			x: Math.random() * screenWidth,
-			y: Math.random() * screenHeight - screenHeight / 2, // y축은 화면 절반 위로만 설정
+			y: Math.random() * screenHeight, // y축은 화면 절반 위로만 설정
 		};
 	}
 
@@ -75,10 +75,16 @@ export class ThrowSprite {
 		this.sprite.position.x =
 			this.initialPosition.x +
 			(this.finalPosition.x - this.initialPosition.x) * progress;
+
+		// 중력 효과를 포함한 y 위치 계산 - 포물선 효과를 유지하면서 finalPosition에 도달
+		// 포물선 궤적: 4 * h * (progress - progress^2) 공식 사용 (h는 최대 높이)
+		const maxHeight = 250; // 포물선의 최대 높이
+		const gravity = 4 * maxHeight * (progress - progress * progress);
+
 		this.sprite.position.y =
 			this.initialPosition.y +
-			(this.finalPosition.y - this.initialPosition.y) * progress +
-			0.5 * this.gravity * progress ** 2 * this.options.duration;
+			(this.finalPosition.y - this.initialPosition.y) * progress -
+			gravity; // gravity를 빼서 위로 올라가는 효과
 
 		// 크기 업데이트 (선형 보간)
 		const scale =
@@ -88,6 +94,7 @@ export class ThrowSprite {
 
 		// 애니메이션 완료 처리
 		if (progress >= 1) {
+			console.log("Complete:", this.sprite.position);
 			this.app.ticker.remove(this.update, this);
 
 			// 완료 콜백 호출
