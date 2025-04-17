@@ -264,20 +264,26 @@ export class MainScene extends PIXI.Container implements Scene {
             this.stopRandomMovement();
           }
 
-          // ThrowSprite 변수 생성 - 나중에 참조하기 위함
+          // ThrowSprite 변수 생성
           const throwSprite = new ThrowSprite(this.game.app, this, texture, {
             initialScale: 3,
             finalScale: 1.5,
             velocity: { x: Math.random() * 4 - 2, y: -Math.random() * 4 - 2 },
             duration: 1000,
-            moveSpeed: this.character ? this.character.getSpeed() * 3 : 2, // 캐릭터 속도의 3배로 음식으로 접근
             onComplete: (foodPosition) => {
               console.log("Food landed at position:", foodPosition);
 
               // 음식이 떨어진 직후 캐릭터가 음식으로 이동하기 시작
               if (this.character) {
-                // 자연스러운 이동 시작 (캐릭터의 현재 위치에서 음식 쪽으로)
                 throwSprite.startMovingToFood(this.character);
+
+                // Promise를 사용하여 음식을 다 먹은 후 랜덤 움직임 재개
+                throwSprite.waitForEatingFinished().then(() => {
+                  console.log(
+                    "Food eating completed, restarting random movement"
+                  );
+                  this.applyCharacterMovement();
+                });
               }
             },
           });

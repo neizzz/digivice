@@ -135,7 +135,6 @@ export class Character extends PIXI.Container {
    * 캐릭터의 방향을 설정합니다 (좌우 반전)
    */
   public setFlipped(flipped: boolean): void {
-    console.log(flipped, `(prev: ${this.flipCharacter})`);
     // 이미 같은 방향이면 변경하지 않음
     if (this.flipCharacter === flipped) return;
 

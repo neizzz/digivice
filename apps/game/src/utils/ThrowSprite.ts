@@ -1,240 +1,340 @@
 import * as PIXI from "pixi.js";
+import { MovementController } from "../controllers/MovementController";
 import type { Character } from "../entities/Character";
 import { CharacterState } from "../types/Character";
 
 export interface ThrowSpriteOptions {
-	initialScale: number; // 초기 크기
-	finalScale: number; // 최종 크기
-	velocity: { x: number; y: number }; // 초기 속도
-	duration: number; // 애니메이션 지속 시간 (ms)
-	onComplete?: (position: { x: number; y: number }) => void; // 애니메이션 완료 콜백 (음식 위치 전달)
-	character?: Character; // 음식을 먹을 캐릭터 객체 (선택사항)
+  initialScale: number; // 초기 크기
+  finalScale: number; // 최종 크기
+  velocity: { x: number; y: number }; // 초기 속도
+  duration: number; // 애니메이션 지속 시간 (ms)
+  onComplete?: (position: { x: number; y: number }) => void; // 애니메이션 완료 콜백 (음식 위치 전달)
+  character?: Character; // 음식을 먹을 캐릭터 객체 (선택사항)
 }
 
 // 음식 상태를 나타내는 enum
 enum FoodState {
-	THROWING = 0, // 던져지는 중
-	LANDED = 1, // 착지됨
-	EATING = 2, // 먹는 중
-	FINISHED = 3, // 다 먹음
+  THROWING = 0, // 던져지는 중
+  LANDED = 1, // 착지됨
+  EATING = 2, // 먹는 중
+  FINISHED = 3, // 다 먹음
+  APPROACHING = 4, // 캐릭터가 음식으로 접근 중
 }
 
 export class ThrowSprite {
-	private sprite: PIXI.Sprite;
-	private app: PIXI.Application;
-	private options: ThrowSpriteOptions;
-	private elapsedTime = 0;
-	private initialPosition: { x: number; y: number };
-	private finalPosition: { x: number; y: number };
-	private character?: Character;
-	private foodState: FoodState = FoodState.THROWING;
-	private eatingProgress = 0;
-	private eatingInterval?: number;
-	private eatingStartTime = 0;
-	private eatingDuration = 4000; // 음식 먹는데 걸리는 총 시간 (4초)
+  private sprite: PIXI.Sprite;
+  private app: PIXI.Application;
+  private options: ThrowSpriteOptions;
+  private elapsedTime = 0;
+  private initialPosition: { x: number; y: number };
+  private finalPosition: { x: number; y: number };
+  private character?: Character;
+  private foodState: FoodState = FoodState.THROWING;
+  private eatingStartTime = 0;
+  private eatingDuration = 4000; // 음식 먹는데 걸리는 총 시간 (4초)
+  private targetPosition?: { x: number; y: number }; // 캐릭터가 이동할 목표 위치
+  private movementController?: MovementController;
 
-	constructor(
-		app: PIXI.Application,
-		parent: PIXI.Container,
-		texture: PIXI.Texture,
-		options: ThrowSpriteOptions,
-	) {
-		this.app = app;
-		this.options = options;
-		this.character = options.character;
+  // Promise 관련 변수
+  private eatingFinishedResolve?: () => void;
+  private eatingPromise?: Promise<void>;
 
-		// 초기 위치와 최종 위치를 랜덤으로 결정
-		this.initialPosition = this.getRandomInitialPosition();
-		this.finalPosition = this.getRandomFinalPosition();
+  constructor(
+    app: PIXI.Application,
+    parent: PIXI.Container,
+    texture: PIXI.Texture,
+    options: ThrowSpriteOptions
+  ) {
+    this.app = app;
+    this.options = options;
+    this.character = options.character;
 
-		// 스프라이트 생성 및 초기 설정
-		this.sprite = new PIXI.Sprite(texture);
-		this.sprite.position.set(this.initialPosition.x, this.initialPosition.y);
-		this.sprite.scale.set(options.initialScale);
-		this.sprite.anchor.set(0.5);
+    // 초기 위치와 최종 위치를 랜덤으로 결정
+    this.initialPosition = this.getRandomInitialPosition();
+    this.finalPosition = this.getRandomFinalPosition();
 
-		// 스테이지에 추가
-		parent.addChild(this.sprite);
+    // 스프라이트 생성 및 초기 설정
+    this.sprite = new PIXI.Sprite(texture);
+    this.sprite.position.set(this.initialPosition.x, this.initialPosition.y);
+    this.sprite.scale.set(options.initialScale);
+    this.sprite.anchor.set(0.5);
 
-		// 애니메이션 시작
-		this.app.ticker.add(this.update, this);
-	}
+    // 스테이지에 추가
+    parent.addChild(this.sprite);
 
-	private getRandomInitialPosition(): { x: number; y: number } {
-		const screenWidth = this.app.screen.width;
-		const screenHeight = this.app.screen.height;
+    // 애니메이션 시작
+    this.app.ticker.add(this.update, this);
 
-		// 왼쪽 하단 또는 오른쪽 하단에서 랜덤 선택
-		return Math.random() < 0.5
-			? { x: 0, y: screenHeight }
-			: { x: screenWidth, y: screenHeight };
-	}
+    // 먹기 완료 Promise 생성
+    this.eatingPromise = new Promise<void>((resolve) => {
+      this.eatingFinishedResolve = resolve;
+    });
+  }
 
-	private getRandomFinalPosition(): { x: number; y: number } {
-		const screenWidth = this.app.screen.width;
-		const screenHeight = this.app.screen.height;
+  /**
+   * 음식을 다 먹을 때까지 기다리는 Promise를 반환합니다.
+   */
+  public waitForEatingFinished(): Promise<void> {
+    return this.eatingPromise || Promise.resolve();
+  }
 
-		// 배경 내 랜덤 위치 (y축은 화면 중간쯤으로 제한)
-		return {
-			x: Math.random() * (screenWidth * 0.7) + screenWidth * 0.15, // 화면 중앙 영역에 떨어지도록
-			y: Math.random() * (screenHeight * 0.3) + screenHeight * 0.5, // 화면 중간~아래쪽에 떨어지도록
-		};
-	}
+  private getRandomInitialPosition(): { x: number; y: number } {
+    const screenWidth = this.app.screen.width;
+    const screenHeight = this.app.screen.height;
 
-	private update(deltaTime: number): void {
-		switch (this.foodState) {
-			case FoodState.THROWING:
-				this.updateThrowing(deltaTime);
-				break;
-			case FoodState.LANDED:
-				this.updateLanded();
-				break;
-			case FoodState.EATING:
-				this.updateEating(deltaTime);
-				break;
-			case FoodState.FINISHED:
-				// 이미 다 먹어서 처리할 필요 없음
-				break;
-		}
-	}
+    // 왼쪽 하단 또는 오른쪽 하단에서 랜덤 선택
+    return Math.random() < 0.5
+      ? { x: 0, y: screenHeight }
+      : { x: screenWidth, y: screenHeight };
+  }
 
-	private updateThrowing(deltaTime: number): void {
-		this.elapsedTime += deltaTime * (1000 / 60); // ms 단위로 변환
+  private getRandomFinalPosition(): { x: number; y: number } {
+    const screenWidth = this.app.screen.width;
+    const screenHeight = this.app.screen.height;
 
-		// 진행률 계산 (0 ~ 1)
-		const progress = Math.min(this.elapsedTime / this.options.duration, 1);
+    // 배경 내 랜덤 위치 (y축은 화면 중간쯤으로 제한)
+    return {
+      x: Math.random() * (screenWidth * 0.7) + screenWidth * 0.15, // 화면 중앙 영역에 떨어지도록
+      y: Math.random() * (screenHeight * 0.3) + screenHeight * 0.5, // 화면 중간~아래쪽에 떨어지도록
+    };
+  }
 
-		// 위치 보간
-		this.sprite.position.x =
-			this.initialPosition.x +
-			(this.finalPosition.x - this.initialPosition.x) * progress;
+  private update(deltaTime: number): void {
+    switch (this.foodState) {
+      case FoodState.THROWING:
+        this.updateThrowing(deltaTime);
+        break;
+      case FoodState.LANDED:
+        this.updateLanded();
+        break;
+      case FoodState.EATING:
+        this.updateEating(deltaTime);
+        break;
+      case FoodState.FINISHED:
+        // 이미 다 먹어서 처리할 필요 없음
+        break;
+      case FoodState.APPROACHING:
+        this.updateApproaching(deltaTime);
+        break;
+    }
+  }
 
-		// 중력 효과를 포함한 y 위치 계산 - 포물선 효과를 유지하면서 finalPosition에 도달
-		// 포물선 궤적: 4 * h * (progress - progress^2) 공식 사용 (h는 최대 높이)
-		const maxHeight = 200; // 포물선의 최대 높이
-		const gravity = 4 * maxHeight * (progress - progress * progress);
+  private updateThrowing(deltaTime: number): void {
+    this.elapsedTime += deltaTime * (1000 / 60); // ms 단위로 변환
 
-		this.sprite.position.y =
-			this.initialPosition.y +
-			(this.finalPosition.y - this.initialPosition.y) * progress -
-			gravity; // gravity를 빼서 위로 올라가는 효과
+    // 진행률 계산 (0 ~ 1)
+    const progress = Math.min(this.elapsedTime / this.options.duration, 1);
 
-		// y좌표에 따라 zIndex 설정 (y값이 클수록 앞에 표시)
-		this.sprite.zIndex = this.sprite.position.y;
+    // 위치 보간
+    this.sprite.position.x =
+      this.initialPosition.x +
+      (this.finalPosition.x - this.initialPosition.x) * progress;
 
-		// 크기 업데이트 (선형 보간)
-		const scale =
-			this.options.initialScale +
-			progress * (this.options.finalScale - this.options.initialScale);
-		this.sprite.scale.set(scale);
+    // 중력 효과를 포함한 y 위치 계산 - 포물선 효과를 유지하면서 finalPosition에 도달
+    // 포물선 궤적: 4 * h * (progress - progress^2) 공식 사용 (h는 최대 높이)
+    const maxHeight = 200; // 포물선의 최대 높이
+    const gravity = 4 * maxHeight * (progress - progress * progress);
 
-		// 애니메이션 완료 처리
-		if (progress >= 1) {
-			// 음식이 착지했으므로 상태 변경
-			this.foodState = FoodState.LANDED;
+    this.sprite.position.y =
+      this.initialPosition.y +
+      (this.finalPosition.y - this.initialPosition.y) * progress -
+      gravity; // gravity를 빼서 위로 올라가는 효과
 
-			// 완료 콜백 호출하면서 음식의 현재 위치 전달
-			const foodPosition = {
-				x: this.sprite.position.x,
-				y: this.sprite.position.y,
-			};
+    // y좌표에 따라 zIndex 설정 (y값이 클수록 앞에 표시)
+    this.sprite.zIndex = this.sprite.position.y;
 
-			if (this.options.onComplete) {
-				this.options.onComplete(foodPosition);
-			}
-		}
-	}
+    // 크기 업데이트 (선형 보간)
+    const scale =
+      this.options.initialScale +
+      progress * (this.options.finalScale - this.options.initialScale);
+    this.sprite.scale.set(scale);
 
-	private updateLanded(): void {
-		// landed 상태에서는 이제 별도로 할 일이 없음
-		// 모든 후속 작업은 onComplete 콜백에서 처리됨
-		this.foodState = FoodState.EATING;
-		this.eatingStartTime = Date.now();
-	}
+    // 애니메이션 완료 처리
+    if (progress >= 1) {
+      // 음식이 착지했으므로 상태 변경
+      this.foodState = FoodState.LANDED;
 
-	// 캐릭터가 음식으로 이동하는 메서드 (외부에서 호출)
-	public startEating(character: Character): void {
-		if (!character) return;
+      // 완료 콜백 호출하면서 음식의 현재 위치 전달
+      const foodPosition = {
+        x: this.sprite.position.x,
+        y: this.sprite.position.y,
+      };
 
-		this.character = character;
+      if (this.options.onComplete) {
+        this.options.onComplete(foodPosition);
+      }
+    }
+  }
 
-		// 캐릭터 상태 변경
-		this.character.update(CharacterState.EATING);
+  private updateLanded(): void {
+    // landed 상태에서는 이제 별도로 할 일이 없음
+    // 모든 후속 작업은 onComplete 콜백에서 처리됨
+    this.foodState = FoodState.EATING;
+    this.eatingStartTime = Date.now();
+  }
 
-		// 상태 업데이트 (이미 음식이 땅에 닿았다면)
-		if (
-			this.foodState === FoodState.LANDED ||
-			this.foodState === FoodState.EATING
-		) {
-			this.foodState = FoodState.EATING;
-		}
-	}
+  // 캐릭터가 음식으로 이동하는 메서드 (외부에서 호출)
+  public startEating(character: Character): void {
+    if (!character) return;
 
-	private updateEating(deltaTime: number): void {
-		if (!this.character) return;
+    this.character = character;
 
-		// 경과 시간 계산 (ms)
-		const now = Date.now();
-		const elapsedEatingTime = now - this.eatingStartTime;
+    // 캐릭터 상태 변경
+    this.character.update(CharacterState.EATING);
 
-		// 총 먹는 시간 대비 진행률 계산 (0~1)
-		const eatingProgress = Math.min(elapsedEatingTime / this.eatingDuration, 1);
+    // 상태 업데이트 (이미 음식이 땅에 닿았다면)
+    if (
+      this.foodState === FoodState.LANDED ||
+      this.foodState === FoodState.EATING
+    ) {
+      this.foodState = FoodState.EATING;
+    }
+  }
 
-		// 1초마다 1/4씩 먹는 효과 표현
-		// 크기와 투명도를 조절하여 점점 작아지고 투명해지게 함
-		const remainingPortion = 1 - eatingProgress;
+  public startMovingToFood(character: Character): void {
+    if (!character) return;
 
-		// 음식 스프라이트 크기 및 투명도 업데이트
-		this.sprite.scale.set(this.options.finalScale * remainingPortion);
-		this.sprite.alpha = remainingPortion;
+    this.character = character;
+    this.foodState = FoodState.APPROACHING;
 
-		// 다 먹었으면 마무리
-		if (eatingProgress >= 1) {
-			this.finishEating();
-		}
-	}
+    // 캐릭터의 현재 위치 기준으로 음식의 가까운 쪽 결정
+    this.targetPosition = this.getTargetPositionNearFood(character);
 
-	private finishEating(): void {
-		// 상태 변경
-		this.foodState = FoodState.FINISHED;
+    const moveSpeed = character.getSpeed();
+    this.movementController = new MovementController(
+      character,
+      this.app,
+      moveSpeed
+    );
+  }
 
-		// 음식 스프라이트 제거
-		if (this.sprite.parent) {
-			this.sprite.parent.removeChild(this.sprite);
-		}
+  private getTargetPositionNearFood(character: Character): {
+    x: number;
+    y: number;
+  } {
+    const characterPos = character.getPosition();
+    const foodPos = {
+      x: this.sprite.position.x,
+      y: this.sprite.position.y,
+    };
 
-		// 캐릭터 상태 원래대로 복원
-		if (this.character) {
-			this.character.update(CharacterState.IDLE);
-		}
+    // 캐릭터가 음식의 왼쪽에 있는지 오른쪽에 있는지 확인
+    const isCharacterLeftOfFood = characterPos.x < foodPos.x;
 
-		// 게임 tick에서 이 객체 제거
-		this.app.ticker.remove(this.update, this);
-	}
+    // 캐릭터의 현재 위치에서 가까운 쪽으로 접근하도록 설정
+    // 음식의 좌우 30픽셀 지점을 목표로 설정
+    const offsetX = isCharacterLeftOfFood ? -30 : 30;
 
-	public getSprite(): PIXI.Sprite {
-		return this.sprite;
-	}
+    return {
+      x: foodPos.x + offsetX,
+      y: foodPos.y,
+    };
+  }
 
-	public getPosition(): { x: number; y: number } {
-		return {
-			x: this.sprite.position.x,
-			y: this.sprite.position.y,
-		};
-	}
+  private updateApproaching(deltaTime: number): void {
+    if (!this.character || !this.targetPosition || !this.movementController)
+      return;
 
-	public destroy(): void {
-		// 애니메이션 중단
-		this.app.ticker.remove(this.update, this);
+    this.movementController.setMoveSpeed(this.character.getSpeed());
 
-		// 음식 스프라이트 제거
-		if (this.sprite.parent) {
-			this.sprite.parent.removeChild(this.sprite);
-		}
+    // MovementController를 사용하여 캐릭터 이동
+    const reachedTarget = this.movementController.moveTo(
+      this.targetPosition.x,
+      this.targetPosition.y,
+      deltaTime
+    );
 
-		// 캐릭터 상태 복원
-		if (this.character && this.foodState === FoodState.EATING) {
-			this.character.update(CharacterState.IDLE);
-		}
-	}
+    // 움직이는 동안 항상 음식을 향하도록 방향 설정
+    const characterPos = this.character.getPosition();
+    const foodPos = this.getPosition();
+    const directionX = foodPos.x - characterPos.x;
+    this.movementController.updateCharacterDirection(directionX);
+
+    // 목표에 도달했으면 먹기 시작
+    if (reachedTarget) {
+      this.foodState = FoodState.EATING;
+      this.eatingStartTime = Date.now();
+      this.character.update(CharacterState.EATING);
+    }
+  }
+
+  private updateEating(deltaTime: number): void {
+    if (!this.character) return;
+
+    // 경과 시간 계산 (ms)
+    const now = Date.now();
+    const elapsedEatingTime = now - this.eatingStartTime;
+
+    // 총 먹는 시간 대비 진행률 계산 (0~1)
+    const eatingProgress = Math.min(elapsedEatingTime / this.eatingDuration, 1);
+
+    // 1초마다 1/4씩 먹는 효과 표현
+    // 크기와 투명도를 조절하여 점점 작아지고 투명해지게 함
+    const remainingPortion = 1 - eatingProgress;
+
+    // 음식 스프라이트 크기 및 투명도 업데이트
+    this.sprite.scale.set(this.options.finalScale * remainingPortion);
+    this.sprite.alpha = remainingPortion;
+
+    // 다 먹었으면 마무리
+    if (eatingProgress >= 1) {
+      this.finishEating();
+    }
+  }
+
+  private finishEating(): void {
+    // 상태 변경
+    this.foodState = FoodState.FINISHED;
+
+    // 음식 스프라이트 제거
+    if (this.sprite.parent) {
+      this.sprite.parent.removeChild(this.sprite);
+    }
+
+    // 캐릭터 상태 원래대로 복원
+    if (this.character) {
+      this.character.update(CharacterState.IDLE);
+    }
+
+    // Promise 해결
+    if (this.eatingFinishedResolve) {
+      this.eatingFinishedResolve();
+      this.eatingFinishedResolve = undefined;
+    }
+
+    // 게임 tick에서 이 객체 제거
+    this.app.ticker.remove(this.update, this);
+  }
+
+  public getSprite(): PIXI.Sprite {
+    return this.sprite;
+  }
+
+  public getPosition(): { x: number; y: number } {
+    return {
+      x: this.sprite.position.x,
+      y: this.sprite.position.y,
+    };
+  }
+
+  public destroy(): void {
+    // 애니메이션 중단
+    this.app.ticker.remove(this.update, this);
+
+    // 음식 스프라이트 제거
+    if (this.sprite.parent) {
+      this.sprite.parent.removeChild(this.sprite);
+    }
+
+    // 캐릭터 상태 복원
+    if (this.character && this.foodState === FoodState.EATING) {
+      this.character.update(CharacterState.IDLE);
+    }
+
+    // Promise 해결 (아직 해결되지 않은 경우)
+    if (this.eatingFinishedResolve) {
+      this.eatingFinishedResolve();
+      this.eatingFinishedResolve = undefined;
+    }
+  }
 }

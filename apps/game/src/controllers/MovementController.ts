@@ -61,14 +61,8 @@ export class MovementController {
     const normalizedX = directionX / distance;
     const normalizedY = directionY / distance;
 
-    // 이동 속도 적용 - deltaTime은 이미 밀리초 단위로 가정 (ticker.add에서 전달되는 값)
-    // PIXI.Ticker가 기본적으로 60fps에서 deltaTime=1이 됨
-    // 60fps 기준으로 조정된 속도를 적용
-    const speedFactor = 60 / 1000; // 60fps에서 밀리초 단위 변환 계수
-    const moveDistanceX =
-      normalizedX * this.moveSpeed * deltaTime * speedFactor;
-    const moveDistanceY =
-      normalizedY * this.moveSpeed * deltaTime * speedFactor;
+    const moveDistanceX = normalizedX * this.moveSpeed * deltaTime;
+    const moveDistanceY = normalizedY * this.moveSpeed * deltaTime;
 
     // 새 좌표
     const newX = currentPos.x + moveDistanceX;
