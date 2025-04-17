@@ -1,0 +1,117 @@
+import type * as PIXI from "pixi.js";
+import { Character } from "../entities/Character";
+import { CharacterState } from "../types/Character";
+
+/**
+ * 캐릭터의 이동 방식을 제어하는 인터페이스
+ */
+export interface MovableCharacter {
+  setPosition(x: number, y: number): void;
+  getPosition(): { x: number; y: number };
+  setFlipped(flipped: boolean): void;
+  getSpeed(): number;
+  update(state: CharacterState): void;
+}
+
+/**
+ * MovementController - 캐릭터 이동 및 방향 제어를 위한 기본 컨트롤러
+ * 이동 방향에 따라 캐릭터의 방향(좌/우)을 자동으로 설정
+ */
+export class MovementController {
+  protected character: MovableCharacter;
+  protected moveSpeed: number;
+  protected app: PIXI.Application;
+
+  constructor(
+    character: MovableCharacter,
+    app: PIXI.Application,
+    moveSpeed?: number
+  ) {
+    this.character = character;
+    this.app = app;
+    this.moveSpeed = moveSpeed || character.getSpeed();
+  }
+
+  /**
+   * 캐릭터를 특정 좌표로 이동시킵니다.
+   * 이동 방향에 따라 캐릭터의 방향이 자동으로 설정됩니다.
+   * @param targetX 목표 X 좌표
+   * @param targetY 목표 Y 좌표
+   * @param deltaTime 델타 타임
+   * @returns 목표에 도달했는지 여부
+   */
+  public moveTo(targetX: number, targetY: number, deltaTime: number): boolean {
+    // 현재 위치
+    const currentPos = this.character.getPosition();
+
+    // 방향 벡터
+    const directionX = targetX - currentPos.x;
+    const directionY = targetY - currentPos.y;
+
+    // 거리 계산
+    const distanceSquared = directionX * directionX + directionY * directionY;
+    const distance = Math.sqrt(distanceSquared);
+
+    // 목표에 도달했는지 확인 (아주 가까운 거리면)
+    if (distance < 5) {
+      return true;
+    }
+
+    // 정규화된 방향
+    const normalizedX = directionX / distance;
+    const normalizedY = directionY / distance;
+
+    // 이동 속도 적용 - deltaTime은 이미 밀리초 단위로 가정 (ticker.add에서 전달되는 값)
+    // PIXI.Ticker가 기본적으로 60fps에서 deltaTime=1이 됨
+    // 60fps 기준으로 조정된 속도를 적용
+    const speedFactor = 60 / 1000; // 60fps에서 밀리초 단위 변환 계수
+    const moveDistanceX =
+      normalizedX * this.moveSpeed * deltaTime * speedFactor;
+    const moveDistanceY =
+      normalizedY * this.moveSpeed * deltaTime * speedFactor;
+
+    // 새 좌표
+    const newX = currentPos.x + moveDistanceX;
+    const newY = currentPos.y + moveDistanceY;
+
+    // 위치 업데이트
+    this.character.setPosition(newX, newY);
+
+    // 이동 방향에 따라 캐릭터 방향 설정
+    this.updateCharacterDirection(directionX);
+
+    // 걷기 상태로 업데이트
+    this.character.update(CharacterState.WALKING);
+
+    return false;
+  }
+
+  /**
+   * 이동 방향에 따라 캐릭터의 방향을 설정합니다.
+   * @param directionX X축 방향 벡터 (양수: 오른쪽, 음수: 왼쪽)
+   */
+  public updateCharacterDirection(directionX: number): void {
+    if (directionX > 0) {
+      // 오른쪽으로 이동 중이므로 오른쪽을 봐야 함
+      this.character.setFlipped(false);
+    } else if (directionX < 0) {
+      // 왼쪽으로 이동 중이므로 왼쪽을 봐야 함
+      this.character.setFlipped(true);
+    }
+  }
+
+  /**
+   * 이동 속도를 설정합니다.
+   * @param speed 새 이동 속도
+   */
+  public setMoveSpeed(speed: number): void {
+    this.moveSpeed = speed;
+  }
+
+  /**
+   * 이동 속도를 반환합니다.
+   */
+  public getMoveSpeed(): number {
+    return this.moveSpeed;
+  }
+}

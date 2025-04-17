@@ -8,427 +8,390 @@ import type { Scene } from "../interfaces/Scene";
 import { GameMenu, type GameMenuOptions } from "../ui/GameMenu";
 import { GameMenuItemType } from "../ui/GameMenu/GameMenuItem";
 import {
-	type ControlButtonParams,
-	ControlButtonType,
-	NavigationAction,
+  type ControlButtonParams,
+  ControlButtonType,
+  NavigationAction,
 } from "../ui/types";
 import { AssetLoader } from "../utils/AssetLoader";
 import { GameDataManager } from "../utils/GameDataManager";
 import { ThrowSprite } from "../utils/ThrowSprite";
 
 enum MainSceneControlButtonsSetType {
-	Default = "default",
-	ActiveMenuItem = "active-menu-item",
+  Default = "default",
+  ActiveMenuItem = "active-menu-item",
 }
 
 const CONTROL_BUTTONS_SET: Record<
-	MainSceneControlButtonsSetType,
-	[ControlButtonParams, ControlButtonParams, ControlButtonParams]
+  MainSceneControlButtonsSetType,
+  [ControlButtonParams, ControlButtonParams, ControlButtonParams]
 > = {
-	[MainSceneControlButtonsSetType.Default]: [
-		{ type: ControlButtonType.Cancel },
-		{ type: ControlButtonType.Settings },
-		{ type: ControlButtonType.Next },
-	],
-	[MainSceneControlButtonsSetType.ActiveMenuItem]: [
-		{ type: ControlButtonType.Cancel },
-		{ type: ControlButtonType.Confirm },
-		{ type: ControlButtonType.Next },
-	],
+  [MainSceneControlButtonsSetType.Default]: [
+    { type: ControlButtonType.Cancel },
+    { type: ControlButtonType.Settings },
+    { type: ControlButtonType.Next },
+  ],
+  [MainSceneControlButtonsSetType.ActiveMenuItem]: [
+    { type: ControlButtonType.Cancel },
+    { type: ControlButtonType.Confirm },
+    { type: ControlButtonType.Next },
+  ],
 };
 
 export class MainScene extends PIXI.Container implements Scene {
-	private background: Background;
-	private character!: Character;
-	private initialized = false;
+  private background: Background;
+  private character!: Character;
+  private initialized = false;
 
-	// RandomMovementController 관련 필드
-	private randomMovementController: RandomMovementController | null = null;
+  // RandomMovementController 관련 필드
+  private randomMovementController: RandomMovementController | null = null;
 
-	// GameMenu 관련 필드
-	private gameMenu: GameMenu | null = null;
-	private navigationIndex = 0;
+  // GameMenu 관련 필드
+  private gameMenu: GameMenu | null = null;
+  private navigationIndex = 0;
 
-	// Game 인스턴스 참조
-	private game: Game;
+  // Game 인스턴스 참조
+  private game: Game;
 
-	constructor(game: Game) {
-		super();
-		this.game = game;
+  constructor(game: Game) {
+    super();
+    this.game = game;
 
-		const assets = AssetLoader.getAssets();
-		// 배경 생성 및 추가
-		const backgroundTexture = assets.backgroundTexture || PIXI.Texture.WHITE;
-		this.background = new Background(backgroundTexture);
-	}
+    const assets = AssetLoader.getAssets();
+    const backgroundTexture = assets.backgroundTexture || PIXI.Texture.WHITE;
+    this.background = new Background(backgroundTexture);
+  }
 
-	public async init(): Promise<MainScene> {
-		try {
-			const gameData = await GameDataManager.loadData();
+  public async init(): Promise<MainScene> {
+    try {
+      const gameData = await GameDataManager.loadData();
 
-			if (!gameData) {
-				// TODO: 이름 setup씬으로 이동
-				throw new Error("게임 데이터가 없습니다"); // 임시
-			}
+      if (!gameData) {
+        // TODO: 이름 setup씬으로 이동
+        throw new Error("게임 데이터가 없습니다"); // 임시
+      }
 
-			// 캐릭터 생성 및 추가
-			this.character = new Character({
-				characterKey: gameData.character.key,
-				initialPosition: {
-					x: this.game.app.screen.width / 2,
-					y: this.game.app.screen.height / 2,
-				},
-			});
+      // 캐릭터 생성 및 추가
+      this.character = new Character({
+        characterKey: gameData.character.key,
+        initialPosition: {
+          x: this.game.app.screen.width / 2,
+          y: this.game.app.screen.height / 2,
+        },
+      });
 
-			this.setupScene();
-		} catch (error) {
-			console.error("Error during MainScene initialization:", error);
-		}
-		return this;
-	}
+      this.setupScene();
+    } catch (error) {
+      console.error("Error during MainScene initialization:", error);
+    }
+    return this;
+  }
 
-	/**
-	 * 씬을 동기적으로 설정합니다.
-	 */
-	private setupScene(): void {
-		// 에셋이 이미 로드되었다고 가정하고 동기적으로 처리
-		try {
-			// zIndex 기반 정렬을 활성화
-			this.sortableChildren = true;
+  /**
+   * 씬을 동기적으로 설정합니다.
+   */
+  private setupScene(): void {
+    // 에셋이 이미 로드되었다고 가정하고 동기적으로 처리
+    try {
+      // zIndex 기반 정렬을 활성화
+      this.sortableChildren = true;
 
-			this.addChild(this.background);
-			this.addChild(this.character);
+      this.addChild(this.background);
+      this.addChild(this.character);
 
-			// 초기 설정 완료
-			this.positionCharacter();
-			this.applyCharacterMovement();
-			this.initialized = true;
+      // 초기 설정 완료
+      this.positionCharacter();
+      this.applyCharacterMovement();
+      this.initialized = true;
 
-			// 화면 크기에 맞게 조정
-			this.onResize(this.game.app.screen.width, this.game.app.screen.height);
+      // 화면 크기에 맞게 조정
+      this.onResize(this.game.app.screen.width, this.game.app.screen.height);
 
-			console.log("MainScene setup completed");
-		} catch (error) {
-			console.error("Error setting up MainScene:", error);
-		}
+      console.log("MainScene setup completed");
+    } catch (error) {
+      console.error("Error setting up MainScene:", error);
+    }
 
-		// GameMenu 초기화
-		this.initGameMenu();
+    // GameMenu 초기화
+    this.initGameMenu();
+  }
 
-		// 캐릭터 애니메이션 설정
-		this.character.setAnimation("idle");
-	}
+  private positionCharacter(): void {
+    const { width, height } = this.game.app.screen;
+    this.character.position.set(width / 2, height / 2);
+  }
 
-	private positionCharacter(): void {
-		const { width, height } = this.game.app.screen;
-		this.character.position.set(width / 2, height / 2);
-	}
+  /**
+   * 캐릭터에 랜덤 움직임을 적용하는 메서드
+   */
+  private applyCharacterMovement(): void {
+    // 기존 RandomMovementController가 있다면 제거
+    if (this.randomMovementController) {
+      this.randomMovementController.destroy();
+    }
 
-	/**
-	 * 캐릭터에 랜덤 움직임을 적용하는 메서드
-	 */
-	private applyCharacterMovement(): void {
-		// 기존 RandomMovementController가 있다면 제거
-		if (this.randomMovementController) {
-			this.randomMovementController.destroy();
-		}
+    // 새로운 RandomMovementController 생성
+    this.randomMovementController = new RandomMovementController(
+      this.character,
+      this.game.app,
+      {
+        minIdleTime: 3000, // 최소 3초 대기
+        maxIdleTime: 8000, // 최대 8초 대기
+        minMoveTime: 2000, // 최소 2초 이동
+        maxMoveTime: 7000, // 최대 7초 이동
+      }
+    );
+  }
 
-		// 새로운 RandomMovementController 생성
-		this.randomMovementController = new RandomMovementController(
-			this.character,
-			this.game.app,
-			{
-				minIdleTime: 3000, // 최소 3초 대기
-				maxIdleTime: 8000, // 최대 8초 대기
-				minMoveTime: 2000, // 최소 2초 이동
-				maxMoveTime: 7000, // 최대 7초 이동
-				moveSpeed: this.character.getSpeed(),
-			},
-		);
-	}
+  /**
+   * 랜덤 움직임을 중지합니다.
+   */
+  private stopRandomMovement(): void {
+    if (this.randomMovementController) {
+      this.randomMovementController.destroy();
+      this.randomMovementController = null;
+    }
+  }
 
-	/**
-	 * 랜덤 움직임을 중지합니다.
-	 */
-	private stopRandomMovement(): void {
-		if (this.randomMovementController) {
-			this.randomMovementController.destroy();
-			this.randomMovementController = null;
-		}
-	}
+  /**
+   * GameMenu를 초기화합니다
+   */
+  private initGameMenu(): void {
+    // 기존 메뉴가 있다면 정리
+    if (this.gameMenu) {
+      this.gameMenu.destroy();
+      this.gameMenu = null;
+    }
 
-	/**
-	 * GameMenu를 초기화합니다
-	 */
-	private initGameMenu(): void {
-		// 기존 메뉴가 있다면 정리
-		if (this.gameMenu) {
-			this.gameMenu.destroy();
-			this.gameMenu = null;
-		}
+    // PIXI 뷰의 부모 요소를 찾음
+    // @ts-ignore
+    const parent = this.game.app.view.parentElement;
+    if (!parent) {
+      console.error("PIXI view has no parent element");
+      return;
+    }
 
-		// PIXI 뷰의 부모 요소를 찾음
-		// @ts-ignore
-		const parent = this.game.app.view.parentElement;
-		if (!parent) {
-			console.error("PIXI view has no parent element");
-			return;
-		}
+    // 게임 내부에서 처리할 콜백 정의
+    const gameMenuOptions: GameMenuOptions = {
+      onMiniGameSelect: () => this.handleMenuSelect(GameMenuItemType.MiniGame),
+      onFeedSelect: () => this.handleMenuSelect(GameMenuItemType.Feed),
+      onVersusSelect: () => this.handleMenuSelect(GameMenuItemType.Versus),
+      onDrugSelect: () => this.handleMenuSelect(GameMenuItemType.Drug),
+      onCleanSelect: () => this.handleMenuSelect(GameMenuItemType.Clean),
+      onTrainingSelect: () => this.handleMenuSelect(GameMenuItemType.Training),
+      onInformationSelect: () =>
+        this.handleMenuSelect(GameMenuItemType.Information),
+      onFocusChange: (focusedIndex) => {
+        if (focusedIndex === null) {
+          this.game.changeControlButtons(
+            CONTROL_BUTTONS_SET[MainSceneControlButtonsSetType.Default]
+          );
+        } else {
+          this.game.changeControlButtons(
+            CONTROL_BUTTONS_SET[MainSceneControlButtonsSetType.ActiveMenuItem]
+          );
+        }
+      },
+    };
 
-		// 게임 내부에서 처리할 콜백 정의
-		const gameMenuOptions: GameMenuOptions = {
-			onMiniGameSelect: () => this.handleMenuSelect(GameMenuItemType.MiniGame),
-			onFeedSelect: () => this.handleMenuSelect(GameMenuItemType.Feed),
-			// () => {
-			// 	const assets = AssetLoader.getAssets();
-			// 	const foodSprites = assets.foodSprites?.textures;
+    // 메뉴 생성 - 뷰 요소의 부모에 직접 추가
+    this.gameMenu = new GameMenu(parent, gameMenuOptions);
 
-			// 	if (!foodSprites) {
-			// 		console.warn("Food sprites not loaded.");
-			// 		return;
-			// 	}
+    // ControlButtons 생성
+    this.game.changeControlButtons(
+      CONTROL_BUTTONS_SET[MainSceneControlButtonsSetType.Default]
+    );
+  }
 
-			// 	// 랜덤으로 foodSprites 중 하나 선택
-			// 	const foodKeys = Object.keys(foodSprites);
-			// 	const randomKey = foodKeys[Math.floor(Math.random() * foodKeys.length)];
-			// 	const texture = foodSprites[randomKey];
+  /**
+   * Game 객체 참조를 설정합니다
+   */
+  public setGameReference(game: Game): void {
+    this.game = game;
+  }
 
-			// 	if (!texture) {
-			// 		console.warn(`Texture not found for key: ${randomKey}`);
-			// 		return;
-			// 	}
+  /**
+   * 메뉴 선택 처리
+   */
+  private handleMenuSelect(menuType: GameMenuItemType): void {
+    console.log(`메뉴 항목 선택: ${menuType}`);
 
-			// 	// ThrowSprite 유틸리티를 사용하여 음식 던지기
-			// 	new ThrowSprite(this.game.app, this, texture, {
-			// 		initialScale: 3,
-			// 		finalScale: 1,
-			// 		velocity: { x: Math.random() * 4 - 2, y: -Math.random() * 4 - 2 },
-			// 		duration: 1000,
-			// 		onComplete: () => console.log("Food throw animation completed!"),
-			// 	});
-			// },
-			onVersusSelect: () => this.handleMenuSelect(GameMenuItemType.Versus),
-			onDrugSelect: () => this.handleMenuSelect(GameMenuItemType.Drug),
-			onCleanSelect: () => this.handleMenuSelect(GameMenuItemType.Clean),
-			onTrainingSelect: () => this.handleMenuSelect(GameMenuItemType.Training),
-			onInformationSelect: () =>
-				this.handleMenuSelect(GameMenuItemType.Information),
-			onFocusChange: (focusedIndex) => {
-				if (focusedIndex === null) {
-					this.game.changeControlButtons(
-						CONTROL_BUTTONS_SET[MainSceneControlButtonsSetType.Default],
-					);
-				} else {
-					this.game.changeControlButtons(
-						CONTROL_BUTTONS_SET[MainSceneControlButtonsSetType.ActiveMenuItem],
-					);
-				}
-			},
-		};
+    switch (menuType) {
+      case GameMenuItemType.MiniGame:
+        console.log("미니게임 버튼으로 플래피 버드 게임으로 전환 요청");
+        if (this.game) {
+          // GameMenu 제거
+          if (this.gameMenu) {
+            this.gameMenu.destroy();
+            this.gameMenu = null;
+          }
 
-		// 메뉴 생성 - 뷰 요소의 부모에 직접 추가
-		this.gameMenu = new GameMenu(parent, gameMenuOptions);
+          // 캐릭터의 움직임 중지 (필요한 정리 작업)
+          if (this.character) {
+            this.stopRandomMovement();
+          }
 
-		// ControlButtons 생성
-		this.game.changeControlButtons(
-			CONTROL_BUTTONS_SET[MainSceneControlButtonsSetType.Default],
-		);
-	}
+          // Game 인스턴스의 changeScene 호출
+          this.game.changeScene(SceneKey.FLAPPY_BIRD_GAME);
+        } else {
+          console.warn("Game 객체 참조가 설정되지 않았습니다");
+        }
+        break;
+      // 다른 메뉴 항목들 처리
+      case GameMenuItemType.Feed:
+        {
+          console.log("먹이 버튼 선택");
+          const assets = AssetLoader.getAssets();
+          const foodSprites = assets.foodSprites?.textures;
 
-	/**
-	 * Game 객체 참조를 설정합니다
-	 */
-	public setGameReference(game: Game): void {
-		this.game = game;
-	}
+          if (!foodSprites) {
+            console.warn("Food sprites not loaded.");
+            return;
+          }
 
-	/**
-	 * 메뉴 선택 처리
-	 */
-	private handleMenuSelect(menuType: GameMenuItemType): void {
-		console.log(`메뉴 항목 선택: ${menuType}`);
+          // 랜덤으로 foodSprites 중 하나 선택
+          const foodKeys = Object.keys(foodSprites);
+          const randomKey =
+            foodKeys[Math.floor(Math.random() * foodKeys.length)];
+          const texture = foodSprites[randomKey];
 
-		switch (menuType) {
-			case GameMenuItemType.MiniGame:
-				console.log("미니게임 버튼으로 플래피 버드 게임으로 전환 요청");
-				if (this.game) {
-					// GameMenu 제거
-					if (this.gameMenu) {
-						this.gameMenu.destroy();
-						this.gameMenu = null;
-					}
+          if (!texture) {
+            console.warn(`Texture not found for key: ${randomKey}`);
+            return;
+          }
 
-					// 캐릭터의 움직임 중지 (필요한 정리 작업)
-					if (this.character) {
-						this.stopRandomMovement();
-					}
+          // 캐릭터의 움직임 잠시 중지
+          if (this.randomMovementController) {
+            this.stopRandomMovement();
+          }
 
-					// Game 인스턴스의 changeScene 호출
-					this.game.changeScene(SceneKey.FLAPPY_BIRD_GAME);
-				} else {
-					console.warn("Game 객체 참조가 설정되지 않았습니다");
-				}
-				break;
-			// 다른 메뉴 항목들 처리
-			case GameMenuItemType.Feed: {
-				console.log("먹이 버튼 선택");
-				const assets = AssetLoader.getAssets();
-				const foodSprites = assets.foodSprites?.textures;
+          // ThrowSprite 변수 생성 - 나중에 참조하기 위함
+          const throwSprite = new ThrowSprite(this.game.app, this, texture, {
+            initialScale: 3,
+            finalScale: 1.5,
+            velocity: { x: Math.random() * 4 - 2, y: -Math.random() * 4 - 2 },
+            duration: 1000,
+            moveSpeed: this.character ? this.character.getSpeed() * 3 : 2, // 캐릭터 속도의 3배로 음식으로 접근
+            onComplete: (foodPosition) => {
+              console.log("Food landed at position:", foodPosition);
 
-				if (!foodSprites) {
-					console.warn("Food sprites not loaded.");
-					return;
-				}
+              // 음식이 떨어진 직후 캐릭터가 음식으로 이동하기 시작
+              if (this.character) {
+                // 자연스러운 이동 시작 (캐릭터의 현재 위치에서 음식 쪽으로)
+                throwSprite.startMovingToFood(this.character);
+              }
+            },
+          });
+        }
+        break;
 
-				// 랜덤으로 foodSprites 중 하나 선택
-				const foodKeys = Object.keys(foodSprites);
-				const randomKey = foodKeys[Math.floor(Math.random() * foodKeys.length)];
-				const texture = foodSprites[randomKey];
+      case GameMenuItemType.Versus:
+        console.log("배틀 버튼 선택");
+        // 배틀 로직
+        break;
 
-				if (!texture) {
-					console.warn(`Texture not found for key: ${randomKey}`);
-					return;
-				}
+      case GameMenuItemType.Drug:
+        console.log("약 버튼 선택");
+        // 약 관련 로직
+        break;
 
-				// 캐릭터의 움직임 잠시 중지
-				if (this.randomMovementController) {
-					this.stopRandomMovement();
-				}
+      case GameMenuItemType.Clean:
+        console.log("청소 버튼 선택");
+        // 청소 관련 로직
+        break;
 
-				// ThrowSprite 변수 생성 - 나중에 참조하기 위함
-				const throwSprite = new ThrowSprite(this.game.app, this, texture, {
-					initialScale: 3,
-					finalScale: 1.5,
-					velocity: { x: Math.random() * 4 - 2, y: -Math.random() * 4 - 2 },
-					duration: 1000,
-					onComplete: (foodPosition) => {
-						console.log("Food landed at position:", foodPosition);
+      case GameMenuItemType.Training:
+        console.log("훈련 버튼 선택");
+        // 훈련 관련 로직
+        break;
 
-						// 캐릭터가 음식으로 이동
-						if (this.character) {
-							// 음식 왼쪽에 위치시키기
-							const targetX = foodPosition.x - 30;
-							const targetY = foodPosition.y;
+      case GameMenuItemType.Information:
+        console.log("정보 버튼 선택");
+        // 정보 관련 로직
+        break;
 
-							// 캐릭터 위치 설정
-							this.character.setPosition(targetX, targetY);
+      default:
+        console.log(`${menuType} 메뉴 항목에 대한 처리가 구현되지 않았습니다`);
+    }
+  }
 
-							// 음식 먹기 시작
-							throwSprite.startEating(this.character);
-						}
-					},
-				});
-				break;
-			}
+  /**
+   * ControlButton 클릭 처리
+   */
+  public handleControlButtonClick(buttonType: ControlButtonType): void {
+    if (!this.gameMenu) {
+      console.error("GameMenu is not initialized in MainScene");
+      return;
+    }
 
-			case GameMenuItemType.Versus:
-				console.log("배틀 버튼 선택");
-				// 배틀 로직
-				break;
+    // 버튼 타입에 따라 적절한 액션 처리
+    switch (buttonType) {
+      case ControlButtonType.Cancel:
+        this.sendNavigationAction(NavigationAction.CANCEL);
+        break;
+      case ControlButtonType.Settings:
+        console.log("TODO: Settings popup 구현");
+        break;
+      case ControlButtonType.Confirm:
+        this.sendNavigationAction(NavigationAction.SELECT);
+        break;
+      case ControlButtonType.Next:
+        this.sendNavigationAction(NavigationAction.NEXT);
+        break;
+    }
+  }
 
-			case GameMenuItemType.Drug:
-				console.log("약 버튼 선택");
-				// 약 관련 로직
-				break;
+  /**
+   * 네비게이션 액션을 GameMenu에 전달
+   */
+  private sendNavigationAction(action: NavigationAction): void {
+    if (!this.gameMenu) return;
 
-			case GameMenuItemType.Clean:
-				console.log("청소 버튼 선택");
-				// 청소 관련 로직
-				break;
+    this.navigationIndex++;
 
-			case GameMenuItemType.Training:
-				console.log("훈련 버튼 선택");
-				// 훈련 관련 로직
-				break;
+    this.gameMenu.processNavigationAction({
+      type: action,
+      index: this.navigationIndex,
+    });
+  }
 
-			case GameMenuItemType.Information:
-				console.log("정보 버튼 선택");
-				// 정보 관련 로직
-				break;
+  public onResize(width: number, height: number): void {
+    // 초기화 전에는 리사이징 무시
+    if (!this.initialized) return;
 
-			default:
-				console.log(`${menuType} 메뉴 항목에 대한 처리가 구현되지 않았습니다`);
-		}
-	}
+    // 화면 크기 변경 시 배경 크기 조정
+    if (this.background) {
+      this.background.resize(width, height);
+    }
 
-	/**
-	 * ControlButton 클릭 처리
-	 */
-	public handleControlButtonClick(buttonType: ControlButtonType): void {
-		if (!this.gameMenu) {
-			console.error("GameMenu is not initialized in MainScene");
-			return;
-		}
+    // 캐릭터 위치 재조정
+    if (this.character) {
+      this.positionCharacter();
+      this.stopRandomMovement();
+      this.applyCharacterMovement();
+    }
+  }
 
-		// 버튼 타입에 따라 적절한 액션 처리
-		switch (buttonType) {
-			case ControlButtonType.Cancel:
-				this.sendNavigationAction(NavigationAction.CANCEL);
-				break;
-			case ControlButtonType.Settings:
-				console.log("TODO: Settings popup 구현");
-				break;
-			case ControlButtonType.Confirm:
-				this.sendNavigationAction(NavigationAction.SELECT);
-				break;
-			case ControlButtonType.Next:
-				this.sendNavigationAction(NavigationAction.NEXT);
-				break;
-		}
-	}
+  public update(deltaTime: number): void {
+    // 초기화 전에는 업데이트 무시
+    if (!this.initialized) return;
 
-	/**
-	 * 네비게이션 액션을 GameMenu에 전달
-	 */
-	private sendNavigationAction(action: NavigationAction): void {
-		if (!this.gameMenu) return;
+    // RandomMovementController가 있으면 업데이트
+    if (this.randomMovementController) {
+      this.randomMovementController.update(deltaTime);
+    }
+  }
 
-		this.navigationIndex++;
+  // 씬 정리를 위한 메서드 추가
+  public destroy(): void {
+    // GameMenu 정리
+    if (this.gameMenu) {
+      this.gameMenu.destroy();
+      this.gameMenu = null;
+    }
 
-		this.gameMenu.processNavigationAction({
-			type: action,
-			index: this.navigationIndex,
-		});
-	}
+    // 랜덤 움직임 중지
+    this.stopRandomMovement();
 
-	public onResize(width: number, height: number): void {
-		// 초기화 전에는 리사이징 무시
-		if (!this.initialized) return;
-
-		// 화면 크기 변경 시 배경 크기 조정
-		if (this.background) {
-			this.background.resize(width, height);
-		}
-
-		// 캐릭터 위치 재조정
-		if (this.character) {
-			this.positionCharacter();
-			this.stopRandomMovement();
-			this.applyCharacterMovement();
-		}
-	}
-
-	public update(deltaTime: number): void {
-		// 초기화 전에는 업데이트 무시
-		if (!this.initialized) return;
-
-		// RandomMovementController가 있으면 업데이트
-		if (this.randomMovementController) {
-			this.randomMovementController.update(deltaTime);
-		}
-	}
-
-	// 씬 정리를 위한 메서드 추가
-	public destroy(): void {
-		// GameMenu 정리
-		if (this.gameMenu) {
-			this.gameMenu.destroy();
-			this.gameMenu = null;
-		}
-
-		// 랜덤 움직임 중지
-		this.stopRandomMovement();
-
-		// 다른 리소스 정리 로직...
-	}
+    // 다른 리소스 정리 로직...
+  }
 }
