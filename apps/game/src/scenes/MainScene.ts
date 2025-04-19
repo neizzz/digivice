@@ -19,6 +19,7 @@ import { GameDataManager } from "../utils/GameDataManager";
 enum MainSceneControlButtonsSetType {
   Default = "default",
   ActiveMenuItem = "active-menu-item",
+  CleanMode = "clean-mode",
 }
 
 const CONTROL_BUTTONS_SET: Record<
@@ -34,6 +35,11 @@ const CONTROL_BUTTONS_SET: Record<
     { type: ControlButtonType.Cancel },
     { type: ControlButtonType.Confirm },
     { type: ControlButtonType.Next },
+  ],
+  [MainSceneControlButtonsSetType.CleanMode]: [
+    { type: ControlButtonType.Cancel },
+    { type: ControlButtonType.Clean },
+    { type: ControlButtonType.Clean },
   ],
 };
 
@@ -256,7 +262,9 @@ export class MainScene extends PIXI.Container implements Scene {
 
       case GameMenuItemType.Clean:
         console.log("청소 버튼 선택");
-        // 청소 관련 로직
+        this.game.changeControlButtons(
+          CONTROL_BUTTONS_SET[MainSceneControlButtonsSetType.CleanMode]
+        );
         break;
 
       case GameMenuItemType.Training:

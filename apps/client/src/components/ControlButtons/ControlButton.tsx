@@ -1,6 +1,7 @@
 import { ControlButtonType } from "@digivice/game";
 import type React from "react";
 import { useEffect, useState, useRef } from "react";
+import { SliderController } from "../SliderController";
 
 interface ControlButtonProps {
   type: ControlButtonType;
@@ -8,7 +9,7 @@ interface ControlButtonProps {
   className?: string; // 추가 스타일링을 위한 클래스
   // 슬라이더 버튼을 위한 추가 props
   sliderWidth?: number;
-  sliderValue?: number;
+  initialSliderValue?: number;
   onSliderChange?: (value: number) => void;
   isSlider?: boolean;
 }
@@ -59,63 +60,69 @@ const ControlButton: React.FC<ControlButtonProps> = ({
   onClick,
   className,
   sliderWidth,
-  sliderValue = 0.5,
+  initialSliderValue = 0.5,
   onSliderChange,
 }) => {
   const [isPressed, setIsPressed] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
-  const [currentSliderValue, setCurrentSliderValue] = useState(sliderValue);
+  const [currentSliderValue, setCurrentSliderValue] =
+    useState(initialSliderValue);
   const sliderRef = useRef<HTMLDivElement>(null);
+  const sliderControllerRef = useRef<SliderController | null>(null);
+  const sliderButtonRef = useRef<HTMLDivElement>(null);
 
+  const isSlider = type === ControlButtonType.Clean && !!sliderWidth;
+
+  // 슬라이더 컨트롤러 초기화 및 정리
+  // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
   useEffect(() => {
-    setCurrentSliderValue(sliderValue);
-  }, [sliderValue]);
+    // 슬라이더인 경우에만 컨트롤러 생성
+    if (isSlider && sliderRef.current) {
+      const controller = new SliderController(sliderRef.current, {
+        initialValue: initialSliderValue,
+        onChange: (value) => {
+          setCurrentSliderValue(value);
+          onSliderChange?.(value);
+        },
+        onDragStart: () => {
+          setIsPressed(true);
+        },
+        onDragEnd: () => {
+          setIsPressed(false);
+        },
+      });
+
+      sliderControllerRef.current = controller;
+
+      // 정리 함수
+      return () => {
+        controller.dispose();
+        sliderControllerRef.current = null;
+      };
+    }
+  }, [isSlider, onSliderChange]);
 
   // 버튼 누름 상태에 따른 스프라이트 정보 선택
   const size = 64;
   const spriteState = isPressed ? "pressed" : "normal";
   const spriteInfo = spriteInfoMap[type][spriteState];
-  const isSlider = type === ControlButtonType.Clean && !!sliderWidth;
 
-  // 이벤트 처리를 단순화하고 최적화
-  const handlePointerDown = (e: React.PointerEvent) => {
-    setIsPressed(true);
-
-    // 슬라이더 버튼인 경우, 슬라이더 드래그 시작
-    if (sliderWidth && sliderRef.current) {
-      setIsDragging(true);
-      updateSliderPosition(e);
+  // 일반 버튼 이벤트 핸들러
+  const handlePointerDown = () => {
+    if (!isSlider) {
+      setIsPressed(true);
     }
   };
 
   const handlePointerUp = () => {
-    setIsPressed(false);
-    setIsDragging(false);
-    // 버튼을 눌렀다가 뗄 때 onClick 핸들러 호출 (슬라이더가 아닌 경우)
-    if (onClick && !isSlider) onClick();
-  };
-
-  const handlePointerLeave = () => {
-    if (isPressed) setIsPressed(false);
-    setIsDragging(false);
-  };
-
-  const handlePointerMove = (e: React.PointerEvent) => {
-    if (isDragging && isSlider) {
-      updateSliderPosition(e);
+    if (!isSlider) {
+      setIsPressed(false);
+      if (onClick) onClick();
     }
   };
 
-  const updateSliderPosition = (e: React.PointerEvent) => {
-    if (sliderRef.current) {
-      const sliderRect = sliderRef.current.getBoundingClientRect();
-      const relativeX = e.clientX - sliderRect.left;
-      const newValue = Math.max(0, Math.min(1, relativeX / sliderRect.width));
-
-      setCurrentSliderValue(newValue);
-      if (onSliderChange) {
-        onSliderChange(newValue);
-      }
+  const handlePointerLeave = () => {
+    if (!isSlider && isPressed) {
+      setIsPressed(false);
     }
   };
 
@@ -133,13 +140,10 @@ const ControlButton: React.FC<ControlButtonProps> = ({
         className={"relative flex justify-center"}
         style={{ width: `${sliderWidth}px`, height: `${size}px` }}
         ref={sliderRef}
-        onPointerDown={handlePointerDown}
-        onPointerUp={handlePointerUp}
-        onPointerLeave={handlePointerLeave}
-        onPointerMove={handlePointerMove}
       >
-        <div className="w-full h-4 self-center  bg-gray-700 bg-opacity-50 rounded-full" />
+        <div className="self-center w-full h-4 bg-gray-700 bg-opacity-50 rounded-full" />
         <div
+          ref={sliderButtonRef}
           className="absolute top-0 left-0 h-full"
           style={{
             transform: `translateX(${
