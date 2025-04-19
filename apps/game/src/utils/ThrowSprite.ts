@@ -2,6 +2,7 @@ import * as PIXI from "pixi.js";
 import { MovementController } from "../controllers/MovementController";
 import type { Character } from "../entities/Character";
 import { CharacterState } from "../types/Character";
+import { FoodMask } from "./FoodMask";
 
 export interface ThrowSpriteOptions {
   initialScale: number; // 초기 크기
@@ -35,6 +36,9 @@ export class ThrowSprite {
   private targetPosition?: { x: number; y: number }; // 캐릭터가 이동할 목표 위치
   private movementController?: MovementController;
 
+  // 음식 마스크 처리를 위한 객체
+  private foodMask?: FoodMask;
+
   // Promise 관련 변수
   private eatingFinishedResolve?: () => void;
   private eatingPromise?: Promise<void>;
@@ -56,11 +60,17 @@ export class ThrowSprite {
     // 스프라이트 생성 및 초기 설정
     this.sprite = new PIXI.Sprite(texture);
     this.sprite.position.set(this.initialPosition.x, this.initialPosition.y);
-    this.sprite.scale.set(options.initialScale);
+
+    // 음식 크기를 더 작게 조정 (16x16 텍스처를 고려)
+    const foodScale = options.initialScale * 0.7; // 30% 더 작게 조정
+    this.sprite.scale.set(foodScale);
     this.sprite.anchor.set(0.5);
 
     // 스테이지에 추가
     parent.addChild(this.sprite);
+
+    // 음식 마스크 객체 생성만 하고 초기화는 하지 않음
+    this.foodMask = new FoodMask(this.sprite, parent);
 
     // 애니메이션 시작
     this.app.ticker.add(this.update, this);
@@ -69,13 +79,6 @@ export class ThrowSprite {
     this.eatingPromise = new Promise<void>((resolve) => {
       this.eatingFinishedResolve = resolve;
     });
-  }
-
-  /**
-   * 음식을 다 먹을 때까지 기다리는 Promise를 반환합니다.
-   */
-  public waitForEatingFinished(): Promise<void> {
-    return this.eatingPromise || Promise.resolve();
   }
 
   private getRandomInitialPosition(): { x: number; y: number } {
@@ -143,10 +146,11 @@ export class ThrowSprite {
     // y좌표에 따라 zIndex 설정 (y값이 클수록 앞에 표시)
     this.sprite.zIndex = this.sprite.position.y;
 
-    // 크기 업데이트 (선형 보간)
+    // 크기 업데이트 (선형 보간) - 음식 크기 조정
+    const finalScale = this.options.finalScale * 0.7; // 30% 더 작게 조정
     const scale =
-      this.options.initialScale +
-      progress * (this.options.finalScale - this.options.initialScale);
+      this.options.initialScale * 0.7 +
+      progress * (finalScale - this.options.initialScale * 0.7);
     this.sprite.scale.set(scale);
 
     // 애니메이션 완료 처리
@@ -171,6 +175,11 @@ export class ThrowSprite {
     // 모든 후속 작업은 onComplete 콜백에서 처리됨
     this.foodState = FoodState.EATING;
     this.eatingStartTime = Date.now();
+
+    // 음식 마스크 초기화
+    if (this.foodMask) {
+      this.foodMask.checkVisibility();
+    }
   }
 
   // 캐릭터가 음식으로 이동하는 메서드 (외부에서 호출)
@@ -268,16 +277,21 @@ export class ThrowSprite {
     // 총 먹는 시간 대비 진행률 계산 (0~1)
     const eatingProgress = Math.min(elapsedEatingTime / this.eatingDuration, 1);
 
-    // 1초마다 1/4씩 먹는 효과 표현
-    // 크기와 투명도를 조절하여 점점 작아지고 투명해지게 함
-    const remainingPortion = 1 - eatingProgress;
+    // 마스크 처리
+    if (this.foodMask) {
+      // 마스크가 표시되고 있는지 확인
+      this.foodMask.checkVisibility();
 
-    // 음식 스프라이트 크기 및 투명도 업데이트
-    this.sprite.scale.set(this.options.finalScale * remainingPortion);
-    this.sprite.alpha = remainingPortion;
+      // 마스크 위치 업데이트
+      this.foodMask.updatePosition();
+
+      // 마스크 진행도 업데이트
+      this.foodMask.updateProgress(eatingProgress);
+    }
 
     // 다 먹었으면 마무리
     if (eatingProgress >= 1) {
+      console.log("음식을 다 먹었습니다. 마무리 처리를 시작합니다.");
       this.finishEating();
     }
   }
@@ -285,6 +299,12 @@ export class ThrowSprite {
   private finishEating(): void {
     // 상태 변경
     this.foodState = FoodState.FINISHED;
+
+    // 마스크 제거
+    if (this.foodMask) {
+      this.foodMask.destroy();
+      this.foodMask = undefined;
+    }
 
     // 음식 스프라이트 제거
     if (this.sprite.parent) {
@@ -321,6 +341,12 @@ export class ThrowSprite {
     // 애니메이션 중단
     this.app.ticker.remove(this.update, this);
 
+    // 마스크 제거
+    if (this.foodMask) {
+      this.foodMask.destroy();
+      this.foodMask = undefined;
+    }
+
     // 음식 스프라이트 제거
     if (this.sprite.parent) {
       this.sprite.parent.removeChild(this.sprite);
@@ -336,5 +362,13 @@ export class ThrowSprite {
       this.eatingFinishedResolve();
       this.eatingFinishedResolve = undefined;
     }
+  }
+
+  /**
+   * 음식 먹기가 완료될 때까지 기다리는 Promise를 반환합니다.
+   * @returns 음식 먹기 완료 시 해결되는 Promise
+   */
+  public waitForEatingFinished(): Promise<void> {
+    return this.eatingPromise || Promise.resolve();
   }
 }
