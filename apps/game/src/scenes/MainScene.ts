@@ -239,12 +239,6 @@ export class MainScene extends PIXI.Container implements Scene {
       case GameMenuItemType.Feed:
         {
           console.log("먹이 버튼 선택");
-
-          // 캐릭터의 움직임 잠시 중지
-          if (this.randomMovementController) {
-            this.stopRandomMovement();
-          }
-
           // 음식 생성 및 던지기
           this.throwFood();
         }

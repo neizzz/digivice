@@ -5,6 +5,9 @@ import { CharacterState } from "../types/Character";
 import { FoodMask } from "../utils/FoodMask";
 import { ThrowSprite } from "../utils/ThrowSprite";
 import { AssetLoader } from "../utils/AssetLoader";
+import { FreshnessDuration } from "../utils/FreshnessDuration";
+import { SparkleEffect } from "../effects/SparkleEffect";
+import { ColorMatrixFilter } from "@pixi/filter-color-matrix";
 
 // 음식 상태를 나타내는 enum
 enum FoodState {
@@ -15,8 +18,16 @@ enum FoodState {
   APPROACHING = 4, // 캐릭터가 음식으로 접근 중
 }
 
+// 음식 신선도 상태를 나타내는 enum
+export enum FoodFreshness {
+  FRESH = 0, // 신선한 상태
+  NORMAL = 1, // 보통 상태
+  STALE = 2, // 상한 상태
+}
+
 export interface FoodOptions {
   character: Character; // 음식을 먹을 캐릭터 객체 (선택사항)
+  freshness?: FoodFreshness; // 음식의 신선도 상태 (선택사항, 기본값: FRESH)
 }
 
 /**
@@ -28,10 +39,12 @@ export class Food {
   private parent: PIXI.Container;
   private options: FoodOptions;
   private foodState: FoodState = FoodState.THROWING;
+  private freshness: FoodFreshness;
   private eatingStartTime = 0;
   private eatingDuration = 4000; // 기본값: 4초
   private targetPosition?: { x: number; y: number }; // 캐릭터가 이동할 목표 위치
   private movementController?: MovementController;
+  private freshnessDuration: FreshnessDuration; // 신선도 지속 시간 관리 객체
 
   // 음식 마스크 처리를 위한 객체
   private foodMask?: FoodMask;
@@ -48,6 +61,9 @@ export class Food {
   private finalScale = 1.5;
   private throwDuration = 1000; // 1초간 던지기 애니메이션
 
+  // SparkleEffect 객체
+  private sparkleEffect?: SparkleEffect;
+
   /**
    * @param app PIXI 애플리케이션
    * @param parent 부모 컨테이너
@@ -62,6 +78,9 @@ export class Food {
     this.parent = parent;
     this.options = options;
 
+    // 신선도 설정 (기본값: FRESH)
+    this.freshness = options.freshness ?? FoodFreshness.FRESH;
+
     // 랜덤 음식 텍스처 선택
     const texture = this.getRandomFoodTexture();
 
@@ -75,6 +94,17 @@ export class Food {
 
     // ThrowSprite를 통해 던지기 기능 활용
     this.initThrowSprite();
+
+    // FreshnessDuration 초기화 - 신선도 변경시 콜백 설정
+    this.freshnessDuration = new FreshnessDuration((newFreshness) => {
+      this.setFreshness(newFreshness);
+    }, this.freshness);
+
+    // 초기 신선도에 맞는 시각적 효과 적용
+    this.applyFreshnessVisualEffect();
+
+    // SparkleEffect 초기화
+    this.initSparkleEffect();
 
     // 애니메이션 시작
     this.app.ticker.add(this.update, this);
@@ -115,6 +145,50 @@ export class Food {
   }
 
   /**
+   * 음식의 신선도 상태 설정
+   * @param freshness 설정할 신선도 상태
+   */
+  public setFreshness(freshness: FoodFreshness): void {
+    this.freshness = freshness;
+    this.applyFreshnessVisualEffect();
+    this.updateSparkleEffect();
+  }
+
+  /**
+   * 현재 신선도 상태 반환
+   * @returns 현재 신선도 상태
+   */
+  public getFreshness(): FoodFreshness {
+    return this.freshness;
+  }
+
+  /**
+   * 신선도 상태에 따른 시각적 효과 적용
+   */
+  private applyFreshnessVisualEffect(): void {
+    switch (this.freshness) {
+      case FoodFreshness.FRESH:
+        // 신선한 상태: 필터 없음 (원래 색상), 반짝임 효과는 updateSparkleEffect()에서 처리
+        this.sprite.filters = [];
+        break;
+
+      case FoodFreshness.NORMAL:
+        // 보통 상태: 필터 없음 (원래 색상)
+        this.sprite.filters = [];
+        break;
+
+      case FoodFreshness.STALE: {
+        // 상한 상태: 회색빛 + 약간 어둡게 처리
+        this.sprite.filters = [new ColorMatrixFilter()];
+        const staleFilter = this.sprite.filters[0] as ColorMatrixFilter;
+        staleFilter.brightness(0.5, false); // 약간 어둡게
+        staleFilter.desaturate(); // 채도 낮추기 (회색빛)
+        break;
+      }
+    }
+  }
+
+  /**
    * ThrowSprite 초기화
    */
   private initThrowSprite(): void {
@@ -127,6 +201,30 @@ export class Food {
   }
 
   /**
+   * SparkleEffect 초기화
+   */
+  private initSparkleEffect(): void {
+    this.sparkleEffect = new SparkleEffect(this.sprite, this.parent, this.app);
+
+    // 현재 신선도 상태에 따라 반짝임 효과를 켜거나 끔
+    this.updateSparkleEffect();
+  }
+
+  /**
+   * 신선도 상태에 따라 반짝임 효과 업데이트
+   */
+  private updateSparkleEffect(): void {
+    if (!this.sparkleEffect) return;
+
+    // Fresh 상태일 때만 반짝이는 효과 활성화
+    if (this.freshness === FoodFreshness.FRESH) {
+      this.sparkleEffect.start();
+    } else {
+      this.sparkleEffect.stop();
+    }
+  }
+
+  /**
    * 음식이 착지했을 때 호출되는 콜백
    */
   private onFoodLanded(position: { x: number; y: number }): void {
@@ -135,10 +233,8 @@ export class Food {
 
     // 캐릭터가 있으면 음식으로 이동하기 시작
     if (this.options.character) {
-      this.startMovingToFood();
-    } else {
-      // 캐릭터가 없으면 바로 먹기 상태로 전환
-      this.startEating();
+      // FIXME: 디버깅 용으로 잠시 주석 처리
+      // this.startMovingToFood();
     }
   }
 
@@ -163,6 +259,15 @@ export class Food {
         // 이미 다 먹어서 처리할 필요 없음
         break;
     }
+
+    // 상태가 FINISHED가 아닐 경우에만 신선도 업데이트
+    if (this.foodState !== FoodState.FINISHED) {
+      // 신선도 상태 업데이트
+      this.freshnessDuration.update();
+    }
+
+    // zIndex를 position.y 값으로 설정하여 깊이 정렬
+    this.sprite.zIndex = this.sprite.position.y;
   };
 
   /**
@@ -310,6 +415,12 @@ export class Food {
       this.sprite.parent.removeChild(this.sprite);
     }
 
+    // SparkleEffect 제거
+    if (this.sparkleEffect) {
+      this.sparkleEffect.stop();
+      this.sparkleEffect = undefined;
+    }
+
     // 캐릭터 상태 원래대로 복원
     if (this.options.character) {
       this.options.character.update(CharacterState.IDLE);
@@ -342,6 +453,12 @@ export class Food {
     if (this.foodMask) {
       this.foodMask.destroy();
       this.foodMask = undefined;
+    }
+
+    // SparkleEffect 제거
+    if (this.sparkleEffect) {
+      this.sparkleEffect.stop();
+      this.sparkleEffect = undefined;
     }
 
     // 음식 스프라이트 제거

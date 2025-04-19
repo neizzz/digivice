@@ -129,6 +129,7 @@ export class Character extends PIXI.Container {
   // 명시적으로 캐릭터 위치 설정하는 메서드 추가
   public setPosition(x: number, y: number): void {
     this.position.set(x, y);
+    this.zIndex = y;
   }
 
   /**
