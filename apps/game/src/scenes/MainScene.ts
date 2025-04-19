@@ -4,6 +4,7 @@ import { SceneKey } from "../SceneKey";
 import { RandomMovementController } from "../controllers/RandomMovementController";
 import { Background } from "../entities/Background";
 import { Character } from "../entities/Character";
+import { Food } from "../entities/Food";
 import type { Scene } from "../interfaces/Scene";
 import { GameMenu, type GameMenuOptions } from "../ui/GameMenu";
 import { GameMenuItemType } from "../ui/GameMenu/GameMenuItem";
@@ -14,7 +15,6 @@ import {
 } from "../ui/types";
 import { AssetLoader } from "../utils/AssetLoader";
 import { GameDataManager } from "../utils/GameDataManager";
-import { ThrowSprite } from "../utils/ThrowSprite";
 
 enum MainSceneControlButtonsSetType {
   Default = "default",
@@ -236,57 +236,17 @@ export class MainScene extends PIXI.Container implements Scene {
           console.warn("Game 객체 참조가 설정되지 않았습니다");
         }
         break;
-      // 다른 메뉴 항목들 처리
       case GameMenuItemType.Feed:
         {
           console.log("먹이 버튼 선택");
-          const assets = AssetLoader.getAssets();
-          const foodSprites = assets.foodSprites?.textures;
-
-          if (!foodSprites) {
-            console.warn("Food sprites not loaded.");
-            return;
-          }
-
-          // 랜덤으로 foodSprites 중 하나 선택
-          const foodKeys = Object.keys(foodSprites);
-          const randomKey =
-            foodKeys[Math.floor(Math.random() * foodKeys.length)];
-          const texture = foodSprites[randomKey];
-
-          if (!texture) {
-            console.warn(`Texture not found for key: ${randomKey}`);
-            return;
-          }
 
           // 캐릭터의 움직임 잠시 중지
           if (this.randomMovementController) {
             this.stopRandomMovement();
           }
 
-          // ThrowSprite 변수 생성
-          const throwSprite = new ThrowSprite(this.game.app, this, texture, {
-            initialScale: 3,
-            finalScale: 1.5,
-            velocity: { x: Math.random() * 4 - 2, y: -Math.random() * 4 - 2 },
-            duration: 1000,
-            onComplete: (foodPosition) => {
-              console.log("Food landed at position:", foodPosition);
-
-              // 음식이 떨어진 직후 캐릭터가 음식으로 이동하기 시작
-              if (this.character) {
-                throwSprite.startMovingToFood(this.character);
-
-                // Promise를 사용하여 음식을 다 먹은 후 랜덤 움직임 재개
-                throwSprite.waitForEatingFinished().then(() => {
-                  console.log(
-                    "Food eating completed, restarting random movement"
-                  );
-                  this.applyCharacterMovement();
-                });
-              }
-            },
-          });
+          // 음식 생성 및 던지기
+          this.throwFood();
         }
         break;
 
@@ -318,6 +278,22 @@ export class MainScene extends PIXI.Container implements Scene {
       default:
         console.log(`${menuType} 메뉴 항목에 대한 처리가 구현되지 않았습니다`);
     }
+  }
+
+  /**
+   * 음식을 던지는 로직을 별도 메서드로 분리
+   */
+  private throwFood(): void {
+    // 새로운 Food 객체 생성 - 내부에서 모든 리소스 로드 및 관리
+    const food = new Food(this.game.app, this, {
+      character: this.character,
+    });
+
+    // 음식 먹기가 완료되면 캐릭터의 랜덤 움직임 재개
+    food.waitForEatingFinished().then(() => {
+      console.log("Food eating completed, restarting random movement");
+      this.applyCharacterMovement();
+    });
   }
 
   /**

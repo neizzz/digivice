@@ -27,77 +27,46 @@ export class FoodMask {
   constructor(parentSprite: PIXI.Sprite, parentContainer: PIXI.Container) {
     this.parentSprite = parentSprite;
     this.parentContainer = parentContainer;
+    // 생성자에서 바로 텍스처 로드
     this.loadMaskTextures();
   }
 
   /**
-   * 마스크 텍스처를 로드하는 메서드
+   * AssetLoader에서 마스크 텍스처 가져오기
    */
   private loadMaskTextures(): void {
-    console.log("FoodMask: 마스크 텍스처 로드 시작");
+    console.log("FoodMask: AssetLoader에서 마스크 텍스처 가져오기");
 
-    try {
-      // AssetLoader에서 로드된 마스크 스프라이트시트 가져오기
-      const assets = AssetLoader.getAssets();
-      const maskSpritesheet = assets.foodMaskSprites;
+    // AssetLoader에서 에셋 가져오기
+    const assets = AssetLoader.getAssets();
 
-      if (maskSpritesheet?.textures) {
-        console.log("FoodMask: AssetLoader에서 마스크 스프라이트시트 찾음");
-
-        // 스프라이트시트에서 각 마스크 프레임 텍스처 가져오기
-        for (const frameName of this.maskFrames) {
-          if (maskSpritesheet.textures[frameName]) {
-            console.log(
-              `FoodMask: 스프라이트시트에서 텍스처 가져옴: ${frameName}`
-            );
-            this.maskTextures.push(maskSpritesheet.textures[frameName]);
-          } else {
-            console.warn(
-              `FoodMask: 스프라이트시트에 텍스처 없음: ${frameName}, 직접 로드 시도`
-            );
-            // 스프라이트시트에 없으면 직접 로드 시도
-            try {
-              const texture = PIXI.Texture.from(frameName);
-              this.maskTextures.push(texture);
-            } catch (e) {
-              console.error(`FoodMask: 텍스처 직접 로드 실패: ${frameName}`, e);
-            }
-          }
-        }
-      } else {
-        console.warn(
-          "FoodMask: 마스크 스프라이트시트를 찾을 수 없음, 프레임 직접 로드 시도"
-        );
-
-        // 스프라이트시트가 없으면 각 프레임 직접 로드
-        for (const frameName of this.maskFrames) {
-          try {
-            console.log(`FoodMask: 프레임 직접 로드 시도: ${frameName}`);
-            const texture = PIXI.Texture.from(frameName);
-            this.maskTextures.push(texture);
-          } catch (e) {
-            console.error(`FoodMask: 텍스처 직접 로드 실패: ${frameName}`, e);
-          }
+    if (assets.foodMaskSprites?.textures) {
+      // 각 마스크 프레임 텍스처 가져오기
+      for (const frameName of this.maskFrames) {
+        const texture = assets.foodMaskSprites.textures[frameName];
+        if (texture) {
+          this.maskTextures.push(texture);
+          console.log(`FoodMask: 텍스처 가져옴: ${frameName}`);
+        } else {
+          console.warn(`FoodMask: 텍스처를 찾을 수 없음: ${frameName}`);
         }
       }
-
-      console.log(
-        `FoodMask: 로드된 마스크 텍스처 총 개수: ${this.maskTextures.length}`
-      );
-
-      // 중요: 음식이 착지한 후에 init()이 직접 호출되도록 변경
-      // 마스크 자동 초기화 코드 제거
-    } catch (error) {
-      console.error("FoodMask: 마스크 텍스처 로드 실패:", error);
+    } else {
+      console.warn("FoodMask: foodMaskSprites 에셋을 찾을 수 없음");
     }
+
+    console.log(
+      `FoodMask: 가져온 마스크 텍스처 수: ${this.maskTextures.length}`
+    );
   }
 
   /**
    * 마스크를 초기화하고 음식 스프라이트에 적용
    */
   public init(): void {
+    // 텍스처가 없으면 초기화 중단
     if (this.maskTextures.length === 0) {
-      console.warn("FoodMask: 마스크 텍스처가 로드되지 않았습니다.");
+      console.warn("FoodMask: 마스크 텍스처가 없어 초기화할 수 없습니다");
       return;
     }
 
@@ -135,11 +104,7 @@ export class FoodMask {
    * @param progress 진행도 (0~1)
    */
   public updateProgress(progress: number): void {
-    if (!this.maskSprite || this.maskTextures.length === 0) {
-      // 마스크가 없거나 텍스처가 로드되지 않았으면 초기화
-      if (!this.maskSprite) this.init();
-      return;
-    }
+    if (!this.maskSprite || this.maskTextures.length === 0) return;
 
     // 마스크 인덱스 계산 (0~4)
     const maskIndex = Math.min(
@@ -161,7 +126,7 @@ export class FoodMask {
       return false;
     }
 
-    if (this.maskSprite?.parent === null) {
+    if (this.maskSprite.parent === null) {
       console.warn("FoodMask: 마스크 스프라이트가 화면에 추가되지 않았습니다!");
       this.parentContainer.addChild(this.maskSprite);
 
