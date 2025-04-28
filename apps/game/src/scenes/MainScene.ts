@@ -15,6 +15,7 @@ import {
 } from "../ui/types";
 import { AssetLoader } from "../utils/AssetLoader";
 import { GameDataManager } from "../utils/GameDataManager";
+import { Broom } from "../entities/Broom";
 
 enum MainSceneControlButtonsSetType {
   Default = "default",
@@ -54,6 +55,11 @@ export class MainScene extends PIXI.Container implements Scene {
   // GameMenu 관련 필드
   private gameMenu: GameMenu | null = null;
   private navigationIndex = 0;
+
+  // CleanMode 관련 필드
+  private isCleanModeActive = false;
+  private previousSliderValue = 0; // 이전 슬라이더 값
+  private broom: Broom | null = null;
 
   // Game 인스턴스 참조
   private game: Game;
@@ -265,6 +271,7 @@ export class MainScene extends PIXI.Container implements Scene {
         this.game.changeControlButtons(
           CONTROL_BUTTONS_SET[MainSceneControlButtonsSetType.CleanMode]
         );
+        this.initCleanMode();
         break;
 
       case GameMenuItemType.Training:
@@ -311,6 +318,7 @@ export class MainScene extends PIXI.Container implements Scene {
     switch (buttonType) {
       case ControlButtonType.Cancel:
         this.sendNavigationAction(NavigationAction.CANCEL);
+        this.isCleanModeActive = false;
         break;
       case ControlButtonType.Settings:
         console.log("TODO: Settings popup 구현");
@@ -320,6 +328,9 @@ export class MainScene extends PIXI.Container implements Scene {
         break;
       case ControlButtonType.Next:
         this.sendNavigationAction(NavigationAction.NEXT);
+        break;
+      case ControlButtonType.Clean:
+        console.log("청소 작업 수행");
         break;
     }
   }
@@ -336,6 +347,67 @@ export class MainScene extends PIXI.Container implements Scene {
       type: action,
       index: this.navigationIndex,
     });
+  }
+
+  public handleSliderValueChange(value: number): void {
+    if (!this.isCleanModeActive || !this.broom) return;
+
+    // 슬라이더 드래그 방향에 따라 방향 결정
+    // 이전 값과 현재 값의 차이로 방향 판단
+    const delta = value - this.previousSliderValue;
+    const minDeltaThreshold = 0.03; // 최소 변화량 (노이즈 방지)
+
+    if (Math.abs(delta) > minDeltaThreshold) {
+      if (delta < 0) {
+        // 빗자루 방향 설정
+        this.broom.setDirection(-1);
+        console.log("청소 방향: 왼쪽 (드래그 방향)");
+      } else {
+        // 빗자루 방향 설정
+        this.broom.setDirection(1);
+        console.log("청소 방향: 오른쪽 (드래그 방향)");
+      }
+    }
+
+    // 현재 값을 이전 값으로 저장
+    this.previousSliderValue = value;
+
+    // 캐릭터 옆에 빗자루 위치 업데이트
+    if (this.character) {
+      this.broom.setPosition(this.character.x + 50, this.character.y - 20);
+    }
+  }
+
+  /**
+   * 청소 모드를 활성화하고 빗자루 스프라이트를 초기화합니다.
+   */
+  private initCleanMode(): void {
+    this.isCleanModeActive = true;
+
+    // 기존 빗자루가 있으면 제거
+    if (this.broom) {
+      this.removeChild(this.broom);
+      this.broom = null;
+    }
+
+    // 새 빗자루 객체 생성
+    this.broom = new Broom();
+
+    // 빗자루 위치 설정 (캐릭터 주변)
+    if (this.character) {
+      this.broom.setPosition(this.character.x + 50, this.character.y - 20);
+    } else {
+      this.broom.setPosition(
+        this.game.app.screen.width / 2,
+        this.game.app.screen.height / 2
+      );
+    }
+
+    // 빗자루의 zIndex 설정
+    this.broom.zIndex = 5; // 캐릭터보다 위에 표시되도록
+
+    // 빗자루를 씬에 추가
+    this.addChild(this.broom);
   }
 
   public onResize(width: number, height: number): void {

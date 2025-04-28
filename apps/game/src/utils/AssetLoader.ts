@@ -20,6 +20,7 @@ export interface GameAssets {
   birdSprites: PIXI.Spritesheet;
   foodSprites: PIXI.Spritesheet;
   foodMaskSprites: PIXI.Spritesheet; // 음식 마스크 스프라이트시트 추가
+  common16x16Sprites: PIXI.Spritesheet; // 빗자루 등의 공통 스프라이트
   characterSprites: { [key in CharacterKey]?: PIXI.Spritesheet };
 }
 
@@ -49,6 +50,11 @@ const ASSETS_TO_LOAD: AssetDefinition[] = [
     path: "/sprites/vite-food-mask.json",
     key: "foodMaskSprites", // 음식 마스크 스프라이트시트 로드 추가
   },
+  {
+    type: "spritesheet",
+    path: "/sprites/common16x16.json",
+    key: "common16x16Sprites", // 빗자루 등 공통 스프라이트 로드 추가
+  },
 ];
 
 const CHARACTER_ASSETS_TO_LOAD: AssetDefinition[] = Object.values(
@@ -67,6 +73,7 @@ export const AssetLoader = {
     birdSprites: null,
     foodSprites: null,
     foodMaskSprites: null, // 초기값 null 추가
+    common16x16Sprites: null, // 초기값 null 추가
     characterSprites: {},
   } as unknown as GameAssets,
   isLoading: false,
@@ -131,6 +138,12 @@ export const AssetLoader = {
       );
     }
 
+    if (!this.assets.common16x16Sprites) {
+      console.warn(
+        "[AssetLoader] Common 16x16 sprites not loaded, using fallback"
+      );
+    }
+
     for (const key of Object.values(CharacterKey)) {
       if (!this.assets.characterSprites[key]) {
         console.warn(
@@ -178,6 +191,7 @@ export const AssetLoader = {
               | "birdSprites"
               | "foodSprites"
               | "foodMaskSprites"
+              | "common16x16Sprites"
           );
           break;
         default:
@@ -281,7 +295,12 @@ export const AssetLoader = {
   },
   async _loadSpritesheet(
     path: string,
-    key: "tilesetSprites" | "birdSprites" | "foodSprites" | "foodMaskSprites"
+    key:
+      | "tilesetSprites"
+      | "birdSprites"
+      | "foodSprites"
+      | "foodMaskSprites"
+      | "common16x16Sprites"
   ): Promise<void> {
     try {
       const response = await fetch(path, {
@@ -343,6 +362,7 @@ export const AssetLoader = {
       this.assets.birdSprites?.destroy(true);
       this.assets.foodSprites?.destroy(true);
       this.assets.foodMaskSprites?.destroy(true);
+      this.assets.common16x16Sprites?.destroy(true);
       for (const key of Object.keys(this.assets.characterSprites)) {
         this.assets.characterSprites[key as CharacterKey]?.destroy(true);
       }
