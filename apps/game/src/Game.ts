@@ -40,6 +40,10 @@ export class Game {
       resolution: window.devicePixelRatio || 2, // 해상도를 디바이스 픽셀 비율로 설정하거나 원하는 값(예: 2)으로 설정
     });
 
+    // 렌더링 주기를 60fps로 설정
+    this.app.ticker.minFPS = 60;
+    this.app.ticker.maxFPS = 60;
+
     // DOM에 캔버스 추가
     parentElement.appendChild(this.app.view as HTMLCanvasElement);
 
