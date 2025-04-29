@@ -35,8 +35,6 @@ export class FoodMask {
    * AssetLoader에서 마스크 텍스처 가져오기
    */
   private loadMaskTextures(): void {
-    console.log("FoodMask: AssetLoader에서 마스크 텍스처 가져오기");
-
     // AssetLoader에서 에셋 가져오기
     const assets = AssetLoader.getAssets();
 
@@ -46,7 +44,6 @@ export class FoodMask {
         const texture = assets.foodMaskSprites.textures[frameName];
         if (texture) {
           this.maskTextures.push(texture);
-          console.log(`FoodMask: 텍스처 가져옴: ${frameName}`);
         } else {
           console.warn(`FoodMask: 텍스처를 찾을 수 없음: ${frameName}`);
         }
@@ -54,10 +51,6 @@ export class FoodMask {
     } else {
       console.warn("FoodMask: foodMaskSprites 에셋을 찾을 수 없음");
     }
-
-    console.log(
-      `FoodMask: 가져온 마스크 텍스처 수: ${this.maskTextures.length}`
-    );
   }
 
   /**
@@ -71,7 +64,6 @@ export class FoodMask {
     }
 
     if (!this.maskSprite) {
-      console.log("FoodMask: 마스크 스프라이트 초기화");
       this.maskSprite = new PIXI.Sprite(this.maskTextures[0]);
       this.maskSprite.anchor.set(0.5);
 
@@ -80,8 +72,6 @@ export class FoodMask {
 
       // 마스크 스프라이트도 화면에 추가해야 마스킹이 작동함
       this.parentContainer.addChild(this.maskSprite);
-
-      console.log("FoodMask: 마스크 스프라이트 추가됨 (마스킹 모드)");
     }
 
     // 초기 위치 설정
@@ -133,7 +123,6 @@ export class FoodMask {
       // 마스크 연결 확인
       if (this.parentSprite.mask !== this.maskSprite) {
         this.parentSprite.mask = this.maskSprite;
-        console.log("FoodMask: 마스크 재연결됨");
       }
 
       this.updatePosition();
@@ -159,7 +148,6 @@ export class FoodMask {
       }
 
       this.maskSprite = null;
-      console.log("FoodMask: 마스크 스프라이트 제거됨");
     }
   }
 }
