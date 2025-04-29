@@ -1,0 +1,13 @@
+{
+  "frames": {
+    "broom": { "frame": { "x": 0, "y": 0, "w": 16, "h": 16 } },
+    "poob": { "frame": { "x": 16, "y": 0, "w": 16, "h": 16 } }
+  },
+  "meta": {
+    "app": "digivice",
+    "image": "/game/sprites/common16x16.png",
+    "format": "RGBA8888",
+    "size": { "w": 32, "h": 16 },
+    "scale": "1"
+  }
+}
