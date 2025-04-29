@@ -6,6 +6,7 @@ import {
 } from "../types/Character";
 import type { Position } from "../types/Position";
 import { AssetLoader } from "../utils/AssetLoader";
+import { RandomMovementController } from "../controllers/RandomMovementController";
 
 export class Character extends PIXI.Container {
   public animatedSprite: PIXI.AnimatedSprite | undefined;
@@ -16,10 +17,20 @@ export class Character extends PIXI.Container {
   private currentState: CharacterState = CharacterState.IDLE; // 현재 상태
   private animationMapping: Record<CharacterState, string>; // 상태와 애니메이션 이름 매핑
   private flipCharacter = false; // 캐릭터 좌우 반전 여부
+  private randomMovementController?: RandomMovementController; // 랜덤 움직임 컨트롤러 참조
+  private app?: PIXI.Application; // PIXI 애플리케이션 참조
 
   constructor(params: {
     characterKey: CharacterKey; // CharacterKey 사용
     initialPosition: Position;
+    app: PIXI.Application; // PIXI 애플리케이션 참조
+    movementOptions?: {
+      minIdleTime: number;
+      maxIdleTime: number;
+      minMoveTime: number;
+      maxMoveTime: number;
+      boundaryPadding: number;
+    };
   }) {
     super();
 
@@ -29,17 +40,58 @@ export class Character extends PIXI.Container {
     this.speed = characterInfo.speed;
     this.scaleFactor = characterInfo.scale;
     this.animationMapping = characterInfo.animationMapping;
+    this.app = params.app;
+
+    // RandomMovementController 초기화
+    this.initRandomMovementController(params.movementOptions);
 
     // AssetLoader에서 스프라이트시트 가져오기
     const assets = AssetLoader.getAssets();
     this.spritesheet = assets.characterSprites[params.characterKey];
 
-    // 기본 매핑 설정 (외부에서 주입된 매핑이 있으면 덮어씀)
-
     this.loadCharacterSprite(this.spritesheet).then(() => {
       // 초기 애니메이션 설정
       this.setAnimation("idle");
     });
+  }
+
+  /**
+   * RandomMovementController 초기화
+   */
+  private initRandomMovementController(movementOptions?: {
+    minIdleTime: number;
+    maxIdleTime: number;
+    minMoveTime: number;
+    maxMoveTime: number;
+    boundaryPadding: number;
+  }): void {
+    if (!this.app) {
+      console.error(
+        "App reference is not set, cannot initialize RandomMovementController"
+      );
+      return;
+    }
+
+    // 기본 움직임 옵션
+    const defaultOptions = {
+      minIdleTime: 3000,
+      maxIdleTime: 8000,
+      minMoveTime: 2000,
+      maxMoveTime: 7000,
+      boundaryPadding: 40,
+    };
+
+    // 사용자 옵션과 기본 옵션 병합
+    const options = movementOptions
+      ? { ...defaultOptions, ...movementOptions }
+      : defaultOptions;
+
+    // RandomMovementController 생성
+    this.randomMovementController = new RandomMovementController(
+      this,
+      this.app,
+      options
+    );
   }
 
   private async loadCharacterSprite(
@@ -161,5 +213,25 @@ export class Character extends PIXI.Container {
 
   public getSpeed(): number {
     return this.speed;
+  }
+
+  /**
+   * 캐릭터의 랜덤 움직임을 비활성화합니다
+   */
+  public disableRandomMovement(): void {
+    if (this.randomMovementController) {
+      this.randomMovementController.disable();
+      console.log("Random movement disabled for character");
+    }
+  }
+
+  /**
+   * 캐릭터의 랜덤 움직임을 활성화합니다
+   */
+  public enableRandomMovement(): void {
+    if (this.randomMovementController) {
+      this.randomMovementController.enable();
+      console.log("Random movement enabled for character");
+    }
   }
 }

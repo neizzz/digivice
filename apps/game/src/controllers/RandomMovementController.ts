@@ -20,6 +20,7 @@ export class RandomMovementController extends MovementController {
   private currentIdleDuration = 0;
   private currentMoveDuration = 0;
   private bounds!: PIXI.Rectangle;
+  private enabled = true; // 컨트롤러 활성화 상태
 
   private options: MovementOptions = {
     minIdleTime: 1000,
@@ -132,6 +133,11 @@ export class RandomMovementController extends MovementController {
   }
 
   public update(deltaTime: number): void {
+    // 컨트롤러가 비활성화 상태면 업데이트 건너뜀
+    if (!this.enabled) {
+      return;
+    }
+
     // 시간 업데이트
     this.stateTimer += deltaTime;
 
@@ -184,6 +190,24 @@ export class RandomMovementController extends MovementController {
       if (this.stateTimer >= this.currentIdleDuration) {
         this.changeToMovingState();
       }
+    }
+  }
+
+  /**
+   * 컨트롤러를 활성화합니다
+   */
+  public enable(): void {
+    if (!this.enabled) {
+      this.enabled = true;
+    }
+  }
+
+  /**
+   * 컨트롤러를 비활성화합니다
+   */
+  public disable(): void {
+    if (this.enabled) {
+      this.enabled = false;
     }
   }
 
