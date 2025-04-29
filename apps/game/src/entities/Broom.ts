@@ -66,4 +66,3 @@ export class Broom extends PIXI.Container {
     this.position.set(x, y);
   }
 }
-apps / game / src / interfaces / Scene.ts;

@@ -8,6 +8,7 @@ import { AssetLoader } from "../utils/AssetLoader";
 import { FreshnessDuration } from "../utils/FreshnessDuration";
 import { SparkleEffect } from "../effects/SparkleEffect";
 import { ColorMatrixFilter } from "@pixi/filter-color-matrix";
+import type { Cleanable } from "../interfaces/Cleanable";
 
 // 음식 상태를 나타내는 enum
 enum FoodState {
@@ -16,6 +17,8 @@ enum FoodState {
   EATING = 2, // 먹는 중
   FINISHED = 3, // 다 먹음
   APPROACHING = 4, // 캐릭터가 음식으로 접근 중
+  CLEANING = 5, // 청소 중
+  CLEANED = 6, // 청소 완료
 }
 
 // 음식 신선도 상태를 나타내는 enum
@@ -33,7 +36,7 @@ export interface FoodOptions {
 /**
  * 음식 클래스 - 음식의 생명주기(던지기, 착지, 먹기)를 관리
  */
-export class Food {
+export class Food implements Cleanable {
   private sprite: PIXI.Sprite;
   private app: PIXI.Application;
   private parent: PIXI.Container;
@@ -63,6 +66,10 @@ export class Food {
 
   // SparkleEffect 객체
   private sparkleEffect?: SparkleEffect;
+
+  // 청소 관련 변수
+  private cleanProgress = 0;
+  private cleaningThreshold = 0.8; // 80% 이상 청소되면 완료로 간주
 
   /**
    * @param app PIXI 애플리케이션
@@ -233,9 +240,25 @@ export class Food {
 
     // 캐릭터가 있으면 음식으로 이동하기 시작
     if (this.options.character) {
-      // FIXME: 디버깅 용으로 잠시 주석 처리
-      // this.startMovingToFood();
+      this.startMovingToFood();
     }
+  }
+
+  /**
+   * 캐릭터가 음식으로 이동하기 시작
+   */
+  private startMovingToFood(): void {
+    this.foodState = FoodState.APPROACHING;
+
+    // 캐릭터의 현재 위치 기준으로 음식의 가까운 쪽 결정
+    this.targetPosition = this.getTargetPositionNearFood();
+
+    const moveSpeed = this.options.character.getSpeed();
+    this.movementController = new MovementController(
+      this.options.character,
+      this.app,
+      moveSpeed
+    );
   }
 
   /**
@@ -258,10 +281,19 @@ export class Food {
       case FoodState.FINISHED:
         // 이미 다 먹어서 처리할 필요 없음
         break;
+      case FoodState.CLEANING:
+        // 청소 중일 때는 별도 처리 없음
+        break;
+      case FoodState.CLEANED:
+        // 청소 완료 상태에서는 처리할 필요 없음
+        break;
     }
 
-    // 상태가 FINISHED가 아닐 경우에만 신선도 업데이트
-    if (this.foodState !== FoodState.FINISHED) {
+    // 상태가 FINISHED 또는 CLEANED가 아닐 경우에만 신선도 업데이트
+    if (
+      this.foodState !== FoodState.FINISHED &&
+      this.foodState !== FoodState.CLEANED
+    ) {
       // 신선도 상태 업데이트
       this.freshnessDuration.update();
     }
@@ -332,23 +364,6 @@ export class Food {
       console.log("음식을 다 먹었습니다. 마무리 처리를 시작합니다.");
       this.finishEating();
     }
-  }
-
-  /**
-   * 캐릭터가 음식으로 이동하기 시작
-   */
-  private startMovingToFood(): void {
-    this.foodState = FoodState.APPROACHING;
-
-    // 캐릭터의 현재 위치 기준으로 음식의 가까운 쪽 결정
-    this.targetPosition = this.getTargetPositionNearFood();
-
-    const moveSpeed = this.options.character.getSpeed();
-    this.movementController = new MovementController(
-      this.options.character,
-      this.app,
-      moveSpeed
-    );
   }
 
   /**
@@ -484,5 +499,83 @@ export class Food {
    */
   public waitForEatingFinished(): Promise<void> {
     return this.eatingPromise;
+  }
+
+  /**
+   * 청소 진행도를 업데이트합니다. (Cleanable 인터페이스 구현)
+   * @param progress 0-1 사이의 청소 진행도
+   * @returns 청소 완료 여부
+   */
+  public updateCleanProgress(progress: number): boolean {
+    // 이미 청소가 완료되었거나 먹는 중이거나 던져지는 중이면 청소 불가
+    if (
+      this.foodState === FoodState.CLEANED ||
+      this.foodState === FoodState.EATING ||
+      this.foodState === FoodState.THROWING
+    ) {
+      return true;
+    }
+
+    // 청소 상태로 전환
+    if (this.foodState !== FoodState.CLEANING && progress > 0) {
+      this.foodState = FoodState.CLEANING;
+    }
+
+    if (this.foodState === FoodState.CLEANING) {
+      this.cleanProgress = progress;
+
+      // 청소가 진행될수록 투명해짐
+      this.sprite.alpha = 1.0 - progress * 0.7;
+
+      // 임계값에 도달하면 청소 완료
+      if (progress >= this.cleaningThreshold) {
+        this.finishCleaning();
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * 청소를 완료합니다. (Cleanable 인터페이스 구현)
+   */
+  public finishCleaning(): void {
+    if (this.foodState === FoodState.CLEANED) {
+      return;
+    }
+
+    this.foodState = FoodState.CLEANED;
+
+    // 스프라이트 제거
+    if (this.sprite.parent) {
+      this.sprite.parent.removeChild(this.sprite);
+    }
+
+    // SparkleEffect 제거
+    if (this.sparkleEffect) {
+      this.sparkleEffect.stop();
+      this.sparkleEffect = undefined;
+    }
+
+    // 애니메이션 중단
+    this.app.ticker.remove(this.update);
+
+    // 상태가 변경되었음을 콘솔에 기록
+    console.log("음식이 청소되었습니다.");
+  }
+
+  /**
+   * 객체의 위치를 반환합니다. (Cleanable 인터페이스 구현)
+   */
+  public getPosition(): { x: number; y: number } {
+    return { x: this.sprite.position.x, y: this.sprite.position.y };
+  }
+
+  /**
+   * 객체의 스프라이트를 반환합니다. (Cleanable 인터페이스 구현)
+   */
+  public getSprite(): PIXI.Sprite {
+    return this.sprite;
   }
 }

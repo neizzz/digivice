@@ -16,6 +16,8 @@ import {
 import { AssetLoader } from "../utils/AssetLoader";
 import { GameDataManager } from "../utils/GameDataManager";
 import { Broom } from "../entities/Broom";
+import { CleaningManager } from "../managers/CleaningManager";
+import { Poob } from "../entities/Poob";
 
 enum MainSceneControlButtonsSetType {
   Default = "default",
@@ -60,6 +62,9 @@ export class MainScene extends PIXI.Container implements Scene {
   private isCleanModeActive = false;
   private previousSliderValue = 0; // 이전 슬라이더 값
   private broom: Broom | null = null;
+
+  // CleaningManager 추가
+  private cleaningManager: CleaningManager | null = null;
 
   // Game 인스턴스 참조
   private game: Game;
@@ -317,8 +322,25 @@ export class MainScene extends PIXI.Container implements Scene {
     // 버튼 타입에 따라 적절한 액션 처리
     switch (buttonType) {
       case ControlButtonType.Cancel:
-        this.sendNavigationAction(NavigationAction.CANCEL);
-        this.isCleanModeActive = false;
+        // 청소 모드가 활성화되어 있으면 비활성화
+        if (this.isCleanModeActive) {
+          this.isCleanModeActive = false;
+
+          // 청소 관리자 비활성화
+          if (this.cleaningManager) {
+            this.cleaningManager.deactivate();
+          }
+
+          // 기본 컨트롤 버튼으로 복귀
+          this.game.changeControlButtons(
+            CONTROL_BUTTONS_SET[MainSceneControlButtonsSetType.Default]
+          );
+
+          // 랜덤 움직임 다시 적용
+          this.applyCharacterMovement();
+        } else {
+          this.sendNavigationAction(NavigationAction.CANCEL);
+        }
         break;
       case ControlButtonType.Settings:
         console.log("TODO: Settings popup 구현");
@@ -331,6 +353,7 @@ export class MainScene extends PIXI.Container implements Scene {
         break;
       case ControlButtonType.Clean:
         console.log("청소 작업 수행");
+        // 이미 청소 모드일 때는 추가 액션 없음
         break;
     }
   }
@@ -350,30 +373,31 @@ export class MainScene extends PIXI.Container implements Scene {
   }
 
   public handleSliderValueChange(value: number): void {
-    if (!this.isCleanModeActive || !this.broom) return;
+    if (!this.isCleanModeActive) {
+      return;
+    }
 
-    // 슬라이더 드래그 방향에 따라 방향 결정
-    // 이전 값과 현재 값의 차이로 방향 판단
-    const delta = value - this.previousSliderValue;
-    const minDeltaThreshold = 0.03; // 최소 변화량 (노이즈 방지)
-
-    if (Math.abs(delta) > minDeltaThreshold) {
-      if (delta < 0) {
-        // 빗자루 방향 설정
-        this.broom.setDirection(-1);
-        console.log("청소 방향: 왼쪽 (드래그 방향)");
-      } else {
-        // 빗자루 방향 설정
+    // 빗자루 방향 설정 (슬라이더 값이 증가하면 오른쪽, 감소하면 왼쪽)
+    if (this.broom) {
+      if (value > this.previousSliderValue) {
         this.broom.setDirection(1);
         console.log("청소 방향: 오른쪽 (드래그 방향)");
+      } else if (value < this.previousSliderValue) {
+        this.broom.setDirection(-1);
+        console.log("청소 방향: 왼쪽 (드래그 방향)");
       }
+    }
+
+    // CleaningManager에 슬라이더 값 변경 전달
+    if (this.cleaningManager) {
+      this.cleaningManager.handleSliderValueChange(value);
     }
 
     // 현재 값을 이전 값으로 저장
     this.previousSliderValue = value;
 
     // 캐릭터 옆에 빗자루 위치 업데이트
-    if (this.character) {
+    if (this.character && this.broom) {
       this.broom.setPosition(this.character.x + 50, this.character.y - 20);
     }
   }
@@ -408,6 +432,35 @@ export class MainScene extends PIXI.Container implements Scene {
 
     // 빗자루를 씬에 추가
     this.addChild(this.broom);
+
+    // 캐릭터의 랜덤 움직임 중지 (청소 모드 중에는 움직이지 않도록)
+    this.stopRandomMovement();
+
+    // CleaningManager 초기화 및 활성화
+    if (!this.cleaningManager) {
+      this.cleaningManager = new CleaningManager({
+        app: this.game.app,
+        parent: this,
+        character: this.character, // 캐릭터 전달
+        onCleaningComplete: () => {
+          // 청소가 완료되었을 때 기본 모드로 돌아가기
+          console.log("청소가 모두 완료되었습니다.");
+          this.isCleanModeActive = false;
+          this.game.changeControlButtons(
+            CONTROL_BUTTONS_SET[MainSceneControlButtonsSetType.Default]
+          );
+          // 청소 완료 후 캐릭터 움직임 다시 활성화
+          this.applyCharacterMovement();
+        },
+      });
+
+      // 테스트용으로 몇 개의 Poob 객체 생성
+      // 캐릭터 객체를 전달하여 캐릭터 방향을 고려한 위치에 생성
+      this.cleaningManager.createDummyCleanableObjects(3);
+    }
+
+    // 청소 모드 활성화
+    this.cleaningManager.activate();
   }
 
   public onResize(width: number, height: number): void {
@@ -447,6 +500,12 @@ export class MainScene extends PIXI.Container implements Scene {
 
     // 랜덤 움직임 중지
     this.stopRandomMovement();
+
+    // CleaningManager 정리
+    if (this.cleaningManager) {
+      this.cleaningManager.destroy();
+      this.cleaningManager = null;
+    }
 
     // 다른 리소스 정리 로직...
   }
