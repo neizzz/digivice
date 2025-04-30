@@ -1,7 +1,6 @@
 import * as PIXI from "pixi.js";
 import type { Game } from "../Game";
 import { SceneKey } from "../SceneKey";
-import { RandomMovementController } from "../controllers/RandomMovementController";
 import { Background } from "../entities/Background";
 import { Character } from "../entities/Character";
 import { Food } from "../entities/Food";

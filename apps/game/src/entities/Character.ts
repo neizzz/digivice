@@ -17,7 +17,7 @@ export class Character extends PIXI.Container {
   private currentState: CharacterState = CharacterState.IDLE; // 현재 상태
   private animationMapping: Record<CharacterState, string>; // 상태와 애니메이션 이름 매핑
   private flipCharacter = false; // 캐릭터 좌우 반전 여부
-  private randomMovementController?: RandomMovementController; // 랜덤 움직임 컨트롤러 참조
+  private randomMovementController: RandomMovementController; // 랜덤 움직임 컨트롤러 참조
   private app?: PIXI.Application; // PIXI 애플리케이션 참조
 
   constructor(params: {
@@ -43,7 +43,9 @@ export class Character extends PIXI.Container {
     this.app = params.app;
 
     // RandomMovementController 초기화
-    this.initRandomMovementController(params.movementOptions);
+    this.randomMovementController = this.initRandomMovementController(
+      params.movementOptions
+    );
 
     // AssetLoader에서 스프라이트시트 가져오기
     const assets = AssetLoader.getAssets();
@@ -64,12 +66,9 @@ export class Character extends PIXI.Container {
     minMoveTime: number;
     maxMoveTime: number;
     boundaryPadding: number;
-  }): void {
+  }): RandomMovementController {
     if (!this.app) {
-      console.error(
-        "App reference is not set, cannot initialize RandomMovementController"
-      );
-      return;
+      throw new Error("App reference is not set");
     }
 
     // 기본 움직임 옵션
@@ -87,11 +86,7 @@ export class Character extends PIXI.Container {
       : defaultOptions;
 
     // RandomMovementController 생성
-    this.randomMovementController = new RandomMovementController(
-      this,
-      this.app,
-      options
-    );
+    return new RandomMovementController(this, this.app, options);
   }
 
   private async loadCharacterSprite(

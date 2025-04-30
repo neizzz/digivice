@@ -17,8 +17,7 @@ export class RandomMovementController extends MovementController {
   private isMovingState = false;
   private moveDirection = { x: 0, y: 0 }; // 이동 방향 벡터
   private stateTimer = 0;
-  private currentIdleDuration = 0;
-  private currentMoveDuration = 0;
+  private currentStateDuration = 0; // 현재 상태(이동 또는 휴식) 지속 시간
   private bounds!: PIXI.Rectangle;
   private enabled = true; // 컨트롤러 활성화 상태
 
@@ -55,24 +54,20 @@ export class RandomMovementController extends MovementController {
   }
 
   private updateBounds(): void {
-    const padding = this.options.boundaryPadding || 0;
-
-    // Character 객체에서 getBounds 메서드가 없으므로 대략적인 크기 추정
-    const characterWidth = 32; // 예상 캐릭터 너비
-    const characterHeight = 32; // 예상 캐릭터 높이
+    const padding = this.options.boundaryPadding || 10;
 
     this.bounds = new PIXI.Rectangle(
       padding,
       padding,
-      this.app.screen.width - characterWidth - padding * 2,
-      this.app.screen.height - characterHeight - padding * 2
+      this.app.screen.width - padding * 2,
+      this.app.screen.height - padding * 2
     );
   }
 
   // IDLE 상태로 전환
   private changeToIdleState(): void {
     this.isMovingState = false;
-    this.currentIdleDuration = this.randomRange(
+    this.currentStateDuration = this.randomRange(
       this.options.minIdleTime || 3000, // 최소 휴식 시간
       this.options.maxIdleTime || 8000 // 최대 휴식 시간
     );
@@ -86,7 +81,7 @@ export class RandomMovementController extends MovementController {
   private changeToMovingState(): void {
     this.isMovingState = true;
     // 이동 상태 지속 시간 설정
-    this.currentMoveDuration = this.randomRange(
+    this.currentStateDuration = this.randomRange(
       this.options.minMoveTime,
       this.options.maxMoveTime
     );
@@ -132,11 +127,13 @@ export class RandomMovementController extends MovementController {
     return min + Math.random() * (max - min);
   }
 
-  public update(deltaTime: number): void {
+  public update(tick: number): void {
     // 컨트롤러가 비활성화 상태면 업데이트 건너뜀
     if (!this.enabled) {
       return;
     }
+
+    const deltaTime = tick * PIXI.Ticker.shared.deltaMS;
 
     // 시간 업데이트
     this.stateTimer += deltaTime;
@@ -146,7 +143,7 @@ export class RandomMovementController extends MovementController {
       const currentPos = this.character.getPosition();
 
       // 방향 벡터에 속도와 deltaTime 적용
-      const speedFactor = 60 / 1000; // 60fps 기준 계수
+      const speedFactor = 60 / 1000; // 1초에 60프레임 기준
       let moveX =
         this.moveDirection.x * this.moveSpeed * deltaTime * speedFactor;
       let moveY =
@@ -182,12 +179,12 @@ export class RandomMovementController extends MovementController {
       this.character.update(CharacterState.WALKING);
 
       // 이동 시간이 만료되면 IDLE 상태로 변경
-      if (this.stateTimer >= this.currentMoveDuration) {
+      if (this.stateTimer >= this.currentStateDuration) {
         this.changeToIdleState();
       }
     } else {
       // IDLE 상태일 때
-      if (this.stateTimer >= this.currentIdleDuration) {
+      if (this.stateTimer >= this.currentStateDuration) {
         this.changeToMovingState();
       }
     }

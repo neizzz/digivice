@@ -111,8 +111,8 @@ export class Game {
    * 게임 루프를 설정합니다
    */
   private setupGameLoop(): void {
-    this.app.ticker.add(() => {
-      this.update(this.app.ticker.deltaMS);
+    this.app.ticker.add((tick: number) => {
+      this.update(tick * PIXI.Ticker.shared.deltaMS);
     });
   }
 
