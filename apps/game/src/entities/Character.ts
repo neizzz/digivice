@@ -9,9 +9,8 @@ import { AssetLoader } from "../utils/AssetLoader";
 import { RandomMovementController } from "../controllers/RandomMovementController";
 import type { Food } from "./Food";
 import { EventBus, EventTypes } from "../utils/EventBus";
-
-// 캐릭터 관련 전역 상수
-export const CHARACTER_MAX_STAMINA = 10; // 최대 스태미나
+import { GameDataManager } from "../utils/GameDataManager";
+import { DebugFlags } from "../utils/DebugFlags";
 
 export class Character extends PIXI.Container {
   public animatedSprite: PIXI.AnimatedSprite | undefined;
@@ -24,10 +23,10 @@ export class Character extends PIXI.Container {
   private flipCharacter = false; // 캐릭터 좌우 반전 여부
   private randomMovementController: RandomMovementController; // 랜덤 움직임 컨트롤러 참조
   private app?: PIXI.Application; // PIXI 애플리케이션 참조
-  private stamina = 5; // 캐릭터 스태미나 (기본값 5, 최소 0, 최대 10)
   private foodQueue: Food[] = []; // 먹을 음식 대기열
   private eventBus: EventBus; // 이벤트 버스 인스턴스
   private isMovingToFood = false; // 캐릭터가 음식으로 이동 중인지 나타내는 플래그
+  private characterInfo: (typeof CharacterDictionary)[CharacterKey]; // 캐릭터 정보 저장
 
   constructor(params: {
     characterKey: CharacterKey; // CharacterKey 사용
@@ -47,26 +46,18 @@ export class Character extends PIXI.Container {
     // 이벤트 버스 인스턴스 가져오기
     this.eventBus = EventBus.getInstance();
 
-    const characterInfo = CharacterDictionary[params.characterKey];
+    this.characterInfo = CharacterDictionary[params.characterKey];
 
     this.position.set(params.initialPosition.x, params.initialPosition.y);
-    this.speed = characterInfo.speed;
-    this.scaleFactor = characterInfo.scale;
-    this.animationMapping = characterInfo.animationMapping;
+    this.speed = this.characterInfo.speed;
+    this.scaleFactor = this.characterInfo.scale;
+    this.animationMapping = this.characterInfo.animationMapping;
     this.app = params.app;
 
-    // 초기 스태미나 설정 (우선순위: 파라미터 > 메타데이터 > 기본값)
-    if (params.initialStamina !== undefined) {
-      this.stamina = Math.max(
-        0,
-        Math.min(CHARACTER_MAX_STAMINA, params.initialStamina)
-      );
-    } else if (characterInfo.initialStamina !== undefined) {
-      this.stamina = Math.max(
-        0,
-        Math.min(CHARACTER_MAX_STAMINA, characterInfo.initialStamina)
-      );
-    }
+    // GameDataManager에서 스태미나 초기화 또는 로드
+    this.initializeStamina(
+      params.initialStamina ?? this.characterInfo.maxStamina
+    );
 
     // RandomMovementController 초기화
     this.randomMovementController = this.initRandomMovementController(
@@ -81,9 +72,40 @@ export class Character extends PIXI.Container {
       // 초기 애니메이션 설정
       this.setAnimation("idle");
     });
+  }
 
-    // 초기 상태 이벤트 발생
-    this.emitStaminaChanged();
+  /**
+   * 스태미나 초기화 함수
+   */
+  private async initializeStamina(initialStaminaValue: number): Promise<void> {
+    try {
+      // 저장된 게임 데이터 불러오기
+      const gameData = await GameDataManager.loadData();
+      const maxStamina = this.characterInfo.maxStamina;
+
+      if (gameData) {
+        // 이미 저장된 스태미나 값이 있으면 그것을 사용
+        this.emitStaminaChanged(gameData.status.stamina, maxStamina);
+      } else {
+        // 초기 스태미나 값으로 업데이트
+        const stamina = Math.max(0, Math.min(maxStamina, initialStaminaValue));
+        await GameDataManager.updateData({
+          status: {
+            stamina,
+            dead: false,
+            sick: false,
+          },
+        });
+        this.emitStaminaChanged(stamina, maxStamina);
+      }
+    } catch (error) {
+      console.error("스태미나 초기화 중 오류:", error);
+      // 오류 발생 시 기본값으로 초기화
+      this.emitStaminaChanged(
+        initialStaminaValue,
+        this.characterInfo.maxStamina
+      );
+    }
   }
 
   /**
@@ -253,6 +275,14 @@ export class Character extends PIXI.Container {
    * @param food 먹을 음식 객체
    */
   public addFoodToQueue(food: Food): void {
+    // 디버그 모드에서 음식 먹기가 방지된 경우 대기열에 추가하지 않음
+    if (DebugFlags.getInstance().isEatingPrevented()) {
+      console.log(
+        "디버그 모드: 음식 먹기가 방지되어 대기열에 추가하지 않습니다."
+      );
+      return;
+    }
+
     this.foodQueue.push(food);
     console.log(
       `음식이 대기열에 추가되었습니다. 현재 대기열 길이: ${this.foodQueue.length}`
@@ -295,7 +325,9 @@ export class Character extends PIXI.Container {
 
           // 음식 먹기가 완료되었으므로 대기열에서 제거
           this.foodQueue.shift();
-          console.log(`음식을 먹었습니다. 현재 스태미나: ${this.stamina}`);
+          console.log(
+            `음식을 먹었습니다. 현재 스태미나: ${await this.getStamina()}`
+          );
         } catch (error) {
           console.error("음식 먹기 중 오류 발생:", error);
           // 오류가 발생한 음식은 대기열에서 제거
@@ -309,6 +341,7 @@ export class Character extends PIXI.Container {
       // 다음 음식이 있고 아직 먹는 중이 아니라면 다음 음식 처리
       if (
         this.foodQueue.length > 0 &&
+        // @ts-ignore FIXME: 상세화가 필요함.
         this.currentState !== CharacterState.EATING
       ) {
         // 다음 프레임에서 처리하여 상태가 제대로 업데이트되도록 함
@@ -320,28 +353,48 @@ export class Character extends PIXI.Container {
   /**
    * 캐릭터의 현재 스태미나를 반환합니다.
    */
-  public getStamina(): number {
-    return this.stamina;
+  public async getStamina(): Promise<number> {
+    try {
+      const gameData = await GameDataManager.loadData();
+      return gameData?.status.stamina ?? 0;
+    } catch (error) {
+      console.error("스태미나 가져오기 오류:", error);
+      return 0;
+    }
   }
 
   /**
    * 캐릭터의 최대 스태미나를 반환합니다.
    */
   public getMaxStamina(): number {
-    return CHARACTER_MAX_STAMINA;
+    return this.characterInfo.maxStamina;
   }
 
   /**
    * 스태미나를 증가시킵니다.
    * @param amount 증가시킬 양
    */
-  public increaseStamina(amount: number): void {
-    const prevStamina = this.stamina;
-    this.stamina = Math.min(CHARACTER_MAX_STAMINA, this.stamina + amount);
+  public async increaseStamina(amount: number): Promise<void> {
+    try {
+      const gameData = await GameDataManager.loadData();
+      if (!gameData) return;
 
-    // 스태미나가 변경되었을 때만 이벤트 발생
-    if (prevStamina !== this.stamina) {
-      this.emitStaminaChanged();
+      const currentStamina = gameData.status.stamina;
+      const maxStamina = this.characterInfo.maxStamina;
+      const newStamina = Math.min(maxStamina, currentStamina + amount);
+
+      if (newStamina !== currentStamina) {
+        await GameDataManager.updateData({
+          status: {
+            ...gameData.status,
+            stamina: newStamina,
+          },
+        });
+
+        this.emitStaminaChanged(newStamina, maxStamina);
+      }
+    } catch (error) {
+      console.error("스태미나 증가 오류:", error);
     }
   }
 
@@ -350,27 +403,40 @@ export class Character extends PIXI.Container {
    * @param amount 감소시킬 양
    * @returns 스태미나가 충분했는지 여부
    */
-  public decreaseStamina(amount: number): boolean {
-    if (this.stamina >= amount) {
-      const prevStamina = this.stamina;
-      this.stamina -= amount;
+  public async decreaseStamina(amount: number): Promise<boolean> {
+    try {
+      const gameData = await GameDataManager.loadData();
+      if (!gameData) return false;
 
-      // 스태미나가 변경되었을 때만 이벤트 발생
-      if (prevStamina !== this.stamina) {
-        this.emitStaminaChanged();
+      const currentStamina = gameData.status.stamina;
+
+      if (currentStamina >= amount) {
+        const newStamina = currentStamina - amount;
+
+        await GameDataManager.updateData({
+          status: {
+            ...gameData.status,
+            stamina: newStamina,
+          },
+        });
+
+        this.emitStaminaChanged(newStamina, this.characterInfo.maxStamina);
+        return true;
       }
-      return true;
+      return false;
+    } catch (error) {
+      console.error("스태미나 감소 오류:", error);
+      return false;
     }
-    return false;
   }
 
   /**
    * 스태미나 변경 이벤트 발생
    */
-  private emitStaminaChanged(): void {
+  private emitStaminaChanged(current: number, max: number): void {
     this.eventBus.emit(EventTypes.CHARACTER.STAMINA_CHANGED, {
-      current: this.stamina,
-      max: CHARACTER_MAX_STAMINA,
+      current,
+      max,
     });
   }
 

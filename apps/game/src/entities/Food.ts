@@ -239,6 +239,14 @@ export class Food implements Cleanable {
     console.log("Food landed at position:", position);
     this.foodState = FoodState.LANDED;
 
+    // 디버그 모드에서 음식 먹기가 방지된 경우 먹지 않음
+    if (DebugFlags.getInstance().isEatingPrevented()) {
+      console.log(
+        "디버그 모드: preventEating 플래그가 활성화되어 음식에 접근하지 않습니다."
+      );
+      return;
+    }
+
     // 상한 음식이 아니고, 캐릭터가 있을 경우에만 대기열에 추가
     if (this.options.character && this.freshness !== FoodFreshness.STALE) {
       this.options.character.addFoodToQueue(this);
@@ -320,6 +328,28 @@ export class Food implements Cleanable {
       !this.targetPosition ||
       !this.movementController
     ) {
+      return;
+    }
+
+    // 이동 중에 디버그 플래그가 활성화되면 이동 중단
+    if (DebugFlags.getInstance().isEatingPrevented()) {
+      console.log(
+        "디버그 모드: preventEating 플래그가 활성화되어 음식으로의 이동을 중단합니다."
+      );
+
+      // 캐릭터 상태 원래대로 복원하고 랜덤 움직임 다시 활성화
+      this.options.character.update(CharacterState.IDLE);
+      this.options.character.enableRandomMovement();
+
+      // 음식 상태를 LANDED로 되돌림
+      this.foodState = FoodState.LANDED;
+
+      // Promise 해결 (음식 처리 완료로 간주)
+      if (this.eatingFinishedResolve) {
+        this.eatingFinishedResolve();
+        this.eatingFinishedResolve = undefined;
+      }
+
       return;
     }
 

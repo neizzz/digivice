@@ -1,45 +1,43 @@
 import type * as PIXI from "pixi.js";
-import { CHARACTER_MAX_STAMINA } from "../entities/Character";
+import { DebugFlags } from "./DebugFlags";
 import { EventBus, EventTypes } from "./EventBus";
 
+// 게임 상태를 위한 타입 정의
+declare global {
+  interface Window {
+    gameState?: {
+      stamina?: number;
+      maxStamina?: number;
+    };
+    debug?: {
+      togglePreventEating: () => boolean;
+      showFlags: () => void;
+    };
+  }
+}
+
 /**
- * 게임 디버그용 UI를 관리하는 클래스
- * - 스태미나 표시
- * - 기타 디버그 정보 표시
+ * 게임 내 디버그 정보를 UI로 표시하는 클래스
  */
 export class DebugUI {
-  private static instance?: DebugUI;
-  private container: HTMLDivElement;
-  private staminaElement: HTMLDivElement | null = null;
+  private static instance: DebugUI;
+  private container: HTMLDivElement | null = null;
+  private debugFlags: DebugFlags;
   private eventBus: EventBus;
+  // 스태미나 현재/최대 값 저장
+  private staminaState = {
+    current: 0,
+    max: 10, // 초기값 설정 (실제값은 이벤트에서 받아옴)
+  };
 
-  /**
-   * 생성자는 프라이빗으로, getInstance를 통해서만 접근 가능
-   */
   private constructor() {
+    this.debugFlags = DebugFlags.getInstance();
     this.eventBus = EventBus.getInstance();
+    this.createUI();
+    this.showDebugUI(); // 생성 즉시 UI 표시
 
-    // DOM 요소 생성
-    this.container = document.createElement("div");
-    this.container.id = "debug-ui-container";
-    this.container.style.position = "fixed";
-    this.container.style.top = "0";
-    this.container.style.left = "0";
-    this.container.style.zIndex = "10000";
-    this.container.style.padding = "10px";
-    this.container.style.backgroundColor = "rgba(0, 0, 0, 0.5)";
-    this.container.style.color = "white";
-    this.container.style.fontFamily = "Arial, sans-serif";
-    this.container.style.fontSize = "14px";
-    this.container.style.display = "block"; // 항상 표시
-
-    document.body.appendChild(this.container);
-
-    // UI 초기화
-    this.initUI();
-
-    // 이벤트 구독
-    this.subscribeToEvents();
+    // 스태미나 변경 이벤트 구독
+    this.subscribeToStaminaChanges();
   }
 
   /**
@@ -53,79 +51,124 @@ export class DebugUI {
   }
 
   /**
-   * 디버그 UI 초기화
+   * 스태미나 변경 이벤트 구독
    */
-  private initUI(): void {
-    // 스태미나 요소 생성
-    this.staminaElement = document.createElement("div");
-    this.staminaElement.style.marginBottom = "5px";
-    this.staminaElement.style.textShadow = "1px 1px 2px black";
-    this.staminaElement.innerHTML = "스태미나: 0/0";
-
-    // 컨테이너에 추가
-    this.container.appendChild(this.staminaElement);
-  }
-
-  /**
-   * 이벤트 구독
-   */
-  private subscribeToEvents(): void {
-    // 스태미나 변경 이벤트 구독
-    this.eventBus.on(EventTypes.CHARACTER.STAMINA_CHANGED, (data) => {
-      this.updateStamina(data.current, data.max);
-    });
-  }
-
-  /**
-   * 스태미나 텍스트 업데이트
-   * @param current 현재 스태미나 값
-   * @param max 최대 스태미나 값
-   */
-  public updateStamina(
-    current: number,
-    max: number = CHARACTER_MAX_STAMINA
-  ): void {
-    if (this.staminaElement) {
-      this.staminaElement.innerHTML = `스태미나: ${current}/${max}`;
-    }
-  }
-
-  /**
-   * 디버그 텍스트 메시지 표시
-   * @param message 표시할 메시지
-   * @param duration 표시 지속 시간(ms), 기본값은 3초
-   */
-  public showMessage(message: string, duration = 3000): void {
-    // 메시지 요소 생성
-    const messageElement = document.createElement("div");
-    messageElement.style.color = "#ffff00";
-    messageElement.style.marginTop = "5px";
-    messageElement.style.textShadow = "1px 1px 2px black";
-    messageElement.innerHTML = message;
-
-    // 컨테이너에 추가
-    this.container.appendChild(messageElement);
-
-    // 일정 시간 후 제거
-    setTimeout(() => {
-      if (messageElement.parentNode === this.container) {
-        this.container.removeChild(messageElement);
+  private subscribeToStaminaChanges(): void {
+    this.eventBus.on(
+      EventTypes.CHARACTER.STAMINA_CHANGED,
+      (data: { current: number; max: number }) => {
+        this.staminaState.current = data.current;
+        this.staminaState.max = data.max;
+        this.updateUI();
       }
-    }, duration);
+    );
   }
 
   /**
-   * DebugUI 정리 (앱 종료 시 호출)
+   * 디버그 UI 생성
    */
-  public destroy(): void {
-    // 이벤트 구독 해제
-    this.eventBus.off(EventTypes.CHARACTER.STAMINA_CHANGED);
+  private createUI(): void {
+    // 메인 컨테이너 생성
+    this.container = document.createElement("div");
+    this.container.className = "debug-panel";
+    this.container.style.position = "fixed";
+    this.container.style.top = "10px";
+    this.container.style.left = "10px"; // 왼쪽에 배치하도록 수정
+    this.container.style.backgroundColor = "rgba(0, 0, 0, 0.1)";
+    this.container.style.color = "white";
+    this.container.style.padding = "0 10px";
+    this.container.style.borderRadius = "5px";
+    this.container.style.fontFamily = "monospace";
+    this.container.style.fontSize = "12px";
+    this.container.style.zIndex = "9999";
 
-    // DOM 요소 제거
-    if (this.container?.parentNode) {
-      this.container.parentNode.removeChild(this.container);
-    }
+    // 플래그 컨테이너
+    const flagsContainer = document.createElement("div");
+    flagsContainer.id = "debug-flags-container";
+    this.container.appendChild(flagsContainer);
 
-    DebugUI.instance = undefined;
+    // UI를 body에 추가
+    document.body.appendChild(this.container);
+
+    // 초기 상태 업데이트
+    this.updateUI();
+  }
+
+  /**
+   * 디버그 UI 표시
+   */
+  public showDebugUI(): void {
+    if (!this.container) return;
+    this.container.style.display = "block";
+    this.updateUI();
+  }
+
+  /**
+   * UI 정보 업데이트
+   */
+  public updateUI(): void {
+    if (!this.container) return;
+
+    const flagsContainer = this.container.querySelector(
+      "#debug-flags-container"
+    );
+    if (!flagsContainer) return;
+
+    // UI 초기화
+    flagsContainer.innerHTML = "";
+
+    // 스태미나 표시
+    const staminaItem = document.createElement("div");
+    staminaItem.style.margin = "5px 0";
+
+    const staminaLabel = document.createElement("span");
+    staminaLabel.textContent = "스태미나: ";
+
+    const staminaValue = document.createElement("span");
+    staminaValue.textContent = `${this.staminaState.current}/${this.staminaState.max}`;
+    staminaValue.style.color = "#8ff";
+
+    staminaItem.appendChild(staminaLabel);
+    staminaItem.appendChild(staminaValue);
+    flagsContainer.appendChild(staminaItem);
+
+    // preventEating 플래그 표시
+    const preventEatingItem = document.createElement("div");
+    preventEatingItem.style.margin = "5px 0";
+
+    const statusIndicator = document.createElement("span");
+
+    const flagName = document.createElement("span");
+    flagName.textContent = "preventEating: ";
+
+    const flagValue = document.createElement("span");
+    flagValue.textContent = this.debugFlags.isEatingPrevented().toString();
+    flagValue.style.color = this.debugFlags.isEatingPrevented()
+      ? "#8f8"
+      : "#f88";
+
+    const toggleButton = document.createElement("button");
+    toggleButton.textContent = "토글";
+    toggleButton.style.marginLeft = "10px";
+    toggleButton.style.padding = "2px 5px";
+    toggleButton.style.backgroundColor = "#444";
+    toggleButton.style.border = "1px solid #666";
+    toggleButton.style.borderRadius = "3px";
+    toggleButton.style.color = "white";
+    toggleButton.style.cursor = "pointer";
+
+    toggleButton.addEventListener("click", () => {
+      // 디버그 플래그 토글
+      window.debug?.togglePreventEating();
+      // UI 업데이트
+      this.updateUI();
+    });
+
+    preventEatingItem.appendChild(statusIndicator);
+    preventEatingItem.appendChild(flagName);
+    preventEatingItem.appendChild(flagValue);
+    preventEatingItem.appendChild(toggleButton);
+
+    flagsContainer.appendChild(preventEatingItem);
   }
 }

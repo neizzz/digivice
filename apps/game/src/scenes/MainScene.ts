@@ -238,7 +238,6 @@ export class MainScene extends PIXI.Container implements Scene {
         break;
       case GameMenuItemType.Feed:
         {
-          console.log("먹이 버튼 선택");
           // 음식 생성 및 던지기
           this.throwFood();
         }
