@@ -60,7 +60,7 @@ export class Game {
     // from "@digivice/client"
     if (import.meta.env.DEV === true) {
       DebugFlags.getInstance(); // 인스턴스 생성
-      DebugUI.getInstance(this.app);
+      DebugUI.getInstance();
     }
   }
 

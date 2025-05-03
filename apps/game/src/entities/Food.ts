@@ -392,12 +392,15 @@ export class Food implements Cleanable {
     const isCharacterLeftOfFood = characterPos.x < foodPos.x;
 
     // 캐릭터의 현재 위치에서 가까운 쪽으로 접근하도록 설정
-    // 음식의 좌우 30픽셀 지점을 목표로 설정
-    const offsetX = isCharacterLeftOfFood ? -30 : 30;
+    // X좌표: 음식의 좌우 15픽셀 지점으로 설정 (더 가깝게 변경)
+    const offsetX = isCharacterLeftOfFood ? -15 : 15;
+
+    // Y좌표: 음식보다 20픽셀 위에 위치하도록 설정
+    const offsetY = -15;
 
     return {
       x: foodPos.x + offsetX,
-      y: foodPos.y,
+      y: foodPos.y + offsetY, // 음식보다 위쪽에 위치하도록 함
     };
   }
 

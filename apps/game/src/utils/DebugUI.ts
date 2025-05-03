@@ -8,18 +8,15 @@ import { EventBus, EventTypes } from "./EventBus";
  * - 기타 디버그 정보 표시
  */
 export class DebugUI {
-  private static instance: DebugUI;
-  private app: PIXI.Application;
+  private static instance?: DebugUI;
   private container: HTMLDivElement;
   private staminaElement: HTMLDivElement | null = null;
   private eventBus: EventBus;
-  private domInitialized = false;
 
   /**
    * 생성자는 프라이빗으로, getInstance를 통해서만 접근 가능
    */
-  private constructor(app: PIXI.Application) {
-    this.app = app;
+  private constructor() {
     this.eventBus = EventBus.getInstance();
 
     // DOM 요소 생성
@@ -43,19 +40,14 @@ export class DebugUI {
 
     // 이벤트 구독
     this.subscribeToEvents();
-
-    this.domInitialized = true;
   }
 
   /**
    * DebugUI 싱글톤 인스턴스를 반환
    */
-  public static getInstance(app?: PIXI.Application): DebugUI {
+  public static getInstance(): DebugUI {
     if (!DebugUI.instance) {
-      if (!app) {
-        throw new Error("DebugUI를 초기화하려면 PIXI.Application이 필요합니다");
-      }
-      DebugUI.instance = new DebugUI(app);
+      DebugUI.instance = new DebugUI();
     }
     return DebugUI.instance;
   }
@@ -130,10 +122,10 @@ export class DebugUI {
     this.eventBus.off(EventTypes.CHARACTER.STAMINA_CHANGED);
 
     // DOM 요소 제거
-    if (this.container && this.container.parentNode) {
+    if (this.container?.parentNode) {
       this.container.parentNode.removeChild(this.container);
     }
 
-    DebugUI.instance = null as any;
+    DebugUI.instance = undefined;
   }
 }
