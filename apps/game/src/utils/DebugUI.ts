@@ -1,6 +1,6 @@
-import type * as PIXI from "pixi.js";
 import { DebugFlags } from "./DebugFlags";
 import { EventBus, EventTypes } from "./EventBus";
+import type { Character } from "entities/Character";
 
 // 게임 상태를 위한 타입 정의
 declare global {
@@ -12,6 +12,7 @@ declare global {
     debug?: {
       togglePreventEating: () => boolean;
       showFlags: () => void;
+      createPoob?: () => void; // createPoob 메서드 추가
     };
   }
 }
@@ -22,8 +23,10 @@ declare global {
 export class DebugUI {
   private static instance: DebugUI;
   private container: HTMLDivElement | null = null;
+  private actionButtonsContainer: HTMLDivElement | null = null; // 액션 버튼 컨테이너 추가
   private debugFlags: DebugFlags;
   private eventBus: EventBus;
+  private character: any = null; // 캐릭터 참조 저장
   // 스태미나 현재/최대 값 저장
   private staminaState = {
     current: 0,
@@ -48,6 +51,41 @@ export class DebugUI {
       DebugUI.instance = new DebugUI();
     }
     return DebugUI.instance;
+  }
+
+  /**
+   * 캐릭터 객체 참조 설정
+   * @param character 게임 내 캐릭터 객체
+   */
+  public setCharacter(character: Character): void {
+    this.character = character;
+
+    // 전역 디버그 함수에 createPoob 추가
+    if (window.debug) {
+      window.debug.createPoob = () => {
+        this.createPoob();
+      };
+    }
+  }
+
+  /**
+   * Poob 생성 함수
+   */
+  private createPoob(): void {
+    if (!this.character) {
+      console.error("캐릭터 객체가 설정되지 않았습니다.");
+      return;
+    }
+
+    try {
+      // 캐릭터의 createPoob 메서드 호출
+      const poob = this.character.createPoob();
+      if (poob) {
+        console.log("Poob이 생성되었습니다:", poob);
+      }
+    } catch (error) {
+      console.error("Poob 생성 중 오류 발생:", error);
+    }
   }
 
   /**
@@ -87,6 +125,9 @@ export class DebugUI {
     flagsContainer.id = "debug-flags-container";
     this.container.appendChild(flagsContainer);
 
+    // 액션 버튼 컨테이너 생성 (오른쪽 상단)
+    this.createActionButtonsContainer();
+
     // UI를 body에 추가
     document.body.appendChild(this.container);
 
@@ -95,11 +136,78 @@ export class DebugUI {
   }
 
   /**
+   * 액션 버튼 컨테이너 생성 (오른쪽 상단)
+   */
+  private createActionButtonsContainer(): void {
+    // 액션 버튼 컨테이너 생성
+    this.actionButtonsContainer = document.createElement("div");
+    this.actionButtonsContainer.className = "debug-action-buttons";
+    this.actionButtonsContainer.style.position = "fixed";
+    this.actionButtonsContainer.style.top = "10px";
+    this.actionButtonsContainer.style.right = "10px"; // 오른쪽 상단에 배치
+    this.actionButtonsContainer.style.display = "flex";
+    this.actionButtonsContainer.style.flexDirection = "column";
+    this.actionButtonsContainer.style.gap = "5px";
+    this.actionButtonsContainer.style.zIndex = "9999";
+
+    // createPoob 버튼 생성
+    const createPoobButton = this.createActionButton("Poob 생성", () => {
+      this.createPoob();
+    });
+
+    this.actionButtonsContainer.appendChild(createPoobButton);
+
+    // 추가 액션 버튼은 여기에 계속 추가 가능
+
+    // body에 액션 버튼 컨테이너 추가
+    document.body.appendChild(this.actionButtonsContainer);
+  }
+
+  /**
+   * 액션 버튼 생성 헬퍼 함수
+   * @param label 버튼 레이블
+   * @param onClick 클릭 이벤트 핸들러
+   */
+  private createActionButton(
+    label: string,
+    onClick: () => void
+  ): HTMLButtonElement {
+    const button = document.createElement("button");
+    button.textContent = label;
+    button.style.padding = "5px 10px";
+    button.style.backgroundColor = "#555";
+    button.style.color = "white";
+    button.style.border = "1px solid #777";
+    button.style.borderRadius = "4px";
+    button.style.cursor = "pointer";
+    button.style.fontSize = "12px";
+    button.style.fontFamily = "monospace";
+    button.style.boxShadow = "0 2px 4px rgba(0,0,0,0.3)";
+    button.style.transition = "background-color 0.2s";
+
+    // 호버 효과
+    button.onmouseover = () => {
+      button.style.backgroundColor = "#666";
+    };
+    button.onmouseout = () => {
+      button.style.backgroundColor = "#555";
+    };
+
+    // 클릭 이벤트
+    button.onclick = onClick;
+
+    return button;
+  }
+
+  /**
    * 디버그 UI 표시
    */
   public showDebugUI(): void {
     if (!this.container) return;
     this.container.style.display = "block";
+    if (this.actionButtonsContainer) {
+      this.actionButtonsContainer.style.display = "flex";
+    }
     this.updateUI();
   }
 

@@ -11,6 +11,7 @@ import type { Food } from "./Food";
 import { EventBus, EventTypes } from "../utils/EventBus";
 import { GameDataManager } from "../utils/GameDataManager";
 import { DebugFlags } from "../utils/DebugFlags";
+import { Poob } from "./Poob"; // Poob 클래스 임포트 추가
 
 export class Character extends PIXI.Container {
   public animatedSprite: PIXI.AnimatedSprite | undefined;
@@ -452,5 +453,37 @@ export class Character extends PIXI.Container {
    */
   public getFoodQueueLength(): number {
     return this.foodQueue.length;
+  }
+
+  /**
+   * 캐릭터 위치에 Poob을 생성합니다.
+   * @returns 생성된 Poob 객체
+   */
+  public createPoob(): Poob | null {
+    if (!this.app) {
+      console.error("App reference is not set, cannot create Poob");
+      return null;
+    }
+
+    const position = this.getPosition();
+    // y좌표는 캐릭터보다 10 더 크게 설정
+    const poobPosition = {
+      x: position.x,
+      y: position.y + 10,
+    };
+
+    // Poob 생성
+    const poob = new Poob(
+      this.app,
+      this.app.stage, // 스테이지에 직접 추가
+      { position: poobPosition }
+    );
+
+    // 이벤트 발생 (위치 정보만 포함)
+    this.eventBus.emit(EventTypes.CHARACTER.POOB_CREATED, {
+      position: poobPosition,
+    });
+
+    return poob;
   }
 }

@@ -1,3 +1,5 @@
+import type { Poob } from "entities/Poob";
+
 /**
  * 게임 내 이벤트 타입 정의
  */
@@ -5,6 +7,7 @@ export const EventTypes = {
   // 캐릭터 관련 이벤트
   CHARACTER: {
     STAMINA_CHANGED: "character:stamina_changed" as const,
+    POOB_CREATED: "character:poob_created" as const, // Poob 생성 이벤트 추가
   },
 
   // UI 관련 이벤트
@@ -18,7 +21,9 @@ export const EventTypes = {
 };
 
 // 이벤트 타입의 모든 값을 유니온 타입으로 추출
-type EventTypesValues = typeof EventTypes.CHARACTER.STAMINA_CHANGED;
+type EventTypesValues =
+  | typeof EventTypes.CHARACTER.STAMINA_CHANGED
+  | typeof EventTypes.CHARACTER.POOB_CREATED;
 // | typeof EventTypes.UI.REFRESH_DEBUG
 // | typeof EventTypes.GAME.STATE_CHANGED;
 
@@ -29,6 +34,9 @@ type EventTypesValues = typeof EventTypes.CHARACTER.STAMINA_CHANGED;
 export interface EventDataMap {
   // 캐릭터 관련 이벤트
   [EventTypes.CHARACTER.STAMINA_CHANGED]: { current: number; max: number };
+  [EventTypes.CHARACTER.POOB_CREATED]: {
+    position: { x: number; y: number };
+  }; // poob 객체 제거하고 위치 정보만 유지
 
   // UI 관련 이벤트
   // [EventTypes.UI.REFRESH_DEBUG]: { timestamp: number };

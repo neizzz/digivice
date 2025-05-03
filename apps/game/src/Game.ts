@@ -7,6 +7,9 @@ import type { ControlButtonParams, ControlButtonType } from "./ui/types";
 import { AssetLoader } from "./utils/AssetLoader";
 import { DebugUI } from "./utils/DebugUI";
 import { DebugFlags } from "./utils/DebugFlags";
+import { Character } from "./entities/Character"; // 캐릭터 임포트
+import { CharacterKey } from "./types/Character";
+import { GameDataManager } from "./utils/GameDataManager"; // GameDataManager 임포트
 
 PIXI.BaseTexture.defaultOptions.scaleMode = PIXI.SCALE_MODES.NEAREST;
 
@@ -21,6 +24,7 @@ export type ControlButtonsChangeCallback = (
 export class Game {
   public app: PIXI.Application;
   public changeControlButtons: ControlButtonsChangeCallback;
+  public character?: Character; // 캐릭터 인스턴스 추가
 
   private currentScene?: Scene;
   private scenes: Map<SceneKey, Scene> = new Map();
@@ -80,16 +84,57 @@ export class Game {
           this.assetsLoaded = true;
           console.log("에셋 로딩 완료");
 
-          // 기본 씬 설정
-          this.setupInitialScene();
+          // 캐릭터 초기화
+          this.initializeCharacter().then(() => {
+            // 기본 씬 설정
+            this.setupInitialScene();
 
-          // 게임 루프 설정
-          this.setupGameLoop();
+            // 게임 루프 설정
+            this.setupGameLoop();
+          });
         })
         .catch((error) => {
           console.error("에셋 로딩 오류:", error);
         });
     });
+  }
+
+  /**
+   * 캐릭터 초기화
+   */
+  private async initializeCharacter(): Promise<void> {
+    try {
+      const gameData = await GameDataManager.loadData();
+
+      if (!gameData) {
+        throw new Error("게임 데이터가 없습니다");
+      }
+
+      // 캐릭터 생성
+      this.character = new Character({
+        characterKey: gameData.character.key,
+        initialPosition: {
+          x: this.app.screen.width / 2,
+          y: this.app.screen.height / 2,
+        },
+        app: this.app,
+        movementOptions: {
+          minIdleTime: 3000,
+          maxIdleTime: 8000,
+          minMoveTime: 2000,
+          maxMoveTime: 7000,
+          boundaryPadding: 40,
+        },
+      });
+
+      // DebugUI에 캐릭터 참조 설정
+      DebugUI.getInstance().setCharacter(this.character);
+
+      console.log("캐릭터 초기화 완료");
+    } catch (error) {
+      console.error("캐릭터 초기화 중 오류:", error);
+      throw error;
+    }
   }
 
   /**

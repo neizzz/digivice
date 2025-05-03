@@ -2,6 +2,7 @@ import * as PIXI from "pixi.js";
 import type { Cleanable } from "../interfaces/Cleanable";
 import { Poob } from "../entities/Poob";
 import type { Character } from "../entities/Character";
+import { EventBus, EventTypes } from "../utils/EventBus";
 
 /**
  * 청소 상태를 나타내는 enum
@@ -29,7 +30,6 @@ export class CleaningManager {
   private app: PIXI.Application;
   private parent: PIXI.Container;
   private character?: Character; // 캐릭터 참조 추가
-  private charactersContainer?: PIXI.Container;
   private cleanableObjects: Cleanable[] = [];
   private currentCleanableIndex = -1;
   private cleaningState: CleaningState = CleaningState.INACTIVE;
@@ -39,6 +39,9 @@ export class CleaningManager {
 
   // 빗자루 위치 표시용 스프라이트
   private broomIndicator?: PIXI.Sprite;
+
+  // 이벤트 버스 추가
+  private eventBus: EventBus;
 
   /**
    * @param options 청소 관리자 옵션
@@ -50,8 +53,38 @@ export class CleaningManager {
     this.charactersContainer = options.charactersContainer;
     this.onCleaningComplete = options.onCleaningComplete;
 
+    // 이벤트 버스 초기화
+    this.eventBus = EventBus.getInstance();
+
     // 빗자루 위치 표시 스프라이트 초기화
     this.initBroomIndicator();
+
+    // Poob 생성 이벤트 구독
+    this.subscribeToPoobCreated();
+  }
+
+  /**
+   * Poob 생성 이벤트를 구독하는 메서드
+   */
+  private subscribeToPoobCreated(): void {
+    this.eventBus.on(EventTypes.CHARACTER.POOB_CREATED, (data) => {
+      if (this.isActive) {
+        // 위치 정보만 받아서 해당 위치에 Poob 생성
+        const poob = new Poob(this.app, this.parent, {
+          position: data.position,
+        });
+
+        // 활성화 상태일 때만 청소 대상으로 추가
+        this.addCleanableObject(poob);
+        console.log(
+          `Poob 생성 이벤트 감지: 위치 (${data.position.x}, ${data.position.y})에 Poob 추가됨`
+        );
+      } else {
+        console.log(
+          `Poob 생성 이벤트 감지: 위치 (${data.position.x}, ${data.position.y}), 청소 관리자 비활성 상태`
+        );
+      }
+    });
   }
 
   /**
@@ -337,5 +370,8 @@ export class CleaningManager {
       this.broomIndicator.destroy();
       this.broomIndicator = undefined;
     }
+
+    // 이벤트 구독 해제
+    this.eventBus.off(EventTypes.CHARACTER.POOB_CREATED);
   }
 }
