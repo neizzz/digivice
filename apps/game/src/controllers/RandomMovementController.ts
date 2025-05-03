@@ -10,8 +10,9 @@ export interface MovementOptions {
   maxIdleTime: number; // 최대 휴식 시간 (ms)
   minMoveTime: number; // 최소 이동 시간 (ms)
   maxMoveTime: number; // 최대 이동 시간 (ms)
-  boundaryPadding?: number; // 화면 경계 여백
 }
+
+const BOUNDARY_PADDING = 10; // 화면 경계 패딩
 
 export class RandomMovementController extends MovementController {
   private isMovingState = false;
@@ -26,7 +27,6 @@ export class RandomMovementController extends MovementController {
     maxIdleTime: 3000,
     minMoveTime: 1000,
     maxMoveTime: 5000,
-    boundaryPadding: 20,
   };
 
   constructor(
@@ -54,13 +54,11 @@ export class RandomMovementController extends MovementController {
   }
 
   private updateBounds(): void {
-    const padding = this.options.boundaryPadding || 10;
-
     this.bounds = new PIXI.Rectangle(
-      padding,
-      padding,
-      this.app.screen.width - padding * 2,
-      this.app.screen.height - padding * 2
+      BOUNDARY_PADDING,
+      BOUNDARY_PADDING,
+      this.app.screen.width - BOUNDARY_PADDING,
+      this.app.screen.height - BOUNDARY_PADDING
     );
   }
 
