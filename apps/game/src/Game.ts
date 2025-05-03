@@ -5,6 +5,8 @@ import { FlappyBirdGameScene } from "./scenes/FlappyBirdGameScene";
 import { MainScene } from "./scenes/MainScene";
 import type { ControlButtonParams, ControlButtonType } from "./ui/types";
 import { AssetLoader } from "./utils/AssetLoader";
+import { DebugUI } from "./utils/DebugUI";
+import { DebugFlags } from "./utils/DebugFlags";
 
 PIXI.BaseTexture.defaultOptions.scaleMode = PIXI.SCALE_MODES.NEAREST;
 
@@ -53,6 +55,13 @@ export class Game {
 
     // 초기화 프로세스 시작
     this.startInitialization();
+
+    // NOTE: 디버그 UI 초기화
+    // from "@digivice/client"
+    if (import.meta.env.DEV === true) {
+      DebugFlags.getInstance(); // 인스턴스 생성
+      DebugUI.getInstance(this.app);
+    }
   }
 
   /**

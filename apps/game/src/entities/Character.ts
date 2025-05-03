@@ -7,6 +7,11 @@ import {
 import type { Position } from "../types/Position";
 import { AssetLoader } from "../utils/AssetLoader";
 import { RandomMovementController } from "../controllers/RandomMovementController";
+import type { Food } from "./Food";
+import { EventBus, EventTypes } from "../utils/EventBus";
+
+// 캐릭터 관련 전역 상수
+export const CHARACTER_MAX_STAMINA = 10; // 최대 스태미나
 
 export class Character extends PIXI.Container {
   public animatedSprite: PIXI.AnimatedSprite | undefined;
@@ -19,6 +24,10 @@ export class Character extends PIXI.Container {
   private flipCharacter = false; // 캐릭터 좌우 반전 여부
   private randomMovementController: RandomMovementController; // 랜덤 움직임 컨트롤러 참조
   private app?: PIXI.Application; // PIXI 애플리케이션 참조
+  private stamina = 5; // 캐릭터 스태미나 (기본값 5, 최소 0, 최대 10)
+  private foodQueue: Food[] = []; // 먹을 음식 대기열
+  private eventBus: EventBus; // 이벤트 버스 인스턴스
+  private isMovingToFood = false; // 캐릭터가 음식으로 이동 중인지 나타내는 플래그
 
   constructor(params: {
     characterKey: CharacterKey; // CharacterKey 사용
@@ -31,8 +40,12 @@ export class Character extends PIXI.Container {
       maxMoveTime: number;
       boundaryPadding: number;
     };
+    initialStamina?: number; // 초기 스태미나 (선택사항)
   }) {
     super();
+
+    // 이벤트 버스 인스턴스 가져오기
+    this.eventBus = EventBus.getInstance();
 
     const characterInfo = CharacterDictionary[params.characterKey];
 
@@ -41,6 +54,19 @@ export class Character extends PIXI.Container {
     this.scaleFactor = characterInfo.scale;
     this.animationMapping = characterInfo.animationMapping;
     this.app = params.app;
+
+    // 초기 스태미나 설정 (우선순위: 파라미터 > 메타데이터 > 기본값)
+    if (params.initialStamina !== undefined) {
+      this.stamina = Math.max(
+        0,
+        Math.min(CHARACTER_MAX_STAMINA, params.initialStamina)
+      );
+    } else if (characterInfo.initialStamina !== undefined) {
+      this.stamina = Math.max(
+        0,
+        Math.min(CHARACTER_MAX_STAMINA, characterInfo.initialStamina)
+      );
+    }
 
     // RandomMovementController 초기화
     this.randomMovementController = this.initRandomMovementController(
@@ -55,6 +81,9 @@ export class Character extends PIXI.Container {
       // 초기 애니메이션 설정
       this.setAnimation("idle");
     });
+
+    // 초기 상태 이벤트 발생
+    this.emitStaminaChanged();
   }
 
   /**
@@ -71,19 +100,8 @@ export class Character extends PIXI.Container {
       throw new Error("App reference is not set");
     }
 
-    // 기본 움직임 옵션
-    const defaultOptions = {
-      minIdleTime: 3000,
-      maxIdleTime: 8000,
-      minMoveTime: 2000,
-      maxMoveTime: 7000,
-      boundaryPadding: 40,
-    };
-
     // 사용자 옵션과 기본 옵션 병합
-    const options = movementOptions
-      ? { ...defaultOptions, ...movementOptions }
-      : defaultOptions;
+    const options = movementOptions;
 
     // RandomMovementController 생성
     return new RandomMovementController(this, this.app, options);
@@ -228,5 +246,145 @@ export class Character extends PIXI.Container {
       this.randomMovementController.enable();
       console.log("Random movement enabled for character");
     }
+  }
+
+  /**
+   * 음식을 대기열에 추가합니다.
+   * @param food 먹을 음식 객체
+   */
+  public addFoodToQueue(food: Food): void {
+    this.foodQueue.push(food);
+    console.log(
+      `음식이 대기열에 추가되었습니다. 현재 대기열 길이: ${this.foodQueue.length}`
+    );
+
+    // 현재 먹고 있지 않고, 먹는 중이 아니고, 다른 음식으로 이동하는 중이 아닐 때만 먹기 시작
+    if (this.currentState !== CharacterState.EATING && !this.isMovingToFood) {
+      this.processNextFood();
+    }
+  }
+
+  /**
+   * 대기열에서 다음 음식을 처리합니다.
+   */
+  private async processNextFood(): Promise<void> {
+    // 대기열이 비어있거나 이미 먹는 중이거나 다른 음식으로 이동 중이면 처리하지 않음
+    if (
+      this.foodQueue.length === 0 ||
+      this.currentState === CharacterState.EATING ||
+      this.isMovingToFood
+    ) {
+      return;
+    }
+
+    try {
+      // 음식을 먹기 위해 이동 중임을 표시
+      this.isMovingToFood = true;
+
+      // 대기열의 첫 번째 음식 가져오기 (아직 제거하지 않음)
+      const food = this.foodQueue[0];
+
+      // 음식이 존재하면 접근 명령 실행
+      if (food) {
+        // 랜덤 움직임 비활성화 및 음식으로 접근 시작
+        food.startMovingToFood();
+
+        try {
+          // 음식 먹기가 완료될 때까지 대기
+          await food.waitForEatingFinished();
+
+          // 음식 먹기가 완료되었으므로 대기열에서 제거
+          this.foodQueue.shift();
+          console.log(`음식을 먹었습니다. 현재 스태미나: ${this.stamina}`);
+        } catch (error) {
+          console.error("음식 먹기 중 오류 발생:", error);
+          // 오류가 발생한 음식은 대기열에서 제거
+          this.foodQueue.shift();
+        }
+      }
+    } finally {
+      // 이동/식사 상태 플래그 초기화
+      this.isMovingToFood = false;
+
+      // 다음 음식이 있고 아직 먹는 중이 아니라면 다음 음식 처리
+      if (
+        this.foodQueue.length > 0 &&
+        this.currentState !== CharacterState.EATING
+      ) {
+        // 다음 프레임에서 처리하여 상태가 제대로 업데이트되도록 함
+        setTimeout(() => this.processNextFood(), 0);
+      }
+    }
+  }
+
+  /**
+   * 캐릭터의 현재 스태미나를 반환합니다.
+   */
+  public getStamina(): number {
+    return this.stamina;
+  }
+
+  /**
+   * 캐릭터의 최대 스태미나를 반환합니다.
+   */
+  public getMaxStamina(): number {
+    return CHARACTER_MAX_STAMINA;
+  }
+
+  /**
+   * 스태미나를 증가시킵니다.
+   * @param amount 증가시킬 양
+   */
+  public increaseStamina(amount: number): void {
+    const prevStamina = this.stamina;
+    this.stamina = Math.min(CHARACTER_MAX_STAMINA, this.stamina + amount);
+
+    // 스태미나가 변경되었을 때만 이벤트 발생
+    if (prevStamina !== this.stamina) {
+      this.emitStaminaChanged();
+    }
+  }
+
+  /**
+   * 스태미나를 감소시킵니다.
+   * @param amount 감소시킬 양
+   * @returns 스태미나가 충분했는지 여부
+   */
+  public decreaseStamina(amount: number): boolean {
+    if (this.stamina >= amount) {
+      const prevStamina = this.stamina;
+      this.stamina -= amount;
+
+      // 스태미나가 변경되었을 때만 이벤트 발생
+      if (prevStamina !== this.stamina) {
+        this.emitStaminaChanged();
+      }
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * 스태미나 변경 이벤트 발생
+   */
+  private emitStaminaChanged(): void {
+    this.eventBus.emit(EventTypes.CHARACTER.STAMINA_CHANGED, {
+      current: this.stamina,
+      max: CHARACTER_MAX_STAMINA,
+    });
+  }
+
+  /**
+   * 캐릭터가 현재 음식을 먹고 있는지 여부를 반환합니다.
+   */
+  public isEatingFood(): boolean {
+    return this.currentState === CharacterState.EATING;
+  }
+
+  /**
+   * 현재 대기열에 있는 음식의 수를 반환합니다.
+   */
+  public getFoodQueueLength(): number {
+    return this.foodQueue.length;
   }
 }

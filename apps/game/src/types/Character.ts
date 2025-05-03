@@ -15,6 +15,7 @@ export type CharacterMetadata = {
   key: CharacterKey;
   scale: number;
   speed: number;
+  maxStamina: number; // 최대 스태미나 (옵션)
   animationMapping: Record<CharacterState, string>;
 };
 
@@ -23,6 +24,7 @@ export const CharacterDictionary: Record<CharacterKey, CharacterMetadata> = {
     key: CharacterKey.GreenSlime,
     scale: 3.0,
     speed: 1.0,
+    maxStamina: 10, // 기본 최대 스태미나 값
     animationMapping: {
       [CharacterState.IDLE]: "idle",
       [CharacterState.WALKING]: "walking",

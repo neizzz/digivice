@@ -9,6 +9,7 @@ import { FreshnessDuration } from "../utils/FreshnessDuration";
 import { SparkleEffect } from "../effects/SparkleEffect";
 import { ColorMatrixFilter } from "@pixi/filter-color-matrix";
 import type { Cleanable } from "../interfaces/Cleanable";
+import { DebugFlags } from "../utils/DebugFlags";
 
 // 음식 상태를 나타내는 enum
 enum FoodState {
@@ -238,20 +239,28 @@ export class Food implements Cleanable {
     console.log("Food landed at position:", position);
     this.foodState = FoodState.LANDED;
 
-    // 캐릭터가 있으면 음식으로 이동하기 시작
-    if (this.options.character) {
-      this.startMovingToFood();
+    // 상한 음식이 아니고, 캐릭터가 있을 경우에만 대기열에 추가
+    if (this.options.character && this.freshness !== FoodFreshness.STALE) {
+      this.options.character.addFoodToQueue(this);
+      // 캐릭터가 음식으로 다가가는 것은 Character 클래스에서 처리
+    } else if (this.freshness === FoodFreshness.STALE) {
+      console.log("상한 음식은 먹을 수 없습니다.");
     }
   }
 
   /**
    * 캐릭터가 음식으로 이동하기 시작
    */
-  private startMovingToFood(): void {
+  public startMovingToFood(): void {
     this.foodState = FoodState.APPROACHING;
 
     // 캐릭터의 현재 위치 기준으로 음식의 가까운 쪽 결정
     this.targetPosition = this.getTargetPositionNearFood();
+
+    // 캐릭터의 랜덤 움직임 비활성화
+    if (this.options.character) {
+      this.options.character.disableRandomMovement();
+    }
 
     const moveSpeed = this.options.character.getSpeed();
     this.movementController = new MovementController(
@@ -340,6 +349,12 @@ export class Food implements Cleanable {
    * 음식 먹는 상태 업데이트
    */
   private updateEating(deltaTime: number): void {
+    // 디버그 플래그가 활성화된 경우 먹기 방지
+    if (DebugFlags.getInstance().isEatingPrevented()) {
+      // 음식 먹기가 방지된 상태이면 진행하지 않음
+      return;
+    }
+
     // 경과 시간 계산 (ms)
     const now = Date.now();
     const elapsedEatingTime = now - this.eatingStartTime;
@@ -436,9 +451,26 @@ export class Food implements Cleanable {
       this.sparkleEffect = undefined;
     }
 
-    // 캐릭터 상태 원래대로 복원
+    // 신선도에 따른 스태미나 회복량 결정
+    let staminaRecovery = 0;
+    if (this.freshness === FoodFreshness.FRESH) {
+      staminaRecovery = 3; // Fresh 상태: 스태미나 +3
+    } else if (this.freshness === FoodFreshness.NORMAL) {
+      staminaRecovery = 1; // Normal 상태: 스태미나 +1
+    }
+
+    // 캐릭터 상태 원래대로 복원하고 랜덤 움직임 다시 활성화
     if (this.options.character) {
+      // 신선도에 따른 스태미나 회복
+      if (staminaRecovery > 0) {
+        this.options.character.increaseStamina(staminaRecovery);
+        console.log(
+          `음식을 먹고 스태미나가 ${staminaRecovery} 회복되었습니다. 현재 스태미나: ${this.options.character.getStamina()}`
+        );
+      }
+
       this.options.character.update(CharacterState.IDLE);
+      this.options.character.enableRandomMovement();
     }
 
     // Promise 해결
@@ -481,9 +513,12 @@ export class Food implements Cleanable {
       this.sprite.parent.removeChild(this.sprite);
     }
 
-    // 캐릭터 상태 복원
-    if (this.options.character && this.foodState === FoodState.EATING) {
-      this.options.character.update(CharacterState.IDLE);
+    // 캐릭터 상태 복원 및 랜덤 움직임 다시 활성화
+    if (this.options.character) {
+      if (this.foodState === FoodState.EATING) {
+        this.options.character.update(CharacterState.IDLE);
+      }
+      this.options.character.enableRandomMovement();
     }
 
     // Promise 해결 (아직 해결되지 않은 경우)

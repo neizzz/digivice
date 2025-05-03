@@ -1,9 +1,8 @@
 /**
- * 게임 디버깅을 위한 플래그 관리 클래스
+ * 게임 내 디버그 모드를 관리하는 클래스
  */
 export class DebugFlags {
   private static instance: DebugFlags;
-
   // 디버그 플래그 정의
   private flags: {
     preventEating: boolean; // 캐릭터가 음식을 먹지 못하게 함
@@ -12,6 +11,7 @@ export class DebugFlags {
   // 디버그 플래그 저장용 스토리지 키
   private static readonly STORAGE_KEY = "digivice_debug_flags";
 
+  // 다른 클래스에서 새 인스턴스를 만들지 못하도록 생성자는 private으로 선언
   private constructor() {
     this.flags = {
       preventEating: false,

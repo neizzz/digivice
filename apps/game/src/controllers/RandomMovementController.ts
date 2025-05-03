@@ -26,13 +26,13 @@ export class RandomMovementController extends MovementController {
     maxIdleTime: 3000,
     minMoveTime: 1000,
     maxMoveTime: 5000,
-    boundaryPadding: 40,
+    boundaryPadding: 20,
   };
 
   constructor(
     character: MovableCharacter,
     app: PIXI.Application,
-    options: MovementOptions
+    options?: MovementOptions
   ) {
     super(character, app);
 
