@@ -1,8 +1,7 @@
 import * as PIXI from "pixi.js";
-import type { Cleanable } from "../interfaces/Cleanable";
-import { Poob } from "../entities/Poob";
-import type { Character } from "../entities/Character";
+import { Cleanable } from "../interfaces/Cleanable";
 import { EventBus, EventTypes } from "../utils/EventBus";
+import { Broom } from "../entities/Broom";
 
 /**
  * 청소 상태를 나타내는 enum
@@ -17,8 +16,6 @@ export enum CleaningState {
 export interface CleaningManagerOptions {
   app: PIXI.Application;
   parent: PIXI.Container;
-  character?: Character; // 캐릭터 객체 추가
-  charactersContainer?: PIXI.Container; // 캐릭터가 있는 컨테이너 (선택 사항)
   onCleaningComplete?: () => void; // 모든 청소가 완료됐을 때 호출할 콜백
 }
 
@@ -29,13 +26,15 @@ export interface CleaningManagerOptions {
 export class CleaningManager {
   private app: PIXI.Application;
   private parent: PIXI.Container;
-  private character?: Character; // 캐릭터 참조 추가
   private cleanableObjects: Cleanable[] = [];
   private currentCleanableIndex = -1;
   private cleaningState: CleaningState = CleaningState.INACTIVE;
-  private previousSliderValue = 0;
+  private previousSliderValue = 0; // 0으로 초기화
   private currentProgress = 0;
   private onCleaningComplete?: () => void;
+
+  // 빗자루 객체 참조
+  private broom: Broom | null = null;
 
   // 빗자루 위치 표시용 스프라이트
   private broomIndicator?: PIXI.Sprite;
@@ -49,8 +48,6 @@ export class CleaningManager {
   constructor(options: CleaningManagerOptions) {
     this.app = options.app;
     this.parent = options.parent;
-    this.character = options.character; // 캐릭터 참조 설정
-    this.charactersContainer = options.charactersContainer;
     this.onCleaningComplete = options.onCleaningComplete;
 
     // 이벤트 버스 초기화
@@ -58,33 +55,6 @@ export class CleaningManager {
 
     // 빗자루 위치 표시 스프라이트 초기화
     this.initBroomIndicator();
-
-    // Poob 생성 이벤트 구독
-    this.subscribeToPoobCreated();
-  }
-
-  /**
-   * Poob 생성 이벤트를 구독하는 메서드
-   */
-  private subscribeToPoobCreated(): void {
-    this.eventBus.on(EventTypes.CHARACTER.POOB_CREATED, (data) => {
-      if (this.isActive) {
-        // 위치 정보만 받아서 해당 위치에 Poob 생성
-        const poob = new Poob(this.app, this.parent, {
-          position: data.position,
-        });
-
-        // 활성화 상태일 때만 청소 대상으로 추가
-        this.addCleanableObject(poob);
-        console.log(
-          `Poob 생성 이벤트 감지: 위치 (${data.position.x}, ${data.position.y})에 Poob 추가됨`
-        );
-      } else {
-        console.log(
-          `Poob 생성 이벤트 감지: 위치 (${data.position.x}, ${data.position.y}), 청소 관리자 비활성 상태`
-        );
-      }
-    });
   }
 
   /**
@@ -127,9 +97,60 @@ export class CleaningManager {
     if (this.cleanableObjects.length > 0) {
       this.currentCleanableIndex = 0;
       this.moveToCurrentCleanableObject();
+
+      // 빗자루 객체 초기화 (반드시 moveToCurrentCleanableObject 후에 호출)
+      this.initBroom();
     } else {
       console.log("청소할 객체가 없습니다.");
     }
+  }
+
+  /**
+   * 빗자루 객체 초기화
+   */
+  private initBroom(): void {
+    // 기존 빗자루가 있으면 제거
+    if (this.broom?.parent) {
+      this.broom.parent.removeChild(this.broom);
+      this.broom.destroy();
+    }
+
+    // 새 빗자루 생성
+    this.broom = new Broom();
+
+    // 부모 컨테이너의 sortableChildren 활성화
+    this.parent.sortableChildren = true;
+
+    // 현재 청소 대상이 있으면 빗자루 위치 설정
+    const currentCleanable = this.getCurrentCleanable();
+    if (currentCleanable) {
+      const targetPos = currentCleanable.getPosition();
+
+      // 현재 청소 대상 위에 빗자루 배치 (y 좌표를 약간 위쪽으로)
+      // y 좌표를 약간 낮게(+-5) 설정하여 빗자루가 Cleanable보다 약간 뒤에 그려지도록 함
+      const broomY = targetPos.y - 20;
+      this.broom.setPosition(targetPos.x, broomY);
+
+      console.log(
+        "빗자루 위치 설정:",
+        targetPos.x,
+        broomY,
+        "zIndex:",
+        this.broom.zIndex
+      );
+    } else {
+      console.warn("현재 청소 대상이 없습니다. 기본 위치에 빗자루 배치합니다.");
+      this.broom.setPosition(
+        this.app.screen.width / 2,
+        this.app.screen.height / 2
+      );
+    }
+
+    // 빗자루를 씬에 추가
+    this.parent.addChild(this.broom);
+
+    // 부모 컨테이너의 자식 정렬 (zIndex 적용을 위해)
+    this.parent.sortChildren();
   }
 
   /**
@@ -149,6 +170,12 @@ export class CleaningManager {
     if (this.broomIndicator) {
       this.broomIndicator.visible = false;
     }
+
+    // 빗자루 제거
+    if (this.broom?.parent) {
+      this.broom.parent.removeChild(this.broom);
+      this.broom = null;
+    }
   }
 
   /**
@@ -157,25 +184,40 @@ export class CleaningManager {
   private findCleanableObjects(): void {
     this.cleanableObjects = [];
 
-    // Food와 Poob 객체를 모두 찾아서 배열에 추가
-    for (const child of this.parent.children) {
-      // instanceof 대신 타입 확인을 통해 Cleanable 인터페이스 구현 여부 확인
-      if (
-        "updateCleanProgress" in child &&
-        "finishCleaning" in child &&
-        "getPosition" in child
-      ) {
-        this.cleanableObjects.push(child as unknown as Cleanable);
+    // 부모 컨테이너의 모든 자식 순회
+    for (let i = 0; i < this.parent.children.length; i++) {
+      const child = this.parent.children[i];
+
+      try {
+        // 스프라이트에 __poobRef 속성이 있는지 확인
+        // biome-ignore lint/suspicious/noExplicitAny: <explanation>
+        if (child && (child as any).__objectRef) {
+          // biome-ignore lint/suspicious/noExplicitAny: <explanation>
+          const objectRef = (child as any).__objectRef;
+          // Cleanable의 인스턴스인지 확인
+          if (objectRef instanceof Cleanable) {
+            this.cleanableObjects.push(objectRef);
+          }
+        }
+      } catch (error) {
+        console.error("객체 확인 중 오류 발생:", error);
       }
     }
 
-    // 청소 가능한 객체의 수 로그 출력
-    console.log(`찾은 청소 가능한 객체: ${this.cleanableObjects.length}개`);
+    console.log(
+      `총 ${this.cleanableObjects.length}개의 Cleanable 객체를 찾았습니다.`
+    );
+
+    if (this.cleanableObjects.length === 0) {
+      console.warn(
+        "청소 가능한 객체가 없습니다. Poob 객체가 제대로 생성되었는지 확인하세요."
+      );
+    }
   }
 
   /**
    * 슬라이더 값 변경 처리
-   * @param sliderValue 0-100 범위의 슬라이더 값
+   * @param sliderValue 0-1 범위의 슬라이더 값 (0: 왼쪽 끝, 1: 오른쪽 끝)
    */
   public handleSliderValueChange(sliderValue: number): void {
     // 청소 모드가 활성화되지 않았으면 무시
@@ -184,17 +226,57 @@ export class CleaningManager {
       this.currentCleanableIndex < 0 ||
       this.currentCleanableIndex >= this.cleanableObjects.length
     ) {
+      console.log(
+        "청소 모드가 비활성화 상태이거나 청소할 오브젝트가 없음. 슬라이더 값 변경 무시."
+      );
       return;
     }
 
     // 슬라이더 값의 변화량 계산 (절대값)
     const change = Math.abs(sliderValue - this.previousSliderValue);
+
+    // 슬라이더 이동 방향에 따라 빗자루 방향 설정 (값 증가: 오른쪽, 값 감소: 왼쪽)
+    if (this.broom) {
+      if (sliderValue > this.previousSliderValue) {
+        this.broom.setDirection(1);
+        console.log("청소 방향: 오른쪽 (드래그 방향)");
+      } else if (sliderValue < this.previousSliderValue) {
+        this.broom.setDirection(-1);
+        console.log("청소 방향: 왼쪽 (드래그 방향)");
+      }
+    }
+
+    // 현재 청소 대상이 있으면 빗자루 위치 업데이트
+    const currentCleanable = this.getCurrentCleanable();
+    if (currentCleanable && this.broom) {
+      const targetPos = currentCleanable.getPosition();
+      const targetSprite = currentCleanable.getSprite();
+
+      // Cleanable 객체의 폭 가져오기
+      const targetWidth = targetSprite.width;
+
+      // 슬라이더 값(0-1)에 따라 Cleanable 객체의 정확히 양 끝으로 이동하도록 설정
+      // 슬라이더 0 = 왼쪽 끝, 슬라이더 1 = 오른쪽 끝
+      const halfWidth = targetWidth / 2;
+      const offsetX = sliderValue * targetWidth - halfWidth;
+
+      // 빗자루 위치 업데이트 - 디버그 로그 추가
+      const newX = targetPos.x + offsetX;
+      const newY = targetPos.y - 20;
+      this.broom.setPosition(newX, newY);
+      console.log(
+        `빗자루 위치 업데이트: (${newX.toFixed(2)}, ${newY.toFixed(
+          2
+        )}), 슬라이더: ${sliderValue.toFixed(2)}`
+      );
+    }
+
     this.previousSliderValue = sliderValue;
 
     // 청소 상태가 CLEANING이면 현재 객체 청소 진행
     if (this.cleaningState === CleaningState.CLEANING) {
       // 변화량에 비례해 진행도 증가 (작은 변화에도 반응하도록 계수 조정)
-      this.currentProgress += change * 0.01;
+      this.currentProgress += change;
 
       // 진행도가 1을 초과하지 않도록 제한
       this.currentProgress = Math.min(this.currentProgress, 1);
@@ -213,35 +295,6 @@ export class CleaningManager {
         this.moveToNextCleanable();
       }
     }
-
-    // 빗자루 위치 업데이트 (슬라이더 값에 따라 약간의 움직임 추가)
-    this.updateBroomPosition(sliderValue);
-  }
-
-  /**
-   * 빗자루 위치 업데이트
-   * @param sliderValue 슬라이더 값
-   */
-  private updateBroomPosition(sliderValue: number): void {
-    if (!this.broomIndicator || this.currentCleanableIndex < 0) {
-      return;
-    }
-
-    // 현재 청소 중인 객체의 위치 가져오기
-    const currentCleanable = this.cleanableObjects[this.currentCleanableIndex];
-    const position = currentCleanable.getPosition();
-
-    // 슬라이더 값에 따라 약간의 움직임 추가 (원 운동)
-    const angle = (sliderValue / 100) * Math.PI * 2;
-    const radius = 15; // 움직임 반경
-    const offsetX = Math.cos(angle) * radius;
-    const offsetY = Math.sin(angle) * radius;
-
-    // 빗자루 위치 설정
-    this.broomIndicator.position.set(
-      position.x + offsetX,
-      position.y + offsetY
-    );
   }
 
   /**
@@ -300,31 +353,6 @@ export class CleaningManager {
   }
 
   /**
-   * 랜덤 위치에 더미(Poob) 객체 생성 (테스트용)
-   * @param count 생성할 객체 수
-   */
-  public createDummyCleanableObjects(count = 3): void {
-    if (this.character) {
-      // 캐릭터가 있는 경우, 캐릭터 위치 기준으로 Poob 생성
-      for (let i = 0; i < count; i++) {
-        const poob = new Poob(this.app, this.parent, {
-          character: this.character,
-          offsetDistance: 70 + i * 20, // 약간씩 간격 벌리기
-        });
-      }
-      console.log(
-        `${count}개의 Poob 객체가 캐릭터 위치 기준으로 생성되었습니다.`
-      );
-    } else {
-      // 캐릭터가 없는 경우, 랜덤 위치에 생성
-      for (let i = 0; i < count; i++) {
-        const poob = new Poob(this.app, this.parent);
-      }
-      console.log(`${count}개의 Poob 객체가 랜덤 위치에 생성되었습니다.`);
-    }
-  }
-
-  /**
    * 청소 가능한 객체 배열 반환
    */
   public getCleanableObjects(): Cleanable[] {
@@ -359,9 +387,26 @@ export class CleaningManager {
   }
 
   /**
+   * 현재 청소 중인 대상 반환
+   * @returns 현재 청소 중인 Cleanable 객체 또는 null
+   */
+  public getCurrentTarget(): Cleanable | null {
+    return this.getCurrentCleanable();
+  }
+
+  /**
    * 리소스 정리
    */
   public destroy(): void {
+    // 빗자루 제거
+    if (this.broom) {
+      if (this.broom.parent) {
+        this.broom.parent.removeChild(this.broom);
+      }
+      this.broom.destroy();
+      this.broom = null;
+    }
+
     // 빗자루 표시 제거
     if (this.broomIndicator) {
       if (this.broomIndicator.parent) {

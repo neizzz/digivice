@@ -465,19 +465,15 @@ export class Character extends PIXI.Container {
       return null;
     }
 
+    const isFlipped = this.flipCharacter;
     const position = this.getPosition();
-    // y좌표는 캐릭터보다 10 더 크게 설정
     const poobPosition = {
-      x: position.x,
-      y: position.y + 10,
+      x: isFlipped ? position.x + 10 : position.x - 10, // 뒤집힌 경우 왼쪽에 생성
+      y: position.y - 10, // y좌표는 캐릭터보다 10 더 크게 설정
     };
 
     // Poob 생성
-    const poob = new Poob(
-      this.app,
-      this.app.stage, // 스테이지에 직접 추가
-      { position: poobPosition }
-    );
+    const poob = new Poob(this.app, this.parent, { position: poobPosition });
 
     // 이벤트 발생 (위치 정보만 포함)
     this.eventBus.emit(EventTypes.CHARACTER.POOB_CREATED, {

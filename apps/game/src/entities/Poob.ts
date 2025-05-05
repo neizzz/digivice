@@ -1,7 +1,7 @@
 import * as PIXI from "pixi.js";
 import { AssetLoader } from "../utils/AssetLoader";
 import type { SparkleEffect } from "../effects/SparkleEffect";
-import type { Cleanable } from "../interfaces/Cleanable";
+import { Cleanable } from "../interfaces/Cleanable";
 import type { Character } from "./Character";
 
 /**
@@ -22,15 +22,12 @@ export interface PoobOptions {
 /**
  * Poob 클래스 - 청소가 필요한 배설물 객체
  */
-export class Poob implements Cleanable {
+export class Poob extends Cleanable {
   private sprite: PIXI.Sprite;
-  private app: PIXI.Application;
-  private parent: PIXI.Container;
+  private parentContainer: PIXI.Container;
   private state: PoobState = PoobState.NORMAL;
-  private cleanProgress = 0;
-  private cleaningThreshold = 0.8; // 80% 이상 청소되면 완료로 간주
   private sparkleEffect?: SparkleEffect;
-  private cleaningStartTime = 0;
+  private position: { x: number; y: number };
 
   /**
    * @param app PIXI 애플리케이션
@@ -42,8 +39,10 @@ export class Poob implements Cleanable {
     parent: PIXI.Container,
     options: PoobOptions = {}
   ) {
-    this.app = app;
-    this.parent = parent;
+    super();
+
+    this.parentContainer = parent;
+    this.position = { x: 0, y: 0 };
 
     // 텍스처 가져오기 (common16x16Sprites에서 poo 텍스처 사용)
     const texture = this.getPoobTexture();
@@ -53,10 +52,14 @@ export class Poob implements Cleanable {
     this.sprite.scale.set(2.5); // 크기 조정
     this.sprite.anchor.set(0.5);
 
+    // sprite에 Poob 객체 참조 추가 (클린업을 위해)
+    // biome-ignore lint/suspicious/noExplicitAny: <explanation>
+    (this.sprite as any).__objectRef = this;
+
     // 위치 설정 로직
     if (options.position) {
       // 직접 위치가 지정된 경우
-      this.sprite.position.set(options.position.x, options.position.y);
+      this.setPosition(options.position.x, options.position.y);
     } else if (options.character) {
       // 캐릭터 객체가 제공된 경우, 캐릭터 위치 기반으로 설정
       this.positionRelativeToCharacter(
@@ -68,14 +71,40 @@ export class Poob implements Cleanable {
       const padding = 50; // 화면 가장자리로부터의 패딩
       const x = padding + Math.random() * (app.screen.width - padding * 2);
       const y = padding + Math.random() * (app.screen.height - padding * 2);
-      this.sprite.position.set(x, y);
+      this.setPosition(x, y);
     }
 
     // zIndex 설정 - 깊이 정렬을 위해
-    this.sprite.zIndex = this.sprite.position.y;
+    this.sprite.zIndex = this.position.y;
 
-    // 부모 컨테이너에 추가
-    this.parent.addChild(this.sprite);
+    // 부모 컨테이너의 sortableChildren을 활성화하여 zIndex 기반 정렬이 작동하도록 함
+    this.parentContainer.sortableChildren = true;
+
+    // 부모 컨테이너에 스프라이트 추가
+    this.parentContainer.addChild(this.sprite);
+
+    console.log(
+      "Poob 객체가 생성되었습니다. 위치:",
+      this.position.x,
+      this.position.y,
+      "zIndex:",
+      this.sprite.zIndex
+    );
+  }
+
+  /**
+   * 위치를 설정합니다.
+   * @param x X 좌표
+   * @param y Y 좌표
+   */
+  public setPosition(x: number, y: number): void {
+    this.position.x = x;
+    this.position.y = y;
+
+    if (this.sprite) {
+      this.sprite.position.set(x, y);
+      this.sprite.zIndex = y;
+    }
   }
 
   /**
@@ -105,15 +134,12 @@ export class Poob implements Cleanable {
     // Y 좌표는 약간 아래쪽으로 배치
     const offsetY = 20;
 
-    this.sprite.position.set(
-      characterPos.x + offsetX,
-      characterPos.y + offsetY
-    );
+    this.setPosition(characterPos.x + offsetX, characterPos.y + offsetY);
 
     console.log(
-      `Poob 생성 위치: (${this.sprite.position.x}, ${
-        this.sprite.position.y
-      }), 캐릭터 방향: ${isFlipped ? "왼쪽" : "오른쪽"}`
+      `Poob 생성 위치: (${this.position.x}, ${this.position.y}), 캐릭터 방향: ${
+        isFlipped ? "왼쪽" : "오른쪽"
+      }`
     );
   }
 
@@ -137,49 +163,29 @@ export class Poob implements Cleanable {
   }
 
   /**
-   * 청소 진행도 업데이트
-   * @param progress 0-1 사이의 청소 진행도
-   * @returns 청소가 완료되었는지 여부
+   * 청소 시작 시 호출되는 메서드
+   * @override
    */
-  public updateCleanProgress(progress: number): boolean {
-    // 이미 청소가 완료된 상태라면 항상 true 반환
-    if (this.state === PoobState.CLEANED) {
-      return true;
-    }
-
-    // 처음 청소를 시작할 때 상태 변경
-    if (this.state === PoobState.NORMAL && progress > 0) {
-      this.state = PoobState.CLEANING;
-      this.cleaningStartTime = Date.now();
-
-      // 청소 중일 때 투명도 조절 시작
-      this.sprite.alpha = 1.0;
-    }
-
-    if (this.state === PoobState.CLEANING) {
-      this.cleanProgress = progress;
-
-      // 투명도 조절 (청소가 진행될수록 점점 투명해짐)
-      this.sprite.alpha = 1.0 - progress * 0.8; // 80%까지만 투명하게
-
-      // 청소 임계값에 도달하면 청소 완료로 처리
-      if (progress >= this.cleaningThreshold) {
-        this.finishCleaning();
-        return true;
-      }
-    }
-
-    return false;
+  protected onCleaningStart(): void {
+    this.state = PoobState.CLEANING;
+    // 투명도 시작 값 설정
+    this.sprite.alpha = 1.0;
   }
 
   /**
-   * 청소 완료 처리
+   * 청소 진행 중 호출되는 메서드
+   * @override
    */
-  public finishCleaning(): void {
-    if (this.state === PoobState.CLEANED) {
-      return; // 이미 청소 완료된 상태
-    }
+  protected onCleaningProgress(progress: number): void {
+    // 투명도 조절 (청소가 진행될수록 점점 투명해짐)
+    this.sprite.alpha = 1.0 - progress * 0.8; // 80%까지만 투명하게
+  }
 
+  /**
+   * 청소가 완료될 때 호출되는 메서드
+   * @override
+   */
+  protected onCleaningFinish(): void {
     this.state = PoobState.CLEANED;
 
     // 효과음 재생 등 추가 기능 구현 가능
@@ -192,13 +198,15 @@ export class Poob implements Cleanable {
 
   /**
    * 객체 위치 반환
+   * @override
    */
   public getPosition(): { x: number; y: number } {
-    return { x: this.sprite.position.x, y: this.sprite.position.y };
+    return { x: this.position.x, y: this.position.y };
   }
 
   /**
    * 객체의 스프라이트 반환
+   * @override
    */
   public getSprite(): PIXI.Sprite {
     return this.sprite;
@@ -214,7 +222,7 @@ export class Poob implements Cleanable {
   /**
    * 청소 완료 여부 확인
    */
-  public isCleaned(): boolean {
+  public isCleanFinished(): boolean {
     return this.state === PoobState.CLEANED;
   }
 
@@ -229,6 +237,7 @@ export class Poob implements Cleanable {
 
     if (this.sprite.parent) {
       this.sprite.parent.removeChild(this.sprite);
+      this.sprite.destroy();
     }
   }
 }
