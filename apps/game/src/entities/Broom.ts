@@ -5,13 +5,13 @@ import { AssetLoader } from "../utils/AssetLoader";
  * 빗자루 클래스
  * 방향에 따라 좌우 반전되는 빗자루 스프라이트
  */
-export class Broom extends PIXI.Container {
+export class Broom {
+  private parent: PIXI.Container;
   private sprite: PIXI.Sprite;
-  private direction = 0; // -1: 왼쪽, 1: 오른쪽
+  private direction: -1 | 1 = 1; // -1: 왼쪽, 1: 오른쪽
 
-  constructor() {
-    super();
-
+  constructor(parent: PIXI.Container) {
+    this.parent = parent;
     // 빗자루 스프라이트 생성
     const assets = AssetLoader.getAssets();
     let broomTexture: PIXI.Texture;
@@ -28,28 +28,31 @@ export class Broom extends PIXI.Container {
 
     this.sprite = new PIXI.Sprite(broomTexture);
     this.sprite.anchor.set(0.5, 0.5);
+    this.sprite.zIndex = 1000;
 
     // 빗자루 크기 조정 (원본이 16x16이므로 2배로 확대)
-    this.sprite.width = 32;
-    this.sprite.height = 32;
+    this.sprite.width = 40;
+    this.sprite.height = 40;
 
-    this.addChild(this.sprite);
+    // biome-ignore lint/suspicious/noExplicitAny: <explanation>
+    (this.sprite as any).__objectRef = this;
+
+    this.parent.addChild(this.sprite);
   }
 
   /**
    * 빗자루의 방향 설정
    * @param direction -1: 왼쪽, 1: 오른쪽
    */
-  public setDirection(direction: number): void {
+  public setDirection(direction: -1 | 1): void {
     this.direction = direction;
-
-    if (direction < 0) {
-      // 왼쪽 방향
-      this.sprite.scale.x = -1;
-    } else if (direction > 0) {
-      // 오른쪽 방향
-      this.sprite.scale.x = 1;
+    if (this.sprite.scale.x * direction < 0) {
+      this.sprite.scale.x *= -1;
     }
+  }
+
+  public getSprite(): PIXI.Sprite {
+    return this.sprite;
   }
 
   /**
@@ -62,9 +65,11 @@ export class Broom extends PIXI.Container {
   /**
    * 빗자루 위치 설정
    */
-  public setPosition(x: number, y: number): void {
-    this.position.set(x, y);
-    // y 좌표를 zIndex로 설정하여 깊이 정렬이 제대로 작동하도록 함
-    this.zIndex = y;
+  public setPosition(x: number, y?: number): void {
+    if (y === undefined) {
+      this.sprite.position.x = x;
+      return;
+    }
+    this.sprite.position.set(x, y);
   }
 }

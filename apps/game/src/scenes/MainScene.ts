@@ -12,10 +12,7 @@ import {
   NavigationAction,
 } from "../ui/types";
 import { AssetLoader } from "../utils/AssetLoader";
-import { GameDataManager } from "../utils/GameDataManager";
-import { Broom } from "../entities/Broom";
 import { CleaningManager } from "../managers/CleaningManager";
-import { DebugUI } from "../utils/DebugUI"; // DebugUI 임포트 추가
 
 enum MainSceneControlButtonsSetType {
   Default = "default",
@@ -54,8 +51,6 @@ export class MainScene extends PIXI.Container implements Scene {
 
   // CleanMode 관련 필드
   private isCleanModeActive = false;
-  private previousSliderValue = 0; // 이전 슬라이더 값
-  private broom: Broom | null = null;
 
   // CleaningManager 추가
   private cleaningManager: CleaningManager | null = null;
@@ -332,81 +327,25 @@ export class MainScene extends PIXI.Container implements Scene {
   }
 
   public handleSliderValueChange(value: number): void {
-    if (!this.isCleanModeActive) {
-      return;
-    }
-
-    // 빗자루 방향 설정 (슬라이더 값이 증가하면 오른쪽, 감소하면 왼쪽)
-    if (this.broom) {
-      if (value > this.previousSliderValue) {
-        this.broom.setDirection(1);
-        console.log("청소 방향: 오른쪽 (드래그 방향)");
-      } else if (value < this.previousSliderValue) {
-        this.broom.setDirection(-1);
-        console.log("청소 방향: 왼쪽 (드래그 방향)");
-      }
-    }
-
-    // CleaningManager에 슬라이더 값 변경 전달
-    if (this.cleaningManager) {
+    // 청소 모드가 활성화된 경우에만 슬라이더 값 변경 처리
+    if (this.isCleanModeActive && this.cleaningManager) {
       this.cleaningManager.handleSliderValueChange(value);
-    }
-
-    // 현재 값을 이전 값으로 저장
-    this.previousSliderValue = value;
-
-    // 캐릭터 옆에 빗자루 위치 업데이트
-    if (this.game.character && this.broom) {
-      this.broom.setPosition(
-        this.game.character.x + 50,
-        this.game.character.y - 20
-      );
     }
   }
 
   /**
-   * 청소 모드를 활성화하고 빗자루 스프라이트를 초기화합니다.
+   * 청소 모드를 활성화하고 청소 관리자를 초기화합니다.
    */
   private initCleanMode(): void {
+    console.log("청소 모드 초기화 시작");
     this.isCleanModeActive = true;
-
-    // 기존 빗자루가 있으면 제거
-    if (this.broom) {
-      this.removeChild(this.broom);
-      this.broom = null;
-    }
-
-    // 새 빗자루 객체 생성
-    this.broom = new Broom();
-
-    // Game에서 캐릭터 참조
-    const character = this.game.character;
-
-    // 빗자루 위치 설정 (캐릭터 주변)
-    if (character) {
-      this.broom.setPosition(character.x + 50, character.y - 20);
-    } else {
-      this.broom.setPosition(
-        this.game.app.screen.width / 2,
-        this.game.app.screen.height / 2
-      );
-    }
-
-    // 빗자루의 zIndex 설정
-    this.broom.zIndex = 5; // 캐릭터보다 위에 표시되도록
-
-    // 빗자루를 씬에 추가
-    this.addChild(this.broom);
-
-    // 캐릭터의 랜덤 움직임 중지 (청소 모드 중에는 움직이지 않도록)
-    this.stopRandomMovement();
 
     // CleaningManager 초기화 및 활성화
     if (!this.cleaningManager) {
+      console.log("새 CleaningManager 생성");
       this.cleaningManager = new CleaningManager({
         app: this.game.app,
         parent: this,
-        character: this.game.character, // Game의 캐릭터 참조
         onCleaningComplete: () => {
           // 청소가 완료되었을 때 기본 모드로 돌아가기
           console.log("청소가 모두 완료되었습니다.");
@@ -414,19 +353,10 @@ export class MainScene extends PIXI.Container implements Scene {
           this.game.changeControlButtons(
             CONTROL_BUTTONS_SET[MainSceneControlButtonsSetType.Default]
           );
-          // 청소 완료 후 캐릭터 움직임 다시 활성화
-          if (this.game.character) {
-            this.game.character.enableRandomMovement();
-          }
         },
       });
-
-      // 테스트용으로 몇 개의 Poob 객체 생성
-      // 캐릭터 객체를 전달하여 캐릭터 방향을 고려한 위치에 생성
-      this.cleaningManager.createDummyCleanableObjects(3);
     }
 
-    // 청소 모드 활성화
     this.cleaningManager.activate();
   }
 
