@@ -123,7 +123,6 @@ export class Game {
           maxIdleTime: 8000,
           minMoveTime: 2000,
           maxMoveTime: 7000,
-          boundaryPadding: 40,
         },
       });
 

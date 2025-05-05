@@ -38,7 +38,6 @@ export class Character extends PIXI.Container {
       maxIdleTime: number;
       minMoveTime: number;
       maxMoveTime: number;
-      boundaryPadding: number;
     };
     initialStamina?: number; // 초기 스태미나 (선택사항)
   }) {
@@ -49,7 +48,7 @@ export class Character extends PIXI.Container {
 
     this.characterInfo = CharacterDictionary[params.characterKey];
 
-    this.position.set(params.initialPosition.x, params.initialPosition.y);
+    this.setPosition(params.initialPosition.x, params.initialPosition.y);
     this.speed = this.characterInfo.speed;
     this.scaleFactor = this.characterInfo.scale;
     this.animationMapping = this.characterInfo.animationMapping;
@@ -117,7 +116,6 @@ export class Character extends PIXI.Container {
     maxIdleTime: number;
     minMoveTime: number;
     maxMoveTime: number;
-    boundaryPadding: number;
   }): RandomMovementController {
     if (!this.app) {
       throw new Error("App reference is not set");
@@ -468,12 +466,12 @@ export class Character extends PIXI.Container {
     const isFlipped = this.flipCharacter;
     const position = this.getPosition();
     const poobPosition = {
-      x: isFlipped ? position.x + 10 : position.x - 10, // 뒤집힌 경우 왼쪽에 생성
+      x: isFlipped ? position.x + 20 : position.x - 20, // 뒤집힌 경우 왼쪽에 생성
       y: position.y - 10, // y좌표는 캐릭터보다 10 더 크게 설정
     };
 
     // Poob 생성
-    const poob = new Poob(this.app, this.parent, { position: poobPosition });
+    const poob = new Poob(this.parent, { position: poobPosition });
 
     // 이벤트 발생 (위치 정보만 포함)
     this.eventBus.emit(EventTypes.CHARACTER.POOB_CREATED, {

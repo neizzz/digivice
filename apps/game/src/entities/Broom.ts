@@ -64,5 +64,7 @@ export class Broom extends PIXI.Container {
    */
   public setPosition(x: number, y: number): void {
     this.position.set(x, y);
+    // y 좌표를 zIndex로 설정하여 깊이 정렬이 제대로 작동하도록 함
+    this.zIndex = y;
   }
 }
