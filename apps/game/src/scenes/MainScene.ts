@@ -741,24 +741,24 @@ export class MainScene extends PIXI.Container implements Scene {
     bird: Bird,
     character: PIXI.Container
   ): void {
-    // 1. 현재 매달려 있는 바구니 제거
-    const oldBasket = bird.unHangObject();
-    if (oldBasket) {
-      this.removeChild(oldBasket);
-    }
-
-    // 2. 캐릭터의 in-basket 스프라이트를 가져옴
+    // 캐릭터의 in-basket 스프라이트를 가져옴
     const characterKey = this.game.character?.getCharacterKey() as CharacterKey;
     const assets = AssetLoader.getAssets();
     const characterSpritesheet = assets.characterSprites[characterKey];
 
-    // biome-ignore lint/complexity/useOptionalChain: <explanation>
-    if (characterSpritesheet && characterSpritesheet.textures["in-basket"]) {
+    if (characterSpritesheet?.textures["in-basket"]) {
+      // 1. 기존 바구니를 제거 (unHangObject 호출)
+      const oldBasket = bird.unHangObject();
+      if (oldBasket) {
+        this.removeChild(oldBasket);
+      }
+
+      // 2. 새로운 바구니(캐릭터가 들어간) 스프라이트를 생성하고
       const inBasketTexture = characterSpritesheet.textures["in-basket"];
       const inBasket = new PIXI.Sprite(inBasketTexture);
       inBasket.anchor.set(0.5);
 
-      // 3. 새로운 바구니(캐릭터가 들어간)를 새에 매달기
+      // 3. 새로운 바구니를 새에 매달기 (hangObject는 한 번만 호출)
       bird.hangObject(inBasket);
 
       // 4. 원래 캐릭터는 화면에서 숨김

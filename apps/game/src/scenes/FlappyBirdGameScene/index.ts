@@ -3,12 +3,12 @@ import type { Game } from "../../Game";
 import { GameEngine } from "../../GameEngine";
 import type { Scene } from "../../interfaces/Scene";
 import { type ControlButtonParams, ControlButtonType } from "../../ui/types";
-import { type GameData, GameDataManager } from "../../utils/GameDataManager";
+import { GameDataManager } from "../../utils/GameDataManager";
 import { GroundManager, PipeManager, PlayerManager } from "./gameLogic";
 import { type GameOptions, GameState } from "./models";
 import { PhysicsManager } from "./physics";
 import { GameOverUI, ScoreUI } from "./ui";
-import { Bird } from "../../entities/Bird";
+import type { Bird } from "../../entities/Bird";
 import { AssetLoader } from "../../utils/AssetLoader";
 
 enum FlappyBirdGameSceneControlButtonsSetType {
@@ -48,12 +48,6 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
   // UI 요소
   private scoreUI!: ScoreUI;
   private gameOverUI!: GameOverUI;
-
-  // 캐릭터 픽업 애니메이션용 요소
-  private introAnimationBird: Bird | null = null;
-  private introAnimationBasket: PIXI.Sprite | null = null;
-  private isIntroAnimationComplete = true; // MainScene에서 애니메이션을 수행하므로 기본값 true로 변경
-  private isIntroAnimationRunning = false;
 
   // 게임 상태 및 설정
   private gameState: GameState = GameState.READY;
@@ -369,119 +363,6 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
 
       // 바닥 타일 이동
       this.groundManager.update();
-    }
-  }
-
-  /**
-   * 인트로 애니메이션을 위한 준비를 합니다.
-   */
-  private async prepareIntroAnimation(): Promise<void> {
-    // 이미 준비되었거나 실행 중이면 중복 실행 방지
-    if (this.introAnimationBird || this.isIntroAnimationRunning) return;
-
-    const assets = AssetLoader.getAssets();
-
-    try {
-      // 새 객체 생성
-      this.introAnimationBird = new Bird(this.game.app);
-      this.introAnimationBird.setScale(2.0); // 처음에는 더 크게 시작
-
-      // 바구니 생성
-      if (
-        assets.common32x32Sprites &&
-        assets.common32x32Sprites.textures.basket
-      ) {
-        this.introAnimationBasket = new PIXI.Sprite(
-          assets.common32x32Sprites.textures.basket
-        );
-        this.introAnimationBasket.anchor.set(0.5);
-        this.introAnimationBasket.width = 32 * 2.0;
-        this.introAnimationBasket.height = 32 * 2.0;
-
-        // 바구니를 새에 매달기
-        this.introAnimationBird.hangObject(this.introAnimationBasket);
-      } else {
-        console.warn("바구니 텍스처를 찾을 수 없습니다.");
-      }
-
-      // 화면 밖의 왼쪽 위에서 시작하도록 위치 설정
-      this.introAnimationBird.position.set(-100, -100);
-
-      // 씬에 추가
-      this.addChild(this.introAnimationBird);
-    } catch (error) {
-      console.error("인트로 애니메이션 준비 중 오류:", error);
-    }
-  }
-
-  /**
-   * 인트로 애니메이션을 실행합니다.
-   */
-  private async playIntroAnimation(): Promise<void> {
-    if (!this.introAnimationBird || this.isIntroAnimationRunning) return;
-
-    this.isIntroAnimationRunning = true;
-
-    try {
-      const screenWidth = this.game.app.screen.width;
-      const screenHeight = this.game.app.screen.height;
-      const characterY = screenHeight / 2;
-
-      // 게임 요소들 숨기기
-      this.playerManager.getBird().visible = false;
-      this.playerManager.getBasket().visible = false;
-
-      // 1. 왼쪽 위에서 화면으로 진입
-      await this.introAnimationBird.flyTo(
-        screenWidth * 0.2,
-        screenHeight * 0.2,
-        1500
-      );
-
-      // 2. 캐릭터 위치로 이동
-      await this.introAnimationBird.flyTo(screenWidth * 0.4, characterY, 1000);
-
-      // 3. 캐릭터 픽업
-      if (this.game.character) {
-        await this.introAnimationBird.pickupCharacter(this.game.character);
-      }
-
-      // 4. 오른쪽으로 날아감
-      await this.introAnimationBird.flyTo(
-        screenWidth + 100,
-        screenHeight * 0.2,
-        2000
-      );
-
-      // 5. 애니메이션 정리
-      this.removeChild(this.introAnimationBird);
-      this.introAnimationBird = null;
-      this.introAnimationBasket = null;
-
-      // 6. 실제 게임 요소 표시
-      this.playerManager.getBird().visible = true;
-      this.playerManager.getBasket().visible = true;
-      this.playerManager.resetPosition();
-
-      // 7. 게임 시작
-      this.isIntroAnimationComplete = true;
-      this.isIntroAnimationRunning = false;
-      this.startGame();
-    } catch (error) {
-      console.error("인트로 애니메이션 실행 중 오류:", error);
-      // 오류 발생 시 정리 작업
-      if (this.introAnimationBird) {
-        this.removeChild(this.introAnimationBird);
-      }
-      this.introAnimationBird = null;
-      this.introAnimationBasket = null;
-
-      // 게임 요소 표시 및 시작
-      this.playerManager.getBird().visible = true;
-      this.playerManager.getBasket().visible = true;
-      this.isIntroAnimationComplete = true;
-      this.isIntroAnimationRunning = false;
-      this.startGame();
     }
   }
 
