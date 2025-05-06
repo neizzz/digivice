@@ -351,7 +351,7 @@ export class MainScene extends PIXI.Container implements Scene {
           console.log("청소가 모두 완료되었습니다.");
           this.isCleanModeActive = false;
           this.game.changeControlButtons(
-            CONTROL_BUTTONS_SET[MainSceneControlButtonsSetType.Default]
+            CONTROL_BUTTONS_SET[MainSceneControlButtonsSetType.ActiveMenuItem]
           );
         },
       });

@@ -8,7 +8,6 @@ import { AssetLoader } from "./utils/AssetLoader";
 import { DebugUI } from "./utils/DebugUI";
 import { DebugFlags } from "./utils/DebugFlags";
 import { Character } from "./entities/Character"; // 캐릭터 임포트
-import { CharacterKey } from "./types/Character";
 import { GameDataManager } from "./utils/GameDataManager"; // GameDataManager 임포트
 
 PIXI.BaseTexture.defaultOptions.scaleMode = PIXI.SCALE_MODES.NEAREST;

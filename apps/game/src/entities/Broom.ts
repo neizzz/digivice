@@ -72,4 +72,15 @@ export class Broom {
     }
     this.sprite.position.set(x, y);
   }
+
+  /**
+   * 리소스 정리
+   */
+  public destroy(): void {
+    // 스프라이트 정리
+    if (this.sprite.parent) {
+      this.sprite.parent.removeChild(this.sprite);
+    }
+    this.sprite.destroy();
+  }
 }

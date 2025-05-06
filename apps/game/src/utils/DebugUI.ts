@@ -26,7 +26,7 @@ export class DebugUI {
   private actionButtonsContainer: HTMLDivElement | null = null; // 액션 버튼 컨테이너 추가
   private debugFlags: DebugFlags;
   private eventBus: EventBus;
-  private character: any = null; // 캐릭터 참조 저장
+  private character?: Character; // 캐릭터 참조 저장
   // 스태미나 현재/최대 값 저장
   private staminaState = {
     current: 0,

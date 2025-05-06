@@ -1,4 +1,4 @@
-import type * as PIXI from "pixi.js";
+import * as PIXI from "pixi.js";
 import { Cleanable } from "../interfaces/Cleanable";
 import { EventBus, EventTypes } from "../utils/EventBus";
 import { Broom } from "../entities/Broom";
@@ -33,11 +33,18 @@ export class CleaningManager {
   private currentProgress = 0;
   private onCleaningComplete?: () => void;
 
+  // 슬라이더 총 이동 거리 측정을 위한 변수 추가
+  private totalSliderMovement = 0;
+  private targetSliderMovement = 6.0; // 청소 완료를 위한 목표 이동 거리
+
   // 빗자루 객체 참조
   private broom: Broom | null = null;
 
   // 이벤트 버스 추가
   private eventBus: EventBus;
+
+  // Cleanable 객체의 경계를 표시하기 위한 그래픽 객체들
+  private cleanableBorders: Map<Cleanable, PIXI.Graphics> = new Map();
 
   /**
    * @param options 청소 관리자 옵션
@@ -49,6 +56,38 @@ export class CleaningManager {
 
     // 이벤트 버스 초기화
     this.eventBus = EventBus.getInstance();
+
+    // zIndex를 사용하기 위해 부모 컨테이너의 sortableChildren 속성을 true로 설정
+    this.parent.sortableChildren = true;
+  }
+
+  /**
+   * 현재 선택된 Cleanable 객체와 테두리를 항상 맨 앞에 표시합니다.
+   * @private
+   */
+  private bringCurrentCleanableToFront(): void {
+    if (
+      this.currentCleanableIndex >= 0 &&
+      this.currentCleanableIndex < this.cleanableObjects.length
+    ) {
+      const currentCleanable =
+        this.cleanableObjects[this.currentCleanableIndex];
+      const sprite = currentCleanable.getSprite();
+
+      // 현재 객체의 스프라이트에 높은 zIndex 설정하여 맨 앞에 표시
+      if (sprite) {
+        // 다른 스프라이트보다 높은 zIndex 값 설정 (100)
+        sprite.zIndex = 1000;
+      }
+
+      // 현재 객체의 테두리도 맨 앞으로 가져오기
+      const border = this.cleanableBorders.get(currentCleanable);
+      if (border) {
+        // 핑크색 테두리는 현재 객체의 테두리입니다
+        // 테두리의 zIndex를 스프라이트보다 높게 설정 (110)
+        border.zIndex = 1100;
+      }
+    }
   }
 
   /**
@@ -71,12 +110,196 @@ export class CleaningManager {
     // 청소할 객체가 있으면 첫 번째 객체로 선택
     if (this.cleanableObjects.length > 0) {
       this.currentCleanableIndex = 0;
-      this.moveToCurrentCleanableObject();
+
+      // 현재 선택된 인덱스 로그 확인
+      console.log(
+        `현재 선택된 Cleanable 인덱스: ${this.currentCleanableIndex}`
+      );
+
+      // Cleanable 객체들 주변에 점선 테두리 그리기 (currentCleanableIndex 설정 후에 호출)
+      this.createCleanableBorders();
+
+      // 현재 Cleanable 객체를 맨 앞으로 가져오기
+      this.bringCurrentCleanableToFront();
+
+      this.moveToCurrentCleanable();
 
       // 빗자루 객체 초기화 (반드시 moveToCurrentCleanableObject 후에 호출)
       this.initBroom();
     } else {
       console.log("청소할 객체가 없습니다.");
+    }
+  }
+
+  /**
+   * Cleanable 객체들 주변에 점선 테두리를 그립니다.
+   */
+  private createCleanableBorders(): void {
+    // 기존 테두리 제거
+    this.removeCleanableBorders();
+
+    // 일반 Cleanable 객체 테두리 먼저 그리기
+    for (let i = 0; i < this.cleanableObjects.length; i++) {
+      if (i !== this.currentCleanableIndex) {
+        this.createBorderForCleanable(
+          this.cleanableObjects[i],
+          0xffffff,
+          false
+        );
+
+        // 일반 Cleanable 객체의 zIndex를 낮게 설정
+        const sprite = this.cleanableObjects[i].getSprite();
+        if (sprite) {
+          sprite.zIndex = 40; // 테두리(50)보다 낮게 설정
+        }
+      }
+    }
+
+    // 현재 선택된 Cleanable 객체 테두리 그리기
+    console.log(this.currentCleanableIndex);
+    if (
+      this.currentCleanableIndex >= 0 &&
+      this.currentCleanableIndex < this.cleanableObjects.length
+    ) {
+      const currentCleanable =
+        this.cleanableObjects[this.currentCleanableIndex];
+      // 핑크색(0xFF69B4)으로 테두리 그리기 및 앞에 표시하도록 설정
+      this.createBorderForCleanable(currentCleanable, 0xff69b4, true);
+
+      // 현재 Cleanable 스프라이트도 항상 앞에 그려지도록 zIndex 설정
+      const sprite = currentCleanable.getSprite();
+      if (sprite) {
+        // 높은 zIndex 값 설정 (테두리는 110, 스프라이트는 100)
+        sprite.zIndex = 100;
+      }
+    }
+  }
+
+  /**
+   * 개별 Cleanable 객체에 대한 테두리를 생성합니다.
+   * @param cleanable Cleanable 객체
+   * @param color 테두리 색상
+   * @param bringToFront 테두리를 앞으로 가져올지 여부
+   */
+  private createBorderForCleanable(
+    cleanable: Cleanable,
+    color: number,
+    bringToFront: boolean
+  ): void {
+    const sprite = cleanable.getSprite();
+    const bounds = sprite.getBounds();
+
+    const border = new PIXI.Graphics();
+
+    // 테두리 스타일 설정
+    border.lineStyle({
+      width: 4,
+      color,
+      alpha: 0.8,
+      alignment: 0,
+    });
+
+    // 점선 효과를 위한 설정
+    const dashSize = 4; // 점선 한 부분의 길이
+    const gapSize = 4; // 점선 사이의 간격 길이
+
+    // 상단 가로선
+    this.drawDashedLine(
+      border,
+      -bounds.width / 2,
+      -bounds.height / 2,
+      bounds.width / 2,
+      -bounds.height / 2,
+      dashSize,
+      gapSize
+    );
+
+    // 오른쪽 세로선
+    this.drawDashedLine(
+      border,
+      bounds.width / 2,
+      -bounds.height / 2,
+      bounds.width / 2,
+      bounds.height / 2,
+      dashSize,
+      gapSize
+    );
+
+    // 하단 가로선
+    this.drawDashedLine(
+      border,
+      bounds.width / 2,
+      bounds.height / 2,
+      -bounds.width / 2,
+      bounds.height / 2,
+      dashSize,
+      gapSize
+    );
+
+    // 왼쪽 세로선
+    this.drawDashedLine(
+      border,
+      -bounds.width / 2,
+      bounds.height / 2,
+      -bounds.width / 2,
+      -bounds.height / 2,
+      dashSize,
+      gapSize
+    );
+
+    // 테두리 위치 설정
+    border.position.set(
+      bounds.x + bounds.width / 2,
+      bounds.y + bounds.height / 2
+    );
+
+    // 부모 컨테이너에 추가
+    this.parent.addChild(border);
+
+    // zIndex를 사용하여 테두리를 앞으로 가져오기
+    if (bringToFront) {
+      // 핑크색 테두리는 다른 모든 객체보다 앞에 표시 (높은 zIndex 사용)
+      border.zIndex = 110;
+    } else {
+      // 일반 테두리의 zIndex는 낮게 설정
+      border.zIndex = 50;
+    }
+
+    // Map에 저장
+    this.cleanableBorders.set(cleanable, border);
+  }
+
+  /**
+   * 점선 테두리를 제거합니다.
+   */
+  private removeCleanableBorders(): void {
+    this.cleanableBorders.forEach((border, cleanable) => {
+      if (border.parent) {
+        border.parent.removeChild(border);
+      }
+      border.destroy();
+    });
+    this.cleanableBorders.clear();
+  }
+
+  /**
+   * 특정 Cleanable 객체의 테두리만 제거합니다.
+   * @param cleanable 테두리를 제거할 Cleanable 객체
+   */
+  private removeCleanableBorderForObject(cleanable: Cleanable): void {
+    // Map에서 해당 Cleanable 객체에 대한 테두리 찾기
+    const border = this.cleanableBorders.get(cleanable);
+    if (border) {
+      // 테두리를 화면에서 제거
+      if (border.parent) {
+        border.parent.removeChild(border);
+      }
+      // 테두리 객체 메모리 정리
+      border.destroy();
+      // Map에서 해당 테두리 제거
+      this.cleanableBorders.delete(cleanable);
+
+      console.log("청소 완료된 객체의 테두리 제거 완료");
     }
   }
 
@@ -117,12 +340,22 @@ export class CleaningManager {
     }
 
     console.log("청소 모드 비활성화");
+    const currentCleanableSprite = this.getCurrentCleanable()?.getSprite();
+    if (currentCleanableSprite) {
+      currentCleanableSprite.zIndex = currentCleanableSprite.getBounds().y;
+    }
     this.cleaningState = CleaningState.INACTIVE;
     this.currentCleanableIndex = -1;
     this.currentProgress = 0;
 
+    // 점선 테두리 제거
+    this.removeCleanableBorders();
+
     if (this.broom) {
+      // 빗자루 제거
       this.parent.removeChild(this.broom.getSprite());
+      this.broom.destroy();
+      this.broom = null;
     }
   }
 
@@ -203,47 +436,57 @@ export class CleaningManager {
       const halfWidth = targetWidth / 2;
       const offsetX = sliderValue * targetWidth - halfWidth;
 
-      // 빗자루 위치 업데이트 - 디버그 로그 추가
+      // 빗자루 위치 업데이트
       const newX = targetPos.x + offsetX;
-      this.broom.setPosition(newX);
+      this.broom.setPosition(newX, targetPos.y - 5);
     }
 
-    this.previousSliderValue = sliderValue;
-
-    // FIXME: 디버깅을 위한 청소 진행 로직 비활성화
-    /*
     // 슬라이더 값의 변화량 계산 (절대값)
     const change = Math.abs(sliderValue - this.previousSliderValue);
 
-    // 청소 상태가 CLEANING이면 현재 객체 청소 진행
-    if (this.cleaningState === CleaningState.CLEANING) {
-      // 변화량에 비례해 진행도 증가 (작은 변화에도 반응하도록 계수 조정)
-      this.currentProgress += change;
+    // 슬라이더가 이동한 경우에만 처리 (아주 작은 변경은 무시)
+    if (change > 0.001 && this.cleaningState === CleaningState.CLEANING) {
+      // 총 슬라이더 이동 거리에 현재 변화량 추가
+      this.totalSliderMovement += change;
 
-      // 진행도가 1을 초과하지 않도록 제한
-      this.currentProgress = Math.min(this.currentProgress, 1);
+      // 진행도를 0-1 사이로 정규화 (4.0이 100%)
+      this.currentProgress = Math.min(
+        this.totalSliderMovement / this.targetSliderMovement,
+        1
+      );
 
       // 현재 청소 가능한 객체의 청소 진행도 업데이트
       const currentCleanable =
         this.cleanableObjects[this.currentCleanableIndex];
-      const isComplete = currentCleanable.updateCleanProgress(
-        this.currentProgress
-      );
+      if (currentCleanable) {
+        const isComplete = currentCleanable.updateCleanProgress(
+          this.currentProgress
+        );
 
-      // 청소가 완료되면 다음 객체로 이동
-      if (isComplete) {
-        console.log("현재 객체 청소 완료");
-        this.currentProgress = 0;
-        this.moveToNextCleanable();
+        if (
+          this.totalSliderMovement >= this.targetSliderMovement ||
+          isComplete
+        ) {
+          console.log(`현재 객체(${this.currentCleanableIndex}) 청소 완료!`);
+
+          // 청소 완료된 객체의 테두리 제거
+          this.removeCleanableBorderForObject(currentCleanable);
+
+          this.currentProgress = 0;
+          this.moveToNextCleanable();
+        }
       }
     }
-    */
+
+    // 현재 슬라이더 값을 이전 값으로 저장
+    this.previousSliderValue = sliderValue;
   }
 
   /**
    * 현재 선택된 청소 가능한 객체로 이동
+   * @private
    */
-  private moveToCurrentCleanableObject(): void {
+  private moveToCurrentCleanable(): void {
     if (
       this.currentCleanableIndex < 0 ||
       this.currentCleanableIndex >= this.cleanableObjects.length
@@ -251,13 +494,44 @@ export class CleaningManager {
       return;
     }
 
+    // 모든 이전 테두리를 제거 (청소가 완료된 객체의 테두리가 남지 않도록)
+    this.removeCleanableBorders();
+
+    // 아직 청소가 필요한 객체들의 테두리만 생성
+    for (
+      let i = this.currentCleanableIndex;
+      i < this.cleanableObjects.length;
+      i++
+    ) {
+      const cleanable = this.cleanableObjects[i];
+
+      // 현재 선택된 객체는 핑크색, 나머지는 흰색으로 테두리 생성
+      const color = i === this.currentCleanableIndex ? 0xff69b4 : 0xffffff;
+      const bringToFront = i === this.currentCleanableIndex;
+
+      this.createBorderForCleanable(cleanable, color, bringToFront);
+
+      // 현재 선택된 객체의 zIndex를 높게 설정
+      if (i === this.currentCleanableIndex) {
+        const sprite = cleanable.getSprite();
+        if (sprite) {
+          sprite.zIndex = 100;
+        }
+      }
+    }
+
+    // 현재 객체를 맨 앞으로 가져오기
+    this.bringCurrentCleanableToFront();
+
     // 현재 객체의 위치 가져오기
     const currentCleanable = this.cleanableObjects[this.currentCleanableIndex];
-    const position = currentCleanable.getPosition();
 
     // 청소 상태를 CLEANING으로 변경
     this.cleaningState = CleaningState.CLEANING;
     this.currentProgress = 0;
+
+    // 새 객체로 이동할 때마다 총 이동 거리 초기화
+    this.totalSliderMovement = 0;
   }
 
   /**
@@ -270,7 +544,9 @@ export class CleaningManager {
     // 모든 객체를 다 청소했는지 확인
     if (this.currentCleanableIndex >= this.cleanableObjects.length) {
       console.log("모든 객체 청소 완료");
-      this.cleaningState = CleaningState.INACTIVE;
+
+      // 청소 모드 비활성화 - 기존에는 상태만 변경했지만 이제는 완전히 종료
+      this.deactivate();
 
       // 완료 콜백 호출
       if (this.onCleaningComplete) {
@@ -280,8 +556,8 @@ export class CleaningManager {
       return;
     }
 
-    // 다음 객체로 이동
-    this.moveToCurrentCleanableObject();
+    // 다음 청소 대상으로 이동 (여기가 누락되어 있었음)
+    this.moveToCurrentCleanable();
   }
 
   /**
@@ -330,13 +606,59 @@ export class CleaningManager {
    * 리소스 정리
    */
   public destroy(): void {
+    // 점선 테두리 제거
+    this.removeCleanableBorders();
+
     // 빗자루 제거
     if (this.broom) {
-      this.parent.removeChild(this.broom.getSprite());
+      this.broom.destroy(); // 빗자루 리소스 정리
       this.broom = null;
     }
 
     // 이벤트 구독 해제
     this.eventBus.off(EventTypes.CHARACTER.POOB_CREATED);
+  }
+
+  /**
+   * 점선을 그리는 헬퍼 함수
+   * @param graphics PIXI.Graphics 객체
+   * @param x1 시작 x 좌표
+   * @param y1 시작 y 좌표
+   * @param x2 끝 x 좌표
+   * @param y2 끝 y 좌표
+   * @param dash 점선 길이
+   * @param gap 점선 간격
+   */
+  private drawDashedLine(
+    graphics: PIXI.Graphics,
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    dash: number,
+    gap: number
+  ): void {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    const dashGap = dash + gap;
+    const steps = Math.floor(len / dashGap);
+    const dashDx = (dx / len) * dash;
+    const dashDy = (dy / len) * dash;
+    const gapDx = (dx / len) * gap;
+    const gapDy = (dy / len) * gap;
+
+    let px = x1;
+    let py = y1;
+
+    for (let i = 0; i < steps; i++) {
+      graphics.moveTo(px, py);
+      graphics.lineTo(px + dashDx, py + dashDy);
+      px += dashDx + gapDx;
+      py += dashDy + gapDy;
+    }
+
+    graphics.moveTo(px, py);
+    graphics.lineTo(x2, y2);
   }
 }

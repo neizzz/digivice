@@ -1,4 +1,4 @@
-import type * as PIXI from "pixi.js";
+// import type * as PIXI from "pixi.js";
 
 /**
  * 청소 가능한 객체들의 기본 클래스
