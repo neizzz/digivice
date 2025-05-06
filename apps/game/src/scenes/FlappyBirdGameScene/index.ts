@@ -8,368 +8,495 @@ import { GroundManager, PipeManager, PlayerManager } from "./gameLogic";
 import { type GameOptions, GameState } from "./models";
 import { PhysicsManager } from "./physics";
 import { GameOverUI, ScoreUI } from "./ui";
+import { Bird } from "../../entities/Bird";
+import { AssetLoader } from "../../utils/AssetLoader";
 
 enum FlappyBirdGameSceneControlButtonsSetType {
-	GamePlay = "game-play",
-	GameEnd = "game-end",
+  GamePlay = "game-play",
+  GameEnd = "game-end",
 }
 
 const CONTROL_BUTTONS_SET: Record<
-	FlappyBirdGameSceneControlButtonsSetType,
-	[ControlButtonParams, ControlButtonParams, ControlButtonParams]
+  FlappyBirdGameSceneControlButtonsSetType,
+  [ControlButtonParams, ControlButtonParams, ControlButtonParams]
 > = {
-	[FlappyBirdGameSceneControlButtonsSetType.GamePlay]: [
-		{ type: ControlButtonType.Attack },
-		{ type: ControlButtonType.DoubleJump },
-		{ type: ControlButtonType.Jump },
-	],
-	[FlappyBirdGameSceneControlButtonsSetType.GameEnd]: [
-		{ type: ControlButtonType.Cancel },
-		{ type: ControlButtonType.Confirm },
-		{ type: ControlButtonType.Next },
-	],
+  [FlappyBirdGameSceneControlButtonsSetType.GamePlay]: [
+    { type: ControlButtonType.Attack },
+    { type: ControlButtonType.DoubleJump },
+    { type: ControlButtonType.Jump },
+  ],
+  [FlappyBirdGameSceneControlButtonsSetType.GameEnd]: [
+    { type: ControlButtonType.Cancel },
+    { type: ControlButtonType.Confirm },
+    { type: ControlButtonType.Next },
+  ],
 };
 
 export class FlappyBirdGameScene extends PIXI.Container implements Scene {
-	// 핵심 컴포넌트
-	private game: Game;
-	private gameEngine: GameEngine;
-	private background!: PIXI.Graphics;
-	private initialized = false;
+  // 핵심 컴포넌트
+  private game: Game;
+  private gameEngine: GameEngine;
+  private background!: PIXI.Graphics;
+  private initialized = false;
 
-	// 게임 매니저
-	private physicsManager: PhysicsManager;
-	private playerManager: PlayerManager;
-	private groundManager: GroundManager;
-	private pipeManager!: PipeManager;
+  // 게임 매니저
+  private physicsManager: PhysicsManager;
+  private playerManager!: PlayerManager;
+  private groundManager!: GroundManager;
+  private pipeManager!: PipeManager;
 
-	// UI 요소
-	private scoreUI: ScoreUI;
-	private gameOverUI: GameOverUI;
+  // UI 요소
+  private scoreUI!: ScoreUI;
+  private gameOverUI!: GameOverUI;
 
-	// 게임 상태 및 설정
-	private gameState: GameState = GameState.READY;
-	private gameOptions: GameOptions = {
-		pipeSpeed: 2,
-		pipeSpawnInterval: 2000,
-		jumpVelocity: 8,
-	};
-	private lastPipeSpawnTime = 0;
+  // 캐릭터 픽업 애니메이션용 요소
+  private introAnimationBird: Bird | null = null;
+  private introAnimationBasket: PIXI.Sprite | null = null;
+  private isIntroAnimationComplete = true; // MainScene에서 애니메이션을 수행하므로 기본값 true로 변경
+  private isIntroAnimationRunning = false;
 
-	constructor(
-		game: Game,
-		// characterKey: CharacterKey,
-		// gameEngine?: GameEngine
-	) {
-		super();
-		this.game = game;
-		this.gameEngine = new GameEngine(
-			this.game.app.screen.width,
-			this.game.app.screen.height,
-		);
+  // 게임 상태 및 설정
+  private gameState: GameState = GameState.READY;
+  private gameOptions: GameOptions = {
+    pipeSpeed: 4,
+    pipeSpawnInterval: 2000,
+    jumpVelocity: 8,
+  };
+  private lastPipeSpawnTime = 0;
 
-		// 하늘색 배경 생성
-		this.createBackground();
+  constructor(
+    game: Game
+    // characterKey: CharacterKey,
+    // gameEngine?: GameEngine
+  ) {
+    super();
+    this.game = game;
+    this.gameEngine = new GameEngine(
+      this.game.app.screen.width,
+      this.game.app.screen.height
+    );
 
-		// 물리 시스템 초기화
-		this.physicsManager = new PhysicsManager(this.gameEngine);
+    // 하늘색 배경 생성
+    this.createBackground();
 
-		// const data = GameDataManager.loadData() as GameData;
-	}
+    // 물리 시스템 초기화
+    this.physicsManager = new PhysicsManager(this.gameEngine);
 
-	public async init(): Promise<FlappyBirdGameScene> {
-		const data = await GameDataManager.loadData();
+    // const data = GameDataManager.loadData() as GameData;
+  }
 
-		if (!data) {
-			throw new Error("게임 데이터가 없습니다");
-		}
+  public async init(): Promise<FlappyBirdGameScene> {
+    const data = await GameDataManager.loadData();
 
-		// 플레이어 초기화
-		this.playerManager = new PlayerManager(
-			this.game.app,
-			this.physicsManager,
-			data.character.key,
-		);
+    if (!data) {
+      throw new Error("게임 데이터가 없습니다");
+    }
 
-		// 지면 초기화
-		this.groundManager = new GroundManager(
-			this.game.app,
-			this.physicsManager,
-			this.gameOptions.pipeSpeed,
-		);
+    // 플레이어 초기화
+    this.playerManager = new PlayerManager(
+      this.game.app,
+      this.physicsManager,
+      data.character.key
+    );
 
-		// UI 초기화
-		this.scoreUI = new ScoreUI();
-		this.gameOverUI = new GameOverUI();
-		this.game.changeControlButtons(
-			CONTROL_BUTTONS_SET[FlappyBirdGameSceneControlButtonsSetType.GamePlay],
-		);
+    // 지면 초기화
+    this.groundManager = new GroundManager(
+      this.game.app,
+      this.physicsManager,
+      this.gameOptions.pipeSpeed
+    );
 
-		// 씬 설정
-		this.setupScene();
+    // UI 초기화
+    this.scoreUI = new ScoreUI();
+    this.gameOverUI = new GameOverUI();
+    this.game.changeControlButtons(
+      CONTROL_BUTTONS_SET[FlappyBirdGameSceneControlButtonsSetType.GamePlay]
+    );
 
-		return this;
-	}
+    // 씬 설정
+    this.setupScene();
 
-	/**
-	 * 배경을 생성합니다.
-	 */
-	private createBackground(): void {
-		const skyBlueColor = 0x87ceeb;
-		this.background = new PIXI.Graphics();
-		this.background.beginFill(skyBlueColor);
-		this.background.drawRect(
-			0,
-			0,
-			this.game.app.screen.width,
-			this.game.app.screen.height,
-		);
-		this.background.endFill();
-	}
+    return this;
+  }
 
-	/**
-	 * 씬을 설정합니다.
-	 */
-	private setupScene(): void {
-		try {
-			this.gameEngine.initialize(this.game.app);
+  /**
+   * 배경을 생성합니다.
+   */
+  private createBackground(): void {
+    const skyBlueColor = 0x87ceeb;
+    this.background = new PIXI.Graphics();
+    this.background.beginFill(skyBlueColor);
+    this.background.drawRect(
+      0,
+      0,
+      this.game.app.screen.width,
+      this.game.app.screen.height
+    );
+    this.background.endFill();
+  }
 
-			// 지면 초기화
-			this.groundManager.setup();
+  /**
+   * 씬을 설정합니다.
+   */
+  private setupScene(): void {
+    try {
+      this.gameEngine.initialize(this.game.app);
 
-			// 파이프 관리자 초기화
-			this.pipeManager = new PipeManager(
-				this.game.app,
-				this.physicsManager,
-				this.gameOptions.pipeSpeed,
-				this.gameOptions.pipeSpawnInterval,
-				this.groundManager.getTileHeight(),
-			);
+      // 지면 초기화
+      this.groundManager.setup();
 
-			// 충돌 이벤트 설정
-			this.setupCollisionListeners();
+      // 파이프 관리자 초기화
+      this.pipeManager = new PipeManager(
+        this.game.app,
+        this.physicsManager,
+        this.gameOptions.pipeSpeed,
+        this.gameOptions.pipeSpawnInterval,
+        this.groundManager.getTileHeight()
+      );
 
-			// 모든 디스플레이 요소 추가
-			this.addDisplayObjects();
+      // 충돌 이벤트 설정
+      this.setupCollisionListeners();
 
-			// 키보드 이벤트 리스너 추가
-			this.setupKeyboardListeners();
+      // 모든 디스플레이 요소 추가
+      this.addDisplayObjects();
 
-			this.initialized = true;
+      // 키보드 이벤트 리스너 추가
+      this.setupKeyboardListeners();
 
-			// 화면 크기에 맞게 조정
-			this.onResize(this.game.app.screen.width, this.game.app.screen.height);
+      this.initialized = true;
 
-			this.physicsManager.toggleDebugMode(this.game.app);
+      // 화면 크기에 맞게 조정
+      this.onResize(this.game.app.screen.width, this.game.app.screen.height);
 
-			// 바로 게임 시작
-			this.startGame();
-		} catch (error) {
-			console.error("Error setting up FlappyBirdGameScene:", error);
-		}
-	}
+      // 디버그 모드 토글
+      this.physicsManager.toggleDebugMode(this.game.app);
 
-	/**
-	 * 모든 디스플레이 요소를 씬에 추가합니다.
-	 */
-	private addDisplayObjects(): void {
-		// 순서대로 추가
-		this.addChild(this.background);
-		this.addChild(this.pipeManager.getContainer());
-		this.addChild(this.groundManager.getContainer());
-		this.addChild(this.playerManager.getBasket());
-		this.addChild(this.playerManager.getBird());
-		this.addChild(this.scoreUI.getDisplayObject());
-		this.addChild(this.gameOverUI.getDisplayObject());
-	}
+      // 캐릭터가 보이도록 설정 (MainScene에서 애니메이션 후 캐릭터를 숨겼으므로)
+      if (this.game.character) {
+        this.game.character.visible = true;
+      }
 
-	/**
-	 * 충돌 이벤트 리스너를 설정합니다.
-	 */
-	private setupCollisionListeners(): void {
-		this.physicsManager.setupCollisionListener((bodyA, bodyB) => {
-			const isBasketCollision =
-				(bodyA.label === "basket" &&
-					(bodyB.label === "ground" || bodyB.label === "pipe")) ||
-				(bodyB.label === "basket" &&
-					(bodyA.label === "ground" || bodyA.label === "pipe"));
+      // 바로 게임 시작 (MainScene에서 애니메이션을 완료했으므로)
+      this.startGame();
+    } catch (error) {
+      console.error("Error setting up FlappyBirdGameScene:", error);
+    }
+  }
 
-			if (isBasketCollision && this.gameState === GameState.PLAYING) {
-				this.handleGameOver();
-			}
-		});
-	}
+  /**
+   * 모든 디스플레이 요소를 씬에 추가합니다.
+   */
+  private addDisplayObjects(): void {
+    // 순서대로 추가
+    this.addChild(this.background);
+    this.addChild(this.pipeManager.getContainer());
+    this.addChild(this.groundManager.getContainer());
+    this.addChild(this.playerManager.getBasket());
+    this.addChild(this.playerManager.getBird());
+    this.addChild(this.scoreUI.getDisplayObject());
+    this.addChild(this.gameOverUI.getDisplayObject());
+  }
 
-	/**
-	 * 키보드 이벤트 리스너를 설정합니다.
-	 */
-	private setupKeyboardListeners(): void {
-		window.addEventListener("keydown", this.handleKeyDown.bind(this));
-	}
+  /**
+   * 충돌 이벤트 리스너를 설정합니다.
+   */
+  private setupCollisionListeners(): void {
+    this.physicsManager.setupCollisionListener((bodyA, bodyB) => {
+      const isBasketCollision =
+        (bodyA.label === "basket" &&
+          (bodyB.label === "ground" || bodyB.label === "pipe")) ||
+        (bodyB.label === "basket" &&
+          (bodyA.label === "ground" || bodyA.label === "pipe"));
 
-	/**
-	 * 키보드 이벤트 처리 메서드
-	 */
-	private handleKeyDown(event: KeyboardEvent): void {
-		if (event.code === "Space" || event.key === " ") {
-			if (this.gameState === GameState.PLAYING) {
-				this.jump();
-			} else if (this.gameState === GameState.GAME_OVER) {
-				this.restartGame();
-			}
-		}
+      if (isBasketCollision && this.gameState === GameState.PLAYING) {
+        this.handleGameOver();
+      }
+    });
+  }
 
-		if (event.code === "KeyD") {
-			this.physicsManager.toggleDebugMode(this.game.app);
-		}
-	}
+  /**
+   * 키보드 이벤트 리스너를 설정합니다.
+   */
+  private setupKeyboardListeners(): void {
+    window.addEventListener("keydown", this.handleKeyDown.bind(this));
+  }
 
-	/**
-	 * 게임을 시작합니다.
-	 */
-	private startGame(): void {
-		this.gameState = GameState.PLAYING;
-		this.playerManager.resetPosition();
-	}
+  /**
+   * 키보드 이벤트 처리 메서드
+   */
+  private handleKeyDown(event: KeyboardEvent): void {
+    if (event.code === "Space" || event.key === " ") {
+      if (this.gameState === GameState.PLAYING) {
+        this.jump();
+      } else if (this.gameState === GameState.GAME_OVER) {
+        this.restartGame();
+      }
+    }
 
-	/**
-	 * 플레이어 점프 메서드
-	 */
-	private jump(): void {
-		this.playerManager.jump(this.gameOptions.jumpVelocity);
-	}
+    if (event.code === "KeyD") {
+      this.physicsManager.toggleDebugMode(this.game.app);
+    }
+  }
 
-	/**
-	 * 강화된 점프 메서드
-	 */
-	private doubleJump(): void {
-		this.playerManager.jump(this.gameOptions.jumpVelocity * 1.5); // 기존 점프 속도의 1.5배
-	}
+  /**
+   * 게임을 시작합니다.
+   */
+  private startGame(): void {
+    this.gameState = GameState.PLAYING;
+    this.playerManager.resetPosition();
+  }
 
-	/**
-	 * 게임 오버 처리 메서드
-	 */
-	private handleGameOver(): void {
-		// 그 다음 게임 상태 변경 및 물리 엔진 정지
-		this.gameState = GameState.GAME_OVER;
-		this.gameEngine.pause();
+  /**
+   * 플레이어 점프 메서드
+   */
+  private jump(): void {
+    this.playerManager.jump(this.gameOptions.jumpVelocity);
+  }
 
-		// 애니메이션 정지
-		this.playerManager.stopAnimation();
+  /**
+   * 강화된 점프 메서드
+   */
+  private doubleJump(): void {
+    this.playerManager.jump(this.gameOptions.jumpVelocity * 1.5); // 기존 점프 속도의 1.5배
+  }
 
-		// 게임 오버 UI 표시
-		this.gameOverUI.show();
-	}
+  /**
+   * 게임 오버 처리 메서드
+   */
+  private handleGameOver(): void {
+    // 그 다음 게임 상태 변경 및 물리 엔진 정지
+    this.gameState = GameState.GAME_OVER;
+    this.gameEngine.pause();
 
-	/**
-	 * 게임을 재시작합니다.
-	 */
-	private restartGame(): void {
-		// 게임 상태 초기화
-		this.gameState = GameState.PLAYING;
+    // 애니메이션 정지
+    this.playerManager.stopAnimation();
 
-		// 게임 엔진 재개
-		this.gameEngine.resume();
+    // 게임 오버 UI 표시
+    this.gameOverUI.show();
+  }
 
-		// 점수 초기화
-		this.scoreUI.resetScore();
+  /**
+   * 게임을 재시작합니다.
+   */
+  private restartGame(): void {
+    // 게임 상태 초기화
+    this.gameState = GameState.PLAYING;
 
-		// 게임 오버 UI 숨기기
-		this.gameOverUI.hide();
+    // 게임 엔진 재개
+    this.gameEngine.resume();
 
-		// 모든 파이프 제거
-		this.pipeManager.clearAllPipes();
+    // 점수 초기화
+    this.scoreUI.resetScore();
 
-		// 플레이어 재설정
-		this.playerManager.resetBasket();
-		this.playerManager.resetPosition();
+    // 게임 오버 UI 숨기기
+    this.gameOverUI.hide();
 
-		// 바닥 타일 재설정
-		this.groundManager.setup();
+    // 모든 파이프 제거
+    this.pipeManager.clearAllPipes();
 
-		// 애니메이션 재시작
-		this.playerManager.startAnimation();
+    // 플레이어 재설정
+    this.playerManager.resetBasket();
+    this.playerManager.resetPosition();
 
-		this.lastPipeSpawnTime = 0;
-	}
+    // 바닥 타일 재설정
+    this.groundManager.setup();
 
-	/**
-	 * 화면 크기 변경 처리
-	 */
-	public onResize(width: number, height: number): void {
-		if (!this.initialized) return;
+    // 애니메이션 재시작
+    this.playerManager.startAnimation();
 
-		// 배경 리사이징
-		this.background.clear();
-		this.background.beginFill(0x87ceeb);
-		this.background.drawRect(0, 0, width, height);
-		this.background.endFill();
+    this.lastPipeSpawnTime = 0;
+  }
 
-		// UI 요소 위치 업데이트
-		this.scoreUI.updatePosition(width);
-		this.gameOverUI.updatePosition(width, height);
+  /**
+   * 화면 크기 변경 처리
+   */
+  public onResize(width: number, height: number): void {
+    if (!this.initialized) return;
 
-		// 디버그 렌더러 업데이트
-		this.physicsManager.updateDebugRendererSize(width, height);
-	}
+    // 배경 리사이징
+    this.background.clear();
+    this.background.beginFill(0x87ceeb);
+    this.background.drawRect(0, 0, width, height);
+    this.background.endFill();
 
-	/**
-	 * 컨트롤 버튼 클릭 핸들러
-	 */
-	public handleControlButtonClick(buttonType: ControlButtonType): void {
-		switch (buttonType) {
-			case ControlButtonType.Attack:
-				// TODO:
-				break;
-			case ControlButtonType.DoubleJump:
-				this.doubleJump();
-				break;
-			case ControlButtonType.Jump:
-				this.jump();
-				break;
-			default:
-				throw new Error("Invalid button type");
-		}
-	}
+    // UI 요소 위치 업데이트
+    this.scoreUI.updatePosition(width);
+    this.gameOverUI.updatePosition(width, height);
 
-	/**
-	 * 매 프레임마다 실행되는 업데이트 메서드
-	 */
-	public update(deltaTime: number): void {
-		if (!this.initialized) return;
+    // 디버그 렌더러 업데이트
+    this.physicsManager.updateDebugRendererSize(width, height);
+  }
 
-		const currentTime = Date.now();
+  /**
+   * 컨트롤 버튼 클릭 핸들러
+   */
+  public handleControlButtonClick(buttonType: ControlButtonType): void {
+    switch (buttonType) {
+      case ControlButtonType.Attack:
+        // TODO:
+        break;
+      case ControlButtonType.DoubleJump:
+        this.doubleJump();
+        break;
+      case ControlButtonType.Jump:
+        this.jump();
+        break;
+      default:
+        throw new Error("Invalid button type");
+    }
+  }
 
-		this.playerManager.update();
+  /**
+   * 매 프레임마다 실행되는 업데이트 메서드
+   */
+  public update(deltaTime: number): void {
+    if (!this.initialized) return;
 
-		if (this.gameState === GameState.PLAYING) {
-			// 플레이어 경계 충돌 체크
-			this.playerManager.checkCollisions();
+    const currentTime = Date.now();
 
-			// 파이프 관리
-			this.pipeManager.update(
-				currentTime,
-				this.playerManager.getBasketBody(),
-				() => this.scoreUI.incrementScore(),
-			);
+    this.playerManager.update();
 
-			// 바닥 타일 이동
-			this.groundManager.update();
-		}
-	}
+    if (this.gameState === GameState.PLAYING) {
+      // 플레이어 경계 충돌 체크
+      this.playerManager.checkCollisions();
 
-	/**
-	 * 리소스를 정리하고 객체를 파괴합니다.
-	 */
-	public destroy(): void {
-		// 이벤트 리스너 제거
-		window.removeEventListener("keydown", this.handleKeyDown.bind(this));
+      // 파이프 관리
+      this.pipeManager.update(
+        currentTime,
+        this.playerManager.getBasketBody(),
+        () => this.scoreUI.incrementScore()
+      );
 
-		// 물리 시스템 정리
-		this.physicsManager.cleanup();
-		this.gameEngine.cleanup();
+      // 바닥 타일 이동
+      this.groundManager.update();
+    }
+  }
 
-		// 기본 정리
-		super.destroy();
-	}
+  /**
+   * 인트로 애니메이션을 위한 준비를 합니다.
+   */
+  private async prepareIntroAnimation(): Promise<void> {
+    // 이미 준비되었거나 실행 중이면 중복 실행 방지
+    if (this.introAnimationBird || this.isIntroAnimationRunning) return;
+
+    const assets = AssetLoader.getAssets();
+
+    try {
+      // 새 객체 생성
+      this.introAnimationBird = new Bird(this.game.app);
+      this.introAnimationBird.setScale(2.0); // 처음에는 더 크게 시작
+
+      // 바구니 생성
+      if (
+        assets.common32x32Sprites &&
+        assets.common32x32Sprites.textures.basket
+      ) {
+        this.introAnimationBasket = new PIXI.Sprite(
+          assets.common32x32Sprites.textures.basket
+        );
+        this.introAnimationBasket.anchor.set(0.5);
+        this.introAnimationBasket.width = 32 * 2.0;
+        this.introAnimationBasket.height = 32 * 2.0;
+
+        // 바구니를 새에 매달기
+        this.introAnimationBird.hangObject(this.introAnimationBasket);
+      } else {
+        console.warn("바구니 텍스처를 찾을 수 없습니다.");
+      }
+
+      // 화면 밖의 왼쪽 위에서 시작하도록 위치 설정
+      this.introAnimationBird.position.set(-100, -100);
+
+      // 씬에 추가
+      this.addChild(this.introAnimationBird);
+    } catch (error) {
+      console.error("인트로 애니메이션 준비 중 오류:", error);
+    }
+  }
+
+  /**
+   * 인트로 애니메이션을 실행합니다.
+   */
+  private async playIntroAnimation(): Promise<void> {
+    if (!this.introAnimationBird || this.isIntroAnimationRunning) return;
+
+    this.isIntroAnimationRunning = true;
+
+    try {
+      const screenWidth = this.game.app.screen.width;
+      const screenHeight = this.game.app.screen.height;
+      const characterY = screenHeight / 2;
+
+      // 게임 요소들 숨기기
+      this.playerManager.getBird().visible = false;
+      this.playerManager.getBasket().visible = false;
+
+      // 1. 왼쪽 위에서 화면으로 진입
+      await this.introAnimationBird.flyTo(
+        screenWidth * 0.2,
+        screenHeight * 0.2,
+        1500
+      );
+
+      // 2. 캐릭터 위치로 이동
+      await this.introAnimationBird.flyTo(screenWidth * 0.4, characterY, 1000);
+
+      // 3. 캐릭터 픽업
+      if (this.game.character) {
+        await this.introAnimationBird.pickupCharacter(this.game.character);
+      }
+
+      // 4. 오른쪽으로 날아감
+      await this.introAnimationBird.flyTo(
+        screenWidth + 100,
+        screenHeight * 0.2,
+        2000
+      );
+
+      // 5. 애니메이션 정리
+      this.removeChild(this.introAnimationBird);
+      this.introAnimationBird = null;
+      this.introAnimationBasket = null;
+
+      // 6. 실제 게임 요소 표시
+      this.playerManager.getBird().visible = true;
+      this.playerManager.getBasket().visible = true;
+      this.playerManager.resetPosition();
+
+      // 7. 게임 시작
+      this.isIntroAnimationComplete = true;
+      this.isIntroAnimationRunning = false;
+      this.startGame();
+    } catch (error) {
+      console.error("인트로 애니메이션 실행 중 오류:", error);
+      // 오류 발생 시 정리 작업
+      if (this.introAnimationBird) {
+        this.removeChild(this.introAnimationBird);
+      }
+      this.introAnimationBird = null;
+      this.introAnimationBasket = null;
+
+      // 게임 요소 표시 및 시작
+      this.playerManager.getBird().visible = true;
+      this.playerManager.getBasket().visible = true;
+      this.isIntroAnimationComplete = true;
+      this.isIntroAnimationRunning = false;
+      this.startGame();
+    }
+  }
+
+  /**
+   * 리소스를 정리하고 객체를 파괴합니다.
+   */
+  public destroy(): void {
+    // 이벤트 리스너 제거
+    window.removeEventListener("keydown", this.handleKeyDown.bind(this));
+
+    // 물리 시스템 정리
+    this.physicsManager.cleanup();
+    this.gameEngine.cleanup();
+
+    // 기본 정리
+    super.destroy();
+  }
 }

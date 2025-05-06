@@ -13,6 +13,9 @@ import {
 } from "../ui/types";
 import { AssetLoader } from "../utils/AssetLoader";
 import { CleaningManager } from "../managers/CleaningManager";
+import type { CharacterKey } from "../types/Character";
+import { Bird } from "../entities/Bird"; // Bird 클래스 import 추가
+import type { Character } from "entities/Character";
 
 enum MainSceneControlButtonsSetType {
   Default = "default",
@@ -55,6 +58,14 @@ export class MainScene extends PIXI.Container implements Scene {
   // CleaningManager 추가
   private cleaningManager: CleaningManager | null = null;
 
+  // Bird와 Basket 관련 필드 추가
+  private bird: Bird | null = null; // Bird 클래스를 사용하도록 수정
+  private basket: PIXI.Sprite | null = null;
+  private isBirdVisible = false;
+
+  // Transition Animation 관련 필드 추가
+  private isTransitionAnimationPlaying = false;
+
   // Game 인스턴스 참조
   private game: Game;
 
@@ -95,6 +106,9 @@ export class MainScene extends PIXI.Container implements Scene {
       } else {
         console.error("Game에 캐릭터가 초기화되지 않았습니다.");
       }
+
+      // Bird와 Basket 초기화
+      this.initBirdAndBasket();
 
       // 초기 설정 완료
       this.initialized = true;
@@ -187,14 +201,7 @@ export class MainScene extends PIXI.Container implements Scene {
       case GameMenuItemType.MiniGame:
         console.log("미니게임 버튼으로 플래피 버드 게임으로 전환 요청");
         if (this.game) {
-          // GameMenu 제거
-          if (this.gameMenu) {
-            this.gameMenu.destroy();
-            this.gameMenu = null;
-          }
-
-          // Game 인스턴스의 changeScene 호출
-          this.game.changeScene(SceneKey.FLAPPY_BIRD_GAME);
+          this.flyToFlappyBirdGame();
         } else {
           console.warn("Game 객체 참조가 설정되지 않았습니다");
         }
@@ -230,8 +237,9 @@ export class MainScene extends PIXI.Container implements Scene {
         break;
 
       case GameMenuItemType.Information:
-        console.log("정보 버튼 선택");
-        // 정보 관련 로직
+        console.log("정보 버튼 선택 - Bird와 Basket 토글");
+        // Bird와 Basket을 토글합니다
+        this.toggleBirdAndBasket();
         break;
 
       default:
@@ -384,6 +392,11 @@ export class MainScene extends PIXI.Container implements Scene {
     if (!this.initialized) return;
 
     // 캐릭터 관련 업데이트는 캐릭터 내부 및 컨트롤러에서 처리
+
+    // Bird와 Basket 관련 업데이트
+    if (this.isBirdVisible) {
+      this.updateBirdAndBasketPositions();
+    }
   }
 
   // 씬 정리를 위한 메서드 추가
@@ -404,5 +417,354 @@ export class MainScene extends PIXI.Container implements Scene {
     }
 
     // 다른 리소스 정리 로직...
+  }
+
+  /**
+   * Bird와 Basket을 초기화합니다.
+   */
+  private initBirdAndBasket(): void {
+    const assets = AssetLoader.getAssets();
+
+    try {
+      // Basket 초기화 - common32x32 스프라이트시트의 'basket' 사용
+      if (!this.basket && assets.common32x32Sprites) {
+        // commonSprites에서 basket 텍스처 가져오기
+        console.log("basket 텍스처 가져오기 시도");
+        const basketTexture = assets.common32x32Sprites.textures.basket;
+
+        if (basketTexture) {
+          console.log("basket 텍스처 성공적으로 가져옴");
+          this.basket = new PIXI.Sprite(basketTexture);
+          this.basket.width = 32;
+          this.basket.height = 32;
+          this.basket.anchor.set(0.5);
+          this.basket.visible = false; // 초기에는 보이지 않음
+          this.addChild(this.basket);
+        } else {
+          console.warn(
+            "common32x32 스프라이트시트에서 'basket' 텍스처를 찾을 수 없습니다."
+          );
+        }
+      }
+
+      // Bird 초기화
+      if (!this.bird) {
+        console.log("Bird 객체 생성");
+        this.bird = new Bird(this.game.app); // Bird 클래스 사용
+        this.bird.visible = false; // 초기에는 보이지 않음
+        this.addChild(this.bird);
+      }
+    } catch (error) {
+      console.error("Bird와 Basket 초기화 중 오류 발생:", error);
+    }
+  }
+
+  /**
+   * Bird와 Basket을 화면에 표시하거나 숨깁니다.
+   */
+  public toggleBirdAndBasket(): void {
+    this.isBirdVisible = !this.isBirdVisible;
+    console.log("Toggle Bird and Basket. Visible:", this.isBirdVisible);
+
+    if (this.bird) {
+      this.bird.visible = this.isBirdVisible;
+      console.log("Bird 객체가 존재함, visible:", this.bird.visible);
+
+      if (this.isBirdVisible) {
+        // Bird가 표시될 때, basket을 bird에 매달기
+        if (this.basket) {
+          console.log("Basket 객체가 존재함, 현재 속성:", {
+            width: this.basket.width,
+            height: this.basket.height,
+            visible: this.basket.visible,
+          });
+
+          // 바구니 보이기
+          this.basket.visible = true;
+
+          // basket을 씬에서 제거 (bird가 관리하게 됨)
+          this.removeChild(this.basket);
+          console.log("Basket이 Scene에서 제거됨");
+
+          // bird에 basket 매달기
+          this.bird.hangObject(this.basket);
+          console.log("Basket이 Bird에 매달림");
+        } else {
+          console.warn("Basket 객체가 존재하지 않음");
+        }
+      } else {
+        // Bird가 숨겨질 때, basket을 bird에서 분리하고 씬에 다시 추가
+        const hangingObject = this.bird.getHangingObject();
+        console.log("매달린 오브젝트 확인:", hangingObject ? "있음" : "없음");
+
+        if (hangingObject) {
+          this.basket = this.bird.unHangObject() as PIXI.Sprite;
+          if (this.basket) {
+            this.addChild(this.basket);
+            this.basket.visible = false;
+            console.log("Basket이 Bird에서 분리되고 Scene에 추가됨");
+          }
+        }
+      }
+    } else {
+      console.warn("Bird 객체가 존재하지 않음");
+    }
+
+    // 새롭게 표시될 때 위치 설정
+    if (this.isBirdVisible) {
+      this.updateBirdAndBasketPositions();
+    }
+  }
+
+  /**
+   * Bird와 Basket의 위치를 업데이트합니다.
+   */
+  private updateBirdAndBasketPositions(): void {
+    if (!this.isBirdVisible || !this.bird) return;
+
+    const screenWidth = this.game.app.screen.width;
+    const screenHeight = this.game.app.screen.height;
+
+    // 새의 위치를 설정 (바구니는 새의 발에 매달림)
+    this.bird.position.x = screenWidth * 0.25;
+    this.bird.position.y = screenHeight * 0.4;
+
+    // 위아래 움직임 애니메이션 제거
+  }
+
+  /**
+   * 미니게임으로 전환할 때 새가 캐릭터를 데리고 날아가는 애니메이션
+   */
+  private async flyToFlappyBirdGame(): Promise<void> {
+    // 이미 진행 중인 애니메이션이 있다면 중단
+    if (this.isTransitionAnimationPlaying) return;
+
+    this.isTransitionAnimationPlaying = true;
+    console.log("새가 캐릭터를 데리러 오는 애니메이션 시작");
+
+    try {
+      // 메뉴 제거 및 즉시 실행 (지연 없이)
+      if (this.gameMenu) {
+        this.gameMenu.destroy();
+        this.gameMenu = null;
+      }
+
+      const screenWidth = this.game.app.screen.width;
+      const screenHeight = this.game.app.screen.height;
+
+      // 새 객체 생성 (기존 bird는 숨기고 새로운 bird 인스턴스 생성)
+      if (this.bird) {
+        this.bird.visible = false;
+      }
+
+      const transitionBird = new Bird(this.game.app);
+      transitionBird.visible = true;
+
+      // 바구니 생성
+      const assets = AssetLoader.getAssets();
+      let transitionBasket: PIXI.Sprite | null = null;
+
+      if (assets.common32x32Sprites?.textures.basket) {
+        transitionBasket = new PIXI.Sprite(
+          assets.common32x32Sprites.textures.basket
+        );
+        transitionBasket.anchor.set(0.5);
+        transitionBasket.visible = true;
+
+        // 바구니를 새에 매달기
+        transitionBird.hangObject(transitionBasket);
+      }
+
+      // 새를 큰 크기로 설정하고 명확하게 왼쪽 하단 구석에 위치시킴
+      transitionBird.setScale(3.0);
+      // 확실하게 화면 왼쪽 하단 구석에 배치 (화면 안에 약간만 보이도록)
+      transitionBird.position.set(20, screenHeight - 20);
+      this.addChild(transitionBird);
+
+      // 애니메이션 지연 없이 즉시 시작
+      await this.trackAndApproachCharacter(
+        transitionBird,
+        this.game.character as Character,
+        3.0,
+        1.8,
+        1800
+      );
+
+      // 캐릭터의 in-basket 스프라이트로 교체하는 로직
+      this.pickupCharacterWithInBasket(
+        transitionBird,
+        this.game.character as Character
+      );
+
+      // 화면 오른쪽 아래로 다시 커지면서 날아감
+      await this.flyWithScaleChange(
+        transitionBird,
+        { x: screenWidth + 200, y: screenHeight + 100 },
+        1.8,
+        3.0,
+        2000
+      );
+
+      // 정리 및 씬 전환
+      this.removeChild(transitionBird);
+      await this.game.changeScene(SceneKey.FLAPPY_BIRD_GAME);
+    } catch (error) {
+      console.error("전환 애니메이션 오류:", error);
+      // 오류 발생 시 바로 씬 전환
+      await this.game.changeScene(SceneKey.FLAPPY_BIRD_GAME);
+    } finally {
+      this.isTransitionAnimationPlaying = false;
+    }
+  }
+
+  /**
+   * 캐릭터를 실시간으로 추적하면서 접근하는 애니메이션
+   */
+  private trackAndApproachCharacter(
+    bird: Bird,
+    character: PIXI.Container,
+    startScale: number,
+    endScale: number,
+    durationMs: number
+  ): Promise<void> {
+    return new Promise<void>((resolve) => {
+      const startTime = Date.now();
+      const startPosition = { x: bird.position.x, y: bird.position.y };
+
+      // 애니메이션 틱 함수
+      const animate = () => {
+        const elapsedTime = Date.now() - startTime;
+        const progress = Math.min(elapsedTime / durationMs, 1);
+
+        // 이징 함수 적용 (부드러운 움직임)
+        const easeProgress = this.easeInOutQuad(progress);
+
+        // 캐릭터의 현재 위치 (실시간으로 가져옴)
+        const currentCharacterPosition = {
+          x: character.position.x,
+          y: character.position.y - 60, // 캐릭터 바로 위에 위치하도록
+        };
+
+        // 시작점과 목표점 사이의 중간 지점을 계산 (수정: 곡선 경로가 아닌 직선 경로로)
+        // 곡선 경로 대신에 직선 경로를 사용하여 아래로 내려갔다 올라오는 현상을 방지
+        const currentX =
+          startPosition.x +
+          (currentCharacterPosition.x - startPosition.x) * easeProgress;
+        const currentY =
+          startPosition.y +
+          (currentCharacterPosition.y - startPosition.y) * easeProgress;
+
+        // 새의 위치와 크기 업데이트
+        bird.position.x = currentX;
+        bird.position.y = currentY;
+
+        // 크기 변경
+        const newScale = startScale + (endScale - startScale) * easeProgress;
+        bird.setScale(newScale);
+
+        if (progress < 1) {
+          // 애니메이션 계속
+          requestAnimationFrame(animate);
+        } else {
+          // 애니메이션 완료 - 마지막으로 정확히 캐릭터 위치로 이동
+          bird.position.x = currentCharacterPosition.x;
+          bird.position.y = currentCharacterPosition.y;
+          bird.setScale(endScale);
+          resolve();
+        }
+      };
+
+      // 애니메이션 시작
+      animate();
+    });
+  }
+
+  /**
+   * 새가 날아가면서 크기가 변하는 애니메이션
+   */
+  private flyWithScaleChange(
+    bird: Bird,
+    targetPosition: { x: number; y: number },
+    startScale: number,
+    endScale: number,
+    durationMs: number
+  ): Promise<void> {
+    return new Promise<void>((resolve) => {
+      const startTime = Date.now();
+      const startPosition = { x: bird.position.x, y: bird.position.y };
+
+      const animate = () => {
+        const elapsedTime = Date.now() - startTime;
+        const progress = Math.min(elapsedTime / durationMs, 1);
+
+        // 이징 함수 적용 (부드러운 움직임)
+        const easeProgress = this.easeInOutQuad(progress);
+
+        // 새 위치 계산
+        bird.position.x =
+          startPosition.x + (targetPosition.x - startPosition.x) * easeProgress;
+        bird.position.y =
+          startPosition.y + (targetPosition.y - startPosition.y) * easeProgress;
+
+        // 크기 변경
+        const newScale = startScale + (endScale - startScale) * easeProgress;
+        bird.setScale(newScale);
+
+        if (progress < 1) {
+          // 애니메이션 계속
+          requestAnimationFrame(animate);
+        } else {
+          // 애니메이션 완료
+          bird.position.x = targetPosition.x;
+          bird.position.y = targetPosition.y;
+          bird.setScale(endScale);
+          resolve();
+        }
+      };
+
+      // 애니메이션 시작
+      animate();
+    });
+  }
+
+  /**
+   * 이징 함수: ease-in-out-quad
+   */
+  private easeInOutQuad(t: number): number {
+    return t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
+  }
+
+  /**
+   * 캐릭터를 픽업하면서 바구니를 in-basket으로 교체하는 메서드
+   */
+  private pickupCharacterWithInBasket(
+    bird: Bird,
+    character: PIXI.Container
+  ): void {
+    // 1. 현재 매달려 있는 바구니 제거
+    const oldBasket = bird.unHangObject();
+    if (oldBasket) {
+      this.removeChild(oldBasket);
+    }
+
+    // 2. 캐릭터의 in-basket 스프라이트를 가져옴
+    const characterKey = this.game.character?.getCharacterKey() as CharacterKey;
+    const assets = AssetLoader.getAssets();
+    const characterSpritesheet = assets.characterSprites[characterKey];
+
+    // biome-ignore lint/complexity/useOptionalChain: <explanation>
+    if (characterSpritesheet && characterSpritesheet.textures["in-basket"]) {
+      const inBasketTexture = characterSpritesheet.textures["in-basket"];
+      const inBasket = new PIXI.Sprite(inBasketTexture);
+      inBasket.anchor.set(0.5);
+
+      // 3. 새로운 바구니(캐릭터가 들어간)를 새에 매달기
+      bird.hangObject(inBasket);
+
+      // 4. 원래 캐릭터는 화면에서 숨김
+      character.visible = false;
+    } else {
+      console.warn("캐릭터의 in-basket 텍스처를 찾을 수 없습니다");
+    }
   }
 }

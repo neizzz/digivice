@@ -28,6 +28,7 @@ export class Character extends PIXI.Container {
   private eventBus: EventBus; // 이벤트 버스 인스턴스
   private isMovingToFood = false; // 캐릭터가 음식으로 이동 중인지 나타내는 플래그
   private characterInfo: (typeof CharacterDictionary)[CharacterKey]; // 캐릭터 정보 저장
+  private characterKey: CharacterKey; // CharacterKey 저장
 
   constructor(params: {
     characterKey: CharacterKey; // CharacterKey 사용
@@ -46,6 +47,7 @@ export class Character extends PIXI.Container {
     // 이벤트 버스 인스턴스 가져오기
     this.eventBus = EventBus.getInstance();
 
+    this.characterKey = params.characterKey; // CharacterKey 저장
     this.characterInfo = CharacterDictionary[params.characterKey];
 
     this.setPosition(params.initialPosition.x, params.initialPosition.y);
@@ -479,5 +481,10 @@ export class Character extends PIXI.Container {
     });
 
     return poob;
+  }
+
+  // CharacterKey getter 추가
+  public getCharacterKey(): CharacterKey {
+    return this.characterKey;
   }
 }
