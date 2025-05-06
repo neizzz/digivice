@@ -198,7 +198,7 @@ export class CleaningManager {
     border.lineStyle({
       width: 4,
       color,
-      alpha: 0.8,
+      alpha: bringToFront ? 1 : 0.8,
       alignment: 0,
     });
 
@@ -276,12 +276,12 @@ export class CleaningManager {
    * 점선 테두리를 제거합니다.
    */
   private removeCleanableBorders(): void {
-    this.cleanableBorders.forEach((border, cleanable) => {
+    for (const border of this.cleanableBorders.values()) {
       if (border.parent) {
         border.parent.removeChild(border);
       }
       border.destroy();
-    });
+    }
     this.cleanableBorders.clear();
   }
 
@@ -379,14 +379,26 @@ export class CleaningManager {
       const child = this.parent.children[i];
 
       try {
-        // 스프라이트에 __poobRef 속성이 있는지 확인
+        // 스프라이트에 __objectRef 속성이 있는지 확인
         // biome-ignore lint/suspicious/noExplicitAny: <explanation>
         if (child && (child as any).__objectRef) {
           // biome-ignore lint/suspicious/noExplicitAny: <explanation>
           const objectRef = (child as any).__objectRef;
+
           // Cleanable의 인스턴스인지 확인
           if (objectRef instanceof Cleanable) {
-            this.cleanableObjects.push(objectRef);
+            // Food 객체인 경우 STALE 상태일 때만 청소 가능하도록
+            if (objectRef.constructor.name === "Food") {
+              // biome-ignore lint/suspicious/noExplicitAny: <explanation>
+              const food = objectRef as any; // Food로 캐스팅하기 위한 any 타입 사용
+              if (food.getFreshness && food.getFreshness() === 2) {
+                // FoodFreshness.STALE = 2
+                this.cleanableObjects.push(objectRef);
+              }
+            } else {
+              // Food가 아닌 경우 바로 추가 (Poob 등)
+              this.cleanableObjects.push(objectRef);
+            }
           }
         }
       } catch (error) {
@@ -400,7 +412,7 @@ export class CleaningManager {
 
     if (this.cleanableObjects.length === 0) {
       console.warn(
-        "청소 가능한 객체가 없습니다. Poob 객체가 제대로 생성되었는지 확인하세요."
+        "청소 가능한 객체가 없습니다. Poob 객체나 상한 음식이 제대로 생성되었는지 확인하세요."
       );
     }
   }
@@ -542,9 +554,6 @@ export class CleaningManager {
 
     // 현재 객체를 맨 앞으로 가져오기
     this.bringCurrentCleanableToFront();
-
-    // 현재 객체의 위치 가져오기
-    const currentCleanable = this.cleanableObjects[this.currentCleanableIndex];
 
     // 청소 상태를 CLEANING으로 변경
     this.cleaningState = CleaningState.CLEANING;

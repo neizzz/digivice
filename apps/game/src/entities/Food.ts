@@ -8,7 +8,7 @@ import { AssetLoader } from "../utils/AssetLoader";
 import { FreshnessDuration } from "../utils/FreshnessDuration";
 import { SparkleEffect } from "../effects/SparkleEffect";
 import { ColorMatrixFilter } from "@pixi/filter-color-matrix";
-import type { Cleanable } from "../interfaces/Cleanable";
+import { Cleanable } from "../interfaces/Cleanable";
 import { DebugFlags } from "../utils/DebugFlags";
 
 // 음식 상태를 나타내는 enum
@@ -31,18 +31,17 @@ export enum FoodFreshness {
 
 export interface FoodOptions {
   character: Character; // 음식을 먹을 캐릭터 객체 (선택사항)
-  freshness?: FoodFreshness; // 음식의 신선도 상태 (선택사항, 기본값: FRESH)
 }
 
 /**
  * 음식 클래스 - 음식의 생명주기(던지기, 착지, 먹기)를 관리
  */
-export class Food implements Cleanable {
+export class Food extends Cleanable {
   private sprite: PIXI.Sprite;
   private app: PIXI.Application;
   private parent: PIXI.Container;
   private options: FoodOptions;
-  private foodState: FoodState = FoodState.THROWING;
+  private state: FoodState = FoodState.THROWING;
   private freshness: FoodFreshness;
   private eatingStartTime = 0;
   private eatingDuration = 4000; // 기본값: 4초
@@ -68,10 +67,6 @@ export class Food implements Cleanable {
   // SparkleEffect 객체
   private sparkleEffect?: SparkleEffect;
 
-  // 청소 관련 변수
-  private cleanProgress = 0;
-  private cleaningThreshold = 0.8; // 80% 이상 청소되면 완료로 간주
-
   /**
    * @param app PIXI 애플리케이션
    * @param parent 부모 컨테이너
@@ -82,12 +77,13 @@ export class Food implements Cleanable {
     parent: PIXI.Container,
     options: FoodOptions
   ) {
+    super();
     this.app = app;
     this.parent = parent;
     this.options = options;
 
     // 신선도 설정 (기본값: FRESH)
-    this.freshness = options.freshness ?? FoodFreshness.FRESH;
+    this.freshness = FoodFreshness.FRESH;
 
     // 랜덤 음식 텍스처 선택
     const texture = this.getRandomFoodTexture();
@@ -99,6 +95,8 @@ export class Food implements Cleanable {
     const foodScale = this.initialScale * 0.7; // 30% 더 작게 조정
     this.sprite.scale.set(foodScale);
     this.sprite.anchor.set(0.5);
+    // biome-ignore lint/suspicious/noExplicitAny: <explanation>
+    (this.sprite as any).__objectRef = this;
 
     // ThrowSprite를 통해 던지기 기능 활용
     this.initThrowSprite();
@@ -121,6 +119,40 @@ export class Food implements Cleanable {
     this.eatingPromise = new Promise<void>((resolve) => {
       this.eatingFinishedResolve = resolve;
     });
+  }
+
+  /**
+   * 청소 시작 시 호출되는 메서드
+   * @override
+   */
+  protected onCleaningStart(): void {
+    this.state = FoodState.CLEANING;
+    // 투명도 시작 값 설정
+    this.sprite.alpha = 1.0;
+  }
+
+  /**
+   * 청소 진행 중 호출되는 메서드
+   * @override
+   */
+  protected onCleaningProgress(progress: number): void {
+    // 투명도 조절 (청소가 진행될수록 점점 투명해짐)
+    this.sprite.alpha = 1.0 - progress * 0.8; // 80%까지만 투명하게
+  }
+
+  /**
+   * 청소가 완료될 때 호출되는 메서드
+   * @override
+   */
+  protected onCleaningFinish(): void {
+    this.state = FoodState.CLEANED;
+
+    // 효과음 재생 등 추가 기능 구현 가능
+
+    // 스프라이트 제거
+    if (this.sprite.parent) {
+      this.sprite.parent.removeChild(this.sprite);
+    }
   }
 
   /**
@@ -237,7 +269,7 @@ export class Food implements Cleanable {
    */
   private onFoodLanded(position: { x: number; y: number }): void {
     console.log("Food landed at position:", position);
-    this.foodState = FoodState.LANDED;
+    this.state = FoodState.LANDED;
 
     // 디버그 모드에서 음식 먹기가 방지된 경우 먹지 않음
     if (DebugFlags.getInstance().isEatingPrevented()) {
@@ -260,7 +292,7 @@ export class Food implements Cleanable {
    * 캐릭터가 음식으로 이동하기 시작
    */
   public startMovingToFood(): void {
-    this.foodState = FoodState.APPROACHING;
+    this.state = FoodState.APPROACHING;
 
     // 캐릭터의 현재 위치 기준으로 음식의 가까운 쪽 결정
     this.targetPosition = this.getTargetPositionNearFood();
@@ -282,7 +314,7 @@ export class Food implements Cleanable {
    * 업데이트 메서드 - 매 프레임마다 호출
    */
   private update = (deltaTime: number): void => {
-    switch (this.foodState) {
+    switch (this.state) {
       case FoodState.THROWING:
         // ThrowSprite가 처리
         break;
@@ -307,10 +339,7 @@ export class Food implements Cleanable {
     }
 
     // 상태가 FINISHED 또는 CLEANED가 아닐 경우에만 신선도 업데이트
-    if (
-      this.foodState !== FoodState.FINISHED &&
-      this.foodState !== FoodState.CLEANED
-    ) {
+    if (this.state !== FoodState.FINISHED && this.state !== FoodState.CLEANED) {
       // 신선도 상태 업데이트
       this.freshnessDuration.update();
     }
@@ -342,7 +371,7 @@ export class Food implements Cleanable {
       this.options.character.enableRandomMovement();
 
       // 음식 상태를 LANDED로 되돌림
-      this.foodState = FoodState.LANDED;
+      this.state = FoodState.LANDED;
 
       // Promise 해결 (음식 처리 완료로 간주)
       if (this.eatingFinishedResolve) {
@@ -438,7 +467,7 @@ export class Food implements Cleanable {
    * 음식 먹기 시작
    */
   private startEating(): void {
-    this.foodState = FoodState.EATING;
+    this.state = FoodState.EATING;
     this.eatingStartTime = Date.now();
 
     // 음식 마스크 초기화
@@ -465,7 +494,7 @@ export class Food implements Cleanable {
    * 음식 먹기 완료
    */
   private finishEating(): void {
-    this.foodState = FoodState.FINISHED;
+    this.state = FoodState.FINISHED;
 
     // 마스크 제거
     if (this.foodMask) {
@@ -548,7 +577,7 @@ export class Food implements Cleanable {
 
     // 캐릭터 상태 복원 및 랜덤 움직임 다시 활성화
     if (this.options.character) {
-      if (this.foodState === FoodState.EATING) {
+      if (this.state === FoodState.EATING) {
         this.options.character.update(CharacterState.IDLE);
       }
       this.options.character.enableRandomMovement();
@@ -567,70 +596,6 @@ export class Food implements Cleanable {
    */
   public waitForEatingFinished(): Promise<void> {
     return this.eatingPromise;
-  }
-
-  /**
-   * 청소 진행도를 업데이트합니다. (Cleanable 인터페이스 구현)
-   * @param progress 0-1 사이의 청소 진행도
-   * @returns 청소 완료 여부
-   */
-  public updateCleanProgress(progress: number): boolean {
-    // 이미 청소가 완료되었거나 먹는 중이거나 던져지는 중이면 청소 불가
-    if (
-      this.foodState === FoodState.CLEANED ||
-      this.foodState === FoodState.EATING ||
-      this.foodState === FoodState.THROWING
-    ) {
-      return true;
-    }
-
-    // 청소 상태로 전환
-    if (this.foodState !== FoodState.CLEANING && progress > 0) {
-      this.foodState = FoodState.CLEANING;
-    }
-
-    if (this.foodState === FoodState.CLEANING) {
-      this.cleanProgress = progress;
-
-      // 청소가 진행될수록 투명해짐
-      this.sprite.alpha = 1.0 - progress * 0.7;
-
-      // 임계값에 도달하면 청소 완료
-      if (progress >= this.cleaningThreshold) {
-        this.finishCleaning();
-        return true;
-      }
-    }
-
-    return false;
-  }
-
-  /**
-   * 청소를 완료합니다. (Cleanable 인터페이스 구현)
-   */
-  public finishCleaning(): void {
-    if (this.foodState === FoodState.CLEANED) {
-      return;
-    }
-
-    this.foodState = FoodState.CLEANED;
-
-    // 스프라이트 제거
-    if (this.sprite.parent) {
-      this.sprite.parent.removeChild(this.sprite);
-    }
-
-    // SparkleEffect 제거
-    if (this.sparkleEffect) {
-      this.sparkleEffect.stop();
-      this.sparkleEffect = undefined;
-    }
-
-    // 애니메이션 중단
-    this.app.ticker.remove(this.update);
-
-    // 상태가 변경되었음을 콘솔에 기록
-    console.log("음식이 청소되었습니다.");
   }
 
   /**

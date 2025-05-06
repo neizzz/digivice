@@ -1,4 +1,4 @@
-// import type * as PIXI from "pixi.js";
+import type * as PIXI from "pixi.js";
 
 /**
  * 청소 가능한 객체들의 기본 클래스
@@ -90,5 +90,5 @@ export abstract class Cleanable {
   /**
    * 객체의 스프라이트를 반환합니다.
    */
-  public abstract getSprite(): PIXI.Sprite | PIXI.Container;
+  public abstract getSprite(): PIXI.Sprite;
 }
