@@ -11,6 +11,7 @@ interface ControlButtonProps {
   sliderWidth?: number;
   initialSliderValue?: number;
   onSliderChange?: (value: number) => void;
+  onSliderEnd?: () => void; // 슬라이더 종료 이벤트 핸들러
   isSlider?: boolean;
 }
 
@@ -62,6 +63,7 @@ const ControlButton: React.FC<ControlButtonProps> = ({
   sliderWidth,
   initialSliderValue = 0.5,
   onSliderChange,
+  onSliderEnd,
 }) => {
   const [isPressed, setIsPressed] = useState(false);
   const [currentSliderValue, setCurrentSliderValue] =
@@ -88,6 +90,7 @@ const ControlButton: React.FC<ControlButtonProps> = ({
         },
         onDragEnd: () => {
           setIsPressed(false);
+          onSliderEnd?.();
         },
       });
 
@@ -99,7 +102,7 @@ const ControlButton: React.FC<ControlButtonProps> = ({
         sliderControllerRef.current = null;
       };
     }
-  }, [isSlider, onSliderChange]);
+  }, [isSlider, onSliderChange, onSliderEnd]);
 
   // 버튼 누름 상태에 따른 스프라이트 정보 선택
   const size = 64;

@@ -46,6 +46,9 @@ export class CleaningManager {
   // Cleanable 객체의 경계를 표시하기 위한 그래픽 객체들
   private cleanableBorders: Map<Cleanable, PIXI.Graphics> = new Map();
 
+  // 모든 청소 완료 여부를 추적하는 변수
+  private allCleaningComplete = false;
+
   /**
    * @param options 청소 관리자 옵션
    */
@@ -357,6 +360,12 @@ export class CleaningManager {
       this.broom.destroy();
       this.broom = null;
     }
+
+    // 모든 청소 완료 플래그가 설정된 경우 완료 콜백 호출
+    if (this.allCleaningComplete && this.onCleaningComplete) {
+      this.onCleaningComplete();
+      this.allCleaningComplete = false; // 플래그 초기화
+    }
   }
 
   /**
@@ -483,6 +492,17 @@ export class CleaningManager {
   }
 
   /**
+   * 슬라이더 입력 종료 처리
+   */
+  public handleSliderEnd(): void {
+    // 모든 청소가 완료된 상태라면 청소 모드 비활성화
+    if (this.allCleaningComplete) {
+      console.log("슬라이더 입력 종료 감지됨. 청소 모드 비활성화");
+      this.deactivate();
+    }
+  }
+
+  /**
    * 현재 선택된 청소 가능한 객체로 이동
    * @private
    */
@@ -545,18 +565,21 @@ export class CleaningManager {
     if (this.currentCleanableIndex >= this.cleanableObjects.length) {
       console.log("모든 객체 청소 완료");
 
-      // 청소 모드 비활성화 - 기존에는 상태만 변경했지만 이제는 완전히 종료
-      this.deactivate();
+      // 모든 청소 완료 플래그 설정
+      this.allCleaningComplete = true;
 
-      // 완료 콜백 호출
-      if (this.onCleaningComplete) {
-        this.onCleaningComplete();
+      // 빗자루는 즉시 제거 (슬라이더에서 손을 떼기 전에도)
+      if (this.broom) {
+        this.parent.removeChild(this.broom.getSprite());
+        this.broom.destroy();
+        this.broom = null;
       }
 
+      // 완료 콜백은 deactivate 시에 호출하도록 변경
       return;
     }
 
-    // 다음 청소 대상으로 이동 (여기가 누락되어 있었음)
+    // 다음 청소 대상으로 이동
     this.moveToCurrentCleanable();
   }
 

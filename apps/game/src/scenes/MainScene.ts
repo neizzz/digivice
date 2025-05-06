@@ -285,7 +285,7 @@ export class MainScene extends PIXI.Container implements Scene {
 
           // 기본 컨트롤 버튼으로 복귀
           this.game.changeControlButtons(
-            CONTROL_BUTTONS_SET[MainSceneControlButtonsSetType.Default]
+            CONTROL_BUTTONS_SET[MainSceneControlButtonsSetType.ActiveMenuItem]
           );
 
           // 랜덤 움직임 다시 적용
@@ -330,6 +330,13 @@ export class MainScene extends PIXI.Container implements Scene {
     // 청소 모드가 활성화된 경우에만 슬라이더 값 변경 처리
     if (this.isCleanModeActive && this.cleaningManager) {
       this.cleaningManager.handleSliderValueChange(value);
+    }
+  }
+
+  public handleSliderEnd(): void {
+    // 청소 모드가 활성화된 경우에만 슬라이더 값 변경 처리
+    if (this.isCleanModeActive && this.cleaningManager) {
+      this.cleaningManager.handleSliderEnd();
     }
   }
 

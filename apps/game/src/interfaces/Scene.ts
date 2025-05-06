@@ -5,5 +5,6 @@ export interface Scene {
   onResize(width: number, height: number): void;
   handleControlButtonClick: (buttonType: ControlButtonType) => void;
   handleSliderValueChange?: (value: number) => void;
+  handleSliderEnd?: () => void;
   destroy(): void;
 }

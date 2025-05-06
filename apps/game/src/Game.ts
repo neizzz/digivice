@@ -151,6 +151,9 @@ export class Game {
   public handleSliderValueChange(value: number): void {
     this.currentScene?.handleSliderValueChange?.(value);
   }
+  public handleSliderEnd(): void {
+    this.currentScene?.handleSliderEnd?.();
+  }
 
   /**
    * 기본 씬을 설정합니다

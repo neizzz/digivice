@@ -61,6 +61,14 @@ const GameContainer: React.FC = () => {
     [gameInstance]
   );
 
+  // 슬라이더 종료 핸들러 추가
+  const handleSliderEnd = useCallback(() => {
+    if (gameInstance?.handleSliderEnd) {
+      // 게임 인스턴스에 슬라이더 종료 이벤트 전달
+      gameInstance.handleSliderEnd();
+    }
+  }, [gameInstance]);
+
   return (
     <div
       className={
@@ -81,6 +89,7 @@ const GameContainer: React.FC = () => {
             buttonTypes={buttonTypes}
             onButtonPress={handleButtonPress}
             onSliderChange={handleSliderChange}
+            onSliderEnd={handleSliderEnd}
           />
         </div>
       )}

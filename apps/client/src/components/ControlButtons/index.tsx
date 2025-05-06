@@ -7,6 +7,7 @@ interface ControlButtonsProps {
   buttonTypes: [ControlButtonType, ControlButtonType, ControlButtonType];
   onButtonPress: (buttonType: ControlButtonType) => void;
   onSliderChange?: (value: number) => void;
+  onSliderEnd?: () => void;
   initialSliderValue?: number;
 }
 
@@ -22,6 +23,7 @@ const ControlButtons: React.FC<ControlButtonsProps> = ({
   buttonTypes,
   onButtonPress,
   onSliderChange,
+  onSliderEnd,
   initialSliderValue = 0.5,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -70,6 +72,7 @@ const ControlButtons: React.FC<ControlButtonsProps> = ({
               sliderWidth={sliderWidth}
               initialSliderValue={initialSliderValue}
               onSliderChange={onSliderChange}
+              onSliderEnd={onSliderEnd}
               onClick={() => onButtonPress(buttonTypes[1])}
             />
           </div>
