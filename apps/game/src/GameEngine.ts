@@ -3,16 +3,16 @@ import * as Matter from "matter-js";
 
 export class GameEngine {
   private physics: Matter.Engine;
-  private isRunning: boolean = false;
+  private isRunning = false;
   private gameObjects: {
     displayObject: PIXI.Sprite | PIXI.Container;
     body: Matter.Body;
   }[] = [];
   private pixiApp: PIXI.Application | null = null;
-  private _frameCount: number = 0;
+  private _frameCount = 0;
   private physicsUpdateBound: (delta: number) => void;
 
-  constructor(width: number = 800, height: number = 600) {
+  constructor(width: number, height: number) {
     this.physics = Matter.Engine.create({
       gravity: { x: 0, y: 2.5 },
       enableSleeping: false,
@@ -23,7 +23,10 @@ export class GameEngine {
       max: { x: width, y: height },
     };
 
-    this.physicsUpdateBound = this.physicsUpdate.bind(this);
+    // tick은 밀리초 단위의 델타타임을 나타냄
+    this.physicsUpdateBound = (tick: number) => {
+      this.physicsUpdate(tick * PIXI.Ticker.shared.deltaMS);
+    };
   }
 
   public initialize(app: PIXI.Application): void {
@@ -47,7 +50,7 @@ export class GameEngine {
     if (!this.isRunning || !this.pixiApp) return;
 
     try {
-      Matter.Engine.update(this.physics, this.pixiApp.ticker.deltaMS);
+      Matter.Engine.update(this.physics, delta);
       this.syncDisplayObjects();
     } catch (error) {
       console.error("[Physics] 물리 업데이트 오류:", error);
