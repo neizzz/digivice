@@ -3,6 +3,7 @@ import type { Game } from "../Game";
 import { SceneKey } from "../SceneKey";
 import { Background } from "../entities/Background";
 import { Food } from "../entities/Food";
+import type { FoodTracker } from "../trackers/FoodTracker";
 import type { Scene } from "../interfaces/Scene";
 import { GameMenu, type GameMenuOptions } from "../ui/GameMenu";
 import { GameMenuItemType } from "../ui/GameMenu/GameMenuItem";
@@ -15,7 +16,8 @@ import { AssetLoader } from "../utils/AssetLoader";
 import { CleaningManager } from "../managers/CleaningManager";
 import type { CharacterKey } from "../types/Character";
 import { Bird } from "../entities/Bird"; // Bird 클래스 import 추가
-import type { Character } from "entities/Character";
+import { Character } from "../entities/Character";
+import { Egg } from "../entities/Egg";
 
 enum MainSceneControlButtonsSetType {
   Default = "default",
@@ -68,6 +70,9 @@ export class MainScene extends PIXI.Container implements Scene {
 
   // Game 인스턴스 참조
   private game: Game;
+
+  // FoodTracker 관련 필드 추가
+  private foodTracker: FoodTracker | null = null;
 
   constructor(game: Game) {
     super();
@@ -129,7 +134,7 @@ export class MainScene extends PIXI.Container implements Scene {
    * 랜덤 움직임을 중지합니다.
    */
   private stopRandomMovement(): void {
-    if (this.game.character) {
+    if (this.game.character instanceof Character) {
       this.game.character.disableRandomMovement();
     }
   }
@@ -197,20 +202,24 @@ export class MainScene extends PIXI.Container implements Scene {
   private handleMenuSelect(menuType: GameMenuItemType): void {
     console.log(`메뉴 항목 선택: ${menuType}`);
 
+    // Egg 상태 확인
+    const isEggState = this.game.character instanceof Egg;
+
     switch (menuType) {
       case GameMenuItemType.MiniGame:
         console.log("미니게임 버튼으로 플래피 버드 게임으로 전환 요청");
-        if (this.game) {
+        if (isEggState) {
+          // Egg 상태일 경우 팝업 표시 (영문으로 변경)
+          this.game.showAlert("not available in egg state.", "Notice");
+        } else if (this.game) {
           this.flyToFlappyBirdGame();
         } else {
           console.warn("Game 객체 참조가 설정되지 않았습니다");
         }
         break;
       case GameMenuItemType.Feed:
-        {
-          // 음식 생성 및 던지기
-          this.throwFood();
-        }
+        // 음식 생성 및 던지기
+        this.throwFood();
         break;
 
       case GameMenuItemType.Versus:
@@ -220,7 +229,14 @@ export class MainScene extends PIXI.Container implements Scene {
 
       case GameMenuItemType.Drug:
         console.log("약 버튼 선택");
-        // 약 관련 로직
+        if (isEggState) {
+          // Egg 상태일 경우 팝업 표시 (영문으로 변경)
+          this.game.showAlert("not available in egg state.", "Notice");
+        } else {
+          // 약 관련 로직
+          console.log("약 사용 로직 실행");
+          // TODO: 약 사용 로직 구현
+        }
         break;
 
       case GameMenuItemType.Clean:
@@ -239,7 +255,7 @@ export class MainScene extends PIXI.Container implements Scene {
       case GameMenuItemType.Information:
         console.log("정보 버튼 선택 - Bird와 Basket 토글");
         // Bird와 Basket을 토글합니다
-        this.toggleBirdAndBasket();
+        // this.toggleBirdAndBasket();
         break;
 
       default:
@@ -258,16 +274,14 @@ export class MainScene extends PIXI.Container implements Scene {
       return;
     }
 
-    // 새로운 Food 객체 생성 - 내부에서 모든 리소스 로드 및 관리
-    const food = new Food(this.game.app, this, {
-      character: character, // Game의 캐릭터 참조
-    });
+    // Character 인스턴스인 경우에만 음식 던지기 처리
+    if (character instanceof Character) {
+      // 새로운 Food 객체 생성 - 캐릭터 의존성 없이 생성
+      const food = new Food(this.game.app, this, {});
 
-    // 음식 먹기가 완료되면 캐릭터의 랜덤 움직임 재개
-    food.waitForEatingFinished().then(() => {
-      console.log("Food eating completed, restarting random movement");
-      character.enableRandomMovement();
-    });
+      // 이미 Character 내부에서 FoodTracker가 초기화되었으므로
+      // 별도의 FoodTracker 생성 로직이 필요 없음
+    }
   }
 
   /**
@@ -297,7 +311,7 @@ export class MainScene extends PIXI.Container implements Scene {
           );
 
           // 랜덤 움직임 다시 적용
-          if (this.game.character) {
+          if (this.game.character instanceof Character) {
             this.game.character.enableRandomMovement();
           }
         } else {
@@ -460,63 +474,6 @@ export class MainScene extends PIXI.Container implements Scene {
   }
 
   /**
-   * Bird와 Basket을 화면에 표시하거나 숨깁니다.
-   */
-  public toggleBirdAndBasket(): void {
-    this.isBirdVisible = !this.isBirdVisible;
-    console.log("Toggle Bird and Basket. Visible:", this.isBirdVisible);
-
-    if (this.bird) {
-      this.bird.visible = this.isBirdVisible;
-      console.log("Bird 객체가 존재함, visible:", this.bird.visible);
-
-      if (this.isBirdVisible) {
-        // Bird가 표시될 때, basket을 bird에 매달기
-        if (this.basket) {
-          console.log("Basket 객체가 존재함, 현재 속성:", {
-            width: this.basket.width,
-            height: this.basket.height,
-            visible: this.basket.visible,
-          });
-
-          // 바구니 보이기
-          this.basket.visible = true;
-
-          // basket을 씬에서 제거 (bird가 관리하게 됨)
-          this.removeChild(this.basket);
-          console.log("Basket이 Scene에서 제거됨");
-
-          // bird에 basket 매달기
-          this.bird.hangObject(this.basket);
-          console.log("Basket이 Bird에 매달림");
-        } else {
-          console.warn("Basket 객체가 존재하지 않음");
-        }
-      } else {
-        // Bird가 숨겨질 때, basket을 bird에서 분리하고 씬에 다시 추가
-        const hangingObject = this.bird.getHangingObject();
-        console.log("매달린 오브젝트 확인:", hangingObject ? "있음" : "없음");
-
-        if (hangingObject) {
-          this.basket = this.bird.unHangObject() as PIXI.Sprite;
-          if (this.basket) {
-            this.addChild(this.basket);
-            this.basket.visible = false;
-            console.log("Basket이 Bird에서 분리되고 Scene에 추가됨");
-          }
-        }
-      }
-    } else {
-      console.warn("Bird 객체가 존재하지 않음");
-    }
-
-    // 새롭게 표시될 때 위치 설정
-    if (this.isBirdVisible) {
-      this.updateBirdAndBasketPositions();
-    }
-  }
-
-  /**
    * Bird와 Basket의 위치를 업데이트합니다.
    */
   private updateBirdAndBasketPositions(): void {
@@ -587,7 +544,7 @@ export class MainScene extends PIXI.Container implements Scene {
         this.game.character as Character,
         3.0,
         1.8,
-        1800
+        2000
       );
 
       // 캐릭터의 in-basket 스프라이트로 교체하는 로직
@@ -737,14 +694,11 @@ export class MainScene extends PIXI.Container implements Scene {
   /**
    * 캐릭터를 픽업하면서 바구니를 in-basket으로 교체하는 메서드
    */
-  private pickupCharacterWithInBasket(
-    bird: Bird,
-    character: PIXI.Container
-  ): void {
+  private pickupCharacterWithInBasket(bird: Bird, character: Character): void {
     // 캐릭터의 in-basket 스프라이트를 가져옴
-    const characterKey = this.game.character?.getCharacterKey() as CharacterKey;
     const assets = AssetLoader.getAssets();
-    const characterSpritesheet = assets.characterSprites[characterKey];
+    const characterSpritesheet =
+      assets.characterSprites[character.getCharacterKey()];
 
     if (characterSpritesheet?.textures["in-basket"]) {
       // 1. 기존 바구니를 제거 (unHangObject 호출)

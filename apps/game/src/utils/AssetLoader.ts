@@ -22,6 +22,7 @@ export interface GameAssets {
   foodMaskSprites: PIXI.Spritesheet; // 음식 마스크 스프라이트시트 추가
   common16x16Sprites: PIXI.Spritesheet; // 빗자루 등의 공통 스프라이트
   common32x32Sprites: PIXI.Spritesheet; // 바구니, 무덤 등의 32x32 공통 스프라이트
+  eggSprites: PIXI.Spritesheet; // 알(egg) 스프라이트시트 추가
   characterSprites: { [key in CharacterKey]?: PIXI.Spritesheet };
 }
 
@@ -61,6 +62,11 @@ const ASSETS_TO_LOAD: AssetDefinition[] = [
     path: "/sprites/common32x32.json",
     key: "common32x32Sprites", // 바구니, 무덤 등 32x32 공통 스프라이트 추가
   },
+  {
+    type: "spritesheet",
+    path: "/sprites/eggs.json",
+    key: "eggSprites", // 알(egg) 스프라이트시트 로드 추가
+  },
 ];
 
 const CHARACTER_ASSETS_TO_LOAD: AssetDefinition[] = Object.values(
@@ -81,6 +87,7 @@ export const AssetLoader = {
     foodMaskSprites: null, // 초기값 null 추가
     common16x16Sprites: null, // 초기값 null 추가
     common32x32Sprites: null, // 초기값 null 추가
+    eggSprites: null, // 초기값 null 추가
     characterSprites: {},
   } as unknown as GameAssets,
   isLoading: false,
@@ -157,10 +164,14 @@ export const AssetLoader = {
       );
     }
 
+    if (!this.assets.eggSprites) {
+      console.warn("[AssetLoader] Egg sprites not loaded, using fallback");
+    }
+
     for (const key of Object.values(CharacterKey)) {
       if (!this.assets.characterSprites[key]) {
         console.warn(
-          `[AssetLoader] Character sprites not loaded for key: ${key}, using fallback`
+          `[AssetLoader] Character sprites not loaded for key: ${key}, ignore.`
         );
       }
     }
@@ -206,6 +217,7 @@ export const AssetLoader = {
               | "foodMaskSprites"
               | "common16x16Sprites"
               | "common32x32Sprites"
+              | "eggSprites"
           );
           break;
         default:
@@ -316,6 +328,7 @@ export const AssetLoader = {
       | "foodMaskSprites"
       | "common16x16Sprites"
       | "common32x32Sprites"
+      | "eggSprites"
   ): Promise<void> {
     try {
       const response = await fetch(path, {
@@ -379,6 +392,7 @@ export const AssetLoader = {
       this.assets.foodMaskSprites?.destroy(true);
       this.assets.common16x16Sprites?.destroy(true);
       this.assets.common32x32Sprites?.destroy(true);
+      this.assets.eggSprites?.destroy(true); // egg 스프라이트 정리 추가
       for (const key of Object.keys(this.assets.characterSprites)) {
         this.assets.characterSprites[key as CharacterKey]?.destroy(true);
       }

@@ -12,25 +12,37 @@ export enum CharacterState {
 }
 
 export type CharacterMetadata = {
-  key: CharacterKey;
+  key: CharacterKey | "egg";
   scale: number;
   speed: number;
   maxStamina: number; // 최대 스태미나 (옵션)
   animationMapping: Record<CharacterState, string>;
 };
 
-export const CharacterDictionary: Record<CharacterKey, CharacterMetadata> = {
+const animationMapping = {
+  [CharacterState.IDLE]: "idle",
+  [CharacterState.WALKING]: "walking",
+  [CharacterState.SLEEPING]: "sleeping",
+  [CharacterState.EATING]: "eating",
+};
+
+export const CharacterDictionary: Record<
+  CharacterKey | "egg",
+  CharacterMetadata
+> = {
+  egg: {
+    key: "egg",
+    scale: 2.0,
+    speed: Number.NaN,
+    maxStamina: Number.NaN,
+    animationMapping,
+  },
   [CharacterKey.GreenSlime]: {
     key: CharacterKey.GreenSlime,
     scale: 3.0,
     speed: 1.0,
     maxStamina: 10, // 기본 최대 스태미나 값
-    animationMapping: {
-      [CharacterState.IDLE]: "idle",
-      [CharacterState.WALKING]: "walking",
-      [CharacterState.SLEEPING]: "sleeping",
-      [CharacterState.EATING]: "eating",
-    },
+    animationMapping,
   },
   // [CharacterKey.Mushroom2]: {
   // 	key: CharacterKey.Mushroom2,

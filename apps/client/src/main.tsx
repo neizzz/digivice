@@ -7,8 +7,6 @@ import { AosMiniViewAdapter } from "./adapter/AosMiniViewAdapter.ts";
 import { PlatformAdapter } from "./adapter/PlatformAdapter.ts";
 import { MiniViewService } from "./application/service/MiniViewService.ts";
 import SimpleLogViewer from "../components/SimpleLogViewer/SimpleLogViewer.tsx";
-import { LocalStorageGameAdapter } from "./adapter/LocalStorageGameAdapter.ts";
-import { GameStorageService } from "./application/service/GameStorageService.ts";
 
 /**
  * Service Getters
@@ -22,21 +20,13 @@ export const getMiniViewService = () => {
 export function getPlatformAdapter(): PlatformAdapter {
   return platformAdapter;
 }
-export function getGameStorageService(): GameStorageService {
-  if (!gameStorageService) {
-    throw new Error("GameStorageService가 초기화되지 않았습니다.");
-  }
-  return gameStorageService;
-}
 
 // 어댑터 초기화
 const platformAdapter = new PlatformAdapter();
 const miniViewControlAdapter = new AosMiniViewAdapter();
-const localStorageGameAdapter = new LocalStorageGameAdapter();
 
 // 서비스 초기화
 const miniViewService = new MiniViewService(miniViewControlAdapter);
-const gameStorageService = new GameStorageService(localStorageGameAdapter);
 
 console.log("서비스 초기화 완료");
 

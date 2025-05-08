@@ -1,15 +1,15 @@
 import * as PIXI from "pixi.js";
-import { MovementController } from "../controllers/MovementController";
-import type { Character } from "./Character";
-import { CharacterState } from "../types/Character";
+
 import { FoodMask } from "../utils/FoodMask";
 import { ThrowSprite } from "../utils/ThrowSprite";
 import { AssetLoader } from "../utils/AssetLoader";
-import { FreshnessDuration } from "../utils/FreshnessDuration";
 import { SparkleEffect } from "../effects/SparkleEffect";
 import { ColorMatrixFilter } from "@pixi/filter-color-matrix";
 import { Cleanable } from "../interfaces/Cleanable";
 import { DebugFlags } from "../utils/DebugFlags";
+import { EventBus, EventTypes } from "../utils/EventBus";
+import { FreshnessDuration } from "../utils/FreshnessDuration";
+import { v4 as uuidv4 } from "uuid";
 
 // 음식 상태를 나타내는 enum
 enum FoodState {
@@ -30,7 +30,7 @@ export enum FoodFreshness {
 }
 
 export interface FoodOptions {
-  character: Character; // 음식을 먹을 캐릭터 객체 (선택사항)
+  freshness?: FoodFreshness; // 음식의 신선도 상태 (기본값: FRESH)
 }
 
 /**
@@ -45,9 +45,8 @@ export class Food extends Cleanable {
   private freshness: FoodFreshness;
   private eatingStartTime = 0;
   private eatingDuration = 4000; // 기본값: 4초
-  private targetPosition?: { x: number; y: number }; // 캐릭터가 이동할 목표 위치
-  private movementController?: MovementController;
   private freshnessDuration: FreshnessDuration; // 신선도 지속 시간 관리 객체
+  private id: string; // 고유 ID 추가
 
   // 음식 마스크 처리를 위한 객체
   private foodMask?: FoodMask;
@@ -75,15 +74,16 @@ export class Food extends Cleanable {
   constructor(
     app: PIXI.Application,
     parent: PIXI.Container,
-    options: FoodOptions
+    options: FoodOptions = {}
   ) {
     super();
     this.app = app;
     this.parent = parent;
     this.options = options;
+    this.id = uuidv4(); // 고유 ID 생성
 
     // 신선도 설정 (기본값: FRESH)
-    this.freshness = FoodFreshness.FRESH;
+    this.freshness = options.freshness ?? FoodFreshness.FRESH;
 
     // 랜덤 음식 텍스처 선택
     const texture = this.getRandomFoodTexture();
@@ -102,9 +102,13 @@ export class Food extends Cleanable {
     this.initThrowSprite();
 
     // FreshnessDuration 초기화 - 신선도 변경시 콜백 설정
-    this.freshnessDuration = new FreshnessDuration((newFreshness) => {
-      this.setFreshness(newFreshness);
-    }, this.freshness);
+    this.freshnessDuration = new FreshnessDuration(
+      (newFreshness) => {
+        this.setFreshness(newFreshness);
+      },
+      this.id, // 음식 ID 전달
+      this.freshness
+    );
 
     // 초기 신선도에 맞는 시각적 효과 적용
     this.applyFreshnessVisualEffect();
@@ -119,6 +123,55 @@ export class Food extends Cleanable {
     this.eatingPromise = new Promise<void>((resolve) => {
       this.eatingFinishedResolve = resolve;
     });
+  }
+
+  /**
+   * 객체가 Food 클래스의 인스턴스인지 확인합니다.
+   * @param obj 확인할 객체
+   * @returns Food 클래스의 인스턴스이면 true, 아니면 false
+   */
+
+  // biome-ignore lint/suspicious/noExplicitAny: <explanation>
+  public static isFood(obj: any): boolean {
+    // PIXI.Container에 __objectRef 속성이 있고 그것이 Food의 인스턴스인지 확인
+    if (obj.__objectRef) {
+      return (
+        obj.__objectRef.constructor &&
+        obj.__objectRef.constructor.name === "Food"
+      );
+    }
+
+    // obj 자체가 Food의 인스턴스인지 확인
+    return obj instanceof Food;
+  }
+
+  /**
+   * PIXI.Container 또는 다른 객체에서 Food 객체를 추출합니다.
+   * @param obj 추출할 객체
+   * @returns Food 객체가 있으면 반환, 없으면 null 반환
+   */
+
+  // biome-ignore lint/suspicious/noExplicitAny: <explanation>
+  public static extractObject(obj: any): Food | null {
+    if (
+      obj.__objectRef?.constructor &&
+      obj.__objectRef.constructor.name === "Food"
+    ) {
+      return obj.__objectRef as Food;
+    }
+
+    if (obj instanceof Food) {
+      return obj;
+    }
+
+    return null;
+  }
+
+  /**
+   * 음식의 고유 ID를 반환합니다.
+   */
+  public getId(): string {
+    return this.id;
   }
 
   /**
@@ -232,11 +285,17 @@ export class Food extends Cleanable {
    * ThrowSprite 초기화
    */
   private initThrowSprite(): void {
+    // 선택된 음식 텍스처 이름 가져오기
+    const foodTextureName = this.sprite.texture.textureCacheIds[0] || "unknown";
+
     this.throwSprite = new ThrowSprite(this.app, this.parent, this.sprite, {
       initialScale: this.initialScale * 0.7, // 음식 크기 조정 적용
       finalScale: this.finalScale * 0.7, // 음식 크기 조정 적용
       duration: this.throwDuration,
       onLanded: (position) => this.onFoodLanded(position),
+      onThrowStart: (finalPosition, textureKey) =>
+        this.onThrowStart(finalPosition, textureKey),
+      foodTextureName: foodTextureName, // 음식 텍스처 이름 전달
     });
   }
 
@@ -264,6 +323,21 @@ export class Food extends Cleanable {
     }
   }
 
+  private onThrowStart(
+    finalPosition: { x: number; y: number },
+    textureKey: string
+  ) {
+    console.log("Throw started with texture:", textureKey);
+    this.state = FoodState.THROWING;
+
+    // FOOD_CREATED 이벤트 발행
+    EventBus.getInstance().emit(EventTypes.FOOD_CREATED, {
+      position: finalPosition,
+      textureKey: textureKey,
+      freshness: this.freshness,
+    });
+  }
+
   /**
    * 음식이 착지했을 때 호출되는 콜백
    */
@@ -279,35 +353,77 @@ export class Food extends Cleanable {
       return;
     }
 
-    // 상한 음식이 아니고, 캐릭터가 있을 경우에만 대기열에 추가
-    if (this.options.character && this.freshness !== FoodFreshness.STALE) {
-      this.options.character.addFoodToQueue(this);
-      // 캐릭터가 음식으로 다가가는 것은 Character 클래스에서 처리
-    } else if (this.freshness === FoodFreshness.STALE) {
+    // 상한 음식이 아닌 경우에만 착지 이벤트 발생
+    if (this.freshness !== FoodFreshness.STALE) {
+      // FOOD_LANDED 이벤트 발행 - FoodTracker가 이 이벤트를 수신하여 캐릭터를 관리
+      EventBus.getInstance().emit(EventTypes.FOOD_LANDED, {
+        foodId: this.id,
+        position: position,
+        freshness: this.freshness,
+      });
+    } else {
       console.log("상한 음식은 먹을 수 없습니다.");
     }
   }
 
   /**
-   * 캐릭터가 음식으로 이동하기 시작
+   * 신선도 변화를 일시정지합니다.
+   * 음식을 먹기 시작했을 때 호출하여 상태가 변하지 않도록 합니다.
    */
-  public startMovingToFood(): void {
-    this.state = FoodState.APPROACHING;
-
-    // 캐릭터의 현재 위치 기준으로 음식의 가까운 쪽 결정
-    this.targetPosition = this.getTargetPositionNearFood();
-
-    // 캐릭터의 랜덤 움직임 비활성화
-    if (this.options.character) {
-      this.options.character.disableRandomMovement();
+  public pauseFreshnessChange(): void {
+    if (this.freshnessDuration) {
+      this.freshnessDuration.pauseFreshnessChange();
     }
+  }
 
-    const moveSpeed = this.options.character.getSpeed();
-    this.movementController = new MovementController(
-      this.options.character,
-      this.app,
-      moveSpeed
-    );
+  /**
+   * 신선도 변화를 재개합니다.
+   */
+  public resumeFreshnessChange(): void {
+    if (this.freshnessDuration) {
+      this.freshnessDuration.resumeFreshnessChange();
+    }
+  }
+
+  /**
+   * 신선도 변화가 일시정지된 상태인지 확인합니다.
+   * @returns 신선도 변화가 일시정지되었으면 true, 아니면 false
+   */
+  public isPausedState(): boolean {
+    return this.freshnessDuration
+      ? this.freshnessDuration.isPausedState()
+      : false;
+  }
+
+  /**
+   * 음식 먹기 시작
+   */
+  public startEating(): void {
+    this.state = FoodState.EATING;
+    this.eatingStartTime = Date.now();
+
+    // 음식 먹기 시작 시 신선도 변화 일시정지
+    this.pauseFreshnessChange();
+
+    // 음식 마스크 초기화
+    this.initFoodMask();
+
+    // FOOD_EATING_STARTED 이벤트 발행
+    EventBus.getInstance().emit(EventTypes.FOOD_EATING_STARTED, {
+      foodId: this.id,
+      position: { x: this.sprite.position.x, y: this.sprite.position.y },
+    });
+  }
+
+  /**
+   * 음식 마스크 초기화
+   */
+  private initFoodMask(): void {
+    // FoodMask 객체 생성 - AssetLoader에서 자동으로 텍스처를 가져옴
+    this.foodMask = new FoodMask(this.sprite, this.parent);
+
+    // 마스크 초기화 (AssetLoader에서 가져온 텍스처로 마스크 적용)
+    this.foodMask.init();
   }
 
   /**
@@ -322,7 +438,7 @@ export class Food extends Cleanable {
         // 착지 후 바로 다음 상태로 전환되므로 여기서는 아무것도 하지 않음
         break;
       case FoodState.APPROACHING:
-        this.updateApproaching(deltaTime);
+        // FoodTracker에서 처리
         break;
       case FoodState.EATING:
         this.updateEating(deltaTime);
@@ -347,62 +463,6 @@ export class Food extends Cleanable {
     // zIndex를 position.y 값으로 설정하여 깊이 정렬
     this.sprite.zIndex = this.sprite.position.y;
   };
-
-  /**
-   * 캐릭터가 음식으로 이동하는 상태 업데이트
-   */
-  private updateApproaching(deltaTime: number): void {
-    if (
-      !this.options.character ||
-      !this.targetPosition ||
-      !this.movementController
-    ) {
-      return;
-    }
-
-    // 이동 중에 디버그 플래그가 활성화되면 이동 중단
-    if (DebugFlags.getInstance().isEatingPrevented()) {
-      console.log(
-        "디버그 모드: preventEating 플래그가 활성화되어 음식으로의 이동을 중단합니다."
-      );
-
-      // 캐릭터 상태 원래대로 복원하고 랜덤 움직임 다시 활성화
-      this.options.character.update(CharacterState.IDLE);
-      this.options.character.enableRandomMovement();
-
-      // 음식 상태를 LANDED로 되돌림
-      this.state = FoodState.LANDED;
-
-      // Promise 해결 (음식 처리 완료로 간주)
-      if (this.eatingFinishedResolve) {
-        this.eatingFinishedResolve();
-        this.eatingFinishedResolve = undefined;
-      }
-
-      return;
-    }
-
-    this.movementController.setMoveSpeed(this.options.character.getSpeed());
-
-    // MovementController를 사용하여 캐릭터 이동
-    const reachedTarget = this.movementController.moveTo(
-      this.targetPosition.x,
-      this.targetPosition.y,
-      deltaTime
-    );
-
-    // 움직이는 동안 항상 음식을 향하도록 방향 설정
-    const characterPos = this.options.character.getPosition();
-    const foodPos = { x: this.sprite.position.x, y: this.sprite.position.y };
-    const directionX = foodPos.x - characterPos.x;
-    this.movementController.updateCharacterDirection(directionX);
-
-    // 목표에 도달했으면 먹기 시작
-    if (reachedTarget) {
-      this.startEating();
-      this.options.character.update(CharacterState.EATING);
-    }
-  }
 
   /**
    * 음식 먹는 상태 업데이트
@@ -441,56 +501,6 @@ export class Food extends Cleanable {
   }
 
   /**
-   * 음식 근처의 목표 위치 계산
-   */
-  private getTargetPositionNearFood(): { x: number; y: number } {
-    const characterPos = this.options.character.getPosition();
-    const foodPos = { x: this.sprite.position.x, y: this.sprite.position.y };
-
-    // 캐릭터가 음식의 왼쪽에 있는지 오른쪽에 있는지 확인
-    const isCharacterLeftOfFood = characterPos.x < foodPos.x;
-
-    // 캐릭터의 현재 위치에서 가까운 쪽으로 접근하도록 설정
-    // X좌표: 음식의 좌우 15픽셀 지점으로 설정 (더 가깝게 변경)
-    const offsetX = isCharacterLeftOfFood ? -15 : 15;
-
-    // Y좌표: 음식보다 20픽셀 위에 위치하도록 설정
-    const offsetY = -15;
-
-    return {
-      x: foodPos.x + offsetX,
-      y: foodPos.y + offsetY, // 음식보다 위쪽에 위치하도록 함
-    };
-  }
-
-  /**
-   * 음식 먹기 시작
-   */
-  private startEating(): void {
-    this.state = FoodState.EATING;
-    this.eatingStartTime = Date.now();
-
-    // 음식 마스크 초기화
-    this.initFoodMask();
-
-    // 캐릭터가 있으면 먹는 상태로 변경
-    if (this.options.character) {
-      this.options.character.update(CharacterState.EATING);
-    }
-  }
-
-  /**
-   * 음식 마스크 초기화
-   */
-  private initFoodMask(): void {
-    // FoodMask 객체 생성 - AssetLoader에서 자동으로 텍스처를 가져옴
-    this.foodMask = new FoodMask(this.sprite, this.parent);
-
-    // 마스크 초기화 (AssetLoader에서 가져온 텍스처로 마스크 적용)
-    this.foodMask.init();
-  }
-
-  /**
    * 음식 먹기 완료
    */
   private finishEating(): void {
@@ -513,27 +523,11 @@ export class Food extends Cleanable {
       this.sparkleEffect = undefined;
     }
 
-    // 신선도에 따른 스태미나 회복량 결정
-    let staminaRecovery = 0;
-    if (this.freshness === FoodFreshness.FRESH) {
-      staminaRecovery = 3; // Fresh 상태: 스태미나 +3
-    } else if (this.freshness === FoodFreshness.NORMAL) {
-      staminaRecovery = 1; // Normal 상태: 스태미나 +1
-    }
-
-    // 캐릭터 상태 원래대로 복원하고 랜덤 움직임 다시 활성화
-    if (this.options.character) {
-      // 신선도에 따른 스태미나 회복
-      if (staminaRecovery > 0) {
-        this.options.character.increaseStamina(staminaRecovery);
-        console.log(
-          `음식을 먹고 스태미나가 ${staminaRecovery} 회복되었습니다. 현재 스태미나: ${this.options.character.getStamina()}`
-        );
-      }
-
-      this.options.character.update(CharacterState.IDLE);
-      this.options.character.enableRandomMovement();
-    }
+    // FOOD_EATING_FINISHED 이벤트 발행
+    EventBus.getInstance().emit(EventTypes.FOOD_EATING_FINISHED, {
+      foodId: this.id,
+      freshness: this.freshness,
+    });
 
     // Promise 해결
     if (this.eatingFinishedResolve) {
@@ -575,14 +569,6 @@ export class Food extends Cleanable {
       this.sprite.parent.removeChild(this.sprite);
     }
 
-    // 캐릭터 상태 복원 및 랜덤 움직임 다시 활성화
-    if (this.options.character) {
-      if (this.state === FoodState.EATING) {
-        this.options.character.update(CharacterState.IDLE);
-      }
-      this.options.character.enableRandomMovement();
-    }
-
     // Promise 해결 (아직 해결되지 않은 경우)
     if (this.eatingFinishedResolve) {
       this.eatingFinishedResolve();
@@ -596,6 +582,20 @@ export class Food extends Cleanable {
    */
   public waitForEatingFinished(): Promise<void> {
     return this.eatingPromise;
+  }
+
+  /**
+   * 현재 상태를 반환합니다.
+   */
+  public getState(): FoodState {
+    return this.state;
+  }
+
+  /**
+   * 상태를 설정합니다.
+   */
+  public setState(newState: FoodState): void {
+    this.state = newState;
   }
 
   /**

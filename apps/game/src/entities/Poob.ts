@@ -66,14 +66,6 @@ export class Poob extends Cleanable {
 
     // 부모 컨테이너에 스프라이트 추가
     this.parentContainer.addChild(this.sprite);
-
-    console.log(
-      "Poob 객체가 생성되었습니다. 위치:",
-      this.position.x,
-      this.position.y,
-      "zIndex:",
-      this.sprite.zIndex
-    );
   }
 
   /**

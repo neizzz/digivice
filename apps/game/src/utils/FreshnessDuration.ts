@@ -1,101 +1,97 @@
 import { FoodFreshness } from "../entities/Food";
+import { FOOD_FRESHNESS } from "../config"; // config에서 시간 상수 가져오기
 
 /**
- * 음식의 신선도 상태 변화를 관리하는 클래스
- * 시간이 지남에 따라 신선도가 변화하는 로직을 구현
+ * 음식의 신선도 지속 시간을 관리하는 클래스
  */
 export class FreshnessDuration {
-  // 각 신선도 상태별 지속 시간 (밀리초)
-  private static readonly FRESH_DURATION = 30000; // 신선한 상태: 30초
-  private static readonly NORMAL_DURATION = 60000; // 보통 상태: 60초
-
-  private startTime: number;
-  private currentFreshness: FoodFreshness;
-  private freshnessChangedCallback?: (freshness: FoodFreshness) => void;
+  private freshness: FoodFreshness;
+  private createdAt: number;
+  private freshDuration = FOOD_FRESHNESS.FRESH_DURATION; // config에서 가져옴
+  private normalDuration = FOOD_FRESHNESS.NORMAL_DURATION; // config에서 가져옴
+  private onFreshnessChanged: (freshness: FoodFreshness) => void;
+  private isPaused = false; // 신선도 변화 일시정지 상태
+  private foodId: string; // 각 음식 객체를 구분하기 위한 ID
 
   /**
-   * @param callback 신선도가 변경될 때 호출되는 콜백 함수
-   * @param initialFreshness 초기 신선도 상태 (기본값: FRESH)
+   * 신선도 지속 시간 관리 클래스 생성자
+   * @param onFreshnessChanged 신선도 변경 콜백
+   * @param foodId 음식의 고유 ID
+   * @param initialFreshness 초기 신선도 (기본값: FRESH)
    */
   constructor(
-    callback?: (freshness: FoodFreshness) => void,
+    onFreshnessChanged: (freshness: FoodFreshness) => void,
+    foodId: string,
     initialFreshness: FoodFreshness = FoodFreshness.FRESH
   ) {
-    this.startTime = Date.now();
-    this.currentFreshness = initialFreshness;
-    this.freshnessChangedCallback = callback;
+    this.freshness = initialFreshness;
+    this.createdAt = Date.now();
+    this.onFreshnessChanged = onFreshnessChanged;
+    this.foodId = foodId;
   }
 
   /**
-   * 현재 신선도 상태 업데이트
-   * @returns 현재 신선도 상태
+   * 신선도 상태 업데이트
    */
-  public update(): FoodFreshness {
-    const elapsed = Date.now() - this.startTime;
-    let newFreshness = this.currentFreshness;
-
-    if (elapsed < FreshnessDuration.FRESH_DURATION) {
-      newFreshness = FoodFreshness.FRESH;
-    } else if (
-      elapsed <
-      FreshnessDuration.FRESH_DURATION + FreshnessDuration.NORMAL_DURATION
-    ) {
-      newFreshness = FoodFreshness.NORMAL;
-    } else {
-      newFreshness = FoodFreshness.STALE;
+  public update(): void {
+    // 일시정지 상태라면 업데이트 하지 않음
+    if (this.isPaused) {
+      return;
     }
 
-    // 상태가 변경되었고 콜백이 등록되어 있으면 호출
-    if (
-      newFreshness !== this.currentFreshness &&
-      this.freshnessChangedCallback
-    ) {
-      this.currentFreshness = newFreshness;
-      this.freshnessChangedCallback(newFreshness);
-    }
+    const now = Date.now();
+    const elapsedTime = now - this.createdAt;
 
-    return this.currentFreshness;
+    // 현재 신선도에 따른 처리
+    if (this.freshness === FoodFreshness.FRESH) {
+      // 신선한 상태가 지속 시간을 초과하면 보통 상태로 변경
+      if (elapsedTime >= this.freshDuration) {
+        this.freshness = FoodFreshness.NORMAL;
+        this.onFreshnessChanged(this.freshness);
+      }
+    } else if (this.freshness === FoodFreshness.NORMAL) {
+      // 보통 상태가 지속 시간을 초과하면 상한 상태로 변경
+      if (elapsedTime >= this.freshDuration + this.normalDuration) {
+        this.freshness = FoodFreshness.STALE;
+        this.onFreshnessChanged(this.freshness);
+      }
+    }
   }
 
   /**
    * 현재 신선도 상태 반환
-   * @returns 현재 신선도 상태
    */
-  public getCurrentFreshness(): FoodFreshness {
-    return this.currentFreshness;
+  public getFreshness(): FoodFreshness {
+    return this.freshness;
   }
 
   /**
-   * 신선도 업데이트 시작 시간 재설정
+   * 신선도 변화를 멈춥니다 - 음식을 먹기 시작했거나 특정 상태를 유지해야 할 때 사용
    */
-  public reset(): void {
-    this.startTime = Date.now();
-    this.currentFreshness = FoodFreshness.FRESH;
+  public pauseFreshnessChange(): void {
+    this.isPaused = true;
+    console.log(`음식 ID: ${this.foodId}의 신선도 변화가 일시정지되었습니다.`);
   }
 
   /**
-   * 콜백 함수 변경
-   * @param callback 신선도 변경 시 호출할 콜백 함수
+   * 신선도 변화를 재개합니다
    */
-  public setCallback(callback: (freshness: FoodFreshness) => void): void {
-    this.freshnessChangedCallback = callback;
+  public resumeFreshnessChange(): void {
+    this.isPaused = false;
+    console.log(`음식 ID: ${this.foodId}의 신선도 변화가 재개되었습니다.`);
   }
 
   /**
-   * 신선도 상태별 시각적 표현을 위한 설명 텍스트 반환
-   * @param freshness 신선도 상태
-   * @returns 해당 상태에 대한 설명 문자열
+   * 신선도 변화 일시정지 상태 확인
    */
-  public static getFreshnessDescription(freshness: FoodFreshness): string {
-    switch (freshness) {
-      case FoodFreshness.FRESH:
-        return "신선함";
-      case FoodFreshness.NORMAL:
-        return "보통";
-      case FoodFreshness.STALE:
-        return "상함";
-      default:
-        return "알 수 없음";
-    }
+  public isPausedState(): boolean {
+    return this.isPaused;
+  }
+
+  /**
+   * 음식 ID 반환
+   */
+  public getFoodId(): string {
+    return this.foodId;
   }
 }

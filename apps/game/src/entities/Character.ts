@@ -7,10 +7,9 @@ import {
 import type { Position } from "../types/Position";
 import { AssetLoader } from "../utils/AssetLoader";
 import { RandomMovementController } from "../controllers/RandomMovementController";
-import type { Food } from "./Food";
+import { FoodTracker } from "../trackers/FoodTracker"; // FoodTracker 임포트
 import { EventBus, EventTypes } from "../utils/EventBus";
 import { GameDataManager } from "../utils/GameDataManager";
-import { DebugFlags } from "../utils/DebugFlags";
 import { Poob } from "./Poob"; // Poob 클래스 임포트 추가
 
 export class Character extends PIXI.Container {
@@ -24,15 +23,19 @@ export class Character extends PIXI.Container {
   private flipCharacter = false; // 캐릭터 좌우 반전 여부
   private randomMovementController: RandomMovementController; // 랜덤 움직임 컨트롤러 참조
   private app?: PIXI.Application; // PIXI 애플리케이션 참조
-  private foodQueue: Food[] = []; // 먹을 음식 대기열
   private eventBus: EventBus; // 이벤트 버스 인스턴스
-  private isMovingToFood = false; // 캐릭터가 음식으로 이동 중인지 나타내는 플래그
   private characterInfo: (typeof CharacterDictionary)[CharacterKey]; // 캐릭터 정보 저장
   private characterKey: CharacterKey; // CharacterKey 저장
+  private foodTracker: FoodTracker | null = null; // FoodTracker 인스턴스
+
+  // 캐릭터 정보를 반환하는 메서드 추가
+  protected getCharacterInfo(): (typeof CharacterDictionary)[CharacterKey] {
+    return this.characterInfo;
+  }
 
   constructor(params: {
     characterKey: CharacterKey; // CharacterKey 사용
-    initialPosition: Position;
+    position: Position;
     app: PIXI.Application; // PIXI 애플리케이션 참조
     movementOptions?: {
       minIdleTime: number;
@@ -50,16 +53,12 @@ export class Character extends PIXI.Container {
     this.characterKey = params.characterKey; // CharacterKey 저장
     this.characterInfo = CharacterDictionary[params.characterKey];
 
-    this.setPosition(params.initialPosition.x, params.initialPosition.y);
+    this.app = params.app;
+    this.setPosition(params.position.x, params.position.y);
+
     this.speed = this.characterInfo.speed;
     this.scaleFactor = this.characterInfo.scale;
     this.animationMapping = this.characterInfo.animationMapping;
-    this.app = params.app;
-
-    // GameDataManager에서 스태미나 초기화 또는 로드
-    this.initializeStamina(
-      params.initialStamina ?? this.characterInfo.maxStamina
-    );
 
     // RandomMovementController 초기화
     this.randomMovementController = this.initRandomMovementController(
@@ -74,39 +73,32 @@ export class Character extends PIXI.Container {
       // 초기 애니메이션 설정
       this.setAnimation("idle");
     });
+
+    // FoodTracker는 실제로 캐릭터가 씬에 추가된 후 초기화하는 것이 좋음
+    // 다음 프레임에 초기화하여 parent가 설정되었는지 확인
+    setTimeout(() => {
+      this.initFoodTracker();
+    }, 0);
   }
 
   /**
-   * 스태미나 초기화 함수
+   * FoodTracker 초기화 - 캐릭터가 씬에 추가된 후 호출
    */
-  private async initializeStamina(initialStaminaValue: number): Promise<void> {
-    try {
-      // 저장된 게임 데이터 불러오기
-      const gameData = await GameDataManager.loadData();
-      const maxStamina = this.characterInfo.maxStamina;
+  private initFoodTracker(): void {
+    if (this.app) {
+      // 캐릭터의 부모 컨테이너가 있는지 확인 (MainScene일 가능성 높음)
+      const targetContainer = this.parent;
 
-      if (gameData) {
-        // 이미 저장된 스태미나 값이 있으면 그것을 사용
-        this.emitStaminaChanged(gameData.status.stamina, maxStamina);
+      if (targetContainer) {
+        this.foodTracker = new FoodTracker(this, this.app, targetContainer);
+        console.log("FoodTracker가 초기화되었습니다.");
       } else {
-        // 초기 스태미나 값으로 업데이트
-        const stamina = Math.max(0, Math.min(maxStamina, initialStaminaValue));
-        await GameDataManager.updateData({
-          status: {
-            stamina,
-            dead: false,
-            sick: false,
-          },
-        });
-        this.emitStaminaChanged(stamina, maxStamina);
+        console.warn(
+          "캐릭터가 씬에 추가되지 않아 FoodTracker 초기화가 지연됩니다."
+        );
+        // 부모 컨테이너가 없는 경우 다시 시도
+        setTimeout(() => this.initFoodTracker(), 100);
       }
-    } catch (error) {
-      console.error("스태미나 초기화 중 오류:", error);
-      // 오류 발생 시 기본값으로 초기화
-      this.emitStaminaChanged(
-        initialStaminaValue,
-        this.characterInfo.maxStamina
-      );
     }
   }
 
@@ -272,83 +264,10 @@ export class Character extends PIXI.Container {
   }
 
   /**
-   * 음식을 대기열에 추가합니다.
-   * @param food 먹을 음식 객체
+   * 캐릭터의 현재 상태를 반환합니다.
    */
-  public addFoodToQueue(food: Food): void {
-    // 디버그 모드에서 음식 먹기가 방지된 경우 대기열에 추가하지 않음
-    if (DebugFlags.getInstance().isEatingPrevented()) {
-      console.log(
-        "디버그 모드: 음식 먹기가 방지되어 대기열에 추가하지 않습니다."
-      );
-      return;
-    }
-
-    this.foodQueue.push(food);
-    console.log(
-      `음식이 대기열에 추가되었습니다. 현재 대기열 길이: ${this.foodQueue.length}`
-    );
-
-    // 현재 먹고 있지 않고, 먹는 중이 아니고, 다른 음식으로 이동하는 중이 아닐 때만 먹기 시작
-    if (this.currentState !== CharacterState.EATING && !this.isMovingToFood) {
-      this.processNextFood();
-    }
-  }
-
-  /**
-   * 대기열에서 다음 음식을 처리합니다.
-   */
-  private async processNextFood(): Promise<void> {
-    // 대기열이 비어있거나 이미 먹는 중이거나 다른 음식으로 이동 중이면 처리하지 않음
-    if (
-      this.foodQueue.length === 0 ||
-      this.currentState === CharacterState.EATING ||
-      this.isMovingToFood
-    ) {
-      return;
-    }
-
-    try {
-      // 음식을 먹기 위해 이동 중임을 표시
-      this.isMovingToFood = true;
-
-      // 대기열의 첫 번째 음식 가져오기 (아직 제거하지 않음)
-      const food = this.foodQueue[0];
-
-      // 음식이 존재하면 접근 명령 실행
-      if (food) {
-        // 랜덤 움직임 비활성화 및 음식으로 접근 시작
-        food.startMovingToFood();
-
-        try {
-          // 음식 먹기가 완료될 때까지 대기
-          await food.waitForEatingFinished();
-
-          // 음식 먹기가 완료되었으므로 대기열에서 제거
-          this.foodQueue.shift();
-          console.log(
-            `음식을 먹었습니다. 현재 스태미나: ${await this.getStamina()}`
-          );
-        } catch (error) {
-          console.error("음식 먹기 중 오류 발생:", error);
-          // 오류가 발생한 음식은 대기열에서 제거
-          this.foodQueue.shift();
-        }
-      }
-    } finally {
-      // 이동/식사 상태 플래그 초기화
-      this.isMovingToFood = false;
-
-      // 다음 음식이 있고 아직 먹는 중이 아니라면 다음 음식 처리
-      if (
-        this.foodQueue.length > 0 &&
-        // @ts-ignore FIXME: 상세화가 필요함.
-        this.currentState !== CharacterState.EATING
-      ) {
-        // 다음 프레임에서 처리하여 상태가 제대로 업데이트되도록 함
-        setTimeout(() => this.processNextFood(), 0);
-      }
-    }
+  public getState(): CharacterState {
+    return this.currentState;
   }
 
   /**
@@ -360,7 +279,7 @@ export class Character extends PIXI.Container {
       return gameData?.status.stamina ?? 0;
     } catch (error) {
       console.error("스태미나 가져오기 오류:", error);
-      return 0;
+      return -1;
     }
   }
 
@@ -435,24 +354,10 @@ export class Character extends PIXI.Container {
    * 스태미나 변경 이벤트 발생
    */
   private emitStaminaChanged(current: number, max: number): void {
-    this.eventBus.emit(EventTypes.CHARACTER.STAMINA_CHANGED, {
+    this.eventBus.emit(EventTypes.STAMINA_CHANGED, {
       current,
       max,
     });
-  }
-
-  /**
-   * 캐릭터가 현재 음식을 먹고 있는지 여부를 반환합니다.
-   */
-  public isEatingFood(): boolean {
-    return this.currentState === CharacterState.EATING;
-  }
-
-  /**
-   * 현재 대기열에 있는 음식의 수를 반환합니다.
-   */
-  public getFoodQueueLength(): number {
-    return this.foodQueue.length;
   }
 
   /**
@@ -476,7 +381,7 @@ export class Character extends PIXI.Container {
     const poob = new Poob(this.parent, { position: poobPosition });
 
     // 이벤트 발생 (위치 정보만 포함)
-    this.eventBus.emit(EventTypes.CHARACTER.POOB_CREATED, {
+    this.eventBus.emit(EventTypes.POOB_CREATED, {
       position: poobPosition,
     });
 
@@ -486,5 +391,28 @@ export class Character extends PIXI.Container {
   // CharacterKey getter 추가
   public getCharacterKey(): CharacterKey {
     return this.characterKey;
+  }
+
+  /**
+   * Character 클래스 정리 메서드
+   */
+  public destroy(): void {
+    // FoodTracker 정리
+    if (this.foodTracker) {
+      this.foodTracker.destroy();
+      this.foodTracker = null;
+    }
+
+    // 랜덤 움직임 컨트롤러 정리
+    if (this.randomMovementController) {
+      this.randomMovementController.disable();
+    }
+
+    // 스프라이트 정리
+    if (this.animatedSprite) {
+      this.removeChild(this.animatedSprite);
+      this.animatedSprite.destroy();
+      this.animatedSprite = undefined;
+    }
   }
 }

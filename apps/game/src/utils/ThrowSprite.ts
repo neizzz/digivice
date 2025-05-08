@@ -1,10 +1,16 @@
 import type * as PIXI from "pixi.js";
+import { EventBus, EventTypes } from "./EventBus";
 
 export interface ThrowSpriteOptions {
   initialScale: number; // 초기 크기
   finalScale: number; // 최종 크기
   duration: number; // 애니메이션 지속 시간 (ms)
   onLanded?: (position: { x: number; y: number }) => void; // 착지 완료 콜백 (음식 위치 전달)
+  onThrowStart?: (
+    finalPosition: { x: number; y: number },
+    textureName: string
+  ) => void; // 던지기 시작 콜백 (최종 위치와 텍스처 이름 전달)
+  foodTextureName?: string; // 음식 텍스처 이름 추가
 }
 
 /**
@@ -40,6 +46,15 @@ export class ThrowSprite {
 
     // 스테이지에 추가
     parent.addChild(this.sprite);
+
+    // onThrowStart 콜백 호출
+    if (options.onThrowStart) {
+      const foodTextureName =
+        options.foodTextureName ||
+        this.sprite.texture.textureCacheIds[0] ||
+        "unknown";
+      options.onThrowStart(this.finalPosition, foodTextureName);
+    }
 
     // 애니메이션 시작
     this.app.ticker.add(this.update, this);
@@ -124,6 +139,13 @@ export class ThrowSprite {
       x: this.sprite.position.x,
       y: this.sprite.position.y,
     };
+  }
+
+  /**
+   * 최종 위치 반환
+   */
+  public getFinalPosition(): { x: number; y: number } {
+    return this.finalPosition;
   }
 
   /**

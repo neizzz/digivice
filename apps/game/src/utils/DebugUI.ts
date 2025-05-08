@@ -93,7 +93,7 @@ export class DebugUI {
    */
   private subscribeToStaminaChanges(): void {
     this.eventBus.on(
-      EventTypes.CHARACTER.STAMINA_CHANGED,
+      EventTypes.STAMINA_CHANGED,
       (data: { current: number; max: number }) => {
         this.staminaState.current = data.current;
         this.staminaState.max = data.max;

@@ -648,7 +648,7 @@ export class CleaningManager {
     }
 
     // 이벤트 구독 해제
-    this.eventBus.off(EventTypes.CHARACTER.POOB_CREATED);
+    this.eventBus.off(EventTypes.POOB_CREATED);
   }
 
   /**
