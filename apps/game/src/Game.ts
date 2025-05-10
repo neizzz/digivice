@@ -11,7 +11,7 @@ import { Character } from "./entities/Character"; // 캐릭터 임포트
 import { Egg } from "./entities/Egg"; // Egg 클래스 임포트 추가
 import { GameDataManager } from "./managers/GameDataManager"; // GameDataManager 임포트
 import type { GameData } from "./types/GameData"; // GameData 타입 임포트
-import { CHARACTER_MOVEMENT, GAME_LOOP } from "./config"; // TimeConfig로 변경
+import { GAME_LOOP } from "./config"; // TimeConfig로 변경
 import { TimeManager } from "./managers/TimeManager"; // TimeManager 임포트 추가
 import { EventBus, EventTypes } from "./utils/EventBus"; // EventBus 임포트 추가
 import { CharacterState, type CharacterKey } from "./types/Character";
@@ -119,12 +119,9 @@ export class Game {
       AssetLoader.loadAssets()
         .then(() => {
           this.assetsLoaded = true;
-          console.log("에셋 로딩 완료");
 
           this.initializeCharacter(gameData).then(() => {
-            // 캐릭터 진화 이벤트 리스너 등록
             this.setupCharacterEvolutionListener();
-
             this.setupInitialScene();
             this.setupGameLoop();
           });
@@ -155,7 +152,6 @@ export class Game {
             this.currentScene.removeChild(this.character);
           }
 
-          // 새 캐릭터 생성
           const newCharacter = new Character({
             characterKey: data.characterKey,
             app: this.app,
@@ -236,8 +232,6 @@ export class Game {
       if (this.character instanceof Character) {
         DebugUI.getInstance().setCharacter(this.character);
       }
-
-      console.log("캐릭터 초기화 완료");
     } catch (error) {
       console.error("캐릭터 초기화 중 오류:", error);
       throw error;

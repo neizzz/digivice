@@ -16,14 +16,14 @@ import { CHARACTER_MOVEMENT } from "../config";
 
 export class Character extends PIXI.Container {
   public animatedSprite: PIXI.AnimatedSprite | undefined;
-  private speed: number; // 캐릭터 이동 속도
+  private speed!: number; // 캐릭터 이동 속도
+  private scaleFactor!: number; // 캐릭터 크기 조정 인자
+  private animationMapping!: CharacterAnimationMapping; // 상태와 애니메이션 이름 매핑
+  private randomMovementController!: RandomMovementController; // 랜덤 움직임 컨트롤러 참조
   private currentAnimation = "idle"; // 현재 애니메이션 상태
   private spritesheet?: PIXI.Spritesheet; // spritesheet 객체
-  private scaleFactor: number; // 캐릭터 크기 조정 인자
   private currentState: CharacterState = CharacterState.IDLE; // 현재 상태
-  private animationMapping: CharacterAnimationMapping; // 상태와 애니메이션 이름 매핑
   private flipCharacter = false; // 캐릭터 좌우 반전 여부
-  private randomMovementController: RandomMovementController; // 랜덤 움직임 컨트롤러 참조
   private app?: PIXI.Application; // PIXI 애플리케이션 참조
   private eventBus: EventBus; // 이벤트 버스 인스턴스
   private characterInfo: (typeof CharacterDictionary)[CharacterKey]; // 캐릭터 정보 저장
@@ -54,18 +54,6 @@ export class Character extends PIXI.Container {
       this.status.position.y ?? this.app.screen.height / 2
     );
 
-    this.speed = this.characterInfo.speed;
-    this.scaleFactor = this.characterInfo.scale;
-    this.animationMapping = this.characterInfo.animationMapping;
-
-    // RandomMovementController 초기화
-    this.randomMovementController = this.initRandomMovementController({
-      minIdleTime: CHARACTER_MOVEMENT.MIN_IDLE_TIME,
-      maxIdleTime: CHARACTER_MOVEMENT.MAX_IDLE_TIME,
-      minMoveTime: CHARACTER_MOVEMENT.MIN_MOVE_TIME,
-      maxMoveTime: CHARACTER_MOVEMENT.MAX_MOVE_TIME,
-    });
-
     // AssetLoader에서 스프라이트시트 가져오기
     const assets = AssetLoader.getAssets();
     this.spritesheet = assets.characterSprites[params.characterKey];
@@ -85,6 +73,17 @@ export class Character extends PIXI.Container {
             this.currentState as Exclude<CharacterState, CharacterState.DEAD>
           ] || "idle"
         );
+        this.speed = this.characterInfo.speed;
+        this.scaleFactor = this.characterInfo.scale;
+        this.animationMapping = this.characterInfo.animationMapping;
+
+        // RandomMovementController 초기화
+        this.randomMovementController = this.initRandomMovementController({
+          minIdleTime: CHARACTER_MOVEMENT.MIN_IDLE_TIME,
+          maxIdleTime: CHARACTER_MOVEMENT.MAX_IDLE_TIME,
+          minMoveTime: CHARACTER_MOVEMENT.MIN_MOVE_TIME,
+          maxMoveTime: CHARACTER_MOVEMENT.MAX_MOVE_TIME,
+        });
         this.initFoodTracker();
       });
     }
