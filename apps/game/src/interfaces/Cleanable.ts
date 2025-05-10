@@ -64,6 +64,7 @@ export abstract class Cleanable extends ObjectBase {
    */
   public resetCleaningState(): void {
     this.cleanProgress = 0;
+    this.onCleaningProgress(0);
     this._isCleaned = false;
   }
 

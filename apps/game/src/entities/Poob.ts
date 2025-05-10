@@ -12,7 +12,7 @@ import { Cleanable } from "../interfaces/Cleanable";
 enum PoobState {
   NORMAL = 0, // 보통 상태
   CLEANING = 1, // 청소 중
-  CLEANED = 2, // 청소 완료됨
+  CLEANED = 2, // 청소 완료
 }
 
 export interface PoobOptions {
@@ -108,8 +108,6 @@ export class Poob extends Cleanable {
    */
   protected onCleaningStart(): void {
     this.state = PoobState.CLEANING;
-    // 투명도 시작 값 설정
-    this.sprite.alpha = 1.0;
   }
 
   /**

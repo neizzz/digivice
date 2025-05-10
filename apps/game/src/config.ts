@@ -2,6 +2,8 @@
  * 게임에서 사용되는 모든 시간 관련 설정을 관리하는 파일
  */
 
+export const INTENTED_FRONT_Z_INDEX = 9999; // 의도된 앞쪽 zIndex
+
 /**
  * 캐릭터 움직임 관련 시간 상수 (밀리초 단위)
  */

@@ -2,6 +2,9 @@ import * as PIXI from "pixi.js";
 import { Cleanable } from "../interfaces/Cleanable";
 import { EventBus, EventTypes } from "../utils/EventBus";
 import { Broom } from "../entities/Broom";
+import { ObjectBase } from "../interfaces/ObjectBase";
+import type { Food } from "../entities/Food";
+import { INTENTED_FRONT_Z_INDEX } from "../config";
 
 /**
  * 청소 상태를 나타내는 enum
@@ -56,12 +59,7 @@ export class CleaningManager {
     this.app = options.app;
     this.parent = options.parent;
     this.onCleaningComplete = options.onCleaningComplete;
-
-    // 이벤트 버스 초기화
     this.eventBus = EventBus.getInstance();
-
-    // zIndex를 사용하기 위해 부모 컨테이너의 sortableChildren 속성을 true로 설정
-    this.parent.sortableChildren = true;
   }
 
   /**
@@ -79,16 +77,13 @@ export class CleaningManager {
 
       // 현재 객체의 스프라이트에 높은 zIndex 설정하여 맨 앞에 표시
       if (sprite) {
-        // 다른 스프라이트보다 높은 zIndex 값 설정 (100)
-        sprite.zIndex = 1000;
+        sprite.zIndex = INTENTED_FRONT_Z_INDEX;
       }
 
       // 현재 객체의 테두리도 맨 앞으로 가져오기
       const border = this.cleanableBorders.get(currentCleanable);
       if (border) {
-        // 핑크색 테두리는 현재 객체의 테두리입니다
-        // 테두리의 zIndex를 스프라이트보다 높게 설정 (110)
-        border.zIndex = 1100;
+        border.zIndex = 10000;
       }
     }
   }
@@ -119,15 +114,8 @@ export class CleaningManager {
         `현재 선택된 Cleanable 인덱스: ${this.currentCleanableIndex}`
       );
 
-      // Cleanable 객체들 주변에 점선 테두리 그리기 (currentCleanableIndex 설정 후에 호출)
       this.createCleanableBorders();
-
-      // 현재 Cleanable 객체를 맨 앞으로 가져오기
-      this.bringCurrentCleanableToFront();
-
       this.moveToCurrentCleanable();
-
-      // 빗자루 객체 초기화 (반드시 moveToCurrentCleanableObject 후에 호출)
       this.initBroom();
     } else {
       console.log("청소할 객체가 없습니다.");
@@ -144,35 +132,9 @@ export class CleaningManager {
     // 일반 Cleanable 객체 테두리 먼저 그리기
     for (let i = 0; i < this.cleanableObjects.length; i++) {
       if (i !== this.currentCleanableIndex) {
-        this.createBorderForCleanable(
-          this.cleanableObjects[i],
-          0xffffff,
-          false
-        );
-
-        // 일반 Cleanable 객체의 zIndex를 낮게 설정
-        const sprite = this.cleanableObjects[i].getSprite();
-        if (sprite) {
-          sprite.zIndex = 40; // 테두리(50)보다 낮게 설정
-        }
-      }
-    }
-
-    // 현재 선택된 Cleanable 객체 테두리 그리기
-    if (
-      this.currentCleanableIndex >= 0 &&
-      this.currentCleanableIndex < this.cleanableObjects.length
-    ) {
-      const currentCleanable =
-        this.cleanableObjects[this.currentCleanableIndex];
-      // 핑크색(0xFF69B4)으로 테두리 그리기 및 앞에 표시하도록 설정
-      this.createBorderForCleanable(currentCleanable, 0xff69b4, true);
-
-      // 현재 Cleanable 스프라이트도 항상 앞에 그려지도록 zIndex 설정
-      const sprite = currentCleanable.getSprite();
-      if (sprite) {
-        // 높은 zIndex 값 설정 (테두리는 110, 스프라이트는 100)
-        sprite.zIndex = 100;
+        this.createBorderForCleanable(this.cleanableObjects[i], 0xffffff);
+      } else {
+        this.createBorderForCleanable(this.cleanableObjects[i], 0xff69b4);
       }
     }
   }
@@ -185,19 +147,18 @@ export class CleaningManager {
    */
   private createBorderForCleanable(
     cleanable: Cleanable,
-    color: number,
-    bringToFront: boolean
+    color: number
+    // bringToFront: boolean
   ): void {
     const sprite = cleanable.getSprite();
     const bounds = sprite.getBounds();
-
     const border = new PIXI.Graphics();
 
     // 테두리 스타일 설정
     border.lineStyle({
       width: 4,
       color,
-      alpha: bringToFront ? 1 : 0.8,
+      alpha: cleanable === this.getCurrentCleanable() ? 1 : 0.8,
       alignment: 0,
     });
 
@@ -257,15 +218,7 @@ export class CleaningManager {
 
     // 부모 컨테이너에 추가
     this.parent.addChild(border);
-
-    // zIndex를 사용하여 테두리를 앞으로 가져오기
-    if (bringToFront) {
-      // 핑크색 테두리는 다른 모든 객체보다 앞에 표시 (높은 zIndex 사용)
-      border.zIndex = 110;
-    } else {
-      // 일반 테두리의 zIndex는 낮게 설정
-      border.zIndex = 50;
-    }
+    border.zIndex = sprite.zIndex + 1; // 기본 zIndex 설정
 
     // Map에 저장
     this.cleanableBorders.set(cleanable, border);
@@ -319,10 +272,7 @@ export class CleaningManager {
     const currentCleanable = this.getCurrentCleanable();
     if (currentCleanable) {
       const targetPos = currentCleanable.getPosition();
-
-      // 현재 청소 대상 위에 빗자루 배치 (y 좌표를 약간 위쪽으로)
-      // y 좌표를 약간 낮게(+-5) 설정하여 빗자루가 Cleanable보다 약간 뒤에 그려지도록 함
-      const broomY = targetPos.y - 5;
+      const broomY = targetPos.y - 8;
       this.broom.setPosition(targetPos.x, broomY);
     } else {
       console.warn("현재 청소 대상이 없습니다. 기본 위치에 빗자루 배치합니다.");
@@ -344,6 +294,7 @@ export class CleaningManager {
     console.log("청소 모드 비활성화");
     const currentCleanableSprite = this.getCurrentCleanable()?.getSprite();
     if (currentCleanableSprite) {
+      this.getCurrentCleanable()?.resetCleaningState();
       currentCleanableSprite.zIndex = currentCleanableSprite.getBounds().y;
     }
     this.cleaningState = CleaningState.INACTIVE;
@@ -378,26 +329,22 @@ export class CleaningManager {
       const child = this.parent.children[i];
 
       try {
-        // 스프라이트에 __objectRef 속성이 있는지 확인
-        // biome-ignore lint/suspicious/noExplicitAny: <explanation>
-        if (child && (child as any).__objectRef) {
-          // biome-ignore lint/suspicious/noExplicitAny: <explanation>
-          const objectRef = (child as any).__objectRef;
+        // Use ObjectBase's static method to get the object reference instead of accessing __objectRef directly
+        const objectRef = ObjectBase.getObjectRef(
+          child as PIXI.Sprite | PIXI.AnimatedSprite
+        );
 
-          // Cleanable의 인스턴스인지 확인
-          if (objectRef instanceof Cleanable) {
-            // Food 객체인 경우 STALE 상태일 때만 청소 가능하도록
-            if (objectRef.constructor.name === "Food") {
-              // biome-ignore lint/suspicious/noExplicitAny: <explanation>
-              const food = objectRef as any; // Food로 캐스팅하기 위한 any 타입 사용
-              if (food.getFreshness && food.getFreshness() === 2) {
-                // FoodFreshness.STALE = 2
-                this.cleanableObjects.push(objectRef);
-              }
-            } else {
-              // Food가 아닌 경우 바로 추가 (Poob 등)
+        if (objectRef && objectRef instanceof Cleanable) {
+          // Check if it's a Food object in STALE state
+          if (objectRef.constructor.name === "Food") {
+            const food = objectRef as Food; // Food type cast
+            if (food.getFreshness() === 2) {
+              // FoodFreshness.STALE = 2
               this.cleanableObjects.push(objectRef);
             }
+          } else {
+            // Add other Cleanable objects like Poob
+            this.cleanableObjects.push(objectRef);
           }
         }
       } catch (error) {
@@ -458,7 +405,7 @@ export class CleaningManager {
 
       // 빗자루 위치 업데이트
       const newX = targetPos.x + offsetX;
-      this.broom.setPosition(newX, targetPos.y - 5);
+      this.broom.setPosition(newX, targetPos.y - 8);
     }
 
     // 슬라이더 값의 변화량 계산 (절대값)
@@ -535,20 +482,9 @@ export class CleaningManager {
       i++
     ) {
       const cleanable = this.cleanableObjects[i];
-
-      // 현재 선택된 객체는 핑크색, 나머지는 흰색으로 테두리 생성
       const color = i === this.currentCleanableIndex ? 0xff69b4 : 0xffffff;
-      const bringToFront = i === this.currentCleanableIndex;
 
-      this.createBorderForCleanable(cleanable, color, bringToFront);
-
-      // 현재 선택된 객체의 zIndex를 높게 설정
-      if (i === this.currentCleanableIndex) {
-        const sprite = cleanable.getSprite();
-        if (sprite) {
-          sprite.zIndex = 100;
-        }
-      }
+      this.createBorderForCleanable(cleanable, color);
     }
 
     // 현재 객체를 맨 앞으로 가져오기

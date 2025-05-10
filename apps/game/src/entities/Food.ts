@@ -8,7 +8,7 @@ import { ColorMatrixFilter } from "@pixi/filter-color-matrix";
 import { DebugFlags } from "../utils/DebugFlags";
 import { EventBus, EventTypes } from "../utils/EventBus";
 import { FreshnessManager } from "../managers/FreshnessManager";
-import { FOOD_FRESHNESS } from "../config";
+import { FOOD_FRESHNESS, INTENTED_FRONT_Z_INDEX } from "../config";
 import { type ObjectData, ObjectType } from "../types/GameData";
 import { ObjectBase } from "../interfaces/ObjectBase";
 import { Cleanable } from "../interfaces/Cleanable";
@@ -105,6 +105,7 @@ export class Food extends Cleanable {
     if (data?.position) {
       this.sprite.scale.set(this.finalScale);
       this.sprite.position.set(data.position.x, data.position.y);
+      this.sprite.zIndex = data.position.y; // 깊이 정렬을 위해 y값으로 zIndex 설정
       this.parent.addChild(this.sprite);
     } else {
       // ThrowSprite를 통해 던지기 기능 활용
@@ -148,8 +149,6 @@ export class Food extends Cleanable {
    */
   protected onCleaningStart(): void {
     this.state = FoodState.CLEANING;
-    // 투명도 시작 값 설정
-    this.sprite.alpha = 1.0;
   }
 
   /**
@@ -422,22 +421,15 @@ export class Food extends Cleanable {
       case FoodState.FINISHED:
         // 이미 다 먹어서 처리할 필요 없음
         break;
-      case FoodState.CLEANING:
-        // 청소 중일 때는 별도 처리 없음
-        break;
-      case FoodState.CLEANED:
-        // 청소 완료 상태에서는 처리할 필요 없음
-        break;
     }
 
-    // 상태가 FINISHED 또는 CLEANED가 아닐 경우에만 신선도 업데이트
     if (this.state !== FoodState.FINISHED && this.state !== FoodState.CLEANED) {
       // 신선도 상태 업데이트
       this.freshnessManager.update();
     }
-
-    // zIndex를 position.y 값으로 설정하여 깊이 정렬
-    this.sprite.zIndex = this.sprite.position.y;
+    if (this.sprite.zIndex !== INTENTED_FRONT_Z_INDEX) {
+      this.sprite.zIndex = this.sprite.position.y;
+    }
   };
 
   /**

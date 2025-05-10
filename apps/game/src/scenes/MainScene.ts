@@ -73,9 +73,6 @@ export class MainScene extends PIXI.Container implements Scene {
   // Game 인스턴스 참조
   private game: Game;
 
-  // FoodTracker 관련 필드 추가
-  private foodTracker: FoodTracker | null = null;
-
   constructor(game: Game) {
     super();
     this.game = game;
