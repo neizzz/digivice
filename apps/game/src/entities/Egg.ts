@@ -1,7 +1,9 @@
 import * as PIXI from "pixi.js";
 import type { Position } from "../types/Position";
 import { AssetLoader } from "../utils/AssetLoader";
-import { GameDataManager } from "../utils/GameDataManager";
+import { GameDataManager } from "../managers/GameDataManager";
+import { EventBus, EventTypes } from "../utils/EventBus";
+import { CharacterKey } from "../types/Character";
 
 /**
  * Egg 클래스 - 움직이지 않고 화면 중앙에 위치하는 독립적인 간단한 엔티티
@@ -90,17 +92,6 @@ export class Egg extends PIXI.Container {
         return false;
       }
 
-      // 게임 데이터 업데이트
-      const gameData = await GameDataManager.loadData();
-      if (!gameData) return false;
-
-      await GameDataManager.updateData({
-        character: {
-          ...gameData.character,
-          eggTextureKey: textureKey,
-        },
-      });
-
       // 텍스처 업데이트
       this.eggTextureKey = textureKey;
       this.updateEggTexture();
@@ -109,6 +100,15 @@ export class Egg extends PIXI.Container {
       console.error("알 텍스처 변경 오류:", error);
       return false;
     }
+  }
+
+  /**
+   * 알 속 캐릭터 진화 체크 (바로 진화로 넘어가지 않고 부화 과정 표현)
+   */
+  public eggHatching(): void {
+    EventBus.publish(EventTypes.CHARACTER_EVOLUTION, {
+      key: CharacterKey.GreenSlime,
+    });
   }
 
   /**

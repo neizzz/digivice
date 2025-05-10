@@ -159,7 +159,6 @@ export class CleaningManager {
     }
 
     // 현재 선택된 Cleanable 객체 테두리 그리기
-    console.log(this.currentCleanableIndex);
     if (
       this.currentCleanableIndex >= 0 &&
       this.currentCleanableIndex < this.cleanableObjects.length

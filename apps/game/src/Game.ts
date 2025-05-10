@@ -9,12 +9,12 @@ import { DebugUI } from "./utils/DebugUI";
 import { DebugFlags } from "./utils/DebugFlags";
 import { Character } from "./entities/Character"; // 캐릭터 임포트
 import { Egg } from "./entities/Egg"; // Egg 클래스 임포트 추가
-import { GameDataManager } from "./utils/GameDataManager"; // GameDataManager 임포트
+import { GameDataManager } from "./managers/GameDataManager"; // GameDataManager 임포트
 import type { GameData } from "./types/GameData"; // GameData 타입 임포트
 import { CHARACTER_MOVEMENT, GAME_LOOP } from "./config"; // TimeConfig로 변경
-import { TimeManager } from "./utils/TimeManager"; // TimeManager 임포트 추가
+import { TimeManager } from "./managers/TimeManager"; // TimeManager 임포트 추가
 import { EventBus, EventTypes } from "./utils/EventBus"; // EventBus 임포트 추가
-import type { CharacterKey } from "types/Character";
+import { CharacterState, type CharacterKey } from "./types/Character";
 
 PIXI.BaseTexture.defaultOptions.scaleMode = PIXI.SCALE_MODES.NEAREST;
 
@@ -43,6 +43,7 @@ export class Game {
   private currentSceneKey?: SceneKey;
   private assetsLoaded = false;
   private timeManager: TimeManager; // TimeManager 인스턴스 추가
+  private isUnloading = false;
 
   constructor(params: {
     parentElement: HTMLElement;
@@ -68,7 +69,6 @@ export class Game {
     this.app.ticker.minFPS = 60;
     this.app.ticker.maxFPS = 60;
 
-    console.log(parentElement, this.app);
     // DOM에 캔버스 추가
     parentElement.appendChild(this.app.view as HTMLCanvasElement);
 
@@ -84,6 +84,8 @@ export class Game {
 
     this.getData().then((gameData) => {
       if (gameData) {
+        // 앱이 완전히 껐다 켜졌을 때도 resume 이벤트를 발생시킴
+        EventBus.publish(EventTypes.APP_RESUME, { timestamp: Date.now() });
         this.startInitialization(gameData);
       } else {
         console.log("게임 데이터가 없습니다. setup layer 생성");
@@ -105,6 +107,7 @@ export class Game {
           });
       }
     });
+    GameDataManager.initialize();
   }
 
   /**
@@ -130,16 +133,14 @@ export class Game {
           console.error("에셋 로딩 오류:", error);
         });
     });
-
-    GameDataManager.initialize();
   }
 
   /**
    * 캐릭터 진화 이벤트 리스너 설정
    */
   private setupCharacterEvolutionListener(): void {
-    EventBus.subscribe(EventTypes.CHARACTER_EVOLUTION, async (data) => {
-      console.log(`캐릭터 진화 이벤트 수신: ${data.newForm}`);
+    EventBus.subscribe(EventTypes.CHARACTER_EVOLVED, async (data) => {
+      console.log(`캐릭터 진화 이벤트 수신: ${data.characterKey}`);
 
       try {
         // 현재 character가 Egg인 경우에만 진화 처리
@@ -156,14 +157,13 @@ export class Game {
 
           // 새 캐릭터 생성
           const newCharacter = new Character({
-            characterKey: data.newForm as CharacterKey,
-            position,
+            characterKey: data.characterKey,
             app: this.app,
-            movementOptions: {
-              minIdleTime: CHARACTER_MOVEMENT.MIN_IDLE_TIME,
-              maxIdleTime: CHARACTER_MOVEMENT.MAX_IDLE_TIME,
-              minMoveTime: CHARACTER_MOVEMENT.MIN_MOVE_TIME,
-              maxMoveTime: CHARACTER_MOVEMENT.MAX_MOVE_TIME,
+            status: {
+              position,
+              state: CharacterState.IDLE,
+              stamina: 6,
+              sick: false,
             },
           });
 
@@ -192,10 +192,22 @@ export class Game {
   private async initializeCharacter(gameData: GameData): Promise<void> {
     try {
       const characterKey = gameData.character.key;
-      const position = {
-        x: this.app.screen.width / 2,
-        y: this.app.screen.height / 2,
-      };
+      const status = gameData.character.status;
+
+      // 저장된 마지막 위치가 있으면 사용, 없으면 화면 중앙으로 설정
+      const position = (() => {
+        if (
+          status?.position &&
+          !Number.isNaN(status.position.x) &&
+          !Number.isNaN(status.position.y)
+        ) {
+          return status.position;
+        }
+        return {
+          x: this.app.screen.width / 2,
+          y: this.app.screen.height / 2,
+        };
+      })();
 
       // 캐릭터 타입에 따라 적절한 클래스 인스턴스 생성
       if (characterKey === "egg") {
@@ -209,16 +221,15 @@ export class Game {
         console.log(`일반 캐릭터(${characterKey}) 생성`);
         // 기존 Character 클래스 사용
         this.character = new Character({
-          characterKey,
-          position,
+          characterKey: characterKey as CharacterKey,
           app: this.app,
-          movementOptions: {
-            minIdleTime: CHARACTER_MOVEMENT.MIN_IDLE_TIME,
-            maxIdleTime: CHARACTER_MOVEMENT.MAX_IDLE_TIME,
-            minMoveTime: CHARACTER_MOVEMENT.MIN_MOVE_TIME,
-            maxMoveTime: CHARACTER_MOVEMENT.MAX_MOVE_TIME,
-          },
+          status: gameData.character.status,
         });
+
+        // 현재 씬이 MainScene이면 캐릭터 추가
+        if (this.currentScene instanceof MainScene) {
+          this.currentScene.addChild(this.character);
+        }
       }
 
       // DebugUI에 캐릭터 참조 설정
@@ -285,10 +296,22 @@ export class Game {
   private setupAppFocusListeners(): void {
     // 브라우저 환경에서만 동작
     if (typeof document !== "undefined" && typeof window !== "undefined") {
+      // 새로고침/탭 닫힘 감지용 플래그
+      window.addEventListener("beforeunload", () => {
+        this.isUnloading = true;
+      });
+
       // 앱이 포커스를 잃을 때 (백그라운드로 전환)
       document.addEventListener("visibilitychange", () => {
         if (document.hidden) {
-          console.log("앱이 백그라운드로 전환되었습니다");
+          if (!this.isUnloading) {
+            console.log("앱이 백그라운드로 전환되었습니다");
+            this.saveGameState();
+          } else {
+            console.log(
+              "새로고침/탭 닫힘으로 인한 백그라운드 전환 - 저장 생략"
+            );
+          }
           this.timeManager.stop();
         } else {
           console.log("앱이 포그라운드로 돌아왔습니다");
@@ -297,19 +320,33 @@ export class Game {
           this.timeManager.start();
         }
       });
+      // // 창이 포커스를 잃을 때
+      // window.addEventListener("blur", () => {
+      //   if (!this.isUnloading) {
+      //     console.log("앱이 포커스를 잃었습니다");
+      //     // 캐릭터 위치 및 상태 저장
+      //     this.saveGameState();
+      //   } else {
+      //     console.log("새로고침/탭 닫힘으로 인한 blur - 저장 생략");
+      //   }
+      //   this.timeManager.stop();
+      // });
+      // // 창이 포커스를 얻을 때
+      // window.addEventListener("focus", () => {
+      //   console.log("앱이 포커스를 얻었습니다");
+      //   EventBus.publish(EventTypes.APP_RESUME, { timestamp: Date.now() });
+      //   this.timeManager.start();
+      // });
+    }
+  }
 
-      // 창이 포커스를 잃을 때
-      window.addEventListener("blur", () => {
-        console.log("앱이 포커스를 잃었습니다");
-        this.timeManager.stop();
-      });
-
-      // 창이 포커스를 얻을 때
-      window.addEventListener("focus", () => {
-        console.log("앱이 포커스를 얻었습니다");
-        EventBus.publish(EventTypes.APP_RESUME, { timestamp: Date.now() });
-        this.timeManager.start();
-      });
+  /**
+   * 게임 상태(캐릭터 위치, 상태 등)를 저장합니다.
+   */
+  private saveGameState(): void {
+    // 캐릭터 위치와 상태 저장
+    if (this.character instanceof Character) {
+      this.character.savePositionAndState();
     }
   }
 

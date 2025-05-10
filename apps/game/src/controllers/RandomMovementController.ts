@@ -72,7 +72,6 @@ export class RandomMovementController extends MovementController {
     this.character.update(CharacterState.IDLE);
     // idle 상태에서도 마지막 이동 방향을 바라보게 함
     this.stateTimer = 0;
-    console.debug("Changed to IDLE state", this.moveDirection.x);
   }
 
   // MOVING 상태로 전환
@@ -152,13 +151,13 @@ export class RandomMovementController extends MovementController {
       const nextY = currentPos.y + moveY;
 
       // 경계 검사 및 방향 조정
+      let shouldUpdateFacing = false;
+
       if (nextX < this.bounds.x || nextX > this.bounds.width) {
         // X축 방향 반전
         this.moveDirection.x *= -1;
         moveX = -moveX; // 이동 방향도 반전
-
-        // 방향이 바뀌었으므로 캐릭터 방향도 업데이트
-        this.updateCharacterFacing();
+        shouldUpdateFacing = true;
       }
 
       // Y축 경계 확인
@@ -169,9 +168,20 @@ export class RandomMovementController extends MovementController {
       }
 
       // 계산된 위치로 캐릭터 이동
-      const newX = currentPos.x + moveX;
-      const newY = currentPos.y + moveY;
+      let newX = currentPos.x + moveX;
+      let newY = currentPos.y + moveY;
+
+      // 유효 바운더리 내에 위치하도록 보정
+      const correctedPosition = this.ensureWithinBounds(newX, newY);
+      newX = correctedPosition.x;
+      newY = correctedPosition.y;
+
       this.character.setPosition(newX, newY);
+
+      // 방향이 바뀌었으면 캐릭터 방향도 업데이트
+      if (shouldUpdateFacing) {
+        this.updateCharacterFacing();
+      }
 
       // 캐릭터 상태 업데이트
       this.character.update(CharacterState.WALKING);
@@ -186,6 +196,36 @@ export class RandomMovementController extends MovementController {
         this.changeToMovingState();
       }
     }
+  }
+
+  /**
+   * 위치가 바운더리 내에 있는지 확인하고, 벗어날 경우 가장 가까운 경계 위치로 조정합니다.
+   * @param x X 좌표
+   * @param y Y 좌표
+   * @returns 조정된 위치 {x, y}
+   */
+  private ensureWithinBounds(x: number, y: number): { x: number; y: number } {
+    // X 좌표가 왼쪽 경계를 벗어나면
+    let newX = x;
+    let newY = y;
+    if (x < this.bounds.x) {
+      newX = this.bounds.x;
+    }
+    // X 좌표가 오른쪽 경계를 벗어나면
+    else if (x > this.bounds.width) {
+      newX = this.bounds.width;
+    }
+
+    // Y 좌표가 위쪽 경계를 벗어나면
+    if (y < this.bounds.y) {
+      newY = this.bounds.y;
+    }
+    // Y 좌표가 아래쪽 경계를 벗어나면
+    else if (y > this.bounds.height) {
+      newY = this.bounds.height;
+    }
+
+    return { x: newX, y: newY };
   }
 
   /**

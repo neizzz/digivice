@@ -18,8 +18,6 @@ export class Background extends PIXI.Container {
     this.bgSprite = new PIXI.Sprite(texture);
     this.bgSprite.anchor.set(0.5); // 중앙 기준점으로 설정
     this.addChild(this.bgSprite);
-
-    console.log("[Background] Created with texture:", texture);
   }
 
   /**
@@ -38,8 +36,6 @@ export class Background extends PIXI.Container {
     // 더 큰 스케일 값을 사용하여 화면을 완전히 커버
     const scale = Math.max(scaleX, scaleY);
     this.bgSprite.scale.set(scale);
-
-    console.log(`[Background] Resized to ${width}x${height}, scale: ${scale}`);
   }
 
   /**
@@ -48,6 +44,5 @@ export class Background extends PIXI.Container {
    */
   public changeTexture(newTexture: PIXI.Texture): void {
     this.bgSprite.texture = newTexture;
-    console.log("[Background] Texture changed");
   }
 }

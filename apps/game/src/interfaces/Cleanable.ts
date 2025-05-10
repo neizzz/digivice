@@ -1,22 +1,40 @@
-import type * as PIXI from "pixi.js";
+import type { AnimatedSprite, Sprite } from "pixi.js";
+import type { ObjectType } from "../types/GameData";
+import { EventBus, EventTypes } from "../utils/EventBus";
+import { ObjectBase } from "./ObjectBase";
+import type { Position } from "../types/Position";
 
-/**
- * 청소 가능한 객체들의 기본 클래스
- */
-export abstract class Cleanable {
-  protected cleanProgress = 0;
+export abstract class Cleanable extends ObjectBase {
+  protected _isCleaned = false;
   protected cleaningStartTime = 0;
   protected cleaningThreshold = 0.95; // 청소 완료로 간주할 임계값 (95%)
-  protected isCleaned = false;
+  protected cleanProgress = 0;
 
-  /**
-   * 청소 진행도를 업데이트합니다.
-   * @param progress 0-1 사이의 청소 진행도 값
-   * @returns 청소가 완료되었는지 여부
-   */
+  public isCleaned(): boolean {
+    return this._isCleaned;
+  }
+
+  public finishCleaning(): void {
+    if (this._isCleaned) {
+      return; // 이미 청소 완료된 상태
+    }
+
+    this._isCleaned = true;
+    this.cleanProgress = 1;
+
+    // GameData 반영을 위한 이벤트 발행
+    EventBus.publish(EventTypes.OBJECT_CLEANED, {
+      type: this.getType(),
+      id: this.getId(),
+    });
+
+    // 청소 완료 처리 (스프라이트 제거 등)
+    this.onCleaningFinish();
+  }
+
   public updateCleanProgress(progress: number): boolean {
     // 이미 청소가 완료된 상태라면 항상 true 반환
-    if (this.isCleaned) {
+    if (this._isCleaned) {
       return true;
     }
 
@@ -42,53 +60,18 @@ export abstract class Cleanable {
   }
 
   /**
-   * 청소를 완료합니다.
+   * 청소 상태를 리셋(원상복구)합니다. (청소모드 종료 시 호출)
    */
-  public finishCleaning(): void {
-    if (this.isCleaned) {
-      return; // 이미 청소 완료된 상태
-    }
-
-    this.isCleaned = true;
-    this.cleanProgress = 1;
-
-    // 하위 클래스에서 구현할 청소 완료 처리
-    this.onCleaningFinish();
+  public resetCleaningState(): void {
+    this.cleanProgress = 0;
+    this._isCleaned = false;
   }
 
-  /**
-   * 현재 청소 진행도를 반환합니다.
-   */
-  public getCleanProgress(): number {
-    return this.cleanProgress;
-  }
-
-  /**
-   * 청소가 시작될 때 호출되는 메서드.
-   * 하위 클래스에서 필요에 따라 오버라이드합니다.
-   */
-  protected onCleaningStart(): void {}
-
-  /**
-   * 청소 진행 중 호출되는 메서드.
-   * 하위 클래스에서 필요에 따라 오버라이드합니다.
-   * @param progress 현재 청소 진행도 (0-1)
-   */
-  protected onCleaningProgress(progress: number): void {}
-
-  /**
-   * 청소가 완료되었을 때 호출되는 메서드.
-   * 하위 클래스에서 필요에 따라 오버라이드합니다.
-   */
-  protected onCleaningFinish(): void {}
-
-  /**
-   * 객체의 위치를 반환합니다.
-   */
-  public abstract getPosition(): { x: number; y: number };
-
-  /**
-   * 객체의 스프라이트를 반환합니다.
-   */
-  public abstract getSprite(): PIXI.Sprite;
+  protected abstract onCleaningStart(): void;
+  protected abstract onCleaningProgress(progress: number): void;
+  protected abstract onCleaningFinish(): void;
+  public abstract getPosition(): Position;
+  public abstract getSprite(): Sprite | AnimatedSprite;
+  public abstract getType(): ObjectType;
+  public abstract getId(): string;
 }

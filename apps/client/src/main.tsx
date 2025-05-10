@@ -3,30 +3,17 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import PrototypeApp from "./PrototypeApp";
 import "./index.css";
-import { AosMiniViewAdapter } from "./adapter/AosMiniViewAdapter.ts";
 import { PlatformAdapter } from "./adapter/PlatformAdapter.ts";
-import { MiniViewService } from "./application/service/MiniViewService.ts";
 import SimpleLogViewer from "../components/SimpleLogViewer/SimpleLogViewer.tsx";
 
-/**
- * Service Getters
- */
-export const getMiniViewService = () => {
-  if (!miniViewService) {
-    throw new Error("MiniViewService가 초기화되지 않았습니다.");
-  }
-  return miniViewService;
-};
 export function getPlatformAdapter(): PlatformAdapter {
   return platformAdapter;
 }
 
 // 어댑터 초기화
 const platformAdapter = new PlatformAdapter();
-const miniViewControlAdapter = new AosMiniViewAdapter();
 
 // 서비스 초기화
-const miniViewService = new MiniViewService(miniViewControlAdapter);
 
 console.log("서비스 초기화 완료");
 

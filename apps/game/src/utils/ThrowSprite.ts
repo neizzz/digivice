@@ -1,5 +1,4 @@
 import type * as PIXI from "pixi.js";
-import { EventBus, EventTypes } from "./EventBus";
 
 export interface ThrowSpriteOptions {
   initialScale: number; // 초기 크기

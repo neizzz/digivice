@@ -4,7 +4,7 @@ import { FOOD_FRESHNESS } from "../config"; // config에서 시간 상수 가져
 /**
  * 음식의 신선도 지속 시간을 관리하는 클래스
  */
-export class FreshnessDuration {
+export class FreshnessManager {
   private freshness: FoodFreshness;
   private createdAt: number;
   private freshDuration = FOOD_FRESHNESS.FRESH_DURATION; // config에서 가져옴
@@ -17,44 +17,68 @@ export class FreshnessDuration {
    * 신선도 지속 시간 관리 클래스 생성자
    * @param onFreshnessChanged 신선도 변경 콜백
    * @param foodId 음식의 고유 ID
-   * @param initialFreshness 초기 신선도 (기본값: FRESH)
+   * @param createdAt 음식이 생성된 시간 (밀리초)
    */
   constructor(
     onFreshnessChanged: (freshness: FoodFreshness) => void,
     foodId: string,
-    initialFreshness: FoodFreshness = FoodFreshness.FRESH
+    createdAt: number
   ) {
-    this.freshness = initialFreshness;
-    this.createdAt = Date.now();
+    this.createdAt = createdAt; // 외부에서 전달받은 생성 시간 저장
     this.onFreshnessChanged = onFreshnessChanged;
     this.foodId = foodId;
+    this.freshness = this.calculateFreshness(createdAt);
+    console.log(
+      `음식 ID: ${foodId}의 신선도가 자동 계산됨: ${
+        FoodFreshness[this.freshness]
+      }`
+    );
+  }
+
+  /**
+   * 생성 시간(createdAt)을 기준으로 현재 신선도 상태 계산
+   * @param createdAt 음식이 생성된 시간 (밀리초)
+   * @returns 계산된 신선도 상태
+   */
+  private calculateFreshness(createdAt: number): FoodFreshness {
+    const now = Date.now();
+    const elapsedTime = now - createdAt;
+
+    if (elapsedTime <= this.freshDuration) {
+      return FoodFreshness.FRESH; // 신선한 상태
+    }
+    if (elapsedTime <= this.freshDuration + this.normalDuration) {
+      return FoodFreshness.NORMAL; // 보통 상태
+    }
+    return FoodFreshness.STALE; // 상한 상태
   }
 
   /**
    * 신선도 상태 업데이트
    */
   public update(): void {
-    // 일시정지 상태라면 업데이트 하지 않음
-    if (this.isPaused) {
-      return;
-    }
-
     const now = Date.now();
     const elapsedTime = now - this.createdAt;
+    const currentFreshness = this.freshness;
+    let newFreshness = currentFreshness;
 
     // 현재 신선도에 따른 처리
-    if (this.freshness === FoodFreshness.FRESH) {
+    if (currentFreshness === FoodFreshness.FRESH) {
       // 신선한 상태가 지속 시간을 초과하면 보통 상태로 변경
       if (elapsedTime >= this.freshDuration) {
-        this.freshness = FoodFreshness.NORMAL;
-        this.onFreshnessChanged(this.freshness);
+        newFreshness = FoodFreshness.NORMAL;
       }
-    } else if (this.freshness === FoodFreshness.NORMAL) {
+    } else if (currentFreshness === FoodFreshness.NORMAL) {
       // 보통 상태가 지속 시간을 초과하면 상한 상태로 변경
       if (elapsedTime >= this.freshDuration + this.normalDuration) {
-        this.freshness = FoodFreshness.STALE;
-        this.onFreshnessChanged(this.freshness);
+        newFreshness = FoodFreshness.STALE;
       }
+    }
+
+    // 신선도가 변경되었다면 콜백 호출
+    if (currentFreshness !== newFreshness) {
+      this.freshness = newFreshness;
+      this.onFreshnessChanged(newFreshness);
     }
   }
 

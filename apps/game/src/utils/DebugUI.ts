@@ -1,6 +1,7 @@
 import { DebugFlags } from "./DebugFlags";
 import { EventBus, EventTypes } from "./EventBus";
-import type { Character } from "entities/Character";
+import type { Character } from "../entities/Character";
+import { GameDataManager } from "../managers/GameDataManager";
 
 // 게임 상태를 위한 타입 정의
 declare global {
@@ -38,6 +39,16 @@ export class DebugUI {
     this.eventBus = EventBus.getInstance();
     this.createUI();
     this.showDebugUI(); // 생성 즉시 UI 표시
+
+    // 스태미나 초기값 동기화
+    GameDataManager.loadData().then((data) => {
+      if (data && data.character && data.character.status) {
+        this.staminaState.current = data.character.status.stamina;
+        this.staminaState.max =
+          data.character.status.maxStamina ?? this.staminaState.max;
+        this.updateUI();
+      }
+    });
 
     // 스태미나 변경 이벤트 구독
     this.subscribeToStaminaChanges();
@@ -93,11 +104,16 @@ export class DebugUI {
    */
   private subscribeToStaminaChanges(): void {
     this.eventBus.on(
-      EventTypes.STAMINA_CHANGED,
-      (data: { current: number; max: number }) => {
-        this.staminaState.current = data.current;
-        this.staminaState.max = data.max;
-        this.updateUI();
+      EventTypes.CHARACTER_STATUS_UPDATED,
+      (data: { status: { stamina?: number; maxStamina?: number } }) => {
+        // 스태미나 정보가 포함된 경우에만 업데이트
+        if (data.status.stamina !== undefined) {
+          this.staminaState.current = data.status.stamina;
+          if (data.status.maxStamina !== undefined) {
+            this.staminaState.max = data.status.maxStamina;
+          }
+          this.updateUI();
+        }
       }
     );
   }
@@ -154,8 +170,20 @@ export class DebugUI {
     const createPoobButton = this.createActionButton("Poob 생성", () => {
       this.createPoob();
     });
-
     this.actionButtonsContainer.appendChild(createPoobButton);
+
+    // 게임 데이터 삭제 버튼 생성
+    const clearDataButton = this.createActionButton(
+      "게임 데이터 삭제",
+      async () => {
+        if (
+          confirm("정말로 게임 데이터를 삭제하시겠습니까? (새로고침 후 반영됨)")
+        ) {
+          await GameDataManager.clearData();
+        }
+      }
+    );
+    this.actionButtonsContainer.appendChild(clearDataButton);
 
     // 추가 액션 버튼은 여기에 계속 추가 가능
 

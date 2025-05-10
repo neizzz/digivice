@@ -3,7 +3,7 @@ import type { Game } from "../../Game";
 import { GameEngine } from "../../GameEngine";
 import type { Scene } from "../../interfaces/Scene";
 import { type ControlButtonParams, ControlButtonType } from "../../ui/types";
-import { GameDataManager } from "../../utils/GameDataManager";
+import { GameDataManager } from "../../managers/GameDataManager";
 import { GroundManager, PipeManager, PlayerManager } from "./gameLogic";
 import { type GameOptions, GameState } from "./models";
 import { PhysicsManager } from "./physics";

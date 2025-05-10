@@ -1,6 +1,5 @@
 import { useRef, useState } from "react";
 import { NfcMatchMakerAdapter } from "./adapter/NfcMatchMakerAdapter";
-import { getMiniViewService } from "./main";
 
 window.errorLogs = window.errorLogs || [];
 window.onerror = (err) => {
@@ -46,6 +45,7 @@ const PrototypeApp = () => {
       </span>
       <div style={{ display: "flex", gap: "1em" }}>
         <button
+          type={"button"}
           onClick={() => {
             setStatus("hce");
             matchMaker
@@ -64,6 +64,7 @@ const PrototypeApp = () => {
           receiveMatch
         </button>
         <button
+          type={"button"}
           onClick={() => {
             setStatus("read/write");
             matchMaker
@@ -84,6 +85,7 @@ const PrototypeApp = () => {
       </div>
       <div style={{ display: "flex", gap: "0.6em" }}>
         <button
+          type={"button"}
           style={{ backgroundColor: "#c6320d" }}
           onClick={() => {
             matchMaker.cancelMatch().then((log) => {
@@ -98,6 +100,7 @@ const PrototypeApp = () => {
           stop
         </button>
         <button
+          type={"button"}
           style={{ backgroundColor: "#0dc67f" }}
           onClick={() => {
             setLogs([]);
@@ -105,70 +108,6 @@ const PrototypeApp = () => {
         >
           clearLogs
         </button>
-      </div>
-
-      {/* 미니뷰 모드 관련 버튼들 */}
-      <div style={{ marginTop: "1em" }}>
-        <h3>Mini View Mode Controls</h3>
-        <div style={{ display: "flex", gap: "1em", flexWrap: "wrap" }}>
-          <button
-            style={{ backgroundColor: "#9c27b0" }}
-            onClick={() => {
-              setStatus("entering mini view mode");
-              const quality = inputElRef.current?.value || "medium";
-              getMiniViewService()
-                .enterMiniViewMode(quality)
-                .then((result: unknown) => {
-                  setLogs((logs) => [
-                    `[${new Date().toLocaleString()}] Mini View Mode Started: ${JSON.stringify(
-                      result
-                    )}`,
-                    ...logs,
-                  ]);
-                  setStatus("in mini view mode");
-                })
-                .catch((error) => {
-                  setLogs((logs) => [
-                    `[${new Date().toLocaleString()}] Error: ${JSON.stringify(
-                      error
-                    )}`,
-                    ...logs,
-                  ]);
-                  setStatus("idle");
-                });
-            }}
-          >
-            Enter Mini View Mode
-          </button>
-          <button
-            style={{ backgroundColor: "#ff5722" }}
-            onClick={() => {
-              setStatus("exiting mini view mode");
-              getMiniViewService()
-                .exitMiniViewMode()
-                .then((result: unknown) => {
-                  setLogs((logs) => [
-                    `[${new Date().toLocaleString()}] Mini View Mode Ended: ${JSON.stringify(
-                      result
-                    )}`,
-                    ...logs,
-                  ]);
-                  setStatus("idle");
-                })
-                .catch((error) => {
-                  setLogs((logs) => [
-                    `[${new Date().toLocaleString()}] Error: ${JSON.stringify(
-                      error
-                    )}`,
-                    ...logs,
-                  ]);
-                  setStatus("idle");
-                });
-            }}
-          >
-            Exit Mini View Mode
-          </button>
-        </div>
       </div>
 
       <div
@@ -179,6 +118,7 @@ const PrototypeApp = () => {
         }}
       >
         {logs.map((log, index) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: <explanation>
           <div key={index}>{log}</div>
         ))}
       </div>

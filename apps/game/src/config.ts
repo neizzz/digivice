@@ -12,10 +12,12 @@ export const CHARACTER_MOVEMENT = {
   MAX_MOVE_TIME: 7000, // 최대 이동 시간
 };
 
+/**
+ * 캐릭터 진화 관련 상수
+ */
 export const CHARACTER_EVOLUTION = {
-  // EGG_END_TIMEOUT: 60 * 60 * 1000, // 1시간
-  EGG_END_TIME: 5 * 1000, // 5초
-  // TODO: grade에 따른 evolution gage
+  // 알에서 유년기로 진화 (30분)
+  EGG_END_TIME: 5000,
 };
 
 /**
@@ -40,9 +42,9 @@ export const CHARACTER_STATUS = {
   SICKNESS_CHECK_INTERVAL: 5000,
   SICKNESS_PROBABILITY: 0.04, // 질병 발생 확률: 5%
 
-  STAMINA_DECREASE_INTERVAL: 60000, // 스태미나 감소 주기: 30분
+  STAMINA_DECREASE_INTERVAL: 5000, // 스태미나 감소 주기: 30분
   STAMINA_DECREASE_AMOUNT: 1, // 한 번에 감소하는 스태미나 양
 
-  DEATH_CHECK_INTERVAL: 36000, // 죽음 체크 주기: 1시간
+  DEATH_CHECK_INTERVAL: 15000, // 죽음 체크 주기: 1시간
   DEATH_PROBABILITY_SICK: 0.1, // 아픈 상태에서 죽음 확률: 10%
 };

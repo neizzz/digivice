@@ -5,11 +5,13 @@ import { ThrowSprite } from "../utils/ThrowSprite";
 import { AssetLoader } from "../utils/AssetLoader";
 import { SparkleEffect } from "../effects/SparkleEffect";
 import { ColorMatrixFilter } from "@pixi/filter-color-matrix";
-import { Cleanable } from "../interfaces/Cleanable";
 import { DebugFlags } from "../utils/DebugFlags";
 import { EventBus, EventTypes } from "../utils/EventBus";
-import { FreshnessDuration } from "../utils/FreshnessDuration";
-import { v4 as uuidv4 } from "uuid";
+import { FreshnessManager } from "../managers/FreshnessManager";
+import { FOOD_FRESHNESS } from "../config";
+import { type ObjectData, ObjectType } from "../types/GameData";
+import { ObjectBase } from "../interfaces/ObjectBase";
+import { Cleanable } from "../interfaces/Cleanable";
 
 // 음식 상태를 나타내는 enum
 enum FoodState {
@@ -30,7 +32,7 @@ export enum FoodFreshness {
 }
 
 export interface FoodOptions {
-  freshness?: FoodFreshness; // 음식의 신선도 상태 (기본값: FRESH)
+  data: ObjectData[ObjectType.Food]; // 음식 데이터
 }
 
 /**
@@ -40,13 +42,11 @@ export class Food extends Cleanable {
   private sprite: PIXI.Sprite;
   private app: PIXI.Application;
   private parent: PIXI.Container;
-  private options: FoodOptions;
   private state: FoodState = FoodState.THROWING;
   private freshness: FoodFreshness;
   private eatingStartTime = 0;
   private eatingDuration = 4000; // 기본값: 4초
-  private freshnessDuration: FreshnessDuration; // 신선도 지속 시간 관리 객체
-  private id: string; // 고유 ID 추가
+  private freshnessManager: FreshnessManager; // 신선도 지속 시간 관리 객체
 
   // 음식 마스크 처리를 위한 객체
   private foodMask?: FoodMask;
@@ -59,8 +59,8 @@ export class Food extends Cleanable {
   private throwSprite?: ThrowSprite;
 
   // 음식 기본 크기 설정
-  private initialScale = 3;
-  private finalScale = 1.5;
+  private initialScale = 2.8;
+  private finalScale = 1.3;
   private throwDuration = 1000; // 1초간 던지기 애니메이션
 
   // SparkleEffect 객체
@@ -74,40 +74,50 @@ export class Food extends Cleanable {
   constructor(
     app: PIXI.Application,
     parent: PIXI.Container,
-    options: FoodOptions = {}
+    options?: FoodOptions
   ) {
-    super();
+    super(options?.data.id); // 'food' prefix로 ID 생성
     this.app = app;
     this.parent = parent;
-    this.options = options;
-    this.id = uuidv4(); // 고유 ID 생성
 
-    // 신선도 설정 (기본값: FRESH)
-    this.freshness = options.freshness ?? FoodFreshness.FRESH;
+    const data = options?.data;
+    const texture = this.getFoodTexture(data?.textureKey);
 
-    // 랜덤 음식 텍스처 선택
-    const texture = this.getRandomFoodTexture();
+    // 신선도 계산: createdAt과 현재 시각 차이로 freshness 결정
+    const createdAt = data?.createdAt ?? Date.now();
+    const elapsed = Date.now() - createdAt;
+    if (elapsed < FOOD_FRESHNESS.FRESH_DURATION) {
+      this.freshness = FoodFreshness.FRESH;
+    } else if (
+      elapsed <
+      FOOD_FRESHNESS.FRESH_DURATION + FOOD_FRESHNESS.NORMAL_DURATION
+    ) {
+      this.freshness = FoodFreshness.NORMAL;
+    } else {
+      this.freshness = FoodFreshness.STALE;
+    }
 
     // 스프라이트 생성 및 초기 설정
     this.sprite = new PIXI.Sprite(texture);
-
-    // 음식 크기를 더 작게 조정 (16x16 텍스처를 고려)
-    const foodScale = this.initialScale * 0.7; // 30% 더 작게 조정
-    this.sprite.scale.set(foodScale);
     this.sprite.anchor.set(0.5);
-    // biome-ignore lint/suspicious/noExplicitAny: <explanation>
-    (this.sprite as any).__objectRef = this;
+    ObjectBase.attachObjectRef(this.sprite, this);
 
-    // ThrowSprite를 통해 던지기 기능 활용
-    this.initThrowSprite();
+    if (data?.position) {
+      this.sprite.scale.set(this.finalScale);
+      this.sprite.position.set(data.position.x, data.position.y);
+      this.parent.addChild(this.sprite);
+    } else {
+      // ThrowSprite를 통해 던지기 기능 활용
+      this.sprite.scale.set(this.initialScale);
+      this.initThrowSprite();
+    }
 
-    // FreshnessDuration 초기화 - 신선도 변경시 콜백 설정
-    this.freshnessDuration = new FreshnessDuration(
+    this.freshnessManager = new FreshnessManager(
       (newFreshness) => {
         this.setFreshness(newFreshness);
       },
       this.id, // 음식 ID 전달
-      this.freshness
+      data?.createdAt ?? Date.now() // 음식 생성 시간 전달
     );
 
     // 초기 신선도에 맞는 시각적 효과 적용
@@ -125,51 +135,9 @@ export class Food extends Cleanable {
     });
   }
 
-  /**
-   * 객체가 Food 클래스의 인스턴스인지 확인합니다.
-   * @param obj 확인할 객체
-   * @returns Food 클래스의 인스턴스이면 true, 아니면 false
-   */
-
-  // biome-ignore lint/suspicious/noExplicitAny: <explanation>
-  public static isFood(obj: any): boolean {
-    // PIXI.Container에 __objectRef 속성이 있고 그것이 Food의 인스턴스인지 확인
-    if (obj.__objectRef) {
-      return (
-        obj.__objectRef.constructor &&
-        obj.__objectRef.constructor.name === "Food"
-      );
-    }
-
-    // obj 자체가 Food의 인스턴스인지 확인
-    return obj instanceof Food;
+  public getType() {
+    return ObjectType.Food;
   }
-
-  /**
-   * PIXI.Container 또는 다른 객체에서 Food 객체를 추출합니다.
-   * @param obj 추출할 객체
-   * @returns Food 객체가 있으면 반환, 없으면 null 반환
-   */
-
-  // biome-ignore lint/suspicious/noExplicitAny: <explanation>
-  public static extractObject(obj: any): Food | null {
-    if (
-      obj.__objectRef?.constructor &&
-      obj.__objectRef.constructor.name === "Food"
-    ) {
-      return obj.__objectRef as Food;
-    }
-
-    if (obj instanceof Food) {
-      return obj;
-    }
-
-    return null;
-  }
-
-  /**
-   * 음식의 고유 ID를 반환합니다.
-   */
   public getId(): string {
     return this.id;
   }
@@ -212,9 +180,14 @@ export class Food extends Cleanable {
    * 랜덤 음식 텍스처 가져오기
    * @returns 랜덤 선택된 음식 텍스처
    */
-  private getRandomFoodTexture(): PIXI.Texture {
+  private getFoodTexture(textureKey?: string): PIXI.Texture {
     const assets = AssetLoader.getAssets();
     const foodSprites = assets.foodSprites?.textures;
+
+    // textureKey가 제공된 경우 해당 텍스처 반환
+    if (textureKey) {
+      return foodSprites?.[textureKey];
+    }
 
     if (!foodSprites || Object.keys(foodSprites).length === 0) {
       console.warn("Food sprites not loaded or empty. Using fallback texture.");
@@ -242,6 +215,10 @@ export class Food extends Cleanable {
    * @param freshness 설정할 신선도 상태
    */
   public setFreshness(freshness: FoodFreshness): void {
+    // 이미 먹기 시작(EATING) 또는 다 먹은(FINISHED) 상태라면 신선도 변경 금지
+    if (this.state === FoodState.EATING || this.state === FoodState.FINISHED) {
+      return;
+    }
     this.freshness = freshness;
     this.applyFreshnessVisualEffect();
     this.updateSparkleEffect();
@@ -289,8 +266,8 @@ export class Food extends Cleanable {
     const foodTextureName = this.sprite.texture.textureCacheIds[0] || "unknown";
 
     this.throwSprite = new ThrowSprite(this.app, this.parent, this.sprite, {
-      initialScale: this.initialScale * 0.7, // 음식 크기 조정 적용
-      finalScale: this.finalScale * 0.7, // 음식 크기 조정 적용
+      initialScale: this.initialScale, // 음식 크기 조정 적용
+      finalScale: this.finalScale, // 음식 크기 조정 적용
       duration: this.throwDuration,
       onLanded: (position) => this.onFoodLanded(position),
       onThrowStart: (finalPosition, textureKey) =>
@@ -331,10 +308,10 @@ export class Food extends Cleanable {
     this.state = FoodState.THROWING;
 
     // FOOD_CREATED 이벤트 발행
-    EventBus.getInstance().emit(EventTypes.FOOD_CREATED, {
+    EventBus.publish(EventTypes.FOOD_CREATED, {
       position: finalPosition,
       textureKey: textureKey,
-      freshness: this.freshness,
+      id: this.getId(), // 객체의 고유 ID 추가
     });
   }
 
@@ -356,10 +333,9 @@ export class Food extends Cleanable {
     // 상한 음식이 아닌 경우에만 착지 이벤트 발생
     if (this.freshness !== FoodFreshness.STALE) {
       // FOOD_LANDED 이벤트 발행 - FoodTracker가 이 이벤트를 수신하여 캐릭터를 관리
-      EventBus.getInstance().emit(EventTypes.FOOD_LANDED, {
-        foodId: this.id,
+      EventBus.publish(EventTypes.FOOD_LANDED, {
+        id: this.id,
         position: position,
-        freshness: this.freshness,
       });
     } else {
       console.log("상한 음식은 먹을 수 없습니다.");
@@ -371,8 +347,8 @@ export class Food extends Cleanable {
    * 음식을 먹기 시작했을 때 호출하여 상태가 변하지 않도록 합니다.
    */
   public pauseFreshnessChange(): void {
-    if (this.freshnessDuration) {
-      this.freshnessDuration.pauseFreshnessChange();
+    if (this.freshnessManager) {
+      this.freshnessManager.pauseFreshnessChange();
     }
   }
 
@@ -380,8 +356,8 @@ export class Food extends Cleanable {
    * 신선도 변화를 재개합니다.
    */
   public resumeFreshnessChange(): void {
-    if (this.freshnessDuration) {
-      this.freshnessDuration.resumeFreshnessChange();
+    if (this.freshnessManager) {
+      this.freshnessManager.resumeFreshnessChange();
     }
   }
 
@@ -390,8 +366,8 @@ export class Food extends Cleanable {
    * @returns 신선도 변화가 일시정지되었으면 true, 아니면 false
    */
   public isPausedState(): boolean {
-    return this.freshnessDuration
-      ? this.freshnessDuration.isPausedState()
+    return this.freshnessManager
+      ? this.freshnessManager.isPausedState()
       : false;
   }
 
@@ -409,8 +385,8 @@ export class Food extends Cleanable {
     this.initFoodMask();
 
     // FOOD_EATING_STARTED 이벤트 발행
-    EventBus.getInstance().emit(EventTypes.FOOD_EATING_STARTED, {
-      foodId: this.id,
+    EventBus.publish(EventTypes.FOOD_EATING_STARTED, {
+      id: this.id,
       position: { x: this.sprite.position.x, y: this.sprite.position.y },
     });
   }
@@ -441,7 +417,7 @@ export class Food extends Cleanable {
         // FoodTracker에서 처리
         break;
       case FoodState.EATING:
-        this.updateEating(deltaTime);
+        this.updateEating();
         break;
       case FoodState.FINISHED:
         // 이미 다 먹어서 처리할 필요 없음
@@ -457,7 +433,7 @@ export class Food extends Cleanable {
     // 상태가 FINISHED 또는 CLEANED가 아닐 경우에만 신선도 업데이트
     if (this.state !== FoodState.FINISHED && this.state !== FoodState.CLEANED) {
       // 신선도 상태 업데이트
-      this.freshnessDuration.update();
+      this.freshnessManager.update();
     }
 
     // zIndex를 position.y 값으로 설정하여 깊이 정렬
@@ -467,7 +443,7 @@ export class Food extends Cleanable {
   /**
    * 음식 먹는 상태 업데이트
    */
-  private updateEating(deltaTime: number): void {
+  private updateEating(): void {
     // 디버그 플래그가 활성화된 경우 먹기 방지
     if (DebugFlags.getInstance().isEatingPrevented()) {
       // 음식 먹기가 방지된 상태이면 진행하지 않음
@@ -524,8 +500,8 @@ export class Food extends Cleanable {
     }
 
     // FOOD_EATING_FINISHED 이벤트 발행
-    EventBus.getInstance().emit(EventTypes.FOOD_EATING_FINISHED, {
-      foodId: this.id,
+    EventBus.publish(EventTypes.FOOD_EATING_FINISHED, {
+      id: this.getId(),
       freshness: this.freshness,
     });
 

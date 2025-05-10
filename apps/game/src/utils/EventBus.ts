@@ -1,11 +1,12 @@
-import type { FoodFreshness } from "entities/Food";
+import type { FoodFreshness } from "src/entities/Food";
+import type { CharacterKey } from "../types/Character";
+import type { CharacterStatusData, ObjectType } from "../types/GameData";
 
 /**
  * 게임 내 이벤트 타입 정의
  */
 export const EventTypes = {
   // 캐릭터 관련 이벤트
-  STAMINA_CHANGED: "event:stamina_changed" as const,
   POOB_CREATED: "event:poob_created" as const,
   FOOD_CREATED: "event:food_created" as const,
 
@@ -13,7 +14,6 @@ export const EventTypes = {
   // GAME_DATA_CHANGED: "event:game_data_changed" as const,
   MINIGAME_SCORE_UPDATED: "event:minigame_score_updated" as const,
   CHARACTER_STATUS_UPDATED: "event:character_status_updated" as const,
-  FOOD_FRESHNESS_UPDATED: "event:food_freshness_updated" as const,
 
   // Food 관련 이벤트 추가
   FOOD_LANDED: "event:food_landed" as const,
@@ -21,87 +21,78 @@ export const EventTypes = {
   FOOD_EATING_FINISHED: "event:food_eating_finished" as const,
 
   // 시간 경과 관련 이벤트
-  TIME_TICK: "event:time_tick" as const,
   CHARACTER_EVOLUTION: "event:character_evolution" as const,
   CHARACTER_SICKNESS: "event:character_sickness" as const,
   CHARACTER_DEATH: "event:character_death" as const,
   APP_RESUME: "event:app_resume" as const,
-};
 
-// 이벤트 타입의 모든 값을 유니온 타입으로 추출
-type EventTypesValues =
-  | typeof EventTypes.STAMINA_CHANGED
-  | typeof EventTypes.POOB_CREATED
-  | typeof EventTypes.FOOD_CREATED
-  // | typeof EventTypes.GAME_DATA_CHANGED
-  | typeof EventTypes.MINIGAME_SCORE_UPDATED
-  | typeof EventTypes.CHARACTER_STATUS_UPDATED
-  | typeof EventTypes.FOOD_FRESHNESS_UPDATED
-  // 추가된 Food 이벤트 타입
-  | typeof EventTypes.FOOD_LANDED
-  | typeof EventTypes.FOOD_EATING_STARTED
-  | typeof EventTypes.FOOD_EATING_FINISHED
-  // 시간 경과 관련 이벤트 타입
-  | typeof EventTypes.TIME_TICK
-  | typeof EventTypes.CHARACTER_EVOLUTION
-  | typeof EventTypes.CHARACTER_SICKNESS
-  | typeof EventTypes.CHARACTER_DEATH
-  | typeof EventTypes.APP_RESUME;
+  OBJECT_CLEANED: "event:object_cleaned" as const,
+
+  // 진화 관련 이벤트 추가
+  CHARACTER_EVOLVED: "event:character_evolved" as const,
+  EVOLUTION_STARTED: "event:evolution_started" as const,
+};
 
 /**
  * 이벤트 데이터 타입들을 정의하는 인터페이스
  * 새로운 이벤트와 데이터 구조가 필요할 때마다 여기에 추가
  */
 export interface EventDataMap {
-  // 캐릭터 관련 이벤트
-  [EventTypes.STAMINA_CHANGED]: { current: number; max: number };
   [EventTypes.POOB_CREATED]: {
+    id: string;
     position: { x: number; y: number };
-  }; // poob 객체 제거하고 위치 정보만 유지
+  };
+
   [EventTypes.FOOD_CREATED]: {
+    id: string;
     position: { x: number; y: number };
     textureKey: string; // 음식 텍스처의 키
-    freshness: FoodFreshness; // 신선도 추가
   };
+
   // 게임 데이터 관련 이벤트
-  [EventTypes.MINIGAME_SCORE_UPDATED]: { score: number; playerId: string };
-  [EventTypes.CHARACTER_STATUS_UPDATED]: {
-    status: string;
+  [EventTypes.MINIGAME_SCORE_UPDATED]: {
+    score: number;
   };
-  [EventTypes.FOOD_FRESHNESS_UPDATED]: {
-    freshness: FoodFreshness;
-    foodId: string;
-  }; // Food freshness 업데이트 데이터 추가
+
+  [EventTypes.CHARACTER_STATUS_UPDATED]: {
+    status: Partial<CharacterStatusData>;
+  };
 
   // 추가된 Food 이벤트
   [EventTypes.FOOD_LANDED]: {
-    foodId: string;
+    id: string;
     position: { x: number; y: number };
-    freshness: FoodFreshness;
   };
+
   [EventTypes.FOOD_EATING_STARTED]: {
-    foodId: string;
+    id: string;
     position: { x: number; y: number };
   };
+
   [EventTypes.FOOD_EATING_FINISHED]: {
-    foodId: string;
+    id: string;
     freshness: FoodFreshness;
   };
 
-  // 시간 경과 관련 이벤트 데이터
-  [EventTypes.TIME_TICK]: { elapsedTime: number };
-  [EventTypes.CHARACTER_EVOLUTION]: { newForm: string };
-  [EventTypes.CHARACTER_SICKNESS]: { sicknessType: string };
+  [EventTypes.CHARACTER_SICKNESS]: {
+    sicknessType: string;
+  };
+
   [EventTypes.CHARACTER_DEATH]: undefined;
-  [EventTypes.APP_RESUME]: { timestamp: number };
 
-  // UI 관련 이벤트
-  // [EventTypes.REFRESH_DEBUG]: { timestamp: number };
-  // 게임 상태 관련 이벤트
-  // [EventTypes.STATE_CHANGED]: { newState: string; previousState?: string };
+  [EventTypes.APP_RESUME]: {
+    timestamp: number;
+  };
 
-  // 기본 문자열 키를 가진 이벤트를 위한 인덱스 시그니처
-  [key: string]: unknown;
+  [EventTypes.OBJECT_CLEANED]: {
+    type: ObjectType; // 예: "Food", "Poob" 등
+    id: string;
+  };
+
+  // 진화 관련 이벤트 데이터 형식
+  [EventTypes.CHARACTER_EVOLVED]: {
+    characterKey: CharacterKey;
+  };
 }
 
 /**

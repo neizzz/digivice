@@ -1,8 +1,10 @@
 import * as PIXI from "pixi.js";
 import { AssetLoader } from "../utils/AssetLoader";
 import type { SparkleEffect } from "../effects/SparkleEffect";
-import { Cleanable } from "../interfaces/Cleanable";
 import type { Character } from "./Character";
+import { ObjectBase } from "../interfaces/ObjectBase";
+import { ObjectType } from "../types/GameData";
+import { Cleanable } from "../interfaces/Cleanable";
 
 /**
  * Poob 상태를 나타내는 enum
@@ -33,12 +35,8 @@ export class Poob extends Cleanable {
    * @param parent 부모 컨테이너
    * @param options Poob 옵션
    */
-  constructor(
-    // app: PIXI.Application,
-    parent: PIXI.Container,
-    options: PoobOptions
-  ) {
-    super();
+  constructor(parent: PIXI.Container, options: PoobOptions) {
+    super("poob"); // 'poob' prefix로 ID 생성
 
     this.parentContainer = parent;
     this.position = { x: 0, y: 0 };
@@ -52,8 +50,7 @@ export class Poob extends Cleanable {
     this.sprite.anchor.set(0.5);
 
     // sprite에 Poob 객체 참조 추가 (클린업을 위해)
-    // biome-ignore lint/suspicious/noExplicitAny: <explanation>
-    (this.sprite as any).__objectRef = this;
+    ObjectBase.attachObjectRef(this.sprite, this);
 
     // 위치 설정 로직
     if (options.position) {
@@ -68,11 +65,14 @@ export class Poob extends Cleanable {
     this.parentContainer.addChild(this.sprite);
   }
 
-  /**
-   * 위치를 설정합니다.
-   * @param x X 좌표
-   * @param y Y 좌표
-   */
+  public getType() {
+    return ObjectType.Poob;
+  }
+
+  public getId() {
+    return this.id;
+  }
+
   public setPosition(x: number, y: number): void {
     this.position.x = x;
     this.position.y = y;

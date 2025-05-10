@@ -14,10 +14,12 @@ import {
 } from "../ui/types";
 import { AssetLoader } from "../utils/AssetLoader";
 import { CleaningManager } from "../managers/CleaningManager";
-import type { CharacterKey } from "../types/Character";
 import { Bird } from "../entities/Bird"; // Bird 클래스 import 추가
 import { Character } from "../entities/Character";
 import { Egg } from "../entities/Egg";
+import { GameDataManager } from "../managers/GameDataManager";
+import { ObjectType } from "../types/GameData";
+import { Poob } from "../entities/Poob";
 
 enum MainSceneControlButtonsSetType {
   Default = "default",
@@ -115,6 +117,9 @@ export class MainScene extends PIXI.Container implements Scene {
       // Bird와 Basket 초기화
       this.initBirdAndBasket();
 
+      // 이전에 저장된 오브젝트들(음식, 똥) 복원
+      this.restoreObjects();
+
       // 초기 설정 완료
       this.initialized = true;
 
@@ -128,6 +133,57 @@ export class MainScene extends PIXI.Container implements Scene {
 
     // GameMenu 초기화
     this.initGameMenu();
+  }
+
+  /**
+   * 이전에 저장된 게임 오브젝트들(음식, 똥)을 복원합니다.
+   */
+  private async restoreObjects(): Promise<void> {
+    try {
+      const gameData = await GameDataManager.loadData();
+      if (!gameData || !gameData.objectsMap) return;
+
+      // 음식 오브젝트 복원
+      if (
+        gameData.objectsMap[ObjectType.Food] &&
+        gameData.objectsMap[ObjectType.Food].length > 0
+      ) {
+        console.log(
+          `${
+            gameData.objectsMap[ObjectType.Food].length
+          }개의 음식 오브젝트를 복원합니다.`
+        );
+
+        for (const foodData of gameData.objectsMap[ObjectType.Food]) {
+          // 음식 오브젝트 생성
+          const food = new Food(this.game.app, this, {
+            data: foodData,
+          });
+
+          // 음식 상태를 LANDED로 설정 (던지기 애니메이션 없이 바로 착지된 상태)
+          food.setState(1); // FoodState.LANDED와 동일한 값
+        }
+      }
+
+      // Poob(똥) 오브젝트 복원
+      if (
+        gameData.objectsMap[ObjectType.Poob] &&
+        gameData.objectsMap[ObjectType.Poob].length > 0
+      ) {
+        console.log(
+          `${
+            gameData.objectsMap[ObjectType.Poob].length
+          }개의 Poob 오브젝트를 복원합니다.`
+        );
+
+        for (const poobData of gameData.objectsMap[ObjectType.Poob]) {
+          // Poob 오브젝트 생성
+          new Poob(this, { position: poobData.position });
+        }
+      }
+    } catch (error) {
+      console.error("오브젝트 복원 중 오류:", error);
+    }
   }
 
   /**
@@ -277,10 +333,7 @@ export class MainScene extends PIXI.Container implements Scene {
     // Character 인스턴스인 경우에만 음식 던지기 처리
     if (character instanceof Character) {
       // 새로운 Food 객체 생성 - 캐릭터 의존성 없이 생성
-      const food = new Food(this.game.app, this, {});
-
-      // 이미 Character 내부에서 FoodTracker가 초기화되었으므로
-      // 별도의 FoodTracker 생성 로직이 필요 없음
+      new Food(this.game.app, this);
     }
   }
 
@@ -442,12 +495,9 @@ export class MainScene extends PIXI.Container implements Scene {
     try {
       // Basket 초기화 - common32x32 스프라이트시트의 'basket' 사용
       if (!this.basket && assets.common32x32Sprites) {
-        // commonSprites에서 basket 텍스처 가져오기
-        console.log("basket 텍스처 가져오기 시도");
         const basketTexture = assets.common32x32Sprites.textures.basket;
 
         if (basketTexture) {
-          console.log("basket 텍스처 성공적으로 가져옴");
           this.basket = new PIXI.Sprite(basketTexture);
           this.basket.width = 32;
           this.basket.height = 32;
@@ -463,7 +513,6 @@ export class MainScene extends PIXI.Container implements Scene {
 
       // Bird 초기화
       if (!this.bird) {
-        console.log("Bird 객체 생성");
         this.bird = new Bird(this.game.app); // Bird 클래스 사용
         this.bird.visible = false; // 초기에는 보이지 않음
         this.addChild(this.bird);

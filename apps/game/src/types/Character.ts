@@ -9,17 +9,23 @@ export enum CharacterState {
   WALKING = "walking",
   SLEEPING = "sleeping",
   EATING = "eating", // 먹는 상태 추가
+  DEAD = "dead", // 죽은 상태 추가
 }
+
+export type CharacterAnimationMapping = Record<
+  Exclude<CharacterState, CharacterState.DEAD>,
+  string
+>;
 
 export type CharacterMetadata = {
   key: CharacterKey | "egg";
   scale: number;
   speed: number;
   maxStamina: number; // 최대 스태미나 (옵션)
-  animationMapping: Record<CharacterState, string>;
+  animationMapping: CharacterAnimationMapping;
 };
 
-const animationMapping = {
+const animationMapping: CharacterAnimationMapping = {
   [CharacterState.IDLE]: "idle",
   [CharacterState.WALKING]: "walking",
   [CharacterState.SLEEPING]: "sleeping",

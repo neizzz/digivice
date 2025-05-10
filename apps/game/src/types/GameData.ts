@@ -1,67 +1,57 @@
-import type { FoodFreshness } from "entities/Food";
 import type { CharacterKey, CharacterState } from "./Character";
+import type { Position } from "./Position";
 
 export enum ObjectType {
   Food = "food",
   Poob = "poob",
 }
 
-type ObjectData = {
+export type ObjectData = {
   [ObjectType.Food]: {
-    position: {
-      x: number;
-      y: number;
-    };
+    id: string;
+    position: Position;
     createdAt: number;
     textureKey: string;
-    freshness: FoodFreshness;
   };
-  [ObjectType.Poob]?: {
-    position: {
-      x: number;
-      y: number;
-    };
+  [ObjectType.Poob]: {
+    id: string;
+    position: Position;
   };
 };
 
-type Coin = {
+export type CoinData = {
   key: string;
+};
+
+export type CharacterStatusData = {
+  position: Position;
+  state: CharacterState;
+  stamina: number;
+  sick: boolean;
+  // fatigue: number;
+  // hunger: number;
+  // happiness: number;
 };
 
 export interface GameData {
   name: string;
   createdAt: number;
-  lastSavedAt: number;
+  savedAt: number;
   character: {
     key: CharacterKey | "egg";
     eggTextureKey?: string;
     evolvedAt?: number;
+    status: CharacterStatusData;
   };
   objectsMap: {
     [ObjectType.Food]: ObjectData[ObjectType.Food][];
     [ObjectType.Poob]: ObjectData[ObjectType.Poob][];
   };
-  coins: Coin[];
-  status: {
-    lastPosition: {
-      x: number;
-      y: number;
-    };
-    lastState: CharacterState;
-    stamina: number;
-    dead: boolean;
-    sick: boolean;
-    // fatigue: number;
-    // hunger: number;
-    // happiness: number;
-  };
+  coins: CoinData[];
   minigame: {
     flappyBird: {
       highScore: number;
     };
   };
-  // experience: number;
-  // energy: number;
-  // inventory: GameInventory;
   // achievements: string[];
 }

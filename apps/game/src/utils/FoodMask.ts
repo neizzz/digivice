@@ -65,6 +65,8 @@ export class FoodMask {
 
     if (!this.maskSprite) {
       this.maskSprite = new PIXI.Sprite(this.maskTextures[0]);
+      this.maskSprite.width = this.parentSprite.width;
+      this.maskSprite.height = this.parentSprite.height;
       this.maskSprite.anchor.set(0.5);
 
       // 중요: 마스크 스프라이트를 부모 스프라이트의 mask로 설정
