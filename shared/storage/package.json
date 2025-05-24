@@ -4,6 +4,10 @@
 	"description": "A storage library supporting web localStorage and Flutter storage.",
 	"main": "src/index.ts",
 	"scripts": {},
-	"dependencies": {},
-	"devDependencies": {}
+	"dependencies": {
+		"lodash.throttle": "^4.1.1"
+	},
+	"devDependencies": {
+		"@types/lodash.throttle": "^4.1.9"
+	}
 }

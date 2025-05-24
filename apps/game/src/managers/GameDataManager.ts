@@ -3,6 +3,7 @@ import type { GameData } from "../types/GameData";
 import { ObjectType } from "../types/GameData";
 import { EventBus, EventTypes } from "../utils/EventBus";
 import { CharacterState } from "../types/Character";
+import type { Position } from "src/types/Position";
 
 class _GameDataManager {
   private data: GameData | null = null;
@@ -21,76 +22,82 @@ class _GameDataManager {
   // 이벤트 구독 초기화
   public initialize(): void {
     if (this.isInitialized) return;
-
-    this.setupEventListeners();
-
+    this._setupEventListeners();
     this.isInitialized = true;
-    console.log("GameDataManager의 이벤트 구독이 초기화되었습니다.");
+    console.log("[GameDataManager] 초기화 완료.");
   }
 
   /**
    * 모든 이벤트 리스너를 설정합니다.
    */
-  private setupEventListeners(): void {
+  private _setupEventListeners(): void {
     // 미니게임 점수 업데이트 이벤트 구독
-    EventBus.subscribe(EventTypes.MINIGAME_SCORE_UPDATED, async (data) => {
-      console.log("미니게임 점수 업데이트:", data);
-      const currentData = await this.loadData();
+    EventBus.subscribe(EventTypes.Game.MINIGAME_SCORE_UPDATED, (data) => {
+      console.debug("[GameDataManager] 미니게임 점수 업데이트:", data);
+      const currentData = this.data;
       if (
         currentData &&
         data.score > currentData.minigame.flappyBird.highScore
       ) {
         currentData.minigame.flappyBird.highScore = data.score;
-        await this.saveData(currentData);
+        this._saveData(currentData);
       }
     });
 
     // 캐릭터 상태 업데이트 이벤트 구독
-    EventBus.subscribe(EventTypes.CHARACTER_STATUS_UPDATED, async (data) => {
-      console.log("캐릭터 상태 업데이트:", data);
-      const currentData = await this.loadData();
+    EventBus.subscribe(
+      EventTypes.Character.CHARACTER_STATUS_UPDATED,
+      async (data) => {
+        console.debug(
+          "[GameDataManager] 캐릭터 상태 업데이트:",
+          JSON.stringify(data, null, 2)
+        );
+        const currentData = this.data;
 
-      if (!currentData) {
-        throw new Error("Must not to be reached: 게임 데이터가 없습니다.");
-      }
+        if (!currentData) {
+          throw new Error("Must not to be reached: 게임 데이터가 없습니다.");
+        }
 
-      const newData = {
-        ...currentData,
-        character: {
-          ...currentData.character,
-          status: {
-            ...currentData.character.status,
-            ...data.status,
+        const newData = {
+          ...currentData,
+          character: {
+            ...currentData.character,
+            status: {
+              ...currentData.character.status,
+              ...data.status,
+            },
           },
-        },
-      };
-      await this.saveData(newData);
-    });
+        };
+        this._saveData(newData);
+      }
+    );
 
     // 캐릭터 진화 이벤트 구독
-    EventBus.subscribe(EventTypes.CHARACTER_EVOLVED, async (data) => {
-      console.log("캐릭터 진화:", data);
-      const currentData = await this.loadData();
+    EventBus.subscribe(EventTypes.Character.CHARACTER_EVOLUTION, (data) => {
+      console.debug("[GameDataManager] 캐릭터 진화:", data);
+      const currentData = this.data;
 
       if (!currentData) {
-        throw new Error("Must not to be reached: 게임 데이터가 없습니다.");
+        throw new Error(
+          "[GameDataManager] Must not to be reached: 게임 데이터가 없습니다."
+        );
       }
 
       const newData = {
         ...currentData,
         character: {
           ...currentData.character,
-          key: data.characterKey,
-          evolvedAt: Date.now(),
+          key: data.toCharacterKey,
+          _evolvedAt: Date.now(),
         },
       };
-      await this.saveData(newData);
+      this._saveData(newData);
     });
 
     // Food 생성 이벤트 구독
-    EventBus.subscribe(EventTypes.FOOD_CREATED, async (data) => {
-      console.log("Food 생성:", data);
-      const currentData = await this.loadData();
+    EventBus.subscribe(EventTypes.Food.FOOD_CREATED, (data) => {
+      console.debug("[GameDataManager] Food 생성:", data);
+      const currentData = this.data;
       if (currentData?.objectsMap) {
         // Food 객체 생성 및 추가 (ObjectData 구조에 맞게)
         const newFood = {
@@ -107,14 +114,14 @@ class _GameDataManager {
 
         // 새 Food 추가
         currentData.objectsMap[ObjectType.Food].push(newFood);
-        await this.saveData(currentData);
+        this._saveData(currentData);
       }
     });
 
     // Poob 생성 이벤트 구독
-    EventBus.subscribe(EventTypes.POOB_CREATED, async (data) => {
-      console.log("Poob 생성:", data);
-      const currentData = await this.loadData();
+    EventBus.subscribe(EventTypes.Poob.POOB_CREATED, (data) => {
+      console.debug("[GameDataManager] Poob 생성:", data);
+      const currentData = this.data;
       if (currentData?.objectsMap) {
         const newPoob = {
           id: data.id, // 객체의 고유 ID 저장
@@ -128,24 +135,24 @@ class _GameDataManager {
 
         // 새 Poob 추가
         currentData.objectsMap[ObjectType.Poob].push(newPoob);
-        await this.saveData(currentData);
+        this._saveData(currentData);
       }
     });
 
     // 음식 섭취 완료 이벤트 구독
-    EventBus.subscribe(EventTypes.FOOD_EATING_FINISHED, async (data) => {
-      console.log("음식 섭취 완료:", data);
+    EventBus.subscribe(EventTypes.Food.FOOD_EATING_FINISHED, async (data) => {
+      console.debug("[GameDataManager] 음식 섭취 완료:", data);
       // 먹은 음식 객체 제거
       if (data.id) {
-        await this.removeObjectByIdAndType(ObjectType.Food, data.id);
+        await this._removeObjectByIdAndType(ObjectType.Food, data.id);
       }
     });
 
     // 오브젝트 청소 이벤트 구독 (Food, Poob 등)
-    EventBus.subscribe(EventTypes.OBJECT_CLEANED, async (data) => {
-      console.log("오브젝트 청소됨:", data);
+    EventBus.subscribe(EventTypes.Object.OBJECT_CLEANED, async (data) => {
+      console.debug("[GameDataManager] 오브젝트 청소됨:", data);
       const { type, id } = data;
-      await this.removeObjectByIdAndType(type, id);
+      await this._removeObjectByIdAndType(type, id);
     });
   }
 
@@ -155,26 +162,30 @@ class _GameDataManager {
    * @param name 캐릭터 이름
    * @returns 생성된 게임 데이터
    */
-  public async createInitialGameData(params: {
-    name: string;
-  }): Promise<GameData> {
-    const { name } = params;
+  public createInitialData(
+    formData: {
+      name: string;
+    },
+    params: { position: Position }
+  ): Promise<GameData> {
+    const { name } = formData;
+    const { position } = params;
     const randomEggTextureKey = `egg_${Math.floor(Math.random() * 30)}`;
     const initialGameData: GameData = {
       name,
-      createdAt: Date.now(),
-      savedAt: Date.now(),
+      _createdAt: Date.now(),
+      _savedAt: Date.now(),
       character: {
         key: "egg",
         eggTextureKey: randomEggTextureKey,
+        _evolvedAt: Date.now(),
         status: {
-          position: {
-            x: Number.NaN,
-            y: Number.NaN,
-          },
+          position,
           state: CharacterState.IDLE,
           stamina: 6,
-          sick: false,
+          sickness: false,
+          evolutionGauge: 0,
+          timeOfZeroStamina: undefined,
         },
       },
       objectsMap: {
@@ -189,16 +200,14 @@ class _GameDataManager {
       },
     };
 
-    return await this.saveData(initialGameData);
+    return this._saveData(initialGameData);
   }
 
-  public async loadData(): Promise<GameData | undefined> {
-    if (this.data) return this.data;
-
+  public async _loadData(): Promise<GameData | undefined> {
     const savedData = await this.storage.getItem(this.GAME_DATA_KEY);
 
     if (!savedData) {
-      console.warn("게임 데이터가 없습니다.");
+      console.warn("[GameDataManager] 게임 데이터가 없습니다.");
       return undefined;
     }
 
@@ -206,20 +215,20 @@ class _GameDataManager {
       this.data = JSON.parse(savedData) as GameData;
       return this.data;
     } catch (e) {
-      throw new Error(`게임 데이터 로드 실패: ${e}`);
+      throw new Error(`[GameDataManager] 게임 데이터 로드 실패: ${e}`);
     }
   }
 
-  private async saveData(data: GameData): Promise<GameData> {
-    this.data = data;
-    this.data.savedAt = Date.now();
-    await this.storage.setItem(this.GAME_DATA_KEY, JSON.stringify(data));
-    return this.data;
+  public async getData(): Promise<GameData | undefined> {
+    if (this.data) return this.data;
+    return this._loadData();
   }
 
-  public async clearData(): Promise<void> {
-    this.data = null;
-    await this.storage.removeItem(this.GAME_DATA_KEY);
+  public _saveData(data: GameData): GameData {
+    this.data = data;
+    this.data._savedAt = Date.now();
+    this.storage.setItem(this.GAME_DATA_KEY, JSON.stringify(data));
+    return this.data;
   }
 
   /**
@@ -227,17 +236,19 @@ class _GameDataManager {
    * @param type 오브젝트 타입 (Food, Poob 등)
    * @param id 제거할 오브젝트의 ID
    */
-  private async removeObjectByIdAndType(
+  private async _removeObjectByIdAndType(
     type: ObjectType,
     id: string
   ): Promise<void> {
-    const currentData = await this.loadData();
+    const currentData = this.data;
     if (!currentData?.objectsMap || !currentData.objectsMap[type]) {
-      console.warn(`${type} 데이터가 존재하지 않습니다.`);
+      console.warn(`[GameDataManager] ${type} 데이터가 존재하지 않습니다.`);
       return;
     }
 
-    console.log(`${type} ID ${id}를 게임 데이터에서 제거합니다.`);
+    console.log(
+      `[GameDataManager] ${type} ID ${id}를 게임 데이터에서 제거합니다.`
+    );
 
     // 해당 ID를 가진 오브젝트 제거
 
@@ -253,7 +264,7 @@ class _GameDataManager {
     }
 
     // 변경된 데이터 저장
-    await this.saveData(currentData);
+    await this._saveData(currentData);
   }
 }
 

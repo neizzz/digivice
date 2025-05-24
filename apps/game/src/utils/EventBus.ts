@@ -4,33 +4,34 @@ import type { CharacterStatusData, ObjectType } from "../types/GameData";
 
 /**
  * 게임 내 이벤트 타입 정의
+ * NOTE: 1-depth키는 이벤트를 발행하는 주체(Class명)
  */
 export const EventTypes = {
-  // 캐릭터 관련 이벤트
-  POOB_CREATED: "event:poob_created" as const,
-  FOOD_CREATED: "event:food_created" as const,
-
-  // 게임 데이터 관련 이벤트
-  // GAME_DATA_CHANGED: "event:game_data_changed" as const,
-  MINIGAME_SCORE_UPDATED: "event:minigame_score_updated" as const,
-  CHARACTER_STATUS_UPDATED: "event:character_status_updated" as const,
-
-  // Food 관련 이벤트 추가
-  FOOD_LANDED: "event:food_landed" as const,
-  FOOD_EATING_STARTED: "event:food_eating_started" as const,
-  FOOD_EATING_FINISHED: "event:food_eating_finished" as const,
-
-  // 시간 경과 관련 이벤트
-  CHARACTER_EVOLUTION: "event:character_evolution" as const,
-  CHARACTER_SICKNESS: "event:character_sickness" as const,
-  CHARACTER_DEATH: "event:character_death" as const,
-  APP_RESUME: "event:app_resume" as const,
-
-  OBJECT_CLEANED: "event:object_cleaned" as const,
-
-  // 진화 관련 이벤트 추가
-  CHARACTER_EVOLVED: "event:character_evolved" as const,
-  EVOLUTION_STARTED: "event:evolution_started" as const,
+  // System: {
+  //   BEFORE_BACKGROUND: "system:before_background" as const,
+  // },
+  Game: {
+    // APPLY_SIMULATION: "game:apply_simulation" as const,
+    MINIGAME_SCORE_UPDATED: "event:minigame_score_updated" as const,
+  },
+  Character: {
+    CHARACTER_STATUS_UPDATED: "character:character_status_updated" as const,
+    CHARACTER_EVOLUTION: "character:character_evolution" as const,
+    CHARACTER_DEATH: "character:character_death" as const,
+  } as const,
+  Object: {
+    OBJECT_CLEANED: "object:object_cleaned" as const,
+  },
+  // TODO: created 이벤트 같은 경우 Object로 통합하는게 나을 듯.
+  Poob: {
+    POOB_CREATED: "poob:poob_created" as const,
+  } as const,
+  Food: {
+    FOOD_CREATED: "food:food_created" as const,
+    FOOD_LANDED: "food:food_landed" as const,
+    FOOD_EATING_STARTED: "food:food_eating_started" as const,
+    FOOD_EATING_FINISHED: "food:food_eating_finished" as const,
+  } as const,
 };
 
 /**
@@ -38,60 +39,50 @@ export const EventTypes = {
  * 새로운 이벤트와 데이터 구조가 필요할 때마다 여기에 추가
  */
 export interface EventDataMap {
-  [EventTypes.POOB_CREATED]: {
+  // 게임 데이터 관련 이벤트
+  // [EventTypes.Game.APPLY_SIMULATION]: {
+  //   gameData: GameData;
+  // };
+  // [EventTypes.Game.STAMINA_CHECKED]: {
+  //   elapsedTime: number; // 경과 시간 (ms)
+  //   beforeCharacter: CharacterStatusData;
+  //   afterCharacter: CharacterStatusData;
+  // };
+  [EventTypes.Game.MINIGAME_SCORE_UPDATED]: {
+    score: number;
+  };
+  [EventTypes.Poob.POOB_CREATED]: {
     id: string;
     position: { x: number; y: number };
   };
-
-  [EventTypes.FOOD_CREATED]: {
+  [EventTypes.Food.FOOD_CREATED]: {
     id: string;
     position: { x: number; y: number };
     textureKey: string; // 음식 텍스처의 키
   };
-
-  // 게임 데이터 관련 이벤트
-  [EventTypes.MINIGAME_SCORE_UPDATED]: {
-    score: number;
-  };
-
-  [EventTypes.CHARACTER_STATUS_UPDATED]: {
-    status: Partial<CharacterStatusData>;
-  };
-
-  // 추가된 Food 이벤트
-  [EventTypes.FOOD_LANDED]: {
+  [EventTypes.Food.FOOD_LANDED]: {
     id: string;
     position: { x: number; y: number };
   };
-
-  [EventTypes.FOOD_EATING_STARTED]: {
+  [EventTypes.Food.FOOD_EATING_STARTED]: {
     id: string;
     position: { x: number; y: number };
   };
-
-  [EventTypes.FOOD_EATING_FINISHED]: {
+  [EventTypes.Food.FOOD_EATING_FINISHED]: {
     id: string;
     freshness: FoodFreshness;
   };
-
-  [EventTypes.CHARACTER_SICKNESS]: {
-    sicknessType: string;
+  [EventTypes.Character.CHARACTER_STATUS_UPDATED]: {
+    status: Partial<CharacterStatusData>;
   };
-
-  [EventTypes.CHARACTER_DEATH]: undefined;
-
-  [EventTypes.APP_RESUME]: {
-    timestamp: number;
+  [EventTypes.Character.CHARACTER_DEATH]: undefined;
+  [EventTypes.Character.CHARACTER_EVOLUTION]: {
+    fromCharacterKey: CharacterKey | "egg";
+    toCharacterKey: CharacterKey;
   };
-
-  [EventTypes.OBJECT_CLEANED]: {
+  [EventTypes.Object.OBJECT_CLEANED]: {
     type: ObjectType; // 예: "Food", "Poob" 등
     id: string;
-  };
-
-  // 진화 관련 이벤트 데이터 형식
-  [EventTypes.CHARACTER_EVOLVED]: {
-    characterKey: CharacterKey;
   };
 }
 
@@ -221,7 +212,10 @@ export class EventBus {
       try {
         listener(data);
       } catch (error) {
-        console.error(`Error in event listener for ${String(event)}:`, error);
+        console.error(
+          `[EventBus] Error in event listener for ${String(event)}:`,
+          error
+        );
       }
     }
   }

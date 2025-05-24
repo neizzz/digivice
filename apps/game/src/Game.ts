@@ -12,9 +12,13 @@ import { Egg } from "./entities/Egg"; // Egg 클래스 임포트 추가
 import { GameDataManager } from "./managers/GameDataManager"; // GameDataManager 임포트
 import type { GameData } from "./types/GameData"; // GameData 타입 임포트
 import { GAME_LOOP } from "./config"; // TimeConfig로 변경
-import { TimeManager } from "./managers/TimeManager"; // TimeManager 임포트 추가
-import { EventBus, EventTypes } from "./utils/EventBus"; // EventBus 임포트 추가
-import { CharacterState, type CharacterKey } from "./types/Character";
+import type { CharacterKey } from "./types/Character";
+import { CharacterManager } from "./managers/CharacterManager"; // CharacterManager 임포트 추가
+import {
+  type LastCheckData,
+  LastCheckDataManager,
+} from "./managers/LastCheckDataManager";
+import { simulateCharacterStatus } from "./utils/simulator";
 
 PIXI.BaseTexture.defaultOptions.scaleMode = PIXI.SCALE_MODES.NEAREST;
 
@@ -35,15 +39,14 @@ export type ShowAlertCallback = (message: string, title?: string) => void;
 export class Game {
   public app: PIXI.Application;
   public changeControlButtons: ControlButtonsChangeCallback;
-  public character?: Character | Egg; // Character 또는 Egg 타입으로 변경
   public showAlert: ShowAlertCallback; // 팝업 콜백 추가
 
   private currentScene?: Scene;
   private scenes: Map<SceneKey, Scene> = new Map();
   private currentSceneKey?: SceneKey;
   private assetsLoaded = false;
-  private timeManager: TimeManager; // TimeManager 인스턴스 추가
-  private isUnloading = false;
+  private characterManager: CharacterManager; // CharacterManager 인스턴스 추가
+  private shouldSaveDataBeforeUnload = false;
 
   constructor(params: {
     parentElement: HTMLElement;
@@ -54,7 +57,9 @@ export class Game {
     const { parentElement, changeControlButtons, showAlert } = params;
     this.changeControlButtons = changeControlButtons;
     this.showAlert = showAlert; // 팝업 콜백 저장
-    this.timeManager = TimeManager.getInstance(); // TimeManager 인스턴스 초기화
+
+    // CharacterManager와 TimeManager 인스턴스 초기화(순서 중요)
+    this.characterManager = new CharacterManager(this); // CharacterManager 인스턴스 초기화
 
     // PIXI 애플리케이션을 생성하고 DOM에 추가합니다
     this.app = new PIXI.Application({
@@ -82,158 +87,124 @@ export class Game {
       DebugUI.getInstance();
     }
 
-    this.getData().then((gameData) => {
+    GameDataManager.initialize();
+    LastCheckDataManager.initialize();
+
+    this.getData().then(async (gameData) => {
       if (gameData) {
-        // 앱이 완전히 껐다 켜졌을 때도 resume 이벤트를 발생시킴
-        EventBus.publish(EventTypes.APP_RESUME, { timestamp: Date.now() });
+        console.log("[Game] 게임 데이터 로드 성공:", gameData);
+        const lastCheckData =
+          (await LastCheckDataManager.loadData()) as unknown as LastCheckData;
+
+        console.log(
+          `[Game] 저장 시간 : ${new Date(
+            gameData._savedAt
+          ).toLocaleString()} (lastCheckData: ${new Date(
+            lastCheckData._savedAt
+          ).toLocaleString()}) / 차이: ${
+            gameData._savedAt - lastCheckData._savedAt
+          }ms`
+        );
+
+        const { resultCharacterInfo, resultLastCheckData } =
+          simulateCharacterStatus({
+            elapsedTime: Date.now() - gameData._savedAt,
+            inputGameData: gameData,
+            inputCheckData: lastCheckData,
+          });
+        gameData.character = resultCharacterInfo;
+        GameDataManager._saveData(gameData);
+        LastCheckDataManager._saveData(resultLastCheckData);
         this.startInitialization(gameData);
       } else {
-        console.log("게임 데이터가 없습니다. setup layer 생성");
+        console.log("[Game] 게임 데이터가 없습니다. setup layer 생성");
         params
           .onCreateInitialGameData()
-          .then((initializationFormData: { name: string }) =>
-            GameDataManager.createInitialGameData(initializationFormData)
-          )
+          .then(async (initializationFormData: { name: string }) => {
+            const initialGameData = await GameDataManager.createInitialData(
+              initializationFormData,
+              {
+                position: {
+                  x: this.app.screen.width / 2,
+                  y: this.app.screen.height / 2,
+                },
+              }
+            );
+            await LastCheckDataManager.createInitialData();
+            return initialGameData;
+          })
           .then((gameData) => {
             if (gameData) {
-              console.log("게임 데이터 생성 성공:", gameData);
+              console.log("[Game] 게임 데이터 생성 성공:", gameData);
               this.startInitialization(gameData);
             } else {
               throw new Error("게임 데이터 로드 실패");
             }
           })
           .catch((error) => {
-            console.error("게임 데이터 생성 중 오류:", error);
+            console.error("[Game] 게임 데이터 생성 중 오류:", error);
           });
       }
     });
-    GameDataManager.initialize();
   }
 
   /**
    * 초기화 프로세스를 시작합니다 (비동기 작업을 동기적으로 관리)
    */
   private startInitialization(gameData: GameData): void {
-    console.log("게임 초기화 프로세스 시작");
-    this.waitForAppInitialization().then(() => {
-      AssetLoader.loadAssets()
-        .then(() => {
-          this.assetsLoaded = true;
-
-          this.initializeCharacter(gameData).then(() => {
-            this.setupCharacterEvolutionListener();
-            this.setupInitialScene();
-            this.setupGameLoop();
-          });
-        })
-        .catch((error) => {
-          console.error("에셋 로딩 오류:", error);
+    console.log("[Game] 게임 초기화 프로세스 시작");
+    this.waitForAppInitialization()
+      .then(async () => {
+        await AssetLoader.loadAssets();
+      })
+      .then(() => {
+        this.assetsLoaded = true;
+        this._initializeCharacter(gameData).then(() => {
+          this._setupInitialScene();
+          this._setupGameLoop();
         });
-    });
+
+        // // DebugUI에 Game 인스턴스 설정
+        // if (import.meta.env.DEV === true) {
+        //   DebugUI.getInstance().setGame(this);
+        // }
+      })
+      .catch((error) => {
+        console.error("[Game] 에셋 로딩 오류:", error);
+      });
   }
 
-  /**
-   * 캐릭터 진화 이벤트 리스너 설정
-   */
-  private setupCharacterEvolutionListener(): void {
-    EventBus.subscribe(EventTypes.CHARACTER_EVOLVED, async (data) => {
-      console.log(`캐릭터 진화 이벤트 수신: ${data.characterKey}`);
-
-      try {
-        // 현재 character가 Egg인 경우에만 진화 처리
-        if (this.character instanceof Egg) {
-          const position = {
-            x: this.character.position.x,
-            y: this.character.position.y,
-          };
-
-          // 기존 Egg 객체 스테이지에서 제거
-          if (this.currentScene instanceof MainScene) {
-            this.currentScene.removeChild(this.character);
-          }
-
-          const newCharacter = new Character({
-            characterKey: data.characterKey,
-            app: this.app,
-            status: {
-              position,
-              state: CharacterState.IDLE,
-              stamina: 6,
-              sick: false,
-            },
-          });
-
-          // 새 캐릭터를 Game 인스턴스와 현재 씬에 등록
-          this.character = newCharacter;
-
-          // 현재 씬이 MainScene인 경우 새 캐릭터 추가
-          if (this.currentScene instanceof MainScene) {
-            this.currentScene.addChild(newCharacter);
-          }
-
-          // DebugUI에 캐릭터 참조 설정
-          DebugUI.getInstance().setCharacter(newCharacter);
-
-          console.log("캐릭터 진화 완료: 화면 업데이트됨");
-        }
-      } catch (error) {
-        console.error("캐릭터 진화 처리 중 오류:", error);
-      }
-    });
-  }
-
-  /**
-   * 캐릭터 초기화
-   */
-  private async initializeCharacter(gameData: GameData): Promise<void> {
+  private async _initializeCharacter(gameData: GameData): Promise<void> {
     try {
       const characterKey = gameData.character.key;
       const status = gameData.character.status;
 
-      // 저장된 마지막 위치가 있으면 사용, 없으면 화면 중앙으로 설정
-      const position = (() => {
-        if (
-          status?.position &&
-          !Number.isNaN(status.position.x) &&
-          !Number.isNaN(status.position.y)
-        ) {
-          return status.position;
-        }
-        return {
-          x: this.app.screen.width / 2,
-          y: this.app.screen.height / 2,
-        };
-      })();
-
       // 캐릭터 타입에 따라 적절한 클래스 인스턴스 생성
-      if (characterKey === "egg") {
-        console.log("Egg 생성 (Character와 별개의 간단한 엔티티)");
-        // Egg는 Character를 상속받지 않는 독립적인 간단한 엔티티
-        this.character = new Egg({
-          position,
-          app: this.app,
-        });
-      } else {
-        console.log(`일반 캐릭터(${characterKey}) 생성`);
+      const entity = (() => {
+        if (characterKey === "egg") {
+          console.log("[Game] Egg 생성 (Character와 별개의 간단한 엔티티)");
+          // Egg는 Character를 상속받지 않는 독립적인 간단한 엔티티
+          return new Egg({
+            position: status.position,
+            app: this.app,
+          });
+        }
+        console.log(`[Game] 일반 캐릭터(${characterKey}) 생성`);
         // 기존 Character 클래스 사용
-        this.character = new Character({
+        return new Character({
           characterKey: characterKey as CharacterKey,
           app: this.app,
           status: gameData.character.status,
         });
+      })();
 
-        // 현재 씬이 MainScene이면 캐릭터 추가
-        if (this.currentScene instanceof MainScene) {
-          this.currentScene.addChild(this.character);
-        }
-      }
+      this.characterManager.setEntity(entity);
 
-      // DebugUI에 캐릭터 참조 설정
-      if (this.character instanceof Character) {
-        DebugUI.getInstance().setCharacter(this.character);
+      if (entity instanceof Character) {
+        DebugUI.getInstance().setCharacter(entity);
       }
     } catch (error) {
-      console.error("캐릭터 초기화 중 오류:", error);
+      console.error("[Game] 캐릭터 초기화 중 오류:", error);
       throw error;
     }
   }
@@ -243,41 +214,23 @@ export class Game {
    * @param buttonType 클릭된 버튼 타입
    */
   public handleControlButtonClick(buttonType: ControlButtonType): void {
-    // 현재 씬이 있으면 컨트롤 이벤트 전달
-    if (this.currentScene) {
-      this.currentScene.handleControlButtonClick(buttonType);
-      return;
-    }
+    this.currentScene?.handleControlButtonClick(buttonType);
   }
 
   public handleSliderValueChange(value: number): void {
-    // 현재 씬이 있으면 슬라이더 값 변경 이벤트 전달
-    if (this.currentScene) {
-      this.currentScene.handleSliderValueChange?.(value);
-      return;
-    }
-    throw new Error("현재 씬이 없습니다");
+    this.currentScene?.handleSliderValueChange?.(value);
   }
   public handleSliderEnd(): void {
     this.currentScene?.handleSliderEnd?.();
   }
 
-  /**
-   * 기본 씬을 설정합니다
-   */
-  private setupInitialScene(): void {
+  private _setupInitialScene(): void {
     this.changeScene(SceneKey.MAIN);
   }
 
-  /**
-   * 게임 루프를 설정합니다
-   */
-  private setupGameLoop(): void {
-    // TimeManager 시작
-    this.timeManager.start();
-
+  private _setupGameLoop(): void {
     // 앱 포커스 이벤트 리스너 설정
-    this.setupAppFocusListeners();
+    this._setupAppLifecycleListeners();
 
     this.app.ticker.add((tick: number) => {
       this.update(tick * GAME_LOOP.DELTA_MS);
@@ -287,50 +240,50 @@ export class Game {
   /**
    * 앱 포커스 이벤트 리스너 설정
    */
-  private setupAppFocusListeners(): void {
+  private _setupAppLifecycleListeners(): void {
     // 브라우저 환경에서만 동작
     if (typeof document !== "undefined" && typeof window !== "undefined") {
-      // 새로고침/탭 닫힘 감지용 플래그
-      window.addEventListener("beforeunload", () => {
-        this.isUnloading = true;
+      // NOTE: PC브라우저 디버깅용 새로고침/탭 닫힘 감지용 플래그
+      window.addEventListener("reload", async () => {
+        const gameData = await GameDataManager._loadData();
+        this.shouldSaveDataBeforeUnload = !!gameData;
+      });
+      window.addEventListener("beforeunload", async () => {
+        const gameData = await GameDataManager._loadData();
+        this.shouldSaveDataBeforeUnload = !!gameData;
       });
 
-      // 앱이 포커스를 잃을 때 (백그라운드로 전환)
-      document.addEventListener("visibilitychange", () => {
+      // 페이지 숨김/표시 이벤트
+      document.addEventListener("visibilitychange", async () => {
+        // NOTE: 앱이 새로 켜질때는 Game생성자에서 처리. 여기서는 앱끄기/홈버튼/resume 케이스만 다룸.
         if (document.hidden) {
-          if (!this.isUnloading) {
-            console.log("앱이 백그라운드로 전환되었습니다");
+          // "앱끄기/홈버튼" 시점
+          console.log("[Game] 앱 상태 변경: background-running");
+
+          if (this.shouldSaveDataBeforeUnload) {
+            console.log("[Game] 화면이 꺼지기 전에 게임 데이터 저장.");
             this.saveGameState();
-          } else {
-            console.log(
-              "새로고침/탭 닫힘으로 인한 백그라운드 전환 - 저장 생략"
-            );
           }
-          this.timeManager.stop();
+
+          // this.timeManager.changeAppState("background-running"); // stop 대신 changeAppState 사용
         } else {
-          console.log("앱이 포그라운드로 돌아왔습니다");
-          // 앱이 다시 포커스를 얻을 때 resume 이벤트 발행
-          EventBus.publish(EventTypes.APP_RESUME, { timestamp: Date.now() });
-          this.timeManager.start();
+          // "resume" 시점
+          console.log("[Game] 앱 상태 변경: active");
+          const gameData = (await GameDataManager.getData()) as GameData;
+          const lastCheckData =
+            (await LastCheckDataManager.loadData()) as LastCheckData;
+          const elapsedTime = Date.now() - gameData._savedAt;
+          const { resultCharacterInfo, resultLastCheckData } =
+            simulateCharacterStatus({
+              elapsedTime: elapsedTime,
+              inputGameData: gameData,
+              inputCheckData: lastCheckData,
+            });
+          gameData.character = resultCharacterInfo;
+          await GameDataManager._saveData(gameData);
+          await LastCheckDataManager._saveData(resultLastCheckData);
         }
       });
-      // // 창이 포커스를 잃을 때
-      // window.addEventListener("blur", () => {
-      //   if (!this.isUnloading) {
-      //     console.log("앱이 포커스를 잃었습니다");
-      //     // 캐릭터 위치 및 상태 저장
-      //     this.saveGameState();
-      //   } else {
-      //     console.log("새로고침/탭 닫힘으로 인한 blur - 저장 생략");
-      //   }
-      //   this.timeManager.stop();
-      // });
-      // // 창이 포커스를 얻을 때
-      // window.addEventListener("focus", () => {
-      //   console.log("앱이 포커스를 얻었습니다");
-      //   EventBus.publish(EventTypes.APP_RESUME, { timestamp: Date.now() });
-      //   this.timeManager.start();
-      // });
     }
   }
 
@@ -339,19 +292,15 @@ export class Game {
    */
   private saveGameState(): void {
     // 캐릭터 위치와 상태 저장
-    if (this.character instanceof Character) {
-      this.character.savePositionAndState();
+    const character = this.characterManager.getCharacter();
+    if (character) {
+      character.savePositionAndState();
     }
+    false;
   }
 
   private update(deltaTime: number): void {
-    // 현재 씬 업데이트
-    if (this.currentScene) {
-      this.currentScene.update(deltaTime);
-    }
-
-    // TimeManager 업데이트
-    this.timeManager.update(deltaTime);
+    this.currentScene?.update(deltaTime);
   }
 
   /**
@@ -371,21 +320,14 @@ export class Game {
   };
 
   private onResize(): void {
-    // 화면 크기에 맞게 캔버스 조정
     const parent = this.app.view;
     if (!parent || !parent.getBoundingClientRect) {
       throw new Error("Parent element is not available.");
     }
-
     const { width, height } = parent.getBoundingClientRect();
     this.app.renderer.resize(width, height);
-
-    // 리사이징 시에도 해상도 설정 유지
     this.app.renderer.resolution = window.devicePixelRatio || 2;
-
-    if (this.currentScene) {
-      this.currentScene.onResize(width, height);
-    }
+    this.currentScene?.onResize(width, height);
   }
 
   /**
@@ -393,23 +335,26 @@ export class Game {
    * @param key 생성할 씬의 키
    * @returns 생성된 씬 객체
    */
-  private async createScene(key: SceneKey): Promise<Scene> {
-    console.log(`Creating new scene: ${key}`);
+  private async _createScene(
+    key: SceneKey,
+    gameData: GameData
+  ): Promise<Scene> {
+    console.log(`[Game] Creating new scene: ${key}`);
 
     // 에셋이 로드되지 않았으면 오류 표시
     if (!this.assetsLoaded) {
       console.warn(
-        "에셋이 아직 로드되지 않았습니다. 씬이 제대로 표시되지 않을 수 있습니다."
+        "[Game] 에셋이 아직 로드되지 않았습니다. 씬이 제대로 표시되지 않을 수 있습니다."
       );
     }
 
     switch (key) {
       case SceneKey.MAIN:
-        return new MainScene(this).init();
+        return new MainScene(this).init(gameData);
       case SceneKey.FLAPPY_BIRD_GAME:
         return new FlappyBirdGameScene(this).init();
       default:
-        throw new Error(`Unknown scene key: ${key}`);
+        throw new Error(`[Game] Unknown scene key: ${key}`);
     }
   }
 
@@ -420,18 +365,19 @@ export class Game {
    */
   public async changeScene(key: SceneKey): Promise<boolean> {
     try {
-      console.log(`씬 전환 요청: ${key}`);
+      console.log(`[Game] 씬 전환 요청: ${key}`);
 
       // 기존 씬과 같은 씬으로 전환하는 경우 무시
       if (this.currentSceneKey === key) {
-        console.log(`이미 ${key} 씬에 있습니다`);
+        console.log(`[Game] 이미 ${key} 씬에 있습니다`);
         return true;
       }
 
       // 캐시된 씬이 없으면 새로 생성
       if (!this.scenes.has(key)) {
-        console.log(`새로운 씬 생성: ${key}`);
-        const newScene = await this.createScene(key);
+        console.log(`[Game] 새로운 씬 생성: ${key}`);
+        const gameData = await GameDataManager.getData();
+        const newScene = await this._createScene(key, gameData as GameData);
         this.scenes.set(key, newScene);
       }
 
@@ -440,7 +386,7 @@ export class Game {
         this.currentScene &&
         this.currentScene instanceof PIXI.DisplayObject
       ) {
-        console.log(`기존 씬 제거: ${this.currentSceneKey}`);
+        console.log(`[Game] 기존 씬 제거: ${this.currentSceneKey}`);
         this.app.stage.removeChild(this.currentScene);
       }
 
@@ -457,10 +403,10 @@ export class Game {
       const { width, height } = this.app.renderer.screen;
       this.currentScene.onResize(width, height);
 
-      console.log(`씬 전환 완료: ${key}`);
+      console.log(`[Game] 씬 전환 완료: ${key}`);
       return true;
     } catch (error) {
-      console.error(`씬 전환 오류 (${key}):`, error);
+      console.error(`[Game] 씬 전환 오류 (${key}):`, error);
       return false;
     }
   }
@@ -479,17 +425,20 @@ export class Game {
     return Object.values(SceneKey);
   }
 
+  public getCharacterManager(): CharacterManager {
+    return this.characterManager;
+  }
+
   /**
    * 게임 데이터를 가져옵니다
    * @returns 게임 데이터
    */
   public async getData(): Promise<GameData | undefined> {
     try {
-      const gameData = await GameDataManager.loadData();
-      console.log("게임 데이터 로드 완료:", gameData);
+      const gameData = await GameDataManager.getData();
       return gameData;
     } catch (error) {
-      console.error("게임 데이터 로드 중 오류:", error);
+      console.error("[Game] 게임 데이터 로드 중 오류:", error);
       return undefined;
     }
   }

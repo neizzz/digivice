@@ -11,12 +11,16 @@
   "dependencies": {
     "@pixi/filter-color-matrix": "^7.4.3",
     "@shared/storage": "workspace:*",
+    "lodash.clonedeep": "^4.5.0",
+    "lodash.throttle": "^4.1.1",
     "matter-js": "^0.20.0",
     "pixi.js": "^7.4.0",
     "uuid": "^11.1.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.15.0",
+    "@types/lodash.clonedeep": "^4.5.9",
+    "@types/lodash.throttle": "^4.1.9",
     "@types/matter-js": "^0.19.8",
     "@types/node": "^22.13.9",
     "eslint": "^9.15.0",

@@ -41,16 +41,10 @@ export class RandomMovementController extends MovementController {
       this.options = { ...this.options, ...options };
     }
 
-    // 화면 경계 설정
     this.updateBounds();
-
-    // 초기 상태 설정
     this.changeToIdleState();
-
-    // 업데이트 이벤트 리스너 등록
     this.app.ticker.add(this.update, this);
-
-    console.debug("RandomMovementController initialized", this.character);
+    console.log("[RandomMovementController] 초기화 완료:", this.character);
   }
 
   private updateBounds(): void {
@@ -69,12 +63,11 @@ export class RandomMovementController extends MovementController {
       this.options.minIdleTime || 3000, // 최소 휴식 시간
       this.options.maxIdleTime || 8000 // 최대 휴식 시간
     );
-    this.character.update(CharacterState.IDLE);
+    this.character.setState(CharacterState.IDLE);
     // idle 상태에서도 마지막 이동 방향을 바라보게 함
     this.stateTimer = 0;
   }
 
-  // MOVING 상태로 전환
   private changeToMovingState(): void {
     this.isMovingState = true;
     // 이동 상태 지속 시간 설정
@@ -83,27 +76,26 @@ export class RandomMovementController extends MovementController {
       this.options.maxMoveTime
     );
     this.chooseRandomDirection();
-    this.character.update(CharacterState.WALKING);
+    this.character.setState(CharacterState.WALKING);
     this.updateCharacterFacing(); // 캐릭터 방향 업데이트
     this.stateTimer = 0; // 상태 타이머 초기화
     console.debug(
-      "Changed to WALKING state with direction:",
+      "[RandomMovenmentController] Changed to WALKING state with direction:",
       this.moveDirection
     );
   }
 
   // 랜덤 방향 선택
   private chooseRandomDirection(): void {
-    // 랜덤 각도 생성 (라디안)
     const angle = Math.random() * Math.PI * 2;
-
-    // 방향 벡터 계산
     this.moveDirection = {
       x: Math.cos(angle),
       y: Math.sin(angle),
     };
-
-    console.debug("Random direction selected:", this.moveDirection);
+    console.debug(
+      "[RandomMOvenmentController] Random direction selected:",
+      this.moveDirection
+    );
   }
 
   // 캐릭터의 시각적 방향을 업데이트하는 메서드
@@ -112,11 +104,11 @@ export class RandomMovementController extends MovementController {
     if (this.moveDirection.x > 0) {
       // 오른쪽 이동 중
       this.character.setFlipped(false); // 오른쪽 바라보기
-      console.debug("Character looking RIGHT");
+      console.debug("[RandomMovenmentController] Character looking RIGHT");
     } else if (this.moveDirection.x < 0) {
       // 왼쪽 이동 중
       this.character.setFlipped(true); // 왼쪽 바라보기
-      console.debug("Character looking LEFT");
+      console.debug("[RandomMovenmentController] Character looking LEFT");
     }
   }
 
@@ -136,17 +128,13 @@ export class RandomMovementController extends MovementController {
     this.stateTimer += deltaTime;
 
     if (this.isMovingState) {
-      // 현재 위치 가져오기
       const currentPos = this.character.getPosition();
-
-      // 방향 벡터에 속도와 deltaTime 적용
       const speedFactor = 60 / 1000; // 1초에 60프레임 기준
       let moveX =
         this.moveDirection.x * this.moveSpeed * deltaTime * speedFactor;
       let moveY =
         this.moveDirection.y * this.moveSpeed * deltaTime * speedFactor;
 
-      // 다음 위치 계산
       const nextX = currentPos.x + moveX;
       const nextY = currentPos.y + moveY;
 
@@ -183,15 +171,16 @@ export class RandomMovementController extends MovementController {
         this.updateCharacterFacing();
       }
 
-      // 캐릭터 상태 업데이트
-      this.character.update(CharacterState.WALKING);
+      // if (this.character.getState() !== CharacterState.WALKING) {
+      //   this.character.setState(CharacterState.WALKING);
+      // }
 
       // 이동 시간이 만료되면 IDLE 상태로 변경
       if (this.stateTimer >= this.currentStateDuration) {
         this.changeToIdleState();
       }
     } else {
-      // IDLE 상태일 때
+      // IDLE 상태 시간이 만료되면 이동 상태로 변경
       if (this.stateTimer >= this.currentStateDuration) {
         this.changeToMovingState();
       }
@@ -228,31 +217,20 @@ export class RandomMovementController extends MovementController {
     return { x: newX, y: newY };
   }
 
-  /**
-   * 컨트롤러를 활성화합니다
-   */
   public enable(): void {
     if (!this.enabled) {
       this.enabled = true;
     }
   }
-
-  /**
-   * 컨트롤러를 비활성화합니다
-   */
   public disable(): void {
     if (this.enabled) {
       this.enabled = false;
     }
   }
-
   public isMoving(): boolean {
-    // 캐릭터가 움직이고 있는지 여부를 반환
     return this.isMovingState;
   }
-
   public destroy(): void {
-    // 컨트롤러 정리
     this.app.ticker.remove(this.update, this);
   }
 }

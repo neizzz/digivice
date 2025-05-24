@@ -307,7 +307,7 @@ export class Food extends Cleanable {
     this.state = FoodState.THROWING;
 
     // FOOD_CREATED 이벤트 발행
-    EventBus.publish(EventTypes.FOOD_CREATED, {
+    EventBus.publish(EventTypes.Food.FOOD_CREATED, {
       position: finalPosition,
       textureKey: textureKey,
       id: this.getId(), // 객체의 고유 ID 추가
@@ -332,7 +332,7 @@ export class Food extends Cleanable {
     // 상한 음식이 아닌 경우에만 착지 이벤트 발생
     if (this.freshness !== FoodFreshness.STALE) {
       // FOOD_LANDED 이벤트 발행 - FoodTracker가 이 이벤트를 수신하여 캐릭터를 관리
-      EventBus.publish(EventTypes.FOOD_LANDED, {
+      EventBus.publish(EventTypes.Food.FOOD_LANDED, {
         id: this.id,
         position: position,
       });
@@ -384,7 +384,7 @@ export class Food extends Cleanable {
     this.initFoodMask();
 
     // FOOD_EATING_STARTED 이벤트 발행
-    EventBus.publish(EventTypes.FOOD_EATING_STARTED, {
+    EventBus.publish(EventTypes.Food.FOOD_EATING_STARTED, {
       id: this.id,
       position: { x: this.sprite.position.x, y: this.sprite.position.y },
     });
@@ -492,7 +492,7 @@ export class Food extends Cleanable {
     }
 
     // FOOD_EATING_FINISHED 이벤트 발행
-    EventBus.publish(EventTypes.FOOD_EATING_FINISHED, {
+    EventBus.publish(EventTypes.Food.FOOD_EATING_FINISHED, {
       id: this.getId(),
       freshness: this.freshness,
     });

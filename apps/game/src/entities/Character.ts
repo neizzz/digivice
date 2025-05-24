@@ -1,6 +1,5 @@
 import * as PIXI from "pixi.js";
 import {
-  type CharacterAnimationMapping,
   CharacterDictionary,
   type CharacterKey,
   CharacterState,
@@ -11,25 +10,26 @@ import { FoodTracker } from "../trackers/FoodTracker"; // FoodTracker 임포트
 import { EventBus, EventTypes } from "../utils/EventBus";
 import { GameDataManager } from "../managers/GameDataManager";
 import { Poob } from "./Poob"; // Poob 클래스 임포트 추가
-import type { CharacterStatusData } from "../types/GameData";
+import type { CharacterStatusData, GameData } from "../types/GameData";
+import { CharacterStatusViewManager } from "../managers/CharacterStatusViewManager";
+import type { Scene } from "../interfaces/Scene";
 import { CHARACTER_MOVEMENT } from "../config";
 
 export class Character extends PIXI.Container {
   public animatedSprite: PIXI.AnimatedSprite | undefined;
   private speed!: number; // 캐릭터 이동 속도
   private scaleFactor!: number; // 캐릭터 크기 조정 인자
-  private animationMapping!: CharacterAnimationMapping; // 상태와 애니메이션 이름 매핑
   private randomMovementController!: RandomMovementController; // 랜덤 움직임 컨트롤러 참조
-  private currentAnimation = "idle"; // 현재 애니메이션 상태
   private spritesheet?: PIXI.Spritesheet; // spritesheet 객체
-  private currentState: CharacterState = CharacterState.IDLE; // 현재 상태
+  private currentState!: CharacterState; // 현재 상태, NOTE: 초기화전에는 "undefined"
   private flipCharacter = false; // 캐릭터 좌우 반전 여부
-  private app?: PIXI.Application; // PIXI 애플리케이션 참조
+  private app: PIXI.Application; // PIXI 애플리케이션 참조
   private eventBus: EventBus; // 이벤트 버스 인스턴스
-  private characterInfo: (typeof CharacterDictionary)[CharacterKey]; // 캐릭터 정보 저장
-  private characterKey: CharacterKey; // CharacterKey 저장
+  private characterInfo!: (typeof CharacterDictionary)[CharacterKey]; // 캐릭터 정보 저장
+  private characterKey!: CharacterKey; // CharacterKey 저장
   private foodTracker: FoodTracker | null = null; // FoodTracker 인스턴스
-  private status: CharacterStatusData; // 캐릭터 상태 데이터
+  private statusViewManager: CharacterStatusViewManager;
+  private _initialized = false; // 초기화 여부
 
   // 캐릭터 정보를 반환하는 메서드 추가
   protected getCharacterInfo(): (typeof CharacterDictionary)[CharacterKey] {
@@ -42,57 +42,66 @@ export class Character extends PIXI.Container {
     status: CharacterStatusData; // 캐릭터 상태 데이터
   }) {
     super();
-    // 이벤트 버스 인스턴스 가져오기
     this.eventBus = EventBus.getInstance();
-
-    this.status = params.status; // 캐릭터 상태 데이터 저장
-    this.characterKey = params.characterKey; // 캐릭터 키 저장
-    this.characterInfo = CharacterDictionary[params.characterKey]; // 캐릭터 정보 가져오기
     this.app = params.app;
+  }
+
+  // NOTE: 코드 진행 순서 중요!
+  public async initialize(
+    characterInfo: GameData["character"],
+    scene: Scene
+  ): Promise<void> {
+    if (this._initialized) {
+      console.warn("[Character] 이미 초기화된 캐릭터입니다.");
+      return;
+    }
+    const { key, status } = characterInfo;
     this.setPosition(
-      this.status.position.x ?? this.app.screen.width / 2,
-      this.status.position.y ?? this.app.screen.height / 2
+      status.position.x ?? this.app.screen.width / 2,
+      status.position.y ?? this.app.screen.height / 2
+    );
+    this.setCharacterKey(key as CharacterKey);
+    this.reflectCharacterStatus(status);
+    scene.addChild(this);
+
+    // RandomMovementController 초기화
+    if (this.getState() !== CharacterState.DEAD) {
+      this.randomMovementController = this._initRandomMovementController({
+        minIdleTime: CHARACTER_MOVEMENT.MIN_IDLE_TIME,
+        maxIdleTime: CHARACTER_MOVEMENT.MAX_IDLE_TIME,
+        minMoveTime: CHARACTER_MOVEMENT.MIN_MOVE_TIME,
+        maxMoveTime: CHARACTER_MOVEMENT.MAX_MOVE_TIME,
+      });
+      this.randomMovementController.setMoveSpeed(this.speed);
+      this.statusViewManager = new CharacterStatusViewManager(this);
+      this._initFoodTracker();
+    }
+
+    // TODO: 상태 아이콘 초기화 (예: sick, urgent 등)
+    // if (this.status.statusIcon) {
+    //   this.statusManager.setStatus(this.status.statusIcon);
+    // }
+    this._initialized = true;
+  }
+
+  public reflectCharacterStatus(status: CharacterStatusData): void {
+    console.log(
+      "[Character] 캐릭터 상태 반영:",
+      JSON.stringify(status, null, 2)
     );
 
-    // AssetLoader에서 스프라이트시트 가져오기
-    const assets = AssetLoader.getAssets();
-    this.spritesheet = assets.characterSprites[params.characterKey];
-
-    // 초기 상태 설정 - status에서 가져온 상태를 현재 상태로 설정
-    this.currentState = params.status.state || CharacterState.IDLE;
-
-    // 이미 dead 상태인 경우 무덤 스프라이트로 초기화
-    if (this.currentState === CharacterState.DEAD) {
-      this.initializeAsDead();
-    } else {
-      // 살아있는 경우 정상적으로 스프라이트 로드
-      this.loadCharacterSprite(this.spritesheet).then(() => {
-        // 초기 애니메이션 설정
-        this.setAnimation(
-          this.animationMapping[
-            this.currentState as Exclude<CharacterState, CharacterState.DEAD>
-          ] || "idle"
-        );
-        this.speed = this.characterInfo.speed;
-        this.scaleFactor = this.characterInfo.scale;
-        this.animationMapping = this.characterInfo.animationMapping;
-
-        // RandomMovementController 초기화
-        this.randomMovementController = this.initRandomMovementController({
-          minIdleTime: CHARACTER_MOVEMENT.MIN_IDLE_TIME,
-          maxIdleTime: CHARACTER_MOVEMENT.MAX_IDLE_TIME,
-          minMoveTime: CHARACTER_MOVEMENT.MIN_MOVE_TIME,
-          maxMoveTime: CHARACTER_MOVEMENT.MAX_MOVE_TIME,
-        });
-        this.initFoodTracker();
-      });
-    }
+    this.setState(status.state);
+    // TODO:
+    // 상태 아이콘 업데이트
+    // if (status.statusIcon) {
+    //   this.statusViewManager.setStatus(status.statusIcon);
+    // }
   }
 
   /**
    * 캐릭터를 죽은 상태로 초기화합니다.
    */
-  private initializeAsDead(): void {
+  private _initializeAsDead(): void {
     try {
       // 랜덤 움직임 비활성화
       this.disableRandomMovement();
@@ -132,34 +141,37 @@ export class Character extends PIXI.Container {
             this.setPosition(x, y);
           }
         }
+        if (this.animatedSprite) {
+          this.removeChild(this.animatedSprite);
+          this.animatedSprite.destroy();
+          this.animatedSprite = undefined;
+        }
+        tombSprite.scale.x *= this.flipCharacter ? 1 : -1;
         this.addChild(tombSprite);
 
-        console.log("캐릭터가 죽은 상태로 초기화되었습니다.");
+        console.log("[Character] 캐릭터가 죽은 상태로 초기화되었습니다.");
       } else {
-        console.warn("무덤 스프라이트를 찾을 수 없습니다.");
+        console.warn("[Character] 무덤 스프라이트를 찾을 수 없습니다.");
       }
     } catch (e) {
-      console.error("죽은 상태 초기화 중 오류:", e);
+      console.error("[Character] 죽은 상태 초기화 중 오류:", e);
     }
   }
 
-  /**
-   * FoodTracker 초기화 - 캐릭터가 씬에 추가된 후 호출
-   */
-  private initFoodTracker(): void {
+  private _initFoodTracker(): void {
     if (this.app) {
       // 캐릭터의 부모 컨테이너가 있는지 확인 (MainScene일 가능성 높음)
       const targetContainer = this.parent;
 
       if (targetContainer) {
         this.foodTracker = new FoodTracker(this, this.app, targetContainer);
-        console.log("FoodTracker가 초기화되었습니다.");
+        console.log("[Character] FoodTracker가 초기화되었습니다.");
       } else {
         console.warn(
-          "캐릭터가 씬에 추가되지 않아 FoodTracker 초기화가 지연됩니다."
+          "[Character] 캐릭터가 씬에 추가되지 않아 FoodTracker 초기화가 지연됩니다."
         );
         // 부모 컨테이너가 없는 경우 다시 시도
-        setTimeout(() => this.initFoodTracker(), 100);
+        setTimeout(() => this._initFoodTracker(), 100);
       }
     }
   }
@@ -167,28 +179,22 @@ export class Character extends PIXI.Container {
   /**
    * RandomMovementController 초기화
    */
-  private initRandomMovementController(movementOptions?: {
+  private _initRandomMovementController(movementOptions?: {
     minIdleTime: number;
     maxIdleTime: number;
     minMoveTime: number;
     maxMoveTime: number;
   }): RandomMovementController {
     if (!this.app) {
-      throw new Error("App reference is not set");
+      throw new Error("[Character] App reference is not set");
     }
-
-    // 사용자 옵션과 기본 옵션 병합
     const options = movementOptions;
-
-    // RandomMovementController 생성
     return new RandomMovementController(this, this.app, options);
   }
 
-  private async loadCharacterSprite(
-    spritesheet?: PIXI.Spritesheet
-  ): Promise<void> {
+  private _loadCharacterSprite(spritesheet?: PIXI.Spritesheet): void {
     if (!spritesheet) {
-      throw new Error("Spritesheet not provided for character");
+      throw new Error("[Character] Spritesheet not provided for character");
     }
 
     // spritesheet 설정
@@ -197,28 +203,33 @@ export class Character extends PIXI.Container {
     // spritesheet.animations이 정의되어 있는지 확인
     if (this.spritesheet.animations) {
       console.log(
-        "Available animations:",
+        "[Character] Available animations:",
         Object.keys(this.spritesheet.animations)
       );
-
-      // 초기 애니메이션 설정
-      await this.setAnimation(this.currentAnimation);
       return;
     }
 
     // animations이 없거나 유효하지 않은 경우 대체 애니메이션 생성
-    throw new Error("No valid animations found in spritesheet, using fallback");
+    throw new Error(
+      "[Character] No valid animations found in spritesheet, using fallback"
+    );
   }
 
-  private async setAnimation(animationName: string): Promise<boolean> {
+  private _setAnimation(animationName?: string): boolean {
+    if (!animationName) {
+      console.error("[Character] Animation name is not provided");
+      return false;
+    }
     if (!this.spritesheet) {
-      console.error("Cannot set animation, spritesheet is not loaded");
+      console.error(
+        "[Character] Cannot set animation, spritesheet is not loaded"
+      );
       return false;
     }
 
     const textures = this.spritesheet.animations[animationName];
     if (!textures || textures.length === 0) {
-      console.error(`Animation not found: ${animationName}`);
+      console.error(`[Character] Animation not found: ${animationName}`);
       return false;
     }
 
@@ -250,34 +261,29 @@ export class Character extends PIXI.Container {
 
     // pivot과 anchor 설정
     this.animatedSprite.anchor.set(0.5, 0.5);
-
-    this.currentAnimation = animationName;
+    // this.currentAnimation = animationName;
     return true;
   }
 
-  public update(state: CharacterState): void {
-    if (this.currentState !== state) {
-      this.currentState = state;
-
-      // 캐릭터 상태 변경 이벤트 발행
-      this.eventBus.emit(EventTypes.CHARACTER_STATUS_UPDATED, {
-        status: {
-          state,
-          position: this.getPosition(),
-        },
-      });
-
-      if (state === CharacterState.DEAD) {
-        return;
-      }
-
-      // 상태에 따른 애니메이션 이름 가져오기
-      const animationName = this.animationMapping[state];
-      if (animationName) {
-        this.setAnimation(animationName);
-      } else {
-        console.warn(`No animation mapped for state: ${state}`);
-      }
+  /**
+   * NOTE: 호출 단에서, 같은 상태일 경우 호출하지 않아야 함.
+   */
+  public setState(state: CharacterState): void {
+    if (this.currentState === state) {
+      console.warn(
+        `[Character] 캐릭터 상태가 이미 "${state}"로 설정되어 있습니다. skipped.`
+      );
+    }
+    this.currentState = state;
+    if (state === CharacterState.DEAD) {
+      this._initializeAsDead();
+      return;
+    }
+    const animationName = this.characterInfo.animationMapping[state];
+    if (animationName) {
+      this._setAnimation(animationName);
+    } else {
+      console.warn(`[Character] No animation mapped for state: ${state}`);
     }
   }
 
@@ -324,7 +330,7 @@ export class Character extends PIXI.Container {
   public disableRandomMovement(): void {
     if (this.randomMovementController) {
       this.randomMovementController.disable();
-      console.log("Random movement disabled for character");
+      console.log("[Character] Random movement disabled for character");
     }
   }
 
@@ -334,7 +340,7 @@ export class Character extends PIXI.Container {
   public enableRandomMovement(): void {
     if (this.randomMovementController) {
       this.randomMovementController.enable();
-      console.log("Random movement enabled for character");
+      console.log("[Character] Random movement enabled for character");
     }
   }
 
@@ -350,11 +356,11 @@ export class Character extends PIXI.Container {
    */
   public async getStamina(): Promise<number> {
     try {
-      const gameData = await GameDataManager.loadData();
+      const gameData = await GameDataManager.getData();
       if (!gameData) return Number.NaN;
       return gameData?.character.status.stamina ?? Number.NaN;
     } catch (error) {
-      console.error("스태미나 가져오기 오류:", error);
+      console.error("[Character] 스태미나 가져오기 오류:", error);
       return Number.NaN;
     }
   }
@@ -372,15 +378,20 @@ export class Character extends PIXI.Container {
    */
   public async increaseStamina(amount: number): Promise<void> {
     try {
-      const gameData = await GameDataManager.loadData();
+      const gameData = await GameDataManager.getData();
       if (!gameData) return;
 
+      gameData.character.status.timeOfZeroStamina = undefined;
       const currentStamina = gameData.character.status.stamina;
       const maxStamina = this.characterInfo.maxStamina;
       const newStamina = Math.min(maxStamina, currentStamina + amount);
-      this.emitStaminaChanged(newStamina);
+      this.eventBus.emit(EventTypes.Character.CHARACTER_STATUS_UPDATED, {
+        status: {
+          stamina: newStamina,
+        },
+      });
     } catch (error) {
-      console.error("스태미나 증가 오류:", error);
+      console.error("[Character] 스태미나 증가 오류:", error);
     }
   }
 
@@ -391,35 +402,20 @@ export class Character extends PIXI.Container {
    */
   public async decreaseStamina(amount: number): Promise<void> {
     try {
-      const gameData = await GameDataManager.loadData();
+      const gameData = await GameDataManager.getData();
       if (!gameData) return;
 
       const currentStamina = gameData.character.status.stamina;
 
       if (currentStamina >= amount) {
-        const newStamina = currentStamina - amount;
-        this.emitStaminaChanged(newStamina);
+        const newStamina = Math.max(0, currentStamina - amount);
+        this.eventBus.emit(EventTypes.Character.CHARACTER_STATUS_UPDATED, {
+          status: {
+            stamina: newStamina,
+          },
+        });
       }
     } catch (error) {}
-  }
-
-  /**
-   * 스태미나 변경 이벤트를 발행합니다.
-   * @param current 현재 스태미나
-   */
-  private emitStaminaChanged(current: number): void {
-    try {
-      // CHARACTER_STATUS_UPDATED 이벤트 발행
-      this.eventBus.emit(EventTypes.CHARACTER_STATUS_UPDATED, {
-        status: {
-          stamina: current,
-        },
-      });
-
-      console.log(`스태미나가 변경되었습니다: ${current}/10`);
-    } catch (error) {
-      console.error("스태미나 변경 이벤트 발행 중 오류:", error);
-    }
   }
 
   /**
@@ -428,7 +424,7 @@ export class Character extends PIXI.Container {
    */
   public createPoob(): Poob | null {
     if (!this.app) {
-      console.error("App reference is not set, cannot create Poob");
+      console.error("[Character] App reference is not set, cannot create Poob");
       return null;
     }
 
@@ -443,7 +439,7 @@ export class Character extends PIXI.Container {
     const poob = new Poob(this.parent, { position: poobPosition });
 
     // 이벤트 발생 (위치 정보만 포함)
-    this.eventBus.emit(EventTypes.POOB_CREATED, {
+    this.eventBus.emit(EventTypes.Poob.POOB_CREATED, {
       position: poobPosition,
       id: poob.getId(),
     });
@@ -451,7 +447,23 @@ export class Character extends PIXI.Container {
     return poob;
   }
 
-  // CharacterKey getter 추가
+  public setCharacterKey(characterKey: CharacterKey): void {
+    if (this.characterKey === characterKey) {
+      console.warn(
+        `[Character] 캐릭터 키("${this.characterKey}")가 이미 설정되어 있습니다. ignore.`
+      );
+      return;
+    }
+    this.characterKey = characterKey;
+    const assets = AssetLoader.getAssets();
+    this.spritesheet = assets.characterSprites[this.characterKey];
+    this._loadCharacterSprite(this.spritesheet);
+    this.characterInfo = CharacterDictionary[this.characterKey];
+    this.speed = this.characterInfo.speed;
+    this.scaleFactor = this.characterInfo.scale;
+    this.randomMovementController?.setMoveSpeed(this.speed);
+  }
+
   public getCharacterKey(): CharacterKey {
     return this.characterKey;
   }
@@ -464,8 +476,7 @@ export class Character extends PIXI.Container {
       const position = this.getPosition();
       const state = this.getState();
 
-      // CHARACTER_STATUS_UPDATED 이벤트 발행
-      this.eventBus.emit(EventTypes.CHARACTER_STATUS_UPDATED, {
+      this.eventBus.emit(EventTypes.Character.CHARACTER_STATUS_UPDATED, {
         status: {
           position,
           state,
@@ -473,32 +484,16 @@ export class Character extends PIXI.Container {
       });
 
       console.log(
-        "캐릭터의 위치와 상태 저장 이벤트가 발행되었습니다:",
+        "[Character] 캐릭터의 위치와 상태 저장 이벤트가 발행되었습니다:",
         position,
         state
       );
     } catch (error) {
-      console.error("캐릭터 위치와 상태 저장 이벤트 발행 중 오류:", error);
+      console.error(
+        "[Character] 캐릭터 위치와 상태 저장 이벤트 발행 중 오류:",
+        error
+      );
     }
-  }
-
-  /**
-   * 저장된 마지막 위치로 캐릭터를 이동시킵니다.
-   * @param position 이동시킬 위치
-   * @param state 설정할 상태
-   */
-  public restorePositionAndState(
-    position: { x: number; y: number },
-    state: CharacterState
-  ): void {
-    // 위치가 NaN이 아닐 때만 적용
-    if (!Number.isNaN(position.x) && !Number.isNaN(position.y)) {
-      this.setPosition(position.x, position.y);
-    }
-
-    // 상태 설정
-    this.update(state);
-    console.log("캐릭터의 위치와 상태가 복원되었습니다:", position, state);
   }
 
   /**
@@ -509,11 +504,7 @@ export class Character extends PIXI.Container {
     try {
       // 원래 characterKey 기록 (로깅용)
       const characterKey = this.characterKey;
-
-      // 상태를 DEAD로 변경
-      this.update(CharacterState.DEAD);
-
-      // 랜덤 움직임 비활성화
+      this.setState(CharacterState.DEAD);
       this.disableRandomMovement();
 
       // 기존 애니메이션 스프라이트 제거
@@ -535,20 +526,22 @@ export class Character extends PIXI.Container {
           tombSprite.scale.set(this.scaleFactor);
           this.addChild(tombSprite);
 
-          console.log("캐릭터가 사망하여 무덤 스프라이트로 표시됩니다.");
+          console.log(
+            "[Character] 캐릭터가 사망하여 무덤 스프라이트로 표시됩니다."
+          );
         } else {
-          console.warn("무덤 스프라이트를 찾을 수 없습니다.");
+          console.warn("[Character] 무덤 스프라이트를 찾을 수 없습니다.");
         }
       } catch (e) {
-        console.error("무덤 스프라이트를 로드할 수 없습니다:", e);
+        console.error("[Character] 무덤 스프라이트를 로드할 수 없습니다:", e);
       }
 
       console.log(
-        `캐릭터가 사망했습니다. 캐릭터 타입: ${characterKey}, 상태: ${CharacterState.DEAD}`
+        `[Character] 캐릭터가 사망했습니다. 캐릭터 타입: ${characterKey}, 상태: ${CharacterState.DEAD}`
       );
 
       // CHARACTER_STATUS_UPDATED 이벤트 발행 - dead 플래그 설정
-      this.eventBus.emit(EventTypes.CHARACTER_STATUS_UPDATED, {
+      this.eventBus.emit(EventTypes.Character.CHARACTER_STATUS_UPDATED, {
         status: {
           state: CharacterState.DEAD,
         },
@@ -558,10 +551,36 @@ export class Character extends PIXI.Container {
       this.savePositionAndState();
 
       // 죽음 이벤트 발생
-      this.eventBus.emit(EventTypes.CHARACTER_DEATH, undefined);
+      this.eventBus.emit(EventTypes.Character.CHARACTER_DEATH, undefined);
     } catch (error) {
-      console.error("캐릭터 사망 처리 중 오류:", error);
+      console.error("[Character] 캐릭터 사망 처리 중 오류:", error);
     }
+  }
+
+  /**
+   * 질병 발생시키기 (확률 검사 없이 직접 질병 상태로 변경)
+   */
+  public async makeSick(): Promise<void> {
+    try {
+      // 상태 업데이트 이벤트 발행 (sick: true)
+      this._emitStatusUpdateEvent({ sickness: true });
+      console.log("[Character] 캐릭터가 질병에 걸렸습니다.");
+    } catch (error) {
+      console.error("[Character] 캐릭터 질병 처리 중 오류:", error);
+    }
+  }
+
+  /**
+   * 캐릭터의 상태 업데이트 이벤트를 발행합니다.
+   * @param statusData 업데이트할 상태 데이터
+   */
+  private _emitStatusUpdateEvent(
+    statusData: Partial<CharacterStatusData>
+  ): void {
+    this.eventBus.emit(EventTypes.Character.CHARACTER_STATUS_UPDATED, {
+      status: statusData,
+    });
+    console.log("[Character] 캐릭터 상태 업데이트 이벤트 발행:", statusData);
   }
 
   /**

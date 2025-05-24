@@ -2,8 +2,7 @@ import * as PIXI from "pixi.js";
 import type { Position } from "../types/Position";
 import { AssetLoader } from "../utils/AssetLoader";
 import { GameDataManager } from "../managers/GameDataManager";
-import { EventBus, EventTypes } from "../utils/EventBus";
-import { CharacterKey } from "../types/Character";
+import { EventBus } from "../utils/EventBus";
 
 /**
  * Egg 클래스 - 움직이지 않고 화면 중앙에 위치하는 독립적인 간단한 엔티티
@@ -12,6 +11,7 @@ export class Egg extends PIXI.Container {
   private sprite: PIXI.Sprite | null = null;
   private eggTextureKey = "egg_0";
   private app: PIXI.Application;
+  private eventBus: EventBus;
 
   /**
    * Egg 생성자
@@ -20,9 +20,13 @@ export class Egg extends PIXI.Container {
     super();
 
     this.app = params.app;
+    this.eventBus = EventBus.getInstance();
 
     // 화면 중앙에 위치
-    this.position.set(this.app.screen.width / 2, this.app.screen.height / 2);
+    this.position.set(
+      params.position.x || this.app.screen.width / 2,
+      params.position.y || this.app.screen.height / 2
+    );
 
     // 게임 데이터에서 알 텍스처 키 로드
     this.loadEggTextureKey();
@@ -33,7 +37,7 @@ export class Egg extends PIXI.Container {
    */
   private async loadEggTextureKey(): Promise<void> {
     try {
-      const gameData = await GameDataManager.loadData();
+      const gameData = await GameDataManager.getData();
       if (!gameData?.character.eggTextureKey) {
         throw new Error("게임 데이터에 알 텍스처 키가 없습니다.");
       }
@@ -79,36 +83,13 @@ export class Egg extends PIXI.Container {
   }
 
   /**
-   * 알 텍스처를 변경합니다.
-   * @param textureKey 새로운 텍스처 키
+   * Egg의 현재 위치를 반환합니다.
    */
-  public async changeEggTexture(textureKey: string): Promise<boolean> {
-    try {
-      const assets = AssetLoader.getAssets();
-      const eggSprites = assets.eggSprites;
-
-      if (!eggSprites?.textures?.[textureKey]) {
-        console.error(`유효하지 않은 텍스처 키: ${textureKey}`);
-        return false;
-      }
-
-      // 텍스처 업데이트
-      this.eggTextureKey = textureKey;
-      this.updateEggTexture();
-      return true;
-    } catch (error) {
-      console.error("알 텍스처 변경 오류:", error);
-      return false;
-    }
-  }
-
-  /**
-   * 알 속 캐릭터 진화 체크 (바로 진화로 넘어가지 않고 부화 과정 표현)
-   */
-  public eggHatching(): void {
-    EventBus.publish(EventTypes.CHARACTER_EVOLUTION, {
-      key: CharacterKey.GreenSlime,
-    });
+  public getPosition(): { x: number; y: number } {
+    return {
+      x: this.position.x,
+      y: this.position.y,
+    };
   }
 
   /**
@@ -117,5 +98,17 @@ export class Egg extends PIXI.Container {
   public onResize(width: number, height: number): void {
     // 화면 중앙에 위치
     this.position.set(width / 2, height / 2);
+  }
+
+  /**
+   * Egg 정리 메서드
+   */
+  public destroy(): void {
+    if (this.sprite) {
+      this.removeChild(this.sprite);
+      this.sprite.destroy();
+      this.sprite = null;
+    }
+    super.destroy();
   }
 }

@@ -1,4 +1,5 @@
 import type * as PIXI from "pixi.js";
+import { INTENTED_FRONT_Z_INDEX } from "../config";
 
 export interface ThrowSpriteOptions {
   initialScale: number; // 초기 크기
@@ -103,8 +104,8 @@ export class ThrowSprite {
       (this.finalPosition.y - this.initialPosition.y) * progress -
       gravity; // gravity를 빼서 위로 올라가는 효과
 
-    // y좌표에 따라 zIndex 설정 (y값이 클수록 앞에 표시)
-    this.sprite.zIndex = this.sprite.position.y;
+    // 던져지는 동안에는 zIndex를 최상위로 설정
+    this.sprite.zIndex = INTENTED_FRONT_Z_INDEX;
 
     // 크기 업데이트 (선형 보간)
     const scale =
@@ -122,6 +123,7 @@ export class ThrowSprite {
           x: this.sprite.position.x,
           y: this.sprite.position.y,
         };
+        this.sprite.zIndex = position.y;
         this.options.onLanded(position);
       }
 

@@ -76,11 +76,11 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
     // 물리 시스템 초기화
     this.physicsManager = new PhysicsManager(this.gameEngine);
 
-    // const data = GameDataManager.loadData() as GameData;
+    // const data = GameDataManager.getData() as GameData;
   }
 
   public async init(): Promise<FlappyBirdGameScene> {
-    const data = await GameDataManager.loadData();
+    const data = await GameDataManager.getData();
 
     if (!data) {
       throw new Error("게임 데이터가 없습니다");
@@ -166,9 +166,9 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
       this.physicsManager.toggleDebugMode(this.game.app);
 
       // 캐릭터가 보이도록 설정 (MainScene에서 애니메이션 후 캐릭터를 숨겼으므로)
-      if (this.game.character) {
-        this.game.character.visible = true;
-      }
+      // if (this.game.character) {
+      //   this.game.character.visible = true;
+      // }
 
       // 바로 게임 시작 (MainScene에서 애니메이션을 완료했으므로)
       this.startGame();

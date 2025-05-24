@@ -13,7 +13,7 @@ declare global {
     debug?: {
       togglePreventEating: () => boolean;
       showFlags: () => void;
-      createPoob?: () => void; // createPoob 메서드 추가
+      createPoob?: () => void;
     };
   }
 }
@@ -24,10 +24,10 @@ declare global {
 export class DebugUI {
   private static instance: DebugUI;
   private container: HTMLDivElement | null = null;
-  private actionButtonsContainer: HTMLDivElement | null = null; // 액션 버튼 컨테이너 추가
+  private actionButtonsContainer: HTMLDivElement | null = null;
   private debugFlags: DebugFlags;
   private eventBus: EventBus;
-  private character?: Character; // 캐릭터 참조 저장
+  private character?: Character;
   // 스태미나 현재/최대 값 저장
   private staminaState = {
     current: 0,
@@ -41,11 +41,9 @@ export class DebugUI {
     this.showDebugUI(); // 생성 즉시 UI 표시
 
     // 스태미나 초기값 동기화
-    GameDataManager.loadData().then((data) => {
-      if (data && data.character && data.character.status) {
+    GameDataManager.getData().then((data) => {
+      if (data?.character?.status) {
         this.staminaState.current = data.character.status.stamina;
-        this.staminaState.max =
-          data.character.status.maxStamina ?? this.staminaState.max;
         this.updateUI();
       }
     });
@@ -104,7 +102,7 @@ export class DebugUI {
    */
   private subscribeToStaminaChanges(): void {
     this.eventBus.on(
-      EventTypes.CHARACTER_STATUS_UPDATED,
+      EventTypes.Character.CHARACTER_STATUS_UPDATED,
       (data: { status: { stamina?: number; maxStamina?: number } }) => {
         // 스태미나 정보가 포함된 경우에만 업데이트
         if (data.status.stamina !== undefined) {

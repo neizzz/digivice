@@ -24,6 +24,7 @@ console.log(
   `현재 플랫폼: ${isAndroid ? "Android" : isIOS ? "iOS" : "알 수 없음"}`
 );
 console.log(`User Agent: ${navigator.userAgent}`);
+console.log("Environment variables:", JSON.stringify(import.meta.env, null, 2));
 
 document.addEventListener("DOMContentLoaded", () => {
   // NOTE: flutter의 javascript interface 초기화.

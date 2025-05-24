@@ -1,6 +1,6 @@
 import type { AnimatedSprite, Sprite } from "pixi.js";
 import type { ObjectType } from "../types/GameData";
-import { generateId } from "../utils/generator";
+import { generateId } from "../utils/generate";
 
 /**
  * 게임 내 모든 오브젝트의 기본 클래스

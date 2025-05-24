@@ -1,6 +1,7 @@
 /**
  * 게임에서 사용되는 모든 시간 관련 설정을 관리하는 파일
  */
+import { CharacterClass } from "./types/Character";
 
 export const INTENTED_FRONT_Z_INDEX = 9999; // 의도된 앞쪽 zIndex
 
@@ -8,8 +9,8 @@ export const INTENTED_FRONT_Z_INDEX = 9999; // 의도된 앞쪽 zIndex
  * 캐릭터 움직임 관련 시간 상수 (밀리초 단위)
  */
 export const CHARACTER_MOVEMENT = {
-  MIN_IDLE_TIME: 3000, // 최소 대기 시간
-  MAX_IDLE_TIME: 8000, // 최대 대기 시간
+  MIN_IDLE_TIME: 2000, // 최소 대기 시간
+  MAX_IDLE_TIME: 9000, // 최대 대기 시간
   MIN_MOVE_TIME: 2000, // 최소 이동 시간
   MAX_MOVE_TIME: 7000, // 최대 이동 시간
 };
@@ -20,6 +21,12 @@ export const CHARACTER_MOVEMENT = {
 export const CHARACTER_EVOLUTION = {
   // 알에서 유년기로 진화 (30분)
   EGG_END_TIME: 5000,
+
+  // 진화 게이지 관련 설정
+  // GAUGE_MAX_VALUE: 100, // 최대 진화 게이지
+  // GAUGE_INCREMENT_VALUE: 0.3, // 10분당 증가량
+  // GAUGE_CHECK_INTERVAL: 600000, // 진화 게이지 체크 간격 (10분)
+  // STAMINA_THRESHOLD_PERCENT: 0.4, // 스태미나가 이 비율 이상이어야 게이지 증가
 };
 
 /**
@@ -39,14 +46,48 @@ export const FOOD_FRESHNESS = {
 
 /**
  * 캐릭터 상태 관련 시간 상수 및 확률 (밀리초 단위)
+ * NOTE: interval은 최소 5분 이상이어야 함.
  */
-export const CHARACTER_STATUS = {
-  SICKNESS_CHECK_INTERVAL: 5000,
-  SICKNESS_PROBABILITY: 0.04, // 질병 발생 확률: 5%
+const isDebugMode = import.meta.env.DEV;
+export const CHARACTER_STATUS_CHECK = isDebugMode
+  ? ({
+      EGG_HATCH_TIMEOUT: 3 * 1000,
 
-  STAMINA_DECREASE_INTERVAL: 5000, // 스태미나 감소 주기: 30분
-  STAMINA_DECREASE_AMOUNT: 1, // 한 번에 감소하는 스태미나 양
+      // 스태미나가 4 이상일 때 진화 게이지가 오름
+      EVOLUTION_GAUGE_CHECK_INTERVAL: 10 * 1000,
+      EVOLUTION_GAUGE_STATMINA_THRESHOLD: 4,
+      EVOLUTION_GAUGE_INCREASE_AMOUNT: {
+        [CharacterClass.A]: 30,
+        [CharacterClass.B]: 20,
+        [CharacterClass.C]: 10,
+        [CharacterClass.D]: 0.0,
+      },
+      STAMINA_DECREASE_INTERVAL: 20 * 1000,
+      STAMINA_DECREASE_AMOUNT: 1, // 한 번에 감소하는 스태미나 양
 
-  DEATH_CHECK_INTERVAL: 15000, // 죽음 체크 주기: 1시간
-  DEATH_PROBABILITY_SICK: 0.1, // 아픈 상태에서 죽음 확률: 10%
-};
+      SICKNESS_CHECK_INTERVAL: 5 * 1000,
+      SICKNESS_PROBABILITY: 0.1,
+
+      TIMEOUT_AFTER_STAMINA_ZERO: 20 * 1000,
+    } as const)
+  : ({
+      EGG_HATCH_TIMEOUT: 30 * 60 * 1000, // 알 부화 (30분)
+
+      // 스태미나가 4 이상일 때 진화 게이지가 오름
+      EVOLUTION_GAUGE_CHECK_INTERVAL: 20 * 60 * 1000, // 20분,
+      EVOLUTION_GAUGE_STATMINA_THRESHOLD: 4,
+      EVOLUTION_GAUGE_INCREASE_AMOUNT: {
+        [CharacterClass.A]: 0.6,
+        [CharacterClass.B]: 0.4,
+        [CharacterClass.C]: 0.3,
+        [CharacterClass.D]: 0.0,
+      },
+
+      STAMINA_DECREASE_INTERVAL: 60 * 60 * 1000, // 1시간
+      STAMINA_DECREASE_AMOUNT: 1, // 한 번에 감소하는 스태미나 양
+
+      SICKNESS_CHECK_INTERVAL: 30 * 60 * 1000, // 30분
+      SICKNESS_PROBABILITY: 0.03,
+
+      TIMEOUT_AFTER_STAMINA_ZERO: 60 * 60 * 1000, // 1시간
+    } as const);

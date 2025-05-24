@@ -1,5 +1,6 @@
 import * as PIXI from "pixi.js";
 import { AssetLoader } from "../utils/AssetLoader";
+import { INTENTED_FRONT_Z_INDEX } from "../config";
 
 /**
  * 빗자루 클래스
@@ -28,7 +29,7 @@ export class Broom {
 
     this.sprite = new PIXI.Sprite(broomTexture);
     this.sprite.anchor.set(0.5, 0.5);
-    this.sprite.zIndex = 1000;
+    this.sprite.zIndex = INTENTED_FRONT_Z_INDEX + 2;
 
     // 빗자루 크기 조정 (원본이 16x16이므로 2배로 확대)
     this.sprite.width = 40;
@@ -55,16 +56,10 @@ export class Broom {
     return this.sprite;
   }
 
-  /**
-   * 빗자루의 현재 방향 값 반환
-   */
   public getDirection(): number {
     return this.direction;
   }
 
-  /**
-   * 빗자루 위치 설정
-   */
   public setPosition(x: number, y?: number): void {
     if (y === undefined) {
       this.sprite.position.x = x;
@@ -73,9 +68,6 @@ export class Broom {
     this.sprite.position.set(x, y);
   }
 
-  /**
-   * 리소스 정리
-   */
   public destroy(): void {
     // 스프라이트 정리
     if (this.sprite.parent) {

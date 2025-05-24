@@ -83,7 +83,7 @@ export class CleaningManager {
       // 현재 객체의 테두리도 맨 앞으로 가져오기
       const border = this.cleanableBorders.get(currentCleanable);
       if (border) {
-        border.zIndex = 10000;
+        border.zIndex = INTENTED_FRONT_Z_INDEX + 1;
       }
     }
   }
@@ -275,10 +275,8 @@ export class CleaningManager {
       const broomY = targetPos.y - 8;
       this.broom.setPosition(targetPos.x, broomY);
     } else {
-      console.warn("현재 청소 대상이 없습니다. 기본 위치에 빗자루 배치합니다.");
-      this.broom.setPosition(
-        this.app.screen.width / 2,
-        this.app.screen.height / 2
+      console.warn(
+        "[CleaningManager] 현재 청소 대상이 없습니다. 기본 위치에 빗자루 배치합니다."
       );
     }
   }
@@ -487,14 +485,10 @@ export class CleaningManager {
       this.createBorderForCleanable(cleanable, color);
     }
 
-    // 현재 객체를 맨 앞으로 가져오기
     this.bringCurrentCleanableToFront();
 
-    // 청소 상태를 CLEANING으로 변경
     this.cleaningState = CleaningState.CLEANING;
     this.currentProgress = 0;
-
-    // 새 객체로 이동할 때마다 총 이동 거리 초기화
     this.totalSliderMovement = 0;
   }
 
@@ -502,12 +496,11 @@ export class CleaningManager {
    * 다음 청소 가능한 객체로 이동
    */
   private moveToNextCleanable(): void {
-    // 다음 인덱스로 이동
     this.currentCleanableIndex++;
 
     // 모든 객체를 다 청소했는지 확인
     if (this.currentCleanableIndex >= this.cleanableObjects.length) {
-      console.log("모든 객체 청소 완료");
+      console.log("[CleaningManager] 모든 객체 청소 완료");
 
       // 모든 청소 완료 플래그 설정
       this.allCleaningComplete = true;
@@ -523,7 +516,6 @@ export class CleaningManager {
       return;
     }
 
-    // 다음 청소 대상으로 이동
     this.moveToCurrentCleanable();
   }
 

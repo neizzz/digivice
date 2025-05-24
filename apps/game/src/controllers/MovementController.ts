@@ -1,5 +1,4 @@
 import type * as PIXI from "pixi.js";
-import { Character } from "../entities/Character";
 import { CharacterState } from "../types/Character";
 
 /**
@@ -10,7 +9,8 @@ export interface MovableCharacter {
   getPosition(): { x: number; y: number };
   setFlipped(flipped: boolean): void;
   getSpeed(): number;
-  update(state: CharacterState): void;
+  getState(): CharacterState;
+  setState(state: CharacterState): void;
 }
 
 /**
@@ -68,14 +68,11 @@ export class MovementController {
     const newX = currentPos.x + moveDistanceX;
     const newY = currentPos.y + moveDistanceY;
 
-    // 위치 업데이트
+    if (this.character.getState() !== CharacterState.WALKING) {
+      this.character.setState(CharacterState.WALKING);
+    }
     this.character.setPosition(newX, newY);
-
-    // 이동 방향에 따라 캐릭터 방향 설정
     this.updateCharacterDirection(directionX);
-
-    // 걷기 상태로 업데이트
-    this.character.update(CharacterState.WALKING);
 
     return false;
   }

@@ -94,6 +94,9 @@ export const AssetLoader = {
   loadingPromise: null as Promise<GameAssets> | null,
   BASE_PATH: "/game",
   async loadAssets(): Promise<void> {
+    console.groupCollapsed(
+      "[AssetLoader] AssetLoader.loadAssets() called, loading assets..."
+    );
     try {
       console.log(
         "[AssetLoader] Starting to load assets from:",
@@ -119,6 +122,7 @@ export const AssetLoader = {
       console.error("[AssetLoader] Error loading assets:", error);
       throw error;
     }
+    console.groupEnd();
   },
   getAssets(): GameAssets {
     if (this.isLoading) {

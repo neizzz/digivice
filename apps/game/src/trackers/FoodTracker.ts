@@ -55,17 +55,17 @@ export class FoodTracker {
    */
   private setupEventListeners(): void {
     // Food가 착지했을 때 처리
-    this.eventBus.on(EventTypes.FOOD_LANDED, (data) => {
+    this.eventBus.on(EventTypes.Food.FOOD_LANDED, (data) => {
       this.onFoodLanded(data.id);
     });
 
     // 음식을 먹기 시작했을 때 처리
-    this.eventBus.on(EventTypes.FOOD_EATING_STARTED, (data) => {
+    this.eventBus.on(EventTypes.Food.FOOD_EATING_STARTED, (data) => {
       this.onFoodEatingStarted(data.id);
     });
 
     // 음식을 다 먹었을 때 처리
-    this.eventBus.on(EventTypes.FOOD_EATING_FINISHED, (data) => {
+    this.eventBus.on(EventTypes.Food.FOOD_EATING_FINISHED, (data) => {
       this.onFoodEatingFinished(data.id, data.freshness);
     });
   }
@@ -148,7 +148,7 @@ export class FoodTracker {
           const foodId = bestFood.getId();
 
           // GameDataManager에서 이미 해당 음식 ID가 있는지 확인
-          const gameData = await GameDataManager.loadData();
+          const gameData = await GameDataManager.getData();
           const foodExists = gameData?.objectsMap?.[ObjectType.Food]?.some(
             (food) => food.id === foodId
           );
@@ -231,7 +231,7 @@ export class FoodTracker {
    */
   private onFoodLanded(foodId: string): void {
     // GameDataManager에서 해당 Food가 존재하는지 확인
-    GameDataManager.loadData().then((gameData) => {
+    GameDataManager.getData().then((gameData) => {
       // Food 존재 여부 확인
       if (
         !gameData?.objectsMap?.[ObjectType.Food]?.some(
@@ -409,7 +409,7 @@ export class FoodTracker {
           );
 
           // 캐릭터 상태 원래대로 복원하고 랜덤 움직임 다시 활성화
-          this.character.update(CharacterState.IDLE);
+          this.character.setState(CharacterState.IDLE);
           this.character.enableRandomMovement();
 
           // 음식 상태를 LANDED로 되돌림 (상태값 1)
@@ -426,7 +426,7 @@ export class FoodTracker {
           console.log("음식이 상했습니다. 이동을 중단합니다.");
 
           // 캐릭터 상태 원래대로 복원하고 랜덤 움직임 다시 활성화
-          this.character.update(CharacterState.IDLE);
+          this.character.setState(CharacterState.IDLE);
           this.character.enableRandomMovement();
 
           // 음식 상태를 LANDED로 되돌림
@@ -474,7 +474,7 @@ export class FoodTracker {
             console.log("음식이 상했습니다. 먹지 않습니다.");
 
             // 캐릭터 상태 원래대로 복원하고 랜덤 움직임 다시 활성화
-            this.character.update(CharacterState.IDLE);
+            this.character.setState(CharacterState.IDLE);
             this.character.enableRandomMovement();
 
             // 음식 상태를 LANDED로 되돌림
@@ -497,7 +497,7 @@ export class FoodTracker {
             }, 0);
           } else {
             // 음식이 상하지 않았으면 먹기 시작
-            this.character.update(CharacterState.EATING);
+            this.character.setState(CharacterState.EATING);
             food.startEating();
             resolve();
           }
@@ -532,7 +532,7 @@ export class FoodTracker {
    */
   private onFoodEatingStarted(foodId: string): void {
     // 캐릭터를 먹는 상태로 변경
-    this.character.update(CharacterState.EATING);
+    this.character.setState(CharacterState.EATING);
   }
 
   /**
@@ -556,7 +556,7 @@ export class FoodTracker {
     console.log(`음식을 먹고 스태미나가 ${staminaRecovery} 회복되었습니다.`);
 
     // 캐릭터 상태 변경 및 랜덤 움직임 다시 활성화
-    this.character.update(CharacterState.IDLE);
+    this.character.setState(CharacterState.IDLE);
     this.character.enableRandomMovement();
 
     // 씬에서 해당 ID의 Food 객체 찾기 (신선도 상태 체크를 위해)
@@ -605,9 +605,9 @@ export class FoodTracker {
   public destroy(): void {
     // EventBus 이벤트 구독 해제
     const eventBus = EventBus.getInstance();
-    eventBus.off(EventTypes.FOOD_LANDED);
-    eventBus.off(EventTypes.FOOD_EATING_STARTED);
-    eventBus.off(EventTypes.FOOD_EATING_FINISHED);
-    eventBus.off(EventTypes.FOOD_CREATED);
+    eventBus.off(EventTypes.Food.FOOD_LANDED);
+    eventBus.off(EventTypes.Food.FOOD_EATING_STARTED);
+    eventBus.off(EventTypes.Food.FOOD_EATING_FINISHED);
+    eventBus.off(EventTypes.Food.FOOD_CREATED);
   }
 }
