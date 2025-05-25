@@ -23,7 +23,7 @@ export abstract class Cleanable extends ObjectBase {
     this.cleanProgress = 1;
 
     // GameData 반영을 위한 이벤트 발행
-    EventBus.publish(EventTypes.OBJECT_CLEANED, {
+    EventBus.publish(EventTypes.Object.OBJECT_CLEANED, {
       type: this.getType(),
       id: this.getId(),
     });

@@ -42,6 +42,7 @@ export class DebugUI {
 
     // 스태미나 초기값 동기화
     GameDataManager.getData().then((data) => {
+      console.log("[DebugUI] 게임 데이터 로드 완료: ", data);
       if (data?.character?.status) {
         this.staminaState.current = data.character.status.stamina;
         this.updateUI();
@@ -177,7 +178,7 @@ export class DebugUI {
         if (
           confirm("정말로 게임 데이터를 삭제하시겠습니까? (새로고침 후 반영됨)")
         ) {
-          await GameDataManager.clearData();
+          GameDataManager.clearData();
         }
       }
     );

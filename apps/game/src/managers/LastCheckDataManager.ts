@@ -54,7 +54,10 @@ class _LastCheckDataManager {
     return this.data;
   }
 
-  // FIXME: 리팩토링 포인트(GameDataManager 저장 로직이 상이함. 일관성 이슈.)
+  // FIXME:
+  // 리팩토링 포인트(GameDataManager 저장 로직이 상이함. 일관성 이슈.)
+  // 현재는 _saveData로 대체함.
+  //
   // private _setupEventListeners(): void {
   //   EventBus.subscribe(
   //     EventTypes.Character.CHARACTER_STATUS_UPDATED,
@@ -120,7 +123,7 @@ class _LastCheckDataManager {
       evolutionGauge: Date.now(),
     };
 
-    return await this._saveData(initialData);
+    return this._saveData(initialData);
   }
 }
 

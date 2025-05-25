@@ -43,7 +43,7 @@ export class CharacterManager {
       app: this.game.app,
       status: characterInfo.status,
     });
-    await character.initialize(characterInfo, scene);
+    character.initialize(characterInfo, scene);
     this.setEntity(character);
 
     EventBus.publish(EventTypes.Character.CHARACTER_EVOLUTION, {
@@ -109,8 +109,9 @@ export class CharacterManager {
   }): void {
     const { before, after } = params;
     const character = this.character as Character;
+    const isEvolved = before.key !== after.key;
 
-    if (before.key !== after.key) {
+    if (isEvolved) {
       console.log(
         `[CharacterManager] 캐릭터 변경/진화: ${before.key} -> ${after.key}`
       );
@@ -121,7 +122,6 @@ export class CharacterManager {
       });
 
       character.setCharacterKey(after.key as CharacterKey);
-      character.reflectCharacterStatus(after.status);
     }
 
     const beforeStatus = before.status;
@@ -134,7 +134,7 @@ export class CharacterManager {
         `[CharacterManager] 상태 변경: ${beforeStatus.state} -> ${afterStatus.state}`
       );
       changedStatus.state = afterStatus.state;
-      character.setState(afterStatus.state);
+      // character.setState(afterStatus.state);
     }
     // 스태미나 비교
     if (beforeStatus.stamina !== afterStatus.stamina) {
@@ -168,12 +168,17 @@ export class CharacterManager {
       changedStatus.timeOfZeroStamina = afterStatus.timeOfZeroStamina;
     }
 
-    if (Object.keys(changedStatus).length > 0) {
+    const isChanged = Object.keys(changedStatus).length > 0;
+
+    if (isChanged) {
       EventBus.publish(EventTypes.Character.CHARACTER_STATUS_UPDATED, {
         status: changedStatus,
       });
     }
+    if (isChanged || isEvolved) {
+      character.reflectCharacterStatus(afterStatus);
+    }
 
-    this.character?.updateTransform();
+    character.updateTransform();
   }
 }

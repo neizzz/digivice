@@ -28,7 +28,7 @@ export class Character extends PIXI.Container {
   private characterInfo!: (typeof CharacterDictionary)[CharacterKey]; // 캐릭터 정보 저장
   private characterKey!: CharacterKey; // CharacterKey 저장
   private foodTracker: FoodTracker | null = null; // FoodTracker 인스턴스
-  private statusViewManager: CharacterStatusViewManager;
+  private statusViewManager!: CharacterStatusViewManager;
   private _initialized = false; // 초기화 여부
 
   // 캐릭터 정보를 반환하는 메서드 추가
@@ -47,10 +47,7 @@ export class Character extends PIXI.Container {
   }
 
   // NOTE: 코드 진행 순서 중요!
-  public async initialize(
-    characterInfo: GameData["character"],
-    scene: Scene
-  ): Promise<void> {
+  public initialize(characterInfo: GameData["character"], scene: Scene): void {
     if (this._initialized) {
       console.warn("[Character] 이미 초기화된 캐릭터입니다.");
       return;
@@ -61,26 +58,21 @@ export class Character extends PIXI.Container {
       status.position.y ?? this.app.screen.height / 2
     );
     this.setCharacterKey(key as CharacterKey);
+    this.statusViewManager = new CharacterStatusViewManager(this);
     this.reflectCharacterStatus(status);
     scene.addChild(this);
 
-    // RandomMovementController 초기화
     if (this.getState() !== CharacterState.DEAD) {
-      this.randomMovementController = this._initRandomMovementController({
-        minIdleTime: CHARACTER_MOVEMENT.MIN_IDLE_TIME,
-        maxIdleTime: CHARACTER_MOVEMENT.MAX_IDLE_TIME,
-        minMoveTime: CHARACTER_MOVEMENT.MIN_MOVE_TIME,
-        maxMoveTime: CHARACTER_MOVEMENT.MAX_MOVE_TIME,
-      });
-      this.randomMovementController.setMoveSpeed(this.speed);
-      this.statusViewManager = new CharacterStatusViewManager(this);
+      // this.randomMovementController = this._initRandomMovementController({
+      //   minIdleTime: CHARACTER_MOVEMENT.MIN_IDLE_TIME,
+      //   maxIdleTime: CHARACTER_MOVEMENT.MAX_IDLE_TIME,
+      //   minMoveTime: CHARACTER_MOVEMENT.MIN_MOVE_TIME,
+      //   maxMoveTime: CHARACTER_MOVEMENT.MAX_MOVE_TIME,
+      // });
+      // this.randomMovementController.setMoveSpeed(this.speed);
       this._initFoodTracker();
     }
 
-    // TODO: 상태 아이콘 초기화 (예: sick, urgent 등)
-    // if (this.status.statusIcon) {
-    //   this.statusManager.setStatus(this.status.statusIcon);
-    // }
     this._initialized = true;
   }
 
@@ -89,13 +81,15 @@ export class Character extends PIXI.Container {
       "[Character] 캐릭터 상태 반영:",
       JSON.stringify(status, null, 2)
     );
-
-    this.setState(status.state);
-    // TODO:
-    // 상태 아이콘 업데이트
-    // if (status.statusIcon) {
-    //   this.statusViewManager.setStatus(status.statusIcon);
-    // }
+    if (this.getState() !== status.state) {
+      this.setState(status.state);
+    }
+    status.sickness
+      ? this.statusViewManager.addStatus("sick")
+      : this.statusViewManager.removeStatus("sick");
+    status.stamina === 0
+      ? this.statusViewManager.addStatus("urgent")
+      : this.statusViewManager.removeStatus("urgent");
   }
 
   /**
@@ -265,37 +259,35 @@ export class Character extends PIXI.Container {
     return true;
   }
 
-  /**
-   * NOTE: 호출 단에서, 같은 상태일 경우 호출하지 않아야 함.
-   */
-  public setState(state: CharacterState): void {
-    if (this.currentState === state) {
+  public setCharacterKey(characterKey: CharacterKey): void {
+    if (this.characterKey === characterKey) {
       console.warn(
-        `[Character] 캐릭터 상태가 이미 "${state}"로 설정되어 있습니다. skipped.`
+        `[Character] 캐릭터 키("${this.characterKey}")가 이미 설정되어 있습니다. ignore.`
       );
-    }
-    this.currentState = state;
-    if (state === CharacterState.DEAD) {
-      this._initializeAsDead();
       return;
     }
-    const animationName = this.characterInfo.animationMapping[state];
-    if (animationName) {
-      this._setAnimation(animationName);
-    } else {
-      console.warn(`[Character] No animation mapped for state: ${state}`);
-    }
+    this.characterKey = characterKey;
+    const assets = AssetLoader.getAssets();
+    this.spritesheet = assets.characterSprites[this.characterKey];
+    this._loadCharacterSprite(this.spritesheet);
+    this.characterInfo = CharacterDictionary[this.characterKey];
+    this.speed = this.characterInfo.speed;
+    this.scaleFactor = this.characterInfo.scale;
+    this.randomMovementController?.setMoveSpeed(this.speed);
   }
-
-  // 명시적으로 캐릭터 위치 설정하는 메서드 추가
+  public getCharacterKey(): CharacterKey {
+    return this.characterKey;
+  }
   public setPosition(x: number, y: number): void {
     this.position.set(x, y);
     this.zIndex = y;
   }
-
-  /**
-   * 캐릭터의 방향을 설정합니다 (좌우 반전)
-   */
+  public getPosition(): { x: number; y: number } {
+    return {
+      x: this.position.x,
+      y: this.position.y,
+    };
+  }
   public setFlipped(flipped: boolean): void {
     // 이미 같은 방향이면 변경하지 않음
     if (this.flipCharacter === flipped) return;
@@ -309,51 +301,44 @@ export class Character extends PIXI.Container {
         : Math.abs(this.animatedSprite.scale.x);
     }
   }
-
-  /**
-   * 캐릭터의 현재 위치를 반환합니다
-   */
-  public getPosition(): { x: number; y: number } {
-    return {
-      x: this.position.x,
-      y: this.position.y,
-    };
-  }
-
   public getSpeed(): number {
     return this.speed;
   }
-
   /**
-   * 캐릭터의 랜덤 움직임을 비활성화합니다
+   * NOTE: 호출 단에서, 같은 상태일 경우 호출하지 않아야 함.
    */
-  public disableRandomMovement(): void {
-    if (this.randomMovementController) {
-      this.randomMovementController.disable();
-      console.log("[Character] Random movement disabled for character");
+  public setState(state: CharacterState, shouldTriggerEvent = false): void {
+    if (this.currentState === state) {
+      console.warn(
+        `[Character] 캐릭터 상태가 이미 "${state}"로 설정되어 있습니다. skipped.`
+      );
+    } else {
+      console.log(
+        `[Character] 캐릭터 상태 변경: ${this.currentState} -> ${state}`
+      );
     }
-  }
+    this.currentState = state;
 
-  /**
-   * 캐릭터의 랜덤 움직임을 활성화합니다
-   */
-  public enableRandomMovement(): void {
-    if (this.randomMovementController) {
-      this.randomMovementController.enable();
-      console.log("[Character] Random movement enabled for character");
+    if (shouldTriggerEvent) {
+      this.eventBus.emit(EventTypes.Character.CHARACTER_STATUS_UPDATED, {
+        status: { state },
+      });
     }
+    if (state === CharacterState.DEAD) {
+      this._initializeAsDead();
+      return;
+    }
+    const animationName = this.characterInfo.animationMapping[state];
+    if (animationName) {
+      this._setAnimation(animationName);
+    } else {
+      console.warn(`[Character] No animation mapped for state: ${state}`);
+    }
+    // 상태 아이콘은 statusViewManager에서 관리
   }
-
-  /**
-   * 캐릭터의 현재 상태를 반환합니다.
-   */
   public getState(): CharacterState {
     return this.currentState;
   }
-
-  /**
-   * 캐릭터의 현재 스태미나를 반환합니다.
-   */
   public async getStamina(): Promise<number> {
     try {
       const gameData = await GameDataManager.getData();
@@ -364,27 +349,47 @@ export class Character extends PIXI.Container {
       return Number.NaN;
     }
   }
-
-  /**
-   * 캐릭터의 최대 스태미나를 반환합니다.
-   */
   public getMaxStamina(): number {
     return this.characterInfo.maxStamina;
   }
 
-  /**
-   * 스태미나를 증가시킵니다.
-   * @param amount 증가시킬 양
-   */
+  public disableRandomMovement(): void {
+    if (this.randomMovementController) {
+      this.randomMovementController.disable();
+      console.log("[Character] Random movement disabled for character");
+    }
+  }
+  public enableRandomMovement(): void {
+    if (this.randomMovementController) {
+      this.randomMovementController.enable();
+      console.log("[Character] Random movement enabled for character");
+    }
+  }
+
+  public discoverEmotion(): void {
+    this.statusViewManager.setEmotion("discover");
+  }
+
+  public happyEmotion(): void {
+    this.statusViewManager.setEmotion("happy");
+  }
+
   public async increaseStamina(amount: number): Promise<void> {
     try {
       const gameData = await GameDataManager.getData();
-      if (!gameData) return;
+      if (!gameData) {
+        console.error("[Character] 게임 데이터가 없습니다.");
+        return;
+      }
 
       gameData.character.status.timeOfZeroStamina = undefined;
+      this.statusViewManager.removeStatus("urgent");
       const currentStamina = gameData.character.status.stamina;
       const maxStamina = this.characterInfo.maxStamina;
       const newStamina = Math.min(maxStamina, currentStamina + amount);
+      if (newStamina === maxStamina) {
+        this.statusViewManager.setEmotion("happy");
+      }
       this.eventBus.emit(EventTypes.Character.CHARACTER_STATUS_UPDATED, {
         status: {
           stamina: newStamina,
@@ -395,33 +400,6 @@ export class Character extends PIXI.Container {
     }
   }
 
-  /**
-   * 스태미나를 감소시킵니다.
-   * @param amount 감소시킬 양
-   * @returns 스태미나가 충분했는지 여부
-   */
-  public async decreaseStamina(amount: number): Promise<void> {
-    try {
-      const gameData = await GameDataManager.getData();
-      if (!gameData) return;
-
-      const currentStamina = gameData.character.status.stamina;
-
-      if (currentStamina >= amount) {
-        const newStamina = Math.max(0, currentStamina - amount);
-        this.eventBus.emit(EventTypes.Character.CHARACTER_STATUS_UPDATED, {
-          status: {
-            stamina: newStamina,
-          },
-        });
-      }
-    } catch (error) {}
-  }
-
-  /**
-   * 캐릭터 위치에 Poob을 생성합니다.
-   * @returns 생성된 Poob 객체
-   */
   public createPoob(): Poob | null {
     if (!this.app) {
       console.error("[Character] App reference is not set, cannot create Poob");
@@ -447,30 +425,6 @@ export class Character extends PIXI.Container {
     return poob;
   }
 
-  public setCharacterKey(characterKey: CharacterKey): void {
-    if (this.characterKey === characterKey) {
-      console.warn(
-        `[Character] 캐릭터 키("${this.characterKey}")가 이미 설정되어 있습니다. ignore.`
-      );
-      return;
-    }
-    this.characterKey = characterKey;
-    const assets = AssetLoader.getAssets();
-    this.spritesheet = assets.characterSprites[this.characterKey];
-    this._loadCharacterSprite(this.spritesheet);
-    this.characterInfo = CharacterDictionary[this.characterKey];
-    this.speed = this.characterInfo.speed;
-    this.scaleFactor = this.characterInfo.scale;
-    this.randomMovementController?.setMoveSpeed(this.speed);
-  }
-
-  public getCharacterKey(): CharacterKey {
-    return this.characterKey;
-  }
-
-  /**
-   * 캐릭터의 현재 위치와 상태를 저장하기 위해 이벤트를 발행합니다.
-   */
   public savePositionAndState(): void {
     try {
       const position = this.getPosition();
@@ -496,10 +450,6 @@ export class Character extends PIXI.Container {
     }
   }
 
-  /**
-   * 캐릭터를 죽음 상태로 만듭니다.
-   * 상태를 DEAD로 변경하고 필요에 따라 tomb 스프라이트를 표시합니다.
-   */
   public async die(): Promise<void> {
     try {
       // 원래 characterKey 기록 (로깅용)
@@ -557,9 +507,6 @@ export class Character extends PIXI.Container {
     }
   }
 
-  /**
-   * 질병 발생시키기 (확률 검사 없이 직접 질병 상태로 변경)
-   */
   public async makeSick(): Promise<void> {
     try {
       // 상태 업데이트 이벤트 발행 (sick: true)
@@ -570,10 +517,6 @@ export class Character extends PIXI.Container {
     }
   }
 
-  /**
-   * 캐릭터의 상태 업데이트 이벤트를 발행합니다.
-   * @param statusData 업데이트할 상태 데이터
-   */
   private _emitStatusUpdateEvent(
     statusData: Partial<CharacterStatusData>
   ): void {
@@ -583,26 +526,19 @@ export class Character extends PIXI.Container {
     console.log("[Character] 캐릭터 상태 업데이트 이벤트 발행:", statusData);
   }
 
-  /**
-   * Character 클래스 정리 메서드
-   */
   public destroy(): void {
-    // FoodTracker 정리
     if (this.foodTracker) {
       this.foodTracker.destroy();
       this.foodTracker = null;
     }
-
-    // 랜덤 움직임 컨트롤러 정리
     if (this.randomMovementController) {
       this.randomMovementController.disable();
     }
-
-    // 스프라이트 정리
     if (this.animatedSprite) {
       this.removeChild(this.animatedSprite);
       this.animatedSprite.destroy();
       this.animatedSprite = undefined;
     }
+    // 상태/감정 아이콘 관련 정리 불필요 (statusViewManager에서 관리)
   }
 }

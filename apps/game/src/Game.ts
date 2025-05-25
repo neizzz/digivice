@@ -164,10 +164,9 @@ export class Game {
           this._setupGameLoop();
         });
 
-        // // DebugUI에 Game 인스턴스 설정
-        // if (import.meta.env.DEV === true) {
-        //   DebugUI.getInstance().setGame(this);
-        // }
+        if (import.meta.env.DEV) {
+          DebugUI.getInstance();
+        }
       })
       .catch((error) => {
         console.error("[Game] 에셋 로딩 오류:", error);
@@ -200,7 +199,7 @@ export class Game {
 
       this.characterManager.setEntity(entity);
 
-      if (entity instanceof Character) {
+      if (import.meta.env.DEV && entity instanceof Character) {
         DebugUI.getInstance().setCharacter(entity);
       }
     } catch (error) {

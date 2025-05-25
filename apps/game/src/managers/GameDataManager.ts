@@ -19,17 +19,25 @@ class _GameDataManager {
     }
   }
 
-  // 이벤트 구독 초기화
   public initialize(): void {
     if (this.isInitialized) return;
     this._setupEventListeners();
-    this.isInitialized = true;
-    console.log("[GameDataManager] 초기화 완료.");
+    this._loadData()
+      .then((data) => {
+        if (data) {
+          this.data = data;
+          console.log("[GameDataManager] 기존 게임 데이터 로드 완료.");
+        } else {
+          console.log("[GameDataManager] 기존 게임 데이터가 없습니다.");
+        }
+        this.isInitialized = true;
+        console.log("[GameDataManager] 초기화 완료.");
+      })
+      .catch((error) => {
+        console.error("[GameDataManager] 초기화 실패:", error);
+      });
   }
 
-  /**
-   * 모든 이벤트 리스너를 설정합니다.
-   */
   private _setupEventListeners(): void {
     // 미니게임 점수 업데이트 이벤트 구독
     EventBus.subscribe(EventTypes.Game.MINIGAME_SCORE_UPDATED, (data) => {
@@ -44,7 +52,6 @@ class _GameDataManager {
       }
     });
 
-    // 캐릭터 상태 업데이트 이벤트 구독
     EventBus.subscribe(
       EventTypes.Character.CHARACTER_STATUS_UPDATED,
       async (data) => {
@@ -55,7 +62,9 @@ class _GameDataManager {
         const currentData = this.data;
 
         if (!currentData) {
-          throw new Error("Must not to be reached: 게임 데이터가 없습니다.");
+          throw new Error(
+            "[GameDataManager] Must not to be reached: 게임 데이터가 없습니다."
+          );
         }
 
         const newData = {
@@ -72,7 +81,6 @@ class _GameDataManager {
       }
     );
 
-    // 캐릭터 진화 이벤트 구독
     EventBus.subscribe(EventTypes.Character.CHARACTER_EVOLUTION, (data) => {
       console.debug("[GameDataManager] 캐릭터 진화:", data);
       const currentData = this.data;
@@ -94,7 +102,6 @@ class _GameDataManager {
       this._saveData(newData);
     });
 
-    // Food 생성 이벤트 구독
     EventBus.subscribe(EventTypes.Food.FOOD_CREATED, (data) => {
       console.debug("[GameDataManager] Food 생성:", data);
       const currentData = this.data;
@@ -118,7 +125,6 @@ class _GameDataManager {
       }
     });
 
-    // Poob 생성 이벤트 구독
     EventBus.subscribe(EventTypes.Poob.POOB_CREATED, (data) => {
       console.debug("[GameDataManager] Poob 생성:", data);
       const currentData = this.data;
@@ -139,7 +145,6 @@ class _GameDataManager {
       }
     });
 
-    // 음식 섭취 완료 이벤트 구독
     EventBus.subscribe(EventTypes.Food.FOOD_EATING_FINISHED, async (data) => {
       console.debug("[GameDataManager] 음식 섭취 완료:", data);
       // 먹은 음식 객체 제거
@@ -148,7 +153,6 @@ class _GameDataManager {
       }
     });
 
-    // 오브젝트 청소 이벤트 구독 (Food, Poob 등)
     EventBus.subscribe(EventTypes.Object.OBJECT_CLEANED, async (data) => {
       console.debug("[GameDataManager] 오브젝트 청소됨:", data);
       const { type, id } = data;
@@ -156,18 +160,12 @@ class _GameDataManager {
     });
   }
 
-  /**
-   * 초기 게임 데이터를 생성합니다.
-   * @param characterKey 선택한 캐릭터 키
-   * @param name 캐릭터 이름
-   * @returns 생성된 게임 데이터
-   */
   public createInitialData(
     formData: {
       name: string;
     },
     params: { position: Position }
-  ): Promise<GameData> {
+  ): GameData {
     const { name } = formData;
     const { position } = params;
     const randomEggTextureKey = `egg_${Math.floor(Math.random() * 30)}`;
@@ -183,7 +181,8 @@ class _GameDataManager {
           position,
           state: CharacterState.IDLE,
           stamina: 6,
-          sickness: false,
+          // sickness: false,
+          sickness: true,
           evolutionGauge: 0,
           timeOfZeroStamina: undefined,
         },
@@ -203,6 +202,17 @@ class _GameDataManager {
     return this._saveData(initialGameData);
   }
 
+  public clearData(): void {
+    this.data = null;
+    this.storage.removeItem(this.GAME_DATA_KEY);
+    console.log("[GameDataManager] 게임 데이터 초기화 완료.");
+  }
+
+  public async getData(): Promise<GameData | undefined> {
+    if (this.data) return this.data;
+    return this._loadData();
+  }
+
   public async _loadData(): Promise<GameData | undefined> {
     const savedData = await this.storage.getItem(this.GAME_DATA_KEY);
 
@@ -219,15 +229,10 @@ class _GameDataManager {
     }
   }
 
-  public async getData(): Promise<GameData | undefined> {
-    if (this.data) return this.data;
-    return this._loadData();
-  }
-
   public _saveData(data: GameData): GameData {
     this.data = data;
     this.data._savedAt = Date.now();
-    this.storage.setItem(this.GAME_DATA_KEY, JSON.stringify(data));
+    this.storage.setItem(this.GAME_DATA_KEY, JSON.stringify(this.data));
     return this.data;
   }
 

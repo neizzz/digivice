@@ -188,24 +188,12 @@ export class Food extends Cleanable {
       return foodSprites?.[textureKey];
     }
 
-    if (!foodSprites || Object.keys(foodSprites).length === 0) {
-      console.warn("Food sprites not loaded or empty. Using fallback texture.");
-      return PIXI.Texture.WHITE;
-    }
-
     // 랜덤으로 foodSprites 중 하나 선택
     const foodKeys = Object.keys(foodSprites);
     const randomKey = foodKeys[Math.floor(Math.random() * foodKeys.length)];
     const texture = foodSprites[randomKey];
 
-    if (!texture) {
-      console.warn(
-        `Texture not found for key: ${randomKey}. Using fallback texture.`
-      );
-      return PIXI.Texture.WHITE;
-    }
-
-    console.log(`Selected random food texture: ${randomKey}`);
+    console.log(`[Food] Selected random food texture: ${randomKey}`);
     return texture;
   }
 
@@ -303,7 +291,7 @@ export class Food extends Cleanable {
     finalPosition: { x: number; y: number },
     textureKey: string
   ) {
-    console.log("Throw started with texture:", textureKey);
+    console.log("[Food] Throw started with texture:", textureKey);
     this.state = FoodState.THROWING;
 
     // FOOD_CREATED 이벤트 발행
@@ -318,13 +306,13 @@ export class Food extends Cleanable {
    * 음식이 착지했을 때 호출되는 콜백
    */
   private onFoodLanded(position: { x: number; y: number }): void {
-    console.log("Food landed at position:", position);
+    console.log("[Food] Food landed at position:", position);
     this.state = FoodState.LANDED;
 
     // 디버그 모드에서 음식 먹기가 방지된 경우 먹지 않음
     if (DebugFlags.getInstance().isEatingPrevented()) {
       console.log(
-        "디버그 모드: preventEating 플래그가 활성화되어 음식에 접근하지 않습니다."
+        "[Food] 디버그 모드: preventEating 플래그가 활성화되어 음식에 접근하지 않습니다."
       );
       return;
     }

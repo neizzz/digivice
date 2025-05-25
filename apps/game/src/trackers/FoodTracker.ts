@@ -59,11 +59,6 @@ export class FoodTracker {
       this.onFoodLanded(data.id);
     });
 
-    // 음식을 먹기 시작했을 때 처리
-    this.eventBus.on(EventTypes.Food.FOOD_EATING_STARTED, (data) => {
-      this.onFoodEatingStarted(data.id);
-    });
-
     // 음식을 다 먹었을 때 처리
     this.eventBus.on(EventTypes.Food.FOOD_EATING_FINISHED, (data) => {
       this.onFoodEatingFinished(data.id, data.freshness);
@@ -156,7 +151,7 @@ export class FoodTracker {
           if (foodExists && !this.foodQueue.includes(foodId)) {
             this.foodQueue.push(foodId);
             console.log(
-              `가장 좋은 음식을 찾아 대기열에 추가했습니다: ${foodId}`
+              `[FoodTracker] 가장 좋은 음식을 찾아 대기열에 추가했습니다: ${foodId}`
             );
 
             // 이동 상태가 아니고 먹는 중이 아니면 음식으로 이동 시작
@@ -170,7 +165,7 @@ export class FoodTracker {
         }
       }
     } catch (error) {
-      console.error("음식 검색 중 오류:", error);
+      console.error("[FoodTracker] 음식 검색 중 오류:", error);
     } finally {
       this.isSearchingFood = false;
     }
@@ -243,48 +238,20 @@ export class FoodTracker {
         );
 
         let foundFood: Food | null = null;
-
-        for (const child of this.targetContainer.children) {
-          if (!(child instanceof PIXI.Sprite)) {
-            continue;
-          }
-
-          const objectRef = ObjectBase.getObjectRef(child);
-          if (!objectRef) {
-            continue; // ObjectBase 참조가 없는 경우 무시
-          }
-
-          if (objectRef.getType() === ObjectType.Food) {
-            if (objectRef && objectRef.getId() === foodId) {
-              foundFood = objectRef as Food;
-              break; // 찾았으면 반복 중단
-            }
-          }
-        }
+        foundFood = this.findFoodById(foodId) || null;
       }
 
       // 디버그 모드에서 음식 먹기가 방지된 경우 무시
       if (DebugFlags.getInstance().isEatingPrevented()) {
         console.log(
-          "디버그 모드: preventEating 플래그가 활성화되어 음식을 처리하지 않습니다."
+          "[FoodTracker] 디버그 모드: preventEating 플래그가 활성화되어 음식을 처리하지 않습니다."
         );
         return;
       }
 
       // 씬에서 해당 ID의 Food 객체 찾기
       let food: Food | null = null;
-      for (const child of this.targetContainer.children) {
-        if (!(child instanceof PIXI.Sprite)) continue;
-
-        const objectRef = ObjectBase.getObjectRef(child);
-        if (!objectRef || objectRef.getType() !== ObjectType.Food) continue;
-
-        const foodObj = objectRef as Food;
-        if (foodObj.getId() === foodId) {
-          food = foodObj;
-          break;
-        }
-      }
+      food = this.findFoodById(foodId) || null;
 
       if (!food) {
         console.warn(`Food object ${foodId} not found in scene`);
@@ -301,7 +268,7 @@ export class FoodTracker {
       if (!this.foodQueue.includes(foodId)) {
         this.foodQueue.push(foodId);
         console.log(
-          `음식이 대기열에 추가되었습니다. 현재 대기열 길이: ${this.foodQueue.length}`
+          `[FoodTracker] 음식이 대기열에 추가되었습니다. 현재 대기열 길이: ${this.foodQueue.length}`
         );
 
         // 현재 먹거나 이동 중이 아닐 때만 처리
@@ -332,22 +299,12 @@ export class FoodTracker {
       const foodId = this.foodQueue[0];
 
       // 씬에서 해당 ID의 Food 객체 찾기
-      let food: Food | null = null;
-      for (const child of this.targetContainer.children) {
-        if (!(child instanceof PIXI.Sprite)) continue;
-
-        const objectRef = ObjectBase.getObjectRef(child);
-        if (!objectRef || objectRef.getType() !== ObjectType.Food) continue;
-
-        const foodObj = objectRef as Food;
-        if (foodObj.getId() === foodId) {
-          food = foodObj;
-          break;
-        }
-      }
+      const food = this.findFoodById(foodId);
 
       if (!food) {
-        console.warn(`Food ${foodId} not found in scene, removing from queue`);
+        console.warn(
+          `[FoodTracker] Food ${foodId} not found in scene, removing from queue`
+        );
         this.foodQueue.shift();
         this.isMovingToFood = false;
         this.processNextFood();
@@ -356,18 +313,14 @@ export class FoodTracker {
 
       // 캐릭터의 랜덤 움직임 비활성화
       this.character.disableRandomMovement();
-
-      // 캐릭터가 음식으로 이동
       await this.moveCharacterToFood(food);
 
       try {
-        // 음식 먹기가 완료될 때까지 대기
         await food.waitForEatingFinished();
-
         // 대기열에서 제거
         this.foodQueue.shift();
       } catch (error) {
-        console.error("음식 먹기 중 오류 발생:", error);
+        console.error("[FoodTracker] 음식 먹기 중 오류 발생:", error);
         // 오류가 발생한 음식은 대기열에서 제거
         this.foodQueue.shift();
       }
@@ -391,6 +344,8 @@ export class FoodTracker {
    */
   private async moveCharacterToFood(food: Food): Promise<void> {
     return new Promise<void>((resolve) => {
+      // NOTE: 접근할 음식을 찾았을 때
+      this.character.discoverEmotion();
       // 음식의 상태를 "접근 중"으로 변경
       food.setState(4); // FoodState.APPROACHING과 동일한 값
 
@@ -409,7 +364,7 @@ export class FoodTracker {
           );
 
           // 캐릭터 상태 원래대로 복원하고 랜덤 움직임 다시 활성화
-          this.character.setState(CharacterState.IDLE);
+          this.character.setState(CharacterState.IDLE, true);
           this.character.enableRandomMovement();
 
           // 음식 상태를 LANDED로 되돌림 (상태값 1)
@@ -423,10 +378,10 @@ export class FoodTracker {
 
         // 이동 중에 음식이 상한 상태인지 확인
         if (food.getFreshness() === FoodFreshness.STALE) {
-          console.log("음식이 상했습니다. 이동을 중단합니다.");
+          console.log("[FoodTracker] 음식이 상했습니다. 이동을 중단합니다.");
 
           // 캐릭터 상태 원래대로 복원하고 랜덤 움직임 다시 활성화
-          this.character.setState(CharacterState.IDLE);
+          this.character.setState(CharacterState.IDLE, true);
           this.character.enableRandomMovement();
 
           // 음식 상태를 LANDED로 되돌림
@@ -471,10 +426,10 @@ export class FoodTracker {
 
           // 마지막 순간에 음식이 상한 상태인지 다시 확인
           if (food.getFreshness() === FoodFreshness.STALE) {
-            console.log("음식이 상했습니다. 먹지 않습니다.");
+            console.log("[FoodTracker] 음식이 상했습니다. 먹지 않습니다.");
 
             // 캐릭터 상태 원래대로 복원하고 랜덤 움직임 다시 활성화
-            this.character.setState(CharacterState.IDLE);
+            this.character.setState(CharacterState.IDLE, true);
             this.character.enableRandomMovement();
 
             // 음식 상태를 LANDED로 되돌림
@@ -528,18 +483,12 @@ export class FoodTracker {
   }
 
   /**
-   * 음식을 먹기 시작했을 때 호출되는 핸들러
-   */
-  private onFoodEatingStarted(foodId: string): void {
-    // 캐릭터를 먹는 상태로 변경
-    this.character.setState(CharacterState.EATING);
-  }
-
-  /**
    * 음식을 다 먹었을 때 호출되는 핸들러
    */
   private onFoodEatingFinished(foodId: string, freshness: FoodFreshness): void {
-    console.log(`음식 ID: ${foodId} 먹기 완료, 신선도: ${freshness}`);
+    console.log(
+      `[FoodTracker] 음식 ID: ${foodId} 먹기 완료, 신선도: ${freshness}`
+    );
 
     // 신선도에 따른 스태미나 회복량 결정
     const staminaRecovery: number = (() => {
@@ -553,30 +502,37 @@ export class FoodTracker {
     })();
 
     this.character.increaseStamina(staminaRecovery);
-    console.log(`음식을 먹고 스태미나가 ${staminaRecovery} 회복되었습니다.`);
+    console.log(
+      `[FoodTracker] 음식을 먹고 스태미나가 ${staminaRecovery} 회복되었습니다.`
+    );
 
-    // 캐릭터 상태 변경 및 랜덤 움직임 다시 활성화
-    this.character.setState(CharacterState.IDLE);
+    // 캐릭터 상태 변경 및 랜덤 움직임 다시 활성
+    this.character.setState(CharacterState.IDLE, true);
     this.character.enableRandomMovement();
 
     // 씬에서 해당 ID의 Food 객체 찾기 (신선도 상태 체크를 위해)
+    const food = this.findFoodById(foodId);
+    if (food) {
+      // 신선도 변화 일시정지 상태 확인
+      console.log(
+        `[FoodTracker] 음식 ${foodId}의 신선도 변화 상태: ${
+          this.checkFoodFreshnessPauseState(food) ? "일시정지됨" : "활성화됨"
+        }`
+      );
+    }
+  }
+
+  private findFoodById(foodId: string): Food | undefined {
     for (const child of this.targetContainer.children) {
       if (!(child instanceof PIXI.Sprite)) continue;
-
       const objectRef = ObjectBase.getObjectRef(child);
       if (!objectRef || objectRef.getType() !== ObjectType.Food) continue;
-
       const food = objectRef as Food;
       if (food.getId() === foodId) {
-        // 신선도 변화 일시정지 상태 확인
-        console.log(
-          `음식 ${foodId}의 신선도 변화 상태: ${
-            this.checkFoodFreshnessPauseState(food) ? "일시정지됨" : "활성화됨"
-          }`
-        );
-        break;
+        return food;
       }
     }
+    return undefined;
   }
 
   /**
@@ -594,7 +550,7 @@ export class FoodTracker {
       }
       return false;
     } catch (error) {
-      console.error("음식 신선도 변화 상태 확인 중 오류:", error);
+      console.error("[FoodTracker] 음식 신선도 변화 상태 확인 중 오류:", error);
       return false;
     }
   }

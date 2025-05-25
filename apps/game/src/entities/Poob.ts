@@ -46,7 +46,7 @@ export class Poob extends Cleanable {
 
     // 스프라이트 생성 및 초기 설정
     this.sprite = new PIXI.Sprite(texture);
-    this.sprite.scale.set(2.5); // 크기 조정
+    this.sprite.scale.set(2.5 + Math.random());
     this.sprite.anchor.set(0.5);
 
     // sprite에 Poob 객체 참조 추가 (클린업을 위해)
