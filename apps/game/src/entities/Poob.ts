@@ -5,10 +5,8 @@ import type { Character } from "./Character";
 import { ObjectBase } from "../interfaces/ObjectBase";
 import { ObjectType } from "../types/GameData";
 import { Cleanable } from "../interfaces/Cleanable";
+import { EventBus, EventTypes } from "../utils/EventBus";
 
-/**
- * Poob 상태를 나타내는 enum
- */
 enum PoobState {
   NORMAL = 0, // 보통 상태
   CLEANING = 1, // 청소 중
@@ -20,9 +18,6 @@ export interface PoobOptions {
   character?: Character; // 캐릭터 객체 (선택 사항, 캐릭터 기준 위치 계산 시 사용)
 }
 
-/**
- * Poob 클래스 - 청소가 필요한 배설물 객체
- */
 export class Poob extends Cleanable {
   private sprite: PIXI.Sprite;
   private parentContainer: PIXI.Container;
@@ -48,21 +43,22 @@ export class Poob extends Cleanable {
     this.sprite = new PIXI.Sprite(texture);
     this.sprite.scale.set(2.5 + Math.random());
     this.sprite.anchor.set(0.5);
+    this.sprite.zIndex = this.position.y;
+    this.parentContainer.addChild(this.sprite);
 
-    // sprite에 Poob 객체 참조 추가 (클린업을 위해)
-    ObjectBase.attachObjectRef(this.sprite, this);
-
-    // 위치 설정 로직
     if (options.position) {
       // 직접 위치가 지정된 경우
       this.setPosition(options.position.x, options.position.y);
     }
 
-    // zIndex 설정 - 깊이 정렬을 위해
-    this.sprite.zIndex = this.position.y;
+    ObjectBase.attachObjectRef(this.sprite, this);
 
-    // 부모 컨테이너에 스프라이트 추가
-    this.parentContainer.addChild(this.sprite);
+    const pos = this.getPosition();
+    EventBus.publish(EventTypes.Object.OBJECT_CREATED, {
+      type: ObjectType.Poob,
+      id: this.getId(),
+      position: { x: pos.x, y: pos.y },
+    });
   }
 
   public getType() {
@@ -83,46 +79,20 @@ export class Poob extends Cleanable {
     }
   }
 
-  /**
-   * Poob 텍스처 가져오기
-   * @returns 사용할 텍스처
-   */
   private getPoobTexture(): PIXI.Texture {
     const assets = AssetLoader.getAssets();
-    let texture: PIXI.Texture;
-
-    // common16x16Sprites에서 poob 텍스처 사용 시도
-    if (assets.common16x16Sprites?.textures.poob) {
-      texture = assets.common16x16Sprites.textures.poob;
-    } else {
-      console.warn("Poob texture not found. Using fallback texture.");
-      texture = PIXI.Texture.WHITE;
-    }
-
-    return texture;
+    return assets.common16x16Sprites.textures.poob;
   }
 
-  /**
-   * 청소 시작 시 호출되는 메서드
-   * @override
-   */
   protected onCleaningStart(): void {
     this.state = PoobState.CLEANING;
   }
 
-  /**
-   * 청소 진행 중 호출되는 메서드
-   * @override
-   */
   protected onCleaningProgress(progress: number): void {
     // 투명도 조절 (청소가 진행될수록 점점 투명해짐)
     this.sprite.alpha = 1.0 - progress * 0.8; // 80%까지만 투명하게
   }
 
-  /**
-   * 청소가 완료될 때 호출되는 메서드
-   * @override
-   */
   protected onCleaningFinish(): void {
     this.state = PoobState.CLEANED;
 
@@ -134,39 +104,22 @@ export class Poob extends Cleanable {
     }
   }
 
-  /**
-   * 객체 위치 반환
-   * @override
-   */
   public getPosition(): { x: number; y: number } {
     return { x: this.position.x, y: this.position.y };
   }
 
-  /**
-   * 객체의 스프라이트 반환
-   * @override
-   */
   public getSprite(): PIXI.Sprite {
     return this.sprite;
   }
 
-  /**
-   * 청소 중인지 여부 확인
-   */
   public isCleaning(): boolean {
     return this.state === PoobState.CLEANING;
   }
 
-  /**
-   * 청소 완료 여부 확인
-   */
   public isCleanFinished(): boolean {
     return this.state === PoobState.CLEANED;
   }
 
-  /**
-   * 객체 제거
-   */
   public destroy(): void {
     if (this.sparkleEffect) {
       this.sparkleEffect.stop();

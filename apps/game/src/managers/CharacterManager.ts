@@ -2,7 +2,7 @@ import type { CharacterStatusData, GameData } from "../types/GameData";
 import type { Game } from "../Game";
 import { Character } from "../entities/Character";
 import { Egg } from "../entities/Egg";
-import { type CharacterKey, CharacterState } from "../types/Character";
+import type { CharacterKey } from "../types/Character";
 import { EventBus, EventTypes } from "../utils/EventBus";
 import type { Scene } from "src/interfaces/Scene";
 
@@ -142,17 +142,14 @@ export class CharacterManager {
         `[CharacterManager] 스태미나 변경: ${beforeStatus.stamina} -> ${afterStatus.stamina}`
       );
       changedStatus.stamina = afterStatus.stamina;
-      // TODO: after가 max가 되면 기쁜 감정
-      // TODO: after가 0이 되면 위험 상태
     }
     // 질병 상태 비교
-    if (beforeStatus.sickness !== afterStatus.sickness) {
-      console.log(
-        `[CharacterManager] 질병 상태 변경: ${beforeStatus.sickness} -> ${afterStatus.sickness}`
-      );
-      changedStatus.sickness = afterStatus.sickness;
-      // TODO: 질병 상태 표시
-    }
+    // if (beforeStatus.sickness !== afterStatus.sickness) {
+    //   console.log(
+    //     `[CharacterManager] 질병 상태 변경: ${beforeStatus.sickness} -> ${afterStatus.sickness}`
+    //   );
+    //   changedStatus.sickness = afterStatus.sickness;
+    // }
     // 진화 게이지 비교
     if (beforeStatus.evolutionGauge !== afterStatus.evolutionGauge) {
       console.log(

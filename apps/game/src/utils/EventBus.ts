@@ -20,14 +20,20 @@ export const EventTypes = {
     CHARACTER_DEATH: "character:character_death" as const,
   } as const,
   Object: {
+    OBJECT_CREATED: "object:object_created" as const,
     OBJECT_CLEANED: "object:object_cleaned" as const,
   },
   // TODO: created 이벤트 같은 경우 Object로 통합하는게 나을 듯.
-  Poob: {
-    POOB_CREATED: "poob:poob_created" as const,
-  } as const,
+  // Poob: {
+  //   POOB_CREATED: "poob:poob_created" as const,
+  // } as const,
+  // Food: {
+  //   FOOD_CREATED: "food:food_created" as const,
+  //   FOOD_LANDED: "food:food_landed" as const,
+  //   FOOD_EATING_STARTED: "food:food_eating_started" as const,
+  //   FOOD_EATING_FINISHED: "food:food_eating_finished" as const,
+  // } as const,
   Food: {
-    FOOD_CREATED: "food:food_created" as const,
     FOOD_LANDED: "food:food_landed" as const,
     FOOD_EATING_STARTED: "food:food_eating_started" as const,
     FOOD_EATING_FINISHED: "food:food_eating_finished" as const,
@@ -51,15 +57,18 @@ export interface EventDataMap {
   [EventTypes.Game.MINIGAME_SCORE_UPDATED]: {
     score: number;
   };
-  [EventTypes.Poob.POOB_CREATED]: {
-    id: string;
-    position: { x: number; y: number };
-  };
-  [EventTypes.Food.FOOD_CREATED]: {
-    id: string;
-    position: { x: number; y: number };
-    textureKey: string; // 음식 텍스처의 키
-  };
+  [EventTypes.Object.OBJECT_CREATED]:
+    | {
+        type: ObjectType.Food | ObjectType.Pill;
+        id: string;
+        position: { x: number; y: number };
+        textureKey: string; // Food, Pill
+      }
+    | {
+        type: ObjectType.Poob;
+        id: string;
+        position: { x: number; y: number };
+      };
   [EventTypes.Food.FOOD_LANDED]: {
     id: string;
     position: { x: number; y: number };

@@ -1,5 +1,6 @@
 import * as PIXI from "pixi.js";
 import type { Game } from "../Game";
+import type { GameData } from "../types/GameData";
 import { SceneKey } from "../SceneKey";
 import { Background } from "../entities/Background";
 import { Food } from "../entities/Food";
@@ -17,14 +18,16 @@ import { Bird } from "../entities/Bird"; // Bird 클래스 import 추가
 import { Character } from "../entities/Character";
 import type { Egg } from "../entities/Egg";
 import { GameDataManager } from "../managers/GameDataManager";
-import { type GameData, ObjectType } from "../types/GameData";
+import { ObjectType } from "../types/GameData";
 import { Poob } from "../entities/Poob";
+import { Pill } from "../entities/Pill";
 import { simulateCharacterStatus } from "../utils/simulator";
 import {
   type LastCheckData,
   LastCheckDataManager,
 } from "../managers/LastCheckDataManager";
 import { CharacterState } from "../types/Character";
+import { EventBus, EventTypes } from "../utils/EventBus";
 
 enum MainSceneControlButtonsSetType {
   Default = "default",
@@ -87,9 +90,36 @@ export class MainScene extends PIXI.Container implements Scene {
     this.background = new Background(backgroundTexture);
   }
 
-  public async init(gameData: GameData): Promise<MainScene> {
+  public init(gameData: GameData): MainScene {
     try {
-      this._setupScene(gameData);
+      // 에셋이 이미 로드되었다고 가정하고 동기적으로 처리
+      try {
+        // zIndex 기반 정렬을 활성화
+        this.sortableChildren = true;
+
+        this.addChild(this.background);
+
+        // Game에서 캐릭터를 가져와서 씬에 추가
+        const characterManager = this.game.getCharacterManager();
+        const character = characterManager.getCharacter();
+        if (character) {
+          character.initialize(gameData.character, this);
+        } else {
+          this.addChild(characterManager.getEgg() as Egg);
+        }
+
+        this._initBirdAndBasket();
+        this._restoreObjects();
+        this.onResize(this.game.app.screen.width, this.game.app.screen.height);
+
+        console.log("[MainScene] MainScene setup completed");
+      } catch (error) {
+        console.error("[MainScene] Error setting up MainScene:", error);
+      }
+
+      // GameMenu 초기화
+      this._initGameMenu();
+      this.initialized = true;
       return this;
     } catch (error) {
       console.error(
@@ -101,40 +131,6 @@ export class MainScene extends PIXI.Container implements Scene {
   }
 
   /**
-   * 씬을 동기적으로 설정합니다.
-   */
-  private _setupScene(gameData: GameData): void {
-    // 에셋이 이미 로드되었다고 가정하고 동기적으로 처리
-    try {
-      // zIndex 기반 정렬을 활성화
-      this.sortableChildren = true;
-
-      this.addChild(this.background);
-
-      // Game에서 캐릭터를 가져와서 씬에 추가
-      const characterManager = this.game.getCharacterManager();
-      const character = characterManager.getCharacter();
-      if (character) {
-        character.initialize(gameData.character, this);
-      } else {
-        this.addChild(characterManager.getEgg() as Egg);
-      }
-
-      this._initBirdAndBasket();
-      this._restoreObjects();
-      this.onResize(this.game.app.screen.width, this.game.app.screen.height);
-
-      console.log("[MainScene] MainScene setup completed");
-    } catch (error) {
-      console.error("[MainScene] Error setting up MainScene:", error);
-    }
-
-    // GameMenu 초기화
-    this._initGameMenu();
-    this.initialized = true;
-  }
-
-  /**
    * 이전에 저장된 게임 오브젝트들(음식, 똥)을 복원합니다.
    */
   private async _restoreObjects(): Promise<void> {
@@ -142,59 +138,65 @@ export class MainScene extends PIXI.Container implements Scene {
       const gameData = await GameDataManager.getData();
       if (!gameData || !gameData.objectsMap) return;
 
-      // 음식 오브젝트 복원
       if (
         gameData.objectsMap[ObjectType.Food] &&
         gameData.objectsMap[ObjectType.Food].length > 0
       ) {
         console.log(
-          `${
+          `[MainScene] ${
             gameData.objectsMap[ObjectType.Food].length
           }개의 음식 오브젝트를 복원합니다.`
         );
-
         for (const foodData of gameData.objectsMap[ObjectType.Food]) {
           // 음식 오브젝트 생성
           const food = new Food(this.game.app, this, {
             data: foodData,
           });
-
-          // 음식 상태를 LANDED로 설정 (던지기 애니메이션 없이 바로 착지된 상태)
           food.setState(1); // FoodState.LANDED와 동일한 값
         }
       }
 
-      // Poob(똥) 오브젝트 복원
       if (
         gameData.objectsMap[ObjectType.Poob] &&
         gameData.objectsMap[ObjectType.Poob].length > 0
       ) {
         console.log(
-          `${
+          `[MainScene] ${
             gameData.objectsMap[ObjectType.Poob].length
           }개의 Poob 오브젝트를 복원합니다.`
         );
-
         for (const poobData of gameData.objectsMap[ObjectType.Poob]) {
-          // Poob 오브젝트 생성
           new Poob(this, { position: poobData.position });
         }
       }
+
+      if (
+        gameData.objectsMap[ObjectType.Pill] &&
+        gameData.objectsMap[ObjectType.Pill].length > 0
+      ) {
+        console.log(
+          `[MainScene] ${
+            gameData.objectsMap[ObjectType.Pill].length
+          }개의 Pill 오브젝트를 복원합니다.`
+        );
+        for (const pillData of gameData.objectsMap[ObjectType.Pill]) {
+          const pill = new Pill({
+            id: pillData.id,
+            position: pillData.position,
+            textureKey: pillData.textureKey,
+          });
+          this.addChild(pill.getSprite());
+        }
+      }
     } catch (error) {
-      console.error("오브젝트 복원 중 오류:", error);
+      console.trace("[MainScene] 오브젝트 복원 중 오류:", error);
     }
   }
 
-  /**
-   * 랜덤 움직임을 중지합니다.
-   */
   private _stopRandomMovement(): void {
     this.game.getCharacterManager().getCharacter()?.disableRandomMovement();
   }
 
-  /**
-   * GameMenu를 초기화합니다
-   */
   private _initGameMenu(): void {
     // 기존 메뉴가 있다면 정리
     if (this.gameMenu) {
@@ -245,7 +247,7 @@ export class MainScene extends PIXI.Container implements Scene {
   /**
    * 메뉴 선택 처리
    */
-  private _handleMenuSelect(menuType: GameMenuItemType): void {
+  private async _handleMenuSelect(menuType: GameMenuItemType): Promise<void> {
     console.log(`[MainScene] 메뉴 항목 선택: ${menuType}`);
 
     // Egg 상태 확인
@@ -265,25 +267,21 @@ export class MainScene extends PIXI.Container implements Scene {
       case GameMenuItemType.Feed:
         this._throwFood();
         break;
-
       case GameMenuItemType.Versus:
         // 배틀 로직
         break;
-
       case GameMenuItemType.Drug:
         if (isEggState) {
-          // Egg 상태일 경우 팝업 표시 (영문으로 변경)
           this.game.showAlert("not available in egg state.", "Notice");
         } else {
-          // TODO: 약 사용 로직 구현
+          this._birdBringPillToCharacter();
         }
         break;
-
       case GameMenuItemType.Clean:
         this.game.changeControlButtons(
           CONTROL_BUTTONS_SET[MainSceneControlButtonsSetType.CleanMode]
         );
-        this.initCleanMode();
+        this._initCleanMode();
         break;
 
       case GameMenuItemType.Training:
@@ -337,7 +335,7 @@ export class MainScene extends PIXI.Container implements Scene {
           this.isCleanModeActive = false;
           this.cleaningManager?.deactivate();
 
-          // 기본 컨트롤 버튼으로 복귀
+          // 기본 컨트롤 버튼로 복귀
           this.game.changeControlButtons(
             CONTROL_BUTTONS_SET[MainSceneControlButtonsSetType.ActiveMenuItem]
           );
@@ -347,17 +345,17 @@ export class MainScene extends PIXI.Container implements Scene {
             .getCharacter()
             ?.enableRandomMovement();
         } else {
-          this.sendNavigationAction(NavigationAction.CANCEL);
+          this._sendNavigationAction(NavigationAction.CANCEL);
         }
         break;
       case ControlButtonType.Settings:
         console.log("TODO: Settings popup 구현");
         break;
       case ControlButtonType.Confirm:
-        this.sendNavigationAction(NavigationAction.SELECT);
+        this._sendNavigationAction(NavigationAction.SELECT);
         break;
       case ControlButtonType.Next:
-        this.sendNavigationAction(NavigationAction.NEXT);
+        this._sendNavigationAction(NavigationAction.NEXT);
         break;
       case ControlButtonType.Clean:
         console.log("청소 작업 수행");
@@ -383,7 +381,7 @@ export class MainScene extends PIXI.Container implements Scene {
   /**
    * 네비게이션 액션을 GameMenu에 전달
    */
-  private sendNavigationAction(action: NavigationAction): void {
+  private _sendNavigationAction(action: NavigationAction): void {
     if (!this.gameMenu) return;
 
     this.navigationIndex++;
@@ -397,7 +395,7 @@ export class MainScene extends PIXI.Container implements Scene {
   /**
    * 청소 모드를 활성화하고 청소 관리자를 초기화합니다.
    */
-  private initCleanMode(): void {
+  private _initCleanMode(): void {
     console.log("청소 모드 초기화 시작");
     this.isCleanModeActive = true;
 
@@ -405,7 +403,6 @@ export class MainScene extends PIXI.Container implements Scene {
     if (!this.cleaningManager) {
       console.log("새 CleaningManager 생성");
       this.cleaningManager = new CleaningManager({
-        app: this.game.app,
         parent: this,
         onCleaningComplete: () => {
           // 청소가 완료되었을 때 기본 모드로 돌아가기
@@ -521,7 +518,7 @@ export class MainScene extends PIXI.Container implements Scene {
 
       // Bird 초기화
       if (!this.bird) {
-        this.bird = new Bird(this.game.app); // Bird 클래스 사용
+        this.bird = new Bird(); // Bird 클래스 사용
         this.bird.visible = false; // 초기에는 보이지 않음
         this.addChild(this.bird);
       }
@@ -571,7 +568,7 @@ export class MainScene extends PIXI.Container implements Scene {
         this.bird.visible = false;
       }
 
-      const transitionBird = new Bird(this.game.app);
+      const transitionBird = new Bird();
       transitionBird.visible = true;
 
       // 바구니 생성
@@ -604,7 +601,8 @@ export class MainScene extends PIXI.Container implements Scene {
         character,
         3.0,
         1.8,
-        2000
+        2000,
+        -60
       );
 
       // 캐릭터의 in-basket 스프라이트로 교체하는 로직
@@ -630,72 +628,26 @@ export class MainScene extends PIXI.Container implements Scene {
       this.isTransitionAnimationPlaying = false;
     }
   }
-
-  /**
-   * 캐릭터를 실시간으로 추적하면서 접근하는 애니메이션
-   */
   private _trackAndApproachCharacter(
     bird: Bird,
     character: PIXI.Container,
     startScale: number,
     endScale: number,
-    durationMs: number
+    durationMs: number,
+    adjustmentY = 0
   ): Promise<void> {
-    return new Promise<void>((resolve) => {
-      const startTime = Date.now();
-      const startPosition = { x: bird.position.x, y: bird.position.y };
-
-      // 애니메이션 틱 함수
-      const animate = () => {
-        const elapsedTime = Date.now() - startTime;
-        const progress = Math.min(elapsedTime / durationMs, 1);
-
-        // 이징 함수 적용 (부드러운 움직임)
-        const easeProgress = this._easeInOutQuad(progress);
-
-        // 캐릭터의 현재 위치 (실시간으로 가져옴)
-        const currentCharacterPosition = {
-          x: character.position.x,
-          y: character.position.y - 60, // 캐릭터 바로 위에 위치하도록
-        };
-
-        // 시작점과 목표점 사이의 중간 지점을 계산 (수정: 곡선 경로가 아닌 직선 경로로)
-        // 곡선 경로 대신에 직선 경로를 사용하여 아래로 내려갔다 올라오는 현상을 방지
-        const currentX =
-          startPosition.x +
-          (currentCharacterPosition.x - startPosition.x) * easeProgress;
-        const currentY =
-          startPosition.y +
-          (currentCharacterPosition.y - startPosition.y) * easeProgress;
-
-        // 새의 위치와 크기 업데이트
-        bird.position.x = currentX;
-        bird.position.y = currentY;
-
-        // 크기 변경
-        const newScale = startScale + (endScale - startScale) * easeProgress;
-        bird.setScale(newScale);
-
-        if (progress < 1) {
-          // 애니메이션 계속
-          requestAnimationFrame(animate);
-        } else {
-          // 애니메이션 완료 - 마지막으로 정확히 캐릭터 위치로 이동
-          bird.position.x = currentCharacterPosition.x;
-          bird.position.y = currentCharacterPosition.y;
-          bird.setScale(endScale);
-          resolve();
-        }
-      };
-
-      // 애니메이션 시작
-      animate();
-    });
+    // 캐릭터의 현재 위치를 실시간으로 추적하지 않고, 최초 위치로 이동
+    // 필요시 실시간 추적 로직을 유지할 수 있음
+    const charPos = character.position;
+    return bird.flyToWithScale(
+      charPos.x,
+      charPos.y + adjustmentY,
+      startScale,
+      endScale,
+      durationMs
+    );
   }
 
-  /**
-   * 새가 날아가면서 크기가 변하는 애니메이션
-   */
   private _flyWithScaleChange(
     bird: Bird,
     targetPosition: { x: number; y: number },
@@ -703,54 +655,15 @@ export class MainScene extends PIXI.Container implements Scene {
     endScale: number,
     durationMs: number
   ): Promise<void> {
-    return new Promise<void>((resolve) => {
-      const startTime = Date.now();
-      const startPosition = { x: bird.position.x, y: bird.position.y };
-
-      const animate = () => {
-        const elapsedTime = Date.now() - startTime;
-        const progress = Math.min(elapsedTime / durationMs, 1);
-
-        // 이징 함수 적용 (부드러운 움직임)
-        const easeProgress = this._easeInOutQuad(progress);
-
-        // 새 위치 계산
-        bird.position.x =
-          startPosition.x + (targetPosition.x - startPosition.x) * easeProgress;
-        bird.position.y =
-          startPosition.y + (targetPosition.y - startPosition.y) * easeProgress;
-
-        // 크기 변경
-        const newScale = startScale + (endScale - startScale) * easeProgress;
-        bird.setScale(newScale);
-
-        if (progress < 1) {
-          // 애니메이션 계속
-          requestAnimationFrame(animate);
-        } else {
-          // 애니메이션 완료
-          bird.position.x = targetPosition.x;
-          bird.position.y = targetPosition.y;
-          bird.setScale(endScale);
-          resolve();
-        }
-      };
-
-      // 애니메이션 시작
-      animate();
-    });
+    return bird.flyToWithScale(
+      targetPosition.x,
+      targetPosition.y,
+      startScale,
+      endScale,
+      durationMs
+    );
   }
 
-  /**
-   * 이징 함수: ease-in-out-quad
-   */
-  private _easeInOutQuad(t: number): number {
-    return t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
-  }
-
-  /**
-   * 캐릭터를 픽업하면서 바구니를 in-basket으로 교체하는 메서드
-   */
   private _pickupCharacterWithInBasket(bird: Bird, character: Character): void {
     // 캐릭터의 in-basket 스프라이트를 가져옴
     const assets = AssetLoader.getAssets();
@@ -776,6 +689,139 @@ export class MainScene extends PIXI.Container implements Scene {
       character.visible = false;
     } else {
       console.warn("캐릭터의 in-basket 텍스처를 찾을 수 없습니다");
+    }
+  }
+
+  /**
+   * Bird가 약을 랜덤 방향에서 들고 등장, 캐릭터 앞에 약을 내려놓고 무작위 방향으로 퇴장
+   */
+  private async _birdBringPillToCharacter(): Promise<void> {
+    if (this.isTransitionAnimationPlaying) return;
+    this.isTransitionAnimationPlaying = true;
+    try {
+      const character = this.game
+        .getCharacterManager()
+        .getCharacter() as Character;
+      const charPos = character.getPosition();
+      const pillTargetPosition = {
+        x: charPos.x,
+        y: charPos.y + 30, // 캐릭터 앞에 약을 내려놓기 위해 Y 좌표를 조정
+      };
+      const pillObj = new Pill();
+      const pillId = pillObj.getId();
+      EventBus.publish(EventTypes.Object.OBJECT_CREATED, {
+        type: ObjectType.Pill,
+        id: pillId,
+        position: pillTargetPosition,
+        textureKey: pillObj.textureKey,
+      });
+
+      const screenWidth = this.game.app.screen.width;
+      const screenHeight = this.game.app.screen.height;
+      const directions = ["left", "right", "top", "bottom"] as const;
+      const birdStartDir =
+        directions[Math.floor(Math.random() * directions.length)];
+      const birdEndDir: typeof birdStartDir =
+        directions[Math.floor(Math.random() * directions.length)];
+
+      const { birdStartPos, birdStartScale, birdEndPos, birdTargetScale } =
+        (() => {
+          let _birdStartPos = { x: 0, y: 0 };
+          switch (birdStartDir) {
+            case "left":
+              _birdStartPos = { x: -80, y: Math.random() * screenHeight };
+              break;
+            case "right":
+              _birdStartPos = {
+                x: screenWidth + 80,
+                y: Math.random() * screenHeight,
+              };
+              break;
+            case "top":
+              _birdStartPos = { x: Math.random() * screenWidth, y: -80 };
+              break;
+            case "bottom":
+              _birdStartPos = {
+                x: Math.random() * screenWidth,
+                y: screenHeight + 80,
+              };
+              break;
+          }
+          // 퇴장 위치/scale
+          let _birdEndPos = { x: 0, y: 0 };
+          switch (birdEndDir) {
+            case "left":
+              _birdEndPos = { x: -80, y: Math.random() * screenHeight };
+              break;
+            case "right":
+              _birdEndPos = {
+                x: screenWidth + 80,
+                y: Math.random() * screenHeight,
+              };
+              break;
+            case "top":
+              _birdEndPos = { x: Math.random() * screenWidth, y: -80 };
+              break;
+            case "bottom":
+              _birdEndPos = {
+                x: Math.random() * screenWidth,
+                y: screenHeight + 80,
+              };
+              break;
+          }
+          return {
+            birdStartPos: _birdStartPos,
+            birdStartScale: 3.0,
+            birdEndPos: _birdEndPos,
+            birdTargetScale: 1.2,
+          };
+        })();
+
+      const transitionBird = new Bird();
+      transitionBird.visible = true;
+      transitionBird.setScale(birdStartScale);
+      transitionBird.position.set(birdStartPos.x, birdStartPos.y);
+      transitionBird.hangObject(pillObj.getSprite(), -10); // 약을 새에 매달기
+      this.addChild(transitionBird);
+      await this._trackAndApproachCharacter(
+        transitionBird,
+        character,
+        birdStartScale,
+        birdTargetScale,
+        1200,
+        -20
+      );
+      // 약 내려놓기 (캐릭터 앞)
+      if (pillObj.getSprite()) {
+        this.addChild(pillObj.getSprite());
+        pillObj
+          .getSprite()
+          .position.set(pillTargetPosition.x, pillTargetPosition.y);
+        pillObj.getSprite().zIndex = pillObj.getSprite().position.y; // 약이 캐릭터 앞에 보이도록 zIndex 설정
+        transitionBird.unHangObject();
+        pillObj.setScale(3.2); // 원래의 약 스케일
+      }
+      // 퇴장 애니메이션 (캐릭터 앞→퇴장 위치, scale 작아짐)
+      await this._flyWithScaleChange(
+        transitionBird,
+        birdEndPos,
+        birdTargetScale,
+        birdStartScale,
+        900
+      );
+      // Bird 사라짐
+      this.removeChild(transitionBird);
+      // // 약은 잠시 후 사라짐
+      // if (pillSprite) {
+      //   setTimeout(() => {
+      //     if (pillSprite.parent) this.removeChild(pillSprite);
+      //     pillSprite.destroy();
+      //   }, 1200);
+      // }
+    } catch (e) {
+      console.error("약 가져다주기 연출 오류:", e);
+    } finally {
+      this.isTransitionAnimationPlaying = false;
     }
   }
 }

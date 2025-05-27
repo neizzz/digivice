@@ -4,18 +4,26 @@ import type { Position } from "./Position";
 export enum ObjectType {
   Food = "food",
   Poob = "poob",
+  Pill = "pill",
 }
 
 export type ObjectData = {
   [ObjectType.Food]: {
     id: string;
     position: Position;
-    createdAt: number;
     textureKey: string;
+    _createdAt: number;
+  };
+  [ObjectType.Pill]: {
+    id: string;
+    position: Position;
+    textureKey: string;
+    _createdAt: number;
   };
   [ObjectType.Poob]: {
     id: string;
     position: Position;
+    _createdAt: number;
   };
 };
 
@@ -27,7 +35,6 @@ export type CharacterStatusData = {
   position: Position;
   state: CharacterState;
   stamina: number;
-  sickness: boolean;
   evolutionGauge: number; // 진화 게이지 (0-100)
   timeOfZeroStamina?: number; // 스태미나가 0이 된 시점
   // timeOfSickness?: number; // 병에 걸린 시점. sick이 true일 때만 존재
@@ -50,6 +57,7 @@ export interface GameData {
   objectsMap: {
     [ObjectType.Food]: ObjectData[ObjectType.Food][];
     [ObjectType.Poob]: ObjectData[ObjectType.Poob][];
+    [ObjectType.Pill]?: ObjectData[ObjectType.Pill][];
   };
   coins: CoinData[];
   minigame: {

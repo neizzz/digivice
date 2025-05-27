@@ -10,6 +10,7 @@
     "sleeping_1": { "frame": { "x": 64, "y": 32, "w": 32, "h": 32 } },
     "eating_0": { "frame": { "x": 0, "y": 0, "w": 32, "h": 32 } },
     "eating_1": { "frame": { "x": 0, "y": 32, "w": 32, "h": 32 } },
+    "sick_0": { "frame": { "x": 64, "y": 0, "w": 32, "h": 32 } },
     "in-basket": { "frame": { "x": 96, "y": 0, "w": 32, "h": 32 } }
   },
   "animations": {

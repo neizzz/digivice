@@ -13,7 +13,7 @@ import { Poob } from "./Poob"; // Poob 클래스 임포트 추가
 import type { CharacterStatusData, GameData } from "../types/GameData";
 import { CharacterStatusViewManager } from "../managers/CharacterStatusViewManager";
 import type { Scene } from "../interfaces/Scene";
-import { CHARACTER_MOVEMENT } from "../config";
+import { ObjectType } from "../types/GameData";
 
 export class Character extends PIXI.Container {
   public animatedSprite: PIXI.AnimatedSprite | undefined;
@@ -81,12 +81,15 @@ export class Character extends PIXI.Container {
       "[Character] 캐릭터 상태 반영:",
       JSON.stringify(status, null, 2)
     );
+    // NOTE: 코드 순서 중요!
     if (this.getState() !== status.state) {
       this.setState(status.state);
     }
-    status.sickness
-      ? this.statusViewManager.addStatus("sick")
-      : this.statusViewManager.removeStatus("sick");
+    if (status.state === CharacterState.SICK) {
+      this.statusViewManager.addStatus("sick");
+    } else {
+      this.statusViewManager.removeStatus("sick");
+    }
     status.stamina === 0
       ? this.statusViewManager.addStatus("urgent")
       : this.statusViewManager.removeStatus("urgent");
@@ -99,6 +102,7 @@ export class Character extends PIXI.Container {
     try {
       // 랜덤 움직임 비활성화
       this.disableRandomMovement();
+      this.statusViewManager.clearStatus();
 
       const assets = AssetLoader.getAssets();
       // common32x32에서 tomb 텍스처 가져오기
@@ -110,24 +114,19 @@ export class Character extends PIXI.Container {
         tombSprite.anchor.set(0.5, 0.5);
         tombSprite.scale.set(2.4);
 
-        // Ensure tomb stays within screen bounds
         if (this.app) {
-          // Get screen bounds
           const screenBounds = this.app.screen;
-
-          // Calculate sprite boundaries with scale
           const halfWidth = tombSprite.width / 2;
           const halfHeight = tombSprite.height / 2;
 
-          // Get current position
-          let x = this.position.x;
-          let y = this.position.y;
-
           // Clamp position to keep sprite on screen
-          x = Math.max(halfWidth, Math.min(screenBounds.width - halfWidth, x));
-          y = Math.max(
+          const x = Math.max(
+            halfWidth,
+            Math.min(screenBounds.width - halfWidth, this.position.x)
+          );
+          const y = Math.max(
             halfHeight,
-            Math.min(screenBounds.height - halfHeight, y)
+            Math.min(screenBounds.height - halfHeight, this.position.y)
           );
 
           // Update position if needed
@@ -239,11 +238,7 @@ export class Character extends PIXI.Container {
     // 프레임 개수에 따라 애니메이션 속도 설정
     const frameCount = textures.length;
     this.animatedSprite.animationSpeed = 0.02 * frameCount;
-
-    // 기본 루프 설정
     this.animatedSprite.loop = true;
-
-    // 스프라이트 설정
     this.animatedSprite.width = textures[0].width * this.scaleFactor;
     this.animatedSprite.height = textures[0].height * this.scaleFactor;
     this.animatedSprite.play();
@@ -255,7 +250,6 @@ export class Character extends PIXI.Container {
 
     // pivot과 anchor 설정
     this.animatedSprite.anchor.set(0.5, 0.5);
-    // this.currentAnimation = animationName;
     return true;
   }
 
@@ -306,6 +300,7 @@ export class Character extends PIXI.Container {
   }
   /**
    * NOTE: 호출 단에서, 같은 상태일 경우 호출하지 않아야 함.
+   * 상태에 따른 캐릭터 뷰 설정.
    */
   public setState(state: CharacterState, shouldTriggerEvent = false): void {
     if (this.currentState === state) {
@@ -328,13 +323,12 @@ export class Character extends PIXI.Container {
       this._initializeAsDead();
       return;
     }
-    const animationName = this.characterInfo.animationMapping[state];
-    if (animationName) {
-      this._setAnimation(animationName);
-    } else {
-      console.warn(`[Character] No animation mapped for state: ${state}`);
+    if (state === CharacterState.SICK) {
+      this.disableRandomMovement();
     }
-    // 상태 아이콘은 statusViewManager에서 관리
+
+    const animationName = this.characterInfo.animationMapping[state];
+    this._setAnimation(animationName);
   }
   public getState(): CharacterState {
     return this.currentState;
@@ -417,7 +411,8 @@ export class Character extends PIXI.Container {
     const poob = new Poob(this.parent, { position: poobPosition });
 
     // 이벤트 발생 (위치 정보만 포함)
-    this.eventBus.emit(EventTypes.Poob.POOB_CREATED, {
+    EventBus.publish(EventTypes.Object.OBJECT_CREATED, {
+      type: ObjectType.Poob,
       position: poobPosition,
       id: poob.getId(),
     });
@@ -430,7 +425,7 @@ export class Character extends PIXI.Container {
       const position = this.getPosition();
       const state = this.getState();
 
-      this.eventBus.emit(EventTypes.Character.CHARACTER_STATUS_UPDATED, {
+      EventBus.publish(EventTypes.Character.CHARACTER_STATUS_UPDATED, {
         status: {
           position,
           state,
@@ -448,82 +443,6 @@ export class Character extends PIXI.Container {
         error
       );
     }
-  }
-
-  public async die(): Promise<void> {
-    try {
-      // 원래 characterKey 기록 (로깅용)
-      const characterKey = this.characterKey;
-      this.setState(CharacterState.DEAD);
-      this.disableRandomMovement();
-
-      // 기존 애니메이션 스프라이트 제거
-      if (this.animatedSprite) {
-        this.removeChild(this.animatedSprite);
-        this.animatedSprite.destroy();
-        this.animatedSprite = undefined;
-      }
-
-      try {
-        const assets = AssetLoader.getAssets();
-        // common32x32에서 tomb 텍스처 가져오기
-        const commonSheet = assets.common32x32Sprites;
-
-        if (commonSheet?.textures.tomb) {
-          // 무덤 스프라이트 생성
-          const tombSprite = new PIXI.Sprite(commonSheet.textures.tomb);
-          tombSprite.anchor.set(0.5, 0.5);
-          tombSprite.scale.set(this.scaleFactor);
-          this.addChild(tombSprite);
-
-          console.log(
-            "[Character] 캐릭터가 사망하여 무덤 스프라이트로 표시됩니다."
-          );
-        } else {
-          console.warn("[Character] 무덤 스프라이트를 찾을 수 없습니다.");
-        }
-      } catch (e) {
-        console.error("[Character] 무덤 스프라이트를 로드할 수 없습니다:", e);
-      }
-
-      console.log(
-        `[Character] 캐릭터가 사망했습니다. 캐릭터 타입: ${characterKey}, 상태: ${CharacterState.DEAD}`
-      );
-
-      // CHARACTER_STATUS_UPDATED 이벤트 발행 - dead 플래그 설정
-      this.eventBus.emit(EventTypes.Character.CHARACTER_STATUS_UPDATED, {
-        status: {
-          state: CharacterState.DEAD,
-        },
-      });
-
-      // 위치와 상태 저장 이벤트 발행
-      this.savePositionAndState();
-
-      // 죽음 이벤트 발생
-      this.eventBus.emit(EventTypes.Character.CHARACTER_DEATH, undefined);
-    } catch (error) {
-      console.error("[Character] 캐릭터 사망 처리 중 오류:", error);
-    }
-  }
-
-  public async makeSick(): Promise<void> {
-    try {
-      // 상태 업데이트 이벤트 발행 (sick: true)
-      this._emitStatusUpdateEvent({ sickness: true });
-      console.log("[Character] 캐릭터가 질병에 걸렸습니다.");
-    } catch (error) {
-      console.error("[Character] 캐릭터 질병 처리 중 오류:", error);
-    }
-  }
-
-  private _emitStatusUpdateEvent(
-    statusData: Partial<CharacterStatusData>
-  ): void {
-    this.eventBus.emit(EventTypes.Character.CHARACTER_STATUS_UPDATED, {
-      status: statusData,
-    });
-    console.log("[Character] 캐릭터 상태 업데이트 이벤트 발행:", statusData);
   }
 
   public destroy(): void {

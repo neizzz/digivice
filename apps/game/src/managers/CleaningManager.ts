@@ -17,7 +17,6 @@ export enum CleaningState {
 }
 
 export interface CleaningManagerOptions {
-  app: PIXI.Application;
   parent: PIXI.Container;
   onCleaningComplete?: () => void; // 모든 청소가 완료됐을 때 호출할 콜백
 }
@@ -27,7 +26,6 @@ export interface CleaningManagerOptions {
  * 청소 가능한 객체들을 관리하고, 슬라이더 값을 이용해 순차적으로 청소를 진행합니다.
  */
 export class CleaningManager {
-  private app: PIXI.Application;
   private parent: PIXI.Container;
   private cleanableObjects: Cleanable[] = [];
   private currentCleanableIndex = -1;
@@ -43,9 +41,6 @@ export class CleaningManager {
   // 빗자루 객체 참조
   private broom: Broom | null = null;
 
-  // 이벤트 버스 추가
-  private eventBus: EventBus;
-
   // Cleanable 객체의 경계를 표시하기 위한 그래픽 객체들
   private cleanableBorders: Map<Cleanable, PIXI.Graphics> = new Map();
 
@@ -56,10 +51,8 @@ export class CleaningManager {
    * @param options 청소 관리자 옵션
    */
   constructor(options: CleaningManagerOptions) {
-    this.app = options.app;
     this.parent = options.parent;
     this.onCleaningComplete = options.onCleaningComplete;
-    this.eventBus = EventBus.getInstance();
   }
 
   /**
@@ -122,9 +115,6 @@ export class CleaningManager {
     }
   }
 
-  /**
-   * Cleanable 객체들 주변에 점선 테두리를 그립니다.
-   */
   private createCleanableBorders(): void {
     // 기존 테두리 제거
     this.removeCleanableBorders();
@@ -253,8 +243,6 @@ export class CleaningManager {
       border.destroy();
       // Map에서 해당 테두리 제거
       this.cleanableBorders.delete(cleanable);
-
-      console.log("청소 완료된 객체의 테두리 제거 완료");
     }
   }
 
@@ -315,10 +303,6 @@ export class CleaningManager {
       this.allCleaningComplete = false; // 플래그 초기화
     }
   }
-
-  /**
-   * 씬(또는 월드)에서 청소 가능한 객체들을 찾아 배열에 추가
-   */
   private findCleanableObjects(): void {
     this.cleanableObjects = [];
 
@@ -351,13 +335,11 @@ export class CleaningManager {
     }
 
     console.log(
-      `총 ${this.cleanableObjects.length}개의 Cleanable 객체를 찾았습니다.`
+      `[CleanableManager] 총 ${this.cleanableObjects.length}개의 Cleanable 객체를 찾았습니다.`
     );
 
     if (this.cleanableObjects.length === 0) {
-      console.warn(
-        "청소 가능한 객체가 없습니다. Poob 객체나 상한 음식이 제대로 생성되었는지 확인하세요."
-      );
+      console.warn("[CleanableManager] 청소 가능한 객체가 없습니다.");
     }
   }
 
@@ -373,7 +355,7 @@ export class CleaningManager {
       this.currentCleanableIndex >= this.cleanableObjects.length
     ) {
       console.log(
-        "청소 모드가 비활성화 상태이거나 청소할 오브젝트가 없음. 슬라이더 값 변경 무시."
+        "[CleanableManager] 청소 모드가 비활성화 상태이거나 청소할 오브젝트가 없음. 슬라이더 값 변경 무시."
       );
       return;
     }
@@ -453,7 +435,9 @@ export class CleaningManager {
   public handleSliderEnd(): void {
     // 모든 청소가 완료된 상태라면 청소 모드 비활성화
     if (this.allCleaningComplete) {
-      console.log("슬라이더 입력 종료 감지됨. 청소 모드 비활성화");
+      console.log(
+        "[CleanableManager] 슬라이더 입력 종료 감지됨. 청소 모드 비활성화"
+      );
       this.deactivate();
     }
   }
@@ -519,16 +503,10 @@ export class CleaningManager {
     this.moveToCurrentCleanable();
   }
 
-  /**
-   * 청소 가능한 객체 배열 반환
-   */
   public getCleanableObjects(): Cleanable[] {
     return this.cleanableObjects;
   }
 
-  /**
-   * 현재 청소 중인 객체 반환
-   */
   public getCurrentCleanable(): Cleanable | null {
     if (
       this.currentCleanableIndex < 0 ||
@@ -539,9 +517,6 @@ export class CleaningManager {
     return this.cleanableObjects[this.currentCleanableIndex];
   }
 
-  /**
-   * 현재 청소 상태 반환
-   */
   public getCleaningState(): CleaningState {
     return this.cleaningState;
   }
@@ -573,9 +548,6 @@ export class CleaningManager {
       this.broom.destroy(); // 빗자루 리소스 정리
       this.broom = null;
     }
-
-    // 이벤트 구독 해제
-    this.eventBus.off(EventTypes.POOB_CREATED);
   }
 
   /**

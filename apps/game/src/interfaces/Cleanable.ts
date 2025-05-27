@@ -59,9 +59,6 @@ export abstract class Cleanable extends ObjectBase {
     return false;
   }
 
-  /**
-   * 청소 상태를 리셋(원상복구)합니다. (청소모드 종료 시 호출)
-   */
   public resetCleaningState(): void {
     this.cleanProgress = 0;
     this.onCleaningProgress(0);

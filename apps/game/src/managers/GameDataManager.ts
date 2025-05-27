@@ -102,45 +102,42 @@ class _GameDataManager {
       this._saveData(newData);
     });
 
-    EventBus.subscribe(EventTypes.Food.FOOD_CREATED, (data) => {
-      console.debug("[GameDataManager] Food 생성:", data);
+    EventBus.subscribe(EventTypes.Object.OBJECT_CREATED, (data) => {
+      console.debug("[GameDataManager] Object 생성:", data);
       const currentData = this.data;
       if (currentData?.objectsMap) {
-        // Food 객체 생성 및 추가 (ObjectData 구조에 맞게)
-        const newFood = {
-          id: data.id, // 객체의 고유 ID 저장
-          position: data.position,
-          createdAt: Date.now(),
-          textureKey: data.textureKey,
-        };
-
-        // Food 배열이 없으면 초기화
-        if (!currentData.objectsMap[ObjectType.Food]) {
-          currentData.objectsMap[ObjectType.Food] = [];
+        if (data.type === ObjectType.Food) {
+          const newFood = {
+            id: data.id,
+            position: data.position,
+            textureKey: data.textureKey as string,
+            _createdAt: Date.now(),
+          };
+          if (!currentData.objectsMap[ObjectType.Food]) {
+            currentData.objectsMap[ObjectType.Food] = [];
+          }
+          currentData.objectsMap[ObjectType.Food].push(newFood);
+        } else if (data.type === ObjectType.Poob) {
+          const newPoob = {
+            id: data.id,
+            position: data.position,
+            _createdAt: Date.now(),
+          };
+          if (!currentData.objectsMap[ObjectType.Poob]) {
+            currentData.objectsMap[ObjectType.Poob] = [];
+          }
+          currentData.objectsMap[ObjectType.Poob].push(newPoob);
+        } else if (data.type === ObjectType.Pill) {
+          if (!currentData.objectsMap[ObjectType.Pill]) {
+            currentData.objectsMap[ObjectType.Pill] = [];
+          }
+          currentData.objectsMap[ObjectType.Pill].push({
+            id: data.id,
+            position: data.position,
+            textureKey: data.textureKey as string,
+            _createdAt: Date.now(),
+          });
         }
-
-        // 새 Food 추가
-        currentData.objectsMap[ObjectType.Food].push(newFood);
-        this._saveData(currentData);
-      }
-    });
-
-    EventBus.subscribe(EventTypes.Poob.POOB_CREATED, (data) => {
-      console.debug("[GameDataManager] Poob 생성:", data);
-      const currentData = this.data;
-      if (currentData?.objectsMap) {
-        const newPoob = {
-          id: data.id, // 객체의 고유 ID 저장
-          position: data.position,
-        };
-
-        // Poob 배열이 없으면 초기화
-        if (!currentData.objectsMap[ObjectType.Poob]) {
-          currentData.objectsMap[ObjectType.Poob] = [];
-        }
-
-        // 새 Poob 추가
-        currentData.objectsMap[ObjectType.Poob].push(newPoob);
         this._saveData(currentData);
       }
     });
@@ -179,10 +176,9 @@ class _GameDataManager {
         _evolvedAt: Date.now(),
         status: {
           position,
-          state: CharacterState.IDLE,
+          // state: CharacterState.IDLE,
+          state: CharacterState.SICK,
           stamina: 6,
-          // sickness: false,
-          sickness: true,
           evolutionGauge: 0,
           timeOfZeroStamina: undefined,
         },
@@ -190,6 +186,7 @@ class _GameDataManager {
       objectsMap: {
         [ObjectType.Food]: [],
         [ObjectType.Poob]: [],
+        [ObjectType.Pill]: [],
       },
       coins: [],
       minigame: {
@@ -258,18 +255,24 @@ class _GameDataManager {
     // 해당 ID를 가진 오브젝트 제거
 
     // 타입별로 올바른 타입으로 필터링
-    if (type === ObjectType.Food) {
-      currentData.objectsMap[ObjectType.Food] = currentData.objectsMap[
-        ObjectType.Food
-      ].filter((obj) => obj.id !== id);
-    } else if (type === ObjectType.Poob) {
-      currentData.objectsMap[ObjectType.Poob] = currentData.objectsMap[
-        ObjectType.Poob
-      ].filter((obj) => obj.id !== id);
-    }
+    // if (type === ObjectType.Food) {
+    //   currentData.objectsMap[ObjectType.Food] = currentData.objectsMap[
+    //     ObjectType.Food
+    //   ].filter((obj) => obj.id !== id);
+    // } else if (type === ObjectType.Poob) {
+    //   currentData.objectsMap[ObjectType.Poob] = currentData.objectsMap[
+    //     ObjectType.Poob
+    //   ].filter((obj) => obj.id !== id);
+    // }
 
-    // 변경된 데이터 저장
-    await this._saveData(currentData);
+    console.log(0, type, currentData.objectsMap[type].length);
+    // @ts-ignore
+    currentData.objectsMap[type] = currentData.objectsMap[type].filter(
+      (obj) => obj.id !== id
+    );
+    console.log(1, currentData.objectsMap[type].length);
+
+    this._saveData(currentData);
   }
 }
 

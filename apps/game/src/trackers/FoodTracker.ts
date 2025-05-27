@@ -564,6 +564,5 @@ export class FoodTracker {
     eventBus.off(EventTypes.Food.FOOD_LANDED);
     eventBus.off(EventTypes.Food.FOOD_EATING_STARTED);
     eventBus.off(EventTypes.Food.FOOD_EATING_FINISHED);
-    eventBus.off(EventTypes.Food.FOOD_CREATED);
   }
 }

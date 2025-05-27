@@ -11,7 +11,7 @@ const STATUS_PRIORITY: StatusType[] = ["sick", "urgent"];
 export class CharacterStatusViewManager {
   private character: Character;
   private currentStatuses: StatusType[] = [];
-  private currentEmotion: EmotionType = null;
+  // private currentEmotion: EmotionType = null;
   private statusIconSprites: PIXI.Sprite[] = [];
   private emotionIconSprite?: PIXI.Sprite;
   private emotionTimeout?: number;
@@ -20,9 +20,6 @@ export class CharacterStatusViewManager {
     this.character = character;
   }
 
-  /**
-   * 상태(Status) 아이콘을 추가합니다. (중복 없이, 우선순위 고정)
-   */
   addStatus(status: StatusType) {
     if (!status) return;
     if (this.currentStatuses.includes(status)) return;
@@ -30,23 +27,22 @@ export class CharacterStatusViewManager {
     this._refreshStatusIcons();
   }
 
-  /**
-   * 상태(Status) 아이콘을 제거합니다. (status 없으면 전체 제거)
-   */
-  removeStatus(status?: StatusType) {
-    if (status) {
-      const idx = this.currentStatuses.indexOf(status);
-      if (idx !== -1) {
-        this.currentStatuses.splice(idx, 1);
-      }
-    } else {
-      this.currentStatuses = [];
+  removeStatus(status: StatusType) {
+    const idx = this.currentStatuses.indexOf(status);
+    if (idx !== -1) {
+      this.currentStatuses.splice(idx, 1);
     }
+    this._refreshStatusIcons();
+    console.trace(1, this.currentStatuses);
+  }
+
+  clearStatus() {
+    this.currentStatuses = [];
     this._refreshStatusIcons();
   }
 
   /**
-   * 상태 아이콘들을 우선순위에 따라 중앙정렬로 다시 그림
+   * NOTE: character sprite의 dimension이 잡힌 상태에서 호출되어야 함.
    */
   private _refreshStatusIcons() {
     // 기존 스프라이트 제거
@@ -67,7 +63,8 @@ export class CharacterStatusViewManager {
     const gap = 4;
     const iconWidth = 16 * scale;
     const totalWidth = iconCount * iconWidth + (iconCount - 1) * gap;
-    // layouting
+    const characterHeight = this.character.height;
+
     for (let i = 0; i < iconCount; i++) {
       const status = sortedStatuses[i];
       if (!status) continue;
@@ -76,9 +73,14 @@ export class CharacterStatusViewManager {
         sprite.anchor.set(0.5, 1);
         sprite.scale.set(scale);
         sprite.x = -totalWidth / 2 + iconWidth / 2 + i * (iconWidth + gap);
-        sprite.y = -this.character.height / 3 + 4;
+        // TODO: 캐릭터 높이에 따라 위치 조정 필요
+        sprite.y = -characterHeight / 3 + 4;
         this.statusIconSprites.push(sprite);
         this.character.addChild(sprite);
+      } else {
+        console.warn(
+          `[CharacterStatusViewManager] 아이콘이 없습니다: ${status}`
+        );
       }
     }
   }
@@ -98,7 +100,6 @@ export class CharacterStatusViewManager {
       clearTimeout(this.emotionTimeout);
       this.emotionTimeout = undefined;
     }
-    this.currentEmotion = emotion;
     // 감정 아이콘 생성
     const assets = AssetLoader.getAssets();
     const commonSheet = assets.common16x16Sprites;
@@ -119,7 +120,6 @@ export class CharacterStatusViewManager {
         this.emotionIconSprite.destroy();
         this.emotionIconSprite = undefined;
       }
-      this.currentEmotion = null;
     }, 2000);
   }
 }

@@ -84,7 +84,7 @@ export class Food extends Cleanable {
     const texture = this.getFoodTexture(data?.textureKey);
 
     // 신선도 계산: createdAt과 현재 시각 차이로 freshness 결정
-    const createdAt = data?.createdAt ?? Date.now();
+    const createdAt = data?._createdAt ?? Date.now();
     const elapsed = Date.now() - createdAt;
     if (elapsed < FOOD_FRESHNESS.FRESH_DURATION) {
       this.freshness = FoodFreshness.FRESH;
@@ -118,7 +118,7 @@ export class Food extends Cleanable {
         this.setFreshness(newFreshness);
       },
       this.id, // 음식 ID 전달
-      data?.createdAt ?? Date.now() // 음식 생성 시간 전달
+      createdAt
     );
 
     // 초기 신선도에 맞는 시각적 효과 적용
@@ -294,11 +294,12 @@ export class Food extends Cleanable {
     console.log("[Food] Throw started with texture:", textureKey);
     this.state = FoodState.THROWING;
 
-    // FOOD_CREATED 이벤트 발행
-    EventBus.publish(EventTypes.Food.FOOD_CREATED, {
+    // Object.CREATED 이벤트 발행
+    EventBus.publish(EventTypes.Object.OBJECT_CREATED, {
+      type: ObjectType.Food,
+      id: this.getId(),
       position: finalPosition,
       textureKey: textureKey,
-      id: this.getId(), // 객체의 고유 ID 추가
     });
   }
 

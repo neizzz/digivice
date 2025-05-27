@@ -19,6 +19,7 @@ export enum CharacterState {
   IDLE = "idle",
   WALKING = "walking",
   SLEEPING = "sleeping",
+  SICK = "sick",
   EATING = "eating", // 먹는 상태 추가
   DEAD = "dead", // 죽은 상태 추가
 }
@@ -39,6 +40,7 @@ const animationMapping: CharacterAnimationMapping = {
   [CharacterState.WALKING]: "walking",
   [CharacterState.SLEEPING]: "sleeping",
   [CharacterState.EATING]: "eating",
+  [CharacterState.SICK]: "sick",
 };
 
 export const CharacterDictionary: Record<
