@@ -69,31 +69,15 @@ export class CharacterManager {
     this.egg = egg;
     this.character = undefined; // Egg가 설정되면 Character는 제거
   }
-
-  /**
-   * 현재 캐릭터 반환
-   */
   public getCharacter(): Character | undefined {
     return this.character;
   }
-
-  /**
-   * 현재 Egg 반환
-   */
   public getEgg(): Egg | undefined {
     return this.egg;
   }
-
-  /**
-   * 현재 엔티티가 Character인지 확인
-   */
   public hasCharacter(): boolean {
     return this.character !== undefined;
   }
-
-  /**
-   * 현재 엔티티가 Egg인지 확인
-   */
   public hasEgg(): boolean {
     return this.egg !== undefined;
   }
@@ -143,13 +127,6 @@ export class CharacterManager {
       );
       changedStatus.stamina = afterStatus.stamina;
     }
-    // 질병 상태 비교
-    // if (beforeStatus.sickness !== afterStatus.sickness) {
-    //   console.log(
-    //     `[CharacterManager] 질병 상태 변경: ${beforeStatus.sickness} -> ${afterStatus.sickness}`
-    //   );
-    //   changedStatus.sickness = afterStatus.sickness;
-    // }
     // 진화 게이지 비교
     if (beforeStatus.evolutionGauge !== afterStatus.evolutionGauge) {
       console.log(

@@ -20,7 +20,7 @@ export class RandomMovementController extends MovementController {
   private stateTimer = 0;
   private currentStateDuration = 0; // 현재 상태(이동 또는 휴식) 지속 시간
   private bounds!: PIXI.Rectangle;
-  private enabled = true; // 컨트롤러 활성화 상태
+  private enabled = false; // 컨트롤러 활성화 상태
 
   private options: MovementOptions = {
     minIdleTime: 1000,
@@ -42,9 +42,27 @@ export class RandomMovementController extends MovementController {
     }
 
     this.updateBounds();
-    this.changeToIdleState();
     this.app.ticker.add(this.update, this);
     console.log("[RandomMovementController] 초기화 완료:", this.character);
+  }
+
+  public enable(): void {
+    if (!this.enabled) {
+      this.enabled = true;
+      Math.random() > 0.5
+        ? this.changeToMovingState()
+        : this.changeToIdleState();
+      console.log("[RandomMovenmentController] Enabled and started moving.");
+    }
+  }
+  public disable(): void {
+    // NOTE:FIXME: 여기서 캐릭터 상태변이를 하면 로직이 꼬임.
+    if (this.enabled) {
+      this.enabled = false;
+      this.isMovingState = false; // 이동 상태 해제
+      this.stateTimer = 0; // 상태 타이머 초기화
+      console.log("[RandomMovenmentController] Disabled and stopped moving.");
+    }
   }
 
   private updateBounds(): void {
@@ -56,14 +74,13 @@ export class RandomMovementController extends MovementController {
     );
   }
 
-  // IDLE 상태로 전환
   private changeToIdleState(): void {
     this.isMovingState = false;
     this.currentStateDuration = this.randomRange(
       this.options.minIdleTime || 3000, // 최소 휴식 시간
       this.options.maxIdleTime || 8000 // 최대 휴식 시간
     );
-    this.character.setState(CharacterState.IDLE);
+    this.character.setState(CharacterState.IDLE, true);
     // idle 상태에서도 마지막 이동 방향을 바라보게 함
     this.stateTimer = 0;
   }
@@ -76,7 +93,7 @@ export class RandomMovementController extends MovementController {
       this.options.maxMoveTime
     );
     this.chooseRandomDirection();
-    this.character.setState(CharacterState.WALKING);
+    this.character.setState(CharacterState.WALKING, true);
     this.updateCharacterFacing(); // 캐릭터 방향 업데이트
     this.stateTimer = 0; // 상태 타이머 초기화
     console.debug(
@@ -171,10 +188,6 @@ export class RandomMovementController extends MovementController {
         this.updateCharacterFacing();
       }
 
-      // if (this.character.getState() !== CharacterState.WALKING) {
-      //   this.character.setState(CharacterState.WALKING);
-      // }
-
       // 이동 시간이 만료되면 IDLE 상태로 변경
       if (this.stateTimer >= this.currentStateDuration) {
         this.changeToIdleState();
@@ -217,16 +230,6 @@ export class RandomMovementController extends MovementController {
     return { x: newX, y: newY };
   }
 
-  public enable(): void {
-    if (!this.enabled) {
-      this.enabled = true;
-    }
-  }
-  public disable(): void {
-    if (this.enabled) {
-      this.enabled = false;
-    }
-  }
   public isMoving(): boolean {
     return this.isMovingState;
   }

@@ -10,7 +10,7 @@ export interface MovableCharacter {
   setFlipped(flipped: boolean): void;
   getSpeed(): number;
   getState(): CharacterState;
-  setState(state: CharacterState): void;
+  setState(state: CharacterState, shouldTriggerEvent?: boolean): void;
 }
 
 /**

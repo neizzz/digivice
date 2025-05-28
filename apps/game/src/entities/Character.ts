@@ -14,6 +14,7 @@ import type { CharacterStatusData, GameData } from "../types/GameData";
 import { CharacterStatusViewManager } from "../managers/CharacterStatusViewManager";
 import type { Scene } from "../interfaces/Scene";
 import { ObjectType } from "../types/GameData";
+import { CHARACTER_MOVEMENT } from "../config";
 
 export class Character extends PIXI.Container {
   public animatedSprite: PIXI.AnimatedSprite | undefined;
@@ -59,36 +60,35 @@ export class Character extends PIXI.Container {
     );
     this.setCharacterKey(key as CharacterKey);
     this.statusViewManager = new CharacterStatusViewManager(this);
-    this.reflectCharacterStatus(status);
     scene.addChild(this);
 
-    if (this.getState() !== CharacterState.DEAD) {
-      // this.randomMovementController = this._initRandomMovementController({
-      //   minIdleTime: CHARACTER_MOVEMENT.MIN_IDLE_TIME,
-      //   maxIdleTime: CHARACTER_MOVEMENT.MAX_IDLE_TIME,
-      //   minMoveTime: CHARACTER_MOVEMENT.MIN_MOVE_TIME,
-      //   maxMoveTime: CHARACTER_MOVEMENT.MAX_MOVE_TIME,
-      // });
-      // this.randomMovementController.setMoveSpeed(this.speed);
-      this._initFoodTracker();
-    }
+    const onInitialized = () => {
+      this.reflectCharacterStatus(status);
+      this._initialized = true;
+    };
 
-    this._initialized = true;
+    if (this.getState() !== CharacterState.DEAD) {
+      this.randomMovementController = this._initRandomMovementController({
+        minIdleTime: CHARACTER_MOVEMENT.MIN_IDLE_TIME,
+        maxIdleTime: CHARACTER_MOVEMENT.MAX_IDLE_TIME,
+        minMoveTime: CHARACTER_MOVEMENT.MIN_MOVE_TIME,
+        maxMoveTime: CHARACTER_MOVEMENT.MAX_MOVE_TIME,
+      });
+      this.randomMovementController.setMoveSpeed(this.speed);
+      this._initFoodTracker().then(onInitialized);
+    } else {
+      onInitialized();
+    }
   }
 
+  // NOTE: 코드 순서 중요!
   public reflectCharacterStatus(status: CharacterStatusData): void {
     console.log(
       "[Character] 캐릭터 상태 반영:",
       JSON.stringify(status, null, 2)
     );
-    // NOTE: 코드 순서 중요!
     if (this.getState() !== status.state) {
       this.setState(status.state);
-    }
-    if (status.state === CharacterState.SICK) {
-      this.statusViewManager.addStatus("sick");
-    } else {
-      this.statusViewManager.removeStatus("sick");
     }
     status.stamina === 0
       ? this.statusViewManager.addStatus("urgent")
@@ -151,22 +151,27 @@ export class Character extends PIXI.Container {
     }
   }
 
-  private _initFoodTracker(): void {
-    if (this.app) {
-      // 캐릭터의 부모 컨테이너가 있는지 확인 (MainScene일 가능성 높음)
-      const targetContainer = this.parent;
+  private _initFoodTracker(): Promise<void> {
+    // 캐릭터의 부모 컨테이너가 있는지 확인 (MainScene일 가능성 높음)
+    const targetContainer = this.parent;
 
-      if (targetContainer) {
-        this.foodTracker = new FoodTracker(this, this.app, targetContainer);
-        console.log("[Character] FoodTracker가 초기화되었습니다.");
-      } else {
-        console.warn(
-          "[Character] 캐릭터가 씬에 추가되지 않아 FoodTracker 초기화가 지연됩니다."
-        );
-        // 부모 컨테이너가 없는 경우 다시 시도
-        setTimeout(() => this._initFoodTracker(), 100);
-      }
+    if (targetContainer) {
+      this.foodTracker = new FoodTracker(this, this.app, targetContainer);
+      this.foodTracker.enable();
+      console.log("[Character] FoodTracker가 초기화되었습니다.");
+      return Promise.resolve();
     }
+
+    console.warn(
+      "[Character] 캐릭터가 씬에 추가되지 않아 다음 프레임에 FoodTracker 초기화됩니다."
+    );
+    // 부모 컨테이너가 없는 경우 다시 시도
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        this._initFoodTracker();
+        resolve();
+      });
+    });
   }
 
   /**
@@ -312,8 +317,6 @@ export class Character extends PIXI.Container {
         `[Character] 캐릭터 상태 변경: ${this.currentState} -> ${state}`
       );
     }
-    this.currentState = state;
-
     if (shouldTriggerEvent) {
       this.eventBus.emit(EventTypes.Character.CHARACTER_STATUS_UPDATED, {
         status: { state },
@@ -321,14 +324,22 @@ export class Character extends PIXI.Container {
     }
     if (state === CharacterState.DEAD) {
       this._initializeAsDead();
+      this.currentState = state;
       return;
     }
-    if (state === CharacterState.SICK) {
-      this.disableRandomMovement();
-    }
+    const healed =
+      this.currentState === CharacterState.SICK &&
+      state !== CharacterState.SICK;
+    const sicked =
+      this.currentState !== CharacterState.SICK &&
+      state === CharacterState.SICK;
+
+    if (healed) this._healedSideEffect();
+    if (sicked) this._sickStateSideEffect();
 
     const animationName = this.characterInfo.animationMapping[state];
     this._setAnimation(animationName);
+    this.currentState = state;
   }
   public getState(): CharacterState {
     return this.currentState;
@@ -368,6 +379,18 @@ export class Character extends PIXI.Container {
     this.statusViewManager.setEmotion("happy");
   }
 
+  private _sickStateSideEffect(): void {
+    this.statusViewManager.addStatus("sick");
+    this.disableRandomMovement();
+    this.foodTracker?.disable();
+  }
+
+  private _healedSideEffect(): void {
+    this.statusViewManager.removeStatus("sick");
+    this.enableRandomMovement();
+    this.foodTracker?.enable();
+  }
+
   public async increaseStamina(amount: number): Promise<void> {
     try {
       const gameData = await GameDataManager.getData();
@@ -382,7 +405,7 @@ export class Character extends PIXI.Container {
       const maxStamina = this.characterInfo.maxStamina;
       const newStamina = Math.min(maxStamina, currentStamina + amount);
       if (newStamina === maxStamina) {
-        this.statusViewManager.setEmotion("happy");
+        this.happyEmotion;
       }
       this.eventBus.emit(EventTypes.Character.CHARACTER_STATUS_UPDATED, {
         status: {

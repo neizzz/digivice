@@ -247,31 +247,13 @@ class _GameDataManager {
       console.warn(`[GameDataManager] ${type} 데이터가 존재하지 않습니다.`);
       return;
     }
-
     console.log(
       `[GameDataManager] ${type} ID ${id}를 게임 데이터에서 제거합니다.`
     );
-
-    // 해당 ID를 가진 오브젝트 제거
-
-    // 타입별로 올바른 타입으로 필터링
-    // if (type === ObjectType.Food) {
-    //   currentData.objectsMap[ObjectType.Food] = currentData.objectsMap[
-    //     ObjectType.Food
-    //   ].filter((obj) => obj.id !== id);
-    // } else if (type === ObjectType.Poob) {
-    //   currentData.objectsMap[ObjectType.Poob] = currentData.objectsMap[
-    //     ObjectType.Poob
-    //   ].filter((obj) => obj.id !== id);
-    // }
-
-    console.log(0, type, currentData.objectsMap[type].length);
     // @ts-ignore
     currentData.objectsMap[type] = currentData.objectsMap[type].filter(
       (obj) => obj.id !== id
     );
-    console.log(1, currentData.objectsMap[type].length);
-
     this._saveData(currentData);
   }
 }

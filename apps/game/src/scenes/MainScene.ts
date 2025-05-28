@@ -179,11 +179,9 @@ export class MainScene extends PIXI.Container implements Scene {
             gameData.objectsMap[ObjectType.Pill].length
           }개의 Pill 오브젝트를 복원합니다.`
         );
-        for (const pillData of gameData.objectsMap[ObjectType.Pill]) {
+        for (const data of gameData.objectsMap[ObjectType.Pill]) {
           const pill = new Pill({
-            id: pillData.id,
-            position: pillData.position,
-            textureKey: pillData.textureKey,
+            data,
           });
           this.addChild(pill.getSprite());
         }
@@ -609,9 +607,9 @@ export class MainScene extends PIXI.Container implements Scene {
       this._pickupCharacterWithInBasket(transitionBird, character);
 
       // 화면 오른쪽 아래로 다시 커지면서 날아감
-      await this._flyWithScaleChange(
-        transitionBird,
-        { x: screenWidth + 200, y: screenHeight + 100 },
+      await transitionBird.flyToWithScale(
+        screenWidth + 200,
+        screenHeight + 100,
         1.8,
         3.0,
         2000
@@ -642,22 +640,6 @@ export class MainScene extends PIXI.Container implements Scene {
     return bird.flyToWithScale(
       charPos.x,
       charPos.y + adjustmentY,
-      startScale,
-      endScale,
-      durationMs
-    );
-  }
-
-  private _flyWithScaleChange(
-    bird: Bird,
-    targetPosition: { x: number; y: number },
-    startScale: number,
-    endScale: number,
-    durationMs: number
-  ): Promise<void> {
-    return bird.flyToWithScale(
-      targetPosition.x,
-      targetPosition.y,
       startScale,
       endScale,
       durationMs
@@ -696,8 +678,10 @@ export class MainScene extends PIXI.Container implements Scene {
    * Bird가 약을 랜덤 방향에서 들고 등장, 캐릭터 앞에 약을 내려놓고 무작위 방향으로 퇴장
    */
   private async _birdBringPillToCharacter(): Promise<void> {
-    if (this.isTransitionAnimationPlaying) return;
-    this.isTransitionAnimationPlaying = true;
+    if (this.isTransitionAnimationPlaying) {
+      console.warn("[MainScene] Bird Transition animation is already playing.");
+      return;
+    }
     try {
       const character = this.game
         .getCharacterManager()
@@ -793,33 +777,66 @@ export class MainScene extends PIXI.Container implements Scene {
       );
       // 약 내려놓기 (캐릭터 앞)
       if (pillObj.getSprite()) {
-        this.addChild(pillObj.getSprite());
-        pillObj
-          .getSprite()
-          .position.set(pillTargetPosition.x, pillTargetPosition.y);
-        pillObj.getSprite().zIndex = pillObj.getSprite().position.y; // 약이 캐릭터 앞에 보이도록 zIndex 설정
+        console.log("[MainScene] Pill landed at character front");
+        const pillSprite = pillObj.getSprite();
+        this.addChild(pillSprite);
+        pillSprite.position.set(pillTargetPosition.x, pillTargetPosition.y);
+        pillSprite.zIndex = pillSprite.position.y; // 약이 캐릭터 앞에 보이도록 zIndex 설정
         transitionBird.unHangObject();
         pillObj.setScale(3.2); // 원래의 약 스케일
+
+        if (character.getState() === "sick") {
+          const duration = 3000; // ms
+          const startTime = Date.now();
+          const startScale = pillSprite.scale.x;
+          const startAlpha = pillSprite.alpha;
+          const charCenter = {
+            x: character.position.x,
+            y: character.position.y,
+          };
+          const startX = pillSprite.position.x;
+          const startY = pillSprite.position.y;
+          const animateAbsorb = () => {
+            const elapsed = Date.now() - startTime;
+            const t = Math.min(elapsed / duration, 1);
+            const ease = 1 - (1 - t) ** 2;
+            // Get character center position
+
+            // Update position to move toward character center
+            pillSprite.position.x = startX + (charCenter.x - startX) * ease;
+            pillSprite.position.y = startY + (charCenter.y - startY) * ease;
+            pillSprite.scale.set(startScale * (1 - ease));
+            pillSprite.alpha = startAlpha * (1 - ease);
+            if (t < 1) {
+              requestAnimationFrame(animateAbsorb);
+            } else {
+              // 흡수 완료 후
+              pillObj.destroy();
+              character.setState(CharacterState.IDLE, true);
+              // FIXME: 엄밀히하면 청소가 아니기 때문에 추후에 필요하면 수정
+              EventBus.publish(EventTypes.Object.OBJECT_CLEANED, {
+                type: ObjectType.Pill,
+                id: pillId,
+              });
+            }
+          };
+          setTimeout(() => {
+            console.log("[MainScene] Pill absorb start");
+            animateAbsorb();
+          }, 500);
+        }
       }
       // 퇴장 애니메이션 (캐릭터 앞→퇴장 위치, scale 작아짐)
-      await this._flyWithScaleChange(
-        transitionBird,
-        birdEndPos,
+      await transitionBird.flyToWithScale(
+        birdEndPos.x,
+        birdEndPos.y,
         birdTargetScale,
         birdStartScale,
         900
       );
-      // Bird 사라짐
-      this.removeChild(transitionBird);
-      // // 약은 잠시 후 사라짐
-      // if (pillSprite) {
-      //   setTimeout(() => {
-      //     if (pillSprite.parent) this.removeChild(pillSprite);
-      //     pillSprite.destroy();
-      //   }, 1200);
-      // }
+      transitionBird.destroy();
     } catch (e) {
-      console.error("약 가져다주기 연출 오류:", e);
+      console.error("[MainScene] 약 가져다주기 연출 오류:", e);
     } finally {
       this.isTransitionAnimationPlaying = false;
     }

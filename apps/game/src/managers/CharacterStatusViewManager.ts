@@ -33,7 +33,6 @@ export class CharacterStatusViewManager {
       this.currentStatuses.splice(idx, 1);
     }
     this._refreshStatusIcons();
-    console.trace(1, this.currentStatuses);
   }
 
   clearStatus() {
