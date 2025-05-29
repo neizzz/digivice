@@ -47,7 +47,7 @@ export class Character extends PIXI.Container {
     this.app = params.app;
   }
 
-  // NOTE: 코드 진행 순서 중요!
+  // NOTE: 코드 순서 중요!
   public initialize(characterInfo: GameData["character"], scene: Scene): void {
     if (this._initialized) {
       console.warn("[Character] 이미 초기화된 캐릭터입니다.");
@@ -74,6 +74,7 @@ export class Character extends PIXI.Container {
         minMoveTime: CHARACTER_MOVEMENT.MIN_MOVE_TIME,
         maxMoveTime: CHARACTER_MOVEMENT.MAX_MOVE_TIME,
       });
+      this.randomMovementController.enable();
       this.randomMovementController.setMoveSpeed(this.speed);
       this._initFoodTracker().then(onInitialized);
     } else {
@@ -89,6 +90,9 @@ export class Character extends PIXI.Container {
     );
     if (this.getState() !== status.state) {
       this.setState(status.state);
+    }
+    if (this.getState() === CharacterState.DEAD) {
+      return;
     }
     status.stamina === 0
       ? this.statusViewManager.addStatus("urgent")

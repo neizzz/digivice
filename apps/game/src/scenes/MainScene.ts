@@ -603,7 +603,6 @@ export class MainScene extends PIXI.Container implements Scene {
         -60
       );
 
-      // 캐릭터의 in-basket 스프라이트로 교체하는 로직
       this._pickupCharacterWithInBasket(transitionBird, character);
 
       // 화면 오른쪽 아래로 다시 커지면서 날아감
@@ -636,14 +635,43 @@ export class MainScene extends PIXI.Container implements Scene {
   ): Promise<void> {
     // 캐릭터의 현재 위치를 실시간으로 추적하지 않고, 최초 위치로 이동
     // 필요시 실시간 추적 로직을 유지할 수 있음
-    const charPos = character.position;
-    return bird.flyToWithScale(
-      charPos.x,
-      charPos.y + adjustmentY,
-      startScale,
-      endScale,
-      durationMs
-    );
+    // Use requestAnimationFrame for smooth real-time tracking animation
+    return new Promise<void>((resolve) => {
+      const startTime = Date.now();
+      const birdStartPos = { x: bird.position.x, y: bird.position.y };
+      const birdStartScale = bird.scale.x;
+
+      const trackCharacter = () => {
+        const currentTime = Date.now();
+        const elapsedTime = currentTime - startTime;
+        const progress = Math.min(elapsedTime / durationMs, 1);
+
+        // Get character's current position for real-time tracking
+        const currentCharPos = {
+          x: character.position.x,
+          y: character.position.y + adjustmentY,
+        };
+
+        // Interpolate bird position towards character's current position
+        bird.position.x =
+          birdStartPos.x + (currentCharPos.x - birdStartPos.x) * progress;
+        bird.position.y =
+          birdStartPos.y + (currentCharPos.y - birdStartPos.y) * progress;
+
+        // Interpolate scale
+        const currentScale =
+          birdStartScale + (endScale - birdStartScale) * progress;
+        bird.setScale(currentScale);
+
+        if (progress < 1) {
+          requestAnimationFrame(trackCharacter);
+        } else {
+          resolve();
+        }
+      };
+
+      trackCharacter();
+    });
   }
 
   private _pickupCharacterWithInBasket(bird: Bird, character: Character): void {
@@ -772,7 +800,7 @@ export class MainScene extends PIXI.Container implements Scene {
         character,
         birdStartScale,
         birdTargetScale,
-        1200,
+        1500,
         -20
       );
       // 약 내려놓기 (캐릭터 앞)
@@ -832,7 +860,7 @@ export class MainScene extends PIXI.Container implements Scene {
         birdEndPos.y,
         birdTargetScale,
         birdStartScale,
-        900
+        1500
       );
       transitionBird.destroy();
     } catch (e) {

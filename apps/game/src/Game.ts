@@ -258,13 +258,12 @@ export class Game {
         if (document.hidden) {
           // "앱끄기/홈버튼" 시점
           console.log("[Game] 앱 상태 변경: background-running");
+          this.app.ticker.stop(); // 게임 루프 중지
 
           if (this.shouldSaveDataBeforeUnload) {
             console.log("[Game] 화면이 꺼지기 전에 게임 데이터 저장.");
             this.saveGameState();
           }
-
-          // this.timeManager.changeAppState("background-running"); // stop 대신 changeAppState 사용
         } else {
           // "resume" 시점
           console.log("[Game] 앱 상태 변경: active");
@@ -278,9 +277,14 @@ export class Game {
               inputGameData: gameData,
               inputCheckData: lastCheckData,
             });
+          this.characterManager.updateCharacter({
+            before: gameData.character,
+            after: resultCharacterInfo,
+          });
+          this.app.ticker.start();
           gameData.character = resultCharacterInfo;
-          await GameDataManager._saveData(gameData);
-          await LastCheckDataManager._saveData(resultLastCheckData);
+          GameDataManager._saveData(gameData);
+          LastCheckDataManager._saveData(resultLastCheckData);
         }
       });
     }
