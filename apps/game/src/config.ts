@@ -16,20 +16,6 @@ export const CHARACTER_MOVEMENT = {
 };
 
 /**
- * 캐릭터 진화 관련 상수
- */
-export const CHARACTER_EVOLUTION = {
-  // 알에서 유년기로 진화 (30분)
-  EGG_END_TIME: 5000,
-
-  // 진화 게이지 관련 설정
-  // GAUGE_MAX_VALUE: 100, // 최대 진화 게이지
-  // GAUGE_INCREMENT_VALUE: 0.3, // 10분당 증가량
-  // GAUGE_CHECK_INTERVAL: 600000, // 진화 게이지 체크 간격 (10분)
-  // STAMINA_THRESHOLD_PERCENT: 0.4, // 스태미나가 이 비율 이상이어야 게이지 증가
-};
-
-/**
  * 게임 루프 관련 시간 상수 (밀리초 단위)
  */
 export const GAME_LOOP = {
@@ -49,21 +35,25 @@ export const FOOD_FRESHNESS = {
  * NOTE: interval은 최소 5분 이상이어야 함.
  */
 const isDebugMode = import.meta.env.DEV;
-export const CHARACTER_STATUS_CHECK = isDebugMode
+export const CHARACTER_STATUS = isDebugMode
   ? ({
       EGG_HATCH_TIMEOUT: 3 * 1000,
+      DIGESTION_CAPACITY: 5, // 소화기관 용량
+      DIGESTION_INCREASE_AMOUNT: 2, // 음식 섭취 시 증가량
+      DIGESTION_POOB_DELAY: 3000, // 똥 생성 지연(ms)
 
       // 스태미나가 4 이상일 때 진화 게이지가 오름
       EVOLUTION_GAUGE_CHECK_INTERVAL: 10 * 1000,
       EVOLUTION_GAUGE_STATMINA_THRESHOLD: 4,
       EVOLUTION_GAUGE_INCREASE_AMOUNT: {
-        [CharacterClass.A]: 30,
+        [CharacterClass.A]: 40,
         [CharacterClass.B]: 20,
         [CharacterClass.C]: 10,
         [CharacterClass.D]: 0.0,
       },
-      STAMINA_DECREASE_INTERVAL: 20 * 1000,
+      STAMINA_DECREASE_INTERVAL: 10 * 1000,
       STAMINA_DECREASE_AMOUNT: 1, // 한 번에 감소하는 스태미나 양
+      MAX_STAMINA: 10, // 최대 스태미나
 
       SICKNESS_CHECK_INTERVAL: 5 * 1000,
       SICKNESS_PROBABILITY: 0.1,
@@ -72,7 +62,9 @@ export const CHARACTER_STATUS_CHECK = isDebugMode
     } as const)
   : ({
       EGG_HATCH_TIMEOUT: 30 * 60 * 1000, // 알 부화 (30분)
-
+      DIGESTION_CAPACITY: 5, // 소화기관 용량
+      DIGESTION_INCREASE_AMOUNT: 2, // 음식 섭취 시 증가량
+      DIGESTION_POOB_DELAY: 20 * 60 * 1000, // 똥 생성 지연 (20분)
       // 스태미나가 4 이상일 때 진화 게이지가 오름
       EVOLUTION_GAUGE_CHECK_INTERVAL: 20 * 60 * 1000, // 20분,
       EVOLUTION_GAUGE_STATMINA_THRESHOLD: 4,
@@ -85,6 +77,7 @@ export const CHARACTER_STATUS_CHECK = isDebugMode
 
       STAMINA_DECREASE_INTERVAL: 60 * 60 * 1000, // 1시간
       STAMINA_DECREASE_AMOUNT: 1, // 한 번에 감소하는 스태미나 양
+      MAX_STAMINA: 10,
 
       SICKNESS_CHECK_INTERVAL: 30 * 60 * 1000, // 30분
       SICKNESS_PROBABILITY: 0.03,

@@ -11,7 +11,7 @@
   "dependencies": {
     "@pixi/filter-color-matrix": "^7.4.3",
     "@shared/storage": "workspace:*",
-    "lodash.clonedeep": "^4.5.0",
+    "bitecs": "^0.3.40",
     "lodash.throttle": "^4.1.1",
     "matter-js": "^0.20.0",
     "pixi.js": "^7.4.0",

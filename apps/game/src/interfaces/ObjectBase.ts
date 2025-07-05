@@ -6,23 +6,12 @@ import { generateId } from "../utils/generate";
  * 게임 내 모든 오브젝트의 기본 클래스
  */
 export abstract class ObjectBase {
-  /**
-   * 객체의 고유 ID
-   */
   protected readonly id: string;
 
-  /**
-   * ObjectBase 생성자
-   * @param idPrefix ID 생성 시 사용할 접두사 (옵션)
-   */
-  constructor(id?: string) {
-    this.id = id ?? generateId(this.getType());
+  constructor(existingId?: string) {
+    this.id = existingId ?? generateId(this.getType());
   }
 
-  /**
-   * 객체의 고유 ID를 반환합니다.
-   * @returns 객체의 고유 ID
-   */
   public getId(): string {
     return this.id;
   }

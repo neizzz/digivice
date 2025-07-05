@@ -76,9 +76,10 @@ export class Bird extends PIXI.Container {
     return null;
   }
 
-  /**
-   * 현재 매달려 있는 오브젝트를 반환합니다.
-   */
+  public getSprite(): PIXI.AnimatedSprite {
+    return this.animatedSprite;
+  }
+
   public getHangingObject(): PIXI.Sprite | null {
     return this.hangingObject;
   }

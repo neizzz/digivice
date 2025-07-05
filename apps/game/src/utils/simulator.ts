@@ -1,5 +1,5 @@
-import cloneDeep from "lodash.clonedeep";
-import { CHARACTER_STATUS_CHECK, FOOD_FRESHNESS } from "../config";
+// import cloneDeep from "lodash.clonedeep";
+import { CHARACTER_STATUS, FOOD_FRESHNESS } from "../config";
 import { type ObjectData, ObjectType, type GameData } from "../types/GameData";
 import {
   type CharacterClass,
@@ -8,6 +8,7 @@ import {
 } from "../types/Character";
 import { evolve, getCharacterClassFrom, hatch } from "../evolution";
 import type { LastCheckData } from "../managers/LastCheckDataManager";
+import { cloneDeep } from "./common";
 
 const A_MINUTE = 60 * 1000;
 const FOUR_HOURS = 4 * 60 * 60 * 1000;
@@ -23,72 +24,67 @@ function _logConfiguredIntervals(): void {
   // 알 부화 시간
   console.log(
     "EGG_HATCH_TIMEOUT:",
-    CHARACTER_STATUS_CHECK.EGG_HATCH_TIMEOUT,
+    CHARACTER_STATUS.EGG_HATCH_TIMEOUT,
     "ms",
     `(${Math.floor(
-      CHARACTER_STATUS_CHECK.EGG_HATCH_TIMEOUT / 1000 / 60
-    )}분 ${Math.round(
-      (CHARACTER_STATUS_CHECK.EGG_HATCH_TIMEOUT / 1000) % 60
-    )}초)`
+      CHARACTER_STATUS.EGG_HATCH_TIMEOUT / 1000 / 60
+    )}분 ${Math.round((CHARACTER_STATUS.EGG_HATCH_TIMEOUT / 1000) % 60)}초)`
   );
 
   // 진화 게이지 관련
   console.log(
     "EVOLUTION_GAUGE_CHECK_INTERVAL:",
-    CHARACTER_STATUS_CHECK.EVOLUTION_GAUGE_CHECK_INTERVAL,
+    CHARACTER_STATUS.EVOLUTION_GAUGE_CHECK_INTERVAL,
     "ms",
     `(${Math.floor(
-      CHARACTER_STATUS_CHECK.EVOLUTION_GAUGE_CHECK_INTERVAL / 1000 / 60
+      CHARACTER_STATUS.EVOLUTION_GAUGE_CHECK_INTERVAL / 1000 / 60
     )}분 ${Math.round(
-      (CHARACTER_STATUS_CHECK.EVOLUTION_GAUGE_CHECK_INTERVAL / 1000) % 60
+      (CHARACTER_STATUS.EVOLUTION_GAUGE_CHECK_INTERVAL / 1000) % 60
     )}초)`
   );
   console.log(
     "EVOLUTION_GAUGE_STATMINA_THRESHOLD:",
-    CHARACTER_STATUS_CHECK.EVOLUTION_GAUGE_STATMINA_THRESHOLD
+    CHARACTER_STATUS.EVOLUTION_GAUGE_STATMINA_THRESHOLD
   );
 
   // 스태미나 감소 간격
   console.log(
     "STAMINA_DECREASE_INTERVAL:",
-    CHARACTER_STATUS_CHECK.STAMINA_DECREASE_INTERVAL,
+    CHARACTER_STATUS.STAMINA_DECREASE_INTERVAL,
     "ms",
     `(${Math.floor(
-      CHARACTER_STATUS_CHECK.STAMINA_DECREASE_INTERVAL / 1000 / 60
+      CHARACTER_STATUS.STAMINA_DECREASE_INTERVAL / 1000 / 60
     )}분 ${Math.round(
-      (CHARACTER_STATUS_CHECK.STAMINA_DECREASE_INTERVAL / 1000) % 60
+      (CHARACTER_STATUS.STAMINA_DECREASE_INTERVAL / 1000) % 60
     )}초)`
   );
   console.log(
     "STAMINA_DECREASE_AMOUNT:",
-    CHARACTER_STATUS_CHECK.STAMINA_DECREASE_AMOUNT
+    CHARACTER_STATUS.STAMINA_DECREASE_AMOUNT
   );
 
   // 질병 체크 간격
   console.log(
     "SICKNESS_CHECK_INTERVAL:",
-    CHARACTER_STATUS_CHECK.SICKNESS_CHECK_INTERVAL,
+    CHARACTER_STATUS.SICKNESS_CHECK_INTERVAL,
     "ms",
     `(${Math.floor(
-      CHARACTER_STATUS_CHECK.SICKNESS_CHECK_INTERVAL / 1000 / 60
+      CHARACTER_STATUS.SICKNESS_CHECK_INTERVAL / 1000 / 60
     )}분 ${Math.round(
-      (CHARACTER_STATUS_CHECK.SICKNESS_CHECK_INTERVAL / 1000) % 60
+      (CHARACTER_STATUS.SICKNESS_CHECK_INTERVAL / 1000) % 60
     )}초)`
   );
-  console.log(
-    "SICKNESS_PROBABILITY:",
-    CHARACTER_STATUS_CHECK.SICKNESS_PROBABILITY
-  );
+  console.log("SICKNESS_PROBABILITY:", CHARACTER_STATUS.SICKNESS_PROBABILITY);
 
   // 스태미나 0 이후 타임아웃
   console.log(
     "TIMEOUT_AFTER_STAMINA_ZERO:",
-    CHARACTER_STATUS_CHECK.TIMEOUT_AFTER_STAMINA_ZERO,
+    CHARACTER_STATUS.TIMEOUT_AFTER_STAMINA_ZERO,
     "ms",
     `(${Math.floor(
-      CHARACTER_STATUS_CHECK.TIMEOUT_AFTER_STAMINA_ZERO / 1000 / 60
+      CHARACTER_STATUS.TIMEOUT_AFTER_STAMINA_ZERO / 1000 / 60
     )}분 ${Math.round(
-      (CHARACTER_STATUS_CHECK.TIMEOUT_AFTER_STAMINA_ZERO / 1000) % 60
+      (CHARACTER_STATUS.TIMEOUT_AFTER_STAMINA_ZERO / 1000) % 60
     )}초)`
   );
 
@@ -104,24 +100,30 @@ export function simulateCharacterStatus(params: {
   /** background(or turn off) 진입 당시, 최근 상태 체크 정보 */
   inputCheckData: LastCheckData;
 }): {
-  resultCharacterInfo: GameData["character"];
+  resultGameData: GameData;
   resultLastCheckData: LastCheckData;
 } {
   const { elapsedTime, inputGameData, inputCheckData } = params;
+  const lastGameData = cloneDeep(inputGameData);
+  const lastCharacterInfo = lastGameData.character;
+
   const baseTick = _determineBaseTick(elapsedTime);
   if (!baseTick) {
-    const resultCharacterInfo = cloneDeep(inputGameData.character);
-    resultCharacterInfo.status.stamina = 0;
-    resultCharacterInfo.status.state = CharacterState.DEAD;
+    lastCharacterInfo.status.stamina = 0;
+    lastCharacterInfo.status.state = CharacterState.DEAD;
     return {
-      resultCharacterInfo,
+      resultGameData: lastGameData,
       resultLastCheckData: inputCheckData,
     };
   }
 
+  // 시뮬레이션 전 상태 동기화
+  if (lastCharacterInfo.status.stamina > 0) {
+    lastCharacterInfo.status.timeOfZeroStamina = undefined;
+  }
+
   const now = Date.now();
   const startTime = now - elapsedTime;
-  const lastCharacterInfo = cloneDeep(inputGameData.character);
   const lastCheckData = cloneDeep(inputCheckData);
 
   for (
@@ -139,7 +141,8 @@ export function simulateCharacterStatus(params: {
         lastCharacterInfo.status = {
           ...lastCharacterInfo.status,
           // TODO: 부화 이후 진입 시간에 따라, state/position을 랜덤or정교하게 생성
-          state: CharacterState.IDLE,
+          // state: CharacterState.IDLE,
+          state: lastCharacterInfo.status.state,
         };
         lastCheckData.stamina = currentTime; // 알 상태일 때는 스태미나 체크를 하지 않음.
         lastCheckData.sickness = currentTime; // 알 상태일 때는 sickness 체크를 하지 않음.
@@ -150,68 +153,74 @@ export function simulateCharacterStatus(params: {
 
     const intervalVariation = 1 + (Math.random() * 0.2 - 0.1); // -10% to +10% variation
     const shouldCheckSickness =
-      lastCharacterInfo.status.sickness === false &&
-      lastCharacterInfo.status.state !== CharacterState.EATING &&
-      lastCharacterInfo.status.state !== CharacterState.SLEEPING &&
       currentTime >
-        lastCheckData.sickness +
-          CHARACTER_STATUS_CHECK.SICKNESS_CHECK_INTERVAL * intervalVariation;
-    const shouldCheckDeath = !!lastCharacterInfo.status.timeOfZeroStamina;
+      lastCheckData.sickness +
+        CHARACTER_STATUS.SICKNESS_CHECK_INTERVAL * intervalVariation;
+    // const shouldCheckDeath = !!lastCharacterInfo.status.timeOfZeroStamina;
+    const shouldCheckDeath = false;
     const shouldCheckStamina =
-      !shouldCheckDeath &&
       currentTime >
-        lastCheckData.stamina +
-          CHARACTER_STATUS_CHECK.STAMINA_DECREASE_INTERVAL * intervalVariation;
+      lastCheckData.stamina +
+        CHARACTER_STATUS.STAMINA_DECREASE_INTERVAL * intervalVariation;
     const shouldCheckEvolutionGauge =
       lastCharacterInfo.status.stamina >=
-        CHARACTER_STATUS_CHECK.EVOLUTION_GAUGE_STATMINA_THRESHOLD &&
+        CHARACTER_STATUS.EVOLUTION_GAUGE_STATMINA_THRESHOLD &&
       currentTime >
         lastCheckData.evolutionGauge +
-          CHARACTER_STATUS_CHECK.EVOLUTION_GAUGE_CHECK_INTERVAL *
-            intervalVariation;
+          CHARACTER_STATUS.EVOLUTION_GAUGE_CHECK_INTERVAL * intervalVariation;
 
     if (shouldCheckSickness) {
-      lastCharacterInfo.status.sickness = _checkSickness({
-        unhygienicObjectCount: _getUnhygienicObjectCount(
-          currentTime,
-          inputGameData.objectsMap
-        ),
-      });
       lastCheckData.sickness = currentTime;
 
-      if (lastCharacterInfo.status.sickness) {
-        const shouldCheckStaminaWhenSick =
-          currentTime >
-          lastCheckData.stamina +
-            (CHARACTER_STATUS_CHECK.STAMINA_DECREASE_INTERVAL / 2) *
-              intervalVariation;
-        if (shouldCheckStaminaWhenSick) {
-          lastCharacterInfo.status.stamina = _decreaseStamina({
-            startStamina: lastCharacterInfo.status.stamina,
-          });
-          lastCheckData.stamina = currentTime;
+      if (
+        lastCharacterInfo.status.state !== CharacterState.SICK &&
+        lastCharacterInfo.status.state !== CharacterState.EATING &&
+        lastCharacterInfo.status.state !== CharacterState.SLEEPING
+      ) {
+        const sickness = _checkSickness({
+          unhygienicObjectCount: _getUnhygienicObjectCount(
+            currentTime,
+            inputGameData.objectsMap
+          ),
+        });
+
+        if (sickness) {
+          lastCharacterInfo.status.state = CharacterState.SICK;
         }
+      }
+
+      /** 이미 이프다면, 스태미나 추가 감소 */
+      if (lastCharacterInfo.status.state === CharacterState.SICK) {
+        lastCharacterInfo.status.stamina = _decreaseStamina({
+          startStamina: lastCharacterInfo.status.stamina,
+        });
       }
     }
 
     if (shouldCheckDeath) {
-      const isDead = _checkDeath({
-        timeOfZeroStamina: lastCharacterInfo.status.timeOfZeroStamina as number,
-      });
-      if (isDead) {
-        lastCharacterInfo.status.state = CharacterState.DEAD;
+      if (lastCharacterInfo.status.state !== CharacterState.EATING) {
+        const isDead = _checkDeath({
+          timeOfZeroStamina: lastCharacterInfo.status
+            .timeOfZeroStamina as number,
+        });
+        if (isDead) {
+          lastCharacterInfo.status.state = CharacterState.DEAD;
+        }
       }
     }
 
     if (shouldCheckStamina) {
-      const resultStamina = _decreaseStamina({
-        startStamina: lastCharacterInfo.status.stamina,
-      });
-      if (resultStamina <= 0 && lastCharacterInfo.status.stamina > 0) {
-        lastCharacterInfo.status.timeOfZeroStamina = currentTime;
-      }
-      lastCharacterInfo.status.stamina = resultStamina;
       lastCheckData.stamina = currentTime;
+
+      if (!shouldCheckDeath) {
+        const resultStamina = _decreaseStamina({
+          startStamina: lastCharacterInfo.status.stamina,
+        });
+        if (resultStamina <= 0 && lastCharacterInfo.status.stamina > 0) {
+          lastCharacterInfo.status.timeOfZeroStamina = currentTime;
+        }
+        lastCharacterInfo.status.stamina = resultStamina;
+      }
     }
 
     if (shouldCheckEvolutionGauge) {
@@ -231,6 +240,24 @@ export function simulateCharacterStatus(params: {
         }
       }
     }
+
+    const shouldCreatePoob =
+      lastGameData.futureEvents[0] &&
+      lastGameData.futureEvents[0].time <= currentTime;
+    if (shouldCreatePoob) {
+      console.log("✅ [simulator] Poob 생성 이벤트 발생");
+      lastGameData.futureEvents.splice(0, 1); // lastCharacter.InfofutureEvents에서 첫 번째 이벤트 제거
+      // TODO: elapsedTime에 따라 app boundary 내 랜덤 위치 or 정밀 위치
+      const poobPosition = {
+        x: lastCharacterInfo.status.position.x,
+        y: lastCharacterInfo.status.position.y,
+      };
+      lastGameData.objectsMap[ObjectType.Poob].push({
+        id: `poob-${Date.now()}`,
+        position: poobPosition,
+        _createdAt: currentTime,
+      });
+    }
   }
 
   if (baseTick > 1000) {
@@ -242,7 +269,7 @@ export function simulateCharacterStatus(params: {
   }
 
   return {
-    resultCharacterInfo: lastCharacterInfo,
+    resultGameData: lastGameData,
     resultLastCheckData: lastCheckData,
   };
 }
@@ -271,7 +298,7 @@ function _getUnhygienicObjectCount(
   const staleFoodCount =
     objectsMap[ObjectType.Food]?.filter(
       (food) =>
-        (food as ObjectData[ObjectType.Food]).createdAt +
+        (food as ObjectData[ObjectType.Food])._createdAt +
           FOOD_FRESHNESS.NORMAL_DURATION +
           FOOD_FRESHNESS.FRESH_DURATION <
         currentTime
@@ -283,25 +310,27 @@ function _getUnhygienicObjectCount(
 function _checkEggHatch(params: { createdAt: number }): boolean {
   const { createdAt } = params;
   const now = Date.now();
-  const hatchTime = createdAt + CHARACTER_STATUS_CHECK.EGG_HATCH_TIMEOUT;
+  const hatchTime = createdAt + CHARACTER_STATUS.EGG_HATCH_TIMEOUT;
   return now > hatchTime;
 }
 
 function _checkSickness(params: { unhygienicObjectCount: number }): boolean {
   const { unhygienicObjectCount } = params;
   const adjustedSicknessProbability =
-    CHARACTER_STATUS_CHECK.SICKNESS_PROBABILITY + unhygienicObjectCount * 0.01;
+    CHARACTER_STATUS.SICKNESS_PROBABILITY + unhygienicObjectCount * 0.01;
   const tmpRamdom = Math.random();
   const sickness = !!(tmpRamdom < adjustedSicknessProbability);
+  console.debug(
+    "[simulator] ✅_checkSickness:",
+    adjustedSicknessProbability,
+    sickness
+  );
   return sickness;
 }
 
 function _decreaseStamina(params: { startStamina: number }): number {
   const { startStamina } = params;
-  return Math.max(
-    0,
-    startStamina - CHARACTER_STATUS_CHECK.STAMINA_DECREASE_AMOUNT
-  );
+  return Math.max(0, startStamina - CHARACTER_STATUS.STAMINA_DECREASE_AMOUNT);
 }
 
 function _increaseEvolutionGage(params: {
@@ -313,7 +342,7 @@ function _increaseEvolutionGage(params: {
     currentCharacterKey
   ) as CharacterClass;
   const increaseAmount =
-    CHARACTER_STATUS_CHECK.EVOLUTION_GAUGE_INCREASE_AMOUNT[currentClass];
+    CHARACTER_STATUS.EVOLUTION_GAUGE_INCREASE_AMOUNT[currentClass];
   const resultEvolutionGauge = currentEvolutionGauge + increaseAmount;
   const shouldEvolve = resultEvolutionGauge >= 100;
   return {
@@ -327,8 +356,7 @@ function _increaseEvolutionGage(params: {
 function _checkDeath(params: { timeOfZeroStamina: number }): boolean {
   const { timeOfZeroStamina } = params;
   return (
-    CHARACTER_STATUS_CHECK.TIMEOUT_AFTER_STAMINA_ZERO <
-    Date.now() - timeOfZeroStamina
+    CHARACTER_STATUS.TIMEOUT_AFTER_STAMINA_ZERO < Date.now() - timeOfZeroStamina
   );
 }
 
@@ -356,7 +384,7 @@ function _logCharacterInfoChange(
         key: beforeCharacter.key,
         state: beforeCharacter.status.state,
         stamina: beforeCharacter.status.stamina,
-        sick: beforeCharacter.status.sickness,
+        // sick: beforeCharacter.status.sickness,
         evolutionGauge: beforeCharacter.status.evolutionGauge,
       },
       null,
@@ -370,7 +398,7 @@ function _logCharacterInfoChange(
         key: afterCharacter.key,
         state: afterCharacter.status.state,
         stamina: afterCharacter.status.stamina,
-        sick: afterCharacter.status.sickness,
+        // sick: afterCharacter.status.sickness,
         evolutionGauge: afterCharacter.status.evolutionGauge,
       },
       null,

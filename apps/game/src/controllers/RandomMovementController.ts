@@ -47,21 +47,21 @@ export class RandomMovementController extends MovementController {
   }
 
   public enable(): void {
+    console.log("[RandomMovenmentController] Enabled and started moving.");
     if (!this.enabled) {
       this.enabled = true;
       Math.random() > 0.5
         ? this.changeToMovingState()
         : this.changeToIdleState();
-      console.log("[RandomMovenmentController] Enabled and started moving.");
     }
   }
   public disable(): void {
+    console.log("[RandomMovenmentController] Disabled and stopped moving.");
     // NOTE:FIXME: 여기서 캐릭터 상태변이를 하면 로직이 꼬임.
     if (this.enabled) {
       this.enabled = false;
       this.isMovingState = false; // 이동 상태 해제
       this.stateTimer = 0; // 상태 타이머 초기화
-      console.log("[RandomMovenmentController] Disabled and stopped moving.");
     }
   }
 

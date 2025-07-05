@@ -4,8 +4,8 @@ export enum GameMenuItemType {
   Versus = "versus",
   Drug = "drug",
   Clean = "clean",
-  Information = "information",
-  Training = "training",
+  // Information = "information",
+  // Training = "training",
 }
 
 const getBackgroundPosition = (type: GameMenuItemType, size: number) => {
@@ -20,10 +20,10 @@ const getBackgroundPosition = (type: GameMenuItemType, size: number) => {
       return `-${3 * size}px 0px`;
     case GameMenuItemType.Clean:
       return `-${4 * size + 1}px 0px`;
-    case GameMenuItemType.Information:
-      return `-${5 * size}px 0px`;
-    case GameMenuItemType.Training:
-      return `-${6 * size}px 0px`;
+    // case GameMenuItemType.Information:
+    //   return `-${5 * size}px 0px`;
+    // case GameMenuItemType.Training:
+    //   return `-${6 * size}px 0px`;
     default:
       throw new Error(`Unknown menu item type: ${type}`);
   }
@@ -101,6 +101,10 @@ export class GameMenuItem {
 
   public getElement(): HTMLDivElement {
     return this.element;
+  }
+
+  public getSize(): number {
+    return Number.parseInt(this.element.style.height);
   }
 
   public destroy(): void {

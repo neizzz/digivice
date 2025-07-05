@@ -36,7 +36,7 @@ export class Broom {
     this.sprite.height = 40;
 
     // biome-ignore lint/suspicious/noExplicitAny: <explanation>
-    (this.sprite as any).__objectRef = this;
+    // (this.sprite as any).__objectRef = this;
 
     this.parent.addChild(this.sprite);
   }

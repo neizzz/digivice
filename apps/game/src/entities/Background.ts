@@ -1,3 +1,4 @@
+import { INTENTED_FRONT_Z_INDEX } from "@/config";
 import * as PIXI from "pixi.js";
 
 /**
@@ -5,7 +6,7 @@ import * as PIXI from "pixi.js";
  * 화면 크기에 맞게 배경을 자동 조정합니다.
  */
 export class Background extends PIXI.Container {
-  private bgSprite: PIXI.Sprite;
+  private _bgSprite: PIXI.Sprite;
 
   /**
    * 배경 객체를 생성합니다.
@@ -15,9 +16,10 @@ export class Background extends PIXI.Container {
     super();
 
     // 배경 스프라이트 생성
-    this.bgSprite = new PIXI.Sprite(texture);
-    this.bgSprite.anchor.set(0.5); // 중앙 기준점으로 설정
-    this.addChild(this.bgSprite);
+    this._bgSprite = new PIXI.Sprite(texture);
+    this._bgSprite.anchor.set(0.5); // 중앙 기준점으로 설정
+    this.zIndex = -INTENTED_FRONT_Z_INDEX; // 컨테이너 자체도 배경 뒤에 위치시킴
+    this.addChild(this._bgSprite);
   }
 
   /**
@@ -30,19 +32,11 @@ export class Background extends PIXI.Container {
     this.position.set(width / 2, height / 2);
 
     // 화면을 완전히 채우도록 비율 조정
-    const scaleX = width / this.bgSprite.texture.width;
-    const scaleY = height / this.bgSprite.texture.height;
+    const scaleX = width / this._bgSprite.texture.width;
+    const scaleY = height / this._bgSprite.texture.height;
 
     // 더 큰 스케일 값을 사용하여 화면을 완전히 커버
     const scale = Math.max(scaleX, scaleY);
-    this.bgSprite.scale.set(scale);
-  }
-
-  /**
-   * 배경 텍스처를 변경합니다.
-   * @param newTexture 새 배경 텍스처
-   */
-  public changeTexture(newTexture: PIXI.Texture): void {
-    this.bgSprite.texture = newTexture;
+    this._bgSprite.scale.set(scale);
   }
 }

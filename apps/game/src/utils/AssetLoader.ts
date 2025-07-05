@@ -78,6 +78,9 @@ const CHARACTER_ASSETS_TO_LOAD: AssetDefinition[] = Object.values(
   characterKey: key,
 }));
 
+// 텍스처 캐시 (성능 향상을 위함)
+const textureCache = new Map<string, PIXI.Texture | null>();
+
 export const AssetLoader = {
   assets: {
     backgroundTexture: PIXI.Texture.WHITE,
@@ -93,6 +96,7 @@ export const AssetLoader = {
   isLoading: false,
   loadingPromise: null as Promise<GameAssets> | null,
   BASE_PATH: "/game",
+
   async loadAssets(): Promise<void> {
     console.groupCollapsed(
       "[AssetLoader] AssetLoader.loadAssets() called, loading assets..."
@@ -402,6 +406,146 @@ export const AssetLoader = {
       }
     }
 
+    // 텍스처 캐시도 초기화
+    this.clearTextureCache();
+
     PIXI.utils.clearTextureCache();
+  },
+  /**
+   * 텍스처 이름으로 직접 검색하여 텍스처를 반환합니다 (캐시 적용)
+   * @param textureName 찾을 텍스처 이름
+   * @returns PIXI.Texture 또는 null
+   */ getTextureByName(textureName: string): PIXI.Texture | null {
+    // 캐시에서 먼저 확인
+    if (textureCache.has(textureName)) {
+      return textureCache.get(textureName) || null;
+    }
+
+    const assets = this.getAssets();
+
+    // 빈 이름이거나 null 값인 경우
+    if (!textureName) {
+      textureCache.set(textureName, null);
+      return null;
+    }
+
+    // Character sprites 확인
+    for (const characterSprites of Object.values(assets.characterSprites)) {
+      if (characterSprites?.textures?.[textureName]) {
+        const texture = characterSprites.textures[textureName];
+        textureCache.set(textureName, texture);
+        return texture;
+      }
+    }
+
+    // 다른 스프라이트시트들 확인
+    const spritesheets = [
+      assets.birdSprites,
+      assets.foodSprites,
+      assets.foodMaskSprites,
+      assets.common16x16Sprites,
+      assets.common32x32Sprites,
+      assets.eggSprites,
+      assets.tilesetSprites,
+    ];
+
+    for (const spritesheet of spritesheets) {
+      if (spritesheet?.textures?.[textureName]) {
+        const texture = spritesheet.textures[textureName];
+        textureCache.set(textureName, texture);
+        return texture;
+      }
+    }
+
+    // 백그라운드 텍스처 확인 (특별한 경우)
+    if (textureName === "grass-tile" && assets.backgroundTexture) {
+      textureCache.set(textureName, assets.backgroundTexture);
+      return assets.backgroundTexture;
+    }
+
+    // 캐시에 null 저장 (다음번에 다시 검색하지 않도록)
+    textureCache.set(textureName, null);
+    return null;
+  },
+
+  /**
+   * 모든 로드된 텍스처를 맵 형태로 반환합니다
+   * @returns Map<textureName, PIXI.Texture>
+   */
+  getAllTexturesMap(): Map<string, PIXI.Texture> {
+    const textureMap = new Map<string, PIXI.Texture>();
+    const assets = this.getAssets();
+
+    // Character sprites 추가
+    for (const characterSprites of Object.values(assets.characterSprites)) {
+      if (characterSprites?.textures) {
+        for (const [name, texture] of Object.entries(
+          characterSprites.textures
+        )) {
+          textureMap.set(name, texture);
+        }
+      }
+    }
+
+    // 다른 스프라이트시트들 추가
+    const spritesheets = [
+      assets.birdSprites,
+      assets.foodSprites,
+      assets.foodMaskSprites,
+      assets.common16x16Sprites,
+      assets.common32x32Sprites,
+      assets.eggSprites,
+      assets.tilesetSprites,
+    ];
+
+    for (const spritesheet of spritesheets) {
+      if (spritesheet?.textures) {
+        for (const [name, texture] of Object.entries(spritesheet.textures)) {
+          textureMap.set(name, texture);
+        }
+      }
+    }
+
+    // 백그라운드 텍스처 추가
+    if (assets.backgroundTexture) {
+      textureMap.set("grass-tile", assets.backgroundTexture);
+    }
+
+    return textureMap;
+  },
+
+  /**
+   * 로드된 모든 텍스처 이름 목록을 반환합니다
+   * @returns string[] 텍스처 이름 배열
+   */
+  getAvailableTextureNames(): string[] {
+    return Array.from(this.getAllTexturesMap().keys());
+  },
+
+  /**
+   * 텍스처가 존재하는지 확인합니다
+   * @param textureName 확인할 텍스처 이름
+   * @returns boolean
+   */
+  hasTexture(textureName: string): boolean {
+    return this.getTextureByName(textureName) !== null;
+  },
+
+  /**
+   * 텍스처 캐시를 초기화합니다
+   */
+  clearTextureCache(): void {
+    textureCache.clear();
+    console.log("[AssetLoader] Texture cache cleared");
+  },
+
+  /**
+   * 캐시 상태 정보를 반환합니다
+   */
+  getCacheInfo(): { size: number; keys: string[] } {
+    return {
+      size: textureCache.size,
+      keys: Array.from(textureCache.keys()),
+    };
   },
 };

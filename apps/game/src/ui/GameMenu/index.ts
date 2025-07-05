@@ -19,7 +19,7 @@ export class GameMenu {
   private container: HTMLDivElement;
   // 메뉴 아이템 순서 반영 배열
   private menuItems: GameMenuItemType[] = [
-    GameMenuItemType.Information,
+    // GameMenuItemType.Information,
     GameMenuItemType.MiniGame,
     GameMenuItemType.Versus,
     GameMenuItemType.Feed,
@@ -39,6 +39,9 @@ export class GameMenu {
     // 컨테이너 생성
     this.container = document.createElement("div");
     this.container.className = "game-menu-container";
+    const itemContainer = document.createElement("div");
+    itemContainer.className = "game-menu-item-container";
+    this.container.appendChild(itemContainer);
 
     // 기본적으로 대결 메뉴 비활성화
     this.disabledMenuItems.add(GameMenuItemType.Versus);
@@ -48,16 +51,18 @@ export class GameMenu {
   }
 
   private initializeMenuItems(): void {
-    this.menuItems.forEach((itemType) => {
+    for (const index in this.menuItems) {
+      const itemContainer = this.container.firstElementChild as HTMLDivElement;
+      const itemType = this.menuItems[index];
       const menuItem = new GameMenuItem(itemType);
       this.menuItemElements.push(menuItem);
-      this.container.appendChild(menuItem.getElement());
+      itemContainer.appendChild(menuItem.getElement());
 
       // 비활성화된 메뉴 항목 설정
       if (this.disabledMenuItems.has(itemType)) {
         menuItem.setDisabled(true);
       }
-    });
+    }
   }
 
   public processNavigationAction(action: NavigationActionPayload): void {
@@ -148,13 +153,13 @@ export class GameMenu {
       case GameMenuItemType.Clean:
         if (this.options.onCleanSelect) this.options.onCleanSelect();
         break;
-      case GameMenuItemType.Training:
-        if (this.options.onTrainingSelect) this.options.onTrainingSelect();
-        break;
-      case GameMenuItemType.Information:
-        if (this.options.onInformationSelect)
-          this.options.onInformationSelect();
-        break;
+      // case GameMenuItemType.Training:
+      //   if (this.options.onTrainingSelect) this.options.onTrainingSelect();
+      //   break;
+      // case GameMenuItemType.Information:
+      //   if (this.options.onInformationSelect)
+      //     this.options.onInformationSelect();
+      //   break;
     }
   }
 
@@ -205,6 +210,30 @@ export class GameMenu {
         this.setFocusedIndex(null);
       }
     }
+  }
+
+  public disable(): void {
+    const itemSize = this.menuItemElements[0].getSize();
+    this.container.style.transition =
+      "transform 0.35s cubic-bezier(0.4,0,0.2,1), opacity 0.35s cubic-bezier(0.4,0,0.2,1)";
+    this.container.style.transform = `translateY(${itemSize}px)`;
+    this.container.style.opacity = "0";
+    // 메뉴 항목도 모두 비활성화
+
+    for (const index in this.menuItemElements) {
+      this.menuItemElements[index].setDisabled(true);
+    }
+  }
+
+  public enable(): void {
+    this.container.style.transition =
+      "transform 0.35s cubic-bezier(0.4,0,0.2,1), opacity 0.35s cubic-bezier(0.4,0,0.2,1)";
+    this.container.style.transform = "translateY(0)";
+    this.container.style.opacity = "1";
+    // 메뉴 항목 활성화(내부 disabledMenuItems만 제외)
+    this.menuItems.forEach((type, idx) => {
+      this.menuItemElements[idx].setDisabled(this.disabledMenuItems.has(type));
+    });
   }
 
   public destroy(): void {

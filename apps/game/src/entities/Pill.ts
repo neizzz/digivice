@@ -2,7 +2,6 @@ import * as PIXI from "pixi.js";
 import { Cleanable } from "../interfaces/Cleanable";
 import { ObjectType, type ObjectData } from "../types/GameData";
 import type { Position } from "../types/Position";
-import { generateId } from "../utils/generate";
 import { ObjectBase } from "../interfaces/ObjectBase";
 
 // export enum PillState {
@@ -21,16 +20,15 @@ export interface PillOptions {
 
 export class Pill extends Cleanable {
   private sprite: PIXI.Sprite;
-  public id: string;
   public textureKey: string;
+  // public id: string;
   // private state: PillState;
   // private freshness: PillFreshness;
   // private createdAt: number;
 
   constructor(options?: PillOptions) {
-    super(options?.data.id ?? generateId("pill"));
+    super(options?.data.id);
     const data = options?.data;
-    this.id = data?.id ?? generateId("pill");
     this.textureKey =
       data?.textureKey ??
       ["pill-1", "pill-2", "pill-3", "pill-4"][Math.floor(Math.random() * 4)];

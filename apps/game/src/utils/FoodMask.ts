@@ -18,15 +18,16 @@ export class FoodMask {
   ];
   private maskTextures: PIXI.Texture[] = [];
   private parentSprite: PIXI.Sprite;
-  private parentContainer: PIXI.Container;
+  // private parentContainer: PIXI.Container;
 
   /**
    * @param parentSprite 마스크를 적용할 부모 스프라이트 (음식)
    * @param parentContainer 마스크 스프라이트를 추가할 컨테이너
    */
-  constructor(parentSprite: PIXI.Sprite, parentContainer: PIXI.Container) {
+  // constructor(parentSprite: PIXI.Sprite, parentContainer: PIXI.Container) {
+  constructor(parentSprite: PIXI.Sprite) {
     this.parentSprite = parentSprite;
-    this.parentContainer = parentContainer;
+    // this.parentContainer = parentContainer;
     // 생성자에서 바로 텍스처 로드
     this.loadMaskTextures();
   }
@@ -73,7 +74,8 @@ export class FoodMask {
       this.parentSprite.mask = this.maskSprite;
 
       // 마스크 스프라이트도 화면에 추가해야 마스킹이 작동함
-      this.parentContainer.addChild(this.maskSprite);
+      // this.parentContainer.addChild(this.maskSprite);
+      this.parentSprite.addChild(this.maskSprite);
     }
 
     // 초기 위치 설정
@@ -120,7 +122,8 @@ export class FoodMask {
 
     if (this.maskSprite.parent === null) {
       console.warn("FoodMask: 마스크 스프라이트가 화면에 추가되지 않았습니다!");
-      this.parentContainer.addChild(this.maskSprite);
+      // this.parentContainer.addChild(this.maskSprite);
+      this.parentSprite.addChild(this.maskSprite);
 
       // 마스크 연결 확인
       if (this.parentSprite.mask !== this.maskSprite) {

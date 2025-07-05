@@ -1,7 +1,7 @@
 import { DebugFlags } from "./DebugFlags";
-import { EventBus, EventTypes } from "./EventBus";
+// import { GameDataManager } from "../managers/GameDataManager";
+import { CHARACTER_STATUS } from "../config";
 import type { Character } from "../entities/Character";
-import { GameDataManager } from "../managers/GameDataManager";
 
 // 게임 상태를 위한 타입 정의
 declare global {
@@ -26,31 +26,25 @@ export class DebugUI {
   private container: HTMLDivElement | null = null;
   private actionButtonsContainer: HTMLDivElement | null = null;
   private debugFlags: DebugFlags;
-  private eventBus: EventBus;
   private character?: Character;
-  // 스태미나 현재/최대 값 저장
-  private staminaState = {
-    current: 0,
-    max: 10, // 초기값 설정 (실제값은 이벤트에서 받아옴)
+  // 상태값을 uiState 객체로 묶음
+  private uiState = {
+    stamina: {
+      current: Number.NaN,
+      max: CHARACTER_STATUS.MAX_STAMINA,
+    },
+    digestionLevel: Number.NaN,
+    maxDigestionLevel: CHARACTER_STATUS.DIGESTION_CAPACITY,
   };
 
   private constructor() {
     this.debugFlags = DebugFlags.getInstance();
-    this.eventBus = EventBus.getInstance();
-    this.createUI();
+    this._createUI();
     this.showDebugUI(); // 생성 즉시 UI 표시
-
-    // 스태미나 초기값 동기화
-    GameDataManager.getData().then((data) => {
-      console.log("[DebugUI] 게임 데이터 로드 완료: ", data);
-      if (data?.character?.status) {
-        this.staminaState.current = data.character.status.stamina;
-        this.updateUI();
-      }
-    });
-
-    // 스태미나 변경 이벤트 구독
-    this.subscribeToStaminaChanges();
+    // 이벤트 구독 제거, 초기값만 동기화
+    // GameDataManager.getData().then((data) => {
+    //   data && this.applyGameData(data);
+    // });
   }
 
   /**
@@ -99,28 +93,44 @@ export class DebugUI {
   }
 
   /**
-   * 스태미나 변경 이벤트 구독
+   * gameData를 가져와서 uiState에 반영하는 함수
    */
-  private subscribeToStaminaChanges(): void {
-    this.eventBus.on(
-      EventTypes.Character.CHARACTER_STATUS_UPDATED,
-      (data: { status: { stamina?: number; maxStamina?: number } }) => {
-        // 스태미나 정보가 포함된 경우에만 업데이트
-        if (data.status.stamina !== undefined) {
-          this.staminaState.current = data.status.stamina;
-          if (data.status.maxStamina !== undefined) {
-            this.staminaState.max = data.status.maxStamina;
-          }
-          this.updateUI();
-        }
-      }
-    );
+  public update(): void {
+    // FIXME:
+    // GameDataManager.getData().then((data) => {
+    //   data && this.applyGameData(data);
+    // });
+  }
+
+  /**
+   * gameData를 uiState에 반영하는 내부 함수
+   */
+  private applyGameData(data: {
+    character: {
+      status: {
+        stamina: number;
+        digestionLevel: number;
+      };
+    };
+  }): void {
+    this.uiState.stamina.current = data.character.status.stamina ?? Number.NaN;
+    this.uiState.digestionLevel =
+      data.character.status.digestionLevel ?? Number.NaN;
+
+    const staminaValue = this.container?.querySelector(
+      ".stamina"
+    ) as HTMLSpanElement;
+    const digestionValue = this.container?.querySelector(
+      ".digestion-level"
+    ) as HTMLSpanElement;
+    staminaValue.textContent = `${this.uiState.stamina.current}/${this.uiState.stamina.max}`;
+    digestionValue.textContent = `${this.uiState.digestionLevel}/${this.uiState.maxDigestionLevel}`;
   }
 
   /**
    * 디버그 UI 생성
    */
-  private createUI(): void {
+  private _createUI(): void {
     // 메인 컨테이너 생성
     this.container = document.createElement("div");
     this.container.className = "debug-panel";
@@ -141,19 +151,19 @@ export class DebugUI {
     this.container.appendChild(flagsContainer);
 
     // 액션 버튼 컨테이너 생성 (오른쪽 상단)
-    this.createActionButtonsContainer();
+    this._createActionButtonsContainer();
 
     // UI를 body에 추가
     document.body.appendChild(this.container);
 
     // 초기 상태 업데이트
-    this.updateUI();
+    this._createUiItems();
   }
 
   /**
    * 액션 버튼 컨테이너 생성 (오른쪽 상단)
    */
-  private createActionButtonsContainer(): void {
+  private _createActionButtonsContainer(): void {
     // 액션 버튼 컨테이너 생성
     this.actionButtonsContainer = document.createElement("div");
     this.actionButtonsContainer.className = "debug-action-buttons";
@@ -166,19 +176,20 @@ export class DebugUI {
     this.actionButtonsContainer.style.zIndex = "9999";
 
     // createPoob 버튼 생성
-    const createPoobButton = this.createActionButton("Poob 생성", () => {
+    const createPoobButton = this._createActionButton("Poob 생성", () => {
       this.createPoob();
     });
     this.actionButtonsContainer.appendChild(createPoobButton);
 
     // 게임 데이터 삭제 버튼 생성
-    const clearDataButton = this.createActionButton(
+    const clearDataButton = this._createActionButton(
       "게임 데이터 삭제",
       async () => {
         if (
           confirm("정말로 게임 데이터를 삭제하시겠습니까? (새로고침 후 반영됨)")
         ) {
-          GameDataManager.clearData();
+          // FIXME:
+          // GameDataManager.clearData();
         }
       }
     );
@@ -195,7 +206,7 @@ export class DebugUI {
    * @param label 버튼 레이블
    * @param onClick 클릭 이벤트 핸들러
    */
-  private createActionButton(
+  private _createActionButton(
     label: string,
     onClick: () => void
   ): HTMLButtonElement {
@@ -235,37 +246,44 @@ export class DebugUI {
     if (this.actionButtonsContainer) {
       this.actionButtonsContainer.style.display = "flex";
     }
-    this.updateUI();
   }
 
   /**
    * UI 정보 업데이트
    */
-  public updateUI(): void {
+  private _createUiItems(): void {
     if (!this.container) return;
-
     const flagsContainer = this.container.querySelector(
       "#debug-flags-container"
     );
     if (!flagsContainer) return;
-
-    // UI 초기화
     flagsContainer.innerHTML = "";
 
     // 스태미나 표시
     const staminaItem = document.createElement("div");
     staminaItem.style.margin = "5px 0";
-
     const staminaLabel = document.createElement("span");
     staminaLabel.textContent = "스태미나: ";
-
     const staminaValue = document.createElement("span");
-    staminaValue.textContent = `${this.staminaState.current}/${this.staminaState.max}`;
+    staminaValue.classList.add("stamina");
+    staminaValue.textContent = `${this.uiState.stamina.current}/${this.uiState.stamina.max}`;
     staminaValue.style.color = "#8ff";
-
     staminaItem.appendChild(staminaLabel);
     staminaItem.appendChild(staminaValue);
     flagsContainer.appendChild(staminaItem);
+
+    // 소화기관 수치 표시
+    const digestionItem = document.createElement("div");
+    digestionItem.style.margin = "5px 0";
+    const digestionLabel = document.createElement("span");
+    digestionLabel.textContent = "소화기관: ";
+    const digestionValue = document.createElement("span");
+    digestionValue.classList.add("digestion-level");
+    digestionValue.textContent = `${this.uiState.digestionLevel}/${this.uiState.maxDigestionLevel}`;
+    digestionValue.style.color = "#ff8";
+    digestionItem.appendChild(digestionLabel);
+    digestionItem.appendChild(digestionValue);
+    flagsContainer.appendChild(digestionItem);
 
     // preventEating 플래그 표시
     const preventEatingItem = document.createElement("div");
@@ -296,7 +314,7 @@ export class DebugUI {
       // 디버그 플래그 토글
       window.debug?.togglePreventEating();
       // UI 업데이트
-      this.updateUI();
+      this._createUiItems();
     });
 
     preventEatingItem.appendChild(statusIndicator);

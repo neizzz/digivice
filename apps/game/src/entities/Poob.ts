@@ -3,7 +3,7 @@ import { AssetLoader } from "../utils/AssetLoader";
 import type { SparkleEffect } from "../effects/SparkleEffect";
 import type { Character } from "./Character";
 import { ObjectBase } from "../interfaces/ObjectBase";
-import { ObjectType } from "../types/GameData";
+import { type ObjectData, ObjectType } from "../types/GameData";
 import { Cleanable } from "../interfaces/Cleanable";
 import { EventBus, EventTypes } from "../utils/EventBus";
 
@@ -14,13 +14,13 @@ enum PoobState {
 }
 
 export interface PoobOptions {
-  position: { x: number; y: number }; // 생성 위치 (선택사항, 기본값: 랜덤)
+  data?: ObjectData[ObjectType.Poob]; // Poob 데이터
   character?: Character; // 캐릭터 객체 (선택 사항, 캐릭터 기준 위치 계산 시 사용)
 }
 
 export class Poob extends Cleanable {
   private sprite: PIXI.Sprite;
-  private parentContainer: PIXI.Container;
+  // private parentContainer: PIXI.Container;
   private state: PoobState = PoobState.NORMAL;
   private sparkleEffect?: SparkleEffect;
   private position: { x: number; y: number };
@@ -30,10 +30,11 @@ export class Poob extends Cleanable {
    * @param parent 부모 컨테이너
    * @param options Poob 옵션
    */
-  constructor(parent: PIXI.Container, options: PoobOptions) {
-    super("poob"); // 'poob' prefix로 ID 생성
+  // constructor(parent: PIXI.Container, options: PoobOptions) {
+  constructor(options: PoobOptions) {
+    super(options.data?.id);
 
-    this.parentContainer = parent;
+    // this.parentContainer = parent;
     this.position = { x: 0, y: 0 };
 
     // 텍스처 가져오기 (common16x16Sprites에서 poo 텍스처 사용)
@@ -44,21 +45,21 @@ export class Poob extends Cleanable {
     this.sprite.scale.set(2.5 + Math.random());
     this.sprite.anchor.set(0.5);
     this.sprite.zIndex = this.position.y;
-    this.parentContainer.addChild(this.sprite);
+    // this.parentContainer.addChild(this.sprite);
 
-    if (options.position) {
+    if (options.data?.position) {
       // 직접 위치가 지정된 경우
-      this.setPosition(options.position.x, options.position.y);
+      this.setPosition(options.data.position.x, options.data.position.y);
     }
 
     ObjectBase.attachObjectRef(this.sprite, this);
 
-    const pos = this.getPosition();
-    EventBus.publish(EventTypes.Object.OBJECT_CREATED, {
-      type: ObjectType.Poob,
-      id: this.getId(),
-      position: { x: pos.x, y: pos.y },
-    });
+    // const pos = this.getPosition();
+    // EventBus.publish(EventTypes.Object.OBJECT_CREATED, {
+    //   type: ObjectType.Poob,
+    //   id: this.getId(),
+    //   position: { x: pos.x, y: pos.y },
+    // });
   }
 
   public getType() {

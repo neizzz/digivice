@@ -35,7 +35,6 @@ const GameContainer: React.FC = () => {
       onCreateInitialGameData: async () => {
         // 초기 설정 UI 표시
         setShowSetupLayer(true);
-
         // Promise를 반환하고, setupLayer가 완료될 때까지 대기
         return new Promise((resolve) => {
           // setupComplete 핸들러 정의
@@ -58,10 +57,14 @@ const GameContainer: React.FC = () => {
         );
       },
     });
-    isInitializedRef.current = true;
-    setGameInstance(game);
-    setIsLoading(false);
-  }, [showAlert]); // NOTE: showAlert는 변경되면 안됨.
+    setTimeout(() => {
+      game.initialize().then(() => {
+        isInitializedRef.current = true;
+        setGameInstance(game);
+        setIsLoading(false);
+      });
+    });
+  }, []); // NOTE: showAlert는 변경되면 안됨.
 
   // 버튼 클릭 핸들러 - Game 인스턴스에 버튼 타입만 전달
   const handleButtonPress = useCallback(

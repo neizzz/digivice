@@ -1,6 +1,5 @@
 import * as PIXI from "pixi.js";
 import { Cleanable } from "../interfaces/Cleanable";
-import { EventBus, EventTypes } from "../utils/EventBus";
 import { Broom } from "../entities/Broom";
 import { ObjectBase } from "../interfaces/ObjectBase";
 import type { Food } from "../entities/Food";
@@ -18,6 +17,7 @@ export enum CleaningState {
 
 export interface CleaningManagerOptions {
   parent: PIXI.Container;
+  onDeactivate?: () => void; // 청소 모드 비활성화 시 호출할 콜백
   onCleaningComplete?: () => void; // 모든 청소가 완료됐을 때 호출할 콜백
 }
 
@@ -32,6 +32,7 @@ export class CleaningManager {
   private cleaningState: CleaningState = CleaningState.INACTIVE;
   private previousSliderValue = 0; // 0으로 초기화
   private currentProgress = 0;
+  private onDeativate?: () => void;
   private onCleaningComplete?: () => void;
 
   // 슬라이더 총 이동 거리 측정을 위한 변수 추가
@@ -52,6 +53,7 @@ export class CleaningManager {
    */
   constructor(options: CleaningManagerOptions) {
     this.parent = options.parent;
+    this.onDeativate = options.onDeactivate;
     this.onCleaningComplete = options.onCleaningComplete;
   }
 
@@ -92,7 +94,7 @@ export class CleaningManager {
       return; // 이미 활성화된 상태
     }
 
-    console.log("청소 모드 활성화");
+    console.log("[CleaningManager] 청소 모드 활성화");
     this.cleaningState = CleaningState.ACTIVE;
 
     // 청소 가능한 객체들 검색
@@ -104,14 +106,14 @@ export class CleaningManager {
 
       // 현재 선택된 인덱스 로그 확인
       console.log(
-        `현재 선택된 Cleanable 인덱스: ${this.currentCleanableIndex}`
+        `[CleaningManager] 현재 선택된 Cleanable 인덱스: ${this.currentCleanableIndex}`
       );
 
       this.createCleanableBorders();
       this.moveToCurrentCleanable();
       this.initBroom();
     } else {
-      console.log("청소할 객체가 없습니다.");
+      console.log("[CleaningManager] 청소할 객체가 없습니다.");
     }
   }
 
@@ -276,8 +278,7 @@ export class CleaningManager {
     if (this.cleaningState === CleaningState.INACTIVE) {
       return; // 이미 비활성화된 상태
     }
-
-    console.log("청소 모드 비활성화");
+    console.log("[CleaningManager] 청소 모드 비활성화");
     const currentCleanableSprite = this.getCurrentCleanable()?.getSprite();
     if (currentCleanableSprite) {
       this.getCurrentCleanable()?.resetCleaningState();
@@ -298,10 +299,11 @@ export class CleaningManager {
     }
 
     // 모든 청소 완료 플래그가 설정된 경우 완료 콜백 호출
-    if (this.allCleaningComplete && this.onCleaningComplete) {
-      this.onCleaningComplete();
+    if (this.allCleaningComplete) {
+      this.onCleaningComplete?.();
       this.allCleaningComplete = false; // 플래그 초기화
     }
+    this.onDeativate?.();
   }
   private findCleanableObjects(): void {
     this.cleanableObjects = [];

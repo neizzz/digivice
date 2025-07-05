@@ -2,6 +2,14 @@ import type { FoodFreshness } from "src/entities/Food";
 import type { CharacterKey } from "../types/Character";
 import type { CharacterStatusData, ObjectType } from "../types/GameData";
 
+export type FutureEvent = {
+  [T in keyof EventDataMap]: {
+    time: number;
+    type: T;
+    data: EventDataMap[T];
+  };
+}[keyof EventDataMap];
+
 /**
  * 게임 내 이벤트 타입 정의
  * NOTE: 1-depth키는 이벤트를 발행하는 주체(Class명)
@@ -12,8 +20,10 @@ export const EventTypes = {
   // },
   Game: {
     // APPLY_SIMULATION: "game:apply_simulation" as const,
-    MINIGAME_SCORE_UPDATED: "event:minigame_score_updated" as const,
-  },
+    // MINIGAME_SCORE_UPDATED: "game:minigame_score_updated" as const,
+    FUTURE_EVENT_CREATED: "character:future_event_created" as const,
+    // FUTURE_EVENT_TRIGGERED: "character:future_event_triggered" as const,
+  } as const,
   Character: {
     CHARACTER_STATUS_UPDATED: "character:character_status_updated" as const,
     CHARACTER_EVOLUTION: "character:character_evolution" as const,
@@ -22,7 +32,7 @@ export const EventTypes = {
   Object: {
     OBJECT_CREATED: "object:object_created" as const,
     OBJECT_CLEANED: "object:object_cleaned" as const,
-  },
+  } as const,
   // TODO: created 이벤트 같은 경우 Object로 통합하는게 나을 듯.
   // Poob: {
   //   POOB_CREATED: "poob:poob_created" as const,
@@ -35,10 +45,10 @@ export const EventTypes = {
   // } as const,
   Food: {
     FOOD_LANDED: "food:food_landed" as const,
-    FOOD_EATING_STARTED: "food:food_eating_started" as const,
+    // FOOD_EATING_STARTED: "food:food_eating_started" as const,
     FOOD_EATING_FINISHED: "food:food_eating_finished" as const,
   } as const,
-};
+} as const;
 
 /**
  * 이벤트 데이터 타입들을 정의하는 인터페이스
@@ -54,8 +64,14 @@ export interface EventDataMap {
   //   beforeCharacter: CharacterStatusData;
   //   afterCharacter: CharacterStatusData;
   // };
-  [EventTypes.Game.MINIGAME_SCORE_UPDATED]: {
-    score: number;
+  // [EventTypes.Game.MINIGAME_SCORE_UPDATED]: {
+  //   score: number;
+  // };
+  [EventTypes.Game.FUTURE_EVENT_CREATED]: {
+    id: string;
+    time: number; // 이벤트가 발생할 시간 (ms)
+    type: keyof EventDataMap; // 이벤트 타입
+    data: EventDataMap[keyof EventDataMap]; // 이벤트 데이터
   };
   [EventTypes.Object.OBJECT_CREATED]:
     | {
@@ -73,10 +89,10 @@ export interface EventDataMap {
     id: string;
     position: { x: number; y: number };
   };
-  [EventTypes.Food.FOOD_EATING_STARTED]: {
-    id: string;
-    position: { x: number; y: number };
-  };
+  // [EventTypes.Food.FOOD_EATING_STARTED]: {
+  //   id: string;
+  //   position: { x: number; y: number };
+  // };
   [EventTypes.Food.FOOD_EATING_FINISHED]: {
     id: string;
     freshness: FoodFreshness;
@@ -208,6 +224,7 @@ export class EventBus {
     event: K,
     data: EventDataMap[K]
   ): void {
+    console.debug(`[EventBus] Emitting event: ${String(event)}`, data);
     const eventKey = event as string;
     const listeners = this.listeners.get(eventKey);
 

@@ -1,6 +1,6 @@
 import * as PIXI from "pixi.js";
 
-import { FoodMask } from "../utils/FoodMask";
+import type { FoodMask } from "../utils/FoodMask";
 import { ThrowSprite } from "../utils/ThrowSprite";
 import { AssetLoader } from "../utils/AssetLoader";
 import { SparkleEffect } from "../effects/SparkleEffect";
@@ -41,7 +41,7 @@ export interface FoodOptions {
 export class Food extends Cleanable {
   private sprite: PIXI.Sprite;
   private app: PIXI.Application;
-  private parent: PIXI.Container;
+  // private parent: PIXI.Container;
   private state: FoodState = FoodState.THROWING;
   private freshness: FoodFreshness;
   private eatingStartTime = 0;
@@ -73,12 +73,12 @@ export class Food extends Cleanable {
    */
   constructor(
     app: PIXI.Application,
-    parent: PIXI.Container,
+    // parent: PIXI.Container,
     options?: FoodOptions
   ) {
     super(options?.data.id); // 'food' prefix로 ID 생성
     this.app = app;
-    this.parent = parent;
+    // this.parent = parent;
 
     const data = options?.data;
     const texture = this.getFoodTexture(data?.textureKey);
@@ -106,11 +106,11 @@ export class Food extends Cleanable {
       this.sprite.scale.set(this.finalScale);
       this.sprite.position.set(data.position.x, data.position.y);
       this.sprite.zIndex = data.position.y; // 깊이 정렬을 위해 y값으로 zIndex 설정
-      this.parent.addChild(this.sprite);
+      // this.parent.addChild(this.sprite);
     } else {
       // ThrowSprite를 통해 던지기 기능 활용
       this.sprite.scale.set(this.initialScale);
-      this.initThrowSprite();
+      this._initThrowSprite();
     }
 
     this.freshnessManager = new FreshnessManager(
@@ -122,10 +122,10 @@ export class Food extends Cleanable {
     );
 
     // 초기 신선도에 맞는 시각적 효과 적용
-    this.applyFreshnessVisualEffect();
+    this._applyFreshnessVisualEffect();
 
     // SparkleEffect 초기화
-    this.initSparkleEffect();
+    this._initSparkleEffect();
 
     // 애니메이션 시작
     this.app.ticker.add(this.update, this);
@@ -207,8 +207,8 @@ export class Food extends Cleanable {
       return;
     }
     this.freshness = freshness;
-    this.applyFreshnessVisualEffect();
-    this.updateSparkleEffect();
+    this._applyFreshnessVisualEffect();
+    this._updateSparkleEffect();
   }
 
   /**
@@ -222,7 +222,7 @@ export class Food extends Cleanable {
   /**
    * 신선도 상태에 따른 시각적 효과 적용
    */
-  private applyFreshnessVisualEffect(): void {
+  private _applyFreshnessVisualEffect(): void {
     switch (this.freshness) {
       case FoodFreshness.FRESH:
         // 신선한 상태: 필터 없음 (원래 색상), 반짝임 효과는 updateSparkleEffect()에서 처리
@@ -248,11 +248,12 @@ export class Food extends Cleanable {
   /**
    * ThrowSprite 초기화
    */
-  private initThrowSprite(): void {
+  private _initThrowSprite(): void {
     // 선택된 음식 텍스처 이름 가져오기
     const foodTextureName = this.sprite.texture.textureCacheIds[0] || "unknown";
 
-    this.throwSprite = new ThrowSprite(this.app, this.parent, this.sprite, {
+    // this.throwSprite = new ThrowSprite(this.app, this.parent, this.sprite, {
+    this.throwSprite = new ThrowSprite(this.app, this.sprite, {
       initialScale: this.initialScale, // 음식 크기 조정 적용
       finalScale: this.finalScale, // 음식 크기 조정 적용
       duration: this.throwDuration,
@@ -266,17 +267,18 @@ export class Food extends Cleanable {
   /**
    * SparkleEffect 초기화
    */
-  private initSparkleEffect(): void {
-    this.sparkleEffect = new SparkleEffect(this.sprite, this.parent, this.app);
+  private _initSparkleEffect(): void {
+    // this.sprite.updateTransform();
+    this.sparkleEffect = new SparkleEffect(this.sprite, this.app);
 
     // 현재 신선도 상태에 따라 반짝임 효과를 켜거나 끔
-    this.updateSparkleEffect();
+    this._updateSparkleEffect();
   }
 
   /**
    * 신선도 상태에 따라 반짝임 효과 업데이트
    */
-  private updateSparkleEffect(): void {
+  private _updateSparkleEffect(): void {
     if (!this.sparkleEffect) return;
 
     // Fresh 상태일 때만 반짝이는 효과 활성화
@@ -370,24 +372,14 @@ export class Food extends Cleanable {
     this.pauseFreshnessChange();
 
     // 음식 마스크 초기화
-    this.initFoodMask();
+    // this.foodMask = new FoodMask(this.sprite);
+    // this.foodMask.init();
 
     // FOOD_EATING_STARTED 이벤트 발행
-    EventBus.publish(EventTypes.Food.FOOD_EATING_STARTED, {
-      id: this.id,
-      position: { x: this.sprite.position.x, y: this.sprite.position.y },
-    });
-  }
-
-  /**
-   * 음식 마스크 초기화
-   */
-  private initFoodMask(): void {
-    // FoodMask 객체 생성 - AssetLoader에서 자동으로 텍스처를 가져옴
-    this.foodMask = new FoodMask(this.sprite, this.parent);
-
-    // 마스크 초기화 (AssetLoader에서 가져온 텍스처로 마스크 적용)
-    this.foodMask.init();
+    // EventBus.publish(EventTypes.Food.FOOD_EATING_STARTED, {
+    //   id: this.id,
+    //   position: { x: this.sprite.position.x, y: this.sprite.position.y },
+    // });
   }
 
   /**
@@ -452,7 +444,6 @@ export class Food extends Cleanable {
 
     // 다 먹었으면 마무리
     if (eatingProgress >= 1) {
-      console.log("음식을 다 먹었습니다. 마무리 처리를 시작합니다.");
       this.finishEating();
     }
   }
@@ -480,11 +471,11 @@ export class Food extends Cleanable {
       this.sparkleEffect = undefined;
     }
 
-    // FOOD_EATING_FINISHED 이벤트 발행
-    EventBus.publish(EventTypes.Food.FOOD_EATING_FINISHED, {
-      id: this.getId(),
-      freshness: this.freshness,
-    });
+    // // FOOD_EATING_FINISHED 이벤트 발행
+    // EventBus.publish(EventTypes.Food.FOOD_EATING_FINISHED, {
+    //   id: this.getId(),
+    //   freshness: this.freshness,
+    // });
 
     // Promise 해결
     if (this.eatingFinishedResolve) {

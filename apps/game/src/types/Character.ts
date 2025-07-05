@@ -31,9 +31,19 @@ export type CharacterMetadata = {
   class: CharacterClass;
   scale: number;
   speed: number;
-  maxStamina: number; // 최대 스태미나 (옵션)
   animationMapping: CharacterAnimationMapping;
 };
+
+// export enum CharacterEventType {
+//   POOB_CREATED = "poob_created",
+// }
+
+// export type CharacterEventData {
+//   [CharacterEventType.POOB_CREATED]: {
+//     id: string; // Poob ID
+//     position: { x: number; y: number }; // Poob 위치
+//   };
+// }
 
 const animationMapping: CharacterAnimationMapping = {
   [CharacterState.IDLE]: "idle",
@@ -60,7 +70,6 @@ export const CharacterDictionary: Record<
     class: CharacterClass.A,
     scale: 3.0,
     speed: 1.0,
-    maxStamina: 10, // 기본 최대 스태미나 값
     animationMapping,
   },
   [CharacterKey.TestGreenSlimeB1]: {
@@ -68,7 +77,6 @@ export const CharacterDictionary: Record<
     class: CharacterClass.B,
     scale: 3.5,
     speed: 1.5,
-    maxStamina: 10, // 기본 최대 스태미나 값
     animationMapping,
   },
   [CharacterKey.TestGreenSlimeC1]: {
@@ -76,7 +84,6 @@ export const CharacterDictionary: Record<
     class: CharacterClass.C,
     scale: 4.0,
     speed: 2.0,
-    maxStamina: 10, // 기본 최대 스태미나 값
     animationMapping,
   },
   [CharacterKey.TestGreenSlimeD1]: {
@@ -84,7 +91,6 @@ export const CharacterDictionary: Record<
     class: CharacterClass.D,
     scale: 4.5,
     speed: 2.5,
-    maxStamina: 10, // 기본 최대 스태미나 값
     animationMapping,
   },
   // [CharacterKey.Mushroom2]: {

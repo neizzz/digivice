@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect } from "react";
+import type React from "react";
+import { useState, useRef, useEffect } from "react";
 import "./SimpleLogViewer.css";
 
 type LogLevel = "info" | "warning" | "error" | "success" | "debug";
@@ -20,13 +21,13 @@ interface SimpleLogViewerProps {
 }
 
 // Vite 빌드타임에 환경 변수 값을 정적으로 대체
-const IS_LOG_VIEWER_ENABLED = import.meta.env.VITE_ENABLE_LOG_VIEWER === true;
+const IS_LOG_VIEWER_ENABLED = import.meta.env.ENABLE_LOG_VIEWER === true;
 
 // 싱글톤으로 로그 관리
 class LogManager {
   private static instance: LogManager;
   private logs: LogEntry[] = [];
-  private maxLogs: number = 100;
+  private maxLogs = 100;
   private listeners: ((logs: LogEntry[]) => void)[] = [];
   private enabled: boolean = IS_LOG_VIEWER_ENABLED;
 

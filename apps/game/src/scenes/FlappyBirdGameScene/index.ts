@@ -3,7 +3,7 @@ import type { Game } from "../../Game";
 import { GameEngine } from "../../GameEngine";
 import type { Scene } from "../../interfaces/Scene";
 import { type ControlButtonParams, ControlButtonType } from "../../ui/types";
-import { GameDataManager } from "../../managers/GameDataManager";
+// import { GameDataManager } from "../../managers/GameDataManager";
 import { GroundManager, PipeManager, PlayerManager } from "./gameLogic";
 import { type GameOptions, GameState } from "./models";
 import { PhysicsManager } from "./physics";
@@ -80,7 +80,8 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
   }
 
   public async init(): Promise<FlappyBirdGameScene> {
-    const data = await GameDataManager.getData();
+    // const data = await GameDataManager.getData();
+    const data = {};
 
     if (!data) {
       throw new Error("게임 데이터가 없습니다");

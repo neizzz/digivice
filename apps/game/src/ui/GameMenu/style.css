@@ -1,10 +1,17 @@
 .game-menu-container {
   position: absolute;
   bottom: 0px;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.game-menu-item-container {
+  width: 100%;
+  max-width: 280px;
   display: flex;
   justify-content: space-around;
-  width: 100%;
-  max-width: 500px;
 }
 
 .game-menu-item {

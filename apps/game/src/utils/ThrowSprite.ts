@@ -27,7 +27,7 @@ export class ThrowSprite {
 
   constructor(
     app: PIXI.Application,
-    parent: PIXI.Container,
+    // parent: PIXI.Container,
     sprite: PIXI.Sprite,
     options: ThrowSpriteOptions
   ) {
@@ -45,7 +45,7 @@ export class ThrowSprite {
     this.sprite.anchor.set(0.5);
 
     // 스테이지에 추가
-    parent.addChild(this.sprite);
+    // parent.addChild(this.sprite);
 
     // onThrowStart 콜백 호출
     if (options.onThrowStart) {

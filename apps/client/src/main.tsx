@@ -43,8 +43,8 @@ console.log(
 
 // biome-ignore lint/style/noNonNullAssertion: <explanation>
 ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
+  <>
     {isNativeFeatureTestMode ? <PrototypeApp /> : <App />}
     <SimpleLogViewer position="top-right" initialOpen={false} />
-  </React.StrictMode>
+  </>
 );

@@ -10,8 +10,8 @@ interface SparkleProps {
  * SparkleEffect 클래스 - 반짝이는 효과를 구현
  */
 export class SparkleEffect {
-  private target: PIXI.DisplayObject;
-  private container: PIXI.Container;
+  private sprite: PIXI.Sprite;
+  // private container: PIXI.Container;
   private app: PIXI.Application;
   private sparkles: PIXI.Container[] = [];
   private active = false;
@@ -26,12 +26,12 @@ export class SparkleEffect {
    * @param app PIXI 애플리케이션
    */
   constructor(
-    target: PIXI.DisplayObject,
-    container: PIXI.Container,
+    sprite: PIXI.Sprite,
+    // container: PIXI.Container,
     app: PIXI.Application
   ) {
-    this.target = target;
-    this.container = container;
+    this.sprite = sprite;
+    // this.container = container;
     this.app = app;
   }
 
@@ -111,7 +111,7 @@ export class SparkleEffect {
    */
   private createSparkle(): void {
     // 타겟 주변에 랜덤하게 위치 설정
-    const targetBounds = this.target.getBounds();
+    const targetBounds = this.sprite.getBounds();
 
     // 컨테이너를 생성하여 반짝임 내용을 담음
     const sparkleContainer = new PIXI.Container();
@@ -122,9 +122,11 @@ export class SparkleEffect {
 
     // 타겟 주변 랜덤한 위치에 배치
     sparkleContainer.position.x =
-      targetBounds.x + Math.random() * targetBounds.width;
+      // targetBounds.x + Math.random() * targetBounds.width;
+      (-0.5 + Math.random()) * targetBounds.width;
     sparkleContainer.position.y =
-      targetBounds.y + Math.random() * targetBounds.height;
+      // targetBounds.y + Math.random() * targetBounds.height;
+      (-0.5 + Math.random()) * targetBounds.height;
 
     // 랜덤 크기로 시작
     const initialScale = 0.3 + Math.random() * 0.7;
@@ -147,8 +149,8 @@ export class SparkleEffect {
     });
 
     // 컨테이너에 추가
-    this.container.addChild(sparkleContainer);
-    sparkleContainer.zIndex = this.target.zIndex + 1;
+    this.sprite.addChild(sparkleContainer);
+    sparkleContainer.zIndex = this.sprite.zIndex + 1;
     this.sparkles.push(sparkleContainer);
 
     // 반짝임 개수 제한
