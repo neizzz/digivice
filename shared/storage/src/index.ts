@@ -3,7 +3,7 @@ import throttle from "lodash.throttle";
 // 모든 스토리지가 사용할 통합 비동기 인터페이스
 export interface Storage {
   getData(key: string): Promise<unknown | null>;
-  setData(key: string, value: unknown): void;
+  setData(key: string, value: unknown): Promise<void>;
   removeData(key: string): void;
   // clear(): Promise<void>;
 }
@@ -47,11 +47,11 @@ export class WebLocalStorage implements Storage {
     return await Promise.resolve(_deserialize(value));
   }
 
-  setData(key: string, data: unknown): void {
+  setData(key: string, data: unknown): Promise<void> {
     // this._throttledSetItem(key, value);
     const value = _serialize(data);
     console.debug("[WebLocalStorage] setItem():", key, value);
-    localStorage.setItem(key, value);
+    return Promise.resolve(localStorage.setItem(key, value));
   }
 
   removeData(key: string): void {
@@ -71,8 +71,8 @@ export class FlutterStorage implements Storage {
     return await this._getStorageController().getData(key);
   }
 
-  setData(key: string, value: unknown): void {
-    this._getStorageController().setData(key, value);
+  setData(key: string, value: unknown): Promise<void> {
+    return this._getStorageController().setData(key, value);
   }
 
   removeData(key: string): void {

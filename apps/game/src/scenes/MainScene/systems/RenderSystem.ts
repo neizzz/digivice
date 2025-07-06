@@ -7,40 +7,26 @@ import { MainSceneWorld } from "../world";
 import { AssetLoader } from "@/utils/AssetLoader";
 
 /** NOTE: types.ts에 {@link TextureKey}과 싱크가 맞아야 함. */
-const TEXTURES = [
-  ECS_NULL_VALUE,
-  // Character sprites
-  "test-green-slime_A1",
-  "test-green-slime_B1",
-  "test-green-slime_C1",
-  "test-green-slime_D1",
-  "green-slime",
-  "mushroom2",
+const TEXTURE_MAP: Record<number, string> = {
+  1: "test-green-slime_A1",
+  2: "test-green-slime_B1",
+  3: "test-green-slime_C1",
+  4: "test-green-slime_D1",
+  5: "green-slime",
+  6: "mushroom2",
+  100: "bird",
+  101: "poob",
+  102: "broom",
+  103: "basket",
+  104: "tombstone",
+  110: "food-1",
+  111: "food-2",
+  112: "food-3",
+  150: "egg-0",
+  151: "egg-1",
+} as const;
 
-  // Bird sprites
-  "bird1",
-  "bird2",
-
-  // Food sprites
-  "food1",
-  "food2",
-  "food3",
-
-  // Common 16x16 sprites
-  "poob",
-  "broom",
-
-  // Common 32x32 sprites
-  "basket",
-  "tombstone",
-
-  // Egg sprites
-  "egg1",
-  "egg2",
-
-  // Tileset
-  "grass-tile",
-] as const;
+// const TEXTURES_MAP_SIZE = Object.keys(TEXTURES_MAP).length;
 
 const spriteStore: PIXI.Sprite[] = [];
 export function setSpriteStore(store: PIXI.Sprite[]) {
@@ -53,7 +39,7 @@ function getSprite(idx: number): PIXI.Sprite | undefined {
 }
 
 function getTextureFromKey(textureKey: number): PIXI.Texture | null {
-  const textureName = TEXTURES[textureKey];
+  const textureName = TEXTURE_MAP[textureKey];
 
   if (!textureName || textureKey === 0) {
     return null;
@@ -93,33 +79,6 @@ export function logAvailableTextures(): void {
     `[RenderSystem] Available textures (${textureNames.length}):`,
     textureNames
   );
-}
-
-/**
- * TEXTURES 배열과 실제 로드된 텍스처들의 일치 여부를 확인합니다
- */
-export function validateTextureMapping(): void {
-  const availableTextures = new Set(AssetLoader.getAvailableTextureNames());
-  const missingTextures: string[] = [];
-
-  for (let i = 1; i < TEXTURES.length; i++) {
-    const textureName = TEXTURES[i];
-    if (
-      typeof textureName === "string" &&
-      !availableTextures.has(textureName)
-    ) {
-      missingTextures.push(textureName);
-    }
-  }
-
-  if (missingTextures.length > 0) {
-    console.warn(
-      `[RenderSystem] Missing textures in TEXTURES array:`,
-      missingTextures
-    );
-  } else {
-    console.log(`[RenderSystem] All textures in TEXTURES array are available`);
-  }
 }
 
 export function renderSystem(world: MainSceneWorld): MainSceneWorld {
@@ -167,20 +126,16 @@ export function renderSystem(world: MainSceneWorld): MainSceneWorld {
       console.log(`[RenderSystem] Added sprite to stage for entity ${eid}`);
     }
 
-    // 위치 업데이트
     const x = PositionComp.x[eid];
     const y = PositionComp.y[eid];
     sprite.position.set(x, y);
 
-    // 각도 업데이트
     const angle = AngleComp.value[eid];
     sprite.rotation = angle;
 
-    // z-index 업데이트
-    const zIndex = RenderComp.zIndex[eid];
-    sprite.zIndex = zIndex;
+    sprite.zIndex = RenderComp.zIndex[eid];
+    sprite.scale.set(RenderComp.scale[eid]);
 
-    // 텍스처가 변경되었는지 확인하고 업데이트
     const textureKey = RenderComp.textureKey[eid];
     const newTexture = getTextureFromKey(textureKey);
     if (newTexture && sprite.texture !== newTexture) {

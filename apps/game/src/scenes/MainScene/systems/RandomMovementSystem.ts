@@ -5,11 +5,13 @@ import {
   RenderComp,
   RandomMovementComp,
   AngleComp,
+  ObjectComp,
 } from "../raw-components";
 import type * as PIXI from "pixi.js";
 import { MainSceneWorld } from "../world";
 
 const characterQuery = defineQuery([
+  ObjectComp,
   PositionComp,
   AngleComp,
   SpeedComp,
@@ -36,16 +38,16 @@ export function randomMovementSystem(
 
   for (let i = 0; i < chars.length; i++) {
     const eid = chars[i];
-    const pos = PositionComp;
+    const position = PositionComp;
     const angle = AngleComp;
     const speed = SpeedComp;
-    const random = RandomMovementComp;
+    const randomMovement = RandomMovementComp;
 
     // 현재 상태 판단: speed가 0이면 idle, 0보다 크면 moving
     const isIdle = speed.value[eid] === 0;
 
     // 현재 상태(idle/moving)가 끝났는지 확인
-    if (currentTime >= random.nextChange[eid]) {
+    if (currentTime >= randomMovement.nextChange[eid]) {
       if (isIdle) {
         // idle -> moving 전환
         // 랜덤 방향과 속도 설정
@@ -54,18 +56,20 @@ export function randomMovementSystem(
 
         // 다음 이동 종료 시간 설정
         const moveTime =
-          random.minMoveTime[eid] +
-          Math.random() * (random.maxMoveTime[eid] - random.minMoveTime[eid]);
-        random.nextChange[eid] = currentTime + moveTime;
+          randomMovement.minMoveTime[eid] +
+          Math.random() *
+            (randomMovement.maxMoveTime[eid] - randomMovement.minMoveTime[eid]);
+        randomMovement.nextChange[eid] = currentTime + moveTime;
       } else {
         // moving -> idle 전환
         speed.value[eid] = 0;
 
         // 다음 idle 종료 시간 설정
         const idleTime =
-          random.minIdleTime[eid] +
-          Math.random() * (random.maxIdleTime[eid] - random.minIdleTime[eid]);
-        random.nextChange[eid] = currentTime + idleTime;
+          randomMovement.minIdleTime[eid] +
+          Math.random() *
+            (randomMovement.maxIdleTime[eid] - randomMovement.minIdleTime[eid]);
+        randomMovement.nextChange[eid] = currentTime + idleTime;
       }
     }
 
@@ -75,20 +79,22 @@ export function randomMovementSystem(
       const velocityX = Math.cos(angle.value[eid]) * speed.value[eid];
       const velocityY = Math.sin(angle.value[eid]) * speed.value[eid];
 
-      const nextX = pos.x[eid] + velocityX * deltaTime;
-      const nextY = pos.y[eid] + velocityY * deltaTime;
+      const nextX = position.x[eid] + velocityX * deltaTime;
+      const nextY = position.y[eid] + velocityY * deltaTime;
 
       // 경계 체크 및 각도 반사
       let newAngle = angle.value[eid];
       let bounced = false;
+      const maxX = boundary.x + boundary.width;
+      const maxY = boundary.y + boundary.height;
 
-      if (nextX < boundary.minX || nextX > boundary.maxX) {
+      if (nextX < boundary.x || nextX > maxX) {
         // X축 경계에 충돌 - 각도를 X축에 대해 반사 (π - angle)
         newAngle = Math.PI - newAngle;
         bounced = true;
       }
 
-      if (nextY < boundary.minY || nextY > boundary.maxY) {
+      if (nextY < boundary.y || nextY > maxY) {
         // Y축 경계에 충돌 - 각도를 Y축에 대해 반사 (-angle)
         newAngle = -newAngle;
         bounced = true;
@@ -104,13 +110,13 @@ export function randomMovementSystem(
       const finalVelocityX = Math.cos(angle.value[eid]) * speed.value[eid];
       const finalVelocityY = Math.sin(angle.value[eid]) * speed.value[eid];
 
-      pos.x[eid] = Math.max(
-        boundary.minX,
-        Math.min(boundary.maxX, pos.x[eid] + finalVelocityX * deltaTime)
+      position.x[eid] = Math.max(
+        boundary.x,
+        Math.min(maxX, position.x[eid] + finalVelocityX * deltaTime)
       );
-      pos.y[eid] = Math.max(
-        boundary.minY,
-        Math.min(boundary.maxY, pos.y[eid] + finalVelocityY * deltaTime)
+      position.y[eid] = Math.max(
+        boundary.y,
+        Math.min(maxY, position.y[eid] + finalVelocityY * deltaTime)
       );
     }
   }

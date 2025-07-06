@@ -1,15 +1,18 @@
-import { IWorld, pipe } from "bitecs";
+import { addEntity, createWorld, IWorld, pipe } from "bitecs";
 import * as PIXI from "pixi.js";
 import {
   AngleComponent,
   Boundary,
+  CharacterState,
   DestinationComponent,
   FreshnessComponent,
   ObjectComponent,
+  ObjectType,
   PositionComponent,
   RandomMovementComponent,
   RenderComponent,
   SpeedComponent,
+  TextureKey,
 } from "./types";
 import { randomMovementSystem } from "./systems/RandomMovementSystem";
 import { renderSystem } from "./systems/RenderSystem";
@@ -17,16 +20,19 @@ import { dataSyncSystem } from "./systems/DataSyncSystem";
 import { StorageManager } from "../../managers/StorageManager";
 import { AssetLoader } from "../../utils/AssetLoader";
 import { Background } from "../../entities/Background";
+import { applySavedEntityToECS } from "./entityDataHelpers";
+import { createCharacterEntity } from "./entityFactory";
+import { ECS_NULL_VALUE } from "@/utils/ecs";
 
 export type EntityComponents = {
-  positionComponent?: PositionComponent;
-  angleComponent?: AngleComponent;
-  objectComponent?: ObjectComponent;
-  renderComponent?: RenderComponent;
-  speedComponent?: SpeedComponent;
-  freshnessComponent?: FreshnessComponent;
-  destinationComponent?: DestinationComponent;
-  randomMovementComponent?: RandomMovementComponent;
+  position?: PositionComponent;
+  angle?: AngleComponent;
+  object?: ObjectComponent;
+  render?: RenderComponent;
+  speed?: SpeedComponent;
+  freshness?: FreshnessComponent;
+  destination?: DestinationComponent;
+  randomMovement?: RandomMovementComponent;
 };
 
 export type SavedEntity = {
@@ -55,7 +61,7 @@ export class MainSceneWorld implements IWorld {
   private _stage: PIXI.Container;
   private _positionBoundary: Boundary;
   private _background: Background;
-  // private _persistentData: MainSceneWorldData;
+  private _persistentData?: MainSceneWorldData;
 
   get stage(): PIXI.Container {
     return this._stage;
@@ -67,14 +73,9 @@ export class MainSceneWorld implements IWorld {
     return this._background;
   }
 
-  // getMainSceneWorldData():MainSceneWorldData {
-  //   return this._persistentData;
-  // }
-
   constructor(params: { stage: PIXI.Container; positionBoundary: Boundary }) {
     this._stage = params.stage;
     this._positionBoundary = params.positionBoundary;
-    // this._persistentData = this._initializMainSceneWorldData();
 
     // 배경 설정
     const assets = AssetLoader.getAssets();
@@ -82,26 +83,44 @@ export class MainSceneWorld implements IWorld {
     this._background = new Background(backgroundTexture);
   }
 
-  // private _initializMainSceneWorldData(): MainSceneWorldData {
-  //   return {
-  //     world_metadata: {
-  //       name: "MainScene",
-  //       last_saved: Date.now(),
-  //       version: this.VERSION,
-  //     },
-  //     entities: [],
-  //   };
-  // }
-
-  init() {
-    // 배경을 stage에 추가하고 맨 뒤에 배치
+  async init(): Promise<void> {
     this._stage.addChild(this._background);
 
-    // 화면 크기에 맞게 배경 크기 조정
-    // positionBoundary를 사용하여 화면 크기 가져오기
     const width = this._positionBoundary.width;
     const height = this._positionBoundary.height;
     this._background.resize(width, height);
+
+    createWorld(this, 100);
+
+    this._persistentData = await this.getData();
+    if (!this._persistentData) {
+      this._persistentData = this._initializeData();
+      // egg
+      createCharacterEntity(this, {
+        position: {
+          x: this._positionBoundary.width / 2,
+          y: this._positionBoundary.height / 2,
+        },
+        angle: { value: 0 },
+        object: {
+          id: 0,
+          type: ObjectType.CHARACTER,
+          state: CharacterState.EGG,
+        },
+        render: {
+          spriteRefIndex: ECS_NULL_VALUE,
+          scale: 3,
+          textureKey: TextureKey.EGG0,
+          zIndex: ECS_NULL_VALUE,
+        },
+        speed: { value: 0 },
+      });
+    } else {
+      this._persistentData.entities.forEach((savedEntity) => {
+        const eid = addEntity(this);
+        applySavedEntityToECS(this, eid, savedEntity);
+      });
+    }
   }
 
   destroy(): void {
@@ -110,22 +129,42 @@ export class MainSceneWorld implements IWorld {
   }
 
   update(deltaTime: number): void {
+    // TODO: hatchSystem, throwSystem
     pipe(randomMovementSystem, renderSystem, dataSyncSystem)(this, deltaTime);
-    // 추가적인 리셋 로직이 필요하다면 여기에 작성
   }
 
   getStage(): PIXI.Container {
     return this._stage;
   }
 
-  getWorldData(): Promise<MainSceneWorldData> {
+  private _initializeData(): MainSceneWorldData {
+    return {
+      world_metadata: {
+        name: "MainScene",
+        last_saved: Date.now(),
+        version: this.VERSION,
+      },
+      entities: [],
+    };
+  }
+
+  getInMemoryData(): MainSceneWorldData {
+    return this._persistentData as MainSceneWorldData;
+  }
+
+  getData(): Promise<MainSceneWorldData> {
     return StorageManager.getData(
       WORLD_DATA_STORAGE_KEY
     ) as Promise<MainSceneWorldData>;
   }
 
-  setWorldData(data: MainSceneWorldData): void {
-    return StorageManager.setData(WORLD_DATA_STORAGE_KEY, data);
+  setData(data: MainSceneWorldData): void {
+    this._persistentData = data;
+    StorageManager.setData(WORLD_DATA_STORAGE_KEY, data)
+      .then(() => (this._persistentData = data))
+      .catch((error) => {
+        console.error("[MainSceneWorld] Failed to save data:", error);
+      });
   }
 
   // serializeGameData(): string {

@@ -21,65 +21,58 @@ export function convertECSEntityToSavedEntity(
 ): SavedEntity {
   const components: EntityComponents = {};
 
-  // ObjectComponent (필수)
   if (hasComponent(world, ObjectComp, eid)) {
-    components.objectComponent = {
+    components.object = {
       id: ObjectComp.id[eid],
       type: ObjectComp.type[eid],
       state: ObjectComp.state[eid],
     };
   }
 
-  // PositionComponent
   if (hasComponent(world, PositionComp, eid)) {
-    components.positionComponent = {
+    components.position = {
       x: PositionComp.x[eid],
       y: PositionComp.y[eid],
     };
   }
 
-  // AngleComponent
   if (hasComponent(world, AngleComp, eid)) {
-    components.angleComponent = {
+    components.angle = {
       value: AngleComp.value[eid],
     };
   }
 
-  // RenderComponent
   if (hasComponent(world, RenderComp, eid)) {
-    components.renderComponent = {
+    components.render = {
       spriteRefIndex: RenderComp.spriteRefIndex[eid],
       textureKey: RenderComp.textureKey[eid],
       zIndex: RenderComp.zIndex[eid],
     };
   }
 
-  // SpeedComponent
   if (hasComponent(world, SpeedComp, eid)) {
-    components.speedComponent = {
+    components.speed = {
       value: SpeedComp.value[eid],
     };
   }
 
-  // FreshnessComponent
   if (hasComponent(world, FreshnessComp, eid)) {
-    components.freshnessComponent = {
+    components.freshness = {
       freshness: FreshnessComp.freshness[eid],
     };
   }
 
-  // DestinationComponent
   if (hasComponent(world, DestinationComp, eid)) {
-    components.destinationComponent = {
+    components.destination = {
       type: DestinationComp.type[eid],
-      destX: DestinationComp.destX[eid],
-      destY: DestinationComp.destY[eid],
+      target: DestinationComp.target[eid],
+      x: DestinationComp.x[eid],
+      y: DestinationComp.y[eid],
     };
   }
 
-  // RandomMovementComponent
   if (hasComponent(world, RandomMovementComp, eid)) {
-    components.randomMovementComponent = {
+    components.randomMovement = {
       minIdleTime: RandomMovementComp.minIdleTime[eid],
       maxIdleTime: RandomMovementComp.maxIdleTime[eid],
       minMoveTime: RandomMovementComp.minMoveTime[eid],
@@ -91,9 +84,6 @@ export function convertECSEntityToSavedEntity(
   return { components };
 }
 
-/**
- * SavedEntity를 ECS 엔티티에 적용
- */
 export function applySavedEntityToECS(
   world: IWorld,
   eid: number,
@@ -101,107 +91,85 @@ export function applySavedEntityToECS(
 ): void {
   const { components } = savedEntity;
 
-  // ObjectComponent - 컴포넌트가 없으면 추가
-  if (components.objectComponent) {
+  if (components.object) {
     if (!hasComponent(world, ObjectComp, eid)) {
       addComponent(world, ObjectComp, eid);
     }
-    ObjectComp.id[eid] = components.objectComponent.id;
-    ObjectComp.type[eid] = components.objectComponent.type;
-    ObjectComp.state[eid] = components.objectComponent.state;
+    ObjectComp.id[eid] = components.object.id;
+    ObjectComp.type[eid] = components.object.type;
+    ObjectComp.state[eid] = components.object.state;
   }
 
-  // PositionComponent
-  if (components.positionComponent) {
+  if (components.position) {
     if (!hasComponent(world, PositionComp, eid)) {
       addComponent(world, PositionComp, eid);
     }
-    PositionComp.x[eid] = components.positionComponent.x;
-    PositionComp.y[eid] = components.positionComponent.y;
+    PositionComp.x[eid] = components.position.x;
+    PositionComp.y[eid] = components.position.y;
   }
 
-  // AngleComponent
-  if (components.angleComponent) {
+  if (components.angle) {
     if (!hasComponent(world, AngleComp, eid)) {
       addComponent(world, AngleComp, eid);
     }
-    AngleComp.value[eid] = components.angleComponent.value;
+    AngleComp.value[eid] = components.angle.value;
   }
 
-  // RenderComponent
-  if (components.renderComponent) {
+  if (components.render) {
     if (!hasComponent(world, RenderComp, eid)) {
       addComponent(world, RenderComp, eid);
     }
-    RenderComp.spriteRefIndex[eid] = components.renderComponent.spriteRefIndex;
-    RenderComp.textureKey[eid] = components.renderComponent.textureKey;
-    RenderComp.zIndex[eid] = components.renderComponent.zIndex;
+    RenderComp.spriteRefIndex[eid] = components.render.spriteRefIndex;
+    RenderComp.textureKey[eid] = components.render.textureKey;
+    RenderComp.zIndex[eid] = components.render.zIndex;
   }
 
-  // SpeedComponent
-  if (components.speedComponent) {
+  if (components.speed) {
     if (!hasComponent(world, SpeedComp, eid)) {
       addComponent(world, SpeedComp, eid);
     }
-    SpeedComp.value[eid] = components.speedComponent.value;
+    SpeedComp.value[eid] = components.speed.value;
   }
 
-  // FreshnessComponent
-  if (components.freshnessComponent) {
+  if (components.freshness) {
     if (!hasComponent(world, FreshnessComp, eid)) {
       addComponent(world, FreshnessComp, eid);
     }
-    FreshnessComp.freshness[eid] = components.freshnessComponent.freshness;
+    FreshnessComp.freshness[eid] = components.freshness.freshness;
   }
 
-  // DestinationComponent
-  if (components.destinationComponent) {
+  if (components.destination) {
     if (!hasComponent(world, DestinationComp, eid)) {
       addComponent(world, DestinationComp, eid);
     }
-    DestinationComp.type[eid] = components.destinationComponent.type;
-    DestinationComp.destX[eid] = components.destinationComponent.destX;
-    DestinationComp.destY[eid] = components.destinationComponent.destY;
+    DestinationComp.type[eid] = components.destination.type;
+    DestinationComp.target[eid] = components.destination.target;
+    DestinationComp.x[eid] = components.destination.x;
+    DestinationComp.y[eid] = components.destination.y;
   }
 
-  // RandomMovementComponent
-  if (components.randomMovementComponent) {
+  if (components.randomMovement) {
     if (!hasComponent(world, RandomMovementComp, eid)) {
       addComponent(world, RandomMovementComp, eid);
     }
-    RandomMovementComp.minIdleTime[eid] =
-      components.randomMovementComponent.minIdleTime;
-    RandomMovementComp.maxIdleTime[eid] =
-      components.randomMovementComponent.maxIdleTime;
-    RandomMovementComp.minMoveTime[eid] =
-      components.randomMovementComponent.minMoveTime;
-    RandomMovementComp.maxMoveTime[eid] =
-      components.randomMovementComponent.maxMoveTime;
-    RandomMovementComp.nextChange[eid] =
-      components.randomMovementComponent.nextChange;
+    RandomMovementComp.minIdleTime[eid] = components.randomMovement.minIdleTime;
+    RandomMovementComp.maxIdleTime[eid] = components.randomMovement.maxIdleTime;
+    RandomMovementComp.minMoveTime[eid] = components.randomMovement.minMoveTime;
+    RandomMovementComp.maxMoveTime[eid] = components.randomMovement.maxMoveTime;
+    RandomMovementComp.nextChange[eid] = components.randomMovement.nextChange;
   }
 }
 
-/**
- * ID로 SavedEntity 찾기
- */
 export function findSavedEntityById(
   entities: SavedEntity[],
   id: number
 ): SavedEntity | undefined {
-  return entities.find(
-    (entity) => entity.components.objectComponent?.id === id
-  );
+  return entities.find((entity) => entity.components.object?.id === id);
 }
 
-/**
- * 타입별 SavedEntity 필터링
- */
 export function filterSavedEntitiesByType(
   entities: SavedEntity[],
   type: number
 ): SavedEntity[] {
-  return entities.filter(
-    (entity) => entity.components.objectComponent?.type === type
-  );
+  return entities.filter((entity) => entity.components.object?.type === type);
 }

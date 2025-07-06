@@ -20,156 +20,147 @@ import {
   TextureKey,
 } from "./types";
 import { generatePersistentNumericId } from "../../utils/generate";
+import { EntityComponents } from "./world";
+import { INTENTED_FRONT_Z_INDEX } from "@/config";
+import { ECS_NULL_VALUE } from "@/utils/ecs";
 
-export interface CreateEntityOptions {
-  x?: number;
-  y?: number;
-  angle?: number;
-  speed?: number;
-}
+type WithRequired<T, K extends keyof T> = Omit<T, K> & Required<Pick<T, K>>;
 
-/**
- * Character 엔티티 생성
- * Components: [ActorTag, ObjectComp, PositionComp, AngleComp, RenderComp]
- */
 export function createCharacterEntity(
   world: IWorld,
-  options: CreateEntityOptions = {}
+  components: EntityComponents
 ): number {
+  const _components = components as WithRequired<
+    EntityComponents,
+    "position" | "angle" | "speed" | "render"
+  >;
   const eid = addEntity(world);
 
-  // ObjectComp
   addComponent(world, ObjectComp, eid);
-  ObjectComp.id[eid] = generatePersistentNumericId(); // 영속적인 고유 ID 생성
+  ObjectComp.id[eid] = components.object?.id || generatePersistentNumericId(); // 영속적인 고유 ID 생성
   ObjectComp.type[eid] = ObjectType.CHARACTER;
-  ObjectComp.state[eid] = CharacterState.IDLE;
+  ObjectComp.state[eid] = components.object?.state || CharacterState.IDLE;
 
-  // PositionComp
   addComponent(world, PositionComp, eid);
-  PositionComp.x[eid] = options.x ?? 0;
-  PositionComp.y[eid] = options.y ?? 0;
+  PositionComp.x[eid] = _components.position?.x || ECS_NULL_VALUE;
+  PositionComp.y[eid] = _components.position?.y || ECS_NULL_VALUE;
 
-  // AngleComp
   addComponent(world, AngleComp, eid);
-  AngleComp.value[eid] = options.angle ?? 0;
+  AngleComp.value[eid] = _components.angle?.value || ECS_NULL_VALUE;
 
-  // RenderComp
   addComponent(world, RenderComp, eid);
-  RenderComp.spriteRefIndex[eid] = 0; // 스프라이트 참조 인덱스는 나중에 설정
-  RenderComp.textureKey[eid] = TextureKey.TestGreenSlimeA1;
-  RenderComp.zIndex[eid] = options.y ?? 0;
+  RenderComp.spriteRefIndex[eid] = ECS_NULL_VALUE; // 스프라이트 참조 인덱스는 나중에 설정
+  RenderComp.textureKey[eid] = _components.render.textureKey;
+  RenderComp.scale[eid] = _components.render.scale || 1; // 기본 스케일은 1
+  RenderComp.zIndex[eid] = _components.position.y;
 
-  // SpeedComp (캐릭터는 이동 가능)
   addComponent(world, SpeedComp, eid);
-  SpeedComp.value[eid] = options.speed ?? 50;
+  SpeedComp.value[eid] = _components.speed?.value || ECS_NULL_VALUE;
 
-  // RandomMovementComp (랜덤 움직임)
-  addComponent(world, RandomMovementComp, eid);
-  RandomMovementComp.minIdleTime[eid] = 1000;
-  RandomMovementComp.maxIdleTime[eid] = 3000;
-  RandomMovementComp.minMoveTime[eid] = 1000;
-  RandomMovementComp.maxMoveTime[eid] = 2000;
-  RandomMovementComp.nextChange[eid] = Date.now() + 1000;
+  if (components.object?.state !== CharacterState.EGG) {
+    addComponent(world, RandomMovementComp, eid);
+    RandomMovementComp.minIdleTime[eid] = 2000;
+    RandomMovementComp.maxIdleTime[eid] = 8000;
+    RandomMovementComp.minMoveTime[eid] = 1000;
+    RandomMovementComp.maxMoveTime[eid] = 8000;
+    RandomMovementComp.nextChange[eid] = ECS_NULL_VALUE;
+  }
 
-  // DestinationComp
   addComponent(world, DestinationComp, eid);
   DestinationComp.type[eid] = DestinationType.NULL;
-  DestinationComp.destX[eid] = 0;
-  DestinationComp.destY[eid] = 0;
+  DestinationComp.target[eid] = ECS_NULL_VALUE;
+  DestinationComp.x[eid] = ECS_NULL_VALUE;
+  DestinationComp.y[eid] = ECS_NULL_VALUE;
 
   return eid;
 }
 
-/**
- * Bird 엔티티 생성
- * Components: [BirdTag, ObjectComp, PositionComp, AngleComp, RenderComp]
- */
 export function createBirdEntity(
   world: IWorld,
-  options: CreateEntityOptions = {}
+  components: EntityComponents
 ): number {
+  const _components = components as WithRequired<
+    EntityComponents,
+    "position" | "angle" | "speed"
+  >;
   const eid = addEntity(world);
 
-  // ObjectComp
   addComponent(world, ObjectComp, eid);
   ObjectComp.id[eid] = generatePersistentNumericId(); // 영속적인 고유 ID 생성
   ObjectComp.type[eid] = ObjectType.BIRD;
   ObjectComp.state[eid] = 0; // Bird는 별도 상태 enum이 없음
 
-  // PositionComp
   addComponent(world, PositionComp, eid);
-  PositionComp.x[eid] = options.x ?? 0;
-  PositionComp.y[eid] = options.y ?? 0;
+  PositionComp.x[eid] = _components.position.x || 0;
+  PositionComp.y[eid] = _components.position.y || 0;
 
-  // AngleComp
   addComponent(world, AngleComp, eid);
-  AngleComp.value[eid] = options.angle ?? 0;
+  AngleComp.value[eid] = _components.angle.value || 0;
 
-  // RenderComp
   addComponent(world, RenderComp, eid);
   RenderComp.spriteRefIndex[eid] = 0;
-  RenderComp.textureKey[eid] = TextureKey.Bird1; // Bird 텍스처로 변경
-  RenderComp.zIndex[eid] = (options.y ?? 0) + 1000; // Bird는 높은 z-index
+  RenderComp.textureKey[eid] = TextureKey.BIRD; // Bird 텍스처로 변경
+  RenderComp.zIndex[eid] = INTENTED_FRONT_Z_INDEX; // Bird는 높은 z-index
 
-  // SpeedComp (새는 빠르게 이동)
   addComponent(world, SpeedComp, eid);
-  SpeedComp.value[eid] = options.speed ?? 100;
+  SpeedComp.value[eid] = _components.speed.value;
 
-  // DestinationComp
   addComponent(world, DestinationComp, eid);
   DestinationComp.type[eid] = DestinationType.NULL;
-  DestinationComp.destX[eid] = 0;
-  DestinationComp.destY[eid] = 0;
+  DestinationComp.target[eid] = ECS_NULL_VALUE;
+  DestinationComp.x[eid] = ECS_NULL_VALUE;
+  DestinationComp.y[eid] = ECS_NULL_VALUE;
 
   return eid;
 }
 
-/**
- * Food 엔티티 생성
- * Components: [ObjectComp, PositionComp, AngleComp, RenderComp, FreshnessComp]
- */
 export function createFoodEntity(
   world: IWorld,
-  options: CreateEntityOptions & { freshness?: Freshness } = {}
+  components: EntityComponents
 ): number {
+  const _components = components as WithRequired<
+    EntityComponents,
+    "object" | "position" | "angle" | "render" | "freshness"
+  >;
   const eid = addEntity(world);
 
   // ObjectComp
   addComponent(world, ObjectComp, eid);
-  ObjectComp.id[eid] = generatePersistentNumericId(); // 영속적인 고유 ID 생성
+  ObjectComp.id[eid] = _components.object.id || generatePersistentNumericId(); // 영속적인 고유 ID 생성
   ObjectComp.type[eid] = ObjectType.FOOD;
-  ObjectComp.state[eid] = FoodState.LANDED;
+  ObjectComp.state[eid] = _components.object.state || FoodState.BEING_THROWING;
 
   // PositionComp
   addComponent(world, PositionComp, eid);
-  PositionComp.x[eid] = options.x ?? 0;
-  PositionComp.y[eid] = options.y ?? 0;
+  PositionComp.x[eid] = _components.position.x || 0;
+  PositionComp.y[eid] = _components.position.y || 0;
 
   // AngleComp
   addComponent(world, AngleComp, eid);
-  AngleComp.value[eid] = options.angle ?? 0;
+  AngleComp.value[eid] = _components.angle.value || 0;
 
   // RenderComp
   addComponent(world, RenderComp, eid);
-  RenderComp.spriteRefIndex[eid] = 0;
-  RenderComp.textureKey[eid] = TextureKey.Food1; // Food 텍스처로 변경
-  RenderComp.zIndex[eid] = options.y ?? 0;
+  RenderComp.spriteRefIndex[eid] = ECS_NULL_VALUE; // 스프라이트 참조 인덱스는 나중에 설정
+  RenderComp.textureKey[eid] = _components.render.textureKey; // Food 텍스처로 변경
+  RenderComp.zIndex[eid] = _components.position.y;
 
   // FreshnessComp
   addComponent(world, FreshnessComp, eid);
-  FreshnessComp.freshness[eid] = options.freshness ?? Freshness.FRESH;
+  FreshnessComp.freshness[eid] =
+    _components.freshness.freshness || Freshness.FRESH;
 
   return eid;
 }
 
-/**
- * Pill 엔티티 생성
- * Components: [ObjectComp, PositionComp, AngleComp, RenderComp]
- */
 export function createPillEntity(
   world: IWorld,
-  options: CreateEntityOptions = {}
+  components: EntityComponents
 ): number {
+  const _components = components as WithRequired<
+    EntityComponents,
+    "position" | "angle" | "speed"
+  >;
   const eid = addEntity(world);
 
   // ObjectComp
@@ -180,62 +171,63 @@ export function createPillEntity(
 
   // PositionComp
   addComponent(world, PositionComp, eid);
-  PositionComp.x[eid] = options.x ?? 0;
-  PositionComp.y[eid] = options.y ?? 0;
+  PositionComp.x[eid] = _components.position.x || ECS_NULL_VALUE;
+  PositionComp.y[eid] = _components.position.y || ECS_NULL_VALUE;
 
   // AngleComp
   addComponent(world, AngleComp, eid);
-  AngleComp.value[eid] = options.angle ?? 0;
+  AngleComp.value[eid] = _components.angle.value || ECS_NULL_VALUE;
 
   // RenderComp
   addComponent(world, RenderComp, eid);
-  RenderComp.spriteRefIndex[eid] = 0;
+  RenderComp.spriteRefIndex[eid] = ECS_NULL_VALUE; // 스프라이트 참조 인덱스는 나중에 설정
   RenderComp.textureKey[eid] = TextureKey.TestGreenSlimeD1; // Pill은 다른 색상으로
-  RenderComp.zIndex[eid] = options.y ?? 0;
+  RenderComp.zIndex[eid] = _components.position.y;
 
   // SpeedComp (알약도 이동할 수 있음)
   addComponent(world, SpeedComp, eid);
-  SpeedComp.value[eid] = options.speed ?? 30;
+  SpeedComp.value[eid] = _components.speed.value || ECS_NULL_VALUE;
 
   // DestinationComp
   addComponent(world, DestinationComp, eid);
   DestinationComp.type[eid] = DestinationType.NULL;
-  DestinationComp.destX[eid] = 0;
-  DestinationComp.destY[eid] = 0;
+  DestinationComp.target[eid] = ECS_NULL_VALUE; // 대상 엔티티 ID는 아직 없음
+  DestinationComp.x[eid] = ECS_NULL_VALUE;
+  DestinationComp.y[eid] = ECS_NULL_VALUE;
 
   return eid;
 }
 
-/**
- * Poob 엔티티 생성
- * Components: [ObjectComp, PositionComp, AngleComp, RenderComp]
- */
 export function createPoobEntity(
   world: IWorld,
-  options: CreateEntityOptions = {}
+  components: EntityComponents
 ): number {
+  const _components = components as WithRequired<
+    EntityComponents,
+    "object" | "position" | "angle"
+  >;
   const eid = addEntity(world);
 
   // ObjectComp
   addComponent(world, ObjectComp, eid);
-  ObjectComp.id[eid] = generatePersistentNumericId(); // 영속적인 고유 ID 생성
+  ObjectComp.id[eid] = _components.object.id || generatePersistentNumericId(); // 영속적인 고유 ID 생성
   ObjectComp.type[eid] = ObjectType.POOB;
-  ObjectComp.state[eid] = 0; // Poob는 별도 상태 enum이 없음
+  ObjectComp.state[eid] = ECS_NULL_VALUE; // Poob는 별도 상태 enum이 없음
 
   // PositionComp
   addComponent(world, PositionComp, eid);
-  PositionComp.x[eid] = options.x ?? 0;
-  PositionComp.y[eid] = options.y ?? 0;
+  PositionComp.x[eid] = _components.position.x || ECS_NULL_VALUE;
+  PositionComp.y[eid] = _components.position.y || ECS_NULL_VALUE;
 
   // AngleComp
   addComponent(world, AngleComp, eid);
-  AngleComp.value[eid] = options.angle ?? 0;
+  AngleComp.value[eid] = _components.angle.value || ECS_NULL_VALUE;
 
   // RenderComp
   addComponent(world, RenderComp, eid);
   RenderComp.spriteRefIndex[eid] = 0;
-  RenderComp.textureKey[eid] = TextureKey.Poob; // Poob 전용 텍스처 사용
-  RenderComp.zIndex[eid] = options.y ?? 0;
+  RenderComp.textureKey[eid] = TextureKey.POOB; // Poob 전용 텍스처 사용
+  RenderComp.zIndex[eid] = _components.position.y;
 
   return eid;
 }

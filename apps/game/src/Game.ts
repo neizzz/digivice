@@ -78,8 +78,8 @@ export class Game {
     parentElement.appendChild(this.app.view as HTMLCanvasElement);
 
     // 리사이징 핸들러 설정
-    window.addEventListener("resize", this.onResize.bind(this));
-    this.onResize();
+    window.addEventListener("resize", this._onResize.bind(this));
+    this._onResize();
 
     // NOTE: 디버그 UI 초기화 / from "@digivice/client"
     if (import.meta.env.DEV === true) {
@@ -225,7 +225,7 @@ export class Game {
 
   /** NOTE: 싱글턴 인스턴스가 모두 초기화되고 호출되어야 함. */
   public async initialize(): Promise<void> {
-    this.waitForAppInitialization()
+    this._waitForAppInitialization()
       .then(async () => AssetLoader.loadAssets())
       .then(() => {
         this.assetsLoaded = true;
@@ -236,10 +236,19 @@ export class Game {
 
         this._setupInitialScene();
         this._setupGameLoop();
+        this.start();
       })
       .catch((error) => {
         console.error("[Game] 에셋 로딩 오류:", error);
       });
+  }
+
+  public start(): void {
+    this.app.ticker.start();
+  }
+
+  public stop(): void {
+    this.app.ticker.stop();
   }
 
   private _setupInitialScene(): void {
@@ -251,7 +260,7 @@ export class Game {
     this._setupAppLifecycleListeners();
 
     this.app.ticker.add((tick: number) => {
-      this.update(tick * GAME_LOOP.DELTA_MS);
+      this._update(tick * GAME_LOOP.DELTA_MS);
     });
   }
 
@@ -319,14 +328,14 @@ export class Game {
   //   false;
   // }
 
-  private update(deltaTime: number): void {
+  private _update(deltaTime: number): void {
     this.currentScene?.update(deltaTime);
   }
 
   /**
    * PIXI 애플리케이션이 완전히 초기화될 때까지 대기
    */
-  private waitForAppInitialization = (): Promise<void> => {
+  private _waitForAppInitialization = (): Promise<void> => {
     return new Promise<void>((resolve) => {
       const onFirstRender = () => {
         // 한 번 실행 후 제거
@@ -339,7 +348,7 @@ export class Game {
     });
   };
 
-  private onResize(): void {
+  private _onResize(): void {
     const parent = this.app.view;
     if (!parent || !parent.getBoundingClientRect) {
       throw new Error("Parent element is not available.");
@@ -380,7 +389,7 @@ export class Game {
             height: this.app.screen.height,
           },
         });
-        mainSceneWorld.init();
+        await mainSceneWorld.init();
         return mainSceneWorld as unknown as Scene;
 
       // case SceneKey.FLAPPY_BIRD_GAME:
@@ -422,10 +431,7 @@ export class Game {
       //   this.app.stage.removeChild(this.currentScene);
       // }
 
-      await this._createScene(key);
-
-      // 새 씬 설정
-      // this.currentScene = this.scenes.get(key) as Scene;
+      this.currentScene = await this._createScene(key);
       this.currentSceneKey = key;
 
       // 새 씬이 DisplayObject이면 스테이지에 추가
@@ -479,7 +485,7 @@ export class Game {
 
   public destroy(): void {
     // 정리 작업
-    window.removeEventListener("resize", this.onResize.bind(this));
+    window.removeEventListener("resize", this._onResize.bind(this));
     this.app.destroy(true, {
       children: true,
       texture: true,

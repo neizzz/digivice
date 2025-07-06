@@ -6,7 +6,7 @@ import { convertECSEntityToSavedEntity } from "../entityDataHelpers";
 import { cloneDeep } from "../../../utils/common";
 
 const THIS_CONFIG = {
-  saveInterval: 500,
+  SAVE_INTERVAL: 1000,
 } as const;
 
 // TODO: dirty flag를 사용하여 성능 개선
@@ -19,7 +19,7 @@ function addEntityData(
   worldData: MainSceneWorldData,
   savedEntity: SavedEntity
 ): void {
-  const entityId = savedEntity.components.objectComponent?.id;
+  const entityId = savedEntity.components.object?.id;
   if (!entityId) {
     console.warn(
       "[DataSyncSystem] SavedEntity에 ObjectComponent ID가 없습니다."
@@ -28,7 +28,7 @@ function addEntityData(
   }
 
   const existingIndex = worldData.entities.findIndex(
-    (entity: SavedEntity) => entity.components.objectComponent?.id === entityId
+    (entity: SavedEntity) => entity.components.object?.id === entityId
   );
 
   if (existingIndex !== -1) {
@@ -47,7 +47,7 @@ function removeEntityData(
   entityId: number
 ): boolean {
   const index = worldData.entities.findIndex(
-    (entity: SavedEntity) => entity.components.objectComponent?.id === entityId
+    (entity: SavedEntity) => entity.components.object?.id === entityId
   );
 
   if (index !== -1) {
@@ -64,18 +64,17 @@ function removeEntityData(
  * enterQuery와 exitQuery를 사용하여 변화된 엔티티만 동기화
  */
 export function dataSyncSystem(mainSceneWorld: MainSceneWorld): MainSceneWorld {
-  const worldData = mainSceneWorld.getWorldData();
+  const worldData = mainSceneWorld.getInMemoryData();
 
   if (
     Date.now() - worldData.world_metadata.last_saved <
-    THIS_CONFIG.saveInterval
+    THIS_CONFIG.SAVE_INTERVAL
   ) {
     // 마지막 저장 이후 saveInterval이 지나지 않았다면 동기화하지 않음
     return mainSceneWorld;
   }
 
   const newWorldData = cloneDeep(worldData);
-
   newWorldData.world_metadata.last_saved = Date.now();
 
   // 새로 추가된 엔티티들을 MainSceneWorld에 동기화
@@ -93,8 +92,7 @@ export function dataSyncSystem(mainSceneWorld: MainSceneWorld): MainSceneWorld {
     removeEntityData(newWorldData, objectId);
   }
 
-  mainSceneWorld.setWorldData(newWorldData);
-
+  mainSceneWorld.setData(newWorldData);
   return mainSceneWorld;
 }
 

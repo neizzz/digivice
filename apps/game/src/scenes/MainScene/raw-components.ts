@@ -17,8 +17,9 @@ export const IntakeComp = defineComponent({
 });
 export const DestinationComp = defineComponent({
   type: Types.ui8 /** ${@link enum DestinationType} */,
-  destX: Types.ui32,
-  destY: Types.ui32,
+  target: Types.eid,
+  x: Types.ui32,
+  y: Types.ui32,
 });
 export const RandomMovementComp = defineComponent({
   minIdleTime: Types.ui32,
@@ -31,9 +32,9 @@ export const RandomMovementComp = defineComponent({
 /**
  * Render 관련 컴포넌트들
  */
-// export const SpriteComp = defineComponent({ index: Types.ui32 }); // sprite 인스턴스 참조 인덱스
 export const RenderComp = defineComponent({
   spriteRefIndex: Types.ui16, // sprite 인스턴스 참조 인덱스
   textureKey: Types.ui16 /** {@link enum TextureKey} */,
-  zIndex: Types.ui32,
+  scale: Types.f32,
+  zIndex: Types.ui16, // 기본적으로 ECS_NULL_VALUE로 설정 -> y 좌표로 설정 (렌더링 순서 결정용)
 });

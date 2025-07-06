@@ -15,7 +15,7 @@ class _StorageManager {
     return this._storage.getData(key) as Promise<T | null>;
   }
 
-  setData<T>(key: string, data: T): void {
+  setData<T>(key: string, data: T): Promise<void> {
     return this._storage.setData(key, data);
   }
 }
