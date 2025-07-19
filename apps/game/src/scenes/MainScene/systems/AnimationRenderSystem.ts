@@ -33,7 +33,6 @@ export const SPRITESHEET_KEY_TO_NAME: Record<SpritesheetKey, string> = {
   [SpritesheetKey.TestGreenSlimeB1]: "test-green-slime_B1",
   [SpritesheetKey.TestGreenSlimeC1]: "test-green-slime_C1",
   [SpritesheetKey.TestGreenSlimeD1]: "test-green-slime_D1",
-  // [SpritesheetKey.]: "bird",
 };
 
 const ANIMATION_KEY_TO_NAME: Record<AnimationKey, string> = {
@@ -46,21 +45,21 @@ const ANIMATION_KEY_TO_NAME: Record<AnimationKey, string> = {
   [AnimationKey.FLY]: "fly",
 };
 
-const animationQuery = defineQuery([
-  PositionComp,
-  AngleComp,
-  RenderComp,
-  AnimationRenderComp,
-]);
+const animationQuery = defineQuery([AnimationRenderComp]);
 const characterAnimationQuery = defineQuery([
   AnimationRenderComp,
-  RenderComp,
-  ObjectComp,
   CharacterStatusComp,
 ]);
 const exitedAnimationQuery = exitQuery(animationQuery);
 
-export function animationRenderSystem(world: MainSceneWorld): MainSceneWorld {
+const spritesheetCache: Map<string, PIXI.Spritesheet> = new Map();
+const animatedSpriteStore: PIXI.AnimatedSprite[] = [];
+
+export function animationRenderSystem(params: {
+  world: MainSceneWorld;
+  delta: number;
+}): typeof params {
+  const { world } = params;
   const entities = animationQuery(world);
   const exitedEntities = exitedAnimationQuery(world);
   const stage = world.stage;
@@ -68,27 +67,28 @@ export function animationRenderSystem(world: MainSceneWorld): MainSceneWorld {
   // 캐릭터 상태에 따른 애니메이션 자동 변경
   updateCharacterAnimations(world);
 
-  // 제거된 애니메이션 엔티티들의 스프라이트를 stage에서 제거
   for (let i = 0; i < exitedEntities.length; i++) {
     const eid = exitedEntities[i];
-    const spriteRefIndex = RenderComp.spriteRefIndex[eid];
-    const animatedSprite = getAnimatedSprite(spriteRefIndex);
+    const storeIndex = AnimationRenderComp.storeIndex[eid];
+    const animatedSprite = getAnimatedSprite(storeIndex);
 
     if (animatedSprite && animatedSprite.parent) {
       stage.removeChild(animatedSprite);
       animatedSprite.destroy();
-
-      if (spriteRefIndex < animatedSpriteStore.length) {
-        animatedSpriteStore[spriteRefIndex] = null as any;
+      if (storeIndex < animatedSpriteStore.length) {
+        animatedSpriteStore[storeIndex] = null as any;
       }
+      console.log(
+        `[AnimationSystem] Removed animated sprite from stage for entity ${eid}`
+      );
     }
   }
 
   for (let i = 0; i < entities.length; i++) {
     const eid = entities[i];
-    const spriteRefIndex = RenderComp.spriteRefIndex[eid];
+    const storeIndex = AnimationRenderComp.storeIndex[eid];
 
-    let animatedSprite = getAnimatedSprite(spriteRefIndex);
+    let animatedSprite = getAnimatedSprite(storeIndex);
 
     // 애니메이션 스프라이트가 없으면 생성
     if (!animatedSprite) {
@@ -97,36 +97,29 @@ export function animationRenderSystem(world: MainSceneWorld): MainSceneWorld {
         continue;
       }
 
-      // 애니메이션 스프라이트 스토어에 추가
-      animatedSpriteStore.push(animatedSprite);
-      RenderComp.spriteRefIndex[eid] = animatedSpriteStore.length - 1;
-
-      // Stage에 스프라이트 추가
       stage.addChild(animatedSprite);
+      animatedSpriteStore.push(animatedSprite);
+      AnimationRenderComp.storeIndex[eid] = animatedSpriteStore.length - 1;
       console.log(
         `[AnimationSystem] Added animated sprite to stage for entity ${eid}`
       );
     }
 
-    // 위치, 회전, 스케일, zIndex 업데이트
     const x = PositionComp.x[eid];
     const y = PositionComp.y[eid];
     animatedSprite.position.set(x, y);
 
     const angle = AngleComp.value[eid];
+    animatedSprite.anchor.set(0.5);
     animatedSprite.rotation = angle;
-
     animatedSprite.zIndex = RenderComp.zIndex[eid];
     animatedSprite.scale.set(RenderComp.scale[eid]);
 
-    // 애니메이션 상태 업데이트
     updateAnimatedSprite(animatedSprite, eid);
   }
 
-  return world;
+  return params;
 }
-
-const spritesheetCache: Map<string, PIXI.Spritesheet> = new Map();
 
 function getSpritesheet(name: string): PIXI.Spritesheet | null {
   // PIXI Assets에서 이미 로드된 스프라이트시트 가져오기
@@ -167,8 +160,6 @@ function getAnimationTextures(
 
   return animations[animationName];
 }
-
-const animatedSpriteStore: PIXI.AnimatedSprite[] = [];
 
 function getAnimatedSprite(idx: number): PIXI.AnimatedSprite | undefined {
   return animatedSpriteStore[idx] || undefined;
@@ -229,7 +220,6 @@ function updateAnimatedSprite(sprite: PIXI.AnimatedSprite, eid: number): void {
 
   // 애니메이션이 변경되었는지 확인
   const currentAnimationName = ANIMATION_KEY_TO_NAME[animationKey];
-  // const textureKey = RenderComp.textureKey[eid];
   const spritesheetName = SPRITESHEET_KEY_TO_NAME[spritesheetKey];
 
   if (spritesheetName && currentAnimationName) {
@@ -267,25 +257,25 @@ function updateAnimatedSprite(sprite: PIXI.AnimatedSprite, eid: number): void {
   }
 }
 
-export function startAnimation(
-  eid: number,
-  animationKey: AnimationKey,
-  loop: boolean = true,
-  speed: number = 0.1
-): void {
-  AnimationRenderComp.animationKey[eid] = animationKey;
-  AnimationRenderComp.isPlaying[eid] = 1;
-  AnimationRenderComp.loop[eid] = loop ? 1 : 0;
-  AnimationRenderComp.speed[eid] = speed;
+// export function startAnimation(
+//   eid: number,
+//   animationKey: AnimationKey,
+//   loop: boolean = true,
+//   speed: number = 0.1
+// ): void {
+//   AnimationRenderComp.animationKey[eid] = animationKey;
+//   AnimationRenderComp.isPlaying[eid] = 1;
+//   AnimationRenderComp.loop[eid] = loop ? 1 : 0;
+//   AnimationRenderComp.speed[eid] = speed;
 
-  console.log(
-    `[AnimationSystem] Started animation ${AnimationKey[animationKey]} for entity ${eid}`
-  );
-}
+//   console.log(
+//     `[AnimationSystem] Started animation ${AnimationKey[animationKey]} for entity ${eid}`
+//   );
+// }
 
-export function stopAnimation(eid: number): void {
-  AnimationRenderComp.isPlaying[eid] = 0;
-}
+// export function stopAnimation(eid: number): void {
+//   AnimationRenderComp.isPlaying[eid] = 0;
+// }
 
 export function changeAnimation(eid: number, animationKey: AnimationKey): void {
   if (AnimationRenderComp.animationKey[eid] !== animationKey) {
@@ -319,18 +309,18 @@ function updateCharacterAnimations(world: MainSceneWorld): void {
 }
 
 // 헬퍼 함수들
-export function isAnimationPlaying(eid: number): boolean {
-  return AnimationRenderComp.isPlaying[eid] === 1;
-}
+// export function isAnimationPlaying(eid: number): boolean {
+//   return AnimationRenderComp.isPlaying[eid] === 1;
+// }
 
-export function getAnimationKey(eid: number): AnimationKey {
-  return AnimationRenderComp.animationKey[eid];
-}
+// export function getAnimationKey(eid: number): AnimationKey {
+//   return AnimationRenderComp.animationKey[eid];
+// }
 
-export function setAnimationSpeed(eid: number, speed: number): void {
-  AnimationRenderComp.speed[eid] = speed;
-}
+// export function setAnimationSpeed(eid: number, speed: number): void {
+//   AnimationRenderComp.speed[eid] = speed;
+// }
 
-export function setAnimationLoop(eid: number, loop: boolean): void {
-  AnimationRenderComp.loop[eid] = loop ? 1 : 0;
-}
+// export function setAnimationLoop(eid: number, loop: boolean): void {
+//   AnimationRenderComp.loop[eid] = loop ? 1 : 0;
+// }

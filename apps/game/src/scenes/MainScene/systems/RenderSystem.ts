@@ -55,6 +55,11 @@ function getSprite(
 function getTextureFromKey(textureKey: number): PIXI.Texture | undefined {
   const textureInfo = TEXTURE_MAP[textureKey];
   if (!textureInfo) {
+    if (import.meta.env.DEV) {
+      throw new Error(
+        `[RenderSystem] Texture key ${textureKey} not found in TEXTURE_MAP`
+      );
+    }
     console.warn(
       `[RenderSystem] Texture key ${textureKey} not found in TEXTURE_MAP`
     );
@@ -102,9 +107,7 @@ function getTextureFromKey(textureKey: number): PIXI.Texture | undefined {
 
 function createSpriteForEntity(eid: number): PIXI.Sprite | undefined {
   const textureKey = RenderComp.textureKey[eid];
-
   const texture = getTextureFromKey(textureKey);
-
   if (!texture) {
     console.warn(
       `[RenderSystem] Texture not found for entity ${eid} with key ${textureKey}`
@@ -122,7 +125,11 @@ const exitedRenderableQuery = exitQuery(renderableQuery);
 // 개발 환경에서 텍스처 검증을 한 번만 수행하기 위한 플래그
 let hasValidatedTextures = false;
 
-export function renderSystem(world: MainSceneWorld): MainSceneWorld {
+export function renderSystem(params: {
+  world: MainSceneWorld;
+  delta: number;
+}): typeof params {
+  const { world } = params;
   // 첫 번째 실행 시 텍스처 맵 검증 (개발 환경에서만)
   if (process.env.NODE_ENV === "development" && !hasValidatedTextures) {
     validateTextureMap();
@@ -136,28 +143,37 @@ export function renderSystem(world: MainSceneWorld): MainSceneWorld {
   // 제거된 엔티티들의 스프라이트를 stage에서 제거
   for (let i = 0; i < exitedEntities.length; i++) {
     const eid = exitedEntities[i];
-    const spriteRefIndex = RenderComp.spriteRefIndex[eid];
-    const sprite = getSprite(spriteRefIndex);
+    const storeIndex = RenderComp.storeIndex[eid];
+    const sprite = getSprite(storeIndex);
 
     if (sprite && sprite.parent) {
       stage.removeChild(sprite);
-      console.log(`[RenderSystem] Removed sprite from stage for entity ${eid}`);
-
-      // 스프라이트를 destroy하여 메모리 해제
       sprite.destroy();
-
-      // spriteStore에서도 제거 (인덱스를 null로 설정)
-      if (spriteRefIndex < spriteStore.length) {
-        spriteStore[spriteRefIndex] = null;
-      }
+      // if (storeIndex < spriteStore.length) {
+      spriteStore[storeIndex] = null;
+      // }
+      console.log(`[RenderSystem] Removed sprite from stage for entity ${eid}`);
     }
   }
 
   for (let i = 0; i < entities.length; i++) {
     const eid = entities[i];
-    const spriteRefIndex = RenderComp.spriteRefIndex[eid];
+    const textureKey = RenderComp.textureKey[eid];
+    const storeIndex = RenderComp.storeIndex[eid];
+    let sprite = getSprite(storeIndex);
 
-    let sprite = getSprite(spriteRefIndex);
+    if (textureKey === TextureKey.NULL) {
+      if (sprite) {
+        stage.removeChild(sprite); // NULL 텍스처는 Stage에서 제거
+        sprite.destroy();
+        spriteStore[storeIndex] = null;
+
+        console.log(
+          `[RenderSystem] Removed sprite from stage for entity ${eid} (NULL texture)`
+        );
+      }
+      continue;
+    }
 
     // 스프라이트가 없으면 생성
     if (!sprite) {
@@ -169,12 +185,9 @@ export function renderSystem(world: MainSceneWorld): MainSceneWorld {
         continue;
       }
 
-      // 스프라이트 스토어에 추가
-      spriteStore.push(sprite);
-      RenderComp.spriteRefIndex[eid] = spriteStore.length - 1;
-
-      // Stage에 스프라이트 추가
       stage.addChild(sprite);
+      spriteStore.push(sprite);
+      RenderComp.storeIndex[eid] = spriteStore.length - 1;
       console.log(`[RenderSystem] Added sprite to stage for entity ${eid}`);
     }
 
@@ -187,21 +200,16 @@ export function renderSystem(world: MainSceneWorld): MainSceneWorld {
     sprite.zIndex = RenderComp.zIndex[eid] || y; // NOTE: zIndex가 없으면 y 좌표로 설정
     sprite.scale.set(RenderComp.scale[eid]);
 
-    const textureKey = RenderComp.textureKey[eid];
-    if (textureKey === ECS_NULL_VALUE) {
-      stage.removeChild(sprite); // NULL 텍스처는 Stage에서 제거
-    } else {
-      const newTexture = getTextureFromKey(textureKey);
-      if (newTexture && sprite.texture !== newTexture) {
-        sprite.texture = newTexture;
-        console.log(
-          `[RenderSystem] Updated texture for entity ${eid} to key ${textureKey}`
-        );
-      }
+    const newTexture = getTextureFromKey(textureKey);
+    if (newTexture && sprite.texture !== newTexture) {
+      sprite.texture = newTexture;
+      console.log(
+        `[RenderSystem] Updated texture for entity ${eid} to key ${textureKey}`
+      );
     }
   }
 
-  return world;
+  return params;
 }
 
 /**

@@ -171,13 +171,14 @@ export type RandomMovementComponent = {
 };
 
 export type RenderComponent = {
-  spriteRefIndex: number;
+  storeIndex: number;
   textureKey: TextureKey;
   scale: number;
   zIndex: number;
 };
 
 export type AnimationRenderComponent = {
+  storeIndex: number; // animated sprite 인스턴스 참조 인덱스
   spritesheetKey: SpritesheetKey; // 스프라이트 시트 키 (PIXI Assets의 key)
   animationKey: AnimationKey; // 현재 재생 중인 애니메이션 키
   isPlaying: boolean; // 재생 중인지 여부

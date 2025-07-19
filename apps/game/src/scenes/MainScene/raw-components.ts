@@ -42,12 +42,13 @@ export const RandomMovementComp = defineComponent({
  * Render 관련 컴포넌트들
  */
 export const RenderComp = defineComponent({
-  spriteRefIndex: Types.ui16, // sprite 인스턴스 참조 인덱스
+  storeIndex: Types.ui16, // sprite 인스턴스 참조 인덱스
   textureKey: Types.ui16 /** {@link enum TextureKey} */,
   scale: Types.f32,
   zIndex: Types.ui16, // 기본적으로 ECS_NULL_VALUE로 설정 -> y 좌표로 설정 (렌더링 순서 결정용)
 });
 export const AnimationRenderComp = defineComponent({
+  storeIndex: Types.ui16, // animated sprite 인스턴스 참조 인덱스
   spritesheetKey: Types.ui16, // 스프라이트 시트 키 (PIXI Assets의 key)
   animationKey: Types.ui8, // 현재 재생 중인 애니메이션 키 {@link enum AnimationKey}
   isPlaying: Types.ui8, // 재생 중인지 여부 (0 = false, 1 = true)

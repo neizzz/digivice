@@ -66,12 +66,13 @@ export function createCharacterEntity(
   AngleComp.value[eid] = _components.angle?.value || ECS_NULL_VALUE;
 
   addComponent(world, RenderComp, eid);
-  RenderComp.spriteRefIndex[eid] = ECS_NULL_VALUE; // 스프라이트 참조 인덱스는 나중에 설정
+  RenderComp.storeIndex[eid] = ECS_NULL_VALUE; // 스프라이트 참조 인덱스는 나중에 설정
   RenderComp.textureKey[eid] = _components.render.textureKey;
   RenderComp.scale[eid] = _components.render.scale || 1; // 기본 스케일은 1
   RenderComp.zIndex[eid] = ECS_NULL_VALUE;
 
   addComponent(world, AnimationRenderComp, eid);
+  AnimationRenderComp.storeIndex[eid] = ECS_NULL_VALUE; // 애니메이션 스프라이트 참조 인덱스는 나중에 설정
   AnimationRenderComp.spritesheetKey[eid] =
     _components.animationRender?.spritesheetKey || ECS_NULL_VALUE;
   AnimationRenderComp.animationKey[eid] =
@@ -126,7 +127,7 @@ export function createBirdEntity(
   AngleComp.value[eid] = _components.angle.value || 0;
 
   addComponent(world, RenderComp, eid);
-  RenderComp.spriteRefIndex[eid] = 0;
+  RenderComp.storeIndex[eid] = 0;
   RenderComp.textureKey[eid] = ECS_NULL_VALUE; // Bird 텍스처로 변경
   RenderComp.zIndex[eid] = INTENTED_FRONT_Z_INDEX; // Bird는 높은 z-index
 
@@ -169,7 +170,7 @@ export function createFoodEntity(
 
   // RenderComp
   addComponent(world, RenderComp, eid);
-  RenderComp.spriteRefIndex[eid] = ECS_NULL_VALUE; // 스프라이트 참조 인덱스는 나중에 설정
+  RenderComp.storeIndex[eid] = ECS_NULL_VALUE; // 스프라이트 참조 인덱스는 나중에 설정
   RenderComp.textureKey[eid] = _components.render.textureKey; // Food 텍스처로 변경
   RenderComp.zIndex[eid] = _components.position.y;
 
@@ -208,7 +209,7 @@ export function createPillEntity(
 
   // RenderComp
   addComponent(world, RenderComp, eid);
-  RenderComp.spriteRefIndex[eid] = ECS_NULL_VALUE; // 스프라이트 참조 인덱스는 나중에 설정
+  RenderComp.storeIndex[eid] = ECS_NULL_VALUE; // 스프라이트 참조 인덱스는 나중에 설정
   RenderComp.textureKey[eid] = TextureKey.PILL1; // Pill은 다른 색상으로
   RenderComp.zIndex[eid] = _components.position.y;
 
@@ -253,7 +254,7 @@ export function createPoobEntity(
 
   // RenderComp
   addComponent(world, RenderComp, eid);
-  RenderComp.spriteRefIndex[eid] = 0;
+  RenderComp.storeIndex[eid] = 0;
   RenderComp.textureKey[eid] = TextureKey.POOB; // Poob 전용 텍스처 사용
   RenderComp.zIndex[eid] = _components.position.y;
 

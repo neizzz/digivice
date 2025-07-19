@@ -66,7 +66,11 @@ function removeEntityData(
   return false;
 }
 
-export function dataSyncSystem(mainSceneWorld: MainSceneWorld): MainSceneWorld {
+export function dataSyncSystem(params: {
+  world: MainSceneWorld;
+  delta: number;
+}): typeof params {
+  const { world: mainSceneWorld } = params;
   const worldData = mainSceneWorld.getInMemoryData();
 
   if (
@@ -74,7 +78,7 @@ export function dataSyncSystem(mainSceneWorld: MainSceneWorld): MainSceneWorld {
     THIS_CONFIG.SAVE_INTERVAL
   ) {
     // 마지막 저장 이후 saveInterval이 지나지 않았다면 동기화하지 않음
-    return mainSceneWorld;
+    return params;
   }
 
   const newWorldData = cloneDeep(worldData);
@@ -103,7 +107,7 @@ export function dataSyncSystem(mainSceneWorld: MainSceneWorld): MainSceneWorld {
 
   newWorldData.world_metadata.last_saved = Date.now();
   mainSceneWorld.setData(newWorldData);
-  return mainSceneWorld;
+  return params;
 }
 
 /**

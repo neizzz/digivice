@@ -14,7 +14,6 @@ import {
   RenderComponent,
   AnimationRenderComponent,
   SpeedComponent,
-  TextureKey,
   AnimationKey,
   SpritesheetKey,
 } from "./types";
@@ -277,12 +276,13 @@ export class MainSceneWorld implements IWorld {
         state: CharacterState.EGG,
       },
       render: {
-        spriteRefIndex: ECS_NULL_VALUE,
+        storeIndex: ECS_NULL_VALUE,
         scale: 3,
         textureKey: ECS_NULL_VALUE,
         zIndex: ECS_NULL_VALUE,
       },
       animationRender: {
+        storeIndex: ECS_NULL_VALUE,
         spritesheetKey: SpritesheetKey.TestGreenSlimeA1,
         animationKey: AnimationKey.IDLE,
         isPlaying: true,
@@ -392,9 +392,9 @@ export class MainSceneWorld implements IWorld {
     // TODO: 모든 엔티티 제거
   }
 
-  update(deltaTime: number): void {
+  update(delta: number): void {
     // TODO: hatchSystem, throwSystem
-    this._pipedSystems(this, deltaTime);
+    this._pipedSystems({ world: this, delta });
   }
 
   private _initializeData(): MainSceneWorldData {

@@ -31,7 +31,6 @@ export function convertECSEntityToSavedEntity(
       state: ObjectComp.state[eid],
     };
   }
-
   if (hasComponent(world, CharacterStatusComp, eid)) {
     components.characterStatus = {
       characterKey: CharacterStatusComp.characterKey[eid] as CharacterKey,
@@ -42,14 +41,12 @@ export function convertECSEntityToSavedEntity(
       ) as CharacterStatus[],
     };
   }
-
   if (hasComponent(world, PositionComp, eid)) {
     components.position = {
       x: PositionComp.x[eid],
       y: PositionComp.y[eid],
     };
   }
-
   if (hasComponent(world, AngleComp, eid)) {
     components.angle = {
       value: AngleComp.value[eid],
@@ -84,7 +81,7 @@ export function convertECSEntityToSavedEntity(
   }
   if (hasComponent(world, RenderComp, eid)) {
     components.render = {
-      spriteRefIndex: RenderComp.spriteRefIndex[eid],
+      storeIndex: RenderComp.storeIndex[eid],
       textureKey: RenderComp.textureKey[eid],
       scale: RenderComp.scale[eid],
       zIndex: RenderComp.zIndex[eid],
@@ -92,11 +89,12 @@ export function convertECSEntityToSavedEntity(
   }
   if (hasComponent(world, AnimationRenderComp, eid)) {
     components.animationRender = {
+      storeIndex: AnimationRenderComp.storeIndex[eid],
       spritesheetKey: AnimationRenderComp.spritesheetKey[eid],
       animationKey: AnimationRenderComp.animationKey[eid],
       isPlaying: AnimationRenderComp.isPlaying[eid] === 1,
       loop: AnimationRenderComp.loop[eid] === 1,
-      speed: AnimationRenderComp.speed[eid],
+      speed: +AnimationRenderComp.speed[eid].toFixed(2),
     };
   }
 
@@ -153,7 +151,7 @@ export function applySavedEntityToECS(
     if (!hasComponent(world, RenderComp, eid)) {
       addComponent(world, RenderComp, eid);
     }
-    RenderComp.spriteRefIndex[eid] = components.render.spriteRefIndex;
+    RenderComp.storeIndex[eid] = components.render.storeIndex;
     RenderComp.textureKey[eid] = components.render.textureKey;
     RenderComp.scale[eid] = components.render.scale;
     RenderComp.zIndex[eid] = components.render.zIndex;
@@ -163,6 +161,7 @@ export function applySavedEntityToECS(
     if (!hasComponent(world, AnimationRenderComp, eid)) {
       addComponent(world, AnimationRenderComp, eid);
     }
+    AnimationRenderComp.storeIndex[eid] = components.animationRender.storeIndex;
     AnimationRenderComp.spritesheetKey[eid] =
       components.animationRender.spritesheetKey;
     AnimationRenderComp.animationKey[eid] =

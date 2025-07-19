@@ -6,18 +6,14 @@ import {
   RandomMovementComp,
   AngleComp,
   ObjectComp,
+  CharacterStatusComp,
 } from "../raw-components";
 import type * as PIXI from "pixi.js";
 import { MainSceneWorld } from "../world";
+import { renderSystem } from "./RenderSystem";
+import { Render } from "matter-js";
 
-const characterQuery = defineQuery([
-  ObjectComp,
-  PositionComp,
-  AngleComp,
-  SpeedComp,
-  RandomMovementComp,
-  RenderComp,
-]);
+const characterQuery = defineQuery([CharacterStatusComp]);
 
 // sprite 저장소 (다른 시스템과 공유)
 let spriteStore: PIXI.Sprite[] = [];
@@ -28,10 +24,11 @@ function getSprite(idx: number): PIXI.Sprite | undefined {
   return spriteStore[idx];
 }
 
-export function randomMovementSystem(
-  world: MainSceneWorld,
-  deltaTime: number
-): MainSceneWorld {
+export function randomMovementSystem(params: {
+  world: MainSceneWorld;
+  delta: number;
+}): typeof params {
+  const { world, delta: deltaTime } = params;
   const currentTime = Date.now();
   const chars = characterQuery(world);
   const boundary = world.positionBoundary;
@@ -121,44 +118,44 @@ export function randomMovementSystem(
     }
   }
 
-  return world;
+  return params;
 }
 
-export function uiStateSystem(world: IWorld): IWorld {
-  const chars = characterQuery(world);
+// export function uiStateSystem(world: IWorld): IWorld {
+//   const chars = characterQuery(world);
 
-  for (let i = 0; i < chars.length; i++) {
-    const eid = chars[i];
-    const spriteIdx = RenderComp.spriteRefIndex[eid];
-    const sprite = getSprite(spriteIdx);
+//   for (let i = 0; i < chars.length; i++) {
+//     const eid = chars[i];
+//     const spriteIdx = RenderComp.spriteRefIndex[eid];
+//     const sprite = getSprite(spriteIdx);
 
-    if (sprite) {
-      const pos = PositionComp;
-      const speed = SpeedComp;
-      const angle = AngleComp;
+//     if (sprite) {
+//       const pos = PositionComp;
+//       const speed = SpeedComp;
+//       const angle = AngleComp;
 
-      // 스프라이트 위치 업데이트
-      sprite.position.set(pos.x[eid], pos.y[eid]);
+//       // 스프라이트 위치 업데이트
+//       sprite.position.set(pos.x[eid], pos.y[eid]);
 
-      // zIndex 업데이트 (y 좌표 기반 depth 정렬)
-      sprite.zIndex = pos.y[eid];
-      RenderComp.zIndex[eid] = pos.y[eid];
+//       // zIndex 업데이트 (y 좌표 기반 depth 정렬)
+//       sprite.zIndex = pos.y[eid];
+//       RenderComp.zIndex[eid] = pos.y[eid];
 
-      // 캐릭터 방향 업데이트 (angle 기반으로 변경)
-      if (speed.value[eid] > 0.1) {
-        // 각도를 이용해 이동 방향 계산
-        const velocityX = Math.cos(angle.value[eid]) * speed.value[eid];
-        const shouldFlip = velocityX < 0;
+//       // 캐릭터 방향 업데이트 (angle 기반으로 변경)
+//       if (speed.value[eid] > 0.1) {
+//         // 각도를 이용해 이동 방향 계산
+//         const velocityX = Math.cos(angle.value[eid]) * speed.value[eid];
+//         const shouldFlip = velocityX < 0;
 
-        // 스프라이트 반전 적용
-        if (sprite.scale) {
-          sprite.scale.x = shouldFlip
-            ? -Math.abs(sprite.scale.x)
-            : Math.abs(sprite.scale.x);
-        }
-      }
-    }
-  }
+//         // 스프라이트 반전 적용
+//         if (sprite.scale) {
+//           sprite.scale.x = shouldFlip
+//             ? -Math.abs(sprite.scale.x)
+//             : Math.abs(sprite.scale.x);
+//         }
+//       }
+//     }
+//   }
 
-  return world;
-}
+//   return world;
+// }

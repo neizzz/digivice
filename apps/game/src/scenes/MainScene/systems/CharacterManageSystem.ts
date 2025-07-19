@@ -33,7 +33,11 @@ const characterQuery = defineQuery([
   RenderComp,
 ]);
 
-export function characterManagerSystem(world: MainSceneWorld): MainSceneWorld {
+export function characterManagerSystem(params: {
+  world: MainSceneWorld;
+  delta: number;
+}): typeof params {
+  const { world } = params;
   const characters = characterQuery(world);
 
   for (let i = 0; i < characters.length; i++) {
@@ -54,7 +58,7 @@ export function characterManagerSystem(world: MainSceneWorld): MainSceneWorld {
     const primaryStatus = getPrimaryStatus(statusArray);
   }
 
-  return world;
+  return params;
 }
 
 // 상태별 텍스처 변화 규칙 (추후 확장 가능)
