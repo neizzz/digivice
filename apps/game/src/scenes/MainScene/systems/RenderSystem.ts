@@ -1,67 +1,116 @@
-// PIXI 렌더링 시스템
+// PIXI v8 렌더링 시스템
 import { defineQuery, exitQuery } from "bitecs";
 import { PositionComp, AngleComp, RenderComp } from "../raw-components";
 import * as PIXI from "pixi.js";
-import { ECS_NULL_VALUE } from "@/utils/ecs";
 import { MainSceneWorld } from "../world";
-import { AssetLoader } from "@/utils/AssetLoader";
+import { TextureKey } from "../types";
+import { getTextureFromSpritesheet } from "../../../utils/asset";
 
 /** NOTE: types.ts에 {@link TextureKey}과 싱크가 맞아야 함. */
-const TEXTURE_MAP: Record<number, string> = {
-  1: "test-green-slime_A1",
-  2: "test-green-slime_B1",
-  3: "test-green-slime_C1",
-  4: "test-green-slime_D1",
-  5: "green-slime",
-  6: "mushroom2",
-  100: "bird",
-  101: "poob",
-  102: "broom",
-  103: "basket",
-  104: "tombstone",
-  110: "food-1",
-  111: "food-2",
-  112: "food-3",
-  150: "egg-0",
-  151: "egg-1",
+const TEXTURE_MAP: Record<
+  number,
+  { spritesheetAlias?: string; textureName: string }
+> = {
+  // TODO: animation으로 취급
+  // Character sprites (monsters)
+  // 1: { spritesheetAlias: "test-green-slime_A1", textureName: "idle-1" }, // CharacterKey.TestGreenSlimeA1
+  // 2: { spritesheetAlias: "test-green-slime_B1", textureName: "idle-1" }, // CharacterKey.TestGreenSlimeB1
+  // 3: { spritesheetAlias: "test-green-slime_C1", textureName: "idle-1" }, // CharacterKey.TestGreenSlimeC1
+  // 4: { spritesheetAlias: "test-green-slime_D1", textureName: "idle-1" }, // CharacterKey.TestGreenSlimeD1
+  // Bird sprites
+  // 100: { spritesheetAlias: "bird", textureName: "bird" },
+
+  // Common 16x16 sprites
+  101: { spritesheetAlias: "common16x16", textureName: "poob" },
+  102: { spritesheetAlias: "common16x16", textureName: "broom" },
+
+  // Common 32x32 sprites
+  103: { spritesheetAlias: "common32x32", textureName: "basket" },
+  104: { spritesheetAlias: "common32x32", textureName: "tomb" },
+
+  // Food sprites
+  110: { spritesheetAlias: "foods", textureName: "food-1" },
+  111: { spritesheetAlias: "foods", textureName: "food-2" },
+  112: { spritesheetAlias: "foods", textureName: "food-3" },
+
+  // Egg sprites
+  150: { spritesheetAlias: "eggs", textureName: "egg-0" },
+  151: { spritesheetAlias: "eggs", textureName: "egg-1" },
 } as const;
 
-// const TEXTURES_MAP_SIZE = Object.keys(TEXTURES_MAP).length;
+// 스프라이트 스토어
+const spriteStore: (PIXI.Sprite | PIXI.AnimatedSprite | null)[] = [];
 
-const spriteStore: PIXI.Sprite[] = [];
-export function setSpriteStore(store: PIXI.Sprite[]) {
-  spriteStore.length = 0;
-  for (const s of store) spriteStore.push(s);
-}
+// function setSpriteStore(store: PIXI.Sprite[]) {
+//   spriteStore.length = 0;
+//   for (const s of store) spriteStore.push(s);
+// }
 
-function getSprite(idx: number): PIXI.Sprite | undefined {
+function getSprite(
+  idx: number
+): (PIXI.Sprite | PIXI.AnimatedSprite) | undefined {
   return spriteStore[idx] || undefined;
 }
 
-function getTextureFromKey(textureKey: number): PIXI.Texture | null {
-  const textureName = TEXTURE_MAP[textureKey];
-
-  if (!textureName || textureKey === 0) {
-    return null;
+function getTextureFromKey(textureKey: number): PIXI.Texture | undefined {
+  const textureInfo = TEXTURE_MAP[textureKey];
+  if (!textureInfo) {
+    console.warn(
+      `[RenderSystem] Texture key ${textureKey} not found in TEXTURE_MAP`
+    );
+    return undefined;
   }
 
-  const texture = AssetLoader.getTextureByName(textureName);
+  try {
+    if (!textureInfo.spritesheetAlias) {
+      return PIXI.Assets.get<PIXI.Texture>(textureInfo.textureName);
+    }
 
-  if (!texture) {
-    console.warn(`[RenderSystem] Texture not found: ${textureName}`);
+    // 스프라이트시트에서 텍스처 가져오기
+    const spritesheet = PIXI.Assets.get<PIXI.Spritesheet>(
+      textureInfo.spritesheetAlias
+    );
+
+    if (!spritesheet) {
+      console.warn(
+        `[RenderSystem] Spritesheet not found: ${textureInfo.spritesheetAlias} for texture key ${textureKey}`
+      );
+      return PIXI.Texture.WHITE;
+    }
+
+    const texture = getTextureFromSpritesheet(
+      spritesheet,
+      textureInfo.textureName
+    );
+
+    if (!texture) {
+      console.warn(
+        `[RenderSystem] Texture not found: ${textureInfo.textureName} in spritesheet ${textureInfo.spritesheetAlias} (key: ${textureKey})`
+      );
+      return PIXI.Texture.WHITE;
+    }
+
+    return texture;
+  } catch (error) {
+    console.error(
+      `[RenderSystem] Error getting texture for key ${textureKey}:`,
+      error
+    );
+    return PIXI.Texture.WHITE;
   }
-
-  return texture;
 }
 
 function createSpriteForEntity(eid: number): PIXI.Sprite | undefined {
   const textureKey = RenderComp.textureKey[eid];
+
   const texture = getTextureFromKey(textureKey);
 
   if (!texture) {
-    return undefined;
+    console.warn(
+      `[RenderSystem] Texture not found for entity ${eid} with key ${textureKey}`
+    );
+    return new PIXI.Sprite(PIXI.Texture.WHITE);
   }
-
   const sprite = new PIXI.Sprite(texture);
   sprite.anchor.set(0.5);
   return sprite;
@@ -70,21 +119,19 @@ function createSpriteForEntity(eid: number): PIXI.Sprite | undefined {
 const renderableQuery = defineQuery([PositionComp, AngleComp, RenderComp]);
 const exitedRenderableQuery = exitQuery(renderableQuery);
 
-/**
- * 디버깅을 위해 모든 사용 가능한 텍스처 이름을 콘솔에 출력합니다
- */
-export function logAvailableTextures(): void {
-  const textureNames = AssetLoader.getAvailableTextureNames();
-  console.log(
-    `[RenderSystem] Available textures (${textureNames.length}):`,
-    textureNames
-  );
-}
+// 개발 환경에서 텍스처 검증을 한 번만 수행하기 위한 플래그
+let hasValidatedTextures = false;
 
 export function renderSystem(world: MainSceneWorld): MainSceneWorld {
+  // 첫 번째 실행 시 텍스처 맵 검증 (개발 환경에서만)
+  if (process.env.NODE_ENV === "development" && !hasValidatedTextures) {
+    validateTextureMap();
+    hasValidatedTextures = true;
+  }
+
   const entities = renderableQuery(world);
   const exitedEntities = exitedRenderableQuery(world);
-  const stage = world.getStage();
+  const stage = world.stage;
 
   // 제거된 엔티티들의 스프라이트를 stage에서 제거
   for (let i = 0; i < exitedEntities.length; i++) {
@@ -101,7 +148,7 @@ export function renderSystem(world: MainSceneWorld): MainSceneWorld {
 
       // spriteStore에서도 제거 (인덱스를 null로 설정)
       if (spriteRefIndex < spriteStore.length) {
-        spriteStore[spriteRefIndex] = null as any;
+        spriteStore[spriteRefIndex] = null;
       }
     }
   }
@@ -115,7 +162,12 @@ export function renderSystem(world: MainSceneWorld): MainSceneWorld {
     // 스프라이트가 없으면 생성
     if (!sprite) {
       sprite = createSpriteForEntity(eid);
-      if (!sprite) continue;
+      if (!sprite) {
+        console.warn(
+          `[RenderSystem] Failed to create sprite for entity ${eid}`
+        );
+        continue;
+      }
 
       // 스프라이트 스토어에 추가
       spriteStore.push(sprite);
@@ -132,16 +184,104 @@ export function renderSystem(world: MainSceneWorld): MainSceneWorld {
 
     const angle = AngleComp.value[eid];
     sprite.rotation = angle;
-
-    sprite.zIndex = RenderComp.zIndex[eid];
+    sprite.zIndex = RenderComp.zIndex[eid] || y; // NOTE: zIndex가 없으면 y 좌표로 설정
     sprite.scale.set(RenderComp.scale[eid]);
 
     const textureKey = RenderComp.textureKey[eid];
-    const newTexture = getTextureFromKey(textureKey);
-    if (newTexture && sprite.texture !== newTexture) {
-      sprite.texture = newTexture;
+    if (textureKey === ECS_NULL_VALUE) {
+      stage.removeChild(sprite); // NULL 텍스처는 Stage에서 제거
+    } else {
+      const newTexture = getTextureFromKey(textureKey);
+      if (newTexture && sprite.texture !== newTexture) {
+        sprite.texture = newTexture;
+        console.log(
+          `[RenderSystem] Updated texture for entity ${eid} to key ${textureKey}`
+        );
+      }
     }
   }
 
   return world;
+}
+
+/**
+ * 특정 텍스처가 로딩되었는지 확인
+ */
+export function isTextureLoaded(
+  spritesheetAlias: string,
+  textureName: string
+): boolean {
+  const cache = PIXI.Assets.cache;
+  const spritesheet = cache.get(spritesheetAlias);
+
+  if (spritesheet instanceof PIXI.Spritesheet && spritesheet.textures) {
+    return !!spritesheet.textures[textureName];
+  }
+
+  return false;
+}
+
+/**
+ * TextureKey로 텍스처가 로딩되었는지 확인
+ */
+export function isTextureKeyLoaded(textureKey: number): boolean {
+  const textureInfo = TEXTURE_MAP[textureKey];
+  if (!textureInfo) {
+    return false;
+  }
+
+  return isTextureLoaded(
+    // FIXME: undefined 핸들
+    textureInfo.spritesheetAlias ?? "",
+    textureInfo.textureName
+  );
+}
+
+/**
+ * 사용 가능한 TextureKey들을 반환합니다
+ */
+function getAvailableTextureKeys(): number[] {
+  return Object.keys(TEXTURE_MAP)
+    .map(Number)
+    .sort((a, b) => a - b);
+}
+
+/**
+ * TextureKey에 대응하는 스프라이트시트와 텍스처 정보를 반환합니다
+ */
+function getTextureInfo(
+  textureKey: number
+): { spritesheetAlias?: string; textureName: string } | null {
+  return TEXTURE_MAP[textureKey] || null;
+}
+
+/**
+ * 모든 텍스처의 로딩 상태를 확인하고 로그를 출력합니다
+ */
+function validateTextureMap(): void {
+  console.group("[RenderSystem] Texture Map Validation:");
+
+  const availableKeys = getAvailableTextureKeys();
+  let validCount = 0;
+  let invalidCount = 0;
+
+  for (const textureKey of availableKeys) {
+    const isLoaded = isTextureKeyLoaded(textureKey);
+    const textureInfo = getTextureInfo(textureKey);
+
+    if (isLoaded) {
+      validCount++;
+      console.log(
+        `✓ Key ${textureKey}: ${textureInfo?.spritesheetAlias}/${textureInfo?.textureName}`
+      );
+    } else {
+      invalidCount++;
+      console.warn(
+        `✗ Key ${textureKey}: ${textureInfo?.spritesheetAlias}/${textureInfo?.textureName} - NOT LOADED`
+      );
+    }
+  }
+
+  console.log(`Summary: ${validCount} valid, ${invalidCount} invalid textures`);
+  console.groupEnd();
 }

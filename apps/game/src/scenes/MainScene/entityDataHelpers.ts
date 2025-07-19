@@ -9,8 +9,11 @@ import {
   FreshnessComp,
   DestinationComp,
   RandomMovementComp,
+  CharacterStatusComp,
+  AnimationRenderComp,
 } from "./raw-components";
 import type { SavedEntity, EntityComponents } from "./world";
+import { CharacterKey, CharacterStatus } from "./types";
 
 /**
  * ECS 엔티티를 SavedEntity로 변환
@@ -29,6 +32,17 @@ export function convertECSEntityToSavedEntity(
     };
   }
 
+  if (hasComponent(world, CharacterStatusComp, eid)) {
+    components.characterStatus = {
+      characterKey: CharacterStatusComp.characterKey[eid] as CharacterKey,
+      evolutionGage: CharacterStatusComp.evolutionGage[eid],
+      evolutionPhase: CharacterStatusComp.evolutionPhase[eid],
+      statuses: Array.from(
+        CharacterStatusComp.statuses[eid]
+      ) as CharacterStatus[],
+    };
+  }
+
   if (hasComponent(world, PositionComp, eid)) {
     components.position = {
       x: PositionComp.x[eid],
@@ -41,27 +55,16 @@ export function convertECSEntityToSavedEntity(
       value: AngleComp.value[eid],
     };
   }
-
-  if (hasComponent(world, RenderComp, eid)) {
-    components.render = {
-      spriteRefIndex: RenderComp.spriteRefIndex[eid],
-      textureKey: RenderComp.textureKey[eid],
-      zIndex: RenderComp.zIndex[eid],
-    };
-  }
-
   if (hasComponent(world, SpeedComp, eid)) {
     components.speed = {
       value: SpeedComp.value[eid],
     };
   }
-
   if (hasComponent(world, FreshnessComp, eid)) {
     components.freshness = {
       freshness: FreshnessComp.freshness[eid],
     };
   }
-
   if (hasComponent(world, DestinationComp, eid)) {
     components.destination = {
       type: DestinationComp.type[eid],
@@ -70,7 +73,6 @@ export function convertECSEntityToSavedEntity(
       y: DestinationComp.y[eid],
     };
   }
-
   if (hasComponent(world, RandomMovementComp, eid)) {
     components.randomMovement = {
       minIdleTime: RandomMovementComp.minIdleTime[eid],
@@ -78,6 +80,23 @@ export function convertECSEntityToSavedEntity(
       minMoveTime: RandomMovementComp.minMoveTime[eid],
       maxMoveTime: RandomMovementComp.maxMoveTime[eid],
       nextChange: RandomMovementComp.nextChange[eid],
+    };
+  }
+  if (hasComponent(world, RenderComp, eid)) {
+    components.render = {
+      spriteRefIndex: RenderComp.spriteRefIndex[eid],
+      textureKey: RenderComp.textureKey[eid],
+      scale: RenderComp.scale[eid],
+      zIndex: RenderComp.zIndex[eid],
+    };
+  }
+  if (hasComponent(world, AnimationRenderComp, eid)) {
+    components.animationRender = {
+      spritesheetKey: AnimationRenderComp.spritesheetKey[eid],
+      animationKey: AnimationRenderComp.animationKey[eid],
+      isPlaying: AnimationRenderComp.isPlaying[eid] === 1,
+      loop: AnimationRenderComp.loop[eid] === 1,
+      speed: AnimationRenderComp.speed[eid],
     };
   }
 
@@ -98,6 +117,21 @@ export function applySavedEntityToECS(
     ObjectComp.id[eid] = components.object.id;
     ObjectComp.type[eid] = components.object.type;
     ObjectComp.state[eid] = components.object.state;
+  }
+
+  if (components.characterStatus) {
+    if (!hasComponent(world, CharacterStatusComp, eid)) {
+      addComponent(world, CharacterStatusComp, eid);
+    }
+    CharacterStatusComp.characterKey[eid] =
+      components.characterStatus.characterKey;
+    CharacterStatusComp.evolutionGage[eid] =
+      components.characterStatus.evolutionGage;
+    CharacterStatusComp.evolutionPhase[eid] =
+      components.characterStatus.evolutionPhase;
+    CharacterStatusComp.statuses[eid] = new Uint8Array(
+      components.characterStatus.statuses
+    );
   }
 
   if (components.position) {
@@ -121,7 +155,21 @@ export function applySavedEntityToECS(
     }
     RenderComp.spriteRefIndex[eid] = components.render.spriteRefIndex;
     RenderComp.textureKey[eid] = components.render.textureKey;
+    RenderComp.scale[eid] = components.render.scale;
     RenderComp.zIndex[eid] = components.render.zIndex;
+  }
+
+  if (components.animationRender) {
+    if (!hasComponent(world, AnimationRenderComp, eid)) {
+      addComponent(world, AnimationRenderComp, eid);
+    }
+    AnimationRenderComp.spritesheetKey[eid] =
+      components.animationRender.spritesheetKey;
+    AnimationRenderComp.animationKey[eid] =
+      components.animationRender.animationKey;
+    AnimationRenderComp.isPlaying[eid] = +components.animationRender.isPlaying;
+    AnimationRenderComp.loop[eid] = +components.animationRender.loop;
+    AnimationRenderComp.speed[eid] = components.animationRender.speed;
   }
 
   if (components.speed) {

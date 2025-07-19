@@ -3,7 +3,7 @@ import { SceneKey } from "./SceneKey";
 import type { Scene } from "./interfaces/Scene";
 import { FlappyBirdGameScene } from "./scenes/FlappyBirdGameScene";
 import type { ControlButtonParams, ControlButtonType } from "./ui/types";
-import { AssetLoader } from "./utils/AssetLoader";
+// import { AssetLoader } from "./utils/AssetLoader";
 import { DebugUI } from "./utils/DebugUI";
 import { DebugFlags } from "./utils/DebugFlags";
 // import { Character } from "./entities/Character"; // 캐릭터 임포트
@@ -20,7 +20,7 @@ import {
 import { simulateCharacterStatus } from "./utils/simulator";
 import { MainSceneWorld } from "./scenes/MainScene/world";
 
-PIXI.BaseTexture.defaultOptions.scaleMode = PIXI.SCALE_MODES.NEAREST;
+PIXI.TexturePool.textureOptions.scaleMode = "nearest";
 
 export type ControlButtonsChangeCallback = (
   controlButtonParamsSet: [
@@ -41,6 +41,7 @@ export class Game {
   public changeControlButtons: ControlButtonsChangeCallback;
   public showAlert: ShowAlertCallback; // 팝업 콜백 추가
 
+  private _parentElement: HTMLElement;
   private currentScene?: Scene;
   // private scenes: Map<SceneKey, Scene> = new Map();
   private currentSceneKey?: SceneKey;
@@ -61,25 +62,17 @@ export class Game {
     // CharacterManager와 TimeManager 인스턴스 초기화(순서 중요)
     // this.characterManager = new CharacterManager(this); // CharacterManager 인스턴스 초기화
 
-    // PIXI 애플리케이션을 생성하고 DOM에 추가합니다
-    this.app = new PIXI.Application({
-      width: parentElement.clientWidth,
-      height: parentElement.clientHeight,
-      backgroundColor: 0xaaaaaa,
-      autoDensity: true,
-      resolution: window.devicePixelRatio || 2, // 해상도를 디바이스 픽셀 비율로 설정하거나 원하는 값(예: 2)으로 설정
-    });
+    this.app = new PIXI.Application();
 
     // 렌더링 주기를 60fps로 설정
-    this.app.ticker.minFPS = 60;
-    this.app.ticker.maxFPS = 60;
+    this._parentElement = parentElement;
 
     // DOM에 캔버스 추가
-    parentElement.appendChild(this.app.view as HTMLCanvasElement);
+    // parentElement.appendChild(this.app.canvas);
 
     // 리사이징 핸들러 설정
     window.addEventListener("resize", this._onResize.bind(this));
-    this._onResize();
+    // this._onResize();
 
     // NOTE: 디버그 UI 초기화 / from "@digivice/client"
     if (import.meta.env.DEV === true) {
@@ -225,8 +218,21 @@ export class Game {
 
   /** NOTE: 싱글턴 인스턴스가 모두 초기화되고 호출되어야 함. */
   public async initialize(): Promise<void> {
-    this._waitForAppInitialization()
-      .then(async () => AssetLoader.loadAssets())
+    // this._waitForAppInitialization()
+    this.app
+      .init({
+        width: this._parentElement.clientWidth,
+        height: this._parentElement.clientHeight,
+        backgroundColor: 0xaaaaaa,
+        autoDensity: true,
+        resolution: window.devicePixelRatio || 2, // 해상도를 디바이스 픽셀 비율로 설정하거나 원하는 값(예: 2)으로 설정
+      })
+      .then(async () => {
+        this.app.ticker.minFPS = 60;
+        this.app.ticker.maxFPS = 60;
+        this._parentElement.appendChild(this.app.canvas);
+        this._onResize();
+      })
       .then(() => {
         this.assetsLoaded = true;
 
@@ -239,7 +245,7 @@ export class Game {
         this.start();
       })
       .catch((error) => {
-        console.error("[Game] 에셋 로딩 오류:", error);
+        console.error("[Game] 초기화 오류:", error);
       });
   }
 
@@ -259,8 +265,8 @@ export class Game {
     // 앱 포커스 이벤트 리스너 설정
     this._setupAppLifecycleListeners();
 
-    this.app.ticker.add((tick: number) => {
-      this._update(tick * GAME_LOOP.DELTA_MS);
+    this.app.ticker.add((ticker: PIXI.Ticker) => {
+      this._update(ticker.deltaMS);
     });
   }
 
@@ -335,28 +341,29 @@ export class Game {
   /**
    * PIXI 애플리케이션이 완전히 초기화될 때까지 대기
    */
-  private _waitForAppInitialization = (): Promise<void> => {
-    return new Promise<void>((resolve) => {
-      const onFirstRender = () => {
-        // 한 번 실행 후 제거
-        this.app.ticker.remove(onFirstRender);
-        resolve();
-      };
+  // private _waitForAppInitialization = (): Promise<void> => {
+  //   return new Promise<void>((resolve) => {
+  //     const onFirstRender = () => {
+  //       // 한 번 실행 후 제거
+  //       this.app.ticker.remove(onFirstRender);
+  //       resolve();
+  //     };
 
-      // 다음 프레임에서 초기화 완료로 간주
-      this.app.ticker.add(onFirstRender);
-    });
-  };
+  //     // 다음 프레임에서 초기화 완료로 간주
+  //     this.app.ticker.add(onFirstRender);
+  //   });
+  // };
 
   private _onResize(): void {
-    const parent = this.app.view;
+    const parent = this.app.canvas;
     if (!parent || !parent.getBoundingClientRect) {
       throw new Error("Parent element is not available.");
     }
     const { width, height } = parent.getBoundingClientRect();
     this.app.renderer.resize(width, height);
     this.app.renderer.resolution = window.devicePixelRatio || 2;
-    this.currentScene?.onResize(width, height);
+    this.app.stage.setSize(width, height);
+    // this.currentScene?.onResize(width, height);
   }
 
   /**
@@ -489,7 +496,6 @@ export class Game {
     this.app.destroy(true, {
       children: true,
       texture: true,
-      baseTexture: true,
     });
 
     // 현재 씬이 MainScene이면 destroy 호출

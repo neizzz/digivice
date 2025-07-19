@@ -1,10 +1,19 @@
-// ECS 컴포넌트 정의
+/** NOTE: typescript type은 types.ts 참고 */
 import { defineComponent, Types } from "bitecs";
 
 export const ObjectComp = defineComponent({
   id: Types.f32,
   type: Types.ui8 /** {@link enum ObjectType} */,
   state: Types.ui8, // 각 type 맞는 상태 (상태가 없을 수도 있음)
+});
+export const CharacterStatusComp = defineComponent({
+  characterKey: Types.ui16, // = spritesheet key
+  evolutionGage: Types.f32, // 진화 게이지 (0.0 ~ 100.0)
+  evolutionPhase: Types.ui8, // 진화 페이즈 (1 ~ 4)
+  statuses: [
+    Types.ui8,
+    ECS_CHARACTER_STATUS_LENGTH,
+  ] /** Array of {@link enum CharacterSatus} */,
 });
 export const PositionComp = defineComponent({ x: Types.f32, y: Types.f32 });
 export const AngleComp = defineComponent({ value: Types.f32 }); // 각도 (라디안 단위)
@@ -37,4 +46,11 @@ export const RenderComp = defineComponent({
   textureKey: Types.ui16 /** {@link enum TextureKey} */,
   scale: Types.f32,
   zIndex: Types.ui16, // 기본적으로 ECS_NULL_VALUE로 설정 -> y 좌표로 설정 (렌더링 순서 결정용)
+});
+export const AnimationRenderComp = defineComponent({
+  spritesheetKey: Types.ui16, // 스프라이트 시트 키 (PIXI Assets의 key)
+  animationKey: Types.ui8, // 현재 재생 중인 애니메이션 키 {@link enum AnimationKey}
+  isPlaying: Types.ui8, // 재생 중인지 여부 (0 = false, 1 = true)
+  loop: Types.ui8, // 루프 여부 (0 = false, 1 = true)
+  speed: Types.f32, // 애니메이션 속도 배율 (1.0 = 기본 속도)
 });

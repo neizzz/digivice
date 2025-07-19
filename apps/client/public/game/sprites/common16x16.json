@@ -14,7 +14,7 @@
   },
   "meta": {
     "app": "digivice",
-    "image": "/game/sprites/common16x16.png",
+    "image": "common16x16.png",
     "format": "RGBA8888",
     "size": { "w": 112, "h": 16 },
     "scale": "1"

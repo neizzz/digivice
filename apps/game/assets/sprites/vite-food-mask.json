@@ -8,7 +8,7 @@
   },
   "meta": {
     "app": "digivice",
-    "image": "/game/sprites/vite-food-mask.png",
+    "image": "vite-food-mask.png",
     "format": "RGBA8888",
     "size": { "w": 160, "h": 32 },
     "scale": "1"

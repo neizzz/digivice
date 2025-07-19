@@ -13,10 +13,13 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react(), tailwindcss(), tsconfigPaths()],
-    // define: {
-    //   __DEBUG_MODE__: isDebugMode,
-    //   __NATIVE_TEST_MODE__: isNativeTestMode,
-    // },
+    define: {
+      // __NATIVE_TEST_MODE__: isNativeTestMode,
+
+      /** for "apps/game" */
+      ECS_NULL_VALUE: 0,
+      ECS_CHARACTER_STATUS_LENGTH: 4,
+    },
     resolve: {
       alias: {
         "@digivice/game": resolve(__dirname, "../game/src"),

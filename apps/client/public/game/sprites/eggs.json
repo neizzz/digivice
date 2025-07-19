@@ -33,7 +33,7 @@
   },
   "meta": {
     "app": "digivice",
-    "image": "/game/sprites/eggs.png",
+    "image": "eggs.png",
     "format": "RGBA8888",
     "size": { "w": 160, "h": 192 }
   }

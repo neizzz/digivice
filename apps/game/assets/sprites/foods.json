@@ -67,7 +67,7 @@
   },
   "meta": {
     "app": "digivice",
-    "image": "/game/sprites/food.png",
+    "image": "food.png",
     "format": "RGBA8888",
     "size": { "w": 128, "h": 128 },
     "scale": "0.5"

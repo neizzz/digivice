@@ -9,8 +9,11 @@ import {
   RandomMovementComp,
   SpeedComp,
   DestinationComp,
+  CharacterStatusComp,
+  AnimationRenderComp,
 } from "./raw-components";
 import {
+  CharacterKey,
   CharacterState,
   DestinationType,
   FoodState,
@@ -22,7 +25,6 @@ import {
 import { generatePersistentNumericId } from "../../utils/generate";
 import { EntityComponents } from "./world";
 import { INTENTED_FRONT_Z_INDEX } from "@/config";
-import { ECS_NULL_VALUE } from "@/utils/ecs";
 
 type WithRequired<T, K extends keyof T> = Omit<T, K> & Required<Pick<T, K>>;
 
@@ -41,6 +43,21 @@ export function createCharacterEntity(
   ObjectComp.type[eid] = ObjectType.CHARACTER;
   ObjectComp.state[eid] = components.object?.state || CharacterState.IDLE;
 
+  addComponent(world, CharacterStatusComp, eid);
+  CharacterStatusComp.statuses[eid] = new Uint8Array(
+    components.characterStatus?.statuses ??
+      Uint8Array.from(
+        { length: ECS_CHARACTER_STATUS_LENGTH },
+        () => ECS_NULL_VALUE
+      )
+  );
+  CharacterStatusComp.characterKey[eid] =
+    components.characterStatus?.characterKey || CharacterKey.TestGreenSlimeA1; // 기본 캐릭터 키
+  CharacterStatusComp.evolutionPhase[eid] =
+    components.characterStatus?.evolutionPhase || 1; // 기본 진화 페이즈는 1
+  CharacterStatusComp.evolutionGage[eid] =
+    components.characterStatus?.evolutionGage ?? 0; // 기본 진화 게이지
+
   addComponent(world, PositionComp, eid);
   PositionComp.x[eid] = _components.position?.x || ECS_NULL_VALUE;
   PositionComp.y[eid] = _components.position?.y || ECS_NULL_VALUE;
@@ -52,7 +69,18 @@ export function createCharacterEntity(
   RenderComp.spriteRefIndex[eid] = ECS_NULL_VALUE; // 스프라이트 참조 인덱스는 나중에 설정
   RenderComp.textureKey[eid] = _components.render.textureKey;
   RenderComp.scale[eid] = _components.render.scale || 1; // 기본 스케일은 1
-  RenderComp.zIndex[eid] = _components.position.y;
+  RenderComp.zIndex[eid] = ECS_NULL_VALUE;
+
+  addComponent(world, AnimationRenderComp, eid);
+  AnimationRenderComp.spritesheetKey[eid] =
+    _components.animationRender?.spritesheetKey || ECS_NULL_VALUE;
+  AnimationRenderComp.animationKey[eid] =
+    _components.animationRender?.animationKey || ECS_NULL_VALUE;
+  AnimationRenderComp.isPlaying[eid] = _components.animationRender?.isPlaying
+    ? 1
+    : 0;
+  AnimationRenderComp.loop[eid] = _components.animationRender?.loop ? 1 : 0;
+  AnimationRenderComp.speed[eid] = _components.animationRender?.speed || 1; // 기본 속도는 1.0
 
   addComponent(world, SpeedComp, eid);
   SpeedComp.value[eid] = _components.speed?.value || ECS_NULL_VALUE;
@@ -67,7 +95,7 @@ export function createCharacterEntity(
   }
 
   addComponent(world, DestinationComp, eid);
-  DestinationComp.type[eid] = DestinationType.NULL;
+  DestinationComp.type[eid] = ECS_NULL_VALUE;
   DestinationComp.target[eid] = ECS_NULL_VALUE;
   DestinationComp.x[eid] = ECS_NULL_VALUE;
   DestinationComp.y[eid] = ECS_NULL_VALUE;
@@ -99,7 +127,7 @@ export function createBirdEntity(
 
   addComponent(world, RenderComp, eid);
   RenderComp.spriteRefIndex[eid] = 0;
-  RenderComp.textureKey[eid] = TextureKey.BIRD; // Bird 텍스처로 변경
+  RenderComp.textureKey[eid] = ECS_NULL_VALUE; // Bird 텍스처로 변경
   RenderComp.zIndex[eid] = INTENTED_FRONT_Z_INDEX; // Bird는 높은 z-index
 
   addComponent(world, SpeedComp, eid);
@@ -181,7 +209,7 @@ export function createPillEntity(
   // RenderComp
   addComponent(world, RenderComp, eid);
   RenderComp.spriteRefIndex[eid] = ECS_NULL_VALUE; // 스프라이트 참조 인덱스는 나중에 설정
-  RenderComp.textureKey[eid] = TextureKey.TestGreenSlimeD1; // Pill은 다른 색상으로
+  RenderComp.textureKey[eid] = TextureKey.PILL1; // Pill은 다른 색상으로
   RenderComp.zIndex[eid] = _components.position.y;
 
   // SpeedComp (알약도 이동할 수 있음)

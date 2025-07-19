@@ -1,17 +1,9 @@
 import { INTENTED_FRONT_Z_INDEX } from "@/config";
 import * as PIXI from "pixi.js";
 
-/**
- * 게임 배경을 관리하는 클래스입니다.
- * 화면 크기에 맞게 배경을 자동 조정합니다.
- */
 export class Background extends PIXI.Container {
   private _bgSprite: PIXI.Sprite;
 
-  /**
-   * 배경 객체를 생성합니다.
-   * @param texture 배경에 사용할 텍스처
-   */
   constructor(texture: PIXI.Texture) {
     super();
 
@@ -22,11 +14,6 @@ export class Background extends PIXI.Container {
     this.addChild(this._bgSprite);
   }
 
-  /**
-   * 배경 크기를 화면 크기에 맞게 조정합니다.
-   * @param width 화면 너비
-   * @param height 화면 높이
-   */
   public resize(width: number, height: number): void {
     // 배경 위치를 화면 중앙으로 설정
     this.position.set(width / 2, height / 2);

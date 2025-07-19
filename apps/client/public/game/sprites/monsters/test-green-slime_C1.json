@@ -22,7 +22,7 @@
   },
   "meta": {
     "app": "digivice",
-    "image": "/game/sprites/monsters/test-green-slime_C1.png",
+    "image": "test-green-slime_C1.png",
     "format": "RGBA8888",
     "size": { "w": 128, "h": 96 },
     "scale": "1"
