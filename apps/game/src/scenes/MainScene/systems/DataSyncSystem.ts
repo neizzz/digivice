@@ -99,11 +99,11 @@ export function dataSyncSystem(params: {
   }
 
   // 모든 엔티티를 MainSceneWorld에 동기화
-  // const allEntities = allEntitiesQuery(mainSceneWorld);
-  // for (const eid of allEntities) {
-  //   const savedEntity = convertECSEntityToSavedEntity(mainSceneWorld, eid);
-  //   updateEntityData(newWorldData, savedEntity);
-  // }
+  const allEntities = allEntitiesQuery(mainSceneWorld);
+  for (const eid of allEntities) {
+    const savedEntity = convertECSEntityToSavedEntity(mainSceneWorld, eid);
+    updateEntityData(newWorldData, savedEntity);
+  }
 
   newWorldData.world_metadata.last_saved = Date.now();
   mainSceneWorld.setData(newWorldData);

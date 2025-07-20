@@ -34,7 +34,7 @@ export function createCharacterEntity(
 ): number {
   const _components = components as WithRequired<
     EntityComponents,
-    "position" | "angle" | "speed" | "render"
+    "position" | "speed" | "render"
   >;
   const eid = addEntity(world);
 
@@ -62,8 +62,8 @@ export function createCharacterEntity(
   PositionComp.x[eid] = _components.position?.x || ECS_NULL_VALUE;
   PositionComp.y[eid] = _components.position?.y || ECS_NULL_VALUE;
 
-  addComponent(world, AngleComp, eid);
-  AngleComp.value[eid] = _components.angle?.value || ECS_NULL_VALUE;
+  // addComponent(world, AngleComp, eid);
+  // AngleComp.value[eid] = _components.angle?.value || ECS_NULL_VALUE;
 
   addComponent(world, RenderComp, eid);
   RenderComp.storeIndex[eid] = ECS_NULL_VALUE; // 스프라이트 참조 인덱스는 나중에 설정
@@ -86,14 +86,14 @@ export function createCharacterEntity(
   addComponent(world, SpeedComp, eid);
   SpeedComp.value[eid] = _components.speed?.value || ECS_NULL_VALUE;
 
-  if (components.object?.state !== CharacterState.EGG) {
-    addComponent(world, RandomMovementComp, eid);
-    RandomMovementComp.minIdleTime[eid] = 2000;
-    RandomMovementComp.maxIdleTime[eid] = 8000;
-    RandomMovementComp.minMoveTime[eid] = 1000;
-    RandomMovementComp.maxMoveTime[eid] = 8000;
-    RandomMovementComp.nextChange[eid] = ECS_NULL_VALUE;
-  }
+  // if (components.object?.state !== CharacterState.EGG) {
+  addComponent(world, RandomMovementComp, eid);
+  RandomMovementComp.minIdleTime[eid] = 2000;
+  RandomMovementComp.maxIdleTime[eid] = 8000;
+  RandomMovementComp.minMoveTime[eid] = 1000;
+  RandomMovementComp.maxMoveTime[eid] = 8000;
+  RandomMovementComp.nextChange[eid] = ECS_NULL_VALUE;
+  // }
 
   addComponent(world, DestinationComp, eid);
   DestinationComp.type[eid] = ECS_NULL_VALUE;

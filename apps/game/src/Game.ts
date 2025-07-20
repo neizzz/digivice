@@ -22,6 +22,8 @@ import { MainSceneWorld } from "./scenes/MainScene/world";
 
 PIXI.TexturePool.textureOptions.scaleMode = "nearest";
 
+const SCREEN_PADDING = 10;
+
 export type ControlButtonsChangeCallback = (
   controlButtonParamsSet: [
     ControlButtonParams,
@@ -390,10 +392,10 @@ export class Game {
         const mainSceneWorld = new MainSceneWorld({
           stage: this.app.stage,
           positionBoundary: {
-            x: 0,
-            y: 0,
-            width: this.app.screen.width,
-            height: this.app.screen.height,
+            x: SCREEN_PADDING,
+            y: SCREEN_PADDING,
+            width: this.app.screen.width - 2 * SCREEN_PADDING,
+            height: this.app.screen.height - 2 * SCREEN_PADDING,
           },
         });
         await mainSceneWorld.init();

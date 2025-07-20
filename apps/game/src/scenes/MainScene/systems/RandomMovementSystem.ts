@@ -1,4 +1,10 @@
-import { Component, ComponentType, defineQuery, type IWorld } from "bitecs";
+import {
+  Component,
+  ComponentType,
+  defineQuery,
+  entityExists,
+  type IWorld,
+} from "bitecs";
 import {
   PositionComp,
   SpeedComp,
@@ -7,11 +13,13 @@ import {
   AngleComp,
   ObjectComp,
   CharacterStatusComp,
+  AnimationRenderComp,
 } from "../raw-components";
 import type * as PIXI from "pixi.js";
 import { MainSceneWorld } from "../world";
 import { renderSystem } from "./RenderSystem";
 import { Render } from "matter-js";
+import { nomalizeRadian } from "@/utils/common";
 
 const characterQuery = defineQuery([CharacterStatusComp]);
 
@@ -28,7 +36,7 @@ export function randomMovementSystem(params: {
   world: MainSceneWorld;
   delta: number;
 }): typeof params {
-  const { world, delta: deltaTime } = params;
+  const { world, delta } = params;
   const currentTime = Date.now();
   const chars = characterQuery(world);
   const boundary = world.positionBoundary;
@@ -38,83 +46,72 @@ export function randomMovementSystem(params: {
     const position = PositionComp;
     const angle = AngleComp;
     const speed = SpeedComp;
-    const randomMovement = RandomMovementComp;
 
     // 현재 상태 판단: speed가 0이면 idle, 0보다 크면 moving
-    const isIdle = speed.value[eid] === 0;
+    const isMoving = speed.value[eid] !== 0;
 
     // 현재 상태(idle/moving)가 끝났는지 확인
-    if (currentTime >= randomMovement.nextChange[eid]) {
-      if (isIdle) {
-        // idle -> moving 전환
-        // 랜덤 방향과 속도 설정
-        angle.value[eid] = Math.random() * Math.PI * 2;
-        speed.value[eid] = 0.1; // 기본 이동 속도 (pixels per ms)
-
-        // 다음 이동 종료 시간 설정
-        const moveTime =
-          randomMovement.minMoveTime[eid] +
-          Math.random() *
-            (randomMovement.maxMoveTime[eid] - randomMovement.minMoveTime[eid]);
-        randomMovement.nextChange[eid] = currentTime + moveTime;
-      } else {
+    if (currentTime >= RandomMovementComp.nextChange[eid]) {
+      if (isMoving) {
         // moving -> idle 전환
         speed.value[eid] = 0;
 
         // 다음 idle 종료 시간 설정
-        const idleTime =
-          randomMovement.minIdleTime[eid] +
-          Math.random() *
-            (randomMovement.maxIdleTime[eid] - randomMovement.minIdleTime[eid]);
-        randomMovement.nextChange[eid] = currentTime + idleTime;
+        const idleTime = Math.round(
+          RandomMovementComp.minIdleTime[eid] +
+            Math.random() *
+              (RandomMovementComp.maxIdleTime[eid] -
+                RandomMovementComp.minIdleTime[eid])
+        );
+        RandomMovementComp.nextChange[eid] = currentTime + idleTime;
+      } else {
+        // idle -> moving 전환
+        angle.value[eid] = nomalizeRadian(Math.random() * Math.PI * 2);
+        speed.value[eid] = 0.1; // 기본 이동 속도 (pixels per ms)
+
+        // 다음 이동 종료 시간 설정
+        const moveTime = Math.round(
+          RandomMovementComp.minMoveTime[eid] +
+            Math.random() *
+              (RandomMovementComp.maxMoveTime[eid] -
+                RandomMovementComp.minMoveTime[eid])
+        );
+        RandomMovementComp.nextChange[eid] = currentTime + moveTime;
       }
     }
 
-    // 이동 중일 때만 위치 업데이트 및 경계 체크
-    if (speed.value[eid] > 0) {
-      // 현재 속도와 각도를 이용해 다음 위치 계산
+    if (isMoving) {
+      // 현재 각도를 이용해 직선으로 이동
       const velocityX = Math.cos(angle.value[eid]) * speed.value[eid];
       const velocityY = Math.sin(angle.value[eid]) * speed.value[eid];
 
-      const nextX = position.x[eid] + velocityX * deltaTime;
-      const nextY = position.y[eid] + velocityY * deltaTime;
+      // 다음 위치 계산
+      const nextX = position.x[eid] + velocityX * delta;
+      const nextY = position.y[eid] + velocityY * delta;
 
-      // 경계 체크 및 각도 반사
-      let newAngle = angle.value[eid];
-      let bounced = false;
+      // 경계 체크
       const maxX = boundary.x + boundary.width;
       const maxY = boundary.y + boundary.height;
 
-      if (nextX < boundary.x || nextX > maxX) {
-        // X축 경계에 충돌 - 각도를 X축에 대해 반사 (π - angle)
-        newAngle = Math.PI - newAngle;
-        bounced = true;
+      // 경계를 벗어나면 이동을 멈추고 idle 상태로 전환
+      if (
+        nextX <= boundary.x ||
+        nextX >= maxX ||
+        nextY <= boundary.y ||
+        nextY >= maxY
+      ) {
+        // 경계를 벗어나면 반대 방향으로 각도 변경 및 스프라이트 반전
+        // x축(좌우) 경계에서만 x축 반전, y축(상하) 경계에서만 y축 반전
+        if (nextX <= boundary.x || nextX >= maxX) {
+          angle.value[eid] = nomalizeRadian(Math.PI - angle.value[eid]);
+        }
+        if (nextY <= boundary.y || nextY >= maxY) {
+          angle.value[eid] = nomalizeRadian(-angle.value[eid]);
+        }
+      } else {
+        position.x[eid] = nextX;
+        position.y[eid] = nextY;
       }
-
-      if (nextY < boundary.y || nextY > maxY) {
-        // Y축 경계에 충돌 - 각도를 Y축에 대해 반사 (-angle)
-        newAngle = -newAngle;
-        bounced = true;
-      }
-
-      // 각도 정규화 (0 ~ 2π)
-      if (bounced) {
-        angle.value[eid] =
-          ((newAngle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-      }
-
-      // 실제 위치 업데이트 (경계 안에서)
-      const finalVelocityX = Math.cos(angle.value[eid]) * speed.value[eid];
-      const finalVelocityY = Math.sin(angle.value[eid]) * speed.value[eid];
-
-      position.x[eid] = Math.max(
-        boundary.x,
-        Math.min(maxX, position.x[eid] + finalVelocityX * deltaTime)
-      );
-      position.y[eid] = Math.max(
-        boundary.y,
-        Math.min(maxY, position.y[eid] + finalVelocityY * deltaTime)
-      );
     }
   }
 

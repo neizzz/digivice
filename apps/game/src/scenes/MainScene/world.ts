@@ -1,4 +1,4 @@
-import { addEntity, createWorld, IWorld, pipe } from "bitecs";
+import { addEntity, createWorld, IWorld, pipe, setDefaultSize } from "bitecs";
 import * as PIXI from "pixi.js";
 import {
   AngleComponent,
@@ -147,6 +147,7 @@ export class MainSceneWorld implements IWorld {
   }
 
   constructor(params: { stage: PIXI.Container; positionBoundary: Boundary }) {
+    console.log("new world instance");
     this._stage = params.stage;
     this._positionBoundary = params.positionBoundary;
   }
@@ -253,8 +254,8 @@ export class MainSceneWorld implements IWorld {
     this._background = new Background(PIXI.Assets.get("grass"));
     this._stage.addChild(this._background);
 
-    const width = this._positionBoundary.width;
-    const height = this._positionBoundary.height;
+    const width = this._stage.width;
+    const height = this._stage.height;
     this._background.resize(width, height);
 
     console.log("[MainSceneWorld] World initialization completed");

@@ -35,7 +35,7 @@ export const RandomMovementComp = defineComponent({
   maxIdleTime: Types.ui32,
   minMoveTime: Types.ui32,
   maxMoveTime: Types.ui32,
-  nextChange: Types.ui32,
+  nextChange: Types.f64,
 });
 
 /**

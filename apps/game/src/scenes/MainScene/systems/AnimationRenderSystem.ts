@@ -15,6 +15,7 @@ import {
 } from "../types";
 import { MainSceneWorld } from "../world";
 import * as PIXI from "pixi.js";
+import { renderCommonAttribute } from "./RenderSystem";
 
 // const CHARACTER_STATE_TO_ANIMATION_KEY: Record<CharacterState, AnimationKey> = {
 const CHARACTER_STATE_TO_ANIMATION_KEY: Record<CharacterState, AnimationKey> = {
@@ -105,16 +106,14 @@ export function animationRenderSystem(params: {
       );
     }
 
-    const x = PositionComp.x[eid];
-    const y = PositionComp.y[eid];
-    animatedSprite.position.set(x, y);
-
-    const angle = AngleComp.value[eid];
-    animatedSprite.anchor.set(0.5);
-    animatedSprite.rotation = angle;
-    animatedSprite.zIndex = RenderComp.zIndex[eid];
-    animatedSprite.scale.set(RenderComp.scale[eid]);
-
+    // const x = PositionComp.x[eid];
+    // const y = PositionComp.y[eid];
+    // animatedSprite.position.set(x, y);
+    // const angle = AngleComp.value[eid];
+    // animatedSprite.rotation = angle;
+    // animatedSprite.zIndex = RenderComp.zIndex[eid];
+    // animatedSprite.scale.set(RenderComp.scale[eid]);
+    renderCommonAttribute(eid, animatedSprite);
     updateAnimatedSprite(animatedSprite, eid);
   }
 
@@ -198,7 +197,7 @@ function createAnimatedSpriteForEntity(
   }
 
   const animatedSprite = new PIXI.AnimatedSprite(animationTextures);
-  animatedSprite.anchor.set(0.5);
+  animatedSprite.anchor.set(0.5); // 앵커를 중앙으로 설정
   animatedSprite.animationSpeed = AnimationRenderComp.speed[eid];
   animatedSprite.loop = AnimationRenderComp.loop[eid] === 1;
 

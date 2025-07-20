@@ -203,7 +203,16 @@ export function applySavedEntityToECS(
     RandomMovementComp.maxIdleTime[eid] = components.randomMovement.maxIdleTime;
     RandomMovementComp.minMoveTime[eid] = components.randomMovement.minMoveTime;
     RandomMovementComp.maxMoveTime[eid] = components.randomMovement.maxMoveTime;
-    RandomMovementComp.nextChange[eid] = components.randomMovement.nextChange;
+    if (components.randomMovement?.nextChange) {
+      const diffFromNow = components.randomMovement.nextChange - Date.now();
+      console.log("🔥", diffFromNow);
+      RandomMovementComp.nextChange[eid] =
+        diffFromNow < 3000
+          ? components.randomMovement.nextChange
+          : ECS_NULL_VALUE;
+    } else {
+      RandomMovementComp.nextChange[eid] = ECS_NULL_VALUE;
+    }
   }
 }
 

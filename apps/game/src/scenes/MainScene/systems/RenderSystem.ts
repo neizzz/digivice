@@ -191,14 +191,7 @@ export function renderSystem(params: {
       console.log(`[RenderSystem] Added sprite to stage for entity ${eid}`);
     }
 
-    const x = PositionComp.x[eid];
-    const y = PositionComp.y[eid];
-    sprite.position.set(x, y);
-
-    const angle = AngleComp.value[eid];
-    sprite.rotation = angle;
-    sprite.zIndex = RenderComp.zIndex[eid] || y; // NOTE: zIndex가 없으면 y 좌표로 설정
-    sprite.scale.set(RenderComp.scale[eid]);
+    renderCommonAttribute(eid, sprite);
 
     const newTexture = getTextureFromKey(textureKey);
     if (newTexture && sprite.texture !== newTexture) {
@@ -210,6 +203,22 @@ export function renderSystem(params: {
   }
 
   return params;
+}
+
+export function renderCommonAttribute(
+  eid: number,
+  sprite: PIXI.Sprite | PIXI.AnimatedSprite
+): void {
+  const x = PositionComp.x[eid];
+  const y = PositionComp.y[eid];
+  sprite.position.set(x, y);
+
+  const angle = AngleComp.value[eid];
+  sprite.zIndex = RenderComp.zIndex[eid] || y; // NOTE: zIndex가 없으면 y 좌표로 설정
+  // angle이 왼쪽(PI 또는 -PI 부근)을 향하면 x scale에 -1을 곱하기
+  const baseScale = RenderComp.scale[eid];
+  const isLeft = Math.abs(angle) > Math.PI / 2;
+  sprite.scale.set(isLeft ? -baseScale : baseScale, baseScale);
 }
 
 /**
