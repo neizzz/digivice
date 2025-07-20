@@ -12,11 +12,6 @@ import { DebugFlags } from "./utils/DebugFlags";
 import type { GameData } from "./types/GameData"; // GameData 타입 임포트
 import { GAME_LOOP } from "./config"; // TimeConfig로 변경
 import type { CharacterKey } from "./types/Character";
-// import { CharacterManager } from "./managers/CharacterManager"; // CharacterManager 임포트 추가
-import {
-  type LastCheckData,
-  LastCheckDataManager,
-} from "./managers/LastCheckDataManager";
 import { simulateCharacterStatus } from "./utils/simulator";
 import { MainSceneWorld } from "./scenes/MainScene/world";
 
