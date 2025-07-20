@@ -23,10 +23,14 @@ const TEXTURE_MAP: Record<
   // Common 16x16 sprites
   101: { spritesheetAlias: "common16x16", textureName: "poob" },
   102: { spritesheetAlias: "common16x16", textureName: "broom" },
+  103: { spritesheetAlias: "common16x16", textureName: "sick" },
+  104: { spritesheetAlias: "common16x16", textureName: "happy" },
+  105: { spritesheetAlias: "common16x16", textureName: "unhappy" },
+  106: { spritesheetAlias: "common16x16", textureName: "urgent" },
 
   // Common 32x32 sprites
-  103: { spritesheetAlias: "common32x32", textureName: "basket" },
-  104: { spritesheetAlias: "common32x32", textureName: "tomb" },
+  107: { spritesheetAlias: "common32x32", textureName: "basket" },
+  108: { spritesheetAlias: "common32x32", textureName: "tomb" },
 
   // Food sprites
   110: { spritesheetAlias: "foods", textureName: "food-1" },

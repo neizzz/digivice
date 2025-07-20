@@ -13,6 +13,7 @@ import {
   RandomMovementComponent,
   RenderComponent,
   AnimationRenderComponent,
+  StatusIconRenderComponent,
   SpeedComponent,
   AnimationKey,
   SpritesheetKey,
@@ -24,6 +25,7 @@ import {
   animationRenderSystem,
   SPRITESHEET_KEY_TO_NAME,
 } from "./systems/AnimationRenderSystem";
+import { statusIconRenderSystem } from "./systems/StatusIconRenderSystem";
 import { StorageManager } from "../../managers/StorageManager";
 import { Background } from "../../entities/Background";
 import {
@@ -46,6 +48,7 @@ export type EntityComponents = {
   object?: ObjectComponent;
   render?: RenderComponent;
   animationRender?: AnimationRenderComponent;
+  statusIconRender?: StatusIconRenderComponent;
   speed?: SpeedComponent;
   freshness?: FreshnessComponent;
   destination?: DestinationComponent;
@@ -135,6 +138,7 @@ export class MainSceneWorld implements IWorld {
     randomMovementSystem,
     characterManagerSystem,
     animationRenderSystem,
+    statusIconRenderSystem,
     renderSystem,
     dataSyncSystem
   );
@@ -147,7 +151,6 @@ export class MainSceneWorld implements IWorld {
   }
 
   constructor(params: { stage: PIXI.Container; positionBoundary: Boundary }) {
-    console.log("new world instance");
     this._stage = params.stage;
     this._positionBoundary = params.positionBoundary;
   }

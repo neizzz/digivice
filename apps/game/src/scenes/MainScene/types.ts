@@ -111,10 +111,14 @@ export enum TextureKey {
   // Common 16x16 sprites
   POOB = 101,
   BROOM = 102,
+  SICK = 103,
+  HAPPY = 104,
+  UNHAPPY = 105,
+  URGENT = 106,
 
   // Common 32x32 sprites
-  BASKET = 103,
-  TOMB = 104,
+  BASKET = 107,
+  TOMB = 108,
 
   // Food sprites
   FOOD1 = 110,
@@ -184,4 +188,9 @@ export type AnimationRenderComponent = {
   isPlaying: boolean; // 재생 중인지 여부
   loop: boolean; // 루프 여부
   speed: number; // 애니메이션 속도 배율 (1.0 = 기본 속도)
+};
+
+export type StatusIconRenderComponent = {
+  storeIndexes: number[]; // 각 상태 아이콘의 sprite 인스턴스 참조 인덱스 배열
+  visibleCount: number; // 현재 표시 중인 아이콘 개수
 };

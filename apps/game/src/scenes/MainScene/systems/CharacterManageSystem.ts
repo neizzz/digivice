@@ -48,7 +48,21 @@ export function characterManagerSystem(params: {
       continue;
     }
 
-    // const characterKey = CharacterStatusComp.characterKey[eid];
+    // 테스트용: 첫 번째 캐릭터에게 고정 상태 부여 (디버깅용)
+    if (i === 0) {
+      const currentStatuses = Array.from(
+        CharacterStatusComp.statuses[eid]
+      ).filter((s) => s !== ECS_NULL_VALUE);
+      if (currentStatuses.length === 0) {
+        // 처음에 상태가 없으면 테스트 상태들 추가
+        addCharacterStatus(eid, CharacterStatus.HAPPY);
+        addCharacterStatus(eid, CharacterStatus.SICK);
+        console.log(
+          `[CharacterManager] Added test statuses to character ${eid}:`,
+          [CharacterStatus.HAPPY, CharacterStatus.SICK]
+        );
+      }
+    }
 
     // 현재 캐릭터의 상태와 진화 정보 가져오기
     const statusArray = CharacterStatusComp.statuses[eid];
@@ -110,10 +124,34 @@ function getPrimaryStatus(statusArray: Uint8Array): CharacterStatus | null {
 
 export function addCharacterStatus(eid: number, status: CharacterStatus): void {
   const currentStatuses = CharacterStatusComp.statuses[eid];
-  if (!currentStatuses.includes(status)) {
-    const newStatuses = new Uint8Array([...currentStatuses, status]);
-    CharacterStatusComp.statuses[eid] = newStatuses;
+  console.log(
+    `[addCharacterStatus] Current statuses for entity ${eid}:`,
+    Array.from(currentStatuses)
+  );
+
+  // 이미 해당 상태가 있는지 확인
+  if (currentStatuses.includes(status)) {
+    console.log(
+      `[addCharacterStatus] Status ${status} already exists for entity ${eid}`
+    );
+    return;
   }
+
+  // 첫 번째 빈 슬롯(ECS_NULL_VALUE)에 상태 추가
+  for (let i = 0; i < currentStatuses.length; i++) {
+    if (currentStatuses[i] === ECS_NULL_VALUE) {
+      currentStatuses[i] = status;
+      console.log(
+        `[addCharacterStatus] Added status ${status} to entity ${eid} at slot ${i}. New statuses:`,
+        Array.from(currentStatuses)
+      );
+      return;
+    }
+  }
+
+  console.warn(
+    `[addCharacterStatus] No empty slot available for entity ${eid} to add status ${status}`
+  );
 }
 
 export function removeCharacterStatus(
@@ -121,8 +159,22 @@ export function removeCharacterStatus(
   status: CharacterStatus
 ): void {
   const currentStatuses = CharacterStatusComp.statuses[eid];
-  const filteredStatuses = currentStatuses.filter((s) => s !== status);
-  CharacterStatusComp.statuses[eid] = new Uint8Array(filteredStatuses);
+
+  // 해당 상태를 찾아서 ECS_NULL_VALUE로 교체
+  for (let i = 0; i < currentStatuses.length; i++) {
+    if (currentStatuses[i] === status) {
+      currentStatuses[i] = ECS_NULL_VALUE;
+      console.log(
+        `[removeCharacterStatus] Removed status ${status} from entity ${eid} at slot ${i}. New statuses:`,
+        Array.from(currentStatuses)
+      );
+      return;
+    }
+  }
+
+  console.warn(
+    `[removeCharacterStatus] Status ${status} not found for entity ${eid}`
+  );
 }
 
 export function hasCharacterStatus(
@@ -134,5 +186,13 @@ export function hasCharacterStatus(
 }
 
 export function clearCharacterStatuses(eid: number): void {
-  CharacterStatusComp.statuses[eid] = new Uint8Array();
+  const currentStatuses = CharacterStatusComp.statuses[eid];
+  // 모든 슬롯을 ECS_NULL_VALUE로 초기화 (길이는 유지)
+  for (let i = 0; i < currentStatuses.length; i++) {
+    currentStatuses[i] = ECS_NULL_VALUE;
+  }
+  console.log(
+    `[clearCharacterStatuses] Cleared all statuses for entity ${eid}. New statuses:`,
+    Array.from(currentStatuses)
+  );
 }

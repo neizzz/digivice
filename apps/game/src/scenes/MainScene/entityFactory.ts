@@ -11,6 +11,7 @@ import {
   DestinationComp,
   CharacterStatusComp,
   AnimationRenderComp,
+  StatusIconRenderComp,
 } from "./raw-components";
 import {
   CharacterKey,
@@ -82,6 +83,13 @@ export function createCharacterEntity(
     : 0;
   AnimationRenderComp.loop[eid] = _components.animationRender?.loop ? 1 : 0;
   AnimationRenderComp.speed[eid] = _components.animationRender?.speed || 1; // 기본 속도는 1.0
+
+  // 상태 아이콘 렌더링 컴포넌트 초기화
+  addComponent(world, StatusIconRenderComp, eid);
+  StatusIconRenderComp.storeIndexes[eid] = new Uint16Array(
+    ECS_CHARACTER_STATUS_LENGTH
+  ).fill(ECS_NULL_VALUE);
+  StatusIconRenderComp.visibleCount[eid] = 0;
 
   addComponent(world, SpeedComp, eid);
   SpeedComp.value[eid] = _components.speed?.value || ECS_NULL_VALUE;

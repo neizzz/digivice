@@ -11,6 +11,7 @@ import {
   RandomMovementComp,
   CharacterStatusComp,
   AnimationRenderComp,
+  StatusIconRenderComp,
 } from "./raw-components";
 import type { SavedEntity, EntityComponents } from "./world";
 import { CharacterKey, CharacterStatus } from "./types";
@@ -97,6 +98,12 @@ export function convertECSEntityToSavedEntity(
       speed: +AnimationRenderComp.speed[eid].toFixed(2),
     };
   }
+  if (hasComponent(world, StatusIconRenderComp, eid)) {
+    components.statusIconRender = {
+      storeIndexes: Array.from(StatusIconRenderComp.storeIndexes[eid]),
+      visibleCount: StatusIconRenderComp.visibleCount[eid],
+    };
+  }
 
   return { components };
 }
@@ -171,6 +178,17 @@ export function applySavedEntityToECS(
     AnimationRenderComp.speed[eid] = components.animationRender.speed;
   }
 
+  if (components.statusIconRender) {
+    if (!hasComponent(world, StatusIconRenderComp, eid)) {
+      addComponent(world, StatusIconRenderComp, eid);
+    }
+    StatusIconRenderComp.storeIndexes[eid] = new Uint16Array(
+      components.statusIconRender.storeIndexes
+    );
+    StatusIconRenderComp.visibleCount[eid] =
+      components.statusIconRender.visibleCount;
+  }
+
   if (components.speed) {
     if (!hasComponent(world, SpeedComp, eid)) {
       addComponent(world, SpeedComp, eid);
@@ -205,7 +223,6 @@ export function applySavedEntityToECS(
     RandomMovementComp.maxMoveTime[eid] = components.randomMovement.maxMoveTime;
     if (components.randomMovement?.nextChange) {
       const diffFromNow = components.randomMovement.nextChange - Date.now();
-      console.log("🔥", diffFromNow);
       RandomMovementComp.nextChange[eid] =
         diffFromNow < 3000
           ? components.randomMovement.nextChange
