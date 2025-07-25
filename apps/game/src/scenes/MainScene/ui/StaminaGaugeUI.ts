@@ -27,7 +27,7 @@ export class StaminaGaugeUI {
       position: fixed;
       top: 45px;
       left: 10px;
-      background: rgba(0, 0, 0, 0.6);
+      background: rgba(0, 0, 0, 0.4);
       border-radius: 5px;
       padding: 10px;
       z-index: 998;

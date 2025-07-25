@@ -51,7 +51,7 @@ export const CHARACTER_STATUS = isDebugMode
         [CharacterClass.C]: 10,
         [CharacterClass.D]: 0.0,
       },
-      STAMINA_DECREASE_INTERVAL: 10 * 1000,
+      STAMINA_DECREASE_INTERVAL: 60 * 1000,
       STAMINA_DECREASE_AMOUNT: 1, // 한 번에 감소하는 스태미나 양
       MAX_STAMINA: 10, // 최대 스태미나
 
