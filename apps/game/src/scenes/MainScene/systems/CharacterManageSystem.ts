@@ -7,6 +7,7 @@ import {
 import { ObjectType, CharacterStatus } from "../types";
 import { MainSceneWorld } from "../world";
 import { startTemporaryStatus } from "./StatusIconRenderSystem";
+import { CHARACTER_STATUS } from "../../../config";
 
 const characterQuery = defineQuery([
   ObjectComp,
@@ -17,11 +18,15 @@ const characterQuery = defineQuery([
 // 이전 프레임의 상태를 추적하기 위한 Map
 const previousStatusStates: Map<number, CharacterStatus[]> = new Map();
 
+// 스테미나와 진화 게이지 타이머를 위한 Map
+const staminaTimers: Map<number, number> = new Map();
+const evolutionGaugeTimers: Map<number, number> = new Map();
+
 export function characterManagerSystem(params: {
   world: MainSceneWorld;
   delta: number;
 }): typeof params {
-  const { world } = params;
+  const { world, delta } = params;
   const characters = characterQuery(world);
 
   for (let i = 0; i < characters.length; i++) {
@@ -31,6 +36,9 @@ export function characterManagerSystem(params: {
     if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
       continue;
     }
+
+    // 스테미나 및 진화 게이지 업데이트
+    updateStaminaAndEvolutionGauge(eid, delta);
 
     // 현재 캐릭터의 상태와 진화 정보 가져오기
     const statusArray = CharacterStatusComp.statuses[eid];
@@ -184,6 +192,33 @@ export function hasCharacterStatus(
   return currentStatuses.includes(status);
 }
 
+export function setCharacterStamina(eid: number, stamina: number): void {
+  const clampedStamina = Math.max(
+    0,
+    Math.min(CHARACTER_STATUS.MAX_STAMINA, stamina)
+  );
+  CharacterStatusComp.stamina[eid] = clampedStamina;
+  console.log(
+    `[CharacterManagerSystem] Set stamina for entity ${eid}: ${clampedStamina}`
+  );
+}
+
+export function setCharacterEvolutionGauge(eid: number, gauge: number): void {
+  const clampedGauge = Math.max(0, Math.min(100.0, gauge));
+  CharacterStatusComp.evolutionGage[eid] = clampedGauge;
+  console.log(
+    `[CharacterManagerSystem] Set evolution gauge for entity ${eid}: ${clampedGauge}`
+  );
+}
+
+export function getCharacterStamina(eid: number): number {
+  return CharacterStatusComp.stamina[eid] || 0;
+}
+
+export function getCharacterEvolutionGauge(eid: number): number {
+  return CharacterStatusComp.evolutionGage[eid] || 0;
+}
+
 export function clearCharacterStatuses(eid: number): void {
   const currentStatuses = CharacterStatusComp.statuses[eid];
   // 모든 슬롯을 ECS_NULL_VALUE로 초기화 (길이는 유지)
@@ -194,4 +229,66 @@ export function clearCharacterStatuses(eid: number): void {
     `[clearCharacterStatuses] Cleared all statuses for entity ${eid}. New statuses:`,
     Array.from(currentStatuses)
   );
+}
+
+// 스테미나와 진화 게이지 업데이트 함수
+function updateStaminaAndEvolutionGauge(eid: number, delta: number): void {
+  // 스테미나 타이머 업데이트
+  const currentStaminaTimer = staminaTimers.get(eid) || 0;
+  const newStaminaTimer = currentStaminaTimer + delta;
+  staminaTimers.set(eid, newStaminaTimer);
+
+  // 스테미나 감소 체크
+  if (newStaminaTimer >= CHARACTER_STATUS.STAMINA_DECREASE_INTERVAL) {
+    decreaseStamina(eid);
+    staminaTimers.set(eid, 0);
+  }
+
+  // 진화 게이지 타이머 업데이트 (스테미나가 5 이상일 때만)
+  const currentStamina = CharacterStatusComp.stamina[eid];
+  if (currentStamina >= CHARACTER_STATUS.EVOLUTION_GAUGE_STATMINA_THRESHOLD) {
+    const currentEvolutionTimer = evolutionGaugeTimers.get(eid) || 0;
+    const newEvolutionTimer = currentEvolutionTimer + delta;
+    evolutionGaugeTimers.set(eid, newEvolutionTimer);
+
+    // 진화 게이지 증가 체크
+    if (newEvolutionTimer >= CHARACTER_STATUS.EVOLUTION_GAUGE_CHECK_INTERVAL) {
+      increaseEvolutionGauge(eid);
+      evolutionGaugeTimers.set(eid, 0);
+    }
+  }
+}
+
+// 스테미나 감소 함수
+function decreaseStamina(eid: number): void {
+  const currentStamina = CharacterStatusComp.stamina[eid];
+  const newStamina = Math.max(
+    0,
+    currentStamina - CHARACTER_STATUS.STAMINA_DECREASE_AMOUNT
+  );
+  CharacterStatusComp.stamina[eid] = newStamina;
+
+  console.log(
+    `[CharacterManagerSystem] Stamina decreased for entity ${eid}: ${currentStamina} -> ${newStamina}`
+  );
+}
+
+// 진화 게이지 증가 함수
+function increaseEvolutionGauge(eid: number): void {
+  const currentGauge = CharacterStatusComp.evolutionGage[eid];
+  const newGauge = Math.min(100.0, currentGauge + 1.0); // 임시로 1씩 증가
+  CharacterStatusComp.evolutionGage[eid] = newGauge;
+
+  console.log(
+    `[CharacterManagerSystem] Evolution gauge increased for entity ${eid}: ${currentGauge} -> ${newGauge}`
+  );
+
+  // 진화 조건 체크 (100에 도달했을 때)
+  if (newGauge >= 100.0) {
+    console.log(
+      `[CharacterManagerSystem] Evolution conditions met for entity ${eid}!`
+    );
+    // TODO: 진화 로직 구현
+    CharacterStatusComp.evolutionGage[eid] = 0.0; // 게이지 리셋
+  }
 }

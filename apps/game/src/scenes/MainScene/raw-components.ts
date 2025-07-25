@@ -8,6 +8,7 @@ export const ObjectComp = defineComponent({
 });
 export const CharacterStatusComp = defineComponent({
   characterKey: Types.ui16, // = spritesheet key
+  stamina: Types.ui8, // 스테미나 (0 ~ 10)
   evolutionGage: Types.f32, // 진화 게이지 (0.0 ~ 100.0)
   evolutionPhase: Types.ui8, // 진화 페이즈 (1 ~ 4)
   statuses: [

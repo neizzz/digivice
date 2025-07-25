@@ -154,6 +154,7 @@ export type ObjectComponent = {
 };
 export type CharacterStatusComponent = {
   characterKey: CharacterKey; // 캐릭터 키 (TextureKey)
+  stamina: number; // 스테미나 (0 ~ 10)
   evolutionGage: number; // 진화 게이지 (0.0 ~ 100.0)
   evolutionPhase: number; // 진화 페이즈 (1 ~ 4)
   statuses: CharacterStatus[]; // Array of {@link enum CharacterStatus}

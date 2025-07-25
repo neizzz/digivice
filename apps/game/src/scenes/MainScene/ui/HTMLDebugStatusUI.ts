@@ -1,4 +1,4 @@
-import { CharacterStatus } from "..//types";
+import { CharacterStatus } from "../types";
 import {
   addCharacterStatus,
   removeCharacterStatus,
@@ -149,23 +149,58 @@ export class HTMLDebugStatusUI {
     this._updateCharacterIdDisplay();
     this._container.appendChild(this._charIdElement);
 
-    // 상태별 버튼 생성
-    const statuses = [
-      CharacterStatus.SICK,
-      CharacterStatus.UNHAPPY,
-      CharacterStatus.URGENT,
-      CharacterStatus.HAPPY,
-      CharacterStatus.DISCOVER,
-    ];
+    // 스테미나 조절 버튼들
+    const staminaButtonsDiv = document.createElement("div");
+    // staminaButtonsDiv.style.cssText = `
+    //   margin: 10px 0;
+    //   text-align: center;
+    // `;
 
-    statuses.forEach((status) => {
-      const buttonContainer = this._createStatusButton(status);
-      this._container.appendChild(buttonContainer);
-    });
+    const staminaLabel = document.createElement("span");
+    staminaLabel.textContent = "Stam: ";
+    staminaLabel.style.cssText = `
+      color: #66ccff;
+      font-size: 12px;
+      margin-right: 5px;
+    `;
 
-    // 전체 클리어 버튼
-    const clearAllButton = this._createClearAllButton();
-    this._container.appendChild(clearAllButton);
+    const staminaMinusBtn = this._createAdjustButton("-1", () =>
+      this._adjustStamina(-1)
+    );
+    const staminaPlusBtn = this._createAdjustButton("+1", () =>
+      this._adjustStamina(1)
+    );
+
+    staminaButtonsDiv.appendChild(staminaLabel);
+    staminaButtonsDiv.appendChild(staminaMinusBtn);
+    staminaButtonsDiv.appendChild(staminaPlusBtn);
+    this._container.appendChild(staminaButtonsDiv);
+
+    // 진화 게이지 조절 버튼들
+    const evolutionButtonsDiv = document.createElement("div");
+    // evolutionButtonsDiv.style.cssText = `
+    //   text-align: left;
+    // `;
+
+    const evolutionLabel = document.createElement("span");
+    evolutionLabel.textContent = "Evo: ";
+    evolutionLabel.style.cssText = `
+      color: #ffcc66;
+      font-size: 12px;
+      margin-right: 5px;
+    `;
+
+    const evolutionPlus3Btn = this._createAdjustButton("+3", () =>
+      this._adjustEvolutionGauge(3)
+    );
+    const evolutionPlus10Btn = this._createAdjustButton("+10", () =>
+      this._adjustEvolutionGauge(10)
+    );
+
+    evolutionButtonsDiv.appendChild(evolutionLabel);
+    evolutionButtonsDiv.appendChild(evolutionPlus3Btn);
+    evolutionButtonsDiv.appendChild(evolutionPlus10Btn);
+    this._container.appendChild(evolutionButtonsDiv);
 
     // 닫기 버튼
     const closeButton = this._createCloseButton();
@@ -181,91 +216,13 @@ export class HTMLDebugStatusUI {
       width: 150px;
       background: rgba(0, 0, 0, 0.2);
       border-radius: 8px;
-      padding: 15px;
+      padding: 8px;
       z-index: 1000;
       font-family: 'Arial', sans-serif;
       color: white;
       display: none;
     `;
     return container;
-  }
-
-  private _createStatusButton(status: CharacterStatus): HTMLDivElement {
-    const container = document.createElement("div");
-    container.style.cssText = `
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 8px;
-      margin-bottom: 8px;
-      background: rgba(51, 51, 51, 0.4);
-      border-radius: 4px;
-      cursor: pointer;
-      transition: background-color 0.2s;
-    `;
-
-    // 상태 이름
-    const statusName = document.createElement("span");
-    statusName.textContent = this._getStatusName(status);
-    statusName.style.cssText = `
-      font-size: 14px;
-      color: white;
-    `;
-
-    // 상태 표시 (ON/OFF)
-    const statusIndicator = document.createElement("span");
-    statusIndicator.style.cssText = `
-      width: 16px;
-      height: 16px;
-      border-radius: 50%;
-      display: inline-block;
-    `;
-    this._updateStatusIndicator(statusIndicator, status);
-    this._indicators.set(status, statusIndicator);
-
-    container.appendChild(statusName);
-    container.appendChild(statusIndicator);
-
-    // 클릭 이벤트
-    container.addEventListener("click", () => {
-      this._toggleStatus(status);
-      this._updateStatusIndicator(statusIndicator, status);
-    });
-
-    return container;
-  }
-
-  private _createClearAllButton(): HTMLButtonElement {
-    const button = document.createElement("button");
-    button.textContent = "Clear All";
-    button.style.cssText = `
-      width: 100%;
-      padding: 6px;
-      margin-top: 4px;
-      background: rgba(112, 0, 0, 0.5);
-      color: white;
-      border: none;
-      border-radius: 4px;
-      font-size: 14px;
-      font-weight: bold;
-      cursor: pointer;
-      transition: background-color 0.2s;
-    `;
-
-    button.addEventListener("mouseenter", () => {
-      button.style.backgroundColor = "#880000";
-    });
-
-    button.addEventListener("mouseleave", () => {
-      button.style.backgroundColor = "#660000";
-    });
-
-    button.addEventListener("click", () => {
-      this._clearAllStatuses();
-      this._updateAllStatusIndicators();
-    });
-
-    return button;
   }
 
   private _createCloseButton(): HTMLButtonElement {
@@ -294,23 +251,6 @@ export class HTMLDebugStatusUI {
     });
 
     return button;
-  }
-
-  private _getStatusName(status: CharacterStatus): string {
-    switch (status) {
-      case CharacterStatus.SICK:
-        return "Sick";
-      case CharacterStatus.UNHAPPY:
-        return "Unhappy";
-      case CharacterStatus.URGENT:
-        return "Urgent";
-      case CharacterStatus.HAPPY:
-        return "Happy";
-      case CharacterStatus.DISCOVER:
-        return "Discover";
-      default:
-        return "Unknown";
-    }
   }
 
   private _updateStatusIndicator(
@@ -390,6 +330,65 @@ export class HTMLDebugStatusUI {
 
     console.log(
       `[HTMLDebugStatusUI] Cleared all statuses from character ${this._currentCharacterEid}`
+    );
+  }
+
+  // 스테미나/진화 게이지 조절 버튼 생성
+  private _createAdjustButton(
+    text: string,
+    onClick: () => void
+  ): HTMLButtonElement {
+    const button = document.createElement("button");
+    button.textContent = text;
+    button.style.cssText = `
+      background: rgba(100, 150, 255, 0.6);
+      color: white;
+      padding: 4px 8px;
+      margin: 2px;
+      border-radius: 4px;
+      font-size: 12px;
+      cursor: pointer;
+      min-width: 25px;
+    `;
+    button.addEventListener("click", onClick);
+    return button;
+  }
+
+  // 스테미나 조절 함수
+  private _adjustStamina(amount: number): void {
+    if (this._currentCharacterEid < 0) {
+      console.warn(
+        "[HTMLDebugStatusUI] No character found for stamina adjustment"
+      );
+      return;
+    }
+
+    const currentStamina =
+      CharacterStatusComp.stamina[this._currentCharacterEid] || 0;
+    const newStamina = Math.max(0, Math.min(10, currentStamina + amount));
+    CharacterStatusComp.stamina[this._currentCharacterEid] = newStamina;
+    console.log(
+      `[HTMLDebugStatusUI] Stamina adjusted: ${currentStamina} -> ${newStamina}`
+    );
+  }
+
+  // 진화 게이지 조절 함수
+  private _adjustEvolutionGauge(amount: number): void {
+    if (this._currentCharacterEid < 0) {
+      console.warn(
+        "[HTMLDebugStatusUI] No character found for evolution gauge adjustment"
+      );
+      return;
+    }
+
+    const currentGauge =
+      CharacterStatusComp.evolutionGage[this._currentCharacterEid] || 0;
+    const newGauge = Math.max(0, Math.min(100, currentGauge + amount));
+    CharacterStatusComp.evolutionGage[this._currentCharacterEid] = newGauge;
+    console.log(
+      `[HTMLDebugStatusUI] Evolution gauge adjusted: ${currentGauge.toFixed(
+        1
+      )} -> ${newGauge.toFixed(1)}`
     );
   }
 

@@ -11,7 +11,11 @@ import { MainSceneWorld } from "../world";
 import { CharacterStatus, ObjectType, TextureKey } from "../types";
 
 // 일시적인 상태들 (3초 후 자동 제거)
-const TEMPORARY_STATUSES = [CharacterStatus.HAPPY, CharacterStatus.DISCOVER];
+const TEMPORARY_STATUSES = [
+  CharacterStatus.UNHAPPY,
+  CharacterStatus.HAPPY,
+  CharacterStatus.DISCOVER,
+];
 const TEMPORARY_STATUS_DURATION = 3000; // 3초
 
 // 엔티티별 일시적 상태 타이머

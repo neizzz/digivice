@@ -19,13 +19,14 @@ import {
   SpritesheetKey,
 } from "./types";
 import { randomMovementSystem } from "./systems/RandomMovementSystem";
-import { renderSystem } from "./systems/RenderSystem";
-import { dataSyncSystem } from "./systems/DataSyncSystem";
-import {
-  animationRenderSystem,
-  SPRITESHEET_KEY_TO_NAME,
-} from "./systems/AnimationRenderSystem";
+import { animationRenderSystem } from "./systems/AnimationRenderSystem";
 import { statusIconRenderSystem } from "./systems/StatusIconRenderSystem";
+import { renderSystem } from "./systems/RenderSystem";
+import { characterManagerSystem } from "./systems/CharacterManageSystem";
+import { dataSyncSystem } from "./systems/DataSyncSystem";
+import { HTMLDebugStatusUI } from "./ui/HTMLDebugStatusUI";
+import { HTMLDebugToggleButton } from "./ui/HTMLDebugToggleButton";
+import { StaminaGaugeUI } from "./ui/StaminaGaugeUI";
 import { StorageManager } from "../../managers/StorageManager";
 import { Background } from "../../entities/Background";
 import {
@@ -33,15 +34,13 @@ import {
   convertECSEntityToSavedEntity,
 } from "./entityDataHelpers";
 import { createCharacterEntity } from "./entityFactory";
-import { characterManagerSystem } from "./systems/CharacterManageSystem";
 import { generatePersistentNumericId } from "@/utils/generate";
 import {
   loadSpritesheets,
   LoadSpritesheetOptions,
   loadSpritesheet,
 } from "../../utils/asset";
-import { HTMLDebugStatusUI } from "./ui/HTMLDebugStatusUI";
-import { HTMLDebugToggleButton } from "./ui/HTMLDebugToggleButton";
+import { SPRITESHEET_KEY_TO_NAME } from "./systems/AnimationRenderSystem";
 
 export type EntityComponents = {
   characterStatus?: CharacterStatusComponent;
@@ -138,6 +137,7 @@ export class MainSceneWorld implements IWorld {
   private _persistentData?: MainSceneWorldData;
   private _debugStatusUI?: HTMLDebugStatusUI;
   private _debugToggleButton?: HTMLDebugToggleButton;
+  private _staminaGaugeUI?: StaminaGaugeUI;
   private _parentElement?: HTMLElement;
   private _pipedSystems = pipe(
     randomMovementSystem,
@@ -271,13 +271,19 @@ export class MainSceneWorld implements IWorld {
     const height = this._stage.height;
     this._background.resize(width, height);
 
-    // 디버그 UI 초기화 (개발 환경에서만)
-    if (import.meta.env.DEV && this._parentElement) {
-      this._debugStatusUI = new HTMLDebugStatusUI(this, this._parentElement);
-      this._debugToggleButton = new HTMLDebugToggleButton(() => {
-        this._debugStatusUI?.toggle();
-        return this._debugStatusUI?.isDebugVisible() ?? false;
-      }, this._parentElement);
+    // UI 초기화
+    if (this._parentElement) {
+      // 스테미나 게이지 UI (항상 표시)
+      this._staminaGaugeUI = new StaminaGaugeUI(this, this._parentElement);
+
+      // 디버그 UI (개발 환경에서만)
+      if (import.meta.env.DEV) {
+        this._debugStatusUI = new HTMLDebugStatusUI(this, this._parentElement);
+        this._debugToggleButton = new HTMLDebugToggleButton(() => {
+          this._debugStatusUI?.toggle();
+          return this._debugStatusUI?.isDebugVisible() ?? false;
+        }, this._parentElement);
+      }
     }
 
     console.log("[MainSceneWorld] World initialization completed");
@@ -297,6 +303,13 @@ export class MainSceneWorld implements IWorld {
         id: generatePersistentNumericId(),
         type: ObjectType.CHARACTER,
         state: CharacterState.EGG,
+      },
+      characterStatus: {
+        characterKey: ECS_NULL_VALUE,
+        stamina: 10, // 초기 스테미나 최대값으로 설정
+        evolutionGage: 0, // 초기 진화 게이지 0으로 설정
+        evolutionPhase: 1,
+        statuses: new Array(ECS_CHARACTER_STATUS_LENGTH).fill(ECS_NULL_VALUE),
       },
       render: {
         storeIndex: ECS_NULL_VALUE,
@@ -427,6 +440,11 @@ export class MainSceneWorld implements IWorld {
   update(delta: number): void {
     // TODO: hatchSystem, throwSystem
     this._pipedSystems({ world: this, delta });
+
+    // UI 업데이트
+    if (this._staminaGaugeUI) {
+      this._staminaGaugeUI.update();
+    }
 
     // 디버그 UI 업데이트
     if (this._debugStatusUI) {

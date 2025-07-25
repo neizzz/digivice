@@ -42,9 +42,9 @@ export const CHARACTER_STATUS = isDebugMode
       DIGESTION_INCREASE_AMOUNT: 2, // 음식 섭취 시 증가량
       DIGESTION_POOB_DELAY: 3000, // 똥 생성 지연(ms)
 
-      // 스태미나가 4 이상일 때 진화 게이지가 오름
+      // 스태미나가 5 이상일 때 진화 게이지가 오름
       EVOLUTION_GAUGE_CHECK_INTERVAL: 10 * 1000,
-      EVOLUTION_GAUGE_STATMINA_THRESHOLD: 4,
+      EVOLUTION_GAUGE_STATMINA_THRESHOLD: 5,
       EVOLUTION_GAUGE_INCREASE_AMOUNT: {
         [CharacterClass.A]: 40,
         [CharacterClass.B]: 20,
@@ -65,9 +65,9 @@ export const CHARACTER_STATUS = isDebugMode
       DIGESTION_CAPACITY: 5, // 소화기관 용량
       DIGESTION_INCREASE_AMOUNT: 2, // 음식 섭취 시 증가량
       DIGESTION_POOB_DELAY: 20 * 60 * 1000, // 똥 생성 지연 (20분)
-      // 스태미나가 4 이상일 때 진화 게이지가 오름
+      // 스태미나가 5 이상일 때 진화 게이지가 오름
       EVOLUTION_GAUGE_CHECK_INTERVAL: 20 * 60 * 1000, // 20분,
-      EVOLUTION_GAUGE_STATMINA_THRESHOLD: 4,
+      EVOLUTION_GAUGE_STATMINA_THRESHOLD: 5,
       EVOLUTION_GAUGE_INCREASE_AMOUNT: {
         [CharacterClass.A]: 0.6,
         [CharacterClass.B]: 0.4,
