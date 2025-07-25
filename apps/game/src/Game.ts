@@ -1,18 +1,7 @@
 import * as PIXI from "pixi.js";
 import { SceneKey } from "./SceneKey";
 import type { Scene } from "./interfaces/Scene";
-import { FlappyBirdGameScene } from "./scenes/FlappyBirdGameScene";
 import type { ControlButtonParams, ControlButtonType } from "./ui/types";
-// import { AssetLoader } from "./utils/AssetLoader";
-// import { DebugUI } from "./utils/DebugUI";
-// import { DebugFlags } from "./utils/DebugFlags";
-// import { Character } from "./entities/Character"; // 캐릭터 임포트
-// import { Egg } from "./entities/Egg"; // Egg 클래스 임포트 추가
-// import { GameDataManager } from "./managers/GameDataManager"; // GameDataManager 임포트
-import type { GameData } from "./types/GameData"; // GameData 타입 임포트
-import { GAME_LOOP } from "./config"; // TimeConfig로 변경
-import type { CharacterKey } from "./types/Character";
-import { simulateCharacterStatus } from "./utils/simulator";
 import { MainSceneWorld } from "./scenes/MainScene/world";
 
 PIXI.TexturePool.textureOptions.scaleMode = "nearest";
@@ -401,6 +390,7 @@ export class Game {
             height: this.app.screen.height - 2 * SCREEN_PADDING,
           },
           parentElement: this._parentElement,
+          changeControlButtons: this.changeControlButtons,
         });
         await mainSceneWorld.init();
         return mainSceneWorld as unknown as Scene;

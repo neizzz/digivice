@@ -1,4 +1,4 @@
-import { addEntity, createWorld, IWorld, pipe, setDefaultSize } from "bitecs";
+import { addEntity, createWorld, IWorld, pipe } from "bitecs";
 import * as PIXI from "pixi.js";
 import {
   AngleComponent,
@@ -41,6 +41,13 @@ import {
   loadSpritesheet,
 } from "../../utils/asset";
 import { SPRITESHEET_KEY_TO_NAME } from "./systems/AnimationRenderSystem";
+import { Scene } from "../../interfaces/Scene";
+import {
+  ControlButtonType,
+  NavigationAction,
+  NavigationActionPayload,
+} from "../../ui/types";
+import { GameMenu } from "../../ui/GameMenu";
 
 export type EntityComponents = {
   characterStatus?: CharacterStatusComponent;
@@ -129,7 +136,7 @@ const IMAGE_ASSETS = {
  * b) 전역 데이터 저장
  * c) PIXI v8 Assets API를 활용한 에셋 관리
  */
-export class MainSceneWorld implements IWorld {
+export class MainSceneWorld implements IWorld, Scene {
   public readonly VERSION = "1.0.0";
   private _stage: PIXI.Container;
   private _positionBoundary: Boundary;
@@ -138,7 +145,16 @@ export class MainSceneWorld implements IWorld {
   private _debugStatusUI?: HTMLDebugStatusUI;
   private _debugToggleButton?: HTMLDebugToggleButton;
   private _staminaGaugeUI?: StaminaGaugeUI;
+  private _gameMenu?: GameMenu;
   private _parentElement?: HTMLElement;
+  private _navigationActionIndex = 0;
+  private _changeControlButtons?: (
+    controlButtonParamsSet: [
+      { type: ControlButtonType },
+      { type: ControlButtonType },
+      { type: ControlButtonType }
+    ]
+  ) => void;
   private _pipedSystems = pipe(
     randomMovementSystem,
     characterManagerSystem,
@@ -159,10 +175,21 @@ export class MainSceneWorld implements IWorld {
     stage: PIXI.Container;
     positionBoundary: Boundary;
     parentElement?: HTMLElement;
+    changeControlButtons?: (
+      controlButtonParamsSet: [
+        { type: ControlButtonType },
+        { type: ControlButtonType },
+        { type: ControlButtonType }
+      ]
+    ) => void;
   }) {
     this._stage = params.stage;
     this._positionBoundary = params.positionBoundary;
     this._parentElement = params.parentElement;
+    this._changeControlButtons = params.changeControlButtons;
+
+    // MainScene용 초기 컨트롤 버튼 설정 (메뉴에 포커스가 없는 상태)
+    this._updateControlButtonsForMenuState(false);
   }
 
   /**
@@ -275,6 +302,37 @@ export class MainSceneWorld implements IWorld {
     if (this._parentElement) {
       // 스테미나 게이지 UI (항상 표시)
       this._staminaGaugeUI = new StaminaGaugeUI(this, this._parentElement);
+
+      // 게임 메뉴 초기화
+      this._gameMenu = new GameMenu(this._parentElement, {
+        onMiniGameSelect: () => {
+          console.log("[MainSceneWorld] Mini game selected");
+          // TODO: 미니게임 시작
+        },
+        onFeedSelect: () => {
+          console.log("[MainSceneWorld] Feed selected");
+          // TODO: 먹이 주기 기능
+        },
+        onVersusSelect: () => {
+          console.log("[MainSceneWorld] Versus selected");
+          // TODO: 대결 기능
+        },
+        onDrugSelect: () => {
+          console.log("[MainSceneWorld] Drug selected");
+          // TODO: 약 주기 기능
+        },
+        onCleanSelect: () => {
+          console.log("[MainSceneWorld] Clean selected");
+          // TODO: 청소 기능
+        },
+        onCancel: () => {
+          console.log("[MainSceneWorld] Menu cancelled");
+        },
+        onFocusChange: (focusedIndex: number | null) => {
+          // 메뉴에 포커스가 있는지 여부에 따라 컨트롤 버튼 업데이트
+          this._updateControlButtonsForMenuState(focusedIndex !== null);
+        },
+      });
 
       // 디버그 UI (개발 환경에서만)
       if (import.meta.env.DEV) {
@@ -417,6 +475,18 @@ export class MainSceneWorld implements IWorld {
 
   destroy(): void {
     console.log("[MainSceneWorld] Destroying world...");
+
+    // 게임 메뉴 정리
+    if (this._gameMenu) {
+      this._gameMenu.destroy();
+      this._gameMenu = undefined;
+    }
+
+    // 스테미나 게이지 UI 정리
+    if (this._staminaGaugeUI) {
+      this._staminaGaugeUI.destroy();
+      this._staminaGaugeUI = undefined;
+    }
 
     // 디버그 UI 정리
     if (this._debugStatusUI) {
@@ -621,6 +691,94 @@ export class MainSceneWorld implements IWorld {
     // 배경 크기 조정
     if (this._background) {
       this._background.resize(width, height);
+    }
+  }
+
+  /**
+   * Scene 인터페이스 구현: 컨트롤 버튼 클릭 처리
+   */
+  public handleControlButtonClick(buttonType: ControlButtonType): void {
+    console.log(`[MainSceneWorld] Control button clicked: ${buttonType}`);
+
+    // Settings 버튼 클릭 시 메뉴 활성화 (첫 번째 메뉴 항목에 포커스)
+    if (buttonType === ControlButtonType.Settings && this._gameMenu) {
+      const navigationAction: NavigationActionPayload = {
+        type: NavigationAction.NEXT,
+        index: ++this._navigationActionIndex,
+      };
+      this._gameMenu.processNavigationAction(navigationAction);
+      return;
+    }
+
+    const navigationAction = this._createNavigationActionFromButton(buttonType);
+    if (navigationAction && this._gameMenu) {
+      this._gameMenu.processNavigationAction(navigationAction);
+    }
+  }
+
+  /**
+   * Scene 인터페이스 구현: 슬라이더 값 변경 처리
+   */
+  public handleSliderValueChange(value: number): void {
+    console.log(`[MainSceneWorld] Slider value changed: ${value}`);
+    // TODO: 슬라이더 기능이 필요할 때 구현
+  }
+
+  /**
+   * Scene 인터페이스 구현: 슬라이더 종료 처리
+   */
+  public handleSliderEnd(): void {
+    console.log("[MainSceneWorld] Slider ended");
+    // TODO: 슬라이더 기능이 필요할 때 구현
+  }
+
+  /**
+   * 컨트롤 버튼을 네비게이션 액션으로 변환
+   */
+  private _createNavigationActionFromButton(
+    buttonType: ControlButtonType
+  ): NavigationActionPayload | null {
+    switch (buttonType) {
+      case ControlButtonType.Next:
+        return {
+          type: NavigationAction.NEXT,
+          index: ++this._navigationActionIndex,
+        };
+      case ControlButtonType.Confirm:
+        return {
+          type: NavigationAction.SELECT,
+          index: ++this._navigationActionIndex,
+        };
+      case ControlButtonType.Cancel:
+        return {
+          type: NavigationAction.CANCEL,
+          index: ++this._navigationActionIndex,
+        };
+      default:
+        return null;
+    }
+  }
+
+  /**
+   * 메뉴 포커스 상태에 따라 컨트롤 버튼을 업데이트
+   */
+  private _updateControlButtonsForMenuState(menuHasFocus: boolean): void {
+    if (!this._changeControlButtons) return;
+
+    if (menuHasFocus) {
+      // 메뉴에 포커스가 있을 때: Next, Confirm, Cancel
+      this._changeControlButtons([
+        { type: ControlButtonType.Cancel },
+        { type: ControlButtonType.Confirm },
+        { type: ControlButtonType.Next },
+      ]);
+    } else {
+      // 메뉴에 포커스가 없을 때: Cancel, Settings, Next
+      this._changeControlButtons([
+        { type: ControlButtonType.Cancel },
+        { type: ControlButtonType.Settings },
+        { type: ControlButtonType.Next },
+      ]);
     }
   }
 }
