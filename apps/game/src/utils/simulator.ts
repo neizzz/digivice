@@ -7,7 +7,6 @@ import {
   CharacterState,
 } from "../types/Character";
 import { evolve, getCharacterClassFrom, hatch } from "../evolution";
-import type { LastCheckData } from "../managers/LastCheckDataManager";
 import { cloneDeep } from "./common";
 
 const A_MINUTE = 60 * 1000;

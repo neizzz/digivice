@@ -1,37 +1,21 @@
 import { defineQuery } from "bitecs";
-import { ObjectComp, CharacterStatusComp, RenderComp } from "../raw-components";
 import {
-  ObjectType,
-  CharacterStatus,
-  TextureKey,
-  CharacterKey,
-} from "../types";
+  ObjectComp,
+  CharacterStatusComp,
+  StatusIconRenderComp,
+} from "../raw-components";
+import { ObjectType, CharacterStatus } from "../types";
 import { MainSceneWorld } from "../world";
-
-// 진화 페이즈별 기본 텍스처 매핑
-const EVOLUTION_PHASE_CHARACTER_KEY: Record<
-  number,
-  Partial<Record<CharacterKey, number /** 확률 0.0 ~1.0 */>>
-> = {
-  0: {
-    [CharacterKey.TestGreenSlimeA1]: 1,
-  },
-  1: {
-    [CharacterKey.TestGreenSlimeB1]: 1,
-  },
-  2: {
-    [CharacterKey.TestGreenSlimeC1]: 1,
-  },
-  3: {
-    [CharacterKey.TestGreenSlimeD1]: 1,
-  },
-};
+import { startTemporaryStatus } from "./StatusIconRenderSystem";
 
 const characterQuery = defineQuery([
   ObjectComp,
   CharacterStatusComp,
-  RenderComp,
+  StatusIconRenderComp,
 ]);
+
+// 이전 프레임의 상태를 추적하기 위한 Map
+const previousStatusStates: Map<number, CharacterStatus[]> = new Map();
 
 export function characterManagerSystem(params: {
   world: MainSceneWorld;
@@ -48,78 +32,84 @@ export function characterManagerSystem(params: {
       continue;
     }
 
-    // 테스트용: 첫 번째 캐릭터에게 고정 상태 부여 (디버깅용)
-    if (i === 0) {
-      const currentStatuses = Array.from(
-        CharacterStatusComp.statuses[eid]
-      ).filter((s) => s !== ECS_NULL_VALUE);
-      if (currentStatuses.length === 0) {
-        // 처음에 상태가 없으면 테스트 상태들 추가
-        addCharacterStatus(eid, CharacterStatus.HAPPY);
-        addCharacterStatus(eid, CharacterStatus.SICK);
-        console.log(
-          `[CharacterManager] Added test statuses to character ${eid}:`,
-          [CharacterStatus.HAPPY, CharacterStatus.SICK]
-        );
+    // 현재 캐릭터의 상태와 진화 정보 가져오기
+    const statusArray = CharacterStatusComp.statuses[eid];
+
+    // 현재 상태들을 배열로 변환 (ECS_NULL_VALUE 제외)
+    const currentStatuses: CharacterStatus[] = [];
+    for (let j = 0; j < statusArray.length; j++) {
+      if (statusArray[j] !== ECS_NULL_VALUE) {
+        currentStatuses.push(statusArray[j]);
       }
     }
 
-    // 현재 캐릭터의 상태와 진화 정보 가져오기
-    const statusArray = CharacterStatusComp.statuses[eid];
-    const evolutionPhase = CharacterStatusComp.evolutionPhase[eid];
+    // 이전 상태와 비교
+    const previousStatuses = previousStatusStates.get(eid) || [];
+    const statusesChanged = !arraysEqual(previousStatuses, currentStatuses);
 
-    // 주요 상태 결정
-    const primaryStatus = getPrimaryStatus(statusArray);
+    if (statusesChanged) {
+      console.log(
+        `[CharacterManagerSystem] Status changed for entity ${eid}:`,
+        {
+          previous: previousStatuses,
+          current: currentStatuses,
+        }
+      );
+
+      // StatusIconRenderComp 동기화
+      syncStatusIconRenderComp(eid, currentStatuses);
+
+      // 이전 상태 업데이트
+      previousStatusStates.set(eid, [...currentStatuses]);
+    }
   }
 
   return params;
 }
 
-// 상태별 텍스처 변화 규칙 (추후 확장 가능)
-const getTextureVariationForStatus = (
-  baseTexture: TextureKey,
-  status: CharacterStatus
-): TextureKey => {
-  // 현재는 상태에 관계없이 기본 텍스처 반환
-  // 추후 상태별로 다른 텍스처나 애니메이션을 적용할 수 있음
-  switch (status) {
-    case CharacterStatus.SICK:
-      // 아픈 상태일 때는 별도 텍스처 사용 가능 (추후 구현)
-      return baseTexture;
-    case CharacterStatus.HAPPY:
-      // 행복한 상태일 때는 별도 텍스처 사용 가능 (추후 구현)
-      return baseTexture;
-    case CharacterStatus.URGENT:
-      // 긴급 상태일 때는 별도 텍스처 사용 가능 (추후 구현)
-      return baseTexture;
-    case CharacterStatus.UNHAPPY:
-      // 불행한 상태일 때는 별도 텍스처 사용 가능 (추후 구현)
-      return baseTexture;
-    default:
-      return baseTexture;
-  }
-};
+// 두 배열이 같은지 비교하는 헬퍼 함수
+function arraysEqual(
+  arr1: CharacterStatus[],
+  arr2: CharacterStatus[]
+): boolean {
+  if (arr1.length !== arr2.length) return false;
 
-function getPrimaryStatus(statusArray: Uint8Array): CharacterStatus | null {
-  if (!statusArray || statusArray.length === 0) {
-    return null;
+  // 정렬된 배열로 비교 (순서 무관)
+  const sorted1 = [...arr1].sort();
+  const sorted2 = [...arr2].sort();
+
+  for (let i = 0; i < sorted1.length; i++) {
+    if (sorted1[i] !== sorted2[i]) return false;
   }
 
-  // 상태 우선순위: URGENT > SICK > UNHAPPY > HAPPY
-  const priorities = [
-    CharacterStatus.URGENT,
-    CharacterStatus.SICK,
-    CharacterStatus.UNHAPPY,
-    CharacterStatus.HAPPY,
-  ];
+  return true;
+}
 
-  for (const status of priorities) {
-    if (statusArray.includes(status)) {
-      return status;
-    }
+// StatusIconRenderComp를 CharacterStatusComp와 동기화
+function syncStatusIconRenderComp(
+  eid: number,
+  currentStatuses: CharacterStatus[]
+): void {
+  const storeIndexes = StatusIconRenderComp.storeIndexes[eid];
+
+  if (!storeIndexes) {
+    console.warn(
+      `[CharacterManagerSystem] No StatusIconRenderComp found for entity ${eid}`
+    );
+    return;
   }
 
-  return null;
+  // 기존 storeIndexes 초기화
+  for (let i = 0; i < storeIndexes.length; i++) {
+    storeIndexes[i] = ECS_NULL_VALUE;
+  }
+
+  // visibleCount 업데이트
+  StatusIconRenderComp.visibleCount[eid] = currentStatuses.length;
+
+  console.log(
+    `[CharacterManagerSystem] Synced StatusIconRenderComp for entity ${eid}: ${currentStatuses.length} statuses`
+  );
 }
 
 export function addCharacterStatus(eid: number, status: CharacterStatus): void {
@@ -141,6 +131,15 @@ export function addCharacterStatus(eid: number, status: CharacterStatus): void {
   for (let i = 0; i < currentStatuses.length; i++) {
     if (currentStatuses[i] === ECS_NULL_VALUE) {
       currentStatuses[i] = status;
+
+      // 일시적 상태인 경우 타이머 시작
+      if (
+        status === CharacterStatus.HAPPY ||
+        status === CharacterStatus.DISCOVER
+      ) {
+        startTemporaryStatus(eid, status);
+      }
+
       console.log(
         `[addCharacterStatus] Added status ${status} to entity ${eid} at slot ${i}. New statuses:`,
         Array.from(currentStatuses)

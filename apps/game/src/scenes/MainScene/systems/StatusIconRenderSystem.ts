@@ -10,12 +10,23 @@ import * as PIXI from "pixi.js";
 import { MainSceneWorld } from "../world";
 import { CharacterStatus, ObjectType, TextureKey } from "../types";
 
+// 일시적인 상태들 (3초 후 자동 제거)
+const TEMPORARY_STATUSES = [CharacterStatus.HAPPY, CharacterStatus.DISCOVER];
+const TEMPORARY_STATUS_DURATION = 3000; // 3초
+
+// 엔티티별 일시적 상태 타이머
+const temporaryStatusTimers: Map<
+  number,
+  Map<CharacterStatus, number>
+> = new Map();
+
 // 상태 아이콘 매핑
 const STATUS_TO_TEXTURE_KEY: Record<CharacterStatus, TextureKey> = {
   [CharacterStatus.SICK]: TextureKey.SICK,
   [CharacterStatus.HAPPY]: TextureKey.HAPPY,
   [CharacterStatus.UNHAPPY]: TextureKey.UNHAPPY,
   [CharacterStatus.URGENT]: TextureKey.URGENT,
+  [CharacterStatus.DISCOVER]: TextureKey.DISCOVER,
 };
 
 // 엔티티별 스프라이트 스토어
@@ -38,6 +49,10 @@ function getTextureFromKey(textureKey: number): PIXI.Texture | undefined {
     [TextureKey.URGENT]: {
       spritesheetAlias: "common16x16",
       textureName: "urgent",
+    },
+    [TextureKey.DISCOVER]: {
+      spritesheetAlias: "common16x16",
+      textureName: "discover",
     },
   };
 
@@ -94,6 +109,89 @@ function clearEntitySprites(eid: number): void {
   }
 }
 
+// 일시적 상태 관리 함수들
+export function startTemporaryStatus(
+  eid: number,
+  status: CharacterStatus
+): void {
+  if (!TEMPORARY_STATUSES.includes(status)) return;
+
+  if (!temporaryStatusTimers.has(eid)) {
+    temporaryStatusTimers.set(eid, new Map());
+  }
+
+  const entityTimers = temporaryStatusTimers.get(eid)!;
+  entityTimers.set(status, Date.now() + TEMPORARY_STATUS_DURATION);
+}
+
+function updateTemporaryStatuses(eid: number, _delta: number): void {
+  const entityTimers = temporaryStatusTimers.get(eid);
+  if (!entityTimers) return;
+
+  const now = Date.now();
+  const expiredStatuses: CharacterStatus[] = [];
+
+  for (const [status, expireTime] of entityTimers.entries()) {
+    if (now >= expireTime) {
+      expiredStatuses.push(status);
+    }
+  }
+
+  // 만료된 일시적 상태들 제거
+  for (const status of expiredStatuses) {
+    entityTimers.delete(status);
+    removeStatusFromEntity(eid, status);
+  }
+
+  if (entityTimers.size === 0) {
+    temporaryStatusTimers.delete(eid);
+  }
+}
+
+function removeStatusFromEntity(
+  eid: number,
+  statusToRemove: CharacterStatus
+): void {
+  const currentStatuses = CharacterStatusComp.statuses[eid];
+  let removed = false;
+
+  // CharacterStatusComp에서 상태 제거
+  for (let i = 0; i < currentStatuses.length; i++) {
+    if (currentStatuses[i] === statusToRemove) {
+      currentStatuses[i] = ECS_NULL_VALUE;
+      removed = true;
+      break;
+    }
+  }
+
+  if (removed) {
+    console.log(
+      `[StatusIconRenderSystem] Removed temporary status ${statusToRemove} from entity ${eid}`
+    );
+
+    // StatusIconRenderComp 동기화는 CharacterManageSystem에서 처리됨
+    // 여기서는 상태만 제거하고 다음 프레임에 CharacterManageSystem이 동기화함
+  }
+}
+
+function organizeStatuses(statuses: CharacterStatus[]): {
+  persistent: CharacterStatus[];
+  temporary: CharacterStatus[];
+} {
+  const persistent: CharacterStatus[] = [];
+  const temporary: CharacterStatus[] = [];
+
+  for (const status of statuses) {
+    if (TEMPORARY_STATUSES.includes(status)) {
+      temporary.push(status);
+    } else {
+      persistent.push(status);
+    }
+  }
+
+  return { persistent, temporary: temporary.slice(0, 1) }; // 일시적 상태는 최대 1개만
+}
+
 const statusIconQuery = defineQuery([
   PositionComp,
   CharacterStatusComp,
@@ -106,13 +204,14 @@ export function statusIconRenderSystem(params: {
   world: MainSceneWorld;
   delta: number;
 }): typeof params {
-  const { world } = params;
+  const { world, delta } = params;
 
   // 제거된 엔티티 처리
   const exitEntities = statusIconExitQuery(world);
   for (let i = 0; i < exitEntities.length; i++) {
     const eid = exitEntities[i];
     clearEntitySprites(eid);
+    temporaryStatusTimers.delete(eid);
     StatusIconRenderComp.visibleCount[eid] = 0;
   }
 
@@ -126,19 +225,28 @@ export function statusIconRenderSystem(params: {
       continue;
     }
 
+    // 일시적 상태 업데이트 (만료된 상태 제거)
+    updateTemporaryStatuses(eid, delta);
+
     const position = {
       x: PositionComp.x[eid],
       y: PositionComp.y[eid],
     };
 
     // 현재 상태들 가져오기
-    const currentStatuses: CharacterStatus[] = [];
+    const allStatuses: CharacterStatus[] = [];
     for (let j = 0; j < 4; j++) {
       const status = CharacterStatusComp.statuses[eid][j];
       if (status !== ECS_NULL_VALUE) {
-        currentStatuses.push(status);
+        allStatuses.push(status);
       }
     }
+
+    // 상태를 지속적 상태와 일시적 상태로 분리
+    const { persistent, temporary } = organizeStatuses(allStatuses);
+
+    // 최종 표시할 상태들: 지속적 상태들 + 일시적 상태 최대 1개 (맨 오른쪽)
+    const displayStatuses = [...persistent, ...temporary];
 
     // 기존 스프라이트들 가져오기 또는 초기화
     let sprites = entityStatusSprites.get(eid);
@@ -148,16 +256,16 @@ export function statusIconRenderSystem(params: {
     }
 
     // 필요 없는 스프라이트 제거
-    if (sprites.length > currentStatuses.length) {
-      for (let j = currentStatuses.length; j < sprites.length; j++) {
+    if (sprites.length > displayStatuses.length) {
+      for (let j = displayStatuses.length; j < sprites.length; j++) {
         sprites[j].removeFromParent();
       }
-      sprites.splice(currentStatuses.length);
+      sprites.splice(displayStatuses.length);
     }
 
     // 필요한 스프라이트 생성/업데이트
-    for (let j = 0; j < currentStatuses.length; j++) {
-      const status = currentStatuses[j];
+    for (let j = 0; j < displayStatuses.length; j++) {
+      const status = displayStatuses[j];
       const textureKey = STATUS_TO_TEXTURE_KEY[status];
 
       if (!textureKey) {
@@ -185,8 +293,8 @@ export function statusIconRenderSystem(params: {
       const iconSize = 28.8; // 1.8 * 16
       const spacing = 4;
       const totalWidth =
-        currentStatuses.length * iconSize +
-        (currentStatuses.length - 1) * spacing;
+        displayStatuses.length * iconSize +
+        (displayStatuses.length - 1) * spacing;
       const startX =
         position.x - totalWidth / 2 + j * (iconSize + spacing) + iconSize / 2;
 
@@ -194,7 +302,7 @@ export function statusIconRenderSystem(params: {
       sprites[j].y = position.y - 50;
     }
 
-    StatusIconRenderComp.visibleCount[eid] = currentStatuses.length;
+    StatusIconRenderComp.visibleCount[eid] = displayStatuses.length;
   }
 
   return params;

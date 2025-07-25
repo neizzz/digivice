@@ -12,34 +12,40 @@ const TEXTURE_MAP: Record<
   { spritesheetAlias?: string; textureName: string }
 > = {
   // TODO: animation으로 취급
-  // Character sprites (monsters)
+  // Character sprites (monsters) (1-99)
   // 1: { spritesheetAlias: "test-green-slime_A1", textureName: "idle-1" }, // CharacterKey.TestGreenSlimeA1
   // 2: { spritesheetAlias: "test-green-slime_B1", textureName: "idle-1" }, // CharacterKey.TestGreenSlimeB1
   // 3: { spritesheetAlias: "test-green-slime_C1", textureName: "idle-1" }, // CharacterKey.TestGreenSlimeC1
   // 4: { spritesheetAlias: "test-green-slime_D1", textureName: "idle-1" }, // CharacterKey.TestGreenSlimeD1
-  // Bird sprites
+
+  // Bird sprites (100-199)
   // 100: { spritesheetAlias: "bird", textureName: "bird" },
 
-  // Common 16x16 sprites
-  101: { spritesheetAlias: "common16x16", textureName: "poob" },
-  102: { spritesheetAlias: "common16x16", textureName: "broom" },
-  103: { spritesheetAlias: "common16x16", textureName: "sick" },
-  104: { spritesheetAlias: "common16x16", textureName: "happy" },
-  105: { spritesheetAlias: "common16x16", textureName: "unhappy" },
-  106: { spritesheetAlias: "common16x16", textureName: "urgent" },
+  // Common 16x16 sprites (200-299)
+  200: { spritesheetAlias: "common16x16", textureName: "poob" }, // TextureKey.POOB
+  201: { spritesheetAlias: "common16x16", textureName: "broom" }, // TextureKey.BROOM
+  202: { spritesheetAlias: "common16x16", textureName: "sick" }, // TextureKey.SICK
+  203: { spritesheetAlias: "common16x16", textureName: "happy" }, // TextureKey.HAPPY
+  204: { spritesheetAlias: "common16x16", textureName: "unhappy" }, // TextureKey.UNHAPPY
+  205: { spritesheetAlias: "common16x16", textureName: "urgent" }, // TextureKey.URGENT
+  206: { spritesheetAlias: "common16x16", textureName: "discover" }, // TextureKey.DISCOVER
 
-  // Common 32x32 sprites
-  107: { spritesheetAlias: "common32x32", textureName: "basket" },
-  108: { spritesheetAlias: "common32x32", textureName: "tomb" },
+  // Common 32x32 sprites (300-399)
+  300: { spritesheetAlias: "common32x32", textureName: "basket" }, // TextureKey.BASKET
+  301: { spritesheetAlias: "common32x32", textureName: "tomb" }, // TextureKey.TOMB
 
-  // Food sprites
-  110: { spritesheetAlias: "foods", textureName: "food-1" },
-  111: { spritesheetAlias: "foods", textureName: "food-2" },
-  112: { spritesheetAlias: "foods", textureName: "food-3" },
+  // Food sprites (400-499)
+  400: { spritesheetAlias: "foods", textureName: "food-1" }, // TextureKey.FOOD1
+  401: { spritesheetAlias: "foods", textureName: "food-2" }, // TextureKey.FOOD2
+  402: { spritesheetAlias: "foods", textureName: "food-3" }, // TextureKey.FOOD3
 
-  // Egg sprites
-  150: { spritesheetAlias: "eggs", textureName: "egg-0" },
-  151: { spritesheetAlias: "eggs", textureName: "egg-1" },
+  // Egg sprites (500-599)
+  500: { spritesheetAlias: "eggs", textureName: "egg-0" }, // TextureKey.EGG0
+  501: { spritesheetAlias: "eggs", textureName: "egg-1" }, // TextureKey.EGG1
+
+  // Pill sprites (600-699)
+  600: { spritesheetAlias: "common16x16", textureName: "pill-1" }, // TextureKey.PILL1
+  601: { spritesheetAlias: "common16x16", textureName: "pill-2" }, // TextureKey.PILL2
 } as const;
 
 // 스프라이트 스토어

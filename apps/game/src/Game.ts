@@ -4,8 +4,8 @@ import type { Scene } from "./interfaces/Scene";
 import { FlappyBirdGameScene } from "./scenes/FlappyBirdGameScene";
 import type { ControlButtonParams, ControlButtonType } from "./ui/types";
 // import { AssetLoader } from "./utils/AssetLoader";
-import { DebugUI } from "./utils/DebugUI";
-import { DebugFlags } from "./utils/DebugFlags";
+// import { DebugUI } from "./utils/DebugUI";
+// import { DebugFlags } from "./utils/DebugFlags";
 // import { Character } from "./entities/Character"; // 캐릭터 임포트
 // import { Egg } from "./entities/Egg"; // Egg 클래스 임포트 추가
 // import { GameDataManager } from "./managers/GameDataManager"; // GameDataManager 임포트
@@ -72,10 +72,10 @@ export class Game {
     // this._onResize();
 
     // NOTE: 디버그 UI 초기화 / from "@digivice/client"
-    if (import.meta.env.DEV === true) {
-      DebugFlags.getInstance(); // 인스턴스 생성
-      DebugUI.getInstance();
-    }
+    // if (import.meta.env.DEV === true) {
+    //   DebugFlags.getInstance(); // 인스턴스 생성
+    //   DebugUI.getInstance();
+    // }
 
     // GameDataManager.initialize();
     // LastCheckDataManager.initialize();
@@ -233,9 +233,9 @@ export class Game {
       .then(() => {
         this.assetsLoaded = true;
 
-        if (import.meta.env.DEV) {
-          DebugUI.getInstance();
-        }
+        // if (import.meta.env.DEV) {
+        //   DebugUI.getInstance();
+        // }
 
         this._setupInitialScene();
         this._setupGameLoop();
@@ -360,7 +360,15 @@ export class Game {
     this.app.renderer.resize(width, height);
     this.app.renderer.resolution = window.devicePixelRatio || 2;
     this.app.stage.setSize(width, height);
-    // this.currentScene?.onResize(width, height);
+
+    // MainSceneWorld의 resize 메소드 호출
+    if (this.currentScene && this.currentSceneKey === SceneKey.MAIN) {
+      const mainSceneWorld = this.currentScene as unknown as MainSceneWorld;
+      mainSceneWorld.resize(
+        width - 2 * SCREEN_PADDING,
+        height - 2 * SCREEN_PADDING
+      );
+    }
   }
 
   /**
@@ -392,6 +400,7 @@ export class Game {
             width: this.app.screen.width - 2 * SCREEN_PADDING,
             height: this.app.screen.height - 2 * SCREEN_PADDING,
           },
+          parentElement: this._parentElement,
         });
         await mainSceneWorld.init();
         return mainSceneWorld as unknown as Scene;

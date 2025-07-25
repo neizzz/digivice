@@ -56,6 +56,6 @@ export const AnimationRenderComp = defineComponent({
   speed: Types.f32, // 애니메이션 속도 배율 (1.0 = 기본 속도)
 });
 export const StatusIconRenderComp = defineComponent({
-  storeIndexes: [Types.ui16, ECS_CHARACTER_STATUS_LENGTH], // 각 상태 아이콘의 sprite 인스턴스 참조 인덱스 배열
+  storeIndexes: [Types.ui8, ECS_CHARACTER_STATUS_LENGTH], // 각 상태 아이콘의 sprite 인스턴스 참조 인덱스 배열
   visibleCount: Types.ui8, // 현재 표시 중인 아이콘 개수
 });

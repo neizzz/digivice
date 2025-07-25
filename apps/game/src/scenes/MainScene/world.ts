@@ -40,6 +40,8 @@ import {
   LoadSpritesheetOptions,
   loadSpritesheet,
 } from "../../utils/asset";
+import { HTMLDebugStatusUI } from "./ui/HTMLDebugStatusUI";
+import { HTMLDebugToggleButton } from "./ui/HTMLDebugToggleButton";
 
 export type EntityComponents = {
   characterStatus?: CharacterStatusComponent;
@@ -134,6 +136,9 @@ export class MainSceneWorld implements IWorld {
   private _positionBoundary: Boundary;
   private _background?: Background;
   private _persistentData?: MainSceneWorldData;
+  private _debugStatusUI?: HTMLDebugStatusUI;
+  private _debugToggleButton?: HTMLDebugToggleButton;
+  private _parentElement?: HTMLElement;
   private _pipedSystems = pipe(
     randomMovementSystem,
     characterManagerSystem,
@@ -150,9 +155,14 @@ export class MainSceneWorld implements IWorld {
     return this._positionBoundary;
   }
 
-  constructor(params: { stage: PIXI.Container; positionBoundary: Boundary }) {
+  constructor(params: {
+    stage: PIXI.Container;
+    positionBoundary: Boundary;
+    parentElement?: HTMLElement;
+  }) {
     this._stage = params.stage;
     this._positionBoundary = params.positionBoundary;
+    this._parentElement = params.parentElement;
   }
 
   /**
@@ -260,6 +270,15 @@ export class MainSceneWorld implements IWorld {
     const width = this._stage.width;
     const height = this._stage.height;
     this._background.resize(width, height);
+
+    // 디버그 UI 초기화 (개발 환경에서만)
+    if (import.meta.env.DEV && this._parentElement) {
+      this._debugStatusUI = new HTMLDebugStatusUI(this, this._parentElement);
+      this._debugToggleButton = new HTMLDebugToggleButton(() => {
+        this._debugStatusUI?.toggle();
+        return this._debugStatusUI?.isDebugVisible() ?? false;
+      }, this._parentElement);
+    }
 
     console.log("[MainSceneWorld] World initialization completed");
   }
@@ -386,6 +405,16 @@ export class MainSceneWorld implements IWorld {
   destroy(): void {
     console.log("[MainSceneWorld] Destroying world...");
 
+    // 디버그 UI 정리
+    if (this._debugStatusUI) {
+      this._debugStatusUI.destroy();
+      this._debugStatusUI = undefined;
+    }
+    if (this._debugToggleButton) {
+      this._debugToggleButton.destroy();
+      this._debugToggleButton = undefined;
+    }
+
     this._background && this._stage.removeChild(this._background);
     // this._assetsLoaded = false;
 
@@ -395,10 +424,21 @@ export class MainSceneWorld implements IWorld {
     console.log("[MainSceneWorld] World destroyed successfully");
     // TODO: 모든 엔티티 제거
   }
-
   update(delta: number): void {
     // TODO: hatchSystem, throwSystem
     this._pipedSystems({ world: this, delta });
+
+    // 디버그 UI 업데이트
+    if (this._debugStatusUI) {
+      this._debugStatusUI.update();
+
+      // 디버그 토글 버튼 상태 동기화
+      if (this._debugToggleButton) {
+        this._debugToggleButton.updateState(
+          this._debugStatusUI.isDebugVisible()
+        );
+      }
+    }
   }
 
   private _initializeData(): MainSceneWorldData {
@@ -546,5 +586,23 @@ export class MainSceneWorld implements IWorld {
 
     console.log("[MainSceneWorld] Data migration completed");
     return data;
+  }
+
+  /**
+   * 화면 크기 변경 시 호출되는 메서드
+   */
+  resize(width: number, height: number): void {
+    // 위치 경계 업데이트
+    this._positionBoundary = {
+      x: this._positionBoundary.x,
+      y: this._positionBoundary.y,
+      width: width - 2 * this._positionBoundary.x,
+      height: height - 2 * this._positionBoundary.y,
+    };
+
+    // 배경 크기 조정
+    if (this._background) {
+      this._background.resize(width, height);
+    }
   }
 }

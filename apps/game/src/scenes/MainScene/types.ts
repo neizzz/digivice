@@ -32,6 +32,7 @@ export enum CharacterStatus {
   URGENT = 2,
   SICK = 3,
   HAPPY = 4,
+  DISCOVER = 5,
 }
 export enum FoodState {
   BEING_THROWING = 1,
@@ -96,41 +97,44 @@ export enum AnimationKey {
   SICK = 5,
   FLY = 6,
 }
+/** NOTE: RenderSystem {@link TEXTURE_MAP}과 싱크가 맞아야 함. */
 export enum TextureKey {
   NULL = ECS_NULL_VALUE,
 
-  // Character Keys
+  // Character Keys (1-99)
   // TestGreenSlimeA1 = 1,
   // TestGreenSlimeB1 = 2,
   // TestGreenSlimeC1 = 3,
   // TestGreenSlimeD1 = 4,
 
-  // Bird sprites
+  // Bird sprites (100-199)
   // BIRD = 100,
 
-  // Common 16x16 sprites
-  POOB = 101,
-  BROOM = 102,
-  SICK = 103,
-  HAPPY = 104,
-  UNHAPPY = 105,
-  URGENT = 106,
+  // Common 16x16 sprites (200-299)
+  POOB = 200,
+  BROOM = 201,
+  SICK = 202,
+  HAPPY = 203,
+  UNHAPPY = 204,
+  URGENT = 205,
+  DISCOVER = 206,
 
-  // Common 32x32 sprites
-  BASKET = 107,
-  TOMB = 108,
+  // Common 32x32 sprites (300-399)
+  BASKET = 300,
+  TOMB = 301,
 
-  // Food sprites
-  FOOD1 = 110,
-  FOOD2 = 111,
-  FOOD3 = 112,
+  // Food sprites (400-499)
+  FOOD1 = 400,
+  FOOD2 = 401,
+  FOOD3 = 402,
 
-  // Egg sprites
-  EGG0 = 150,
-  EGG1 = 151,
+  // Egg sprites (500-599)
+  EGG0 = 500,
+  EGG1 = 501,
 
-  PILL1 = 200,
-  PILL2 = 201,
+  // Pill sprites (600-699)
+  PILL1 = 600,
+  PILL2 = 601,
 }
 
 /**
