@@ -25,8 +25,8 @@ export class StaminaGaugeUI {
     const container = document.createElement("div");
     container.style.cssText = `
       position: fixed;
-      top: 45px;
-      left: 10px;
+      top: 4px;
+      left: 100px;
       background: rgba(0, 0, 0, 0.4);
       border-radius: 5px;
       padding: 10px;

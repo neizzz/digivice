@@ -111,7 +111,12 @@ const TEXTURE_MAP: Record<
 } as const;
 
 // 스프라이트 스토어
-const spriteStore: (PIXI.Sprite | PIXI.AnimatedSprite | null)[] = [];
+const spriteStore: (
+  | PIXI.Sprite
+  | PIXI.AnimatedSprite
+  | null
+  | typeof ECS_NULL_VALUE
+)[] = [ECS_NULL_VALUE];
 
 function getSprite(
   idx: number
@@ -248,17 +253,12 @@ export function renderSystem(params: {
       continue;
     }
 
-    // 스프라이트가 없거나 storeIndex가 초기값(0)이면서 다른 엔티티가 사용 중인 경우 새 스프라이트 생성
-    const needsNewSprite =
-      !sprite || (storeIndex === 0 && isStoreIndexInUse(0, eid));
-
-    if (needsNewSprite) {
+    if (!sprite) {
       sprite = createSpriteForEntity(eid);
       if (!sprite) {
-        console.warn(
+        throw new Error(
           `[RenderSystem] Failed to create sprite for entity ${eid}`
         );
-        continue;
       }
 
       // 빈 슬롯을 찾아서 재사용하거나 새로 추가

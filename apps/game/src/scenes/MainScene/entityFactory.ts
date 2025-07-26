@@ -64,8 +64,8 @@ export function createCharacterEntity(
   PositionComp.x[eid] = _components.position?.x || ECS_NULL_VALUE;
   PositionComp.y[eid] = _components.position?.y || ECS_NULL_VALUE;
 
-  // addComponent(world, AngleComp, eid);
-  // AngleComp.value[eid] = _components.angle?.value || ECS_NULL_VALUE;
+  addComponent(world, AngleComp, eid);
+  AngleComp.value[eid] = _components.angle?.value || 0; // 기본 각도는 0
 
   addComponent(world, RenderComp, eid);
   RenderComp.storeIndex[eid] = ECS_NULL_VALUE; // 스프라이트 참조 인덱스는 나중에 설정
