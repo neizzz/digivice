@@ -12,6 +12,7 @@ import {
   CharacterStatusComp,
   AnimationRenderComp,
   StatusIconRenderComp,
+  ThrowAnimationComp,
 } from "./raw-components";
 import {
   CharacterKey,
@@ -86,7 +87,7 @@ export function createCharacterEntity(
 
   // 상태 아이콘 렌더링 컴포넌트 초기화
   addComponent(world, StatusIconRenderComp, eid);
-  StatusIconRenderComp.storeIndexes[eid] = new Uint16Array(
+  StatusIconRenderComp.storeIndexes[eid] = new Uint8Array(
     ECS_CHARACTER_STATUS_LENGTH
   ).fill(ECS_NULL_VALUE);
   StatusIconRenderComp.visibleCount[eid] = 0;
@@ -265,6 +266,68 @@ export function createPoobEntity(
   RenderComp.storeIndex[eid] = 0;
   RenderComp.textureKey[eid] = TextureKey.POOB; // Poob 전용 텍스처 사용
   RenderComp.zIndex[eid] = _components.position.y;
+
+  return eid;
+}
+
+/**
+ * 던져지는 음식 엔티티 생성
+ */
+export function createThrowingFoodEntity(
+  world: IWorld,
+  options: {
+    initialPosition: { x: number; y: number };
+    finalPosition: { x: number; y: number };
+  }
+): number {
+  const eid = addEntity(world);
+
+  // 64가지 음식 중 랜덤 선택 (FOOD1 = 400 ~ FOOD64 = 463)
+  const randomFoodKey = TextureKey.FOOD1 + Math.floor(Math.random() * 64);
+
+  // Object component
+  addComponent(world, ObjectComp, eid);
+  ObjectComp.id[eid] = generatePersistentNumericId();
+  ObjectComp.type[eid] = ObjectType.FOOD;
+  ObjectComp.state[eid] = FoodState.BEING_THROWING;
+
+  // Position component (초기 위치 설정)
+  addComponent(world, PositionComp, eid);
+  PositionComp.x[eid] = options.initialPosition.x;
+  PositionComp.y[eid] = options.initialPosition.y;
+
+  // Angle component (렌더링을 위해 필요)
+  addComponent(world, AngleComp, eid);
+  AngleComp.value[eid] = 0; // 기본 각도
+
+  // Render component
+  addComponent(world, RenderComp, eid);
+  RenderComp.storeIndex[eid] = ECS_NULL_VALUE;
+  RenderComp.textureKey[eid] = randomFoodKey;
+  RenderComp.scale[eid] = 4; // 초기 큰 크기로 시작 (시스템에서 관리)
+  RenderComp.zIndex[eid] = INTENTED_FRONT_Z_INDEX;
+
+  // Freshness component
+  addComponent(world, FreshnessComp, eid);
+  FreshnessComp.freshness[eid] = Freshness.FRESH;
+
+  // Throw animation component
+  addComponent(world, ThrowAnimationComp, eid);
+  ThrowAnimationComp.initialX[eid] = options.initialPosition.x;
+  ThrowAnimationComp.initialY[eid] = options.initialPosition.y;
+  ThrowAnimationComp.finalX[eid] = options.finalPosition.x;
+  ThrowAnimationComp.finalY[eid] = options.finalPosition.y;
+  ThrowAnimationComp.elapsedTime[eid] = 0;
+  ThrowAnimationComp.isActive[eid] = 1; // 활성화
+
+  console.log(`[EntityFactory] Created throwing food entity: ${eid}`);
+  console.log(
+    `[EntityFactory] - Initial position: (${options.initialPosition.x}, ${options.initialPosition.y})`
+  );
+  console.log(
+    `[EntityFactory] - Final position: (${options.finalPosition.x}, ${options.finalPosition.y})`
+  );
+  console.log(`[EntityFactory] - Random food texture key: ${randomFoodKey}`);
 
   return eid;
 }

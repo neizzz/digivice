@@ -60,3 +60,15 @@ export const StatusIconRenderComp = defineComponent({
   storeIndexes: [Types.ui8, ECS_CHARACTER_STATUS_LENGTH], // 각 상태 아이콘의 sprite 인스턴스 참조 인덱스 배열
   visibleCount: Types.ui8, // 현재 표시 중인 아이콘 개수
 });
+export const ThrowAnimationComp = defineComponent({
+  // Initial position
+  initialX: Types.f32,
+  initialY: Types.f32,
+  // Final position
+  finalX: Types.f32,
+  finalY: Types.f32,
+  // Timing
+  elapsedTime: Types.f32, // ms
+  // State
+  isActive: Types.ui8, // 0 = false, 1 = true
+});

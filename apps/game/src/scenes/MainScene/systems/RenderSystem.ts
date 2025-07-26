@@ -38,6 +38,67 @@ const TEXTURE_MAP: Record<
   400: { spritesheetAlias: "foods", textureName: "food-1" }, // TextureKey.FOOD1
   401: { spritesheetAlias: "foods", textureName: "food-2" }, // TextureKey.FOOD2
   402: { spritesheetAlias: "foods", textureName: "food-3" }, // TextureKey.FOOD3
+  403: { spritesheetAlias: "foods", textureName: "food-4" }, // TextureKey.FOOD4
+  404: { spritesheetAlias: "foods", textureName: "food-5" }, // TextureKey.FOOD5
+  405: { spritesheetAlias: "foods", textureName: "food-6" }, // TextureKey.FOOD6
+  406: { spritesheetAlias: "foods", textureName: "food-7" }, // TextureKey.FOOD7
+  407: { spritesheetAlias: "foods", textureName: "food-8" }, // TextureKey.FOOD8
+  408: { spritesheetAlias: "foods", textureName: "food-9" }, // TextureKey.FOOD9
+  409: { spritesheetAlias: "foods", textureName: "food-10" }, // TextureKey.FOOD10
+  410: { spritesheetAlias: "foods", textureName: "food-11" }, // TextureKey.FOOD11
+  411: { spritesheetAlias: "foods", textureName: "food-12" }, // TextureKey.FOOD12
+  412: { spritesheetAlias: "foods", textureName: "food-13" }, // TextureKey.FOOD13
+  413: { spritesheetAlias: "foods", textureName: "food-14" }, // TextureKey.FOOD14
+  414: { spritesheetAlias: "foods", textureName: "food-15" }, // TextureKey.FOOD15
+  415: { spritesheetAlias: "foods", textureName: "food-16" }, // TextureKey.FOOD16
+  416: { spritesheetAlias: "foods", textureName: "food-17" }, // TextureKey.FOOD17
+  417: { spritesheetAlias: "foods", textureName: "food-18" }, // TextureKey.FOOD18
+  418: { spritesheetAlias: "foods", textureName: "food-19" }, // TextureKey.FOOD19
+  419: { spritesheetAlias: "foods", textureName: "food-20" }, // TextureKey.FOOD20
+  420: { spritesheetAlias: "foods", textureName: "food-21" }, // TextureKey.FOOD21
+  421: { spritesheetAlias: "foods", textureName: "food-22" }, // TextureKey.FOOD22
+  422: { spritesheetAlias: "foods", textureName: "food-23" }, // TextureKey.FOOD23
+  423: { spritesheetAlias: "foods", textureName: "food-24" }, // TextureKey.FOOD24
+  424: { spritesheetAlias: "foods", textureName: "food-25" }, // TextureKey.FOOD25
+  425: { spritesheetAlias: "foods", textureName: "food-26" }, // TextureKey.FOOD26
+  426: { spritesheetAlias: "foods", textureName: "food-27" }, // TextureKey.FOOD27
+  427: { spritesheetAlias: "foods", textureName: "food-28" }, // TextureKey.FOOD28
+  428: { spritesheetAlias: "foods", textureName: "food-29" }, // TextureKey.FOOD29
+  429: { spritesheetAlias: "foods", textureName: "food-30" }, // TextureKey.FOOD30
+  430: { spritesheetAlias: "foods", textureName: "food-31" }, // TextureKey.FOOD31
+  431: { spritesheetAlias: "foods", textureName: "food-32" }, // TextureKey.FOOD32
+  432: { spritesheetAlias: "foods", textureName: "food-33" }, // TextureKey.FOOD33
+  433: { spritesheetAlias: "foods", textureName: "food-34" }, // TextureKey.FOOD34
+  434: { spritesheetAlias: "foods", textureName: "food-35" }, // TextureKey.FOOD35
+  435: { spritesheetAlias: "foods", textureName: "food-36" }, // TextureKey.FOOD36
+  436: { spritesheetAlias: "foods", textureName: "food-37" }, // TextureKey.FOOD37
+  437: { spritesheetAlias: "foods", textureName: "food-38" }, // TextureKey.FOOD38
+  438: { spritesheetAlias: "foods", textureName: "food-39" }, // TextureKey.FOOD39
+  439: { spritesheetAlias: "foods", textureName: "food-40" }, // TextureKey.FOOD40
+  440: { spritesheetAlias: "foods", textureName: "food-41" }, // TextureKey.FOOD41
+  441: { spritesheetAlias: "foods", textureName: "food-42" }, // TextureKey.FOOD42
+  442: { spritesheetAlias: "foods", textureName: "food-43" }, // TextureKey.FOOD43
+  443: { spritesheetAlias: "foods", textureName: "food-44" }, // TextureKey.FOOD44
+  444: { spritesheetAlias: "foods", textureName: "food-45" }, // TextureKey.FOOD45
+  445: { spritesheetAlias: "foods", textureName: "food-46" }, // TextureKey.FOOD46
+  446: { spritesheetAlias: "foods", textureName: "food-47" }, // TextureKey.FOOD47
+  447: { spritesheetAlias: "foods", textureName: "food-48" }, // TextureKey.FOOD48
+  448: { spritesheetAlias: "foods", textureName: "food-49" }, // TextureKey.FOOD49
+  449: { spritesheetAlias: "foods", textureName: "food-50" }, // TextureKey.FOOD50
+  450: { spritesheetAlias: "foods", textureName: "food-51" }, // TextureKey.FOOD51
+  451: { spritesheetAlias: "foods", textureName: "food-52" }, // TextureKey.FOOD52
+  452: { spritesheetAlias: "foods", textureName: "food-53" }, // TextureKey.FOOD53
+  453: { spritesheetAlias: "foods", textureName: "food-54" }, // TextureKey.FOOD54
+  454: { spritesheetAlias: "foods", textureName: "food-55" }, // TextureKey.FOOD55
+  455: { spritesheetAlias: "foods", textureName: "food-56" }, // TextureKey.FOOD56
+  456: { spritesheetAlias: "foods", textureName: "food-57" }, // TextureKey.FOOD57
+  457: { spritesheetAlias: "foods", textureName: "food-58" }, // TextureKey.FOOD58
+  458: { spritesheetAlias: "foods", textureName: "food-59" }, // TextureKey.FOOD59
+  459: { spritesheetAlias: "foods", textureName: "food-60" }, // TextureKey.FOOD60
+  460: { spritesheetAlias: "foods", textureName: "food-61" }, // TextureKey.FOOD61
+  461: { spritesheetAlias: "foods", textureName: "food-62" }, // TextureKey.FOOD62
+  462: { spritesheetAlias: "foods", textureName: "food-63" }, // TextureKey.FOOD63
+  463: { spritesheetAlias: "foods", textureName: "food-64" }, // TextureKey.FOOD64
 
   // Egg sprites (500-599)
   500: { spritesheetAlias: "eggs", textureName: "egg-0" }, // TextureKey.EGG0
@@ -50,11 +111,6 @@ const TEXTURE_MAP: Record<
 
 // 스프라이트 스토어
 const spriteStore: (PIXI.Sprite | PIXI.AnimatedSprite | null)[] = [];
-
-// function setSpriteStore(store: PIXI.Sprite[]) {
-//   spriteStore.length = 0;
-//   for (const s of store) spriteStore.push(s);
-// }
 
 function getSprite(
   idx: number
@@ -206,9 +262,9 @@ export function renderSystem(params: {
     const newTexture = getTextureFromKey(textureKey);
     if (newTexture && sprite.texture !== newTexture) {
       sprite.texture = newTexture;
-      console.log(
-        `[RenderSystem] Updated texture for entity ${eid} to key ${textureKey}`
-      );
+      // console.log(
+      //   `[RenderSystem] Updated texture for entity ${eid} to key ${textureKey}`
+      // );
     }
   }
 

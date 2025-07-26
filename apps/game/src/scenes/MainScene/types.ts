@@ -127,6 +127,67 @@ export enum TextureKey {
   FOOD1 = 400,
   FOOD2 = 401,
   FOOD3 = 402,
+  FOOD4 = 403,
+  FOOD5 = 404,
+  FOOD6 = 405,
+  FOOD7 = 406,
+  FOOD8 = 407,
+  FOOD9 = 408,
+  FOOD10 = 409,
+  FOOD11 = 410,
+  FOOD12 = 411,
+  FOOD13 = 412,
+  FOOD14 = 413,
+  FOOD15 = 414,
+  FOOD16 = 415,
+  FOOD17 = 416,
+  FOOD18 = 417,
+  FOOD19 = 418,
+  FOOD20 = 419,
+  FOOD21 = 420,
+  FOOD22 = 421,
+  FOOD23 = 422,
+  FOOD24 = 423,
+  FOOD25 = 424,
+  FOOD26 = 425,
+  FOOD27 = 426,
+  FOOD28 = 427,
+  FOOD29 = 428,
+  FOOD30 = 429,
+  FOOD31 = 430,
+  FOOD32 = 431,
+  FOOD33 = 432,
+  FOOD34 = 433,
+  FOOD35 = 434,
+  FOOD36 = 435,
+  FOOD37 = 436,
+  FOOD38 = 437,
+  FOOD39 = 438,
+  FOOD40 = 439,
+  FOOD41 = 440,
+  FOOD42 = 441,
+  FOOD43 = 442,
+  FOOD44 = 443,
+  FOOD45 = 444,
+  FOOD46 = 445,
+  FOOD47 = 446,
+  FOOD48 = 447,
+  FOOD49 = 448,
+  FOOD50 = 449,
+  FOOD51 = 450,
+  FOOD52 = 451,
+  FOOD53 = 452,
+  FOOD54 = 453,
+  FOOD55 = 454,
+  FOOD56 = 455,
+  FOOD57 = 456,
+  FOOD58 = 457,
+  FOOD59 = 458,
+  FOOD60 = 459,
+  FOOD61 = 460,
+  FOOD62 = 461,
+  FOOD63 = 462,
+  FOOD64 = 463,
 
   // Egg sprites (500-599)
   EGG0 = 500,
@@ -198,4 +259,14 @@ export type AnimationRenderComponent = {
 export type StatusIconRenderComponent = {
   storeIndexes: number[]; // 각 상태 아이콘의 sprite 인스턴스 참조 인덱스 배열
   visibleCount: number; // 현재 표시 중인 아이콘 개수
+};
+export type ThrowAnimationComponent = {
+  initialPosition: PositionComponent;
+  finalPosition: PositionComponent;
+  initialScale: number;
+  finalScale: number;
+  duration: number; // ms
+  elapsedTime: number; // ms
+  isActive: boolean;
+  maxHeight: number; // 포물선 최대 높이
 };

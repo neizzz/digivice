@@ -17,6 +17,7 @@ import {
   SpeedComponent,
   AnimationKey,
   SpritesheetKey,
+  ThrowAnimationComponent,
 } from "./types";
 import { randomMovementSystem } from "./systems/RandomMovementSystem";
 import { animationRenderSystem } from "./systems/AnimationRenderSystem";
@@ -24,6 +25,7 @@ import { statusIconRenderSystem } from "./systems/StatusIconRenderSystem";
 import { renderSystem } from "./systems/RenderSystem";
 import { characterManagerSystem } from "./systems/CharacterManageSystem";
 import { dataSyncSystem } from "./systems/DataSyncSystem";
+import { throwAnimationSystem } from "./systems/ThrowAnimationSystem";
 import { HTMLDebugStatusUI } from "./ui/HTMLDebugStatusUI";
 import { HTMLDebugToggleButton } from "./ui/HTMLDebugToggleButton";
 import { StaminaGaugeUI } from "./ui/StaminaGaugeUI";
@@ -33,7 +35,10 @@ import {
   applySavedEntityToECS,
   convertECSEntityToSavedEntity,
 } from "./entityDataHelpers";
-import { createCharacterEntity } from "./entityFactory";
+import {
+  createCharacterEntity,
+  createThrowingFoodEntity,
+} from "./entityFactory";
 import { generatePersistentNumericId } from "@/utils/generate";
 import {
   loadSpritesheets,
@@ -61,6 +66,7 @@ export type EntityComponents = {
   freshness?: FreshnessComponent;
   destination?: DestinationComponent;
   randomMovement?: RandomMovementComponent;
+  throwAnimation?: ThrowAnimationComponent;
 };
 
 export type SavedEntity = {
@@ -158,6 +164,7 @@ export class MainSceneWorld implements IWorld, Scene {
   private _pipedSystems = pipe(
     randomMovementSystem,
     characterManagerSystem,
+    throwAnimationSystem,
     animationRenderSystem,
     statusIconRenderSystem,
     renderSystem,
@@ -311,7 +318,7 @@ export class MainSceneWorld implements IWorld, Scene {
         },
         onFeedSelect: () => {
           console.log("[MainSceneWorld] Feed selected");
-          // TODO: 먹이 주기 기능
+          this._throwFood();
         },
         onVersusSelect: () => {
           console.log("[MainSceneWorld] Versus selected");
@@ -780,5 +787,42 @@ export class MainSceneWorld implements IWorld, Scene {
         { type: ControlButtonType.Next },
       ]);
     }
+  }
+
+  /**
+   * 음식을 던지는 메서드
+   */
+  private _throwFood(): void {
+    const boundary = this._positionBoundary;
+
+    // 초기 위치 - 왼쪽 또는 오른쪽 구석에서 시작
+    const isFromLeft = Math.random() < 0.5; // 50% 확률로 왼쪽/오른쪽 선택
+    const initialPosition = {
+      x: isFromLeft ? boundary.x - 100 : boundary.x + boundary.width + 100, // 화면 밖 구석
+      y: boundary.y + boundary.height + 100, // 화면 완전 아래쪽
+    };
+
+    // 최종 위치 - 여유분을 두고 설정 (위아래 40px, 좌우 20px 여유)
+    const finalPosition = {
+      x: boundary.x + 20 + Math.random() * (boundary.width - 40), // 좌우 20px 여유
+      y: boundary.y + 40 + Math.random() * (boundary.height - 80), // 위아래 40px 여유
+    };
+
+    // 음식 엔티티 생성 (64가지 음식 중 랜덤 선택)
+    createThrowingFoodEntity(this, {
+      initialPosition,
+      finalPosition,
+    });
+
+    console.log(
+      `[MainSceneWorld] Food thrown from ${
+        isFromLeft ? "left" : "right"
+      } corner (${initialPosition.x}, ${initialPosition.y}) to (${
+        finalPosition.x
+      }, ${finalPosition.y})`
+    );
+    console.log(
+      `[MainSceneWorld] Position boundary: x=${boundary.x}, y=${boundary.y}, w=${boundary.width}, h=${boundary.height}`
+    );
   }
 }
