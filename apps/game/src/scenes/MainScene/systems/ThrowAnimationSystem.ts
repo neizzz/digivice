@@ -24,11 +24,43 @@ const throwAnimationQuery = defineQuery([
   ObjectComp,
 ]);
 
+// 모든 음식 엔티티를 쿼리 (디버깅용)
+const allFoodQuery = defineQuery([ObjectComp, PositionComp, RenderComp]);
+
+let debugLogCounter = 0; // 로그 출력 빈도 제한용
+
 export function throwAnimationSystem(params: {
   world: MainSceneWorld;
   delta: number;
 }): typeof params {
   const { world, delta } = params;
+
+  // 5초마다 한 번씩 음식 개수 로깅
+  debugLogCounter += delta;
+  if (debugLogCounter > 5000) {
+    const allEntities = allFoodQuery(world);
+    const foodEntities = allEntities.filter(
+      (eid) => ObjectComp.type[eid] === ObjectType.FOOD
+    );
+    console.log(
+      `[ThrowAnimationSystem] Total food entities: ${foodEntities.length}`
+    );
+
+    foodEntities.forEach((eid, index) => {
+      const state = ObjectComp.state[eid];
+      const hasThrowComp = ThrowAnimationComp.isActive[eid] !== undefined;
+      console.log(
+        `[ThrowAnimationSystem] Food ${index + 1}: State=${
+          FoodState[state] || state
+        }, HasThrowComp=${hasThrowComp}, Position=(${PositionComp.x[eid]}, ${
+          PositionComp.y[eid]
+        })`
+      );
+    });
+
+    debugLogCounter = 0;
+  }
+
   const entities = throwAnimationQuery(world);
 
   for (let i = 0; i < entities.length; i++) {

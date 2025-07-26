@@ -287,7 +287,8 @@ export function createThrowingFoodEntity(
 
   // Object component
   addComponent(world, ObjectComp, eid);
-  ObjectComp.id[eid] = generatePersistentNumericId();
+  const entityId = generatePersistentNumericId();
+  ObjectComp.id[eid] = entityId;
   ObjectComp.type[eid] = ObjectType.FOOD;
   ObjectComp.state[eid] = FoodState.BEING_THROWING;
 
@@ -295,10 +296,6 @@ export function createThrowingFoodEntity(
   addComponent(world, PositionComp, eid);
   PositionComp.x[eid] = options.initialPosition.x;
   PositionComp.y[eid] = options.initialPosition.y;
-
-  // Angle component (렌더링을 위해 필요)
-  addComponent(world, AngleComp, eid);
-  AngleComp.value[eid] = 0; // 기본 각도
 
   // Render component
   addComponent(world, RenderComp, eid);
@@ -320,14 +317,20 @@ export function createThrowingFoodEntity(
   ThrowAnimationComp.elapsedTime[eid] = 0;
   ThrowAnimationComp.isActive[eid] = 1; // 활성화
 
-  console.log(`[EntityFactory] Created throwing food entity: ${eid}`);
+  console.log(
+    `[EntityFactory] Created throwing food entity: ECS_ID=${eid}, OBJECT_ID=${entityId}`
+  );
+  console.log(
+    `[EntityFactory] - Random food texture key: ${randomFoodKey} (food-${
+      Math.floor(Math.random() * 64) + 1
+    })`
+  );
   console.log(
     `[EntityFactory] - Initial position: (${options.initialPosition.x}, ${options.initialPosition.y})`
   );
   console.log(
     `[EntityFactory] - Final position: (${options.finalPosition.x}, ${options.finalPosition.y})`
   );
-  console.log(`[EntityFactory] - Random food texture key: ${randomFoodKey}`);
 
   return eid;
 }

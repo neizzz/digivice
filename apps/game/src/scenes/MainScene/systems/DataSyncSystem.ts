@@ -1,7 +1,7 @@
 // ECS 데이터를 MainSceneWorld에 주기적으로 동기화하는 시스템
-import { defineQuery, enterQuery, exitQuery, Query } from "bitecs";
+import { defineQuery } from "bitecs";
 import { ObjectComp } from "../raw-components";
-import { MainSceneWorld, SavedEntity, MainSceneWorldData } from "../world";
+import { MainSceneWorld } from "../world";
 import { convertECSEntityToSavedEntity } from "../entityDataHelpers";
 import { cloneDeep } from "../../../utils/common";
 
@@ -12,59 +12,6 @@ const THIS_CONFIG = {
 // TODO: dirty flag를 사용하여 성능 개선
 // ECS 쿼리: ObjectComp을 가진 모든 엔티티
 const allEntitiesQuery = defineQuery([ObjectComp]);
-const enteredEntitiesQuery = enterQuery(allEntitiesQuery);
-const exitedEntitiesQuery = exitQuery(allEntitiesQuery);
-
-function addEntityData(
-  worldData: MainSceneWorldData,
-  savedEntity: SavedEntity
-): void {
-  const entityId = savedEntity.components.object?.id;
-  const existingIndex = worldData.entities.findIndex(
-    (entity: SavedEntity) => entity.components.object?.id === entityId
-  );
-
-  if (existingIndex !== -1) {
-    console.warn(
-      `[DataSyncSystem] Entity ID ${entityId}가 이미 존재. 초기화 도중에는 이미 존재할 수 있음.`
-    );
-  } else {
-    // 새 엔티티 추가
-    worldData.entities.push(savedEntity);
-  }
-}
-
-function updateEntityData(
-  worldData: MainSceneWorldData,
-  savedEntity: SavedEntity
-): void {
-  const entityId = savedEntity.components.object?.id;
-  const existingIndex = worldData.entities.findIndex(
-    (entity: SavedEntity) => entity.components.object?.id === entityId
-  );
-  if (existingIndex === -1) {
-    throw new Error(
-      `[DataSyncSystem] Entity ID ${entityId}가 존재하지 않습니다. 업데이트할 수 없습니다.`
-    );
-  }
-  worldData.entities[existingIndex] = savedEntity;
-}
-
-function removeEntityData(
-  worldData: MainSceneWorldData,
-  entityId: number
-): boolean {
-  const index = worldData.entities.findIndex(
-    (entity: SavedEntity) => entity.components.object?.id === entityId
-  );
-
-  if (index !== -1) {
-    worldData.entities.splice(index, 1);
-    return true;
-  }
-
-  return false;
-}
 
 export function dataSyncSystem(params: {
   world: MainSceneWorld;
@@ -83,27 +30,26 @@ export function dataSyncSystem(params: {
 
   const newWorldData = cloneDeep(worldData);
 
-  // 새로 추가된 엔티티들을 MainSceneWorld에 동기화
-  const enteredEntities = enteredEntitiesQuery(mainSceneWorld);
-  for (const eid of enteredEntities) {
-    const savedEntity = convertECSEntityToSavedEntity(mainSceneWorld, eid);
-    addEntityData(newWorldData, savedEntity);
-  }
-
-  // 제거된 엔티티들을 MainSceneWorld에서 삭제
-  const exitedEntities = exitedEntitiesQuery(mainSceneWorld);
-  for (const eid of exitedEntities) {
-    // ECS 엔티티 ID가 아닌 ObjectComponent의 ID를 사용해야 함
-    const objectId = ObjectComp.id[eid];
-    removeEntityData(newWorldData, objectId);
-  }
-
-  // 모든 엔티티를 MainSceneWorld에 동기화
+  // 모든 활성 엔티티를 동기화 (기존 엔티티들도 포함)
   const allEntities = allEntitiesQuery(mainSceneWorld);
+
+  // 기존 entities 배열을 비우고 모든 활성 엔티티로 다시 채움
+  newWorldData.entities = [];
+
   for (const eid of allEntities) {
     const savedEntity = convertECSEntityToSavedEntity(mainSceneWorld, eid);
-    updateEntityData(newWorldData, savedEntity);
+    newWorldData.entities.push(savedEntity);
   }
+
+  console.log(
+    `[DataSyncSystem] 동기화된 엔티티 수: ${newWorldData.entities.length}`
+  );
+
+  // 제거된 엔티티들은 allEntitiesQuery에 포함되지 않으므로 자동으로 제외됨
+
+  // TODO: 성능 개선을 위해 dirty flag 시스템 도입 필요
+  // 현재는 새로 추가된 엔티티와 삭제된 엔티티만 처리
+  // 기존 엔티티의 업데이트는 별도 시스템에서 처리하거나 dirty flag로 관리
 
   newWorldData.world_metadata.last_saved = Date.now();
   mainSceneWorld.setData(newWorldData);

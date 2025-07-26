@@ -15,7 +15,7 @@ import {
 } from "../types";
 import { MainSceneWorld } from "../world";
 import * as PIXI from "pixi.js";
-import { renderCommonAttribute } from "./RenderSystem";
+import { renderCommonAttributes } from "./RenderSystem";
 
 // const CHARACTER_STATE_TO_ANIMATION_KEY: Record<CharacterState, AnimationKey> = {
 const CHARACTER_STATE_TO_ANIMATION_KEY: Record<CharacterState, AnimationKey> = {
@@ -113,7 +113,7 @@ export function animationRenderSystem(params: {
     // animatedSprite.rotation = angle;
     // animatedSprite.zIndex = RenderComp.zIndex[eid];
     // animatedSprite.scale.set(RenderComp.scale[eid]);
-    renderCommonAttribute(eid, animatedSprite);
+    renderCommonAttributes(eid, animatedSprite, world);
     updateAnimatedSprite(animatedSprite, eid);
   }
 

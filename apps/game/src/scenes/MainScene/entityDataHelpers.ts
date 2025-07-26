@@ -12,6 +12,7 @@ import {
   CharacterStatusComp,
   AnimationRenderComp,
   StatusIconRenderComp,
+  ThrowAnimationComp,
 } from "./raw-components";
 import type { SavedEntity, EntityComponents } from "./world";
 import { CharacterKey, CharacterStatus } from "./types";
@@ -35,6 +36,7 @@ export function convertECSEntityToSavedEntity(
   if (hasComponent(world, CharacterStatusComp, eid)) {
     components.characterStatus = {
       characterKey: CharacterStatusComp.characterKey[eid] as CharacterKey,
+      stamina: CharacterStatusComp.stamina[eid],
       evolutionGage: CharacterStatusComp.evolutionGage[eid],
       evolutionPhase: CharacterStatusComp.evolutionPhase[eid],
       statuses: Array.from(
@@ -104,6 +106,24 @@ export function convertECSEntityToSavedEntity(
       visibleCount: StatusIconRenderComp.visibleCount[eid],
     };
   }
+  if (hasComponent(world, ThrowAnimationComp, eid)) {
+    components.throwAnimation = {
+      initialPosition: {
+        x: ThrowAnimationComp.initialX[eid],
+        y: ThrowAnimationComp.initialY[eid],
+      },
+      finalPosition: {
+        x: ThrowAnimationComp.finalX[eid],
+        y: ThrowAnimationComp.finalY[eid],
+      },
+      initialScale: 0, // 이제 시스템에서 관리하므로 기본값
+      finalScale: 0, // 이제 시스템에서 관리하므로 기본값
+      duration: 0, // 이제 시스템에서 관리하므로 기본값
+      elapsedTime: ThrowAnimationComp.elapsedTime[eid],
+      isActive: ThrowAnimationComp.isActive[eid] === 1,
+      maxHeight: 0, // 이제 시스템에서 관리하므로 기본값
+    };
+  }
 
   return { components };
 }
@@ -130,6 +150,7 @@ export function applySavedEntityToECS(
     }
     CharacterStatusComp.characterKey[eid] =
       components.characterStatus.characterKey;
+    CharacterStatusComp.stamina[eid] = components.characterStatus.stamina;
     CharacterStatusComp.evolutionGage[eid] =
       components.characterStatus.evolutionGage;
     CharacterStatusComp.evolutionPhase[eid] =
@@ -182,7 +203,7 @@ export function applySavedEntityToECS(
     if (!hasComponent(world, StatusIconRenderComp, eid)) {
       addComponent(world, StatusIconRenderComp, eid);
     }
-    StatusIconRenderComp.storeIndexes[eid] = new Uint16Array(
+    StatusIconRenderComp.storeIndexes[eid] = new Uint8Array(
       components.statusIconRender.storeIndexes
     );
     StatusIconRenderComp.visibleCount[eid] =
@@ -230,6 +251,22 @@ export function applySavedEntityToECS(
     } else {
       RandomMovementComp.nextChange[eid] = ECS_NULL_VALUE;
     }
+  }
+
+  if (components.throwAnimation) {
+    if (!hasComponent(world, ThrowAnimationComp, eid)) {
+      addComponent(world, ThrowAnimationComp, eid);
+    }
+    ThrowAnimationComp.initialX[eid] =
+      components.throwAnimation.initialPosition.x;
+    ThrowAnimationComp.initialY[eid] =
+      components.throwAnimation.initialPosition.y;
+    ThrowAnimationComp.finalX[eid] = components.throwAnimation.finalPosition.x;
+    ThrowAnimationComp.finalY[eid] = components.throwAnimation.finalPosition.y;
+    ThrowAnimationComp.elapsedTime[eid] = components.throwAnimation.elapsedTime;
+    ThrowAnimationComp.isActive[eid] = components.throwAnimation.isActive
+      ? 1
+      : 0;
   }
 }
 

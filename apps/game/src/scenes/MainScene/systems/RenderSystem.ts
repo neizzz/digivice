@@ -5,6 +5,7 @@ import * as PIXI from "pixi.js";
 import { MainSceneWorld } from "../world";
 import { TextureKey } from "../types";
 import { getTextureFromSpritesheet } from "../../../utils/asset";
+import { hasComponent } from "bitecs";
 
 /** NOTE: types.ts에 {@link TextureKey}과 싱크가 맞아야 함. */
 const TEXTURE_MAP: Record<
@@ -118,6 +119,14 @@ function getSprite(
   return spriteStore[idx] || undefined;
 }
 
+// storeIndex가 다른 엔티티에 의해 사용 중인지 확인
+function isStoreIndexInUse(storeIndex: number, _currentEid: number): boolean {
+  // spriteStore에 해당 인덱스에 스프라이트가 있는지 확인
+  return (
+    spriteStore[storeIndex] !== null && spriteStore[storeIndex] !== undefined
+  );
+}
+
 function getTextureFromKey(textureKey: number): PIXI.Texture | undefined {
   const textureInfo = TEXTURE_MAP[textureKey];
   if (!textureInfo) {
@@ -185,7 +194,7 @@ function createSpriteForEntity(eid: number): PIXI.Sprite | undefined {
   return sprite;
 }
 
-const renderableQuery = defineQuery([PositionComp, AngleComp, RenderComp]);
+const renderableQuery = defineQuery([PositionComp, RenderComp]);
 const exitedRenderableQuery = exitQuery(renderableQuery);
 
 // 개발 환경에서 텍스처 검증을 한 번만 수행하기 위한 플래그
@@ -215,9 +224,7 @@ export function renderSystem(params: {
     if (sprite && sprite.parent) {
       stage.removeChild(sprite);
       sprite.destroy();
-      // if (storeIndex < spriteStore.length) {
       spriteStore[storeIndex] = null;
-      // }
       console.log(`[RenderSystem] Removed sprite from stage for entity ${eid}`);
     }
   }
@@ -241,8 +248,11 @@ export function renderSystem(params: {
       continue;
     }
 
-    // 스프라이트가 없으면 생성
-    if (!sprite) {
+    // 스프라이트가 없거나 storeIndex가 초기값(0)이면서 다른 엔티티가 사용 중인 경우 새 스프라이트 생성
+    const needsNewSprite =
+      !sprite || (storeIndex === 0 && isStoreIndexInUse(0, eid));
+
+    if (needsNewSprite) {
       sprite = createSpriteForEntity(eid);
       if (!sprite) {
         console.warn(
@@ -251,17 +261,29 @@ export function renderSystem(params: {
         continue;
       }
 
+      // 빈 슬롯을 찾아서 재사용하거나 새로 추가
+      let newStoreIndex = spriteStore.findIndex((s) => s === null);
+      if (newStoreIndex === -1) {
+        // 빈 슬롯이 없으면 배열 끝에 추가
+        spriteStore.push(sprite);
+        newStoreIndex = spriteStore.length - 1;
+      } else {
+        // 빈 슬롯에 할당
+        spriteStore[newStoreIndex] = sprite;
+      }
+
       stage.addChild(sprite);
-      spriteStore.push(sprite);
-      RenderComp.storeIndex[eid] = spriteStore.length - 1;
-      console.log(`[RenderSystem] Added sprite to stage for entity ${eid}`);
+      RenderComp.storeIndex[eid] = newStoreIndex;
+      console.log(
+        `[RenderSystem] Added sprite to stage for entity ${eid} at storeIndex ${newStoreIndex}`
+      );
     }
 
-    renderCommonAttribute(eid, sprite);
+    renderCommonAttributes(eid, sprite!, world);
 
     const newTexture = getTextureFromKey(textureKey);
-    if (newTexture && sprite.texture !== newTexture) {
-      sprite.texture = newTexture;
+    if (newTexture && sprite!.texture !== newTexture) {
+      sprite!.texture = newTexture;
       // console.log(
       //   `[RenderSystem] Updated texture for entity ${eid} to key ${textureKey}`
       // );
@@ -271,20 +293,29 @@ export function renderSystem(params: {
   return params;
 }
 
-export function renderCommonAttribute(
+export function renderCommonAttributes(
   eid: number,
-  sprite: PIXI.Sprite | PIXI.AnimatedSprite
+  sprite: PIXI.Sprite | PIXI.AnimatedSprite,
+  world: MainSceneWorld
 ): void {
   const x = PositionComp.x[eid];
   const y = PositionComp.y[eid];
   sprite.position.set(x, y);
 
-  const angle = AngleComp.value[eid];
   sprite.zIndex = RenderComp.zIndex[eid] || y; // NOTE: zIndex가 없으면 y 좌표로 설정
-  // angle이 왼쪽(PI 또는 -PI 부근)을 향하면 x scale에 -1을 곱하기
+
   const baseScale = RenderComp.scale[eid];
-  const isLeft = Math.abs(angle) > Math.PI / 2;
-  sprite.scale.set(isLeft ? -baseScale : baseScale, baseScale);
+
+  // AngleComp가 있는 엔티티만 각도에 따른 스케일 조정 적용
+  if (hasComponent(world, AngleComp, eid)) {
+    const angle = AngleComp.value[eid];
+    // angle이 왼쪽(PI 또는 -PI 부근)을 향하면 x scale에 -1을 곱하기
+    const isLeft = Math.abs(angle) > Math.PI / 2;
+    sprite.scale.set(isLeft ? -baseScale : baseScale, baseScale);
+  } else {
+    // AngleComp가 없는 엔티티는 기본 스케일 적용
+    sprite.scale.set(baseScale, baseScale);
+  }
 }
 
 /**
