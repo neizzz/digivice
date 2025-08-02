@@ -27,6 +27,7 @@ import {
 import { generatePersistentNumericId } from "../../utils/generate";
 import { EntityComponents } from "./world";
 import { INTENTED_FRONT_Z_INDEX } from "@/config";
+import { getCharacterStats } from "./characterStats";
 
 type WithRequired<T, K extends keyof T> = Omit<T, K> & Required<Pick<T, K>>;
 
@@ -70,7 +71,12 @@ export function createCharacterEntity(
   addComponent(world, RenderComp, eid);
   RenderComp.storeIndex[eid] = ECS_NULL_VALUE; // 스프라이트 참조 인덱스는 나중에 설정
   RenderComp.textureKey[eid] = _components.render.textureKey;
-  RenderComp.scale[eid] = _components.render.scale || 1; // 기본 스케일은 1
+
+  // 캐릭터 키로부터 스탯 가져와서 scale 설정
+  const renderCharacterKey = CharacterStatusComp.characterKey[eid];
+  const renderCharacterStats = getCharacterStats(renderCharacterKey);
+  RenderComp.scale[eid] =
+    _components.render.scale || renderCharacterStats.scale;
   RenderComp.zIndex[eid] = ECS_NULL_VALUE;
 
   addComponent(world, AnimationRenderComp, eid);
@@ -93,15 +99,17 @@ export function createCharacterEntity(
   StatusIconRenderComp.visibleCount[eid] = 0;
 
   addComponent(world, SpeedComp, eid);
-  SpeedComp.value[eid] = _components.speed?.value || ECS_NULL_VALUE;
+  SpeedComp.value[eid] = 0; // idle 상태로 시작
 
   // if (components.object?.state !== CharacterState.EGG) {
   addComponent(world, RandomMovementComp, eid);
+  // 기본값으로 설정 (time 관련 속성은 characterStats에서 제거됨)
   RandomMovementComp.minIdleTime[eid] = 2000;
   RandomMovementComp.maxIdleTime[eid] = 8000;
   RandomMovementComp.minMoveTime[eid] = 1000;
   RandomMovementComp.maxMoveTime[eid] = 8000;
-  RandomMovementComp.nextChange[eid] = ECS_NULL_VALUE;
+  // 캐릭터 생성 시 idle 상태로 시작하도록 설정
+  RandomMovementComp.nextChange[eid] = Date.now() + 1000 + Math.random() * 2000; // 1-3초 후 첫 이동
   // }
 
   addComponent(world, DestinationComp, eid);

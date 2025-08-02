@@ -20,11 +20,19 @@ export type CreateInitialGameDataCallback = () => Promise<{
   name: string;
 }>;
 
+// TODO: 컨트롤 버튼과 연계하는거 생각해야됨.
+export type ShowSettingsCallback = (params: {
+  onSave: () => void;
+  onCancel: () => void;
+  onReset: () => void;
+  onClose: () => void;
+}) => void;
 export type ShowAlertCallback = (message: string, title?: string) => void;
 
 export class Game {
   public app: PIXI.Application;
   public changeControlButtons: ControlButtonsChangeCallback;
+  public showSettings: ShowSettingsCallback; // 설정 화면 표시 콜백
   public showAlert: ShowAlertCallback; // 팝업 콜백 추가
 
   private _parentElement: HTMLElement;
@@ -39,10 +47,13 @@ export class Game {
     parentElement: HTMLElement;
     onCreateInitialGameData: CreateInitialGameDataCallback;
     changeControlButtons: ControlButtonsChangeCallback;
+    showSettings: ShowSettingsCallback;
     showAlert: ShowAlertCallback; // 팝업 콜백 추가
   }) {
-    const { parentElement, changeControlButtons, showAlert } = params;
+    const { parentElement, changeControlButtons, showSettings, showAlert } =
+      params;
     this.changeControlButtons = changeControlButtons;
+    this.showSettings = showSettings; // 설정 화면 표시 콜백
     this.showAlert = showAlert; // 팝업 콜백 저장
 
     // CharacterManager와 TimeManager 인스턴스 초기화(순서 중요)

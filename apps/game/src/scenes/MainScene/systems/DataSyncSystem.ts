@@ -41,10 +41,6 @@ export function dataSyncSystem(params: {
     newWorldData.entities.push(savedEntity);
   }
 
-  console.log(
-    `[DataSyncSystem] 동기화된 엔티티 수: ${newWorldData.entities.length}`
-  );
-
   // 제거된 엔티티들은 allEntitiesQuery에 포함되지 않으므로 자동으로 제외됨
 
   // TODO: 성능 개선을 위해 dirty flag 시스템 도입 필요

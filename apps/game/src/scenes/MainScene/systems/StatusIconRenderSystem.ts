@@ -35,6 +35,7 @@ const STATUS_TO_TEXTURE_KEY: Record<CharacterStatus, TextureKey> = {
 
 // 엔티티별 스프라이트 스토어
 const entityStatusSprites: Map<number, PIXI.Sprite[]> = new Map();
+const entityTemporarySprites: Map<number, PIXI.Sprite> = new Map(); // 일시적 상태용 별도 스프라이트
 
 function getTextureFromKey(textureKey: number): PIXI.Texture | undefined {
   const textureMap: Record<
@@ -106,10 +107,18 @@ function createStatusIconSprite(textureKey: TextureKey): PIXI.Sprite {
 }
 
 function clearEntitySprites(eid: number): void {
+  // 지속적 상태 스프라이트 제거
   const sprites = entityStatusSprites.get(eid);
   if (sprites) {
     sprites.forEach((sprite) => sprite.removeFromParent());
     entityStatusSprites.delete(eid);
+  }
+
+  // 일시적 상태 스프라이트 제거
+  const tempSprite = entityTemporarySprites.get(eid);
+  if (tempSprite) {
+    tempSprite.removeFromParent();
+    entityTemporarySprites.delete(eid);
   }
 }
 
@@ -180,20 +189,20 @@ function removeStatusFromEntity(
 
 function organizeStatuses(statuses: CharacterStatus[]): {
   persistent: CharacterStatus[];
-  temporary: CharacterStatus[];
+  latestTemporary: CharacterStatus | null;
 } {
   const persistent: CharacterStatus[] = [];
-  const temporary: CharacterStatus[] = [];
+  let latestTemporary: CharacterStatus | null = null;
 
   for (const status of statuses) {
     if (TEMPORARY_STATUSES.includes(status)) {
-      temporary.push(status);
+      latestTemporary = status; // 가장 마지막(최신) 일시적 상태만 저장
     } else {
       persistent.push(status);
     }
   }
 
-  return { persistent, temporary: temporary.slice(0, 1) }; // 일시적 상태는 최대 1개만
+  return { persistent, latestTemporary };
 }
 
 const statusIconQuery = defineQuery([
@@ -247,29 +256,26 @@ export function statusIconRenderSystem(params: {
     }
 
     // 상태를 지속적 상태와 일시적 상태로 분리
-    const { persistent, temporary } = organizeStatuses(allStatuses);
+    const { persistent, latestTemporary } = organizeStatuses(allStatuses);
 
-    // 최종 표시할 상태들: 지속적 상태들 + 일시적 상태 최대 1개 (맨 오른쪽)
-    const displayStatuses = [...persistent, ...temporary];
-
-    // 기존 스프라이트들 가져오기 또는 초기화
+    // 지속적 상태 아이콘들 처리 (캐릭터 위쪽에 가로 배열)
     let sprites = entityStatusSprites.get(eid);
     if (!sprites) {
       sprites = [];
       entityStatusSprites.set(eid, sprites);
     }
 
-    // 필요 없는 스프라이트 제거
-    if (sprites.length > displayStatuses.length) {
-      for (let j = displayStatuses.length; j < sprites.length; j++) {
+    // 필요 없는 지속적 상태 스프라이트 제거
+    if (sprites.length > persistent.length) {
+      for (let j = persistent.length; j < sprites.length; j++) {
         sprites[j].removeFromParent();
       }
-      sprites.splice(displayStatuses.length);
+      sprites.splice(persistent.length);
     }
 
-    // 필요한 스프라이트 생성/업데이트
-    for (let j = 0; j < displayStatuses.length; j++) {
-      const status = displayStatuses[j];
+    // 지속적 상태 스프라이트 생성/업데이트
+    for (let j = 0; j < persistent.length; j++) {
+      const status = persistent[j];
       const textureKey = STATUS_TO_TEXTURE_KEY[status];
 
       if (!textureKey) {
@@ -293,12 +299,11 @@ export function statusIconRenderSystem(params: {
         world.stage.addChild(sprites[j]);
       }
 
-      // 위치 설정
+      // 지속적 상태 아이콘 위치 설정 (캐릭터 위쪽에 가로 배열)
       const iconSize = 28.8; // 1.8 * 16
       const spacing = 4;
       const totalWidth =
-        displayStatuses.length * iconSize +
-        (displayStatuses.length - 1) * spacing;
+        persistent.length * iconSize + (persistent.length - 1) * spacing;
       const startX =
         position.x - totalWidth / 2 + j * (iconSize + spacing) + iconSize / 2;
 
@@ -306,7 +311,48 @@ export function statusIconRenderSystem(params: {
       sprites[j].y = position.y - 50;
     }
 
-    StatusIconRenderComp.visibleCount[eid] = displayStatuses.length;
+    // 일시적 상태 아이콘 처리 (캐릭터 우측상단에 1개만)
+    const currentTempSprite = entityTemporarySprites.get(eid);
+
+    if (latestTemporary) {
+      const textureKey = STATUS_TO_TEXTURE_KEY[latestTemporary];
+
+      if (textureKey) {
+        const expectedTexture = getTextureFromKey(textureKey);
+
+        // 기존 일시적 스프라이트가 있고 올바른 텍스처인지 확인
+        if (
+          currentTempSprite &&
+          currentTempSprite.texture === expectedTexture
+        ) {
+          // 기존 스프라이트 재사용, 위치만 업데이트
+        } else {
+          // 기존 스프라이트 제거 (있다면)
+          if (currentTempSprite) {
+            currentTempSprite.removeFromParent();
+          }
+
+          // 새 일시적 스프라이트 생성
+          const newTempSprite = createStatusIconSprite(textureKey);
+          entityTemporarySprites.set(eid, newTempSprite);
+          world.stage.addChild(newTempSprite);
+        }
+
+        // 일시적 상태 아이콘 위치 설정 (캐릭터 우측상단)
+        const tempSprite = entityTemporarySprites.get(eid)!;
+        tempSprite.x = position.x + 20; // 캐릭터 우측
+        tempSprite.y = position.y - 40; // 캐릭터 상단
+      }
+    } else {
+      // 일시적 상태가 없으면 기존 일시적 스프라이트 제거
+      if (currentTempSprite) {
+        currentTempSprite.removeFromParent();
+        entityTemporarySprites.delete(eid);
+      }
+    }
+
+    StatusIconRenderComp.visibleCount[eid] =
+      persistent.length + (latestTemporary ? 1 : 0);
   }
 
   return params;

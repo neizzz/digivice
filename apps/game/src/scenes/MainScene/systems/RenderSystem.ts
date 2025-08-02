@@ -1,6 +1,11 @@
 // PIXI v8 렌더링 시스템
 import { defineQuery, exitQuery } from "bitecs";
-import { PositionComp, AngleComp, RenderComp } from "../raw-components";
+import {
+  PositionComp,
+  AngleComp,
+  RenderComp,
+  FoodMaskComp,
+} from "../raw-components";
 import * as PIXI from "pixi.js";
 import { MainSceneWorld } from "../world";
 import { TextureKey } from "../types";
@@ -118,18 +123,28 @@ const spriteStore: (
   | typeof ECS_NULL_VALUE
 )[] = [ECS_NULL_VALUE];
 
+// 음식 마스크 스프라이트 스토어
+const maskSpriteStore: (PIXI.Sprite | null | typeof ECS_NULL_VALUE)[] = [
+  ECS_NULL_VALUE,
+];
+
+// 마스크 프레임 이름들
+const MASK_FRAME_NAMES = [
+  "vite-mask_0",
+  "vite-mask_1",
+  "vite-mask_2",
+  "vite-mask_3",
+  "vite-mask_4",
+];
+
 function getSprite(
   idx: number
 ): (PIXI.Sprite | PIXI.AnimatedSprite) | undefined {
   return spriteStore[idx] || undefined;
 }
 
-// storeIndex가 다른 엔티티에 의해 사용 중인지 확인
-function isStoreIndexInUse(storeIndex: number, _currentEid: number): boolean {
-  // spriteStore에 해당 인덱스에 스프라이트가 있는지 확인
-  return (
-    spriteStore[storeIndex] !== null && spriteStore[storeIndex] !== undefined
-  );
+function getMaskSprite(idx: number): PIXI.Sprite | undefined {
+  return maskSpriteStore[idx] || undefined;
 }
 
 function getTextureFromKey(textureKey: number): PIXI.Texture | undefined {
@@ -201,6 +216,83 @@ function createSpriteForEntity(eid: number): PIXI.Sprite | undefined {
 
 const renderableQuery = defineQuery([PositionComp, RenderComp]);
 const exitedRenderableQuery = exitQuery(renderableQuery);
+const foodMaskQuery = defineQuery([RenderComp, FoodMaskComp]);
+
+/**
+ * 음식 마스크 스프라이트 생성
+ */
+function createMaskSpriteForFood(eid: number): PIXI.Sprite | undefined {
+  console.log(`[RenderSystem] Creating mask sprite for entity ${eid}`);
+
+  // vite-food-mask 스프라이트시트에서 첫 번째 프레임 가져오기
+  const spritesheet = PIXI.Assets.get<PIXI.Spritesheet>("vite-food-mask");
+  if (!spritesheet) {
+    console.warn("[RenderSystem] vite-food-mask spritesheet not found");
+    return undefined;
+  }
+
+  console.log(`[RenderSystem] Found vite-food-mask spritesheet:`, spritesheet);
+  console.log(
+    `[RenderSystem] Available textures:`,
+    Object.keys(spritesheet.textures)
+  );
+
+  const texture = getTextureFromSpritesheet(spritesheet, MASK_FRAME_NAMES[0]);
+  if (!texture) {
+    console.warn(
+      `[RenderSystem] First mask texture not found: ${MASK_FRAME_NAMES[0]}`
+    );
+    return undefined;
+  }
+
+  console.log(`[RenderSystem] Created mask texture: ${MASK_FRAME_NAMES[0]}`);
+
+  const maskSprite = new PIXI.Sprite(texture);
+  maskSprite.anchor.set(0.5);
+
+  // 마스크 스프라이트의 크기를 음식 스프라이트와 동일하게 설정
+  const foodStoreIndex = RenderComp.storeIndex[eid];
+  const foodSprite = getSprite(foodStoreIndex);
+  if (foodSprite) {
+    maskSprite.width = foodSprite.width;
+    maskSprite.height = foodSprite.height;
+    console.log(
+      `[RenderSystem] Set mask size to match food sprite: ${maskSprite.width}x${maskSprite.height}`
+    );
+  }
+
+  return maskSprite;
+}
+
+/**
+ * 마스크 텍스처 업데이트
+ */
+function updateMaskTexture(maskSprite: PIXI.Sprite, progress: number): void {
+  const frameIndex = Math.min(
+    Math.floor(progress * MASK_FRAME_NAMES.length),
+    MASK_FRAME_NAMES.length - 1
+  );
+
+  const frameName = MASK_FRAME_NAMES[frameIndex];
+
+  const spritesheet = PIXI.Assets.get<PIXI.Spritesheet>("vite-food-mask");
+  if (!spritesheet) {
+    console.warn(
+      "[RenderSystem] vite-food-mask spritesheet not found during texture update"
+    );
+    return;
+  }
+
+  const texture = getTextureFromSpritesheet(spritesheet, frameName);
+  if (texture) {
+    maskSprite.texture = texture;
+    // console.log(
+    //   `[RenderSystem] Successfully updated mask texture to ${frameName}`
+    // );
+  } else {
+    // console.warn(`[RenderSystem] Failed to get texture for frame ${frameName}`);
+  }
+}
 
 // 개발 환경에서 텍스처 검증을 한 번만 수행하기 위한 플래그
 let hasValidatedTextures = false;
@@ -231,6 +323,27 @@ export function renderSystem(params: {
       sprite.destroy();
       spriteStore[storeIndex] = null;
       console.log(`[RenderSystem] Removed sprite from stage for entity ${eid}`);
+    }
+
+    // FoodMask가 있는 엔티티인 경우 마스크도 정리
+    if (hasComponent(world, FoodMaskComp, eid)) {
+      const maskStoreIndex = FoodMaskComp.maskStoreIndex[eid];
+      const maskSprite = getMaskSprite(maskStoreIndex);
+
+      if (maskSprite) {
+        if (sprite && sprite.mask === maskSprite) {
+          sprite.mask = null;
+        }
+
+        if (maskSprite.parent) {
+          maskSprite.parent.removeChild(maskSprite);
+        }
+
+        maskSprite.destroy();
+        maskSpriteStore[maskStoreIndex] = null;
+
+        console.log(`[RenderSystem] Removed mask sprite for entity ${eid}`);
+      }
     }
   }
 
@@ -290,7 +403,85 @@ export function renderSystem(params: {
     }
   }
 
+  // FoodMask 처리
+  processFoodMasks(world, stage);
+
   return params;
+}
+
+/**
+ * 음식 마스킹 처리
+ */
+function processFoodMasks(world: MainSceneWorld, stage: PIXI.Container): void {
+  const foodsWithMask = foodMaskQuery(world);
+
+  // if (foodsWithMask.length > 0) {
+  //   console.log(
+  //     `[RenderSystem] Processing ${foodsWithMask.length} foods with mask`
+  //   );
+  // }
+
+  for (let i = 0; i < foodsWithMask.length; i++) {
+    const eid = foodsWithMask[i];
+    const maskStoreIndex = FoodMaskComp.maskStoreIndex[eid];
+    const progress = FoodMaskComp.progress[eid];
+    const isInitialized = FoodMaskComp.isInitialized[eid];
+
+    // 음식 스프라이트 가져오기
+    const foodStoreIndex = RenderComp.storeIndex[eid];
+    const foodSprite = getSprite(foodStoreIndex);
+    if (!foodSprite) {
+      console.warn(`[RenderSystem] Food sprite not found for entity ${eid}`);
+      continue;
+    }
+
+    let maskSprite = getMaskSprite(maskStoreIndex);
+
+    // 마스크 스프라이트가 초기화되지 않았거나 없다면 생성
+    if (!isInitialized || !maskSprite) {
+      console.log(`[RenderSystem] Creating new mask sprite for entity ${eid}`);
+
+      maskSprite = createMaskSpriteForFood(eid);
+      if (!maskSprite) {
+        console.warn(
+          `[RenderSystem] Failed to create mask sprite for entity ${eid}`
+        );
+        continue;
+      }
+
+      // 빈 슬롯을 찾아서 재사용하거나 새로 추가
+      let newMaskStoreIndex = maskSpriteStore.findIndex((s) => s === null);
+      if (newMaskStoreIndex === -1) {
+        maskSpriteStore.push(maskSprite);
+        newMaskStoreIndex = maskSpriteStore.length - 1;
+      } else {
+        maskSpriteStore[newMaskStoreIndex] = maskSprite;
+      }
+
+      // 마스크를 음식 스프라이트에 적용
+      foodSprite.mask = maskSprite;
+
+      // 마스크 스프라이트를 stage에 추가 (PIXI 마스킹이 작동하려면 필요)
+      stage.addChild(maskSprite);
+
+      FoodMaskComp.maskStoreIndex[eid] = newMaskStoreIndex;
+      FoodMaskComp.isInitialized[eid] = 1;
+
+      console.log(
+        `[RenderSystem] Created food mask for entity ${eid} at maskStoreIndex ${newMaskStoreIndex}`
+      );
+      console.log(`[RenderSystem] Food sprite mask set:`, foodSprite.mask);
+      console.log(`[RenderSystem] Mask sprite parent:`, maskSprite.parent);
+    }
+
+    // 마스크 위치 업데이트 (음식 스프라이트의 위치와 동기화)
+    if (maskSprite) {
+      maskSprite.position.set(foodSprite.position.x, foodSprite.position.y);
+
+      // 진행도에 따라 마스크 텍스처 업데이트
+      updateMaskTexture(maskSprite, progress);
+    }
+  }
 }
 
 export function renderCommonAttributes(

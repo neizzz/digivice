@@ -20,12 +20,14 @@ import {
   ThrowAnimationComponent,
 } from "./types";
 import { randomMovementSystem } from "./systems/RandomMovementSystem";
+import { commonMovementSystem } from "./systems/CommonMovementSystem";
 import { animationRenderSystem } from "./systems/AnimationRenderSystem";
 import { statusIconRenderSystem } from "./systems/StatusIconRenderSystem";
 import { renderSystem } from "./systems/RenderSystem";
 import { characterManagerSystem } from "./systems/CharacterManageSystem";
 import { dataSyncSystem } from "./systems/DataSyncSystem";
 import { throwAnimationSystem } from "./systems/ThrowAnimationSystem";
+import { foodEatingSystem } from "./systems/FoodEatingSystem";
 import { HTMLDebugStatusUI } from "./ui/HTMLDebugStatusUI";
 import { HTMLDebugToggleButton } from "./ui/HTMLDebugToggleButton";
 import { StaminaGaugeUI } from "./ui/StaminaGaugeUI";
@@ -112,6 +114,11 @@ const COMMON_SPRITESHEET_ASSETS: LoadSpritesheetOptions[] = [
     alias: "common32x32",
     pixelArt: true,
   },
+  {
+    jsonPath: "/game/sprites/vite-food-mask.json",
+    alias: "vite-food-mask",
+    pixelArt: true,
+  },
   // {
   //   jsonPath: "/game/sprites/monsters/test-green-slime_A1.json",
   //   alias: "test-green-slime_A1",
@@ -163,7 +170,9 @@ export class MainSceneWorld implements IWorld, Scene {
   ) => void;
   private _pipedSystems = pipe(
     randomMovementSystem,
+    commonMovementSystem,
     characterManagerSystem,
+    foodEatingSystem,
     throwAnimationSystem,
     animationRenderSystem,
     statusIconRenderSystem,
@@ -388,7 +397,7 @@ export class MainSceneWorld implements IWorld, Scene {
         animationKey: AnimationKey.IDLE,
         isPlaying: true,
         loop: true,
-        speed: 0.04,
+        speed: 0.05,
       },
       speed: { value: ECS_NULL_VALUE },
     });

@@ -72,3 +72,23 @@ export const ThrowAnimationComp = defineComponent({
   // State
   isActive: Types.ui8, // 0 = false, 1 = true
 });
+
+/**
+ * 음식 먹기 관련 컴포넌트
+ */
+export const FoodEatingComp = defineComponent({
+  targetFood: Types.eid, // 먹을 음식의 엔티티 ID
+  progress: Types.f32, // 먹는 진행도 (0.0 ~ 1.0)
+  duration: Types.f32, // 먹는데 걸리는 총 시간 (ms)
+  elapsedTime: Types.f32, // 경과 시간 (ms)
+  isActive: Types.ui8, // 먹고 있는지 여부 (0 = false, 1 = true)
+});
+
+/**
+ * 음식 마스킹 관련 컴포넌트
+ */
+export const FoodMaskComp = defineComponent({
+  maskStoreIndex: Types.ui16, // 마스크 스프라이트 참조 인덱스
+  progress: Types.f32, // 마스킹 진행도 (0.0 ~ 1.0)
+  isInitialized: Types.ui8, // 초기화 여부 (0 = false, 1 = true)
+});
