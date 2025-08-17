@@ -28,7 +28,7 @@ export enum CharacterState {
   DEAD = 6,
 }
 export enum CharacterStatus {
-  UNHAPPY = 1,
+  // UNHAPPY = 1,
   URGENT = 2,
   SICK = 3,
   HAPPY = 4,
@@ -108,7 +108,7 @@ export enum TextureKey {
   // TestGreenSlimeD1 = 4,
 
   // Bird sprites (100-199)
-  // BIRD = 100,
+  BIRD = 100,
 
   // Common 16x16 sprites (200-299)
   POOB = 200,
@@ -118,6 +118,7 @@ export enum TextureKey {
   UNHAPPY = 204,
   URGENT = 205,
   DISCOVER = 206,
+  PILL = 207,
 
   // Common 32x32 sprites (300-399)
   BASKET = 300,
@@ -269,4 +270,49 @@ export type ThrowAnimationComponent = {
   elapsedTime: number; // ms
   isActive: boolean;
   maxHeight: number; // 포물선 최대 높이
+};
+
+/**
+ * 새로운 ECS 컴포넌트 타입들
+ */
+export type DigestiveSystemComponent = {
+  capacity: number; // 소화기관 용량
+  currentLoad: number; // 현재 차있는 양
+  nextPoopTime: number; // 다음 똥 싸는 시간 (timestamp)
+};
+
+export type DiseaseSystemComponent = {
+  nextCheckTime: number; // 다음 질병 체크 시간 (timestamp)
+  checkInterval: number; // 질병 체크 간격 (ms)
+  sickStartTime: number; // 질병 시작 시간 (timestamp)
+};
+
+export type VitalityComponent = {
+  urgentStartTime: number; // urgent 상태 시작 시간 (timestamp)
+  deathTime: number; // 죽을 시간 (timestamp)
+  isDead: boolean; // 죽었는지 여부
+};
+
+export type TemporaryStatusComponent = {
+  statusType: CharacterStatus; // 임시 상태 타입
+  startTime: number; // 상태 시작 시간 (timestamp)
+};
+
+export type FreshnessTimerComponent = {
+  createdTime: number; // 음식이 생성된 시간 (timestamp)
+  normalTime: number; // FRESH -> NORMAL로 변하는 시간 (ms)
+  staleTime: number; // NORMAL -> STALE로 변하는 시간 (ms)
+  isBeingEaten: boolean; // 현재 먹히고 있는지 여부
+};
+
+export type SparkleEffectComponent = {
+  isActive: boolean; // 효과 활성 상태
+  sparkleCount: number; // 현재 반짝임 개수
+  nextSpawnTime: number; // 다음 반짝임 생성 시간 (timestamp)
+  spawnInterval: number; // 반짝임 생성 간격 (ms)
+};
+
+export type EggHatchComponent = {
+  hatchTime: number; // 부화할 시간 (timestamp)
+  isReadyToHatch: boolean; // 부화 준비 완료 여부
 };

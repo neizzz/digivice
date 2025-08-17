@@ -5,18 +5,11 @@ import {
   AngleComp,
   CharacterStatusComp,
 } from "../raw-components";
-import type * as PIXI from "pixi.js";
 import { MainSceneWorld } from "../world";
 import { nomalizeRadian } from "@/utils/common";
 import { getCharacterStats } from "../characterStats";
 
 const characterQuery = defineQuery([CharacterStatusComp, RandomMovementComp]);
-
-// sprite 저장소 (다른 시스템과 공유)
-let spriteStore: PIXI.Sprite[] = [];
-export function setSpriteStore(store: PIXI.Sprite[]) {
-  spriteStore = store;
-}
 
 export function randomMovementSystem(params: {
   world: MainSceneWorld;
@@ -25,7 +18,6 @@ export function randomMovementSystem(params: {
   const { world } = params;
   const currentTime = Date.now();
   const chars = characterQuery(world);
-
   for (let i = 0; i < chars.length; i++) {
     const eid = chars[i];
     const angle = AngleComp;

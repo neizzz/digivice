@@ -5,10 +5,11 @@ import {
   AngleComp,
   RenderComp,
   FoodMaskComp,
+  FreshnessComp,
 } from "../raw-components";
 import * as PIXI from "pixi.js";
 import { MainSceneWorld } from "../world";
-import { TextureKey } from "../types";
+import { TextureKey, Freshness } from "../types";
 import { getTextureFromSpritesheet } from "../../../utils/asset";
 import { hasComponent } from "bitecs";
 
@@ -25,7 +26,7 @@ const TEXTURE_MAP: Record<
   // 4: { spritesheetAlias: "test-green-slime_D1", textureName: "idle-1" }, // CharacterKey.TestGreenSlimeD1
 
   // Bird sprites (100-199)
-  // 100: { spritesheetAlias: "bird", textureName: "bird" },
+  100: { spritesheetAlias: "bird", textureName: "fly_0" }, // TextureKey.BIRD
 
   // Common 16x16 sprites (200-299)
   200: { spritesheetAlias: "common16x16", textureName: "poob" }, // TextureKey.POOB
@@ -35,6 +36,7 @@ const TEXTURE_MAP: Record<
   204: { spritesheetAlias: "common16x16", textureName: "unhappy" }, // TextureKey.UNHAPPY
   205: { spritesheetAlias: "common16x16", textureName: "urgent" }, // TextureKey.URGENT
   206: { spritesheetAlias: "common16x16", textureName: "discover" }, // TextureKey.DISCOVER
+  207: { spritesheetAlias: "common16x16", textureName: "pill-1" }, // TextureKey.PILL
 
   // Common 32x32 sprites (300-399)
   300: { spritesheetAlias: "common32x32", textureName: "basket" }, // TextureKey.BASKET
@@ -116,6 +118,7 @@ const TEXTURE_MAP: Record<
 } as const;
 
 // 스프라이트 스토어
+// NOTE: 0번 인덱스는 ECS_NULL_VALUE으로 사용하지 않음.
 const spriteStore: (
   | PIXI.Sprite
   | PIXI.AnimatedSprite
@@ -140,6 +143,10 @@ const MASK_FRAME_NAMES = [
 function getSprite(
   idx: number
 ): (PIXI.Sprite | PIXI.AnimatedSprite) | undefined {
+  // 인덱스 0은 ECS_NULL_VALUE이므로 사용하지 않음
+  if (idx === 0 || idx === ECS_NULL_VALUE) {
+    return undefined;
+  }
   return spriteStore[idx] || undefined;
 }
 
@@ -202,6 +209,7 @@ function getTextureFromKey(textureKey: number): PIXI.Texture | undefined {
 
 function createSpriteForEntity(eid: number): PIXI.Sprite | undefined {
   const textureKey = RenderComp.textureKey[eid];
+
   const texture = getTextureFromKey(textureKey);
   if (!texture) {
     console.warn(
@@ -209,8 +217,10 @@ function createSpriteForEntity(eid: number): PIXI.Sprite | undefined {
     );
     return new PIXI.Sprite(PIXI.Texture.WHITE);
   }
+
   const sprite = new PIXI.Sprite(texture);
   sprite.anchor.set(0.5);
+
   return sprite;
 }
 
@@ -322,6 +332,7 @@ export function renderSystem(params: {
       stage.removeChild(sprite);
       sprite.destroy();
       spriteStore[storeIndex] = null;
+
       console.log(`[RenderSystem] Removed sprite from stage for entity ${eid}`);
     }
 
@@ -355,18 +366,33 @@ export function renderSystem(params: {
 
     if (textureKey === TextureKey.NULL) {
       if (sprite) {
-        stage.removeChild(sprite); // NULL 텍스처는 Stage에서 제거
+        stage.removeChild(sprite);
         sprite.destroy();
         spriteStore[storeIndex] = null;
-
-        console.log(
-          `[RenderSystem] Removed sprite from stage for entity ${eid} (NULL texture)`
-        );
+        RenderComp.storeIndex[eid] = ECS_NULL_VALUE;
       }
       continue;
     }
 
+    // 스프라이트가 없는 경우에만 새로 생성 (무한 생성 방지)
     if (!sprite) {
+      // storeIndex가 유효하지 않은 경우에만 새 스프라이트 생성
+      const needsNewSprite =
+        storeIndex === 0 ||
+        storeIndex === ECS_NULL_VALUE ||
+        !spriteStore[storeIndex];
+
+      if (!needsNewSprite) {
+        console.warn(
+          `[RenderSystem] Entity ${eid} claims no sprite but storeIndex ${storeIndex} seems valid. Skipping creation to prevent infinite sprite generation.`
+        );
+        continue;
+      }
+
+      console.log(
+        `[RenderSystem] Creating sprite for entity ${eid} (storeIndex=${storeIndex}), total sprites before: ${spriteStore.length}`
+      );
+
       sprite = createSpriteForEntity(eid);
       if (!sprite) {
         throw new Error(
@@ -374,8 +400,10 @@ export function renderSystem(params: {
         );
       }
 
-      // 빈 슬롯을 찾아서 재사용하거나 새로 추가
-      let newStoreIndex = spriteStore.findIndex((s) => s === null);
+      // 빈 슬롯을 찾아서 재사용하거나 새로 추가 (인덱스 0은 제외)
+      let newStoreIndex = spriteStore.findIndex(
+        (s, index) => index > 0 && s === null
+      );
       if (newStoreIndex === -1) {
         // 빈 슬롯이 없으면 배열 끝에 추가
         spriteStore.push(sprite);
@@ -387,19 +415,17 @@ export function renderSystem(params: {
 
       stage.addChild(sprite);
       RenderComp.storeIndex[eid] = newStoreIndex;
+
       console.log(
-        `[RenderSystem] Added sprite to stage for entity ${eid} at storeIndex ${newStoreIndex}`
+        `[RenderSystem] Created and added sprite for entity ${eid} at storeIndex ${newStoreIndex}, total sprites after: ${spriteStore.length}`
       );
     }
 
-    renderCommonAttributes(eid, sprite!, world);
+    renderCommonAttributes(eid, sprite, world);
 
     const newTexture = getTextureFromKey(textureKey);
-    if (newTexture && sprite!.texture !== newTexture) {
-      sprite!.texture = newTexture;
-      // console.log(
-      //   `[RenderSystem] Updated texture for entity ${eid} to key ${textureKey}`
-      // );
+    if (newTexture && sprite.texture !== newTexture) {
+      sprite.texture = newTexture;
     }
   }
 
@@ -449,8 +475,10 @@ function processFoodMasks(world: MainSceneWorld, stage: PIXI.Container): void {
         continue;
       }
 
-      // 빈 슬롯을 찾아서 재사용하거나 새로 추가
-      let newMaskStoreIndex = maskSpriteStore.findIndex((s) => s === null);
+      // 빈 슬롯을 찾아서 재사용하거나 새로 추가 (인덱스 0은 제외)
+      let newMaskStoreIndex = maskSpriteStore.findIndex(
+        (s, index) => index > 0 && s === null
+      );
       if (newMaskStoreIndex === -1) {
         maskSpriteStore.push(maskSprite);
         newMaskStoreIndex = maskSpriteStore.length - 1;
@@ -493,7 +521,12 @@ export function renderCommonAttributes(
   const y = PositionComp.y[eid];
   sprite.position.set(x, y);
 
-  sprite.zIndex = RenderComp.zIndex[eid] || y; // NOTE: zIndex가 없으면 y 좌표로 설정
+  // zIndex가 0이거나 설정되지 않았으면 y 좌표를 zIndex로 사용
+  const configuredZIndex = RenderComp.zIndex[eid];
+  sprite.zIndex =
+    configuredZIndex === undefined || configuredZIndex === 0
+      ? y
+      : configuredZIndex;
 
   const baseScale = RenderComp.scale[eid];
 
@@ -506,6 +539,23 @@ export function renderCommonAttributes(
   } else {
     // AngleComp가 없는 엔티티는 기본 스케일 적용
     sprite.scale.set(baseScale, baseScale);
+  }
+
+  // 음식의 신선도에 따른 색상 변경
+  if (hasComponent(world, FreshnessComp, eid)) {
+    const freshness = FreshnessComp.freshness[eid];
+
+    switch (freshness) {
+      case Freshness.STALE:
+        sprite.tint = 0x606060; // 회색 (어두운 회색)
+        break;
+      default:
+        sprite.tint = 0xffffff;
+        break;
+    }
+  } else {
+    // FreshnessComp가 없는 엔티티는 기본 색상
+    sprite.tint = 0xffffff;
   }
 }
 

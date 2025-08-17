@@ -1,13 +1,7 @@
 import { defineQuery } from "bitecs";
-import {
-  PositionComp,
-  SpeedComp,
-  AngleComp,
-  CharacterStatusComp,
-} from "../raw-components";
+import { PositionComp, SpeedComp, AngleComp } from "../raw-components";
 import { MainSceneWorld } from "../world";
 import { nomalizeRadian } from "@/utils/common";
-import { getCharacterStats } from "../characterStats";
 
 const movingEntityQuery = defineQuery([PositionComp, SpeedComp, AngleComp]);
 
@@ -33,18 +27,6 @@ export function commonMovementSystem(params: {
 
     // 이동하지 않는 엔티티는 건너뛰기
     if (speed.value[eid] === 0) continue;
-
-    // 캐릭터인 경우 고유 속도 확인 및 복원
-    if (CharacterStatusComp.characterKey[eid] !== undefined) {
-      const characterKey = CharacterStatusComp.characterKey[eid];
-      const characterStats = getCharacterStats(characterKey);
-      const characterSpeed = characterStats.speed;
-
-      // 이동 중일 때 속도가 캐릭터의 고유 속도와 다르다면 수정
-      if (Math.abs(speed.value[eid] - characterSpeed) > 0.001) {
-        speed.value[eid] = characterSpeed;
-      }
-    }
 
     // 현재 각도를 이용해 직선으로 이동
     const velocityX = Math.cos(angle.value[eid]) * speed.value[eid];

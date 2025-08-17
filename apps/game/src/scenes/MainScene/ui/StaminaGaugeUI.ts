@@ -1,6 +1,10 @@
 import { MainSceneWorld } from "../world";
-import { defineQuery } from "bitecs";
-import { ObjectComp, CharacterStatusComp } from "../raw-components";
+import { defineQuery, hasComponent } from "bitecs";
+import {
+  ObjectComp,
+  CharacterStatusComp,
+  DigestiveSystemComp,
+} from "../raw-components";
 import { ObjectType } from "../types";
 
 const characterQuery = defineQuery([ObjectComp, CharacterStatusComp]);
@@ -10,6 +14,7 @@ export class StaminaGaugeUI {
   private _world: MainSceneWorld;
   private _staminaText!: HTMLSpanElement;
   private _evolutionText!: HTMLSpanElement;
+  private _digestiveText!: HTMLSpanElement;
   private _currentCharacterEid: number = -1;
 
   constructor(world: MainSceneWorld, parentElement: HTMLElement) {
@@ -42,9 +47,6 @@ export class StaminaGaugeUI {
   private _setupUI(): void {
     // 스테미나 표시
     const staminaDiv = document.createElement("div");
-    staminaDiv.style.cssText = `
-      margin-bottom: 8px;
-    `;
 
     const staminaLabel = document.createElement("span");
     staminaLabel.textContent = "Stamina: ";
@@ -79,8 +81,27 @@ export class StaminaGaugeUI {
     evolutionDiv.appendChild(evolutionLabel);
     evolutionDiv.appendChild(this._evolutionText);
 
+    // 소화기관 표시
+    const digestiveDiv = document.createElement("div");
+
+    const digestiveLabel = document.createElement("span");
+    digestiveLabel.textContent = "Digestive: ";
+    digestiveLabel.style.cssText = `
+      color: #66ff66;
+    `;
+
+    this._digestiveText = document.createElement("span");
+    this._digestiveText.style.cssText = `
+      color: white;
+      font-weight: bold;
+    `;
+
+    digestiveDiv.appendChild(digestiveLabel);
+    digestiveDiv.appendChild(this._digestiveText);
+
     this._container.appendChild(staminaDiv);
     this._container.appendChild(evolutionDiv);
+    this._container.appendChild(digestiveDiv);
   }
 
   private _findFirstCharacter(): void {
@@ -105,6 +126,7 @@ export class StaminaGaugeUI {
       if (this._currentCharacterEid < 0) {
         this._staminaText.textContent = "N/A";
         this._evolutionText.textContent = "N/A";
+        this._digestiveText.textContent = "N/A";
         return;
       }
     }
@@ -113,9 +135,21 @@ export class StaminaGaugeUI {
     const evolutionGauge =
       CharacterStatusComp.evolutionGage[this._currentCharacterEid] || 0;
 
+    // 소화기관 정보
+    let digestiveText = "N/A";
+    if (
+      hasComponent(this._world, DigestiveSystemComp, this._currentCharacterEid)
+    ) {
+      const currentLoad =
+        DigestiveSystemComp.currentLoad[this._currentCharacterEid];
+      const capacity = DigestiveSystemComp.capacity[this._currentCharacterEid];
+      digestiveText = `${currentLoad.toFixed(1)}/${capacity}`;
+    }
+
     // 간단한 숫자 표시
     this._staminaText.textContent = `${stamina}/10`;
     this._evolutionText.textContent = `${evolutionGauge.toFixed(1)}/100.0`;
+    this._digestiveText.textContent = digestiveText;
   }
 
   public show(): void {

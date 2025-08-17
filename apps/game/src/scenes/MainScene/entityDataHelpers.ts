@@ -13,6 +13,7 @@ import {
   AnimationRenderComp,
   StatusIconRenderComp,
   ThrowAnimationComp,
+  EggHatchComp,
 } from "./raw-components";
 import type { SavedEntity, EntityComponents } from "./world";
 import { CharacterKey, CharacterStatus } from "./types";
@@ -122,6 +123,12 @@ export function convertECSEntityToSavedEntity(
       elapsedTime: ThrowAnimationComp.elapsedTime[eid],
       isActive: ThrowAnimationComp.isActive[eid] === 1,
       maxHeight: 0, // 이제 시스템에서 관리하므로 기본값
+    };
+  }
+  if (hasComponent(world, EggHatchComp, eid)) {
+    components.eggHatch = {
+      hatchTime: EggHatchComp.hatchTime[eid],
+      isReadyToHatch: EggHatchComp.isReadyToHatch[eid] === 1,
     };
   }
 
@@ -265,6 +272,16 @@ export function applySavedEntityToECS(
     ThrowAnimationComp.finalY[eid] = components.throwAnimation.finalPosition.y;
     ThrowAnimationComp.elapsedTime[eid] = components.throwAnimation.elapsedTime;
     ThrowAnimationComp.isActive[eid] = components.throwAnimation.isActive
+      ? 1
+      : 0;
+  }
+
+  if (components.eggHatch) {
+    if (!hasComponent(world, EggHatchComp, eid)) {
+      addComponent(world, EggHatchComp, eid);
+    }
+    EggHatchComp.hatchTime[eid] = components.eggHatch.hatchTime;
+    EggHatchComp.isReadyToHatch[eid] = components.eggHatch.isReadyToHatch
       ? 1
       : 0;
   }

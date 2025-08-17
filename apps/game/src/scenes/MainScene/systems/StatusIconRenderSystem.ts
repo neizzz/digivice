@@ -5,18 +5,18 @@ import {
   CharacterStatusComp,
   StatusIconRenderComp,
   ObjectComp,
+  RenderComp,
 } from "../raw-components";
 import * as PIXI from "pixi.js";
 import { MainSceneWorld } from "../world";
 import { CharacterStatus, ObjectType, TextureKey } from "../types";
 
+// 디버그 플래그
+export const DEBUG_DISABLE_FOOD_CHASE = true; // 음식 쫒기 비활성화 (FoodEatingSystem에서 사용)
+
 // 일시적인 상태들 (3초 후 자동 제거)
-const TEMPORARY_STATUSES = [
-  CharacterStatus.UNHAPPY,
-  CharacterStatus.HAPPY,
-  CharacterStatus.DISCOVER,
-];
-const TEMPORARY_STATUS_DURATION = 3000; // 3초
+const TEMPORARY_STATUSES = [CharacterStatus.HAPPY, CharacterStatus.DISCOVER];
+const TEMPORARY_STATUS_DURATION = 3000;
 
 // 엔티티별 일시적 상태 타이머
 const temporaryStatusTimers: Map<
@@ -25,10 +25,9 @@ const temporaryStatusTimers: Map<
 > = new Map();
 
 // 상태 아이콘 매핑
-const STATUS_TO_TEXTURE_KEY: Record<CharacterStatus, TextureKey> = {
+const STATUS_TO_TEXTURE_KEY: Partial<Record<CharacterStatus, TextureKey>> = {
   [CharacterStatus.SICK]: TextureKey.SICK,
   [CharacterStatus.HAPPY]: TextureKey.HAPPY,
-  [CharacterStatus.UNHAPPY]: TextureKey.UNHAPPY,
   [CharacterStatus.URGENT]: TextureKey.URGENT,
   [CharacterStatus.DISCOVER]: TextureKey.DISCOVER,
 };
@@ -47,10 +46,10 @@ function getTextureFromKey(textureKey: number): PIXI.Texture | undefined {
       spritesheetAlias: "common16x16",
       textureName: "happy",
     },
-    [TextureKey.UNHAPPY]: {
-      spritesheetAlias: "common16x16",
-      textureName: "unhappy",
-    },
+    // [TextureKey.UNHAPPY]: {
+    //   spritesheetAlias: "common16x16",
+    //   textureName: "unhappy",
+    // },
     [TextureKey.URGENT]: {
       spritesheetAlias: "common16x16",
       textureName: "urgent",
@@ -235,6 +234,14 @@ export function statusIconRenderSystem(params: {
 
     // 캐릭터만 처리
     if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
+      continue;
+    }
+
+    // 죽은 캐릭터(무덤)는 상태 아이콘을 표시하지 않음
+    if (RenderComp.textureKey[eid] === TextureKey.TOMB) {
+      // 기존 스프라이트들 제거
+      clearEntitySprites(eid);
+      StatusIconRenderComp.visibleCount[eid] = 0;
       continue;
     }
 

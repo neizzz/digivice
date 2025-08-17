@@ -1,6 +1,6 @@
 import * as PIXI from "pixi.js";
 import { AssetLoader } from "../utils/AssetLoader";
-import { INTENTED_FRONT_Z_INDEX } from "../config";
+import { INTENTED_FRONT_Z_INDEX } from "../constants";
 
 /**
  * 빗자루 클래스

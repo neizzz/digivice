@@ -3,16 +3,24 @@ import {
   ObjectComp,
   CharacterStatusComp,
   StatusIconRenderComp,
+  RenderComp,
 } from "../raw-components";
-import { ObjectType, CharacterStatus } from "../types";
+import {
+  ObjectType,
+  CharacterStatus,
+  CharacterState,
+  TextureKey,
+} from "../types";
 import { MainSceneWorld } from "../world";
 import { startTemporaryStatus } from "./StatusIconRenderSystem";
+import { evolveCharacter, canEvolve } from "./EvolutionSystem";
 import { CHARACTER_STATUS } from "../../../config";
 
 const characterQuery = defineQuery([
   ObjectComp,
   CharacterStatusComp,
   StatusIconRenderComp,
+  RenderComp,
 ]);
 
 // 이전 프레임의 상태를 추적하기 위한 Map
@@ -37,8 +45,32 @@ export function characterManagerSystem(params: {
       continue;
     }
 
+    // EGG 상태일 때 알 텍스처로 변경
+    if (ObjectComp.state[eid] === CharacterState.EGG) {
+      // 알 텍스처로 설정 (EGG0 사용)
+      if (RenderComp.textureKey[eid] !== TextureKey.EGG0) {
+        RenderComp.textureKey[eid] = TextureKey.EGG0;
+        console.log(
+          `[CharacterManagerSystem] Changed texture to EGG for character ${eid}`
+        );
+      }
+    }
+    // IDLE 상태일 때 (부화 후) 정적 텍스처 제거 (애니메이션 시스템이 처리)
+    else if (
+      ObjectComp.state[eid] === CharacterState.IDLE ||
+      ObjectComp.state[eid] === CharacterState.MOVING
+    ) {
+      // 알 텍스처에서 벗어났다면 정적 텍스처를 ECS_NULL_VALUE로 설정하여 애니메이션 시스템이 처리하도록 함
+      if (RenderComp.textureKey[eid] === TextureKey.EGG0) {
+        RenderComp.textureKey[eid] = ECS_NULL_VALUE;
+        console.log(
+          `[CharacterManagerSystem] Cleared static texture for hatched character ${eid}, animation system will handle rendering`
+        );
+      }
+    }
+
     // 스테미나 및 진화 게이지 업데이트
-    updateStaminaAndEvolutionGauge(eid, delta);
+    updateStaminaAndEvolutionGauge(world, eid, delta);
 
     // 현재 캐릭터의 상태와 진화 정보 가져오기
     const statusArray = CharacterStatusComp.statuses[eid];
@@ -232,7 +264,11 @@ export function clearCharacterStatuses(eid: number): void {
 }
 
 // 스테미나와 진화 게이지 업데이트 함수
-function updateStaminaAndEvolutionGauge(eid: number, delta: number): void {
+function updateStaminaAndEvolutionGauge(
+  world: MainSceneWorld,
+  eid: number,
+  delta: number
+): void {
   // 스테미나 타이머 업데이트
   const currentStaminaTimer = staminaTimers.get(eid) || 0;
   const newStaminaTimer = currentStaminaTimer + delta;
@@ -244,18 +280,26 @@ function updateStaminaAndEvolutionGauge(eid: number, delta: number): void {
     staminaTimers.set(eid, 0);
   }
 
-  // 진화 게이지 타이머 업데이트 (스테미나가 5 이상일 때만)
+  // 진화 게이지 타이머 업데이트 (스테미나가 5 이상이고 SICK 상태가 아닐 때만)
   const currentStamina = CharacterStatusComp.stamina[eid];
-  if (currentStamina >= CHARACTER_STATUS.EVOLUTION_GAUGE_STATMINA_THRESHOLD) {
+  const isSick = hasCharacterStatus(eid, CharacterStatus.SICK);
+
+  if (
+    currentStamina >= CHARACTER_STATUS.EVOLUTION_GAUGE_STATMINA_THRESHOLD &&
+    !isSick
+  ) {
     const currentEvolutionTimer = evolutionGaugeTimers.get(eid) || 0;
     const newEvolutionTimer = currentEvolutionTimer + delta;
     evolutionGaugeTimers.set(eid, newEvolutionTimer);
 
     // 진화 게이지 증가 체크
     if (newEvolutionTimer >= CHARACTER_STATUS.EVOLUTION_GAUGE_CHECK_INTERVAL) {
-      increaseEvolutionGauge(eid);
+      increaseEvolutionGauge(world, eid);
       evolutionGaugeTimers.set(eid, 0);
     }
+  } else if (isSick) {
+    // SICK 상태일 때는 진화 게이지 타이머를 리셋 (아픈 동안은 진화하지 않음)
+    evolutionGaugeTimers.set(eid, 0);
   }
 }
 
@@ -274,7 +318,7 @@ function decreaseStamina(eid: number): void {
 }
 
 // 진화 게이지 증가 함수
-function increaseEvolutionGauge(eid: number): void {
+function increaseEvolutionGauge(world: MainSceneWorld, eid: number): void {
   const currentGauge = CharacterStatusComp.evolutionGage[eid];
   const newGauge = Math.min(100.0, currentGauge + 1.0); // 임시로 1씩 증가
   CharacterStatusComp.evolutionGage[eid] = newGauge;
@@ -284,11 +328,11 @@ function increaseEvolutionGauge(eid: number): void {
   );
 
   // 진화 조건 체크 (100에 도달했을 때)
-  if (newGauge >= 100.0) {
+  if (canEvolve(eid)) {
     console.log(
       `[CharacterManagerSystem] Evolution conditions met for entity ${eid}!`
     );
-    // TODO: 진화 로직 구현
-    CharacterStatusComp.evolutionGage[eid] = 0.0; // 게이지 리셋
+    // 진화 처리
+    evolveCharacter(world, eid);
   }
 }

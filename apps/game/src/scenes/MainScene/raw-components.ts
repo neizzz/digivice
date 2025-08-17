@@ -92,3 +92,65 @@ export const FoodMaskComp = defineComponent({
   progress: Types.f32, // 마스킹 진행도 (0.0 ~ 1.0)
   isInitialized: Types.ui8, // 초기화 여부 (0 = false, 1 = true)
 });
+
+/**
+ * 소화기관 관련 컴포넌트
+ */
+export const DigestiveSystemComp = defineComponent({
+  capacity: Types.f32, // 소화기관 용량 (기본 5.0)
+  currentLoad: Types.f32, // 현재 차있는 양
+  nextPoopTime: Types.f64, // 다음 똥 싸는 시간 (timestamp)
+});
+
+/**
+ * 질병 시스템 컴포넌트
+ */
+export const DiseaseSystemComp = defineComponent({
+  nextCheckTime: Types.f64, // 다음 질병 체크 시간 (timestamp)
+  checkInterval: Types.ui32, // 질병 체크 간격 (ms)
+  sickStartTime: Types.f64, // 질병 시작 시간 (timestamp) - 기록용
+});
+
+/**
+ * 음식 신선도 시간 추적 컴포넌트
+ */
+export const FreshnessTimerComp = defineComponent({
+  createdTime: Types.f64, // 음식이 생성된 시간 (timestamp)
+  normalTime: Types.ui32, // FRESH -> NORMAL로 변하는 시간 (ms)
+  staleTime: Types.ui32, // NORMAL -> STALE로 변하는 시간 (ms)
+  isBeingEaten: Types.ui8, // 현재 먹히고 있는지 여부 (0 = false, 1 = true)
+});
+
+/**
+ * 캐릭터 생존 상태 컴포넌트
+ */
+export const VitalityComp = defineComponent({
+  urgentStartTime: Types.f64, // urgent 상태 시작 시간 (timestamp)
+  deathTime: Types.f64, // 죽을 시간 (timestamp)
+  isDead: Types.ui8, // 죽었는지 여부 (0 = false, 1 = true)
+});
+
+/**
+ * 임시 상태 추적 컴포넌트 (happy 등 일시적인 상태용)
+ */
+export const TemporaryStatusComp = defineComponent({
+  statusType: Types.ui8, // 임시 상태 타입 (CharacterStatus enum)
+  startTime: Types.f64, // 상태 시작 시간 (timestamp)
+});
+
+/**
+ * 스파클 이펙트 컴포넌트
+ */
+export const SparkleEffectComp = defineComponent({
+  isActive: Types.ui8, // 효과 활성 상태 (0 = false, 1 = true)
+  sparkleCount: Types.ui8, // 현재 반짝임 개수
+  nextSpawnTime: Types.f64, // 다음 반짝임 생성 시간 (timestamp)
+  spawnInterval: Types.ui32, // 반짝임 생성 간격 (ms)
+});
+/**
+ * 알 부화 컴포넌트
+ */
+export const EggHatchComp = defineComponent({
+  hatchTime: Types.f64, // 부화할 시간 (timestamp)
+  isReadyToHatch: Types.ui8, // 부화 준비 완료 여부 (0 = false, 1 = true)
+});

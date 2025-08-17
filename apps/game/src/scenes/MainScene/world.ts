@@ -18,6 +18,13 @@ import {
   AnimationKey,
   SpritesheetKey,
   ThrowAnimationComponent,
+  DigestiveSystemComponent,
+  DiseaseSystemComponent,
+  VitalityComponent,
+  TemporaryStatusComponent,
+  EggHatchComponent,
+  FreshnessTimerComponent,
+  SparkleEffectComponent,
 } from "./types";
 import { randomMovementSystem } from "./systems/RandomMovementSystem";
 import { commonMovementSystem } from "./systems/CommonMovementSystem";
@@ -28,6 +35,17 @@ import { characterManagerSystem } from "./systems/CharacterManageSystem";
 import { dataSyncSystem } from "./systems/DataSyncSystem";
 import { throwAnimationSystem } from "./systems/ThrowAnimationSystem";
 import { foodEatingSystem } from "./systems/FoodEatingSystem";
+import { diseaseSystem } from "./systems/DiseaseSystem";
+import { freshnessSystem } from "./systems/FreshnessSystem";
+import { digestiveSystem } from "./systems/DigestiveSystem";
+import { characterStatusSystem } from "./systems/CharacterStatusSystem";
+import { eggHatchSystem } from "./systems/EggHatchSystem";
+import { sparkleEffectSystem } from "./systems/SparkleEffectSystem";
+import {
+  pillDeliverySystem,
+  requestPillDelivery,
+} from "./systems/PillDeliverySystem";
+import { AppStateManager } from "./AppStateManager";
 import { HTMLDebugStatusUI } from "./ui/HTMLDebugStatusUI";
 import { HTMLDebugToggleButton } from "./ui/HTMLDebugToggleButton";
 import { StaminaGaugeUI } from "./ui/StaminaGaugeUI";
@@ -41,6 +59,7 @@ import {
   createCharacterEntity,
   createThrowingFoodEntity,
 } from "./entityFactory";
+import { ObjectComp, CharacterStatusComp } from "./raw-components";
 import { generatePersistentNumericId } from "@/utils/generate";
 import {
   loadSpritesheets,
@@ -69,6 +88,13 @@ export type EntityComponents = {
   destination?: DestinationComponent;
   randomMovement?: RandomMovementComponent;
   throwAnimation?: ThrowAnimationComponent;
+  digestiveSystem?: DigestiveSystemComponent;
+  diseaseSystem?: DiseaseSystemComponent;
+  vitality?: VitalityComponent;
+  temporaryStatus?: TemporaryStatusComponent;
+  eggHatch?: EggHatchComponent;
+  freshnessTimer?: FreshnessTimerComponent;
+  sparkleEffect?: SparkleEffectComponent;
 };
 
 export type SavedEntity = {
@@ -119,26 +145,26 @@ const COMMON_SPRITESHEET_ASSETS: LoadSpritesheetOptions[] = [
     alias: "vite-food-mask",
     pixelArt: true,
   },
-  // {
-  //   jsonPath: "/game/sprites/monsters/test-green-slime_A1.json",
-  //   alias: "test-green-slime_A1",
-  //   pixelArt: true,
-  // },
-  // {
-  //   jsonPath: "/game/sprites/monsters/test-green-slime_B1.json",
-  //   alias: "test-green-slime_B1",
-  //   pixelArt: true,
-  // },
-  // {
-  //   jsonPath: "/game/sprites/monsters/test-green-slime_C1.json",
-  //   alias: "test-green-slime_C1",
-  //   pixelArt: true,
-  // },
-  // {
-  //   jsonPath: "/game/sprites/monsters/test-green-slime_D1.json",
-  //   alias: "test-green-slime_D1",
-  //   pixelArt: true,
-  // },
+  {
+    jsonPath: "/game/sprites/monsters/test-green-slime_A1.json",
+    alias: "test-green-slime_A1",
+    pixelArt: true,
+  },
+  {
+    jsonPath: "/game/sprites/monsters/test-green-slime_B1.json",
+    alias: "test-green-slime_B1",
+    pixelArt: true,
+  },
+  {
+    jsonPath: "/game/sprites/monsters/test-green-slime_C1.json",
+    alias: "test-green-slime_C1",
+    pixelArt: true,
+  },
+  {
+    jsonPath: "/game/sprites/monsters/test-green-slime_D1.json",
+    alias: "test-green-slime_D1",
+    pixelArt: true,
+  },
 ];
 const IMAGE_ASSETS = {
   grass: "/game/tiles/grass-tile.jpg",
@@ -161,6 +187,7 @@ export class MainSceneWorld implements IWorld, Scene {
   private _gameMenu?: GameMenu;
   private _parentElement?: HTMLElement;
   private _navigationActionIndex = 0;
+  private _appStateManager?: AppStateManager;
   private _changeControlButtons?: (
     controlButtonParamsSet: [
       { type: ControlButtonType },
@@ -169,6 +196,19 @@ export class MainSceneWorld implements IWorld, Scene {
     ]
   ) => void;
   private _pipedSystems = pipe(
+    // 시간 기반 시스템들
+    (params: any) => freshnessSystem({ ...params, currentTime: Date.now() }),
+    (params: any) => digestiveSystem({ ...params, currentTime: Date.now() }),
+    (params: any) => diseaseSystem({ ...params, currentTime: Date.now() }),
+    (params: any) =>
+      characterStatusSystem({ ...params, currentTime: Date.now() }),
+    (params: any) => eggHatchSystem({ ...params, currentTime: Date.now() }),
+    // 배달 시스템
+    pillDeliverySystem,
+    // 이펙트 시스템
+    (params: any) =>
+      sparkleEffectSystem({ ...params, currentTime: Date.now() }),
+    // 기존 시스템들
     randomMovementSystem,
     commonMovementSystem,
     characterManagerSystem,
@@ -335,7 +375,7 @@ export class MainSceneWorld implements IWorld, Scene {
         },
         onDrugSelect: () => {
           console.log("[MainSceneWorld] Drug selected");
-          // TODO: 약 주기 기능
+          this._handleDrugSelection();
         },
         onCleanSelect: () => {
           console.log("[MainSceneWorld] Clean selected");
@@ -360,6 +400,9 @@ export class MainSceneWorld implements IWorld, Scene {
       }
     }
 
+    // 앱 상태 관리자 초기화
+    this._appStateManager = new AppStateManager(this);
+
     console.log("[MainSceneWorld] World initialization completed");
   }
 
@@ -380,7 +423,7 @@ export class MainSceneWorld implements IWorld, Scene {
       },
       characterStatus: {
         characterKey: ECS_NULL_VALUE,
-        stamina: 10, // 초기 스테미나 최대값으로 설정
+        stamina: 5, // 초기 스테미나 최대값으로 설정
         evolutionGage: 0, // 초기 진화 게이지 0으로 설정
         evolutionPhase: 1,
         statuses: new Array(ECS_CHARACTER_STATUS_LENGTH).fill(ECS_NULL_VALUE),
@@ -389,7 +432,7 @@ export class MainSceneWorld implements IWorld, Scene {
         storeIndex: ECS_NULL_VALUE,
         scale: 3,
         textureKey: ECS_NULL_VALUE,
-        zIndex: ECS_NULL_VALUE,
+        zIndex: 0, // 기본값은 0 (y좌표 기반 정렬 사용)
       },
       animationRender: {
         storeIndex: ECS_NULL_VALUE,
@@ -397,7 +440,7 @@ export class MainSceneWorld implements IWorld, Scene {
         animationKey: AnimationKey.IDLE,
         isPlaying: true,
         loop: true,
-        speed: 0.05,
+        speed: 0.04,
       },
       speed: { value: ECS_NULL_VALUE },
     });
@@ -491,6 +534,12 @@ export class MainSceneWorld implements IWorld, Scene {
 
   destroy(): void {
     console.log("[MainSceneWorld] Destroying world...");
+
+    // 앱 상태 관리자 정리
+    if (this._appStateManager) {
+      this._appStateManager.destroy();
+      this._appStateManager = undefined;
+    }
 
     // 게임 메뉴 정리
     if (this._gameMenu) {
@@ -833,5 +882,48 @@ export class MainSceneWorld implements IWorld, Scene {
     console.log(
       `[MainSceneWorld] Position boundary: x=${boundary.x}, y=${boundary.y}, w=${boundary.width}, h=${boundary.height}`
     );
+  }
+
+  /**
+   * 앱 상태 관리자의 현재 상태 반환 (디버그용)
+   */
+  public getAppState() {
+    return this._appStateManager?.getState() || null;
+  }
+
+  /**
+   * 약 메뉴 선택 처리
+   */
+  private _handleDrugSelection(): void {
+    const characterEid = this._findMainCharacterEntity();
+
+    if (characterEid === -1) {
+      console.warn(
+        "[MainSceneWorld] No character entity found for drug delivery"
+      );
+      return;
+    }
+
+    console.log(
+      `[MainSceneWorld] Requesting pill delivery for character ${characterEid}`
+    );
+    requestPillDelivery(characterEid);
+  }
+
+  /**
+   * 메인 캐릭터 엔티티 찾기
+   */
+  private _findMainCharacterEntity(): number {
+    // ObjectComp와 CharacterStatusComp를 모두 가진 CHARACTER 타입 엔티티 찾기
+    for (let eid = 0; eid < 1000; eid++) {
+      // 적당한 범위에서 검색
+      if (
+        ObjectComp.type[eid] === ObjectType.CHARACTER &&
+        CharacterStatusComp.statuses[eid] !== undefined
+      ) {
+        return eid;
+      }
+    }
+    return -1; // 캐릭터를 찾지 못함
   }
 }

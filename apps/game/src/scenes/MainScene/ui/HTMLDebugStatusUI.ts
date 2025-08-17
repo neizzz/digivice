@@ -1,8 +1,4 @@
 import { CharacterStatus } from "../types";
-import {
-  addCharacterStatus,
-  removeCharacterStatus,
-} from "..//systems/CharacterManageSystem";
 import { MainSceneWorld } from "..//world";
 import { defineQuery } from "bitecs";
 import { ObjectComp, CharacterStatusComp } from "../raw-components";
@@ -25,7 +21,6 @@ function hasCharacterStatus(eid: number, status: CharacterStatus): boolean {
 export class HTMLDebugStatusUI {
   private _container: HTMLDivElement;
   private _world: MainSceneWorld;
-  private _buttons: Map<CharacterStatus, HTMLButtonElement> = new Map();
   private _indicators: Map<CharacterStatus, HTMLSpanElement> = new Map();
   private _isVisible: boolean = false;
   private _currentCharacterEid: number = -1; // -1을 "캐릭터 없음"으로 사용
@@ -272,65 +267,6 @@ export class HTMLDebugStatusUI {
     this._indicators.forEach((indicator, status) => {
       this._updateStatusIndicator(indicator, status);
     });
-  }
-
-  private _toggleStatus(status: CharacterStatus): void {
-    if (this._currentCharacterEid < 0) {
-      // -1이면 캐릭터 없음
-      console.warn("[HTMLDebugStatusUI] No character found");
-      return;
-    }
-
-    // CharacterStatusComp가 있는지 확인
-    if (!CharacterStatusComp.statuses[this._currentCharacterEid]) {
-      console.error(
-        `[HTMLDebugStatusUI] Character ${this._currentCharacterEid} has no CharacterStatusComp. Cannot toggle status.`
-      );
-      alert(
-        `Character ${this._currentCharacterEid} is missing CharacterStatusComp.\nThis character was not created properly.`
-      );
-      return;
-    }
-
-    const hasStatus = hasCharacterStatus(this._currentCharacterEid, status);
-
-    if (hasStatus) {
-      removeCharacterStatus(this._currentCharacterEid, status);
-      console.log(
-        `[HTMLDebugStatusUI] Removed status ${status} from character ${this._currentCharacterEid}`
-      );
-    } else {
-      addCharacterStatus(this._currentCharacterEid, status);
-      console.log(
-        `[HTMLDebugStatusUI] Added status ${status} to character ${this._currentCharacterEid}`
-      );
-    }
-  }
-
-  private _clearAllStatuses(): void {
-    if (this._currentCharacterEid < 0) {
-      // -1이면 캐릭터 없음
-      console.warn("[HTMLDebugStatusUI] No character found");
-      return;
-    }
-
-    const statuses = [
-      CharacterStatus.SICK,
-      CharacterStatus.UNHAPPY,
-      CharacterStatus.URGENT,
-      CharacterStatus.HAPPY,
-      CharacterStatus.DISCOVER,
-    ];
-
-    statuses.forEach((status) => {
-      if (hasCharacterStatus(this._currentCharacterEid, status)) {
-        removeCharacterStatus(this._currentCharacterEid, status);
-      }
-    });
-
-    console.log(
-      `[HTMLDebugStatusUI] Cleared all statuses from character ${this._currentCharacterEid}`
-    );
   }
 
   // 스테미나/진화 게이지 조절 버튼 생성

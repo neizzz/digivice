@@ -7,8 +7,7 @@ import {
 } from "../raw-components";
 import { ObjectType, FoodState } from "../types";
 import { MainSceneWorld } from "../world";
-
-const INTENTED_FRONT_Z_INDEX = 9999;
+import { INTENTED_FRONT_Z_INDEX } from "@/constants";
 
 // 던지기 애니메이션 상수들
 const THROW_DURATION = 1000; // 2초
@@ -88,8 +87,8 @@ export function throwAnimationSystem(params: {
       PositionComp.y[eid] = finalY;
       RenderComp.scale[eid] = finalScale;
 
-      // zIndex를 y 좌표 기반으로 설정 (렌더링 순서)
-      RenderComp.zIndex[eid] = finalY;
+      // zIndex를 0으로 설정하여 y 좌표 기반 렌더링 순서 사용
+      RenderComp.zIndex[eid] = 0;
 
       // 음식 상태를 LANDED로 변경
       if (ObjectComp.type[eid] === ObjectType.FOOD) {

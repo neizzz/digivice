@@ -1,4 +1,5 @@
 import * as PIXI from "pixi.js";
+import { CharacterKey } from "../scenes/MainScene/types";
 
 /**
  * 단일 스프라이트시트를 로드하고 파싱하는 유틸리티 함수들
@@ -160,6 +161,54 @@ export function getTextureFromSpritesheet(
   }
 
   return spritesheet.textures[textureName];
+}
+
+/**
+ * 캐릭터 키에서 스프라이트시트 로드 옵션을 가져옵니다.
+ */
+export function getCharacterSpritesheetOptions(
+  characterKey: CharacterKey
+): LoadSpritesheetOptions | null {
+  switch (characterKey) {
+    case CharacterKey.TestGreenSlimeA1:
+      return {
+        jsonPath: "/game/sprites/monsters/test-green-slime_A1.json",
+        alias: "test-green-slime_A1",
+        pixelArt: true,
+      };
+    case CharacterKey.TestGreenSlimeB1:
+      return {
+        jsonPath: "/game/sprites/monsters/test-green-slime_B1.json",
+        alias: "test-green-slime_B1",
+        pixelArt: true,
+      };
+    case CharacterKey.TestGreenSlimeC1:
+      return {
+        jsonPath: "/game/sprites/monsters/test-green-slime_C1.json",
+        alias: "test-green-slime_C1",
+        pixelArt: true,
+      };
+    case CharacterKey.TestGreenSlimeD1:
+      return {
+        jsonPath: "/game/sprites/monsters/test-green-slime_D1.json",
+        alias: "test-green-slime_D1",
+        pixelArt: true,
+      };
+    default:
+      return null;
+  }
+}
+
+/**
+ * 스프라이트시트가 이미 로드되어 있는지 확인합니다.
+ */
+export function isSpritesheetLoaded(alias: string): boolean {
+  try {
+    const spritesheet = PIXI.Assets.get(alias);
+    return spritesheet && spritesheet instanceof PIXI.Spritesheet;
+  } catch {
+    return false;
+  }
 }
 
 /**

@@ -1,6 +1,6 @@
 import * as PIXI from "pixi.js";
 import { AssetLoader } from "../utils/AssetLoader";
-import { INTENTED_FRONT_Z_INDEX } from "../config";
+import { INTENTED_FRONT_Z_INDEX } from "../constants";
 
 /**
  * Bird 클래스는 게임에서 새를 표현하는 엔티티입니다.
