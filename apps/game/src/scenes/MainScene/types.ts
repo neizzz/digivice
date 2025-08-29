@@ -283,7 +283,6 @@ export type DigestiveSystemComponent = {
 
 export type DiseaseSystemComponent = {
   nextCheckTime: number; // 다음 질병 체크 시간 (timestamp)
-  checkInterval: number; // 질병 체크 간격 (ms)
   sickStartTime: number; // 질병 시작 시간 (timestamp)
 };
 
@@ -291,11 +290,6 @@ export type VitalityComponent = {
   urgentStartTime: number; // urgent 상태 시작 시간 (timestamp)
   deathTime: number; // 죽을 시간 (timestamp)
   isDead: boolean; // 죽었는지 여부
-};
-
-export type TemporaryStatusComponent = {
-  statusType: CharacterStatus; // 임시 상태 타입
-  startTime: number; // 상태 시작 시간 (timestamp)
 };
 
 export type FreshnessTimerComponent = {

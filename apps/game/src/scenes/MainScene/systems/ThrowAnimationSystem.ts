@@ -11,7 +11,7 @@ import { INTENTED_FRONT_Z_INDEX } from "@/constants";
 
 // 던지기 애니메이션 상수들
 const THROW_DURATION = 1000; // 2초
-const INITIAL_SCALE = 4.6; // 큰 크기로 시작 (앞쪽)
+const INITIAL_SCALE = 5.0; // 큰 크기로 시작 (앞쪽)
 const FINAL_SCALE = 1.4; // 작은 크기로 끝 (뒤쪽)
 const MAX_HEIGHT = 150; // 포물선 최대 높이
 

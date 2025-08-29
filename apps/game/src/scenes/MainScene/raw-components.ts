@@ -2,7 +2,7 @@
 import { defineComponent, Types } from "bitecs";
 
 export const ObjectComp = defineComponent({
-  id: Types.f32,
+  id: Types.f64, // 큰 숫자 ID를 정확히 저장하기 위해 f64 사용
   type: Types.ui8 /** {@link enum ObjectType} */,
   state: Types.ui8, // 각 type 맞는 상태 (상태가 없을 수도 있음)
 });
@@ -107,7 +107,6 @@ export const DigestiveSystemComp = defineComponent({
  */
 export const DiseaseSystemComp = defineComponent({
   nextCheckTime: Types.f64, // 다음 질병 체크 시간 (timestamp)
-  checkInterval: Types.ui32, // 질병 체크 간격 (ms)
   sickStartTime: Types.f64, // 질병 시작 시간 (timestamp) - 기록용
 });
 

@@ -178,8 +178,6 @@ export class AppStateManager {
       addComponent(this.world, DiseaseSystemComp, eid);
       DiseaseSystemComp.nextCheckTime[eid] =
         currentTime + GAME_CONSTANTS.DISEASE_CHECK_INTERVAL;
-      DiseaseSystemComp.checkInterval[eid] =
-        GAME_CONSTANTS.DISEASE_CHECK_INTERVAL;
       DiseaseSystemComp.sickStartTime[eid] = 0;
     }
 

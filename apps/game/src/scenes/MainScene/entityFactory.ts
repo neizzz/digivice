@@ -78,7 +78,7 @@ export function createCharacterEntity(
   AngleComp.value[eid] = _components.angle?.value || 0; // 기본 각도는 0
 
   addComponent(world, RenderComp, eid);
-  RenderComp.storeIndex[eid] = ECS_NULL_VALUE; // 스프라이트 참조 인덱스는 나중에 설정
+  RenderComp.storeIndex[eid] = ECS_NULL_VALUE; // 렌더링 시스템에서 eid로 설정됨
   RenderComp.textureKey[eid] = _components.render.textureKey;
 
   // 캐릭터 키로부터 스탯 가져와서 scale 설정
@@ -94,7 +94,7 @@ export function createCharacterEntity(
     ObjectComp.state[eid] !== CharacterState.DEAD
   ) {
     addComponent(world, AnimationRenderComp, eid);
-    AnimationRenderComp.storeIndex[eid] = ECS_NULL_VALUE; // 애니메이션 스프라이트 참조 인덱스는 나중에 설정
+    AnimationRenderComp.storeIndex[eid] = ECS_NULL_VALUE; // 렌더링 시스템에서 eid로 설정됨
     AnimationRenderComp.spritesheetKey[eid] =
       _components.animationRender?.spritesheetKey || ECS_NULL_VALUE;
     AnimationRenderComp.animationKey[eid] =
@@ -146,8 +146,8 @@ export function createCharacterEntity(
 
   // DiseaseSystemComp 추가
   addComponent(world, DiseaseSystemComp, eid);
-  DiseaseSystemComp.nextCheckTime[eid] = Date.now() + 30000; // 30초 후 첫 질병 체크
-  DiseaseSystemComp.checkInterval[eid] = 30000; // 30초마다 질병 체크
+  DiseaseSystemComp.nextCheckTime[eid] =
+    Date.now() + GAME_CONSTANTS.DISEASE_CHECK_INTERVAL; // 첫 질병 체크
   DiseaseSystemComp.sickStartTime[eid] = 0; // 질병 시작 시간 (처음엔 건강)
 
   // VitalityComp 추가
@@ -160,7 +160,7 @@ export function createCharacterEntity(
   addComponent(world, TemporaryStatusComp, eid);
   TemporaryStatusComp.statusType[eid] = ECS_NULL_VALUE; // 임시 상태 타입 (초기에는 상태 없음)
   TemporaryStatusComp.startTime[eid] = 0; // 상태 시작 시간
-  // 참고: Happy 상태는 스테미나가 GAME_CONSTANTS.MAX_STAMINA 미만에서 MAX_STAMINA로 회복될 때만 시스템에서 설정됨
+  // 참고: Happy 상태는 스테미나가 GAME_CONSTANTS.MAX_STAMINA 미만에서 GAME_CONSTANTS.MAX_STAMINA로 회복될 때만 시스템에서 설정됨
 
   // EggHatchComp 추가 (EGG 상태일 때만 의미가 있음)
   addComponent(world, EggHatchComp, eid);
@@ -198,7 +198,7 @@ export function createBirdEntity(
   AngleComp.value[eid] = _components.angle.value || 0;
 
   addComponent(world, RenderComp, eid);
-  RenderComp.storeIndex[eid] = 0;
+  RenderComp.storeIndex[eid] = ECS_NULL_VALUE; // 렌더링 시스템에서 eid로 설정됨
   RenderComp.textureKey[eid] = ECS_NULL_VALUE; // Bird 텍스처로 변경
   RenderComp.zIndex[eid] = INTENTED_FRONT_Z_INDEX; // Bird는 높은 z-index
 
@@ -214,47 +214,47 @@ export function createBirdEntity(
   return eid;
 }
 
-export function createFoodEntity(
-  world: IWorld,
-  components: EntityComponents
-): number {
-  const _components = components as WithRequired<
-    EntityComponents,
-    "object" | "position" | "angle" | "render" | "freshness"
-  >;
-  const eid = addEntity(world);
+// export function createFoodEntity(
+//   world: IWorld,
+//   components: EntityComponents
+// ): number {
+//   const _components = components as WithRequired<
+//     EntityComponents,
+//     "object" | "position" | "angle" | "render" | "freshness"
+//   >;
+//   const eid = addEntity(world);
 
-  // ObjectComp
-  addComponent(world, ObjectComp, eid);
-  ObjectComp.id[eid] = _components.object.id || generatePersistentNumericId(); // 영속적인 고유 ID 생성
-  ObjectComp.type[eid] = ObjectType.FOOD;
-  ObjectComp.state[eid] = _components.object.state || FoodState.BEING_THROWING;
+//   // ObjectComp
+//   addComponent(world, ObjectComp, eid);
+//   ObjectComp.id[eid] = _components.object.id || generatePersistentNumericId(); // 영속적인 고유 ID 생성
+//   ObjectComp.type[eid] = ObjectType.FOOD;
+//   ObjectComp.state[eid] = _components.object.state || FoodState.BEING_THROWING;
 
-  // PositionComp
-  addComponent(world, PositionComp, eid);
-  PositionComp.x[eid] = _components.position.x || 0;
-  PositionComp.y[eid] = _components.position.y || 0;
+//   // PositionComp
+//   addComponent(world, PositionComp, eid);
+//   PositionComp.x[eid] = _components.position.x || 0;
+//   PositionComp.y[eid] = _components.position.y || 0;
 
-  // RenderComp
-  addComponent(world, RenderComp, eid);
-  RenderComp.storeIndex[eid] = ECS_NULL_VALUE; // 스프라이트 참조 인덱스는 나중에 설정
-  RenderComp.textureKey[eid] = _components.render.textureKey; // Food 텍스처로 변경
-  RenderComp.zIndex[eid] = ECS_NULL_VALUE;
+//   // RenderComp
+//   addComponent(world, RenderComp, eid);
+//   RenderComp.storeIndex[eid] = ECS_NULL_VALUE; // 스프라이트 참조 인덱스는 나중에 설정
+//   RenderComp.textureKey[eid] = _components.render.textureKey; // Food 텍스처로 변경
+//   RenderComp.zIndex[eid] = ECS_NULL_VALUE;
 
-  // FreshnessComp
-  addComponent(world, FreshnessComp, eid);
-  FreshnessComp.freshness[eid] =
-    _components.freshness.freshness || Freshness.FRESH;
+//   // FreshnessComp
+//   addComponent(world, FreshnessComp, eid);
+//   FreshnessComp.freshness[eid] =
+//     _components.freshness.freshness || Freshness.FRESH;
 
-  // FreshnessTimerComp 추가 (신선도 타이머)
-  addComponent(world, FreshnessTimerComp, eid);
-  FreshnessTimerComp.createdTime[eid] = Date.now();
-  FreshnessTimerComp.normalTime[eid] = GAME_CONSTANTS.FRESH_TO_NORMAL_TIME;
-  FreshnessTimerComp.staleTime[eid] = GAME_CONSTANTS.NORMAL_TO_STALE_TIME;
-  FreshnessTimerComp.isBeingEaten[eid] = 0;
+//   // FreshnessTimerComp 추가 (신선도 타이머)
+//   addComponent(world, FreshnessTimerComp, eid);
+//   FreshnessTimerComp.createdTime[eid] = Date.now();
+//   FreshnessTimerComp.normalTime[eid] = GAME_CONSTANTS.FRESH_TO_NORMAL_TIME;
+//   FreshnessTimerComp.staleTime[eid] = GAME_CONSTANTS.NORMAL_TO_STALE_TIME;
+//   FreshnessTimerComp.isBeingEaten[eid] = 0;
 
-  return eid;
-}
+//   return eid;
+// }
 
 export function createPillEntity(
   world: IWorld,
@@ -283,7 +283,7 @@ export function createPillEntity(
 
   // RenderComp
   addComponent(world, RenderComp, eid);
-  RenderComp.storeIndex[eid] = ECS_NULL_VALUE; // 스프라이트 참조 인덱스는 나중에 설정
+  RenderComp.storeIndex[eid] = ECS_NULL_VALUE; // 렌더링 시스템에서 eid로 설정됨
   RenderComp.textureKey[eid] = TextureKey.PILL1; // Pill은 다른 색상으로
   RenderComp.zIndex[eid] = ECS_NULL_VALUE;
 
@@ -311,16 +311,27 @@ export function createPoobEntity(
   >;
   const eid = addEntity(world);
 
+  console.log(`[EntityFactory] Creating poob entity with EID: ${eid}`);
+
   // ObjectComp
   addComponent(world, ObjectComp, eid);
-  ObjectComp.id[eid] = _components.object.id || generatePersistentNumericId(); // 영속적인 고유 ID 생성
+  ObjectComp.id[eid] =
+    _components.object.id && _components.object.id !== 0
+      ? _components.object.id
+      : generatePersistentNumericId(); // 0이거나 falsy 값일 때 새 ID 생성
   ObjectComp.type[eid] = ObjectType.POOB;
   ObjectComp.state[eid] = ECS_NULL_VALUE; // Poob는 별도 상태 enum이 없음
+
+  console.log(`[EntityFactory] Poob object ID: ${ObjectComp.id[eid]}`);
 
   // PositionComp
   addComponent(world, PositionComp, eid);
   PositionComp.x[eid] = _components.position.x || ECS_NULL_VALUE;
   PositionComp.y[eid] = _components.position.y || ECS_NULL_VALUE;
+
+  console.log(
+    `[EntityFactory] Poob position: (${PositionComp.x[eid]}, ${PositionComp.y[eid]})`
+  );
 
   // AngleComp
   addComponent(world, AngleComp, eid);
@@ -328,9 +339,13 @@ export function createPoobEntity(
 
   // RenderComp
   addComponent(world, RenderComp, eid);
-  RenderComp.storeIndex[eid] = 0;
+  RenderComp.storeIndex[eid] = ECS_NULL_VALUE; // 렌더링 시스템에서 eid로 설정됨
   RenderComp.textureKey[eid] = TextureKey.POOB; // Poob 전용 텍스처 사용
   RenderComp.zIndex[eid] = ECS_NULL_VALUE;
+
+  console.log(
+    `[EntityFactory] Poob entity created successfully with EID: ${eid}, ObjectID: ${ObjectComp.id[eid]}`
+  );
 
   return eid;
 }
@@ -364,7 +379,7 @@ export function createThrowingFoodEntity(
 
   // Render component
   addComponent(world, RenderComp, eid);
-  RenderComp.storeIndex[eid] = ECS_NULL_VALUE;
+  RenderComp.storeIndex[eid] = ECS_NULL_VALUE; // 렌더링 시스템에서 eid로 설정됨
   RenderComp.textureKey[eid] = randomFoodKey;
   RenderComp.scale[eid] = 4; // 초기 큰 크기로 시작 (시스템에서 관리)
   RenderComp.zIndex[eid] = INTENTED_FRONT_Z_INDEX;

@@ -12,6 +12,7 @@ import { MainSceneWorld } from "../world";
 import { TextureKey, Freshness } from "../types";
 import { getTextureFromSpritesheet } from "../../../utils/asset";
 import { hasComponent } from "bitecs";
+import { ObjectStore } from "../utils/ObjectStore";
 
 /** NOTE: types.ts에 {@link TextureKey}과 싱크가 맞아야 함. */
 const TEXTURE_MAP: Record<
@@ -117,19 +118,11 @@ const TEXTURE_MAP: Record<
   601: { spritesheetAlias: "common16x16", textureName: "pill-2" }, // TextureKey.PILL2
 } as const;
 
-// 스프라이트 스토어
-// NOTE: 0번 인덱스는 ECS_NULL_VALUE으로 사용하지 않음.
-const spriteStore: (
-  | PIXI.Sprite
-  | PIXI.AnimatedSprite
-  | null
-  | typeof ECS_NULL_VALUE
-)[] = [ECS_NULL_VALUE];
+// 스프라이트 스토어 - ObjectStore 클래스 사용
+const spriteStore = new ObjectStore<PIXI.Sprite>("SpriteStore");
 
 // 음식 마스크 스프라이트 스토어
-const maskSpriteStore: (PIXI.Sprite | null | typeof ECS_NULL_VALUE)[] = [
-  ECS_NULL_VALUE,
-];
+const maskSpriteStore = new ObjectStore<PIXI.Sprite>("MaskSpriteStore");
 
 // 마스크 프레임 이름들
 const MASK_FRAME_NAMES = [
@@ -140,18 +133,12 @@ const MASK_FRAME_NAMES = [
   "vite-mask_4",
 ];
 
-function getSprite(
-  idx: number
-): (PIXI.Sprite | PIXI.AnimatedSprite) | undefined {
-  // 인덱스 0은 ECS_NULL_VALUE이므로 사용하지 않음
-  if (idx === 0 || idx === ECS_NULL_VALUE) {
-    return undefined;
-  }
-  return spriteStore[idx] || undefined;
+function getSprite(eid: number): PIXI.Sprite | undefined {
+  return spriteStore.get(eid);
 }
 
-function getMaskSprite(idx: number): PIXI.Sprite | undefined {
-  return maskSpriteStore[idx] || undefined;
+function getMaskSprite(eid: number): PIXI.Sprite | undefined {
+  return maskSpriteStore.get(eid);
 }
 
 function getTextureFromKey(textureKey: number): PIXI.Texture | undefined {
@@ -312,6 +299,7 @@ export function renderSystem(params: {
   delta: number;
 }): typeof params {
   const { world } = params;
+
   // 첫 번째 실행 시 텍스처 맵 검증 (개발 환경에서만)
   if (process.env.NODE_ENV === "development" && !hasValidatedTextures) {
     validateTextureMap();
@@ -325,21 +313,19 @@ export function renderSystem(params: {
   // 제거된 엔티티들의 스프라이트를 stage에서 제거
   for (let i = 0; i < exitedEntities.length; i++) {
     const eid = exitedEntities[i];
-    const storeIndex = RenderComp.storeIndex[eid];
-    const sprite = getSprite(storeIndex);
+    const sprite = getSprite(eid);
 
     if (sprite && sprite.parent) {
       stage.removeChild(sprite);
       sprite.destroy();
-      spriteStore[storeIndex] = null;
+      spriteStore.remove(eid);
 
       console.log(`[RenderSystem] Removed sprite from stage for entity ${eid}`);
     }
 
     // FoodMask가 있는 엔티티인 경우 마스크도 정리
     if (hasComponent(world, FoodMaskComp, eid)) {
-      const maskStoreIndex = FoodMaskComp.maskStoreIndex[eid];
-      const maskSprite = getMaskSprite(maskStoreIndex);
+      const maskSprite = getMaskSprite(eid);
 
       if (maskSprite) {
         if (sprite && sprite.mask === maskSprite) {
@@ -351,7 +337,7 @@ export function renderSystem(params: {
         }
 
         maskSprite.destroy();
-        maskSpriteStore[maskStoreIndex] = null;
+        maskSpriteStore.remove(eid);
 
         console.log(`[RenderSystem] Removed mask sprite for entity ${eid}`);
       }
@@ -361,36 +347,21 @@ export function renderSystem(params: {
   for (let i = 0; i < entities.length; i++) {
     const eid = entities[i];
     const textureKey = RenderComp.textureKey[eid];
-    const storeIndex = RenderComp.storeIndex[eid];
-    let sprite = getSprite(storeIndex);
+    let sprite = spriteStore.get(eid); // eid를 직접 인덱스로 사용
 
     if (textureKey === TextureKey.NULL) {
       if (sprite) {
         stage.removeChild(sprite);
         sprite.destroy();
-        spriteStore[storeIndex] = null;
-        RenderComp.storeIndex[eid] = ECS_NULL_VALUE;
+        spriteStore.remove(eid);
       }
       continue;
     }
 
-    // 스프라이트가 없는 경우에만 새로 생성 (무한 생성 방지)
+    // 스프라이트가 없는 경우에만 새로 생성
     if (!sprite) {
-      // storeIndex가 유효하지 않은 경우에만 새 스프라이트 생성
-      const needsNewSprite =
-        storeIndex === 0 ||
-        storeIndex === ECS_NULL_VALUE ||
-        !spriteStore[storeIndex];
-
-      if (!needsNewSprite) {
-        console.warn(
-          `[RenderSystem] Entity ${eid} claims no sprite but storeIndex ${storeIndex} seems valid. Skipping creation to prevent infinite sprite generation.`
-        );
-        continue;
-      }
-
       console.log(
-        `[RenderSystem] Creating sprite for entity ${eid} (storeIndex=${storeIndex}), total sprites before: ${spriteStore.length}`
+        `[RenderSystem] Creating sprite for entity ${eid}, total sprites before: ${spriteStore.size}`
       );
 
       sprite = createSpriteForEntity(eid);
@@ -400,24 +371,12 @@ export function renderSystem(params: {
         );
       }
 
-      // 빈 슬롯을 찾아서 재사용하거나 새로 추가 (인덱스 0은 제외)
-      let newStoreIndex = spriteStore.findIndex(
-        (s, index) => index > 0 && s === null
-      );
-      if (newStoreIndex === -1) {
-        // 빈 슬롯이 없으면 배열 끝에 추가
-        spriteStore.push(sprite);
-        newStoreIndex = spriteStore.length - 1;
-      } else {
-        // 빈 슬롯에 할당
-        spriteStore[newStoreIndex] = sprite;
-      }
-
       stage.addChild(sprite);
-      RenderComp.storeIndex[eid] = newStoreIndex;
+      spriteStore.set(eid, sprite); // eid를 직접 인덱스로 사용
+      RenderComp.storeIndex[eid] = eid; // storeIndex는 eid와 동일
 
       console.log(
-        `[RenderSystem] Created and added sprite for entity ${eid} at storeIndex ${newStoreIndex}, total sprites after: ${spriteStore.length}`
+        `[RenderSystem] Created and added sprite for entity ${eid}, total sprites after: ${spriteStore.size}`
       );
     }
 
@@ -449,19 +408,17 @@ function processFoodMasks(world: MainSceneWorld, stage: PIXI.Container): void {
 
   for (let i = 0; i < foodsWithMask.length; i++) {
     const eid = foodsWithMask[i];
-    const maskStoreIndex = FoodMaskComp.maskStoreIndex[eid];
     const progress = FoodMaskComp.progress[eid];
     const isInitialized = FoodMaskComp.isInitialized[eid];
 
     // 음식 스프라이트 가져오기
-    const foodStoreIndex = RenderComp.storeIndex[eid];
-    const foodSprite = getSprite(foodStoreIndex);
+    const foodSprite = getSprite(eid);
     if (!foodSprite) {
       console.warn(`[RenderSystem] Food sprite not found for entity ${eid}`);
       continue;
     }
 
-    let maskSprite = getMaskSprite(maskStoreIndex);
+    let maskSprite = getMaskSprite(eid);
 
     // 마스크 스프라이트가 초기화되지 않았거나 없다면 생성
     if (!isInitialized || !maskSprite) {
@@ -475,29 +432,17 @@ function processFoodMasks(world: MainSceneWorld, stage: PIXI.Container): void {
         continue;
       }
 
-      // 빈 슬롯을 찾아서 재사용하거나 새로 추가 (인덱스 0은 제외)
-      let newMaskStoreIndex = maskSpriteStore.findIndex(
-        (s, index) => index > 0 && s === null
-      );
-      if (newMaskStoreIndex === -1) {
-        maskSpriteStore.push(maskSprite);
-        newMaskStoreIndex = maskSpriteStore.length - 1;
-      } else {
-        maskSpriteStore[newMaskStoreIndex] = maskSprite;
-      }
-
       // 마스크를 음식 스프라이트에 적용
       foodSprite.mask = maskSprite;
 
       // 마스크 스프라이트를 stage에 추가 (PIXI 마스킹이 작동하려면 필요)
       stage.addChild(maskSprite);
 
-      FoodMaskComp.maskStoreIndex[eid] = newMaskStoreIndex;
+      maskSpriteStore.set(eid, maskSprite); // eid를 직접 인덱스로 사용
+      FoodMaskComp.maskStoreIndex[eid] = eid; // maskStoreIndex는 eid와 동일
       FoodMaskComp.isInitialized[eid] = 1;
 
-      console.log(
-        `[RenderSystem] Created food mask for entity ${eid} at maskStoreIndex ${newMaskStoreIndex}`
-      );
+      console.log(`[RenderSystem] Created food mask for entity ${eid}`);
       console.log(`[RenderSystem] Food sprite mask set:`, foodSprite.mask);
       console.log(`[RenderSystem] Mask sprite parent:`, maskSprite.parent);
     }
@@ -523,10 +468,7 @@ export function renderCommonAttributes(
 
   // zIndex가 0이거나 설정되지 않았으면 y 좌표를 zIndex로 사용
   const configuredZIndex = RenderComp.zIndex[eid];
-  sprite.zIndex =
-    configuredZIndex === undefined || configuredZIndex === 0
-      ? y
-      : configuredZIndex;
+  sprite.zIndex = configuredZIndex === ECS_NULL_VALUE ? y : configuredZIndex;
 
   const baseScale = RenderComp.scale[eid];
 
@@ -614,7 +556,7 @@ function getTextureInfo(
  * 모든 텍스처의 로딩 상태를 확인하고 로그를 출력합니다
  */
 function validateTextureMap(): void {
-  console.group("[RenderSystem] Texture Map Validation:");
+  console.groupCollapsed("[RenderSystem] Texture Map Validation:");
 
   const availableKeys = getAvailableTextureKeys();
   let validCount = 0;

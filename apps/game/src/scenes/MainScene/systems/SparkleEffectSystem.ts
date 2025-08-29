@@ -369,9 +369,9 @@ function createSparkleVisual(world: MainSceneWorld, eid: number): void {
     }
   });
 
-  console.log(
-    `[SparkleEffectSystem] Created sparkle visual for entity ${eid} at (${position.x}, ${position.y})`
-  );
+  // console.log(
+  //   `[SparkleEffectSystem] Created sparkle visual for entity ${eid} at (${position.x}, ${position.y})`
+  // );
 }
 
 /**

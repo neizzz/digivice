@@ -8,7 +8,7 @@ import { CharacterKey } from "../scenes/MainScene/types";
 export interface LoadSpritesheetOptions {
   jsonPath: string;
   alias?: string;
-  pixelArt?: boolean;
+  // pixelArt?: boolean;
   timeout?: number;
 }
 
@@ -32,7 +32,8 @@ export interface SpritesheetLoadResult {
 export async function loadSpritesheet(
   options: LoadSpritesheetOptions
 ): Promise<SpritesheetLoadResult | null> {
-  const { jsonPath, alias, pixelArt = false, timeout = 10000 } = options;
+  // const { jsonPath, alias, pixelArt = false, timeout = 10000 } = options;
+  const { jsonPath, alias, timeout = 10000 } = options;
 
   try {
     console.log(`[SpritesheetLoader] Loading spritesheet: ${jsonPath}`);
@@ -54,11 +55,7 @@ export async function loadSpritesheet(
 
       // 2. 스프라이트시트 로드 및 파싱
       const spritesheet = await PIXI.Assets.load<PIXI.Spritesheet>(loadAlias);
-
-      // 픽셀 아트 설정
-      if (pixelArt && spritesheet.textureSource) {
-        spritesheet.textureSource.scaleMode = "nearest";
-      }
+      spritesheet.textureSource.scaleMode = "nearest";
 
       // 3. 결과 정리
       const animations = Object.keys(spritesheet.animations || {});
@@ -174,25 +171,25 @@ export function getCharacterSpritesheetOptions(
       return {
         jsonPath: "/game/sprites/monsters/test-green-slime_A1.json",
         alias: "test-green-slime_A1",
-        pixelArt: true,
+        // pixelArt: true,
       };
     case CharacterKey.TestGreenSlimeB1:
       return {
         jsonPath: "/game/sprites/monsters/test-green-slime_B1.json",
         alias: "test-green-slime_B1",
-        pixelArt: true,
+        // pixelArt: true,
       };
     case CharacterKey.TestGreenSlimeC1:
       return {
         jsonPath: "/game/sprites/monsters/test-green-slime_C1.json",
         alias: "test-green-slime_C1",
-        pixelArt: true,
+        // pixelArt: true,
       };
     case CharacterKey.TestGreenSlimeD1:
       return {
         jsonPath: "/game/sprites/monsters/test-green-slime_D1.json",
         alias: "test-green-slime_D1",
-        pixelArt: true,
+        // pixelArt: true,
       };
     default:
       return null;

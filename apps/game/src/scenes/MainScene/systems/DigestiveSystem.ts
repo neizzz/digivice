@@ -71,7 +71,14 @@ export function addToDigestiveLoad(
   staminaIncrease: number,
   currentTime: number
 ): void {
+  console.log(
+    `[DigestiveSystem] Adding digestive load - EID: ${characterEid}, staminaIncrease: ${staminaIncrease}`
+  );
+
   if (!hasComponent(world, DigestiveSystemComp, characterEid)) {
+    console.log(
+      `[DigestiveSystem] Adding DigestiveSystemComp to character ${characterEid}`
+    );
     addComponent(world, DigestiveSystemComp, characterEid);
     DigestiveSystemComp.capacity[characterEid] =
       GAME_CONSTANTS.DIGESTIVE_CAPACITY;
@@ -82,7 +89,14 @@ export function addToDigestiveLoad(
   const digestiveComp = DigestiveSystemComp;
   const loadIncrease = staminaIncrease * GAME_CONSTANTS.DIGESTIVE_MULTIPLIER;
 
+  const oldLoad = digestiveComp.currentLoad[characterEid];
   digestiveComp.currentLoad[characterEid] += loadIncrease;
+  const newLoad = digestiveComp.currentLoad[characterEid];
+  const capacity = digestiveComp.capacity[characterEid];
+
+  console.log(
+    `[DigestiveSystem] Load change: ${oldLoad} -> ${newLoad} (capacity: ${capacity})`
+  );
 
   // 용량 초과 시 똥 싸는 시간 설정
   if (
@@ -90,8 +104,11 @@ export function addToDigestiveLoad(
       digestiveComp.capacity[characterEid] &&
     digestiveComp.nextPoopTime[characterEid] === 0
   ) {
-    digestiveComp.nextPoopTime[characterEid] =
-      currentTime + GAME_CONSTANTS.POOP_DELAY;
+    const poopTime = currentTime + GAME_CONSTANTS.POOP_DELAY;
+    digestiveComp.nextPoopTime[characterEid] = poopTime;
+    console.log(
+      `[DigestiveSystem] Capacity exceeded! Next poop time set to: ${poopTime} (current: ${currentTime})`
+    );
   }
 }
 
@@ -110,18 +127,34 @@ function checkPoopTime(world: MainSceneWorld, currentTime: number): void {
     if (ObjectComp.state[eid] === CharacterState.DEAD) continue;
 
     const digestiveComp = DigestiveSystemComp;
+    const nextPoopTime = digestiveComp.nextPoopTime[eid];
+
+    // 똥 싸는 시간이 설정된 캐릭터에 대해 로그
+    if (nextPoopTime > 0) {
+      console.log(
+        `[DigestiveSystem] Character ${eid} - nextPoopTime: ${nextPoopTime}, currentTime: ${currentTime}, remaining: ${
+          nextPoopTime - currentTime
+        }ms`
+      );
+    }
 
     // 똥 싸는 시간이 되었는지 체크
     if (
       digestiveComp.nextPoopTime[eid] > 0 &&
       currentTime >= digestiveComp.nextPoopTime[eid]
     ) {
+      console.log(`[DigestiveSystem] It's time to poop! Character ${eid}`);
+
       // 똥 생성
       createPoop(world, eid);
 
       // 소화기관 초기화
       digestiveComp.currentLoad[eid] = 0;
       digestiveComp.nextPoopTime[eid] = 0;
+
+      console.log(
+        `[DigestiveSystem] Digestive system reset for character ${eid}`
+      );
     }
   }
 }
@@ -129,17 +162,30 @@ function checkPoopTime(world: MainSceneWorld, currentTime: number): void {
 /**
  * 똥 생성
  */
-function createPoop(world: MainSceneWorld, characterEid: number): void {
-  if (!hasComponent(world, PositionComp, characterEid)) return;
+export function createPoop(world: MainSceneWorld, characterEid: number): void {
+  console.log(
+    `[DigestiveSystem] Creating poop for character EID: ${characterEid}`
+  );
+
+  if (!hasComponent(world, PositionComp, characterEid)) {
+    console.warn(
+      `[DigestiveSystem] Character ${characterEid} has no PositionComp`
+    );
+    return;
+  }
 
   const characterX = PositionComp.x[characterEid];
   const characterY = PositionComp.y[characterEid];
+  console.log(
+    `[DigestiveSystem] Character position: (${characterX}, ${characterY})`
+  );
 
   // 캐릭터의 각도 정보 가져오기 (바라보는 방향)
   let angle = 0; // 기본값 (오른쪽 방향)
   if (hasComponent(world, AngleComp, characterEid)) {
     angle = AngleComp.value[characterEid];
   }
+  console.log(`[DigestiveSystem] Character angle: ${angle}`);
 
   // 캐릭터가 바라보는 방향의 반대(뒤쪽)로 똥 생성
   // 캐릭터 뒤쪽으로 20-30픽셀 정도 떨어진 위치
@@ -148,6 +194,7 @@ function createPoop(world: MainSceneWorld, characterEid: number): void {
 
   const poopX = characterX + Math.cos(behindAngle) * distance;
   const poopY = characterY + Math.sin(behindAngle) * distance;
+  console.log(`[DigestiveSystem] Initial poop position: (${poopX}, ${poopY})`);
 
   // 경계 체크
   const boundary = world.positionBoundary;
@@ -159,12 +206,18 @@ function createPoop(world: MainSceneWorld, characterEid: number): void {
     boundary.y,
     Math.min(boundary.y + boundary.height, poopY)
   );
+  console.log(`[DigestiveSystem] Final poop position: (${finalX}, ${finalY})`);
+  console.log(
+    `[DigestiveSystem] Boundary: x=${boundary.x}, y=${boundary.y}, width=${boundary.width}, height=${boundary.height}`
+  );
 
-  createPoobEntity(world, {
+  const poobEntity = createPoobEntity(world, {
     position: { x: finalX, y: finalY },
     angle: { value: 0 },
-    object: { id: 0, type: ObjectType.POOB, state: 0 },
+    object: { id: 0, type: ObjectType.POOB, state: 0 }, // id를 0으로 설정하여 generatePersistentNumericId가 호출되도록 함
   });
+
+  console.log(`[DigestiveSystem] Created poop entity with EID: ${poobEntity}`);
 }
 
 /**

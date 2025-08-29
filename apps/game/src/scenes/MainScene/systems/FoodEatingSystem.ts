@@ -14,10 +14,10 @@ import {
   DestinationComp,
   SpeedComp,
   RandomMovementComp,
-  RenderComp,
   FreshnessComp,
   TemporaryStatusComp,
 } from "../raw-components";
+import { GAME_CONSTANTS } from "../config";
 import {
   ObjectType,
   CharacterState,
@@ -57,7 +57,6 @@ const movingToFoodQuery = defineQuery([
 
 // 음식 먹기 관련 상수
 const FOOD_EATING_DURATION = 3200; // 음식을 먹는데 걸리는 시간 (ms)
-const MAX_STAMINA = 10; // 최대 스태미나
 const EATING_ARRIVAL_THRESHOLD = 25; // 목적지 도달 판정 거리 (slowdown 구간 전에 도착하도록)
 
 // 캐릭터가 음식에 접근할 때의 오프셋 (음식 위치에서 살짝 벗어난 위치)
@@ -194,14 +193,20 @@ function completeEating(
 
   // 캐릭터 스태미나 증가
   const currentStamina = CharacterStatusComp.stamina[characterEid];
-  const newStamina = Math.min(currentStamina + staminaBonus, MAX_STAMINA);
+  const newStamina = Math.min(
+    currentStamina + staminaBonus,
+    GAME_CONSTANTS.MAX_STAMINA
+  );
   CharacterStatusComp.stamina[characterEid] = newStamina;
 
   // 소화기관에 부하 추가
   addToDigestiveLoad(world, characterEid, staminaBonus, Date.now());
 
   // 스테미나가 10보다 작았는데 10이 되었을 때만 임시 happy 상태 추가
-  if (currentStamina < MAX_STAMINA && newStamina >= MAX_STAMINA) {
+  if (
+    currentStamina < GAME_CONSTANTS.MAX_STAMINA &&
+    newStamina >= GAME_CONSTANTS.MAX_STAMINA
+  ) {
     console.log(
       `[FoodEatingSystem] Character ${characterEid} stamina increased from ${currentStamina} to ${newStamina}, adding happy status`
     );
@@ -299,9 +304,9 @@ function findAndEatFood(world: MainSceneWorld): void {
 
     // 스태미나가 꽉 차있지 않은지 확인
     const stamina = CharacterStatusComp.stamina[characterEid];
-    if (stamina >= MAX_STAMINA) {
+    if (stamina >= GAME_CONSTANTS.MAX_STAMINA) {
       // console.log(
-      //   `[FoodEatingSystem] Character ${characterEid} has full stamina (${stamina}/${MAX_STAMINA})`
+      //   `[FoodEatingSystem] Character ${characterEid} has full stamina (${stamina}/${GAME_CONSTANTS.MAX_STAMINA})`
       // );
       continue;
     }

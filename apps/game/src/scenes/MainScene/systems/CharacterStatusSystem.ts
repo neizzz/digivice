@@ -28,11 +28,6 @@ import { GAME_CONSTANTS } from "../config";
 const TEMPORARY_STATUS_DURATION = 3000;
 
 const characterQuery = defineQuery([ObjectComp, CharacterStatusComp]);
-const characterWithVitalityQuery = defineQuery([
-  ObjectComp,
-  CharacterStatusComp,
-  VitalityComp,
-]);
 const temporaryStatusQuery = defineQuery([
   ObjectComp,
   CharacterStatusComp,
@@ -93,12 +88,25 @@ function updateStaminaBasedStatus(
   world: MainSceneWorld,
   currentTime: number
 ): void {
-  const characters = characterWithVitalityQuery(world);
+  // 모든 캐릭터를 대상으로 하되, VitalityComp가 없으면 동적으로 추가
+  const characters = characterQuery(world);
 
   for (let i = 0; i < characters.length; i++) {
     const eid = characters[i];
 
     if (ObjectComp.type[eid] !== ObjectType.CHARACTER) continue;
+
+    // VitalityComp가 없으면 추가
+    if (!hasComponent(world, VitalityComp, eid)) {
+      addComponent(world, VitalityComp, eid);
+      VitalityComp.urgentStartTime[eid] = 0;
+      VitalityComp.deathTime[eid] = 0;
+      VitalityComp.isDead[eid] = 0;
+      console.log(
+        `[CharacterStatusSystem] Added VitalityComp to character ${eid}`
+      );
+    }
+
     if (VitalityComp.isDead[eid]) continue;
 
     const stamina = CharacterStatusComp.stamina[eid];
@@ -113,6 +121,10 @@ function updateStaminaBasedStatus(
         // urgent 시작 시간 기록
         VitalityComp.urgentStartTime[eid] = currentTime;
         VitalityComp.deathTime[eid] = currentTime + GAME_CONSTANTS.DEATH_DELAY;
+
+        console.log(
+          `[CharacterStatusSystem] Character ${eid} entered URGENT state. Death scheduled at ${VitalityComp.deathTime[eid]} (current: ${currentTime})`
+        );
       }
     }
     // 정상 상태 (스테미나 1이상)
@@ -165,18 +177,27 @@ function updateTemporaryStatus(
  * 죽음 체크
  */
 function checkDeath(world: MainSceneWorld, currentTime: number): void {
-  const characters = characterWithVitalityQuery(world);
+  // 모든 캐릭터를 대상으로 하되, VitalityComp가 없으면 건너뛰기
+  const characters = characterQuery(world);
 
   for (let i = 0; i < characters.length; i++) {
     const eid = characters[i];
 
     if (ObjectComp.type[eid] !== ObjectType.CHARACTER) continue;
+
+    // VitalityComp가 없으면 건너뛰기 (urgent 상태가 아니므로 죽을 필요 없음)
+    if (!hasComponent(world, VitalityComp, eid)) continue;
+
     if (VitalityComp.isDead[eid]) continue;
 
     const deathTime = VitalityComp.deathTime[eid];
 
     // 죽을 시간이 되었는지 체크
     if (deathTime > 0 && currentTime >= deathTime) {
+      console.log(
+        `[CharacterStatusSystem] Character ${eid} death time reached. Current: ${currentTime}, Death time: ${deathTime}`
+      );
+
       // 캐릭터 죽음 처리
       killCharacter(world, eid);
     }
@@ -201,7 +222,7 @@ function killCharacter(world: MainSceneWorld, eid: number): void {
   if (hasComponent(world, RenderComp, eid)) {
     const oldTextureKey = RenderComp.textureKey[eid];
     RenderComp.textureKey[eid] = TextureKey.TOMB;
-    RenderComp.zIndex[eid] = 0; // zIndex를 0으로 리셋하여 y좌표 기반 정렬 사용
+    RenderComp.zIndex[eid] = ECS_NULL_VALUE; // zIndex를 0으로 리셋하여 y좌표 기반 정렬 사용
     console.log(
       `[CharacterStatusSystem] Changed character ${eid} texture from ${oldTextureKey} to TOMB (${TextureKey.TOMB}) and reset zIndex to 0`
     );

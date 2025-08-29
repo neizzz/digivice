@@ -14,7 +14,7 @@ import {
 import { MainSceneWorld } from "../world";
 import { startTemporaryStatus } from "./StatusIconRenderSystem";
 import { evolveCharacter, canEvolve } from "./EvolutionSystem";
-import { CHARACTER_STATUS } from "../../../config";
+import { GAME_CONSTANTS } from "../config";
 
 const characterQuery = defineQuery([
   ObjectComp,
@@ -227,7 +227,7 @@ export function hasCharacterStatus(
 export function setCharacterStamina(eid: number, stamina: number): void {
   const clampedStamina = Math.max(
     0,
-    Math.min(CHARACTER_STATUS.MAX_STAMINA, stamina)
+    Math.min(GAME_CONSTANTS.MAX_STAMINA, stamina)
   );
   CharacterStatusComp.stamina[eid] = clampedStamina;
   console.log(
@@ -275,7 +275,7 @@ function updateStaminaAndEvolutionGauge(
   staminaTimers.set(eid, newStaminaTimer);
 
   // 스테미나 감소 체크
-  if (newStaminaTimer >= CHARACTER_STATUS.STAMINA_DECREASE_INTERVAL) {
+  if (newStaminaTimer >= GAME_CONSTANTS.STAMINA_DECREASE_INTERVAL) {
     decreaseStamina(eid);
     staminaTimers.set(eid, 0);
   }
@@ -285,7 +285,7 @@ function updateStaminaAndEvolutionGauge(
   const isSick = hasCharacterStatus(eid, CharacterStatus.SICK);
 
   if (
-    currentStamina >= CHARACTER_STATUS.EVOLUTION_GAUGE_STATMINA_THRESHOLD &&
+    currentStamina >= GAME_CONSTANTS.EVOLUTION_GAUGE_STATMINA_THRESHOLD &&
     !isSick
   ) {
     const currentEvolutionTimer = evolutionGaugeTimers.get(eid) || 0;
@@ -293,7 +293,7 @@ function updateStaminaAndEvolutionGauge(
     evolutionGaugeTimers.set(eid, newEvolutionTimer);
 
     // 진화 게이지 증가 체크
-    if (newEvolutionTimer >= CHARACTER_STATUS.EVOLUTION_GAUGE_CHECK_INTERVAL) {
+    if (newEvolutionTimer >= GAME_CONSTANTS.EVOLUTION_GAUGE_CHECK_INTERVAL) {
       increaseEvolutionGauge(world, eid);
       evolutionGaugeTimers.set(eid, 0);
     }
@@ -308,7 +308,7 @@ function decreaseStamina(eid: number): void {
   const currentStamina = CharacterStatusComp.stamina[eid];
   const newStamina = Math.max(
     0,
-    currentStamina - CHARACTER_STATUS.STAMINA_DECREASE_AMOUNT
+    currentStamina - GAME_CONSTANTS.STAMINA_DECREASE_AMOUNT
   );
   CharacterStatusComp.stamina[eid] = newStamina;
 

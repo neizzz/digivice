@@ -1,11 +1,8 @@
 import { defineQuery, exitQuery } from "bitecs";
 import {
   AnimationRenderComp,
-  RenderComp,
   ObjectComp,
   CharacterStatusComp,
-  PositionComp,
-  AngleComp,
 } from "../raw-components";
 import {
   ObjectType,
@@ -16,6 +13,7 @@ import {
 import { MainSceneWorld } from "../world";
 import * as PIXI from "pixi.js";
 import { renderCommonAttributes } from "./RenderSystem";
+import { ObjectStore } from "../utils/ObjectStore";
 
 // const CHARACTER_STATE_TO_ANIMATION_KEY: Record<CharacterState, AnimationKey> = {
 const CHARACTER_STATE_TO_ANIMATION_KEY: Record<CharacterState, AnimationKey> = {
@@ -54,7 +52,9 @@ const characterAnimationQuery = defineQuery([
 const exitedAnimationQuery = exitQuery(animationQuery);
 
 const spritesheetCache: Map<string, PIXI.Spritesheet> = new Map();
-const animatedSpriteStore: PIXI.AnimatedSprite[] = [];
+const animatedSpriteStore = new ObjectStore<PIXI.AnimatedSprite>(
+  "AnimatedSpriteStore"
+);
 
 export function animationRenderSystem(params: {
   world: MainSceneWorld;
@@ -70,15 +70,12 @@ export function animationRenderSystem(params: {
 
   for (let i = 0; i < exitedEntities.length; i++) {
     const eid = exitedEntities[i];
-    const storeIndex = AnimationRenderComp.storeIndex[eid];
-    const animatedSprite = getAnimatedSprite(storeIndex);
+    const animatedSprite = getAnimatedSprite(eid);
 
     if (animatedSprite && animatedSprite.parent) {
       stage.removeChild(animatedSprite);
       animatedSprite.destroy();
-      if (storeIndex < animatedSpriteStore.length) {
-        animatedSpriteStore[storeIndex] = null as any;
-      }
+      animatedSpriteStore.remove(eid);
       console.log(
         `[AnimationSystem] Removed animated sprite from stage for entity ${eid}`
       );
@@ -87,20 +84,23 @@ export function animationRenderSystem(params: {
 
   for (let i = 0; i < entities.length; i++) {
     const eid = entities[i];
-    const storeIndex = AnimationRenderComp.storeIndex[eid];
 
-    let animatedSprite = getAnimatedSprite(storeIndex);
+    let animatedSprite = getAnimatedSprite(eid);
 
     // 애니메이션 스프라이트가 없으면 생성
     if (!animatedSprite) {
+      console.log(
+        `[AnimationSystem] Creating animated sprite for entity ${eid}`
+      );
+
       animatedSprite = createAnimatedSpriteForEntity(eid);
       if (!animatedSprite) {
         continue;
       }
 
       stage.addChild(animatedSprite);
-      animatedSpriteStore.push(animatedSprite);
-      AnimationRenderComp.storeIndex[eid] = animatedSpriteStore.length - 1;
+      animatedSpriteStore.set(eid, animatedSprite); // eid를 직접 인덱스로 사용
+      AnimationRenderComp.storeIndex[eid] = eid; // storeIndex는 eid와 동일
       console.log(
         `[AnimationSystem] Added animated sprite to stage for entity ${eid}`
       );
@@ -160,8 +160,8 @@ function getAnimationTextures(
   return animations[animationName];
 }
 
-function getAnimatedSprite(idx: number): PIXI.AnimatedSprite | undefined {
-  return animatedSpriteStore[idx] || undefined;
+function getAnimatedSprite(eid: number): PIXI.AnimatedSprite | undefined {
+  return animatedSpriteStore.get(eid);
 }
 
 function createAnimatedSpriteForEntity(

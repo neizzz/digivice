@@ -3,6 +3,7 @@ import { MainSceneWorld } from "..//world";
 import { defineQuery } from "bitecs";
 import { ObjectComp, CharacterStatusComp } from "../raw-components";
 import { ObjectType } from "../types";
+import { createPoop } from "../systems/DigestiveSystem";
 
 const characterQuery = defineQuery([ObjectComp, CharacterStatusComp]);
 const objectQuery = defineQuery([ObjectComp]); // ObjectComp만 가진 엔티티들도 찾기
@@ -197,6 +198,24 @@ export class HTMLDebugStatusUI {
     evolutionButtonsDiv.appendChild(evolutionPlus10Btn);
     this._container.appendChild(evolutionButtonsDiv);
 
+    // 똥 생성 버튼
+    const poopButtonsDiv = document.createElement("div");
+    const poopLabel = document.createElement("span");
+    poopLabel.textContent = "Poop: ";
+    poopLabel.style.cssText = `
+      color: #8b4513;
+      font-size: 12px;
+      margin-right: 5px;
+    `;
+
+    const createPoopBtn = this._createAdjustButton("💩", () =>
+      this._createPoop()
+    );
+
+    poopButtonsDiv.appendChild(poopLabel);
+    poopButtonsDiv.appendChild(createPoopBtn);
+    this._container.appendChild(poopButtonsDiv);
+
     // 닫기 버튼
     const closeButton = this._createCloseButton();
     this._container.appendChild(closeButton);
@@ -325,6 +344,21 @@ export class HTMLDebugStatusUI {
       `[HTMLDebugStatusUI] Evolution gauge adjusted: ${currentGauge.toFixed(
         1
       )} -> ${newGauge.toFixed(1)}`
+    );
+  }
+
+  // 똥 생성 함수
+  private _createPoop(): void {
+    if (this._currentCharacterEid < 0) {
+      console.warn(
+        "[HTMLDebugStatusUI] No character found for poop creation"
+      );
+      return;
+    }
+
+    createPoop(this._world, this._currentCharacterEid);
+    console.log(
+      `[HTMLDebugStatusUI] Poop created for character ${this._currentCharacterEid}`
     );
   }
 

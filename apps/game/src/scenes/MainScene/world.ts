@@ -21,7 +21,6 @@ import {
   DigestiveSystemComponent,
   DiseaseSystemComponent,
   VitalityComponent,
-  TemporaryStatusComponent,
   EggHatchComponent,
   FreshnessTimerComponent,
   SparkleEffectComponent,
@@ -91,7 +90,6 @@ export type EntityComponents = {
   digestiveSystem?: DigestiveSystemComponent;
   diseaseSystem?: DiseaseSystemComponent;
   vitality?: VitalityComponent;
-  temporaryStatus?: TemporaryStatusComponent;
   eggHatch?: EggHatchComponent;
   freshnessTimer?: FreshnessTimerComponent;
   sparkleEffect?: SparkleEffectComponent;
@@ -118,52 +116,52 @@ const COMMON_SPRITESHEET_ASSETS: LoadSpritesheetOptions[] = [
   {
     jsonPath: "/game/sprites/bird.json",
     alias: "bird",
-    pixelArt: true,
+    // pixelArt: true,
   },
   {
     jsonPath: "/game/sprites/eggs.json",
     alias: "eggs",
-    pixelArt: true,
+    // pixelArt: true,
   },
   {
     jsonPath: "/game/sprites/foods.json",
     alias: "foods",
-    pixelArt: true,
+    // pixelArt: true,
   },
   {
     jsonPath: "/game/sprites/common16x16.json",
     alias: "common16x16",
-    pixelArt: true,
+    // pixelArt: true,
   },
   {
     jsonPath: "/game/sprites/common32x32.json",
     alias: "common32x32",
-    pixelArt: true,
+    // pixelArt: true,
   },
   {
     jsonPath: "/game/sprites/vite-food-mask.json",
     alias: "vite-food-mask",
-    pixelArt: true,
+    // pixelArt: true,
   },
   {
     jsonPath: "/game/sprites/monsters/test-green-slime_A1.json",
     alias: "test-green-slime_A1",
-    pixelArt: true,
+    // pixelArt: true,
   },
   {
     jsonPath: "/game/sprites/monsters/test-green-slime_B1.json",
     alias: "test-green-slime_B1",
-    pixelArt: true,
+    // pixelArt: true,
   },
   {
     jsonPath: "/game/sprites/monsters/test-green-slime_C1.json",
     alias: "test-green-slime_C1",
-    pixelArt: true,
+    // pixelArt: true,
   },
   {
     jsonPath: "/game/sprites/monsters/test-green-slime_D1.json",
     alias: "test-green-slime_D1",
-    pixelArt: true,
+    // pixelArt: true,
   },
 ];
 const IMAGE_ASSETS = {
@@ -204,7 +202,7 @@ export class MainSceneWorld implements IWorld, Scene {
       characterStatusSystem({ ...params, currentTime: Date.now() }),
     (params: any) => eggHatchSystem({ ...params, currentTime: Date.now() }),
     // 배달 시스템
-    pillDeliverySystem,
+    // pillDeliverySystem,
     // 이펙트 시스템
     (params: any) =>
       sparkleEffectSystem({ ...params, currentTime: Date.now() }),
@@ -252,9 +250,9 @@ export class MainSceneWorld implements IWorld, Scene {
    * 에셋 로딩 - 스프라이트시트와 일반 이미지를 병렬로 로드
    */
   private async _loadGameAssets(): Promise<void> {
-    try {
-      console.log("[MainSceneWorld] Loading game assets...");
+    console.groupCollapsed("[MainSceneWorld] 🎨 Loading game assets...");
 
+    try {
       // 스프라이트시트와 일반 이미지를 병렬로 로드
       const [spritesheetResults] = await Promise.all([
         loadSpritesheets(COMMON_SPRITESHEET_ASSETS),
@@ -263,18 +261,20 @@ export class MainSceneWorld implements IWorld, Scene {
 
       // 로드 결과 로깅
       console.log(
-        `[MainSceneWorld] Successfully loaded ${spritesheetResults.length} spritesheets`
+        `Successfully loaded ${spritesheetResults.length} spritesheets`
       );
       spritesheetResults.forEach((result) => {
         console.log(
-          `[MainSceneWorld] - Spritesheet '${result.alias}': ${result.animations.length} animations, ${result.textures.length} textures`
+          `- Spritesheet '${result.alias}': ${result.animations.length} animations, ${result.textures.length} textures`
         );
       });
 
-      console.log("[MainSceneWorld] All game assets loaded successfully");
+      console.log("All game assets loaded successfully");
     } catch (error) {
-      console.error("[MainSceneWorld] Failed to load game assets:", error);
+      console.error("Failed to load game assets:", error);
       throw error;
+    } finally {
+      console.groupEnd();
     }
   }
 
@@ -289,12 +289,9 @@ export class MainSceneWorld implements IWorld, Scene {
             alias: key,
             src: path,
           });
-          console.log(`[MainSceneWorld] Loaded image asset: ${key}`);
+          console.log(`Loaded image asset: ${key}`);
         } catch (error) {
-          console.warn(
-            `[MainSceneWorld] Failed to load image asset ${key}:`,
-            error
-          );
+          console.warn(`Failed to load image asset ${key}:`, error);
         }
       }
     );
@@ -303,107 +300,114 @@ export class MainSceneWorld implements IWorld, Scene {
   }
 
   async init(): Promise<void> {
-    console.log("[MainSceneWorld] Initializing world...");
-    createWorld(this, 100);
+    console.groupCollapsed("[MainSceneWorld] 🚀 Initializing world...");
 
-    // 스토리지에서 데이터 로드 시도
-    console.log("[MainSceneWorld] Loading saved data from storage...");
-    const loadedData = await this.getData();
+    try {
+      createWorld(this, 100);
 
-    if (
-      !loadedData ||
-      !loadedData.entities ||
-      loadedData.entities.length === 0
-    ) {
-      console.warn(
-        "[MainSceneWorld] No saved data found, initializing with default entities..."
-      );
-      this._persistentData = this._initializeData();
-    } else {
-      console.log(
-        `[MainSceneWorld] Found saved data, validating and loading...`
-      );
+      // 스토리지에서 데이터 로드 시도
+      console.log("Loading saved data from storage...");
+      const loadedData = await this.getData();
 
-      this._persistentData = this._validateAndMigrateData(loadedData);
-      this._loadEcsEntitiesFromStorage();
-    }
+      if (
+        !loadedData ||
+        !loadedData.entities ||
+        loadedData.entities.length === 0
+      ) {
+        console.warn(
+          "No saved data found, initializing with default entities..."
+        );
+        this._persistentData = this._initializeData();
+      } else {
+        console.log(`Found saved data, validating and loading...`);
 
-    // PIXI v8 Assets API로 게임 에셋 로드
-    await this._loadGameAssets();
-
-    const characterSpritesheetKey = this._persistentData.entities.find(
-      (entity) => {
-        return entity.components.object?.type === ObjectType.CHARACTER;
+        this._persistentData = this._validateAndMigrateData(loadedData);
+        this._loadEcsEntitiesFromStorage();
       }
-    )?.components.animationRender?.spritesheetKey;
 
-    if (characterSpritesheetKey) {
-      const spritesheetName = SPRITESHEET_KEY_TO_NAME[characterSpritesheetKey];
-      await loadSpritesheet({
-        jsonPath: `/game/sprites/monsters/${spritesheetName}.json`,
-        alias: spritesheetName,
-        pixelArt: true,
-      });
-    }
+      // PIXI v8 Assets API로 게임 에셋 로드
+      await this._loadGameAssets();
 
-    // 배경 설정
-    this._background = new Background(PIXI.Assets.get("grass"));
-    this._stage.addChild(this._background);
+      const characterSpritesheetKey = this._persistentData.entities.find(
+        (entity) => {
+          return entity.components.object?.type === ObjectType.CHARACTER;
+        }
+      )?.components.animationRender?.spritesheetKey;
 
-    const width = this._stage.width;
-    const height = this._stage.height;
-    this._background.resize(width, height);
-
-    // UI 초기화
-    if (this._parentElement) {
-      // 스테미나 게이지 UI (항상 표시)
-      this._staminaGaugeUI = new StaminaGaugeUI(this, this._parentElement);
-
-      // 게임 메뉴 초기화
-      this._gameMenu = new GameMenu(this._parentElement, {
-        onMiniGameSelect: () => {
-          console.log("[MainSceneWorld] Mini game selected");
-          // TODO: 미니게임 시작
-        },
-        onFeedSelect: () => {
-          console.log("[MainSceneWorld] Feed selected");
-          this._throwFood();
-        },
-        onVersusSelect: () => {
-          console.log("[MainSceneWorld] Versus selected");
-          // TODO: 대결 기능
-        },
-        onDrugSelect: () => {
-          console.log("[MainSceneWorld] Drug selected");
-          this._handleDrugSelection();
-        },
-        onCleanSelect: () => {
-          console.log("[MainSceneWorld] Clean selected");
-          // TODO: 청소 기능
-        },
-        onCancel: () => {
-          console.log("[MainSceneWorld] Menu cancelled");
-        },
-        onFocusChange: (focusedIndex: number | null) => {
-          // 메뉴에 포커스가 있는지 여부에 따라 컨트롤 버튼 업데이트
-          this._updateControlButtonsForMenuState(focusedIndex !== null);
-        },
-      });
-
-      // 디버그 UI (개발 환경에서만)
-      if (import.meta.env.DEV) {
-        this._debugStatusUI = new HTMLDebugStatusUI(this, this._parentElement);
-        this._debugToggleButton = new HTMLDebugToggleButton(() => {
-          this._debugStatusUI?.toggle();
-          return this._debugStatusUI?.isDebugVisible() ?? false;
-        }, this._parentElement);
+      if (characterSpritesheetKey) {
+        const spritesheetName =
+          SPRITESHEET_KEY_TO_NAME[characterSpritesheetKey];
+        await loadSpritesheet({
+          jsonPath: `/game/sprites/monsters/${spritesheetName}.json`,
+          alias: spritesheetName,
+          // pixelArt: true,
+        });
       }
+
+      // 배경 설정
+      this._background = new Background(PIXI.Assets.get("grass"));
+      this._stage.addChild(this._background);
+
+      const width = this._stage.width;
+      const height = this._stage.height;
+      this._background.resize(width, height);
+
+      // UI 초기화
+      if (this._parentElement) {
+        // 스테미나 게이지 UI (항상 표시)
+        this._staminaGaugeUI = new StaminaGaugeUI(this, this._parentElement);
+
+        // 게임 메뉴 초기화
+        this._gameMenu = new GameMenu(this._parentElement, {
+          onMiniGameSelect: () => {
+            console.log("[MainSceneWorld] Mini game selected");
+            // TODO: 미니게임 시작
+          },
+          onFeedSelect: () => {
+            console.log("[MainSceneWorld] Feed selected");
+            this._throwFood();
+          },
+          onVersusSelect: () => {
+            console.log("[MainSceneWorld] Versus selected");
+            // TODO: 대결 기능
+          },
+          onDrugSelect: () => {
+            console.log("[MainSceneWorld] Drug selected");
+            this._handleDrugSelection();
+          },
+          onCleanSelect: () => {
+            console.log("[MainSceneWorld] Clean selected");
+            // TODO: 청소 기능
+          },
+          onCancel: () => {
+            console.log("[MainSceneWorld] Menu cancelled");
+          },
+          onFocusChange: (focusedIndex: number | null) => {
+            // 메뉴에 포커스가 있는지 여부에 따라 컨트롤 버튼 업데이트
+            this._updateControlButtonsForMenuState(focusedIndex !== null);
+          },
+        });
+
+        // 디버그 UI (개발 환경에서만)
+        if (import.meta.env.DEV) {
+          this._debugStatusUI = new HTMLDebugStatusUI(
+            this,
+            this._parentElement
+          );
+          this._debugToggleButton = new HTMLDebugToggleButton(() => {
+            this._debugStatusUI?.toggle();
+            return this._debugStatusUI?.isDebugVisible() ?? false;
+          }, this._parentElement);
+        }
+      }
+
+      // 앱 상태 관리자 초기화
+      this._appStateManager = new AppStateManager(this);
+
+      console.log("World initialization completed");
+    } finally {
+      console.groupEnd();
     }
-
-    // 앱 상태 관리자 초기화
-    this._appStateManager = new AppStateManager(this);
-
-    console.log("[MainSceneWorld] World initialization completed");
   }
 
   /**
@@ -432,7 +436,7 @@ export class MainSceneWorld implements IWorld, Scene {
         storeIndex: ECS_NULL_VALUE,
         scale: 3,
         textureKey: ECS_NULL_VALUE,
-        zIndex: 0, // 기본값은 0 (y좌표 기반 정렬 사용)
+        zIndex: ECS_NULL_VALUE,
       },
       animationRender: {
         storeIndex: ECS_NULL_VALUE,
@@ -452,48 +456,79 @@ export class MainSceneWorld implements IWorld, Scene {
    * 스토리지에서 엔티티들을 로드하여 ECS 월드에 복원
    */
   private _loadEcsEntitiesFromStorage(): void {
-    if (!this._persistentData?.entities) {
-      console.warn("[MainSceneWorld] No entities data found in storage");
-      return;
-    }
+    console.groupCollapsed("📦 Loading entities from storage...");
 
-    let loadedEntitiesCount = 0;
-    let errorCount = 0;
-
-    this._persistentData.entities.forEach((savedEntity, index) => {
-      try {
-        const eid = addEntity(this);
-        applySavedEntityToECS(this, eid, savedEntity);
-        loadedEntitiesCount++;
-
-        console.log(
-          `[MainSceneWorld] Loaded entity ${index + 1}: ID=${
-            savedEntity.components.object?.id
-          }, Type=${savedEntity.components.object?.type}`
-        );
-      } catch (error) {
-        errorCount++;
-        console.warn(
-          `[MainSceneWorld] Failed to load entity ${index + 1}:`,
-          error
-        );
-        console.warn("  Problematic entity data:", savedEntity);
+    try {
+      if (!this._persistentData?.entities) {
+        console.warn("No entities data found in storage");
+        return;
       }
-    });
 
-    console.log(
-      `[MainSceneWorld] Loaded ${loadedEntitiesCount} entities successfully, ${errorCount} failed`
-    );
+      let loadedEntitiesCount = 0;
+      let errorCount = 0;
 
-    // 로딩 실패한 엔티티들이 있고 성공한 엔티티가 하나도 없다면 기본 캐릭터 생성
-    if (loadedEntitiesCount === 0 && errorCount > 0) {
-      console.warn(
-        "[MainSceneWorld] All entities failed to load, creating default character..."
+      // 이미 로딩된 Object ID들을 추적
+      const loadedObjectIds = new Set<number>();
+
+      this._persistentData.entities.forEach((savedEntity, index) => {
+        try {
+          const objectId = savedEntity.components.object?.id;
+
+          // Object ID가 없으면 에러
+          if (!objectId) {
+            throw new Error(
+              `Entity ${
+                index + 1
+              } has no Object ID - critical data corruption detected`
+            );
+          }
+
+          // 중복 Object ID가 있으면 에러
+          if (loadedObjectIds.has(objectId)) {
+            throw new Error(
+              `Duplicate Object ID ${objectId} detected at entity ${
+                index + 1
+              } - critical data corruption detected`
+            );
+          }
+
+          loadedObjectIds.add(objectId);
+
+          const eid = addEntity(this);
+          applySavedEntityToECS(this, eid, savedEntity);
+          loadedEntitiesCount++;
+
+          console.log(
+            `Loaded entity ${index + 1}: ID=${objectId}, Type=${
+              savedEntity.components.object?.type
+            }`
+          );
+        } catch (error) {
+          errorCount++;
+          console.error(`Failed to load entity ${index + 1}:`, error);
+          console.error("  Problematic entity data:", savedEntity);
+
+          // 에러를 다시 던져서 게임 초기화 실패로 처리
+          throw error;
+        }
+      });
+
+      console.log(
+        `Loaded ${loadedEntitiesCount} entities successfully, ${errorCount} failed`
       );
-      this._createDefaultCharacterEntity();
-    }
 
-    this._logLoadedEcsEntities(); // 로드된 엔티티 상태 요약 로그
+      // 로딩 실패한 엔티티들이 있고 성공한 엔티티가 하나도 없다면 기본 캐릭터 생성
+      if (loadedEntitiesCount === 0 && errorCount > 0) {
+        console.warn(
+          "All entities failed to load, creating default character..."
+        );
+        this._createDefaultCharacterEntity();
+      }
+
+      this._logLoadedEcsEntities(); // 로드된 엔티티 상태 요약 로그
+    } finally {
+      console.groupEnd();
+    }
   }
 
   /**
@@ -502,7 +537,7 @@ export class MainSceneWorld implements IWorld, Scene {
   private _logLoadedEcsEntities(): void {
     if (!this._persistentData?.entities) return;
 
-    console.group("[MainSceneWorld] Loaded Entities Summary:");
+    console.groupCollapsed("📊 Loaded Entities Summary:");
 
     const entityStats = {
       total: this._persistentData.entities.length,
@@ -533,44 +568,48 @@ export class MainSceneWorld implements IWorld, Scene {
   }
 
   destroy(): void {
-    console.log("[MainSceneWorld] Destroying world...");
+    console.groupCollapsed("[MainSceneWorld] 🧹 Destroying world...");
 
-    // 앱 상태 관리자 정리
-    if (this._appStateManager) {
-      this._appStateManager.destroy();
-      this._appStateManager = undefined;
+    try {
+      // 앱 상태 관리자 정리
+      if (this._appStateManager) {
+        this._appStateManager.destroy();
+        this._appStateManager = undefined;
+      }
+
+      // 게임 메뉴 정리
+      if (this._gameMenu) {
+        this._gameMenu.destroy();
+        this._gameMenu = undefined;
+      }
+
+      // 스테미나 게이지 UI 정리
+      if (this._staminaGaugeUI) {
+        this._staminaGaugeUI.destroy();
+        this._staminaGaugeUI = undefined;
+      }
+
+      // 디버그 UI 정리
+      if (this._debugStatusUI) {
+        this._debugStatusUI.destroy();
+        this._debugStatusUI = undefined;
+      }
+      if (this._debugToggleButton) {
+        this._debugToggleButton.destroy();
+        this._debugToggleButton = undefined;
+      }
+
+      this._background && this._stage.removeChild(this._background);
+      // this._assetsLoaded = false;
+
+      // PIXI v8에서는 필요시 특정 에셋만 언로드 가능
+      // PIXI.Assets.unload(Object.keys(GAME_ASSETS));
+
+      console.log("World destroyed successfully");
+      // TODO: 모든 엔티티 제거
+    } finally {
+      console.groupEnd();
     }
-
-    // 게임 메뉴 정리
-    if (this._gameMenu) {
-      this._gameMenu.destroy();
-      this._gameMenu = undefined;
-    }
-
-    // 스테미나 게이지 UI 정리
-    if (this._staminaGaugeUI) {
-      this._staminaGaugeUI.destroy();
-      this._staminaGaugeUI = undefined;
-    }
-
-    // 디버그 UI 정리
-    if (this._debugStatusUI) {
-      this._debugStatusUI.destroy();
-      this._debugStatusUI = undefined;
-    }
-    if (this._debugToggleButton) {
-      this._debugToggleButton.destroy();
-      this._debugToggleButton = undefined;
-    }
-
-    this._background && this._stage.removeChild(this._background);
-    // this._assetsLoaded = false;
-
-    // PIXI v8에서는 필요시 특정 에셋만 언로드 가능
-    // PIXI.Assets.unload(Object.keys(GAME_ASSETS));
-
-    console.log("[MainSceneWorld] World destroyed successfully");
-    // TODO: 모든 엔티티 제거
   }
   update(delta: number): void {
     // TODO: hatchSystem, throwSystem
@@ -610,23 +649,22 @@ export class MainSceneWorld implements IWorld, Scene {
   }
 
   async getData(): Promise<MainSceneWorldData | null> {
+    console.groupCollapsed("💾 Loading saved data from storage...");
+
     try {
       const data = (await StorageManager.getData(
         WORLD_DATA_STORAGE_KEY
       )) as MainSceneWorldData;
 
       if (!data) {
-        console.log("[MainSceneWorld] No saved data found in storage");
+        console.log("No saved data found in storage");
         return null;
       }
 
-      console.log("[MainSceneWorld] Successfully loaded data from storage");
+      console.log("Successfully loaded data from storage");
       return data;
     } catch (error) {
-      console.error(
-        "[MainSceneWorld] Failed to load data from storage:",
-        error
-      );
+      console.error("Failed to load data from storage:", error);
 
       // 스토리지에서 데이터를 읽는 데 실패한 경우, 빈 데이터로 덮어쓰기
       // try {
@@ -640,6 +678,8 @@ export class MainSceneWorld implements IWorld, Scene {
       // }
 
       return null;
+    } finally {
+      console.groupEnd();
     }
   }
 
@@ -658,87 +698,98 @@ export class MainSceneWorld implements IWorld, Scene {
   private _validateAndMigrateData(
     data: MainSceneWorldData
   ): MainSceneWorldData {
-    console.log("[MainSceneWorld] Validating saved data...");
+    console.groupCollapsed("🔍 Validating saved data...");
 
-    // 기본 구조 검증
-    if (!data.world_metadata) {
-      console.warn("[MainSceneWorld] Missing world_metadata, creating default");
-      data.world_metadata = {
-        name: "MainScene",
-        last_saved: Date.now(),
-        version: this.VERSION,
-      };
-    }
+    try {
+      // 기본 구조 검증
+      if (!data.world_metadata) {
+        console.warn("Missing world_metadata, creating default");
+        data.world_metadata = {
+          name: "MainScene",
+          last_saved: Date.now(),
+          version: this.VERSION,
+        };
+      }
 
-    if (!data.entities) {
-      console.warn(
-        "[MainSceneWorld] Missing entities array, creating empty array"
-      );
-      data.entities = [];
-    }
+      if (!data.entities) {
+        console.warn("Missing entities array, creating empty array");
+        data.entities = [];
+      }
 
-    // 버전 호환성 검증
-    if (data.world_metadata.version !== this.VERSION) {
+      // 버전 호환성 검증
+      if (data.world_metadata.version !== this.VERSION) {
+        console.log(
+          `Version mismatch (saved: ${data.world_metadata.version}, current: ${this.VERSION}), attempting migration...`
+        );
+        data = this._migrateData(data);
+      }
+
+      // 엔티티 데이터 유효성 검증
+      const seenObjectIds = new Set<number>();
+
+      data.entities.forEach((entity, index) => {
+        if (!entity.components) {
+          throw new Error(
+            `Entity ${index} missing components - critical data corruption detected`
+          );
+        }
+
+        // 필수 컴포넌트 검증 (object 컴포넌트는 필수)
+        if (!entity.components.object) {
+          throw new Error(
+            `Entity ${index} missing object component - critical data corruption detected`
+          );
+        }
+
+        // Object ID 중복 검사
+        const objectId = entity.components.object.id;
+        if (!objectId) {
+          throw new Error(
+            `Entity ${index} has invalid Object ID - critical data corruption detected`
+          );
+        }
+
+        if (seenObjectIds.has(objectId)) {
+          throw new Error(
+            `Duplicate Object ID ${objectId} detected at entity ${index} - critical data corruption detected`
+          );
+        }
+
+        seenObjectIds.add(objectId);
+      });
+
       console.log(
-        `[MainSceneWorld] Version mismatch (saved: ${data.world_metadata.version}, current: ${this.VERSION}), attempting migration...`
+        `Data validation completed, ${data.entities.length} valid entities found`
       );
-      data = this._migrateData(data);
+      return data;
+    } finally {
+      console.groupEnd();
     }
-
-    // 엔티티 데이터 유효성 검증
-    data.entities = data.entities.filter((entity, index) => {
-      if (!entity.components) {
-        console.warn(
-          `[MainSceneWorld] Entity ${index} missing components, removing`
-        );
-        return false;
-      }
-
-      // 필수 컴포넌트 검증 (object 컴포넌트는 필수)
-      if (!entity.components.object) {
-        console.warn(
-          `[MainSceneWorld] Entity ${index} missing object component, removing`
-        );
-        return false;
-      }
-
-      // ID 유효성 검증
-      if (
-        typeof entity.components.object.id !== "number" ||
-        entity.components.object.id <= 0
-      ) {
-        console.warn(
-          `[MainSceneWorld] Entity ${index} has invalid ID, removing`
-        );
-        return false;
-      }
-
-      return true;
-    });
-
-    console.log(
-      `[MainSceneWorld] Data validation completed, ${data.entities.length} valid entities found`
-    );
-    return data;
   }
 
   /**
    * 이전 버전 데이터를 현재 버전으로 마이그레이션
    */
   private _migrateData(data: MainSceneWorldData): MainSceneWorldData {
-    console.log(
-      `[MainSceneWorld] Migrating data from version ${data.world_metadata.version} to ${this.VERSION}`
-    );
+    console.groupCollapsed("🔄 Migrating data...");
 
-    // TODO: 버전별 마이그레이션 로직
-    // 예: 1.0.0 이전 버전에서 특정 필드가 추가되었다면 여기서 처리
+    try {
+      console.log(
+        `Migrating data from version ${data.world_metadata.version} to ${this.VERSION}`
+      );
 
-    // 마이그레이션 완료 후 버전 업데이트
-    data.world_metadata.version = this.VERSION;
-    data.world_metadata.last_saved = Date.now();
+      // TODO: 버전별 마이그레이션 로직
+      // 예: 1.0.0 이전 버전에서 특정 필드가 추가되었다면 여기서 처리
 
-    console.log("[MainSceneWorld] Data migration completed");
-    return data;
+      // 마이그레이션 완료 후 버전 업데이트
+      data.world_metadata.version = this.VERSION;
+      data.world_metadata.last_saved = Date.now();
+
+      console.log("Data migration completed");
+      return data;
+    } finally {
+      console.groupEnd();
+    }
   }
 
   /**

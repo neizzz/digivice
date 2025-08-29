@@ -1,4 +1,3 @@
-import { INTENTED_FRONT_Z_INDEX } from "@/config";
 import * as PIXI from "pixi.js";
 
 export class Background extends PIXI.Container {
@@ -10,7 +9,7 @@ export class Background extends PIXI.Container {
     // 배경 스프라이트 생성
     this._bgSprite = new PIXI.Sprite(texture);
     this._bgSprite.anchor.set(0.5); // 중앙 기준점으로 설정
-    this.zIndex = -INTENTED_FRONT_Z_INDEX; // 컨테이너 자체도 배경 뒤에 위치시킴
+    this.zIndex = -1; // 컨테이너 자체도 배경 뒤에 위치시킴
     this.addChild(this._bgSprite);
   }
 

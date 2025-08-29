@@ -36,7 +36,24 @@ export function dataSyncSystem(params: {
   // 기존 entities 배열을 비우고 모든 활성 엔티티로 다시 채움
   newWorldData.entities = [];
 
+  /** NOTE: entities 중복 체크 로직 */
+  const seenObjectIds = new Set<number>();
+
   for (const eid of allEntities) {
+    /** NOTE: entities 중복 체크 로직 */
+    const objectId = ObjectComp.id[eid];
+    if (!objectId) {
+      throw new Error(
+        `[DataSyncSystem] Entity ${eid} has missing Object ID - this indicates a critical data integrity issue`
+      );
+    }
+    if (seenObjectIds.has(objectId)) {
+      throw new Error(
+        `[DataSyncSystem] Duplicate Object ID ${objectId} found in entity ${eid} - this indicates a critical data integrity issue`
+      );
+    }
+    seenObjectIds.add(objectId);
+
     const savedEntity = convertECSEntityToSavedEntity(mainSceneWorld, eid);
     newWorldData.entities.push(savedEntity);
   }
