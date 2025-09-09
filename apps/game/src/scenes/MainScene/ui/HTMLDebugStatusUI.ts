@@ -1,9 +1,14 @@
 import { CharacterStatus } from "../types";
 import { MainSceneWorld } from "..//world";
 import { defineQuery } from "bitecs";
-import { ObjectComp, CharacterStatusComp } from "../raw-components";
+import {
+  ObjectComp,
+  CharacterStatusComp,
+  DigestiveSystemComp,
+} from "../raw-components";
 import { ObjectType } from "../types";
-import { createPoop } from "../systems/DigestiveSystem";
+import { createPoop, addToDigestiveLoad } from "../systems/DigestiveSystem";
+import { GAME_CONSTANTS } from "../config";
 
 const characterQuery = defineQuery([ObjectComp, CharacterStatusComp]);
 const objectQuery = defineQuery([ObjectComp]); // ObjectComp만 가진 엔티티들도 찾기
@@ -198,6 +203,33 @@ export class HTMLDebugStatusUI {
     evolutionButtonsDiv.appendChild(evolutionPlus10Btn);
     this._container.appendChild(evolutionButtonsDiv);
 
+    // Digestive 조절 버튼들
+    const digestiveButtonsDiv = document.createElement("div");
+
+    const digestiveLabel = document.createElement("span");
+    digestiveLabel.textContent = "Dig: ";
+    digestiveLabel.style.cssText = `
+      color: #8b4513;
+      font-size: 12px;
+      margin-right: 5px;
+    `;
+
+    const digestivePlus1Btn = this._createAdjustButton("+1", () =>
+      this._adjustDigestiveLoad(1)
+    );
+    const digestivePlus3Btn = this._createAdjustButton("+3", () =>
+      this._adjustDigestiveLoad(3)
+    );
+    const digestiveResetBtn = this._createAdjustButton("R", () =>
+      this._resetDigestiveLoad()
+    );
+
+    digestiveButtonsDiv.appendChild(digestiveLabel);
+    digestiveButtonsDiv.appendChild(digestivePlus1Btn);
+    digestiveButtonsDiv.appendChild(digestivePlus3Btn);
+    digestiveButtonsDiv.appendChild(digestiveResetBtn);
+    this._container.appendChild(digestiveButtonsDiv);
+
     // 똥 생성 버튼
     const poopButtonsDiv = document.createElement("div");
     const poopLabel = document.createElement("span");
@@ -227,7 +259,7 @@ export class HTMLDebugStatusUI {
       position: fixed;
       top: 0px;
       right: 0px;
-      width: 150px;
+      width: 180px;
       background: rgba(0, 0, 0, 0.2);
       border-radius: 8px;
       padding: 8px;
@@ -236,6 +268,17 @@ export class HTMLDebugStatusUI {
       color: white;
       display: none;
     `;
+
+    // blink 애니메이션을 위한 스타일 추가
+    const style = document.createElement("style");
+    style.textContent = `
+      @keyframes blink {
+        0%, 50% { opacity: 1; }
+        51%, 100% { opacity: 0.3; }
+      }
+    `;
+    document.head.appendChild(style);
+
     return container;
   }
 
@@ -350,15 +393,96 @@ export class HTMLDebugStatusUI {
   // 똥 생성 함수
   private _createPoop(): void {
     if (this._currentCharacterEid < 0) {
-      console.warn(
-        "[HTMLDebugStatusUI] No character found for poop creation"
-      );
+      console.warn("[HTMLDebugStatusUI] No character found for poop creation");
       return;
     }
 
     createPoop(this._world, this._currentCharacterEid);
     console.log(
       `[HTMLDebugStatusUI] Poop created for character ${this._currentCharacterEid}`
+    );
+  }
+
+  // Digestive load 조절 함수
+  private _adjustDigestiveLoad(staminaEquivalent: number): void {
+    if (this._currentCharacterEid < 0) {
+      console.warn(
+        "[HTMLDebugStatusUI] No character found for digestive load adjustment"
+      );
+      return;
+    }
+
+    const currentTime = Date.now();
+
+    // 현재 digestive 상태 확인 (addToDigestiveLoad가 자동으로 컴포넌트 추가해줌)
+    const currentLoad =
+      DigestiveSystemComp.currentLoad[this._currentCharacterEid] || 0;
+    const capacity =
+      DigestiveSystemComp.capacity[this._currentCharacterEid] ||
+      GAME_CONSTANTS.DIGESTIVE_CAPACITY;
+    const loadIncrease =
+      staminaEquivalent * GAME_CONSTANTS.DIGESTIVE_MULTIPLIER;
+    const newLoad = currentLoad + loadIncrease;
+
+    // 최대치를 넘었을 때 나머지 값으로 설정
+    if (newLoad > capacity) {
+      // addToDigestiveLoad 먼저 호출하여 컴포넌트가 없으면 자동 추가
+      addToDigestiveLoad(
+        this._world,
+        this._currentCharacterEid,
+        0,
+        currentTime
+      );
+
+      const remainder = newLoad % capacity;
+      DigestiveSystemComp.currentLoad[this._currentCharacterEid] = remainder;
+
+      // poob 생성 타이머 재설정 (나머지가 있고 용량을 넘으면)
+      if (remainder > 0) {
+        DigestiveSystemComp.nextPoopTime[this._currentCharacterEid] =
+          currentTime + GAME_CONSTANTS.POOP_DELAY;
+      } else {
+        DigestiveSystemComp.nextPoopTime[this._currentCharacterEid] = 0;
+      }
+
+      console.log(
+        `[HTMLDebugStatusUI] Digestive load overflow: ${newLoad.toFixed(
+          1
+        )} -> ${remainder.toFixed(1)} (capacity: ${capacity})`
+      );
+    } else {
+      // 일반적인 증가 처리 (자동으로 컴포넌트 추가됨)
+      addToDigestiveLoad(
+        this._world,
+        this._currentCharacterEid,
+        staminaEquivalent,
+        currentTime
+      );
+    }
+
+    console.log(
+      `[HTMLDebugStatusUI] Digestive load adjusted by ${staminaEquivalent} stamina equivalent`
+    );
+  }
+
+  // Digestive load 초기화 함수
+  private _resetDigestiveLoad(): void {
+    if (this._currentCharacterEid < 0) {
+      console.warn(
+        "[HTMLDebugStatusUI] No character found for digestive load reset"
+      );
+      return;
+    }
+
+    // addToDigestiveLoad(0)으로 컴포넌트가 없으면 자동 추가
+    const currentTime = Date.now();
+    addToDigestiveLoad(this._world, this._currentCharacterEid, 0, currentTime);
+
+    // 리셋
+    DigestiveSystemComp.currentLoad[this._currentCharacterEid] = 0;
+    DigestiveSystemComp.nextPoopTime[this._currentCharacterEid] = 0;
+    console.log(
+      `[HTMLDebugStatusUI] Digestive load reset for character ${this._currentCharacterEid}`
     );
   }
 
