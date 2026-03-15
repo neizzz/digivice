@@ -56,147 +56,14 @@ export class Game {
     this.showSettings = showSettings; // 설정 화면 표시 콜백
     this.showAlert = showAlert; // 팝업 콜백 저장
 
-    // CharacterManager와 TimeManager 인스턴스 초기화(순서 중요)
-    // this.characterManager = new CharacterManager(this); // CharacterManager 인스턴스 초기화
-
     this.app = new PIXI.Application();
 
     // 렌더링 주기를 60fps로 설정
     this._parentElement = parentElement;
 
-    // DOM에 캔버스 추가
-    // parentElement.appendChild(this.app.canvas);
-
     // 리사이징 핸들러 설정
     window.addEventListener("resize", this._onResize.bind(this));
-    // this._onResize();
-
-    // NOTE: 디버그 UI 초기화 / from "@digivice/client"
-    // if (import.meta.env.DEV === true) {
-    //   DebugFlags.getInstance(); // 인스턴스 생성
-    //   DebugUI.getInstance();
-    // }
-
-    // GameDataManager.initialize();
-    // LastCheckDataManager.initialize();
-
-    // this.getData().then(async (gameData) => {
-    //   if (gameData) {
-    //     console.log("[Game] 게임 데이터 로드 성공:", gameData);
-    //     const lastCheckData =
-    //       (await LastCheckDataManager.loadData()) as unknown as LastCheckData;
-
-    //     console.log(
-    //       `[Game] 저장 시간 : ${new Date(
-    //         gameData._savedAt
-    //       ).toLocaleString()} (lastCheckData: ${new Date(
-    //         lastCheckData._savedAt
-    //       ).toLocaleString()}) / 차이: ${
-    //         gameData._savedAt - lastCheckData._savedAt
-    //       }ms`
-    //     );
-
-    //     const { resultGameData, resultLastCheckData } = simulateCharacterStatus(
-    //       {
-    //         elapsedTime: Date.now() - gameData._savedAt,
-    //         inputGameData: gameData,
-    //         inputCheckData: lastCheckData,
-    //       }
-    //     );
-    //     GameDataManager._saveData(resultGameData);
-    //     LastCheckDataManager._saveData(resultLastCheckData);
-    //     this.startInitialization(gameData);
-    //   } else {
-    //     console.log("[Game] 게임 데이터가 없습니다. setup layer 생성");
-    //     params
-    //       .onCreateInitialGameData()
-    //       .then(async (initializationFormData: { name: string }) => {
-    //         const initialGameData = GameDataManager.createInitialData(
-    //           initializationFormData,
-    //           {
-    //             position: {
-    //               x: this.app.screen.width / 2,
-    //               y: this.app.screen.height / 2,
-    //             },
-    //           }
-    //         );
-    //         await LastCheckDataManager.createInitialData();
-    //         return initialGameData;
-    //       })
-    //       .then((gameData) => {
-    //         if (gameData) {
-    //           console.log("[Game] 게임 데이터 생성 성공:", gameData);
-    //           this.startInitialization(gameData);
-    //         } else {
-    //           throw new Error("게임 데이터 로드 실패");
-    //         }
-    //       })
-    //       .catch((error) => {
-    //         console.error("[Game] 게임 데이터 생성 중 오류:", error);
-    //       });
-    //   }
-    // });
   }
-
-  /**
-   * 초기화 프로세스를 시작합니다 (비동기 작업을 동기적으로 관리)
-   */
-  // private startInitialization(gameData: GameData): void {
-  //   console.log("[Game] 게임 초기화 프로세스 시작");
-  //   this.waitForAppInitialization()
-  //     .then(async () => {
-  //       await AssetLoader.loadAssets();
-  //     })
-  //     .then(() => {
-  //       this.assetsLoaded = true;
-  //       this._initializeCharacter(gameData).then(() => {
-  //         this._setupInitialScene();
-  //         this._setupGameLoop();
-  //       });
-
-  //       if (import.meta.env.DEV) {
-  //         DebugUI.getInstance();
-  //       }
-  //     })
-  //     .catch((error) => {
-  //       console.error("[Game] 에셋 로딩 오류:", error);
-  //     });
-  // }
-
-  // private async _initializeCharacter(gameData: GameData): Promise<void> {
-  //   try {
-  //     const characterKey = gameData.character.key;
-  //     const status = gameData.character.status;
-
-  //     // 캐릭터 타입에 따라 적절한 클래스 인스턴스 생성
-  //     const entity = (() => {
-  //       if (characterKey === "egg") {
-  //         console.log("[Game] Egg 생성 (Character와 별개의 간단한 엔티티)");
-  //         // Egg는 Character를 상속받지 않는 독립적인 간단한 엔티티
-  //         return new Egg({
-  //           position: status.position,
-  //           app: this.app,
-  //         });
-  //       }
-  //       console.log(`[Game] 일반 캐릭터(${characterKey}) 생성`);
-  //       // 기존 Character 클래스 사용
-  //       return new Character({
-  //         characterKey: characterKey as CharacterKey,
-  //         app: this.app,
-  //         status: gameData.character.status,
-  //       });
-  //     })();
-
-  //     this.characterManager.setEntity(entity);
-
-  //     if (import.meta.env.DEV && entity instanceof Character) {
-  //       DebugUI.getInstance().setCharacter(entity);
-  //     }
-  //   } catch (error) {
-  //     console.error("[Game] 캐릭터 초기화 중 오류:", error);
-  //     throw error;
-  //   }
-  // }
 
   /**
    * ControlButton 클릭 이벤트를 처리합니다
@@ -360,15 +227,6 @@ export class Game {
     this.app.renderer.resize(width, height);
     this.app.renderer.resolution = window.devicePixelRatio || 2;
     this.app.stage.setSize(width, height);
-
-    // MainSceneWorld의 resize 메소드 호출
-    if (this.currentScene && this.currentSceneKey === SceneKey.MAIN) {
-      const mainSceneWorld = this.currentScene as unknown as MainSceneWorld;
-      mainSceneWorld.resize(
-        width - 2 * SCREEN_PADDING,
-        height - 2 * SCREEN_PADDING
-      );
-    }
   }
 
   /**
@@ -391,7 +249,6 @@ export class Game {
 
     switch (key) {
       case SceneKey.MAIN:
-        // return new MainScene(this).init(gameData);
         const mainSceneWorld = new MainSceneWorld({
           stage: this.app.stage,
           positionBoundary: {

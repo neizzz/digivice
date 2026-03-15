@@ -22,7 +22,7 @@ import {
   EggHatchComp,
 } from "./raw-components";
 import {
-  CharacterKey,
+  CharacterKeyECS,
   CharacterState,
   DestinationType,
   FoodState,
@@ -63,7 +63,8 @@ export function createCharacterEntity(
       )
   );
   CharacterStatusComp.characterKey[eid] =
-    _components.characterStatus?.characterKey || CharacterKey.TestGreenSlimeA1; // 기본 캐릭터 키
+    _components.characterStatus?.characterKey ||
+    CharacterKeyECS.TestGreenSlimeA1; // 기본 캐릭터 키
   CharacterStatusComp.stamina[eid] = _components.characterStatus?.stamina ?? 5; // 기본 스테미나 (MAX보다 낮게 시작)
   CharacterStatusComp.evolutionPhase[eid] =
     _components.characterStatus?.evolutionPhase || 1; // 기본 진화 페이즈는 1
@@ -140,7 +141,7 @@ export function createCharacterEntity(
 
   // DigestiveSystemComp 추가
   addComponent(world, DigestiveSystemComp, eid);
-  DigestiveSystemComp.capacity[eid] = 5.0; // 기본 소화기관 용량
+  DigestiveSystemComp.capacity[eid] = GAME_CONSTANTS.DIGESTIVE_CAPACITY; // GAME_CONSTANTS 사용
   DigestiveSystemComp.currentLoad[eid] = 0.0; // 현재 차있는 양
   DigestiveSystemComp.nextPoopTime[eid] = 0; // 다음 똥 싸는 시간 (처음엔 설정 안함)
 
@@ -171,45 +172,6 @@ export function createCharacterEntity(
     EggHatchComp.hatchTime[eid] = 0;
     EggHatchComp.isReadyToHatch[eid] = 0;
   }
-
-  return eid;
-}
-
-export function createBirdEntity(
-  world: IWorld,
-  components: EntityComponents
-): number {
-  const _components = components as WithRequired<
-    EntityComponents,
-    "position" | "angle" | "speed"
-  >;
-  const eid = addEntity(world);
-
-  addComponent(world, ObjectComp, eid);
-  ObjectComp.id[eid] = generatePersistentNumericId(); // 영속적인 고유 ID 생성
-  ObjectComp.type[eid] = ObjectType.BIRD;
-  ObjectComp.state[eid] = 0; // Bird는 별도 상태 enum이 없음
-
-  addComponent(world, PositionComp, eid);
-  PositionComp.x[eid] = _components.position.x || 0;
-  PositionComp.y[eid] = _components.position.y || 0;
-
-  addComponent(world, AngleComp, eid);
-  AngleComp.value[eid] = _components.angle.value || 0;
-
-  addComponent(world, RenderComp, eid);
-  RenderComp.storeIndex[eid] = ECS_NULL_VALUE; // 렌더링 시스템에서 eid로 설정됨
-  RenderComp.textureKey[eid] = ECS_NULL_VALUE; // Bird 텍스처로 변경
-  RenderComp.zIndex[eid] = INTENTED_FRONT_Z_INDEX; // Bird는 높은 z-index
-
-  addComponent(world, SpeedComp, eid);
-  SpeedComp.value[eid] = _components.speed.value;
-
-  addComponent(world, DestinationComp, eid);
-  DestinationComp.type[eid] = DestinationType.NULL;
-  DestinationComp.target[eid] = ECS_NULL_VALUE;
-  DestinationComp.x[eid] = ECS_NULL_VALUE;
-  DestinationComp.y[eid] = ECS_NULL_VALUE;
 
   return eid;
 }
@@ -316,7 +278,7 @@ export function createPoobEntity(
   // ObjectComp
   addComponent(world, ObjectComp, eid);
   ObjectComp.id[eid] =
-    _components.object.id && _components.object.id !== 0
+    _components.object.id && _components.object.id !== ECS_NULL_VALUE
       ? _components.object.id
       : generatePersistentNumericId(); // 0이거나 falsy 값일 때 새 ID 생성
   ObjectComp.type[eid] = ObjectType.POOB;
@@ -326,8 +288,8 @@ export function createPoobEntity(
 
   // PositionComp
   addComponent(world, PositionComp, eid);
-  PositionComp.x[eid] = _components.position.x || ECS_NULL_VALUE;
-  PositionComp.y[eid] = _components.position.y || ECS_NULL_VALUE;
+  PositionComp.x[eid] = _components.position.x;
+  PositionComp.y[eid] = _components.position.y;
 
   console.log(
     `[EntityFactory] Poob position: (${PositionComp.x[eid]}, ${PositionComp.y[eid]})`
@@ -342,6 +304,7 @@ export function createPoobEntity(
   RenderComp.storeIndex[eid] = ECS_NULL_VALUE; // 렌더링 시스템에서 eid로 설정됨
   RenderComp.textureKey[eid] = TextureKey.POOB; // Poob 전용 텍스처 사용
   RenderComp.zIndex[eid] = ECS_NULL_VALUE;
+  RenderComp.scale[eid] = 2.4 + Math.random() * (3.6 - 2.4);
 
   console.log(
     `[EntityFactory] Poob entity created successfully with EID: ${eid}, ObjectID: ${ObjectComp.id[eid]}`

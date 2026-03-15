@@ -31,11 +31,13 @@ export class HTMLDebugStatusUI {
   private _isVisible: boolean = false;
   private _currentCharacterEid: number = -1; // -1을 "캐릭터 없음"으로 사용
   private _charIdElement: HTMLParagraphElement;
+  private _systemStatusElement: HTMLParagraphElement;
 
   constructor(world: MainSceneWorld, parentElement: HTMLElement) {
     this._world = world;
     this._container = this._createContainer();
     this._charIdElement = document.createElement("p"); // 캐릭터 ID 요소 미리 생성
+    this._systemStatusElement = document.createElement("p"); // 시스템 상태 요소 미리 생성
     this._setupUI();
     this._findFirstCharacter();
 
@@ -140,6 +142,21 @@ export class HTMLDebugStatusUI {
     }
   }
 
+  private _updateSystemStatusDisplay(): void {
+    // world에서 상태관리 시스템 활성화 여부 확인
+    const isEnabled = (this._world as any)._statusSystemsEnabled !== false;
+
+    this._systemStatusElement.innerHTML = `
+      Systems: ${isEnabled ? "ON" : "OFF"}
+    `;
+    this._systemStatusElement.style.cssText = `
+      margin: 0 0 15px 0;
+      font-size: 12px;
+      color: ${isEnabled ? "#90EE90" : "#ff6666"};
+      font-weight: bold;
+    `;
+  }
+
   private _setupUI(): void {
     // 캐릭터 ID 표시
     this._charIdElement.style.cssText = `
@@ -149,6 +166,10 @@ export class HTMLDebugStatusUI {
     `;
     this._updateCharacterIdDisplay();
     this._container.appendChild(this._charIdElement);
+
+    // 시스템 상태 표시
+    this._updateSystemStatusDisplay();
+    this._container.appendChild(this._systemStatusElement);
 
     // 스테미나 조절 버튼들
     const staminaButtonsDiv = document.createElement("div");
@@ -209,7 +230,7 @@ export class HTMLDebugStatusUI {
     const digestiveLabel = document.createElement("span");
     digestiveLabel.textContent = "Dig: ";
     digestiveLabel.style.cssText = `
-      color: #8b4513;
+      color: #66ff66;
       font-size: 12px;
       margin-right: 5px;
     `;
@@ -248,6 +269,70 @@ export class HTMLDebugStatusUI {
     poopButtonsDiv.appendChild(createPoopBtn);
     this._container.appendChild(poopButtonsDiv);
 
+    // 수면 제어 버튼
+    const sleepButtonsDiv = document.createElement("div");
+    const sleepLabel = document.createElement("span");
+    sleepLabel.textContent = "Sleep: ";
+    sleepLabel.style.cssText = `
+      color: #9999ff;
+      font-size: 12px;
+      margin-right: 5px;
+    `;
+
+    const sleepBtn = this._createAdjustButton("😴", () => this._toggleSleep());
+
+    sleepButtonsDiv.appendChild(sleepLabel);
+    sleepButtonsDiv.appendChild(sleepBtn);
+    this._container.appendChild(sleepButtonsDiv);
+
+    // 상태 관리 시스템 토글 버튼
+    const systemButtonsDiv = document.createElement("div");
+    systemButtonsDiv.style.cssText = `
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255, 255, 255, 0.2);
+    `;
+
+    const systemLabel = document.createElement("span");
+    systemLabel.textContent = "Systems: ";
+    systemLabel.style.cssText = `
+      color: #ffaaaa;
+      font-size: 12px;
+      margin-right: 5px;
+    `;
+
+    const toggleSystemsBtn = this._createAdjustButton("⚙️", () =>
+      this._toggleStatusSystems()
+    );
+
+    systemButtonsDiv.appendChild(systemLabel);
+    systemButtonsDiv.appendChild(toggleSystemsBtn);
+    this._container.appendChild(systemButtonsDiv);
+
+    // 데이터 리셋 버튼
+    const resetButtonsDiv = document.createElement("div");
+    resetButtonsDiv.style.cssText = `
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255, 255, 255, 0.2);
+    `;
+
+    const resetLabel = document.createElement("span");
+    resetLabel.textContent = "Reset: ";
+    resetLabel.style.cssText = `
+      color: #ff9999;
+      font-size: 12px;
+      margin-right: 5px;
+    `;
+
+    const resetDataBtn = this._createAdjustButton("🗑️", () =>
+      this._resetAllData()
+    );
+
+    resetButtonsDiv.appendChild(resetLabel);
+    resetButtonsDiv.appendChild(resetDataBtn);
+    this._container.appendChild(resetButtonsDiv);
+
     // 닫기 버튼
     const closeButton = this._createCloseButton();
     this._container.appendChild(closeButton);
@@ -260,7 +345,7 @@ export class HTMLDebugStatusUI {
       top: 0px;
       right: 0px;
       width: 180px;
-      background: rgba(0, 0, 0, 0.2);
+      background: rgba(0, 0, 0, 0.6);
       border-radius: 8px;
       padding: 8px;
       z-index: 1000;
@@ -486,9 +571,69 @@ export class HTMLDebugStatusUI {
     );
   }
 
+  // 수면 상태 토글 함수
+  private _toggleSleep(): void {
+    if (this._currentCharacterEid < 0) {
+      console.warn("[HTMLDebugStatusUI] No character found for sleep toggle");
+      return;
+    }
+
+    const currentState = ObjectComp.state[this._currentCharacterEid];
+
+    if (currentState === 3) {
+      // CharacterState.SLEEPING = 3
+      // 잠들어 있다면 깨우기 (IDLE로 변경)
+      ObjectComp.state[this._currentCharacterEid] = 1; // CharacterState.IDLE = 1
+      console.log(
+        `[HTMLDebugStatusUI] Character ${this._currentCharacterEid} woke up (SLEEPING -> IDLE)`
+      );
+    } else {
+      // 깨어 있다면 재우기
+      ObjectComp.state[this._currentCharacterEid] = 3; // CharacterState.SLEEPING = 3
+      console.log(
+        `[HTMLDebugStatusUI] Character ${this._currentCharacterEid} fell asleep (${currentState} -> SLEEPING)`
+      );
+    }
+  }
+
+  // 상태 관리 시스템 토글 함수
+  private _toggleStatusSystems(): void {
+    const isEnabled = this._world.toggleStatusSystems();
+    console.log(
+      `[HTMLDebugStatusUI] Status management systems ${
+        isEnabled ? "enabled" : "disabled"
+      }`
+    );
+  }
+
+  // 모든 데이터 리셋 함수
+  private async _resetAllData(): Promise<void> {
+    if (
+      !confirm(
+        "모든 데이터를 삭제하고 처음부터 시작하시겠습니까? 이 작업은 되돌릴 수 없습니다."
+      )
+    ) {
+      return;
+    }
+
+    try {
+      // 스토리지에서 데이터 완전 삭제
+      await (this._world as any).setData(null);
+      console.log("[HTMLDebugStatusUI] All data cleared from storage");
+
+      // 페이지 새로고침하여 완전히 초기화
+      alert("데이터가 삭제되었습니다. 페이지를 새로고침합니다.");
+      window.location.reload();
+    } catch (error) {
+      console.error("[HTMLDebugStatusUI] Failed to reset data:", error);
+      alert("데이터 삭제에 실패했습니다.");
+    }
+  }
+
   public show(): void {
     this._findFirstCharacter(); // 캐릭터 다시 찾기
     this._updateCharacterIdDisplay(); // 캐릭터 ID 표시 업데이트
+    this._updateSystemStatusDisplay(); // 시스템 상태 표시 업데이트
     this._updateAllStatusIndicators(); // 상태 표시 업데이트
     this._container.style.display = "block";
     this._isVisible = true;
@@ -514,6 +659,7 @@ export class HTMLDebugStatusUI {
   public update(): void {
     // 매 프레임마다 상태 표시 업데이트 (상태가 외부에서 변경될 수 있음)
     if (this._isVisible) {
+      this._updateSystemStatusDisplay(); // 시스템 상태 업데이트
       this._updateAllStatusIndicators();
     }
   }

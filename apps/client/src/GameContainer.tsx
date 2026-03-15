@@ -48,6 +48,10 @@ const GameContainer: React.FC = () => {
       showAlert: (message: string, title?: string) => {
         showAlert(message, title);
       },
+      showSettings: () => {
+        // TODO:
+        console.warn("showSettings is not implemented yet.");
+      },
       changeControlButtons: (controlButtonParams) => {
         setButtonTypes(
           () =>

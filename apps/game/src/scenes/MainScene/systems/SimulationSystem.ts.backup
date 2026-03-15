@@ -1,0 +1,642 @@
+import { defineQuery } from "bitecs";
+import { ObjectComp, CharacterStatusComp } from "../raw-components";
+import { CharacterStatus } from "../types";
+import { MainSceneWorld } from "../world";
+import { GAME_CONSTANTS } from "../config";
+import { CharacterKey } from "@/types/Character";
+import { checkPoobGeneration } from "./DigestiveSystem";
+import { checkStaleFoodCount } from "./FreshnessSystem";
+import { checkSickness } from "./DiseaseSystem";
+import { 
+  checkDeathForSimulation,
+  getCharacterStaminaForSimulation,
+  getCharacterEvolutionGaugeForSimulation,
+  clearCharacterStatusesForSimulation,
+  addCharacterStatusForSimulationInternal
+} from "./CharacterStatusSystem";
+import { evolve } from "@/evolution";
+
+// Status 유틸리티 함수들
+export function getCharacterStatusName(status: CharacterStatus): string {
+  switch (status) {
+    case CharacterStatus.URGENT:
+      return "URGENT";
+    case CharacterStatus.SICK:
+      return "SICK";
+    case CharacterStatus.HAPPY:
+      return "HAPPY";
+    case CharacterStatus.DISCOVER:
+      return "DISCOVER";
+    default:
+      return `UNKNOWN(${status})`;
+  }
+}
+
+export function formatCharacterStatuses(statuses: CharacterStatus[]): string {
+  if (statuses.length === 0) {
+    return "NONE";
+  }
+  return statuses.map((status) => getCharacterStatusName(status)).join(", ");
+}
+
+export function logCharacterStatus(
+  eid: number,
+  statuses: CharacterStatus[],
+  context: string = ""
+): void {
+  const statusText = formatCharacterStatuses(statuses);
+  const prefix = context ? `[${context}] ` : "";
+  console.log(`${prefix}Entity ${eid} statuses: ${statusText}`);
+}
+
+/**
+ * 두 상태가 다른지 확인하는 함수
+ */
+function hasStateChanged(
+  before: SimulatedCharacterState,
+  after: SimulatedCharacterState
+): boolean {
+  return (
+    before.stamina !== after.stamina ||
+    before.evolutionGauge !== after.evolutionGauge ||
+    !arraysEqual(before.statuses, after.statuses)
+  );
+}
+
+const characterQuery = defineQuery([ObjectComp, CharacterStatusComp]);
+
+export function simulationSystem(params: {
+  world: MainSceneWorld;
+  delta: number;
+}): typeof params {
+  const { world } = params;
+  const entities = characterQuery(world);
+
+  const currentTime = Date.now();
+  const lastUpdateTime = world.lastSimulationTime || currentTime;
+  const deltaTime = currentTime - lastUpdateTime;
+
+  // 실시간 시뮬레이션 (매 프레임마다 실행)
+  for (let i = 0; i < entities.length; i++) {
+    const eid = entities[i];
+    const characterState = getCharacterSimulationState(eid);
+
+    // 실시간 시뮬레이션 (작은 deltaTime으로 실행)
+    const simulationResult = simulate({
+      startTime: lastUpdateTime,
+      elapsedTime: deltaTime,
+      checker: {
+        poob: (simulationNow: number) =>
+          checkPoobGeneration(world, eid, simulationNow),
+        staleFood: (simulationNow: number) =>
+          checkStaleFoodCount(world, simulationNow),
+        sick: (simulationNow: number, unhygienicCount: number) =>
+          checkSickness(world, eid, simulationNow, unhygienicCount),
+        death: (simulationNow: number) =>
+          checkDeathForSimulation(world, eid, simulationNow),
+        eggHatch: (_simulationNow: number) =>
+          // 간단한 부화 체크 - 실제로는 더 복잡한 로직이 필요할 수 있음
+          true,
+      },
+      input: characterState,
+    });
+
+    // 상태가 변경되었을 때만 로그 출력
+    if (hasStateChanged(characterState, simulationResult)) {
+      console.log(`[CharacterManageSystem] Real-time change - Entity ${eid}:`);
+      console.log(
+        `  Stamina: ${characterState.stamina} -> ${simulationResult.stamina}`
+      );
+      console.log(
+        `  Evolution: ${characterState.evolutionGauge} -> ${simulationResult.evolutionGauge}`
+      );
+      logCharacterStatus(eid, characterState.statuses, "Before");
+      logCharacterStatus(eid, simulationResult.statuses, "After");
+    }
+
+    applySimulationResult(eid, simulationResult);
+  }
+
+  // 마지막 업데이트 시간 저장
+  world.lastSimulationTime = currentTime;
+
+  return params;
+}
+
+// 두 배열이 같은지 비교하는 헬퍼 함수
+function arraysEqual(
+  arr1: CharacterStatus[],
+  arr2: CharacterStatus[]
+): boolean {
+  if (arr1.length !== arr2.length) return false;
+
+  // 정렬된 배열로 비교 (순서 무관)
+  const sorted1 = [...arr1].sort();
+  const sorted2 = [...arr2].sort();
+
+  for (let i = 0; i < sorted1.length; i++) {
+    if (sorted1[i] !== sorted2[i]) return false;
+  }
+
+  return true;
+}
+
+type SimulatedCharacterState = {
+  stamina: number;
+  characterKey: CharacterKey;
+  evolutionGauge: number;
+  statuses: CharacterStatus[];
+  // 소화기관 시스템 상태
+  digestiveLoad: number; // 소화기관 부하
+  nextPoopTime: number; // 다음 배변 시간
+  // 질병 시스템 상태
+  diseaseCheckTime: number; // 질병 체크 시간
+  // 알 부화 시스템 상태
+  eggHatchTime: number; // 알 부화 시간
+  isEgg: boolean; // 알 상태 여부
+};
+
+/**
+ * 경과 시간에 따른 시뮬레이션 틱 크기 결정
+ * @param elapsedTime 경과 시간 (ms)
+ * @returns 틱 크기 (ms)
+ */
+function getSimulationTickSize(elapsedTime: number): number {
+  const TEN_SECONDS = 10 * 1000;
+  const FIVE_MINUTES = 5 * 60 * 1000; // 5분
+  const ONE_HOUR = 60 * 60 * 1000; // 1시간
+
+  if (elapsedTime < TEN_SECONDS) {
+    return elapsedTime;
+  } else if (elapsedTime < FIVE_MINUTES) {
+    return 1000; // 1초
+  } else if (elapsedTime < ONE_HOUR) {
+    return 10 * 1000; // 10초
+  } else {
+    return 60 * 1000; // 1분
+  }
+}
+/** NOTE:
+ * - 시간은 전부 msec 단위
+ */
+export function simulate(params: {
+  /** 시뮬레이션 시작 시간 (i.e. 마지막으로 실행되었던 시간) (msec) */
+  startTime: number;
+  /** 마지막으로 실행된 이후 경과시간 (msec) */
+  elapsedTime: number;
+  checker: {
+    /** from DigestiveSystem.ts
+     * @description poob을 생성해야하면 생성.
+     * @returns 최종 poob 개수 (0 이상)
+     */
+    poob: (simulationNow: number) => number;
+    /** from FreshnessSystem.ts
+     * @description food의 freshness를 갱신한다.
+     * @returns 갱신된 freshness가 STALE인 food의 개수 (0 이상)
+     */
+    staleFood: (simulationNow: number) => number;
+    /** from DiseaseSystem.ts */
+    sick: (simulationNow: number, unhygienicCount: number) => boolean;
+    death: (simulationNow: number) => boolean;
+    /** from EggHatchSystem.ts */
+    eggHatch: (simulationNow: number) => boolean;
+  };
+  input: SimulatedCharacterState;
+}): SimulatedCharacterState {
+  const { startTime, elapsedTime, checker, input } = params;
+
+  // 시뮬레이션 결과를 위한 복사본 생성
+  const result: SimulatedCharacterState = {
+    stamina: input.stamina,
+    characterKey: input.characterKey,
+    evolutionGauge: input.evolutionGauge,
+    statuses: [...input.statuses], // 배열 복사
+    digestiveLoad: input.digestiveLoad || 0, // 소화기관 부하
+    nextPoopTime: input.nextPoopTime || 0, // 다음 배변 시간
+    diseaseCheckTime: input.diseaseCheckTime || 0, // 질병 체크 시간
+    eggHatchTime: input.eggHatchTime || 0, // 알 부화 시간
+    isEgg: input.isEgg || false, // 알 상태 여부
+  };
+
+  // 시뮬레이션 틱 크기 결정
+  const tickSize = getSimulationTickSize(elapsedTime);
+  const totalTicks = Math.floor(elapsedTime / tickSize);
+
+  console.log(
+    `[simulate] Starting simulation: ${totalTicks} ticks of ${tickSize}ms each`
+  );
+  console.log(
+    `[simulate] Initial state - Stamina: ${result.stamina}, Evolution: ${result.evolutionGauge}`
+  );
+  console.log(
+    `[simulate] Initial statuses: ${formatCharacterStatuses(result.statuses)}`
+  );
+
+  // 각 틱별로 시뮬레이션 실행
+  for (let tick = 0; tick < totalTicks; tick++) {
+    const simulationNow = startTime + (tick + 1) * tickSize;
+
+    // 0. 알 부화 체크 (가장 먼저 처리)
+    if (
+      result.isEgg &&
+      result.eggHatchTime &&
+      result.eggHatchTime > 0 &&
+      simulationNow >= result.eggHatchTime
+    ) {
+      const shouldHatch = checker.eggHatch(simulationNow);
+      if (shouldHatch) {
+        result.isEgg = false;
+        result.eggHatchTime = 0;
+        // 부화 시 상태 초기화
+        result.stamina = GAME_CONSTANTS.MAX_STAMINA;
+        result.evolutionGauge = 0;
+        result.statuses = [];
+        console.log(
+          `[simulate] Egg hatched at tick ${tick} (${new Date(
+            simulationNow
+          ).toLocaleString("ko-KR")})`
+        );
+        continue; // 부화한 턴에는 다른 로직 스킵
+      }
+    }
+
+    // 알 상태라면 부화만 체크하고 다른 로직은 스킵
+    if (result.isEgg) {
+      continue;
+    }
+
+    // 1. 스테미나 감소 체크
+    if (
+      (tick * tickSize) % GAME_CONSTANTS.STAMINA_DECREASE_INTERVAL <
+      tickSize
+    ) {
+      result.stamina = Math.max(
+        0,
+        result.stamina - GAME_CONSTANTS.STAMINA_DECREASE_AMOUNT
+      );
+    }
+
+    // 2. 진화 게이지 증가 체크 (스테미나 5 이상이고 SICK 상태가 아닐 때)
+    const isSick = result.statuses.includes(CharacterStatus.SICK);
+    if (
+      result.stamina >= GAME_CONSTANTS.EVOLUTION_GAUGE_STATMINA_THRESHOLD &&
+      !isSick
+    ) {
+      if (
+        (tick * tickSize) % GAME_CONSTANTS.EVOLUTION_GAUGE_CHECK_INTERVAL <
+        tickSize
+      ) {
+        result.evolutionGauge = Math.min(100.0, result.evolutionGauge + 1.0);
+      }
+    }
+
+    // 3. 소화기관 시스템 (Poob 생성 체크)
+    // 소화기관 부하가 한계치를 초과하고 배변 시간이 되었을 때
+    const currentDigestiveLoad = result.digestiveLoad || 0;
+    if (currentDigestiveLoad >= GAME_CONSTANTS.DIGESTIVE_CAPACITY) {
+      if (!result.nextPoopTime || result.nextPoopTime === 0) {
+        // 첫 배변 시간 설정 (소화기관이 찼을 때부터 일정 시간 후)
+        result.nextPoopTime = simulationNow + GAME_CONSTANTS.POOP_DELAY;
+      } else if (simulationNow >= result.nextPoopTime) {
+        // 실제 poob 생성
+        const poobCount = checker.poob(simulationNow);
+        if (poobCount > 0) {
+          // 배변 후 소화기관 부하 감소
+          result.digestiveLoad = Math.max(
+            0,
+            currentDigestiveLoad - GAME_CONSTANTS.DIGESTIVE_CAPACITY * 0.8
+          );
+          result.nextPoopTime = 0; // 다음 배변 시간 리셋
+          console.log(
+            `[simulate] Generated ${poobCount} poob(s) at tick ${tick}, digestive load reduced to ${result.digestiveLoad}`
+          );
+        }
+      }
+    }
+
+    // 4. 음식 신선도 체크
+    const staleCount = checker.staleFood(simulationNow);
+
+    // 5. 질병 체크 (일정 간격으로 체크)
+    const currentDiseaseCheckTime = result.diseaseCheckTime || 0;
+    if (simulationNow >= currentDiseaseCheckTime) {
+      const unhygienicCount =
+        (currentDigestiveLoad >= GAME_CONSTANTS.DIGESTIVE_CAPACITY ? 1 : 0) +
+        staleCount;
+      const shouldGetSick = checker.sick(simulationNow, unhygienicCount);
+
+      if (shouldGetSick && !result.statuses.includes(CharacterStatus.SICK)) {
+        // SICK 상태 추가
+        if (result.statuses.length < ECS_CHARACTER_STATUS_LENGTH) {
+          result.statuses.push(CharacterStatus.SICK);
+          console.log(
+            `[simulate] Character got sick at tick ${tick} due to unhygienic conditions (${unhygienicCount})`
+          );
+        }
+      }
+
+      // 다음 질병 체크 시간 설정
+      result.diseaseCheckTime =
+        simulationNow + GAME_CONSTANTS.DISEASE_CHECK_INTERVAL;
+    }
+
+    // 6. 사망 체크
+    const shouldDie = checker.death(simulationNow);
+    if (shouldDie) {
+      // 사망 시 모든 상태 초기화하고 특별한 처리 필요
+      result.statuses = [];
+      result.stamina = 0;
+      result.evolutionGauge = 0;
+      result.digestiveLoad = 0;
+      result.nextPoopTime = 0;
+      const deathTime = new Date(simulationNow);
+      console.log(
+        `[simulate] Character died at tick ${tick} (${deathTime.toLocaleString(
+          "ko-KR"
+        )})`
+      );
+      break; // 사망하면 시뮬레이션 중단
+    }
+
+    // 7. 진화 체크 (진화 게이지가 100에 도달했을 때)
+    if (result.evolutionGauge >= 100.0) {
+      // NOTE: 예외적으로 외부 함수를 가져다 씀.
+      const evolutionResult = evolve(result.characterKey);
+      if (evolutionResult) {
+        // 진화 성공 시 게이지 리셋하고 캐릭터 키 업데이트
+        result.evolutionGauge = 0;
+        result.characterKey = evolutionResult;
+        const evolutionTime = new Date(simulationNow);
+        console.log(
+          `[simulate] Character evolved from ${
+            input.characterKey
+          } to ${evolutionResult} at tick ${tick} (${evolutionTime.toLocaleString(
+            "ko-KR"
+          )})`
+        );
+      }
+    }
+
+    // 8. 일시적 상태들 만료 체크 (HAPPY, DISCOVER 등)
+    // 실제 구현에서는 각 상태별로 시작 시간을 추적해야 하지만,
+    // 여기서는 간단히 일정 확률로 제거
+    result.statuses = result.statuses.filter((status) => {
+      if (
+        status === CharacterStatus.HAPPY ||
+        status === CharacterStatus.DISCOVER
+      ) {
+        // 10% 확률로 일시적 상태 제거 (실제로는 시간 기반으로 해야 함)
+        return Math.random() > 0.1;
+      }
+      return true;
+    });
+
+    // 9. SICK 상태 회복 체크 (일정 확률로 회복)
+    if (result.statuses.includes(CharacterStatus.SICK)) {
+      // 스테미나가 높고 위생 상태가 좋으면 회복 확률 증가
+      const digestiveLoadForRecovery = result.digestiveLoad || 0;
+      const recoveryChance =
+        result.stamina >= 7 &&
+        staleCount === 0 &&
+        digestiveLoadForRecovery < GAME_CONSTANTS.DIGESTIVE_CAPACITY * 0.5
+          ? 0.05
+          : 0.02;
+      if (Math.random() < recoveryChance) {
+        result.statuses = result.statuses.filter(
+          (status) => status !== CharacterStatus.SICK
+        );
+        console.log(
+          `[simulate] Character recovered from sickness at tick ${tick}`
+        );
+      }
+    }
+  }
+
+  // 나머지 시간 처리 (부분 틱)
+  const remainingTime = elapsedTime % tickSize;
+  if (remainingTime > 0) {
+    // 부분 틱에 대한 처리는 선형 보간 또는 생략 가능
+    // 여기서는 간단히 생략
+  }
+
+  if (elapsedTime >= 3000) {
+    console.log(`[simulate] Final state:`, result);
+    console.log(`[simulate] Stamina: ${input.stamina} -> ${result.stamina}`);
+    console.log(
+      `[simulate] Evolution gauge: ${input.evolutionGauge} -> ${result.evolutionGauge}`
+    );
+    console.log(
+      `[simulate] Statuses: ${formatCharacterStatuses(
+        input.statuses
+      )} -> ${formatCharacterStatuses(result.statuses)}`
+    );
+  }
+
+  return result;
+}
+
+/**
+ * 캐릭터의 현재 상태를 SimulatedCharacterState로 변환
+ * @param eid 캐릭터 엔티티 ID
+ * @returns 현재 캐릭터 상태
+ */
+export function getCharacterSimulationState(
+  eid: number
+): SimulatedCharacterState {
+  const statusArray = CharacterStatusComp.statuses[eid];
+  const currentStatuses: CharacterStatus[] = [];
+
+  // 유효한 상태들만 추출
+  for (let i = 0; i < statusArray.length; i++) {
+    if (statusArray[i] && statusArray[i] !== 0) {
+      currentStatuses.push(statusArray[i]);
+    }
+  }
+
+  return {
+    stamina: getCharacterStaminaForSimulation(eid),
+    characterKey: getCharacterKeyValue(eid),
+    evolutionGauge: getCharacterEvolutionGaugeForSimulation(eid),
+    statuses: currentStatuses,
+    // 추가 시스템 상태들 - 실제 ECS 컴포넌트에서 가져와야 함
+    digestiveLoad: getDigestiveLoadValue(eid),
+    nextPoopTime: getNextPoopTimeValue(eid),
+    diseaseCheckTime: getDiseaseCheckTimeValue(eid),
+    eggHatchTime: getEggHatchTimeValue(eid),
+    isEgg: getIsEggValue(eid),
+  };
+}
+
+/**
+ * 시뮬레이션 결과를 실제 캐릭터 엔티티에 적용
+ * @param eid 캐릭터 엔티티 ID
+ * @param simulationResult 시뮬레이션 결과
+ */
+export function applySimulationResult(
+  eid: number,
+  simulationResult: SimulatedCharacterState
+): void {
+  console.log(`[applySimulationResult] Applying to entity ${eid}:`);
+  console.log(
+    `  Stamina: ${simulationResult.stamina}, Evolution: ${simulationResult.evolutionGauge}`
+  );
+  console.log(
+    `  Statuses: ${formatCharacterStatuses(simulationResult.statuses)}`
+  );
+
+  // 스테미나와 진화 게이지 직접 설정
+  setCharacterStaminaDirect(eid, simulationResult.stamina);
+  setCharacterEvolutionGaugeDirect(eid, simulationResult.evolutionGauge);
+
+  // 상태 적용 (기존 상태 초기화 후 새 상태 적용)
+  clearCharacterStatusesForSimulation(eid);
+  for (const status of simulationResult.statuses) {
+    addCharacterStatusForSimulationInternal(eid, status);
+  }
+
+  // 추가 시스템 상태들 적용
+  if (simulationResult.digestiveLoad !== undefined) {
+    setDigestiveLoadDirect(eid, simulationResult.digestiveLoad);
+  }
+  if (simulationResult.nextPoopTime !== undefined) {
+    setNextPoopTimeDirect(eid, simulationResult.nextPoopTime);
+  }
+  if (simulationResult.diseaseCheckTime !== undefined) {
+    setDiseaseCheckTimeDirect(eid, simulationResult.diseaseCheckTime);
+  }
+  if (simulationResult.eggHatchTime !== undefined) {
+    setEggHatchTimeDirect(eid, simulationResult.eggHatchTime);
+  }
+  if (simulationResult.isEgg !== undefined) {
+    setIsEggDirect(eid, simulationResult.isEgg);
+  }
+}
+
+/**
+ * 캐릭터 키 값 가져오기
+ */
+function getCharacterKeyValue(_eid: number): CharacterKey {
+  // CharacterStatusComp에서 characterKey 반환
+  // 임시로 기본값 반환
+  return CharacterKey.TestGreenSlimeA1;
+}
+
+/**
+ * 소화기관 부하 값 가져오기
+ */
+function getDigestiveLoadValue(_eid: number): number {
+  // DigestiveSystemComp에서 currentLoad 반환
+  // 임시로 기본값 반환
+  return 0;
+}
+
+/**
+ * 다음 배변 시간 값 가져오기
+ */
+function getNextPoopTimeValue(_eid: number): number {
+  // DigestiveSystemComp에서 nextPoopTime 반환
+  // 임시로 기본값 반환
+  return 0;
+}
+
+/**
+ * 질병 체크 시간 값 가져오기
+ */
+function getDiseaseCheckTimeValue(_eid: number): number {
+  // DiseaseSystemComp에서 nextCheckTime 반환
+  // 임시로 기본값 반환
+  return Date.now() + GAME_CONSTANTS.DISEASE_CHECK_INTERVAL;
+}
+
+/**
+ * 알 부화 시간 값 가져오기
+ */
+function getEggHatchTimeValue(_eid: number): number {
+  // EggHatchComp에서 hatchTime 반환
+  // 임시로 기본값 반환
+  return 0;
+}
+
+/**
+ * 알 상태 여부 가져오기
+ */
+function getIsEggValue(_eid: number): boolean {
+  // ObjectComp.state가 EGG인지 확인
+  // 임시로 기본값 반환
+  return false;
+}
+
+/**
+ * 캐릭터 스테미나 직접 설정
+ */
+function setCharacterStaminaDirect(eid: number, stamina: number): void {
+  // VitalityComp 또는 관련 컴포넌트에 직접 설정
+  console.log(
+    `[setCharacterStaminaDirect] Setting stamina for ${eid}: ${stamina}`
+  );
+  // 실제 구현은 컴포넌트 구조에 따라 결정
+}
+
+/**
+ * 캐릭터 진화 게이지 직접 설정
+ */
+function setCharacterEvolutionGaugeDirect(eid: number, gauge: number): void {
+  // EvolutionGaugeComp 또는 관련 컴포넌트에 직접 설정
+  console.log(
+    `[setCharacterEvolutionGaugeDirect] Setting evolution gauge for ${eid}: ${gauge}`
+  );
+  // 실제 구현은 컴포넌트 구조에 따라 결정
+}
+
+/**
+ * 소화기관 부하 직접 설정
+ */
+function setDigestiveLoadDirect(eid: number, load: number): void {
+  // DigestiveSystemComp에 직접 설정
+  console.log(
+    `[setDigestiveLoadDirect] Setting digestive load for ${eid}: ${load}`
+  );
+  // 실제 구현은 컴포넌트 구조에 따라 결정
+}
+
+/**
+ * 다음 배변 시간 직접 설정
+ */
+function setNextPoopTimeDirect(eid: number, time: number): void {
+  // DigestiveSystemComp에 직접 설정
+  console.log(
+    `[setNextPoopTimeDirect] Setting next poop time for ${eid}: ${time}`
+  );
+  // 실제 구현은 컴포넌트 구조에 따라 결정
+}
+
+/**
+ * 질병 체크 시간 직접 설정
+ */
+function setDiseaseCheckTimeDirect(eid: number, time: number): void {
+  // DiseaseSystemComp에 직접 설정
+  console.log(
+    `[setDiseaseCheckTimeDirect] Setting disease check time for ${eid}: ${time}`
+  );
+  // 실제 구현은 컴포넌트 구조에 따라 결정
+}
+
+/**
+ * 알 부화 시간 직접 설정
+ */
+function setEggHatchTimeDirect(eid: number, time: number): void {
+  // EggHatchComp에 직접 설정
+  console.log(
+    `[setEggHatchTimeDirect] Setting egg hatch time for ${eid}: ${time}`
+  );
+  // 실제 구현은 컴포넌트 구조에 따라 결정
+}
+
+/**
+ * 알 상태 여부 직접 설정
+ */
+function setIsEggDirect(eid: number, isEgg: boolean): void {
+  // ObjectComp.state 설정
+  console.log(`[setIsEggDirect] Setting egg state for ${eid}: ${isEgg}`);
+  // 실제 구현은 컴포넌트 구조에 따라 결정
+}

@@ -4,12 +4,15 @@ import {
   RandomMovementComp,
   AngleComp,
   CharacterStatusComp,
+  ObjectComp,
 } from "../raw-components";
 import { MainSceneWorld } from "../world";
+import { CharacterState, ObjectType } from "../types";
 import { nomalizeRadian } from "@/utils/common";
 import { getCharacterStats } from "../characterStats";
 
 const characterQuery = defineQuery([CharacterStatusComp, RandomMovementComp]);
+const allCharacterQuery = defineQuery([CharacterStatusComp, ObjectComp]);
 
 export function randomMovementSystem(params: {
   world: MainSceneWorld;
@@ -18,8 +21,32 @@ export function randomMovementSystem(params: {
   const { world } = params;
   const currentTime = Date.now();
   const chars = characterQuery(world);
+  const allChars = allCharacterQuery(world);
+
+  // 첫 번째 실행 시 전체 캐릭터 상태 로그
+  // if (Math.floor(currentTime / 3000) !== Math.floor((currentTime - 100) / 3000)) {
+  //   console.log(`[RandomMovementSystem] Found ${chars.length} entities with RandomMovementComp, ${allChars.length} total character entities`);
+  //   if (chars.length === 0 && allChars.length > 0) {
+  //     console.warn(`[RandomMovementSystem] Character entities exist but none have RandomMovementComp!`);
+  //     // 첫 번째 캐릭터 엔티티 정보 출력
+  //     const firstChar = allChars[0];
+  //     console.log(`[RandomMovementSystem] First character entity ${firstChar} - has RandomMovementComp: ${RandomMovementComp.minIdleTime[firstChar] !== undefined}`);
+  //   }
+  // }
+
   for (let i = 0; i < chars.length; i++) {
     const eid = chars[i];
+
+    // SLEEPING 또는 SICK 상태일 때는 움직임 건너뛰기
+    if (
+      ObjectComp.state[eid] === CharacterState.SLEEPING ||
+      ObjectComp.state[eid] === CharacterState.SICK
+    ) {
+      // 움직임 중지
+      SpeedComp.value[eid] = 0;
+      continue;
+    }
+
     const angle = AngleComp;
     const speed = SpeedComp;
 
@@ -29,45 +56,74 @@ export function randomMovementSystem(params: {
     const characterSpeed = characterStats.speed;
 
     // RandomMovementComp.nextChange가 올바르게 초기화되지 않은 경우 수정
-    if (
-      !RandomMovementComp.nextChange[eid] ||
-      RandomMovementComp.nextChange[eid] <= 0
-    ) {
+    const nextChange = RandomMovementComp.nextChange[eid];
+    if (!nextChange || nextChange <= 0 || nextChange > currentTime + 100000) {
       RandomMovementComp.nextChange[eid] = currentTime + 1000; // 1초 후 첫 상태 전환
-      console.log(
-        `[RandomMovementSystem] Fixed nextChange for character ${eid}`
+      // console.log(
+      //   `[RandomMovementSystem] Fixed nextChange for character ${eid} - was: ${nextChange}, now: ${currentTime + 1000}`,
+      // );
+    }
+
+    // 디버그: RandomMovementComp 값들 검증
+    const minIdle = RandomMovementComp.minIdleTime[eid];
+    const maxIdle = RandomMovementComp.maxIdleTime[eid];
+    const minMove = RandomMovementComp.minMoveTime[eid];
+    const maxMove = RandomMovementComp.maxMoveTime[eid];
+
+    if (!minIdle || !maxIdle || !minMove || !maxMove) {
+      console.error(
+        `[RandomMovementSystem] Entity ${eid} has invalid time ranges - idle: ${minIdle}-${maxIdle}, move: ${minMove}-${maxMove}`,
       );
     }
 
     // 현재 상태(idle/moving)가 끝났는지 확인
-    if (currentTime >= RandomMovementComp.nextChange[eid]) {
+    const nextChangeTime = RandomMovementComp.nextChange[eid];
+    const timeUntilChange = nextChangeTime - currentTime;
+
+    // 주기적으로 상태 정보 로그 (3초마다)
+    // if (
+    //   eid === chars[0] &&
+    //   Math.floor(currentTime / 3000) !== Math.floor((currentTime - 100) / 3000)
+    // ) {
+    //   console.log(
+    //     `[RandomMovementSystem] Entity ${eid} - Current: ${currentTime}, NextChange: ${nextChangeTime}, TimeLeft: ${timeUntilChange}ms, Speed: ${speed.value[eid]}, State: ${ObjectComp.state[eid]}`,
+    //   );
+    // }
+
+    if (currentTime >= nextChangeTime) {
       if (speed.value[eid] !== 0) {
         // moving -> idle 전환
         speed.value[eid] = 0;
+        ObjectComp.state[eid] = CharacterState.IDLE;
 
         // 다음 idle 종료 시간 설정
+        const minIdle = RandomMovementComp.minIdleTime[eid];
+        const maxIdle = RandomMovementComp.maxIdleTime[eid];
         const idleTime = Math.round(
-          RandomMovementComp.minIdleTime[eid] +
-            Math.random() *
-              (RandomMovementComp.maxIdleTime[eid] -
-                RandomMovementComp.minIdleTime[eid])
+          minIdle + Math.random() * (maxIdle - minIdle),
         );
         RandomMovementComp.nextChange[eid] = currentTime + idleTime;
+        console.log(
+          `[RandomMovementSystem] Entity ${eid}: MOVING -> IDLE, idle time: ${idleTime}ms (${minIdle}-${maxIdle})`,
+        );
       } else {
         // idle -> moving 전환
         angle.value[eid] = nomalizeRadian(Math.random() * Math.PI * 2);
 
         // 캐릭터의 고유 속도 적용
         speed.value[eid] = characterSpeed;
+        ObjectComp.state[eid] = CharacterState.MOVING;
 
         // 다음 이동 종료 시간 설정
+        const minMove = RandomMovementComp.minMoveTime[eid];
+        const maxMove = RandomMovementComp.maxMoveTime[eid];
         const moveTime = Math.round(
-          RandomMovementComp.minMoveTime[eid] +
-            Math.random() *
-              (RandomMovementComp.maxMoveTime[eid] -
-                RandomMovementComp.minMoveTime[eid])
+          minMove + Math.random() * (maxMove - minMove),
         );
         RandomMovementComp.nextChange[eid] = currentTime + moveTime;
+        console.log(
+          `[RandomMovementSystem] Entity ${eid}: IDLE -> MOVING, move time: ${moveTime}ms (${minMove}-${maxMove})`,
+        );
       }
     }
 

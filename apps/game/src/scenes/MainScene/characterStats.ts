@@ -1,4 +1,4 @@
-import { CharacterKey } from "./types";
+import { CharacterKeyECS as CharacterKey } from "./types";
 
 /**
  * 캐릭터별 기본 스탯 정의

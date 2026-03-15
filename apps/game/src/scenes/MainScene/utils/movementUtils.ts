@@ -66,19 +66,3 @@ export function moveTowardsTarget(
   // CommonMovementSystem이 실제 위치 업데이트를 담당
   return { distance, hasArrived };
 }
-
-/**
- * 목표 지점까지의 거리 계산
- * @param eid 엔티티 ID
- * @returns 목표까지의 거리
- */
-export function getDistanceToTarget(eid: number): number {
-  const currentX = PositionComp.x[eid];
-  const currentY = PositionComp.y[eid];
-  const targetX = DestinationComp.x[eid];
-  const targetY = DestinationComp.y[eid];
-
-  const deltaX = targetX - currentX;
-  const deltaY = targetY - currentY;
-  return Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-}

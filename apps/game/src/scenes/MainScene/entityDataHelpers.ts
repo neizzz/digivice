@@ -14,9 +14,14 @@ import {
   StatusIconRenderComp,
   ThrowAnimationComp,
   EggHatchComp,
+  DigestiveSystemComp,
+  DiseaseSystemComp,
+  VitalityComp,
+  TemporaryStatusComp,
+  FreshnessTimerComp,
 } from "./raw-components";
 import type { SavedEntity, EntityComponents } from "./world";
-import { CharacterKey, CharacterStatus } from "./types";
+import { CharacterKeyECS as CharacterKey, CharacterStatus } from "./types";
 
 /**
  * ECS 엔티티를 SavedEntity로 변환
@@ -129,6 +134,40 @@ export function convertECSEntityToSavedEntity(
     components.eggHatch = {
       hatchTime: EggHatchComp.hatchTime[eid],
       isReadyToHatch: EggHatchComp.isReadyToHatch[eid] === 1,
+    };
+  }
+  if (hasComponent(world, DigestiveSystemComp, eid)) {
+    components.digestiveSystem = {
+      capacity: DigestiveSystemComp.capacity[eid],
+      currentLoad: DigestiveSystemComp.currentLoad[eid],
+      nextPoopTime: DigestiveSystemComp.nextPoopTime[eid],
+    };
+  }
+  if (hasComponent(world, DiseaseSystemComp, eid)) {
+    components.diseaseSystem = {
+      nextCheckTime: DiseaseSystemComp.nextCheckTime[eid],
+      sickStartTime: DiseaseSystemComp.sickStartTime[eid],
+    };
+  }
+  if (hasComponent(world, VitalityComp, eid)) {
+    components.vitality = {
+      urgentStartTime: VitalityComp.urgentStartTime[eid],
+      deathTime: VitalityComp.deathTime[eid],
+      isDead: VitalityComp.isDead[eid] === 1,
+    };
+  }
+  if (hasComponent(world, TemporaryStatusComp, eid)) {
+    components.temporaryStatus = {
+      statusType: TemporaryStatusComp.statusType[eid],
+      startTime: TemporaryStatusComp.startTime[eid],
+    };
+  }
+  if (hasComponent(world, FreshnessTimerComp, eid)) {
+    components.freshnessTimer = {
+      createdTime: FreshnessTimerComp.createdTime[eid],
+      normalTime: FreshnessTimerComp.normalTime[eid],
+      staleTime: FreshnessTimerComp.staleTime[eid],
+      isBeingEaten: FreshnessTimerComp.isBeingEaten[eid] === 1,
     };
   }
 
@@ -285,18 +324,55 @@ export function applySavedEntityToECS(
       ? 1
       : 0;
   }
-}
 
-export function findSavedEntityById(
-  entities: SavedEntity[],
-  id: number
-): SavedEntity | undefined {
-  return entities.find((entity) => entity.components.object?.id === id);
-}
+  if (components.digestiveSystem) {
+    if (!hasComponent(world, DigestiveSystemComp, eid)) {
+      addComponent(world, DigestiveSystemComp, eid);
+    }
+    DigestiveSystemComp.capacity[eid] = components.digestiveSystem.capacity;
+    DigestiveSystemComp.currentLoad[eid] =
+      components.digestiveSystem.currentLoad;
+    DigestiveSystemComp.nextPoopTime[eid] =
+      components.digestiveSystem.nextPoopTime;
+  }
 
-export function filterSavedEntitiesByType(
-  entities: SavedEntity[],
-  type: number
-): SavedEntity[] {
-  return entities.filter((entity) => entity.components.object?.type === type);
+  if (components.diseaseSystem) {
+    if (!hasComponent(world, DiseaseSystemComp, eid)) {
+      addComponent(world, DiseaseSystemComp, eid);
+    }
+    DiseaseSystemComp.nextCheckTime[eid] =
+      components.diseaseSystem.nextCheckTime;
+    DiseaseSystemComp.sickStartTime[eid] =
+      components.diseaseSystem.sickStartTime;
+  }
+
+  if (components.vitality) {
+    if (!hasComponent(world, VitalityComp, eid)) {
+      addComponent(world, VitalityComp, eid);
+    }
+    VitalityComp.urgentStartTime[eid] = components.vitality.urgentStartTime;
+    VitalityComp.deathTime[eid] = components.vitality.deathTime;
+    VitalityComp.isDead[eid] = components.vitality.isDead ? 1 : 0;
+  }
+
+  if (components.temporaryStatus) {
+    if (!hasComponent(world, TemporaryStatusComp, eid)) {
+      addComponent(world, TemporaryStatusComp, eid);
+    }
+    TemporaryStatusComp.statusType[eid] = components.temporaryStatus.statusType;
+    TemporaryStatusComp.startTime[eid] = components.temporaryStatus.startTime;
+  }
+
+  if (components.freshnessTimer) {
+    if (!hasComponent(world, FreshnessTimerComp, eid)) {
+      addComponent(world, FreshnessTimerComp, eid);
+    }
+    FreshnessTimerComp.createdTime[eid] = components.freshnessTimer.createdTime;
+    FreshnessTimerComp.normalTime[eid] = components.freshnessTimer.normalTime;
+    FreshnessTimerComp.staleTime[eid] = components.freshnessTimer.staleTime;
+    FreshnessTimerComp.isBeingEaten[eid] = components.freshnessTimer
+      .isBeingEaten
+      ? 1
+      : 0;
+  }
 }

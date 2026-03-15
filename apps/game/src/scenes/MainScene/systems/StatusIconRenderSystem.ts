@@ -6,23 +6,15 @@ import {
   StatusIconRenderComp,
   ObjectComp,
   RenderComp,
+  TemporaryStatusComp,
 } from "../raw-components";
 import * as PIXI from "pixi.js";
 import { MainSceneWorld } from "../world";
 import { CharacterStatus, ObjectType, TextureKey } from "../types";
 
-// 디버그 플래그
-export const DEBUG_DISABLE_FOOD_CHASE = true; // 음식 쫒기 비활성화 (FoodEatingSystem에서 사용)
-
 // 일시적인 상태들 (3초 후 자동 제거)
 const TEMPORARY_STATUSES = [CharacterStatus.HAPPY, CharacterStatus.DISCOVER];
 const TEMPORARY_STATUS_DURATION = 3000;
-
-// 엔티티별 일시적 상태 타이머
-const temporaryStatusTimers: Map<
-  number,
-  Map<CharacterStatus, number>
-> = new Map();
 
 // 상태 아이콘 매핑
 const STATUS_TO_TEXTURE_KEY: Partial<Record<CharacterStatus, TextureKey>> = {
@@ -63,18 +55,18 @@ function getTextureFromKey(textureKey: number): PIXI.Texture | undefined {
   const textureInfo = textureMap[textureKey];
   if (!textureInfo) {
     console.warn(
-      `[StatusIconRenderSystem] Texture key ${textureKey} not found`
+      `[StatusIconRenderSystem] Texture key ${textureKey} not found`,
     );
     return undefined;
   }
 
   try {
     const spritesheet = PIXI.Assets.get<PIXI.Spritesheet>(
-      textureInfo.spritesheetAlias!
+      textureInfo.spritesheetAlias!,
     );
     if (!spritesheet) {
       console.warn(
-        `[StatusIconRenderSystem] Spritesheet not found: ${textureInfo.spritesheetAlias}`
+        `[StatusIconRenderSystem] Spritesheet not found: ${textureInfo.spritesheetAlias}`,
       );
       return PIXI.Texture.WHITE;
     }
@@ -82,7 +74,7 @@ function getTextureFromKey(textureKey: number): PIXI.Texture | undefined {
     const texture = spritesheet.textures[textureInfo.textureName];
     if (!texture) {
       console.warn(
-        `[StatusIconRenderSystem] Texture not found: ${textureInfo.textureName}`
+        `[StatusIconRenderSystem] Texture not found: ${textureInfo.textureName}`,
       );
       return PIXI.Texture.WHITE;
     }
@@ -91,7 +83,7 @@ function getTextureFromKey(textureKey: number): PIXI.Texture | undefined {
   } catch (error) {
     console.error(
       `[StatusIconRenderSystem] Error getting texture for key ${textureKey}:`,
-      error
+      error,
     );
     return PIXI.Texture.WHITE;
   }
@@ -124,67 +116,27 @@ function clearEntitySprites(eid: number): void {
 // 일시적 상태 관리 함수들
 export function startTemporaryStatus(
   eid: number,
-  status: CharacterStatus
+  status: CharacterStatus,
 ): void {
   if (!TEMPORARY_STATUSES.includes(status)) return;
 
-  if (!temporaryStatusTimers.has(eid)) {
-    temporaryStatusTimers.set(eid, new Map());
-  }
+  const currentTime = Date.now();
 
-  const entityTimers = temporaryStatusTimers.get(eid)!;
-  entityTimers.set(status, Date.now() + TEMPORARY_STATUS_DURATION);
-}
-
-function updateTemporaryStatuses(eid: number, _delta: number): void {
-  const entityTimers = temporaryStatusTimers.get(eid);
-  if (!entityTimers) return;
-
-  const now = Date.now();
-  const expiredStatuses: CharacterStatus[] = [];
-
-  for (const [status, expireTime] of entityTimers.entries()) {
-    if (now >= expireTime) {
-      expiredStatuses.push(status);
+  // 이미 같은 상태가 활성화되어 있는지 확인
+  if (TemporaryStatusComp.statusType[eid] === status) {
+    const elapsedTime = currentTime - TemporaryStatusComp.startTime[eid];
+    if (elapsedTime < TEMPORARY_STATUS_DURATION) {
+      return; // 이미 활성화된 상태면 무시
     }
   }
 
-  // 만료된 일시적 상태들 제거
-  for (const status of expiredStatuses) {
-    entityTimers.delete(status);
-    removeStatusFromEntity(eid, status);
-  }
-
-  if (entityTimers.size === 0) {
-    temporaryStatusTimers.delete(eid);
-  }
+  TemporaryStatusComp.statusType[eid] = status;
+  TemporaryStatusComp.startTime[eid] = currentTime;
 }
 
-function removeStatusFromEntity(
-  eid: number,
-  statusToRemove: CharacterStatus
-): void {
-  const currentStatuses = CharacterStatusComp.statuses[eid];
-  let removed = false;
-
-  // CharacterStatusComp에서 상태 제거
-  for (let i = 0; i < currentStatuses.length; i++) {
-    if (currentStatuses[i] === statusToRemove) {
-      currentStatuses[i] = ECS_NULL_VALUE;
-      removed = true;
-      break;
-    }
-  }
-
-  if (removed) {
-    console.log(
-      `[StatusIconRenderSystem] Removed temporary status ${statusToRemove} from entity ${eid}`
-    );
-
-    // StatusIconRenderComp 동기화는 CharacterManageSystem에서 처리됨
-    // 여기서는 상태만 제거하고 다음 프레임에 CharacterManageSystem이 동기화함
-  }
-}
+// 참고: updateTemporaryStatuses()와 removeStatusFromEntity()는
+// CharacterStatusSystem으로 이동되었습니다.
+// 이 시스템은 순수하게 렌더링만 담당합니다.
 
 function organizeStatuses(statuses: CharacterStatus[]): {
   persistent: CharacterStatus[];
@@ -223,7 +175,6 @@ export function statusIconRenderSystem(params: {
   for (let i = 0; i < exitEntities.length; i++) {
     const eid = exitEntities[i];
     clearEntitySprites(eid);
-    temporaryStatusTimers.delete(eid);
     StatusIconRenderComp.visibleCount[eid] = 0;
   }
 
@@ -245,8 +196,7 @@ export function statusIconRenderSystem(params: {
       continue;
     }
 
-    // 일시적 상태 업데이트 (만료된 상태 제거)
-    updateTemporaryStatuses(eid, delta);
+    // 참고: 일시적 상태 만료는 CharacterStatusSystem에서 처리됨
 
     const position = {
       x: PositionComp.x[eid],
@@ -316,6 +266,7 @@ export function statusIconRenderSystem(params: {
 
       sprites[j].x = startX;
       sprites[j].y = position.y - 50;
+      sprites[j].zIndex = RenderComp.zIndex[eid]; // 캐릭터와 같은 zIndex
     }
 
     // 일시적 상태 아이콘 처리 (캐릭터 우측상단에 1개만)
@@ -347,8 +298,9 @@ export function statusIconRenderSystem(params: {
 
         // 일시적 상태 아이콘 위치 설정 (캐릭터 우측상단)
         const tempSprite = entityTemporarySprites.get(eid)!;
-        tempSprite.x = position.x + 20; // 캐릭터 우측
+        tempSprite.x = position.x + 25; // 캐릭터 우측 (더 오른쪽으로)
         tempSprite.y = position.y - 40; // 캐릭터 상단
+        tempSprite.zIndex = RenderComp.zIndex[eid]; // 캐릭터와 같은 zIndex
       }
     } else {
       // 일시적 상태가 없으면 기존 일시적 스프라이트 제거

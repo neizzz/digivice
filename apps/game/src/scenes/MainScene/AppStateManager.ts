@@ -96,20 +96,40 @@ export class AppStateManager {
 
       // 너무 오래된 시간은 무시 (1일 이상)
       if (timeElapsed > 24 * 60 * 60 * 1000) {
-        console.log("[AppStateManager] Time elapsed too long, skipping sync");
+        console.log("=== AppStateManager ===");
+        console.log("❌ 시간이 1일을 초과하여 동기화를 건너뜁니다.");
+        console.log(
+          `마지막 활성: ${new Date(this.lastActiveTime).toLocaleString(
+            "ko-KR"
+          )}`
+        );
         return;
       }
 
-      console.log(
-        `[AppStateManager] App resumed after ${Math.floor(
-          timeElapsed / 1000
-        )} seconds`
-      );
+      // 상세한 로그 출력
+      this.logResumeDetails(currentTime, timeElapsed);
       this.syncTimeBasedProgress(currentTime, timeElapsed);
     }
 
     this.isFirstLoad = false;
     this.lastActiveTime = currentTime;
+  }
+
+  /**
+   * 재진입 상세 정보 로그
+   */
+  private logResumeDetails(currentTime: number, timeElapsed: number): void {
+    console.log("=== AppStateManager 앱 재진입 ===");
+
+    const pauseDate = new Date(this.lastActiveTime);
+    const resumeDate = new Date(currentTime);
+
+    console.log(`🕐 앱 중단 시간: ${pauseDate.toLocaleString("ko-KR")}`);
+    console.log(`🕐 앱 복귀 시간: ${resumeDate.toLocaleString("ko-KR")}`);
+
+    const minutes = Math.floor(timeElapsed / (1000 * 60));
+    const seconds = Math.floor((timeElapsed % (1000 * 60)) / 1000);
+    console.log(`⏱️  중단 지속 시간: ${minutes}분 ${seconds}초`);
   }
 
   /**
@@ -119,7 +139,7 @@ export class AppStateManager {
     currentTime: number,
     timeElapsed: number
   ): void {
-    console.log("[AppStateManager] Syncing time-based progress...");
+    console.log("📊 [AppStateManager] 시간 기반 진행사항 동기화 시작...");
 
     // 캐릭터 상태 동기화
     this.syncCharacterProgress(currentTime, timeElapsed);
@@ -127,7 +147,7 @@ export class AppStateManager {
     // 음식 신선도 동기화
     this.syncFoodFreshness(currentTime, timeElapsed);
 
-    console.log("[AppStateManager] Time-based progress sync completed");
+    console.log("✅ [AppStateManager] 시간 기반 진행사항 동기화 완료");
   }
 
   /**
@@ -144,15 +164,124 @@ export class AppStateManager {
 
       if (ObjectComp.type[eid] !== ObjectType.CHARACTER) continue;
 
-      // 스테미나 감소 (시간당 1씩 감소)
-      const staminaDecrease = Math.floor(timeElapsed / (60 * 60 * 1000)); // 1시간마다 1씩
-      if (staminaDecrease > 0) {
+      // 스테미나 감소 처리 (30초 간격 - 실제 게임과 동일)
+      const staminaDecreaseIntervals = Math.floor(
+        timeElapsed / GAME_CONSTANTS.STAMINA_DECREASE_INTERVAL
+      );
+      if (staminaDecreaseIntervals > 0) {
+        console.log(
+          `[스테미나 동기화] Character ${eid}: ${staminaDecreaseIntervals}번의 스테미나 감소 필요`
+        );
+
+        // 현재 질병 상태 확인
+        const diseaseComp = hasComponent(this.world, DiseaseSystemComp, eid)
+          ? DiseaseSystemComp
+          : null;
+        const sickStartTime = diseaseComp ? diseaseComp.sickStartTime[eid] : 0;
+
+        const pauseStartTime = this.lastActiveTime;
+        let totalDecrease = 0;
+
+        // 각 간격별로 질병 상태를 확인하여 스테미나 감소량 계산
+        for (
+          let interval = 0;
+          interval < staminaDecreaseIntervals;
+          interval++
+        ) {
+          const intervalTime =
+            pauseStartTime +
+            interval * GAME_CONSTANTS.STAMINA_DECREASE_INTERVAL;
+          const wasSickAtInterval =
+            sickStartTime > 0 && intervalTime >= sickStartTime;
+
+          // 질병 상태에 따른 감소량 결정
+          const decreaseAmount = wasSickAtInterval
+            ? GAME_CONSTANTS.STAMINA_DECREASE_AMOUNT * 2
+            : GAME_CONSTANTS.STAMINA_DECREASE_AMOUNT;
+
+          totalDecrease += decreaseAmount;
+
+          const intervalTimeStr = new Date(intervalTime).toLocaleString(
+            "ko-KR"
+          );
+          console.log(
+            `  - ${intervalTimeStr}: 스테미나 ${decreaseAmount} 감소 ${
+              wasSickAtInterval ? "(질병으로 2배)" : "(정상)"
+            }`
+          );
+        }
+
         const currentStamina = CharacterStatusComp.stamina[eid];
-        const newStamina = Math.max(0, currentStamina - staminaDecrease);
+        const newStamina = Math.max(0, currentStamina - totalDecrease);
         CharacterStatusComp.stamina[eid] = newStamina;
         console.log(
-          `[AppStateManager] Character ${eid} stamina: ${currentStamina} -> ${newStamina}`
+          `[스테미나 최종] Character ${eid}: ${currentStamina} → ${newStamina} (총 ${totalDecrease} 감소)`
         );
+
+        // 스테미나가 0이 되었다면 urgent 상태 및 death 타이머 체크
+        if (newStamina <= 0 && currentStamina > 0) {
+          // 스테미나가 0이 된 시점 계산 (어느 간격에서 0이 되었는지)
+          let cumulativeDecrease = 0;
+          let urgentTriggeredTime = 0;
+
+          for (
+            let interval = 0;
+            interval < staminaDecreaseIntervals;
+            interval++
+          ) {
+            const intervalTime =
+              pauseStartTime +
+              interval * GAME_CONSTANTS.STAMINA_DECREASE_INTERVAL;
+            const wasSickAtInterval =
+              sickStartTime > 0 && intervalTime >= sickStartTime;
+            const decreaseAmount = wasSickAtInterval
+              ? GAME_CONSTANTS.STAMINA_DECREASE_AMOUNT * 2
+              : GAME_CONSTANTS.STAMINA_DECREASE_AMOUNT;
+
+            cumulativeDecrease += decreaseAmount;
+
+            if (
+              currentStamina - cumulativeDecrease <= 0 &&
+              urgentTriggeredTime === 0
+            ) {
+              urgentTriggeredTime = intervalTime;
+              break;
+            }
+          }
+
+          // VitalityComp에 urgent 시작 시간 설정
+          if (!hasComponent(this.world, VitalityComp, eid)) {
+            addComponent(this.world, VitalityComp, eid);
+            VitalityComp.urgentStartTime[eid] = 0;
+            VitalityComp.deathTime[eid] = 0;
+            VitalityComp.isDead[eid] = 0;
+          }
+
+          VitalityComp.urgentStartTime[eid] = urgentTriggeredTime;
+          const deathTime = urgentTriggeredTime + GAME_CONSTANTS.DEATH_DELAY;
+          VitalityComp.deathTime[eid] = deathTime;
+
+          const urgentTimeStr = new Date(urgentTriggeredTime).toLocaleString(
+            "ko-KR"
+          );
+          const deathTimeStr = new Date(deathTime).toLocaleString("ko-KR");
+
+          console.log(
+            `[Death 체크] Character ${eid}: ${urgentTimeStr}에 urgent 상태 진입`
+          );
+
+          // 현재 시간이 이미 death 시간을 넘었다면 즉시 죽음 처리
+          if (currentTime >= deathTime) {
+            VitalityComp.isDead[eid] = 1;
+            console.log(
+              `[Death 체크] Character ${eid}: ${deathTimeStr}에 사망 (앱 중단 중 사망)`
+            );
+          } else {
+            console.log(
+              `[Death 체크] Character ${eid}: ${deathTimeStr}에 사망 예정`
+            );
+          }
+        }
       }
 
       // 질병 시스템 동기화
@@ -199,33 +328,14 @@ export class AppStateManager {
    */
   private syncDigestiveSystem(
     eid: number,
-    currentTime: number,
-    timeElapsed: number
+    _currentTime: number,
+    _timeElapsed: number
   ): void {
     if (!hasComponent(this.world, DigestiveSystemComp, eid)) {
       addComponent(this.world, DigestiveSystemComp, eid);
       DigestiveSystemComp.capacity[eid] = GAME_CONSTANTS.DIGESTIVE_CAPACITY;
       DigestiveSystemComp.currentLoad[eid] = 0;
       DigestiveSystemComp.nextPoopTime[eid] = 0;
-    }
-
-    // 소화기관 내용물 자연 감소 (시간당 0.5씩)
-    const digestiveDecrease = (timeElapsed / (60 * 60 * 1000)) * 0.5;
-    if (digestiveDecrease > 0) {
-      const currentLoad = DigestiveSystemComp.currentLoad[eid];
-      const newLoad = Math.max(0, currentLoad - digestiveDecrease);
-      DigestiveSystemComp.currentLoad[eid] = newLoad;
-
-      console.log(
-        `[AppStateManager] Character ${eid} digestive load: ${currentLoad.toFixed(
-          2
-        )} -> ${newLoad.toFixed(2)}`
-      );
-
-      // 소화기관이 비어있으면 똥 타이머 초기화
-      if (newLoad === 0) {
-        DigestiveSystemComp.nextPoopTime[eid] = 0;
-      }
     }
   }
 
@@ -235,7 +345,7 @@ export class AppStateManager {
   private syncVitalitySystem(
     eid: number,
     currentTime: number,
-    timeElapsed: number
+    _timeElapsed: number
   ): void {
     if (!hasComponent(this.world, VitalityComp, eid)) {
       addComponent(this.world, VitalityComp, eid);
@@ -265,8 +375,9 @@ export class AppStateManager {
   /**
    * 음식 신선도 동기화
    */
-  private syncFoodFreshness(currentTime: number, timeElapsed: number): void {
+  private syncFoodFreshness(_currentTime: number, timeElapsed: number): void {
     const foods = foodQuery(this.world);
+    let processedCount = 0;
 
     for (let i = 0; i < foods.length; i++) {
       const eid = foods[i];
@@ -278,10 +389,13 @@ export class AppStateManager {
       const adjustedCreatedTime = originalCreatedTime - timeElapsed;
       FreshnessTimerComp.createdTime[eid] = adjustedCreatedTime;
 
+      processedCount++;
+    }
+
+    if (processedCount > 0) {
+      const minutes = Math.floor(timeElapsed / (1000 * 60));
       console.log(
-        `[AppStateManager] Food ${eid} creation time adjusted by ${Math.floor(
-          timeElapsed / 1000
-        )} seconds`
+        `🍎 [AppStateManager] ${processedCount}개 음식 신선도 ${minutes}분 조정`
       );
     }
   }

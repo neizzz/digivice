@@ -1,9 +1,18 @@
-import { addEntity, createWorld, IWorld, pipe } from "bitecs";
+import {
+  addEntity,
+  createWorld,
+  IWorld,
+  pipe,
+  defineQuery,
+  hasComponent,
+} from "bitecs";
 import * as PIXI from "pixi.js";
+import "@pixi/gif"; // GIF 지원 추가
 import {
   AngleComponent,
   Boundary,
   CharacterState,
+  CharacterStatus,
   CharacterStatusComponent,
   DestinationComponent,
   FreshnessComponent,
@@ -21,29 +30,29 @@ import {
   DigestiveSystemComponent,
   DiseaseSystemComponent,
   VitalityComponent,
+  TemporaryStatusComponent,
   EggHatchComponent,
   FreshnessTimerComponent,
   SparkleEffectComponent,
+  CleanableComponent,
+  BroomRenderComponent,
 } from "./types";
 import { randomMovementSystem } from "./systems/RandomMovementSystem";
 import { commonMovementSystem } from "./systems/CommonMovementSystem";
 import { animationRenderSystem } from "./systems/AnimationRenderSystem";
+import { animationStateSystem } from "./systems/AnimationStateSystem";
 import { statusIconRenderSystem } from "./systems/StatusIconRenderSystem";
 import { renderSystem } from "./systems/RenderSystem";
-import { characterManagerSystem } from "./systems/CharacterManageSystem";
 import { dataSyncSystem } from "./systems/DataSyncSystem";
 import { throwAnimationSystem } from "./systems/ThrowAnimationSystem";
 import { foodEatingSystem } from "./systems/FoodEatingSystem";
-import { diseaseSystem } from "./systems/DiseaseSystem";
-import { freshnessSystem } from "./systems/FreshnessSystem";
-import { digestiveSystem } from "./systems/DigestiveSystem";
-import { characterStatusSystem } from "./systems/CharacterStatusSystem";
-import { eggHatchSystem } from "./systems/EggHatchSystem";
 import { sparkleEffectSystem } from "./systems/SparkleEffectSystem";
+import { cleaningSystem } from "./systems/CleaningSystem";
+import { cleanableRenderSystem } from "./systems/CleanableRenderSystem";
 import {
-  pillDeliverySystem,
-  requestPillDelivery,
-} from "./systems/PillDeliverySystem";
+  gifAnimationSystem,
+  startRecoveryAnimation,
+} from "./systems/GifAnimationSystem";
 import { AppStateManager } from "./AppStateManager";
 import { HTMLDebugStatusUI } from "./ui/HTMLDebugStatusUI";
 import { HTMLDebugToggleButton } from "./ui/HTMLDebugToggleButton";
@@ -58,7 +67,13 @@ import {
   createCharacterEntity,
   createThrowingFoodEntity,
 } from "./entityFactory";
-import { ObjectComp, CharacterStatusComp } from "./raw-components";
+import {
+  ObjectComp,
+  CharacterStatusComp,
+  PositionComp,
+  CleanableComp,
+  DiseaseSystemComp,
+} from "./raw-components";
 import { generatePersistentNumericId } from "@/utils/generate";
 import {
   loadSpritesheets,
@@ -73,6 +88,20 @@ import {
   NavigationActionPayload,
 } from "../../ui/types";
 import { GameMenu } from "../../ui/GameMenu";
+import { freshnessSystem } from "./systems/FreshnessSystem";
+import { digestiveSystem } from "./systems/DigestiveSystem";
+import { diseaseSystem } from "./systems/DiseaseSystem";
+import { eggHatchSystem } from "./systems/EggHatchSystem";
+import {
+  characterManagerSystem,
+  validateAndFixStatusIcons,
+} from "./systems/CharacterManageSystem";
+import { characterStatusSystem } from "./systems/CharacterStatusSystem";
+import {
+  sleepEffectSystem,
+  cleanupSleepEffects,
+} from "./systems/SleepEffectSystem";
+import { ReentrySimulator } from "./ReentrySimulator";
 
 export type EntityComponents = {
   characterStatus?: CharacterStatusComponent;
@@ -90,9 +119,12 @@ export type EntityComponents = {
   digestiveSystem?: DigestiveSystemComponent;
   diseaseSystem?: DiseaseSystemComponent;
   vitality?: VitalityComponent;
+  temporaryStatus?: TemporaryStatusComponent;
   eggHatch?: EggHatchComponent;
   freshnessTimer?: FreshnessTimerComponent;
   sparkleEffect?: SparkleEffectComponent;
+  cleanable?: CleanableComponent;
+  broomRender?: BroomRenderComponent;
 };
 
 export type SavedEntity = {
@@ -101,8 +133,40 @@ export type SavedEntity = {
 
 export type WorldMetadata = {
   name: string;
-  last_saved: number;
+  last_ecs_saved: number;
   version: string;
+  // 앱 상태 관리
+  app_state?: {
+    last_active_time: number;
+    is_first_load: boolean;
+  };
+  // // 캐릭터별 위치 추적 (캐릭터 ID를 키로 사용)
+  // character_positions?: Record<
+  //   number,
+  //   {
+  //     last_known_x: number;
+  //     last_known_y: number;
+  //     last_update_time: number;
+  //   }
+  // >;
+  // // 캐릭터별 질병 추적
+  // character_disease_tracking?: Record<
+  //   number,
+  //   {
+  //     total_checks: number;
+  //     last_disease_time: number;
+  //     disease_count: number;
+  //   }
+  // >;
+  // // 캐릭터별 똥 추적
+  // character_poop_tracking?: Record<
+  //   number,
+  //   {
+  //     last_poop_time: number;
+  //     poop_count: number;
+  //     scheduled_poop_time: number;
+  //   }
+  // >;
 };
 
 export type MainSceneWorldData = {
@@ -143,29 +207,39 @@ const COMMON_SPRITESHEET_ASSETS: LoadSpritesheetOptions[] = [
     alias: "vite-food-mask",
     // pixelArt: true,
   },
-  {
-    jsonPath: "/game/sprites/monsters/test-green-slime_A1.json",
-    alias: "test-green-slime_A1",
-    // pixelArt: true,
-  },
-  {
-    jsonPath: "/game/sprites/monsters/test-green-slime_B1.json",
-    alias: "test-green-slime_B1",
-    // pixelArt: true,
-  },
-  {
-    jsonPath: "/game/sprites/monsters/test-green-slime_C1.json",
-    alias: "test-green-slime_C1",
-    // pixelArt: true,
-  },
-  {
-    jsonPath: "/game/sprites/monsters/test-green-slime_D1.json",
-    alias: "test-green-slime_D1",
-    // pixelArt: true,
-  },
+  // {
+  //   jsonPath: "/game/sprites/monsters/test-green-slime_A1.json",
+  //   alias: "test-green-slime_A1",
+  //   // pixelArt: true,
+  // },
+  // {
+  //   jsonPath: "/game/sprites/monsters/test-green-slime_B1.json",
+  //   alias: "test-green-slime_B1",
+  //   // pixelArt: true,
+  // },
+  // {
+  //   jsonPath: "/game/sprites/monsters/test-green-slime_C1.json",
+  //   alias: "test-green-slime_C1",
+  //   // pixelArt: true,
+  // },
+  // {
+  //   jsonPath: "/game/sprites/monsters/test-green-slime_D1.json",
+  //   alias: "test-green-slime_D1",
+  //   // pixelArt: true,
+  // },
 ];
 const IMAGE_ASSETS = {
   grass: "/game/tiles/grass-tile.jpg",
+};
+
+// GIF 에셋들은 @pixi/gif로 처리
+const GIF_ASSETS = {
+  recovery: "/game/gifs/recovery.gif",
+  // 추가 GIF들을 필요에 따라 여기에 추가
+  // effect1: "/game/gifs/effect1.gif",
+  // effect2: "/game/gifs/effect2.gif",
+  // sparkle: "/game/gifs/sparkle.gif",
+  // healing: "/game/gifs/healing.gif",
 };
 
 /**
@@ -190,32 +264,68 @@ export class MainSceneWorld implements IWorld, Scene {
     controlButtonParamsSet: [
       { type: ControlButtonType },
       { type: ControlButtonType },
-      { type: ControlButtonType }
-    ]
+      { type: ControlButtonType },
+    ],
   ) => void;
+  private _isCleaningMode = false; // 청소 모드 상태
+  private _previousCleaningMode = false; // 이전 청소 모드 상태 (진입 감지용)
+  private _focusedTargetEid = -1; // 현재 포커스된 청소 대상 엔티티 ID
+  private _broomProgress = 0; // 빗자루 움직인 거리 (0.0 ~ 1.0)
+  private _currentSliderValue = 0.5; // 현재 슬라이더 값 (0.0 ~ 1.0)
+  private _isPaused = false; // 앱이 일시정지 상태인지 여부
+  private _pauseStartTime = 0; // 일시정지 시작 시간
+  private _visibilityChangeHandler?: () => void; // Page Visibility API 이벤트 핸들러
+  private _statusSystemsEnabled = true; // 상태 관리 시스템들 활성화 여부
+
+  // 실시간 모드용 시스템 파이프라인 (렌더링 포함)
   private _pipedSystems = pipe(
-    // 시간 기반 시스템들
-    (params: any) => freshnessSystem({ ...params, currentTime: Date.now() }),
-    (params: any) => digestiveSystem({ ...params, currentTime: Date.now() }),
-    (params: any) => diseaseSystem({ ...params, currentTime: Date.now() }),
+    // 시간 기반 시스템들 (상태 관리 시스템 토글 적용)
     (params: any) =>
-      characterStatusSystem({ ...params, currentTime: Date.now() }),
-    (params: any) => eggHatchSystem({ ...params, currentTime: Date.now() }),
+      this._statusSystemsEnabled
+        ? freshnessSystem({ ...params, currentTime: this.currentTime })
+        : params,
+    (params: any) =>
+      this._statusSystemsEnabled
+        ? digestiveSystem({ ...params, currentTime: this.currentTime })
+        : params,
+    (params: any) =>
+      this._statusSystemsEnabled
+        ? diseaseSystem({ ...params, currentTime: this.currentTime })
+        : params,
+    (params: any) =>
+      eggHatchSystem({ ...params, currentTime: this.currentTime }),
+    (params: any) =>
+      this._statusSystemsEnabled ? characterManagerSystem(params) : params,
+    // 캐릭터 상태 시스템 (임시 상태 만료, 긴급 상태, 사망 처리)
+    (params: any) =>
+      this._statusSystemsEnabled
+        ? characterStatusSystem({ ...params, currentTime: this.currentTime })
+        : params,
     // 배달 시스템
     // pillDeliverySystem,
     // 이펙트 시스템
     (params: any) =>
-      sparkleEffectSystem({ ...params, currentTime: Date.now() }),
-    // 기존 시스템들
+      sparkleEffectSystem({ ...params, currentTime: this.currentTime }),
+    // 회복 애니메이션 시스템 (실시간 모드에서만 실행)
+    (params: any) =>
+      gifAnimationSystem({
+        ...params,
+        currentTime: this.currentTime,
+        stage: this._stage,
+      }),
+    // 청소 시스템 (실시간 모드에서만 실행)
+    (params: any) => cleaningSystem({ ...params, stage: this._stage }),
+    // 이동 및 게임플레이 시스템들
     randomMovementSystem,
     commonMovementSystem,
-    characterManagerSystem,
-    foodEatingSystem,
+    (params: any) =>
+      foodEatingSystem({ ...params, currentTime: this.currentTime }),
+    // 애니메이션 상태 시스템들
     throwAnimationSystem,
-    animationRenderSystem,
-    statusIconRenderSystem,
-    renderSystem,
-    dataSyncSystem
+    animationStateSystem,
+    // 모든 렌더링 시스템들을 하나로 통합 (실시간 모드에서만 실행)
+    (params: any) => this._renderAllSystems(params),
+    dataSyncSystem,
   );
 
   get stage(): PIXI.Container {
@@ -223,6 +333,26 @@ export class MainSceneWorld implements IWorld, Scene {
   }
   get positionBoundary(): Boundary {
     return this._positionBoundary;
+  }
+  get sliderValue(): number {
+    return this._currentSliderValue;
+  }
+  get isCleaningMode(): boolean {
+    return this._isCleaningMode;
+  }
+
+  get isEnteringCleaningMode(): boolean {
+    return this._isCleaningMode && !this._previousCleaningMode;
+  }
+
+  get focusedTargetEid(): number {
+    return this._focusedTargetEid;
+  }
+  get broomProgress(): number {
+    return this._broomProgress;
+  }
+  get isPaused(): boolean {
+    return this._isPaused;
   }
 
   constructor(params: {
@@ -233,8 +363,8 @@ export class MainSceneWorld implements IWorld, Scene {
       controlButtonParamsSet: [
         { type: ControlButtonType },
         { type: ControlButtonType },
-        { type: ControlButtonType }
-      ]
+        { type: ControlButtonType },
+      ],
     ) => void;
   }) {
     this._stage = params.stage;
@@ -247,25 +377,26 @@ export class MainSceneWorld implements IWorld, Scene {
   }
 
   /**
-   * 에셋 로딩 - 스프라이트시트와 일반 이미지를 병렬로 로드
+   * 에셋 로딩 - 스프라이트시트와 일반 이미지, GIF를 병렬로 로드
    */
   private async _loadGameAssets(): Promise<void> {
     console.groupCollapsed("[MainSceneWorld] 🎨 Loading game assets...");
 
     try {
-      // 스프라이트시트와 일반 이미지를 병렬로 로드
+      // 스프라이트시트, 일반 이미지, GIF를 병렬로 로드
       const [spritesheetResults] = await Promise.all([
         loadSpritesheets(COMMON_SPRITESHEET_ASSETS),
         this._loadImageAssets(),
+        this._loadGifAssets(),
       ]);
 
       // 로드 결과 로깅
       console.log(
-        `Successfully loaded ${spritesheetResults.length} spritesheets`
+        `Successfully loaded ${spritesheetResults.length} spritesheets`,
       );
       spritesheetResults.forEach((result) => {
         console.log(
-          `- Spritesheet '${result.alias}': ${result.animations.length} animations, ${result.textures.length} textures`
+          `- Spritesheet '${result.alias}': ${result.animations.length} animations, ${result.textures.length} textures`,
         );
       });
 
@@ -279,24 +410,110 @@ export class MainSceneWorld implements IWorld, Scene {
   }
 
   /**
-   * 일반 이미지 에셋들을 로드
+   * GIF 에셋들을 @pixi/gif를 사용해서 애니메이션으로 로드
    */
+  private async _loadGifAssets(): Promise<void> {
+    console.log(
+      `[MainSceneWorld] Loading ${
+        Object.keys(GIF_ASSETS).length
+      } GIF assets with @pixi/gif...`,
+    );
+    console.log(`[MainSceneWorld] GIF assets to load:`, GIF_ASSETS);
+
+    const gifLoadPromises = Object.entries(GIF_ASSETS).map(
+      async ([key, path]) => {
+        try {
+          console.log(
+            `[MainSceneWorld] Loading GIF asset: ${key} from ${path}`,
+          );
+
+          // @pixi/gif를 사용한 GIF 로딩
+          const animatedGif = await PIXI.Assets.load({
+            alias: key,
+            src: path,
+          });
+
+          console.log(
+            `[MainSceneWorld] Successfully loaded animated GIF: ${key}`,
+            animatedGif,
+          );
+        } catch (error) {
+          console.error(
+            `[MainSceneWorld] Failed to load GIF asset ${key} from ${path}:`,
+            error,
+          );
+        }
+      },
+    );
+
+    await Promise.all(gifLoadPromises);
+
+    // 로딩 완료 후 캐시 상태 확인
+    console.log(
+      `[MainSceneWorld] GIF assets loading completed. Checking cache...`,
+    );
+    Object.keys(GIF_ASSETS).forEach((key) => {
+      const asset = PIXI.Assets.get(key);
+      console.log(
+        `[MainSceneWorld] GIF Asset '${key}' in cache:`,
+        asset ? "YES (animated GIF)" : "NO",
+      );
+      if (asset) {
+        console.log(
+          `[MainSceneWorld] GIF Asset '${key}' type:`,
+          asset.constructor.name,
+        );
+      }
+    });
+  }
   private async _loadImageAssets(): Promise<void> {
+    console.log(
+      `[MainSceneWorld] Loading ${
+        Object.keys(IMAGE_ASSETS).length
+      } image assets...`,
+    );
+    console.log(`[MainSceneWorld] Image assets to load:`, IMAGE_ASSETS);
+
     const imageLoadPromises = Object.entries(IMAGE_ASSETS).map(
       async ([key, path]) => {
         try {
+          console.log(
+            `[MainSceneWorld] Loading image asset: ${key} from ${path}`,
+          );
+
           await PIXI.Assets.load({
             alias: key,
             src: path,
           });
-          console.log(`Loaded image asset: ${key}`);
+
+          // 로드 후 캐시에서 확인
+          const loadedAsset = PIXI.Assets.get(key);
+          console.log(
+            `[MainSceneWorld] Successfully loaded image asset: ${key}`,
+            loadedAsset ? "Found in cache" : "NOT found in cache",
+          );
         } catch (error) {
-          console.warn(`Failed to load image asset ${key}:`, error);
+          console.error(
+            `[MainSceneWorld] Failed to load image asset ${key} from ${path}:`,
+            error,
+          );
         }
-      }
+      },
     );
 
     await Promise.all(imageLoadPromises);
+
+    // 로딩 완료 후 캐시 상태 확인
+    console.log(
+      `[MainSceneWorld] Image assets loading completed. Checking cache...`,
+    );
+    Object.keys(IMAGE_ASSETS).forEach((key) => {
+      const asset = PIXI.Assets.get(key);
+      console.log(
+        `[MainSceneWorld] Asset '${key}' in cache:`,
+        asset ? "YES" : "NO",
+      );
+    });
   }
 
   async init(): Promise<void> {
@@ -315,7 +532,7 @@ export class MainSceneWorld implements IWorld, Scene {
         loadedData.entities.length === 0
       ) {
         console.warn(
-          "No saved data found, initializing with default entities..."
+          "No saved data found, initializing with default entities...",
         );
         this._persistentData = this._initializeData();
       } else {
@@ -331,7 +548,7 @@ export class MainSceneWorld implements IWorld, Scene {
       const characterSpritesheetKey = this._persistentData.entities.find(
         (entity) => {
           return entity.components.object?.type === ObjectType.CHARACTER;
-        }
+        },
       )?.components.animationRender?.spritesheetKey;
 
       if (characterSpritesheetKey) {
@@ -351,6 +568,9 @@ export class MainSceneWorld implements IWorld, Scene {
       const width = this._stage.width;
       const height = this._stage.height;
       this._background.resize(width, height);
+
+      // zIndex 정렬을 위해 sortableChildren 활성화
+      this._stage.sortableChildren = true;
 
       // UI 초기화
       if (this._parentElement) {
@@ -377,7 +597,7 @@ export class MainSceneWorld implements IWorld, Scene {
           },
           onCleanSelect: () => {
             console.log("[MainSceneWorld] Clean selected");
-            // TODO: 청소 기능
+            this._enterCleaningMode();
           },
           onCancel: () => {
             console.log("[MainSceneWorld] Menu cancelled");
@@ -392,7 +612,7 @@ export class MainSceneWorld implements IWorld, Scene {
         if (import.meta.env.DEV) {
           this._debugStatusUI = new HTMLDebugStatusUI(
             this,
-            this._parentElement
+            this._parentElement,
           );
           this._debugToggleButton = new HTMLDebugToggleButton(() => {
             this._debugStatusUI?.toggle();
@@ -403,6 +623,12 @@ export class MainSceneWorld implements IWorld, Scene {
 
       // 앱 상태 관리자 초기화
       this._appStateManager = new AppStateManager(this);
+
+      // Page Visibility API 이벤트 리스너 등록
+      this._setupVisibilityChangeHandler();
+
+      // 재진입 시뮬레이션 처리
+      await this._processReentrySimulation();
 
       console.log("World initialization completed");
     } finally {
@@ -416,8 +642,8 @@ export class MainSceneWorld implements IWorld, Scene {
   private _createDefaultCharacterEntity(): SavedEntity {
     const eid = createCharacterEntity(this, {
       position: {
-        x: this._positionBoundary.width / 2,
-        y: this._positionBoundary.height / 2,
+        x: this._positionBoundary.x + this._positionBoundary.width / 2,
+        y: this._positionBoundary.y + this._positionBoundary.height / 2,
       },
       angle: { value: 0 },
       object: {
@@ -479,7 +705,7 @@ export class MainSceneWorld implements IWorld, Scene {
             throw new Error(
               `Entity ${
                 index + 1
-              } has no Object ID - critical data corruption detected`
+              } has no Object ID - critical data corruption detected`,
             );
           }
 
@@ -488,7 +714,7 @@ export class MainSceneWorld implements IWorld, Scene {
             throw new Error(
               `Duplicate Object ID ${objectId} detected at entity ${
                 index + 1
-              } - critical data corruption detected`
+              } - critical data corruption detected`,
             );
           }
 
@@ -501,7 +727,7 @@ export class MainSceneWorld implements IWorld, Scene {
           console.log(
             `Loaded entity ${index + 1}: ID=${objectId}, Type=${
               savedEntity.components.object?.type
-            }`
+            }`,
           );
         } catch (error) {
           errorCount++;
@@ -514,16 +740,19 @@ export class MainSceneWorld implements IWorld, Scene {
       });
 
       console.log(
-        `Loaded ${loadedEntitiesCount} entities successfully, ${errorCount} failed`
+        `Loaded ${loadedEntitiesCount} entities successfully, ${errorCount} failed`,
       );
 
       // 로딩 실패한 엔티티들이 있고 성공한 엔티티가 하나도 없다면 기본 캐릭터 생성
       if (loadedEntitiesCount === 0 && errorCount > 0) {
         console.warn(
-          "All entities failed to load, creating default character..."
+          "All entities failed to load, creating default character...",
         );
         this._createDefaultCharacterEntity();
       }
+
+      // 로드된 엔티티의 상태 아이콘 검증 및 수정
+      validateAndFixStatusIcons(this);
 
       this._logLoadedEcsEntities(); // 로드된 엔티티 상태 요약 로그
     } finally {
@@ -567,10 +796,80 @@ export class MainSceneWorld implements IWorld, Scene {
     console.groupEnd();
   }
 
+  /**
+   * Scene 종료 시 호출 (scene 변경 전 정리 작업)
+   *
+   * 사용법:
+   * // Scene Manager에서 scene 변경 시
+   * if (currentScene.onSceneExit) {
+   *   currentScene.onSceneExit();
+   * }
+   */
+  public onSceneExit(): void {
+    console.log(
+      "[MainSceneWorld] 🚪 Scene exit - saving state and cleaning up...",
+    );
+
+    // 현재 상태 저장
+    this._saveCurrentState();
+
+    // 이벤트 핸들러 정리
+    this._cleanupVisibilityChangeHandler();
+
+    // 수면 효과 정리
+    if (this._stage) {
+      cleanupSleepEffects(this._stage);
+    }
+
+    // 일시정지 상태로 설정 (다른 scene으로 전환되므로)
+    this._isPaused = true;
+
+    console.log("[MainSceneWorld] Scene exit cleanup completed");
+  }
+
+  /**
+   * Scene 재진입 시 호출 (다른 scene에서 돌아올 때)
+   *
+   * 사용법:
+   * // Scene Manager에서 MainScene으로 돌아올 때
+   * if (mainScene.onSceneReenter) {
+   *   await mainScene.onSceneReenter();
+   * }
+   */
+  public async onSceneReenter(): Promise<void> {
+    console.log(
+      "[MainSceneWorld] 🔄 Scene reenter - restoring state and handlers...",
+    );
+
+    try {
+      // 이벤트 핸들러 재등록
+      this._setupVisibilityChangeHandler();
+
+      // 일시정지 해제
+      this._isPaused = false;
+      this._pauseStartTime = 0;
+
+      // 재진입 시뮬레이션 실행 (다른 scene에 있던 시간 계산)
+      await this._processReentrySimulation();
+
+      console.log("[MainSceneWorld] Scene reenter completed");
+    } catch (error) {
+      console.error("[MainSceneWorld] Failed to reenter scene:", error);
+      // 에러가 발생해도 기본 상태는 복원
+      this._isPaused = false;
+      this._setupVisibilityChangeHandler();
+    }
+  }
+
   destroy(): void {
     console.groupCollapsed("[MainSceneWorld] 🧹 Destroying world...");
 
     try {
+      // Scene 종료 처리 (아직 호출되지 않았다면)
+      if (!this._isPaused) {
+        this.onSceneExit();
+      }
+
       // 앱 상태 관리자 정리
       if (this._appStateManager) {
         this._appStateManager.destroy();
@@ -612,8 +911,18 @@ export class MainSceneWorld implements IWorld, Scene {
     }
   }
   update(delta: number): void {
-    // TODO: hatchSystem, throwSystem
-    this._pipedSystems({ world: this, delta });
+    // 앱이 일시정지 상태일 때는 시스템 업데이트 건너뛰기
+    if (this._isPaused) {
+      return;
+    }
+
+    // 실시간 모드에서는 별도 시간 관리 필요 없음 (항상 Date.now() 사용)
+
+    // 시스템 파이프라인 실행
+    this._pipedSystems({
+      world: this,
+      delta,
+    });
 
     // UI 업데이트
     if (this._staminaGaugeUI) {
@@ -627,17 +936,20 @@ export class MainSceneWorld implements IWorld, Scene {
       // 디버그 토글 버튼 상태 동기화
       if (this._debugToggleButton) {
         this._debugToggleButton.updateState(
-          this._debugStatusUI.isDebugVisible()
+          this._debugStatusUI.isDebugVisible(),
         );
       }
     }
+
+    // 이전 상태 업데이트 (진입 감지용)
+    this._previousCleaningMode = this._isCleaningMode;
   }
 
   private _initializeData(): MainSceneWorldData {
     return {
       world_metadata: {
         name: "MainScene",
-        last_saved: Date.now(),
+        last_ecs_saved: Date.now(),
         version: this.VERSION,
       },
       entities: [this._createDefaultCharacterEntity()],
@@ -653,7 +965,7 @@ export class MainSceneWorld implements IWorld, Scene {
 
     try {
       const data = (await StorageManager.getData(
-        WORLD_DATA_STORAGE_KEY
+        WORLD_DATA_STORAGE_KEY,
       )) as MainSceneWorldData;
 
       if (!data) {
@@ -696,7 +1008,7 @@ export class MainSceneWorld implements IWorld, Scene {
    * 저장된 데이터의 유효성을 검증하고 필요시 마이그레이션 수행
    */
   private _validateAndMigrateData(
-    data: MainSceneWorldData
+    data: MainSceneWorldData,
   ): MainSceneWorldData {
     console.groupCollapsed("🔍 Validating saved data...");
 
@@ -706,7 +1018,7 @@ export class MainSceneWorld implements IWorld, Scene {
         console.warn("Missing world_metadata, creating default");
         data.world_metadata = {
           name: "MainScene",
-          last_saved: Date.now(),
+          last_ecs_saved: Date.now(),
           version: this.VERSION,
         };
       }
@@ -719,7 +1031,7 @@ export class MainSceneWorld implements IWorld, Scene {
       // 버전 호환성 검증
       if (data.world_metadata.version !== this.VERSION) {
         console.log(
-          `Version mismatch (saved: ${data.world_metadata.version}, current: ${this.VERSION}), attempting migration...`
+          `Version mismatch (saved: ${data.world_metadata.version}, current: ${this.VERSION}), attempting migration...`,
         );
         data = this._migrateData(data);
       }
@@ -730,14 +1042,14 @@ export class MainSceneWorld implements IWorld, Scene {
       data.entities.forEach((entity, index) => {
         if (!entity.components) {
           throw new Error(
-            `Entity ${index} missing components - critical data corruption detected`
+            `Entity ${index} missing components - critical data corruption detected`,
           );
         }
 
         // 필수 컴포넌트 검증 (object 컴포넌트는 필수)
         if (!entity.components.object) {
           throw new Error(
-            `Entity ${index} missing object component - critical data corruption detected`
+            `Entity ${index} missing object component - critical data corruption detected`,
           );
         }
 
@@ -745,13 +1057,13 @@ export class MainSceneWorld implements IWorld, Scene {
         const objectId = entity.components.object.id;
         if (!objectId) {
           throw new Error(
-            `Entity ${index} has invalid Object ID - critical data corruption detected`
+            `Entity ${index} has invalid Object ID - critical data corruption detected`,
           );
         }
 
         if (seenObjectIds.has(objectId)) {
           throw new Error(
-            `Duplicate Object ID ${objectId} detected at entity ${index} - critical data corruption detected`
+            `Duplicate Object ID ${objectId} detected at entity ${index} - critical data corruption detected`,
           );
         }
 
@@ -759,7 +1071,7 @@ export class MainSceneWorld implements IWorld, Scene {
       });
 
       console.log(
-        `Data validation completed, ${data.entities.length} valid entities found`
+        `Data validation completed, ${data.entities.length} valid entities found`,
       );
       return data;
     } finally {
@@ -775,7 +1087,7 @@ export class MainSceneWorld implements IWorld, Scene {
 
     try {
       console.log(
-        `Migrating data from version ${data.world_metadata.version} to ${this.VERSION}`
+        `Migrating data from version ${data.world_metadata.version} to ${this.VERSION}`,
       );
 
       // TODO: 버전별 마이그레이션 로직
@@ -783,7 +1095,7 @@ export class MainSceneWorld implements IWorld, Scene {
 
       // 마이그레이션 완료 후 버전 업데이트
       data.world_metadata.version = this.VERSION;
-      data.world_metadata.last_saved = Date.now();
+      data.world_metadata.last_ecs_saved = Date.now();
 
       console.log("Data migration completed");
       return data;
@@ -816,10 +1128,22 @@ export class MainSceneWorld implements IWorld, Scene {
   public handleControlButtonClick(buttonType: ControlButtonType): void {
     console.log(`[MainSceneWorld] Control button clicked: ${buttonType}`);
 
+    // 청소 모드에서의 버튼 처리
+    if (this._isCleaningMode) {
+      if (buttonType === ControlButtonType.Cancel) {
+        this._exitCleaningMode();
+        return;
+      }
+      if (buttonType === ControlButtonType.Clean) {
+        // Clean 버튼은 슬라이더로 처리됨
+        return;
+      }
+    }
+
     // Settings 버튼 클릭 시 메뉴 활성화 (첫 번째 메뉴 항목에 포커스)
     if (buttonType === ControlButtonType.Settings && this._gameMenu) {
       const navigationAction: NavigationActionPayload = {
-        type: NavigationAction.NEXT,
+        type: NavigationAction.SETTING,
         index: ++this._navigationActionIndex,
       };
       this._gameMenu.processNavigationAction(navigationAction);
@@ -837,7 +1161,15 @@ export class MainSceneWorld implements IWorld, Scene {
    */
   public handleSliderValueChange(value: number): void {
     console.log(`[MainSceneWorld] Slider value changed: ${value}`);
-    // TODO: 슬라이더 기능이 필요할 때 구현
+
+    // 슬라이더 값 저장
+    this._currentSliderValue = value;
+
+    // 청소 모드에서는 슬라이더 값을 청소 시스템에 전달
+    if (this._isCleaningMode) {
+      // 슬라이더 값은 cleaningSystem에서 처리됨
+      // 여기서는 특별한 처리가 필요 없음
+    }
   }
 
   /**
@@ -845,14 +1177,18 @@ export class MainSceneWorld implements IWorld, Scene {
    */
   public handleSliderEnd(): void {
     console.log("[MainSceneWorld] Slider ended");
-    // TODO: 슬라이더 기능이 필요할 때 구현
+
+    // 청소 모드에서 슬라이더가 종료되었을 때 청소 완료 상태 확인
+    if (this._isCleaningMode) {
+      this._checkAndExitCleaningModeIfComplete();
+    }
   }
 
   /**
    * 컨트롤 버튼을 네비게이션 액션으로 변환
    */
   private _createNavigationActionFromButton(
-    buttonType: ControlButtonType
+    buttonType: ControlButtonType,
   ): NavigationActionPayload | null {
     switch (buttonType) {
       case ControlButtonType.Next:
@@ -928,10 +1264,10 @@ export class MainSceneWorld implements IWorld, Scene {
         isFromLeft ? "left" : "right"
       } corner (${initialPosition.x}, ${initialPosition.y}) to (${
         finalPosition.x
-      }, ${finalPosition.y})`
+      }, ${finalPosition.y})`,
     );
     console.log(
-      `[MainSceneWorld] Position boundary: x=${boundary.x}, y=${boundary.y}, w=${boundary.width}, h=${boundary.height}`
+      `[MainSceneWorld] Position boundary: x=${boundary.x}, y=${boundary.y}, w=${boundary.width}, h=${boundary.height}`,
     );
   }
 
@@ -943,22 +1279,58 @@ export class MainSceneWorld implements IWorld, Scene {
   }
 
   /**
-   * 약 메뉴 선택 처리
+   * 약 메뉴 선택 처리 - sick 상태 해제 및 회복 애니메이션
    */
   private _handleDrugSelection(): void {
     const characterEid = this._findMainCharacterEntity();
 
     if (characterEid === -1) {
       console.warn(
-        "[MainSceneWorld] No character entity found for drug delivery"
+        "[MainSceneWorld] No character entity found for drug delivery",
       );
       return;
     }
 
+    // sick 상태 확인
+    const statuses = CharacterStatusComp.statuses[characterEid];
+    let isSick = false;
+
+    // 상태 배열에서 SICK 상태 확인
+    for (let i = 0; i < statuses.length; i++) {
+      if (statuses[i] === CharacterStatus.SICK) {
+        isSick = true;
+        break;
+      }
+    }
+
+    if (isSick) {
+      // SICK 상태 제거
+      for (let i = 0; i < statuses.length; i++) {
+        if (statuses[i] === CharacterStatus.SICK) {
+          statuses[i] = ECS_NULL_VALUE;
+          break;
+        }
+      }
+
+      // DiseaseSystemComp의 sickStartTime 초기화
+      if (hasComponent(this, DiseaseSystemComp, characterEid)) {
+        DiseaseSystemComp.sickStartTime[characterEid] = 0;
+      }
+
+      // CharacterState를 IDLE로 변경
+      ObjectComp.state[characterEid] = CharacterState.IDLE;
+
+      console.log(
+        `[MainSceneWorld] Cured character ${characterEid} from SICK state`,
+      );
+    }
+
+    // recovery 애니메이션 시작
+    startRecoveryAnimation(this, characterEid, this._stage, Date.now());
+
     console.log(
-      `[MainSceneWorld] Requesting pill delivery for character ${characterEid}`
+      `[MainSceneWorld] Started recovery animation for character ${characterEid}`,
     );
-    requestPillDelivery(characterEid);
   }
 
   /**
@@ -976,5 +1348,473 @@ export class MainSceneWorld implements IWorld, Scene {
       }
     }
     return -1; // 캐릭터를 찾지 못함
+  }
+
+  /**
+   * 청소 모드 상태를 업데이트하는 메서드들
+   */
+  public setFocusedTargetEid(eid: number): void {
+    this._focusedTargetEid = eid;
+  }
+
+  public setBroomProgress(progress: number): void {
+    this._broomProgress = Math.max(0, Math.min(1, progress));
+  }
+
+  /**
+   * 청소 모드 진입 (외부에서 호출 가능)
+   */
+  enterCleaningMode(): void {
+    this._enterCleaningMode();
+  }
+
+  /**
+   * 청소 모드 종료 (외부에서 호출 가능)
+   */
+  exitCleaningMode(): void {
+    this._exitCleaningMode();
+  }
+
+  /**
+   * 청소 모드 진입
+   */
+  private _enterCleaningMode(): void {
+    console.log("[MainSceneWorld] Entering cleaning mode");
+
+    // 이미 청소 모드라면 무시
+    if (this._isCleaningMode) {
+      return;
+    }
+
+    this._isCleaningMode = true;
+    this._focusedTargetEid = -1;
+    this._broomProgress = 0;
+
+    // 컨트롤 버튼을 청소 모드 세트로 변경
+    this._updateControlButtonsForCleaningMode(true);
+  }
+
+  /**
+   * 청소 완료 상태를 확인하고 모든 작업이 완료되면 청소 모드 종료
+   */
+  private _checkAndExitCleaningModeIfComplete(): void {
+    // 청소 시스템에서 사용하는 것과 동일한 쿼리 생성
+    const cleanableEntitiesQuery = defineQuery([
+      ObjectComp,
+      PositionComp,
+      CleanableComp,
+    ]);
+
+    const cleanableEntities = cleanableEntitiesQuery(this);
+    let hasIncompleteEntities = false;
+
+    for (const eid of cleanableEntities) {
+      if (CleanableComp.cleaningProgress[eid] < 1.0) {
+        hasIncompleteEntities = true;
+        break;
+      }
+    }
+
+    // 모든 청소 가능한 엔티티가 완료되었으면 청소 모드 종료
+    if (!hasIncompleteEntities) {
+      console.log(
+        "[MainSceneWorld] All cleaning completed, exiting cleaning mode",
+      );
+      this.exitCleaningMode();
+    }
+  }
+
+  /**
+   * 청소 모드 종료
+   */
+  private _exitCleaningMode(): void {
+    console.log("[MainSceneWorld] Exiting cleaning mode");
+
+    if (!this._isCleaningMode) {
+      return;
+    }
+
+    this._isCleaningMode = false;
+    this._focusedTargetEid = -1;
+    this._broomProgress = 0;
+
+    // 현재 메뉴의 포커스 상태에 따라 컨트롤 버튼 복원
+    const menuHasFocus = this._gameMenu?.hasFocus() ?? false;
+    this._updateControlButtonsForMenuState(menuHasFocus);
+  }
+
+  /**
+   * 청소 모드 상태에 따라 컨트롤 버튼 업데이트
+   */
+  private _updateControlButtonsForCleaningMode(isCleaningMode: boolean): void {
+    if (!this._changeControlButtons) return;
+
+    if (isCleaningMode) {
+      // 청소 모드: Cancel, Clean, Clean
+      this._changeControlButtons([
+        { type: ControlButtonType.Cancel },
+        { type: ControlButtonType.Clean },
+        { type: ControlButtonType.Clean },
+      ]);
+    } else {
+      // 기본 모드로 복원 (메뉴 포커스 상태에 따라)
+      this._updateControlButtonsForMenuState(false);
+    }
+  }
+
+  /**
+   * 시뮬레이션 전용 시스템 파이프라인 생성
+   * 렌더링 관련 시스템들을 제외한 로직 시스템들만 포함
+   * @param getCurrentTime 현재 시뮬레이션 시간을 반환하는 함수
+   */
+  private _createSimulationPipeline(getCurrentTime: () => number) {
+    return pipe(
+      // 시간 기반 시스템들 (상태 관리 시스템 토글 적용)
+      (params: any) =>
+        this._statusSystemsEnabled
+          ? freshnessSystem({ ...params, currentTime: getCurrentTime() })
+          : params,
+      (params: any) =>
+        this._statusSystemsEnabled
+          ? digestiveSystem({ ...params, currentTime: getCurrentTime() })
+          : params,
+      (params: any) =>
+        this._statusSystemsEnabled
+          ? diseaseSystem({ ...params, currentTime: getCurrentTime() })
+          : params,
+      (params: any) =>
+        eggHatchSystem({ ...params, currentTime: getCurrentTime() }),
+      (params: any) =>
+        this._statusSystemsEnabled ? characterManagerSystem(params) : params,
+      // 이펙트 시스템 (상태 업데이트만, 렌더링 제외)
+      (params: any) =>
+        sparkleEffectSystem({ ...params, currentTime: getCurrentTime() }),
+      // GIF 애니메이션 시스템 (시뮬레이션에서는 상태만 업데이트, stage는 null)
+      (params: any) =>
+        gifAnimationSystem({
+          ...params,
+          currentTime: getCurrentTime(),
+          stage: null, // 시뮬레이션에서는 렌더링 스킵
+        }),
+      // 렌더링 관련 시스템들은 시뮬레이션에서 제외
+      // - cleaningSystem (스킵)
+      // 이동 및 게임플레이 시스템들
+      randomMovementSystem,
+      commonMovementSystem,
+      foodEatingSystem,
+      // 애니메이션 상태 시스템들 (시뮬레이션에서도 실행)
+      throwAnimationSystem,
+      animationStateSystem,
+      // 렌더링 시스템들은 시뮬레이션에서 제외
+      // - this._renderAllSystems (스킵)
+      dataSyncSystem,
+    );
+  }
+
+  /**
+   * 재진입 시뮬레이션 처리
+   * 앱을 다시 켤 때 경과된 시간을 계산하고 해당 시간만큼 시뮬레이션 실행
+   */
+  private async _processReentrySimulation(): Promise<void> {
+    if (!this._persistentData?.world_metadata.app_state) {
+      // 첫 실행이거나 앱 상태가 없으면 그냥 리턴
+      console.log(
+        "[MainSceneWorld] No app state found, skipping reentry simulation",
+      );
+      return;
+    }
+
+    const lastActiveTime =
+      this._persistentData.world_metadata.app_state.last_active_time;
+
+    const currentTime = Date.now();
+    const elapsedTime = currentTime - lastActiveTime;
+
+    console.log(
+      `[MainSceneWorld] Starting reentry simulation for ${this._formatPauseDuration(
+        elapsedTime,
+      )} elapsed time`,
+    );
+
+    // 일회성 ReentrySimulator 인스턴스 생성
+    const reentrySimulator = new ReentrySimulator();
+
+    // 시뮬레이션 전용 파이프라인을 생성하여 시뮬레이션 실행
+    const simulationPipeline = this._createSimulationPipeline(() =>
+      reentrySimulator.getCurrentSimulationTime(),
+    );
+
+    try {
+      await reentrySimulator.simulate(
+        lastActiveTime,
+        (params: any) => simulationPipeline(params),
+        this,
+      );
+
+      console.log("[MainSceneWorld] Reentry simulation completed successfully");
+    } catch (error) {
+      console.error("[MainSceneWorld] Reentry simulation failed:", error);
+    }
+  }
+
+  /**
+   * 현재 시뮬레이션 모드인지 확인
+   * 재진입 시뮬레이션이 실행 중이 아닌 상태에서는 항상 false
+   */
+  public get isSimulationMode(): boolean {
+    return false; // 일회성 시뮬레이터 사용으로 항상 실시간 모드
+  }
+
+  /**
+   * 현재 시뮬레이션 시간 또는 실시간 반환
+   * 재진입 시뮬레이션이 실행 중이 아닌 상태에서는 항상 실시간
+   */
+  public get currentTime(): number {
+    return Date.now(); // 일회성 시뮬레이터 사용으로 항상 실시간
+  }
+
+  /**
+   * 모든 렌더링 시스템들을 한 번에 실행하는 통합 메서드
+   */
+  private _renderAllSystems(params: any): typeof params {
+    // 1. 애니메이션 렌더링 (캐릭터 애니메이션)
+    animationRenderSystem(params);
+
+    // 2. 상태 아이콘 렌더링
+    statusIconRenderSystem(params);
+
+    // 3. 정적 스프라이트 렌더링
+    renderSystem(params);
+
+    // 4. 청소 대상 렌더링
+    cleanableRenderSystem({ ...params, stage: this._stage });
+
+    // 5. 수면 효과 렌더링
+    sleepEffectSystem({ ...params, stage: this._stage });
+
+    return params;
+  }
+
+  /**
+   * Page Visibility API 이벤트 핸들러 설정
+   */
+  private _setupVisibilityChangeHandler(): void {
+    // Page Visibility API 지원 여부 확인
+    if (typeof document === "undefined" || !("visibilityState" in document)) {
+      console.warn("[MainSceneWorld] Page Visibility API not supported");
+      return;
+    }
+
+    this._visibilityChangeHandler = () => {
+      if (document.hidden) {
+        // 앱이 백그라운드로 갔을 때 (홈으로 나가거나 다른 앱으로 전환)
+        this._handleAppPause();
+      } else {
+        // 앱이 포그라운드로 돌아왔을 때
+        this._handleAppResume();
+      }
+    };
+
+    // 이벤트 리스너 등록
+    document.addEventListener(
+      "visibilitychange",
+      this._visibilityChangeHandler,
+    );
+
+    console.log("[MainSceneWorld] Page Visibility API handler registered");
+  }
+
+  /**
+   * Page Visibility API 이벤트 핸들러 정리
+   */
+  private _cleanupVisibilityChangeHandler(): void {
+    if (this._visibilityChangeHandler && typeof document !== "undefined") {
+      document.removeEventListener(
+        "visibilitychange",
+        this._visibilityChangeHandler,
+      );
+      this._visibilityChangeHandler = undefined;
+      console.log("[MainSceneWorld] Page Visibility API handler cleaned up");
+    }
+  }
+
+  /**
+   * 앱 일시정지 처리 (백그라운드로 갔을 때)
+   */
+  private _handleAppPause(): void {
+    if (this._isPaused) {
+      console.warn(
+        "[MainSceneWorld] App pause event received but app is already paused",
+      );
+      return; // 이미 일시정지 상태
+    }
+
+    console.log("[MainSceneWorld] 📱 App paused (went to background)");
+
+    this._isPaused = true;
+    this._pauseStartTime = Date.now();
+
+    // 현재 게임 상태 저장 (ECS 엔티티 상태 포함)
+    this._saveCurrentState();
+
+    // 추가적인 일시정지 처리가 필요하다면 여기에 구현
+    // 예: 오디오 일시정지, 애니메이션 중단 등
+  }
+
+  /**
+   * 앱 재개 처리 (포그라운드로 돌아왔을 때)
+   */
+  private async _handleAppResume(): Promise<void> {
+    if (!this._isPaused) {
+      console.warn(
+        "[MainSceneWorld] App resume event received but app is not paused",
+      );
+      return; // 이미 활성 상태
+    }
+
+    const pauseDuration = Date.now() - this._pauseStartTime;
+    console.log(
+      `[MainSceneWorld] 📱 App resumed (returned to foreground) after ${this._formatPauseDuration(
+        pauseDuration,
+      )}`,
+    );
+
+    this._isPaused = false;
+    this._pauseStartTime = 0;
+
+    // 재진입 시뮬레이션 무조건 실행
+    console.log(
+      `[MainSceneWorld] Running reentry simulation for pause duration of ${this._formatPauseDuration(
+        pauseDuration,
+      )}...`,
+    );
+
+    // 재진입 시뮬레이션 실행
+    await this._processReentrySimulation();
+
+    // 추가적인 재개 처리가 필요하다면 여기에 구현
+    // 예: 오디오 재개, 애니메이션 재시작 등
+  }
+
+  /**
+   * 일시정지 시간을 읽기 쉬운 형태로 포맷팅
+   */
+  private _formatPauseDuration(milliseconds: number): string {
+    if (milliseconds < 1000) {
+      return `${milliseconds}ms`;
+    }
+
+    const seconds = Math.floor(milliseconds / 1000);
+    if (seconds < 60) {
+      return `${seconds}s`;
+    }
+
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    if (minutes < 60) {
+      return remainingSeconds > 0
+        ? `${minutes}m ${remainingSeconds}s`
+        : `${minutes}m`;
+    }
+
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    return remainingMinutes > 0
+      ? `${hours}h ${remainingMinutes}m`
+      : `${hours}h`;
+  }
+
+  /**
+   * 현재 게임 상태를 저장 (scene 변경 시 호출)
+   */
+  private _saveCurrentState(): void {
+    try {
+      // 마지막 활성 시간 저장
+      this._saveLastActiveTime();
+
+      // ECS 엔티티들의 현재 상태를 persistent data에 동기화
+      this._syncEcsToPersisentData();
+
+      console.log("[MainSceneWorld] Current game state saved successfully");
+    } catch (error) {
+      console.error("[MainSceneWorld] Failed to save current state:", error);
+    }
+  }
+
+  /**
+   * ECS 엔티티들의 현재 상태를 persistent data에 동기화
+   */
+  private _syncEcsToPersisentData(): void {
+    if (!this._persistentData) {
+      console.warn("[MainSceneWorld] No persistent data to sync to");
+      return;
+    }
+
+    // 현재 ECS 월드의 모든 엔티티를 순회하여 persistent data 업데이트
+    const updatedEntities: SavedEntity[] = [];
+
+    // ECS 엔티티 순회 (간단한 구현 - 실제로는 더 정교한 쿼리 사용 가능)
+    for (let eid = 0; eid < 1000; eid++) {
+      // 엔티티가 존재하는지 확인 (ObjectComp가 있는지로 판단)
+      if (ObjectComp.type[eid] !== undefined && ObjectComp.type[eid] !== 0) {
+        try {
+          const savedEntity = convertECSEntityToSavedEntity(this, eid);
+          updatedEntities.push(savedEntity);
+        } catch (error) {
+          console.warn(
+            `[MainSceneWorld] Failed to convert entity ${eid} to saved entity:`,
+            error,
+          );
+        }
+      }
+    }
+
+    // persistent data 업데이트
+    this._persistentData.entities = updatedEntities;
+    this._persistentData.world_metadata.last_ecs_saved = Date.now();
+
+    console.log(
+      `[MainSceneWorld] Synced ${updatedEntities.length} entities to persistent data`,
+    );
+  }
+
+  /**
+   * 마지막 활성 시간 저장
+   */
+  private _saveLastActiveTime(): void {
+    if (this._persistentData) {
+      if (!this._persistentData.world_metadata.app_state) {
+        this._persistentData.world_metadata.app_state = {
+          last_active_time: 0,
+          is_first_load: false,
+        };
+      }
+
+      this._persistentData.world_metadata.app_state.last_active_time =
+        Date.now();
+
+      // 데이터 저장
+      this.setData(this._persistentData);
+
+      console.log(
+        `[MainSceneWorld] Saved last active time: ${new Date().toLocaleString(
+          "ko-KR",
+        )}`,
+      );
+    }
+  }
+
+  /**
+   * 상태 관리 시스템들 토글 (디버그용)
+   * @returns 토글 후 활성화 상태
+   */
+  public toggleStatusSystems(): boolean {
+    this._statusSystemsEnabled = !this._statusSystemsEnabled;
+    console.log(
+      `[MainSceneWorld] Status systems ${
+        this._statusSystemsEnabled ? "enabled" : "disabled"
+      }`,
+    );
+    return this._statusSystemsEnabled;
   }
 }

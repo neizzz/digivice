@@ -10,8 +10,10 @@
   },
   "dependencies": {
     "@pixi/filter-color-matrix": "^7.4.3",
+    "@pixi/gif": "^3.0.1",
     "@shared/storage": "workspace:*",
     "bitecs": "^0.3.40",
+    "gif-frames": "^1.0.1",
     "lodash.throttle": "^4.1.1",
     "matter-js": "^0.20.0",
     "pixi.js": "^8.11.0",

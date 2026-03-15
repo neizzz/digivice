@@ -124,6 +124,11 @@ const spriteStore = new ObjectStore<PIXI.Sprite>("SpriteStore");
 // 음식 마스크 스프라이트 스토어
 const maskSpriteStore = new ObjectStore<PIXI.Sprite>("MaskSpriteStore");
 
+// 스프라이트 스토어를 다른 시스템에서 접근할 수 있도록 export
+export function getSpriteStore() {
+  return spriteStore;
+}
+
 // 마스크 프레임 이름들
 const MASK_FRAME_NAMES = [
   "vite-mask_0",
@@ -462,6 +467,14 @@ export function renderCommonAttributes(
   sprite: PIXI.Sprite | PIXI.AnimatedSprite,
   world: MainSceneWorld
 ): void {
+  // 스프라이트가 null이거나 destroyed된 경우 처리하지 않음
+  if (!sprite || sprite.destroyed) {
+    console.warn(
+      `[RenderSystem] Skipping destroyed or null sprite for entity ${eid}`
+    );
+    return;
+  }
+
   const x = PositionComp.x[eid];
   const y = PositionComp.y[eid];
   sprite.position.set(x, y);

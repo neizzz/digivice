@@ -35,7 +35,7 @@ const temporaryStatusQuery = defineQuery([
 ]);
 
 /**
- * 캐릭터 상태 관리 시스템
+ * 캐릭터 상태에 따라 icon rendering상태 관리
  * - 스테미나에 따른 상태 변화 (unhappy, urgent, happy)
  * - urgent 상태에서 일정 시간 후 죽음
  * - 죽으면 tomb(무덤) 표시

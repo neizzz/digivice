@@ -236,6 +236,13 @@ export class GameMenu {
     });
   }
 
+  /**
+   * 메뉴에 포커스가 있는지 확인
+   */
+  public hasFocus(): boolean {
+    return this.focusedIndex !== null;
+  }
+
   public destroy(): void {
     // 메모리 해제 및 이벤트 리스너 제거
     for (const index in this.menuItemElements) {

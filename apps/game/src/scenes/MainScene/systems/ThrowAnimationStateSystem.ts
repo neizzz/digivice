@@ -27,7 +27,7 @@ const throwAnimationQuery = defineQuery([
  * 던지기 애니메이션 시스템 (상태 + 렌더링 통합)
  * 시뮬레이션 모드에서는 상태만, 실시간 모드에서는 시각적 효과도 처리
  */
-export function throwAnimationSystem(params: {
+export function throwAnimationStateSystem(params: {
   world: MainSceneWorld;
   delta: number;
 }): typeof params {
@@ -44,7 +44,7 @@ export function throwAnimationSystem(params: {
     }
 
     // 경과 시간 업데이트
-    const deltaTime = delta;
+    const deltaTime = delta * 1000; // delta를 밀리초로 변환
     ThrowAnimationComp.elapsedTime[eid] += deltaTime;
 
     const duration = THROW_DURATION;

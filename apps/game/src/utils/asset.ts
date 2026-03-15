@@ -1,5 +1,5 @@
 import * as PIXI from "pixi.js";
-import { CharacterKey } from "../scenes/MainScene/types";
+import { CharacterKeyECS } from "../scenes/MainScene/types";
 
 /**
  * 단일 스프라이트시트를 로드하고 파싱하는 유틸리티 함수들
@@ -164,28 +164,28 @@ export function getTextureFromSpritesheet(
  * 캐릭터 키에서 스프라이트시트 로드 옵션을 가져옵니다.
  */
 export function getCharacterSpritesheetOptions(
-  characterKey: CharacterKey
+  characterKey: CharacterKeyECS
 ): LoadSpritesheetOptions | null {
   switch (characterKey) {
-    case CharacterKey.TestGreenSlimeA1:
+    case CharacterKeyECS.TestGreenSlimeA1:
       return {
         jsonPath: "/game/sprites/monsters/test-green-slime_A1.json",
         alias: "test-green-slime_A1",
         // pixelArt: true,
       };
-    case CharacterKey.TestGreenSlimeB1:
+    case CharacterKeyECS.TestGreenSlimeB1:
       return {
         jsonPath: "/game/sprites/monsters/test-green-slime_B1.json",
         alias: "test-green-slime_B1",
         // pixelArt: true,
       };
-    case CharacterKey.TestGreenSlimeC1:
+    case CharacterKeyECS.TestGreenSlimeC1:
       return {
         jsonPath: "/game/sprites/monsters/test-green-slime_C1.json",
         alias: "test-green-slime_C1",
         // pixelArt: true,
       };
-    case CharacterKey.TestGreenSlimeD1:
+    case CharacterKeyECS.TestGreenSlimeD1:
       return {
         jsonPath: "/game/sprites/monsters/test-green-slime_D1.json",
         alias: "test-green-slime_D1",

@@ -31,7 +31,6 @@ import { addCharacterStatus } from "./CharacterManageSystem";
 import { getStaminaBonusFromFreshness, isFoodEdible } from "./FreshnessSystem";
 import { addToDigestiveLoad } from "./DigestiveSystem";
 import { moveTowardsTarget } from "../utils/movementUtils";
-import { DEBUG_DISABLE_FOOD_CHASE } from "./StatusIconRenderSystem";
 
 const characterQuery = defineQuery([
   ObjectComp,
@@ -66,11 +65,12 @@ const EATING_OFFSET_Y = -8; // 음식에서 살짝 위쪽에 위치
 export function foodEatingSystem(params: {
   world: MainSceneWorld;
   delta: number;
+  currentTime?: number;
 }): typeof params {
-  const { world, delta } = params;
+  const { world, delta, currentTime } = params;
 
   // 1. 음식을 먹고 있는 캐릭터들의 진행도 업데이트
-  updateEatingProgress(world, delta);
+  updateEatingProgress(world, delta, currentTime || Date.now());
 
   // 2. 음식으로 이동 중인 캐릭터들 처리
   updateMovingToFood(world, delta);
@@ -84,7 +84,11 @@ export function foodEatingSystem(params: {
 /**
  * 음식을 먹고 있는 캐릭터들의 진행도 업데이트
  */
-function updateEatingProgress(world: MainSceneWorld, delta: number): void {
+function updateEatingProgress(
+  world: MainSceneWorld,
+  delta: number,
+  currentTime: number,
+): void {
   const eatingCharacters = eatingCharacterQuery(world);
 
   for (let i = 0; i < eatingCharacters.length; i++) {
@@ -98,7 +102,7 @@ function updateEatingProgress(world: MainSceneWorld, delta: number): void {
     // 진행도 계산 (0.0 ~ 1.0)
     const progress = Math.min(
       FoodEatingComp.elapsedTime[eid] / FoodEatingComp.duration[eid],
-      1.0
+      1.0,
     );
     FoodEatingComp.progress[eid] = progress;
 
@@ -110,7 +114,7 @@ function updateEatingProgress(world: MainSceneWorld, delta: number): void {
 
     // 음식 먹기 완료
     if (progress >= 1.0) {
-      completeEating(world, eid, targetFoodEid);
+      completeEating(world, eid, targetFoodEid, currentTime);
     }
   }
 }
@@ -135,7 +139,7 @@ function updateMovingToFood(world: MainSceneWorld, delta: number): void {
     // target이 0인지 확인 (잘못된 상태)
     if (targetFoodEid === 0) {
       console.warn(
-        `[FoodEatingSystem] Character ${eid} has DestinationComp but target is 0 (NULL), removing DestinationComp`
+        `[FoodEatingSystem] Character ${eid} has DestinationComp but target is 0 (NULL), removing DestinationComp`,
       );
       // 잘못된 DestinationComp 제거
       removeComponent(world, DestinationComp, eid);
@@ -149,14 +153,14 @@ function updateMovingToFood(world: MainSceneWorld, delta: number): void {
       world,
       eid,
       delta,
-      EATING_ARRIVAL_THRESHOLD
+      EATING_ARRIVAL_THRESHOLD,
     );
 
     if (hasArrived) {
       console.log(
         `[FoodEatingSystem] Character ${eid} reached food ${targetFoodEid} at distance ${distance.toFixed(
-          2
-        )}`
+          2,
+        )}`,
       );
       startEating(world, eid, targetFoodEid);
       continue;
@@ -170,10 +174,11 @@ function updateMovingToFood(world: MainSceneWorld, delta: number): void {
 function completeEating(
   world: MainSceneWorld,
   characterEid: number,
-  foodEid: number
+  foodEid: number,
+  currentTime: number,
 ): void {
   console.log(
-    `[FoodEatingSystem] Character ${characterEid} completed eating food ${foodEid}`
+    `[FoodEatingSystem] Character ${characterEid} completed eating food ${foodEid}`,
   );
 
   // 음식의 신선도 확인
@@ -195,12 +200,12 @@ function completeEating(
   const currentStamina = CharacterStatusComp.stamina[characterEid];
   const newStamina = Math.min(
     currentStamina + staminaBonus,
-    GAME_CONSTANTS.MAX_STAMINA
+    GAME_CONSTANTS.MAX_STAMINA,
   );
   CharacterStatusComp.stamina[characterEid] = newStamina;
 
-  // 소화기관에 부하 추가
-  addToDigestiveLoad(world, characterEid, staminaBonus, Date.now());
+  // 소화기관에 부하 추가 - currentTime 사용
+  addToDigestiveLoad(world, characterEid, staminaBonus, currentTime);
 
   // 스테미나가 10보다 작았는데 10이 되었을 때만 임시 happy 상태 추가
   if (
@@ -208,9 +213,9 @@ function completeEating(
     newStamina >= GAME_CONSTANTS.MAX_STAMINA
   ) {
     console.log(
-      `[FoodEatingSystem] Character ${characterEid} stamina increased from ${currentStamina} to ${newStamina}, adding happy status`
+      `[FoodEatingSystem] Character ${characterEid} stamina increased from ${currentStamina} to ${newStamina}, adding happy status`,
     );
-    addTemporaryHappyStatus(world, characterEid);
+    addCharacterStatus(characterEid, CharacterStatus.HAPPY);
   }
 
   // 캐릭터 상태를 IDLE로 변경
@@ -233,7 +238,7 @@ function completeEating(
     RandomMovementComp.nextChange[characterEid] =
       Date.now() + 2000 + Math.random() * 1000;
     console.log(
-      `[FoodEatingSystem] Added RandomMovementComp back to character ${characterEid} with idle delay`
+      `[FoodEatingSystem] Added RandomMovementComp back to character ${characterEid} with idle delay`,
     );
   }
 
@@ -250,7 +255,7 @@ function completeEating(
   removeComponent(world, FoodEatingComp, characterEid);
 
   console.log(
-    `[FoodEatingSystem] Character stamina increased to ${CharacterStatusComp.stamina[characterEid]}`
+    `[FoodEatingSystem] Character stamina increased to ${CharacterStatusComp.stamina[characterEid]}`,
   );
 }
 
@@ -259,9 +264,9 @@ function completeEating(
  */
 function findAndEatFood(world: MainSceneWorld): void {
   // 디버그 모드: 음식 쫒기 비활성화
-  if (DEBUG_DISABLE_FOOD_CHASE) {
-    return;
-  }
+  // if (DEBUG_DISABLE_FOOD_CHASE) {
+  //   return;
+  // }
 
   const characters = characterQuery(world);
   const foods = foodQuery(world);
@@ -320,19 +325,19 @@ function findAndEatFood(world: MainSceneWorld): void {
     const { foodEid, distance } = nearestFood;
     console.log(
       `[FoodEatingSystem] Found nearest food ${foodEid} at distance ${distance.toFixed(
-        2
-      )} for character ${characterEid}`
+        2,
+      )} for character ${characterEid}`,
     );
 
     // 이미 목적지 근처에 있다면 바로 음식 먹기 시작
     if (distance <= EATING_ARRIVAL_THRESHOLD) {
       console.log(
-        `[FoodEatingSystem] Character ${characterEid} is close enough to food ${foodEid}, starting to eat`
+        `[FoodEatingSystem] Character ${characterEid} is close enough to food ${foodEid}, starting to eat`,
       );
       startEating(world, characterEid, foodEid);
     } else {
       console.log(
-        `[FoodEatingSystem] Character ${characterEid} moving to food ${foodEid}`
+        `[FoodEatingSystem] Character ${characterEid} moving to food ${foodEid}`,
       );
       addCharacterStatus(characterEid, CharacterStatus.DISCOVER);
       moveToFood(world, characterEid, foodEid);
@@ -346,7 +351,7 @@ function findAndEatFood(world: MainSceneWorld): void {
 function findNearestFood(
   _world: MainSceneWorld,
   characterEid: number,
-  foods: number[]
+  foods: number[],
 ): { foodEid: number; distance: number } | null {
   const characterX = PositionComp.x[characterEid];
   const characterY = PositionComp.y[characterEid];
@@ -361,7 +366,7 @@ function findNearestFood(
     // 음식 타입인지 확인
     if (ObjectComp.type[foodEid] !== ObjectType.FOOD) {
       console.log(
-        `[FoodEatingSystem] Entity ${foodEid} is not food (type: ${ObjectComp.type[foodEid]})`
+        `[FoodEatingSystem] Entity ${foodEid} is not food (type: ${ObjectComp.type[foodEid]})`,
       );
       continue;
     }
@@ -369,7 +374,7 @@ function findNearestFood(
     // LANDED 상태인지 확인
     if (ObjectComp.state[foodEid] !== FoodState.LANDED) {
       console.log(
-        `[FoodEatingSystem] Food ${foodEid} is not LANDED (state: ${ObjectComp.state[foodEid]})`
+        `[FoodEatingSystem] Food ${foodEid} is not LANDED (state: ${ObjectComp.state[foodEid]})`,
       );
       continue;
     }
@@ -379,13 +384,13 @@ function findNearestFood(
     const foodY = PositionComp.y[foodEid];
 
     const distance = Math.sqrt(
-      Math.pow(characterX - foodX, 2) + Math.pow(characterY - foodY, 2)
+      Math.pow(characterX - foodX, 2) + Math.pow(characterY - foodY, 2),
     );
 
     console.log(
       `[FoodEatingSystem] Food ${foodEid} at (${foodX}, ${foodY}) - distance: ${distance.toFixed(
-        2
-      )}`
+        2,
+      )}`,
     );
 
     if (distance < minDistance) {
@@ -403,7 +408,7 @@ function findNearestFood(
 function moveToFood(
   world: MainSceneWorld,
   characterEid: number,
-  foodEid: number
+  foodEid: number,
 ): void {
   const characterX = PositionComp.x[characterEid];
   const characterY = PositionComp.y[characterEid];
@@ -435,7 +440,7 @@ function moveToFood(
   console.log(
     `[FoodEatingSystem] Character ${characterEid} moving to food ${foodEid} at (${foodX}, ${foodY}) -> target (${targetX}, ${targetY}) (approach from ${
       approachDirectionX < 0 ? "left" : "right"
-    }, ${approachDirectionY < 0 ? "top" : "bottom"})`
+    }, ${approachDirectionY < 0 ? "top" : "bottom"})`,
   );
 
   // 음식을 TARGETED 상태로 변경 (다른 캐릭터가 동시에 타겟팅하지 않도록)
@@ -445,7 +450,7 @@ function moveToFood(
   if (hasComponent(world, RandomMovementComp, characterEid)) {
     removeComponent(world, RandomMovementComp, characterEid);
     console.log(
-      `[FoodEatingSystem] Removed RandomMovementComp from character ${characterEid}`
+      `[FoodEatingSystem] Removed RandomMovementComp from character ${characterEid}`,
     );
   }
 
@@ -467,7 +472,7 @@ function moveToFood(
       x: DestinationComp.x[characterEid],
       y: DestinationComp.y[characterEid],
       foodEid: foodEid,
-    }
+    },
   );
 
   // SpeedComp 확인 및 설정 (캐릭터의 고유 속도로 한 번만 설정)
@@ -481,7 +486,7 @@ function moveToFood(
     const characterStats = getCharacterStats(characterKey);
     SpeedComp.value[characterEid] = characterStats.speed;
     console.log(
-      `[FoodEatingSystem] Set character ${characterEid} speed to ${characterStats.speed} based on character type`
+      `[FoodEatingSystem] Set character ${characterEid} speed to ${characterStats.speed} based on character type`,
     );
   }
 
@@ -495,10 +500,10 @@ function moveToFood(
 function startEating(
   world: MainSceneWorld,
   characterEid: number,
-  foodEid: number
+  foodEid: number,
 ): void {
   console.log(
-    `[FoodEatingSystem] Character ${characterEid} started eating food ${foodEid}`
+    `[FoodEatingSystem] Character ${characterEid} started eating food ${foodEid}`,
   );
 
   // FoodEatingComp 추가
@@ -529,7 +534,7 @@ function startEating(
   if (hasComponent(world, RandomMovementComp, characterEid)) {
     removeComponent(world, RandomMovementComp, characterEid);
     console.log(
-      `[FoodEatingSystem] Removed RandomMovementComp from eating character ${characterEid}`
+      `[FoodEatingSystem] Removed RandomMovementComp from eating character ${characterEid}`,
     );
   }
 
@@ -549,7 +554,7 @@ function startEating(
  */
 function cancelEating(world: MainSceneWorld, characterEid: number): void {
   console.log(
-    `[FoodEatingSystem] Canceled eating for character ${characterEid}`
+    `[FoodEatingSystem] Canceled eating for character ${characterEid}`,
   );
 
   // 캐릭터 상태를 IDLE로 변경
@@ -577,33 +582,7 @@ function cancelEating(world: MainSceneWorld, characterEid: number): void {
 }
 
 /**
- * 임시 happy 상태 추가
+ * 참고: addTemporaryHappyStatus()는 제거되었습니다.
+ * CharacterManageSystem.addCharacterStatus()를 사용하세요.
+ * 이 함수는 자동으로 임시 상태 처리를 포함합니다.
  */
-function addTemporaryHappyStatus(
-  world: MainSceneWorld,
-  characterEid: number
-): void {
-  // 이미 happy 상태인지 확인
-  const statuses = CharacterStatusComp.statuses[characterEid];
-  for (let i = 0; i < statuses.length; i++) {
-    if (statuses[i] === CharacterStatus.HAPPY) {
-      return; // 이미 happy 상태
-    }
-  }
-
-  // happy 상태 추가
-  for (let i = 0; i < statuses.length; i++) {
-    if (statuses[i] === 0) {
-      statuses[i] = CharacterStatus.HAPPY;
-      break;
-    }
-  }
-
-  // 임시 상태 컴포넌트 추가
-  if (!hasComponent(world, TemporaryStatusComp, characterEid)) {
-    addComponent(world, TemporaryStatusComp, characterEid);
-  }
-
-  TemporaryStatusComp.statusType[characterEid] = CharacterStatus.HAPPY;
-  TemporaryStatusComp.startTime[characterEid] = Date.now();
-}

@@ -3,6 +3,7 @@ export enum NavigationAction {
   NEXT = "next",
   CANCEL = "cancel",
   SELECT = "select",
+  SETTING = "setting",
 }
 
 // 액션 페이로드 인터페이스

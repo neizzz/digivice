@@ -6,7 +6,7 @@ import {
   RenderComp,
 } from "../raw-components";
 import { MainSceneWorld } from "../world";
-import { ObjectType, CharacterKey, CharacterState } from "../types";
+import { ObjectType, CharacterKeyECS, CharacterState } from "../types";
 import {
   getCharacterSpritesheetOptions,
   loadSpritesheet,
@@ -36,17 +36,17 @@ export function evolveCharacter(world: MainSceneWorld, eid: number): void {
     case 1:
       // Phase 1 -> Phase 2: A1 -> B1
       nextPhase = 2;
-      nextCharacterKey = CharacterKey.TestGreenSlimeB1;
+      nextCharacterKey = CharacterKeyECS.TestGreenSlimeB1;
       break;
     case 2:
       // Phase 2 -> Phase 3: B1 -> C1
       nextPhase = 3;
-      nextCharacterKey = CharacterKey.TestGreenSlimeC1;
+      nextCharacterKey = CharacterKeyECS.TestGreenSlimeC1;
       break;
     case 3:
       // Phase 3 -> Phase 4: C1 -> D1
       nextPhase = 4;
-      nextCharacterKey = CharacterKey.TestGreenSlimeD1;
+      nextCharacterKey = CharacterKeyECS.TestGreenSlimeD1;
       break;
     case 4:
       // 이미 최대 진화 단계
@@ -86,7 +86,7 @@ export function evolveCharacter(world: MainSceneWorld, eid: number): void {
 function updateCharacterSprites(
   world: MainSceneWorld,
   eid: number,
-  newCharacterKey: CharacterKey
+  newCharacterKey: CharacterKeyECS
 ): void {
   // 스프라이트시트 동적 로딩 (비동기)
   loadCharacterSpritesheet(eid, newCharacterKey);
@@ -117,7 +117,7 @@ function updateCharacterSprites(
  */
 async function loadCharacterSpritesheet(
   eid: number,
-  characterKey: CharacterKey
+  characterKey: CharacterKeyECS
 ): Promise<void> {
   try {
     // 스프라이트시트 로드 옵션 가져오기
@@ -175,15 +175,15 @@ export function canEvolve(eid: number): boolean {
 /**
  * 현재 진화 단계에 따른 캐릭터 이름 반환
  */
-export function getCharacterNameByKey(characterKey: CharacterKey): string {
+export function getCharacterNameByKey(characterKey: CharacterKeyECS): string {
   switch (characterKey) {
-    case CharacterKey.TestGreenSlimeA1:
+    case CharacterKeyECS.TestGreenSlimeA1:
       return "Green Slime (Baby)";
-    case CharacterKey.TestGreenSlimeB1:
+    case CharacterKeyECS.TestGreenSlimeB1:
       return "Green Slime (Child)";
-    case CharacterKey.TestGreenSlimeC1:
+    case CharacterKeyECS.TestGreenSlimeC1:
       return "Green Slime (Adult)";
-    case CharacterKey.TestGreenSlimeD1:
+    case CharacterKeyECS.TestGreenSlimeD1:
       return "Green Slime (Ultimate)";
     default:
       return "Unknown Character";

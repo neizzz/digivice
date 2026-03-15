@@ -13,7 +13,7 @@ export type Boundary = {
  */
 export enum ObjectType {
   CHARACTER = 1 /** {@link enum CharacterState} */,
-  BIRD = 2,
+  // BIRD = 2,
   FOOD = 3 /** {@link enum FoodState} */,
   POOB = 4,
   PILL = 5 /** {@link enum PillState} */,
@@ -66,7 +66,7 @@ export enum DestinationType {
   STRAIGHT_TAKING_OFF = 5, // 이륙하면서 직선 이동
 }
 /** NOTE: RenderSystem.ts에 {@link TEXTURE_MAP}과 싱크가 맞아야 함. */
-export enum CharacterKey {
+export enum CharacterKeyECS {
   NULL = ECS_NULL_VALUE,
 
   TestGreenSlimeA1 = 1,
@@ -215,7 +215,7 @@ export type ObjectComponent = {
   state: number; // CharacterState, FoodState, PillState 등
 };
 export type CharacterStatusComponent = {
-  characterKey: CharacterKey; // 캐릭터 키 (TextureKey)
+  characterKey: CharacterKeyECS; // 캐릭터 키 (TextureKey)
   stamina: number; // 스테미나 (0 ~ 10)
   evolutionGage: number; // 진화 게이지 (0.0 ~ 100.0)
   evolutionPhase: number; // 진화 페이즈 (1 ~ 4)
@@ -292,6 +292,11 @@ export type VitalityComponent = {
   isDead: boolean; // 죽었는지 여부
 };
 
+export type TemporaryStatusComponent = {
+  statusType: number; // 임시 상태 타입 (CharacterStatus enum)
+  startTime: number; // 상태 시작 시간 (timestamp)
+};
+
 export type FreshnessTimerComponent = {
   createdTime: number; // 음식이 생성된 시간 (timestamp)
   normalTime: number; // FRESH -> NORMAL로 변하는 시간 (ms)
@@ -309,4 +314,35 @@ export type SparkleEffectComponent = {
 export type EggHatchComponent = {
   hatchTime: number; // 부화할 시간 (timestamp)
   isReadyToHatch: boolean; // 부화 준비 완료 여부
+};
+
+export type CleanableComponent = {
+  isHighlighted: boolean; // 점선 테두리 표시 여부
+  cleaningProgress: number; // 청소 진행도 (0.0 = 투명하지 않음, 1.0 = 완전 투명)
+  isBeingCleaned: boolean; // 현재 청소 중인지 여부
+};
+
+export type BroomRenderComponent = {
+  storeIndex: number; // 빗자루 스프라이트 참조 인덱스
+  targetX: number; // 빗자루가 향할 목표 X 좌표
+  targetY: number; // 빗자루가 향할 목표 Y 좌표
+  offsetX: number; // 슬라이더 값에 따른 X 오프셋
+  isVisible: boolean; // 빗자루 표시 여부
+};
+
+/**
+ * GIF 애니메이션 타입
+ */
+export enum GifType {
+  RECOVERY = 0,
+  // EFFECT1 = 1,
+  // EFFECT2 = 2,
+}
+
+export type GifAnimationComponent = {
+  storeIndex: number; // GIF 애니메이션 스프라이트 참조 인덱스
+  startTime: number; // 애니메이션 시작 시간 (timestamp)
+  duration: number; // 애니메이션 지속 시간 (ms)
+  gifType: GifType; // GIF 타입
+  isActive: boolean; // 애니메이션 활성화 여부
 };

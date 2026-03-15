@@ -4,12 +4,7 @@ import {
   addComponent,
   removeComponent,
 } from "bitecs";
-import {
-  ObjectComp,
-  PositionComp,
-  GifAnimationComp,
-  CharacterStatusComp,
-} from "../raw-components";
+import { ObjectComp, PositionComp, GifAnimationComp } from "../raw-components";
 import { MainSceneWorld } from "../world";
 import { ObjectType, GifType } from "../types";
 import * as PIXI from "pixi.js";
@@ -52,11 +47,12 @@ const GIF_Y_OFFSETS = {
  * GIF 애니메이션 시스템 (범용)
  * - 다양한 GIF를 캐릭터 위에 표시
  * - 애니메이션 완료 후 자동 제거
+ * - stage가 null이면 렌더링은 스킵하고 상태만 업데이트 (시뮬레이션 모드)
  */
 export function gifAnimationSystem(params: {
   world: MainSceneWorld;
   currentTime: number;
-  stage: PIXI.Container;
+  stage: PIXI.Container | null;
 }): typeof params {
   const { world, currentTime, stage } = params;
   const entities = gifAnimationQuery(world);
@@ -74,16 +70,18 @@ export function gifAnimationSystem(params: {
       !gifComp.isActive[eid] ||
       currentTime >= gifComp.startTime[eid] + gifComp.duration[eid]
     ) {
-      // 스프라이트 제거 (Map에서 직접 가져오기)
-      const sprite = gifSpriteMap.get(eid);
-      if (sprite) {
-        // 애니메이션 정지 (가능한 경우)
-        if (sprite.stop && typeof sprite.stop === "function") {
-          sprite.stop();
+      // 스프라이트 제거 (Map에서 직접 가져오기) - 렌더링 모드에서만
+      if (stage) {
+        const sprite = gifSpriteMap.get(eid);
+        if (sprite) {
+          // 애니메이션 정지 (가능한 경우)
+          if (sprite.stop && typeof sprite.stop === "function") {
+            sprite.stop();
+          }
+          stage.removeChild(sprite);
+          sprite.destroy();
+          gifSpriteMap.delete(eid);
         }
-        stage.removeChild(sprite);
-        sprite.destroy();
-        gifSpriteMap.delete(eid);
       }
 
       // 컴포넌트 제거
@@ -106,13 +104,15 @@ export function gifAnimationSystem(params: {
       ) {
         // 마지막 프레임에 도달했고 재생이 완료되었다면
         if (sprite.currentFrame >= sprite.totalFrames - 1 && !sprite.playing) {
-          // 스프라이트 제거
-          if (sprite.stop && typeof sprite.stop === "function") {
-            sprite.stop();
+          // 스프라이트 제거 - 렌더링 모드에서만
+          if (stage) {
+            if (sprite.stop && typeof sprite.stop === "function") {
+              sprite.stop();
+            }
+            stage.removeChild(sprite);
+            sprite.destroy();
+            gifSpriteMap.delete(eid);
           }
-          stage.removeChild(sprite);
-          sprite.destroy();
-          gifSpriteMap.delete(eid);
 
           // 컴포넌트 제거
           removeComponent(world, GifAnimationComp, eid);
@@ -120,12 +120,14 @@ export function gifAnimationSystem(params: {
         }
       }
 
-      // 스프라이트 위치 업데이트 (캐릭터와 동일한 위치 + Y 오프셋)
-      const currentGifType = gifComp.gifType[eid] as GifType;
-      const yOffset = GIF_Y_OFFSETS[currentGifType] || 0;
+      // 스프라이트 위치 업데이트 (캐릭터와 동일한 위치 + Y 오프셋) - 렌더링 모드에서만
+      if (stage) {
+        const currentGifType = gifComp.gifType[eid] as GifType;
+        const yOffset = GIF_Y_OFFSETS[currentGifType] || 0;
 
-      sprite.x = PositionComp.x[eid];
-      sprite.y = PositionComp.y[eid] + yOffset;
+        sprite.x = PositionComp.x[eid];
+        sprite.y = PositionComp.y[eid] + yOffset;
+      }
     }
   }
 
@@ -138,7 +140,7 @@ export function gifAnimationSystem(params: {
 export function startGifAnimation(
   world: MainSceneWorld,
   eid: number,
-  stage: PIXI.Container,
+  stage: PIXI.Container | null,
   currentTime: number,
   gifType: GifType,
   customDuration?: number
@@ -150,71 +152,76 @@ export function startGifAnimation(
       if (existingSprite.stop && typeof existingSprite.stop === "function") {
         existingSprite.stop();
       }
-      stage.removeChild(existingSprite);
+      if (stage) {
+        stage.removeChild(existingSprite);
+      }
       existingSprite.destroy();
       gifSpriteMap.delete(eid);
     }
     removeComponent(world, GifAnimationComp, eid);
   }
 
-  // GIF 타입에 맞는 에셋 이름 가져오기
-  const assetName = GIF_ASSETS[gifType];
-  if (!assetName) {
-    console.error(`[GifAnimationSystem] Unknown gif type: ${gifType}`);
-    return;
+  // 시뮬레이션 모드에서는 스프라이트 생성과 렌더링을 건너뛰고 상태만 관리
+  if (stage) {
+    // GIF 타입에 맞는 에셋 이름 가져오기
+    const assetName = GIF_ASSETS[gifType];
+    if (!assetName) {
+      console.error(`[GifAnimationSystem] Unknown gif type: ${gifType}`);
+      return;
+    }
+
+    // 애니메이션 GIF 로드 (@pixi/gif로 로드된 객체)
+    const animatedGif = PIXI.Assets.get(assetName);
+    if (!animatedGif) {
+      console.error(
+        `[GifAnimationSystem] Animated GIF asset '${assetName}' not loaded`
+      );
+      console.log(
+        `[GifAnimationSystem] Trying to get asset with name:`,
+        assetName
+      );
+      console.log(
+        `[GifAnimationSystem] Available assets in cache:`,
+        PIXI.Assets.cache.has(assetName) ? "Found" : "Not found"
+      );
+      return;
+    }
+
+    // 캐릭터 크기에 맞춰 스케일 계산
+    let characterScale = 1;
+
+    // GIF 타입별 스케일 배율 적용
+    const scaleMultiplier = GIF_SCALE_MULTIPLIERS[gifType] || 1.0;
+    const finalScale = characterScale * scaleMultiplier;
+
+    // GIF 타입별 Y 오프셋 적용
+    const yOffset = GIF_Y_OFFSETS[gifType] || 0;
+
+    // @pixi/gif로 로드된 애니메이션 GIF를 복제해서 사용
+    const gifSprite = animatedGif.clone ? animatedGif.clone() : animatedGif;
+    gifSprite.anchor.set(0.5);
+    gifSprite.scale.set(finalScale);
+    gifSprite.x = PositionComp.x[eid];
+    gifSprite.y = PositionComp.y[eid] + yOffset;
+    gifSprite.zIndex = gifSprite.y - 1; // 캐릭터보다 1낮은 값
+
+    // 루프 설정 적용
+    const shouldLoop = GIF_LOOP_SETTINGS[gifType] ?? true;
+    if (gifSprite.loop !== undefined) {
+      gifSprite.loop = shouldLoop;
+    }
+
+    // 애니메이션 시작 (GIF 자동 재생)
+    if (gifSprite.play && typeof gifSprite.play === "function") {
+      gifSprite.play();
+    }
+
+    // 스테이지에 추가
+    stage.addChild(gifSprite);
+
+    // Map에 스프라이트 저장
+    gifSpriteMap.set(eid, gifSprite);
   }
-
-  // 애니메이션 GIF 로드 (@pixi/gif로 로드된 객체)
-  const animatedGif = PIXI.Assets.get(assetName);
-  if (!animatedGif) {
-    console.error(
-      `[GifAnimationSystem] Animated GIF asset '${assetName}' not loaded`
-    );
-    console.log(
-      `[GifAnimationSystem] Trying to get asset with name:`,
-      assetName
-    );
-    console.log(
-      `[GifAnimationSystem] Available assets in cache:`,
-      PIXI.Assets.cache.has(assetName) ? "Found" : "Not found"
-    );
-    return;
-  }
-
-  // 캐릭터 크기에 맞춰 스케일 계산
-  let characterScale = 1;
-
-  // GIF 타입별 스케일 배율 적용
-  const scaleMultiplier = GIF_SCALE_MULTIPLIERS[gifType] || 1.0;
-  const finalScale = characterScale * scaleMultiplier;
-
-  // GIF 타입별 Y 오프셋 적용
-  const yOffset = GIF_Y_OFFSETS[gifType] || 0;
-
-  // @pixi/gif로 로드된 애니메이션 GIF를 복제해서 사용
-  const gifSprite = animatedGif.clone ? animatedGif.clone() : animatedGif;
-  gifSprite.anchor.set(0.5);
-  gifSprite.scale.set(finalScale);
-  gifSprite.x = PositionComp.x[eid];
-  gifSprite.y = PositionComp.y[eid] + yOffset;
-  gifSprite.zIndex = gifSprite.y - 1; // 캐릭터보다 1낮은 값
-
-  // 루프 설정 적용
-  const shouldLoop = GIF_LOOP_SETTINGS[gifType] ?? true;
-  if (gifSprite.loop !== undefined) {
-    gifSprite.loop = shouldLoop;
-  }
-
-  // 애니메이션 시작 (GIF 자동 재생)
-  if (gifSprite.play && typeof gifSprite.play === "function") {
-    gifSprite.play();
-  }
-
-  // 스테이지에 추가
-  stage.addChild(gifSprite);
-
-  // Map에 스프라이트 저장
-  gifSpriteMap.set(eid, gifSprite);
 
   // 지속시간 결정 (커스텀 > 기본값)
   const duration = customDuration || GIF_DURATIONS[gifType] || 3000;
@@ -231,10 +238,7 @@ export function startGifAnimation(
     `[GifAnimationSystem] Started ${GifType[gifType]} animation for character ${eid}:`
   );
   console.log(`  - Duration: ${duration}ms`);
-  console.log(`  - Loop: ${shouldLoop ? "Yes" : "No (1-time only)"}`);
-  console.log(
-    `  - Scale: ${finalScale} (base: ${characterScale}, multiplier: ${scaleMultiplier})`
-  );
+  console.log(`  - Mode: ${stage ? "Rendering" : "Simulation only"}`);
 }
 
 /**
@@ -243,7 +247,7 @@ export function startGifAnimation(
 export function startRecoveryAnimation(
   world: MainSceneWorld,
   eid: number,
-  stage: PIXI.Container,
+  stage: PIXI.Container | null,
   currentTime: number
 ): void {
   startGifAnimation(world, eid, stage, currentTime, GifType.RECOVERY);

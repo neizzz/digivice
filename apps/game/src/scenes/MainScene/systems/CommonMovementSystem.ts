@@ -1,6 +1,12 @@
 import { defineQuery } from "bitecs";
-import { PositionComp, SpeedComp, AngleComp } from "../raw-components";
+import {
+  PositionComp,
+  SpeedComp,
+  AngleComp,
+  ObjectComp,
+} from "../raw-components";
 import { MainSceneWorld } from "../world";
+import { CharacterState, ObjectType } from "../types";
 import { nomalizeRadian } from "@/utils/common";
 
 const movingEntityQuery = defineQuery([PositionComp, SpeedComp, AngleComp]);
@@ -21,6 +27,18 @@ export function commonMovementSystem(params: {
 
   for (let i = 0; i < entities.length; i++) {
     const eid = entities[i];
+
+    // 캐릭터인 경우 SLEEPING 또는 SICK 상태 체크
+    if (
+      ObjectComp.type[eid] === ObjectType.CHARACTER &&
+      (ObjectComp.state[eid] === CharacterState.SLEEPING ||
+        ObjectComp.state[eid] === CharacterState.SICK)
+    ) {
+      // 잠들거나 아픈 캐릭터는 움직임 중지
+      SpeedComp.value[eid] = 0;
+      continue;
+    }
+
     const position = PositionComp;
     const angle = AngleComp;
     const speed = SpeedComp;

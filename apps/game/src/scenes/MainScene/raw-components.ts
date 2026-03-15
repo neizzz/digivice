@@ -22,9 +22,6 @@ export const SpeedComp = defineComponent({ value: Types.f32 }); // 속도
 export const FreshnessComp = defineComponent({
   freshness: Types.ui8, // enum Freshness
 });
-export const IntakeComp = defineComponent({
-  type: Types.ui8 /** {@link enum IntakeType} */,
-});
 export const DestinationComp = defineComponent({
   type: Types.ui8 /** ${@link enum DestinationType} */,
   target: Types.eid,
@@ -152,4 +149,35 @@ export const SparkleEffectComp = defineComponent({
 export const EggHatchComp = defineComponent({
   hatchTime: Types.f64, // 부화할 시간 (timestamp)
   isReadyToHatch: Types.ui8, // 부화 준비 완료 여부 (0 = false, 1 = true)
+});
+
+/**
+ * 청소 대상 컴포넌트 (청소가 가능한 엔티티에 추가)
+ */
+export const CleanableComp = defineComponent({
+  isHighlighted: Types.ui8, // 점선 테두리 표시 여부 (0 = false, 1 = true)
+  cleaningProgress: Types.f32, // 청소 진행도 (0.0 = 투명하지 않음, 1.0 = 완전 투명)
+  isBeingCleaned: Types.ui8, // 현재 청소 중인지 여부 (0 = false, 1 = true)
+});
+
+/**
+ * 빗자루 렌더링 컴포넌트
+ */
+export const BroomRenderComp = defineComponent({
+  storeIndex: Types.ui16, // 빗자루 스프라이트 참조 인덱스
+  targetX: Types.f32, // 빗자루가 향할 목표 X 좌표
+  targetY: Types.f32, // 빗자루가 향할 목표 Y 좌표
+  offsetX: Types.f32, // 슬라이더 값에 따른 X 오프셋
+  isVisible: Types.ui8, // 빗자루 표시 여부 (0 = false, 1 = true)
+});
+
+/**
+ * GIF 애니메이션 컴포넌트 (범용 GIF 표시용)
+ */
+export const GifAnimationComp = defineComponent({
+  storeIndex: Types.ui16, // GIF 애니메이션 스프라이트 참조 인덱스
+  startTime: Types.f64, // 애니메이션 시작 시간 (timestamp)
+  duration: Types.f32, // 애니메이션 지속 시간 (ms)
+  gifType: Types.ui8, // GIF 타입 (0=recovery, 1=effect1, 2=effect2, etc.)
+  isActive: Types.ui8, // 애니메이션 활성화 여부 (0 = false, 1 = true)
 });

@@ -1,30 +1,10 @@
 import { defineQuery, exitQuery } from "bitecs";
-import {
-  AnimationRenderComp,
-  ObjectComp,
-  CharacterStatusComp,
-} from "../raw-components";
-import {
-  ObjectType,
-  CharacterState,
-  AnimationKey,
-  SpritesheetKey,
-} from "../types";
+import { AnimationRenderComp } from "../raw-components";
+import { AnimationKey, SpritesheetKey } from "../types";
 import { MainSceneWorld } from "../world";
 import * as PIXI from "pixi.js";
 import { renderCommonAttributes } from "./RenderSystem";
 import { ObjectStore } from "../utils/ObjectStore";
-
-// const CHARACTER_STATE_TO_ANIMATION_KEY: Record<CharacterState, AnimationKey> = {
-const CHARACTER_STATE_TO_ANIMATION_KEY: Record<CharacterState, AnimationKey> = {
-  [CharacterState.EGG]: ECS_NULL_VALUE,
-  [CharacterState.IDLE]: AnimationKey.IDLE,
-  [CharacterState.MOVING]: AnimationKey.WALKING,
-  [CharacterState.SLEEPING]: AnimationKey.SLEEPING,
-  [CharacterState.SICK]: AnimationKey.SICK,
-  [CharacterState.EATING]: AnimationKey.EATING,
-  [CharacterState.DEAD]: ECS_NULL_VALUE,
-};
 
 export const SPRITESHEET_KEY_TO_NAME: Record<SpritesheetKey, string> = {
   [SpritesheetKey.NULL]: "null",
@@ -45,10 +25,6 @@ const ANIMATION_KEY_TO_NAME: Record<AnimationKey, string> = {
 };
 
 const animationQuery = defineQuery([AnimationRenderComp]);
-const characterAnimationQuery = defineQuery([
-  AnimationRenderComp,
-  CharacterStatusComp,
-]);
 const exitedAnimationQuery = exitQuery(animationQuery);
 
 const spritesheetCache: Map<string, PIXI.Spritesheet> = new Map();
@@ -64,9 +40,6 @@ export function animationRenderSystem(params: {
   const entities = animationQuery(world);
   const exitedEntities = exitedAnimationQuery(world);
   const stage = world.stage;
-
-  // 캐릭터 상태에 따른 애니메이션 자동 변경
-  updateCharacterAnimations(world);
 
   for (let i = 0; i < exitedEntities.length; i++) {
     const eid = exitedEntities[i];
@@ -276,36 +249,8 @@ function updateAnimatedSprite(sprite: PIXI.AnimatedSprite, eid: number): void {
 //   AnimationRenderComp.isPlaying[eid] = 0;
 // }
 
-export function changeAnimation(eid: number, animationKey: AnimationKey): void {
-  if (AnimationRenderComp.animationKey[eid] !== animationKey) {
-    AnimationRenderComp.animationKey[eid] = animationKey;
-    console.log(
-      `[AnimationSystem] Changed animation to ${AnimationKey[animationKey]} for entity ${eid}`
-    );
-  }
-}
-
-function updateCharacterAnimations(world: MainSceneWorld): void {
-  const characters = characterAnimationQuery(world);
-
-  for (let i = 0; i < characters.length; i++) {
-    const eid = characters[i];
-
-    // 캐릭터 타입인지 확인
-    if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
-      continue;
-    }
-
-    const currentState = ObjectComp.state[eid] as CharacterState;
-    const requiredAnimation = CHARACTER_STATE_TO_ANIMATION_KEY[currentState];
-    const currentAnimation = AnimationRenderComp.animationKey[eid];
-
-    // 애니메이션이 변경되어야 하는 경우
-    if (currentAnimation !== requiredAnimation) {
-      changeAnimation(eid, requiredAnimation);
-    }
-  }
-}
+// 이 함수는 AnimationStateSystem으로 이동되었습니다.
+// export function changeAnimation(eid: number, animationKey: AnimationKey): void
 
 // 헬퍼 함수들
 // export function isAnimationPlaying(eid: number): boolean {
