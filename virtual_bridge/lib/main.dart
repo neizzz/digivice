@@ -24,10 +24,13 @@ void main() {
 // overlay entry point (2025.02.05 기준, for only Android)
 @pragma("vm:entry-point")
 void overlayMain() {
-  runApp(const MaterialApp(
+  runApp(
+    const MaterialApp(
       color: Color.fromARGB(255, 255, 0, 0),
       debugShowCheckedModeBanner: true,
-      home: Material(child: Text("My overlay"))));
+      home: Material(child: Text("My overlay")),
+    ),
+  );
 }
 
 // ignore: must_be_immutable
@@ -49,21 +52,19 @@ class WebView extends StatelessWidget {
     final String platformInfo = Platform.isAndroid
         ? 'DigiviceApp-Android'
         : Platform.isIOS
-            ? 'DigiviceApp-iOS'
-            : 'DigiviceApp-${Platform.operatingSystem}';
+        ? 'DigiviceApp-iOS'
+        : 'DigiviceApp-${Platform.operatingSystem}';
 
     // WebViewController 기본 설정
     _controller
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setUserAgent(platformInfo)
-      ..loadRequest(Uri.parse('http://169.254.217.184:5173/'));
+      ..loadRequest(Uri.parse('file:///android_asset/web/index.html'));
 
     // 브릿지 설정
     _bridgeConfigurator.setupBridge();
 
-    return WebViewWidget(
-      controller: _controller,
-    );
+    return WebViewWidget(controller: _controller);
   }
 
   Future<void> _log(String message) async {

@@ -7,6 +7,8 @@
     "dev": "vite --host",
     "build": "cd ../game && npm run build && cd ../client && tsc -b && vite build",
     "build:test": "NATIVE_FEATURE_TEST_MODE=true cd ../game && npm run build && cd ../client && tsc -b && vite build",
+    "build:flutter": "../../scripts/build-for-flutter.sh",
+    "dev:flutter": "../../scripts/watch-and-copy.sh",
     "lint": "eslint .",
     "preview": "vite preview"
   },

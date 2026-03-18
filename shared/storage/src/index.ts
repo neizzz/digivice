@@ -1,5 +1,3 @@
-import throttle from "lodash.throttle";
-
 // 모든 스토리지가 사용할 통합 비동기 인터페이스
 export interface Storage {
   getData(key: string): Promise<unknown | null>;

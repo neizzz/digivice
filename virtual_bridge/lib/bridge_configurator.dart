@@ -1,6 +1,7 @@
 import 'package:webview_flutter/webview_flutter.dart';
 import 'nfc/nfc_controller.dart';
 import 'pip/pip_controller.dart';
+import 'storage/storage_controller.dart';
 
 /// WebView와 네이티브 코드 간 브릿지 설정을 담당하는 클래스
 class BridgeConfigurator {
@@ -9,6 +10,7 @@ class BridgeConfigurator {
 
   late final NfcController _nfcController;
   late final PipController _pipController;
+  late final StorageController _storageController;
 
   BridgeConfigurator({
     required this.webViewController,
@@ -21,6 +23,12 @@ class BridgeConfigurator {
     );
 
     _pipController = PipController(
+      runJavaScript: _runJavaScript,
+      resolvePromise: _resolvePromise,
+      log: logCallback,
+    );
+
+    _storageController = StorageController(
       runJavaScript: _runJavaScript,
       resolvePromise: _resolvePromise,
       log: logCallback,
@@ -59,6 +67,11 @@ class BridgeConfigurator {
         onMessageReceived: (JavaScriptMessage message) =>
             _pipController.handleExitPip(message),
       )
+      ..addJavaScriptChannel(
+        '__native_storage',
+        onMessageReceived: (JavaScriptMessage message) =>
+            _storageController.handleStorageOperation(message),
+      )
       ..setOnConsoleMessage((JavaScriptConsoleMessage consoleMessage) {
         logCallback(consoleMessage.message);
       });
@@ -92,6 +105,7 @@ class BridgeConfigurator {
   Future<void> _setupControllers() async {
     await _runJavaScript(_nfcController.getJavaScriptInterface());
     await _runJavaScript(_pipController.getJavaScriptInterface());
+    await _runJavaScript(_storageController.getJavaScriptInterface());
   }
 
   /// JavaScript 코드 실행
@@ -120,5 +134,6 @@ class BridgeConfigurator {
   void dispose() {
     _nfcController.dispose();
     _pipController.dispose();
+    _storageController.dispose();
   }
 }
