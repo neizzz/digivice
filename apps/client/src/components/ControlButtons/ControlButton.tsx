@@ -2,6 +2,7 @@ import { ControlButtonType } from "@digivice/game";
 import type React from "react";
 import { useEffect, useState, useRef } from "react";
 import { SliderController } from "../SliderController";
+import { VibrationAdapter } from "../../adapter/VibrationAdapter";
 
 interface ControlButtonProps {
   type: ControlButtonType;
@@ -56,6 +57,9 @@ const spriteInfoMap: Record<
   },
 };
 
+// VibrationAdapter 싱글톤 인스턴스
+const vibrationAdapter = new VibrationAdapter();
+
 const ControlButton: React.FC<ControlButtonProps> = ({
   type,
   onClick,
@@ -91,6 +95,7 @@ const ControlButton: React.FC<ControlButtonProps> = ({
         onDragEnd: () => {
           setIsPressed(false);
           onSliderEnd?.();
+          vibrationAdapter.vibrate();
         },
       });
 
@@ -119,6 +124,7 @@ const ControlButton: React.FC<ControlButtonProps> = ({
   const handlePointerUp = () => {
     if (!isSlider) {
       setIsPressed(false);
+      vibrationAdapter.vibrate();
       if (onClick) onClick();
     }
   };

@@ -3,6 +3,7 @@ import 'nfc/nfc_controller.dart';
 import 'pip/pip_controller.dart';
 import 'storage/storage_controller.dart';
 import 'ad/ad_controller.dart';
+import 'vibration/vibration_controller.dart';
 
 /// WebView와 네이티브 코드 간 브릿지 설정을 담당하는 클래스
 class BridgeConfigurator {
@@ -13,6 +14,7 @@ class BridgeConfigurator {
   late final PipController _pipController;
   late final StorageController _storageController;
   late final AdController _adController;
+  late final VibrationController _vibrationController;
 
   BridgeConfigurator({
     required this.webViewController,
@@ -37,6 +39,12 @@ class BridgeConfigurator {
     );
 
     _adController = AdController(
+      runJavaScript: _runJavaScript,
+      resolvePromise: _resolvePromise,
+      log: logCallback,
+    );
+
+    _vibrationController = VibrationController(
       runJavaScript: _runJavaScript,
       resolvePromise: _resolvePromise,
       log: logCallback,
@@ -90,6 +98,11 @@ class BridgeConfigurator {
         onMessageReceived: (JavaScriptMessage message) =>
             _adController.handleCanShowAd(message),
       )
+      ..addJavaScriptChannel(
+        '__native_vibrate',
+        onMessageReceived: (JavaScriptMessage message) =>
+            _vibrationController.handleVibrate(message),
+      )
       ..setOnConsoleMessage((JavaScriptConsoleMessage consoleMessage) {
         logCallback(consoleMessage.message);
       });
@@ -125,6 +138,7 @@ class BridgeConfigurator {
     await _runJavaScript(_pipController.getJavaScriptInterface());
     await _runJavaScript(_storageController.getJavaScriptInterface());
     await _runJavaScript(_adController.getJavaScriptInterface());
+    await _runJavaScript(_vibrationController.getJavaScriptInterface());
   }
 
   /// JavaScript 코드 실행
@@ -159,5 +173,6 @@ class BridgeConfigurator {
     _pipController.dispose();
     _storageController.dispose();
     _adController.dispose();
+    _vibrationController.dispose();
   }
 }
