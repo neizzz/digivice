@@ -3,6 +3,7 @@
     <uses-permission android:name="android.permission.NFC" />
     <uses-feature android:name="android.hardware.nfc.hce" android:required="true" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <!-- for pip mode -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
@@ -41,6 +42,11 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        
+        <!-- AdMob App ID (Test ID for development) -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-3940256099942544~3347511713"/>
 
         <service android:name="com.cch.flutter_custom_hce.CustomApduService"
              android:exported="true"

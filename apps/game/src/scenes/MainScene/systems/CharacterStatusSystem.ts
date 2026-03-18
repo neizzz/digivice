@@ -24,6 +24,13 @@ import {
 } from "../types";
 import { GAME_CONSTANTS } from "../config";
 
+// 전역 이벤트 핸들러 선언
+declare global {
+  interface Window {
+    onUrgentRecovery?: () => void;
+  }
+}
+
 // 일시적인 상태 지속 시간 (3초)
 const TEMPORARY_STATUS_DURATION = 3000;
 
@@ -86,7 +93,7 @@ function initializeVitality(world: MainSceneWorld): void {
  */
 function updateStaminaBasedStatus(
   world: MainSceneWorld,
-  currentTime: number
+  currentTime: number,
 ): void {
   // 모든 캐릭터를 대상으로 하되, VitalityComp가 없으면 동적으로 추가
   const characters = characterQuery(world);
@@ -103,7 +110,7 @@ function updateStaminaBasedStatus(
       VitalityComp.deathTime[eid] = 0;
       VitalityComp.isDead[eid] = 0;
       console.log(
-        `[CharacterStatusSystem] Added VitalityComp to character ${eid}`
+        `[CharacterStatusSystem] Added VitalityComp to character ${eid}`,
       );
     }
 
@@ -123,18 +130,43 @@ function updateStaminaBasedStatus(
         VitalityComp.deathTime[eid] = currentTime + GAME_CONSTANTS.DEATH_DELAY;
 
         console.log(
-          `[CharacterStatusSystem] Character ${eid} entered URGENT state. Death scheduled at ${VitalityComp.deathTime[eid]} (current: ${currentTime})`
+          `[CharacterStatusSystem] Character ${eid} entered URGENT state. Death scheduled at ${VitalityComp.deathTime[eid]} (current: ${currentTime})`,
         );
       }
     }
     // 정상 상태 (스테미나 1이상)
     else {
+      // 이전에 URGENT였는지 확인
+      const wasUrgent = hasCharacterStatus(
+        currentStatuses,
+        CharacterStatus.URGENT,
+      );
+
       // urgent 상태 제거
       removeCharacterStatus(eid, CharacterStatus.URGENT);
 
       // urgent 타이머 초기화
       VitalityComp.urgentStartTime[eid] = 0;
       VitalityComp.deathTime[eid] = 0;
+
+      // URGENT에서 회복된 경우 이벤트 발생
+      if (wasUrgent) {
+        console.log(
+          `[CharacterStatusSystem] Character ${eid} recovered from URGENT state (stamina: ${stamina})`,
+        );
+
+        // 웹앱으로 이벤트 전달
+        if (typeof window !== "undefined" && window.onUrgentRecovery) {
+          try {
+            window.onUrgentRecovery();
+          } catch (error) {
+            console.error(
+              "[CharacterStatusSystem] Error calling onUrgentRecovery:",
+              error,
+            );
+          }
+        }
+      }
     }
 
     // SICK 상태일 때 움직임 제한
@@ -149,7 +181,7 @@ function updateStaminaBasedStatus(
  */
 function updateTemporaryStatus(
   world: MainSceneWorld,
-  currentTime: number
+  currentTime: number,
 ): void {
   const entities = temporaryStatusQuery(world);
 
@@ -195,7 +227,7 @@ function checkDeath(world: MainSceneWorld, currentTime: number): void {
     // 죽을 시간이 되었는지 체크
     if (deathTime > 0 && currentTime >= deathTime) {
       console.log(
-        `[CharacterStatusSystem] Character ${eid} death time reached. Current: ${currentTime}, Death time: ${deathTime}`
+        `[CharacterStatusSystem] Character ${eid} death time reached. Current: ${currentTime}, Death time: ${deathTime}`,
       );
 
       // 캐릭터 죽음 처리
@@ -224,11 +256,11 @@ function killCharacter(world: MainSceneWorld, eid: number): void {
     RenderComp.textureKey[eid] = TextureKey.TOMB;
     RenderComp.zIndex[eid] = ECS_NULL_VALUE; // zIndex를 0으로 리셋하여 y좌표 기반 정렬 사용
     console.log(
-      `[CharacterStatusSystem] Changed character ${eid} texture from ${oldTextureKey} to TOMB (${TextureKey.TOMB}) and reset zIndex to 0`
+      `[CharacterStatusSystem] Changed character ${eid} texture from ${oldTextureKey} to TOMB (${TextureKey.TOMB}) and reset zIndex to 0`,
     );
   } else {
     console.warn(
-      `[CharacterStatusSystem] Character ${eid} has no RenderComp - cannot change to tomb texture`
+      `[CharacterStatusSystem] Character ${eid} has no RenderComp - cannot change to tomb texture`,
     );
   }
 
@@ -236,7 +268,7 @@ function killCharacter(world: MainSceneWorld, eid: number): void {
   if (hasComponent(world, AnimationRenderComp, eid)) {
     removeComponent(world, AnimationRenderComp, eid);
     console.log(
-      `[CharacterStatusSystem] Removed AnimationRenderComp for dead character ${eid}`
+      `[CharacterStatusSystem] Removed AnimationRenderComp for dead character ${eid}`,
     );
   }
 
@@ -244,14 +276,14 @@ function killCharacter(world: MainSceneWorld, eid: number): void {
   if (hasComponent(world, RandomMovementComp, eid)) {
     removeComponent(world, RandomMovementComp, eid);
     console.log(
-      `[CharacterStatusSystem] Removed RandomMovementComp for dead character ${eid}`
+      `[CharacterStatusSystem] Removed RandomMovementComp for dead character ${eid}`,
     );
   }
 
   if (hasComponent(world, DestinationComp, eid)) {
     removeComponent(world, DestinationComp, eid);
     console.log(
-      `[CharacterStatusSystem] Removed DestinationComp for dead character ${eid}`
+      `[CharacterStatusSystem] Removed DestinationComp for dead character ${eid}`,
     );
   }
 
@@ -259,12 +291,12 @@ function killCharacter(world: MainSceneWorld, eid: number): void {
   if (hasComponent(world, SpeedComp, eid)) {
     SpeedComp.value[eid] = 0;
     console.log(
-      `[CharacterStatusSystem] Set speed to 0 for dead character ${eid}`
+      `[CharacterStatusSystem] Set speed to 0 for dead character ${eid}`,
     );
   }
 
   console.log(
-    `[CharacterStatusSystem] Character ${eid} has died and components have been cleaned up`
+    `[CharacterStatusSystem] Character ${eid} has died and components have been cleaned up`,
   );
 }
 
@@ -273,7 +305,7 @@ function killCharacter(world: MainSceneWorld, eid: number): void {
  */
 function hasCharacterStatus(
   statuses: Uint8Array,
-  status: CharacterStatus
+  status: CharacterStatus,
 ): boolean {
   for (let i = 0; i < statuses.length; i++) {
     if (statuses[i] === status) {
@@ -327,7 +359,7 @@ function restrictMovementForSickness(world: MainSceneWorld, eid: number): void {
   if (hasComponent(world, RandomMovementComp, eid)) {
     removeComponent(world, RandomMovementComp, eid);
     console.log(
-      `[CharacterStatusSystem] Removed RandomMovementComp from sick character ${eid}`
+      `[CharacterStatusSystem] Removed RandomMovementComp from sick character ${eid}`,
     );
   }
 
@@ -335,7 +367,7 @@ function restrictMovementForSickness(world: MainSceneWorld, eid: number): void {
   if (hasComponent(world, DestinationComp, eid)) {
     removeComponent(world, DestinationComp, eid);
     console.log(
-      `[CharacterStatusSystem] Removed DestinationComp from sick character ${eid}`
+      `[CharacterStatusSystem] Removed DestinationComp from sick character ${eid}`,
     );
   }
 

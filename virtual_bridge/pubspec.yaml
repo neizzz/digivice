@@ -19,6 +19,8 @@ dependencies:
   flutter_nfc_hce: ^0.1.8
   # flutter_in_app_pip: ^1.7.4
   flutter_overlay_window: ^0.4.5
+  google_mobile_ads: ^5.2.0
+  shared_preferences: ^2.3.4
   flutter_custom_hce:
     path: ../../flutter_custom_hce
 

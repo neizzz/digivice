@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'dart:async';
 import 'dart:io' show Platform;
 import 'bridge_configurator.dart';
@@ -12,7 +13,14 @@ String mapToString(Map<String, dynamic> map) {
       .join(", ");
 }
 
-void main() {
+void main() async {
+  // Flutter 바인딩 초기화
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // AdMob 초기화
+  await MobileAds.instance.initialize();
+  print('[AdMob] Initialized successfully');
+
   runApp(
     WidgetsApp(
       color: const Color(0xFFFFFFFF),
