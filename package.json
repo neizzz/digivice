@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "cd apps/client && pnpm run dev",
-    "build": "cd apps/client && pnpm run build"
+    "dev": "pnpm --filter @digivice/client dev",
+    "build": "pnpm --filter @digivice/client build"
   },
   "workspaces": [
     "apps/*"

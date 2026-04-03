@@ -18,6 +18,7 @@ cd "$(dirname "$0")/.."
 
 # Flutter assets 디렉터리 경로
 FLUTTER_WEB_DIR="virtual_bridge/assets/web"
+FLUTTER_WEB_TMP_DIR="virtual_bridge/assets/web.__tmp__"
 
 # 빌드 함수
 build_and_copy() {
@@ -29,10 +30,24 @@ build_and_copy() {
     
     # 빌드 결과 존재 확인
     if [ -d "apps/client/dist" ]; then
+      # Flutter 번들 안정성을 위해 /ui, /game 리소스를 assets 하위 단일 경로로 이동
+      mkdir -p apps/client/dist/assets/ui apps/client/dist/assets/game
+      if [ -d "apps/client/dist/ui" ]; then
+        rsync -aL apps/client/dist/ui/ apps/client/dist/assets/ui/
+        rm -rf apps/client/dist/ui
+      fi
+      if [ -d "apps/client/dist/game" ]; then
+        rsync -aL apps/client/dist/game/ apps/client/dist/assets/game/
+        rm -rf apps/client/dist/game
+      fi
+
       echo "📋 Copying to Flutter assets..."
+      rm -rf "$FLUTTER_WEB_TMP_DIR"
+      mkdir -p "$FLUTTER_WEB_TMP_DIR"
+      # -L: 심볼릭 링크를 실제 파일/디렉터리로 복사
+      rsync -aL apps/client/dist/ "$FLUTTER_WEB_TMP_DIR/"
       rm -rf "$FLUTTER_WEB_DIR"
-      mkdir -p "$FLUTTER_WEB_DIR"
-      rsync -a apps/client/dist/ "$FLUTTER_WEB_DIR/"
+      mv "$FLUTTER_WEB_TMP_DIR" "$FLUTTER_WEB_DIR"
       echo "✅ Build complete at $(date '+%H:%M:%S')"
     else
       echo "❌ Build output not found"

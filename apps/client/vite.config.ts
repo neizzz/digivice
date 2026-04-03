@@ -1,7 +1,7 @@
 import { resolve } from "node:path";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
-import { defineConfig, loadEnv } from "vite";
+import { defineConfig } from "vite";
 import tsconfigPaths from "vite-tsconfig-paths";
 
 // https://vite.dev/config/
@@ -12,7 +12,21 @@ export default defineConfig(({ mode }) => {
   // const isNativeTestMode = env.NATIVE_FEATURE_TEST_MODE === "true";
 
   return {
-    plugins: [react(), tailwindcss(), tsconfigPaths()],
+    // Flutter WebView(file://)에서 번들 리소스를 상대 경로로 로드하기 위해
+    // production build 시 base를 './'로 설정합니다.
+    base: mode === "production" ? "./" : "/",
+    plugins: [
+      react(),
+      tailwindcss(),
+      tsconfigPaths(),
+      {
+        name: "strip-crossorigin-for-flutter-webview",
+        apply: "build",
+        transformIndexHtml(html) {
+          return html.replace(/\s+crossorigin(?=[\s>])/g, "");
+        },
+      },
+    ],
     define: {
       // __NATIVE_TEST_MODE__: isNativeTestMode,
 

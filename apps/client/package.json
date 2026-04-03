@@ -5,11 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host",
-    "build": "cd ../game && npm run build && cd ../client && tsc -b && vite build",
-    "build:test": "NATIVE_FEATURE_TEST_MODE=true cd ../game && npm run build && cd ../client && tsc -b && vite build",
+    "build": "pnpm --filter @digivice/game sync-assets && tsc -b && vite build",
+    "build:test": "pnpm --filter @digivice/game sync-assets && tsc -b && NATIVE_FEATURE_TEST_MODE=true vite build",
     "build:flutter": "../../scripts/build-for-flutter.sh",
     "dev:flutter": "../../scripts/watch-and-copy.sh",
-    "lint": "eslint .",
+    "lint": "eslint . --config eslint.config.js --no-config-lookup",
     "preview": "vite preview"
   },
   "dependencies": {

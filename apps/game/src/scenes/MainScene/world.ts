@@ -178,68 +178,68 @@ const WORLD_DATA_STORAGE_KEY = "MainSceneWorldData";
 
 const COMMON_SPRITESHEET_ASSETS: LoadSpritesheetOptions[] = [
   {
-    jsonPath: "/game/sprites/bird.json",
+    jsonPath: "/assets/game/sprites/bird.json",
     alias: "bird",
     // pixelArt: true,
   },
   {
-    jsonPath: "/game/sprites/eggs.json",
+    jsonPath: "/assets/game/sprites/eggs.json",
     alias: "eggs",
     // pixelArt: true,
   },
   {
-    jsonPath: "/game/sprites/foods.json",
+    jsonPath: "/assets/game/sprites/foods.json",
     alias: "foods",
     // pixelArt: true,
   },
   {
-    jsonPath: "/game/sprites/common16x16.json",
+    jsonPath: "/assets/game/sprites/common16x16.json",
     alias: "common16x16",
     // pixelArt: true,
   },
   {
-    jsonPath: "/game/sprites/common32x32.json",
+    jsonPath: "/assets/game/sprites/common32x32.json",
     alias: "common32x32",
     // pixelArt: true,
   },
   {
-    jsonPath: "/game/sprites/vite-food-mask.json",
+    jsonPath: "/assets/game/sprites/vite-food-mask.json",
     alias: "vite-food-mask",
     // pixelArt: true,
   },
   // {
-  //   jsonPath: "/game/sprites/monsters/test-green-slime_A1.json",
+  //   jsonPath: "/assets/game/sprites/monsters/test-green-slime_A1.json",
   //   alias: "test-green-slime_A1",
   //   // pixelArt: true,
   // },
   // {
-  //   jsonPath: "/game/sprites/monsters/test-green-slime_B1.json",
+  //   jsonPath: "/assets/game/sprites/monsters/test-green-slime_B1.json",
   //   alias: "test-green-slime_B1",
   //   // pixelArt: true,
   // },
   // {
-  //   jsonPath: "/game/sprites/monsters/test-green-slime_C1.json",
+  //   jsonPath: "/assets/game/sprites/monsters/test-green-slime_C1.json",
   //   alias: "test-green-slime_C1",
   //   // pixelArt: true,
   // },
   // {
-  //   jsonPath: "/game/sprites/monsters/test-green-slime_D1.json",
+  //   jsonPath: "/assets/game/sprites/monsters/test-green-slime_D1.json",
   //   alias: "test-green-slime_D1",
   //   // pixelArt: true,
   // },
 ];
 const IMAGE_ASSETS = {
-  grass: "/game/tiles/grass-tile.jpg",
+  grass: "/assets/game/tiles/grass-tile.jpg",
 };
 
 // GIF 에셋들은 @pixi/gif로 처리
 const GIF_ASSETS = {
-  recovery: "/game/gifs/recovery.gif",
+  recovery: "/assets/game/gifs/recovery.gif",
   // 추가 GIF들을 필요에 따라 여기에 추가
-  // effect1: "/game/gifs/effect1.gif",
-  // effect2: "/game/gifs/effect2.gif",
-  // sparkle: "/game/gifs/sparkle.gif",
-  // healing: "/game/gifs/healing.gif",
+  // effect1: "/assets/game/gifs/effect1.gif",
+  // effect2: "/assets/game/gifs/effect2.gif",
+  // sparkle: "/assets/game/gifs/sparkle.gif",
+  // healing: "/assets/game/gifs/healing.gif",
 };
 
 /**
@@ -555,7 +555,7 @@ export class MainSceneWorld implements IWorld, Scene {
         const spritesheetName =
           SPRITESHEET_KEY_TO_NAME[characterSpritesheetKey];
         await loadSpritesheet({
-          jsonPath: `/game/sprites/monsters/${spritesheetName}.json`,
+          jsonPath: `/assets/game/sprites/monsters/${spritesheetName}.json`,
           alias: spritesheetName,
           // pixelArt: true,
         });

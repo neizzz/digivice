@@ -8,9 +8,7 @@ import {
 import { MainSceneWorld } from "../world";
 import { ObjectType, CharacterKeyECS, CharacterState } from "../types";
 import {
-  getCharacterSpritesheetOptions,
-  loadSpritesheet,
-  isSpritesheetLoaded,
+  ensureCharacterSpritesheetLoaded,
 } from "../../../utils/asset";
 
 /**
@@ -61,7 +59,48 @@ export function evolveCharacter(world: MainSceneWorld, eid: number): void {
       return;
   }
 
-  // 진화 처리
+  void applyEvolutionWithLoadedAsset({
+    world,
+    eid,
+    currentPhase,
+    currentCharacterKey,
+    nextPhase,
+    nextCharacterKey,
+  });
+}
+
+async function applyEvolutionWithLoadedAsset(params: {
+  world: MainSceneWorld;
+  eid: number;
+  currentPhase: number;
+  currentCharacterKey: CharacterKeyECS;
+  nextPhase: number;
+  nextCharacterKey: CharacterKeyECS;
+}): Promise<void> {
+  const {
+    world,
+    eid,
+    currentPhase,
+    currentCharacterKey,
+    nextPhase,
+    nextCharacterKey,
+  } = params;
+
+  const isLoaded = await ensureCharacterSpritesheetLoaded({
+    characterKey: nextCharacterKey,
+    reason: "evolution",
+    eid,
+    maxRetries: 2,
+  });
+
+  if (!isLoaded) {
+    console.error(
+      `[EvolutionSystem] Evolution aborted for ${eid}. Keeping current form because next spritesheet is unavailable: key=${nextCharacterKey}`
+    );
+    return;
+  }
+
+  // 진화 처리 (에셋 로드 성공 후 반영)
   CharacterStatusComp.evolutionPhase[eid] = nextPhase;
   CharacterStatusComp.characterKey[eid] = nextCharacterKey;
   CharacterStatusComp.evolutionGage[eid] = 0.0; // 진화 게이지 리셋
@@ -73,7 +112,7 @@ export function evolveCharacter(world: MainSceneWorld, eid: number): void {
     `[EvolutionSystem] Character key changed from ${currentCharacterKey} to ${nextCharacterKey}`
   );
 
-  // 스프라이트시트 업데이트 (비동기)
+  // 스프라이트시트 업데이트
   updateCharacterSprites(world, eid, nextCharacterKey);
 }
 
@@ -88,9 +127,6 @@ function updateCharacterSprites(
   eid: number,
   newCharacterKey: CharacterKeyECS
 ): void {
-  // 스프라이트시트 동적 로딩 (비동기)
-  loadCharacterSpritesheet(eid, newCharacterKey);
-
   // AnimationRenderComp 업데이트
   if (hasComponent(world, AnimationRenderComp, eid)) {
     AnimationRenderComp.spritesheetKey[eid] = newCharacterKey;
@@ -108,55 +144,6 @@ function updateCharacterSprites(
 
     console.log(
       `[EvolutionSystem] Cleared static texture for evolved character ${eid}, animation system will handle rendering`
-    );
-  }
-}
-
-/**
- * 캐릭터 스프라이트시트 동적 로딩 (비동기)
- */
-async function loadCharacterSpritesheet(
-  eid: number,
-  characterKey: CharacterKeyECS
-): Promise<void> {
-  try {
-    // 스프라이트시트 로드 옵션 가져오기
-    const spritesheetOptions = getCharacterSpritesheetOptions(characterKey);
-    if (!spritesheetOptions) {
-      console.error(
-        `[EvolutionSystem] No spritesheet options found for character key: ${characterKey}`
-      );
-      return;
-    }
-
-    const spritesheetAlias = spritesheetOptions.alias!;
-
-    // 스프라이트시트가 이미 로드되어 있는지 확인
-    if (!isSpritesheetLoaded(spritesheetAlias)) {
-      console.log(
-        `[EvolutionSystem] Loading spritesheet for evolved character ${eid}: ${spritesheetAlias}`
-      );
-
-      const loadResult = await loadSpritesheet(spritesheetOptions);
-      if (!loadResult) {
-        console.error(
-          `[EvolutionSystem] Failed to load spritesheet for evolved character ${eid}: ${spritesheetAlias}`
-        );
-        return;
-      }
-
-      console.log(
-        `[EvolutionSystem] Successfully loaded spritesheet for evolution: ${spritesheetAlias}`
-      );
-    } else {
-      console.log(
-        `[EvolutionSystem] Spritesheet already loaded for evolution: ${spritesheetAlias}`
-      );
-    }
-  } catch (error) {
-    console.error(
-      `[EvolutionSystem] Error loading spritesheet for evolved character ${eid}:`,
-      error
     );
   }
 }

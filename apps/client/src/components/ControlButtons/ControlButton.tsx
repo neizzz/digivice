@@ -138,7 +138,7 @@ const ControlButton: React.FC<ControlButtonProps> = ({
   const buttonStyle = {
     width: `${size}px`,
     height: `${size}px`,
-    backgroundImage: `url("/ui/sprites/control-buttons.png")`,
+    backgroundImage: `url("/assets/ui/sprites/control-buttons.png")`,
     backgroundPosition: `-${spriteInfo.x}px -${spriteInfo.y}px`,
   };
 

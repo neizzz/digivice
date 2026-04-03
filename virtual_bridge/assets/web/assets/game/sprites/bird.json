@@ -1,0 +1,18 @@
+{
+  "frames": {
+    "fly_0": { "frame": { "x": 0, "y": 0, "w": 32, "h": 32 } },
+    "fly_1": { "frame": { "x": 0, "y": 32, "w": 32, "h": 32 } },
+    "fly_2": { "frame": { "x": 0, "y": 64, "w": 32, "h": 32 } },
+    "fly_3": { "frame": { "x": 0, "y": 96, "w": 32, "h": 32 } }
+  },
+  "animations": {
+    "fly": ["fly_0", "fly_1", "fly_2", "fly_3"]
+  },
+  "meta": {
+    "app": "digivice",
+    "image": "bird.png",
+    "format": "RGBA8888",
+    "size": { "w": 32, "h": 128 },
+    "scale": "1"
+  }
+}

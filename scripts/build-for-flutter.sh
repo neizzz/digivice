@@ -21,17 +21,35 @@ if [ ! -d "dist" ]; then
   exit 1
 fi
 
+# Flutter는 assets/web/assets/** 경로를 안정적으로 번들링하므로
+# public의 절대경로(/ui, /game) 리소스를 assets 하위 단일 경로로 이동합니다.
+mkdir -p dist/assets/ui dist/assets/game
+if [ -d "dist/ui" ]; then
+  rsync -aL dist/ui/ dist/assets/ui/
+  rm -rf dist/ui
+fi
+if [ -d "dist/game" ]; then
+  rsync -aL dist/game/ dist/assets/game/
+  rm -rf dist/game
+fi
+
 # Flutter assets 디렉터리 경로
 FLUTTER_WEB_DIR="../../virtual_bridge/assets/web"
+FLUTTER_WEB_TMP_DIR="../../virtual_bridge/assets/web.__tmp__"
 
 # 기존 파일 정리
 echo "🧹 Cleaning previous build..."
-rm -rf "$FLUTTER_WEB_DIR"
-mkdir -p "$FLUTTER_WEB_DIR"
+rm -rf "$FLUTTER_WEB_TMP_DIR"
+mkdir -p "$FLUTTER_WEB_TMP_DIR"
 
 # 빌드 결과 복사
 echo "📋 Copying build output to Flutter assets..."
-cp -r dist/* "$FLUTTER_WEB_DIR/"
+# -L: 심볼릭 링크를 실제 파일/디렉터리로 복사
+rsync -aL dist/ "$FLUTTER_WEB_TMP_DIR/"
+
+# 원자적 교체: 런타임 중간 상태(비어있는 web 디렉터리) 방지
+rm -rf "$FLUTTER_WEB_DIR"
+mv "$FLUTTER_WEB_TMP_DIR" "$FLUTTER_WEB_DIR"
 
 echo "✅ Build complete! Files copied to virtual_bridge/assets/web/"
 echo ""

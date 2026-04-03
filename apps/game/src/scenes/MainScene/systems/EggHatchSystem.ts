@@ -9,9 +9,7 @@ import {
 import { MainSceneWorld } from "../world";
 import { CharacterState, AnimationKey } from "../types";
 import {
-  getCharacterSpritesheetOptions,
-  loadSpritesheet,
-  isSpritesheetLoaded,
+  ensureCharacterSpritesheetLoaded,
 } from "../../../utils/asset";
 
 const eggQuery = defineQuery([ObjectComp, EggHatchComp]);
@@ -65,38 +63,18 @@ async function hatchCharacter(
     // 캐릭터의 실제 characterKey 사용
     const characterKey = CharacterStatusComp.characterKey[eid];
 
-    // 스프라이트시트 로드 옵션 가져오기
-    const spritesheetOptions = getCharacterSpritesheetOptions(characterKey);
-    if (!spritesheetOptions) {
+    const isLoaded = await ensureCharacterSpritesheetLoaded({
+      characterKey,
+      reason: "hatch",
+      eid,
+      maxRetries: 2,
+    });
+    if (!isLoaded) {
       console.error(
-        `[EggHatchSystem] No spritesheet options found for character key: ${characterKey}`
+        `[EggHatchSystem] Hatch delayed for character ${eid}. Keeping EGG state because spritesheet could not be loaded.`
       );
+      EggHatchComp.isReadyToHatch[eid] = 0;
       return;
-    }
-
-    const spritesheetAlias = spritesheetOptions.alias!;
-
-    // 스프라이트시트가 이미 로드되어 있는지 확인
-    if (!isSpritesheetLoaded(spritesheetAlias)) {
-      console.log(
-        `[EggHatchSystem] Loading spritesheet for character ${eid}: ${spritesheetAlias}`
-      );
-
-      const loadResult = await loadSpritesheet(spritesheetOptions);
-      if (!loadResult) {
-        console.error(
-          `[EggHatchSystem] Failed to load spritesheet for character ${eid}: ${spritesheetAlias}`
-        );
-        return;
-      }
-
-      console.log(
-        `[EggHatchSystem] Successfully loaded spritesheet: ${spritesheetAlias}`
-      );
-    } else {
-      console.log(
-        `[EggHatchSystem] Spritesheet already loaded: ${spritesheetAlias}`
-      );
     }
 
     // 캐릭터 상태를 IDLE로 변경
@@ -132,7 +110,7 @@ async function hatchCharacter(
     }
 
     console.log(
-      `[EggHatchSystem] Character ${eid} has hatched! State changed to IDLE with spritesheet: ${spritesheetAlias}`
+      `[EggHatchSystem] Character ${eid} has hatched! State changed to IDLE with characterKey: ${characterKey}`
     );
   } catch (error) {
     console.error(

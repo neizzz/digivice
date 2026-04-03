@@ -1,5 +1,4 @@
 import 'package:webview_flutter/webview_flutter.dart';
-import 'nfc/nfc_controller.dart';
 import 'pip/pip_controller.dart';
 import 'storage/storage_controller.dart';
 import 'ad/ad_controller.dart';
@@ -9,8 +8,8 @@ import 'vibration/vibration_controller.dart';
 class BridgeConfigurator {
   final WebViewController webViewController;
   final Function(String message) logCallback;
+  final bool forwardConsoleMessages;
 
-  late final NfcController _nfcController;
   late final PipController _pipController;
   late final StorageController _storageController;
   late final AdController _adController;
@@ -19,13 +18,8 @@ class BridgeConfigurator {
   BridgeConfigurator({
     required this.webViewController,
     required this.logCallback,
+    this.forwardConsoleMessages = false,
   }) {
-    _nfcController = NfcController(
-      runJavaScript: _runJavaScript,
-      resolvePromise: _resolvePromise,
-      log: logCallback,
-    );
-
     _pipController = PipController(
       runJavaScript: _runJavaScript,
       resolvePromise: _resolvePromise,
@@ -59,21 +53,6 @@ class BridgeConfigurator {
     // JavaScriptChannel 직접 추가
     webViewController
       ..addJavaScriptChannel(
-        '__native_nfcReadWrite',
-        onMessageReceived: (JavaScriptMessage message) =>
-            _nfcController.handleStartReadWrite(message),
-      )
-      ..addJavaScriptChannel(
-        '__native_nfcHce',
-        onMessageReceived: (JavaScriptMessage message) =>
-            _nfcController.handleStartHce(message),
-      )
-      ..addJavaScriptChannel(
-        '__native_nfcStop',
-        onMessageReceived: (JavaScriptMessage message) =>
-            _nfcController.handleStop(message),
-      )
-      ..addJavaScriptChannel(
         '__native_pipEnter',
         onMessageReceived: (JavaScriptMessage message) =>
             _pipController.handleEnterPip(message),
@@ -102,10 +81,13 @@ class BridgeConfigurator {
         '__native_vibrate',
         onMessageReceived: (JavaScriptMessage message) =>
             _vibrationController.handleVibrate(message),
-      )
-      ..setOnConsoleMessage((JavaScriptConsoleMessage consoleMessage) {
+      );
+
+    if (forwardConsoleMessages) {
+      webViewController.setOnConsoleMessage((JavaScriptConsoleMessage consoleMessage) {
         logCallback(consoleMessage.message);
       });
+    }
   }
 
   /// 기본 프로미스 시스템 설정
@@ -134,11 +116,22 @@ class BridgeConfigurator {
 
   /// 컨트롤러 설정
   Future<void> _setupControllers() async {
-    await _runJavaScript(_nfcController.getJavaScriptInterface());
+    await _runJavaScript(_getDisabledNfcJavaScriptInterface());
     await _runJavaScript(_pipController.getJavaScriptInterface());
     await _runJavaScript(_storageController.getJavaScriptInterface());
     await _runJavaScript(_adController.getJavaScriptInterface());
     await _runJavaScript(_vibrationController.getJavaScriptInterface());
+  }
+
+  /// NFC 미사용 기간 동안 JS 호출이 깨지지 않도록 스텁 인터페이스를 제공합니다.
+  String _getDisabledNfcJavaScriptInterface() {
+    return '''
+      window.nfcController = {
+        startReadWrite: (_rawArgObj = {}) => Promise.resolve('NFC_DISABLED'),
+        startHce: (_rawArgObj = {}) => Promise.resolve('NFC_DISABLED'),
+        stop: (_rawArgObj = {}) => Promise.resolve('NFC_DISABLED')
+      };
+    ''';
   }
 
   /// JavaScript 코드 실행
@@ -156,8 +149,7 @@ class BridgeConfigurator {
     String? data,
     String? error,
   }) async {
-    final jsCode =
-        '''
+    final jsCode = '''
       window.__resolvePromise(
         "$id", 
         ${data != null ? "'$data'" : 'undefined'}, 
@@ -169,7 +161,6 @@ class BridgeConfigurator {
 
   /// 리소스 정리
   void dispose() {
-    _nfcController.dispose();
     _pipController.dispose();
     _storageController.dispose();
     _adController.dispose();
