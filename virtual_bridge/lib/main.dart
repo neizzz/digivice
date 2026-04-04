@@ -19,6 +19,10 @@ void main() async {
   // Flutter 바인딩 초기화
   WidgetsFlutterBinding.ensureInitialized();
 
+  if (Platform.isAndroid) {
+    await AndroidWebViewController.enableDebugging(true);
+  }
+
   // AdMob 초기화
   await MobileAds.instance.initialize();
   print('[AdMob] Initialized successfully');
@@ -106,6 +110,13 @@ class _WebViewState extends State<WebView> {
     // WebViewController 기본 설정
     _controller
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onPageFinished: (_) async {
+            await _bridgeConfigurator.injectJavaScriptInterfaces();
+          },
+        ),
+      )
       ..setUserAgent(platformInfo);
 
     // Android 플랫폼 설정
@@ -116,7 +127,7 @@ class _WebViewState extends State<WebView> {
     }
 
     // 브릿지 설정
-    _bridgeConfigurator.setupBridge();
+    await _bridgeConfigurator.setupBridge();
 
     await _controller.loadRequest(
       Uri.parse('http://127.0.0.1:$_assetServerPort/index.html'),

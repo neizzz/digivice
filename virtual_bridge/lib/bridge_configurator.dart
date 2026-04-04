@@ -9,6 +9,7 @@ class BridgeConfigurator {
   final WebViewController webViewController;
   final Function(String message) logCallback;
   final bool forwardConsoleMessages;
+  bool _channelsRegistered = false;
 
   late final PipController _pipController;
   late final StorageController _storageController;
@@ -47,10 +48,28 @@ class BridgeConfigurator {
 
   /// 브릿지 초기화
   Future<void> setupBridge() async {
+    await _registerJavaScriptChannels();
+
+    if (forwardConsoleMessages) {
+      webViewController
+          .setOnConsoleMessage((JavaScriptConsoleMessage consoleMessage) {
+        logCallback(consoleMessage.message);
+      });
+    }
+  }
+
+  /// 페이지 로드 이후 JavaScript 인터페이스를 주입합니다.
+  Future<void> injectJavaScriptInterfaces() async {
     await _setupBasePromiseSystem();
     await _setupControllers();
+  }
 
-    // JavaScriptChannel 직접 추가
+  /// JavaScriptChannel 직접 추가
+  Future<void> _registerJavaScriptChannels() async {
+    if (_channelsRegistered) {
+      return;
+    }
+
     webViewController
       ..addJavaScriptChannel(
         '__native_pipEnter',
@@ -83,11 +102,7 @@ class BridgeConfigurator {
             _vibrationController.handleVibrate(message),
       );
 
-    if (forwardConsoleMessages) {
-      webViewController.setOnConsoleMessage((JavaScriptConsoleMessage consoleMessage) {
-        logCallback(consoleMessage.message);
-      });
-    }
+    _channelsRegistered = true;
   }
 
   /// 기본 프로미스 시스템 설정
