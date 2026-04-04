@@ -82,35 +82,32 @@ export class Game {
 
   /** NOTE: 싱글턴 인스턴스가 모두 초기화되고 호출되어야 함. */
   public async initialize(): Promise<void> {
-    // this._waitForAppInitialization()
-    this.app
-      .init({
+    try {
+      await this.app.init({
         width: this._parentElement.clientWidth,
         height: this._parentElement.clientHeight,
         backgroundColor: 0xaaaaaa,
         autoDensity: true,
         resolution: window.devicePixelRatio || 2, // 해상도를 디바이스 픽셀 비율로 설정하거나 원하는 값(예: 2)으로 설정
-      })
-      .then(async () => {
-        this.app.ticker.minFPS = 60;
-        this.app.ticker.maxFPS = 60;
-        this._parentElement.appendChild(this.app.canvas);
-        this._onResize();
-      })
-      .then(() => {
-        this.assetsLoaded = true;
-
-        // if (import.meta.env.DEV) {
-        //   DebugUI.getInstance();
-        // }
-
-        this._setupInitialScene();
-        this._setupGameLoop();
-        this.start();
-      })
-      .catch((error) => {
-        console.error("[Game] 초기화 오류:", error);
       });
+
+      this.app.ticker.minFPS = 60;
+      this.app.ticker.maxFPS = 60;
+      this._parentElement.appendChild(this.app.canvas);
+      this._onResize();
+
+      this.assetsLoaded = true;
+
+      // if (import.meta.env.DEV) {
+      //   DebugUI.getInstance();
+      // }
+
+      await this._setupInitialScene();
+      this._setupGameLoop();
+      this.start();
+    } catch (error) {
+      console.error("[Game] 초기화 오류:", error);
+    }
   }
 
   public start(): void {
@@ -121,8 +118,8 @@ export class Game {
     this.app.ticker.stop();
   }
 
-  private _setupInitialScene(): void {
-    this.changeScene(SceneKey.MAIN);
+  private async _setupInitialScene(): Promise<void> {
+    await this.changeScene(SceneKey.MAIN);
   }
 
   private _setupGameLoop(): void {
@@ -219,7 +216,7 @@ export class Game {
   // };
 
   private _onResize(): void {
-    const parent = this.app.canvas;
+    const parent = this._parentElement;
     if (!parent || !parent.getBoundingClientRect) {
       throw new Error("Parent element is not available.");
     }
@@ -227,6 +224,13 @@ export class Game {
     this.app.renderer.resize(width, height);
     this.app.renderer.resolution = window.devicePixelRatio || 2;
     this.app.stage.setSize(width, height);
+    if (
+      this.currentScene &&
+      "resize" in this.currentScene &&
+      typeof this.currentScene.resize === "function"
+    ) {
+      this.currentScene.resize(width, height);
+    }
   }
 
   /**

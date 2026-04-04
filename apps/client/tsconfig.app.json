@@ -14,7 +14,8 @@
     "jsx": "react-jsx",
     "noUncheckedSideEffectImports": true,
     "paths": {
-      "@/*": ["../game/src/*"] // for @digivice/game
+      "@/*": ["../game/src/*"], // for @digivice/game
+      "@shared/storage": ["../../shared/storage/src/index.ts"]
     }
   },
   "include": ["src", "../game/src/global.d.ts"]

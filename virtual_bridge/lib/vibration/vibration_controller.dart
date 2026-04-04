@@ -37,7 +37,7 @@ class VibrationController {
     try {
       // 진동 기능 사용 가능 여부 확인
       bool? hasVibrator = await Vibration.hasVibrator();
-      
+
       if (hasVibrator == true) {
         // 진동 실행
         await Vibration.vibrate(duration: duration);

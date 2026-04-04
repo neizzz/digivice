@@ -1,0 +1,16 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "verify-flutter-analyze",
+			"type": "shell",
+			"command": "/bin/zsh",
+			"args": [
+				"-lc",
+				"source ~/.zprofile && flutter analyze"
+			],
+			"isBackground": false,
+			"group": "build"
+		}
+	]
+}

@@ -37,6 +37,7 @@ export default defineConfig(({ mode }) => {
     resolve: {
       alias: {
         "@digivice/game": resolve(__dirname, "../game/src"),
+        "@shared/storage": resolve(__dirname, "../../shared/storage/src"),
       },
     },
     // 정적 파일 디렉토리 명시적 설정

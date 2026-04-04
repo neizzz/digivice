@@ -1,0 +1,37 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "verify-flutter-assets-build",
+			"type": "shell",
+			"command": "/Users/neiz/Library/pnpm/.tools/pnpm/10.6.2/bin/pnpm",
+			"args": [
+				"build:flutter"
+			],
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "verify-flutter-assets-after-fix",
+			"type": "shell",
+			"command": "/bin/zsh",
+			"args": [
+				"-lc",
+				"export PATH=/Users/neiz/.nvm/versions/node/v22.11.0/bin:$PATH && pnpm build:flutter"
+			],
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "verify-flutter-build-final-2",
+			"type": "shell",
+			"command": "/bin/zsh",
+			"args": [
+				"-lc",
+				"export PATH=/Users/neiz/.nvm/versions/node/v22.11.0/bin:$PATH && pnpm build:flutter"
+			],
+			"isBackground": false,
+			"group": "build"
+		}
+	]
+}

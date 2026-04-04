@@ -81,20 +81,30 @@ class _WebViewState extends State<WebView> {
 
   @override
   Widget build(BuildContext context) {
+    final double keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
+    final Widget content;
+
     if (_errorMessage != null) {
-      return Center(
+      content = Center(
         child: Text(
           _errorMessage!,
           textAlign: TextAlign.center,
         ),
       );
+    } else if (_assetServerPort == null) {
+      content = const Center(child: CircularProgressIndicator());
+    } else {
+      content = WebViewWidget(controller: _controller);
     }
 
-    if (_assetServerPort == null) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    return WebViewWidget(controller: _controller);
+    return SafeArea(
+      child: AnimatedPadding(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+        padding: EdgeInsets.only(bottom: keyboardInset),
+        child: content,
+      ),
+    );
   }
 
   Future<void> _initializeWebView() async {

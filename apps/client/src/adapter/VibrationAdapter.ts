@@ -1,4 +1,5 @@
 import { PlatformAdapter } from "./PlatformAdapter";
+import { isVibrationEnabled } from "../settings/gameSettings";
 
 /**
  * 진동 어댑터
@@ -16,13 +17,19 @@ export class VibrationAdapter {
    * @param duration 진동 지속 시간(ms). 기본값: 50ms
    */
   async vibrate(duration = 50): Promise<void> {
+    if (!isVibrationEnabled()) {
+      return;
+    }
+
     if (!this.platformAdapter.isRunningInNativeApp()) {
       console.warn("[VibrationAdapter] vibrate called but not in native app");
       return;
     }
 
     if (!window.vibrationController) {
-      console.warn("[VibrationAdapter] window.vibrationController not available");
+      console.warn(
+        "[VibrationAdapter] window.vibrationController not available",
+      );
       return;
     }
 

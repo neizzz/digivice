@@ -25,6 +25,10 @@ export const SetupLayer: React.FC<SetupLayerProps> = ({ onComplete }) => {
       return;
     }
 
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
     // 닉네임 유효성 검사 통과 시 완료 콜백 호출
     onComplete({
       name: name.trim(),

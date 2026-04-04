@@ -8,6 +8,7 @@ export interface Scene {
   handleControlButtonClick: (buttonType: ControlButtonType) => void;
   handleSliderValueChange: (value: number /** 0.0 ~ 1.0 */) => void;
   handleSliderEnd: () => void;
+  resize?: (width: number, height: number) => void;
 
   // Scene 생명주기 메서드들 (선택적 구현)
   onSceneExit?: () => void; // Scene 종료 시 호출
