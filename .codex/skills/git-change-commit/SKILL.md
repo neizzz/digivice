@@ -12,7 +12,9 @@ Start with the helper script for a compact change snapshot, then inspect focused
 
 ## Output and language
 
-- Write user-facing summaries, scope confirmations, and final reports in Korean by default unless the user explicitly asks for another language.
+- Write user-facing summaries, scope confirmations, and final reports in natural Korean by default unless the user explicitly asks for another language.
+- Present change summaries and final result summaries as short `-` bullet lists unless the user explicitly requests another format.
+- Avoid stiff literal translations; prefer concise, idiomatic Korean such as "조정했습니다", "추가했습니다", or "정리했습니다" when summarizing changes.
 - When proposing a commit message, follow the repository's recent language/style convention when it is clear; otherwise prefer Korean if the user asked for Korean output.
 - Keep the commit message itself concise even when the surrounding explanation is in Korean.
 
@@ -65,7 +67,7 @@ Start with the helper script for a compact change snapshot, then inspect focused
 - Prefer mentioning the affected feature, system, or user-facing behavior over low-level refactoring noise.
 - If the diff includes asset build outputs, say so explicitly.
 - If the repository is already partially staged, preserve that intent unless the user asks to regroup changes.
-- When summarizing changes for the user, prefer `-` bullet items over `*` bullets unless the user explicitly requests a different format.
+- When summarizing changes for the user, use one idea per `-` bullet and keep each item short enough to scan quickly.
 - If recent commit history mixes Korean and English, prefer Korean when the user asked for Korean output, but avoid forcing a style change when the repository clearly follows another convention.
 
 ## Resource
