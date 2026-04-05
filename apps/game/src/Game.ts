@@ -101,7 +101,7 @@ export class Game {
       });
 
       this.app.ticker.minFPS = 60;
-      this.app.ticker.maxFPS = 60;
+      this.app.ticker.maxFPS = 0;
       this._parentElement.appendChild(this.app.canvas);
       this._onResize();
 

@@ -1,6 +1,6 @@
 .game-menu-container {
   position: absolute;
-  bottom: 0px;
+  bottom: 6px;
   width: 100%;
   display: flex;
   justify-content: center;

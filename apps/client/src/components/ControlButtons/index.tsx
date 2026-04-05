@@ -1,14 +1,13 @@
-import { ControlButtonType } from "@digivice/game";
+import { type ControlButtonParams, ControlButtonType } from "@digivice/game";
 import type React from "react";
 import { useRef, useState, useLayoutEffect } from "react";
 import ControlButton from "./ControlButton";
 
 interface ControlButtonsProps {
-  buttonTypes: [ControlButtonType, ControlButtonType, ControlButtonType];
+  buttonParams: [ControlButtonParams, ControlButtonParams, ControlButtonParams];
   onButtonPress: (buttonType: ControlButtonType) => void;
   onSliderChange?: (value: number) => void;
   onSliderEnd?: () => void;
-  initialSliderValue?: number;
 }
 
 const ControlButtonsContainer: React.FC<{ children: React.ReactNode }> = ({
@@ -20,22 +19,27 @@ const ControlButtonsContainer: React.FC<{ children: React.ReactNode }> = ({
 );
 
 const ControlButtons: React.FC<ControlButtonsProps> = ({
-  buttonTypes,
+  buttonParams,
   onButtonPress,
   onSliderChange,
   onSliderEnd,
-  initialSliderValue = 0.5,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const secondButtonRef = useRef<HTMLDivElement>(null);
   const thirdButtonRef = useRef<HTMLDivElement>(null);
   const [sliderWidth, setSliderWidth] = useState<number | undefined>(undefined); // 기본값
+  const buttonTypes = buttonParams.map((buttonParam) => buttonParam.type) as [
+    ControlButtonType,
+    ControlButtonType,
+    ControlButtonType,
+  ];
+  const shouldRenderSlider =
+    buttonTypes.indexOf(ControlButtonType.Clean) !== -1;
+  const cleanButtonParam = buttonParams.find(
+    (buttonParam) => buttonParam.type === ControlButtonType.Clean,
+  );
 
   useLayoutEffect(() => {
-    // 2번째와 3번째 버튼의 총 너비 계산
-    const shouldRenderSlider =
-      buttonTypes.indexOf(ControlButtonType.Clean) !== -1;
-
     if (
       shouldRenderSlider &&
       secondButtonRef.current &&
@@ -51,29 +55,30 @@ const ControlButtons: React.FC<ControlButtonsProps> = ({
     } else {
       setSliderWidth(undefined);
     }
-  }, [buttonTypes]);
+  }, [buttonTypes[0], buttonTypes[1], buttonTypes[2], shouldRenderSlider]);
 
   // Clean 버튼을 슬라이더로 사용
-  if (sliderWidth) {
+  if (shouldRenderSlider && sliderWidth) {
     return (
       <ControlButtonsContainer>
         <div ref={containerRef} className="flex justify-between w-full">
           {/* 첫 번째 버튼 */}
           <div className={"shrink-0 "}>
             <ControlButton
-              type={buttonTypes[0]}
-              onClick={() => onButtonPress(buttonTypes[0])}
+              type={buttonParams[0].type}
+              onClick={() => onButtonPress(buttonParams[0].type)}
             />
           </div>
           {/* 두 번째 버튼 - Clean 타입 버튼을 슬라이더로 표시 */}
           <div ref={secondButtonRef}>
             <ControlButton
+              key={cleanButtonParam?.sliderSessionKey ?? "clean-slider"}
               type={ControlButtonType.Clean}
               sliderWidth={sliderWidth}
-              initialSliderValue={initialSliderValue}
+              initialSliderValue={cleanButtonParam?.initialSliderValue ?? 0.5}
               onSliderChange={onSliderChange}
               onSliderEnd={onSliderEnd}
-              onClick={() => onButtonPress(buttonTypes[1])}
+              onClick={() => onButtonPress(buttonParams[1].type)}
             />
           </div>
         </div>
@@ -86,19 +91,19 @@ const ControlButtons: React.FC<ControlButtonsProps> = ({
     <ControlButtonsContainer>
       <div ref={containerRef} className="flex justify-between w-full">
         <ControlButton
-          type={buttonTypes[0]}
-          onClick={() => onButtonPress(buttonTypes[0])}
+          type={buttonParams[0].type}
+          onClick={() => onButtonPress(buttonParams[0].type)}
         />
         <div ref={secondButtonRef}>
           <ControlButton
-            type={buttonTypes[1]}
-            onClick={() => onButtonPress(buttonTypes[1])}
+            type={buttonParams[1].type}
+            onClick={() => onButtonPress(buttonParams[1].type)}
           />
         </div>
         <div ref={thirdButtonRef}>
           <ControlButton
-            type={buttonTypes[2]}
-            onClick={() => onButtonPress(buttonTypes[2])}
+            type={buttonParams[2].type}
+            onClick={() => onButtonPress(buttonParams[2].type)}
           />
         </div>
       </div>

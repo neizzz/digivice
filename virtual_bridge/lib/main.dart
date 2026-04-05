@@ -80,6 +80,12 @@ class _WebViewState extends State<WebView> {
   }
 
   @override
+  void reassemble() {
+    super.reassemble();
+    unawaited(_reloadWebViewForHotReload());
+  }
+
+  @override
   Widget build(BuildContext context) {
     final double keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
     final Widget content;
@@ -158,6 +164,26 @@ class _WebViewState extends State<WebView> {
     } catch (e) {
       _errorMessage = '로컬 웹 서버 시작 실패: $e';
       print('[WebView] Failed to start local asset server: $e');
+    }
+  }
+
+  Future<void> _reloadWebViewForHotReload() async {
+    final int? port = _assetServerPort;
+    if (port == null) {
+      return;
+    }
+
+    final Uri uri = Uri.parse('http://127.0.0.1:$port/index.html').replace(
+      queryParameters: <String, String>{
+        'hotReload': DateTime.now().millisecondsSinceEpoch.toString(),
+      },
+    );
+
+    try {
+      print('[WebView] Hot reload detected. Reloading $uri');
+      await _controller.loadRequest(uri);
+    } catch (e) {
+      print('[WebView] Failed to reload WebView on hot reload: $e');
     }
   }
 

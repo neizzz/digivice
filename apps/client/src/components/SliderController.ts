@@ -13,6 +13,12 @@ export interface SliderOptions {
 
   // 드래그 종료 시 호출될 콜백 함수
   onDragEnd?: () => void;
+
+  // thumb가 실제로 이동할 수 있는 폭 계산에 사용할 width
+  thumbWidth?: number;
+
+  // 실제 thumb 이동 구간을 추가로 확장할 배율
+  rangeMultiplier?: number;
 }
 
 export class SliderController {
@@ -44,6 +50,8 @@ export class SliderController {
       initialValue: options.initialValue ?? 0.5,
       onDragStart: options.onDragStart || (() => {}),
       onDragEnd: options.onDragEnd || (() => {}),
+      thumbWidth: options.thumbWidth ?? 0,
+      rangeMultiplier: options.rangeMultiplier ?? 1,
     };
 
     // 초기값 설정
@@ -104,6 +112,8 @@ export class SliderController {
     // 이벤트 전파 중단
     e.preventDefault();
 
+    this.updateValueFromPosition(e);
+
     // 포인터 캡처 해제
     if (this.element.hasPointerCapture(e.pointerId)) {
       this.element.releasePointerCapture(e.pointerId);
@@ -113,8 +123,6 @@ export class SliderController {
     this.isDragging = false;
     // 드래그 종료 콜백 호출
     this.options.onDragEnd();
-
-    this.updateValueFromPosition(e);
 
     // 전역 이벤트 리스너 제거
     document.removeEventListener("pointermove", this.boundPointerMove);
@@ -126,11 +134,15 @@ export class SliderController {
    */
   private updateValueFromPosition(e: PointerEvent): void {
     const rect = this.element.getBoundingClientRect();
+    const dragWidth = Math.max(
+      1,
+      (rect.width - this.options.thumbWidth) * this.options.rangeMultiplier,
+    );
 
     // 수평 슬라이더: X축 위치 사용 (오프셋 반영)
     const adjustedX = e.pageX - this.pointerOffsetX;
 
-    let percentage = this.startValue + adjustedX / rect.width;
+    let percentage = this.startValue + adjustedX / dragWidth;
 
     // 0-1 범위로 제한
     percentage = Math.max(0, Math.min(1, percentage));
@@ -152,11 +164,18 @@ export class SliderController {
   /**
    * 슬라이더 값 설정하기
    */
-  public setValue(value: number): void {
+  public setValue(
+    value: number,
+    options: {
+      emitChange?: boolean;
+    } = {},
+  ): void {
     const newValue = this.clamp(value);
     if (newValue !== this.currentValue) {
       this.currentValue = newValue;
-      this.options.onChange(newValue);
+      if (options.emitChange ?? true) {
+        this.options.onChange(newValue);
+      }
     }
   }
 

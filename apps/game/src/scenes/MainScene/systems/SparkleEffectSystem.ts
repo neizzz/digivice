@@ -37,22 +37,7 @@ function drawSparkleGraphic(graphics: PIXI.Graphics): void {
   graphics.clear();
 
   graphics.poly([
-    0,
-    -8,
-    1.9,
-    -1.9,
-    8,
-    0,
-    1.9,
-    1.9,
-    0,
-    8,
-    -1.9,
-    1.9,
-    -8,
-    0,
-    -1.9,
-    -1.9,
+    0, -8, 1.9, -1.9, 8, 0, 1.9, 1.9, 0, 8, -1.9, 1.9, -8, 0, -1.9, -1.9,
   ]);
   graphics.fill({ color: 0xffffff, alpha: 0.9 });
 }
@@ -77,7 +62,7 @@ function updateSparkleAnimations(currentTime: number): void {
       } catch (error) {
         console.warn(
           "[SparkleEffectSystem] Error in animation complete callback:",
-          error
+          error,
         );
       }
       return;
@@ -150,7 +135,7 @@ export function sparkleEffectSystem(params: {
  */
 function addSparkleToFreshFood(
   world: MainSceneWorld,
-  currentTime: number
+  currentTime: number,
 ): void {
   const freshFoods = freshFoodQuery(world);
 
@@ -176,7 +161,7 @@ function addSparkleToFreshFood(
       createSimpleSparkleEffect(world, eid);
 
       console.log(
-        `[SparkleEffectSystem] Added SparkleEffect to fresh food ${eid}`
+        `[SparkleEffectSystem] Added SparkleEffect to fresh food ${eid}`,
       );
     }
   }
@@ -217,7 +202,7 @@ function createSimpleSparkleEffect(_world: MainSceneWorld, eid: number): void {
   entitySparkleContainers.set(eid, containers);
 
   console.log(
-    `[SparkleEffectSystem] Created simple sparkle effect for entity ${eid}`
+    `[SparkleEffectSystem] Created simple sparkle effect for entity ${eid}`,
   );
 }
 
@@ -233,7 +218,7 @@ function destroySparkleEffect(eid: number): void {
     entitySparkleContainers.delete(eid);
 
     console.log(
-      `[SparkleEffectSystem] Marked sparkle effect for removal for entity ${eid}, ${containers.length} sparkles will finish their animation`
+      `[SparkleEffectSystem] Marked sparkle effect for removal for entity ${eid}, ${containers.length} sparkles will finish their animation`,
     );
   }
 }
@@ -243,7 +228,7 @@ function destroySparkleEffect(eid: number): void {
  */
 function updateSparkleEffects(
   world: MainSceneWorld,
-  currentTime: number
+  currentTime: number,
 ): void {
   const sparkleEntities = sparkleQuery(world);
 
@@ -270,7 +255,7 @@ function updateSparkleEffects(
       // 현재 활성화된 스파클 개수 확인 (너무 많으면 생성하지 않음)
       const containers = entitySparkleContainers.get(eid) || [];
       const activeSparkles = containers.filter(
-        (container) => container.parent
+        (container) => container.parent,
       ).length;
 
       if (activeSparkles < 2) {
@@ -343,7 +328,7 @@ function createSparkleVisual(world: MainSceneWorld, eid: number): void {
     if (!hasComponent(world, SparkleEffectComp, eid)) {
       // 스파클이 생성되었지만 엔티티가 제거된 경우, 스파클은 애니메이션 완료까지 유지
       console.log(
-        `[SparkleEffectSystem] Sparkle created for removed entity ${eid}, will complete animation naturally`
+        `[SparkleEffectSystem] Sparkle created for removed entity ${eid}, will complete animation naturally`,
       );
       return;
     }
@@ -379,7 +364,7 @@ function createSparkleVisual(world: MainSceneWorld, eid: number): void {
  */
 function startSparkleAnimation(
   sparkleContainer: PIXI.Container,
-  onComplete: () => void
+  onComplete: () => void,
 ): void {
   const duration = 800;
   const startTime = Date.now();

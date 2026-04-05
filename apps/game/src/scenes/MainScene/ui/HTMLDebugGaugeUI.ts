@@ -9,7 +9,7 @@ import { ObjectType } from "../types";
 
 const characterQuery = defineQuery([ObjectComp, CharacterStatusComp]);
 
-export class StaminaGaugeUI {
+export class HTMLDebugGaugeUI {
   private _container: HTMLDivElement;
   private _world: MainSceneWorld;
   private _staminaText!: HTMLSpanElement;
@@ -42,10 +42,9 @@ export class StaminaGaugeUI {
       min-width: 120px;
     `;
 
-    // blink 애니메이션을 위한 스타일 추가 (이미 있으면 중복 추가되지 않도록)
-    if (!document.querySelector("#stamina-gauge-blink-style")) {
+    if (!document.querySelector("#debug-gauge-ui-blink-style")) {
       const style = document.createElement("style");
-      style.id = "stamina-gauge-blink-style";
+      style.id = "debug-gauge-ui-blink-style";
       style.textContent = `
         @keyframes blink {
           0%, 50% { opacity: 1; }
@@ -59,7 +58,6 @@ export class StaminaGaugeUI {
   }
 
   private _setupUI(): void {
-    // 스테미나 표시
     const staminaDiv = document.createElement("div");
 
     const staminaLabel = document.createElement("span");
@@ -77,7 +75,6 @@ export class StaminaGaugeUI {
     staminaDiv.appendChild(staminaLabel);
     staminaDiv.appendChild(this._staminaText);
 
-    // 진화 게이지 표시
     const evolutionDiv = document.createElement("div");
 
     const evolutionLabel = document.createElement("span");
@@ -95,7 +92,6 @@ export class StaminaGaugeUI {
     evolutionDiv.appendChild(evolutionLabel);
     evolutionDiv.appendChild(this._evolutionText);
 
-    // 소화기관 표시
     const digestiveDiv = document.createElement("div");
 
     const digestiveLabel = document.createElement("span");
@@ -125,12 +121,12 @@ export class StaminaGaugeUI {
       const eid = characters[i];
       if (ObjectComp.type[eid] === ObjectType.CHARACTER) {
         this._currentCharacterEid = eid;
-        console.log(`[StaminaGaugeUI] Found character entity: ${eid}`);
+        console.log(`[HTMLDebugGaugeUI] Found character entity: ${eid}`);
         return;
       }
     }
 
-    console.warn("[StaminaGaugeUI] No character entity found");
+    console.warn("[HTMLDebugGaugeUI] No character entity found");
     this._currentCharacterEid = -1;
   }
 
@@ -149,7 +145,6 @@ export class StaminaGaugeUI {
     const evolutionGauge =
       CharacterStatusComp.evolutionGage[this._currentCharacterEid] || 0;
 
-    // 소화기관 정보
     let digestiveText = "N/A";
     if (
       hasComponent(this._world, DigestiveSystemComp, this._currentCharacterEid)
@@ -162,7 +157,6 @@ export class StaminaGaugeUI {
 
       digestiveText = `${currentLoad.toFixed(1)}/${capacity}`;
 
-      // poob 생성 카운트다운 추가
       if (nextPoopTime > 0) {
         const currentTime = Date.now();
         const remainingTime = Math.max(0, nextPoopTime - currentTime);
@@ -176,12 +170,10 @@ export class StaminaGaugeUI {
       }
     }
 
-    // 간단한 숫자 표시
     this._staminaText.textContent = `${stamina}/10`;
     this._evolutionText.textContent = `${evolutionGauge.toFixed(1)}/100.0`;
     this._digestiveText.textContent = digestiveText;
 
-    // poob 생성 임박 시 색상 변경
     if (
       hasComponent(this._world, DigestiveSystemComp, this._currentCharacterEid)
     ) {
@@ -193,20 +185,16 @@ export class StaminaGaugeUI {
         const remainingTime = Math.max(0, nextPoopTime - currentTime);
 
         if (remainingTime <= 0) {
-          // 생성 시점이 되면 빨간색으로 깜빡임
           this._digestiveText.style.color = "#ff0000";
           this._digestiveText.style.animation = "blink 1s infinite";
         } else if (remainingTime <= 3000) {
-          // 3초 이하 남으면 주황색
           this._digestiveText.style.color = "#ff8800";
           this._digestiveText.style.animation = "none";
         } else {
-          // 평상시 흰색
           this._digestiveText.style.color = "white";
           this._digestiveText.style.animation = "none";
         }
       } else {
-        // poob 생성 타이머가 없으면 평상시 색상
         this._digestiveText.style.color = "white";
         this._digestiveText.style.animation = "none";
       }

@@ -62,6 +62,15 @@ export default defineConfig(({ mode }) => {
           minify: false,
           cssMinify: false,
           sourcemap: true,
+          // Flutter debug asset bundle은 새로 추가된 해시 파일명을 즉시 인식하지 못할 수 있어
+          // flutter-dev 빌드에서는 파일명을 고정해 hot reload/restart 시 재로딩을 안정화합니다.
+          rollupOptions: {
+            output: {
+              entryFileNames: "assets/[name].js",
+              chunkFileNames: "assets/[name].js",
+              assetFileNames: "assets/[name][extname]",
+            },
+          },
         }
       : undefined,
   };

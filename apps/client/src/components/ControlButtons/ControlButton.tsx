@@ -4,6 +4,9 @@ import { useEffect, useState, useRef } from "react";
 import { SliderController } from "../SliderController";
 import { VibrationAdapter } from "../../adapter/VibrationAdapter";
 
+const SLIDER_THUMB_SIZE = 64;
+const SLIDER_RANGE_MULTIPLIER = 1.1;
+
 interface ControlButtonProps {
   type: ControlButtonType;
   onClick?: () => void; // 클릭 이벤트 핸들러
@@ -74,7 +77,6 @@ const ControlButton: React.FC<ControlButtonProps> = ({
     useState(initialSliderValue);
   const sliderRef = useRef<HTMLDivElement>(null);
   const sliderControllerRef = useRef<SliderController | null>(null);
-  const sliderButtonRef = useRef<HTMLDivElement>(null);
 
   const isSlider = type === ControlButtonType.Clean && !!sliderWidth;
 
@@ -85,6 +87,8 @@ const ControlButton: React.FC<ControlButtonProps> = ({
     if (isSlider && sliderRef.current) {
       const controller = new SliderController(sliderRef.current, {
         initialValue: initialSliderValue,
+        thumbWidth: SLIDER_THUMB_SIZE,
+        rangeMultiplier: SLIDER_RANGE_MULTIPLIER,
         onChange: (value) => {
           setCurrentSliderValue(value);
           onSliderChange?.(value);
@@ -107,10 +111,17 @@ const ControlButton: React.FC<ControlButtonProps> = ({
         sliderControllerRef.current = null;
       };
     }
-  }, [isSlider, onSliderChange, onSliderEnd]);
+  }, [initialSliderValue, isSlider, onSliderChange, onSliderEnd]);
+
+  useEffect(() => {
+    setCurrentSliderValue(initialSliderValue);
+    sliderControllerRef.current?.setValue(initialSliderValue, {
+      emitChange: false,
+    });
+  }, [initialSliderValue]);
 
   // 버튼 누름 상태에 따른 스프라이트 정보 선택
-  const size = 64;
+  const size = SLIDER_THUMB_SIZE;
   const spriteState = isPressed ? "pressed" : "normal";
   const spriteInfo = spriteInfoMap[type][spriteState];
 
@@ -144,20 +155,28 @@ const ControlButton: React.FC<ControlButtonProps> = ({
 
   // 슬라이더 버튼 렌더링
   if (isSlider) {
+    const trackInset = size / 2;
+    const baseTrackWidth = Math.max(0, sliderWidth - size);
+    const trackWidth = baseTrackWidth * SLIDER_RANGE_MULTIPLIER;
+    const extraTrackOffset = (trackWidth - baseTrackWidth) / 2;
+
     return (
       <div
-        className={"relative flex justify-center"}
+        className={"relative flex justify-center overflow-visible"}
         style={{ width: `${sliderWidth}px`, height: `${size}px` }}
         ref={sliderRef}
       >
-        <div className="self-center w-full h-4 bg-gray-700 bg-opacity-50 rounded-full" />
         <div
-          ref={sliderButtonRef}
+          className="absolute top-1/2 -translate-y-1/2 h-4 bg-gray-700 bg-opacity-50 rounded-full"
+          style={{
+            left: `${trackInset - extraTrackOffset}px`,
+            width: `${trackWidth}px`,
+          }}
+        />
+        <div
           className="absolute top-0 left-0 h-full"
           style={{
-            transform: `translateX(${
-              currentSliderValue * (sliderWidth - size)
-            }px)`,
+            transform: `translateX(${currentSliderValue * trackWidth - extraTrackOffset}px)`,
           }}
         >
           <div

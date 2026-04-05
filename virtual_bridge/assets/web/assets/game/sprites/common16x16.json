@@ -10,13 +10,14 @@
     "pill-1": { "frame": { "x": 112, "y": 0, "w": 16, "h": 16 } },
     "pill-2": { "frame": { "x": 128, "y": 0, "w": 16, "h": 16 } },
     "pill-3": { "frame": { "x": 144, "y": 0, "w": 16, "h": 16 } },
-    "pill-4": { "frame": { "x": 160, "y": 0, "w": 16, "h": 16 } }
+    "pill-4": { "frame": { "x": 160, "y": 0, "w": 16, "h": 16 } },
+    "syringe": { "frame": { "x": 176, "y": 0, "w": 16, "h": 16 } }
   },
   "meta": {
     "app": "digivice",
     "image": "common16x16.png",
     "format": "RGBA8888",
-    "size": { "w": 112, "h": 16 },
+    "size": { "w": 192, "h": 16 },
     "scale": "1"
   }
 }

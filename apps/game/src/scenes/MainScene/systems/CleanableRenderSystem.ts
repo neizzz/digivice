@@ -198,7 +198,7 @@ function createOrUpdateDashedBorder(
 
   // 포커스된 대상에는 빗자루 그리기
   if (isFocused) {
-    createOrUpdateBroom(eid, stage, world, x, y);
+    createOrUpdateBroom(eid, stage, world, x, y, objectWidth);
   } else {
     removeBroom(eid, stage);
   }
@@ -318,7 +318,8 @@ function createOrUpdateBroom(
   stage: PIXI.Container,
   world: MainSceneWorld,
   targetX: number,
-  targetY: number
+  targetY: number,
+  targetWidth: number
 ) {
   let broomSprite = broomStore.get(eid);
 
@@ -339,7 +340,8 @@ function createOrUpdateBroom(
 
   // 슬라이더 값에 따른 빗자루 위치 계산
   const sliderValue = world.sliderValue;
-  const broomX = targetX + (sliderValue - 0.5) * 80; // 슬라이더에 따라 좌우 80px 이동
+  const targetLeftX = targetX - targetWidth / 2;
+  const broomX = targetLeftX + sliderValue * targetWidth;
   const broomY = targetY - 10; // 타겟보다 10px 위에 (객체 중간보다 조금 더 낮게)
 
   // 빗자루 방향에 따른 좌우 반전

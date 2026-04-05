@@ -69,15 +69,15 @@ export function addToDigestiveLoad(
   world: MainSceneWorld,
   characterEid: number,
   staminaIncrease: number,
-  currentTime: number
+  currentTime: number,
 ): void {
   console.log(
-    `[DigestiveSystem] Adding digestive load - EID: ${characterEid}, staminaIncrease: ${staminaIncrease}`
+    `[DigestiveSystem] Adding digestive load - EID: ${characterEid}, staminaIncrease: ${staminaIncrease}`,
   );
 
   if (!hasComponent(world, DigestiveSystemComp, characterEid)) {
     console.log(
-      `[DigestiveSystem] Adding DigestiveSystemComp to character ${characterEid}`
+      `[DigestiveSystem] Adding DigestiveSystemComp to character ${characterEid}`,
     );
     addComponent(world, DigestiveSystemComp, characterEid);
     DigestiveSystemComp.capacity[characterEid] =
@@ -95,7 +95,7 @@ export function addToDigestiveLoad(
   const capacity = digestiveComp.capacity[characterEid];
 
   console.log(
-    `[DigestiveSystem] Load change: ${oldLoad} -> ${newLoad} (capacity: ${capacity})`
+    `[DigestiveSystem] Load change: ${oldLoad} -> ${newLoad} (capacity: ${capacity})`,
   );
 
   // 용량 초과 시 똥 싸는 시간 설정
@@ -104,12 +104,43 @@ export function addToDigestiveLoad(
       digestiveComp.capacity[characterEid] &&
     digestiveComp.nextPoopTime[characterEid] === 0
   ) {
-    const poopTime = currentTime + GAME_CONSTANTS.POOP_DELAY;
-    digestiveComp.nextPoopTime[characterEid] = poopTime;
-    console.log(
-      `[DigestiveSystem] Capacity exceeded! Next poop time set to: ${poopTime} (current: ${currentTime})`
-    );
+    scheduleNextPoop(digestiveComp, characterEid, currentTime);
   }
+}
+
+function scheduleNextPoop(
+  digestiveComp: typeof DigestiveSystemComp,
+  characterEid: number,
+  currentTime: number,
+): void {
+  const poopTime = currentTime + GAME_CONSTANTS.POOP_DELAY;
+  digestiveComp.nextPoopTime[characterEid] = poopTime;
+
+  console.log(
+    `[DigestiveSystem] Capacity exceeded! Next poop time set to: ${poopTime} (current: ${currentTime})`,
+  );
+}
+
+function processPoop(
+  digestiveComp: typeof DigestiveSystemComp,
+  characterEid: number,
+  currentTime: number,
+): void {
+  const capacity = digestiveComp.capacity[characterEid];
+  const previousLoad = digestiveComp.currentLoad[characterEid];
+  const remainingLoad = Math.max(0, previousLoad - capacity);
+
+  digestiveComp.currentLoad[characterEid] = remainingLoad;
+
+  if (remainingLoad > capacity) {
+    scheduleNextPoop(digestiveComp, characterEid, currentTime);
+  } else {
+    digestiveComp.nextPoopTime[characterEid] = 0;
+  }
+
+  console.log(
+    `[DigestiveSystem] Digestive load reduced for character ${characterEid}: ${previousLoad} -> ${remainingLoad}`,
+  );
 }
 
 /**
@@ -134,7 +165,7 @@ function checkPoopTime(world: MainSceneWorld, currentTime: number): void {
       console.log(
         `[DigestiveSystem] Character ${eid} - nextPoopTime: ${nextPoopTime}, currentTime: ${currentTime}, remaining: ${
           nextPoopTime - currentTime
-        }ms`
+        }ms`,
       );
     }
 
@@ -148,13 +179,8 @@ function checkPoopTime(world: MainSceneWorld, currentTime: number): void {
       // 똥 생성
       createPoop(world, eid);
 
-      // 소화기관 초기화
-      digestiveComp.currentLoad[eid] = 0;
-      digestiveComp.nextPoopTime[eid] = 0;
-
-      console.log(
-        `[DigestiveSystem] Digestive system reset for character ${eid}`
-      );
+      // 소화기관은 전체 초기화하지 않고 용량만큼만 감소
+      processPoop(digestiveComp, eid, currentTime);
     }
   }
 }
@@ -164,12 +190,12 @@ function checkPoopTime(world: MainSceneWorld, currentTime: number): void {
  */
 export function createPoop(world: MainSceneWorld, characterEid: number): void {
   console.log(
-    `[DigestiveSystem] Creating poop for character EID: ${characterEid}`
+    `[DigestiveSystem] Creating poop for character EID: ${characterEid}`,
   );
 
   if (!hasComponent(world, PositionComp, characterEid)) {
     console.warn(
-      `[DigestiveSystem] Character ${characterEid} has no PositionComp`
+      `[DigestiveSystem] Character ${characterEid} has no PositionComp`,
     );
     return;
   }
@@ -177,7 +203,7 @@ export function createPoop(world: MainSceneWorld, characterEid: number): void {
   const characterX = PositionComp.x[characterEid];
   const characterY = PositionComp.y[characterEid];
   console.log(
-    `[DigestiveSystem] Character position: (${characterX}, ${characterY})`
+    `[DigestiveSystem] Character position: (${characterX}, ${characterY})`,
   );
 
   // 캐릭터의 각도 정보 가져오기 (바라보는 방향)
@@ -200,15 +226,15 @@ export function createPoop(world: MainSceneWorld, characterEid: number): void {
   const boundary = world.positionBoundary;
   const finalX = Math.max(
     boundary.x,
-    Math.min(boundary.x + boundary.width, poopX)
+    Math.min(boundary.x + boundary.width, poopX),
   );
   const finalY = Math.max(
     boundary.y,
-    Math.min(boundary.y + boundary.height, poopY)
+    Math.min(boundary.y + boundary.height, poopY),
   );
   console.log(`[DigestiveSystem] Final poop position: (${finalX}, ${finalY})`);
   console.log(
-    `[DigestiveSystem] Boundary: x=${boundary.x}, y=${boundary.y}, width=${boundary.width}, height=${boundary.height}`
+    `[DigestiveSystem] Boundary: x=${boundary.x}, y=${boundary.y}, width=${boundary.width}, height=${boundary.height}`,
   );
 
   const poobEntity = createPoobEntity(world, {

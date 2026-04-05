@@ -8,7 +8,6 @@ import {
 } from "../raw-components";
 import { ObjectType } from "../types";
 import { createPoop, addToDigestiveLoad } from "../systems/DigestiveSystem";
-import { GAME_CONSTANTS } from "../config";
 
 const characterQuery = defineQuery([ObjectComp, CharacterStatusComp]);
 const objectQuery = defineQuery([ObjectComp]); // ObjectComp만 가진 엔티티들도 찾기
@@ -499,51 +498,13 @@ export class HTMLDebugStatusUI {
 
     const currentTime = Date.now();
 
-    // 현재 digestive 상태 확인 (addToDigestiveLoad가 자동으로 컴포넌트 추가해줌)
-    const currentLoad =
-      DigestiveSystemComp.currentLoad[this._currentCharacterEid] || 0;
-    const capacity =
-      DigestiveSystemComp.capacity[this._currentCharacterEid] ||
-      GAME_CONSTANTS.DIGESTIVE_CAPACITY;
-    const loadIncrease =
-      staminaEquivalent * GAME_CONSTANTS.DIGESTIVE_MULTIPLIER;
-    const newLoad = currentLoad + loadIncrease;
-
-    // 최대치를 넘었을 때 나머지 값으로 설정
-    if (newLoad > capacity) {
-      // addToDigestiveLoad 먼저 호출하여 컴포넌트가 없으면 자동 추가
-      addToDigestiveLoad(
-        this._world,
-        this._currentCharacterEid,
-        0,
-        currentTime,
-      );
-
-      const remainder = newLoad % capacity;
-      DigestiveSystemComp.currentLoad[this._currentCharacterEid] = remainder;
-
-      // poob 생성 타이머 재설정 (나머지가 있고 용량을 넘으면)
-      if (remainder > 0) {
-        DigestiveSystemComp.nextPoopTime[this._currentCharacterEid] =
-          currentTime + GAME_CONSTANTS.POOP_DELAY;
-      } else {
-        DigestiveSystemComp.nextPoopTime[this._currentCharacterEid] = 0;
-      }
-
-      console.log(
-        `[HTMLDebugStatusUI] Digestive load overflow: ${newLoad.toFixed(
-          1,
-        )} -> ${remainder.toFixed(1)} (capacity: ${capacity})`,
-      );
-    } else {
-      // 일반적인 증가 처리 (자동으로 컴포넌트 추가됨)
-      addToDigestiveLoad(
-        this._world,
-        this._currentCharacterEid,
-        staminaEquivalent,
-        currentTime,
-      );
-    }
+    // 실제 게임 시스템과 동일한 규칙을 사용한다.
+    addToDigestiveLoad(
+      this._world,
+      this._currentCharacterEid,
+      staminaEquivalent,
+      currentTime,
+    );
 
     console.log(
       `[HTMLDebugStatusUI] Digestive load adjusted by ${staminaEquivalent} stamina equivalent`,

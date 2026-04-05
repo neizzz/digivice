@@ -191,7 +191,7 @@ export class GameMenu {
   // 메뉴 항목 활성화/비활성화 메서드 추가
   public setMenuItemDisabled(
     itemType: GameMenuItemType,
-    disabled: boolean
+    disabled: boolean,
   ): void {
     // 내부 Set에 상태 업데이트
     if (disabled) {

@@ -13,7 +13,7 @@ cd "$(dirname "$0")/.."
 # apps/client 빌드
 echo "📦 Building apps/client..."
 cd apps/client
-pnpm build
+pnpm build:flutter:dev
 
 # 빌드 결과 확인
 if [ ! -d "dist" ]; then

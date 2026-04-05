@@ -56,7 +56,8 @@ import {
 import { AppStateManager } from "./AppStateManager";
 import { HTMLDebugStatusUI } from "./ui/HTMLDebugStatusUI";
 import { HTMLDebugToggleButton } from "./ui/HTMLDebugToggleButton";
-import { StaminaGaugeUI } from "./ui/StaminaGaugeUI";
+import { HTMLDebugGameConstantsUI } from "./ui/HTMLDebugGameConstantsUI";
+import { HTMLDebugGaugeUI } from "./ui/HTMLDebugGaugeUI";
 import { StorageManager } from "../../managers/StorageManager";
 import { Background } from "../../entities/Background";
 import {
@@ -83,6 +84,7 @@ import {
 import { SPRITESHEET_KEY_TO_NAME } from "./systems/AnimationRenderSystem";
 import { Scene } from "../../interfaces/Scene";
 import {
+  ControlButtonParams,
   ControlButtonType,
   NavigationAction,
   NavigationActionPayload,
@@ -256,16 +258,17 @@ export class MainSceneWorld implements IWorld, Scene {
   private _persistentData?: MainSceneWorldData;
   private _debugStatusUI?: HTMLDebugStatusUI;
   private _debugToggleButton?: HTMLDebugToggleButton;
-  private _staminaGaugeUI?: StaminaGaugeUI;
+  private _debugGameConstantsUI?: HTMLDebugGameConstantsUI;
+  private _debugGaugeUI?: HTMLDebugGaugeUI;
   private _gameMenu?: GameMenu;
   private _parentElement?: HTMLElement;
   private _navigationActionIndex = 0;
   private _appStateManager?: AppStateManager;
   private _changeControlButtons?: (
     controlButtonParamsSet: [
-      { type: ControlButtonType },
-      { type: ControlButtonType },
-      { type: ControlButtonType },
+      ControlButtonParams,
+      ControlButtonParams,
+      ControlButtonParams,
     ],
   ) => void;
   private _isCleaningMode = false; // 청소 모드 상태
@@ -273,6 +276,8 @@ export class MainSceneWorld implements IWorld, Scene {
   private _focusedTargetEid = -1; // 현재 포커스된 청소 대상 엔티티 ID
   private _broomProgress = 0; // 빗자루 움직인 거리 (0.0 ~ 1.0)
   private _currentSliderValue = 0.5; // 현재 슬라이더 값 (0.0 ~ 1.0)
+  private _cleaningSliderSessionKey = 0;
+  private _pendingCleaningSliderDelta = 0; // 입력 이벤트 동안 누적된 실제 슬라이더 이동량
   private _isPaused = false; // 앱이 일시정지 상태인지 여부
   private _pauseStartTime = 0; // 일시정지 시작 시간
   private _visibilityChangeHandler?: () => void; // Page Visibility API 이벤트 핸들러
@@ -370,9 +375,9 @@ export class MainSceneWorld implements IWorld, Scene {
     }>;
     changeControlButtons?: (
       controlButtonParamsSet: [
-        { type: ControlButtonType },
-        { type: ControlButtonType },
-        { type: ControlButtonType },
+        ControlButtonParams,
+        ControlButtonParams,
+        ControlButtonParams,
       ],
     ) => void;
   }) {
@@ -595,9 +600,6 @@ export class MainSceneWorld implements IWorld, Scene {
 
       // UI 초기화
       if (this._parentElement) {
-        // 스테미나 게이지 UI (항상 표시)
-        this._staminaGaugeUI = new StaminaGaugeUI(this, this._parentElement);
-
         // 게임 메뉴 초기화
         this._gameMenu = new GameMenu(this._parentElement, {
           onMiniGameSelect: () => {
@@ -631,6 +633,10 @@ export class MainSceneWorld implements IWorld, Scene {
 
         // 디버그 UI (개발 환경에서만)
         if (import.meta.env.DEV) {
+          this._debugGaugeUI = new HTMLDebugGaugeUI(this, this._parentElement);
+          this._debugGameConstantsUI = new HTMLDebugGameConstantsUI(
+            this._parentElement,
+          );
           this._debugStatusUI = new HTMLDebugStatusUI(
             this,
             this._parentElement,
@@ -916,10 +922,10 @@ export class MainSceneWorld implements IWorld, Scene {
         this._gameMenu = undefined;
       }
 
-      // 스테미나 게이지 UI 정리
-      if (this._staminaGaugeUI) {
-        this._staminaGaugeUI.destroy();
-        this._staminaGaugeUI = undefined;
+      // 디버그 게이지 UI 정리
+      if (this._debugGaugeUI) {
+        this._debugGaugeUI.destroy();
+        this._debugGaugeUI = undefined;
       }
 
       // 디버그 UI 정리
@@ -930,6 +936,10 @@ export class MainSceneWorld implements IWorld, Scene {
       if (this._debugToggleButton) {
         this._debugToggleButton.destroy();
         this._debugToggleButton = undefined;
+      }
+      if (this._debugGameConstantsUI) {
+        this._debugGameConstantsUI.destroy();
+        this._debugGameConstantsUI = undefined;
       }
 
       this._background && this._stage.removeChild(this._background);
@@ -959,8 +969,8 @@ export class MainSceneWorld implements IWorld, Scene {
     });
 
     // UI 업데이트
-    if (this._staminaGaugeUI) {
-      this._staminaGaugeUI.update();
+    if (this._debugGaugeUI) {
+      this._debugGaugeUI.update();
     }
 
     // 디버그 UI 업데이트
@@ -1252,15 +1262,17 @@ export class MainSceneWorld implements IWorld, Scene {
    * Scene 인터페이스 구현: 슬라이더 값 변경 처리
    */
   public handleSliderValueChange(value: number): void {
-    console.log(`[MainSceneWorld] Slider value changed: ${value}`);
+    const nextSliderValue = Math.max(0, Math.min(1, value));
+    const previousSliderValue = this._currentSliderValue;
 
     // 슬라이더 값 저장
-    this._currentSliderValue = value;
+    this._currentSliderValue = nextSliderValue;
 
     // 청소 모드에서는 슬라이더 값을 청소 시스템에 전달
     if (this._isCleaningMode) {
-      // 슬라이더 값은 cleaningSystem에서 처리됨
-      // 여기서는 특별한 처리가 필요 없음
+      this._pendingCleaningSliderDelta += Math.abs(
+        nextSliderValue - previousSliderValue,
+      );
     }
   }
 
@@ -1268,8 +1280,6 @@ export class MainSceneWorld implements IWorld, Scene {
    * Scene 인터페이스 구현: 슬라이더 종료 처리
    */
   public handleSliderEnd(): void {
-    console.log("[MainSceneWorld] Slider ended");
-
     // 청소 모드에서 슬라이더가 종료되었을 때 청소 완료 상태 확인
     if (this._isCleaningMode) {
       this._checkAndExitCleaningModeIfComplete();
@@ -1453,6 +1463,12 @@ export class MainSceneWorld implements IWorld, Scene {
     this._broomProgress = Math.max(0, Math.min(1, progress));
   }
 
+  public consumePendingCleaningSliderDelta(): number {
+    const pendingDelta = this._pendingCleaningSliderDelta;
+    this._pendingCleaningSliderDelta = 0;
+    return pendingDelta;
+  }
+
   /**
    * 청소 모드 진입 (외부에서 호출 가능)
    */
@@ -1478,9 +1494,14 @@ export class MainSceneWorld implements IWorld, Scene {
       return;
     }
 
+    const initialCleaningSliderValue = 0.5;
+
     this._isCleaningMode = true;
+    this._cleaningSliderSessionKey += 1;
     this._focusedTargetEid = -1;
-    this._broomProgress = 0;
+    this._currentSliderValue = initialCleaningSliderValue;
+    this._broomProgress = initialCleaningSliderValue;
+    this._pendingCleaningSliderDelta = 0;
 
     // 컨트롤 버튼을 청소 모드 세트로 변경
     this._updateControlButtonsForCleaningMode(true);
@@ -1528,7 +1549,8 @@ export class MainSceneWorld implements IWorld, Scene {
 
     this._isCleaningMode = false;
     this._focusedTargetEid = -1;
-    this._broomProgress = 0;
+    this._broomProgress = this._currentSliderValue;
+    this._pendingCleaningSliderDelta = 0;
 
     // 현재 메뉴의 포커스 상태에 따라 컨트롤 버튼 복원
     const menuHasFocus = this._gameMenu?.hasFocus() ?? false;
@@ -1545,8 +1567,16 @@ export class MainSceneWorld implements IWorld, Scene {
       // 청소 모드: Cancel, Clean, Clean
       this._changeControlButtons([
         { type: ControlButtonType.Cancel },
-        { type: ControlButtonType.Clean },
-        { type: ControlButtonType.Clean },
+        {
+          type: ControlButtonType.Clean,
+          initialSliderValue: this._currentSliderValue,
+          sliderSessionKey: this._cleaningSliderSessionKey,
+        },
+        {
+          type: ControlButtonType.Clean,
+          initialSliderValue: this._currentSliderValue,
+          sliderSessionKey: this._cleaningSliderSessionKey,
+        },
       ]);
     } else {
       // 기본 모드로 복원 (메뉴 포커스 상태에 따라)

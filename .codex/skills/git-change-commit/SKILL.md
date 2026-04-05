@@ -10,6 +10,12 @@ description: Summarize current git changes in the active repository, propose a c
 Summarize the current repository changes and turn them into a safe, reviewable git commit.
 Start with the helper script for a compact change snapshot, then inspect focused diffs before writing the final commit message.
 
+## Output and language
+
+- Write user-facing summaries, scope confirmations, and final reports in Korean by default unless the user explicitly asks for another language.
+- When proposing a commit message, follow the repository's recent language/style convention when it is clear; otherwise prefer Korean if the user asked for Korean output.
+- Keep the commit message itself concise even when the surrounding explanation is in Korean.
+
 ## Workflow
 
 1. Capture the current scope.
@@ -60,6 +66,7 @@ Start with the helper script for a compact change snapshot, then inspect focused
 - If the diff includes asset build outputs, say so explicitly.
 - If the repository is already partially staged, preserve that intent unless the user asks to regroup changes.
 - When summarizing changes for the user, prefer `-` bullet items over `*` bullets unless the user explicitly requests a different format.
+- If recent commit history mixes Korean and English, prefer Korean when the user asked for Korean output, but avoid forcing a style change when the repository clearly follows another convention.
 
 ## Resource
 

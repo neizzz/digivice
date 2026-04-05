@@ -1,4 +1,4 @@
-import { ControlButtonType, Game } from "@digivice/game";
+import { type ControlButtonParams, ControlButtonType, Game } from "@digivice/game";
 import {
   FlutterStorage,
   hasNativeStorageController,
@@ -56,8 +56,8 @@ const GameContainer: React.FC = () => {
   const [showSettingMenu, setShowSettingMenu] = useState(false);
   const [gameSettings, setGameSettings] = useState(getGameSettings);
   const [gameSessionKey, setGameSessionKey] = useState(0);
-  const [buttonTypes, setButtonTypes] = useState<
-    [ControlButtonType, ControlButtonType, ControlButtonType] | null
+  const [buttonParams, setButtonParams] = useState<
+    [ControlButtonParams, ControlButtonParams, ControlButtonParams] | null
   >(null);
 
   const openSettingMenu = useCallback(() => {
@@ -94,7 +94,7 @@ const GameContainer: React.FC = () => {
       shouldRestartFromSetupRef.current = true;
       isInitializedRef.current = false;
       setShowSettingMenu(false);
-      setButtonTypes(null);
+      setButtonParams(null);
       setShowSetupLayer(true);
       setIsLoading(false);
       setGameInstance(null);
@@ -155,12 +155,23 @@ const GameContainer: React.FC = () => {
         openSettingMenu();
       },
       changeControlButtons: (controlButtonParams) => {
-        setButtonTypes(
-          () =>
-            controlButtonParams.map(
-              (controlButtonParam) => controlButtonParam.type,
-            ) as [ControlButtonType, ControlButtonType, ControlButtonType],
-        );
+        setButtonParams((previous) => {
+          if (
+            previous &&
+            previous.every(
+              (buttonParam, index) =>
+                buttonParam.type === controlButtonParams[index].type &&
+                buttonParam.initialSliderValue ===
+                  controlButtonParams[index].initialSliderValue &&
+                buttonParam.sliderSessionKey ===
+                  controlButtonParams[index].sliderSessionKey,
+            )
+          ) {
+            return previous;
+          }
+
+          return controlButtonParams;
+        });
       },
     });
 
@@ -274,10 +285,10 @@ const GameContainer: React.FC = () => {
           {/* 게임 캔버스가 여기에 렌더링됨 */}
         </div>
 
-        {buttonTypes && (
+        {buttonParams && (
           <div className={"w-full mt-14"}>
             <ControlButtons
-              buttonTypes={buttonTypes}
+              buttonParams={buttonParams}
               onButtonPress={handleButtonPress}
               onSliderChange={handleSliderChange}
               onSliderEnd={handleSliderEnd}

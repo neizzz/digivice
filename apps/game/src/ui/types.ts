@@ -14,6 +14,8 @@ export interface NavigationActionPayload {
 
 export interface ControlButtonParams {
   type: ControlButtonType;
+  initialSliderValue?: number;
+  sliderSessionKey?: number;
 }
 
 export enum ControlButtonType {
