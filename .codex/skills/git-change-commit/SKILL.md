@@ -59,6 +59,7 @@ Start with the helper script for a compact change snapshot, then inspect focused
 - Prefer mentioning the affected feature, system, or user-facing behavior over low-level refactoring noise.
 - If the diff includes asset build outputs, say so explicitly.
 - If the repository is already partially staged, preserve that intent unless the user asks to regroup changes.
+- When summarizing changes for the user, prefer `-` bullet items over `*` bullets unless the user explicitly requests a different format.
 
 ## Resource
 
