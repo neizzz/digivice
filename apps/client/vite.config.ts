@@ -10,11 +10,13 @@ export default defineConfig(({ mode }) => {
   // const env = loadEnv(mode, process.cwd());
   // const isDebugMode = env.DEBUG === "true";
   // const isNativeTestMode = env.NATIVE_FEATURE_TEST_MODE === "true";
+  const isFlutterDevMode = mode === "flutter-dev";
+  const isBuildOutputForFlutter = mode === "production" || isFlutterDevMode;
 
   return {
     // Flutter WebView(file://)에서 번들 리소스를 상대 경로로 로드하기 위해
-    // production build 시 base를 './'로 설정합니다.
-    base: mode === "production" ? "./" : "/",
+    // production/flutter-dev build 시 base를 './'로 설정합니다.
+    base: isBuildOutputForFlutter ? "./" : "/",
     plugins: [
       react(),
       tailwindcss(),
@@ -55,5 +57,12 @@ export default defineConfig(({ mode }) => {
         ignored: ["!**/node_modules/**"],
       },
     },
+    build: isFlutterDevMode
+      ? {
+          minify: false,
+          cssMinify: false,
+          sourcemap: true,
+        }
+      : undefined,
   };
 });

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'pip/pip_controller.dart';
 import 'storage/storage_controller.dart';
@@ -164,11 +165,13 @@ class BridgeConfigurator {
     String? data,
     String? error,
   }) async {
+    final String encodedData = data != null ? jsonEncode(data) : 'undefined';
+    final String encodedError = error != null ? jsonEncode(error) : 'undefined';
     final jsCode = '''
       window.__resolvePromise(
         "$id", 
-        ${data != null ? "'$data'" : 'undefined'}, 
-        ${error != null ? "'$error'" : 'undefined'}
+        $encodedData, 
+        $encodedError
       );
     ''';
     await _runJavaScript(jsCode);

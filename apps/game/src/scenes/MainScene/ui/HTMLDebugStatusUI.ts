@@ -17,7 +17,7 @@ function hasCharacterStatus(eid: number, status: CharacterStatus): boolean {
   const currentStatuses = CharacterStatusComp.statuses[eid];
   if (!currentStatuses) {
     console.warn(
-      `[HTMLDebugStatusUI] Entity ${eid} has no CharacterStatusComp`
+      `[HTMLDebugStatusUI] Entity ${eid} has no CharacterStatusComp`,
     );
     return false;
   }
@@ -48,20 +48,20 @@ export class HTMLDebugStatusUI {
     // 먼저 완전한 캐릭터 엔티티 찾기 (ObjectComp + CharacterStatusComp)
     const fullCharacterEntities = characterQuery(this._world);
     console.log(
-      `[HTMLDebugStatusUI] Found ${fullCharacterEntities.length} complete character entities`
+      `[HTMLDebugStatusUI] Found ${fullCharacterEntities.length} complete character entities`,
     );
 
     for (let i = 0; i < fullCharacterEntities.length; i++) {
       const eid = fullCharacterEntities[i];
       const objectType = ObjectComp.type[eid];
       console.log(
-        `[HTMLDebugStatusUI] Complete character entity ${eid}: type=${objectType}`
+        `[HTMLDebugStatusUI] Complete character entity ${eid}: type=${objectType}`,
       );
 
       if (objectType === ObjectType.CHARACTER) {
         this._currentCharacterEid = eid;
         console.log(
-          `[HTMLDebugStatusUI] Found complete character entity: ${eid}`
+          `[HTMLDebugStatusUI] Found complete character entity: ${eid}`,
         );
         return;
       }
@@ -70,7 +70,7 @@ export class HTMLDebugStatusUI {
     // 완전한 캐릭터를 찾지 못했다면 ObjectComp만 가진 캐릭터 엔티티 찾기
     const objectEntities = objectQuery(this._world);
     console.log(
-      `[HTMLDebugStatusUI] Found ${objectEntities.length} object entities`
+      `[HTMLDebugStatusUI] Found ${objectEntities.length} object entities`,
     );
 
     for (let i = 0; i < objectEntities.length; i++) {
@@ -80,13 +80,13 @@ export class HTMLDebugStatusUI {
       if (objectType === ObjectType.CHARACTER) {
         this._currentCharacterEid = eid;
         console.log(
-          `[HTMLDebugStatusUI] Found basic character entity: ${eid} (missing CharacterStatusComp)`
+          `[HTMLDebugStatusUI] Found basic character entity: ${eid} (missing CharacterStatusComp)`,
         );
 
         // CharacterStatusComp가 없다면 경고 메시지 출력
         if (!CharacterStatusComp.statuses[eid]) {
           console.warn(
-            `[HTMLDebugStatusUI] Character entity ${eid} is missing CharacterStatusComp`
+            `[HTMLDebugStatusUI] Character entity ${eid} is missing CharacterStatusComp`,
           );
         }
         return;
@@ -103,7 +103,7 @@ export class HTMLDebugStatusUI {
           const hasCharacterStatus =
             CharacterStatusComp.statuses[eid] !== undefined;
           console.log(
-            `Entity ${eid}: type=${objectType}, hasCharacterStatus=${hasCharacterStatus}`
+            `Entity ${eid}: type=${objectType}, hasCharacterStatus=${hasCharacterStatus}`,
           );
         }
       } catch (e) {
@@ -113,7 +113,7 @@ export class HTMLDebugStatusUI {
     console.groupEnd();
 
     console.warn(
-      `[HTMLDebugStatusUI] No character entity found! Complete: ${fullCharacterEntities.length}, Objects: ${objectEntities.length}`
+      `[HTMLDebugStatusUI] No character entity found! Complete: ${fullCharacterEntities.length}, Objects: ${objectEntities.length}`,
     );
     this._currentCharacterEid = -1;
   }
@@ -128,8 +128,8 @@ export class HTMLDebugStatusUI {
       this._charIdElement.innerHTML = `
         Character ID: ${this._currentCharacterEid}<br>
         <small>Type: ${objectType}, Status: ${
-        hasCharacterStatus ? "✓" : "✗"
-      }</small>
+          hasCharacterStatus ? "✓" : "✗"
+        }</small>
       `;
       this._charIdElement.style.color = hasCharacterStatus
         ? "#90EE90"
@@ -187,10 +187,10 @@ export class HTMLDebugStatusUI {
     `;
 
     const staminaMinusBtn = this._createAdjustButton("-1", () =>
-      this._adjustStamina(-1)
+      this._adjustStamina(-1),
     );
     const staminaPlusBtn = this._createAdjustButton("+1", () =>
-      this._adjustStamina(1)
+      this._adjustStamina(1),
     );
 
     staminaButtonsDiv.appendChild(staminaLabel);
@@ -213,10 +213,10 @@ export class HTMLDebugStatusUI {
     `;
 
     const evolutionPlus3Btn = this._createAdjustButton("+3", () =>
-      this._adjustEvolutionGauge(3)
+      this._adjustEvolutionGauge(3),
     );
     const evolutionPlus10Btn = this._createAdjustButton("+10", () =>
-      this._adjustEvolutionGauge(10)
+      this._adjustEvolutionGauge(10),
     );
 
     evolutionButtonsDiv.appendChild(evolutionLabel);
@@ -236,13 +236,13 @@ export class HTMLDebugStatusUI {
     `;
 
     const digestivePlus1Btn = this._createAdjustButton("+1", () =>
-      this._adjustDigestiveLoad(1)
+      this._adjustDigestiveLoad(1),
     );
     const digestivePlus3Btn = this._createAdjustButton("+3", () =>
-      this._adjustDigestiveLoad(3)
+      this._adjustDigestiveLoad(3),
     );
     const digestiveResetBtn = this._createAdjustButton("R", () =>
-      this._resetDigestiveLoad()
+      this._resetDigestiveLoad(),
     );
 
     digestiveButtonsDiv.appendChild(digestiveLabel);
@@ -262,7 +262,7 @@ export class HTMLDebugStatusUI {
     `;
 
     const createPoopBtn = this._createAdjustButton("💩", () =>
-      this._createPoop()
+      this._createPoop(),
     );
 
     poopButtonsDiv.appendChild(poopLabel);
@@ -302,7 +302,7 @@ export class HTMLDebugStatusUI {
     `;
 
     const toggleSystemsBtn = this._createAdjustButton("⚙️", () =>
-      this._toggleStatusSystems()
+      this._toggleStatusSystems(),
     );
 
     systemButtonsDiv.appendChild(systemLabel);
@@ -326,7 +326,7 @@ export class HTMLDebugStatusUI {
     `;
 
     const resetDataBtn = this._createAdjustButton("🗑️", () =>
-      this._resetAllData()
+      this._resetAllData(),
     );
 
     resetButtonsDiv.appendChild(resetLabel);
@@ -397,7 +397,7 @@ export class HTMLDebugStatusUI {
 
   private _updateStatusIndicator(
     indicator: HTMLSpanElement,
-    status: CharacterStatus
+    status: CharacterStatus,
   ): void {
     const isActive =
       this._currentCharacterEid >= 0 && // 0 이상이면 유효한 캐릭터
@@ -419,7 +419,7 @@ export class HTMLDebugStatusUI {
   // 스테미나/진화 게이지 조절 버튼 생성
   private _createAdjustButton(
     text: string,
-    onClick: () => void
+    onClick: () => void,
   ): HTMLButtonElement {
     const button = document.createElement("button");
     button.textContent = text;
@@ -441,7 +441,7 @@ export class HTMLDebugStatusUI {
   private _adjustStamina(amount: number): void {
     if (this._currentCharacterEid < 0) {
       console.warn(
-        "[HTMLDebugStatusUI] No character found for stamina adjustment"
+        "[HTMLDebugStatusUI] No character found for stamina adjustment",
       );
       return;
     }
@@ -451,7 +451,7 @@ export class HTMLDebugStatusUI {
     const newStamina = Math.max(0, Math.min(10, currentStamina + amount));
     CharacterStatusComp.stamina[this._currentCharacterEid] = newStamina;
     console.log(
-      `[HTMLDebugStatusUI] Stamina adjusted: ${currentStamina} -> ${newStamina}`
+      `[HTMLDebugStatusUI] Stamina adjusted: ${currentStamina} -> ${newStamina}`,
     );
   }
 
@@ -459,7 +459,7 @@ export class HTMLDebugStatusUI {
   private _adjustEvolutionGauge(amount: number): void {
     if (this._currentCharacterEid < 0) {
       console.warn(
-        "[HTMLDebugStatusUI] No character found for evolution gauge adjustment"
+        "[HTMLDebugStatusUI] No character found for evolution gauge adjustment",
       );
       return;
     }
@@ -470,8 +470,8 @@ export class HTMLDebugStatusUI {
     CharacterStatusComp.evolutionGage[this._currentCharacterEid] = newGauge;
     console.log(
       `[HTMLDebugStatusUI] Evolution gauge adjusted: ${currentGauge.toFixed(
-        1
-      )} -> ${newGauge.toFixed(1)}`
+        1,
+      )} -> ${newGauge.toFixed(1)}`,
     );
   }
 
@@ -484,7 +484,7 @@ export class HTMLDebugStatusUI {
 
     createPoop(this._world, this._currentCharacterEid);
     console.log(
-      `[HTMLDebugStatusUI] Poop created for character ${this._currentCharacterEid}`
+      `[HTMLDebugStatusUI] Poop created for character ${this._currentCharacterEid}`,
     );
   }
 
@@ -492,7 +492,7 @@ export class HTMLDebugStatusUI {
   private _adjustDigestiveLoad(staminaEquivalent: number): void {
     if (this._currentCharacterEid < 0) {
       console.warn(
-        "[HTMLDebugStatusUI] No character found for digestive load adjustment"
+        "[HTMLDebugStatusUI] No character found for digestive load adjustment",
       );
       return;
     }
@@ -516,7 +516,7 @@ export class HTMLDebugStatusUI {
         this._world,
         this._currentCharacterEid,
         0,
-        currentTime
+        currentTime,
       );
 
       const remainder = newLoad % capacity;
@@ -532,8 +532,8 @@ export class HTMLDebugStatusUI {
 
       console.log(
         `[HTMLDebugStatusUI] Digestive load overflow: ${newLoad.toFixed(
-          1
-        )} -> ${remainder.toFixed(1)} (capacity: ${capacity})`
+          1,
+        )} -> ${remainder.toFixed(1)} (capacity: ${capacity})`,
       );
     } else {
       // 일반적인 증가 처리 (자동으로 컴포넌트 추가됨)
@@ -541,12 +541,12 @@ export class HTMLDebugStatusUI {
         this._world,
         this._currentCharacterEid,
         staminaEquivalent,
-        currentTime
+        currentTime,
       );
     }
 
     console.log(
-      `[HTMLDebugStatusUI] Digestive load adjusted by ${staminaEquivalent} stamina equivalent`
+      `[HTMLDebugStatusUI] Digestive load adjusted by ${staminaEquivalent} stamina equivalent`,
     );
   }
 
@@ -554,7 +554,7 @@ export class HTMLDebugStatusUI {
   private _resetDigestiveLoad(): void {
     if (this._currentCharacterEid < 0) {
       console.warn(
-        "[HTMLDebugStatusUI] No character found for digestive load reset"
+        "[HTMLDebugStatusUI] No character found for digestive load reset",
       );
       return;
     }
@@ -567,7 +567,7 @@ export class HTMLDebugStatusUI {
     DigestiveSystemComp.currentLoad[this._currentCharacterEid] = 0;
     DigestiveSystemComp.nextPoopTime[this._currentCharacterEid] = 0;
     console.log(
-      `[HTMLDebugStatusUI] Digestive load reset for character ${this._currentCharacterEid}`
+      `[HTMLDebugStatusUI] Digestive load reset for character ${this._currentCharacterEid}`,
     );
   }
 
@@ -585,13 +585,13 @@ export class HTMLDebugStatusUI {
       // 잠들어 있다면 깨우기 (IDLE로 변경)
       ObjectComp.state[this._currentCharacterEid] = 1; // CharacterState.IDLE = 1
       console.log(
-        `[HTMLDebugStatusUI] Character ${this._currentCharacterEid} woke up (SLEEPING -> IDLE)`
+        `[HTMLDebugStatusUI] Character ${this._currentCharacterEid} woke up (SLEEPING -> IDLE)`,
       );
     } else {
       // 깨어 있다면 재우기
       ObjectComp.state[this._currentCharacterEid] = 3; // CharacterState.SLEEPING = 3
       console.log(
-        `[HTMLDebugStatusUI] Character ${this._currentCharacterEid} fell asleep (${currentState} -> SLEEPING)`
+        `[HTMLDebugStatusUI] Character ${this._currentCharacterEid} fell asleep (${currentState} -> SLEEPING)`,
       );
     }
   }
@@ -602,7 +602,7 @@ export class HTMLDebugStatusUI {
     console.log(
       `[HTMLDebugStatusUI] Status management systems ${
         isEnabled ? "enabled" : "disabled"
-      }`
+      }`,
     );
   }
 
@@ -610,7 +610,7 @@ export class HTMLDebugStatusUI {
   private async _resetAllData(): Promise<void> {
     if (
       !confirm(
-        "모든 데이터를 삭제하고 처음부터 시작하시겠습니까? 이 작업은 되돌릴 수 없습니다."
+        "모든 데이터를 삭제하고 처음부터 시작하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
       )
     ) {
       return;
@@ -618,7 +618,7 @@ export class HTMLDebugStatusUI {
 
     try {
       // 스토리지에서 데이터 완전 삭제
-      await (this._world as any).setData(null);
+      await this._world.clearData();
       console.log("[HTMLDebugStatusUI] All data cleared from storage");
 
       // 페이지 새로고침하여 완전히 초기화

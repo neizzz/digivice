@@ -12,8 +12,8 @@ export type ControlButtonsChangeCallback = (
   controlButtonParamsSet: [
     ControlButtonParams,
     ControlButtonParams,
-    ControlButtonParams
-  ]
+    ControlButtonParams,
+  ],
 ) => void;
 
 export type CreateInitialGameDataCallback = () => Promise<{
@@ -36,6 +36,7 @@ export class Game {
   public showAlert: ShowAlertCallback; // 팝업 콜백 추가
 
   private _parentElement: HTMLElement;
+  private _createInitialGameData: CreateInitialGameDataCallback;
   private currentScene?: Scene;
   // private scenes: Map<SceneKey, Scene> = new Map();
   private currentSceneKey?: SceneKey;
@@ -50,11 +51,17 @@ export class Game {
     showSettings: ShowSettingsCallback;
     showAlert: ShowAlertCallback; // 팝업 콜백 추가
   }) {
-    const { parentElement, changeControlButtons, showSettings, showAlert } =
-      params;
+    const {
+      parentElement,
+      onCreateInitialGameData,
+      changeControlButtons,
+      showSettings,
+      showAlert,
+    } = params;
     this.changeControlButtons = changeControlButtons;
     this.showSettings = showSettings; // 설정 화면 표시 콜백
     this.showAlert = showAlert; // 팝업 콜백 저장
+    this._createInitialGameData = onCreateInitialGameData;
 
     this.app = new PIXI.Application();
 
@@ -239,7 +246,7 @@ export class Game {
    * @returns 생성된 씬 객체
    */
   private async _createScene(
-    key: SceneKey
+    key: SceneKey,
     // gameData: GameData
   ): Promise<Scene> {
     console.log(`[Game] Creating new scene: ${key}`);
@@ -247,7 +254,7 @@ export class Game {
     // 에셋이 로드되지 않았으면 오류 표시
     if (!this.assetsLoaded) {
       console.warn(
-        "[Game] 에셋이 아직 로드되지 않았습니다. 씬이 제대로 표시되지 않을 수 있습니다."
+        "[Game] 에셋이 아직 로드되지 않았습니다. 씬이 제대로 표시되지 않을 수 있습니다.",
       );
     }
 
@@ -262,6 +269,7 @@ export class Game {
             height: this.app.screen.height - 2 * SCREEN_PADDING,
           },
           parentElement: this._parentElement,
+          createInitialGameData: this._createInitialGameData,
           changeControlButtons: this.changeControlButtons,
         });
         await mainSceneWorld.init();
@@ -287,6 +295,11 @@ export class Game {
       if (this.currentSceneKey === key) {
         console.log(`[Game] 이미 ${key} 씬에 있습니다`);
         return true;
+      }
+
+      if (this.currentScene?.onSceneExit) {
+        console.log(`[Game] 현재 씬 종료 처리 시작: ${this.currentSceneKey}`);
+        await this.currentScene.onSceneExit();
       }
 
       // 캐시된 씬이 없으면 새로 생성

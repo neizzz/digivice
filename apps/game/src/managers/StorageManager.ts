@@ -1,22 +1,30 @@
-import { Storage, FlutterStorage, WebLocalStorage } from "@shared/storage";
+import {
+  type Storage,
+  FlutterStorage,
+  WebLocalStorage,
+  hasNativeStorageController,
+} from "@shared/storage";
 
 class _StorageManager {
-  private _storage: Storage;
+  private readonly _flutterStorage = new FlutterStorage();
+  private readonly _webStorage = new WebLocalStorage();
 
-  constructor() {
-    if (typeof window !== "undefined" && "storageController" in window) {
-      this._storage = new FlutterStorage();
-    } else {
-      this._storage = new WebLocalStorage();
-    }
+  private _getStorage(): Storage {
+    return hasNativeStorageController()
+      ? this._flutterStorage
+      : this._webStorage;
   }
 
   getData<T>(key: string): Promise<T | null> {
-    return this._storage.getData(key) as Promise<T | null>;
+    return this._getStorage().getData(key) as Promise<T | null>;
   }
 
   setData<T>(key: string, data: T): Promise<void> {
-    return this._storage.setData(key, data);
+    return this._getStorage().setData(key, data);
+  }
+
+  removeData(key: string): Promise<void> {
+    return this._getStorage().removeData(key);
   }
 }
 

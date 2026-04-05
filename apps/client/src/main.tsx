@@ -21,7 +21,7 @@ console.log("서비스 초기화 완료");
 const isAndroid = platformAdapter.isAndroid();
 const isIOS = platformAdapter.isIOS();
 console.log(
-  `현재 플랫폼: ${isAndroid ? "Android" : isIOS ? "iOS" : "알 수 없음"}`
+  `현재 플랫폼: ${isAndroid ? "Android" : isIOS ? "iOS" : "알 수 없음"}`,
 );
 console.log(`User Agent: ${navigator.userAgent}`);
 console.log("Environment variables:", JSON.stringify(import.meta.env, null, 2));
@@ -38,13 +38,53 @@ const isNativeFeatureTestMode =
   import.meta.env.NATIVE_FEATURE_TEST_MODE === "true";
 
 console.log(
-  `애플리케이션 모드: ${isNativeFeatureTestMode ? "TEST" : "NORMAL"}`
+  `애플리케이션 모드: ${isNativeFeatureTestMode ? "TEST" : "NORMAL"}`,
 );
 
-// biome-ignore lint/style/noNonNullAssertion: <explanation>
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  <>
-    {isNativeFeatureTestMode ? <PrototypeApp /> : <App />}
-    <SimpleLogViewer position="top-right" initialOpen={false} />
-  </>
-);
+function sleep(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, milliseconds);
+  });
+}
+
+async function waitForNativeStorageController(
+  timeoutMilliseconds = 4000,
+): Promise<void> {
+  if (!platformAdapter.isRunningInNativeApp()) {
+    return;
+  }
+
+  const startedAt = Date.now();
+
+  while (!("storageController" in window)) {
+    if (Date.now() - startedAt >= timeoutMilliseconds) {
+      console.warn(
+        "[bootstrap] Native storage controller did not become available before timeout",
+      );
+      return;
+    }
+
+    await sleep(50);
+  }
+
+  console.log("[bootstrap] Native storage controller is ready");
+}
+
+async function bootstrap(): Promise<void> {
+  await waitForNativeStorageController();
+
+  const rootElement = document.getElementById("root");
+
+  if (!rootElement) {
+    throw new Error("Root element not found");
+  }
+
+  ReactDOM.createRoot(rootElement).render(
+    <>
+      {isNativeFeatureTestMode ? <PrototypeApp /> : <App />}
+      <SimpleLogViewer position="top-right" initialOpen={false} />
+    </>,
+  );
+}
+
+void bootstrap();

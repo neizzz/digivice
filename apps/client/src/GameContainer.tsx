@@ -1,5 +1,10 @@
 import { ControlButtonType, Game } from "@digivice/game";
-import { FlutterStorage, type Storage, WebLocalStorage } from "@shared/storage";
+import {
+  FlutterStorage,
+  hasNativeStorageController,
+  type Storage,
+  WebLocalStorage,
+} from "@shared/storage";
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ControlButtons from "./components/ControlButtons";
@@ -7,10 +12,7 @@ import { type SetupFormData, SetupLayer } from "./layers/SetupLayer";
 import AlertLayer from "./layers/AlertLayer";
 import SettingMenuLayer from "./layers/SettingMenuLayer";
 import useAlert from "./hooks/useAlert";
-import {
-  getGameSettings,
-  updateGameSettings,
-} from "./settings/gameSettings";
+import { getGameSettings, updateGameSettings } from "./settings/gameSettings";
 
 const WORLD_DATA_STORAGE_KEY = "MainSceneWorldData";
 
@@ -32,7 +34,7 @@ async function waitForLayoutStabilization(): Promise<void> {
 }
 
 function createStorage(): Storage {
-  if (typeof window !== "undefined" && "storageController" in window) {
+  if (hasNativeStorageController()) {
     return new FlutterStorage();
   }
 
@@ -73,10 +75,10 @@ const GameContainer: React.FC = () => {
     setGameSettings(updateGameSettings({ notificationEnabled: enabled }));
   }, []);
 
-  const handleResetGameData = useCallback(() => {
+  const handleResetGameData = useCallback(async () => {
     try {
       const storage = createStorage();
-      storage.removeData(WORLD_DATA_STORAGE_KEY);
+      await storage.removeData(WORLD_DATA_STORAGE_KEY);
       gameInstance?.destroy();
       initialSetupDataRef.current = null;
       pendingSetupResolverRef.current = null;
@@ -189,7 +191,12 @@ const GameContainer: React.FC = () => {
       isMounted = false;
       pendingSetupResolverRef.current = null;
     };
-  }, [gameSessionKey, hasSavedGameData, initializeGame, requestInitialGameData]);
+  }, [
+    gameSessionKey,
+    hasSavedGameData,
+    initializeGame,
+    requestInitialGameData,
+  ]);
 
   // 버튼 클릭 핸들러 - Game 인스턴스에 버튼 타입만 전달
   const handleButtonPress = useCallback(

@@ -44,12 +44,12 @@ export function dataSyncSystem(params: {
     const objectId = ObjectComp.id[eid];
     if (!objectId) {
       throw new Error(
-        `[DataSyncSystem] Entity ${eid} has missing Object ID - this indicates a critical data integrity issue`
+        `[DataSyncSystem] Entity ${eid} has missing Object ID - this indicates a critical data integrity issue`,
       );
     }
     if (seenObjectIds.has(objectId)) {
       throw new Error(
-        `[DataSyncSystem] Duplicate Object ID ${objectId} found in entity ${eid} - this indicates a critical data integrity issue`
+        `[DataSyncSystem] Duplicate Object ID ${objectId} found in entity ${eid} - this indicates a critical data integrity issue`,
       );
     }
     seenObjectIds.add(objectId);
@@ -65,7 +65,7 @@ export function dataSyncSystem(params: {
   // 기존 엔티티의 업데이트는 별도 시스템에서 처리하거나 dirty flag로 관리
 
   newWorldData.world_metadata.last_ecs_saved = Date.now();
-  mainSceneWorld.setData(newWorldData);
+  void mainSceneWorld.setData(newWorldData);
   return params;
 }
 

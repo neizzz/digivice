@@ -133,6 +133,7 @@ export type SavedEntity = {
 
 export type WorldMetadata = {
   name: string;
+  monster_name?: string;
   last_ecs_saved: number;
   version: string;
   // 앱 상태 관리
@@ -276,6 +277,10 @@ export class MainSceneWorld implements IWorld, Scene {
   private _pauseStartTime = 0; // 일시정지 시작 시간
   private _visibilityChangeHandler?: () => void; // Page Visibility API 이벤트 핸들러
   private _statusSystemsEnabled = true; // 상태 관리 시스템들 활성화 여부
+  private _createInitialGameData?: () => Promise<{
+    name: string;
+  }>;
+  private _pendingStorageWrite: Promise<void> = Promise.resolve();
 
   // 실시간 모드용 시스템 파이프라인 (렌더링 포함)
   private _pipedSystems = pipe(
@@ -359,6 +364,9 @@ export class MainSceneWorld implements IWorld, Scene {
     stage: PIXI.Container;
     positionBoundary: Boundary;
     parentElement?: HTMLElement;
+    createInitialGameData?: () => Promise<{
+      name: string;
+    }>;
     changeControlButtons?: (
       controlButtonParamsSet: [
         { type: ControlButtonType },
@@ -370,6 +378,7 @@ export class MainSceneWorld implements IWorld, Scene {
     this._stage = params.stage;
     this._positionBoundary = params.positionBoundary;
     this._parentElement = params.parentElement;
+    this._createInitialGameData = params.createInitialGameData;
     this._changeControlButtons = params.changeControlButtons;
 
     // MainScene용 초기 컨트롤 버튼 설정 (메뉴에 포커스가 없는 상태)
@@ -531,15 +540,26 @@ export class MainSceneWorld implements IWorld, Scene {
         !loadedData.entities ||
         loadedData.entities.length === 0
       ) {
+        const initialGameData = await this._createInitialGameData?.();
         console.warn(
           "No saved data found, initializing with default entities...",
         );
-        this._persistentData = this._initializeData();
+        this._persistentData = this._initializeData(initialGameData);
       } else {
         console.log(`Found saved data, validating and loading...`);
 
-        this._persistentData = this._validateAndMigrateData(loadedData);
-        this._loadEcsEntitiesFromStorage();
+        const validatedData = this._validateAndMigrateData(loadedData);
+
+        if (validatedData.entities.length === 0) {
+          const initialGameData = await this._createInitialGameData?.();
+          console.warn(
+            "Saved data contained no recoverable entities, reinitializing with default entities...",
+          );
+          this._persistentData = this._initializeData(initialGameData);
+        } else {
+          this._persistentData = validatedData;
+          this._loadEcsEntitiesFromStorage();
+        }
       }
 
       // PIXI v8 Assets API로 게임 에셋 로드
@@ -805,13 +825,13 @@ export class MainSceneWorld implements IWorld, Scene {
    *   currentScene.onSceneExit();
    * }
    */
-  public onSceneExit(): void {
+  public async onSceneExit(): Promise<void> {
     console.log(
       "[MainSceneWorld] 🚪 Scene exit - saving state and cleaning up...",
     );
 
     // 현재 상태 저장
-    this._saveCurrentState();
+    await this._saveCurrentState();
 
     // 이벤트 핸들러 정리
     this._cleanupVisibilityChangeHandler();
@@ -945,10 +965,13 @@ export class MainSceneWorld implements IWorld, Scene {
     this._previousCleaningMode = this._isCleaningMode;
   }
 
-  private _initializeData(): MainSceneWorldData {
+  private _initializeData(initialGameData?: {
+    name: string;
+  }): MainSceneWorldData {
     return {
       world_metadata: {
         name: "MainScene",
+        monster_name: initialGameData?.name,
         last_ecs_saved: Date.now(),
         version: this.VERSION,
       },
@@ -995,13 +1018,87 @@ export class MainSceneWorld implements IWorld, Scene {
     }
   }
 
-  setData(data: MainSceneWorldData): void {
+  private _enqueueStorageWrite(operation: () => Promise<void>): Promise<void> {
+    const nextWrite = this._pendingStorageWrite
+      .catch(() => undefined)
+      .then(() => operation());
+
+    this._pendingStorageWrite = nextWrite.catch(() => undefined);
+    return nextWrite;
+  }
+
+  async setData(data: MainSceneWorldData): Promise<void> {
     this._persistentData = data;
-    StorageManager.setData(WORLD_DATA_STORAGE_KEY, data)
-      .then(() => (this._persistentData = data))
-      .catch((error) => {
+
+    await this._enqueueStorageWrite(async () => {
+      try {
+        await StorageManager.setData(WORLD_DATA_STORAGE_KEY, data);
+      } catch (error) {
         console.error("[MainSceneWorld] Failed to save data:", error);
-      });
+        throw error;
+      }
+    });
+  }
+
+  async clearData(): Promise<void> {
+    this._persistentData = undefined;
+
+    await this._enqueueStorageWrite(async () => {
+      try {
+        await StorageManager.removeData(WORLD_DATA_STORAGE_KEY);
+      } catch (error) {
+        console.error("[MainSceneWorld] Failed to clear data:", error);
+        throw error;
+      }
+    });
+  }
+
+  private _sanitizeSavedEntities(entities: SavedEntity[]): SavedEntity[] {
+    const sanitizedEntities: SavedEntity[] = [];
+    const seenObjectIds = new Set<number>();
+
+    entities.forEach((entity, index) => {
+      if (!entity?.components) {
+        console.warn(
+          `[MainSceneWorld] Dropping corrupted entity ${index}: missing components`,
+        );
+        return;
+      }
+
+      const objectComponent = entity.components.object;
+
+      if (!objectComponent) {
+        console.warn(
+          `[MainSceneWorld] Dropping corrupted entity ${index}: missing object component`,
+        );
+        return;
+      }
+
+      const objectId = objectComponent.id;
+
+      if (
+        typeof objectId !== "number" ||
+        !Number.isFinite(objectId) ||
+        objectId <= 0
+      ) {
+        console.warn(
+          `[MainSceneWorld] Dropping corrupted entity ${index}: invalid Object ID ${objectId}`,
+        );
+        return;
+      }
+
+      if (seenObjectIds.has(objectId)) {
+        console.warn(
+          `[MainSceneWorld] Dropping duplicated entity ${index}: Object ID ${objectId}`,
+        );
+        return;
+      }
+
+      seenObjectIds.add(objectId);
+      sanitizedEntities.push(entity);
+    });
+
+    return sanitizedEntities;
   }
 
   /**
@@ -1036,39 +1133,16 @@ export class MainSceneWorld implements IWorld, Scene {
         data = this._migrateData(data);
       }
 
-      // 엔티티 데이터 유효성 검증
-      const seenObjectIds = new Set<number>();
+      const originalEntityCount = data.entities.length;
+      data.entities = this._sanitizeSavedEntities(data.entities);
 
-      data.entities.forEach((entity, index) => {
-        if (!entity.components) {
-          throw new Error(
-            `Entity ${index} missing components - critical data corruption detected`,
-          );
-        }
-
-        // 필수 컴포넌트 검증 (object 컴포넌트는 필수)
-        if (!entity.components.object) {
-          throw new Error(
-            `Entity ${index} missing object component - critical data corruption detected`,
-          );
-        }
-
-        // Object ID 중복 검사
-        const objectId = entity.components.object.id;
-        if (!objectId) {
-          throw new Error(
-            `Entity ${index} has invalid Object ID - critical data corruption detected`,
-          );
-        }
-
-        if (seenObjectIds.has(objectId)) {
-          throw new Error(
-            `Duplicate Object ID ${objectId} detected at entity ${index} - critical data corruption detected`,
-          );
-        }
-
-        seenObjectIds.add(objectId);
-      });
+      if (data.entities.length !== originalEntityCount) {
+        console.warn(
+          `[MainSceneWorld] Recovered saved data by dropping ${
+            originalEntityCount - data.entities.length
+          } corrupted entities`,
+        );
+      }
 
       console.log(
         `Data validation completed, ${data.entities.length} valid entities found`,
@@ -1608,10 +1682,10 @@ export class MainSceneWorld implements IWorld, Scene {
     this._visibilityChangeHandler = () => {
       if (document.hidden) {
         // 앱이 백그라운드로 갔을 때 (홈으로 나가거나 다른 앱으로 전환)
-        this._handleAppPause();
+        void this._handleAppPause();
       } else {
         // 앱이 포그라운드로 돌아왔을 때
-        this._handleAppResume();
+        void this._handleAppResume();
       }
     };
 
@@ -1641,7 +1715,7 @@ export class MainSceneWorld implements IWorld, Scene {
   /**
    * 앱 일시정지 처리 (백그라운드로 갔을 때)
    */
-  private _handleAppPause(): void {
+  private async _handleAppPause(): Promise<void> {
     if (this._isPaused) {
       console.warn(
         "[MainSceneWorld] App pause event received but app is already paused",
@@ -1655,7 +1729,7 @@ export class MainSceneWorld implements IWorld, Scene {
     this._pauseStartTime = Date.now();
 
     // 현재 게임 상태 저장 (ECS 엔티티 상태 포함)
-    this._saveCurrentState();
+    await this._saveCurrentState();
 
     // 추가적인 일시정지 처리가 필요하다면 여기에 구현
     // 예: 오디오 일시정지, 애니메이션 중단 등
@@ -1727,13 +1801,17 @@ export class MainSceneWorld implements IWorld, Scene {
   /**
    * 현재 게임 상태를 저장 (scene 변경 시 호출)
    */
-  private _saveCurrentState(): void {
+  private async _saveCurrentState(): Promise<void> {
     try {
+      // ECS 엔티티들의 현재 상태를 persistent data에 동기화
+      this._syncEcsToPersisentData();
+
       // 마지막 활성 시간 저장
       this._saveLastActiveTime();
 
-      // ECS 엔티티들의 현재 상태를 persistent data에 동기화
-      this._syncEcsToPersisentData();
+      if (this._persistentData) {
+        await this.setData(this._persistentData);
+      }
 
       console.log("[MainSceneWorld] Current game state saved successfully");
     } catch (error) {
@@ -1753,19 +1831,40 @@ export class MainSceneWorld implements IWorld, Scene {
     // 현재 ECS 월드의 모든 엔티티를 순회하여 persistent data 업데이트
     const updatedEntities: SavedEntity[] = [];
 
-    // ECS 엔티티 순회 (간단한 구현 - 실제로는 더 정교한 쿼리 사용 가능)
-    for (let eid = 0; eid < 1000; eid++) {
-      // 엔티티가 존재하는지 확인 (ObjectComp가 있는지로 판단)
-      if (ObjectComp.type[eid] !== undefined && ObjectComp.type[eid] !== 0) {
-        try {
-          const savedEntity = convertECSEntityToSavedEntity(this, eid);
-          updatedEntities.push(savedEntity);
-        } catch (error) {
+    const objectEntitiesQuery = defineQuery([ObjectComp]);
+    const objectEntityIds = objectEntitiesQuery(this);
+    const seenObjectIds = new Set<number>();
+
+    for (const eid of objectEntityIds) {
+      try {
+        const savedEntity = convertECSEntityToSavedEntity(this, eid);
+        const objectId = savedEntity.components.object?.id;
+
+        if (
+          typeof objectId !== "number" ||
+          !Number.isFinite(objectId) ||
+          objectId <= 0
+        ) {
           console.warn(
-            `[MainSceneWorld] Failed to convert entity ${eid} to saved entity:`,
-            error,
+            `[MainSceneWorld] Skipping entity ${eid} during sync: invalid Object ID ${objectId}`,
           );
+          continue;
         }
+
+        if (seenObjectIds.has(objectId)) {
+          console.warn(
+            `[MainSceneWorld] Skipping entity ${eid} during sync: duplicate Object ID ${objectId}`,
+          );
+          continue;
+        }
+
+        seenObjectIds.add(objectId);
+        updatedEntities.push(savedEntity);
+      } catch (error) {
+        console.warn(
+          `[MainSceneWorld] Failed to convert entity ${eid} to saved entity:`,
+          error,
+        );
       }
     }
 
@@ -1792,9 +1891,6 @@ export class MainSceneWorld implements IWorld, Scene {
 
       this._persistentData.world_metadata.app_state.last_active_time =
         Date.now();
-
-      // 데이터 저장
-      this.setData(this._persistentData);
 
       console.log(
         `[MainSceneWorld] Saved last active time: ${new Date().toLocaleString(

@@ -2,24 +2,35 @@
 export interface Storage {
   getData(key: string): Promise<unknown | null>;
   setData(key: string, value: unknown): Promise<void>;
-  removeData(key: string): void;
+  removeData(key: string): Promise<void>;
   // clear(): Promise<void>;
 }
 
-// Flutter 스토리지 컨트롤러 타입 정의
-// interface StorageController {
-//   getData(key: string): Promise<string | null>;
-//   setData(key: string, value: string): Promise<void>;
-//   removeData(key: string): void;
-//   // clear(): void;
-// }
+interface NativeStorageController {
+  getData(key: string): Promise<string | null>;
+  setData(key: string, value: string): Promise<void>;
+  removeData(key: string): Promise<void>;
+}
 
-function _serialize(obj: any): string {
+declare global {
+  interface Window {
+    storageController?: NativeStorageController;
+  }
+}
+
+function _serialize(obj: unknown): string {
   return JSON.stringify(obj);
 }
 
 function _deserialize<T>(json: string): T {
   return JSON.parse(json) as T;
+}
+
+export function hasNativeStorageController(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.storageController !== "undefined"
+  );
 }
 
 export class WebLocalStorage implements Storage {
@@ -52,28 +63,36 @@ export class WebLocalStorage implements Storage {
     return Promise.resolve(localStorage.setItem(key, value));
   }
 
-  removeData(key: string): void {
-    localStorage.removeItem(key);
+  removeData(key: string): Promise<void> {
+    return Promise.resolve(localStorage.removeItem(key));
   }
 }
 
 // Flutter의 네이티브 스토리지 구현 - 이미 비동기
 export class FlutterStorage implements Storage {
-  private _getStorageController(): Storage {
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore
-    return window.storageController as Storage;
+  private _getStorageController(): NativeStorageController {
+    if (!hasNativeStorageController()) {
+      throw new Error("Native storage controller is not available");
+    }
+
+    return window.storageController as NativeStorageController;
   }
 
   async getData(key: string): Promise<unknown | null> {
-    return await this._getStorageController().getData(key);
+    const value = await this._getStorageController().getData(key);
+
+    if (value === null) {
+      return null;
+    }
+
+    return _deserialize(value);
   }
 
   setData(key: string, value: unknown): Promise<void> {
-    return this._getStorageController().setData(key, value);
+    return this._getStorageController().setData(key, _serialize(value));
   }
 
-  removeData(key: string): void {
-    this._getStorageController().removeData(key);
+  removeData(key: string): Promise<void> {
+    return this._getStorageController().removeData(key);
   }
 }
