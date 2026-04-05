@@ -8,18 +8,28 @@ export enum GameMenuItemType {
   // Training = "training",
 }
 
+const MENU_ITEM_CONTAINER_MAX_WIDTH = 280;
+const MENU_ITEM_COUNT = 5;
+const MENU_SPRITE_SLOT_COUNT = 7;
+
+const MENU_SPRITE_FINE_TUNE_X: Partial<Record<GameMenuItemType, number>> = {
+  [GameMenuItemType.Drug]: 1,
+};
+
 const getBackgroundPosition = (type: GameMenuItemType, size: number) => {
+  const fineTuneX = MENU_SPRITE_FINE_TUNE_X[type] ?? 0;
+
   switch (type) {
     case GameMenuItemType.MiniGame:
-      return `-${0 * size}px 0px`;
+      return `-${0 * size + fineTuneX}px 0px`;
     case GameMenuItemType.Feed:
-      return `-${1 * size}px 0px`;
+      return `-${1 * size + fineTuneX}px 0px`;
     case GameMenuItemType.Versus:
-      return `-${2 * size}px 0px`;
+      return `-${2 * size + fineTuneX}px 0px`;
     case GameMenuItemType.Drug:
-      return `-${3 * size}px 0px`;
+      return `-${3 * size + fineTuneX}px 0px`;
     case GameMenuItemType.Clean:
-      return `-${4 * size - 1}px 0px`;
+      return `-${4 * size + fineTuneX}px 0px`;
     // case GameMenuItemType.Information:
     //   return `-${5 * size}px 0px`;
     // case GameMenuItemType.Training:
@@ -44,13 +54,20 @@ export class GameMenuItem {
     this.element.classList.add(`type-${itemType}`);
 
     // 스프라이트 위치 설정
-    const size = document.body.clientWidth / 7;
+    const size = Math.max(
+      1,
+      Math.floor(
+        Math.min(document.body.clientWidth, MENU_ITEM_CONTAINER_MAX_WIDTH) /
+          MENU_ITEM_COUNT,
+      ),
+    );
     this.element.style.width = `${size}px`;
     this.element.style.height = `${size}px`;
     this.element.style.backgroundPosition = getBackgroundPosition(
       itemType,
       size,
     );
+    this.element.style.backgroundSize = `${size * MENU_SPRITE_SLOT_COUNT}px ${size}px`;
 
     // 초기 포커스 상태 설정
     this.updateFocusState();

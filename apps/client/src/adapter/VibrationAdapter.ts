@@ -2,7 +2,7 @@ import { PlatformAdapter } from "./PlatformAdapter";
 import { isVibrationEnabled } from "../settings/gameSettings";
 
 const DEFAULT_VIBRATION_DURATION = 20;
-const DEFAULT_VIBRATION_STRENGTH = 40;
+const DEFAULT_VIBRATION_STRENGTH = 60;
 const MIN_VIBRATION_STRENGTH = 10;
 const MAX_VIBRATION_STRENGTH = 255;
 

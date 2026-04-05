@@ -11,18 +11,22 @@
   width: 100%;
   max-width: 280px;
   display: flex;
-  justify-content: space-around;
+  justify-content: space-between;
 }
 
 .game-menu-item {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: center;
   background-image: url("/assets/game/sprites/menu-items.png");
   background-repeat: no-repeat;
-  background-size: cover;
+  background-size: auto 100%;
+  overflow: hidden;
   user-select: none;
+  image-rendering: pixelated;
   scale: 0.7;
+  transform-origin: center bottom;
   opacity: 0.6;
 }
 

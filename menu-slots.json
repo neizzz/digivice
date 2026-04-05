@@ -1,0 +1,76 @@
+{
+  "w": 448,
+  "h": 64,
+  "slots": [
+    {
+      "slot": 0,
+      "count": 1569,
+      "bounds": {
+        "minX": 2,
+        "maxX": 62,
+        "minY": 11,
+        "maxY": 52
+      }
+    },
+    {
+      "slot": 1,
+      "count": 1165,
+      "bounds": {
+        "minX": 8,
+        "maxX": 54,
+        "minY": 1,
+        "maxY": 62
+      }
+    },
+    {
+      "slot": 2,
+      "count": 1472,
+      "bounds": {
+        "minX": 3,
+        "maxX": 60,
+        "minY": 6,
+        "maxY": 57
+      }
+    },
+    {
+      "slot": 3,
+      "count": 1584,
+      "bounds": {
+        "minX": 1,
+        "maxX": 62,
+        "minY": 1,
+        "maxY": 62
+      }
+    },
+    {
+      "slot": 4,
+      "count": 456,
+      "bounds": {
+        "minX": 2,
+        "maxX": 60,
+        "minY": 3,
+        "maxY": 61
+      }
+    },
+    {
+      "slot": 5,
+      "count": 1077,
+      "bounds": {
+        "minX": 1,
+        "maxX": 62,
+        "minY": 1,
+        "maxY": 62
+      }
+    },
+    {
+      "slot": 6,
+      "count": 1172,
+      "bounds": {
+        "minX": 3,
+        "maxX": 60,
+        "minY": 3,
+        "maxY": 60
+      }
+    }
+  ]
+}

@@ -24,15 +24,23 @@ export function randomMovementSystem(params: {
   const allChars = allCharacterQuery(world);
 
   // 첫 번째 실행 시 전체 캐릭터 상태 로그
-  // if (Math.floor(currentTime / 3000) !== Math.floor((currentTime - 100) / 3000)) {
-  //   console.log(`[RandomMovementSystem] Found ${chars.length} entities with RandomMovementComp, ${allChars.length} total character entities`);
-  //   if (chars.length === 0 && allChars.length > 0) {
-  //     console.warn(`[RandomMovementSystem] Character entities exist but none have RandomMovementComp!`);
-  //     // 첫 번째 캐릭터 엔티티 정보 출력
-  //     const firstChar = allChars[0];
-  //     console.log(`[RandomMovementSystem] First character entity ${firstChar} - has RandomMovementComp: ${RandomMovementComp.minIdleTime[firstChar] !== undefined}`);
-  //   }
-  // }
+  if (
+    Math.floor(currentTime / 3000) !== Math.floor((currentTime - 100) / 3000)
+  ) {
+    console.log(
+      `[RandomMovementSystem] Found ${chars.length} entities with RandomMovementComp, ${allChars.length} total character entities`,
+    );
+    if (chars.length === 0 && allChars.length > 0) {
+      console.warn(
+        `[RandomMovementSystem] Character entities exist but none have RandomMovementComp!`,
+      );
+      // 첫 번째 캐릭터 엔티티 정보 출력
+      const firstChar = allChars[0];
+      console.log(
+        `[RandomMovementSystem] First character entity ${firstChar} - has RandomMovementComp: ${RandomMovementComp.minIdleTime[firstChar] !== undefined}`,
+      );
+    }
+  }
 
   for (let i = 0; i < chars.length; i++) {
     const eid = chars[i];
@@ -59,9 +67,9 @@ export function randomMovementSystem(params: {
     const nextChange = RandomMovementComp.nextChange[eid];
     if (!nextChange || nextChange <= 0 || nextChange > currentTime + 100000) {
       RandomMovementComp.nextChange[eid] = currentTime + 1000; // 1초 후 첫 상태 전환
-      // console.log(
-      //   `[RandomMovementSystem] Fixed nextChange for character ${eid} - was: ${nextChange}, now: ${currentTime + 1000}`,
-      // );
+      console.log(
+        `[RandomMovementSystem] Fixed nextChange for character ${eid} - was: ${nextChange}, now: ${currentTime + 1000}`,
+      );
     }
 
     // 디버그: RandomMovementComp 값들 검증
@@ -81,14 +89,14 @@ export function randomMovementSystem(params: {
     const timeUntilChange = nextChangeTime - currentTime;
 
     // 주기적으로 상태 정보 로그 (3초마다)
-    // if (
-    //   eid === chars[0] &&
-    //   Math.floor(currentTime / 3000) !== Math.floor((currentTime - 100) / 3000)
-    // ) {
-    //   console.log(
-    //     `[RandomMovementSystem] Entity ${eid} - Current: ${currentTime}, NextChange: ${nextChangeTime}, TimeLeft: ${timeUntilChange}ms, Speed: ${speed.value[eid]}, State: ${ObjectComp.state[eid]}`,
-    //   );
-    // }
+    if (
+      eid === chars[0] &&
+      Math.floor(currentTime / 3000) !== Math.floor((currentTime - 100) / 3000)
+    ) {
+      console.log(
+        `[RandomMovementSystem] Entity ${eid} - Current: ${currentTime}, NextChange: ${nextChangeTime}, TimeLeft: ${timeUntilChange}ms, Speed: ${speed.value[eid]}, State: ${ObjectComp.state[eid]}`,
+      );
+    }
 
     if (currentTime >= nextChangeTime) {
       if (speed.value[eid] !== 0) {

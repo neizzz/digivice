@@ -33,6 +33,30 @@ const animatingSparkles: Map<
   }
 > = new Map();
 
+function drawSparkleGraphic(graphics: PIXI.Graphics): void {
+  graphics.clear();
+
+  graphics.poly([
+    0,
+    -8,
+    1.9,
+    -1.9,
+    8,
+    0,
+    1.9,
+    1.9,
+    0,
+    8,
+    -1.9,
+    1.9,
+    -8,
+    0,
+    -1.9,
+    -1.9,
+  ]);
+  graphics.fill({ color: 0xffffff, alpha: 0.9 });
+}
+
 /**
  * 애니메이션 중인 스파클들 업데이트
  */
@@ -85,7 +109,8 @@ function updateSparkleAnimations(currentTime: number): void {
 
     // 값 범위 보장
     sparkleContainer.alpha = Math.max(0, Math.min(1, alpha));
-    sparkleContainer.scale.set(Math.max(0.01, scale));
+    const pulse = 1 + Math.sin(progress * Math.PI) * 0.04;
+    sparkleContainer.scale.set(Math.max(0.01, scale * pulse));
   });
 
   // 완료된 애니메이션 제거
@@ -278,48 +303,23 @@ function createSparkleVisual(world: MainSceneWorld, eid: number): void {
     y: PositionComp.y[eid],
   };
 
-  // 부드럽고 빛나는 별 그래픽 생성
+  // 별 중심의 반짝임 그래픽 생성
   const star = new PIXI.Graphics();
-
-  // 글로우 효과를 위한 외부 원 (더 큰 반투명 원)
-  star.fill({ color: 0xffffff, alpha: 0.2 });
-  star.circle(0, 0, 12);
-
-  // 중간 글로우
-  star.fill({ color: 0xffffff, alpha: 0.4 });
-  star.circle(0, 0, 8);
-
-  // 중앙 밝은 별 모양
-  const outerRadius = 6;
-  const innerRadius = 2.5;
-  const numPoints = 4;
-
-  star.fill({ color: 0xffffff, alpha: 1.0 });
-  star.moveTo(0, -outerRadius);
-
-  for (let i = 0; i < numPoints * 2; i++) {
-    const radius = i % 2 === 0 ? innerRadius : outerRadius;
-    const angle = (Math.PI / numPoints) * (i + 1);
-    const x = Math.sin(angle) * radius;
-    const y = -Math.cos(angle) * radius;
-    star.lineTo(x, y);
-  }
-
-  star.closePath();
+  drawSparkleGraphic(star);
 
   // 컨테이너에 별 추가
   const sparkleContainer = new PIXI.Container();
   sparkleContainer.addChild(star);
 
-  // 음식 주변 랜덤한 위치에 배치 (범위도 조금 늘림)
-  sparkleContainer.position.x = position.x + (-0.5 + Math.random()) * 48; // 32에서 48로 증가
-  sparkleContainer.position.y = position.y + (-0.5 + Math.random()) * 48; // 32에서 48로 증가
+  // 음식 주변 랜덤한 위치에 배치
+  sparkleContainer.position.x = position.x + (-0.5 + Math.random()) * 30;
+  sparkleContainer.position.y = position.y + (-0.5 + Math.random()) * 30;
 
   // 랜덤 크기, 투명도, 회전 (더 안정적인 범위)
   const initialScale = 0.7 + Math.random() * 0.3; // 0.7-1.0로 범위 줄임
   sparkleContainer.scale.set(initialScale);
-  sparkleContainer.alpha = 0.85; // 더 불투명하게 변경 (0.6 → 0.85)
-  sparkleContainer.rotation = Math.random() * Math.PI * 2; // 0~360도 랜덤 회전
+  sparkleContainer.alpha = 0.92;
+  sparkleContainer.rotation = Math.random() * Math.PI * 2;
 
   // 스테이지에 추가
   world.stage.addChild(sparkleContainer);
