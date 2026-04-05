@@ -41,6 +41,7 @@ export class Game {
   // private scenes: Map<SceneKey, Scene> = new Map();
   private currentSceneKey?: SceneKey;
   private assetsLoaded = false;
+  private readonly _boundResizeHandler: () => void;
   // private characterManager: CharacterManager; // CharacterManager 인스턴스 추가
   // private shouldSaveDataBeforeUnload = false;
 
@@ -64,12 +65,13 @@ export class Game {
     this._createInitialGameData = onCreateInitialGameData;
 
     this.app = new PIXI.Application();
+    this._boundResizeHandler = this._onResize.bind(this);
 
     // 렌더링 주기를 60fps로 설정
     this._parentElement = parentElement;
 
     // 리사이징 핸들러 설정
-    window.addEventListener("resize", this._onResize.bind(this));
+    window.addEventListener("resize", this._boundResizeHandler);
   }
 
   /**
@@ -371,9 +373,20 @@ export class Game {
   //   }
   // }
 
+  public async destroyForReset(): Promise<void> {
+    this.stop();
+
+    if (this.currentScene instanceof MainSceneWorld) {
+      await this.currentScene.disablePersistenceAndClearData();
+    }
+
+    this.destroy();
+  }
+
   public destroy(): void {
     // 정리 작업
-    window.removeEventListener("resize", this._onResize.bind(this));
+    window.removeEventListener("resize", this._boundResizeHandler);
+    this.stop();
     this.app.destroy(true, {
       children: true,
       texture: true,

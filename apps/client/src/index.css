@@ -2,36 +2,41 @@
 @config "../tailwind.config.js";
 
 @font-face {
-	font-family: "Press Start 2P"; /* Tailwind 설정과 일치시킬 이름 */
-	font-style: normal;
-	font-weight: 400; /* 폰트 파일에 맞는 weight */
-	font-display: swap; /* 폰트 로딩 시 깜빡임 최소화 */
-	src: url("/assets/ui/fonts/PressStart2P-Regular.ttf") format("truetype");
+  font-family: "Press Start 2P"; /* Tailwind 설정과 일치시킬 이름 */
+  font-style: normal;
+  font-weight: 400; /* 폰트 파일에 맞는 weight */
+  font-display: swap; /* 폰트 로딩 시 깜빡임 최소화 */
+  src: url("/assets/ui/fonts/PressStart2P-Regular.ttf") format("truetype");
 }
 
 :root {
-	line-height: 1.5;
-	min-height: 100vh;
-	color: black;
-	background-color: lightblue;
+  line-height: 1.5;
+  min-height: 100vh;
+  color: black;
+  background-color: lightblue;
 }
 
 a {
-	font-weight: 500;
-	color: #646cff;
-	text-decoration: inherit;
+  font-weight: 500;
+  color: #646cff;
+  text-decoration: inherit;
 }
 a:hover {
-	color: #535bf2;
+  color: #535bf2;
 }
 
 body {
-	font-family: "Press Start 2P", sans-serif;
-	margin: 0;
-	min-width: 320px;
+  font-family: "Press Start 2P", sans-serif;
+  margin: 0;
+  min-width: 320px;
+  min-height: 100dvh;
+}
+
+#root {
+  min-height: 100dvh;
 }
 
 h1 {
-	font-size: 3.2em;
-	line-height: 1.1;
+  font-size: 3.2em;
+  line-height: 1.1;
 }

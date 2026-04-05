@@ -277,6 +277,7 @@ export class MainSceneWorld implements IWorld, Scene {
   private _pauseStartTime = 0; // 일시정지 시작 시간
   private _visibilityChangeHandler?: () => void; // Page Visibility API 이벤트 핸들러
   private _statusSystemsEnabled = true; // 상태 관리 시스템들 활성화 여부
+  private _isPersistenceDisabled = false;
   private _createInitialGameData?: () => Promise<{
     name: string;
   }>;
@@ -831,7 +832,9 @@ export class MainSceneWorld implements IWorld, Scene {
     );
 
     // 현재 상태 저장
-    await this._saveCurrentState();
+    if (!this._isPersistenceDisabled) {
+      await this._saveCurrentState();
+    }
 
     // 이벤트 핸들러 정리
     this._cleanupVisibilityChangeHandler();
@@ -881,13 +884,24 @@ export class MainSceneWorld implements IWorld, Scene {
     }
   }
 
+  public async disablePersistenceAndClearData(): Promise<void> {
+    this._isPersistenceDisabled = true;
+    this._persistentData = undefined;
+    this._isPaused = true;
+    this._cleanupVisibilityChangeHandler();
+
+    await this.clearData();
+  }
+
   destroy(): void {
     console.groupCollapsed("[MainSceneWorld] 🧹 Destroying world...");
 
     try {
+      this._cleanupVisibilityChangeHandler();
+
       // Scene 종료 처리 (아직 호출되지 않았다면)
-      if (!this._isPaused) {
-        this.onSceneExit();
+      if (!this._isPaused && !this._isPersistenceDisabled) {
+        void this.onSceneExit();
       }
 
       // 앱 상태 관리자 정리
@@ -1029,6 +1043,10 @@ export class MainSceneWorld implements IWorld, Scene {
 
   async setData(data: MainSceneWorldData): Promise<void> {
     this._persistentData = data;
+
+    if (this._isPersistenceDisabled) {
+      return;
+    }
 
     await this._enqueueStorageWrite(async () => {
       try {
@@ -1803,6 +1821,10 @@ export class MainSceneWorld implements IWorld, Scene {
    */
   private async _saveCurrentState(): Promise<void> {
     try {
+      if (this._isPersistenceDisabled) {
+        return;
+      }
+
       // ECS 엔티티들의 현재 상태를 persistent data에 동기화
       this._syncEcsToPersisentData();
 

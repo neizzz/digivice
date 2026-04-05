@@ -2,6 +2,19 @@ import 'dart:convert';
 import 'package:vibration/vibration.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
+const int _defaultVibrationDuration = 50;
+const int _minVibrationAmplitude = 1;
+const int _maxVibrationAmplitude = 255;
+
+int? _parseAmplitude(dynamic rawAmplitude) {
+  if (rawAmplitude is! num) {
+    return null;
+  }
+
+  final int amplitude = rawAmplitude.round();
+  return amplitude.clamp(_minVibrationAmplitude, _maxVibrationAmplitude);
+}
+
 /// Vibration 기능의 JavaScript 인터페이스를 관리하는 컨트롤러
 class VibrationController {
   final Function(String jsCode) runJavaScript;
@@ -18,9 +31,13 @@ class VibrationController {
   String getJavaScriptInterface() {
     return '''
       window.vibrationController = {
-        vibrate: (duration) => {
+        vibrate: (duration, strength) => {
           return __createPromise((id) => {
-            const argObj = { id, duration: duration || 50 };
+            const argObj = {
+              id,
+              duration: duration || $_defaultVibrationDuration,
+              strength,
+            };
             __native_vibrate.postMessage(JSON.stringify(argObj));
           });
         }
@@ -32,17 +49,27 @@ class VibrationController {
   Future<void> handleVibrate(JavaScriptMessage message) async {
     Map<String, dynamic> jsArgs = jsonDecode(message.message);
     String id = jsArgs['id'];
-    int duration = jsArgs['duration'] ?? 50;
+    int duration = jsArgs['duration'] ?? _defaultVibrationDuration;
+    final int? amplitude = _parseAmplitude(jsArgs['strength']);
 
     try {
       // 진동 기능 사용 가능 여부 확인
       bool? hasVibrator = await Vibration.hasVibrator();
 
       if (hasVibrator == true) {
+        final bool hasAmplitudeControl =
+            amplitude != null ? await Vibration.hasAmplitudeControl() : false;
+
         // 진동 실행
-        await Vibration.vibrate(duration: duration);
+        await Vibration.vibrate(
+          duration: duration,
+          amplitude: hasAmplitudeControl ? amplitude : -1,
+        );
         resolvePromise(id: id, data: 'success');
-        log('[VibrationController] Vibration executed: ${duration}ms');
+        log(
+          '[VibrationController] Vibration executed: ${duration}ms, '
+          'strength: ${hasAmplitudeControl ? amplitude : 'default'}',
+        );
       } else {
         resolvePromise(id: id, data: 'no_vibrator');
         log('[VibrationController] No vibrator available');

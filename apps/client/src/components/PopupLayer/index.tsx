@@ -18,8 +18,8 @@ const PopupLayer: React.FC<PopupProps> = ({
   cancelText = "취소",
 }) => {
   return (
-    <div className="text-black w-[90%] max-w-[400px]">
-      <div className="inline-block bg-layer-bg p-5 border-4 border-[#222] shadow-[0_4px_0_#222,0_-4px_0_#222,4px_0_0_#222,-4px_0_0_#222,4px_4px_0_#222,-4px_4px_0_#222,4px_-4px_0_#222,-4px_-4px_0_#222] text-center relative">
+    <div className="flex w-full justify-center text-black">
+      <div className="w-full max-w-[400px] bg-layer-bg p-5 border-4 border-[#222] shadow-[0_4px_0_#222,0_-4px_0_#222,4px_0_0_#222,-4px_0_0_#222,4px_4px_0_#222,-4px_4px_0_#222,4px_-4px_0_#222,-4px_-4px_0_#222] text-center relative">
         <div className="text-xl text-component-negative font-bold mb-[15px] pb-[10px] border-b-4 border-[#222]">
           {title}
         </div>

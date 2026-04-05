@@ -163,8 +163,16 @@ class _WebViewState extends State<WebView> {
 
   Future<void> _handleAssetRequest(HttpRequest request) async {
     final String rawPath = request.uri.path;
-    final String path =
-        (rawPath.isEmpty || rawPath == '/') ? '/index.html' : rawPath;
+    final String path;
+
+    if (rawPath.isEmpty ||
+        rawPath == '/' ||
+        rawPath == '/index' ||
+        rawPath == '/index/') {
+      path = '/index.html';
+    } else {
+      path = rawPath;
+    }
 
     // 브라우저가 자동으로 요청하는 favicon은 앱 필수 리소스가 아니므로 무시
     if (path == '/favicon.ico') {

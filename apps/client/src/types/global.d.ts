@@ -2,7 +2,7 @@ declare global {
   interface Window {
     errorLogs: string[];
     vibrationController?: {
-      vibrate: (duration?: number) => Promise<string>;
+      vibrate: (duration?: number, strength?: number) => Promise<string>;
     };
   }
 }

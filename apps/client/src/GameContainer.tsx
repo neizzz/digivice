@@ -52,6 +52,7 @@ const GameContainer: React.FC = () => {
   const pendingSetupResolverRef = useRef<
     ((formData: SetupFormData) => void) | null
   >(null);
+  const shouldRestartFromSetupRef = useRef(false);
   const [showSettingMenu, setShowSettingMenu] = useState(false);
   const [gameSettings, setGameSettings] = useState(getGameSettings);
   const [gameSessionKey, setGameSessionKey] = useState(0);
@@ -77,18 +78,26 @@ const GameContainer: React.FC = () => {
 
   const handleResetGameData = useCallback(async () => {
     try {
-      const storage = createStorage();
-      await storage.removeData(WORLD_DATA_STORAGE_KEY);
-      gameInstance?.destroy();
+      if (gameInstance) {
+        await gameInstance.destroyForReset();
+      } else {
+        const storage = createStorage();
+        await storage.removeData(WORLD_DATA_STORAGE_KEY);
+      }
+
+      if (gameContainerRef.current) {
+        gameContainerRef.current.innerHTML = "";
+      }
+
       initialSetupDataRef.current = null;
       pendingSetupResolverRef.current = null;
+      shouldRestartFromSetupRef.current = true;
       isInitializedRef.current = false;
       setShowSettingMenu(false);
       setButtonTypes(null);
-      setShowSetupLayer(false);
+      setShowSetupLayer(true);
       setIsLoading(false);
       setGameInstance(null);
-      setGameSessionKey((previous) => previous + 1);
     } catch (error) {
       console.error("[GameContainer] 게임 데이터 초기화 중 오류:", error);
       showAlert("게임 데이터 초기화에 실패했습니다.", "오류");
@@ -234,7 +243,20 @@ const GameContainer: React.FC = () => {
 
   // SetupLayer 완료 핸들러
   const handleSetupComplete = useCallback((formData: SetupFormData) => {
-    pendingSetupResolverRef.current?.(formData);
+    const pendingResolver = pendingSetupResolverRef.current;
+
+    if (pendingResolver) {
+      pendingResolver(formData);
+      return;
+    }
+
+    initialSetupDataRef.current = formData;
+    setShowSetupLayer(false);
+
+    if (shouldRestartFromSetupRef.current) {
+      shouldRestartFromSetupRef.current = false;
+      setGameSessionKey((previous) => previous + 1);
+    }
   }, []);
 
   return (

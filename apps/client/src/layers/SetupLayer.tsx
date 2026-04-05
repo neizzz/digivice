@@ -1,5 +1,6 @@
 import type React from "react";
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import PopupLayer from "../components/PopupLayer";
 
 export type SetupFormData = {
@@ -35,8 +36,8 @@ export const SetupLayer: React.FC<SetupLayerProps> = ({ onComplete }) => {
     });
   };
 
-  return (
-    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+  const overlay = (
+    <div className="fixed inset-0 z-[999] flex min-h-dvh items-center justify-center bg-black/50 p-4">
       <PopupLayer
         title="Spawn Monster!"
         content={
@@ -57,7 +58,7 @@ export const SetupLayer: React.FC<SetupLayerProps> = ({ onComplete }) => {
                 Name length: {name.length}/20
               </div>
               {error && (
-                <p className="mt-4\2 text-component-negative text-[0.7em]">
+                <p className="mt-4 text-component-negative text-[0.7em]">
                   {error}
                 </p>
               )}
@@ -69,4 +70,10 @@ export const SetupLayer: React.FC<SetupLayerProps> = ({ onComplete }) => {
       />
     </div>
   );
+
+  if (typeof document === "undefined") {
+    return overlay;
+  }
+
+  return createPortal(overlay, document.body);
 };
