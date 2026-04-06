@@ -338,16 +338,23 @@ function createOrUpdateBroom(
     broomStore.set(eid, broomSprite);
   }
 
-  // 슬라이더 값에 따른 빗자루 위치 계산
-  const sliderValue = world.sliderValue;
-  const targetLeftX = targetX - targetWidth / 2;
-  const broomX = targetLeftX + sliderValue * targetWidth;
-  const broomY = targetY - 10; // 타겟보다 10px 위에 (객체 중간보다 조금 더 낮게)
-
   // 빗자루 방향에 따른 좌우 반전
+  const sliderValue = world.sliderValue;
   const isMovingRight = sliderValue > 0.5;
   broomSprite.scale.x = isMovingRight ? 3.0 : -3.0; // 오른쪽으로 이동하면 정방향, 왼쪽으로 이동하면 반전
   broomSprite.scale.y = 3.0;
+
+  const targetLeftX = targetX - targetWidth / 2;
+  const targetRightX = targetX + targetWidth / 2;
+  const broomDisplayWidth =
+    broomSprite.texture.orig.width * Math.abs(broomSprite.scale.x);
+  const safeLeftX = targetLeftX + broomDisplayWidth / 2;
+  const safeRightX = targetRightX - broomDisplayWidth / 2;
+  const broomX =
+    safeLeftX < safeRightX
+      ? safeLeftX + sliderValue * (safeRightX - safeLeftX)
+      : targetX;
+  const broomY = targetY - 10; // 타겟보다 10px 위에 (객체 중간보다 조금 더 낮게)
 
   // 빗자루 위치 설정
   broomSprite.x = broomX;

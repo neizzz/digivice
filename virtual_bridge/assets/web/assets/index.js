@@ -49922,12 +49922,16 @@ function createOrUpdateBroom(eid, stage, world, targetX, targetY, targetWidth) {
     broomStore.set(eid, broomSprite);
   }
   const sliderValue = world.sliderValue;
-  const targetLeftX = targetX - targetWidth / 2;
-  const broomX = targetLeftX + sliderValue * targetWidth;
-  const broomY = targetY - 10;
   const isMovingRight = sliderValue > 0.5;
   broomSprite.scale.x = isMovingRight ? 3 : -3;
   broomSprite.scale.y = 3;
+  const targetLeftX = targetX - targetWidth / 2;
+  const targetRightX = targetX + targetWidth / 2;
+  const broomDisplayWidth = broomSprite.texture.orig.width * Math.abs(broomSprite.scale.x);
+  const safeLeftX = targetLeftX + broomDisplayWidth / 2;
+  const safeRightX = targetRightX - broomDisplayWidth / 2;
+  const broomX = safeLeftX < safeRightX ? safeLeftX + sliderValue * (safeRightX - safeLeftX) : targetX;
+  const broomY = targetY - 10;
   broomSprite.x = broomX;
   broomSprite.y = broomY;
   broomSprite.visible = true;
@@ -54358,7 +54362,8 @@ class VibrationAdapter {
   }
 }
 const SLIDER_THUMB_SIZE = 64;
-const SLIDER_RANGE_MULTIPLIER = 1.1;
+const SLIDER_TRACK_RANGE_MULTIPLIER = 1.1;
+const SLIDER_INPUT_RANGE_MULTIPLIER = 1.05;
 const spriteInfoMap = {
   [ControlButtonType.Clean]: {
     normal: { x: 320, y: 0 },
@@ -54413,7 +54418,7 @@ const ControlButton = ({
       const controller = new SliderController(sliderRef.current, {
         initialValue: initialSliderValue,
         thumbWidth: SLIDER_THUMB_SIZE,
-        rangeMultiplier: SLIDER_RANGE_MULTIPLIER,
+        rangeMultiplier: SLIDER_INPUT_RANGE_MULTIPLIER,
         onChange: (value) => {
           setCurrentSliderValue(value);
           onSliderChange == null ? void 0 : onSliderChange(value);
@@ -54470,7 +54475,7 @@ const ControlButton = ({
   if (isSlider) {
     const trackInset = size / 2;
     const baseTrackWidth = Math.max(0, sliderWidth - size);
-    const trackWidth = baseTrackWidth * SLIDER_RANGE_MULTIPLIER;
+    const trackWidth = baseTrackWidth * SLIDER_TRACK_RANGE_MULTIPLIER;
     const extraTrackOffset = (trackWidth - baseTrackWidth) / 2;
     return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
       "div",
@@ -54492,7 +54497,7 @@ const ControlButton = ({
             false,
             {
               fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/ControlButton.tsx",
-              lineNumber: 169,
+              lineNumber: 170,
               columnNumber: 9
             },
             void 0
@@ -54514,7 +54519,7 @@ const ControlButton = ({
                 false,
                 {
                   fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/ControlButton.tsx",
-                  lineNumber: 182,
+                  lineNumber: 183,
                   columnNumber: 11
                 },
                 void 0
@@ -54524,7 +54529,7 @@ const ControlButton = ({
             false,
             {
               fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/ControlButton.tsx",
-              lineNumber: 176,
+              lineNumber: 177,
               columnNumber: 9
             },
             void 0
@@ -54535,7 +54540,7 @@ const ControlButton = ({
       true,
       {
         fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/ControlButton.tsx",
-        lineNumber: 164,
+        lineNumber: 165,
         columnNumber: 7
       },
       void 0
@@ -54555,7 +54560,7 @@ const ControlButton = ({
     false,
     {
       fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/ControlButton.tsx",
-      lineNumber: 193,
+      lineNumber: 194,
       columnNumber: 5
     },
     void 0

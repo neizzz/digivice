@@ -5,7 +5,8 @@ import { SliderController } from "../SliderController";
 import { VibrationAdapter } from "../../adapter/VibrationAdapter";
 
 const SLIDER_THUMB_SIZE = 64;
-const SLIDER_RANGE_MULTIPLIER = 1.1;
+const SLIDER_TRACK_RANGE_MULTIPLIER = 1.1;
+const SLIDER_INPUT_RANGE_MULTIPLIER = 1.05;
 
 interface ControlButtonProps {
   type: ControlButtonType;
@@ -88,7 +89,7 @@ const ControlButton: React.FC<ControlButtonProps> = ({
       const controller = new SliderController(sliderRef.current, {
         initialValue: initialSliderValue,
         thumbWidth: SLIDER_THUMB_SIZE,
-        rangeMultiplier: SLIDER_RANGE_MULTIPLIER,
+        rangeMultiplier: SLIDER_INPUT_RANGE_MULTIPLIER,
         onChange: (value) => {
           setCurrentSliderValue(value);
           onSliderChange?.(value);
@@ -157,7 +158,7 @@ const ControlButton: React.FC<ControlButtonProps> = ({
   if (isSlider) {
     const trackInset = size / 2;
     const baseTrackWidth = Math.max(0, sliderWidth - size);
-    const trackWidth = baseTrackWidth * SLIDER_RANGE_MULTIPLIER;
+    const trackWidth = baseTrackWidth * SLIDER_TRACK_RANGE_MULTIPLIER;
     const extraTrackOffset = (trackWidth - baseTrackWidth) / 2;
 
     return (
