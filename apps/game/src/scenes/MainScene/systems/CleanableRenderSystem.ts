@@ -78,7 +78,7 @@ export function cleanableRenderSystem(params: CleanableRenderSystemParams): {
       // 포커스 상태에 따른 특별한 효과 (선택사항)
     } else {
       console.warn(
-        `[CleanableRenderSystem] Entity ${eid} has CleanableComp but no PositionComp`
+        `[CleanableRenderSystem] Entity ${eid} has CleanableComp but no PositionComp`,
       );
     }
   }
@@ -98,7 +98,7 @@ export function cleanableRenderSystem(params: CleanableRenderSystemParams): {
 function updateEntityZIndex(
   eid: number,
   isFocused: boolean,
-  world: MainSceneWorld
+  world: MainSceneWorld,
 ) {
   // RenderComp가 있는 경우 zIndex 조정
   if (hasComponent(world, RenderComp, eid)) {
@@ -117,12 +117,12 @@ function updateEntityZIndex(
 function createOrUpdateDashedBorder(
   eid: number,
   stage: PIXI.Container,
-  world: MainSceneWorld
+  world: MainSceneWorld,
 ) {
   // PositionComp가 있는지 확인
   if (!hasComponent(world, PositionComp, eid)) {
     console.warn(
-      `[CleanableRenderSystem] Entity ${eid} has no PositionComp for border rendering`
+      `[CleanableRenderSystem] Entity ${eid} has no PositionComp for border rendering`,
     );
     return;
   }
@@ -193,7 +193,7 @@ function createOrUpdateDashedBorder(
     borderWidth,
     borderHeight,
     lineWidth,
-    borderColor
+    borderColor,
   );
 
   // 포커스된 대상에는 빗자루 그리기
@@ -220,7 +220,7 @@ function drawDashedRect(
   width: number,
   height: number,
   lineWidth: number,
-  color: number
+  color: number,
 ) {
   const dashLength = 4;
   const gapLength = 4;
@@ -237,7 +237,7 @@ function drawDashedRect(
     x + width,
     y + height,
     dashLength,
-    gapLength
+    gapLength,
   );
   // 하단 선
   drawDashedLine(
@@ -247,7 +247,7 @@ function drawDashedRect(
     x,
     y + height,
     dashLength,
-    gapLength
+    gapLength,
   );
   // 좌측 선
   drawDashedLine(graphics, x, y + height, x, y, dashLength, gapLength);
@@ -263,7 +263,7 @@ function drawDashedLine(
   x2: number,
   y2: number,
   dashLength: number,
-  gapLength: number
+  gapLength: number,
 ) {
   const totalLength = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
   const unitX = (x2 - x1) / totalLength;
@@ -275,7 +275,7 @@ function drawDashedLine(
   while (currentLength < totalLength) {
     const segmentLength = Math.min(
       isDash ? dashLength : gapLength,
-      totalLength - currentLength
+      totalLength - currentLength,
     );
 
     if (isDash) {
@@ -319,7 +319,7 @@ function createOrUpdateBroom(
   world: MainSceneWorld,
   targetX: number,
   targetY: number,
-  targetWidth: number
+  targetWidth: number,
 ) {
   let broomSprite = broomStore.get(eid);
 
@@ -372,7 +372,7 @@ function removeBroom(eid: number, stage: PIXI.Container) {
 function updateCleaningOpacity(
   eid: number,
   world: MainSceneWorld,
-  _stage: PIXI.Container
+  _stage: PIXI.Container,
 ): void {
   const cleaningProgress = CleanableComp.cleaningProgress[eid];
 
@@ -393,7 +393,7 @@ function updateCleaningOpacity(
         sprite.alpha = newAlpha;
       } else {
         console.error(
-          `[CleanableRenderSystem] Sprite not found for entity ${eid} with storeIndex ${storeIndex}`
+          `[CleanableRenderSystem] Sprite not found for entity ${eid} with storeIndex ${storeIndex}`,
         );
       }
     } else if (sprite && sprite.alpha < 1.0) {

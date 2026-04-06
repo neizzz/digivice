@@ -329,10 +329,11 @@ export class MainSceneWorld implements IWorld, Scene {
     // 이동 및 게임플레이 시스템들
     randomMovementSystem,
     commonMovementSystem,
+    // 착지한 프레임에 바로 음식 탐색이 가능해야 하므로 착지 상태를 먼저 반영한다.
+    throwAnimationSystem,
     (params: any) =>
       foodEatingSystem({ ...params, currentTime: this.currentTime }),
     // 애니메이션 상태 시스템들
-    throwAnimationSystem,
     animationStateSystem,
     // 모든 렌더링 시스템들을 하나로 통합 (실시간 모드에서만 실행)
     (params: any) => this._renderAllSystems(params),
@@ -1623,9 +1624,10 @@ export class MainSceneWorld implements IWorld, Scene {
       // 이동 및 게임플레이 시스템들
       randomMovementSystem,
       commonMovementSystem,
+      // 착지 상태를 먼저 반영해 같은 프레임에 음식 탐색이 가능하도록 한다.
+      throwAnimationSystem,
       foodEatingSystem,
       // 애니메이션 상태 시스템들 (시뮬레이션에서도 실행)
-      throwAnimationSystem,
       animationStateSystem,
       // 렌더링 시스템들은 시뮬레이션에서 제외
       // - this._renderAllSystems (스킵)

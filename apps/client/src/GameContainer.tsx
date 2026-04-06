@@ -1,4 +1,8 @@
-import { type ControlButtonParams, ControlButtonType, Game } from "@digivice/game";
+import {
+  type ControlButtonParams,
+  ControlButtonType,
+  Game,
+} from "@digivice/game";
 import {
   FlutterStorage,
   hasNativeStorageController,

@@ -25,7 +25,7 @@ build_and_copy() {
   echo "🔨 Building..."
   cd apps/client
   
-  if pnpm --filter @digivice/game sync-assets && tsc -b && NODE_ENV=development vite build --mode flutter-dev 2>&1; then
+  if pnpm --filter @digivice/game sync-assets && tsc -b && BUILD_FOR_FLUTTER=true NODE_ENV=development vite build --mode development 2>&1; then
     cd ../..
     
     # 빌드 결과 존재 확인

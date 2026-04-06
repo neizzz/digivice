@@ -8,7 +8,6 @@
 		"build": "pnpm --filter @digivice/game sync-assets && tsc -b && NODE_ENV=development vite build",
 		"build:test": "pnpm --filter @digivice/game sync-assets && tsc -b && NODE_ENV=development NATIVE_FEATURE_TEST_MODE=true vite build",
 		"build:flutter": "../../scripts/build-for-flutter.sh",
-		"build:flutter:dev": "pnpm --filter @digivice/game sync-assets && tsc -b && vite build --mode flutter-dev",
 		"dev:flutter": "../../scripts/watch-and-copy.sh",
 		"lint": "eslint . --config eslint.config.js --no-config-lookup",
 		"preview": "vite preview"

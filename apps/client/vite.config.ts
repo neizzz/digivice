@@ -5,17 +5,12 @@ import { defineConfig } from "vite";
 import tsconfigPaths from "vite-tsconfig-paths";
 
 // https://vite.dev/config/
-export default defineConfig(({ mode }) => {
-  // 환경변수 로드
-  // const env = loadEnv(mode, process.cwd());
-  // const isDebugMode = env.DEBUG === "true";
-  // const isNativeTestMode = env.NATIVE_FEATURE_TEST_MODE === "true";
-  const isFlutterDevMode = mode === "flutter-dev";
-  const isBuildOutputForFlutter = mode === "production" || isFlutterDevMode;
+export default defineConfig(() => {
+  const isBuildOutputForFlutter = process.env.BUILD_FOR_FLUTTER === "true";
 
   return {
     // Flutter WebView(file://)에서 번들 리소스를 상대 경로로 로드하기 위해
-    // production/flutter-dev build 시 base를 './'로 설정합니다.
+    // Flutter 자산 빌드에서는 base를 './'로 설정합니다.
     base: isBuildOutputForFlutter ? "./" : "/",
     plugins: [
       react(),
@@ -57,13 +52,13 @@ export default defineConfig(({ mode }) => {
         ignored: ["!**/node_modules/**"],
       },
     },
-    build: isFlutterDevMode
+    build: isBuildOutputForFlutter
       ? {
           minify: false,
           cssMinify: false,
           sourcemap: true,
           // Flutter debug asset bundle은 새로 추가된 해시 파일명을 즉시 인식하지 못할 수 있어
-          // flutter-dev 빌드에서는 파일명을 고정해 hot reload/restart 시 재로딩을 안정화합니다.
+          // Flutter 자산 빌드에서는 파일명을 고정해 hot reload/restart 시 재로딩을 안정화합니다.
           rollupOptions: {
             output: {
               entryFileNames: "assets/[name].js",

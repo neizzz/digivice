@@ -13,7 +13,7 @@ cd "$(dirname "$0")/.."
 # apps/client 빌드
 echo "📦 Building apps/client..."
 cd apps/client
-pnpm build:flutter:dev
+pnpm --filter @digivice/game sync-assets && tsc -b && BUILD_FOR_FLUTTER=true NODE_ENV=development vite build --mode development
 
 # 빌드 결과 확인
 if [ ! -d "dist" ]; then

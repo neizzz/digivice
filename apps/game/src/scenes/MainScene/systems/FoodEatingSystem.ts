@@ -15,7 +15,6 @@ import {
   SpeedComp,
   RandomMovementComp,
   FreshnessComp,
-  TemporaryStatusComp,
 } from "../raw-components";
 import { GAME_CONSTANTS } from "../config";
 import {
@@ -301,9 +300,15 @@ function findAndEatFood(world: MainSceneWorld): void {
       continue;
     }
 
-    // 캐릭터가 IDLE 상태인지 확인 (음식을 찾을 수 있는 상태)
+    // 캐릭터가 자유 이동 상태인지 확인한다.
+    // 랜덤 이동 중(MOVING + RandomMovementComp)이라면 음식 발견 시 즉시 추적을 시작할 수 있다.
     const characterState = ObjectComp.state[characterEid];
-    if (characterState !== CharacterState.IDLE) {
+    const canTrackFoodWhileFreeRoaming =
+      characterState === CharacterState.IDLE ||
+      (characterState === CharacterState.MOVING &&
+        hasComponent(world, RandomMovementComp, characterEid));
+
+    if (!canTrackFoodWhileFreeRoaming) {
       continue;
     }
 

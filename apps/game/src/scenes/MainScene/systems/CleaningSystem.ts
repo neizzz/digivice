@@ -227,4 +227,3 @@ function findNextCleanableTarget(
 
   return -1; // 청소할 대상이 없음
 }
-
