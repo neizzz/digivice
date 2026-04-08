@@ -126,27 +126,27 @@ export class MainScene extends PIXI.Container implements Scene {
     } catch (error) {
       console.error(
         "[MainScene] Error during MainScene initialization:",
-        error
+        error,
       );
       return this;
     }
   }
 
   private async _applyObjectsMap(
-    objectsMap: GameData["objectsMap"]
+    objectsMap: GameData["objectsMap"],
   ): Promise<void> {
     try {
       const existingObjects = new Set(
         this.children
           .filter(
             (child) =>
-              child.isSprite && ObjectBase.getObjectRef(child as PIXI.Sprite)
+              child.isSprite && ObjectBase.getObjectRef(child as PIXI.Sprite),
           )
           .map((child) =>
             (
               ObjectBase.getObjectRef(child as PIXI.Sprite) as ObjectBase
-            ).getId()
-          )
+            ).getId(),
+          ),
       );
 
       // Food
@@ -217,17 +217,18 @@ export class MainScene extends PIXI.Container implements Scene {
       onVersusSelect: () => this._handleMenuSelect(GameMenuItemType.Versus),
       onDrugSelect: () => this._handleMenuSelect(GameMenuItemType.Drug),
       onCleanSelect: () => this._handleMenuSelect(GameMenuItemType.Clean),
+      onHospitalSelect: () => this._handleMenuSelect(GameMenuItemType.Hospital),
       // onTrainingSelect: () => this._handleMenuSelect(GameMenuItemType.Training),
       // onInformationSelect: () =>
       //   this._handleMenuSelect(GameMenuItemType.Information),
       onFocusChange: (focusedIndex) => {
         if (focusedIndex === null) {
           this.game.changeControlButtons(
-            CONTROL_BUTTONS_SET[MainSceneControlButtonsSetType.Default]
+            CONTROL_BUTTONS_SET[MainSceneControlButtonsSetType.Default],
           );
         } else {
           this.game.changeControlButtons(
-            CONTROL_BUTTONS_SET[MainSceneControlButtonsSetType.ActiveMenuItem]
+            CONTROL_BUTTONS_SET[MainSceneControlButtonsSetType.ActiveMenuItem],
           );
         }
       },
@@ -238,7 +239,7 @@ export class MainScene extends PIXI.Container implements Scene {
 
     // ControlButtons 생성
     this.game.changeControlButtons(
-      CONTROL_BUTTONS_SET[MainSceneControlButtonsSetType.Default]
+      CONTROL_BUTTONS_SET[MainSceneControlButtonsSetType.Default],
     );
   }
 
@@ -277,9 +278,12 @@ export class MainScene extends PIXI.Container implements Scene {
         break;
       case GameMenuItemType.Clean:
         this.game.changeControlButtons(
-          CONTROL_BUTTONS_SET[MainSceneControlButtonsSetType.CleanMode]
+          CONTROL_BUTTONS_SET[MainSceneControlButtonsSetType.CleanMode],
         );
         this._initCleanMode();
+        break;
+      case GameMenuItemType.Hospital:
+        console.log("[MainScene] Hospital menu selected");
         break;
 
       // case GameMenuItemType.Training:
@@ -293,7 +297,7 @@ export class MainScene extends PIXI.Container implements Scene {
 
       default:
         console.log(
-          `[MainScene] ${menuType} 메뉴 항목에 대한 처리가 구현되지 않았습니다`
+          `[MainScene] ${menuType} 메뉴 항목에 대한 처리가 구현되지 않았습니다`,
         );
     }
   }
@@ -336,7 +340,7 @@ export class MainScene extends PIXI.Container implements Scene {
 
           // 기본 컨트롤 버튼로 복귀
           this.game.changeControlButtons(
-            CONTROL_BUTTONS_SET[MainSceneControlButtonsSetType.ActiveMenuItem]
+            CONTROL_BUTTONS_SET[MainSceneControlButtonsSetType.ActiveMenuItem],
           );
         } else {
           this._sendNavigationAction(NavigationAction.CANCEL);
@@ -409,7 +413,7 @@ export class MainScene extends PIXI.Container implements Scene {
           console.log("청소가 모두 완료되었습니다.");
           this.isCleanModeActive = false;
           this.game.changeControlButtons(
-            CONTROL_BUTTONS_SET[MainSceneControlButtonsSetType.ActiveMenuItem]
+            CONTROL_BUTTONS_SET[MainSceneControlButtonsSetType.ActiveMenuItem],
           );
           // GameMenu 다시 보이기
         },
@@ -514,7 +518,7 @@ export class MainScene extends PIXI.Container implements Scene {
           this.addChild(this.basket);
         } else {
           console.warn(
-            "common32x32 스프라이트시트에서 'basket' 텍스처를 찾을 수 없습니다."
+            "common32x32 스프라이트시트에서 'basket' 텍스처를 찾을 수 없습니다.",
           );
         }
       }
@@ -580,7 +584,7 @@ export class MainScene extends PIXI.Container implements Scene {
 
       if (assets.common32x32Sprites?.textures.basket) {
         transitionBasket = new PIXI.Sprite(
-          assets.common32x32Sprites.textures.basket
+          assets.common32x32Sprites.textures.basket,
         );
         transitionBasket.anchor.set(0.5);
         transitionBasket.visible = true;
@@ -605,7 +609,7 @@ export class MainScene extends PIXI.Container implements Scene {
         3.4,
         1.4,
         1400,
-        -40
+        -40,
       );
 
       this._pickupCharacterWithInBasket(transitionBird, character);
@@ -616,7 +620,7 @@ export class MainScene extends PIXI.Container implements Scene {
         screenHeight + 100,
         1.4,
         3.4,
-        1400
+        1400,
       );
 
       // 정리 및 씬 전환
@@ -636,7 +640,7 @@ export class MainScene extends PIXI.Container implements Scene {
     startScale: number,
     endScale: number,
     durationMs: number,
-    adjustmentY = 0
+    adjustmentY = 0,
   ): Promise<void> {
     // 캐릭터의 현재 위치를 실시간으로 추적하지 않고, 최초 위치로 이동
     // 필요시 실시간 추적 로직을 유지할 수 있음
@@ -806,7 +810,7 @@ export class MainScene extends PIXI.Container implements Scene {
         birdStartScale,
         birdTargetScale,
         1500,
-        -20
+        -20,
       );
       // 약 내려놓기 (캐릭터 앞)
       if (pillObj.getSprite()) {
@@ -876,7 +880,7 @@ export class MainScene extends PIXI.Container implements Scene {
         birdEndPos.y,
         birdTargetScale,
         birdStartScale,
-        1500
+        1500,
       );
       transitionBird.destroy();
     } catch (e) {

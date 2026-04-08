@@ -623,6 +623,10 @@ export class MainSceneWorld implements IWorld, Scene {
             console.log("[MainSceneWorld] Clean selected");
             this._enterCleaningMode();
           },
+          onHospitalSelect: () => {
+            console.log("[MainSceneWorld] Hospital selected");
+            // TODO: 병원 기능 연결
+          },
           onCancel: () => {
             console.log("[MainSceneWorld] Menu cancelled");
           },

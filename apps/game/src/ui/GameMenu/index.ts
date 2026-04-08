@@ -8,6 +8,7 @@ export interface GameMenuOptions {
   onVersusSelect?: () => void;
   onDrugSelect?: () => void;
   onCleanSelect?: () => void;
+  onHospitalSelect?: () => void;
   onTrainingSelect?: () => void;
   onInformationSelect?: () => void;
   onCancel?: () => void;
@@ -25,6 +26,7 @@ export class GameMenu {
     GameMenuItemType.Feed,
     GameMenuItemType.Clean,
     GameMenuItemType.Drug,
+    GameMenuItemType.Hospital,
     // GameMenuItemType.Training,
   ];
   private focusedIndex: number | null = null;
@@ -152,6 +154,9 @@ export class GameMenu {
         break;
       case GameMenuItemType.Clean:
         if (this.options.onCleanSelect) this.options.onCleanSelect();
+        break;
+      case GameMenuItemType.Hospital:
+        if (this.options.onHospitalSelect) this.options.onHospitalSelect();
         break;
       // case GameMenuItemType.Training:
       //   if (this.options.onTrainingSelect) this.options.onTrainingSelect();

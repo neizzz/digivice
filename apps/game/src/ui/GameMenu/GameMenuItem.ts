@@ -4,13 +4,14 @@ export enum GameMenuItemType {
   Versus = "versus",
   Drug = "drug",
   Clean = "clean",
+  Hospital = "hospital",
   // Information = "information",
   // Training = "training",
 }
 
 const MENU_ITEM_CONTAINER_MAX_WIDTH = 280;
-const MENU_ITEM_COUNT = 5;
-const MENU_SPRITE_SLOT_COUNT = 7;
+const MENU_ITEM_COUNT = 6;
+const MENU_SPRITE_SLOT_COUNT = 8;
 
 const MENU_SPRITE_FINE_TUNE_X: Partial<Record<GameMenuItemType, number>> = {
   [GameMenuItemType.Drug]: 1,
@@ -30,10 +31,12 @@ const getBackgroundPosition = (type: GameMenuItemType, size: number) => {
       return `-${3 * size + fineTuneX}px 0px`;
     case GameMenuItemType.Clean:
       return `-${4 * size + fineTuneX}px 0px`;
+    case GameMenuItemType.Hospital:
+      return `-${5 * size + fineTuneX}px 0px`;
     // case GameMenuItemType.Information:
-    //   return `-${5 * size}px 0px`;
-    // case GameMenuItemType.Training:
     //   return `-${6 * size}px 0px`;
+    // case GameMenuItemType.Training:
+    //   return `-${7 * size}px 0px`;
     default:
       throw new Error(`Unknown menu item type: ${type}`);
   }
