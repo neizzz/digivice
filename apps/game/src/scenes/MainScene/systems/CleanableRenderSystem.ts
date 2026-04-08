@@ -25,11 +25,6 @@ const dashedBorderStore = new ObjectStore<PIXI.Graphics>("DashedBorderStore");
  */
 const broomStore = new ObjectStore<PIXI.Sprite>("BroomStore");
 
-const BROOM_VISIBLE_BOUNDS = {
-  minX: 1,
-  maxX: 12,
-};
-
 /**
  * 청소 대상 렌더링 시스템 파라미터
  */
@@ -350,22 +345,7 @@ function createOrUpdateBroom(
   broomSprite.scale.y = 3.0;
 
   const targetLeftX = targetX - targetWidth / 2;
-  const targetRightX = targetX + targetWidth / 2;
-  const frameWidth = broomSprite.texture.orig.width;
-  const scaleX = Math.abs(broomSprite.scale.x);
-  const anchorX = broomSprite.anchor.x * frameWidth;
-  const leftVisibleExtent = isMovingRight
-    ? (anchorX - BROOM_VISIBLE_BOUNDS.minX) * scaleX
-    : (BROOM_VISIBLE_BOUNDS.maxX - anchorX) * scaleX;
-  const rightVisibleExtent = isMovingRight
-    ? (BROOM_VISIBLE_BOUNDS.maxX - anchorX) * scaleX
-    : (anchorX - BROOM_VISIBLE_BOUNDS.minX) * scaleX;
-  const safeLeftX = targetLeftX + leftVisibleExtent;
-  const safeRightX = targetRightX - rightVisibleExtent;
-  const broomX =
-    safeLeftX < safeRightX
-      ? safeLeftX + sliderValue * (safeRightX - safeLeftX)
-      : targetX;
+  const broomX = targetLeftX + sliderValue * targetWidth;
   const broomY = targetY - 10; // 타겟보다 10px 위에 (객체 중간보다 조금 더 낮게)
 
   // 빗자루 위치 설정
