@@ -37,7 +37,7 @@ export const SetupLayer: React.FC<SetupLayerProps> = ({ onComplete }) => {
   };
 
   const overlay = (
-    <div className="fixed inset-0 z-[999] flex min-h-dvh items-center justify-center bg-black/50 p-4">
+    <div className="fixed inset-0 z-[999] flex min-h-dvh items-center justify-center bg-black/50">
       <PopupLayer
         title="Spawn Monster!"
         content={
