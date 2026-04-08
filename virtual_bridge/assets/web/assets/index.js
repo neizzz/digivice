@@ -46319,10 +46319,10 @@ var TextureKey = ((TextureKey2) => {
   TextureKey2[TextureKey2["PILL2"] = 601] = "PILL2";
   return TextureKey2;
 })(TextureKey || {});
-var GifType = /* @__PURE__ */ ((GifType2) => {
-  GifType2[GifType2["RECOVERY"] = 0] = "RECOVERY";
-  return GifType2;
-})(GifType || {});
+var EffectAnimationType = /* @__PURE__ */ ((EffectAnimationType2) => {
+  EffectAnimationType2[EffectAnimationType2["RECOVERY_SYRINGE"] = 0] = "RECOVERY_SYRINGE";
+  return EffectAnimationType2;
+})(EffectAnimationType || {});
 const ObjectComp = defineComponent({
   id: Types.f64,
   // 큰 숫자 ID를 정확히 저장하기 위해 f64 사용
@@ -46500,15 +46500,15 @@ defineComponent({
   isVisible: Types.ui8
   // 빗자루 표시 여부 (0 = false, 1 = true)
 });
-const GifAnimationComp = defineComponent({
+const EffectAnimationComp = defineComponent({
   storeIndex: Types.ui16,
-  // GIF 애니메이션 스프라이트 참조 인덱스
+  // effect 스프라이트 참조 인덱스
   startTime: Types.f64,
   // 애니메이션 시작 시간 (timestamp)
   duration: Types.f32,
   // 애니메이션 지속 시간 (ms)
-  gifType: Types.ui8,
-  // GIF 타입 (0=recovery, 1=effect1, 2=effect2, etc.)
+  effectType: Types.ui8,
+  // effect 타입
   isActive: Types.ui8
   // 애니메이션 활성화 여부 (0 = false, 1 = true)
 });
@@ -46561,14 +46561,15 @@ function getCharacterStats(characterKey) {
   }
   return CHARACTER_STATS[characterKey];
 }
-const characterQuery$9 = defineQuery([CharacterStatusComp, RandomMovementComp]);
+const characterQuery$8 = defineQuery([CharacterStatusComp, RandomMovementComp]);
 const allCharacterQuery = defineQuery([CharacterStatusComp, ObjectComp]);
 function randomMovementSystem(params) {
   const { world } = params;
-  const currentTime = Date.now();
-  const chars = characterQuery$9(world);
+  const currentTime = world.currentTime;
+  const shouldLog = !world.isSimulationMode;
+  const chars = characterQuery$8(world);
   const allChars = allCharacterQuery(world);
-  if (Math.floor(currentTime / 3e3) !== Math.floor((currentTime - 100) / 3e3)) {
+  if (shouldLog && Math.floor(currentTime / 3e3) !== Math.floor((currentTime - 100) / 3e3)) {
     console.log(
       `[RandomMovementSystem] Found ${chars.length} entities with RandomMovementComp, ${allChars.length} total character entities`
     );
@@ -46596,22 +46597,26 @@ function randomMovementSystem(params) {
     const nextChange = RandomMovementComp.nextChange[eid];
     if (!nextChange || nextChange <= 0 || nextChange > currentTime + 1e5) {
       RandomMovementComp.nextChange[eid] = currentTime + 1e3;
-      console.log(
-        `[RandomMovementSystem] Fixed nextChange for character ${eid} - was: ${nextChange}, now: ${currentTime + 1e3}`
-      );
+      if (shouldLog) {
+        console.log(
+          `[RandomMovementSystem] Fixed nextChange for character ${eid} - was: ${nextChange}, now: ${currentTime + 1e3}`
+        );
+      }
     }
     const minIdle = RandomMovementComp.minIdleTime[eid];
     const maxIdle = RandomMovementComp.maxIdleTime[eid];
     const minMove = RandomMovementComp.minMoveTime[eid];
     const maxMove = RandomMovementComp.maxMoveTime[eid];
     if (!minIdle || !maxIdle || !minMove || !maxMove) {
-      console.error(
-        `[RandomMovementSystem] Entity ${eid} has invalid time ranges - idle: ${minIdle}-${maxIdle}, move: ${minMove}-${maxMove}`
-      );
+      if (shouldLog) {
+        console.error(
+          `[RandomMovementSystem] Entity ${eid} has invalid time ranges - idle: ${minIdle}-${maxIdle}, move: ${minMove}-${maxMove}`
+        );
+      }
     }
     const nextChangeTime = RandomMovementComp.nextChange[eid];
     const timeUntilChange = nextChangeTime - currentTime;
-    if (eid === chars[0] && Math.floor(currentTime / 3e3) !== Math.floor((currentTime - 100) / 3e3)) {
+    if (shouldLog && eid === chars[0] && Math.floor(currentTime / 3e3) !== Math.floor((currentTime - 100) / 3e3)) {
       console.log(
         `[RandomMovementSystem] Entity ${eid} - Current: ${currentTime}, NextChange: ${nextChangeTime}, TimeLeft: ${timeUntilChange}ms, Speed: ${speed.value[eid]}, State: ${ObjectComp.state[eid]}`
       );
@@ -46626,9 +46631,11 @@ function randomMovementSystem(params) {
           minIdle2 + Math.random() * (maxIdle2 - minIdle2)
         );
         RandomMovementComp.nextChange[eid] = currentTime + idleTime;
-        console.log(
-          `[RandomMovementSystem] Entity ${eid}: MOVING -> IDLE, idle time: ${idleTime}ms (${minIdle2}-${maxIdle2})`
-        );
+        if (shouldLog) {
+          console.log(
+            `[RandomMovementSystem] Entity ${eid}: MOVING -> IDLE, idle time: ${idleTime}ms (${minIdle2}-${maxIdle2})`
+          );
+        }
       } else {
         angle.value[eid] = nomalizeRadian(Math.random() * Math.PI * 2);
         speed.value[eid] = characterSpeed;
@@ -46639,9 +46646,11 @@ function randomMovementSystem(params) {
           minMove2 + Math.random() * (maxMove2 - minMove2)
         );
         RandomMovementComp.nextChange[eid] = currentTime + moveTime;
-        console.log(
-          `[RandomMovementSystem] Entity ${eid}: IDLE -> MOVING, move time: ${moveTime}ms (${minMove2}-${maxMove2})`
-        );
+        if (shouldLog) {
+          console.log(
+            `[RandomMovementSystem] Entity ${eid}: IDLE -> MOVING, move time: ${moveTime}ms (${minMove2}-${maxMove2})`
+          );
+        }
       }
     }
   }
@@ -48401,7 +48410,7 @@ function getCharacterNameByKey(characterKey) {
       return "Unknown Character";
   }
 }
-const characterQuery$8 = defineQuery([
+const characterQuery$7 = defineQuery([
   ObjectComp,
   CharacterStatusComp,
   StatusIconRenderComp,
@@ -48414,7 +48423,7 @@ let _cachedWorld = null;
 function characterManagerSystem(params) {
   const { world, delta } = params;
   _cachedWorld = world;
-  const characters = characterQuery$8(world);
+  const characters = characterQuery$7(world);
   for (let i2 = 0; i2 < characters.length; i2++) {
     const eid = characters[i2];
     if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
@@ -48504,10 +48513,11 @@ function addCharacterStatus$2(eid, status) {
           if (!hasComponent(_cachedWorld, TemporaryStatusComp, eid)) {
             addComponent(_cachedWorld, TemporaryStatusComp, eid);
           }
+          const currentTime = _cachedWorld.currentTime;
           TemporaryStatusComp.statusType[eid] = status;
-          TemporaryStatusComp.startTime[eid] = Date.now();
+          TemporaryStatusComp.startTime[eid] = currentTime;
           console.log(
-            `[addCharacterStatus] Set temporary status ${status} for entity ${eid}, expires at ${Date.now() + 3e3}`
+            `[addCharacterStatus] Set temporary status ${status} for entity ${eid}, expires at ${currentTime + 3e3}`
           );
         } else {
           console.warn(
@@ -48532,23 +48542,33 @@ function hasCharacterStatus$2(eid, status) {
 }
 function _updateStaminaAndEvolutionGauge(world, eid, delta) {
   const currentStaminaTimer = staminaTimers.get(eid) || 0;
-  const newStaminaTimer = currentStaminaTimer + delta;
-  staminaTimers.set(eid, newStaminaTimer);
-  if (newStaminaTimer >= GAME_CONSTANTS.STAMINA_DECREASE_INTERVAL) {
+  const totalStaminaTime = currentStaminaTimer + delta;
+  const staminaDecreaseCount = Math.floor(
+    totalStaminaTime / GAME_CONSTANTS.STAMINA_DECREASE_INTERVAL
+  );
+  staminaTimers.set(
+    eid,
+    totalStaminaTime % GAME_CONSTANTS.STAMINA_DECREASE_INTERVAL
+  );
+  for (let i2 = 0; i2 < staminaDecreaseCount; i2++) {
     decreaseStamina(eid);
-    staminaTimers.set(eid, 0);
   }
   const currentStamina = CharacterStatusComp.stamina[eid];
   const isSick = hasCharacterStatus$2(eid, CharacterStatus.SICK);
   if (currentStamina >= GAME_CONSTANTS.EVOLUTION_GAUGE_STATMINA_THRESHOLD && !isSick) {
     const currentEvolutionTimer = evolutionGaugeTimers.get(eid) || 0;
-    const newEvolutionTimer = currentEvolutionTimer + delta;
-    evolutionGaugeTimers.set(eid, newEvolutionTimer);
-    if (newEvolutionTimer >= GAME_CONSTANTS.EVOLUTION_GAUGE_CHECK_INTERVAL) {
+    const totalEvolutionTime = currentEvolutionTimer + delta;
+    const evolutionIncreaseCount = Math.floor(
+      totalEvolutionTime / GAME_CONSTANTS.EVOLUTION_GAUGE_CHECK_INTERVAL
+    );
+    evolutionGaugeTimers.set(
+      eid,
+      totalEvolutionTime % GAME_CONSTANTS.EVOLUTION_GAUGE_CHECK_INTERVAL
+    );
+    for (let i2 = 0; i2 < evolutionIncreaseCount; i2++) {
       increaseEvolutionGauge(world, eid);
-      evolutionGaugeTimers.set(eid, 0);
     }
-  } else if (isSick) {
+  } else {
     evolutionGaugeTimers.set(eid, 0);
   }
 }
@@ -48564,7 +48584,7 @@ function decreaseStamina(eid) {
   );
 }
 function validateAndFixStatusIcons(world) {
-  const characters = characterQuery$8(world);
+  const characters = characterQuery$7(world);
   let fixedCount = 0;
   console.log(
     "[CharacterManagerSystem] Validating status icons for loaded entities..."
@@ -48575,7 +48595,7 @@ function validateAndFixStatusIcons(world) {
       continue;
     }
     const currentStatuses = CharacterStatusComp.statuses[eid];
-    const now = Date.now();
+    const now = world.currentTime;
     let statusModified = false;
     if (hasComponent(world, TemporaryStatusComp, eid)) {
       const statusType = TemporaryStatusComp.statusType[eid];
@@ -48645,7 +48665,7 @@ function increaseEvolutionGauge(world, eid) {
     evolveCharacter(world, eid);
   }
 }
-const foodQuery$2 = defineQuery([ObjectComp, FreshnessComp]);
+const foodQuery$1 = defineQuery([ObjectComp, FreshnessComp]);
 const foodWithTimerQuery = defineQuery([
   ObjectComp,
   FreshnessComp,
@@ -48655,12 +48675,12 @@ function freshnessSystem(params) {
   const { world, currentTime } = params;
   initializeFreshnessTimes(world, currentTime);
   updateFreshness(world, currentTime);
-  applySparkleToFreshFood(world);
+  applySparkleToFreshFood(world, currentTime);
   cancelTargetingForStalFood(world);
   return params;
 }
 function initializeFreshnessTimes(world, currentTime) {
-  const foodEntities = foodQuery$2(world);
+  const foodEntities = foodQuery$1(world);
   for (let i2 = 0; i2 < foodEntities.length; i2++) {
     const eid = foodEntities[i2];
     if (ObjectComp.type[eid] !== ObjectType.FOOD) continue;
@@ -48738,8 +48758,8 @@ function getStaminaBonusFromFreshness(freshness) {
 function isFoodEdible(freshness) {
   return freshness === Freshness.FRESH || freshness === Freshness.NORMAL;
 }
-function applySparkleToFreshFood(world) {
-  const foods = foodQuery$2(world);
+function applySparkleToFreshFood(world, currentTime) {
+  const foods = foodQuery$1(world);
   for (let i2 = 0; i2 < foods.length; i2++) {
     const eid = foods[i2];
     if (ObjectComp.type[eid] !== ObjectType.FOOD) continue;
@@ -48750,7 +48770,7 @@ function applySparkleToFreshFood(world) {
       addComponent(world, SparkleEffectComp, eid);
       SparkleEffectComp.isActive[eid] = 1;
       SparkleEffectComp.sparkleCount[eid] = 0;
-      SparkleEffectComp.nextSpawnTime[eid] = Date.now() + 500;
+      SparkleEffectComp.nextSpawnTime[eid] = currentTime + 500;
       SparkleEffectComp.spawnInterval[eid] = 800;
       console.log(`[FreshnessSystem] Added SparkleEffect to fresh food ${eid}`);
     } else if (freshness !== Freshness.FRESH && hasSparkle) {
@@ -48920,7 +48940,7 @@ function createThrowingFoodEntity(world, options) {
   );
   return eid;
 }
-const characterQuery$7 = defineQuery([ObjectComp, CharacterStatusComp]);
+const characterQuery$6 = defineQuery([ObjectComp, CharacterStatusComp]);
 const characterWithDigestiveQuery = defineQuery([
   ObjectComp,
   CharacterStatusComp,
@@ -48933,7 +48953,7 @@ function digestiveSystem(params) {
   return params;
 }
 function initializeDigestiveSystem(world) {
-  const characters = characterQuery$7(world);
+  const characters = characterQuery$6(world);
   for (let i2 = 0; i2 < characters.length; i2++) {
     const eid = characters[i2];
     if (ObjectComp.type[eid] !== ObjectType.CHARACTER) continue;
@@ -49090,12 +49110,12 @@ function moveTowardsTarget(world, eid, _delta, arrivalThreshold) {
   SpeedComp.value[eid] = baseSpeed;
   return { distance, hasArrived };
 }
-const characterQuery$6 = defineQuery([
+const characterQuery$5 = defineQuery([
   ObjectComp,
   CharacterStatusComp,
   PositionComp
 ]);
-const foodQuery$1 = defineQuery([ObjectComp, PositionComp, FreshnessComp]);
+const foodQuery = defineQuery([ObjectComp, PositionComp, FreshnessComp]);
 const eatingCharacterQuery = defineQuery([
   ObjectComp,
   CharacterStatusComp,
@@ -49114,7 +49134,8 @@ const EATING_OFFSET_DISTANCE = 20;
 const EATING_OFFSET_Y = -8;
 function foodEatingSystem(params) {
   const { world, delta, currentTime } = params;
-  updateEatingProgress(world, delta, currentTime || Date.now());
+  const resolvedCurrentTime = currentTime ?? world.currentTime;
+  updateEatingProgress(world, delta, resolvedCurrentTime);
   updateMovingToFood(world, delta);
   findAndEatFood(world);
   return params;
@@ -49208,7 +49229,7 @@ function completeEating(world, characterEid, foodEid, currentTime) {
     RandomMovementComp.maxIdleTime[characterEid] = 3e3;
     RandomMovementComp.minMoveTime[characterEid] = 2e3;
     RandomMovementComp.maxMoveTime[characterEid] = 4e3;
-    RandomMovementComp.nextChange[characterEid] = Date.now() + 2e3 + Math.random() * 1e3;
+    RandomMovementComp.nextChange[characterEid] = world.currentTime + 2e3 + Math.random() * 1e3;
     console.log(
       `[FoodEatingSystem] Added RandomMovementComp back to character ${characterEid} with idle delay`
     );
@@ -49224,8 +49245,8 @@ function completeEating(world, characterEid, foodEid, currentTime) {
   );
 }
 function findAndEatFood(world) {
-  const characters = characterQuery$6(world);
-  const foods = foodQuery$1(world);
+  const characters = characterQuery$5(world);
+  const foods = foodQuery(world);
   for (let i2 = 0; i2 < characters.length; i2++) {
     const characterEid = characters[i2];
     if (ObjectComp.type[characterEid] !== ObjectType.CHARACTER) {
@@ -49408,7 +49429,7 @@ function cancelEating(world, characterEid) {
     RandomMovementComp.maxIdleTime[characterEid] = 3e3;
     RandomMovementComp.minMoveTime[characterEid] = 2e3;
     RandomMovementComp.maxMoveTime[characterEid] = 4e3;
-    RandomMovementComp.nextChange[characterEid] = Date.now() + 1e3;
+    RandomMovementComp.nextChange[characterEid] = world.currentTime + 1e3;
   }
   if (hasComponent(world, FoodEatingComp, characterEid)) {
     removeComponent(world, FoodEatingComp, characterEid);
@@ -49926,11 +49947,7 @@ function createOrUpdateBroom(eid, stage, world, targetX, targetY, targetWidth) {
   broomSprite.scale.x = isMovingRight ? 3 : -3;
   broomSprite.scale.y = 3;
   const targetLeftX = targetX - targetWidth / 2;
-  const targetRightX = targetX + targetWidth / 2;
-  const broomDisplayWidth = broomSprite.texture.orig.width * Math.abs(broomSprite.scale.x);
-  const safeLeftX = targetLeftX + broomDisplayWidth / 2;
-  const safeRightX = targetRightX - broomDisplayWidth / 2;
-  const broomX = safeLeftX < safeRightX ? safeLeftX + sliderValue * (safeRightX - safeLeftX) : targetX;
+  const broomX = targetLeftX + sliderValue * targetWidth;
   const broomY = targetY - 10;
   broomSprite.x = broomX;
   broomSprite.y = broomY;
@@ -49964,423 +49981,183 @@ function updateCleaningOpacity(eid, world, _stage) {
     }
   }
 }
-const gifAnimationQuery = defineQuery([
+const effectAnimationQuery = defineQuery([
   ObjectComp,
   PositionComp,
-  GifAnimationComp
+  EffectAnimationComp
 ]);
-const gifSpriteMap = /* @__PURE__ */ new Map();
-const GIF_ASSETS$1 = {
-  [GifType.RECOVERY]: "recovery"
-};
-const GIF_DURATIONS = {
-  [GifType.RECOVERY]: 3e3
-};
-const GIF_LOOP_SETTINGS = {
-  [GifType.RECOVERY]: false
-  // 1회성 실행
-};
-const GIF_SCALE_MULTIPLIERS = {
-  [GifType.RECOVERY]: 1
-  // 기본 크기 (1배)
-};
-const GIF_Y_OFFSETS = {
-  [GifType.RECOVERY]: -10
-  // 10px 위쪽
-};
-function gifAnimationSystem(params) {
+const effectSpriteMap = /* @__PURE__ */ new Map();
+const RECOVERY_APPROACH_DURATION = 300;
+const RECOVERY_HOLD_DURATION = 1e3;
+const RECOVERY_FADE_DURATION = 300;
+const RECOVERY_TOTAL_DURATION = RECOVERY_APPROACH_DURATION + RECOVERY_HOLD_DURATION + RECOVERY_FADE_DURATION;
+const RECOVERY_START_OFFSET_X = -18;
+const RECOVERY_START_OFFSET_Y = -18;
+const RECOVERY_TARGET_OFFSET_X = 0;
+const RECOVERY_TARGET_OFFSET_Y = 0;
+const RECOVERY_SCALE = 2.3;
+const RECOVERY_Z_INDEX_OFFSET = 1;
+const RECOVERY_ROTATION = Math.PI * 0.25;
+function getSyringeTexture() {
+  try {
+    const spritesheet = Assets.get("common16x16");
+    if (!spritesheet) {
+      console.warn(
+        "[EffectAnimationSystem] common16x16 spritesheet is not loaded"
+      );
+      return null;
+    }
+    const texture = spritesheet.textures.syringe;
+    if (!texture) {
+      console.warn(
+        "[EffectAnimationSystem] syringe texture not found in common16x16"
+      );
+      return null;
+    }
+    return texture;
+  } catch (error) {
+    console.error(
+      "[EffectAnimationSystem] Failed to resolve syringe texture:",
+      error
+    );
+    return null;
+  }
+}
+function cleanupEffectSprite(world, eid, stage) {
+  const sprite = effectSpriteMap.get(eid);
+  if (sprite) {
+    if (stage && sprite.parent) {
+      stage.removeChild(sprite);
+    }
+    sprite.destroy();
+    effectSpriteMap.delete(eid);
+  }
+  if (hasComponent(world, EffectAnimationComp, eid)) {
+    removeComponent(world, EffectAnimationComp, eid);
+  }
+}
+function createRecoverySyringeSprite(eid, stage) {
+  if (!stage) {
+    return null;
+  }
+  const texture = getSyringeTexture();
+  if (!texture) {
+    return null;
+  }
+  const sprite = new Sprite(texture);
+  sprite.anchor.set(0.5);
+  sprite.scale.set(RECOVERY_SCALE);
+  sprite.rotation = RECOVERY_ROTATION;
+  sprite.alpha = 1;
+  stage.addChild(sprite);
+  effectSpriteMap.set(eid, sprite);
+  return sprite;
+}
+function updateRecoverySyringe(eid, currentTime) {
+  const startTime = EffectAnimationComp.startTime[eid];
+  const elapsed = currentTime - startTime;
+  const duration = EffectAnimationComp.duration[eid];
+  const targetX = PositionComp.x[eid] + RECOVERY_TARGET_OFFSET_X;
+  const targetY = PositionComp.y[eid] + RECOVERY_TARGET_OFFSET_Y;
+  const startX = targetX + RECOVERY_START_OFFSET_X;
+  const startY = targetY + RECOVERY_START_OFFSET_Y;
+  if (elapsed >= duration) {
+    return true;
+  }
+  const sprite = effectSpriteMap.get(eid);
+  if (!sprite) {
+    return false;
+  }
+  if (elapsed < RECOVERY_APPROACH_DURATION) {
+    const progress = elapsed / RECOVERY_APPROACH_DURATION;
+    const easedProgress = 1 - Math.pow(1 - progress, 3);
+    sprite.x = startX + (targetX - startX) * easedProgress;
+    sprite.y = startY + (targetY - startY) * easedProgress;
+    sprite.alpha = 1;
+  } else if (elapsed < RECOVERY_APPROACH_DURATION + RECOVERY_HOLD_DURATION) {
+    sprite.x = targetX;
+    sprite.y = targetY;
+    sprite.alpha = 1;
+  } else {
+    const fadeElapsed = elapsed - RECOVERY_APPROACH_DURATION - RECOVERY_HOLD_DURATION;
+    const fadeProgress = Math.min(fadeElapsed / RECOVERY_FADE_DURATION, 1);
+    sprite.x = targetX;
+    sprite.y = targetY;
+    sprite.alpha = 1 - fadeProgress;
+  }
+  sprite.zIndex = targetY + RECOVERY_Z_INDEX_OFFSET;
+  return false;
+}
+function effectAnimationSystem(params) {
   const { world, currentTime, stage } = params;
-  const entities = gifAnimationQuery(world);
+  const entities = effectAnimationQuery(world);
   for (let i2 = 0; i2 < entities.length; i2++) {
     const eid = entities[i2];
-    if (ObjectComp.type[eid] !== ObjectType.CHARACTER) continue;
-    const gifComp = GifAnimationComp;
-    if (!gifComp.isActive[eid] || currentTime >= gifComp.startTime[eid] + gifComp.duration[eid]) {
-      if (stage) {
-        const sprite2 = gifSpriteMap.get(eid);
-        if (sprite2) {
-          if (sprite2.stop && typeof sprite2.stop === "function") {
-            sprite2.stop();
-          }
-          stage.removeChild(sprite2);
-          sprite2.destroy();
-          gifSpriteMap.delete(eid);
-        }
-      }
-      removeComponent(world, GifAnimationComp, eid);
+    if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
       continue;
     }
-    const sprite = gifSpriteMap.get(eid);
-    if (sprite) {
-      const animGifType = gifComp.gifType[eid];
-      const shouldLoop = GIF_LOOP_SETTINGS[animGifType] ?? true;
-      if (!shouldLoop && sprite.currentFrame !== void 0 && sprite.totalFrames !== void 0) {
-        if (sprite.currentFrame >= sprite.totalFrames - 1 && !sprite.playing) {
-          if (stage) {
-            if (sprite.stop && typeof sprite.stop === "function") {
-              sprite.stop();
-            }
-            stage.removeChild(sprite);
-            sprite.destroy();
-            gifSpriteMap.delete(eid);
-          }
-          removeComponent(world, GifAnimationComp, eid);
+    if (!EffectAnimationComp.isActive[eid]) {
+      cleanupEffectSprite(world, eid, stage);
+      continue;
+    }
+    const effectType = EffectAnimationComp.effectType[eid];
+    if (stage && !effectSpriteMap.has(eid)) {
+      switch (effectType) {
+        case EffectAnimationType.RECOVERY_SYRINGE:
+          createRecoverySyringeSprite(eid, stage);
+          break;
+        default:
+          console.warn(
+            `[EffectAnimationSystem] Unsupported effect type: ${effectType}`
+          );
+          cleanupEffectSprite(world, eid, stage);
           continue;
-        }
       }
-      if (stage) {
-        const currentGifType = gifComp.gifType[eid];
-        const yOffset = GIF_Y_OFFSETS[currentGifType] || 0;
-        sprite.x = PositionComp.x[eid];
-        sprite.y = PositionComp.y[eid] + yOffset;
-      }
+    }
+    let shouldCleanup = false;
+    switch (effectType) {
+      case EffectAnimationType.RECOVERY_SYRINGE:
+        shouldCleanup = updateRecoverySyringe(eid, currentTime);
+        break;
+      default:
+        shouldCleanup = true;
+        break;
+    }
+    if (shouldCleanup) {
+      cleanupEffectSprite(world, eid, stage);
     }
   }
   return params;
 }
-function startGifAnimation(world, eid, stage, currentTime, gifType, customDuration) {
-  if (hasComponent(world, GifAnimationComp, eid)) {
-    const existingSprite = gifSpriteMap.get(eid);
-    if (existingSprite) {
-      if (existingSprite.stop && typeof existingSprite.stop === "function") {
-        existingSprite.stop();
-      }
-      if (stage) {
-        stage.removeChild(existingSprite);
-      }
-      existingSprite.destroy();
-      gifSpriteMap.delete(eid);
-    }
-    removeComponent(world, GifAnimationComp, eid);
-  }
+function startEffectAnimation(world, eid, stage, currentTime, effectType, customDuration) {
+  cleanupEffectSprite(world, eid, stage);
+  const duration = effectType === EffectAnimationType.RECOVERY_SYRINGE ? RECOVERY_TOTAL_DURATION : RECOVERY_TOTAL_DURATION;
+  addComponent(world, EffectAnimationComp, eid);
+  EffectAnimationComp.storeIndex[eid] = eid;
+  EffectAnimationComp.startTime[eid] = currentTime;
+  EffectAnimationComp.duration[eid] = duration;
+  EffectAnimationComp.effectType[eid] = effectType;
+  EffectAnimationComp.isActive[eid] = 1;
   if (stage) {
-    const assetName = GIF_ASSETS$1[gifType];
-    if (!assetName) {
-      console.error(`[GifAnimationSystem] Unknown gif type: ${gifType}`);
-      return;
+    switch (effectType) {
+      case EffectAnimationType.RECOVERY_SYRINGE:
+        createRecoverySyringeSprite(eid, stage);
+        updateRecoverySyringe(eid, currentTime);
+        break;
     }
-    const animatedGif = Assets.get(assetName);
-    if (!animatedGif) {
-      console.error(
-        `[GifAnimationSystem] Animated GIF asset '${assetName}' not loaded`
-      );
-      console.log(
-        `[GifAnimationSystem] Trying to get asset with name:`,
-        assetName
-      );
-      console.log(
-        `[GifAnimationSystem] Available assets in cache:`,
-        Assets.cache.has(assetName) ? "Found" : "Not found"
-      );
-      return;
-    }
-    let characterScale = 1;
-    const scaleMultiplier = GIF_SCALE_MULTIPLIERS[gifType] || 1;
-    const finalScale = characterScale * scaleMultiplier;
-    const yOffset = GIF_Y_OFFSETS[gifType] || 0;
-    const gifSprite = animatedGif.clone ? animatedGif.clone() : animatedGif;
-    gifSprite.anchor.set(0.5);
-    gifSprite.scale.set(finalScale);
-    gifSprite.x = PositionComp.x[eid];
-    gifSprite.y = PositionComp.y[eid] + yOffset;
-    gifSprite.zIndex = gifSprite.y - 1;
-    const shouldLoop = GIF_LOOP_SETTINGS[gifType] ?? true;
-    if (gifSprite.loop !== void 0) {
-      gifSprite.loop = shouldLoop;
-    }
-    if (gifSprite.play && typeof gifSprite.play === "function") {
-      gifSprite.play();
-    }
-    stage.addChild(gifSprite);
-    gifSpriteMap.set(eid, gifSprite);
   }
-  const duration = GIF_DURATIONS[gifType] || 3e3;
-  addComponent(world, GifAnimationComp, eid);
-  GifAnimationComp.storeIndex[eid] = eid;
-  GifAnimationComp.startTime[eid] = currentTime;
-  GifAnimationComp.duration[eid] = duration;
-  GifAnimationComp.gifType[eid] = gifType;
-  GifAnimationComp.isActive[eid] = 1;
   console.log(
-    `[GifAnimationSystem] Started ${GifType[gifType]} animation for character ${eid}:`
+    `[EffectAnimationSystem] Started ${EffectAnimationType[effectType]} for entity ${eid}`
   );
-  console.log(`  - Duration: ${duration}ms`);
-  console.log(`  - Mode: ${stage ? "Rendering" : "Simulation only"}`);
 }
 function startRecoveryAnimation(world, eid, stage, currentTime) {
-  startGifAnimation(world, eid, stage, currentTime, GifType.RECOVERY);
-}
-const characterQuery$5 = defineQuery([ObjectComp, CharacterStatusComp]);
-const foodQuery = defineQuery([ObjectComp, FreshnessTimerComp]);
-class AppStateManager {
-  constructor(world) {
-    this.lastActiveTime = 0;
-    this.isFirstLoad = true;
-    this.world = world;
-    this.lastActiveTime = Date.now();
-    this.setupEventListeners();
-  }
-  /**
-   * 브라우저 생명주기 이벤트 리스너 설정
-   */
-  setupEventListeners() {
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        this.onAppPause();
-      } else {
-        this.onAppResume();
-      }
-    };
-    const handleBeforeUnload = () => {
-      this.onAppPause();
-    };
-    const handleBlur = () => {
-      this.onAppPause();
-    };
-    const handleFocus = () => {
-      this.onAppResume();
-    };
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    window.addEventListener("blur", handleBlur);
-    window.addEventListener("focus", handleFocus);
-    this.cleanup = () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-      window.removeEventListener("blur", handleBlur);
-      window.removeEventListener("focus", handleFocus);
-    };
-  }
-  /**
-   * 앱이 비활성화될 때 호출
-   */
-  onAppPause() {
-    this.lastActiveTime = Date.now();
-    console.log(
-      "[AppStateManager] App paused at:",
-      new Date(this.lastActiveTime)
-    );
-  }
-  /**
-   * 앱이 다시 활성화될 때 호출
-   */
-  onAppResume() {
-    const currentTime = Date.now();
-    if (!this.isFirstLoad && this.lastActiveTime > 0) {
-      const timeElapsed = currentTime - this.lastActiveTime;
-      if (timeElapsed > 24 * 60 * 60 * 1e3) {
-        console.log("=== AppStateManager ===");
-        console.log("❌ 시간이 1일을 초과하여 동기화를 건너뜁니다.");
-        console.log(
-          `마지막 활성: ${new Date(this.lastActiveTime).toLocaleString(
-            "ko-KR"
-          )}`
-        );
-        return;
-      }
-      this.logResumeDetails(currentTime, timeElapsed);
-      this.syncTimeBasedProgress(currentTime, timeElapsed);
-    }
-    this.isFirstLoad = false;
-    this.lastActiveTime = currentTime;
-  }
-  /**
-   * 재진입 상세 정보 로그
-   */
-  logResumeDetails(currentTime, timeElapsed) {
-    console.log("=== AppStateManager 앱 재진입 ===");
-    const pauseDate = new Date(this.lastActiveTime);
-    const resumeDate = new Date(currentTime);
-    console.log(`🕐 앱 중단 시간: ${pauseDate.toLocaleString("ko-KR")}`);
-    console.log(`🕐 앱 복귀 시간: ${resumeDate.toLocaleString("ko-KR")}`);
-    const minutes = Math.floor(timeElapsed / (1e3 * 60));
-    const seconds = Math.floor(timeElapsed % (1e3 * 60) / 1e3);
-    console.log(`⏱️  중단 지속 시간: ${minutes}분 ${seconds}초`);
-  }
-  /**
-   * 시간 기반 진행사항 동기화
-   */
-  syncTimeBasedProgress(currentTime, timeElapsed) {
-    console.log("📊 [AppStateManager] 시간 기반 진행사항 동기화 시작...");
-    this.syncCharacterProgress(currentTime, timeElapsed);
-    this.syncFoodFreshness(currentTime, timeElapsed);
-    console.log("✅ [AppStateManager] 시간 기반 진행사항 동기화 완료");
-  }
-  /**
-   * 캐릭터 진행사항 동기화
-   */
-  syncCharacterProgress(currentTime, timeElapsed) {
-    const characters = characterQuery$5(this.world);
-    for (let i2 = 0; i2 < characters.length; i2++) {
-      const eid = characters[i2];
-      if (ObjectComp.type[eid] !== ObjectType.CHARACTER) continue;
-      const staminaDecreaseIntervals = Math.floor(
-        timeElapsed / GAME_CONSTANTS.STAMINA_DECREASE_INTERVAL
-      );
-      if (staminaDecreaseIntervals > 0) {
-        console.log(
-          `[스테미나 동기화] Character ${eid}: ${staminaDecreaseIntervals}번의 스테미나 감소 필요`
-        );
-        const diseaseComp = hasComponent(this.world, DiseaseSystemComp, eid) ? DiseaseSystemComp : null;
-        const sickStartTime = diseaseComp ? diseaseComp.sickStartTime[eid] : 0;
-        const pauseStartTime = this.lastActiveTime;
-        let totalDecrease = 0;
-        for (let interval = 0; interval < staminaDecreaseIntervals; interval++) {
-          const intervalTime = pauseStartTime + interval * GAME_CONSTANTS.STAMINA_DECREASE_INTERVAL;
-          const wasSickAtInterval = sickStartTime > 0 && intervalTime >= sickStartTime;
-          const decreaseAmount = wasSickAtInterval ? GAME_CONSTANTS.STAMINA_DECREASE_AMOUNT * 2 : GAME_CONSTANTS.STAMINA_DECREASE_AMOUNT;
-          totalDecrease += decreaseAmount;
-          const intervalTimeStr = new Date(intervalTime).toLocaleString(
-            "ko-KR"
-          );
-          console.log(
-            `  - ${intervalTimeStr}: 스테미나 ${decreaseAmount} 감소 ${wasSickAtInterval ? "(질병으로 2배)" : "(정상)"}`
-          );
-        }
-        const currentStamina = CharacterStatusComp.stamina[eid];
-        const newStamina = Math.max(0, currentStamina - totalDecrease);
-        CharacterStatusComp.stamina[eid] = newStamina;
-        console.log(
-          `[스테미나 최종] Character ${eid}: ${currentStamina} → ${newStamina} (총 ${totalDecrease} 감소)`
-        );
-        if (newStamina <= 0 && currentStamina > 0) {
-          let cumulativeDecrease = 0;
-          let urgentTriggeredTime = 0;
-          for (let interval = 0; interval < staminaDecreaseIntervals; interval++) {
-            const intervalTime = pauseStartTime + interval * GAME_CONSTANTS.STAMINA_DECREASE_INTERVAL;
-            const wasSickAtInterval = sickStartTime > 0 && intervalTime >= sickStartTime;
-            const decreaseAmount = wasSickAtInterval ? GAME_CONSTANTS.STAMINA_DECREASE_AMOUNT * 2 : GAME_CONSTANTS.STAMINA_DECREASE_AMOUNT;
-            cumulativeDecrease += decreaseAmount;
-            if (currentStamina - cumulativeDecrease <= 0 && urgentTriggeredTime === 0) {
-              urgentTriggeredTime = intervalTime;
-              break;
-            }
-          }
-          if (!hasComponent(this.world, VitalityComp, eid)) {
-            addComponent(this.world, VitalityComp, eid);
-            VitalityComp.urgentStartTime[eid] = 0;
-            VitalityComp.deathTime[eid] = 0;
-            VitalityComp.isDead[eid] = 0;
-          }
-          VitalityComp.urgentStartTime[eid] = urgentTriggeredTime;
-          const deathTime = urgentTriggeredTime + GAME_CONSTANTS.DEATH_DELAY;
-          VitalityComp.deathTime[eid] = deathTime;
-          const urgentTimeStr = new Date(urgentTriggeredTime).toLocaleString(
-            "ko-KR"
-          );
-          const deathTimeStr = new Date(deathTime).toLocaleString("ko-KR");
-          console.log(
-            `[Death 체크] Character ${eid}: ${urgentTimeStr}에 urgent 상태 진입`
-          );
-          if (currentTime >= deathTime) {
-            VitalityComp.isDead[eid] = 1;
-            console.log(
-              `[Death 체크] Character ${eid}: ${deathTimeStr}에 사망 (앱 중단 중 사망)`
-            );
-          } else {
-            console.log(
-              `[Death 체크] Character ${eid}: ${deathTimeStr}에 사망 예정`
-            );
-          }
-        }
-      }
-      this.syncDiseaseSystem(eid, currentTime, timeElapsed);
-      this.syncDigestiveSystem(eid, currentTime, timeElapsed);
-      this.syncVitalitySystem(eid, currentTime, timeElapsed);
-    }
-  }
-  /**
-   * 질병 시스템 동기화
-   */
-  syncDiseaseSystem(eid, currentTime, timeElapsed) {
-    if (!hasComponent(this.world, DiseaseSystemComp, eid)) {
-      addComponent(this.world, DiseaseSystemComp, eid);
-      DiseaseSystemComp.nextCheckTime[eid] = currentTime + GAME_CONSTANTS.DISEASE_CHECK_INTERVAL;
-      DiseaseSystemComp.sickStartTime[eid] = 0;
-    }
-    const missedChecks = Math.floor(
-      timeElapsed / GAME_CONSTANTS.DISEASE_CHECK_INTERVAL
-    );
-    if (missedChecks > 0) {
-      DiseaseSystemComp.nextCheckTime[eid] = currentTime;
-      console.log(
-        `[AppStateManager] Character ${eid} missed ${missedChecks} disease checks`
-      );
-    }
-  }
-  /**
-   * 소화기관 동기화
-   */
-  syncDigestiveSystem(eid, _currentTime, _timeElapsed) {
-    if (!hasComponent(this.world, DigestiveSystemComp, eid)) {
-      addComponent(this.world, DigestiveSystemComp, eid);
-      DigestiveSystemComp.capacity[eid] = GAME_CONSTANTS.DIGESTIVE_CAPACITY;
-      DigestiveSystemComp.currentLoad[eid] = 0;
-      DigestiveSystemComp.nextPoopTime[eid] = 0;
-    }
-  }
-  /**
-   * 생존 상태 동기화
-   */
-  syncVitalitySystem(eid, currentTime, _timeElapsed) {
-    if (!hasComponent(this.world, VitalityComp, eid)) {
-      addComponent(this.world, VitalityComp, eid);
-      VitalityComp.urgentStartTime[eid] = 0;
-      VitalityComp.deathTime[eid] = 0;
-      VitalityComp.isDead[eid] = 0;
-    }
-    const urgentStartTime = VitalityComp.urgentStartTime[eid];
-    if (urgentStartTime > 0) {
-      const urgentDuration = currentTime - urgentStartTime;
-      if (urgentDuration >= GAME_CONSTANTS.DEATH_DELAY) {
-        VitalityComp.deathTime[eid] = currentTime;
-        console.log(
-          `[AppStateManager] Character ${eid} should die due to extended urgent state`
-        );
-      } else {
-        VitalityComp.deathTime[eid] = urgentStartTime + GAME_CONSTANTS.DEATH_DELAY;
-      }
-    }
-  }
-  /**
-   * 음식 신선도 동기화
-   */
-  syncFoodFreshness(_currentTime, timeElapsed) {
-    const foods = foodQuery(this.world);
-    let processedCount = 0;
-    for (let i2 = 0; i2 < foods.length; i2++) {
-      const eid = foods[i2];
-      if (ObjectComp.type[eid] !== ObjectType.FOOD) continue;
-      const originalCreatedTime = FreshnessTimerComp.createdTime[eid];
-      const adjustedCreatedTime = originalCreatedTime - timeElapsed;
-      FreshnessTimerComp.createdTime[eid] = adjustedCreatedTime;
-      processedCount++;
-    }
-    if (processedCount > 0) {
-      const minutes = Math.floor(timeElapsed / (1e3 * 60));
-      console.log(
-        `🍎 [AppStateManager] ${processedCount}개 음식 신선도 ${minutes}분 조정`
-      );
-    }
-  }
-  /**
-   * 정리 작업
-   */
-  destroy() {
-    if (this.cleanup) {
-      this.cleanup();
-    }
-  }
-  /**
-   * 현재 상태 정보 반환
-   */
-  getState() {
-    return {
-      lastActiveTime: this.lastActiveTime,
-      isFirstLoad: this.isFirstLoad,
-      isActive: !document.hidden
-    };
-  }
+  startEffectAnimation(
+    world,
+    eid,
+    stage,
+    currentTime,
+    EffectAnimationType.RECOVERY_SYRINGE
+  );
 }
 const characterQuery$4 = defineQuery([ObjectComp, CharacterStatusComp]);
 const objectQuery = defineQuery([ObjectComp]);
@@ -50642,8 +50419,8 @@ class HTMLDebugStatusUI {
     const container = document.createElement("div");
     container.style.cssText = `
       position: fixed;
-      top: 0px;
-      right: 0px;
+      top: 60px;
+      left: 12px;
       width: 180px;
       background: rgba(0, 0, 0, 0.6);
       border-radius: 8px;
@@ -50986,11 +50763,11 @@ class HTMLDebugGameConstantsUI {
     try {
       const savedValue = window.localStorage.getItem(STORAGE_KEY);
       if (savedValue === null) {
-        return true;
+        return false;
       }
       return savedValue === "true";
     } catch {
-      return true;
+      return false;
     }
   }
   _saveVisibility() {
@@ -51692,6 +51469,7 @@ const characterQuery$2 = defineQuery([
 const previousStates = /* @__PURE__ */ new Map();
 function diseaseSystem(params) {
   const { world, currentTime } = params;
+  const shouldLog = !world.isSimulationMode;
   const entities = characterQuery$2(world);
   for (let i2 = 0; i2 < entities.length; i2++) {
     const eid = entities[i2];
@@ -51701,23 +51479,29 @@ function diseaseSystem(params) {
     if (ObjectComp.state[eid] === CharacterState.DEAD) continue;
     const diseaseComp = DiseaseSystemComp;
     const characterComp = CharacterStatusComp;
-    if (currentTime >= diseaseComp.nextCheckTime[eid]) {
-      diseaseComp.nextCheckTime[eid] = currentTime + GAME_CONSTANTS.DISEASE_CHECK_INTERVAL;
+    while (currentTime >= diseaseComp.nextCheckTime[eid]) {
+      const checkTime = diseaseComp.nextCheckTime[eid];
+      diseaseComp.nextCheckTime[eid] = checkTime + GAME_CONSTANTS.DISEASE_CHECK_INTERVAL;
       const currentStatuses2 = characterComp.statuses[eid];
       const isSick2 = isCharacterSick(currentStatuses2);
       if (!isSick2) {
         const diseaseCalculation = calculateDiseaseRate(world, eid);
         const { rate: diseaseRate, breakdown } = diseaseCalculation;
-        console.log(
-          `Disease Check - Entity ${eid}: Total Rate ${(diseaseRate * 100).toFixed(2)}%`,
-          breakdown
-        );
+        if (shouldLog) {
+          console.log(
+            `Disease Check - Entity ${eid}: Total Rate ${(diseaseRate * 100).toFixed(2)}%`,
+            breakdown
+          );
+        }
         if (Math.random() < diseaseRate) {
-          console.log(`Disease occurred for entity ${eid}!`);
+          if (shouldLog) {
+            console.log(`Disease occurred for entity ${eid}!`);
+          }
           addCharacterStatus$1(eid, CharacterStatus.SICK);
-          diseaseComp.sickStartTime[eid] = currentTime;
+          diseaseComp.sickStartTime[eid] = checkTime;
           ObjectComp.state[eid] = CharacterState.SICK;
           restrictMovement(world, eid);
+          break;
         }
       }
     }
@@ -51762,7 +51546,7 @@ function restoreMovement(world, eid) {
       RandomMovementComp.maxIdleTime[eid] = 6e3;
       RandomMovementComp.minMoveTime[eid] = 2e3;
       RandomMovementComp.maxMoveTime[eid] = 4e3;
-      RandomMovementComp.nextChange[eid] = Date.now() + 1e3;
+      RandomMovementComp.nextChange[eid] = world.currentTime + 1e3;
       console.log(
         `[DiseaseSystem] Restored RandomMovementComp for entity ${eid} (movement restored)`
       );
@@ -52286,12 +52070,20 @@ class ReentrySimulator {
       const tickSize = this._getSimulationTickSize(elapsedTime);
       this._baseTickSize = tickSize;
       const totalTicks = Math.floor(elapsedTime / tickSize);
-      console.log(`Simulating ${totalTicks} ticks of ${tickSize}ms each`);
+      const remainingTime = elapsedTime % tickSize;
+      const totalSteps = totalTicks + (remainingTime > 0 ? 1 : 0);
+      console.log(`Simulating ${totalSteps} tick(s) with base ${tickSize}ms`);
       console.log(`Base tick size: ${this._formatTime(tickSize)}`);
-      for (let tick = 0; tick < totalTicks; tick++) {
+      if (remainingTime > 0) {
+        console.log(`Remaining partial tick: ${remainingTime}ms`);
+      }
+      const progressLogInterval = totalSteps > 5e3 ? 1e3 : 100;
+      for (let tick = 0; tick < totalSteps; tick++) {
         this._currentTick = tick + 1;
-        const simulationTime = lastActiveTime + (tick + 1) * tickSize;
-        const simulationDelta = tickSize / 1e3;
+        const isPartialTick = tick === totalTicks && remainingTime > 0;
+        const simulationDelta = isPartialTick ? remainingTime : tickSize;
+        const elapsedUntilTick = tick < totalTicks ? (tick + 1) * tickSize : totalTicks * tickSize + remainingTime;
+        const simulationTime = lastActiveTime + elapsedUntilTick;
         this._currentSimulationTime = simulationTime;
         const beforeTickStates = this._collectCharacterStates(context2);
         simulatorFunction({
@@ -52299,17 +52091,17 @@ class ReentrySimulator {
           delta: simulationDelta
         });
         this._checkForEvolutions(context2, beforeTickStates, simulationTime);
-        if (tick % 100 === 0 || tick === totalTicks - 1) {
-          const progress = ((tick + 1) / totalTicks * 100).toFixed(1);
+        if (tick % progressLogInterval === 0 || tick === totalSteps - 1) {
+          const progress = ((tick + 1) / totalSteps * 100).toFixed(1);
           console.log(
-            `Simulation progress: ${progress}% (tick ${tick + 1}/${totalTicks})`
+            `Simulation progress: ${progress}% (tick ${tick + 1}/${totalSteps})`
           );
         }
       }
       this._afterStates = this._collectCharacterStates(context2);
-      this._logSimulationSummary(elapsedTime, totalTicks);
+      this._logSimulationSummary(elapsedTime, totalSteps);
       console.log(
-        `Simulation completed! Processed ${totalTicks} ticks in ${elapsedTime}ms`
+        `Simulation completed! Processed ${totalSteps} tick(s) in ${elapsedTime}ms`
       );
     } catch (error) {
       console.error("Simulation failed:", error);
@@ -52612,6 +52404,8 @@ class MainSceneWorld {
     this._pendingCleaningSliderDelta = 0;
     this._isPaused = false;
     this._pauseStartTime = 0;
+    this._isRunningReentrySimulation = false;
+    this._simulationTime = null;
     this._statusSystemsEnabled = true;
     this._isPersistenceDisabled = false;
     this._pendingStorageWrite = Promise.resolve();
@@ -52628,8 +52422,8 @@ class MainSceneWorld {
       // pillDeliverySystem,
       // 이펙트 시스템
       (params2) => sparkleEffectSystem({ ...params2, currentTime: this.currentTime }),
-      // 회복 애니메이션 시스템 (실시간 모드에서만 실행)
-      (params2) => gifAnimationSystem({
+      // 범용 effect 애니메이션 시스템 (실시간 모드에서만 실행)
+      (params2) => effectAnimationSystem({
         ...params2,
         currentTime: this.currentTime,
         stage: this._stage
@@ -52885,7 +52679,6 @@ class MainSceneWorld {
           }, this._parentElement);
         }
       }
-      this._appStateManager = new AppStateManager(this);
       this._setupVisibilityChangeHandler();
       await this._processReentrySimulation();
       console.log("World initialization completed");
@@ -53058,9 +52851,9 @@ class MainSceneWorld {
     );
     try {
       this._setupVisibilityChangeHandler();
+      await this._processReentrySimulation();
       this._isPaused = false;
       this._pauseStartTime = 0;
-      await this._processReentrySimulation();
       console.log("[MainSceneWorld] Scene reenter completed");
     } catch (error) {
       console.error("[MainSceneWorld] Failed to reenter scene:", error);
@@ -53081,10 +52874,6 @@ class MainSceneWorld {
       this._cleanupVisibilityChangeHandler();
       if (!this._isPaused && !this._isPersistenceDisabled) {
         void this.onSceneExit();
-      }
-      if (this._appStateManager) {
-        this._appStateManager.destroy();
-        this._appStateManager = void 0;
       }
       if (this._gameMenu) {
         this._gameMenu.destroy();
@@ -53113,7 +52902,7 @@ class MainSceneWorld {
     }
   }
   update(delta) {
-    if (this._isPaused) {
+    if (this._isPaused || this._isRunningReentrySimulation) {
       return;
     }
     this._pipedSystems({
@@ -53425,8 +53214,12 @@ class MainSceneWorld {
    * 앱 상태 관리자의 현재 상태 반환 (디버그용)
    */
   getAppState() {
-    var _a;
-    return ((_a = this._appStateManager) == null ? void 0 : _a.getState()) || null;
+    return {
+      isActive: typeof document !== "undefined" ? !document.hidden : !this._isPaused,
+      isPaused: this._isPaused,
+      isSimulationMode: this.isSimulationMode,
+      currentTime: this.currentTime
+    };
   }
   /**
    * 약 메뉴 선택 처리 - sick 상태 해제 및 회복 애니메이션
@@ -53462,7 +53255,7 @@ class MainSceneWorld {
         `[MainSceneWorld] Cured character ${characterEid} from SICK state`
       );
     }
-    startRecoveryAnimation(this, characterEid, this._stage, Date.now());
+    startRecoveryAnimation(this, characterEid, this._stage, this.currentTime);
     console.log(
       `[MainSceneWorld] Started recovery animation for character ${characterEid}`
     );
@@ -53597,10 +53390,9 @@ class MainSceneWorld {
       (params) => this._statusSystemsEnabled ? diseaseSystem({ ...params, currentTime: getCurrentTime() }) : params,
       (params) => eggHatchSystem({ ...params, currentTime: getCurrentTime() }),
       (params) => this._statusSystemsEnabled ? characterManagerSystem(params) : params,
-      // 이펙트 시스템 (상태 업데이트만, 렌더링 제외)
-      (params) => sparkleEffectSystem({ ...params, currentTime: getCurrentTime() }),
-      // GIF 애니메이션 시스템 (시뮬레이션에서는 상태만 업데이트, stage는 null)
-      (params) => gifAnimationSystem({
+      (params) => this._statusSystemsEnabled ? characterStatusSystem({ ...params, currentTime: getCurrentTime() }) : params,
+      // 범용 effect 애니메이션 시스템 (시뮬레이션에서는 상태만 업데이트, stage는 null)
+      (params) => effectAnimationSystem({
         ...params,
         currentTime: getCurrentTime(),
         stage: null
@@ -53613,12 +53405,9 @@ class MainSceneWorld {
       commonMovementSystem,
       // 착지 상태를 먼저 반영해 같은 프레임에 음식 탐색이 가능하도록 한다.
       throwAnimationSystem,
-      foodEatingSystem,
+      (params) => foodEatingSystem({ ...params, currentTime: getCurrentTime() }),
       // 애니메이션 상태 시스템들 (시뮬레이션에서도 실행)
-      animationStateSystem,
-      // 렌더링 시스템들은 시뮬레이션에서 제외
-      // - this._renderAllSystems (스킵)
-      dataSyncSystem
+      animationStateSystem
     );
   }
   /**
@@ -53634,8 +53423,21 @@ class MainSceneWorld {
       return;
     }
     const lastActiveTime = this._persistentData.world_metadata.app_state.last_active_time;
+    if (!lastActiveTime || lastActiveTime <= 0) {
+      console.log(
+        "[MainSceneWorld] Reentry simulation skipped because last active time is missing"
+      );
+      await this._saveCurrentState();
+      return;
+    }
     const currentTime = Date.now();
     const elapsedTime = currentTime - lastActiveTime;
+    if (elapsedTime <= 0) {
+      console.log(
+        "[MainSceneWorld] Reentry simulation skipped because elapsed time is not positive"
+      );
+      return;
+    }
     console.log(
       `[MainSceneWorld] Starting reentry simulation for ${this._formatPauseDuration(
         elapsedTime
@@ -53646,14 +53448,24 @@ class MainSceneWorld {
       () => reentrySimulator.getCurrentSimulationTime()
     );
     try {
+      this._isRunningReentrySimulation = true;
+      this._simulationTime = lastActiveTime;
       await reentrySimulator.simulate(
         lastActiveTime,
-        (params) => simulationPipeline(params),
+        (params) => {
+          this._simulationTime = reentrySimulator.getCurrentSimulationTime();
+          return simulationPipeline(params);
+        },
         this
       );
+      this._simulationTime = currentTime;
+      await this._saveCurrentState();
       console.log("[MainSceneWorld] Reentry simulation completed successfully");
     } catch (error) {
       console.error("[MainSceneWorld] Reentry simulation failed:", error);
+    } finally {
+      this._isRunningReentrySimulation = false;
+      this._simulationTime = null;
     }
   }
   /**
@@ -53661,14 +53473,14 @@ class MainSceneWorld {
    * 재진입 시뮬레이션이 실행 중이 아닌 상태에서는 항상 false
    */
   get isSimulationMode() {
-    return false;
+    return this._simulationTime !== null;
   }
   /**
    * 현재 시뮬레이션 시간 또는 실시간 반환
    * 재진입 시뮬레이션이 실행 중이 아닌 상태에서는 항상 실시간
    */
   get currentTime() {
-    return Date.now();
+    return this._simulationTime ?? Date.now();
   }
   /**
    * 모든 렌더링 시스템들을 한 번에 실행하는 통합 메서드
@@ -53746,14 +53558,14 @@ class MainSceneWorld {
         pauseDuration
       )}`
     );
-    this._isPaused = false;
-    this._pauseStartTime = 0;
     console.log(
       `[MainSceneWorld] Running reentry simulation for pause duration of ${this._formatPauseDuration(
         pauseDuration
       )}...`
     );
     await this._processReentrySimulation();
+    this._isPaused = false;
+    this._pauseStartTime = 0;
   }
   /**
    * 일시정지 시간을 읽기 쉬운 형태로 포맷팅
