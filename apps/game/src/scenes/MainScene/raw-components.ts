@@ -172,12 +172,12 @@ export const BroomRenderComp = defineComponent({
 });
 
 /**
- * GIF 애니메이션 컴포넌트 (범용 GIF 표시용)
+ * 범용 effect 애니메이션 컴포넌트
  */
-export const GifAnimationComp = defineComponent({
-  storeIndex: Types.ui16, // GIF 애니메이션 스프라이트 참조 인덱스
+export const EffectAnimationComp = defineComponent({
+  storeIndex: Types.ui16, // effect 스프라이트 참조 인덱스
   startTime: Types.f64, // 애니메이션 시작 시간 (timestamp)
   duration: Types.f32, // 애니메이션 지속 시간 (ms)
-  gifType: Types.ui8, // GIF 타입 (0=recovery, 1=effect1, 2=effect2, etc.)
+  effectType: Types.ui8, // effect 타입
   isActive: Types.ui8, // 애니메이션 활성화 여부 (0 = false, 1 = true)
 });

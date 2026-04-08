@@ -50,10 +50,9 @@ import { sparkleEffectSystem } from "./systems/SparkleEffectSystem";
 import { cleaningSystem } from "./systems/CleaningSystem";
 import { cleanableRenderSystem } from "./systems/CleanableRenderSystem";
 import {
-  gifAnimationSystem,
+  effectAnimationSystem,
   startRecoveryAnimation,
-} from "./systems/GifAnimationSystem";
-import { AppStateManager } from "./AppStateManager";
+} from "./systems/EffectAnimationSystem";
 import { HTMLDebugStatusUI } from "./ui/HTMLDebugStatusUI";
 import { HTMLDebugToggleButton } from "./ui/HTMLDebugToggleButton";
 import { HTMLDebugGameConstantsUI } from "./ui/HTMLDebugGameConstantsUI";
@@ -263,7 +262,6 @@ export class MainSceneWorld implements IWorld, Scene {
   private _gameMenu?: GameMenu;
   private _parentElement?: HTMLElement;
   private _navigationActionIndex = 0;
-  private _appStateManager?: AppStateManager;
   private _changeControlButtons?: (
     controlButtonParamsSet: [
       ControlButtonParams,
@@ -280,6 +278,8 @@ export class MainSceneWorld implements IWorld, Scene {
   private _pendingCleaningSliderDelta = 0; // 입력 이벤트 동안 누적된 실제 슬라이더 이동량
   private _isPaused = false; // 앱이 일시정지 상태인지 여부
   private _pauseStartTime = 0; // 일시정지 시작 시간
+  private _isRunningReentrySimulation = false;
+  private _simulationTime: number | null = null;
   private _visibilityChangeHandler?: () => void; // Page Visibility API 이벤트 핸들러
   private _statusSystemsEnabled = true; // 상태 관리 시스템들 활성화 여부
   private _isPersistenceDisabled = false;
@@ -317,9 +317,9 @@ export class MainSceneWorld implements IWorld, Scene {
     // 이펙트 시스템
     (params: any) =>
       sparkleEffectSystem({ ...params, currentTime: this.currentTime }),
-    // 회복 애니메이션 시스템 (실시간 모드에서만 실행)
+    // 범용 effect 애니메이션 시스템 (실시간 모드에서만 실행)
     (params: any) =>
-      gifAnimationSystem({
+      effectAnimationSystem({
         ...params,
         currentTime: this.currentTime,
         stage: this._stage,
@@ -649,9 +649,6 @@ export class MainSceneWorld implements IWorld, Scene {
         }
       }
 
-      // 앱 상태 관리자 초기화
-      this._appStateManager = new AppStateManager(this);
-
       // Page Visibility API 이벤트 리스너 등록
       this._setupVisibilityChangeHandler();
 
@@ -875,12 +872,12 @@ export class MainSceneWorld implements IWorld, Scene {
       // 이벤트 핸들러 재등록
       this._setupVisibilityChangeHandler();
 
+      // 재진입 시뮬레이션 실행 (다른 scene에 있던 시간 계산)
+      await this._processReentrySimulation();
+
       // 일시정지 해제
       this._isPaused = false;
       this._pauseStartTime = 0;
-
-      // 재진입 시뮬레이션 실행 (다른 scene에 있던 시간 계산)
-      await this._processReentrySimulation();
 
       console.log("[MainSceneWorld] Scene reenter completed");
     } catch (error) {
@@ -909,12 +906,6 @@ export class MainSceneWorld implements IWorld, Scene {
       // Scene 종료 처리 (아직 호출되지 않았다면)
       if (!this._isPaused && !this._isPersistenceDisabled) {
         void this.onSceneExit();
-      }
-
-      // 앱 상태 관리자 정리
-      if (this._appStateManager) {
-        this._appStateManager.destroy();
-        this._appStateManager = undefined;
       }
 
       // 게임 메뉴 정리
@@ -957,7 +948,7 @@ export class MainSceneWorld implements IWorld, Scene {
   }
   update(delta: number): void {
     // 앱이 일시정지 상태일 때는 시스템 업데이트 건너뛰기
-    if (this._isPaused) {
+    if (this._isPaused || this._isRunningReentrySimulation) {
       return;
     }
 
@@ -1378,7 +1369,13 @@ export class MainSceneWorld implements IWorld, Scene {
    * 앱 상태 관리자의 현재 상태 반환 (디버그용)
    */
   public getAppState() {
-    return this._appStateManager?.getState() || null;
+    return {
+      isActive:
+        typeof document !== "undefined" ? !document.hidden : !this._isPaused,
+      isPaused: this._isPaused,
+      isSimulationMode: this.isSimulationMode,
+      currentTime: this.currentTime,
+    };
   }
 
   /**
@@ -1429,7 +1426,7 @@ export class MainSceneWorld implements IWorld, Scene {
     }
 
     // recovery 애니메이션 시작
-    startRecoveryAnimation(this, characterEid, this._stage, Date.now());
+    startRecoveryAnimation(this, characterEid, this._stage, this.currentTime);
 
     console.log(
       `[MainSceneWorld] Started recovery animation for character ${characterEid}`,
@@ -1609,12 +1606,13 @@ export class MainSceneWorld implements IWorld, Scene {
         eggHatchSystem({ ...params, currentTime: getCurrentTime() }),
       (params: any) =>
         this._statusSystemsEnabled ? characterManagerSystem(params) : params,
-      // 이펙트 시스템 (상태 업데이트만, 렌더링 제외)
       (params: any) =>
-        sparkleEffectSystem({ ...params, currentTime: getCurrentTime() }),
-      // GIF 애니메이션 시스템 (시뮬레이션에서는 상태만 업데이트, stage는 null)
+        this._statusSystemsEnabled
+          ? characterStatusSystem({ ...params, currentTime: getCurrentTime() })
+          : params,
+      // 범용 effect 애니메이션 시스템 (시뮬레이션에서는 상태만 업데이트, stage는 null)
       (params: any) =>
-        gifAnimationSystem({
+        effectAnimationSystem({
           ...params,
           currentTime: getCurrentTime(),
           stage: null, // 시뮬레이션에서는 렌더링 스킵
@@ -1626,12 +1624,10 @@ export class MainSceneWorld implements IWorld, Scene {
       commonMovementSystem,
       // 착지 상태를 먼저 반영해 같은 프레임에 음식 탐색이 가능하도록 한다.
       throwAnimationSystem,
-      foodEatingSystem,
+      (params: any) =>
+        foodEatingSystem({ ...params, currentTime: getCurrentTime() }),
       // 애니메이션 상태 시스템들 (시뮬레이션에서도 실행)
       animationStateSystem,
-      // 렌더링 시스템들은 시뮬레이션에서 제외
-      // - this._renderAllSystems (스킵)
-      dataSyncSystem,
     );
   }
 
@@ -1651,8 +1647,23 @@ export class MainSceneWorld implements IWorld, Scene {
     const lastActiveTime =
       this._persistentData.world_metadata.app_state.last_active_time;
 
+    if (!lastActiveTime || lastActiveTime <= 0) {
+      console.log(
+        "[MainSceneWorld] Reentry simulation skipped because last active time is missing",
+      );
+      await this._saveCurrentState();
+      return;
+    }
+
     const currentTime = Date.now();
     const elapsedTime = currentTime - lastActiveTime;
+
+    if (elapsedTime <= 0) {
+      console.log(
+        "[MainSceneWorld] Reentry simulation skipped because elapsed time is not positive",
+      );
+      return;
+    }
 
     console.log(
       `[MainSceneWorld] Starting reentry simulation for ${this._formatPauseDuration(
@@ -1669,15 +1680,27 @@ export class MainSceneWorld implements IWorld, Scene {
     );
 
     try {
+      this._isRunningReentrySimulation = true;
+      this._simulationTime = lastActiveTime;
+
       await reentrySimulator.simulate(
         lastActiveTime,
-        (params: any) => simulationPipeline(params),
+        (params: any) => {
+          this._simulationTime = reentrySimulator.getCurrentSimulationTime();
+          return simulationPipeline(params);
+        },
         this,
       );
+
+      this._simulationTime = currentTime;
+      await this._saveCurrentState();
 
       console.log("[MainSceneWorld] Reentry simulation completed successfully");
     } catch (error) {
       console.error("[MainSceneWorld] Reentry simulation failed:", error);
+    } finally {
+      this._isRunningReentrySimulation = false;
+      this._simulationTime = null;
     }
   }
 
@@ -1686,7 +1709,7 @@ export class MainSceneWorld implements IWorld, Scene {
    * 재진입 시뮬레이션이 실행 중이 아닌 상태에서는 항상 false
    */
   public get isSimulationMode(): boolean {
-    return false; // 일회성 시뮬레이터 사용으로 항상 실시간 모드
+    return this._simulationTime !== null;
   }
 
   /**
@@ -1694,7 +1717,7 @@ export class MainSceneWorld implements IWorld, Scene {
    * 재진입 시뮬레이션이 실행 중이 아닌 상태에서는 항상 실시간
    */
   public get currentTime(): number {
-    return Date.now(); // 일회성 시뮬레이터 사용으로 항상 실시간
+    return this._simulationTime ?? Date.now();
   }
 
   /**
@@ -1803,9 +1826,6 @@ export class MainSceneWorld implements IWorld, Scene {
       )}`,
     );
 
-    this._isPaused = false;
-    this._pauseStartTime = 0;
-
     // 재진입 시뮬레이션 무조건 실행
     console.log(
       `[MainSceneWorld] Running reentry simulation for pause duration of ${this._formatPauseDuration(
@@ -1815,6 +1835,9 @@ export class MainSceneWorld implements IWorld, Scene {
 
     // 재진입 시뮬레이션 실행
     await this._processReentrySimulation();
+
+    this._isPaused = false;
+    this._pauseStartTime = 0;
 
     // 추가적인 재개 처리가 필요하다면 여기에 구현
     // 예: 오디오 재개, 애니메이션 재시작 등

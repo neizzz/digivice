@@ -77,15 +77,26 @@ export class ReentrySimulator {
       const tickSize = this._getSimulationTickSize(elapsedTime);
       this._baseTickSize = tickSize;
       const totalTicks = Math.floor(elapsedTime / tickSize);
+      const remainingTime = elapsedTime % tickSize;
+      const totalSteps = totalTicks + (remainingTime > 0 ? 1 : 0);
 
-      console.log(`Simulating ${totalTicks} ticks of ${tickSize}ms each`);
+      console.log(`Simulating ${totalSteps} tick(s) with base ${tickSize}ms`);
       console.log(`Base tick size: ${this._formatTime(tickSize)}`);
+      if (remainingTime > 0) {
+        console.log(`Remaining partial tick: ${remainingTime}ms`);
+      }
+      const progressLogInterval = totalSteps > 5000 ? 1000 : 100;
 
       // 각 틱마다 시스템 파이프라인 실행
-      for (let tick = 0; tick < totalTicks; tick++) {
+      for (let tick = 0; tick < totalSteps; tick++) {
         this._currentTick = tick + 1;
-        const simulationTime = lastActiveTime + (tick + 1) * tickSize;
-        const simulationDelta = tickSize / 1000; // 초 단위 delta
+        const isPartialTick = tick === totalTicks && remainingTime > 0;
+        const simulationDelta = isPartialTick ? remainingTime : tickSize;
+        const elapsedUntilTick =
+          tick < totalTicks
+            ? (tick + 1) * tickSize
+            : totalTicks * tickSize + remainingTime;
+        const simulationTime = lastActiveTime + elapsedUntilTick;
 
         // 현재 시뮬레이션 시간 설정
         this._currentSimulationTime = simulationTime;
@@ -103,10 +114,10 @@ export class ReentrySimulator {
         this._checkForEvolutions(context, beforeTickStates, simulationTime);
 
         // 진행률 로깅 (매 100틱마다)
-        if (tick % 100 === 0 || tick === totalTicks - 1) {
-          const progress = (((tick + 1) / totalTicks) * 100).toFixed(1);
+        if (tick % progressLogInterval === 0 || tick === totalSteps - 1) {
+          const progress = (((tick + 1) / totalSteps) * 100).toFixed(1);
           console.log(
-            `Simulation progress: ${progress}% (tick ${tick + 1}/${totalTicks})`
+            `Simulation progress: ${progress}% (tick ${tick + 1}/${totalSteps})`
           );
         }
       }
@@ -115,10 +126,10 @@ export class ReentrySimulator {
       this._afterStates = this._collectCharacterStates(context);
 
       // 시뮬레이션 결과 요약 출력
-      this._logSimulationSummary(elapsedTime, totalTicks);
+      this._logSimulationSummary(elapsedTime, totalSteps);
 
       console.log(
-        `Simulation completed! Processed ${totalTicks} ticks in ${elapsedTime}ms`
+        `Simulation completed! Processed ${totalSteps} tick(s) in ${elapsedTime}ms`
       );
     } catch (error) {
       console.error("Simulation failed:", error);

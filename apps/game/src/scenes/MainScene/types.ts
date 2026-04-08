@@ -331,18 +331,16 @@ export type BroomRenderComponent = {
 };
 
 /**
- * GIF 애니메이션 타입
+ * 범용 effect 애니메이션 타입
  */
-export enum GifType {
-  RECOVERY = 0,
-  // EFFECT1 = 1,
-  // EFFECT2 = 2,
+export enum EffectAnimationType {
+  RECOVERY_SYRINGE = 0,
 }
 
-export type GifAnimationComponent = {
-  storeIndex: number; // GIF 애니메이션 스프라이트 참조 인덱스
+export type EffectAnimationComponent = {
+  storeIndex: number; // effect 스프라이트 참조 인덱스
   startTime: number; // 애니메이션 시작 시간 (timestamp)
   duration: number; // 애니메이션 지속 시간 (ms)
-  gifType: GifType; // GIF 타입
+  effectType: EffectAnimationType; // effect 타입
   isActive: boolean; // 애니메이션 활성화 여부
 };

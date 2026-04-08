@@ -38,7 +38,7 @@ export function freshnessSystem(params: {
   updateFreshness(world, currentTime);
 
   // 신선한 음식에 SparkleEffect 적용
-  applySparkleToFreshFood(world);
+  applySparkleToFreshFood(world, currentTime);
 
   // 타게팅된 음식이 상한 경우 타게팅 취소
   cancelTargetingForStalFood(world);
@@ -203,7 +203,10 @@ export function isFoodEdible(freshness: Freshness): boolean {
 /**
  * 신선한 음식에 SparkleEffect 적용
  */
-function applySparkleToFreshFood(world: MainSceneWorld): void {
+function applySparkleToFreshFood(
+  world: MainSceneWorld,
+  currentTime: number,
+): void {
   const foods = foodQuery(world);
 
   for (let i = 0; i < foods.length; i++) {
@@ -220,7 +223,7 @@ function applySparkleToFreshFood(world: MainSceneWorld): void {
       addComponent(world, SparkleEffectComp, eid);
       SparkleEffectComp.isActive[eid] = 1;
       SparkleEffectComp.sparkleCount[eid] = 0;
-      SparkleEffectComp.nextSpawnTime[eid] = Date.now() + 500; // 0.5초 후 첫 반짝임
+      SparkleEffectComp.nextSpawnTime[eid] = currentTime + 500; // 0.5초 후 첫 반짝임
       SparkleEffectComp.spawnInterval[eid] = 800; // 0.8초마다 반짝임
       console.log(`[FreshnessSystem] Added SparkleEffect to fresh food ${eid}`);
     }

@@ -7,7 +7,7 @@ import {
   ObjectComp,
 } from "../raw-components";
 import { MainSceneWorld } from "../world";
-import { CharacterState, ObjectType } from "../types";
+import { CharacterState } from "../types";
 import { nomalizeRadian } from "@/utils/common";
 import { getCharacterStats } from "../characterStats";
 
@@ -19,12 +19,14 @@ export function randomMovementSystem(params: {
   delta: number;
 }): typeof params {
   const { world } = params;
-  const currentTime = Date.now();
+  const currentTime = world.currentTime;
+  const shouldLog = !world.isSimulationMode;
   const chars = characterQuery(world);
   const allChars = allCharacterQuery(world);
 
   // 첫 번째 실행 시 전체 캐릭터 상태 로그
   if (
+    shouldLog &&
     Math.floor(currentTime / 3000) !== Math.floor((currentTime - 100) / 3000)
   ) {
     console.log(
@@ -67,9 +69,11 @@ export function randomMovementSystem(params: {
     const nextChange = RandomMovementComp.nextChange[eid];
     if (!nextChange || nextChange <= 0 || nextChange > currentTime + 100000) {
       RandomMovementComp.nextChange[eid] = currentTime + 1000; // 1초 후 첫 상태 전환
-      console.log(
-        `[RandomMovementSystem] Fixed nextChange for character ${eid} - was: ${nextChange}, now: ${currentTime + 1000}`,
-      );
+      if (shouldLog) {
+        console.log(
+          `[RandomMovementSystem] Fixed nextChange for character ${eid} - was: ${nextChange}, now: ${currentTime + 1000}`,
+        );
+      }
     }
 
     // 디버그: RandomMovementComp 값들 검증
@@ -79,9 +83,11 @@ export function randomMovementSystem(params: {
     const maxMove = RandomMovementComp.maxMoveTime[eid];
 
     if (!minIdle || !maxIdle || !minMove || !maxMove) {
-      console.error(
-        `[RandomMovementSystem] Entity ${eid} has invalid time ranges - idle: ${minIdle}-${maxIdle}, move: ${minMove}-${maxMove}`,
-      );
+      if (shouldLog) {
+        console.error(
+          `[RandomMovementSystem] Entity ${eid} has invalid time ranges - idle: ${minIdle}-${maxIdle}, move: ${minMove}-${maxMove}`,
+        );
+      }
     }
 
     // 현재 상태(idle/moving)가 끝났는지 확인
@@ -90,6 +96,7 @@ export function randomMovementSystem(params: {
 
     // 주기적으로 상태 정보 로그 (3초마다)
     if (
+      shouldLog &&
       eid === chars[0] &&
       Math.floor(currentTime / 3000) !== Math.floor((currentTime - 100) / 3000)
     ) {
@@ -111,9 +118,11 @@ export function randomMovementSystem(params: {
           minIdle + Math.random() * (maxIdle - minIdle),
         );
         RandomMovementComp.nextChange[eid] = currentTime + idleTime;
-        console.log(
+        if (shouldLog) {
+          console.log(
           `[RandomMovementSystem] Entity ${eid}: MOVING -> IDLE, idle time: ${idleTime}ms (${minIdle}-${maxIdle})`,
-        );
+          );
+        }
       } else {
         // idle -> moving 전환
         angle.value[eid] = nomalizeRadian(Math.random() * Math.PI * 2);
@@ -129,9 +138,11 @@ export function randomMovementSystem(params: {
           minMove + Math.random() * (maxMove - minMove),
         );
         RandomMovementComp.nextChange[eid] = currentTime + moveTime;
-        console.log(
+        if (shouldLog) {
+          console.log(
           `[RandomMovementSystem] Entity ${eid}: IDLE -> MOVING, move time: ${moveTime}ms (${minMove}-${maxMove})`,
-        );
+          );
+        }
       }
     }
 

@@ -188,11 +188,12 @@ export function addCharacterStatus(eid: number, status: CharacterStatus): void {
             addComponent(_cachedWorld, TemporaryStatusComp, eid);
           }
 
+          const currentTime = _cachedWorld.currentTime;
           TemporaryStatusComp.statusType[eid] = status;
-          TemporaryStatusComp.startTime[eid] = Date.now();
+          TemporaryStatusComp.startTime[eid] = currentTime;
 
           console.log(
-            `[addCharacterStatus] Set temporary status ${status} for entity ${eid}, expires at ${Date.now() + 3000}`,
+            `[addCharacterStatus] Set temporary status ${status} for entity ${eid}, expires at ${currentTime + 3000}`,
           );
         } else {
           console.warn(
@@ -292,13 +293,17 @@ function _updateStaminaAndEvolutionGauge(
 ): void {
   // 스테미나 타이머 업데이트
   const currentStaminaTimer = staminaTimers.get(eid) || 0;
-  const newStaminaTimer = currentStaminaTimer + delta;
-  staminaTimers.set(eid, newStaminaTimer);
+  const totalStaminaTime = currentStaminaTimer + delta;
+  const staminaDecreaseCount = Math.floor(
+    totalStaminaTime / GAME_CONSTANTS.STAMINA_DECREASE_INTERVAL,
+  );
+  staminaTimers.set(
+    eid,
+    totalStaminaTime % GAME_CONSTANTS.STAMINA_DECREASE_INTERVAL,
+  );
 
-  // 스테미나 감소 체크
-  if (newStaminaTimer >= GAME_CONSTANTS.STAMINA_DECREASE_INTERVAL) {
+  for (let i = 0; i < staminaDecreaseCount; i++) {
     decreaseStamina(eid);
-    staminaTimers.set(eid, 0);
   }
 
   // 진화 게이지 타이머 업데이트 (스테미나가 5 이상이고 SICK 상태가 아닐 때만)
@@ -310,15 +315,19 @@ function _updateStaminaAndEvolutionGauge(
     !isSick
   ) {
     const currentEvolutionTimer = evolutionGaugeTimers.get(eid) || 0;
-    const newEvolutionTimer = currentEvolutionTimer + delta;
-    evolutionGaugeTimers.set(eid, newEvolutionTimer);
+    const totalEvolutionTime = currentEvolutionTimer + delta;
+    const evolutionIncreaseCount = Math.floor(
+      totalEvolutionTime / GAME_CONSTANTS.EVOLUTION_GAUGE_CHECK_INTERVAL,
+    );
+    evolutionGaugeTimers.set(
+      eid,
+      totalEvolutionTime % GAME_CONSTANTS.EVOLUTION_GAUGE_CHECK_INTERVAL,
+    );
 
-    // 진화 게이지 증가 체크
-    if (newEvolutionTimer >= GAME_CONSTANTS.EVOLUTION_GAUGE_CHECK_INTERVAL) {
+    for (let i = 0; i < evolutionIncreaseCount; i++) {
       increaseEvolutionGauge(world, eid);
-      evolutionGaugeTimers.set(eid, 0);
     }
-  } else if (isSick) {
+  } else {
     // SICK 상태일 때는 진화 게이지 타이머를 리셋 (아픈 동안은 진화하지 않음)
     evolutionGaugeTimers.set(eid, 0);
   }
@@ -359,7 +368,7 @@ export function validateAndFixStatusIcons(world: MainSceneWorld): void {
     }
 
     const currentStatuses = CharacterStatusComp.statuses[eid];
-    const now = Date.now();
+    const now = world.currentTime;
     let statusModified = false;
 
     // 1. TemporaryStatusComp가 있는 경우 만료 체크

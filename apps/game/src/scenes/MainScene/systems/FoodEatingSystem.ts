@@ -67,9 +67,10 @@ export function foodEatingSystem(params: {
   currentTime?: number;
 }): typeof params {
   const { world, delta, currentTime } = params;
+  const resolvedCurrentTime = currentTime ?? world.currentTime;
 
   // 1. 음식을 먹고 있는 캐릭터들의 진행도 업데이트
-  updateEatingProgress(world, delta, currentTime || Date.now());
+  updateEatingProgress(world, delta, resolvedCurrentTime);
 
   // 2. 음식으로 이동 중인 캐릭터들 처리
   updateMovingToFood(world, delta);
@@ -235,7 +236,7 @@ function completeEating(
     RandomMovementComp.maxMoveTime[characterEid] = 4000;
     // 음식을 먹은 후 2-3초 정도 idle 상태를 유지하도록 설정
     RandomMovementComp.nextChange[characterEid] =
-      Date.now() + 2000 + Math.random() * 1000;
+      world.currentTime + 2000 + Math.random() * 1000;
     console.log(
       `[FoodEatingSystem] Added RandomMovementComp back to character ${characterEid} with idle delay`,
     );
@@ -577,7 +578,7 @@ function cancelEating(world: MainSceneWorld, characterEid: number): void {
     RandomMovementComp.maxIdleTime[characterEid] = 3000;
     RandomMovementComp.minMoveTime[characterEid] = 2000;
     RandomMovementComp.maxMoveTime[characterEid] = 4000;
-    RandomMovementComp.nextChange[characterEid] = Date.now() + 1000;
+    RandomMovementComp.nextChange[characterEid] = world.currentTime + 1000;
   }
 
   // FoodEatingComp 제거

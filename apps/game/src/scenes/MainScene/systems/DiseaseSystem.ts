@@ -38,6 +38,7 @@ export function diseaseSystem(params: {
   currentTime: number;
 }): typeof params {
   const { world, currentTime } = params;
+  const shouldLog = !world.isSimulationMode;
   const entities = characterQuery(world);
 
   for (let i = 0; i < entities.length; i++) {
@@ -52,11 +53,10 @@ export function diseaseSystem(params: {
     const diseaseComp = DiseaseSystemComp;
     const characterComp = CharacterStatusComp;
 
-    // 질병 체크 시간이 되었는지 확인
-    if (currentTime >= diseaseComp.nextCheckTime[eid]) {
-      // 다음 체크 시간 설정
+    while (currentTime >= diseaseComp.nextCheckTime[eid]) {
+      const checkTime = diseaseComp.nextCheckTime[eid];
       diseaseComp.nextCheckTime[eid] =
-        currentTime + GAME_CONSTANTS.DISEASE_CHECK_INTERVAL;
+        checkTime + GAME_CONSTANTS.DISEASE_CHECK_INTERVAL;
 
       // 현재 sick 상태가 아닐 때만 질병 확률 체크
       const currentStatuses = characterComp.statuses[eid];
@@ -67,22 +67,27 @@ export function diseaseSystem(params: {
         const { rate: diseaseRate, breakdown } = diseaseCalculation;
 
         // 질병 확률 로그 출력
-        console.log(
-          `Disease Check - Entity ${eid}: Total Rate ${(
-            diseaseRate * 100
-          ).toFixed(2)}%`,
-          breakdown
-        );
+        if (shouldLog) {
+          console.log(
+            `Disease Check - Entity ${eid}: Total Rate ${(
+              diseaseRate * 100
+            ).toFixed(2)}%`,
+            breakdown
+          );
+        }
 
         if (Math.random() < diseaseRate) {
           // 질병 발생
-          console.log(`Disease occurred for entity ${eid}!`);
+          if (shouldLog) {
+            console.log(`Disease occurred for entity ${eid}!`);
+          }
           addCharacterStatus(eid, CharacterStatus.SICK);
-          diseaseComp.sickStartTime[eid] = currentTime;
+          diseaseComp.sickStartTime[eid] = checkTime;
           ObjectComp.state[eid] = CharacterState.SICK;
 
           // SICK 상태가 되면 움직임 제한
           restrictMovement(world, eid);
+          break;
         }
       }
     }
@@ -154,7 +159,7 @@ function restoreMovement(world: MainSceneWorld, eid: number): void {
       RandomMovementComp.maxIdleTime[eid] = 6000;
       RandomMovementComp.minMoveTime[eid] = 2000;
       RandomMovementComp.maxMoveTime[eid] = 4000;
-      RandomMovementComp.nextChange[eid] = Date.now() + 1000;
+      RandomMovementComp.nextChange[eid] = world.currentTime + 1000;
       console.log(
         `[DiseaseSystem] Restored RandomMovementComp for entity ${eid} (movement restored)`
       );
