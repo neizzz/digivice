@@ -19,6 +19,8 @@ Start with the helper script for a compact change snapshot, then inspect focused
 - For Korean commit messages, prefer concise noun-like endings such as "수정", "정리", or "추가".
 - If a slightly fuller style is needed, endings such as "수정하였음" or "추가하였음" are also acceptable.
 - Keep the commit message itself concise even when the surrounding explanation is in Korean.
+- Unless the change is truly tiny and self-evident, prefer a commit **body** in addition to the title.
+- Commit bodies should usually be more specific than the user-facing summary and capture the main changed areas, behavior changes, or rationale.
 
 ## Workflow
 
@@ -40,14 +42,21 @@ Start with the helper script for a compact change snapshot, then inspect focused
 - Read focused diffs with `git diff -- <file>` or `git diff --cached -- <file>` instead of dumping the full diff when the change set is large.
 - Call out generated artifacts separately from source changes.
 - Mention deleted, renamed, or newly tracked files explicitly when they materially affect the summary.
+- Inspect enough of the diff to write a concrete commit body; do not stop at filenames and diffstat when the actual behavior change is still vague.
 
 ### 3. Draft the commit message
 
 - Write the title in the repository's preferred style.
 - If writing the commit message in Korean and no stronger repository convention applies, end the subject with forms like "추가", "수정", or "정리" rather than "추가했다" or "정리한다".
 - Keep the title concise and specific; prefer 72 characters or fewer when practical.
-- Add a body only when it improves clarity, such as when the commit spans multiple areas, includes generated outputs, or needs rationale.
-- Prefer bodies that explain why, user-visible impact, or notable side effects over line-by-line implementation details.
+- Prefer adding a body by default whenever the commit touches multiple files, changes behavior, renames/replaces modules, or would be hard to understand from the title alone.
+- For non-trivial commits, write a body with 2-4 short bullet-like lines or short sentences that cover:
+  - what areas were changed,
+  - what behavior or flow changed,
+  - and, when useful, why the change was needed.
+- Prefer bodies that explain grouped implementation details, user-visible impact, or notable side effects over vague one-line summaries.
+- Avoid empty or generic bodies such as "코드 정리" alone when the diff contains concrete behavior changes.
+- If the commit is truly tiny and localized, a title-only commit is acceptable.
 
 ### 4. Commit safely
 
@@ -56,6 +65,7 @@ Start with the helper script for a compact change snapshot, then inspect focused
 - If the user wants staged changes only, preserve the existing index and commit without restaging.
 - Use `git commit -m "<title>"` and additional `-m` flags for body paragraphs when needed.
 - Avoid `git commit --amend`, `git reset`, rebase, or forceful history edits unless the user explicitly asked for them.
+- When a body is warranted, do not omit it for convenience; pass it with additional `-m` flags.
 
 ### 5. Report the result
 
@@ -73,6 +83,9 @@ Start with the helper script for a compact change snapshot, then inspect focused
 - When summarizing changes for the user, use one idea per `-` bullet and keep each item short enough to scan quickly.
 - If recent commit history mixes Korean and English, prefer Korean when the user asked for Korean output, but avoid forcing a style change when the repository clearly follows another convention.
 - For Korean commit titles, avoid endings that read like present-tense descriptions such as "정리한다" or plain past-tense narrative such as "추가했다" unless the repository clearly standardizes on that style.
+- Good default for commit bodies: mention 2-3 concrete subchanges rather than repeating the title in another wording.
+- If a commit replaces one module with another, mention the replacement explicitly in the body.
+- If a commit changes timing, persistence, initialization, or recovery behavior, mention that behavior explicitly in the body because it is hard to infer from filenames alone.
 
 ## Resource
 
