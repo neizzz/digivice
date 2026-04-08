@@ -25,6 +25,11 @@ const dashedBorderStore = new ObjectStore<PIXI.Graphics>("DashedBorderStore");
  */
 const broomStore = new ObjectStore<PIXI.Sprite>("BroomStore");
 
+const BROOM_VISIBLE_BOUNDS = {
+  minX: 1,
+  maxX: 12,
+};
+
 /**
  * 청소 대상 렌더링 시스템 파라미터
  */
@@ -346,10 +351,17 @@ function createOrUpdateBroom(
 
   const targetLeftX = targetX - targetWidth / 2;
   const targetRightX = targetX + targetWidth / 2;
-  const broomDisplayWidth =
-    broomSprite.texture.orig.width * Math.abs(broomSprite.scale.x);
-  const safeLeftX = targetLeftX + broomDisplayWidth / 2;
-  const safeRightX = targetRightX - broomDisplayWidth / 2;
+  const frameWidth = broomSprite.texture.orig.width;
+  const scaleX = Math.abs(broomSprite.scale.x);
+  const anchorX = broomSprite.anchor.x * frameWidth;
+  const leftVisibleExtent = isMovingRight
+    ? (anchorX - BROOM_VISIBLE_BOUNDS.minX) * scaleX
+    : (BROOM_VISIBLE_BOUNDS.maxX - anchorX) * scaleX;
+  const rightVisibleExtent = isMovingRight
+    ? (BROOM_VISIBLE_BOUNDS.maxX - anchorX) * scaleX
+    : (anchorX - BROOM_VISIBLE_BOUNDS.minX) * scaleX;
+  const safeLeftX = targetLeftX + leftVisibleExtent;
+  const safeRightX = targetRightX - rightVisibleExtent;
   const broomX =
     safeLeftX < safeRightX
       ? safeLeftX + sliderValue * (safeRightX - safeLeftX)
