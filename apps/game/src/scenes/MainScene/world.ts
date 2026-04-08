@@ -47,7 +47,7 @@ import { dataSyncSystem } from "./systems/DataSyncSystem";
 import { throwAnimationSystem } from "./systems/ThrowAnimationSystem";
 import { foodEatingSystem } from "./systems/FoodEatingSystem";
 import { sparkleEffectSystem } from "./systems/SparkleEffectSystem";
-import { cleaningSystem } from "./systems/CleaningSystem";
+import { cleaningSystem, clearCleaningTargets } from "./systems/CleaningSystem";
 import { cleanableRenderSystem } from "./systems/CleanableRenderSystem";
 import {
   effectAnimationSystem,
@@ -1225,7 +1225,7 @@ export class MainSceneWorld implements IWorld, Scene {
     // 청소 모드에서의 버튼 처리
     if (this._isCleaningMode) {
       if (buttonType === ControlButtonType.Cancel) {
-        this._exitCleaningMode();
+        this._exitCleaningMode({ restoreFocusedTargetProgress: true });
         return;
       }
       if (buttonType === ControlButtonType.Clean) {
@@ -1538,17 +1538,30 @@ export class MainSceneWorld implements IWorld, Scene {
   /**
    * 청소 모드 종료
    */
-  private _exitCleaningMode(): void {
+  private _exitCleaningMode(
+    options: {
+      restoreFocusedTargetProgress?: boolean;
+    } = {},
+  ): void {
     console.log("[MainSceneWorld] Exiting cleaning mode");
 
     if (!this._isCleaningMode) {
       return;
     }
 
+    if (
+      options.restoreFocusedTargetProgress &&
+      this._focusedTargetEid !== -1 &&
+      hasComponent(this, CleanableComp, this._focusedTargetEid)
+    ) {
+      CleanableComp.cleaningProgress[this._focusedTargetEid] = 0;
+    }
+
     this._isCleaningMode = false;
     this._focusedTargetEid = -1;
     this._broomProgress = this._currentSliderValue;
     this._pendingCleaningSliderDelta = 0;
+    clearCleaningTargets(this);
 
     // 현재 메뉴의 포커스 상태에 따라 컨트롤 버튼 복원
     const menuHasFocus = this._gameMenu?.hasFocus() ?? false;

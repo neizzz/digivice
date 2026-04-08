@@ -7,6 +7,12 @@ import { VibrationAdapter } from "../../adapter/VibrationAdapter";
 const SLIDER_THUMB_SIZE = 64;
 const SLIDER_TRACK_RANGE_MULTIPLIER = 1.1;
 const SLIDER_INPUT_RANGE_MULTIPLIER = 1.05;
+const SLIDER_DRAG_VIBRATION_STEP_PX = 12;
+const SLIDER_DRAG_VIBRATION_DURATION = 10;
+const SLIDER_DRAG_VIBRATION_STRENGTH = 18;
+const SLIDER_DIRECTION_CHANGE_VIBRATION_DURATION = 14;
+const SLIDER_DIRECTION_CHANGE_VIBRATION_STRENGTH = 30;
+const SLIDER_DIRECTION_CHANGE_THRESHOLD = 0.008;
 
 interface ControlButtonProps {
   type: ControlButtonType;
@@ -78,8 +84,19 @@ const ControlButton: React.FC<ControlButtonProps> = ({
     useState(initialSliderValue);
   const sliderRef = useRef<HTMLDivElement>(null);
   const sliderControllerRef = useRef<SliderController | null>(null);
+  const currentSliderValueRef = useRef(initialSliderValue);
+  const lastSliderDragValueRef = useRef(initialSliderValue);
+  const accumulatedDragDistanceRef = useRef(0);
+  const lastDragDirectionRef = useRef<-1 | 0 | 1>(0);
 
   const isSlider = type === ControlButtonType.Clean && !!sliderWidth;
+  const sliderTrackWidth = sliderWidth
+    ? Math.max(0, (sliderWidth - SLIDER_THUMB_SIZE) * SLIDER_TRACK_RANGE_MULTIPLIER)
+    : 0;
+  const vibrationStepValue = Math.min(
+    1,
+    SLIDER_DRAG_VIBRATION_STEP_PX / Math.max(1, sliderTrackWidth),
+  );
 
   // 슬라이더 컨트롤러 초기화 및 정리
   // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
@@ -91,13 +108,54 @@ const ControlButton: React.FC<ControlButtonProps> = ({
         thumbWidth: SLIDER_THUMB_SIZE,
         rangeMultiplier: SLIDER_INPUT_RANGE_MULTIPLIER,
         onChange: (value) => {
+          const signedDelta = value - lastSliderDragValueRef.current;
+          const delta = Math.abs(signedDelta);
+          const dragDirection =
+            signedDelta > SLIDER_DIRECTION_CHANGE_THRESHOLD
+              ? 1
+              : signedDelta < -SLIDER_DIRECTION_CHANGE_THRESHOLD
+                ? -1
+                : 0;
+
+          if (
+            dragDirection !== 0 &&
+            lastDragDirectionRef.current !== 0 &&
+            dragDirection !== lastDragDirectionRef.current
+          ) {
+            void vibrationAdapter.vibrate(
+              SLIDER_DIRECTION_CHANGE_VIBRATION_DURATION,
+              SLIDER_DIRECTION_CHANGE_VIBRATION_STRENGTH,
+            );
+          }
+
+          if (dragDirection !== 0) {
+            lastDragDirectionRef.current = dragDirection;
+          }
+
+          accumulatedDragDistanceRef.current += delta;
+          lastSliderDragValueRef.current = value;
+          currentSliderValueRef.current = value;
+
+          if (accumulatedDragDistanceRef.current >= vibrationStepValue) {
+            accumulatedDragDistanceRef.current %= vibrationStepValue;
+            void vibrationAdapter.vibrate(
+              SLIDER_DRAG_VIBRATION_DURATION,
+              SLIDER_DRAG_VIBRATION_STRENGTH,
+            );
+          }
+
           setCurrentSliderValue(value);
           onSliderChange?.(value);
         },
         onDragStart: () => {
+          lastSliderDragValueRef.current = currentSliderValueRef.current;
+          accumulatedDragDistanceRef.current = 0;
+          lastDragDirectionRef.current = 0;
           setIsPressed(true);
         },
         onDragEnd: () => {
+          accumulatedDragDistanceRef.current = 0;
+          lastDragDirectionRef.current = 0;
           setIsPressed(false);
           onSliderEnd?.();
           vibrationAdapter.vibrate();
@@ -112,10 +170,14 @@ const ControlButton: React.FC<ControlButtonProps> = ({
         sliderControllerRef.current = null;
       };
     }
-  }, [initialSliderValue, isSlider, onSliderChange, onSliderEnd]);
+  }, [initialSliderValue, isSlider, onSliderChange, onSliderEnd, vibrationStepValue]);
 
   useEffect(() => {
     setCurrentSliderValue(initialSliderValue);
+    currentSliderValueRef.current = initialSliderValue;
+    lastSliderDragValueRef.current = initialSliderValue;
+    accumulatedDragDistanceRef.current = 0;
+    lastDragDirectionRef.current = 0;
     sliderControllerRef.current?.setValue(initialSliderValue, {
       emitChange: false,
     });
@@ -158,7 +220,7 @@ const ControlButton: React.FC<ControlButtonProps> = ({
   if (isSlider) {
     const trackInset = size / 2;
     const baseTrackWidth = Math.max(0, sliderWidth - size);
-    const trackWidth = baseTrackWidth * SLIDER_TRACK_RANGE_MULTIPLIER;
+    const trackWidth = sliderTrackWidth;
     const extraTrackOffset = (trackWidth - baseTrackWidth) / 2;
 
     return (

@@ -25,6 +25,8 @@ const cleanableEntitiesQuery = defineQuery([
   CleanableComp,
 ]);
 
+const allCleanableQuery = defineQuery([CleanableComp]);
+
 // 새로 추가된 청소 대상 엔티티 쿼리
 const enterCleanableQuery = enterQuery(cleanableEntitiesQuery);
 
@@ -78,6 +80,16 @@ export function cleaningSystem(params: CleaningSystemParams): {
   }
 
   return { world, delta };
+}
+
+export function clearCleaningTargets(world: MainSceneWorld): void {
+  const cleanableEntities = allCleanableQuery(world);
+
+  for (let i = 0; i < cleanableEntities.length; i++) {
+    const eid = cleanableEntities[i];
+    CleanableComp.isHighlighted[eid] = 0;
+    CleanableComp.isBeingCleaned[eid] = 0;
+  }
 }
 
 /**

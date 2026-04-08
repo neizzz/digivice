@@ -49659,6 +49659,7 @@ const cleanableEntitiesQuery = defineQuery([
   PositionComp,
   CleanableComp
 ]);
+const allCleanableQuery = defineQuery([CleanableComp]);
 const enterCleanableQuery = enterQuery(cleanableEntitiesQuery);
 const exitCleanableQuery$1 = exitQuery(cleanableEntitiesQuery);
 const cleaningCandidateQuery = defineQuery([ObjectComp, PositionComp]);
@@ -49683,6 +49684,14 @@ function cleaningSystem(params) {
     updateBroomMovement(world, world.focusedTargetEid);
   }
   return { world, delta };
+}
+function clearCleaningTargets(world) {
+  const cleanableEntities = allCleanableQuery(world);
+  for (let i2 = 0; i2 < cleanableEntities.length; i2++) {
+    const eid = cleanableEntities[i2];
+    CleanableComp.isHighlighted[eid] = 0;
+    CleanableComp.isBeingCleaned[eid] = 0;
+  }
 }
 function handleEnterCleaningMode(world) {
   markCleanableEntities(world);
@@ -53097,7 +53106,7 @@ class MainSceneWorld {
     console.log(`[MainSceneWorld] Control button clicked: ${buttonType}`);
     if (this._isCleaningMode) {
       if (buttonType === ControlButtonType.Cancel) {
-        this._exitCleaningMode();
+        this._exitCleaningMode({ restoreFocusedTargetProgress: true });
         return;
       }
       if (buttonType === ControlButtonType.Clean) {
@@ -53341,16 +53350,20 @@ class MainSceneWorld {
   /**
    * 청소 모드 종료
    */
-  _exitCleaningMode() {
+  _exitCleaningMode(options = {}) {
     var _a;
     console.log("[MainSceneWorld] Exiting cleaning mode");
     if (!this._isCleaningMode) {
       return;
     }
+    if (options.restoreFocusedTargetProgress && this._focusedTargetEid !== -1 && hasComponent(this, CleanableComp, this._focusedTargetEid)) {
+      CleanableComp.cleaningProgress[this._focusedTargetEid] = 0;
+    }
     this._isCleaningMode = false;
     this._focusedTargetEid = -1;
     this._broomProgress = this._currentSliderValue;
     this._pendingCleaningSliderDelta = 0;
+    clearCleaningTargets(this);
     const menuHasFocus = ((_a = this._gameMenu) == null ? void 0 : _a.hasFocus()) ?? false;
     this._updateControlButtonsForMenuState(menuHasFocus);
   }
@@ -54176,6 +54189,9 @@ class VibrationAdapter {
 const SLIDER_THUMB_SIZE = 64;
 const SLIDER_TRACK_RANGE_MULTIPLIER = 1.1;
 const SLIDER_INPUT_RANGE_MULTIPLIER = 1.05;
+const SLIDER_DRAG_VIBRATION_STEP_PX = 18;
+const SLIDER_DRAG_VIBRATION_DURATION = 10;
+const SLIDER_DRAG_VIBRATION_STRENGTH = 18;
 const spriteInfoMap = {
   [ControlButtonType.Clean]: {
     normal: { x: 320, y: 0 },
@@ -54224,7 +54240,15 @@ const ControlButton = ({
   const [currentSliderValue, setCurrentSliderValue] = reactExports.useState(initialSliderValue);
   const sliderRef = reactExports.useRef(null);
   const sliderControllerRef = reactExports.useRef(null);
+  const currentSliderValueRef = reactExports.useRef(initialSliderValue);
+  const lastSliderDragValueRef = reactExports.useRef(initialSliderValue);
+  const accumulatedDragDistanceRef = reactExports.useRef(0);
   const isSlider = type === ControlButtonType.Clean && !!sliderWidth;
+  const sliderTrackWidth = sliderWidth ? Math.max(0, (sliderWidth - SLIDER_THUMB_SIZE) * SLIDER_TRACK_RANGE_MULTIPLIER) : 0;
+  const vibrationStepValue = Math.min(
+    1,
+    SLIDER_DRAG_VIBRATION_STEP_PX / Math.max(1, sliderTrackWidth)
+  );
   reactExports.useEffect(() => {
     if (isSlider && sliderRef.current) {
       const controller = new SliderController(sliderRef.current, {
@@ -54232,13 +54256,27 @@ const ControlButton = ({
         thumbWidth: SLIDER_THUMB_SIZE,
         rangeMultiplier: SLIDER_INPUT_RANGE_MULTIPLIER,
         onChange: (value) => {
+          const delta = Math.abs(value - lastSliderDragValueRef.current);
+          accumulatedDragDistanceRef.current += delta;
+          lastSliderDragValueRef.current = value;
+          currentSliderValueRef.current = value;
+          if (accumulatedDragDistanceRef.current >= vibrationStepValue) {
+            accumulatedDragDistanceRef.current %= vibrationStepValue;
+            void vibrationAdapter.vibrate(
+              SLIDER_DRAG_VIBRATION_DURATION,
+              SLIDER_DRAG_VIBRATION_STRENGTH
+            );
+          }
           setCurrentSliderValue(value);
           onSliderChange == null ? void 0 : onSliderChange(value);
         },
         onDragStart: () => {
+          lastSliderDragValueRef.current = currentSliderValueRef.current;
+          accumulatedDragDistanceRef.current = 0;
           setIsPressed(true);
         },
         onDragEnd: () => {
+          accumulatedDragDistanceRef.current = 0;
           setIsPressed(false);
           onSliderEnd == null ? void 0 : onSliderEnd();
           vibrationAdapter.vibrate();
@@ -54250,10 +54288,13 @@ const ControlButton = ({
         sliderControllerRef.current = null;
       };
     }
-  }, [initialSliderValue, isSlider, onSliderChange, onSliderEnd]);
+  }, [initialSliderValue, isSlider, onSliderChange, onSliderEnd, vibrationStepValue]);
   reactExports.useEffect(() => {
     var _a;
     setCurrentSliderValue(initialSliderValue);
+    currentSliderValueRef.current = initialSliderValue;
+    lastSliderDragValueRef.current = initialSliderValue;
+    accumulatedDragDistanceRef.current = 0;
     (_a = sliderControllerRef.current) == null ? void 0 : _a.setValue(initialSliderValue, {
       emitChange: false
     });
@@ -54287,7 +54328,7 @@ const ControlButton = ({
   if (isSlider) {
     const trackInset = size / 2;
     const baseTrackWidth = Math.max(0, sliderWidth - size);
-    const trackWidth = baseTrackWidth * SLIDER_TRACK_RANGE_MULTIPLIER;
+    const trackWidth = sliderTrackWidth;
     const extraTrackOffset = (trackWidth - baseTrackWidth) / 2;
     return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
       "div",
@@ -54309,7 +54350,7 @@ const ControlButton = ({
             false,
             {
               fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/ControlButton.tsx",
-              lineNumber: 170,
+              lineNumber: 202,
               columnNumber: 9
             },
             void 0
@@ -54331,7 +54372,7 @@ const ControlButton = ({
                 false,
                 {
                   fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/ControlButton.tsx",
-                  lineNumber: 183,
+                  lineNumber: 215,
                   columnNumber: 11
                 },
                 void 0
@@ -54341,7 +54382,7 @@ const ControlButton = ({
             false,
             {
               fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/ControlButton.tsx",
-              lineNumber: 177,
+              lineNumber: 209,
               columnNumber: 9
             },
             void 0
@@ -54352,7 +54393,7 @@ const ControlButton = ({
       true,
       {
         fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/ControlButton.tsx",
-        lineNumber: 165,
+        lineNumber: 197,
         columnNumber: 7
       },
       void 0
@@ -54372,7 +54413,7 @@ const ControlButton = ({
     false,
     {
       fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/ControlButton.tsx",
-      lineNumber: 194,
+      lineNumber: 226,
       columnNumber: 5
     },
     void 0
