@@ -65,12 +65,12 @@ export class HTMLDebugGameConstantsUI {
     try {
       const savedValue = window.localStorage.getItem(STORAGE_KEY);
       if (savedValue === null) {
-        return true;
+        return false;
       }
 
       return savedValue === "true";
     } catch {
-      return true;
+      return false;
     }
   }
 

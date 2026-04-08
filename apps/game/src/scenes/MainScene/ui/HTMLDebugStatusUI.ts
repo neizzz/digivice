@@ -341,8 +341,8 @@ export class HTMLDebugStatusUI {
     const container = document.createElement("div");
     container.style.cssText = `
       position: fixed;
-      top: 0px;
-      right: 0px;
+      top: 60px;
+      left: 12px;
       width: 180px;
       background: rgba(0, 0, 0, 0.6);
       border-radius: 8px;
