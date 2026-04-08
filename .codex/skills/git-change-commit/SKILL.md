@@ -16,7 +16,8 @@ Start with the helper script for a compact change snapshot, then inspect focused
 - Present change summaries and final result summaries as short `-` bullet lists unless the user explicitly requests another format.
 - Avoid stiff literal translations; prefer concise, idiomatic Korean such as "조정했습니다", "추가했습니다", or "정리했습니다" when summarizing changes.
 - When proposing a commit message, follow the repository's recent language/style convention when it is clear; otherwise prefer Korean if the user asked for Korean output.
-- For Korean commit messages, prefer concise past-tense endings such as "수정했다", "정리했다", or "추가했다" over present-tense or imperative phrasing.
+- For Korean commit messages, prefer concise noun-like endings such as "수정", "정리", or "추가".
+- If a slightly fuller style is needed, endings such as "수정하였음" or "추가하였음" are also acceptable.
 - Keep the commit message itself concise even when the surrounding explanation is in Korean.
 
 ## Workflow
@@ -43,7 +44,7 @@ Start with the helper script for a compact change snapshot, then inspect focused
 ### 3. Draft the commit message
 
 - Write the title in the repository's preferred style.
-- If writing the commit message in Korean and no stronger repository convention applies, use concise past tense rather than present tense.
+- If writing the commit message in Korean and no stronger repository convention applies, end the subject with forms like "추가", "수정", or "정리" rather than "추가했다" or "정리한다".
 - Keep the title concise and specific; prefer 72 characters or fewer when practical.
 - Add a body only when it improves clarity, such as when the commit spans multiple areas, includes generated outputs, or needs rationale.
 - Prefer bodies that explain why, user-visible impact, or notable side effects over line-by-line implementation details.
@@ -71,7 +72,7 @@ Start with the helper script for a compact change snapshot, then inspect focused
 - If the repository is already partially staged, preserve that intent unless the user asks to regroup changes.
 - When summarizing changes for the user, use one idea per `-` bullet and keep each item short enough to scan quickly.
 - If recent commit history mixes Korean and English, prefer Korean when the user asked for Korean output, but avoid forcing a style change when the repository clearly follows another convention.
-- For Korean commit titles, avoid endings that read like present-tense descriptions such as "정리한다" unless the repository clearly standardizes on that style.
+- For Korean commit titles, avoid endings that read like present-tense descriptions such as "정리한다" or plain past-tense narrative such as "추가했다" unless the repository clearly standardizes on that style.
 
 ## Resource
 
