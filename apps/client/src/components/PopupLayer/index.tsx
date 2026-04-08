@@ -1,4 +1,5 @@
 import type React from "react";
+import { useLayerInteractionVibration } from "../../hooks/useLayerInteractionVibration";
 
 interface PopupProps {
   title: string;
@@ -17,8 +18,13 @@ const PopupLayer: React.FC<PopupProps> = ({
   confirmText = "확인",
   cancelText = "취소",
 }) => {
+  const layerInteractionVibrationProps = useLayerInteractionVibration();
+
   return (
-    <div className="flex w-full justify-center px-4 text-black">
+    <div
+      className="flex w-full justify-center px-4 text-black"
+      {...layerInteractionVibrationProps}
+    >
       <div className="w-full max-w-[22rem] bg-layer-bg p-5 border-4 border-[#222] shadow-[0_4px_0_#222,0_-4px_0_#222,4px_0_0_#222,-4px_0_0_#222,4px_4px_0_#222,-4px_4px_0_#222,4px_-4px_0_#222,-4px_-4px_0_#222] text-center relative">
         <div className="text-xl text-component-negative font-bold mb-[15px] pb-[10px] border-b-4 border-[#222]">
           {title}
