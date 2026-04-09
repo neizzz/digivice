@@ -152,16 +152,10 @@ export class PhysicsManager {
         // background: "rgba(0, 0, 0, 0.1)", // 약간의 배경색 추가
         showPositions: true,
         wireframeBackground: "transparent",
-        wireframeStrokeStyle: highlightColor,
-        lineWidth: 2, // 더 두꺼운 선
-        collisionStrokeStyle: highlightColor,
-        boundsStrokeStyle: highlightColor,
-        constraintStrokeStyle: highlightColor,
         // showSleeping: true,
         // showIds: true, // ID 표시
         // showVertexNumbers: true, // 꼭지점 번호 표시
         // showConvexHulls: true,
-        zIndex: 1000,
       },
     });
 

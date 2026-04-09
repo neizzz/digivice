@@ -3,6 +3,7 @@ import { SceneKey } from "./SceneKey";
 import type { Scene } from "./interfaces/Scene";
 import type { ControlButtonParams, ControlButtonType } from "./ui/types";
 import { MainSceneWorld } from "./scenes/MainScene/world";
+import { FlappyBirdGameScene } from "./scenes/FlappyBirdGameScene";
 
 PIXI.TexturePool.textureOptions.scaleMode = "nearest";
 
@@ -271,14 +272,15 @@ export class Game {
             height: this.app.screen.height - 2 * SCREEN_PADDING,
           },
           parentElement: this._parentElement,
+          startMiniGame: () => this.changeScene(SceneKey.FLAPPY_BIRD_GAME),
           createInitialGameData: this._createInitialGameData,
           changeControlButtons: this.changeControlButtons,
         });
         await mainSceneWorld.init();
         return mainSceneWorld as unknown as Scene;
 
-      // case SceneKey.FLAPPY_BIRD_GAME:
-      //   return new FlappyBirdGameScene(this).init();
+      case SceneKey.FLAPPY_BIRD_GAME:
+        return new FlappyBirdGameScene(this).init();
       default:
         throw new Error(`[Game] Unknown scene key: ${key}`);
     }
@@ -304,6 +306,11 @@ export class Game {
         await this.currentScene.onSceneExit();
       }
 
+      if (this.currentScene) {
+        this.currentScene.destroy();
+        this.app.stage.removeChildren();
+      }
+
       // 캐시된 씬이 없으면 새로 생성
       // if (!this.scenes.has(key)) {
       //   console.log(`[Game] 새로운 씬 생성: ${key}`);
@@ -323,6 +330,10 @@ export class Game {
 
       this.currentScene = await this._createScene(key);
       this.currentSceneKey = key;
+
+      if (this.currentScene instanceof PIXI.Container) {
+        this.app.stage.addChild(this.currentScene);
+      }
 
       // 새 씬이 DisplayObject이면 스테이지에 추가
       // if (this.currentScene instanceof PIXI.DisplayObject) {

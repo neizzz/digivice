@@ -12,8 +12,10 @@ export class ScoreUI {
       fontFamily: "Arial",
       fontSize: 24,
       fill: 0xffffff,
-      stroke: 0x000000,
-      strokeThickness: 4,
+      stroke: {
+        color: 0x000000,
+        width: 4,
+      },
       align: "center",
     });
     this.scoreText.anchor.set(0.5, 0);
@@ -73,8 +75,10 @@ export class GameOverUI {
       fontSize: 48,
       fill: 0xffffff,
       align: "center",
-      stroke: 0x000000,
-      strokeThickness: 6,
+      stroke: {
+        color: 0x000000,
+        width: 6,
+      },
     });
     this.gameOverText.name = "gameOverText";
     this.gameOverText.anchor.set(0.5);
@@ -84,8 +88,10 @@ export class GameOverUI {
       fontSize: 24,
       fill: 0xffffff,
       align: "center",
-      stroke: 0x000000,
-      strokeThickness: 4,
+      stroke: {
+        color: 0x000000,
+        width: 4,
+      },
     });
     this.restartText.name = "restartText";
     this.restartText.anchor.set(0.5);

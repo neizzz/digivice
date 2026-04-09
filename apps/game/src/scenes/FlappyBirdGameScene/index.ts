@@ -1,6 +1,7 @@
 import * as PIXI from "pixi.js";
 import type { Game } from "../../Game";
 import { GameEngine } from "../../GameEngine";
+import { SceneKey } from "../../SceneKey";
 import type { Scene } from "../../interfaces/Scene";
 import { type ControlButtonParams, ControlButtonType } from "../../ui/types";
 // import { GameDataManager } from "../../managers/GameDataManager";
@@ -8,7 +9,7 @@ import { GroundManager, PipeManager, PlayerManager } from "./gameLogic";
 import { type GameOptions, GameState } from "./models";
 import { PhysicsManager } from "./physics";
 import { GameOverUI, ScoreUI } from "./ui";
-import type { Bird } from "../../entities/Bird";
+import { CharacterKey } from "../../types/Character";
 import { AssetLoader } from "../../utils/AssetLoader";
 
 enum FlappyBirdGameSceneControlButtonsSetType {
@@ -57,6 +58,8 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
     jumpVelocity: 8,
   };
   private lastPipeSpawnTime = 0;
+  private isReturningToMain = false;
+  private readonly boundHandleKeyDown: (event: KeyboardEvent) => void;
 
   constructor(
     game: Game
@@ -65,6 +68,7 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
   ) {
     super();
     this.game = game;
+    this.boundHandleKeyDown = this.handleKeyDown.bind(this);
     this.gameEngine = new GameEngine(
       this.game.app.screen.width,
       this.game.app.screen.height
@@ -80,18 +84,13 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
   }
 
   public async init(): Promise<FlappyBirdGameScene> {
-    // const data = await GameDataManager.getData();
-    const data = {};
-
-    if (!data) {
-      throw new Error("게임 데이터가 없습니다");
-    }
+    await AssetLoader.loadAssets();
 
     // 플레이어 초기화
     this.playerManager = new PlayerManager(
       this.game.app,
       this.physicsManager,
-      data.character.key
+      CharacterKey.TestGreenSlimeA1
     );
 
     // 지면 초기화
@@ -161,7 +160,7 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
       this.initialized = true;
 
       // 화면 크기에 맞게 조정
-      this.onResize(this.game.app.screen.width, this.game.app.screen.height);
+      this.resize(this.game.app.screen.width, this.game.app.screen.height);
 
       // 디버그 모드 토글
       this.physicsManager.toggleDebugMode(this.game.app);
@@ -213,13 +212,18 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
    * 키보드 이벤트 리스너를 설정합니다.
    */
   private setupKeyboardListeners(): void {
-    window.addEventListener("keydown", this.handleKeyDown.bind(this));
+    window.addEventListener("keydown", this.boundHandleKeyDown);
   }
 
   /**
    * 키보드 이벤트 처리 메서드
    */
   private handleKeyDown(event: KeyboardEvent): void {
+    if (event.code === "Escape") {
+      void this.returnToMainScene();
+      return;
+    }
+
     if (event.code === "Space" || event.key === " ") {
       if (this.gameState === GameState.PLAYING) {
         this.jump();
@@ -238,6 +242,9 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
    */
   private startGame(): void {
     this.gameState = GameState.PLAYING;
+    this.game.changeControlButtons(
+      CONTROL_BUTTONS_SET[FlappyBirdGameSceneControlButtonsSetType.GamePlay]
+    );
     this.playerManager.resetPosition();
   }
 
@@ -268,6 +275,9 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
 
     // 게임 오버 UI 표시
     this.gameOverUI.show();
+    this.game.changeControlButtons(
+      CONTROL_BUTTONS_SET[FlappyBirdGameSceneControlButtonsSetType.GameEnd]
+    );
   }
 
   /**
@@ -285,6 +295,9 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
 
     // 게임 오버 UI 숨기기
     this.gameOverUI.hide();
+    this.game.changeControlButtons(
+      CONTROL_BUTTONS_SET[FlappyBirdGameSceneControlButtonsSetType.GamePlay]
+    );
 
     // 모든 파이프 제거
     this.pipeManager.clearAllPipes();
@@ -302,10 +315,24 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
     this.lastPipeSpawnTime = 0;
   }
 
+  private async returnToMainScene(): Promise<void> {
+    if (this.isReturningToMain) {
+      return;
+    }
+
+    this.isReturningToMain = true;
+
+    try {
+      await this.game.changeScene(SceneKey.MAIN);
+    } finally {
+      this.isReturningToMain = false;
+    }
+  }
+
   /**
    * 화면 크기 변경 처리
    */
-  public onResize(width: number, height: number): void {
+  public resize(width: number, height: number): void {
     if (!this.initialized) return;
 
     // 배경 리사이징
@@ -328,18 +355,41 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
   public handleControlButtonClick(buttonType: ControlButtonType): void {
     switch (buttonType) {
       case ControlButtonType.Attack:
-        // TODO:
+        if (this.gameState === GameState.PLAYING) {
+          this.jump();
+        }
         break;
       case ControlButtonType.DoubleJump:
-        this.doubleJump();
+        if (this.gameState === GameState.PLAYING) {
+          this.doubleJump();
+        }
         break;
       case ControlButtonType.Jump:
-        this.jump();
+        if (this.gameState === GameState.PLAYING) {
+          this.jump();
+        }
+        break;
+      case ControlButtonType.Cancel:
+        void this.returnToMainScene();
+        break;
+      case ControlButtonType.Confirm:
+        if (this.gameState === GameState.GAME_OVER) {
+          this.restartGame();
+        }
+        break;
+      case ControlButtonType.Next:
+        if (this.gameState === GameState.GAME_OVER) {
+          void this.returnToMainScene();
+        }
         break;
       default:
         throw new Error("Invalid button type");
     }
   }
+
+  public handleSliderValueChange(_value: number): void {}
+
+  public handleSliderEnd(): void {}
 
   /**
    * 매 프레임마다 실행되는 업데이트 메서드
@@ -372,7 +422,7 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
    */
   public destroy(): void {
     // 이벤트 리스너 제거
-    window.removeEventListener("keydown", this.handleKeyDown.bind(this));
+    window.removeEventListener("keydown", this.boundHandleKeyDown);
 
     // 물리 시스템 정리
     this.physicsManager.cleanup();

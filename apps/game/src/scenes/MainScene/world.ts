@@ -287,6 +287,7 @@ export class MainSceneWorld implements IWorld, Scene {
     name: string;
   }>;
   private _pendingStorageWrite: Promise<void> = Promise.resolve();
+  private _startMiniGame?: () => unknown | Promise<unknown>;
 
   // 실시간 모드용 시스템 파이프라인 (렌더링 포함)
   private _pipedSystems = pipe(
@@ -371,6 +372,7 @@ export class MainSceneWorld implements IWorld, Scene {
     stage: PIXI.Container;
     positionBoundary: Boundary;
     parentElement?: HTMLElement;
+    startMiniGame?: () => unknown | Promise<unknown>;
     createInitialGameData?: () => Promise<{
       name: string;
     }>;
@@ -385,6 +387,7 @@ export class MainSceneWorld implements IWorld, Scene {
     this._stage = params.stage;
     this._positionBoundary = params.positionBoundary;
     this._parentElement = params.parentElement;
+    this._startMiniGame = params.startMiniGame;
     this._createInitialGameData = params.createInitialGameData;
     this._changeControlButtons = params.changeControlButtons;
 
@@ -605,7 +608,12 @@ export class MainSceneWorld implements IWorld, Scene {
         this._gameMenu = new GameMenu(this._parentElement, {
           onMiniGameSelect: () => {
             console.log("[MainSceneWorld] Mini game selected");
-            // TODO: 미니게임 시작
+            if (!this._startMiniGame) {
+              console.warn("[MainSceneWorld] Mini game start callback is not set");
+              return;
+            }
+
+            void this._startMiniGame();
           },
           onFeedSelect: () => {
             console.log("[MainSceneWorld] Feed selected");

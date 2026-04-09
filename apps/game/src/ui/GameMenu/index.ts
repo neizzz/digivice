@@ -25,7 +25,6 @@ export class GameMenu {
     GameMenuItemType.Versus,
     GameMenuItemType.Feed,
     GameMenuItemType.Clean,
-    GameMenuItemType.Drug,
     GameMenuItemType.Hospital,
     // GameMenuItemType.Training,
   ];
@@ -156,7 +155,11 @@ export class GameMenu {
         if (this.options.onCleanSelect) this.options.onCleanSelect();
         break;
       case GameMenuItemType.Hospital:
-        if (this.options.onHospitalSelect) this.options.onHospitalSelect();
+        if (this.options.onDrugSelect) {
+          this.options.onDrugSelect();
+        } else if (this.options.onHospitalSelect) {
+          this.options.onHospitalSelect();
+        }
         break;
       // case GameMenuItemType.Training:
       //   if (this.options.onTrainingSelect) this.options.onTrainingSelect();

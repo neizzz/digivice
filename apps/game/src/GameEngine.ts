@@ -10,7 +10,7 @@ export class GameEngine {
   }[] = [];
   private pixiApp: PIXI.Application | null = null;
   private _frameCount = 0;
-  private physicsUpdateBound: (delta: number) => void;
+  private physicsUpdateBound: (ticker: PIXI.Ticker) => void;
 
   constructor(width: number, height: number) {
     this.physics = Matter.Engine.create({
@@ -24,8 +24,8 @@ export class GameEngine {
     };
 
     // tick은 밀리초 단위의 델타타임을 나타냄
-    this.physicsUpdateBound = (tick: number) => {
-      this.physicsUpdate(tick * PIXI.Ticker.shared.deltaMS);
+    this.physicsUpdateBound = (ticker: PIXI.Ticker) => {
+      this.physicsUpdate(ticker.deltaMS);
     };
   }
 

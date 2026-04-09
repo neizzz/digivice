@@ -1,5 +1,5 @@
 import * as PIXI from "pixi.js";
-import type { CharacterKey } from "types/Character";
+import type { CharacterKey } from "../../types/Character";
 import { AssetLoader, type GameAssets } from "../../utils/AssetLoader";
 import type { PipePair } from "./models";
 import type { PhysicsManager } from "./physics";
@@ -252,6 +252,10 @@ export class PipeManager {
   } {
     const assets = AssetLoader.getAssets();
     const tilesetSprites = assets.tilesetSprites;
+    if (!tilesetSprites) {
+      throw new Error("Tileset spritesheet not found");
+    }
+
     const pipeBodyTexture = tilesetSprites.textures["pipe-body"];
     const pipeEndTexture = tilesetSprites.textures["pipe-end"];
 
@@ -472,7 +476,7 @@ export class PlayerManager {
   /**
    * 새(버드)를 초기화합니다.
    */
-  private initializeBird(birdSprites: PIXI.Spritesheet): void {
+  private initializeBird(birdSprites?: PIXI.Spritesheet): void {
     if (!birdSprites) {
       console.warn("Bird spritesheet not found");
       return;
