@@ -21,6 +21,7 @@ Start with the helper script for a compact change snapshot, then inspect focused
 - Keep the commit message itself concise even when the surrounding explanation is in Korean.
 - Unless the change is truly tiny and self-evident, prefer a commit **body** in addition to the title.
 - Commit bodies should usually be more specific than the user-facing summary and capture the main changed areas, behavior changes, or rationale.
+- When the change adjusts existing values, thresholds, sizes, timing, or logic, prefer stating the previous state and the new state in the commit body when that before/after can be determined from the diff.
 
 ## Workflow
 
@@ -43,6 +44,7 @@ Start with the helper script for a compact change snapshot, then inspect focused
 - Call out generated artifacts separately from source changes.
 - Mention deleted, renamed, or newly tracked files explicitly when they materially affect the summary.
 - Inspect enough of the diff to write a concrete commit body; do not stop at filenames and diffstat when the actual behavior change is still vague.
+- For tuning or adjustment changes, inspect enough of the diff to identify the previous value, threshold, layout, timing, or logic so the commit body can describe the before/after change concretely.
 
 ### 3. Draft the commit message
 
@@ -54,6 +56,8 @@ Start with the helper script for a compact change snapshot, then inspect focused
   - what areas were changed,
   - what behavior or flow changed,
   - and, when useful, why the change was needed.
+- When the change is an adjustment or modification of existing behavior, include the previous value or logic and the new value or logic in the body when that contrast is clear from the diff.
+- Put before/after details in the body rather than overloading the title with implementation specifics.
 - Prefer bodies that explain grouped implementation details, user-visible impact, or notable side effects over vague one-line summaries.
 - Avoid empty or generic bodies such as "코드 정리" alone when the diff contains concrete behavior changes.
 - If the commit is truly tiny and localized, a title-only commit is acceptable.
@@ -84,6 +88,7 @@ Start with the helper script for a compact change snapshot, then inspect focused
 - If recent commit history mixes Korean and English, prefer Korean when the user asked for Korean output, but avoid forcing a style change when the repository clearly follows another convention.
 - For Korean commit titles, avoid endings that read like present-tense descriptions such as "정리한다" or plain past-tense narrative such as "추가했다" unless the repository clearly standardizes on that style.
 - Good default for commit bodies: mention 2-3 concrete subchanges rather than repeating the title in another wording.
+- If the change tunes an existing number or rewires an existing flow, mention the old value or old logic and the new value or new logic in the body when the diff makes that clear.
 - If a commit replaces one module with another, mention the replacement explicitly in the body.
 - If a commit changes timing, persistence, initialization, or recovery behavior, mention that behavior explicitly in the body because it is hard to infer from filenames alone.
 
