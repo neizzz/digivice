@@ -9,37 +9,56 @@ export enum GameMenuItemType {
   // Training = "training",
 }
 
-const MENU_ITEM_CONTAINER_MAX_WIDTH = 280;
-const MENU_ITEM_COUNT = 6;
 const MENU_SPRITE_SLOT_COUNT = 8;
+const MENU_ITEM_SIZE_MIN = 40;
+const MENU_ITEM_SIZE_MAX = 48;
+const MENU_ITEM_SIZE_MAX_VIEWPORT = 360;
 
 const MENU_SPRITE_FINE_TUNE_X: Partial<Record<GameMenuItemType, number>> = {
   [GameMenuItemType.Drug]: 1,
 };
 
-const getBackgroundPosition = (type: GameMenuItemType, size: number) => {
-  const fineTuneX = MENU_SPRITE_FINE_TUNE_X[type] ?? 0;
+const MENU_SPRITE_SIZE_DELTA: Partial<Record<GameMenuItemType, number>> = {
+  [GameMenuItemType.Hospital]: 4,
+};
 
+const getSpriteSlotIndex = (type: GameMenuItemType): number => {
   switch (type) {
     case GameMenuItemType.MiniGame:
-      return `-${0 * size + fineTuneX}px 0px`;
+      return 0;
     case GameMenuItemType.Feed:
-      return `-${1 * size + fineTuneX}px 0px`;
+      return 1;
     case GameMenuItemType.Versus:
-      return `-${2 * size + fineTuneX}px 0px`;
+      return 2;
     case GameMenuItemType.Drug:
-      return `-${3 * size + fineTuneX}px 0px`;
+      return 3;
     case GameMenuItemType.Clean:
-      return `-${4 * size + fineTuneX}px 0px`;
+      return 4;
     case GameMenuItemType.Hospital:
-      return `-${5 * size + fineTuneX}px 0px`;
-    // case GameMenuItemType.Information:
-    //   return `-${6 * size}px 0px`;
-    // case GameMenuItemType.Training:
-    //   return `-${7 * size}px 0px`;
+      return 7;
     default:
       throw new Error(`Unknown menu item type: ${type}`);
   }
+};
+
+const getBackgroundPosition = (
+  type: GameMenuItemType,
+  containerSize: number,
+  spriteSize: number,
+) => {
+  const fineTuneX = MENU_SPRITE_FINE_TUNE_X[type] ?? 0;
+  const slotIndex = getSpriteSlotIndex(type);
+  const centerOffset = Math.floor((containerSize - spriteSize) / 2);
+
+  return `${-slotIndex * spriteSize + centerOffset + fineTuneX}px ${centerOffset}px`;
+};
+
+const getResponsiveMenuItemSize = (availableWidth: number): number => {
+  if (availableWidth >= MENU_ITEM_SIZE_MAX_VIEWPORT) {
+    return MENU_ITEM_SIZE_MAX;
+  }
+
+  return MENU_ITEM_SIZE_MIN;
 };
 
 export class GameMenuItem {
@@ -56,21 +75,7 @@ export class GameMenuItem {
     // 타입별 클래스 추가 - 이미 kebab-case로 변경되어 있으므로 그대로 사용
     this.element.classList.add(`type-${itemType}`);
 
-    // 스프라이트 위치 설정
-    const size = Math.max(
-      1,
-      Math.floor(
-        Math.min(document.body.clientWidth, MENU_ITEM_CONTAINER_MAX_WIDTH) /
-          MENU_ITEM_COUNT,
-      ),
-    );
-    this.element.style.width = `${size}px`;
-    this.element.style.height = `${size}px`;
-    this.element.style.backgroundPosition = getBackgroundPosition(
-      itemType,
-      size,
-    );
-    this.element.style.backgroundSize = `${size * MENU_SPRITE_SLOT_COUNT}px ${size}px`;
+    this.updateSize();
 
     // 초기 포커스 상태 설정
     this.updateFocusState();
@@ -125,6 +130,22 @@ export class GameMenuItem {
 
   public getSize(): number {
     return Number.parseInt(this.element.style.height);
+  }
+
+  public updateSize(availableWidth?: number): void {
+    const size = getResponsiveMenuItemSize(
+      availableWidth ?? document.body.clientWidth,
+    );
+    const spriteSize = size + (MENU_SPRITE_SIZE_DELTA[this.itemType] ?? 0);
+
+    this.element.style.width = `${size}px`;
+    this.element.style.height = `${size}px`;
+    this.element.style.backgroundPosition = getBackgroundPosition(
+      this.itemType,
+      size,
+      spriteSize,
+    );
+    this.element.style.backgroundSize = `${spriteSize * MENU_SPRITE_SLOT_COUNT}px ${spriteSize}px`;
   }
 
   public destroy(): void {

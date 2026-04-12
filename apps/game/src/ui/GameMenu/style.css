@@ -12,6 +12,7 @@
   max-width: 280px;
   display: flex;
   justify-content: space-between;
+  align-items: center;
 }
 
 .game-menu-item {
@@ -25,8 +26,7 @@
   overflow: hidden;
   user-select: none;
   image-rendering: pixelated;
-  scale: 0.7;
-  transform-origin: center bottom;
+  transform-origin: center center;
   opacity: 0.6;
 }
 

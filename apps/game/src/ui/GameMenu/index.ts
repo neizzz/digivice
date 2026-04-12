@@ -18,6 +18,7 @@ export interface GameMenuOptions {
 
 export class GameMenu {
   private container: HTMLDivElement;
+  private itemContainer: HTMLDivElement;
   // 메뉴 아이템 순서 반영 배열
   private menuItems: GameMenuItemType[] = [
     // GameMenuItemType.Information,
@@ -33,6 +34,9 @@ export class GameMenu {
   private menuItemElements: GameMenuItem[] = [];
   private options: GameMenuOptions;
   private disabledMenuItems: Set<GameMenuItemType> = new Set();
+  private handleWindowResize = () => {
+    this.updateMenuItemLayout();
+  };
 
   constructor(parentElement: HTMLElement, options: GameMenuOptions = {}) {
     this.options = options;
@@ -40,30 +44,46 @@ export class GameMenu {
     // 컨테이너 생성
     this.container = document.createElement("div");
     this.container.className = "game-menu-container";
-    const itemContainer = document.createElement("div");
-    itemContainer.className = "game-menu-item-container";
-    this.container.appendChild(itemContainer);
+    this.itemContainer = document.createElement("div");
+    this.itemContainer.className = "game-menu-item-container";
+    this.container.appendChild(this.itemContainer);
 
     // 기본적으로 대결 메뉴 비활성화
     this.disabledMenuItems.add(GameMenuItemType.Versus);
 
     this.initializeMenuItems();
+    this.updateMenuItemLayout();
+    window.addEventListener("resize", this.handleWindowResize);
     parentElement.appendChild(this.container);
   }
 
   private initializeMenuItems(): void {
     for (const index in this.menuItems) {
-      const itemContainer = this.container.firstElementChild as HTMLDivElement;
       const itemType = this.menuItems[index];
       const menuItem = new GameMenuItem(itemType);
       this.menuItemElements.push(menuItem);
-      itemContainer.appendChild(menuItem.getElement());
+      this.itemContainer.appendChild(menuItem.getElement());
 
       // 비활성화된 메뉴 항목 설정
       if (this.disabledMenuItems.has(itemType)) {
         menuItem.setDisabled(true);
       }
     }
+  }
+
+  private updateMenuItemLayout(): void {
+    const availableWidth =
+      this.container.parentElement?.getBoundingClientRect().width ??
+      document.body.clientWidth;
+
+    for (const menuItem of this.menuItemElements) {
+      menuItem.updateSize(availableWidth);
+    }
+
+    const itemSize = this.menuItemElements[0]?.getSize();
+    if (!itemSize) return;
+
+    this.itemContainer.style.height = `${itemSize}px`;
   }
 
   public processNavigationAction(action: NavigationActionPayload): void {
@@ -253,6 +273,7 @@ export class GameMenu {
 
   public destroy(): void {
     // 메모리 해제 및 이벤트 리스너 제거
+    window.removeEventListener("resize", this.handleWindowResize);
     for (const index in this.menuItemElements) {
       this.menuItemElements[index]?.destroy();
     }

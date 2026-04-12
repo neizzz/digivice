@@ -19,20 +19,123 @@ const effectAnimationQuery = defineQuery([
   EffectAnimationComp,
 ]);
 
-const effectSpriteMap = new Map<number, PIXI.Sprite>();
+type RecoveryDirectionSign = -1 | 1;
+
+type RecoveryEffectSpriteData = {
+  sprite: PIXI.Sprite;
+  directionSign: RecoveryDirectionSign;
+};
+
+const effectSpriteMap = new Map<number, RecoveryEffectSpriteData>();
 
 const RECOVERY_APPROACH_DURATION = 300;
 const RECOVERY_HOLD_DURATION = 1000;
 const RECOVERY_FADE_DURATION = 300;
 const RECOVERY_TOTAL_DURATION =
   RECOVERY_APPROACH_DURATION + RECOVERY_HOLD_DURATION + RECOVERY_FADE_DURATION;
-const RECOVERY_START_OFFSET_X = -18;
-const RECOVERY_START_OFFSET_Y = -18;
-const RECOVERY_TARGET_OFFSET_X = 0;
-const RECOVERY_TARGET_OFFSET_Y = 0;
+const RECOVERY_START_OFFSET_X = 18;
+const RECOVERY_START_OFFSET_Y = 18;
+const RECOVERY_TIP_OFFSET_X = 16;
+const RECOVERY_TIP_OFFSET_Y = 16;
 const RECOVERY_SCALE = 2.3;
-const RECOVERY_Z_INDEX_OFFSET = 1;
-const RECOVERY_ROTATION = Math.PI * 0.25;
+const RECOVERY_Z_INDEX_OFFSET = 100;
+const RECOVERY_LEFT_ROTATION = -Math.PI * 0.5;
+const RECOVERY_RIGHT_ROTATION = 0;
+const RECOVERY_IMPACT_SHAKE_DURATION = 140;
+const RECOVERY_IMPACT_SHAKE_AMPLITUDE_X = 6;
+const RECOVERY_IMPACT_SHAKE_AMPLITUDE_Y = 4;
+const RECOVERY_IMPACT_SHAKE_ROTATION = 0.16;
+const RECOVERY_IMPACT_SHAKE_FREQUENCY = 0.22;
+const RECOVERY_RESIDUAL_SHAKE_AMPLITUDE_X = 1.4;
+const RECOVERY_RESIDUAL_SHAKE_AMPLITUDE_Y = 0.9;
+const RECOVERY_RESIDUAL_SHAKE_ROTATION = 0.045;
+const RECOVERY_RESIDUAL_SHAKE_FREQUENCY = 0.08;
+
+function getRecoveryDirectionSign(): RecoveryDirectionSign {
+  return Math.random() < 0.5 ? -1 : 1;
+}
+
+function getRecoveryRotation(directionSign: RecoveryDirectionSign): number {
+  return directionSign < 0 ? RECOVERY_LEFT_ROTATION : RECOVERY_RIGHT_ROTATION;
+}
+
+function getRecoveryTargetPosition(
+  eid: number,
+  directionSign: RecoveryDirectionSign,
+): { x: number; y: number } {
+  return {
+    x: PositionComp.x[eid] + directionSign * RECOVERY_TIP_OFFSET_X,
+    y: PositionComp.y[eid] - RECOVERY_TIP_OFFSET_Y,
+  };
+}
+
+function getRecoveryStartPosition(
+  targetX: number,
+  targetY: number,
+  directionSign: RecoveryDirectionSign,
+): { x: number; y: number } {
+  return {
+    x: targetX + directionSign * RECOVERY_START_OFFSET_X,
+    y: targetY - RECOVERY_START_OFFSET_Y,
+  };
+}
+
+function getRecoveryShakeState(
+  elapsedSinceImpact: number,
+  directionSign: RecoveryDirectionSign,
+): { offsetX: number; offsetY: number; rotationOffset: number } {
+  if (elapsedSinceImpact < 0) {
+    return { offsetX: 0, offsetY: 0, rotationOffset: 0 };
+  }
+
+  const impactProgress = Math.min(
+    elapsedSinceImpact / RECOVERY_IMPACT_SHAKE_DURATION,
+    1,
+  );
+  const impactDecay = Math.pow(1 - impactProgress, 2);
+  const impactWave = Math.sin(elapsedSinceImpact * RECOVERY_IMPACT_SHAKE_FREQUENCY);
+
+  const impactOffsetX =
+    -directionSign *
+    impactWave *
+    RECOVERY_IMPACT_SHAKE_AMPLITUDE_X *
+    impactDecay;
+  const impactOffsetY =
+    Math.cos(elapsedSinceImpact * RECOVERY_IMPACT_SHAKE_FREQUENCY * 0.85) *
+    RECOVERY_IMPACT_SHAKE_AMPLITUDE_Y *
+    impactDecay;
+  const impactRotationOffset =
+    -directionSign *
+    impactWave *
+    RECOVERY_IMPACT_SHAKE_ROTATION *
+    impactDecay;
+
+  const residualElapsed = Math.max(
+    0,
+    elapsedSinceImpact - RECOVERY_IMPACT_SHAKE_DURATION,
+  );
+  const residualWaveX = Math.sin(
+    residualElapsed * RECOVERY_RESIDUAL_SHAKE_FREQUENCY,
+  );
+  const residualWaveY = Math.cos(
+    residualElapsed * RECOVERY_RESIDUAL_SHAKE_FREQUENCY * 1.35,
+  );
+
+  const residualOffsetX =
+    -directionSign * residualWaveX * RECOVERY_RESIDUAL_SHAKE_AMPLITUDE_X;
+  const residualOffsetY =
+    residualWaveY * RECOVERY_RESIDUAL_SHAKE_AMPLITUDE_Y;
+  const residualRotationOffset =
+    -directionSign *
+    residualWaveX *
+    RECOVERY_RESIDUAL_SHAKE_ROTATION;
+
+  return {
+    offsetX: impactOffsetX + residualOffsetX,
+    offsetY: impactOffsetY + residualOffsetY,
+    rotationOffset: impactRotationOffset + residualRotationOffset,
+  };
+}
 
 function getSyringeTexture(): PIXI.Texture | null {
   try {
@@ -67,12 +170,12 @@ function cleanupEffectSprite(
   eid: number,
   stage: PIXI.Container | null,
 ): void {
-  const sprite = effectSpriteMap.get(eid);
-  if (sprite) {
-    if (stage && sprite.parent) {
-      stage.removeChild(sprite);
+  const spriteData = effectSpriteMap.get(eid);
+  if (spriteData) {
+    if (stage && spriteData.sprite.parent) {
+      stage.removeChild(spriteData.sprite);
     }
-    sprite.destroy();
+    spriteData.sprite.destroy();
     effectSpriteMap.delete(eid);
   }
 
@@ -95,12 +198,13 @@ function createRecoverySyringeSprite(
   }
 
   const sprite = new PIXI.Sprite(texture);
+  const directionSign = getRecoveryDirectionSign();
   sprite.anchor.set(0.5);
   sprite.scale.set(RECOVERY_SCALE);
-  sprite.rotation = RECOVERY_ROTATION;
+  sprite.rotation = getRecoveryRotation(directionSign);
   sprite.alpha = 1;
   stage.addChild(sprite);
-  effectSpriteMap.set(eid, sprite);
+  effectSpriteMap.set(eid, { sprite, directionSign });
   return sprite;
 }
 
@@ -111,19 +215,27 @@ function updateRecoverySyringe(
   const startTime = EffectAnimationComp.startTime[eid];
   const elapsed = currentTime - startTime;
   const duration = EffectAnimationComp.duration[eid];
-  const targetX = PositionComp.x[eid] + RECOVERY_TARGET_OFFSET_X;
-  const targetY = PositionComp.y[eid] + RECOVERY_TARGET_OFFSET_Y;
-  const startX = targetX + RECOVERY_START_OFFSET_X;
-  const startY = targetY + RECOVERY_START_OFFSET_Y;
 
   if (elapsed >= duration) {
     return true;
   }
 
-  const sprite = effectSpriteMap.get(eid);
-  if (!sprite) {
+  const spriteData = effectSpriteMap.get(eid);
+  if (!spriteData) {
     return false;
   }
+
+  const { sprite, directionSign } = spriteData;
+  const baseRotation = getRecoveryRotation(directionSign);
+  const { x: targetX, y: targetY } = getRecoveryTargetPosition(
+    eid,
+    directionSign,
+  );
+  const { x: startX, y: startY } = getRecoveryStartPosition(
+    targetX,
+    targetY,
+    directionSign,
+  );
 
   if (elapsed < RECOVERY_APPROACH_DURATION) {
     const progress = elapsed / RECOVERY_APPROACH_DURATION;
@@ -131,16 +243,27 @@ function updateRecoverySyringe(
     sprite.x = startX + (targetX - startX) * easedProgress;
     sprite.y = startY + (targetY - startY) * easedProgress;
     sprite.alpha = 1;
+    sprite.rotation = baseRotation;
   } else if (elapsed < RECOVERY_APPROACH_DURATION + RECOVERY_HOLD_DURATION) {
-    sprite.x = targetX;
-    sprite.y = targetY;
+    const shake = getRecoveryShakeState(
+      elapsed - RECOVERY_APPROACH_DURATION,
+      directionSign,
+    );
+    sprite.x = targetX + shake.offsetX;
+    sprite.y = targetY + shake.offsetY;
     sprite.alpha = 1;
+    sprite.rotation = baseRotation + shake.rotationOffset;
   } else {
     const fadeElapsed = elapsed - RECOVERY_APPROACH_DURATION - RECOVERY_HOLD_DURATION;
     const fadeProgress = Math.min(fadeElapsed / RECOVERY_FADE_DURATION, 1);
-    sprite.x = targetX;
-    sprite.y = targetY;
+    const shake = getRecoveryShakeState(
+      elapsed - RECOVERY_APPROACH_DURATION,
+      directionSign,
+    );
+    sprite.x = targetX + shake.offsetX;
+    sprite.y = targetY + shake.offsetY;
     sprite.alpha = 1 - fadeProgress;
+    sprite.rotation = baseRotation + shake.rotationOffset;
   }
 
   sprite.zIndex = targetY + RECOVERY_Z_INDEX_OFFSET;
