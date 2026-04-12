@@ -1021,6 +1021,7 @@ export class MainSceneWorld implements IWorld, Scene {
     }
 
     this._updateAutoTimeOfDayIfNeeded();
+    this._background?.animate(this.currentTime);
 
     // 시스템 파이프라인 실행
     this._pipedSystems({
