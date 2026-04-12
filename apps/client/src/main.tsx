@@ -4,7 +4,6 @@ import App from "./App";
 import PrototypeApp from "./PrototypeApp";
 import "./index.css";
 import { PlatformAdapter } from "./adapter/PlatformAdapter.ts";
-import SimpleLogViewer from "../components/SimpleLogViewer/SimpleLogViewer.tsx";
 
 export function getPlatformAdapter(): PlatformAdapter {
   return platformAdapter;
@@ -82,7 +81,6 @@ async function bootstrap(): Promise<void> {
   ReactDOM.createRoot(rootElement).render(
     <>
       {isNativeFeatureTestMode ? <PrototypeApp /> : <App />}
-      <SimpleLogViewer position="top-right" initialOpen={false} />
     </>,
   );
 }

@@ -17,6 +17,26 @@ export default defineConfig(() => {
       tailwindcss(),
       tsconfigPaths(),
       {
+        name: "rewrite-public-asset-paths-for-dev",
+        apply: "serve",
+        configureServer(server) {
+          server.middlewares.use((req, _res, next) => {
+            if (!req.url) {
+              next();
+              return;
+            }
+
+            if (req.url.startsWith("/assets/game/")) {
+              req.url = req.url.replace(/^\/assets\/game\//, "/game/");
+            } else if (req.url.startsWith("/assets/ui/")) {
+              req.url = req.url.replace(/^\/assets\/ui\//, "/ui/");
+            }
+
+            next();
+          });
+        },
+      },
+      {
         name: "strip-crossorigin-for-flutter-webview",
         apply: "build",
         transformIndexHtml(html) {

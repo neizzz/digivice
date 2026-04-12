@@ -37,6 +37,7 @@ export class Game {
   public showAlert: ShowAlertCallback; // 팝업 콜백 추가
 
   private _parentElement: HTMLElement;
+  private _debugParentElement: HTMLElement;
   private _createInitialGameData: CreateInitialGameDataCallback;
   private currentScene?: Scene;
   // private scenes: Map<SceneKey, Scene> = new Map();
@@ -48,6 +49,7 @@ export class Game {
 
   constructor(params: {
     parentElement: HTMLElement;
+    debugParentElement?: HTMLElement;
     onCreateInitialGameData: CreateInitialGameDataCallback;
     changeControlButtons: ControlButtonsChangeCallback;
     showSettings: ShowSettingsCallback;
@@ -55,6 +57,7 @@ export class Game {
   }) {
     const {
       parentElement,
+      debugParentElement,
       onCreateInitialGameData,
       changeControlButtons,
       showSettings,
@@ -70,6 +73,7 @@ export class Game {
 
     // 렌더링 주기를 60fps로 설정
     this._parentElement = parentElement;
+    this._debugParentElement = debugParentElement ?? parentElement;
 
     // 리사이징 핸들러 설정
     window.addEventListener("resize", this._boundResizeHandler);
@@ -272,6 +276,7 @@ export class Game {
             height: this.app.screen.height - 2 * SCREEN_PADDING,
           },
           parentElement: this._parentElement,
+          debugParentElement: this._debugParentElement,
           startMiniGame: () => this.changeScene(SceneKey.FLAPPY_BIRD_GAME),
           createInitialGameData: this._createInitialGameData,
           changeControlButtons: this.changeControlButtons,

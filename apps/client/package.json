@@ -4,7 +4,7 @@
 	"version": "0.1.0",
 	"type": "module",
 	"scripts": {
-		"dev": "vite --host",
+		"dev": "pnpm --filter @digivice/game sync-assets && vite --host",
 		"build": "pnpm --filter @digivice/game sync-assets && tsc -b && NODE_ENV=development vite build",
 		"build:test": "pnpm --filter @digivice/game sync-assets && tsc -b && NODE_ENV=development NATIVE_FEATURE_TEST_MODE=true vite build",
 		"build:flutter": "../../scripts/build-for-flutter.sh",

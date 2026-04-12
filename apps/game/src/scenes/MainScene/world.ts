@@ -62,6 +62,7 @@ import { Background } from "../../entities/Background";
 import {
   applySavedEntityToECS,
   convertECSEntityToSavedEntity,
+  repairCharacterEntityRuntimeComponents,
 } from "./entityDataHelpers";
 import {
   createCharacterEntity,
@@ -103,6 +104,18 @@ import {
   cleanupSleepEffects,
 } from "./systems/SleepEffectSystem";
 import { ReentrySimulator } from "./ReentrySimulator";
+import { getNativeSunTimes, requestNativeLocationPermission } from "./sunTimes";
+import {
+  type AutoTimeOfDayState,
+  getManualSkyVisualState,
+  getTimeOfDayLabel,
+  hasSunTimesDateRolledOver,
+  resolveAutoTimeOfDayState,
+  type SunLocationSource,
+  type SunTimesPayload,
+  TimeOfDay,
+  TimeOfDayMode,
+} from "./timeOfDay";
 
 export type EntityComponents = {
   characterStatus?: CharacterStatusComponent;
@@ -251,9 +264,11 @@ const GIF_ASSETS = {
  */
 export class MainSceneWorld implements IWorld, Scene {
   public readonly VERSION = "1.0.0";
+  private static readonly SCENE_DARKNESS_OVERLAY_Z_INDEX = 1_000_000;
   private _stage: PIXI.Container;
   private _positionBoundary: Boundary;
   private _background?: Background;
+  private _sceneDarknessOverlay?: PIXI.Graphics;
   private _persistentData?: MainSceneWorldData;
   private _debugStatusUI?: HTMLDebugStatusUI;
   private _debugToggleButton?: HTMLDebugToggleButton;
@@ -261,6 +276,7 @@ export class MainSceneWorld implements IWorld, Scene {
   private _debugGaugeUI?: HTMLDebugGaugeUI;
   private _gameMenu?: GameMenu;
   private _parentElement?: HTMLElement;
+  private _debugParentElement?: HTMLElement;
   private _navigationActionIndex = 0;
   private _changeControlButtons?: (
     controlButtonParamsSet: [
@@ -288,6 +304,14 @@ export class MainSceneWorld implements IWorld, Scene {
   }>;
   private _pendingStorageWrite: Promise<void> = Promise.resolve();
   private _startMiniGame?: () => unknown | Promise<unknown>;
+  private _timeOfDay: TimeOfDay = TimeOfDay.Day;
+  private _timeOfDayMode: TimeOfDayMode = TimeOfDayMode.Manual;
+  private _sunTimes: SunTimesPayload | null = null;
+  private _autoTimeOfDayState: AutoTimeOfDayState | null = null;
+  private _autoTimeOfDayMinuteKey: number | null = null;
+  private _sunTimesRefreshPromise: Promise<void> | null = null;
+  private _hasLocationPermission = false;
+  private _sunLocationSource: SunLocationSource | null = null;
 
   // 실시간 모드용 시스템 파이프라인 (렌더링 포함)
   private _pipedSystems = pipe(
@@ -367,11 +391,18 @@ export class MainSceneWorld implements IWorld, Scene {
   get isPaused(): boolean {
     return this._isPaused;
   }
+  get timeOfDay(): TimeOfDay {
+    return this._timeOfDay;
+  }
+  get timeOfDayMode(): TimeOfDayMode {
+    return this._timeOfDayMode;
+  }
 
   constructor(params: {
     stage: PIXI.Container;
     positionBoundary: Boundary;
     parentElement?: HTMLElement;
+    debugParentElement?: HTMLElement;
     startMiniGame?: () => unknown | Promise<unknown>;
     createInitialGameData?: () => Promise<{
       name: string;
@@ -387,6 +418,7 @@ export class MainSceneWorld implements IWorld, Scene {
     this._stage = params.stage;
     this._positionBoundary = params.positionBoundary;
     this._parentElement = params.parentElement;
+    this._debugParentElement = params.debugParentElement ?? params.parentElement;
     this._startMiniGame = params.startMiniGame;
     this._createInitialGameData = params.createInitialGameData;
     this._changeControlButtons = params.changeControlButtons;
@@ -545,14 +577,10 @@ export class MainSceneWorld implements IWorld, Scene {
       console.log("Loading saved data from storage...");
       const loadedData = await this.getData();
 
-      if (
-        !loadedData ||
-        !loadedData.entities ||
-        loadedData.entities.length === 0
-      ) {
+      if (!this._hasPlayableSavedData(loadedData)) {
         const initialGameData = await this._createInitialGameData?.();
         console.warn(
-          "No saved data found, initializing with default entities...",
+          "No playable saved data found, initializing with default entities...",
         );
         this._persistentData = this._initializeData(initialGameData);
       } else {
@@ -560,10 +588,10 @@ export class MainSceneWorld implements IWorld, Scene {
 
         const validatedData = this._validateAndMigrateData(loadedData);
 
-        if (validatedData.entities.length === 0) {
+        if (!this._hasPlayableSavedData(validatedData)) {
           const initialGameData = await this._createInitialGameData?.();
           console.warn(
-            "Saved data contained no recoverable entities, reinitializing with default entities...",
+            "Saved data is missing required setup info or recoverable character entities, reinitializing with default entities...",
           );
           this._persistentData = this._initializeData(initialGameData);
         } else {
@@ -594,10 +622,15 @@ export class MainSceneWorld implements IWorld, Scene {
       // 배경 설정
       this._background = new Background(PIXI.Assets.get("grass"));
       this._stage.addChild(this._background);
+      this._sceneDarknessOverlay = this._createSceneDarknessOverlay();
+      this._stage.addChild(this._sceneDarknessOverlay);
 
       const width = this._stage.width;
       const height = this._stage.height;
       this._background.resize(width, height);
+      this._resizeSceneDarknessOverlay(width, height);
+      this._applyCurrentSkyState();
+      void this._initializeSunTimes();
 
       // zIndex 정렬을 위해 sortableChildren 활성화
       this._stage.sortableChildren = true;
@@ -645,19 +678,22 @@ export class MainSceneWorld implements IWorld, Scene {
         });
 
         // 디버그 UI (개발 환경에서만)
-        if (import.meta.env.DEV) {
-          this._debugGaugeUI = new HTMLDebugGaugeUI(this, this._parentElement);
+        if (import.meta.env.DEV && this._debugParentElement) {
+          this._debugGaugeUI = new HTMLDebugGaugeUI(
+            this,
+            this._debugParentElement,
+          );
           this._debugGameConstantsUI = new HTMLDebugGameConstantsUI(
-            this._parentElement,
+            this._debugParentElement,
           );
           this._debugStatusUI = new HTMLDebugStatusUI(
             this,
-            this._parentElement,
+            this._debugParentElement,
           );
           this._debugToggleButton = new HTMLDebugToggleButton(() => {
             this._debugStatusUI?.toggle();
             return this._debugStatusUI?.isDebugVisible() ?? false;
-          }, this._parentElement);
+          }, this._debugParentElement);
         }
       }
 
@@ -712,6 +748,8 @@ export class MainSceneWorld implements IWorld, Scene {
       speed: { value: ECS_NULL_VALUE },
     });
 
+    this._requestLocationPermissionOnCharacterCreation();
+
     return convertECSEntityToSavedEntity(this, eid);
   }
 
@@ -759,6 +797,18 @@ export class MainSceneWorld implements IWorld, Scene {
 
           const eid = addEntity(this);
           applySavedEntityToECS(this, eid, savedEntity);
+          const repairedComponents = repairCharacterEntityRuntimeComponents(
+            this,
+            eid,
+            this.currentTime,
+          );
+
+          if (repairedComponents.length > 0) {
+            console.warn(
+              `[MainSceneWorld] Repaired entity ${index + 1} (ID=${objectId}) missing runtime components: ${repairedComponents.join(", ")}`,
+            );
+          }
+
           loadedEntitiesCount++;
 
           console.log(
@@ -946,6 +996,12 @@ export class MainSceneWorld implements IWorld, Scene {
         this._debugGameConstantsUI = undefined;
       }
 
+      if (this._sceneDarknessOverlay) {
+        this._stage.removeChild(this._sceneDarknessOverlay);
+        this._sceneDarknessOverlay.destroy();
+        this._sceneDarknessOverlay = undefined;
+      }
+
       this._background && this._stage.removeChild(this._background);
       // this._assetsLoaded = false;
 
@@ -964,7 +1020,7 @@ export class MainSceneWorld implements IWorld, Scene {
       return;
     }
 
-    // 실시간 모드에서는 별도 시간 관리 필요 없음 (항상 Date.now() 사용)
+    this._updateAutoTimeOfDayIfNeeded();
 
     // 시스템 파이프라인 실행
     this._pipedSystems({
@@ -1133,6 +1189,26 @@ export class MainSceneWorld implements IWorld, Scene {
     return sanitizedEntities;
   }
 
+  private _hasPlayableSavedData(
+    data: MainSceneWorldData | null | undefined,
+  ): data is MainSceneWorldData {
+    if (!data) {
+      return false;
+    }
+
+    const monsterName = data.world_metadata?.monster_name?.trim();
+
+    if (!monsterName) {
+      return false;
+    }
+
+    return (
+      data.entities?.some((entity) => {
+        return entity.components.object?.type === ObjectType.CHARACTER;
+      }) ?? false
+    );
+  }
+
   /**
    * 저장된 데이터의 유효성을 검증하고 필요시 마이그레이션 수행
    */
@@ -1225,7 +1301,222 @@ export class MainSceneWorld implements IWorld, Scene {
     // 배경 크기 조정
     if (this._background) {
       this._background.resize(width, height);
+      this._applyCurrentSkyState();
     }
+
+    this._resizeSceneDarknessOverlay(width, height);
+  }
+
+  public getTimeOfDay(): TimeOfDay {
+    return this._timeOfDay;
+  }
+
+  public setTimeOfDay(timeOfDay: TimeOfDay): void {
+    if (
+      this._timeOfDayMode === TimeOfDayMode.Manual &&
+      this._timeOfDay === timeOfDay
+    ) {
+      return;
+    }
+
+    this._timeOfDayMode = TimeOfDayMode.Manual;
+    this._autoTimeOfDayState = null;
+    this._autoTimeOfDayMinuteKey = null;
+    this._timeOfDay = timeOfDay;
+    this._applyCurrentSkyState();
+
+    console.log(
+      `[MainSceneWorld] Time of day changed to ${getTimeOfDayLabel(timeOfDay)} (manual)`,
+    );
+  }
+
+  public enableAutoTimeOfDay(): void {
+    if (!this._sunTimes) {
+      console.warn("[MainSceneWorld] Cannot enable auto time of day without sun data");
+      return;
+    }
+
+    this._timeOfDayMode = TimeOfDayMode.Auto;
+    this._autoTimeOfDayMinuteKey = null;
+    this._updateAutoTimeOfDayIfNeeded(true);
+  }
+
+  public getTimeOfDayMode(): TimeOfDayMode {
+    return this._timeOfDayMode;
+  }
+
+  public getTimeOfDayDebugState(): {
+    mode: TimeOfDayMode;
+    label: string;
+    progress: number | null;
+    hasLocationPermission: boolean;
+    locationSource: SunLocationSource | null;
+    sunriseAt: string | null;
+    sunsetAt: string | null;
+  } {
+    return {
+      mode: this._timeOfDayMode,
+      label: getTimeOfDayLabel(this._timeOfDay),
+      progress: this._autoTimeOfDayState?.progress ?? null,
+      hasLocationPermission: this._hasLocationPermission,
+      locationSource: this._sunLocationSource,
+      sunriseAt: this._sunTimes?.sunriseAt ?? null,
+      sunsetAt: this._sunTimes?.sunsetAt ?? null,
+    };
+  }
+
+  private async _initializeSunTimes(): Promise<void> {
+    await this._refreshSunTimes(true);
+  }
+
+  private async _refreshSunTimes(promptForPermission: boolean): Promise<void> {
+    if (this._sunTimesRefreshPromise) {
+      await this._sunTimesRefreshPromise;
+      return;
+    }
+
+    this._sunTimesRefreshPromise = (async () => {
+      const sunTimes = await getNativeSunTimes(promptForPermission);
+      if (!sunTimes) {
+        console.warn("[MainSceneWorld] Native sun times are unavailable, staying in manual mode");
+        return;
+      }
+
+      this._sunTimes = sunTimes;
+      this._hasLocationPermission = sunTimes.hasLocationPermission;
+      this._sunLocationSource = sunTimes.locationSource;
+
+      if (this._timeOfDayMode === TimeOfDayMode.Manual) {
+        this._timeOfDayMode = TimeOfDayMode.Auto;
+      }
+
+      this._autoTimeOfDayMinuteKey = null;
+      this._updateAutoTimeOfDayIfNeeded(true);
+
+      console.log(
+        `[MainSceneWorld] Sun times loaded (${sunTimes.locationSource}, permission=${sunTimes.hasLocationPermission})`,
+      );
+    })();
+
+    try {
+      await this._sunTimesRefreshPromise;
+    } finally {
+      this._sunTimesRefreshPromise = null;
+    }
+  }
+
+  private _updateAutoTimeOfDayIfNeeded(force = false): void {
+    if (this._timeOfDayMode !== TimeOfDayMode.Auto || !this._sunTimes) {
+      return;
+    }
+
+    if (hasSunTimesDateRolledOver(new Date(), this._sunTimes)) {
+      void this._refreshSunTimes(false);
+      return;
+    }
+
+    const currentMinuteKey = Math.floor(Date.now() / 60000);
+    if (!force && this._autoTimeOfDayMinuteKey === currentMinuteKey) {
+      return;
+    }
+
+    this._autoTimeOfDayMinuteKey = currentMinuteKey;
+    const nextState = resolveAutoTimeOfDayState(new Date(), this._sunTimes);
+    const hasChanged =
+      !this._autoTimeOfDayState ||
+      this._autoTimeOfDayState.timeOfDay !== nextState.timeOfDay ||
+      this._autoTimeOfDayState.progress !== nextState.progress;
+
+    this._autoTimeOfDayState = nextState;
+    this._timeOfDay = nextState.timeOfDay;
+
+    if (hasChanged) {
+      this._applyCurrentSkyState();
+    }
+  }
+
+  private _applyCurrentSkyState(): void {
+    if (!this._background) {
+      return;
+    }
+
+    const state =
+      this._timeOfDayMode === TimeOfDayMode.Auto && this._autoTimeOfDayState
+        ? this._autoTimeOfDayState
+        : getManualSkyVisualState(this._timeOfDay);
+
+    this._background.applySkyState(state);
+    this._applySceneDarknessOverlay(state);
+  }
+
+  private _createSceneDarknessOverlay(): PIXI.Graphics {
+    const overlay = new PIXI.Graphics();
+    overlay.zIndex = MainSceneWorld.SCENE_DARKNESS_OVERLAY_Z_INDEX;
+    overlay.eventMode = "none";
+    overlay.visible = false;
+    return overlay;
+  }
+
+  private _resizeSceneDarknessOverlay(width: number, height: number): void {
+    if (!this._sceneDarknessOverlay) {
+      return;
+    }
+
+    this._sceneDarknessOverlay.clear();
+    this._sceneDarknessOverlay.beginFill(0x07101f, 1);
+    this._sceneDarknessOverlay.drawRect(0, 0, width, height);
+    this._sceneDarknessOverlay.endFill();
+  }
+
+  private _applySceneDarknessOverlay(state: {
+    timeOfDay: TimeOfDay;
+    progress: number;
+  }): void {
+    if (!this._sceneDarknessOverlay) {
+      return;
+    }
+
+    const alpha = this._getSceneDarknessAlpha(state);
+    this._sceneDarknessOverlay.alpha = alpha;
+    this._sceneDarknessOverlay.visible = alpha > 0.001;
+  }
+
+  private _getSceneDarknessAlpha(state: {
+    timeOfDay: TimeOfDay;
+    progress: number;
+  }): number {
+    const progress = Math.max(0, Math.min(1, state.progress));
+
+    switch (state.timeOfDay) {
+      case TimeOfDay.Sunrise:
+        return this._lerpDarknessAlpha(0.26, 0.02, progress);
+      case TimeOfDay.Sunset:
+        return this._lerpDarknessAlpha(0.02, 0.22, progress);
+      case TimeOfDay.Night:
+        return 0.28;
+      case TimeOfDay.Day:
+      default:
+        return 0;
+    }
+  }
+
+  private _lerpDarknessAlpha(from: number, to: number, progress: number): number {
+    return from + (to - from) * progress;
+  }
+
+  private _requestLocationPermissionOnCharacterCreation(): void {
+    if (!this._sunTimes || this._hasLocationPermission) {
+      return;
+    }
+
+    void (async () => {
+      const granted = await requestNativeLocationPermission();
+      if (!granted) {
+        return;
+      }
+
+      await this._refreshSunTimes(false);
+    })();
   }
 
   /**
@@ -1863,6 +2154,7 @@ export class MainSceneWorld implements IWorld, Scene {
 
     this._isPaused = false;
     this._pauseStartTime = 0;
+    this._updateAutoTimeOfDayIfNeeded(true);
 
     // 추가적인 재개 처리가 필요하다면 여기에 구현
     // 예: 오디오 재개, 애니메이션 재시작 등

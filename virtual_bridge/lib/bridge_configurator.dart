@@ -3,6 +3,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 import 'pip/pip_controller.dart';
 import 'storage/storage_controller.dart';
 import 'ad/ad_controller.dart';
+import 'sun/sun_controller.dart';
 import 'vibration/vibration_controller.dart';
 
 /// WebView와 네이티브 코드 간 브릿지 설정을 담당하는 클래스
@@ -15,6 +16,7 @@ class BridgeConfigurator {
   late final PipController _pipController;
   late final StorageController _storageController;
   late final AdController _adController;
+  late final SunController _sunController;
   late final VibrationController _vibrationController;
 
   BridgeConfigurator({
@@ -35,6 +37,12 @@ class BridgeConfigurator {
     );
 
     _adController = AdController(
+      runJavaScript: _runJavaScript,
+      resolvePromise: _resolvePromise,
+      log: logCallback,
+    );
+
+    _sunController = SunController(
       runJavaScript: _runJavaScript,
       resolvePromise: _resolvePromise,
       log: logCallback,
@@ -98,6 +106,16 @@ class BridgeConfigurator {
             _adController.handleCanShowAd(message),
       )
       ..addJavaScriptChannel(
+        '__native_sun_get_times',
+        onMessageReceived: (JavaScriptMessage message) =>
+            _sunController.handleGetSunTimes(message),
+      )
+      ..addJavaScriptChannel(
+        '__native_sun_request_permission',
+        onMessageReceived: (JavaScriptMessage message) =>
+            _sunController.handleRequestLocationPermission(message),
+      )
+      ..addJavaScriptChannel(
         '__native_vibrate',
         onMessageReceived: (JavaScriptMessage message) =>
             _vibrationController.handleVibrate(message),
@@ -136,6 +154,7 @@ class BridgeConfigurator {
     await _runJavaScript(_pipController.getJavaScriptInterface());
     await _runJavaScript(_storageController.getJavaScriptInterface());
     await _runJavaScript(_adController.getJavaScriptInterface());
+    await _runJavaScript(_sunController.getJavaScriptInterface());
     await _runJavaScript(_vibrationController.getJavaScriptInterface());
   }
 
@@ -182,6 +201,7 @@ class BridgeConfigurator {
     _pipController.dispose();
     _storageController.dispose();
     _adController.dispose();
+    _sunController.dispose();
     _vibrationController.dispose();
   }
 }

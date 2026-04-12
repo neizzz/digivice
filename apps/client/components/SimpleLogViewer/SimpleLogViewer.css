@@ -1,8 +1,8 @@
 .simple-log-viewer {
-  position: fixed;
+  position: absolute;
   z-index: 9999;
   width: 400px;
-  max-width: 90vw;
+  max-width: min(400px, calc(100% - 24px));
 }
 
 .simple-log-viewer.bottom-right {

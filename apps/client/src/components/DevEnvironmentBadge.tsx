@@ -8,29 +8,26 @@ import { PlatformAdapter } from "../adapter/PlatformAdapter";
 export function DevEnvironmentBadge() {
   const [platformAdapter] = useState(() => new PlatformAdapter());
   const [isExpanded, setIsExpanded] = useState(false);
+  const isNativeApp = platformAdapter.isRunningInNativeApp();
 
   // 네이티브 앱에서 실행 중이면 배지를 표시하지 않음
-  if (platformAdapter.isRunningInNativeApp()) {
+  if (isNativeApp) {
     return null;
   }
 
   return (
     <div
       style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
         backgroundColor: "#ff6b6b",
         color: "white",
         padding: "8px 16px",
         fontSize: "14px",
         fontWeight: "bold",
         textAlign: "center",
-        zIndex: 99999,
         boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
         cursor: "pointer",
         fontFamily: "system-ui, -apple-system, sans-serif",
+        flexShrink: 0,
       }}
       onClick={() => setIsExpanded(!isExpanded)}
       onKeyDown={(e) => {

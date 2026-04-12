@@ -8,6 +8,12 @@ import {
 } from "../raw-components";
 import { ObjectType } from "../types";
 import { createPoop, addToDigestiveLoad } from "../systems/DigestiveSystem";
+import {
+  TimeOfDay,
+  TimeOfDayMode,
+  TIME_OF_DAY_OPTIONS,
+  getTimeOfDayLabel,
+} from "../timeOfDay";
 
 const characterQuery = defineQuery([ObjectComp, CharacterStatusComp]);
 const objectQuery = defineQuery([ObjectComp]); // ObjectComp만 가진 엔티티들도 찾기
@@ -31,12 +37,18 @@ export class HTMLDebugStatusUI {
   private _currentCharacterEid: number = -1; // -1을 "캐릭터 없음"으로 사용
   private _charIdElement: HTMLParagraphElement;
   private _systemStatusElement: HTMLParagraphElement;
+  private _timeOfDayElement: HTMLParagraphElement;
+  private _timeModeElement: HTMLParagraphElement;
+  private _timeOfDayButtons: Map<TimeOfDay, HTMLButtonElement> = new Map();
+  private _autoTimeButton?: HTMLButtonElement;
 
   constructor(world: MainSceneWorld, parentElement: HTMLElement) {
     this._world = world;
     this._container = this._createContainer();
     this._charIdElement = document.createElement("p"); // 캐릭터 ID 요소 미리 생성
     this._systemStatusElement = document.createElement("p"); // 시스템 상태 요소 미리 생성
+    this._timeOfDayElement = document.createElement("p");
+    this._timeModeElement = document.createElement("p");
     this._setupUI();
     this._findFirstCharacter();
 
@@ -284,6 +296,59 @@ export class HTMLDebugStatusUI {
     sleepButtonsDiv.appendChild(sleepBtn);
     this._container.appendChild(sleepButtonsDiv);
 
+    // 시간대 전환 버튼
+    const timeOfDayButtonsDiv = document.createElement("div");
+    timeOfDayButtonsDiv.style.cssText = `
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255, 255, 255, 0.2);
+    `;
+
+    const timeOfDayLabel = document.createElement("span");
+    timeOfDayLabel.textContent = "Time: ";
+    timeOfDayLabel.style.cssText = `
+      color: #ffd27f;
+      font-size: 12px;
+      margin-right: 5px;
+    `;
+
+    this._timeOfDayElement.style.cssText = `
+      margin: 6px 0 4px 0;
+      font-size: 12px;
+      color: #ffe7a8;
+      font-weight: bold;
+    `;
+    this._timeModeElement.style.cssText = `
+      margin: 0 0 6px 0;
+      font-size: 11px;
+      color: #ffdba6;
+      line-height: 1.4;
+      white-space: pre-line;
+    `;
+
+    timeOfDayButtonsDiv.appendChild(timeOfDayLabel);
+    timeOfDayButtonsDiv.appendChild(this._timeOfDayElement);
+    timeOfDayButtonsDiv.appendChild(this._timeModeElement);
+
+    this._autoTimeButton = this._createAdjustButton("Auto", () =>
+      this._world.enableAutoTimeOfDay(),
+    );
+    this._autoTimeButton.style.minWidth = "42px";
+    timeOfDayButtonsDiv.appendChild(this._autoTimeButton);
+
+    const timeOfDayButtonRow = document.createElement("div");
+    TIME_OF_DAY_OPTIONS.forEach((timeOfDay) => {
+      const button = this._createAdjustButton(getTimeOfDayLabel(timeOfDay), () =>
+        this._world.setTimeOfDay(timeOfDay),
+      );
+      button.style.minWidth = "40px";
+      this._timeOfDayButtons.set(timeOfDay, button);
+      timeOfDayButtonRow.appendChild(button);
+    });
+
+    timeOfDayButtonsDiv.appendChild(timeOfDayButtonRow);
+    this._container.appendChild(timeOfDayButtonsDiv);
+
     // 상태 관리 시스템 토글 버튼
     const systemButtonsDiv = document.createElement("div");
     systemButtonsDiv.style.cssText = `
@@ -340,7 +405,7 @@ export class HTMLDebugStatusUI {
   private _createContainer(): HTMLDivElement {
     const container = document.createElement("div");
     container.style.cssText = `
-      position: fixed;
+      position: absolute;
       top: 60px;
       left: 12px;
       width: 180px;
@@ -413,6 +478,59 @@ export class HTMLDebugStatusUI {
     this._indicators.forEach((indicator, status) => {
       this._updateStatusIndicator(indicator, status);
     });
+  }
+
+  private _updateTimeOfDayDisplay(): void {
+    const debugState = this._world.getTimeOfDayDebugState();
+    const currentTimeOfDay = this._world.getTimeOfDay();
+    this._timeOfDayElement.textContent = `${getTimeOfDayLabel(currentTimeOfDay)} (${debugState.mode === TimeOfDayMode.Auto ? "Auto" : "Manual"})`;
+
+    const progressText =
+      debugState.progress != null
+        ? `\nProg: ${Math.round(debugState.progress * 100)}%`
+        : "";
+    const sunriseText = debugState.sunriseAt
+      ? `\nRise: ${new Date(debugState.sunriseAt).toLocaleTimeString("ko-KR", {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        })}`
+      : "";
+    const sunsetText = debugState.sunsetAt
+      ? `\nSet: ${new Date(debugState.sunsetAt).toLocaleTimeString("ko-KR", {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        })}`
+      : "";
+
+    this._timeModeElement.textContent =
+      `Src: ${debugState.locationSource ?? "-"} / Perm: ${
+        debugState.hasLocationPermission ? "Y" : "N"
+      }` +
+      progressText +
+      sunriseText +
+      sunsetText;
+
+    this._timeOfDayButtons.forEach((button, timeOfDay) => {
+      if (timeOfDay === currentTimeOfDay) {
+        button.style.background = "rgba(255, 180, 80, 0.85)";
+        button.style.fontWeight = "bold";
+      } else {
+        button.style.background = "rgba(100, 150, 255, 0.6)";
+        button.style.fontWeight = "normal";
+      }
+    });
+
+    if (this._autoTimeButton) {
+      if (debugState.mode === TimeOfDayMode.Auto) {
+        this._autoTimeButton.style.background = "rgba(120, 220, 150, 0.85)";
+        this._autoTimeButton.style.fontWeight = "bold";
+      } else {
+        this._autoTimeButton.style.background = "rgba(100, 150, 255, 0.6)";
+        this._autoTimeButton.style.fontWeight = "normal";
+      }
+    }
   }
 
   // 스테미나/진화 게이지 조절 버튼 생성
@@ -595,6 +713,7 @@ export class HTMLDebugStatusUI {
     this._findFirstCharacter(); // 캐릭터 다시 찾기
     this._updateCharacterIdDisplay(); // 캐릭터 ID 표시 업데이트
     this._updateSystemStatusDisplay(); // 시스템 상태 표시 업데이트
+    this._updateTimeOfDayDisplay();
     this._updateAllStatusIndicators(); // 상태 표시 업데이트
     this._container.style.display = "block";
     this._isVisible = true;
@@ -621,6 +740,7 @@ export class HTMLDebugStatusUI {
     // 매 프레임마다 상태 표시 업데이트 (상태가 외부에서 변경될 수 있음)
     if (this._isVisible) {
       this._updateSystemStatusDisplay(); // 시스템 상태 업데이트
+      this._updateTimeOfDayDisplay();
       this._updateAllStatusIndicators();
     }
   }

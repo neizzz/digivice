@@ -1,4 +1,4 @@
-import { defineQuery } from "bitecs";
+import { defineQuery, hasComponent } from "bitecs";
 import {
   SpeedComp,
   RandomMovementComp,
@@ -29,17 +29,26 @@ export function randomMovementSystem(params: {
     shouldLog &&
     Math.floor(currentTime / 3000) !== Math.floor((currentTime - 100) / 3000)
   ) {
+    const suspiciousChars = allChars.filter((eid) => {
+      const state = ObjectComp.state[eid];
+      const shouldHaveRandomMovement =
+        state === CharacterState.IDLE ||
+        state === CharacterState.MOVING ||
+        state === CharacterState.SLEEPING;
+
+      return shouldHaveRandomMovement && !hasComponent(world, RandomMovementComp, eid);
+    });
+
     console.log(
       `[RandomMovementSystem] Found ${chars.length} entities with RandomMovementComp, ${allChars.length} total character entities`,
     );
-    if (chars.length === 0 && allChars.length > 0) {
+    if (suspiciousChars.length > 0) {
       console.warn(
-        `[RandomMovementSystem] Character entities exist but none have RandomMovementComp!`,
+        `[RandomMovementSystem] ${suspiciousChars.length} active character entities are missing RandomMovementComp`,
       );
-      // 첫 번째 캐릭터 엔티티 정보 출력
-      const firstChar = allChars[0];
+      const firstChar = suspiciousChars[0];
       console.log(
-        `[RandomMovementSystem] First character entity ${firstChar} - has RandomMovementComp: ${RandomMovementComp.minIdleTime[firstChar] !== undefined}`,
+        `[RandomMovementSystem] First suspicious character entity ${firstChar} - state=${ObjectComp.state[firstChar]}, has RandomMovementComp=${hasComponent(world, RandomMovementComp, firstChar)}`,
       );
     }
   }

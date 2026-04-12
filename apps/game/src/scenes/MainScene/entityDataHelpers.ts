@@ -1,4 +1,3 @@
-// ECS 엔티티와 SavedEntity 간의 변환 헬퍼 함수들
 import { hasComponent, IWorld, addComponent } from "bitecs";
 import {
   ObjectComp,
@@ -21,7 +20,15 @@ import {
   FreshnessTimerComp,
 } from "./raw-components";
 import type { SavedEntity, EntityComponents } from "./world";
-import { CharacterKeyECS as CharacterKey, CharacterStatus } from "./types";
+import {
+  AnimationKey,
+  CharacterKeyECS as CharacterKey,
+  CharacterState,
+  CharacterStatus,
+  ObjectType,
+  SpritesheetKey,
+} from "./types";
+import { GAME_CONSTANTS } from "./config";
 
 /**
  * ECS 엔티티를 SavedEntity로 변환
@@ -375,4 +382,136 @@ export function applySavedEntityToECS(
       ? 1
       : 0;
   }
+}
+
+function ensureRandomMovementDefaults(eid: number, now: number): void {
+  const hasInvalidRange =
+    RandomMovementComp.minIdleTime[eid] <= 0 ||
+    RandomMovementComp.maxIdleTime[eid] < RandomMovementComp.minIdleTime[eid] ||
+    RandomMovementComp.minMoveTime[eid] <= 0 ||
+    RandomMovementComp.maxMoveTime[eid] < RandomMovementComp.minMoveTime[eid];
+
+  if (hasInvalidRange) {
+    RandomMovementComp.minIdleTime[eid] = 2000;
+    RandomMovementComp.maxIdleTime[eid] = 8000;
+    RandomMovementComp.minMoveTime[eid] = 1000;
+    RandomMovementComp.maxMoveTime[eid] = 8000;
+  }
+
+  const nextChange = RandomMovementComp.nextChange[eid];
+  if (!nextChange || nextChange <= 0) {
+    RandomMovementComp.nextChange[eid] = now + 1000 + Math.random() * 2000;
+  }
+}
+
+export function repairCharacterEntityRuntimeComponents(
+  world: IWorld,
+  eid: number,
+  now = Date.now()
+): string[] {
+  if (
+    !hasComponent(world, ObjectComp, eid) ||
+    ObjectComp.type[eid] !== ObjectType.CHARACTER
+  ) {
+    return [];
+  }
+
+  const repaired: string[] = [];
+  const state = ObjectComp.state[eid] as CharacterState;
+  const needsAnimation =
+    state !== CharacterState.EGG && state !== CharacterState.DEAD;
+  const needsRandomMovement =
+    state === CharacterState.IDLE ||
+    state === CharacterState.MOVING ||
+    state === CharacterState.SLEEPING;
+
+  if (!hasComponent(world, SpeedComp, eid)) {
+    addComponent(world, SpeedComp, eid);
+    SpeedComp.value[eid] = 0;
+    repaired.push("SpeedComp");
+  }
+
+  if (!hasComponent(world, DestinationComp, eid)) {
+    addComponent(world, DestinationComp, eid);
+    DestinationComp.type[eid] = ECS_NULL_VALUE;
+    DestinationComp.target[eid] = ECS_NULL_VALUE;
+    DestinationComp.x[eid] = ECS_NULL_VALUE;
+    DestinationComp.y[eid] = ECS_NULL_VALUE;
+    repaired.push("DestinationComp");
+  }
+
+  if (!hasComponent(world, StatusIconRenderComp, eid)) {
+    addComponent(world, StatusIconRenderComp, eid);
+    StatusIconRenderComp.storeIndexes[eid] = new Uint8Array(
+      ECS_CHARACTER_STATUS_LENGTH
+    ).fill(ECS_NULL_VALUE);
+    StatusIconRenderComp.visibleCount[eid] = 0;
+    repaired.push("StatusIconRenderComp");
+  }
+
+  if (!hasComponent(world, DigestiveSystemComp, eid)) {
+    addComponent(world, DigestiveSystemComp, eid);
+    DigestiveSystemComp.capacity[eid] = GAME_CONSTANTS.DIGESTIVE_CAPACITY;
+    DigestiveSystemComp.currentLoad[eid] = 0;
+    DigestiveSystemComp.nextPoopTime[eid] = 0;
+    repaired.push("DigestiveSystemComp");
+  }
+
+  if (!hasComponent(world, DiseaseSystemComp, eid)) {
+    addComponent(world, DiseaseSystemComp, eid);
+    DiseaseSystemComp.nextCheckTime[eid] =
+      now + GAME_CONSTANTS.DISEASE_CHECK_INTERVAL;
+    DiseaseSystemComp.sickStartTime[eid] = 0;
+    repaired.push("DiseaseSystemComp");
+  }
+
+  if (!hasComponent(world, VitalityComp, eid)) {
+    addComponent(world, VitalityComp, eid);
+    VitalityComp.urgentStartTime[eid] = 0;
+    VitalityComp.deathTime[eid] = 0;
+    VitalityComp.isDead[eid] = state === CharacterState.DEAD ? 1 : 0;
+    repaired.push("VitalityComp");
+  }
+
+  if (!hasComponent(world, TemporaryStatusComp, eid)) {
+    addComponent(world, TemporaryStatusComp, eid);
+    TemporaryStatusComp.statusType[eid] = ECS_NULL_VALUE;
+    TemporaryStatusComp.startTime[eid] = 0;
+    repaired.push("TemporaryStatusComp");
+  }
+
+  if (!hasComponent(world, EggHatchComp, eid)) {
+    addComponent(world, EggHatchComp, eid);
+    EggHatchComp.hatchTime[eid] =
+      state === CharacterState.EGG ? now + GAME_CONSTANTS.EGG_HATCH_TIME : 0;
+    EggHatchComp.isReadyToHatch[eid] = 0;
+    repaired.push("EggHatchComp");
+  }
+
+  if (
+    needsAnimation &&
+    hasComponent(world, CharacterStatusComp, eid) &&
+    !hasComponent(world, AnimationRenderComp, eid)
+  ) {
+    addComponent(world, AnimationRenderComp, eid);
+    AnimationRenderComp.storeIndex[eid] = ECS_NULL_VALUE;
+    AnimationRenderComp.spritesheetKey[eid] =
+      CharacterStatusComp.characterKey[eid] || SpritesheetKey.TestGreenSlimeA1;
+    AnimationRenderComp.animationKey[eid] = AnimationKey.IDLE;
+    AnimationRenderComp.isPlaying[eid] = 1;
+    AnimationRenderComp.loop[eid] = 1;
+    AnimationRenderComp.speed[eid] = 0.04;
+    repaired.push("AnimationRenderComp");
+  }
+
+  if (needsRandomMovement) {
+    if (!hasComponent(world, RandomMovementComp, eid)) {
+      addComponent(world, RandomMovementComp, eid);
+      repaired.push("RandomMovementComp");
+    }
+
+    ensureRandomMovementDefaults(eid, now);
+  }
+
+  return repaired;
 }

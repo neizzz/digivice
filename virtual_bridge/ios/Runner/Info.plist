@@ -11,6 +11,8 @@
 
 	<key>NFCReaderUsageDescription</key>
 	<string>We use NFC to read and write tags.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>We use your location to calculate local sunrise and sunset times.</string>
 
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>

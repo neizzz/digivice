@@ -29,7 +29,7 @@ export class HTMLDebugGaugeUI {
   private _createContainer(): HTMLDivElement {
     const container = document.createElement("div");
     container.style.cssText = `
-      position: fixed;
+      position: absolute;
       top: 4px;
       left: 100px;
       background: rgba(0, 0, 0, 0.4);

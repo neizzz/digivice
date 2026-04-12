@@ -5,6 +5,7 @@ import { DevEnvironmentBadge } from "./components/DevEnvironmentBadge";
 import { AdManager } from "./ad/AdManager";
 import { AppReenterPolicy } from "./ad/policies/AppReenterPolicy";
 import { UrgentRecoveryPolicy } from "./ad/policies/UrgentRecoveryPolicy";
+import SimpleLogViewer from "../components/SimpleLogViewer/SimpleLogViewer";
 
 // AdManager 글로벌 인스턴스
 let adManager: AdManager | null = null;
@@ -94,9 +95,12 @@ const App = () => {
   };
 
   return (
-    <div id="app-container">
+    <div id="app-shell">
       <DevEnvironmentBadge />
-      <GameContainer />
+      <div id="app-container">
+        <GameContainer />
+        <SimpleLogViewer position="top-right" initialOpen={false} />
+      </div>
     </div>
   );
 };

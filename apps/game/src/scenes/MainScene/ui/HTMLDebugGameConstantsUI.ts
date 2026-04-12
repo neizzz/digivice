@@ -85,11 +85,11 @@ export class HTMLDebugGameConstantsUI {
   private _createContainer(): HTMLDivElement {
     const container = document.createElement("div");
     container.style.cssText = `
-      position: fixed;
+      position: absolute;
       top: 48px;
       right: 12px;
-      width: min(360px, calc(100vw - 24px));
-      max-height: calc(100vh - 60px);
+      width: min(360px, calc(100% - 24px));
+      max-height: calc(100% - 60px);
       overflow: auto;
       background: rgba(0, 0, 0, 0.72);
       border: 1px solid rgba(255, 255, 255, 0.18);
@@ -201,7 +201,7 @@ export class HTMLDebugGameConstantsUI {
       ? "DBG CONST ON"
       : "DBG CONST";
     this._toggleButton.style.cssText = `
-      position: fixed;
+      position: absolute;
       top: 12px;
       right: 12px;
       min-width: 88px;

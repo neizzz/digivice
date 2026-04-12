@@ -14,7 +14,7 @@ export class HTMLDebugToggleButton {
     const button = document.createElement("button");
     button.textContent = "DEBUG";
     button.style.cssText = `
-      position: fixed;
+      position: absolute;
       top: 20px;
       left: 20px;
       width: 80px;

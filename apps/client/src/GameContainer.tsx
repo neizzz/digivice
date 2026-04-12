@@ -17,12 +17,9 @@ import AlertLayer from "./layers/AlertLayer";
 import SettingMenuLayer from "./layers/SettingMenuLayer";
 import useAlert from "./hooks/useAlert";
 import { getGameSettings, updateGameSettings } from "./settings/gameSettings";
+import { sanitizeStoredWorldData } from "./utils/sanitizeStoredWorldData";
 
 const WORLD_DATA_STORAGE_KEY = "MainSceneWorldData";
-
-type StoredWorldData = {
-  entities?: unknown[];
-};
 
 function waitForAnimationFrame(): Promise<void> {
   return new Promise((resolve) => {
@@ -51,6 +48,10 @@ const GameContainer: React.FC = () => {
   const [showSetupLayer, setShowSetupLayer] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const { alertState, showAlert, hideAlert } = useAlert();
+  const [sanitizeResetAlert, setSanitizeResetAlert] = useState<{
+    title: string;
+    message: string;
+  } | null>(null);
   const isInitializedRef = useRef<boolean>(false);
   const initialSetupDataRef = useRef<SetupFormData | null>(null);
   const pendingSetupResolverRef = useRef<
@@ -80,7 +81,7 @@ const GameContainer: React.FC = () => {
     setGameSettings(updateGameSettings({ notificationEnabled: enabled }));
   }, []);
 
-  const handleResetGameData = useCallback(async () => {
+  const resetGameData = useCallback(async () => {
     try {
       if (gameInstance) {
         await gameInstance.destroyForReset();
@@ -102,23 +103,65 @@ const GameContainer: React.FC = () => {
       setShowSetupLayer(true);
       setIsLoading(false);
       setGameInstance(null);
+      setSanitizeResetAlert(null);
     } catch (error) {
       console.error("[GameContainer] 게임 데이터 초기화 중 오류:", error);
       showAlert("게임 데이터 초기화에 실패했습니다.", "오류");
     }
   }, [gameInstance, showAlert]);
 
-  const hasSavedGameData = useCallback(async (): Promise<boolean> => {
+  const handleResetGameData = useCallback(async () => {
+    await resetGameData();
+  }, [resetGameData]);
+
+  const handleSanitizeResetConfirm = useCallback(async () => {
+    await resetGameData();
+  }, [resetGameData]);
+
+  const prepareSavedGameData = useCallback(async (): Promise<
+    "playable" | "setup_required" | "reset_required"
+  > => {
     try {
       const storage = createStorage();
-      const savedData = (await storage.getData(
-        WORLD_DATA_STORAGE_KEY,
-      )) as StoredWorldData | null;
+      const savedData = await storage.getData(WORLD_DATA_STORAGE_KEY);
+      const result = sanitizeStoredWorldData(savedData);
 
-      return !!savedData?.entities?.length;
+      if (
+        result.changed &&
+        result.sanitizedData &&
+        result.action !== "reset_required"
+      ) {
+        await storage.setData(WORLD_DATA_STORAGE_KEY, result.sanitizedData);
+        console.warn(
+          "[GameContainer] 저장 데이터를 자동 복구하여 다시 저장했습니다.",
+          result.sanitizedData,
+        );
+      }
+
+      if (result.action === "reset_required") {
+        console.warn(
+          "[GameContainer] 저장 데이터가 손상되어 초기화가 필요합니다.",
+          result.sanitizedData,
+        );
+        setSanitizeResetAlert({
+          title: "데이터 복구 안내",
+          message:
+            result.resetReason ??
+            "기존 게임 데이터가 손상되어 복구할 수 없어 새로 시작합니다. 확인을 누르면 데이터를 초기화하고 시작 설정 화면으로 이동합니다.",
+        });
+        setIsLoading(false);
+      }
+
+      return result.action;
     } catch (error) {
       console.error("[GameContainer] 게임 데이터 확인 중 오류:", error);
-      return false;
+      setSanitizeResetAlert({
+        title: "데이터 복구 안내",
+        message:
+          "기존 게임 데이터를 읽는 중 문제가 발생했습니다. 확인을 누르면 데이터를 초기화하고 시작 설정 화면으로 이동합니다.",
+      });
+      setIsLoading(false);
+      return "reset_required";
     }
   }, []);
 
@@ -146,9 +189,13 @@ const GameContainer: React.FC = () => {
     if (isInitializedRef.current) return;
 
     setIsLoading(true);
+    const debugParentElement =
+      gameContainerRef.current.closest("#app-container") ??
+      gameContainerRef.current;
 
     const game = new Game({
       parentElement: gameContainerRef.current as HTMLDivElement,
+      debugParentElement: debugParentElement as HTMLDivElement,
       onCreateInitialGameData: async () => {
         return initialSetupDataRef.current ?? (await requestInitialGameData());
       },
@@ -196,10 +243,14 @@ const GameContainer: React.FC = () => {
       if (!gameContainerRef.current) return;
       if (isInitializedRef.current) return;
 
-      const savedGameDataExists = await hasSavedGameData();
+      const savedGameDataState = await prepareSavedGameData();
       if (!isMounted) return;
 
-      if (!savedGameDataExists) {
+      if (savedGameDataState === "reset_required") {
+        return;
+      }
+
+      if (savedGameDataState === "setup_required") {
         await requestInitialGameData();
         if (!isMounted) return;
         await waitForLayoutStabilization();
@@ -217,8 +268,8 @@ const GameContainer: React.FC = () => {
     };
   }, [
     gameSessionKey,
-    hasSavedGameData,
     initializeGame,
+    prepareSavedGameData,
     requestInitialGameData,
   ]);
 
@@ -319,6 +370,13 @@ const GameContainer: React.FC = () => {
           title={alertState.title}
           message={alertState.message}
           onClose={hideAlert}
+        />
+      )}
+      {sanitizeResetAlert && (
+        <AlertLayer
+          title={sanitizeResetAlert.title}
+          message={sanitizeResetAlert.message}
+          onClose={handleSanitizeResetConfirm}
         />
       )}
     </div>
