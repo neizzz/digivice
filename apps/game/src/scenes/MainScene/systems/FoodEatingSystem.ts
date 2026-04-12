@@ -141,10 +141,31 @@ function updateMovingToFood(world: MainSceneWorld, delta: number): void {
       console.warn(
         `[FoodEatingSystem] Character ${eid} has DestinationComp but target is 0 (NULL), removing DestinationComp`,
       );
-      // 잘못된 DestinationComp 제거
-      removeComponent(world, DestinationComp, eid);
-      // 캐릭터를 IDLE 상태로 복원
-      ObjectComp.state[eid] = CharacterState.IDLE;
+      restoreFreeRoamingState(world, eid, 1000);
+      continue;
+    }
+
+    const hasValidTargetFood =
+      hasComponent(world, ObjectComp, targetFoodEid) &&
+      ObjectComp.type[targetFoodEid] === ObjectType.FOOD;
+
+    if (!hasValidTargetFood) {
+      console.warn(
+        `[FoodEatingSystem] Character ${eid} lost target food ${targetFoodEid}, restoring free roaming state`,
+      );
+      restoreFreeRoamingState(world, eid, 1000);
+      continue;
+    }
+
+    if (
+      hasComponent(world, FreshnessComp, targetFoodEid) &&
+      !isFoodEdible(FreshnessComp.freshness[targetFoodEid])
+    ) {
+      console.log(
+        `[FoodEatingSystem] Character ${eid} target food ${targetFoodEid} became stale before arrival, restoring free roaming state`,
+      );
+      ObjectComp.state[targetFoodEid] = FoodState.LANDED;
+      restoreFreeRoamingState(world, eid, 1000);
       continue;
     }
 
@@ -371,17 +392,18 @@ function findNearestFood(
 
     // 음식 타입인지 확인
     if (ObjectComp.type[foodEid] !== ObjectType.FOOD) {
-      console.log(
-        `[FoodEatingSystem] Entity ${foodEid} is not food (type: ${ObjectComp.type[foodEid]})`,
-      );
       continue;
     }
 
     // LANDED 상태인지 확인
     if (ObjectComp.state[foodEid] !== FoodState.LANDED) {
-      console.log(
-        `[FoodEatingSystem] Food ${foodEid} is not LANDED (state: ${ObjectComp.state[foodEid]})`,
-      );
+      continue;
+    }
+
+    if (
+      hasComponent(_world, FreshnessComp, foodEid) &&
+      !isFoodEdible(FreshnessComp.freshness[foodEid])
+    ) {
       continue;
     }
 
@@ -391,12 +413,6 @@ function findNearestFood(
 
     const distance = Math.sqrt(
       Math.pow(characterX - foodX, 2) + Math.pow(characterY - foodY, 2),
-    );
-
-    console.log(
-      `[FoodEatingSystem] Food ${foodEid} at (${foodX}, ${foodY}) - distance: ${distance.toFixed(
-        2,
-      )}`,
     );
 
     if (distance < minDistance) {
@@ -508,6 +524,18 @@ function startEating(
   characterEid: number,
   foodEid: number,
 ): void {
+  if (
+    hasComponent(world, FreshnessComp, foodEid) &&
+    !isFoodEdible(FreshnessComp.freshness[foodEid])
+  ) {
+    console.log(
+      `[FoodEatingSystem] Prevented character ${characterEid} from eating stale food ${foodEid}`,
+    );
+    ObjectComp.state[foodEid] = FoodState.LANDED;
+    restoreFreeRoamingState(world, characterEid, 1000);
+    return;
+  }
+
   console.log(
     `[FoodEatingSystem] Character ${characterEid} started eating food ${foodEid}`,
   );
@@ -585,6 +613,38 @@ function cancelEating(world: MainSceneWorld, characterEid: number): void {
   if (hasComponent(world, FoodEatingComp, characterEid)) {
     removeComponent(world, FoodEatingComp, characterEid);
   }
+}
+
+function restoreFreeRoamingState(
+  world: MainSceneWorld,
+  characterEid: number,
+  idleDelayMs: number,
+): void {
+  if (hasComponent(world, DestinationComp, characterEid)) {
+    removeComponent(world, DestinationComp, characterEid);
+  }
+
+  ObjectComp.state[characterEid] = CharacterState.IDLE;
+
+  if (!hasComponent(world, SpeedComp, characterEid)) {
+    addComponent(world, SpeedComp, characterEid);
+  }
+  SpeedComp.value[characterEid] = 0;
+
+  if (!hasComponent(world, RandomMovementComp, characterEid)) {
+    addComponent(world, RandomMovementComp, characterEid);
+  }
+
+  RandomMovementComp.minIdleTime[characterEid] = 1000;
+  RandomMovementComp.maxIdleTime[characterEid] = 3000;
+  RandomMovementComp.minMoveTime[characterEid] = 2000;
+  RandomMovementComp.maxMoveTime[characterEid] = 4000;
+  RandomMovementComp.nextChange[characterEid] =
+    world.currentTime + idleDelayMs + Math.random() * 1000;
+
+  console.log(
+    `[FoodEatingSystem] Restored free roaming state for character ${characterEid}`,
+  );
 }
 
 /**

@@ -4,6 +4,7 @@ import {
   exitQuery,
   addComponent,
   hasComponent,
+  removeComponent,
   removeEntity,
 } from "bitecs";
 import {
@@ -55,7 +56,11 @@ export function cleaningSystem(params: CleaningSystemParams): {
     return { world, delta };
   }
 
-  // 청소 모드 진입 시에만 청소 대상 엔티티들을 찾아서 CleanableComp 추가
+  // 청소 모드 동안 매 프레임 청소 가능 대상을 동기화한다.
+  // 그래야 청소 모드 진입 이후에 상한 음식이 생겨도 즉시 청소 타겟으로 잡힌다.
+  syncCleanableEntities(world);
+
+  // 청소 모드 진입 시 초기 포커스/슬라이더 상태만 세팅
   if (world.isEnteringCleaningMode) {
     handleEnterCleaningMode(world);
   }
@@ -96,9 +101,6 @@ export function clearCleaningTargets(world: MainSceneWorld): void {
  * 청소 모드 진입 시 처리
  */
 function handleEnterCleaningMode(world: MainSceneWorld): void {
-  // 청소 대상 엔티티들을 찾아서 CleanableComp 추가
-  markCleanableEntities(world);
-
   // 첫 번째 청소 대상을 포커스
   const cleanableEntities = cleanableEntitiesQuery(world);
   if (cleanableEntities.length > 0) {
@@ -113,8 +115,10 @@ function handleEnterCleaningMode(world: MainSceneWorld): void {
 /**
  * 새로운 청소 대상 엔티티 처리
  */
-function handleEnterCleanable(_world: MainSceneWorld, _eid: number): void {
-  // 이미 CleanableComp가 있으므로 특별한 처리 필요 없음
+function handleEnterCleanable(world: MainSceneWorld, eid: number): void {
+  if (world.focusedTargetEid === -1) {
+    world.setFocusedTargetEid(eid);
+  }
 }
 
 /**
@@ -179,21 +183,30 @@ function updateBroomMovement(
 }
 
 /**
- * 청소 대상 엔티티들을 찾아서 CleanableComp 추가
+ * 현재 엔티티가 청소 가능한 대상인지 확인
  */
-function markCleanableEntities(world: MainSceneWorld): void {
+function isCleanableEntity(world: MainSceneWorld, eid: number): boolean {
+  const isPoob = ObjectComp.type[eid] === ObjectType.POOB;
+  const isStaleFood =
+    ObjectComp.type[eid] === ObjectType.FOOD &&
+    hasComponent(world, FreshnessComp, eid) &&
+    FreshnessComp.freshness[eid] === Freshness.STALE &&
+    ObjectComp.state[eid] !== FoodState.BEING_THROWING;
+
+  return isPoob || isStaleFood;
+}
+
+/**
+ * 청소 가능 대상 동기화
+ * - 새로 청소 가능해진 엔티티에는 CleanableComp 추가
+ * - 더 이상 청소 가능하지 않은 엔티티에서는 CleanableComp 제거
+ */
+function syncCleanableEntities(world: MainSceneWorld): void {
   const candidateEntities = cleaningCandidateQuery(world);
 
   for (let i = 0; i < candidateEntities.length; i++) {
     const eid = candidateEntities[i];
-    const isPoob = ObjectComp.type[eid] === ObjectType.POOB;
-    const isStaleFood =
-      ObjectComp.type[eid] === ObjectType.FOOD &&
-      ObjectComp.state[eid] === FoodState.LANDED &&
-      hasComponent(world, FreshnessComp, eid) &&
-      FreshnessComp.freshness[eid] === Freshness.STALE;
-
-    if (!isPoob && !isStaleFood) {
+    if (!isCleanableEntity(world, eid)) {
       continue;
     }
 
@@ -204,6 +217,19 @@ function markCleanableEntities(world: MainSceneWorld): void {
     }
 
     CleanableComp.isHighlighted[eid] = 1;
+  }
+
+  const existingCleanableEntities = allCleanableQuery(world);
+  for (let i = 0; i < existingCleanableEntities.length; i++) {
+    const eid = existingCleanableEntities[i];
+    if (isCleanableEntity(world, eid)) {
+      continue;
+    }
+
+    CleanableComp.isHighlighted[eid] = 0;
+    CleanableComp.isBeingCleaned[eid] = 0;
+    CleanableComp.cleaningProgress[eid] = 0;
+    removeComponent(world, CleanableComp, eid);
   }
 }
 

@@ -5,14 +5,24 @@ import {
   AngleComp,
   CharacterStatusComp,
   ObjectComp,
+  DestinationComp,
 } from "../raw-components";
 import { MainSceneWorld } from "../world";
-import { CharacterState } from "../types";
+import { CharacterState, DestinationType } from "../types";
 import { nomalizeRadian } from "@/utils/common";
 import { getCharacterStats } from "../characterStats";
+import { repairCharacterEntityRuntimeComponents } from "../entityDataHelpers";
 
 const characterQuery = defineQuery([CharacterStatusComp, RandomMovementComp]);
 const allCharacterQuery = defineQuery([CharacterStatusComp, ObjectComp]);
+
+function hasDirectedMovement(world: MainSceneWorld, eid: number): boolean {
+  return (
+    hasComponent(world, DestinationComp, eid) &&
+    DestinationComp.type[eid] === DestinationType.TARGETED &&
+    DestinationComp.target[eid] !== 0
+  );
+}
 
 export function randomMovementSystem(params: {
   world: MainSceneWorld;
@@ -23,6 +33,35 @@ export function randomMovementSystem(params: {
   const shouldLog = !world.isSimulationMode;
   const chars = characterQuery(world);
   const allChars = allCharacterQuery(world);
+
+  for (let i = 0; i < allChars.length; i++) {
+    const eid = allChars[i];
+    const state = ObjectComp.state[eid];
+    const shouldHaveRandomMovement =
+      state === CharacterState.IDLE ||
+      state === CharacterState.MOVING ||
+      state === CharacterState.SLEEPING;
+
+    if (
+      shouldHaveRandomMovement &&
+      !hasComponent(world, RandomMovementComp, eid) &&
+      !hasDirectedMovement(world, eid)
+    ) {
+      const repaired = repairCharacterEntityRuntimeComponents(
+        world,
+        eid,
+        currentTime,
+      );
+
+      if (
+        repaired.includes("RandomMovementComp") &&
+        state === CharacterState.MOVING &&
+        SpeedComp.value[eid] <= 0
+      ) {
+        ObjectComp.state[eid] = CharacterState.IDLE;
+      }
+    }
+  }
 
   // 첫 번째 실행 시 전체 캐릭터 상태 로그
   if (
@@ -36,7 +75,11 @@ export function randomMovementSystem(params: {
         state === CharacterState.MOVING ||
         state === CharacterState.SLEEPING;
 
-      return shouldHaveRandomMovement && !hasComponent(world, RandomMovementComp, eid);
+      return (
+        shouldHaveRandomMovement &&
+        !hasComponent(world, RandomMovementComp, eid) &&
+        !hasDirectedMovement(world, eid)
+      );
     });
 
     console.log(

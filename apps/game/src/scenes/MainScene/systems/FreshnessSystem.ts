@@ -96,6 +96,17 @@ function updateFreshness(world: MainSceneWorld, currentTime: number): void {
 
     const currentFreshness = freshnessComp.freshness[eid];
 
+    // 이미 상한 음식이라면 저장 데이터/이전 상태에서 남은 TARGETED, BEING_INTAKEN 같은
+    // 잘못된 상태를 정리해서 청소 대상으로 일관되게 취급한다.
+    if (
+      currentFreshness === Freshness.STALE &&
+      ObjectComp.state[eid] !== FoodState.BEING_THROWING &&
+      !isBeingEaten &&
+      ObjectComp.state[eid] !== FoodState.LANDED
+    ) {
+      ObjectComp.state[eid] = FoodState.LANDED;
+    }
+
     // FRESH -> NORMAL
     if (
       currentFreshness === Freshness.FRESH &&

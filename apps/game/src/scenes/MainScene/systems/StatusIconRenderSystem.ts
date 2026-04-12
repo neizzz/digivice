@@ -12,6 +12,13 @@ import * as PIXI from "pixi.js";
 import { MainSceneWorld } from "../world";
 import { CharacterStatus, ObjectType, TextureKey } from "../types";
 
+function getEffectiveCharacterZIndex(eid: number): number {
+  const configuredZIndex = RenderComp.zIndex[eid];
+  return configuredZIndex === ECS_NULL_VALUE
+    ? PositionComp.y[eid]
+    : configuredZIndex;
+}
+
 // 일시적인 상태들 (3초 후 자동 제거)
 const TEMPORARY_STATUSES = [CharacterStatus.HAPPY, CharacterStatus.DISCOVER];
 const TEMPORARY_STATUS_DURATION = 3000;
@@ -202,6 +209,7 @@ export function statusIconRenderSystem(params: {
       x: PositionComp.x[eid],
       y: PositionComp.y[eid],
     };
+    const characterZIndex = getEffectiveCharacterZIndex(eid);
 
     // 현재 상태들 가져오기
     const allStatuses: CharacterStatus[] = [];
@@ -266,7 +274,7 @@ export function statusIconRenderSystem(params: {
 
       sprites[j].x = startX;
       sprites[j].y = position.y - 50;
-      sprites[j].zIndex = RenderComp.zIndex[eid]; // 캐릭터와 같은 zIndex
+      sprites[j].zIndex = characterZIndex;
     }
 
     // 일시적 상태 아이콘 처리 (캐릭터 우측상단에 1개만)
@@ -300,7 +308,7 @@ export function statusIconRenderSystem(params: {
         const tempSprite = entityTemporarySprites.get(eid)!;
         tempSprite.x = position.x + 25; // 캐릭터 우측 (더 오른쪽으로)
         tempSprite.y = position.y - 40; // 캐릭터 상단
-        tempSprite.zIndex = RenderComp.zIndex[eid]; // 캐릭터와 같은 zIndex
+        tempSprite.zIndex = characterZIndex;
       }
     } else {
       // 일시적 상태가 없으면 기존 일시적 스프라이트 제거

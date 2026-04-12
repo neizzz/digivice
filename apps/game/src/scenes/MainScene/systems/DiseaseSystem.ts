@@ -11,9 +11,16 @@ import {
   VitalityComp,
   RandomMovementComp,
   DestinationComp,
+  FreshnessComp,
 } from "../raw-components";
 import { MainSceneWorld } from "../world";
-import { ObjectType, CharacterStatus, CharacterState } from "../types";
+import {
+  ObjectType,
+  CharacterStatus,
+  CharacterState,
+  Freshness,
+  FoodState,
+} from "../types";
 import { GAME_CONSTANTS } from "../config";
 
 const characterQuery = defineQuery([
@@ -170,7 +177,7 @@ function restoreMovement(world: MainSceneWorld, eid: number): void {
 /**
  * 질병 확률 계산 (상세 로그 포함)
  */
-function calculateDiseaseRate(
+export function calculateDiseaseRate(
   world: MainSceneWorld,
   eid: number
 ): {
@@ -182,6 +189,7 @@ function calculateDiseaseRate(
     staleFood: number;
     stamina: number;
     poopCount: number;
+    staleFoodCount: number;
   };
 } {
   let diseaseRate = GAME_CONSTANTS.BASE_DISEASE_RATE;
@@ -192,6 +200,7 @@ function calculateDiseaseRate(
     staleFood: 0,
     stamina: CharacterStatusComp.stamina[eid],
     poopCount: 0,
+    staleFoodCount: 0,
   };
 
   // 스테미나가 3이하일 때 3% 추가
@@ -211,15 +220,44 @@ function calculateDiseaseRate(
     breakdown.poopBonus = poopBonus;
   }
 
-  // TODO: 상한음식 개수 계산 (추후 구현)
-  // const staleCount = countStaleFoodInWorld(world);
-  // diseaseRate += staleCount * GAME_CONSTANTS.STALE_FOOD_DISEASE_RATE;
-  // breakdown.staleFood = staleCount * GAME_CONSTANTS.STALE_FOOD_DISEASE_RATE;
+  const staleCount = countStaleFoodInWorld(world);
+  breakdown.staleFoodCount = staleCount;
+  if (staleCount > 0) {
+    const staleFoodBonus =
+      staleCount * GAME_CONSTANTS.STALE_FOOD_DISEASE_RATE;
+    diseaseRate += staleFoodBonus;
+    breakdown.staleFood = staleFoodBonus;
+  }
 
   return {
     rate: Math.min(diseaseRate, 1.0), // 최대 100%
     breakdown,
   };
+}
+
+function countStaleFoodInWorld(world: MainSceneWorld): number {
+  const objectQuery = defineQuery([ObjectComp, FreshnessComp]);
+  const entities = objectQuery(world);
+  let count = 0;
+
+  for (let i = 0; i < entities.length; i++) {
+    const eid = entities[i];
+    if (ObjectComp.type[eid] !== ObjectType.FOOD) {
+      continue;
+    }
+
+    if (FreshnessComp.freshness[eid] !== Freshness.STALE) {
+      continue;
+    }
+
+    if (ObjectComp.state[eid] === FoodState.BEING_THROWING) {
+      continue;
+    }
+
+    count++;
+  }
+
+  return count;
 }
 
 /**

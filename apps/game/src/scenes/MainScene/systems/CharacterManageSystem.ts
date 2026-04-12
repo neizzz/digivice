@@ -273,6 +273,26 @@ export function getCharacterEvolutionGauge(eid: number): number {
   return CharacterStatusComp.evolutionGage[eid] || 0;
 }
 
+export function getRemainingStaminaDecreaseTime(eid: number): number {
+  const elapsed = staminaTimers.get(eid) || 0;
+  return Math.max(0, GAME_CONSTANTS.STAMINA_DECREASE_INTERVAL - elapsed);
+}
+
+export function getRemainingEvolutionGaugeTime(eid: number): number | null {
+  const currentStamina = CharacterStatusComp.stamina[eid];
+  const isSick = hasCharacterStatus(eid, CharacterStatus.SICK);
+
+  if (
+    currentStamina < GAME_CONSTANTS.EVOLUTION_GAUGE_STATMINA_THRESHOLD ||
+    isSick
+  ) {
+    return null;
+  }
+
+  const elapsed = evolutionGaugeTimers.get(eid) || 0;
+  return Math.max(0, GAME_CONSTANTS.EVOLUTION_GAUGE_CHECK_INTERVAL - elapsed);
+}
+
 export function clearCharacterStatuses(eid: number): void {
   const currentStatuses = CharacterStatusComp.statuses[eid];
   // 모든 슬롯을 ECS_NULL_VALUE로 초기화 (길이는 유지)

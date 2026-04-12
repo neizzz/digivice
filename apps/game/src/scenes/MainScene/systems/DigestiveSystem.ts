@@ -160,15 +160,6 @@ function checkPoopTime(world: MainSceneWorld, currentTime: number): void {
     const digestiveComp = DigestiveSystemComp;
     const nextPoopTime = digestiveComp.nextPoopTime[eid];
 
-    // 똥 싸는 시간이 설정된 캐릭터에 대해 로그
-    if (nextPoopTime > 0) {
-      console.log(
-        `[DigestiveSystem] Character ${eid} - nextPoopTime: ${nextPoopTime}, currentTime: ${currentTime}, remaining: ${
-          nextPoopTime - currentTime
-        }ms`,
-      );
-    }
-
     // 똥 싸는 시간이 되었는지 체크
     if (
       digestiveComp.nextPoopTime[eid] > 0 &&
