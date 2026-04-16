@@ -8,6 +8,7 @@ import 'vibration/vibration_controller.dart';
 
 /// WebView와 네이티브 코드 간 브릿지 설정을 담당하는 클래스
 class BridgeConfigurator {
+  static const int _promisePreviewLimit = 120;
   final WebViewController webViewController;
   final Function(String message) logCallback;
   final bool forwardConsoleMessages;
@@ -184,16 +185,58 @@ class BridgeConfigurator {
     String? data,
     String? error,
   }) async {
-    final String encodedData = data != null ? jsonEncode(data) : 'undefined';
-    final String encodedError = error != null ? jsonEncode(error) : 'undefined';
+    final String encodedData = data != null ? jsonEncode(data) : 'null';
+    final String encodedError = error != null ? jsonEncode(error) : 'null';
+    logCallback(
+      '[BridgeConfigurator] resolvePromise id=$id '
+      'dataIsNull=${data == null} errorIsNull=${error == null} '
+      'dataPreview=${_previewPromiseValue(data)} '
+      'errorPreview=${_previewPromiseValue(error)}',
+    );
     final jsCode = '''
-      window.__resolvePromise(
-        "$id", 
-        $encodedData, 
-        $encodedError
-      );
+      (() => {
+        const __bridgeData = $encodedData;
+        const __bridgeError = $encodedError;
+        const __preview = (value) => {
+          if (value === null) return "null";
+          if (typeof value === "undefined") return "undefined";
+          const stringValue =
+            typeof value === "string" ? value : JSON.stringify(value) ?? String(value);
+          return stringValue.length > $_promisePreviewLimit
+            ? stringValue.slice(0, $_promisePreviewLimit) + "…"
+            : stringValue;
+        };
+        console.debug("[BridgeConfigurator] resolvePromise", {
+          id: "$id",
+          dataType: typeof __bridgeData,
+          isDataNull: __bridgeData === null,
+          isDataUndefined: typeof __bridgeData === "undefined",
+          dataPreview: __preview(__bridgeData),
+          errorType: typeof __bridgeError,
+          isErrorNull: __bridgeError === null,
+          isErrorUndefined: typeof __bridgeError === "undefined",
+          errorPreview: __preview(__bridgeError),
+        });
+        window.__resolvePromise(
+          "$id",
+          __bridgeData,
+          __bridgeError
+        );
+      })();
     ''';
     await _runJavaScript(jsCode);
+  }
+
+  String _previewPromiseValue(String? value) {
+    if (value == null) {
+      return 'null';
+    }
+
+    if (value.length <= _promisePreviewLimit) {
+      return value;
+    }
+
+    return '${value.substring(0, _promisePreviewLimit)}…';
   }
 
   /// 리소스 정리

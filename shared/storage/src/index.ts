@@ -7,7 +7,7 @@ export interface Storage {
 }
 
 interface NativeStorageController {
-  getData(key: string): Promise<string | null>;
+  getData(key: string): Promise<string | null | undefined>;
   setData(key: string, value: string): Promise<void>;
   removeData(key: string): Promise<void>;
 }
@@ -18,12 +18,48 @@ declare global {
   }
 }
 
+const STORAGE_PREVIEW_LIMIT = 120;
+
 function _serialize(obj: unknown): string {
   return JSON.stringify(obj);
 }
 
 function _deserialize<T>(json: string): T {
   return JSON.parse(json) as T;
+}
+
+function _isMissingSerializedValue(value: unknown): boolean {
+  if (value === null || typeof value === "undefined") {
+    return true;
+  }
+
+  if (typeof value !== "string") {
+    return false;
+  }
+
+  const normalizedValue = value.trim();
+  return (
+    normalizedValue === "" ||
+    normalizedValue === "undefined" ||
+    normalizedValue === "null"
+  );
+}
+
+function _previewValue(value: unknown): string {
+  if (value === null) {
+    return "null";
+  }
+
+  if (typeof value === "undefined") {
+    return "undefined";
+  }
+
+  const stringValue =
+    typeof value === "string" ? value : JSON.stringify(value) ?? String(value);
+
+  return stringValue.length > STORAGE_PREVIEW_LIMIT
+    ? `${stringValue.slice(0, STORAGE_PREVIEW_LIMIT)}…`
+    : stringValue;
 }
 
 export function hasNativeStorageController(): boolean {
@@ -40,31 +76,53 @@ export class WebLocalStorage implements Storage {
   // }, 1000);
 
   async getData(key: string): Promise<unknown | null> {
-    // 동기 API를 Promise로 감싸서 비동기 API처럼 사용
-    // console.debug(
-    //   "[WebLocalStorage] getItem():",
-    //   key,
-    //   // @ts-ignore
-    //   JSON.parse(localStorage.getItem(key))
-    // );
+    console.debug("[WebLocalStorage] getData:start", { key });
     const value = localStorage.getItem(key);
     if (value === null) {
-      console.debug("[WebLocalStorage] getItem():", key, "not found");
+      console.debug("[WebLocalStorage] getData:miss", { key });
       return await Promise.resolve(null);
     }
-    // console.debug("[WebLocalStorage] getItem():", key, value);
-    return await Promise.resolve(_deserialize(value));
+
+    console.debug("[WebLocalStorage] getData:raw", {
+      key,
+      length: value.length,
+      preview: _previewValue(value),
+    });
+
+    try {
+      const parsed = _deserialize(value);
+      console.debug("[WebLocalStorage] getData:parsed", {
+        key,
+        valueType: typeof parsed,
+      });
+      return await Promise.resolve(parsed);
+    } catch (error) {
+      console.warn("[WebLocalStorage] getData:parse_failed", {
+        key,
+        preview: _previewValue(value),
+        error,
+      });
+      throw error;
+    }
   }
 
   setData(key: string, data: unknown): Promise<void> {
-    // this._throttledSetItem(key, value);
     const value = _serialize(data);
-    console.debug("[WebLocalStorage] setItem():", key, value);
-    return Promise.resolve(localStorage.setItem(key, value));
+    console.debug("[WebLocalStorage] setData:start", {
+      key,
+      length: value.length,
+      preview: _previewValue(value),
+    });
+    localStorage.setItem(key, value);
+    console.debug("[WebLocalStorage] setData:success", { key });
+    return Promise.resolve();
   }
 
   removeData(key: string): Promise<void> {
-    return Promise.resolve(localStorage.removeItem(key));
+    console.debug("[WebLocalStorage] removeData:start", { key });
+    localStorage.removeItem(key);
+    console.debug("[WebLocalStorage] removeData:success", { key });
+    return Promise.resolve();
   }
 }
 
@@ -79,20 +137,57 @@ export class FlutterStorage implements Storage {
   }
 
   async getData(key: string): Promise<unknown | null> {
+    console.debug("[FlutterStorage] getData:start", { key });
     const value = await this._getStorageController().getData(key);
 
-    if (value === null) {
+    console.debug("[FlutterStorage] getData:raw", {
+      key,
+      rawType: typeof value,
+      isNull: value === null,
+      preview: _previewValue(value),
+    });
+
+    if (_isMissingSerializedValue(value)) {
+      console.debug("[FlutterStorage] getData:miss", { key });
       return null;
     }
 
-    return _deserialize(value);
+    try {
+      const serializedValue = value as string;
+      console.debug("[FlutterStorage] getData:parse_attempt", {
+        key,
+        preview: _previewValue(serializedValue),
+      });
+      const parsed = _deserialize(serializedValue);
+      console.debug("[FlutterStorage] getData:parsed", {
+        key,
+        valueType: typeof parsed,
+      });
+      return parsed;
+    } catch (error) {
+      console.warn("[FlutterStorage] getData:parse_failed", {
+        key,
+        preview: _previewValue(value),
+        error,
+      });
+      throw error;
+    }
   }
 
-  setData(key: string, value: unknown): Promise<void> {
-    return this._getStorageController().setData(key, _serialize(value));
+  async setData(key: string, value: unknown): Promise<void> {
+    const serializedValue = _serialize(value);
+    console.debug("[FlutterStorage] setData:start", {
+      key,
+      length: serializedValue.length,
+      preview: _previewValue(serializedValue),
+    });
+    await this._getStorageController().setData(key, serializedValue);
+    console.debug("[FlutterStorage] setData:success", { key });
   }
 
-  removeData(key: string): Promise<void> {
-    return this._getStorageController().removeData(key);
+  async removeData(key: string): Promise<void> {
+    console.debug("[FlutterStorage] removeData:start", { key });
+    await this._getStorageController().removeData(key);
+    console.debug("[FlutterStorage] removeData:success", { key });
   }
 }
