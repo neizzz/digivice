@@ -7,7 +7,7 @@ import { FlappyBirdGameScene } from "./scenes/FlappyBirdGameScene";
 
 PIXI.TexturePool.textureOptions.scaleMode = "nearest";
 
-const SCREEN_PADDING = 10;
+const SCREEN_PADDING = 14;
 
 export type ControlButtonsChangeCallback = (
   controlButtonParamsSet: [
