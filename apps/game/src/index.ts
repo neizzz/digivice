@@ -4,3 +4,4 @@ export { SceneKey } from "./SceneKey";
 
 export * from "./ui/types";
 export * from "./types/Character";
+export * from "./utils/nameLabel";

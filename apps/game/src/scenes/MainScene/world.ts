@@ -43,6 +43,10 @@ import { animationRenderSystem } from "./systems/AnimationRenderSystem";
 import { animationStateSystem } from "./systems/AnimationStateSystem";
 import { statusIconRenderSystem } from "./systems/StatusIconRenderSystem";
 import { renderSystem } from "./systems/RenderSystem";
+import {
+  characterNameLabelSystem,
+  cleanupCharacterNameLabels,
+} from "./systems/CharacterNameLabelSystem";
 import { dataSyncSystem } from "./systems/DataSyncSystem";
 import { throwAnimationSystem } from "./systems/ThrowAnimationSystem";
 import { foodEatingSystem } from "./systems/FoodEatingSystem";
@@ -908,6 +912,7 @@ export class MainSceneWorld implements IWorld, Scene {
     // 수면 효과 정리
     if (this._stage) {
       cleanupSleepEffects(this._stage);
+      cleanupCharacterNameLabels();
     }
 
     // 일시정지 상태로 설정 (다른 scene으로 전환되므로)
@@ -2050,10 +2055,13 @@ export class MainSceneWorld implements IWorld, Scene {
     // 3. 정적 스프라이트 렌더링
     renderSystem(params);
 
-    // 4. 청소 대상 렌더링
+    // 4. 캐릭터 이름표 렌더링
+    characterNameLabelSystem(params);
+
+    // 5. 청소 대상 렌더링
     cleanableRenderSystem({ ...params, stage: this._stage });
 
-    // 5. 수면 효과 렌더링
+    // 6. 수면 효과 렌더링
     sleepEffectSystem({ ...params, stage: this._stage });
 
     return params;
