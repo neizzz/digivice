@@ -10,6 +10,7 @@ import { ObjectType, CharacterKeyECS, CharacterState } from "../types";
 import {
   ensureCharacterSpritesheetLoaded,
 } from "../../../utils/asset";
+import { ensureCharacterOpaqueBoundsComputed } from "./CharacterOpaqueBounds";
 
 /**
  * 진화 처리 함수
@@ -99,6 +100,8 @@ async function applyEvolutionWithLoadedAsset(params: {
     );
     return;
   }
+
+  await ensureCharacterOpaqueBoundsComputed(nextCharacterKey);
 
   // 진화 처리 (에셋 로드 성공 후 반영)
   CharacterStatusComp.evolutionPhase[eid] = nextPhase;

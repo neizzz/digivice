@@ -559,7 +559,7 @@ function getAvailableTextureKeys(): number[] {
 /**
  * TextureKey에 대응하는 스프라이트시트와 텍스처 정보를 반환합니다
  */
-function getTextureInfo(
+export function getTextureInfo(
 	textureKey: number,
 ): { spritesheetAlias?: string; textureName: string } | null {
 	return TEXTURE_MAP[textureKey] || null;

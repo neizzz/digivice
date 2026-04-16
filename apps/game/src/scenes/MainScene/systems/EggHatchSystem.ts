@@ -11,6 +11,7 @@ import { CharacterState, AnimationKey } from "../types";
 import {
   ensureCharacterSpritesheetLoaded,
 } from "../../../utils/asset";
+import { ensureCharacterOpaqueBoundsComputed } from "./CharacterOpaqueBounds";
 
 const eggQuery = defineQuery([ObjectComp, EggHatchComp]);
 
@@ -76,6 +77,8 @@ async function hatchCharacter(
       EggHatchComp.isReadyToHatch[eid] = 0;
       return;
     }
+
+    await ensureCharacterOpaqueBoundsComputed(characterKey);
 
     // 캐릭터 상태를 IDLE로 변경
     ObjectComp.state[eid] = CharacterState.IDLE;

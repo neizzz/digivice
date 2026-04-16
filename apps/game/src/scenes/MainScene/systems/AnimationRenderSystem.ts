@@ -32,6 +32,10 @@ const animatedSpriteStore = new ObjectStore<PIXI.AnimatedSprite>(
   "AnimatedSpriteStore"
 );
 
+export function getAnimatedSpriteStore() {
+  return animatedSpriteStore;
+}
+
 export function animationRenderSystem(params: {
   world: MainSceneWorld;
   delta: number;

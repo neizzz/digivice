@@ -26,6 +26,7 @@ import {
   SpeedComponent,
   AnimationKey,
   SpritesheetKey,
+  TextureKey,
   ThrowAnimationComponent,
   DigestiveSystemComponent,
   DiseaseSystemComponent,
@@ -47,6 +48,15 @@ import {
   characterNameLabelSystem,
   cleanupCharacterNameLabels,
 } from "./systems/CharacterNameLabelSystem";
+import {
+  characterLayoutDebugSystem,
+  cleanupCharacterLayoutDebug,
+} from "./systems/CharacterLayoutDebugSystem";
+import {
+  ensureCharacterOpaqueBoundsComputed,
+  precomputeLoadedCharacterOpaqueBounds,
+  precomputeLoadedTextureOpaqueBounds,
+} from "./systems/CharacterOpaqueBounds";
 import { dataSyncSystem } from "./systems/DataSyncSystem";
 import { throwAnimationSystem } from "./systems/ThrowAnimationSystem";
 import { foodEatingSystem } from "./systems/FoodEatingSystem";
@@ -457,6 +467,12 @@ export class MainSceneWorld implements IWorld, Scene {
         );
       });
 
+      await precomputeLoadedCharacterOpaqueBounds();
+      await precomputeLoadedTextureOpaqueBounds([
+        TextureKey.EGG0,
+        TextureKey.EGG1,
+      ]);
+
       console.log("All game assets loaded successfully");
     } catch (error) {
       console.error("Failed to load game assets:", error);
@@ -623,6 +639,7 @@ export class MainSceneWorld implements IWorld, Scene {
           alias: spritesheetName,
           // pixelArt: true,
         });
+        await ensureCharacterOpaqueBoundsComputed(characterSpritesheetKey);
       }
 
       // 배경 설정
@@ -915,6 +932,7 @@ export class MainSceneWorld implements IWorld, Scene {
     if (this._stage) {
       cleanupSleepEffects(this._stage);
       cleanupCharacterNameLabels();
+      cleanupCharacterLayoutDebug(this._stage);
     }
     this._pendingRecoveryCureEids.clear();
 
@@ -1010,6 +1028,9 @@ export class MainSceneWorld implements IWorld, Scene {
         this._sceneDarknessOverlay = undefined;
       }
 
+      cleanupSleepEffects(this._stage);
+      cleanupCharacterNameLabels();
+      cleanupCharacterLayoutDebug(this._stage);
       this._pendingRecoveryCureEids.clear();
 
       this._background && this._stage.removeChild(this._background);
@@ -2104,10 +2125,13 @@ export class MainSceneWorld implements IWorld, Scene {
     // 4. 캐릭터 이름표 렌더링
     characterNameLabelSystem(params);
 
-    // 5. 청소 대상 렌더링
+    // 5. dev 빌드 전용 캐릭터 레이아웃 디버그 렌더링
+    characterLayoutDebugSystem({ ...params, stage: this._stage });
+
+    // 6. 청소 대상 렌더링
     cleanableRenderSystem({ ...params, stage: this._stage });
 
-    // 6. 수면 효과 렌더링
+    // 7. 수면 효과 렌더링
     sleepEffectSystem({ ...params, stage: this._stage });
 
     return params;

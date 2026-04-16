@@ -11,8 +11,10 @@ import {
   NAME_LABEL_STROKE_WIDTH,
   truncateNameLabelToWidth,
 } from "../../../utils/nameLabel";
-import { getAnimatedSpriteStore } from "./AnimationRenderSystem";
-import { getSpriteStore } from "./RenderSystem";
+import {
+  getCharacterDisplayObject,
+  getCharacterVerticalBounds,
+} from "./CharacterDisplayBounds";
 
 const characterQuery = defineQuery([ObjectComp, PositionComp, RenderComp]);
 const characterExitQuery = exitQuery(characterQuery);
@@ -27,9 +29,7 @@ const NAME_LABEL_STYLE = new PIXI.TextStyle({
   stroke: { color: NAME_LABEL_STROKE_COLOR, width: NAME_LABEL_STROKE_WIDTH },
 });
 
-const FALLBACK_CHARACTER_HEIGHT = 48;
-const LABEL_MARGIN = 8;
-const LABEL_VERTICAL_OFFSET = 26;
+const NAME_LABEL_BOTTOM_OFFSET = 4;
 const LABEL_Z_INDEX_OFFSET = 1000;
 
 export function characterNameLabelSystem(params: {
@@ -71,7 +71,7 @@ export function characterNameLabelSystem(params: {
       label.text = displayName;
     }
 
-    updateCharacterNameLabel(label, eid, displayObject);
+    updateCharacterNameLabel(label, eid);
   }
 
   return params;
@@ -117,47 +117,17 @@ function removeCharacterNameLabel(eid: number): void {
   labelStore.delete(eid);
 }
 
-function updateCharacterNameLabel(
-  label: PIXI.Text,
-  eid: number,
-  displayObject: PIXI.Container
-): void {
+function updateCharacterNameLabel(label: PIXI.Text, eid: number): void {
   const x = PositionComp.x[eid];
   const y = PositionComp.y[eid];
   const configuredZIndex = RenderComp.zIndex[eid];
   const effectiveZIndex =
     configuredZIndex === ECS_NULL_VALUE ? y : configuredZIndex;
-  const characterHeight = getDisplayObjectHeight(displayObject, eid);
+  const { bottomY } = getCharacterVerticalBounds(eid);
 
-  label.position.set(
-    x,
-    y + characterHeight / 2 + LABEL_MARGIN - LABEL_VERTICAL_OFFSET
-  );
+  label.position.set(x, bottomY + NAME_LABEL_BOTTOM_OFFSET);
   label.zIndex = effectiveZIndex + LABEL_Z_INDEX_OFFSET;
   label.visible = true;
-}
-
-function getCharacterDisplayObject(
-  eid: number
-): PIXI.Sprite | PIXI.AnimatedSprite | undefined {
-  return (
-    getSpriteStore().get(eid) ??
-    getAnimatedSpriteStore().get(eid)
-  );
-}
-
-function getDisplayObjectHeight(
-  displayObject: PIXI.Container,
-  eid: number
-): number {
-  const height = "height" in displayObject ? Number(displayObject.height) : NaN;
-
-  if (Number.isFinite(height) && height > 0) {
-    return height;
-  }
-
-  const scale = RenderComp.scale[eid];
-  return scale > 0 ? scale * 16 : FALLBACK_CHARACTER_HEIGHT;
 }
 
 function truncateDisplayName(name: string): string {
