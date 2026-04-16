@@ -78,6 +78,7 @@ import {
   PositionComp,
   CleanableComp,
   DiseaseSystemComp,
+  EffectAnimationComp,
 } from "./raw-components";
 import { generatePersistentNumericId } from "@/utils/generate";
 import {
@@ -302,6 +303,7 @@ export class MainSceneWorld implements IWorld, Scene {
   private _simulationTime: number | null = null;
   private _visibilityChangeHandler?: () => void; // Page Visibility API 이벤트 핸들러
   private _statusSystemsEnabled = true; // 상태 관리 시스템들 활성화 여부
+  private _pendingRecoveryCureEids = new Set<number>();
   private _isPersistenceDisabled = false;
   private _createInitialGameData?: () => Promise<{
     name: string;
@@ -662,7 +664,7 @@ export class MainSceneWorld implements IWorld, Scene {
           },
           onDrugSelect: () => {
             console.log("[MainSceneWorld] Drug selected");
-            this._handleDrugSelection();
+            this._handleHospitalSelection();
           },
           onCleanSelect: () => {
             console.log("[MainSceneWorld] Clean selected");
@@ -670,7 +672,7 @@ export class MainSceneWorld implements IWorld, Scene {
           },
           onHospitalSelect: () => {
             console.log("[MainSceneWorld] Hospital selected");
-            // TODO: 병원 기능 연결
+            this._handleHospitalSelection();
           },
           onCancel: () => {
             console.log("[MainSceneWorld] Menu cancelled");
@@ -914,6 +916,7 @@ export class MainSceneWorld implements IWorld, Scene {
       cleanupSleepEffects(this._stage);
       cleanupCharacterNameLabels();
     }
+    this._pendingRecoveryCureEids.clear();
 
     // 일시정지 상태로 설정 (다른 scene으로 전환되므로)
     this._isPaused = true;
@@ -1006,6 +1009,8 @@ export class MainSceneWorld implements IWorld, Scene {
         this._sceneDarknessOverlay.destroy();
         this._sceneDarknessOverlay = undefined;
       }
+
+      this._pendingRecoveryCureEids.clear();
 
       this._background && this._stage.removeChild(this._background);
       // this._assetsLoaded = false;
@@ -1688,57 +1693,98 @@ export class MainSceneWorld implements IWorld, Scene {
   }
 
   /**
-   * 약 메뉴 선택 처리 - sick 상태 해제 및 회복 애니메이션
+   * 병원 메뉴 선택 처리 - sick 상태일 때만 회복 주사기 연출 시작
    */
-  private _handleDrugSelection(): void {
+  private _handleHospitalSelection(): void {
     const characterEid = this._findMainCharacterEntity();
 
     if (characterEid === -1) {
       console.warn(
-        "[MainSceneWorld] No character entity found for drug delivery",
+        "[MainSceneWorld] No character entity found for hospital recovery",
       );
       return;
     }
 
-    // sick 상태 확인
-    const statuses = CharacterStatusComp.statuses[characterEid];
-    let isSick = false;
-
-    // 상태 배열에서 SICK 상태 확인
-    for (let i = 0; i < statuses.length; i++) {
-      if (statuses[i] === CharacterStatus.SICK) {
-        isSick = true;
-        break;
-      }
+    if (
+      hasComponent(this, EffectAnimationComp, characterEid) &&
+      EffectAnimationComp.isActive[characterEid]
+    ) {
+      console.log(
+        `[MainSceneWorld] Recovery animation already active for character ${characterEid}`,
+      );
+      return;
     }
 
+    const isSick = this._isCharacterSick(characterEid);
+
     if (isSick) {
-      // SICK 상태 제거
-      for (let i = 0; i < statuses.length; i++) {
-        if (statuses[i] === CharacterStatus.SICK) {
-          statuses[i] = ECS_NULL_VALUE;
-          break;
-        }
-      }
-
-      // DiseaseSystemComp의 sickStartTime 초기화
-      if (hasComponent(this, DiseaseSystemComp, characterEid)) {
-        DiseaseSystemComp.sickStartTime[characterEid] = 0;
-      }
-
-      // CharacterState를 IDLE로 변경
-      ObjectComp.state[characterEid] = CharacterState.IDLE;
-
+      this._pendingRecoveryCureEids.add(characterEid);
+    } else {
       console.log(
-        `[MainSceneWorld] Cured character ${characterEid} from SICK state`,
+        `[MainSceneWorld] Character ${characterEid} is not sick, starting hospital animation only`,
       );
     }
 
-    // recovery 애니메이션 시작
     startRecoveryAnimation(this, characterEid, this._stage, this.currentTime);
 
     console.log(
-      `[MainSceneWorld] Started recovery animation for character ${characterEid}`,
+      `[MainSceneWorld] Started hospital recovery animation for character ${characterEid} (pendingCure=${isSick})`,
+    );
+  }
+
+  private _handleDrugSelection(): void {
+    this._handleHospitalSelection();
+  }
+
+  private _isCharacterSick(characterEid: number): boolean {
+    if (ObjectComp.state[characterEid] === CharacterState.SICK) {
+      return true;
+    }
+
+    const statuses = CharacterStatusComp.statuses[characterEid];
+
+    if (!statuses) {
+      return false;
+    }
+
+    for (let i = 0; i < statuses.length; i++) {
+      if (statuses[i] === CharacterStatus.SICK) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  public applyPendingRecoverySyringeImpact(characterEid: number): void {
+    if (!this._pendingRecoveryCureEids.has(characterEid)) {
+      return;
+    }
+
+    this._pendingRecoveryCureEids.delete(characterEid);
+
+    const statuses = CharacterStatusComp.statuses[characterEid];
+    let removed = false;
+    if (statuses) {
+      for (let i = 0; i < statuses.length; i++) {
+        if (statuses[i] === CharacterStatus.SICK) {
+          statuses[i] = ECS_NULL_VALUE;
+          removed = true;
+          break;
+        }
+      }
+    }
+
+    if (hasComponent(this, DiseaseSystemComp, characterEid)) {
+      DiseaseSystemComp.sickStartTime[characterEid] = 0;
+    }
+
+    if (ObjectComp.state[characterEid] === CharacterState.SICK) {
+      ObjectComp.state[characterEid] = CharacterState.IDLE;
+    }
+
+    console.log(
+      `[MainSceneWorld] Applied hospital recovery impact for character ${characterEid} (removedStatus=${removed})`,
     );
   }
 

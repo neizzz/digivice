@@ -175,10 +175,10 @@ export class GameMenu {
         if (this.options.onCleanSelect) this.options.onCleanSelect();
         break;
       case GameMenuItemType.Hospital:
-        if (this.options.onDrugSelect) {
-          this.options.onDrugSelect();
-        } else if (this.options.onHospitalSelect) {
+        if (this.options.onHospitalSelect) {
           this.options.onHospitalSelect();
+        } else if (this.options.onDrugSelect) {
+          this.options.onDrugSelect();
         }
         break;
       // case GameMenuItemType.Training:

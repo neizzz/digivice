@@ -27,6 +27,7 @@ type RecoveryEffectSpriteData = {
 };
 
 const effectSpriteMap = new Map<number, RecoveryEffectSpriteData>();
+const recoveryImpactTriggeredEids = new Set<number>();
 
 const RECOVERY_APPROACH_DURATION = 300;
 const RECOVERY_HOLD_DURATION = 1000;
@@ -113,6 +114,8 @@ function cleanupEffectSprite(
     effectSpriteMap.delete(eid);
   }
 
+  recoveryImpactTriggeredEids.delete(eid);
+
   if (hasComponent(world, EffectAnimationComp, eid)) {
     removeComponent(world, EffectAnimationComp, eid);
   }
@@ -143,6 +146,7 @@ function createRecoverySyringeSprite(
 }
 
 function updateRecoverySyringe(
+  world: MainSceneWorld,
   eid: number,
   currentTime: number,
 ): boolean {
@@ -152,6 +156,14 @@ function updateRecoverySyringe(
 
   if (elapsed >= duration) {
     return true;
+  }
+
+  if (
+    elapsed >= RECOVERY_APPROACH_DURATION &&
+    !recoveryImpactTriggeredEids.has(eid)
+  ) {
+    recoveryImpactTriggeredEids.add(eid);
+    world.applyPendingRecoverySyringeImpact(eid);
   }
 
   const spriteData = effectSpriteMap.get(eid);
@@ -235,7 +247,7 @@ export function effectAnimationSystem(params: {
     let shouldCleanup = false;
     switch (effectType) {
       case EffectAnimationType.RECOVERY_SYRINGE:
-        shouldCleanup = updateRecoverySyringe(eid, currentTime);
+        shouldCleanup = updateRecoverySyringe(world, eid, currentTime);
         break;
       default:
         shouldCleanup = true;
@@ -259,6 +271,7 @@ export function startEffectAnimation(
   customDuration?: number,
 ): void {
   cleanupEffectSprite(world, eid, stage);
+  recoveryImpactTriggeredEids.delete(eid);
 
   const duration =
     customDuration ??
@@ -277,7 +290,7 @@ export function startEffectAnimation(
     switch (effectType) {
       case EffectAnimationType.RECOVERY_SYRINGE:
         createRecoverySyringeSprite(eid, stage);
-        updateRecoverySyringe(eid, currentTime);
+        updateRecoverySyringe(world, eid, currentTime);
         break;
       default:
         break;
