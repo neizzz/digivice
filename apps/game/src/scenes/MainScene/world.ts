@@ -626,22 +626,40 @@ export class MainSceneWorld implements IWorld, Scene {
       // PIXI v8 Assets API로 게임 에셋 로드
       await this._loadGameAssets();
 
-      const characterSpritesheetKey = this._persistentData.entities.find(
-        (entity) => {
-          return entity.components.object?.type === ObjectType.CHARACTER;
-        },
-      )?.components.animationRender?.spritesheetKey;
+      const characterSpritesheetKeys = Array.from(
+        new Set(
+          this._persistentData.entities
+            .filter((entity) => {
+              return entity.components.object?.type === ObjectType.CHARACTER;
+            })
+            .map((entity) => {
+              return (
+                entity.components.animationRender?.spritesheetKey ??
+                entity.components.characterStatus?.characterKey
+              );
+            })
+            .filter((key): key is SpritesheetKey => {
+              return (
+                typeof key === "number" &&
+                Number.isFinite(key) &&
+                !!SPRITESHEET_KEY_TO_NAME[key as SpritesheetKey]
+              );
+            }),
+        ),
+      );
 
-      if (characterSpritesheetKey) {
-        const spritesheetName =
-          SPRITESHEET_KEY_TO_NAME[characterSpritesheetKey];
-        await loadSpritesheet({
-          jsonPath: `/assets/game/sprites/monsters/${spritesheetName}.json`,
-          alias: spritesheetName,
-          // pixelArt: true,
-        });
-        await ensureCharacterOpaqueBoundsComputed(characterSpritesheetKey);
-      }
+      await Promise.all(
+        characterSpritesheetKeys.map(async (characterSpritesheetKey) => {
+          const spritesheetName =
+            SPRITESHEET_KEY_TO_NAME[characterSpritesheetKey];
+          await loadSpritesheet({
+            jsonPath: `/assets/game/sprites/monsters/${spritesheetName}.json`,
+            alias: spritesheetName,
+            // pixelArt: true,
+          });
+          await ensureCharacterOpaqueBoundsComputed(characterSpritesheetKey);
+        }),
+      );
 
       // 배경 설정
       this._background = new Background(PIXI.Assets.get("grass"));
