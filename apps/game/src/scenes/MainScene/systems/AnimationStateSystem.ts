@@ -7,6 +7,9 @@ import {
 import { ObjectType, CharacterState, AnimationKey } from "../types";
 import { MainSceneWorld } from "../world";
 
+const DEFAULT_ANIMATION_SPEED = 0.04;
+const SLEEPING_ANIMATION_SPEED = DEFAULT_ANIMATION_SPEED / 2;
+
 const CHARACTER_STATE_TO_ANIMATION_KEY: Record<CharacterState, AnimationKey> = {
   [CharacterState.EGG]: AnimationKey.NULL,
   [CharacterState.IDLE]: AnimationKey.IDLE,
@@ -52,10 +55,15 @@ function updateCharacterAnimationStates(world: MainSceneWorld): void {
     const currentState = ObjectComp.state[eid] as CharacterState;
     const requiredAnimation = CHARACTER_STATE_TO_ANIMATION_KEY[currentState];
     const currentAnimation = AnimationRenderComp.animationKey[eid];
+    const requiredSpeed = getAnimationSpeedForState(currentState);
 
     // 애니메이션이 변경되어야 하는 경우
     if (currentAnimation !== requiredAnimation) {
       changeAnimation(eid, requiredAnimation);
+    }
+
+    if (AnimationRenderComp.speed[eid] !== requiredSpeed) {
+      AnimationRenderComp.speed[eid] = requiredSpeed;
     }
   }
 }
@@ -70,4 +78,12 @@ function changeAnimation(eid: number, animationKey: AnimationKey): void {
       `[AnimationStateSystem] Changed animation to ${AnimationKey[animationKey]} for entity ${eid}`
     );
   }
+}
+
+function getAnimationSpeedForState(state: CharacterState): number {
+  if (state === CharacterState.SLEEPING) {
+    return SLEEPING_ANIMATION_SPEED;
+  }
+
+  return DEFAULT_ANIMATION_SPEED;
 }
