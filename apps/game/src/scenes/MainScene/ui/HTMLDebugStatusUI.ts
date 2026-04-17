@@ -1,4 +1,4 @@
-import { CharacterStatus } from "../types";
+import { CharacterState, CharacterStatus, ObjectType } from "../types";
 import { MainSceneWorld } from "..//world";
 import { defineQuery } from "bitecs";
 import {
@@ -6,7 +6,6 @@ import {
   CharacterStatusComp,
   DigestiveSystemComp,
 } from "../raw-components";
-import { ObjectType } from "../types";
 import { createPoop, addToDigestiveLoad } from "../systems/DigestiveSystem";
 import {
   TimeOfDay,
@@ -41,6 +40,7 @@ export class HTMLDebugStatusUI {
   private _timeModeElement: HTMLParagraphElement;
   private _timeOfDayButtons: Map<TimeOfDay, HTMLButtonElement> = new Map();
   private _autoTimeButton?: HTMLButtonElement;
+  private _sleepEffectToggleButton?: HTMLButtonElement;
 
   constructor(world: MainSceneWorld, parentElement: HTMLElement) {
     this._world = world;
@@ -296,6 +296,24 @@ export class HTMLDebugStatusUI {
     sleepButtonsDiv.appendChild(sleepBtn);
     this._container.appendChild(sleepButtonsDiv);
 
+    const sleepEffectButtonsDiv = document.createElement("div");
+    const sleepEffectLabel = document.createElement("span");
+    sleepEffectLabel.textContent = "SleepFX: ";
+    sleepEffectLabel.style.cssText = `
+      color: #cfcfcf;
+      font-size: 12px;
+      margin-right: 5px;
+    `;
+
+    this._sleepEffectToggleButton = this._createAdjustButton("OFF", () =>
+      this._toggleSleepDebugEffect(),
+    );
+    this._sleepEffectToggleButton.style.minWidth = "42px";
+
+    sleepEffectButtonsDiv.appendChild(sleepEffectLabel);
+    sleepEffectButtonsDiv.appendChild(this._sleepEffectToggleButton);
+    this._container.appendChild(sleepEffectButtonsDiv);
+
     // 시간대 전환 버튼
     const timeOfDayButtonsDiv = document.createElement("div");
     timeOfDayButtonsDiv.style.cssText = `
@@ -338,8 +356,9 @@ export class HTMLDebugStatusUI {
 
     const timeOfDayButtonRow = document.createElement("div");
     TIME_OF_DAY_OPTIONS.forEach((timeOfDay) => {
-      const button = this._createAdjustButton(getTimeOfDayLabel(timeOfDay), () =>
-        this._world.setTimeOfDay(timeOfDay),
+      const button = this._createAdjustButton(
+        getTimeOfDayLabel(timeOfDay),
+        () => this._world.setTimeOfDay(timeOfDay),
       );
       button.style.minWidth = "40px";
       this._timeOfDayButtons.set(timeOfDay, button);
@@ -533,6 +552,21 @@ export class HTMLDebugStatusUI {
     }
   }
 
+  private _updateSleepEffectToggleButton(): void {
+    if (!this._sleepEffectToggleButton) {
+      return;
+    }
+
+    const isEnabled = this._world.isSleepDebugEffectEnabled();
+    this._sleepEffectToggleButton.textContent = isEnabled ? "ON" : "OFF";
+    this._sleepEffectToggleButton.style.background = isEnabled
+      ? "rgba(120, 220, 150, 0.85)"
+      : "rgba(100, 150, 255, 0.6)";
+    this._sleepEffectToggleButton.style.fontWeight = isEnabled
+      ? "bold"
+      : "normal";
+  }
+
   // 스테미나/진화 게이지 조절 버튼 생성
   private _createAdjustButton(
     text: string,
@@ -659,20 +693,27 @@ export class HTMLDebugStatusUI {
 
     const currentState = ObjectComp.state[this._currentCharacterEid];
 
-    if (currentState === 3) {
-      // CharacterState.SLEEPING = 3
-      // 잠들어 있다면 깨우기 (IDLE로 변경)
-      ObjectComp.state[this._currentCharacterEid] = 1; // CharacterState.IDLE = 1
+    if (currentState === CharacterState.SLEEPING) {
+      ObjectComp.state[this._currentCharacterEid] = CharacterState.IDLE;
       console.log(
         `[HTMLDebugStatusUI] Character ${this._currentCharacterEid} woke up (SLEEPING -> IDLE)`,
       );
     } else {
-      // 깨어 있다면 재우기
-      ObjectComp.state[this._currentCharacterEid] = 3; // CharacterState.SLEEPING = 3
+      ObjectComp.state[this._currentCharacterEid] = CharacterState.SLEEPING;
       console.log(
         `[HTMLDebugStatusUI] Character ${this._currentCharacterEid} fell asleep (${currentState} -> SLEEPING)`,
       );
     }
+  }
+
+  private _toggleSleepDebugEffect(): void {
+    const isEnabled = this._world.toggleSleepDebugEffect();
+    this._updateSleepEffectToggleButton();
+    console.log(
+      `[HTMLDebugStatusUI] Sleep debug effect ${
+        isEnabled ? "enabled" : "disabled"
+      }`,
+    );
   }
 
   // 상태 관리 시스템 토글 함수
@@ -714,6 +755,7 @@ export class HTMLDebugStatusUI {
     this._updateCharacterIdDisplay(); // 캐릭터 ID 표시 업데이트
     this._updateSystemStatusDisplay(); // 시스템 상태 표시 업데이트
     this._updateTimeOfDayDisplay();
+    this._updateSleepEffectToggleButton();
     this._updateAllStatusIndicators(); // 상태 표시 업데이트
     this._container.style.display = "block";
     this._isVisible = true;
@@ -741,6 +783,7 @@ export class HTMLDebugStatusUI {
     if (this._isVisible) {
       this._updateSystemStatusDisplay(); // 시스템 상태 업데이트
       this._updateTimeOfDayDisplay();
+      this._updateSleepEffectToggleButton();
       this._updateAllStatusIndicators();
     }
   }

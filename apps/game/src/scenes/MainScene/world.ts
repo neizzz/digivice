@@ -313,6 +313,7 @@ export class MainSceneWorld implements IWorld, Scene {
   private _simulationTime: number | null = null;
   private _visibilityChangeHandler?: () => void; // Page Visibility API 이벤트 핸들러
   private _statusSystemsEnabled = true; // 상태 관리 시스템들 활성화 여부
+  private _sleepDebugEffectEnabled = false;
   private _pendingRecoveryCureEids = new Set<number>();
   private _isPersistenceDisabled = false;
   private _createInitialGameData?: () => Promise<{
@@ -2385,5 +2386,25 @@ export class MainSceneWorld implements IWorld, Scene {
       }`,
     );
     return this._statusSystemsEnabled;
+  }
+
+  public toggleSleepDebugEffect(): boolean {
+    this._sleepDebugEffectEnabled = !this._sleepDebugEffectEnabled;
+
+    if (!this._sleepDebugEffectEnabled) {
+      cleanupSleepEffects(this._stage);
+    }
+
+    console.log(
+      `[MainSceneWorld] Sleep debug effect ${
+        this._sleepDebugEffectEnabled ? "enabled" : "disabled"
+      }`,
+    );
+
+    return this._sleepDebugEffectEnabled;
+  }
+
+  public isSleepDebugEffectEnabled(): boolean {
+    return this._sleepDebugEffectEnabled;
   }
 }
