@@ -694,10 +694,6 @@ export class MainSceneWorld implements IWorld, Scene {
             console.log("[MainSceneWorld] Feed selected");
             this._throwFood();
           },
-          onVersusSelect: () => {
-            console.log("[MainSceneWorld] Versus selected");
-            // TODO: 대결 기능
-          },
           onDrugSelect: () => {
             console.log("[MainSceneWorld] Drug selected");
             this._handleHospitalSelection();

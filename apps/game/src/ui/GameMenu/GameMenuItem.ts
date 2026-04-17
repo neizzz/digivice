@@ -10,9 +10,11 @@ export enum GameMenuItemType {
 }
 
 const MENU_SPRITE_SLOT_COUNT = 8;
-const MENU_ITEM_SIZE_MIN = 40;
-const MENU_ITEM_SIZE_MAX = 48;
-const MENU_ITEM_SIZE_MAX_VIEWPORT = 360;
+const MENU_ITEM_SIZE_MIN = 36;
+const MENU_ITEM_SIZE_MID = 40;
+const MENU_ITEM_SIZE_MAX = 44;
+const MENU_ITEM_SIZE_MID_VIEWPORT = 360;
+const MENU_ITEM_SIZE_MAX_VIEWPORT = 420;
 
 const MENU_SPRITE_FINE_TUNE_X: Partial<Record<GameMenuItemType, number>> = {
   [GameMenuItemType.Drug]: 1,
@@ -56,6 +58,10 @@ const getBackgroundPosition = (
 const getResponsiveMenuItemSize = (availableWidth: number): number => {
   if (availableWidth >= MENU_ITEM_SIZE_MAX_VIEWPORT) {
     return MENU_ITEM_SIZE_MAX;
+  }
+
+  if (availableWidth >= MENU_ITEM_SIZE_MID_VIEWPORT) {
+    return MENU_ITEM_SIZE_MID;
   }
 
   return MENU_ITEM_SIZE_MIN;

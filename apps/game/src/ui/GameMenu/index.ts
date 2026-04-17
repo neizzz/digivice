@@ -23,7 +23,6 @@ export class GameMenu {
   private menuItems: GameMenuItemType[] = [
     // GameMenuItemType.Information,
     GameMenuItemType.MiniGame,
-    GameMenuItemType.Versus,
     GameMenuItemType.Feed,
     GameMenuItemType.Clean,
     GameMenuItemType.Hospital,
@@ -47,9 +46,6 @@ export class GameMenu {
     this.itemContainer = document.createElement("div");
     this.itemContainer.className = "game-menu-item-container";
     this.container.appendChild(this.itemContainer);
-
-    // 기본적으로 대결 메뉴 비활성화
-    this.disabledMenuItems.add(GameMenuItemType.Versus);
 
     this.initializeMenuItems();
     this.updateMenuItemLayout();
@@ -164,9 +160,6 @@ export class GameMenu {
         break;
       case GameMenuItemType.Feed:
         if (this.options.onFeedSelect) this.options.onFeedSelect(); // 외부 주입된 메서드 호출
-        break;
-      case GameMenuItemType.Versus:
-        if (this.options.onVersusSelect) this.options.onVersusSelect();
         break;
       case GameMenuItemType.Drug:
         if (this.options.onDrugSelect) this.options.onDrugSelect();
