@@ -10,6 +10,8 @@ import { MainSceneWorld } from "../world";
 import { CharacterState, AnimationKey } from "../types";
 import {
   ensureCharacterSpritesheetLoaded,
+  getCharacterSpritesheetOptions,
+  isSpritesheetLoaded,
 } from "../../../utils/asset";
 import { ensureCharacterOpaqueBoundsComputed } from "./CharacterOpaqueBounds";
 
@@ -44,12 +46,80 @@ export function eggHatchSystem(params: {
 
       console.log(`[EggHatchSystem] Character ${eid} is ready to hatch!`);
 
-      // 부화 처리를 비동기로 실행
-      hatchCharacter(eid, world, currentTime);
+      if (world.isSimulationMode) {
+        hatchCharacterForSimulation(eid, world, currentTime);
+      } else {
+        // 실시간 모드에서는 필요한 에셋을 보장 로드한 뒤 부화 처리
+        void hatchCharacter(eid, world, currentTime);
+      }
     }
   }
 
   return params;
+}
+
+function completeHatch(
+  eid: number,
+  world: MainSceneWorld,
+  currentTime: number,
+): void {
+  const characterKey = CharacterStatusComp.characterKey[eid];
+
+  // 캐릭터 상태를 IDLE로 변경
+  ObjectComp.state[eid] = CharacterState.IDLE;
+
+  // RandomMovementComp 추가 (이제 움직일 수 있음)
+  if (!hasComponent(world, RandomMovementComp, eid)) {
+    addComponent(world, RandomMovementComp, eid);
+    RandomMovementComp.minIdleTime[eid] = 2000;
+    RandomMovementComp.maxIdleTime[eid] = 8000;
+    RandomMovementComp.minMoveTime[eid] = 1000;
+    RandomMovementComp.maxMoveTime[eid] = 8000;
+    // 부화 후 잠시 후 첫 이동 시작
+    RandomMovementComp.nextChange[eid] =
+      currentTime + 2000 + Math.random() * 3000;
+  }
+
+  // AnimationRenderComp 추가 (이제 애니메이션 표시 가능)
+  if (!hasComponent(world, AnimationRenderComp, eid)) {
+    addComponent(world, AnimationRenderComp, eid);
+    AnimationRenderComp.storeIndex[eid] = ECS_NULL_VALUE;
+    AnimationRenderComp.spritesheetKey[eid] = characterKey;
+    AnimationRenderComp.animationKey[eid] = AnimationKey.IDLE;
+    AnimationRenderComp.isPlaying[eid] = 1;
+    AnimationRenderComp.loop[eid] = 1;
+    AnimationRenderComp.speed[eid] = 0.04;
+
+    console.log(
+      `[EggHatchSystem] Added AnimationRenderComp with characterKey: ${characterKey}`,
+    );
+  }
+
+  console.log(
+    `[EggHatchSystem] Character ${eid} has hatched! State changed to IDLE with characterKey: ${characterKey}`,
+  );
+}
+
+function hatchCharacterForSimulation(
+  eid: number,
+  world: MainSceneWorld,
+  currentTime: number,
+): void {
+  const characterKey = CharacterStatusComp.characterKey[eid];
+  const spritesheetOptions = getCharacterSpritesheetOptions(characterKey);
+  const spritesheetAlias =
+    spritesheetOptions?.alias || spritesheetOptions?.jsonPath;
+
+  if (!spritesheetAlias || !isSpritesheetLoaded(spritesheetAlias)) {
+    console.warn(
+      `[EggHatchSystem] Simulation hatch skipped for character ${eid} because spritesheet is not preloaded. Keeping EGG state.`,
+    );
+    EggHatchComp.isReadyToHatch[eid] = 0;
+    return;
+  }
+
+  void ensureCharacterOpaqueBoundsComputed(characterKey);
+  completeHatch(eid, world, currentTime);
 }
 
 /**
@@ -79,42 +149,7 @@ async function hatchCharacter(
     }
 
     await ensureCharacterOpaqueBoundsComputed(characterKey);
-
-    // 캐릭터 상태를 IDLE로 변경
-    ObjectComp.state[eid] = CharacterState.IDLE;
-
-    // RandomMovementComp 추가 (이제 움직일 수 있음)
-    if (!hasComponent(world, RandomMovementComp, eid)) {
-      addComponent(world, RandomMovementComp, eid);
-      // 기본값으로 설정
-      RandomMovementComp.minIdleTime[eid] = 2000;
-      RandomMovementComp.maxIdleTime[eid] = 8000;
-      RandomMovementComp.minMoveTime[eid] = 1000;
-      RandomMovementComp.maxMoveTime[eid] = 8000;
-      // 부화 후 잠시 후 첫 이동 시작
-      RandomMovementComp.nextChange[eid] =
-        currentTime + 2000 + Math.random() * 3000; // 2-5초 후 첫 이동
-    }
-
-    // AnimationRenderComp 추가 (이제 애니메이션 표시 가능)
-    if (!hasComponent(world, AnimationRenderComp, eid)) {
-      addComponent(world, AnimationRenderComp, eid);
-      AnimationRenderComp.storeIndex[eid] = ECS_NULL_VALUE;
-
-      AnimationRenderComp.spritesheetKey[eid] = characterKey;
-      AnimationRenderComp.animationKey[eid] = AnimationKey.IDLE;
-      AnimationRenderComp.isPlaying[eid] = 1;
-      AnimationRenderComp.loop[eid] = 1;
-      AnimationRenderComp.speed[eid] = 0.04;
-
-      console.log(
-        `[EggHatchSystem] Added AnimationRenderComp with characterKey: ${characterKey}`
-      );
-    }
-
-    console.log(
-      `[EggHatchSystem] Character ${eid} has hatched! State changed to IDLE with characterKey: ${characterKey}`
-    );
+    completeHatch(eid, world, currentTime);
   } catch (error) {
     console.error(
       `[EggHatchSystem] Error during hatching process for character ${eid}:`,
