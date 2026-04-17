@@ -42,6 +42,32 @@ function createStorage(): Storage {
   return new WebLocalStorage();
 }
 
+function getStorageKind(): "native" | "web" {
+  return hasNativeStorageController() ? "native" : "web";
+}
+
+function summarizeSavedData(savedData: unknown): Record<string, unknown> {
+  if (!savedData || typeof savedData !== "object") {
+    return {
+      valueType: typeof savedData,
+      isNull: savedData === null,
+    };
+  }
+
+  const savedDataRecord = savedData as {
+    world_metadata?: { monster_name?: string };
+    entities?: unknown[];
+  };
+
+  return {
+    valueType: typeof savedData,
+    monsterName: savedDataRecord.world_metadata?.monster_name,
+    entityCount: Array.isArray(savedDataRecord.entities)
+      ? savedDataRecord.entities.length
+      : "n/a",
+  };
+}
+
 const GameContainer: React.FC = () => {
   const gameContainerRef = useRef<HTMLDivElement>(null);
   const [gameInstance, setGameInstance] = useState<Game | null>(null);
@@ -81,41 +107,54 @@ const GameContainer: React.FC = () => {
     setGameSettings(updateGameSettings({ notificationEnabled: enabled }));
   }, []);
 
-  const resetGameData = useCallback(async () => {
-    try {
-      if (gameInstance) {
-        await gameInstance.destroyForReset();
-      } else {
-        const storage = createStorage();
-        await storage.removeData(WORLD_DATA_STORAGE_KEY);
-      }
+  const resetGameData = useCallback(
+    async (reason: "user_reset" | "sanitize_reset") => {
+      console.warn("[GameContainer] resetGameData:start", {
+        reason,
+        hasGameInstance: !!gameInstance,
+        storageKind: getStorageKind(),
+      });
 
-      if (gameContainerRef.current) {
-        gameContainerRef.current.innerHTML = "";
-      }
+      try {
+        if (gameInstance) {
+          await gameInstance.destroyForReset();
+        } else {
+          const storage = createStorage();
+          await storage.removeData(WORLD_DATA_STORAGE_KEY);
+        }
 
-      initialSetupDataRef.current = null;
-      pendingSetupResolverRef.current = null;
-      shouldRestartFromSetupRef.current = true;
-      isInitializedRef.current = false;
-      setShowSettingMenu(false);
-      setButtonParams(null);
-      setShowSetupLayer(true);
-      setIsLoading(false);
-      setGameInstance(null);
-      setSanitizeResetAlert(null);
-    } catch (error) {
-      console.error("[GameContainer] 게임 데이터 초기화 중 오류:", error);
-      showAlert("게임 데이터 초기화에 실패했습니다.", "오류");
-    }
-  }, [gameInstance, showAlert]);
+        if (gameContainerRef.current) {
+          gameContainerRef.current.innerHTML = "";
+        }
+
+        initialSetupDataRef.current = null;
+        pendingSetupResolverRef.current = null;
+        shouldRestartFromSetupRef.current = true;
+        isInitializedRef.current = false;
+        setShowSettingMenu(false);
+        setButtonParams(null);
+        setShowSetupLayer(true);
+        setIsLoading(false);
+        setGameInstance(null);
+        setSanitizeResetAlert(null);
+        console.warn("[GameContainer] resetGameData:success", {
+          reason,
+          storageKind: getStorageKind(),
+        });
+      } catch (error) {
+        console.error("[GameContainer] 게임 데이터 초기화 중 오류:", error);
+        showAlert("게임 데이터 초기화에 실패했습니다.", "오류");
+      }
+    },
+    [gameInstance, showAlert],
+  );
 
   const handleResetGameData = useCallback(async () => {
-    await resetGameData();
+    await resetGameData("user_reset");
   }, [resetGameData]);
 
   const handleSanitizeResetConfirm = useCallback(async () => {
-    await resetGameData();
+    await resetGameData("sanitize_reset");
   }, [resetGameData]);
 
   const prepareSavedGameData = useCallback(async (): Promise<
@@ -123,8 +162,25 @@ const GameContainer: React.FC = () => {
   > => {
     try {
       const storage = createStorage();
+      const storageKind = getStorageKind();
+      console.debug("[GameContainer] prepareSavedGameData:start", {
+        key: WORLD_DATA_STORAGE_KEY,
+        storageKind,
+      });
       const savedData = await storage.getData(WORLD_DATA_STORAGE_KEY);
+      console.debug("[GameContainer] prepareSavedGameData:loaded", {
+        key: WORLD_DATA_STORAGE_KEY,
+        storageKind,
+        ...summarizeSavedData(savedData),
+      });
       const result = sanitizeStoredWorldData(savedData);
+      console.debug("[GameContainer] prepareSavedGameData:sanitized", {
+        key: WORLD_DATA_STORAGE_KEY,
+        storageKind,
+        action: result.action,
+        changed: result.changed,
+        hasSanitizedData: !!result.sanitizedData,
+      });
 
       if (
         result.changed &&
@@ -154,7 +210,11 @@ const GameContainer: React.FC = () => {
 
       return result.action;
     } catch (error) {
-      console.error("[GameContainer] 게임 데이터 확인 중 오류:", error);
+      console.error("[GameContainer] 게임 데이터 확인 중 오류:", {
+        key: WORLD_DATA_STORAGE_KEY,
+        storageKind: getStorageKind(),
+        error,
+      });
       setSanitizeResetAlert({
         title: "데이터 복구 안내",
         message:

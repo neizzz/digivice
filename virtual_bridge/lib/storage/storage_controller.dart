@@ -4,6 +4,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 
 /// Storage 기능의 JavaScript 인터페이스를 관리하는 컨트롤러
 class StorageController {
+  static const int _previewLimit = 120;
   final Function(String jsCode) runJavaScript;
   final Function({required String id, String? data, String? error})
       resolvePromise;
@@ -64,12 +65,21 @@ class StorageController {
       final prefs = await SharedPreferences.getInstance();
       String? result;
 
+      log(
+        '[StorageController] start operation=$operation key=${key ?? '-'} '
+        'hasValue=${value != null}',
+      );
+
       switch (operation) {
         case 'set':
           if (key == null || value == null) {
             throw ArgumentError('setData requires key and value');
           }
           await prefs.setString(key, value);
+          log(
+            '[StorageController] set key=$key length=${value.length} '
+            'preview=${_preview(value)}',
+          );
           result = 'success';
           break;
         case 'remove':
@@ -77,10 +87,12 @@ class StorageController {
             throw ArgumentError('removeData requires key');
           }
           await prefs.remove(key);
+          log('[StorageController] remove key=$key');
           result = 'success';
           break;
         case 'clear':
           await prefs.clear();
+          log('[StorageController] clear all keys');
           result = 'success';
           break;
         case 'get':
@@ -89,13 +101,31 @@ class StorageController {
             throw ArgumentError('getData requires key');
           }
           result = prefs.getString(key);
+          log(
+            '[StorageController] get key=$key contains=${prefs.containsKey(key)} '
+            'isNull=${result == null} length=${result?.length ?? 0} '
+            'preview=${_preview(result)}',
+          );
           break;
       }
 
       resolvePromise(id: id, data: result);
     } catch (e) {
+      log('[StorageController] error operation=$operation key=${key ?? '-'} $e');
       resolvePromise(id: id, error: e.toString());
     }
+  }
+
+  String _preview(String? value) {
+    if (value == null) {
+      return 'null';
+    }
+
+    if (value.length <= _previewLimit) {
+      return value;
+    }
+
+    return '${value.substring(0, _previewLimit)}…';
   }
 
   /// 리소스를 정리합니다.

@@ -1148,12 +1148,29 @@ export class MainSceneWorld implements IWorld, Scene {
     this._persistentData = data;
 
     if (this._isPersistenceDisabled) {
+      console.debug("[MainSceneWorld] setData:skip_persistence_disabled", {
+        key: WORLD_DATA_STORAGE_KEY,
+        monsterName: data.world_metadata?.monster_name,
+        entityCount: data.entities?.length ?? 0,
+        savedAt: data.world_metadata?.last_ecs_saved,
+      });
       return;
     }
 
     await this._enqueueStorageWrite(async () => {
       try {
+        console.debug("[MainSceneWorld] setData:start", {
+          key: WORLD_DATA_STORAGE_KEY,
+          monsterName: data.world_metadata?.monster_name,
+          entityCount: data.entities?.length ?? 0,
+          savedAt: data.world_metadata?.last_ecs_saved,
+        });
         await StorageManager.setData(WORLD_DATA_STORAGE_KEY, data);
+        console.debug("[MainSceneWorld] setData:success", {
+          key: WORLD_DATA_STORAGE_KEY,
+          monsterName: data.world_metadata?.monster_name,
+          entityCount: data.entities?.length ?? 0,
+        });
       } catch (error) {
         console.error("[MainSceneWorld] Failed to save data:", error);
         throw error;
@@ -1166,7 +1183,13 @@ export class MainSceneWorld implements IWorld, Scene {
 
     await this._enqueueStorageWrite(async () => {
       try {
+        console.warn("[MainSceneWorld] clearData:start", {
+          key: WORLD_DATA_STORAGE_KEY,
+        });
         await StorageManager.removeData(WORLD_DATA_STORAGE_KEY);
+        console.warn("[MainSceneWorld] clearData:success", {
+          key: WORLD_DATA_STORAGE_KEY,
+        });
       } catch (error) {
         console.error("[MainSceneWorld] Failed to clear data:", error);
         throw error;

@@ -46562,25 +46562,508 @@ function getCharacterStats(characterKey) {
   }
   return CHARACTER_STATS[characterKey];
 }
-const characterQuery$8 = defineQuery([CharacterStatusComp, RandomMovementComp]);
+var CharacterKey = /* @__PURE__ */ ((CharacterKey2) => {
+  CharacterKey2["TestGreenSlimeA1"] = "test-green-slime_A1";
+  CharacterKey2["TestGreenSlimeB1"] = "test-green-slime_B1";
+  CharacterKey2["TestGreenSlimeC1"] = "test-green-slime_C1";
+  CharacterKey2["TestGreenSlimeD1"] = "test-green-slime_D1";
+  return CharacterKey2;
+})(CharacterKey || {});
+var CharacterClass = /* @__PURE__ */ ((CharacterClass2) => {
+  CharacterClass2["A"] = "character-class-a";
+  CharacterClass2["B"] = "character-class-b";
+  CharacterClass2["C"] = "character-class-c";
+  CharacterClass2["D"] = "character-class-d";
+  return CharacterClass2;
+})(CharacterClass || {});
+const GAME_CONSTANTS = {
+  // 알 부화 관련
+  EGG_HATCH_TIME: 5e3,
+  // 소화기관 관련
+  DIGESTIVE_CAPACITY: 5,
+  DIGESTIVE_MULTIPLIER: 0.5,
+  // 스테미나 증가량의 0.5배만큼 소화기관 차게됨
+  POOP_DELAY: 1e4,
+  // 소화기관 초과 후 똥 싸는 시간 (10초)
+  // 질병 관련
+  DISEASE_CHECK_INTERVAL: 1e4,
+  BASE_DISEASE_RATE: 0.02,
+  // 기본 질병 확률 2%
+  LOW_STAMINA_DISEASE_BONUS: 0.03,
+  // 스테미나 3이하일 때 추가 3%
+  POOP_DISEASE_RATE: 0.01,
+  // 똥 1개당 1%
+  STALE_FOOD_DISEASE_RATE: 0.01,
+  // 상한음식 1개당 1%
+  // 음식 신선도 관련
+  FRESH_TO_NORMAL_TIME: 1e4,
+  NORMAL_TO_STALE_TIME: 1e4,
+  FRESH_STAMINA_BONUS: 3,
+  // 신선한 음식 스테미나 증가량
+  NORMAL_STAMINA_BONUS: 1,
+  // 보통 음식 스테미나 증가량
+  // 캐릭터 상태 관련
+  UNHAPPY_STAMINA_THRESHOLD: 4,
+  URGENT_STAMINA_THRESHOLD: 0,
+  DEATH_DELAY: 6e4,
+  // 캐릭터 스테미나 관련
+  MAX_STAMINA: 10,
+  STAMINA_DECREASE_INTERVAL: 3e4,
+  // 30초마다 스테미나 감소
+  STAMINA_DECREASE_AMOUNT: 1,
+  // 진화 게이지 관련
+  EVOLUTION_GAUGE_STATMINA_THRESHOLD: 5,
+  // 스테미나 5 이상일 때 진화 게이지 증가
+  EVOLUTION_GAUGE_CHECK_INTERVAL: 1e4,
+  // 10초마다 진화 게이지 체크
+  EVOLUTION_GAUGE_INCREASE_AMOUNT: {
+    // 클래스별 진화 게이지 증가량
+    [CharacterClass.A]: 1,
+    [CharacterClass.B]: 1,
+    [CharacterClass.C]: 1,
+    [CharacterClass.D]: 1
+  }
+};
+function convertECSEntityToSavedEntity(world, eid) {
+  const components = {};
+  if (hasComponent(world, ObjectComp, eid)) {
+    components.object = {
+      id: ObjectComp.id[eid],
+      type: ObjectComp.type[eid],
+      state: ObjectComp.state[eid]
+    };
+  }
+  if (hasComponent(world, CharacterStatusComp, eid)) {
+    components.characterStatus = {
+      characterKey: CharacterStatusComp.characterKey[eid],
+      stamina: CharacterStatusComp.stamina[eid],
+      evolutionGage: CharacterStatusComp.evolutionGage[eid],
+      evolutionPhase: CharacterStatusComp.evolutionPhase[eid],
+      statuses: Array.from(
+        CharacterStatusComp.statuses[eid]
+      )
+    };
+  }
+  if (hasComponent(world, PositionComp, eid)) {
+    components.position = {
+      x: PositionComp.x[eid],
+      y: PositionComp.y[eid]
+    };
+  }
+  if (hasComponent(world, AngleComp, eid)) {
+    components.angle = {
+      value: AngleComp.value[eid]
+    };
+  }
+  if (hasComponent(world, SpeedComp, eid)) {
+    components.speed = {
+      value: SpeedComp.value[eid]
+    };
+  }
+  if (hasComponent(world, FreshnessComp, eid)) {
+    components.freshness = {
+      freshness: FreshnessComp.freshness[eid]
+    };
+  }
+  if (hasComponent(world, DestinationComp, eid)) {
+    components.destination = {
+      type: DestinationComp.type[eid],
+      target: DestinationComp.target[eid],
+      x: DestinationComp.x[eid],
+      y: DestinationComp.y[eid]
+    };
+  }
+  if (hasComponent(world, RandomMovementComp, eid)) {
+    components.randomMovement = {
+      minIdleTime: RandomMovementComp.minIdleTime[eid],
+      maxIdleTime: RandomMovementComp.maxIdleTime[eid],
+      minMoveTime: RandomMovementComp.minMoveTime[eid],
+      maxMoveTime: RandomMovementComp.maxMoveTime[eid],
+      nextChange: RandomMovementComp.nextChange[eid]
+    };
+  }
+  if (hasComponent(world, RenderComp, eid)) {
+    components.render = {
+      storeIndex: RenderComp.storeIndex[eid],
+      textureKey: RenderComp.textureKey[eid],
+      scale: RenderComp.scale[eid],
+      zIndex: RenderComp.zIndex[eid]
+    };
+  }
+  if (hasComponent(world, AnimationRenderComp, eid)) {
+    components.animationRender = {
+      storeIndex: AnimationRenderComp.storeIndex[eid],
+      spritesheetKey: AnimationRenderComp.spritesheetKey[eid],
+      animationKey: AnimationRenderComp.animationKey[eid],
+      isPlaying: AnimationRenderComp.isPlaying[eid] === 1,
+      loop: AnimationRenderComp.loop[eid] === 1,
+      speed: +AnimationRenderComp.speed[eid].toFixed(2)
+    };
+  }
+  if (hasComponent(world, StatusIconRenderComp, eid)) {
+    components.statusIconRender = {
+      storeIndexes: Array.from(StatusIconRenderComp.storeIndexes[eid]),
+      visibleCount: StatusIconRenderComp.visibleCount[eid]
+    };
+  }
+  if (hasComponent(world, ThrowAnimationComp, eid)) {
+    components.throwAnimation = {
+      initialPosition: {
+        x: ThrowAnimationComp.initialX[eid],
+        y: ThrowAnimationComp.initialY[eid]
+      },
+      finalPosition: {
+        x: ThrowAnimationComp.finalX[eid],
+        y: ThrowAnimationComp.finalY[eid]
+      },
+      initialScale: 0,
+      // 이제 시스템에서 관리하므로 기본값
+      finalScale: 0,
+      // 이제 시스템에서 관리하므로 기본값
+      duration: 0,
+      // 이제 시스템에서 관리하므로 기본값
+      elapsedTime: ThrowAnimationComp.elapsedTime[eid],
+      isActive: ThrowAnimationComp.isActive[eid] === 1,
+      maxHeight: 0
+      // 이제 시스템에서 관리하므로 기본값
+    };
+  }
+  if (hasComponent(world, EggHatchComp, eid)) {
+    components.eggHatch = {
+      hatchTime: EggHatchComp.hatchTime[eid],
+      isReadyToHatch: EggHatchComp.isReadyToHatch[eid] === 1
+    };
+  }
+  if (hasComponent(world, DigestiveSystemComp, eid)) {
+    components.digestiveSystem = {
+      capacity: DigestiveSystemComp.capacity[eid],
+      currentLoad: DigestiveSystemComp.currentLoad[eid],
+      nextPoopTime: DigestiveSystemComp.nextPoopTime[eid]
+    };
+  }
+  if (hasComponent(world, DiseaseSystemComp, eid)) {
+    components.diseaseSystem = {
+      nextCheckTime: DiseaseSystemComp.nextCheckTime[eid],
+      sickStartTime: DiseaseSystemComp.sickStartTime[eid]
+    };
+  }
+  if (hasComponent(world, VitalityComp, eid)) {
+    components.vitality = {
+      urgentStartTime: VitalityComp.urgentStartTime[eid],
+      deathTime: VitalityComp.deathTime[eid],
+      isDead: VitalityComp.isDead[eid] === 1
+    };
+  }
+  if (hasComponent(world, TemporaryStatusComp, eid)) {
+    components.temporaryStatus = {
+      statusType: TemporaryStatusComp.statusType[eid],
+      startTime: TemporaryStatusComp.startTime[eid]
+    };
+  }
+  if (hasComponent(world, FreshnessTimerComp, eid)) {
+    components.freshnessTimer = {
+      createdTime: FreshnessTimerComp.createdTime[eid],
+      normalTime: FreshnessTimerComp.normalTime[eid],
+      staleTime: FreshnessTimerComp.staleTime[eid],
+      isBeingEaten: FreshnessTimerComp.isBeingEaten[eid] === 1
+    };
+  }
+  return { components };
+}
+function applySavedEntityToECS(world, eid, savedEntity) {
+  var _a;
+  const { components } = savedEntity;
+  if (components.object) {
+    if (!hasComponent(world, ObjectComp, eid)) {
+      addComponent(world, ObjectComp, eid);
+    }
+    ObjectComp.id[eid] = components.object.id;
+    ObjectComp.type[eid] = components.object.type;
+    ObjectComp.state[eid] = components.object.state;
+  }
+  if (components.characterStatus) {
+    if (!hasComponent(world, CharacterStatusComp, eid)) {
+      addComponent(world, CharacterStatusComp, eid);
+    }
+    CharacterStatusComp.characterKey[eid] = components.characterStatus.characterKey;
+    CharacterStatusComp.stamina[eid] = components.characterStatus.stamina;
+    CharacterStatusComp.evolutionGage[eid] = components.characterStatus.evolutionGage;
+    CharacterStatusComp.evolutionPhase[eid] = components.characterStatus.evolutionPhase;
+    CharacterStatusComp.statuses[eid] = new Uint8Array(
+      components.characterStatus.statuses
+    );
+  }
+  if (components.position) {
+    if (!hasComponent(world, PositionComp, eid)) {
+      addComponent(world, PositionComp, eid);
+    }
+    PositionComp.x[eid] = components.position.x;
+    PositionComp.y[eid] = components.position.y;
+  }
+  if (components.angle) {
+    if (!hasComponent(world, AngleComp, eid)) {
+      addComponent(world, AngleComp, eid);
+    }
+    AngleComp.value[eid] = components.angle.value;
+  }
+  if (components.render) {
+    if (!hasComponent(world, RenderComp, eid)) {
+      addComponent(world, RenderComp, eid);
+    }
+    RenderComp.storeIndex[eid] = components.render.storeIndex;
+    RenderComp.textureKey[eid] = components.render.textureKey;
+    RenderComp.scale[eid] = components.render.scale;
+    RenderComp.zIndex[eid] = components.render.zIndex;
+  }
+  if (components.animationRender) {
+    if (!hasComponent(world, AnimationRenderComp, eid)) {
+      addComponent(world, AnimationRenderComp, eid);
+    }
+    AnimationRenderComp.storeIndex[eid] = components.animationRender.storeIndex;
+    AnimationRenderComp.spritesheetKey[eid] = components.animationRender.spritesheetKey;
+    AnimationRenderComp.animationKey[eid] = components.animationRender.animationKey;
+    AnimationRenderComp.isPlaying[eid] = +components.animationRender.isPlaying;
+    AnimationRenderComp.loop[eid] = +components.animationRender.loop;
+    AnimationRenderComp.speed[eid] = components.animationRender.speed;
+  }
+  if (components.statusIconRender) {
+    if (!hasComponent(world, StatusIconRenderComp, eid)) {
+      addComponent(world, StatusIconRenderComp, eid);
+    }
+    StatusIconRenderComp.storeIndexes[eid] = new Uint8Array(
+      components.statusIconRender.storeIndexes
+    );
+    StatusIconRenderComp.visibleCount[eid] = components.statusIconRender.visibleCount;
+  }
+  if (components.speed) {
+    if (!hasComponent(world, SpeedComp, eid)) {
+      addComponent(world, SpeedComp, eid);
+    }
+    SpeedComp.value[eid] = components.speed.value;
+  }
+  if (components.freshness) {
+    if (!hasComponent(world, FreshnessComp, eid)) {
+      addComponent(world, FreshnessComp, eid);
+    }
+    FreshnessComp.freshness[eid] = components.freshness.freshness;
+  }
+  if (components.destination) {
+    if (!hasComponent(world, DestinationComp, eid)) {
+      addComponent(world, DestinationComp, eid);
+    }
+    DestinationComp.type[eid] = components.destination.type;
+    DestinationComp.target[eid] = components.destination.target;
+    DestinationComp.x[eid] = components.destination.x;
+    DestinationComp.y[eid] = components.destination.y;
+  }
+  if (components.randomMovement) {
+    if (!hasComponent(world, RandomMovementComp, eid)) {
+      addComponent(world, RandomMovementComp, eid);
+    }
+    RandomMovementComp.minIdleTime[eid] = components.randomMovement.minIdleTime;
+    RandomMovementComp.maxIdleTime[eid] = components.randomMovement.maxIdleTime;
+    RandomMovementComp.minMoveTime[eid] = components.randomMovement.minMoveTime;
+    RandomMovementComp.maxMoveTime[eid] = components.randomMovement.maxMoveTime;
+    if ((_a = components.randomMovement) == null ? void 0 : _a.nextChange) {
+      const diffFromNow = components.randomMovement.nextChange - Date.now();
+      RandomMovementComp.nextChange[eid] = diffFromNow < 3e3 ? components.randomMovement.nextChange : 0;
+    } else {
+      RandomMovementComp.nextChange[eid] = 0;
+    }
+  }
+  if (components.throwAnimation) {
+    if (!hasComponent(world, ThrowAnimationComp, eid)) {
+      addComponent(world, ThrowAnimationComp, eid);
+    }
+    ThrowAnimationComp.initialX[eid] = components.throwAnimation.initialPosition.x;
+    ThrowAnimationComp.initialY[eid] = components.throwAnimation.initialPosition.y;
+    ThrowAnimationComp.finalX[eid] = components.throwAnimation.finalPosition.x;
+    ThrowAnimationComp.finalY[eid] = components.throwAnimation.finalPosition.y;
+    ThrowAnimationComp.elapsedTime[eid] = components.throwAnimation.elapsedTime;
+    ThrowAnimationComp.isActive[eid] = components.throwAnimation.isActive ? 1 : 0;
+  }
+  if (components.eggHatch) {
+    if (!hasComponent(world, EggHatchComp, eid)) {
+      addComponent(world, EggHatchComp, eid);
+    }
+    EggHatchComp.hatchTime[eid] = components.eggHatch.hatchTime;
+    EggHatchComp.isReadyToHatch[eid] = components.eggHatch.isReadyToHatch ? 1 : 0;
+  }
+  if (components.digestiveSystem) {
+    if (!hasComponent(world, DigestiveSystemComp, eid)) {
+      addComponent(world, DigestiveSystemComp, eid);
+    }
+    DigestiveSystemComp.capacity[eid] = components.digestiveSystem.capacity;
+    DigestiveSystemComp.currentLoad[eid] = components.digestiveSystem.currentLoad;
+    DigestiveSystemComp.nextPoopTime[eid] = components.digestiveSystem.nextPoopTime;
+  }
+  if (components.diseaseSystem) {
+    if (!hasComponent(world, DiseaseSystemComp, eid)) {
+      addComponent(world, DiseaseSystemComp, eid);
+    }
+    DiseaseSystemComp.nextCheckTime[eid] = components.diseaseSystem.nextCheckTime;
+    DiseaseSystemComp.sickStartTime[eid] = components.diseaseSystem.sickStartTime;
+  }
+  if (components.vitality) {
+    if (!hasComponent(world, VitalityComp, eid)) {
+      addComponent(world, VitalityComp, eid);
+    }
+    VitalityComp.urgentStartTime[eid] = components.vitality.urgentStartTime;
+    VitalityComp.deathTime[eid] = components.vitality.deathTime;
+    VitalityComp.isDead[eid] = components.vitality.isDead ? 1 : 0;
+  }
+  if (components.temporaryStatus) {
+    if (!hasComponent(world, TemporaryStatusComp, eid)) {
+      addComponent(world, TemporaryStatusComp, eid);
+    }
+    TemporaryStatusComp.statusType[eid] = components.temporaryStatus.statusType;
+    TemporaryStatusComp.startTime[eid] = components.temporaryStatus.startTime;
+  }
+  if (components.freshnessTimer) {
+    if (!hasComponent(world, FreshnessTimerComp, eid)) {
+      addComponent(world, FreshnessTimerComp, eid);
+    }
+    FreshnessTimerComp.createdTime[eid] = components.freshnessTimer.createdTime;
+    FreshnessTimerComp.normalTime[eid] = components.freshnessTimer.normalTime;
+    FreshnessTimerComp.staleTime[eid] = components.freshnessTimer.staleTime;
+    FreshnessTimerComp.isBeingEaten[eid] = components.freshnessTimer.isBeingEaten ? 1 : 0;
+  }
+}
+function ensureRandomMovementDefaults(eid, now) {
+  const hasInvalidRange = RandomMovementComp.minIdleTime[eid] <= 0 || RandomMovementComp.maxIdleTime[eid] < RandomMovementComp.minIdleTime[eid] || RandomMovementComp.minMoveTime[eid] <= 0 || RandomMovementComp.maxMoveTime[eid] < RandomMovementComp.minMoveTime[eid];
+  if (hasInvalidRange) {
+    RandomMovementComp.minIdleTime[eid] = 2e3;
+    RandomMovementComp.maxIdleTime[eid] = 8e3;
+    RandomMovementComp.minMoveTime[eid] = 1e3;
+    RandomMovementComp.maxMoveTime[eid] = 8e3;
+  }
+  const nextChange = RandomMovementComp.nextChange[eid];
+  if (!nextChange || nextChange <= 0) {
+    RandomMovementComp.nextChange[eid] = now + 1e3 + Math.random() * 2e3;
+  }
+}
+function repairCharacterEntityRuntimeComponents(world, eid, now = Date.now()) {
+  if (!hasComponent(world, ObjectComp, eid) || ObjectComp.type[eid] !== ObjectType.CHARACTER) {
+    return [];
+  }
+  const repaired = [];
+  const state = ObjectComp.state[eid];
+  const needsAnimation = state !== CharacterState.EGG && state !== CharacterState.DEAD;
+  const needsRandomMovement2 = state === CharacterState.IDLE || state === CharacterState.MOVING || state === CharacterState.SLEEPING;
+  if (!hasComponent(world, SpeedComp, eid)) {
+    addComponent(world, SpeedComp, eid);
+    SpeedComp.value[eid] = 0;
+    repaired.push("SpeedComp");
+  }
+  if (!hasComponent(world, DestinationComp, eid)) {
+    addComponent(world, DestinationComp, eid);
+    DestinationComp.type[eid] = 0;
+    DestinationComp.target[eid] = 0;
+    DestinationComp.x[eid] = 0;
+    DestinationComp.y[eid] = 0;
+    repaired.push("DestinationComp");
+  }
+  if (!hasComponent(world, StatusIconRenderComp, eid)) {
+    addComponent(world, StatusIconRenderComp, eid);
+    StatusIconRenderComp.storeIndexes[eid] = new Uint8Array(
+      4
+    ).fill(0);
+    StatusIconRenderComp.visibleCount[eid] = 0;
+    repaired.push("StatusIconRenderComp");
+  }
+  if (!hasComponent(world, DigestiveSystemComp, eid)) {
+    addComponent(world, DigestiveSystemComp, eid);
+    DigestiveSystemComp.capacity[eid] = GAME_CONSTANTS.DIGESTIVE_CAPACITY;
+    DigestiveSystemComp.currentLoad[eid] = 0;
+    DigestiveSystemComp.nextPoopTime[eid] = 0;
+    repaired.push("DigestiveSystemComp");
+  }
+  if (!hasComponent(world, DiseaseSystemComp, eid)) {
+    addComponent(world, DiseaseSystemComp, eid);
+    DiseaseSystemComp.nextCheckTime[eid] = now + GAME_CONSTANTS.DISEASE_CHECK_INTERVAL;
+    DiseaseSystemComp.sickStartTime[eid] = 0;
+    repaired.push("DiseaseSystemComp");
+  }
+  if (!hasComponent(world, VitalityComp, eid)) {
+    addComponent(world, VitalityComp, eid);
+    VitalityComp.urgentStartTime[eid] = 0;
+    VitalityComp.deathTime[eid] = 0;
+    VitalityComp.isDead[eid] = state === CharacterState.DEAD ? 1 : 0;
+    repaired.push("VitalityComp");
+  }
+  if (!hasComponent(world, TemporaryStatusComp, eid)) {
+    addComponent(world, TemporaryStatusComp, eid);
+    TemporaryStatusComp.statusType[eid] = 0;
+    TemporaryStatusComp.startTime[eid] = 0;
+    repaired.push("TemporaryStatusComp");
+  }
+  if (!hasComponent(world, EggHatchComp, eid)) {
+    addComponent(world, EggHatchComp, eid);
+    EggHatchComp.hatchTime[eid] = state === CharacterState.EGG ? now + GAME_CONSTANTS.EGG_HATCH_TIME : 0;
+    EggHatchComp.isReadyToHatch[eid] = 0;
+    repaired.push("EggHatchComp");
+  }
+  if (needsAnimation && hasComponent(world, CharacterStatusComp, eid) && !hasComponent(world, AnimationRenderComp, eid)) {
+    addComponent(world, AnimationRenderComp, eid);
+    AnimationRenderComp.storeIndex[eid] = 0;
+    AnimationRenderComp.spritesheetKey[eid] = CharacterStatusComp.characterKey[eid] || SpritesheetKey.TestGreenSlimeA1;
+    AnimationRenderComp.animationKey[eid] = AnimationKey.IDLE;
+    AnimationRenderComp.isPlaying[eid] = 1;
+    AnimationRenderComp.loop[eid] = 1;
+    AnimationRenderComp.speed[eid] = 0.04;
+    repaired.push("AnimationRenderComp");
+  }
+  if (needsRandomMovement2) {
+    if (!hasComponent(world, RandomMovementComp, eid)) {
+      addComponent(world, RandomMovementComp, eid);
+      repaired.push("RandomMovementComp");
+    }
+    ensureRandomMovementDefaults(eid, now);
+  }
+  return repaired;
+}
+const characterQuery$9 = defineQuery([CharacterStatusComp, RandomMovementComp]);
 const allCharacterQuery = defineQuery([CharacterStatusComp, ObjectComp]);
+function hasDirectedMovement(world, eid) {
+  return hasComponent(world, DestinationComp, eid) && DestinationComp.type[eid] === DestinationType.TARGETED && DestinationComp.target[eid] !== 0;
+}
 function randomMovementSystem(params) {
   const { world } = params;
   const currentTime = world.currentTime;
   const shouldLog = !world.isSimulationMode;
-  const chars = characterQuery$8(world);
+  const chars = characterQuery$9(world);
   const allChars = allCharacterQuery(world);
+  for (let i2 = 0; i2 < allChars.length; i2++) {
+    const eid = allChars[i2];
+    const state = ObjectComp.state[eid];
+    const shouldHaveRandomMovement = state === CharacterState.IDLE || state === CharacterState.MOVING || state === CharacterState.SLEEPING;
+    if (shouldHaveRandomMovement && !hasComponent(world, RandomMovementComp, eid) && !hasDirectedMovement(world, eid)) {
+      const repaired = repairCharacterEntityRuntimeComponents(
+        world,
+        eid,
+        currentTime
+      );
+      if (repaired.includes("RandomMovementComp") && state === CharacterState.MOVING && SpeedComp.value[eid] <= 0) {
+        ObjectComp.state[eid] = CharacterState.IDLE;
+      }
+    }
+  }
   if (shouldLog && Math.floor(currentTime / 3e3) !== Math.floor((currentTime - 100) / 3e3)) {
+    const suspiciousChars = allChars.filter((eid) => {
+      const state = ObjectComp.state[eid];
+      const shouldHaveRandomMovement = state === CharacterState.IDLE || state === CharacterState.MOVING || state === CharacterState.SLEEPING;
+      return shouldHaveRandomMovement && !hasComponent(world, RandomMovementComp, eid) && !hasDirectedMovement(world, eid);
+    });
     console.log(
       `[RandomMovementSystem] Found ${chars.length} entities with RandomMovementComp, ${allChars.length} total character entities`
     );
-    if (chars.length === 0 && allChars.length > 0) {
+    if (suspiciousChars.length > 0) {
       console.warn(
-        `[RandomMovementSystem] Character entities exist but none have RandomMovementComp!`
+        `[RandomMovementSystem] ${suspiciousChars.length} active character entities are missing RandomMovementComp`
       );
-      const firstChar = allChars[0];
+      const firstChar = suspiciousChars[0];
       console.log(
-        `[RandomMovementSystem] First character entity ${firstChar} - has RandomMovementComp: ${RandomMovementComp.minIdleTime[firstChar] !== void 0}`
+        `[RandomMovementSystem] First suspicious character entity ${firstChar} - state=${ObjectComp.state[firstChar]}, has RandomMovementComp=${hasComponent(world, RandomMovementComp, firstChar)}`
       );
     }
   }
@@ -47470,6 +47953,9 @@ const spritesheetCache = /* @__PURE__ */ new Map();
 const animatedSpriteStore = new ObjectStore(
   "AnimatedSpriteStore"
 );
+function getAnimatedSpriteStore() {
+  return animatedSpriteStore;
+}
 function animationRenderSystem(params) {
   const { world } = params;
   const entities = animationQuery(world);
@@ -47649,6 +48135,10 @@ function changeAnimation(eid, animationKey) {
     );
   }
 }
+function getEffectiveCharacterZIndex(eid) {
+  const configuredZIndex = RenderComp.zIndex[eid];
+  return configuredZIndex === 0 ? PositionComp.y[eid] : configuredZIndex;
+}
 const TEMPORARY_STATUSES = [CharacterStatus.HAPPY, CharacterStatus.DISCOVER];
 const STATUS_TO_TEXTURE_KEY = {
   [CharacterStatus.SICK]: TextureKey.SICK,
@@ -47771,6 +48261,7 @@ function statusIconRenderSystem(params) {
       x: PositionComp.x[eid],
       y: PositionComp.y[eid]
     };
+    const characterZIndex = getEffectiveCharacterZIndex(eid);
     const allStatuses = [];
     for (let j2 = 0; j2 < 4; j2++) {
       const status = CharacterStatusComp.statuses[eid][j2];
@@ -47812,7 +48303,7 @@ function statusIconRenderSystem(params) {
       const startX = position.x - totalWidth / 2 + j2 * (iconSize + spacing) + iconSize / 2;
       sprites[j2].x = startX;
       sprites[j2].y = position.y - 50;
-      sprites[j2].zIndex = RenderComp.zIndex[eid];
+      sprites[j2].zIndex = characterZIndex;
     }
     const currentTempSprite = entityTemporarySprites.get(eid);
     if (latestTemporary) {
@@ -47831,7 +48322,7 @@ function statusIconRenderSystem(params) {
         const tempSprite = entityTemporarySprites.get(eid);
         tempSprite.x = position.x + 25;
         tempSprite.y = position.y - 40;
-        tempSprite.zIndex = RenderComp.zIndex[eid];
+        tempSprite.zIndex = characterZIndex;
       }
     } else {
       if (currentTempSprite) {
@@ -47843,310 +48334,127 @@ function statusIconRenderSystem(params) {
   }
   return params;
 }
-function convertECSEntityToSavedEntity(world, eid) {
-  const components = {};
-  if (hasComponent(world, ObjectComp, eid)) {
-    components.object = {
-      id: ObjectComp.id[eid],
-      type: ObjectComp.type[eid],
-      state: ObjectComp.state[eid]
-    };
-  }
-  if (hasComponent(world, CharacterStatusComp, eid)) {
-    components.characterStatus = {
-      characterKey: CharacterStatusComp.characterKey[eid],
-      stamina: CharacterStatusComp.stamina[eid],
-      evolutionGage: CharacterStatusComp.evolutionGage[eid],
-      evolutionPhase: CharacterStatusComp.evolutionPhase[eid],
-      statuses: Array.from(
-        CharacterStatusComp.statuses[eid]
-      )
-    };
-  }
-  if (hasComponent(world, PositionComp, eid)) {
-    components.position = {
-      x: PositionComp.x[eid],
-      y: PositionComp.y[eid]
-    };
-  }
-  if (hasComponent(world, AngleComp, eid)) {
-    components.angle = {
-      value: AngleComp.value[eid]
-    };
-  }
-  if (hasComponent(world, SpeedComp, eid)) {
-    components.speed = {
-      value: SpeedComp.value[eid]
-    };
-  }
-  if (hasComponent(world, FreshnessComp, eid)) {
-    components.freshness = {
-      freshness: FreshnessComp.freshness[eid]
-    };
-  }
-  if (hasComponent(world, DestinationComp, eid)) {
-    components.destination = {
-      type: DestinationComp.type[eid],
-      target: DestinationComp.target[eid],
-      x: DestinationComp.x[eid],
-      y: DestinationComp.y[eid]
-    };
-  }
-  if (hasComponent(world, RandomMovementComp, eid)) {
-    components.randomMovement = {
-      minIdleTime: RandomMovementComp.minIdleTime[eid],
-      maxIdleTime: RandomMovementComp.maxIdleTime[eid],
-      minMoveTime: RandomMovementComp.minMoveTime[eid],
-      maxMoveTime: RandomMovementComp.maxMoveTime[eid],
-      nextChange: RandomMovementComp.nextChange[eid]
-    };
-  }
-  if (hasComponent(world, RenderComp, eid)) {
-    components.render = {
-      storeIndex: RenderComp.storeIndex[eid],
-      textureKey: RenderComp.textureKey[eid],
-      scale: RenderComp.scale[eid],
-      zIndex: RenderComp.zIndex[eid]
-    };
-  }
-  if (hasComponent(world, AnimationRenderComp, eid)) {
-    components.animationRender = {
-      storeIndex: AnimationRenderComp.storeIndex[eid],
-      spritesheetKey: AnimationRenderComp.spritesheetKey[eid],
-      animationKey: AnimationRenderComp.animationKey[eid],
-      isPlaying: AnimationRenderComp.isPlaying[eid] === 1,
-      loop: AnimationRenderComp.loop[eid] === 1,
-      speed: +AnimationRenderComp.speed[eid].toFixed(2)
-    };
-  }
-  if (hasComponent(world, StatusIconRenderComp, eid)) {
-    components.statusIconRender = {
-      storeIndexes: Array.from(StatusIconRenderComp.storeIndexes[eid]),
-      visibleCount: StatusIconRenderComp.visibleCount[eid]
-    };
-  }
-  if (hasComponent(world, ThrowAnimationComp, eid)) {
-    components.throwAnimation = {
-      initialPosition: {
-        x: ThrowAnimationComp.initialX[eid],
-        y: ThrowAnimationComp.initialY[eid]
-      },
-      finalPosition: {
-        x: ThrowAnimationComp.finalX[eid],
-        y: ThrowAnimationComp.finalY[eid]
-      },
-      initialScale: 0,
-      // 이제 시스템에서 관리하므로 기본값
-      finalScale: 0,
-      // 이제 시스템에서 관리하므로 기본값
-      duration: 0,
-      // 이제 시스템에서 관리하므로 기본값
-      elapsedTime: ThrowAnimationComp.elapsedTime[eid],
-      isActive: ThrowAnimationComp.isActive[eid] === 1,
-      maxHeight: 0
-      // 이제 시스템에서 관리하므로 기본값
-    };
-  }
-  if (hasComponent(world, EggHatchComp, eid)) {
-    components.eggHatch = {
-      hatchTime: EggHatchComp.hatchTime[eid],
-      isReadyToHatch: EggHatchComp.isReadyToHatch[eid] === 1
-    };
-  }
-  if (hasComponent(world, DigestiveSystemComp, eid)) {
-    components.digestiveSystem = {
-      capacity: DigestiveSystemComp.capacity[eid],
-      currentLoad: DigestiveSystemComp.currentLoad[eid],
-      nextPoopTime: DigestiveSystemComp.nextPoopTime[eid]
-    };
-  }
-  if (hasComponent(world, DiseaseSystemComp, eid)) {
-    components.diseaseSystem = {
-      nextCheckTime: DiseaseSystemComp.nextCheckTime[eid],
-      sickStartTime: DiseaseSystemComp.sickStartTime[eid]
-    };
-  }
-  if (hasComponent(world, VitalityComp, eid)) {
-    components.vitality = {
-      urgentStartTime: VitalityComp.urgentStartTime[eid],
-      deathTime: VitalityComp.deathTime[eid],
-      isDead: VitalityComp.isDead[eid] === 1
-    };
-  }
-  if (hasComponent(world, TemporaryStatusComp, eid)) {
-    components.temporaryStatus = {
-      statusType: TemporaryStatusComp.statusType[eid],
-      startTime: TemporaryStatusComp.startTime[eid]
-    };
-  }
-  if (hasComponent(world, FreshnessTimerComp, eid)) {
-    components.freshnessTimer = {
-      createdTime: FreshnessTimerComp.createdTime[eid],
-      normalTime: FreshnessTimerComp.normalTime[eid],
-      staleTime: FreshnessTimerComp.staleTime[eid],
-      isBeingEaten: FreshnessTimerComp.isBeingEaten[eid] === 1
-    };
-  }
-  return { components };
-}
-function applySavedEntityToECS(world, eid, savedEntity) {
+const characterQuery$8 = defineQuery([ObjectComp, PositionComp, RenderComp]);
+const characterExitQuery$1 = exitQuery(characterQuery$8);
+const labelStore = /* @__PURE__ */ new Map();
+const NAME_LABEL_STYLE = new TextStyle({
+  fontFamily: [
+    "Press Start 2P",
+    "Apple Color Emoji",
+    "Segoe UI Emoji",
+    "Noto Color Emoji",
+    "sans-serif"
+  ],
+  fontSize: 10,
+  fill: 16777215,
+  align: "center",
+  stroke: { color: 0, width: 3 }
+});
+const FALLBACK_CHARACTER_HEIGHT$1 = 48;
+const LABEL_MARGIN = 8;
+const MAX_DISPLAY_NAME_LENGTH = 10;
+function characterNameLabelSystem(params) {
   var _a;
-  const { components } = savedEntity;
-  if (components.object) {
-    if (!hasComponent(world, ObjectComp, eid)) {
-      addComponent(world, ObjectComp, eid);
-    }
-    ObjectComp.id[eid] = components.object.id;
-    ObjectComp.type[eid] = components.object.type;
-    ObjectComp.state[eid] = components.object.state;
+  const { world } = params;
+  const exitedEntities = characterExitQuery$1(world);
+  for (let i2 = 0; i2 < exitedEntities.length; i2++) {
+    removeCharacterNameLabel(exitedEntities[i2]);
   }
-  if (components.characterStatus) {
-    if (!hasComponent(world, CharacterStatusComp, eid)) {
-      addComponent(world, CharacterStatusComp, eid);
+  const rawName = (_a = world.getInMemoryData().world_metadata.monster_name) == null ? void 0 : _a.trim();
+  const displayName = rawName ? truncateDisplayName(rawName) : "";
+  const entities = characterQuery$8(world);
+  for (let i2 = 0; i2 < entities.length; i2++) {
+    const eid = entities[i2];
+    if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
+      removeCharacterNameLabel(eid);
+      continue;
     }
-    CharacterStatusComp.characterKey[eid] = components.characterStatus.characterKey;
-    CharacterStatusComp.stamina[eid] = components.characterStatus.stamina;
-    CharacterStatusComp.evolutionGage[eid] = components.characterStatus.evolutionGage;
-    CharacterStatusComp.evolutionPhase[eid] = components.characterStatus.evolutionPhase;
-    CharacterStatusComp.statuses[eid] = new Uint8Array(
-      components.characterStatus.statuses
+    if (!displayName) {
+      removeCharacterNameLabel(eid);
+      continue;
+    }
+    const displayObject = getCharacterDisplayObject$1(eid);
+    if (!displayObject) {
+      removeCharacterNameLabel(eid);
+      continue;
+    }
+    const label = getOrCreateCharacterNameLabel(eid, world.stage);
+    if (label.text !== displayName) {
+      label.text = displayName;
+    }
+    updateCharacterNameLabel(label, eid, displayObject);
+  }
+  return params;
+}
+function cleanupCharacterNameLabels() {
+  labelStore.forEach((label) => {
+    label.removeFromParent();
+    label.destroy();
+  });
+  labelStore.clear();
+}
+function getOrCreateCharacterNameLabel(eid, stage) {
+  const existingLabel = labelStore.get(eid);
+  if (existingLabel) {
+    return existingLabel;
+  }
+  const label = new Text({
+    text: "",
+    style: NAME_LABEL_STYLE,
+    anchor: { x: 0.5, y: 0 }
+  });
+  label.roundPixels = true;
+  stage.addChild(label);
+  labelStore.set(eid, label);
+  return label;
+}
+function removeCharacterNameLabel(eid) {
+  const label = labelStore.get(eid);
+  if (!label) {
+    return;
+  }
+  label.removeFromParent();
+  label.destroy();
+  labelStore.delete(eid);
+}
+function updateCharacterNameLabel(label, eid, displayObject) {
+  const x2 = PositionComp.x[eid];
+  const y2 = PositionComp.y[eid];
+  const configuredZIndex = RenderComp.zIndex[eid];
+  const effectiveZIndex = configuredZIndex === 0 ? y2 : configuredZIndex;
+  const characterHeight = getDisplayObjectHeight(displayObject, eid);
+  label.position.set(x2, y2 + characterHeight / 2 + LABEL_MARGIN);
+  label.zIndex = effectiveZIndex + 1;
+  label.visible = true;
+}
+function getCharacterDisplayObject$1(eid) {
+  return getSpriteStore().get(eid) ?? getAnimatedSpriteStore().get(eid);
+}
+function getDisplayObjectHeight(displayObject, eid) {
+  const height = "height" in displayObject ? Number(displayObject.height) : NaN;
+  if (Number.isFinite(height) && height > 0) {
+    return height;
+  }
+  const scale = RenderComp.scale[eid];
+  return scale > 0 ? scale * 16 : FALLBACK_CHARACTER_HEIGHT$1;
+}
+function truncateDisplayName(name) {
+  const graphemes = splitDisplayCharacters(name);
+  if (graphemes.length <= MAX_DISPLAY_NAME_LENGTH) {
+    return name;
+  }
+  return `${graphemes.slice(0, MAX_DISPLAY_NAME_LENGTH).join("")}…`;
+}
+function splitDisplayCharacters(value) {
+  const IntlWithSegmenter = Intl;
+  const SegmenterCtor = IntlWithSegmenter.Segmenter;
+  if (SegmenterCtor) {
+    return Array.from(
+      new SegmenterCtor(void 0, { granularity: "grapheme" }).segment(value),
+      (item) => item.segment
     );
   }
-  if (components.position) {
-    if (!hasComponent(world, PositionComp, eid)) {
-      addComponent(world, PositionComp, eid);
-    }
-    PositionComp.x[eid] = components.position.x;
-    PositionComp.y[eid] = components.position.y;
-  }
-  if (components.angle) {
-    if (!hasComponent(world, AngleComp, eid)) {
-      addComponent(world, AngleComp, eid);
-    }
-    AngleComp.value[eid] = components.angle.value;
-  }
-  if (components.render) {
-    if (!hasComponent(world, RenderComp, eid)) {
-      addComponent(world, RenderComp, eid);
-    }
-    RenderComp.storeIndex[eid] = components.render.storeIndex;
-    RenderComp.textureKey[eid] = components.render.textureKey;
-    RenderComp.scale[eid] = components.render.scale;
-    RenderComp.zIndex[eid] = components.render.zIndex;
-  }
-  if (components.animationRender) {
-    if (!hasComponent(world, AnimationRenderComp, eid)) {
-      addComponent(world, AnimationRenderComp, eid);
-    }
-    AnimationRenderComp.storeIndex[eid] = components.animationRender.storeIndex;
-    AnimationRenderComp.spritesheetKey[eid] = components.animationRender.spritesheetKey;
-    AnimationRenderComp.animationKey[eid] = components.animationRender.animationKey;
-    AnimationRenderComp.isPlaying[eid] = +components.animationRender.isPlaying;
-    AnimationRenderComp.loop[eid] = +components.animationRender.loop;
-    AnimationRenderComp.speed[eid] = components.animationRender.speed;
-  }
-  if (components.statusIconRender) {
-    if (!hasComponent(world, StatusIconRenderComp, eid)) {
-      addComponent(world, StatusIconRenderComp, eid);
-    }
-    StatusIconRenderComp.storeIndexes[eid] = new Uint8Array(
-      components.statusIconRender.storeIndexes
-    );
-    StatusIconRenderComp.visibleCount[eid] = components.statusIconRender.visibleCount;
-  }
-  if (components.speed) {
-    if (!hasComponent(world, SpeedComp, eid)) {
-      addComponent(world, SpeedComp, eid);
-    }
-    SpeedComp.value[eid] = components.speed.value;
-  }
-  if (components.freshness) {
-    if (!hasComponent(world, FreshnessComp, eid)) {
-      addComponent(world, FreshnessComp, eid);
-    }
-    FreshnessComp.freshness[eid] = components.freshness.freshness;
-  }
-  if (components.destination) {
-    if (!hasComponent(world, DestinationComp, eid)) {
-      addComponent(world, DestinationComp, eid);
-    }
-    DestinationComp.type[eid] = components.destination.type;
-    DestinationComp.target[eid] = components.destination.target;
-    DestinationComp.x[eid] = components.destination.x;
-    DestinationComp.y[eid] = components.destination.y;
-  }
-  if (components.randomMovement) {
-    if (!hasComponent(world, RandomMovementComp, eid)) {
-      addComponent(world, RandomMovementComp, eid);
-    }
-    RandomMovementComp.minIdleTime[eid] = components.randomMovement.minIdleTime;
-    RandomMovementComp.maxIdleTime[eid] = components.randomMovement.maxIdleTime;
-    RandomMovementComp.minMoveTime[eid] = components.randomMovement.minMoveTime;
-    RandomMovementComp.maxMoveTime[eid] = components.randomMovement.maxMoveTime;
-    if ((_a = components.randomMovement) == null ? void 0 : _a.nextChange) {
-      const diffFromNow = components.randomMovement.nextChange - Date.now();
-      RandomMovementComp.nextChange[eid] = diffFromNow < 3e3 ? components.randomMovement.nextChange : 0;
-    } else {
-      RandomMovementComp.nextChange[eid] = 0;
-    }
-  }
-  if (components.throwAnimation) {
-    if (!hasComponent(world, ThrowAnimationComp, eid)) {
-      addComponent(world, ThrowAnimationComp, eid);
-    }
-    ThrowAnimationComp.initialX[eid] = components.throwAnimation.initialPosition.x;
-    ThrowAnimationComp.initialY[eid] = components.throwAnimation.initialPosition.y;
-    ThrowAnimationComp.finalX[eid] = components.throwAnimation.finalPosition.x;
-    ThrowAnimationComp.finalY[eid] = components.throwAnimation.finalPosition.y;
-    ThrowAnimationComp.elapsedTime[eid] = components.throwAnimation.elapsedTime;
-    ThrowAnimationComp.isActive[eid] = components.throwAnimation.isActive ? 1 : 0;
-  }
-  if (components.eggHatch) {
-    if (!hasComponent(world, EggHatchComp, eid)) {
-      addComponent(world, EggHatchComp, eid);
-    }
-    EggHatchComp.hatchTime[eid] = components.eggHatch.hatchTime;
-    EggHatchComp.isReadyToHatch[eid] = components.eggHatch.isReadyToHatch ? 1 : 0;
-  }
-  if (components.digestiveSystem) {
-    if (!hasComponent(world, DigestiveSystemComp, eid)) {
-      addComponent(world, DigestiveSystemComp, eid);
-    }
-    DigestiveSystemComp.capacity[eid] = components.digestiveSystem.capacity;
-    DigestiveSystemComp.currentLoad[eid] = components.digestiveSystem.currentLoad;
-    DigestiveSystemComp.nextPoopTime[eid] = components.digestiveSystem.nextPoopTime;
-  }
-  if (components.diseaseSystem) {
-    if (!hasComponent(world, DiseaseSystemComp, eid)) {
-      addComponent(world, DiseaseSystemComp, eid);
-    }
-    DiseaseSystemComp.nextCheckTime[eid] = components.diseaseSystem.nextCheckTime;
-    DiseaseSystemComp.sickStartTime[eid] = components.diseaseSystem.sickStartTime;
-  }
-  if (components.vitality) {
-    if (!hasComponent(world, VitalityComp, eid)) {
-      addComponent(world, VitalityComp, eid);
-    }
-    VitalityComp.urgentStartTime[eid] = components.vitality.urgentStartTime;
-    VitalityComp.deathTime[eid] = components.vitality.deathTime;
-    VitalityComp.isDead[eid] = components.vitality.isDead ? 1 : 0;
-  }
-  if (components.temporaryStatus) {
-    if (!hasComponent(world, TemporaryStatusComp, eid)) {
-      addComponent(world, TemporaryStatusComp, eid);
-    }
-    TemporaryStatusComp.statusType[eid] = components.temporaryStatus.statusType;
-    TemporaryStatusComp.startTime[eid] = components.temporaryStatus.startTime;
-  }
-  if (components.freshnessTimer) {
-    if (!hasComponent(world, FreshnessTimerComp, eid)) {
-      addComponent(world, FreshnessTimerComp, eid);
-    }
-    FreshnessTimerComp.createdTime[eid] = components.freshnessTimer.createdTime;
-    FreshnessTimerComp.normalTime[eid] = components.freshnessTimer.normalTime;
-    FreshnessTimerComp.staleTime[eid] = components.freshnessTimer.staleTime;
-    FreshnessTimerComp.isBeingEaten[eid] = components.freshnessTimer.isBeingEaten ? 1 : 0;
-  }
+  return Array.from(value);
 }
 const THIS_CONFIG = {
   SAVE_INTERVAL: 1e3
@@ -48250,68 +48558,6 @@ function throwAnimationSystem(params) {
   }
   return params;
 }
-var CharacterKey = /* @__PURE__ */ ((CharacterKey2) => {
-  CharacterKey2["TestGreenSlimeA1"] = "test-green-slime_A1";
-  CharacterKey2["TestGreenSlimeB1"] = "test-green-slime_B1";
-  CharacterKey2["TestGreenSlimeC1"] = "test-green-slime_C1";
-  CharacterKey2["TestGreenSlimeD1"] = "test-green-slime_D1";
-  return CharacterKey2;
-})(CharacterKey || {});
-var CharacterClass = /* @__PURE__ */ ((CharacterClass2) => {
-  CharacterClass2["A"] = "character-class-a";
-  CharacterClass2["B"] = "character-class-b";
-  CharacterClass2["C"] = "character-class-c";
-  CharacterClass2["D"] = "character-class-d";
-  return CharacterClass2;
-})(CharacterClass || {});
-const GAME_CONSTANTS = {
-  // 알 부화 관련
-  EGG_HATCH_TIME: 5e3,
-  // 소화기관 관련
-  DIGESTIVE_CAPACITY: 5,
-  DIGESTIVE_MULTIPLIER: 0.5,
-  // 스테미나 증가량의 0.5배만큼 소화기관 차게됨
-  POOP_DELAY: 1e4,
-  // 소화기관 초과 후 똥 싸는 시간 (10초)
-  // 질병 관련
-  DISEASE_CHECK_INTERVAL: 1e4,
-  BASE_DISEASE_RATE: 0.02,
-  // 기본 질병 확률 2%
-  LOW_STAMINA_DISEASE_BONUS: 0.03,
-  // 스테미나 3이하일 때 추가 3%
-  POOP_DISEASE_RATE: 0.01,
-  // 똥 1개당 1%
-  STALE_FOOD_DISEASE_RATE: 0.01,
-  // 상한음식 1개당 1%
-  // 음식 신선도 관련
-  FRESH_TO_NORMAL_TIME: 1e4,
-  NORMAL_TO_STALE_TIME: 1e4,
-  FRESH_STAMINA_BONUS: 3,
-  // 신선한 음식 스테미나 증가량
-  NORMAL_STAMINA_BONUS: 1,
-  // 보통 음식 스테미나 증가량
-  // 캐릭터 상태 관련
-  UNHAPPY_STAMINA_THRESHOLD: 4,
-  URGENT_STAMINA_THRESHOLD: 0,
-  DEATH_DELAY: 6e4,
-  // 캐릭터 스테미나 관련
-  MAX_STAMINA: 10,
-  STAMINA_DECREASE_INTERVAL: 3e4,
-  // 30초마다 스테미나 감소
-  STAMINA_DECREASE_AMOUNT: 1,
-  // 진화 게이지 관련
-  EVOLUTION_GAUGE_STATMINA_THRESHOLD: 5,
-  // 스테미나 5 이상일 때 진화 게이지 증가
-  EVOLUTION_GAUGE_CHECK_INTERVAL: 1e4,
-  // 10초마다 진화 게이지 체크
-  EVOLUTION_GAUGE_INCREASE_AMOUNT: {
-    // 클래스별 진화 게이지 증가량
-    [CharacterClass.A]: 1,
-    [CharacterClass.B]: 1,
-    [CharacterClass.C]: 1,
-    [CharacterClass.D]: 1
-  }
-};
 function evolveCharacter(world, eid) {
   if (ObjectComp.type[eid] !== ObjectType.CHARACTER) return;
   if (ObjectComp.state[eid] === CharacterState.DEAD) return;
@@ -48548,6 +48794,19 @@ function hasCharacterStatus$2(eid, status) {
   const currentStatuses = CharacterStatusComp.statuses[eid];
   return currentStatuses.includes(status);
 }
+function getRemainingStaminaDecreaseTime(eid) {
+  const elapsed = staminaTimers.get(eid) || 0;
+  return Math.max(0, GAME_CONSTANTS.STAMINA_DECREASE_INTERVAL - elapsed);
+}
+function getRemainingEvolutionGaugeTime(eid) {
+  const currentStamina = CharacterStatusComp.stamina[eid];
+  const isSick = hasCharacterStatus$2(eid, CharacterStatus.SICK);
+  if (currentStamina < GAME_CONSTANTS.EVOLUTION_GAUGE_STATMINA_THRESHOLD || isSick) {
+    return null;
+  }
+  const elapsed = evolutionGaugeTimers.get(eid) || 0;
+  return Math.max(0, GAME_CONSTANTS.EVOLUTION_GAUGE_CHECK_INTERVAL - elapsed);
+}
 function _updateStaminaAndEvolutionGauge(world, eid, delta) {
   const currentStaminaTimer = staminaTimers.get(eid) || 0;
   const totalStaminaTime = currentStaminaTimer + delta;
@@ -48714,6 +48973,9 @@ function updateFreshness(world, currentTime) {
     const createdTime = timerComp.createdTime[eid];
     const elapsedTime = currentTime - createdTime;
     const currentFreshness = freshnessComp.freshness[eid];
+    if (currentFreshness === Freshness.STALE && ObjectComp.state[eid] !== FoodState.BEING_THROWING && !isBeingEaten && ObjectComp.state[eid] !== FoodState.LANDED) {
+      ObjectComp.state[eid] = FoodState.LANDED;
+    }
     if (currentFreshness === Freshness.FRESH && elapsedTime >= timerComp.normalTime[eid]) {
       freshnessComp.freshness[eid] = Freshness.NORMAL;
     }
@@ -49031,12 +49293,7 @@ function checkPoopTime(world, currentTime) {
       continue;
     if (ObjectComp.state[eid] === CharacterState.DEAD) continue;
     const digestiveComp = DigestiveSystemComp;
-    const nextPoopTime = digestiveComp.nextPoopTime[eid];
-    if (nextPoopTime > 0) {
-      console.log(
-        `[DigestiveSystem] Character ${eid} - nextPoopTime: ${nextPoopTime}, currentTime: ${currentTime}, remaining: ${nextPoopTime - currentTime}ms`
-      );
-    }
+    digestiveComp.nextPoopTime[eid];
     if (digestiveComp.nextPoopTime[eid] > 0 && currentTime >= digestiveComp.nextPoopTime[eid]) {
       console.log(`[DigestiveSystem] It's time to poop! Character ${eid}`);
       createPoop(world, eid);
@@ -49179,8 +49436,23 @@ function updateMovingToFood(world, delta) {
       console.warn(
         `[FoodEatingSystem] Character ${eid} has DestinationComp but target is 0 (NULL), removing DestinationComp`
       );
-      removeComponent(world, DestinationComp, eid);
-      ObjectComp.state[eid] = CharacterState.IDLE;
+      restoreFreeRoamingState(world, eid, 1e3);
+      continue;
+    }
+    const hasValidTargetFood = hasComponent(world, ObjectComp, targetFoodEid) && ObjectComp.type[targetFoodEid] === ObjectType.FOOD;
+    if (!hasValidTargetFood) {
+      console.warn(
+        `[FoodEatingSystem] Character ${eid} lost target food ${targetFoodEid}, restoring free roaming state`
+      );
+      restoreFreeRoamingState(world, eid, 1e3);
+      continue;
+    }
+    if (hasComponent(world, FreshnessComp, targetFoodEid) && !isFoodEdible(FreshnessComp.freshness[targetFoodEid])) {
+      console.log(
+        `[FoodEatingSystem] Character ${eid} target food ${targetFoodEid} became stale before arrival, restoring free roaming state`
+      );
+      ObjectComp.state[targetFoodEid] = FoodState.LANDED;
+      restoreFreeRoamingState(world, eid, 1e3);
       continue;
     }
     const { distance, hasArrived } = moveTowardsTarget(
@@ -49307,26 +49579,18 @@ function findNearestFood(_world, characterEid, foods) {
   for (let j2 = 0; j2 < foods.length; j2++) {
     const foodEid = foods[j2];
     if (ObjectComp.type[foodEid] !== ObjectType.FOOD) {
-      console.log(
-        `[FoodEatingSystem] Entity ${foodEid} is not food (type: ${ObjectComp.type[foodEid]})`
-      );
       continue;
     }
     if (ObjectComp.state[foodEid] !== FoodState.LANDED) {
-      console.log(
-        `[FoodEatingSystem] Food ${foodEid} is not LANDED (state: ${ObjectComp.state[foodEid]})`
-      );
+      continue;
+    }
+    if (hasComponent(_world, FreshnessComp, foodEid) && !isFoodEdible(FreshnessComp.freshness[foodEid])) {
       continue;
     }
     const foodX = PositionComp.x[foodEid];
     const foodY = PositionComp.y[foodEid];
     const distance = Math.sqrt(
       Math.pow(characterX - foodX, 2) + Math.pow(characterY - foodY, 2)
-    );
-    console.log(
-      `[FoodEatingSystem] Food ${foodEid} at (${foodX}, ${foodY}) - distance: ${distance.toFixed(
-        2
-      )}`
     );
     if (distance < minDistance) {
       minDistance = distance;
@@ -49391,6 +49655,14 @@ function moveToFood(world, characterEid, foodEid) {
   ObjectComp.state[characterEid] = CharacterState.MOVING;
 }
 function startEating(world, characterEid, foodEid) {
+  if (hasComponent(world, FreshnessComp, foodEid) && !isFoodEdible(FreshnessComp.freshness[foodEid])) {
+    console.log(
+      `[FoodEatingSystem] Prevented character ${characterEid} from eating stale food ${foodEid}`
+    );
+    ObjectComp.state[foodEid] = FoodState.LANDED;
+    restoreFreeRoamingState(world, characterEid, 1e3);
+    return;
+  }
   console.log(
     `[FoodEatingSystem] Character ${characterEid} started eating food ${foodEid}`
   );
@@ -49442,6 +49714,27 @@ function cancelEating(world, characterEid) {
   if (hasComponent(world, FoodEatingComp, characterEid)) {
     removeComponent(world, FoodEatingComp, characterEid);
   }
+}
+function restoreFreeRoamingState(world, characterEid, idleDelayMs) {
+  if (hasComponent(world, DestinationComp, characterEid)) {
+    removeComponent(world, DestinationComp, characterEid);
+  }
+  ObjectComp.state[characterEid] = CharacterState.IDLE;
+  if (!hasComponent(world, SpeedComp, characterEid)) {
+    addComponent(world, SpeedComp, characterEid);
+  }
+  SpeedComp.value[characterEid] = 0;
+  if (!hasComponent(world, RandomMovementComp, characterEid)) {
+    addComponent(world, RandomMovementComp, characterEid);
+  }
+  RandomMovementComp.minIdleTime[characterEid] = 1e3;
+  RandomMovementComp.maxIdleTime[characterEid] = 3e3;
+  RandomMovementComp.minMoveTime[characterEid] = 2e3;
+  RandomMovementComp.maxMoveTime[characterEid] = 4e3;
+  RandomMovementComp.nextChange[characterEid] = world.currentTime + idleDelayMs + Math.random() * 1e3;
+  console.log(
+    `[FoodEatingSystem] Restored free roaming state for character ${characterEid}`
+  );
 }
 const freshFoodQuery = defineQuery([ObjectComp, FreshnessComp, PositionComp]);
 const sparkleQuery = defineQuery([ObjectComp, SparkleEffectComp]);
@@ -49676,12 +49969,14 @@ function cleaningSystem(params) {
   if (!world.isCleaningMode) {
     return { world, delta };
   }
+  syncCleanableEntities(world);
   if (world.isEnteringCleaningMode) {
     handleEnterCleaningMode(world);
   }
   const newCleanableEntities = enterCleanableQuery(world);
   for (let i2 = 0; i2 < newCleanableEntities.length; i2++) {
-    newCleanableEntities[i2];
+    const eid = newCleanableEntities[i2];
+    handleEnterCleanable(world, eid);
   }
   const exitedCleanableEntities = exitCleanableQuery$1(world);
   for (let i2 = 0; i2 < exitedCleanableEntities.length; i2++) {
@@ -49702,13 +49997,17 @@ function clearCleaningTargets(world) {
   }
 }
 function handleEnterCleaningMode(world) {
-  markCleanableEntities(world);
   const cleanableEntities = cleanableEntitiesQuery(world);
   if (cleanableEntities.length > 0) {
     const firstTarget = cleanableEntities[0];
     world.setFocusedTargetEid(firstTarget);
   }
   world.setBroomProgress(world.sliderValue);
+}
+function handleEnterCleanable(world, eid) {
+  if (world.focusedTargetEid === -1) {
+    world.setFocusedTargetEid(eid);
+  }
 }
 function handleExitCleanable(world, eid) {
   if (world.focusedTargetEid === eid) {
@@ -49747,13 +50046,16 @@ function updateBroomMovement(world, focusedTargetEid) {
     }
   }
 }
-function markCleanableEntities(world) {
+function isCleanableEntity(world, eid) {
+  const isPoob = ObjectComp.type[eid] === ObjectType.POOB;
+  const isStaleFood = ObjectComp.type[eid] === ObjectType.FOOD && hasComponent(world, FreshnessComp, eid) && FreshnessComp.freshness[eid] === Freshness.STALE && ObjectComp.state[eid] !== FoodState.BEING_THROWING;
+  return isPoob || isStaleFood;
+}
+function syncCleanableEntities(world) {
   const candidateEntities = cleaningCandidateQuery(world);
   for (let i2 = 0; i2 < candidateEntities.length; i2++) {
     const eid = candidateEntities[i2];
-    const isPoob = ObjectComp.type[eid] === ObjectType.POOB;
-    const isStaleFood = ObjectComp.type[eid] === ObjectType.FOOD && ObjectComp.state[eid] === FoodState.LANDED && hasComponent(world, FreshnessComp, eid) && FreshnessComp.freshness[eid] === Freshness.STALE;
-    if (!isPoob && !isStaleFood) {
+    if (!isCleanableEntity(world, eid)) {
       continue;
     }
     if (!hasComponent(world, CleanableComp, eid)) {
@@ -49762,6 +50064,17 @@ function markCleanableEntities(world) {
       CleanableComp.isBeingCleaned[eid] = 0;
     }
     CleanableComp.isHighlighted[eid] = 1;
+  }
+  const existingCleanableEntities = allCleanableQuery(world);
+  for (let i2 = 0; i2 < existingCleanableEntities.length; i2++) {
+    const eid = existingCleanableEntities[i2];
+    if (isCleanableEntity(world, eid)) {
+      continue;
+    }
+    CleanableComp.isHighlighted[eid] = 0;
+    CleanableComp.isBeingCleaned[eid] = 0;
+    CleanableComp.cleaningProgress[eid] = 0;
+    removeComponent(world, CleanableComp, eid);
   }
 }
 function findNextCleanableTarget(world, currentEid) {
@@ -50008,13 +50321,32 @@ const RECOVERY_APPROACH_DURATION = 300;
 const RECOVERY_HOLD_DURATION = 1e3;
 const RECOVERY_FADE_DURATION = 300;
 const RECOVERY_TOTAL_DURATION = RECOVERY_APPROACH_DURATION + RECOVERY_HOLD_DURATION + RECOVERY_FADE_DURATION;
-const RECOVERY_START_OFFSET_X = -18;
-const RECOVERY_START_OFFSET_Y = -18;
-const RECOVERY_TARGET_OFFSET_X = 0;
-const RECOVERY_TARGET_OFFSET_Y = 0;
+const RECOVERY_START_OFFSET_X = 18;
+const RECOVERY_START_OFFSET_Y = 18;
+const RECOVERY_TIP_OFFSET_X = 16;
+const RECOVERY_TIP_OFFSET_Y = 16;
 const RECOVERY_SCALE = 2.3;
-const RECOVERY_Z_INDEX_OFFSET = 1;
-const RECOVERY_ROTATION = Math.PI * 0.25;
+const RECOVERY_Z_INDEX_OFFSET = 100;
+const RECOVERY_LEFT_ROTATION = -Math.PI * 0.5;
+const RECOVERY_RIGHT_ROTATION = 0;
+function getRecoveryDirectionSign() {
+  return Math.random() < 0.5 ? -1 : 1;
+}
+function getRecoveryRotation(directionSign) {
+  return directionSign < 0 ? RECOVERY_LEFT_ROTATION : RECOVERY_RIGHT_ROTATION;
+}
+function getRecoveryTargetPosition(eid, directionSign) {
+  return {
+    x: PositionComp.x[eid] + directionSign * RECOVERY_TIP_OFFSET_X,
+    y: PositionComp.y[eid] - RECOVERY_TIP_OFFSET_Y
+  };
+}
+function getRecoveryStartPosition(targetX, targetY, directionSign) {
+  return {
+    x: targetX + directionSign * RECOVERY_START_OFFSET_X,
+    y: targetY - RECOVERY_START_OFFSET_Y
+  };
+}
 function getSyringeTexture() {
   try {
     const spritesheet = Assets.get("common16x16");
@@ -50041,12 +50373,12 @@ function getSyringeTexture() {
   }
 }
 function cleanupEffectSprite(world, eid, stage) {
-  const sprite = effectSpriteMap.get(eid);
-  if (sprite) {
-    if (stage && sprite.parent) {
-      stage.removeChild(sprite);
+  const spriteData = effectSpriteMap.get(eid);
+  if (spriteData) {
+    if (stage && spriteData.sprite.parent) {
+      stage.removeChild(spriteData.sprite);
     }
-    sprite.destroy();
+    spriteData.sprite.destroy();
     effectSpriteMap.delete(eid);
   }
   if (hasComponent(world, EffectAnimationComp, eid)) {
@@ -50062,45 +50394,56 @@ function createRecoverySyringeSprite(eid, stage) {
     return null;
   }
   const sprite = new Sprite(texture);
+  const directionSign = getRecoveryDirectionSign();
   sprite.anchor.set(0.5);
   sprite.scale.set(RECOVERY_SCALE);
-  sprite.rotation = RECOVERY_ROTATION;
+  sprite.rotation = getRecoveryRotation(directionSign);
   sprite.alpha = 1;
   stage.addChild(sprite);
-  effectSpriteMap.set(eid, sprite);
+  effectSpriteMap.set(eid, { sprite, directionSign });
   return sprite;
 }
 function updateRecoverySyringe(eid, currentTime) {
   const startTime = EffectAnimationComp.startTime[eid];
   const elapsed = currentTime - startTime;
   const duration = EffectAnimationComp.duration[eid];
-  const targetX = PositionComp.x[eid] + RECOVERY_TARGET_OFFSET_X;
-  const targetY = PositionComp.y[eid] + RECOVERY_TARGET_OFFSET_Y;
-  const startX = targetX + RECOVERY_START_OFFSET_X;
-  const startY = targetY + RECOVERY_START_OFFSET_Y;
   if (elapsed >= duration) {
     return true;
   }
-  const sprite = effectSpriteMap.get(eid);
-  if (!sprite) {
+  const spriteData = effectSpriteMap.get(eid);
+  if (!spriteData) {
     return false;
   }
+  const { sprite, directionSign } = spriteData;
+  const baseRotation = getRecoveryRotation(directionSign);
+  const { x: targetX, y: targetY } = getRecoveryTargetPosition(
+    eid,
+    directionSign
+  );
+  const { x: startX, y: startY } = getRecoveryStartPosition(
+    targetX,
+    targetY,
+    directionSign
+  );
   if (elapsed < RECOVERY_APPROACH_DURATION) {
     const progress = elapsed / RECOVERY_APPROACH_DURATION;
     const easedProgress = 1 - Math.pow(1 - progress, 3);
     sprite.x = startX + (targetX - startX) * easedProgress;
     sprite.y = startY + (targetY - startY) * easedProgress;
     sprite.alpha = 1;
+    sprite.rotation = baseRotation;
   } else if (elapsed < RECOVERY_APPROACH_DURATION + RECOVERY_HOLD_DURATION) {
     sprite.x = targetX;
     sprite.y = targetY;
     sprite.alpha = 1;
+    sprite.rotation = baseRotation;
   } else {
     const fadeElapsed = elapsed - RECOVERY_APPROACH_DURATION - RECOVERY_HOLD_DURATION;
     const fadeProgress = Math.min(fadeElapsed / RECOVERY_FADE_DURATION, 1);
     sprite.x = targetX;
     sprite.y = targetY;
     sprite.alpha = 1 - fadeProgress;
+    sprite.rotation = baseRotation;
   }
   sprite.zIndex = targetY + RECOVERY_Z_INDEX_OFFSET;
   return false;
@@ -50532,6 +50875,22 @@ class HTMLDebugStatusUI {
     sleepButtonsDiv.appendChild(sleepLabel);
     sleepButtonsDiv.appendChild(sleepBtn);
     this._container.appendChild(sleepButtonsDiv);
+    const sleepEffectButtonsDiv = document.createElement("div");
+    const sleepEffectLabel = document.createElement("span");
+    sleepEffectLabel.textContent = "SleepFX: ";
+    sleepEffectLabel.style.cssText = `
+      color: #cfcfcf;
+      font-size: 12px;
+      margin-right: 5px;
+    `;
+    this._sleepEffectToggleButton = this._createAdjustButton(
+      "OFF",
+      () => this._toggleSleepDebugEffect()
+    );
+    this._sleepEffectToggleButton.style.minWidth = "42px";
+    sleepEffectButtonsDiv.appendChild(sleepEffectLabel);
+    sleepEffectButtonsDiv.appendChild(this._sleepEffectToggleButton);
+    this._container.appendChild(sleepEffectButtonsDiv);
     const timeOfDayButtonsDiv = document.createElement("div");
     timeOfDayButtonsDiv.style.cssText = `
       margin-top: 10px;
@@ -50625,7 +50984,7 @@ class HTMLDebugStatusUI {
   _createContainer() {
     const container = document.createElement("div");
     container.style.cssText = `
-      position: fixed;
+      position: absolute;
       top: 60px;
       left: 12px;
       width: 180px;
@@ -50723,6 +51082,15 @@ Set: ${new Date(debugState.sunsetAt).toLocaleTimeString("ko-KR", {
         this._autoTimeButton.style.fontWeight = "normal";
       }
     }
+  }
+  _updateSleepEffectToggleButton() {
+    if (!this._sleepEffectToggleButton) {
+      return;
+    }
+    const isEnabled = this._world.isSleepDebugEffectEnabled();
+    this._sleepEffectToggleButton.textContent = isEnabled ? "ON" : "OFF";
+    this._sleepEffectToggleButton.style.background = isEnabled ? "rgba(120, 220, 150, 0.85)" : "rgba(100, 150, 255, 0.6)";
+    this._sleepEffectToggleButton.style.fontWeight = isEnabled ? "bold" : "normal";
   }
   // 스테미나/진화 게이지 조절 버튼 생성
   _createAdjustButton(text, onClick) {
@@ -50826,17 +51194,24 @@ Set: ${new Date(debugState.sunsetAt).toLocaleTimeString("ko-KR", {
       return;
     }
     const currentState = ObjectComp.state[this._currentCharacterEid];
-    if (currentState === 3) {
-      ObjectComp.state[this._currentCharacterEid] = 1;
+    if (currentState === CharacterState.SLEEPING) {
+      ObjectComp.state[this._currentCharacterEid] = CharacterState.IDLE;
       console.log(
         `[HTMLDebugStatusUI] Character ${this._currentCharacterEid} woke up (SLEEPING -> IDLE)`
       );
     } else {
-      ObjectComp.state[this._currentCharacterEid] = 3;
+      ObjectComp.state[this._currentCharacterEid] = CharacterState.SLEEPING;
       console.log(
         `[HTMLDebugStatusUI] Character ${this._currentCharacterEid} fell asleep (${currentState} -> SLEEPING)`
       );
     }
+  }
+  _toggleSleepDebugEffect() {
+    const isEnabled = this._world.toggleSleepDebugEffect();
+    this._updateSleepEffectToggleButton();
+    console.log(
+      `[HTMLDebugStatusUI] Sleep debug effect ${isEnabled ? "enabled" : "disabled"}`
+    );
   }
   // 상태 관리 시스템 토글 함수
   _toggleStatusSystems() {
@@ -50867,6 +51242,7 @@ Set: ${new Date(debugState.sunsetAt).toLocaleTimeString("ko-KR", {
     this._updateCharacterIdDisplay();
     this._updateSystemStatusDisplay();
     this._updateTimeOfDayDisplay();
+    this._updateSleepEffectToggleButton();
     this._updateAllStatusIndicators();
     this._container.style.display = "block";
     this._isVisible = true;
@@ -50889,6 +51265,7 @@ Set: ${new Date(debugState.sunsetAt).toLocaleTimeString("ko-KR", {
     if (this._isVisible) {
       this._updateSystemStatusDisplay();
       this._updateTimeOfDayDisplay();
+      this._updateSleepEffectToggleButton();
       this._updateAllStatusIndicators();
     }
   }
@@ -50910,7 +51287,7 @@ class HTMLDebugToggleButton {
     const button = document.createElement("button");
     button.textContent = "DEBUG";
     button.style.cssText = `
-      position: fixed;
+      position: absolute;
       top: 20px;
       left: 20px;
       width: 80px;
@@ -51026,11 +51403,11 @@ class HTMLDebugGameConstantsUI {
   _createContainer() {
     const container = document.createElement("div");
     container.style.cssText = `
-      position: fixed;
+      position: absolute;
       top: 48px;
       right: 12px;
-      width: min(360px, calc(100vw - 24px));
-      max-height: calc(100vh - 60px);
+      width: min(360px, calc(100% - 24px));
+      max-height: calc(100% - 60px);
       overflow: auto;
       background: rgba(0, 0, 0, 0.72);
       border: 1px solid rgba(255, 255, 255, 0.18);
@@ -51125,7 +51502,7 @@ class HTMLDebugGameConstantsUI {
     this._container.style.display = this._isVisible ? "block" : "none";
     this._toggleButton.textContent = this._isVisible ? "DBG CONST ON" : "DBG CONST";
     this._toggleButton.style.cssText = `
-      position: fixed;
+      position: absolute;
       top: 12px;
       right: 12px;
       min-width: 88px;
@@ -51169,7 +51546,189 @@ class HTMLDebugGameConstantsUI {
     }
   }
 }
-const characterQuery$3 = defineQuery([ObjectComp, CharacterStatusComp]);
+const characterQuery$3 = defineQuery([
+  ObjectComp,
+  CharacterStatusComp,
+  DiseaseSystemComp
+]);
+const previousStates = /* @__PURE__ */ new Map();
+function diseaseSystem(params) {
+  const { world, currentTime } = params;
+  const shouldLog = !world.isSimulationMode;
+  const entities = characterQuery$3(world);
+  for (let i2 = 0; i2 < entities.length; i2++) {
+    const eid = entities[i2];
+    if (ObjectComp.type[eid] !== ObjectType.CHARACTER) continue;
+    if (hasComponent(world, VitalityComp, eid) && VitalityComp.isDead[eid])
+      continue;
+    if (ObjectComp.state[eid] === CharacterState.DEAD) continue;
+    const diseaseComp = DiseaseSystemComp;
+    const characterComp = CharacterStatusComp;
+    while (currentTime >= diseaseComp.nextCheckTime[eid]) {
+      const checkTime = diseaseComp.nextCheckTime[eid];
+      diseaseComp.nextCheckTime[eid] = checkTime + GAME_CONSTANTS.DISEASE_CHECK_INTERVAL;
+      const currentStatuses2 = characterComp.statuses[eid];
+      const isSick2 = isCharacterSick(currentStatuses2);
+      if (!isSick2) {
+        const diseaseCalculation = calculateDiseaseRate(world, eid);
+        const { rate: diseaseRate, breakdown } = diseaseCalculation;
+        if (shouldLog) {
+          console.log(
+            `Disease Check - Entity ${eid}: Total Rate ${(diseaseRate * 100).toFixed(2)}%`,
+            breakdown
+          );
+        }
+        if (Math.random() < diseaseRate) {
+          if (shouldLog) {
+            console.log(`Disease occurred for entity ${eid}!`);
+          }
+          addCharacterStatus$1(eid, CharacterStatus.SICK);
+          diseaseComp.sickStartTime[eid] = checkTime;
+          ObjectComp.state[eid] = CharacterState.SICK;
+          restrictMovement(world, eid);
+          break;
+        }
+      }
+    }
+    const currentStatuses = characterComp.statuses[eid];
+    const isSick = isCharacterSick(currentStatuses);
+    const isSleeping = ObjectComp.state[eid] === CharacterState.SLEEPING;
+    const previousState = previousStates.get(eid) || {
+      isSick: false,
+      isSleeping: false
+    };
+    const wasRestricted = previousState.isSick || previousState.isSleeping;
+    const isRestricted = isSick || isSleeping;
+    if (isRestricted && !wasRestricted) {
+      restrictMovement(world, eid);
+    } else if (!isRestricted && wasRestricted) {
+      restoreMovement(world, eid);
+    }
+    previousStates.set(eid, { isSick, isSleeping });
+  }
+  return params;
+}
+function restrictMovement(world, eid) {
+  if (hasComponent(world, RandomMovementComp, eid)) {
+    removeComponent(world, RandomMovementComp, eid);
+    console.log(
+      `[DiseaseSystem] Removed RandomMovementComp from entity ${eid} (restricted movement)`
+    );
+  }
+  if (hasComponent(world, DestinationComp, eid)) {
+    removeComponent(world, DestinationComp, eid);
+    console.log(
+      `[DiseaseSystem] Removed DestinationComp from entity ${eid} (restricted movement)`
+    );
+  }
+}
+function restoreMovement(world, eid) {
+  const state = ObjectComp.state[eid];
+  if (state !== CharacterState.EGG && state !== CharacterState.DEAD) {
+    if (!hasComponent(world, RandomMovementComp, eid)) {
+      addComponent(world, RandomMovementComp, eid);
+      RandomMovementComp.minIdleTime[eid] = 3e3;
+      RandomMovementComp.maxIdleTime[eid] = 6e3;
+      RandomMovementComp.minMoveTime[eid] = 2e3;
+      RandomMovementComp.maxMoveTime[eid] = 4e3;
+      RandomMovementComp.nextChange[eid] = world.currentTime + 1e3;
+      console.log(
+        `[DiseaseSystem] Restored RandomMovementComp for entity ${eid} (movement restored)`
+      );
+    }
+  }
+}
+function calculateDiseaseRate(world, eid) {
+  let diseaseRate = GAME_CONSTANTS.BASE_DISEASE_RATE;
+  const breakdown = {
+    base: GAME_CONSTANTS.BASE_DISEASE_RATE,
+    lowStamina: 0,
+    poopBonus: 0,
+    staleFood: 0,
+    stamina: CharacterStatusComp.stamina[eid],
+    poopCount: 0,
+    staleFoodCount: 0
+  };
+  const stamina = CharacterStatusComp.stamina[eid];
+  if (stamina <= 3) {
+    const bonus = GAME_CONSTANTS.LOW_STAMINA_DISEASE_BONUS;
+    diseaseRate += bonus;
+    breakdown.lowStamina = bonus;
+  }
+  const poopCount = countObjectsInWorld(world, ObjectType.POOB);
+  breakdown.poopCount = poopCount;
+  if (poopCount > 0) {
+    const poopBonus = poopCount * GAME_CONSTANTS.POOP_DISEASE_RATE;
+    diseaseRate += poopBonus;
+    breakdown.poopBonus = poopBonus;
+  }
+  const staleCount = countStaleFoodInWorld(world);
+  breakdown.staleFoodCount = staleCount;
+  if (staleCount > 0) {
+    const staleFoodBonus = staleCount * GAME_CONSTANTS.STALE_FOOD_DISEASE_RATE;
+    diseaseRate += staleFoodBonus;
+    breakdown.staleFood = staleFoodBonus;
+  }
+  return {
+    rate: Math.min(diseaseRate, 1),
+    // 최대 100%
+    breakdown
+  };
+}
+function countStaleFoodInWorld(world) {
+  const objectQuery2 = defineQuery([ObjectComp, FreshnessComp]);
+  const entities = objectQuery2(world);
+  let count2 = 0;
+  for (let i2 = 0; i2 < entities.length; i2++) {
+    const eid = entities[i2];
+    if (ObjectComp.type[eid] !== ObjectType.FOOD) {
+      continue;
+    }
+    if (FreshnessComp.freshness[eid] !== Freshness.STALE) {
+      continue;
+    }
+    if (ObjectComp.state[eid] === FoodState.BEING_THROWING) {
+      continue;
+    }
+    count2++;
+  }
+  return count2;
+}
+function countObjectsInWorld(world, objectType) {
+  const objectQuery2 = defineQuery([ObjectComp]);
+  const entities = objectQuery2(world);
+  let count2 = 0;
+  for (let i2 = 0; i2 < entities.length; i2++) {
+    const eid = entities[i2];
+    if (ObjectComp.type[eid] === objectType) {
+      count2++;
+    }
+  }
+  return count2;
+}
+function isCharacterSick(statuses) {
+  for (let i2 = 0; i2 < statuses.length; i2++) {
+    if (statuses[i2] === CharacterStatus.SICK) {
+      return true;
+    }
+  }
+  return false;
+}
+function addCharacterStatus$1(eid, status) {
+  const statuses = CharacterStatusComp.statuses[eid];
+  for (let i2 = 0; i2 < statuses.length; i2++) {
+    if (statuses[i2] === status) {
+      return;
+    }
+  }
+  for (let i2 = 0; i2 < statuses.length; i2++) {
+    if (statuses[i2] === 0) {
+      statuses[i2] = status;
+      return;
+    }
+  }
+}
+const characterQuery$2 = defineQuery([ObjectComp, CharacterStatusComp]);
 class HTMLDebugGaugeUI {
   constructor(world, parentElement) {
     this._currentCharacterEid = -1;
@@ -51182,7 +51741,7 @@ class HTMLDebugGaugeUI {
   _createContainer() {
     const container = document.createElement("div");
     container.style.cssText = `
-      position: fixed;
+      position: absolute;
       top: 4px;
       left: 100px;
       background: rgba(0, 0, 0, 0.4);
@@ -51247,12 +51806,40 @@ class HTMLDebugGaugeUI {
     `;
     digestiveDiv.appendChild(digestiveLabel);
     digestiveDiv.appendChild(this._digestiveText);
+    const diseaseRateDiv = document.createElement("div");
+    const diseaseRateLabel = document.createElement("span");
+    diseaseRateLabel.textContent = "Disease: ";
+    diseaseRateLabel.style.cssText = `
+      color: #ff8888;
+    `;
+    this._diseaseRateText = document.createElement("span");
+    this._diseaseRateText.style.cssText = `
+      color: white;
+      font-weight: bold;
+    `;
+    diseaseRateDiv.appendChild(diseaseRateLabel);
+    diseaseRateDiv.appendChild(this._diseaseRateText);
+    const deathTimeDiv = document.createElement("div");
+    const deathTimeLabel = document.createElement("span");
+    deathTimeLabel.textContent = "Death: ";
+    deathTimeLabel.style.cssText = `
+      color: #ff6666;
+    `;
+    this._deathTimeText = document.createElement("span");
+    this._deathTimeText.style.cssText = `
+      color: white;
+      font-weight: bold;
+    `;
+    deathTimeDiv.appendChild(deathTimeLabel);
+    deathTimeDiv.appendChild(this._deathTimeText);
     this._container.appendChild(staminaDiv);
     this._container.appendChild(evolutionDiv);
     this._container.appendChild(digestiveDiv);
+    this._container.appendChild(diseaseRateDiv);
+    this._container.appendChild(deathTimeDiv);
   }
   _findFirstCharacter() {
-    const characters = characterQuery$3(this._world);
+    const characters = characterQuery$2(this._world);
     for (let i2 = 0; i2 < characters.length; i2++) {
       const eid = characters[i2];
       if (ObjectComp.type[eid] === ObjectType.CHARACTER) {
@@ -51271,11 +51858,20 @@ class HTMLDebugGaugeUI {
         this._staminaText.textContent = "N/A";
         this._evolutionText.textContent = "N/A";
         this._digestiveText.textContent = "N/A";
+        this._diseaseRateText.textContent = "N/A";
+        this._deathTimeText.textContent = "N/A";
         return;
       }
     }
+    const currentTime = this._world.currentTime;
     const stamina = CharacterStatusComp.stamina[this._currentCharacterEid] || 0;
     const evolutionGauge = CharacterStatusComp.evolutionGage[this._currentCharacterEid] || 0;
+    const remainingStaminaTime = getRemainingStaminaDecreaseTime(
+      this._currentCharacterEid
+    );
+    const remainingEvolutionTime = getRemainingEvolutionGaugeTime(
+      this._currentCharacterEid
+    );
     let digestiveText = "N/A";
     if (hasComponent(this._world, DigestiveSystemComp, this._currentCharacterEid)) {
       const currentLoad = DigestiveSystemComp.currentLoad[this._currentCharacterEid];
@@ -51283,7 +51879,6 @@ class HTMLDebugGaugeUI {
       const nextPoopTime = DigestiveSystemComp.nextPoopTime[this._currentCharacterEid] || 0;
       digestiveText = `${currentLoad.toFixed(1)}/${capacity}`;
       if (nextPoopTime > 0) {
-        const currentTime = Date.now();
         const remainingTime = Math.max(0, nextPoopTime - currentTime);
         const seconds = Math.ceil(remainingTime / 1e3);
         if (remainingTime > 0) {
@@ -51293,13 +51888,36 @@ class HTMLDebugGaugeUI {
         }
       }
     }
-    this._staminaText.textContent = `${stamina}/10`;
-    this._evolutionText.textContent = `${evolutionGauge.toFixed(1)}/100.0`;
+    const diseaseRate = calculateDiseaseRate(
+      this._world,
+      this._currentCharacterEid
+    ).rate;
+    const nextDiseaseCheckTime = hasComponent(
+      this._world,
+      DiseaseSystemComp,
+      this._currentCharacterEid
+    ) ? DiseaseSystemComp.nextCheckTime[this._currentCharacterEid] : 0;
+    const remainingDiseaseTime = Math.max(0, nextDiseaseCheckTime - currentTime);
+    const deathTime = hasComponent(
+      this._world,
+      VitalityComp,
+      this._currentCharacterEid
+    ) ? VitalityComp.deathTime[this._currentCharacterEid] : 0;
+    const remainingDeathTime = deathTime > 0 ? Math.max(0, deathTime - currentTime) : 0;
+    this._staminaText.textContent = `${stamina}/10 (${Math.ceil(
+      remainingStaminaTime / 1e3
+    )}s)`;
+    this._evolutionText.textContent = remainingEvolutionTime === null ? `${evolutionGauge.toFixed(1)}/100.0 (paused)` : `${evolutionGauge.toFixed(1)}/100.0 (${Math.ceil(
+      remainingEvolutionTime / 1e3
+    )}s)`;
     this._digestiveText.textContent = digestiveText;
+    this._diseaseRateText.textContent = `${(diseaseRate * 100).toFixed(
+      1
+    )}% (${Math.ceil(remainingDiseaseTime / 1e3)}s)`;
+    this._deathTimeText.textContent = deathTime > 0 ? `${Math.ceil(remainingDeathTime / 1e3)}s` : "N/A";
     if (hasComponent(this._world, DigestiveSystemComp, this._currentCharacterEid)) {
       const nextPoopTime = DigestiveSystemComp.nextPoopTime[this._currentCharacterEid] || 0;
       if (nextPoopTime > 0) {
-        const currentTime = Date.now();
         const remainingTime = Math.max(0, nextPoopTime - currentTime);
         if (remainingTime <= 0) {
           this._digestiveText.style.color = "#ff0000";
@@ -51316,6 +51934,28 @@ class HTMLDebugGaugeUI {
         this._digestiveText.style.animation = "none";
       }
     }
+    if (diseaseRate >= 0.1) {
+      this._diseaseRateText.style.color = "#ff5555";
+    } else if (diseaseRate >= 0.05) {
+      this._diseaseRateText.style.color = "#ffbb33";
+    } else {
+      this._diseaseRateText.style.color = "white";
+    }
+    if (deathTime > 0) {
+      if (remainingDeathTime <= 0) {
+        this._deathTimeText.style.color = "#ff0000";
+        this._deathTimeText.style.animation = "blink 1s infinite";
+      } else if (remainingDeathTime <= 1e4) {
+        this._deathTimeText.style.color = "#ff8800";
+        this._deathTimeText.style.animation = "none";
+      } else {
+        this._deathTimeText.style.color = "white";
+        this._deathTimeText.style.animation = "none";
+      }
+    } else {
+      this._deathTimeText.style.color = "white";
+      this._deathTimeText.style.animation = "none";
+    }
   }
   show() {
     this._container.style.display = "block";
@@ -51329,11 +51969,32 @@ class HTMLDebugGaugeUI {
     }
   }
 }
+const STORAGE_PREVIEW_LIMIT = 120;
 function _serialize(obj) {
   return JSON.stringify(obj);
 }
 function _deserialize(json) {
   return JSON.parse(json);
+}
+function _isMissingSerializedValue(value) {
+  if (value === null || typeof value === "undefined") {
+    return true;
+  }
+  if (typeof value !== "string") {
+    return false;
+  }
+  const normalizedValue = value.trim();
+  return normalizedValue === "" || normalizedValue === "undefined" || normalizedValue === "null";
+}
+function _previewValue(value) {
+  if (value === null) {
+    return "null";
+  }
+  if (typeof value === "undefined") {
+    return "undefined";
+  }
+  const stringValue = typeof value === "string" ? value : JSON.stringify(value) ?? String(value);
+  return stringValue.length > STORAGE_PREVIEW_LIMIT ? `${stringValue.slice(0, STORAGE_PREVIEW_LIMIT)}…` : stringValue;
 }
 function hasNativeStorageController() {
   return typeof window !== "undefined" && typeof window.storageController !== "undefined";
@@ -51344,20 +52005,49 @@ class WebLocalStorage {
   //   localStorage.setItem(key, value);
   // }, 1000);
   async getData(key) {
+    console.debug("[WebLocalStorage] getData:start", { key });
     const value = localStorage.getItem(key);
     if (value === null) {
-      console.debug("[WebLocalStorage] getItem():", key, "not found");
+      console.debug("[WebLocalStorage] getData:miss", { key });
       return await Promise.resolve(null);
     }
-    return await Promise.resolve(_deserialize(value));
+    console.debug("[WebLocalStorage] getData:raw", {
+      key,
+      length: value.length,
+      preview: _previewValue(value)
+    });
+    try {
+      const parsed = _deserialize(value);
+      console.debug("[WebLocalStorage] getData:parsed", {
+        key,
+        valueType: typeof parsed
+      });
+      return await Promise.resolve(parsed);
+    } catch (error) {
+      console.warn("[WebLocalStorage] getData:parse_failed", {
+        key,
+        preview: _previewValue(value),
+        error
+      });
+      throw error;
+    }
   }
   setData(key, data) {
     const value = _serialize(data);
-    console.debug("[WebLocalStorage] setItem():", key, value);
-    return Promise.resolve(localStorage.setItem(key, value));
+    console.debug("[WebLocalStorage] setData:start", {
+      key,
+      length: value.length,
+      preview: _previewValue(value)
+    });
+    localStorage.setItem(key, value);
+    console.debug("[WebLocalStorage] setData:success", { key });
+    return Promise.resolve();
   }
   removeData(key) {
-    return Promise.resolve(localStorage.removeItem(key));
+    console.debug("[WebLocalStorage] removeData:start", { key });
+    localStorage.removeItem(key);
+    console.debug("[WebLocalStorage] removeData:success", { key });
+    return Promise.resolve();
   }
 }
 class FlutterStorage {
@@ -51368,17 +52058,53 @@ class FlutterStorage {
     return window.storageController;
   }
   async getData(key) {
+    console.debug("[FlutterStorage] getData:start", { key });
     const value = await this._getStorageController().getData(key);
-    if (value === null) {
+    console.debug("[FlutterStorage] getData:raw", {
+      key,
+      rawType: typeof value,
+      isNull: value === null,
+      preview: _previewValue(value)
+    });
+    if (_isMissingSerializedValue(value)) {
+      console.debug("[FlutterStorage] getData:miss", { key });
       return null;
     }
-    return _deserialize(value);
+    try {
+      const serializedValue = value;
+      console.debug("[FlutterStorage] getData:parse_attempt", {
+        key,
+        preview: _previewValue(serializedValue)
+      });
+      const parsed = _deserialize(serializedValue);
+      console.debug("[FlutterStorage] getData:parsed", {
+        key,
+        valueType: typeof parsed
+      });
+      return parsed;
+    } catch (error) {
+      console.warn("[FlutterStorage] getData:parse_failed", {
+        key,
+        preview: _previewValue(value),
+        error
+      });
+      throw error;
+    }
   }
-  setData(key, value) {
-    return this._getStorageController().setData(key, _serialize(value));
+  async setData(key, value) {
+    const serializedValue = _serialize(value);
+    console.debug("[FlutterStorage] setData:start", {
+      key,
+      length: serializedValue.length,
+      preview: _previewValue(serializedValue)
+    });
+    await this._getStorageController().setData(key, serializedValue);
+    console.debug("[FlutterStorage] setData:success", { key });
   }
-  removeData(key) {
-    return this._getStorageController().removeData(key);
+  async removeData(key) {
+    console.debug("[FlutterStorage] removeData:start", { key });
+    await this._getStorageController().removeData(key);
+    console.debug("[FlutterStorage] removeData:success", { key });
   }
 }
 class _StorageManager {
@@ -51401,7 +52127,8 @@ class _StorageManager {
 }
 const StorageManager = new _StorageManager();
 class Background extends Container {
-  constructor(texture) {
+  constructor(texture, options = {}) {
+    var _a, _b;
     super();
     this._width = 0;
     this._height = 0;
@@ -51410,23 +52137,18 @@ class Background extends Container {
       progress: 1
     };
     this.sortableChildren = true;
+    this.zIndex = options.zIndex ?? -1;
+    this._visibility = {
+      backgroundSprite: ((_a = options.visibility) == null ? void 0 : _a.backgroundSprite) ?? true,
+      baseTone: ((_b = options.visibility) == null ? void 0 : _b.baseTone) ?? true
+    };
     this._bgSprite = new Sprite(texture);
     this._bgSprite.anchor.set(0.5);
     this._bgSprite.zIndex = 0;
-    this.zIndex = -1;
     this.addChild(this._bgSprite);
     this._baseToneGraphics = new Graphics();
     this._baseToneGraphics.zIndex = 1;
     this.addChild(this._baseToneGraphics);
-    this._skyTintGraphics = new Graphics();
-    this._skyTintGraphics.zIndex = 2;
-    this.addChild(this._skyTintGraphics);
-    this._sunGlowGraphics = new Graphics();
-    this._sunGlowGraphics.zIndex = 3;
-    this.addChild(this._sunGlowGraphics);
-    this._sunDiscGraphics = new Graphics();
-    this._sunDiscGraphics.zIndex = 4;
-    this.addChild(this._sunDiscGraphics);
   }
   resize(width, height) {
     this._width = width;
@@ -51434,8 +52156,7 @@ class Background extends Container {
     this.position.set(width / 2, height / 2);
     const scaleX = width / this._bgSprite.texture.width;
     const scaleY = height / this._bgSprite.texture.height;
-    const scale = Math.max(scaleX, scaleY);
-    this._bgSprite.scale.set(scale);
+    this._bgSprite.scale.set(Math.max(scaleX, scaleY));
     this._redrawSky();
   }
   applySkyState(skyState) {
@@ -51445,18 +52166,19 @@ class Background extends Container {
     };
     this._redrawSky();
   }
+  animate(currentTime) {
+  }
   _redrawSky() {
     this._baseToneGraphics.clear();
-    this._skyTintGraphics.clear();
-    this._sunGlowGraphics.clear();
-    this._sunDiscGraphics.clear();
     if (this._width <= 0 || this._height <= 0) {
       return;
     }
     const visualConfig = this._getVisualConfig();
     const left = -this._width / 2;
     const top = -this._height / 2;
-    if (visualConfig.baseAlpha > 0) {
+    this._bgSprite.visible = this._visibility.backgroundSprite;
+    this._baseToneGraphics.visible = this._visibility.baseTone;
+    if (this._visibility.baseTone && visualConfig.baseAlpha > 0) {
       this._baseToneGraphics.beginFill(
         visualConfig.baseColor,
         visualConfig.baseAlpha
@@ -51464,115 +52186,32 @@ class Background extends Container {
       this._baseToneGraphics.drawRect(left, top, this._width, this._height);
       this._baseToneGraphics.endFill();
     }
-    this._drawDirectionalTintBands(
-      visualConfig.skyTintColor,
-      visualConfig.skyTintAlpha
-    );
-    this._drawSunGlow(visualConfig.sunGlowColor, visualConfig.sunGlowAlpha);
-    this._drawSunDisc(visualConfig.sunDiscColor, visualConfig.sunDiscAlpha);
-  }
-  _drawDirectionalTintBands(color, alpha) {
-    if (alpha <= 0) {
-      return;
-    }
-    const bandCount = 16;
-    const bandWidth = this._width / bandCount;
-    const top = -this._height / 2;
-    for (let index = 0; index < bandCount; index += 1) {
-      const distanceRatio = 1 - index / bandCount;
-      const bandAlpha = alpha * Math.pow(distanceRatio, 1.6);
-      if (bandAlpha <= 1e-3) {
-        continue;
-      }
-      this._skyTintGraphics.beginFill(color, bandAlpha);
-      this._skyTintGraphics.drawRect(
-        this._width / 2 - bandWidth * (index + 1),
-        top,
-        bandWidth,
-        this._height
-      );
-      this._skyTintGraphics.endFill();
-    }
-  }
-  _drawSunGlow(color, alpha) {
-    if (alpha <= 0) {
-      return;
-    }
-    const centerX = this._width * 0.28;
-    const centerY = -this._height * 0.2;
-    const radii = [this._width * 0.38, this._width * 0.26, this._width * 0.16];
-    radii.forEach((radius, index) => {
-      const layerAlpha = alpha * (0.42 - index * 0.11);
-      if (layerAlpha <= 1e-3) {
-        return;
-      }
-      this._sunGlowGraphics.beginFill(color, layerAlpha);
-      this._sunGlowGraphics.drawCircle(centerX, centerY, radius);
-      this._sunGlowGraphics.endFill();
-    });
-  }
-  _drawSunDisc(color, alpha) {
-    if (alpha <= 0) {
-      return;
-    }
-    const centerX = this._width * 0.3;
-    const centerY = -this._height * 0.18;
-    const radius = Math.max(22, Math.min(this._width, this._height) * 0.06);
-    this._sunDiscGraphics.beginFill(color, alpha);
-    this._sunDiscGraphics.drawCircle(centerX, centerY, radius);
-    this._sunDiscGraphics.endFill();
   }
   _getVisualConfig() {
     const progress = this._easeInOut(this._skyState.progress);
     switch (this._skyState.timeOfDay) {
       case TimeOfDay.Sunrise: {
-        const warmBand = Math.sin(Math.PI * progress);
         return {
-          baseColor: 1319751,
-          baseAlpha: this._lerp(0.5, 0.04, progress),
-          skyTintColor: this._interpolateColor(6967165, 16756839, progress),
-          skyTintAlpha: this._lerp(0.12, 0.34, warmBand),
-          sunGlowColor: this._interpolateColor(16750149, 16773560, progress),
-          sunGlowAlpha: this._lerp(0.12, 0.58, progress),
-          sunDiscColor: this._interpolateColor(16753754, 16773296, progress),
-          sunDiscAlpha: this._lerp(0.04, 0.5, progress)
+          baseColor: 1451854,
+          baseAlpha: this._lerp(0.48, 0.05, progress)
         };
       }
       case TimeOfDay.Sunset: {
-        const warmBand = Math.sin(Math.PI * progress);
         return {
-          baseColor: 1057092,
-          baseAlpha: this._lerp(0.03, 0.62, progress),
-          skyTintColor: this._interpolateColor(16761466, 8211320, progress),
-          skyTintAlpha: this._lerp(0.18, 0.4, warmBand),
-          sunGlowColor: this._interpolateColor(16767372, 13135450, progress),
-          sunGlowAlpha: this._lerp(0.38, 0.08, progress),
-          sunDiscColor: this._interpolateColor(16769955, 16747093, progress),
-          sunDiscAlpha: this._lerp(0.42, 0.06, progress)
+          baseColor: 1254213,
+          baseAlpha: this._lerp(0.04, 0.58, progress)
         };
       }
       case TimeOfDay.Night:
         return {
           baseColor: 726835,
-          baseAlpha: 0.58,
-          skyTintColor: 2373469,
-          skyTintAlpha: 0.16,
-          sunGlowColor: 4348041,
-          sunGlowAlpha: 0.02,
-          sunDiscColor: 11453695,
-          sunDiscAlpha: 0
+          baseAlpha: 0.58
         };
       case TimeOfDay.Day:
       default:
         return {
           baseColor: 16777215,
-          baseAlpha: 0,
-          skyTintColor: 16773314,
-          skyTintAlpha: 0.02,
-          sunGlowColor: 16774351,
-          sunGlowAlpha: 0.12,
-          sunDiscColor: 16774870,
-          sunDiscAlpha: 0.08
+          baseAlpha: 0
         };
     }
   }
@@ -51623,37 +52262,51 @@ var GameMenuItemType = /* @__PURE__ */ ((GameMenuItemType2) => {
   GameMenuItemType2["Hospital"] = "hospital";
   return GameMenuItemType2;
 })(GameMenuItemType || {});
-const MENU_ITEM_CONTAINER_MAX_WIDTH = 280;
-const MENU_ITEM_COUNT = 6;
 const MENU_SPRITE_SLOT_COUNT = 8;
+const MENU_ITEM_SIZE_MIN = 40;
+const MENU_ITEM_SIZE_MAX = 48;
+const MENU_ITEM_SIZE_MAX_VIEWPORT = 360;
 const MENU_SPRITE_FINE_TUNE_X = {
   [
     "drug"
     /* Drug */
   ]: 1
 };
-const getBackgroundPosition = (type, size) => {
-  const fineTuneX = MENU_SPRITE_FINE_TUNE_X[type] ?? 0;
+const MENU_SPRITE_SIZE_DELTA = {
+  [
+    "hospital"
+    /* Hospital */
+  ]: 4
+};
+const getSpriteSlotIndex = (type) => {
   switch (type) {
     case "mini-game":
-      return `-${0 * size + fineTuneX}px 0px`;
+      return 0;
     case "feed":
-      return `-${1 * size + fineTuneX}px 0px`;
+      return 1;
     case "versus":
-      return `-${2 * size + fineTuneX}px 0px`;
+      return 2;
     case "drug":
-      return `-${3 * size + fineTuneX}px 0px`;
+      return 3;
     case "clean":
-      return `-${4 * size + fineTuneX}px 0px`;
+      return 4;
     case "hospital":
-      return `-${5 * size + fineTuneX}px 0px`;
-    // case GameMenuItemType.Information:
-    //   return `-${6 * size}px 0px`;
-    // case GameMenuItemType.Training:
-    //   return `-${7 * size}px 0px`;
+      return 7;
     default:
       throw new Error(`Unknown menu item type: ${type}`);
   }
+};
+const getBackgroundPosition = (type, containerSize, spriteSize) => {
+  const fineTuneX = MENU_SPRITE_FINE_TUNE_X[type] ?? 0;
+  const slotIndex = getSpriteSlotIndex(type);
+  const centerOffset = Math.floor((containerSize - spriteSize) / 2);
+  return `${-slotIndex * spriteSize + centerOffset + fineTuneX}px ${centerOffset}px`;
+};
+const getResponsiveMenuItemSize = (availableWidth) => {
+  if (availableWidth >= MENU_ITEM_SIZE_MAX_VIEWPORT) {
+    return MENU_ITEM_SIZE_MAX;
+  }
+  return MENU_ITEM_SIZE_MIN;
 };
 class GameMenuItem {
   constructor(itemType) {
@@ -51663,19 +52316,7 @@ class GameMenuItem {
     this.element = document.createElement("div");
     this.element.className = "game-menu-item";
     this.element.classList.add(`type-${itemType}`);
-    const size = Math.max(
-      1,
-      Math.floor(
-        Math.min(document.body.clientWidth, MENU_ITEM_CONTAINER_MAX_WIDTH) / MENU_ITEM_COUNT
-      )
-    );
-    this.element.style.width = `${size}px`;
-    this.element.style.height = `${size}px`;
-    this.element.style.backgroundPosition = getBackgroundPosition(
-      itemType,
-      size
-    );
-    this.element.style.backgroundSize = `${size * MENU_SPRITE_SLOT_COUNT}px ${size}px`;
+    this.updateSize();
     this.updateFocusState();
   }
   setFocused(focused) {
@@ -51716,6 +52357,20 @@ class GameMenuItem {
   getSize() {
     return Number.parseInt(this.element.style.height);
   }
+  updateSize(availableWidth) {
+    const size = getResponsiveMenuItemSize(
+      availableWidth ?? document.body.clientWidth
+    );
+    const spriteSize = size + (MENU_SPRITE_SIZE_DELTA[this.itemType] ?? 0);
+    this.element.style.width = `${size}px`;
+    this.element.style.height = `${size}px`;
+    this.element.style.backgroundPosition = getBackgroundPosition(
+      this.itemType,
+      size,
+      spriteSize
+    );
+    this.element.style.backgroundSize = `${spriteSize * MENU_SPRITE_SLOT_COUNT}px ${spriteSize}px`;
+  }
   destroy() {
   }
 }
@@ -51734,27 +52389,41 @@ class GameMenu {
     this.lastProcessedIndex = -1;
     this.menuItemElements = [];
     this.disabledMenuItems = /* @__PURE__ */ new Set();
+    this.handleWindowResize = () => {
+      this.updateMenuItemLayout();
+    };
     this.options = options;
     this.container = document.createElement("div");
     this.container.className = "game-menu-container";
-    const itemContainer = document.createElement("div");
-    itemContainer.className = "game-menu-item-container";
-    this.container.appendChild(itemContainer);
+    this.itemContainer = document.createElement("div");
+    this.itemContainer.className = "game-menu-item-container";
+    this.container.appendChild(this.itemContainer);
     this.disabledMenuItems.add(GameMenuItemType.Versus);
     this.initializeMenuItems();
+    this.updateMenuItemLayout();
+    window.addEventListener("resize", this.handleWindowResize);
     parentElement.appendChild(this.container);
   }
   initializeMenuItems() {
     for (const index in this.menuItems) {
-      const itemContainer = this.container.firstElementChild;
       const itemType = this.menuItems[index];
       const menuItem = new GameMenuItem(itemType);
       this.menuItemElements.push(menuItem);
-      itemContainer.appendChild(menuItem.getElement());
+      this.itemContainer.appendChild(menuItem.getElement());
       if (this.disabledMenuItems.has(itemType)) {
         menuItem.setDisabled(true);
       }
     }
+  }
+  updateMenuItemLayout() {
+    var _a, _b;
+    const availableWidth = ((_a = this.container.parentElement) == null ? void 0 : _a.getBoundingClientRect().width) ?? document.body.clientWidth;
+    for (const menuItem of this.menuItemElements) {
+      menuItem.updateSize(availableWidth);
+    }
+    const itemSize = (_b = this.menuItemElements[0]) == null ? void 0 : _b.getSize();
+    if (!itemSize) return;
+    this.itemContainer.style.height = `${itemSize}px`;
   }
   processNavigationAction(action) {
     if (!action || action.type === NavigationAction.NONE || action.index === this.lastProcessedIndex) {
@@ -51889,166 +52558,12 @@ class GameMenu {
   }
   destroy() {
     var _a;
+    window.removeEventListener("resize", this.handleWindowResize);
     for (const index in this.menuItemElements) {
       (_a = this.menuItemElements[index]) == null ? void 0 : _a.destroy();
     }
     if (this.container.parentElement) {
       this.container.parentElement.removeChild(this.container);
-    }
-  }
-}
-const characterQuery$2 = defineQuery([
-  ObjectComp,
-  CharacterStatusComp,
-  DiseaseSystemComp
-]);
-const previousStates = /* @__PURE__ */ new Map();
-function diseaseSystem(params) {
-  const { world, currentTime } = params;
-  const shouldLog = !world.isSimulationMode;
-  const entities = characterQuery$2(world);
-  for (let i2 = 0; i2 < entities.length; i2++) {
-    const eid = entities[i2];
-    if (ObjectComp.type[eid] !== ObjectType.CHARACTER) continue;
-    if (hasComponent(world, VitalityComp, eid) && VitalityComp.isDead[eid])
-      continue;
-    if (ObjectComp.state[eid] === CharacterState.DEAD) continue;
-    const diseaseComp = DiseaseSystemComp;
-    const characterComp = CharacterStatusComp;
-    while (currentTime >= diseaseComp.nextCheckTime[eid]) {
-      const checkTime = diseaseComp.nextCheckTime[eid];
-      diseaseComp.nextCheckTime[eid] = checkTime + GAME_CONSTANTS.DISEASE_CHECK_INTERVAL;
-      const currentStatuses2 = characterComp.statuses[eid];
-      const isSick2 = isCharacterSick(currentStatuses2);
-      if (!isSick2) {
-        const diseaseCalculation = calculateDiseaseRate(world, eid);
-        const { rate: diseaseRate, breakdown } = diseaseCalculation;
-        if (shouldLog) {
-          console.log(
-            `Disease Check - Entity ${eid}: Total Rate ${(diseaseRate * 100).toFixed(2)}%`,
-            breakdown
-          );
-        }
-        if (Math.random() < diseaseRate) {
-          if (shouldLog) {
-            console.log(`Disease occurred for entity ${eid}!`);
-          }
-          addCharacterStatus$1(eid, CharacterStatus.SICK);
-          diseaseComp.sickStartTime[eid] = checkTime;
-          ObjectComp.state[eid] = CharacterState.SICK;
-          restrictMovement(world, eid);
-          break;
-        }
-      }
-    }
-    const currentStatuses = characterComp.statuses[eid];
-    const isSick = isCharacterSick(currentStatuses);
-    const isSleeping = ObjectComp.state[eid] === CharacterState.SLEEPING;
-    const previousState = previousStates.get(eid) || {
-      isSick: false,
-      isSleeping: false
-    };
-    const wasRestricted = previousState.isSick || previousState.isSleeping;
-    const isRestricted = isSick || isSleeping;
-    if (isRestricted && !wasRestricted) {
-      restrictMovement(world, eid);
-    } else if (!isRestricted && wasRestricted) {
-      restoreMovement(world, eid);
-    }
-    previousStates.set(eid, { isSick, isSleeping });
-  }
-  return params;
-}
-function restrictMovement(world, eid) {
-  if (hasComponent(world, RandomMovementComp, eid)) {
-    removeComponent(world, RandomMovementComp, eid);
-    console.log(
-      `[DiseaseSystem] Removed RandomMovementComp from entity ${eid} (restricted movement)`
-    );
-  }
-  if (hasComponent(world, DestinationComp, eid)) {
-    removeComponent(world, DestinationComp, eid);
-    console.log(
-      `[DiseaseSystem] Removed DestinationComp from entity ${eid} (restricted movement)`
-    );
-  }
-}
-function restoreMovement(world, eid) {
-  const state = ObjectComp.state[eid];
-  if (state !== CharacterState.EGG && state !== CharacterState.DEAD) {
-    if (!hasComponent(world, RandomMovementComp, eid)) {
-      addComponent(world, RandomMovementComp, eid);
-      RandomMovementComp.minIdleTime[eid] = 3e3;
-      RandomMovementComp.maxIdleTime[eid] = 6e3;
-      RandomMovementComp.minMoveTime[eid] = 2e3;
-      RandomMovementComp.maxMoveTime[eid] = 4e3;
-      RandomMovementComp.nextChange[eid] = world.currentTime + 1e3;
-      console.log(
-        `[DiseaseSystem] Restored RandomMovementComp for entity ${eid} (movement restored)`
-      );
-    }
-  }
-}
-function calculateDiseaseRate(world, eid) {
-  let diseaseRate = GAME_CONSTANTS.BASE_DISEASE_RATE;
-  const breakdown = {
-    base: GAME_CONSTANTS.BASE_DISEASE_RATE,
-    lowStamina: 0,
-    poopBonus: 0,
-    staleFood: 0,
-    stamina: CharacterStatusComp.stamina[eid],
-    poopCount: 0
-  };
-  const stamina = CharacterStatusComp.stamina[eid];
-  if (stamina <= 3) {
-    const bonus = GAME_CONSTANTS.LOW_STAMINA_DISEASE_BONUS;
-    diseaseRate += bonus;
-    breakdown.lowStamina = bonus;
-  }
-  const poopCount = countObjectsInWorld(world, ObjectType.POOB);
-  breakdown.poopCount = poopCount;
-  if (poopCount > 0) {
-    const poopBonus = poopCount * GAME_CONSTANTS.POOP_DISEASE_RATE;
-    diseaseRate += poopBonus;
-    breakdown.poopBonus = poopBonus;
-  }
-  return {
-    rate: Math.min(diseaseRate, 1),
-    // 최대 100%
-    breakdown
-  };
-}
-function countObjectsInWorld(world, objectType) {
-  const objectQuery2 = defineQuery([ObjectComp]);
-  const entities = objectQuery2(world);
-  let count2 = 0;
-  for (let i2 = 0; i2 < entities.length; i2++) {
-    const eid = entities[i2];
-    if (ObjectComp.type[eid] === objectType) {
-      count2++;
-    }
-  }
-  return count2;
-}
-function isCharacterSick(statuses) {
-  for (let i2 = 0; i2 < statuses.length; i2++) {
-    if (statuses[i2] === CharacterStatus.SICK) {
-      return true;
-    }
-  }
-  return false;
-}
-function addCharacterStatus$1(eid, status) {
-  const statuses = CharacterStatusComp.statuses[eid];
-  for (let i2 = 0; i2 < statuses.length; i2++) {
-    if (statuses[i2] === status) {
-      return;
-    }
-  }
-  for (let i2 = 0; i2 < statuses.length; i2++) {
-    if (statuses[i2] === 0) {
-      statuses[i2] = status;
-      return;
     }
   }
 }
@@ -52322,163 +52837,132 @@ function restrictMovementForSickness(world, eid) {
     SpeedComp.value[eid] = 0;
   }
 }
+const SLEEP_TEXT_FRAMES = ["zZ", "zZZ"];
+const SLEEP_FRAME_INTERVAL = 1e3;
+const SLEEP_LABEL_MARGIN = 10;
+const FALLBACK_CHARACTER_HEIGHT = 48;
 const SLEEP_TEXT_STYLE = new TextStyle({
-  // fontFamily: 'Arial',
-  fontFamily: "PressStart2P",
-  fontSize: 24,
-  fill: 16777215,
-  // 흰색
-  stroke: { color: 0, width: 4 },
-  // 검은색 테두리
-  fontWeight: "bold"
+  fontFamily: [
+    "Press Start 2P",
+    "Apple Color Emoji",
+    "Segoe UI Emoji",
+    "Noto Color Emoji",
+    "sans-serif"
+  ],
+  fontSize: 18,
+  fill: 14211288,
+  stroke: { color: 2039583, width: 4 },
+  fontWeight: "bold",
+  align: "center"
 });
-const FLOAT_AMPLITUDE = 4;
-const ANIMATION_INTERVAL = 800;
 const sleepEffectMap = /* @__PURE__ */ new Map();
-const characterQuery = defineQuery([ObjectComp, PositionComp]);
+const characterQuery = defineQuery([ObjectComp, PositionComp, RenderComp]);
+const characterExitQuery = exitQuery(characterQuery);
 function sleepEffectSystem(params) {
   const { world, stage } = params;
   if (!stage) {
     return params;
   }
+  const exitedEntities = characterExitQuery(world);
+  for (let i2 = 0; i2 < exitedEntities.length; i2++) {
+    removeSleepEffect(exitedEntities[i2]);
+  }
+  if (!world.isSleepDebugEffectEnabled()) {
+    cleanupSleepEffects();
+    return params;
+  }
   const entities = characterQuery(world);
+  const activeSleepingEntities = /* @__PURE__ */ new Set();
   const currentTime = Date.now();
-  for (const eid of entities) {
+  for (let i2 = 0; i2 < entities.length; i2++) {
+    const eid = entities[i2];
     if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
+      removeSleepEffect(eid);
       continue;
     }
-    const isAsleep = _isCharacterAsleep(eid);
-    const hasEffect = sleepEffectMap.has(eid);
-    if (isAsleep && !hasEffect) {
-      _createSleepEffect(eid, stage, currentTime);
-    } else if (!isAsleep && hasEffect) {
-      _removeSleepEffect(eid, stage);
-    } else if (isAsleep && hasEffect) {
-      _updateSleepEffectAnimation(eid, currentTime);
+    if (ObjectComp.state[eid] !== CharacterState.SLEEPING) {
+      removeSleepEffect(eid);
+      continue;
+    }
+    activeSleepingEntities.add(eid);
+    const sleepEffect = getOrCreateSleepEffect(eid, stage, currentTime);
+    updateSleepEffectFrame(sleepEffect, currentTime);
+    updateSleepEffectPosition(sleepEffect.text, eid);
+  }
+  const trackedEntities = Array.from(sleepEffectMap.keys());
+  for (let i2 = 0; i2 < trackedEntities.length; i2++) {
+    const eid = trackedEntities[i2];
+    if (!activeSleepingEntities.has(eid)) {
+      removeSleepEffect(eid);
     }
   }
   return params;
 }
-function _isCharacterAsleep(eid) {
-  return ObjectComp.state[eid] === CharacterState.SLEEPING;
+function cleanupSleepEffects(_stage) {
+  sleepEffectMap.forEach((_, eid) => {
+    removeSleepEffect(eid);
+  });
 }
-function _getCharacterSizeOffset(eid) {
-  let scale = 1;
-  if (RenderComp.scale && RenderComp.scale[eid]) {
-    scale = RenderComp.scale[eid];
+function getOrCreateSleepEffect(eid, stage, currentTime) {
+  const existingEffect = sleepEffectMap.get(eid);
+  if (existingEffect) {
+    return existingEffect;
   }
-  const baseOffsetY = 20;
-  const baseOffsetX = 8;
-  return {
-    offsetY: baseOffsetY * scale,
-    offsetX: baseOffsetX * scale
-  };
-}
-function _createSleepEffect(eid, stage, currentTime) {
-  const zText = new Text({
-    text: "z",
+  const text = new Text({
+    text: SLEEP_TEXT_FRAMES[0],
     style: SLEEP_TEXT_STYLE,
     anchor: { x: 0.5, y: 1 }
-    // 하단 중앙 기준
   });
-  const ZText = new Text({
-    text: "Z",
-    style: SLEEP_TEXT_STYLE,
-    anchor: { x: 0.5, y: 1 }
-    // 하단 중앙 기준
-  });
-  const characterX = PositionComp.x[eid];
-  const characterY = PositionComp.y[eid];
-  _getCharacterSizeOffset(eid);
-  zText.position.set(characterX, characterY);
-  ZText.position.set(characterX, characterY - 10);
-  zText.zIndex = characterY + 100;
-  ZText.zIndex = characterY + 101;
-  zText.baseY = zText.position.y;
-  ZText.baseY = ZText.position.y;
-  zText.alpha = 1;
-  ZText.alpha = 0.6;
-  stage.addChild(zText);
-  stage.addChild(ZText);
+  text.roundPixels = true;
+  stage.addChild(text);
   const sleepEffect = {
-    z: zText,
-    Z: ZText,
-    lastAnimationTime: currentTime,
-    currentAnimationState: 0
-    // 처음에는 z가 활성
+    text,
+    currentFrameIndex: 0,
+    lastFrameChangeTime: currentTime
   };
   sleepEffectMap.set(eid, sleepEffect);
-  console.log(`[SleepEffectSystem] Created sleep effect for character ${eid}`);
+  return sleepEffect;
 }
-function _removeSleepEffect(eid, stage) {
-  const sleepEffect = sleepEffectMap.get(eid);
-  if (sleepEffect) {
-    stage.removeChild(sleepEffect.z);
-    stage.removeChild(sleepEffect.Z);
-    sleepEffect.z.destroy();
-    sleepEffect.Z.destroy();
-    sleepEffectMap.delete(eid);
-    console.log(
-      `[SleepEffectSystem] Removed sleep effect for character ${eid}`
-    );
-  }
-}
-function _updateSleepEffectAnimation(eid, currentTime) {
+function removeSleepEffect(eid) {
   const sleepEffect = sleepEffectMap.get(eid);
   if (!sleepEffect) {
     return;
   }
-  if (currentTime - sleepEffect.lastAnimationTime >= ANIMATION_INTERVAL) {
-    sleepEffect.currentAnimationState = 1 - sleepEffect.currentAnimationState;
-    sleepEffect.lastAnimationTime = currentTime;
-    if (sleepEffect.currentAnimationState === 0) {
-      _moveTextUp(sleepEffect.z);
-      _moveTextDown(sleepEffect.Z);
-      sleepEffect.z.alpha = 1;
-      sleepEffect.Z.alpha = 0.6;
-    } else {
-      _moveTextUp(sleepEffect.Z);
-      _moveTextDown(sleepEffect.z);
-      sleepEffect.Z.alpha = 1;
-      sleepEffect.z.alpha = 0.6;
+  sleepEffect.text.removeFromParent();
+  sleepEffect.text.destroy();
+  sleepEffectMap.delete(eid);
+}
+function updateSleepEffectFrame(sleepEffect, currentTime) {
+  if (currentTime - sleepEffect.lastFrameChangeTime < SLEEP_FRAME_INTERVAL) {
+    return;
+  }
+  sleepEffect.currentFrameIndex = sleepEffect.currentFrameIndex === 0 ? 1 : 0;
+  sleepEffect.lastFrameChangeTime = currentTime;
+  sleepEffect.text.text = SLEEP_TEXT_FRAMES[sleepEffect.currentFrameIndex];
+}
+function updateSleepEffectPosition(text, eid) {
+  const x2 = PositionComp.x[eid];
+  const y2 = PositionComp.y[eid];
+  const configuredZIndex = RenderComp.zIndex[eid];
+  const effectiveZIndex = configuredZIndex === 0 ? y2 : configuredZIndex;
+  const characterHeight = getCharacterHeight(eid);
+  text.position.set(x2, y2 - characterHeight / 2 - SLEEP_LABEL_MARGIN);
+  text.zIndex = effectiveZIndex + 2;
+  text.visible = true;
+}
+function getCharacterHeight(eid) {
+  const displayObject = getCharacterDisplayObject(eid);
+  if (displayObject && Number.isFinite(displayObject.height)) {
+    const height = Number(displayObject.height);
+    if (height > 0) {
+      return height;
     }
   }
-  const characterX = PositionComp.x[eid];
-  const characterY = PositionComp.y[eid];
-  const sizeOffset = _getCharacterSizeOffset(eid);
-  sleepEffect.z.zIndex = characterY + sizeOffset.offsetY;
-  sleepEffect.Z.zIndex = characterY + sizeOffset.offsetY - 10;
-  const newBaseYForZ = characterY;
-  const newBaseYForZ2 = characterY - 10;
-  if (Math.abs(sleepEffect.z.baseY - newBaseYForZ) > 1) {
-    sleepEffect.z.baseY = newBaseYForZ;
-    sleepEffect.Z.baseY = newBaseYForZ2;
-    sleepEffect.z.position.x = characterX - 10;
-    sleepEffect.Z.position.x = characterX + 10;
-    if (sleepEffect.currentAnimationState === 0) {
-      sleepEffect.z.position.y = newBaseYForZ - FLOAT_AMPLITUDE;
-      sleepEffect.Z.position.y = newBaseYForZ2;
-    } else {
-      sleepEffect.z.position.y = newBaseYForZ;
-      sleepEffect.Z.position.y = newBaseYForZ2 - FLOAT_AMPLITUDE;
-    }
-  }
+  const scale = RenderComp.scale[eid];
+  return scale > 0 ? scale * 16 : FALLBACK_CHARACTER_HEIGHT;
 }
-function _moveTextUp(text) {
-  text.position.y = text.baseY - FLOAT_AMPLITUDE;
-}
-function _moveTextDown(text) {
-  text.position.y = text.baseY;
-}
-function cleanupSleepEffects(stage) {
-  for (const [, sleepEffect] of sleepEffectMap.entries()) {
-    stage.removeChild(sleepEffect.z);
-    stage.removeChild(sleepEffect.Z);
-    sleepEffect.z.destroy();
-    sleepEffect.Z.destroy();
-  }
-  sleepEffectMap.clear();
-  console.log("[SleepEffectSystem] Cleaned up all sleep effects");
+function getCharacterDisplayObject(eid) {
+  return getSpriteStore().get(eid) ?? getAnimatedSpriteStore().get(eid);
 }
 class ReentrySimulator {
   constructor() {
@@ -52881,6 +53365,7 @@ const _MainSceneWorld = class _MainSceneWorld {
     this._isRunningReentrySimulation = false;
     this._simulationTime = null;
     this._statusSystemsEnabled = true;
+    this._sleepDebugEffectEnabled = false;
     this._isPersistenceDisabled = false;
     this._pendingStorageWrite = Promise.resolve();
     this._timeOfDay = TimeOfDay.Day;
@@ -52927,6 +53412,7 @@ const _MainSceneWorld = class _MainSceneWorld {
     this._stage = params.stage;
     this._positionBoundary = params.positionBoundary;
     this._parentElement = params.parentElement;
+    this._debugParentElement = params.debugParentElement ?? params.parentElement;
     this._startMiniGame = params.startMiniGame;
     this._createInitialGameData = params.createInitialGameData;
     this._changeControlButtons = params.changeControlButtons;
@@ -53084,19 +53570,19 @@ const _MainSceneWorld = class _MainSceneWorld {
       createWorld(this, 100);
       console.log("Loading saved data from storage...");
       const loadedData = await this.getData();
-      if (!loadedData || !loadedData.entities || loadedData.entities.length === 0) {
+      if (!this._hasPlayableSavedData(loadedData)) {
         const initialGameData = await ((_a = this._createInitialGameData) == null ? void 0 : _a.call(this));
         console.warn(
-          "No saved data found, initializing with default entities..."
+          "No playable saved data found, initializing with default entities..."
         );
         this._persistentData = this._initializeData(initialGameData);
       } else {
         console.log(`Found saved data, validating and loading...`);
         const validatedData = this._validateAndMigrateData(loadedData);
-        if (validatedData.entities.length === 0) {
+        if (!this._hasPlayableSavedData(validatedData)) {
           const initialGameData = await ((_b = this._createInitialGameData) == null ? void 0 : _b.call(this));
           console.warn(
-            "Saved data contained no recoverable entities, reinitializing with default entities..."
+            "Saved data is missing required setup info or recoverable character entities, reinitializing with default entities..."
           );
           this._persistentData = this._initializeData(initialGameData);
         } else {
@@ -53165,20 +53651,23 @@ const _MainSceneWorld = class _MainSceneWorld {
             this._updateControlButtonsForMenuState(focusedIndex !== null);
           }
         });
-        if (true) {
-          this._debugGaugeUI = new HTMLDebugGaugeUI(this, this._parentElement);
+        if (this._debugParentElement) {
+          this._debugGaugeUI = new HTMLDebugGaugeUI(
+            this,
+            this._debugParentElement
+          );
           this._debugGameConstantsUI = new HTMLDebugGameConstantsUI(
-            this._parentElement
+            this._debugParentElement
           );
           this._debugStatusUI = new HTMLDebugStatusUI(
             this,
-            this._parentElement
+            this._debugParentElement
           );
           this._debugToggleButton = new HTMLDebugToggleButton(() => {
             var _a2, _b2;
             (_a2 = this._debugStatusUI) == null ? void 0 : _a2.toggle();
             return ((_b2 = this._debugStatusUI) == null ? void 0 : _b2.isDebugVisible()) ?? false;
-          }, this._parentElement);
+          }, this._debugParentElement);
         }
       }
       this._setupVisibilityChangeHandler();
@@ -53261,6 +53750,16 @@ const _MainSceneWorld = class _MainSceneWorld {
           loadedObjectIds.add(objectId);
           const eid = addEntity(this);
           applySavedEntityToECS(this, eid, savedEntity);
+          const repairedComponents = repairCharacterEntityRuntimeComponents(
+            this,
+            eid,
+            this.currentTime
+          );
+          if (repairedComponents.length > 0) {
+            console.warn(
+              `[MainSceneWorld] Repaired entity ${index + 1} (ID=${objectId}) missing runtime components: ${repairedComponents.join(", ")}`
+            );
+          }
           loadedEntitiesCount++;
           console.log(
             `Loaded entity ${index + 1}: ID=${objectId}, Type=${(_b = savedEntity.components.object) == null ? void 0 : _b.type}`
@@ -53335,6 +53834,7 @@ const _MainSceneWorld = class _MainSceneWorld {
     this._cleanupVisibilityChangeHandler();
     if (this._stage) {
       cleanupSleepEffects(this._stage);
+      cleanupCharacterNameLabels();
     }
     this._isPaused = true;
     console.log("[MainSceneWorld] Scene exit cleanup completed");
@@ -53403,6 +53903,8 @@ const _MainSceneWorld = class _MainSceneWorld {
         this._sceneDarknessOverlay.destroy();
         this._sceneDarknessOverlay = void 0;
       }
+      cleanupSleepEffects(this._stage);
+      cleanupCharacterNameLabels();
       this._background && this._stage.removeChild(this._background);
       console.log("World destroyed successfully");
     } finally {
@@ -53410,10 +53912,12 @@ const _MainSceneWorld = class _MainSceneWorld {
     }
   }
   update(delta) {
+    var _a;
     if (this._isPaused || this._isRunningReentrySimulation) {
       return;
     }
     this._updateAutoTimeOfDayIfNeeded();
+    (_a = this._background) == null ? void 0 : _a.animate(this.currentTime);
     this._pipedSystems({
       world: this,
       delta
@@ -53470,13 +53974,32 @@ const _MainSceneWorld = class _MainSceneWorld {
     return nextWrite;
   }
   async setData(data) {
+    var _a, _b, _c;
     this._persistentData = data;
     if (this._isPersistenceDisabled) {
+      console.debug("[MainSceneWorld] setData:skip_persistence_disabled", {
+        key: WORLD_DATA_STORAGE_KEY$1,
+        monsterName: (_a = data.world_metadata) == null ? void 0 : _a.monster_name,
+        entityCount: ((_b = data.entities) == null ? void 0 : _b.length) ?? 0,
+        savedAt: (_c = data.world_metadata) == null ? void 0 : _c.last_ecs_saved
+      });
       return;
     }
     await this._enqueueStorageWrite(async () => {
+      var _a2, _b2, _c2, _d, _e;
       try {
+        console.debug("[MainSceneWorld] setData:start", {
+          key: WORLD_DATA_STORAGE_KEY$1,
+          monsterName: (_a2 = data.world_metadata) == null ? void 0 : _a2.monster_name,
+          entityCount: ((_b2 = data.entities) == null ? void 0 : _b2.length) ?? 0,
+          savedAt: (_c2 = data.world_metadata) == null ? void 0 : _c2.last_ecs_saved
+        });
         await StorageManager.setData(WORLD_DATA_STORAGE_KEY$1, data);
+        console.debug("[MainSceneWorld] setData:success", {
+          key: WORLD_DATA_STORAGE_KEY$1,
+          monsterName: (_d = data.world_metadata) == null ? void 0 : _d.monster_name,
+          entityCount: ((_e = data.entities) == null ? void 0 : _e.length) ?? 0
+        });
       } catch (error) {
         console.error("[MainSceneWorld] Failed to save data:", error);
         throw error;
@@ -53487,7 +54010,13 @@ const _MainSceneWorld = class _MainSceneWorld {
     this._persistentData = void 0;
     await this._enqueueStorageWrite(async () => {
       try {
+        console.warn("[MainSceneWorld] clearData:start", {
+          key: WORLD_DATA_STORAGE_KEY$1
+        });
         await StorageManager.removeData(WORLD_DATA_STORAGE_KEY$1);
+        console.warn("[MainSceneWorld] clearData:success", {
+          key: WORLD_DATA_STORAGE_KEY$1
+        });
       } catch (error) {
         console.error("[MainSceneWorld] Failed to clear data:", error);
         throw error;
@@ -53528,6 +54057,20 @@ const _MainSceneWorld = class _MainSceneWorld {
       sanitizedEntities.push(entity);
     });
     return sanitizedEntities;
+  }
+  _hasPlayableSavedData(data) {
+    var _a, _b, _c;
+    if (!data) {
+      return false;
+    }
+    const monsterName = (_b = (_a = data.world_metadata) == null ? void 0 : _a.monster_name) == null ? void 0 : _b.trim();
+    if (!monsterName) {
+      return false;
+    }
+    return ((_c = data.entities) == null ? void 0 : _c.some((entity) => {
+      var _a2;
+      return ((_a2 = entity.components.object) == null ? void 0 : _a2.type) === ObjectType.CHARACTER;
+    })) ?? false;
   }
   /**
    * 저장된 데이터의 유효성을 검증하고 필요시 마이그레이션 수행
@@ -54158,6 +54701,7 @@ const _MainSceneWorld = class _MainSceneWorld {
     animationRenderSystem(params);
     statusIconRenderSystem(params);
     renderSystem(params);
+    characterNameLabelSystem(params);
     cleanableRenderSystem({ ...params, stage: this._stage });
     sleepEffectSystem({ ...params, stage: this._stage });
     return params;
@@ -54348,6 +54892,19 @@ const _MainSceneWorld = class _MainSceneWorld {
       `[MainSceneWorld] Status systems ${this._statusSystemsEnabled ? "enabled" : "disabled"}`
     );
     return this._statusSystemsEnabled;
+  }
+  toggleSleepDebugEffect() {
+    this._sleepDebugEffectEnabled = !this._sleepDebugEffectEnabled;
+    if (!this._sleepDebugEffectEnabled) {
+      cleanupSleepEffects(this._stage);
+    }
+    console.log(
+      `[MainSceneWorld] Sleep debug effect ${this._sleepDebugEffectEnabled ? "enabled" : "disabled"}`
+    );
+    return this._sleepDebugEffectEnabled;
+  }
+  isSleepDebugEffectEnabled() {
+    return this._sleepDebugEffectEnabled;
   }
 };
 _MainSceneWorld.SCENE_DARKNESS_OVERLAY_Z_INDEX = 1e6;
@@ -60414,6 +60971,7 @@ class Game {
     this.assetsLoaded = false;
     const {
       parentElement,
+      debugParentElement,
       onCreateInitialGameData,
       changeControlButtons,
       showSettings,
@@ -60426,6 +60984,7 @@ class Game {
     this.app = new Application();
     this._boundResizeHandler = this._onResize.bind(this);
     this._parentElement = parentElement;
+    this._debugParentElement = debugParentElement ?? parentElement;
     window.addEventListener("resize", this._boundResizeHandler);
   }
   /**
@@ -60552,6 +61111,7 @@ class Game {
             height: this.app.screen.height - 2 * SCREEN_PADDING
           },
           parentElement: this._parentElement,
+          debugParentElement: this._debugParentElement,
           startMiniGame: () => this.changeScene(SceneKey.FLAPPY_BIRD_GAME),
           createInitialGameData: this._createInitialGameData,
           changeControlButtons: this.changeControlButtons
@@ -61459,23 +62019,39 @@ const PopupLayer = ({
     void 0
   );
 };
+const MIN_NAME_LENGTH = 2;
+const MAX_NAME_LENGTH = 10;
+function countDisplayCharacters(value) {
+  const IntlWithSegmenter = Intl;
+  const SegmenterCtor = IntlWithSegmenter.Segmenter;
+  if (SegmenterCtor) {
+    return Array.from(
+      new SegmenterCtor(void 0, { granularity: "grapheme" }).segment(value)
+    ).length;
+  }
+  return Array.from(value).length;
+}
 const SetupLayer = ({ onComplete }) => {
   const [name, setName] = reactExports.useState("");
   const [error, setError] = reactExports.useState(null);
+  const trimmedName = name.trim();
+  const nameLength = countDisplayCharacters(trimmedName);
   const handleConfirm = () => {
-    if (!name.trim()) {
+    if (!trimmedName) {
       setError("닉네임을 입력해주세요!");
       return;
     }
-    if (name.length < 2 || name.length > 10) {
-      setError("닉네임은 2~10자 사이로 입력해주세요!");
+    if (nameLength < MIN_NAME_LENGTH || nameLength > MAX_NAME_LENGTH) {
+      setError(
+        `닉네임은 ${MIN_NAME_LENGTH}~${MAX_NAME_LENGTH}글자 사이로 입력해주세요!`
+      );
       return;
     }
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
     }
     onComplete({
-      name: name.trim()
+      name: trimmedName
     });
   };
   const overlay = /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "fixed inset-0 z-[999] flex min-h-dvh items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -61493,39 +62069,39 @@ const SetupLayer = ({ onComplete }) => {
               setError(null);
             },
             placeholder: "Monster Name",
-            maxLength: 20,
             className: "w-full px-3 py-2 text-center border-2 border-[#222] text-xs focus:outline-none focus:ring-2 focus:ring-[#d95763]"
           },
           void 0,
           false,
           {
             fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-            lineNumber: 46,
+            lineNumber: 74,
             columnNumber: 15
           },
           void 0
         ),
         /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "mt-4 text-xs text-gray-600", children: [
           "Name length: ",
-          name.length,
-          "/20"
+          nameLength,
+          "/",
+          MAX_NAME_LENGTH
         ] }, void 0, true, {
           fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-          lineNumber: 57,
+          lineNumber: 84,
           columnNumber: 15
         }, void 0),
         error && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("p", { className: "mt-4 text-component-negative text-[0.7em]", children: error }, void 0, false, {
           fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-          lineNumber: 61,
+          lineNumber: 88,
           columnNumber: 17
         }, void 0)
       ] }, void 0, true, {
         fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-        lineNumber: 45,
+        lineNumber: 73,
         columnNumber: 13
       }, void 0) }, void 0, false, {
         fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-        lineNumber: 44,
+        lineNumber: 72,
         columnNumber: 11
       }, void 0),
       onConfirm: handleConfirm,
@@ -61535,13 +62111,13 @@ const SetupLayer = ({ onComplete }) => {
     false,
     {
       fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-      lineNumber: 41,
+      lineNumber: 69,
       columnNumber: 7
     },
     void 0
   ) }, void 0, false, {
     fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-    lineNumber: 40,
+    lineNumber: 68,
     columnNumber: 5
   }, void 0);
   if (typeof document === "undefined") {
@@ -61791,6 +62367,304 @@ const useAlert = () => {
     hideAlert
   };
 };
+const ECS_NULL_VALUE = 0;
+const CHARACTER_OBJECT_TYPE = 1;
+const FOOD_OBJECT_TYPE = 3;
+const POOB_OBJECT_TYPE = 4;
+const PILL_OBJECT_TYPE = 5;
+const CHARACTER_STATE = {
+  EGG: 0,
+  IDLE: 1,
+  MOVING: 2,
+  SLEEPING: 3,
+  DEAD: 6
+};
+const DEFAULTS = {
+  VERSION: "1.0.0",
+  CHARACTER_KEY: 1,
+  SPRITESHEET_KEY: 1,
+  ANIMATION_KEY_IDLE: 1,
+  TEXTURE_KEY_EGG0: 500,
+  STATUS_SLOT_COUNT: 4,
+  DIGESTIVE_CAPACITY: 5,
+  DISEASE_CHECK_INTERVAL: 1e4,
+  EGG_HATCH_TIME: 5e3,
+  RANDOM_MOVEMENT: {
+    minIdleTime: 2e3,
+    maxIdleTime: 8e3,
+    minMoveTime: 1e3,
+    maxMoveTime: 8e3
+  }
+};
+function isRecord(value) {
+  return typeof value === "object" && value !== null;
+}
+function toFiniteNumber(value) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+function toBoolean(value, fallback) {
+  return typeof value === "boolean" ? value : fallback;
+}
+function sanitizeStatuses(statuses) {
+  if (!Array.isArray(statuses)) {
+    return new Array(DEFAULTS.STATUS_SLOT_COUNT).fill(ECS_NULL_VALUE);
+  }
+  const sanitized = statuses.map((status) => toFiniteNumber(status) ?? ECS_NULL_VALUE).slice(0, DEFAULTS.STATUS_SLOT_COUNT);
+  while (sanitized.length < DEFAULTS.STATUS_SLOT_COUNT) {
+    sanitized.push(ECS_NULL_VALUE);
+  }
+  return sanitized;
+}
+function needsAnimationRender(state) {
+  return state !== CHARACTER_STATE.EGG && state !== CHARACTER_STATE.DEAD;
+}
+function needsRandomMovement(state) {
+  return state === CHARACTER_STATE.IDLE || state === CHARACTER_STATE.MOVING || state === CHARACTER_STATE.SLEEPING;
+}
+function sanitizeWorldMetadata(metadata, now) {
+  var _a, _b;
+  return {
+    name: typeof (metadata == null ? void 0 : metadata.name) === "string" && metadata.name.trim() ? metadata.name.trim() : "MainScene",
+    monster_name: typeof (metadata == null ? void 0 : metadata.monster_name) === "string" && metadata.monster_name.trim() ? metadata.monster_name.trim() : void 0,
+    last_ecs_saved: toFiniteNumber(metadata == null ? void 0 : metadata.last_ecs_saved) ?? now,
+    version: typeof (metadata == null ? void 0 : metadata.version) === "string" && metadata.version.trim() ? metadata.version : DEFAULTS.VERSION,
+    app_state: {
+      last_active_time: toFiniteNumber((_a = metadata == null ? void 0 : metadata.app_state) == null ? void 0 : _a.last_active_time) ?? now,
+      is_first_load: typeof ((_b = metadata == null ? void 0 : metadata.app_state) == null ? void 0 : _b.is_first_load) === "boolean" ? metadata.app_state.is_first_load : false
+    }
+  };
+}
+function sanitizeCharacterEntity(components, now) {
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B, _C, _D, _E, _F, _G, _H, _I, _J, _K, _L, _M;
+  const objectId = toFiniteNumber((_a = components.object) == null ? void 0 : _a.id);
+  if (!objectId || objectId <= 0) {
+    return null;
+  }
+  const state = toFiniteNumber((_b = components.object) == null ? void 0 : _b.state) ?? CHARACTER_STATE.EGG;
+  const characterKey = toFiniteNumber((_c = components.characterStatus) == null ? void 0 : _c.characterKey) ?? DEFAULTS.CHARACTER_KEY;
+  const sanitized = {
+    object: {
+      id: objectId,
+      type: CHARACTER_OBJECT_TYPE,
+      state
+    },
+    characterStatus: {
+      characterKey,
+      stamina: toFiniteNumber((_d = components.characterStatus) == null ? void 0 : _d.stamina) ?? 5,
+      evolutionGage: toFiniteNumber((_e = components.characterStatus) == null ? void 0 : _e.evolutionGage) ?? 0,
+      evolutionPhase: toFiniteNumber((_f = components.characterStatus) == null ? void 0 : _f.evolutionPhase) ?? 1,
+      statuses: sanitizeStatuses((_g = components.characterStatus) == null ? void 0 : _g.statuses)
+    },
+    position: {
+      x: toFiniteNumber((_h = components.position) == null ? void 0 : _h.x) ?? 0,
+      y: toFiniteNumber((_i = components.position) == null ? void 0 : _i.y) ?? 0
+    },
+    angle: {
+      value: toFiniteNumber((_j = components.angle) == null ? void 0 : _j.value) ?? 0
+    },
+    speed: {
+      value: toFiniteNumber((_k = components.speed) == null ? void 0 : _k.value) ?? 0
+    },
+    render: {
+      storeIndex: ECS_NULL_VALUE,
+      textureKey: toFiniteNumber((_l = components.render) == null ? void 0 : _l.textureKey) ?? (state === CHARACTER_STATE.EGG ? DEFAULTS.TEXTURE_KEY_EGG0 : ECS_NULL_VALUE),
+      scale: toFiniteNumber((_m = components.render) == null ? void 0 : _m.scale) ?? 3,
+      zIndex: toFiniteNumber((_n = components.render) == null ? void 0 : _n.zIndex) ?? ECS_NULL_VALUE
+    },
+    statusIconRender: {
+      storeIndexes: Array.isArray((_o = components.statusIconRender) == null ? void 0 : _o.storeIndexes) ? components.statusIconRender.storeIndexes.map((value) => toFiniteNumber(value) ?? ECS_NULL_VALUE).slice(0, DEFAULTS.STATUS_SLOT_COUNT) : new Array(DEFAULTS.STATUS_SLOT_COUNT).fill(ECS_NULL_VALUE),
+      visibleCount: toFiniteNumber((_p = components.statusIconRender) == null ? void 0 : _p.visibleCount) ?? ECS_NULL_VALUE
+    },
+    digestiveSystem: {
+      capacity: toFiniteNumber((_q = components.digestiveSystem) == null ? void 0 : _q.capacity) ?? DEFAULTS.DIGESTIVE_CAPACITY,
+      currentLoad: toFiniteNumber((_r = components.digestiveSystem) == null ? void 0 : _r.currentLoad) ?? 0,
+      nextPoopTime: toFiniteNumber((_s = components.digestiveSystem) == null ? void 0 : _s.nextPoopTime) ?? 0
+    },
+    diseaseSystem: {
+      nextCheckTime: toFiniteNumber((_t = components.diseaseSystem) == null ? void 0 : _t.nextCheckTime) ?? now + DEFAULTS.DISEASE_CHECK_INTERVAL,
+      sickStartTime: toFiniteNumber((_u = components.diseaseSystem) == null ? void 0 : _u.sickStartTime) ?? 0
+    },
+    vitality: {
+      urgentStartTime: toFiniteNumber((_v = components.vitality) == null ? void 0 : _v.urgentStartTime) ?? 0,
+      deathTime: toFiniteNumber((_w = components.vitality) == null ? void 0 : _w.deathTime) ?? 0,
+      isDead: toBoolean(
+        (_x = components.vitality) == null ? void 0 : _x.isDead,
+        state === CHARACTER_STATE.DEAD
+      )
+    },
+    temporaryStatus: {
+      statusType: toFiniteNumber((_y = components.temporaryStatus) == null ? void 0 : _y.statusType) ?? ECS_NULL_VALUE,
+      startTime: toFiniteNumber((_z = components.temporaryStatus) == null ? void 0 : _z.startTime) ?? 0
+    },
+    eggHatch: {
+      hatchTime: toFiniteNumber((_A = components.eggHatch) == null ? void 0 : _A.hatchTime) ?? (state === CHARACTER_STATE.EGG ? now + DEFAULTS.EGG_HATCH_TIME : 0),
+      isReadyToHatch: toBoolean(
+        (_B = components.eggHatch) == null ? void 0 : _B.isReadyToHatch,
+        false
+      )
+    }
+  };
+  const statusIconSlots = (_C = sanitized.statusIconRender) == null ? void 0 : _C.storeIndexes;
+  if (statusIconSlots && statusIconSlots.length < DEFAULTS.STATUS_SLOT_COUNT) {
+    while (statusIconSlots.length < DEFAULTS.STATUS_SLOT_COUNT) {
+      statusIconSlots.push(ECS_NULL_VALUE);
+    }
+  }
+  if (needsAnimationRender(state)) {
+    sanitized.animationRender = {
+      storeIndex: ECS_NULL_VALUE,
+      spritesheetKey: toFiniteNumber((_D = components.animationRender) == null ? void 0 : _D.spritesheetKey) ?? characterKey ?? DEFAULTS.SPRITESHEET_KEY,
+      animationKey: toFiniteNumber((_E = components.animationRender) == null ? void 0 : _E.animationKey) ?? DEFAULTS.ANIMATION_KEY_IDLE,
+      isPlaying: toBoolean((_F = components.animationRender) == null ? void 0 : _F.isPlaying, true),
+      loop: toBoolean((_G = components.animationRender) == null ? void 0 : _G.loop, true),
+      speed: toFiniteNumber((_H = components.animationRender) == null ? void 0 : _H.speed) ?? 0.04
+    };
+  }
+  if (needsRandomMovement(state)) {
+    const minIdle = toFiniteNumber((_I = components.randomMovement) == null ? void 0 : _I.minIdleTime) ?? DEFAULTS.RANDOM_MOVEMENT.minIdleTime;
+    const maxIdle = Math.max(
+      minIdle,
+      toFiniteNumber((_J = components.randomMovement) == null ? void 0 : _J.maxIdleTime) ?? DEFAULTS.RANDOM_MOVEMENT.maxIdleTime
+    );
+    const minMove = toFiniteNumber((_K = components.randomMovement) == null ? void 0 : _K.minMoveTime) ?? DEFAULTS.RANDOM_MOVEMENT.minMoveTime;
+    const maxMove = Math.max(
+      minMove,
+      toFiniteNumber((_L = components.randomMovement) == null ? void 0 : _L.maxMoveTime) ?? DEFAULTS.RANDOM_MOVEMENT.maxMoveTime
+    );
+    sanitized.randomMovement = {
+      minIdleTime: minIdle,
+      maxIdleTime: maxIdle,
+      minMoveTime: minMove,
+      maxMoveTime: maxMove,
+      nextChange: toFiniteNumber((_M = components.randomMovement) == null ? void 0 : _M.nextChange) ?? now + 1e3
+    };
+  }
+  return sanitized;
+}
+function sanitizeNonCharacterEntity(components) {
+  var _a, _b, _c, _d;
+  const objectId = toFiniteNumber((_a = components.object) == null ? void 0 : _a.id);
+  const objectType = toFiniteNumber((_b = components.object) == null ? void 0 : _b.type);
+  const objectState = toFiniteNumber((_c = components.object) == null ? void 0 : _c.state) ?? ECS_NULL_VALUE;
+  if (!objectId || objectId <= 0) {
+    return null;
+  }
+  if (objectType !== FOOD_OBJECT_TYPE && objectType !== POOB_OBJECT_TYPE && objectType !== PILL_OBJECT_TYPE) {
+    return null;
+  }
+  if (!isRecord(components.position) || !isRecord(components.render)) {
+    return null;
+  }
+  const positionX = toFiniteNumber(components.position.x);
+  const positionY = toFiniteNumber(components.position.y);
+  const textureKey = toFiniteNumber(components.render.textureKey);
+  const scale = toFiniteNumber(components.render.scale);
+  if (positionX === null || positionY === null || textureKey === null || scale === null) {
+    return null;
+  }
+  return {
+    ...components,
+    object: {
+      id: objectId,
+      type: objectType,
+      state: objectState
+    },
+    position: {
+      x: positionX,
+      y: positionY
+    },
+    render: {
+      storeIndex: ECS_NULL_VALUE,
+      textureKey,
+      scale,
+      zIndex: toFiniteNumber((_d = components.render) == null ? void 0 : _d.zIndex) ?? ECS_NULL_VALUE
+    }
+  };
+}
+function sanitizeStoredWorldData(savedData) {
+  var _a, _b, _c, _d, _e;
+  if (!savedData) {
+    return {
+      action: "setup_required",
+      sanitizedData: null,
+      changed: false
+    };
+  }
+  if (!isRecord(savedData)) {
+    return {
+      action: "reset_required",
+      sanitizedData: null,
+      changed: false,
+      resetReason: "기존 게임 데이터 형식이 올바르지 않아 새로 시작해야 합니다."
+    };
+  }
+  const now = Date.now();
+  const worldData = savedData;
+  const sanitizedMetadata = sanitizeWorldMetadata(worldData.world_metadata, now);
+  const rawEntities = Array.isArray(worldData.entities) ? worldData.entities : [];
+  const sanitizedEntities = [];
+  const seenObjectIds = /* @__PURE__ */ new Set();
+  let sawCharacterCandidate = false;
+  for (const entity of rawEntities) {
+    if (!isRecord(entity) || !isRecord(entity.components)) {
+      continue;
+    }
+    const components = entity.components;
+    const rawObjectType = toFiniteNumber((_a = components.object) == null ? void 0 : _a.type);
+    const looksLikeCharacter = rawObjectType === CHARACTER_OBJECT_TYPE || !!components.characterStatus;
+    if (looksLikeCharacter) {
+      sawCharacterCandidate = true;
+    }
+    const sanitizedComponents = looksLikeCharacter ? sanitizeCharacterEntity(components, now) : sanitizeNonCharacterEntity(components);
+    if (!((_b = sanitizedComponents == null ? void 0 : sanitizedComponents.object) == null ? void 0 : _b.id)) {
+      continue;
+    }
+    if (seenObjectIds.has(sanitizedComponents.object.id)) {
+      continue;
+    }
+    seenObjectIds.add(sanitizedComponents.object.id);
+    sanitizedEntities.push({ components: sanitizedComponents });
+  }
+  const sanitizedData = {
+    world_metadata: sanitizedMetadata,
+    entities: sanitizedEntities
+  };
+  const changed = JSON.stringify(worldData) !== JSON.stringify(sanitizedData);
+  const playableCharacterCount = sanitizedEntities.filter((entity) => {
+    var _a2, _b2;
+    return ((_b2 = (_a2 = entity.components) == null ? void 0 : _a2.object) == null ? void 0 : _b2.type) === CHARACTER_OBJECT_TYPE;
+  }).length;
+  const hasMonsterName = !!((_c = sanitizedMetadata.monster_name) == null ? void 0 : _c.trim());
+  if (playableCharacterCount === 0) {
+    const hadAnySavedShape = rawEntities.length > 0 || !!((_d = worldData.world_metadata) == null ? void 0 : _d.monster_name) || !!((_e = worldData.world_metadata) == null ? void 0 : _e.name);
+    if (hadAnySavedShape) {
+      return {
+        action: "reset_required",
+        sanitizedData,
+        changed,
+        resetReason: "기존 게임 데이터가 손상되어 캐릭터를 복구할 수 없습니다."
+      };
+    }
+    return {
+      action: "setup_required",
+      sanitizedData,
+      changed
+    };
+  }
+  if (!hasMonsterName) {
+    return {
+      action: sawCharacterCandidate ? "reset_required" : "setup_required",
+      sanitizedData,
+      changed,
+      resetReason: sawCharacterCandidate ? "기존 게임 데이터에 필수 이름 정보가 없어 새로 시작해야 합니다." : void 0
+    };
+  }
+  return {
+    action: "playable",
+    sanitizedData,
+    changed
+  };
+}
 const WORLD_DATA_STORAGE_KEY = "MainSceneWorldData";
 function waitForAnimationFrame() {
   return new Promise((resolve) => {
@@ -61809,12 +62683,31 @@ function createStorage() {
   }
   return new WebLocalStorage();
 }
+function getStorageKind() {
+  return hasNativeStorageController() ? "native" : "web";
+}
+function summarizeSavedData(savedData) {
+  var _a;
+  if (!savedData || typeof savedData !== "object") {
+    return {
+      valueType: typeof savedData,
+      isNull: savedData === null
+    };
+  }
+  const savedDataRecord = savedData;
+  return {
+    valueType: typeof savedData,
+    monsterName: (_a = savedDataRecord.world_metadata) == null ? void 0 : _a.monster_name,
+    entityCount: Array.isArray(savedDataRecord.entities) ? savedDataRecord.entities.length : "n/a"
+  };
+}
 const GameContainer = () => {
   const gameContainerRef = reactExports.useRef(null);
   const [gameInstance, setGameInstance] = reactExports.useState(null);
   const [showSetupLayer, setShowSetupLayer] = reactExports.useState(false);
   const [isLoading, setIsLoading] = reactExports.useState(true);
   const { alertState, showAlert, hideAlert } = useAlert();
+  const [sanitizeResetAlert, setSanitizeResetAlert] = reactExports.useState(null);
   const isInitializedRef = reactExports.useRef(false);
   const initialSetupDataRef = reactExports.useRef(null);
   const pendingSetupResolverRef = reactExports.useRef(null);
@@ -61835,42 +62728,103 @@ const GameContainer = () => {
   const handleNotificationSettingChange = reactExports.useCallback((enabled) => {
     setGameSettings(updateGameSettings({ notificationEnabled: enabled }));
   }, []);
+  const resetGameData = reactExports.useCallback(
+    async (reason) => {
+      console.warn("[GameContainer] resetGameData:start", {
+        reason,
+        hasGameInstance: !!gameInstance,
+        storageKind: getStorageKind()
+      });
+      try {
+        if (gameInstance) {
+          await gameInstance.destroyForReset();
+        } else {
+          const storage = createStorage();
+          await storage.removeData(WORLD_DATA_STORAGE_KEY);
+        }
+        if (gameContainerRef.current) {
+          gameContainerRef.current.innerHTML = "";
+        }
+        initialSetupDataRef.current = null;
+        pendingSetupResolverRef.current = null;
+        shouldRestartFromSetupRef.current = true;
+        isInitializedRef.current = false;
+        setShowSettingMenu(false);
+        setButtonParams(null);
+        setShowSetupLayer(true);
+        setIsLoading(false);
+        setGameInstance(null);
+        setSanitizeResetAlert(null);
+        console.warn("[GameContainer] resetGameData:success", {
+          reason,
+          storageKind: getStorageKind()
+        });
+      } catch (error) {
+        console.error("[GameContainer] 게임 데이터 초기화 중 오류:", error);
+        showAlert("게임 데이터 초기화에 실패했습니다.", "오류");
+      }
+    },
+    [gameInstance, showAlert]
+  );
   const handleResetGameData = reactExports.useCallback(async () => {
-    try {
-      if (gameInstance) {
-        await gameInstance.destroyForReset();
-      } else {
-        const storage = createStorage();
-        await storage.removeData(WORLD_DATA_STORAGE_KEY);
-      }
-      if (gameContainerRef.current) {
-        gameContainerRef.current.innerHTML = "";
-      }
-      initialSetupDataRef.current = null;
-      pendingSetupResolverRef.current = null;
-      shouldRestartFromSetupRef.current = true;
-      isInitializedRef.current = false;
-      setShowSettingMenu(false);
-      setButtonParams(null);
-      setShowSetupLayer(true);
-      setIsLoading(false);
-      setGameInstance(null);
-    } catch (error) {
-      console.error("[GameContainer] 게임 데이터 초기화 중 오류:", error);
-      showAlert("게임 데이터 초기화에 실패했습니다.", "오류");
-    }
-  }, [gameInstance, showAlert]);
-  const hasSavedGameData = reactExports.useCallback(async () => {
-    var _a;
+    await resetGameData("user_reset");
+  }, [resetGameData]);
+  const handleSanitizeResetConfirm = reactExports.useCallback(async () => {
+    await resetGameData("sanitize_reset");
+  }, [resetGameData]);
+  const prepareSavedGameData = reactExports.useCallback(async () => {
     try {
       const storage = createStorage();
-      const savedData = await storage.getData(
-        WORLD_DATA_STORAGE_KEY
-      );
-      return !!((_a = savedData == null ? void 0 : savedData.entities) == null ? void 0 : _a.length);
+      const storageKind = getStorageKind();
+      console.debug("[GameContainer] prepareSavedGameData:start", {
+        key: WORLD_DATA_STORAGE_KEY,
+        storageKind
+      });
+      const savedData = await storage.getData(WORLD_DATA_STORAGE_KEY);
+      console.debug("[GameContainer] prepareSavedGameData:loaded", {
+        key: WORLD_DATA_STORAGE_KEY,
+        storageKind,
+        ...summarizeSavedData(savedData)
+      });
+      const result = sanitizeStoredWorldData(savedData);
+      console.debug("[GameContainer] prepareSavedGameData:sanitized", {
+        key: WORLD_DATA_STORAGE_KEY,
+        storageKind,
+        action: result.action,
+        changed: result.changed,
+        hasSanitizedData: !!result.sanitizedData
+      });
+      if (result.changed && result.sanitizedData && result.action !== "reset_required") {
+        await storage.setData(WORLD_DATA_STORAGE_KEY, result.sanitizedData);
+        console.warn(
+          "[GameContainer] 저장 데이터를 자동 복구하여 다시 저장했습니다.",
+          result.sanitizedData
+        );
+      }
+      if (result.action === "reset_required") {
+        console.warn(
+          "[GameContainer] 저장 데이터가 손상되어 초기화가 필요합니다.",
+          result.sanitizedData
+        );
+        setSanitizeResetAlert({
+          title: "데이터 복구 안내",
+          message: result.resetReason ?? "기존 게임 데이터가 손상되어 복구할 수 없어 새로 시작합니다. 확인을 누르면 데이터를 초기화하고 시작 설정 화면으로 이동합니다."
+        });
+        setIsLoading(false);
+      }
+      return result.action;
     } catch (error) {
-      console.error("[GameContainer] 게임 데이터 확인 중 오류:", error);
-      return false;
+      console.error("[GameContainer] 게임 데이터 확인 중 오류:", {
+        key: WORLD_DATA_STORAGE_KEY,
+        storageKind: getStorageKind(),
+        error
+      });
+      setSanitizeResetAlert({
+        title: "데이터 복구 안내",
+        message: "기존 게임 데이터를 읽는 중 문제가 발생했습니다. 확인을 누르면 데이터를 초기화하고 시작 설정 화면으로 이동합니다."
+      });
+      setIsLoading(false);
+      return "reset_required";
     }
   }, []);
   const requestInitialGameData = reactExports.useCallback(async () => {
@@ -61892,8 +62846,10 @@ const GameContainer = () => {
     if (!gameContainerRef.current) return;
     if (isInitializedRef.current) return;
     setIsLoading(true);
+    const debugParentElement = gameContainerRef.current.closest("#app-container") ?? gameContainerRef.current;
     const game = new Game({
       parentElement: gameContainerRef.current,
+      debugParentElement,
       onCreateInitialGameData: async () => {
         return initialSetupDataRef.current ?? await requestInitialGameData();
       },
@@ -61927,9 +62883,12 @@ const GameContainer = () => {
     const bootstrap2 = async () => {
       if (!gameContainerRef.current) return;
       if (isInitializedRef.current) return;
-      const savedGameDataExists = await hasSavedGameData();
+      const savedGameDataState = await prepareSavedGameData();
       if (!isMounted) return;
-      if (!savedGameDataExists) {
+      if (savedGameDataState === "reset_required") {
+        return;
+      }
+      if (savedGameDataState === "setup_required") {
         await requestInitialGameData();
         if (!isMounted) return;
         await waitForLayoutStabilization();
@@ -61944,8 +62903,8 @@ const GameContainer = () => {
     };
   }, [
     gameSessionKey,
-    hasSavedGameData,
     initializeGame,
+    prepareSavedGameData,
     requestInitialGameData
   ]);
   const handleButtonPress = reactExports.useCallback(
@@ -62003,7 +62962,7 @@ const GameContainer = () => {
             false,
             {
               fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-              lineNumber: 284,
+              lineNumber: 395,
               columnNumber: 9
             },
             void 0
@@ -62020,28 +62979,28 @@ const GameContainer = () => {
             false,
             {
               fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-              lineNumber: 294,
+              lineNumber: 405,
               columnNumber: 13
             },
             void 0
           ) }, void 0, false, {
             fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 293,
+            lineNumber: 404,
             columnNumber: 11
           }, void 0)
         ] }, void 0, true, {
           fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-          lineNumber: 283,
+          lineNumber: 394,
           columnNumber: 7
         }, void 0),
         isLoading && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "absolute top-0 left-0 text-white p-4", children: "Loading.." }, void 0, false, {
           fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-          lineNumber: 304,
+          lineNumber: 415,
           columnNumber: 9
         }, void 0),
         showSetupLayer && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(SetupLayer, { onComplete: handleSetupComplete }, void 0, false, {
           fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-          lineNumber: 306,
+          lineNumber: 417,
           columnNumber: 26
         }, void 0),
         showSettingMenu && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -62058,7 +63017,7 @@ const GameContainer = () => {
           false,
           {
             fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 308,
+            lineNumber: 419,
             columnNumber: 9
           },
           void 0
@@ -62074,7 +63033,23 @@ const GameContainer = () => {
           false,
           {
             fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 318,
+            lineNumber: 429,
+            columnNumber: 9
+          },
+          void 0
+        ),
+        sanitizeResetAlert && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+          AlertLayer,
+          {
+            title: sanitizeResetAlert.title,
+            message: sanitizeResetAlert.message,
+            onClose: handleSanitizeResetConfirm
+          },
+          void 0,
+          false,
+          {
+            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+            lineNumber: 436,
             columnNumber: 9
           },
           void 0
@@ -62085,7 +63060,7 @@ const GameContainer = () => {
     true,
     {
       fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-      lineNumber: 278,
+      lineNumber: 389,
       columnNumber: 5
     },
     void 0
@@ -62094,27 +63069,24 @@ const GameContainer = () => {
 function DevEnvironmentBadge() {
   const [platformAdapter2] = reactExports.useState(() => new PlatformAdapter());
   const [isExpanded, setIsExpanded] = reactExports.useState(false);
-  if (platformAdapter2.isRunningInNativeApp()) {
+  const isNativeApp = platformAdapter2.isRunningInNativeApp();
+  if (isNativeApp) {
     return null;
   }
   return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
     "div",
     {
       style: {
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
         backgroundColor: "#ff6b6b",
         color: "white",
         padding: "8px 16px",
         fontSize: "14px",
         fontWeight: "bold",
         textAlign: "center",
-        zIndex: 99999,
         boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
         cursor: "pointer",
-        fontFamily: "system-ui, -apple-system, sans-serif"
+        fontFamily: "system-ui, -apple-system, sans-serif",
+        flexShrink: 0
       },
       onClick: () => setIsExpanded(!isExpanded),
       onKeyDown: (e2) => {
@@ -62138,7 +63110,7 @@ function DevEnvironmentBadge() {
             children: [
               /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { children: "🖥️ PC 개발 모드" }, void 0, false, {
                 fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
-                lineNumber: 53,
+                lineNumber: 50,
                 columnNumber: 9
               }, this),
               /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { style: { fontSize: "12px", opacity: 0.9 }, children: [
@@ -62148,7 +63120,7 @@ function DevEnvironmentBadge() {
                 isExpanded ? "접기" : "펼치기"
               ] }, void 0, true, {
                 fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
-                lineNumber: 54,
+                lineNumber: 51,
                 columnNumber: 9
               }, this)
             ]
@@ -62157,7 +63129,7 @@ function DevEnvironmentBadge() {
           true,
           {
             fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
-            lineNumber: 45,
+            lineNumber: 42,
             columnNumber: 7
           },
           this
@@ -62179,32 +63151,32 @@ function DevEnvironmentBadge() {
               /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { style: { marginBottom: "8px" }, children: [
                 /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("strong", { children: "환경:" }, void 0, false, {
                   fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
-                  lineNumber: 74,
+                  lineNumber: 71,
                   columnNumber: 13
                 }, this),
                 " 웹 브라우저 (Flutter 네이티브 앱 아님)"
               ] }, void 0, true, {
                 fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
-                lineNumber: 73,
+                lineNumber: 70,
                 columnNumber: 11
               }, this),
               /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { style: { marginBottom: "8px" }, children: [
                 /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("strong", { children: "플랫폼:" }, void 0, false, {
                   fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
-                  lineNumber: 77,
+                  lineNumber: 74,
                   columnNumber: 13
                 }, this),
                 " ",
                 platformAdapter2.getPlatformName()
               ] }, void 0, true, {
                 fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
-                lineNumber: 76,
+                lineNumber: 73,
                 columnNumber: 11
               }, this),
               /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { style: { marginBottom: "8px" }, children: [
                 /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("strong", { children: "User Agent:" }, void 0, false, {
                   fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
-                  lineNumber: 80,
+                  lineNumber: 77,
                   columnNumber: 13
                 }, this),
                 /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -62225,27 +63197,27 @@ function DevEnvironmentBadge() {
                   false,
                   {
                     fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
-                    lineNumber: 81,
+                    lineNumber: 78,
                     columnNumber: 13
                   },
                   this
                 )
               ] }, void 0, true, {
                 fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
-                lineNumber: 79,
+                lineNumber: 76,
                 columnNumber: 11
               }, this),
               /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { style: { marginTop: "12px", opacity: 0.8, fontSize: "11px" }, children: [
                 "⚠️ 네이티브 기능(NFC 등)은 이 환경에서 동작하지 않습니다.",
                 /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("br", {}, void 0, false, {
                   fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
-                  lineNumber: 97,
+                  lineNumber: 94,
                   columnNumber: 13
                 }, this),
                 "네이티브 기능 테스트는 Flutter 앱에서 진행하세요."
               ] }, void 0, true, {
                 fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
-                lineNumber: 95,
+                lineNumber: 92,
                 columnNumber: 11
               }, this)
             ]
@@ -62254,7 +63226,7 @@ function DevEnvironmentBadge() {
           true,
           {
             fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
-            lineNumber: 61,
+            lineNumber: 58,
             columnNumber: 9
           },
           this
@@ -62265,7 +63237,7 @@ function DevEnvironmentBadge() {
     true,
     {
       fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
-      lineNumber: 18,
+      lineNumber: 19,
       columnNumber: 5
     },
     this
@@ -62504,6 +63476,9 @@ class UrgentRecoveryPolicy {
     return 10;
   }
 }
+const SimpleLogViewer = (props) => {
+  return null;
+};
 let adManager = null;
 const LAST_ACTIVE_KEY = "app_last_active_timestamp";
 const App = () => {
@@ -62559,29 +63534,37 @@ const App = () => {
     const now = Date.now();
     localStorage.setItem(LAST_ACTIVE_KEY, now.toString());
   };
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { id: "app-container", children: [
+  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { id: "app-shell", children: [
     /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(DevEnvironmentBadge, {}, void 0, false, {
       fileName: "/Users/neiz/digivice/apps/client/src/App.tsx",
-      lineNumber: 98,
+      lineNumber: 99,
       columnNumber: 7
     }, void 0),
-    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(GameContainer, {}, void 0, false, {
+    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { id: "app-container", children: [
+      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(GameContainer, {}, void 0, false, {
+        fileName: "/Users/neiz/digivice/apps/client/src/App.tsx",
+        lineNumber: 101,
+        columnNumber: 9
+      }, void 0),
+      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(SimpleLogViewer, { position: "top-right", initialOpen: false }, void 0, false, {
+        fileName: "/Users/neiz/digivice/apps/client/src/App.tsx",
+        lineNumber: 102,
+        columnNumber: 9
+      }, void 0)
+    ] }, void 0, true, {
       fileName: "/Users/neiz/digivice/apps/client/src/App.tsx",
-      lineNumber: 99,
+      lineNumber: 100,
       columnNumber: 7
     }, void 0)
   ] }, void 0, true, {
     fileName: "/Users/neiz/digivice/apps/client/src/App.tsx",
-    lineNumber: 97,
+    lineNumber: 98,
     columnNumber: 5
   }, void 0);
 };
 window.errorLogs = window.errorLogs || [];
 window.onerror = (err) => {
   window.errorLogs.push(String(err));
-};
-const SimpleLogViewer = (props) => {
-  return null;
 };
 const __vite_import_meta_env__ = { "BASE_URL": "./", "DEV": true, "MODE": "development", "PROD": false, "SSR": false };
 const platformAdapter = new PlatformAdapter();
@@ -62626,20 +63609,13 @@ async function bootstrap() {
     throw new Error("Root element not found");
   }
   ReactDOM.createRoot(rootElement).render(
-    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(jsxDevRuntimeExports.Fragment, { children: [
-      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(App, {}, void 0, false, {
-        fileName: "/Users/neiz/digivice/apps/client/src/main.tsx",
-        lineNumber: 84,
-        columnNumber: 53
-      }, this),
-      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(SimpleLogViewer, { position: "top-right", initialOpen: false }, void 0, false, {
-        fileName: "/Users/neiz/digivice/apps/client/src/main.tsx",
-        lineNumber: 85,
-        columnNumber: 7
-      }, this)
-    ] }, void 0, true, {
+    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(jsxDevRuntimeExports.Fragment, { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(App, {}, void 0, false, {
       fileName: "/Users/neiz/digivice/apps/client/src/main.tsx",
       lineNumber: 83,
+      columnNumber: 53
+    }, this) }, void 0, false, {
+      fileName: "/Users/neiz/digivice/apps/client/src/main.tsx",
+      lineNumber: 82,
       columnNumber: 5
     }, this)
   );
