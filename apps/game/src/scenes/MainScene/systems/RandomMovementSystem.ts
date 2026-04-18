@@ -30,7 +30,8 @@ export function randomMovementSystem(params: {
 }): typeof params {
   const { world } = params;
   const currentTime = world.currentTime;
-  const shouldLog = !world.isSimulationMode;
+  const shouldLog =
+    !world.isSimulationMode && world.isRandomMovementDebugEnabled();
   const chars = characterQuery(world);
   const allChars = allCharacterQuery(world);
 

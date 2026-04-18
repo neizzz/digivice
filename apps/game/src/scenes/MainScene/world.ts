@@ -317,6 +317,7 @@ export class MainSceneWorld implements IWorld, Scene {
   private _visibilityChangeHandler?: () => void; // Page Visibility API 이벤트 핸들러
   private _statusSystemsEnabled = true; // 상태 관리 시스템들 활성화 여부
   private _sleepDebugEffectEnabled = false;
+  private _randomMovementDebugEnabled = false;
   private _pendingRecoveryCureEids = new Set<number>();
   private _isPersistenceDisabled = false;
   private _createInitialGameData?: () => Promise<{
@@ -2466,5 +2467,13 @@ export class MainSceneWorld implements IWorld, Scene {
 
   public isSleepDebugEffectEnabled(): boolean {
     return this._sleepDebugEffectEnabled;
+  }
+
+  public setRandomMovementDebugEnabled(enabled: boolean): void {
+    this._randomMovementDebugEnabled = enabled;
+  }
+
+  public isRandomMovementDebugEnabled(): boolean {
+    return this._randomMovementDebugEnabled;
   }
 }

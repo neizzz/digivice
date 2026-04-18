@@ -757,11 +757,13 @@ export class HTMLDebugStatusUI {
     this._updateTimeOfDayDisplay();
     this._updateSleepEffectToggleButton();
     this._updateAllStatusIndicators(); // 상태 표시 업데이트
+    this._world.setRandomMovementDebugEnabled(true);
     this._container.style.display = "block";
     this._isVisible = true;
   }
 
   public hide(): void {
+    this._world.setRandomMovementDebugEnabled(false);
     this._container.style.display = "none";
     this._isVisible = false;
   }
@@ -789,6 +791,7 @@ export class HTMLDebugStatusUI {
   }
 
   public destroy(): void {
+    this._world.setRandomMovementDebugEnabled(false);
     if (this._container.parentElement) {
       this._container.parentElement.removeChild(this._container);
     }
