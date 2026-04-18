@@ -31,6 +31,8 @@
     "typescript-eslint": "^8.15.0"
   },
   "scripts": {
-    "sync-assets": "mkdir -p ../client/public/game && rsync -aL --delete assets/ ../client/public/game/"
+    "sync-assets": "mkdir -p ../client/public/game && rsync -aL --delete assets/ ../client/public/game/",
+    "test": "node ./scripts/run-tests.mjs",
+    "test:run": "node ./scripts/run-tests.mjs"
   }
 }
