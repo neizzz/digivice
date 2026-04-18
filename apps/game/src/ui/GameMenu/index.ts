@@ -79,7 +79,13 @@ export class GameMenu {
     const itemSize = this.menuItemElements[0]?.getSize();
     if (!itemSize) return;
 
+    const itemCount = this.menuItemElements.length;
+    const gapSize = itemSize / 3;
+    const containerMaxWidth =
+      itemCount * itemSize + Math.max(0, itemCount - 1) * gapSize;
+
     this.itemContainer.style.height = `${itemSize}px`;
+    this.itemContainer.style.maxWidth = `${containerMaxWidth}px`;
   }
 
   public processNavigationAction(action: NavigationActionPayload): void {
