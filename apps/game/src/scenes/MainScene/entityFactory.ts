@@ -17,6 +17,7 @@ import {
   // Add new components for character creation
   DigestiveSystemComp,
   DiseaseSystemComp,
+  SleepSystemComp,
   VitalityComp,
   TemporaryStatusComp,
   EggHatchComp,
@@ -30,6 +31,8 @@ import {
   ObjectType,
   PillState,
   TextureKey,
+  SleepMode,
+  SleepReason,
 } from "./types";
 import { generatePersistentNumericId } from "../../utils/generate";
 import { EntityComponents } from "./world";
@@ -150,6 +153,23 @@ export function createCharacterEntity(
   DiseaseSystemComp.nextCheckTime[eid] =
     Date.now() + GAME_CONSTANTS.DISEASE_CHECK_INTERVAL; // 첫 질병 체크
   DiseaseSystemComp.sickStartTime[eid] = 0; // 질병 시작 시간 (처음엔 건강)
+
+  // SleepSystemComp 추가
+  addComponent(world, SleepSystemComp, eid);
+  SleepSystemComp.fatigue[eid] = GAME_CONSTANTS.FATIGUE_DEFAULT;
+  SleepSystemComp.nextSleepTime[eid] = 0;
+  SleepSystemComp.nextWakeTime[eid] = 0;
+  SleepSystemComp.nextNapCheckTime[eid] =
+    Date.now() + GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL;
+  SleepSystemComp.nextNightWakeCheckTime[eid] = 0;
+  SleepSystemComp.sleepMode[eid] =
+    ObjectComp.state[eid] === CharacterState.SLEEPING
+      ? SleepMode.NIGHT_SLEEP
+      : SleepMode.AWAKE;
+  SleepSystemComp.pendingSleepReason[eid] = SleepReason.NONE;
+  SleepSystemComp.pendingWakeReason[eid] = SleepReason.NONE;
+  SleepSystemComp.sleepSessionStartedAt[eid] =
+    ObjectComp.state[eid] === CharacterState.SLEEPING ? Date.now() : 0;
 
   // VitalityComp 추가
   addComponent(world, VitalityComp, eid);

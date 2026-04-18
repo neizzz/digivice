@@ -313,7 +313,11 @@ function _updateStaminaAndEvolutionGauge(
 ): void {
   // 스테미나 타이머 업데이트
   const currentStaminaTimer = staminaTimers.get(eid) || 0;
-  const totalStaminaTime = currentStaminaTimer + delta;
+  const staminaDelta =
+    ObjectComp.state[eid] === CharacterState.SLEEPING
+      ? delta * GAME_CONSTANTS.SLEEPING_STAMINA_DECAY_MULTIPLIER
+      : delta;
+  const totalStaminaTime = currentStaminaTimer + staminaDelta;
   const staminaDecreaseCount = Math.floor(
     totalStaminaTime / GAME_CONSTANTS.STAMINA_DECREASE_INTERVAL,
   );

@@ -65,6 +65,18 @@ type StoredDiseaseSystemComponent = {
   sickStartTime?: number;
 };
 
+type StoredSleepSystemComponent = {
+  fatigue?: number;
+  nextSleepTime?: number;
+  nextWakeTime?: number;
+  nextNapCheckTime?: number;
+  nextNightWakeCheckTime?: number;
+  sleepMode?: number;
+  pendingSleepReason?: number;
+  pendingWakeReason?: number;
+  sleepSessionStartedAt?: number;
+};
+
 type StoredVitalityComponent = {
   urgentStartTime?: number;
   deathTime?: number;
@@ -93,6 +105,7 @@ type StoredEntityComponents = {
   statusIconRender?: StoredStatusIconRenderComponent;
   digestiveSystem?: StoredDigestiveSystemComponent;
   diseaseSystem?: StoredDiseaseSystemComponent;
+  sleepSystem?: StoredSleepSystemComponent;
   vitality?: StoredVitalityComponent;
   temporaryStatus?: StoredTemporaryStatusComponent;
   eggHatch?: StoredEggHatchComponent;
@@ -149,6 +162,8 @@ const DEFAULTS = {
   DIGESTIVE_CAPACITY: 5,
   DISEASE_CHECK_INTERVAL: 10_000,
   EGG_HATCH_TIME: 5_000,
+  DAY_NAP_CHECK_INTERVAL: 20 * 60 * 1000,
+  FATIGUE_DEFAULT: 35,
   RANDOM_MOVEMENT: {
     minIdleTime: 2_000,
     maxIdleTime: 8_000,
@@ -195,8 +210,7 @@ function needsAnimationRender(state: number): boolean {
 function needsRandomMovement(state: number): boolean {
   return (
     state === CHARACTER_STATE.IDLE ||
-    state === CHARACTER_STATE.MOVING ||
-    state === CHARACTER_STATE.SLEEPING
+    state === CHARACTER_STATE.MOVING
   );
 }
 
@@ -304,6 +318,29 @@ function sanitizeCharacterEntity(
         now + DEFAULTS.DISEASE_CHECK_INTERVAL,
       sickStartTime:
         toFiniteNumber(components.diseaseSystem?.sickStartTime) ?? 0,
+    },
+    sleepSystem: {
+      fatigue:
+        toFiniteNumber(components.sleepSystem?.fatigue) ??
+        DEFAULTS.FATIGUE_DEFAULT,
+      nextSleepTime:
+        toFiniteNumber(components.sleepSystem?.nextSleepTime) ?? 0,
+      nextWakeTime:
+        toFiniteNumber(components.sleepSystem?.nextWakeTime) ?? 0,
+      nextNapCheckTime:
+        toFiniteNumber(components.sleepSystem?.nextNapCheckTime) ??
+        now + DEFAULTS.DAY_NAP_CHECK_INTERVAL,
+      nextNightWakeCheckTime:
+        toFiniteNumber(components.sleepSystem?.nextNightWakeCheckTime) ?? 0,
+      sleepMode:
+        toFiniteNumber(components.sleepSystem?.sleepMode) ??
+        (state === CHARACTER_STATE.SLEEPING ? 1 : 0),
+      pendingSleepReason:
+        toFiniteNumber(components.sleepSystem?.pendingSleepReason) ?? 0,
+      pendingWakeReason:
+        toFiniteNumber(components.sleepSystem?.pendingWakeReason) ?? 0,
+      sleepSessionStartedAt:
+        toFiniteNumber(components.sleepSystem?.sleepSessionStartedAt) ?? 0,
     },
     vitality: {
       urgentStartTime:

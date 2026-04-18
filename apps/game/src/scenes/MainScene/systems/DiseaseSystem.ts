@@ -59,11 +59,16 @@ export function diseaseSystem(params: {
 
     const diseaseComp = DiseaseSystemComp;
     const characterComp = CharacterStatusComp;
+    const isSleeping = ObjectComp.state[eid] === CharacterState.SLEEPING;
+    const effectiveCheckInterval =
+      GAME_CONSTANTS.DISEASE_CHECK_INTERVAL *
+      (isSleeping
+        ? 1 / GAME_CONSTANTS.SLEEPING_DISEASE_RATE_MULTIPLIER
+        : 1);
 
     while (currentTime >= diseaseComp.nextCheckTime[eid]) {
       const checkTime = diseaseComp.nextCheckTime[eid];
-      diseaseComp.nextCheckTime[eid] =
-        checkTime + GAME_CONSTANTS.DISEASE_CHECK_INTERVAL;
+      diseaseComp.nextCheckTime[eid] = checkTime + effectiveCheckInterval;
 
       // 현재 sick 상태가 아닐 때만 질병 확률 체크
       const currentStatuses = characterComp.statuses[eid];
@@ -104,7 +109,7 @@ export function diseaseSystem(params: {
     // SICK 또는 SLEEPING 상태인 경우 움직임 제한
     const currentStatuses = characterComp.statuses[eid];
     const isSick = isCharacterSick(currentStatuses);
-    const isSleeping = ObjectComp.state[eid] === CharacterState.SLEEPING;
+    const isSleepingNow = ObjectComp.state[eid] === CharacterState.SLEEPING;
 
     // 이전 상태 가져오기
     const previousState = previousStates.get(eid) || {
@@ -114,7 +119,7 @@ export function diseaseSystem(params: {
 
     // 상태 변화 감지
     const wasRestricted = previousState.isSick || previousState.isSleeping;
-    const isRestricted = isSick || isSleeping;
+    const isRestricted = isSick || isSleepingNow;
 
     if (isRestricted && !wasRestricted) {
       // 새로 제한 상태가 됨 - 움직임 제한
@@ -125,7 +130,7 @@ export function diseaseSystem(params: {
     }
 
     // 현재 상태 저장
-    previousStates.set(eid, { isSick, isSleeping });
+    previousStates.set(eid, { isSick, isSleeping: isSleepingNow });
   }
 
   return params;

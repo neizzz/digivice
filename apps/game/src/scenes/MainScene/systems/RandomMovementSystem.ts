@@ -38,9 +38,7 @@ export function randomMovementSystem(params: {
     const eid = allChars[i];
     const state = ObjectComp.state[eid];
     const shouldHaveRandomMovement =
-      state === CharacterState.IDLE ||
-      state === CharacterState.MOVING ||
-      state === CharacterState.SLEEPING;
+      state === CharacterState.IDLE || state === CharacterState.MOVING;
 
     if (
       shouldHaveRandomMovement &&
@@ -71,9 +69,7 @@ export function randomMovementSystem(params: {
     const suspiciousChars = allChars.filter((eid) => {
       const state = ObjectComp.state[eid];
       const shouldHaveRandomMovement =
-        state === CharacterState.IDLE ||
-        state === CharacterState.MOVING ||
-        state === CharacterState.SLEEPING;
+        state === CharacterState.IDLE || state === CharacterState.MOVING;
 
       return (
         shouldHaveRandomMovement &&

@@ -107,6 +107,18 @@ export const DiseaseSystemComp = defineComponent({
   sickStartTime: Types.f64, // 질병 시작 시간 (timestamp) - 기록용
 });
 
+export const SleepSystemComp = defineComponent({
+  fatigue: Types.f32,
+  nextSleepTime: Types.f64,
+  nextWakeTime: Types.f64,
+  nextNapCheckTime: Types.f64,
+  nextNightWakeCheckTime: Types.f64,
+  sleepMode: Types.ui8,
+  pendingSleepReason: Types.ui8,
+  pendingWakeReason: Types.ui8,
+  sleepSessionStartedAt: Types.f64,
+});
+
 /**
  * 음식 신선도 시간 추적 컴포넌트
  */

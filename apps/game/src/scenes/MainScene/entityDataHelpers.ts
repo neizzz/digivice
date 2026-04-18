@@ -15,6 +15,7 @@ import {
   EggHatchComp,
   DigestiveSystemComp,
   DiseaseSystemComp,
+  SleepSystemComp,
   VitalityComp,
   TemporaryStatusComp,
   FreshnessTimerComp,
@@ -26,6 +27,8 @@ import {
   CharacterState,
   CharacterStatus,
   ObjectType,
+  SleepMode,
+  SleepReason,
   SpritesheetKey,
 } from "./types";
 import { GAME_CONSTANTS } from "./config";
@@ -154,6 +157,21 @@ export function convertECSEntityToSavedEntity(
     components.diseaseSystem = {
       nextCheckTime: DiseaseSystemComp.nextCheckTime[eid],
       sickStartTime: DiseaseSystemComp.sickStartTime[eid],
+    };
+  }
+  if (hasComponent(world, SleepSystemComp, eid)) {
+    components.sleepSystem = {
+      fatigue: +SleepSystemComp.fatigue[eid].toFixed(2),
+      nextSleepTime: SleepSystemComp.nextSleepTime[eid],
+      nextWakeTime: SleepSystemComp.nextWakeTime[eid],
+      nextNapCheckTime: SleepSystemComp.nextNapCheckTime[eid],
+      nextNightWakeCheckTime: SleepSystemComp.nextNightWakeCheckTime[eid],
+      sleepMode: SleepSystemComp.sleepMode[eid] as SleepMode,
+      pendingSleepReason:
+        SleepSystemComp.pendingSleepReason[eid] as SleepReason,
+      pendingWakeReason:
+        SleepSystemComp.pendingWakeReason[eid] as SleepReason,
+      sleepSessionStartedAt: SleepSystemComp.sleepSessionStartedAt[eid],
     };
   }
   if (hasComponent(world, VitalityComp, eid)) {
@@ -353,6 +371,26 @@ export function applySavedEntityToECS(
       components.diseaseSystem.sickStartTime;
   }
 
+  if (components.sleepSystem) {
+    if (!hasComponent(world, SleepSystemComp, eid)) {
+      addComponent(world, SleepSystemComp, eid);
+    }
+    SleepSystemComp.fatigue[eid] = components.sleepSystem.fatigue;
+    SleepSystemComp.nextSleepTime[eid] = components.sleepSystem.nextSleepTime;
+    SleepSystemComp.nextWakeTime[eid] = components.sleepSystem.nextWakeTime;
+    SleepSystemComp.nextNapCheckTime[eid] =
+      components.sleepSystem.nextNapCheckTime;
+    SleepSystemComp.nextNightWakeCheckTime[eid] =
+      components.sleepSystem.nextNightWakeCheckTime;
+    SleepSystemComp.sleepMode[eid] = components.sleepSystem.sleepMode;
+    SleepSystemComp.pendingSleepReason[eid] =
+      components.sleepSystem.pendingSleepReason;
+    SleepSystemComp.pendingWakeReason[eid] =
+      components.sleepSystem.pendingWakeReason;
+    SleepSystemComp.sleepSessionStartedAt[eid] =
+      components.sleepSystem.sleepSessionStartedAt;
+  }
+
   if (components.vitality) {
     if (!hasComponent(world, VitalityComp, eid)) {
       addComponent(world, VitalityComp, eid);
@@ -421,9 +459,7 @@ export function repairCharacterEntityRuntimeComponents(
   const needsAnimation =
     state !== CharacterState.EGG && state !== CharacterState.DEAD;
   const needsRandomMovement =
-    state === CharacterState.IDLE ||
-    state === CharacterState.MOVING ||
-    state === CharacterState.SLEEPING;
+    state === CharacterState.IDLE || state === CharacterState.MOVING;
 
   if (!hasComponent(world, SpeedComp, eid)) {
     addComponent(world, SpeedComp, eid);
@@ -463,6 +499,25 @@ export function repairCharacterEntityRuntimeComponents(
       now + GAME_CONSTANTS.DISEASE_CHECK_INTERVAL;
     DiseaseSystemComp.sickStartTime[eid] = 0;
     repaired.push("DiseaseSystemComp");
+  }
+
+  if (!hasComponent(world, SleepSystemComp, eid)) {
+    addComponent(world, SleepSystemComp, eid);
+    SleepSystemComp.fatigue[eid] = GAME_CONSTANTS.FATIGUE_DEFAULT;
+    SleepSystemComp.nextSleepTime[eid] = 0;
+    SleepSystemComp.nextWakeTime[eid] = 0;
+    SleepSystemComp.nextNapCheckTime[eid] =
+      now + GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL;
+    SleepSystemComp.nextNightWakeCheckTime[eid] = 0;
+    SleepSystemComp.sleepMode[eid] =
+      state === CharacterState.SLEEPING
+        ? SleepMode.NIGHT_SLEEP
+        : SleepMode.AWAKE;
+    SleepSystemComp.pendingSleepReason[eid] = SleepReason.NONE;
+    SleepSystemComp.pendingWakeReason[eid] = SleepReason.NONE;
+    SleepSystemComp.sleepSessionStartedAt[eid] =
+      state === CharacterState.SLEEPING ? now : 0;
+    repaired.push("SleepSystemComp");
   }
 
   if (!hasComponent(world, VitalityComp, eid)) {

@@ -30,6 +30,7 @@ import {
   ThrowAnimationComponent,
   DigestiveSystemComponent,
   DiseaseSystemComponent,
+  SleepSystemComponent,
   VitalityComponent,
   TemporaryStatusComponent,
   EggHatchComponent,
@@ -109,6 +110,7 @@ import { freshnessSystem } from "./systems/FreshnessSystem";
 import { digestiveSystem } from "./systems/DigestiveSystem";
 import { diseaseSystem } from "./systems/DiseaseSystem";
 import { eggHatchSystem } from "./systems/EggHatchSystem";
+import { sleepScheduleSystem } from "./systems/SleepScheduleSystem";
 import {
   characterManagerSystem,
   validateAndFixStatusIcons,
@@ -147,6 +149,7 @@ export type EntityComponents = {
   throwAnimation?: ThrowAnimationComponent;
   digestiveSystem?: DigestiveSystemComponent;
   diseaseSystem?: DiseaseSystemComponent;
+  sleepSystem?: SleepSystemComponent;
   vitality?: VitalityComponent;
   temporaryStatus?: TemporaryStatusComponent;
   eggHatch?: EggHatchComponent;
@@ -340,6 +343,13 @@ export class MainSceneWorld implements IWorld, Scene {
     (params: any) =>
       this._statusSystemsEnabled
         ? digestiveSystem({ ...params, currentTime: this.currentTime })
+        : params,
+    (params: any) =>
+      this._statusSystemsEnabled
+        ? sleepScheduleSystem({
+            ...params,
+            currentTime: this.currentTime,
+          })
         : params,
     (params: any) =>
       this._statusSystemsEnabled
@@ -1480,18 +1490,23 @@ export class MainSceneWorld implements IWorld, Scene {
       return;
     }
 
-    if (hasSunTimesDateRolledOver(new Date(), this._sunTimes)) {
+    const now = new Date(this.currentTime);
+
+    if (
+      !this.isSimulationMode &&
+      hasSunTimesDateRolledOver(now, this._sunTimes)
+    ) {
       void this._refreshSunTimes(false);
       return;
     }
 
-    const currentMinuteKey = Math.floor(Date.now() / 60000);
+    const currentMinuteKey = Math.floor(this.currentTime / 60000);
     if (!force && this._autoTimeOfDayMinuteKey === currentMinuteKey) {
       return;
     }
 
     this._autoTimeOfDayMinuteKey = currentMinuteKey;
-    const nextState = resolveAutoTimeOfDayState(new Date(), this._sunTimes);
+    const nextState = resolveAutoTimeOfDayState(now, this._sunTimes);
     const hasChanged =
       !this._autoTimeOfDayState ||
       this._autoTimeOfDayState.timeOfDay !== nextState.timeOfDay ||
@@ -2027,6 +2042,13 @@ export class MainSceneWorld implements IWorld, Scene {
           : params,
       (params: any) =>
         this._statusSystemsEnabled
+          ? sleepScheduleSystem({
+              ...params,
+              currentTime: getCurrentTime(),
+            })
+          : params,
+      (params: any) =>
+        this._statusSystemsEnabled
           ? diseaseSystem({ ...params, currentTime: getCurrentTime() })
           : params,
       (params: any) =>
@@ -2114,6 +2136,7 @@ export class MainSceneWorld implements IWorld, Scene {
         lastActiveTime,
         (params: any) => {
           this._simulationTime = reentrySimulator.getCurrentSimulationTime();
+          this._updateAutoTimeOfDayIfNeeded();
           return simulationPipeline(params);
         },
         this,

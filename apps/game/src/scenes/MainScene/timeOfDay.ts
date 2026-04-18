@@ -88,8 +88,7 @@ export function resolveAutoTimeOfDayState(
   now: Date,
   sunTimes: SunTimesPayload,
 ): AutoTimeOfDayState {
-  const sunriseAt = new Date(sunTimes.sunriseAt);
-  const sunsetAt = new Date(sunTimes.sunsetAt);
+  const { sunriseAt, sunsetAt } = projectSunTimesForDate(now, sunTimes);
 
   if (
     Number.isNaN(sunriseAt.getTime()) ||
@@ -138,6 +137,32 @@ export function resolveAutoTimeOfDayState(
   };
 }
 
+export function projectSunTimesForDate(
+  now: Date,
+  sunTimes: SunTimesPayload,
+): {
+  sunriseAt: Date;
+  sunsetAt: Date;
+} {
+  const timezoneOffsetMinutes = sunTimes.timezoneOffsetMinutes;
+  const dateString = getDateStringInTimezoneOffset(now, timezoneOffsetMinutes);
+  const sunriseTemplate = new Date(sunTimes.sunriseAt);
+  const sunsetTemplate = new Date(sunTimes.sunsetAt);
+
+  return {
+    sunriseAt: createProjectedDateInTimezoneOffset(
+      dateString,
+      sunriseTemplate,
+      timezoneOffsetMinutes,
+    ),
+    sunsetAt: createProjectedDateInTimezoneOffset(
+      dateString,
+      sunsetTemplate,
+      timezoneOffsetMinutes,
+    ),
+  };
+}
+
 export function hasSunTimesDateRolledOver(
   now: Date,
   sunTimes: SunTimesPayload,
@@ -165,6 +190,30 @@ function createTransitionWindow(center: Date): { start: number; end: number } {
     start: center.getTime() - halfWindow,
     end: center.getTime() + halfWindow,
   };
+}
+
+function createProjectedDateInTimezoneOffset(
+  dateString: string,
+  template: Date,
+  timezoneOffsetMinutes: number,
+): Date {
+  const [year, month, day] = dateString.split("-").map(Number);
+  const zonedTemplate = new Date(
+    template.getTime() + timezoneOffsetMinutes * 60 * 1000,
+  );
+
+  return new Date(
+    Date.UTC(
+      year,
+      month - 1,
+      day,
+      zonedTemplate.getUTCHours(),
+      zonedTemplate.getUTCMinutes(),
+      zonedTemplate.getUTCSeconds(),
+      zonedTemplate.getUTCMilliseconds(),
+    ) -
+      timezoneOffsetMinutes * 60 * 1000,
+  );
 }
 
 function getMinuteProgress(nowTime: number, startTime: number): number {

@@ -97,6 +97,22 @@ export enum AnimationKey {
   SICK = 5,
   FLY = 6,
 }
+
+export enum SleepMode {
+  AWAKE = 0,
+  NIGHT_SLEEP = 1,
+  DAY_NAP = 2,
+  INTERRUPTED_AWAKE = 3,
+}
+
+export enum SleepReason {
+  NONE = 0,
+  NIGHT = 1,
+  RESLEEP = 2,
+  NAP = 3,
+  SUNRISE = 4,
+  NIGHT_INTERRUPT = 5,
+}
 /** NOTE: RenderSystem {@link TEXTURE_MAP}과 싱크가 맞아야 함. */
 export enum TextureKey {
   NULL = ECS_NULL_VALUE,
@@ -284,6 +300,18 @@ export type DigestiveSystemComponent = {
 export type DiseaseSystemComponent = {
   nextCheckTime: number; // 다음 질병 체크 시간 (timestamp)
   sickStartTime: number; // 질병 시작 시간 (timestamp)
+};
+
+export type SleepSystemComponent = {
+  fatigue: number;
+  nextSleepTime: number;
+  nextWakeTime: number;
+  nextNapCheckTime: number;
+  nextNightWakeCheckTime: number;
+  sleepMode: SleepMode;
+  pendingSleepReason: SleepReason;
+  pendingWakeReason: SleepReason;
+  sleepSessionStartedAt: number;
 };
 
 export type VitalityComponent = {
