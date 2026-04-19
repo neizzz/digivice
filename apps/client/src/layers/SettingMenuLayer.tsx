@@ -49,9 +49,6 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
             <div className="flex items-center justify-between gap-4">
               <div>
                 <div className="text-sm font-bold">Vibration</div>
-                <div className="text-xs text-gray-600">
-                  Enable vibration for in-game button taps
-                </div>
               </div>
               <ToggleButton
                 enabled={vibrationEnabled}
