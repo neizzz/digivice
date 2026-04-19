@@ -9,6 +9,7 @@ import {
   ObjectComp,
   CharacterStatusComp,
   PositionComp,
+  AngleComp,
   FoodEatingComp,
   FoodMaskComp,
   DestinationComp,
@@ -55,7 +56,7 @@ const movingToFoodQuery = defineQuery([
 
 // 음식 먹기 관련 상수
 const FOOD_EATING_DURATION = 3200; // 음식을 먹는데 걸리는 시간 (ms)
-const EATING_ARRIVAL_THRESHOLD = 25; // 목적지 도달 판정 거리 (slowdown 구간 전에 도착하도록)
+const EATING_ARRIVAL_THRESHOLD = 20; // 목적지 도달 판정 거리 (slowdown 구간 전에 도착하도록)
 
 // 캐릭터가 음식에 접근할 때의 오프셋 (음식 위치에서 살짝 벗어난 위치)
 const EATING_OFFSET_DISTANCE = 20; // 음식으로부터의 거리 (좌우)
@@ -538,6 +539,19 @@ function startEating(
 
   console.log(
     `[FoodEatingSystem] Character ${characterEid} started eating food ${foodEid}`,
+  );
+
+  if (!hasComponent(world, AngleComp, characterEid)) {
+    addComponent(world, AngleComp, characterEid);
+  }
+
+  const characterX = PositionComp.x[characterEid];
+  const characterY = PositionComp.y[characterEid];
+  const foodX = PositionComp.x[foodEid];
+  const foodY = PositionComp.y[foodEid];
+  AngleComp.value[characterEid] = Math.atan2(
+    foodY - characterY,
+    foodX - characterX,
   );
 
   // FoodEatingComp 추가

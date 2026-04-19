@@ -17,6 +17,7 @@ export interface GameMenuOptions {
 }
 
 export class GameMenu {
+  private static readonly MENU_GAP_EXTRA_PX = 6;
   private container: HTMLDivElement;
   private itemContainer: HTMLDivElement;
   // 메뉴 아이템 순서 반영 배열
@@ -80,7 +81,7 @@ export class GameMenu {
     if (!itemSize) return;
 
     const itemCount = this.menuItemElements.length;
-    const gapSize = itemSize / 3;
+    const gapSize = itemSize / 3 + GameMenu.MENU_GAP_EXTRA_PX;
     const containerMaxWidth =
       itemCount * itemSize + Math.max(0, itemCount - 1) * gapSize;
 
