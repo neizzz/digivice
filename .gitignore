@@ -24,3 +24,6 @@ dist-ssr
 *.sln
 *.sw?
 *.tsbuildinfo
+
+# Test build artifacts
+apps/game/.test-dist/
