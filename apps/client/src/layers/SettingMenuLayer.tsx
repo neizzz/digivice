@@ -5,6 +5,8 @@ import PopupLayer from "../components/PopupLayer";
 interface SettingMenuLayerProps {
   vibrationEnabled: boolean;
   onChangeVibration: (enabled: boolean) => void;
+  onSendDiagnostics: () => void;
+  isSendingDiagnostics: boolean;
   onResetGameData: () => void;
   onClose: () => void;
 }
@@ -26,9 +28,37 @@ const ToggleButton: React.FC<{
   );
 };
 
+const ActionButton: React.FC<{
+  text: string;
+  onClick: () => void;
+  disabled?: boolean;
+  variant?: "positive" | "warning" | "negative";
+}> = ({ text, onClick, disabled = false, variant = "positive" }) => {
+  const backgroundClass = disabled
+    ? "cursor-wait bg-gray-400 opacity-60"
+    : variant === "warning"
+      ? "bg-yellow-500"
+      : variant === "negative"
+        ? "bg-component-negative"
+        : "bg-component-positive";
+
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={`flex min-w-20 items-center justify-center border-2 border-[#222] px-4 py-2 text-center text-sm font-bold text-white ${backgroundClass}`}
+    >
+      {text}
+    </button>
+  );
+};
+
 const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
   vibrationEnabled,
   onChangeVibration,
+  onSendDiagnostics,
+  isSendingDiagnostics,
   onResetGameData,
   onClose,
 }) => {
@@ -57,30 +87,49 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
             </div>
 
             <div className="border-t-2 border-[#222] pt-4">
-              <div className="text-sm font-bold">Reset Game Data</div>
+              <div className="mb-3 text-sm font-bold">Send Diagnostics</div>
+              <div className="flex items-center justify-between gap-4">
+                <div className="text-xs text-gray-600">
+                  Open Gmail with attached diagnostics files.
+                </div>
+                <ActionButton
+                  text={isSendingDiagnostics ? "Sending..." : "Send"}
+                  onClick={onSendDiagnostics}
+                  disabled={isSendingDiagnostics}
+                  variant="warning"
+                />
+              </div>
+            </div>
+
+            <div className="border-t-2 border-[#222] pt-4">
+              <div>
+                <div className="text-sm font-bold">Reset Game Data</div>
+              </div>
               <div className="mt-1 text-xs text-gray-600">
                 Type <span className="font-bold">confirm</span> below to enable
                 the reset button.
               </div>
-              <input
-                type="text"
-                value={resetConfirmText}
-                onChange={(event) => setResetConfirmText(event.target.value)}
-                placeholder="confirm"
-                className="mt-3 w-full border-2 border-[#222] px-3 py-2 text-center text-sm focus:outline-none focus:ring-2 focus:ring-[#d95763]"
-              />
-              <button
-                type={"button"}
-                disabled={!isResetEnabled}
-                onClick={() => setShowFinalResetConfirm(true)}
-                className={`mt-3 w-full border-2 border-[#222] px-4 py-2 text-sm font-bold text-white ${
-                  isResetEnabled
-                    ? "bg-component-negative"
-                    : "cursor-not-allowed bg-gray-400 opacity-60"
-                }`}
-              >
-                Reset Game Data
-              </button>
+              <div className="mt-3 flex items-center justify-between gap-3">
+                <input
+                  type="text"
+                  value={resetConfirmText}
+                  onChange={(event) => setResetConfirmText(event.target.value)}
+                  placeholder="confirm"
+                  className="w-40 border-2 border-[#222] px-3 py-2 text-center text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#d95763]"
+                />
+                <button
+                  type={"button"}
+                  disabled={!isResetEnabled}
+                  onClick={() => setShowFinalResetConfirm(true)}
+                  className={`border-2 border-[#222] px-4 py-2 text-sm font-bold text-white ${
+                    isResetEnabled
+                      ? "bg-component-negative"
+                      : "cursor-not-allowed bg-gray-400 opacity-60"
+                  }`}
+                >
+                  Reset
+                </button>
+              </div>
             </div>
           </div>
         }

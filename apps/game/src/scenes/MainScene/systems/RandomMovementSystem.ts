@@ -79,7 +79,7 @@ export function randomMovementSystem(params: {
       );
     });
 
-    console.log(
+    console.debug(
       `[RandomMovementSystem] Found ${chars.length} entities with RandomMovementComp, ${allChars.length} total character entities`,
     );
     if (suspiciousChars.length > 0) {
@@ -87,7 +87,7 @@ export function randomMovementSystem(params: {
         `[RandomMovementSystem] ${suspiciousChars.length} active character entities are missing RandomMovementComp`,
       );
       const firstChar = suspiciousChars[0];
-      console.log(
+      console.debug(
         `[RandomMovementSystem] First suspicious character entity ${firstChar} - state=${ObjectComp.state[firstChar]}, has RandomMovementComp=${hasComponent(world, RandomMovementComp, firstChar)}`,
       );
     }
@@ -119,7 +119,7 @@ export function randomMovementSystem(params: {
     if (!nextChange || nextChange <= 0 || nextChange > currentTime + 100000) {
       RandomMovementComp.nextChange[eid] = currentTime + 1000; // 1초 후 첫 상태 전환
       if (shouldLog) {
-        console.log(
+        console.debug(
           `[RandomMovementSystem] Fixed nextChange for character ${eid} - was: ${nextChange}, now: ${currentTime + 1000}`,
         );
       }
@@ -149,7 +149,7 @@ export function randomMovementSystem(params: {
       eid === chars[0] &&
       Math.floor(currentTime / 3000) !== Math.floor((currentTime - 100) / 3000)
     ) {
-      console.log(
+      console.debug(
         `[RandomMovementSystem] Entity ${eid} - Current: ${currentTime}, NextChange: ${nextChangeTime}, TimeLeft: ${timeUntilChange}ms, Speed: ${speed.value[eid]}, State: ${ObjectComp.state[eid]}`,
       );
     }
@@ -168,7 +168,7 @@ export function randomMovementSystem(params: {
         );
         RandomMovementComp.nextChange[eid] = currentTime + idleTime;
         if (shouldLog) {
-          console.log(
+          console.debug(
           `[RandomMovementSystem] Entity ${eid}: MOVING -> IDLE, idle time: ${idleTime}ms (${minIdle}-${maxIdle})`,
           );
         }
@@ -188,7 +188,7 @@ export function randomMovementSystem(params: {
         );
         RandomMovementComp.nextChange[eid] = currentTime + moveTime;
         if (shouldLog) {
-          console.log(
+          console.debug(
           `[RandomMovementSystem] Entity ${eid}: IDLE -> MOVING, move time: ${moveTime}ms (${minMove}-${maxMove})`,
           );
         }

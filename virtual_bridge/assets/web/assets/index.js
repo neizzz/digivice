@@ -48038,10 +48038,12 @@ const ANIMATION_KEY_TO_NAME = {
 };
 const animationQuery = defineQuery([AnimationRenderComp]);
 const exitedAnimationQuery = exitQuery(animationQuery);
+const EATING_BITE_FRAME_INDEX = 1;
 const spritesheetCache = /* @__PURE__ */ new Map();
 const animatedSpriteStore = new ObjectStore(
   "AnimatedSpriteStore"
 );
+const eatingFrameIndexTracker = /* @__PURE__ */ new Map();
 function getAnimatedSpriteStore() {
   return animatedSpriteStore;
 }
@@ -48053,6 +48055,7 @@ function animationRenderSystem(params) {
   for (let i2 = 0; i2 < exitedEntities.length; i2++) {
     const eid = exitedEntities[i2];
     const animatedSprite = getAnimatedSprite(eid);
+    eatingFrameIndexTracker.delete(eid);
     if (animatedSprite && animatedSprite.parent) {
       stage.removeChild(animatedSprite);
       animatedSprite.destroy();
@@ -48082,8 +48085,30 @@ function animationRenderSystem(params) {
     }
     renderCommonAttributes(eid, animatedSprite, world);
     updateAnimatedSprite(animatedSprite, eid);
+    handleEatingBiteVibration(world, eid, animatedSprite);
   }
   return params;
+}
+function shouldTriggerEatingBiteVibration(params) {
+  const { animationKey, currentFrameIndex, previousFrameIndex } = params;
+  return animationKey === AnimationKey.EATING && currentFrameIndex === EATING_BITE_FRAME_INDEX && previousFrameIndex !== EATING_BITE_FRAME_INDEX;
+}
+function handleEatingBiteVibration(world, eid, sprite) {
+  const animationKey = AnimationRenderComp.animationKey[eid];
+  if (animationKey !== AnimationKey.EATING) {
+    eatingFrameIndexTracker.delete(eid);
+    return;
+  }
+  const currentFrameIndex = sprite.currentFrame;
+  const previousFrameIndex = eatingFrameIndexTracker.get(eid);
+  if (shouldTriggerEatingBiteVibration({
+    animationKey,
+    currentFrameIndex,
+    previousFrameIndex
+  })) {
+    world.triggerBiteVibration();
+  }
+  eatingFrameIndexTracker.set(eid, currentFrameIndex);
 }
 function getSpritesheet$1(name) {
   try {
@@ -50080,7 +50105,7 @@ const movingToFoodQuery = defineQuery([
   DestinationComp
 ]);
 const FOOD_EATING_DURATION = 3200;
-const EATING_ARRIVAL_THRESHOLD = 25;
+const EATING_ARRIVAL_THRESHOLD = 20;
 const EATING_OFFSET_DISTANCE = 20;
 const EATING_OFFSET_Y = -8;
 function foodEatingSystem(params) {
@@ -50351,6 +50376,17 @@ function startEating(world, characterEid, foodEid) {
   }
   console.log(
     `[FoodEatingSystem] Character ${characterEid} started eating food ${foodEid}`
+  );
+  if (!hasComponent(world, AngleComp, characterEid)) {
+    addComponent(world, AngleComp, characterEid);
+  }
+  const characterX = PositionComp.x[characterEid];
+  const characterY = PositionComp.y[characterEid];
+  const foodX = PositionComp.x[foodEid];
+  const foodY = PositionComp.y[foodEid];
+  AngleComp.value[characterEid] = Math.atan2(
+    foodY - characterY,
+    foodX - characterX
   );
   if (!hasComponent(world, FoodEatingComp, characterEid)) {
     addComponent(world, FoodEatingComp, characterEid);
@@ -53262,7 +53298,7 @@ class GameMenuItem {
   destroy() {
   }
 }
-class GameMenu {
+const _GameMenu = class _GameMenu {
   constructor(parentElement, options = {}) {
     this.menuItems = [
       // GameMenuItemType.Information,
@@ -53310,7 +53346,7 @@ class GameMenu {
     const itemSize = (_b = this.menuItemElements[0]) == null ? void 0 : _b.getSize();
     if (!itemSize) return;
     const itemCount = this.menuItemElements.length;
-    const gapSize = itemSize / 3;
+    const gapSize = itemSize / 3 + _GameMenu.MENU_GAP_EXTRA_PX;
     const containerMaxWidth = itemCount * itemSize + Math.max(0, itemCount - 1) * gapSize;
     this.itemContainer.style.height = `${itemSize}px`;
     this.itemContainer.style.maxWidth = `${containerMaxWidth}px`;
@@ -53453,7 +53489,9 @@ class GameMenu {
       this.container.parentElement.removeChild(this.container);
     }
   }
-}
+};
+_GameMenu.MENU_GAP_EXTRA_PX = 6;
+let GameMenu = _GameMenu;
 const eggQuery = defineQuery([ObjectComp, EggHatchComp]);
 function eggHatchSystem(params) {
   const { world, currentTime } = params;
@@ -54793,6 +54831,7 @@ const _MainSceneWorld = class _MainSceneWorld {
     this._startMiniGame = params.startMiniGame;
     this._createInitialGameData = params.createInitialGameData;
     this._changeControlButtons = params.changeControlButtons;
+    this._triggerBiteVibration = params.triggerBiteVibration;
     this._updateControlButtonsForMenuState(false);
   }
   get stage() {
@@ -54824,6 +54863,10 @@ const _MainSceneWorld = class _MainSceneWorld {
   }
   get timeOfDayMode() {
     return this._timeOfDayMode;
+  }
+  triggerBiteVibration() {
+    var _a;
+    (_a = this._triggerBiteVibration) == null ? void 0 : _a.call(this);
   }
   /**
    * 에셋 로딩 - 스프라이트시트와 일반 이미지, GIF를 병렬로 로드
@@ -62475,11 +62518,13 @@ class Game {
       onCreateInitialGameData,
       changeControlButtons,
       showSettings,
-      showAlert
+      showAlert,
+      triggerBiteVibration
     } = params;
     this.changeControlButtons = changeControlButtons;
     this.showSettings = showSettings;
     this.showAlert = showAlert;
+    this.triggerBiteVibration = triggerBiteVibration;
     this._createInitialGameData = onCreateInitialGameData;
     this.app = new Application();
     this._boundResizeHandler = this._onResize.bind(this);
@@ -62618,7 +62663,8 @@ class Game {
           debugParentElement: this._debugParentElement,
           startMiniGame: () => this.changeScene(SceneKey.FLAPPY_BIRD_GAME),
           createInitialGameData: this._createInitialGameData,
-          changeControlButtons: this.changeControlButtons
+          changeControlButtons: this.changeControlButtons,
+          triggerBiteVibration: this.triggerBiteVibration
         });
         await mainSceneWorld.init();
         return mainSceneWorld;
@@ -62666,6 +62712,12 @@ class Game {
    */
   getCurrentSceneKey() {
     return this.currentSceneKey;
+  }
+  getDiagnosticsSnapshot() {
+    return {
+      currentSceneKey: this.currentSceneKey,
+      mainSceneData: this.currentScene instanceof MainSceneWorld ? this.currentScene.getInMemoryData() : null
+    };
   }
   /**
    * 사용 가능한 모든 씬 키 목록을 반환합니다
@@ -63789,7 +63841,7 @@ const ToggleButton = ({ enabled, onClick }) => {
     false,
     {
       fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-      lineNumber: 17,
+      lineNumber: 19,
       columnNumber: 5
     },
     void 0
@@ -63798,6 +63850,8 @@ const ToggleButton = ({ enabled, onClick }) => {
 const SettingMenuLayer = ({
   vibrationEnabled,
   onChangeVibration,
+  onSendDiagnostics,
+  isSendingDiagnostics,
   onResetGameData,
   onClose
 }) => {
@@ -63814,20 +63868,13 @@ const SettingMenuLayer = ({
         title: "Settings",
         content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex flex-col gap-5 text-left", children: [
           /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex items-center justify-between gap-4", children: [
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: [
-              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-sm font-bold", children: "Vibration" }, void 0, false, {
-                fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-                lineNumber: 51,
-                columnNumber: 17
-              }, void 0),
-              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-xs text-gray-600", children: "Enable vibration for in-game button taps" }, void 0, false, {
-                fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-                lineNumber: 52,
-                columnNumber: 17
-              }, void 0)
-            ] }, void 0, true, {
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-sm font-bold", children: "Vibration" }, void 0, false, {
               fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 50,
+              lineNumber: 55,
+              columnNumber: 17
+            }, void 0) }, void 0, false, {
+              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+              lineNumber: 54,
               columnNumber: 15
             }, void 0),
             /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -63840,33 +63887,66 @@ const SettingMenuLayer = ({
               false,
               {
                 fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-                lineNumber: 56,
+                lineNumber: 57,
                 columnNumber: 15
               },
               void 0
             )
           ] }, void 0, true, {
             fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-            lineNumber: 49,
+            lineNumber: 53,
+            columnNumber: 13
+          }, void 0),
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex items-center justify-between gap-4", children: [
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-sm font-bold", children: "Send Diagnostics" }, void 0, false, {
+              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+              lineNumber: 65,
+              columnNumber: 17
+            }, void 0) }, void 0, false, {
+              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+              lineNumber: 64,
+              columnNumber: 15
+            }, void 0),
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+              "button",
+              {
+                type: "button",
+                disabled: isSendingDiagnostics,
+                onClick: onSendDiagnostics,
+                className: `min-w-20 border-2 border-[#222] px-4 py-2 text-sm font-bold text-white ${isSendingDiagnostics ? "cursor-wait bg-gray-400 opacity-60" : "bg-component-positive"}`,
+                children: isSendingDiagnostics ? "Sending..." : "Send"
+              },
+              void 0,
+              false,
+              {
+                fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+                lineNumber: 67,
+                columnNumber: 15
+              },
+              void 0
+            )
+          ] }, void 0, true, {
+            fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+            lineNumber: 63,
             columnNumber: 13
           }, void 0),
           /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "border-t-2 border-[#222] pt-4", children: [
             /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-sm font-bold", children: "Reset Game Data" }, void 0, false, {
               fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 63,
+              lineNumber: 82,
               columnNumber: 15
             }, void 0),
             /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "mt-1 text-xs text-gray-600", children: [
               "Type ",
               /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { className: "font-bold", children: "confirm" }, void 0, false, {
                 fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-                lineNumber: 65,
+                lineNumber: 84,
                 columnNumber: 22
               }, void 0),
               " below to enable the reset button."
             ] }, void 0, true, {
               fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 64,
+              lineNumber: 83,
               columnNumber: 15
             }, void 0),
             /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -63882,7 +63962,7 @@ const SettingMenuLayer = ({
               false,
               {
                 fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-                lineNumber: 68,
+                lineNumber: 87,
                 columnNumber: 15
               },
               void 0
@@ -63900,19 +63980,19 @@ const SettingMenuLayer = ({
               false,
               {
                 fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-                lineNumber: 75,
+                lineNumber: 94,
                 columnNumber: 15
               },
               void 0
             )
           ] }, void 0, true, {
             fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-            lineNumber: 62,
+            lineNumber: 81,
             columnNumber: 13
           }, void 0)
         ] }, void 0, true, {
           fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-          lineNumber: 48,
+          lineNumber: 52,
           columnNumber: 11
         }, void 0),
         onConfirm: onClose,
@@ -63922,7 +64002,7 @@ const SettingMenuLayer = ({
       false,
       {
         fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-        lineNumber: 45,
+        lineNumber: 49,
         columnNumber: 7
       },
       void 0
@@ -63933,7 +64013,7 @@ const SettingMenuLayer = ({
         title: "Final Confirmation",
         content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-sm leading-6", children: "This will permanently delete all game data and return you to the initial setup screen. This action cannot be undone." }, void 0, false, {
           fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-          lineNumber: 98,
+          lineNumber: 117,
           columnNumber: 15
         }, void 0),
         onConfirm: onResetGameData,
@@ -63945,18 +64025,18 @@ const SettingMenuLayer = ({
       false,
       {
         fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-        lineNumber: 95,
+        lineNumber: 114,
         columnNumber: 11
       },
       void 0
     ) }, void 0, false, {
       fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-      lineNumber: 94,
+      lineNumber: 113,
       columnNumber: 9
     }, void 0)
   ] }, void 0, true, {
     fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-    lineNumber: 44,
+    lineNumber: 48,
     columnNumber: 5
   }, void 0);
 };
@@ -64286,7 +64366,293 @@ function sanitizeStoredWorldData(savedData) {
     changed
   };
 }
+function createClientStorage() {
+  if (hasNativeStorageController()) {
+    return new FlutterStorage();
+  }
+  return new WebLocalStorage();
+}
+function getClientStorageKind() {
+  return hasNativeStorageController() ? "native" : "web";
+}
+const DIAGNOSTICS_LOGS_STORAGE_KEY = "DiagnosticsLogs";
+const DIAGNOSTICS_LOGS_MAX_TOTAL_BYTES = 1024 * 1024;
+const DIAGNOSTICS_LOG_ENTRY_MAX_BYTES = 8 * 1024;
+const ELLIPSIS = "…";
+const textEncoder = new TextEncoder();
+const diagnosticsSessionId = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `session-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+const diagnosticsSessionStartedAt = Date.now();
+let diagnosticsContextProvider = null;
+let diagnosticsLogs = [];
+let diagnosticsLoggerInitialized = false;
+let diagnosticsConsoleInstalled = false;
+let persistScheduled = false;
+let persistenceInFlight = null;
+const originalConsole = {
+  log: console.log.bind(console),
+  warn: console.warn.bind(console),
+  error: console.error.bind(console)
+};
+function syncWindowErrorLogs() {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.errorLogs = diagnosticsLogs.map(
+    (entry) => `[${entry.timestamp}] [${entry.level}] ${entry.message}`
+  );
+}
+function toByteLength(value) {
+  return textEncoder.encode(value).length;
+}
+function safeStringify(value) {
+  const seen2 = /* @__PURE__ */ new WeakSet();
+  try {
+    return JSON.stringify(
+      value,
+      (_, currentValue) => {
+        if (currentValue instanceof Error) {
+          return {
+            name: currentValue.name,
+            message: currentValue.message,
+            stack: currentValue.stack
+          };
+        }
+        if (typeof currentValue === "object" && currentValue !== null) {
+          if (seen2.has(currentValue)) {
+            return "[Circular]";
+          }
+          seen2.add(currentValue);
+        }
+        return currentValue;
+      },
+      2
+    );
+  } catch {
+    return String(value);
+  }
+}
+function stringifyConsoleArg(arg) {
+  if (typeof arg === "string") {
+    return arg;
+  }
+  if (arg instanceof Error) {
+    return [arg.name ? `${arg.name}: ${arg.message}` : arg.message, arg.stack].filter(Boolean).join("\n");
+  }
+  return safeStringify(arg);
+}
+function getCallerSource() {
+  var _a;
+  try {
+    const stackLines = (_a = new Error().stack) == null ? void 0 : _a.split("\n");
+    if (!stackLines) {
+      return "unknown";
+    }
+    const callerLine = stackLines.find(
+      (line) => !line.includes("diagnosticLogger") && line.includes("at ")
+    );
+    if (!callerLine) {
+      return "unknown";
+    }
+    const callSite = callerLine.trim();
+    const match = callSite.match(/at\s+.*\((.*):(\d+):(\d+)\)/);
+    if (match) {
+      const [, filePath, line] = match;
+      const fileName = filePath.split("/").pop() ?? filePath;
+      return `${fileName}:${line}`;
+    }
+    const fallbackMatch = callSite.match(/at\s+(.*):(\d+):(\d+)/);
+    if (fallbackMatch) {
+      const [, filePath, line] = fallbackMatch;
+      const fileName = filePath.split("/").pop() ?? filePath;
+      return `${fileName}:${line}`;
+    }
+  } catch {
+    return "unknown";
+  }
+  return "unknown";
+}
+function truncateToByteLength(value, maxBytes) {
+  if (maxBytes <= 0) {
+    return "";
+  }
+  if (toByteLength(value) <= maxBytes) {
+    return value;
+  }
+  const ellipsisBytes = toByteLength(ELLIPSIS);
+  if (maxBytes <= ellipsisBytes) {
+    return ELLIPSIS;
+  }
+  let low = 0;
+  let high = value.length;
+  let best = "";
+  const allowedBytes = maxBytes - ellipsisBytes;
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2);
+    const candidate = value.slice(0, mid);
+    if (toByteLength(candidate) <= allowedBytes) {
+      best = candidate;
+      low = mid + 1;
+    } else {
+      high = mid - 1;
+    }
+  }
+  return `${best}${ELLIPSIS}`;
+}
+function truncateEntryToLimit(entry) {
+  const baseEntry = {
+    ...entry,
+    message: ""
+  };
+  const baseBytes = toByteLength(JSON.stringify(baseEntry));
+  const allowedMessageBytes = Math.max(
+    DIAGNOSTICS_LOG_ENTRY_MAX_BYTES - baseBytes,
+    toByteLength(ELLIPSIS)
+  );
+  return {
+    ...entry,
+    message: truncateToByteLength(entry.message, allowedMessageBytes)
+  };
+}
+function trimLogsToSize(logs) {
+  const nextLogs = [...logs];
+  while (nextLogs.length > 0 && toByteLength(JSON.stringify(nextLogs)) > DIAGNOSTICS_LOGS_MAX_TOTAL_BYTES) {
+    nextLogs.shift();
+  }
+  return nextLogs;
+}
+function normalizePersistedLogs(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.map((entry) => {
+    if (!entry || typeof entry !== "object") {
+      return null;
+    }
+    const record = entry;
+    if (typeof record.timestamp !== "string" || typeof record.level !== "string" || typeof record.message !== "string" || typeof record.sessionId !== "string" || typeof record.source !== "string" || typeof record.timeSinceSessionStartMs !== "number" || record.storageKind !== "native" && record.storageKind !== "web") {
+      return null;
+    }
+    return truncateEntryToLimit({
+      id: typeof record.id === "string" ? record.id : `${record.timestamp}-${record.level}`,
+      timestamp: record.timestamp,
+      level: record.level,
+      message: record.message,
+      sessionId: record.sessionId,
+      source: record.source,
+      timeSinceSessionStartMs: record.timeSinceSessionStartMs,
+      scene: typeof record.scene === "string" ? record.scene : void 0,
+      storageKind: record.storageKind,
+      appMode: typeof record.appMode === "string" ? record.appMode : void 0,
+      debugEnabled: typeof record.debugEnabled === "boolean" ? record.debugEnabled : void 0
+    });
+  }).filter((entry) => entry !== null);
+}
+function getDiagnosticsContext() {
+  return (diagnosticsContextProvider == null ? void 0 : diagnosticsContextProvider()) ?? {};
+}
+function queuePersist() {
+  if (!diagnosticsLoggerInitialized || persistScheduled) {
+    return;
+  }
+  persistScheduled = true;
+  window.setTimeout(() => {
+    persistScheduled = false;
+    void persistDiagnosticsLogs();
+  }, 0);
+}
+async function persistDiagnosticsLogs() {
+  if (!diagnosticsLoggerInitialized) {
+    return;
+  }
+  if (persistenceInFlight) {
+    await persistenceInFlight;
+    return;
+  }
+  persistenceInFlight = (async () => {
+    try {
+      const storage = createClientStorage();
+      await storage.setData(DIAGNOSTICS_LOGS_STORAGE_KEY, diagnosticsLogs);
+    } catch (error) {
+      originalConsole.error("[diagnosticLogger] Failed to persist diagnostics logs", error);
+    } finally {
+      persistenceInFlight = null;
+    }
+  })();
+  await persistenceInFlight;
+}
+function appendDiagnosticsLog(level, args) {
+  const context2 = getDiagnosticsContext();
+  const message = args.map(stringifyConsoleArg).join(" ");
+  const entry = truncateEntryToLimit({
+    id: typeof crypto !== "undefined" && typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+    timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+    level,
+    message,
+    sessionId: diagnosticsSessionId,
+    source: getCallerSource(),
+    timeSinceSessionStartMs: Date.now() - diagnosticsSessionStartedAt,
+    scene: context2.scene,
+    storageKind: context2.storageKind ?? getClientStorageKind(),
+    appMode: context2.appMode,
+    debugEnabled: context2.debugEnabled
+  });
+  diagnosticsLogs = trimLogsToSize([...diagnosticsLogs, entry]);
+  syncWindowErrorLogs();
+  queuePersist();
+}
+function installDiagnosticsConsoleCapture() {
+  if (diagnosticsConsoleInstalled) {
+    return;
+  }
+  diagnosticsConsoleInstalled = true;
+  console.log = (...args) => {
+    appendDiagnosticsLog("log", args);
+    originalConsole.log(...args);
+  };
+  console.warn = (...args) => {
+    appendDiagnosticsLog("warn", args);
+    originalConsole.warn(...args);
+  };
+  console.error = (...args) => {
+    appendDiagnosticsLog("error", args);
+    originalConsole.error(...args);
+  };
+}
+async function initializeDiagnosticsLogger() {
+  if (diagnosticsLoggerInitialized) {
+    return;
+  }
+  diagnosticsLoggerInitialized = true;
+  try {
+    const storage = createClientStorage();
+    const persistedLogs = normalizePersistedLogs(
+      await storage.getData(DIAGNOSTICS_LOGS_STORAGE_KEY)
+    );
+    diagnosticsLogs = trimLogsToSize([...persistedLogs, ...diagnosticsLogs]);
+    syncWindowErrorLogs();
+    await persistDiagnosticsLogs();
+  } catch (error) {
+    originalConsole.error("[diagnosticLogger] Failed to initialize diagnostics logger", error);
+  }
+}
+function getDiagnosticsLogs() {
+  return [...diagnosticsLogs];
+}
+function getDiagnosticsLoggerInfo() {
+  return {
+    sessionId: diagnosticsSessionId,
+    totalBytes: toByteLength(JSON.stringify(diagnosticsLogs)),
+    entryCount: diagnosticsLogs.length,
+    maxTotalBytes: DIAGNOSTICS_LOGS_MAX_TOTAL_BYTES,
+    maxEntryBytes: DIAGNOSTICS_LOG_ENTRY_MAX_BYTES
+  };
+}
+function setDiagnosticsContextProvider(provider) {
+  diagnosticsContextProvider = provider;
+}
 const WORLD_DATA_STORAGE_KEY = "MainSceneWorldData";
+const biteVibrationAdapter = new VibrationAdapter();
+const isNativeFeatureDebugMode$1 = true;
 function waitForAnimationFrame() {
   return new Promise((resolve) => {
     window.requestAnimationFrame(() => resolve());
@@ -64297,15 +64663,6 @@ async function waitForLayoutStabilization() {
   await waitForAnimationFrame();
   await new Promise((resolve) => window.setTimeout(resolve, 250));
   await waitForAnimationFrame();
-}
-function createStorage() {
-  if (hasNativeStorageController()) {
-    return new FlutterStorage();
-  }
-  return new WebLocalStorage();
-}
-function getStorageKind() {
-  return hasNativeStorageController() ? "native" : "web";
 }
 function summarizeSavedData(savedData) {
   var _a;
@@ -64322,6 +64679,83 @@ function summarizeSavedData(savedData) {
     entityCount: Array.isArray(savedDataRecord.entities) ? savedDataRecord.entities.length : "n/a"
   };
 }
+function summarizeGameData(data) {
+  var _a, _b, _c, _d;
+  if (!data || typeof data !== "object") {
+    return {
+      entityCount: "n/a"
+    };
+  }
+  const record = data;
+  return {
+    monsterName: (_a = record.world_metadata) == null ? void 0 : _a.monster_name,
+    entityCount: Array.isArray(record.entities) ? record.entities.length : "n/a",
+    worldVersion: (_b = record.world_metadata) == null ? void 0 : _b.version,
+    useLocalTime: (_d = (_c = record.world_metadata) == null ? void 0 : _c.app_state) == null ? void 0 : _d.use_local_time
+  };
+}
+function createDiagnosticsSubject(timestamp) {
+  return `[Digivice] Diagnostics Report ${timestamp}`;
+}
+function createDiagnosticsBody(payload) {
+  const lines = [
+    "Digivice diagnostics report",
+    "",
+    `Generated at: ${payload.generatedAt}`,
+    `App version: ${payload.appInfo.clientAppVersion}`,
+    `World data version: ${payload.summary.worldVersion ?? "unknown"}`,
+    `Scene: ${payload.appInfo.currentSceneKey}`,
+    `Monster name: ${payload.summary.monsterName ?? "unknown"}`,
+    `Entity count: ${payload.summary.entityCount}`,
+    `Storage kind: ${payload.appInfo.storageKind}`,
+    `Mode: ${payload.appInfo.appMode}`,
+    `Debug enabled: ${payload.appInfo.debugEnabled ? "yes" : "no"}`,
+    `Use local time: ${payload.summary.useLocalTime ? "yes" : "no"}`,
+    `Diagnostics logs: ${payload.appInfo.logger.entryCount}`,
+    `Diagnostics session: ${payload.appInfo.logger.sessionId}`
+  ];
+  return lines.join("\n");
+}
+function buildGmailComposeHref(subject, body) {
+  const gmailComposeUrl = new URL("https://mail.google.com/mail/");
+  gmailComposeUrl.searchParams.set("view", "cm");
+  gmailComposeUrl.searchParams.set("fs", "1");
+  gmailComposeUrl.searchParams.set("to", "ch.neizzz@gmail.com");
+  gmailComposeUrl.searchParams.set("su", subject);
+  gmailComposeUrl.searchParams.set("body", body);
+  return gmailComposeUrl.toString();
+}
+async function openMailDraft(subject, body, attachmentFileName, attachmentText) {
+  const composeUrl = buildGmailComposeHref(subject, body);
+  const recipient = "ch.neizzz@gmail.com";
+  if (typeof window !== "undefined" && window.browserController && typeof window.browserController.openGmailDraft === "function") {
+    try {
+      await window.browserController.openGmailDraft(
+        recipient,
+        subject,
+        body,
+        attachmentFileName,
+        attachmentText
+      );
+      return "gmail_app";
+    } catch (gmailError) {
+      console.warn(
+        "[GameContainer] Falling back to browser compose because Gmail app launch failed",
+        gmailError
+      );
+    }
+  }
+  if (typeof window !== "undefined" && window.browserController && typeof window.browserController.openExternalUrl === "function") {
+    await window.browserController.openExternalUrl(composeUrl);
+    return "external_browser";
+  }
+  const openedWindow = window.open(composeUrl, "_blank", "noopener,noreferrer");
+  if (openedWindow) {
+    return "browser_window";
+  }
+  window.location.assign(composeUrl);
+  return "same_window";
+}
 const GameContainer = () => {
   const gameContainerRef = reactExports.useRef(null);
   const [gameInstance, setGameInstance] = reactExports.useState(null);
@@ -64336,6 +64770,8 @@ const GameContainer = () => {
   const [showSettingMenu, setShowSettingMenu] = reactExports.useState(false);
   const [gameSettings, setGameSettings] = reactExports.useState(getGameSettings);
   const [gameSessionKey, setGameSessionKey] = reactExports.useState(0);
+  const [isSendingDiagnostics, setIsSendingDiagnostics] = reactExports.useState(false);
+  const [pendingDiagnosticsDraft, setPendingDiagnosticsDraft] = reactExports.useState(null);
   const [buttonParams, setButtonParams] = reactExports.useState(null);
   const openSettingMenu = reactExports.useCallback(() => {
     setShowSettingMenu(true);
@@ -64346,18 +64782,113 @@ const GameContainer = () => {
   const handleVibrationSettingChange = reactExports.useCallback((enabled) => {
     setGameSettings(updateGameSettings({ vibrationEnabled: enabled }));
   }, []);
+  reactExports.useEffect(() => {
+    setDiagnosticsContextProvider(() => ({
+      scene: (gameInstance == null ? void 0 : gameInstance.getCurrentSceneKey()) !== void 0 ? String(gameInstance.getCurrentSceneKey()) : void 0,
+      storageKind: getClientStorageKind(),
+      appMode: "development",
+      debugEnabled: isNativeFeatureDebugMode$1
+    }));
+    return () => {
+      setDiagnosticsContextProvider(null);
+    };
+  }, [gameInstance]);
+  const handleSendDiagnostics = reactExports.useCallback(async () => {
+    if (isSendingDiagnostics || pendingDiagnosticsDraft) {
+      return;
+    }
+    setIsSendingDiagnostics(true);
+    try {
+      const storage = createClientStorage();
+      const storedGameData = await storage.getData(WORLD_DATA_STORAGE_KEY);
+      const snapshot = gameInstance == null ? void 0 : gameInstance.getDiagnosticsSnapshot();
+      const currentGameData = (snapshot == null ? void 0 : snapshot.mainSceneData) ?? null;
+      const currentSceneKey = String((snapshot == null ? void 0 : snapshot.currentSceneKey) ?? "unknown");
+      const payload = {
+        generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+        appInfo: {
+          project: "Digivice",
+          clientAppVersion: "0.1.0",
+          appMode: "development",
+          debugEnabled: isNativeFeatureDebugMode$1,
+          storageKind: getClientStorageKind(),
+          userAgent: navigator.userAgent,
+          language: navigator.language,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          currentSceneKey,
+          logger: getDiagnosticsLoggerInfo(),
+          gameSettings
+        },
+        summary: summarizeGameData(currentGameData ?? storedGameData),
+        logs: getDiagnosticsLogs(),
+        currentGameData,
+        storedGameData
+      };
+      const payloadText = JSON.stringify(payload, null, 2);
+      const subject = createDiagnosticsSubject(payload.generatedAt);
+      const body = createDiagnosticsBody(payload);
+      setPendingDiagnosticsDraft({
+        subject,
+        body,
+        payloadText
+      });
+    } catch (error) {
+      console.error("[GameContainer] Failed to prepare diagnostics payload", error);
+      showAlert("Failed to prepare diagnostics payload.", "Error");
+    } finally {
+      setIsSendingDiagnostics(false);
+    }
+  }, [
+    gameInstance,
+    gameSettings,
+    isSendingDiagnostics,
+    pendingDiagnosticsDraft,
+    showAlert
+  ]);
+  const handleCancelDiagnosticsDraft = reactExports.useCallback(() => {
+    setPendingDiagnosticsDraft(null);
+  }, []);
+  const handleConfirmDiagnosticsDraft = reactExports.useCallback(async () => {
+    if (!pendingDiagnosticsDraft) {
+      return;
+    }
+    try {
+      const timestampSuffix = pendingDiagnosticsDraft.subject.replace(/\[Digivice\]\s*/g, "").replace(/\s+/g, "-").replace(/[^a-zA-Z0-9-]/g, "");
+      const attachmentFileName = `digivice-diagnostics-${timestampSuffix || Date.now()}.json`;
+      const openRoute = await openMailDraft(
+        pendingDiagnosticsDraft.subject,
+        pendingDiagnosticsDraft.body,
+        attachmentFileName,
+        pendingDiagnosticsDraft.payloadText
+      );
+      if (openRoute !== "gmail_app") {
+        showAlert(
+          "The mail compose screen was opened outside the app. File attachment support is only guaranteed when the Gmail app opens directly.",
+          "Notice"
+        );
+      }
+    } catch (error) {
+      console.error("[GameContainer] Failed to open diagnostics draft", error);
+      showAlert(
+        "Failed to open the Gmail draft. Please make sure Gmail is installed.",
+        "Error"
+      );
+    } finally {
+      setPendingDiagnosticsDraft(null);
+    }
+  }, [pendingDiagnosticsDraft, showAlert]);
   const resetGameData = reactExports.useCallback(
     async (reason) => {
       console.warn("[GameContainer] resetGameData:start", {
         reason,
         hasGameInstance: !!gameInstance,
-        storageKind: getStorageKind()
+        storageKind: getClientStorageKind()
       });
       try {
         if (gameInstance) {
           await gameInstance.destroyForReset();
         } else {
-          const storage = createStorage();
+          const storage = createClientStorage();
           await storage.removeData(WORLD_DATA_STORAGE_KEY);
         }
         if (gameContainerRef.current) {
@@ -64375,7 +64906,7 @@ const GameContainer = () => {
         setSanitizeResetAlert(null);
         console.warn("[GameContainer] resetGameData:success", {
           reason,
-          storageKind: getStorageKind()
+          storageKind: getClientStorageKind()
         });
       } catch (error) {
         console.error("[GameContainer] Failed to reset game data:", error);
@@ -64392,8 +64923,8 @@ const GameContainer = () => {
   }, [resetGameData]);
   const prepareSavedGameData = reactExports.useCallback(async () => {
     try {
-      const storage = createStorage();
-      const storageKind = getStorageKind();
+      const storage = createClientStorage();
+      const storageKind = getClientStorageKind();
       console.debug("[GameContainer] prepareSavedGameData:start", {
         key: WORLD_DATA_STORAGE_KEY,
         storageKind
@@ -64434,7 +64965,7 @@ const GameContainer = () => {
     } catch (error) {
       console.error("[GameContainer] Failed to inspect saved game data:", {
         key: WORLD_DATA_STORAGE_KEY,
-        storageKind: getStorageKind(),
+        storageKind: getClientStorageKind(),
         error
       });
       setSanitizeResetAlert({
@@ -64476,6 +65007,9 @@ const GameContainer = () => {
       },
       showSettings: () => {
         openSettingMenu();
+      },
+      triggerBiteVibration: () => {
+        void biteVibrationAdapter.vibrate();
       },
       changeControlButtons: (controlButtonParams) => {
         setButtonParams((previous) => {
@@ -64580,7 +65114,7 @@ const GameContainer = () => {
             false,
             {
               fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-              lineNumber: 391,
+              lineNumber: 651,
               columnNumber: 9
             },
             void 0
@@ -64597,28 +65131,28 @@ const GameContainer = () => {
             false,
             {
               fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-              lineNumber: 401,
+              lineNumber: 661,
               columnNumber: 13
             },
             void 0
           ) }, void 0, false, {
             fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 400,
+            lineNumber: 660,
             columnNumber: 11
           }, void 0)
         ] }, void 0, true, {
           fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-          lineNumber: 390,
+          lineNumber: 650,
           columnNumber: 7
         }, void 0),
         isLoading && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "absolute top-0 left-0 text-white p-4", children: "Loading.." }, void 0, false, {
           fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-          lineNumber: 411,
+          lineNumber: 671,
           columnNumber: 9
         }, void 0),
         showSetupLayer && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(SetupLayer, { onComplete: handleSetupComplete }, void 0, false, {
           fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-          lineNumber: 413,
+          lineNumber: 673,
           columnNumber: 26
         }, void 0),
         showSettingMenu && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -64626,6 +65160,8 @@ const GameContainer = () => {
           {
             vibrationEnabled: gameSettings.vibrationEnabled,
             onChangeVibration: handleVibrationSettingChange,
+            onSendDiagnostics: handleSendDiagnostics,
+            isSendingDiagnostics,
             onResetGameData: handleResetGameData,
             onClose: closeSettingMenu
           },
@@ -64633,7 +65169,7 @@ const GameContainer = () => {
           false,
           {
             fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 415,
+            lineNumber: 675,
             columnNumber: 9
           },
           void 0
@@ -64649,7 +65185,7 @@ const GameContainer = () => {
           false,
           {
             fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 423,
+            lineNumber: 685,
             columnNumber: 9
           },
           void 0
@@ -64665,18 +65201,94 @@ const GameContainer = () => {
           false,
           {
             fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 430,
+            lineNumber: 692,
             columnNumber: 9
           },
           void 0
-        )
+        ),
+        pendingDiagnosticsDraft && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "fixed inset-0 z-[60] flex items-end bg-black/50", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "w-full rounded-t-[20px] border-t-4 border-x-4 border-[#222] bg-layer-bg px-5 pb-6 pt-4 text-black shadow-[0_-4px_0_#222]", children: [
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "mx-auto mb-4 h-1.5 w-12 rounded-full bg-gray-500/50" }, void 0, false, {
+            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+            lineNumber: 701,
+            columnNumber: 13
+          }, void 0),
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-lg font-bold text-component-negative", children: "Open Gmail" }, void 0, false, {
+            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+            lineNumber: 702,
+            columnNumber: 13
+          }, void 0),
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "mt-4 text-sm leading-6", children: [
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: "The Gmail app will open next." }, void 0, false, {
+              fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+              lineNumber: 706,
+              columnNumber: 15
+            }, void 0),
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "mt-2", children: "The diagnostics file will be attached to the draft email." }, void 0, false, {
+              fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+              lineNumber: 707,
+              columnNumber: 15
+            }, void 0)
+          ] }, void 0, true, {
+            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+            lineNumber: 705,
+            columnNumber: 13
+          }, void 0),
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "mt-5 flex justify-end gap-3", children: [
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+              "button",
+              {
+                type: "button",
+                onClick: handleCancelDiagnosticsDraft,
+                className: "border-2 border-[#222] bg-component-negative px-4 py-2 text-sm font-bold text-white shadow-[2px_2px_0_#222]",
+                children: "Cancel"
+              },
+              void 0,
+              false,
+              {
+                fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+                lineNumber: 712,
+                columnNumber: 15
+              },
+              void 0
+            ),
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+              "button",
+              {
+                type: "button",
+                onClick: handleConfirmDiagnosticsDraft,
+                className: "border-2 border-[#222] bg-component-positive px-4 py-2 text-sm font-bold text-white shadow-[2px_2px_0_#222]",
+                children: "Open Gmail"
+              },
+              void 0,
+              false,
+              {
+                fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+                lineNumber: 719,
+                columnNumber: 15
+              },
+              void 0
+            )
+          ] }, void 0, true, {
+            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+            lineNumber: 711,
+            columnNumber: 13
+          }, void 0)
+        ] }, void 0, true, {
+          fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+          lineNumber: 700,
+          columnNumber: 11
+        }, void 0) }, void 0, false, {
+          fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+          lineNumber: 699,
+          columnNumber: 9
+        }, void 0)
       ]
     },
     void 0,
     true,
     {
       fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-      lineNumber: 385,
+      lineNumber: 645,
       columnNumber: 5
     },
     void 0
@@ -65180,6 +65792,12 @@ const App = () => {
 };
 const __vite_import_meta_env__ = { "BASE_URL": "./", "DEV": true, "MODE": "development", "NATIVE_FEATURE_DEBUG_MODE": "true", "PROD": false, "SSR": false };
 const platformAdapter = new PlatformAdapter();
+const isNativeFeatureDebugMode = true;
+installDiagnosticsConsoleCapture();
+setDiagnosticsContextProvider(() => ({
+  appMode: "development",
+  debugEnabled: isNativeFeatureDebugMode
+}));
 console.log("서비스 초기화 완료");
 const isAndroid = platformAdapter.isAndroid();
 const isIOS = platformAdapter.isIOS();
@@ -65193,6 +65811,7 @@ document.addEventListener("DOMContentLoaded", () => {
 console.log(
   `애플리케이션 모드: ${"DEBUG"}`
 );
+console.log(`애플리케이션 버전: ${"0.1.0"}`);
 function sleep(milliseconds) {
   return new Promise((resolve) => {
     window.setTimeout(resolve, milliseconds);
@@ -65216,6 +65835,7 @@ async function waitForNativeStorageController(timeoutMilliseconds = 4e3) {
 }
 async function bootstrap() {
   await waitForNativeStorageController();
+  await initializeDiagnosticsLogger();
   const rootElement = document.getElementById("root");
   if (!rootElement) {
     throw new Error("Root element not found");
@@ -65223,11 +65843,11 @@ async function bootstrap() {
   ReactDOM.createRoot(rootElement).render(
     /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(jsxDevRuntimeExports.Fragment, { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(App, {}, void 0, false, {
       fileName: "/Users/neiz/digivice/apps/client/src/main.tsx",
-      lineNumber: 82,
+      lineNumber: 94,
       columnNumber: 7
     }, this) }, void 0, false, {
       fileName: "/Users/neiz/digivice/apps/client/src/main.tsx",
-      lineNumber: 81,
+      lineNumber: 93,
       columnNumber: 5
     }, this)
   );

@@ -103,14 +103,28 @@ class _WebViewState extends State<WebView> {
       content = WebViewWidget(controller: _controller);
     }
 
-    return SafeArea(
-      child: AnimatedPadding(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOut,
-        padding: EdgeInsets.only(bottom: keyboardInset),
-        child: content,
+    return WillPopScope(
+      onWillPop: _handleWillPop,
+      child: SafeArea(
+        child: AnimatedPadding(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+          padding: EdgeInsets.only(bottom: keyboardInset),
+          child: content,
+        ),
       ),
     );
+  }
+
+  Future<bool> _handleWillPop() async {
+    final bool canGoBack = await _controller.canGoBack();
+
+    if (canGoBack) {
+      await _controller.goBack();
+      return false;
+    }
+
+    return true;
   }
 
   Future<void> _initializeWebView() async {

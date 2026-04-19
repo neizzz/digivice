@@ -4,6 +4,19 @@ declare global {
     vibrationController?: {
       vibrate: (duration?: number, strength?: number) => Promise<string>;
     };
+    browserController?: {
+      openExternalUrl: (url: string) => Promise<string>;
+      openGmailDraft: (
+        to: string,
+        subject: string,
+        body: string,
+        attachments?: Array<{
+          fileName: string;
+          text: string;
+          mimeType?: string;
+        }>,
+      ) => Promise<string>;
+    };
     sunController?: {
       getSunTimes: (
         promptForPermission?: boolean,

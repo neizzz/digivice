@@ -2,16 +2,13 @@ import {
   type ControlButtonParams,
   ControlButtonType,
   Game,
+  type GameDiagnosticsSnapshot,
+  SceneKey,
 } from "@digivice/game";
-import {
-  FlutterStorage,
-  hasNativeStorageController,
-  type Storage,
-  WebLocalStorage,
-} from "@shared/storage";
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ControlButtons from "./components/ControlButtons";
+import PopupLayer from "./components/PopupLayer";
 import { type SetupFormData, SetupLayer } from "./layers/SetupLayer";
 import AlertLayer from "./layers/AlertLayer";
 import SettingMenuLayer from "./layers/SettingMenuLayer";
@@ -19,9 +16,65 @@ import useAlert from "./hooks/useAlert";
 import { getGameSettings, updateGameSettings } from "./settings/gameSettings";
 import { sanitizeStoredWorldData } from "./utils/sanitizeStoredWorldData";
 import { VibrationAdapter } from "./adapter/VibrationAdapter";
+import {
+  getDiagnosticsLoggerInfo,
+  getDiagnosticsLogs,
+  setDiagnosticsContextProvider,
+} from "./diagnostics/diagnosticLogger";
+import {
+  createClientStorage,
+  getClientStorageKind,
+} from "./utils/clientStorage";
 
 const WORLD_DATA_STORAGE_KEY = "MainSceneWorldData";
 const biteVibrationAdapter = new VibrationAdapter();
+const isNativeFeatureDebugMode =
+  import.meta.env.NATIVE_FEATURE_DEBUG_MODE === "true";
+
+type GameDataSummary = {
+  monsterName?: string;
+  entityCount: number | "n/a";
+  worldVersion?: string;
+  useLocalTime?: boolean;
+};
+
+type DiagnosticsPayload = {
+  generatedAt: string;
+  appInfo: {
+    project: "MonTTo";
+    clientAppVersion: string;
+    appMode: string;
+    debugEnabled: boolean;
+    storageKind: "native" | "web";
+    userAgent: string;
+    language: string;
+    timezone: string;
+    currentSceneKey: string;
+    logger: ReturnType<typeof getDiagnosticsLoggerInfo>;
+    gameSettings: ReturnType<typeof getGameSettings>;
+  };
+  summary: GameDataSummary;
+  logs: ReturnType<typeof getDiagnosticsLogs>;
+  currentGameData: GameDiagnosticsSnapshot["mainSceneData"];
+  storedGameData: unknown | null;
+};
+
+type DiagnosticsAttachment = {
+  fileName: string;
+  text: string;
+  mimeType: string;
+};
+
+type PendingDiagnosticsDraft = {
+  subject: string;
+  body: string;
+  attachments: DiagnosticsAttachment[];
+};
+
+type MainSceneLoadState = {
+  requestId: number;
+  phase: "idle" | "loading" | "core_ready";
+};
 
 function waitForAnimationFrame(): Promise<void> {
   return new Promise((resolve) => {
@@ -34,18 +87,6 @@ async function waitForLayoutStabilization(): Promise<void> {
   await waitForAnimationFrame();
   await new Promise((resolve) => window.setTimeout(resolve, 250));
   await waitForAnimationFrame();
-}
-
-function createStorage(): Storage {
-  if (hasNativeStorageController()) {
-    return new FlutterStorage();
-  }
-
-  return new WebLocalStorage();
-}
-
-function getStorageKind(): "native" | "web" {
-  return hasNativeStorageController() ? "native" : "web";
 }
 
 function summarizeSavedData(savedData: unknown): Record<string, unknown> {
@@ -70,11 +111,132 @@ function summarizeSavedData(savedData: unknown): Record<string, unknown> {
   };
 }
 
+function summarizeGameData(data: unknown): GameDataSummary {
+  if (!data || typeof data !== "object") {
+    return {
+      entityCount: "n/a",
+    };
+  }
+
+  const record = data as {
+    world_metadata?: {
+      monster_name?: string;
+      version?: string;
+      app_state?: {
+        use_local_time?: boolean;
+      };
+    };
+    entities?: unknown[];
+  };
+
+  return {
+    monsterName: record.world_metadata?.monster_name,
+    entityCount: Array.isArray(record.entities) ? record.entities.length : "n/a",
+    worldVersion: record.world_metadata?.version,
+    useLocalTime: record.world_metadata?.app_state?.use_local_time,
+  };
+}
+
+function createDiagnosticsSubject(timestamp: string): string {
+  return `[MonTTo] Diagnostics Report ${timestamp}`;
+}
+
+function createDiagnosticsSummaryText(
+  payload: DiagnosticsPayload,
+): string {
+  const lines = [
+    "MonTTo diagnostics summary",
+    "",
+    `Generated at: ${payload.generatedAt}`,
+    `App version: ${payload.appInfo.clientAppVersion}`,
+    `World data version: ${payload.summary.worldVersion ?? "unknown"}`,
+    `Scene: ${payload.appInfo.currentSceneKey}`,
+    `Monster name: ${payload.summary.monsterName ?? "unknown"}`,
+    `Entity count: ${payload.summary.entityCount}`,
+    `Storage kind: ${payload.appInfo.storageKind}`,
+    `Mode: ${payload.appInfo.appMode}`,
+    `Debug enabled: ${payload.appInfo.debugEnabled ? "yes" : "no"}`,
+    `Use local time: ${payload.summary.useLocalTime ? "yes" : "no"}`,
+    `Diagnostics logs: ${payload.appInfo.logger.entryCount}`,
+    `Diagnostics session: ${payload.appInfo.logger.sessionId}`,
+  ];
+
+  return lines.join("\n");
+}
+
+function createDiagnosticsBody(): string {
+  return [
+    "Please describe the issue or symptoms you observed.",
+    "",
+    "- What happened?",
+    "- When did it happen?",
+    "- What did you expect to happen?",
+    "- How can it be reproduced?",
+  ].join("\n");
+}
+
+function buildGmailComposeHref(subject: string, body: string): string {
+  const gmailComposeUrl = new URL("https://mail.google.com/mail/");
+  gmailComposeUrl.searchParams.set("view", "cm");
+  gmailComposeUrl.searchParams.set("fs", "1");
+  gmailComposeUrl.searchParams.set("to", "ch.neizzz@gmail.com");
+  gmailComposeUrl.searchParams.set("su", subject);
+  gmailComposeUrl.searchParams.set("body", body);
+  return gmailComposeUrl.toString();
+}
+
+async function openMailDraft(
+  subject: string,
+  body: string,
+  attachments?: DiagnosticsAttachment[],
+): Promise<"gmail_app" | "external_browser" | "browser_window" | "same_window"> {
+  const composeUrl = buildGmailComposeHref(subject, body);
+  const recipient = "ch.neizzz@gmail.com";
+
+  if (
+    typeof window !== "undefined" &&
+    window.browserController &&
+    typeof window.browserController.openGmailDraft === "function"
+  ) {
+    try {
+      await window.browserController.openGmailDraft(
+        recipient,
+        subject,
+        body,
+        attachments,
+      );
+      return "gmail_app";
+    } catch (gmailError) {
+      console.warn(
+        "[GameContainer] Falling back to browser compose because Gmail app launch failed",
+        gmailError,
+      );
+    }
+  }
+
+  if (
+    typeof window !== "undefined" &&
+    window.browserController &&
+    typeof window.browserController.openExternalUrl === "function"
+  ) {
+    await window.browserController.openExternalUrl(composeUrl);
+    return "external_browser";
+  }
+
+  const openedWindow = window.open(composeUrl, "_blank", "noopener,noreferrer");
+  if (openedWindow) {
+    return "browser_window";
+  }
+
+  window.location.assign(composeUrl);
+  return "same_window";
+}
+
 const GameContainer: React.FC = () => {
   const gameContainerRef = useRef<HTMLDivElement>(null);
   const [gameInstance, setGameInstance] = useState<Game | null>(null);
   const [showSetupLayer, setShowSetupLayer] = useState<boolean>(false);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isBootstrapping, setIsBootstrapping] = useState<boolean>(true);
   const { alertState, showAlert, hideAlert } = useAlert();
   const [sanitizeResetAlert, setSanitizeResetAlert] = useState<{
     title: string;
@@ -89,9 +251,18 @@ const GameContainer: React.FC = () => {
   const [showSettingMenu, setShowSettingMenu] = useState(false);
   const [gameSettings, setGameSettings] = useState(getGameSettings);
   const [gameSessionKey, setGameSessionKey] = useState(0);
+  const [isSendingDiagnostics, setIsSendingDiagnostics] = useState(false);
+  const [pendingDiagnosticsDraft, setPendingDiagnosticsDraft] =
+    useState<PendingDiagnosticsDraft | null>(null);
   const [buttonParams, setButtonParams] = useState<
     [ControlButtonParams, ControlButtonParams, ControlButtonParams] | null
   >(null);
+  const [mainSceneLoadState, setMainSceneLoadState] =
+    useState<MainSceneLoadState>({
+      requestId: 0,
+      phase: "idle",
+    });
+  const mainSceneLoadRequestIdRef = useRef(0);
 
   const openSettingMenu = useCallback(() => {
     setShowSettingMenu(true);
@@ -105,19 +276,241 @@ const GameContainer: React.FC = () => {
     setGameSettings(updateGameSettings({ vibrationEnabled: enabled }));
   }, []);
 
+  useEffect(() => {
+    setDiagnosticsContextProvider(() => ({
+      scene:
+        gameInstance?.getCurrentSceneKey() !== undefined
+          ? String(gameInstance.getCurrentSceneKey())
+          : undefined,
+      storageKind: getClientStorageKind(),
+      appMode: import.meta.env.MODE,
+      debugEnabled: isNativeFeatureDebugMode,
+    }));
+
+    return () => {
+      setDiagnosticsContextProvider(null);
+    };
+  }, [gameInstance]);
+
+  const handleMainSceneLoadingStateChange = useCallback(
+    (params: { key: SceneKey; state: "loading" | "core_ready" }) => {
+      if (params.key !== SceneKey.MAIN) {
+        return;
+      }
+
+      if (params.state === "loading") {
+        const requestId = mainSceneLoadRequestIdRef.current + 1;
+        mainSceneLoadRequestIdRef.current = requestId;
+        setMainSceneLoadState({ requestId, phase: "loading" });
+        setButtonParams(null);
+        return;
+      }
+
+      const requestId = mainSceneLoadRequestIdRef.current;
+      if (requestId <= 0) {
+        return;
+      }
+
+      setMainSceneLoadState((previous) =>
+        previous.requestId === requestId
+          ? { ...previous, phase: "core_ready" }
+          : previous,
+      );
+    },
+    [],
+  );
+
+  const completeMainSceneLoading = useCallback((requestId: number) => {
+    if (mainSceneLoadRequestIdRef.current !== requestId) {
+      return;
+    }
+
+    mainSceneLoadRequestIdRef.current = 0;
+    setMainSceneLoadState({ requestId: 0, phase: "idle" });
+    setIsBootstrapping(false);
+  }, []);
+
+  useEffect(() => {
+    if (mainSceneLoadState.phase !== "core_ready") {
+      return;
+    }
+
+    if (!buttonParams || !gameInstance) {
+      return;
+    }
+
+    const requestId = mainSceneLoadState.requestId;
+    let cancelled = false;
+
+    const finalizeMainSceneLoading = async () => {
+      await waitForLayoutStabilization();
+
+      if (cancelled) {
+        return;
+      }
+
+      completeMainSceneLoading(requestId);
+    };
+
+    void finalizeMainSceneLoading();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [buttonParams, completeMainSceneLoading, gameInstance, mainSceneLoadState]);
+
+  useEffect(() => {
+    if (mainSceneLoadState.phase !== "core_ready") {
+      return;
+    }
+
+    if (buttonParams || !gameInstance) {
+      return;
+    }
+
+    const requestId = mainSceneLoadState.requestId;
+    let cancelled = false;
+
+    const finalizeMainSceneLoadingWithFallback = async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 500));
+
+      if (cancelled) {
+        return;
+      }
+
+      await waitForLayoutStabilization();
+
+      if (cancelled) {
+        return;
+      }
+
+      completeMainSceneLoading(requestId);
+    };
+
+    void finalizeMainSceneLoadingWithFallback();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [buttonParams, completeMainSceneLoading, gameInstance, mainSceneLoadState]);
+
+  const handleSendDiagnostics = useCallback(async () => {
+    if (isSendingDiagnostics || pendingDiagnosticsDraft) {
+      return;
+    }
+
+    setIsSendingDiagnostics(true);
+
+    try {
+      const storage = createClientStorage();
+      const storedGameData = await storage.getData(WORLD_DATA_STORAGE_KEY);
+      const snapshot = gameInstance?.getDiagnosticsSnapshot();
+      const currentGameData = snapshot?.mainSceneData ?? null;
+      const currentSceneKey = String(snapshot?.currentSceneKey ?? "unknown");
+      const payload: DiagnosticsPayload = {
+        generatedAt: new Date().toISOString(),
+        appInfo: {
+          project: "MonTTo",
+          clientAppVersion: __APP_VERSION__,
+          appMode: import.meta.env.MODE,
+          debugEnabled: isNativeFeatureDebugMode,
+          storageKind: getClientStorageKind(),
+          userAgent: navigator.userAgent,
+          language: navigator.language,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          currentSceneKey,
+          logger: getDiagnosticsLoggerInfo(),
+          gameSettings,
+        },
+        summary: summarizeGameData(currentGameData ?? storedGameData),
+        logs: getDiagnosticsLogs(),
+        currentGameData,
+        storedGameData,
+      };
+
+      const payloadText = JSON.stringify(payload, null, 2);
+      const subject = createDiagnosticsSubject(payload.generatedAt);
+      const body = createDiagnosticsBody();
+      const timestampSuffix = payload.generatedAt
+        .replace(/\.\d{3}Z$/, "Z")
+        .replace(/[:]/g, "-");
+      const summaryText = createDiagnosticsSummaryText(payload);
+      setPendingDiagnosticsDraft({
+        subject,
+        body,
+        attachments: [
+          {
+            fileName: `montto-diagnostics-${timestampSuffix}.json`,
+            text: payloadText,
+            mimeType: "application/json",
+          },
+          {
+            fileName: `montto-diagnostics-summary-${timestampSuffix}.txt`,
+            text: summaryText,
+            mimeType: "text/plain",
+          },
+        ],
+      });
+    } catch (error) {
+      console.error("[GameContainer] Failed to prepare diagnostics payload", error);
+      showAlert("Failed to prepare diagnostics payload.", "Error");
+    } finally {
+      setIsSendingDiagnostics(false);
+    }
+  }, [
+    gameInstance,
+    gameSettings,
+    isSendingDiagnostics,
+    pendingDiagnosticsDraft,
+    showAlert,
+  ]);
+
+  const handleCancelDiagnosticsDraft = useCallback(() => {
+    setPendingDiagnosticsDraft(null);
+  }, []);
+
+  const handleConfirmDiagnosticsDraft = useCallback(async () => {
+    if (!pendingDiagnosticsDraft) {
+      return;
+    }
+
+    try {
+      const openRoute = await openMailDraft(
+        pendingDiagnosticsDraft.subject,
+        pendingDiagnosticsDraft.body,
+        pendingDiagnosticsDraft.attachments,
+      );
+
+      if (openRoute !== "gmail_app") {
+        showAlert(
+          "The mail compose screen was opened outside the app. File attachment support is only guaranteed when the Gmail app opens directly.",
+          "Notice",
+        );
+      }
+    } catch (error) {
+      console.error("[GameContainer] Failed to open diagnostics draft", error);
+      showAlert(
+        "Failed to open the Gmail draft. Please make sure Gmail is installed.",
+        "Error",
+      );
+    } finally {
+      setPendingDiagnosticsDraft(null);
+    }
+  }, [pendingDiagnosticsDraft, showAlert]);
+
   const resetGameData = useCallback(
     async (reason: "user_reset" | "sanitize_reset") => {
       console.warn("[GameContainer] resetGameData:start", {
         reason,
         hasGameInstance: !!gameInstance,
-        storageKind: getStorageKind(),
+        storageKind: getClientStorageKind(),
       });
 
       try {
         if (gameInstance) {
           await gameInstance.destroyForReset();
         } else {
-          const storage = createStorage();
+          const storage = createClientStorage();
           await storage.removeData(WORLD_DATA_STORAGE_KEY);
         }
 
@@ -132,12 +525,14 @@ const GameContainer: React.FC = () => {
         setShowSettingMenu(false);
         setButtonParams(null);
         setShowSetupLayer(true);
-        setIsLoading(false);
+        setIsBootstrapping(false);
+        mainSceneLoadRequestIdRef.current = 0;
+        setMainSceneLoadState({ requestId: 0, phase: "idle" });
         setGameInstance(null);
         setSanitizeResetAlert(null);
         console.warn("[GameContainer] resetGameData:success", {
           reason,
-          storageKind: getStorageKind(),
+          storageKind: getClientStorageKind(),
         });
       } catch (error) {
         console.error("[GameContainer] Failed to reset game data:", error);
@@ -159,8 +554,8 @@ const GameContainer: React.FC = () => {
     "playable" | "setup_required" | "reset_required"
   > => {
     try {
-      const storage = createStorage();
-      const storageKind = getStorageKind();
+      const storage = createClientStorage();
+      const storageKind = getClientStorageKind();
       console.debug("[GameContainer] prepareSavedGameData:start", {
         key: WORLD_DATA_STORAGE_KEY,
         storageKind,
@@ -203,14 +598,14 @@ const GameContainer: React.FC = () => {
             result.resetReason ??
             "Existing game data is corrupted and cannot be recovered. Press Confirm to reset the data and return to the initial setup screen.",
         });
-        setIsLoading(false);
+        setIsBootstrapping(false);
       }
 
       return result.action;
     } catch (error) {
       console.error("[GameContainer] Failed to inspect saved game data:", {
         key: WORLD_DATA_STORAGE_KEY,
-        storageKind: getStorageKind(),
+        storageKind: getClientStorageKind(),
         error,
       });
       setSanitizeResetAlert({
@@ -218,7 +613,7 @@ const GameContainer: React.FC = () => {
         message:
           "There was a problem reading the existing game data. Press Confirm to reset the data and return to the initial setup screen.",
       });
-      setIsLoading(false);
+      setIsBootstrapping(false);
       return "reset_required";
     }
   }, []);
@@ -229,7 +624,7 @@ const GameContainer: React.FC = () => {
         return initialSetupDataRef.current;
       }
 
-      setIsLoading(false);
+      setIsBootstrapping(false);
       setShowSetupLayer(true);
 
       return new Promise((resolve) => {
@@ -246,7 +641,7 @@ const GameContainer: React.FC = () => {
     if (!gameContainerRef.current) return;
     if (isInitializedRef.current) return;
 
-    setIsLoading(true);
+    setIsBootstrapping(true);
     const debugParentElement =
       gameContainerRef.current.closest("#app-container") ??
       gameContainerRef.current;
@@ -266,6 +661,7 @@ const GameContainer: React.FC = () => {
       triggerBiteVibration: () => {
         void biteVibrationAdapter.vibrate();
       },
+      onSceneLoadingStateChange: handleMainSceneLoadingStateChange,
       changeControlButtons: (controlButtonParams) => {
         setButtonParams((previous) => {
           if (
@@ -291,10 +687,14 @@ const GameContainer: React.FC = () => {
       game.initialize().then(() => {
         isInitializedRef.current = true;
         setGameInstance(game);
-        setIsLoading(false);
       });
     });
-  }, [openSettingMenu, requestInitialGameData, showAlert]);
+  }, [
+    handleMainSceneLoadingStateChange,
+    openSettingMenu,
+    requestInitialGameData,
+    showAlert,
+  ]);
 
   // Game 인스턴스 생성은 한 번만 실행되도록 보장
   useEffect(() => {
@@ -386,6 +786,9 @@ const GameContainer: React.FC = () => {
     }
   }, []);
 
+  const isLoading =
+    isBootstrapping || mainSceneLoadState.phase === "loading" || mainSceneLoadState.phase === "core_ready";
+
   return (
     <div
       className={
@@ -413,13 +816,17 @@ const GameContainer: React.FC = () => {
         )}
       </>
       {isLoading && (
-        <div className={"absolute top-0 left-0 text-white p-4"}>Loading..</div>
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black text-white">
+          <div className="text-center text-lg tracking-[0.12em]">Loading...</div>
+        </div>
       )}
       {showSetupLayer && <SetupLayer onComplete={handleSetupComplete} />}
       {showSettingMenu && (
         <SettingMenuLayer
           vibrationEnabled={gameSettings.vibrationEnabled}
           onChangeVibration={handleVibrationSettingChange}
+          onSendDiagnostics={handleSendDiagnostics}
+          isSendingDiagnostics={isSendingDiagnostics}
           onResetGameData={handleResetGameData}
           onClose={closeSettingMenu}
         />
@@ -437,6 +844,25 @@ const GameContainer: React.FC = () => {
           message={sanitizeResetAlert.message}
           onClose={handleSanitizeResetConfirm}
         />
+      )}
+      {pendingDiagnosticsDraft && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
+          <PopupLayer
+            title="Open Gmail"
+            content={
+              <div className="text-left text-sm leading-6">
+                <div>The Gmail app will open next.</div>
+                <div className="mt-2">
+                  The diagnostics files will be attached to the draft email.
+                </div>
+              </div>
+            }
+            onConfirm={handleConfirmDiagnosticsDraft}
+            onCancel={handleCancelDiagnosticsDraft}
+            confirmText="CONFIRM"
+            cancelText="Cancel"
+          />
+        </div>
       )}
     </div>
   );

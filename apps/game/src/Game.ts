@@ -2,7 +2,10 @@ import * as PIXI from "pixi.js";
 import { SceneKey } from "./SceneKey";
 import type { Scene } from "./interfaces/Scene";
 import type { ControlButtonParams, ControlButtonType } from "./ui/types";
-import { MainSceneWorld } from "./scenes/MainScene/world";
+import {
+  MainSceneWorld,
+  type MainSceneWorldData,
+} from "./scenes/MainScene/world";
 import { FlappyBirdGameScene } from "./scenes/FlappyBirdGameScene";
 
 PIXI.TexturePool.textureOptions.scaleMode = "nearest";
@@ -33,6 +36,14 @@ export type ShowSettingsCallback = (params: {
 }) => void;
 export type ShowAlertCallback = (message: string, title?: string) => void;
 export type TriggerBiteVibrationCallback = () => void;
+export type SceneLoadingStateChangeCallback = (params: {
+  key: SceneKey;
+  state: "loading" | "core_ready";
+}) => void;
+export type GameDiagnosticsSnapshot = {
+  currentSceneKey?: SceneKey;
+  mainSceneData: MainSceneWorldData | null;
+};
 
 function createMainScenePositionBoundary(width: number, height: number) {
   return {
@@ -51,6 +62,7 @@ export class Game {
   public triggerBiteVibration?: TriggerBiteVibrationCallback;
 
   private _parentElement: HTMLElement;
+  private _onSceneLoadingStateChange?: SceneLoadingStateChangeCallback;
   private _debugParentElement: HTMLElement;
   private _createInitialGameData: CreateInitialGameDataCallback;
   private currentScene?: Scene;
@@ -69,6 +81,7 @@ export class Game {
     showSettings: ShowSettingsCallback;
     showAlert: ShowAlertCallback; // 팝업 콜백 추가
     triggerBiteVibration?: TriggerBiteVibrationCallback;
+    onSceneLoadingStateChange?: SceneLoadingStateChangeCallback;
   }) {
     const {
       parentElement,
@@ -78,11 +91,13 @@ export class Game {
       showSettings,
       showAlert,
       triggerBiteVibration,
+      onSceneLoadingStateChange,
     } = params;
     this.changeControlButtons = changeControlButtons;
     this.showSettings = showSettings; // 설정 화면 표시 콜백
     this.showAlert = showAlert; // 팝업 콜백 저장
     this.triggerBiteVibration = triggerBiteVibration;
+    this._onSceneLoadingStateChange = onSceneLoadingStateChange;
     this._createInitialGameData = onCreateInitialGameData;
 
     this.app = new PIXI.Application();
@@ -328,6 +343,16 @@ export class Game {
         return true;
       }
 
+      const shouldNotifyMainSceneLoading =
+        key === SceneKey.MAIN && this.currentSceneKey !== SceneKey.MAIN;
+
+      if (shouldNotifyMainSceneLoading) {
+        this._onSceneLoadingStateChange?.({
+          key: SceneKey.MAIN,
+          state: "loading",
+        });
+      }
+
       if (this.currentScene?.onSceneExit) {
         console.log(`[Game] 현재 씬 종료 처리 시작: ${this.currentSceneKey}`);
         await this.currentScene.onSceneExit();
@@ -362,6 +387,13 @@ export class Game {
         this.app.stage.addChild(this.currentScene);
       }
 
+      if (shouldNotifyMainSceneLoading) {
+        this._onSceneLoadingStateChange?.({
+          key: SceneKey.MAIN,
+          state: "core_ready",
+        });
+      }
+
       // 새 씬이 DisplayObject이면 스테이지에 추가
       // if (this.currentScene instanceof PIXI.DisplayObject) {
       // this.app.stage.addChild(newScene);
@@ -384,6 +416,16 @@ export class Game {
    */
   public getCurrentSceneKey(): SceneKey | undefined {
     return this.currentSceneKey;
+  }
+
+  public getDiagnosticsSnapshot(): GameDiagnosticsSnapshot {
+    return {
+      currentSceneKey: this.currentSceneKey,
+      mainSceneData:
+        this.currentScene instanceof MainSceneWorld
+          ? this.currentScene.getInMemoryData()
+          : null,
+    };
   }
 
   /**

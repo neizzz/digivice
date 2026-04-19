@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'browser/browser_controller.dart';
 import 'pip/pip_controller.dart';
 import 'storage/storage_controller.dart';
 import 'ad/ad_controller.dart';
@@ -15,6 +16,7 @@ class BridgeConfigurator {
   bool _channelsRegistered = false;
 
   late final PipController _pipController;
+  late final BrowserController _browserController;
   late final StorageController _storageController;
   late final AdController _adController;
   late final SunController _sunController;
@@ -26,6 +28,12 @@ class BridgeConfigurator {
     this.forwardConsoleMessages = false,
   }) {
     _pipController = PipController(
+      runJavaScript: _runJavaScript,
+      resolvePromise: _resolvePromise,
+      log: logCallback,
+    );
+
+    _browserController = BrowserController(
       runJavaScript: _runJavaScript,
       resolvePromise: _resolvePromise,
       log: logCallback,
@@ -92,6 +100,11 @@ class BridgeConfigurator {
             _pipController.handleExitPip(message),
       )
       ..addJavaScriptChannel(
+        '__native_browser_open',
+        onMessageReceived: (JavaScriptMessage message) =>
+            _browserController.handleOpenExternalUrl(message),
+      )
+      ..addJavaScriptChannel(
         '__native_storage',
         onMessageReceived: (JavaScriptMessage message) =>
             _storageController.handleStorageOperation(message),
@@ -153,6 +166,7 @@ class BridgeConfigurator {
   Future<void> _setupControllers() async {
     await _runJavaScript(_getDisabledNfcJavaScriptInterface());
     await _runJavaScript(_pipController.getJavaScriptInterface());
+    await _runJavaScript(_browserController.getJavaScriptInterface());
     await _runJavaScript(_storageController.getJavaScriptInterface());
     await _runJavaScript(_adController.getJavaScriptInterface());
     await _runJavaScript(_sunController.getJavaScriptInterface());
@@ -242,6 +256,7 @@ class BridgeConfigurator {
   /// 리소스 정리
   void dispose() {
     _pipController.dispose();
+    _browserController.dispose();
     _storageController.dispose();
     _adController.dispose();
     _sunController.dispose();

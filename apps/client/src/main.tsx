@@ -3,6 +3,11 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./index.css";
 import { PlatformAdapter } from "./adapter/PlatformAdapter.ts";
+import {
+  initializeDiagnosticsLogger,
+  installDiagnosticsConsoleCapture,
+  setDiagnosticsContextProvider,
+} from "./diagnostics/diagnosticLogger";
 
 export function getPlatformAdapter(): PlatformAdapter {
   return platformAdapter;
@@ -10,6 +15,14 @@ export function getPlatformAdapter(): PlatformAdapter {
 
 // 어댑터 초기화
 const platformAdapter = new PlatformAdapter();
+const isNativeFeatureDebugMode =
+  import.meta.env.NATIVE_FEATURE_DEBUG_MODE === "true";
+
+installDiagnosticsConsoleCapture();
+setDiagnosticsContextProvider(() => ({
+  appMode: import.meta.env.MODE,
+  debugEnabled: isNativeFeatureDebugMode,
+}));
 
 // 서비스 초기화
 
@@ -32,12 +45,10 @@ document.addEventListener("DOMContentLoaded", () => {
   // window.__initJavascriptInterfaces.postMessage("");
 });
 
-const isNativeFeatureDebugMode =
-  import.meta.env.NATIVE_FEATURE_DEBUG_MODE === "true";
-
 console.log(
   `애플리케이션 모드: ${isNativeFeatureDebugMode ? "DEBUG" : "NORMAL"}`,
 );
+console.log(`애플리케이션 버전: ${__APP_VERSION__}`);
 
 function sleep(milliseconds: number): Promise<void> {
   return new Promise((resolve) => {
@@ -70,6 +81,7 @@ async function waitForNativeStorageController(
 
 async function bootstrap(): Promise<void> {
   await waitForNativeStorageController();
+  await initializeDiagnosticsLogger();
 
   const rootElement = document.getElementById("root");
 
