@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "pnpm --filter @digivice/client dev",
-    "build": "pnpm --filter @digivice/client build"
+    "build": "pnpm --filter @digivice/client build",
+    "dev:monster-animations": "pnpm --filter @digivice/client dev:monster-animations"
   },
   "workspaces": [
     "apps/*"

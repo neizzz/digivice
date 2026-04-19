@@ -14,7 +14,8 @@
 		"build:flutter:production:debug": "../../scripts/build-for-flutter.sh production debug",
 		"dev:flutter": "../../scripts/watch-and-copy.sh",
 		"lint": "eslint . --config eslint.config.js --no-config-lookup",
-		"preview": "vite preview"
+		"preview": "vite preview",
+		"dev:monster-animations": "pnpm --filter @digivice/game sync-assets && vite --host --open /monster-animations.html"
 	},
 	"dependencies": {
 		"@digivice/game": "workspace:*",

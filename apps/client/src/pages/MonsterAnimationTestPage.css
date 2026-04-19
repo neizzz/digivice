@@ -1,0 +1,148 @@
+.monster-animation-test-page {
+  min-height: 100dvh;
+  box-sizing: border-box;
+  padding: 24px;
+  color: #f9f6df;
+  background:
+    radial-gradient(circle at top, rgba(75, 148, 255, 0.28), transparent 32%),
+    linear-gradient(180deg, #11131b 0%, #171d2d 100%);
+}
+
+.monster-animation-test-page * {
+  box-sizing: border-box;
+}
+
+.monster-animation-test-page__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin: 0 auto 24px;
+  max-width: 1440px;
+}
+
+.monster-animation-test-page__eyebrow {
+  margin: 0 0 8px;
+  font-size: 10px;
+  color: #f4d35e;
+}
+
+.monster-animation-test-page__header h1 {
+  margin: 0;
+  font-size: clamp(24px, 3vw, 40px);
+}
+
+.monster-animation-test-page__description {
+  max-width: 840px;
+  margin: 16px 0 0;
+  font-size: 12px;
+  line-height: 1.8;
+  color: rgba(249, 246, 223, 0.82);
+}
+
+.monster-animation-test-page__summary {
+  display: grid;
+  gap: 8px;
+  min-width: 220px;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  background: rgba(8, 10, 18, 0.42);
+  font-size: 11px;
+}
+
+.monster-animation-test-page__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 18px;
+  max-width: 1440px;
+  margin: 0 auto;
+}
+
+.monster-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  background: rgba(8, 10, 18, 0.52);
+  box-shadow: 0 18px 32px rgba(0, 0, 0, 0.24);
+}
+
+.monster-card--loading,
+.monster-card--error {
+  justify-content: center;
+  min-height: 280px;
+}
+
+.monster-card--error {
+  border-color: rgba(244, 96, 54, 0.5);
+}
+
+.monster-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.monster-card__header h2 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+.monster-card__header p,
+.monster-card__header span,
+.monster-card--loading p,
+.monster-card--error p {
+  margin: 0;
+  font-size: 10px;
+  color: rgba(249, 246, 223, 0.72);
+}
+
+.monster-card__animations {
+  display: grid;
+  gap: 12px;
+}
+
+.monster-card__animation-row {
+  display: grid;
+  grid-template-columns: 88px 1fr;
+  align-items: center;
+  gap: 16px;
+  min-height: 108px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.monster-card__label,
+.monster-card__missing {
+  font-size: 10px;
+  color: rgba(249, 246, 223, 0.84);
+}
+
+.monster-animation-frame {
+  width: 96px;
+  height: 96px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  image-rendering: pixelated;
+  background-repeat: no-repeat;
+  background-color: rgba(0, 0, 0, 0.18);
+}
+
+@media (max-width: 900px) {
+  .monster-animation-test-page {
+    padding: 16px;
+  }
+
+  .monster-animation-test-page__header {
+    flex-direction: column;
+  }
+
+  .monster-animation-test-page__summary {
+    width: 100%;
+  }
+}

@@ -16,6 +16,10 @@ export default defineConfig(({ mode }) => {
     readFileSync(resolve(__dirname, "package.json"), "utf-8"),
   ) as { version?: string };
   const appVersion = clientPackage.version ?? "unknown";
+  const htmlInputs = {
+    index: resolve(__dirname, "index.html"),
+    "monster-animations": resolve(__dirname, "monster-animations.html"),
+  };
   const appVersionLabel = isDebugBuild ? `${appVersion}-debug` : appVersion;
 
   return {
@@ -92,6 +96,7 @@ export default defineConfig(({ mode }) => {
           // Flutter debug asset bundle은 새로 추가된 해시 파일명을 즉시 인식하지 못할 수 있어
           // Flutter 자산 빌드에서는 파일명을 고정해 hot reload/restart 시 재로딩을 안정화합니다.
           rollupOptions: {
+            input: htmlInputs,
             output: {
               entryFileNames: "assets/[name].js",
               chunkFileNames: "assets/[name].js",
@@ -99,6 +104,10 @@ export default defineConfig(({ mode }) => {
             },
           },
         }
-      : undefined,
+      : {
+          rollupOptions: {
+            input: htmlInputs,
+          },
+        },
   };
 });
