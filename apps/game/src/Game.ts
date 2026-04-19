@@ -32,6 +32,7 @@ export type ShowSettingsCallback = (params: {
   onClose: () => void;
 }) => void;
 export type ShowAlertCallback = (message: string, title?: string) => void;
+export type TriggerBiteVibrationCallback = () => void;
 
 function createMainScenePositionBoundary(width: number, height: number) {
   return {
@@ -47,6 +48,7 @@ export class Game {
   public changeControlButtons: ControlButtonsChangeCallback;
   public showSettings: ShowSettingsCallback; // 설정 화면 표시 콜백
   public showAlert: ShowAlertCallback; // 팝업 콜백 추가
+  public triggerBiteVibration?: TriggerBiteVibrationCallback;
 
   private _parentElement: HTMLElement;
   private _debugParentElement: HTMLElement;
@@ -66,6 +68,7 @@ export class Game {
     changeControlButtons: ControlButtonsChangeCallback;
     showSettings: ShowSettingsCallback;
     showAlert: ShowAlertCallback; // 팝업 콜백 추가
+    triggerBiteVibration?: TriggerBiteVibrationCallback;
   }) {
     const {
       parentElement,
@@ -74,10 +77,12 @@ export class Game {
       changeControlButtons,
       showSettings,
       showAlert,
+      triggerBiteVibration,
     } = params;
     this.changeControlButtons = changeControlButtons;
     this.showSettings = showSettings; // 설정 화면 표시 콜백
     this.showAlert = showAlert; // 팝업 콜백 저장
+    this.triggerBiteVibration = triggerBiteVibration;
     this._createInitialGameData = onCreateInitialGameData;
 
     this.app = new PIXI.Application();
@@ -296,6 +301,7 @@ export class Game {
           startMiniGame: () => this.changeScene(SceneKey.FLAPPY_BIRD_GAME),
           createInitialGameData: this._createInitialGameData,
           changeControlButtons: this.changeControlButtons,
+          triggerBiteVibration: this.triggerBiteVibration,
         });
         await mainSceneWorld.init();
         return mainSceneWorld as unknown as Scene;

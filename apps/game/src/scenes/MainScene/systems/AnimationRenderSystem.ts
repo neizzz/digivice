@@ -26,11 +26,13 @@ const ANIMATION_KEY_TO_NAME: Record<AnimationKey, string> = {
 
 const animationQuery = defineQuery([AnimationRenderComp]);
 const exitedAnimationQuery = exitQuery(animationQuery);
+const EATING_BITE_FRAME_INDEX = 1;
 
 const spritesheetCache: Map<string, PIXI.Spritesheet> = new Map();
 const animatedSpriteStore = new ObjectStore<PIXI.AnimatedSprite>(
   "AnimatedSpriteStore"
 );
+const eatingFrameIndexTracker = new Map<number, number>();
 
 export function getAnimatedSpriteStore() {
   return animatedSpriteStore;
@@ -48,6 +50,7 @@ export function animationRenderSystem(params: {
   for (let i = 0; i < exitedEntities.length; i++) {
     const eid = exitedEntities[i];
     const animatedSprite = getAnimatedSprite(eid);
+    eatingFrameIndexTracker.delete(eid);
 
     if (animatedSprite && animatedSprite.parent) {
       stage.removeChild(animatedSprite);
@@ -92,9 +95,52 @@ export function animationRenderSystem(params: {
     // animatedSprite.scale.set(RenderComp.scale[eid]);
     renderCommonAttributes(eid, animatedSprite, world);
     updateAnimatedSprite(animatedSprite, eid);
+    handleEatingBiteVibration(world, eid, animatedSprite);
   }
 
   return params;
+}
+
+export function shouldTriggerEatingBiteVibration(params: {
+  animationKey: AnimationKey;
+  currentFrameIndex: number;
+  previousFrameIndex?: number;
+}): boolean {
+  const { animationKey, currentFrameIndex, previousFrameIndex } = params;
+
+  return (
+    animationKey === AnimationKey.EATING &&
+    currentFrameIndex === EATING_BITE_FRAME_INDEX &&
+    previousFrameIndex !== EATING_BITE_FRAME_INDEX
+  );
+}
+
+function handleEatingBiteVibration(
+  world: MainSceneWorld,
+  eid: number,
+  sprite: PIXI.AnimatedSprite,
+): void {
+  const animationKey = AnimationRenderComp.animationKey[eid] as AnimationKey;
+
+  if (animationKey !== AnimationKey.EATING) {
+    eatingFrameIndexTracker.delete(eid);
+    return;
+  }
+
+  const currentFrameIndex = sprite.currentFrame;
+  const previousFrameIndex = eatingFrameIndexTracker.get(eid);
+
+  if (
+    shouldTriggerEatingBiteVibration({
+      animationKey,
+      currentFrameIndex,
+      previousFrameIndex,
+    })
+  ) {
+    world.triggerBiteVibration();
+  }
+
+  eatingFrameIndexTracker.set(eid, currentFrameIndex);
 }
 
 function getSpritesheet(name: string): PIXI.Spritesheet | null {

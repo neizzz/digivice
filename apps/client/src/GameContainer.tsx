@@ -18,8 +18,10 @@ import SettingMenuLayer from "./layers/SettingMenuLayer";
 import useAlert from "./hooks/useAlert";
 import { getGameSettings, updateGameSettings } from "./settings/gameSettings";
 import { sanitizeStoredWorldData } from "./utils/sanitizeStoredWorldData";
+import { VibrationAdapter } from "./adapter/VibrationAdapter";
 
 const WORLD_DATA_STORAGE_KEY = "MainSceneWorldData";
+const biteVibrationAdapter = new VibrationAdapter();
 
 function waitForAnimationFrame(): Promise<void> {
   return new Promise((resolve) => {
@@ -260,6 +262,9 @@ const GameContainer: React.FC = () => {
       },
       showSettings: () => {
         openSettingMenu();
+      },
+      triggerBiteVibration: () => {
+        void biteVibrationAdapter.vibrate();
       },
       changeControlButtons: (controlButtonParams) => {
         setButtonParams((previous) => {

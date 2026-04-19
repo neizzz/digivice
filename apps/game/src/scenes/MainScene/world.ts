@@ -97,6 +97,7 @@ import {
   LoadSpritesheetOptions,
   loadSpritesheet,
 } from "../../utils/asset";
+import type { TriggerBiteVibrationCallback } from "../../Game";
 import { SPRITESHEET_KEY_TO_NAME } from "./systems/AnimationRenderSystem";
 import { Scene } from "../../interfaces/Scene";
 import {
@@ -310,6 +311,7 @@ export class MainSceneWorld implements IWorld, Scene {
       ControlButtonParams,
     ],
   ) => void;
+  private _triggerBiteVibration?: TriggerBiteVibrationCallback;
   private _isCleaningMode = false; // 청소 모드 상태
   private _previousCleaningMode = false; // 이전 청소 모드 상태 (진입 감지용)
   private _focusedTargetEid = -1; // 현재 포커스된 청소 대상 엔티티 ID
@@ -457,6 +459,7 @@ export class MainSceneWorld implements IWorld, Scene {
         ControlButtonParams,
       ],
     ) => void;
+    triggerBiteVibration?: TriggerBiteVibrationCallback;
   }) {
     this._stage = params.stage;
     this._positionBoundary = params.positionBoundary;
@@ -471,9 +474,14 @@ export class MainSceneWorld implements IWorld, Scene {
     this._startMiniGame = params.startMiniGame;
     this._createInitialGameData = params.createInitialGameData;
     this._changeControlButtons = params.changeControlButtons;
+    this._triggerBiteVibration = params.triggerBiteVibration;
 
     // MainScene용 초기 컨트롤 버튼 설정 (메뉴에 포커스가 없는 상태)
     this._updateControlButtonsForMenuState(false);
+  }
+
+  public triggerBiteVibration(): void {
+    this._triggerBiteVibration?.();
   }
 
   /**
