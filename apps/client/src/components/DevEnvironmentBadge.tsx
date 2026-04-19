@@ -37,7 +37,7 @@ export function DevEnvironmentBadge() {
       }}
       role="button"
       tabIndex={0}
-      title="환경 정보를 보려면 클릭하세요"
+      title="Click to view environment details"
     >
       <div
         style={{
@@ -47,10 +47,10 @@ export function DevEnvironmentBadge() {
           gap: "8px",
         }}
       >
-        <span>🖥️ PC 개발 모드</span>
+        <span>🖥️ PC Dev Mode</span>
         <span style={{ fontSize: "12px", opacity: 0.9 }}>
-          {isExpanded ? "▲" : "▼"} 클릭하여 정보{" "}
-          {isExpanded ? "접기" : "펼치기"}
+          {isExpanded ? "▲" : "▼"} click to{" "}
+          {isExpanded ? "collapse" : "expand"}
         </span>
       </div>
 
@@ -68,10 +68,10 @@ export function DevEnvironmentBadge() {
           }}
         >
           <div style={{ marginBottom: "8px" }}>
-            <strong>환경:</strong> 웹 브라우저 (Flutter 네이티브 앱 아님)
+            <strong>Environment:</strong> Web browser (not a Flutter native app)
           </div>
           <div style={{ marginBottom: "8px" }}>
-            <strong>플랫폼:</strong> {platformAdapter.getPlatformName()}
+            <strong>Platform:</strong> {platformAdapter.getPlatformName()}
           </div>
           <div style={{ marginBottom: "8px" }}>
             <strong>User Agent:</strong>
@@ -90,9 +90,9 @@ export function DevEnvironmentBadge() {
             </div>
           </div>
           <div style={{ marginTop: "12px", opacity: 0.8, fontSize: "11px" }}>
-            ⚠️ 네이티브 기능(NFC 등)은 이 환경에서 동작하지 않습니다.
+            ⚠️ Native-only features such as NFC do not work in this environment.
             <br />
-            네이티브 기능 테스트는 Flutter 앱에서 진행하세요.
+            Use the Flutter app to test native features.
           </div>
         </div>
       )}

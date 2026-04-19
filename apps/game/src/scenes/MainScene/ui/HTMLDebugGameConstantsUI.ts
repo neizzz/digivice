@@ -178,7 +178,7 @@ export class HTMLDebugGameConstantsUI {
     `;
 
     const description = document.createElement("div");
-    description.textContent = "dev 빌드에서 적용 중인 현재 값";
+    description.textContent = "Current values applied in the dev build";
     description.style.cssText = `
       margin-top: 2px;
       font-size: 10px;

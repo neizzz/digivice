@@ -42,16 +42,16 @@ export type TimeOfDayTone = {
 
 export const TIME_OF_DAY_TONES: Record<TimeOfDay, TimeOfDayTone> = {
   [TimeOfDay.Day]: {
-    label: "낮",
+    label: "Day",
   },
   [TimeOfDay.Sunrise]: {
-    label: "일출",
+    label: "Sunrise",
   },
   [TimeOfDay.Sunset]: {
-    label: "일몰",
+    label: "Sunset",
   },
   [TimeOfDay.Night]: {
-    label: "밤",
+    label: "Night",
   },
 };
 

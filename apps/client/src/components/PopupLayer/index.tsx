@@ -11,12 +11,12 @@ interface PopupProps {
 }
 
 const PopupLayer: React.FC<PopupProps> = ({
-  title = "알림!",
+  title = "Alert!",
   content,
   onConfirm,
   onCancel,
-  confirmText = "확인",
-  cancelText = "취소",
+  confirmText = "Confirm",
+  cancelText = "Cancel",
 }) => {
   const layerInteractionVibrationProps = useLayerInteractionVibration();
 

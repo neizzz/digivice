@@ -5,7 +5,7 @@ import {
   measureNameLabelWidth,
   NAME_LABEL_MAX_WIDTH,
 } from "@digivice/game";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { createPortal } from "react-dom";
 import PopupLayer from "../components/PopupLayer";
 
@@ -13,6 +13,7 @@ const MIN_NAME_LENGTH = 2;
 
 export type SetupFormData = {
   name: string;
+  useLocalTime: boolean;
 };
 
 export interface SetupLayerProps {
@@ -21,26 +22,94 @@ export interface SetupLayerProps {
 
 export const SetupLayer: React.FC<SetupLayerProps> = ({ onComplete }) => {
   const [name, setName] = useState("");
+  const [useLocalTime, setUseLocalTime] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [localTimeError, setLocalTimeError] = useState<string | null>(null);
+  const [isRequestingLocationPermission, setIsRequestingLocationPermission] =
+    useState(false);
   const trimmedName = name.trim();
   const nameLength = countDisplayCharacters(trimmedName);
   const nameWidth = measureNameLabelWidth(trimmedName);
   const isWithinVisibleWidth = fitsNameLabelWidth(trimmedName);
 
+  const ensureLocationPermissionForLocalTime = useCallback(async () => {
+    if (typeof window === "undefined" || !window.sunController) {
+      setLocalTimeError(
+        "Local day/night time is only available in the native app.",
+      );
+      return false;
+    }
+
+    try {
+      const sunTimes = await window.sunController.getSunTimes(false);
+      if (sunTimes?.hasLocationPermission) {
+        return true;
+      }
+    } catch (permissionCheckError) {
+      console.warn(
+        "[SetupLayer] Failed to check location permission state:",
+        permissionCheckError,
+      );
+    }
+
+    setIsRequestingLocationPermission(true);
+
+    try {
+      const result = await window.sunController.requestLocationPermission();
+      if (result?.granted) {
+        return true;
+      }
+
+      setLocalTimeError(
+        "Location permission is required to enable local day/night time.",
+      );
+      return false;
+    } catch (permissionRequestError) {
+      console.warn(
+        "[SetupLayer] Failed to request location permission:",
+        permissionRequestError,
+      );
+      setLocalTimeError("Failed to request location permission.");
+      return false;
+    } finally {
+      setIsRequestingLocationPermission(false);
+    }
+  }, []);
+
+  const handleUseLocalTimeChange = useCallback(
+    async (checked: boolean) => {
+      setLocalTimeError(null);
+
+      if (!checked) {
+        setUseLocalTime(false);
+        return;
+      }
+
+      const granted = await ensureLocationPermissionForLocalTime();
+      setUseLocalTime(granted);
+    },
+    [ensureLocationPermissionForLocalTime],
+  );
+
   const handleConfirm = () => {
+    if (isRequestingLocationPermission) {
+      setError("Please wait for the location permission request to finish.");
+      return;
+    }
+
     if (!trimmedName) {
-      setError("닉네임을 입력해주세요!");
+      setError("Please enter a name.");
       return;
     }
 
     if (nameLength < MIN_NAME_LENGTH) {
-      setError(`닉네임은 최소 ${MIN_NAME_LENGTH}글자 이상 입력해주세요!`);
+      setError(`Name must be at least ${MIN_NAME_LENGTH} characters long.`);
       return;
     }
 
     if (!isWithinVisibleWidth) {
       setError(
-        `닉네임은 게임 화면 이름표 기준 ${NAME_LABEL_MAX_WIDTH}px 안에 들어와야 해요!`,
+        `Name must fit within ${NAME_LABEL_MAX_WIDTH}px on the in-game label.`,
       );
       return;
     }
@@ -52,6 +121,7 @@ export const SetupLayer: React.FC<SetupLayerProps> = ({ onComplete }) => {
     // 닉네임 유효성 검사 통과 시 완료 콜백 호출
     onComplete({
       name: trimmedName,
+      useLocalTime,
     });
   };
 
@@ -84,6 +154,42 @@ export const SetupLayer: React.FC<SetupLayerProps> = ({ onComplete }) => {
                   {error}
                 </p>
               )}
+            </div>
+            <div className="w-full border-t border-[#222]/20 pt-4 text-left">
+              <label className="flex items-start gap-3 text-xs text-[#222]">
+                <input
+                  type="checkbox"
+                  checked={useLocalTime}
+                  disabled={isRequestingLocationPermission}
+                  onChange={(e) => {
+                    setError(null);
+                    void handleUseLocalTimeChange(e.target.checked);
+                  }}
+                  className="mt-0.5 h-4 w-4 min-h-4 min-w-4 shrink-0 flex-none appearance-none bg-center bg-no-repeat bg-contain cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+                  style={{
+                    backgroundImage: `url("${
+                      useLocalTime
+                        ? "/assets/ui/checkbox.png"
+                        : "/assets/ui/checkbox_off.png"
+                    }")`,
+                  }}
+                />
+                <span className="leading-5">
+                  <span className="block font-semibold">
+                    Use local day/night time
+                  </span>
+                  {isRequestingLocationPermission && (
+                    <span className="mt-1 block text-[0.92em] text-gray-600">
+                      Requesting location permission...
+                    </span>
+                  )}
+                  {localTimeError && (
+                    <span className="mt-1 block text-[0.92em] text-red-600">
+                      {localTimeError}
+                    </span>
+                  )}
+                </span>
+              </label>
             </div>
           </div>
         }

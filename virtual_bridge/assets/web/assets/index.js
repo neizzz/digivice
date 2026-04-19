@@ -46237,6 +46237,22 @@ var AnimationKey = ((AnimationKey2) => {
   AnimationKey2[AnimationKey2["FLY"] = 6] = "FLY";
   return AnimationKey2;
 })(AnimationKey || {});
+var SleepMode = /* @__PURE__ */ ((SleepMode2) => {
+  SleepMode2[SleepMode2["AWAKE"] = 0] = "AWAKE";
+  SleepMode2[SleepMode2["NIGHT_SLEEP"] = 1] = "NIGHT_SLEEP";
+  SleepMode2[SleepMode2["DAY_NAP"] = 2] = "DAY_NAP";
+  SleepMode2[SleepMode2["INTERRUPTED_AWAKE"] = 3] = "INTERRUPTED_AWAKE";
+  return SleepMode2;
+})(SleepMode || {});
+var SleepReason = /* @__PURE__ */ ((SleepReason2) => {
+  SleepReason2[SleepReason2["NONE"] = 0] = "NONE";
+  SleepReason2[SleepReason2["NIGHT"] = 1] = "NIGHT";
+  SleepReason2[SleepReason2["RESLEEP"] = 2] = "RESLEEP";
+  SleepReason2[SleepReason2["NAP"] = 3] = "NAP";
+  SleepReason2[SleepReason2["SUNRISE"] = 4] = "SUNRISE";
+  SleepReason2[SleepReason2["NIGHT_INTERRUPT"] = 5] = "NIGHT_INTERRUPT";
+  return SleepReason2;
+})(SleepReason || {});
 var TextureKey = ((TextureKey2) => {
   TextureKey2[TextureKey2["NULL"] = 0] = "NULL";
   TextureKey2[TextureKey2["BIRD"] = 100] = "BIRD";
@@ -46441,6 +46457,17 @@ const DiseaseSystemComp = defineComponent({
   sickStartTime: Types.f64
   // 질병 시작 시간 (timestamp) - 기록용
 });
+const SleepSystemComp = defineComponent({
+  fatigue: Types.f32,
+  nextSleepTime: Types.f64,
+  nextWakeTime: Types.f64,
+  nextNapCheckTime: Types.f64,
+  nextNightWakeCheckTime: Types.f64,
+  sleepMode: Types.ui8,
+  pendingSleepReason: Types.ui8,
+  pendingWakeReason: Types.ui8,
+  sleepSessionStartedAt: Types.f64
+});
 const FreshnessTimerComp = defineComponent({
   createdTime: Types.f64,
   // 음식이 생성된 시간 (timestamp)
@@ -46611,6 +46638,28 @@ const GAME_CONSTANTS = {
   STAMINA_DECREASE_INTERVAL: 3e4,
   // 30초마다 스테미나 감소
   STAMINA_DECREASE_AMOUNT: 1,
+  // 수면 관련
+  NIGHT_SLEEP_MIN_DELAY: 10 * 1e3,
+  NIGHT_SLEEP_MAX_DELAY: 60 * 1e3,
+  SUNRISE_WAKE_MIN_DELAY: 10 * 1e3,
+  SUNRISE_WAKE_MAX_DELAY: 60 * 1e3,
+  NIGHT_RESLEEP_MIN_DELAY: 10 * 1e3,
+  NIGHT_RESLEEP_MAX_DELAY: 30 * 1e3,
+  DAY_NAP_CHANCE: 0.6,
+  DAY_NAP_CHECK_INTERVAL: 20 * 1e3,
+  NIGHT_WAKE_CHANCE: 0.3,
+  NIGHT_WAKE_CHECK_INTERVAL: 15 * 1e3,
+  DAY_NAP_MIN_DURATION: 10 * 1e3,
+  DAY_NAP_MAX_DURATION: 30 * 1e3,
+  FATIGUE_MAX: 100,
+  FATIGUE_DEFAULT: 35,
+  FATIGUE_AWAKE_GAIN_PER_HOUR: 1800,
+  FATIGUE_SLEEP_RECOVERY_PER_HOUR: 2400,
+  FATIGUE_SLEEP_RECOVERY_PER_HOUR_WHEN_SICK: 800,
+  FATIGUE_DAY_NAP_MIN_THRESHOLD: 55,
+  FATIGUE_DAY_NAP_WAKE_THRESHOLD: 28,
+  SLEEPING_STAMINA_DECAY_MULTIPLIER: 0.1,
+  SLEEPING_DISEASE_RATE_MULTIPLIER: 0.1,
   // 진화 게이지 관련
   EVOLUTION_GAUGE_STATMINA_THRESHOLD: 5,
   // 스테미나 5 이상일 때 진화 게이지 증가
@@ -46745,6 +46794,19 @@ function convertECSEntityToSavedEntity(world, eid) {
     components.diseaseSystem = {
       nextCheckTime: DiseaseSystemComp.nextCheckTime[eid],
       sickStartTime: DiseaseSystemComp.sickStartTime[eid]
+    };
+  }
+  if (hasComponent(world, SleepSystemComp, eid)) {
+    components.sleepSystem = {
+      fatigue: +SleepSystemComp.fatigue[eid].toFixed(2),
+      nextSleepTime: SleepSystemComp.nextSleepTime[eid],
+      nextWakeTime: SleepSystemComp.nextWakeTime[eid],
+      nextNapCheckTime: SleepSystemComp.nextNapCheckTime[eid],
+      nextNightWakeCheckTime: SleepSystemComp.nextNightWakeCheckTime[eid],
+      sleepMode: SleepSystemComp.sleepMode[eid],
+      pendingSleepReason: SleepSystemComp.pendingSleepReason[eid],
+      pendingWakeReason: SleepSystemComp.pendingWakeReason[eid],
+      sleepSessionStartedAt: SleepSystemComp.sleepSessionStartedAt[eid]
     };
   }
   if (hasComponent(world, VitalityComp, eid)) {
@@ -46904,6 +46966,20 @@ function applySavedEntityToECS(world, eid, savedEntity) {
     DiseaseSystemComp.nextCheckTime[eid] = components.diseaseSystem.nextCheckTime;
     DiseaseSystemComp.sickStartTime[eid] = components.diseaseSystem.sickStartTime;
   }
+  if (components.sleepSystem) {
+    if (!hasComponent(world, SleepSystemComp, eid)) {
+      addComponent(world, SleepSystemComp, eid);
+    }
+    SleepSystemComp.fatigue[eid] = components.sleepSystem.fatigue;
+    SleepSystemComp.nextSleepTime[eid] = components.sleepSystem.nextSleepTime;
+    SleepSystemComp.nextWakeTime[eid] = components.sleepSystem.nextWakeTime;
+    SleepSystemComp.nextNapCheckTime[eid] = components.sleepSystem.nextNapCheckTime;
+    SleepSystemComp.nextNightWakeCheckTime[eid] = components.sleepSystem.nextNightWakeCheckTime;
+    SleepSystemComp.sleepMode[eid] = components.sleepSystem.sleepMode;
+    SleepSystemComp.pendingSleepReason[eid] = components.sleepSystem.pendingSleepReason;
+    SleepSystemComp.pendingWakeReason[eid] = components.sleepSystem.pendingWakeReason;
+    SleepSystemComp.sleepSessionStartedAt[eid] = components.sleepSystem.sleepSessionStartedAt;
+  }
   if (components.vitality) {
     if (!hasComponent(world, VitalityComp, eid)) {
       addComponent(world, VitalityComp, eid);
@@ -46949,7 +47025,7 @@ function repairCharacterEntityRuntimeComponents(world, eid, now = Date.now()) {
   const repaired = [];
   const state = ObjectComp.state[eid];
   const needsAnimation = state !== CharacterState.EGG && state !== CharacterState.DEAD;
-  const needsRandomMovement2 = state === CharacterState.IDLE || state === CharacterState.MOVING || state === CharacterState.SLEEPING;
+  const needsRandomMovement2 = state === CharacterState.IDLE || state === CharacterState.MOVING;
   if (!hasComponent(world, SpeedComp, eid)) {
     addComponent(world, SpeedComp, eid);
     SpeedComp.value[eid] = 0;
@@ -46983,6 +47059,19 @@ function repairCharacterEntityRuntimeComponents(world, eid, now = Date.now()) {
     DiseaseSystemComp.nextCheckTime[eid] = now + GAME_CONSTANTS.DISEASE_CHECK_INTERVAL;
     DiseaseSystemComp.sickStartTime[eid] = 0;
     repaired.push("DiseaseSystemComp");
+  }
+  if (!hasComponent(world, SleepSystemComp, eid)) {
+    addComponent(world, SleepSystemComp, eid);
+    SleepSystemComp.fatigue[eid] = GAME_CONSTANTS.FATIGUE_DEFAULT;
+    SleepSystemComp.nextSleepTime[eid] = 0;
+    SleepSystemComp.nextWakeTime[eid] = 0;
+    SleepSystemComp.nextNapCheckTime[eid] = now + GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL;
+    SleepSystemComp.nextNightWakeCheckTime[eid] = 0;
+    SleepSystemComp.sleepMode[eid] = state === CharacterState.SLEEPING ? SleepMode.NIGHT_SLEEP : SleepMode.AWAKE;
+    SleepSystemComp.pendingSleepReason[eid] = SleepReason.NONE;
+    SleepSystemComp.pendingWakeReason[eid] = SleepReason.NONE;
+    SleepSystemComp.sleepSessionStartedAt[eid] = state === CharacterState.SLEEPING ? now : 0;
+    repaired.push("SleepSystemComp");
   }
   if (!hasComponent(world, VitalityComp, eid)) {
     addComponent(world, VitalityComp, eid);
@@ -47022,7 +47111,7 @@ function repairCharacterEntityRuntimeComponents(world, eid, now = Date.now()) {
   }
   return repaired;
 }
-const characterQuery$9 = defineQuery([CharacterStatusComp, RandomMovementComp]);
+const characterQuery$a = defineQuery([CharacterStatusComp, RandomMovementComp]);
 const allCharacterQuery = defineQuery([CharacterStatusComp, ObjectComp]);
 function hasDirectedMovement(world, eid) {
   return hasComponent(world, DestinationComp, eid) && DestinationComp.type[eid] === DestinationType.TARGETED && DestinationComp.target[eid] !== 0;
@@ -47030,13 +47119,13 @@ function hasDirectedMovement(world, eid) {
 function randomMovementSystem(params) {
   const { world } = params;
   const currentTime = world.currentTime;
-  const shouldLog = !world.isSimulationMode;
-  const chars = characterQuery$9(world);
+  const shouldLog = !world.isSimulationMode && world.isRandomMovementDebugEnabled();
+  const chars = characterQuery$a(world);
   const allChars = allCharacterQuery(world);
   for (let i2 = 0; i2 < allChars.length; i2++) {
     const eid = allChars[i2];
     const state = ObjectComp.state[eid];
-    const shouldHaveRandomMovement = state === CharacterState.IDLE || state === CharacterState.MOVING || state === CharacterState.SLEEPING;
+    const shouldHaveRandomMovement = state === CharacterState.IDLE || state === CharacterState.MOVING;
     if (shouldHaveRandomMovement && !hasComponent(world, RandomMovementComp, eid) && !hasDirectedMovement(world, eid)) {
       const repaired = repairCharacterEntityRuntimeComponents(
         world,
@@ -47051,7 +47140,7 @@ function randomMovementSystem(params) {
   if (shouldLog && Math.floor(currentTime / 3e3) !== Math.floor((currentTime - 100) / 3e3)) {
     const suspiciousChars = allChars.filter((eid) => {
       const state = ObjectComp.state[eid];
-      const shouldHaveRandomMovement = state === CharacterState.IDLE || state === CharacterState.MOVING || state === CharacterState.SLEEPING;
+      const shouldHaveRandomMovement = state === CharacterState.IDLE || state === CharacterState.MOVING;
       return shouldHaveRandomMovement && !hasComponent(world, RandomMovementComp, eid) && !hasDirectedMovement(world, eid);
     });
     console.log(
@@ -48093,6 +48182,8 @@ function updateAnimatedSprite(sprite, eid) {
     sprite.stop();
   }
 }
+const DEFAULT_ANIMATION_SPEED = 0.04;
+const SLEEPING_ANIMATION_SPEED = DEFAULT_ANIMATION_SPEED / 2;
 const CHARACTER_STATE_TO_ANIMATION_KEY = {
   [CharacterState.EGG]: AnimationKey.NULL,
   [CharacterState.IDLE]: AnimationKey.IDLE,
@@ -48121,8 +48212,12 @@ function updateCharacterAnimationStates(world) {
     const currentState = ObjectComp.state[eid];
     const requiredAnimation = CHARACTER_STATE_TO_ANIMATION_KEY[currentState];
     const currentAnimation = AnimationRenderComp.animationKey[eid];
+    const requiredSpeed = getAnimationSpeedForState(currentState);
     if (currentAnimation !== requiredAnimation) {
       changeAnimation(eid, requiredAnimation);
+    }
+    if (AnimationRenderComp.speed[eid] !== requiredSpeed) {
+      AnimationRenderComp.speed[eid] = requiredSpeed;
     }
   }
 }
@@ -48134,6 +48229,12 @@ function changeAnimation(eid, animationKey) {
       `[AnimationStateSystem] Changed animation to ${AnimationKey[animationKey]} for entity ${eid}`
     );
   }
+}
+function getAnimationSpeedForState(state) {
+  if (state === CharacterState.SLEEPING) {
+    return SLEEPING_ANIMATION_SPEED;
+  }
+  return DEFAULT_ANIMATION_SPEED;
 }
 function getEffectiveCharacterZIndex(eid) {
   const configuredZIndex = RenderComp.zIndex[eid];
@@ -48334,35 +48435,554 @@ function statusIconRenderSystem(params) {
   }
   return params;
 }
-const characterQuery$8 = defineQuery([ObjectComp, PositionComp, RenderComp]);
-const characterExitQuery$1 = exitQuery(characterQuery$8);
+const NAME_LABEL_MAX_WIDTH = 80;
+const NAME_LABEL_FONT_FAMILIES = [
+  "Press Start 2P",
+  "Apple Color Emoji",
+  "Segoe UI Emoji",
+  "Noto Color Emoji",
+  "sans-serif"
+];
+const NAME_LABEL_FONT_SIZE = 10;
+const NAME_LABEL_FONT_WEIGHT = 400;
+const NAME_LABEL_STROKE_WIDTH = 3;
+const NAME_LABEL_FILL_COLOR = 16777215;
+const NAME_LABEL_STROKE_COLOR = 0;
+let measurementContext$1;
+function countDisplayCharacters(value) {
+  return splitDisplayCharacters(value).length;
+}
+function splitDisplayCharacters(value) {
+  const IntlWithSegmenter = Intl;
+  const SegmenterCtor = IntlWithSegmenter.Segmenter;
+  if (SegmenterCtor) {
+    return Array.from(
+      new SegmenterCtor(void 0, { granularity: "grapheme" }).segment(value),
+      (item) => item.segment
+    );
+  }
+  return Array.from(value);
+}
+function measureNameLabelWidth(value) {
+  if (!value) {
+    return 0;
+  }
+  const context2 = getMeasurementContext$1();
+  if (!context2) {
+    return splitDisplayCharacters(value).length * NAME_LABEL_FONT_SIZE + NAME_LABEL_STROKE_WIDTH * 2;
+  }
+  context2.font = `${NAME_LABEL_FONT_WEIGHT} ${NAME_LABEL_FONT_SIZE}px ${toCanvasFontFamilyList(
+    NAME_LABEL_FONT_FAMILIES
+  )}`;
+  return context2.measureText(value).width + NAME_LABEL_STROKE_WIDTH * 2;
+}
+function fitsNameLabelWidth(value, maxWidth = NAME_LABEL_MAX_WIDTH) {
+  return measureNameLabelWidth(value) <= maxWidth;
+}
+function truncateNameLabelToWidth(value, maxWidth = NAME_LABEL_MAX_WIDTH) {
+  if (!value || fitsNameLabelWidth(value, maxWidth)) {
+    return value;
+  }
+  const graphemes = splitDisplayCharacters(value);
+  const ellipsis = "…";
+  if (measureNameLabelWidth(ellipsis) > maxWidth) {
+    return "";
+  }
+  let truncated = "";
+  for (let i2 = 0; i2 < graphemes.length; i2++) {
+    const nextValue = `${truncated}${graphemes[i2]}`;
+    const candidate = `${nextValue}${ellipsis}`;
+    if (!fitsNameLabelWidth(candidate, maxWidth)) {
+      return truncated ? `${truncated}${ellipsis}` : ellipsis;
+    }
+    truncated = nextValue;
+  }
+  return truncated;
+}
+function getMeasurementContext$1() {
+  if (measurementContext$1 !== void 0) {
+    return measurementContext$1;
+  }
+  if (typeof document === "undefined") {
+    measurementContext$1 = null;
+    return measurementContext$1;
+  }
+  const canvas = document.createElement("canvas");
+  measurementContext$1 = canvas.getContext("2d");
+  return measurementContext$1;
+}
+function toCanvasFontFamilyList(fontFamilies) {
+  return fontFamilies.map(
+    (fontFamily) => fontFamily.includes(" ") ? `"${fontFamily}"` : fontFamily
+  ).join(", ");
+}
+const OPAQUE_BOUNDS_PADDING_PX = 2;
+const characterOpaqueBoundsCache = /* @__PURE__ */ new Map();
+const textureOpaqueBoundsCache = /* @__PURE__ */ new Map();
+const inFlightOpaqueBounds = /* @__PURE__ */ new Map();
+let measurementCanvas;
+let measurementContext;
+function getCachedCharacterOpaqueBounds(characterKey) {
+  return characterOpaqueBoundsCache.get(characterKey) ?? null;
+}
+function getCachedTextureOpaqueBounds(textureKey) {
+  return textureOpaqueBoundsCache.get(textureKey) ?? null;
+}
+async function ensureCharacterOpaqueBoundsComputed(characterKey) {
+  if (characterKey === CharacterKeyECS.NULL) {
+    return null;
+  }
+  const cached = characterOpaqueBoundsCache.get(characterKey);
+  if (cached) {
+    return cached;
+  }
+  const spritesheetOptions = getCharacterSpritesheetOptions(
+    characterKey
+  );
+  if (!spritesheetOptions) {
+    return null;
+  }
+  const alias = spritesheetOptions.alias ?? spritesheetOptions.jsonPath;
+  if (!isSpritesheetLoaded(alias)) {
+    return null;
+  }
+  const spritesheet = Assets.get(alias);
+  if (!(spritesheet instanceof Spritesheet)) {
+    return null;
+  }
+  const idleTextureEntry = resolveIdleTextureEntry(spritesheet);
+  if (!idleTextureEntry) {
+    return null;
+  }
+  return ensureOpaqueBoundsComputed({
+    cacheKey: `character:${characterKey}`,
+    getCached: () => characterOpaqueBoundsCache.get(characterKey) ?? null,
+    setCached: (bounds) => {
+      characterOpaqueBoundsCache.set(characterKey, bounds);
+    },
+    texture: idleTextureEntry.texture,
+    alias,
+    frameName: idleTextureEntry.frameName
+  });
+}
+async function ensureTextureOpaqueBoundsComputed(textureKey) {
+  var _a;
+  if (textureKey <= 0) {
+    return null;
+  }
+  const cached = textureOpaqueBoundsCache.get(textureKey);
+  if (cached) {
+    return cached;
+  }
+  if (!isTextureKeyLoaded(textureKey)) {
+    return null;
+  }
+  const textureInfo = getTextureInfo(textureKey);
+  if (!(textureInfo == null ? void 0 : textureInfo.spritesheetAlias)) {
+    return null;
+  }
+  const spritesheet = Assets.get(
+    textureInfo.spritesheetAlias
+  );
+  if (!(spritesheet instanceof Spritesheet)) {
+    return null;
+  }
+  const texture = (_a = spritesheet.textures) == null ? void 0 : _a[textureInfo.textureName];
+  if (!texture) {
+    return null;
+  }
+  return ensureOpaqueBoundsComputed({
+    cacheKey: `texture:${textureKey}`,
+    getCached: () => textureOpaqueBoundsCache.get(textureKey) ?? null,
+    setCached: (bounds) => {
+      textureOpaqueBoundsCache.set(textureKey, bounds);
+    },
+    texture,
+    alias: textureInfo.spritesheetAlias,
+    frameName: textureInfo.textureName
+  });
+}
+async function precomputeLoadedCharacterOpaqueBounds() {
+  const characterKeys = Object.values(CharacterKeyECS).filter(
+    (value) => typeof value === "number" && value !== CharacterKeyECS.NULL
+  );
+  await Promise.all(
+    characterKeys.map(async (characterKey) => {
+      const spritesheetOptions = getCharacterSpritesheetOptions(characterKey);
+      if (!spritesheetOptions) {
+        return;
+      }
+      const alias = spritesheetOptions.alias ?? spritesheetOptions.jsonPath;
+      if (!isSpritesheetLoaded(alias)) {
+        return;
+      }
+      await ensureCharacterOpaqueBoundsComputed(characterKey);
+    })
+  );
+}
+async function precomputeLoadedTextureOpaqueBounds(textureKeys) {
+  await Promise.all(
+    textureKeys.map(async (textureKey) => {
+      if (!isTextureKeyLoaded(textureKey)) {
+        return;
+      }
+      await ensureTextureOpaqueBoundsComputed(textureKey);
+    })
+  );
+}
+function resolveIdleTextureEntry(spritesheet) {
+  var _a, _b;
+  const idleAnimation = (_a = spritesheet.animations) == null ? void 0 : _a.idle;
+  if (idleAnimation && idleAnimation.length > 0) {
+    const texture2 = idleAnimation[0];
+    const frameName2 = findTextureNameByReference(spritesheet, texture2) ?? "idle:first";
+    return { texture: texture2, frameName: frameName2 };
+  }
+  const idleTexture = (_b = spritesheet.textures) == null ? void 0 : _b.idle_0;
+  if (idleTexture) {
+    return { texture: idleTexture, frameName: "idle_0" };
+  }
+  const textureEntries = Object.entries(spritesheet.textures ?? {});
+  if (textureEntries.length === 0) {
+    return null;
+  }
+  const [frameName, texture] = textureEntries[0];
+  return { texture, frameName };
+}
+function findTextureNameByReference(spritesheet, targetTexture) {
+  const textureEntries = Object.entries(spritesheet.textures ?? {});
+  for (let i2 = 0; i2 < textureEntries.length; i2++) {
+    const [frameName, texture] = textureEntries[i2];
+    if (texture === targetTexture) {
+      return frameName;
+    }
+  }
+  return null;
+}
+function computeOpaqueBoundsFromTexture(texture, sourceKey, alias, frameName) {
+  var _a, _b;
+  const context2 = getMeasurementContext();
+  if (!context2) {
+    return null;
+  }
+  const sourceResource = getTextureCanvasSource(texture);
+  if (!sourceResource) {
+    return null;
+  }
+  const resolution = texture.source.resolution ?? texture.source._resolution ?? 1;
+  const frame = texture.frame;
+  const frameWidth = Math.max(1, Math.round(frame.width));
+  const frameHeight = Math.max(1, Math.round(frame.height));
+  const sourceWidth = Math.max(1, Math.round(texture.orig.width || frame.width));
+  const sourceHeight = Math.max(
+    1,
+    Math.round(texture.orig.height || frame.height)
+  );
+  const trimX = Math.round(((_a = texture.trim) == null ? void 0 : _a.x) ?? 0);
+  const trimY = Math.round(((_b = texture.trim) == null ? void 0 : _b.y) ?? 0);
+  measurementCanvas.width = frameWidth;
+  measurementCanvas.height = frameHeight;
+  context2.clearRect(0, 0, frameWidth, frameHeight);
+  context2.drawImage(
+    sourceResource,
+    Math.round(frame.x * resolution),
+    Math.round(frame.y * resolution),
+    Math.max(1, Math.round(frame.width * resolution)),
+    Math.max(1, Math.round(frame.height * resolution)),
+    0,
+    0,
+    frameWidth,
+    frameHeight
+  );
+  const imageData = context2.getImageData(0, 0, frameWidth, frameHeight);
+  const scanResult = scanOpaquePixels(imageData.data, frameWidth, frameHeight);
+  if (!scanResult) {
+    return createFullFrameBounds({
+      sourceKey,
+      alias,
+      frameName,
+      sourceWidth,
+      sourceHeight,
+      trimX,
+      trimY,
+      frameWidth,
+      frameHeight
+    });
+  }
+  const minXInSource = trimX + scanResult.minX;
+  const maxXExclusiveInSource = trimX + scanResult.maxX + 1;
+  const minYInSource = trimY + scanResult.minY;
+  const maxYExclusiveInSource = trimY + scanResult.maxY + 1;
+  const paddedMinXInSource = Math.max(
+    0,
+    minXInSource - OPAQUE_BOUNDS_PADDING_PX
+  );
+  const paddedMaxXExclusiveInSource = Math.min(
+    sourceWidth,
+    maxXExclusiveInSource + OPAQUE_BOUNDS_PADDING_PX
+  );
+  const paddedMinYInSource = Math.max(
+    0,
+    minYInSource - OPAQUE_BOUNDS_PADDING_PX
+  );
+  const paddedMaxYExclusiveInSource = Math.min(
+    sourceHeight,
+    maxYExclusiveInSource + OPAQUE_BOUNDS_PADDING_PX
+  );
+  const left = paddedMinXInSource - sourceWidth / 2;
+  const right = paddedMaxXExclusiveInSource - sourceWidth / 2;
+  const top = paddedMinYInSource - sourceHeight / 2;
+  const bottom = paddedMaxYExclusiveInSource - sourceHeight / 2;
+  return {
+    sourceKey,
+    alias,
+    frameName,
+    sourceWidth,
+    sourceHeight,
+    left,
+    right,
+    top,
+    bottom,
+    width: right - left,
+    height: bottom - top
+  };
+}
+function createFullFrameBounds(params) {
+  const {
+    sourceKey,
+    alias,
+    frameName,
+    sourceWidth,
+    sourceHeight,
+    trimX,
+    trimY,
+    frameWidth,
+    frameHeight
+  } = params;
+  const left = trimX - sourceWidth / 2;
+  const right = trimX + frameWidth - sourceWidth / 2;
+  const top = trimY - sourceHeight / 2;
+  const bottom = trimY + frameHeight - sourceHeight / 2;
+  return {
+    sourceKey,
+    alias,
+    frameName,
+    sourceWidth,
+    sourceHeight,
+    left,
+    right,
+    top,
+    bottom,
+    width: right - left,
+    height: bottom - top
+  };
+}
+async function ensureOpaqueBoundsComputed(params) {
+  const cached = params.getCached();
+  if (cached) {
+    return cached;
+  }
+  const existingPromise = inFlightOpaqueBounds.get(params.cacheKey);
+  if (existingPromise) {
+    return existingPromise;
+  }
+  const computePromise = (async () => {
+    try {
+      const bounds = computeOpaqueBoundsFromTexture(
+        params.texture,
+        params.cacheKey,
+        params.alias,
+        params.frameName
+      );
+      if (bounds) {
+        params.setCached(bounds);
+      }
+      return bounds;
+    } finally {
+      inFlightOpaqueBounds.delete(params.cacheKey);
+    }
+  })();
+  inFlightOpaqueBounds.set(params.cacheKey, computePromise);
+  return computePromise;
+}
+function scanOpaquePixels(data, width, height) {
+  let minX = width;
+  let minY = height;
+  let maxX = -1;
+  let maxY = -1;
+  for (let y2 = 0; y2 < height; y2++) {
+    for (let x2 = 0; x2 < width; x2++) {
+      const alphaIndex = (y2 * width + x2) * 4 + 3;
+      if (data[alphaIndex] <= 0) {
+        continue;
+      }
+      if (x2 < minX) minX = x2;
+      if (y2 < minY) minY = y2;
+      if (x2 > maxX) maxX = x2;
+      if (y2 > maxY) maxY = y2;
+    }
+  }
+  if (maxX < minX || maxY < minY) {
+    return null;
+  }
+  return { minX, minY, maxX, maxY };
+}
+function getMeasurementContext() {
+  if (measurementContext !== void 0) {
+    return measurementContext;
+  }
+  if (typeof document === "undefined") {
+    measurementCanvas = null;
+    measurementContext = null;
+    return measurementContext;
+  }
+  measurementCanvas = document.createElement("canvas");
+  measurementContext = measurementCanvas.getContext("2d", {
+    willReadFrequently: true
+  });
+  return measurementContext;
+}
+function getTextureCanvasSource(texture) {
+  const resource = texture.source.resource;
+  if (resource instanceof HTMLImageElement || resource instanceof HTMLCanvasElement || resource instanceof HTMLVideoElement || typeof ImageBitmap !== "undefined" && resource instanceof ImageBitmap || typeof OffscreenCanvas !== "undefined" && resource instanceof OffscreenCanvas) {
+    return resource;
+  }
+  return null;
+}
+const FALLBACK_CHARACTER_HEIGHT = 48;
+const FALLBACK_CHARACTER_WIDTH = 48;
+function getCharacterDisplayObject(eid) {
+  return getSpriteStore().get(eid) ?? getAnimatedSpriteStore().get(eid);
+}
+function getCharacterVerticalBounds(eid) {
+  const bounds = getCharacterWorldBounds(eid);
+  return {
+    topY: bounds.topY,
+    bottomY: bounds.bottomY,
+    height: bounds.height
+  };
+}
+function getCharacterWorldBounds(eid) {
+  const centerX = PositionComp.x[eid];
+  const centerY = PositionComp.y[eid];
+  const displayObject = getCharacterDisplayObject(eid);
+  const opaqueBounds = getCharacterOpaqueBoundsForEntity(eid);
+  if (opaqueBounds) {
+    const scaleX = getCharacterScaleX(displayObject, eid);
+    const scaleY = getCharacterScaleY(displayObject, eid);
+    const leftX = centerX + opaqueBounds.left * scaleX;
+    const rightX = centerX + opaqueBounds.right * scaleX;
+    const topY = centerY + opaqueBounds.top * scaleY;
+    const bottomY = centerY + opaqueBounds.bottom * scaleY;
+    return {
+      leftX,
+      rightX,
+      topY,
+      bottomY,
+      width: rightX - leftX,
+      height: bottomY - topY
+    };
+  }
+  const width = getFallbackDisplayDimension(
+    displayObject,
+    "width",
+    eid,
+    FALLBACK_CHARACTER_WIDTH
+  );
+  const height = getFallbackDisplayDimension(
+    displayObject,
+    "height",
+    eid,
+    FALLBACK_CHARACTER_HEIGHT
+  );
+  const halfWidth = width / 2;
+  const halfHeight = height / 2;
+  return {
+    leftX: centerX - halfWidth,
+    rightX: centerX + halfWidth,
+    topY: centerY - halfHeight,
+    bottomY: centerY + halfHeight,
+    width,
+    height
+  };
+}
+function getCharacterOpaqueBoundsForEntity(eid) {
+  const sprite = getSpriteStore().get(eid);
+  if (sprite) {
+    const textureKey = RenderComp.textureKey[eid];
+    if (!textureKey || textureKey === 0) {
+      return null;
+    }
+    const cachedBounds = getCachedTextureOpaqueBounds(textureKey);
+    if (cachedBounds) {
+      return cachedBounds;
+    }
+    void ensureTextureOpaqueBoundsComputed(textureKey);
+    return null;
+  }
+  const animatedSprite = getAnimatedSpriteStore().get(eid);
+  if (animatedSprite) {
+    const characterKey = AnimationRenderComp.spritesheetKey[eid] || CharacterStatusComp.characterKey[eid];
+    if (!characterKey || characterKey === 0) {
+      return null;
+    }
+    const cachedBounds = getCachedCharacterOpaqueBounds(characterKey);
+    if (cachedBounds) {
+      return cachedBounds;
+    }
+    void ensureCharacterOpaqueBoundsComputed(characterKey);
+    return null;
+  }
+  return null;
+}
+function getCharacterScaleX(displayObject, eid) {
+  const displayScaleX = displayObject && Number.isFinite(displayObject.scale.x) ? Math.abs(displayObject.scale.x) : NaN;
+  if (Number.isFinite(displayScaleX) && displayScaleX > 0) {
+    return displayScaleX;
+  }
+  return getFallbackScale(eid);
+}
+function getCharacterScaleY(displayObject, eid) {
+  const displayScaleY = displayObject && Number.isFinite(displayObject.scale.y) ? Math.abs(displayObject.scale.y) : NaN;
+  if (Number.isFinite(displayScaleY) && displayScaleY > 0) {
+    return displayScaleY;
+  }
+  return getFallbackScale(eid);
+}
+function getFallbackDisplayDimension(displayObject, axis, eid, fallbackDimension) {
+  const dimension = displayObject && Number.isFinite(displayObject[axis]) ? Number(displayObject[axis]) : NaN;
+  if (Number.isFinite(dimension) && dimension > 0) {
+    return dimension;
+  }
+  const scale = getFallbackScale(eid);
+  return scale > 0 ? scale * 16 : fallbackDimension;
+}
+function getFallbackScale(eid) {
+  const scale = RenderComp.scale[eid];
+  return scale > 0 ? scale : 1;
+}
+const characterQuery$9 = defineQuery([ObjectComp, PositionComp, RenderComp]);
+const characterExitQuery$2 = exitQuery(characterQuery$9);
 const labelStore = /* @__PURE__ */ new Map();
 const NAME_LABEL_STYLE = new TextStyle({
-  fontFamily: [
-    "Press Start 2P",
-    "Apple Color Emoji",
-    "Segoe UI Emoji",
-    "Noto Color Emoji",
-    "sans-serif"
-  ],
-  fontSize: 10,
-  fill: 16777215,
+  fontFamily: [...NAME_LABEL_FONT_FAMILIES],
+  fontSize: NAME_LABEL_FONT_SIZE,
+  fill: NAME_LABEL_FILL_COLOR,
   align: "center",
-  stroke: { color: 0, width: 3 }
+  stroke: { color: NAME_LABEL_STROKE_COLOR, width: NAME_LABEL_STROKE_WIDTH }
 });
-const FALLBACK_CHARACTER_HEIGHT$1 = 48;
-const LABEL_MARGIN = 8;
-const MAX_DISPLAY_NAME_LENGTH = 10;
+const NAME_LABEL_BOTTOM_OFFSET = 2;
+const LABEL_Z_INDEX_OFFSET = 1e3;
 function characterNameLabelSystem(params) {
   var _a;
   const { world } = params;
-  const exitedEntities = characterExitQuery$1(world);
+  const exitedEntities = characterExitQuery$2(world);
   for (let i2 = 0; i2 < exitedEntities.length; i2++) {
     removeCharacterNameLabel(exitedEntities[i2]);
   }
   const rawName = (_a = world.getInMemoryData().world_metadata.monster_name) == null ? void 0 : _a.trim();
   const displayName = rawName ? truncateDisplayName(rawName) : "";
-  const entities = characterQuery$8(world);
+  const entities = characterQuery$9(world);
   for (let i2 = 0; i2 < entities.length; i2++) {
     const eid = entities[i2];
     if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
@@ -48373,7 +48993,7 @@ function characterNameLabelSystem(params) {
       removeCharacterNameLabel(eid);
       continue;
     }
-    const displayObject = getCharacterDisplayObject$1(eid);
+    const displayObject = getCharacterDisplayObject(eid);
     if (!displayObject) {
       removeCharacterNameLabel(eid);
       continue;
@@ -48382,7 +49002,7 @@ function characterNameLabelSystem(params) {
     if (label.text !== displayName) {
       label.text = displayName;
     }
-    updateCharacterNameLabel(label, eid, displayObject);
+    updateCharacterNameLabel(label, eid);
   }
   return params;
 }
@@ -48417,44 +49037,98 @@ function removeCharacterNameLabel(eid) {
   label.destroy();
   labelStore.delete(eid);
 }
-function updateCharacterNameLabel(label, eid, displayObject) {
+function updateCharacterNameLabel(label, eid) {
   const x2 = PositionComp.x[eid];
   const y2 = PositionComp.y[eid];
   const configuredZIndex = RenderComp.zIndex[eid];
   const effectiveZIndex = configuredZIndex === 0 ? y2 : configuredZIndex;
-  const characterHeight = getDisplayObjectHeight(displayObject, eid);
-  label.position.set(x2, y2 + characterHeight / 2 + LABEL_MARGIN);
-  label.zIndex = effectiveZIndex + 1;
+  const { bottomY } = getCharacterVerticalBounds(eid);
+  label.position.set(x2, bottomY + NAME_LABEL_BOTTOM_OFFSET);
+  label.zIndex = effectiveZIndex + LABEL_Z_INDEX_OFFSET;
   label.visible = true;
 }
-function getCharacterDisplayObject$1(eid) {
-  return getSpriteStore().get(eid) ?? getAnimatedSpriteStore().get(eid);
-}
-function getDisplayObjectHeight(displayObject, eid) {
-  const height = "height" in displayObject ? Number(displayObject.height) : NaN;
-  if (Number.isFinite(height) && height > 0) {
-    return height;
-  }
-  const scale = RenderComp.scale[eid];
-  return scale > 0 ? scale * 16 : FALLBACK_CHARACTER_HEIGHT$1;
-}
 function truncateDisplayName(name) {
-  const graphemes = splitDisplayCharacters(name);
-  if (graphemes.length <= MAX_DISPLAY_NAME_LENGTH) {
-    return name;
-  }
-  return `${graphemes.slice(0, MAX_DISPLAY_NAME_LENGTH).join("")}…`;
+  return truncateNameLabelToWidth(name);
 }
-function splitDisplayCharacters(value) {
-  const IntlWithSegmenter = Intl;
-  const SegmenterCtor = IntlWithSegmenter.Segmenter;
-  if (SegmenterCtor) {
-    return Array.from(
-      new SegmenterCtor(void 0, { granularity: "grapheme" }).segment(value),
-      (item) => item.segment
-    );
+const characterQuery$8 = defineQuery([ObjectComp, PositionComp, RenderComp]);
+const characterExitQuery$1 = exitQuery(characterQuery$8);
+const overlayStore = /* @__PURE__ */ new Map();
+const LAYOUT_STROKE_COLOR = 58879;
+const LAYOUT_FILL_COLOR = 58879;
+const LAYOUT_FILL_ALPHA = 0.12;
+const LAYOUT_STROKE_WIDTH = 1;
+const LAYOUT_Z_INDEX_OFFSET = 1;
+function characterLayoutDebugSystem(params) {
+  const { world, stage } = params;
+  if (!stage || false) {
+    cleanupCharacterLayoutDebug();
+    return params;
   }
-  return Array.from(value);
+  const exitedEntities = characterExitQuery$1(world);
+  for (let i2 = 0; i2 < exitedEntities.length; i2++) {
+    removeOverlay(exitedEntities[i2]);
+  }
+  const entities = characterQuery$8(world);
+  const activeCharacterEids = /* @__PURE__ */ new Set();
+  for (let i2 = 0; i2 < entities.length; i2++) {
+    const eid = entities[i2];
+    if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
+      removeOverlay(eid);
+      continue;
+    }
+    const displayObject = getCharacterDisplayObject(eid);
+    if (!displayObject) {
+      removeOverlay(eid);
+      continue;
+    }
+    const bounds = getCharacterWorldBounds(eid);
+    if (bounds.width <= 0 || bounds.height <= 0) {
+      removeOverlay(eid);
+      continue;
+    }
+    const overlay = getOrCreateOverlay(eid, stage);
+    activeCharacterEids.add(eid);
+    overlay.clear();
+    overlay.rect(bounds.leftX, bounds.topY, bounds.width, bounds.height).fill({ color: LAYOUT_FILL_COLOR, alpha: LAYOUT_FILL_ALPHA }).stroke({ color: LAYOUT_STROKE_COLOR, width: LAYOUT_STROKE_WIDTH });
+    const y2 = PositionComp.y[eid];
+    const configuredZIndex = RenderComp.zIndex[eid];
+    const effectiveZIndex = configuredZIndex === 0 ? y2 : configuredZIndex;
+    overlay.zIndex = effectiveZIndex + LAYOUT_Z_INDEX_OFFSET;
+    overlay.visible = true;
+  }
+  const trackedEids = Array.from(overlayStore.keys());
+  for (let i2 = 0; i2 < trackedEids.length; i2++) {
+    const eid = trackedEids[i2];
+    if (!activeCharacterEids.has(eid)) {
+      removeOverlay(eid);
+    }
+  }
+  return params;
+}
+function cleanupCharacterLayoutDebug(_stage) {
+  overlayStore.forEach((_, eid) => {
+    removeOverlay(eid);
+  });
+}
+function getOrCreateOverlay(eid, stage) {
+  const existingOverlay = overlayStore.get(eid);
+  if (existingOverlay) {
+    return existingOverlay;
+  }
+  const overlay = new Graphics();
+  overlay.eventMode = "none";
+  stage.addChild(overlay);
+  overlayStore.set(eid, overlay);
+  return overlay;
+}
+function removeOverlay(eid) {
+  const overlay = overlayStore.get(eid);
+  if (!overlay) {
+    return;
+  }
+  overlay.removeFromParent();
+  overlay.destroy();
+  overlayStore.delete(eid);
 }
 const THIS_CONFIG = {
   SAVE_INTERVAL: 1e3
@@ -48619,6 +49293,7 @@ async function applyEvolutionWithLoadedAsset(params) {
     );
     return;
   }
+  await ensureCharacterOpaqueBoundsComputed(nextCharacterKey);
   CharacterStatusComp.evolutionPhase[eid] = nextPhase;
   CharacterStatusComp.characterKey[eid] = nextCharacterKey;
   CharacterStatusComp.evolutionGage[eid] = 0;
@@ -48809,7 +49484,8 @@ function getRemainingEvolutionGaugeTime(eid) {
 }
 function _updateStaminaAndEvolutionGauge(world, eid, delta) {
   const currentStaminaTimer = staminaTimers.get(eid) || 0;
-  const totalStaminaTime = currentStaminaTimer + delta;
+  const staminaDelta = ObjectComp.state[eid] === CharacterState.SLEEPING ? delta * GAME_CONSTANTS.SLEEPING_STAMINA_DECAY_MULTIPLIER : delta;
+  const totalStaminaTime = currentStaminaTimer + staminaDelta;
   const staminaDecreaseCount = Math.floor(
     totalStaminaTime / GAME_CONSTANTS.STAMINA_DECREASE_INTERVAL
   );
@@ -49127,6 +49803,16 @@ function createCharacterEntity(world, components) {
   addComponent(world, DiseaseSystemComp, eid);
   DiseaseSystemComp.nextCheckTime[eid] = Date.now() + GAME_CONSTANTS.DISEASE_CHECK_INTERVAL;
   DiseaseSystemComp.sickStartTime[eid] = 0;
+  addComponent(world, SleepSystemComp, eid);
+  SleepSystemComp.fatigue[eid] = GAME_CONSTANTS.FATIGUE_DEFAULT;
+  SleepSystemComp.nextSleepTime[eid] = 0;
+  SleepSystemComp.nextWakeTime[eid] = 0;
+  SleepSystemComp.nextNapCheckTime[eid] = Date.now() + GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL;
+  SleepSystemComp.nextNightWakeCheckTime[eid] = 0;
+  SleepSystemComp.sleepMode[eid] = ObjectComp.state[eid] === CharacterState.SLEEPING ? SleepMode.NIGHT_SLEEP : SleepMode.AWAKE;
+  SleepSystemComp.pendingSleepReason[eid] = SleepReason.NONE;
+  SleepSystemComp.pendingWakeReason[eid] = SleepReason.NONE;
+  SleepSystemComp.sleepSessionStartedAt[eid] = ObjectComp.state[eid] === CharacterState.SLEEPING ? Date.now() : 0;
   addComponent(world, VitalityComp, eid);
   VitalityComp.urgentStartTime[eid] = 0;
   VitalityComp.deathTime[eid] = 0;
@@ -50317,6 +51003,7 @@ const effectAnimationQuery = defineQuery([
   EffectAnimationComp
 ]);
 const effectSpriteMap = /* @__PURE__ */ new Map();
+const recoveryImpactTriggeredEids = /* @__PURE__ */ new Set();
 const RECOVERY_APPROACH_DURATION = 300;
 const RECOVERY_HOLD_DURATION = 1e3;
 const RECOVERY_FADE_DURATION = 300;
@@ -50381,6 +51068,7 @@ function cleanupEffectSprite(world, eid, stage) {
     spriteData.sprite.destroy();
     effectSpriteMap.delete(eid);
   }
+  recoveryImpactTriggeredEids.delete(eid);
   if (hasComponent(world, EffectAnimationComp, eid)) {
     removeComponent(world, EffectAnimationComp, eid);
   }
@@ -50403,12 +51091,16 @@ function createRecoverySyringeSprite(eid, stage) {
   effectSpriteMap.set(eid, { sprite, directionSign });
   return sprite;
 }
-function updateRecoverySyringe(eid, currentTime) {
+function updateRecoverySyringe(world, eid, currentTime) {
   const startTime = EffectAnimationComp.startTime[eid];
   const elapsed = currentTime - startTime;
   const duration = EffectAnimationComp.duration[eid];
   if (elapsed >= duration) {
     return true;
+  }
+  if (elapsed >= RECOVERY_APPROACH_DURATION && !recoveryImpactTriggeredEids.has(eid)) {
+    recoveryImpactTriggeredEids.add(eid);
+    world.applyPendingRecoverySyringeImpact(eid);
   }
   const spriteData = effectSpriteMap.get(eid);
   if (!spriteData) {
@@ -50477,7 +51169,7 @@ function effectAnimationSystem(params) {
     let shouldCleanup = false;
     switch (effectType) {
       case EffectAnimationType.RECOVERY_SYRINGE:
-        shouldCleanup = updateRecoverySyringe(eid, currentTime);
+        shouldCleanup = updateRecoverySyringe(world, eid, currentTime);
         break;
       default:
         shouldCleanup = true;
@@ -50491,6 +51183,7 @@ function effectAnimationSystem(params) {
 }
 function startEffectAnimation(world, eid, stage, currentTime, effectType, customDuration) {
   cleanupEffectSprite(world, eid, stage);
+  recoveryImpactTriggeredEids.delete(eid);
   const duration = effectType === EffectAnimationType.RECOVERY_SYRINGE ? RECOVERY_TOTAL_DURATION : RECOVERY_TOTAL_DURATION;
   addComponent(world, EffectAnimationComp, eid);
   EffectAnimationComp.storeIndex[eid] = eid;
@@ -50502,7 +51195,7 @@ function startEffectAnimation(world, eid, stage, currentTime, effectType, custom
     switch (effectType) {
       case EffectAnimationType.RECOVERY_SYRINGE:
         createRecoverySyringeSprite(eid, stage);
-        updateRecoverySyringe(eid, currentTime);
+        updateRecoverySyringe(world, eid, currentTime);
         break;
     }
   }
@@ -50536,25 +51229,25 @@ const TIME_OF_DAY_TONES = {
     "day"
     /* Day */
   ]: {
-    label: "낮"
+    label: "Day"
   },
   [
     "sunrise"
     /* Sunrise */
   ]: {
-    label: "일출"
+    label: "Sunrise"
   },
   [
     "sunset"
     /* Sunset */
   ]: {
-    label: "일몰"
+    label: "Sunset"
   },
   [
     "night"
     /* Night */
   ]: {
-    label: "밤"
+    label: "Night"
   }
 };
 const TIME_OF_DAY_OPTIONS = [
@@ -50595,8 +51288,7 @@ function getManualSkyVisualState(timeOfDay) {
   };
 }
 function resolveAutoTimeOfDayState(now, sunTimes) {
-  const sunriseAt = new Date(sunTimes.sunriseAt);
-  const sunsetAt = new Date(sunTimes.sunsetAt);
+  const { sunriseAt, sunsetAt } = projectSunTimesForDate(now, sunTimes);
   if (Number.isNaN(sunriseAt.getTime()) || Number.isNaN(sunsetAt.getTime()) || sunriseAt.getTime() >= sunsetAt.getTime()) {
     return {
       timeOfDay: "day",
@@ -50634,6 +51326,24 @@ function resolveAutoTimeOfDayState(now, sunTimes) {
     isTransition: false
   };
 }
+function projectSunTimesForDate(now, sunTimes) {
+  const timezoneOffsetMinutes = sunTimes.timezoneOffsetMinutes;
+  const dateString = getDateStringInTimezoneOffset(now, timezoneOffsetMinutes);
+  const sunriseTemplate = new Date(sunTimes.sunriseAt);
+  const sunsetTemplate = new Date(sunTimes.sunsetAt);
+  return {
+    sunriseAt: createProjectedDateInTimezoneOffset(
+      dateString,
+      sunriseTemplate,
+      timezoneOffsetMinutes
+    ),
+    sunsetAt: createProjectedDateInTimezoneOffset(
+      dateString,
+      sunsetTemplate,
+      timezoneOffsetMinutes
+    )
+  };
+}
 function hasSunTimesDateRolledOver(now, sunTimes) {
   return getDateStringInTimezoneOffset(now, sunTimes.timezoneOffsetMinutes) !== sunTimes.date;
 }
@@ -50650,6 +51360,23 @@ function createTransitionWindow(center) {
     start: center.getTime() - halfWindow,
     end: center.getTime() + halfWindow
   };
+}
+function createProjectedDateInTimezoneOffset(dateString, template, timezoneOffsetMinutes) {
+  const [year, month, day] = dateString.split("-").map(Number);
+  const zonedTemplate = new Date(
+    template.getTime() + timezoneOffsetMinutes * 60 * 1e3
+  );
+  return new Date(
+    Date.UTC(
+      year,
+      month - 1,
+      day,
+      zonedTemplate.getUTCHours(),
+      zonedTemplate.getUTCMinutes(),
+      zonedTemplate.getUTCSeconds(),
+      zonedTemplate.getUTCMilliseconds()
+    ) - timezoneOffsetMinutes * 60 * 1e3
+  );
 }
 function getMinuteProgress(nowTime, startTime) {
   const elapsedMinutes = Math.floor((nowTime - startTime) / MINUTE_IN_MILLISECONDS);
@@ -51223,18 +51950,18 @@ Set: ${new Date(debugState.sunsetAt).toLocaleTimeString("ko-KR", {
   // 모든 데이터 리셋 함수
   async _resetAllData() {
     if (!confirm(
-      "모든 데이터를 삭제하고 처음부터 시작하시겠습니까? 이 작업은 되돌릴 수 없습니다."
+      "Delete all data and restart from the beginning? This action cannot be undone."
     )) {
       return;
     }
     try {
       await this._world.clearData();
       console.log("[HTMLDebugStatusUI] All data cleared from storage");
-      alert("데이터가 삭제되었습니다. 페이지를 새로고침합니다.");
+      alert("All data has been deleted. Reloading the page.");
       window.location.reload();
     } catch (error) {
       console.error("[HTMLDebugStatusUI] Failed to reset data:", error);
-      alert("데이터 삭제에 실패했습니다.");
+      alert("Failed to delete data.");
     }
   }
   show() {
@@ -51244,10 +51971,12 @@ Set: ${new Date(debugState.sunsetAt).toLocaleTimeString("ko-KR", {
     this._updateTimeOfDayDisplay();
     this._updateSleepEffectToggleButton();
     this._updateAllStatusIndicators();
+    this._world.setRandomMovementDebugEnabled(true);
     this._container.style.display = "block";
     this._isVisible = true;
   }
   hide() {
+    this._world.setRandomMovementDebugEnabled(false);
     this._container.style.display = "none";
     this._isVisible = false;
   }
@@ -51270,6 +51999,7 @@ Set: ${new Date(debugState.sunsetAt).toLocaleTimeString("ko-KR", {
     }
   }
   destroy() {
+    this._world.setRandomMovementDebugEnabled(false);
     if (this._container.parentElement) {
       this._container.parentElement.removeChild(this._container);
     }
@@ -51288,18 +52018,19 @@ class HTMLDebugToggleButton {
     button.textContent = "DEBUG";
     button.style.cssText = `
       position: absolute;
-      top: 20px;
-      left: 20px;
-      width: 80px;
-      height: 30px;
+      top: 46px;
+      right: 12px;
+      min-width: 88px;
+      height: 28px;
+      padding: 0 10px;
       background: rgba(68, 68, 68, 0.9);
       color: white;
       border: none;
-      border-radius: 4px;
+      border-radius: 6px;
       font-size: 12px;
       font-weight: bold;
       cursor: pointer;
-      z-index: 1000;
+      z-index: 1002;
       font-family: 'Arial', sans-serif;
       transition: background-color 0.2s;
     `;
@@ -51485,7 +52216,7 @@ class HTMLDebugGameConstantsUI {
       color: #ffffff;
     `;
     const description = document.createElement("div");
-    description.textContent = "dev 빌드에서 적용 중인 현재 값";
+    description.textContent = "Current values applied in the dev build";
     description.style.cssText = `
       margin-top: 2px;
       font-size: 10px;
@@ -51564,9 +52295,11 @@ function diseaseSystem(params) {
     if (ObjectComp.state[eid] === CharacterState.DEAD) continue;
     const diseaseComp = DiseaseSystemComp;
     const characterComp = CharacterStatusComp;
+    const isSleeping = ObjectComp.state[eid] === CharacterState.SLEEPING;
+    const effectiveCheckInterval = GAME_CONSTANTS.DISEASE_CHECK_INTERVAL * (isSleeping ? 1 / GAME_CONSTANTS.SLEEPING_DISEASE_RATE_MULTIPLIER : 1);
     while (currentTime >= diseaseComp.nextCheckTime[eid]) {
       const checkTime = diseaseComp.nextCheckTime[eid];
-      diseaseComp.nextCheckTime[eid] = checkTime + GAME_CONSTANTS.DISEASE_CHECK_INTERVAL;
+      diseaseComp.nextCheckTime[eid] = checkTime + effectiveCheckInterval;
       const currentStatuses2 = characterComp.statuses[eid];
       const isSick2 = isCharacterSick(currentStatuses2);
       if (!isSick2) {
@@ -51592,19 +52325,19 @@ function diseaseSystem(params) {
     }
     const currentStatuses = characterComp.statuses[eid];
     const isSick = isCharacterSick(currentStatuses);
-    const isSleeping = ObjectComp.state[eid] === CharacterState.SLEEPING;
+    const isSleepingNow = ObjectComp.state[eid] === CharacterState.SLEEPING;
     const previousState = previousStates.get(eid) || {
       isSick: false,
       isSleeping: false
     };
     const wasRestricted = previousState.isSick || previousState.isSleeping;
-    const isRestricted = isSick || isSleeping;
+    const isRestricted = isSick || isSleepingNow;
     if (isRestricted && !wasRestricted) {
       restrictMovement(world, eid);
     } else if (!isRestricted && wasRestricted) {
       restoreMovement(world, eid);
     }
-    previousStates.set(eid, { isSick, isSleeping });
+    previousStates.set(eid, { isSick, isSleeping: isSleepingNow });
   }
   return params;
 }
@@ -51743,7 +52476,7 @@ class HTMLDebugGaugeUI {
     container.style.cssText = `
       position: absolute;
       top: 4px;
-      left: 100px;
+      left: 4px;
       background: rgba(0, 0, 0, 0.4);
       border-radius: 5px;
       padding: 10px;
@@ -51751,7 +52484,10 @@ class HTMLDebugGaugeUI {
       font-family: 'Arial', sans-serif;
       color: white;
       font-size: 12px;
-      min-width: 120px;
+      min-width: 280px;
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
     `;
     if (!document.querySelector("#debug-gauge-ui-blink-style")) {
       const style = document.createElement("style");
@@ -51767,76 +52503,47 @@ class HTMLDebugGaugeUI {
     return container;
   }
   _setupUI() {
-    const staminaDiv = document.createElement("div");
-    const staminaLabel = document.createElement("span");
-    staminaLabel.textContent = "Stamina: ";
-    staminaLabel.style.cssText = `
-      color: #66ccff;
-    `;
-    this._staminaText = document.createElement("span");
-    this._staminaText.style.cssText = `
-      color: white;
-      font-weight: bold;
-    `;
-    staminaDiv.appendChild(staminaLabel);
+    this._primaryColumn = this._createColumn();
+    this._sleepColumn = this._createColumn();
+    const staminaDiv = this._createMetricRow("Stamina: ", "#66ccff");
+    this._staminaText = this._createMetricValue();
     staminaDiv.appendChild(this._staminaText);
-    const evolutionDiv = document.createElement("div");
-    const evolutionLabel = document.createElement("span");
-    evolutionLabel.textContent = "Evolution: ";
-    evolutionLabel.style.cssText = `
-      color: #ffcc66;
-    `;
-    this._evolutionText = document.createElement("span");
-    this._evolutionText.style.cssText = `
-      color: white;
-      font-weight: bold;
-    `;
-    evolutionDiv.appendChild(evolutionLabel);
+    const evolutionDiv = this._createMetricRow("Evolution: ", "#ffcc66");
+    this._evolutionText = this._createMetricValue();
     evolutionDiv.appendChild(this._evolutionText);
-    const digestiveDiv = document.createElement("div");
-    const digestiveLabel = document.createElement("span");
-    digestiveLabel.textContent = "Digestive: ";
-    digestiveLabel.style.cssText = `
-      color: #66ff66;
-    `;
-    this._digestiveText = document.createElement("span");
-    this._digestiveText.style.cssText = `
-      color: white;
-      font-weight: bold;
-    `;
-    digestiveDiv.appendChild(digestiveLabel);
+    const digestiveDiv = this._createMetricRow("Digestive: ", "#66ff66");
+    this._digestiveText = this._createMetricValue();
     digestiveDiv.appendChild(this._digestiveText);
-    const diseaseRateDiv = document.createElement("div");
-    const diseaseRateLabel = document.createElement("span");
-    diseaseRateLabel.textContent = "Disease: ";
-    diseaseRateLabel.style.cssText = `
-      color: #ff8888;
-    `;
-    this._diseaseRateText = document.createElement("span");
-    this._diseaseRateText.style.cssText = `
-      color: white;
-      font-weight: bold;
-    `;
-    diseaseRateDiv.appendChild(diseaseRateLabel);
+    const diseaseRateDiv = this._createMetricRow("Disease: ", "#ff8888");
+    this._diseaseRateText = this._createMetricValue();
     diseaseRateDiv.appendChild(this._diseaseRateText);
-    const deathTimeDiv = document.createElement("div");
-    const deathTimeLabel = document.createElement("span");
-    deathTimeLabel.textContent = "Death: ";
-    deathTimeLabel.style.cssText = `
-      color: #ff6666;
-    `;
-    this._deathTimeText = document.createElement("span");
-    this._deathTimeText.style.cssText = `
-      color: white;
-      font-weight: bold;
-    `;
-    deathTimeDiv.appendChild(deathTimeLabel);
+    const deathTimeDiv = this._createMetricRow("Death: ", "#ff6666");
+    this._deathTimeText = this._createMetricValue();
     deathTimeDiv.appendChild(this._deathTimeText);
-    this._container.appendChild(staminaDiv);
-    this._container.appendChild(evolutionDiv);
-    this._container.appendChild(digestiveDiv);
-    this._container.appendChild(diseaseRateDiv);
-    this._container.appendChild(deathTimeDiv);
+    const sleepDiv = this._createMetricRow("Sleep: ", "#b388ff");
+    this._sleepText = this._createMetricValue();
+    sleepDiv.appendChild(this._sleepText);
+    const fatigueDiv = this._createMetricRow("Fatigue: ", "#cda4ff");
+    this._fatigueText = this._createMetricValue();
+    fatigueDiv.appendChild(this._fatigueText);
+    const sleepCheckDiv = this._createMetricRow("SleepChk:", "#d8b4fe");
+    sleepCheckDiv.style.alignItems = "flex-start";
+    sleepCheckDiv.style.flexDirection = "column";
+    sleepCheckDiv.style.gap = "4px";
+    this._sleepCheckText = this._createMetricValue();
+    this._sleepCheckText.style.whiteSpace = "pre-wrap";
+    this._sleepCheckText.style.lineHeight = "1.45";
+    sleepCheckDiv.appendChild(this._sleepCheckText);
+    this._primaryColumn.appendChild(staminaDiv);
+    this._primaryColumn.appendChild(evolutionDiv);
+    this._primaryColumn.appendChild(digestiveDiv);
+    this._primaryColumn.appendChild(diseaseRateDiv);
+    this._primaryColumn.appendChild(deathTimeDiv);
+    this._sleepColumn.appendChild(sleepDiv);
+    this._sleepColumn.appendChild(fatigueDiv);
+    this._sleepColumn.appendChild(sleepCheckDiv);
+    this._container.appendChild(this._primaryColumn);
+    this._container.appendChild(this._sleepColumn);
   }
   _findFirstCharacter() {
     const characters = characterQuery$2(this._world);
@@ -51860,6 +52567,9 @@ class HTMLDebugGaugeUI {
         this._digestiveText.textContent = "N/A";
         this._diseaseRateText.textContent = "N/A";
         this._deathTimeText.textContent = "N/A";
+        this._sleepText.textContent = "N/A";
+        this._fatigueText.textContent = "N/A";
+        this._sleepCheckText.textContent = "N/A";
         return;
       }
     }
@@ -51904,6 +52614,46 @@ class HTMLDebugGaugeUI {
       this._currentCharacterEid
     ) ? VitalityComp.deathTime[this._currentCharacterEid] : 0;
     const remainingDeathTime = deathTime > 0 ? Math.max(0, deathTime - currentTime) : 0;
+    const hasSleepSystem = hasComponent(
+      this._world,
+      SleepSystemComp,
+      this._currentCharacterEid
+    );
+    let sleepText = "N/A";
+    let fatigueText = "N/A";
+    let sleepCheckText = "N/A";
+    if (hasSleepSystem) {
+      const sleepMode = SleepSystemComp.sleepMode[this._currentCharacterEid];
+      const nextSleepTime = SleepSystemComp.nextSleepTime[this._currentCharacterEid] || 0;
+      const nextWakeTime = SleepSystemComp.nextWakeTime[this._currentCharacterEid] || 0;
+      const nextNapCheckTime = SleepSystemComp.nextNapCheckTime[this._currentCharacterEid] || 0;
+      const nextNightWakeCheckTime = SleepSystemComp.nextNightWakeCheckTime[this._currentCharacterEid] || 0;
+      const pendingSleepReason = SleepSystemComp.pendingSleepReason[this._currentCharacterEid];
+      const pendingWakeReason = SleepSystemComp.pendingWakeReason[this._currentCharacterEid];
+      const fatigue = SleepSystemComp.fatigue[this._currentCharacterEid] || 0;
+      const currentTimeOfDay = this._world.getTimeOfDay();
+      const nextSleepRemaining = nextSleepTime > 0 ? Math.max(0, nextSleepTime - currentTime) : 0;
+      const nextWakeRemaining = nextWakeTime > 0 ? Math.max(0, nextWakeTime - currentTime) : 0;
+      sleepText = `${formatSleepMode(sleepMode)} | sleep:${formatRemainingSeconds(
+        nextSleepRemaining
+      )} wake:${formatRemainingSeconds(nextWakeRemaining)}`;
+      fatigueText = `${fatigue.toFixed(1)}/${GAME_CONSTANTS.FATIGUE_MAX}`;
+      sleepCheckText = `  nap: ${formatNapCheckStatus({
+        currentTime,
+        currentTimeOfDay,
+        state: ObjectComp.state[this._currentCharacterEid],
+        nextNapCheckTime,
+        nextSleepTime,
+        fatigue,
+        fatigueThreshold: GAME_CONSTANTS.FATIGUE_DAY_NAP_MIN_THRESHOLD
+      })}
+  night: ${formatSleepCheckCountdown(
+        nextNightWakeCheckTime,
+        currentTime
+      )}
+  ps: ${formatSleepCheckReason(pendingSleepReason)}
+  pw: ${formatSleepCheckReason(pendingWakeReason)}`;
+    }
     this._staminaText.textContent = `${stamina}/10 (${Math.ceil(
       remainingStaminaTime / 1e3
     )}s)`;
@@ -51915,6 +52665,9 @@ class HTMLDebugGaugeUI {
       1
     )}% (${Math.ceil(remainingDiseaseTime / 1e3)}s)`;
     this._deathTimeText.textContent = deathTime > 0 ? `${Math.ceil(remainingDeathTime / 1e3)}s` : "N/A";
+    this._sleepText.textContent = sleepText;
+    this._fatigueText.textContent = fatigueText;
+    this._sleepCheckText.textContent = sleepCheckText;
     if (hasComponent(this._world, DigestiveSystemComp, this._currentCharacterEid)) {
       const nextPoopTime = DigestiveSystemComp.nextPoopTime[this._currentCharacterEid] || 0;
       if (nextPoopTime > 0) {
@@ -51956,6 +52709,26 @@ class HTMLDebugGaugeUI {
       this._deathTimeText.style.color = "white";
       this._deathTimeText.style.animation = "none";
     }
+    if (hasSleepSystem) {
+      const sleepMode = SleepSystemComp.sleepMode[this._currentCharacterEid];
+      const fatigue = SleepSystemComp.fatigue[this._currentCharacterEid] || 0;
+      this._sleepText.style.color = sleepMode === SleepMode.AWAKE ? "white" : "#c084fc";
+      this._sleepText.style.animation = sleepMode === SleepMode.NIGHT_SLEEP ? "blink 1.5s infinite" : "none";
+      if (fatigue >= GAME_CONSTANTS.FATIGUE_DAY_NAP_MIN_THRESHOLD) {
+        this._fatigueText.style.color = "#ffbb33";
+      } else {
+        this._fatigueText.style.color = "white";
+      }
+      this._sleepCheckText.style.color = "#dddddd";
+      this._sleepCheckText.style.animation = "none";
+    } else {
+      this._sleepText.style.color = "white";
+      this._sleepText.style.animation = "none";
+      this._fatigueText.style.color = "white";
+      this._fatigueText.style.animation = "none";
+      this._sleepCheckText.style.color = "white";
+      this._sleepCheckText.style.animation = "none";
+    }
   }
   show() {
     this._container.style.display = "block";
@@ -51968,6 +52741,116 @@ class HTMLDebugGaugeUI {
       this._container.parentElement.removeChild(this._container);
     }
   }
+  _createColumn() {
+    const column = document.createElement("div");
+    column.style.cssText = `
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 120px;
+    `;
+    return column;
+  }
+  _createMetricRow(labelText, labelColor) {
+    const row = document.createElement("div");
+    row.style.cssText = `
+      display: flex;
+      align-items: baseline;
+      gap: 4px;
+    `;
+    const label = document.createElement("span");
+    label.textContent = labelText;
+    label.style.color = labelColor;
+    row.appendChild(label);
+    return row;
+  }
+  _createMetricValue() {
+    const value = document.createElement("span");
+    value.style.cssText = `
+      color: white;
+      font-weight: bold;
+    `;
+    return value;
+  }
+}
+function formatSleepMode(mode) {
+  switch (mode) {
+    case SleepMode.NIGHT_SLEEP:
+      return "night";
+    case SleepMode.DAY_NAP:
+      return "nap";
+    case SleepMode.INTERRUPTED_AWAKE:
+      return "awake*";
+    case SleepMode.AWAKE:
+    default:
+      return "awake";
+  }
+}
+function formatSleepReason(reason) {
+  switch (reason) {
+    case SleepReason.NIGHT:
+      return "night";
+    case SleepReason.RESLEEP:
+      return "resleep";
+    case SleepReason.NAP:
+      return "nap";
+    case SleepReason.SUNRISE:
+      return "sunrise";
+    case SleepReason.NIGHT_INTERRUPT:
+      return "interrupt";
+    case SleepReason.NONE:
+    default:
+      return "-";
+  }
+}
+function formatSleepCheckReason(reason) {
+  if (reason === SleepReason.NONE) {
+    return "inactive";
+  }
+  return formatSleepReason(reason);
+}
+function formatRemainingSeconds(remainingTime) {
+  if (remainingTime <= 0) {
+    return "-";
+  }
+  return `${Math.ceil(remainingTime / 1e3)}s`;
+}
+function formatSleepCheckCountdown(scheduledTime, currentTime) {
+  if (scheduledTime <= 0) {
+    return "inactive";
+  }
+  const remainingTime = scheduledTime - currentTime;
+  if (remainingTime <= 0) {
+    return "ready";
+  }
+  return `${Math.ceil(remainingTime / 1e3)}s`;
+}
+function formatNapCheckStatus(params) {
+  const {
+    currentTime,
+    currentTimeOfDay,
+    state,
+    nextNapCheckTime,
+    nextSleepTime,
+    fatigue,
+    fatigueThreshold
+  } = params;
+  if (nextNapCheckTime <= 0) {
+    return "inactive";
+  }
+  if (currentTimeOfDay !== TimeOfDay.Day) {
+    return `blocked:${currentTimeOfDay}`;
+  }
+  if (state === CharacterState.SLEEPING) {
+    return "blocked:sleeping";
+  }
+  if (nextSleepTime > 0) {
+    return "blocked:reserved";
+  }
+  if (fatigue < fatigueThreshold) {
+    return "blocked:fatigue";
+  }
+  return formatSleepCheckCountdown(nextNapCheckTime, currentTime);
 }
 const STORAGE_PREVIEW_LIMIT = 120;
 function _serialize(obj) {
@@ -52263,9 +53146,11 @@ var GameMenuItemType = /* @__PURE__ */ ((GameMenuItemType2) => {
   return GameMenuItemType2;
 })(GameMenuItemType || {});
 const MENU_SPRITE_SLOT_COUNT = 8;
-const MENU_ITEM_SIZE_MIN = 40;
-const MENU_ITEM_SIZE_MAX = 48;
-const MENU_ITEM_SIZE_MAX_VIEWPORT = 360;
+const MENU_ITEM_SIZE_MIN = 36;
+const MENU_ITEM_SIZE_MID = 40;
+const MENU_ITEM_SIZE_MAX = 44;
+const MENU_ITEM_SIZE_MID_VIEWPORT = 360;
+const MENU_ITEM_SIZE_MAX_VIEWPORT = 420;
 const MENU_SPRITE_FINE_TUNE_X = {
   [
     "drug"
@@ -52305,6 +53190,9 @@ const getBackgroundPosition = (type, containerSize, spriteSize) => {
 const getResponsiveMenuItemSize = (availableWidth) => {
   if (availableWidth >= MENU_ITEM_SIZE_MAX_VIEWPORT) {
     return MENU_ITEM_SIZE_MAX;
+  }
+  if (availableWidth >= MENU_ITEM_SIZE_MID_VIEWPORT) {
+    return MENU_ITEM_SIZE_MID;
   }
   return MENU_ITEM_SIZE_MIN;
 };
@@ -52379,7 +53267,6 @@ class GameMenu {
     this.menuItems = [
       // GameMenuItemType.Information,
       GameMenuItemType.MiniGame,
-      GameMenuItemType.Versus,
       GameMenuItemType.Feed,
       GameMenuItemType.Clean,
       GameMenuItemType.Hospital
@@ -52398,7 +53285,6 @@ class GameMenu {
     this.itemContainer = document.createElement("div");
     this.itemContainer.className = "game-menu-item-container";
     this.container.appendChild(this.itemContainer);
-    this.disabledMenuItems.add(GameMenuItemType.Versus);
     this.initializeMenuItems();
     this.updateMenuItemLayout();
     window.addEventListener("resize", this.handleWindowResize);
@@ -52423,7 +53309,11 @@ class GameMenu {
     }
     const itemSize = (_b = this.menuItemElements[0]) == null ? void 0 : _b.getSize();
     if (!itemSize) return;
+    const itemCount = this.menuItemElements.length;
+    const gapSize = itemSize / 3;
+    const containerMaxWidth = itemCount * itemSize + Math.max(0, itemCount - 1) * gapSize;
     this.itemContainer.style.height = `${itemSize}px`;
+    this.itemContainer.style.maxWidth = `${containerMaxWidth}px`;
   }
   processNavigationAction(action) {
     if (!action || action.type === NavigationAction.NONE || action.index === this.lastProcessedIndex) {
@@ -52488,9 +53378,6 @@ class GameMenu {
       case GameMenuItemType.Feed:
         if (this.options.onFeedSelect) this.options.onFeedSelect();
         break;
-      case GameMenuItemType.Versus:
-        if (this.options.onVersusSelect) this.options.onVersusSelect();
-        break;
       case GameMenuItemType.Drug:
         if (this.options.onDrugSelect) this.options.onDrugSelect();
         break;
@@ -52498,10 +53385,10 @@ class GameMenu {
         if (this.options.onCleanSelect) this.options.onCleanSelect();
         break;
       case GameMenuItemType.Hospital:
-        if (this.options.onDrugSelect) {
-          this.options.onDrugSelect();
-        } else if (this.options.onHospitalSelect) {
+        if (this.options.onHospitalSelect) {
           this.options.onHospitalSelect();
+        } else if (this.options.onDrugSelect) {
+          this.options.onDrugSelect();
         }
         break;
     }
@@ -52577,10 +53464,55 @@ function eggHatchSystem(params) {
     if (currentTime >= EggHatchComp.hatchTime[eid] && !EggHatchComp.isReadyToHatch[eid]) {
       EggHatchComp.isReadyToHatch[eid] = 1;
       console.log(`[EggHatchSystem] Character ${eid} is ready to hatch!`);
-      hatchCharacter(eid, world, currentTime);
+      if (world.isSimulationMode) {
+        hatchCharacterForSimulation(eid, world, currentTime);
+      } else {
+        void hatchCharacter(eid, world, currentTime);
+      }
     }
   }
   return params;
+}
+function completeHatch(eid, world, currentTime) {
+  const characterKey = CharacterStatusComp.characterKey[eid];
+  ObjectComp.state[eid] = CharacterState.IDLE;
+  if (!hasComponent(world, RandomMovementComp, eid)) {
+    addComponent(world, RandomMovementComp, eid);
+    RandomMovementComp.minIdleTime[eid] = 2e3;
+    RandomMovementComp.maxIdleTime[eid] = 8e3;
+    RandomMovementComp.minMoveTime[eid] = 1e3;
+    RandomMovementComp.maxMoveTime[eid] = 8e3;
+    RandomMovementComp.nextChange[eid] = currentTime + 2e3 + Math.random() * 3e3;
+  }
+  if (!hasComponent(world, AnimationRenderComp, eid)) {
+    addComponent(world, AnimationRenderComp, eid);
+    AnimationRenderComp.storeIndex[eid] = 0;
+    AnimationRenderComp.spritesheetKey[eid] = characterKey;
+    AnimationRenderComp.animationKey[eid] = AnimationKey.IDLE;
+    AnimationRenderComp.isPlaying[eid] = 1;
+    AnimationRenderComp.loop[eid] = 1;
+    AnimationRenderComp.speed[eid] = 0.04;
+    console.log(
+      `[EggHatchSystem] Added AnimationRenderComp with characterKey: ${characterKey}`
+    );
+  }
+  console.log(
+    `[EggHatchSystem] Character ${eid} has hatched! State changed to IDLE with characterKey: ${characterKey}`
+  );
+}
+function hatchCharacterForSimulation(eid, world, currentTime) {
+  const characterKey = CharacterStatusComp.characterKey[eid];
+  const spritesheetOptions = getCharacterSpritesheetOptions(characterKey);
+  const spritesheetAlias = (spritesheetOptions == null ? void 0 : spritesheetOptions.alias) || (spritesheetOptions == null ? void 0 : spritesheetOptions.jsonPath);
+  if (!spritesheetAlias || !isSpritesheetLoaded(spritesheetAlias)) {
+    console.warn(
+      `[EggHatchSystem] Simulation hatch skipped for character ${eid} because spritesheet is not preloaded. Keeping EGG state.`
+    );
+    EggHatchComp.isReadyToHatch[eid] = 0;
+    return;
+  }
+  void ensureCharacterOpaqueBoundsComputed(characterKey);
+  completeHatch(eid, world, currentTime);
 }
 async function hatchCharacter(eid, world, currentTime) {
   try {
@@ -52598,36 +53530,418 @@ async function hatchCharacter(eid, world, currentTime) {
       EggHatchComp.isReadyToHatch[eid] = 0;
       return;
     }
-    ObjectComp.state[eid] = CharacterState.IDLE;
-    if (!hasComponent(world, RandomMovementComp, eid)) {
-      addComponent(world, RandomMovementComp, eid);
-      RandomMovementComp.minIdleTime[eid] = 2e3;
-      RandomMovementComp.maxIdleTime[eid] = 8e3;
-      RandomMovementComp.minMoveTime[eid] = 1e3;
-      RandomMovementComp.maxMoveTime[eid] = 8e3;
-      RandomMovementComp.nextChange[eid] = currentTime + 2e3 + Math.random() * 3e3;
-    }
-    if (!hasComponent(world, AnimationRenderComp, eid)) {
-      addComponent(world, AnimationRenderComp, eid);
-      AnimationRenderComp.storeIndex[eid] = 0;
-      AnimationRenderComp.spritesheetKey[eid] = characterKey;
-      AnimationRenderComp.animationKey[eid] = AnimationKey.IDLE;
-      AnimationRenderComp.isPlaying[eid] = 1;
-      AnimationRenderComp.loop[eid] = 1;
-      AnimationRenderComp.speed[eid] = 0.04;
-      console.log(
-        `[EggHatchSystem] Added AnimationRenderComp with characterKey: ${characterKey}`
-      );
-    }
-    console.log(
-      `[EggHatchSystem] Character ${eid} has hatched! State changed to IDLE with characterKey: ${characterKey}`
-    );
+    await ensureCharacterOpaqueBoundsComputed(characterKey);
+    completeHatch(eid, world, currentTime);
   } catch (error) {
     console.error(
       `[EggHatchSystem] Error during hatching process for character ${eid}:`,
       error
     );
   }
+}
+const characterSleepQuery = defineQuery([
+  ObjectComp,
+  CharacterStatusComp,
+  SleepSystemComp
+]);
+const HOUR_IN_MILLISECONDS = 60 * 60 * 1e3;
+const lastTimeOfDayByWorld = /* @__PURE__ */ new WeakMap();
+function sleepScheduleSystem(params) {
+  const { world, delta, currentTime } = params;
+  const currentTimeOfDay = world.timeOfDay;
+  const entities = characterSleepQuery(world);
+  const previousTimeOfDay = lastTimeOfDayByWorld.get(world);
+  if (!previousTimeOfDay) {
+    bootstrapSleepRuntime(entities, currentTime, currentTimeOfDay);
+    lastTimeOfDayByWorld.set(world, currentTimeOfDay);
+  } else if (previousTimeOfDay !== currentTimeOfDay) {
+    handleTimeOfDayTransition(
+      entities,
+      currentTime,
+      previousTimeOfDay,
+      currentTimeOfDay
+    );
+    lastTimeOfDayByWorld.set(world, currentTimeOfDay);
+  }
+  for (let i2 = 0; i2 < entities.length; i2++) {
+    const eid = entities[i2];
+    if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
+      continue;
+    }
+    if (ObjectComp.state[eid] === CharacterState.EGG || ObjectComp.state[eid] === CharacterState.DEAD) {
+      continue;
+    }
+    updateFatigue(eid, delta);
+    reconcileExternalSleepExit(eid, currentTime, currentTimeOfDay);
+    handleScheduledWake(world, eid, currentTime);
+    handleNightWakeChecks(world, eid, currentTime, currentTimeOfDay);
+    handleScheduledSleep(eid, currentTime, currentTimeOfDay);
+    handleDayNapChecks(world, eid, currentTime, currentTimeOfDay);
+    handleNapWake(world, eid, currentTime, currentTimeOfDay);
+  }
+  return params;
+}
+function bootstrapSleepRuntime(entities, currentTime, currentTimeOfDay) {
+  for (let i2 = 0; i2 < entities.length; i2++) {
+    const eid = entities[i2];
+    if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
+      continue;
+    }
+    if (ObjectComp.state[eid] === CharacterState.EGG || ObjectComp.state[eid] === CharacterState.DEAD) {
+      continue;
+    }
+    if (SleepSystemComp.nextNapCheckTime[eid] <= 0) {
+      SleepSystemComp.nextNapCheckTime[eid] = currentTime + GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL;
+    }
+    if (ObjectComp.state[eid] === CharacterState.SLEEPING) {
+      if (SleepSystemComp.sleepMode[eid] === SleepMode.AWAKE) {
+        SleepSystemComp.sleepMode[eid] = currentTimeOfDay === TimeOfDay.Day ? SleepMode.DAY_NAP : SleepMode.NIGHT_SLEEP;
+      }
+      if (SleepSystemComp.sleepSessionStartedAt[eid] <= 0) {
+        SleepSystemComp.sleepSessionStartedAt[eid] = currentTime;
+      }
+      if (currentTimeOfDay === TimeOfDay.Night) {
+        ensureNightWakeCheckTime(eid, currentTime);
+      } else if (currentTimeOfDay === TimeOfDay.Sunrise || currentTimeOfDay === TimeOfDay.Day) {
+        scheduleWakeFromSunrise(eid, currentTime);
+      }
+      continue;
+    }
+    if (currentTimeOfDay === TimeOfDay.Night) {
+      scheduleNightSleep(eid, currentTime);
+      continue;
+    }
+    if (currentTimeOfDay === TimeOfDay.Day) {
+      SleepSystemComp.nextNapCheckTime[eid] = Math.max(
+        SleepSystemComp.nextNapCheckTime[eid],
+        currentTime + GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL
+      );
+    }
+  }
+}
+function handleTimeOfDayTransition(entities, currentTime, previousTimeOfDay, currentTimeOfDay) {
+  console.log(
+    `[SleepScheduleSystem] Time of day changed: ${previousTimeOfDay} -> ${currentTimeOfDay}`
+  );
+  for (let i2 = 0; i2 < entities.length; i2++) {
+    const eid = entities[i2];
+    if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
+      continue;
+    }
+    if (ObjectComp.state[eid] === CharacterState.EGG || ObjectComp.state[eid] === CharacterState.DEAD) {
+      continue;
+    }
+    switch (currentTimeOfDay) {
+      case TimeOfDay.Night:
+        if (ObjectComp.state[eid] === CharacterState.SLEEPING) {
+          SleepSystemComp.sleepMode[eid] = SleepMode.NIGHT_SLEEP;
+          ensureNightWakeCheckTime(eid, currentTime);
+        } else {
+          scheduleNightSleep(eid, currentTime);
+        }
+        break;
+      case TimeOfDay.Sunrise:
+        clearPendingNightSleep(eid);
+        if (ObjectComp.state[eid] === CharacterState.SLEEPING) {
+          scheduleWakeFromSunrise(eid, currentTime);
+        }
+        break;
+      case TimeOfDay.Day:
+        if (ObjectComp.state[eid] === CharacterState.SLEEPING && SleepSystemComp.sleepMode[eid] === SleepMode.NIGHT_SLEEP) {
+          SleepSystemComp.nextWakeTime[eid] = currentTime;
+          SleepSystemComp.pendingWakeReason[eid] = SleepReason.SUNRISE;
+        }
+        if (SleepSystemComp.nextNapCheckTime[eid] <= currentTime) {
+          SleepSystemComp.nextNapCheckTime[eid] = currentTime + GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL;
+        }
+        break;
+      case TimeOfDay.Sunset:
+    }
+  }
+}
+function updateFatigue(eid, delta) {
+  const currentFatigue = SleepSystemComp.fatigue[eid];
+  const isSleeping = ObjectComp.state[eid] === CharacterState.SLEEPING;
+  const isSick = hasStatus(eid, CharacterStatus.SICK);
+  const awakeGainPerMillisecond = GAME_CONSTANTS.FATIGUE_AWAKE_GAIN_PER_HOUR / HOUR_IN_MILLISECONDS;
+  const sleepRecoveryPerMillisecond = (isSick ? GAME_CONSTANTS.FATIGUE_SLEEP_RECOVERY_PER_HOUR_WHEN_SICK : GAME_CONSTANTS.FATIGUE_SLEEP_RECOVERY_PER_HOUR) / HOUR_IN_MILLISECONDS;
+  const nextFatigue = isSleeping ? currentFatigue - delta * sleepRecoveryPerMillisecond : currentFatigue + delta * awakeGainPerMillisecond;
+  SleepSystemComp.fatigue[eid] = clamp(
+    nextFatigue,
+    0,
+    GAME_CONSTANTS.FATIGUE_MAX
+  );
+}
+function reconcileExternalSleepExit(eid, currentTime, currentTimeOfDay) {
+  if (ObjectComp.state[eid] === CharacterState.SLEEPING) {
+    return;
+  }
+  if (SleepSystemComp.sleepMode[eid] === SleepMode.AWAKE || SleepSystemComp.sleepMode[eid] === SleepMode.INTERRUPTED_AWAKE) {
+    return;
+  }
+  SleepSystemComp.nextWakeTime[eid] = 0;
+  SleepSystemComp.pendingWakeReason[eid] = SleepReason.NONE;
+  SleepSystemComp.nextNightWakeCheckTime[eid] = 0;
+  SleepSystemComp.sleepSessionStartedAt[eid] = 0;
+  if (currentTimeOfDay === TimeOfDay.Night) {
+    scheduleResleep(eid, currentTime);
+    return;
+  }
+  SleepSystemComp.sleepMode[eid] = SleepMode.AWAKE;
+  SleepSystemComp.pendingSleepReason[eid] = SleepReason.NONE;
+  SleepSystemComp.nextNapCheckTime[eid] = currentTime + GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL;
+}
+function handleScheduledWake(world, eid, currentTime) {
+  const nextWakeTime = SleepSystemComp.nextWakeTime[eid];
+  if (ObjectComp.state[eid] !== CharacterState.SLEEPING || nextWakeTime <= 0 || currentTime < nextWakeTime) {
+    return;
+  }
+  wakeCharacter(world, eid, currentTime);
+}
+function handleNightWakeChecks(world, eid, currentTime, currentTimeOfDay) {
+  if (ObjectComp.state[eid] !== CharacterState.SLEEPING || SleepSystemComp.sleepMode[eid] !== SleepMode.NIGHT_SLEEP || currentTimeOfDay !== TimeOfDay.Night) {
+    if (currentTimeOfDay !== TimeOfDay.Night) {
+      SleepSystemComp.nextNightWakeCheckTime[eid] = 0;
+    }
+    return;
+  }
+  ensureNightWakeCheckTime(eid, currentTime);
+  while (currentTime >= SleepSystemComp.nextNightWakeCheckTime[eid]) {
+    SleepSystemComp.nextNightWakeCheckTime[eid] += GAME_CONSTANTS.NIGHT_WAKE_CHECK_INTERVAL;
+    const fatigue = SleepSystemComp.fatigue[eid];
+    const baseChance = GAME_CONSTANTS.NIGHT_WAKE_CHANCE;
+    const appliedChance = baseChance;
+    const roll = Math.random();
+    const shouldWake = roll < appliedChance;
+    logSleepCheck(world, "Night wake check", {
+      eid,
+      timeOfDay: currentTimeOfDay,
+      sleepMode: SleepSystemComp.sleepMode[eid],
+      fatigue: roundForLog(fatigue),
+      fatigueMax: GAME_CONSTANTS.FATIGUE_MAX,
+      checkIntervalMs: GAME_CONSTANTS.NIGHT_WAKE_CHECK_INTERVAL,
+      baseChance,
+      baseChancePercent: toPercent(baseChance),
+      appliedChance,
+      appliedChancePercent: toPercent(appliedChance),
+      roll,
+      rollPercent: toPercent(roll),
+      result: shouldWake ? "wake" : "keep_sleeping"
+    });
+    if (shouldWake) {
+      SleepSystemComp.pendingWakeReason[eid] = SleepReason.NIGHT_INTERRUPT;
+      wakeCharacter(world, eid, currentTime);
+      scheduleResleep(eid, currentTime);
+      break;
+    }
+  }
+}
+function handleScheduledSleep(eid, currentTime, currentTimeOfDay) {
+  const nextSleepTime = SleepSystemComp.nextSleepTime[eid];
+  if (nextSleepTime <= 0 || currentTime < nextSleepTime) {
+    return;
+  }
+  if (currentTimeOfDay === TimeOfDay.Day) {
+    const isNightSleepReservation = SleepSystemComp.pendingSleepReason[eid] === SleepReason.NIGHT || SleepSystemComp.pendingSleepReason[eid] === SleepReason.RESLEEP;
+    if (isNightSleepReservation) {
+      clearPendingNightSleep(eid);
+      return;
+    }
+  }
+  if (!canEnterSleep(eid)) {
+    return;
+  }
+  const mode = SleepSystemComp.pendingSleepReason[eid] === SleepReason.NAP ? SleepMode.DAY_NAP : SleepMode.NIGHT_SLEEP;
+  enterSleep(eid, currentTime, mode);
+}
+function handleDayNapChecks(world, eid, currentTime, currentTimeOfDay) {
+  if (currentTimeOfDay !== TimeOfDay.Day || ObjectComp.state[eid] === CharacterState.SLEEPING || SleepSystemComp.nextSleepTime[eid] > 0 || SleepSystemComp.fatigue[eid] < GAME_CONSTANTS.FATIGUE_DAY_NAP_MIN_THRESHOLD) {
+    return;
+  }
+  if (SleepSystemComp.nextNapCheckTime[eid] <= 0) {
+    SleepSystemComp.nextNapCheckTime[eid] = currentTime + GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL;
+  }
+  while (currentTime >= SleepSystemComp.nextNapCheckTime[eid]) {
+    SleepSystemComp.nextNapCheckTime[eid] += GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL;
+    const fatigue = SleepSystemComp.fatigue[eid];
+    const fatigueRatio = clamp(
+      fatigue / GAME_CONSTANTS.FATIGUE_MAX,
+      0,
+      1
+    );
+    const fatigueMultiplier = 0.5 + fatigueRatio;
+    const baseChance = GAME_CONSTANTS.DAY_NAP_CHANCE;
+    const appliedChance = getDayNapChance(eid);
+    const roll = Math.random();
+    const shouldNap = roll < appliedChance;
+    logSleepCheck(world, "Day nap check", {
+      eid,
+      timeOfDay: currentTimeOfDay,
+      fatigue: roundForLog(fatigue),
+      fatigueThreshold: GAME_CONSTANTS.FATIGUE_DAY_NAP_MIN_THRESHOLD,
+      fatigueMax: GAME_CONSTANTS.FATIGUE_MAX,
+      fatigueRatio: roundForLog(fatigueRatio),
+      fatigueMultiplier: roundForLog(fatigueMultiplier),
+      checkIntervalMs: GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL,
+      baseChance,
+      baseChancePercent: toPercent(baseChance),
+      appliedChance,
+      appliedChancePercent: toPercent(appliedChance),
+      roll,
+      rollPercent: toPercent(roll),
+      result: shouldNap ? "nap" : "stay_awake"
+    });
+    if (shouldNap) {
+      SleepSystemComp.nextSleepTime[eid] = currentTime;
+      SleepSystemComp.pendingSleepReason[eid] = SleepReason.NAP;
+      if (canEnterSleep(eid)) {
+        enterSleep(eid, currentTime, SleepMode.DAY_NAP);
+      }
+      break;
+    }
+  }
+}
+function handleNapWake(world, eid, currentTime, currentTimeOfDay) {
+  if (ObjectComp.state[eid] !== CharacterState.SLEEPING || SleepSystemComp.sleepMode[eid] !== SleepMode.DAY_NAP) {
+    return;
+  }
+  if (currentTimeOfDay === TimeOfDay.Night) {
+    SleepSystemComp.sleepMode[eid] = SleepMode.NIGHT_SLEEP;
+    ensureNightWakeCheckTime(eid, currentTime);
+    return;
+  }
+  const elapsed = currentTime - SleepSystemComp.sleepSessionStartedAt[eid];
+  const hasReachedMinDuration = elapsed >= GAME_CONSTANTS.DAY_NAP_MIN_DURATION;
+  const hasRecoveredEnough = SleepSystemComp.fatigue[eid] <= GAME_CONSTANTS.FATIGUE_DAY_NAP_WAKE_THRESHOLD;
+  const hasReachedMaxDuration = elapsed >= GAME_CONSTANTS.DAY_NAP_MAX_DURATION;
+  if (hasReachedMaxDuration || hasReachedMinDuration && hasRecoveredEnough) {
+    wakeCharacter(world, eid, currentTime);
+  }
+}
+function scheduleNightSleep(eid, currentTime) {
+  SleepSystemComp.nextSleepTime[eid] = currentTime + randomBetween(
+    GAME_CONSTANTS.NIGHT_SLEEP_MIN_DELAY,
+    GAME_CONSTANTS.NIGHT_SLEEP_MAX_DELAY
+  );
+  SleepSystemComp.pendingSleepReason[eid] = SleepReason.NIGHT;
+  SleepSystemComp.nextWakeTime[eid] = 0;
+  SleepSystemComp.pendingWakeReason[eid] = SleepReason.NONE;
+}
+function scheduleWakeFromSunrise(eid, currentTime) {
+  if (ObjectComp.state[eid] !== CharacterState.SLEEPING) {
+    return;
+  }
+  if (SleepSystemComp.nextWakeTime[eid] > 0) {
+    return;
+  }
+  SleepSystemComp.nextWakeTime[eid] = currentTime + randomBetween(
+    GAME_CONSTANTS.SUNRISE_WAKE_MIN_DELAY,
+    GAME_CONSTANTS.SUNRISE_WAKE_MAX_DELAY
+  );
+  SleepSystemComp.pendingWakeReason[eid] = SleepReason.SUNRISE;
+  SleepSystemComp.nextSleepTime[eid] = 0;
+  SleepSystemComp.pendingSleepReason[eid] = SleepReason.NONE;
+}
+function scheduleResleep(eid, currentTime) {
+  SleepSystemComp.sleepMode[eid] = SleepMode.INTERRUPTED_AWAKE;
+  SleepSystemComp.nextSleepTime[eid] = currentTime + randomBetween(
+    GAME_CONSTANTS.NIGHT_RESLEEP_MIN_DELAY,
+    GAME_CONSTANTS.NIGHT_RESLEEP_MAX_DELAY
+  );
+  SleepSystemComp.pendingSleepReason[eid] = SleepReason.RESLEEP;
+}
+function enterSleep(eid, currentTime, mode) {
+  ObjectComp.state[eid] = CharacterState.SLEEPING;
+  SpeedComp.value[eid] = 0;
+  SleepSystemComp.sleepMode[eid] = mode;
+  SleepSystemComp.sleepSessionStartedAt[eid] = currentTime;
+  SleepSystemComp.nextSleepTime[eid] = 0;
+  SleepSystemComp.pendingSleepReason[eid] = SleepReason.NONE;
+  SleepSystemComp.nextWakeTime[eid] = 0;
+  SleepSystemComp.pendingWakeReason[eid] = SleepReason.NONE;
+  SleepSystemComp.nextNightWakeCheckTime[eid] = mode === SleepMode.NIGHT_SLEEP ? currentTime + GAME_CONSTANTS.NIGHT_WAKE_CHECK_INTERVAL : 0;
+}
+function wakeCharacter(world, eid, currentTime) {
+  const isSick = hasStatus(eid, CharacterStatus.SICK);
+  ObjectComp.state[eid] = isSick ? CharacterState.SICK : CharacterState.IDLE;
+  SpeedComp.value[eid] = 0;
+  SleepSystemComp.sleepMode[eid] = SleepMode.AWAKE;
+  SleepSystemComp.nextSleepTime[eid] = 0;
+  SleepSystemComp.nextWakeTime[eid] = 0;
+  SleepSystemComp.nextNightWakeCheckTime[eid] = 0;
+  SleepSystemComp.pendingSleepReason[eid] = SleepReason.NONE;
+  SleepSystemComp.pendingWakeReason[eid] = SleepReason.NONE;
+  SleepSystemComp.sleepSessionStartedAt[eid] = 0;
+  SleepSystemComp.nextNapCheckTime[eid] = currentTime + GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL;
+  if (!isSick) {
+    restoreRandomMovementIfNeeded(world, eid, currentTime);
+  }
+}
+function clearPendingNightSleep(eid) {
+  if (SleepSystemComp.pendingSleepReason[eid] === SleepReason.NIGHT || SleepSystemComp.pendingSleepReason[eid] === SleepReason.RESLEEP) {
+    SleepSystemComp.nextSleepTime[eid] = 0;
+    SleepSystemComp.pendingSleepReason[eid] = SleepReason.NONE;
+  }
+}
+function ensureNightWakeCheckTime(eid, currentTime) {
+  if (SleepSystemComp.nextNightWakeCheckTime[eid] > 0) {
+    return;
+  }
+  SleepSystemComp.nextNightWakeCheckTime[eid] = currentTime + GAME_CONSTANTS.NIGHT_WAKE_CHECK_INTERVAL;
+}
+function canEnterSleep(eid) {
+  const state = ObjectComp.state[eid];
+  return state !== CharacterState.EGG && state !== CharacterState.DEAD && state !== CharacterState.EATING;
+}
+function getDayNapChance(eid) {
+  const fatigueRatio = clamp(
+    SleepSystemComp.fatigue[eid] / GAME_CONSTANTS.FATIGUE_MAX,
+    0,
+    1
+  );
+  return Math.min(
+    1,
+    GAME_CONSTANTS.DAY_NAP_CHANCE * (0.5 + fatigueRatio)
+  );
+}
+function hasStatus(eid, status) {
+  return Array.from(CharacterStatusComp.statuses[eid]).includes(status);
+}
+function randomBetween(min, max) {
+  if (max <= min) {
+    return min;
+  }
+  return min + Math.random() * (max - min);
+}
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+function restoreRandomMovementIfNeeded(world, eid, currentTime) {
+  if (hasComponent(world, RandomMovementComp, eid)) {
+    return;
+  }
+  addComponent(world, RandomMovementComp, eid);
+  RandomMovementComp.minIdleTime[eid] = 3e3;
+  RandomMovementComp.maxIdleTime[eid] = 6e3;
+  RandomMovementComp.minMoveTime[eid] = 2e3;
+  RandomMovementComp.maxMoveTime[eid] = 4e3;
+  RandomMovementComp.nextChange[eid] = currentTime + 1e3;
+}
+function logSleepCheck(world, event, payload) {
+  if (!shouldLogSleepChecks(world)) {
+    return;
+  }
+  console.log(`[SleepScheduleSystem] ${event}`, payload);
+}
+function shouldLogSleepChecks(world) {
+  return !world.isSimulationMode;
+}
+function toPercent(value) {
+  return roundForLog(value * 100, 2);
+}
+function roundForLog(value, digits = 3) {
+  const multiplier = 10 ** digits;
+  return Math.round(value * multiplier) / multiplier;
 }
 const TEMPORARY_STATUS_DURATION = 3e3;
 const characterQuery$1 = defineQuery([ObjectComp, CharacterStatusComp]);
@@ -52837,24 +54151,39 @@ function restrictMovementForSickness(world, eid) {
     SpeedComp.value[eid] = 0;
   }
 }
-const SLEEP_TEXT_FRAMES = ["zZ", "zZZ"];
 const SLEEP_FRAME_INTERVAL = 1e3;
-const SLEEP_LABEL_MARGIN = 10;
-const FALLBACK_CHARACTER_HEIGHT = 48;
-const SLEEP_TEXT_STYLE = new TextStyle({
-  fontFamily: [
-    "Press Start 2P",
-    "Apple Color Emoji",
-    "Segoe UI Emoji",
-    "Noto Color Emoji",
-    "sans-serif"
-  ],
-  fontSize: 18,
-  fill: 14211288,
-  stroke: { color: 2039583, width: 4 },
-  fontWeight: "bold",
+const SLEEP_TOP_OFFSET = 2;
+const SLEEP_HORIZONTAL_OFFSETS = [4, 0];
+const SLEEP_TEXT_COLOR = 13158600;
+const SLEEP_FONT_FAMILY = [
+  "Press Start 2P",
+  "Apple Color Emoji",
+  "Segoe UI Emoji",
+  "Noto Color Emoji",
+  "sans-serif"
+];
+const SLEEP_BASE_TEXT_STYLE = {
+  fontFamily: SLEEP_FONT_FAMILY,
+  fill: SLEEP_TEXT_COLOR,
   align: "center"
-});
+};
+const SLEEP_FRAME_DEFINITIONS = [
+  {
+    gap: 6,
+    letters: [
+      { char: "z", fontSize: 12, offsetX: 0, offsetY: 0 },
+      { char: "z", fontSize: 20, offsetX: 0, offsetY: -12 }
+    ]
+  },
+  {
+    gap: 2,
+    letters: [
+      { char: "z", fontSize: 12, offsetX: 0, offsetY: 0 },
+      { char: "z", fontSize: 20, offsetX: 0, offsetY: -14 },
+      { char: "z", fontSize: 24, offsetX: -46, offsetY: -24 }
+    ]
+  }
+];
 const sleepEffectMap = /* @__PURE__ */ new Map();
 const characterQuery = defineQuery([ObjectComp, PositionComp, RenderComp]);
 const characterExitQuery = exitQuery(characterQuery);
@@ -52868,7 +54197,7 @@ function sleepEffectSystem(params) {
     removeSleepEffect(exitedEntities[i2]);
   }
   if (!world.isSleepDebugEffectEnabled()) {
-    cleanupSleepEffects();
+    cleanupSleepEffectEntities();
     return params;
   }
   const entities = characterQuery(world);
@@ -52887,7 +54216,7 @@ function sleepEffectSystem(params) {
     activeSleepingEntities.add(eid);
     const sleepEffect = getOrCreateSleepEffect(eid, stage, currentTime);
     updateSleepEffectFrame(sleepEffect, currentTime);
-    updateSleepEffectPosition(sleepEffect.text, eid);
+    updateSleepEffectPosition(sleepEffect.container, eid);
   }
   const trackedEntities = Array.from(sleepEffectMap.keys());
   for (let i2 = 0; i2 < trackedEntities.length; i2++) {
@@ -52899,6 +54228,9 @@ function sleepEffectSystem(params) {
   return params;
 }
 function cleanupSleepEffects(_stage) {
+  cleanupSleepEffectEntities();
+}
+function cleanupSleepEffectEntities() {
   sleepEffectMap.forEach((_, eid) => {
     removeSleepEffect(eid);
   });
@@ -52908,18 +54240,16 @@ function getOrCreateSleepEffect(eid, stage, currentTime) {
   if (existingEffect) {
     return existingEffect;
   }
-  const text = new Text({
-    text: SLEEP_TEXT_FRAMES[0],
-    style: SLEEP_TEXT_STYLE,
-    anchor: { x: 0.5, y: 1 }
-  });
-  text.roundPixels = true;
-  stage.addChild(text);
+  const container = new Container();
+  container.eventMode = "none";
+  stage.addChild(container);
   const sleepEffect = {
-    text,
+    container,
+    letters: [],
     currentFrameIndex: 0,
     lastFrameChangeTime: currentTime
   };
+  rebuildSleepEffectLetters(sleepEffect);
   sleepEffectMap.set(eid, sleepEffect);
   return sleepEffect;
 }
@@ -52928,8 +54258,8 @@ function removeSleepEffect(eid) {
   if (!sleepEffect) {
     return;
   }
-  sleepEffect.text.removeFromParent();
-  sleepEffect.text.destroy();
+  sleepEffect.container.removeFromParent();
+  sleepEffect.container.destroy({ children: true });
   sleepEffectMap.delete(eid);
 }
 function updateSleepEffectFrame(sleepEffect, currentTime) {
@@ -52938,31 +54268,66 @@ function updateSleepEffectFrame(sleepEffect, currentTime) {
   }
   sleepEffect.currentFrameIndex = sleepEffect.currentFrameIndex === 0 ? 1 : 0;
   sleepEffect.lastFrameChangeTime = currentTime;
-  sleepEffect.text.text = SLEEP_TEXT_FRAMES[sleepEffect.currentFrameIndex];
+  rebuildSleepEffectLetters(sleepEffect);
 }
-function updateSleepEffectPosition(text, eid) {
+function updateSleepEffectPosition(container, eid) {
+  var _a;
   const x2 = PositionComp.x[eid];
   const y2 = PositionComp.y[eid];
   const configuredZIndex = RenderComp.zIndex[eid];
   const effectiveZIndex = configuredZIndex === 0 ? y2 : configuredZIndex;
-  const characterHeight = getCharacterHeight(eid);
-  text.position.set(x2, y2 - characterHeight / 2 - SLEEP_LABEL_MARGIN);
-  text.zIndex = effectiveZIndex + 2;
-  text.visible = true;
+  const { topY } = getCharacterVerticalBounds(eid);
+  const frameOffsetX = SLEEP_HORIZONTAL_OFFSETS[((_a = sleepEffectMap.get(eid)) == null ? void 0 : _a.currentFrameIndex) ?? 0] ?? 0;
+  container.position.set(x2 + frameOffsetX, topY + SLEEP_TOP_OFFSET);
+  container.zIndex = effectiveZIndex + 2;
+  container.visible = true;
 }
-function getCharacterHeight(eid) {
-  const displayObject = getCharacterDisplayObject(eid);
-  if (displayObject && Number.isFinite(displayObject.height)) {
-    const height = Number(displayObject.height);
-    if (height > 0) {
-      return height;
-    }
+function rebuildSleepEffectLetters(sleepEffect) {
+  sleepEffect.letters = renderSleepTextFrame(
+    sleepEffect.container,
+    sleepEffect.currentFrameIndex
+  );
+}
+function renderSleepTextFrame(container, frameIndex) {
+  const frameDefinition = SLEEP_FRAME_DEFINITIONS[frameIndex];
+  const { letters: letterDefinitions, gap: letterGap } = frameDefinition;
+  container.removeChildren().forEach((child) => child.destroy());
+  const letters = letterDefinitions.map((letterDef) => {
+    const text = new Text({
+      text: letterDef.char,
+      style: new TextStyle({
+        ...SLEEP_BASE_TEXT_STYLE,
+        fontSize: letterDef.fontSize
+      })
+    });
+    text.roundPixels = true;
+    container.addChild(text);
+    return text;
+  });
+  const positionedLetters = [];
+  let currentX = 0;
+  for (let i2 = 0; i2 < letters.length; i2++) {
+    const letter = letters[i2];
+    const offsetX = letterDefinitions[i2].offsetX;
+    const offsetY = letterDefinitions[i2].offsetY;
+    const x2 = currentX + offsetX;
+    const y2 = offsetY;
+    letter.position.set(x2, y2);
+    positionedLetters.push({ x: x2, y: y2, width: letter.width });
+    currentX += letter.width + letterGap;
   }
-  const scale = RenderComp.scale[eid];
-  return scale > 0 ? scale * 16 : FALLBACK_CHARACTER_HEIGHT;
-}
-function getCharacterDisplayObject(eid) {
-  return getSpriteStore().get(eid) ?? getAnimatedSpriteStore().get(eid);
+  const maxBottom = Math.max(
+    ...letters.map((letter, index) => letterDefinitions[index].offsetY + letter.height)
+  );
+  for (let i2 = 0; i2 < letters.length; i2++) {
+    letters[i2].y -= maxBottom;
+  }
+  const minX = Math.min(...positionedLetters.map(({ x: x2 }) => x2));
+  const maxRight = Math.max(
+    ...positionedLetters.map(({ x: x2, width }) => x2 + width)
+  );
+  container.pivot.set((minX + maxRight) / 2, 0);
+  return letters;
 }
 class ReentrySimulator {
   constructor() {
@@ -53365,7 +54730,9 @@ const _MainSceneWorld = class _MainSceneWorld {
     this._isRunningReentrySimulation = false;
     this._simulationTime = null;
     this._statusSystemsEnabled = true;
-    this._sleepDebugEffectEnabled = false;
+    this._sleepDebugEffectEnabled = true;
+    this._randomMovementDebugEnabled = false;
+    this._pendingRecoveryCureEids = /* @__PURE__ */ new Set();
     this._isPersistenceDisabled = false;
     this._pendingStorageWrite = Promise.resolve();
     this._timeOfDay = TimeOfDay.Day;
@@ -53380,6 +54747,10 @@ const _MainSceneWorld = class _MainSceneWorld {
       // 시간 기반 시스템들 (상태 관리 시스템 토글 적용)
       (params2) => this._statusSystemsEnabled ? freshnessSystem({ ...params2, currentTime: this.currentTime }) : params2,
       (params2) => this._statusSystemsEnabled ? digestiveSystem({ ...params2, currentTime: this.currentTime }) : params2,
+      (params2) => this._statusSystemsEnabled ? sleepScheduleSystem({
+        ...params2,
+        currentTime: this.currentTime
+      }) : params2,
       (params2) => this._statusSystemsEnabled ? diseaseSystem({ ...params2, currentTime: this.currentTime }) : params2,
       (params2) => eggHatchSystem({ ...params2, currentTime: this.currentTime }),
       (params2) => this._statusSystemsEnabled ? characterManagerSystem(params2) : params2,
@@ -53411,6 +54782,12 @@ const _MainSceneWorld = class _MainSceneWorld {
     );
     this._stage = params.stage;
     this._positionBoundary = params.positionBoundary;
+    this._positionBoundaryInsets = params.positionBoundaryInsets ?? {
+      left: params.positionBoundary.x,
+      right: params.positionBoundary.x,
+      top: params.positionBoundary.y,
+      bottom: params.positionBoundary.y
+    };
     this._parentElement = params.parentElement;
     this._debugParentElement = params.debugParentElement ?? params.parentElement;
     this._startMiniGame = params.startMiniGame;
@@ -53467,6 +54844,11 @@ const _MainSceneWorld = class _MainSceneWorld {
           `- Spritesheet '${result.alias}': ${result.animations.length} animations, ${result.textures.length} textures`
         );
       });
+      await precomputeLoadedCharacterOpaqueBounds();
+      await precomputeLoadedTextureOpaqueBounds([
+        TextureKey.EGG0,
+        TextureKey.EGG1
+      ]);
       console.log("All game assets loaded successfully");
     } catch (error) {
       console.error("Failed to load game assets:", error);
@@ -53564,7 +54946,7 @@ const _MainSceneWorld = class _MainSceneWorld {
     });
   }
   async init() {
-    var _a, _b, _c, _d;
+    var _a, _b;
     console.groupCollapsed("[MainSceneWorld] 🚀 Initializing world...");
     try {
       createWorld(this, 100);
@@ -53591,20 +54973,30 @@ const _MainSceneWorld = class _MainSceneWorld {
         }
       }
       await this._loadGameAssets();
-      const characterSpritesheetKey = (_d = (_c = this._persistentData.entities.find(
-        (entity) => {
-          var _a2;
-          return ((_a2 = entity.components.object) == null ? void 0 : _a2.type) === ObjectType.CHARACTER;
-        }
-      )) == null ? void 0 : _c.components.animationRender) == null ? void 0 : _d.spritesheetKey;
-      if (characterSpritesheetKey) {
-        const spritesheetName = SPRITESHEET_KEY_TO_NAME[characterSpritesheetKey];
-        await loadSpritesheet({
-          jsonPath: `/assets/game/sprites/monsters/${spritesheetName}.json`,
-          alias: spritesheetName
-          // pixelArt: true,
-        });
-      }
+      const characterSpritesheetKeys = Array.from(
+        new Set(
+          this._persistentData.entities.filter((entity) => {
+            var _a2;
+            return ((_a2 = entity.components.object) == null ? void 0 : _a2.type) === ObjectType.CHARACTER;
+          }).map((entity) => {
+            var _a2, _b2;
+            return ((_a2 = entity.components.animationRender) == null ? void 0 : _a2.spritesheetKey) ?? ((_b2 = entity.components.characterStatus) == null ? void 0 : _b2.characterKey);
+          }).filter((key) => {
+            return typeof key === "number" && Number.isFinite(key) && !!SPRITESHEET_KEY_TO_NAME[key];
+          })
+        )
+      );
+      await Promise.all(
+        characterSpritesheetKeys.map(async (characterSpritesheetKey) => {
+          const spritesheetName = SPRITESHEET_KEY_TO_NAME[characterSpritesheetKey];
+          await loadSpritesheet({
+            jsonPath: `/assets/game/sprites/monsters/${spritesheetName}.json`,
+            alias: spritesheetName
+            // pixelArt: true,
+          });
+          await ensureCharacterOpaqueBoundsComputed(characterSpritesheetKey);
+        })
+      );
       this._background = new Background(Assets.get("grass"));
       this._stage.addChild(this._background);
       this._sceneDarknessOverlay = this._createSceneDarknessOverlay();
@@ -53614,7 +55006,9 @@ const _MainSceneWorld = class _MainSceneWorld {
       this._background.resize(width, height);
       this._resizeSceneDarknessOverlay(width, height);
       this._applyCurrentSkyState();
-      void this._initializeSunTimes();
+      if (this._isLocalTimeEnabled()) {
+        void this._initializeSunTimes();
+      }
       this._stage.sortableChildren = true;
       if (this._parentElement) {
         this._gameMenu = new GameMenu(this._parentElement, {
@@ -53630,12 +55024,9 @@ const _MainSceneWorld = class _MainSceneWorld {
             console.log("[MainSceneWorld] Feed selected");
             this._throwFood();
           },
-          onVersusSelect: () => {
-            console.log("[MainSceneWorld] Versus selected");
-          },
           onDrugSelect: () => {
             console.log("[MainSceneWorld] Drug selected");
-            this._handleDrugSelection();
+            this._handleHospitalSelection();
           },
           onCleanSelect: () => {
             console.log("[MainSceneWorld] Clean selected");
@@ -53643,6 +55034,7 @@ const _MainSceneWorld = class _MainSceneWorld {
           },
           onHospitalSelect: () => {
             console.log("[MainSceneWorld] Hospital selected");
+            this._handleHospitalSelection();
           },
           onCancel: () => {
             console.log("[MainSceneWorld] Menu cancelled");
@@ -53835,7 +55227,9 @@ const _MainSceneWorld = class _MainSceneWorld {
     if (this._stage) {
       cleanupSleepEffects(this._stage);
       cleanupCharacterNameLabels();
+      cleanupCharacterLayoutDebug(this._stage);
     }
+    this._pendingRecoveryCureEids.clear();
     this._isPaused = true;
     console.log("[MainSceneWorld] Scene exit cleanup completed");
   }
@@ -53905,6 +55299,8 @@ const _MainSceneWorld = class _MainSceneWorld {
       }
       cleanupSleepEffects(this._stage);
       cleanupCharacterNameLabels();
+      cleanupCharacterLayoutDebug(this._stage);
+      this._pendingRecoveryCureEids.clear();
       this._background && this._stage.removeChild(this._background);
       console.log("World destroyed successfully");
     } finally {
@@ -53941,7 +55337,12 @@ const _MainSceneWorld = class _MainSceneWorld {
         name: "MainScene",
         monster_name: initialGameData == null ? void 0 : initialGameData.name,
         last_ecs_saved: Date.now(),
-        version: this.VERSION
+        version: this.VERSION,
+        app_state: {
+          last_active_time: Date.now(),
+          is_first_load: false,
+          use_local_time: (initialGameData == null ? void 0 : initialGameData.useLocalTime) ?? false
+        }
       },
       entities: [this._createDefaultCharacterEntity()]
     };
@@ -54083,8 +55484,22 @@ const _MainSceneWorld = class _MainSceneWorld {
         data.world_metadata = {
           name: "MainScene",
           last_ecs_saved: Date.now(),
-          version: this.VERSION
+          version: this.VERSION,
+          app_state: {
+            last_active_time: Date.now(),
+            is_first_load: false,
+            use_local_time: true
+          }
         };
+      }
+      if (!data.world_metadata.app_state) {
+        data.world_metadata.app_state = {
+          last_active_time: Date.now(),
+          is_first_load: false,
+          use_local_time: true
+        };
+      } else if (typeof data.world_metadata.app_state.use_local_time !== "boolean") {
+        data.world_metadata.app_state.use_local_time = true;
       }
       if (!data.entities) {
         console.warn("Missing entities array, creating empty array");
@@ -54133,10 +55548,10 @@ const _MainSceneWorld = class _MainSceneWorld {
    */
   resize(width, height) {
     this._positionBoundary = {
-      x: this._positionBoundary.x,
-      y: this._positionBoundary.y,
-      width: width - 2 * this._positionBoundary.x,
-      height: height - 2 * this._positionBoundary.y
+      x: this._positionBoundaryInsets.left,
+      y: this._positionBoundaryInsets.top,
+      width: width - this._positionBoundaryInsets.left - this._positionBoundaryInsets.right,
+      height: height - this._positionBoundaryInsets.top - this._positionBoundaryInsets.bottom
     };
     if (this._background) {
       this._background.resize(width, height);
@@ -54152,6 +55567,7 @@ const _MainSceneWorld = class _MainSceneWorld {
       return;
     }
     this._timeOfDayMode = TimeOfDayMode.Manual;
+    this._setUseLocalTimeEnabled(false);
     this._autoTimeOfDayState = null;
     this._autoTimeOfDayMinuteKey = null;
     this._timeOfDay = timeOfDay;
@@ -54161,8 +55577,9 @@ const _MainSceneWorld = class _MainSceneWorld {
     );
   }
   enableAutoTimeOfDay() {
+    this._setUseLocalTimeEnabled(true);
     if (!this._sunTimes) {
-      console.warn("[MainSceneWorld] Cannot enable auto time of day without sun data");
+      void this._initializeSunTimes();
       return;
     }
     this._timeOfDayMode = TimeOfDayMode.Auto;
@@ -54201,6 +55618,12 @@ const _MainSceneWorld = class _MainSceneWorld {
       this._sunTimes = sunTimes;
       this._hasLocationPermission = sunTimes.hasLocationPermission;
       this._sunLocationSource = sunTimes.locationSource;
+      if (!this._isLocalTimeEnabled()) {
+        console.log(
+          "[MainSceneWorld] Sun times loaded but local time is disabled, staying in manual mode"
+        );
+        return;
+      }
       if (this._timeOfDayMode === TimeOfDayMode.Manual) {
         this._timeOfDayMode = TimeOfDayMode.Auto;
       }
@@ -54220,16 +55643,17 @@ const _MainSceneWorld = class _MainSceneWorld {
     if (this._timeOfDayMode !== TimeOfDayMode.Auto || !this._sunTimes) {
       return;
     }
-    if (hasSunTimesDateRolledOver(/* @__PURE__ */ new Date(), this._sunTimes)) {
+    const now = new Date(this.currentTime);
+    if (!this.isSimulationMode && hasSunTimesDateRolledOver(now, this._sunTimes)) {
       void this._refreshSunTimes(false);
       return;
     }
-    const currentMinuteKey = Math.floor(Date.now() / 6e4);
+    const currentMinuteKey = Math.floor(this.currentTime / 6e4);
     if (!force && this._autoTimeOfDayMinuteKey === currentMinuteKey) {
       return;
     }
     this._autoTimeOfDayMinuteKey = currentMinuteKey;
-    const nextState = resolveAutoTimeOfDayState(/* @__PURE__ */ new Date(), this._sunTimes);
+    const nextState = resolveAutoTimeOfDayState(now, this._sunTimes);
     const hasChanged = !this._autoTimeOfDayState || this._autoTimeOfDayState.timeOfDay !== nextState.timeOfDay || this._autoTimeOfDayState.progress !== nextState.progress;
     this._autoTimeOfDayState = nextState;
     this._timeOfDay = nextState.timeOfDay;
@@ -54285,6 +55709,24 @@ const _MainSceneWorld = class _MainSceneWorld {
   }
   _lerpDarknessAlpha(from, to, progress) {
     return from + (to - from) * progress;
+  }
+  _isLocalTimeEnabled() {
+    var _a, _b;
+    return ((_b = (_a = this._persistentData) == null ? void 0 : _a.world_metadata.app_state) == null ? void 0 : _b.use_local_time) ?? true;
+  }
+  _setUseLocalTimeEnabled(enabled) {
+    if (!this._persistentData) {
+      return;
+    }
+    if (!this._persistentData.world_metadata.app_state) {
+      this._persistentData.world_metadata.app_state = {
+        last_active_time: 0,
+        is_first_load: false,
+        use_local_time: enabled
+      };
+      return;
+    }
+    this._persistentData.world_metadata.app_state.use_local_time = enabled;
   }
   _requestLocationPermissionOnCharacterCreation() {
     if (!this._sunTimes || this._hasLocationPermission) {
@@ -54430,42 +55872,77 @@ const _MainSceneWorld = class _MainSceneWorld {
     };
   }
   /**
-   * 약 메뉴 선택 처리 - sick 상태 해제 및 회복 애니메이션
+   * 병원 메뉴 선택 처리 - sick 상태일 때만 회복 주사기 연출 시작
    */
-  _handleDrugSelection() {
+  _handleHospitalSelection() {
     const characterEid = this._findMainCharacterEntity();
     if (characterEid === -1) {
       console.warn(
-        "[MainSceneWorld] No character entity found for drug delivery"
+        "[MainSceneWorld] No character entity found for hospital recovery"
       );
       return;
     }
-    const statuses = CharacterStatusComp.statuses[characterEid];
-    let isSick = false;
-    for (let i2 = 0; i2 < statuses.length; i2++) {
-      if (statuses[i2] === CharacterStatus.SICK) {
-        isSick = true;
-        break;
-      }
-    }
-    if (isSick) {
-      for (let i2 = 0; i2 < statuses.length; i2++) {
-        if (statuses[i2] === CharacterStatus.SICK) {
-          statuses[i2] = 0;
-          break;
-        }
-      }
-      if (hasComponent(this, DiseaseSystemComp, characterEid)) {
-        DiseaseSystemComp.sickStartTime[characterEid] = 0;
-      }
-      ObjectComp.state[characterEid] = CharacterState.IDLE;
+    if (hasComponent(this, EffectAnimationComp, characterEid) && EffectAnimationComp.isActive[characterEid]) {
       console.log(
-        `[MainSceneWorld] Cured character ${characterEid} from SICK state`
+        `[MainSceneWorld] Recovery animation already active for character ${characterEid}`
+      );
+      return;
+    }
+    const isSick = this._isCharacterSick(characterEid);
+    if (isSick) {
+      this._pendingRecoveryCureEids.add(characterEid);
+    } else {
+      console.log(
+        `[MainSceneWorld] Character ${characterEid} is not sick, starting hospital animation only`
       );
     }
     startRecoveryAnimation(this, characterEid, this._stage, this.currentTime);
     console.log(
-      `[MainSceneWorld] Started recovery animation for character ${characterEid}`
+      `[MainSceneWorld] Started hospital recovery animation for character ${characterEid} (pendingCure=${isSick})`
+    );
+  }
+  _handleDrugSelection() {
+    this._handleHospitalSelection();
+  }
+  _isCharacterSick(characterEid) {
+    if (ObjectComp.state[characterEid] === CharacterState.SICK) {
+      return true;
+    }
+    const statuses = CharacterStatusComp.statuses[characterEid];
+    if (!statuses) {
+      return false;
+    }
+    for (let i2 = 0; i2 < statuses.length; i2++) {
+      if (statuses[i2] === CharacterStatus.SICK) {
+        return true;
+      }
+    }
+    return false;
+  }
+  applyPendingRecoverySyringeImpact(characterEid) {
+    if (!this._pendingRecoveryCureEids.has(characterEid)) {
+      return;
+    }
+    this._pendingRecoveryCureEids.delete(characterEid);
+    const statuses = CharacterStatusComp.statuses[characterEid];
+    let removed2 = false;
+    if (statuses) {
+      for (let i2 = 0; i2 < statuses.length; i2++) {
+        if (statuses[i2] === CharacterStatus.SICK) {
+          statuses[i2] = 0;
+          removed2 = true;
+          break;
+        }
+      }
+    }
+    if (hasComponent(this, DiseaseSystemComp, characterEid)) {
+      DiseaseSystemComp.sickStartTime[characterEid] = 0;
+    }
+    if (ObjectComp.state[characterEid] === CharacterState.SICK) {
+      ObjectComp.state[characterEid] = CharacterState.IDLE;
+    }
+    console.log(
+      `[MainSceneWorld] Applied hospital recovery impact for character ${characterEid} (removedStatus=${removed2})`
     );
   }
   /**
@@ -54599,6 +56076,10 @@ const _MainSceneWorld = class _MainSceneWorld {
       // 시간 기반 시스템들 (상태 관리 시스템 토글 적용)
       (params) => this._statusSystemsEnabled ? freshnessSystem({ ...params, currentTime: getCurrentTime() }) : params,
       (params) => this._statusSystemsEnabled ? digestiveSystem({ ...params, currentTime: getCurrentTime() }) : params,
+      (params) => this._statusSystemsEnabled ? sleepScheduleSystem({
+        ...params,
+        currentTime: getCurrentTime()
+      }) : params,
       (params) => this._statusSystemsEnabled ? diseaseSystem({ ...params, currentTime: getCurrentTime() }) : params,
       (params) => eggHatchSystem({ ...params, currentTime: getCurrentTime() }),
       (params) => this._statusSystemsEnabled ? characterManagerSystem(params) : params,
@@ -54666,6 +56147,7 @@ const _MainSceneWorld = class _MainSceneWorld {
         lastActiveTime,
         (params) => {
           this._simulationTime = reentrySimulator.getCurrentSimulationTime();
+          this._updateAutoTimeOfDayIfNeeded();
           return simulationPipeline(params);
         },
         this
@@ -54702,6 +56184,7 @@ const _MainSceneWorld = class _MainSceneWorld {
     statusIconRenderSystem(params);
     renderSystem(params);
     characterNameLabelSystem(params);
+    characterLayoutDebugSystem({ ...params, stage: this._stage });
     cleanableRenderSystem({ ...params, stage: this._stage });
     sleepEffectSystem({ ...params, stage: this._stage });
     return params;
@@ -54871,7 +56354,8 @@ const _MainSceneWorld = class _MainSceneWorld {
       if (!this._persistentData.world_metadata.app_state) {
         this._persistentData.world_metadata.app_state = {
           last_active_time: 0,
-          is_first_load: false
+          is_first_load: false,
+          use_local_time: this._isLocalTimeEnabled()
         };
       }
       this._persistentData.world_metadata.app_state.last_active_time = Date.now();
@@ -54905,6 +56389,12 @@ const _MainSceneWorld = class _MainSceneWorld {
   }
   isSleepDebugEffectEnabled() {
     return this._sleepDebugEffectEnabled;
+  }
+  setRandomMovementDebugEnabled(enabled) {
+    this._randomMovementDebugEnabled = enabled;
+  }
+  isRandomMovementDebugEnabled() {
+    return this._randomMovementDebugEnabled;
   }
 };
 _MainSceneWorld.SCENE_DARKNESS_OVERLAY_Z_INDEX = 1e6;
@@ -60963,7 +62453,17 @@ class FlappyBirdGameScene extends Container {
   }
 }
 TexturePool.textureOptions.scaleMode = "nearest";
-const SCREEN_PADDING = 10;
+const SCREEN_HORIZONTAL_PADDING = 14;
+const SCREEN_BOTTOM_PADDING = 14;
+const SCREEN_TOP_PADDING = SCREEN_BOTTOM_PADDING + 6;
+function createMainScenePositionBoundary(width, height) {
+  return {
+    x: SCREEN_HORIZONTAL_PADDING,
+    y: SCREEN_TOP_PADDING,
+    width: width - 2 * SCREEN_HORIZONTAL_PADDING,
+    height: height - SCREEN_TOP_PADDING - SCREEN_BOTTOM_PADDING
+  };
+}
 class Game {
   // private characterManager: CharacterManager; // CharacterManager 인스턴스 추가
   // private shouldSaveDataBeforeUnload = false;
@@ -61104,11 +62604,15 @@ class Game {
       case SceneKey.MAIN:
         const mainSceneWorld = new MainSceneWorld({
           stage: this.app.stage,
-          positionBoundary: {
-            x: SCREEN_PADDING,
-            y: SCREEN_PADDING,
-            width: this.app.screen.width - 2 * SCREEN_PADDING,
-            height: this.app.screen.height - 2 * SCREEN_PADDING
+          positionBoundary: createMainScenePositionBoundary(
+            this.app.screen.width,
+            this.app.screen.height
+          ),
+          positionBoundaryInsets: {
+            left: SCREEN_HORIZONTAL_PADDING,
+            right: SCREEN_HORIZONTAL_PADDING,
+            top: SCREEN_TOP_PADDING,
+            bottom: SCREEN_BOTTOM_PADDING
           },
           parentElement: this._parentElement,
           debugParentElement: this._debugParentElement,
@@ -61359,12 +62863,10 @@ class PlatformAdapter {
   }
 }
 const STORAGE_KEYS = {
-  vibrationEnabled: "game.settings.vibrationEnabled",
-  notificationEnabled: "game.settings.notificationEnabled"
+  vibrationEnabled: "game.settings.vibrationEnabled"
 };
 const DEFAULT_SETTINGS = {
-  vibrationEnabled: true,
-  notificationEnabled: true
+  vibrationEnabled: true
 };
 function getBooleanSetting(key, defaultValue) {
   if (typeof window === "undefined") {
@@ -61381,10 +62883,6 @@ function getGameSettings() {
     vibrationEnabled: getBooleanSetting(
       STORAGE_KEYS.vibrationEnabled,
       DEFAULT_SETTINGS.vibrationEnabled
-    ),
-    notificationEnabled: getBooleanSetting(
-      STORAGE_KEYS.notificationEnabled,
-      DEFAULT_SETTINGS.notificationEnabled
     )
   };
 }
@@ -61397,10 +62895,6 @@ function updateGameSettings(partialSettings) {
     window.localStorage.setItem(
       STORAGE_KEYS.vibrationEnabled,
       String(nextSettings.vibrationEnabled)
-    );
-    window.localStorage.setItem(
-      STORAGE_KEYS.notificationEnabled,
-      String(nextSettings.notificationEnabled)
     );
   }
   return nextSettings;
@@ -61939,12 +63433,12 @@ function useLayerInteractionVibration() {
   };
 }
 const PopupLayer = ({
-  title = "알림!",
+  title = "Alert!",
   content,
   onConfirm,
   onCancel,
-  confirmText = "확인",
-  cancelText = "취소"
+  confirmText = "Confirm",
+  cancelText = "Cancel"
 }) => {
   const layerInteractionVibrationProps = useLayerInteractionVibration();
   return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -62020,30 +63514,83 @@ const PopupLayer = ({
   );
 };
 const MIN_NAME_LENGTH = 2;
-const MAX_NAME_LENGTH = 10;
-function countDisplayCharacters(value) {
-  const IntlWithSegmenter = Intl;
-  const SegmenterCtor = IntlWithSegmenter.Segmenter;
-  if (SegmenterCtor) {
-    return Array.from(
-      new SegmenterCtor(void 0, { granularity: "grapheme" }).segment(value)
-    ).length;
-  }
-  return Array.from(value).length;
-}
 const SetupLayer = ({ onComplete }) => {
   const [name, setName] = reactExports.useState("");
+  const [useLocalTime, setUseLocalTime] = reactExports.useState(false);
   const [error, setError] = reactExports.useState(null);
+  const [localTimeError, setLocalTimeError] = reactExports.useState(null);
+  const [isRequestingLocationPermission, setIsRequestingLocationPermission] = reactExports.useState(false);
   const trimmedName = name.trim();
   const nameLength = countDisplayCharacters(trimmedName);
+  const nameWidth = measureNameLabelWidth(trimmedName);
+  const isWithinVisibleWidth = fitsNameLabelWidth(trimmedName);
+  const ensureLocationPermissionForLocalTime = reactExports.useCallback(async () => {
+    if (typeof window === "undefined" || !window.sunController) {
+      setLocalTimeError(
+        "Local day/night time is only available in the native app."
+      );
+      return false;
+    }
+    try {
+      const sunTimes = await window.sunController.getSunTimes(false);
+      if (sunTimes == null ? void 0 : sunTimes.hasLocationPermission) {
+        return true;
+      }
+    } catch (permissionCheckError) {
+      console.warn(
+        "[SetupLayer] Failed to check location permission state:",
+        permissionCheckError
+      );
+    }
+    setIsRequestingLocationPermission(true);
+    try {
+      const result = await window.sunController.requestLocationPermission();
+      if (result == null ? void 0 : result.granted) {
+        return true;
+      }
+      setLocalTimeError(
+        "Location permission is required to enable local day/night time."
+      );
+      return false;
+    } catch (permissionRequestError) {
+      console.warn(
+        "[SetupLayer] Failed to request location permission:",
+        permissionRequestError
+      );
+      setLocalTimeError("Failed to request location permission.");
+      return false;
+    } finally {
+      setIsRequestingLocationPermission(false);
+    }
+  }, []);
+  const handleUseLocalTimeChange = reactExports.useCallback(
+    async (checked) => {
+      setLocalTimeError(null);
+      if (!checked) {
+        setUseLocalTime(false);
+        return;
+      }
+      const granted = await ensureLocationPermissionForLocalTime();
+      setUseLocalTime(granted);
+    },
+    [ensureLocationPermissionForLocalTime]
+  );
   const handleConfirm = () => {
-    if (!trimmedName) {
-      setError("닉네임을 입력해주세요!");
+    if (isRequestingLocationPermission) {
+      setError("Please wait for the location permission request to finish.");
       return;
     }
-    if (nameLength < MIN_NAME_LENGTH || nameLength > MAX_NAME_LENGTH) {
+    if (!trimmedName) {
+      setError("Please enter a name.");
+      return;
+    }
+    if (nameLength < MIN_NAME_LENGTH) {
+      setError(`Name must be at least ${MIN_NAME_LENGTH} characters long.`);
+      return;
+    }
+    if (!isWithinVisibleWidth) {
       setError(
-        `닉네임은 ${MIN_NAME_LENGTH}~${MAX_NAME_LENGTH}글자 사이로 입력해주세요!`
+        `Name must fit within ${NAME_LABEL_MAX_WIDTH}px on the in-game label.`
       );
       return;
     }
@@ -62051,57 +63598,126 @@ const SetupLayer = ({ onComplete }) => {
       document.activeElement.blur();
     }
     onComplete({
-      name: trimmedName
+      name: trimmedName,
+      useLocalTime
     });
   };
   const overlay = /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "fixed inset-0 z-[999] flex min-h-dvh items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
     PopupLayer,
     {
       title: "Spawn Monster!",
-      content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex flex-col items-center gap-4", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "w-full", children: [
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
-          "input",
-          {
-            type: "text",
-            value: name,
-            onChange: (e2) => {
-              setName(e2.target.value);
-              setError(null);
+      content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex flex-col items-center gap-4", children: [
+        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "w-full", children: [
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+            "input",
+            {
+              type: "text",
+              value: name,
+              onChange: (e2) => {
+                setName(e2.target.value);
+                setError(null);
+              },
+              placeholder: "Monster Name",
+              className: "w-full px-3 py-2 text-center border-2 border-[#222] text-xs focus:outline-none focus:ring-2 focus:ring-[#d95763]"
             },
-            placeholder: "Monster Name",
-            className: "w-full px-3 py-2 text-center border-2 border-[#222] text-xs focus:outline-none focus:ring-2 focus:ring-[#d95763]"
-          },
-          void 0,
-          false,
-          {
+            void 0,
+            false,
+            {
+              fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
+              lineNumber: 135,
+              columnNumber: 15
+            },
+            void 0
+          ),
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+            "div",
+            {
+              className: `mt-4 text-xs ${isWithinVisibleWidth ? "text-gray-600" : "text-red-600"}`,
+              children: [
+                "Name width: ",
+                Math.round(nameWidth),
+                "/",
+                NAME_LABEL_MAX_WIDTH,
+                "px"
+              ]
+            },
+            void 0,
+            true,
+            {
+              fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
+              lineNumber: 145,
+              columnNumber: 15
+            },
+            void 0
+          ),
+          error && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("p", { className: "mt-4 text-component-negative text-[0.7em]", children: error }, void 0, false, {
             fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-            lineNumber: 74,
-            columnNumber: 15
-          },
-          void 0
-        ),
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "mt-4 text-xs text-gray-600", children: [
-          "Name length: ",
-          nameLength,
-          "/",
-          MAX_NAME_LENGTH
+            lineNumber: 153,
+            columnNumber: 17
+          }, void 0)
         ] }, void 0, true, {
           fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-          lineNumber: 84,
-          columnNumber: 15
+          lineNumber: 134,
+          columnNumber: 13
         }, void 0),
-        error && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("p", { className: "mt-4 text-component-negative text-[0.7em]", children: error }, void 0, false, {
+        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "w-full border-t border-[#222]/20 pt-4 text-left", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("label", { className: "flex items-start gap-3 text-xs text-[#222]", children: [
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+            "input",
+            {
+              type: "checkbox",
+              checked: useLocalTime,
+              disabled: isRequestingLocationPermission,
+              onChange: (e2) => {
+                setError(null);
+                void handleUseLocalTimeChange(e2.target.checked);
+              },
+              className: "mt-0.5 h-4 w-4 min-h-4 min-w-4 shrink-0 flex-none appearance-none bg-center bg-no-repeat bg-contain cursor-pointer disabled:cursor-not-allowed disabled:opacity-60",
+              style: {
+                backgroundImage: `url("${useLocalTime ? "/assets/ui/checkbox.png" : "/assets/ui/checkbox_off.png"}")`
+              }
+            },
+            void 0,
+            false,
+            {
+              fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
+              lineNumber: 160,
+              columnNumber: 17
+            },
+            void 0
+          ),
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { className: "leading-5", children: [
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { className: "block font-semibold", children: "Use local day/night time" }, void 0, false, {
+              fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
+              lineNumber: 178,
+              columnNumber: 19
+            }, void 0),
+            isRequestingLocationPermission && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { className: "mt-1 block text-[0.92em] text-gray-600", children: "Requesting location permission..." }, void 0, false, {
+              fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
+              lineNumber: 182,
+              columnNumber: 21
+            }, void 0),
+            localTimeError && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { className: "mt-1 block text-[0.92em] text-red-600", children: localTimeError }, void 0, false, {
+              fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
+              lineNumber: 187,
+              columnNumber: 21
+            }, void 0)
+          ] }, void 0, true, {
+            fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
+            lineNumber: 177,
+            columnNumber: 17
+          }, void 0)
+        ] }, void 0, true, {
           fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-          lineNumber: 88,
-          columnNumber: 17
+          lineNumber: 159,
+          columnNumber: 15
+        }, void 0) }, void 0, false, {
+          fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
+          lineNumber: 158,
+          columnNumber: 13
         }, void 0)
       ] }, void 0, true, {
         fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-        lineNumber: 73,
-        columnNumber: 13
-      }, void 0) }, void 0, false, {
-        fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-        lineNumber: 72,
+        lineNumber: 133,
         columnNumber: 11
       }, void 0),
       onConfirm: handleConfirm,
@@ -62111,13 +63727,13 @@ const SetupLayer = ({ onComplete }) => {
     false,
     {
       fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-      lineNumber: 69,
+      lineNumber: 130,
       columnNumber: 7
     },
     void 0
   ) }, void 0, false, {
     fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-    lineNumber: 68,
+    lineNumber: 129,
     columnNumber: 5
   }, void 0);
   if (typeof document === "undefined") {
@@ -62126,7 +63742,7 @@ const SetupLayer = ({ onComplete }) => {
   return reactDomExports.createPortal(overlay, document.body);
 };
 const AlertLayer = ({
-  title = "알림",
+  title = "Alert",
   message,
   onClose
 }) => {
@@ -62173,7 +63789,7 @@ const ToggleButton = ({ enabled, onClick }) => {
     false,
     {
       fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-      lineNumber: 19,
+      lineNumber: 17,
       columnNumber: 5
     },
     void 0
@@ -62181,175 +63797,166 @@ const ToggleButton = ({ enabled, onClick }) => {
 };
 const SettingMenuLayer = ({
   vibrationEnabled,
-  notificationEnabled,
   onChangeVibration,
-  onChangeNotification,
   onResetGameData,
   onClose
 }) => {
   const [resetConfirmText, setResetConfirmText] = reactExports.useState("");
+  const [showFinalResetConfirm, setShowFinalResetConfirm] = reactExports.useState(false);
   const isResetEnabled = reactExports.useMemo(
     () => resetConfirmText.trim() === "confirm",
     [resetConfirmText]
   );
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
-    PopupLayer,
-    {
-      title: "환경설정",
-      content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex flex-col gap-5 text-left", children: [
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex items-center justify-between gap-4", children: [
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: [
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-sm font-bold", children: "진동" }, void 0, false, {
+  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50", children: [
+    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+      PopupLayer,
+      {
+        title: "Settings",
+        content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex flex-col gap-5 text-left", children: [
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex items-center justify-between gap-4", children: [
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: [
+              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-sm font-bold", children: "Vibration" }, void 0, false, {
+                fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+                lineNumber: 51,
+                columnNumber: 17
+              }, void 0),
+              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-xs text-gray-600", children: "Enable vibration for in-game button taps" }, void 0, false, {
+                fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+                lineNumber: 52,
+                columnNumber: 17
+              }, void 0)
+            ] }, void 0, true, {
               fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 54,
-              columnNumber: 17
+              lineNumber: 50,
+              columnNumber: 15
             }, void 0),
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-xs text-gray-600", children: "게임 버튼 클릭 시 진동 사용" }, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 55,
-              columnNumber: 17
-            }, void 0)
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+              ToggleButton,
+              {
+                enabled: vibrationEnabled,
+                onClick: () => onChangeVibration(!vibrationEnabled)
+              },
+              void 0,
+              false,
+              {
+                fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+                lineNumber: 56,
+                columnNumber: 15
+              },
+              void 0
+            )
           ] }, void 0, true, {
             fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-            lineNumber: 53,
-            columnNumber: 15
+            lineNumber: 49,
+            columnNumber: 13
           }, void 0),
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
-            ToggleButton,
-            {
-              enabled: vibrationEnabled,
-              onClick: () => onChangeVibration(!vibrationEnabled)
-            },
-            void 0,
-            false,
-            {
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "border-t-2 border-[#222] pt-4", children: [
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-sm font-bold", children: "Reset Game Data" }, void 0, false, {
               fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 59,
+              lineNumber: 63,
               columnNumber: 15
-            },
-            void 0
-          )
+            }, void 0),
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "mt-1 text-xs text-gray-600", children: [
+              "Type ",
+              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { className: "font-bold", children: "confirm" }, void 0, false, {
+                fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+                lineNumber: 65,
+                columnNumber: 22
+              }, void 0),
+              " below to enable the reset button."
+            ] }, void 0, true, {
+              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+              lineNumber: 64,
+              columnNumber: 15
+            }, void 0),
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+              "input",
+              {
+                type: "text",
+                value: resetConfirmText,
+                onChange: (event) => setResetConfirmText(event.target.value),
+                placeholder: "confirm",
+                className: "mt-3 w-full border-2 border-[#222] px-3 py-2 text-center text-sm focus:outline-none focus:ring-2 focus:ring-[#d95763]"
+              },
+              void 0,
+              false,
+              {
+                fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+                lineNumber: 68,
+                columnNumber: 15
+              },
+              void 0
+            ),
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+              "button",
+              {
+                type: "button",
+                disabled: !isResetEnabled,
+                onClick: () => setShowFinalResetConfirm(true),
+                className: `mt-3 w-full border-2 border-[#222] px-4 py-2 text-sm font-bold text-white ${isResetEnabled ? "bg-component-negative" : "cursor-not-allowed bg-gray-400 opacity-60"}`,
+                children: "Reset Game Data"
+              },
+              void 0,
+              false,
+              {
+                fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+                lineNumber: 75,
+                columnNumber: 15
+              },
+              void 0
+            )
+          ] }, void 0, true, {
+            fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+            lineNumber: 62,
+            columnNumber: 13
+          }, void 0)
         ] }, void 0, true, {
           fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-          lineNumber: 52,
-          columnNumber: 13
+          lineNumber: 48,
+          columnNumber: 11
         }, void 0),
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex items-center justify-between gap-4", children: [
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: [
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-sm font-bold", children: "알림" }, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 67,
-              columnNumber: 17
-            }, void 0),
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-xs text-gray-600", children: "아직 알림 기능은 구현 전입니다." }, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 68,
-              columnNumber: 17
-            }, void 0)
-          ] }, void 0, true, {
-            fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-            lineNumber: 66,
-            columnNumber: 15
-          }, void 0),
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
-            ToggleButton,
-            {
-              enabled: notificationEnabled,
-              onClick: () => onChangeNotification(!notificationEnabled)
-            },
-            void 0,
-            false,
-            {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 72,
-              columnNumber: 15
-            },
-            void 0
-          )
-        ] }, void 0, true, {
-          fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-          lineNumber: 65,
-          columnNumber: 13
-        }, void 0),
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "border-t-2 border-[#222] pt-4", children: [
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-sm font-bold", children: "게임 데이터 초기화" }, void 0, false, {
-            fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-            lineNumber: 79,
-            columnNumber: 15
-          }, void 0),
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "mt-1 text-xs text-gray-600", children: [
-            "아래 입력창에 ",
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { className: "font-bold", children: "confirm" }, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 81,
-              columnNumber: 25
-            }, void 0),
-            " 을 입력하면 초기화 버튼이 활성화됩니다."
-          ] }, void 0, true, {
-            fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-            lineNumber: 80,
-            columnNumber: 15
-          }, void 0),
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
-            "input",
-            {
-              type: "text",
-              value: resetConfirmText,
-              onChange: (event) => setResetConfirmText(event.target.value),
-              placeholder: "confirm",
-              className: "mt-3 w-full border-2 border-[#222] px-3 py-2 text-center text-sm focus:outline-none focus:ring-2 focus:ring-[#d95763]"
-            },
-            void 0,
-            false,
-            {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 84,
-              columnNumber: 15
-            },
-            void 0
-          ),
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
-            "button",
-            {
-              type: "button",
-              disabled: !isResetEnabled,
-              onClick: onResetGameData,
-              className: `mt-3 w-full border-2 border-[#222] px-4 py-2 text-sm font-bold text-white ${isResetEnabled ? "bg-component-negative" : "cursor-not-allowed bg-gray-400 opacity-60"}`,
-              children: "게임 데이터 초기화"
-            },
-            void 0,
-            false,
-            {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 91,
-              columnNumber: 15
-            },
-            void 0
-          )
-        ] }, void 0, true, {
-          fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-          lineNumber: 78,
-          columnNumber: 13
-        }, void 0)
-      ] }, void 0, true, {
+        onConfirm: onClose,
+        confirmText: "Close"
+      },
+      void 0,
+      false,
+      {
         fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-        lineNumber: 51,
+        lineNumber: 45,
+        columnNumber: 7
+      },
+      void 0
+    ),
+    showFinalResetConfirm && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+      PopupLayer,
+      {
+        title: "Final Confirmation",
+        content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-sm leading-6", children: "This will permanently delete all game data and return you to the initial setup screen. This action cannot be undone." }, void 0, false, {
+          fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+          lineNumber: 98,
+          columnNumber: 15
+        }, void 0),
+        onConfirm: onResetGameData,
+        onCancel: () => setShowFinalResetConfirm(false),
+        confirmText: "Delete",
+        cancelText: "Cancel"
+      },
+      void 0,
+      false,
+      {
+        fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+        lineNumber: 95,
         columnNumber: 11
-      }, void 0),
-      onConfirm: onClose,
-      confirmText: "닫기"
-    },
-    void 0,
-    false,
-    {
+      },
+      void 0
+    ) }, void 0, false, {
       fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-      lineNumber: 48,
-      columnNumber: 7
-    },
-    void 0
-  ) }, void 0, false, {
+      lineNumber: 94,
+      columnNumber: 9
+    }, void 0)
+  ] }, void 0, true, {
     fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-    lineNumber: 47,
+    lineNumber: 44,
     columnNumber: 5
   }, void 0);
 };
@@ -62389,6 +63996,8 @@ const DEFAULTS = {
   DIGESTIVE_CAPACITY: 5,
   DISEASE_CHECK_INTERVAL: 1e4,
   EGG_HATCH_TIME: 5e3,
+  DAY_NAP_CHECK_INTERVAL: 20 * 60 * 1e3,
+  FATIGUE_DEFAULT: 35,
   RANDOM_MOVEMENT: {
     minIdleTime: 2e3,
     maxIdleTime: 8e3,
@@ -62419,10 +64028,10 @@ function needsAnimationRender(state) {
   return state !== CHARACTER_STATE.EGG && state !== CHARACTER_STATE.DEAD;
 }
 function needsRandomMovement(state) {
-  return state === CHARACTER_STATE.IDLE || state === CHARACTER_STATE.MOVING || state === CHARACTER_STATE.SLEEPING;
+  return state === CHARACTER_STATE.IDLE || state === CHARACTER_STATE.MOVING;
 }
 function sanitizeWorldMetadata(metadata, now) {
-  var _a, _b;
+  var _a, _b, _c;
   return {
     name: typeof (metadata == null ? void 0 : metadata.name) === "string" && metadata.name.trim() ? metadata.name.trim() : "MainScene",
     monster_name: typeof (metadata == null ? void 0 : metadata.monster_name) === "string" && metadata.monster_name.trim() ? metadata.monster_name.trim() : void 0,
@@ -62430,12 +64039,13 @@ function sanitizeWorldMetadata(metadata, now) {
     version: typeof (metadata == null ? void 0 : metadata.version) === "string" && metadata.version.trim() ? metadata.version : DEFAULTS.VERSION,
     app_state: {
       last_active_time: toFiniteNumber((_a = metadata == null ? void 0 : metadata.app_state) == null ? void 0 : _a.last_active_time) ?? now,
-      is_first_load: typeof ((_b = metadata == null ? void 0 : metadata.app_state) == null ? void 0 : _b.is_first_load) === "boolean" ? metadata.app_state.is_first_load : false
+      is_first_load: typeof ((_b = metadata == null ? void 0 : metadata.app_state) == null ? void 0 : _b.is_first_load) === "boolean" ? metadata.app_state.is_first_load : false,
+      use_local_time: typeof ((_c = metadata == null ? void 0 : metadata.app_state) == null ? void 0 : _c.use_local_time) === "boolean" ? metadata.app_state.use_local_time : true
     }
   };
 }
 function sanitizeCharacterEntity(components, now) {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B, _C, _D, _E, _F, _G, _H, _I, _J, _K, _L, _M;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B, _C, _D, _E, _F, _G, _H, _I, _J, _K, _L, _M, _N, _O, _P, _Q, _R, _S, _T, _U, _V;
   const objectId = toFiniteNumber((_a = components.object) == null ? void 0 : _a.id);
   if (!objectId || objectId <= 0) {
     return null;
@@ -62484,27 +64094,38 @@ function sanitizeCharacterEntity(components, now) {
       nextCheckTime: toFiniteNumber((_t = components.diseaseSystem) == null ? void 0 : _t.nextCheckTime) ?? now + DEFAULTS.DISEASE_CHECK_INTERVAL,
       sickStartTime: toFiniteNumber((_u = components.diseaseSystem) == null ? void 0 : _u.sickStartTime) ?? 0
     },
+    sleepSystem: {
+      fatigue: toFiniteNumber((_v = components.sleepSystem) == null ? void 0 : _v.fatigue) ?? DEFAULTS.FATIGUE_DEFAULT,
+      nextSleepTime: toFiniteNumber((_w = components.sleepSystem) == null ? void 0 : _w.nextSleepTime) ?? 0,
+      nextWakeTime: toFiniteNumber((_x = components.sleepSystem) == null ? void 0 : _x.nextWakeTime) ?? 0,
+      nextNapCheckTime: toFiniteNumber((_y = components.sleepSystem) == null ? void 0 : _y.nextNapCheckTime) ?? now + DEFAULTS.DAY_NAP_CHECK_INTERVAL,
+      nextNightWakeCheckTime: toFiniteNumber((_z = components.sleepSystem) == null ? void 0 : _z.nextNightWakeCheckTime) ?? 0,
+      sleepMode: toFiniteNumber((_A = components.sleepSystem) == null ? void 0 : _A.sleepMode) ?? (state === CHARACTER_STATE.SLEEPING ? 1 : 0),
+      pendingSleepReason: toFiniteNumber((_B = components.sleepSystem) == null ? void 0 : _B.pendingSleepReason) ?? 0,
+      pendingWakeReason: toFiniteNumber((_C = components.sleepSystem) == null ? void 0 : _C.pendingWakeReason) ?? 0,
+      sleepSessionStartedAt: toFiniteNumber((_D = components.sleepSystem) == null ? void 0 : _D.sleepSessionStartedAt) ?? 0
+    },
     vitality: {
-      urgentStartTime: toFiniteNumber((_v = components.vitality) == null ? void 0 : _v.urgentStartTime) ?? 0,
-      deathTime: toFiniteNumber((_w = components.vitality) == null ? void 0 : _w.deathTime) ?? 0,
+      urgentStartTime: toFiniteNumber((_E = components.vitality) == null ? void 0 : _E.urgentStartTime) ?? 0,
+      deathTime: toFiniteNumber((_F = components.vitality) == null ? void 0 : _F.deathTime) ?? 0,
       isDead: toBoolean(
-        (_x = components.vitality) == null ? void 0 : _x.isDead,
+        (_G = components.vitality) == null ? void 0 : _G.isDead,
         state === CHARACTER_STATE.DEAD
       )
     },
     temporaryStatus: {
-      statusType: toFiniteNumber((_y = components.temporaryStatus) == null ? void 0 : _y.statusType) ?? ECS_NULL_VALUE,
-      startTime: toFiniteNumber((_z = components.temporaryStatus) == null ? void 0 : _z.startTime) ?? 0
+      statusType: toFiniteNumber((_H = components.temporaryStatus) == null ? void 0 : _H.statusType) ?? ECS_NULL_VALUE,
+      startTime: toFiniteNumber((_I = components.temporaryStatus) == null ? void 0 : _I.startTime) ?? 0
     },
     eggHatch: {
-      hatchTime: toFiniteNumber((_A = components.eggHatch) == null ? void 0 : _A.hatchTime) ?? (state === CHARACTER_STATE.EGG ? now + DEFAULTS.EGG_HATCH_TIME : 0),
+      hatchTime: toFiniteNumber((_J = components.eggHatch) == null ? void 0 : _J.hatchTime) ?? (state === CHARACTER_STATE.EGG ? now + DEFAULTS.EGG_HATCH_TIME : 0),
       isReadyToHatch: toBoolean(
-        (_B = components.eggHatch) == null ? void 0 : _B.isReadyToHatch,
+        (_K = components.eggHatch) == null ? void 0 : _K.isReadyToHatch,
         false
       )
     }
   };
-  const statusIconSlots = (_C = sanitized.statusIconRender) == null ? void 0 : _C.storeIndexes;
+  const statusIconSlots = (_L = sanitized.statusIconRender) == null ? void 0 : _L.storeIndexes;
   if (statusIconSlots && statusIconSlots.length < DEFAULTS.STATUS_SLOT_COUNT) {
     while (statusIconSlots.length < DEFAULTS.STATUS_SLOT_COUNT) {
       statusIconSlots.push(ECS_NULL_VALUE);
@@ -62513,30 +64134,30 @@ function sanitizeCharacterEntity(components, now) {
   if (needsAnimationRender(state)) {
     sanitized.animationRender = {
       storeIndex: ECS_NULL_VALUE,
-      spritesheetKey: toFiniteNumber((_D = components.animationRender) == null ? void 0 : _D.spritesheetKey) ?? characterKey ?? DEFAULTS.SPRITESHEET_KEY,
-      animationKey: toFiniteNumber((_E = components.animationRender) == null ? void 0 : _E.animationKey) ?? DEFAULTS.ANIMATION_KEY_IDLE,
-      isPlaying: toBoolean((_F = components.animationRender) == null ? void 0 : _F.isPlaying, true),
-      loop: toBoolean((_G = components.animationRender) == null ? void 0 : _G.loop, true),
-      speed: toFiniteNumber((_H = components.animationRender) == null ? void 0 : _H.speed) ?? 0.04
+      spritesheetKey: toFiniteNumber((_M = components.animationRender) == null ? void 0 : _M.spritesheetKey) ?? characterKey ?? DEFAULTS.SPRITESHEET_KEY,
+      animationKey: toFiniteNumber((_N = components.animationRender) == null ? void 0 : _N.animationKey) ?? DEFAULTS.ANIMATION_KEY_IDLE,
+      isPlaying: toBoolean((_O = components.animationRender) == null ? void 0 : _O.isPlaying, true),
+      loop: toBoolean((_P = components.animationRender) == null ? void 0 : _P.loop, true),
+      speed: toFiniteNumber((_Q = components.animationRender) == null ? void 0 : _Q.speed) ?? 0.04
     };
   }
   if (needsRandomMovement(state)) {
-    const minIdle = toFiniteNumber((_I = components.randomMovement) == null ? void 0 : _I.minIdleTime) ?? DEFAULTS.RANDOM_MOVEMENT.minIdleTime;
+    const minIdle = toFiniteNumber((_R = components.randomMovement) == null ? void 0 : _R.minIdleTime) ?? DEFAULTS.RANDOM_MOVEMENT.minIdleTime;
     const maxIdle = Math.max(
       minIdle,
-      toFiniteNumber((_J = components.randomMovement) == null ? void 0 : _J.maxIdleTime) ?? DEFAULTS.RANDOM_MOVEMENT.maxIdleTime
+      toFiniteNumber((_S = components.randomMovement) == null ? void 0 : _S.maxIdleTime) ?? DEFAULTS.RANDOM_MOVEMENT.maxIdleTime
     );
-    const minMove = toFiniteNumber((_K = components.randomMovement) == null ? void 0 : _K.minMoveTime) ?? DEFAULTS.RANDOM_MOVEMENT.minMoveTime;
+    const minMove = toFiniteNumber((_T = components.randomMovement) == null ? void 0 : _T.minMoveTime) ?? DEFAULTS.RANDOM_MOVEMENT.minMoveTime;
     const maxMove = Math.max(
       minMove,
-      toFiniteNumber((_L = components.randomMovement) == null ? void 0 : _L.maxMoveTime) ?? DEFAULTS.RANDOM_MOVEMENT.maxMoveTime
+      toFiniteNumber((_U = components.randomMovement) == null ? void 0 : _U.maxMoveTime) ?? DEFAULTS.RANDOM_MOVEMENT.maxMoveTime
     );
     sanitized.randomMovement = {
       minIdleTime: minIdle,
       maxIdleTime: maxIdle,
       minMoveTime: minMove,
       maxMoveTime: maxMove,
-      nextChange: toFiniteNumber((_M = components.randomMovement) == null ? void 0 : _M.nextChange) ?? now + 1e3
+      nextChange: toFiniteNumber((_V = components.randomMovement) == null ? void 0 : _V.nextChange) ?? now + 1e3
     };
   }
   return sanitized;
@@ -62595,7 +64216,7 @@ function sanitizeStoredWorldData(savedData) {
       action: "reset_required",
       sanitizedData: null,
       changed: false,
-      resetReason: "기존 게임 데이터 형식이 올바르지 않아 새로 시작해야 합니다."
+      resetReason: "The existing game data format is invalid and must be reset."
     };
   }
   const now = Date.now();
@@ -62642,7 +64263,7 @@ function sanitizeStoredWorldData(savedData) {
         action: "reset_required",
         sanitizedData,
         changed,
-        resetReason: "기존 게임 데이터가 손상되어 캐릭터를 복구할 수 없습니다."
+        resetReason: "The existing game data is corrupted and the character cannot be recovered."
       };
     }
     return {
@@ -62656,7 +64277,7 @@ function sanitizeStoredWorldData(savedData) {
       action: sawCharacterCandidate ? "reset_required" : "setup_required",
       sanitizedData,
       changed,
-      resetReason: sawCharacterCandidate ? "기존 게임 데이터에 필수 이름 정보가 없어 새로 시작해야 합니다." : void 0
+      resetReason: sawCharacterCandidate ? "The existing game data is missing the required name and must be reset." : void 0
     };
   }
   return {
@@ -62725,9 +64346,6 @@ const GameContainer = () => {
   const handleVibrationSettingChange = reactExports.useCallback((enabled) => {
     setGameSettings(updateGameSettings({ vibrationEnabled: enabled }));
   }, []);
-  const handleNotificationSettingChange = reactExports.useCallback((enabled) => {
-    setGameSettings(updateGameSettings({ notificationEnabled: enabled }));
-  }, []);
   const resetGameData = reactExports.useCallback(
     async (reason) => {
       console.warn("[GameContainer] resetGameData:start", {
@@ -62760,8 +64378,8 @@ const GameContainer = () => {
           storageKind: getStorageKind()
         });
       } catch (error) {
-        console.error("[GameContainer] 게임 데이터 초기화 중 오류:", error);
-        showAlert("게임 데이터 초기화에 실패했습니다.", "오류");
+        console.error("[GameContainer] Failed to reset game data:", error);
+        showAlert("Failed to reset game data.", "Error");
       }
     },
     [gameInstance, showAlert]
@@ -62797,31 +64415,31 @@ const GameContainer = () => {
       if (result.changed && result.sanitizedData && result.action !== "reset_required") {
         await storage.setData(WORLD_DATA_STORAGE_KEY, result.sanitizedData);
         console.warn(
-          "[GameContainer] 저장 데이터를 자동 복구하여 다시 저장했습니다.",
+          "[GameContainer] Saved data was repaired and written back.",
           result.sanitizedData
         );
       }
       if (result.action === "reset_required") {
         console.warn(
-          "[GameContainer] 저장 데이터가 손상되어 초기화가 필요합니다.",
+          "[GameContainer] Saved data is corrupted and needs to be reset.",
           result.sanitizedData
         );
         setSanitizeResetAlert({
-          title: "데이터 복구 안내",
-          message: result.resetReason ?? "기존 게임 데이터가 손상되어 복구할 수 없어 새로 시작합니다. 확인을 누르면 데이터를 초기화하고 시작 설정 화면으로 이동합니다."
+          title: "Data Recovery",
+          message: result.resetReason ?? "Existing game data is corrupted and cannot be recovered. Press Confirm to reset the data and return to the initial setup screen."
         });
         setIsLoading(false);
       }
       return result.action;
     } catch (error) {
-      console.error("[GameContainer] 게임 데이터 확인 중 오류:", {
+      console.error("[GameContainer] Failed to inspect saved game data:", {
         key: WORLD_DATA_STORAGE_KEY,
         storageKind: getStorageKind(),
         error
       });
       setSanitizeResetAlert({
-        title: "데이터 복구 안내",
-        message: "기존 게임 데이터를 읽는 중 문제가 발생했습니다. 확인을 누르면 데이터를 초기화하고 시작 설정 화면으로 이동합니다."
+        title: "Data Recovery",
+        message: "There was a problem reading the existing game data. Press Confirm to reset the data and return to the initial setup screen."
       });
       setIsLoading(false);
       return "reset_required";
@@ -62962,7 +64580,7 @@ const GameContainer = () => {
             false,
             {
               fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-              lineNumber: 395,
+              lineNumber: 391,
               columnNumber: 9
             },
             void 0
@@ -62979,37 +64597,35 @@ const GameContainer = () => {
             false,
             {
               fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-              lineNumber: 405,
+              lineNumber: 401,
               columnNumber: 13
             },
             void 0
           ) }, void 0, false, {
             fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 404,
+            lineNumber: 400,
             columnNumber: 11
           }, void 0)
         ] }, void 0, true, {
           fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-          lineNumber: 394,
+          lineNumber: 390,
           columnNumber: 7
         }, void 0),
         isLoading && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "absolute top-0 left-0 text-white p-4", children: "Loading.." }, void 0, false, {
           fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-          lineNumber: 415,
+          lineNumber: 411,
           columnNumber: 9
         }, void 0),
         showSetupLayer && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(SetupLayer, { onComplete: handleSetupComplete }, void 0, false, {
           fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-          lineNumber: 417,
+          lineNumber: 413,
           columnNumber: 26
         }, void 0),
         showSettingMenu && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
           SettingMenuLayer,
           {
             vibrationEnabled: gameSettings.vibrationEnabled,
-            notificationEnabled: gameSettings.notificationEnabled,
             onChangeVibration: handleVibrationSettingChange,
-            onChangeNotification: handleNotificationSettingChange,
             onResetGameData: handleResetGameData,
             onClose: closeSettingMenu
           },
@@ -63017,7 +64633,7 @@ const GameContainer = () => {
           false,
           {
             fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 419,
+            lineNumber: 415,
             columnNumber: 9
           },
           void 0
@@ -63033,7 +64649,7 @@ const GameContainer = () => {
           false,
           {
             fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 429,
+            lineNumber: 423,
             columnNumber: 9
           },
           void 0
@@ -63049,7 +64665,7 @@ const GameContainer = () => {
           false,
           {
             fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 436,
+            lineNumber: 430,
             columnNumber: 9
           },
           void 0
@@ -63060,7 +64676,7 @@ const GameContainer = () => {
     true,
     {
       fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-      lineNumber: 389,
+      lineNumber: 385,
       columnNumber: 5
     },
     void 0
@@ -63096,7 +64712,7 @@ function DevEnvironmentBadge() {
       },
       role: "button",
       tabIndex: 0,
-      title: "환경 정보를 보려면 클릭하세요",
+      title: "Click to view environment details",
       children: [
         /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
           "div",
@@ -63108,16 +64724,16 @@ function DevEnvironmentBadge() {
               gap: "8px"
             },
             children: [
-              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { children: "🖥️ PC 개발 모드" }, void 0, false, {
+              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { children: "🖥️ PC Dev Mode" }, void 0, false, {
                 fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
                 lineNumber: 50,
                 columnNumber: 9
               }, this),
               /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { style: { fontSize: "12px", opacity: 0.9 }, children: [
                 isExpanded ? "▲" : "▼",
-                " 클릭하여 정보",
+                " click to",
                 " ",
-                isExpanded ? "접기" : "펼치기"
+                isExpanded ? "collapse" : "expand"
               ] }, void 0, true, {
                 fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
                 lineNumber: 51,
@@ -63149,19 +64765,19 @@ function DevEnvironmentBadge() {
             },
             children: [
               /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { style: { marginBottom: "8px" }, children: [
-                /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("strong", { children: "환경:" }, void 0, false, {
+                /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("strong", { children: "Environment:" }, void 0, false, {
                   fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
                   lineNumber: 71,
                   columnNumber: 13
                 }, this),
-                " 웹 브라우저 (Flutter 네이티브 앱 아님)"
+                " Web browser (not a Flutter native app)"
               ] }, void 0, true, {
                 fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
                 lineNumber: 70,
                 columnNumber: 11
               }, this),
               /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { style: { marginBottom: "8px" }, children: [
-                /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("strong", { children: "플랫폼:" }, void 0, false, {
+                /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("strong", { children: "Platform:" }, void 0, false, {
                   fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
                   lineNumber: 74,
                   columnNumber: 13
@@ -63208,13 +64824,13 @@ function DevEnvironmentBadge() {
                 columnNumber: 11
               }, this),
               /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { style: { marginTop: "12px", opacity: 0.8, fontSize: "11px" }, children: [
-                "⚠️ 네이티브 기능(NFC 등)은 이 환경에서 동작하지 않습니다.",
+                "⚠️ Native-only features such as NFC do not work in this environment.",
                 /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("br", {}, void 0, false, {
                   fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
                   lineNumber: 94,
                   columnNumber: 13
                 }, this),
-                "네이티브 기능 테스트는 Flutter 앱에서 진행하세요."
+                "Use the Flutter app to test native features."
               ] }, void 0, true, {
                 fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
                 lineNumber: 92,
@@ -63562,11 +65178,7 @@ const App = () => {
     columnNumber: 5
   }, void 0);
 };
-window.errorLogs = window.errorLogs || [];
-window.onerror = (err) => {
-  window.errorLogs.push(String(err));
-};
-const __vite_import_meta_env__ = { "BASE_URL": "./", "DEV": true, "MODE": "development", "PROD": false, "SSR": false };
+const __vite_import_meta_env__ = { "BASE_URL": "./", "DEV": true, "MODE": "development", "NATIVE_FEATURE_DEBUG_MODE": "true", "PROD": false, "SSR": false };
 const platformAdapter = new PlatformAdapter();
 console.log("서비스 초기화 완료");
 const isAndroid = platformAdapter.isAndroid();
@@ -63579,7 +65191,7 @@ console.log("Environment variables:", JSON.stringify(__vite_import_meta_env__, n
 document.addEventListener("DOMContentLoaded", () => {
 });
 console.log(
-  `애플리케이션 모드: ${"NORMAL"}`
+  `애플리케이션 모드: ${"DEBUG"}`
 );
 function sleep(milliseconds) {
   return new Promise((resolve) => {
@@ -63611,11 +65223,11 @@ async function bootstrap() {
   ReactDOM.createRoot(rootElement).render(
     /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(jsxDevRuntimeExports.Fragment, { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(App, {}, void 0, false, {
       fileName: "/Users/neiz/digivice/apps/client/src/main.tsx",
-      lineNumber: 83,
-      columnNumber: 53
+      lineNumber: 82,
+      columnNumber: 7
     }, this) }, void 0, false, {
       fileName: "/Users/neiz/digivice/apps/client/src/main.tsx",
-      lineNumber: 82,
+      lineNumber: 81,
       columnNumber: 5
     }, this)
   );

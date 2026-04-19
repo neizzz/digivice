@@ -1,7 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
-import PrototypeApp from "./PrototypeApp";
 import "./index.css";
 import { PlatformAdapter } from "./adapter/PlatformAdapter.ts";
 
@@ -33,11 +32,11 @@ document.addEventListener("DOMContentLoaded", () => {
   // window.__initJavascriptInterfaces.postMessage("");
 });
 
-const isNativeFeatureTestMode =
-  import.meta.env.NATIVE_FEATURE_TEST_MODE === "true";
+const isNativeFeatureDebugMode =
+  import.meta.env.NATIVE_FEATURE_DEBUG_MODE === "true";
 
 console.log(
-  `애플리케이션 모드: ${isNativeFeatureTestMode ? "TEST" : "NORMAL"}`,
+  `애플리케이션 모드: ${isNativeFeatureDebugMode ? "DEBUG" : "NORMAL"}`,
 );
 
 function sleep(milliseconds: number): Promise<void> {
@@ -80,7 +79,7 @@ async function bootstrap(): Promise<void> {
 
   ReactDOM.createRoot(rootElement).render(
     <>
-      {isNativeFeatureTestMode ? <PrototypeApp /> : <App />}
+      <App />
     </>,
   );
 }

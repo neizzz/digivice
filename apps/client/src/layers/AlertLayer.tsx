@@ -8,7 +8,7 @@ export interface AlertLayerProps {
 }
 
 export const AlertLayer: React.FC<AlertLayerProps> = ({
-  title = "알림",
+  title = "Alert",
   message,
   onClose,
 }) => {

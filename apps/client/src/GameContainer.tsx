@@ -103,10 +103,6 @@ const GameContainer: React.FC = () => {
     setGameSettings(updateGameSettings({ vibrationEnabled: enabled }));
   }, []);
 
-  const handleNotificationSettingChange = useCallback((enabled: boolean) => {
-    setGameSettings(updateGameSettings({ notificationEnabled: enabled }));
-  }, []);
-
   const resetGameData = useCallback(
     async (reason: "user_reset" | "sanitize_reset") => {
       console.warn("[GameContainer] resetGameData:start", {
@@ -142,8 +138,8 @@ const GameContainer: React.FC = () => {
           storageKind: getStorageKind(),
         });
       } catch (error) {
-        console.error("[GameContainer] 게임 데이터 초기화 중 오류:", error);
-        showAlert("게임 데이터 초기화에 실패했습니다.", "오류");
+        console.error("[GameContainer] Failed to reset game data:", error);
+        showAlert("Failed to reset game data.", "Error");
       }
     },
     [gameInstance, showAlert],
@@ -189,36 +185,36 @@ const GameContainer: React.FC = () => {
       ) {
         await storage.setData(WORLD_DATA_STORAGE_KEY, result.sanitizedData);
         console.warn(
-          "[GameContainer] 저장 데이터를 자동 복구하여 다시 저장했습니다.",
+          "[GameContainer] Saved data was repaired and written back.",
           result.sanitizedData,
         );
       }
 
       if (result.action === "reset_required") {
         console.warn(
-          "[GameContainer] 저장 데이터가 손상되어 초기화가 필요합니다.",
+          "[GameContainer] Saved data is corrupted and needs to be reset.",
           result.sanitizedData,
         );
         setSanitizeResetAlert({
-          title: "데이터 복구 안내",
+          title: "Data Recovery",
           message:
             result.resetReason ??
-            "기존 게임 데이터가 손상되어 복구할 수 없어 새로 시작합니다. 확인을 누르면 데이터를 초기화하고 시작 설정 화면으로 이동합니다.",
+            "Existing game data is corrupted and cannot be recovered. Press Confirm to reset the data and return to the initial setup screen.",
         });
         setIsLoading(false);
       }
 
       return result.action;
     } catch (error) {
-      console.error("[GameContainer] 게임 데이터 확인 중 오류:", {
+      console.error("[GameContainer] Failed to inspect saved game data:", {
         key: WORLD_DATA_STORAGE_KEY,
         storageKind: getStorageKind(),
         error,
       });
       setSanitizeResetAlert({
-        title: "데이터 복구 안내",
+        title: "Data Recovery",
         message:
-          "기존 게임 데이터를 읽는 중 문제가 발생했습니다. 확인을 누르면 데이터를 초기화하고 시작 설정 화면으로 이동합니다.",
+          "There was a problem reading the existing game data. Press Confirm to reset the data and return to the initial setup screen.",
       });
       setIsLoading(false);
       return "reset_required";
@@ -418,9 +414,7 @@ const GameContainer: React.FC = () => {
       {showSettingMenu && (
         <SettingMenuLayer
           vibrationEnabled={gameSettings.vibrationEnabled}
-          notificationEnabled={gameSettings.notificationEnabled}
           onChangeVibration={handleVibrationSettingChange}
-          onChangeNotification={handleNotificationSettingChange}
           onResetGameData={handleResetGameData}
           onClose={closeSettingMenu}
         />

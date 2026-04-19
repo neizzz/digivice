@@ -7,13 +7,32 @@ set -e
 
 echo "🔨 Building client for Flutter..."
 
+BUILD_MODE="${1:-development}"
+DEBUG_BUILD_MODE="${2:-normal}"
+
+if [ "$BUILD_MODE" = "development" ]; then
+  DEBUG_BUILD_MODE="debug"
+fi
+
+if [ "$BUILD_MODE" = "production" ]; then
+  NODE_ENV_VALUE="production"
+else
+  NODE_ENV_VALUE="development"
+fi
+
+if [ "$DEBUG_BUILD_MODE" = "debug" ]; then
+  NATIVE_FEATURE_DEBUG_MODE_VALUE="true"
+else
+  NATIVE_FEATURE_DEBUG_MODE_VALUE="false"
+fi
+
 # 프로젝트 루트 디렉터리로 이동
 cd "$(dirname "$0")/.."
 
 # apps/client 빌드
 echo "📦 Building apps/client..."
 cd apps/client
-pnpm --filter @digivice/game sync-assets && tsc -b && BUILD_FOR_FLUTTER=true NODE_ENV=development vite build --mode development
+pnpm --filter @digivice/game sync-assets && tsc -b && BUILD_FOR_FLUTTER=true NODE_ENV="$NODE_ENV_VALUE" NATIVE_FEATURE_DEBUG_MODE="$NATIVE_FEATURE_DEBUG_MODE_VALUE" vite build --mode "$BUILD_MODE"
 
 # 빌드 결과 확인
 if [ ! -d "dist" ]; then
@@ -52,6 +71,8 @@ rm -rf "$FLUTTER_WEB_DIR"
 mv "$FLUTTER_WEB_TMP_DIR" "$FLUTTER_WEB_DIR"
 
 echo "✅ Build complete! Files copied to virtual_bridge/assets/web/"
+echo "   Mode: $BUILD_MODE"
+echo "   Debug features: $NATIVE_FEATURE_DEBUG_MODE_VALUE"
 echo ""
 echo "Next steps:"
 echo "  1. Run 'flutter run' from virtual_bridge directory"

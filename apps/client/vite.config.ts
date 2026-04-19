@@ -12,6 +12,7 @@ export default defineConfig(() => {
     // Flutter WebView(file://)에서 번들 리소스를 상대 경로로 로드하기 위해
     // Flutter 자산 빌드에서는 base를 './'로 설정합니다.
     base: isBuildOutputForFlutter ? "./" : "/",
+    envPrefix: ["VITE_", "NATIVE_FEATURE_"],
     plugins: [
       react(),
       tailwindcss(),

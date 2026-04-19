@@ -22,10 +22,10 @@ FLUTTER_WEB_TMP_DIR="virtual_bridge/assets/web.__tmp__"
 
 # 빌드 함수
 build_and_copy() {
-  echo "🔨 Building..."
+echo "🔨 Building..."
   cd apps/client
   
-  if pnpm --filter @digivice/game sync-assets && tsc -b && BUILD_FOR_FLUTTER=true NODE_ENV=development vite build --mode development 2>&1; then
+  if pnpm --filter @digivice/game sync-assets && tsc -b && BUILD_FOR_FLUTTER=true NODE_ENV=development NATIVE_FEATURE_DEBUG_MODE=true vite build --mode development 2>&1; then
     cd ../..
     
     # 빌드 결과 존재 확인

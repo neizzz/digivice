@@ -7,7 +7,9 @@ import { FlappyBirdGameScene } from "./scenes/FlappyBirdGameScene";
 
 PIXI.TexturePool.textureOptions.scaleMode = "nearest";
 
-const SCREEN_PADDING = 14;
+const SCREEN_HORIZONTAL_PADDING = 14;
+const SCREEN_BOTTOM_PADDING = 14;
+const SCREEN_TOP_PADDING = SCREEN_BOTTOM_PADDING + 6;
 
 export type ControlButtonsChangeCallback = (
   controlButtonParamsSet: [
@@ -19,6 +21,7 @@ export type ControlButtonsChangeCallback = (
 
 export type CreateInitialGameDataCallback = () => Promise<{
   name: string;
+  useLocalTime: boolean;
 }>;
 
 // TODO: 컨트롤 버튼과 연계하는거 생각해야됨.
@@ -29,6 +32,15 @@ export type ShowSettingsCallback = (params: {
   onClose: () => void;
 }) => void;
 export type ShowAlertCallback = (message: string, title?: string) => void;
+
+function createMainScenePositionBoundary(width: number, height: number) {
+  return {
+    x: SCREEN_HORIZONTAL_PADDING,
+    y: SCREEN_TOP_PADDING,
+    width: width - 2 * SCREEN_HORIZONTAL_PADDING,
+    height: height - SCREEN_TOP_PADDING - SCREEN_BOTTOM_PADDING,
+  };
+}
 
 export class Game {
   public app: PIXI.Application;
@@ -269,11 +281,15 @@ export class Game {
       case SceneKey.MAIN:
         const mainSceneWorld = new MainSceneWorld({
           stage: this.app.stage,
-          positionBoundary: {
-            x: SCREEN_PADDING,
-            y: SCREEN_PADDING,
-            width: this.app.screen.width - 2 * SCREEN_PADDING,
-            height: this.app.screen.height - 2 * SCREEN_PADDING,
+          positionBoundary: createMainScenePositionBoundary(
+            this.app.screen.width,
+            this.app.screen.height,
+          ),
+          positionBoundaryInsets: {
+            left: SCREEN_HORIZONTAL_PADDING,
+            right: SCREEN_HORIZONTAL_PADDING,
+            top: SCREEN_TOP_PADDING,
+            bottom: SCREEN_BOTTOM_PADDING,
           },
           parentElement: this._parentElement,
           debugParentElement: this._debugParentElement,

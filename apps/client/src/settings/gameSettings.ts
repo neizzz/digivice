@@ -1,16 +1,13 @@
 export interface GameSettings {
   vibrationEnabled: boolean;
-  notificationEnabled: boolean;
 }
 
 const STORAGE_KEYS = {
   vibrationEnabled: "game.settings.vibrationEnabled",
-  notificationEnabled: "game.settings.notificationEnabled",
 } as const;
 
 const DEFAULT_SETTINGS: GameSettings = {
   vibrationEnabled: true,
-  notificationEnabled: true,
 };
 
 function getBooleanSetting(
@@ -35,10 +32,6 @@ export function getGameSettings(): GameSettings {
       STORAGE_KEYS.vibrationEnabled,
       DEFAULT_SETTINGS.vibrationEnabled,
     ),
-    notificationEnabled: getBooleanSetting(
-      STORAGE_KEYS.notificationEnabled,
-      DEFAULT_SETTINGS.notificationEnabled,
-    ),
   };
 }
 
@@ -54,10 +47,6 @@ export function updateGameSettings(
     window.localStorage.setItem(
       STORAGE_KEYS.vibrationEnabled,
       String(nextSettings.vibrationEnabled),
-    );
-    window.localStorage.setItem(
-      STORAGE_KEYS.notificationEnabled,
-      String(nextSettings.notificationEnabled),
     );
   }
 

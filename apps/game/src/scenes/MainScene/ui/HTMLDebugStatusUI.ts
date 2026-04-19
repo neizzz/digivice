@@ -730,7 +730,7 @@ export class HTMLDebugStatusUI {
   private async _resetAllData(): Promise<void> {
     if (
       !confirm(
-        "모든 데이터를 삭제하고 처음부터 시작하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
+        "Delete all data and restart from the beginning? This action cannot be undone.",
       )
     ) {
       return;
@@ -742,11 +742,11 @@ export class HTMLDebugStatusUI {
       console.log("[HTMLDebugStatusUI] All data cleared from storage");
 
       // 페이지 새로고침하여 완전히 초기화
-      alert("데이터가 삭제되었습니다. 페이지를 새로고침합니다.");
+      alert("All data has been deleted. Reloading the page.");
       window.location.reload();
     } catch (error) {
       console.error("[HTMLDebugStatusUI] Failed to reset data:", error);
-      alert("데이터 삭제에 실패했습니다.");
+      alert("Failed to delete data.");
     }
   }
 

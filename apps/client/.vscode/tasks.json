@@ -6,7 +6,7 @@
 			"type": "shell",
 			"command": "/Users/neiz/Library/pnpm/.tools/pnpm/10.6.2/bin/pnpm",
 			"args": [
-				"build:flutter"
+				"build:flutter:development"
 			],
 			"isBackground": false,
 			"group": "build"
@@ -17,7 +17,7 @@
 			"command": "/bin/zsh",
 			"args": [
 				"-lc",
-				"export PATH=/Users/neiz/.nvm/versions/node/v22.11.0/bin:$PATH && pnpm build:flutter"
+				"export PATH=/Users/neiz/.nvm/versions/node/v22.11.0/bin:$PATH && pnpm build:flutter:development"
 			],
 			"isBackground": false,
 			"group": "build"
@@ -28,7 +28,7 @@
 			"command": "/bin/zsh",
 			"args": [
 				"-lc",
-				"export PATH=/Users/neiz/.nvm/versions/node/v22.11.0/bin:$PATH && pnpm build:flutter"
+				"export PATH=/Users/neiz/.nvm/versions/node/v22.11.0/bin:$PATH && pnpm build:flutter:development"
 			],
 			"isBackground": false,
 			"group": "build"

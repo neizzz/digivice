@@ -29,7 +29,7 @@ const NAME_LABEL_STYLE = new PIXI.TextStyle({
   stroke: { color: NAME_LABEL_STROKE_COLOR, width: NAME_LABEL_STROKE_WIDTH },
 });
 
-const NAME_LABEL_BOTTOM_OFFSET = 4;
+const NAME_LABEL_BOTTOM_OFFSET = 2;
 const LABEL_Z_INDEX_OFFSET = 1000;
 
 export function characterNameLabelSystem(params: {

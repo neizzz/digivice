@@ -290,6 +290,7 @@ body {
   :root, :host {
     --font-sans: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
     --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    --color-red-600: oklch(57.7% .245 27.325);
     --color-gray-400: oklch(70.7% .022 261.325);
     --color-gray-600: oklch(44.6% .03 256.802);
     --color-gray-700: oklch(37.3% .034 259.733);
@@ -304,6 +305,7 @@ body {
     --text-base--line-height: calc(1.5 / 1);
     --text-xl: 1.25rem;
     --text-xl--line-height: calc(1.75 / 1.25);
+    --font-weight-semibold: 600;
     --font-weight-bold: 700;
     --default-transition-duration: .15s;
     --default-transition-timing-function: cubic-bezier(.4, 0, .2, 1);
@@ -558,6 +560,10 @@ body {
 @layer components;
 
 @layer utilities {
+  .collapse {
+    visibility: collapse;
+  }
+
   .visible {
     visibility: visible;
   }
@@ -598,6 +604,10 @@ body {
     z-index: 50;
   }
 
+  .z-\[60\] {
+    z-index: 60;
+  }
+
   .z-\[999\] {
     z-index: 999;
   }
@@ -608,6 +618,10 @@ body {
 
   .mx-auto {
     margin-inline: auto;
+  }
+
+  .mt-0\.5 {
+    margin-top: calc(var(--spacing) * .5);
   }
 
   .mt-1 {
@@ -634,6 +648,10 @@ body {
     margin-bottom: 15px;
   }
 
+  .block {
+    display: block;
+  }
+
   .flex {
     display: flex;
   }
@@ -654,8 +672,16 @@ body {
     height: 100%;
   }
 
+  .min-h-4 {
+    min-height: calc(var(--spacing) * 4);
+  }
+
   .min-h-dvh {
     min-height: 100dvh;
+  }
+
+  .w-4 {
+    width: calc(var(--spacing) * 4);
   }
 
   .w-4\/5 {
@@ -674,8 +700,16 @@ body {
     max-width: 300px;
   }
 
+  .min-w-4 {
+    min-width: calc(var(--spacing) * 4);
+  }
+
   .min-w-20 {
     min-width: calc(var(--spacing) * 20);
+  }
+
+  .flex-none {
+    flex: none;
   }
 
   .shrink-0 {
@@ -703,6 +737,10 @@ body {
     cursor: pointer;
   }
 
+  .appearance-none {
+    appearance: none;
+  }
+
   .flex-col {
     flex-direction: column;
   }
@@ -711,12 +749,20 @@ body {
     align-items: center;
   }
 
+  .items-start {
+    align-items: flex-start;
+  }
+
   .justify-between {
     justify-content: space-between;
   }
 
   .justify-center {
     justify-content: center;
+  }
+
+  .gap-3 {
+    gap: calc(var(--spacing) * 3);
   }
 
   .gap-4 {
@@ -739,11 +785,6 @@ body {
     border-radius: 3.40282e38px;
   }
 
-  .border {
-    border-style: var(--tw-border-style);
-    border-width: 1px;
-  }
-
   .border-2 {
     border-style: var(--tw-border-style);
     border-width: 2px;
@@ -752,6 +793,11 @@ body {
   .border-4 {
     border-style: var(--tw-border-style);
     border-width: 4px;
+  }
+
+  .border-t {
+    border-top-style: var(--tw-border-style);
+    border-top-width: 1px;
   }
 
   .border-t-2 {
@@ -771,6 +817,10 @@ body {
 
   .border-\[\#222\] {
     border-color: #222;
+  }
+
+  .border-\[\#222\]\/20 {
+    border-color: oklab(25.1965% -7.45058e-9 0 / .2);
   }
 
   .bg-black {
@@ -809,6 +859,14 @@ body {
 
   .bg-transparent {
     background-color: #0000;
+  }
+
+  .bg-contain {
+    background-size: contain;
+  }
+
+  .bg-center {
+    background-position: center;
   }
 
   .bg-no-repeat {
@@ -883,6 +941,20 @@ body {
     font-size: .7em;
   }
 
+  .text-\[0\.92em\] {
+    font-size: .92em;
+  }
+
+  .leading-5 {
+    --tw-leading: calc(var(--spacing) * 5);
+    line-height: calc(var(--spacing) * 5);
+  }
+
+  .leading-6 {
+    --tw-leading: calc(var(--spacing) * 6);
+    line-height: calc(var(--spacing) * 6);
+  }
+
   .leading-\[1\.6\] {
     --tw-leading: 1.6;
     line-height: 1.6;
@@ -893,8 +965,17 @@ body {
     font-weight: var(--font-weight-bold);
   }
 
+  .font-semibold {
+    --tw-font-weight: var(--font-weight-semibold);
+    font-weight: var(--font-weight-semibold);
+  }
+
   .break-all {
     word-break: break-all;
+  }
+
+  .text-\[\#222\] {
+    color: #222;
   }
 
   .text-black {
@@ -907,6 +988,10 @@ body {
 
   .text-gray-600 {
     color: var(--color-gray-600);
+  }
+
+  .text-red-600 {
+    color: var(--color-red-600);
   }
 
   .text-white {
@@ -973,6 +1058,14 @@ body {
   .focus\:outline-none:focus {
     --tw-outline-style: none;
     outline-style: none;
+  }
+
+  .disabled\:cursor-not-allowed:disabled {
+    cursor: not-allowed;
+  }
+
+  .disabled\:opacity-60:disabled {
+    opacity: .6;
   }
 }
 

@@ -4,9 +4,7 @@ import PopupLayer from "../components/PopupLayer";
 
 interface SettingMenuLayerProps {
   vibrationEnabled: boolean;
-  notificationEnabled: boolean;
   onChangeVibration: (enabled: boolean) => void;
-  onChangeNotification: (enabled: boolean) => void;
   onResetGameData: () => void;
   onClose: () => void;
 }
@@ -30,13 +28,12 @@ const ToggleButton: React.FC<{
 
 const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
   vibrationEnabled,
-  notificationEnabled,
   onChangeVibration,
-  onChangeNotification,
   onResetGameData,
   onClose,
 }) => {
   const [resetConfirmText, setResetConfirmText] = useState("");
+  const [showFinalResetConfirm, setShowFinalResetConfirm] = useState(false);
 
   const isResetEnabled = useMemo(
     () => resetConfirmText.trim() === "confirm",
@@ -46,14 +43,14 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
       <PopupLayer
-        title="환경설정"
+        title="Settings"
         content={
           <div className="flex flex-col gap-5 text-left">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <div className="text-sm font-bold">진동</div>
+                <div className="text-sm font-bold">Vibration</div>
                 <div className="text-xs text-gray-600">
-                  게임 버튼 클릭 시 진동 사용
+                  Enable vibration for in-game button taps
                 </div>
               </div>
               <ToggleButton
@@ -62,24 +59,11 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
               />
             </div>
 
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <div className="text-sm font-bold">알림</div>
-                <div className="text-xs text-gray-600">
-                  아직 알림 기능은 구현 전입니다.
-                </div>
-              </div>
-              <ToggleButton
-                enabled={notificationEnabled}
-                onClick={() => onChangeNotification(!notificationEnabled)}
-              />
-            </div>
-
             <div className="border-t-2 border-[#222] pt-4">
-              <div className="text-sm font-bold">게임 데이터 초기화</div>
+              <div className="text-sm font-bold">Reset Game Data</div>
               <div className="mt-1 text-xs text-gray-600">
-                아래 입력창에 <span className="font-bold">confirm</span> 을
-                입력하면 초기화 버튼이 활성화됩니다.
+                Type <span className="font-bold">confirm</span> below to enable
+                the reset button.
               </div>
               <input
                 type="text"
@@ -91,21 +75,38 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
               <button
                 type={"button"}
                 disabled={!isResetEnabled}
-                onClick={onResetGameData}
+                onClick={() => setShowFinalResetConfirm(true)}
                 className={`mt-3 w-full border-2 border-[#222] px-4 py-2 text-sm font-bold text-white ${
                   isResetEnabled
                     ? "bg-component-negative"
                     : "cursor-not-allowed bg-gray-400 opacity-60"
                 }`}
               >
-                게임 데이터 초기화
+                Reset Game Data
               </button>
             </div>
           </div>
         }
         onConfirm={onClose}
-        confirmText="닫기"
+        confirmText="Close"
       />
+      {showFinalResetConfirm && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
+          <PopupLayer
+            title="Final Confirmation"
+            content={
+              <div className="text-sm leading-6">
+                This will permanently delete all game data and return you to
+                the initial setup screen. This action cannot be undone.
+              </div>
+            }
+            onConfirm={onResetGameData}
+            onCancel={() => setShowFinalResetConfirm(false)}
+            confirmText="Delete"
+            cancelText="Cancel"
+          />
+        </div>
+      )}
     </div>
   );
 };

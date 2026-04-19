@@ -172,6 +172,7 @@ export type WorldMetadata = {
   app_state?: {
     last_active_time: number;
     is_first_load: boolean;
+    use_local_time: boolean;
   };
   // // 캐릭터별 위치 추적 (캐릭터 ID를 키로 사용)
   // character_positions?: Record<
@@ -285,6 +286,12 @@ export class MainSceneWorld implements IWorld, Scene {
   private static readonly SCENE_DARKNESS_OVERLAY_Z_INDEX = 1_000_000;
   private _stage: PIXI.Container;
   private _positionBoundary: Boundary;
+  private _positionBoundaryInsets: {
+    left: number;
+    right: number;
+    top: number;
+    bottom: number;
+  };
   private _background?: Background;
   private _sceneDarknessOverlay?: PIXI.Graphics;
   private _persistentData?: MainSceneWorldData;
@@ -316,12 +323,13 @@ export class MainSceneWorld implements IWorld, Scene {
   private _simulationTime: number | null = null;
   private _visibilityChangeHandler?: () => void; // Page Visibility API 이벤트 핸들러
   private _statusSystemsEnabled = true; // 상태 관리 시스템들 활성화 여부
-  private _sleepDebugEffectEnabled = false;
+  private _sleepDebugEffectEnabled = true;
   private _randomMovementDebugEnabled = false;
   private _pendingRecoveryCureEids = new Set<number>();
   private _isPersistenceDisabled = false;
   private _createInitialGameData?: () => Promise<{
     name: string;
+    useLocalTime: boolean;
   }>;
   private _pendingStorageWrite: Promise<void> = Promise.resolve();
   private _startMiniGame?: () => unknown | Promise<unknown>;
@@ -429,11 +437,18 @@ export class MainSceneWorld implements IWorld, Scene {
   constructor(params: {
     stage: PIXI.Container;
     positionBoundary: Boundary;
+    positionBoundaryInsets?: {
+      left: number;
+      right: number;
+      top: number;
+      bottom: number;
+    };
     parentElement?: HTMLElement;
     debugParentElement?: HTMLElement;
     startMiniGame?: () => unknown | Promise<unknown>;
     createInitialGameData?: () => Promise<{
       name: string;
+      useLocalTime: boolean;
     }>;
     changeControlButtons?: (
       controlButtonParamsSet: [
@@ -445,6 +460,12 @@ export class MainSceneWorld implements IWorld, Scene {
   }) {
     this._stage = params.stage;
     this._positionBoundary = params.positionBoundary;
+    this._positionBoundaryInsets = params.positionBoundaryInsets ?? {
+      left: params.positionBoundary.x,
+      right: params.positionBoundary.x,
+      top: params.positionBoundary.y,
+      bottom: params.positionBoundary.y,
+    };
     this._parentElement = params.parentElement;
     this._debugParentElement = params.debugParentElement ?? params.parentElement;
     this._startMiniGame = params.startMiniGame;
@@ -683,7 +704,9 @@ export class MainSceneWorld implements IWorld, Scene {
       this._background.resize(width, height);
       this._resizeSceneDarknessOverlay(width, height);
       this._applyCurrentSkyState();
-      void this._initializeSunTimes();
+      if (this._isLocalTimeEnabled()) {
+        void this._initializeSunTimes();
+      }
 
       // zIndex 정렬을 위해 sortableChildren 활성화
       this._stage.sortableChildren = true;
@@ -1109,6 +1132,7 @@ export class MainSceneWorld implements IWorld, Scene {
 
   private _initializeData(initialGameData?: {
     name: string;
+    useLocalTime: boolean;
   }): MainSceneWorldData {
     return {
       world_metadata: {
@@ -1116,6 +1140,11 @@ export class MainSceneWorld implements IWorld, Scene {
         monster_name: initialGameData?.name,
         last_ecs_saved: Date.now(),
         version: this.VERSION,
+        app_state: {
+          last_active_time: Date.now(),
+          is_first_load: false,
+          use_local_time: initialGameData?.useLocalTime ?? false,
+        },
       },
       entities: [this._createDefaultCharacterEntity()],
     };
@@ -1306,7 +1335,24 @@ export class MainSceneWorld implements IWorld, Scene {
           name: "MainScene",
           last_ecs_saved: Date.now(),
           version: this.VERSION,
+          app_state: {
+            last_active_time: Date.now(),
+            is_first_load: false,
+            use_local_time: true,
+          },
         };
+      }
+
+      if (!data.world_metadata.app_state) {
+        data.world_metadata.app_state = {
+          last_active_time: Date.now(),
+          is_first_load: false,
+          use_local_time: true,
+        };
+      } else if (
+        typeof data.world_metadata.app_state.use_local_time !== "boolean"
+      ) {
+        data.world_metadata.app_state.use_local_time = true;
       }
 
       if (!data.entities) {
@@ -1373,10 +1419,16 @@ export class MainSceneWorld implements IWorld, Scene {
   resize(width: number, height: number): void {
     // 위치 경계 업데이트
     this._positionBoundary = {
-      x: this._positionBoundary.x,
-      y: this._positionBoundary.y,
-      width: width - 2 * this._positionBoundary.x,
-      height: height - 2 * this._positionBoundary.y,
+      x: this._positionBoundaryInsets.left,
+      y: this._positionBoundaryInsets.top,
+      width:
+        width -
+        this._positionBoundaryInsets.left -
+        this._positionBoundaryInsets.right,
+      height:
+        height -
+        this._positionBoundaryInsets.top -
+        this._positionBoundaryInsets.bottom,
     };
 
     // 배경 크기 조정
@@ -1401,6 +1453,7 @@ export class MainSceneWorld implements IWorld, Scene {
     }
 
     this._timeOfDayMode = TimeOfDayMode.Manual;
+    this._setUseLocalTimeEnabled(false);
     this._autoTimeOfDayState = null;
     this._autoTimeOfDayMinuteKey = null;
     this._timeOfDay = timeOfDay;
@@ -1412,8 +1465,10 @@ export class MainSceneWorld implements IWorld, Scene {
   }
 
   public enableAutoTimeOfDay(): void {
+    this._setUseLocalTimeEnabled(true);
+
     if (!this._sunTimes) {
-      console.warn("[MainSceneWorld] Cannot enable auto time of day without sun data");
+      void this._initializeSunTimes();
       return;
     }
 
@@ -1466,6 +1521,13 @@ export class MainSceneWorld implements IWorld, Scene {
       this._sunTimes = sunTimes;
       this._hasLocationPermission = sunTimes.hasLocationPermission;
       this._sunLocationSource = sunTimes.locationSource;
+
+      if (!this._isLocalTimeEnabled()) {
+        console.log(
+          "[MainSceneWorld] Sun times loaded but local time is disabled, staying in manual mode",
+        );
+        return;
+      }
 
       if (this._timeOfDayMode === TimeOfDayMode.Manual) {
         this._timeOfDayMode = TimeOfDayMode.Auto;
@@ -1588,6 +1650,27 @@ export class MainSceneWorld implements IWorld, Scene {
 
   private _lerpDarknessAlpha(from: number, to: number, progress: number): number {
     return from + (to - from) * progress;
+  }
+
+  private _isLocalTimeEnabled(): boolean {
+    return this._persistentData?.world_metadata.app_state?.use_local_time ?? true;
+  }
+
+  private _setUseLocalTimeEnabled(enabled: boolean): void {
+    if (!this._persistentData) {
+      return;
+    }
+
+    if (!this._persistentData.world_metadata.app_state) {
+      this._persistentData.world_metadata.app_state = {
+        last_active_time: 0,
+        is_first_load: false,
+        use_local_time: enabled,
+      };
+      return;
+    }
+
+    this._persistentData.world_metadata.app_state.use_local_time = enabled;
   }
 
   private _requestLocationPermissionOnCharacterCreation(): void {
@@ -2421,6 +2504,7 @@ export class MainSceneWorld implements IWorld, Scene {
         this._persistentData.world_metadata.app_state = {
           last_active_time: 0,
           is_first_load: false,
+          use_local_time: this._isLocalTimeEnabled(),
         };
       }
 

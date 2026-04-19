@@ -124,6 +124,7 @@ export type StoredWorldData = {
     app_state?: {
       last_active_time?: number;
       is_first_load?: boolean;
+      use_local_time?: boolean;
     };
   };
   entities?: StoredEntity[];
@@ -239,6 +240,10 @@ function sanitizeWorldMetadata(
         typeof metadata?.app_state?.is_first_load === "boolean"
           ? metadata.app_state.is_first_load
           : false,
+      use_local_time:
+        typeof metadata?.app_state?.use_local_time === "boolean"
+          ? metadata.app_state.use_local_time
+          : true,
     },
   };
 }
@@ -499,7 +504,7 @@ export function sanitizeStoredWorldData(
       sanitizedData: null,
       changed: false,
       resetReason:
-        "기존 게임 데이터 형식이 올바르지 않아 새로 시작해야 합니다.",
+        "The existing game data format is invalid and must be reset.",
     };
   }
 
@@ -567,7 +572,7 @@ export function sanitizeStoredWorldData(
         sanitizedData,
         changed,
         resetReason:
-          "기존 게임 데이터가 손상되어 캐릭터를 복구할 수 없습니다.",
+          "The existing game data is corrupted and the character cannot be recovered.",
       };
     }
 
@@ -584,7 +589,7 @@ export function sanitizeStoredWorldData(
       sanitizedData,
       changed,
       resetReason: sawCharacterCandidate
-        ? "기존 게임 데이터에 필수 이름 정보가 없어 새로 시작해야 합니다."
+        ? "The existing game data is missing the required name and must be reset."
         : undefined,
     };
   }

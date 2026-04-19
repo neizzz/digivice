@@ -8,7 +8,7 @@ import { getCharacterVerticalBounds } from "./CharacterDisplayBounds";
 const SLEEP_FRAME_INTERVAL = 1000;
 const SLEEP_TOP_OFFSET = 2;
 const SLEEP_HORIZONTAL_OFFSETS = [4, 0] as const;
-const SLEEP_TEXT_COLOR = 0xd8d8d8;
+const SLEEP_TEXT_COLOR = 0xc8c8c8;
 const SLEEP_FONT_FAMILY = [
   "Press Start 2P",
   "Apple Color Emoji",

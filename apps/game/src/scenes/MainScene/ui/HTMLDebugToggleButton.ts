@@ -15,18 +15,19 @@ export class HTMLDebugToggleButton {
     button.textContent = "DEBUG";
     button.style.cssText = `
       position: absolute;
-      top: 20px;
-      left: 20px;
-      width: 80px;
-      height: 30px;
+      top: 46px;
+      right: 12px;
+      min-width: 88px;
+      height: 28px;
+      padding: 0 10px;
       background: rgba(68, 68, 68, 0.9);
       color: white;
       border: none;
-      border-radius: 4px;
+      border-radius: 6px;
       font-size: 12px;
       font-weight: bold;
       cursor: pointer;
-      z-index: 1000;
+      z-index: 1002;
       font-family: 'Arial', sans-serif;
       transition: background-color 0.2s;
     `;

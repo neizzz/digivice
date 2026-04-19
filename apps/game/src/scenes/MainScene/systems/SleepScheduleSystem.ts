@@ -68,7 +68,7 @@ export function sleepScheduleSystem(params: {
     handleScheduledWake(world, eid, currentTime);
     handleNightWakeChecks(world, eid, currentTime, currentTimeOfDay);
     handleScheduledSleep(eid, currentTime, currentTimeOfDay);
-    handleDayNapChecks(eid, currentTime, currentTimeOfDay);
+    handleDayNapChecks(world, eid, currentTime, currentTimeOfDay);
     handleNapWake(world, eid, currentTime, currentTimeOfDay);
   }
 
@@ -291,7 +291,29 @@ function handleNightWakeChecks(
     SleepSystemComp.nextNightWakeCheckTime[eid] +=
       GAME_CONSTANTS.NIGHT_WAKE_CHECK_INTERVAL;
 
-    if (Math.random() < GAME_CONSTANTS.NIGHT_WAKE_CHANCE) {
+    const fatigue = SleepSystemComp.fatigue[eid];
+    const baseChance = GAME_CONSTANTS.NIGHT_WAKE_CHANCE;
+    const appliedChance = baseChance;
+    const roll = Math.random();
+    const shouldWake = roll < appliedChance;
+
+    logSleepCheck(world, "Night wake check", {
+      eid,
+      timeOfDay: currentTimeOfDay,
+      sleepMode: SleepSystemComp.sleepMode[eid],
+      fatigue: roundForLog(fatigue),
+      fatigueMax: GAME_CONSTANTS.FATIGUE_MAX,
+      checkIntervalMs: GAME_CONSTANTS.NIGHT_WAKE_CHECK_INTERVAL,
+      baseChance,
+      baseChancePercent: toPercent(baseChance),
+      appliedChance,
+      appliedChancePercent: toPercent(appliedChance),
+      roll,
+      rollPercent: toPercent(roll),
+      result: shouldWake ? "wake" : "keep_sleeping",
+    });
+
+    if (shouldWake) {
       SleepSystemComp.pendingWakeReason[eid] = SleepReason.NIGHT_INTERRUPT;
       wakeCharacter(world, eid, currentTime);
       scheduleResleep(eid, currentTime);
@@ -332,6 +354,7 @@ function handleScheduledSleep(
 }
 
 function handleDayNapChecks(
+  world: MainSceneWorld,
   eid: number,
   currentTime: number,
   currentTimeOfDay: TimeOfDay,
@@ -354,7 +377,37 @@ function handleDayNapChecks(
     SleepSystemComp.nextNapCheckTime[eid] +=
       GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL;
 
-    if (Math.random() < getDayNapChance(eid)) {
+    const fatigue = SleepSystemComp.fatigue[eid];
+    const fatigueRatio = clamp(
+      fatigue / GAME_CONSTANTS.FATIGUE_MAX,
+      0,
+      1,
+    );
+    const fatigueMultiplier = 0.5 + fatigueRatio;
+    const baseChance = GAME_CONSTANTS.DAY_NAP_CHANCE;
+    const appliedChance = getDayNapChance(eid);
+    const roll = Math.random();
+    const shouldNap = roll < appliedChance;
+
+    logSleepCheck(world, "Day nap check", {
+      eid,
+      timeOfDay: currentTimeOfDay,
+      fatigue: roundForLog(fatigue),
+      fatigueThreshold: GAME_CONSTANTS.FATIGUE_DAY_NAP_MIN_THRESHOLD,
+      fatigueMax: GAME_CONSTANTS.FATIGUE_MAX,
+      fatigueRatio: roundForLog(fatigueRatio),
+      fatigueMultiplier: roundForLog(fatigueMultiplier),
+      checkIntervalMs: GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL,
+      baseChance,
+      baseChancePercent: toPercent(baseChance),
+      appliedChance,
+      appliedChancePercent: toPercent(appliedChance),
+      roll,
+      rollPercent: toPercent(roll),
+      result: shouldNap ? "nap" : "stay_awake",
+    });
+
+    if (shouldNap) {
       SleepSystemComp.nextSleepTime[eid] = currentTime;
       SleepSystemComp.pendingSleepReason[eid] = SleepReason.NAP;
 
@@ -559,4 +612,29 @@ function restoreRandomMovementIfNeeded(
   RandomMovementComp.minMoveTime[eid] = 2000;
   RandomMovementComp.maxMoveTime[eid] = 4000;
   RandomMovementComp.nextChange[eid] = currentTime + 1000;
+}
+
+function logSleepCheck(
+  world: MainSceneWorld,
+  event: string,
+  payload: Record<string, unknown>,
+): void {
+  if (!shouldLogSleepChecks(world)) {
+    return;
+  }
+
+  console.log(`[SleepScheduleSystem] ${event}`, payload);
+}
+
+function shouldLogSleepChecks(world: MainSceneWorld): boolean {
+  return import.meta.env.DEV && !world.isSimulationMode;
+}
+
+function toPercent(value: number): number {
+  return roundForLog(value * 100, 2);
+}
+
+function roundForLog(value: number, digits = 3): number {
+  const multiplier = 10 ** digits;
+  return Math.round(value * multiplier) / multiplier;
 }

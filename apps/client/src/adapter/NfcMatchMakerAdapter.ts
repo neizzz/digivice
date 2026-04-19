@@ -62,12 +62,12 @@ export class NfcMatchMakerAdapter implements MatchMakerPort {
 
     if (!controller) {
       const errorMessage =
-        "❌ NFC 기능을 사용할 수 없습니다.\n\n" +
-        "이 기능은 Flutter 네이티브 앱에서만 동작합니다.\n" +
-        "PC 브라우저 환경에서는 NFC 기능을 테스트할 수 없습니다.\n\n" +
-        "네이티브 기능을 테스트하려면:\n" +
-        "1. 터미널에서 'pnpm build:flutter' 실행\n" +
-        "2. virtual_bridge 디렉터리에서 'flutter run' 실행";
+        "❌ NFC is unavailable.\n\n" +
+        "This feature only works in the Flutter native app.\n" +
+        "You cannot test NFC in a desktop browser.\n\n" +
+        "To test native features:\n" +
+        "1. Run 'pnpm build:flutter' in the terminal\n" +
+        "2. Run 'flutter run' inside the virtual_bridge directory";
 
       // 사용자에게 경고 표시
       alert(errorMessage);

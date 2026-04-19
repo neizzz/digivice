@@ -8,18 +8,21 @@ import {
   SleepSystemComp,
   VitalityComp,
 } from "../raw-components";
-import { ObjectType, SleepMode, SleepReason } from "../types";
+import { CharacterState, ObjectType, SleepMode, SleepReason } from "../types";
 import { calculateDiseaseRate } from "../systems/DiseaseSystem";
 import {
   getRemainingEvolutionGaugeTime,
   getRemainingStaminaDecreaseTime,
 } from "../systems/CharacterManageSystem";
 import { GAME_CONSTANTS } from "../config";
+import { TimeOfDay } from "../timeOfDay";
 
 const characterQuery = defineQuery([ObjectComp, CharacterStatusComp]);
 
 export class HTMLDebugGaugeUI {
   private _container: HTMLDivElement;
+  private _primaryColumn!: HTMLDivElement;
+  private _sleepColumn!: HTMLDivElement;
   private _world: MainSceneWorld;
   private _staminaText!: HTMLSpanElement;
   private _evolutionText!: HTMLSpanElement;
@@ -45,7 +48,7 @@ export class HTMLDebugGaugeUI {
     container.style.cssText = `
       position: absolute;
       top: 4px;
-      left: 100px;
+      left: 4px;
       background: rgba(0, 0, 0, 0.4);
       border-radius: 5px;
       padding: 10px;
@@ -53,7 +56,10 @@ export class HTMLDebugGaugeUI {
       font-family: 'Arial', sans-serif;
       color: white;
       font-size: 12px;
-      min-width: 120px;
+      min-width: 280px;
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
     `;
 
     if (!document.querySelector("#debug-gauge-ui-blink-style")) {
@@ -72,150 +78,66 @@ export class HTMLDebugGaugeUI {
   }
 
   private _setupUI(): void {
-    const staminaDiv = document.createElement("div");
+    this._primaryColumn = this._createColumn();
+    this._sleepColumn = this._createColumn();
 
-    const staminaLabel = document.createElement("span");
-    staminaLabel.textContent = "Stamina: ";
-    staminaLabel.style.cssText = `
-      color: #66ccff;
-    `;
+    const staminaDiv = this._createMetricRow("Stamina: ", "#66ccff");
 
-    this._staminaText = document.createElement("span");
-    this._staminaText.style.cssText = `
-      color: white;
-      font-weight: bold;
-    `;
-
-    staminaDiv.appendChild(staminaLabel);
+    this._staminaText = this._createMetricValue();
     staminaDiv.appendChild(this._staminaText);
 
-    const evolutionDiv = document.createElement("div");
+    const evolutionDiv = this._createMetricRow("Evolution: ", "#ffcc66");
 
-    const evolutionLabel = document.createElement("span");
-    evolutionLabel.textContent = "Evolution: ";
-    evolutionLabel.style.cssText = `
-      color: #ffcc66;
-    `;
-
-    this._evolutionText = document.createElement("span");
-    this._evolutionText.style.cssText = `
-      color: white;
-      font-weight: bold;
-    `;
-
-    evolutionDiv.appendChild(evolutionLabel);
+    this._evolutionText = this._createMetricValue();
     evolutionDiv.appendChild(this._evolutionText);
 
-    const digestiveDiv = document.createElement("div");
+    const digestiveDiv = this._createMetricRow("Digestive: ", "#66ff66");
 
-    const digestiveLabel = document.createElement("span");
-    digestiveLabel.textContent = "Digestive: ";
-    digestiveLabel.style.cssText = `
-      color: #66ff66;
-    `;
-
-    this._digestiveText = document.createElement("span");
-    this._digestiveText.style.cssText = `
-      color: white;
-      font-weight: bold;
-    `;
-
-    digestiveDiv.appendChild(digestiveLabel);
+    this._digestiveText = this._createMetricValue();
     digestiveDiv.appendChild(this._digestiveText);
 
-    const diseaseRateDiv = document.createElement("div");
+    const diseaseRateDiv = this._createMetricRow("Disease: ", "#ff8888");
 
-    const diseaseRateLabel = document.createElement("span");
-    diseaseRateLabel.textContent = "Disease: ";
-    diseaseRateLabel.style.cssText = `
-      color: #ff8888;
-    `;
-
-    this._diseaseRateText = document.createElement("span");
-    this._diseaseRateText.style.cssText = `
-      color: white;
-      font-weight: bold;
-    `;
-
-    diseaseRateDiv.appendChild(diseaseRateLabel);
+    this._diseaseRateText = this._createMetricValue();
     diseaseRateDiv.appendChild(this._diseaseRateText);
 
-    const deathTimeDiv = document.createElement("div");
+    const deathTimeDiv = this._createMetricRow("Death: ", "#ff6666");
 
-    const deathTimeLabel = document.createElement("span");
-    deathTimeLabel.textContent = "Death: ";
-    deathTimeLabel.style.cssText = `
-      color: #ff6666;
-    `;
-
-    this._deathTimeText = document.createElement("span");
-    this._deathTimeText.style.cssText = `
-      color: white;
-      font-weight: bold;
-    `;
-
-    deathTimeDiv.appendChild(deathTimeLabel);
+    this._deathTimeText = this._createMetricValue();
     deathTimeDiv.appendChild(this._deathTimeText);
 
-    const sleepDiv = document.createElement("div");
+    const sleepDiv = this._createMetricRow("Sleep: ", "#b388ff");
 
-    const sleepLabel = document.createElement("span");
-    sleepLabel.textContent = "Sleep: ";
-    sleepLabel.style.cssText = `
-      color: #b388ff;
-    `;
-
-    this._sleepText = document.createElement("span");
-    this._sleepText.style.cssText = `
-      color: white;
-      font-weight: bold;
-    `;
-
-    sleepDiv.appendChild(sleepLabel);
+    this._sleepText = this._createMetricValue();
     sleepDiv.appendChild(this._sleepText);
 
-    const fatigueDiv = document.createElement("div");
+    const fatigueDiv = this._createMetricRow("Fatigue: ", "#cda4ff");
 
-    const fatigueLabel = document.createElement("span");
-    fatigueLabel.textContent = "Fatigue: ";
-    fatigueLabel.style.cssText = `
-      color: #cda4ff;
-    `;
-
-    this._fatigueText = document.createElement("span");
-    this._fatigueText.style.cssText = `
-      color: white;
-      font-weight: bold;
-    `;
-
-    fatigueDiv.appendChild(fatigueLabel);
+    this._fatigueText = this._createMetricValue();
     fatigueDiv.appendChild(this._fatigueText);
 
-    const sleepCheckDiv = document.createElement("div");
+    const sleepCheckDiv = this._createMetricRow("SleepChk:", "#d8b4fe");
+    sleepCheckDiv.style.alignItems = "flex-start";
+    sleepCheckDiv.style.flexDirection = "column";
+    sleepCheckDiv.style.gap = "4px";
 
-    const sleepCheckLabel = document.createElement("span");
-    sleepCheckLabel.textContent = "SleepChk: ";
-    sleepCheckLabel.style.cssText = `
-      color: #d8b4fe;
-    `;
-
-    this._sleepCheckText = document.createElement("span");
-    this._sleepCheckText.style.cssText = `
-      color: white;
-      font-weight: bold;
-    `;
-
-    sleepCheckDiv.appendChild(sleepCheckLabel);
+    this._sleepCheckText = this._createMetricValue();
+    this._sleepCheckText.style.whiteSpace = "pre-wrap";
+    this._sleepCheckText.style.lineHeight = "1.45";
     sleepCheckDiv.appendChild(this._sleepCheckText);
 
-    this._container.appendChild(staminaDiv);
-    this._container.appendChild(evolutionDiv);
-    this._container.appendChild(digestiveDiv);
-    this._container.appendChild(diseaseRateDiv);
-    this._container.appendChild(deathTimeDiv);
-    this._container.appendChild(sleepDiv);
-    this._container.appendChild(fatigueDiv);
-    this._container.appendChild(sleepCheckDiv);
+    this._primaryColumn.appendChild(staminaDiv);
+    this._primaryColumn.appendChild(evolutionDiv);
+    this._primaryColumn.appendChild(digestiveDiv);
+    this._primaryColumn.appendChild(diseaseRateDiv);
+    this._primaryColumn.appendChild(deathTimeDiv);
+
+    this._sleepColumn.appendChild(sleepDiv);
+    this._sleepColumn.appendChild(fatigueDiv);
+    this._sleepColumn.appendChild(sleepCheckDiv);
+
+    this._container.appendChild(this._primaryColumn);
+    this._container.appendChild(this._sleepColumn);
   }
 
   private _findFirstCharacter(): void {
@@ -328,6 +250,7 @@ export class HTMLDebugGaugeUI {
       const pendingWakeReason =
         SleepSystemComp.pendingWakeReason[this._currentCharacterEid];
       const fatigue = SleepSystemComp.fatigue[this._currentCharacterEid] || 0;
+      const currentTimeOfDay = this._world.getTimeOfDay();
 
       const nextSleepRemaining =
         nextSleepTime > 0 ? Math.max(0, nextSleepTime - currentTime) : 0;
@@ -345,10 +268,21 @@ export class HTMLDebugGaugeUI {
       )} wake:${formatRemainingSeconds(nextWakeRemaining)}`;
       fatigueText = `${fatigue.toFixed(1)}/${GAME_CONSTANTS.FATIGUE_MAX}`;
       sleepCheckText =
-        `nap:${formatRemainingSeconds(nextNapCheckRemaining)} ` +
-        `night:${formatRemainingSeconds(nextNightWakeCheckRemaining)} ` +
-        `ps:${formatSleepReason(pendingSleepReason)} ` +
-        `pw:${formatSleepReason(pendingWakeReason)}`;
+        `  nap: ${formatNapCheckStatus({
+          currentTime,
+          currentTimeOfDay,
+          state: ObjectComp.state[this._currentCharacterEid],
+          nextNapCheckTime,
+          nextSleepTime,
+          fatigue,
+          fatigueThreshold: GAME_CONSTANTS.FATIGUE_DAY_NAP_MIN_THRESHOLD,
+        })}\n` +
+        `  night: ${formatSleepCheckCountdown(
+          nextNightWakeCheckTime,
+          currentTime,
+        )}\n` +
+        `  ps: ${formatSleepCheckReason(pendingSleepReason)}\n` +
+        `  pw: ${formatSleepCheckReason(pendingWakeReason)}`;
     }
 
     this._staminaText.textContent = `${stamina}/10 (${Math.ceil(
@@ -461,6 +395,42 @@ export class HTMLDebugGaugeUI {
       this._container.parentElement.removeChild(this._container);
     }
   }
+
+  private _createColumn(): HTMLDivElement {
+    const column = document.createElement("div");
+    column.style.cssText = `
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 120px;
+    `;
+    return column;
+  }
+
+  private _createMetricRow(labelText: string, labelColor: string): HTMLDivElement {
+    const row = document.createElement("div");
+    row.style.cssText = `
+      display: flex;
+      align-items: baseline;
+      gap: 4px;
+    `;
+
+    const label = document.createElement("span");
+    label.textContent = labelText;
+    label.style.color = labelColor;
+    row.appendChild(label);
+
+    return row;
+  }
+
+  private _createMetricValue(): HTMLSpanElement {
+    const value = document.createElement("span");
+    value.style.cssText = `
+      color: white;
+      font-weight: bold;
+    `;
+    return value;
+  }
 }
 
 function formatSleepMode(mode: number): string {
@@ -495,10 +465,76 @@ function formatSleepReason(reason: number): string {
   }
 }
 
+function formatSleepCheckReason(reason: number): string {
+  if (reason === SleepReason.NONE) {
+    return "inactive";
+  }
+
+  return formatSleepReason(reason);
+}
+
 function formatRemainingSeconds(remainingTime: number): string {
   if (remainingTime <= 0) {
     return "-";
   }
 
   return `${Math.ceil(remainingTime / 1000)}s`;
+}
+
+function formatSleepCheckCountdown(
+  scheduledTime: number,
+  currentTime: number,
+): string {
+  if (scheduledTime <= 0) {
+    return "inactive";
+  }
+
+  const remainingTime = scheduledTime - currentTime;
+  if (remainingTime <= 0) {
+    return "ready";
+  }
+
+  return `${Math.ceil(remainingTime / 1000)}s`;
+}
+
+function formatNapCheckStatus(params: {
+  currentTime: number;
+  currentTimeOfDay: TimeOfDay;
+  state: number;
+  nextNapCheckTime: number;
+  nextSleepTime: number;
+  fatigue: number;
+  fatigueThreshold: number;
+}): string {
+  const {
+    currentTime,
+    currentTimeOfDay,
+    state,
+    nextNapCheckTime,
+    nextSleepTime,
+    fatigue,
+    fatigueThreshold,
+  } = params;
+
+  if (nextNapCheckTime <= 0) {
+    return "inactive";
+  }
+
+  if (currentTimeOfDay !== TimeOfDay.Day) {
+    return `blocked:${currentTimeOfDay}`;
+  }
+
+  if (state === CharacterState.SLEEPING) {
+    return "blocked:sleeping";
+  }
+
+  if (nextSleepTime > 0) {
+    return "blocked:reserved";
+  }
+
+  if (fatigue < fatigueThreshold) {
+    return "blocked:fatigue";
+  }
+
+  return formatSleepCheckCountdown(nextNapCheckTime, currentTime);
 }
