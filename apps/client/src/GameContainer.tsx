@@ -236,8 +236,12 @@ async function openMailDraft(
 }
 
 const GameContainer: React.FC = () => {
+  const gameViewportRef = useRef<HTMLDivElement>(null);
   const gameContainerRef = useRef<HTMLDivElement>(null);
   const [gameInstance, setGameInstance] = useState<Game | null>(null);
+  const [gameContainerSize, setGameContainerSize] = useState<number | null>(
+    null,
+  );
   const [showSetupLayer, setShowSetupLayer] = useState<boolean>(false);
   const [isBootstrapping, setIsBootstrapping] = useState<boolean>(true);
   const { alertState, showAlert, hideAlert } = useAlert();
@@ -668,6 +672,7 @@ const GameContainer: React.FC = () => {
 
   const initializeGame = useCallback(() => {
     if (!gameContainerRef.current) return;
+    if (!gameContainerSize || gameContainerSize <= 0) return;
     if (isInitializedRef.current) return;
 
     setIsBootstrapping(true);
@@ -721,6 +726,7 @@ const GameContainer: React.FC = () => {
       });
     });
   }, [
+    gameContainerSize,
     handleMainSceneLoadingStateChange,
     openSettingMenu,
     requestInitialGameData,
@@ -731,10 +737,50 @@ const GameContainer: React.FC = () => {
 
   // Game 인스턴스 생성은 한 번만 실행되도록 보장
   useEffect(() => {
+    const viewportElement = gameViewportRef.current;
+
+    if (!viewportElement) {
+      return;
+    }
+
+    const updateGameContainerSize = () => {
+      const nextSize = Math.max(
+        0,
+        Math.floor(
+          Math.min(viewportElement.clientWidth, viewportElement.clientHeight),
+        ),
+      );
+
+      setGameContainerSize((previous) =>
+        previous === nextSize ? previous : nextSize,
+      );
+    };
+
+    updateGameContainerSize();
+
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", updateGameContainerSize);
+      return () => {
+        window.removeEventListener("resize", updateGameContainerSize);
+      };
+    }
+
+    const resizeObserver = new ResizeObserver(() => {
+      updateGameContainerSize();
+    });
+    resizeObserver.observe(viewportElement);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, []);
+
+  useEffect(() => {
     let isMounted = true;
 
     const bootstrap = async () => {
       if (!gameContainerRef.current) return;
+      if (!gameContainerSize || gameContainerSize <= 0) return;
       if (isInitializedRef.current) return;
 
       const savedGameDataState = await prepareSavedGameData();
@@ -762,6 +808,7 @@ const GameContainer: React.FC = () => {
       stopRecoveryVibration();
     };
   }, [
+    gameContainerSize,
     gameSessionKey,
     initializeGame,
     prepareSavedGameData,
@@ -831,22 +878,31 @@ const GameContainer: React.FC = () => {
     isBootstrapping || mainSceneLoadState.phase === "loading" || mainSceneLoadState.phase === "core_ready";
 
   return (
-    <div
-      className={
-        "h-full w-full relative flex flex-col items-center justify-center"
-      }
-    >
+    <div className={"relative h-full w-full min-h-0"}>
       <>
         <div
-          id="game-container"
-          ref={gameContainerRef}
-          className={"relative m-0 p-0 w-full aspect-1/1"}
+          ref={gameViewportRef}
+          className={"flex h-full min-h-0 min-w-0 items-center justify-center overflow-hidden"}
         >
-          {/* 게임 캔버스가 여기에 렌더링됨 */}
+          <div
+            id="game-container"
+            ref={gameContainerRef}
+            className={"relative m-0 shrink-0 -translate-y-16 p-0"}
+            style={
+              gameContainerSize
+                ? {
+                    width: `${gameContainerSize}px`,
+                    height: `${gameContainerSize}px`,
+                  }
+                : undefined
+            }
+          >
+            {/* 게임 캔버스가 여기에 렌더링됨 */}
+          </div>
         </div>
 
         {buttonParams && (
-          <div className={"w-full mt-14"}>
+          <div className={"absolute inset-x-0 bottom-32 z-10 w-full"}>
             <ControlButtons
               buttonParams={buttonParams}
               onButtonPress={handleButtonPress}

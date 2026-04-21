@@ -726,8 +726,7 @@ export class MainSceneWorld implements IWorld, Scene {
       this._sceneDarknessOverlay = this._createSceneDarknessOverlay();
       this._stage.addChild(this._sceneDarknessOverlay);
 
-      const width = this._stage.width;
-      const height = this._stage.height;
+      const { width, height } = this._getSceneSize();
       this._background.resize(width, height);
       this._resizeSceneDarknessOverlay(width, height);
       if (this._isLocalTimeEnabled()) {
@@ -1676,6 +1675,19 @@ export class MainSceneWorld implements IWorld, Scene {
       default:
         return 0;
     }
+  }
+
+  private _getSceneSize(): { width: number; height: number } {
+    return {
+      width:
+        this._positionBoundary.width +
+        this._positionBoundaryInsets.left +
+        this._positionBoundaryInsets.right,
+      height:
+        this._positionBoundary.height +
+        this._positionBoundaryInsets.top +
+        this._positionBoundaryInsets.bottom,
+    };
   }
 
   private _lerpDarknessAlpha(from: number, to: number, progress: number): number {

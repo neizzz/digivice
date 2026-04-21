@@ -74,6 +74,15 @@ export class Game {
   private currentSceneKey?: SceneKey;
   private assetsLoaded = false;
   private readonly _boundResizeHandler: () => void;
+  private readonly _boundLifecycleResizeHandler: () => void;
+  private readonly _boundVisibilityResizeHandler: () => void;
+  private _resizeObserver?: ResizeObserver;
+  private _resizeRafId: number | null = null;
+  private _resizeRetryTimeoutIds: number[] = [];
+  private _pendingResizeReason = "init";
+  private _lastResizeMetricsKey: string | null = null;
+  private _isPixiReady = false;
+  private _isDestroyed = false;
   // private characterManager: CharacterManager; // CharacterManager 인스턴스 추가
   // private shouldSaveDataBeforeUnload = false;
 
@@ -111,7 +120,17 @@ export class Game {
     this._createInitialGameData = onCreateInitialGameData;
 
     this.app = new PIXI.Application();
-    this._boundResizeHandler = this._onResize.bind(this);
+    this._boundResizeHandler = () => {
+      this._requestAnimationFrameResize("window.resize");
+    };
+    this._boundLifecycleResizeHandler = () => {
+      this._requestStableResize("window.lifecycle");
+    };
+    this._boundVisibilityResizeHandler = () => {
+      if (typeof document !== "undefined" && !document.hidden) {
+        this._requestStableResize("document.visibilitychange");
+      }
+    };
 
     // 렌더링 주기를 60fps로 설정
     this._parentElement = parentElement;
@@ -119,6 +138,27 @@ export class Game {
 
     // 리사이징 핸들러 설정
     window.addEventListener("resize", this._boundResizeHandler);
+    window.addEventListener("focus", this._boundLifecycleResizeHandler);
+    window.addEventListener("pageshow", this._boundLifecycleResizeHandler);
+    document.addEventListener(
+      "visibilitychange",
+      this._boundVisibilityResizeHandler,
+    );
+    window.visualViewport?.addEventListener(
+      "resize",
+      this._boundLifecycleResizeHandler,
+    );
+    window.visualViewport?.addEventListener(
+      "scroll",
+      this._boundLifecycleResizeHandler,
+    );
+
+    if (typeof ResizeObserver !== "undefined") {
+      this._resizeObserver = new ResizeObserver(() => {
+        this._requestAnimationFrameResize("ResizeObserver");
+      });
+      this._resizeObserver.observe(this._parentElement);
+    }
   }
 
   /**
@@ -146,11 +186,12 @@ export class Game {
         autoDensity: true,
         resolution: window.devicePixelRatio || 2, // 해상도를 디바이스 픽셀 비율로 설정하거나 원하는 값(예: 2)으로 설정
       });
+      this._isPixiReady = true;
 
       this.app.ticker.minFPS = 60;
       this.app.ticker.maxFPS = 0;
       this._parentElement.appendChild(this.app.canvas);
-      this._onResize();
+      this._onResize("initialize");
 
       this.assetsLoaded = true;
 
@@ -271,14 +312,71 @@ export class Game {
   //   });
   // };
 
-  private _onResize(): void {
+  private _onResize(reason = "unknown"): void {
+    if (this._isDestroyed) {
+      return;
+    }
+
     const parent = this._parentElement;
     if (!parent || !parent.getBoundingClientRect) {
       throw new Error("Parent element is not available.");
     }
-    const { width, height } = parent.getBoundingClientRect();
+
+    if (!this._isPixiReady || !this.app.renderer) {
+      console.error(
+        "[GameResize]",
+        JSON.stringify({
+          phase: "skip-before-init",
+          reason,
+          isPixiReady: this._isPixiReady,
+          hasRenderer: Boolean(this.app.renderer),
+        }),
+      );
+      return;
+    }
+
+    const rect = parent.getBoundingClientRect();
+    const width = parent.clientWidth || rect.width;
+    const height = parent.clientHeight || rect.height;
+
+    if (width <= 0 || height <= 0) {
+      console.error(
+        "[GameResize]",
+        JSON.stringify({
+          phase: "skip-zero-size",
+          reason,
+          clientWidth: parent.clientWidth,
+          clientHeight: parent.clientHeight,
+          rectWidth: rect.width,
+          rectHeight: rect.height,
+        }),
+      );
+      return;
+    }
+
+    const visualViewport = window.visualViewport;
+    const resolution = window.devicePixelRatio || 2;
+    const metricsKey = [
+      width,
+      height,
+      parent.clientWidth,
+      parent.clientHeight,
+      Math.round(rect.width),
+      Math.round(rect.height),
+      resolution,
+      visualViewport ? Math.round(visualViewport.width) : "na",
+      visualViewport ? Math.round(visualViewport.height) : "na",
+      visualViewport ? visualViewport.scale : "na",
+    ].join("|");
+
+    if (metricsKey === this._lastResizeMetricsKey) {
+      return;
+    }
+
+    this._lastResizeMetricsKey = metricsKey;
+
+    this.app.renderer.resolution = resolution;
     this.app.renderer.resize(width, height);
-    this.app.renderer.resolution = window.devicePixelRatio || 2;
     this.app.stage.setSize(width, height);
     if (
       this.currentScene &&
@@ -286,6 +384,53 @@ export class Game {
       typeof this.currentScene.resize === "function"
     ) {
       this.currentScene.resize(width, height);
+    }
+  }
+
+  private _requestAnimationFrameResize(reason = "unknown"): void {
+    if (this._isDestroyed) {
+      return;
+    }
+
+    if (typeof window === "undefined") {
+      this._onResize(reason);
+      return;
+    }
+
+    this._pendingResizeReason = reason;
+
+    if (this._resizeRafId !== null) {
+      window.cancelAnimationFrame(this._resizeRafId);
+    }
+
+    this._resizeRafId = window.requestAnimationFrame(() => {
+      this._resizeRafId = null;
+      const pendingReason = this._pendingResizeReason;
+      this._pendingResizeReason = "raf-complete";
+      this._onResize(pendingReason);
+    });
+  }
+
+  private _clearResizeRetryTimeouts(): void {
+    for (const timeoutId of this._resizeRetryTimeoutIds) {
+      window.clearTimeout(timeoutId);
+    }
+    this._resizeRetryTimeoutIds = [];
+  }
+
+  private _requestStableResize(reason = "unknown"): void {
+    if (this._isDestroyed) {
+      return;
+    }
+
+    this._requestAnimationFrameResize(`${reason}:immediate`);
+    this._clearResizeRetryTimeouts();
+
+    for (const delay of [120, 320]) {
+      const timeoutId = window.setTimeout(() => {
+        this._requestAnimationFrameResize(`${reason}:retry-${delay}ms`);
+      }, delay);
+      this._resizeRetryTimeoutIds.push(timeoutId);
     }
   }
 
@@ -476,8 +621,31 @@ export class Game {
   }
 
   public destroy(): void {
+    this._isDestroyed = true;
+    this._isPixiReady = false;
     // 정리 작업
     window.removeEventListener("resize", this._boundResizeHandler);
+    window.removeEventListener("focus", this._boundLifecycleResizeHandler);
+    window.removeEventListener("pageshow", this._boundLifecycleResizeHandler);
+    document.removeEventListener(
+      "visibilitychange",
+      this._boundVisibilityResizeHandler,
+    );
+    window.visualViewport?.removeEventListener(
+      "resize",
+      this._boundLifecycleResizeHandler,
+    );
+    window.visualViewport?.removeEventListener(
+      "scroll",
+      this._boundLifecycleResizeHandler,
+    );
+    this._resizeObserver?.disconnect();
+    this._resizeObserver = undefined;
+    this._clearResizeRetryTimeouts();
+    if (this._resizeRafId !== null) {
+      window.cancelAnimationFrame(this._resizeRafId);
+      this._resizeRafId = null;
+    }
     this.stop();
     this.app.destroy(true, {
       children: true,
