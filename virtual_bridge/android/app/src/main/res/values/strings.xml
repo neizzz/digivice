@@ -26,6 +26,7 @@
 <!-- </resources> -->
 
 <resources>
+  <string name="app_name">MonTTo</string>
   <string name="servicedesc">digivice_virtual_bridge</string>
   <string name="aiddescription">digivice_virtual_bridge</string>
 </resources>
