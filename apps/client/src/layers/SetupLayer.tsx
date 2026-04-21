@@ -20,9 +20,11 @@ export interface SetupLayerProps {
   onComplete: (formData: SetupFormData) => void;
 }
 
+const DEFAULT_USE_LOCAL_TIME = import.meta.env.DEV;
+
 export const SetupLayer: React.FC<SetupLayerProps> = ({ onComplete }) => {
   const [name, setName] = useState("");
-  const [useLocalTime, setUseLocalTime] = useState(false);
+  const [useLocalTime, setUseLocalTime] = useState(DEFAULT_USE_LOCAL_TIME);
   const [error, setError] = useState<string | null>(null);
   const [localTimeError, setLocalTimeError] = useState<string | null>(null);
   const [isRequestingLocationPermission, setIsRequestingLocationPermission] =

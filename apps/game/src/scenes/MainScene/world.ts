@@ -210,6 +210,7 @@ export type MainSceneWorldData = {
 };
 
 const WORLD_DATA_STORAGE_KEY = "MainSceneWorldData";
+const DEFAULT_USE_LOCAL_TIME = import.meta.env.DEV;
 
 const COMMON_SPRITESHEET_ASSETS: LoadSpritesheetOptions[] = [
   {
@@ -711,9 +712,11 @@ export class MainSceneWorld implements IWorld, Scene {
       const height = this._stage.height;
       this._background.resize(width, height);
       this._resizeSceneDarknessOverlay(width, height);
-      this._applyCurrentSkyState();
       if (this._isLocalTimeEnabled()) {
+        this._applyCurrentSkyState();
         void this._initializeSunTimes();
+      } else {
+        this._setRandomManualTimeOfDay();
       }
 
       // zIndex 정렬을 위해 sortableChildren 활성화
@@ -1151,7 +1154,7 @@ export class MainSceneWorld implements IWorld, Scene {
         app_state: {
           last_active_time: Date.now(),
           is_first_load: false,
-          use_local_time: initialGameData?.useLocalTime ?? false,
+          use_local_time: initialGameData?.useLocalTime ?? DEFAULT_USE_LOCAL_TIME,
         },
       },
       entities: [this._createDefaultCharacterEntity()],
@@ -1658,6 +1661,20 @@ export class MainSceneWorld implements IWorld, Scene {
 
   private _lerpDarknessAlpha(from: number, to: number, progress: number): number {
     return from + (to - from) * progress;
+  }
+
+  private _setRandomManualTimeOfDay(): void {
+    this._timeOfDayMode = TimeOfDayMode.Manual;
+    this._autoTimeOfDayState = null;
+    this._autoTimeOfDayMinuteKey = null;
+    this._timeOfDay = Math.random() < 0.5 ? TimeOfDay.Day : TimeOfDay.Night;
+    this._applyCurrentSkyState();
+
+    console.log(
+      `[MainSceneWorld] Local time disabled, randomly selected ${getTimeOfDayLabel(
+        this._timeOfDay,
+      )}`,
+    );
   }
 
   private _isLocalTimeEnabled(): boolean {
