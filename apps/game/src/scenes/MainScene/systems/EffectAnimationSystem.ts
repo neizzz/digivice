@@ -18,6 +18,7 @@ const effectAnimationQuery = defineQuery([
   PositionComp,
   EffectAnimationComp,
 ]);
+const liveObjectEntityQuery = defineQuery([ObjectComp]);
 
 type RecoveryDirectionSign = -1 | 1;
 
@@ -28,6 +29,7 @@ type RecoveryEffectSpriteData = {
 
 const effectSpriteMap = new Map<number, RecoveryEffectSpriteData>();
 const recoveryImpactTriggeredEids = new Set<number>();
+const recoveryVibrationStartedEids = new Set<number>();
 
 const RECOVERY_APPROACH_DURATION = 300;
 const RECOVERY_HOLD_DURATION = 1000;
@@ -115,10 +117,17 @@ function cleanupEffectSprite(
   }
 
   recoveryImpactTriggeredEids.delete(eid);
+  recoveryVibrationStartedEids.delete(eid);
+  world.stopRecoveryVibration();
 
-  if (hasComponent(world, EffectAnimationComp, eid)) {
+  if (isLiveObjectEntity(world, eid) && hasComponent(world, EffectAnimationComp, eid)) {
     removeComponent(world, EffectAnimationComp, eid);
   }
+}
+
+function isLiveObjectEntity(world: MainSceneWorld, eid: number): boolean {
+  const entities = liveObjectEntityQuery(world);
+  return entities.includes(eid);
 }
 
 function createRecoverySyringeSprite(
@@ -164,6 +173,14 @@ function updateRecoverySyringe(
   ) {
     recoveryImpactTriggeredEids.add(eid);
     world.applyPendingRecoverySyringeImpact(eid);
+  }
+
+  if (
+    elapsed >= RECOVERY_APPROACH_DURATION &&
+    !recoveryVibrationStartedEids.has(eid)
+  ) {
+    recoveryVibrationStartedEids.add(eid);
+    world.startRecoveryVibration();
   }
 
   const spriteData = effectSpriteMap.get(eid);
@@ -272,6 +289,14 @@ export function startEffectAnimation(
 ): void {
   cleanupEffectSprite(world, eid, stage);
   recoveryImpactTriggeredEids.delete(eid);
+  recoveryVibrationStartedEids.delete(eid);
+
+  if (!isLiveObjectEntity(world, eid)) {
+    console.warn(
+      `[EffectAnimationSystem] Skipping ${EffectAnimationType[effectType]} start for invalid entity ${eid}`,
+    );
+    return;
+  }
 
   const duration =
     customDuration ??

@@ -36,6 +36,8 @@ export type ShowSettingsCallback = (params: {
 }) => void;
 export type ShowAlertCallback = (message: string, title?: string) => void;
 export type TriggerBiteVibrationCallback = () => void;
+export type StartRecoveryVibrationCallback = () => void;
+export type StopRecoveryVibrationCallback = () => void;
 export type SceneLoadingStateChangeCallback = (params: {
   key: SceneKey;
   state: "loading" | "core_ready";
@@ -60,6 +62,8 @@ export class Game {
   public showSettings: ShowSettingsCallback; // 설정 화면 표시 콜백
   public showAlert: ShowAlertCallback; // 팝업 콜백 추가
   public triggerBiteVibration?: TriggerBiteVibrationCallback;
+  public startRecoveryVibration?: StartRecoveryVibrationCallback;
+  public stopRecoveryVibration?: StopRecoveryVibrationCallback;
 
   private _parentElement: HTMLElement;
   private _onSceneLoadingStateChange?: SceneLoadingStateChangeCallback;
@@ -81,6 +85,8 @@ export class Game {
     showSettings: ShowSettingsCallback;
     showAlert: ShowAlertCallback; // 팝업 콜백 추가
     triggerBiteVibration?: TriggerBiteVibrationCallback;
+    startRecoveryVibration?: StartRecoveryVibrationCallback;
+    stopRecoveryVibration?: StopRecoveryVibrationCallback;
     onSceneLoadingStateChange?: SceneLoadingStateChangeCallback;
   }) {
     const {
@@ -91,12 +97,16 @@ export class Game {
       showSettings,
       showAlert,
       triggerBiteVibration,
+      startRecoveryVibration,
+      stopRecoveryVibration,
       onSceneLoadingStateChange,
     } = params;
     this.changeControlButtons = changeControlButtons;
     this.showSettings = showSettings; // 설정 화면 표시 콜백
     this.showAlert = showAlert; // 팝업 콜백 저장
     this.triggerBiteVibration = triggerBiteVibration;
+    this.startRecoveryVibration = startRecoveryVibration;
+    this.stopRecoveryVibration = stopRecoveryVibration;
     this._onSceneLoadingStateChange = onSceneLoadingStateChange;
     this._createInitialGameData = onCreateInitialGameData;
 
@@ -317,6 +327,8 @@ export class Game {
           createInitialGameData: this._createInitialGameData,
           changeControlButtons: this.changeControlButtons,
           triggerBiteVibration: this.triggerBiteVibration,
+          startRecoveryVibration: this.startRecoveryVibration,
+          stopRecoveryVibration: this.stopRecoveryVibration,
         });
         await mainSceneWorld.init();
         return mainSceneWorld as unknown as Scene;

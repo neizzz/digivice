@@ -98,6 +98,10 @@ import {
   loadSpritesheet,
 } from "../../utils/asset";
 import type { TriggerBiteVibrationCallback } from "../../Game";
+import type {
+  StartRecoveryVibrationCallback,
+  StopRecoveryVibrationCallback,
+} from "../../Game";
 import { SPRITESHEET_KEY_TO_NAME } from "./systems/AnimationRenderSystem";
 import { Scene } from "../../interfaces/Scene";
 import {
@@ -134,6 +138,8 @@ import {
   TimeOfDay,
   TimeOfDayMode,
 } from "./timeOfDay";
+
+const liveCharacterEntitiesQuery = defineQuery([ObjectComp, CharacterStatusComp]);
 
 export type EntityComponents = {
   characterStatus?: CharacterStatusComponent;
@@ -313,6 +319,8 @@ export class MainSceneWorld implements IWorld, Scene {
     ],
   ) => void;
   private _triggerBiteVibration?: TriggerBiteVibrationCallback;
+  private _startRecoveryVibration?: StartRecoveryVibrationCallback;
+  private _stopRecoveryVibration?: StopRecoveryVibrationCallback;
   private _isCleaningMode = false; // 청소 모드 상태
   private _previousCleaningMode = false; // 이전 청소 모드 상태 (진입 감지용)
   private _focusedTargetEid = -1; // 현재 포커스된 청소 대상 엔티티 ID
@@ -461,6 +469,8 @@ export class MainSceneWorld implements IWorld, Scene {
       ],
     ) => void;
     triggerBiteVibration?: TriggerBiteVibrationCallback;
+    startRecoveryVibration?: StartRecoveryVibrationCallback;
+    stopRecoveryVibration?: StopRecoveryVibrationCallback;
   }) {
     this._stage = params.stage;
     this._positionBoundary = params.positionBoundary;
@@ -476,6 +486,8 @@ export class MainSceneWorld implements IWorld, Scene {
     this._createInitialGameData = params.createInitialGameData;
     this._changeControlButtons = params.changeControlButtons;
     this._triggerBiteVibration = params.triggerBiteVibration;
+    this._startRecoveryVibration = params.startRecoveryVibration;
+    this._stopRecoveryVibration = params.stopRecoveryVibration;
 
     // MainScene용 초기 컨트롤 버튼 설정 (메뉴에 포커스가 없는 상태)
     this._updateControlButtonsForMenuState(false);
@@ -483,6 +495,14 @@ export class MainSceneWorld implements IWorld, Scene {
 
   public triggerBiteVibration(): void {
     this._triggerBiteVibration?.();
+  }
+
+  public startRecoveryVibration(): void {
+    this._startRecoveryVibration?.();
+  }
+
+  public stopRecoveryVibration(): void {
+    this._stopRecoveryVibration?.();
   }
 
   /**
@@ -995,6 +1015,7 @@ export class MainSceneWorld implements IWorld, Scene {
       cleanupCharacterLayoutDebug(this._stage);
     }
     this._pendingRecoveryCureEids.clear();
+    this.stopRecoveryVibration();
 
     // 일시정지 상태로 설정 (다른 scene으로 전환되므로)
     this._isPaused = true;
@@ -1975,16 +1996,16 @@ export class MainSceneWorld implements IWorld, Scene {
    * 메인 캐릭터 엔티티 찾기
    */
   private _findMainCharacterEntity(): number {
-    // ObjectComp와 CharacterStatusComp를 모두 가진 CHARACTER 타입 엔티티 찾기
-    for (let eid = 0; eid < 1000; eid++) {
-      // 적당한 범위에서 검색
-      if (
-        ObjectComp.type[eid] === ObjectType.CHARACTER &&
-        CharacterStatusComp.statuses[eid] !== undefined
-      ) {
+    const characterEntities = liveCharacterEntitiesQuery(this);
+
+    for (let i = 0; i < characterEntities.length; i++) {
+      const eid = characterEntities[i];
+
+      if (ObjectComp.type[eid] === ObjectType.CHARACTER) {
         return eid;
       }
     }
+
     return -1; // 캐릭터를 찾지 못함
   }
 

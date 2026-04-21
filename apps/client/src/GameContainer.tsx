@@ -28,6 +28,9 @@ import {
 
 const WORLD_DATA_STORAGE_KEY = "MainSceneWorldData";
 const biteVibrationAdapter = new VibrationAdapter();
+const RECOVERY_VIBRATION_INTERVAL_MS = 180;
+const RECOVERY_VIBRATION_DURATION_MS = 14;
+const RECOVERY_VIBRATION_STRENGTH = 28;
 const isNativeFeatureDebugMode =
   import.meta.env.NATIVE_FEATURE_DEBUG_MODE === "true";
 
@@ -263,6 +266,7 @@ const GameContainer: React.FC = () => {
       phase: "idle",
     });
   const mainSceneLoadRequestIdRef = useRef(0);
+  const recoveryVibrationIntervalRef = useRef<number | null>(null);
 
   const openSettingMenu = useCallback(() => {
     setShowSettingMenu(true);
@@ -328,6 +332,31 @@ const GameContainer: React.FC = () => {
     mainSceneLoadRequestIdRef.current = 0;
     setMainSceneLoadState({ requestId: 0, phase: "idle" });
     setIsBootstrapping(false);
+  }, []);
+
+  const stopRecoveryVibration = useCallback(() => {
+    if (recoveryVibrationIntervalRef.current !== null) {
+      window.clearInterval(recoveryVibrationIntervalRef.current);
+      recoveryVibrationIntervalRef.current = null;
+    }
+  }, []);
+
+  const startRecoveryVibration = useCallback(() => {
+    if (recoveryVibrationIntervalRef.current !== null) {
+      return;
+    }
+
+    void biteVibrationAdapter.vibrate(
+      RECOVERY_VIBRATION_DURATION_MS,
+      RECOVERY_VIBRATION_STRENGTH,
+    );
+
+    recoveryVibrationIntervalRef.current = window.setInterval(() => {
+      void biteVibrationAdapter.vibrate(
+        RECOVERY_VIBRATION_DURATION_MS,
+        RECOVERY_VIBRATION_STRENGTH,
+      );
+    }, RECOVERY_VIBRATION_INTERVAL_MS);
   }, []);
 
   useEffect(() => {
@@ -661,6 +690,8 @@ const GameContainer: React.FC = () => {
       triggerBiteVibration: () => {
         void biteVibrationAdapter.vibrate();
       },
+      startRecoveryVibration,
+      stopRecoveryVibration,
       onSceneLoadingStateChange: handleMainSceneLoadingStateChange,
       changeControlButtons: (controlButtonParams) => {
         setButtonParams((previous) => {
@@ -693,6 +724,8 @@ const GameContainer: React.FC = () => {
     handleMainSceneLoadingStateChange,
     openSettingMenu,
     requestInitialGameData,
+    startRecoveryVibration,
+    stopRecoveryVibration,
     showAlert,
   ]);
 
@@ -726,13 +759,21 @@ const GameContainer: React.FC = () => {
     return () => {
       isMounted = false;
       pendingSetupResolverRef.current = null;
+      stopRecoveryVibration();
     };
   }, [
     gameSessionKey,
     initializeGame,
     prepareSavedGameData,
     requestInitialGameData,
+    stopRecoveryVibration,
   ]);
+
+  useEffect(() => {
+    return () => {
+      stopRecoveryVibration();
+    };
+  }, [stopRecoveryVibration]);
 
   // 버튼 클릭 핸들러 - Game 인스턴스에 버튼 타입만 전달
   const handleButtonPress = useCallback(
