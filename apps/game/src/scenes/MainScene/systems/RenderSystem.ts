@@ -9,12 +9,19 @@ import {
 } from "../raw-components";
 import * as PIXI from "pixi.js";
 import { MainSceneWorld } from "../world";
-import { TextureKey, Freshness } from "../types";
+import { TextureKey, Freshness, EGG_TEXTURE_KEYS } from "../types";
 import { getTextureFromSpritesheet } from "../../../utils/asset";
 import { hasComponent } from "bitecs";
 import { ObjectStore } from "../utils/ObjectStore";
 
 /** NOTE: types.ts에 {@link TextureKey}과 싱크가 맞아야 함. */
+const EGG_TEXTURE_MAP = Object.fromEntries(
+	EGG_TEXTURE_KEYS.map((textureKey, index) => [
+		textureKey,
+		{ spritesheetAlias: "eggs", textureName: `egg-${index}` },
+	]),
+) as Record<number, { spritesheetAlias?: string; textureName: string }>;
+
 const TEXTURE_MAP: Record<
 	number,
 	{ spritesheetAlias?: string; textureName: string }
@@ -110,8 +117,7 @@ const TEXTURE_MAP: Record<
 	463: { spritesheetAlias: "foods", textureName: "food-64" }, // TextureKey.FOOD64
 
 	// Egg sprites (500-599)
-	500: { spritesheetAlias: "eggs", textureName: "egg-0" }, // TextureKey.EGG0
-	501: { spritesheetAlias: "eggs", textureName: "egg-1" }, // TextureKey.EGG1
+	...EGG_TEXTURE_MAP,
 
 	// Pill sprites (600-699)
 	600: { spritesheetAlias: "common16x16", textureName: "pill-1" }, // TextureKey.PILL1

@@ -10,11 +10,16 @@ import {
   ObjectType,
   CharacterStatus,
   CharacterState,
-  TextureKey,
+  getRandomEggTextureKey,
+  isEggTextureKey,
 } from "../types";
 import { MainSceneWorld } from "../world";
-import { evolveCharacter, canEvolve } from "./EvolutionSystem";
+import { evolveCharacter, canEvolve, getMaxEvolutionGauge } from "./EvolutionSystem";
 import { GAME_CONSTANTS } from "../config";
+import {
+  EVOLUTION_GAUGE_CONFIG,
+  getEvolutionGaugeIncreaseAmount,
+} from "../evolutionConfig";
 
 const characterQuery = defineQuery([
   ObjectComp,
@@ -51,11 +56,10 @@ export function characterManagerSystem(params: {
 
     // EGG 상태일 때 알 텍스처로 변경
     if (ObjectComp.state[eid] === CharacterState.EGG) {
-      // 알 텍스처로 설정 (EGG0 사용)
-      if (RenderComp.textureKey[eid] !== TextureKey.EGG0) {
-        RenderComp.textureKey[eid] = TextureKey.EGG0;
+      if (!isEggTextureKey(RenderComp.textureKey[eid])) {
+        RenderComp.textureKey[eid] = getRandomEggTextureKey();
         console.log(
-          `[CharacterManagerSystem] Changed texture to EGG for character ${eid}`,
+          `[CharacterManagerSystem] Assigned random egg texture ${RenderComp.textureKey[eid]} for character ${eid}`,
         );
       }
     }
@@ -65,7 +69,7 @@ export function characterManagerSystem(params: {
       ObjectComp.state[eid] === CharacterState.MOVING
     ) {
       // 알 텍스처에서 벗어났다면 정적 텍스처를 ECS_NULL_VALUE로 설정하여 애니메이션 시스템이 처리하도록 함
-      if (RenderComp.textureKey[eid] === TextureKey.EGG0) {
+      if (isEggTextureKey(RenderComp.textureKey[eid])) {
         RenderComp.textureKey[eid] = ECS_NULL_VALUE;
         console.log(
           `[CharacterManagerSystem] Cleared static texture for hatched character ${eid}, animation system will handle rendering`,
@@ -258,7 +262,7 @@ export function setCharacterStamina(eid: number, stamina: number): void {
 }
 
 export function setCharacterEvolutionGauge(eid: number, gauge: number): void {
-  const clampedGauge = Math.max(0, Math.min(100.0, gauge));
+  const clampedGauge = Math.max(0, Math.min(getMaxEvolutionGauge(), gauge));
   CharacterStatusComp.evolutionGage[eid] = clampedGauge;
   console.log(
     `[CharacterManagerSystem] Set evolution gauge for entity ${eid}: ${clampedGauge}`,
@@ -283,14 +287,14 @@ export function getRemainingEvolutionGaugeTime(eid: number): number | null {
   const isSick = hasCharacterStatus(eid, CharacterStatus.SICK);
 
   if (
-    currentStamina < GAME_CONSTANTS.EVOLUTION_GAUGE_STATMINA_THRESHOLD ||
+    currentStamina < EVOLUTION_GAUGE_CONFIG.staminaThreshold ||
     isSick
   ) {
     return null;
   }
 
   const elapsed = evolutionGaugeTimers.get(eid) || 0;
-  return Math.max(0, GAME_CONSTANTS.EVOLUTION_GAUGE_CHECK_INTERVAL - elapsed);
+  return Math.max(0, EVOLUTION_GAUGE_CONFIG.checkIntervalMs - elapsed);
 }
 
 export function clearCharacterStatuses(eid: number): void {
@@ -335,17 +339,17 @@ function _updateStaminaAndEvolutionGauge(
   const isSick = hasCharacterStatus(eid, CharacterStatus.SICK);
 
   if (
-    currentStamina >= GAME_CONSTANTS.EVOLUTION_GAUGE_STATMINA_THRESHOLD &&
+    currentStamina >= EVOLUTION_GAUGE_CONFIG.staminaThreshold &&
     !isSick
   ) {
     const currentEvolutionTimer = evolutionGaugeTimers.get(eid) || 0;
     const totalEvolutionTime = currentEvolutionTimer + delta;
     const evolutionIncreaseCount = Math.floor(
-      totalEvolutionTime / GAME_CONSTANTS.EVOLUTION_GAUGE_CHECK_INTERVAL,
+      totalEvolutionTime / EVOLUTION_GAUGE_CONFIG.checkIntervalMs,
     );
     evolutionGaugeTimers.set(
       eid,
-      totalEvolutionTime % GAME_CONSTANTS.EVOLUTION_GAUGE_CHECK_INTERVAL,
+      totalEvolutionTime % EVOLUTION_GAUGE_CONFIG.checkIntervalMs,
     );
 
     for (let i = 0; i < evolutionIncreaseCount; i++) {
@@ -470,19 +474,22 @@ export function validateAndFixStatusIcons(world: MainSceneWorld): void {
 // 진화 게이지 증가 함수
 function increaseEvolutionGauge(world: MainSceneWorld, eid: number): void {
   const currentGauge = CharacterStatusComp.evolutionGage[eid];
-  const newGauge = Math.min(100.0, currentGauge + 1.0); // 임시로 1씩 증가
+  const currentCharacterKey = CharacterStatusComp.characterKey[eid];
+  const gaugeIncreaseAmount = getEvolutionGaugeIncreaseAmount(currentCharacterKey);
+  const newGauge = Math.min(
+    getMaxEvolutionGauge(),
+    currentGauge + gaugeIncreaseAmount,
+  );
   CharacterStatusComp.evolutionGage[eid] = newGauge;
 
   console.log(
-    `[CharacterManagerSystem] Evolution gauge increased for entity ${eid}: ${currentGauge} -> ${newGauge}`,
+    `[CharacterManagerSystem] Evolution gauge increased for entity ${eid}: ${currentGauge} -> ${newGauge} (gain=${gaugeIncreaseAmount})`,
   );
 
-  // 진화 조건 체크 (100에 도달했을 때)
   if (canEvolve(eid)) {
     console.log(
       `[CharacterManagerSystem] Evolution conditions met for entity ${eid}!`,
     );
-    // 진화 처리
     evolveCharacter(world, eid);
   }
 }

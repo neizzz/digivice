@@ -73,6 +73,14 @@ export enum CharacterKeyECS {
   TestGreenSlimeB1 = 2,
   TestGreenSlimeC1 = 3,
   TestGreenSlimeD1 = 4,
+  TestGreenSlimeB2 = 5,
+  TestGreenSlimeB3 = 6,
+  TestGreenSlimeC2 = 7,
+  TestGreenSlimeC3 = 8,
+  TestGreenSlimeC4 = 9,
+  TestGreenSlimeD2 = 10,
+  TestGreenSlimeD3 = 11,
+  TestGreenSlimeD4 = 12,
 }
 export enum SpritesheetKey {
   NULL = ECS_NULL_VALUE,
@@ -82,11 +90,14 @@ export enum SpritesheetKey {
   TestGreenSlimeB1 = 2,
   TestGreenSlimeC1 = 3,
   TestGreenSlimeD1 = 4,
-
-  // TestGreenSlimeA1 = "test-green-slime_A1",
-  // TestGreenSlimeB1 = "test-green-slime_B1",
-  // TestGreenSlimeC1 = "test-green-slime_C1",
-  // TestGreenSlimeD1 = "test-green-slime_D1",
+  TestGreenSlimeB2 = 5,
+  TestGreenSlimeB3 = 6,
+  TestGreenSlimeC2 = 7,
+  TestGreenSlimeC3 = 8,
+  TestGreenSlimeC4 = 9,
+  TestGreenSlimeD2 = 10,
+  TestGreenSlimeD3 = 11,
+  TestGreenSlimeD4 = 12,
 }
 export enum AnimationKey {
   NULL = ECS_NULL_VALUE,
@@ -209,10 +220,54 @@ export enum TextureKey {
   // Egg sprites (500-599)
   EGG0 = 500,
   EGG1 = 501,
+  EGG2 = 502,
+  EGG3 = 503,
+  EGG4 = 504,
+  EGG5 = 505,
+  EGG6 = 506,
+  EGG7 = 507,
+  EGG8 = 508,
+  EGG9 = 509,
+  EGG10 = 510,
+  EGG11 = 511,
+  EGG12 = 512,
+  EGG13 = 513,
+  EGG14 = 514,
+  EGG15 = 515,
+  EGG16 = 516,
+  EGG17 = 517,
+  EGG18 = 518,
+  EGG19 = 519,
+  EGG20 = 520,
+  EGG21 = 521,
+  EGG22 = 522,
+  EGG23 = 523,
+  EGG24 = 524,
+  EGG25 = 525,
+  EGG26 = 526,
+  EGG27 = 527,
+  EGG28 = 528,
+  EGG29 = 529,
 
   // Pill sprites (600-699)
   PILL1 = 600,
   PILL2 = 601,
+}
+
+export const EGG_TEXTURE_KEYS: TextureKey[] = Array.from(
+  { length: 30 },
+  (_, index) => (TextureKey.EGG0 + index) as TextureKey,
+);
+
+export function isEggTextureKey(textureKey: number): textureKey is TextureKey {
+  return textureKey >= TextureKey.EGG0 && textureKey <= TextureKey.EGG29;
+}
+
+export function getRandomEggTextureKey(randomValue = Math.random()): TextureKey {
+  const clampedRandomValue = Math.min(Math.max(randomValue, 0), 0.999999999);
+  const randomIndex = Math.floor(clampedRandomValue * EGG_TEXTURE_KEYS.length);
+
+  return EGG_TEXTURE_KEYS[randomIndex];
 }
 
 /**

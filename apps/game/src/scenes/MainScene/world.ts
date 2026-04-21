@@ -38,6 +38,7 @@ import {
   SparkleEffectComponent,
   CleanableComponent,
   BroomRenderComponent,
+  EGG_TEXTURE_KEYS,
 } from "./types";
 import { randomMovementSystem } from "./systems/RandomMovementSystem";
 import { commonMovementSystem } from "./systems/CommonMovementSystem";
@@ -530,10 +531,7 @@ export class MainSceneWorld implements IWorld, Scene {
       });
 
       await precomputeLoadedCharacterOpaqueBounds();
-      await precomputeLoadedTextureOpaqueBounds([
-        TextureKey.EGG0,
-        TextureKey.EGG1,
-      ]);
+      await precomputeLoadedTextureOpaqueBounds(EGG_TEXTURE_KEYS);
 
       console.log("All game assets loaded successfully");
     } catch (error) {
