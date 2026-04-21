@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import "./App.css";
 import GameContainer from "./GameContainer";
 import { DevEnvironmentBadge } from "./components/DevEnvironmentBadge";
+import TopLeftBuildLogoText from "./components/TopLeftBuildLogoText";
 import { AdManager } from "./ad/AdManager";
 import { AppReenterPolicy } from "./ad/policies/AppReenterPolicy";
 import { UrgentRecoveryPolicy } from "./ad/policies/UrgentRecoveryPolicy";
@@ -96,6 +97,7 @@ const App = () => {
 
   return (
     <div id="app-shell">
+      <TopLeftBuildLogoText />
       <DevEnvironmentBadge />
       <div id="app-container">
         <GameContainer />

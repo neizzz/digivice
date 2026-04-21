@@ -1,0 +1,13 @@
+.build-logo-text {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 9999;
+  color: #ff3b30;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  pointer-events: none;
+  user-select: none;
+  text-shadow: 0 0 8px rgba(0, 0, 0, 0.65);
+}

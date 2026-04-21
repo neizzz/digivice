@@ -8,7 +8,7 @@ import tsconfigPaths from "vite-tsconfig-paths";
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const isBuildOutputForFlutter = process.env.BUILD_FOR_FLUTTER === "true";
-  const env = loadEnv(mode, __dirname, ["NATIVE_FEATURE_"]);
+  const env = loadEnv(mode, __dirname, ["NATIVE_FEATURE_", "APP_"]);
   const isDebugBuild =
     env.NATIVE_FEATURE_DEBUG_MODE === "true" ||
     process.env.NATIVE_FEATURE_DEBUG_MODE === "true";
@@ -21,12 +21,13 @@ export default defineConfig(({ mode }) => {
     "monster-animations": resolve(__dirname, "monster-animations.html"),
   };
   const appVersionLabel = isDebugBuild ? `${appVersion}-debug` : appVersion;
+  const appLogoText = (env.APP_LOGO_TEXT || process.env.APP_LOGO_TEXT || "").trim();
 
   return {
     // Flutter WebView(file://)에서 번들 리소스를 상대 경로로 로드하기 위해
     // Flutter 자산 빌드에서는 base를 './'로 설정합니다.
     base: isBuildOutputForFlutter ? "./" : "/",
-    envPrefix: ["VITE_", "NATIVE_FEATURE_"],
+    envPrefix: ["VITE_", "NATIVE_FEATURE_", "APP_"],
     plugins: [
       react(),
       tailwindcss(),
@@ -61,6 +62,7 @@ export default defineConfig(({ mode }) => {
     ],
     define: {
       __APP_VERSION__: JSON.stringify(appVersionLabel),
+      __APP_LOGO_TEXT__: JSON.stringify(appLogoText),
       // __NATIVE_TEST_MODE__: isNativeTestMode,
 
       /** for "apps/game" */
