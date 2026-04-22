@@ -22,6 +22,7 @@ import {
   FoodState,
 } from "../types";
 import { GAME_CONSTANTS } from "../config";
+import { releaseTargetedFoodForCharacter } from "./FoodEatingSystem";
 
 const characterQuery = defineQuery([
   ObjectComp,
@@ -140,6 +141,8 @@ export function diseaseSystem(params: {
  * 움직임 제한 - SICK 또는 SLEEPING 상태일 때 움직임 컴포넌트 제거
  */
 function restrictMovement(world: MainSceneWorld, eid: number): void {
+  releaseTargetedFoodForCharacter(world, eid);
+
   // RandomMovementComp 제거
   if (hasComponent(world, RandomMovementComp, eid)) {
     removeComponent(world, RandomMovementComp, eid);

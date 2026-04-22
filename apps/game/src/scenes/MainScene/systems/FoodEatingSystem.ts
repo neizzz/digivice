@@ -82,6 +82,36 @@ export function foodEatingSystem(params: {
   return params;
 }
 
+export function releaseTargetedFoodForCharacter(
+  world: MainSceneWorld,
+  characterEid: number,
+): void {
+  if (!hasComponent(world, DestinationComp, characterEid)) {
+    return;
+  }
+
+  const targetFoodEid = DestinationComp.target[characterEid];
+  if (targetFoodEid === 0) {
+    return;
+  }
+
+  if (
+    !hasComponent(world, ObjectComp, targetFoodEid) ||
+    ObjectComp.type[targetFoodEid] !== ObjectType.FOOD
+  ) {
+    return;
+  }
+
+  if (ObjectComp.state[targetFoodEid] !== FoodState.TARGETED) {
+    return;
+  }
+
+  ObjectComp.state[targetFoodEid] = FoodState.LANDED;
+  console.log(
+    `[FoodEatingSystem] Released orphaned targeted food ${targetFoodEid} for character ${characterEid}`,
+  );
+}
+
 /**
  * 음식을 먹고 있는 캐릭터들의 진행도 업데이트
  */
@@ -165,7 +195,7 @@ function updateMovingToFood(world: MainSceneWorld, delta: number): void {
       console.log(
         `[FoodEatingSystem] Character ${eid} target food ${targetFoodEid} became stale before arrival, restoring free roaming state`,
       );
-      ObjectComp.state[targetFoodEid] = FoodState.LANDED;
+      releaseTargetedFoodForCharacter(world, eid);
       restoreFreeRoamingState(world, eid, 1000);
       continue;
     }
@@ -532,7 +562,7 @@ function startEating(
     console.log(
       `[FoodEatingSystem] Prevented character ${characterEid} from eating stale food ${foodEid}`,
     );
-    ObjectComp.state[foodEid] = FoodState.LANDED;
+    releaseTargetedFoodForCharacter(world, characterEid);
     restoreFreeRoamingState(world, characterEid, 1000);
     return;
   }
@@ -634,6 +664,8 @@ function restoreFreeRoamingState(
   characterEid: number,
   idleDelayMs: number,
 ): void {
+  releaseTargetedFoodForCharacter(world, characterEid);
+
   if (hasComponent(world, DestinationComp, characterEid)) {
     removeComponent(world, DestinationComp, characterEid);
   }
