@@ -33,7 +33,7 @@ const ASSET_DEFINITIONS: AssetDefinition[] = [
   },
   {
     alias: CharacterKey.TestGreenSlimeA1,
-    src: "/assets/game/sprites/monsters/test-green-slime_A1.json",
+    src: "/assets/game/sprites/monsters/green-slime_A1.json",
   },
 ];
 
@@ -48,27 +48,46 @@ function getSpritesheet(alias: string): PIXI.Spritesheet | undefined {
 }
 
 export class AssetLoader {
+  private static loadPromise: Promise<GameAssets> | null = null;
+
   static async loadAssets(): Promise<GameAssets> {
-    await Promise.all(
-      ASSET_DEFINITIONS.map(async ({ alias, src }) => {
-        if (getSpritesheet(alias)) {
-          return;
-        }
+    if (this.loadPromise) {
+      return this.loadPromise;
+    }
 
-        try {
-          PIXI.Assets.add({
-            alias,
-            src,
-          });
-        } catch {
-          // 이미 등록된 alias일 수 있으므로 무시
-        }
+    this.loadPromise = (async () => {
+      await Promise.all(
+        ASSET_DEFINITIONS.map(async ({ alias, src }) => {
+          if (getSpritesheet(alias)) {
+            return;
+          }
 
-        await PIXI.Assets.load(alias);
-      }),
-    );
+          try {
+            PIXI.Assets.add({
+              alias,
+              src,
+            });
+          } catch {
+            // 이미 등록된 alias일 수 있으므로 무시
+          }
 
-    return this.getAssets();
+          await PIXI.Assets.load(alias);
+        }),
+      );
+
+      return this.getAssets();
+    })();
+
+    try {
+      return await this.loadPromise;
+    } catch (error) {
+      this.loadPromise = null;
+      throw error;
+    }
+  }
+
+  static preloadAssets(): Promise<GameAssets> {
+    return this.loadAssets();
   }
 
   static getAssets(): GameAssets {

@@ -1,3 +1,5 @@
+import { CharacterClass } from "../../types/Character";
+import { getEvolutionSpec } from "./evolutionConfig";
 import { CharacterKeyECS as CharacterKey } from "./types";
 
 /**
@@ -9,31 +11,25 @@ export type CharacterStats = {
   power: number; // 공격력
 };
 
-/**
- * 캐릭터 키별 스탯 정의
- */
-export const CHARACTER_STATS: Record<
-  Exclude<CharacterKey, CharacterKey.NULL>,
-  CharacterStats
-> = {
-  [CharacterKey.TestGreenSlimeA1]: {
-    speed: 0.1, // 느린 슬라임 (30 pixels/sec)
-    scale: 0.8, // 작은 크기
-    power: 1, // 기본 공격력
+const CHARACTER_STATS_BY_CLASS: Record<CharacterClass, CharacterStats> = {
+  [CharacterClass.A]: {
+    speed: 0.1,
+    scale: 0.8,
+    power: 1,
   },
-  [CharacterKey.TestGreenSlimeB1]: {
-    speed: 0.11, // 보통 속도 (35 pixels/sec)
-    scale: 1.0, // 기본 크기
+  [CharacterClass.B]: {
+    speed: 0.11,
+    scale: 1.0,
     power: 1.4,
   },
-  [CharacterKey.TestGreenSlimeC1]: {
-    speed: 0.13, // 빠른 슬라임 (40 pixels/sec)
-    scale: 1.1, // 조금 큰 크기
+  [CharacterClass.C]: {
+    speed: 0.13,
+    scale: 1.1,
     power: 1.8,
   },
-  [CharacterKey.TestGreenSlimeD1]: {
-    speed: 0.15, // 매우 빠른 슬라임 (45 pixels/sec)
-    scale: 1.2, // 큰 크기
+  [CharacterClass.D]: {
+    speed: 0.15,
+    scale: 1.2,
     power: 2.0,
   },
 };
@@ -45,5 +41,13 @@ export function getCharacterStats(characterKey: CharacterKey): CharacterStats {
   if (characterKey === CharacterKey.NULL) {
     throw new Error("[getCharacterStats]: Invalid character key: NULL");
   }
-  return CHARACTER_STATS[characterKey];
+
+  const evolutionSpec = getEvolutionSpec(characterKey);
+  if (!evolutionSpec) {
+    throw new Error(
+      `[getCharacterStats]: Unknown character key: ${characterKey}`,
+    );
+  }
+
+  return CHARACTER_STATS_BY_CLASS[evolutionSpec.class];
 }

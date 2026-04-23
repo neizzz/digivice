@@ -1,5 +1,6 @@
 import * as PIXI from "pixi.js";
 import { CharacterKeyECS } from "../scenes/MainScene/types";
+import { getCharacterSpritesheetName } from "../scenes/MainScene/evolutionConfig";
 
 /**
  * 단일 스프라이트시트를 로드하고 파싱하는 유틸리티 함수들
@@ -212,34 +213,15 @@ export function getTextureFromSpritesheet(
 export function getCharacterSpritesheetOptions(
   characterKey: CharacterKeyECS
 ): LoadSpritesheetOptions | null {
-  switch (characterKey) {
-    case CharacterKeyECS.TestGreenSlimeA1:
-      return {
-        jsonPath: "/assets/game/sprites/monsters/test-green-slime_A1.json",
-        alias: "test-green-slime_A1",
-        // pixelArt: true,
-      };
-    case CharacterKeyECS.TestGreenSlimeB1:
-      return {
-        jsonPath: "/assets/game/sprites/monsters/test-green-slime_B1.json",
-        alias: "test-green-slime_B1",
-        // pixelArt: true,
-      };
-    case CharacterKeyECS.TestGreenSlimeC1:
-      return {
-        jsonPath: "/assets/game/sprites/monsters/test-green-slime_C1.json",
-        alias: "test-green-slime_C1",
-        // pixelArt: true,
-      };
-    case CharacterKeyECS.TestGreenSlimeD1:
-      return {
-        jsonPath: "/assets/game/sprites/monsters/test-green-slime_D1.json",
-        alias: "test-green-slime_D1",
-        // pixelArt: true,
-      };
-    default:
-      return null;
+  const spritesheetName = getCharacterSpritesheetName(characterKey);
+  if (!spritesheetName) {
+    return null;
   }
+
+  return {
+    jsonPath: `/assets/game/sprites/monsters/${spritesheetName}.json`,
+    alias: spritesheetName,
+  };
 }
 
 /**

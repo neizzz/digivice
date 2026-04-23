@@ -1,6 +1,7 @@
 import { defineQuery, exitQuery } from "bitecs";
 import { AnimationRenderComp } from "../raw-components";
 import { AnimationKey, SpritesheetKey } from "../types";
+import { getCharacterSpritesheetName } from "../evolutionConfig";
 import { MainSceneWorld } from "../world";
 import * as PIXI from "pixi.js";
 import { renderCommonAttributes } from "./RenderSystem";
@@ -8,10 +9,18 @@ import { ObjectStore } from "../utils/ObjectStore";
 
 export const SPRITESHEET_KEY_TO_NAME: Record<SpritesheetKey, string> = {
   [SpritesheetKey.NULL]: "null",
-  [SpritesheetKey.TestGreenSlimeA1]: "test-green-slime_A1",
-  [SpritesheetKey.TestGreenSlimeB1]: "test-green-slime_B1",
-  [SpritesheetKey.TestGreenSlimeC1]: "test-green-slime_C1",
-  [SpritesheetKey.TestGreenSlimeD1]: "test-green-slime_D1",
+  [SpritesheetKey.TestGreenSlimeA1]: getCharacterSpritesheetName(SpritesheetKey.TestGreenSlimeA1) ?? "green-slime_A1",
+  [SpritesheetKey.TestGreenSlimeB1]: getCharacterSpritesheetName(SpritesheetKey.TestGreenSlimeB1) ?? "green-slime_B1",
+  [SpritesheetKey.TestGreenSlimeC1]: getCharacterSpritesheetName(SpritesheetKey.TestGreenSlimeC1) ?? "green-slime_C1",
+  [SpritesheetKey.TestGreenSlimeD1]: getCharacterSpritesheetName(SpritesheetKey.TestGreenSlimeD1) ?? "green-slime_D1",
+  [SpritesheetKey.TestGreenSlimeB2]: getCharacterSpritesheetName(SpritesheetKey.TestGreenSlimeB2) ?? "green-slime_B2",
+  [SpritesheetKey.TestGreenSlimeB3]: getCharacterSpritesheetName(SpritesheetKey.TestGreenSlimeB3) ?? "green-slime_B3",
+  [SpritesheetKey.TestGreenSlimeC2]: getCharacterSpritesheetName(SpritesheetKey.TestGreenSlimeC2) ?? "green-slime_C2",
+  [SpritesheetKey.TestGreenSlimeC3]: getCharacterSpritesheetName(SpritesheetKey.TestGreenSlimeC3) ?? "green-slime_C3",
+  [SpritesheetKey.TestGreenSlimeC4]: getCharacterSpritesheetName(SpritesheetKey.TestGreenSlimeC4) ?? "green-slime_C4",
+  [SpritesheetKey.TestGreenSlimeD2]: getCharacterSpritesheetName(SpritesheetKey.TestGreenSlimeD2) ?? "green-slime_D2",
+  [SpritesheetKey.TestGreenSlimeD3]: getCharacterSpritesheetName(SpritesheetKey.TestGreenSlimeD3) ?? "green-slime_D3",
+  [SpritesheetKey.TestGreenSlimeD4]: getCharacterSpritesheetName(SpritesheetKey.TestGreenSlimeD4) ?? "green-slime_D4",
 };
 
 const ANIMATION_KEY_TO_NAME: Record<AnimationKey, string> = {
