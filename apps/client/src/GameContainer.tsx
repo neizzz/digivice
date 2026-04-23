@@ -19,12 +19,15 @@ import { VibrationAdapter } from "./adapter/VibrationAdapter";
 import {
   getDiagnosticsLoggerInfo,
   getDiagnosticsLogs,
+  getImportantDiagnosticsLogs,
+  logImportantDiagnostics,
   setDiagnosticsContextProvider,
 } from "./diagnostics/diagnosticLogger";
 import {
   createClientStorage,
   getClientStorageKind,
 } from "./utils/clientStorage";
+import type { SanitizeStoredWorldDataResult } from "./utils/sanitizeStoredWorldData";
 
 const WORLD_DATA_STORAGE_KEY = "MainSceneWorldData";
 const biteVibrationAdapter = new VibrationAdapter();
@@ -33,6 +36,13 @@ const RECOVERY_VIBRATION_DURATION_MS = 14;
 const RECOVERY_VIBRATION_STRENGTH = 28;
 const isNativeFeatureDebugMode =
   import.meta.env.NATIVE_FEATURE_DEBUG_MODE === "true";
+const isNonProductionClientBuild = import.meta.env.MODE !== "production";
+const isNativeAppUserAgent =
+  typeof navigator !== "undefined" && /DigiviceApp/i.test(navigator.userAgent);
+const isAndroidUserAgent =
+  typeof navigator !== "undefined" &&
+  /DigiviceApp-Android|Android/i.test(navigator.userAgent);
+const MINI_GAME_UNAVAILABLE_VERSION = "0.1.0";
 
 type GameDataSummary = {
   monsterName?: string;
@@ -58,8 +68,14 @@ type DiagnosticsPayload = {
   };
   summary: GameDataSummary;
   logs: ReturnType<typeof getDiagnosticsLogs>;
+  importantLogs: ReturnType<typeof getImportantDiagnosticsLogs>;
   currentGameData: GameDiagnosticsSnapshot["mainSceneData"];
   storedGameData: unknown | null;
+  latestGameData: unknown | null;
+  latestGameDataSource: "current_game" | "stored_game" | "none";
+  lastValidation: SanitizeStoredWorldDataResult["diagnostics"] | null;
+  lastValidationAction: SanitizeStoredWorldDataResult["action"] | null;
+  lastValidationResetReason: string | null;
 };
 
 type DiagnosticsAttachment = {
@@ -74,9 +90,23 @@ type PendingDiagnosticsDraft = {
   attachments: DiagnosticsAttachment[];
 };
 
-type MainSceneLoadState = {
+type SceneTransitionLoadState = {
   requestId: number;
   phase: "idle" | "loading" | "core_ready";
+  from?: SceneKey;
+  to?: SceneKey;
+};
+
+type AdDebugState = {
+  isReady: boolean;
+  isLoading: boolean;
+  lastError: string | null;
+};
+
+const DEFAULT_AD_DEBUG_STATE: AdDebugState = {
+  isReady: false,
+  isLoading: false,
+  lastError: null,
 };
 
 function waitForAnimationFrame(): Promise<void> {
@@ -90,6 +120,46 @@ async function waitForLayoutStabilization(): Promise<void> {
   await waitForAnimationFrame();
   await new Promise((resolve) => window.setTimeout(resolve, 250));
   await waitForAnimationFrame();
+}
+
+async function getNativeAdDebugState(): Promise<AdDebugState> {
+  if (!window.adController?.getAdDebugState) {
+    return {
+      ...DEFAULT_AD_DEBUG_STATE,
+      lastError: "Ad debug bridge unavailable",
+    };
+  }
+
+  const result = await window.adController.getAdDebugState();
+  const parsed = JSON.parse(result) as Partial<AdDebugState>;
+
+  return {
+    isReady: parsed.isReady === true,
+    isLoading: parsed.isLoading === true,
+    lastError:
+      typeof parsed.lastError === "string" && parsed.lastError.length > 0
+        ? parsed.lastError
+        : null,
+  };
+}
+
+function getBaseAppVersion(version: string): string {
+  return version.replace(/-.+$/, "");
+}
+
+function isMiniGameUnavailableForCurrentVersion(): boolean {
+  return getBaseAppVersion(__APP_VERSION__) === MINI_GAME_UNAVAILABLE_VERSION;
+}
+
+function getIsLandscapeViewport(): boolean {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  const viewportWidth = window.visualViewport?.width ?? window.innerWidth;
+  const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+
+  return viewportWidth > viewportHeight;
 }
 
 function summarizeSavedData(savedData: unknown): Record<string, unknown> {
@@ -142,29 +212,6 @@ function summarizeGameData(data: unknown): GameDataSummary {
 
 function createDiagnosticsSubject(timestamp: string): string {
   return `[MonTTo] Diagnostics Report ${timestamp}`;
-}
-
-function createDiagnosticsSummaryText(
-  payload: DiagnosticsPayload,
-): string {
-  const lines = [
-    "MonTTo diagnostics summary",
-    "",
-    `Generated at: ${payload.generatedAt}`,
-    `App version: ${payload.appInfo.clientAppVersion}`,
-    `World data version: ${payload.summary.worldVersion ?? "unknown"}`,
-    `Scene: ${payload.appInfo.currentSceneKey}`,
-    `Monster name: ${payload.summary.monsterName ?? "unknown"}`,
-    `Entity count: ${payload.summary.entityCount}`,
-    `Storage kind: ${payload.appInfo.storageKind}`,
-    `Mode: ${payload.appInfo.appMode}`,
-    `Debug enabled: ${payload.appInfo.debugEnabled ? "yes" : "no"}`,
-    `Use local time: ${payload.summary.useLocalTime ? "yes" : "no"}`,
-    `Diagnostics logs: ${payload.appInfo.logger.entryCount}`,
-    `Diagnostics session: ${payload.appInfo.logger.sessionId}`,
-  ];
-
-  return lines.join("\n");
 }
 
 function createDiagnosticsBody(): string {
@@ -242,6 +289,9 @@ const GameContainer: React.FC = () => {
   const [gameContainerSize, setGameContainerSize] = useState<number | null>(
     null,
   );
+  const [showLandscapeOverlay, setShowLandscapeOverlay] = useState<boolean>(
+    () => isAndroidUserAgent && getIsLandscapeViewport(),
+  );
   const [showSetupLayer, setShowSetupLayer] = useState<boolean>(false);
   const [isBootstrapping, setIsBootstrapping] = useState<boolean>(true);
   const { alertState, showAlert, hideAlert } = useAlert();
@@ -261,16 +311,28 @@ const GameContainer: React.FC = () => {
   const [isSendingDiagnostics, setIsSendingDiagnostics] = useState(false);
   const [pendingDiagnosticsDraft, setPendingDiagnosticsDraft] =
     useState<PendingDiagnosticsDraft | null>(null);
+  const [adDebugState, setAdDebugState] = useState<AdDebugState>(
+    DEFAULT_AD_DEBUG_STATE,
+  );
+  const [isRefreshingAdDebugState, setIsRefreshingAdDebugState] =
+    useState(false);
+  const [isShowingTestAd, setIsShowingTestAd] = useState(false);
   const [buttonParams, setButtonParams] = useState<
     [ControlButtonParams, ControlButtonParams, ControlButtonParams] | null
   >(null);
-  const [mainSceneLoadState, setMainSceneLoadState] =
-    useState<MainSceneLoadState>({
+  const [sceneTransitionLoadState, setSceneTransitionLoadState] =
+    useState<SceneTransitionLoadState>({
       requestId: 0,
       phase: "idle",
     });
-  const mainSceneLoadRequestIdRef = useRef(0);
+  const sceneTransitionRequestIdRef = useRef(0);
   const recoveryVibrationIntervalRef = useRef<number | null>(null);
+  const lastValidationResultRef = useRef<SanitizeStoredWorldDataResult | null>(
+    null,
+  );
+  const showAdDebugSection =
+    isNativeAppUserAgent &&
+    (isNativeFeatureDebugMode || isNonProductionClientBuild);
 
   const openSettingMenu = useCallback(() => {
     setShowSettingMenu(true);
@@ -283,6 +345,58 @@ const GameContainer: React.FC = () => {
   const handleVibrationSettingChange = useCallback((enabled: boolean) => {
     setGameSettings(updateGameSettings({ vibrationEnabled: enabled }));
   }, []);
+
+  const refreshAdDebugState = useCallback(async () => {
+    if (!showAdDebugSection) {
+      return;
+    }
+
+    setIsRefreshingAdDebugState(true);
+
+    try {
+      const nextState = await getNativeAdDebugState();
+      setAdDebugState(nextState);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to read ad debug state";
+      setAdDebugState({
+        ...DEFAULT_AD_DEBUG_STATE,
+        lastError: message,
+      });
+    } finally {
+      setIsRefreshingAdDebugState(false);
+    }
+  }, [showAdDebugSection]);
+
+  const handleShowTestAd = useCallback(async () => {
+    if (!showAdDebugSection) {
+      return;
+    }
+
+    if (!window.adController?.showTestInterstitial) {
+      showAlert(
+        "Ad Debug Unavailable",
+        "Native ad debug bridge is not available in this build.",
+      );
+      return;
+    }
+
+    setIsShowingTestAd(true);
+
+    try {
+      await window.adController.showTestInterstitial();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to show test ad";
+      showAlert("Test Ad Failed", message);
+    } finally {
+      setIsShowingTestAd(false);
+      void refreshAdDebugState();
+      window.setTimeout(() => {
+        void refreshAdDebugState();
+      }, 1500);
+    }
+  }, [refreshAdDebugState, showAdDebugSection, showAlert]);
 
   useEffect(() => {
     setDiagnosticsContextProvider(() => ({
@@ -300,27 +414,49 @@ const GameContainer: React.FC = () => {
     };
   }, [gameInstance]);
 
-  const handleMainSceneLoadingStateChange = useCallback(
-    (params: { key: SceneKey; state: "loading" | "core_ready" }) => {
-      if (params.key !== SceneKey.MAIN) {
-        return;
-      }
+  useEffect(() => {
+    if (!showSettingMenu || !showAdDebugSection) {
+      return;
+    }
 
+    void refreshAdDebugState();
+  }, [refreshAdDebugState, showAdDebugSection, showSettingMenu]);
+
+  const handleSceneTransitionStateChange = useCallback(
+    (params: {
+      requestId: number;
+      from?: SceneKey;
+      to: SceneKey;
+      state: "loading" | "core_ready" | "failed";
+    }) => {
       if (params.state === "loading") {
-        const requestId = mainSceneLoadRequestIdRef.current + 1;
-        mainSceneLoadRequestIdRef.current = requestId;
-        setMainSceneLoadState({ requestId, phase: "loading" });
+        sceneTransitionRequestIdRef.current = params.requestId;
+        setSceneTransitionLoadState({
+          requestId: params.requestId,
+          phase: "loading",
+          from: params.from,
+          to: params.to,
+        });
         setButtonParams(null);
         return;
       }
 
-      const requestId = mainSceneLoadRequestIdRef.current;
-      if (requestId <= 0) {
+      if (sceneTransitionRequestIdRef.current !== params.requestId) {
         return;
       }
 
-      setMainSceneLoadState((previous) =>
-        previous.requestId === requestId
+      if (params.state === "failed") {
+        sceneTransitionRequestIdRef.current = 0;
+        setSceneTransitionLoadState({
+          requestId: 0,
+          phase: "idle",
+        });
+        setIsBootstrapping(false);
+        return;
+      }
+
+      setSceneTransitionLoadState((previous) =>
+        previous.requestId === params.requestId
           ? { ...previous, phase: "core_ready" }
           : previous,
       );
@@ -328,13 +464,13 @@ const GameContainer: React.FC = () => {
     [],
   );
 
-  const completeMainSceneLoading = useCallback((requestId: number) => {
-    if (mainSceneLoadRequestIdRef.current !== requestId) {
+  const completeSceneTransitionLoading = useCallback((requestId: number) => {
+    if (sceneTransitionRequestIdRef.current !== requestId) {
       return;
     }
 
-    mainSceneLoadRequestIdRef.current = 0;
-    setMainSceneLoadState({ requestId: 0, phase: "idle" });
+    sceneTransitionRequestIdRef.current = 0;
+    setSceneTransitionLoadState({ requestId: 0, phase: "idle" });
     setIsBootstrapping(false);
   }, []);
 
@@ -364,68 +500,29 @@ const GameContainer: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (mainSceneLoadState.phase !== "core_ready") {
+    if (sceneTransitionLoadState.phase !== "core_ready" || !gameInstance) {
       return;
     }
 
-    if (!buttonParams || !gameInstance) {
-      return;
-    }
-
-    const requestId = mainSceneLoadState.requestId;
+    const requestId = sceneTransitionLoadState.requestId;
     let cancelled = false;
 
-    const finalizeMainSceneLoading = async () => {
+    const finalizeSceneTransitionLoading = async () => {
       await waitForLayoutStabilization();
 
       if (cancelled) {
         return;
       }
 
-      completeMainSceneLoading(requestId);
+      completeSceneTransitionLoading(requestId);
     };
 
-    void finalizeMainSceneLoading();
+    void finalizeSceneTransitionLoading();
 
     return () => {
       cancelled = true;
     };
-  }, [buttonParams, completeMainSceneLoading, gameInstance, mainSceneLoadState]);
-
-  useEffect(() => {
-    if (mainSceneLoadState.phase !== "core_ready") {
-      return;
-    }
-
-    if (buttonParams || !gameInstance) {
-      return;
-    }
-
-    const requestId = mainSceneLoadState.requestId;
-    let cancelled = false;
-
-    const finalizeMainSceneLoadingWithFallback = async () => {
-      await new Promise((resolve) => window.setTimeout(resolve, 500));
-
-      if (cancelled) {
-        return;
-      }
-
-      await waitForLayoutStabilization();
-
-      if (cancelled) {
-        return;
-      }
-
-      completeMainSceneLoading(requestId);
-    };
-
-    void finalizeMainSceneLoadingWithFallback();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [buttonParams, completeMainSceneLoading, gameInstance, mainSceneLoadState]);
+  }, [completeSceneTransitionLoading, gameInstance, sceneTransitionLoadState]);
 
   const handleSendDiagnostics = useCallback(async () => {
     if (isSendingDiagnostics || pendingDiagnosticsDraft) {
@@ -439,6 +536,12 @@ const GameContainer: React.FC = () => {
       const storedGameData = await storage.getData(WORLD_DATA_STORAGE_KEY);
       const snapshot = gameInstance?.getDiagnosticsSnapshot();
       const currentGameData = snapshot?.mainSceneData ?? null;
+      const latestGameData = currentGameData ?? storedGameData ?? null;
+      const latestGameDataSource = currentGameData
+        ? "current_game"
+        : storedGameData
+          ? "stored_game"
+          : "none";
       const currentSceneKey = String(snapshot?.currentSceneKey ?? "unknown");
       const payload: DiagnosticsPayload = {
         generatedAt: new Date().toISOString(),
@@ -457,8 +560,15 @@ const GameContainer: React.FC = () => {
         },
         summary: summarizeGameData(currentGameData ?? storedGameData),
         logs: getDiagnosticsLogs(),
+        importantLogs: getImportantDiagnosticsLogs(),
         currentGameData,
         storedGameData,
+        latestGameData,
+        latestGameDataSource,
+        lastValidation: lastValidationResultRef.current?.diagnostics ?? null,
+        lastValidationAction: lastValidationResultRef.current?.action ?? null,
+        lastValidationResetReason:
+          lastValidationResultRef.current?.resetReason ?? null,
       };
 
       const payloadText = JSON.stringify(payload, null, 2);
@@ -467,7 +577,6 @@ const GameContainer: React.FC = () => {
       const timestampSuffix = payload.generatedAt
         .replace(/\.\d{3}Z$/, "Z")
         .replace(/[:]/g, "-");
-      const summaryText = createDiagnosticsSummaryText(payload);
       setPendingDiagnosticsDraft({
         subject,
         body,
@@ -478,13 +587,23 @@ const GameContainer: React.FC = () => {
             mimeType: "application/json",
           },
           {
-            fileName: `montto-diagnostics-summary-${timestampSuffix}.txt`,
-            text: summaryText,
-            mimeType: "text/plain",
+            fileName: `montto-latest-game-data-${timestampSuffix}.json`,
+            text: JSON.stringify(latestGameData, null, 2),
+            mimeType: "application/json",
+          },
+          {
+            fileName: `montto-important-logs-${timestampSuffix}.json`,
+            text: JSON.stringify(payload.importantLogs, null, 2),
+            mimeType: "application/json",
           },
         ],
       });
     } catch (error) {
+      logImportantDiagnostics(
+        "error",
+        "[ImportantDiagnostics][GameContainer] Failed to prepare diagnostics payload",
+        error,
+      );
       console.error("[GameContainer] Failed to prepare diagnostics payload", error);
       showAlert("Failed to prepare diagnostics payload.", "Error");
     } finally {
@@ -559,8 +678,8 @@ const GameContainer: React.FC = () => {
         setButtonParams(null);
         setShowSetupLayer(true);
         setIsBootstrapping(false);
-        mainSceneLoadRequestIdRef.current = 0;
-        setMainSceneLoadState({ requestId: 0, phase: "idle" });
+        sceneTransitionRequestIdRef.current = 0;
+        setSceneTransitionLoadState({ requestId: 0, phase: "idle" });
         setGameInstance(null);
         setSanitizeResetAlert(null);
         console.warn("[GameContainer] resetGameData:success", {
@@ -589,24 +708,25 @@ const GameContainer: React.FC = () => {
     try {
       const storage = createClientStorage();
       const storageKind = getClientStorageKind();
-      console.debug("[GameContainer] prepareSavedGameData:start", {
-        key: WORLD_DATA_STORAGE_KEY,
-        storageKind,
-      });
       const savedData = await storage.getData(WORLD_DATA_STORAGE_KEY);
-      console.debug("[GameContainer] prepareSavedGameData:loaded", {
-        key: WORLD_DATA_STORAGE_KEY,
-        storageKind,
-        ...summarizeSavedData(savedData),
-      });
       const result = sanitizeStoredWorldData(savedData);
-      console.debug("[GameContainer] prepareSavedGameData:sanitized", {
-        key: WORLD_DATA_STORAGE_KEY,
-        storageKind,
-        action: result.action,
-        changed: result.changed,
-        hasSanitizedData: !!result.sanitizedData,
-      });
+      lastValidationResultRef.current = result;
+
+      if (result.changed || result.action !== "playable") {
+        logImportantDiagnostics(
+          result.action === "reset_required" ? "error" : "warn",
+          "[ImportantDiagnostics][GameDataValidation]",
+          {
+            key: WORLD_DATA_STORAGE_KEY,
+            storageKind,
+            action: result.action,
+            changed: result.changed,
+            resetReason: result.resetReason ?? null,
+            diagnostics: result.diagnostics,
+            savedDataSummary: summarizeSavedData(savedData),
+          },
+        );
+      }
 
       if (
         result.changed &&
@@ -614,16 +734,24 @@ const GameContainer: React.FC = () => {
         result.action !== "reset_required"
       ) {
         await storage.setData(WORLD_DATA_STORAGE_KEY, result.sanitizedData);
-        console.warn(
-          "[GameContainer] Saved data was repaired and written back.",
-          result.sanitizedData,
+        logImportantDiagnostics(
+          "warn",
+          "[ImportantDiagnostics][GameDataRepair] Saved data was repaired and written back.",
+          {
+            action: result.action,
+            diagnostics: result.diagnostics,
+          },
         );
       }
 
       if (result.action === "reset_required") {
-        console.warn(
-          "[GameContainer] Saved data is corrupted and needs to be reset.",
-          result.sanitizedData,
+        logImportantDiagnostics(
+          "error",
+          "[ImportantDiagnostics][GameDataRepair] Saved data is corrupted and requires reset.",
+          {
+            resetReason: result.resetReason ?? null,
+            diagnostics: result.diagnostics,
+          },
         );
         setSanitizeResetAlert({
           title: "Data Recovery",
@@ -636,6 +764,15 @@ const GameContainer: React.FC = () => {
 
       return result.action;
     } catch (error) {
+      logImportantDiagnostics(
+        "error",
+        "[ImportantDiagnostics][GameDataValidation] Failed to inspect saved game data.",
+        {
+          key: WORLD_DATA_STORAGE_KEY,
+          storageKind: getClientStorageKind(),
+          error,
+        },
+      );
       console.error("[GameContainer] Failed to inspect saved game data:", {
         key: WORLD_DATA_STORAGE_KEY,
         storageKind: getClientStorageKind(),
@@ -689,6 +826,11 @@ const GameContainer: React.FC = () => {
       showAlert: (message: string, title?: string) => {
         showAlert(message, title);
       },
+      startMiniGame: isMiniGameUnavailableForCurrentVersion()
+        ? () => {
+            showAlert("개발중", "Notice");
+          }
+        : undefined,
       showSettings: () => {
         openSettingMenu();
       },
@@ -697,7 +839,7 @@ const GameContainer: React.FC = () => {
       },
       startRecoveryVibration,
       stopRecoveryVibration,
-      onSceneLoadingStateChange: handleMainSceneLoadingStateChange,
+      onSceneTransitionStateChange: handleSceneTransitionStateChange,
       changeControlButtons: (controlButtonParams) => {
         setButtonParams((previous) => {
           if (
@@ -727,7 +869,7 @@ const GameContainer: React.FC = () => {
     });
   }, [
     gameContainerSize,
-    handleMainSceneLoadingStateChange,
+    handleSceneTransitionStateChange,
     openSettingMenu,
     requestInitialGameData,
     startRecoveryVibration,
@@ -772,6 +914,34 @@ const GameContainer: React.FC = () => {
 
     return () => {
       resizeObserver.disconnect();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isAndroidUserAgent) {
+      return;
+    }
+
+    const updateLandscapeOverlay = () => {
+      setShowLandscapeOverlay(getIsLandscapeViewport());
+    };
+
+    updateLandscapeOverlay();
+
+    window.addEventListener("resize", updateLandscapeOverlay);
+    window.addEventListener("orientationchange", updateLandscapeOverlay);
+    window.visualViewport?.addEventListener("resize", updateLandscapeOverlay);
+
+    return () => {
+      window.removeEventListener("resize", updateLandscapeOverlay);
+      window.removeEventListener(
+        "orientationchange",
+        updateLandscapeOverlay,
+      );
+      window.visualViewport?.removeEventListener(
+        "resize",
+        updateLandscapeOverlay,
+      );
     };
   }, []);
 
@@ -821,6 +991,40 @@ const GameContainer: React.FC = () => {
       stopRecoveryVibration();
     };
   }, [stopRecoveryVibration]);
+
+  useEffect(() => {
+    if (!gameInstance) {
+      return;
+    }
+
+    if (sceneTransitionLoadState.phase !== "idle") {
+      return;
+    }
+
+    if (gameInstance.getCurrentSceneKey() !== SceneKey.MAIN) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const preloadMiniGameAssets = async () => {
+      try {
+        await gameInstance.preloadSceneAssets(SceneKey.FLAPPY_BIRD_GAME);
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        console.warn("[GameContainer] Failed to preload mini game assets", error);
+      }
+    };
+
+    void preloadMiniGameAssets();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [gameInstance, sceneTransitionLoadState.phase]);
 
   // 버튼 클릭 핸들러 - Game 인스턴스에 버튼 타입만 전달
   const handleButtonPress = useCallback(
@@ -875,7 +1079,9 @@ const GameContainer: React.FC = () => {
   }, []);
 
   const isLoading =
-    isBootstrapping || mainSceneLoadState.phase === "loading" || mainSceneLoadState.phase === "core_ready";
+    isBootstrapping ||
+    sceneTransitionLoadState.phase === "loading" ||
+    sceneTransitionLoadState.phase === "core_ready";
 
   return (
     <div className={"relative h-full w-full min-h-0"}>
@@ -917,6 +1123,18 @@ const GameContainer: React.FC = () => {
           <div className="text-center text-lg tracking-[0.12em]">Loading...</div>
         </div>
       )}
+      {showLandscapeOverlay && (
+        <div className="absolute inset-0 z-[70] flex items-center justify-center bg-black text-white">
+          <div className="px-6 text-center">
+            <div className="text-lg tracking-[0.12em]">Portrait Only</div>
+            <div className="mt-6 text-[10px] leading-6 tracking-[0.12em]">
+              Please rotate your device
+              <br />
+              back to portrait mode.
+            </div>
+          </div>
+        </div>
+      )}
       {showSetupLayer && <SetupLayer onComplete={handleSetupComplete} />}
       {showSettingMenu && (
         <SettingMenuLayer
@@ -924,6 +1142,12 @@ const GameContainer: React.FC = () => {
           onChangeVibration={handleVibrationSettingChange}
           onSendDiagnostics={handleSendDiagnostics}
           isSendingDiagnostics={isSendingDiagnostics}
+          showAdDebugSection={showAdDebugSection}
+          adDebugState={adDebugState}
+          isRefreshingAdDebugState={isRefreshingAdDebugState}
+          isShowingTestAd={isShowingTestAd}
+          onRefreshAdDebugState={refreshAdDebugState}
+          onShowTestAd={handleShowTestAd}
           onResetGameData={handleResetGameData}
           onClose={closeSettingMenu}
         />

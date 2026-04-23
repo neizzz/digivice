@@ -45,14 +45,7 @@ flutter:
     - assets/web/assets/ui/
     - assets/web/assets/game/sprites/
     - assets/web/assets/game/sprites/monsters/
-    - assets/web/assets/game/sprites/monsters/test-green-slime_A1.json
-    - assets/web/assets/game/sprites/monsters/test-green-slime_A1.png
-    - assets/web/assets/game/sprites/monsters/test-green-slime_B1.json
-    - assets/web/assets/game/sprites/monsters/test-green-slime_B1.png
-    - assets/web/assets/game/sprites/monsters/test-green-slime_C1.json
-    - assets/web/assets/game/sprites/monsters/test-green-slime_C1.png
-    - assets/web/assets/game/sprites/monsters/test-green-slime_D1.json
-    - assets/web/assets/game/sprites/monsters/test-green-slime_D1.png
+    - assets/web/assets/game/sprites/tiles/
     - assets/web/assets/game/gifs/
     - assets/web/assets/game/tiles/
     - assets/web/assets/ui/fonts/

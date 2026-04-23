@@ -1,10 +1,13 @@
 import { createClientStorage, getClientStorageKind } from "../utils/clientStorage";
 
 const DIAGNOSTICS_LOGS_STORAGE_KEY = "DiagnosticsLogs";
+const DIAGNOSTICS_IMPORTANT_LOGS_STORAGE_KEY = "DiagnosticsImportantLogs";
 const DIAGNOSTICS_LOGS_MAX_TOTAL_BYTES = 1024 * 1024;
+const DIAGNOSTICS_IMPORTANT_LOGS_MAX_TOTAL_BYTES = 256 * 1024;
 const DIAGNOSTICS_LOG_ENTRY_MAX_BYTES = 8 * 1024;
 const DIAGNOSTICS_LOGS_PERSIST_DEBOUNCE_MS = 2000;
 const ELLIPSIS = "…";
+const IMPORTANT_DIAGNOSTICS_PREFIX = "[ImportantDiagnostics]";
 
 type DiagnosticsLogLevel = "log" | "warn" | "error";
 
@@ -45,6 +48,8 @@ const diagnosticsSessionStartedAt = Date.now();
 let diagnosticsContextProvider: (() => DiagnosticsContext) | null = null;
 let diagnosticsLogs: DiagnosticsLogRecord[] = [];
 let diagnosticsLogsTotalBytes = 2;
+let diagnosticsImportantLogs: DiagnosticsLogRecord[] = [];
+let diagnosticsImportantLogsTotalBytes = 2;
 let diagnosticsLoggerInitialized = false;
 let diagnosticsConsoleInstalled = false;
 let persistScheduled = false;
@@ -65,6 +70,35 @@ function syncWindowErrorLogs(): void {
   window.errorLogs = diagnosticsLogs.map(
     ({ entry }) => `[${entry.timestamp}] [${entry.level}] ${entry.message}`,
   );
+}
+
+function isImportantDiagnosticsMessage(
+  level: DiagnosticsLogLevel,
+  message: string,
+): boolean {
+  return level === "error" || message.includes(IMPORTANT_DIAGNOSTICS_PREFIX);
+}
+
+function shouldSkipDiagnosticsLog(
+  level: DiagnosticsLogLevel,
+  message: string,
+): boolean {
+  if (level === "error") {
+    return false;
+  }
+
+  const stablePatterns = [
+    "서비스 초기화 완료",
+    "User Agent:",
+    "Environment variables:",
+    "애플리케이션 모드:",
+    "애플리케이션 버전:",
+    "현재 플랫폼:",
+    "[bootstrap] Native storage controller is ready",
+    "[App] AdManager initialized with policies:",
+  ];
+
+  return stablePatterns.some((pattern) => message.includes(pattern));
 }
 
 function toByteLength(value: string): number {
@@ -225,10 +259,32 @@ function createLogRecord(entry: DiagnosticsLogEntry): DiagnosticsLogRecord {
 }
 
 function trimLogsToSize(logs: DiagnosticsLogRecord[]): DiagnosticsLogRecord[] {
+  return trimLogsToSizeWithLimit(logs, DIAGNOSTICS_LOGS_MAX_TOTAL_BYTES, (total) => {
+    diagnosticsLogsTotalBytes = total;
+  });
+}
+
+function trimImportantLogsToSize(
+  logs: DiagnosticsLogRecord[],
+): DiagnosticsLogRecord[] {
+  return trimLogsToSizeWithLimit(
+    logs,
+    DIAGNOSTICS_IMPORTANT_LOGS_MAX_TOTAL_BYTES,
+    (total) => {
+      diagnosticsImportantLogsTotalBytes = total;
+    },
+  );
+}
+
+function trimLogsToSizeWithLimit(
+  logs: DiagnosticsLogRecord[],
+  maxTotalBytes: number,
+  onTotalBytes: (totalBytes: number) => void,
+): DiagnosticsLogRecord[] {
   const nextLogs = [...logs];
   let totalBytes = getSerializedLogsByteLength(nextLogs);
 
-  while (nextLogs.length > 0 && totalBytes > DIAGNOSTICS_LOGS_MAX_TOTAL_BYTES) {
+  while (nextLogs.length > 0 && totalBytes > maxTotalBytes) {
     const removed = nextLogs.shift();
     if (!removed) {
       break;
@@ -237,7 +293,7 @@ function trimLogsToSize(logs: DiagnosticsLogRecord[]): DiagnosticsLogRecord[] {
     totalBytes -= nextLogs.length > 0 ? 1 : 2;
   }
 
-  diagnosticsLogsTotalBytes = getSerializedLogsByteLength(nextLogs);
+  onTotalBytes(getSerializedLogsByteLength(nextLogs));
   return nextLogs;
 }
 
@@ -321,10 +377,16 @@ async function persistDiagnosticsLogs(): Promise<void> {
   persistenceInFlight = (async () => {
     try {
       const storage = createClientStorage();
-      await storage.setData(
-        DIAGNOSTICS_LOGS_STORAGE_KEY,
-        diagnosticsLogs.map((log) => log.entry),
-      );
+      await Promise.all([
+        storage.setData(
+          DIAGNOSTICS_LOGS_STORAGE_KEY,
+          diagnosticsLogs.map((log) => log.entry),
+        ),
+        storage.setData(
+          DIAGNOSTICS_IMPORTANT_LOGS_STORAGE_KEY,
+          diagnosticsImportantLogs.map((log) => log.entry),
+        ),
+      ]);
     } catch (error) {
       originalConsole.error("[diagnosticLogger] Failed to persist diagnostics logs", error);
     } finally {
@@ -335,9 +397,19 @@ async function persistDiagnosticsLogs(): Promise<void> {
   await persistenceInFlight;
 }
 
-function appendDiagnosticsLog(level: DiagnosticsLogLevel, args: unknown[]): void {
+function appendDiagnosticsLog(
+  level: DiagnosticsLogLevel,
+  args: unknown[],
+  options?: {
+    forceImportant?: boolean;
+  },
+): void {
   const context = getDiagnosticsContext();
   const message = args.map(stringifyConsoleArg).join(" ");
+
+  if (!options?.forceImportant && shouldSkipDiagnosticsLog(level, message)) {
+    return;
+  }
 
   const entry = truncateEntryToLimit({
     id:
@@ -358,6 +430,12 @@ function appendDiagnosticsLog(level: DiagnosticsLogLevel, args: unknown[]): void
   const record = createLogRecord(entry);
 
   diagnosticsLogs = trimLogsToSize([...diagnosticsLogs, record]);
+  if (options?.forceImportant || isImportantDiagnosticsMessage(level, message)) {
+    diagnosticsImportantLogs = trimImportantLogsToSize([
+      ...diagnosticsImportantLogs,
+      record,
+    ]);
+  }
   syncWindowErrorLogs();
   queuePersist();
 }
@@ -394,10 +472,21 @@ export async function initializeDiagnosticsLogger(): Promise<void> {
 
   try {
     const storage = createClientStorage();
+    const [persistedLogsRaw, persistedImportantLogsRaw] = await Promise.all([
+      storage.getData(DIAGNOSTICS_LOGS_STORAGE_KEY),
+      storage.getData(DIAGNOSTICS_IMPORTANT_LOGS_STORAGE_KEY),
+    ]);
     const persistedLogs = normalizePersistedLogs(
-      await storage.getData(DIAGNOSTICS_LOGS_STORAGE_KEY),
+      persistedLogsRaw,
+    );
+    const persistedImportantLogs = normalizePersistedLogs(
+      persistedImportantLogsRaw,
     );
     diagnosticsLogs = trimLogsToSize([...persistedLogs, ...diagnosticsLogs]);
+    diagnosticsImportantLogs = trimImportantLogsToSize([
+      ...persistedImportantLogs,
+      ...diagnosticsImportantLogs,
+    ]);
     syncWindowErrorLogs();
   } catch (error) {
     originalConsole.error("[diagnosticLogger] Failed to initialize diagnostics logger", error);
@@ -408,12 +497,19 @@ export function getDiagnosticsLogs(): DiagnosticsLogEntry[] {
   return diagnosticsLogs.map((log) => log.entry);
 }
 
+export function getImportantDiagnosticsLogs(): DiagnosticsLogEntry[] {
+  return diagnosticsImportantLogs.map((log) => log.entry);
+}
+
 export function getDiagnosticsLoggerInfo(): {
   sessionId: string;
   totalBytes: number;
   entryCount: number;
   maxTotalBytes: number;
   maxEntryBytes: number;
+  importantTotalBytes: number;
+  importantEntryCount: number;
+  importantMaxTotalBytes: number;
 } {
   return {
     sessionId: diagnosticsSessionId,
@@ -421,6 +517,9 @@ export function getDiagnosticsLoggerInfo(): {
     entryCount: diagnosticsLogs.length,
     maxTotalBytes: DIAGNOSTICS_LOGS_MAX_TOTAL_BYTES,
     maxEntryBytes: DIAGNOSTICS_LOG_ENTRY_MAX_BYTES,
+    importantTotalBytes: diagnosticsImportantLogsTotalBytes,
+    importantEntryCount: diagnosticsImportantLogs.length,
+    importantMaxTotalBytes: DIAGNOSTICS_IMPORTANT_LOGS_MAX_TOTAL_BYTES,
   };
 }
 
@@ -428,4 +527,22 @@ export function setDiagnosticsContextProvider(
   provider: (() => DiagnosticsContext) | null,
 ): void {
   diagnosticsContextProvider = provider;
+}
+
+export function logImportantDiagnostics(
+  level: DiagnosticsLogLevel,
+  ...args: unknown[]
+): void {
+  appendDiagnosticsLog(level, args, { forceImportant: true });
+
+  switch (level) {
+    case "warn":
+      originalConsole.warn(...args);
+      return;
+    case "error":
+      originalConsole.error(...args);
+      return;
+    default:
+      originalConsole.log(...args);
+  }
 }

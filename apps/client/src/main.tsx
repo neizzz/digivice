@@ -26,17 +26,6 @@ setDiagnosticsContextProvider(() => ({
 
 // 서비스 초기화
 
-console.log("서비스 초기화 완료");
-
-// 플랫폼 정보 로깅 (User Agent에서 즉시 파싱 가능)
-const isAndroid = platformAdapter.isAndroid();
-const isIOS = platformAdapter.isIOS();
-console.log(
-  `현재 플랫폼: ${isAndroid ? "Android" : isIOS ? "iOS" : "알 수 없음"}`,
-);
-console.log(`User Agent: ${navigator.userAgent}`);
-console.log("Environment variables:", JSON.stringify(import.meta.env, null, 2));
-
 document.addEventListener("DOMContentLoaded", () => {
   // NOTE: flutter의 javascript interface 초기화.
   // 페이지 로드 후에 실행되는것이 보장되도록 하기 위해 여기서 초기화 함수 호출.
@@ -44,11 +33,6 @@ document.addEventListener("DOMContentLoaded", () => {
   // @ts-ignore
   // window.__initJavascriptInterfaces.postMessage("");
 });
-
-console.log(
-  `애플리케이션 모드: ${isNativeFeatureDebugMode ? "DEBUG" : "NORMAL"}`,
-);
-console.log(`애플리케이션 버전: ${__APP_VERSION__}`);
 
 function sleep(milliseconds: number): Promise<void> {
   return new Promise((resolve) => {
@@ -76,7 +60,7 @@ async function waitForNativeStorageController(
     await sleep(50);
   }
 
-  console.log("[bootstrap] Native storage controller is ready");
+  return;
 }
 
 async function bootstrap(): Promise<void> {

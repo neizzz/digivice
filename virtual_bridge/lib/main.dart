@@ -1,6 +1,7 @@
 // ignore_for_file: avoid_print
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -29,7 +30,7 @@ void main() async {
 
   runApp(
     WidgetsApp(
-      color: const Color(0xFFFFFFFF),
+      color: const Color(0xFF000000),
       builder: (context, _) => WebView(),
     ),
   );
@@ -54,7 +55,7 @@ class WebView extends StatefulWidget {
   State<WebView> createState() => _WebViewState();
 }
 
-class _WebViewState extends State<WebView> {
+class _WebViewState extends State<WebView> with WidgetsBindingObserver {
   static const bool _stopAppOnAsset404 = false;
 
   final WebViewController _controller = WebViewController();
@@ -63,10 +64,13 @@ class _WebViewState extends State<WebView> {
   int? _assetServerPort;
   String? _errorMessage;
   final Set<String> _missingAssetPathsLogged = <String>{};
+  final List<Timer> _viewportSyncTimers = <Timer>[];
+  bool _isPageReady = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
 
     // BridgeConfigurator 초기화
     _bridgeConfigurator = BridgeConfigurator(
@@ -91,16 +95,30 @@ class _WebViewState extends State<WebView> {
     final Widget content;
 
     if (_errorMessage != null) {
-      content = Center(
-        child: Text(
-          _errorMessage!,
-          textAlign: TextAlign.center,
+      content = ColoredBox(
+        color: Colors.black,
+        child: Center(
+          child: Text(
+            _errorMessage!,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.white),
+          ),
         ),
       );
     } else if (_assetServerPort == null) {
-      content = const Center(child: CircularProgressIndicator());
+      content = const ColoredBox(
+        color: Colors.black,
+        child: Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+          ),
+        ),
+      );
     } else {
-      content = WebViewWidget(controller: _controller);
+      content = ColoredBox(
+        color: Colors.black,
+        child: WebViewWidget(controller: _controller),
+      );
     }
 
     return WillPopScope(
@@ -140,10 +158,13 @@ class _WebViewState extends State<WebView> {
     // WebViewController 기본 설정
     _controller
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setBackgroundColor(const Color(0xFF000000))
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageFinished: (_) async {
             await _bridgeConfigurator.injectJavaScriptInterfaces();
+            _isPageReady = true;
+            _scheduleViewportSync('page_finished');
           },
         ),
       )
@@ -166,6 +187,30 @@ class _WebViewState extends State<WebView> {
     if (mounted) {
       setState(() {});
     }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    print('[WebViewLifecycle] appLifecycleState=$state');
+
+    if (state == AppLifecycleState.resumed) {
+      _scheduleViewportSync('flutter.lifecycle.resumed');
+    }
+  }
+
+  @override
+  void didChangeMetrics() {
+    final view = WidgetsBinding.instance.platformDispatcher.views.first;
+    final Size logicalSize = view.physicalSize / view.devicePixelRatio;
+
+    print(
+      '[WebViewLifecycle] didChangeMetrics '
+      'physical=${view.physicalSize.width}x${view.physicalSize.height} '
+      'logical=${logicalSize.width}x${logicalSize.height} '
+      'dpr=${view.devicePixelRatio}',
+    );
+
+    _scheduleViewportSync('flutter.metrics_changed');
   }
 
   Future<void> _startAssetServer() async {
@@ -198,6 +243,87 @@ class _WebViewState extends State<WebView> {
       await _controller.loadRequest(uri);
     } catch (e) {
       print('[WebView] Failed to reload WebView on hot reload: $e');
+    }
+  }
+
+  void _scheduleViewportSync(String reason) {
+    if (!_isPageReady) {
+      print('[WebViewLifecycle] skip viewport sync before page ready: $reason');
+      return;
+    }
+
+    _cancelViewportSyncTimers();
+
+    for (final int delayMs in <int>[0, 120, 320]) {
+      final timer = Timer(Duration(milliseconds: delayMs), () {
+        unawaited(_dispatchViewportSync('$reason@${delayMs}ms'));
+      });
+      _viewportSyncTimers.add(timer);
+    }
+  }
+
+  void _cancelViewportSyncTimers() {
+    for (final timer in _viewportSyncTimers) {
+      timer.cancel();
+    }
+    _viewportSyncTimers.clear();
+  }
+
+  Future<void> _dispatchViewportSync(String reason) async {
+    if (!_isPageReady) {
+      return;
+    }
+
+    print('[WebViewLifecycle] dispatchViewportSync reason=$reason');
+
+    final String encodedReason = jsonEncode(reason);
+    try {
+      await _controller.runJavaScript('''
+        (() => {
+          const reason = $encodedReason;
+          const payload = {
+            reason,
+            timestamp: new Date().toISOString(),
+            innerWidth: window.innerWidth,
+            innerHeight: window.innerHeight,
+            devicePixelRatio: window.devicePixelRatio,
+            screenWidth: window.screen?.width ?? null,
+            screenHeight: window.screen?.height ?? null,
+            visibilityState: document.visibilityState,
+            visualViewportWidth: window.visualViewport?.width ?? null,
+            visualViewportHeight: window.visualViewport?.height ?? null,
+            visualViewportScale: window.visualViewport?.scale ?? null,
+          };
+
+          console.log('[NativeViewportSync] dispatch', payload);
+
+          try { window.dispatchEvent(new Event('resize')); } catch (_) {}
+          try { window.dispatchEvent(new Event('focus')); } catch (_) {}
+          try { window.dispatchEvent(new Event('pageshow')); } catch (_) {}
+          try { window.dispatchEvent(new Event('orientationchange')); } catch (_) {}
+          try { document.dispatchEvent(new Event('visibilitychange')); } catch (_) {}
+
+          try {
+            if (window.visualViewport) {
+              window.visualViewport.dispatchEvent(new Event('resize'));
+              window.visualViewport.dispatchEvent(new Event('scroll'));
+            }
+          } catch (_) {}
+
+          try {
+            window.dispatchEvent(
+              new CustomEvent('digivice:native-viewport-sync', {
+                detail: payload,
+              }),
+            );
+          } catch (_) {}
+        })();
+      ''');
+    } catch (error) {
+      print(
+        '[WebViewLifecycle] dispatchViewportSync failed '
+        'reason=$reason error=$error',
+      );
     }
   }
 
@@ -321,6 +447,9 @@ class _WebViewState extends State<WebView> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _cancelViewportSyncTimers();
+    _isPageReady = false;
     _assetServer?.close(force: true);
     super.dispose();
   }

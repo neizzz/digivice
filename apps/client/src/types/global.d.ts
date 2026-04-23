@@ -34,6 +34,12 @@ declare global {
         granted: boolean;
       } | null>;
     };
+    adController?: {
+      showInterstitial: () => Promise<string>;
+      canShowAd: () => Promise<string>;
+      showTestInterstitial?: () => Promise<string>;
+      getAdDebugState?: () => Promise<string>;
+    };
   }
 }
 

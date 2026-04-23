@@ -1,6 +1,8 @@
+import 'dart:convert';
 import 'dart:io' show Platform;
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
 /// AdMob 광고 관리 컨트롤러
 /// 역할: 전면광고 로드/표시 및 쿨다운 관리
@@ -24,6 +26,7 @@ class AdController {
   InterstitialAd? _interstitialAd;
   bool _isAdReady = false;
   bool _isLoading = false;
+  String? _lastError;
 
   AdController({
     required this.runJavaScript,
@@ -43,10 +46,22 @@ class AdController {
             __native_adShow.postMessage(JSON.stringify(argObj));
           });
         },
+        showTestInterstitial: () => {
+          return __createPromise((id) => {
+            const argObj = { id };
+            __native_adShowTest.postMessage(JSON.stringify(argObj));
+          });
+        },
         canShowAd: () => {
           return __createPromise((id) => {
             const argObj = { id };
             __native_adCanShow.postMessage(JSON.stringify(argObj));
+          });
+        },
+        getAdDebugState: () => {
+          return __createPromise((id) => {
+            const argObj = { id };
+            __native_adDebugState.postMessage(JSON.stringify(argObj));
           });
         }
       };
@@ -58,6 +73,7 @@ class AdController {
     if (_isLoading) return;
 
     _isLoading = true;
+    _lastError = null;
     log('[AdController] Loading interstitial ad...');
 
     final adUnitId = _getAdUnitId();
@@ -70,6 +86,7 @@ class AdController {
           _interstitialAd = ad;
           _isAdReady = true;
           _isLoading = false;
+          _lastError = null;
           log('[AdController] Interstitial ad loaded successfully');
 
           // 광고 이벤트 리스너 설정
@@ -84,6 +101,7 @@ class AdController {
               _loadInterstitialAd(); // 다음을 위해 미리 로드
             },
             onAdFailedToShowFullScreenContent: (ad, error) {
+              _lastError = error.toString();
               log('[AdController] Ad failed to show: $error');
               ad.dispose();
               _isAdReady = false;
@@ -93,6 +111,7 @@ class AdController {
         },
         onAdFailedToLoad: (error) {
           _isLoading = false;
+          _lastError = error.toString();
           log('[AdController] Failed to load ad: $error');
 
           // 30초 후 재시도
@@ -111,9 +130,9 @@ class AdController {
   }
 
   /// 전면광고 표시 요청 처리
-  Future<void> handleShowInterstitial(dynamic message) async {
+  Future<void> handleShowInterstitial(JavaScriptMessage message) async {
     final Map<String, dynamic> argObj = _parseMessage(message);
-    final String promiseId = argObj['id'];
+    final String promiseId = argObj['id'] as String;
 
     try {
       // 1. 네이티브 쿨다운 체크 (안전장치)
@@ -132,6 +151,7 @@ class AdController {
 
       // 3. 광고 표시
       log('[AdController] Showing interstitial ad');
+      _lastError = null;
       await _interstitialAd!.show();
 
       // 4. 쿨다운 업데이트
@@ -139,21 +159,60 @@ class AdController {
 
       resolvePromise(id: promiseId, data: 'success');
     } catch (e) {
+      _lastError = e.toString();
       log('[AdController] Error showing ad: $e');
       resolvePromise(id: promiseId, error: e.toString());
     }
   }
 
-  /// 광고 표시 가능 여부 확인 (쿨다운 체크)
-  Future<void> handleCanShowAd(dynamic message) async {
+  /// 디버그용 테스트 전면광고 표시 요청 처리
+  Future<void> handleShowTestInterstitial(JavaScriptMessage message) async {
     final Map<String, dynamic> argObj = _parseMessage(message);
-    final String promiseId = argObj['id'];
+    final String promiseId = argObj['id'] as String;
+
+    try {
+      if (!_isAdReady || _interstitialAd == null) {
+        _lastError = 'Ad not loaded';
+        log('[AdController] Test ad not ready');
+        resolvePromise(id: promiseId, error: 'Ad not loaded');
+        return;
+      }
+
+      log('[AdController] Showing test interstitial ad');
+      _lastError = null;
+      await _interstitialAd!.show();
+      resolvePromise(id: promiseId, data: 'success');
+    } catch (e) {
+      _lastError = e.toString();
+      log('[AdController] Error showing test ad: $e');
+      resolvePromise(id: promiseId, error: e.toString());
+    }
+  }
+
+  /// 광고 표시 가능 여부 확인 (쿨다운 체크)
+  Future<void> handleCanShowAd(JavaScriptMessage message) async {
+    final Map<String, dynamic> argObj = _parseMessage(message);
+    final String promiseId = argObj['id'] as String;
 
     try {
       final canShow = await _checkNativeCooldown();
       resolvePromise(id: promiseId, data: canShow.toString());
     } catch (e) {
       log('[AdController] Error checking cooldown: $e');
+      resolvePromise(id: promiseId, error: e.toString());
+    }
+  }
+
+  /// 디버그용 광고 상태 조회
+  Future<void> handleGetAdDebugState(JavaScriptMessage message) async {
+    final Map<String, dynamic> argObj = _parseMessage(message);
+    final String promiseId = argObj['id'] as String;
+
+    try {
+      resolvePromise(id: promiseId, data: jsonEncode(_getDebugState()));
+    } catch (e) {
+      _lastError = e.toString();
+      log('[AdController] Error getting ad debug state: $e');
       resolvePromise(id: promiseId, error: e.toString());
     }
   }
@@ -183,11 +242,32 @@ class AdController {
   }
 
   /// 메시지 파싱
-  Map<String, dynamic> _parseMessage(dynamic message) {
-    if (message is Map) {
-      return Map<String, dynamic>.from(message);
+  Map<String, dynamic> _parseMessage(JavaScriptMessage message) {
+    try {
+      final dynamic decoded = jsonDecode(message.message);
+
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
+
+      if (decoded is Map) {
+        return Map<String, dynamic>.from(decoded);
+      }
+
+      throw const FormatException('Decoded message is not a JSON object');
+    } catch (e) {
+      _lastError = 'Invalid bridge message: $e';
+      log('[AdController] Failed to parse bridge message: $e');
+      rethrow;
     }
-    return {};
+  }
+
+  Map<String, dynamic> _getDebugState() {
+    return {
+      'isReady': _isAdReady,
+      'isLoading': _isLoading,
+      'lastError': _lastError,
+    };
   }
 
   /// 리소스 정리

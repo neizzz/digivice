@@ -34,11 +34,6 @@ const App = () => {
     adManager.addPolicy(new UrgentRecoveryPolicy());
     window.adManager = adManager;
 
-    console.log("[App] AdManager initialized with policies:", [
-      "AppReenterPolicy",
-      "UrgentRecoveryPolicy",
-    ]);
-
     // 재진입 감지
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {

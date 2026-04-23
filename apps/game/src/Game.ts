@@ -7,6 +7,7 @@ import {
   type MainSceneWorldData,
 } from "./scenes/MainScene/world";
 import { FlappyBirdGameScene } from "./scenes/FlappyBirdGameScene";
+import { AssetLoader } from "./utils/AssetLoader";
 
 PIXI.TexturePool.textureOptions.scaleMode = "nearest";
 
@@ -38,9 +39,12 @@ export type ShowAlertCallback = (message: string, title?: string) => void;
 export type TriggerBiteVibrationCallback = () => void;
 export type StartRecoveryVibrationCallback = () => void;
 export type StopRecoveryVibrationCallback = () => void;
-export type SceneLoadingStateChangeCallback = (params: {
-  key: SceneKey;
-  state: "loading" | "core_ready";
+export type StartMiniGameCallback = () => unknown | Promise<unknown>;
+export type SceneTransitionStateChangeCallback = (params: {
+  requestId: number;
+  from?: SceneKey;
+  to: SceneKey;
+  state: "loading" | "core_ready" | "failed";
 }) => void;
 export type GameDiagnosticsSnapshot = {
   currentSceneKey?: SceneKey;
@@ -66,9 +70,10 @@ export class Game {
   public stopRecoveryVibration?: StopRecoveryVibrationCallback;
 
   private _parentElement: HTMLElement;
-  private _onSceneLoadingStateChange?: SceneLoadingStateChangeCallback;
+  private _onSceneTransitionStateChange?: SceneTransitionStateChangeCallback;
   private _debugParentElement: HTMLElement;
   private _createInitialGameData: CreateInitialGameDataCallback;
+  private _startMiniGame?: StartMiniGameCallback;
   private currentScene?: Scene;
   // private scenes: Map<SceneKey, Scene> = new Map();
   private currentSceneKey?: SceneKey;
@@ -83,6 +88,7 @@ export class Game {
   private _lastResizeMetricsKey: string | null = null;
   private _isPixiReady = false;
   private _isDestroyed = false;
+  private _sceneTransitionRequestId = 0;
   // private characterManager: CharacterManager; // CharacterManager 인스턴스 추가
   // private shouldSaveDataBeforeUnload = false;
 
@@ -93,10 +99,11 @@ export class Game {
     changeControlButtons: ControlButtonsChangeCallback;
     showSettings: ShowSettingsCallback;
     showAlert: ShowAlertCallback; // 팝업 콜백 추가
+    startMiniGame?: StartMiniGameCallback;
     triggerBiteVibration?: TriggerBiteVibrationCallback;
     startRecoveryVibration?: StartRecoveryVibrationCallback;
     stopRecoveryVibration?: StopRecoveryVibrationCallback;
-    onSceneLoadingStateChange?: SceneLoadingStateChangeCallback;
+    onSceneTransitionStateChange?: SceneTransitionStateChangeCallback;
   }) {
     const {
       parentElement,
@@ -105,18 +112,20 @@ export class Game {
       changeControlButtons,
       showSettings,
       showAlert,
+      startMiniGame,
       triggerBiteVibration,
       startRecoveryVibration,
       stopRecoveryVibration,
-      onSceneLoadingStateChange,
+      onSceneTransitionStateChange,
     } = params;
     this.changeControlButtons = changeControlButtons;
     this.showSettings = showSettings; // 설정 화면 표시 콜백
     this.showAlert = showAlert; // 팝업 콜백 저장
+    this._startMiniGame = startMiniGame;
     this.triggerBiteVibration = triggerBiteVibration;
     this.startRecoveryVibration = startRecoveryVibration;
     this.stopRecoveryVibration = stopRecoveryVibration;
-    this._onSceneLoadingStateChange = onSceneLoadingStateChange;
+    this._onSceneTransitionStateChange = onSceneTransitionStateChange;
     this._createInitialGameData = onCreateInitialGameData;
 
     this.app = new PIXI.Application();
@@ -217,6 +226,16 @@ export class Game {
 
   private async _setupInitialScene(): Promise<void> {
     await this.changeScene(SceneKey.MAIN);
+  }
+
+  public preloadSceneAssets(key: SceneKey): Promise<void> {
+    switch (key) {
+      case SceneKey.FLAPPY_BIRD_GAME:
+        return this._preloadFlappyBirdAssets();
+      case SceneKey.MAIN:
+      default:
+        return Promise.resolve();
+    }
   }
 
   private _setupGameLoop(): void {
@@ -468,7 +487,9 @@ export class Game {
           },
           parentElement: this._parentElement,
           debugParentElement: this._debugParentElement,
-          startMiniGame: () => this.changeScene(SceneKey.FLAPPY_BIRD_GAME),
+          startMiniGame:
+            this._startMiniGame ??
+            (() => this.changeScene(SceneKey.FLAPPY_BIRD_GAME)),
           createInitialGameData: this._createInitialGameData,
           changeControlButtons: this.changeControlButtons,
           triggerBiteVibration: this.triggerBiteVibration,
@@ -491,8 +512,15 @@ export class Game {
    * @returns 성공 여부
    */
   public async changeScene(key: SceneKey): Promise<boolean> {
+    const previousSceneKey = this.currentSceneKey;
+    const transitionRequestId = ++this._sceneTransitionRequestId;
+    const transitionStartedAt =
+      typeof performance !== "undefined" ? performance.now() : Date.now();
+
     try {
-      console.log(`[Game] 씬 전환 요청: ${key}`);
+      console.log(
+        `[GameTransition] start ${previousSceneKey ?? "none"} -> ${key} (#${transitionRequestId})`,
+      );
 
       // 기존 씬과 같은 씬으로 전환하는 경우 무시
       if (this.currentSceneKey === key) {
@@ -500,15 +528,12 @@ export class Game {
         return true;
       }
 
-      const shouldNotifyMainSceneLoading =
-        key === SceneKey.MAIN && this.currentSceneKey !== SceneKey.MAIN;
-
-      if (shouldNotifyMainSceneLoading) {
-        this._onSceneLoadingStateChange?.({
-          key: SceneKey.MAIN,
-          state: "loading",
-        });
-      }
+      this._onSceneTransitionStateChange?.({
+        requestId: transitionRequestId,
+        from: previousSceneKey,
+        to: key,
+        state: "loading",
+      });
 
       if (this.currentScene?.onSceneExit) {
         console.log(`[Game] 현재 씬 종료 처리 시작: ${this.currentSceneKey}`);
@@ -544,12 +569,12 @@ export class Game {
         this.app.stage.addChild(this.currentScene);
       }
 
-      if (shouldNotifyMainSceneLoading) {
-        this._onSceneLoadingStateChange?.({
-          key: SceneKey.MAIN,
-          state: "core_ready",
-        });
-      }
+      this._onSceneTransitionStateChange?.({
+        requestId: transitionRequestId,
+        from: previousSceneKey,
+        to: key,
+        state: "core_ready",
+      });
 
       // 새 씬이 DisplayObject이면 스테이지에 추가
       // if (this.currentScene instanceof PIXI.DisplayObject) {
@@ -560,10 +585,22 @@ export class Game {
       // const { width, height } = this.app.renderer.screen;
       // this.currentScene.onResize(width, height);
 
-      console.log(`[Game] 씬 전환 완료: ${key}`);
+      console.log(
+        `[GameTransition] end ${previousSceneKey ?? "none"} -> ${key} (#${transitionRequestId}) in ${Math.round(
+          (typeof performance !== "undefined" ? performance.now() : Date.now()) -
+            transitionStartedAt,
+        )}ms`,
+      );
       return true;
     } catch (error) {
       console.error(`[Game] 씬 전환 오류 (${key}):`, error);
+      this._onSceneTransitionStateChange?.({
+        requestId: transitionRequestId,
+        from: previousSceneKey,
+        to: key,
+        state: "failed",
+      });
+      this.showAlert("Scene transition failed.", "Error");
       return false;
     }
   }
@@ -618,6 +655,21 @@ export class Game {
     }
 
     this.destroy();
+  }
+
+  private async _preloadFlappyBirdAssets(): Promise<void> {
+    const preloadStartedAt =
+      typeof performance !== "undefined" ? performance.now() : Date.now();
+    console.log("[GameTransition] mini-game preload start");
+
+    await AssetLoader.preloadAssets();
+
+    console.log(
+      `[GameTransition] mini-game preload end in ${Math.round(
+        (typeof performance !== "undefined" ? performance.now() : Date.now()) -
+          preloadStartedAt,
+      )}ms`,
+    );
   }
 
   public destroy(): void {

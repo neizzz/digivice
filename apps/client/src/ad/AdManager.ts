@@ -2,15 +2,6 @@ import type { AdContext, AdDisplayPolicy } from "./AdDisplayPolicy";
 import { CooldownCondition } from "./conditions/CooldownCondition";
 import { PlatformAdapter } from "../adapter/PlatformAdapter";
 
-declare global {
-  interface Window {
-    adController?: {
-      showInterstitial(): Promise<string>;
-      canShowAd(): Promise<string>;
-    };
-  }
-}
-
 /**
  * 광고 관리자
  * 정책을 관리하고 광고 표시를 결정

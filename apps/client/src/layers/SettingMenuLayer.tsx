@@ -2,11 +2,23 @@ import type React from "react";
 import { useMemo, useState } from "react";
 import PopupLayer from "../components/PopupLayer";
 
+type AdDebugState = {
+  isReady: boolean;
+  isLoading: boolean;
+  lastError: string | null;
+};
+
 interface SettingMenuLayerProps {
   vibrationEnabled: boolean;
   onChangeVibration: (enabled: boolean) => void;
   onSendDiagnostics: () => void;
   isSendingDiagnostics: boolean;
+  showAdDebugSection?: boolean;
+  adDebugState?: AdDebugState | null;
+  isRefreshingAdDebugState?: boolean;
+  isShowingTestAd?: boolean;
+  onRefreshAdDebugState?: () => void;
+  onShowTestAd?: () => void;
   onResetGameData: () => void;
   onClose: () => void;
 }
@@ -59,6 +71,12 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
   onChangeVibration,
   onSendDiagnostics,
   isSendingDiagnostics,
+  showAdDebugSection = false,
+  adDebugState = null,
+  isRefreshingAdDebugState = false,
+  isShowingTestAd = false,
+  onRefreshAdDebugState,
+  onShowTestAd,
   onResetGameData,
   onClose,
 }) => {
@@ -69,6 +87,15 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
     () => resetConfirmText.trim() === "confirm",
     [resetConfirmText],
   );
+  const adDebugStatus = adDebugState?.isReady
+    ? "Ready"
+    : adDebugState?.isLoading
+      ? "Loading"
+      : adDebugState?.lastError
+        ? "Error"
+        : "Idle";
+  const isTestAdButtonDisabled =
+    !adDebugState?.isReady || Boolean(adDebugState?.isLoading) || isShowingTestAd;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
@@ -100,6 +127,49 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
                 />
               </div>
             </div>
+
+            {showAdDebugSection && (
+              <div className="border-t-2 border-[#222] pt-4">
+                <div className="mb-3 text-sm font-bold">Ad Debug</div>
+                <div className="space-y-3 text-xs text-gray-600">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <div>
+                        Status: <span className="font-bold">{adDebugStatus}</span>
+                      </div>
+                      {adDebugState?.lastError && (
+                        <div className="mt-1 max-w-52 break-all text-[11px] text-component-negative">
+                          {adDebugState.lastError}
+                        </div>
+                      )}
+                    </div>
+                    <ActionButton
+                      text={isRefreshingAdDebugState ? "Refreshing..." : "Refresh"}
+                      onClick={() => onRefreshAdDebugState?.()}
+                      disabled={
+                        isRefreshingAdDebugState ||
+                        typeof onRefreshAdDebugState !== "function"
+                      }
+                      variant="warning"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="max-w-52">
+                      Show Google test interstitial immediately in native debug
+                      build.
+                    </div>
+                    <ActionButton
+                      text={isShowingTestAd ? "Opening..." : "Show Test Ad"}
+                      onClick={() => onShowTestAd?.()}
+                      disabled={
+                        isTestAdButtonDisabled ||
+                        typeof onShowTestAd !== "function"
+                      }
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="border-t-2 border-[#222] pt-4">
               <div>

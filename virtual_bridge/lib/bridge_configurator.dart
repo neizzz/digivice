@@ -115,9 +115,19 @@ class BridgeConfigurator {
             _adController.handleShowInterstitial(message),
       )
       ..addJavaScriptChannel(
+        '__native_adShowTest',
+        onMessageReceived: (JavaScriptMessage message) =>
+            _adController.handleShowTestInterstitial(message),
+      )
+      ..addJavaScriptChannel(
         '__native_adCanShow',
         onMessageReceived: (JavaScriptMessage message) =>
             _adController.handleCanShowAd(message),
+      )
+      ..addJavaScriptChannel(
+        '__native_adDebugState',
+        onMessageReceived: (JavaScriptMessage message) =>
+            _adController.handleGetAdDebugState(message),
       )
       ..addJavaScriptChannel(
         '__native_sun_get_times',

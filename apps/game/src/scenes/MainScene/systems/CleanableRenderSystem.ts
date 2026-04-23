@@ -171,8 +171,8 @@ function createOrUpdateDashedBorder(
     graphics.visible = true;
   }
 
-  // 테두리 색상 결정 (포커스된 대상은 노란색, 일반은 빨간색)
-  const borderColor = isFocused ? 0xffff00 : 0xff0000;
+  // 테두리 색상 결정 (포커스된 대상은 조금 더 밝은 핑크, 일반은 빨간색)
+  const borderColor = isFocused ? 0xff7dc2 : 0xff0000;
   const lineWidth = isFocused ? 4 : 3;
 
   // zIndex 설정 (포커스된 대상이 더 앞에 나오도록)
