@@ -1,5 +1,6 @@
 import { E as ExtensionType, U as UPDATE_PRIORITY, T as Ticker, k as UniformGroup, c as BindGroup, F as TexturePool, s as Texture, M as Matrix, a2 as Geometry, R as RendererType, w as warn, z as Bounds, $ as deprecation, a0 as v8_0_0, b as Buffer, B as BufferUsage, Y as Color, a9 as TextStyle, x as BigPool, aa as BatchableGraphics, ab as getAdjustedBlendModeBlend, J as getAttributeInfoFromFormat, ac as ViewableBuffer, q as Shader, t as GlProgram, G as GpuProgram, ad as TextureStyle, m as compileHighShaderGpuProgram, p as roundPixelsBit, a4 as compileHighShaderGlProgram, a7 as roundPixelsBitGl, n as colorBit, o as generateTextureBatchBit, a5 as colorBitGl, a6 as generateTextureBatchBitGl, a8 as getBatchSamplersUniformGroup, ae as BitmapFontManager, af as CanvasTextMetrics, ag as getBitmapTextLayout, ah as Cache, ai as Graphics, aj as updateQuadBounds, D as DOMAdapter, l as CanvasPool, ak as CanvasTextGenerator, e as extensions, al as GraphicsContextSystem } from "./index.js";
 import { S as State, c as color32BitToUniform, a as localUniformBit, b as localUniformBitGl, B as BatchableSprite } from "./colorToUniform.js";
+import "./index2.js";
 class ResizePlugin {
   /**
    * Initialize the plugin with scope of application instance

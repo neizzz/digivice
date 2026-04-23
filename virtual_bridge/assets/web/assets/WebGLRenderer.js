@@ -1,6 +1,7 @@
 import { E as ExtensionType, B as BufferUsage, w as warn, D as DOMAdapter, J as getAttributeInfoFromFormat, t as GlProgram, q as Shader, s as Texture, a2 as Geometry, j as TextureSource, a3 as checkMaxIfStatementsInShader, S as STENCIL_MODES, N as Rectangle, i as CanvasSource, h as CLEAR, k as UniformGroup, M as Matrix, a4 as compileHighShaderGlProgram, a5 as colorBitGl, a6 as generateTextureBatchBitGl, a7 as roundPixelsBitGl, a8 as getBatchSamplersUniformGroup, A as AbstractRenderer, R as RendererType, e as extensions } from "./index.js";
 import { S as State, b as localUniformBitGl } from "./colorToUniform.js";
 import { e as ensureAttributes, G as GpuStencilModesToPixi, c as createUboSyncFunction, b as uboSyncFunctionsSTD40, U as UboSystem, R as RenderTargetSystem, B as BufferResource, d as uniformParsers, f as textureBitGl, S as SharedSystems, a as SharedRenderPipes } from "./SharedSystems.js";
+import "./index2.js";
 class GlBatchAdaptor {
   constructor() {
     this._tempState = State.for2d();

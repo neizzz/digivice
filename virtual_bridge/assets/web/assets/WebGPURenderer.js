@@ -1,6 +1,7 @@
 import { g as getTextureBatchBindGroup, E as ExtensionType, f as fastCopy, D as DOMAdapter, S as STENCIL_MODES, B as BufferUsage, b as Buffer, c as BindGroup, d as createIdFromString, w as warn, h as CLEAR, i as CanvasSource, j as TextureSource, k as UniformGroup, l as CanvasPool, M as Matrix, m as compileHighShaderGpuProgram, n as colorBit, o as generateTextureBatchBit, p as roundPixelsBit, q as Shader, s as Texture, A as AbstractRenderer, R as RendererType, e as extensions } from "./index.js";
 import { S as State, l as localUniformBitGroup2, a as localUniformBit } from "./colorToUniform.js";
 import { c as createUboSyncFunction, u as uboSyncFunctionsWGSL, U as UboSystem, B as BufferResource, G as GpuStencilModesToPixi, e as ensureAttributes, R as RenderTargetSystem, t as textureBit, S as SharedSystems, a as SharedRenderPipes } from "./SharedSystems.js";
+import "./index2.js";
 const tempState = State.for2d();
 class GpuBatchAdaptor {
   start(batchPipe, geometry, shader) {
