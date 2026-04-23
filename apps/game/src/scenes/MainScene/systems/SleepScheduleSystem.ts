@@ -15,7 +15,7 @@ import {
   SleepReason,
 } from "../types";
 import { MainSceneWorld } from "../world";
-import { TimeOfDay } from "../timeOfDay";
+import { TimeOfDay, TimeOfDayMode } from "../timeOfDay";
 
 const characterSleepQuery = defineQuery([
   ObjectComp,
@@ -37,10 +37,11 @@ export function sleepScheduleSystem(params: {
   const previousTimeOfDay = lastTimeOfDayByWorld.get(world);
 
   if (!previousTimeOfDay) {
-    bootstrapSleepRuntime(entities, currentTime, currentTimeOfDay);
+    bootstrapSleepRuntime(world, entities, currentTime, currentTimeOfDay);
     lastTimeOfDayByWorld.set(world, currentTimeOfDay);
   } else if (previousTimeOfDay !== currentTimeOfDay) {
     handleTimeOfDayTransition(
+      world,
       entities,
       currentTime,
       previousTimeOfDay,
@@ -76,6 +77,7 @@ export function sleepScheduleSystem(params: {
 }
 
 function bootstrapSleepRuntime(
+  world: MainSceneWorld,
   entities: number[],
   currentTime: number,
   currentTimeOfDay: TimeOfDay,
@@ -123,7 +125,7 @@ function bootstrapSleepRuntime(
     }
 
     if (currentTimeOfDay === TimeOfDay.Night) {
-      scheduleNightSleep(eid, currentTime);
+      scheduleNightSleep(world, eid, currentTime);
       continue;
     }
 
@@ -137,6 +139,7 @@ function bootstrapSleepRuntime(
 }
 
 function handleTimeOfDayTransition(
+  world: MainSceneWorld,
   entities: number[],
   currentTime: number,
   previousTimeOfDay: TimeOfDay,
@@ -166,7 +169,7 @@ function handleTimeOfDayTransition(
           SleepSystemComp.sleepMode[eid] = SleepMode.NIGHT_SLEEP;
           ensureNightWakeCheckTime(eid, currentTime);
         } else {
-          scheduleNightSleep(eid, currentTime);
+          scheduleNightSleep(world, eid, currentTime);
         }
         break;
       case TimeOfDay.Sunrise:
@@ -454,7 +457,81 @@ function handleNapWake(
   }
 }
 
-function scheduleNightSleep(eid: number, currentTime: number): void {
+function getAutoNightSleepPlan(
+  world: MainSceneWorld,
+  currentTime: number,
+): {
+  nextSleepTime: number;
+  nextWakeTime: number;
+} | null {
+  if (world.timeOfDayMode !== TimeOfDayMode.Auto) {
+    return null;
+  }
+
+  const projectedUpcomingSunTimes =
+    world.getProjectedUpcomingSunTimes(currentTime);
+
+  if (!projectedUpcomingSunTimes) {
+    return null;
+  }
+
+  const nextWakeTime = Math.round(
+    projectedUpcomingSunTimes.nextSunriseAt +
+      randomBetween(
+        GAME_CONSTANTS.SUNRISE_WAKE_OFFSET_MIN,
+        GAME_CONSTANTS.SUNRISE_WAKE_OFFSET_MAX,
+      ),
+  );
+
+  if (nextWakeTime <= currentTime) {
+    return null;
+  }
+
+  const targetSleepDuration =
+    GAME_CONSTANTS.TARGET_NIGHT_SLEEP_DURATION +
+    randomBetween(
+      -GAME_CONSTANTS.TARGET_NIGHT_SLEEP_JITTER,
+      GAME_CONSTANTS.TARGET_NIGHT_SLEEP_JITTER,
+    );
+  const latestSleepTime = nextWakeTime - 1;
+
+  if (latestSleepTime <= currentTime) {
+    return null;
+  }
+
+  const earliestSleepTime = Math.min(
+    currentTime + GAME_CONSTANTS.NIGHT_SLEEP_MIN_DELAY,
+    latestSleepTime,
+  );
+  const nextSleepTime = Math.round(
+    clamp(
+      nextWakeTime - targetSleepDuration,
+      earliestSleepTime,
+      latestSleepTime,
+    ),
+  );
+
+  return {
+    nextSleepTime,
+    nextWakeTime,
+  };
+}
+
+function scheduleNightSleep(
+  world: MainSceneWorld,
+  eid: number,
+  currentTime: number,
+): void {
+  const autoNightSleepPlan = getAutoNightSleepPlan(world, currentTime);
+
+  if (autoNightSleepPlan) {
+    SleepSystemComp.nextSleepTime[eid] = autoNightSleepPlan.nextSleepTime;
+    SleepSystemComp.pendingSleepReason[eid] = SleepReason.NIGHT;
+    SleepSystemComp.nextWakeTime[eid] = autoNightSleepPlan.nextWakeTime;
+    SleepSystemComp.pendingWakeReason[eid] = SleepReason.SUNRISE;
+    return;
+  }
+
   SleepSystemComp.nextSleepTime[eid] =
     currentTime +
     randomBetween(
@@ -502,14 +579,23 @@ function enterSleep(
   currentTime: number,
   mode: SleepMode,
 ): void {
+  const reservedWakeTime =
+    mode === SleepMode.NIGHT_SLEEP ? SleepSystemComp.nextWakeTime[eid] : 0;
+  const reservedWakeReason =
+    mode === SleepMode.NIGHT_SLEEP
+      ? SleepSystemComp.pendingWakeReason[eid]
+      : SleepReason.NONE;
+
   ObjectComp.state[eid] = CharacterState.SLEEPING;
   SpeedComp.value[eid] = 0;
   SleepSystemComp.sleepMode[eid] = mode;
   SleepSystemComp.sleepSessionStartedAt[eid] = currentTime;
   SleepSystemComp.nextSleepTime[eid] = 0;
   SleepSystemComp.pendingSleepReason[eid] = SleepReason.NONE;
-  SleepSystemComp.nextWakeTime[eid] = 0;
-  SleepSystemComp.pendingWakeReason[eid] = SleepReason.NONE;
+  SleepSystemComp.nextWakeTime[eid] =
+    reservedWakeTime > 0 ? Math.max(currentTime, reservedWakeTime) : 0;
+  SleepSystemComp.pendingWakeReason[eid] =
+    reservedWakeTime > 0 ? reservedWakeReason : SleepReason.NONE;
   SleepSystemComp.nextNightWakeCheckTime[eid] =
     mode === SleepMode.NIGHT_SLEEP
       ? currentTime + GAME_CONSTANTS.NIGHT_WAKE_CHECK_INTERVAL
@@ -547,6 +633,8 @@ function clearPendingNightSleep(eid: number): void {
   ) {
     SleepSystemComp.nextSleepTime[eid] = 0;
     SleepSystemComp.pendingSleepReason[eid] = SleepReason.NONE;
+    SleepSystemComp.nextWakeTime[eid] = 0;
+    SleepSystemComp.pendingWakeReason[eid] = SleepReason.NONE;
   }
 }
 

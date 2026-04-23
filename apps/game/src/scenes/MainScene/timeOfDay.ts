@@ -36,6 +36,13 @@ export type AutoTimeOfDayState = SkyVisualState & {
   isTransition: boolean;
 };
 
+export type ProjectedUpcomingSunTimes = {
+  sunriseAt: Date;
+  sunsetAt: Date;
+  nextSunriseAt: Date;
+  nextSunsetAt: Date;
+};
+
 export type TimeOfDayTone = {
   label: string;
 };
@@ -160,6 +167,30 @@ export function projectSunTimesForDate(
       sunsetTemplate,
       timezoneOffsetMinutes,
     ),
+  };
+}
+
+export function getProjectedUpcomingSunTimes(
+  now: Date,
+  sunTimes: SunTimesPayload,
+): ProjectedUpcomingSunTimes {
+  const projectedForCurrentDate = projectSunTimesForDate(now, sunTimes);
+  const projectedForNextDate = projectSunTimesForDate(
+    new Date(now.getTime() + 24 * 60 * 60 * 1000),
+    sunTimes,
+  );
+
+  return {
+    sunriseAt: projectedForCurrentDate.sunriseAt,
+    sunsetAt: projectedForCurrentDate.sunsetAt,
+    nextSunriseAt:
+      projectedForCurrentDate.sunriseAt.getTime() > now.getTime()
+        ? projectedForCurrentDate.sunriseAt
+        : projectedForNextDate.sunriseAt,
+    nextSunsetAt:
+      projectedForCurrentDate.sunsetAt.getTime() > now.getTime()
+        ? projectedForCurrentDate.sunsetAt
+        : projectedForNextDate.sunsetAt,
   };
 }
 

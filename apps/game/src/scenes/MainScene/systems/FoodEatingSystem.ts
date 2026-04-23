@@ -29,7 +29,7 @@ import { MainSceneWorld } from "../world";
 import { getCharacterStats } from "../characterStats";
 import { addCharacterStatus } from "./CharacterManageSystem";
 import { getStaminaBonusFromFreshness, isFoodEdible } from "./FreshnessSystem";
-import { addToDigestiveLoad } from "./DigestiveSystem";
+import { addDigestiveLoadAmount } from "./DigestiveSystem";
 import { moveTowardsTarget } from "../utils/movementUtils";
 
 const characterQuery = defineQuery([
@@ -256,8 +256,13 @@ function completeEating(
   );
   CharacterStatusComp.stamina[characterEid] = newStamina;
 
-  // 소화기관에 부하 추가 - currentTime 사용
-  addToDigestiveLoad(world, characterEid, staminaBonus, currentTime);
+  // 음식 신선도와 무관하게 식사 1회당 고정 소화 부하를 추가한다.
+  addDigestiveLoadAmount(
+    world,
+    characterEid,
+    GAME_CONSTANTS.DIGESTIVE_LOAD_PER_MEAL,
+    currentTime,
+  );
 
   // 스테미나가 10보다 작았는데 10이 되었을 때만 임시 happy 상태 추가
   if (

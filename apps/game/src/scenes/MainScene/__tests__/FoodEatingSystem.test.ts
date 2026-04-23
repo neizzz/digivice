@@ -3,7 +3,9 @@ import test from "node:test";
 import { addComponent, addEntity, hasComponent } from "bitecs";
 import {
   AngleComp,
+  CharacterStatusComp,
   DestinationComp,
+  DigestiveSystemComp,
   FreshnessComp,
   ObjectComp,
   PositionComp,
@@ -105,4 +107,70 @@ test("음식에 도착해서 먹기 시작할 때도 목적지 오프셋이 아�
     Math.abs(AngleComp.value[characterEid] - expectedAngle) < 1e-6,
     `expected ${expectedAngle}, got ${AngleComp.value[characterEid]}`,
   );
+});
+
+test("신선한 음식은 스테미나를 2 올리고 소화 부하는 고정 2만 증가시킨다", () => {
+  const world = createTestWorld({ now: 30_000 });
+  const characterEid = withMockedDateNow(30_000, () =>
+    createTestCharacter(world, {
+      state: CharacterState.IDLE,
+      stamina: 3,
+      x: 100,
+      y: 100,
+    }),
+  );
+
+  createLandedFood(world, {
+    x: 112,
+    y: 112,
+    freshness: Freshness.FRESH,
+  });
+
+  foodEatingSystem({
+    world: world as any,
+    delta: 0,
+    currentTime: 30_000,
+  });
+
+  foodEatingSystem({
+    world: world as any,
+    delta: 3_200,
+    currentTime: 33_200,
+  });
+
+  assert.equal(CharacterStatusComp.stamina[characterEid], 5);
+  assert.equal(DigestiveSystemComp.currentLoad[characterEid], 2);
+});
+
+test("보통 음식도 소화 부하는 신선도와 무관하게 고정 2만 증가시킨다", () => {
+  const world = createTestWorld({ now: 40_000 });
+  const characterEid = withMockedDateNow(40_000, () =>
+    createTestCharacter(world, {
+      state: CharacterState.IDLE,
+      stamina: 3,
+      x: 100,
+      y: 100,
+    }),
+  );
+
+  createLandedFood(world, {
+    x: 112,
+    y: 112,
+    freshness: Freshness.NORMAL,
+  });
+
+  foodEatingSystem({
+    world: world as any,
+    delta: 0,
+    currentTime: 40_000,
+  });
+
+  foodEatingSystem({
+    world: world as any,
+    delta: 3_200,
+    currentTime: 43_200,
+  });
+
+  assert.equal(CharacterStatusComp.stamina[characterEid], 4);
+  assert.equal(DigestiveSystemComp.currentLoad[characterEid], 2);
 });

@@ -1,6 +1,9 @@
 import { MainSceneWorld } from "./world";
 import { ObjectType } from "./types";
-import { GAME_CONSTANTS } from "./config";
+import {
+  GAME_CONSTANTS,
+  getUrgentDeathDelayMsByCharacterKey,
+} from "./config";
 import {
   CharacterStatusComp,
   DigestiveSystemComp,
@@ -258,7 +261,11 @@ export class AppStateManager {
           }
 
           VitalityComp.urgentStartTime[eid] = urgentTriggeredTime;
-          const deathTime = urgentTriggeredTime + GAME_CONSTANTS.DEATH_DELAY;
+          const deathTime =
+            urgentTriggeredTime +
+            getUrgentDeathDelayMsByCharacterKey(
+              CharacterStatusComp.characterKey[eid],
+            );
           VitalityComp.deathTime[eid] = deathTime;
 
           const urgentTimeStr = new Date(urgentTriggeredTime).toLocaleString(
@@ -336,6 +343,7 @@ export class AppStateManager {
       DigestiveSystemComp.capacity[eid] = GAME_CONSTANTS.DIGESTIVE_CAPACITY;
       DigestiveSystemComp.currentLoad[eid] = 0;
       DigestiveSystemComp.nextPoopTime[eid] = 0;
+      DigestiveSystemComp.nextSmallPoopTime[eid] = 0;
     }
   }
 
@@ -358,7 +366,11 @@ export class AppStateManager {
     const urgentStartTime = VitalityComp.urgentStartTime[eid];
     if (urgentStartTime > 0) {
       const urgentDuration = currentTime - urgentStartTime;
-      if (urgentDuration >= GAME_CONSTANTS.DEATH_DELAY) {
+      const urgentDeathDelay = getUrgentDeathDelayMsByCharacterKey(
+        CharacterStatusComp.characterKey[eid],
+      );
+
+      if (urgentDuration >= urgentDeathDelay) {
         // 죽음 시간이 지났다면 즉시 죽음 처리
         VitalityComp.deathTime[eid] = currentTime;
         console.log(
@@ -366,8 +378,7 @@ export class AppStateManager {
         );
       } else {
         // 아직 죽음 시간이 안 됐다면 남은 시간 계산
-        VitalityComp.deathTime[eid] =
-          urgentStartTime + GAME_CONSTANTS.DEATH_DELAY;
+        VitalityComp.deathTime[eid] = urgentStartTime + urgentDeathDelay;
       }
     }
   }

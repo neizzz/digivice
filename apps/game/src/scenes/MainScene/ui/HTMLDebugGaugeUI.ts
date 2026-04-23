@@ -192,17 +192,23 @@ export class HTMLDebugGaugeUI {
       const capacity = DigestiveSystemComp.capacity[this._currentCharacterEid];
       const nextPoopTime =
         DigestiveSystemComp.nextPoopTime[this._currentCharacterEid] || 0;
+      const nextSmallPoopTime =
+        DigestiveSystemComp.nextSmallPoopTime[this._currentCharacterEid] || 0;
 
       digestiveText = `${currentLoad.toFixed(1)}/${capacity}`;
 
-      if (nextPoopTime > 0) {
-        const remainingTime = Math.max(0, nextPoopTime - currentTime);
+      const activePoopTime =
+        nextPoopTime > 0 ? nextPoopTime : nextSmallPoopTime;
+      const poopLabel = nextPoopTime > 0 ? "💩" : "·💩";
+
+      if (activePoopTime > 0) {
+        const remainingTime = Math.max(0, activePoopTime - currentTime);
         const seconds = Math.ceil(remainingTime / 1000);
 
         if (remainingTime > 0) {
-          digestiveText += ` (💩${seconds}s)`;
+          digestiveText += ` (${poopLabel}${seconds}s)`;
         } else {
-          digestiveText += ` (💩NOW!)`;
+          digestiveText += ` (${poopLabel}NOW!)`;
         }
       }
     }
@@ -311,9 +317,13 @@ export class HTMLDebugGaugeUI {
     ) {
       const nextPoopTime =
         DigestiveSystemComp.nextPoopTime[this._currentCharacterEid] || 0;
+      const nextSmallPoopTime =
+        DigestiveSystemComp.nextSmallPoopTime[this._currentCharacterEid] || 0;
+      const activePoopTime =
+        nextPoopTime > 0 ? nextPoopTime : nextSmallPoopTime;
 
-      if (nextPoopTime > 0) {
-        const remainingTime = Math.max(0, nextPoopTime - currentTime);
+      if (activePoopTime > 0) {
+        const remainingTime = Math.max(0, activePoopTime - currentTime);
 
         if (remainingTime <= 0) {
           this._digestiveText.style.color = "#ff0000";

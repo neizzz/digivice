@@ -350,6 +350,7 @@ export type DigestiveSystemComponent = {
   capacity: number; // 소화기관 용량
   currentLoad: number; // 현재 차있는 양
   nextPoopTime: number; // 다음 똥 싸는 시간 (timestamp)
+  nextSmallPoopTime: number; // under-capacity 상태에서 작은 똥을 쌀 시간 (timestamp)
 };
 
 export type DiseaseSystemComponent = {

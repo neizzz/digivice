@@ -679,6 +679,7 @@ export class HTMLDebugStatusUI {
     // 리셋
     DigestiveSystemComp.currentLoad[this._currentCharacterEid] = 0;
     DigestiveSystemComp.nextPoopTime[this._currentCharacterEid] = 0;
+    DigestiveSystemComp.nextSmallPoopTime[this._currentCharacterEid] = 0;
     console.log(
       `[HTMLDebugStatusUI] Digestive load reset for character ${this._currentCharacterEid}`,
     );

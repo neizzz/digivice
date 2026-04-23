@@ -97,6 +97,7 @@ export const DigestiveSystemComp = defineComponent({
   capacity: Types.f32, // 소화기관 용량 (기본 5.0)
   currentLoad: Types.f32, // 현재 차있는 양
   nextPoopTime: Types.f64, // 다음 똥 싸는 시간 (timestamp)
+  nextSmallPoopTime: Types.f64, // under-capacity 상태에서 작은 똥을 쌀 시간 (timestamp)
 });
 
 /**

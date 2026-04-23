@@ -19,11 +19,22 @@ const characterWithDigestiveQuery = defineQuery([
   DigestiveSystemComp,
 ]);
 
+const NORMAL_POOP_SCALE_RANGE = {
+  min: 2.4,
+  max: 3.6,
+} as const;
+
+const SMALL_POOP_SCALE_RANGE = {
+  min: 1.4,
+  max: 2.0,
+} as const;
+
 /**
  * 소화기관 시스템
  * - 소화기관 용량은 5.0
- * - 음식을 먹으면 오르는 스테미나의 0.5배만큼 소화기관 용량이 참
- * - 용량을 초과하면 일정 시간 뒤에 똥을 싸야 함
+ * - 식사 시 digestive load가 증가함
+ * - 용량을 초과하면 일정 시간 뒤에 일반 똥을 쌈
+ * - 용량을 넘지 않은 load가 8시간 유지되면 작은 똥으로 비움
  */
 export function digestiveSystem(params: {
   world: MainSceneWorld;
@@ -58,6 +69,7 @@ function initializeDigestiveSystem(world: MainSceneWorld): void {
       DigestiveSystemComp.capacity[eid] = GAME_CONSTANTS.DIGESTIVE_CAPACITY;
       DigestiveSystemComp.currentLoad[eid] = 0;
       DigestiveSystemComp.nextPoopTime[eid] = 0;
+      DigestiveSystemComp.nextSmallPoopTime[eid] = 0;
     }
   }
 }
@@ -75,6 +87,16 @@ export function addToDigestiveLoad(
     `[DigestiveSystem] Adding digestive load - EID: ${characterEid}, staminaIncrease: ${staminaIncrease}`,
   );
 
+  const loadIncrease = staminaIncrease * GAME_CONSTANTS.DIGESTIVE_MULTIPLIER;
+  addDigestiveLoadAmount(world, characterEid, loadIncrease, currentTime);
+}
+
+export function addDigestiveLoadAmount(
+  world: MainSceneWorld,
+  characterEid: number,
+  loadAmount: number,
+  currentTime: number,
+): void {
   if (!hasComponent(world, DigestiveSystemComp, characterEid)) {
     console.log(
       `[DigestiveSystem] Adding DigestiveSystemComp to character ${characterEid}`,
@@ -84,13 +106,16 @@ export function addToDigestiveLoad(
       GAME_CONSTANTS.DIGESTIVE_CAPACITY;
     DigestiveSystemComp.currentLoad[characterEid] = 0;
     DigestiveSystemComp.nextPoopTime[characterEid] = 0;
+    DigestiveSystemComp.nextSmallPoopTime[characterEid] = 0;
   }
 
   const digestiveComp = DigestiveSystemComp;
-  const loadIncrease = staminaIncrease * GAME_CONSTANTS.DIGESTIVE_MULTIPLIER;
-
   const oldLoad = digestiveComp.currentLoad[characterEid];
-  digestiveComp.currentLoad[characterEid] += loadIncrease;
+  digestiveComp.currentLoad[characterEid] = calculateNextDigestiveLoad({
+    currentLoad: oldLoad,
+    capacity: digestiveComp.capacity[characterEid],
+    loadAmount,
+  });
   const newLoad = digestiveComp.currentLoad[characterEid];
   const capacity = digestiveComp.capacity[characterEid];
 
@@ -98,14 +123,27 @@ export function addToDigestiveLoad(
     `[DigestiveSystem] Load change: ${oldLoad} -> ${newLoad} (capacity: ${capacity})`,
   );
 
-  // 용량 초과 시 똥 싸는 시간 설정
-  if (
-    digestiveComp.currentLoad[characterEid] >
-      digestiveComp.capacity[characterEid] &&
-    digestiveComp.nextPoopTime[characterEid] === 0
-  ) {
-    scheduleNextPoop(digestiveComp, characterEid, currentTime);
+  syncDigestiveTimers(digestiveComp, characterEid, currentTime);
+}
+
+function calculateNextDigestiveLoad(params: {
+  currentLoad: number;
+  capacity: number;
+  loadAmount: number;
+}): number {
+  const { currentLoad, capacity, loadAmount } = params;
+
+  if (loadAmount <= 0) {
+    return currentLoad + loadAmount;
   }
+
+  const remainingCapacity = Math.max(0, capacity - currentLoad);
+  const regularAppliedLoad = Math.min(loadAmount, remainingCapacity);
+  const overflowAppliedLoad = loadAmount - regularAppliedLoad;
+
+  return (
+    currentLoad + regularAppliedLoad + overflowAppliedLoad * 2
+  );
 }
 
 function scheduleNextPoop(
@@ -121,6 +159,54 @@ function scheduleNextPoop(
   );
 }
 
+function scheduleNextSmallPoop(
+  digestiveComp: typeof DigestiveSystemComp,
+  characterEid: number,
+  currentTime: number,
+): void {
+  const poopTime = currentTime + GAME_CONSTANTS.DIGESTIVE_SMALL_POOP_DELAY;
+  digestiveComp.nextSmallPoopTime[characterEid] = poopTime;
+
+  console.log(
+    `[DigestiveSystem] Under-capacity load retained. Next small poop time set to: ${poopTime} (current: ${currentTime})`,
+  );
+}
+
+function clearDigestiveTimers(
+  digestiveComp: typeof DigestiveSystemComp,
+  characterEid: number,
+): void {
+  digestiveComp.nextPoopTime[characterEid] = 0;
+  digestiveComp.nextSmallPoopTime[characterEid] = 0;
+}
+
+function syncDigestiveTimers(
+  digestiveComp: typeof DigestiveSystemComp,
+  characterEid: number,
+  currentTime: number,
+): void {
+  const currentLoad = digestiveComp.currentLoad[characterEid];
+  const capacity = digestiveComp.capacity[characterEid];
+
+  if (currentLoad <= 0) {
+    clearDigestiveTimers(digestiveComp, characterEid);
+    return;
+  }
+
+  if (currentLoad > capacity) {
+    digestiveComp.nextSmallPoopTime[characterEid] = 0;
+    if (digestiveComp.nextPoopTime[characterEid] === 0) {
+      scheduleNextPoop(digestiveComp, characterEid, currentTime);
+    }
+    return;
+  }
+
+  digestiveComp.nextPoopTime[characterEid] = 0;
+  if (digestiveComp.nextSmallPoopTime[characterEid] === 0) {
+    scheduleNextSmallPoop(digestiveComp, characterEid, currentTime);
+  }
+}
+
 function processPoop(
   digestiveComp: typeof DigestiveSystemComp,
   characterEid: number,
@@ -131,15 +217,23 @@ function processPoop(
   const remainingLoad = Math.max(0, previousLoad - capacity);
 
   digestiveComp.currentLoad[characterEid] = remainingLoad;
-
-  if (remainingLoad > capacity) {
-    scheduleNextPoop(digestiveComp, characterEid, currentTime);
-  } else {
-    digestiveComp.nextPoopTime[characterEid] = 0;
-  }
+  syncDigestiveTimers(digestiveComp, characterEid, currentTime);
 
   console.log(
     `[DigestiveSystem] Digestive load reduced for character ${characterEid}: ${previousLoad} -> ${remainingLoad}`,
+  );
+}
+
+function processSmallPoop(
+  digestiveComp: typeof DigestiveSystemComp,
+  characterEid: number,
+): void {
+  const previousLoad = digestiveComp.currentLoad[characterEid];
+  digestiveComp.currentLoad[characterEid] = 0;
+  clearDigestiveTimers(digestiveComp, characterEid);
+
+  console.log(
+    `[DigestiveSystem] Small poop cleared digestive load for character ${characterEid}: ${previousLoad} -> 0`,
   );
 }
 
@@ -158,7 +252,7 @@ function checkPoopTime(world: MainSceneWorld, currentTime: number): void {
     if (ObjectComp.state[eid] === CharacterState.DEAD) continue;
 
     const digestiveComp = DigestiveSystemComp;
-    const nextPoopTime = digestiveComp.nextPoopTime[eid];
+    syncDigestiveTimers(digestiveComp, eid, currentTime);
 
     // 똥 싸는 시간이 되었는지 체크
     if (
@@ -172,6 +266,19 @@ function checkPoopTime(world: MainSceneWorld, currentTime: number): void {
 
       // 소화기관은 전체 초기화하지 않고 용량만큼만 감소
       processPoop(digestiveComp, eid, currentTime);
+      continue;
+    }
+
+    if (
+      digestiveComp.nextSmallPoopTime[eid] > 0 &&
+      currentTime >= digestiveComp.nextSmallPoopTime[eid]
+    ) {
+      console.log(
+        `[DigestiveSystem] It's time to create a small poop! Character ${eid}`,
+      );
+
+      createPoop(world, eid, { isSmall: true });
+      processSmallPoop(digestiveComp, eid);
     }
   }
 }
@@ -179,7 +286,11 @@ function checkPoopTime(world: MainSceneWorld, currentTime: number): void {
 /**
  * 똥 생성
  */
-export function createPoop(world: MainSceneWorld, characterEid: number): void {
+export function createPoop(
+  world: MainSceneWorld,
+  characterEid: number,
+  options?: { isSmall?: boolean },
+): void {
   console.log(
     `[DigestiveSystem] Creating poop for character EID: ${characterEid}`,
   );
@@ -228,10 +339,18 @@ export function createPoop(world: MainSceneWorld, characterEid: number): void {
     `[DigestiveSystem] Boundary: x=${boundary.x}, y=${boundary.y}, width=${boundary.width}, height=${boundary.height}`,
   );
 
+  const poopScaleRange = options?.isSmall
+    ? SMALL_POOP_SCALE_RANGE
+    : NORMAL_POOP_SCALE_RANGE;
+  const poopScale =
+    poopScaleRange.min +
+    Math.random() * (poopScaleRange.max - poopScaleRange.min);
+
   const poobEntity = createPoobEntity(world, {
     position: { x: finalX, y: finalY },
     angle: { value: 0 },
     object: { id: 0, type: ObjectType.POOB, state: 0 }, // id를 0으로 설정하여 generatePersistentNumericId가 호출되도록 함
+    render: { storeIndex: 0, textureKey: 0, scale: poopScale, zIndex: 0 },
   });
 
   console.log(`[DigestiveSystem] Created poop entity with EID: ${poobEntity}`);
@@ -245,17 +364,21 @@ export function getDigestiveStatus(characterEid: number): {
   capacity: number;
   loadPercentage: number;
   willPoop: boolean;
+  willSmallPoop: boolean;
 } {
   const currentLoad = DigestiveSystemComp.currentLoad[characterEid] || 0;
   const capacity =
     DigestiveSystemComp.capacity[characterEid] ||
     GAME_CONSTANTS.DIGESTIVE_CAPACITY;
   const nextPoopTime = DigestiveSystemComp.nextPoopTime[characterEid] || 0;
+  const nextSmallPoopTime =
+    DigestiveSystemComp.nextSmallPoopTime[characterEid] || 0;
 
   return {
     currentLoad,
     capacity,
     loadPercentage: (currentLoad / capacity) * 100,
     willPoop: nextPoopTime > 0,
+    willSmallPoop: nextSmallPoopTime > 0,
   };
 }

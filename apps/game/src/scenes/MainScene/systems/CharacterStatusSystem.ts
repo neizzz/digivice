@@ -20,9 +20,13 @@ import {
   ObjectType,
   CharacterStatus,
   CharacterState,
+  CharacterKeyECS,
   TextureKey,
 } from "../types";
-import { GAME_CONSTANTS } from "../config";
+import {
+  GAME_CONSTANTS,
+  getUrgentDeathDelayMsByCharacterKey,
+} from "../config";
 
 // 전역 이벤트 핸들러 선언
 declare global {
@@ -40,6 +44,10 @@ const temporaryStatusQuery = defineQuery([
   CharacterStatusComp,
   TemporaryStatusComp,
 ]);
+const urgentSleepTrackingByWorld = new WeakMap<
+  MainSceneWorld,
+  Map<number, { lastTime: number; wasSleepingUrgent: boolean }>
+>();
 
 /**
  * 캐릭터 상태에 따라 icon rendering상태 관리
@@ -56,6 +64,9 @@ export function characterStatusSystem(params: {
   // Vitality 컴포넌트 초기화
   initializeVitality(world);
 
+  // 잠자는 동안 urgent death countdown 정지
+  pauseUrgentDeathCountdownWhileSleeping(world, currentTime);
+
   // 스테미나에 따른 상태 업데이트
   updateStaminaBasedStatus(world, currentTime);
 
@@ -64,6 +75,9 @@ export function characterStatusSystem(params: {
 
   // 죽음 체크
   checkDeath(world, currentTime);
+
+  // 다음 틱을 위한 urgent/sleep 상태 추적
+  syncUrgentSleepTracking(world, currentTime);
 
   return params;
 }
@@ -127,7 +141,11 @@ function updateStaminaBasedStatus(
 
         // urgent 시작 시간 기록
         VitalityComp.urgentStartTime[eid] = currentTime;
-        VitalityComp.deathTime[eid] = currentTime + GAME_CONSTANTS.DEATH_DELAY;
+        VitalityComp.deathTime[eid] =
+          currentTime +
+          getUrgentDeathDelayMsByCharacterKey(
+            CharacterStatusComp.characterKey[eid] as CharacterKeyECS,
+          );
 
         console.log(
           `[CharacterStatusSystem] Character ${eid} entered URGENT state. Death scheduled at ${VitalityComp.deathTime[eid]} (current: ${currentTime})`,
@@ -203,6 +221,79 @@ function updateTemporaryStatus(
       TemporaryStatusComp.startTime[eid] = 0;
     }
   }
+}
+
+function pauseUrgentDeathCountdownWhileSleeping(
+  world: MainSceneWorld,
+  currentTime: number,
+): void {
+  const tracking = getUrgentSleepTracking(world);
+  const characters = characterQuery(world);
+
+  for (let i = 0; i < characters.length; i++) {
+    const eid = characters[i];
+
+    if (ObjectComp.type[eid] !== ObjectType.CHARACTER) continue;
+    if (!hasComponent(world, VitalityComp, eid)) continue;
+    if (VitalityComp.isDead[eid]) continue;
+
+    const previous = tracking.get(eid);
+    if (!previous) {
+      continue;
+    }
+
+    const elapsed = Math.max(0, currentTime - previous.lastTime);
+    if (
+      elapsed > 0 &&
+      previous.wasSleepingUrgent &&
+      VitalityComp.deathTime[eid] > 0
+    ) {
+      VitalityComp.deathTime[eid] += elapsed;
+    }
+  }
+}
+
+function syncUrgentSleepTracking(
+  world: MainSceneWorld,
+  currentTime: number,
+): void {
+  const tracking = getUrgentSleepTracking(world);
+  const characters = characterQuery(world);
+
+  for (let i = 0; i < characters.length; i++) {
+    const eid = characters[i];
+
+    if (ObjectComp.type[eid] !== ObjectType.CHARACTER) continue;
+
+    tracking.set(eid, {
+      lastTime: currentTime,
+      wasSleepingUrgent: isSleepingUrgent(world, eid),
+    });
+  }
+}
+
+function getUrgentSleepTracking(
+  world: MainSceneWorld,
+): Map<number, { lastTime: number; wasSleepingUrgent: boolean }> {
+  let tracking = urgentSleepTrackingByWorld.get(world);
+
+  if (!tracking) {
+    tracking = new Map();
+    urgentSleepTrackingByWorld.set(world, tracking);
+  }
+
+  return tracking;
+}
+
+function isSleepingUrgent(world: MainSceneWorld, eid: number): boolean {
+  if (!hasComponent(world, VitalityComp, eid) || VitalityComp.isDead[eid]) {
+    return false;
+  }
+
+  return (
+    ObjectComp.state[eid] === CharacterState.SLEEPING &&
+    hasCharacterStatus(CharacterStatusComp.statuses[eid], CharacterStatus.URGENT)
+  );
 }
 
 /**

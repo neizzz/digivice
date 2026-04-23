@@ -1,6 +1,7 @@
 import { createWorld, type IWorld } from "bitecs";
 import * as PIXI from "pixi.js";
 import { createCharacterEntity } from "../scenes/MainScene/entityFactory";
+import { getEvolutionSpec } from "../scenes/MainScene/evolutionConfig";
 import {
   AnimationKey,
   CharacterKeyECS,
@@ -16,6 +17,12 @@ export type TestWorld = IWorld & {
   _currentTime: number;
   _timeOfDay: TimeOfDay;
   _timeOfDayMode: TimeOfDayMode;
+  _projectedUpcomingSunTimes: {
+    sunriseAt: number;
+    sunsetAt: number;
+    nextSunriseAt: number;
+    nextSunsetAt: number;
+  } | null;
   isSimulationMode: boolean;
   positionBoundary: Boundary;
   applyPendingRecoverySyringeImpact: (eid: number) => void;
@@ -24,6 +31,14 @@ export type TestWorld = IWorld & {
   timeOfDayMode: TimeOfDayMode;
   getTimeOfDay: () => TimeOfDay;
   getTimeOfDayMode: () => TimeOfDayMode;
+  getProjectedUpcomingSunTimes: (
+    referenceTime?: number,
+  ) => {
+    sunriseAt: number;
+    sunsetAt: number;
+    nextSunriseAt: number;
+    nextSunsetAt: number;
+  } | null;
 };
 
 export function createTestWorld(options?: {
@@ -31,13 +46,21 @@ export function createTestWorld(options?: {
   isSimulationMode?: boolean;
   positionBoundary?: Boundary;
   timeOfDay?: TimeOfDay;
+  timeOfDayMode?: TimeOfDayMode;
+  projectedUpcomingSunTimes?: {
+    sunriseAt: number;
+    sunsetAt: number;
+    nextSunriseAt: number;
+    nextSunsetAt: number;
+  } | null;
 }): TestWorld {
   const world = createWorld({}) as TestWorld;
   const now = options?.now ?? 0;
 
   world._currentTime = now;
   world._timeOfDay = options?.timeOfDay ?? TimeOfDay.Day;
-  world._timeOfDayMode = TimeOfDayMode.Manual;
+  world._timeOfDayMode = options?.timeOfDayMode ?? TimeOfDayMode.Manual;
+  world._projectedUpcomingSunTimes = options?.projectedUpcomingSunTimes ?? null;
   world.isSimulationMode = options?.isSimulationMode ?? false;
   world.positionBoundary = options?.positionBoundary ?? {
     x: 0,
@@ -73,6 +96,8 @@ export function createTestWorld(options?: {
 
   world.getTimeOfDay = () => world._timeOfDay;
   world.getTimeOfDayMode = () => world._timeOfDayMode;
+  world.getProjectedUpcomingSunTimes = (_referenceTime?: number) =>
+    world._projectedUpcomingSunTimes;
 
   return world;
 }
@@ -83,6 +108,20 @@ export function setWorldTime(world: TestWorld, now: number): void {
 
 export function setWorldTimeOfDay(world: TestWorld, timeOfDay: TimeOfDay): void {
   world._timeOfDay = timeOfDay;
+}
+
+export function setWorldTimeOfDayMode(
+  world: TestWorld,
+  timeOfDayMode: TimeOfDayMode,
+): void {
+  world._timeOfDayMode = timeOfDayMode;
+}
+
+export function setWorldProjectedUpcomingSunTimes(
+  world: TestWorld,
+  projectedUpcomingSunTimes: TestWorld["_projectedUpcomingSunTimes"],
+): void {
+  world._projectedUpcomingSunTimes = projectedUpcomingSunTimes;
 }
 
 export function withMockedDateNow<T>(now: number, fn: () => T): T {
@@ -147,6 +186,7 @@ export function createTestCharacter(
 ): number {
   const state = options?.state ?? CharacterState.IDLE;
   const characterKey = options?.characterKey ?? CharacterKeyECS.TestGreenSlimeA1;
+  const evolutionPhase = getEvolutionSpec(characterKey)?.phase ?? 1;
 
   return createCharacterEntity(world, {
     position: {
@@ -164,7 +204,7 @@ export function createTestCharacter(
       characterKey,
       stamina: options?.stamina ?? 5,
       evolutionGage: 0,
-      evolutionPhase: 1,
+      evolutionPhase,
       statuses: new Array(ECS_CHARACTER_STATUS_LENGTH).fill(ECS_NULL_VALUE),
     },
     render: {

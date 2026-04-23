@@ -31,7 +31,7 @@ import {
   SleepReason,
   SpritesheetKey,
 } from "./types";
-import { GAME_CONSTANTS } from "./config";
+import { createEggHatchTimestamp, GAME_CONSTANTS } from "./config";
 
 /**
  * ECS 엔티티를 SavedEntity로 변환
@@ -151,6 +151,7 @@ export function convertECSEntityToSavedEntity(
       capacity: DigestiveSystemComp.capacity[eid],
       currentLoad: DigestiveSystemComp.currentLoad[eid],
       nextPoopTime: DigestiveSystemComp.nextPoopTime[eid],
+      nextSmallPoopTime: DigestiveSystemComp.nextSmallPoopTime[eid],
     };
   }
   if (hasComponent(world, DiseaseSystemComp, eid)) {
@@ -359,6 +360,8 @@ export function applySavedEntityToECS(
       components.digestiveSystem.currentLoad;
     DigestiveSystemComp.nextPoopTime[eid] =
       components.digestiveSystem.nextPoopTime;
+    DigestiveSystemComp.nextSmallPoopTime[eid] =
+      components.digestiveSystem.nextSmallPoopTime ?? 0;
   }
 
   if (components.diseaseSystem) {
@@ -490,6 +493,7 @@ export function repairCharacterEntityRuntimeComponents(
     DigestiveSystemComp.capacity[eid] = GAME_CONSTANTS.DIGESTIVE_CAPACITY;
     DigestiveSystemComp.currentLoad[eid] = 0;
     DigestiveSystemComp.nextPoopTime[eid] = 0;
+    DigestiveSystemComp.nextSmallPoopTime[eid] = 0;
     repaired.push("DigestiveSystemComp");
   }
 
@@ -538,7 +542,7 @@ export function repairCharacterEntityRuntimeComponents(
   if (!hasComponent(world, EggHatchComp, eid)) {
     addComponent(world, EggHatchComp, eid);
     EggHatchComp.hatchTime[eid] =
-      state === CharacterState.EGG ? now + GAME_CONSTANTS.EGG_HATCH_TIME : 0;
+      state === CharacterState.EGG ? createEggHatchTimestamp(now) : 0;
     EggHatchComp.isReadyToHatch[eid] = 0;
     repaired.push("EggHatchComp");
   }

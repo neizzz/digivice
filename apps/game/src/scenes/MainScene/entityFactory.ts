@@ -38,7 +38,7 @@ import { generatePersistentNumericId } from "../../utils/generate";
 import { EntityComponents } from "./world";
 import { INTENTED_FRONT_Z_INDEX } from "@/constants";
 import { getCharacterStats } from "./characterStats";
-import { GAME_CONSTANTS } from "./config";
+import { createEggHatchTimestamp, GAME_CONSTANTS } from "./config";
 
 type WithRequired<T, K extends keyof T> = Omit<T, K> & Required<Pick<T, K>>;
 
@@ -147,6 +147,7 @@ export function createCharacterEntity(
   DigestiveSystemComp.capacity[eid] = GAME_CONSTANTS.DIGESTIVE_CAPACITY; // GAME_CONSTANTS 사용
   DigestiveSystemComp.currentLoad[eid] = 0.0; // 현재 차있는 양
   DigestiveSystemComp.nextPoopTime[eid] = 0; // 다음 똥 싸는 시간 (처음엔 설정 안함)
+  DigestiveSystemComp.nextSmallPoopTime[eid] = 0; // under-capacity 작은 똥 시간 (처음엔 설정 안함)
 
   // DiseaseSystemComp 추가
   addComponent(world, DiseaseSystemComp, eid);
@@ -186,7 +187,7 @@ export function createCharacterEntity(
   // EggHatchComp 추가 (EGG 상태일 때만 의미가 있음)
   addComponent(world, EggHatchComp, eid);
   if (ObjectComp.state[eid] === CharacterState.EGG) {
-    EggHatchComp.hatchTime[eid] = Date.now() + GAME_CONSTANTS.EGG_HATCH_TIME; // 30초 후 부화
+    EggHatchComp.hatchTime[eid] = createEggHatchTimestamp();
     EggHatchComp.isReadyToHatch[eid] = 0; // 아직 부화 준비 안됨
   } else {
     EggHatchComp.hatchTime[eid] = 0;
@@ -324,7 +325,8 @@ export function createPoobEntity(
   RenderComp.storeIndex[eid] = ECS_NULL_VALUE; // 렌더링 시스템에서 eid로 설정됨
   RenderComp.textureKey[eid] = TextureKey.POOB; // Poob 전용 텍스처 사용
   RenderComp.zIndex[eid] = ECS_NULL_VALUE;
-  RenderComp.scale[eid] = 2.4 + Math.random() * (3.6 - 2.4);
+  RenderComp.scale[eid] =
+    _components.render?.scale ?? 2.4 + Math.random() * (3.6 - 2.4);
 
   console.log(
     `[EntityFactory] Poob entity created successfully with EID: ${eid}, ObjectID: ${ObjectComp.id[eid]}`

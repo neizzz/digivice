@@ -130,9 +130,11 @@ import { ReentrySimulator } from "./ReentrySimulator";
 import { getNativeSunTimes, requestNativeLocationPermission } from "./sunTimes";
 import {
   type AutoTimeOfDayState,
+  getProjectedUpcomingSunTimes as projectUpcomingSunTimes,
   getManualSkyVisualState,
   getTimeOfDayLabel,
   hasSunTimesDateRolledOver,
+  type ProjectedUpcomingSunTimes,
   resolveAutoTimeOfDayState,
   type SunLocationSource,
   type SunTimesPayload,
@@ -181,6 +183,7 @@ export type WorldMetadata = {
     last_active_time: number;
     is_first_load: boolean;
     use_local_time: boolean;
+    cached_sun_times?: SunTimesPayload;
   };
   // // 캐릭터별 위치 추적 (캐릭터 ID를 키로 사용)
   // character_positions?: Record<
@@ -444,6 +447,31 @@ export class MainSceneWorld implements IWorld, Scene {
   }
   get timeOfDayMode(): TimeOfDayMode {
     return this._timeOfDayMode;
+  }
+
+  public getProjectedUpcomingSunTimes(
+    referenceTime: number = this.currentTime,
+  ): {
+    sunriseAt: number;
+    sunsetAt: number;
+    nextSunriseAt: number;
+    nextSunsetAt: number;
+  } | null {
+    if (this._timeOfDayMode !== TimeOfDayMode.Auto || !this._sunTimes) {
+      return null;
+    }
+
+    const projectedSunTimes: ProjectedUpcomingSunTimes = projectUpcomingSunTimes(
+      new Date(referenceTime),
+      this._sunTimes,
+    );
+
+    return {
+      sunriseAt: projectedSunTimes.sunriseAt.getTime(),
+      sunsetAt: projectedSunTimes.sunsetAt.getTime(),
+      nextSunriseAt: projectedSunTimes.nextSunriseAt.getTime(),
+      nextSunsetAt: projectedSunTimes.nextSunsetAt.getTime(),
+    };
   }
 
   constructor(params: {
@@ -730,7 +758,9 @@ export class MainSceneWorld implements IWorld, Scene {
       this._background.resize(width, height);
       this._resizeSceneDarknessOverlay(width, height);
       if (this._isLocalTimeEnabled()) {
-        this._applyCurrentSkyState();
+        if (!this._applyCachedAutoTimeOfDay()) {
+          this._applyCurrentSkyState();
+        }
         void this._initializeSunTimes();
       } else {
         this._setRandomManualTimeOfDay();
@@ -1550,6 +1580,7 @@ export class MainSceneWorld implements IWorld, Scene {
       this._sunTimes = sunTimes;
       this._hasLocationPermission = sunTimes.hasLocationPermission;
       this._sunLocationSource = sunTimes.locationSource;
+      this._setCachedSunTimes(sunTimes);
 
       if (!this._isLocalTimeEnabled()) {
         console.log(
@@ -1710,6 +1741,68 @@ export class MainSceneWorld implements IWorld, Scene {
 
   private _isLocalTimeEnabled(): boolean {
     return this._persistentData?.world_metadata.app_state?.use_local_time ?? true;
+  }
+
+  private _applyCachedAutoTimeOfDay(): boolean {
+    const cachedSunTimes = this._getCachedSunTimes();
+    if (!cachedSunTimes) {
+      return false;
+    }
+
+    this._sunTimes = cachedSunTimes;
+    this._hasLocationPermission = cachedSunTimes.hasLocationPermission;
+    this._sunLocationSource = cachedSunTimes.locationSource;
+    this._timeOfDayMode = TimeOfDayMode.Auto;
+    this._autoTimeOfDayMinuteKey = null;
+    this._autoTimeOfDayState = resolveAutoTimeOfDayState(
+      new Date(this.currentTime),
+      cachedSunTimes,
+    );
+    this._timeOfDay = this._autoTimeOfDayState.timeOfDay;
+    this._applyCurrentSkyState();
+    return true;
+  }
+
+  private _getCachedSunTimes(): SunTimesPayload | null {
+    const cachedSunTimes =
+      this._persistentData?.world_metadata.app_state?.cached_sun_times;
+
+    return this._isValidSunTimesPayload(cachedSunTimes) ? cachedSunTimes : null;
+  }
+
+  private _setCachedSunTimes(sunTimes: SunTimesPayload): void {
+    if (!this._persistentData) {
+      return;
+    }
+
+    if (!this._persistentData.world_metadata.app_state) {
+      this._persistentData.world_metadata.app_state = {
+        last_active_time: 0,
+        is_first_load: false,
+        use_local_time: this._isLocalTimeEnabled(),
+      };
+    }
+
+    this._persistentData.world_metadata.app_state.cached_sun_times = sunTimes;
+  }
+
+  private _isValidSunTimesPayload(value: unknown): value is SunTimesPayload {
+    if (!value || typeof value !== "object") {
+      return false;
+    }
+
+    const candidate = value as Partial<SunTimesPayload>;
+    return (
+      typeof candidate.sunriseAt === "string" &&
+      typeof candidate.sunsetAt === "string" &&
+      typeof candidate.date === "string" &&
+      typeof candidate.timezone === "string" &&
+      typeof candidate.timezoneOffsetMinutes === "number" &&
+      typeof candidate.fetchedAt === "string" &&
+      (candidate.locationSource === "device" ||
+        candidate.locationSource === "fallback") &&
+      typeof candidate.hasLocationPermission === "boolean"
+    );
   }
 
   private _setUseLocalTimeEnabled(enabled: boolean): void {

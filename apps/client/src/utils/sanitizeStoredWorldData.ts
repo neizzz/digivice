@@ -58,6 +58,7 @@ type StoredDigestiveSystemComponent = {
   capacity?: number;
   currentLoad?: number;
   nextPoopTime?: number;
+  nextSmallPoopTime?: number;
 };
 
 type StoredDiseaseSystemComponent = {
@@ -115,6 +116,17 @@ type StoredEntity = {
   components?: StoredEntityComponents;
 };
 
+type StoredSunTimesPayload = {
+  sunriseAt?: string;
+  sunsetAt?: string;
+  date?: string;
+  timezone?: string;
+  timezoneOffsetMinutes?: number;
+  fetchedAt?: string;
+  locationSource?: "device" | "fallback";
+  hasLocationPermission?: boolean;
+};
+
 export type StoredWorldData = {
   world_metadata?: {
     name?: string;
@@ -125,6 +137,7 @@ export type StoredWorldData = {
       last_active_time?: number;
       is_first_load?: boolean;
       use_local_time?: boolean;
+      cached_sun_times?: StoredSunTimesPayload;
     };
   };
   entities?: StoredEntity[];
@@ -135,6 +148,20 @@ export type SanitizeStoredWorldDataResult = {
   sanitizedData: StoredWorldData | null;
   changed: boolean;
   resetReason?: string;
+  diagnostics: {
+    summary: string;
+    issues: string[];
+    rawEntityCount: number;
+    sanitizedEntityCount: number;
+    playableCharacterCount: number;
+    skippedEntityCount: number;
+    duplicateObjectIdCount: number;
+    repairedCharacterEntityCount: number;
+    repairedNonCharacterEntityCount: number;
+    sawCharacterCandidate: boolean;
+    hasMonsterName: boolean;
+    hadAnySavedShape: boolean;
+  };
 };
 
 const ECS_NULL_VALUE = 0;
@@ -162,7 +189,9 @@ const DEFAULTS = {
   STATUS_SLOT_COUNT: 4,
   DIGESTIVE_CAPACITY: 5,
   DISEASE_CHECK_INTERVAL: 10_000,
-  EGG_HATCH_TIME: 5_000,
+  EGG_HATCH_MIN_TIME: 15 * 60 * 1_000,
+  EGG_HATCH_MODE_TIME: 30 * 60 * 1_000,
+  EGG_HATCH_MAX_TIME: 45 * 60 * 1_000,
   DAY_NAP_CHECK_INTERVAL: 20 * 60 * 1000,
   FATIGUE_DEFAULT: 35,
   RANDOM_MOVEMENT: {
@@ -172,6 +201,29 @@ const DEFAULTS = {
     maxMoveTime: 8_000,
   },
 } as const;
+
+function getEggHatchDelayMs(randomValue: number = Math.random()): number {
+  const min = DEFAULTS.EGG_HATCH_MIN_TIME;
+  const mode = DEFAULTS.EGG_HATCH_MODE_TIME;
+  const max = DEFAULTS.EGG_HATCH_MAX_TIME;
+
+  if (max <= min) {
+    return min;
+  }
+
+  const clampedRandom = Math.max(0, Math.min(1, randomValue));
+  const pivot = (mode - min) / (max - min);
+
+  if (clampedRandom <= pivot) {
+    return Math.round(
+      min + Math.sqrt(clampedRandom * (max - min) * (mode - min)),
+    );
+  }
+
+  return Math.round(
+    max - Math.sqrt((1 - clampedRandom) * (max - min) * (max - mode)),
+  );
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -219,6 +271,10 @@ function sanitizeWorldMetadata(
   metadata: StoredWorldData["world_metadata"],
   now: number,
 ): NonNullable<StoredWorldData["world_metadata"]> {
+  const cachedSunTimes = sanitizeCachedSunTimes(
+    metadata?.app_state?.cached_sun_times,
+  );
+
   return {
     name:
       typeof metadata?.name === "string" && metadata.name.trim()
@@ -244,7 +300,37 @@ function sanitizeWorldMetadata(
         typeof metadata?.app_state?.use_local_time === "boolean"
           ? metadata.app_state.use_local_time
           : true,
+      cached_sun_times: cachedSunTimes,
     },
+  };
+}
+
+function sanitizeCachedSunTimes(
+  sunTimes: StoredSunTimesPayload | undefined,
+): StoredSunTimesPayload | undefined {
+  if (
+    typeof sunTimes?.sunriseAt !== "string" ||
+    typeof sunTimes.sunsetAt !== "string" ||
+    typeof sunTimes.date !== "string" ||
+    typeof sunTimes.timezone !== "string" ||
+    typeof sunTimes.timezoneOffsetMinutes !== "number" ||
+    typeof sunTimes.fetchedAt !== "string" ||
+    (sunTimes.locationSource !== "device" &&
+      sunTimes.locationSource !== "fallback") ||
+    typeof sunTimes.hasLocationPermission !== "boolean"
+  ) {
+    return undefined;
+  }
+
+  return {
+    sunriseAt: sunTimes.sunriseAt,
+    sunsetAt: sunTimes.sunsetAt,
+    date: sunTimes.date,
+    timezone: sunTimes.timezone,
+    timezoneOffsetMinutes: sunTimes.timezoneOffsetMinutes,
+    fetchedAt: sunTimes.fetchedAt,
+    locationSource: sunTimes.locationSource,
+    hasLocationPermission: sunTimes.hasLocationPermission,
   };
 }
 
@@ -316,6 +402,8 @@ function sanitizeCharacterEntity(
         toFiniteNumber(components.digestiveSystem?.currentLoad) ?? 0,
       nextPoopTime:
         toFiniteNumber(components.digestiveSystem?.nextPoopTime) ?? 0,
+      nextSmallPoopTime:
+        toFiniteNumber(components.digestiveSystem?.nextSmallPoopTime) ?? 0,
     },
     diseaseSystem: {
       nextCheckTime:
@@ -366,7 +454,7 @@ function sanitizeCharacterEntity(
       hatchTime:
         toFiniteNumber(components.eggHatch?.hatchTime) ??
         (state === CHARACTER_STATE.EGG
-          ? now + DEFAULTS.EGG_HATCH_TIME
+          ? now + getEggHatchDelayMs()
           : 0),
       isReadyToHatch: toBoolean(
         components.eggHatch?.isReadyToHatch,
@@ -495,6 +583,20 @@ export function sanitizeStoredWorldData(
       action: "setup_required",
       sanitizedData: null,
       changed: false,
+      diagnostics: {
+        summary: "No saved game data was found.",
+        issues: ["savedData was nullish, so setup is required."],
+        rawEntityCount: 0,
+        sanitizedEntityCount: 0,
+        playableCharacterCount: 0,
+        skippedEntityCount: 0,
+        duplicateObjectIdCount: 0,
+        repairedCharacterEntityCount: 0,
+        repairedNonCharacterEntityCount: 0,
+        sawCharacterCandidate: false,
+        hasMonsterName: false,
+        hadAnySavedShape: false,
+      },
     };
   }
 
@@ -505,6 +607,22 @@ export function sanitizeStoredWorldData(
       changed: false,
       resetReason:
         "The existing game data format is invalid and must be reset.",
+      diagnostics: {
+        summary: "Saved game data root shape is invalid.",
+        issues: [
+          `savedData root is not an object (type=${typeof savedData}).`,
+        ],
+        rawEntityCount: 0,
+        sanitizedEntityCount: 0,
+        playableCharacterCount: 0,
+        skippedEntityCount: 0,
+        duplicateObjectIdCount: 0,
+        repairedCharacterEntityCount: 0,
+        repairedNonCharacterEntityCount: 0,
+        sawCharacterCandidate: false,
+        hasMonsterName: false,
+        hadAnySavedShape: false,
+      },
     };
   }
 
@@ -514,11 +632,40 @@ export function sanitizeStoredWorldData(
   const rawEntities = Array.isArray(worldData.entities) ? worldData.entities : [];
   const sanitizedEntities: StoredEntity[] = [];
   const seenObjectIds = new Set<number>();
+  const issues: string[] = [];
   let sawCharacterCandidate = false;
+  let skippedEntityCount = 0;
+  let duplicateObjectIdCount = 0;
+  let repairedCharacterEntityCount = 0;
+  let repairedNonCharacterEntityCount = 0;
 
-  for (const entity of rawEntities) {
+  if (!Array.isArray(worldData.entities) && worldData.entities !== undefined) {
+    issues.push("worldData.entities was not an array and was treated as empty.");
+  }
+
+  if (sanitizedMetadata.name !== worldData.world_metadata?.name) {
+    issues.push(
+      `world_metadata.name was normalized to "${sanitizedMetadata.name}".`,
+    );
+  }
+
+  if (!sanitizedMetadata.monster_name) {
+    issues.push("world_metadata.monster_name is missing after sanitization.");
+  }
+
+  if (sanitizedMetadata.version !== worldData.world_metadata?.version) {
+    issues.push(
+      `world_metadata.version was normalized to "${sanitizedMetadata.version}".`,
+    );
+  }
+
+  rawEntities.forEach((entity, index) => {
     if (!isRecord(entity) || !isRecord(entity.components)) {
-      continue;
+      skippedEntityCount += 1;
+      issues.push(
+        `entity[${index}] was skipped because it was missing a valid components object.`,
+      );
+      return;
     }
 
     const components = entity.components as StoredEntityComponents;
@@ -535,16 +682,41 @@ export function sanitizeStoredWorldData(
       : sanitizeNonCharacterEntity(components);
 
     if (!sanitizedComponents?.object?.id) {
-      continue;
+      skippedEntityCount += 1;
+
+      if (looksLikeCharacter) {
+        issues.push(
+          `entity[${index}] looked like a character but could not be recovered (missing valid object.id or required fields).`,
+        );
+      } else {
+        issues.push(
+          `entity[${index}] was skipped because its non-character payload was invalid or unsupported.`,
+        );
+      }
+
+      return;
     }
 
     if (seenObjectIds.has(sanitizedComponents.object.id)) {
-      continue;
+      duplicateObjectIdCount += 1;
+      issues.push(
+        `entity[${index}] was dropped because object.id=${sanitizedComponents.object.id} was duplicated.`,
+      );
+      return;
     }
 
     seenObjectIds.add(sanitizedComponents.object.id);
+
+    if (looksLikeCharacter) {
+      if (JSON.stringify(components) !== JSON.stringify(sanitizedComponents)) {
+        repairedCharacterEntityCount += 1;
+      }
+    } else if (JSON.stringify(components) !== JSON.stringify(sanitizedComponents)) {
+      repairedNonCharacterEntityCount += 1;
+    }
+
     sanitizedEntities.push({ components: sanitizedComponents });
-  }
+  });
 
   const sanitizedData: StoredWorldData = {
     world_metadata: sanitizedMetadata,
@@ -559,20 +731,49 @@ export function sanitizeStoredWorldData(
   }).length;
 
   const hasMonsterName = !!sanitizedMetadata.monster_name?.trim();
+  const hadAnySavedShape =
+    rawEntities.length > 0 ||
+    !!worldData.world_metadata?.monster_name ||
+    !!worldData.world_metadata?.name;
+
+  const diagnosticsBase = {
+    issues,
+    rawEntityCount: rawEntities.length,
+    sanitizedEntityCount: sanitizedEntities.length,
+    playableCharacterCount,
+    skippedEntityCount,
+    duplicateObjectIdCount,
+    repairedCharacterEntityCount,
+    repairedNonCharacterEntityCount,
+    sawCharacterCandidate,
+    hasMonsterName,
+    hadAnySavedShape,
+  };
 
   if (playableCharacterCount === 0) {
-    const hadAnySavedShape =
-      rawEntities.length > 0 ||
-      !!worldData.world_metadata?.monster_name ||
-      !!worldData.world_metadata?.name;
-
     if (hadAnySavedShape) {
+      const resetReason = [
+        "Character recovery failed during saved game validation.",
+        `rawEntities=${rawEntities.length}`,
+        `sanitizedEntities=${sanitizedEntities.length}`,
+        `skippedEntities=${skippedEntityCount}`,
+        `duplicateObjectIds=${duplicateObjectIdCount}`,
+        `sawCharacterCandidate=${sawCharacterCandidate}`,
+        issues.length > 0 ? `issues=${issues.slice(0, 5).join(" | ")}` : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
+
       return {
         action: "reset_required",
         sanitizedData,
         changed,
-        resetReason:
-          "The existing game data is corrupted and the character cannot be recovered.",
+        resetReason,
+        diagnostics: {
+          ...diagnosticsBase,
+          summary:
+            "Saved game data had shape, but no playable character could be recovered.",
+        },
       };
     }
 
@@ -580,17 +781,36 @@ export function sanitizeStoredWorldData(
       action: "setup_required",
       sanitizedData,
       changed,
+      diagnostics: {
+        ...diagnosticsBase,
+        summary: "No playable character data exists, so setup is required.",
+      },
     };
   }
 
   if (!hasMonsterName) {
+    const resetReason = sawCharacterCandidate
+      ? [
+          "Saved game data contained a character candidate but no valid monster name.",
+          `rawEntities=${rawEntities.length}`,
+          `sanitizedEntities=${sanitizedEntities.length}`,
+          `issues=${issues.slice(0, 5).join(" | ")}`,
+        ]
+          .filter(Boolean)
+          .join(" ")
+      : undefined;
+
     return {
       action: sawCharacterCandidate ? "reset_required" : "setup_required",
       sanitizedData,
       changed,
-      resetReason: sawCharacterCandidate
-        ? "The existing game data is missing the required name and must be reset."
-        : undefined,
+      resetReason,
+      diagnostics: {
+        ...diagnosticsBase,
+        summary: sawCharacterCandidate
+          ? "Character data exists but the required monster name is missing."
+          : "Monster name is missing, so setup is required.",
+      },
     };
   }
 
@@ -598,5 +818,11 @@ export function sanitizeStoredWorldData(
     action: "playable",
     sanitizedData,
     changed,
+    diagnostics: {
+      ...diagnosticsBase,
+      summary: changed
+        ? "Saved game data was repaired and is playable."
+        : "Saved game data is playable without repair.",
+    },
   };
 }
