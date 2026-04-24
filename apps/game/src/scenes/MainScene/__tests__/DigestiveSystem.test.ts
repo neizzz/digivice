@@ -163,8 +163,8 @@ test("8시간 동안 용량을 넘지 않은 digestive load는 작은 똥으로 
   assert.equal(DigestiveSystemComp.currentLoad[characterEid], 0);
   assert.equal(DigestiveSystemComp.nextPoopTime[characterEid], 0);
   assert.equal(DigestiveSystemComp.nextSmallPoopTime[characterEid], 0);
-  assert.ok(RenderComp.scale[afterPoopPoobs[0]] >= 1.39);
-  assert.ok(RenderComp.scale[afterPoopPoobs[0]] <= 2.0);
+  assert.ok(RenderComp.scale[afterPoopPoobs[0]] >= 2.0);
+  assert.ok(RenderComp.scale[afterPoopPoobs[0]] <= 2.4);
 });
 
 test("일반 똥 배출 후 남은 load가 용량 이하이면 그 시점부터 작은 똥 타이머를 다시 잡는다", () => {

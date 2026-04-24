@@ -20,13 +20,13 @@ const characterWithDigestiveQuery = defineQuery([
 ]);
 
 const NORMAL_POOP_SCALE_RANGE = {
-  min: 2.4,
+  min: 2.8,
   max: 3.6,
 } as const;
 
 const SMALL_POOP_SCALE_RANGE = {
-  min: 1.4,
-  max: 2.0,
+  min: 2.0,
+  max: 2.4,
 } as const;
 
 /**
