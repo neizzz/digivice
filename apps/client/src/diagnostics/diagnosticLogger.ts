@@ -2,10 +2,11 @@ import { createClientStorage, getClientStorageKind } from "../utils/clientStorag
 
 const DIAGNOSTICS_LOGS_STORAGE_KEY = "DiagnosticsLogs";
 const DIAGNOSTICS_IMPORTANT_LOGS_STORAGE_KEY = "DiagnosticsImportantLogs";
-const DIAGNOSTICS_LOGS_MAX_TOTAL_BYTES = 1024 * 1024;
-const DIAGNOSTICS_IMPORTANT_LOGS_MAX_TOTAL_BYTES = 256 * 1024;
+const DIAGNOSTICS_LOGS_MAX_TOTAL_BYTES = 100 * 1024;
+const DIAGNOSTICS_IMPORTANT_LOGS_MAX_TOTAL_BYTES = 128 * 1024;
 const DIAGNOSTICS_LOG_ENTRY_MAX_BYTES = 8 * 1024;
 const DIAGNOSTICS_LOGS_PERSIST_DEBOUNCE_MS = 2000;
+const DIAGNOSTICS_LOGS_RECENT_WINDOW_MS = 10 * 60 * 1000;
 const ELLIPSIS = "…";
 const IMPORTANT_DIAGNOSTICS_PREFIX = "[ImportantDiagnostics]";
 
@@ -259,9 +260,7 @@ function createLogRecord(entry: DiagnosticsLogEntry): DiagnosticsLogRecord {
 }
 
 function trimLogsToSize(logs: DiagnosticsLogRecord[]): DiagnosticsLogRecord[] {
-  return trimLogsToSizeWithLimit(logs, DIAGNOSTICS_LOGS_MAX_TOTAL_BYTES, (total) => {
-    diagnosticsLogsTotalBytes = total;
-  });
+  return trimRegularLogsToSize(logs);
 }
 
 function trimImportantLogsToSize(
@@ -294,6 +293,39 @@ function trimLogsToSizeWithLimit(
   }
 
   onTotalBytes(getSerializedLogsByteLength(nextLogs));
+  return nextLogs;
+}
+
+function getDiagnosticsLogTimestampMs(log: DiagnosticsLogRecord): number | null {
+  const timestampMs = Date.parse(log.entry.timestamp);
+  return Number.isFinite(timestampMs) ? timestampMs : null;
+}
+
+function trimRegularLogsToSize(
+  logs: DiagnosticsLogRecord[],
+): DiagnosticsLogRecord[] {
+  let nextLogs = [...logs];
+  let totalBytes = getSerializedLogsByteLength(nextLogs);
+
+  if (totalBytes > DIAGNOSTICS_LOGS_MAX_TOTAL_BYTES) {
+    const recentThreshold = Date.now() - DIAGNOSTICS_LOGS_RECENT_WINDOW_MS;
+    nextLogs = nextLogs.filter((log) => {
+      const timestampMs = getDiagnosticsLogTimestampMs(log);
+      return timestampMs === null || timestampMs >= recentThreshold;
+    });
+    totalBytes = getSerializedLogsByteLength(nextLogs);
+  }
+
+  while (nextLogs.length > 0 && totalBytes > DIAGNOSTICS_LOGS_MAX_TOTAL_BYTES) {
+    const removed = nextLogs.shift();
+    if (!removed) {
+      break;
+    }
+    totalBytes -= removed.byteSize;
+    totalBytes -= nextLogs.length > 0 ? 1 : 2;
+  }
+
+  diagnosticsLogsTotalBytes = getSerializedLogsByteLength(nextLogs);
   return nextLogs;
 }
 
