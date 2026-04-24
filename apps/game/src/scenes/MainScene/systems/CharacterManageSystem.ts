@@ -334,7 +334,7 @@ function _updateStaminaAndEvolutionGauge(
     decreaseStamina(eid);
   }
 
-  // 진화 게이지 타이머 업데이트 (스테미나가 5 이상이고 SICK 상태가 아닐 때만)
+  // 진화 게이지 타이머 업데이트 (스테미나가 설정 임계치 이상이고 SICK 상태가 아닐 때만)
   const currentStamina = CharacterStatusComp.stamina[eid];
   const isSick = hasCharacterStatus(eid, CharacterStatus.SICK);
 
@@ -475,7 +475,13 @@ export function validateAndFixStatusIcons(world: MainSceneWorld): void {
 function increaseEvolutionGauge(world: MainSceneWorld, eid: number): void {
   const currentGauge = CharacterStatusComp.evolutionGage[eid];
   const currentCharacterKey = CharacterStatusComp.characterKey[eid];
-  const gaugeIncreaseAmount = getEvolutionGaugeIncreaseAmount(currentCharacterKey);
+  const baseGaugeIncreaseAmount = getEvolutionGaugeIncreaseAmount(currentCharacterKey);
+  const currentStamina = CharacterStatusComp.stamina[eid];
+  const gaugeIncreaseAmount =
+    currentStamina >= EVOLUTION_GAUGE_CONFIG.boostedStaminaThreshold
+      ? baseGaugeIncreaseAmount *
+        EVOLUTION_GAUGE_CONFIG.boostedGaugeGainMultiplier
+      : baseGaugeIncreaseAmount;
   const newGauge = Math.min(
     getMaxEvolutionGauge(),
     currentGauge + gaugeIncreaseAmount,

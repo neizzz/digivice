@@ -31,6 +31,8 @@ export type MonsterEvolutionSpec = {
 export type EvolutionGaugeConfig = {
   maxGauge: number;
   staminaThreshold: number;
+  boostedStaminaThreshold: number;
+  boostedGaugeGainMultiplier: number;
   checkIntervalMs: number;
   gaugeGainByClass: Record<CharacterClass, number>;
 };
@@ -40,7 +42,9 @@ const DEFAULT_MAX_GAUGE = 100;
 export const EVOLUTION_GAUGE_CONFIG: EvolutionGaugeConfig = import.meta.env.DEV
   ? {
       maxGauge: DEFAULT_MAX_GAUGE,
-      staminaThreshold: 5,
+      staminaThreshold: 4,
+      boostedStaminaThreshold: 8,
+      boostedGaugeGainMultiplier: 1.1,
       checkIntervalMs: 10_000,
       gaugeGainByClass: {
         [CharacterClass.A]: 1.0,
@@ -51,7 +55,9 @@ export const EVOLUTION_GAUGE_CONFIG: EvolutionGaugeConfig = import.meta.env.DEV
     }
   : {
       maxGauge: DEFAULT_MAX_GAUGE,
-      staminaThreshold: 5,
+      staminaThreshold: 4,
+      boostedStaminaThreshold: 8,
+      boostedGaugeGainMultiplier: 1.1,
       checkIntervalMs: 10_000,
       gaugeGainByClass: {
         [CharacterClass.A]: 1.0,

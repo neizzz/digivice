@@ -1,13 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { CharacterStatusComp, RenderComp } from "../raw-components";
-import { characterManagerSystem } from "../systems/CharacterManageSystem";
+import {
+  characterManagerSystem,
+  getRemainingEvolutionGaugeTime,
+} from "../systems/CharacterManageSystem";
 import { GAME_CONSTANTS } from "../config";
 import {
   CharacterState,
   TextureKey,
   getRandomEggTextureKey,
 } from "../types";
+import { EVOLUTION_GAUGE_CONFIG } from "../evolutionConfig";
 import {
   createTestCharacter,
   createTestWorld,
@@ -77,4 +81,71 @@ test("부화한 캐릭터는 어떤 egg 텍스처를 쓰고 있었든 정적 egg
   });
 
   assert.equal(RenderComp.textureKey[hatchedEid], TextureKey.NULL);
+});
+
+test("스테미나가 4 이상일 때 진화 게이지가 오른다", () => {
+  const world = createTestWorld({ now: 0 });
+
+  const eligibleEid = withMockedDateNow(0, () =>
+    createTestCharacter(world, {
+      state: CharacterState.IDLE,
+      stamina: EVOLUTION_GAUGE_CONFIG.staminaThreshold,
+      x: 80,
+      y: 80,
+    }),
+  );
+  const ineligibleEid = withMockedDateNow(0, () =>
+    createTestCharacter(world, {
+      state: CharacterState.IDLE,
+      stamina: EVOLUTION_GAUGE_CONFIG.staminaThreshold - 0.01,
+      x: 140,
+      y: 80,
+    }),
+  );
+
+  characterManagerSystem({
+    world: world as any,
+    delta: EVOLUTION_GAUGE_CONFIG.checkIntervalMs,
+  });
+
+  assert.ok(CharacterStatusComp.evolutionGage[eligibleEid] > 0);
+  assert.equal(CharacterStatusComp.evolutionGage[ineligibleEid], 0);
+  assert.equal(getRemainingEvolutionGaugeTime(ineligibleEid), null);
+});
+
+test("스테미나가 8 이상이면 진화 게이지 증가량이 10% 커진다", () => {
+  const world = createTestWorld({ now: 0 });
+
+  const normalEid = withMockedDateNow(0, () =>
+    createTestCharacter(world, {
+      state: CharacterState.IDLE,
+      stamina: EVOLUTION_GAUGE_CONFIG.staminaThreshold,
+      x: 80,
+      y: 80,
+    }),
+  );
+  const boostedEid = withMockedDateNow(0, () =>
+    createTestCharacter(world, {
+      state: CharacterState.IDLE,
+      stamina: EVOLUTION_GAUGE_CONFIG.boostedStaminaThreshold,
+      x: 140,
+      y: 80,
+    }),
+  );
+
+  characterManagerSystem({
+    world: world as any,
+    delta: EVOLUTION_GAUGE_CONFIG.checkIntervalMs,
+  });
+
+  const normalGauge = CharacterStatusComp.evolutionGage[normalEid];
+  const boostedGauge = CharacterStatusComp.evolutionGage[boostedEid];
+
+  assert.ok(normalGauge > 0);
+  assert.ok(
+    Math.abs(
+      boostedGauge -
+        normalGauge * EVOLUTION_GAUGE_CONFIG.boostedGaugeGainMultiplier,
+    ) < 0.000001,
+  );
 });
