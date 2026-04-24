@@ -391,7 +391,7 @@ function updateCleaningOpacity(
         const newAlpha = Math.max(0.1, opacity);
         sprite.alpha = newAlpha;
       } else {
-        console.error(
+        console.warn(
           `[CleanableRenderSystem] Sprite not found for entity ${eid} with storeIndex ${storeIndex}`,
         );
       }

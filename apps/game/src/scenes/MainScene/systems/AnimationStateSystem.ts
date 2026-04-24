@@ -7,6 +7,7 @@ import {
 import { ObjectType, CharacterState, AnimationKey } from "../types";
 import { MainSceneWorld } from "../world";
 
+const IDLE_ANIMATION_SPEED = 0.03;
 const DEFAULT_ANIMATION_SPEED = 0.04;
 const SLEEPING_ANIMATION_SPEED = DEFAULT_ANIMATION_SPEED / 2;
 
@@ -81,6 +82,10 @@ function changeAnimation(eid: number, animationKey: AnimationKey): void {
 }
 
 function getAnimationSpeedForState(state: CharacterState): number {
+  if (state === CharacterState.IDLE) {
+    return IDLE_ANIMATION_SPEED;
+  }
+
   if (state === CharacterState.SLEEPING) {
     return SLEEPING_ANIMATION_SPEED;
   }

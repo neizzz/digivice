@@ -141,7 +141,7 @@ async function hatchCharacter(
       maxRetries: 2,
     });
     if (!isLoaded) {
-      console.error(
+      console.warn(
         `[EggHatchSystem] Hatch delayed for character ${eid}. Keeping EGG state because spritesheet could not be loaded.`
       );
       EggHatchComp.isReadyToHatch[eid] = 0;

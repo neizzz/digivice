@@ -133,7 +133,7 @@ export function randomMovementSystem(params: {
 
     if (!minIdle || !maxIdle || !minMove || !maxMove) {
       if (shouldLog) {
-        console.error(
+        console.warn(
           `[RandomMovementSystem] Entity ${eid} has invalid time ranges - idle: ${minIdle}-${maxIdle}, move: ${minMove}-${maxMove}`,
         );
       }
