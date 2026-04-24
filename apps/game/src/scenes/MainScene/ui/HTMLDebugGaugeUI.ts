@@ -24,18 +24,28 @@ type HTMLDebugGaugeUIOptions = {
   initiallyVisible?: boolean;
 };
 
-type NativeAdDebugState = {
+type NativeAdSlotDebugState = {
   isReady: boolean;
   isLoading: boolean;
   lastError: string | null;
+  unit?: string;
+};
+
+type NativeAdDebugState = NativeAdSlotDebugState & {
+  test: NativeAdSlotDebugState;
   unavailableReason?: string;
 };
 
-const DEFAULT_NATIVE_AD_DEBUG_STATE: NativeAdDebugState = {
+const createDefaultNativeAdSlotDebugState = (): NativeAdSlotDebugState => ({
   isReady: false,
   isLoading: false,
   lastError: null,
-};
+});
+
+const createDefaultNativeAdDebugState = (): NativeAdDebugState => ({
+  ...createDefaultNativeAdSlotDebugState(),
+  test: createDefaultNativeAdSlotDebugState(),
+});
 
 export class HTMLDebugGaugeUI {
   private _container: HTMLDivElement;
@@ -58,9 +68,8 @@ export class HTMLDebugGaugeUI {
   private _adShowNowButton!: HTMLButtonElement;
   private _currentCharacterEid: number = -1;
   private _isVisible: boolean;
-  private _nativeAdDebugState: NativeAdDebugState = {
-    ...DEFAULT_NATIVE_AD_DEBUG_STATE,
-  };
+  private _nativeAdDebugState: NativeAdDebugState =
+    createDefaultNativeAdDebugState();
   private _isRefreshingAdDebugState = false;
   private _isShowingImmediateAd = false;
   private _lastAdDebugRefreshAt = 0;
@@ -514,10 +523,16 @@ export class HTMLDebugGaugeUI {
 
   private _updateAdDebugView(): void {
     const mainSceneAdState = this._world.getMainSceneAdDebugState();
-    const nativeAdStatus = formatNativeAdStatus(this._nativeAdDebugState);
+    const productionAdStatus = formatNativeAdStatus(this._nativeAdDebugState);
+    const testAdStatus = formatNativeAdStatus(this._nativeAdDebugState.test);
     const pending = mainSceneAdState.pending;
 
-    this._nativeAdStatusText.textContent = nativeAdStatus;
+    this._nativeAdStatusText.textContent =
+      `prod:${productionAdStatus}${formatAdUnitSuffix(
+        this._nativeAdDebugState.unit,
+      )} / test:${testAdStatus}${formatAdUnitSuffix(
+        this._nativeAdDebugState.test.unit,
+      )}`;
     this._mainSceneAdText.textContent =
       `  count: ${mainSceneAdState.menuUseCount}/${mainSceneAdState.threshold}\n` +
       `  mode: ${mainSceneAdState.deepNight ? "deep-night" : "normal"}\n` +
@@ -534,6 +549,7 @@ export class HTMLDebugGaugeUI {
     const errorText =
       this._nativeAdDebugState.unavailableReason ??
       this._nativeAdDebugState.lastError ??
+      this._nativeAdDebugState.test.lastError ??
       "";
     this._adErrorText.textContent = errorText;
     this._adErrorText.style.display = errorText ? "block" : "none";
@@ -547,13 +563,13 @@ export class HTMLDebugGaugeUI {
 
     const canShowImmediateAd =
       hasAdBridge &&
-      this._nativeAdDebugState.isReady &&
-      !this._nativeAdDebugState.isLoading &&
+      this._nativeAdDebugState.test.isReady &&
+      !this._nativeAdDebugState.test.isLoading &&
       !this._isShowingImmediateAd;
     this._adShowNowButton.disabled = !canShowImmediateAd;
     this._adShowNowButton.textContent = this._isShowingImmediateAd
-      ? "Showing..."
-      : "Show Now";
+      ? "Showing Test..."
+      : "Show Test";
 
     const now = Date.now();
     if (
@@ -582,7 +598,7 @@ export class HTMLDebugGaugeUI {
 
     if (!getAdDebugState) {
       this._nativeAdDebugState = {
-        ...DEFAULT_NATIVE_AD_DEBUG_STATE,
+        ...createDefaultNativeAdDebugState(),
         unavailableReason: "Native ad bridge unavailable",
       };
       this._lastAdDebugRefreshAt = now;
@@ -594,18 +610,19 @@ export class HTMLDebugGaugeUI {
 
     try {
       const result = await getAdDebugState();
-      const parsed = JSON.parse(result) as Partial<NativeAdDebugState>;
+      const parsed = JSON.parse(result) as Partial<NativeAdDebugState> & {
+        production?: Partial<NativeAdSlotDebugState>;
+      };
+      const productionState = normalizeNativeAdSlotDebugState(
+        parsed.production ?? parsed,
+      );
       this._nativeAdDebugState = {
-        isReady: parsed.isReady === true,
-        isLoading: parsed.isLoading === true,
-        lastError:
-          typeof parsed.lastError === "string" && parsed.lastError.length > 0
-            ? parsed.lastError
-            : null,
+        ...productionState,
+        test: normalizeNativeAdSlotDebugState(parsed.test),
       };
     } catch (error) {
       this._nativeAdDebugState = {
-        ...DEFAULT_NATIVE_AD_DEBUG_STATE,
+        ...createDefaultNativeAdDebugState(),
         lastError:
           error instanceof Error
             ? error.message
@@ -750,7 +767,25 @@ function hasNativeAdDebugBridge(): boolean {
   );
 }
 
-function formatNativeAdStatus(state: NativeAdDebugState): string {
+function normalizeNativeAdSlotDebugState(
+  state?: Partial<NativeAdSlotDebugState>,
+): NativeAdSlotDebugState {
+  const unit = state?.unit;
+
+  return {
+    isReady: state?.isReady === true,
+    isLoading: state?.isLoading === true,
+    lastError:
+      typeof state?.lastError === "string" && state.lastError.length > 0
+        ? state.lastError
+        : null,
+    unit: typeof unit === "string" && unit.length > 0 ? unit : undefined,
+  };
+}
+
+function formatNativeAdStatus(
+  state: NativeAdSlotDebugState & { unavailableReason?: string },
+): string {
   if (state.unavailableReason) {
     return "Unavailable";
   }
@@ -768,6 +803,10 @@ function formatNativeAdStatus(state: NativeAdDebugState): string {
   }
 
   return "Idle";
+}
+
+function formatAdUnitSuffix(unit?: string): string {
+  return unit ? ` (${unit})` : "";
 }
 
 function formatAdDuration(milliseconds: number): string {

@@ -12080,15 +12080,37 @@ function requireClient() {
 var clientExports = requireClient();
 const ReactDOM = /* @__PURE__ */ getDefaultExportFromCjs(clientExports);
 var reactExports = requireReact();
+const SHOW_DEBUG_GAUGE_EVENT = "digivice:show-debug-gauge";
 const buildLogoText = "DEBUG".trim();
+function showDebugGauge() {
+  window.dispatchEvent(new CustomEvent(SHOW_DEBUG_GAUGE_EVENT));
+}
 function TopLeftBuildLogoText() {
   if (!buildLogoText) {
     return null;
   }
-  return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "build-logo-text", children: buildLogoText });
+  const handleKeyDown = (event) => {
+    if (event.key !== "Enter" && event.key !== " ") {
+      return;
+    }
+    event.preventDefault();
+    showDebugGauge();
+  };
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(
+    "div",
+    {
+      className: "build-logo-text",
+      role: "button",
+      tabIndex: 0,
+      onClick: showDebugGauge,
+      onKeyDown: handleKeyDown,
+      children: buildLogoText
+    }
+  );
 }
 export {
   ReactDOM as R,
+  SHOW_DEBUG_GAUGE_EVENT as S,
   TopLeftBuildLogoText as T,
   requireReactDom as a,
   commonjsGlobal as c,

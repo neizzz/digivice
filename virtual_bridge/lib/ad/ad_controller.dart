@@ -18,10 +18,14 @@ class AdController {
   static const String _cooldownKey = 'ad_last_shown_timestamp';
   static const Duration _defaultNativeCooldown = Duration(hours: 4);
 
-  // 테스트 광고 단위 ID (Android)
+  // 프로덕션 광고 단위 ID (Android)
+  static const String _productionAdUnitIdAndroid =
+      'ca-app-pub-8981042075594766/6933768144';
+
+  // 테스트 광고 단위 ID (Android, debug gauge 즉시 노출용)
   static const String _testAdUnitIdAndroid =
       'ca-app-pub-3940256099942544/1033173712';
-  // 테스트 광고 단위 ID (iOS)
+  // 테스트 광고 단위 ID (iOS, 이번 Android production 전환 범위 밖)
   static const String _testAdUnitIdIOS =
       'ca-app-pub-3940256099942544/4411468910';
 
@@ -29,6 +33,13 @@ class AdController {
   bool _isAdReady = false;
   bool _isLoading = false;
   String? _lastError;
+
+  InterstitialAd? _testInterstitialAd;
+  bool _isTestAdReady = false;
+  bool _isTestLoading = false;
+  String? _lastTestError;
+
+  bool _isDisposed = false;
 
   AdController({
     required this.runJavaScript,
@@ -77,24 +88,33 @@ class AdController {
 
   /// 전면광고 로드
   void _loadInterstitialAd() {
-    if (_isLoading) return;
+    if (_isDisposed || _isLoading) return;
 
     _isLoading = true;
     _lastError = null;
-    log('[AdController] Loading interstitial ad...');
+    final adUnitLabel = _getProductionAdUnitLabel();
+    log('[AdController] Loading interstitial ad ($adUnitLabel)...');
 
-    final adUnitId = _getAdUnitId();
+    final adUnitId = _getProductionAdUnitId();
 
     InterstitialAd.load(
       adUnitId: adUnitId,
       request: const AdRequest(),
       adLoadCallback: InterstitialAdLoadCallback(
         onAdLoaded: (ad) {
+          if (_isDisposed) {
+            ad.dispose();
+            return;
+          }
+
           _interstitialAd = ad;
           _isAdReady = true;
           _isLoading = false;
           _lastError = null;
-          log('[AdController] Interstitial ad loaded successfully');
+          log(
+            '[AdController] Interstitial ad loaded successfully '
+            '($adUnitLabel)',
+          );
 
           // 광고 이벤트 리스너 설정
           ad.fullScreenContentCallback = FullScreenContentCallback(
@@ -106,6 +126,7 @@ class AdController {
               log('[AdController] Ad dismissed full screen content');
               unawaited(_notifyFullscreenAdState('dismissed'));
               ad.dispose();
+              _interstitialAd = null;
               _isAdReady = false;
               _loadInterstitialAd(); // 다음을 위해 미리 로드
             },
@@ -114,6 +135,7 @@ class AdController {
               log('[AdController] Ad failed to show: $error');
               unawaited(_notifyFullscreenAdState('failed'));
               ad.dispose();
+              _interstitialAd = null;
               _isAdReady = false;
               _loadInterstitialAd(); // 재시도
             },
@@ -133,10 +155,99 @@ class AdController {
     );
   }
 
-  /// 광고 단위 ID 반환 (플랫폼별)
-  String _getAdUnitId() {
-    // TODO: 프로덕션에서는 실제 광고 단위 ID로 교체
+  /// 디버그용 테스트 전면광고 로드
+  void _loadTestInterstitialAd() {
+    if (_isDisposed || _isTestLoading) return;
+
+    _isTestLoading = true;
+    _lastTestError = null;
+    final adUnitLabel = _getTestAdUnitLabel();
+    log('[AdController] Loading test interstitial ad ($adUnitLabel)...');
+
+    final adUnitId = _getTestAdUnitId();
+
+    InterstitialAd.load(
+      adUnitId: adUnitId,
+      request: const AdRequest(),
+      adLoadCallback: InterstitialAdLoadCallback(
+        onAdLoaded: (ad) {
+          if (_isDisposed) {
+            ad.dispose();
+            return;
+          }
+
+          _testInterstitialAd = ad;
+          _isTestAdReady = true;
+          _isTestLoading = false;
+          _lastTestError = null;
+          log(
+            '[AdController] Test interstitial ad loaded successfully '
+            '($adUnitLabel)',
+          );
+
+          ad.fullScreenContentCallback = FullScreenContentCallback(
+            onAdShowedFullScreenContent: (ad) {
+              log('[AdController] Test ad showed full screen content');
+              unawaited(_notifyFullscreenAdState('showing'));
+            },
+            onAdDismissedFullScreenContent: (ad) {
+              log('[AdController] Test ad dismissed full screen content');
+              unawaited(_notifyFullscreenAdState('dismissed'));
+              ad.dispose();
+              _testInterstitialAd = null;
+              _isTestAdReady = false;
+              _loadTestInterstitialAd();
+            },
+            onAdFailedToShowFullScreenContent: (ad, error) {
+              _lastTestError = error.toString();
+              log('[AdController] Test ad failed to show: $error');
+              unawaited(_notifyFullscreenAdState('failed'));
+              ad.dispose();
+              _testInterstitialAd = null;
+              _isTestAdReady = false;
+              _loadTestInterstitialAd();
+            },
+          );
+        },
+        onAdFailedToLoad: (error) {
+          _isTestLoading = false;
+          _lastTestError = error.toString();
+          log('[AdController] Failed to load test ad: $error');
+
+          // 30초 후 재시도
+          Future.delayed(const Duration(seconds: 30), () {
+            _loadTestInterstitialAd();
+          });
+        },
+      ),
+    );
+  }
+
+  void _ensureTestInterstitialAdLoading() {
+    if (!_isTestAdReady &&
+        !_isTestLoading &&
+        _testInterstitialAd == null &&
+        !_isDisposed) {
+      _loadTestInterstitialAd();
+    }
+  }
+
+  /// 프로덕션 광고 단위 ID 반환 (플랫폼별)
+  String _getProductionAdUnitId() {
+    return Platform.isAndroid ? _productionAdUnitIdAndroid : _testAdUnitIdIOS;
+  }
+
+  String _getProductionAdUnitLabel() {
+    return Platform.isAndroid ? 'android-production' : 'ios-test-fallback';
+  }
+
+  /// 테스트 광고 단위 ID 반환 (플랫폼별)
+  String _getTestAdUnitId() {
     return Platform.isAndroid ? _testAdUnitIdAndroid : _testAdUnitIdIOS;
+  }
+
+  String _getTestAdUnitLabel() {
+    return Platform.isAndroid ? 'android-test' : 'ios-test';
   }
 
   /// 전면광고 표시 요청 처리
@@ -187,19 +298,23 @@ class AdController {
     final String promiseId = argObj['id'] as String;
 
     try {
-      if (!_isAdReady || _interstitialAd == null) {
-        _lastError = 'Ad not loaded';
+      if (!_isTestAdReady || _testInterstitialAd == null) {
+        _lastTestError = 'Test ad not loaded';
         log('[AdController] Test ad not ready');
-        resolvePromise(id: promiseId, error: 'Ad not loaded');
+        _ensureTestInterstitialAdLoading();
+        resolvePromise(id: promiseId, error: 'Test ad not loaded');
         return;
       }
 
       log('[AdController] Showing test interstitial ad');
-      _lastError = null;
-      await _interstitialAd!.show();
+      _lastTestError = null;
+      final testAd = _testInterstitialAd!;
+      _testInterstitialAd = null;
+      _isTestAdReady = false;
+      await testAd.show();
       resolvePromise(id: promiseId, data: 'success');
     } catch (e) {
-      _lastError = e.toString();
+      _lastTestError = e.toString();
       log('[AdController] Error showing test ad: $e');
       await _notifyFullscreenAdState('failed');
       resolvePromise(id: promiseId, error: e.toString());
@@ -227,6 +342,7 @@ class AdController {
     final String promiseId = argObj['id'] as String;
 
     try {
+      _ensureTestInterstitialAdLoading();
       resolvePromise(id: promiseId, data: jsonEncode(_getDebugState()));
     } catch (e) {
       _lastError = e.toString();
@@ -295,6 +411,19 @@ class AdController {
       'isReady': _isAdReady,
       'isLoading': _isLoading,
       'lastError': _lastError,
+      'unit': _getProductionAdUnitLabel(),
+      'production': {
+        'isReady': _isAdReady,
+        'isLoading': _isLoading,
+        'lastError': _lastError,
+        'unit': _getProductionAdUnitLabel(),
+      },
+      'test': {
+        'isReady': _isTestAdReady,
+        'isLoading': _isTestLoading,
+        'lastError': _lastTestError,
+        'unit': _getTestAdUnitLabel(),
+      },
     };
   }
 
@@ -326,8 +455,14 @@ class AdController {
 
   /// 리소스 정리
   void dispose() {
+    _isDisposed = true;
     _interstitialAd?.dispose();
     _interstitialAd = null;
     _isAdReady = false;
+    _isLoading = false;
+    _testInterstitialAd?.dispose();
+    _testInterstitialAd = null;
+    _isTestAdReady = false;
+    _isTestLoading = false;
   }
 }

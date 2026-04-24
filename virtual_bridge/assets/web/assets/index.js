@@ -2,7 +2,7 @@ const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["./browserAll.js","./we
 var __defProp = Object.defineProperty;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
-import { g as getDefaultExportFromCjs, c as commonjsGlobal, r as reactExports, j as jsxRuntimeExports, a as requireReactDom, T as TopLeftBuildLogoText, R as ReactDOM } from "./index2.js";
+import { g as getDefaultExportFromCjs, S as SHOW_DEBUG_GAUGE_EVENT, c as commonjsGlobal, r as reactExports, j as jsxRuntimeExports, a as requireReactDom, T as TopLeftBuildLogoText, R as ReactDOM } from "./index2.js";
 const scriptRel = "modulepreload";
 const assetsURL = function(dep, importerUrl) {
   return new URL(dep, importerUrl).href;
@@ -26795,8 +26795,8 @@ const ObjectComp = defineComponent({
 const CharacterStatusComp = defineComponent({
   characterKey: Types.ui16,
   // = spritesheet key
-  stamina: Types.ui8,
-  // 스테미나 (0 ~ 10)
+  stamina: Types.f32,
+  // 스테미나 (0.0 ~ 10.0, 0.25 step 허용)
   evolutionGage: Types.f32,
   // 진화 게이지 (0.0 ~ 100.0)
   evolutionPhase: Types.ui8,
@@ -27022,17 +27022,81 @@ var CharacterClass = /* @__PURE__ */ ((CharacterClass2) => {
   return CharacterClass2;
 })(CharacterClass || {});
 const DEFAULT_MAX_GAUGE = 100;
-const EVOLUTION_GAUGE_CONFIG = {
-  maxGauge: DEFAULT_MAX_GAUGE,
-  staminaThreshold: 5,
-  checkIntervalMs: 1e4,
-  gaugeGainByClass: {
-    [CharacterClass.A]: 1,
-    [CharacterClass.B]: 1,
-    [CharacterClass.C]: 1,
-    [CharacterClass.D]: 1
-  }
+const HOUR_MS$1 = 60 * 60 * 1e3;
+const PRODUCTION_EVOLUTION_TARGET_DURATION_BY_CLASS_MS = {
+  [CharacterClass.A]: 20 * HOUR_MS$1,
+  [CharacterClass.B]: 40 * HOUR_MS$1,
+  [CharacterClass.C]: 80 * HOUR_MS$1,
+  [CharacterClass.D]: 80 * HOUR_MS$1
 };
+const PRODUCTION_EVOLUTION_TARGET_DURATION_VARIANCE_BY_CLASS_MS = {
+  [CharacterClass.A]: 2 * HOUR_MS$1,
+  [CharacterClass.B]: 4 * HOUR_MS$1,
+  [CharacterClass.C]: 8 * HOUR_MS$1,
+  [CharacterClass.D]: 8 * HOUR_MS$1
+};
+({
+  [CharacterClass.A]: 1,
+  [CharacterClass.B]: 1,
+  [CharacterClass.C]: 1,
+  [CharacterClass.D]: 1
+});
+function getGaugeGainForDurationMs(params) {
+  const { maxGauge, checkIntervalMs, durationMs } = params;
+  if (durationMs <= 0) {
+    return 0;
+  }
+  return maxGauge * checkIntervalMs / durationMs;
+}
+function getAverageGaugeGainByClass(params) {
+  const { maxGauge, checkIntervalMs, targetDurationByClassMs } = params;
+  return {
+    [CharacterClass.A]: getGaugeGainForDurationMs({
+      maxGauge,
+      checkIntervalMs,
+      durationMs: targetDurationByClassMs[CharacterClass.A]
+    }),
+    [CharacterClass.B]: getGaugeGainForDurationMs({
+      maxGauge,
+      checkIntervalMs,
+      durationMs: targetDurationByClassMs[CharacterClass.B]
+    }),
+    [CharacterClass.C]: getGaugeGainForDurationMs({
+      maxGauge,
+      checkIntervalMs,
+      durationMs: targetDurationByClassMs[CharacterClass.C]
+    }),
+    [CharacterClass.D]: getGaugeGainForDurationMs({
+      maxGauge,
+      checkIntervalMs,
+      durationMs: targetDurationByClassMs[CharacterClass.D]
+    })
+  };
+}
+function getStableSeededUnitValue(seed) {
+  let hash = 2166136261;
+  for (let i2 = 0; i2 < seed.length; i2++) {
+    hash ^= seed.charCodeAt(i2);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0) / 4294967296;
+}
+const PRODUCTION_EVOLUTION_GAUGE_CONFIG = {
+  maxGauge: DEFAULT_MAX_GAUGE,
+  staminaThreshold: 4,
+  boostedStaminaThreshold: 8,
+  boostedGaugeGainMultiplier: 1.1,
+  checkIntervalMs: 1e4,
+  sleepingGaugeTimeProgressMultiplier: 1 / 3,
+  gaugeGainByClass: getAverageGaugeGainByClass({
+    maxGauge: DEFAULT_MAX_GAUGE,
+    checkIntervalMs: 1e4,
+    targetDurationByClassMs: PRODUCTION_EVOLUTION_TARGET_DURATION_BY_CLASS_MS
+  }),
+  targetDurationByClassMs: PRODUCTION_EVOLUTION_TARGET_DURATION_BY_CLASS_MS,
+  targetDurationVarianceByClassMs: PRODUCTION_EVOLUTION_TARGET_DURATION_VARIANCE_BY_CLASS_MS
+};
+const EVOLUTION_GAUGE_CONFIG = PRODUCTION_EVOLUTION_GAUGE_CONFIG;
 function createDisplayName(geneLine, classCode, variant) {
   const baseName = geneLine.split("-").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
   return `${baseName} ${classCode}${variant}`;
@@ -27248,12 +27312,26 @@ function getCharacterSpritesheetName(characterKey) {
   var _a;
   return ((_a = getEvolutionSpec(characterKey)) == null ? void 0 : _a.spritesheetName) ?? null;
 }
-function getEvolutionGaugeIncreaseAmount(characterKey) {
+function getProductionEvolutionTargetDurationMsForEntity(params) {
+  const { characterKey, objectId } = params;
   const spec = getEvolutionSpec(characterKey);
   if (!spec) {
     return 0;
   }
-  return EVOLUTION_GAUGE_CONFIG.gaugeGainByClass[spec.class] ?? 0;
+  const targetDurationMs = PRODUCTION_EVOLUTION_GAUGE_CONFIG.targetDurationByClassMs[spec.class];
+  const varianceMs = PRODUCTION_EVOLUTION_GAUGE_CONFIG.targetDurationVarianceByClassMs[spec.class];
+  const seedValue = getStableSeededUnitValue(
+    `${Math.trunc(objectId)}:${spec.classCode}:${spec.phase}`
+  );
+  const jitterRatio = seedValue * 2 - 1;
+  return targetDurationMs + varianceMs * jitterRatio;
+}
+function getEvolutionGaugeIncreaseAmountForEntity(params) {
+  return getGaugeGainForDurationMs({
+    maxGauge: PRODUCTION_EVOLUTION_GAUGE_CONFIG.maxGauge,
+    checkIntervalMs: PRODUCTION_EVOLUTION_GAUGE_CONFIG.checkIntervalMs,
+    durationMs: getProductionEvolutionTargetDurationMsForEntity(params)
+  });
 }
 function canEvolveFromConfig(characterKey) {
   const spec = getEvolutionSpec(characterKey);
@@ -27379,8 +27457,9 @@ const PRODUCTION_GAME_CONSTANTS = {
   DEATH_DELAY_CLASS_D: 30 * HOUR_IN_MILLISECONDS$1,
   // 캐릭터 스테미나 관련
   MAX_STAMINA: 10,
-  STAMINA_DECREASE_INTERVAL: 48 * MINUTE_IN_MILLISECONDS$1,
-  STAMINA_DECREASE_AMOUNT: 1,
+  // 기대값: awake 기준 12분마다 0.25 감소 -> 시간당 1.25 감소 -> 10 -> 0 약 8시간.
+  STAMINA_DECREASE_INTERVAL: 12 * MINUTE_IN_MILLISECONDS$1,
+  STAMINA_DECREASE_AMOUNT: 0.25,
   // 수면 관련
   NIGHT_SLEEP_MIN_DELAY: 10 * MINUTE_IN_MILLISECONDS$1,
   NIGHT_SLEEP_MAX_DELAY: 60 * MINUTE_IN_MILLISECONDS$1,
@@ -27406,7 +27485,8 @@ const PRODUCTION_GAME_CONSTANTS = {
   FATIGUE_SLEEP_RECOVERY_PER_HOUR_WHEN_SICK: 4,
   FATIGUE_DAY_NAP_MIN_THRESHOLD: 55,
   FATIGUE_DAY_NAP_WAKE_THRESHOLD: 28,
-  SLEEPING_STAMINA_DECAY_MULTIPLIER: 0.1,
+  // sleeping 기준 실효 30분마다 0.25 감소 -> 시간당 0.5 감소 -> 10 -> 0 약 20시간.
+  SLEEPING_STAMINA_DECAY_MULTIPLIER: 0.4,
   SLEEPING_DISEASE_RATE_MULTIPLIER: 0.1
 };
 ({
@@ -30022,6 +30102,7 @@ function throwAnimationSystem(params) {
         ObjectComp.state[eid] = FoodState.LANDED;
       }
       removeComponent(world, ThrowAnimationComp, eid);
+      world.handleThrownFoodLanded(eid);
       console.log(
         `[ThrowAnimationSystem] Food ${eid} completed throw animation and landed at (${finalX}, ${finalY})`
       );
@@ -30129,6 +30210,18 @@ const characterQuery$7 = defineQuery([
 const previousStatusStates = /* @__PURE__ */ new Map();
 const staminaTimers = /* @__PURE__ */ new Map();
 const evolutionGaugeTimers = /* @__PURE__ */ new Map();
+const TIMER_EPSILON_MS = 1e-6;
+function getElapsedIntervalProgress(totalElapsedTime, interval) {
+  if (interval <= 0) {
+    return { count: 0, remainder: 0 };
+  }
+  const count2 = Math.floor((totalElapsedTime + TIMER_EPSILON_MS) / interval);
+  const remainder = Math.max(0, totalElapsedTime - count2 * interval);
+  return {
+    count: count2,
+    remainder: remainder < TIMER_EPSILON_MS ? 0 : remainder
+  };
+}
 let _cachedWorld = null;
 function characterManagerSystem(params) {
   const { world, delta } = params;
@@ -30261,19 +30354,27 @@ function getRemainingEvolutionGaugeTime(eid) {
     return null;
   }
   const elapsed = evolutionGaugeTimers.get(eid) || 0;
-  return Math.max(0, EVOLUTION_GAUGE_CONFIG.checkIntervalMs - elapsed);
+  const currentState = ObjectComp.state[eid];
+  const progressMultiplier = currentState === CharacterState.SLEEPING ? EVOLUTION_GAUGE_CONFIG.sleepingGaugeTimeProgressMultiplier : 1;
+  const remainingProgressTime = Math.max(
+    0,
+    EVOLUTION_GAUGE_CONFIG.checkIntervalMs - elapsed
+  );
+  if (progressMultiplier <= 0) {
+    return null;
+  }
+  return Math.max(0, remainingProgressTime / progressMultiplier);
 }
 function _updateStaminaAndEvolutionGauge(world, eid, delta) {
   const currentStaminaTimer = staminaTimers.get(eid) || 0;
   const staminaDelta = ObjectComp.state[eid] === CharacterState.SLEEPING ? delta * GAME_CONSTANTS.SLEEPING_STAMINA_DECAY_MULTIPLIER : delta;
   const totalStaminaTime = currentStaminaTimer + staminaDelta;
-  const staminaDecreaseCount = Math.floor(
-    totalStaminaTime / GAME_CONSTANTS.STAMINA_DECREASE_INTERVAL
+  const staminaProgress = getElapsedIntervalProgress(
+    totalStaminaTime,
+    GAME_CONSTANTS.STAMINA_DECREASE_INTERVAL
   );
-  staminaTimers.set(
-    eid,
-    totalStaminaTime % GAME_CONSTANTS.STAMINA_DECREASE_INTERVAL
-  );
+  const staminaDecreaseCount = staminaProgress.count;
+  staminaTimers.set(eid, staminaProgress.remainder);
   for (let i2 = 0; i2 < staminaDecreaseCount; i2++) {
     decreaseStamina(eid);
   }
@@ -30281,14 +30382,14 @@ function _updateStaminaAndEvolutionGauge(world, eid, delta) {
   const isSick = hasCharacterStatus$2(eid, CharacterStatus.SICK);
   if (currentStamina >= EVOLUTION_GAUGE_CONFIG.staminaThreshold && !isSick) {
     const currentEvolutionTimer = evolutionGaugeTimers.get(eid) || 0;
-    const totalEvolutionTime = currentEvolutionTimer + delta;
-    const evolutionIncreaseCount = Math.floor(
-      totalEvolutionTime / EVOLUTION_GAUGE_CONFIG.checkIntervalMs
+    const evolutionDelta = ObjectComp.state[eid] === CharacterState.SLEEPING ? delta * EVOLUTION_GAUGE_CONFIG.sleepingGaugeTimeProgressMultiplier : delta;
+    const totalEvolutionTime = currentEvolutionTimer + evolutionDelta;
+    const evolutionProgress = getElapsedIntervalProgress(
+      totalEvolutionTime,
+      EVOLUTION_GAUGE_CONFIG.checkIntervalMs
     );
-    evolutionGaugeTimers.set(
-      eid,
-      totalEvolutionTime % EVOLUTION_GAUGE_CONFIG.checkIntervalMs
-    );
+    const evolutionIncreaseCount = evolutionProgress.count;
+    evolutionGaugeTimers.set(eid, evolutionProgress.remainder);
     for (let i2 = 0; i2 < evolutionIncreaseCount; i2++) {
       increaseEvolutionGauge(world, eid);
     }
@@ -30378,7 +30479,12 @@ function validateAndFixStatusIcons(world) {
 function increaseEvolutionGauge(world, eid) {
   const currentGauge = CharacterStatusComp.evolutionGage[eid];
   const currentCharacterKey = CharacterStatusComp.characterKey[eid];
-  const gaugeIncreaseAmount = getEvolutionGaugeIncreaseAmount(currentCharacterKey);
+  const baseGaugeIncreaseAmount = getEvolutionGaugeIncreaseAmountForEntity({
+    characterKey: currentCharacterKey,
+    objectId: ObjectComp.id[eid]
+  });
+  const currentStamina = CharacterStatusComp.stamina[eid];
+  const gaugeIncreaseAmount = currentStamina >= EVOLUTION_GAUGE_CONFIG.boostedStaminaThreshold ? baseGaugeIncreaseAmount * EVOLUTION_GAUGE_CONFIG.boostedGaugeGainMultiplier : baseGaugeIncreaseAmount;
   const newGauge = Math.min(
     getMaxEvolutionGauge(),
     currentGauge + gaugeIncreaseAmount
@@ -30691,12 +30797,12 @@ const characterWithDigestiveQuery = defineQuery([
   DigestiveSystemComp
 ]);
 const NORMAL_POOP_SCALE_RANGE = {
-  min: 2.4,
+  min: 2.8,
   max: 3.6
 };
 const SMALL_POOP_SCALE_RANGE = {
-  min: 1.4,
-  max: 2
+  min: 2,
+  max: 2.4
 };
 function digestiveSystem(params) {
   const { world, currentTime } = params;
@@ -30939,8 +31045,8 @@ const movingToFoodQuery = defineQuery([
 ]);
 const FOOD_EATING_DURATION = 3200;
 const EATING_ARRIVAL_THRESHOLD = 20;
-const EATING_OFFSET_DISTANCE = 20;
-const EATING_OFFSET_Y = -8;
+const FOOD_CHARACTER_BOUNDARY_OVERLAP_PX = 10;
+const FALLBACK_FOOD_SOURCE_SIZE = 16;
 function foodEatingSystem(params) {
   const { world, delta, currentTime } = params;
   const resolvedCurrentTime = currentTime ?? world.currentTime;
@@ -31030,6 +31136,7 @@ function updateMovingToFood(world, delta) {
           2
         )}`
       );
+      snapCharacterToEatingPose(eid, targetFoodEid);
       startEating(world, eid, targetFoodEid);
       continue;
     }
@@ -31085,6 +31192,7 @@ function completeEating(world, characterEid, foodEid, currentTime) {
   if (hasComponent(world, FoodMaskComp, foodEid)) {
     removeComponent(world, FoodMaskComp, foodEid);
   }
+  world.handleFoodConsumedForAd(foodEid);
   removeEntity(world, foodEid);
   console.log(`[FoodEatingSystem] Removed food entity ${foodEid}`);
   removeComponent(world, FoodEatingComp, characterEid);
@@ -31129,6 +31237,7 @@ function findAndEatFood(world) {
       console.log(
         `[FoodEatingSystem] Character ${characterEid} is close enough to food ${foodEid}, starting to eat`
       );
+      snapCharacterToEatingPose(characterEid, foodEid);
       startEating(world, characterEid, foodEid);
     } else {
       console.log(
@@ -31172,18 +31281,11 @@ function moveToFood(world, characterEid, foodEid) {
   const characterY = PositionComp.y[characterEid];
   const foodX = PositionComp.x[foodEid];
   const foodY = PositionComp.y[foodEid];
-  const approachDirectionX = characterX - foodX;
-  const approachDirectionY = characterY - foodY;
-  let offsetX = approachDirectionX > 0 ? EATING_OFFSET_DISTANCE : -20;
-  let offsetY = EATING_OFFSET_Y;
-  if (Math.abs(approachDirectionY) > Math.abs(approachDirectionX)) {
-    offsetY = approachDirectionY < 0 ? 8 : -16;
-    offsetX = offsetX * 0.5;
-  }
-  const targetX = foodX + offsetX;
-  const targetY = foodY + offsetY;
+  const target = getEatingPoseTarget(characterEid, foodEid);
+  const targetX = Math.round(target.x);
+  const targetY = Math.round(target.y);
   console.log(
-    `[FoodEatingSystem] Character ${characterEid} moving to food ${foodEid} at (${foodX}, ${foodY}) -> target (${targetX}, ${targetY}) (approach from ${approachDirectionX < 0 ? "left" : "right"}, ${approachDirectionY < 0 ? "top" : "bottom"})`
+    `[FoodEatingSystem] Character ${characterEid} moving to food ${foodEid} at (${foodX}, ${foodY}) -> eating pose (${targetX}, ${targetY}) from (${characterX}, ${characterY})`
   );
   ObjectComp.state[foodEid] = FoodState.TARGETED;
   if (hasComponent(world, RandomMovementComp, characterEid)) {
@@ -31197,8 +31299,8 @@ function moveToFood(world, characterEid, foodEid) {
   }
   DestinationComp.type[characterEid] = DestinationType.TARGETED;
   DestinationComp.target[characterEid] = foodEid;
-  DestinationComp.x[characterEid] = Math.round(targetX);
-  DestinationComp.y[characterEid] = Math.round(targetY);
+  DestinationComp.x[characterEid] = targetX;
+  DestinationComp.y[characterEid] = targetY;
   console.log(
     `[FoodEatingSystem] DestinationComp set for character ${characterEid}:`,
     {
@@ -31221,6 +31323,43 @@ function moveToFood(world, characterEid, foodEid) {
     );
   }
   ObjectComp.state[characterEid] = CharacterState.MOVING;
+}
+function getEatingPoseTarget(characterEid, foodEid) {
+  const characterBounds = getCharacterWorldBounds(characterEid);
+  const foodBounds = getFoodWorldBounds(foodEid);
+  const characterBottomOffset = characterBounds.bottomY - PositionComp.y[characterEid];
+  return {
+    x: PositionComp.x[foodEid],
+    y: foodBounds.topY + FOOD_CHARACTER_BOUNDARY_OVERLAP_PX - characterBottomOffset
+  };
+}
+function snapCharacterToEatingPose(characterEid, foodEid) {
+  const target = getEatingPoseTarget(characterEid, foodEid);
+  PositionComp.x[characterEid] = Math.round(target.x);
+  PositionComp.y[characterEid] = Math.round(target.y);
+}
+function getFoodWorldBounds(foodEid) {
+  const centerX = PositionComp.x[foodEid];
+  const centerY = PositionComp.y[foodEid];
+  const foodSprite = getSpriteStore().get(foodEid);
+  const fallbackSize = getFoodFallbackSize(foodEid);
+  const width = foodSprite && Number.isFinite(foodSprite.width) && foodSprite.width > 0 ? Math.abs(Number(foodSprite.width)) : fallbackSize;
+  const height = foodSprite && Number.isFinite(foodSprite.height) && foodSprite.height > 0 ? Math.abs(Number(foodSprite.height)) : fallbackSize;
+  const halfWidth = width / 2;
+  const halfHeight = height / 2;
+  return {
+    leftX: centerX - halfWidth,
+    rightX: centerX + halfWidth,
+    topY: centerY - halfHeight,
+    bottomY: centerY + halfHeight,
+    width,
+    height
+  };
+}
+function getFoodFallbackSize(foodEid) {
+  const scale = RenderComp.scale[foodEid];
+  const resolvedScale = Number.isFinite(scale) && scale > 0 ? scale : 1;
+  return FALLBACK_FOOD_SOURCE_SIZE * resolvedScale;
 }
 function startEating(world, characterEid, foodEid) {
   if (hasComponent(world, FreshnessComp, foodEid) && !isFoodEdible(FreshnessComp.freshness[foodEid])) {
@@ -31957,6 +32096,7 @@ function getSyringeTexture() {
 }
 function cleanupEffectSprite(world, eid, stage) {
   const spriteData = effectSpriteMap.get(eid);
+  const didStartRecoveryVibration = recoveryVibrationStartedEids.has(eid);
   if (spriteData) {
     if (stage && spriteData.sprite.parent) {
       stage.removeChild(spriteData.sprite);
@@ -31966,7 +32106,9 @@ function cleanupEffectSprite(world, eid, stage) {
   }
   recoveryImpactTriggeredEids.delete(eid);
   recoveryVibrationStartedEids.delete(eid);
-  world.stopRecoveryVibration();
+  if (didStartRecoveryVibration) {
+    world.stopRecoveryVibration();
+  }
   if (isLiveObjectEntity(world, eid) && hasComponent(world, EffectAnimationComp, eid)) {
     removeComponent(world, EffectAnimationComp, eid);
   }
@@ -32083,6 +32225,9 @@ function effectAnimationSystem(params) {
     }
     if (shouldCleanup) {
       cleanupEffectSprite(world, eid, stage);
+      if (effectType === EffectAnimationType.RECOVERY_SYRINGE) {
+        world.handleHospitalRecoveryAnimationComplete(eid);
+      }
     }
   }
   return params;
@@ -33390,10 +33535,26 @@ function addCharacterStatus$1(eid, status) {
   }
 }
 const characterQuery$2 = defineQuery([ObjectComp, CharacterStatusComp]);
+const AD_DEBUG_REFRESH_INTERVAL_MS = 1e3;
+const createDefaultNativeAdSlotDebugState = () => ({
+  isReady: false,
+  isLoading: false,
+  lastError: null
+});
+const createDefaultNativeAdDebugState = () => ({
+  ...createDefaultNativeAdSlotDebugState(),
+  test: createDefaultNativeAdSlotDebugState()
+});
 class HTMLDebugGaugeUI {
-  constructor(world, parentElement) {
+  constructor(world, parentElement, options = {}) {
     this._currentCharacterEid = -1;
+    this._nativeAdDebugState = createDefaultNativeAdDebugState();
+    this._isRefreshingAdDebugState = false;
+    this._isShowingImmediateAd = false;
+    this._lastAdDebugRefreshAt = 0;
+    this._adDeferredRefreshTimerId = null;
     this._world = world;
+    this._isVisible = options.initiallyVisible ?? true;
     this._container = this._createContainer();
     this._setupUI();
     this._findFirstCharacter();
@@ -33413,9 +33574,11 @@ class HTMLDebugGaugeUI {
       color: white;
       font-size: 12px;
       min-width: 280px;
-      display: flex;
+      display: ${this._isVisible ? "flex" : "none"};
       align-items: flex-start;
       gap: 16px;
+      padding-top: 28px;
+      max-width: min(96vw, 720px);
     `;
     if (!document.querySelector("#debug-gauge-ui-blink-style")) {
       const style = document.createElement("style");
@@ -33431,8 +33594,10 @@ class HTMLDebugGaugeUI {
     return container;
   }
   _setupUI() {
+    const closeButton = this._createCloseButton();
     this._primaryColumn = this._createColumn();
     this._sleepColumn = this._createColumn();
+    this._adColumn = this._createColumn();
     const staminaDiv = this._createMetricRow("Stamina: ", "#66ccff");
     this._staminaText = this._createMetricValue();
     staminaDiv.appendChild(this._staminaText);
@@ -33462,6 +33627,43 @@ class HTMLDebugGaugeUI {
     this._sleepCheckText.style.whiteSpace = "pre-wrap";
     this._sleepCheckText.style.lineHeight = "1.45";
     sleepCheckDiv.appendChild(this._sleepCheckText);
+    const nativeAdDiv = this._createMetricRow("Ad: ", "#80deea");
+    this._nativeAdStatusText = this._createMetricValue();
+    nativeAdDiv.appendChild(this._nativeAdStatusText);
+    const mainSceneAdDiv = this._createMetricRow("MenuAd:", "#7dd3fc");
+    mainSceneAdDiv.style.alignItems = "flex-start";
+    mainSceneAdDiv.style.flexDirection = "column";
+    mainSceneAdDiv.style.gap = "4px";
+    this._mainSceneAdText = this._createMetricValue();
+    this._mainSceneAdText.style.whiteSpace = "pre-wrap";
+    this._mainSceneAdText.style.lineHeight = "1.45";
+    mainSceneAdDiv.appendChild(this._mainSceneAdText);
+    this._adErrorText = document.createElement("div");
+    this._adErrorText.style.cssText = `
+      display: none;
+      max-width: 180px;
+      color: #ff8888;
+      font-size: 11px;
+      line-height: 1.35;
+      word-break: break-word;
+    `;
+    const adActionRow = document.createElement("div");
+    adActionRow.style.cssText = `
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 2px;
+    `;
+    this._adRefreshButton = this._createActionButton("Refresh");
+    this._adShowNowButton = this._createActionButton("Show Now");
+    this._adRefreshButton.addEventListener("click", () => {
+      void this._refreshNativeAdDebugState(true);
+    });
+    this._adShowNowButton.addEventListener("click", () => {
+      void this._showImmediateAd();
+    });
+    adActionRow.appendChild(this._adRefreshButton);
+    adActionRow.appendChild(this._adShowNowButton);
     this._primaryColumn.appendChild(staminaDiv);
     this._primaryColumn.appendChild(evolutionDiv);
     this._primaryColumn.appendChild(digestiveDiv);
@@ -33470,8 +33672,40 @@ class HTMLDebugGaugeUI {
     this._sleepColumn.appendChild(sleepDiv);
     this._sleepColumn.appendChild(fatigueDiv);
     this._sleepColumn.appendChild(sleepCheckDiv);
+    this._adColumn.appendChild(nativeAdDiv);
+    this._adColumn.appendChild(mainSceneAdDiv);
+    this._adColumn.appendChild(this._adErrorText);
+    this._adColumn.appendChild(adActionRow);
+    this._container.appendChild(closeButton);
     this._container.appendChild(this._primaryColumn);
     this._container.appendChild(this._sleepColumn);
+    this._container.appendChild(this._adColumn);
+  }
+  _createCloseButton() {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = "×";
+    button.setAttribute("aria-label", "Close debug gauge UI");
+    button.style.cssText = `
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      width: 22px;
+      height: 22px;
+      padding: 0;
+      background: rgba(80, 80, 80, 0.85);
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-size: 16px;
+      font-weight: bold;
+      line-height: 1;
+      cursor: pointer;
+    `;
+    button.addEventListener("click", () => {
+      this.hide();
+    });
+    return button;
   }
   _findFirstCharacter() {
     const characters = characterQuery$2(this._world);
@@ -33487,6 +33721,7 @@ class HTMLDebugGaugeUI {
     this._currentCharacterEid = -1;
   }
   update() {
+    this._updateAdDebugView();
     if (this._currentCharacterEid < 0) {
       this._findFirstCharacter();
       if (this._currentCharacterEid < 0) {
@@ -33663,13 +33898,126 @@ class HTMLDebugGaugeUI {
       this._sleepCheckText.style.animation = "none";
     }
   }
+  _updateAdDebugView() {
+    const mainSceneAdState = this._world.getMainSceneAdDebugState();
+    const productionAdStatus = formatNativeAdStatus(this._nativeAdDebugState);
+    const testAdStatus = formatNativeAdStatus(this._nativeAdDebugState.test);
+    const pending = mainSceneAdState.pending;
+    this._nativeAdStatusText.textContent = `prod:${productionAdStatus}${formatAdUnitSuffix(
+      this._nativeAdDebugState.unit
+    )} / test:${testAdStatus}${formatAdUnitSuffix(
+      this._nativeAdDebugState.test.unit
+    )}`;
+    this._mainSceneAdText.textContent = `  count: ${mainSceneAdState.menuUseCount}/${mainSceneAdState.threshold}
+  mode: ${mainSceneAdState.deepNight ? "deep-night" : "normal"}
+  cd: ${formatAdDuration(mainSceneAdState.cooldownMs)}
+  pending: ${pending ? `${pending.menu} @ ${formatAdQueuedAge(
+      pending.queuedAt,
+      this._world.currentTime
+    )}` : "-"}`;
+    const errorText = this._nativeAdDebugState.unavailableReason ?? this._nativeAdDebugState.lastError ?? this._nativeAdDebugState.test.lastError ?? "";
+    this._adErrorText.textContent = errorText;
+    this._adErrorText.style.display = errorText ? "block" : "none";
+    const hasAdBridge = hasNativeAdDebugBridge();
+    this._adRefreshButton.disabled = this._isRefreshingAdDebugState || !hasAdBridge;
+    this._adRefreshButton.textContent = this._isRefreshingAdDebugState ? "Refreshing..." : "Refresh";
+    const canShowImmediateAd = hasAdBridge && this._nativeAdDebugState.test.isReady && !this._nativeAdDebugState.test.isLoading && !this._isShowingImmediateAd;
+    this._adShowNowButton.disabled = !canShowImmediateAd;
+    this._adShowNowButton.textContent = this._isShowingImmediateAd ? "Showing Test..." : "Show Test";
+    const now = Date.now();
+    if (this._isVisible && !this._isRefreshingAdDebugState && now - this._lastAdDebugRefreshAt >= AD_DEBUG_REFRESH_INTERVAL_MS) {
+      void this._refreshNativeAdDebugState();
+    }
+  }
+  async _refreshNativeAdDebugState(force = false) {
+    var _a;
+    const now = Date.now();
+    if (this._isRefreshingAdDebugState) {
+      return;
+    }
+    if (!force && now - this._lastAdDebugRefreshAt < AD_DEBUG_REFRESH_INTERVAL_MS) {
+      return;
+    }
+    const getAdDebugState = typeof window !== "undefined" ? (_a = window.adController) == null ? void 0 : _a.getAdDebugState : void 0;
+    if (!getAdDebugState) {
+      this._nativeAdDebugState = {
+        ...createDefaultNativeAdDebugState(),
+        unavailableReason: "Native ad bridge unavailable"
+      };
+      this._lastAdDebugRefreshAt = now;
+      return;
+    }
+    this._isRefreshingAdDebugState = true;
+    this._lastAdDebugRefreshAt = now;
+    try {
+      const result = await getAdDebugState();
+      const parsed = JSON.parse(result);
+      const productionState = normalizeNativeAdSlotDebugState(
+        parsed.production ?? parsed
+      );
+      this._nativeAdDebugState = {
+        ...productionState,
+        test: normalizeNativeAdSlotDebugState(parsed.test)
+      };
+    } catch (error) {
+      this._nativeAdDebugState = {
+        ...createDefaultNativeAdDebugState(),
+        lastError: error instanceof Error ? error.message : "Failed to read ad debug state"
+      };
+    } finally {
+      this._isRefreshingAdDebugState = false;
+    }
+  }
+  async _showImmediateAd() {
+    var _a;
+    const showTestInterstitial = typeof window !== "undefined" ? (_a = window.adController) == null ? void 0 : _a.showTestInterstitial : void 0;
+    if (!showTestInterstitial) {
+      this._nativeAdDebugState = {
+        ...this._nativeAdDebugState,
+        lastError: "Native ad show bridge unavailable"
+      };
+      return;
+    }
+    this._isShowingImmediateAd = true;
+    try {
+      await showTestInterstitial();
+      await this._refreshNativeAdDebugState(true);
+      this._scheduleDeferredAdDebugRefresh();
+    } catch (error) {
+      this._nativeAdDebugState = {
+        ...this._nativeAdDebugState,
+        lastError: error instanceof Error ? error.message : "Failed to show ad"
+      };
+    } finally {
+      this._isShowingImmediateAd = false;
+    }
+  }
+  _scheduleDeferredAdDebugRefresh() {
+    if (typeof window === "undefined") {
+      return;
+    }
+    if (this._adDeferredRefreshTimerId !== null) {
+      window.clearTimeout(this._adDeferredRefreshTimerId);
+    }
+    this._adDeferredRefreshTimerId = window.setTimeout(() => {
+      this._adDeferredRefreshTimerId = null;
+      void this._refreshNativeAdDebugState(true);
+    }, 1500);
+  }
   show() {
-    this._container.style.display = "block";
+    this._container.style.display = "flex";
+    this._isVisible = true;
+    void this._refreshNativeAdDebugState(true);
   }
   hide() {
     this._container.style.display = "none";
+    this._isVisible = false;
   }
   destroy() {
+    if (this._adDeferredRefreshTimerId !== null && typeof window !== "undefined") {
+      window.clearTimeout(this._adDeferredRefreshTimerId);
+      this._adDeferredRefreshTimerId = null;
+    }
     if (this._container.parentElement) {
       this._container.parentElement.removeChild(this._container);
     }
@@ -33705,6 +34053,72 @@ class HTMLDebugGaugeUI {
     `;
     return value;
   }
+  _createActionButton(label) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = label;
+    button.style.cssText = `
+      min-width: 76px;
+      padding: 4px 7px;
+      background: rgba(80, 80, 80, 0.9);
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: bold;
+      cursor: pointer;
+    `;
+    return button;
+  }
+}
+function hasNativeAdDebugBridge() {
+  var _a, _b;
+  return Boolean(
+    typeof window !== "undefined" && ((_a = window.adController) == null ? void 0 : _a.getAdDebugState) && ((_b = window.adController) == null ? void 0 : _b.showTestInterstitial)
+  );
+}
+function normalizeNativeAdSlotDebugState(state) {
+  const unit = state == null ? void 0 : state.unit;
+  return {
+    isReady: (state == null ? void 0 : state.isReady) === true,
+    isLoading: (state == null ? void 0 : state.isLoading) === true,
+    lastError: typeof (state == null ? void 0 : state.lastError) === "string" && state.lastError.length > 0 ? state.lastError : null,
+    unit: typeof unit === "string" && unit.length > 0 ? unit : void 0
+  };
+}
+function formatNativeAdStatus(state) {
+  if (state.unavailableReason) {
+    return "Unavailable";
+  }
+  if (state.isReady) {
+    return "Ready";
+  }
+  if (state.isLoading) {
+    return "Loading";
+  }
+  if (state.lastError) {
+    return "Error";
+  }
+  return "Idle";
+}
+function formatAdUnitSuffix(unit) {
+  return unit ? ` (${unit})` : "";
+}
+function formatAdDuration(milliseconds) {
+  if (milliseconds < 6e4) {
+    return `${Math.ceil(milliseconds / 1e3)}s`;
+  }
+  const minutes = Math.ceil(milliseconds / 6e4);
+  if (minutes < 60) {
+    return `${minutes}m`;
+  }
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
+}
+function formatAdQueuedAge(queuedAt, currentTime) {
+  const elapsed = Math.max(0, currentTime - queuedAt);
+  return `${formatAdDuration(elapsed)} ago`;
 }
 function formatSleepMode(mode) {
   switch (mode) {
@@ -34972,16 +35386,6 @@ function updateStaminaBasedStatus(world, currentTime) {
         console.log(
           `[CharacterStatusSystem] Character ${eid} recovered from URGENT state (stamina: ${stamina})`
         );
-        if (typeof window !== "undefined" && window.onUrgentRecovery) {
-          try {
-            window.onUrgentRecovery();
-          } catch (error) {
-            console.error(
-              "[CharacterStatusSystem] Error calling onUrgentRecovery:",
-              error
-            );
-          }
-        }
       }
     }
     if (hasCharacterStatus(currentStatuses, CharacterStatus.SICK)) {
@@ -35660,6 +36064,14 @@ async function requestNativeLocationPermission() {
 const liveCharacterEntitiesQuery = defineQuery([ObjectComp, CharacterStatusComp]);
 const WORLD_DATA_STORAGE_KEY$1 = "MainSceneWorldData";
 const DEFAULT_USE_LOCAL_TIME$1 = false;
+const MAIN_SCENE_AD_NORMAL_THRESHOLD = 5;
+const MAIN_SCENE_AD_DEEP_NIGHT_THRESHOLD = 10;
+const MAIN_SCENE_AD_NORMAL_COOLDOWN_MS = 5 * 60 * 1e3;
+const MAIN_SCENE_AD_DEEP_NIGHT_COOLDOWN_MS = 60 * 60 * 1e3;
+const MAIN_SCENE_AD_POST_ACTION_DELAY_MS = 200;
+const MAIN_SCENE_AD_FEED_FALLBACK_AFTER_LAND_MS = 3e3;
+const HOUR_MS = 60 * 60 * 1e3;
+const DAY_MS = 24 * HOUR_MS;
 const COMMON_SPRITESHEET_ASSETS = [
   {
     jsonPath: "/assets/game/sprites/bird.json",
@@ -35726,6 +36138,7 @@ const GIF_ASSETS = {
 const _MainSceneWorld = class _MainSceneWorld {
   constructor(params) {
     this.VERSION = "1.0.0";
+    this._isDebugGaugeEventListenerRegistered = false;
     this._navigationActionIndex = 0;
     this._isCleaningMode = false;
     this._previousCleaningMode = false;
@@ -35741,6 +36154,10 @@ const _MainSceneWorld = class _MainSceneWorld {
     this._statusSystemsEnabled = true;
     this._sleepDebugEffectEnabled = true;
     this._randomMovementDebugEnabled = false;
+    this._handleShowDebugGauge = () => {
+      var _a;
+      (_a = this._debugGaugeUI) == null ? void 0 : _a.show();
+    };
     this._pendingRecoveryCureEids = /* @__PURE__ */ new Set();
     this._isPersistenceDisabled = false;
     this._pendingStorageWrite = Promise.resolve();
@@ -35752,6 +36169,9 @@ const _MainSceneWorld = class _MainSceneWorld {
     this._sunTimesRefreshPromise = null;
     this._hasLocationPermission = false;
     this._sunLocationSource = null;
+    this._pendingFeedAdFoodEid = null;
+    this._feedAdFallbackTimerId = null;
+    this._mainSceneAdTimerIds = /* @__PURE__ */ new Set();
     this._pipedSystems = pipe(
       // 시간 기반 시스템들 (상태 관리 시스템 토글 적용)
       (params2) => this._statusSystemsEnabled ? freshnessSystem({ ...params2, currentTime: this.currentTime }) : params2,
@@ -35863,6 +36283,279 @@ const _MainSceneWorld = class _MainSceneWorld {
   stopRecoveryVibration() {
     var _a;
     (_a = this._stopRecoveryVibration) == null ? void 0 : _a.call(this);
+  }
+  _ensureAppState() {
+    if (!this._persistentData) {
+      return null;
+    }
+    const currentAppState = this._persistentData.world_metadata.app_state;
+    if (currentAppState) {
+      return currentAppState;
+    }
+    const appState = {
+      last_active_time: Date.now(),
+      is_first_load: false,
+      use_local_time: true
+    };
+    this._persistentData.world_metadata.app_state = appState;
+    return appState;
+  }
+  _getMainSceneAdState() {
+    const appState = this._ensureAppState();
+    if (!appState) {
+      return null;
+    }
+    if (!this._isValidMainSceneAdState(appState.main_scene_ad)) {
+      appState.main_scene_ad = {
+        menu_use_count: 0
+      };
+    }
+    return appState.main_scene_ad;
+  }
+  _isValidMainSceneAdState(value) {
+    if (!value || typeof value.menu_use_count !== "number" || !Number.isFinite(value.menu_use_count) || value.menu_use_count < 0) {
+      return false;
+    }
+    if (value.pending && !this._isValidMainSceneAdPendingReservation(value.pending)) {
+      value.pending = void 0;
+    }
+    value.menu_use_count = Math.floor(value.menu_use_count);
+    return true;
+  }
+  _isValidMainSceneAdPendingReservation(value) {
+    return !!value && this._isMainSceneAdMenu(value.menu) && typeof value.queued_at === "number" && Number.isFinite(value.queued_at) && value.queued_at > 0 && typeof value.cooldown_ms === "number" && Number.isFinite(value.cooldown_ms) && value.cooldown_ms > 0 && typeof value.threshold === "number" && Number.isFinite(value.threshold) && value.threshold > 0 && typeof value.deep_night === "boolean";
+  }
+  _isMainSceneAdMenu(value) {
+    return value === "feed" || value === "clean" || value === "hospital" || value === "mini_game";
+  }
+  _recordMainSceneMenuUse(menu) {
+    const adState = this._getMainSceneAdState();
+    if (!adState) {
+      return null;
+    }
+    adState.menu_use_count = Math.max(
+      0,
+      Math.floor(adState.menu_use_count)
+    ) + 1;
+    let createdReservation = null;
+    if (!adState.pending) {
+      const config = this._getMainSceneAdConfig();
+      if (adState.menu_use_count >= config.threshold) {
+        createdReservation = {
+          menu,
+          queued_at: this.currentTime,
+          cooldown_ms: config.cooldownMs,
+          threshold: config.threshold,
+          deep_night: config.deepNight
+        };
+        adState.pending = createdReservation;
+        console.log("[MainSceneWorld] MainScene menu ad reserved", {
+          menu,
+          menuUseCount: adState.menu_use_count,
+          ...config
+        });
+      }
+    }
+    this._persistMainSceneAdState();
+    return createdReservation;
+  }
+  _getMainSceneAdConfig() {
+    const deepNight = this._isMainSceneAdDeepNight();
+    return deepNight ? {
+      threshold: MAIN_SCENE_AD_DEEP_NIGHT_THRESHOLD,
+      cooldownMs: MAIN_SCENE_AD_DEEP_NIGHT_COOLDOWN_MS,
+      deepNight
+    } : {
+      threshold: MAIN_SCENE_AD_NORMAL_THRESHOLD,
+      cooldownMs: MAIN_SCENE_AD_NORMAL_COOLDOWN_MS,
+      deepNight
+    };
+  }
+  _isMainSceneAdDeepNight(referenceTime = this.currentTime) {
+    if (this._timeOfDayMode !== TimeOfDayMode.Auto || !this._sunTimes) {
+      return false;
+    }
+    try {
+      const now = new Date(referenceTime);
+      const previousDay = projectSunTimesForDate(
+        new Date(referenceTime - DAY_MS),
+        this._sunTimes
+      );
+      const currentDay = projectSunTimesForDate(now, this._sunTimes);
+      const nextDay = projectSunTimesForDate(
+        new Date(referenceTime + DAY_MS),
+        this._sunTimes
+      );
+      const intervals = [
+        {
+          start: previousDay.sunsetAt.getTime() + 4 * HOUR_MS,
+          end: currentDay.sunriseAt.getTime() - HOUR_MS
+        },
+        {
+          start: currentDay.sunsetAt.getTime() + 4 * HOUR_MS,
+          end: nextDay.sunriseAt.getTime() - HOUR_MS
+        }
+      ];
+      return intervals.some(({ start, end }) => {
+        return Number.isFinite(start) && Number.isFinite(end) && end > start && referenceTime >= start && referenceTime < end;
+      });
+    } catch (error) {
+      console.warn("[MainSceneWorld] Failed to resolve deep-night ad window", {
+        error
+      });
+      return false;
+    }
+  }
+  _persistMainSceneAdState() {
+    if (!this._persistentData || this._isPersistenceDisabled) {
+      return;
+    }
+    void this.setData(this._persistentData);
+  }
+  _schedulePendingMainSceneAdForMenu(menu, delayMs = MAIN_SCENE_AD_POST_ACTION_DELAY_MS) {
+    var _a;
+    const pending = (_a = this._getMainSceneAdState()) == null ? void 0 : _a.pending;
+    if (!pending || pending.menu !== menu) {
+      return;
+    }
+    this._setMainSceneAdTimer(() => {
+      void this._requestPendingMainSceneAd(menu);
+    }, delayMs);
+  }
+  async _requestPendingMainSceneAd(expectedMenu) {
+    var _a;
+    const adState = this._getMainSceneAdState();
+    const pending = adState == null ? void 0 : adState.pending;
+    if (!adState || !pending) {
+      return;
+    }
+    if (expectedMenu && pending.menu !== expectedMenu) {
+      return;
+    }
+    if (!this._canRequestMainSceneAdNow()) {
+      console.log("[MainSceneWorld] MainScene menu ad request deferred", {
+        menu: pending.menu
+      });
+      return;
+    }
+    const requestMainSceneMenuAd = typeof window !== "undefined" ? (_a = window.digiviceAdBridge) == null ? void 0 : _a.requestMainSceneMenuAd : void 0;
+    if (!requestMainSceneMenuAd) {
+      console.log("[MainSceneWorld] MainScene ad bridge is not available");
+      return;
+    }
+    try {
+      const didShow = await requestMainSceneMenuAd({
+        menu: pending.menu,
+        cooldownMs: pending.cooldown_ms,
+        threshold: pending.threshold,
+        queuedAt: pending.queued_at,
+        deepNight: pending.deep_night,
+        menuUseCount: adState.menu_use_count
+      });
+      if (didShow) {
+        adState.menu_use_count = 0;
+        adState.pending = void 0;
+        this._pendingFeedAdFoodEid = null;
+        this._clearFeedAdFallbackTimer();
+        console.log("[MainSceneWorld] MainScene menu ad shown; state reset");
+      } else {
+        console.log("[MainSceneWorld] MainScene menu ad was not shown", {
+          menu: pending.menu
+        });
+      }
+    } catch (error) {
+      console.warn("[MainSceneWorld] MainScene menu ad request failed", {
+        menu: pending.menu,
+        error
+      });
+    } finally {
+      this._persistMainSceneAdState();
+    }
+  }
+  _canRequestMainSceneAdNow() {
+    if (this._isPaused || this._isRunningReentrySimulation || this.isSimulationMode) {
+      return false;
+    }
+    if (typeof document !== "undefined" && document.hidden) {
+      return false;
+    }
+    return true;
+  }
+  _setMainSceneAdTimer(callback, delayMs) {
+    if (typeof window === "undefined") {
+      callback();
+      return 0;
+    }
+    let timerId = 0;
+    timerId = window.setTimeout(() => {
+      this._mainSceneAdTimerIds.delete(timerId);
+      callback();
+    }, Math.max(0, delayMs));
+    this._mainSceneAdTimerIds.add(timerId);
+    return timerId;
+  }
+  _clearMainSceneAdTimers() {
+    if (typeof window === "undefined") {
+      this._mainSceneAdTimerIds.clear();
+      this._feedAdFallbackTimerId = null;
+      return;
+    }
+    this._mainSceneAdTimerIds.forEach((timerId) => {
+      window.clearTimeout(timerId);
+    });
+    this._mainSceneAdTimerIds.clear();
+    this._feedAdFallbackTimerId = null;
+  }
+  _clearFeedAdFallbackTimer() {
+    if (this._feedAdFallbackTimerId === null || typeof window === "undefined") {
+      this._feedAdFallbackTimerId = null;
+      return;
+    }
+    window.clearTimeout(this._feedAdFallbackTimerId);
+    this._mainSceneAdTimerIds.delete(this._feedAdFallbackTimerId);
+    this._feedAdFallbackTimerId = null;
+  }
+  _trackPendingFeedAdFood(foodEid) {
+    var _a;
+    const pending = (_a = this._getMainSceneAdState()) == null ? void 0 : _a.pending;
+    if (!pending || pending.menu !== "feed") {
+      return;
+    }
+    this._pendingFeedAdFoodEid = foodEid;
+    this._clearFeedAdFallbackTimer();
+  }
+  handleThrownFoodLanded(foodEid) {
+    if (this.isSimulationMode || this._pendingFeedAdFoodEid !== foodEid) {
+      return;
+    }
+    this._clearFeedAdFallbackTimer();
+    this._feedAdFallbackTimerId = this._setMainSceneAdTimer(() => {
+      this._feedAdFallbackTimerId = null;
+      this._schedulePendingMainSceneAdForMenu(
+        "feed",
+        MAIN_SCENE_AD_POST_ACTION_DELAY_MS
+      );
+    }, MAIN_SCENE_AD_FEED_FALLBACK_AFTER_LAND_MS);
+  }
+  handleFoodConsumedForAd(foodEid) {
+    if (this.isSimulationMode || this._pendingFeedAdFoodEid !== foodEid) {
+      return;
+    }
+    this._pendingFeedAdFoodEid = null;
+    this._clearFeedAdFallbackTimer();
+    this._schedulePendingMainSceneAdForMenu(
+      "feed",
+      MAIN_SCENE_AD_POST_ACTION_DELAY_MS
+    );
+  }
+  handleHospitalRecoveryAnimationComplete(_characterEid) {
+    if (this.isSimulationMode) {
+      return;
+    }
+    this._schedulePendingMainSceneAdForMenu(
+      "hospital",
+      MAIN_SCENE_AD_POST_ACTION_DELAY_MS
+    );
   }
   /**
    * 에셋 로딩 - 스프라이트시트와 일반 이미지, GIF를 병렬로 로드
@@ -36057,23 +36750,34 @@ const _MainSceneWorld = class _MainSceneWorld {
               console.warn("[MainSceneWorld] Mini game start callback is not set");
               return;
             }
+            this._recordMainSceneMenuUse("mini_game");
             void this._startMiniGame();
           },
           onFeedSelect: () => {
             console.log("[MainSceneWorld] Feed selected");
-            this._throwFood();
+            const foodEid = this._throwFood();
+            if (foodEid !== null) {
+              this._recordMainSceneMenuUse("feed");
+              this._trackPendingFeedAdFood(foodEid);
+            }
           },
           onDrugSelect: () => {
             console.log("[MainSceneWorld] Drug selected");
-            this._handleHospitalSelection();
+            if (this._handleHospitalSelection()) {
+              this._recordMainSceneMenuUse("hospital");
+            }
           },
           onCleanSelect: () => {
             console.log("[MainSceneWorld] Clean selected");
-            this._enterCleaningMode();
+            if (this._enterCleaningMode()) {
+              this._recordMainSceneMenuUse("clean");
+            }
           },
           onHospitalSelect: () => {
             console.log("[MainSceneWorld] Hospital selected");
-            this._handleHospitalSelection();
+            if (this._handleHospitalSelection()) {
+              this._recordMainSceneMenuUse("hospital");
+            }
           },
           onCancel: () => {
             console.log("[MainSceneWorld] Menu cancelled");
@@ -36082,6 +36786,16 @@ const _MainSceneWorld = class _MainSceneWorld {
             this._updateControlButtonsForMenuState(focusedIndex !== null);
           }
         });
+        if (this._debugParentElement) {
+          this._debugGaugeUI = new HTMLDebugGaugeUI(
+            this,
+            this._debugParentElement,
+            {
+              initiallyVisible: false
+            }
+          );
+          this._addDebugGaugeEventListener();
+        }
         if (false) ;
       }
       this._setupVisibilityChangeHandler();
@@ -36090,6 +36804,26 @@ const _MainSceneWorld = class _MainSceneWorld {
     } finally {
       console.groupEnd();
     }
+  }
+  _addDebugGaugeEventListener() {
+    if (this._isDebugGaugeEventListenerRegistered || typeof window === "undefined") {
+      return;
+    }
+    window.addEventListener(
+      SHOW_DEBUG_GAUGE_EVENT,
+      this._handleShowDebugGauge
+    );
+    this._isDebugGaugeEventListenerRegistered = true;
+  }
+  _removeDebugGaugeEventListener() {
+    if (!this._isDebugGaugeEventListenerRegistered || typeof window === "undefined") {
+      return;
+    }
+    window.removeEventListener(
+      SHOW_DEBUG_GAUGE_EVENT,
+      this._handleShowDebugGauge
+    );
+    this._isDebugGaugeEventListenerRegistered = false;
   }
   /**
    * 기본 캐릭터(알) 생성
@@ -36246,6 +36980,7 @@ const _MainSceneWorld = class _MainSceneWorld {
       await this._saveCurrentState();
     }
     this._cleanupVisibilityChangeHandler();
+    this._clearMainSceneAdTimers();
     if (this._stage) {
       cleanupSleepEffects(this._stage);
       cleanupCharacterNameLabels();
@@ -36292,6 +37027,7 @@ const _MainSceneWorld = class _MainSceneWorld {
     console.groupCollapsed("[MainSceneWorld] 🧹 Destroying world...");
     try {
       this._cleanupVisibilityChangeHandler();
+      this._clearMainSceneAdTimers();
       if (!this._isPaused && !this._isPersistenceDisabled) {
         void this.onSceneExit();
       }
@@ -36299,6 +37035,7 @@ const _MainSceneWorld = class _MainSceneWorld {
         this._gameMenu.destroy();
         this._gameMenu = void 0;
       }
+      this._removeDebugGaugeEventListener();
       if (this._debugGaugeUI) {
         this._debugGaugeUI.destroy();
         this._debugGaugeUI = void 0;
@@ -36364,7 +37101,10 @@ const _MainSceneWorld = class _MainSceneWorld {
         app_state: {
           last_active_time: Date.now(),
           is_first_load: false,
-          use_local_time: (initialGameData == null ? void 0 : initialGameData.useLocalTime) ?? DEFAULT_USE_LOCAL_TIME$1
+          use_local_time: (initialGameData == null ? void 0 : initialGameData.useLocalTime) ?? DEFAULT_USE_LOCAL_TIME$1,
+          main_scene_ad: {
+            menu_use_count: 0
+          }
         }
       },
       entities: [this._createDefaultCharacterEntity()]
@@ -36511,7 +37251,10 @@ const _MainSceneWorld = class _MainSceneWorld {
           app_state: {
             last_active_time: Date.now(),
             is_first_load: false,
-            use_local_time: true
+            use_local_time: true,
+            main_scene_ad: {
+              menu_use_count: 0
+            }
           }
         };
       }
@@ -36519,10 +37262,18 @@ const _MainSceneWorld = class _MainSceneWorld {
         data.world_metadata.app_state = {
           last_active_time: Date.now(),
           is_first_load: false,
-          use_local_time: true
+          use_local_time: true,
+          main_scene_ad: {
+            menu_use_count: 0
+          }
         };
       } else if (typeof data.world_metadata.app_state.use_local_time !== "boolean") {
         data.world_metadata.app_state.use_local_time = true;
+      }
+      if (!data.world_metadata.app_state.main_scene_ad) {
+        data.world_metadata.app_state.main_scene_ad = {
+          menu_use_count: 0
+        };
       }
       if (!data.entities) {
         console.warn("Missing entities array, creating empty array");
@@ -36787,7 +37538,10 @@ const _MainSceneWorld = class _MainSceneWorld {
       this._persistentData.world_metadata.app_state = {
         last_active_time: 0,
         is_first_load: false,
-        use_local_time: this._isLocalTimeEnabled()
+        use_local_time: this._isLocalTimeEnabled(),
+        main_scene_ad: {
+          menu_use_count: 0
+        }
       };
     }
     this._persistentData.world_metadata.app_state.cached_sun_times = sunTimes;
@@ -36807,7 +37561,10 @@ const _MainSceneWorld = class _MainSceneWorld {
       this._persistentData.world_metadata.app_state = {
         last_active_time: 0,
         is_first_load: false,
-        use_local_time: enabled
+        use_local_time: enabled,
+        main_scene_ad: {
+          menu_use_count: 0
+        }
       };
       return;
     }
@@ -36934,7 +37691,7 @@ const _MainSceneWorld = class _MainSceneWorld {
       y: boundary.y + 40 + Math.random() * (boundary.height - 80)
       // 위아래 40px 여유
     };
-    createThrowingFoodEntity(this, {
+    const foodEid = createThrowingFoodEntity(this, {
       initialPosition,
       finalPosition
     });
@@ -36944,6 +37701,7 @@ const _MainSceneWorld = class _MainSceneWorld {
     console.log(
       `[MainSceneWorld] Position boundary: x=${boundary.x}, y=${boundary.y}, w=${boundary.width}, h=${boundary.height}`
     );
+    return foodEid;
   }
   /**
    * 앱 상태 관리자의 현재 상태 반환 (디버그용)
@@ -36956,6 +37714,24 @@ const _MainSceneWorld = class _MainSceneWorld {
       currentTime: this.currentTime
     };
   }
+  getMainSceneAdDebugState() {
+    const adState = this._getMainSceneAdState();
+    const currentConfig = this._getMainSceneAdConfig();
+    const pending = adState == null ? void 0 : adState.pending;
+    return {
+      menuUseCount: (adState == null ? void 0 : adState.menu_use_count) ?? 0,
+      threshold: (pending == null ? void 0 : pending.threshold) ?? currentConfig.threshold,
+      cooldownMs: (pending == null ? void 0 : pending.cooldown_ms) ?? currentConfig.cooldownMs,
+      deepNight: (pending == null ? void 0 : pending.deep_night) ?? currentConfig.deepNight,
+      pending: pending ? {
+        menu: pending.menu,
+        queuedAt: pending.queued_at,
+        cooldownMs: pending.cooldown_ms,
+        threshold: pending.threshold,
+        deepNight: pending.deep_night
+      } : null
+    };
+  }
   /**
    * 병원 메뉴 선택 처리 - sick 상태일 때만 회복 주사기 연출 시작
    */
@@ -36965,13 +37741,13 @@ const _MainSceneWorld = class _MainSceneWorld {
       console.warn(
         "[MainSceneWorld] No character entity found for hospital recovery"
       );
-      return;
+      return false;
     }
     if (hasComponent(this, EffectAnimationComp, characterEid) && EffectAnimationComp.isActive[characterEid]) {
       console.log(
         `[MainSceneWorld] Recovery animation already active for character ${characterEid}`
       );
-      return;
+      return false;
     }
     const isSick = this._isCharacterSick(characterEid);
     if (isSick) {
@@ -36985,9 +37761,12 @@ const _MainSceneWorld = class _MainSceneWorld {
     console.log(
       `[MainSceneWorld] Started hospital recovery animation for character ${characterEid} (pendingCure=${isSick})`
     );
+    return true;
   }
   _handleDrugSelection() {
-    this._handleHospitalSelection();
+    if (this._handleHospitalSelection()) {
+      this._recordMainSceneMenuUse("hospital");
+    }
   }
   _isCharacterSick(characterEid) {
     if (ObjectComp.state[characterEid] === CharacterState.SICK) {
@@ -37075,7 +37854,7 @@ const _MainSceneWorld = class _MainSceneWorld {
   _enterCleaningMode() {
     console.log("[MainSceneWorld] Entering cleaning mode");
     if (this._isCleaningMode) {
-      return;
+      return false;
     }
     const initialCleaningSliderValue = 0.5;
     this._isCleaningMode = true;
@@ -37085,6 +37864,7 @@ const _MainSceneWorld = class _MainSceneWorld {
     this._broomProgress = initialCleaningSliderValue;
     this._pendingCleaningSliderDelta = 0;
     this._updateControlButtonsForCleaningMode(true);
+    return true;
   }
   /**
    * 청소 완료 상태를 확인하고 모든 작업이 완료되면 청소 모드 종료
@@ -37107,7 +37887,7 @@ const _MainSceneWorld = class _MainSceneWorld {
       console.log(
         "[MainSceneWorld] All cleaning completed, exiting cleaning mode"
       );
-      this.exitCleaningMode();
+      this._exitCleaningMode({ completed: true });
     }
   }
   /**
@@ -37129,6 +37909,12 @@ const _MainSceneWorld = class _MainSceneWorld {
     clearCleaningTargets(this);
     const menuHasFocus = ((_a = this._gameMenu) == null ? void 0 : _a.hasFocus()) ?? false;
     this._updateControlButtonsForMenuState(menuHasFocus);
+    if (options.completed) {
+      this._schedulePendingMainSceneAdForMenu(
+        "clean",
+        MAIN_SCENE_AD_POST_ACTION_DELAY_MS
+      );
+    }
   }
   /**
    * 청소 모드 상태에 따라 컨트롤 버튼 업데이트
@@ -37442,7 +38228,10 @@ const _MainSceneWorld = class _MainSceneWorld {
         this._persistentData.world_metadata.app_state = {
           last_active_time: 0,
           is_first_load: false,
-          use_local_time: this._isLocalTimeEnabled()
+          use_local_time: this._isLocalTimeEnabled(),
+          main_scene_ad: {
+            menu_use_count: 0
+          }
         };
       }
       this._persistentData.world_metadata.app_state.last_active_time = Date.now();
@@ -45091,12 +45880,6 @@ const SettingMenuLayer = ({
   onChangeVibration,
   onSendDiagnostics,
   isSendingDiagnostics,
-  showAdDebugSection = false,
-  adDebugState = null,
-  isRefreshingAdDebugState = false,
-  isShowingTestAd = false,
-  onRefreshAdDebugState,
-  onShowTestAd,
   onResetGameData,
   onClose
 }) => {
@@ -45107,8 +45890,6 @@ const SettingMenuLayer = ({
     () => resetConfirmText.trim() === "confirm",
     [resetConfirmText]
   );
-  const adDebugStatus = (adDebugState == null ? void 0 : adDebugState.isReady) ? "Ready" : (adDebugState == null ? void 0 : adDebugState.isLoading) ? "Loading" : (adDebugState == null ? void 0 : adDebugState.lastError) ? "Error" : "Idle";
-  const isTestAdButtonDisabled = !(adDebugState == null ? void 0 : adDebugState.isReady) || Boolean(adDebugState == null ? void 0 : adDebugState.isLoading) || isShowingTestAd;
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50", children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx(
       PopupLayer,
@@ -45172,37 +45953,6 @@ const SettingMenuLayer = ({
                   children: "Reset"
                 }
               )
-            ] })
-          ] }),
-          showAdDebugSection && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "border-t-2 border-[#222] pt-4", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "mb-3 text-sm font-bold", children: "[DEBUG] Ad Test" }),
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-3 text-xs text-gray-600", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between gap-4", children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
-                  /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
-                    "Status: ",
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "font-bold", children: adDebugStatus })
-                  ] }),
-                  (adDebugState == null ? void 0 : adDebugState.lastError) && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "mt-1 max-w-52 break-all text-[11px] text-component-negative", children: adDebugState.lastError })
-                ] }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx(
-                  ActionButton,
-                  {
-                    text: isRefreshingAdDebugState ? "Refreshing..." : "Refresh",
-                    onClick: () => onRefreshAdDebugState == null ? void 0 : onRefreshAdDebugState(),
-                    disabled: isRefreshingAdDebugState || typeof onRefreshAdDebugState !== "function",
-                    variant: "warning"
-                  }
-                )
-              ] }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex justify-end", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-                ActionButton,
-                {
-                  text: isShowingTestAd ? "Opening..." : "Show Test Ad",
-                  onClick: () => onShowTestAd == null ? void 0 : onShowTestAd(),
-                  disabled: isTestAdButtonDisabled || typeof onShowTestAd !== "function"
-                }
-              ) })
             ] })
           ] })
         ] }),
@@ -45294,6 +46044,13 @@ function toFiniteNumber(value) {
 function toBoolean(value, fallback) {
   return typeof value === "boolean" ? value : fallback;
 }
+function toNonNegativeInteger(value, fallback = 0) {
+  const numericValue = toFiniteNumber(value);
+  if (numericValue === null || numericValue < 0) {
+    return fallback;
+  }
+  return Math.floor(numericValue);
+}
 function sanitizeStatuses(statuses) {
   if (!Array.isArray(statuses)) {
     return new Array(DEFAULTS.STATUS_SLOT_COUNT).fill(ECS_NULL_VALUE);
@@ -45311,9 +46068,12 @@ function needsRandomMovement(state) {
   return state === CHARACTER_STATE.IDLE || state === CHARACTER_STATE.MOVING;
 }
 function sanitizeWorldMetadata(metadata, now) {
-  var _a, _b, _c, _d;
+  var _a, _b, _c, _d, _e;
   const cachedSunTimes = sanitizeCachedSunTimes(
     (_a = metadata == null ? void 0 : metadata.app_state) == null ? void 0 : _a.cached_sun_times
+  );
+  const mainSceneAd = sanitizeMainSceneAdState(
+    (_b = metadata == null ? void 0 : metadata.app_state) == null ? void 0 : _b.main_scene_ad
   );
   return {
     name: typeof (metadata == null ? void 0 : metadata.name) === "string" && metadata.name.trim() ? metadata.name.trim() : "MainScene",
@@ -45321,12 +46081,44 @@ function sanitizeWorldMetadata(metadata, now) {
     last_ecs_saved: toFiniteNumber(metadata == null ? void 0 : metadata.last_ecs_saved) ?? now,
     version: typeof (metadata == null ? void 0 : metadata.version) === "string" && metadata.version.trim() ? metadata.version : DEFAULTS.VERSION,
     app_state: {
-      last_active_time: toFiniteNumber((_b = metadata == null ? void 0 : metadata.app_state) == null ? void 0 : _b.last_active_time) ?? now,
-      is_first_load: typeof ((_c = metadata == null ? void 0 : metadata.app_state) == null ? void 0 : _c.is_first_load) === "boolean" ? metadata.app_state.is_first_load : false,
-      use_local_time: typeof ((_d = metadata == null ? void 0 : metadata.app_state) == null ? void 0 : _d.use_local_time) === "boolean" ? metadata.app_state.use_local_time : true,
-      cached_sun_times: cachedSunTimes
+      last_active_time: toFiniteNumber((_c = metadata == null ? void 0 : metadata.app_state) == null ? void 0 : _c.last_active_time) ?? now,
+      is_first_load: typeof ((_d = metadata == null ? void 0 : metadata.app_state) == null ? void 0 : _d.is_first_load) === "boolean" ? metadata.app_state.is_first_load : false,
+      use_local_time: typeof ((_e = metadata == null ? void 0 : metadata.app_state) == null ? void 0 : _e.use_local_time) === "boolean" ? metadata.app_state.use_local_time : true,
+      cached_sun_times: cachedSunTimes,
+      main_scene_ad: mainSceneAd
     }
   };
+}
+function sanitizeMainSceneAdState(adState) {
+  const sanitized = {
+    menu_use_count: toNonNegativeInteger(adState == null ? void 0 : adState.menu_use_count)
+  };
+  const pending = sanitizeMainSceneAdPendingReservation(adState == null ? void 0 : adState.pending);
+  if (pending) {
+    sanitized.pending = pending;
+  }
+  return sanitized;
+}
+function sanitizeMainSceneAdPendingReservation(pending) {
+  if (!pending || !isMainSceneAdMenu(pending.menu)) {
+    return void 0;
+  }
+  const queuedAt = toFiniteNumber(pending.queued_at);
+  const cooldownMs = toFiniteNumber(pending.cooldown_ms);
+  const threshold = toFiniteNumber(pending.threshold);
+  if (queuedAt === null || queuedAt <= 0 || cooldownMs === null || cooldownMs <= 0 || threshold === null || threshold <= 0 || typeof pending.deep_night !== "boolean") {
+    return void 0;
+  }
+  return {
+    menu: pending.menu,
+    queued_at: queuedAt,
+    cooldown_ms: cooldownMs,
+    threshold: Math.floor(threshold),
+    deep_night: pending.deep_night
+  };
+}
+function isMainSceneAdMenu(value) {
+  return value === "feed" || value === "clean" || value === "hospital" || value === "mini_game";
 }
 function sanitizeCachedSunTimes(sunTimes) {
   if (typeof (sunTimes == null ? void 0 : sunTimes.sunriseAt) !== "string" || typeof sunTimes.sunsetAt !== "string" || typeof sunTimes.date !== "string" || typeof sunTimes.timezone !== "string" || typeof sunTimes.timezoneOffsetMinutes !== "number" || typeof sunTimes.fetchedAt !== "string" || sunTimes.locationSource !== "device" && sunTimes.locationSource !== "fallback" || typeof sunTimes.hasLocationPermission !== "boolean") {
@@ -45718,10 +46510,11 @@ function getClientStorageKind() {
 }
 const DIAGNOSTICS_LOGS_STORAGE_KEY = "DiagnosticsLogs";
 const DIAGNOSTICS_IMPORTANT_LOGS_STORAGE_KEY = "DiagnosticsImportantLogs";
-const DIAGNOSTICS_LOGS_MAX_TOTAL_BYTES = 1024 * 1024;
-const DIAGNOSTICS_IMPORTANT_LOGS_MAX_TOTAL_BYTES = 256 * 1024;
+const DIAGNOSTICS_LOGS_MAX_TOTAL_BYTES = 100 * 1024;
+const DIAGNOSTICS_IMPORTANT_LOGS_MAX_TOTAL_BYTES = 128 * 1024;
 const DIAGNOSTICS_LOG_ENTRY_MAX_BYTES = 8 * 1024;
 const DIAGNOSTICS_LOGS_PERSIST_DEBOUNCE_MS = 2e3;
+const DIAGNOSTICS_LOGS_RECENT_WINDOW_MS = 10 * 60 * 1e3;
 const ELLIPSIS = "…";
 const IMPORTANT_DIAGNOSTICS_PREFIX = "[ImportantDiagnostics]";
 const textEncoder = new TextEncoder();
@@ -45896,9 +46689,7 @@ function createLogRecord(entry) {
   };
 }
 function trimLogsToSize(logs) {
-  return trimLogsToSizeWithLimit(logs, DIAGNOSTICS_LOGS_MAX_TOTAL_BYTES, (total) => {
-    diagnosticsLogsTotalBytes = total;
-  });
+  return trimRegularLogsToSize(logs);
 }
 function trimImportantLogsToSize(logs) {
   return trimLogsToSizeWithLimit(
@@ -45921,6 +46712,32 @@ function trimLogsToSizeWithLimit(logs, maxTotalBytes, onTotalBytes) {
     totalBytes -= nextLogs.length > 0 ? 1 : 2;
   }
   onTotalBytes(getSerializedLogsByteLength(nextLogs));
+  return nextLogs;
+}
+function getDiagnosticsLogTimestampMs(log) {
+  const timestampMs = Date.parse(log.entry.timestamp);
+  return Number.isFinite(timestampMs) ? timestampMs : null;
+}
+function trimRegularLogsToSize(logs) {
+  let nextLogs = [...logs];
+  let totalBytes = getSerializedLogsByteLength(nextLogs);
+  if (totalBytes > DIAGNOSTICS_LOGS_MAX_TOTAL_BYTES) {
+    const recentThreshold = Date.now() - DIAGNOSTICS_LOGS_RECENT_WINDOW_MS;
+    nextLogs = nextLogs.filter((log) => {
+      const timestampMs = getDiagnosticsLogTimestampMs(log);
+      return timestampMs === null || timestampMs >= recentThreshold;
+    });
+    totalBytes = getSerializedLogsByteLength(nextLogs);
+  }
+  while (nextLogs.length > 0 && totalBytes > DIAGNOSTICS_LOGS_MAX_TOTAL_BYTES) {
+    const removed2 = nextLogs.shift();
+    if (!removed2) {
+      break;
+    }
+    totalBytes -= removed2.byteSize;
+    totalBytes -= nextLogs.length > 0 ? 1 : 2;
+  }
+  diagnosticsLogsTotalBytes = getSerializedLogsByteLength(nextLogs);
   return nextLogs;
 }
 function normalizePersistedLogs(value) {
@@ -46111,14 +46928,8 @@ const RECOVERY_VIBRATION_INTERVAL_MS = 180;
 const RECOVERY_VIBRATION_DURATION_MS = 14;
 const RECOVERY_VIBRATION_STRENGTH = 28;
 const isNativeFeatureDebugMode$1 = true;
-const isNativeAppUserAgent = typeof navigator !== "undefined" && /DigiviceApp/i.test(navigator.userAgent);
 const isAndroidUserAgent = typeof navigator !== "undefined" && /DigiviceApp-Android|Android/i.test(navigator.userAgent);
 const MINI_GAME_UNAVAILABLE_VERSION = "0.1.0";
-const DEFAULT_AD_DEBUG_STATE = {
-  isReady: false,
-  isLoading: false,
-  lastError: null
-};
 function waitForAnimationFrame() {
   return new Promise((resolve) => {
     window.requestAnimationFrame(() => resolve());
@@ -46152,22 +46963,6 @@ function setFrozenAppShellHeight(height) {
     return;
   }
   document.documentElement.style.removeProperty("--digivice-app-shell-height");
-}
-async function getNativeAdDebugState() {
-  var _a;
-  if (!((_a = window.adController) == null ? void 0 : _a.getAdDebugState)) {
-    return {
-      ...DEFAULT_AD_DEBUG_STATE,
-      lastError: "Ad debug bridge unavailable"
-    };
-  }
-  const result = await window.adController.getAdDebugState();
-  const parsed = JSON.parse(result);
-  return {
-    isReady: parsed.isReady === true,
-    isLoading: parsed.isLoading === true,
-    lastError: typeof parsed.lastError === "string" && parsed.lastError.length > 0 ? parsed.lastError : null
-  };
 }
 function getBaseAppVersion(version) {
   return version.replace(/-.+$/, "");
@@ -46289,11 +47084,6 @@ const GameContainer = () => {
   const [gameSessionKey, setGameSessionKey] = reactExports.useState(0);
   const [isSendingDiagnostics, setIsSendingDiagnostics] = reactExports.useState(false);
   const [pendingDiagnosticsDraft, setPendingDiagnosticsDraft] = reactExports.useState(null);
-  const [adDebugState, setAdDebugState] = reactExports.useState(
-    DEFAULT_AD_DEBUG_STATE
-  );
-  const [isRefreshingAdDebugState, setIsRefreshingAdDebugState] = reactExports.useState(false);
-  const [isShowingTestAd, setIsShowingTestAd] = reactExports.useState(false);
   const [buttonParams, setButtonParams] = reactExports.useState(null);
   const [sceneTransitionLoadState, setSceneTransitionLoadState] = reactExports.useState({
     requestId: 0,
@@ -46308,7 +47098,6 @@ const GameContainer = () => {
   const isFullscreenAdLayoutFrozenRef = reactExports.useRef(false);
   const fullscreenAdLayoutReleaseTimeoutRef = reactExports.useRef(null);
   const fullscreenAdLayoutReleaseRafRef = reactExports.useRef(null);
-  const showAdDebugSection = isNativeAppUserAgent && isNativeFeatureDebugMode$1;
   const clearPendingSettingMenuOpen = reactExports.useCallback(() => {
     if (pendingSettingMenuOpenTimeoutRef.current === null) {
       return;
@@ -46337,50 +47126,6 @@ const GameContainer = () => {
   const handleVibrationSettingChange = reactExports.useCallback((enabled) => {
     setGameSettings(updateGameSettings({ vibrationEnabled: enabled }));
   }, []);
-  const refreshAdDebugState = reactExports.useCallback(async () => {
-    if (!showAdDebugSection) {
-      return;
-    }
-    setIsRefreshingAdDebugState(true);
-    try {
-      const nextState = await getNativeAdDebugState();
-      setAdDebugState(nextState);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to read ad debug state";
-      setAdDebugState({
-        ...DEFAULT_AD_DEBUG_STATE,
-        lastError: message
-      });
-    } finally {
-      setIsRefreshingAdDebugState(false);
-    }
-  }, [showAdDebugSection]);
-  const handleShowTestAd = reactExports.useCallback(async () => {
-    var _a;
-    if (!showAdDebugSection) {
-      return;
-    }
-    if (!((_a = window.adController) == null ? void 0 : _a.showTestInterstitial)) {
-      showAlert(
-        "Ad Debug Unavailable",
-        "Native ad debug bridge is not available in this build."
-      );
-      return;
-    }
-    setIsShowingTestAd(true);
-    try {
-      await window.adController.showTestInterstitial();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to show test ad";
-      showAlert("Test Ad Failed", message);
-    } finally {
-      setIsShowingTestAd(false);
-      void refreshAdDebugState();
-      window.setTimeout(() => {
-        void refreshAdDebugState();
-      }, 1500);
-    }
-  }, [refreshAdDebugState, showAdDebugSection, showAlert]);
   reactExports.useEffect(() => {
     setDiagnosticsContextProvider(() => ({
       scene: (gameInstance == null ? void 0 : gameInstance.getCurrentSceneKey()) !== void 0 ? String(gameInstance.getCurrentSceneKey()) : void 0,
@@ -46392,12 +47137,6 @@ const GameContainer = () => {
       setDiagnosticsContextProvider(null);
     };
   }, [gameInstance]);
-  reactExports.useEffect(() => {
-    if (!showSettingMenu || !showAdDebugSection) {
-      return;
-    }
-    void refreshAdDebugState();
-  }, [refreshAdDebugState, showAdDebugSection, showSettingMenu]);
   const handleSceneTransitionStateChange = reactExports.useCallback(
     (params) => {
       if (params.state === "loading") {
@@ -47055,12 +47794,6 @@ const GameContainer = () => {
         onChangeVibration: handleVibrationSettingChange,
         onSendDiagnostics: handleSendDiagnostics,
         isSendingDiagnostics,
-        showAdDebugSection,
-        adDebugState,
-        isRefreshingAdDebugState,
-        isShowingTestAd,
-        onRefreshAdDebugState: refreshAdDebugState,
-        onShowTestAd: handleShowTestAd,
         onResetGameData: handleResetGameData,
         onClose: closeSettingMenu
       }
@@ -47254,6 +47987,14 @@ class CooldownCondition {
     }
   }
 }
+const DEFAULT_NATIVE_AD_COOLDOWN_MS = 4 * 60 * 60 * 1e3;
+function resolveCooldownMs$1(metadata) {
+  const cooldownMs = metadata == null ? void 0 : metadata.cooldownMs;
+  if (typeof cooldownMs === "number" && Number.isFinite(cooldownMs) && cooldownMs > 0) {
+    return cooldownMs;
+  }
+  return DEFAULT_NATIVE_AD_COOLDOWN_MS;
+}
 class AdManager {
   constructor() {
     __publicField(this, "policies", []);
@@ -47294,8 +48035,9 @@ class AdManager {
       return false;
     }
     console.log(`[AdManager] Policy matched: ${policy.name}`);
+    const cooldownMs = resolveCooldownMs$1(fullContext.metadata);
     try {
-      const canShowStr = await window.adController.canShowAd();
+      const canShowStr = await window.adController.canShowAd({ cooldownMs });
       const canShow = canShowStr === "true";
       if (!canShow) {
         console.log("[AdManager] Blocked by native cooldown");
@@ -47306,7 +48048,7 @@ class AdManager {
       return false;
     }
     try {
-      await window.adController.showInterstitial();
+      await window.adController.showInterstitial({ cooldownMs });
       console.log("[AdManager] Ad shown successfully");
       CooldownCondition.updateCooldown();
       return true;
@@ -47352,7 +48094,9 @@ class AdManager {
       return false;
     }
     try {
-      await window.adController.showInterstitial();
+      await window.adController.showInterstitial({
+        cooldownMs: DEFAULT_NATIVE_AD_COOLDOWN_MS
+      });
       CooldownCondition.updateCooldown();
       return true;
     } catch (error) {
@@ -47410,29 +48154,36 @@ class AppReenterPolicy {
     return 5;
   }
 }
-const TWO_HOURS_MS = 2 * 60 * 60 * 1e3;
-class UrgentRecoveryPolicy {
+const DEFAULT_MAIN_SCENE_MENU_COOLDOWN_MS = 5 * 60 * 1e3;
+function resolveCooldownMs(metadata) {
+  const cooldownMs = metadata == null ? void 0 : metadata.cooldownMs;
+  if (typeof cooldownMs === "number" && Number.isFinite(cooldownMs) && cooldownMs > 0) {
+    return cooldownMs;
+  }
+  return DEFAULT_MAIN_SCENE_MENU_COOLDOWN_MS;
+}
+class MainSceneMenuPolicy {
   constructor() {
-    __publicField(this, "name", "urgent_recovery");
-    __publicField(this, "condition");
-    this.condition = new AndCondition([new CooldownCondition(TWO_HOURS_MS)]);
+    __publicField(this, "name", "main_scene_menu");
   }
   async shouldShow(context2) {
-    if (context2.trigger !== "urgent_recovery") {
+    if (context2.trigger !== "main_scene_menu") {
       return false;
     }
-    if (context2.isCharacterUrgent) {
-      console.log("[UrgentRecoveryPolicy] Blocked - still in urgent state");
-      return false;
+    const cooldownMs = resolveCooldownMs(context2.metadata);
+    const isCooldownSatisfied = await new CooldownCondition(cooldownMs).check(
+      context2
+    );
+    if (!isCooldownSatisfied) {
+      console.log("[MainSceneMenuPolicy] Ad blocked by cooldown", {
+        cooldownMs,
+        metadata: context2.metadata
+      });
     }
-    const result = await this.condition.check(context2);
-    if (!result) {
-      console.log("[UrgentRecoveryPolicy] Blocked - conditions not met");
-    }
-    return result;
+    return isCooldownSatisfied;
   }
   getPriority() {
-    return 10;
+    return 8;
   }
 }
 const SimpleLogViewer = (props) => {
@@ -47450,8 +48201,21 @@ const App = () => {
     isInitialized.current = true;
     adManager = new AdManager();
     adManager.addPolicy(new AppReenterPolicy());
-    adManager.addPolicy(new UrgentRecoveryPolicy());
+    adManager.addPolicy(new MainSceneMenuPolicy());
     window.adManager = adManager;
+    window.digiviceAdBridge = {
+      requestMainSceneMenuAd: (request) => {
+        console.log("[App] MainScene menu ad requested", request);
+        return (adManager == null ? void 0 : adManager.requestAd("main_scene_menu", {
+          isCharacterUrgent: false,
+          metadata: {
+            ...request,
+            trigger: "main_scene_menu",
+            timestamp: Date.now()
+          }
+        })) ?? Promise.resolve(false);
+      }
+    };
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
         if (isFullscreenAdActiveRef.current || Date.now() < suppressAppReenterUntilRef.current) {
@@ -47481,16 +48245,6 @@ const App = () => {
       "digivice:fullscreen-ad",
       handleFullscreenAdState
     );
-    window.onUrgentRecovery = () => {
-      console.log("[App] Character recovered from URGENT state");
-      adManager == null ? void 0 : adManager.requestAd("urgent_recovery", {
-        isCharacterUrgent: false,
-        metadata: {
-          trigger: "urgent_recovery",
-          timestamp: Date.now()
-        }
-      });
-    };
     updateLastActiveTime();
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
@@ -47498,7 +48252,7 @@ const App = () => {
         "digivice:fullscreen-ad",
         handleFullscreenAdState
       );
-      window.onUrgentRecovery = void 0;
+      window.digiviceAdBridge = void 0;
     };
   }, []);
   const handleAppReenter = () => {
