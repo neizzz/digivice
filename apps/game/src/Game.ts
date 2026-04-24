@@ -6,6 +6,7 @@ import {
   MainSceneWorld,
   type MainSceneWorldData,
 } from "./scenes/MainScene/world";
+import type { SunTimesPayload } from "./scenes/MainScene/timeOfDay";
 import { FlappyBirdGameScene } from "./scenes/FlappyBirdGameScene";
 import { AssetLoader } from "./utils/AssetLoader";
 
@@ -26,6 +27,7 @@ export type ControlButtonsChangeCallback = (
 export type CreateInitialGameDataCallback = () => Promise<{
   name: string;
   useLocalTime: boolean;
+  cachedSunTimes?: SunTimesPayload | null;
 }>;
 
 // TODO: 컨트롤 버튼과 연계하는거 생각해야됨.

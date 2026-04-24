@@ -377,6 +377,7 @@ export class MainSceneWorld implements IWorld, Scene {
   private _createInitialGameData?: () => Promise<{
     name: string;
     useLocalTime: boolean;
+    cachedSunTimes?: SunTimesPayload | null;
   }>;
   private _pendingStorageWrite: Promise<void> = Promise.resolve();
   private _startMiniGame?: () => unknown | Promise<unknown>;
@@ -524,6 +525,7 @@ export class MainSceneWorld implements IWorld, Scene {
     createInitialGameData?: () => Promise<{
       name: string;
       useLocalTime: boolean;
+      cachedSunTimes?: SunTimesPayload | null;
     }>;
     changeControlButtons?: (
       controlButtonParamsSet: [
@@ -1660,7 +1662,14 @@ export class MainSceneWorld implements IWorld, Scene {
   private _initializeData(initialGameData?: {
     name: string;
     useLocalTime: boolean;
+    cachedSunTimes?: SunTimesPayload | null;
   }): MainSceneWorldData {
+    const useLocalTime =
+      initialGameData?.useLocalTime ?? DEFAULT_USE_LOCAL_TIME;
+    const cachedSunTimes = useLocalTime
+      ? initialGameData?.cachedSunTimes ?? undefined
+      : undefined;
+
     return {
       world_metadata: {
         name: "MainScene",
@@ -1670,7 +1679,8 @@ export class MainSceneWorld implements IWorld, Scene {
         app_state: {
           last_active_time: Date.now(),
           is_first_load: false,
-          use_local_time: initialGameData?.useLocalTime ?? DEFAULT_USE_LOCAL_TIME,
+          use_local_time: useLocalTime,
+          cached_sun_times: cachedSunTimes,
           main_scene_ad: {
             menu_use_count: 0,
           },

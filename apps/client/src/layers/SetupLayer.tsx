@@ -4,6 +4,7 @@ import {
   fitsNameLabelWidth,
   measureNameLabelWidth,
   NAME_LABEL_MAX_WIDTH,
+  type SunTimesPayload,
 } from "@digivice/game";
 import { useCallback, useState } from "react";
 import { createPortal } from "react-dom";
@@ -14,6 +15,7 @@ const MIN_NAME_LENGTH = 2;
 export type SetupFormData = {
   name: string;
   useLocalTime: boolean;
+  cachedSunTimes?: SunTimesPayload | null;
 };
 
 export interface SetupLayerProps {
@@ -25,6 +27,8 @@ const DEFAULT_USE_LOCAL_TIME = import.meta.env.DEV;
 export const SetupLayer: React.FC<SetupLayerProps> = ({ onComplete }) => {
   const [name, setName] = useState("");
   const [useLocalTime, setUseLocalTime] = useState(DEFAULT_USE_LOCAL_TIME);
+  const [cachedSunTimes, setCachedSunTimes] =
+    useState<SunTimesPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [localTimeError, setLocalTimeError] = useState<string | null>(null);
   const [isRequestingLocationPermission, setIsRequestingLocationPermission] =
@@ -34,49 +38,56 @@ export const SetupLayer: React.FC<SetupLayerProps> = ({ onComplete }) => {
   const nameWidth = measureNameLabelWidth(trimmedName);
   const isWithinVisibleWidth = fitsNameLabelWidth(trimmedName);
 
-  const ensureLocationPermissionForLocalTime = useCallback(async () => {
-    if (typeof window === "undefined" || !window.sunController) {
-      setLocalTimeError(
-        "Local day/night time is only available in the native app.",
-      );
-      return false;
-    }
-
-    try {
-      const sunTimes = await window.sunController.getSunTimes(false);
-      if (sunTimes?.hasLocationPermission) {
-        return true;
-      }
-    } catch (permissionCheckError) {
-      console.warn(
-        "[SetupLayer] Failed to check location permission state:",
-        permissionCheckError,
-      );
-    }
-
-    setIsRequestingLocationPermission(true);
-
-    try {
-      const result = await window.sunController.requestLocationPermission();
-      if (result?.granted) {
-        return true;
+  const loadSunTimesForLocalTime =
+    useCallback(async (): Promise<SunTimesPayload | null> => {
+      if (typeof window === "undefined" || !window.sunController) {
+        setLocalTimeError(
+          "Local day/night time is only available in the native app.",
+        );
+        return null;
       }
 
-      setLocalTimeError(
-        "Location permission is required to enable local day/night time.",
-      );
-      return false;
-    } catch (permissionRequestError) {
-      console.warn(
-        "[SetupLayer] Failed to request location permission:",
-        permissionRequestError,
-      );
-      setLocalTimeError("Failed to request location permission.");
-      return false;
-    } finally {
-      setIsRequestingLocationPermission(false);
-    }
-  }, []);
+      setIsRequestingLocationPermission(true);
+
+      try {
+        try {
+          const sunTimes = await window.sunController.getSunTimes(false);
+          if (sunTimes?.hasLocationPermission) {
+            return sunTimes;
+          }
+        } catch (permissionCheckError) {
+          console.warn(
+            "[SetupLayer] Failed to check location permission state:",
+            permissionCheckError,
+          );
+        }
+
+        const result = await window.sunController.requestLocationPermission();
+        if (!result?.granted) {
+          setLocalTimeError(
+            "Location permission is required to enable local day/night time.",
+          );
+          return null;
+        }
+
+        const sunTimes = await window.sunController.getSunTimes(false);
+        if (sunTimes) {
+          return sunTimes;
+        }
+
+        setLocalTimeError("Failed to load local day/night time.");
+        return null;
+      } catch (permissionRequestError) {
+        console.warn(
+          "[SetupLayer] Failed to load local day/night time:",
+          permissionRequestError,
+        );
+        setLocalTimeError("Failed to load local day/night time.");
+        return null;
+      } finally {
+        setIsRequestingLocationPermission(false);
+      }
+    }, []);
 
   const handleUseLocalTimeChange = useCallback(
     async (checked: boolean) => {
@@ -84,16 +95,18 @@ export const SetupLayer: React.FC<SetupLayerProps> = ({ onComplete }) => {
 
       if (!checked) {
         setUseLocalTime(false);
+        setCachedSunTimes(null);
         return;
       }
 
-      const granted = await ensureLocationPermissionForLocalTime();
-      setUseLocalTime(granted);
+      const sunTimes = await loadSunTimesForLocalTime();
+      setCachedSunTimes(sunTimes);
+      setUseLocalTime(!!sunTimes);
     },
-    [ensureLocationPermissionForLocalTime],
+    [loadSunTimesForLocalTime],
   );
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (isRequestingLocationPermission) {
       setError("Please wait for the location permission request to finish.");
       return;
@@ -120,10 +133,22 @@ export const SetupLayer: React.FC<SetupLayerProps> = ({ onComplete }) => {
       document.activeElement.blur();
     }
 
+    const canLoadNativeSunTimes =
+      typeof window !== "undefined" && !!window.sunController;
+    const sunTimes =
+      useLocalTime && canLoadNativeSunTimes
+        ? cachedSunTimes ?? (await loadSunTimesForLocalTime())
+        : cachedSunTimes;
+
+    if (useLocalTime && canLoadNativeSunTimes && !sunTimes) {
+      return;
+    }
+
     // 닉네임 유효성 검사 통과 시 완료 콜백 호출
     onComplete({
       name: trimmedName,
       useLocalTime,
+      cachedSunTimes: sunTimes,
     });
   };
 
