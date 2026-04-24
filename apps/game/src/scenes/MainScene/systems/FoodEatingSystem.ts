@@ -16,7 +16,6 @@ import {
   SpeedComp,
   RandomMovementComp,
   FreshnessComp,
-  RenderComp,
 } from "../raw-components";
 import { GAME_CONSTANTS } from "../config";
 import {
@@ -32,8 +31,6 @@ import { addCharacterStatus } from "./CharacterManageSystem";
 import { getStaminaBonusFromFreshness, isFoodEdible } from "./FreshnessSystem";
 import { addDigestiveLoadAmount } from "./DigestiveSystem";
 import { moveTowardsTarget } from "../utils/movementUtils";
-import { getCharacterWorldBounds } from "./CharacterDisplayBounds";
-import { getSpriteStore } from "./RenderSystem";
 
 const characterQuery = defineQuery([
   ObjectComp,
@@ -60,17 +57,8 @@ const movingToFoodQuery = defineQuery([
 // 음식 먹기 관련 상수
 const FOOD_EATING_DURATION = 3200; // 음식을 먹는데 걸리는 시간 (ms)
 const EATING_ARRIVAL_THRESHOLD = 20; // 목적지 도달 판정 거리 (slowdown 구간 전에 도착하도록)
-const FOOD_CHARACTER_BOUNDARY_OVERLAP_PX = 10; // 식사 중 캐릭터와 음식 경계가 겹치는 정도
-const FALLBACK_FOOD_SOURCE_SIZE = 16;
-
-type WorldBounds = {
-  leftX: number;
-  rightX: number;
-  topY: number;
-  bottomY: number;
-  width: number;
-  height: number;
-};
+const EATING_POSE_FOOD_Y_OFFSET_PX = 1; // 식사 중 캐릭터 중심이 음식 중심보다 위에 있는 정도
+const ZERO_DISTANCE_EPSILON = 0.001;
 
 export function foodEatingSystem(params: {
   world: MainSceneWorld;
@@ -210,6 +198,10 @@ function updateMovingToFood(world: MainSceneWorld, delta: number): void {
       continue;
     }
 
+    const previousAngle = hasComponent(world, AngleComp, eid)
+      ? AngleComp.value[eid]
+      : null;
+
     // 유틸 함수를 사용하여 이동 처리 + 도착 판정
     const { distance, hasArrived } = moveTowardsTarget(
       world,
@@ -224,7 +216,11 @@ function updateMovingToFood(world: MainSceneWorld, delta: number): void {
           2,
         )}`,
       );
-      snapCharacterToEatingPose(eid, targetFoodEid);
+      if (distance <= ZERO_DISTANCE_EPSILON && previousAngle !== null) {
+        AngleComp.value[eid] = previousAngle;
+      }
+
+      snapCharacterToEatingPose(world, eid, targetFoodEid);
       startEating(world, eid, targetFoodEid);
       continue;
     }
@@ -409,7 +405,7 @@ function findAndEatFood(world: MainSceneWorld): void {
       console.log(
         `[FoodEatingSystem] Character ${characterEid} is close enough to food ${foodEid}, starting to eat`,
       );
-      snapCharacterToEatingPose(characterEid, foodEid);
+      snapCharacterToEatingPose(world, characterEid, foodEid);
       startEating(world, characterEid, foodEid);
     } else {
       console.log(
@@ -485,7 +481,7 @@ function moveToFood(
   const characterY = PositionComp.y[characterEid];
   const foodX = PositionComp.x[foodEid];
   const foodY = PositionComp.y[foodEid];
-  const target = getEatingPoseTarget(characterEid, foodEid);
+  const target = getEatingPoseTarget(foodEid);
   const targetX = Math.round(target.x);
   const targetY = Math.round(target.y);
 
@@ -513,6 +509,7 @@ function moveToFood(
   DestinationComp.target[characterEid] = foodEid;
   DestinationComp.x[characterEid] = targetX;
   DestinationComp.y[characterEid] = targetY;
+  setCharacterApproachAngle(world, characterEid, target);
 
   console.log(
     `[FoodEatingSystem] DestinationComp set for character ${characterEid}:`,
@@ -544,63 +541,44 @@ function moveToFood(
   ObjectComp.state[characterEid] = CharacterState.MOVING;
 }
 
-function getEatingPoseTarget(
-  characterEid: number,
-  foodEid: number,
-): { x: number; y: number } {
-  const characterBounds = getCharacterWorldBounds(characterEid);
-  const foodBounds = getFoodWorldBounds(foodEid);
-  const characterBottomOffset =
-    characterBounds.bottomY - PositionComp.y[characterEid];
-
+function getEatingPoseTarget(foodEid: number): { x: number; y: number } {
   return {
     x: PositionComp.x[foodEid],
-    y:
-      foodBounds.topY +
-      FOOD_CHARACTER_BOUNDARY_OVERLAP_PX -
-      characterBottomOffset,
+    y: PositionComp.y[foodEid] - EATING_POSE_FOOD_Y_OFFSET_PX,
   };
 }
 
 function snapCharacterToEatingPose(
+  world: MainSceneWorld,
   characterEid: number,
   foodEid: number,
 ): void {
-  const target = getEatingPoseTarget(characterEid, foodEid);
+  const target = getEatingPoseTarget(foodEid);
+  setCharacterApproachAngle(world, characterEid, target);
   PositionComp.x[characterEid] = Math.round(target.x);
   PositionComp.y[characterEid] = Math.round(target.y);
 }
 
-function getFoodWorldBounds(foodEid: number): WorldBounds {
-  const centerX = PositionComp.x[foodEid];
-  const centerY = PositionComp.y[foodEid];
-  const foodSprite = getSpriteStore().get(foodEid);
-  const fallbackSize = getFoodFallbackSize(foodEid);
-  const width =
-    foodSprite && Number.isFinite(foodSprite.width) && foodSprite.width > 0
-      ? Math.abs(Number(foodSprite.width))
-      : fallbackSize;
-  const height =
-    foodSprite && Number.isFinite(foodSprite.height) && foodSprite.height > 0
-      ? Math.abs(Number(foodSprite.height))
-      : fallbackSize;
-  const halfWidth = width / 2;
-  const halfHeight = height / 2;
+function setCharacterApproachAngle(
+  world: MainSceneWorld,
+  characterEid: number,
+  target: { x: number; y: number },
+): void {
+  const deltaX = target.x - PositionComp.x[characterEid];
+  const deltaY = target.y - PositionComp.y[characterEid];
 
-  return {
-    leftX: centerX - halfWidth,
-    rightX: centerX + halfWidth,
-    topY: centerY - halfHeight,
-    bottomY: centerY + halfHeight,
-    width,
-    height,
-  };
-}
+  if (
+    Math.abs(deltaX) <= ZERO_DISTANCE_EPSILON &&
+    Math.abs(deltaY) <= ZERO_DISTANCE_EPSILON
+  ) {
+    return;
+  }
 
-function getFoodFallbackSize(foodEid: number): number {
-  const scale = RenderComp.scale[foodEid];
-  const resolvedScale = Number.isFinite(scale) && scale > 0 ? scale : 1;
-  return FALLBACK_FOOD_SOURCE_SIZE * resolvedScale;
+  if (!hasComponent(world, AngleComp, characterEid)) {
+    addComponent(world, AngleComp, characterEid);
+  }
+
+  AngleComp.value[characterEid] = Math.atan2(deltaY, deltaX);
 }
 
 /**
@@ -630,15 +608,6 @@ function startEating(
   if (!hasComponent(world, AngleComp, characterEid)) {
     addComponent(world, AngleComp, characterEid);
   }
-
-  const characterX = PositionComp.x[characterEid];
-  const characterY = PositionComp.y[characterEid];
-  const foodX = PositionComp.x[foodEid];
-  const foodY = PositionComp.y[foodEid];
-  AngleComp.value[characterEid] = Math.atan2(
-    foodY - characterY,
-    foodX - characterX,
-  );
 
   // FoodEatingComp 추가
   if (!hasComponent(world, FoodEatingComp, characterEid)) {

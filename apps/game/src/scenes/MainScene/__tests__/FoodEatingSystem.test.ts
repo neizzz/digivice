@@ -26,10 +26,8 @@ import {
   withMockedDateNow,
 } from "../../../test-utils/mainSceneTestUtils";
 
-const FOOD_CHARACTER_BOUNDARY_OVERLAP_PX = 10;
-const FALLBACK_SOURCE_SIZE = 16;
+const EATING_POSE_FOOD_Y_OFFSET_PX = 1;
 const DEFAULT_LANDED_FOOD_SCALE = 1.4;
-const OVERLAP_TOLERANCE_PX = 1;
 
 function createLandedFood(
   world: ReturnType<typeof createTestWorld>,
@@ -56,35 +54,37 @@ function createLandedFood(
   return foodEid;
 }
 
-function getFallbackHalfHeight(eid: number): number {
-  const scale = RenderComp.scale[eid] > 0 ? RenderComp.scale[eid] : 1;
-  return (FALLBACK_SOURCE_SIZE * scale) / 2;
+function getEatingPoseY(foodEid: number): number {
+  return PositionComp.y[foodEid] - EATING_POSE_FOOD_Y_OFFSET_PX;
 }
 
-function getVerticalOverlapPx(characterEid: number, foodEid: number): number {
-  const characterBottomY =
-    PositionComp.y[characterEid] + getFallbackHalfHeight(characterEid);
-  const foodTopY = PositionComp.y[foodEid] - getFallbackHalfHeight(foodEid);
-
-  return characterBottomY - foodTopY;
+function getApproachAngleToEatingPose(
+  from: { x: number; y: number },
+  foodEid: number,
+): number {
+  return Math.atan2(
+    getEatingPoseY(foodEid) - from.y,
+    PositionComp.x[foodEid] - from.x,
+  );
 }
 
 function assertEatingPose(characterEid: number, foodEid: number): void {
   assert.equal(PositionComp.x[characterEid], PositionComp.x[foodEid]);
-  assert.ok(
-    PositionComp.y[characterEid] < PositionComp.y[foodEid],
-    `expected character y ${PositionComp.y[characterEid]} to be above food y ${PositionComp.y[foodEid]}`,
-  );
-
-  const overlap = getVerticalOverlapPx(characterEid, foodEid);
-  assert.ok(
-    Math.abs(overlap - FOOD_CHARACTER_BOUNDARY_OVERLAP_PX) <=
-      OVERLAP_TOLERANCE_PX,
-    `expected overlap around ${FOOD_CHARACTER_BOUNDARY_OVERLAP_PX}px, got ${overlap}px`,
+  assert.equal(
+    PositionComp.y[characterEid],
+    getEatingPoseY(foodEid),
+    `expected character y ${PositionComp.y[characterEid]} to be 1px above food y ${PositionComp.y[foodEid]}`,
   );
 }
 
-test("근처 음식을 바로 먹기 시작할 때 캐릭터를 음식 위쪽 10px 겹침 위치로 보정하고 실제 음식 좌표를 바라본다", () => {
+function assertAngleClose(actual: number, expected: number): void {
+  assert.ok(
+    Math.abs(actual - expected) < 1e-6,
+    `expected ${expected}, got ${actual}`,
+  );
+}
+
+test("근처 음식을 바로 먹기 시작할 때 캐릭터를 음식 1px 위로 보정하고 접근 방향을 유지한다", () => {
   const world = createTestWorld({ now: 10_000 });
   const characterEid = withMockedDateNow(10_000, () =>
     createTestCharacter(world, {
@@ -95,6 +95,13 @@ test("근처 음식을 바로 먹기 시작할 때 캐릭터를 음식 위쪽 10
     }),
   );
   const foodEid = createLandedFood(world, { x: 112, y: 115 });
+  const expectedAngle = getApproachAngleToEatingPose(
+    {
+      x: PositionComp.x[characterEid],
+      y: PositionComp.y[characterEid],
+    },
+    foodEid,
+  );
 
   foodEatingSystem({
     world: world as any,
@@ -106,18 +113,10 @@ test("근처 음식을 바로 먹기 시작할 때 캐릭터를 음식 위쪽 10
   assert.equal(ObjectComp.state[foodEid], FoodState.BEING_INTAKEN);
   assert.ok(hasComponent(world, AngleComp, characterEid));
   assertEatingPose(characterEid, foodEid);
-
-  const expectedAngle = Math.atan2(
-    PositionComp.y[foodEid] - PositionComp.y[characterEid],
-    PositionComp.x[foodEid] - PositionComp.x[characterEid],
-  );
-  assert.ok(
-    Math.abs(AngleComp.value[characterEid] - expectedAngle) < 1e-6,
-    `expected ${expectedAngle}, got ${AngleComp.value[characterEid]}`,
-  );
+  assertAngleClose(AngleComp.value[characterEid], expectedAngle);
 });
 
-test("음식에 도착해서 먹기 시작할 때도 음식 위쪽 10px 겹침 위치에서 실제 음식 좌표를 바라본다", () => {
+test("음식에 도착해서 먹기 시작할 때도 음식 1px 위에서 접근 방향을 유지한다", () => {
   const world = createTestWorld({ now: 20_000 });
   const characterEid = withMockedDateNow(20_000, () =>
     createTestCharacter(world, {
@@ -128,6 +127,13 @@ test("음식에 도착해서 먹기 시작할 때도 음식 위쪽 10px 겹침 �
     }),
   );
   const foodEid = createLandedFood(world, { x: 120, y: 96 });
+  const expectedAngle = getApproachAngleToEatingPose(
+    {
+      x: PositionComp.x[characterEid],
+      y: PositionComp.y[characterEid],
+    },
+    foodEid,
+  );
 
   foodEatingSystem({
     world: world as any,
@@ -138,9 +144,10 @@ test("음식에 도착해서 먹기 시작할 때도 음식 위쪽 10px 겹침 �
   assert.ok(hasComponent(world, DestinationComp, characterEid));
   assert.equal(DestinationComp.target[characterEid], foodEid);
   assert.equal(DestinationComp.x[characterEid], PositionComp.x[foodEid]);
-  assert.ok(
-    DestinationComp.y[characterEid] < PositionComp.y[foodEid],
-    `expected destination y ${DestinationComp.y[characterEid]} to be above food y ${PositionComp.y[foodEid]}`,
+  assert.equal(
+    DestinationComp.y[characterEid],
+    getEatingPoseY(foodEid),
+    `expected destination y ${DestinationComp.y[characterEid]} to be 1px above food y ${PositionComp.y[foodEid]}`,
   );
 
   const arrivedX = DestinationComp.x[characterEid];
@@ -157,18 +164,10 @@ test("음식에 도착해서 먹기 시작할 때도 음식 위쪽 10px 겹침 �
   assert.equal(ObjectComp.state[characterEid], CharacterState.EATING);
   assert.equal(ObjectComp.state[foodEid], FoodState.BEING_INTAKEN);
   assertEatingPose(characterEid, foodEid);
-
-  const expectedAngle = Math.atan2(
-    PositionComp.y[foodEid] - PositionComp.y[characterEid],
-    PositionComp.x[foodEid] - PositionComp.x[characterEid],
-  );
-  assert.ok(
-    Math.abs(AngleComp.value[characterEid] - expectedAngle) < 1e-6,
-    `expected ${expectedAngle}, got ${AngleComp.value[characterEid]}`,
-  );
+  assertAngleClose(AngleComp.value[characterEid], expectedAngle);
 });
 
-test("캐릭터 크기별 식사 접근 위치는 음식 경계와 약 10px 겹친다", () => {
+test("캐릭터 크기별 식사 접근 위치도 음식 1px 위로 고정된다", () => {
   const scenarios = [
     { characterKey: CharacterKeyECS.TestGreenSlimeA1, scale: 0.8 },
     { characterKey: CharacterKeyECS.TestGreenSlimeD1, scale: 1.2 },
