@@ -24,6 +24,9 @@ const dashedBorderStore = new ObjectStore<PIXI.Graphics>("DashedBorderStore");
  * 빗자루를 위한 스프라이트 저장소
  */
 const broomStore = new ObjectStore<PIXI.Sprite>("BroomStore");
+const BROOM_RENDER_SCALE = 3.0;
+const BROOM_HORIZONTAL_OVERSHOOT_PX = 10;
+const BROOM_VERTICAL_OFFSET_PX = 10;
 
 /**
  * 청소 대상 렌더링 시스템 파라미터
@@ -341,12 +344,16 @@ function createOrUpdateBroom(
   // 빗자루 방향에 따른 좌우 반전
   const sliderValue = world.sliderValue;
   const isMovingRight = sliderValue > 0.5;
-  broomSprite.scale.x = isMovingRight ? 3.0 : -3.0; // 오른쪽으로 이동하면 정방향, 왼쪽으로 이동하면 반전
-  broomSprite.scale.y = 3.0;
+  broomSprite.scale.x = isMovingRight
+    ? BROOM_RENDER_SCALE
+    : -BROOM_RENDER_SCALE; // 오른쪽으로 이동하면 정방향, 왼쪽으로 이동하면 반전
+  broomSprite.scale.y = BROOM_RENDER_SCALE;
 
   const targetLeftX = targetX - targetWidth / 2;
-  const broomX = targetLeftX + sliderValue * targetWidth;
-  const broomY = targetY - 10; // 타겟보다 10px 위에 (객체 중간보다 조금 더 낮게)
+  const broomTravelStartX = targetLeftX - BROOM_HORIZONTAL_OVERSHOOT_PX;
+  const broomTravelWidth = targetWidth + BROOM_HORIZONTAL_OVERSHOOT_PX * 2;
+  const broomX = broomTravelStartX + sliderValue * broomTravelWidth;
+  const broomY = targetY - BROOM_VERTICAL_OFFSET_PX; // 타겟보다 10px 위에 (객체 중간보다 조금 더 낮게)
 
   // 빗자루 위치 설정
   broomSprite.x = broomX;
