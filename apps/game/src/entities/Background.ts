@@ -43,6 +43,10 @@ export class Background extends PIXI.Container {
   }
 
   public resize(width: number, height: number): void {
+    if (this._width === width && this._height === height) {
+      return;
+    }
+
     this._width = width;
     this._height = height;
 

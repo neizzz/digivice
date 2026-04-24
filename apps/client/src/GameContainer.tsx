@@ -103,6 +103,10 @@ type AdDebugState = {
   lastError: string | null;
 };
 
+type FullscreenAdEventDetail = {
+  state?: "showing" | "dismissed" | "failed";
+};
+
 const DEFAULT_AD_DEBUG_STATE: AdDebugState = {
   isReady: false,
   isLoading: false,
@@ -120,6 +124,33 @@ async function waitForLayoutStabilization(): Promise<void> {
   await waitForAnimationFrame();
   await new Promise((resolve) => window.setTimeout(resolve, 250));
   await waitForAnimationFrame();
+}
+
+function getCurrentViewportHeight(): number {
+  if (typeof window === "undefined") {
+    return 0;
+  }
+
+  return Math.max(
+    0,
+    Math.round(window.visualViewport?.height ?? window.innerHeight),
+  );
+}
+
+function setFrozenAppShellHeight(height: number | null): void {
+  if (typeof document === "undefined") {
+    return;
+  }
+
+  if (height && height > 0) {
+    document.documentElement.style.setProperty(
+      "--digivice-app-shell-height",
+      `${height}px`,
+    );
+    return;
+  }
+
+  document.documentElement.style.removeProperty("--digivice-app-shell-height");
 }
 
 async function getNativeAdDebugState(): Promise<AdDebugState> {
@@ -325,22 +356,49 @@ const GameContainer: React.FC = () => {
       requestId: 0,
       phase: "idle",
     });
+  const pendingSettingMenuOpenTimeoutRef = useRef<number | null>(null);
   const sceneTransitionRequestIdRef = useRef(0);
   const recoveryVibrationIntervalRef = useRef<number | null>(null);
   const lastValidationResultRef = useRef<SanitizeStoredWorldDataResult | null>(
     null,
   );
+  const isFullscreenAdLayoutFrozenRef = useRef(false);
+  const fullscreenAdLayoutReleaseTimeoutRef = useRef<number | null>(null);
+  const fullscreenAdLayoutReleaseRafRef = useRef<number | null>(null);
   const showAdDebugSection =
     isNativeAppUserAgent &&
     (isNativeFeatureDebugMode || isNonProductionClientBuild);
 
-  const openSettingMenu = useCallback(() => {
-    setShowSettingMenu(true);
+  const clearPendingSettingMenuOpen = useCallback(() => {
+    if (pendingSettingMenuOpenTimeoutRef.current === null) {
+      return;
+    }
+
+    window.clearTimeout(pendingSettingMenuOpenTimeoutRef.current);
+    pendingSettingMenuOpenTimeoutRef.current = null;
   }, []);
 
+  const openSettingMenu = useCallback(() => {
+    if (showSettingMenu || pendingSettingMenuOpenTimeoutRef.current !== null) {
+      return;
+    }
+
+    pendingSettingMenuOpenTimeoutRef.current = window.setTimeout(() => {
+      pendingSettingMenuOpenTimeoutRef.current = null;
+      setShowSettingMenu(true);
+    }, 0);
+  }, [showSettingMenu]);
+
   const closeSettingMenu = useCallback(() => {
+    clearPendingSettingMenuOpen();
     setShowSettingMenu(false);
-  }, []);
+  }, [clearPendingSettingMenuOpen]);
+
+  useEffect(() => {
+    return () => {
+      clearPendingSettingMenuOpen();
+    };
+  }, [clearPendingSettingMenuOpen]);
 
   const handleVibrationSettingChange = useCallback((enabled: boolean) => {
     setGameSettings(updateGameSettings({ vibrationEnabled: enabled }));
@@ -473,6 +531,65 @@ const GameContainer: React.FC = () => {
     setSceneTransitionLoadState({ requestId: 0, phase: "idle" });
     setIsBootstrapping(false);
   }, []);
+
+  const updateGameContainerSize = useCallback((force = false) => {
+    const viewportElement = gameViewportRef.current;
+
+    if (!viewportElement) {
+      return;
+    }
+
+    if (!force && isFullscreenAdLayoutFrozenRef.current) {
+      return;
+    }
+
+    const nextSize = Math.max(
+      0,
+      Math.floor(
+        Math.min(viewportElement.clientWidth, viewportElement.clientHeight),
+      ),
+    );
+
+    setGameContainerSize((previous) =>
+      previous === nextSize ? previous : nextSize,
+    );
+  }, []);
+
+  const clearFullscreenAdLayoutRelease = useCallback(() => {
+    if (fullscreenAdLayoutReleaseTimeoutRef.current !== null) {
+      window.clearTimeout(fullscreenAdLayoutReleaseTimeoutRef.current);
+      fullscreenAdLayoutReleaseTimeoutRef.current = null;
+    }
+
+    if (fullscreenAdLayoutReleaseRafRef.current !== null) {
+      window.cancelAnimationFrame(fullscreenAdLayoutReleaseRafRef.current);
+      fullscreenAdLayoutReleaseRafRef.current = null;
+    }
+  }, []);
+
+  const freezeLayoutForFullscreenAd = useCallback(() => {
+    clearFullscreenAdLayoutRelease();
+    isFullscreenAdLayoutFrozenRef.current = true;
+    setFrozenAppShellHeight(getCurrentViewportHeight());
+  }, [clearFullscreenAdLayoutRelease]);
+
+  const releaseLayoutAfterFullscreenAd = useCallback(() => {
+    clearFullscreenAdLayoutRelease();
+
+    fullscreenAdLayoutReleaseTimeoutRef.current = window.setTimeout(() => {
+      fullscreenAdLayoutReleaseRafRef.current = window.requestAnimationFrame(
+        () => {
+          fullscreenAdLayoutReleaseRafRef.current = window.requestAnimationFrame(
+            () => {
+              isFullscreenAdLayoutFrozenRef.current = false;
+              setFrozenAppShellHeight(null);
+              updateGameContainerSize(true);
+            },
+          );
+        },
+      );
+    }, 260);
+  }, [clearFullscreenAdLayoutRelease, updateGameContainerSize]);
 
   const stopRecoveryVibration = useCallback(() => {
     if (recoveryVibrationIntervalRef.current !== null) {
@@ -885,25 +1002,16 @@ const GameContainer: React.FC = () => {
       return;
     }
 
-    const updateGameContainerSize = () => {
-      const nextSize = Math.max(
-        0,
-        Math.floor(
-          Math.min(viewportElement.clientWidth, viewportElement.clientHeight),
-        ),
-      );
-
-      setGameContainerSize((previous) =>
-        previous === nextSize ? previous : nextSize,
-      );
-    };
-
     updateGameContainerSize();
 
     if (typeof ResizeObserver === "undefined") {
-      window.addEventListener("resize", updateGameContainerSize);
+      const handleWindowResize = () => {
+        updateGameContainerSize();
+      };
+
+      window.addEventListener("resize", handleWindowResize);
       return () => {
-        window.removeEventListener("resize", updateGameContainerSize);
+        window.removeEventListener("resize", handleWindowResize);
       };
     }
 
@@ -915,7 +1023,7 @@ const GameContainer: React.FC = () => {
     return () => {
       resizeObserver.disconnect();
     };
-  }, []);
+  }, [updateGameContainerSize]);
 
   useEffect(() => {
     if (!isAndroidUserAgent) {
@@ -944,6 +1052,45 @@ const GameContainer: React.FC = () => {
       );
     };
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const handleFullscreenAdState = (event: Event) => {
+      const detail = (event as CustomEvent<FullscreenAdEventDetail>).detail;
+      const state = detail?.state;
+
+      if (state === "showing") {
+        freezeLayoutForFullscreenAd();
+        return;
+      }
+
+      if (state === "dismissed" || state === "failed") {
+        releaseLayoutAfterFullscreenAd();
+      }
+    };
+
+    window.addEventListener(
+      "digivice:fullscreen-ad",
+      handleFullscreenAdState as EventListener,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "digivice:fullscreen-ad",
+        handleFullscreenAdState as EventListener,
+      );
+      clearFullscreenAdLayoutRelease();
+      isFullscreenAdLayoutFrozenRef.current = false;
+      setFrozenAppShellHeight(null);
+    };
+  }, [
+    clearFullscreenAdLayoutRelease,
+    freezeLayoutForFullscreenAd,
+    releaseLayoutAfterFullscreenAd,
+  ]);
 
   useEffect(() => {
     let isMounted = true;

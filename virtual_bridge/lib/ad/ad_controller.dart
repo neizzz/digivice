@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show Platform;
 import 'package:google_mobile_ads/google_mobile_ads.dart';
@@ -10,8 +11,9 @@ import 'package:webview_flutter/webview_flutter.dart';
 class AdController {
   final Function(String jsCode) runJavaScript;
   final Function({required String id, String? data, String? error})
-  resolvePromise;
+      resolvePromise;
   final Function(String message) log;
+  final void Function(String state)? onFullscreenAdStateChanged;
 
   static const String _cooldownKey = 'ad_last_shown_timestamp';
   static const Duration _nativeCooldown = Duration(hours: 4);
@@ -32,6 +34,7 @@ class AdController {
     required this.runJavaScript,
     required this.resolvePromise,
     required this.log,
+    this.onFullscreenAdStateChanged,
   }) {
     _loadInterstitialAd();
   }
@@ -93,9 +96,11 @@ class AdController {
           ad.fullScreenContentCallback = FullScreenContentCallback(
             onAdShowedFullScreenContent: (ad) {
               log('[AdController] Ad showed full screen content');
+              unawaited(_notifyFullscreenAdState('showing'));
             },
             onAdDismissedFullScreenContent: (ad) {
               log('[AdController] Ad dismissed full screen content');
+              unawaited(_notifyFullscreenAdState('dismissed'));
               ad.dispose();
               _isAdReady = false;
               _loadInterstitialAd(); // 다음을 위해 미리 로드
@@ -103,6 +108,7 @@ class AdController {
             onAdFailedToShowFullScreenContent: (ad, error) {
               _lastError = error.toString();
               log('[AdController] Ad failed to show: $error');
+              unawaited(_notifyFullscreenAdState('failed'));
               ad.dispose();
               _isAdReady = false;
               _loadInterstitialAd(); // 재시도
@@ -161,6 +167,7 @@ class AdController {
     } catch (e) {
       _lastError = e.toString();
       log('[AdController] Error showing ad: $e');
+      await _notifyFullscreenAdState('failed');
       resolvePromise(id: promiseId, error: e.toString());
     }
   }
@@ -185,6 +192,7 @@ class AdController {
     } catch (e) {
       _lastError = e.toString();
       log('[AdController] Error showing test ad: $e');
+      await _notifyFullscreenAdState('failed');
       resolvePromise(id: promiseId, error: e.toString());
     }
   }
@@ -268,6 +276,32 @@ class AdController {
       'isLoading': _isLoading,
       'lastError': _lastError,
     };
+  }
+
+  Future<void> _notifyFullscreenAdState(String state) async {
+    onFullscreenAdStateChanged?.call(state);
+
+    final String encodedState = jsonEncode(state);
+
+    try {
+      await runJavaScript('''
+        (() => {
+          const state = $encodedState;
+          try {
+            window.dispatchEvent(
+              new CustomEvent('digivice:fullscreen-ad', {
+                detail: {
+                  state,
+                  timestamp: new Date().toISOString(),
+                },
+              }),
+            );
+          } catch (_) {}
+        })();
+      ''');
+    } catch (e) {
+      log('[AdController] Failed to dispatch fullscreen ad state: $e');
+    }
   }
 
   /// 리소스 정리

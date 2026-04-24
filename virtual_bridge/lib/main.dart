@@ -31,7 +31,7 @@ void main() async {
   runApp(
     WidgetsApp(
       color: const Color(0xFF000000),
-      builder: (context, _) => WebView(),
+      builder: (context, _) => const WebView(),
     ),
   );
 }
@@ -66,6 +66,8 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
   final Set<String> _missingAssetPathsLogged = <String>{};
   final List<Timer> _viewportSyncTimers = <Timer>[];
   bool _isPageReady = false;
+  bool _isFullscreenAdShowing = false;
+  String? _lastViewportMetricsKey;
 
   @override
   void initState() {
@@ -78,6 +80,7 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
       logCallback: _log,
       // 터미널 로그 폭주 방지를 위해 WebView console 포워딩은 기본 비활성화
       forwardConsoleMessages: false,
+      onFullscreenAdStateChanged: _handleFullscreenAdStateChanged,
     );
 
     unawaited(_initializeWebView());
@@ -124,10 +127,10 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
     return WillPopScope(
       onWillPop: _handleWillPop,
       child: SafeArea(
-        child: AnimatedPadding(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOut,
-          padding: EdgeInsets.only(bottom: keyboardInset),
+        child: Padding(
+          padding: keyboardInset > 0
+              ? EdgeInsets.only(bottom: keyboardInset)
+              : EdgeInsets.zero,
           child: content,
         ),
       ),
@@ -194,7 +197,11 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
     print('[WebViewLifecycle] appLifecycleState=$state');
 
     if (state == AppLifecycleState.resumed) {
-      _scheduleViewportSync('flutter.lifecycle.resumed');
+      _scheduleViewportSync(
+        'flutter.lifecycle.resumed',
+        dispatchLifecycleEvents: true,
+        force: true,
+      );
     }
   }
 
@@ -246,17 +253,41 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
     }
   }
 
-  void _scheduleViewportSync(String reason) {
+  void _scheduleViewportSync(
+    String reason, {
+    List<int> delays = const <int>[0],
+    bool dispatchLifecycleEvents = false,
+    bool force = false,
+  }) {
     if (!_isPageReady) {
       print('[WebViewLifecycle] skip viewport sync before page ready: $reason');
       return;
     }
 
+    if (_isFullscreenAdShowing && !force) {
+      print(
+        '[WebViewLifecycle] skip viewport sync while fullscreen ad is showing: $reason',
+      );
+      return;
+    }
+
+    final String metricsKey = _buildViewportMetricsKey();
+    if (!force && metricsKey == _lastViewportMetricsKey) {
+      print('[WebViewLifecycle] skip duplicate viewport sync: $reason');
+      return;
+    }
+
+    _lastViewportMetricsKey = metricsKey;
     _cancelViewportSyncTimers();
 
-    for (final int delayMs in <int>[0, 120, 320]) {
+    for (final int delayMs in delays) {
       final timer = Timer(Duration(milliseconds: delayMs), () {
-        unawaited(_dispatchViewportSync('$reason@${delayMs}ms'));
+        unawaited(
+          _dispatchViewportSync(
+            '$reason@${delayMs}ms',
+            dispatchLifecycleEvents: dispatchLifecycleEvents,
+          ),
+        );
       });
       _viewportSyncTimers.add(timer);
     }
@@ -269,7 +300,40 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
     _viewportSyncTimers.clear();
   }
 
-  Future<void> _dispatchViewportSync(String reason) async {
+  String _buildViewportMetricsKey() {
+    final view = WidgetsBinding.instance.platformDispatcher.views.first;
+    final Size logicalSize = view.physicalSize / view.devicePixelRatio;
+    final double bottomInset = view.viewInsets.bottom / view.devicePixelRatio;
+
+    return [
+      logicalSize.width.round(),
+      logicalSize.height.round(),
+      view.devicePixelRatio.toStringAsFixed(3),
+      bottomInset.round(),
+    ].join('|');
+  }
+
+  void _handleFullscreenAdStateChanged(String state) {
+    print('[WebViewLifecycle] fullscreenAdState=$state');
+
+    if (state == 'showing') {
+      _isFullscreenAdShowing = true;
+      _cancelViewportSyncTimers();
+      return;
+    }
+
+    _isFullscreenAdShowing = false;
+    _scheduleViewportSync(
+      'flutter.fullscreen_ad.$state',
+      delays: const <int>[180],
+      force: true,
+    );
+  }
+
+  Future<void> _dispatchViewportSync(
+    String reason, {
+    bool dispatchLifecycleEvents = false,
+  }) async {
     if (!_isPageReady) {
       return;
     }
@@ -277,12 +341,17 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
     print('[WebViewLifecycle] dispatchViewportSync reason=$reason');
 
     final String encodedReason = jsonEncode(reason);
+    final String encodedDispatchLifecycleEvents = jsonEncode(
+      dispatchLifecycleEvents,
+    );
     try {
       await _controller.runJavaScript('''
         (() => {
           const reason = $encodedReason;
+          const dispatchLifecycleEvents = $encodedDispatchLifecycleEvents;
           const payload = {
             reason,
+            dispatchLifecycleEvents,
             timestamp: new Date().toISOString(),
             innerWidth: window.innerWidth,
             innerHeight: window.innerHeight,
@@ -298,17 +367,17 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
           console.log('[NativeViewportSync] dispatch', payload);
 
           try { window.dispatchEvent(new Event('resize')); } catch (_) {}
-          try { window.dispatchEvent(new Event('focus')); } catch (_) {}
-          try { window.dispatchEvent(new Event('pageshow')); } catch (_) {}
-          try { window.dispatchEvent(new Event('orientationchange')); } catch (_) {}
-          try { document.dispatchEvent(new Event('visibilitychange')); } catch (_) {}
-
           try {
             if (window.visualViewport) {
               window.visualViewport.dispatchEvent(new Event('resize'));
               window.visualViewport.dispatchEvent(new Event('scroll'));
             }
           } catch (_) {}
+
+          if (dispatchLifecycleEvents) {
+            try { window.dispatchEvent(new Event('focus')); } catch (_) {}
+            try { window.dispatchEvent(new Event('pageshow')); } catch (_) {}
+          }
 
           try {
             window.dispatchEvent(
@@ -427,8 +496,9 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
     if (path.endsWith('.js') || path.endsWith('.mjs')) {
       return ContentType('application', 'javascript', charset: 'utf-8');
     }
-    if (path.endsWith('.css'))
+    if (path.endsWith('.css')) {
       return ContentType('text', 'css', charset: 'utf-8');
+    }
     if (path.endsWith('.json')) {
       return ContentType('application', 'json', charset: 'utf-8');
     }

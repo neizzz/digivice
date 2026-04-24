@@ -20,9 +20,16 @@ declare global {
 }
 
 const LAST_ACTIVE_KEY = "app_last_active_timestamp";
+const FULLSCREEN_AD_REENTER_SUPPRESS_MS = 1200;
+
+type FullscreenAdEventDetail = {
+  state?: "showing" | "dismissed" | "failed";
+};
 
 const App = () => {
   const isInitialized = useRef(false);
+  const isFullscreenAdActiveRef = useRef(false);
+  const suppressAppReenterUntilRef = useRef(0);
 
   useEffect(() => {
     if (isInitialized.current) return;
@@ -37,13 +44,42 @@ const App = () => {
     // 재진입 감지
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
+        if (
+          isFullscreenAdActiveRef.current ||
+          Date.now() < suppressAppReenterUntilRef.current
+        ) {
+          updateLastActiveTime();
+          return;
+        }
+
         handleAppReenter();
       } else if (document.visibilityState === "hidden") {
         updateLastActiveTime();
       }
     };
 
+    const handleFullscreenAdState = (event: Event) => {
+      const detail = (event as CustomEvent<FullscreenAdEventDetail>).detail;
+      const state = detail?.state;
+
+      if (state === "showing") {
+        isFullscreenAdActiveRef.current = true;
+        return;
+      }
+
+      if (state === "dismissed" || state === "failed") {
+        isFullscreenAdActiveRef.current = false;
+        suppressAppReenterUntilRef.current =
+          Date.now() + FULLSCREEN_AD_REENTER_SUPPRESS_MS;
+        updateLastActiveTime();
+      }
+    };
+
     document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener(
+      "digivice:fullscreen-ad",
+      handleFullscreenAdState as EventListener,
+    );
 
     // URGENT 회복 이벤트 핸들러
     window.onUrgentRecovery = () => {
@@ -63,6 +99,10 @@ const App = () => {
 
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener(
+        "digivice:fullscreen-ad",
+        handleFullscreenAdState as EventListener,
+      );
       window.onUrgentRecovery = undefined;
     };
   }, []);

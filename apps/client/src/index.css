@@ -35,7 +35,8 @@ body {
 }
 
 #root {
-  min-height: 100dvh;
+  min-height: var(--digivice-app-shell-height, 100dvh);
+  height: var(--digivice-app-shell-height, 100dvh);
 }
 
 h1 {

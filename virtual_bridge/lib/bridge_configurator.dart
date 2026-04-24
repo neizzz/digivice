@@ -13,6 +13,7 @@ class BridgeConfigurator {
   final WebViewController webViewController;
   final Function(String message) logCallback;
   final bool forwardConsoleMessages;
+  final void Function(String state)? onFullscreenAdStateChanged;
   bool _channelsRegistered = false;
 
   late final PipController _pipController;
@@ -26,6 +27,7 @@ class BridgeConfigurator {
     required this.webViewController,
     required this.logCallback,
     this.forwardConsoleMessages = false,
+    this.onFullscreenAdStateChanged,
   }) {
     _pipController = PipController(
       runJavaScript: _runJavaScript,
@@ -49,6 +51,7 @@ class BridgeConfigurator {
       runJavaScript: _runJavaScript,
       resolvePromise: _resolvePromise,
       log: logCallback,
+      onFullscreenAdStateChanged: onFullscreenAdStateChanged,
     );
 
     _sunController = SunController(

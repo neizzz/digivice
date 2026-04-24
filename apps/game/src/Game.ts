@@ -51,6 +51,14 @@ export type GameDiagnosticsSnapshot = {
   mainSceneData: MainSceneWorldData | null;
 };
 
+type NativeViewportSyncDetail = {
+  reason?: string;
+};
+
+type FullscreenAdEventDetail = {
+  state?: "showing" | "dismissed" | "failed";
+};
+
 function createMainScenePositionBoundary(width: number, height: number) {
   return {
     x: SCREEN_HORIZONTAL_PADDING,
@@ -81,6 +89,8 @@ export class Game {
   private readonly _boundResizeHandler: () => void;
   private readonly _boundLifecycleResizeHandler: () => void;
   private readonly _boundVisibilityResizeHandler: () => void;
+  private readonly _boundNativeViewportSyncHandler: (event: Event) => void;
+  private readonly _boundFullscreenAdStateHandler: (event: Event) => void;
   private _resizeObserver?: ResizeObserver;
   private _resizeRafId: number | null = null;
   private _resizeRetryTimeoutIds: number[] = [];
@@ -89,6 +99,8 @@ export class Game {
   private _isPixiReady = false;
   private _isDestroyed = false;
   private _sceneTransitionRequestId = 0;
+  private _isFullscreenAdActive = false;
+  private _fullscreenAdResizeSuppressedUntil = 0;
   // private characterManager: CharacterManager; // CharacterManager 인스턴스 추가
   // private shouldSaveDataBeforeUnload = false;
 
@@ -140,6 +152,37 @@ export class Game {
         this._requestStableResize("document.visibilitychange");
       }
     };
+    this._boundNativeViewportSyncHandler = (event: Event) => {
+      const detail = (event as CustomEvent<NativeViewportSyncDetail>).detail;
+      const reason =
+        typeof detail?.reason === "string" && detail.reason.length > 0
+          ? detail.reason
+          : "unknown";
+
+      this._requestAnimationFrameResize(`native.viewport_sync:${reason}`);
+    };
+    this._boundFullscreenAdStateHandler = (event: Event) => {
+      const detail = (event as CustomEvent<FullscreenAdEventDetail>).detail;
+      const state = detail?.state;
+
+      if (state === "showing") {
+        this._isFullscreenAdActive = true;
+        this._fullscreenAdResizeSuppressedUntil = 0;
+        this._clearResizeRetryTimeouts();
+
+        if (this._resizeRafId !== null) {
+          window.cancelAnimationFrame(this._resizeRafId);
+          this._resizeRafId = null;
+        }
+
+        return;
+      }
+
+      if (state === "dismissed" || state === "failed") {
+        this._isFullscreenAdActive = false;
+        this._fullscreenAdResizeSuppressedUntil = Date.now() + 140;
+      }
+    };
 
     // 렌더링 주기를 60fps로 설정
     this._parentElement = parentElement;
@@ -152,6 +195,14 @@ export class Game {
     document.addEventListener(
       "visibilitychange",
       this._boundVisibilityResizeHandler,
+    );
+    window.addEventListener(
+      "digivice:native-viewport-sync",
+      this._boundNativeViewportSyncHandler,
+    );
+    window.addEventListener(
+      "digivice:fullscreen-ad",
+      this._boundFullscreenAdStateHandler,
     );
     window.visualViewport?.addEventListener(
       "resize",
@@ -342,7 +393,7 @@ export class Game {
     }
 
     if (!this._isPixiReady || !this.app.renderer) {
-      console.error(
+      console.warn(
         "[GameResize]",
         JSON.stringify({
           phase: "skip-before-init",
@@ -359,7 +410,7 @@ export class Game {
     const height = parent.clientHeight || rect.height;
 
     if (width <= 0 || height <= 0) {
-      console.error(
+      console.warn(
         "[GameResize]",
         JSON.stringify({
           phase: "skip-zero-size",
@@ -373,7 +424,6 @@ export class Game {
       return;
     }
 
-    const visualViewport = window.visualViewport;
     const resolution = window.devicePixelRatio || 2;
     const metricsKey = [
       width,
@@ -383,9 +433,6 @@ export class Game {
       Math.round(rect.width),
       Math.round(rect.height),
       resolution,
-      visualViewport ? Math.round(visualViewport.width) : "na",
-      visualViewport ? Math.round(visualViewport.height) : "na",
-      visualViewport ? visualViewport.scale : "na",
     ].join("|");
 
     if (metricsKey === this._lastResizeMetricsKey) {
@@ -408,6 +455,10 @@ export class Game {
 
   private _requestAnimationFrameResize(reason = "unknown"): void {
     if (this._isDestroyed) {
+      return;
+    }
+
+    if (this._shouldSuppressResize(reason)) {
       return;
     }
 
@@ -442,6 +493,10 @@ export class Game {
       return;
     }
 
+    if (this._shouldSuppressResize(reason)) {
+      return;
+    }
+
     this._requestAnimationFrameResize(`${reason}:immediate`);
     this._clearResizeRetryTimeouts();
 
@@ -451,6 +506,18 @@ export class Game {
       }, delay);
       this._resizeRetryTimeoutIds.push(timeoutId);
     }
+  }
+
+  private _shouldSuppressResize(reason: string): boolean {
+    if (this._isFullscreenAdActive) {
+      return true;
+    }
+
+    if (!reason.startsWith("native.viewport_sync")) {
+      return Date.now() < this._fullscreenAdResizeSuppressedUntil;
+    }
+
+    return false;
   }
 
   /**
@@ -682,6 +749,14 @@ export class Game {
     document.removeEventListener(
       "visibilitychange",
       this._boundVisibilityResizeHandler,
+    );
+    window.removeEventListener(
+      "digivice:native-viewport-sync",
+      this._boundNativeViewportSyncHandler,
+    );
+    window.removeEventListener(
+      "digivice:fullscreen-ad",
+      this._boundFullscreenAdStateHandler,
     );
     window.visualViewport?.removeEventListener(
       "resize",
