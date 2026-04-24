@@ -5,6 +5,7 @@ import { CharacterStatusComp, RenderComp } from "../raw-components";
 import {
   characterManagerSystem,
   getRemainingEvolutionGaugeTime,
+  getRemainingStaminaDecreaseTime,
   resetCharacterManageSystemStateForTests,
 } from "../systems/CharacterManageSystem";
 import { GAME_CONSTANTS } from "../config";
@@ -88,6 +89,36 @@ test("egg 상태 캐릭터는 처음 한 번 랜덤 egg 텍스처를 배정받�
   });
 
   assert.equal(RenderComp.textureKey[eggEid], getRandomEggTextureKey(0.5));
+});
+
+test("egg 상태 캐릭터는 스테미나와 진화 게이지가 변하지 않는다", () => {
+  const world = createTestWorld({ now: 0 });
+
+  const eggEid = withMockedDateNow(0, () =>
+    createTestCharacter(world, {
+      state: CharacterState.EGG,
+      stamina: 5,
+      x: 80,
+      y: 80,
+    }),
+  );
+  CharacterStatusComp.evolutionGage[eggEid] = 12;
+
+  characterManagerSystem({
+    world: world as any,
+    delta: Math.max(
+      GAME_CONSTANTS.STAMINA_DECREASE_INTERVAL * 3,
+      EVOLUTION_GAUGE_CONFIG.checkIntervalMs * 3,
+    ),
+  });
+
+  assert.equal(CharacterStatusComp.stamina[eggEid], 5);
+  assert.equal(CharacterStatusComp.evolutionGage[eggEid], 12);
+  assert.equal(
+    getRemainingStaminaDecreaseTime(eggEid),
+    GAME_CONSTANTS.STAMINA_DECREASE_INTERVAL,
+  );
+  assert.equal(getRemainingEvolutionGaugeTime(eggEid), null);
 });
 
 test("부화한 캐릭터는 어떤 egg 텍스처를 쓰고 있었든 정적 egg 텍스처를 제거한다", () => {

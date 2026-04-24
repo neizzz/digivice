@@ -308,8 +308,10 @@ export function getRemainingStaminaDecreaseTime(eid: number): number {
 export function getRemainingEvolutionGaugeTime(eid: number): number | null {
   const currentStamina = CharacterStatusComp.stamina[eid];
   const isSick = hasCharacterStatus(eid, CharacterStatus.SICK);
+  const currentState = ObjectComp.state[eid] as CharacterState;
 
   if (
+    currentState === CharacterState.EGG ||
     currentStamina < EVOLUTION_GAUGE_CONFIG.staminaThreshold ||
     isSick
   ) {
@@ -317,7 +319,6 @@ export function getRemainingEvolutionGaugeTime(eid: number): number | null {
   }
 
   const elapsed = evolutionGaugeTimers.get(eid) || 0;
-  const currentState = ObjectComp.state[eid] as CharacterState;
   const progressMultiplier =
     currentState === CharacterState.SLEEPING
       ? EVOLUTION_GAUGE_CONFIG.sleepingGaugeTimeProgressMultiplier
@@ -352,6 +353,12 @@ function _updateStaminaAndEvolutionGauge(
   eid: number,
   delta: number,
 ): void {
+  if (ObjectComp.state[eid] === CharacterState.EGG) {
+    staminaTimers.set(eid, 0);
+    evolutionGaugeTimers.set(eid, 0);
+    return;
+  }
+
   // 스테미나 타이머 업데이트
   const currentStaminaTimer = staminaTimers.get(eid) || 0;
   const staminaDelta =

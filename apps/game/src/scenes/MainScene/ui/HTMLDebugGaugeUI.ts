@@ -5,6 +5,7 @@ import {
   CharacterStatusComp,
   DigestiveSystemComp,
   DiseaseSystemComp,
+  EggHatchComp,
   SleepSystemComp,
   VitalityComp,
 } from "../raw-components";
@@ -55,6 +56,7 @@ export class HTMLDebugGaugeUI {
   private _world: MainSceneWorld;
   private _staminaText!: HTMLSpanElement;
   private _evolutionText!: HTMLSpanElement;
+  private _eggHatchText!: HTMLSpanElement;
   private _digestiveText!: HTMLSpanElement;
   private _diseaseRateText!: HTMLSpanElement;
   private _deathTimeText!: HTMLSpanElement;
@@ -141,6 +143,11 @@ export class HTMLDebugGaugeUI {
     this._evolutionText = this._createMetricValue();
     evolutionDiv.appendChild(this._evolutionText);
 
+    const eggHatchDiv = this._createMetricRow("Egg Hatch: ", "#facc15");
+
+    this._eggHatchText = this._createMetricValue();
+    eggHatchDiv.appendChild(this._eggHatchText);
+
     const digestiveDiv = this._createMetricRow("Digestive: ", "#66ff66");
 
     this._digestiveText = this._createMetricValue();
@@ -219,6 +226,7 @@ export class HTMLDebugGaugeUI {
 
     this._primaryColumn.appendChild(staminaDiv);
     this._primaryColumn.appendChild(evolutionDiv);
+    this._primaryColumn.appendChild(eggHatchDiv);
     this._primaryColumn.appendChild(digestiveDiv);
     this._primaryColumn.appendChild(diseaseRateDiv);
     this._primaryColumn.appendChild(deathTimeDiv);
@@ -291,6 +299,7 @@ export class HTMLDebugGaugeUI {
       if (this._currentCharacterEid < 0) {
         this._staminaText.textContent = "N/A";
         this._evolutionText.textContent = "N/A";
+        this._eggHatchText.textContent = "N/A";
         this._digestiveText.textContent = "N/A";
         this._diseaseRateText.textContent = "N/A";
         this._deathTimeText.textContent = "N/A";
@@ -302,6 +311,10 @@ export class HTMLDebugGaugeUI {
     }
 
     const currentTime = this._world.currentTime;
+    const currentState = ObjectComp.state[
+      this._currentCharacterEid
+    ] as CharacterState;
+    const isEgg = currentState === CharacterState.EGG;
     const stamina = CharacterStatusComp.stamina[this._currentCharacterEid] || 0;
     const evolutionGauge =
       CharacterStatusComp.evolutionGage[this._currentCharacterEid] || 0;
@@ -310,6 +323,11 @@ export class HTMLDebugGaugeUI {
     );
     const remainingEvolutionTime = getRemainingEvolutionGaugeTime(
       this._currentCharacterEid,
+    );
+    const remainingEggHatchTime = getRemainingEggHatchTime(
+      this._world,
+      this._currentCharacterEid,
+      currentTime,
     );
 
     let digestiveText = "N/A";
@@ -420,15 +438,22 @@ export class HTMLDebugGaugeUI {
         `  pw: ${formatSleepCheckReason(pendingWakeReason)}`;
     }
 
-    this._staminaText.textContent = `${stamina}/10 (${Math.ceil(
-      remainingStaminaTime / 1000,
-    )}s)`;
-    this._evolutionText.textContent =
-      remainingEvolutionTime === null
-        ? `${evolutionGauge.toFixed(1)}/100.0 (paused)`
-        : `${evolutionGauge.toFixed(1)}/100.0 (${Math.ceil(
-            remainingEvolutionTime / 1000,
-          )}s)`;
+    this._staminaText.textContent = isEgg
+      ? `${stamina}/10 (egg)`
+      : `${stamina}/10 (${Math.ceil(remainingStaminaTime / 1000)}s)`;
+    if (isEgg) {
+      this._evolutionText.textContent = `${evolutionGauge.toFixed(1)}/100.0 (egg)`;
+    } else if (remainingEvolutionTime === null) {
+      this._evolutionText.textContent = `${evolutionGauge.toFixed(1)}/100.0 (paused)`;
+    } else {
+      this._evolutionText.textContent = `${evolutionGauge.toFixed(1)}/100.0 (${Math.ceil(
+        remainingEvolutionTime / 1000,
+      )}s)`;
+    }
+    this._eggHatchText.textContent = formatEggHatchCountdown({
+      isEgg,
+      remainingTime: remainingEggHatchTime,
+    });
     this._digestiveText.textContent = digestiveText;
     this._diseaseRateText.textContent = `${(diseaseRate * 100).toFixed(
       1,
@@ -492,6 +517,16 @@ export class HTMLDebugGaugeUI {
     } else {
       this._deathTimeText.style.color = "white";
       this._deathTimeText.style.animation = "none";
+    }
+
+    if (isEgg) {
+      this._eggHatchText.style.color =
+        remainingEggHatchTime === 0 ? "#ffbb33" : "white";
+      this._eggHatchText.style.animation =
+        remainingEggHatchTime === 0 ? "blink 1s infinite" : "none";
+    } else {
+      this._eggHatchText.style.color = "#aaaaaa";
+      this._eggHatchText.style.animation = "none";
     }
 
     if (hasSleepSystem) {
@@ -836,6 +871,38 @@ function formatAdDuration(milliseconds: number): string {
 function formatAdQueuedAge(queuedAt: number, currentTime: number): string {
   const elapsed = Math.max(0, currentTime - queuedAt);
   return `${formatAdDuration(elapsed)} ago`;
+}
+
+function getRemainingEggHatchTime(
+  world: MainSceneWorld,
+  eid: number,
+  currentTime: number,
+): number | null {
+  if (!hasComponent(world, EggHatchComp, eid)) {
+    return null;
+  }
+
+  const hatchTime = EggHatchComp.hatchTime[eid] || 0;
+  if (hatchTime <= 0) {
+    return null;
+  }
+
+  return Math.max(0, hatchTime - currentTime);
+}
+
+function formatEggHatchCountdown(params: {
+  isEgg: boolean;
+  remainingTime: number | null;
+}): string {
+  if (!params.isEgg || params.remainingTime === null) {
+    return "N/A";
+  }
+
+  if (params.remainingTime <= 0) {
+    return "ready";
+  }
+
+  return formatAdDuration(params.remainingTime);
 }
 
 function formatSleepMode(mode: number): string {
