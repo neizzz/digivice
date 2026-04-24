@@ -690,6 +690,15 @@ export class HTMLDebugGaugeUI {
     this._isVisible = false;
   }
 
+  public toggle(): void {
+    if (this._isVisible) {
+      this.hide();
+      return;
+    }
+
+    this.show();
+  }
+
   public destroy(): void {
     if (
       this._adDeferredRefreshTimerId !== null &&

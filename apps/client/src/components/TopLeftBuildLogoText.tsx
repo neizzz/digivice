@@ -4,7 +4,7 @@ import "./TopLeftBuildLogoText.css";
 
 const buildLogoText = __APP_LOGO_TEXT__.trim();
 
-function showDebugGauge(): void {
+function toggleDebugGauge(): void {
   window.dispatchEvent(new CustomEvent(SHOW_DEBUG_GAUGE_EVENT));
 }
 
@@ -19,7 +19,7 @@ export default function TopLeftBuildLogoText() {
     }
 
     event.preventDefault();
-    showDebugGauge();
+    toggleDebugGauge();
   };
 
   return (
@@ -27,7 +27,7 @@ export default function TopLeftBuildLogoText() {
       className="build-logo-text"
       role="button"
       tabIndex={0}
-      onClick={showDebugGauge}
+      onClick={toggleDebugGauge}
       onKeyDown={handleKeyDown}
     >
       {buildLogoText}

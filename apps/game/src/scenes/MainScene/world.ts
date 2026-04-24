@@ -370,7 +370,7 @@ export class MainSceneWorld implements IWorld, Scene {
   private _sleepDebugEffectEnabled = true;
   private _randomMovementDebugEnabled = false;
   private readonly _handleShowDebugGauge = (): void => {
-    this._debugGaugeUI?.show();
+    this._debugGaugeUI?.toggle();
   };
   private _pendingRecoveryCureEids = new Set<number>();
   private _isPersistenceDisabled = false;
