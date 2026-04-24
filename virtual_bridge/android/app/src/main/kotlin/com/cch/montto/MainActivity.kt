@@ -1,4 +1,4 @@
-package com.example.digivice_virtual_bridge
+package com.cch.montto
 
 import android.content.ClipData
 import android.content.Intent
