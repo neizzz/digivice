@@ -34,38 +34,131 @@ export type EvolutionGaugeConfig = {
   boostedStaminaThreshold: number;
   boostedGaugeGainMultiplier: number;
   checkIntervalMs: number;
+  sleepingGaugeTimeProgressMultiplier: number;
   gaugeGainByClass: Record<CharacterClass, number>;
+  targetDurationByClassMs: Record<CharacterClass, number>;
+  targetDurationVarianceByClassMs: Record<CharacterClass, number>;
 };
 
 const DEFAULT_MAX_GAUGE = 100;
+const HOUR_MS = 60 * 60 * 1000;
+
+const PRODUCTION_EVOLUTION_TARGET_DURATION_BY_CLASS_MS: Record<
+  CharacterClass,
+  number
+> = {
+  [CharacterClass.A]: 20 * HOUR_MS,
+  [CharacterClass.B]: 40 * HOUR_MS,
+  [CharacterClass.C]: 80 * HOUR_MS,
+  [CharacterClass.D]: 80 * HOUR_MS,
+};
+
+const PRODUCTION_EVOLUTION_TARGET_DURATION_VARIANCE_BY_CLASS_MS: Record<
+  CharacterClass,
+  number
+> = {
+  [CharacterClass.A]: 2 * HOUR_MS,
+  [CharacterClass.B]: 4 * HOUR_MS,
+  [CharacterClass.C]: 8 * HOUR_MS,
+  [CharacterClass.D]: 8 * HOUR_MS,
+};
+
+const DEV_GAUGE_GAIN_BY_CLASS: Record<CharacterClass, number> = {
+  [CharacterClass.A]: 1.0,
+  [CharacterClass.B]: 1.0,
+  [CharacterClass.C]: 1.0,
+  [CharacterClass.D]: 1.0,
+};
+
+function getGaugeGainForDurationMs(params: {
+  maxGauge: number;
+  checkIntervalMs: number;
+  durationMs: number;
+}): number {
+  const { maxGauge, checkIntervalMs, durationMs } = params;
+
+  if (durationMs <= 0) {
+    return 0;
+  }
+
+  return (maxGauge * checkIntervalMs) / durationMs;
+}
+
+function getAverageGaugeGainByClass(params: {
+  maxGauge: number;
+  checkIntervalMs: number;
+  targetDurationByClassMs: Record<CharacterClass, number>;
+}): Record<CharacterClass, number> {
+  const { maxGauge, checkIntervalMs, targetDurationByClassMs } = params;
+
+  return {
+    [CharacterClass.A]: getGaugeGainForDurationMs({
+      maxGauge,
+      checkIntervalMs,
+      durationMs: targetDurationByClassMs[CharacterClass.A],
+    }),
+    [CharacterClass.B]: getGaugeGainForDurationMs({
+      maxGauge,
+      checkIntervalMs,
+      durationMs: targetDurationByClassMs[CharacterClass.B],
+    }),
+    [CharacterClass.C]: getGaugeGainForDurationMs({
+      maxGauge,
+      checkIntervalMs,
+      durationMs: targetDurationByClassMs[CharacterClass.C],
+    }),
+    [CharacterClass.D]: getGaugeGainForDurationMs({
+      maxGauge,
+      checkIntervalMs,
+      durationMs: targetDurationByClassMs[CharacterClass.D],
+    }),
+  };
+}
+
+function getStableSeededUnitValue(seed: string): number {
+  let hash = 2166136261;
+
+  for (let i = 0; i < seed.length; i++) {
+    hash ^= seed.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return (hash >>> 0) / 4294967296;
+}
+
+export const PRODUCTION_EVOLUTION_GAUGE_CONFIG: EvolutionGaugeConfig = {
+  maxGauge: DEFAULT_MAX_GAUGE,
+  staminaThreshold: 4,
+  boostedStaminaThreshold: 8,
+  boostedGaugeGainMultiplier: 1.1,
+  checkIntervalMs: 10_000,
+  sleepingGaugeTimeProgressMultiplier: 1 / 3,
+  gaugeGainByClass: getAverageGaugeGainByClass({
+    maxGauge: DEFAULT_MAX_GAUGE,
+    checkIntervalMs: 10_000,
+    targetDurationByClassMs: PRODUCTION_EVOLUTION_TARGET_DURATION_BY_CLASS_MS,
+  }),
+  targetDurationByClassMs: PRODUCTION_EVOLUTION_TARGET_DURATION_BY_CLASS_MS,
+  targetDurationVarianceByClassMs:
+    PRODUCTION_EVOLUTION_TARGET_DURATION_VARIANCE_BY_CLASS_MS,
+};
+
+export const DEV_EVOLUTION_GAUGE_CONFIG: EvolutionGaugeConfig = {
+  maxGauge: DEFAULT_MAX_GAUGE,
+  staminaThreshold: 4,
+  boostedStaminaThreshold: 8,
+  boostedGaugeGainMultiplier: 1.1,
+  checkIntervalMs: 10_000,
+  sleepingGaugeTimeProgressMultiplier: 1 / 3,
+  gaugeGainByClass: DEV_GAUGE_GAIN_BY_CLASS,
+  targetDurationByClassMs: PRODUCTION_EVOLUTION_TARGET_DURATION_BY_CLASS_MS,
+  targetDurationVarianceByClassMs:
+    PRODUCTION_EVOLUTION_TARGET_DURATION_VARIANCE_BY_CLASS_MS,
+};
 
 export const EVOLUTION_GAUGE_CONFIG: EvolutionGaugeConfig = import.meta.env.DEV
-  ? {
-      maxGauge: DEFAULT_MAX_GAUGE,
-      staminaThreshold: 4,
-      boostedStaminaThreshold: 8,
-      boostedGaugeGainMultiplier: 1.1,
-      checkIntervalMs: 10_000,
-      gaugeGainByClass: {
-        [CharacterClass.A]: 1.0,
-        [CharacterClass.B]: 1.0,
-        [CharacterClass.C]: 1.0,
-        [CharacterClass.D]: 1.0,
-      },
-    }
-  : {
-      maxGauge: DEFAULT_MAX_GAUGE,
-      staminaThreshold: 4,
-      boostedStaminaThreshold: 8,
-      boostedGaugeGainMultiplier: 1.1,
-      checkIntervalMs: 10_000,
-      gaugeGainByClass: {
-        [CharacterClass.A]: 1.0,
-        [CharacterClass.B]: 1.0,
-        [CharacterClass.C]: 1.0,
-        [CharacterClass.D]: 1.0,
-      },
-    };
+  ? DEV_EVOLUTION_GAUGE_CONFIG
+  : PRODUCTION_EVOLUTION_GAUGE_CONFIG;
 
 function createDisplayName(
   geneLine: MonsterGeneLine,
@@ -319,6 +412,46 @@ export function getEvolutionGaugeIncreaseAmount(
   }
 
   return EVOLUTION_GAUGE_CONFIG.gaugeGainByClass[spec.class] ?? 0;
+}
+
+export function getProductionEvolutionTargetDurationMsForEntity(params: {
+  characterKey: CharacterKeyECS | number;
+  objectId: number;
+}): number {
+  const { characterKey, objectId } = params;
+  const spec = getEvolutionSpec(characterKey);
+
+  if (!spec) {
+    return 0;
+  }
+
+  const targetDurationMs =
+    PRODUCTION_EVOLUTION_GAUGE_CONFIG.targetDurationByClassMs[spec.class];
+  const varianceMs =
+    PRODUCTION_EVOLUTION_GAUGE_CONFIG.targetDurationVarianceByClassMs[
+      spec.class
+    ];
+  const seedValue = getStableSeededUnitValue(
+    `${Math.trunc(objectId)}:${spec.classCode}:${spec.phase}`,
+  );
+  const jitterRatio = seedValue * 2 - 1;
+
+  return targetDurationMs + varianceMs * jitterRatio;
+}
+
+export function getEvolutionGaugeIncreaseAmountForEntity(params: {
+  characterKey: CharacterKeyECS | number;
+  objectId: number;
+}): number {
+  if (import.meta.env.DEV) {
+    return getEvolutionGaugeIncreaseAmount(params.characterKey);
+  }
+
+  return getGaugeGainForDurationMs({
+    maxGauge: PRODUCTION_EVOLUTION_GAUGE_CONFIG.maxGauge,
+    checkIntervalMs: PRODUCTION_EVOLUTION_GAUGE_CONFIG.checkIntervalMs,
+    durationMs: getProductionEvolutionTargetDurationMsForEntity(params),
+  });
 }
 
 export function canEvolveFromConfig(characterKey: CharacterKeyECS | number): boolean {

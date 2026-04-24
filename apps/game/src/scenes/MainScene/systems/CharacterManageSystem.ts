@@ -18,7 +18,7 @@ import { evolveCharacter, canEvolve, getMaxEvolutionGauge } from "./EvolutionSys
 import { GAME_CONSTANTS } from "../config";
 import {
   EVOLUTION_GAUGE_CONFIG,
-  getEvolutionGaugeIncreaseAmount,
+  getEvolutionGaugeIncreaseAmountForEntity,
 } from "../evolutionConfig";
 
 const characterQuery = defineQuery([
@@ -34,6 +34,29 @@ const previousStatusStates: Map<number, CharacterStatus[]> = new Map();
 // 스테미나와 진화 게이지 타이머를 위한 Map
 const staminaTimers: Map<number, number> = new Map();
 const evolutionGaugeTimers: Map<number, number> = new Map();
+const TIMER_EPSILON_MS = 0.000001;
+
+export function resetCharacterManageSystemStateForTests(): void {
+  staminaTimers.clear();
+  evolutionGaugeTimers.clear();
+}
+
+function getElapsedIntervalProgress(
+  totalElapsedTime: number,
+  interval: number,
+): { count: number; remainder: number } {
+  if (interval <= 0) {
+    return { count: 0, remainder: 0 };
+  }
+
+  const count = Math.floor((totalElapsedTime + TIMER_EPSILON_MS) / interval);
+  const remainder = Math.max(0, totalElapsedTime - count * interval);
+
+  return {
+    count,
+    remainder: remainder < TIMER_EPSILON_MS ? 0 : remainder,
+  };
+}
 
 // world 인스턴스를 저장 (addCharacterStatus에서 사용)
 let _cachedWorld: MainSceneWorld | null = null;
@@ -294,7 +317,21 @@ export function getRemainingEvolutionGaugeTime(eid: number): number | null {
   }
 
   const elapsed = evolutionGaugeTimers.get(eid) || 0;
-  return Math.max(0, EVOLUTION_GAUGE_CONFIG.checkIntervalMs - elapsed);
+  const currentState = ObjectComp.state[eid] as CharacterState;
+  const progressMultiplier =
+    currentState === CharacterState.SLEEPING
+      ? EVOLUTION_GAUGE_CONFIG.sleepingGaugeTimeProgressMultiplier
+      : 1;
+  const remainingProgressTime = Math.max(
+    0,
+    EVOLUTION_GAUGE_CONFIG.checkIntervalMs - elapsed,
+  );
+
+  if (progressMultiplier <= 0) {
+    return null;
+  }
+
+  return Math.max(0, remainingProgressTime / progressMultiplier);
 }
 
 export function clearCharacterStatuses(eid: number): void {
@@ -322,13 +359,12 @@ function _updateStaminaAndEvolutionGauge(
       ? delta * GAME_CONSTANTS.SLEEPING_STAMINA_DECAY_MULTIPLIER
       : delta;
   const totalStaminaTime = currentStaminaTimer + staminaDelta;
-  const staminaDecreaseCount = Math.floor(
-    totalStaminaTime / GAME_CONSTANTS.STAMINA_DECREASE_INTERVAL,
+  const staminaProgress = getElapsedIntervalProgress(
+    totalStaminaTime,
+    GAME_CONSTANTS.STAMINA_DECREASE_INTERVAL,
   );
-  staminaTimers.set(
-    eid,
-    totalStaminaTime % GAME_CONSTANTS.STAMINA_DECREASE_INTERVAL,
-  );
+  const staminaDecreaseCount = staminaProgress.count;
+  staminaTimers.set(eid, staminaProgress.remainder);
 
   for (let i = 0; i < staminaDecreaseCount; i++) {
     decreaseStamina(eid);
@@ -343,14 +379,17 @@ function _updateStaminaAndEvolutionGauge(
     !isSick
   ) {
     const currentEvolutionTimer = evolutionGaugeTimers.get(eid) || 0;
-    const totalEvolutionTime = currentEvolutionTimer + delta;
-    const evolutionIncreaseCount = Math.floor(
-      totalEvolutionTime / EVOLUTION_GAUGE_CONFIG.checkIntervalMs,
+    const evolutionDelta =
+      ObjectComp.state[eid] === CharacterState.SLEEPING
+        ? delta * EVOLUTION_GAUGE_CONFIG.sleepingGaugeTimeProgressMultiplier
+        : delta;
+    const totalEvolutionTime = currentEvolutionTimer + evolutionDelta;
+    const evolutionProgress = getElapsedIntervalProgress(
+      totalEvolutionTime,
+      EVOLUTION_GAUGE_CONFIG.checkIntervalMs,
     );
-    evolutionGaugeTimers.set(
-      eid,
-      totalEvolutionTime % EVOLUTION_GAUGE_CONFIG.checkIntervalMs,
-    );
+    const evolutionIncreaseCount = evolutionProgress.count;
+    evolutionGaugeTimers.set(eid, evolutionProgress.remainder);
 
     for (let i = 0; i < evolutionIncreaseCount; i++) {
       increaseEvolutionGauge(world, eid);
@@ -475,7 +514,10 @@ export function validateAndFixStatusIcons(world: MainSceneWorld): void {
 function increaseEvolutionGauge(world: MainSceneWorld, eid: number): void {
   const currentGauge = CharacterStatusComp.evolutionGage[eid];
   const currentCharacterKey = CharacterStatusComp.characterKey[eid];
-  const baseGaugeIncreaseAmount = getEvolutionGaugeIncreaseAmount(currentCharacterKey);
+  const baseGaugeIncreaseAmount = getEvolutionGaugeIncreaseAmountForEntity({
+    characterKey: currentCharacterKey,
+    objectId: ObjectComp.id[eid],
+  });
   const currentStamina = CharacterStatusComp.stamina[eid];
   const gaugeIncreaseAmount =
     currentStamina >= EVOLUTION_GAUGE_CONFIG.boostedStaminaThreshold
