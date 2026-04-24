@@ -1,5 +1,5 @@
 import type React from "react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import PopupLayer from "../components/PopupLayer";
 
 type AdDebugState = {
@@ -82,6 +82,7 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
 }) => {
   const [resetConfirmText, setResetConfirmText] = useState("");
   const [showFinalResetConfirm, setShowFinalResetConfirm] = useState(false);
+  const resetConfirmInputRef = useRef<HTMLInputElement>(null);
 
   const isResetEnabled = useMemo(
     () => resetConfirmText.trim() === "confirm",
@@ -101,6 +102,9 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
       <PopupLayer
         title="Settings"
+        initialFocusTarget="container"
+        keyboardAwareTargetRef={resetConfirmInputRef}
+        suppressInitialActionsMs={180}
         content={
           <div className="flex flex-col gap-5 text-left">
             <div className="flex items-center justify-between gap-4">
@@ -128,9 +132,42 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
               </div>
             </div>
 
+            <div className="border-t-2 border-[#222] pt-4">
+              <div>
+                <div className="text-sm font-bold">Reset Game Data</div>
+              </div>
+              <div className="mt-1 text-xs text-gray-600">
+                Type <span className="font-bold">confirm</span> below to enable
+                the reset button.
+              </div>
+              <div className="mt-3 flex items-center justify-between gap-3">
+                <input
+                  ref={resetConfirmInputRef}
+                  type="text"
+                  value={resetConfirmText}
+                  onChange={(event) => setResetConfirmText(event.target.value)}
+                  placeholder="confirm"
+                  className="w-40 border-2 border-[#222] px-3 py-2 text-center text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#d95763]"
+                />
+                <button
+                  type={"button"}
+                  disabled={!isResetEnabled}
+                  onClick={() => setShowFinalResetConfirm(true)}
+                  className={`border-2 border-[#222] px-4 py-2 text-sm font-bold text-white ${
+                    isResetEnabled
+                      ? "bg-component-negative"
+                      : "cursor-not-allowed bg-gray-400 opacity-60"
+                  }`}
+                >
+                  Reset
+                </button>
+              </div>
+            </div>
+
+
             {showAdDebugSection && (
               <div className="border-t-2 border-[#222] pt-4">
-                <div className="mb-3 text-sm font-bold">Ad Debug</div>
+                <div className="mb-3 text-sm font-bold">[DEBUG] Ad Test</div>
                 <div className="space-y-3 text-xs text-gray-600">
                   <div className="flex items-center justify-between gap-4">
                     <div>
@@ -153,11 +190,7 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
                       variant="warning"
                     />
                   </div>
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="max-w-52">
-                      Show Google test interstitial immediately in native debug
-                      build.
-                    </div>
+                  <div className="flex justify-end">
                     <ActionButton
                       text={isShowingTestAd ? "Opening..." : "Show Test Ad"}
                       onClick={() => onShowTestAd?.()}
@@ -170,37 +203,6 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
                 </div>
               </div>
             )}
-
-            <div className="border-t-2 border-[#222] pt-4">
-              <div>
-                <div className="text-sm font-bold">Reset Game Data</div>
-              </div>
-              <div className="mt-1 text-xs text-gray-600">
-                Type <span className="font-bold">confirm</span> below to enable
-                the reset button.
-              </div>
-              <div className="mt-3 flex items-center justify-between gap-3">
-                <input
-                  type="text"
-                  value={resetConfirmText}
-                  onChange={(event) => setResetConfirmText(event.target.value)}
-                  placeholder="confirm"
-                  className="w-40 border-2 border-[#222] px-3 py-2 text-center text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#d95763]"
-                />
-                <button
-                  type={"button"}
-                  disabled={!isResetEnabled}
-                  onClick={() => setShowFinalResetConfirm(true)}
-                  className={`border-2 border-[#222] px-4 py-2 text-sm font-bold text-white ${
-                    isResetEnabled
-                      ? "bg-component-negative"
-                      : "cursor-not-allowed bg-gray-400 opacity-60"
-                  }`}
-                >
-                  Reset
-                </button>
-              </div>
-            </div>
           </div>
         }
         onConfirm={onClose}
