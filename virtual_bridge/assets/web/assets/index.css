@@ -23,6 +23,7 @@
       --tw-rotate-z: rotateZ(0);
       --tw-skew-x: skewX(0);
       --tw-skew-y: skewY(0);
+      --tw-space-y-reverse: 0;
       --tw-border-style: solid;
       --tw-leading: initial;
       --tw-font-weight: initial;
@@ -404,6 +405,40 @@
     z-index: 999;
   }
 
+  .container {
+    width: 100%;
+  }
+
+  @media (min-width: 40rem) {
+    .container {
+      max-width: 40rem;
+    }
+  }
+
+  @media (min-width: 48rem) {
+    .container {
+      max-width: 48rem;
+    }
+  }
+
+  @media (min-width: 64rem) {
+    .container {
+      max-width: 64rem;
+    }
+  }
+
+  @media (min-width: 80rem) {
+    .container {
+      max-width: 80rem;
+    }
+  }
+
+  @media (min-width: 96rem) {
+    .container {
+      max-width: 96rem;
+    }
+  }
+
   .m-0 {
     margin: calc(var(--spacing) * 0);
   }
@@ -496,6 +531,10 @@
     width: 100%;
   }
 
+  .max-w-52 {
+    max-width: calc(var(--spacing) * 52);
+  }
+
   .max-w-\[22rem\] {
     max-width: 22rem;
   }
@@ -582,6 +621,10 @@
     justify-content: center;
   }
 
+  .justify-end {
+    justify-content: flex-end;
+  }
+
   .gap-3 {
     gap: calc(var(--spacing) * 3);
   }
@@ -598,12 +641,22 @@
     gap: 15px;
   }
 
+  :where(.space-y-3 > :not(:last-child)) {
+    --tw-space-y-reverse: 0;
+    margin-block-start: calc(calc(var(--spacing) * 3) * var(--tw-space-y-reverse));
+    margin-block-end: calc(calc(var(--spacing) * 3) * calc(1 - var(--tw-space-y-reverse)));
+  }
+
   .overflow-hidden {
     overflow: hidden;
   }
 
   .overflow-visible {
     overflow: visible;
+  }
+
+  .overflow-y-auto {
+    overflow-y: auto;
   }
 
   .rounded-full {
@@ -783,6 +836,10 @@
     font-size: 10px;
   }
 
+  .text-\[11px\] {
+    font-size: 11px;
+  }
+
   .leading-5 {
     --tw-leading: calc(var(--spacing) * 5);
     line-height: calc(var(--spacing) * 5);
@@ -951,7 +1008,8 @@ body {
 }
 
 #root {
-  min-height: 100dvh;
+  min-height: var(--digivice-app-shell-height, 100dvh);
+  height: var(--digivice-app-shell-height, 100dvh);
 }
 
 h1 {
@@ -1005,6 +1063,12 @@ h1 {
   syntax: "*";
   inherits: false;
   initial-value: skewY(0);
+}
+
+@property --tw-space-y-reverse {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0;
 }
 
 @property --tw-border-style {

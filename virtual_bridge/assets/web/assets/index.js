@@ -2,7 +2,7 @@ const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["./browserAll.js","./we
 var __defProp = Object.defineProperty;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
-import { g as getDefaultExportFromCjs, c as commonjsGlobal, r as reactExports, j as jsxDevRuntimeExports, a as requireReactDom, T as TopLeftBuildLogoText, R as ReactDOM } from "./index2.js";
+import { g as getDefaultExportFromCjs, c as commonjsGlobal, r as reactExports, j as jsxRuntimeExports, a as requireReactDom, T as TopLeftBuildLogoText, R as ReactDOM } from "./index2.js";
 const scriptRel = "modulepreload";
 const assetsURL = function(dep, importerUrl) {
   return new URL(dep, importerUrl).href;
@@ -26893,8 +26893,10 @@ const DigestiveSystemComp = defineComponent({
   // 소화기관 용량 (기본 5.0)
   currentLoad: Types.f32,
   // 현재 차있는 양
-  nextPoopTime: Types.f64
+  nextPoopTime: Types.f64,
   // 다음 똥 싸는 시간 (timestamp)
+  nextSmallPoopTime: Types.f64
+  // under-capacity 상태에서 작은 똥을 쌀 시간 (timestamp)
 });
 const DiseaseSystemComp = defineComponent({
   nextCheckTime: Types.f64,
@@ -27355,6 +27357,7 @@ const PRODUCTION_GAME_CONSTANTS = {
   // debug/legacy용 stamina 비례 증가 배수
   DIGESTIVE_LOAD_PER_MEAL: 2,
   POOP_DELAY: 10 * SECOND_IN_MILLISECONDS,
+  DIGESTIVE_SMALL_POOP_DELAY: 8 * HOUR_IN_MILLISECONDS$1,
   // 질병 관련
   DISEASE_CHECK_INTERVAL: 10 * SECOND_IN_MILLISECONDS,
   BASE_DISEASE_RATE: 1862601875783909e-19,
@@ -27406,38 +27409,7 @@ const PRODUCTION_GAME_CONSTANTS = {
   SLEEPING_STAMINA_DECAY_MULTIPLIER: 0.1,
   SLEEPING_DISEASE_RATE_MULTIPLIER: 0.1
 };
-const DEV_BALANCE_COEFFICIENTS = {
-  // DEV에서는 production 기준 시간을 나눠서 빠르게 재현한다.
-  timeDivisors: {
-    EGG_HATCH_TIME: 360,
-    EGG_HATCH_MIN_TIME: 180,
-    EGG_HATCH_MODE_TIME: 360,
-    EGG_HATCH_MAX_TIME: 540,
-    POOP_DELAY: 1,
-    DISEASE_CHECK_INTERVAL: 1,
-    FRESH_TO_NORMAL_TIME: 18,
-    NORMAL_TO_STALE_TIME: 60,
-    DEATH_DELAY: 360,
-    DEATH_DELAY_CLASS_A: 360,
-    DEATH_DELAY_CLASS_B: 360,
-    DEATH_DELAY_CLASS_C: 360,
-    DEATH_DELAY_CLASS_D: 360,
-    STAMINA_DECREASE_INTERVAL: 96,
-    NIGHT_SLEEP_MIN_DELAY: 60,
-    NIGHT_SLEEP_MAX_DELAY: 60,
-    TARGET_NIGHT_SLEEP_DURATION: 60,
-    TARGET_NIGHT_SLEEP_JITTER: 60,
-    SUNRISE_WAKE_MIN_DELAY: 60,
-    SUNRISE_WAKE_MAX_DELAY: 60,
-    SUNRISE_WAKE_OFFSET_MIN: 60,
-    SUNRISE_WAKE_OFFSET_MAX: 60,
-    NIGHT_RESLEEP_MIN_DELAY: 60,
-    NIGHT_RESLEEP_MAX_DELAY: 60,
-    DAY_NAP_CHECK_INTERVAL: 60,
-    NIGHT_WAKE_CHECK_INTERVAL: 120,
-    DAY_NAP_MIN_DURATION: 60,
-    DAY_NAP_MAX_DURATION: 60
-  },
+({
   // DEV에서는 production 기준 확률을 곱해서 빠르게 상태를 관찰한다.
   probabilityMultipliers: {
     BASE_DISEASE_RATE: 0.02 / PRODUCTION_GAME_CONSTANTS.BASE_DISEASE_RATE,
@@ -27453,29 +27425,24 @@ const DEV_BALANCE_COEFFICIENTS = {
     FATIGUE_SLEEP_RECOVERY_PER_HOUR: 2400 / PRODUCTION_GAME_CONSTANTS.FATIGUE_SLEEP_RECOVERY_PER_HOUR,
     FATIGUE_SLEEP_RECOVERY_PER_HOUR_WHEN_SICK: 800 / PRODUCTION_GAME_CONSTANTS.FATIGUE_SLEEP_RECOVERY_PER_HOUR_WHEN_SICK
   }
-};
+});
 function deriveTimeConstant(key) {
   const baseValue = PRODUCTION_GAME_CONSTANTS[key];
-  const divisor = DEV_BALANCE_COEFFICIENTS.timeDivisors[key];
-  if (divisor <= 0) {
+  {
     return baseValue;
   }
-  const derivedValue = Math.round(baseValue / divisor);
-  if (derivedValue === 0) {
-    return 0;
-  }
-  return derivedValue > 0 ? Math.max(1, derivedValue) : Math.min(-1, derivedValue);
 }
 function deriveProbabilityConstant(key) {
   const baseValue = PRODUCTION_GAME_CONSTANTS[key];
-  return Math.min(
-    1,
-    baseValue * DEV_BALANCE_COEFFICIENTS.probabilityMultipliers[key]
-  );
+  {
+    return baseValue;
+  }
 }
 function deriveRateConstant(key) {
   const baseValue = PRODUCTION_GAME_CONSTANTS[key];
-  return baseValue * DEV_BALANCE_COEFFICIENTS.rateMultipliers[key];
+  {
+    return baseValue;
+  }
 }
 const GAME_CONSTANTS = {
   ...PRODUCTION_GAME_CONSTANTS,
@@ -27484,6 +27451,7 @@ const GAME_CONSTANTS = {
   EGG_HATCH_MODE_TIME: deriveTimeConstant("EGG_HATCH_MODE_TIME"),
   EGG_HATCH_MAX_TIME: deriveTimeConstant("EGG_HATCH_MAX_TIME"),
   POOP_DELAY: deriveTimeConstant("POOP_DELAY"),
+  DIGESTIVE_SMALL_POOP_DELAY: deriveTimeConstant("DIGESTIVE_SMALL_POOP_DELAY"),
   DISEASE_CHECK_INTERVAL: deriveTimeConstant("DISEASE_CHECK_INTERVAL"),
   FRESH_TO_NORMAL_TIME: deriveTimeConstant("FRESH_TO_NORMAL_TIME"),
   NORMAL_TO_STALE_TIME: deriveTimeConstant("NORMAL_TO_STALE_TIME"),
@@ -27683,7 +27651,8 @@ function convertECSEntityToSavedEntity(world, eid) {
     components.digestiveSystem = {
       capacity: DigestiveSystemComp.capacity[eid],
       currentLoad: DigestiveSystemComp.currentLoad[eid],
-      nextPoopTime: DigestiveSystemComp.nextPoopTime[eid]
+      nextPoopTime: DigestiveSystemComp.nextPoopTime[eid],
+      nextSmallPoopTime: DigestiveSystemComp.nextSmallPoopTime[eid]
     };
   }
   if (hasComponent(world, DiseaseSystemComp, eid)) {
@@ -27854,6 +27823,7 @@ function applySavedEntityToECS(world, eid, savedEntity) {
     DigestiveSystemComp.capacity[eid] = components.digestiveSystem.capacity;
     DigestiveSystemComp.currentLoad[eid] = components.digestiveSystem.currentLoad;
     DigestiveSystemComp.nextPoopTime[eid] = components.digestiveSystem.nextPoopTime;
+    DigestiveSystemComp.nextSmallPoopTime[eid] = components.digestiveSystem.nextSmallPoopTime ?? 0;
   }
   if (components.diseaseSystem) {
     if (!hasComponent(world, DiseaseSystemComp, eid)) {
@@ -27948,6 +27918,7 @@ function repairCharacterEntityRuntimeComponents(world, eid, now = Date.now()) {
     DigestiveSystemComp.capacity[eid] = GAME_CONSTANTS.DIGESTIVE_CAPACITY;
     DigestiveSystemComp.currentLoad[eid] = 0;
     DigestiveSystemComp.nextPoopTime[eid] = 0;
+    DigestiveSystemComp.nextSmallPoopTime[eid] = 0;
     repaired.push("DigestiveSystemComp");
   }
   if (!hasComponent(world, DiseaseSystemComp, eid)) {
@@ -28007,7 +27978,7 @@ function repairCharacterEntityRuntimeComponents(world, eid, now = Date.now()) {
   }
   return repaired;
 }
-const characterQuery$a = defineQuery([CharacterStatusComp, RandomMovementComp]);
+const characterQuery$9 = defineQuery([CharacterStatusComp, RandomMovementComp]);
 const allCharacterQuery = defineQuery([CharacterStatusComp, ObjectComp]);
 function hasDirectedMovement(world, eid) {
   return hasComponent(world, DestinationComp, eid) && DestinationComp.type[eid] === DestinationType.TARGETED && DestinationComp.target[eid] !== 0;
@@ -28016,7 +27987,7 @@ function randomMovementSystem(params) {
   const { world } = params;
   const currentTime = world.currentTime;
   const shouldLog = !world.isSimulationMode && world.isRandomMovementDebugEnabled();
-  const chars = characterQuery$a(world);
+  const chars = characterQuery$9(world);
   const allChars = allCharacterQuery(world);
   for (let i2 = 0; i2 < allChars.length; i2++) {
     const eid = allChars[i2];
@@ -28078,7 +28049,7 @@ function randomMovementSystem(params) {
     const maxMove = RandomMovementComp.maxMoveTime[eid];
     if (!minIdle || !maxIdle || !minMove || !maxMove) {
       if (shouldLog) {
-        console.error(
+        console.warn(
           `[RandomMovementSystem] Entity ${eid} has invalid time ranges - idle: ${minIdle}-${maxIdle}, move: ${minMove}-${maxMove}`
         );
       }
@@ -28604,11 +28575,10 @@ function getMaskSprite(eid) {
 function getTextureFromKey$1(textureKey) {
   const textureInfo = TEXTURE_MAP[textureKey];
   if (!textureInfo) {
-    {
-      throw new Error(
-        `[RenderSystem] Texture key ${textureKey} not found in TEXTURE_MAP`
-      );
-    }
+    console.warn(
+      `[RenderSystem] Texture key ${textureKey} not found in TEXTURE_MAP`
+    );
+    return void 0;
   }
   try {
     if (!textureInfo.spritesheetAlias) {
@@ -28709,13 +28679,8 @@ function updateMaskTexture(maskSprite, progress) {
     maskSprite.texture = texture;
   }
 }
-let hasValidatedTextures = false;
 function renderSystem(params) {
   const { world } = params;
-  if (!hasValidatedTextures) {
-    validateTextureMap();
-    hasValidatedTextures = true;
-  }
   const entities = renderableQuery(world);
   const exitedEntities = exitedRenderableQuery(world);
   const stage = world.stage;
@@ -28870,34 +28835,8 @@ function isTextureKeyLoaded(textureKey) {
     textureInfo.textureName
   );
 }
-function getAvailableTextureKeys() {
-  return Object.keys(TEXTURE_MAP).map(Number).sort((a2, b2) => a2 - b2);
-}
 function getTextureInfo(textureKey) {
   return TEXTURE_MAP[textureKey] || null;
-}
-function validateTextureMap() {
-  console.groupCollapsed("[RenderSystem] Texture Map Validation:");
-  const availableKeys = getAvailableTextureKeys();
-  let validCount = 0;
-  let invalidCount = 0;
-  for (const textureKey of availableKeys) {
-    const isLoaded = isTextureKeyLoaded(textureKey);
-    const textureInfo = getTextureInfo(textureKey);
-    if (isLoaded) {
-      validCount++;
-      console.log(
-        `✓ Key ${textureKey}: ${textureInfo == null ? void 0 : textureInfo.spritesheetAlias}/${textureInfo == null ? void 0 : textureInfo.textureName}`
-      );
-    } else {
-      invalidCount++;
-      console.warn(
-        `✗ Key ${textureKey}: ${textureInfo == null ? void 0 : textureInfo.spritesheetAlias}/${textureInfo == null ? void 0 : textureInfo.textureName} - NOT LOADED`
-      );
-    }
-  }
-  console.log(`Summary: ${validCount} valid, ${invalidCount} invalid textures`);
-  console.groupEnd();
 }
 const SPRITESHEET_KEY_TO_NAME = {
   [SpritesheetKey.NULL]: "null",
@@ -29094,6 +29033,7 @@ function updateAnimatedSprite(sprite, eid) {
     sprite.stop();
   }
 }
+const IDLE_ANIMATION_SPEED = 0.03;
 const DEFAULT_ANIMATION_SPEED = 0.04;
 const SLEEPING_ANIMATION_SPEED = DEFAULT_ANIMATION_SPEED / 2;
 const CHARACTER_STATE_TO_ANIMATION_KEY = {
@@ -29143,6 +29083,9 @@ function changeAnimation(eid, animationKey) {
   }
 }
 function getAnimationSpeedForState(state) {
+  if (state === CharacterState.IDLE) {
+    return IDLE_ANIMATION_SPEED;
+  }
   if (state === CharacterState.SLEEPING) {
     return SLEEPING_ANIMATION_SPEED;
   }
@@ -29873,8 +29816,8 @@ function getFallbackScale(eid) {
   const scale = RenderComp.scale[eid];
   return scale > 0 ? scale : 1;
 }
-const characterQuery$9 = defineQuery([ObjectComp, PositionComp, RenderComp]);
-const characterExitQuery$2 = exitQuery(characterQuery$9);
+const characterQuery$8 = defineQuery([ObjectComp, PositionComp, RenderComp]);
+const characterExitQuery$1 = exitQuery(characterQuery$8);
 const labelStore = /* @__PURE__ */ new Map();
 const NAME_LABEL_STYLE = new TextStyle({
   fontFamily: [...NAME_LABEL_FONT_FAMILIES],
@@ -29888,13 +29831,13 @@ const LABEL_Z_INDEX_OFFSET = 1e3;
 function characterNameLabelSystem(params) {
   var _a;
   const { world } = params;
-  const exitedEntities = characterExitQuery$2(world);
+  const exitedEntities = characterExitQuery$1(world);
   for (let i2 = 0; i2 < exitedEntities.length; i2++) {
     removeCharacterNameLabel(exitedEntities[i2]);
   }
   const rawName = (_a = world.getInMemoryData().world_metadata.monster_name) == null ? void 0 : _a.trim();
   const displayName = rawName ? truncateDisplayName(rawName) : "";
-  const entities = characterQuery$9(world);
+  const entities = characterQuery$8(world);
   for (let i2 = 0; i2 < entities.length; i2++) {
     const eid = entities[i2];
     if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
@@ -29962,76 +29905,18 @@ function updateCharacterNameLabel(label, eid) {
 function truncateDisplayName(name) {
   return truncateNameLabelToWidth(name);
 }
-const characterQuery$8 = defineQuery([ObjectComp, PositionComp, RenderComp]);
-const characterExitQuery$1 = exitQuery(characterQuery$8);
+defineQuery([ObjectComp, PositionComp, RenderComp]);
 const overlayStore = /* @__PURE__ */ new Map();
-const LAYOUT_STROKE_COLOR = 58879;
-const LAYOUT_FILL_COLOR = 58879;
-const LAYOUT_FILL_ALPHA = 0.12;
-const LAYOUT_STROKE_WIDTH = 1;
-const LAYOUT_Z_INDEX_OFFSET = 1;
 function characterLayoutDebugSystem(params) {
-  const { world, stage } = params;
-  if (!stage || false) {
+  {
     cleanupCharacterLayoutDebug();
     return params;
   }
-  const exitedEntities = characterExitQuery$1(world);
-  for (let i2 = 0; i2 < exitedEntities.length; i2++) {
-    removeOverlay(exitedEntities[i2]);
-  }
-  const entities = characterQuery$8(world);
-  const activeCharacterEids = /* @__PURE__ */ new Set();
-  for (let i2 = 0; i2 < entities.length; i2++) {
-    const eid = entities[i2];
-    if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
-      removeOverlay(eid);
-      continue;
-    }
-    const displayObject = getCharacterDisplayObject(eid);
-    if (!displayObject) {
-      removeOverlay(eid);
-      continue;
-    }
-    const bounds = getCharacterWorldBounds(eid);
-    if (bounds.width <= 0 || bounds.height <= 0) {
-      removeOverlay(eid);
-      continue;
-    }
-    const overlay = getOrCreateOverlay(eid, stage);
-    activeCharacterEids.add(eid);
-    overlay.clear();
-    overlay.rect(bounds.leftX, bounds.topY, bounds.width, bounds.height).fill({ color: LAYOUT_FILL_COLOR, alpha: LAYOUT_FILL_ALPHA }).stroke({ color: LAYOUT_STROKE_COLOR, width: LAYOUT_STROKE_WIDTH });
-    const y2 = PositionComp.y[eid];
-    const configuredZIndex = RenderComp.zIndex[eid];
-    const effectiveZIndex = configuredZIndex === 0 ? y2 : configuredZIndex;
-    overlay.zIndex = effectiveZIndex + LAYOUT_Z_INDEX_OFFSET;
-    overlay.visible = true;
-  }
-  const trackedEids = Array.from(overlayStore.keys());
-  for (let i2 = 0; i2 < trackedEids.length; i2++) {
-    const eid = trackedEids[i2];
-    if (!activeCharacterEids.has(eid)) {
-      removeOverlay(eid);
-    }
-  }
-  return params;
 }
 function cleanupCharacterLayoutDebug(_stage) {
   overlayStore.forEach((_, eid) => {
     removeOverlay(eid);
   });
-}
-function getOrCreateOverlay(eid, stage) {
-  const existingOverlay = overlayStore.get(eid);
-  if (existingOverlay) {
-    return existingOverlay;
-  }
-  const overlay = new Graphics();
-  overlay.eventMode = "none";
-  stage.addChild(overlay);
-  overlayStore.set(eid, overlay);
-  return overlay;
 }
 function removeOverlay(eid) {
   const overlay = overlayStore.get(eid);
@@ -30701,6 +30586,7 @@ function createCharacterEntity(world, components) {
   DigestiveSystemComp.capacity[eid] = GAME_CONSTANTS.DIGESTIVE_CAPACITY;
   DigestiveSystemComp.currentLoad[eid] = 0;
   DigestiveSystemComp.nextPoopTime[eid] = 0;
+  DigestiveSystemComp.nextSmallPoopTime[eid] = 0;
   addComponent(world, DiseaseSystemComp, eid);
   DiseaseSystemComp.nextCheckTime[eid] = Date.now() + GAME_CONSTANTS.DISEASE_CHECK_INTERVAL;
   DiseaseSystemComp.sickStartTime[eid] = 0;
@@ -30732,6 +30618,7 @@ function createCharacterEntity(world, components) {
   return eid;
 }
 function createPoobEntity(world, components) {
+  var _a;
   const _components = components;
   const eid = addEntity(world);
   console.log(`[EntityFactory] Creating poob entity with EID: ${eid}`);
@@ -30752,7 +30639,7 @@ function createPoobEntity(world, components) {
   RenderComp.storeIndex[eid] = 0;
   RenderComp.textureKey[eid] = TextureKey.POOB;
   RenderComp.zIndex[eid] = 0;
-  RenderComp.scale[eid] = 2.4 + Math.random() * (3.6 - 2.4);
+  RenderComp.scale[eid] = ((_a = _components.render) == null ? void 0 : _a.scale) ?? 2.4 + Math.random() * (3.6 - 2.4);
   console.log(
     `[EntityFactory] Poob entity created successfully with EID: ${eid}, ObjectID: ${ObjectComp.id[eid]}`
   );
@@ -30803,6 +30690,14 @@ const characterWithDigestiveQuery = defineQuery([
   CharacterStatusComp,
   DigestiveSystemComp
 ]);
+const NORMAL_POOP_SCALE_RANGE = {
+  min: 2.4,
+  max: 3.6
+};
+const SMALL_POOP_SCALE_RANGE = {
+  min: 1.4,
+  max: 2
+};
 function digestiveSystem(params) {
   const { world, currentTime } = params;
   initializeDigestiveSystem(world);
@@ -30821,6 +30716,7 @@ function initializeDigestiveSystem(world) {
       DigestiveSystemComp.capacity[eid] = GAME_CONSTANTS.DIGESTIVE_CAPACITY;
       DigestiveSystemComp.currentLoad[eid] = 0;
       DigestiveSystemComp.nextPoopTime[eid] = 0;
+      DigestiveSystemComp.nextSmallPoopTime[eid] = 0;
     }
   }
 }
@@ -30840,6 +30736,7 @@ function addDigestiveLoadAmount(world, characterEid, loadAmount, currentTime) {
     DigestiveSystemComp.capacity[characterEid] = GAME_CONSTANTS.DIGESTIVE_CAPACITY;
     DigestiveSystemComp.currentLoad[characterEid] = 0;
     DigestiveSystemComp.nextPoopTime[characterEid] = 0;
+    DigestiveSystemComp.nextSmallPoopTime[characterEid] = 0;
   }
   const digestiveComp = DigestiveSystemComp;
   const oldLoad = digestiveComp.currentLoad[characterEid];
@@ -30853,9 +30750,7 @@ function addDigestiveLoadAmount(world, characterEid, loadAmount, currentTime) {
   console.log(
     `[DigestiveSystem] Load change: ${oldLoad} -> ${newLoad} (capacity: ${capacity})`
   );
-  if (digestiveComp.currentLoad[characterEid] > digestiveComp.capacity[characterEid] && digestiveComp.nextPoopTime[characterEid] === 0) {
-    scheduleNextPoop(digestiveComp, characterEid, currentTime);
-  }
+  syncDigestiveTimers(digestiveComp, characterEid, currentTime);
 }
 function calculateNextDigestiveLoad(params) {
   const { currentLoad, capacity, loadAmount } = params;
@@ -30874,18 +30769,52 @@ function scheduleNextPoop(digestiveComp, characterEid, currentTime) {
     `[DigestiveSystem] Capacity exceeded! Next poop time set to: ${poopTime} (current: ${currentTime})`
   );
 }
+function scheduleNextSmallPoop(digestiveComp, characterEid, currentTime) {
+  const poopTime = currentTime + GAME_CONSTANTS.DIGESTIVE_SMALL_POOP_DELAY;
+  digestiveComp.nextSmallPoopTime[characterEid] = poopTime;
+  console.log(
+    `[DigestiveSystem] Under-capacity load retained. Next small poop time set to: ${poopTime} (current: ${currentTime})`
+  );
+}
+function clearDigestiveTimers(digestiveComp, characterEid) {
+  digestiveComp.nextPoopTime[characterEid] = 0;
+  digestiveComp.nextSmallPoopTime[characterEid] = 0;
+}
+function syncDigestiveTimers(digestiveComp, characterEid, currentTime) {
+  const currentLoad = digestiveComp.currentLoad[characterEid];
+  const capacity = digestiveComp.capacity[characterEid];
+  if (currentLoad <= 0) {
+    clearDigestiveTimers(digestiveComp, characterEid);
+    return;
+  }
+  if (currentLoad > capacity) {
+    digestiveComp.nextSmallPoopTime[characterEid] = 0;
+    if (digestiveComp.nextPoopTime[characterEid] === 0) {
+      scheduleNextPoop(digestiveComp, characterEid, currentTime);
+    }
+    return;
+  }
+  digestiveComp.nextPoopTime[characterEid] = 0;
+  if (digestiveComp.nextSmallPoopTime[characterEid] === 0) {
+    scheduleNextSmallPoop(digestiveComp, characterEid, currentTime);
+  }
+}
 function processPoop(digestiveComp, characterEid, currentTime) {
   const capacity = digestiveComp.capacity[characterEid];
   const previousLoad = digestiveComp.currentLoad[characterEid];
   const remainingLoad = Math.max(0, previousLoad - capacity);
   digestiveComp.currentLoad[characterEid] = remainingLoad;
-  if (remainingLoad > capacity) {
-    scheduleNextPoop(digestiveComp, characterEid, currentTime);
-  } else {
-    digestiveComp.nextPoopTime[characterEid] = 0;
-  }
+  syncDigestiveTimers(digestiveComp, characterEid, currentTime);
   console.log(
     `[DigestiveSystem] Digestive load reduced for character ${characterEid}: ${previousLoad} -> ${remainingLoad}`
+  );
+}
+function processSmallPoop(digestiveComp, characterEid) {
+  const previousLoad = digestiveComp.currentLoad[characterEid];
+  digestiveComp.currentLoad[characterEid] = 0;
+  clearDigestiveTimers(digestiveComp, characterEid);
+  console.log(
+    `[DigestiveSystem] Small poop cleared digestive load for character ${characterEid}: ${previousLoad} -> 0`
   );
 }
 function checkPoopTime(world, currentTime) {
@@ -30897,15 +30826,23 @@ function checkPoopTime(world, currentTime) {
       continue;
     if (ObjectComp.state[eid] === CharacterState.DEAD) continue;
     const digestiveComp = DigestiveSystemComp;
-    digestiveComp.nextPoopTime[eid];
+    syncDigestiveTimers(digestiveComp, eid, currentTime);
     if (digestiveComp.nextPoopTime[eid] > 0 && currentTime >= digestiveComp.nextPoopTime[eid]) {
       console.log(`[DigestiveSystem] It's time to poop! Character ${eid}`);
       createPoop(world, eid);
       processPoop(digestiveComp, eid, currentTime);
+      continue;
+    }
+    if (digestiveComp.nextSmallPoopTime[eid] > 0 && currentTime >= digestiveComp.nextSmallPoopTime[eid]) {
+      console.log(
+        `[DigestiveSystem] It's time to create a small poop! Character ${eid}`
+      );
+      createPoop(world, eid, { isSmall: true });
+      processSmallPoop(digestiveComp, eid);
     }
   }
 }
-function createPoop(world, characterEid) {
+function createPoop(world, characterEid, options) {
   console.log(
     `[DigestiveSystem] Creating poop for character EID: ${characterEid}`
   );
@@ -30943,11 +30880,14 @@ function createPoop(world, characterEid) {
   console.log(
     `[DigestiveSystem] Boundary: x=${boundary.x}, y=${boundary.y}, width=${boundary.width}, height=${boundary.height}`
   );
+  const poopScaleRange = (options == null ? void 0 : options.isSmall) ? SMALL_POOP_SCALE_RANGE : NORMAL_POOP_SCALE_RANGE;
+  const poopScale = poopScaleRange.min + Math.random() * (poopScaleRange.max - poopScaleRange.min);
   const poobEntity = createPoobEntity(world, {
     position: { x: finalX, y: finalY },
     angle: { value: 0 },
-    object: { id: 0, type: ObjectType.POOB, state: 0 }
+    object: { id: 0, type: ObjectType.POOB, state: 0 },
     // id를 0으로 설정하여 generatePersistentNumericId가 호출되도록 함
+    render: { storeIndex: 0, textureKey: 0, scale: poopScale, zIndex: 0 }
   });
   console.log(`[DigestiveSystem] Created poop entity with EID: ${poobEntity}`);
 }
@@ -31818,7 +31758,7 @@ function createOrUpdateDashedBorder(eid, stage, world) {
     graphics.clear();
     graphics.visible = true;
   }
-  const borderColor = isFocused ? 16738740 : 16711680;
+  const borderColor = isFocused ? 16743874 : 16711680;
   const lineWidth = isFocused ? 4 : 3;
   graphics.zIndex = isFocused ? DEFAULT_BORDER_Z_INDEX + 1 : DEFAULT_BORDER_Z_INDEX;
   const borderX = x2 - objectWidth / 2;
@@ -31942,7 +31882,7 @@ function updateCleaningOpacity(eid, world, _stage) {
         const newAlpha = Math.max(0.1, opacity);
         sprite.alpha = newAlpha;
       } else {
-        console.error(
+        console.warn(
           `[CleanableRenderSystem] Sprite not found for entity ${eid} with storeIndex ${storeIndex}`
         );
       }
@@ -32896,6 +32836,7 @@ Set: ${new Date(debugState.sunsetAt).toLocaleTimeString("ko-KR", {
     addToDigestiveLoad(this._world, this._currentCharacterEid, 0, currentTime);
     DigestiveSystemComp.currentLoad[this._currentCharacterEid] = 0;
     DigestiveSystemComp.nextPoopTime[this._currentCharacterEid] = 0;
+    DigestiveSystemComp.nextSmallPoopTime[this._currentCharacterEid] = 0;
     console.log(
       `[HTMLDebugStatusUI] Digestive load reset for character ${this._currentCharacterEid}`
     );
@@ -33574,14 +33515,17 @@ class HTMLDebugGaugeUI {
       const currentLoad = DigestiveSystemComp.currentLoad[this._currentCharacterEid];
       const capacity = DigestiveSystemComp.capacity[this._currentCharacterEid];
       const nextPoopTime = DigestiveSystemComp.nextPoopTime[this._currentCharacterEid] || 0;
+      const nextSmallPoopTime = DigestiveSystemComp.nextSmallPoopTime[this._currentCharacterEid] || 0;
       digestiveText = `${currentLoad.toFixed(1)}/${capacity}`;
-      if (nextPoopTime > 0) {
-        const remainingTime = Math.max(0, nextPoopTime - currentTime);
+      const activePoopTime = nextPoopTime > 0 ? nextPoopTime : nextSmallPoopTime;
+      const poopLabel = nextPoopTime > 0 ? "💩" : "·💩";
+      if (activePoopTime > 0) {
+        const remainingTime = Math.max(0, activePoopTime - currentTime);
         const seconds = Math.ceil(remainingTime / 1e3);
         if (remainingTime > 0) {
-          digestiveText += ` (💩${seconds}s)`;
+          digestiveText += ` (${poopLabel}${seconds}s)`;
         } else {
-          digestiveText += ` (💩NOW!)`;
+          digestiveText += ` (${poopLabel}NOW!)`;
         }
       }
     }
@@ -33657,8 +33601,10 @@ class HTMLDebugGaugeUI {
     this._sleepCheckText.textContent = sleepCheckText;
     if (hasComponent(this._world, DigestiveSystemComp, this._currentCharacterEid)) {
       const nextPoopTime = DigestiveSystemComp.nextPoopTime[this._currentCharacterEid] || 0;
-      if (nextPoopTime > 0) {
-        const remainingTime = Math.max(0, nextPoopTime - currentTime);
+      const nextSmallPoopTime = DigestiveSystemComp.nextSmallPoopTime[this._currentCharacterEid] || 0;
+      const activePoopTime = nextPoopTime > 0 ? nextPoopTime : nextSmallPoopTime;
+      if (activePoopTime > 0) {
+        const remainingTime = Math.max(0, activePoopTime - currentTime);
         if (remainingTime <= 0) {
           this._digestiveText.style.color = "#ff0000";
           this._digestiveText.style.animation = "blink 1s infinite";
@@ -34021,6 +33967,9 @@ class Background extends Container {
     this.addChild(this._baseToneGraphics);
   }
   resize(width, height) {
+    if (this._width === width && this._height === height) {
+      return;
+    }
     this._width = width;
     this._height = height;
     this.position.set(width / 2, height / 2);
@@ -34513,7 +34462,7 @@ async function hatchCharacter(eid, world, currentTime) {
       maxRetries: 2
     });
     if (!isLoaded) {
-      console.error(
+      console.warn(
         `[EggHatchSystem] Hatch delayed for character ${eid}. Keeping EGG state because spritesheet could not be loaded.`
       );
       EggHatchComp.isReadyToHatch[eid] = 0;
@@ -34698,25 +34647,15 @@ function handleNightWakeChecks(world, eid, currentTime, currentTimeOfDay) {
   ensureNightWakeCheckTime(eid, currentTime);
   while (currentTime >= SleepSystemComp.nextNightWakeCheckTime[eid]) {
     SleepSystemComp.nextNightWakeCheckTime[eid] += GAME_CONSTANTS.NIGHT_WAKE_CHECK_INTERVAL;
-    const fatigue = SleepSystemComp.fatigue[eid];
+    SleepSystemComp.fatigue[eid];
     const baseChance = GAME_CONSTANTS.NIGHT_WAKE_CHANCE;
     const appliedChance = baseChance;
     const roll = Math.random();
     const shouldWake = roll < appliedChance;
     logSleepCheck(world, "Night wake check", {
-      eid,
-      timeOfDay: currentTimeOfDay,
       sleepMode: SleepSystemComp.sleepMode[eid],
-      fatigue: roundForLog(fatigue),
       fatigueMax: GAME_CONSTANTS.FATIGUE_MAX,
-      checkIntervalMs: GAME_CONSTANTS.NIGHT_WAKE_CHECK_INTERVAL,
-      baseChance,
-      baseChancePercent: toPercent(baseChance),
-      appliedChance,
-      appliedChancePercent: toPercent(appliedChance),
-      roll,
-      rollPercent: toPercent(roll),
-      result: shouldWake ? "wake" : "keep_sleeping"
+      checkIntervalMs: GAME_CONSTANTS.NIGHT_WAKE_CHECK_INTERVAL
     });
     if (shouldWake) {
       SleepSystemComp.pendingWakeReason[eid] = SleepReason.NIGHT_INTERRUPT;
@@ -34754,32 +34693,19 @@ function handleDayNapChecks(world, eid, currentTime, currentTimeOfDay) {
   while (currentTime >= SleepSystemComp.nextNapCheckTime[eid]) {
     SleepSystemComp.nextNapCheckTime[eid] += GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL;
     const fatigue = SleepSystemComp.fatigue[eid];
-    const fatigueRatio = clamp(
+    clamp(
       fatigue / GAME_CONSTANTS.FATIGUE_MAX,
       0,
       1
     );
-    const fatigueMultiplier = 0.5 + fatigueRatio;
-    const baseChance = GAME_CONSTANTS.DAY_NAP_CHANCE;
+    GAME_CONSTANTS.DAY_NAP_CHANCE;
     const appliedChance = getDayNapChance(eid);
     const roll = Math.random();
     const shouldNap = roll < appliedChance;
     logSleepCheck(world, "Day nap check", {
-      eid,
-      timeOfDay: currentTimeOfDay,
-      fatigue: roundForLog(fatigue),
       fatigueThreshold: GAME_CONSTANTS.FATIGUE_DAY_NAP_MIN_THRESHOLD,
       fatigueMax: GAME_CONSTANTS.FATIGUE_MAX,
-      fatigueRatio: roundForLog(fatigueRatio),
-      fatigueMultiplier: roundForLog(fatigueMultiplier),
-      checkIntervalMs: GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL,
-      baseChance,
-      baseChancePercent: toPercent(baseChance),
-      appliedChance,
-      appliedChancePercent: toPercent(appliedChance),
-      roll,
-      rollPercent: toPercent(roll),
-      result: shouldNap ? "nap" : "stay_awake"
+      checkIntervalMs: GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL
     });
     if (shouldNap) {
       SleepSystemComp.nextSleepTime[eid] = currentTime;
@@ -34971,20 +34897,9 @@ function restoreRandomMovementIfNeeded(world, eid, currentTime) {
   RandomMovementComp.nextChange[eid] = currentTime + 1e3;
 }
 function logSleepCheck(world, event, payload) {
-  if (!shouldLogSleepChecks(world)) {
+  {
     return;
   }
-  console.log(`[SleepScheduleSystem] ${event}`, payload);
-}
-function shouldLogSleepChecks(world) {
-  return !world.isSimulationMode;
-}
-function toPercent(value) {
-  return roundForLog(value * 100, 2);
-}
-function roundForLog(value, digits = 3) {
-  const multiplier = 10 ** digits;
-  return Math.round(value * multiplier) / multiplier;
 }
 const TEMPORARY_STATUS_DURATION = 3e3;
 const characterQuery$1 = defineQuery([ObjectComp, CharacterStatusComp]);
@@ -35744,7 +35659,7 @@ async function requestNativeLocationPermission() {
 }
 const liveCharacterEntitiesQuery = defineQuery([ObjectComp, CharacterStatusComp]);
 const WORLD_DATA_STORAGE_KEY$1 = "MainSceneWorldData";
-const DEFAULT_USE_LOCAL_TIME$1 = true;
+const DEFAULT_USE_LOCAL_TIME$1 = false;
 const COMMON_SPRITESHEET_ASSETS = [
   {
     jsonPath: "/assets/game/sprites/bird.json",
@@ -36167,24 +36082,7 @@ const _MainSceneWorld = class _MainSceneWorld {
             this._updateControlButtonsForMenuState(focusedIndex !== null);
           }
         });
-        if (this._debugParentElement) {
-          this._debugGaugeUI = new HTMLDebugGaugeUI(
-            this,
-            this._debugParentElement
-          );
-          this._debugGameConstantsUI = new HTMLDebugGameConstantsUI(
-            this._debugParentElement
-          );
-          this._debugStatusUI = new HTMLDebugStatusUI(
-            this,
-            this._debugParentElement
-          );
-          this._debugToggleButton = new HTMLDebugToggleButton(() => {
-            var _a2, _b2;
-            (_a2 = this._debugStatusUI) == null ? void 0 : _a2.toggle();
-            return ((_b2 = this._debugStatusUI) == null ? void 0 : _b2.isDebugVisible()) ?? false;
-          }, this._debugParentElement);
-        }
+        if (false) ;
       }
       this._setupVisibilityChangeHandler();
       await this._processReentrySimulation();
@@ -43682,6 +43580,8 @@ class Game {
     this._isPixiReady = false;
     this._isDestroyed = false;
     this._sceneTransitionRequestId = 0;
+    this._isFullscreenAdActive = false;
+    this._fullscreenAdResizeSuppressedUntil = 0;
     const {
       parentElement,
       debugParentElement,
@@ -43689,6 +43589,7 @@ class Game {
       changeControlButtons,
       showSettings,
       showAlert,
+      startMiniGame,
       triggerBiteVibration,
       startRecoveryVibration,
       stopRecoveryVibration,
@@ -43697,6 +43598,7 @@ class Game {
     this.changeControlButtons = changeControlButtons;
     this.showSettings = showSettings;
     this.showAlert = showAlert;
+    this._startMiniGame = startMiniGame;
     this.triggerBiteVibration = triggerBiteVibration;
     this.startRecoveryVibration = startRecoveryVibration;
     this.stopRecoveryVibration = stopRecoveryVibration;
@@ -43714,6 +43616,29 @@ class Game {
         this._requestStableResize("document.visibilitychange");
       }
     };
+    this._boundNativeViewportSyncHandler = (event) => {
+      const detail = event.detail;
+      const reason = typeof (detail == null ? void 0 : detail.reason) === "string" && detail.reason.length > 0 ? detail.reason : "unknown";
+      this._requestAnimationFrameResize(`native.viewport_sync:${reason}`);
+    };
+    this._boundFullscreenAdStateHandler = (event) => {
+      const detail = event.detail;
+      const state = detail == null ? void 0 : detail.state;
+      if (state === "showing") {
+        this._isFullscreenAdActive = true;
+        this._fullscreenAdResizeSuppressedUntil = 0;
+        this._clearResizeRetryTimeouts();
+        if (this._resizeRafId !== null) {
+          window.cancelAnimationFrame(this._resizeRafId);
+          this._resizeRafId = null;
+        }
+        return;
+      }
+      if (state === "dismissed" || state === "failed") {
+        this._isFullscreenAdActive = false;
+        this._fullscreenAdResizeSuppressedUntil = Date.now() + 140;
+      }
+    };
     this._parentElement = parentElement;
     this._debugParentElement = debugParentElement ?? parentElement;
     window.addEventListener("resize", this._boundResizeHandler);
@@ -43722,6 +43647,14 @@ class Game {
     document.addEventListener(
       "visibilitychange",
       this._boundVisibilityResizeHandler
+    );
+    window.addEventListener(
+      "digivice:native-viewport-sync",
+      this._boundNativeViewportSyncHandler
+    );
+    window.addEventListener(
+      "digivice:fullscreen-ad",
+      this._boundFullscreenAdStateHandler
     );
     (_a = window.visualViewport) == null ? void 0 : _a.addEventListener(
       "resize",
@@ -43845,7 +43778,7 @@ class Game {
       throw new Error("Parent element is not available.");
     }
     if (!this._isPixiReady || !this.app.renderer) {
-      console.error(
+      console.warn(
         "[GameResize]",
         JSON.stringify({
           phase: "skip-before-init",
@@ -43860,7 +43793,7 @@ class Game {
     const width = parent.clientWidth || rect.width;
     const height = parent.clientHeight || rect.height;
     if (width <= 0 || height <= 0) {
-      console.error(
+      console.warn(
         "[GameResize]",
         JSON.stringify({
           phase: "skip-zero-size",
@@ -43873,7 +43806,6 @@ class Game {
       );
       return;
     }
-    const visualViewport = window.visualViewport;
     const resolution = window.devicePixelRatio || 2;
     const metricsKey = [
       width,
@@ -43882,10 +43814,7 @@ class Game {
       parent.clientHeight,
       Math.round(rect.width),
       Math.round(rect.height),
-      resolution,
-      visualViewport ? Math.round(visualViewport.width) : "na",
-      visualViewport ? Math.round(visualViewport.height) : "na",
-      visualViewport ? visualViewport.scale : "na"
+      resolution
     ].join("|");
     if (metricsKey === this._lastResizeMetricsKey) {
       return;
@@ -43900,6 +43829,9 @@ class Game {
   }
   _requestAnimationFrameResize(reason = "unknown") {
     if (this._isDestroyed) {
+      return;
+    }
+    if (this._shouldSuppressResize(reason)) {
       return;
     }
     if (typeof window === "undefined") {
@@ -43927,6 +43859,9 @@ class Game {
     if (this._isDestroyed) {
       return;
     }
+    if (this._shouldSuppressResize(reason)) {
+      return;
+    }
     this._requestAnimationFrameResize(`${reason}:immediate`);
     this._clearResizeRetryTimeouts();
     for (const delay of [120, 320]) {
@@ -43935,6 +43870,15 @@ class Game {
       }, delay);
       this._resizeRetryTimeoutIds.push(timeoutId);
     }
+  }
+  _shouldSuppressResize(reason) {
+    if (this._isFullscreenAdActive) {
+      return true;
+    }
+    if (!reason.startsWith("native.viewport_sync")) {
+      return Date.now() < this._fullscreenAdResizeSuppressedUntil;
+    }
+    return false;
   }
   /**
    * SceneKey에 맞는 씬 객체를 생성합니다
@@ -43964,7 +43908,7 @@ class Game {
           },
           parentElement: this._parentElement,
           debugParentElement: this._debugParentElement,
-          startMiniGame: () => this.changeScene(SceneKey.FLAPPY_BIRD_GAME),
+          startMiniGame: this._startMiniGame ?? (() => this.changeScene(SceneKey.FLAPPY_BIRD_GAME)),
           createInitialGameData: this._createInitialGameData,
           changeControlButtons: this.changeControlButtons,
           triggerBiteVibration: this.triggerBiteVibration,
@@ -44101,6 +44045,14 @@ class Game {
     document.removeEventListener(
       "visibilitychange",
       this._boundVisibilityResizeHandler
+    );
+    window.removeEventListener(
+      "digivice:native-viewport-sync",
+      this._boundNativeViewportSyncHandler
+    );
+    window.removeEventListener(
+      "digivice:fullscreen-ad",
+      this._boundFullscreenAdStateHandler
     );
     (_a = window.visualViewport) == null ? void 0 : _a.removeEventListener(
       "resize",
@@ -44540,14 +44492,14 @@ const ControlButton = ({
     const baseTrackWidth = Math.max(0, sliderWidth - size);
     const trackWidth = sliderTrackWidth;
     const extraTrackOffset = (trackWidth - baseTrackWidth) / 2;
-    return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+    return /* @__PURE__ */ jsxRuntimeExports.jsxs(
       "div",
       {
         className: "relative flex justify-center overflow-visible",
         style: { width: `${sliderWidth}px`, height: `${size}px` },
         ref: sliderRef,
         children: [
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
             {
               className: "absolute top-1/2 -translate-y-1/2 h-4 bg-gray-700 bg-opacity-50 rounded-full",
@@ -44555,61 +44507,29 @@ const ControlButton = ({
                 left: `${trackInset - extraTrackOffset}px`,
                 width: `${trackWidth}px`
               }
-            },
-            void 0,
-            false,
-            {
-              fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/ControlButton.tsx",
-              lineNumber: 232,
-              columnNumber: 9
-            },
-            void 0
+            }
           ),
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
             {
               className: "absolute top-0 left-0 h-full",
               style: {
                 transform: `translateX(${currentSliderValue * trackWidth - extraTrackOffset}px)`
               },
-              children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+              children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "div",
                 {
                   style: buttonStyle,
                   className: "bg-no-repeat border-none bg-transparent p-0 outline-none select-none [-webkit-tap-highlight-color:transparent] scale-[1.4]"
-                },
-                void 0,
-                false,
-                {
-                  fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/ControlButton.tsx",
-                  lineNumber: 245,
-                  columnNumber: 11
-                },
-                void 0
+                }
               )
-            },
-            void 0,
-            false,
-            {
-              fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/ControlButton.tsx",
-              lineNumber: 239,
-              columnNumber: 9
-            },
-            void 0
+            }
           )
         ]
-      },
-      void 0,
-      true,
-      {
-        fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/ControlButton.tsx",
-        lineNumber: 227,
-        columnNumber: 7
-      },
-      void 0
+      }
     );
   }
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(
     "button",
     {
       type: "button",
@@ -44618,24 +44538,12 @@ const ControlButton = ({
       onPointerUp: handlePointerUp,
       onPointerLeave: handlePointerLeave,
       className: `bg-no-repeat border-none bg-transparent p-0 outline-none select-none [-webkit-tap-highlight-color:transparent] scale-[1.4] ${className || ""}`
-    },
-    void 0,
-    false,
-    {
-      fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/ControlButton.tsx",
-      lineNumber: 256,
-      columnNumber: 5
-    },
-    void 0
+    }
   );
 };
 const ControlButtonsContainer = ({
   children
-}) => /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "w-4/5 max-w-[300px] flex justify-between mx-auto", children }, void 0, false, {
-  fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-  lineNumber: 16,
-  columnNumber: 3
-}, void 0);
+}) => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-4/5 max-w-[300px] flex justify-between mx-auto", children });
 const ControlButtons = ({
   buttonParams,
   onButtonPress,
@@ -44663,27 +44571,15 @@ const ControlButtons = ({
     }
   }, [buttonTypes[0], buttonTypes[1], buttonTypes[2], shouldRenderSlider]);
   if (shouldRenderSlider && sliderWidth) {
-    return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ControlButtonsContainer, { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { ref: containerRef, className: "flex justify-between w-full", children: [
-      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "shrink-0 ", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+    return /* @__PURE__ */ jsxRuntimeExports.jsx(ControlButtonsContainer, { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { ref: containerRef, className: "flex justify-between w-full", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "shrink-0 ", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
         ControlButton,
         {
           type: buttonParams[0].type,
           onClick: () => onButtonPress(buttonParams[0].type)
-        },
-        void 0,
-        false,
-        {
-          fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-          lineNumber: 67,
-          columnNumber: 13
-        },
-        void 0
-      ) }, void 0, false, {
-        fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-        lineNumber: 66,
-        columnNumber: 11
-      }, void 0),
-      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { ref: secondButtonRef, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+        }
+      ) }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: secondButtonRef, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
         ControlButton,
         {
           type: ControlButtonType.Clean,
@@ -44693,92 +44589,33 @@ const ControlButtons = ({
           onSliderEnd,
           onClick: () => onButtonPress(buttonParams[1].type)
         },
-        (cleanButtonParam == null ? void 0 : cleanButtonParam.sliderSessionKey) ?? "clean-slider",
-        false,
-        {
-          fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-          lineNumber: 74,
-          columnNumber: 13
-        },
-        void 0
-      ) }, void 0, false, {
-        fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-        lineNumber: 73,
-        columnNumber: 11
-      }, void 0)
-    ] }, void 0, true, {
-      fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-      lineNumber: 64,
-      columnNumber: 9
-    }, void 0) }, void 0, false, {
-      fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-      lineNumber: 63,
-      columnNumber: 7
-    }, void 0);
+        (cleanButtonParam == null ? void 0 : cleanButtonParam.sliderSessionKey) ?? "clean-slider"
+      ) })
+    ] }) });
   }
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ControlButtonsContainer, { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { ref: containerRef, className: "flex justify-between w-full", children: [
-    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(ControlButtonsContainer, { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { ref: containerRef, className: "flex justify-between w-full", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx(
       ControlButton,
       {
         type: buttonParams[0].type,
         onClick: () => onButtonPress(buttonParams[0].type)
-      },
-      void 0,
-      false,
-      {
-        fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-        lineNumber: 93,
-        columnNumber: 9
-      },
-      void 0
+      }
     ),
-    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { ref: secondButtonRef, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: secondButtonRef, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
       ControlButton,
       {
         type: buttonParams[1].type,
         onClick: () => onButtonPress(buttonParams[1].type)
-      },
-      void 0,
-      false,
-      {
-        fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-        lineNumber: 98,
-        columnNumber: 11
-      },
-      void 0
-    ) }, void 0, false, {
-      fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-      lineNumber: 97,
-      columnNumber: 9
-    }, void 0),
-    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { ref: thirdButtonRef, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+      }
+    ) }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: thirdButtonRef, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
       ControlButton,
       {
         type: buttonParams[2].type,
         onClick: () => onButtonPress(buttonParams[2].type)
-      },
-      void 0,
-      false,
-      {
-        fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-        lineNumber: 104,
-        columnNumber: 11
-      },
-      void 0
-    ) }, void 0, false, {
-      fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-      lineNumber: 103,
-      columnNumber: 9
-    }, void 0)
-  ] }, void 0, true, {
-    fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-    lineNumber: 92,
-    columnNumber: 7
-  }, void 0) }, void 0, false, {
-    fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-    lineNumber: 91,
-    columnNumber: 5
-  }, void 0);
+      }
+    ) })
+  ] }) });
 };
 const CLICK_VIBRATION_SELECTOR = [
   "button",
@@ -44849,90 +44686,212 @@ function useLayerInteractionVibration() {
     onFocusCapture: handleFocusCapture
   };
 }
+const KEYBOARD_VIEWPORT_HEIGHT_DELTA_THRESHOLD = 80;
 const PopupLayer = ({
   title = "Alert!",
   content,
   onConfirm,
   onCancel,
   confirmText = "Confirm",
-  cancelText = "Cancel"
+  cancelText = "Cancel",
+  initialFocusTarget = "none",
+  keyboardAwareTargetRef,
+  keyboardAwareViewportPadding = 16,
+  suppressInitialActionsMs = 0
 }) => {
   const layerInteractionVibrationProps = useLayerInteractionVibration();
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+  const containerRef = reactExports.useRef(null);
+  const confirmButtonRef = reactExports.useRef(null);
+  const cancelButtonRef = reactExports.useRef(null);
+  const keyboardAwareRafIdRef = reactExports.useRef(null);
+  const suppressInitialActionsUntilRef = reactExports.useRef(0);
+  const [keyboardAwareOffsetY, setKeyboardAwareOffsetY] = reactExports.useState(0);
+  const [keyboardAwareMaxHeight, setKeyboardAwareMaxHeight] = reactExports.useState(null);
+  const resetKeyboardAwareLayout = reactExports.useCallback(() => {
+    setKeyboardAwareOffsetY((previous) => previous === 0 ? previous : 0);
+    setKeyboardAwareMaxHeight(
+      (previous) => previous === null ? previous : null
+    );
+  }, []);
+  const updateKeyboardAwareLayout = reactExports.useCallback(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const popupElement = containerRef.current;
+    const targetElement = keyboardAwareTargetRef == null ? void 0 : keyboardAwareTargetRef.current;
+    const visualViewport = window.visualViewport;
+    if (!popupElement || !targetElement || !visualViewport) {
+      resetKeyboardAwareLayout();
+      return;
+    }
+    const activeElement = document.activeElement;
+    const baseViewportHeight = Math.max(
+      window.innerHeight,
+      document.documentElement.clientHeight || 0
+    );
+    const viewportHeightDelta = baseViewportHeight - visualViewport.height;
+    if (activeElement !== targetElement || viewportHeightDelta < KEYBOARD_VIEWPORT_HEIGHT_DELTA_THRESHOLD) {
+      resetKeyboardAwareLayout();
+      return;
+    }
+    const visibleTop = visualViewport.offsetTop;
+    const visibleBottom = visualViewport.offsetTop + visualViewport.height;
+    const availableHeight = Math.max(
+      0,
+      visualViewport.height - keyboardAwareViewportPadding * 2
+    );
+    setKeyboardAwareMaxHeight(
+      (previous) => previous === availableHeight ? previous : availableHeight
+    );
+    const popupRect = popupElement.getBoundingClientRect();
+    const targetRect = targetElement.getBoundingClientRect();
+    const desiredCenterY = visibleTop + visualViewport.height / 2;
+    const targetCenterY = targetRect.top + targetRect.height / 2;
+    const desiredShift = desiredCenterY - targetCenterY;
+    const minShift = visibleTop + keyboardAwareViewportPadding - popupRect.top;
+    const maxShift = visibleBottom - keyboardAwareViewportPadding - popupRect.bottom;
+    const clampedShift = minShift <= maxShift ? Math.min(Math.max(desiredShift, minShift), maxShift) : Math.min(Math.max(desiredShift, maxShift), minShift);
+    const roundedShift = Math.round(clampedShift);
+    setKeyboardAwareOffsetY(
+      (previous) => previous === roundedShift ? previous : roundedShift
+    );
+  }, [keyboardAwareTargetRef, keyboardAwareViewportPadding, resetKeyboardAwareLayout]);
+  const scheduleKeyboardAwareLayoutUpdate = reactExports.useCallback(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    if (keyboardAwareRafIdRef.current !== null) {
+      window.cancelAnimationFrame(keyboardAwareRafIdRef.current);
+    }
+    keyboardAwareRafIdRef.current = window.requestAnimationFrame(() => {
+      keyboardAwareRafIdRef.current = null;
+      updateKeyboardAwareLayout();
+    });
+  }, [updateKeyboardAwareLayout]);
+  reactExports.useLayoutEffect(() => {
+    suppressInitialActionsUntilRef.current = Date.now() + Math.max(0, suppressInitialActionsMs);
+    return () => {
+      suppressInitialActionsUntilRef.current = 0;
+    };
+  }, [suppressInitialActionsMs]);
+  reactExports.useLayoutEffect(() => {
+    const focusTarget = initialFocusTarget === "confirm" ? confirmButtonRef.current : initialFocusTarget === "cancel" ? cancelButtonRef.current : initialFocusTarget === "container" ? containerRef.current : null;
+    if (!focusTarget) {
+      return;
+    }
+    const rafId = window.requestAnimationFrame(() => {
+      focusTarget.focus({ preventScroll: true });
+    });
+    return () => {
+      window.cancelAnimationFrame(rafId);
+    };
+  }, [initialFocusTarget]);
+  reactExports.useLayoutEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const targetElement = keyboardAwareTargetRef == null ? void 0 : keyboardAwareTargetRef.current;
+    const visualViewport = window.visualViewport;
+    if (!targetElement || !visualViewport) {
+      resetKeyboardAwareLayout();
+      return;
+    }
+    const handleKeyboardAwareLayoutChange = () => {
+      scheduleKeyboardAwareLayoutUpdate();
+    };
+    targetElement.addEventListener("focus", handleKeyboardAwareLayoutChange);
+    targetElement.addEventListener("blur", handleKeyboardAwareLayoutChange);
+    window.addEventListener("resize", handleKeyboardAwareLayoutChange);
+    visualViewport.addEventListener("resize", handleKeyboardAwareLayoutChange);
+    visualViewport.addEventListener("scroll", handleKeyboardAwareLayoutChange);
+    scheduleKeyboardAwareLayoutUpdate();
+    return () => {
+      targetElement.removeEventListener(
+        "focus",
+        handleKeyboardAwareLayoutChange
+      );
+      targetElement.removeEventListener("blur", handleKeyboardAwareLayoutChange);
+      window.removeEventListener("resize", handleKeyboardAwareLayoutChange);
+      visualViewport.removeEventListener(
+        "resize",
+        handleKeyboardAwareLayoutChange
+      );
+      visualViewport.removeEventListener(
+        "scroll",
+        handleKeyboardAwareLayoutChange
+      );
+      if (keyboardAwareRafIdRef.current !== null) {
+        window.cancelAnimationFrame(keyboardAwareRafIdRef.current);
+        keyboardAwareRafIdRef.current = null;
+      }
+      resetKeyboardAwareLayout();
+    };
+  }, [
+    keyboardAwareTargetRef,
+    resetKeyboardAwareLayout,
+    scheduleKeyboardAwareLayoutUpdate
+  ]);
+  const handleConfirmClick = reactExports.useCallback(() => {
+    if (Date.now() < suppressInitialActionsUntilRef.current) {
+      return;
+    }
+    onConfirm == null ? void 0 : onConfirm();
+  }, [onConfirm]);
+  const handleCancelClick = reactExports.useCallback(() => {
+    if (Date.now() < suppressInitialActionsUntilRef.current) {
+      return;
+    }
+    onCancel == null ? void 0 : onCancel();
+  }, [onCancel]);
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(
     "div",
     {
       className: "flex w-full justify-center px-4 text-black",
       ...layerInteractionVibrationProps,
-      children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "w-full max-w-[22rem] bg-layer-bg p-5 border-4 border-[#222] shadow-[0_4px_0_#222,0_-4px_0_#222,4px_0_0_#222,-4px_0_0_#222,4px_4px_0_#222,-4px_4px_0_#222,4px_-4px_0_#222,-4px_-4px_0_#222] text-center relative", children: [
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-xl text-component-negative font-bold mb-[15px] pb-[10px] border-b-4 border-[#222]", children: title }, void 0, false, {
-          fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
-          lineNumber: 29,
-          columnNumber: 9
-        }, void 0),
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "mb-5 leading-[1.6] text-base", children: content }, void 0, false, {
-          fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
-          lineNumber: 32,
-          columnNumber: 9
-        }, void 0),
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex justify-center gap-[15px]", children: [
-          onCancel && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
-            "button",
-            {
-              type: "button",
-              onClick: onCancel,
-              className: "text-base bg-component-negative text-white border-2 border-[#222] p-[10px_15px] cursor-pointer uppercase shadow-[2px_2px_0_#222] relative top-0 left-0 transition-all duration-50",
-              children: cancelText
-            },
-            void 0,
-            false,
-            {
-              fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
-              lineNumber: 35,
-              columnNumber: 13
-            },
-            void 0
-          ),
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
-            "button",
-            {
-              type: "button",
-              onClick: onConfirm,
-              className: "text-base bg-component-positive text-white border-2 border-[#222] p-[10px_15px]  cursor-pointer uppercase shadow-[2px_2px_0_#222]",
-              children: confirmText
-            },
-            void 0,
-            false,
-            {
-              fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
-              lineNumber: 43,
-              columnNumber: 11
-            },
-            void 0
-          )
-        ] }, void 0, true, {
-          fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
-          lineNumber: 33,
-          columnNumber: 9
-        }, void 0)
-      ] }, void 0, true, {
-        fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
-        lineNumber: 28,
-        columnNumber: 7
-      }, void 0)
-    },
-    void 0,
-    false,
-    {
-      fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
-      lineNumber: 24,
-      columnNumber: 5
-    },
-    void 0
+      children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
+        "div",
+        {
+          ref: containerRef,
+          tabIndex: -1,
+          style: {
+            transform: keyboardAwareOffsetY !== 0 ? `translateY(${keyboardAwareOffsetY}px)` : void 0,
+            maxHeight: keyboardAwareMaxHeight !== null ? `${keyboardAwareMaxHeight}px` : void 0
+          },
+          className: "relative w-full max-w-[22rem] overflow-y-auto border-4 border-[#222] bg-layer-bg p-5 text-center shadow-[0_4px_0_#222,0_-4px_0_#222,4px_0_0_#222,-4px_0_0_#222,4px_4px_0_#222,-4px_4px_0_#222,4px_-4px_0_#222,-4px_-4px_0_#222] focus:outline-none",
+          children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-xl text-component-negative font-bold mb-[15px] pb-[10px] border-b-4 border-[#222]", children: title }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "mb-5 leading-[1.6] text-base", children: content }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex justify-center gap-[15px]", children: [
+              onCancel && /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "button",
+                {
+                  ref: cancelButtonRef,
+                  type: "button",
+                  onClick: handleCancelClick,
+                  className: "text-base bg-component-negative text-white border-2 border-[#222] p-[10px_15px] cursor-pointer uppercase shadow-[2px_2px_0_#222] relative top-0 left-0 transition-all duration-50",
+                  children: cancelText
+                }
+              ),
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "button",
+                {
+                  ref: confirmButtonRef,
+                  type: "button",
+                  onClick: handleConfirmClick,
+                  className: "text-base bg-component-positive text-white border-2 border-[#222] p-[10px_15px]  cursor-pointer uppercase shadow-[2px_2px_0_#222]",
+                  children: confirmText
+                }
+              )
+            ] })
+          ]
+        }
+      )
+    }
   );
 };
 var reactDomExports = requireReactDom();
 const MIN_NAME_LENGTH = 2;
-const DEFAULT_USE_LOCAL_TIME = true;
+const DEFAULT_USE_LOCAL_TIME = false;
 const SetupLayer = ({ onComplete }) => {
   const [name, setName] = reactExports.useState("");
   const [useLocalTime, setUseLocalTime] = reactExports.useState(DEFAULT_USE_LOCAL_TIME);
@@ -45021,13 +44980,13 @@ const SetupLayer = ({ onComplete }) => {
       useLocalTime
     });
   };
-  const overlay = /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "fixed inset-0 z-[999] flex min-h-dvh items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+  const overlay = /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 z-[999] flex min-h-dvh items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
     PopupLayer,
     {
       title: "Spawn Monster!",
-      content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex flex-col items-center gap-4", children: [
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "w-full", children: [
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+      content: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col items-center gap-4", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "w-full", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
             "input",
             {
               type: "text",
@@ -45038,17 +44997,9 @@ const SetupLayer = ({ onComplete }) => {
               },
               placeholder: "Monster Name",
               className: "w-full px-3 py-2 text-center border-2 border-[#222] text-xs focus:outline-none focus:ring-2 focus:ring-[#d95763]"
-            },
-            void 0,
-            false,
-            {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-              lineNumber: 137,
-              columnNumber: 15
-            },
-            void 0
+            }
           ),
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+          /* @__PURE__ */ jsxRuntimeExports.jsxs(
             "div",
             {
               className: `mt-4 text-xs ${isWithinVisibleWidth ? "text-gray-600" : "text-red-600"}`,
@@ -45059,28 +45010,12 @@ const SetupLayer = ({ onComplete }) => {
                 NAME_LABEL_MAX_WIDTH,
                 "px"
               ]
-            },
-            void 0,
-            true,
-            {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-              lineNumber: 147,
-              columnNumber: 15
-            },
-            void 0
+            }
           ),
-          error && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("p", { className: "mt-4 text-component-negative text-[0.7em]", children: error }, void 0, false, {
-            fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-            lineNumber: 155,
-            columnNumber: 17
-          }, void 0)
-        ] }, void 0, true, {
-          fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-          lineNumber: 136,
-          columnNumber: 13
-        }, void 0),
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "w-full border-t border-[#222]/20 pt-4 text-left", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("label", { className: "flex items-start gap-3 text-xs text-[#222]", children: [
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+          error && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "mt-4 text-component-negative text-[0.7em]", children: error })
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-full border-t border-[#222]/20 pt-4 text-left", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { className: "flex items-start gap-3 text-xs text-[#222]", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
             "input",
             {
               type: "checkbox",
@@ -45094,67 +45029,19 @@ const SetupLayer = ({ onComplete }) => {
               style: {
                 backgroundImage: `url("${useLocalTime ? "/assets/ui/checkbox.png" : "/assets/ui/checkbox_off.png"}")`
               }
-            },
-            void 0,
-            false,
-            {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-              lineNumber: 162,
-              columnNumber: 17
-            },
-            void 0
+            }
           ),
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { className: "leading-5", children: [
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { className: "block font-semibold", children: "Use local day/night time" }, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-              lineNumber: 180,
-              columnNumber: 19
-            }, void 0),
-            isRequestingLocationPermission && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { className: "mt-1 block text-[0.92em] text-gray-600", children: "Requesting location permission..." }, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-              lineNumber: 184,
-              columnNumber: 21
-            }, void 0),
-            localTimeError && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { className: "mt-1 block text-[0.92em] text-red-600", children: localTimeError }, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-              lineNumber: 189,
-              columnNumber: 21
-            }, void 0)
-          ] }, void 0, true, {
-            fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-            lineNumber: 179,
-            columnNumber: 17
-          }, void 0)
-        ] }, void 0, true, {
-          fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-          lineNumber: 161,
-          columnNumber: 15
-        }, void 0) }, void 0, false, {
-          fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-          lineNumber: 160,
-          columnNumber: 13
-        }, void 0)
-      ] }, void 0, true, {
-        fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-        lineNumber: 135,
-        columnNumber: 11
-      }, void 0),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "leading-5", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "block font-semibold", children: "Use local day/night time" }),
+            isRequestingLocationPermission && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "mt-1 block text-[0.92em] text-gray-600", children: "Requesting location permission..." }),
+            localTimeError && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "mt-1 block text-[0.92em] text-red-600", children: localTimeError })
+          ] })
+        ] }) })
+      ] }),
       onConfirm: handleConfirm,
       confirmText: "Start"
-    },
-    void 0,
-    false,
-    {
-      fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-      lineNumber: 132,
-      columnNumber: 7
-    },
-    void 0
-  ) }, void 0, false, {
-    fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-    lineNumber: 131,
-    columnNumber: 5
-  }, void 0);
+    }
+  ) });
   if (typeof document === "undefined") {
     return overlay;
   }
@@ -45165,58 +45052,30 @@ const AlertLayer = ({
   message,
   onClose
 }) => {
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+  return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
     PopupLayer,
     {
       title,
-      content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex flex-col items-center gap-4", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("p", { className: "text-base", children: message }, void 0, false, {
-        fileName: "/Users/neiz/digivice/apps/client/src/layers/AlertLayer.tsx",
-        lineNumber: 21,
-        columnNumber: 13
-      }, void 0) }, void 0, false, {
-        fileName: "/Users/neiz/digivice/apps/client/src/layers/AlertLayer.tsx",
-        lineNumber: 20,
-        columnNumber: 11
-      }, void 0),
+      content: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex flex-col items-center gap-4", children: /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-base", children: message }) }),
       onConfirm: onClose,
       confirmText: "Confirm"
-    },
-    void 0,
-    false,
-    {
-      fileName: "/Users/neiz/digivice/apps/client/src/layers/AlertLayer.tsx",
-      lineNumber: 17,
-      columnNumber: 7
-    },
-    void 0
-  ) }, void 0, false, {
-    fileName: "/Users/neiz/digivice/apps/client/src/layers/AlertLayer.tsx",
-    lineNumber: 16,
-    columnNumber: 5
-  }, void 0);
+    }
+  ) });
 };
 const ToggleButton = ({ enabled, onClick }) => {
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(
     "button",
     {
       type: "button",
       onClick,
       className: `min-w-20 border-2 border-[#222] px-4 py-2 text-sm font-bold text-white ${enabled ? "bg-component-positive" : "bg-gray-400"}`,
       children: enabled ? "ON" : "OFF"
-    },
-    void 0,
-    false,
-    {
-      fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-      lineNumber: 19,
-      columnNumber: 5
-    },
-    void 0
+    }
   );
 };
 const ActionButton = ({ text, onClick, disabled = false, variant = "positive" }) => {
   const backgroundClass = disabled ? "cursor-wait bg-gray-400 opacity-60" : variant === "warning" ? "bg-yellow-500" : variant === "negative" ? "bg-component-negative" : "bg-component-positive";
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(
     "button",
     {
       type: "button",
@@ -45224,15 +45083,7 @@ const ActionButton = ({ text, onClick, disabled = false, variant = "positive" })
       onClick,
       className: `flex min-w-20 items-center justify-center border-2 border-[#222] px-4 py-2 text-center text-sm font-bold text-white ${backgroundClass}`,
       children: text
-    },
-    void 0,
-    false,
-    {
-      fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-      lineNumber: 46,
-      columnNumber: 5
-    },
-    void 0
+    }
   );
 };
 const SettingMenuLayer = ({
@@ -45240,133 +45091,78 @@ const SettingMenuLayer = ({
   onChangeVibration,
   onSendDiagnostics,
   isSendingDiagnostics,
+  showAdDebugSection = false,
+  adDebugState = null,
+  isRefreshingAdDebugState = false,
+  isShowingTestAd = false,
+  onRefreshAdDebugState,
+  onShowTestAd,
   onResetGameData,
   onClose
 }) => {
   const [resetConfirmText, setResetConfirmText] = reactExports.useState("");
   const [showFinalResetConfirm, setShowFinalResetConfirm] = reactExports.useState(false);
+  const resetConfirmInputRef = reactExports.useRef(null);
   const isResetEnabled = reactExports.useMemo(
     () => resetConfirmText.trim() === "confirm",
     [resetConfirmText]
   );
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50", children: [
-    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+  const adDebugStatus = (adDebugState == null ? void 0 : adDebugState.isReady) ? "Ready" : (adDebugState == null ? void 0 : adDebugState.isLoading) ? "Loading" : (adDebugState == null ? void 0 : adDebugState.lastError) ? "Error" : "Idle";
+  const isTestAdButtonDisabled = !(adDebugState == null ? void 0 : adDebugState.isReady) || Boolean(adDebugState == null ? void 0 : adDebugState.isLoading) || isShowingTestAd;
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx(
       PopupLayer,
       {
         title: "Settings",
-        content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex flex-col gap-5 text-left", children: [
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex items-center justify-between gap-4", children: [
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-sm font-bold", children: "Vibration" }, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 81,
-              columnNumber: 17
-            }, void 0) }, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 80,
-              columnNumber: 15
-            }, void 0),
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+        initialFocusTarget: "container",
+        keyboardAwareTargetRef: resetConfirmInputRef,
+        suppressInitialActionsMs: 180,
+        content: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-5 text-left", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between gap-4", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-sm font-bold", children: "Vibration" }) }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
               ToggleButton,
               {
                 enabled: vibrationEnabled,
                 onClick: () => onChangeVibration(!vibrationEnabled)
-              },
-              void 0,
-              false,
-              {
-                fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-                lineNumber: 83,
-                columnNumber: 15
-              },
-              void 0
+              }
             )
-          ] }, void 0, true, {
-            fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-            lineNumber: 79,
-            columnNumber: 13
-          }, void 0),
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "border-t-2 border-[#222] pt-4", children: [
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "mb-3 text-sm font-bold", children: "Send Diagnostics" }, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 90,
-              columnNumber: 15
-            }, void 0),
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex items-center justify-between gap-4", children: [
-              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-xs text-gray-600", children: "Open Gmail with attached diagnostics files." }, void 0, false, {
-                fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-                lineNumber: 92,
-                columnNumber: 17
-              }, void 0),
-              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "border-t-2 border-[#222] pt-4", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "mb-3 text-sm font-bold", children: "Send Diagnostics" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between gap-4", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-xs text-gray-600", children: "Open Gmail with attached diagnostics files." }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
                 ActionButton,
                 {
                   text: isSendingDiagnostics ? "Sending..." : "Send",
                   onClick: onSendDiagnostics,
                   disabled: isSendingDiagnostics,
                   variant: "warning"
-                },
-                void 0,
-                false,
-                {
-                  fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-                  lineNumber: 95,
-                  columnNumber: 17
-                },
-                void 0
+                }
               )
-            ] }, void 0, true, {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 91,
-              columnNumber: 15
-            }, void 0)
-          ] }, void 0, true, {
-            fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-            lineNumber: 89,
-            columnNumber: 13
-          }, void 0),
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "border-t-2 border-[#222] pt-4", children: [
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-sm font-bold", children: "Reset Game Data" }, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 106,
-              columnNumber: 17
-            }, void 0) }, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 105,
-              columnNumber: 15
-            }, void 0),
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "mt-1 text-xs text-gray-600", children: [
+            ] })
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "border-t-2 border-[#222] pt-4", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-sm font-bold", children: "Reset Game Data" }) }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mt-1 text-xs text-gray-600", children: [
               "Type ",
-              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { className: "font-bold", children: "confirm" }, void 0, false, {
-                fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-                lineNumber: 109,
-                columnNumber: 22
-              }, void 0),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "font-bold", children: "confirm" }),
               " below to enable the reset button."
-            ] }, void 0, true, {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 108,
-              columnNumber: 15
-            }, void 0),
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "mt-3 flex items-center justify-between gap-3", children: [
-              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+            ] }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mt-3 flex items-center justify-between gap-3", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "input",
                 {
+                  ref: resetConfirmInputRef,
                   type: "text",
                   value: resetConfirmText,
                   onChange: (event) => setResetConfirmText(event.target.value),
                   placeholder: "confirm",
                   className: "w-40 border-2 border-[#222] px-3 py-2 text-center text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#d95763]"
-                },
-                void 0,
-                false,
-                {
-                  fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-                  lineNumber: 113,
-                  columnNumber: 17
-                },
-                void 0
+                }
               ),
-              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "button",
                 {
                   type: "button",
@@ -45374,75 +45170,58 @@ const SettingMenuLayer = ({
                   onClick: () => setShowFinalResetConfirm(true),
                   className: `border-2 border-[#222] px-4 py-2 text-sm font-bold text-white ${isResetEnabled ? "bg-component-negative" : "cursor-not-allowed bg-gray-400 opacity-60"}`,
                   children: "Reset"
-                },
-                void 0,
-                false,
-                {
-                  fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-                  lineNumber: 120,
-                  columnNumber: 17
-                },
-                void 0
+                }
               )
-            ] }, void 0, true, {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 112,
-              columnNumber: 15
-            }, void 0)
-          ] }, void 0, true, {
-            fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-            lineNumber: 104,
-            columnNumber: 13
-          }, void 0)
-        ] }, void 0, true, {
-          fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-          lineNumber: 78,
-          columnNumber: 11
-        }, void 0),
+            ] })
+          ] }),
+          showAdDebugSection && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "border-t-2 border-[#222] pt-4", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "mb-3 text-sm font-bold", children: "[DEBUG] Ad Test" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-3 text-xs text-gray-600", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between gap-4", children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+                    "Status: ",
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "font-bold", children: adDebugStatus })
+                  ] }),
+                  (adDebugState == null ? void 0 : adDebugState.lastError) && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "mt-1 max-w-52 break-all text-[11px] text-component-negative", children: adDebugState.lastError })
+                ] }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  ActionButton,
+                  {
+                    text: isRefreshingAdDebugState ? "Refreshing..." : "Refresh",
+                    onClick: () => onRefreshAdDebugState == null ? void 0 : onRefreshAdDebugState(),
+                    disabled: isRefreshingAdDebugState || typeof onRefreshAdDebugState !== "function",
+                    variant: "warning"
+                  }
+                )
+              ] }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex justify-end", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                ActionButton,
+                {
+                  text: isShowingTestAd ? "Opening..." : "Show Test Ad",
+                  onClick: () => onShowTestAd == null ? void 0 : onShowTestAd(),
+                  disabled: isTestAdButtonDisabled || typeof onShowTestAd !== "function"
+                }
+              ) })
+            ] })
+          ] })
+        ] }),
         onConfirm: onClose,
         confirmText: "Close"
-      },
-      void 0,
-      false,
-      {
-        fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-        lineNumber: 75,
-        columnNumber: 7
-      },
-      void 0
+      }
     ),
-    showFinalResetConfirm && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+    showFinalResetConfirm && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
       PopupLayer,
       {
         title: "Final Confirmation",
-        content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-sm leading-6", children: "This will permanently delete all game data and return you to the initial setup screen. This action cannot be undone." }, void 0, false, {
-          fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-          lineNumber: 144,
-          columnNumber: 15
-        }, void 0),
+        content: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-sm leading-6", children: "This will permanently delete all game data and return you to the initial setup screen. This action cannot be undone." }),
         onConfirm: onResetGameData,
         onCancel: () => setShowFinalResetConfirm(false),
         confirmText: "Delete",
         cancelText: "Cancel"
-      },
-      void 0,
-      false,
-      {
-        fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-        lineNumber: 141,
-        columnNumber: 11
-      },
-      void 0
-    ) }, void 0, false, {
-      fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-      lineNumber: 140,
-      columnNumber: 9
-    }, void 0)
-  ] }, void 0, true, {
-    fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-    lineNumber: 74,
-    columnNumber: 5
-  }, void 0);
+      }
+    ) })
+  ] });
 };
 const useAlert = () => {
   const [alertState, setAlertState] = reactExports.useState(null);
@@ -45565,7 +45344,7 @@ function sanitizeCachedSunTimes(sunTimes) {
   };
 }
 function sanitizeCharacterEntity(components, now) {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B, _C, _D, _E, _F, _G, _H, _I, _J, _K, _L, _M, _N, _O, _P, _Q, _R, _S, _T, _U, _V;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B, _C, _D, _E, _F, _G, _H, _I, _J, _K, _L, _M, _N, _O, _P, _Q, _R, _S, _T, _U, _V, _W;
   const objectId = toFiniteNumber((_a = components.object) == null ? void 0 : _a.id);
   if (!objectId || objectId <= 0) {
     return null;
@@ -45608,44 +45387,45 @@ function sanitizeCharacterEntity(components, now) {
     digestiveSystem: {
       capacity: toFiniteNumber((_q = components.digestiveSystem) == null ? void 0 : _q.capacity) ?? DEFAULTS.DIGESTIVE_CAPACITY,
       currentLoad: toFiniteNumber((_r = components.digestiveSystem) == null ? void 0 : _r.currentLoad) ?? 0,
-      nextPoopTime: toFiniteNumber((_s = components.digestiveSystem) == null ? void 0 : _s.nextPoopTime) ?? 0
+      nextPoopTime: toFiniteNumber((_s = components.digestiveSystem) == null ? void 0 : _s.nextPoopTime) ?? 0,
+      nextSmallPoopTime: toFiniteNumber((_t = components.digestiveSystem) == null ? void 0 : _t.nextSmallPoopTime) ?? 0
     },
     diseaseSystem: {
-      nextCheckTime: toFiniteNumber((_t = components.diseaseSystem) == null ? void 0 : _t.nextCheckTime) ?? now + DEFAULTS.DISEASE_CHECK_INTERVAL,
-      sickStartTime: toFiniteNumber((_u = components.diseaseSystem) == null ? void 0 : _u.sickStartTime) ?? 0
+      nextCheckTime: toFiniteNumber((_u = components.diseaseSystem) == null ? void 0 : _u.nextCheckTime) ?? now + DEFAULTS.DISEASE_CHECK_INTERVAL,
+      sickStartTime: toFiniteNumber((_v = components.diseaseSystem) == null ? void 0 : _v.sickStartTime) ?? 0
     },
     sleepSystem: {
-      fatigue: toFiniteNumber((_v = components.sleepSystem) == null ? void 0 : _v.fatigue) ?? DEFAULTS.FATIGUE_DEFAULT,
-      nextSleepTime: toFiniteNumber((_w = components.sleepSystem) == null ? void 0 : _w.nextSleepTime) ?? 0,
-      nextWakeTime: toFiniteNumber((_x = components.sleepSystem) == null ? void 0 : _x.nextWakeTime) ?? 0,
-      nextNapCheckTime: toFiniteNumber((_y = components.sleepSystem) == null ? void 0 : _y.nextNapCheckTime) ?? now + DEFAULTS.DAY_NAP_CHECK_INTERVAL,
-      nextNightWakeCheckTime: toFiniteNumber((_z = components.sleepSystem) == null ? void 0 : _z.nextNightWakeCheckTime) ?? 0,
-      sleepMode: toFiniteNumber((_A = components.sleepSystem) == null ? void 0 : _A.sleepMode) ?? (state === CHARACTER_STATE.SLEEPING ? 1 : 0),
-      pendingSleepReason: toFiniteNumber((_B = components.sleepSystem) == null ? void 0 : _B.pendingSleepReason) ?? 0,
-      pendingWakeReason: toFiniteNumber((_C = components.sleepSystem) == null ? void 0 : _C.pendingWakeReason) ?? 0,
-      sleepSessionStartedAt: toFiniteNumber((_D = components.sleepSystem) == null ? void 0 : _D.sleepSessionStartedAt) ?? 0
+      fatigue: toFiniteNumber((_w = components.sleepSystem) == null ? void 0 : _w.fatigue) ?? DEFAULTS.FATIGUE_DEFAULT,
+      nextSleepTime: toFiniteNumber((_x = components.sleepSystem) == null ? void 0 : _x.nextSleepTime) ?? 0,
+      nextWakeTime: toFiniteNumber((_y = components.sleepSystem) == null ? void 0 : _y.nextWakeTime) ?? 0,
+      nextNapCheckTime: toFiniteNumber((_z = components.sleepSystem) == null ? void 0 : _z.nextNapCheckTime) ?? now + DEFAULTS.DAY_NAP_CHECK_INTERVAL,
+      nextNightWakeCheckTime: toFiniteNumber((_A = components.sleepSystem) == null ? void 0 : _A.nextNightWakeCheckTime) ?? 0,
+      sleepMode: toFiniteNumber((_B = components.sleepSystem) == null ? void 0 : _B.sleepMode) ?? (state === CHARACTER_STATE.SLEEPING ? 1 : 0),
+      pendingSleepReason: toFiniteNumber((_C = components.sleepSystem) == null ? void 0 : _C.pendingSleepReason) ?? 0,
+      pendingWakeReason: toFiniteNumber((_D = components.sleepSystem) == null ? void 0 : _D.pendingWakeReason) ?? 0,
+      sleepSessionStartedAt: toFiniteNumber((_E = components.sleepSystem) == null ? void 0 : _E.sleepSessionStartedAt) ?? 0
     },
     vitality: {
-      urgentStartTime: toFiniteNumber((_E = components.vitality) == null ? void 0 : _E.urgentStartTime) ?? 0,
-      deathTime: toFiniteNumber((_F = components.vitality) == null ? void 0 : _F.deathTime) ?? 0,
+      urgentStartTime: toFiniteNumber((_F = components.vitality) == null ? void 0 : _F.urgentStartTime) ?? 0,
+      deathTime: toFiniteNumber((_G = components.vitality) == null ? void 0 : _G.deathTime) ?? 0,
       isDead: toBoolean(
-        (_G = components.vitality) == null ? void 0 : _G.isDead,
+        (_H = components.vitality) == null ? void 0 : _H.isDead,
         state === CHARACTER_STATE.DEAD
       )
     },
     temporaryStatus: {
-      statusType: toFiniteNumber((_H = components.temporaryStatus) == null ? void 0 : _H.statusType) ?? ECS_NULL_VALUE,
-      startTime: toFiniteNumber((_I = components.temporaryStatus) == null ? void 0 : _I.startTime) ?? 0
+      statusType: toFiniteNumber((_I = components.temporaryStatus) == null ? void 0 : _I.statusType) ?? ECS_NULL_VALUE,
+      startTime: toFiniteNumber((_J = components.temporaryStatus) == null ? void 0 : _J.startTime) ?? 0
     },
     eggHatch: {
-      hatchTime: toFiniteNumber((_J = components.eggHatch) == null ? void 0 : _J.hatchTime) ?? (state === CHARACTER_STATE.EGG ? now + getEggHatchDelayMs() : 0),
+      hatchTime: toFiniteNumber((_K = components.eggHatch) == null ? void 0 : _K.hatchTime) ?? (state === CHARACTER_STATE.EGG ? now + getEggHatchDelayMs() : 0),
       isReadyToHatch: toBoolean(
-        (_K = components.eggHatch) == null ? void 0 : _K.isReadyToHatch,
+        (_L = components.eggHatch) == null ? void 0 : _L.isReadyToHatch,
         false
       )
     }
   };
-  const statusIconSlots = (_L = sanitized.statusIconRender) == null ? void 0 : _L.storeIndexes;
+  const statusIconSlots = (_M = sanitized.statusIconRender) == null ? void 0 : _M.storeIndexes;
   if (statusIconSlots && statusIconSlots.length < DEFAULTS.STATUS_SLOT_COUNT) {
     while (statusIconSlots.length < DEFAULTS.STATUS_SLOT_COUNT) {
       statusIconSlots.push(ECS_NULL_VALUE);
@@ -45654,30 +45434,30 @@ function sanitizeCharacterEntity(components, now) {
   if (needsAnimationRender(state)) {
     sanitized.animationRender = {
       storeIndex: ECS_NULL_VALUE,
-      spritesheetKey: toFiniteNumber((_M = components.animationRender) == null ? void 0 : _M.spritesheetKey) ?? characterKey ?? DEFAULTS.SPRITESHEET_KEY,
-      animationKey: toFiniteNumber((_N = components.animationRender) == null ? void 0 : _N.animationKey) ?? DEFAULTS.ANIMATION_KEY_IDLE,
-      isPlaying: toBoolean((_O = components.animationRender) == null ? void 0 : _O.isPlaying, true),
-      loop: toBoolean((_P = components.animationRender) == null ? void 0 : _P.loop, true),
-      speed: toFiniteNumber((_Q = components.animationRender) == null ? void 0 : _Q.speed) ?? 0.04
+      spritesheetKey: toFiniteNumber((_N = components.animationRender) == null ? void 0 : _N.spritesheetKey) ?? characterKey ?? DEFAULTS.SPRITESHEET_KEY,
+      animationKey: toFiniteNumber((_O = components.animationRender) == null ? void 0 : _O.animationKey) ?? DEFAULTS.ANIMATION_KEY_IDLE,
+      isPlaying: toBoolean((_P = components.animationRender) == null ? void 0 : _P.isPlaying, true),
+      loop: toBoolean((_Q = components.animationRender) == null ? void 0 : _Q.loop, true),
+      speed: toFiniteNumber((_R = components.animationRender) == null ? void 0 : _R.speed) ?? 0.04
     };
   }
   if (needsRandomMovement(state)) {
-    const minIdle = toFiniteNumber((_R = components.randomMovement) == null ? void 0 : _R.minIdleTime) ?? DEFAULTS.RANDOM_MOVEMENT.minIdleTime;
+    const minIdle = toFiniteNumber((_S = components.randomMovement) == null ? void 0 : _S.minIdleTime) ?? DEFAULTS.RANDOM_MOVEMENT.minIdleTime;
     const maxIdle = Math.max(
       minIdle,
-      toFiniteNumber((_S = components.randomMovement) == null ? void 0 : _S.maxIdleTime) ?? DEFAULTS.RANDOM_MOVEMENT.maxIdleTime
+      toFiniteNumber((_T = components.randomMovement) == null ? void 0 : _T.maxIdleTime) ?? DEFAULTS.RANDOM_MOVEMENT.maxIdleTime
     );
-    const minMove = toFiniteNumber((_T = components.randomMovement) == null ? void 0 : _T.minMoveTime) ?? DEFAULTS.RANDOM_MOVEMENT.minMoveTime;
+    const minMove = toFiniteNumber((_U = components.randomMovement) == null ? void 0 : _U.minMoveTime) ?? DEFAULTS.RANDOM_MOVEMENT.minMoveTime;
     const maxMove = Math.max(
       minMove,
-      toFiniteNumber((_U = components.randomMovement) == null ? void 0 : _U.maxMoveTime) ?? DEFAULTS.RANDOM_MOVEMENT.maxMoveTime
+      toFiniteNumber((_V = components.randomMovement) == null ? void 0 : _V.maxMoveTime) ?? DEFAULTS.RANDOM_MOVEMENT.maxMoveTime
     );
     sanitized.randomMovement = {
       minIdleTime: minIdle,
       maxIdleTime: maxIdle,
       minMoveTime: minMove,
       maxMoveTime: maxMove,
-      nextChange: toFiniteNumber((_V = components.randomMovement) == null ? void 0 : _V.nextChange) ?? now + 1e3
+      nextChange: toFiniteNumber((_W = components.randomMovement) == null ? void 0 : _W.nextChange) ?? now + 1e3
     };
   }
   return sanitized;
@@ -46331,7 +46111,14 @@ const RECOVERY_VIBRATION_INTERVAL_MS = 180;
 const RECOVERY_VIBRATION_DURATION_MS = 14;
 const RECOVERY_VIBRATION_STRENGTH = 28;
 const isNativeFeatureDebugMode$1 = true;
+const isNativeAppUserAgent = typeof navigator !== "undefined" && /DigiviceApp/i.test(navigator.userAgent);
 const isAndroidUserAgent = typeof navigator !== "undefined" && /DigiviceApp-Android|Android/i.test(navigator.userAgent);
+const MINI_GAME_UNAVAILABLE_VERSION = "0.1.0";
+const DEFAULT_AD_DEBUG_STATE = {
+  isReady: false,
+  isLoading: false,
+  lastError: null
+};
 function waitForAnimationFrame() {
   return new Promise((resolve) => {
     window.requestAnimationFrame(() => resolve());
@@ -46342,6 +46129,51 @@ async function waitForLayoutStabilization() {
   await waitForAnimationFrame();
   await new Promise((resolve) => window.setTimeout(resolve, 250));
   await waitForAnimationFrame();
+}
+function getCurrentViewportHeight() {
+  var _a;
+  if (typeof window === "undefined") {
+    return 0;
+  }
+  return Math.max(
+    0,
+    Math.round(((_a = window.visualViewport) == null ? void 0 : _a.height) ?? window.innerHeight)
+  );
+}
+function setFrozenAppShellHeight(height) {
+  if (typeof document === "undefined") {
+    return;
+  }
+  if (height && height > 0) {
+    document.documentElement.style.setProperty(
+      "--digivice-app-shell-height",
+      `${height}px`
+    );
+    return;
+  }
+  document.documentElement.style.removeProperty("--digivice-app-shell-height");
+}
+async function getNativeAdDebugState() {
+  var _a;
+  if (!((_a = window.adController) == null ? void 0 : _a.getAdDebugState)) {
+    return {
+      ...DEFAULT_AD_DEBUG_STATE,
+      lastError: "Ad debug bridge unavailable"
+    };
+  }
+  const result = await window.adController.getAdDebugState();
+  const parsed = JSON.parse(result);
+  return {
+    isReady: parsed.isReady === true,
+    isLoading: parsed.isLoading === true,
+    lastError: typeof parsed.lastError === "string" && parsed.lastError.length > 0 ? parsed.lastError : null
+  };
+}
+function getBaseAppVersion(version) {
+  return version.replace(/-.+$/, "");
+}
+function isMiniGameUnavailableForCurrentVersion() {
+  return getBaseAppVersion("0.1.0-debug") === MINI_GAME_UNAVAILABLE_VERSION;
 }
 function getIsLandscapeViewport() {
   var _a, _b;
@@ -46457,36 +46289,115 @@ const GameContainer = () => {
   const [gameSessionKey, setGameSessionKey] = reactExports.useState(0);
   const [isSendingDiagnostics, setIsSendingDiagnostics] = reactExports.useState(false);
   const [pendingDiagnosticsDraft, setPendingDiagnosticsDraft] = reactExports.useState(null);
+  const [adDebugState, setAdDebugState] = reactExports.useState(
+    DEFAULT_AD_DEBUG_STATE
+  );
+  const [isRefreshingAdDebugState, setIsRefreshingAdDebugState] = reactExports.useState(false);
+  const [isShowingTestAd, setIsShowingTestAd] = reactExports.useState(false);
   const [buttonParams, setButtonParams] = reactExports.useState(null);
   const [sceneTransitionLoadState, setSceneTransitionLoadState] = reactExports.useState({
     requestId: 0,
     phase: "idle"
   });
+  const pendingSettingMenuOpenTimeoutRef = reactExports.useRef(null);
   const sceneTransitionRequestIdRef = reactExports.useRef(0);
   const recoveryVibrationIntervalRef = reactExports.useRef(null);
   const lastValidationResultRef = reactExports.useRef(
     null
   );
+  const isFullscreenAdLayoutFrozenRef = reactExports.useRef(false);
+  const fullscreenAdLayoutReleaseTimeoutRef = reactExports.useRef(null);
+  const fullscreenAdLayoutReleaseRafRef = reactExports.useRef(null);
+  const showAdDebugSection = isNativeAppUserAgent && isNativeFeatureDebugMode$1;
+  const clearPendingSettingMenuOpen = reactExports.useCallback(() => {
+    if (pendingSettingMenuOpenTimeoutRef.current === null) {
+      return;
+    }
+    window.clearTimeout(pendingSettingMenuOpenTimeoutRef.current);
+    pendingSettingMenuOpenTimeoutRef.current = null;
+  }, []);
   const openSettingMenu = reactExports.useCallback(() => {
-    setShowSettingMenu(true);
-  }, []);
+    if (showSettingMenu || pendingSettingMenuOpenTimeoutRef.current !== null) {
+      return;
+    }
+    pendingSettingMenuOpenTimeoutRef.current = window.setTimeout(() => {
+      pendingSettingMenuOpenTimeoutRef.current = null;
+      setShowSettingMenu(true);
+    }, 0);
+  }, [showSettingMenu]);
   const closeSettingMenu = reactExports.useCallback(() => {
+    clearPendingSettingMenuOpen();
     setShowSettingMenu(false);
-  }, []);
+  }, [clearPendingSettingMenuOpen]);
+  reactExports.useEffect(() => {
+    return () => {
+      clearPendingSettingMenuOpen();
+    };
+  }, [clearPendingSettingMenuOpen]);
   const handleVibrationSettingChange = reactExports.useCallback((enabled) => {
     setGameSettings(updateGameSettings({ vibrationEnabled: enabled }));
   }, []);
+  const refreshAdDebugState = reactExports.useCallback(async () => {
+    if (!showAdDebugSection) {
+      return;
+    }
+    setIsRefreshingAdDebugState(true);
+    try {
+      const nextState = await getNativeAdDebugState();
+      setAdDebugState(nextState);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to read ad debug state";
+      setAdDebugState({
+        ...DEFAULT_AD_DEBUG_STATE,
+        lastError: message
+      });
+    } finally {
+      setIsRefreshingAdDebugState(false);
+    }
+  }, [showAdDebugSection]);
+  const handleShowTestAd = reactExports.useCallback(async () => {
+    var _a;
+    if (!showAdDebugSection) {
+      return;
+    }
+    if (!((_a = window.adController) == null ? void 0 : _a.showTestInterstitial)) {
+      showAlert(
+        "Ad Debug Unavailable",
+        "Native ad debug bridge is not available in this build."
+      );
+      return;
+    }
+    setIsShowingTestAd(true);
+    try {
+      await window.adController.showTestInterstitial();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to show test ad";
+      showAlert("Test Ad Failed", message);
+    } finally {
+      setIsShowingTestAd(false);
+      void refreshAdDebugState();
+      window.setTimeout(() => {
+        void refreshAdDebugState();
+      }, 1500);
+    }
+  }, [refreshAdDebugState, showAdDebugSection, showAlert]);
   reactExports.useEffect(() => {
     setDiagnosticsContextProvider(() => ({
       scene: (gameInstance == null ? void 0 : gameInstance.getCurrentSceneKey()) !== void 0 ? String(gameInstance.getCurrentSceneKey()) : void 0,
       storageKind: getClientStorageKind(),
-      appMode: "development",
+      appMode: "production",
       debugEnabled: isNativeFeatureDebugMode$1
     }));
     return () => {
       setDiagnosticsContextProvider(null);
     };
   }, [gameInstance]);
+  reactExports.useEffect(() => {
+    if (!showSettingMenu || !showAdDebugSection) {
+      return;
+    }
+    void refreshAdDebugState();
+  }, [refreshAdDebugState, showAdDebugSection, showSettingMenu]);
   const handleSceneTransitionStateChange = reactExports.useCallback(
     (params) => {
       if (params.state === "loading") {
@@ -46526,6 +46437,55 @@ const GameContainer = () => {
     setSceneTransitionLoadState({ requestId: 0, phase: "idle" });
     setIsBootstrapping(false);
   }, []);
+  const updateGameContainerSize = reactExports.useCallback((force = false) => {
+    const viewportElement = gameViewportRef.current;
+    if (!viewportElement) {
+      return;
+    }
+    if (!force && isFullscreenAdLayoutFrozenRef.current) {
+      return;
+    }
+    const nextSize = Math.max(
+      0,
+      Math.floor(
+        Math.min(viewportElement.clientWidth, viewportElement.clientHeight)
+      )
+    );
+    setGameContainerSize(
+      (previous) => previous === nextSize ? previous : nextSize
+    );
+  }, []);
+  const clearFullscreenAdLayoutRelease = reactExports.useCallback(() => {
+    if (fullscreenAdLayoutReleaseTimeoutRef.current !== null) {
+      window.clearTimeout(fullscreenAdLayoutReleaseTimeoutRef.current);
+      fullscreenAdLayoutReleaseTimeoutRef.current = null;
+    }
+    if (fullscreenAdLayoutReleaseRafRef.current !== null) {
+      window.cancelAnimationFrame(fullscreenAdLayoutReleaseRafRef.current);
+      fullscreenAdLayoutReleaseRafRef.current = null;
+    }
+  }, []);
+  const freezeLayoutForFullscreenAd = reactExports.useCallback(() => {
+    clearFullscreenAdLayoutRelease();
+    isFullscreenAdLayoutFrozenRef.current = true;
+    setFrozenAppShellHeight(getCurrentViewportHeight());
+  }, [clearFullscreenAdLayoutRelease]);
+  const releaseLayoutAfterFullscreenAd = reactExports.useCallback(() => {
+    clearFullscreenAdLayoutRelease();
+    fullscreenAdLayoutReleaseTimeoutRef.current = window.setTimeout(() => {
+      fullscreenAdLayoutReleaseRafRef.current = window.requestAnimationFrame(
+        () => {
+          fullscreenAdLayoutReleaseRafRef.current = window.requestAnimationFrame(
+            () => {
+              isFullscreenAdLayoutFrozenRef.current = false;
+              setFrozenAppShellHeight(null);
+              updateGameContainerSize(true);
+            }
+          );
+        }
+      );
+    }, 260);
+  }, [clearFullscreenAdLayoutRelease, updateGameContainerSize]);
   const stopRecoveryVibration = reactExports.useCallback(() => {
     if (recoveryVibrationIntervalRef.current !== null) {
       window.clearInterval(recoveryVibrationIntervalRef.current);
@@ -46584,7 +46544,7 @@ const GameContainer = () => {
         appInfo: {
           project: "MonTTo",
           clientAppVersion: "0.1.0-debug",
-          appMode: "development",
+          appMode: "production",
           debugEnabled: isNativeFeatureDebugMode$1,
           storageKind: getClientStorageKind(),
           userAgent: navigator.userAgent,
@@ -46825,6 +46785,9 @@ const GameContainer = () => {
       showAlert: (message, title) => {
         showAlert(message, title);
       },
+      startMiniGame: isMiniGameUnavailableForCurrentVersion() ? () => {
+        showAlert("개발중", "Notice");
+      } : void 0,
       showSettings: () => {
         openSettingMenu();
       },
@@ -46865,22 +46828,14 @@ const GameContainer = () => {
     if (!viewportElement) {
       return;
     }
-    const updateGameContainerSize = () => {
-      const nextSize = Math.max(
-        0,
-        Math.floor(
-          Math.min(viewportElement.clientWidth, viewportElement.clientHeight)
-        )
-      );
-      setGameContainerSize(
-        (previous) => previous === nextSize ? previous : nextSize
-      );
-    };
     updateGameContainerSize();
     if (typeof ResizeObserver === "undefined") {
-      window.addEventListener("resize", updateGameContainerSize);
+      const handleWindowResize = () => {
+        updateGameContainerSize();
+      };
+      window.addEventListener("resize", handleWindowResize);
       return () => {
-        window.removeEventListener("resize", updateGameContainerSize);
+        window.removeEventListener("resize", handleWindowResize);
       };
     }
     const resizeObserver = new ResizeObserver(() => {
@@ -46890,7 +46845,7 @@ const GameContainer = () => {
     return () => {
       resizeObserver.disconnect();
     };
-  }, []);
+  }, [updateGameContainerSize]);
   reactExports.useEffect(() => {
     var _a;
     if (!isAndroidUserAgent) {
@@ -46916,6 +46871,39 @@ const GameContainer = () => {
       );
     };
   }, []);
+  reactExports.useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const handleFullscreenAdState = (event) => {
+      const detail = event.detail;
+      const state = detail == null ? void 0 : detail.state;
+      if (state === "showing") {
+        freezeLayoutForFullscreenAd();
+        return;
+      }
+      if (state === "dismissed" || state === "failed") {
+        releaseLayoutAfterFullscreenAd();
+      }
+    };
+    window.addEventListener(
+      "digivice:fullscreen-ad",
+      handleFullscreenAdState
+    );
+    return () => {
+      window.removeEventListener(
+        "digivice:fullscreen-ad",
+        handleFullscreenAdState
+      );
+      clearFullscreenAdLayoutRelease();
+      isFullscreenAdLayoutFrozenRef.current = false;
+      setFrozenAppShellHeight(null);
+    };
+  }, [
+    clearFullscreenAdLayoutRelease,
+    freezeLayoutForFullscreenAd,
+    releaseLayoutAfterFullscreenAd
+  ]);
   reactExports.useEffect(() => {
     let isMounted = true;
     const bootstrap2 = async () => {
@@ -47019,14 +47007,14 @@ const GameContainer = () => {
     }
   }, []);
   const isLoading = isBootstrapping || sceneTransitionLoadState.phase === "loading" || sceneTransitionLoadState.phase === "core_ready";
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "relative h-full w-full min-h-0", children: [
-    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(jsxDevRuntimeExports.Fragment, { children: [
-      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "relative h-full w-full min-h-0", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx(
         "div",
         {
           ref: gameViewportRef,
           className: "flex h-full min-h-0 min-w-0 items-center justify-center overflow-hidden",
-          children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+          children: /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
             {
               id: "game-container",
@@ -47036,188 +47024,78 @@ const GameContainer = () => {
                 width: `${gameContainerSize}px`,
                 height: `${gameContainerSize}px`
               } : void 0
-            },
-            void 0,
-            false,
-            {
-              fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-              lineNumber: 974,
-              columnNumber: 11
-            },
-            void 0
+            }
           )
-        },
-        void 0,
-        false,
-        {
-          fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-          lineNumber: 970,
-          columnNumber: 9
-        },
-        void 0
+        }
       ),
-      buttonParams && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "absolute inset-x-0 bottom-32 z-10 w-full", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+      buttonParams && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-x-0 bottom-32 z-10 w-full", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
         ControlButtons,
         {
           buttonParams,
           onButtonPress: handleButtonPress,
           onSliderChange: handleSliderChange,
           onSliderEnd: handleSliderEnd
-        },
-        void 0,
-        false,
-        {
-          fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-          lineNumber: 993,
-          columnNumber: 13
-        },
-        void 0
-      ) }, void 0, false, {
-        fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-        lineNumber: 992,
-        columnNumber: 11
-      }, void 0)
-    ] }, void 0, true, {
-      fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-      lineNumber: 969,
-      columnNumber: 7
-    }, void 0),
-    isLoading && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "absolute inset-0 z-50 flex items-center justify-center bg-black text-white", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-center text-lg tracking-[0.12em]", children: "Loading..." }, void 0, false, {
-      fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-      lineNumber: 1004,
-      columnNumber: 11
-    }, void 0) }, void 0, false, {
-      fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-      lineNumber: 1003,
-      columnNumber: 9
-    }, void 0),
-    showLandscapeOverlay && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "absolute inset-0 z-[70] flex items-center justify-center bg-black text-white", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "px-6 text-center", children: [
-      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-lg tracking-[0.12em]", children: "Portrait Only" }, void 0, false, {
-        fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-        lineNumber: 1010,
-        columnNumber: 13
-      }, void 0),
-      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "mt-6 text-[10px] leading-6 tracking-[0.12em]", children: [
+        }
+      ) })
+    ] }),
+    isLoading && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-50 flex items-center justify-center bg-black text-white", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-center text-lg tracking-[0.12em]", children: "Loading..." }) }),
+    showLandscapeOverlay && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-[70] flex items-center justify-center bg-black text-white", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "px-6 text-center", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-lg tracking-[0.12em]", children: "Portrait Only" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mt-6 text-[10px] leading-6 tracking-[0.12em]", children: [
         "Please rotate your device",
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("br", {}, void 0, false, {
-          fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-          lineNumber: 1013,
-          columnNumber: 15
-        }, void 0),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("br", {}),
         "back to portrait mode."
-      ] }, void 0, true, {
-        fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-        lineNumber: 1011,
-        columnNumber: 13
-      }, void 0)
-    ] }, void 0, true, {
-      fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-      lineNumber: 1009,
-      columnNumber: 11
-    }, void 0) }, void 0, false, {
-      fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-      lineNumber: 1008,
-      columnNumber: 9
-    }, void 0),
-    showSetupLayer && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(SetupLayer, { onComplete: handleSetupComplete }, void 0, false, {
-      fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-      lineNumber: 1019,
-      columnNumber: 26
-    }, void 0),
-    showSettingMenu && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+      ] })
+    ] }) }),
+    showSetupLayer && /* @__PURE__ */ jsxRuntimeExports.jsx(SetupLayer, { onComplete: handleSetupComplete }),
+    showSettingMenu && /* @__PURE__ */ jsxRuntimeExports.jsx(
       SettingMenuLayer,
       {
         vibrationEnabled: gameSettings.vibrationEnabled,
         onChangeVibration: handleVibrationSettingChange,
         onSendDiagnostics: handleSendDiagnostics,
         isSendingDiagnostics,
+        showAdDebugSection,
+        adDebugState,
+        isRefreshingAdDebugState,
+        isShowingTestAd,
+        onRefreshAdDebugState: refreshAdDebugState,
+        onShowTestAd: handleShowTestAd,
         onResetGameData: handleResetGameData,
         onClose: closeSettingMenu
-      },
-      void 0,
-      false,
-      {
-        fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-        lineNumber: 1021,
-        columnNumber: 9
-      },
-      void 0
+      }
     ),
-    alertState && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+    alertState && /* @__PURE__ */ jsxRuntimeExports.jsx(
       AlertLayer,
       {
         title: alertState.title,
         message: alertState.message,
         onClose: hideAlert
-      },
-      void 0,
-      false,
-      {
-        fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-        lineNumber: 1031,
-        columnNumber: 9
-      },
-      void 0
+      }
     ),
-    sanitizeResetAlert && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+    sanitizeResetAlert && /* @__PURE__ */ jsxRuntimeExports.jsx(
       AlertLayer,
       {
         title: sanitizeResetAlert.title,
         message: sanitizeResetAlert.message,
         onClose: handleSanitizeResetConfirm
-      },
-      void 0,
-      false,
-      {
-        fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-        lineNumber: 1038,
-        columnNumber: 9
-      },
-      void 0
+      }
     ),
-    pendingDiagnosticsDraft && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+    pendingDiagnosticsDraft && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
       PopupLayer,
       {
         title: "Open Gmail",
-        content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-left text-sm leading-6", children: [
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: "The Gmail app will open next." }, void 0, false, {
-            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 1050,
-            columnNumber: 17
-          }, void 0),
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "mt-2", children: "The diagnostics files will be attached to the draft email." }, void 0, false, {
-            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 1051,
-            columnNumber: 17
-          }, void 0)
-        ] }, void 0, true, {
-          fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-          lineNumber: 1049,
-          columnNumber: 15
-        }, void 0),
+        content: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "text-left text-sm leading-6", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: "The Gmail app will open next." }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "mt-2", children: "The diagnostics files will be attached to the draft email." })
+        ] }),
         onConfirm: handleConfirmDiagnosticsDraft,
         onCancel: handleCancelDiagnosticsDraft,
         confirmText: "CONFIRM",
         cancelText: "Cancel"
-      },
-      void 0,
-      false,
-      {
-        fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-        lineNumber: 1046,
-        columnNumber: 11
-      },
-      void 0
-    ) }, void 0, false, {
-      fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-      lineNumber: 1045,
-      columnNumber: 9
-    }, void 0)
-  ] }, void 0, true, {
-    fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-    lineNumber: 968,
-    columnNumber: 5
-  }, void 0);
+      }
+    ) })
+  ] });
 };
 function DevEnvironmentBadge() {
   const [platformAdapter2] = reactExports.useState(() => new PlatformAdapter());
@@ -47226,7 +47104,7 @@ function DevEnvironmentBadge() {
   if (isNativeApp) {
     return null;
   }
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs(
     "div",
     {
       style: {
@@ -47251,7 +47129,7 @@ function DevEnvironmentBadge() {
       tabIndex: 0,
       title: "Click to view environment details",
       children: [
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+        /* @__PURE__ */ jsxRuntimeExports.jsxs(
           "div",
           {
             style: {
@@ -47261,33 +47139,17 @@ function DevEnvironmentBadge() {
               gap: "8px"
             },
             children: [
-              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { children: "🖥️ PC Dev Mode" }, void 0, false, {
-                fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
-                lineNumber: 50,
-                columnNumber: 9
-              }, this),
-              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { style: { fontSize: "12px", opacity: 0.9 }, children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "🖥️ PC Dev Mode" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { style: { fontSize: "12px", opacity: 0.9 }, children: [
                 isExpanded ? "▲" : "▼",
                 " click to",
                 " ",
                 isExpanded ? "collapse" : "expand"
-              ] }, void 0, true, {
-                fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
-                lineNumber: 51,
-                columnNumber: 9
-              }, this)
+              ] })
             ]
-          },
-          void 0,
-          true,
-          {
-            fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
-            lineNumber: 42,
-            columnNumber: 7
-          },
-          this
+          }
         ),
-        isExpanded && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+        isExpanded && /* @__PURE__ */ jsxRuntimeExports.jsxs(
           "div",
           {
             style: {
@@ -47301,38 +47163,18 @@ function DevEnvironmentBadge() {
               margin: "12px auto 0"
             },
             children: [
-              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { style: { marginBottom: "8px" }, children: [
-                /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("strong", { children: "Environment:" }, void 0, false, {
-                  fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
-                  lineNumber: 71,
-                  columnNumber: 13
-                }, this),
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { marginBottom: "8px" }, children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: "Environment:" }),
                 " Web browser (not a Flutter native app)"
-              ] }, void 0, true, {
-                fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
-                lineNumber: 70,
-                columnNumber: 11
-              }, this),
-              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { style: { marginBottom: "8px" }, children: [
-                /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("strong", { children: "Platform:" }, void 0, false, {
-                  fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
-                  lineNumber: 74,
-                  columnNumber: 13
-                }, this),
+              ] }),
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { marginBottom: "8px" }, children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: "Platform:" }),
                 " ",
                 platformAdapter2.getPlatformName()
-              ] }, void 0, true, {
-                fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
-                lineNumber: 73,
-                columnNumber: 11
-              }, this),
-              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { style: { marginBottom: "8px" }, children: [
-                /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("strong", { children: "User Agent:" }, void 0, false, {
-                  fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
-                  lineNumber: 77,
-                  columnNumber: 13
-                }, this),
-                /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+              ] }),
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { marginBottom: "8px" }, children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: "User Agent:" }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx(
                   "div",
                   {
                     style: {
@@ -47345,55 +47187,19 @@ function DevEnvironmentBadge() {
                       fontFamily: "monospace"
                     },
                     children: navigator.userAgent
-                  },
-                  void 0,
-                  false,
-                  {
-                    fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
-                    lineNumber: 78,
-                    columnNumber: 13
-                  },
-                  this
+                  }
                 )
-              ] }, void 0, true, {
-                fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
-                lineNumber: 76,
-                columnNumber: 11
-              }, this),
-              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { style: { marginTop: "12px", opacity: 0.8, fontSize: "11px" }, children: [
+              ] }),
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { marginTop: "12px", opacity: 0.8, fontSize: "11px" }, children: [
                 "⚠️ Native-only features such as NFC do not work in this environment.",
-                /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("br", {}, void 0, false, {
-                  fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
-                  lineNumber: 94,
-                  columnNumber: 13
-                }, this),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("br", {}),
                 "Use the Flutter app to test native features."
-              ] }, void 0, true, {
-                fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
-                lineNumber: 92,
-                columnNumber: 11
-              }, this)
+              ] })
             ]
-          },
-          void 0,
-          true,
-          {
-            fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
-            lineNumber: 58,
-            columnNumber: 9
-          },
-          this
+          }
         )
       ]
-    },
-    void 0,
-    true,
-    {
-      fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
-      lineNumber: 19,
-      columnNumber: 5
-    },
-    this
+    }
   );
 }
 const COOLDOWN_KEY = "ad_last_shown_timestamp";
@@ -47634,8 +47440,11 @@ const SimpleLogViewer = (props) => {
 };
 let adManager = null;
 const LAST_ACTIVE_KEY = "app_last_active_timestamp";
+const FULLSCREEN_AD_REENTER_SUPPRESS_MS = 1200;
 const App = () => {
   const isInitialized = reactExports.useRef(false);
+  const isFullscreenAdActiveRef = reactExports.useRef(false);
+  const suppressAppReenterUntilRef = reactExports.useRef(0);
   reactExports.useEffect(() => {
     if (isInitialized.current) return;
     isInitialized.current = true;
@@ -47645,12 +47454,33 @@ const App = () => {
     window.adManager = adManager;
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
+        if (isFullscreenAdActiveRef.current || Date.now() < suppressAppReenterUntilRef.current) {
+          updateLastActiveTime();
+          return;
+        }
         handleAppReenter();
       } else if (document.visibilityState === "hidden") {
         updateLastActiveTime();
       }
     };
+    const handleFullscreenAdState = (event) => {
+      const detail = event.detail;
+      const state = detail == null ? void 0 : detail.state;
+      if (state === "showing") {
+        isFullscreenAdActiveRef.current = true;
+        return;
+      }
+      if (state === "dismissed" || state === "failed") {
+        isFullscreenAdActiveRef.current = false;
+        suppressAppReenterUntilRef.current = Date.now() + FULLSCREEN_AD_REENTER_SUPPRESS_MS;
+        updateLastActiveTime();
+      }
+    };
     document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener(
+      "digivice:fullscreen-ad",
+      handleFullscreenAdState
+    );
     window.onUrgentRecovery = () => {
       console.log("[App] Character recovered from URGENT state");
       adManager == null ? void 0 : adManager.requestAd("urgent_recovery", {
@@ -47664,6 +47494,10 @@ const App = () => {
     updateLastActiveTime();
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener(
+        "digivice:fullscreen-ad",
+        handleFullscreenAdState
+      );
       window.onUrgentRecovery = void 0;
     };
   }, []);
@@ -47683,44 +47517,20 @@ const App = () => {
     const now = Date.now();
     localStorage.setItem(LAST_ACTIVE_KEY, now.toString());
   };
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { id: "app-shell", children: [
-    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(TopLeftBuildLogoText, {}, void 0, false, {
-      fileName: "/Users/neiz/digivice/apps/client/src/App.tsx",
-      lineNumber: 95,
-      columnNumber: 7
-    }, void 0),
-    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(DevEnvironmentBadge, {}, void 0, false, {
-      fileName: "/Users/neiz/digivice/apps/client/src/App.tsx",
-      lineNumber: 96,
-      columnNumber: 7
-    }, void 0),
-    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { id: "app-container", children: [
-      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(GameContainer, {}, void 0, false, {
-        fileName: "/Users/neiz/digivice/apps/client/src/App.tsx",
-        lineNumber: 98,
-        columnNumber: 9
-      }, void 0),
-      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(SimpleLogViewer, { position: "top-right", initialOpen: false }, void 0, false, {
-        fileName: "/Users/neiz/digivice/apps/client/src/App.tsx",
-        lineNumber: 99,
-        columnNumber: 9
-      }, void 0)
-    ] }, void 0, true, {
-      fileName: "/Users/neiz/digivice/apps/client/src/App.tsx",
-      lineNumber: 97,
-      columnNumber: 7
-    }, void 0)
-  ] }, void 0, true, {
-    fileName: "/Users/neiz/digivice/apps/client/src/App.tsx",
-    lineNumber: 94,
-    columnNumber: 5
-  }, void 0);
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { id: "app-shell", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx(TopLeftBuildLogoText, {}),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(DevEnvironmentBadge, {}),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { id: "app-container", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx(GameContainer, {}),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(SimpleLogViewer, { position: "top-right", initialOpen: false })
+    ] })
+  ] });
 };
 const platformAdapter = new PlatformAdapter();
 const isNativeFeatureDebugMode = true;
 installDiagnosticsConsoleCapture();
 setDiagnosticsContextProvider(() => ({
-  appMode: "development",
+  appMode: "production",
   debugEnabled: isNativeFeatureDebugMode
 }));
 document.addEventListener("DOMContentLoaded", () => {
@@ -47755,15 +47565,7 @@ async function bootstrap() {
   }
   const root = ReactDOM.createRoot(rootElement);
   root.render(
-    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(jsxDevRuntimeExports.Fragment, { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(App, {}, void 0, false, {
-      fileName: "/Users/neiz/digivice/apps/client/src/main.tsx",
-      lineNumber: 80,
-      columnNumber: 7
-    }, this) }, void 0, false, {
-      fileName: "/Users/neiz/digivice/apps/client/src/main.tsx",
-      lineNumber: 79,
-      columnNumber: 5
-    }, this)
+    /* @__PURE__ */ jsxRuntimeExports.jsx(jsxRuntimeExports.Fragment, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(App, {}) })
   );
 }
 void bootstrap();
