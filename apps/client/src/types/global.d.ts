@@ -1,3 +1,18 @@
+type DigiviceMainSceneAdMenu = "feed" | "clean" | "hospital" | "mini_game";
+
+type AdControllerShowOptions = {
+  cooldownMs?: number;
+};
+
+type MainSceneMenuAdRequest = {
+  menu: DigiviceMainSceneAdMenu;
+  cooldownMs: number;
+  threshold: number;
+  queuedAt: number;
+  deepNight: boolean;
+  menuUseCount: number;
+};
+
 declare global {
   interface Window {
     errorLogs: string[];
@@ -35,10 +50,15 @@ declare global {
       } | null>;
     };
     adController?: {
-      showInterstitial: () => Promise<string>;
-      canShowAd: () => Promise<string>;
+      showInterstitial: (options?: AdControllerShowOptions) => Promise<string>;
+      canShowAd: (options?: AdControllerShowOptions) => Promise<string>;
       showTestInterstitial?: () => Promise<string>;
       getAdDebugState?: () => Promise<string>;
+    };
+    digiviceAdBridge?: {
+      requestMainSceneMenuAd: (
+        request: MainSceneMenuAdRequest,
+      ) => Promise<boolean>;
     };
   }
 }

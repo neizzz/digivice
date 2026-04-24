@@ -108,6 +108,7 @@ function cleanupEffectSprite(
   stage: PIXI.Container | null,
 ): void {
   const spriteData = effectSpriteMap.get(eid);
+  const didStartRecoveryVibration = recoveryVibrationStartedEids.has(eid);
   if (spriteData) {
     if (stage && spriteData.sprite.parent) {
       stage.removeChild(spriteData.sprite);
@@ -118,7 +119,9 @@ function cleanupEffectSprite(
 
   recoveryImpactTriggeredEids.delete(eid);
   recoveryVibrationStartedEids.delete(eid);
-  world.stopRecoveryVibration();
+  if (didStartRecoveryVibration) {
+    world.stopRecoveryVibration();
+  }
 
   if (isLiveObjectEntity(world, eid) && hasComponent(world, EffectAnimationComp, eid)) {
     removeComponent(world, EffectAnimationComp, eid);
@@ -273,6 +276,9 @@ export function effectAnimationSystem(params: {
 
     if (shouldCleanup) {
       cleanupEffectSprite(world, eid, stage);
+      if (effectType === EffectAnimationType.RECOVERY_SYRINGE) {
+        world.handleHospitalRecoveryAnimationComplete(eid);
+      }
     }
   }
 

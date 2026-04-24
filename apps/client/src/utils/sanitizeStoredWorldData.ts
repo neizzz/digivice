@@ -127,6 +127,19 @@ type StoredSunTimesPayload = {
   hasLocationPermission?: boolean;
 };
 
+type StoredMainSceneAdMenu = "feed" | "clean" | "hospital" | "mini_game";
+
+type StoredMainSceneAdState = {
+  menu_use_count?: number;
+  pending?: {
+    menu?: StoredMainSceneAdMenu;
+    queued_at?: number;
+    cooldown_ms?: number;
+    threshold?: number;
+    deep_night?: boolean;
+  };
+};
+
 export type StoredWorldData = {
   world_metadata?: {
     name?: string;
@@ -138,6 +151,7 @@ export type StoredWorldData = {
       is_first_load?: boolean;
       use_local_time?: boolean;
       cached_sun_times?: StoredSunTimesPayload;
+      main_scene_ad?: StoredMainSceneAdState;
     };
   };
   entities?: StoredEntity[];
@@ -237,6 +251,15 @@ function toBoolean(value: unknown, fallback: boolean): boolean {
   return typeof value === "boolean" ? value : fallback;
 }
 
+function toNonNegativeInteger(value: unknown, fallback = 0): number {
+  const numericValue = toFiniteNumber(value);
+  if (numericValue === null || numericValue < 0) {
+    return fallback;
+  }
+
+  return Math.floor(numericValue);
+}
+
 function sanitizeStatuses(statuses: unknown): number[] {
   if (!Array.isArray(statuses)) {
     return new Array(DEFAULTS.STATUS_SLOT_COUNT).fill(ECS_NULL_VALUE);
@@ -274,6 +297,9 @@ function sanitizeWorldMetadata(
   const cachedSunTimes = sanitizeCachedSunTimes(
     metadata?.app_state?.cached_sun_times,
   );
+  const mainSceneAd = sanitizeMainSceneAdState(
+    metadata?.app_state?.main_scene_ad,
+  );
 
   return {
     name:
@@ -301,8 +327,65 @@ function sanitizeWorldMetadata(
           ? metadata.app_state.use_local_time
           : true,
       cached_sun_times: cachedSunTimes,
+      main_scene_ad: mainSceneAd,
     },
   };
+}
+
+function sanitizeMainSceneAdState(
+  adState: StoredMainSceneAdState | undefined,
+): StoredMainSceneAdState {
+  const sanitized: StoredMainSceneAdState = {
+    menu_use_count: toNonNegativeInteger(adState?.menu_use_count),
+  };
+  const pending = sanitizeMainSceneAdPendingReservation(adState?.pending);
+
+  if (pending) {
+    sanitized.pending = pending;
+  }
+
+  return sanitized;
+}
+
+function sanitizeMainSceneAdPendingReservation(
+  pending: StoredMainSceneAdState["pending"] | undefined,
+): StoredMainSceneAdState["pending"] | undefined {
+  if (!pending || !isMainSceneAdMenu(pending.menu)) {
+    return undefined;
+  }
+
+  const queuedAt = toFiniteNumber(pending.queued_at);
+  const cooldownMs = toFiniteNumber(pending.cooldown_ms);
+  const threshold = toFiniteNumber(pending.threshold);
+
+  if (
+    queuedAt === null ||
+    queuedAt <= 0 ||
+    cooldownMs === null ||
+    cooldownMs <= 0 ||
+    threshold === null ||
+    threshold <= 0 ||
+    typeof pending.deep_night !== "boolean"
+  ) {
+    return undefined;
+  }
+
+  return {
+    menu: pending.menu,
+    queued_at: queuedAt,
+    cooldown_ms: cooldownMs,
+    threshold: Math.floor(threshold),
+    deep_night: pending.deep_night,
+  };
+}
+
+function isMainSceneAdMenu(value: unknown): value is StoredMainSceneAdMenu {
+  return (
+    value === "feed" ||
+    value === "clean" ||
+    value === "hospital" ||
+    value === "mini_game"
+  );
 }
 
 function sanitizeCachedSunTimes(

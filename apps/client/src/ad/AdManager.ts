@@ -2,6 +2,22 @@ import type { AdContext, AdDisplayPolicy } from "./AdDisplayPolicy";
 import { CooldownCondition } from "./conditions/CooldownCondition";
 import { PlatformAdapter } from "../adapter/PlatformAdapter";
 
+const DEFAULT_NATIVE_AD_COOLDOWN_MS = 4 * 60 * 60 * 1000;
+
+function resolveCooldownMs(metadata: Record<string, unknown> | undefined) {
+  const cooldownMs = metadata?.cooldownMs;
+
+  if (
+    typeof cooldownMs === "number" &&
+    Number.isFinite(cooldownMs) &&
+    cooldownMs > 0
+  ) {
+    return cooldownMs;
+  }
+
+  return DEFAULT_NATIVE_AD_COOLDOWN_MS;
+}
+
 /**
  * 광고 관리자
  * 정책을 관리하고 광고 표시를 결정
@@ -61,10 +77,11 @@ export class AdManager {
     }
 
     console.log(`[AdManager] Policy matched: ${policy.name}`);
+    const cooldownMs = resolveCooldownMs(fullContext.metadata);
 
     // 네이티브 쿨다운 체크 (안전장치)
     try {
-      const canShowStr = await window.adController.canShowAd();
+      const canShowStr = await window.adController.canShowAd({ cooldownMs });
       const canShow = canShowStr === "true";
 
       if (!canShow) {
@@ -78,7 +95,7 @@ export class AdManager {
 
     // 광고 표시
     try {
-      await window.adController.showInterstitial();
+      await window.adController.showInterstitial({ cooldownMs });
       console.log("[AdManager] Ad shown successfully");
 
       // 쿨다운 업데이트
@@ -134,7 +151,9 @@ export class AdManager {
     }
 
     try {
-      await window.adController.showInterstitial();
+      await window.adController.showInterstitial({
+        cooldownMs: DEFAULT_NATIVE_AD_COOLDOWN_MS,
+      });
       CooldownCondition.updateCooldown();
       return true;
     } catch (error) {

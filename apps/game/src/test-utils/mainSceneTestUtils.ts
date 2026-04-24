@@ -26,6 +26,9 @@ export type TestWorld = IWorld & {
   isSimulationMode: boolean;
   positionBoundary: Boundary;
   applyPendingRecoverySyringeImpact: (eid: number) => void;
+  handleThrownFoodLanded: (eid: number) => void;
+  handleFoodConsumedForAd: (eid: number) => void;
+  handleHospitalRecoveryAnimationComplete: (eid: number) => void;
   currentTime: number;
   timeOfDay: TimeOfDay;
   timeOfDayMode: TimeOfDayMode;
@@ -69,6 +72,9 @@ export function createTestWorld(options?: {
     height: 1000,
   };
   world.applyPendingRecoverySyringeImpact = () => {};
+  world.handleThrownFoodLanded = () => {};
+  world.handleFoodConsumedForAd = () => {};
+  world.handleHospitalRecoveryAnimationComplete = () => {};
 
   Object.defineProperty(world, "currentTime", {
     configurable: true,

@@ -36,9 +36,6 @@ const RECOVERY_VIBRATION_DURATION_MS = 14;
 const RECOVERY_VIBRATION_STRENGTH = 28;
 const isNativeFeatureDebugMode =
   import.meta.env.NATIVE_FEATURE_DEBUG_MODE === "true";
-const isNonProductionClientBuild = import.meta.env.MODE !== "production";
-const isNativeAppUserAgent =
-  typeof navigator !== "undefined" && /DigiviceApp/i.test(navigator.userAgent);
 const isAndroidUserAgent =
   typeof navigator !== "undefined" &&
   /DigiviceApp-Android|Android/i.test(navigator.userAgent);
@@ -97,20 +94,8 @@ type SceneTransitionLoadState = {
   to?: SceneKey;
 };
 
-type AdDebugState = {
-  isReady: boolean;
-  isLoading: boolean;
-  lastError: string | null;
-};
-
 type FullscreenAdEventDetail = {
   state?: "showing" | "dismissed" | "failed";
-};
-
-const DEFAULT_AD_DEBUG_STATE: AdDebugState = {
-  isReady: false,
-  isLoading: false,
-  lastError: null,
 };
 
 function waitForAnimationFrame(): Promise<void> {
@@ -151,27 +136,6 @@ function setFrozenAppShellHeight(height: number | null): void {
   }
 
   document.documentElement.style.removeProperty("--digivice-app-shell-height");
-}
-
-async function getNativeAdDebugState(): Promise<AdDebugState> {
-  if (!window.adController?.getAdDebugState) {
-    return {
-      ...DEFAULT_AD_DEBUG_STATE,
-      lastError: "Ad debug bridge unavailable",
-    };
-  }
-
-  const result = await window.adController.getAdDebugState();
-  const parsed = JSON.parse(result) as Partial<AdDebugState>;
-
-  return {
-    isReady: parsed.isReady === true,
-    isLoading: parsed.isLoading === true,
-    lastError:
-      typeof parsed.lastError === "string" && parsed.lastError.length > 0
-        ? parsed.lastError
-        : null,
-  };
 }
 
 function getBaseAppVersion(version: string): string {
@@ -342,12 +306,6 @@ const GameContainer: React.FC = () => {
   const [isSendingDiagnostics, setIsSendingDiagnostics] = useState(false);
   const [pendingDiagnosticsDraft, setPendingDiagnosticsDraft] =
     useState<PendingDiagnosticsDraft | null>(null);
-  const [adDebugState, setAdDebugState] = useState<AdDebugState>(
-    DEFAULT_AD_DEBUG_STATE,
-  );
-  const [isRefreshingAdDebugState, setIsRefreshingAdDebugState] =
-    useState(false);
-  const [isShowingTestAd, setIsShowingTestAd] = useState(false);
   const [buttonParams, setButtonParams] = useState<
     [ControlButtonParams, ControlButtonParams, ControlButtonParams] | null
   >(null);
@@ -365,9 +323,6 @@ const GameContainer: React.FC = () => {
   const isFullscreenAdLayoutFrozenRef = useRef(false);
   const fullscreenAdLayoutReleaseTimeoutRef = useRef<number | null>(null);
   const fullscreenAdLayoutReleaseRafRef = useRef<number | null>(null);
-  const showAdDebugSection =
-    isNativeAppUserAgent &&
-    (isNativeFeatureDebugMode || isNonProductionClientBuild);
 
   const clearPendingSettingMenuOpen = useCallback(() => {
     if (pendingSettingMenuOpenTimeoutRef.current === null) {
@@ -404,58 +359,6 @@ const GameContainer: React.FC = () => {
     setGameSettings(updateGameSettings({ vibrationEnabled: enabled }));
   }, []);
 
-  const refreshAdDebugState = useCallback(async () => {
-    if (!showAdDebugSection) {
-      return;
-    }
-
-    setIsRefreshingAdDebugState(true);
-
-    try {
-      const nextState = await getNativeAdDebugState();
-      setAdDebugState(nextState);
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Failed to read ad debug state";
-      setAdDebugState({
-        ...DEFAULT_AD_DEBUG_STATE,
-        lastError: message,
-      });
-    } finally {
-      setIsRefreshingAdDebugState(false);
-    }
-  }, [showAdDebugSection]);
-
-  const handleShowTestAd = useCallback(async () => {
-    if (!showAdDebugSection) {
-      return;
-    }
-
-    if (!window.adController?.showTestInterstitial) {
-      showAlert(
-        "Ad Debug Unavailable",
-        "Native ad debug bridge is not available in this build.",
-      );
-      return;
-    }
-
-    setIsShowingTestAd(true);
-
-    try {
-      await window.adController.showTestInterstitial();
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Failed to show test ad";
-      showAlert("Test Ad Failed", message);
-    } finally {
-      setIsShowingTestAd(false);
-      void refreshAdDebugState();
-      window.setTimeout(() => {
-        void refreshAdDebugState();
-      }, 1500);
-    }
-  }, [refreshAdDebugState, showAdDebugSection, showAlert]);
-
   useEffect(() => {
     setDiagnosticsContextProvider(() => ({
       scene:
@@ -471,14 +374,6 @@ const GameContainer: React.FC = () => {
       setDiagnosticsContextProvider(null);
     };
   }, [gameInstance]);
-
-  useEffect(() => {
-    if (!showSettingMenu || !showAdDebugSection) {
-      return;
-    }
-
-    void refreshAdDebugState();
-  }, [refreshAdDebugState, showAdDebugSection, showSettingMenu]);
 
   const handleSceneTransitionStateChange = useCallback(
     (params: {
@@ -1289,12 +1184,6 @@ const GameContainer: React.FC = () => {
           onChangeVibration={handleVibrationSettingChange}
           onSendDiagnostics={handleSendDiagnostics}
           isSendingDiagnostics={isSendingDiagnostics}
-          showAdDebugSection={showAdDebugSection}
-          adDebugState={adDebugState}
-          isRefreshingAdDebugState={isRefreshingAdDebugState}
-          isShowingTestAd={isShowingTestAd}
-          onRefreshAdDebugState={refreshAdDebugState}
-          onShowTestAd={handleShowTestAd}
           onResetGameData={handleResetGameData}
           onClose={closeSettingMenu}
         />

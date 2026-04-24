@@ -5,7 +5,7 @@ import { DevEnvironmentBadge } from "./components/DevEnvironmentBadge";
 import TopLeftBuildLogoText from "./components/TopLeftBuildLogoText";
 import { AdManager } from "./ad/AdManager";
 import { AppReenterPolicy } from "./ad/policies/AppReenterPolicy";
-import { UrgentRecoveryPolicy } from "./ad/policies/UrgentRecoveryPolicy";
+import { MainSceneMenuPolicy } from "./ad/policies/MainSceneMenuPolicy";
 import SimpleLogViewer from "../components/SimpleLogViewer/SimpleLogViewer";
 
 // AdManager 글로벌 인스턴스
@@ -15,7 +15,6 @@ let adManager: AdManager | null = null;
 declare global {
   interface Window {
     adManager?: AdManager;
-    onUrgentRecovery?: () => void;
   }
 }
 
@@ -38,8 +37,24 @@ const App = () => {
     // AdManager 초기화
     adManager = new AdManager();
     adManager.addPolicy(new AppReenterPolicy());
-    adManager.addPolicy(new UrgentRecoveryPolicy());
+    adManager.addPolicy(new MainSceneMenuPolicy());
     window.adManager = adManager;
+    window.digiviceAdBridge = {
+      requestMainSceneMenuAd: (request) => {
+        console.log("[App] MainScene menu ad requested", request);
+
+        return (
+          adManager?.requestAd("main_scene_menu", {
+            isCharacterUrgent: false,
+            metadata: {
+              ...request,
+              trigger: "main_scene_menu",
+              timestamp: Date.now(),
+            },
+          }) ?? Promise.resolve(false)
+        );
+      },
+    };
 
     // 재진입 감지
     const handleVisibilityChange = () => {
@@ -81,19 +96,6 @@ const App = () => {
       handleFullscreenAdState as EventListener,
     );
 
-    // URGENT 회복 이벤트 핸들러
-    window.onUrgentRecovery = () => {
-      console.log("[App] Character recovered from URGENT state");
-
-      adManager?.requestAd("urgent_recovery", {
-        isCharacterUrgent: false,
-        metadata: {
-          trigger: "urgent_recovery",
-          timestamp: Date.now(),
-        },
-      });
-    };
-
     // 초기 활성 시간 기록
     updateLastActiveTime();
 
@@ -103,7 +105,7 @@ const App = () => {
         "digivice:fullscreen-ad",
         handleFullscreenAdState as EventListener,
       );
-      window.onUrgentRecovery = undefined;
+      window.digiviceAdBridge = undefined;
     };
   }, []);
 

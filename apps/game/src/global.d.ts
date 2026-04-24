@@ -26,6 +26,20 @@ declare global {
 				granted: boolean;
 			} | null>;
 		};
+		adController?: {
+			showTestInterstitial?: () => Promise<string>;
+			getAdDebugState?: () => Promise<string>;
+		};
+		digiviceAdBridge?: {
+			requestMainSceneMenuAd: (request: {
+				menu: "feed" | "clean" | "hospital" | "mini_game";
+				cooldownMs: number;
+				threshold: number;
+				queuedAt: number;
+				deepNight: boolean;
+				menuUseCount: number;
+			}) => Promise<boolean>;
+		};
 	}
 
 	interface ImportMetaEnv {

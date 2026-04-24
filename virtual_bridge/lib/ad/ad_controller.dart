@@ -16,7 +16,7 @@ class AdController {
   final void Function(String state)? onFullscreenAdStateChanged;
 
   static const String _cooldownKey = 'ad_last_shown_timestamp';
-  static const Duration _nativeCooldown = Duration(hours: 4);
+  static const Duration _defaultNativeCooldown = Duration(hours: 4);
 
   // 테스트 광고 단위 ID (Android)
   static const String _testAdUnitIdAndroid =
@@ -43,9 +43,11 @@ class AdController {
   String getJavaScriptInterface() {
     return '''
       window.adController = {
-        showInterstitial: () => {
+        showInterstitial: (options = {}) => {
           return __createPromise((id) => {
-            const argObj = { id };
+            const normalizedOptions =
+              options && typeof options === 'object' ? options : {};
+            const argObj = { id, ...normalizedOptions };
             __native_adShow.postMessage(JSON.stringify(argObj));
           });
         },
@@ -55,9 +57,11 @@ class AdController {
             __native_adShowTest.postMessage(JSON.stringify(argObj));
           });
         },
-        canShowAd: () => {
+        canShowAd: (options = {}) => {
           return __createPromise((id) => {
-            const argObj = { id };
+            const normalizedOptions =
+              options && typeof options === 'object' ? options : {};
+            const argObj = { id, ...normalizedOptions };
             __native_adCanShow.postMessage(JSON.stringify(argObj));
           });
         },
@@ -141,9 +145,14 @@ class AdController {
     final String promiseId = argObj['id'] as String;
 
     try {
+      final cooldown = _resolveCooldown(argObj);
+
       // 1. 네이티브 쿨다운 체크 (안전장치)
-      if (!await _checkNativeCooldown()) {
-        log('[AdController] Ad blocked by native cooldown');
+      if (!await _checkNativeCooldown(cooldown)) {
+        log(
+          '[AdController] Ad blocked by native cooldown '
+          '(${cooldown.inMilliseconds}ms)',
+        );
         resolvePromise(id: promiseId, error: 'Cooldown not expired');
         return;
       }
@@ -203,7 +212,8 @@ class AdController {
     final String promiseId = argObj['id'] as String;
 
     try {
-      final canShow = await _checkNativeCooldown();
+      final cooldown = _resolveCooldown(argObj);
+      final canShow = await _checkNativeCooldown(cooldown);
       resolvePromise(id: promiseId, data: canShow.toString());
     } catch (e) {
       log('[AdController] Error checking cooldown: $e');
@@ -226,7 +236,7 @@ class AdController {
   }
 
   /// 네이티브 쿨다운 체크
-  Future<bool> _checkNativeCooldown() async {
+  Future<bool> _checkNativeCooldown(Duration cooldown) async {
     final prefs = await SharedPreferences.getInstance();
     final lastShown = prefs.getInt(_cooldownKey);
 
@@ -238,7 +248,17 @@ class AdController {
     final now = DateTime.now();
     final difference = now.difference(lastShownTime);
 
-    return difference >= _nativeCooldown;
+    return difference >= cooldown;
+  }
+
+  Duration _resolveCooldown(Map<String, dynamic> argObj) {
+    final dynamic rawCooldownMs = argObj['cooldownMs'];
+
+    if (rawCooldownMs is num && rawCooldownMs.isFinite && rawCooldownMs > 0) {
+      return Duration(milliseconds: rawCooldownMs.round());
+    }
+
+    return _defaultNativeCooldown;
   }
 
   /// 쿨다운 업데이트

@@ -78,6 +78,7 @@ async function buildTests(esbuild, testFiles) {
     target: ["node20"],
     sourcemap: "inline",
     logLevel: "silent",
+    external: ["/assets/*"],
     alias: {
       "@": path.join(gameRoot, "src"),
       "@shared/storage": path.join(repoRoot, "shared", "storage", "src", "index.ts"),

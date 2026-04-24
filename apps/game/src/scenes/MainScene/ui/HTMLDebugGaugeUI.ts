@@ -18,15 +18,30 @@ import { GAME_CONSTANTS } from "../config";
 import { TimeOfDay } from "../timeOfDay";
 
 const characterQuery = defineQuery([ObjectComp, CharacterStatusComp]);
+const AD_DEBUG_REFRESH_INTERVAL_MS = 1000;
 
 type HTMLDebugGaugeUIOptions = {
   initiallyVisible?: boolean;
+};
+
+type NativeAdDebugState = {
+  isReady: boolean;
+  isLoading: boolean;
+  lastError: string | null;
+  unavailableReason?: string;
+};
+
+const DEFAULT_NATIVE_AD_DEBUG_STATE: NativeAdDebugState = {
+  isReady: false,
+  isLoading: false,
+  lastError: null,
 };
 
 export class HTMLDebugGaugeUI {
   private _container: HTMLDivElement;
   private _primaryColumn!: HTMLDivElement;
   private _sleepColumn!: HTMLDivElement;
+  private _adColumn!: HTMLDivElement;
   private _world: MainSceneWorld;
   private _staminaText!: HTMLSpanElement;
   private _evolutionText!: HTMLSpanElement;
@@ -36,8 +51,20 @@ export class HTMLDebugGaugeUI {
   private _sleepText!: HTMLSpanElement;
   private _fatigueText!: HTMLSpanElement;
   private _sleepCheckText!: HTMLSpanElement;
+  private _nativeAdStatusText!: HTMLSpanElement;
+  private _mainSceneAdText!: HTMLSpanElement;
+  private _adErrorText!: HTMLDivElement;
+  private _adRefreshButton!: HTMLButtonElement;
+  private _adShowNowButton!: HTMLButtonElement;
   private _currentCharacterEid: number = -1;
   private _isVisible: boolean;
+  private _nativeAdDebugState: NativeAdDebugState = {
+    ...DEFAULT_NATIVE_AD_DEBUG_STATE,
+  };
+  private _isRefreshingAdDebugState = false;
+  private _isShowingImmediateAd = false;
+  private _lastAdDebugRefreshAt = 0;
+  private _adDeferredRefreshTimerId: number | null = null;
 
   constructor(
     world: MainSceneWorld,
@@ -71,6 +98,7 @@ export class HTMLDebugGaugeUI {
       align-items: flex-start;
       gap: 16px;
       padding-top: 28px;
+      max-width: min(96vw, 720px);
     `;
 
     if (!document.querySelector("#debug-gauge-ui-blink-style")) {
@@ -92,6 +120,7 @@ export class HTMLDebugGaugeUI {
     const closeButton = this._createCloseButton();
     this._primaryColumn = this._createColumn();
     this._sleepColumn = this._createColumn();
+    this._adColumn = this._createColumn();
 
     const staminaDiv = this._createMetricRow("Stamina: ", "#66ccff");
 
@@ -138,6 +167,47 @@ export class HTMLDebugGaugeUI {
     this._sleepCheckText.style.lineHeight = "1.45";
     sleepCheckDiv.appendChild(this._sleepCheckText);
 
+    const nativeAdDiv = this._createMetricRow("Ad: ", "#80deea");
+    this._nativeAdStatusText = this._createMetricValue();
+    nativeAdDiv.appendChild(this._nativeAdStatusText);
+
+    const mainSceneAdDiv = this._createMetricRow("MenuAd:", "#7dd3fc");
+    mainSceneAdDiv.style.alignItems = "flex-start";
+    mainSceneAdDiv.style.flexDirection = "column";
+    mainSceneAdDiv.style.gap = "4px";
+    this._mainSceneAdText = this._createMetricValue();
+    this._mainSceneAdText.style.whiteSpace = "pre-wrap";
+    this._mainSceneAdText.style.lineHeight = "1.45";
+    mainSceneAdDiv.appendChild(this._mainSceneAdText);
+
+    this._adErrorText = document.createElement("div");
+    this._adErrorText.style.cssText = `
+      display: none;
+      max-width: 180px;
+      color: #ff8888;
+      font-size: 11px;
+      line-height: 1.35;
+      word-break: break-word;
+    `;
+
+    const adActionRow = document.createElement("div");
+    adActionRow.style.cssText = `
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 2px;
+    `;
+    this._adRefreshButton = this._createActionButton("Refresh");
+    this._adShowNowButton = this._createActionButton("Show Now");
+    this._adRefreshButton.addEventListener("click", () => {
+      void this._refreshNativeAdDebugState(true);
+    });
+    this._adShowNowButton.addEventListener("click", () => {
+      void this._showImmediateAd();
+    });
+    adActionRow.appendChild(this._adRefreshButton);
+    adActionRow.appendChild(this._adShowNowButton);
+
     this._primaryColumn.appendChild(staminaDiv);
     this._primaryColumn.appendChild(evolutionDiv);
     this._primaryColumn.appendChild(digestiveDiv);
@@ -148,9 +218,15 @@ export class HTMLDebugGaugeUI {
     this._sleepColumn.appendChild(fatigueDiv);
     this._sleepColumn.appendChild(sleepCheckDiv);
 
+    this._adColumn.appendChild(nativeAdDiv);
+    this._adColumn.appendChild(mainSceneAdDiv);
+    this._adColumn.appendChild(this._adErrorText);
+    this._adColumn.appendChild(adActionRow);
+
     this._container.appendChild(closeButton);
     this._container.appendChild(this._primaryColumn);
     this._container.appendChild(this._sleepColumn);
+    this._container.appendChild(this._adColumn);
   }
 
   private _createCloseButton(): HTMLButtonElement {
@@ -199,6 +275,8 @@ export class HTMLDebugGaugeUI {
   }
 
   public update(): void {
+    this._updateAdDebugView();
+
     if (this._currentCharacterEid < 0) {
       this._findFirstCharacter();
       if (this._currentCharacterEid < 0) {
@@ -434,9 +512,160 @@ export class HTMLDebugGaugeUI {
     }
   }
 
+  private _updateAdDebugView(): void {
+    const mainSceneAdState = this._world.getMainSceneAdDebugState();
+    const nativeAdStatus = formatNativeAdStatus(this._nativeAdDebugState);
+    const pending = mainSceneAdState.pending;
+
+    this._nativeAdStatusText.textContent = nativeAdStatus;
+    this._mainSceneAdText.textContent =
+      `  count: ${mainSceneAdState.menuUseCount}/${mainSceneAdState.threshold}\n` +
+      `  mode: ${mainSceneAdState.deepNight ? "deep-night" : "normal"}\n` +
+      `  cd: ${formatAdDuration(mainSceneAdState.cooldownMs)}\n` +
+      `  pending: ${
+        pending
+          ? `${pending.menu} @ ${formatAdQueuedAge(
+              pending.queuedAt,
+              this._world.currentTime,
+            )}`
+          : "-"
+      }`;
+
+    const errorText =
+      this._nativeAdDebugState.unavailableReason ??
+      this._nativeAdDebugState.lastError ??
+      "";
+    this._adErrorText.textContent = errorText;
+    this._adErrorText.style.display = errorText ? "block" : "none";
+
+    const hasAdBridge = hasNativeAdDebugBridge();
+    this._adRefreshButton.disabled =
+      this._isRefreshingAdDebugState || !hasAdBridge;
+    this._adRefreshButton.textContent = this._isRefreshingAdDebugState
+      ? "Refreshing..."
+      : "Refresh";
+
+    const canShowImmediateAd =
+      hasAdBridge &&
+      this._nativeAdDebugState.isReady &&
+      !this._nativeAdDebugState.isLoading &&
+      !this._isShowingImmediateAd;
+    this._adShowNowButton.disabled = !canShowImmediateAd;
+    this._adShowNowButton.textContent = this._isShowingImmediateAd
+      ? "Showing..."
+      : "Show Now";
+
+    const now = Date.now();
+    if (
+      this._isVisible &&
+      !this._isRefreshingAdDebugState &&
+      now - this._lastAdDebugRefreshAt >= AD_DEBUG_REFRESH_INTERVAL_MS
+    ) {
+      void this._refreshNativeAdDebugState();
+    }
+  }
+
+  private async _refreshNativeAdDebugState(force = false): Promise<void> {
+    const now = Date.now();
+    if (this._isRefreshingAdDebugState) {
+      return;
+    }
+
+    if (!force && now - this._lastAdDebugRefreshAt < AD_DEBUG_REFRESH_INTERVAL_MS) {
+      return;
+    }
+
+    const getAdDebugState =
+      typeof window !== "undefined"
+        ? window.adController?.getAdDebugState
+        : undefined;
+
+    if (!getAdDebugState) {
+      this._nativeAdDebugState = {
+        ...DEFAULT_NATIVE_AD_DEBUG_STATE,
+        unavailableReason: "Native ad bridge unavailable",
+      };
+      this._lastAdDebugRefreshAt = now;
+      return;
+    }
+
+    this._isRefreshingAdDebugState = true;
+    this._lastAdDebugRefreshAt = now;
+
+    try {
+      const result = await getAdDebugState();
+      const parsed = JSON.parse(result) as Partial<NativeAdDebugState>;
+      this._nativeAdDebugState = {
+        isReady: parsed.isReady === true,
+        isLoading: parsed.isLoading === true,
+        lastError:
+          typeof parsed.lastError === "string" && parsed.lastError.length > 0
+            ? parsed.lastError
+            : null,
+      };
+    } catch (error) {
+      this._nativeAdDebugState = {
+        ...DEFAULT_NATIVE_AD_DEBUG_STATE,
+        lastError:
+          error instanceof Error
+            ? error.message
+            : "Failed to read ad debug state",
+      };
+    } finally {
+      this._isRefreshingAdDebugState = false;
+    }
+  }
+
+  private async _showImmediateAd(): Promise<void> {
+    const showTestInterstitial =
+      typeof window !== "undefined"
+        ? window.adController?.showTestInterstitial
+        : undefined;
+
+    if (!showTestInterstitial) {
+      this._nativeAdDebugState = {
+        ...this._nativeAdDebugState,
+        lastError: "Native ad show bridge unavailable",
+      };
+      return;
+    }
+
+    this._isShowingImmediateAd = true;
+
+    try {
+      await showTestInterstitial();
+      await this._refreshNativeAdDebugState(true);
+      this._scheduleDeferredAdDebugRefresh();
+    } catch (error) {
+      this._nativeAdDebugState = {
+        ...this._nativeAdDebugState,
+        lastError:
+          error instanceof Error ? error.message : "Failed to show ad",
+      };
+    } finally {
+      this._isShowingImmediateAd = false;
+    }
+  }
+
+  private _scheduleDeferredAdDebugRefresh(): void {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    if (this._adDeferredRefreshTimerId !== null) {
+      window.clearTimeout(this._adDeferredRefreshTimerId);
+    }
+
+    this._adDeferredRefreshTimerId = window.setTimeout(() => {
+      this._adDeferredRefreshTimerId = null;
+      void this._refreshNativeAdDebugState(true);
+    }, 1500);
+  }
+
   public show(): void {
     this._container.style.display = "flex";
     this._isVisible = true;
+    void this._refreshNativeAdDebugState(true);
   }
 
   public hide(): void {
@@ -445,6 +674,14 @@ export class HTMLDebugGaugeUI {
   }
 
   public destroy(): void {
+    if (
+      this._adDeferredRefreshTimerId !== null &&
+      typeof window !== "undefined"
+    ) {
+      window.clearTimeout(this._adDeferredRefreshTimerId);
+      this._adDeferredRefreshTimerId = null;
+    }
+
     if (this._container.parentElement) {
       this._container.parentElement.removeChild(this._container);
     }
@@ -485,6 +722,72 @@ export class HTMLDebugGaugeUI {
     `;
     return value;
   }
+
+  private _createActionButton(label: string): HTMLButtonElement {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = label;
+    button.style.cssText = `
+      min-width: 76px;
+      padding: 4px 7px;
+      background: rgba(80, 80, 80, 0.9);
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: bold;
+      cursor: pointer;
+    `;
+    return button;
+  }
+}
+
+function hasNativeAdDebugBridge(): boolean {
+  return Boolean(
+    typeof window !== "undefined" &&
+      window.adController?.getAdDebugState &&
+      window.adController?.showTestInterstitial,
+  );
+}
+
+function formatNativeAdStatus(state: NativeAdDebugState): string {
+  if (state.unavailableReason) {
+    return "Unavailable";
+  }
+
+  if (state.isReady) {
+    return "Ready";
+  }
+
+  if (state.isLoading) {
+    return "Loading";
+  }
+
+  if (state.lastError) {
+    return "Error";
+  }
+
+  return "Idle";
+}
+
+function formatAdDuration(milliseconds: number): string {
+  if (milliseconds < 60_000) {
+    return `${Math.ceil(milliseconds / 1000)}s`;
+  }
+
+  const minutes = Math.ceil(milliseconds / 60_000);
+  if (minutes < 60) {
+    return `${minutes}m`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
+}
+
+function formatAdQueuedAge(queuedAt: number, currentTime: number): string {
+  const elapsed = Math.max(0, currentTime - queuedAt);
+  return `${formatAdDuration(elapsed)} ago`;
 }
 
 function formatSleepMode(mode: number): string {

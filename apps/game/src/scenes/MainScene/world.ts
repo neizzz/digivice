@@ -135,6 +135,7 @@ import {
   getManualSkyVisualState,
   getTimeOfDayLabel,
   hasSunTimesDateRolledOver,
+  projectSunTimesForDate,
   type ProjectedUpcomingSunTimes,
   resolveAutoTimeOfDayState,
   type SunLocationSource,
@@ -174,6 +175,21 @@ export type SavedEntity = {
   components: EntityComponents;
 };
 
+export type MainSceneAdMenu = "feed" | "clean" | "hospital" | "mini_game";
+
+export type MainSceneAdPendingReservation = {
+  menu: MainSceneAdMenu;
+  queued_at: number;
+  cooldown_ms: number;
+  threshold: number;
+  deep_night: boolean;
+};
+
+export type MainSceneAdState = {
+  menu_use_count: number;
+  pending?: MainSceneAdPendingReservation;
+};
+
 export type WorldMetadata = {
   name: string;
   monster_name?: string;
@@ -185,6 +201,7 @@ export type WorldMetadata = {
     is_first_load: boolean;
     use_local_time: boolean;
     cached_sun_times?: SunTimesPayload;
+    main_scene_ad?: MainSceneAdState;
   };
   // // 캐릭터별 위치 추적 (캐릭터 ID를 키로 사용)
   // character_positions?: Record<
@@ -220,8 +237,18 @@ export type MainSceneWorldData = {
   entities: SavedEntity[];
 };
 
+type MainSceneAppState = NonNullable<WorldMetadata["app_state"]>;
+
 const WORLD_DATA_STORAGE_KEY = "MainSceneWorldData";
 const DEFAULT_USE_LOCAL_TIME = import.meta.env.DEV;
+const MAIN_SCENE_AD_NORMAL_THRESHOLD = 5;
+const MAIN_SCENE_AD_DEEP_NIGHT_THRESHOLD = 10;
+const MAIN_SCENE_AD_NORMAL_COOLDOWN_MS = 5 * 60 * 1000;
+const MAIN_SCENE_AD_DEEP_NIGHT_COOLDOWN_MS = 60 * 60 * 1000;
+const MAIN_SCENE_AD_POST_ACTION_DELAY_MS = 200;
+const MAIN_SCENE_AD_FEED_FALLBACK_AFTER_LAND_MS = 3000;
+const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
 
 const COMMON_SPRITESHEET_ASSETS: LoadSpritesheetOptions[] = [
   {
@@ -361,6 +388,9 @@ export class MainSceneWorld implements IWorld, Scene {
   private _sunTimesRefreshPromise: Promise<void> | null = null;
   private _hasLocationPermission = false;
   private _sunLocationSource: SunLocationSource | null = null;
+  private _pendingFeedAdFoodEid: number | null = null;
+  private _feedAdFallbackTimerId: number | null = null;
+  private _mainSceneAdTimerIds = new Set<number>();
 
   // 실시간 모드용 시스템 파이프라인 (렌더링 포함)
   private _pipedSystems = pipe(
@@ -537,6 +567,382 @@ export class MainSceneWorld implements IWorld, Scene {
 
   public stopRecoveryVibration(): void {
     this._stopRecoveryVibration?.();
+  }
+
+  private _ensureAppState(): MainSceneAppState | null {
+    if (!this._persistentData) {
+      return null;
+    }
+
+    const currentAppState = this._persistentData.world_metadata.app_state;
+    if (currentAppState) {
+      return currentAppState;
+    }
+
+    const appState: MainSceneAppState = {
+      last_active_time: Date.now(),
+      is_first_load: false,
+      use_local_time: true,
+    };
+
+    this._persistentData.world_metadata.app_state = appState;
+    return appState;
+  }
+
+  private _getMainSceneAdState(): MainSceneAdState | null {
+    const appState = this._ensureAppState();
+    if (!appState) {
+      return null;
+    }
+
+    if (!this._isValidMainSceneAdState(appState.main_scene_ad)) {
+      appState.main_scene_ad = {
+        menu_use_count: 0,
+      };
+    }
+
+    return appState.main_scene_ad;
+  }
+
+  private _isValidMainSceneAdState(
+    value: MainSceneAdState | undefined,
+  ): value is MainSceneAdState {
+    if (
+      !value ||
+      typeof value.menu_use_count !== "number" ||
+      !Number.isFinite(value.menu_use_count) ||
+      value.menu_use_count < 0
+    ) {
+      return false;
+    }
+
+    if (
+      value.pending &&
+      !this._isValidMainSceneAdPendingReservation(value.pending)
+    ) {
+      value.pending = undefined;
+    }
+
+    value.menu_use_count = Math.floor(value.menu_use_count);
+    return true;
+  }
+
+  private _isValidMainSceneAdPendingReservation(
+    value: MainSceneAdPendingReservation | undefined,
+  ): value is MainSceneAdPendingReservation {
+    return (
+      !!value &&
+      this._isMainSceneAdMenu(value.menu) &&
+      typeof value.queued_at === "number" &&
+      Number.isFinite(value.queued_at) &&
+      value.queued_at > 0 &&
+      typeof value.cooldown_ms === "number" &&
+      Number.isFinite(value.cooldown_ms) &&
+      value.cooldown_ms > 0 &&
+      typeof value.threshold === "number" &&
+      Number.isFinite(value.threshold) &&
+      value.threshold > 0 &&
+      typeof value.deep_night === "boolean"
+    );
+  }
+
+  private _isMainSceneAdMenu(value: unknown): value is MainSceneAdMenu {
+    return (
+      value === "feed" ||
+      value === "clean" ||
+      value === "hospital" ||
+      value === "mini_game"
+    );
+  }
+
+  private _recordMainSceneMenuUse(
+    menu: MainSceneAdMenu,
+  ): MainSceneAdPendingReservation | null {
+    const adState = this._getMainSceneAdState();
+    if (!adState) {
+      return null;
+    }
+
+    adState.menu_use_count = Math.max(
+      0,
+      Math.floor(adState.menu_use_count),
+    ) + 1;
+
+    let createdReservation: MainSceneAdPendingReservation | null = null;
+    if (!adState.pending) {
+      const config = this._getMainSceneAdConfig();
+      if (adState.menu_use_count >= config.threshold) {
+        createdReservation = {
+          menu,
+          queued_at: this.currentTime,
+          cooldown_ms: config.cooldownMs,
+          threshold: config.threshold,
+          deep_night: config.deepNight,
+        };
+        adState.pending = createdReservation;
+
+        console.log("[MainSceneWorld] MainScene menu ad reserved", {
+          menu,
+          menuUseCount: adState.menu_use_count,
+          ...config,
+        });
+      }
+    }
+
+    this._persistMainSceneAdState();
+    return createdReservation;
+  }
+
+  private _getMainSceneAdConfig(): {
+    threshold: number;
+    cooldownMs: number;
+    deepNight: boolean;
+  } {
+    const deepNight = this._isMainSceneAdDeepNight();
+
+    return deepNight
+      ? {
+          threshold: MAIN_SCENE_AD_DEEP_NIGHT_THRESHOLD,
+          cooldownMs: MAIN_SCENE_AD_DEEP_NIGHT_COOLDOWN_MS,
+          deepNight,
+        }
+      : {
+          threshold: MAIN_SCENE_AD_NORMAL_THRESHOLD,
+          cooldownMs: MAIN_SCENE_AD_NORMAL_COOLDOWN_MS,
+          deepNight,
+        };
+  }
+
+  private _isMainSceneAdDeepNight(
+    referenceTime: number = this.currentTime,
+  ): boolean {
+    if (this._timeOfDayMode !== TimeOfDayMode.Auto || !this._sunTimes) {
+      return false;
+    }
+
+    try {
+      const now = new Date(referenceTime);
+      const previousDay = projectSunTimesForDate(
+        new Date(referenceTime - DAY_MS),
+        this._sunTimes,
+      );
+      const currentDay = projectSunTimesForDate(now, this._sunTimes);
+      const nextDay = projectSunTimesForDate(
+        new Date(referenceTime + DAY_MS),
+        this._sunTimes,
+      );
+
+      const intervals = [
+        {
+          start: previousDay.sunsetAt.getTime() + 4 * HOUR_MS,
+          end: currentDay.sunriseAt.getTime() - HOUR_MS,
+        },
+        {
+          start: currentDay.sunsetAt.getTime() + 4 * HOUR_MS,
+          end: nextDay.sunriseAt.getTime() - HOUR_MS,
+        },
+      ];
+
+      return intervals.some(({ start, end }) => {
+        return (
+          Number.isFinite(start) &&
+          Number.isFinite(end) &&
+          end > start &&
+          referenceTime >= start &&
+          referenceTime < end
+        );
+      });
+    } catch (error) {
+      console.warn("[MainSceneWorld] Failed to resolve deep-night ad window", {
+        error,
+      });
+      return false;
+    }
+  }
+
+  private _persistMainSceneAdState(): void {
+    if (!this._persistentData || this._isPersistenceDisabled) {
+      return;
+    }
+
+    void this.setData(this._persistentData);
+  }
+
+  private _schedulePendingMainSceneAdForMenu(
+    menu: MainSceneAdMenu,
+    delayMs: number = MAIN_SCENE_AD_POST_ACTION_DELAY_MS,
+  ): void {
+    const pending = this._getMainSceneAdState()?.pending;
+    if (!pending || pending.menu !== menu) {
+      return;
+    }
+
+    this._setMainSceneAdTimer(() => {
+      void this._requestPendingMainSceneAd(menu);
+    }, delayMs);
+  }
+
+  private async _requestPendingMainSceneAd(
+    expectedMenu?: MainSceneAdMenu,
+  ): Promise<void> {
+    const adState = this._getMainSceneAdState();
+    const pending = adState?.pending;
+
+    if (!adState || !pending) {
+      return;
+    }
+
+    if (expectedMenu && pending.menu !== expectedMenu) {
+      return;
+    }
+
+    if (!this._canRequestMainSceneAdNow()) {
+      console.log("[MainSceneWorld] MainScene menu ad request deferred", {
+        menu: pending.menu,
+      });
+      return;
+    }
+
+    const requestMainSceneMenuAd =
+      typeof window !== "undefined"
+        ? window.digiviceAdBridge?.requestMainSceneMenuAd
+        : undefined;
+
+    if (!requestMainSceneMenuAd) {
+      console.log("[MainSceneWorld] MainScene ad bridge is not available");
+      return;
+    }
+
+    try {
+      const didShow = await requestMainSceneMenuAd({
+        menu: pending.menu,
+        cooldownMs: pending.cooldown_ms,
+        threshold: pending.threshold,
+        queuedAt: pending.queued_at,
+        deepNight: pending.deep_night,
+        menuUseCount: adState.menu_use_count,
+      });
+
+      if (didShow) {
+        adState.menu_use_count = 0;
+        adState.pending = undefined;
+        this._pendingFeedAdFoodEid = null;
+        this._clearFeedAdFallbackTimer();
+        console.log("[MainSceneWorld] MainScene menu ad shown; state reset");
+      } else {
+        console.log("[MainSceneWorld] MainScene menu ad was not shown", {
+          menu: pending.menu,
+        });
+      }
+    } catch (error) {
+      console.warn("[MainSceneWorld] MainScene menu ad request failed", {
+        menu: pending.menu,
+        error,
+      });
+    } finally {
+      this._persistMainSceneAdState();
+    }
+  }
+
+  private _canRequestMainSceneAdNow(): boolean {
+    if (this._isPaused || this._isRunningReentrySimulation || this.isSimulationMode) {
+      return false;
+    }
+
+    if (typeof document !== "undefined" && document.hidden) {
+      return false;
+    }
+
+    return true;
+  }
+
+  private _setMainSceneAdTimer(callback: () => void, delayMs: number): number {
+    if (typeof window === "undefined") {
+      callback();
+      return 0;
+    }
+
+    let timerId = 0;
+    timerId = window.setTimeout(() => {
+      this._mainSceneAdTimerIds.delete(timerId);
+      callback();
+    }, Math.max(0, delayMs));
+    this._mainSceneAdTimerIds.add(timerId);
+    return timerId;
+  }
+
+  private _clearMainSceneAdTimers(): void {
+    if (typeof window === "undefined") {
+      this._mainSceneAdTimerIds.clear();
+      this._feedAdFallbackTimerId = null;
+      return;
+    }
+
+    this._mainSceneAdTimerIds.forEach((timerId) => {
+      window.clearTimeout(timerId);
+    });
+    this._mainSceneAdTimerIds.clear();
+    this._feedAdFallbackTimerId = null;
+  }
+
+  private _clearFeedAdFallbackTimer(): void {
+    if (this._feedAdFallbackTimerId === null || typeof window === "undefined") {
+      this._feedAdFallbackTimerId = null;
+      return;
+    }
+
+    window.clearTimeout(this._feedAdFallbackTimerId);
+    this._mainSceneAdTimerIds.delete(this._feedAdFallbackTimerId);
+    this._feedAdFallbackTimerId = null;
+  }
+
+  private _trackPendingFeedAdFood(foodEid: number): void {
+    const pending = this._getMainSceneAdState()?.pending;
+    if (!pending || pending.menu !== "feed") {
+      return;
+    }
+
+    this._pendingFeedAdFoodEid = foodEid;
+    this._clearFeedAdFallbackTimer();
+  }
+
+  public handleThrownFoodLanded(foodEid: number): void {
+    if (this.isSimulationMode || this._pendingFeedAdFoodEid !== foodEid) {
+      return;
+    }
+
+    this._clearFeedAdFallbackTimer();
+    this._feedAdFallbackTimerId = this._setMainSceneAdTimer(() => {
+      this._feedAdFallbackTimerId = null;
+      this._schedulePendingMainSceneAdForMenu(
+        "feed",
+        MAIN_SCENE_AD_POST_ACTION_DELAY_MS,
+      );
+    }, MAIN_SCENE_AD_FEED_FALLBACK_AFTER_LAND_MS);
+  }
+
+  public handleFoodConsumedForAd(foodEid: number): void {
+    if (this.isSimulationMode || this._pendingFeedAdFoodEid !== foodEid) {
+      return;
+    }
+
+    this._pendingFeedAdFoodEid = null;
+    this._clearFeedAdFallbackTimer();
+    this._schedulePendingMainSceneAdForMenu(
+      "feed",
+      MAIN_SCENE_AD_POST_ACTION_DELAY_MS,
+    );
+  }
+
+  public handleHospitalRecoveryAnimationComplete(_characterEid: number): void {
+    if (this.isSimulationMode) {
+      return;
+    }
+
+    this._schedulePendingMainSceneAdForMenu(
+      "hospital",
+      MAIN_SCENE_AD_POST_ACTION_DELAY_MS,
+    );
   }
 
   /**
@@ -785,23 +1191,34 @@ export class MainSceneWorld implements IWorld, Scene {
               return;
             }
 
+            this._recordMainSceneMenuUse("mini_game");
             void this._startMiniGame();
           },
           onFeedSelect: () => {
             console.log("[MainSceneWorld] Feed selected");
-            this._throwFood();
+            const foodEid = this._throwFood();
+            if (foodEid !== null) {
+              this._recordMainSceneMenuUse("feed");
+              this._trackPendingFeedAdFood(foodEid);
+            }
           },
           onDrugSelect: () => {
             console.log("[MainSceneWorld] Drug selected");
-            this._handleHospitalSelection();
+            if (this._handleHospitalSelection()) {
+              this._recordMainSceneMenuUse("hospital");
+            }
           },
           onCleanSelect: () => {
             console.log("[MainSceneWorld] Clean selected");
-            this._enterCleaningMode();
+            if (this._enterCleaningMode()) {
+              this._recordMainSceneMenuUse("clean");
+            }
           },
           onHospitalSelect: () => {
             console.log("[MainSceneWorld] Hospital selected");
-            this._handleHospitalSelection();
+            if (this._handleHospitalSelection()) {
+              this._recordMainSceneMenuUse("hospital");
+            }
           },
           onCancel: () => {
             console.log("[MainSceneWorld] Menu cancelled");
@@ -1081,6 +1498,7 @@ export class MainSceneWorld implements IWorld, Scene {
 
     // 이벤트 핸들러 정리
     this._cleanupVisibilityChangeHandler();
+    this._clearMainSceneAdTimers();
 
     // 수면 효과 정리
     if (this._stage) {
@@ -1145,6 +1563,7 @@ export class MainSceneWorld implements IWorld, Scene {
 
     try {
       this._cleanupVisibilityChangeHandler();
+      this._clearMainSceneAdTimers();
 
       // Scene 종료 처리 (아직 호출되지 않았다면)
       if (!this._isPaused && !this._isPersistenceDisabled) {
@@ -1252,6 +1671,9 @@ export class MainSceneWorld implements IWorld, Scene {
           last_active_time: Date.now(),
           is_first_load: false,
           use_local_time: initialGameData?.useLocalTime ?? DEFAULT_USE_LOCAL_TIME,
+          main_scene_ad: {
+            menu_use_count: 0,
+          },
         },
       },
       entities: [this._createDefaultCharacterEntity()],
@@ -1447,6 +1869,9 @@ export class MainSceneWorld implements IWorld, Scene {
             last_active_time: Date.now(),
             is_first_load: false,
             use_local_time: true,
+            main_scene_ad: {
+              menu_use_count: 0,
+            },
           },
         };
       }
@@ -1456,11 +1881,20 @@ export class MainSceneWorld implements IWorld, Scene {
           last_active_time: Date.now(),
           is_first_load: false,
           use_local_time: true,
+          main_scene_ad: {
+            menu_use_count: 0,
+          },
         };
       } else if (
         typeof data.world_metadata.app_state.use_local_time !== "boolean"
       ) {
         data.world_metadata.app_state.use_local_time = true;
+      }
+
+      if (!data.world_metadata.app_state.main_scene_ad) {
+        data.world_metadata.app_state.main_scene_ad = {
+          menu_use_count: 0,
+        };
       }
 
       if (!data.entities) {
@@ -1829,6 +2263,9 @@ export class MainSceneWorld implements IWorld, Scene {
         last_active_time: 0,
         is_first_load: false,
         use_local_time: this._isLocalTimeEnabled(),
+        main_scene_ad: {
+          menu_use_count: 0,
+        },
       };
     }
 
@@ -1864,6 +2301,9 @@ export class MainSceneWorld implements IWorld, Scene {
         last_active_time: 0,
         is_first_load: false,
         use_local_time: enabled,
+        main_scene_ad: {
+          menu_use_count: 0,
+        },
       };
       return;
     }
@@ -2001,7 +2441,7 @@ export class MainSceneWorld implements IWorld, Scene {
   /**
    * 음식을 던지는 메서드
    */
-  private _throwFood(): void {
+  private _throwFood(): number | null {
     const boundary = this._positionBoundary;
 
     // 초기 위치 - 왼쪽 또는 오른쪽 구석에서 시작
@@ -2018,7 +2458,7 @@ export class MainSceneWorld implements IWorld, Scene {
     };
 
     // 음식 엔티티 생성 (64가지 음식 중 랜덤 선택)
-    createThrowingFoodEntity(this, {
+    const foodEid = createThrowingFoodEntity(this, {
       initialPosition,
       finalPosition,
     });
@@ -2033,6 +2473,8 @@ export class MainSceneWorld implements IWorld, Scene {
     console.log(
       `[MainSceneWorld] Position boundary: x=${boundary.x}, y=${boundary.y}, w=${boundary.width}, h=${boundary.height}`,
     );
+
+    return foodEid;
   }
 
   /**
@@ -2048,17 +2490,51 @@ export class MainSceneWorld implements IWorld, Scene {
     };
   }
 
+  public getMainSceneAdDebugState(): {
+    menuUseCount: number;
+    threshold: number;
+    cooldownMs: number;
+    deepNight: boolean;
+    pending: {
+      menu: MainSceneAdMenu;
+      queuedAt: number;
+      cooldownMs: number;
+      threshold: number;
+      deepNight: boolean;
+    } | null;
+  } {
+    const adState = this._getMainSceneAdState();
+    const currentConfig = this._getMainSceneAdConfig();
+    const pending = adState?.pending;
+
+    return {
+      menuUseCount: adState?.menu_use_count ?? 0,
+      threshold: pending?.threshold ?? currentConfig.threshold,
+      cooldownMs: pending?.cooldown_ms ?? currentConfig.cooldownMs,
+      deepNight: pending?.deep_night ?? currentConfig.deepNight,
+      pending: pending
+        ? {
+            menu: pending.menu,
+            queuedAt: pending.queued_at,
+            cooldownMs: pending.cooldown_ms,
+            threshold: pending.threshold,
+            deepNight: pending.deep_night,
+          }
+        : null,
+    };
+  }
+
   /**
    * 병원 메뉴 선택 처리 - sick 상태일 때만 회복 주사기 연출 시작
    */
-  private _handleHospitalSelection(): void {
+  private _handleHospitalSelection(): boolean {
     const characterEid = this._findMainCharacterEntity();
 
     if (characterEid === -1) {
       console.warn(
         "[MainSceneWorld] No character entity found for hospital recovery",
       );
-      return;
+      return false;
     }
 
     if (
@@ -2068,7 +2544,7 @@ export class MainSceneWorld implements IWorld, Scene {
       console.log(
         `[MainSceneWorld] Recovery animation already active for character ${characterEid}`,
       );
-      return;
+      return false;
     }
 
     const isSick = this._isCharacterSick(characterEid);
@@ -2086,10 +2562,13 @@ export class MainSceneWorld implements IWorld, Scene {
     console.log(
       `[MainSceneWorld] Started hospital recovery animation for character ${characterEid} (pendingCure=${isSick})`,
     );
+    return true;
   }
 
   private _handleDrugSelection(): void {
-    this._handleHospitalSelection();
+    if (this._handleHospitalSelection()) {
+      this._recordMainSceneMenuUse("hospital");
+    }
   }
 
   private _isCharacterSick(characterEid: number): boolean {
@@ -2195,12 +2674,12 @@ export class MainSceneWorld implements IWorld, Scene {
   /**
    * 청소 모드 진입
    */
-  private _enterCleaningMode(): void {
+  private _enterCleaningMode(): boolean {
     console.log("[MainSceneWorld] Entering cleaning mode");
 
     // 이미 청소 모드라면 무시
     if (this._isCleaningMode) {
-      return;
+      return false;
     }
 
     const initialCleaningSliderValue = 0.5;
@@ -2214,6 +2693,7 @@ export class MainSceneWorld implements IWorld, Scene {
 
     // 컨트롤 버튼을 청소 모드 세트로 변경
     this._updateControlButtonsForCleaningMode(true);
+    return true;
   }
 
   /**
@@ -2242,7 +2722,7 @@ export class MainSceneWorld implements IWorld, Scene {
       console.log(
         "[MainSceneWorld] All cleaning completed, exiting cleaning mode",
       );
-      this.exitCleaningMode();
+      this._exitCleaningMode({ completed: true });
     }
   }
 
@@ -2252,6 +2732,7 @@ export class MainSceneWorld implements IWorld, Scene {
   private _exitCleaningMode(
     options: {
       restoreFocusedTargetProgress?: boolean;
+      completed?: boolean;
     } = {},
   ): void {
     console.log("[MainSceneWorld] Exiting cleaning mode");
@@ -2277,6 +2758,13 @@ export class MainSceneWorld implements IWorld, Scene {
     // 현재 메뉴의 포커스 상태에 따라 컨트롤 버튼 복원
     const menuHasFocus = this._gameMenu?.hasFocus() ?? false;
     this._updateControlButtonsForMenuState(menuHasFocus);
+
+    if (options.completed) {
+      this._schedulePendingMainSceneAdForMenu(
+        "clean",
+        MAIN_SCENE_AD_POST_ACTION_DELAY_MS,
+      );
+    }
   }
 
   /**
@@ -2703,6 +3191,9 @@ export class MainSceneWorld implements IWorld, Scene {
           last_active_time: 0,
           is_first_load: false,
           use_local_time: this._isLocalTimeEnabled(),
+          main_scene_ad: {
+            menu_use_count: 0,
+          },
         };
       }
 

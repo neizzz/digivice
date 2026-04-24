@@ -305,6 +305,7 @@ function completeEating(
   }
 
   // 음식 엔티티 완전 삭제
+  world.handleFoodConsumedForAd(foodEid);
   removeEntity(world, foodEid);
   console.log(`[FoodEatingSystem] Removed food entity ${foodEid}`);
 

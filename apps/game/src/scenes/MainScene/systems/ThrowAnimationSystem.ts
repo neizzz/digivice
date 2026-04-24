@@ -115,9 +115,10 @@ export function throwAnimationSystem(params: {
 
       // ThrowAnimationComp 제거
       removeComponent(world, ThrowAnimationComp, eid);
+      world.handleThrownFoodLanded(eid);
 
       console.log(
-        `[ThrowAnimationSystem] Food ${eid} completed throw animation and landed at (${finalX}, ${finalY})`
+        `[ThrowAnimationSystem] Food ${eid} completed throw animation and landed at (${finalX}, ${finalY})`,
       );
     }
   }

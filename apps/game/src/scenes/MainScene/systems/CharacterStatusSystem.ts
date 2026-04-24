@@ -28,13 +28,6 @@ import {
   getUrgentDeathDelayMsByCharacterKey,
 } from "../config";
 
-// 전역 이벤트 핸들러 선언
-declare global {
-  interface Window {
-    onUrgentRecovery?: () => void;
-  }
-}
-
 // 일시적인 상태 지속 시간 (3초)
 const TEMPORARY_STATUS_DURATION = 3000;
 
@@ -172,18 +165,6 @@ function updateStaminaBasedStatus(
         console.log(
           `[CharacterStatusSystem] Character ${eid} recovered from URGENT state (stamina: ${stamina})`,
         );
-
-        // 웹앱으로 이벤트 전달
-        if (typeof window !== "undefined" && window.onUrgentRecovery) {
-          try {
-            window.onUrgentRecovery();
-          } catch (error) {
-            console.error(
-              "[CharacterStatusSystem] Error calling onUrgentRecovery:",
-              error,
-            );
-          }
-        }
       }
     }
 
