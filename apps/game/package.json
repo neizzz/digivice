@@ -6,6 +6,9 @@
   "exports": {
     ".": {
       "import": "./src/index.ts"
+    },
+    "./debugEvents": {
+      "import": "./src/debugEvents.ts"
     }
   },
   "dependencies": {

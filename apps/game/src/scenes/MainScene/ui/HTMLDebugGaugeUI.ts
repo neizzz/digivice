@@ -19,6 +19,10 @@ import { TimeOfDay } from "../timeOfDay";
 
 const characterQuery = defineQuery([ObjectComp, CharacterStatusComp]);
 
+type HTMLDebugGaugeUIOptions = {
+  initiallyVisible?: boolean;
+};
+
 export class HTMLDebugGaugeUI {
   private _container: HTMLDivElement;
   private _primaryColumn!: HTMLDivElement;
@@ -33,9 +37,15 @@ export class HTMLDebugGaugeUI {
   private _fatigueText!: HTMLSpanElement;
   private _sleepCheckText!: HTMLSpanElement;
   private _currentCharacterEid: number = -1;
+  private _isVisible: boolean;
 
-  constructor(world: MainSceneWorld, parentElement: HTMLElement) {
+  constructor(
+    world: MainSceneWorld,
+    parentElement: HTMLElement,
+    options: HTMLDebugGaugeUIOptions = {},
+  ) {
     this._world = world;
+    this._isVisible = options.initiallyVisible ?? true;
     this._container = this._createContainer();
     this._setupUI();
     this._findFirstCharacter();
@@ -57,9 +67,10 @@ export class HTMLDebugGaugeUI {
       color: white;
       font-size: 12px;
       min-width: 280px;
-      display: flex;
+      display: ${this._isVisible ? "flex" : "none"};
       align-items: flex-start;
       gap: 16px;
+      padding-top: 28px;
     `;
 
     if (!document.querySelector("#debug-gauge-ui-blink-style")) {
@@ -78,6 +89,7 @@ export class HTMLDebugGaugeUI {
   }
 
   private _setupUI(): void {
+    const closeButton = this._createCloseButton();
     this._primaryColumn = this._createColumn();
     this._sleepColumn = this._createColumn();
 
@@ -136,8 +148,38 @@ export class HTMLDebugGaugeUI {
     this._sleepColumn.appendChild(fatigueDiv);
     this._sleepColumn.appendChild(sleepCheckDiv);
 
+    this._container.appendChild(closeButton);
     this._container.appendChild(this._primaryColumn);
     this._container.appendChild(this._sleepColumn);
+  }
+
+  private _createCloseButton(): HTMLButtonElement {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = "×";
+    button.setAttribute("aria-label", "Close debug gauge UI");
+    button.style.cssText = `
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      width: 22px;
+      height: 22px;
+      padding: 0;
+      background: rgba(80, 80, 80, 0.85);
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-size: 16px;
+      font-weight: bold;
+      line-height: 1;
+      cursor: pointer;
+    `;
+
+    button.addEventListener("click", () => {
+      this.hide();
+    });
+
+    return button;
   }
 
   private _findFirstCharacter(): void {
@@ -393,11 +435,13 @@ export class HTMLDebugGaugeUI {
   }
 
   public show(): void {
-    this._container.style.display = "block";
+    this._container.style.display = "flex";
+    this._isVisible = true;
   }
 
   public hide(): void {
     this._container.style.display = "none";
+    this._isVisible = false;
   }
 
   public destroy(): void {

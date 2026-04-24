@@ -8,6 +8,7 @@ import {
 } from "bitecs";
 import * as PIXI from "pixi.js";
 import "@pixi/gif"; // GIF 지원 추가
+import { SHOW_DEBUG_GAUGE_EVENT } from "../../debugEvents";
 import {
   AngleComponent,
   Boundary,
@@ -311,6 +312,7 @@ export class MainSceneWorld implements IWorld, Scene {
   private _debugToggleButton?: HTMLDebugToggleButton;
   private _debugGameConstantsUI?: HTMLDebugGameConstantsUI;
   private _debugGaugeUI?: HTMLDebugGaugeUI;
+  private _isDebugGaugeEventListenerRegistered = false;
   private _gameMenu?: GameMenu;
   private _parentElement?: HTMLElement;
   private _debugParentElement?: HTMLElement;
@@ -340,6 +342,9 @@ export class MainSceneWorld implements IWorld, Scene {
   private _statusSystemsEnabled = true; // 상태 관리 시스템들 활성화 여부
   private _sleepDebugEffectEnabled = true;
   private _randomMovementDebugEnabled = false;
+  private readonly _handleShowDebugGauge = (): void => {
+    this._debugGaugeUI?.show();
+  };
   private _pendingRecoveryCureEids = new Set<number>();
   private _isPersistenceDisabled = false;
   private _createInitialGameData?: () => Promise<{
@@ -807,12 +812,24 @@ export class MainSceneWorld implements IWorld, Scene {
           },
         });
 
-        // 디버그 UI (개발 환경에서만)
-        if (import.meta.env.DEV && this._debugParentElement) {
+        // 디버그 Gauge UI는 dev 또는 native debug build에서 노출 가능
+        if (
+          (import.meta.env.DEV ||
+            import.meta.env.NATIVE_FEATURE_DEBUG_MODE === "true") &&
+          this._debugParentElement
+        ) {
           this._debugGaugeUI = new HTMLDebugGaugeUI(
             this,
             this._debugParentElement,
+            {
+              initiallyVisible: import.meta.env.DEV,
+            },
           );
+          this._addDebugGaugeEventListener();
+        }
+
+        // 상세 디버그 UI (개발 환경에서만)
+        if (import.meta.env.DEV && this._debugParentElement) {
           this._debugGameConstantsUI = new HTMLDebugGameConstantsUI(
             this._debugParentElement,
           );
@@ -837,6 +854,36 @@ export class MainSceneWorld implements IWorld, Scene {
     } finally {
       console.groupEnd();
     }
+  }
+
+  private _addDebugGaugeEventListener(): void {
+    if (
+      this._isDebugGaugeEventListenerRegistered ||
+      typeof window === "undefined"
+    ) {
+      return;
+    }
+
+    window.addEventListener(
+      SHOW_DEBUG_GAUGE_EVENT,
+      this._handleShowDebugGauge,
+    );
+    this._isDebugGaugeEventListenerRegistered = true;
+  }
+
+  private _removeDebugGaugeEventListener(): void {
+    if (
+      !this._isDebugGaugeEventListenerRegistered ||
+      typeof window === "undefined"
+    ) {
+      return;
+    }
+
+    window.removeEventListener(
+      SHOW_DEBUG_GAUGE_EVENT,
+      this._handleShowDebugGauge,
+    );
+    this._isDebugGaugeEventListenerRegistered = false;
   }
 
   /**
@@ -1109,6 +1156,8 @@ export class MainSceneWorld implements IWorld, Scene {
         this._gameMenu.destroy();
         this._gameMenu = undefined;
       }
+
+      this._removeDebugGaugeEventListener();
 
       // 디버그 게이지 UI 정리
       if (this._debugGaugeUI) {

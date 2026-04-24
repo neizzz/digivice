@@ -30,6 +30,7 @@ declare global {
 
 	interface ImportMetaEnv {
 		readonly DEV: boolean;
+		readonly NATIVE_FEATURE_DEBUG_MODE?: string;
 	}
 	interface ImportMeta {
 		readonly env: ImportMetaEnv;
