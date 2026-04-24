@@ -124,8 +124,15 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
       );
     }
 
-    return WillPopScope(
-      onWillPop: _handleWillPop,
+    return PopScope<void>(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) {
+          return;
+        }
+
+        unawaited(_handleBackNavigation());
+      },
       child: SafeArea(
         child: Padding(
           padding: keyboardInset > 0
@@ -137,15 +144,15 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
     );
   }
 
-  Future<bool> _handleWillPop() async {
+  Future<void> _handleBackNavigation() async {
     final bool canGoBack = await _controller.canGoBack();
 
     if (canGoBack) {
       await _controller.goBack();
-      return false;
+      return;
     }
 
-    return true;
+    await SystemNavigator.pop();
   }
 
   Future<void> _initializeWebView() async {

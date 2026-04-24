@@ -78,7 +78,7 @@ class PipController {
     try {
       /// TODO:
     } catch (e) {
-      print('PIP 컨트롤러 정리 중 오류: $e');
+      log('PIP 컨트롤러 정리 중 오류: $e');
     }
   }
 }
