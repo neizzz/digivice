@@ -28886,7 +28886,7 @@ function renderCommonAttributes(eid, sprite, world) {
     const freshness = FreshnessComp.freshness[eid];
     switch (freshness) {
       case Freshness.STALE:
-        sprite.tint = 6316128;
+        sprite.tint = 9397206;
         break;
       default:
         sprite.tint = 16777215;
@@ -31504,8 +31504,21 @@ function restoreFreeRoamingState(world, characterEid, idleDelayMs) {
   );
 }
 const freshFoodQuery = defineQuery([ObjectComp, FreshnessComp, PositionComp]);
+const positionedObjectQuery = defineQuery([ObjectComp, PositionComp]);
+const positionedObjectExitQuery = exitQuery(positionedObjectQuery);
 const sparkleQuery = defineQuery([ObjectComp, SparkleEffectComp]);
 const entitySparkleContainers = /* @__PURE__ */ new Map();
+const STALE_FOOD_SMELL_LINE_COUNT = 3;
+const STALE_FOOD_SMELL_COLOR = 12946687;
+const POOB_SMELL_COLOR = 10906159;
+const STALE_FOOD_SMELL_PIXEL_SIZE = 2;
+const STALE_FOOD_SMELL_BLOCK_COUNT = 7;
+const STALE_FOOD_SMELL_BLOCK_GAP = STALE_FOOD_SMELL_PIXEL_SIZE;
+const STALE_FOOD_SMELL_BLOCK_HEIGHT = STALE_FOOD_SMELL_PIXEL_SIZE + 1;
+const STALE_FOOD_SMELL_SPACING = 8;
+const STALE_FOOD_SMELL_Z_INDEX_OFFSET = 24;
+const STALE_FOOD_SMELL_STEP_PATTERN = [-1, -1, 0, 0, 1, 1, 0, 0];
+const entityStaleFoodSmellVisuals = /* @__PURE__ */ new Map();
 const animatingSparkles = /* @__PURE__ */ new Map();
 function drawSparkleGraphic(graphics) {
   graphics.clear();
@@ -31576,8 +31589,128 @@ function sparkleEffectSystem(params) {
   addSparkleToFreshFood(world, currentTime);
   removeSparkleFromNonFreshFood(world);
   updateSparkleEffects(world, currentTime);
+  updateDirtyObjectSmellEffects(world, currentTime);
   updateSparkleAnimations(currentTime);
   return params;
+}
+function updateDirtyObjectSmellEffects(world, currentTime) {
+  const exitedObjects = positionedObjectExitQuery(world);
+  for (let i2 = 0; i2 < exitedObjects.length; i2++) {
+    removeStaleFoodSmellEffect(exitedObjects[i2]);
+  }
+  const objects = positionedObjectQuery(world);
+  for (let i2 = 0; i2 < objects.length; i2++) {
+    const eid = objects[i2];
+    const smellConfig = getSmellConfig(world, eid);
+    if (!smellConfig) {
+      removeStaleFoodSmellEffect(eid);
+      continue;
+    }
+    createOrUpdateStaleFoodSmellEffect(world, eid, currentTime, smellConfig);
+  }
+  entityStaleFoodSmellVisuals.forEach((_visual, eid) => {
+    if (!hasComponent(world, ObjectComp, eid) || !hasComponent(world, PositionComp, eid) || !getSmellConfig(world, eid)) {
+      removeStaleFoodSmellEffect(eid);
+    }
+  });
+}
+function createOrUpdateStaleFoodSmellEffect(world, eid, currentTime, smellConfig) {
+  let visual = entityStaleFoodSmellVisuals.get(eid);
+  if (!visual) {
+    const container = new Container();
+    const graphics = new Graphics();
+    container.eventMode = "none";
+    container.addChild(graphics);
+    world.stage.addChild(container);
+    world.stage.sortableChildren = true;
+    visual = {
+      container,
+      graphics,
+      phaseOffset: Math.random() * Math.PI * 2
+    };
+    entityStaleFoodSmellVisuals.set(eid, visual);
+  }
+  visual.container.position.set(
+    Math.round(PositionComp.x[eid]),
+    Math.round(PositionComp.y[eid] + smellConfig.yOffset)
+  );
+  visual.container.zIndex = smellConfig.zIndex;
+  visual.container.visible = true;
+  drawStaleFoodSmellLines(
+    visual.graphics,
+    currentTime,
+    visual.phaseOffset,
+    smellConfig.color
+  );
+}
+function getSmellConfig(world, eid) {
+  if (ObjectComp.type[eid] === ObjectType.FOOD) {
+    if (!hasComponent(world, FreshnessComp, eid) || FreshnessComp.freshness[eid] !== Freshness.STALE) {
+      return null;
+    }
+    return {
+      color: STALE_FOOD_SMELL_COLOR,
+      yOffset: getStaleFoodSmellYOffset(world, eid),
+      zIndex: getFoodEffectZIndex(world, eid)
+    };
+  }
+  if (ObjectComp.type[eid] === ObjectType.POOB) {
+    return {
+      color: POOB_SMELL_COLOR,
+      yOffset: getStaleFoodSmellYOffset(world, eid),
+      zIndex: getFoodEffectZIndex(world, eid)
+    };
+  }
+  return null;
+}
+function getStaleFoodSmellYOffset(world, eid) {
+  const scale = hasComponent(world, RenderComp, eid) && Number.isFinite(RenderComp.scale[eid]) && RenderComp.scale[eid] > 0 ? RenderComp.scale[eid] : 1;
+  return -(4 * scale + 5);
+}
+function getFoodEffectZIndex(world, eid) {
+  if (!hasComponent(world, RenderComp, eid)) {
+    return Math.floor(PositionComp.y[eid]) + STALE_FOOD_SMELL_Z_INDEX_OFFSET;
+  }
+  const configuredZIndex = RenderComp.zIndex[eid];
+  const foodZIndex = configuredZIndex === void 0 || configuredZIndex === 0 ? Math.floor(PositionComp.y[eid]) : configuredZIndex;
+  return foodZIndex + STALE_FOOD_SMELL_Z_INDEX_OFFSET;
+}
+function drawStaleFoodSmellLines(graphics, currentTime, phaseOffset, color) {
+  graphics.clear();
+  const frameOffsetBase = Math.floor(currentTime / 260 + phaseOffset);
+  const verticalNudge = frameOffsetBase % 2;
+  for (let i2 = 0; i2 < STALE_FOOD_SMELL_LINE_COUNT; i2++) {
+    const normalizedIndex = i2 - (STALE_FOOD_SMELL_LINE_COUNT - 1) / 2;
+    const baseX = normalizedIndex * STALE_FOOD_SMELL_SPACING;
+    const frameOffset = frameOffsetBase % STALE_FOOD_SMELL_STEP_PATTERN.length;
+    for (let block = 0; block < STALE_FOOD_SMELL_BLOCK_COUNT; block++) {
+      const patternIndex = (block + frameOffset) % STALE_FOOD_SMELL_STEP_PATTERN.length;
+      const x2 = baseX + STALE_FOOD_SMELL_STEP_PATTERN[patternIndex] * STALE_FOOD_SMELL_PIXEL_SIZE;
+      const y2 = -(block * STALE_FOOD_SMELL_BLOCK_GAP + verticalNudge);
+      const progress = block / (STALE_FOOD_SMELL_BLOCK_COUNT - 1);
+      const alpha = 0.9 - progress * 0.34;
+      graphics.rect(
+        Math.round(x2 - STALE_FOOD_SMELL_PIXEL_SIZE / 2),
+        Math.round(y2),
+        STALE_FOOD_SMELL_PIXEL_SIZE,
+        STALE_FOOD_SMELL_BLOCK_HEIGHT
+      ).fill({
+        color,
+        alpha
+      });
+    }
+  }
+}
+function removeStaleFoodSmellEffect(eid) {
+  const visual = entityStaleFoodSmellVisuals.get(eid);
+  if (!visual) {
+    return;
+  }
+  if (visual.container.parent) {
+    visual.container.parent.removeChild(visual.container);
+  }
+  visual.container.destroy({ children: true });
+  entityStaleFoodSmellVisuals.delete(eid);
 }
 function addSparkleToFreshFood(world, currentTime) {
   const freshFoods = freshFoodQuery(world);

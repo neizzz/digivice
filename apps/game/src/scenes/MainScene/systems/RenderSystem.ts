@@ -508,7 +508,7 @@ export function renderCommonAttributes(
 
 		switch (freshness) {
 			case Freshness.STALE:
-				sprite.tint = 0x606060; // 회색 (어두운 회색)
+				sprite.tint = 0x8f63d6; // 보라색빛 (상한 음식)
 				break;
 			default:
 				sprite.tint = 0xffffff;
