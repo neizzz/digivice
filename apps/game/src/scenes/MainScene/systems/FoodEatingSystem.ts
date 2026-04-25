@@ -548,20 +548,29 @@ function getEatingPoseTarget(
     characterBounds.leftX - PositionComp.x[characterEid];
   const characterRightOffset =
     characterBounds.rightX - PositionComp.x[characterEid];
-  const approachSideX = getApproachSideX(world, characterEid, foodEid);
-  const targetX =
-    approachSideX <= 0
-      ? foodBounds.leftX +
-        FOOD_CHARACTER_BOUNDARY_OVERLAP_PX -
-        characterRightOffset
-      : foodBounds.rightX -
-        FOOD_CHARACTER_BOUNDARY_OVERLAP_PX -
-        characterLeftOffset;
-
-  return {
-    x: targetX,
-    y: PositionComp.y[foodEid] - EATING_POSE_FOOD_Y_OFFSET_PX,
+  const targetY = PositionComp.y[foodEid] - EATING_POSE_FOOD_Y_OFFSET_PX;
+  const leftTarget = {
+    x:
+      foodBounds.leftX +
+      FOOD_CHARACTER_BOUNDARY_OVERLAP_PX -
+      characterRightOffset,
+    y: targetY,
   };
+  const rightTarget = {
+    x:
+      foodBounds.rightX -
+      FOOD_CHARACTER_BOUNDARY_OVERLAP_PX -
+      characterLeftOffset,
+    y: targetY,
+  };
+
+  return selectClosestEatingPoseTarget(
+    world,
+    characterEid,
+    foodEid,
+    leftTarget,
+    rightTarget,
+  );
 }
 
 function getApproachSideX(
@@ -580,6 +589,38 @@ function getApproachSideX(
   }
 
   return -1;
+}
+
+function selectClosestEatingPoseTarget(
+  world: MainSceneWorld,
+  characterEid: number,
+  foodEid: number,
+  leftTarget: { x: number; y: number },
+  rightTarget: { x: number; y: number },
+): { x: number; y: number } {
+  const leftDistance = getSquaredDistanceFromCharacter(characterEid, leftTarget);
+  const rightDistance = getSquaredDistanceFromCharacter(
+    characterEid,
+    rightTarget,
+  );
+
+  if (Math.abs(leftDistance - rightDistance) > ZERO_DISTANCE_EPSILON) {
+    return leftDistance < rightDistance ? leftTarget : rightTarget;
+  }
+
+  return getApproachSideX(world, characterEid, foodEid) <= 0
+    ? leftTarget
+    : rightTarget;
+}
+
+function getSquaredDistanceFromCharacter(
+  characterEid: number,
+  target: { x: number; y: number },
+): number {
+  const deltaX = target.x - PositionComp.x[characterEid];
+  const deltaY = target.y - PositionComp.y[characterEid];
+
+  return deltaX * deltaX + deltaY * deltaY;
 }
 
 function getFoodWorldBounds(foodEid: number): WorldBounds {
@@ -636,6 +677,17 @@ function setCharacterApproachAngle(
   AngleComp.value[characterEid] = Math.atan2(deltaY, deltaX);
 }
 
+function setCharacterAngleTowardFood(
+  world: MainSceneWorld,
+  characterEid: number,
+  foodEid: number,
+): void {
+  setCharacterApproachAngle(world, characterEid, {
+    x: PositionComp.x[foodEid],
+    y: PositionComp.y[foodEid],
+  });
+}
+
 /**
  * 음식 먹기 시작
  */
@@ -663,6 +715,7 @@ function startEating(
   if (!hasComponent(world, AngleComp, characterEid)) {
     addComponent(world, AngleComp, characterEid);
   }
+  setCharacterAngleTowardFood(world, characterEid, foodEid);
 
   // FoodEatingComp 추가
   if (!hasComponent(world, FoodEatingComp, characterEid)) {
