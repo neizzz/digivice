@@ -240,7 +240,7 @@ export type MainSceneWorldData = {
 type MainSceneAppState = NonNullable<WorldMetadata["app_state"]>;
 
 const WORLD_DATA_STORAGE_KEY = "MainSceneWorldData";
-const DEFAULT_USE_LOCAL_TIME = import.meta.env.DEV;
+const DEFAULT_USE_LOCAL_TIME = true;
 const MAIN_SCENE_AD_NORMAL_THRESHOLD = 5;
 const MAIN_SCENE_AD_DEEP_NIGHT_THRESHOLD = 10;
 const MAIN_SCENE_AD_NORMAL_COOLDOWN_MS = 5 * 60 * 1000;
@@ -1895,9 +1895,7 @@ export class MainSceneWorld implements IWorld, Scene {
             menu_use_count: 0,
           },
         };
-      } else if (
-        typeof data.world_metadata.app_state.use_local_time !== "boolean"
-      ) {
+      } else if (data.world_metadata.app_state.use_local_time !== true) {
         data.world_metadata.app_state.use_local_time = true;
       }
 

@@ -263,20 +263,25 @@ class SunController {
             ),
           );
 
-          final DateTime now = DateTime.now();
-          return _ResolvedLocation(
-            latitude: position.latitude,
-            longitude: position.longitude,
-            timezoneOffsetMinutes: now.timeZoneOffset.inMinutes,
-            timezone: now.timeZoneName,
-            locationSource: 'device',
-            hasLocationPermission: true,
-          );
+          return _createDeviceResolvedLocation(position);
         } catch (e) {
-          log('[SunController] Failed to get device location, using fallback: $e');
+          log('[SunController] Failed to get device location, trying last known location: $e');
         }
       } else {
-        log('[SunController] Location service disabled, using fallback location');
+        log('[SunController] Location service disabled, trying last known location');
+      }
+
+      try {
+        final Position? lastKnownPosition =
+            await Geolocator.getLastKnownPosition();
+        if (lastKnownPosition != null) {
+          log('[SunController] Using last known device location');
+          return _createDeviceResolvedLocation(lastKnownPosition);
+        }
+
+        log('[SunController] Last known device location is unavailable, using fallback location');
+      } catch (e) {
+        log('[SunController] Failed to get last known location, using fallback: $e');
       }
     }
 
@@ -288,6 +293,18 @@ class SunController {
       timezone: fallback.timezone,
       locationSource: 'fallback',
       hasLocationPermission: hasPermission,
+    );
+  }
+
+  _ResolvedLocation _createDeviceResolvedLocation(Position position) {
+    final DateTime now = DateTime.now();
+    return _ResolvedLocation(
+      latitude: position.latitude,
+      longitude: position.longitude,
+      timezoneOffsetMinutes: now.timeZoneOffset.inMinutes,
+      timezone: now.timeZoneName,
+      locationSource: 'device',
+      hasLocationPermission: true,
     );
   }
 

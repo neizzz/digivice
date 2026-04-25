@@ -322,10 +322,7 @@ function sanitizeWorldMetadata(
         typeof metadata?.app_state?.is_first_load === "boolean"
           ? metadata.app_state.is_first_load
           : false,
-      use_local_time:
-        typeof metadata?.app_state?.use_local_time === "boolean"
-          ? metadata.app_state.use_local_time
-          : true,
+      use_local_time: true,
       cached_sun_times: cachedSunTimes,
       main_scene_ad: mainSceneAd,
     },

@@ -36302,7 +36302,7 @@ async function requestNativeLocationPermission() {
 }
 const liveCharacterEntitiesQuery = defineQuery([ObjectComp, CharacterStatusComp]);
 const WORLD_DATA_STORAGE_KEY$1 = "MainSceneWorldData";
-const DEFAULT_USE_LOCAL_TIME$1 = false;
+const DEFAULT_USE_LOCAL_TIME = true;
 const MAIN_SCENE_AD_NORMAL_THRESHOLD = 5;
 const MAIN_SCENE_AD_DEEP_NIGHT_THRESHOLD = 10;
 const MAIN_SCENE_AD_NORMAL_COOLDOWN_MS = 5 * 60 * 1e3;
@@ -37331,7 +37331,7 @@ const _MainSceneWorld = class _MainSceneWorld {
     this._previousCleaningMode = this._isCleaningMode;
   }
   _initializeData(initialGameData) {
-    const useLocalTime = (initialGameData == null ? void 0 : initialGameData.useLocalTime) ?? DEFAULT_USE_LOCAL_TIME$1;
+    const useLocalTime = (initialGameData == null ? void 0 : initialGameData.useLocalTime) ?? DEFAULT_USE_LOCAL_TIME;
     const cachedSunTimes = useLocalTime ? (initialGameData == null ? void 0 : initialGameData.cachedSunTimes) ?? void 0 : void 0;
     return {
       world_metadata: {
@@ -37509,7 +37509,7 @@ const _MainSceneWorld = class _MainSceneWorld {
             menu_use_count: 0
           }
         };
-      } else if (typeof data.world_metadata.app_state.use_local_time !== "boolean") {
+      } else if (data.world_metadata.app_state.use_local_time !== true) {
         data.world_metadata.app_state.use_local_time = true;
       }
       if (!data.world_metadata.app_state.main_scene_ad) {
@@ -45916,13 +45916,9 @@ const PopupLayer = ({
 };
 var reactDomExports = requireReactDom();
 const MIN_NAME_LENGTH = 2;
-const DEFAULT_USE_LOCAL_TIME = false;
 const SetupLayer = ({ onComplete }) => {
   const [name, setName] = reactExports.useState("");
-  const [useLocalTime, setUseLocalTime] = reactExports.useState(DEFAULT_USE_LOCAL_TIME);
-  const [cachedSunTimes, setCachedSunTimes] = reactExports.useState(null);
   const [error, setError] = reactExports.useState(null);
-  const [localTimeError, setLocalTimeError] = reactExports.useState(null);
   const [isRequestingLocationPermission, setIsRequestingLocationPermission] = reactExports.useState(false);
   const trimmedName = name.trim();
   const nameLength = countDisplayCharacters(trimmedName);
@@ -45930,62 +45926,27 @@ const SetupLayer = ({ onComplete }) => {
   const isWithinVisibleWidth = fitsNameLabelWidth(trimmedName);
   const loadSunTimesForLocalTime = reactExports.useCallback(async () => {
     if (typeof window === "undefined" || !window.sunController) {
-      setLocalTimeError(
-        "Local day/night time is only available in the native app."
-      );
       return null;
     }
     setIsRequestingLocationPermission(true);
     try {
-      try {
-        const sunTimes2 = await window.sunController.getSunTimes(false);
-        if (sunTimes2 == null ? void 0 : sunTimes2.hasLocationPermission) {
-          return sunTimes2;
-        }
-      } catch (permissionCheckError) {
-        console.warn(
-          "[SetupLayer] Failed to check location permission state:",
-          permissionCheckError
-        );
-      }
-      const result = await window.sunController.requestLocationPermission();
-      if (!(result == null ? void 0 : result.granted)) {
-        setLocalTimeError(
-          "Location permission is required to enable local day/night time."
-        );
-        return null;
-      }
-      const sunTimes = await window.sunController.getSunTimes(false);
-      if (sunTimes) {
+      const sunTimes = await window.sunController.getSunTimes(true);
+      if (sunTimes == null ? void 0 : sunTimes.hasLocationPermission) {
         return sunTimes;
       }
-      setLocalTimeError("Failed to load local day/night time.");
+      setError("Location permission is required to create your monster.");
       return null;
     } catch (permissionRequestError) {
       console.warn(
         "[SetupLayer] Failed to load local day/night time:",
         permissionRequestError
       );
-      setLocalTimeError("Failed to load local day/night time.");
+      setError("Failed to load local day/night time.");
       return null;
     } finally {
       setIsRequestingLocationPermission(false);
     }
   }, []);
-  const handleUseLocalTimeChange = reactExports.useCallback(
-    async (checked) => {
-      setLocalTimeError(null);
-      if (!checked) {
-        setUseLocalTime(false);
-        setCachedSunTimes(null);
-        return;
-      }
-      const sunTimes = await loadSunTimesForLocalTime();
-      setCachedSunTimes(sunTimes);
-      setUseLocalTime(!!sunTimes);
-    },
-    [loadSunTimesForLocalTime]
-  );
   const handleConfirm = async () => {
     if (isRequestingLocationPermission) {
       setError("Please wait for the location permission request to finish.");
@@ -46009,13 +45970,13 @@ const SetupLayer = ({ onComplete }) => {
       document.activeElement.blur();
     }
     const canLoadNativeSunTimes = typeof window !== "undefined" && !!window.sunController;
-    const sunTimes = useLocalTime && canLoadNativeSunTimes ? cachedSunTimes ?? await loadSunTimesForLocalTime() : cachedSunTimes;
-    if (useLocalTime && canLoadNativeSunTimes && !sunTimes) {
+    const sunTimes = canLoadNativeSunTimes ? await loadSunTimesForLocalTime() : null;
+    if (canLoadNativeSunTimes && !sunTimes) {
       return;
     }
     onComplete({
       name: trimmedName,
-      useLocalTime,
+      useLocalTime: true,
       cachedSunTimes: sunTimes
     });
   };
@@ -46053,29 +46014,7 @@ const SetupLayer = ({ onComplete }) => {
           ),
           error && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "mt-4 text-component-negative text-[0.7em]", children: error })
         ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-full border-t border-[#222]/20 pt-4 text-left", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { className: "flex items-start gap-3 text-xs text-[#222]", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
-            "input",
-            {
-              type: "checkbox",
-              checked: useLocalTime,
-              disabled: isRequestingLocationPermission,
-              onChange: (e2) => {
-                setError(null);
-                void handleUseLocalTimeChange(e2.target.checked);
-              },
-              className: "mt-0.5 h-4 w-4 min-h-4 min-w-4 shrink-0 flex-none appearance-none bg-center bg-no-repeat bg-contain cursor-pointer disabled:cursor-not-allowed disabled:opacity-60",
-              style: {
-                backgroundImage: `url("${useLocalTime ? "/assets/ui/checkbox.png" : "/assets/ui/checkbox_off.png"}")`
-              }
-            }
-          ),
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "leading-5", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "block font-semibold", children: "Use local day/night time" }),
-            isRequestingLocationPermission && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "mt-1 block text-[0.92em] text-gray-600", children: "Requesting location permission..." }),
-            localTimeError && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "mt-1 block text-[0.92em] text-red-600", children: localTimeError })
-          ] })
-        ] }) })
+        isRequestingLocationPermission && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-xs text-gray-600", children: "Preparing local day/night time..." })
       ] }),
       onConfirm: handleConfirm,
       confirmText: "Start"
@@ -46318,7 +46257,7 @@ function needsRandomMovement(state) {
   return state === CHARACTER_STATE.IDLE || state === CHARACTER_STATE.MOVING;
 }
 function sanitizeWorldMetadata(metadata, now) {
-  var _a, _b, _c, _d, _e;
+  var _a, _b, _c, _d;
   const cachedSunTimes = sanitizeCachedSunTimes(
     (_a = metadata == null ? void 0 : metadata.app_state) == null ? void 0 : _a.cached_sun_times
   );
@@ -46333,7 +46272,7 @@ function sanitizeWorldMetadata(metadata, now) {
     app_state: {
       last_active_time: toFiniteNumber((_c = metadata == null ? void 0 : metadata.app_state) == null ? void 0 : _c.last_active_time) ?? now,
       is_first_load: typeof ((_d = metadata == null ? void 0 : metadata.app_state) == null ? void 0 : _d.is_first_load) === "boolean" ? metadata.app_state.is_first_load : false,
-      use_local_time: typeof ((_e = metadata == null ? void 0 : metadata.app_state) == null ? void 0 : _e.use_local_time) === "boolean" ? metadata.app_state.use_local_time : true,
+      use_local_time: true,
       cached_sun_times: cachedSunTimes,
       main_scene_ad: mainSceneAd
     }
