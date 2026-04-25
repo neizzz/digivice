@@ -27,6 +27,8 @@ import {
 } from "../../../test-utils/mainSceneTestUtils";
 
 const EATING_POSE_FOOD_Y_OFFSET_PX = 1;
+const FOOD_CHARACTER_BOUNDARY_OVERLAP_PX = 10;
+const FALLBACK_SOURCE_SIZE = 16;
 const DEFAULT_LANDED_FOOD_SCALE = 1.4;
 
 function createLandedFood(
@@ -54,26 +56,83 @@ function createLandedFood(
   return foodEid;
 }
 
-function getEatingPoseY(foodEid: number): number {
+function getEatingTargetY(foodEid: number): number {
   return PositionComp.y[foodEid] - EATING_POSE_FOOD_Y_OFFSET_PX;
 }
 
-function getApproachAngleToEatingPose(
-  from: { x: number; y: number },
-  foodEid: number,
-): number {
-  return Math.atan2(
-    getEatingPoseY(foodEid) - from.y,
-    PositionComp.x[foodEid] - from.x,
+function getFallbackHalfWidth(eid: number): number {
+  return (RenderComp.scale[eid] * FALLBACK_SOURCE_SIZE) / 2;
+}
+
+function getExpectedEatingTargetX(characterEid: number, foodEid: number): number {
+  const characterHalfWidth = getFallbackHalfWidth(characterEid);
+  const foodHalfWidth = getFallbackHalfWidth(foodEid);
+
+  if (PositionComp.x[characterEid] <= PositionComp.x[foodEid]) {
+    return Math.round(
+      PositionComp.x[foodEid] -
+        foodHalfWidth +
+        FOOD_CHARACTER_BOUNDARY_OVERLAP_PX -
+        characterHalfWidth,
+    );
+  }
+
+  return Math.round(
+    PositionComp.x[foodEid] +
+      foodHalfWidth -
+      FOOD_CHARACTER_BOUNDARY_OVERLAP_PX +
+      characterHalfWidth,
   );
 }
 
-function assertEatingPose(characterEid: number, foodEid: number): void {
-  assert.equal(PositionComp.x[characterEid], PositionComp.x[foodEid]);
+function getExpectedEatingTarget(
+  characterEid: number,
+  foodEid: number,
+): { x: number; y: number } {
+  return {
+    x: getExpectedEatingTargetX(characterEid, foodEid),
+    y: Math.round(getEatingTargetY(foodEid)),
+  };
+}
+
+function getApproachAngleToEatingTarget(
+  from: { x: number; y: number },
+  target: { x: number; y: number },
+): number {
+  return Math.atan2(target.y - from.y, target.x - from.x);
+}
+
+function assertCharacterAtPosition(
+  characterEid: number,
+  expected: { x: number; y: number },
+): void {
+  assert.equal(PositionComp.x[characterEid], expected.x);
   assert.equal(
     PositionComp.y[characterEid],
-    getEatingPoseY(foodEid),
-    `expected character y ${PositionComp.y[characterEid]} to be 1px above food y ${PositionComp.y[foodEid]}`,
+    expected.y,
+    `expected character position (${PositionComp.x[characterEid]}, ${PositionComp.y[characterEid]}) to equal (${expected.x}, ${expected.y})`,
+  );
+}
+
+function assertHorizontalBoundaryOverlap(
+  characterEid: number,
+  foodEid: number,
+): void {
+  const characterHalfWidth = getFallbackHalfWidth(characterEid);
+  const foodHalfWidth = getFallbackHalfWidth(foodEid);
+  const characterIsLeftOfFood =
+    PositionComp.x[characterEid] <= PositionComp.x[foodEid];
+  const overlap = characterIsLeftOfFood
+    ? PositionComp.x[characterEid] +
+      characterHalfWidth -
+      (PositionComp.x[foodEid] - foodHalfWidth)
+    : PositionComp.x[foodEid] +
+      foodHalfWidth -
+      (PositionComp.x[characterEid] - characterHalfWidth);
+
+  assert.ok(
+    Math.abs(overlap - FOOD_CHARACTER_BOUNDARY_OVERLAP_PX) <= 0.5,
+    `expected horizontal overlap to be ~${FOOD_CHARACTER_BOUNDARY_OVERLAP_PX}px, got ${overlap}`,
   );
 }
 
@@ -84,24 +143,20 @@ function assertAngleClose(actual: number, expected: number): void {
   );
 }
 
-test("근처 음식을 바로 먹기 시작할 때 캐릭터를 음식 1px 위로 보정하고 접근 방향을 유지한다", () => {
-  const world = createTestWorld({ now: 10_000 });
-  const characterEid = withMockedDateNow(10_000, () =>
-    createTestCharacter(world, {
-      state: CharacterState.IDLE,
-      stamina: 3,
-      x: 112,
-      y: 130,
-    }),
-  );
-  const foodEid = createLandedFood(world, { x: 112, y: 115 });
-  const expectedAngle = getApproachAngleToEatingPose(
-    {
-      x: PositionComp.x[characterEid],
-      y: PositionComp.y[characterEid],
-    },
-    foodEid,
-  );
+function moveToDestinationAndStartEating(
+  world: ReturnType<typeof createTestWorld>,
+  characterEid: number,
+): { x: number; y: number; angle: number; foodEid: number } {
+  assert.ok(hasComponent(world, DestinationComp, characterEid));
+  const foodEid = DestinationComp.target[characterEid];
+  const destination = {
+    x: DestinationComp.x[characterEid],
+    y: DestinationComp.y[characterEid],
+  };
+  const approachAngle = AngleComp.value[characterEid];
+
+  PositionComp.x[characterEid] = destination.x;
+  PositionComp.y[characterEid] = destination.y;
 
   foodEatingSystem({
     world: world as any,
@@ -111,12 +166,52 @@ test("근처 음식을 바로 먹기 시작할 때 캐릭터를 음식 1px 위�
 
   assert.equal(ObjectComp.state[characterEid], CharacterState.EATING);
   assert.equal(ObjectComp.state[foodEid], FoodState.BEING_INTAKEN);
+  assertCharacterAtPosition(characterEid, destination);
+  assertAngleClose(AngleComp.value[characterEid], approachAngle);
+
+  return { ...destination, angle: approachAngle, foodEid };
+}
+
+test("근처 음식도 가운데로 순간이동하지 않고 경계가 겹치는 접근 지점을 목표로 이동한다", () => {
+  const world = createTestWorld({ now: 10_000 });
+  const characterEid = withMockedDateNow(10_000, () =>
+    createTestCharacter(world, {
+      state: CharacterState.IDLE,
+      stamina: 3,
+      x: 100,
+      y: 130,
+    }),
+  );
+  const foodEid = createLandedFood(world, { x: 112, y: 115 });
+  const initialPosition = {
+    x: PositionComp.x[characterEid],
+    y: PositionComp.y[characterEid],
+  };
+  const expectedTarget = getExpectedEatingTarget(characterEid, foodEid);
+  const expectedAngle = getApproachAngleToEatingTarget(
+    initialPosition,
+    expectedTarget,
+  );
+
+  foodEatingSystem({
+    world: world as any,
+    delta: 0,
+    currentTime: world.currentTime,
+  });
+
+  assert.equal(ObjectComp.state[characterEid], CharacterState.MOVING);
+  assert.equal(ObjectComp.state[foodEid], FoodState.TARGETED);
+  assert.ok(hasComponent(world, DestinationComp, characterEid));
+  assert.equal(DestinationComp.target[characterEid], foodEid);
+  assert.equal(DestinationComp.x[characterEid], expectedTarget.x);
+  assert.equal(DestinationComp.y[characterEid], expectedTarget.y);
+  assert.notEqual(DestinationComp.x[characterEid], PositionComp.x[foodEid]);
+  assertCharacterAtPosition(characterEid, initialPosition);
   assert.ok(hasComponent(world, AngleComp, characterEid));
-  assertEatingPose(characterEid, foodEid);
   assertAngleClose(AngleComp.value[characterEid], expectedAngle);
 });
 
-test("음식에 도착해서 먹기 시작할 때도 음식 1px 위에서 접근 방향을 유지한다", () => {
+test("접근 지점에 도착해서 먹기 시작할 때 위치 보정 없이 접근 방향을 유지한다", () => {
   const world = createTestWorld({ now: 20_000 });
   const characterEid = withMockedDateNow(20_000, () =>
     createTestCharacter(world, {
@@ -127,12 +222,13 @@ test("음식에 도착해서 먹기 시작할 때도 음식 1px 위에서 접근
     }),
   );
   const foodEid = createLandedFood(world, { x: 120, y: 96 });
-  const expectedAngle = getApproachAngleToEatingPose(
+  const expectedTarget = getExpectedEatingTarget(characterEid, foodEid);
+  const expectedAngle = getApproachAngleToEatingTarget(
     {
       x: PositionComp.x[characterEid],
       y: PositionComp.y[characterEid],
     },
-    foodEid,
+    expectedTarget,
   );
 
   foodEatingSystem({
@@ -143,31 +239,18 @@ test("음식에 도착해서 먹기 시작할 때도 음식 1px 위에서 접근
 
   assert.ok(hasComponent(world, DestinationComp, characterEid));
   assert.equal(DestinationComp.target[characterEid], foodEid);
-  assert.equal(DestinationComp.x[characterEid], PositionComp.x[foodEid]);
-  assert.equal(
-    DestinationComp.y[characterEid],
-    getEatingPoseY(foodEid),
-    `expected destination y ${DestinationComp.y[characterEid]} to be 1px above food y ${PositionComp.y[foodEid]}`,
-  );
-
-  const arrivedX = DestinationComp.x[characterEid];
-  const arrivedY = DestinationComp.y[characterEid];
-  PositionComp.x[characterEid] = arrivedX;
-  PositionComp.y[characterEid] = arrivedY;
-
-  foodEatingSystem({
-    world: world as any,
-    delta: 0,
-    currentTime: world.currentTime,
-  });
-
-  assert.equal(ObjectComp.state[characterEid], CharacterState.EATING);
-  assert.equal(ObjectComp.state[foodEid], FoodState.BEING_INTAKEN);
-  assertEatingPose(characterEid, foodEid);
+  assert.equal(DestinationComp.x[characterEid], expectedTarget.x);
+  assert.equal(DestinationComp.y[characterEid], expectedTarget.y);
+  assert.notEqual(DestinationComp.x[characterEid], PositionComp.x[foodEid]);
   assertAngleClose(AngleComp.value[characterEid], expectedAngle);
+
+  const arrived = moveToDestinationAndStartEating(world, characterEid);
+  assert.equal(arrived.x, expectedTarget.x);
+  assert.equal(arrived.y, expectedTarget.y);
+  assertHorizontalBoundaryOverlap(characterEid, foodEid);
 });
 
-test("캐릭터 크기별 식사 접근 위치도 음식 1px 위로 고정된다", () => {
+test("캐릭터 크기별 식사 접근 위치는 음식 경계와 약 10px 겹친다", () => {
   const scenarios = [
     { characterKey: CharacterKeyECS.TestGreenSlimeA1, scale: 0.8 },
     { characterKey: CharacterKeyECS.TestGreenSlimeD1, scale: 1.2 },
@@ -196,19 +279,14 @@ test("캐릭터 크기별 식사 접근 위치도 음식 1px 위로 고정된다
     });
 
     assert.ok(hasComponent(world, DestinationComp, characterEid));
+    assert.equal(
+      DestinationComp.x[characterEid],
+      getExpectedEatingTargetX(characterEid, foodEid),
+    );
+    assert.equal(DestinationComp.y[characterEid], getEatingTargetY(foodEid));
 
-    PositionComp.x[characterEid] = DestinationComp.x[characterEid];
-    PositionComp.y[characterEid] = DestinationComp.y[characterEid];
-
-    foodEatingSystem({
-      world: world as any,
-      delta: 0,
-      currentTime: world.currentTime,
-    });
-
-    assert.equal(ObjectComp.state[characterEid], CharacterState.EATING);
-    assert.equal(ObjectComp.state[foodEid], FoodState.BEING_INTAKEN);
-    assertEatingPose(characterEid, foodEid);
+    moveToDestinationAndStartEating(world, characterEid);
+    assertHorizontalBoundaryOverlap(characterEid, foodEid);
   }
 });
 
@@ -234,6 +312,8 @@ test("신선한 음식은 스테미나를 2 올리고 소화 부하는 고정 2�
     delta: 0,
     currentTime: 30_000,
   });
+
+  moveToDestinationAndStartEating(world, characterEid);
 
   foodEatingSystem({
     world: world as any,
@@ -267,6 +347,8 @@ test("보통 음식도 소화 부하는 신선도와 무관하게 고정 2만 �
     delta: 0,
     currentTime: 40_000,
   });
+
+  moveToDestinationAndStartEating(world, characterEid);
 
   foodEatingSystem({
     world: world as any,

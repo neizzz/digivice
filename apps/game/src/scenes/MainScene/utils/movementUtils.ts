@@ -41,13 +41,21 @@ export function moveTowardsTarget(
 
   // 도착 판정 (선택사항)
   let hasArrived = false;
+  const targetAngle = Math.atan2(deltaY, deltaX);
   if (arrivalThreshold !== undefined) {
-    hasArrived = distance <= arrivalThreshold;
+    const currentAngle = hasComponent(world, AngleComp, eid)
+      ? AngleComp.value[eid]
+      : targetAngle;
+    const distanceAlongHeading =
+      Math.cos(currentAngle) * deltaX + Math.sin(currentAngle) * deltaY;
+    const hasPassedTarget = distanceAlongHeading <= 0;
+    hasArrived = distance <= arrivalThreshold || hasPassedTarget;
   }
 
   // 목표 방향으로의 각도 계산
-  const targetAngle = Math.atan2(deltaY, deltaX);
-  AngleComp.value[eid] = targetAngle;
+  if (!hasArrived) {
+    AngleComp.value[eid] = targetAngle;
+  }
 
   // 속도 확인 및 설정
   let baseSpeed = 0;
