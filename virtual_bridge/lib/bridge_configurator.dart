@@ -63,7 +63,6 @@ class BridgeConfigurator {
     _vibrationController = VibrationController(
       runJavaScript: _runJavaScript,
       resolvePromise: _resolvePromise,
-      log: logCallback,
     );
   }
 

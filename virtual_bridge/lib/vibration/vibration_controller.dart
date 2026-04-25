@@ -19,12 +19,10 @@ int? _parseAmplitude(dynamic rawAmplitude) {
 class VibrationController {
   final Function(String jsCode) runJavaScript;
   final Function({required String id, String? data}) resolvePromise;
-  final Function(String message) log;
 
   VibrationController({
     required this.runJavaScript,
     required this.resolvePromise,
-    required this.log,
   });
 
   /// JavaScript에 Vibration 인터페이스를 제공하는 코드를 반환합니다.
@@ -66,17 +64,11 @@ class VibrationController {
           amplitude: hasAmplitudeControl ? amplitude : -1,
         );
         resolvePromise(id: id, data: 'success');
-        log(
-          '[VibrationController] Vibration executed: ${duration}ms, '
-          'strength: ${hasAmplitudeControl ? amplitude : 'default'}',
-        );
       } else {
         resolvePromise(id: id, data: 'no_vibrator');
-        log('[VibrationController] No vibrator available');
       }
     } catch (e) {
       resolvePromise(id: id, data: 'Error: ${e.toString()}');
-      log('[VibrationController] Error: ${e.toString()}');
     }
   }
 

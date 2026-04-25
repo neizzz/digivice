@@ -46,26 +46,21 @@ export class VibrationAdapter {
     }
 
     if (!this.platformAdapter.isRunningInNativeApp()) {
-      console.warn("[VibrationAdapter] vibrate called but not in native app");
       return;
     }
 
     if (!window.vibrationController) {
-      console.warn(
-        "[VibrationAdapter] window.vibrationController not available",
-      );
       return;
     }
 
     try {
       const normalizedStrength = normalizeVibrationStrength(strength);
-      const result = await window.vibrationController.vibrate(
+      await window.vibrationController.vibrate(
         duration,
         normalizedStrength,
       );
-      console.log("[VibrationAdapter] Vibration result:", result);
-    } catch (error) {
-      console.error("[VibrationAdapter] Error during vibration:", error);
+    } catch {
+      // Ignore vibration failures. Vibration is an optional haptic effect.
     }
   }
 
