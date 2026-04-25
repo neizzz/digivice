@@ -14,6 +14,7 @@
 		"build:flutter:production:debug": "APP_LOGO_TEXT=DEBUG ../../scripts/build-for-flutter.sh production debug",
 		"dev:flutter": "../../scripts/watch-and-copy.sh",
 		"dev:production": "pnpm build:production && vite preview --host",
+		"dev:production:debug": "pnpm build:production:debug && vite preview --host",
 		"lint": "eslint . --config eslint.config.js --no-config-lookup",
 		"preview": "vite preview",
 		"dev:monster-animations": "pnpm --filter @digivice/game sync-assets && vite --host --open /monster-animations.html"
