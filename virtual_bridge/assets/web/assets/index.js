@@ -30350,11 +30350,11 @@ function getRemainingStaminaDecreaseTime(eid) {
 function getRemainingEvolutionGaugeTime(eid) {
   const currentStamina = CharacterStatusComp.stamina[eid];
   const isSick = hasCharacterStatus$2(eid, CharacterStatus.SICK);
-  if (currentStamina < EVOLUTION_GAUGE_CONFIG.staminaThreshold || isSick) {
+  const currentState = ObjectComp.state[eid];
+  if (currentState === CharacterState.EGG || currentStamina < EVOLUTION_GAUGE_CONFIG.staminaThreshold || isSick) {
     return null;
   }
   const elapsed = evolutionGaugeTimers.get(eid) || 0;
-  const currentState = ObjectComp.state[eid];
   const progressMultiplier = currentState === CharacterState.SLEEPING ? EVOLUTION_GAUGE_CONFIG.sleepingGaugeTimeProgressMultiplier : 1;
   const remainingProgressTime = Math.max(
     0,
@@ -30366,6 +30366,11 @@ function getRemainingEvolutionGaugeTime(eid) {
   return Math.max(0, remainingProgressTime / progressMultiplier);
 }
 function _updateStaminaAndEvolutionGauge(world, eid, delta) {
+  if (ObjectComp.state[eid] === CharacterState.EGG) {
+    staminaTimers.set(eid, 0);
+    evolutionGaugeTimers.set(eid, 0);
+    return;
+  }
   const currentStaminaTimer = staminaTimers.get(eid) || 0;
   const staminaDelta = ObjectComp.state[eid] === CharacterState.SLEEPING ? delta * GAME_CONSTANTS.SLEEPING_STAMINA_DECAY_MULTIPLIER : delta;
   const totalStaminaTime = currentStaminaTimer + staminaDelta;
@@ -31009,11 +31014,16 @@ function moveTowardsTarget(world, eid, _delta, arrivalThreshold) {
   const deltaY = targetY - currentY;
   const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
   let hasArrived = false;
-  {
-    hasArrived = distance <= arrivalThreshold;
-  }
   const targetAngle = Math.atan2(deltaY, deltaX);
-  AngleComp.value[eid] = targetAngle;
+  {
+    const currentAngle = hasComponent(world, AngleComp, eid) ? AngleComp.value[eid] : targetAngle;
+    const distanceAlongHeading = Math.cos(currentAngle) * deltaX + Math.sin(currentAngle) * deltaY;
+    const hasPassedTarget = distanceAlongHeading <= 0;
+    hasArrived = distance <= arrivalThreshold || hasPassedTarget;
+  }
+  if (!hasArrived) {
+    AngleComp.value[eid] = targetAngle;
+  }
   let baseSpeed = 0;
   if (hasComponent(world, CharacterStatusComp, eid)) {
     const characterKey = CharacterStatusComp.characterKey[eid];
@@ -31044,9 +31054,11 @@ const movingToFoodQuery = defineQuery([
   DestinationComp
 ]);
 const FOOD_EATING_DURATION = 3200;
-const EATING_ARRIVAL_THRESHOLD = 20;
+const EATING_ARRIVAL_THRESHOLD = 4;
 const FOOD_CHARACTER_BOUNDARY_OVERLAP_PX = 10;
 const FALLBACK_FOOD_SOURCE_SIZE = 16;
+const EATING_POSE_FOOD_Y_OFFSET_PX = 1;
+const ZERO_DISTANCE_EPSILON = 1e-3;
 function foodEatingSystem(params) {
   const { world, delta, currentTime } = params;
   const resolvedCurrentTime = currentTime ?? world.currentTime;
@@ -31136,7 +31148,6 @@ function updateMovingToFood(world, delta) {
           2
         )}`
       );
-      snapCharacterToEatingPose(eid, targetFoodEid);
       startEating(world, eid, targetFoodEid);
       continue;
     }
@@ -31233,19 +31244,11 @@ function findAndEatFood(world) {
         2
       )} for character ${characterEid}`
     );
-    if (distance <= EATING_ARRIVAL_THRESHOLD) {
-      console.log(
-        `[FoodEatingSystem] Character ${characterEid} is close enough to food ${foodEid}, starting to eat`
-      );
-      snapCharacterToEatingPose(characterEid, foodEid);
-      startEating(world, characterEid, foodEid);
-    } else {
-      console.log(
-        `[FoodEatingSystem] Character ${characterEid} moving to food ${foodEid}`
-      );
-      addCharacterStatus$2(characterEid, CharacterStatus.DISCOVER);
-      moveToFood(world, characterEid, foodEid);
-    }
+    console.log(
+      `[FoodEatingSystem] Character ${characterEid} moving to food ${foodEid}`
+    );
+    addCharacterStatus$2(characterEid, CharacterStatus.DISCOVER);
+    moveToFood(world, characterEid, foodEid);
   }
 }
 function findNearestFood(_world, characterEid, foods) {
@@ -31281,7 +31284,7 @@ function moveToFood(world, characterEid, foodEid) {
   const characterY = PositionComp.y[characterEid];
   const foodX = PositionComp.x[foodEid];
   const foodY = PositionComp.y[foodEid];
-  const target = getEatingPoseTarget(characterEid, foodEid);
+  const target = getEatingPoseTarget(world, characterEid, foodEid);
   const targetX = Math.round(target.x);
   const targetY = Math.round(target.y);
   console.log(
@@ -31301,6 +31304,7 @@ function moveToFood(world, characterEid, foodEid) {
   DestinationComp.target[characterEid] = foodEid;
   DestinationComp.x[characterEid] = targetX;
   DestinationComp.y[characterEid] = targetY;
+  setCharacterApproachAngle(world, characterEid, { x: targetX, y: targetY });
   console.log(
     `[FoodEatingSystem] DestinationComp set for character ${characterEid}:`,
     {
@@ -31324,19 +31328,27 @@ function moveToFood(world, characterEid, foodEid) {
   }
   ObjectComp.state[characterEid] = CharacterState.MOVING;
 }
-function getEatingPoseTarget(characterEid, foodEid) {
+function getEatingPoseTarget(world, characterEid, foodEid) {
   const characterBounds = getCharacterWorldBounds(characterEid);
   const foodBounds = getFoodWorldBounds(foodEid);
-  const characterBottomOffset = characterBounds.bottomY - PositionComp.y[characterEid];
+  const characterLeftOffset = characterBounds.leftX - PositionComp.x[characterEid];
+  const characterRightOffset = characterBounds.rightX - PositionComp.x[characterEid];
+  const approachSideX = getApproachSideX(world, characterEid, foodEid);
+  const targetX = approachSideX <= 0 ? foodBounds.leftX + FOOD_CHARACTER_BOUNDARY_OVERLAP_PX - characterRightOffset : foodBounds.rightX - FOOD_CHARACTER_BOUNDARY_OVERLAP_PX - characterLeftOffset;
   return {
-    x: PositionComp.x[foodEid],
-    y: foodBounds.topY + FOOD_CHARACTER_BOUNDARY_OVERLAP_PX - characterBottomOffset
+    x: targetX,
+    y: PositionComp.y[foodEid] - EATING_POSE_FOOD_Y_OFFSET_PX
   };
 }
-function snapCharacterToEatingPose(characterEid, foodEid) {
-  const target = getEatingPoseTarget(characterEid, foodEid);
-  PositionComp.x[characterEid] = Math.round(target.x);
-  PositionComp.y[characterEid] = Math.round(target.y);
+function getApproachSideX(world, characterEid, foodEid) {
+  const deltaX = PositionComp.x[characterEid] - PositionComp.x[foodEid];
+  if (Math.abs(deltaX) > ZERO_DISTANCE_EPSILON) {
+    return deltaX < 0 ? -1 : 1;
+  }
+  if (hasComponent(world, AngleComp, characterEid)) {
+    return Math.cos(AngleComp.value[characterEid]) < 0 ? 1 : -1;
+  }
+  return -1;
 }
 function getFoodWorldBounds(foodEid) {
   const centerX = PositionComp.x[foodEid];
@@ -31361,6 +31373,17 @@ function getFoodFallbackSize(foodEid) {
   const resolvedScale = Number.isFinite(scale) && scale > 0 ? scale : 1;
   return FALLBACK_FOOD_SOURCE_SIZE * resolvedScale;
 }
+function setCharacterApproachAngle(world, characterEid, target) {
+  const deltaX = target.x - PositionComp.x[characterEid];
+  const deltaY = target.y - PositionComp.y[characterEid];
+  if (Math.abs(deltaX) <= ZERO_DISTANCE_EPSILON && Math.abs(deltaY) <= ZERO_DISTANCE_EPSILON) {
+    return;
+  }
+  if (!hasComponent(world, AngleComp, characterEid)) {
+    addComponent(world, AngleComp, characterEid);
+  }
+  AngleComp.value[characterEid] = Math.atan2(deltaY, deltaX);
+}
 function startEating(world, characterEid, foodEid) {
   if (hasComponent(world, FreshnessComp, foodEid) && !isFoodEdible(FreshnessComp.freshness[foodEid])) {
     console.log(
@@ -31376,14 +31399,6 @@ function startEating(world, characterEid, foodEid) {
   if (!hasComponent(world, AngleComp, characterEid)) {
     addComponent(world, AngleComp, characterEid);
   }
-  const characterX = PositionComp.x[characterEid];
-  const characterY = PositionComp.y[characterEid];
-  const foodX = PositionComp.x[foodEid];
-  const foodY = PositionComp.y[foodEid];
-  AngleComp.value[characterEid] = Math.atan2(
-    foodY - characterY,
-    foodX - characterX
-  );
   if (!hasComponent(world, FoodEatingComp, characterEid)) {
     addComponent(world, FoodEatingComp, characterEid);
   }
@@ -31821,6 +31836,9 @@ const cleanableRenderQuery = defineQuery([CleanableComp, RenderComp]);
 const exitCleanableQuery = exitQuery(cleanableQuery);
 const dashedBorderStore = new ObjectStore("DashedBorderStore");
 const broomStore = new ObjectStore("BroomStore");
+const BROOM_RENDER_SCALE = 3;
+const BROOM_HORIZONTAL_OVERSHOOT_PX = 10;
+const BROOM_VERTICAL_OFFSET_PX = 10;
 function cleanableRenderSystem(params) {
   const { world, delta, stage } = params;
   const cleanableEntities = cleanableQuery(world);
@@ -31993,11 +32011,13 @@ function createOrUpdateBroom(eid, stage, world, targetX, targetY, targetWidth) {
   }
   const sliderValue = world.sliderValue;
   const isMovingRight = sliderValue > 0.5;
-  broomSprite.scale.x = isMovingRight ? 3 : -3;
-  broomSprite.scale.y = 3;
+  broomSprite.scale.x = isMovingRight ? BROOM_RENDER_SCALE : -3;
+  broomSprite.scale.y = BROOM_RENDER_SCALE;
   const targetLeftX = targetX - targetWidth / 2;
-  const broomX = targetLeftX + sliderValue * targetWidth;
-  const broomY = targetY - 10;
+  const broomTravelStartX = targetLeftX - BROOM_HORIZONTAL_OVERSHOOT_PX;
+  const broomTravelWidth = targetWidth + BROOM_HORIZONTAL_OVERSHOOT_PX * 2;
+  const broomX = broomTravelStartX + sliderValue * broomTravelWidth;
+  const broomY = targetY - BROOM_VERTICAL_OFFSET_PX;
   broomSprite.x = broomX;
   broomSprite.y = broomY;
   broomSprite.visible = true;
@@ -33604,6 +33624,9 @@ class HTMLDebugGaugeUI {
     const evolutionDiv = this._createMetricRow("Evolution: ", "#ffcc66");
     this._evolutionText = this._createMetricValue();
     evolutionDiv.appendChild(this._evolutionText);
+    const eggHatchDiv = this._createMetricRow("Egg Hatch: ", "#facc15");
+    this._eggHatchText = this._createMetricValue();
+    eggHatchDiv.appendChild(this._eggHatchText);
     const digestiveDiv = this._createMetricRow("Digestive: ", "#66ff66");
     this._digestiveText = this._createMetricValue();
     digestiveDiv.appendChild(this._digestiveText);
@@ -33666,6 +33689,7 @@ class HTMLDebugGaugeUI {
     adActionRow.appendChild(this._adShowNowButton);
     this._primaryColumn.appendChild(staminaDiv);
     this._primaryColumn.appendChild(evolutionDiv);
+    this._primaryColumn.appendChild(eggHatchDiv);
     this._primaryColumn.appendChild(digestiveDiv);
     this._primaryColumn.appendChild(diseaseRateDiv);
     this._primaryColumn.appendChild(deathTimeDiv);
@@ -33727,6 +33751,7 @@ class HTMLDebugGaugeUI {
       if (this._currentCharacterEid < 0) {
         this._staminaText.textContent = "N/A";
         this._evolutionText.textContent = "N/A";
+        this._eggHatchText.textContent = "N/A";
         this._digestiveText.textContent = "N/A";
         this._diseaseRateText.textContent = "N/A";
         this._deathTimeText.textContent = "N/A";
@@ -33737,6 +33762,8 @@ class HTMLDebugGaugeUI {
       }
     }
     const currentTime = this._world.currentTime;
+    const currentState = ObjectComp.state[this._currentCharacterEid];
+    const isEgg = currentState === CharacterState.EGG;
     const stamina = CharacterStatusComp.stamina[this._currentCharacterEid] || 0;
     const evolutionGauge = CharacterStatusComp.evolutionGage[this._currentCharacterEid] || 0;
     const remainingStaminaTime = getRemainingStaminaDecreaseTime(
@@ -33744,6 +33771,11 @@ class HTMLDebugGaugeUI {
     );
     const remainingEvolutionTime = getRemainingEvolutionGaugeTime(
       this._currentCharacterEid
+    );
+    const remainingEggHatchTime = getRemainingEggHatchTime(
+      this._world,
+      this._currentCharacterEid,
+      currentTime
     );
     let digestiveText = "N/A";
     if (hasComponent(this._world, DigestiveSystemComp, this._currentCharacterEid)) {
@@ -33820,12 +33852,20 @@ class HTMLDebugGaugeUI {
   ps: ${formatSleepCheckReason(pendingSleepReason)}
   pw: ${formatSleepCheckReason(pendingWakeReason)}`;
     }
-    this._staminaText.textContent = `${stamina}/10 (${Math.ceil(
-      remainingStaminaTime / 1e3
-    )}s)`;
-    this._evolutionText.textContent = remainingEvolutionTime === null ? `${evolutionGauge.toFixed(1)}/100.0 (paused)` : `${evolutionGauge.toFixed(1)}/100.0 (${Math.ceil(
-      remainingEvolutionTime / 1e3
-    )}s)`;
+    this._staminaText.textContent = isEgg ? `${stamina}/10 (egg)` : `${stamina}/10 (${Math.ceil(remainingStaminaTime / 1e3)}s)`;
+    if (isEgg) {
+      this._evolutionText.textContent = `${evolutionGauge.toFixed(1)}/100.0 (egg)`;
+    } else if (remainingEvolutionTime === null) {
+      this._evolutionText.textContent = `${evolutionGauge.toFixed(1)}/100.0 (paused)`;
+    } else {
+      this._evolutionText.textContent = `${evolutionGauge.toFixed(1)}/100.0 (${Math.ceil(
+        remainingEvolutionTime / 1e3
+      )}s)`;
+    }
+    this._eggHatchText.textContent = formatEggHatchCountdown({
+      isEgg,
+      remainingTime: remainingEggHatchTime
+    });
     this._digestiveText.textContent = digestiveText;
     this._diseaseRateText.textContent = `${(diseaseRate * 100).toFixed(
       1
@@ -33876,6 +33916,13 @@ class HTMLDebugGaugeUI {
     } else {
       this._deathTimeText.style.color = "white";
       this._deathTimeText.style.animation = "none";
+    }
+    if (isEgg) {
+      this._eggHatchText.style.color = remainingEggHatchTime === 0 ? "#ffbb33" : "white";
+      this._eggHatchText.style.animation = remainingEggHatchTime === 0 ? "blink 1s infinite" : "none";
+    } else {
+      this._eggHatchText.style.color = "#aaaaaa";
+      this._eggHatchText.style.animation = "none";
     }
     if (hasSleepSystem) {
       const sleepMode = SleepSystemComp.sleepMode[this._currentCharacterEid];
@@ -34013,6 +34060,13 @@ class HTMLDebugGaugeUI {
     this._container.style.display = "none";
     this._isVisible = false;
   }
+  toggle() {
+    if (this._isVisible) {
+      this.hide();
+      return;
+    }
+    this.show();
+  }
   destroy() {
     if (this._adDeferredRefreshTimerId !== null && typeof window !== "undefined") {
       window.clearTimeout(this._adDeferredRefreshTimerId);
@@ -34119,6 +34173,25 @@ function formatAdDuration(milliseconds) {
 function formatAdQueuedAge(queuedAt, currentTime) {
   const elapsed = Math.max(0, currentTime - queuedAt);
   return `${formatAdDuration(elapsed)} ago`;
+}
+function getRemainingEggHatchTime(world, eid, currentTime) {
+  if (!hasComponent(world, EggHatchComp, eid)) {
+    return null;
+  }
+  const hatchTime = EggHatchComp.hatchTime[eid] || 0;
+  if (hatchTime <= 0) {
+    return null;
+  }
+  return Math.max(0, hatchTime - currentTime);
+}
+function formatEggHatchCountdown(params) {
+  if (!params.isEgg || params.remainingTime === null) {
+    return "N/A";
+  }
+  if (params.remainingTime <= 0) {
+    return "ready";
+  }
+  return formatAdDuration(params.remainingTime);
 }
 function formatSleepMode(mode) {
   switch (mode) {
@@ -36156,7 +36229,7 @@ const _MainSceneWorld = class _MainSceneWorld {
     this._randomMovementDebugEnabled = false;
     this._handleShowDebugGauge = () => {
       var _a;
-      (_a = this._debugGaugeUI) == null ? void 0 : _a.show();
+      (_a = this._debugGaugeUI) == null ? void 0 : _a.toggle();
     };
     this._pendingRecoveryCureEids = /* @__PURE__ */ new Set();
     this._isPersistenceDisabled = false;
@@ -37092,6 +37165,8 @@ const _MainSceneWorld = class _MainSceneWorld {
     this._previousCleaningMode = this._isCleaningMode;
   }
   _initializeData(initialGameData) {
+    const useLocalTime = (initialGameData == null ? void 0 : initialGameData.useLocalTime) ?? DEFAULT_USE_LOCAL_TIME$1;
+    const cachedSunTimes = useLocalTime ? (initialGameData == null ? void 0 : initialGameData.cachedSunTimes) ?? void 0 : void 0;
     return {
       world_metadata: {
         name: "MainScene",
@@ -37101,7 +37176,8 @@ const _MainSceneWorld = class _MainSceneWorld {
         app_state: {
           last_active_time: Date.now(),
           is_first_load: false,
-          use_local_time: (initialGameData == null ? void 0 : initialGameData.useLocalTime) ?? DEFAULT_USE_LOCAL_TIME$1,
+          use_local_time: useLocalTime,
+          cached_sun_times: cachedSunTimes,
           main_scene_ad: {
             menu_use_count: 0
           }
@@ -45092,24 +45168,18 @@ class VibrationAdapter {
       return;
     }
     if (!this.platformAdapter.isRunningInNativeApp()) {
-      console.warn("[VibrationAdapter] vibrate called but not in native app");
       return;
     }
     if (!window.vibrationController) {
-      console.warn(
-        "[VibrationAdapter] window.vibrationController not available"
-      );
       return;
     }
     try {
       const normalizedStrength = normalizeVibrationStrength(strength);
-      const result = await window.vibrationController.vibrate(
+      await window.vibrationController.vibrate(
         duration,
         normalizedStrength
       );
-      console.log("[VibrationAdapter] Vibration result:", result);
-    } catch (error) {
-      console.error("[VibrationAdapter] Error during vibration:", error);
+    } catch {
     }
   }
   /**
@@ -45684,6 +45754,7 @@ const DEFAULT_USE_LOCAL_TIME = false;
 const SetupLayer = ({ onComplete }) => {
   const [name, setName] = reactExports.useState("");
   const [useLocalTime, setUseLocalTime] = reactExports.useState(DEFAULT_USE_LOCAL_TIME);
+  const [cachedSunTimes, setCachedSunTimes] = reactExports.useState(null);
   const [error, setError] = reactExports.useState(null);
   const [localTimeError, setLocalTimeError] = reactExports.useState(null);
   const [isRequestingLocationPermission, setIsRequestingLocationPermission] = reactExports.useState(false);
@@ -45691,41 +45762,46 @@ const SetupLayer = ({ onComplete }) => {
   const nameLength = countDisplayCharacters(trimmedName);
   const nameWidth = measureNameLabelWidth(trimmedName);
   const isWithinVisibleWidth = fitsNameLabelWidth(trimmedName);
-  const ensureLocationPermissionForLocalTime = reactExports.useCallback(async () => {
+  const loadSunTimesForLocalTime = reactExports.useCallback(async () => {
     if (typeof window === "undefined" || !window.sunController) {
       setLocalTimeError(
         "Local day/night time is only available in the native app."
       );
-      return false;
-    }
-    try {
-      const sunTimes = await window.sunController.getSunTimes(false);
-      if (sunTimes == null ? void 0 : sunTimes.hasLocationPermission) {
-        return true;
-      }
-    } catch (permissionCheckError) {
-      console.warn(
-        "[SetupLayer] Failed to check location permission state:",
-        permissionCheckError
-      );
+      return null;
     }
     setIsRequestingLocationPermission(true);
     try {
-      const result = await window.sunController.requestLocationPermission();
-      if (result == null ? void 0 : result.granted) {
-        return true;
+      try {
+        const sunTimes2 = await window.sunController.getSunTimes(false);
+        if (sunTimes2 == null ? void 0 : sunTimes2.hasLocationPermission) {
+          return sunTimes2;
+        }
+      } catch (permissionCheckError) {
+        console.warn(
+          "[SetupLayer] Failed to check location permission state:",
+          permissionCheckError
+        );
       }
-      setLocalTimeError(
-        "Location permission is required to enable local day/night time."
-      );
-      return false;
+      const result = await window.sunController.requestLocationPermission();
+      if (!(result == null ? void 0 : result.granted)) {
+        setLocalTimeError(
+          "Location permission is required to enable local day/night time."
+        );
+        return null;
+      }
+      const sunTimes = await window.sunController.getSunTimes(false);
+      if (sunTimes) {
+        return sunTimes;
+      }
+      setLocalTimeError("Failed to load local day/night time.");
+      return null;
     } catch (permissionRequestError) {
       console.warn(
-        "[SetupLayer] Failed to request location permission:",
+        "[SetupLayer] Failed to load local day/night time:",
         permissionRequestError
       );
-      setLocalTimeError("Failed to request location permission.");
-      return false;
+      setLocalTimeError("Failed to load local day/night time.");
+      return null;
     } finally {
       setIsRequestingLocationPermission(false);
     }
@@ -45735,14 +45811,16 @@ const SetupLayer = ({ onComplete }) => {
       setLocalTimeError(null);
       if (!checked) {
         setUseLocalTime(false);
+        setCachedSunTimes(null);
         return;
       }
-      const granted = await ensureLocationPermissionForLocalTime();
-      setUseLocalTime(granted);
+      const sunTimes = await loadSunTimesForLocalTime();
+      setCachedSunTimes(sunTimes);
+      setUseLocalTime(!!sunTimes);
     },
-    [ensureLocationPermissionForLocalTime]
+    [loadSunTimesForLocalTime]
   );
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (isRequestingLocationPermission) {
       setError("Please wait for the location permission request to finish.");
       return;
@@ -45764,9 +45842,15 @@ const SetupLayer = ({ onComplete }) => {
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
     }
+    const canLoadNativeSunTimes = typeof window !== "undefined" && !!window.sunController;
+    const sunTimes = useLocalTime && canLoadNativeSunTimes ? cachedSunTimes ?? await loadSunTimesForLocalTime() : cachedSunTimes;
+    if (useLocalTime && canLoadNativeSunTimes && !sunTimes) {
+      return;
+    }
     onComplete({
       name: trimmedName,
-      useLocalTime
+      useLocalTime,
+      cachedSunTimes: sunTimes
     });
   };
   const overlay = /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 z-[999] flex min-h-dvh items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxRuntimeExports.jsx(

@@ -12082,7 +12082,7 @@ const ReactDOM = /* @__PURE__ */ getDefaultExportFromCjs(clientExports);
 var reactExports = requireReact();
 const SHOW_DEBUG_GAUGE_EVENT = "digivice:show-debug-gauge";
 const buildLogoText = "DEBUG".trim();
-function showDebugGauge() {
+function toggleDebugGauge() {
   window.dispatchEvent(new CustomEvent(SHOW_DEBUG_GAUGE_EVENT));
 }
 function TopLeftBuildLogoText() {
@@ -12094,7 +12094,7 @@ function TopLeftBuildLogoText() {
       return;
     }
     event.preventDefault();
-    showDebugGauge();
+    toggleDebugGauge();
   };
   return /* @__PURE__ */ jsxRuntimeExports.jsx(
     "div",
@@ -12102,7 +12102,7 @@ function TopLeftBuildLogoText() {
       className: "build-logo-text",
       role: "button",
       tabIndex: 0,
-      onClick: showDebugGauge,
+      onClick: toggleDebugGauge,
       onKeyDown: handleKeyDown,
       children: buildLogoText
     }
