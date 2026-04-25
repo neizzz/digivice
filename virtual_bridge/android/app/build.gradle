@@ -5,6 +5,43 @@ plugins {
     id "dev.flutter.flutter-gradle-plugin"
 }
 
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file("key.properties")
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.withInputStream { stream ->
+        keystoreProperties.load(stream)
+    }
+}
+def releaseSigningRequiredProperties = [
+    "storeFile",
+    "storePassword",
+    "keyAlias",
+    "keyPassword",
+]
+def missingReleaseSigningProperties = {
+    releaseSigningRequiredProperties.findAll { key ->
+        !keystoreProperties.containsKey(key) || !keystoreProperties[key]
+    }
+}
+def releaseStoreFile = {
+    keystoreProperties["storeFile"] ? rootProject.file(keystoreProperties["storeFile"]) : null
+}
+def validateReleaseSigning = {
+    if (!keystorePropertiesFile.exists()) {
+        throw new GradleException("Release signing config is missing. Create ${keystorePropertiesFile.path} with storeFile, storePassword, keyAlias, and keyPassword.")
+    }
+
+    def missingProperties = missingReleaseSigningProperties()
+    if (!missingProperties.isEmpty()) {
+        throw new GradleException("Release signing config is incomplete. Missing: ${missingProperties.join(', ')} in ${keystorePropertiesFile.path}.")
+    }
+
+    def storeFile = releaseStoreFile()
+    if (storeFile == null || !storeFile.exists()) {
+        throw new GradleException("Release signing keystore file does not exist: ${keystoreProperties["storeFile"]}")
+    }
+}
+
 android {
     namespace = "com.cch.montto"
     compileSdk = flutter.compileSdkVersion
@@ -32,15 +69,30 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        release {
+            keyAlias = keystoreProperties["keyAlias"]
+            keyPassword = keystoreProperties["keyPassword"]
+            storeFile = releaseStoreFile()
+            storePassword = keystoreProperties["storePassword"]
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.debug
+            signingConfig = signingConfigs.release
         }
     }
 }
 
 flutter {
     source = "../.."
+}
+
+tasks.matching { task ->
+    task.name in ["bundleRelease", "signReleaseBundle", "validateSigningRelease"]
+}.configureEach {
+    doFirst {
+        validateReleaseSigning()
+    }
 }
