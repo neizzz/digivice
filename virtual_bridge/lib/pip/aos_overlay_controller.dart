@@ -1,38 +1,11 @@
-import 'dart:io';
-
-import 'package:flutter_overlay_window/flutter_overlay_window.dart';
-
 class AndroidOverlayController {
   AndroidOverlayController() {
-    if (Platform.isAndroid) {
-      FlutterOverlayWindow.isPermissionGranted().then((granted) {
-        if (!granted) {
-          FlutterOverlayWindow.requestPermission();
-        }
-      });
-    }
+    // PIP/overlay 기능은 현재 미사용 상태입니다.
+    // 기존 JS bridge 구조를 유지하기 위해 controller 코드만 남겨둡니다.
   }
 
-  /// `startPosition` the overlay start position and default is null
-  Future<void> showOverlay() async {
-    FlutterOverlayWindow.showOverlay(
-      height: 200,
-      width: 200,
-      alignment: OverlayAlignment.centerRight,
-      enableDrag: true,
-      positionGravity: PositionGravity.auto,
-    );
-  }
+  /// PIP/overlay 의존성을 제거한 상태에서는 no-op입니다.
+  Future<void> showOverlay() async {}
 
-  Future<void> closeOverlay() async {
-    await FlutterOverlayWindow.closeOverlay();
-  }
-
-  /// broadcast data to and from overlay app
-  // await FlutterOverlayWindow.shareData("Hello from the other side");
-
-  /// streams message shared between overlay and main app
-  // FlutterOverlayWindow.overlayListener.listen((event) {
-  //   log("Current Event: $event");
-  // });
+  Future<void> closeOverlay() async {}
 }
