@@ -22,6 +22,17 @@ export default defineConfig(({ mode }) => {
   };
   const appVersionLabel = isDebugBuild ? `${appVersion}-debug` : appVersion;
   const appLogoText = (env.APP_LOGO_TEXT || process.env.APP_LOGO_TEXT || "").trim();
+  const rewritePublicAssetPath = (url: string): string => {
+    if (url.startsWith("/assets/game/")) {
+      return url.replace(/^\/assets\/game\//, "/game/");
+    }
+
+    if (url.startsWith("/assets/ui/")) {
+      return url.replace(/^\/assets\/ui\//, "/ui/");
+    }
+
+    return url;
+  };
 
   return {
     // Flutter WebView(file://)에서 번들 리소스를 상대 경로로 로드하기 위해
@@ -42,11 +53,22 @@ export default defineConfig(({ mode }) => {
               return;
             }
 
-            if (req.url.startsWith("/assets/game/")) {
-              req.url = req.url.replace(/^\/assets\/game\//, "/game/");
-            } else if (req.url.startsWith("/assets/ui/")) {
-              req.url = req.url.replace(/^\/assets\/ui\//, "/ui/");
+            req.url = rewritePublicAssetPath(req.url);
+
+            next();
+          });
+        },
+      },
+      {
+        name: "rewrite-public-asset-paths-for-preview",
+        configurePreviewServer(server) {
+          server.middlewares.use((req, _res, next) => {
+            if (!req.url) {
+              next();
+              return;
             }
+
+            req.url = rewritePublicAssetPath(req.url);
 
             next();
           });
