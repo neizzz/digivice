@@ -60,7 +60,7 @@ const movingToFoodQuery = defineQuery([
 // 음식 먹기 관련 상수
 const FOOD_EATING_DURATION = 3200; // 음식을 먹는데 걸리는 시간 (ms)
 const EATING_ARRIVAL_THRESHOLD = 4; // 목적지 근처 도달 판정 거리 (위치 보정 없이 식사 시작)
-const FOOD_CHARACTER_BOUNDARY_OVERLAP_PX = 10; // 식사 중 캐릭터와 음식 경계가 겹치는 정도
+const FOOD_CHARACTER_BOUNDARY_OVERLAP_PX = 20; // 식사 중 캐릭터와 음식 경계가 겹치는 정도
 const FALLBACK_FOOD_SOURCE_SIZE = 16;
 const EATING_POSE_FOOD_Y_OFFSET_PX = 1; // 식사 중 캐릭터 중심이 음식 중심보다 위에 있는 정도
 const ZERO_DISTANCE_EPSILON = 0.001;

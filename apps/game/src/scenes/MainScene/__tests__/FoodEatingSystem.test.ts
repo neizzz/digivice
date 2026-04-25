@@ -25,9 +25,11 @@ import {
   createTestWorld,
   withMockedDateNow,
 } from "../../../test-utils/mainSceneTestUtils";
+import { getCharacterWorldBounds } from "../systems/CharacterDisplayBounds";
 
 const EATING_POSE_FOOD_Y_OFFSET_PX = 1;
-const FOOD_CHARACTER_BOUNDARY_OVERLAP_PX = 10;
+const FOOD_CHARACTER_BOUNDARY_OVERLAP_PX = 20;
+const PREVIOUS_FOOD_CHARACTER_BOUNDARY_OVERLAP_PX = 10;
 const FALLBACK_SOURCE_SIZE = 16;
 const DEFAULT_LANDED_FOOD_SCALE = 1.4;
 
@@ -64,24 +66,32 @@ function getFallbackHalfWidth(eid: number): number {
   return (RenderComp.scale[eid] * FALLBACK_SOURCE_SIZE) / 2;
 }
 
-function getExpectedEatingTargetX(characterEid: number, foodEid: number): number {
-  const characterHalfWidth = getFallbackHalfWidth(characterEid);
+function getExpectedEatingTargetX(
+  characterEid: number,
+  foodEid: number,
+  overlapPx = FOOD_CHARACTER_BOUNDARY_OVERLAP_PX,
+): number {
+  const characterBounds = getCharacterWorldBounds(characterEid);
+  const characterLeftOffset =
+    characterBounds.leftX - PositionComp.x[characterEid];
+  const characterRightOffset =
+    characterBounds.rightX - PositionComp.x[characterEid];
   const foodHalfWidth = getFallbackHalfWidth(foodEid);
 
   if (PositionComp.x[characterEid] <= PositionComp.x[foodEid]) {
     return Math.round(
       PositionComp.x[foodEid] -
         foodHalfWidth +
-        FOOD_CHARACTER_BOUNDARY_OVERLAP_PX -
-        characterHalfWidth,
+        overlapPx -
+        characterRightOffset,
     );
   }
 
   return Math.round(
     PositionComp.x[foodEid] +
       foodHalfWidth -
-      FOOD_CHARACTER_BOUNDARY_OVERLAP_PX +
-      characterHalfWidth,
+      overlapPx +
+      characterLeftOffset,
   );
 }
 
@@ -118,17 +128,15 @@ function assertHorizontalBoundaryOverlap(
   characterEid: number,
   foodEid: number,
 ): void {
-  const characterHalfWidth = getFallbackHalfWidth(characterEid);
+  const characterBounds = getCharacterWorldBounds(characterEid);
   const foodHalfWidth = getFallbackHalfWidth(foodEid);
+  const foodLeftX = PositionComp.x[foodEid] - foodHalfWidth;
+  const foodRightX = PositionComp.x[foodEid] + foodHalfWidth;
   const characterIsLeftOfFood =
     PositionComp.x[characterEid] <= PositionComp.x[foodEid];
   const overlap = characterIsLeftOfFood
-    ? PositionComp.x[characterEid] +
-      characterHalfWidth -
-      (PositionComp.x[foodEid] - foodHalfWidth)
-    : PositionComp.x[foodEid] +
-      foodHalfWidth -
-      (PositionComp.x[characterEid] - characterHalfWidth);
+    ? characterBounds.rightX - foodLeftX
+    : foodRightX - characterBounds.leftX;
 
   assert.ok(
     Math.abs(overlap - FOOD_CHARACTER_BOUNDARY_OVERLAP_PX) <= 0.5,
@@ -250,7 +258,7 @@ test("접근 지점에 도착해서 먹기 시작할 때 위치 보정 없이 �
   assertHorizontalBoundaryOverlap(characterEid, foodEid);
 });
 
-test("캐릭터 크기별 식사 접근 위치는 음식 경계와 약 10px 겹친다", () => {
+test("캐릭터 크기별 식사 접근 위치는 음식 경계와 약 20px 겹친다", () => {
   const scenarios = [
     { characterKey: CharacterKeyECS.TestGreenSlimeA1, scale: 0.8 },
     { characterKey: CharacterKeyECS.TestGreenSlimeD1, scale: 1.2 },
@@ -279,14 +287,18 @@ test("캐릭터 크기별 식사 접근 위치는 음식 경계와 약 10px 겹�
     });
 
     assert.ok(hasComponent(world, DestinationComp, characterEid));
-    assert.equal(
-      DestinationComp.x[characterEid],
-      getExpectedEatingTargetX(characterEid, foodEid),
+    const expectedTargetX = getExpectedEatingTargetX(characterEid, foodEid);
+    const previousTargetX = getExpectedEatingTargetX(
+      characterEid,
+      foodEid,
+      PREVIOUS_FOOD_CHARACTER_BOUNDARY_OVERLAP_PX,
     );
-    assert.equal(DestinationComp.y[characterEid], getEatingTargetY(foodEid));
+    const expectedDeltaTowardFood =
+      PositionComp.x[characterEid] <= PositionComp.x[foodEid] ? 10 : -10;
 
-    moveToDestinationAndStartEating(world, characterEid);
-    assertHorizontalBoundaryOverlap(characterEid, foodEid);
+    assert.equal(DestinationComp.x[characterEid], expectedTargetX);
+    assert.equal(expectedTargetX - previousTargetX, expectedDeltaTowardFood);
+    assert.equal(DestinationComp.y[characterEid], getEatingTargetY(foodEid));
   }
 });
 
