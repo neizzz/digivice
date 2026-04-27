@@ -40,6 +40,9 @@ const isAndroidUserAgent =
   typeof navigator !== "undefined" &&
   /DigiviceApp-Android|Android/i.test(navigator.userAgent);
 const MINI_GAME_UNAVAILABLE_VERSION = "0.1.0";
+const UNSUPPORTED_SQUARE_VIEWPORT_RATIO = 0.8;
+
+type UnsupportedViewportReason = "landscape" | "square" | null;
 
 type GameDataSummary = {
   monsterName?: string;
@@ -146,15 +149,27 @@ function isMiniGameUnavailableForCurrentVersion(): boolean {
   return getBaseAppVersion(__APP_VERSION__) === MINI_GAME_UNAVAILABLE_VERSION;
 }
 
-function getIsLandscapeViewport(): boolean {
+function getUnsupportedViewportReason(): UnsupportedViewportReason {
   if (typeof window === "undefined") {
-    return false;
+    return null;
   }
 
   const viewportWidth = window.visualViewport?.width ?? window.innerWidth;
   const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
 
-  return viewportWidth > viewportHeight;
+  if (viewportWidth <= 0 || viewportHeight <= 0) {
+    return null;
+  }
+
+  if (viewportWidth > viewportHeight) {
+    return "landscape";
+  }
+
+  if (viewportWidth / viewportHeight >= UNSUPPORTED_SQUARE_VIEWPORT_RATIO) {
+    return "square";
+  }
+
+  return null;
 }
 
 function summarizeSavedData(savedData: unknown): Record<string, unknown> {
@@ -280,12 +295,14 @@ async function openMailDraft(
 const GameContainer: React.FC = () => {
   const gameViewportRef = useRef<HTMLDivElement>(null);
   const gameContainerRef = useRef<HTMLDivElement>(null);
+  const controlButtonsWrapperRef = useRef<HTMLDivElement>(null);
   const [gameInstance, setGameInstance] = useState<Game | null>(null);
   const [gameContainerSize, setGameContainerSize] = useState<number | null>(
     null,
   );
-  const [showLandscapeOverlay, setShowLandscapeOverlay] = useState<boolean>(
-    () => isAndroidUserAgent && getIsLandscapeViewport(),
+  const [unsupportedViewportReason, setUnsupportedViewportReason] =
+    useState<UnsupportedViewportReason>(
+      () => (isAndroidUserAgent ? getUnsupportedViewportReason() : null),
   );
   const [showSetupLayer, setShowSetupLayer] = useState<boolean>(false);
   const [isBootstrapping, setIsBootstrapping] = useState<boolean>(true);
@@ -438,11 +455,15 @@ const GameContainer: React.FC = () => {
       return;
     }
 
+    const controlButtonsHeight =
+      controlButtonsWrapperRef.current?.getBoundingClientRect().height ?? 0;
+    const availableHeight = Math.max(
+      0,
+      viewportElement.clientHeight - controlButtonsHeight,
+    );
     const nextSize = Math.max(
       0,
-      Math.floor(
-        Math.min(viewportElement.clientWidth, viewportElement.clientHeight),
-      ),
+      Math.floor(Math.min(viewportElement.clientWidth, availableHeight)),
     );
 
     setGameContainerSize((previous) =>
@@ -914,36 +935,45 @@ const GameContainer: React.FC = () => {
       updateGameContainerSize();
     });
     resizeObserver.observe(viewportElement);
+    if (controlButtonsWrapperRef.current) {
+      resizeObserver.observe(controlButtonsWrapperRef.current);
+    }
 
     return () => {
       resizeObserver.disconnect();
     };
-  }, [updateGameContainerSize]);
+  }, [buttonParams, updateGameContainerSize]);
 
   useEffect(() => {
     if (!isAndroidUserAgent) {
       return;
     }
 
-    const updateLandscapeOverlay = () => {
-      setShowLandscapeOverlay(getIsLandscapeViewport());
+    const updateUnsupportedViewportOverlay = () => {
+      setUnsupportedViewportReason(getUnsupportedViewportReason());
     };
 
-    updateLandscapeOverlay();
+    updateUnsupportedViewportOverlay();
 
-    window.addEventListener("resize", updateLandscapeOverlay);
-    window.addEventListener("orientationchange", updateLandscapeOverlay);
-    window.visualViewport?.addEventListener("resize", updateLandscapeOverlay);
+    window.addEventListener("resize", updateUnsupportedViewportOverlay);
+    window.addEventListener(
+      "orientationchange",
+      updateUnsupportedViewportOverlay,
+    );
+    window.visualViewport?.addEventListener(
+      "resize",
+      updateUnsupportedViewportOverlay,
+    );
 
     return () => {
-      window.removeEventListener("resize", updateLandscapeOverlay);
+      window.removeEventListener("resize", updateUnsupportedViewportOverlay);
       window.removeEventListener(
         "orientationchange",
-        updateLandscapeOverlay,
+        updateUnsupportedViewportOverlay,
       );
       window.visualViewport?.removeEventListener(
         "resize",
-        updateLandscapeOverlay,
+        updateUnsupportedViewportOverlay,
       );
     };
   }, []);
@@ -1126,16 +1156,24 @@ const GameContainer: React.FC = () => {
     sceneTransitionLoadState.phase === "core_ready";
 
   return (
-    <div className={"relative h-full w-full min-h-0"}>
-      <>
+    <div className={"relative flex h-full min-h-0 w-full flex-col overflow-hidden"}>
+      <div
+        ref={gameViewportRef}
+        className={"grid min-h-0 min-w-0 flex-1 overflow-hidden"}
+        style={{
+          gridTemplateRows: buttonParams
+            ? "minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr)"
+            : "minmax(0, 1fr) auto minmax(0, 1fr)",
+        }}
+      >
+        <div aria-hidden="true" className="min-h-0" />
         <div
-          ref={gameViewportRef}
-          className={"flex h-full min-h-0 min-w-0 items-center justify-center overflow-hidden"}
+          className={"flex min-h-0 min-w-0 justify-center overflow-hidden"}
         >
           <div
             id="game-container"
             ref={gameContainerRef}
-            className={"relative m-0 shrink-0 -translate-y-16 p-0"}
+            className={"relative m-0 shrink-0 p-0"}
             style={
               gameContainerSize
                 ? {
@@ -1148,9 +1186,13 @@ const GameContainer: React.FC = () => {
             {/* 게임 캔버스가 여기에 렌더링됨 */}
           </div>
         </div>
+        <div aria-hidden="true" className="min-h-0" />
 
         {buttonParams && (
-          <div className={"absolute inset-x-0 bottom-32 z-10 w-full"}>
+          <div
+            ref={controlButtonsWrapperRef}
+            className={"z-10 w-full"}
+          >
             <ControlButtons
               buttonParams={buttonParams}
               onButtonPress={handleButtonPress}
@@ -1159,20 +1201,31 @@ const GameContainer: React.FC = () => {
             />
           </div>
         )}
-      </>
+        {buttonParams && <div aria-hidden="true" className="min-h-0" />}
+      </div>
       {isLoading && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black text-white">
           <div className="text-center text-lg tracking-[0.12em]">Loading...</div>
         </div>
       )}
-      {showLandscapeOverlay && (
-        <div className="absolute inset-0 z-[70] flex items-center justify-center bg-black text-white">
+      {unsupportedViewportReason && (
+        <div className="absolute inset-0 z-[1000] flex items-center justify-center bg-black text-white">
           <div className="px-6 text-center">
             <div className="text-lg tracking-[0.12em]">Portrait Only</div>
             <div className="mt-6 text-[10px] leading-6 tracking-[0.12em]">
-              Please rotate your device
-              <br />
-              back to portrait mode.
+              {unsupportedViewportReason === "landscape" ? (
+                <>
+                  Please rotate your device
+                  <br />
+                  back to portrait mode.
+                </>
+              ) : (
+                <>
+                  This screen ratio is not supported.
+                  <br />
+                  Please use a taller portrait screen.
+                </>
+              )}
             </div>
           </div>
         </div>

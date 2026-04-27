@@ -47119,6 +47119,7 @@ const RECOVERY_VIBRATION_STRENGTH = 28;
 const isNativeFeatureDebugMode$1 = true;
 const isAndroidUserAgent = typeof navigator !== "undefined" && /DigiviceApp-Android|Android/i.test(navigator.userAgent);
 const MINI_GAME_UNAVAILABLE_VERSION = "0.1.0";
+const UNSUPPORTED_SQUARE_VIEWPORT_RATIO = 0.8;
 function waitForAnimationFrame() {
   return new Promise((resolve) => {
     window.requestAnimationFrame(() => resolve());
@@ -47159,14 +47160,23 @@ function getBaseAppVersion(version) {
 function isMiniGameUnavailableForCurrentVersion() {
   return getBaseAppVersion("0.1.0-debug") === MINI_GAME_UNAVAILABLE_VERSION;
 }
-function getIsLandscapeViewport() {
+function getUnsupportedViewportReason() {
   var _a, _b;
   if (typeof window === "undefined") {
-    return false;
+    return null;
   }
   const viewportWidth = ((_a = window.visualViewport) == null ? void 0 : _a.width) ?? window.innerWidth;
   const viewportHeight = ((_b = window.visualViewport) == null ? void 0 : _b.height) ?? window.innerHeight;
-  return viewportWidth > viewportHeight;
+  if (viewportWidth <= 0 || viewportHeight <= 0) {
+    return null;
+  }
+  if (viewportWidth > viewportHeight) {
+    return "landscape";
+  }
+  if (viewportWidth / viewportHeight >= UNSUPPORTED_SQUARE_VIEWPORT_RATIO) {
+    return "square";
+  }
+  return null;
 }
 function summarizeSavedData(savedData) {
   var _a;
@@ -47253,12 +47263,13 @@ async function openMailDraft(subject, body, attachments) {
 const GameContainer = () => {
   const gameViewportRef = reactExports.useRef(null);
   const gameContainerRef = reactExports.useRef(null);
+  const controlButtonsWrapperRef = reactExports.useRef(null);
   const [gameInstance, setGameInstance] = reactExports.useState(null);
   const [gameContainerSize, setGameContainerSize] = reactExports.useState(
     null
   );
-  const [showLandscapeOverlay, setShowLandscapeOverlay] = reactExports.useState(
-    () => isAndroidUserAgent && getIsLandscapeViewport()
+  const [unsupportedViewportReason, setUnsupportedViewportReason] = reactExports.useState(
+    () => isAndroidUserAgent ? getUnsupportedViewportReason() : null
   );
   const [showSetupLayer, setShowSetupLayer] = reactExports.useState(false);
   const [isBootstrapping, setIsBootstrapping] = reactExports.useState(true);
@@ -47366,6 +47377,7 @@ const GameContainer = () => {
     setIsBootstrapping(false);
   }, []);
   const updateGameContainerSize = reactExports.useCallback((force = false) => {
+    var _a;
     const viewportElement = gameViewportRef.current;
     if (!viewportElement) {
       return;
@@ -47373,11 +47385,14 @@ const GameContainer = () => {
     if (!force && isFullscreenAdLayoutFrozenRef.current) {
       return;
     }
+    const controlButtonsHeight = ((_a = controlButtonsWrapperRef.current) == null ? void 0 : _a.getBoundingClientRect().height) ?? 0;
+    const availableHeight = Math.max(
+      0,
+      viewportElement.clientHeight - controlButtonsHeight
+    );
     const nextSize = Math.max(
       0,
-      Math.floor(
-        Math.min(viewportElement.clientWidth, viewportElement.clientHeight)
-      )
+      Math.floor(Math.min(viewportElement.clientWidth, availableHeight))
     );
     setGameContainerSize(
       (previous) => previous === nextSize ? previous : nextSize
@@ -47770,32 +47785,41 @@ const GameContainer = () => {
       updateGameContainerSize();
     });
     resizeObserver.observe(viewportElement);
+    if (controlButtonsWrapperRef.current) {
+      resizeObserver.observe(controlButtonsWrapperRef.current);
+    }
     return () => {
       resizeObserver.disconnect();
     };
-  }, [updateGameContainerSize]);
+  }, [buttonParams, updateGameContainerSize]);
   reactExports.useEffect(() => {
     var _a;
     if (!isAndroidUserAgent) {
       return;
     }
-    const updateLandscapeOverlay = () => {
-      setShowLandscapeOverlay(getIsLandscapeViewport());
+    const updateUnsupportedViewportOverlay = () => {
+      setUnsupportedViewportReason(getUnsupportedViewportReason());
     };
-    updateLandscapeOverlay();
-    window.addEventListener("resize", updateLandscapeOverlay);
-    window.addEventListener("orientationchange", updateLandscapeOverlay);
-    (_a = window.visualViewport) == null ? void 0 : _a.addEventListener("resize", updateLandscapeOverlay);
+    updateUnsupportedViewportOverlay();
+    window.addEventListener("resize", updateUnsupportedViewportOverlay);
+    window.addEventListener(
+      "orientationchange",
+      updateUnsupportedViewportOverlay
+    );
+    (_a = window.visualViewport) == null ? void 0 : _a.addEventListener(
+      "resize",
+      updateUnsupportedViewportOverlay
+    );
     return () => {
       var _a2;
-      window.removeEventListener("resize", updateLandscapeOverlay);
+      window.removeEventListener("resize", updateUnsupportedViewportOverlay);
       window.removeEventListener(
         "orientationchange",
-        updateLandscapeOverlay
+        updateUnsupportedViewportOverlay
       );
       (_a2 = window.visualViewport) == null ? void 0 : _a2.removeEventListener(
         "resize",
-        updateLandscapeOverlay
+        updateUnsupportedViewportOverlay
       );
     };
   }, []);
@@ -47935,45 +47959,68 @@ const GameContainer = () => {
     }
   }, []);
   const isLoading = isBootstrapping || sceneTransitionLoadState.phase === "loading" || sceneTransitionLoadState.phase === "core_ready";
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "relative h-full w-full min-h-0", children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx(
-        "div",
-        {
-          ref: gameViewportRef,
-          className: "flex h-full min-h-0 min-w-0 items-center justify-center overflow-hidden",
-          children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "relative flex h-full min-h-0 w-full flex-col overflow-hidden", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs(
+      "div",
+      {
+        ref: gameViewportRef,
+        className: "grid min-h-0 min-w-0 flex-1 overflow-hidden",
+        style: {
+          gridTemplateRows: buttonParams ? "minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr)" : "minmax(0, 1fr) auto minmax(0, 1fr)"
+        },
+        children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "aria-hidden": "true", className: "min-h-0" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
             {
-              id: "game-container",
-              ref: gameContainerRef,
-              className: "relative m-0 shrink-0 -translate-y-16 p-0",
-              style: gameContainerSize ? {
-                width: `${gameContainerSize}px`,
-                height: `${gameContainerSize}px`
-              } : void 0
+              className: "flex min-h-0 min-w-0 justify-center overflow-hidden",
+              children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "div",
+                {
+                  id: "game-container",
+                  ref: gameContainerRef,
+                  className: "relative m-0 shrink-0 p-0",
+                  style: gameContainerSize ? {
+                    width: `${gameContainerSize}px`,
+                    height: `${gameContainerSize}px`
+                  } : void 0
+                }
+              )
             }
-          )
-        }
-      ),
-      buttonParams && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-x-0 bottom-32 z-10 w-full", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-        ControlButtons,
-        {
-          buttonParams,
-          onButtonPress: handleButtonPress,
-          onSliderChange: handleSliderChange,
-          onSliderEnd: handleSliderEnd
-        }
-      ) })
-    ] }),
+          ),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "aria-hidden": "true", className: "min-h-0" }),
+          buttonParams && /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "div",
+            {
+              ref: controlButtonsWrapperRef,
+              className: "z-10 w-full",
+              children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                ControlButtons,
+                {
+                  buttonParams,
+                  onButtonPress: handleButtonPress,
+                  onSliderChange: handleSliderChange,
+                  onSliderEnd: handleSliderEnd
+                }
+              )
+            }
+          ),
+          buttonParams && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "aria-hidden": "true", className: "min-h-0" })
+        ]
+      }
+    ),
     isLoading && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-50 flex items-center justify-center bg-black text-white", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-center text-lg tracking-[0.12em]", children: "Loading..." }) }),
-    showLandscapeOverlay && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-[70] flex items-center justify-center bg-black text-white", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "px-6 text-center", children: [
+    unsupportedViewportReason && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-[1000] flex items-center justify-center bg-black text-white", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "px-6 text-center", children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-lg tracking-[0.12em]", children: "Portrait Only" }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mt-6 text-[10px] leading-6 tracking-[0.12em]", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "mt-6 text-[10px] leading-6 tracking-[0.12em]", children: unsupportedViewportReason === "landscape" ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
         "Please rotate your device",
         /* @__PURE__ */ jsxRuntimeExports.jsx("br", {}),
         "back to portrait mode."
-      ] })
+      ] }) : /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+        "This screen ratio is not supported.",
+        /* @__PURE__ */ jsxRuntimeExports.jsx("br", {}),
+        "Please use a taller portrait screen."
+      ] }) })
     ] }) }),
     showSetupLayer && /* @__PURE__ */ jsxRuntimeExports.jsx(SetupLayer, { onComplete: handleSetupComplete }),
     showSettingMenu && /* @__PURE__ */ jsxRuntimeExports.jsx(
