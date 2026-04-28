@@ -6,10 +6,11 @@ import {
 	RenderComp,
 	FoodMaskComp,
 	FreshnessComp,
+	ObjectComp,
 } from "../raw-components";
 import * as PIXI from "pixi.js";
 import { MainSceneWorld } from "../world";
-import { TextureKey, Freshness, EGG_TEXTURE_KEYS } from "../types";
+import { TextureKey, Freshness, EGG_TEXTURE_KEYS, ObjectType } from "../types";
 import { getTextureFromSpritesheet } from "../../../utils/asset";
 import { hasComponent } from "bitecs";
 import { ObjectStore } from "../utils/ObjectStore";
@@ -483,11 +484,17 @@ export function renderCommonAttributes(
 
 	const x = PositionComp.x[eid];
 	const y = PositionComp.y[eid];
-	sprite.position.set(x, y);
+	const shouldSnapCharacterToPixelGrid =
+		hasComponent(world, ObjectComp, eid) &&
+		ObjectComp.type[eid] === ObjectType.CHARACTER;
+	const renderedX = shouldSnapCharacterToPixelGrid ? Math.round(x) : x;
+	const renderedY = shouldSnapCharacterToPixelGrid ? Math.round(y) : y;
+	sprite.position.set(renderedX, renderedY);
 
 	// zIndex가 0이거나 설정되지 않았으면 y 좌표를 zIndex로 사용
 	const configuredZIndex = RenderComp.zIndex[eid];
-	sprite.zIndex = configuredZIndex === ECS_NULL_VALUE ? y : configuredZIndex;
+	sprite.zIndex =
+		configuredZIndex === ECS_NULL_VALUE ? renderedY : configuredZIndex;
 
 	const baseScale = RenderComp.scale[eid];
 
