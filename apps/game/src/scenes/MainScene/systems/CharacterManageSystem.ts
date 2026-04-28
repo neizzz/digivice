@@ -27,6 +27,7 @@ const characterQuery = defineQuery([
   StatusIconRenderComp,
   RenderComp,
 ]);
+const reentryHappyCharacterQuery = defineQuery([ObjectComp, CharacterStatusComp]);
 
 // 이전 프레임의 상태를 추적하기 위한 Map
 const previousStatusStates: Map<number, CharacterStatus[]> = new Map();
@@ -240,6 +241,35 @@ export function addCharacterStatus(eid: number, status: CharacterStatus): void {
   console.warn(
     `[addCharacterStatus] No empty slot available for entity ${eid} to add status ${status}`,
   );
+}
+
+export function applyReentryHappyStatusForFullStaminaCharacters(
+  world: MainSceneWorld,
+): void {
+  _cachedWorld = world;
+
+  const characters = reentryHappyCharacterQuery(world);
+
+  for (let i = 0; i < characters.length; i++) {
+    const eid = characters[i];
+
+    if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
+      continue;
+    }
+
+    if (
+      ObjectComp.state[eid] === CharacterState.EGG ||
+      ObjectComp.state[eid] === CharacterState.DEAD
+    ) {
+      continue;
+    }
+
+    if (CharacterStatusComp.stamina[eid] < GAME_CONSTANTS.MAX_STAMINA) {
+      continue;
+    }
+
+    addCharacterStatus(eid, CharacterStatus.HAPPY);
+  }
 }
 
 export function removeCharacterStatus(

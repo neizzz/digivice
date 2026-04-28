@@ -1,8 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { addEntity } from "bitecs";
-import { CharacterStatusComp, RenderComp } from "../raw-components";
+import { addEntity, hasComponent } from "bitecs";
 import {
+  CharacterStatusComp,
+  RenderComp,
+  TemporaryStatusComp,
+} from "../raw-components";
+import {
+  applyReentryHappyStatusForFullStaminaCharacters,
   characterManagerSystem,
   getRemainingEvolutionGaugeTime,
   getRemainingStaminaDecreaseTime,
@@ -10,6 +15,7 @@ import {
 } from "../systems/CharacterManageSystem";
 import { GAME_CONSTANTS } from "../config";
 import {
+  CharacterStatus,
   CharacterState,
   TextureKey,
   getRandomEggTextureKey,
@@ -140,6 +146,59 @@ test("부화한 캐릭터는 어떤 egg 텍스처를 쓰고 있었든 정적 egg
   });
 
   assert.equal(RenderComp.textureKey[hatchedEid], TextureKey.NULL);
+});
+
+test("reentry 시 최대 스테미나 캐릭터만 happy 임시 상태를 얻는다", () => {
+  const world = createTestWorld({ now: 30_000 });
+
+  const fullStaminaEid = withMockedDateNow(30_000, () =>
+    createTestCharacter(world, {
+      state: CharacterState.IDLE,
+      stamina: GAME_CONSTANTS.MAX_STAMINA,
+      x: 80,
+      y: 80,
+    }),
+  );
+
+  const partialStaminaEid = withMockedDateNow(30_001, () =>
+    createTestCharacter(world, {
+      state: CharacterState.IDLE,
+      stamina: GAME_CONSTANTS.MAX_STAMINA - GAME_CONSTANTS.STAMINA_DECREASE_AMOUNT,
+      x: 140,
+      y: 80,
+    }),
+  );
+
+  const eggEid = withMockedDateNow(30_002, () =>
+    createTestCharacter(world, {
+      state: CharacterState.EGG,
+      stamina: GAME_CONSTANTS.MAX_STAMINA,
+      x: 200,
+      y: 80,
+    }),
+  );
+
+  applyReentryHappyStatusForFullStaminaCharacters(world as any);
+
+  assert.ok(
+    Array.from(CharacterStatusComp.statuses[fullStaminaEid]).includes(
+      CharacterStatus.HAPPY,
+    ),
+  );
+  assert.equal(hasComponent(world, TemporaryStatusComp, fullStaminaEid), true);
+  assert.equal(TemporaryStatusComp.statusType[fullStaminaEid], CharacterStatus.HAPPY);
+  assert.equal(TemporaryStatusComp.startTime[fullStaminaEid], 30_000);
+
+  assert.equal(
+    Array.from(CharacterStatusComp.statuses[partialStaminaEid]).includes(
+      CharacterStatus.HAPPY,
+    ),
+    false,
+  );
+  assert.equal(
+    Array.from(CharacterStatusComp.statuses[eggEid]).includes(CharacterStatus.HAPPY),
+    false,
+  );
 });
 
 test("수면 중 진화 게이지는 깨어있을 때의 1/3 속도로 오른다", () => {

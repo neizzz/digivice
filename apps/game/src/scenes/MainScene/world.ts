@@ -119,6 +119,7 @@ import { diseaseSystem } from "./systems/DiseaseSystem";
 import { eggHatchSystem } from "./systems/EggHatchSystem";
 import { sleepScheduleSystem } from "./systems/SleepScheduleSystem";
 import {
+  applyReentryHappyStatusForFullStaminaCharacters,
   characterManagerSystem,
   validateAndFixStatusIcons,
 } from "./systems/CharacterManageSystem";
@@ -2921,6 +2922,7 @@ export class MainSceneWorld implements IWorld, Scene {
       );
 
       this._simulationTime = currentTime;
+      applyReentryHappyStatusForFullStaminaCharacters(this);
       await this._saveCurrentState();
 
       console.log("[MainSceneWorld] Reentry simulation completed successfully");
