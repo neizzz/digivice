@@ -59,7 +59,8 @@ export const PRODUCTION_BALANCE_REFERENCE = {
     PRODUCTION_NIGHT_WAKE_REFERENCE.nightlyWakeProbability,
   NIGHT_WAKE_EXPECTED_NIGHTS_PER_WAKE:
     1 / PRODUCTION_NIGHT_WAKE_REFERENCE.nightlyWakeProbability,
-  NIGHT_WAKE_PRODUCTION_PER_CHECK_CHANCE: PRODUCTION_NIGHT_WAKE_PER_CHECK_CHANCE,
+  NIGHT_WAKE_PRODUCTION_PER_CHECK_CHANCE:
+    PRODUCTION_NIGHT_WAKE_PER_CHECK_CHANCE,
 } as const;
 
 const PRODUCTION_GAME_CONSTANTS = {
@@ -213,7 +214,9 @@ function deriveTimeConstant(key: DevTimeConstantKey): number {
     return 0;
   }
 
-  return derivedValue > 0 ? Math.max(1, derivedValue) : Math.min(-1, derivedValue);
+  return derivedValue > 0
+    ? Math.max(1, derivedValue)
+    : Math.min(-1, derivedValue);
 }
 
 function deriveProbabilityConstant(key: DevProbabilityConstantKey): number {
@@ -259,7 +262,9 @@ export const GAME_CONSTANTS = {
   STAMINA_DECREASE_INTERVAL: deriveTimeConstant("STAMINA_DECREASE_INTERVAL"),
   NIGHT_SLEEP_MIN_DELAY: deriveTimeConstant("NIGHT_SLEEP_MIN_DELAY"),
   NIGHT_SLEEP_MAX_DELAY: deriveTimeConstant("NIGHT_SLEEP_MAX_DELAY"),
-  TARGET_NIGHT_SLEEP_DURATION: deriveTimeConstant("TARGET_NIGHT_SLEEP_DURATION"),
+  TARGET_NIGHT_SLEEP_DURATION: deriveTimeConstant(
+    "TARGET_NIGHT_SLEEP_DURATION",
+  ),
   TARGET_NIGHT_SLEEP_JITTER: deriveTimeConstant("TARGET_NIGHT_SLEEP_JITTER"),
   SUNRISE_WAKE_MIN_DELAY: deriveTimeConstant("SUNRISE_WAKE_MIN_DELAY"),
   SUNRISE_WAKE_MAX_DELAY: deriveTimeConstant("SUNRISE_WAKE_MAX_DELAY"),
@@ -279,7 +284,9 @@ export const GAME_CONSTANTS = {
   STALE_FOOD_DISEASE_RATE: deriveProbabilityConstant("STALE_FOOD_DISEASE_RATE"),
   DAY_NAP_CHANCE: deriveProbabilityConstant("DAY_NAP_CHANCE"),
   NIGHT_WAKE_CHANCE: deriveProbabilityConstant("NIGHT_WAKE_CHANCE"),
-  FATIGUE_AWAKE_GAIN_PER_HOUR: deriveRateConstant("FATIGUE_AWAKE_GAIN_PER_HOUR"),
+  FATIGUE_AWAKE_GAIN_PER_HOUR: deriveRateConstant(
+    "FATIGUE_AWAKE_GAIN_PER_HOUR",
+  ),
   FATIGUE_SLEEP_RECOVERY_PER_HOUR: deriveRateConstant(
     "FATIGUE_SLEEP_RECOVERY_PER_HOUR",
   ),
@@ -309,12 +316,13 @@ function getTriangularDistributedDelayMs(
   }
 
   return Math.round(
-    max -
-      Math.sqrt((1 - clampedRandom) * (max - min) * (max - clampedMode)),
+    max - Math.sqrt((1 - clampedRandom) * (max - min) * (max - clampedMode)),
   );
 }
 
-export function getEggHatchDelayMs(randomValue: number = Math.random()): number {
+export function getEggHatchDelayMs(
+  randomValue: number = Math.random(),
+): number {
   return getTriangularDistributedDelayMs(
     {
       min: GAME_CONSTANTS.EGG_HATCH_MIN_TIME,

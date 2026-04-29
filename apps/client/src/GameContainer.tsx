@@ -248,7 +248,9 @@ function summarizeGameData(data: unknown): GameDataSummary {
 
   return {
     monsterName: record.world_metadata?.monster_name,
-    entityCount: Array.isArray(record.entities) ? record.entities.length : "n/a",
+    entityCount: Array.isArray(record.entities)
+      ? record.entities.length
+      : "n/a",
     worldVersion: record.world_metadata?.version,
     useLocalTime: record.world_metadata?.app_state?.use_local_time,
   };
@@ -283,7 +285,9 @@ async function openMailDraft(
   subject: string,
   body: string,
   attachments?: DiagnosticsAttachment[],
-): Promise<"gmail_app" | "external_browser" | "browser_window" | "same_window"> {
+): Promise<
+  "gmail_app" | "external_browser" | "browser_window" | "same_window"
+> {
   const composeUrl = buildGmailComposeHref(subject, body);
   const recipient = "ch.neizzz@gmail.com";
 
@@ -335,9 +339,9 @@ const GameContainer: React.FC = () => {
     null,
   );
   const [unsupportedViewportReason, setUnsupportedViewportReason] =
-    useState<UnsupportedViewportReason>(
-      () => (isAndroidUserAgent ? getUnsupportedViewportReason() : null),
-  );
+    useState<UnsupportedViewportReason>(() =>
+      isAndroidUserAgent ? getUnsupportedViewportReason() : null,
+    );
   const [showSetupLayer, setShowSetupLayer] = useState<boolean>(false);
   const [isBootstrapping, setIsBootstrapping] = useState<boolean>(true);
   const { alertState, showAlert, hideAlert } = useAlert();
@@ -529,13 +533,12 @@ const GameContainer: React.FC = () => {
     fullscreenAdLayoutReleaseTimeoutRef.current = window.setTimeout(() => {
       fullscreenAdLayoutReleaseRafRef.current = window.requestAnimationFrame(
         () => {
-          fullscreenAdLayoutReleaseRafRef.current = window.requestAnimationFrame(
-            () => {
+          fullscreenAdLayoutReleaseRafRef.current =
+            window.requestAnimationFrame(() => {
               isFullscreenAdLayoutFrozenRef.current = false;
               setFrozenAppShellHeight(null);
               updateGameContainerSize(true);
-            },
-          );
+            });
         },
       );
     }, 260);
@@ -671,7 +674,10 @@ const GameContainer: React.FC = () => {
         "[ImportantDiagnostics][GameContainer] Failed to prepare diagnostics payload",
         error,
       );
-      console.error("[GameContainer] Failed to prepare diagnostics payload", error);
+      console.error(
+        "[GameContainer] Failed to prepare diagnostics payload",
+        error,
+      );
       showAlert("Failed to prepare diagnostics payload.", "Error");
     } finally {
       setIsSendingDiagnostics(false);
@@ -1121,7 +1127,10 @@ const GameContainer: React.FC = () => {
           return;
         }
 
-        console.warn("[GameContainer] Failed to preload mini game assets", error);
+        console.warn(
+          "[GameContainer] Failed to preload mini game assets",
+          error,
+        );
       }
     };
 
@@ -1190,7 +1199,9 @@ const GameContainer: React.FC = () => {
     sceneTransitionLoadState.phase === "core_ready";
 
   return (
-    <div className={"relative flex h-full min-h-0 w-full flex-col overflow-hidden"}>
+    <div
+      className={"relative flex h-full min-h-0 w-full flex-col overflow-hidden"}
+    >
       <div
         ref={gameViewportRef}
         className={"grid min-h-0 min-w-0 flex-1 overflow-hidden"}
@@ -1201,9 +1212,7 @@ const GameContainer: React.FC = () => {
         }}
       >
         <div aria-hidden="true" className="min-h-0" />
-        <div
-          className={"flex min-h-0 min-w-0 justify-center overflow-hidden"}
-        >
+        <div className={"flex min-h-0 min-w-0 justify-center overflow-hidden"}>
           <div
             id="game-container"
             ref={gameContainerRef}
@@ -1223,10 +1232,7 @@ const GameContainer: React.FC = () => {
         <div aria-hidden="true" className="min-h-0" />
 
         {buttonParams && (
-          <div
-            ref={controlButtonsWrapperRef}
-            className={"z-10 w-full"}
-          >
+          <div ref={controlButtonsWrapperRef} className={"z-10 w-full"}>
             <ControlButtons
               buttonParams={buttonParams}
               onButtonPress={handleButtonPress}
@@ -1239,7 +1245,9 @@ const GameContainer: React.FC = () => {
       </div>
       {isLoading && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black text-white">
-          <div className="text-center text-lg tracking-[0.12em]">Loading...</div>
+          <div className="text-center text-lg tracking-[0.12em]">
+            Loading...
+          </div>
         </div>
       )}
       {unsupportedViewportReason && (

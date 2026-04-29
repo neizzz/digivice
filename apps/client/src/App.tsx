@@ -65,7 +65,7 @@ const App = () => {
           return;
         }
 
-      updateLastActiveTime();
+        updateLastActiveTime();
       } else if (document.visibilityState === "hidden") {
         updateLastActiveTime();
       }
