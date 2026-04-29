@@ -4,7 +4,6 @@ import GameContainer from "./GameContainer";
 import { DevEnvironmentBadge } from "./components/DevEnvironmentBadge";
 import TopLeftBuildLogoText from "./components/TopLeftBuildLogoText";
 import { AdManager } from "./ad/AdManager";
-import { AppReenterPolicy } from "./ad/policies/AppReenterPolicy";
 import { MainSceneMenuPolicy } from "./ad/policies/MainSceneMenuPolicy";
 import SimpleLogViewer from "../components/SimpleLogViewer/SimpleLogViewer";
 
@@ -36,7 +35,6 @@ const App = () => {
 
     // AdManager 초기화
     adManager = new AdManager();
-    adManager.addPolicy(new AppReenterPolicy());
     adManager.addPolicy(new MainSceneMenuPolicy());
     window.adManager = adManager;
     window.digiviceAdBridge = {
@@ -56,7 +54,7 @@ const App = () => {
       },
     };
 
-    // 재진입 감지
+    // visibility 기반 활성 시간 동기화
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
         if (
@@ -67,7 +65,7 @@ const App = () => {
           return;
         }
 
-        handleAppReenter();
+      updateLastActiveTime();
       } else if (document.visibilityState === "hidden") {
         updateLastActiveTime();
       }
@@ -108,24 +106,6 @@ const App = () => {
       window.digiviceAdBridge = undefined;
     };
   }, []);
-
-  const handleAppReenter = () => {
-    console.log("[App] App reenter detected");
-
-    // 게임에서 캐릭터 위급 상태 가져오기
-    // TODO: GameStateProvider를 실제 게임 상태와 연결
-    const isUrgent = false; // GameStateProvider.isCharacterUrgent();
-
-    // 광고 요청
-    if (adManager) {
-      adManager.requestAd("app_reenter", {
-        isCharacterUrgent: isUrgent,
-        metadata: {
-          timestamp: Date.now(),
-        },
-      });
-    }
-  };
 
   const updateLastActiveTime = () => {
     const now = Date.now();
