@@ -43,7 +43,7 @@ def validateReleaseSigning = {
 }
 
 android {
-    namespace = "com.cch.montto"
+    namespace = "com.ch00n9h09.montto"
     compileSdk = flutter.compileSdkVersion
     // ndkVersion = flutter.ndkVersion
     ndkVersion = "25.1.8937393"
@@ -59,7 +59,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.cch.montto"
+        applicationId = "com.ch00n9h09.montto"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         // minSdk = flutter.minSdkVersion
