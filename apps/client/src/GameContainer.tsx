@@ -40,6 +40,7 @@ const isAndroidUserAgent =
   typeof navigator !== "undefined" &&
   /DigiviceApp-Android|Android/i.test(navigator.userAgent);
 const MINI_GAME_UNAVAILABLE_VERSION = "0.1.0";
+const KEYBOARD_VIEWPORT_HEIGHT_DELTA_THRESHOLD = 80;
 const UNSUPPORTED_SQUARE_VIEWPORT_RATIO = 0.8;
 
 type UnsupportedViewportReason = "landscape" | "square" | null;
@@ -149,6 +150,35 @@ function isMiniGameUnavailableForCurrentVersion(): boolean {
   return getBaseAppVersion(__APP_VERSION__) === MINI_GAME_UNAVAILABLE_VERSION;
 }
 
+function isTextInputElement(element: Element | null): element is HTMLElement {
+  return (
+    element instanceof HTMLElement &&
+    (element.tagName === "INPUT" ||
+      element.tagName === "TEXTAREA" ||
+      element.isContentEditable)
+  );
+}
+
+function isKeyboardOpenForSquareViewportCheck(): boolean {
+  if (typeof window === "undefined" || typeof document === "undefined") {
+    return false;
+  }
+
+  const visualViewport = window.visualViewport;
+
+  if (!visualViewport || !isTextInputElement(document.activeElement)) {
+    return false;
+  }
+
+  const baseViewportHeight = Math.max(
+    window.innerHeight,
+    document.documentElement.clientHeight || 0,
+  );
+  const viewportHeightDelta = baseViewportHeight - visualViewport.height;
+
+  return viewportHeightDelta >= KEYBOARD_VIEWPORT_HEIGHT_DELTA_THRESHOLD;
+}
+
 function getUnsupportedViewportReason(): UnsupportedViewportReason {
   if (typeof window === "undefined") {
     return null;
@@ -163,6 +193,10 @@ function getUnsupportedViewportReason(): UnsupportedViewportReason {
 
   if (viewportWidth > viewportHeight) {
     return "landscape";
+  }
+
+  if (isKeyboardOpenForSquareViewportCheck()) {
+    return null;
   }
 
   if (viewportWidth / viewportHeight >= UNSUPPORTED_SQUARE_VIEWPORT_RATIO) {
