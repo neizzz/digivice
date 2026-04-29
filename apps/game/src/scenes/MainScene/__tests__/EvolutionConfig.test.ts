@@ -28,11 +28,11 @@ test("같은 라인 같은 종류의 다음 클래스가 가장 높은 확률로
     CharacterKeyECS.TestGreenSlimeB1,
   );
   assert.equal(
-    resolveEvolutionTarget(CharacterKeyECS.TestGreenSlimeA1, 0.85),
+    resolveEvolutionTarget(CharacterKeyECS.TestGreenSlimeA1, 0.65),
     CharacterKeyECS.TestGreenSlimeB2,
   );
   assert.equal(
-    resolveEvolutionTarget(CharacterKeyECS.TestGreenSlimeA1, 0.95),
+    resolveEvolutionTarget(CharacterKeyECS.TestGreenSlimeA1, 0.9),
     CharacterKeyECS.TestGreenSlimeB3,
   );
 
@@ -41,14 +41,17 @@ test("같은 라인 같은 종류의 다음 클래스가 가장 높은 확률로
     CharacterKeyECS.TestGreenSlimeD4,
   );
   assert.equal(
-    resolveEvolutionTarget(CharacterKeyECS.TestGreenSlimeC4, 0.75),
+    resolveEvolutionTarget(CharacterKeyECS.TestGreenSlimeC4, 0.55),
     CharacterKeyECS.TestGreenSlimeD1,
   );
 });
 
 test("최종 단계 몬스터는 더 이상 진화 후보가 없다", () => {
   assert.equal(canEvolveFromConfig(CharacterKeyECS.TestGreenSlimeD1), false);
-  assert.equal(resolveEvolutionTarget(CharacterKeyECS.TestGreenSlimeD1, 0.5), null);
+  assert.equal(
+    resolveEvolutionTarget(CharacterKeyECS.TestGreenSlimeD1, 0.5),
+    null,
+  );
 });
 
 test("production 진화 목표 시간은 클래스별 기대 범위 안에서 결정된다", () => {

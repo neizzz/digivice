@@ -3,7 +3,10 @@ import { CharacterKeyECS } from "./types";
 
 export type MonsterGeneLine = "green-slime";
 export type MonsterClassCode = "A" | "B" | "C" | "D";
-export type MonsterCharacterKey = Exclude<CharacterKeyECS, CharacterKeyECS.NULL>;
+export type MonsterCharacterKey = Exclude<
+  CharacterKeyECS,
+  CharacterKeyECS.NULL
+>;
 export type EvolutionCandidateKind =
   | "base"
   | "same_line_variant_mutation"
@@ -129,8 +132,8 @@ function getStableSeededUnitValue(seed: string): number {
 export const PRODUCTION_EVOLUTION_GAUGE_CONFIG: EvolutionGaugeConfig = {
   maxGauge: DEFAULT_MAX_GAUGE,
   staminaThreshold: 4,
-  boostedStaminaThreshold: 8,
-  boostedGaugeGainMultiplier: 1.1,
+  boostedStaminaThreshold: 7,
+  boostedGaugeGainMultiplier: 1.2,
   checkIntervalMs: 10_000,
   sleepingGaugeTimeProgressMultiplier: 1 / 3,
   gaugeGainByClass: getAverageGaugeGainByClass({
@@ -146,8 +149,8 @@ export const PRODUCTION_EVOLUTION_GAUGE_CONFIG: EvolutionGaugeConfig = {
 export const DEV_EVOLUTION_GAUGE_CONFIG: EvolutionGaugeConfig = {
   maxGauge: DEFAULT_MAX_GAUGE,
   staminaThreshold: 4,
-  boostedStaminaThreshold: 8,
-  boostedGaugeGainMultiplier: 1.1,
+  boostedStaminaThreshold: 7,
+  boostedGaugeGainMultiplier: 1.2,
   checkIntervalMs: 10_000,
   sleepingGaugeTimeProgressMultiplier: 1 / 3,
   gaugeGainByClass: DEV_GAUGE_GAIN_BY_CLASS,
@@ -187,7 +190,10 @@ function createVariantMutationCandidate(
   return { to, weight, kind: "same_line_variant_mutation" };
 }
 
-export const MONSTER_EVOLUTION_CATALOG: Record<MonsterCharacterKey, MonsterEvolutionSpec> = {
+export const MONSTER_EVOLUTION_CATALOG: Record<
+  MonsterCharacterKey,
+  MonsterEvolutionSpec
+> = {
   [CharacterKeyECS.TestGreenSlimeA1]: {
     key: CharacterKeyECS.TestGreenSlimeA1,
     code: "green-slime_A1",
@@ -199,9 +205,9 @@ export const MONSTER_EVOLUTION_CATALOG: Record<MonsterCharacterKey, MonsterEvolu
     displayName: createDisplayName("green-slime", "A", 1),
     spritesheetName: "green-slime_A1",
     evolutionCandidates: [
-      createBaseCandidate(CharacterKeyECS.TestGreenSlimeB1, 80),
-      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeB2, 10),
-      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeB3, 10),
+      createBaseCandidate(CharacterKeyECS.TestGreenSlimeB1, 50),
+      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeB2, 25),
+      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeB3, 25),
     ],
   },
   [CharacterKeyECS.TestGreenSlimeB1]: {
@@ -215,10 +221,10 @@ export const MONSTER_EVOLUTION_CATALOG: Record<MonsterCharacterKey, MonsterEvolu
     displayName: createDisplayName("green-slime", "B", 1),
     spritesheetName: "green-slime_B1",
     evolutionCandidates: [
-      createBaseCandidate(CharacterKeyECS.TestGreenSlimeC1, 70),
-      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeC2, 10),
-      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeC3, 10),
-      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeC4, 10),
+      createBaseCandidate(CharacterKeyECS.TestGreenSlimeC1, 40),
+      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeC2, 25),
+      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeC3, 20),
+      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeC4, 15),
     ],
   },
   [CharacterKeyECS.TestGreenSlimeB2]: {
@@ -232,10 +238,10 @@ export const MONSTER_EVOLUTION_CATALOG: Record<MonsterCharacterKey, MonsterEvolu
     displayName: createDisplayName("green-slime", "B", 2),
     spritesheetName: "green-slime_B2",
     evolutionCandidates: [
-      createBaseCandidate(CharacterKeyECS.TestGreenSlimeC2, 70),
-      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeC1, 10),
-      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeC3, 10),
-      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeC4, 10),
+      createBaseCandidate(CharacterKeyECS.TestGreenSlimeC2, 40),
+      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeC1, 25),
+      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeC3, 20),
+      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeC4, 15),
     ],
   },
   [CharacterKeyECS.TestGreenSlimeB3]: {
@@ -249,10 +255,10 @@ export const MONSTER_EVOLUTION_CATALOG: Record<MonsterCharacterKey, MonsterEvolu
     displayName: createDisplayName("green-slime", "B", 3),
     spritesheetName: "green-slime_B3",
     evolutionCandidates: [
-      createBaseCandidate(CharacterKeyECS.TestGreenSlimeC3, 70),
-      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeC1, 10),
-      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeC2, 10),
-      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeC4, 10),
+      createBaseCandidate(CharacterKeyECS.TestGreenSlimeC3, 40),
+      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeC1, 25),
+      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeC2, 20),
+      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeC4, 15),
     ],
   },
   [CharacterKeyECS.TestGreenSlimeC1]: {
@@ -266,10 +272,10 @@ export const MONSTER_EVOLUTION_CATALOG: Record<MonsterCharacterKey, MonsterEvolu
     displayName: createDisplayName("green-slime", "C", 1),
     spritesheetName: "green-slime_C1",
     evolutionCandidates: [
-      createBaseCandidate(CharacterKeyECS.TestGreenSlimeD1, 70),
-      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeD2, 10),
-      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeD3, 10),
-      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeD4, 10),
+      createBaseCandidate(CharacterKeyECS.TestGreenSlimeD1, 40),
+      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeD2, 25),
+      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeD3, 20),
+      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeD4, 15),
     ],
   },
   [CharacterKeyECS.TestGreenSlimeC2]: {
@@ -283,10 +289,10 @@ export const MONSTER_EVOLUTION_CATALOG: Record<MonsterCharacterKey, MonsterEvolu
     displayName: createDisplayName("green-slime", "C", 2),
     spritesheetName: "green-slime_C2",
     evolutionCandidates: [
-      createBaseCandidate(CharacterKeyECS.TestGreenSlimeD2, 70),
-      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeD1, 10),
-      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeD3, 10),
-      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeD4, 10),
+      createBaseCandidate(CharacterKeyECS.TestGreenSlimeD2, 40),
+      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeD1, 25),
+      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeD3, 20),
+      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeD4, 15),
     ],
   },
   [CharacterKeyECS.TestGreenSlimeC3]: {
@@ -300,10 +306,10 @@ export const MONSTER_EVOLUTION_CATALOG: Record<MonsterCharacterKey, MonsterEvolu
     displayName: createDisplayName("green-slime", "C", 3),
     spritesheetName: "green-slime_C3",
     evolutionCandidates: [
-      createBaseCandidate(CharacterKeyECS.TestGreenSlimeD3, 70),
-      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeD1, 10),
-      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeD2, 10),
-      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeD4, 10),
+      createBaseCandidate(CharacterKeyECS.TestGreenSlimeD3, 40),
+      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeD1, 25),
+      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeD2, 20),
+      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeD4, 15),
     ],
   },
   [CharacterKeyECS.TestGreenSlimeC4]: {
@@ -317,10 +323,10 @@ export const MONSTER_EVOLUTION_CATALOG: Record<MonsterCharacterKey, MonsterEvolu
     displayName: createDisplayName("green-slime", "C", 4),
     spritesheetName: "green-slime_C4",
     evolutionCandidates: [
-      createBaseCandidate(CharacterKeyECS.TestGreenSlimeD4, 70),
-      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeD1, 10),
-      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeD2, 10),
-      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeD3, 10),
+      createBaseCandidate(CharacterKeyECS.TestGreenSlimeD4, 40),
+      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeD1, 25),
+      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeD2, 20),
+      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeD3, 15),
     ],
   },
   [CharacterKeyECS.TestGreenSlimeD1]: {
@@ -380,7 +386,10 @@ export const MONSTER_CHARACTER_KEYS = Object.keys(
 export function isMonsterCharacterKey(
   characterKey: CharacterKeyECS | number,
 ): characterKey is MonsterCharacterKey {
-  return characterKey !== CharacterKeyECS.NULL && characterKey in MONSTER_EVOLUTION_CATALOG;
+  return (
+    characterKey !== CharacterKeyECS.NULL &&
+    characterKey in MONSTER_EVOLUTION_CATALOG
+  );
 }
 
 export function getEvolutionSpec(
@@ -393,7 +402,9 @@ export function getEvolutionSpec(
   return MONSTER_EVOLUTION_CATALOG[characterKey];
 }
 
-export function getCharacterDisplayName(characterKey: CharacterKeyECS | number): string {
+export function getCharacterDisplayName(
+  characterKey: CharacterKeyECS | number,
+): string {
   return getEvolutionSpec(characterKey)?.displayName ?? "Unknown Character";
 }
 
@@ -454,7 +465,9 @@ export function getEvolutionGaugeIncreaseAmountForEntity(params: {
   });
 }
 
-export function canEvolveFromConfig(characterKey: CharacterKeyECS | number): boolean {
+export function canEvolveFromConfig(
+  characterKey: CharacterKeyECS | number,
+): boolean {
   const spec = getEvolutionSpec(characterKey);
   return !!spec && spec.evolutionCandidates.length > 0;
 }

@@ -163,7 +163,8 @@ test("reentry 시 최대 스테미나 캐릭터만 happy 임시 상태를 얻는
   const partialStaminaEid = withMockedDateNow(30_001, () =>
     createTestCharacter(world, {
       state: CharacterState.IDLE,
-      stamina: GAME_CONSTANTS.MAX_STAMINA - GAME_CONSTANTS.STAMINA_DECREASE_AMOUNT,
+      stamina:
+        GAME_CONSTANTS.MAX_STAMINA - GAME_CONSTANTS.STAMINA_DECREASE_AMOUNT,
       x: 140,
       y: 80,
     }),
@@ -186,7 +187,10 @@ test("reentry 시 최대 스테미나 캐릭터만 happy 임시 상태를 얻는
     ),
   );
   assert.equal(hasComponent(world, TemporaryStatusComp, fullStaminaEid), true);
-  assert.equal(TemporaryStatusComp.statusType[fullStaminaEid], CharacterStatus.HAPPY);
+  assert.equal(
+    TemporaryStatusComp.statusType[fullStaminaEid],
+    CharacterStatus.HAPPY,
+  );
   assert.equal(TemporaryStatusComp.startTime[fullStaminaEid], 30_000);
 
   assert.equal(
@@ -196,7 +200,9 @@ test("reentry 시 최대 스테미나 캐릭터만 happy 임시 상태를 얻는
     false,
   );
   assert.equal(
-    Array.from(CharacterStatusComp.statuses[eggEid]).includes(CharacterStatus.HAPPY),
+    Array.from(CharacterStatusComp.statuses[eggEid]).includes(
+      CharacterStatus.HAPPY,
+    ),
     false,
   );
 });
@@ -251,7 +257,8 @@ test("수면 중 진화 게이지는 깨어있을 때의 1/3 속도로 오른다
 
   assert.ok(
     Math.abs(
-      CharacterStatusComp.evolutionGage[sleepingEid] - awakeGaugeAfterOneInterval,
+      CharacterStatusComp.evolutionGage[sleepingEid] -
+        awakeGaugeAfterOneInterval,
     ) < 0.000001,
   );
 });
@@ -286,7 +293,7 @@ test("스테미나가 4 이상일 때 진화 게이지가 오른다", () => {
   assert.equal(getRemainingEvolutionGaugeTime(ineligibleEid), null);
 });
 
-test("스테미나가 8 이상이면 진화 게이지 증가량이 10% 커진다", () => {
+test("스테미나가 7 이상이면 진화 게이지 증가량이 20% 커진다", () => {
   const world = createTestWorld({ now: 0 });
 
   const normalEid = withMockedDateNow(0, () =>
