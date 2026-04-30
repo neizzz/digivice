@@ -92,8 +92,7 @@ const PopupLayer: React.FC<PopupProps> = ({
     const desiredCenterY = visibleTop + visualViewport.height / 2;
     const targetCenterY = targetRect.top + targetRect.height / 2;
     const desiredShift = desiredCenterY - targetCenterY;
-    const minShift =
-      visibleTop + keyboardAwareViewportPadding - popupRect.top;
+    const minShift = visibleTop + keyboardAwareViewportPadding - popupRect.top;
     const maxShift =
       visibleBottom - keyboardAwareViewportPadding - popupRect.bottom;
 
@@ -103,10 +102,15 @@ const PopupLayer: React.FC<PopupProps> = ({
         : Math.min(Math.max(desiredShift, maxShift), minShift);
 
     const roundedShift = Math.round(clampedShift);
+
     setKeyboardAwareOffsetY((previous) =>
       previous === roundedShift ? previous : roundedShift,
     );
-  }, [keyboardAwareTargetRef, keyboardAwareViewportPadding, resetKeyboardAwareLayout]);
+  }, [
+    keyboardAwareTargetRef,
+    keyboardAwareViewportPadding,
+    resetKeyboardAwareLayout,
+  ]);
 
   const scheduleKeyboardAwareLayoutUpdate = useCallback(() => {
     if (typeof window === "undefined") {
@@ -185,7 +189,10 @@ const PopupLayer: React.FC<PopupProps> = ({
         "focus",
         handleKeyboardAwareLayoutChange,
       );
-      targetElement.removeEventListener("blur", handleKeyboardAwareLayoutChange);
+      targetElement.removeEventListener(
+        "blur",
+        handleKeyboardAwareLayoutChange,
+      );
       window.removeEventListener("resize", handleKeyboardAwareLayoutChange);
       visualViewport.removeEventListener(
         "resize",

@@ -7,6 +7,9 @@ interface SettingMenuLayerProps {
   onChangeVibration: (enabled: boolean) => void;
   onSendDiagnostics: () => void;
   isSendingDiagnostics: boolean;
+  showFinalResetConfirm: boolean;
+  onOpenResetConfirm: () => void;
+  onCloseResetConfirm: () => void;
   onResetGameData: () => void;
   onClose: () => void;
 }
@@ -59,11 +62,13 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
   onChangeVibration,
   onSendDiagnostics,
   isSendingDiagnostics,
+  showFinalResetConfirm,
+  onOpenResetConfirm,
+  onCloseResetConfirm,
   onResetGameData,
   onClose,
 }) => {
   const [resetConfirmText, setResetConfirmText] = useState("");
-  const [showFinalResetConfirm, setShowFinalResetConfirm] = useState(false);
   const resetConfirmInputRef = useRef<HTMLInputElement>(null);
 
   const isResetEnabled = useMemo(
@@ -125,7 +130,7 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
                 <button
                   type={"button"}
                   disabled={!isResetEnabled}
-                  onClick={() => setShowFinalResetConfirm(true)}
+                  onClick={onOpenResetConfirm}
                   className={`border-2 border-[#222] px-4 py-2 text-sm font-bold text-white ${
                     isResetEnabled
                       ? "bg-component-negative"
@@ -136,8 +141,6 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
                 </button>
               </div>
             </div>
-
-
           </div>
         }
         onConfirm={onClose}
@@ -149,12 +152,12 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
             title="Final Confirmation"
             content={
               <div className="text-sm leading-6">
-                This will permanently delete all game data and return you to
-                the initial setup screen. This action cannot be undone.
+                This will permanently delete all game data and return you to the
+                initial setup screen. This action cannot be undone.
               </div>
             }
             onConfirm={onResetGameData}
-            onCancel={() => setShowFinalResetConfirm(false)}
+            onCancel={onCloseResetConfirm}
             confirmText="Delete"
             cancelText="Cancel"
           />

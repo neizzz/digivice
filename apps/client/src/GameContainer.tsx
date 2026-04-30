@@ -6,7 +6,7 @@ import {
   SceneKey,
 } from "@digivice/game";
 import type React from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ControlButtons from "./components/ControlButtons";
 import PopupLayer from "./components/PopupLayer";
 import { type SetupFormData, SetupLayer } from "./layers/SetupLayer";
@@ -102,6 +102,121 @@ type SceneTransitionLoadState = {
 type FullscreenAdEventDetail = {
   state?: "showing" | "dismissed" | "failed";
 };
+
+const BACK_NAVIGATION_ALERT_ENTRY = "layer:alert";
+const BACK_NAVIGATION_DIAGNOSTICS_ENTRY = "layer:diagnostics-draft";
+const BACK_NAVIGATION_SETTING_MENU_ENTRY = "layer:setting-menu";
+const BACK_NAVIGATION_SETTING_RESET_CONFIRM_ENTRY =
+  "layer:setting-reset-confirm";
+const BACK_NAVIGATION_SCENE_ENTRY_PREFIX = "scene:";
+const ROOT_SCENE_HISTORY_STACK = [SceneKey.MAIN] as const;
+
+type BackNavigationEntry =
+  | typeof BACK_NAVIGATION_ALERT_ENTRY
+  | typeof BACK_NAVIGATION_DIAGNOSTICS_ENTRY
+  | typeof BACK_NAVIGATION_SETTING_MENU_ENTRY
+  | typeof BACK_NAVIGATION_SETTING_RESET_CONFIRM_ENTRY
+  | `${typeof BACK_NAVIGATION_SCENE_ENTRY_PREFIX}${SceneKey}`;
+
+type BackNavigationHistoryState = {
+  __digiviceBackEntries?: BackNavigationEntry[];
+};
+
+function createSceneBackNavigationEntry(
+  sceneKey: SceneKey,
+): BackNavigationEntry {
+  return `${BACK_NAVIGATION_SCENE_ENTRY_PREFIX}${sceneKey}`;
+}
+
+function parseSceneBackNavigationEntry(
+  entry: BackNavigationEntry,
+): SceneKey | null {
+  if (!entry.startsWith(BACK_NAVIGATION_SCENE_ENTRY_PREFIX)) {
+    return null;
+  }
+
+  return entry.slice(BACK_NAVIGATION_SCENE_ENTRY_PREFIX.length) as SceneKey;
+}
+
+function getTargetSceneKeyFromBackNavigationEntries(
+  entries: BackNavigationEntry[],
+): SceneKey {
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const sceneKey = parseSceneBackNavigationEntry(entries[index]);
+
+    if (sceneKey) {
+      return sceneKey;
+    }
+  }
+
+  return SceneKey.MAIN;
+}
+
+function readBackNavigationEntriesFromHistoryState(
+  state: unknown,
+): BackNavigationEntry[] {
+  if (!state || typeof state !== "object" || Array.isArray(state)) {
+    return [];
+  }
+
+  const entries = (state as BackNavigationHistoryState).__digiviceBackEntries;
+
+  if (!Array.isArray(entries)) {
+    return [];
+  }
+
+  return entries.filter(
+    (entry): entry is BackNavigationEntry => typeof entry === "string",
+  );
+}
+
+function createBackNavigationHistoryState(
+  state: unknown,
+  entries: BackNavigationEntry[],
+): Record<string, unknown> {
+  const nextState =
+    state && typeof state === "object" && !Array.isArray(state)
+      ? { ...(state as Record<string, unknown>) }
+      : {};
+
+  nextState.__digiviceBackEntries = [...entries];
+
+  return nextState;
+}
+
+function areBackNavigationEntriesEqual(
+  left: BackNavigationEntry[],
+  right: BackNavigationEntry[],
+): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function getSharedBackNavigationPrefixLength(
+  left: BackNavigationEntry[],
+  right: BackNavigationEntry[],
+): number {
+  const maxLength = Math.min(left.length, right.length);
+  let prefixLength = 0;
+
+  while (
+    prefixLength < maxLength &&
+    left[prefixLength] === right[prefixLength]
+  ) {
+    prefixLength += 1;
+  }
+
+  return prefixLength;
+}
 
 function waitForAnimationFrame(): Promise<void> {
   return new Promise((resolve) => {
@@ -367,7 +482,11 @@ const GameContainer: React.FC = () => {
     ((formData: SetupFormData) => void) | null
   >(null);
   const shouldRestartFromSetupRef = useRef(false);
+  const [sceneHistoryStack, setSceneHistoryStack] = useState<SceneKey[]>(() => [
+    ...ROOT_SCENE_HISTORY_STACK,
+  ]);
   const [showSettingMenu, setShowSettingMenu] = useState(false);
+  const [showFinalResetConfirm, setShowFinalResetConfirm] = useState(false);
   const [gameSettings, setGameSettings] = useState(getGameSettings);
   const [gameSessionKey, setGameSessionKey] = useState(0);
   const [isSendingDiagnostics, setIsSendingDiagnostics] = useState(false);
@@ -390,6 +509,15 @@ const GameContainer: React.FC = () => {
   const isFullscreenAdLayoutFrozenRef = useRef(false);
   const fullscreenAdLayoutReleaseTimeoutRef = useRef<number | null>(null);
   const fullscreenAdLayoutReleaseRafRef = useRef<number | null>(null);
+  const activeBackNavigationEntriesRef = useRef<BackNavigationEntry[]>([]);
+  const currentBackNavigationEntriesRef = useRef<BackNavigationEntry[]>([]);
+  const pendingPopstateTargetEntriesRef = useRef<BackNavigationEntry[] | null>(
+    null,
+  );
+  const pendingBrowserHistoryTargetEntriesRef = useRef<
+    BackNavigationEntry[] | null
+  >(null);
+  const hasInitializedBackNavigationHistoryRef = useRef(false);
 
   const clearPendingSettingMenuOpen = useCallback(() => {
     if (pendingSettingMenuOpenTimeoutRef.current === null) {
@@ -413,14 +541,287 @@ const GameContainer: React.FC = () => {
 
   const closeSettingMenu = useCallback(() => {
     clearPendingSettingMenuOpen();
+    setShowFinalResetConfirm(false);
     setShowSettingMenu(false);
   }, [clearPendingSettingMenuOpen]);
+
+  const closeResetConfirm = useCallback(() => {
+    setShowFinalResetConfirm(false);
+  }, []);
+
+  const backNavigationEntries = useMemo(() => {
+    const entries = sceneHistoryStack
+      .slice(1)
+      .map((sceneKey) => createSceneBackNavigationEntry(sceneKey));
+
+    if (showSettingMenu) {
+      entries.push(BACK_NAVIGATION_SETTING_MENU_ENTRY);
+    }
+
+    if (showFinalResetConfirm) {
+      entries.push(BACK_NAVIGATION_SETTING_RESET_CONFIRM_ENTRY);
+    }
+
+    if (alertState) {
+      entries.push(BACK_NAVIGATION_ALERT_ENTRY);
+    }
+
+    if (pendingDiagnosticsDraft) {
+      entries.push(BACK_NAVIGATION_DIAGNOSTICS_ENTRY);
+    }
+
+    return entries;
+  }, [
+    alertState,
+    pendingDiagnosticsDraft,
+    sceneHistoryStack,
+    showFinalResetConfirm,
+    showSettingMenu,
+  ]);
+
+  const requestHistoryBackForEntry = useCallback(
+    (entry: BackNavigationEntry, fallback: () => void) => {
+      if (typeof window === "undefined") {
+        fallback();
+        return;
+      }
+
+      const currentEntries = activeBackNavigationEntriesRef.current;
+
+      if (currentEntries[currentEntries.length - 1] !== entry) {
+        fallback();
+        return;
+      }
+
+      window.history.back();
+    },
+    [],
+  );
+
+  const dismissAlert = useCallback(() => {
+    requestHistoryBackForEntry(BACK_NAVIGATION_ALERT_ENTRY, hideAlert);
+  }, [hideAlert, requestHistoryBackForEntry]);
+
+  const dismissDiagnosticsDraft = useCallback(() => {
+    requestHistoryBackForEntry(BACK_NAVIGATION_DIAGNOSTICS_ENTRY, () => {
+      setPendingDiagnosticsDraft(null);
+    });
+  }, [requestHistoryBackForEntry]);
+
+  const dismissResetConfirm = useCallback(() => {
+    requestHistoryBackForEntry(
+      BACK_NAVIGATION_SETTING_RESET_CONFIRM_ENTRY,
+      closeResetConfirm,
+    );
+  }, [closeResetConfirm, requestHistoryBackForEntry]);
+
+  const dismissSettingMenu = useCallback(() => {
+    requestHistoryBackForEntry(
+      BACK_NAVIGATION_SETTING_MENU_ENTRY,
+      closeSettingMenu,
+    );
+  }, [closeSettingMenu, requestHistoryBackForEntry]);
+
+  const applyBackNavigationTarget = useCallback(
+    async (targetEntries: BackNavigationEntry[]) => {
+      const targetEntrySet = new Set(targetEntries);
+
+      if (!targetEntrySet.has(BACK_NAVIGATION_DIAGNOSTICS_ENTRY)) {
+        setPendingDiagnosticsDraft(null);
+      }
+
+      if (!targetEntrySet.has(BACK_NAVIGATION_ALERT_ENTRY)) {
+        hideAlert();
+      }
+
+      if (!targetEntrySet.has(BACK_NAVIGATION_SETTING_MENU_ENTRY)) {
+        closeSettingMenu();
+      } else if (
+        !targetEntrySet.has(BACK_NAVIGATION_SETTING_RESET_CONFIRM_ENTRY)
+      ) {
+        setShowFinalResetConfirm(false);
+      }
+
+      if (!gameInstance || sceneTransitionLoadState.phase !== "idle") {
+        return;
+      }
+
+      const targetSceneKey =
+        getTargetSceneKeyFromBackNavigationEntries(targetEntries);
+
+      if (gameInstance.getCurrentSceneKey() === targetSceneKey) {
+        return;
+      }
+
+      await gameInstance.changeScene(targetSceneKey);
+    },
+    [closeSettingMenu, gameInstance, hideAlert, sceneTransitionLoadState.phase],
+  );
 
   useEffect(() => {
     return () => {
       clearPendingSettingMenuOpen();
     };
   }, [clearPendingSettingMenuOpen]);
+
+  useEffect(() => {
+    activeBackNavigationEntriesRef.current = backNavigationEntries;
+  }, [backNavigationEntries]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    if (!hasInitializedBackNavigationHistoryRef.current) {
+      window.history.replaceState(
+        createBackNavigationHistoryState(
+          window.history.state,
+          backNavigationEntries,
+        ),
+        document.title,
+      );
+      currentBackNavigationEntriesRef.current = backNavigationEntries;
+      hasInitializedBackNavigationHistoryRef.current = true;
+      return;
+    }
+
+    if (pendingBrowserHistoryTargetEntriesRef.current) {
+      return;
+    }
+
+    if (pendingPopstateTargetEntriesRef.current) {
+      if (
+        areBackNavigationEntriesEqual(
+          pendingPopstateTargetEntriesRef.current,
+          backNavigationEntries,
+        )
+      ) {
+        currentBackNavigationEntriesRef.current = backNavigationEntries;
+        pendingPopstateTargetEntriesRef.current = null;
+      }
+      return;
+    }
+
+    const currentEntries = currentBackNavigationEntriesRef.current;
+
+    if (areBackNavigationEntriesEqual(currentEntries, backNavigationEntries)) {
+      const browserEntries = readBackNavigationEntriesFromHistoryState(
+        window.history.state,
+      );
+
+      if (
+        !areBackNavigationEntriesEqual(browserEntries, backNavigationEntries)
+      ) {
+        window.history.replaceState(
+          createBackNavigationHistoryState(
+            window.history.state,
+            backNavigationEntries,
+          ),
+          document.title,
+        );
+      }
+
+      return;
+    }
+
+    const sharedPrefixLength = getSharedBackNavigationPrefixLength(
+      currentEntries,
+      backNavigationEntries,
+    );
+
+    if (
+      sharedPrefixLength === currentEntries.length &&
+      backNavigationEntries.length > currentEntries.length
+    ) {
+      for (
+        let index = currentEntries.length + 1;
+        index <= backNavigationEntries.length;
+        index += 1
+      ) {
+        window.history.pushState(
+          createBackNavigationHistoryState(
+            window.history.state,
+            backNavigationEntries.slice(0, index),
+          ),
+          document.title,
+        );
+      }
+
+      currentBackNavigationEntriesRef.current = backNavigationEntries;
+      return;
+    }
+
+    if (
+      sharedPrefixLength === backNavigationEntries.length &&
+      backNavigationEntries.length < currentEntries.length
+    ) {
+      pendingBrowserHistoryTargetEntriesRef.current = backNavigationEntries;
+      window.history.go(backNavigationEntries.length - currentEntries.length);
+      return;
+    }
+
+    window.history.replaceState(
+      createBackNavigationHistoryState(
+        window.history.state,
+        backNavigationEntries,
+      ),
+      document.title,
+    );
+    currentBackNavigationEntriesRef.current = backNavigationEntries;
+  }, [backNavigationEntries]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const handlePopState = (event: PopStateEvent) => {
+      const targetEntries = readBackNavigationEntriesFromHistoryState(
+        event.state,
+      );
+
+      if (
+        pendingBrowserHistoryTargetEntriesRef.current &&
+        areBackNavigationEntriesEqual(
+          pendingBrowserHistoryTargetEntriesRef.current,
+          targetEntries,
+        )
+      ) {
+        pendingBrowserHistoryTargetEntriesRef.current = null;
+        currentBackNavigationEntriesRef.current = targetEntries;
+        return;
+      }
+
+      pendingPopstateTargetEntriesRef.current = targetEntries;
+
+      if (sceneTransitionLoadState.phase !== "idle") {
+        return;
+      }
+
+      void applyBackNavigationTarget(targetEntries);
+    };
+
+    window.addEventListener("popstate", handlePopState);
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [applyBackNavigationTarget, sceneTransitionLoadState.phase]);
+
+  useEffect(() => {
+    if (sceneTransitionLoadState.phase !== "idle") {
+      return;
+    }
+
+    const targetEntries = pendingPopstateTargetEntriesRef.current;
+
+    if (!targetEntries) {
+      return;
+    }
+
+    void applyBackNavigationTarget(targetEntries);
+  }, [applyBackNavigationTarget, sceneTransitionLoadState.phase]);
 
   const handleVibrationSettingChange = useCallback((enabled: boolean) => {
     setGameSettings(updateGameSettings({ vibrationEnabled: enabled }));
@@ -482,6 +883,19 @@ const GameContainer: React.FC = () => {
           ? { ...previous, phase: "core_ready" }
           : previous,
       );
+      setSceneHistoryStack((previous) => {
+        if (previous[previous.length - 1] === params.to) {
+          return previous;
+        }
+
+        const existingSceneIndex = previous.lastIndexOf(params.to);
+
+        if (existingSceneIndex >= 0) {
+          return previous.slice(0, existingSceneIndex + 1);
+        }
+
+        return [...previous, params.to];
+      });
     },
     [],
   );
@@ -707,13 +1121,18 @@ const GameContainer: React.FC = () => {
   ]);
 
   const handleCancelDiagnosticsDraft = useCallback(() => {
-    setPendingDiagnosticsDraft(null);
-  }, []);
+    dismissDiagnosticsDraft();
+  }, [dismissDiagnosticsDraft]);
 
   const handleConfirmDiagnosticsDraft = useCallback(async () => {
     if (!pendingDiagnosticsDraft) {
       return;
     }
+
+    let followUpAlert: {
+      title: string;
+      message: string;
+    } | null = null;
 
     try {
       const openRoute = await openMailDraft(
@@ -723,19 +1142,29 @@ const GameContainer: React.FC = () => {
       );
 
       if (openRoute !== "gmail_app") {
-        showAlert(
-          "The mail compose screen was opened outside the app. File attachment support is only guaranteed when the Gmail app opens directly.",
-          "Notice",
-        );
+        followUpAlert = {
+          title: "Notice",
+          message:
+            "The mail compose screen was opened outside the app. File attachment support is only guaranteed when the Gmail app opens directly.",
+        };
       }
     } catch (error) {
       console.error("[GameContainer] Failed to open diagnostics draft", error);
-      showAlert(
-        "Failed to open the Gmail draft. Please make sure Gmail is installed.",
-        "Error",
-      );
+      followUpAlert = {
+        title: "Error",
+        message:
+          "Failed to open the Gmail draft. Please make sure Gmail is installed.",
+      };
     } finally {
       setPendingDiagnosticsDraft(null);
+
+      if (followUpAlert) {
+        const alertToShow = followUpAlert;
+
+        window.setTimeout(() => {
+          showAlert(alertToShow.message, alertToShow.title);
+        }, 0);
+      }
     }
   }, [pendingDiagnosticsDraft, showAlert]);
 
@@ -763,7 +1192,9 @@ const GameContainer: React.FC = () => {
         pendingSetupResolverRef.current = null;
         shouldRestartFromSetupRef.current = true;
         isInitializedRef.current = false;
+        setSceneHistoryStack([...ROOT_SCENE_HISTORY_STACK]);
         setShowSettingMenu(false);
+        setShowFinalResetConfirm(false);
         setButtonParams(null);
         setShowSetupLayer(true);
         setIsBootstrapping(false);
@@ -1295,15 +1726,18 @@ const GameContainer: React.FC = () => {
           onChangeVibration={handleVibrationSettingChange}
           onSendDiagnostics={handleSendDiagnostics}
           isSendingDiagnostics={isSendingDiagnostics}
+          showFinalResetConfirm={showFinalResetConfirm}
+          onOpenResetConfirm={() => setShowFinalResetConfirm(true)}
+          onCloseResetConfirm={dismissResetConfirm}
           onResetGameData={handleResetGameData}
-          onClose={closeSettingMenu}
+          onClose={dismissSettingMenu}
         />
       )}
       {alertState && (
         <AlertLayer
           title={alertState.title}
           message={alertState.message}
-          onClose={hideAlert}
+          onClose={dismissAlert}
         />
       )}
       {sanitizeResetAlert && (
