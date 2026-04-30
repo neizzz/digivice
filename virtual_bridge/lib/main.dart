@@ -9,6 +9,8 @@ import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'bridge_configurator.dart';
+import 'update/update_blocking_overlay.dart';
+import 'update/update_coordinator.dart';
 
 String mapToString(Map<String, dynamic> map) {
   return map.entries
@@ -60,6 +62,7 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
 
   final WebViewController _controller = WebViewController();
   late final BridgeConfigurator _bridgeConfigurator;
+  late final UpdateCoordinator _updateCoordinator;
   HttpServer? _assetServer;
   int? _assetServerPort;
   String? _errorMessage;
@@ -83,6 +86,10 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
       onFullscreenAdStateChanged: _handleFullscreenAdStateChanged,
     );
 
+    _updateCoordinator = UpdateCoordinator(log: _log);
+    _updateCoordinator.addListener(_handleUpdateCoordinatorChanged);
+
+    unawaited(_updateCoordinator.checkForMandatoryUpdate(reason: 'app_started'));
     unawaited(_initializeWebView());
   }
 
@@ -95,6 +102,7 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final double keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
+    final UpdateEnforcementState updateState = _updateCoordinator.state;
     final Widget content;
 
     if (_errorMessage != null) {
@@ -124,10 +132,30 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
       );
     }
 
+    final Widget layeredContent = Stack(
+      fit: StackFit.expand,
+      children: <Widget>[
+        Positioned.fill(child: content),
+        if (updateState.isBlocking)
+          Positioned.fill(
+            child: UpdateBlockingOverlay(
+              state: updateState,
+              onRetry: _updateCoordinator.retryImmediateUpdate,
+              onOpenStore: _updateCoordinator.openPlayStoreListing,
+              onExitApp: _exitApp,
+            ),
+          ),
+      ],
+    );
+
     return PopScope<void>(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) {
+          return;
+        }
+
+        if (_updateCoordinator.state.isBlocking) {
           return;
         }
 
@@ -138,10 +166,14 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
           padding: keyboardInset > 0
               ? EdgeInsets.only(bottom: keyboardInset)
               : EdgeInsets.zero,
-          child: content,
+          child: layeredContent,
         ),
       ),
     );
+  }
+
+  Future<void> _exitApp() async {
+    await SystemNavigator.pop();
   }
 
   Future<void> _handleBackNavigation() async {
@@ -204,6 +236,12 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
     print('[WebViewLifecycle] appLifecycleState=$state');
 
     if (state == AppLifecycleState.resumed) {
+      unawaited(
+        _updateCoordinator.checkForMandatoryUpdate(
+          reason: 'app_resumed',
+          force: true,
+        ),
+      );
       _scheduleViewportSync(
         'flutter.lifecycle.resumed',
         dispatchLifecycleEvents: true,
@@ -335,6 +373,14 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
       delays: const <int>[180],
       force: true,
     );
+  }
+
+  void _handleUpdateCoordinatorChanged() {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {});
   }
 
   Future<void> _dispatchViewportSync(
@@ -527,6 +573,8 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _cancelViewportSyncTimers();
     _isPageReady = false;
+    _updateCoordinator.removeListener(_handleUpdateCoordinatorChanged);
+    _updateCoordinator.dispose();
     _assetServer?.close(force: true);
     super.dispose();
   }
