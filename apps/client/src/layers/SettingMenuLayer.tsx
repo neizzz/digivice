@@ -1,5 +1,5 @@
 import type React from "react";
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import PopupLayer from "../components/PopupLayer";
 
 interface SettingMenuLayerProps {
@@ -69,7 +69,6 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
   onClose,
 }) => {
   const [resetConfirmText, setResetConfirmText] = useState("");
-  const resetConfirmInputRef = useRef<HTMLInputElement>(null);
 
   const isResetEnabled = useMemo(
     () => resetConfirmText.trim() === "confirm",
@@ -80,8 +79,6 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
       <PopupLayer
         title="Settings"
-        initialFocusTarget="container"
-        keyboardAwareTargetRef={resetConfirmInputRef}
         suppressInitialActionsMs={180}
         content={
           <div className="flex flex-col gap-5 text-left">
@@ -120,7 +117,6 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
               </div>
               <div className="mt-3 flex items-center justify-between gap-3">
                 <input
-                  ref={resetConfirmInputRef}
                   type="text"
                   value={resetConfirmText}
                   onChange={(event) => setResetConfirmText(event.target.value)}

@@ -45,6 +45,14 @@ const UNSUPPORTED_SQUARE_VIEWPORT_RATIO = 0.8;
 
 type UnsupportedViewportReason = "landscape" | "square" | null;
 
+type UnsupportedViewportCheckOptions = {
+  nativeKeyboardInset?: number;
+};
+
+type NativeViewportSyncDetail = {
+  bottomInset?: number | null;
+};
+
 type GameDataSummary = {
   monsterName?: string;
   entityCount: number | "n/a";
@@ -275,14 +283,27 @@ function isTextInputElement(element: Element | null): element is HTMLElement {
   );
 }
 
-function isKeyboardOpenForSquareViewportCheck(): boolean {
+function isKeyboardOpenForUnsupportedViewportCheck(
+  options: UnsupportedViewportCheckOptions = {},
+): boolean {
   if (typeof window === "undefined" || typeof document === "undefined") {
     return false;
   }
 
+  const { nativeKeyboardInset = 0 } = options;
+  const activeElement = document.activeElement;
+
+  if (!isTextInputElement(activeElement)) {
+    return false;
+  }
+
+  if (nativeKeyboardInset > 0) {
+    return true;
+  }
+
   const visualViewport = window.visualViewport;
 
-  if (!visualViewport || !isTextInputElement(document.activeElement)) {
+  if (!visualViewport) {
     return false;
   }
 
@@ -295,7 +316,9 @@ function isKeyboardOpenForSquareViewportCheck(): boolean {
   return viewportHeightDelta >= KEYBOARD_VIEWPORT_HEIGHT_DELTA_THRESHOLD;
 }
 
-function getUnsupportedViewportReason(): UnsupportedViewportReason {
+function getUnsupportedViewportReason(
+  options: UnsupportedViewportCheckOptions = {},
+): UnsupportedViewportReason {
   if (typeof window === "undefined") {
     return null;
   }
@@ -307,12 +330,12 @@ function getUnsupportedViewportReason(): UnsupportedViewportReason {
     return null;
   }
 
-  if (viewportWidth > viewportHeight) {
-    return "landscape";
+  if (isKeyboardOpenForUnsupportedViewportCheck(options)) {
+    return null;
   }
 
-  if (isKeyboardOpenForSquareViewportCheck()) {
-    return null;
+  if (viewportWidth > viewportHeight) {
+    return "landscape";
   }
 
   if (viewportWidth / viewportHeight >= UNSUPPORTED_SQUARE_VIEWPORT_RATIO) {
@@ -503,6 +526,7 @@ const GameContainer: React.FC = () => {
   const pendingSettingMenuOpenTimeoutRef = useRef<number | null>(null);
   const sceneTransitionRequestIdRef = useRef(0);
   const recoveryVibrationIntervalRef = useRef<number | null>(null);
+  const nativeKeyboardInsetRef = useRef(0);
   const lastValidationResultRef = useRef<SanitizeStoredWorldDataResult | null>(
     null,
   );
@@ -949,6 +973,14 @@ const GameContainer: React.FC = () => {
     }
   }, []);
 
+  const updateUnsupportedViewportOverlay = useCallback(() => {
+    setUnsupportedViewportReason(
+      getUnsupportedViewportReason({
+        nativeKeyboardInset: nativeKeyboardInsetRef.current,
+      }),
+    );
+  }, []);
+
   const freezeLayoutForFullscreenAd = useCallback(() => {
     clearFullscreenAdLayoutRelease();
     isFullscreenAdLayoutFrozenRef.current = true;
@@ -1370,7 +1402,9 @@ const GameContainer: React.FC = () => {
                 buttonParam.initialSliderValue ===
                   controlButtonParams[index].initialSliderValue &&
                 buttonParam.sliderSessionKey ===
-                  controlButtonParams[index].sliderSessionKey,
+                  controlButtonParams[index].sliderSessionKey &&
+                buttonParam.hasCleaningTarget ===
+                  controlButtonParams[index].hasCleaningTarget,
             )
           ) {
             return previous;
@@ -1436,8 +1470,11 @@ const GameContainer: React.FC = () => {
       return;
     }
 
-    const updateUnsupportedViewportOverlay = () => {
-      setUnsupportedViewportReason(getUnsupportedViewportReason());
+    const handleNativeViewportSync = (event: Event) => {
+      const detail = (event as CustomEvent<NativeViewportSyncDetail>).detail;
+
+      nativeKeyboardInsetRef.current = Math.max(0, detail?.bottomInset ?? 0);
+      updateUnsupportedViewportOverlay();
     };
 
     updateUnsupportedViewportOverlay();
@@ -1451,6 +1488,10 @@ const GameContainer: React.FC = () => {
       "resize",
       updateUnsupportedViewportOverlay,
     );
+    window.addEventListener(
+      "digivice:native-viewport-sync",
+      handleNativeViewportSync as EventListener,
+    );
 
     return () => {
       window.removeEventListener("resize", updateUnsupportedViewportOverlay);
@@ -1462,8 +1503,12 @@ const GameContainer: React.FC = () => {
         "resize",
         updateUnsupportedViewportOverlay,
       );
+      window.removeEventListener(
+        "digivice:native-viewport-sync",
+        handleNativeViewportSync as EventListener,
+      );
     };
-  }, []);
+  }, [updateUnsupportedViewportOverlay]);
 
   useEffect(() => {
     if (typeof window === "undefined") {

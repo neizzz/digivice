@@ -6,7 +6,7 @@ import {
   NAME_LABEL_MAX_WIDTH,
   type SunTimesPayload,
 } from "@digivice/game";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import PopupLayer from "../components/PopupLayer";
 
@@ -27,6 +27,7 @@ export const SetupLayer: React.FC<SetupLayerProps> = ({ onComplete }) => {
   const [error, setError] = useState<string | null>(null);
   const [isRequestingLocationPermission, setIsRequestingLocationPermission] =
     useState(false);
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const trimmedName = name.trim();
   const nameLength = countDisplayCharacters(trimmedName);
   const nameWidth = measureNameLabelWidth(trimmedName);
@@ -109,10 +110,12 @@ export const SetupLayer: React.FC<SetupLayerProps> = ({ onComplete }) => {
     <div className="fixed inset-0 z-[999] flex min-h-dvh items-center justify-center bg-black/50">
       <PopupLayer
         title="Spawn Monster!"
+        keyboardAwareTargetRef={nameInputRef}
         content={
           <div className="flex flex-col items-center gap-4">
             <div className="w-full">
               <input
+                ref={nameInputRef}
                 type="text"
                 value={name}
                 onChange={(e) => {

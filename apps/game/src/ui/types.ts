@@ -16,6 +16,7 @@ export interface ControlButtonParams {
   type: ControlButtonType;
   initialSliderValue?: number;
   sliderSessionKey?: number;
+  hasCleaningTarget?: boolean;
 }
 
 export enum ControlButtonType {

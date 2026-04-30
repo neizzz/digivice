@@ -2667,7 +2667,15 @@ export class MainSceneWorld implements IWorld, Scene {
    * 청소 모드 상태를 업데이트하는 메서드들
    */
   public setFocusedTargetEid(eid: number): void {
+    if (this._focusedTargetEid === eid) {
+      return;
+    }
+
     this._focusedTargetEid = eid;
+
+    if (this._isCleaningMode) {
+      this._updateControlButtonsForCleaningMode(true);
+    }
   }
 
   public setBroomProgress(progress: number): void {
@@ -2797,6 +2805,8 @@ export class MainSceneWorld implements IWorld, Scene {
     if (!this._changeControlButtons) return;
 
     if (isCleaningMode) {
+      const hasCleaningTarget = this._focusedTargetEid !== -1;
+
       // 청소 모드: Cancel, Clean, Clean
       this._changeControlButtons([
         { type: ControlButtonType.Cancel },
@@ -2804,11 +2814,13 @@ export class MainSceneWorld implements IWorld, Scene {
           type: ControlButtonType.Clean,
           initialSliderValue: this._currentSliderValue,
           sliderSessionKey: this._cleaningSliderSessionKey,
+          hasCleaningTarget,
         },
         {
           type: ControlButtonType.Clean,
           initialSliderValue: this._currentSliderValue,
           sliderSessionKey: this._cleaningSliderSessionKey,
+          hasCleaningTarget,
         },
       ]);
     } else {

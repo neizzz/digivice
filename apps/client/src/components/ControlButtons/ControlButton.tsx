@@ -21,6 +21,7 @@ interface ControlButtonProps {
   // 슬라이더 버튼을 위한 추가 props
   sliderWidth?: number;
   initialSliderValue?: number;
+  hasCleaningTarget?: boolean;
   onSliderChange?: (value: number) => void;
   onSliderEnd?: () => void; // 슬라이더 종료 이벤트 핸들러
   isSlider?: boolean;
@@ -76,6 +77,7 @@ const ControlButton: React.FC<ControlButtonProps> = ({
   className,
   sliderWidth,
   initialSliderValue = 0.5,
+  hasCleaningTarget = false,
   onSliderChange,
   onSliderEnd,
 }) => {
@@ -118,6 +120,7 @@ const ControlButton: React.FC<ControlButtonProps> = ({
                 : 0;
 
           if (
+            hasCleaningTarget &&
             dragDirection !== 0 &&
             lastDragDirectionRef.current !== 0 &&
             dragDirection !== lastDragDirectionRef.current
@@ -136,7 +139,10 @@ const ControlButton: React.FC<ControlButtonProps> = ({
           lastSliderDragValueRef.current = value;
           currentSliderValueRef.current = value;
 
-          if (accumulatedDragDistanceRef.current >= vibrationStepValue) {
+          if (
+            hasCleaningTarget &&
+            accumulatedDragDistanceRef.current >= vibrationStepValue
+          ) {
             accumulatedDragDistanceRef.current %= vibrationStepValue;
             void vibrationAdapter.vibrate(
               SLIDER_DRAG_VIBRATION_DURATION,
@@ -170,7 +176,14 @@ const ControlButton: React.FC<ControlButtonProps> = ({
         sliderControllerRef.current = null;
       };
     }
-  }, [initialSliderValue, isSlider, onSliderChange, onSliderEnd, vibrationStepValue]);
+  }, [
+    hasCleaningTarget,
+    initialSliderValue,
+    isSlider,
+    onSliderChange,
+    onSliderEnd,
+    vibrationStepValue,
+  ]);
 
   useEffect(() => {
     setCurrentSliderValue(initialSliderValue);

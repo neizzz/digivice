@@ -1,5 +1,6 @@
 import type React from "react";
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { logImportantDiagnostics } from "../../diagnostics/diagnosticLogger";
 import { useLayerInteractionVibration } from "../../hooks/useLayerInteractionVibration";
 
 interface PopupProps {
@@ -15,7 +16,22 @@ interface PopupProps {
   suppressInitialActionsMs?: number;
 }
 
+type NativeViewportSyncDetail = {
+  bottomInset?: number | null;
+};
+
 const KEYBOARD_VIEWPORT_HEIGHT_DELTA_THRESHOLD = 80;
+const KEYBOARD_AWARE_DEBUG_LOG_LIMIT = 24;
+
+function roundKeyboardAwareDebugValue(
+  value: number | null | undefined,
+): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return null;
+  }
+
+  return Math.round(value * 100) / 100;
+}
 
 const PopupLayer: React.FC<PopupProps> = ({
   title = "Alert!",
@@ -34,18 +50,64 @@ const PopupLayer: React.FC<PopupProps> = ({
   const confirmButtonRef = useRef<HTMLButtonElement>(null);
   const cancelButtonRef = useRef<HTMLButtonElement>(null);
   const keyboardAwareRafIdRef = useRef<number | null>(null);
+  const keyboardAwareOffsetYRef = useRef(0);
+  const keyboardAwareMaxHeightRef = useRef<number | null>(null);
+  const keyboardAwareWasVisibleRef = useRef(false);
+  const keyboardAwareDebugSequenceRef = useRef(0);
+  const nativeKeyboardInsetRef = useRef(0);
   const suppressInitialActionsUntilRef = useRef(0);
   const [keyboardAwareOffsetY, setKeyboardAwareOffsetY] = useState(0);
   const [keyboardAwareMaxHeight, setKeyboardAwareMaxHeight] = useState<
     number | null
   >(null);
 
-  const resetKeyboardAwareLayout = useCallback(() => {
-    setKeyboardAwareOffsetY((previous) => (previous === 0 ? previous : 0));
-    setKeyboardAwareMaxHeight((previous) =>
-      previous === null ? previous : null,
-    );
-  }, []);
+  const emitKeyboardAwareDebug = useCallback(
+    (stage: string, payload: Record<string, unknown> = {}) => {
+      if (title !== "Settings") {
+        return;
+      }
+
+      if (
+        keyboardAwareDebugSequenceRef.current >= KEYBOARD_AWARE_DEBUG_LOG_LIMIT
+      ) {
+        return;
+      }
+
+      keyboardAwareDebugSequenceRef.current += 1;
+
+      logImportantDiagnostics(
+        "warn",
+        "[ImportantDiagnostics][PopupLayerKeyboardAware]",
+        {
+          title,
+          stage,
+          sequence: keyboardAwareDebugSequenceRef.current,
+          ...payload,
+        },
+      );
+    },
+    [title],
+  );
+
+  const resetKeyboardAwareLayout = useCallback(
+    (reason: string) => {
+      emitKeyboardAwareDebug("reset", {
+        reason,
+        offsetY: keyboardAwareOffsetYRef.current,
+        maxHeight: keyboardAwareMaxHeightRef.current,
+        wasVisible: keyboardAwareWasVisibleRef.current,
+      });
+
+      keyboardAwareOffsetYRef.current = 0;
+      keyboardAwareMaxHeightRef.current = null;
+      keyboardAwareWasVisibleRef.current = false;
+      setKeyboardAwareOffsetY((previous) => (previous === 0 ? previous : 0));
+      setKeyboardAwareMaxHeight((previous) =>
+        previous === null ? previous : null,
+      );
+    },
+    [emitKeyboardAwareDebug],
+  );
 
   const updateKeyboardAwareLayout = useCallback(() => {
     if (typeof window === "undefined") {
@@ -57,23 +119,53 @@ const PopupLayer: React.FC<PopupProps> = ({
     const visualViewport = window.visualViewport;
 
     if (!popupElement || !targetElement || !visualViewport) {
-      resetKeyboardAwareLayout();
+      emitKeyboardAwareDebug("missing_primitives", {
+        hasPopupElement: !!popupElement,
+        hasTargetElement: !!targetElement,
+        hasVisualViewport: !!visualViewport,
+      });
+      resetKeyboardAwareLayout("missing_primitives");
       return;
     }
 
     const activeElement = document.activeElement;
+    const nativeKeyboardInset = Math.max(0, nativeKeyboardInsetRef.current);
     const baseViewportHeight = Math.max(
       window.innerHeight,
       document.documentElement.clientHeight || 0,
+      nativeKeyboardInset > 0 ? visualViewport.height + nativeKeyboardInset : 0,
     );
     const viewportHeightDelta = baseViewportHeight - visualViewport.height;
+    const isKeyboardVisible =
+      nativeKeyboardInset > 0 ||
+      viewportHeightDelta >= KEYBOARD_VIEWPORT_HEIGHT_DELTA_THRESHOLD;
 
-    if (
-      activeElement !== targetElement ||
-      viewportHeightDelta < KEYBOARD_VIEWPORT_HEIGHT_DELTA_THRESHOLD
-    ) {
-      resetKeyboardAwareLayout();
+    if (activeElement !== targetElement) {
+      emitKeyboardAwareDebug("inactive_target", {
+        activeElementTag:
+          activeElement instanceof HTMLElement ? activeElement.tagName : null,
+        targetTag: targetElement.tagName,
+      });
+      resetKeyboardAwareLayout("inactive_target");
       return;
+    }
+
+    if (!isKeyboardVisible) {
+      emitKeyboardAwareDebug("keyboard_hidden", {
+        nativeKeyboardInset,
+        viewportHeightDelta: roundKeyboardAwareDebugValue(viewportHeightDelta),
+      });
+      resetKeyboardAwareLayout("keyboard_hidden");
+      return;
+    }
+
+    if (!keyboardAwareWasVisibleRef.current) {
+      emitKeyboardAwareDebug("keyboard_visible_enter", {
+        nativeKeyboardInset,
+        viewportHeightDelta: roundKeyboardAwareDebugValue(viewportHeightDelta),
+        scrollTop: popupElement.scrollTop,
+      });
+      keyboardAwareWasVisibleRef.current = true;
     }
 
     const visibleTop = visualViewport.offsetTop;
@@ -83,18 +175,27 @@ const PopupLayer: React.FC<PopupProps> = ({
       visualViewport.height - keyboardAwareViewportPadding * 2,
     );
 
+    if (keyboardAwareMaxHeightRef.current !== availableHeight) {
+      keyboardAwareMaxHeightRef.current = availableHeight;
+    }
+
     setKeyboardAwareMaxHeight((previous) =>
       previous === availableHeight ? previous : availableHeight,
     );
 
     const popupRect = popupElement.getBoundingClientRect();
     const targetRect = targetElement.getBoundingClientRect();
+    const currentOffsetY = keyboardAwareOffsetYRef.current;
+    const currentLayoutTop = popupRect.top - currentOffsetY;
+    const currentLayoutBottom = popupRect.bottom - currentOffsetY;
+    const currentTargetCenterY =
+      targetRect.top + targetRect.height / 2 - currentOffsetY;
     const desiredCenterY = visibleTop + visualViewport.height / 2;
-    const targetCenterY = targetRect.top + targetRect.height / 2;
-    const desiredShift = desiredCenterY - targetCenterY;
-    const minShift = visibleTop + keyboardAwareViewportPadding - popupRect.top;
+    const desiredShift = desiredCenterY - currentTargetCenterY;
+    const minShift =
+      visibleTop + keyboardAwareViewportPadding - currentLayoutTop;
     const maxShift =
-      visibleBottom - keyboardAwareViewportPadding - popupRect.bottom;
+      visibleBottom - keyboardAwareViewportPadding - currentLayoutBottom;
 
     const clampedShift =
       minShift <= maxShift
@@ -102,11 +203,33 @@ const PopupLayer: React.FC<PopupProps> = ({
         : Math.min(Math.max(desiredShift, maxShift), minShift);
 
     const roundedShift = Math.round(clampedShift);
+    keyboardAwareOffsetYRef.current = roundedShift;
+
+    emitKeyboardAwareDebug("layout_applied", {
+      nativeKeyboardInset,
+      viewportHeightDelta: roundKeyboardAwareDebugValue(viewportHeightDelta),
+      visibleTop: roundKeyboardAwareDebugValue(visibleTop),
+      visibleBottom: roundKeyboardAwareDebugValue(visibleBottom),
+      availableHeight: roundKeyboardAwareDebugValue(availableHeight),
+      popupTop: roundKeyboardAwareDebugValue(popupRect.top),
+      popupBottom: roundKeyboardAwareDebugValue(popupRect.bottom),
+      targetTop: roundKeyboardAwareDebugValue(targetRect.top),
+      targetBottom: roundKeyboardAwareDebugValue(targetRect.bottom),
+      scrollTop: popupElement.scrollTop,
+      currentOffsetY,
+      currentLayoutTop: roundKeyboardAwareDebugValue(currentLayoutTop),
+      currentTargetCenterY: roundKeyboardAwareDebugValue(currentTargetCenterY),
+      desiredShift: roundKeyboardAwareDebugValue(desiredShift),
+      minShift: roundKeyboardAwareDebugValue(minShift),
+      maxShift: roundKeyboardAwareDebugValue(maxShift),
+      roundedShift,
+    });
 
     setKeyboardAwareOffsetY((previous) =>
       previous === roundedShift ? previous : roundedShift,
     );
   }, [
+    emitKeyboardAwareDebug,
     keyboardAwareTargetRef,
     keyboardAwareViewportPadding,
     resetKeyboardAwareLayout,
@@ -151,13 +274,17 @@ const PopupLayer: React.FC<PopupProps> = ({
     }
 
     const rafId = window.requestAnimationFrame(() => {
+      emitKeyboardAwareDebug("initial_focus", {
+        focusTargetTag: focusTarget.tagName,
+        initialFocusTarget,
+      });
       focusTarget.focus({ preventScroll: true });
     });
 
     return () => {
       window.cancelAnimationFrame(rafId);
     };
-  }, [initialFocusTarget]);
+  }, [emitKeyboardAwareDebug, initialFocusTarget]);
 
   useLayoutEffect(() => {
     if (typeof window === "undefined") {
@@ -168,49 +295,94 @@ const PopupLayer: React.FC<PopupProps> = ({
     const visualViewport = window.visualViewport;
 
     if (!targetElement || !visualViewport) {
-      resetKeyboardAwareLayout();
+      emitKeyboardAwareDebug("effect_missing_target", {
+        hasTargetElement: !!targetElement,
+        hasVisualViewport: !!visualViewport,
+      });
+      resetKeyboardAwareLayout("effect_missing_target");
       return;
     }
 
-    const handleKeyboardAwareLayoutChange = () => {
+    emitKeyboardAwareDebug("effect_attached", {
+      targetTag: targetElement.tagName,
+      initialFocusTarget,
+    });
+
+    const handleKeyboardAwareLayoutChange = (source: string) => {
+      emitKeyboardAwareDebug("schedule", {
+        source,
+        scrollTop: containerRef.current?.scrollTop ?? null,
+        offsetY: keyboardAwareOffsetYRef.current,
+        maxHeight: keyboardAwareMaxHeightRef.current,
+      });
+      scheduleKeyboardAwareLayoutUpdate();
+    };
+    const handleNativeViewportSync = (event: Event) => {
+      const detail = (event as CustomEvent<NativeViewportSyncDetail>).detail;
+
+      nativeKeyboardInsetRef.current = Math.max(0, detail?.bottomInset ?? 0);
+      emitKeyboardAwareDebug("native_viewport_sync", {
+        bottomInset: nativeKeyboardInsetRef.current,
+        visualViewportHeight: roundKeyboardAwareDebugValue(
+          visualViewport.height,
+        ),
+        visualViewportOffsetTop: roundKeyboardAwareDebugValue(
+          visualViewport.offsetTop,
+        ),
+      });
       scheduleKeyboardAwareLayoutUpdate();
     };
 
-    targetElement.addEventListener("focus", handleKeyboardAwareLayoutChange);
-    targetElement.addEventListener("blur", handleKeyboardAwareLayoutChange);
-    window.addEventListener("resize", handleKeyboardAwareLayoutChange);
-    visualViewport.addEventListener("resize", handleKeyboardAwareLayoutChange);
-    visualViewport.addEventListener("scroll", handleKeyboardAwareLayoutChange);
+    const handleTargetFocus = () => {
+      handleKeyboardAwareLayoutChange("target_focus");
+    };
+    const handleTargetBlur = () => {
+      handleKeyboardAwareLayoutChange("target_blur");
+    };
+    const handleWindowResize = () => {
+      handleKeyboardAwareLayoutChange("window_resize");
+    };
+    const handleVisualViewportResize = () => {
+      handleKeyboardAwareLayoutChange("visual_viewport_resize");
+    };
+    const handleVisualViewportScroll = () => {
+      handleKeyboardAwareLayoutChange("visual_viewport_scroll");
+    };
 
-    scheduleKeyboardAwareLayoutUpdate();
+    targetElement.addEventListener("focus", handleTargetFocus);
+    targetElement.addEventListener("blur", handleTargetBlur);
+    window.addEventListener(
+      "digivice:native-viewport-sync",
+      handleNativeViewportSync,
+    );
+    window.addEventListener("resize", handleWindowResize);
+    visualViewport.addEventListener("resize", handleVisualViewportResize);
+    visualViewport.addEventListener("scroll", handleVisualViewportScroll);
+
+    handleKeyboardAwareLayoutChange("effect_attached");
 
     return () => {
-      targetElement.removeEventListener(
-        "focus",
-        handleKeyboardAwareLayoutChange,
+      targetElement.removeEventListener("focus", handleTargetFocus);
+      targetElement.removeEventListener("blur", handleTargetBlur);
+      window.removeEventListener(
+        "digivice:native-viewport-sync",
+        handleNativeViewportSync,
       );
-      targetElement.removeEventListener(
-        "blur",
-        handleKeyboardAwareLayoutChange,
-      );
-      window.removeEventListener("resize", handleKeyboardAwareLayoutChange);
-      visualViewport.removeEventListener(
-        "resize",
-        handleKeyboardAwareLayoutChange,
-      );
-      visualViewport.removeEventListener(
-        "scroll",
-        handleKeyboardAwareLayoutChange,
-      );
+      window.removeEventListener("resize", handleWindowResize);
+      visualViewport.removeEventListener("resize", handleVisualViewportResize);
+      visualViewport.removeEventListener("scroll", handleVisualViewportScroll);
 
       if (keyboardAwareRafIdRef.current !== null) {
         window.cancelAnimationFrame(keyboardAwareRafIdRef.current);
         keyboardAwareRafIdRef.current = null;
       }
 
-      resetKeyboardAwareLayout();
+      nativeKeyboardInsetRef.current = 0;
+      resetKeyboardAwareLayout("effect_cleanup");
     };
   }, [
+    emitKeyboardAwareDebug,
+    initialFocusTarget,
     keyboardAwareTargetRef,
     resetKeyboardAwareLayout,
     scheduleKeyboardAwareLayoutUpdate,

@@ -76,6 +76,7 @@ const ControlButtons: React.FC<ControlButtonsProps> = ({
               type={ControlButtonType.Clean}
               sliderWidth={sliderWidth}
               initialSliderValue={cleanButtonParam?.initialSliderValue ?? 0.5}
+              hasCleaningTarget={cleanButtonParam?.hasCleaningTarget ?? false}
               onSliderChange={onSliderChange}
               onSliderEnd={onSliderEnd}
               onClick={() => onButtonPress(buttonParams[1].type)}
