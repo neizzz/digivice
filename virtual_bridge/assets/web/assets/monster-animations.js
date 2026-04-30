@@ -1,4 +1,4 @@
-import { r as reactExports, j as jsxRuntimeExports, R as ReactDOM, T as TopLeftBuildLogoText } from "./index2.js";
+import { r as reactExports, j as jsxDevRuntimeExports, R as ReactDOM, T as TopLeftBuildLogoText } from "./index2.js";
 const MONSTER_DEFINITIONS = [
   { key: "green-slime_A1", label: "Green Slime A1", jsonPath: "/assets/game/sprites/monsters/green-slime_A1.json" },
   { key: "green-slime_B1", label: "Green Slime B1", jsonPath: "/assets/game/sprites/monsters/green-slime_B1.json" },
@@ -45,7 +45,11 @@ function FrameViewport({
     backgroundPosition: `${-frame.x * scale}px ${-frame.y * scale}px`,
     backgroundSize: `${sheetWidth * scale}px ${sheetHeight * scale}px`
   };
-  return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "monster-animation-frame", style: viewportStyle });
+  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "monster-animation-frame", style: viewportStyle }, void 0, false, {
+    fileName: "/Users/neiz/digivice/apps/client/src/pages/MonsterAnimationTestPage.tsx",
+    lineNumber: 100,
+    columnNumber: 10
+  }, this);
 }
 function MonsterAnimationTestPage() {
   const [tick, setTick] = reactExports.useState(0);
@@ -106,62 +110,142 @@ function MonsterAnimationTestPage() {
       totalCount: MONSTER_DEFINITIONS.length
     };
   }, [monsterStates]);
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "monster-animation-test-page", children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("header", { className: "monster-animation-test-page__header", children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "monster-animation-test-page__eyebrow", children: "PC TEST PAGE" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("h1", { children: "MonTTo Monster Animation Viewer" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "monster-animation-test-page__description", children: "This PC test page lets you review the main animation states for every monster spritesheet in one place." })
-      ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "monster-animation-test-page__summary", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { children: [
+  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "monster-animation-test-page", children: [
+    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("header", { className: "monster-animation-test-page__header", children: [
+      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: [
+        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("p", { className: "monster-animation-test-page__eyebrow", children: "PC TEST PAGE" }, void 0, false, {
+          fileName: "/Users/neiz/digivice/apps/client/src/pages/MonsterAnimationTestPage.tsx",
+          lineNumber: 178,
+          columnNumber: 11
+        }, this),
+        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("h1", { children: "MonTTo Monster Animation Viewer" }, void 0, false, {
+          fileName: "/Users/neiz/digivice/apps/client/src/pages/MonsterAnimationTestPage.tsx",
+          lineNumber: 179,
+          columnNumber: 11
+        }, this),
+        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("p", { className: "monster-animation-test-page__description", children: "This PC test page lets you review the main animation states for every monster spritesheet in one place." }, void 0, false, {
+          fileName: "/Users/neiz/digivice/apps/client/src/pages/MonsterAnimationTestPage.tsx",
+          lineNumber: 180,
+          columnNumber: 11
+        }, this)
+      ] }, void 0, true, {
+        fileName: "/Users/neiz/digivice/apps/client/src/pages/MonsterAnimationTestPage.tsx",
+        lineNumber: 177,
+        columnNumber: 9
+      }, this),
+      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "monster-animation-test-page__summary", children: [
+        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { children: [
           "Loaded ",
           summary.readyCount,
           "/",
           summary.totalCount
-        ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { children: [
+        ] }, void 0, true, {
+          fileName: "/Users/neiz/digivice/apps/client/src/pages/MonsterAnimationTestPage.tsx",
+          lineNumber: 185,
+          columnNumber: 11
+        }, this),
+        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { children: [
           "Errors ",
           summary.errorCount
-        ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { children: [
+        ] }, void 0, true, {
+          fileName: "/Users/neiz/digivice/apps/client/src/pages/MonsterAnimationTestPage.tsx",
+          lineNumber: 186,
+          columnNumber: 11
+        }, this),
+        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { children: [
           "Tick ",
           tick
-        ] })
-      ] })
-    ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("main", { className: "monster-animation-test-page__grid", children: MONSTER_DEFINITIONS.map((monster) => {
+        ] }, void 0, true, {
+          fileName: "/Users/neiz/digivice/apps/client/src/pages/MonsterAnimationTestPage.tsx",
+          lineNumber: 187,
+          columnNumber: 11
+        }, this)
+      ] }, void 0, true, {
+        fileName: "/Users/neiz/digivice/apps/client/src/pages/MonsterAnimationTestPage.tsx",
+        lineNumber: 184,
+        columnNumber: 9
+      }, this)
+    ] }, void 0, true, {
+      fileName: "/Users/neiz/digivice/apps/client/src/pages/MonsterAnimationTestPage.tsx",
+      lineNumber: 176,
+      columnNumber: 7
+    }, this),
+    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("main", { className: "monster-animation-test-page__grid", children: MONSTER_DEFINITIONS.map((monster) => {
       const state = monsterStates[monster.key];
       if (!state || state.status === "loading") {
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs("section", { className: "monster-card monster-card--loading", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { children: monster.label }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: "Loading spritesheet..." })
-        ] }, monster.key);
+        return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("section", { className: "monster-card monster-card--loading", children: [
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("h2", { children: monster.label }, void 0, false, {
+            fileName: "/Users/neiz/digivice/apps/client/src/pages/MonsterAnimationTestPage.tsx",
+            lineNumber: 198,
+            columnNumber: 17
+          }, this),
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("p", { children: "Loading spritesheet..." }, void 0, false, {
+            fileName: "/Users/neiz/digivice/apps/client/src/pages/MonsterAnimationTestPage.tsx",
+            lineNumber: 199,
+            columnNumber: 17
+          }, this)
+        ] }, monster.key, true, {
+          fileName: "/Users/neiz/digivice/apps/client/src/pages/MonsterAnimationTestPage.tsx",
+          lineNumber: 197,
+          columnNumber: 15
+        }, this);
       }
       if (state.status === "error") {
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs("section", { className: "monster-card monster-card--error", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { children: monster.label }),
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { children: [
+        return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("section", { className: "monster-card monster-card--error", children: [
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("h2", { children: monster.label }, void 0, false, {
+            fileName: "/Users/neiz/digivice/apps/client/src/pages/MonsterAnimationTestPage.tsx",
+            lineNumber: 207,
+            columnNumber: 17
+          }, this),
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("p", { children: [
             "Failed to load: ",
             state.message
-          ] })
-        ] }, monster.key);
+          ] }, void 0, true, {
+            fileName: "/Users/neiz/digivice/apps/client/src/pages/MonsterAnimationTestPage.tsx",
+            lineNumber: 208,
+            columnNumber: 17
+          }, this)
+        ] }, monster.key, true, {
+          fileName: "/Users/neiz/digivice/apps/client/src/pages/MonsterAnimationTestPage.tsx",
+          lineNumber: 206,
+          columnNumber: 15
+        }, this);
       }
       const { data } = state;
       const imagePath = `/assets/game/sprites/monsters/${data.meta.image}`;
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("section", { className: "monster-card", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "monster-card__header", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { children: monster.label }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: monster.key })
-          ] }),
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { children: [
+      return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("section", { className: "monster-card", children: [
+        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "monster-card__header", children: [
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: [
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("h2", { children: monster.label }, void 0, false, {
+              fileName: "/Users/neiz/digivice/apps/client/src/pages/MonsterAnimationTestPage.tsx",
+              lineNumber: 220,
+              columnNumber: 19
+            }, this),
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("p", { children: monster.key }, void 0, false, {
+              fileName: "/Users/neiz/digivice/apps/client/src/pages/MonsterAnimationTestPage.tsx",
+              lineNumber: 221,
+              columnNumber: 19
+            }, this)
+          ] }, void 0, true, {
+            fileName: "/Users/neiz/digivice/apps/client/src/pages/MonsterAnimationTestPage.tsx",
+            lineNumber: 219,
+            columnNumber: 17
+          }, this),
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { children: [
             data.meta.size.w,
             "x",
             data.meta.size.h
-          ] })
-        ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "monster-card__animations", children: [
+          ] }, void 0, true, {
+            fileName: "/Users/neiz/digivice/apps/client/src/pages/MonsterAnimationTestPage.tsx",
+            lineNumber: 223,
+            columnNumber: 17
+          }, this)
+        ] }, void 0, true, {
+          fileName: "/Users/neiz/digivice/apps/client/src/pages/MonsterAnimationTestPage.tsx",
+          lineNumber: 218,
+          columnNumber: 15
+        }, this),
+        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "monster-card__animations", children: [
           ANIMATION_ORDER.map((animationName) => {
             var _a;
             const frameNames = data.animations[animationName] ?? [];
@@ -170,48 +254,116 @@ function MonsterAnimationTestPage() {
             const frameIndex = frameNames.length <= 1 ? 0 : Math.floor(elapsed / duration) % frameNames.length;
             const frameName = frameNames[frameIndex];
             const frame = frameName ? (_a = data.frames[frameName]) == null ? void 0 : _a.frame : void 0;
-            return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "monster-card__animation-row", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "monster-card__label", children: ANIMATION_LABELS[animationName] }),
-              frame ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+            return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "monster-card__animation-row", children: [
+              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { className: "monster-card__label", children: ANIMATION_LABELS[animationName] }, void 0, false, {
+                fileName: "/Users/neiz/digivice/apps/client/src/pages/MonsterAnimationTestPage.tsx",
+                lineNumber: 242,
+                columnNumber: 23
+              }, this),
+              frame ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
                 FrameViewport,
                 {
                   imagePath,
                   sheetWidth: data.meta.size.w,
                   sheetHeight: data.meta.size.h,
                   frame
-                }
-              ) : /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "monster-card__missing", children: "Missing" })
-            ] }, animationName);
+                },
+                void 0,
+                false,
+                {
+                  fileName: "/Users/neiz/digivice/apps/client/src/pages/MonsterAnimationTestPage.tsx",
+                  lineNumber: 244,
+                  columnNumber: 25
+                },
+                this
+              ) : /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { className: "monster-card__missing", children: "Missing" }, void 0, false, {
+                fileName: "/Users/neiz/digivice/apps/client/src/pages/MonsterAnimationTestPage.tsx",
+                lineNumber: 251,
+                columnNumber: 25
+              }, this)
+            ] }, animationName, true, {
+              fileName: "/Users/neiz/digivice/apps/client/src/pages/MonsterAnimationTestPage.tsx",
+              lineNumber: 241,
+              columnNumber: 21
+            }, this);
           }),
           STATIC_FRAME_NAMES.map((frameName) => {
             var _a;
             const frame = (_a = data.frames[frameName]) == null ? void 0 : _a.frame;
-            return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "monster-card__animation-row", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "monster-card__label", children: STATIC_FRAME_LABELS[frameName] }),
-              frame ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+            return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "monster-card__animation-row", children: [
+              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { className: "monster-card__label", children: STATIC_FRAME_LABELS[frameName] }, void 0, false, {
+                fileName: "/Users/neiz/digivice/apps/client/src/pages/MonsterAnimationTestPage.tsx",
+                lineNumber: 262,
+                columnNumber: 23
+              }, this),
+              frame ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
                 FrameViewport,
                 {
                   imagePath,
                   sheetWidth: data.meta.size.w,
                   sheetHeight: data.meta.size.h,
                   frame
-                }
-              ) : /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "monster-card__missing", children: "Missing" })
-            ] }, frameName);
+                },
+                void 0,
+                false,
+                {
+                  fileName: "/Users/neiz/digivice/apps/client/src/pages/MonsterAnimationTestPage.tsx",
+                  lineNumber: 264,
+                  columnNumber: 25
+                },
+                this
+              ) : /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { className: "monster-card__missing", children: "Missing" }, void 0, false, {
+                fileName: "/Users/neiz/digivice/apps/client/src/pages/MonsterAnimationTestPage.tsx",
+                lineNumber: 271,
+                columnNumber: 25
+              }, this)
+            ] }, frameName, true, {
+              fileName: "/Users/neiz/digivice/apps/client/src/pages/MonsterAnimationTestPage.tsx",
+              lineNumber: 261,
+              columnNumber: 21
+            }, this);
           })
-        ] })
-      ] }, monster.key);
-    }) })
-  ] });
+        ] }, void 0, true, {
+          fileName: "/Users/neiz/digivice/apps/client/src/pages/MonsterAnimationTestPage.tsx",
+          lineNumber: 228,
+          columnNumber: 15
+        }, this)
+      ] }, monster.key, true, {
+        fileName: "/Users/neiz/digivice/apps/client/src/pages/MonsterAnimationTestPage.tsx",
+        lineNumber: 217,
+        columnNumber: 13
+      }, this);
+    }) }, void 0, false, {
+      fileName: "/Users/neiz/digivice/apps/client/src/pages/MonsterAnimationTestPage.tsx",
+      lineNumber: 191,
+      columnNumber: 7
+    }, this)
+  ] }, void 0, true, {
+    fileName: "/Users/neiz/digivice/apps/client/src/pages/MonsterAnimationTestPage.tsx",
+    lineNumber: 175,
+    columnNumber: 5
+  }, this);
 }
 const rootElement = document.getElementById("root");
 if (!rootElement) {
   throw new Error("Root element not found");
 }
 ReactDOM.createRoot(rootElement).render(
-  /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx(TopLeftBuildLogoText, {}),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(MonsterAnimationTestPage, {})
-  ] })
+  /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(jsxDevRuntimeExports.Fragment, { children: [
+    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(TopLeftBuildLogoText, {}, void 0, false, {
+      fileName: "/Users/neiz/digivice/apps/client/src/monster-animations.tsx",
+      lineNumber: 14,
+      columnNumber: 5
+    }, void 0),
+    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(MonsterAnimationTestPage, {}, void 0, false, {
+      fileName: "/Users/neiz/digivice/apps/client/src/monster-animations.tsx",
+      lineNumber: 15,
+      columnNumber: 5
+    }, void 0)
+  ] }, void 0, true, {
+    fileName: "/Users/neiz/digivice/apps/client/src/monster-animations.tsx",
+    lineNumber: 13,
+    columnNumber: 3
+  }, void 0)
 );
 //# sourceMappingURL=monster-animations.js.map
