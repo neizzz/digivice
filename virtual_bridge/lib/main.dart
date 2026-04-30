@@ -450,10 +450,13 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
 
     print('[WebViewLifecycle] dispatchViewportSync reason=$reason');
 
+    final view = WidgetsBinding.instance.platformDispatcher.views.first;
+    final double bottomInset = view.viewInsets.bottom / view.devicePixelRatio;
     final String encodedReason = jsonEncode(reason);
     final String encodedDispatchLifecycleEvents = jsonEncode(
       dispatchLifecycleEvents,
     );
+    final String encodedBottomInset = jsonEncode(bottomInset);
     try {
       await _controller.runJavaScript('''
         (() => {
@@ -469,12 +472,11 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
             screenWidth: window.screen?.width ?? null,
             screenHeight: window.screen?.height ?? null,
             visibilityState: document.visibilityState,
+            bottomInset: $encodedBottomInset,
             visualViewportWidth: window.visualViewport?.width ?? null,
             visualViewportHeight: window.visualViewport?.height ?? null,
             visualViewportScale: window.visualViewport?.scale ?? null,
           };
-
-          console.log('[NativeViewportSync] dispatch', payload);
 
           try { window.dispatchEvent(new Event('resize')); } catch (_) {}
           try {
