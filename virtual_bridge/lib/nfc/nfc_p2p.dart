@@ -7,7 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_custom_hce/flutter_custom_hce.dart';
 import 'package:nfc_manager/nfc_manager.dart';
-import 'package:nfc_manager/platform_tags.dart';
+import 'package:nfc_manager/nfc_manager_android.dart';
 
 typedef MessageReadCallback = void Function({required String readMessage});
 typedef MessageWrittenCallback = void Function(
@@ -145,7 +145,7 @@ class NfcP2pController {
             final handle = tag.handle;
             _log('read tag: $handle');
 
-            final isoDep = IsoDep.from(tag);
+            final isoDep = IsoDepAndroid.from(tag);
             if (isoDep == null) {
               NfcManager.instance.stopSession(errorMessage: 'Tag is null');
               return;

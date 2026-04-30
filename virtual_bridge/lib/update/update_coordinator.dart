@@ -319,6 +319,17 @@ class UpdateCoordinator extends ChangeNotifier {
     required String reason,
     required PlatformException error,
   }) {
+    if (_isPlayOwnershipRequiredException(error)) {
+      _writeLog(
+        '[UpdateCoordinator] Skip in-app update check '
+        'reason=$reason '
+        'constraint=play_store_ownership_required '
+        'code=${error.code}',
+      );
+      _handleCheckFailureFallback();
+      return;
+    }
+
     _writeLog(
       '[UpdateCoordinator] Check platform error '
       'reason=$reason '
@@ -343,6 +354,16 @@ class UpdateCoordinator extends ChangeNotifier {
       '[UpdateCoordinator] Check failure treated as non-blocking fallback',
     );
     _setState(const UpdateEnforcementState.idle());
+  }
+
+  bool _isPlayOwnershipRequiredException(PlatformException error) {
+    final String normalizedCode = error.code.toUpperCase();
+    final String normalizedMessage = (error.message ?? '').toUpperCase();
+
+    return normalizedCode.contains('ERROR_APP_NOT_OWNED') ||
+        normalizedMessage.contains('ERROR_APP_NOT_OWNED') ||
+        normalizedMessage.contains('NOT OWNED BY ANY USER') ||
+        normalizedMessage.contains('INSTALL ERROR(-10)');
   }
 
   void _setBlockedState({
