@@ -395,15 +395,6 @@ export class Game {
     }
 
     if (!this._isPixiReady || !this.app.renderer) {
-      console.warn(
-        "[GameResize]",
-        JSON.stringify({
-          phase: "skip-before-init",
-          reason,
-          isPixiReady: this._isPixiReady,
-          hasRenderer: Boolean(this.app.renderer),
-        }),
-      );
       return;
     }
 
@@ -412,17 +403,6 @@ export class Game {
     const height = parent.clientHeight || rect.height;
 
     if (width <= 0 || height <= 0) {
-      console.warn(
-        "[GameResize]",
-        JSON.stringify({
-          phase: "skip-zero-size",
-          reason,
-          clientWidth: parent.clientWidth,
-          clientHeight: parent.clientHeight,
-          rectWidth: rect.width,
-          rectHeight: rect.height,
-        }),
-      );
       return;
     }
 
@@ -443,9 +423,35 @@ export class Game {
 
     this._lastResizeMetricsKey = metricsKey;
 
+    const previousStageScaleX = this.app.stage.scale.x;
+    const previousStageScaleY = this.app.stage.scale.y;
+
+    const stageScaleWasReset =
+      Math.abs(previousStageScaleX - 1) > 1e-6 ||
+      Math.abs(previousStageScaleY - 1) > 1e-6;
+
+    if (stageScaleWasReset) {
+      this.app.stage.scale.set(1, 1);
+    }
+
     this.app.renderer.resolution = resolution;
     this.app.renderer.resize(width, height);
-    this.app.stage.setSize(width, height);
+
+    if (stageScaleWasReset) {
+      console.warn("[GameResize]", {
+        phase: "stage-scale-reset",
+        reason,
+        width,
+        height,
+        previousStageScaleX,
+        previousStageScaleY,
+        normalizedStageScaleX: this.app.stage.scale.x,
+        normalizedStageScaleY: this.app.stage.scale.y,
+        screenWidth: this.app.screen.width,
+        screenHeight: this.app.screen.height,
+      });
+    }
+
     if (
       this.currentScene &&
       "resize" in this.currentScene &&
@@ -656,8 +662,9 @@ export class Game {
 
       console.log(
         `[GameTransition] end ${previousSceneKey ?? "none"} -> ${key} (#${transitionRequestId}) in ${Math.round(
-          (typeof performance !== "undefined" ? performance.now() : Date.now()) -
-            transitionStartedAt,
+          (typeof performance !== "undefined"
+            ? performance.now()
+            : Date.now()) - transitionStartedAt,
         )}ms`,
       );
       return true;
