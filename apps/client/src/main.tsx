@@ -21,6 +21,8 @@ const isNativeFeatureDebugMode =
 installDiagnosticsConsoleCapture();
 setDiagnosticsContextProvider(() => ({
   appMode: import.meta.env.MODE,
+  appVersion: __APP_VERSION__,
+  buildNumber: __APP_BUILD_NUMBER__,
   debugEnabled: isNativeFeatureDebugMode,
 }));
 

@@ -47,14 +47,14 @@ class UpdateEnforcementState {
     String title = '업데이트 준비 중',
     String message = '최신 버전을 적용하고 있습니다. 잠시만 기다려 주세요.',
   }) : this._(
-         phase: UpdateEnforcementPhase.immediateInProgress,
-         title: title,
-         message: message,
-         packageName: packageName,
-         canRetry: false,
-         canOpenStore: false,
-         canExit: false,
-       );
+          phase: UpdateEnforcementPhase.immediateInProgress,
+          title: title,
+          message: message,
+          packageName: packageName,
+          canRetry: false,
+          canOpenStore: false,
+          canExit: false,
+        );
 
   const UpdateEnforcementState.blocked({
     required String title,
@@ -64,14 +64,14 @@ class UpdateEnforcementState {
     bool canOpenStore = true,
     bool canExit = true,
   }) : this._(
-         phase: UpdateEnforcementPhase.blocked,
-         title: title,
-         message: message,
-         packageName: packageName,
-         canRetry: canRetry,
-         canOpenStore: canOpenStore,
-         canExit: canExit,
-       );
+          phase: UpdateEnforcementPhase.blocked,
+          title: title,
+          message: message,
+          packageName: packageName,
+          canRetry: canRetry,
+          canOpenStore: canOpenStore,
+          canExit: canExit,
+        );
 
   bool get isBlocking => phase != UpdateEnforcementPhase.idle;
 }
@@ -154,8 +154,9 @@ class UpdateCoordinator extends ChangeNotifier {
       return;
     }
 
-    final String packageName =
-        _state.packageName ?? _lastUpdateInfo?.packageName ?? _fallbackPackageName;
+    final String packageName = _state.packageName ??
+        _lastUpdateInfo?.packageName ??
+        _fallbackPackageName;
 
     try {
       await AndroidIntent(
@@ -219,10 +220,13 @@ class UpdateCoordinator extends ChangeNotifier {
 
     final bool updateIsRequired =
         info.updateAvailability == UpdateAvailability.updateAvailable ||
-        info.updateAvailability ==
-            UpdateAvailability.developerTriggeredUpdateInProgress;
+            info.updateAvailability ==
+                UpdateAvailability.developerTriggeredUpdateInProgress;
 
     if (!updateIsRequired) {
+      _writeLog(
+        '[UpdateCoordinator] No mandatory update available: reason=$reason',
+      );
       _mandatoryUpdateConfirmed = false;
       _setState(const UpdateEnforcementState.idle());
       return;
@@ -268,16 +272,14 @@ class UpdateCoordinator extends ChangeNotifier {
             UpdateEnforcementState.immediateInProgress(
               packageName: info.packageName,
               title: '업데이트 진행 중',
-              message:
-                  'Google Play 업데이트가 진행 중입니다. 설치가 끝날 때까지 잠시만 기다려 주세요.',
+              message: 'Google Play 업데이트가 진행 중입니다. 설치가 끝날 때까지 잠시만 기다려 주세요.',
             ),
           );
           return;
         case AppUpdateResult.userDeniedUpdate:
           _setBlockedState(
             title: '업데이트 필요',
-            message:
-                '업데이트가 취소되었습니다. 계속 사용하려면 최신 버전으로 업데이트해야 합니다.',
+            message: '업데이트가 취소되었습니다. 계속 사용하려면 최신 버전으로 업데이트해야 합니다.',
             packageName: info.packageName,
           );
           return;
@@ -298,8 +300,7 @@ class UpdateCoordinator extends ChangeNotifier {
       );
       _setBlockedState(
         title: '업데이트 필요',
-        message:
-            '인앱 업데이트를 시작하지 못했습니다. 다시 시도하거나 Google Play에서 직접 업데이트해 주세요.',
+        message: '인앱 업데이트를 시작하지 못했습니다. 다시 시도하거나 Google Play에서 직접 업데이트해 주세요.',
         packageName: info.packageName,
       );
     } catch (error) {
@@ -308,8 +309,7 @@ class UpdateCoordinator extends ChangeNotifier {
       );
       _setBlockedState(
         title: '업데이트 필요',
-        message:
-            '업데이트를 이어서 진행하지 못했습니다. 다시 시도하거나 Google Play에서 직접 업데이트해 주세요.',
+        message: '업데이트를 이어서 진행하지 못했습니다. 다시 시도하거나 Google Play에서 직접 업데이트해 주세요.',
         packageName: info.packageName,
       );
     }
@@ -339,6 +339,9 @@ class UpdateCoordinator extends ChangeNotifier {
       return;
     }
 
+    _writeLog(
+      '[UpdateCoordinator] Check failure treated as non-blocking fallback',
+    );
     _setState(const UpdateEnforcementState.idle());
   }
 
@@ -359,6 +362,21 @@ class UpdateCoordinator extends ChangeNotifier {
   void _setState(UpdateEnforcementState nextState) {
     if (_disposed) {
       return;
+    }
+
+    final UpdateEnforcementState previousState = _state;
+
+    if (previousState.phase != nextState.phase ||
+        previousState.title != nextState.title ||
+        previousState.message != nextState.message ||
+        previousState.packageName != nextState.packageName) {
+      _writeLog(
+        '[UpdateCoordinator] State change '
+        'from=${previousState.phase.name} '
+        'to=${nextState.phase.name} '
+        'title=${nextState.title.isEmpty ? '<empty>' : nextState.title} '
+        'packageName=${nextState.packageName ?? 'null'}',
+      );
     }
 
     _state = nextState;

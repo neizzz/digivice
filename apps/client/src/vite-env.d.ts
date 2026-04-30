@@ -6,6 +6,7 @@ interface ImportMetaEnv {
 }
 
 declare const __APP_VERSION__: string;
+declare const __APP_BUILD_NUMBER__: number;
 declare const __APP_LOGO_TEXT__: string;
 
 // 게임 에셋 타입 확장

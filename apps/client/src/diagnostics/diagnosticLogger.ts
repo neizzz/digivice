@@ -1,4 +1,7 @@
-import { createClientStorage, getClientStorageKind } from "../utils/clientStorage";
+import {
+  createClientStorage,
+  getClientStorageKind,
+} from "../utils/clientStorage";
 
 const DIAGNOSTICS_LOGS_STORAGE_KEY = "DiagnosticsLogs";
 const DIAGNOSTICS_IMPORTANT_LOGS_STORAGE_KEY = "DiagnosticsImportantLogs";
@@ -16,6 +19,8 @@ type DiagnosticsContext = {
   scene?: string;
   storageKind?: "native" | "web";
   appMode?: string;
+  appVersion?: string;
+  buildNumber?: number;
   debugEnabled?: boolean;
 };
 
@@ -30,6 +35,8 @@ export type DiagnosticsLogEntry = {
   scene?: string;
   storageKind: "native" | "web";
   appMode?: string;
+  appVersion?: string;
+  buildNumber?: number;
   debugEnabled?: boolean;
 };
 
@@ -68,9 +75,40 @@ function syncWindowErrorLogs(): void {
     return;
   }
 
-  window.errorLogs = diagnosticsLogs.map(
-    ({ entry }) => `[${entry.timestamp}] [${entry.level}] ${entry.message}`,
-  );
+  window.errorLogs = diagnosticsLogs.map(({ entry }) => {
+    const versionTag = formatDiagnosticsVersionTag(
+      entry.appVersion,
+      entry.buildNumber,
+    );
+
+    return [
+      `[${entry.timestamp}]`,
+      `[${entry.level}]`,
+      versionTag,
+      entry.message,
+    ]
+      .filter(Boolean)
+      .join(" ");
+  });
+}
+
+function formatDiagnosticsVersionTag(
+  appVersion?: string,
+  buildNumber?: number,
+): string | null {
+  if (typeof appVersion !== "string" || appVersion.trim().length === 0) {
+    return null;
+  }
+
+  if (
+    typeof buildNumber === "number" &&
+    Number.isInteger(buildNumber) &&
+    buildNumber > 0
+  ) {
+    return `[${appVersion}+${buildNumber}]`;
+  }
+
+  return `[${appVersion}]`;
 }
 
 function isImportantDiagnosticsMessage(
@@ -121,10 +159,7 @@ function safeStringify(value: unknown): string {
           };
         }
 
-        if (
-          typeof currentValue === "object" &&
-          currentValue !== null
-        ) {
+        if (typeof currentValue === "object" && currentValue !== null) {
           if (seen.has(currentValue)) {
             return "[Circular]";
           }
@@ -296,7 +331,9 @@ function trimLogsToSizeWithLimit(
   return nextLogs;
 }
 
-function getDiagnosticsLogTimestampMs(log: DiagnosticsLogRecord): number | null {
+function getDiagnosticsLogTimestampMs(
+  log: DiagnosticsLogRecord,
+): number | null {
   const timestampMs = Date.parse(log.entry.timestamp);
   return Number.isFinite(timestampMs) ? timestampMs : null;
 }
@@ -355,7 +392,10 @@ function normalizePersistedLogs(value: unknown): DiagnosticsLogRecord[] {
 
       return createLogRecord(
         truncateEntryToLimit({
-          id: typeof record.id === "string" ? record.id : `${record.timestamp}-${record.level}`,
+          id:
+            typeof record.id === "string"
+              ? record.id
+              : `${record.timestamp}-${record.level}`,
           timestamp: record.timestamp,
           level: record.level as DiagnosticsLogLevel,
           message: record.message,
@@ -364,7 +404,17 @@ function normalizePersistedLogs(value: unknown): DiagnosticsLogRecord[] {
           timeSinceSessionStartMs: record.timeSinceSessionStartMs,
           scene: typeof record.scene === "string" ? record.scene : undefined,
           storageKind: record.storageKind,
-          appMode: typeof record.appMode === "string" ? record.appMode : undefined,
+          appMode:
+            typeof record.appMode === "string" ? record.appMode : undefined,
+          appVersion:
+            typeof record.appVersion === "string"
+              ? record.appVersion
+              : undefined,
+          buildNumber:
+            typeof record.buildNumber === "number" &&
+            Number.isInteger(record.buildNumber)
+              ? record.buildNumber
+              : undefined,
           debugEnabled:
             typeof record.debugEnabled === "boolean"
               ? record.debugEnabled
@@ -420,7 +470,10 @@ async function persistDiagnosticsLogs(): Promise<void> {
         ),
       ]);
     } catch (error) {
-      originalConsole.error("[diagnosticLogger] Failed to persist diagnostics logs", error);
+      originalConsole.error(
+        "[diagnosticLogger] Failed to persist diagnostics logs",
+        error,
+      );
     } finally {
       persistenceInFlight = null;
     }
@@ -457,12 +510,17 @@ function appendDiagnosticsLog(
     scene: context.scene,
     storageKind: context.storageKind ?? getClientStorageKind(),
     appMode: context.appMode,
+    appVersion: context.appVersion,
+    buildNumber: context.buildNumber,
     debugEnabled: context.debugEnabled,
   });
   const record = createLogRecord(entry);
 
   diagnosticsLogs = trimLogsToSize([...diagnosticsLogs, record]);
-  if (options?.forceImportant || isImportantDiagnosticsMessage(level, message)) {
+  if (
+    options?.forceImportant ||
+    isImportantDiagnosticsMessage(level, message)
+  ) {
     diagnosticsImportantLogs = trimImportantLogsToSize([
       ...diagnosticsImportantLogs,
       record,
@@ -508,9 +566,7 @@ export async function initializeDiagnosticsLogger(): Promise<void> {
       storage.getData(DIAGNOSTICS_LOGS_STORAGE_KEY),
       storage.getData(DIAGNOSTICS_IMPORTANT_LOGS_STORAGE_KEY),
     ]);
-    const persistedLogs = normalizePersistedLogs(
-      persistedLogsRaw,
-    );
+    const persistedLogs = normalizePersistedLogs(persistedLogsRaw);
     const persistedImportantLogs = normalizePersistedLogs(
       persistedImportantLogsRaw,
     );
@@ -521,7 +577,10 @@ export async function initializeDiagnosticsLogger(): Promise<void> {
     ]);
     syncWindowErrorLogs();
   } catch (error) {
-    originalConsole.error("[diagnosticLogger] Failed to initialize diagnostics logger", error);
+    originalConsole.error(
+      "[diagnosticLogger] Failed to initialize diagnostics logger",
+      error,
+    );
   }
 }
 

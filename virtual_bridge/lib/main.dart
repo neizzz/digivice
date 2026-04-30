@@ -68,6 +68,7 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
   String? _errorMessage;
   final Set<String> _missingAssetPathsLogged = <String>{};
   final List<Timer> _viewportSyncTimers = <Timer>[];
+  final List<String> _pendingUpdateDiagnosticsLogs = <String>[];
   bool _isPageReady = false;
   bool _isFullscreenAdShowing = false;
   String? _lastViewportMetricsKey;
@@ -86,10 +87,11 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
       onFullscreenAdStateChanged: _handleFullscreenAdStateChanged,
     );
 
-    _updateCoordinator = UpdateCoordinator(log: _log);
+    _updateCoordinator = UpdateCoordinator(log: _handleUpdateCoordinatorLog);
     _updateCoordinator.addListener(_handleUpdateCoordinatorChanged);
 
-    unawaited(_updateCoordinator.checkForMandatoryUpdate(reason: 'app_started'));
+    unawaited(
+        _updateCoordinator.checkForMandatoryUpdate(reason: 'app_started'));
     unawaited(_initializeWebView());
   }
 
@@ -206,6 +208,7 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
           onPageFinished: (_) async {
             await _bridgeConfigurator.injectJavaScriptInterfaces();
             _isPageReady = true;
+            await _flushPendingUpdateDiagnosticsLogs();
             _scheduleViewportSync('page_finished');
           },
         ),
@@ -381,6 +384,60 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
     }
 
     setState(() {});
+  }
+
+  Future<void> _handleUpdateCoordinatorLog(String message) async {
+    if (!_isPageReady) {
+      _enqueuePendingUpdateDiagnosticsLog(message);
+      return;
+    }
+
+    await _emitUpdateDiagnosticsLog(message);
+  }
+
+  void _enqueuePendingUpdateDiagnosticsLog(String message) {
+    if (_pendingUpdateDiagnosticsLogs.length >= 100) {
+      _pendingUpdateDiagnosticsLogs.removeAt(0);
+    }
+
+    _pendingUpdateDiagnosticsLogs.add(message);
+  }
+
+  Future<void> _flushPendingUpdateDiagnosticsLogs() async {
+    if (!_isPageReady || _pendingUpdateDiagnosticsLogs.isEmpty) {
+      return;
+    }
+
+    final List<String> pendingMessages = List<String>.from(
+      _pendingUpdateDiagnosticsLogs,
+    );
+    _pendingUpdateDiagnosticsLogs.clear();
+
+    for (final String message in pendingMessages) {
+      await _emitUpdateDiagnosticsLog(message);
+    }
+  }
+
+  Future<void> _emitUpdateDiagnosticsLog(String message) async {
+    final String encodedMessage = jsonEncode(message);
+
+    try {
+      await _controller.runJavaScript('''
+        (() => {
+          const message = $encodedMessage;
+          const payload = {
+            source: 'flutter_update_coordinator',
+            message,
+            timestamp: new Date().toISOString(),
+          };
+          const isError = /error|failed/i.test(message);
+          const logMethod = isError ? console.error : console.warn;
+          logMethod('[ImportantDiagnostics][NativeVersionCheck]', payload);
+        })();
+      ''');
+    } catch (_) {
+      _enqueuePendingUpdateDiagnosticsLog(message);
+    }
   }
 
   Future<void> _dispatchViewportSync(

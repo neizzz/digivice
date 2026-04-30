@@ -57,6 +57,7 @@ type DiagnosticsPayload = {
   appInfo: {
     project: "MonTTo";
     clientAppVersion: string;
+    clientBuildNumber: number;
     appMode: string;
     debugEnabled: boolean;
     storageKind: "native" | "web";
@@ -257,11 +258,13 @@ function summarizeGameData(data: unknown): GameDataSummary {
 }
 
 function createDiagnosticsSubject(timestamp: string): string {
-  return `[MonTTo] Diagnostics Report ${timestamp}`;
+  return `[MonTTo][${getClientReleaseLabel()}] Diagnostics Report ${timestamp}`;
 }
 
 function createDiagnosticsBody(): string {
   return [
+    `App version: ${getClientReleaseLabel()}`,
+    "",
     "Please describe the issue or symptoms you observed.",
     "",
     "- What happened?",
@@ -269,6 +272,15 @@ function createDiagnosticsBody(): string {
     "- What did you expect to happen?",
     "- How can it be reproduced?",
   ].join("\n");
+}
+
+function getClientReleaseLabel(): string {
+  return `${__APP_VERSION__}+${__APP_BUILD_NUMBER__}`;
+}
+
+function getClientReleaseFileLabel(): string {
+  const sanitizedVersion = __APP_VERSION__.replace(/[^a-zA-Z0-9.-]+/g, "_");
+  return `${sanitizedVersion}-build-${__APP_BUILD_NUMBER__}`;
 }
 
 function buildGmailComposeHref(subject: string, body: string): string {
@@ -422,6 +434,8 @@ const GameContainer: React.FC = () => {
           : undefined,
       storageKind: getClientStorageKind(),
       appMode: import.meta.env.MODE,
+      appVersion: __APP_VERSION__,
+      buildNumber: __APP_BUILD_NUMBER__,
       debugEnabled: isNativeFeatureDebugMode,
     }));
 
@@ -618,6 +632,7 @@ const GameContainer: React.FC = () => {
         appInfo: {
           project: "MonTTo",
           clientAppVersion: __APP_VERSION__,
+          clientBuildNumber: __APP_BUILD_NUMBER__,
           appMode: import.meta.env.MODE,
           debugEnabled: isNativeFeatureDebugMode,
           storageKind: getClientStorageKind(),
@@ -644,6 +659,7 @@ const GameContainer: React.FC = () => {
       const payloadText = JSON.stringify(payload, null, 2);
       const subject = createDiagnosticsSubject(payload.generatedAt);
       const body = createDiagnosticsBody();
+      const releaseFileLabel = getClientReleaseFileLabel();
       const timestampSuffix = payload.generatedAt
         .replace(/\.\d{3}Z$/, "Z")
         .replace(/[:]/g, "-");
@@ -652,17 +668,17 @@ const GameContainer: React.FC = () => {
         body,
         attachments: [
           {
-            fileName: `montto-diagnostics-${timestampSuffix}.json`,
+            fileName: `montto-diagnostics-${releaseFileLabel}-${timestampSuffix}.json`,
             text: payloadText,
             mimeType: "application/json",
           },
           {
-            fileName: `montto-latest-game-data-${timestampSuffix}.json`,
+            fileName: `montto-latest-game-data-${releaseFileLabel}-${timestampSuffix}.json`,
             text: JSON.stringify(latestGameData, null, 2),
             mimeType: "application/json",
           },
           {
-            fileName: `montto-important-logs-${timestampSuffix}.json`,
+            fileName: `montto-important-logs-${releaseFileLabel}-${timestampSuffix}.json`,
             text: JSON.stringify(payload.importantLogs, null, 2),
             mimeType: "application/json",
           },
@@ -1306,6 +1322,9 @@ const GameContainer: React.FC = () => {
                 <div>The Gmail app will open next.</div>
                 <div className="mt-2">
                   The diagnostics files will be attached to the draft email.
+                </div>
+                <div className="mt-2 font-mono text-xs leading-5 text-white/70">
+                  Release: {getClientReleaseLabel()}
                 </div>
               </div>
             }
