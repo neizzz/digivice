@@ -1,8 +1,14 @@
 {
   "name": "digivice",
-  "version": "1.0.0",
+  "version": "0.0.0",
   "private": true,
   "scripts": {
+    "sync:versions": "node ./scripts/sync-app-version.mjs",
+    "version:bump:patch": "node ./scripts/bump-app-version.mjs patch",
+    "version:bump:minor": "node ./scripts/bump-app-version.mjs minor",
+    "version:bump:major": "node ./scripts/bump-app-version.mjs major",
+    "version:bump:build": "node ./scripts/bump-app-version.mjs build",
+    "version:set": "node ./scripts/bump-app-version.mjs set-version",
     "dev": "pnpm --filter @digivice/client dev",
     "build": "pnpm --filter @digivice/client build",
     "dev:monster-animations": "pnpm --filter @digivice/client dev:monster-animations"

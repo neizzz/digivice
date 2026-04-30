@@ -12,16 +12,40 @@ export default defineConfig(({ mode }) => {
   const isDebugBuild =
     env.NATIVE_FEATURE_DEBUG_MODE === "true" ||
     process.env.NATIVE_FEATURE_DEBUG_MODE === "true";
-  const clientPackage = JSON.parse(
-    readFileSync(resolve(__dirname, "package.json"), "utf-8"),
-  ) as { version?: string };
-  const appVersion = clientPackage.version ?? "unknown";
+  const versionConfig = JSON.parse(
+    readFileSync(resolve(__dirname, "../../versions/app.json"), "utf-8"),
+  ) as { appVersion?: string; buildNumber?: number };
+
+  if (
+    typeof versionConfig.appVersion !== "string" ||
+    versionConfig.appVersion.trim().length === 0
+  ) {
+    throw new Error("versions/app.json must define a non-empty appVersion");
+  }
+
+  const appBuildNumber = versionConfig.buildNumber;
+
+  if (
+    typeof appBuildNumber !== "number" ||
+    !Number.isInteger(appBuildNumber) ||
+    appBuildNumber <= 0
+  ) {
+    throw new Error(
+      "versions/app.json must define a positive integer buildNumber",
+    );
+  }
+
+  const appVersion = versionConfig.appVersion;
   const htmlInputs = {
     index: resolve(__dirname, "index.html"),
     "monster-animations": resolve(__dirname, "monster-animations.html"),
   };
   const appVersionLabel = isDebugBuild ? `${appVersion}-debug` : appVersion;
-  const appLogoText = (env.APP_LOGO_TEXT || process.env.APP_LOGO_TEXT || "").trim();
+  const appLogoText = (
+    env.APP_LOGO_TEXT ||
+    process.env.APP_LOGO_TEXT ||
+    ""
+  ).trim();
   const rewritePublicAssetPath = (url: string): string => {
     if (url.startsWith("/assets/game/")) {
       return url.replace(/^\/assets\/game\//, "/game/");
@@ -84,6 +108,7 @@ export default defineConfig(({ mode }) => {
     ],
     define: {
       __APP_VERSION__: JSON.stringify(appVersionLabel),
+      __APP_BUILD_NUMBER__: JSON.stringify(appBuildNumber),
       __APP_LOGO_TEXT__: JSON.stringify(appLogoText),
       // __NATIVE_TEST_MODE__: isNativeTestMode,
 

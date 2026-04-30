@@ -145,7 +145,10 @@ import {
   TimeOfDayMode,
 } from "./timeOfDay";
 
-const liveCharacterEntitiesQuery = defineQuery([ObjectComp, CharacterStatusComp]);
+const liveCharacterEntitiesQuery = defineQuery([
+  ObjectComp,
+  CharacterStatusComp,
+]);
 
 export type EntityComponents = {
   characterStatus?: CharacterStatusComponent;
@@ -323,7 +326,7 @@ const GIF_ASSETS = {
  * c) PIXI v8 Assets API를 활용한 에셋 관리
  */
 export class MainSceneWorld implements IWorld, Scene {
-  public readonly VERSION = "1.0.0";
+  public readonly WORLD_DATA_SCHEMA_VERSION = "1.0.0";
   private static readonly SCENE_DARKNESS_OVERLAY_Z_INDEX = 1_000_000;
   private _stage: PIXI.Container;
   private _positionBoundary: Boundary;
@@ -498,10 +501,8 @@ export class MainSceneWorld implements IWorld, Scene {
       return null;
     }
 
-    const projectedSunTimes: ProjectedUpcomingSunTimes = projectUpcomingSunTimes(
-      new Date(referenceTime),
-      this._sunTimes,
-    );
+    const projectedSunTimes: ProjectedUpcomingSunTimes =
+      projectUpcomingSunTimes(new Date(referenceTime), this._sunTimes);
 
     return {
       sunriseAt: projectedSunTimes.sunriseAt.getTime(),
@@ -548,7 +549,8 @@ export class MainSceneWorld implements IWorld, Scene {
       bottom: params.positionBoundary.y,
     };
     this._parentElement = params.parentElement;
-    this._debugParentElement = params.debugParentElement ?? params.parentElement;
+    this._debugParentElement =
+      params.debugParentElement ?? params.parentElement;
     this._startMiniGame = params.startMiniGame;
     this._createInitialGameData = params.createInitialGameData;
     this._changeControlButtons = params.changeControlButtons;
@@ -666,10 +668,8 @@ export class MainSceneWorld implements IWorld, Scene {
       return null;
     }
 
-    adState.menu_use_count = Math.max(
-      0,
-      Math.floor(adState.menu_use_count),
-    ) + 1;
+    adState.menu_use_count =
+      Math.max(0, Math.floor(adState.menu_use_count)) + 1;
 
     let createdReservation: MainSceneAdPendingReservation | null = null;
     if (!adState.pending) {
@@ -848,7 +848,11 @@ export class MainSceneWorld implements IWorld, Scene {
   }
 
   private _canRequestMainSceneAdNow(): boolean {
-    if (this._isPaused || this._isRunningReentrySimulation || this.isSimulationMode) {
+    if (
+      this._isPaused ||
+      this._isRunningReentrySimulation ||
+      this.isSimulationMode
+    ) {
       return false;
     }
 
@@ -866,10 +870,13 @@ export class MainSceneWorld implements IWorld, Scene {
     }
 
     let timerId = 0;
-    timerId = window.setTimeout(() => {
-      this._mainSceneAdTimerIds.delete(timerId);
-      callback();
-    }, Math.max(0, delayMs));
+    timerId = window.setTimeout(
+      () => {
+        this._mainSceneAdTimerIds.delete(timerId);
+        callback();
+      },
+      Math.max(0, delayMs),
+    );
     this._mainSceneAdTimerIds.add(timerId);
     return timerId;
   }
@@ -1190,7 +1197,9 @@ export class MainSceneWorld implements IWorld, Scene {
           onMiniGameSelect: () => {
             console.log("[MainSceneWorld] Mini game selected");
             if (!this._startMiniGame) {
-              console.warn("[MainSceneWorld] Mini game start callback is not set");
+              console.warn(
+                "[MainSceneWorld] Mini game start callback is not set",
+              );
               return;
             }
 
@@ -1284,10 +1293,7 @@ export class MainSceneWorld implements IWorld, Scene {
       return;
     }
 
-    window.addEventListener(
-      SHOW_DEBUG_GAUGE_EVENT,
-      this._handleShowDebugGauge,
-    );
+    window.addEventListener(SHOW_DEBUG_GAUGE_EVENT, this._handleShowDebugGauge);
     this._isDebugGaugeEventListenerRegistered = true;
   }
 
@@ -1668,7 +1674,7 @@ export class MainSceneWorld implements IWorld, Scene {
     const useLocalTime =
       initialGameData?.useLocalTime ?? DEFAULT_USE_LOCAL_TIME;
     const cachedSunTimes = useLocalTime
-      ? initialGameData?.cachedSunTimes ?? undefined
+      ? (initialGameData?.cachedSunTimes ?? undefined)
       : undefined;
 
     return {
@@ -1676,7 +1682,7 @@ export class MainSceneWorld implements IWorld, Scene {
         name: "MainScene",
         monster_name: initialGameData?.name,
         last_ecs_saved: Date.now(),
-        version: this.VERSION,
+        version: this.WORLD_DATA_SCHEMA_VERSION,
         app_state: {
           last_active_time: Date.now(),
           is_first_load: false,
@@ -1875,7 +1881,7 @@ export class MainSceneWorld implements IWorld, Scene {
         data.world_metadata = {
           name: "MainScene",
           last_ecs_saved: Date.now(),
-          version: this.VERSION,
+          version: this.WORLD_DATA_SCHEMA_VERSION,
           app_state: {
             last_active_time: Date.now(),
             is_first_load: false,
@@ -1912,9 +1918,9 @@ export class MainSceneWorld implements IWorld, Scene {
       }
 
       // 버전 호환성 검증
-      if (data.world_metadata.version !== this.VERSION) {
+      if (data.world_metadata.version !== this.WORLD_DATA_SCHEMA_VERSION) {
         console.log(
-          `Version mismatch (saved: ${data.world_metadata.version}, current: ${this.VERSION}), attempting migration...`,
+          `World data version mismatch (saved: ${data.world_metadata.version}, current: ${this.WORLD_DATA_SCHEMA_VERSION}), attempting migration...`,
         );
         data = this._migrateData(data);
       }
@@ -1947,14 +1953,14 @@ export class MainSceneWorld implements IWorld, Scene {
 
     try {
       console.log(
-        `Migrating data from version ${data.world_metadata.version} to ${this.VERSION}`,
+        `Migrating data from version ${data.world_metadata.version} to ${this.WORLD_DATA_SCHEMA_VERSION}`,
       );
 
       // TODO: 버전별 마이그레이션 로직
       // 예: 1.0.0 이전 버전에서 특정 필드가 추가되었다면 여기서 처리
 
       // 마이그레이션 완료 후 버전 업데이트
-      data.world_metadata.version = this.VERSION;
+      data.world_metadata.version = this.WORLD_DATA_SCHEMA_VERSION;
       data.world_metadata.last_ecs_saved = Date.now();
 
       console.log("Data migration completed");
@@ -2065,7 +2071,9 @@ export class MainSceneWorld implements IWorld, Scene {
     this._sunTimesRefreshPromise = (async () => {
       const sunTimes = await getNativeSunTimes(promptForPermission);
       if (!sunTimes) {
-        console.warn("[MainSceneWorld] Native sun times are unavailable, staying in manual mode");
+        console.warn(
+          "[MainSceneWorld] Native sun times are unavailable, staying in manual mode",
+        );
         return;
       }
 
@@ -2213,7 +2221,11 @@ export class MainSceneWorld implements IWorld, Scene {
     };
   }
 
-  private _lerpDarknessAlpha(from: number, to: number, progress: number): number {
+  private _lerpDarknessAlpha(
+    from: number,
+    to: number,
+    progress: number,
+  ): number {
     return from + (to - from) * progress;
   }
 
@@ -2232,7 +2244,9 @@ export class MainSceneWorld implements IWorld, Scene {
   }
 
   private _isLocalTimeEnabled(): boolean {
-    return this._persistentData?.world_metadata.app_state?.use_local_time ?? true;
+    return (
+      this._persistentData?.world_metadata.app_state?.use_local_time ?? true
+    );
   }
 
   private _applyCachedAutoTimeOfDay(): boolean {

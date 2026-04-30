@@ -29,6 +29,9 @@ fi
 # 프로젝트 루트 디렉터리로 이동
 cd "$(dirname "$0")/.."
 
+echo "🔁 Syncing Flutter app version..."
+node ./scripts/sync-app-version.mjs
+
 # apps/client 빌드
 echo "📦 Building apps/client..."
 cd apps/client

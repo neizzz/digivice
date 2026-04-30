@@ -4,6 +4,7 @@ description: "A new Flutter project."
 # Prevent accidental publishing to pub.dev.
 publish_to: "none"
 
+# Source of truth: ../versions/app.json
 version: 0.1.0+1
 
 environment:
