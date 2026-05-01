@@ -28202,6 +28202,7 @@ function randomMovementSystem(params) {
   return params;
 }
 const movingEntityQuery = defineQuery([PositionComp, SpeedComp, AngleComp]);
+const TARGET_REACHED_EPSILON$1 = 1e-3;
 function commonMovementSystem(params) {
   const { world, delta } = params;
   const entities = movingEntityQuery(world);
@@ -28216,10 +28217,36 @@ function commonMovementSystem(params) {
     const angle = AngleComp;
     const speed = SpeedComp;
     if (speed.value[eid] === 0) continue;
-    const velocityX = Math.cos(angle.value[eid]) * speed.value[eid];
-    const velocityY = Math.sin(angle.value[eid]) * speed.value[eid];
-    const nextX = position.x[eid] + velocityX * delta;
-    const nextY = position.y[eid] + velocityY * delta;
+    const targetedDestination = getTargetedDestination(world, eid);
+    let nextX = position.x[eid];
+    let nextY = position.y[eid];
+    if (targetedDestination) {
+      const deltaXToTarget = targetedDestination.x - position.x[eid];
+      const deltaYToTarget = targetedDestination.y - position.y[eid];
+      const remainingDistance = Math.sqrt(
+        deltaXToTarget * deltaXToTarget + deltaYToTarget * deltaYToTarget
+      );
+      if (remainingDistance <= TARGET_REACHED_EPSILON$1) {
+        position.x[eid] = targetedDestination.x;
+        position.y[eid] = targetedDestination.y;
+        continue;
+      }
+      const targetAngle = Math.atan2(deltaYToTarget, deltaXToTarget);
+      angle.value[eid] = targetAngle;
+      const stepDistance = speed.value[eid] * delta;
+      if (stepDistance >= remainingDistance) {
+        position.x[eid] = targetedDestination.x;
+        position.y[eid] = targetedDestination.y;
+        continue;
+      }
+      nextX = position.x[eid] + Math.cos(targetAngle) * stepDistance;
+      nextY = position.y[eid] + Math.sin(targetAngle) * stepDistance;
+    } else {
+      const velocityX = Math.cos(angle.value[eid]) * speed.value[eid];
+      const velocityY = Math.sin(angle.value[eid]) * speed.value[eid];
+      nextX = position.x[eid] + velocityX * delta;
+      nextY = position.y[eid] + velocityY * delta;
+    }
     const maxX = boundary.x + boundary.width;
     const maxY = boundary.y + boundary.height;
     if (nextX <= boundary.x || nextX >= maxX || nextY <= boundary.y || nextY >= maxY) {
@@ -28235,6 +28262,18 @@ function commonMovementSystem(params) {
     }
   }
   return params;
+}
+function getTargetedDestination(world, eid) {
+  if (!hasComponent(world, DestinationComp, eid)) {
+    return null;
+  }
+  if (DestinationComp.type[eid] !== DestinationType.TARGETED) {
+    return null;
+  }
+  return {
+    x: DestinationComp.x[eid],
+    y: DestinationComp.y[eid]
+  };
 }
 const inFlightSpritesheetLoads = /* @__PURE__ */ new Map();
 function sleep$1(ms) {
@@ -31138,7 +31177,8 @@ function createPoop(world, characterEid, options) {
   });
   console.log(`[DigestiveSystem] Created poop entity with EID: ${poobEntity}`);
 }
-function moveTowardsTarget(world, eid, _delta, arrivalThreshold) {
+const TARGET_REACHED_EPSILON = 1e-3;
+function moveTowardsTarget(world, eid, _delta) {
   if (DestinationComp.type[eid] !== DestinationType.TARGETED) {
     return { distance: Infinity, hasArrived: false };
   }
@@ -31149,20 +31189,10 @@ function moveTowardsTarget(world, eid, _delta, arrivalThreshold) {
   const deltaX = targetX - currentX;
   const deltaY = targetY - currentY;
   const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-  let hasArrived = false;
-  const targetAngle = Math.atan2(deltaY, deltaX);
-  {
-    const currentAngle = hasComponent(world, AngleComp, eid) ? AngleComp.value[eid] : targetAngle;
-    const distanceAlongHeading = Math.cos(currentAngle) * deltaX + Math.sin(currentAngle) * deltaY;
-    const hasPassedTarget = distanceAlongHeading <= 0;
-    hasArrived = distance <= arrivalThreshold || hasPassedTarget;
-  }
-  if (!hasArrived) {
-    AngleComp.value[eid] = targetAngle;
-  }
+  const hasArrived = distance <= TARGET_REACHED_EPSILON;
   let baseSpeed = 0;
-  if (hasComponent(world, CharacterStatusComp, eid)) {
-    const characterKey = CharacterStatusComp.characterKey[eid];
+  const characterKey = CharacterStatusComp.characterKey[eid];
+  if (characterKey > 0) {
     const characterStats = getCharacterStats(characterKey);
     baseSpeed = characterStats.speed;
   } else {
@@ -31190,7 +31220,6 @@ const movingToFoodQuery = defineQuery([
   DestinationComp
 ]);
 const FOOD_EATING_DURATION = 3200;
-const EATING_ARRIVAL_THRESHOLD = 4;
 const FOOD_CHARACTER_BOUNDARY_OVERLAP_PX = 30;
 const FALLBACK_FOOD_SOURCE_SIZE = 16;
 const EATING_POSE_FOOD_Y_OFFSET_PX = 1;
@@ -31199,7 +31228,7 @@ function foodEatingSystem(params) {
   const { world, delta, currentTime } = params;
   const resolvedCurrentTime = currentTime ?? world.currentTime;
   updateEatingProgress(world, delta, resolvedCurrentTime);
-  updateMovingToFood(world, delta);
+  updateMovingToFood(world);
   findAndEatFood(world);
   return params;
 }
@@ -31272,12 +31301,7 @@ function updateMovingToFood(world, delta) {
       restoreFreeRoamingState(world, eid, 1e3);
       continue;
     }
-    const { distance, hasArrived } = moveTowardsTarget(
-      world,
-      eid,
-      delta,
-      EATING_ARRIVAL_THRESHOLD
-    );
+    const { distance, hasArrived } = moveTowardsTarget(world, eid);
     if (hasArrived) {
       console.log(
         `[FoodEatingSystem] Character ${eid} reached food ${targetFoodEid} at distance ${distance.toFixed(
@@ -36473,7 +36497,10 @@ async function requestNativeLocationPermission() {
     return false;
   }
 }
-const liveCharacterEntitiesQuery = defineQuery([ObjectComp, CharacterStatusComp]);
+const liveCharacterEntitiesQuery = defineQuery([
+  ObjectComp,
+  CharacterStatusComp
+]);
 const WORLD_DATA_STORAGE_KEY$1 = "MainSceneWorldData";
 const DEFAULT_USE_LOCAL_TIME = true;
 const MAIN_SCENE_AD_NORMAL_THRESHOLD = 5;
@@ -36549,7 +36576,7 @@ const GIF_ASSETS = {
 };
 const _MainSceneWorld = class _MainSceneWorld {
   constructor(params) {
-    this.VERSION = "1.0.0";
+    this.WORLD_DATA_SCHEMA_VERSION = "1.0.0";
     this._isDebugGaugeEventListenerRegistered = false;
     this._navigationActionIndex = 0;
     this._isCleaningMode = false;
@@ -36673,10 +36700,7 @@ const _MainSceneWorld = class _MainSceneWorld {
     if (this._timeOfDayMode !== TimeOfDayMode.Auto || !this._sunTimes) {
       return null;
     }
-    const projectedSunTimes = getProjectedUpcomingSunTimes(
-      new Date(referenceTime),
-      this._sunTimes
-    );
+    const projectedSunTimes = getProjectedUpcomingSunTimes(new Date(referenceTime), this._sunTimes);
     return {
       sunriseAt: projectedSunTimes.sunriseAt.getTime(),
       sunsetAt: projectedSunTimes.sunsetAt.getTime(),
@@ -36745,10 +36769,7 @@ const _MainSceneWorld = class _MainSceneWorld {
     if (!adState) {
       return null;
     }
-    adState.menu_use_count = Math.max(
-      0,
-      Math.floor(adState.menu_use_count)
-    ) + 1;
+    adState.menu_use_count = Math.max(0, Math.floor(adState.menu_use_count)) + 1;
     let createdReservation = null;
     if (!adState.pending) {
       const config = this._getMainSceneAdConfig();
@@ -36899,10 +36920,13 @@ const _MainSceneWorld = class _MainSceneWorld {
       return 0;
     }
     let timerId = 0;
-    timerId = window.setTimeout(() => {
-      this._mainSceneAdTimerIds.delete(timerId);
-      callback();
-    }, Math.max(0, delayMs));
+    timerId = window.setTimeout(
+      () => {
+        this._mainSceneAdTimerIds.delete(timerId);
+        callback();
+      },
+      Math.max(0, delayMs)
+    );
     this._mainSceneAdTimerIds.add(timerId);
     return timerId;
   }
@@ -37159,7 +37183,9 @@ const _MainSceneWorld = class _MainSceneWorld {
           onMiniGameSelect: () => {
             console.log("[MainSceneWorld] Mini game selected");
             if (!this._startMiniGame) {
-              console.warn("[MainSceneWorld] Mini game start callback is not set");
+              console.warn(
+                "[MainSceneWorld] Mini game start callback is not set"
+              );
               return;
             }
             this._recordMainSceneMenuUse("mini_game");
@@ -37234,10 +37260,7 @@ const _MainSceneWorld = class _MainSceneWorld {
     if (this._isDebugGaugeEventListenerRegistered || typeof window === "undefined") {
       return;
     }
-    window.addEventListener(
-      SHOW_DEBUG_GAUGE_EVENT,
-      this._handleShowDebugGauge
-    );
+    window.addEventListener(SHOW_DEBUG_GAUGE_EVENT, this._handleShowDebugGauge);
     this._isDebugGaugeEventListenerRegistered = true;
   }
   _removeDebugGaugeEventListener() {
@@ -37524,7 +37547,7 @@ const _MainSceneWorld = class _MainSceneWorld {
         name: "MainScene",
         monster_name: initialGameData == null ? void 0 : initialGameData.name,
         last_ecs_saved: Date.now(),
-        version: this.VERSION,
+        version: this.WORLD_DATA_SCHEMA_VERSION,
         app_state: {
           last_active_time: Date.now(),
           is_first_load: false,
@@ -37675,7 +37698,7 @@ const _MainSceneWorld = class _MainSceneWorld {
         data.world_metadata = {
           name: "MainScene",
           last_ecs_saved: Date.now(),
-          version: this.VERSION,
+          version: this.WORLD_DATA_SCHEMA_VERSION,
           app_state: {
             last_active_time: Date.now(),
             is_first_load: false,
@@ -37707,9 +37730,9 @@ const _MainSceneWorld = class _MainSceneWorld {
         console.warn("Missing entities array, creating empty array");
         data.entities = [];
       }
-      if (data.world_metadata.version !== this.VERSION) {
+      if (data.world_metadata.version !== this.WORLD_DATA_SCHEMA_VERSION) {
         console.log(
-          `Version mismatch (saved: ${data.world_metadata.version}, current: ${this.VERSION}), attempting migration...`
+          `World data version mismatch (saved: ${data.world_metadata.version}, current: ${this.WORLD_DATA_SCHEMA_VERSION}), attempting migration...`
         );
         data = this._migrateData(data);
       }
@@ -37735,9 +37758,9 @@ const _MainSceneWorld = class _MainSceneWorld {
     console.groupCollapsed("🔄 Migrating data...");
     try {
       console.log(
-        `Migrating data from version ${data.world_metadata.version} to ${this.VERSION}`
+        `Migrating data from version ${data.world_metadata.version} to ${this.WORLD_DATA_SCHEMA_VERSION}`
       );
-      data.world_metadata.version = this.VERSION;
+      data.world_metadata.version = this.WORLD_DATA_SCHEMA_VERSION;
       data.world_metadata.last_ecs_saved = Date.now();
       console.log("Data migration completed");
       return data;
@@ -37814,7 +37837,9 @@ const _MainSceneWorld = class _MainSceneWorld {
     this._sunTimesRefreshPromise = (async () => {
       const sunTimes = await getNativeSunTimes(promptForPermission);
       if (!sunTimes) {
-        console.warn("[MainSceneWorld] Native sun times are unavailable, staying in manual mode");
+        console.warn(
+          "[MainSceneWorld] Native sun times are unavailable, staying in manual mode"
+        );
         return;
       }
       this._sunTimes = sunTimes;
@@ -38254,7 +38279,13 @@ const _MainSceneWorld = class _MainSceneWorld {
    * 청소 모드 상태를 업데이트하는 메서드들
    */
   setFocusedTargetEid(eid) {
+    if (this._focusedTargetEid === eid) {
+      return;
+    }
     this._focusedTargetEid = eid;
+    if (this._isCleaningMode) {
+      this._updateControlButtonsForCleaningMode(true);
+    }
   }
   setBroomProgress(progress) {
     this._broomProgress = Math.max(0, Math.min(1, progress));
@@ -38350,17 +38381,20 @@ const _MainSceneWorld = class _MainSceneWorld {
   _updateControlButtonsForCleaningMode(isCleaningMode) {
     if (!this._changeControlButtons) return;
     if (isCleaningMode) {
+      const hasCleaningTarget = this._focusedTargetEid !== -1;
       this._changeControlButtons([
         { type: ControlButtonType.Cancel },
         {
           type: ControlButtonType.Clean,
           initialSliderValue: this._currentSliderValue,
-          sliderSessionKey: this._cleaningSliderSessionKey
+          sliderSessionKey: this._cleaningSliderSessionKey,
+          hasCleaningTarget
         },
         {
           type: ControlButtonType.Clean,
           initialSliderValue: this._currentSliderValue,
-          sliderSessionKey: this._cleaningSliderSessionKey
+          sliderSessionKey: this._cleaningSliderSessionKey,
+          hasCleaningTarget
         }
       ]);
     } else {
@@ -44996,32 +45030,12 @@ class Game {
       throw new Error("Parent element is not available.");
     }
     if (!this._isPixiReady || !this.app.renderer) {
-      console.warn(
-        "[GameResize]",
-        JSON.stringify({
-          phase: "skip-before-init",
-          reason,
-          isPixiReady: this._isPixiReady,
-          hasRenderer: Boolean(this.app.renderer)
-        })
-      );
       return;
     }
     const rect = parent.getBoundingClientRect();
     const width = parent.clientWidth || rect.width;
     const height = parent.clientHeight || rect.height;
     if (width <= 0 || height <= 0) {
-      console.warn(
-        "[GameResize]",
-        JSON.stringify({
-          phase: "skip-zero-size",
-          reason,
-          clientWidth: parent.clientWidth,
-          clientHeight: parent.clientHeight,
-          rectWidth: rect.width,
-          rectHeight: rect.height
-        })
-      );
       return;
     }
     const resolution = window.devicePixelRatio || 2;
@@ -45038,9 +45052,28 @@ class Game {
       return;
     }
     this._lastResizeMetricsKey = metricsKey;
+    const previousStageScaleX = this.app.stage.scale.x;
+    const previousStageScaleY = this.app.stage.scale.y;
+    const stageScaleWasReset = Math.abs(previousStageScaleX - 1) > 1e-6 || Math.abs(previousStageScaleY - 1) > 1e-6;
+    if (stageScaleWasReset) {
+      this.app.stage.scale.set(1, 1);
+    }
     this.app.renderer.resolution = resolution;
     this.app.renderer.resize(width, height);
-    this.app.stage.setSize(width, height);
+    if (stageScaleWasReset) {
+      console.warn("[GameResize]", {
+        phase: "stage-scale-reset",
+        reason,
+        width,
+        height,
+        previousStageScaleX,
+        previousStageScaleY,
+        normalizedStageScaleX: this.app.stage.scale.x,
+        normalizedStageScaleY: this.app.stage.scale.y,
+        screenWidth: this.app.screen.width,
+        screenHeight: this.app.screen.height
+      });
+    }
     if (this.currentScene && "resize" in this.currentScene && typeof this.currentScene.resize === "function") {
       this.currentScene.resize(width, height);
     }
@@ -45592,6 +45625,7 @@ const ControlButton = ({
   className,
   sliderWidth,
   initialSliderValue = 0.5,
+  hasCleaningTarget = false,
   onSliderChange,
   onSliderEnd
 }) => {
@@ -45604,7 +45638,10 @@ const ControlButton = ({
   const accumulatedDragDistanceRef = reactExports.useRef(0);
   const lastDragDirectionRef = reactExports.useRef(0);
   const isSlider = type === ControlButtonType.Clean && !!sliderWidth;
-  const sliderTrackWidth = sliderWidth ? Math.max(0, (sliderWidth - SLIDER_THUMB_SIZE) * SLIDER_TRACK_RANGE_MULTIPLIER) : 0;
+  const sliderTrackWidth = sliderWidth ? Math.max(
+    0,
+    (sliderWidth - SLIDER_THUMB_SIZE) * SLIDER_TRACK_RANGE_MULTIPLIER
+  ) : 0;
   const vibrationStepValue = Math.min(
     1,
     SLIDER_DRAG_VIBRATION_STEP_PX / Math.max(1, sliderTrackWidth)
@@ -45619,7 +45656,7 @@ const ControlButton = ({
           const signedDelta = value - lastSliderDragValueRef.current;
           const delta = Math.abs(signedDelta);
           const dragDirection = signedDelta > SLIDER_DIRECTION_CHANGE_THRESHOLD ? 1 : signedDelta < -8e-3 ? -1 : 0;
-          if (dragDirection !== 0 && lastDragDirectionRef.current !== 0 && dragDirection !== lastDragDirectionRef.current) {
+          if (hasCleaningTarget && dragDirection !== 0 && lastDragDirectionRef.current !== 0 && dragDirection !== lastDragDirectionRef.current) {
             void vibrationAdapter$1.vibrate(
               SLIDER_DIRECTION_CHANGE_VIBRATION_DURATION,
               SLIDER_DIRECTION_CHANGE_VIBRATION_STRENGTH
@@ -45631,7 +45668,7 @@ const ControlButton = ({
           accumulatedDragDistanceRef.current += delta;
           lastSliderDragValueRef.current = value;
           currentSliderValueRef.current = value;
-          if (accumulatedDragDistanceRef.current >= vibrationStepValue) {
+          if (hasCleaningTarget && accumulatedDragDistanceRef.current >= vibrationStepValue) {
             accumulatedDragDistanceRef.current %= vibrationStepValue;
             void vibrationAdapter$1.vibrate(
               SLIDER_DRAG_VIBRATION_DURATION,
@@ -45661,7 +45698,14 @@ const ControlButton = ({
         sliderControllerRef.current = null;
       };
     }
-  }, [initialSliderValue, isSlider, onSliderChange, onSliderEnd, vibrationStepValue]);
+  }, [
+    hasCleaningTarget,
+    initialSliderValue,
+    isSlider,
+    onSliderChange,
+    onSliderEnd,
+    vibrationStepValue
+  ]);
   reactExports.useEffect(() => {
     var _a;
     setCurrentSliderValue(initialSliderValue);
@@ -45724,7 +45768,7 @@ const ControlButton = ({
             false,
             {
               fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/ControlButton.tsx",
-              lineNumber: 232,
+              lineNumber: 248,
               columnNumber: 9
             },
             void 0
@@ -45746,7 +45790,7 @@ const ControlButton = ({
                 false,
                 {
                   fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/ControlButton.tsx",
-                  lineNumber: 245,
+                  lineNumber: 261,
                   columnNumber: 11
                 },
                 void 0
@@ -45756,7 +45800,7 @@ const ControlButton = ({
             false,
             {
               fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/ControlButton.tsx",
-              lineNumber: 239,
+              lineNumber: 255,
               columnNumber: 9
             },
             void 0
@@ -45767,7 +45811,7 @@ const ControlButton = ({
       true,
       {
         fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/ControlButton.tsx",
-        lineNumber: 227,
+        lineNumber: 243,
         columnNumber: 7
       },
       void 0
@@ -45787,7 +45831,7 @@ const ControlButton = ({
     false,
     {
       fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/ControlButton.tsx",
-      lineNumber: 256,
+      lineNumber: 272,
       columnNumber: 5
     },
     void 0
@@ -45853,6 +45897,7 @@ const ControlButtons = ({
           type: ControlButtonType.Clean,
           sliderWidth,
           initialSliderValue: (cleanButtonParam == null ? void 0 : cleanButtonParam.initialSliderValue) ?? 0.5,
+          hasCleaningTarget: (cleanButtonParam == null ? void 0 : cleanButtonParam.hasCleaningTarget) ?? false,
           onSliderChange,
           onSliderEnd,
           onClick: () => onButtonPress(buttonParams[1].type)
@@ -45891,7 +45936,7 @@ const ControlButtons = ({
       false,
       {
         fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-        lineNumber: 93,
+        lineNumber: 94,
         columnNumber: 9
       },
       void 0
@@ -45906,13 +45951,13 @@ const ControlButtons = ({
       false,
       {
         fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-        lineNumber: 98,
+        lineNumber: 99,
         columnNumber: 11
       },
       void 0
     ) }, void 0, false, {
       fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-      lineNumber: 97,
+      lineNumber: 98,
       columnNumber: 9
     }, void 0),
     /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { ref: thirdButtonRef, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -45925,25 +45970,474 @@ const ControlButtons = ({
       false,
       {
         fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-        lineNumber: 104,
+        lineNumber: 105,
         columnNumber: 11
       },
       void 0
     ) }, void 0, false, {
       fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-      lineNumber: 103,
+      lineNumber: 104,
       columnNumber: 9
     }, void 0)
   ] }, void 0, true, {
     fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-    lineNumber: 92,
+    lineNumber: 93,
     columnNumber: 7
   }, void 0) }, void 0, false, {
     fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-    lineNumber: 91,
+    lineNumber: 92,
     columnNumber: 5
   }, void 0);
 };
+function createClientStorage() {
+  if (hasNativeStorageController()) {
+    return new FlutterStorage();
+  }
+  return new WebLocalStorage();
+}
+function getClientStorageKind() {
+  return hasNativeStorageController() ? "native" : "web";
+}
+const DIAGNOSTICS_LOGS_STORAGE_KEY = "DiagnosticsLogs";
+const DIAGNOSTICS_IMPORTANT_LOGS_STORAGE_KEY = "DiagnosticsImportantLogs";
+const DIAGNOSTICS_LOGS_MAX_TOTAL_BYTES = 100 * 1024;
+const DIAGNOSTICS_IMPORTANT_LOGS_MAX_TOTAL_BYTES = 128 * 1024;
+const DIAGNOSTICS_LOG_ENTRY_MAX_BYTES = 8 * 1024;
+const DIAGNOSTICS_LOGS_PERSIST_DEBOUNCE_MS = 2e3;
+const DIAGNOSTICS_LOGS_RECENT_WINDOW_MS = 10 * 60 * 1e3;
+const ELLIPSIS = "…";
+const IMPORTANT_DIAGNOSTICS_PREFIX = "[ImportantDiagnostics]";
+const textEncoder = new TextEncoder();
+const diagnosticsSessionId = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `session-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+const diagnosticsSessionStartedAt = Date.now();
+let diagnosticsContextProvider = null;
+let diagnosticsLogs = [];
+let diagnosticsLogsTotalBytes = 2;
+let diagnosticsImportantLogs = [];
+let diagnosticsImportantLogsTotalBytes = 2;
+let diagnosticsLoggerInitialized = false;
+let diagnosticsConsoleInstalled = false;
+let persistenceInFlight = null;
+let persistTimeoutId = null;
+const originalConsole = {
+  log: console.log.bind(console),
+  warn: console.warn.bind(console),
+  error: console.error.bind(console)
+};
+function syncWindowErrorLogs() {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.errorLogs = diagnosticsLogs.map(({ entry }) => {
+    const versionTag = formatDiagnosticsVersionTag(
+      entry.appVersion,
+      entry.buildNumber
+    );
+    return [
+      `[${entry.timestamp}]`,
+      `[${entry.level}]`,
+      versionTag,
+      entry.message
+    ].filter(Boolean).join(" ");
+  });
+}
+function formatDiagnosticsVersionTag(appVersion, buildNumber) {
+  if (typeof appVersion !== "string" || appVersion.trim().length === 0) {
+    return null;
+  }
+  if (typeof buildNumber === "number" && Number.isInteger(buildNumber) && buildNumber > 0) {
+    return `[${appVersion}+${buildNumber}]`;
+  }
+  return `[${appVersion}]`;
+}
+function isImportantDiagnosticsMessage(level, message) {
+  return level === "error" || message.includes(IMPORTANT_DIAGNOSTICS_PREFIX);
+}
+function shouldSkipDiagnosticsLog(level, message) {
+  if (level === "error") {
+    return false;
+  }
+  const stablePatterns = [
+    "서비스 초기화 완료",
+    "User Agent:",
+    "Environment variables:",
+    "애플리케이션 모드:",
+    "애플리케이션 버전:",
+    "현재 플랫폼:",
+    "[bootstrap] Native storage controller is ready",
+    "[App] AdManager initialized with policies:"
+  ];
+  return stablePatterns.some((pattern) => message.includes(pattern));
+}
+function toByteLength(value) {
+  return textEncoder.encode(value).length;
+}
+function safeStringify(value) {
+  const seen2 = /* @__PURE__ */ new WeakSet();
+  try {
+    return JSON.stringify(
+      value,
+      (_, currentValue) => {
+        if (currentValue instanceof Error) {
+          return {
+            name: currentValue.name,
+            message: currentValue.message,
+            stack: currentValue.stack
+          };
+        }
+        if (typeof currentValue === "object" && currentValue !== null) {
+          if (seen2.has(currentValue)) {
+            return "[Circular]";
+          }
+          seen2.add(currentValue);
+        }
+        return currentValue;
+      },
+      2
+    );
+  } catch {
+    return String(value);
+  }
+}
+function stringifyConsoleArg(arg) {
+  if (typeof arg === "string") {
+    return arg;
+  }
+  if (arg instanceof Error) {
+    return [arg.name ? `${arg.name}: ${arg.message}` : arg.message, arg.stack].filter(Boolean).join("\n");
+  }
+  return safeStringify(arg);
+}
+function getCallerSource() {
+  var _a;
+  try {
+    const stackLines = (_a = new Error().stack) == null ? void 0 : _a.split("\n");
+    if (!stackLines) {
+      return "unknown";
+    }
+    const callerLine = stackLines.find(
+      (line) => !line.includes("diagnosticLogger") && line.includes("at ")
+    );
+    if (!callerLine) {
+      return "unknown";
+    }
+    const callSite = callerLine.trim();
+    const match = callSite.match(/at\s+.*\((.*):(\d+):(\d+)\)/);
+    if (match) {
+      const [, filePath, line] = match;
+      const fileName = filePath.split("/").pop() ?? filePath;
+      return `${fileName}:${line}`;
+    }
+    const fallbackMatch = callSite.match(/at\s+(.*):(\d+):(\d+)/);
+    if (fallbackMatch) {
+      const [, filePath, line] = fallbackMatch;
+      const fileName = filePath.split("/").pop() ?? filePath;
+      return `${fileName}:${line}`;
+    }
+  } catch {
+    return "unknown";
+  }
+  return "unknown";
+}
+function truncateToByteLength(value, maxBytes) {
+  if (maxBytes <= 0) {
+    return "";
+  }
+  if (toByteLength(value) <= maxBytes) {
+    return value;
+  }
+  const ellipsisBytes = toByteLength(ELLIPSIS);
+  if (maxBytes <= ellipsisBytes) {
+    return ELLIPSIS;
+  }
+  let low = 0;
+  let high = value.length;
+  let best = "";
+  const allowedBytes = maxBytes - ellipsisBytes;
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2);
+    const candidate = value.slice(0, mid);
+    if (toByteLength(candidate) <= allowedBytes) {
+      best = candidate;
+      low = mid + 1;
+    } else {
+      high = mid - 1;
+    }
+  }
+  return `${best}${ELLIPSIS}`;
+}
+function truncateEntryToLimit(entry) {
+  const baseEntry = {
+    ...entry,
+    message: ""
+  };
+  const baseBytes = toByteLength(JSON.stringify(baseEntry));
+  const allowedMessageBytes = Math.max(
+    DIAGNOSTICS_LOG_ENTRY_MAX_BYTES - baseBytes,
+    toByteLength(ELLIPSIS)
+  );
+  return {
+    ...entry,
+    message: truncateToByteLength(entry.message, allowedMessageBytes)
+  };
+}
+function getSerializedLogsByteLength(logs) {
+  if (logs.length === 0) {
+    return 2;
+  }
+  const entriesBytes = logs.reduce((sum, log) => sum + log.byteSize, 0);
+  return entriesBytes + (logs.length - 1) + 2;
+}
+function createLogRecord(entry) {
+  const serialized = JSON.stringify(entry);
+  return {
+    entry,
+    serialized,
+    byteSize: toByteLength(serialized)
+  };
+}
+function trimLogsToSize(logs) {
+  return trimRegularLogsToSize(logs);
+}
+function trimImportantLogsToSize(logs) {
+  return trimLogsToSizeWithLimit(
+    logs,
+    DIAGNOSTICS_IMPORTANT_LOGS_MAX_TOTAL_BYTES,
+    (total) => {
+      diagnosticsImportantLogsTotalBytes = total;
+    }
+  );
+}
+function trimLogsToSizeWithLimit(logs, maxTotalBytes, onTotalBytes) {
+  const nextLogs = [...logs];
+  let totalBytes = getSerializedLogsByteLength(nextLogs);
+  while (nextLogs.length > 0 && totalBytes > maxTotalBytes) {
+    const removed2 = nextLogs.shift();
+    if (!removed2) {
+      break;
+    }
+    totalBytes -= removed2.byteSize;
+    totalBytes -= nextLogs.length > 0 ? 1 : 2;
+  }
+  onTotalBytes(getSerializedLogsByteLength(nextLogs));
+  return nextLogs;
+}
+function getDiagnosticsLogTimestampMs(log) {
+  const timestampMs = Date.parse(log.entry.timestamp);
+  return Number.isFinite(timestampMs) ? timestampMs : null;
+}
+function trimRegularLogsToSize(logs) {
+  let nextLogs = [...logs];
+  let totalBytes = getSerializedLogsByteLength(nextLogs);
+  if (totalBytes > DIAGNOSTICS_LOGS_MAX_TOTAL_BYTES) {
+    const recentThreshold = Date.now() - DIAGNOSTICS_LOGS_RECENT_WINDOW_MS;
+    nextLogs = nextLogs.filter((log) => {
+      const timestampMs = getDiagnosticsLogTimestampMs(log);
+      return timestampMs === null || timestampMs >= recentThreshold;
+    });
+    totalBytes = getSerializedLogsByteLength(nextLogs);
+  }
+  while (nextLogs.length > 0 && totalBytes > DIAGNOSTICS_LOGS_MAX_TOTAL_BYTES) {
+    const removed2 = nextLogs.shift();
+    if (!removed2) {
+      break;
+    }
+    totalBytes -= removed2.byteSize;
+    totalBytes -= nextLogs.length > 0 ? 1 : 2;
+  }
+  diagnosticsLogsTotalBytes = getSerializedLogsByteLength(nextLogs);
+  return nextLogs;
+}
+function normalizePersistedLogs(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.map((entry) => {
+    if (!entry || typeof entry !== "object") {
+      return null;
+    }
+    const record = entry;
+    if (typeof record.timestamp !== "string" || typeof record.level !== "string" || typeof record.message !== "string" || typeof record.sessionId !== "string" || typeof record.source !== "string" || typeof record.timeSinceSessionStartMs !== "number" || record.storageKind !== "native" && record.storageKind !== "web") {
+      return null;
+    }
+    return createLogRecord(
+      truncateEntryToLimit({
+        id: typeof record.id === "string" ? record.id : `${record.timestamp}-${record.level}`,
+        timestamp: record.timestamp,
+        level: record.level,
+        message: record.message,
+        sessionId: record.sessionId,
+        source: record.source,
+        timeSinceSessionStartMs: record.timeSinceSessionStartMs,
+        scene: typeof record.scene === "string" ? record.scene : void 0,
+        storageKind: record.storageKind,
+        appMode: typeof record.appMode === "string" ? record.appMode : void 0,
+        appVersion: typeof record.appVersion === "string" ? record.appVersion : void 0,
+        buildNumber: typeof record.buildNumber === "number" && Number.isInteger(record.buildNumber) ? record.buildNumber : void 0,
+        debugEnabled: typeof record.debugEnabled === "boolean" ? record.debugEnabled : void 0
+      })
+    );
+  }).filter((entry) => entry !== null);
+}
+function getDiagnosticsContext() {
+  return (diagnosticsContextProvider == null ? void 0 : diagnosticsContextProvider()) ?? {};
+}
+function queuePersist() {
+  if (!diagnosticsLoggerInitialized) {
+    return;
+  }
+  if (persistTimeoutId !== null) {
+    window.clearTimeout(persistTimeoutId);
+  }
+  persistTimeoutId = window.setTimeout(() => {
+    persistTimeoutId = null;
+    void persistDiagnosticsLogs();
+  }, DIAGNOSTICS_LOGS_PERSIST_DEBOUNCE_MS);
+}
+async function persistDiagnosticsLogs() {
+  if (!diagnosticsLoggerInitialized) {
+    return;
+  }
+  if (persistenceInFlight) {
+    await persistenceInFlight;
+    return;
+  }
+  persistenceInFlight = (async () => {
+    try {
+      const storage = createClientStorage();
+      await Promise.all([
+        storage.setData(
+          DIAGNOSTICS_LOGS_STORAGE_KEY,
+          diagnosticsLogs.map((log) => log.entry)
+        ),
+        storage.setData(
+          DIAGNOSTICS_IMPORTANT_LOGS_STORAGE_KEY,
+          diagnosticsImportantLogs.map((log) => log.entry)
+        )
+      ]);
+    } catch (error) {
+      originalConsole.error(
+        "[diagnosticLogger] Failed to persist diagnostics logs",
+        error
+      );
+    } finally {
+      persistenceInFlight = null;
+    }
+  })();
+  await persistenceInFlight;
+}
+function appendDiagnosticsLog(level, args, options) {
+  const context2 = getDiagnosticsContext();
+  const message = args.map(stringifyConsoleArg).join(" ");
+  if (!(options == null ? void 0 : options.forceImportant) && shouldSkipDiagnosticsLog(level, message)) {
+    return;
+  }
+  const entry = truncateEntryToLimit({
+    id: typeof crypto !== "undefined" && typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+    timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+    level,
+    message,
+    sessionId: diagnosticsSessionId,
+    source: getCallerSource(),
+    timeSinceSessionStartMs: Date.now() - diagnosticsSessionStartedAt,
+    scene: context2.scene,
+    storageKind: context2.storageKind ?? getClientStorageKind(),
+    appMode: context2.appMode,
+    appVersion: context2.appVersion,
+    buildNumber: context2.buildNumber,
+    debugEnabled: context2.debugEnabled
+  });
+  const record = createLogRecord(entry);
+  diagnosticsLogs = trimLogsToSize([...diagnosticsLogs, record]);
+  if ((options == null ? void 0 : options.forceImportant) || isImportantDiagnosticsMessage(level, message)) {
+    diagnosticsImportantLogs = trimImportantLogsToSize([
+      ...diagnosticsImportantLogs,
+      record
+    ]);
+  }
+  syncWindowErrorLogs();
+  queuePersist();
+}
+function installDiagnosticsConsoleCapture() {
+  if (diagnosticsConsoleInstalled) {
+    return;
+  }
+  diagnosticsConsoleInstalled = true;
+  console.log = (...args) => {
+    appendDiagnosticsLog("log", args);
+    originalConsole.log(...args);
+  };
+  console.warn = (...args) => {
+    appendDiagnosticsLog("warn", args);
+    originalConsole.warn(...args);
+  };
+  console.error = (...args) => {
+    appendDiagnosticsLog("error", args);
+    originalConsole.error(...args);
+  };
+}
+async function initializeDiagnosticsLogger() {
+  if (diagnosticsLoggerInitialized) {
+    return;
+  }
+  diagnosticsLoggerInitialized = true;
+  try {
+    const storage = createClientStorage();
+    const [persistedLogsRaw, persistedImportantLogsRaw] = await Promise.all([
+      storage.getData(DIAGNOSTICS_LOGS_STORAGE_KEY),
+      storage.getData(DIAGNOSTICS_IMPORTANT_LOGS_STORAGE_KEY)
+    ]);
+    const persistedLogs = normalizePersistedLogs(persistedLogsRaw);
+    const persistedImportantLogs = normalizePersistedLogs(
+      persistedImportantLogsRaw
+    );
+    diagnosticsLogs = trimLogsToSize([...persistedLogs, ...diagnosticsLogs]);
+    diagnosticsImportantLogs = trimImportantLogsToSize([
+      ...persistedImportantLogs,
+      ...diagnosticsImportantLogs
+    ]);
+    syncWindowErrorLogs();
+  } catch (error) {
+    originalConsole.error(
+      "[diagnosticLogger] Failed to initialize diagnostics logger",
+      error
+    );
+  }
+}
+function getDiagnosticsLogs() {
+  return diagnosticsLogs.map((log) => log.entry);
+}
+function getImportantDiagnosticsLogs() {
+  return diagnosticsImportantLogs.map((log) => log.entry);
+}
+function getDiagnosticsLoggerInfo() {
+  return {
+    sessionId: diagnosticsSessionId,
+    totalBytes: diagnosticsLogsTotalBytes,
+    entryCount: diagnosticsLogs.length,
+    maxTotalBytes: DIAGNOSTICS_LOGS_MAX_TOTAL_BYTES,
+    maxEntryBytes: DIAGNOSTICS_LOG_ENTRY_MAX_BYTES,
+    importantTotalBytes: diagnosticsImportantLogsTotalBytes,
+    importantEntryCount: diagnosticsImportantLogs.length,
+    importantMaxTotalBytes: DIAGNOSTICS_IMPORTANT_LOGS_MAX_TOTAL_BYTES
+  };
+}
+function setDiagnosticsContextProvider(provider) {
+  diagnosticsContextProvider = provider;
+}
+function logImportantDiagnostics(level, ...args) {
+  appendDiagnosticsLog(level, args, { forceImportant: true });
+  switch (level) {
+    case "warn":
+      originalConsole.warn(...args);
+      return;
+    case "error":
+      originalConsole.error(...args);
+      return;
+    default:
+      originalConsole.log(...args);
+  }
+}
 const CLICK_VIBRATION_SELECTOR = [
   "button",
   "[role='button']",
@@ -46014,6 +46508,13 @@ function useLayerInteractionVibration() {
   };
 }
 const KEYBOARD_VIEWPORT_HEIGHT_DELTA_THRESHOLD$1 = 80;
+const KEYBOARD_AWARE_DEBUG_LOG_LIMIT = 24;
+function roundKeyboardAwareDebugValue(value) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return null;
+  }
+  return Math.round(value * 100) / 100;
+}
 const PopupLayer = ({
   title = "Alert!",
   content,
@@ -46031,15 +46532,54 @@ const PopupLayer = ({
   const confirmButtonRef = reactExports.useRef(null);
   const cancelButtonRef = reactExports.useRef(null);
   const keyboardAwareRafIdRef = reactExports.useRef(null);
+  const keyboardAwareOffsetYRef = reactExports.useRef(0);
+  const keyboardAwareMaxHeightRef = reactExports.useRef(null);
+  const keyboardAwareWasVisibleRef = reactExports.useRef(false);
+  const keyboardAwareDebugSequenceRef = reactExports.useRef(0);
+  const nativeKeyboardInsetRef = reactExports.useRef(0);
   const suppressInitialActionsUntilRef = reactExports.useRef(0);
   const [keyboardAwareOffsetY, setKeyboardAwareOffsetY] = reactExports.useState(0);
   const [keyboardAwareMaxHeight, setKeyboardAwareMaxHeight] = reactExports.useState(null);
-  const resetKeyboardAwareLayout = reactExports.useCallback(() => {
-    setKeyboardAwareOffsetY((previous) => previous === 0 ? previous : 0);
-    setKeyboardAwareMaxHeight(
-      (previous) => previous === null ? previous : null
-    );
-  }, []);
+  const emitKeyboardAwareDebug = reactExports.useCallback(
+    (stage, payload = {}) => {
+      if (title !== "Settings") {
+        return;
+      }
+      if (keyboardAwareDebugSequenceRef.current >= KEYBOARD_AWARE_DEBUG_LOG_LIMIT) {
+        return;
+      }
+      keyboardAwareDebugSequenceRef.current += 1;
+      logImportantDiagnostics(
+        "warn",
+        "[ImportantDiagnostics][PopupLayerKeyboardAware]",
+        {
+          title,
+          stage,
+          sequence: keyboardAwareDebugSequenceRef.current,
+          ...payload
+        }
+      );
+    },
+    [title]
+  );
+  const resetKeyboardAwareLayout = reactExports.useCallback(
+    (reason) => {
+      emitKeyboardAwareDebug("reset", {
+        reason,
+        offsetY: keyboardAwareOffsetYRef.current,
+        maxHeight: keyboardAwareMaxHeightRef.current,
+        wasVisible: keyboardAwareWasVisibleRef.current
+      });
+      keyboardAwareOffsetYRef.current = 0;
+      keyboardAwareMaxHeightRef.current = null;
+      keyboardAwareWasVisibleRef.current = false;
+      setKeyboardAwareOffsetY((previous) => previous === 0 ? previous : 0);
+      setKeyboardAwareMaxHeight(
+        (previous) => previous === null ? previous : null
+      );
+    },
+    [emitKeyboardAwareDebug]
+  );
   const updateKeyboardAwareLayout = reactExports.useCallback(() => {
     if (typeof window === "undefined") {
       return;
@@ -46048,18 +46588,46 @@ const PopupLayer = ({
     const targetElement = keyboardAwareTargetRef == null ? void 0 : keyboardAwareTargetRef.current;
     const visualViewport = window.visualViewport;
     if (!popupElement || !targetElement || !visualViewport) {
-      resetKeyboardAwareLayout();
+      emitKeyboardAwareDebug("missing_primitives", {
+        hasPopupElement: !!popupElement,
+        hasTargetElement: !!targetElement,
+        hasVisualViewport: !!visualViewport
+      });
+      resetKeyboardAwareLayout("missing_primitives");
       return;
     }
     const activeElement = document.activeElement;
+    const nativeKeyboardInset = Math.max(0, nativeKeyboardInsetRef.current);
     const baseViewportHeight = Math.max(
       window.innerHeight,
-      document.documentElement.clientHeight || 0
+      document.documentElement.clientHeight || 0,
+      nativeKeyboardInset > 0 ? visualViewport.height + nativeKeyboardInset : 0
     );
     const viewportHeightDelta = baseViewportHeight - visualViewport.height;
-    if (activeElement !== targetElement || viewportHeightDelta < KEYBOARD_VIEWPORT_HEIGHT_DELTA_THRESHOLD$1) {
-      resetKeyboardAwareLayout();
+    const isKeyboardVisible = nativeKeyboardInset > 0 || viewportHeightDelta >= KEYBOARD_VIEWPORT_HEIGHT_DELTA_THRESHOLD$1;
+    if (activeElement !== targetElement) {
+      emitKeyboardAwareDebug("inactive_target", {
+        activeElementTag: activeElement instanceof HTMLElement ? activeElement.tagName : null,
+        targetTag: targetElement.tagName
+      });
+      resetKeyboardAwareLayout("inactive_target");
       return;
+    }
+    if (!isKeyboardVisible) {
+      emitKeyboardAwareDebug("keyboard_hidden", {
+        nativeKeyboardInset,
+        viewportHeightDelta: roundKeyboardAwareDebugValue(viewportHeightDelta)
+      });
+      resetKeyboardAwareLayout("keyboard_hidden");
+      return;
+    }
+    if (!keyboardAwareWasVisibleRef.current) {
+      emitKeyboardAwareDebug("keyboard_visible_enter", {
+        nativeKeyboardInset,
+        viewportHeightDelta: roundKeyboardAwareDebugValue(viewportHeightDelta),
+        scrollTop: popupElement.scrollTop
+      });
+      keyboardAwareWasVisibleRef.current = true;
     }
     const visibleTop = visualViewport.offsetTop;
     const visibleBottom = visualViewport.offsetTop + visualViewport.height;
@@ -46067,22 +46635,53 @@ const PopupLayer = ({
       0,
       visualViewport.height - keyboardAwareViewportPadding * 2
     );
+    if (keyboardAwareMaxHeightRef.current !== availableHeight) {
+      keyboardAwareMaxHeightRef.current = availableHeight;
+    }
     setKeyboardAwareMaxHeight(
       (previous) => previous === availableHeight ? previous : availableHeight
     );
     const popupRect = popupElement.getBoundingClientRect();
     const targetRect = targetElement.getBoundingClientRect();
+    const currentOffsetY = keyboardAwareOffsetYRef.current;
+    const currentLayoutTop = popupRect.top - currentOffsetY;
+    const currentLayoutBottom = popupRect.bottom - currentOffsetY;
+    const currentTargetCenterY = targetRect.top + targetRect.height / 2 - currentOffsetY;
     const desiredCenterY = visibleTop + visualViewport.height / 2;
-    const targetCenterY = targetRect.top + targetRect.height / 2;
-    const desiredShift = desiredCenterY - targetCenterY;
-    const minShift = visibleTop + keyboardAwareViewportPadding - popupRect.top;
-    const maxShift = visibleBottom - keyboardAwareViewportPadding - popupRect.bottom;
+    const desiredShift = desiredCenterY - currentTargetCenterY;
+    const minShift = visibleTop + keyboardAwareViewportPadding - currentLayoutTop;
+    const maxShift = visibleBottom - keyboardAwareViewportPadding - currentLayoutBottom;
     const clampedShift = minShift <= maxShift ? Math.min(Math.max(desiredShift, minShift), maxShift) : Math.min(Math.max(desiredShift, maxShift), minShift);
     const roundedShift = Math.round(clampedShift);
+    keyboardAwareOffsetYRef.current = roundedShift;
+    emitKeyboardAwareDebug("layout_applied", {
+      nativeKeyboardInset,
+      viewportHeightDelta: roundKeyboardAwareDebugValue(viewportHeightDelta),
+      visibleTop: roundKeyboardAwareDebugValue(visibleTop),
+      visibleBottom: roundKeyboardAwareDebugValue(visibleBottom),
+      availableHeight: roundKeyboardAwareDebugValue(availableHeight),
+      popupTop: roundKeyboardAwareDebugValue(popupRect.top),
+      popupBottom: roundKeyboardAwareDebugValue(popupRect.bottom),
+      targetTop: roundKeyboardAwareDebugValue(targetRect.top),
+      targetBottom: roundKeyboardAwareDebugValue(targetRect.bottom),
+      scrollTop: popupElement.scrollTop,
+      currentOffsetY,
+      currentLayoutTop: roundKeyboardAwareDebugValue(currentLayoutTop),
+      currentTargetCenterY: roundKeyboardAwareDebugValue(currentTargetCenterY),
+      desiredShift: roundKeyboardAwareDebugValue(desiredShift),
+      minShift: roundKeyboardAwareDebugValue(minShift),
+      maxShift: roundKeyboardAwareDebugValue(maxShift),
+      roundedShift
+    });
     setKeyboardAwareOffsetY(
       (previous) => previous === roundedShift ? previous : roundedShift
     );
-  }, [keyboardAwareTargetRef, keyboardAwareViewportPadding, resetKeyboardAwareLayout]);
+  }, [
+    emitKeyboardAwareDebug,
+    keyboardAwareTargetRef,
+    keyboardAwareViewportPadding,
+    resetKeyboardAwareLayout
+  ]);
   const scheduleKeyboardAwareLayoutUpdate = reactExports.useCallback(() => {
     if (typeof window === "undefined") {
       return;
@@ -46107,12 +46706,16 @@ const PopupLayer = ({
       return;
     }
     const rafId = window.requestAnimationFrame(() => {
+      emitKeyboardAwareDebug("initial_focus", {
+        focusTargetTag: focusTarget.tagName,
+        initialFocusTarget
+      });
       focusTarget.focus({ preventScroll: true });
     });
     return () => {
       window.cancelAnimationFrame(rafId);
     };
-  }, [initialFocusTarget]);
+  }, [emitKeyboardAwareDebug, initialFocusTarget]);
   reactExports.useLayoutEffect(() => {
     if (typeof window === "undefined") {
       return;
@@ -46120,40 +46723,86 @@ const PopupLayer = ({
     const targetElement = keyboardAwareTargetRef == null ? void 0 : keyboardAwareTargetRef.current;
     const visualViewport = window.visualViewport;
     if (!targetElement || !visualViewport) {
-      resetKeyboardAwareLayout();
+      emitKeyboardAwareDebug("effect_missing_target", {
+        hasTargetElement: !!targetElement,
+        hasVisualViewport: !!visualViewport
+      });
+      resetKeyboardAwareLayout("effect_missing_target");
       return;
     }
-    const handleKeyboardAwareLayoutChange = () => {
+    emitKeyboardAwareDebug("effect_attached", {
+      targetTag: targetElement.tagName,
+      initialFocusTarget
+    });
+    const handleKeyboardAwareLayoutChange = (source) => {
+      var _a;
+      emitKeyboardAwareDebug("schedule", {
+        source,
+        scrollTop: ((_a = containerRef.current) == null ? void 0 : _a.scrollTop) ?? null,
+        offsetY: keyboardAwareOffsetYRef.current,
+        maxHeight: keyboardAwareMaxHeightRef.current
+      });
       scheduleKeyboardAwareLayoutUpdate();
     };
-    targetElement.addEventListener("focus", handleKeyboardAwareLayoutChange);
-    targetElement.addEventListener("blur", handleKeyboardAwareLayoutChange);
-    window.addEventListener("resize", handleKeyboardAwareLayoutChange);
-    visualViewport.addEventListener("resize", handleKeyboardAwareLayoutChange);
-    visualViewport.addEventListener("scroll", handleKeyboardAwareLayoutChange);
-    scheduleKeyboardAwareLayoutUpdate();
+    const handleNativeViewportSync = (event) => {
+      const detail = event.detail;
+      nativeKeyboardInsetRef.current = Math.max(0, (detail == null ? void 0 : detail.bottomInset) ?? 0);
+      emitKeyboardAwareDebug("native_viewport_sync", {
+        bottomInset: nativeKeyboardInsetRef.current,
+        visualViewportHeight: roundKeyboardAwareDebugValue(
+          visualViewport.height
+        ),
+        visualViewportOffsetTop: roundKeyboardAwareDebugValue(
+          visualViewport.offsetTop
+        )
+      });
+      scheduleKeyboardAwareLayoutUpdate();
+    };
+    const handleTargetFocus = () => {
+      handleKeyboardAwareLayoutChange("target_focus");
+    };
+    const handleTargetBlur = () => {
+      handleKeyboardAwareLayoutChange("target_blur");
+    };
+    const handleWindowResize = () => {
+      handleKeyboardAwareLayoutChange("window_resize");
+    };
+    const handleVisualViewportResize = () => {
+      handleKeyboardAwareLayoutChange("visual_viewport_resize");
+    };
+    const handleVisualViewportScroll = () => {
+      handleKeyboardAwareLayoutChange("visual_viewport_scroll");
+    };
+    targetElement.addEventListener("focus", handleTargetFocus);
+    targetElement.addEventListener("blur", handleTargetBlur);
+    window.addEventListener(
+      "digivice:native-viewport-sync",
+      handleNativeViewportSync
+    );
+    window.addEventListener("resize", handleWindowResize);
+    visualViewport.addEventListener("resize", handleVisualViewportResize);
+    visualViewport.addEventListener("scroll", handleVisualViewportScroll);
+    handleKeyboardAwareLayoutChange("effect_attached");
     return () => {
-      targetElement.removeEventListener(
-        "focus",
-        handleKeyboardAwareLayoutChange
+      targetElement.removeEventListener("focus", handleTargetFocus);
+      targetElement.removeEventListener("blur", handleTargetBlur);
+      window.removeEventListener(
+        "digivice:native-viewport-sync",
+        handleNativeViewportSync
       );
-      targetElement.removeEventListener("blur", handleKeyboardAwareLayoutChange);
-      window.removeEventListener("resize", handleKeyboardAwareLayoutChange);
-      visualViewport.removeEventListener(
-        "resize",
-        handleKeyboardAwareLayoutChange
-      );
-      visualViewport.removeEventListener(
-        "scroll",
-        handleKeyboardAwareLayoutChange
-      );
+      window.removeEventListener("resize", handleWindowResize);
+      visualViewport.removeEventListener("resize", handleVisualViewportResize);
+      visualViewport.removeEventListener("scroll", handleVisualViewportScroll);
       if (keyboardAwareRafIdRef.current !== null) {
         window.cancelAnimationFrame(keyboardAwareRafIdRef.current);
         keyboardAwareRafIdRef.current = null;
       }
-      resetKeyboardAwareLayout();
+      nativeKeyboardInsetRef.current = 0;
+      resetKeyboardAwareLayout("effect_cleanup");
     };
   }, [
+    emitKeyboardAwareDebug,
+    initialFocusTarget,
     keyboardAwareTargetRef,
     resetKeyboardAwareLayout,
     scheduleKeyboardAwareLayoutUpdate
@@ -46188,12 +46837,12 @@ const PopupLayer = ({
           children: [
             /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-xl text-component-negative font-bold mb-[15px] pb-[10px] border-b-4 border-[#222]", children: title }, void 0, false, {
               fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
-              lineNumber: 248,
+              lineNumber: 427,
               columnNumber: 9
             }, void 0),
             /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "mb-5 leading-[1.6] text-base", children: content }, void 0, false, {
               fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
-              lineNumber: 251,
+              lineNumber: 430,
               columnNumber: 9
             }, void 0),
             /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex justify-center gap-[15px]", children: [
@@ -46210,7 +46859,7 @@ const PopupLayer = ({
                 false,
                 {
                   fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
-                  lineNumber: 254,
+                  lineNumber: 433,
                   columnNumber: 13
                 },
                 void 0
@@ -46228,14 +46877,14 @@ const PopupLayer = ({
                 false,
                 {
                   fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
-                  lineNumber: 263,
+                  lineNumber: 442,
                   columnNumber: 11
                 },
                 void 0
               )
             ] }, void 0, true, {
               fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
-              lineNumber: 252,
+              lineNumber: 431,
               columnNumber: 9
             }, void 0)
           ]
@@ -46244,7 +46893,7 @@ const PopupLayer = ({
         true,
         {
           fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
-          lineNumber: 233,
+          lineNumber: 412,
           columnNumber: 7
         },
         void 0
@@ -46254,7 +46903,7 @@ const PopupLayer = ({
     false,
     {
       fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
-      lineNumber: 229,
+      lineNumber: 408,
       columnNumber: 5
     },
     void 0
@@ -46266,6 +46915,7 @@ const SetupLayer = ({ onComplete }) => {
   const [name, setName] = reactExports.useState("");
   const [error, setError] = reactExports.useState(null);
   const [isRequestingLocationPermission, setIsRequestingLocationPermission] = reactExports.useState(false);
+  const nameInputRef = reactExports.useRef(null);
   const trimmedName = name.trim();
   const nameLength = countDisplayCharacters(trimmedName);
   const nameWidth = measureNameLabelWidth(trimmedName);
@@ -46330,11 +46980,13 @@ const SetupLayer = ({ onComplete }) => {
     PopupLayer,
     {
       title: "Spawn Monster!",
+      keyboardAwareTargetRef: nameInputRef,
       content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex flex-col items-center gap-4", children: [
         /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "w-full", children: [
           /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
             "input",
             {
+              ref: nameInputRef,
               type: "text",
               value: name,
               onChange: (e2) => {
@@ -46348,7 +47000,7 @@ const SetupLayer = ({ onComplete }) => {
             false,
             {
               fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-              lineNumber: 115,
+              lineNumber: 117,
               columnNumber: 15
             },
             void 0
@@ -46369,29 +47021,29 @@ const SetupLayer = ({ onComplete }) => {
             true,
             {
               fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-              lineNumber: 125,
+              lineNumber: 128,
               columnNumber: 15
             },
             void 0
           ),
           error && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("p", { className: "mt-4 text-component-negative text-[0.7em]", children: error }, void 0, false, {
             fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-            lineNumber: 133,
+            lineNumber: 136,
             columnNumber: 17
           }, void 0)
         ] }, void 0, true, {
           fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-          lineNumber: 114,
+          lineNumber: 116,
           columnNumber: 13
         }, void 0),
         isRequestingLocationPermission && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("p", { className: "text-xs text-gray-600", children: "Preparing local day/night time..." }, void 0, false, {
           fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-          lineNumber: 139,
+          lineNumber: 142,
           columnNumber: 15
         }, void 0)
       ] }, void 0, true, {
         fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-        lineNumber: 113,
+        lineNumber: 115,
         columnNumber: 11
       }, void 0),
       onConfirm: handleConfirm,
@@ -46401,13 +47053,13 @@ const SetupLayer = ({ onComplete }) => {
     false,
     {
       fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-      lineNumber: 110,
+      lineNumber: 111,
       columnNumber: 7
     },
     void 0
   ) }, void 0, false, {
     fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-    lineNumber: 109,
+    lineNumber: 110,
     columnNumber: 5
   }, void 0);
   if (typeof document === "undefined") {
@@ -46463,7 +47115,7 @@ const ToggleButton = ({ enabled, onClick }) => {
     false,
     {
       fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-      lineNumber: 19,
+      lineNumber: 22,
       columnNumber: 5
     },
     void 0
@@ -46484,7 +47136,7 @@ const ActionButton = ({ text, onClick, disabled = false, variant = "positive" })
     false,
     {
       fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-      lineNumber: 46,
+      lineNumber: 49,
       columnNumber: 5
     },
     void 0
@@ -46495,12 +47147,13 @@ const SettingMenuLayer = ({
   onChangeVibration,
   onSendDiagnostics,
   isSendingDiagnostics,
+  showFinalResetConfirm,
+  onOpenResetConfirm,
+  onCloseResetConfirm,
   onResetGameData,
   onClose
 }) => {
   const [resetConfirmText, setResetConfirmText] = reactExports.useState("");
-  const [showFinalResetConfirm, setShowFinalResetConfirm] = reactExports.useState(false);
-  const resetConfirmInputRef = reactExports.useRef(null);
   const isResetEnabled = reactExports.useMemo(
     () => resetConfirmText.trim() === "confirm",
     [resetConfirmText]
@@ -46510,18 +47163,16 @@ const SettingMenuLayer = ({
       PopupLayer,
       {
         title: "Settings",
-        initialFocusTarget: "container",
-        keyboardAwareTargetRef: resetConfirmInputRef,
         suppressInitialActionsMs: 180,
         content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex flex-col gap-5 text-left", children: [
           /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex items-center justify-between gap-4", children: [
             /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-sm font-bold", children: "Vibration" }, void 0, false, {
               fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 85,
+              lineNumber: 87,
               columnNumber: 17
             }, void 0) }, void 0, false, {
               fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 84,
+              lineNumber: 86,
               columnNumber: 15
             }, void 0),
             /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -46534,26 +47185,26 @@ const SettingMenuLayer = ({
               false,
               {
                 fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-                lineNumber: 87,
+                lineNumber: 89,
                 columnNumber: 15
               },
               void 0
             )
           ] }, void 0, true, {
             fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-            lineNumber: 83,
+            lineNumber: 85,
             columnNumber: 13
           }, void 0),
           /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "border-t-2 border-[#222] pt-4", children: [
             /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "mb-3 text-sm font-bold", children: "Send Diagnostics" }, void 0, false, {
               fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 94,
+              lineNumber: 96,
               columnNumber: 15
             }, void 0),
             /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex items-center justify-between gap-4", children: [
               /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-xs text-gray-600", children: "Open Gmail with attached diagnostics files." }, void 0, false, {
                 fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-                lineNumber: 96,
+                lineNumber: 98,
                 columnNumber: 17
               }, void 0),
               /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -46568,49 +47219,48 @@ const SettingMenuLayer = ({
                 false,
                 {
                   fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-                  lineNumber: 99,
+                  lineNumber: 101,
                   columnNumber: 17
                 },
                 void 0
               )
             ] }, void 0, true, {
               fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 95,
+              lineNumber: 97,
               columnNumber: 15
             }, void 0)
           ] }, void 0, true, {
             fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-            lineNumber: 93,
+            lineNumber: 95,
             columnNumber: 13
           }, void 0),
           /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "border-t-2 border-[#222] pt-4", children: [
             /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-sm font-bold", children: "Reset Game Data" }, void 0, false, {
               fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 110,
+              lineNumber: 112,
               columnNumber: 17
             }, void 0) }, void 0, false, {
               fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 109,
+              lineNumber: 111,
               columnNumber: 15
             }, void 0),
             /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "mt-1 text-xs text-gray-600", children: [
               "Type ",
               /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { className: "font-bold", children: "confirm" }, void 0, false, {
                 fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-                lineNumber: 113,
+                lineNumber: 115,
                 columnNumber: 22
               }, void 0),
               " below to enable the reset button."
             ] }, void 0, true, {
               fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 112,
+              lineNumber: 114,
               columnNumber: 15
             }, void 0),
             /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "mt-3 flex items-center justify-between gap-3", children: [
               /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
                 "input",
                 {
-                  ref: resetConfirmInputRef,
                   type: "text",
                   value: resetConfirmText,
                   onChange: (event) => setResetConfirmText(event.target.value),
@@ -46621,7 +47271,7 @@ const SettingMenuLayer = ({
                 false,
                 {
                   fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-                  lineNumber: 117,
+                  lineNumber: 119,
                   columnNumber: 17
                 },
                 void 0
@@ -46631,7 +47281,7 @@ const SettingMenuLayer = ({
                 {
                   type: "button",
                   disabled: !isResetEnabled,
-                  onClick: () => setShowFinalResetConfirm(true),
+                  onClick: onOpenResetConfirm,
                   className: `border-2 border-[#222] px-4 py-2 text-sm font-bold text-white ${isResetEnabled ? "bg-component-negative" : "cursor-not-allowed bg-gray-400 opacity-60"}`,
                   children: "Reset"
                 },
@@ -46639,24 +47289,24 @@ const SettingMenuLayer = ({
                 false,
                 {
                   fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-                  lineNumber: 125,
+                  lineNumber: 126,
                   columnNumber: 17
                 },
                 void 0
               )
             ] }, void 0, true, {
               fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 116,
+              lineNumber: 118,
               columnNumber: 15
             }, void 0)
           ] }, void 0, true, {
             fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-            lineNumber: 108,
+            lineNumber: 110,
             columnNumber: 13
           }, void 0)
         ] }, void 0, true, {
           fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-          lineNumber: 82,
+          lineNumber: 84,
           columnNumber: 11
         }, void 0),
         onConfirm: onClose,
@@ -46666,7 +47316,7 @@ const SettingMenuLayer = ({
       false,
       {
         fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-        lineNumber: 76,
+        lineNumber: 80,
         columnNumber: 7
       },
       void 0
@@ -46677,11 +47327,11 @@ const SettingMenuLayer = ({
         title: "Final Confirmation",
         content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-sm leading-6", children: "This will permanently delete all game data and return you to the initial setup screen. This action cannot be undone." }, void 0, false, {
           fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-          lineNumber: 151,
+          lineNumber: 150,
           columnNumber: 15
         }, void 0),
         onConfirm: onResetGameData,
-        onCancel: () => setShowFinalResetConfirm(false),
+        onCancel: onCloseResetConfirm,
         confirmText: "Delete",
         cancelText: "Cancel"
       },
@@ -46689,18 +47339,18 @@ const SettingMenuLayer = ({
       false,
       {
         fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-        lineNumber: 148,
+        lineNumber: 147,
         columnNumber: 11
       },
       void 0
     ) }, void 0, false, {
       fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-      lineNumber: 147,
+      lineNumber: 146,
       columnNumber: 9
     }, void 0)
   ] }, void 0, true, {
     fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-    lineNumber: 75,
+    lineNumber: 79,
     columnNumber: 5
   }, void 0);
 };
@@ -47230,429 +47880,6 @@ function sanitizeStoredWorldData(savedData) {
     }
   };
 }
-function createClientStorage() {
-  if (hasNativeStorageController()) {
-    return new FlutterStorage();
-  }
-  return new WebLocalStorage();
-}
-function getClientStorageKind() {
-  return hasNativeStorageController() ? "native" : "web";
-}
-const DIAGNOSTICS_LOGS_STORAGE_KEY = "DiagnosticsLogs";
-const DIAGNOSTICS_IMPORTANT_LOGS_STORAGE_KEY = "DiagnosticsImportantLogs";
-const DIAGNOSTICS_LOGS_MAX_TOTAL_BYTES = 100 * 1024;
-const DIAGNOSTICS_IMPORTANT_LOGS_MAX_TOTAL_BYTES = 128 * 1024;
-const DIAGNOSTICS_LOG_ENTRY_MAX_BYTES = 8 * 1024;
-const DIAGNOSTICS_LOGS_PERSIST_DEBOUNCE_MS = 2e3;
-const DIAGNOSTICS_LOGS_RECENT_WINDOW_MS = 10 * 60 * 1e3;
-const ELLIPSIS = "…";
-const IMPORTANT_DIAGNOSTICS_PREFIX = "[ImportantDiagnostics]";
-const textEncoder = new TextEncoder();
-const diagnosticsSessionId = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `session-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-const diagnosticsSessionStartedAt = Date.now();
-let diagnosticsContextProvider = null;
-let diagnosticsLogs = [];
-let diagnosticsLogsTotalBytes = 2;
-let diagnosticsImportantLogs = [];
-let diagnosticsImportantLogsTotalBytes = 2;
-let diagnosticsLoggerInitialized = false;
-let diagnosticsConsoleInstalled = false;
-let persistenceInFlight = null;
-let persistTimeoutId = null;
-const originalConsole = {
-  log: console.log.bind(console),
-  warn: console.warn.bind(console),
-  error: console.error.bind(console)
-};
-function syncWindowErrorLogs() {
-  if (typeof window === "undefined") {
-    return;
-  }
-  window.errorLogs = diagnosticsLogs.map(
-    ({ entry }) => `[${entry.timestamp}] [${entry.level}] ${entry.message}`
-  );
-}
-function isImportantDiagnosticsMessage(level, message) {
-  return level === "error" || message.includes(IMPORTANT_DIAGNOSTICS_PREFIX);
-}
-function shouldSkipDiagnosticsLog(level, message) {
-  if (level === "error") {
-    return false;
-  }
-  const stablePatterns = [
-    "서비스 초기화 완료",
-    "User Agent:",
-    "Environment variables:",
-    "애플리케이션 모드:",
-    "애플리케이션 버전:",
-    "현재 플랫폼:",
-    "[bootstrap] Native storage controller is ready",
-    "[App] AdManager initialized with policies:"
-  ];
-  return stablePatterns.some((pattern) => message.includes(pattern));
-}
-function toByteLength(value) {
-  return textEncoder.encode(value).length;
-}
-function safeStringify(value) {
-  const seen2 = /* @__PURE__ */ new WeakSet();
-  try {
-    return JSON.stringify(
-      value,
-      (_, currentValue) => {
-        if (currentValue instanceof Error) {
-          return {
-            name: currentValue.name,
-            message: currentValue.message,
-            stack: currentValue.stack
-          };
-        }
-        if (typeof currentValue === "object" && currentValue !== null) {
-          if (seen2.has(currentValue)) {
-            return "[Circular]";
-          }
-          seen2.add(currentValue);
-        }
-        return currentValue;
-      },
-      2
-    );
-  } catch {
-    return String(value);
-  }
-}
-function stringifyConsoleArg(arg) {
-  if (typeof arg === "string") {
-    return arg;
-  }
-  if (arg instanceof Error) {
-    return [arg.name ? `${arg.name}: ${arg.message}` : arg.message, arg.stack].filter(Boolean).join("\n");
-  }
-  return safeStringify(arg);
-}
-function getCallerSource() {
-  var _a;
-  try {
-    const stackLines = (_a = new Error().stack) == null ? void 0 : _a.split("\n");
-    if (!stackLines) {
-      return "unknown";
-    }
-    const callerLine = stackLines.find(
-      (line) => !line.includes("diagnosticLogger") && line.includes("at ")
-    );
-    if (!callerLine) {
-      return "unknown";
-    }
-    const callSite = callerLine.trim();
-    const match = callSite.match(/at\s+.*\((.*):(\d+):(\d+)\)/);
-    if (match) {
-      const [, filePath, line] = match;
-      const fileName = filePath.split("/").pop() ?? filePath;
-      return `${fileName}:${line}`;
-    }
-    const fallbackMatch = callSite.match(/at\s+(.*):(\d+):(\d+)/);
-    if (fallbackMatch) {
-      const [, filePath, line] = fallbackMatch;
-      const fileName = filePath.split("/").pop() ?? filePath;
-      return `${fileName}:${line}`;
-    }
-  } catch {
-    return "unknown";
-  }
-  return "unknown";
-}
-function truncateToByteLength(value, maxBytes) {
-  if (maxBytes <= 0) {
-    return "";
-  }
-  if (toByteLength(value) <= maxBytes) {
-    return value;
-  }
-  const ellipsisBytes = toByteLength(ELLIPSIS);
-  if (maxBytes <= ellipsisBytes) {
-    return ELLIPSIS;
-  }
-  let low = 0;
-  let high = value.length;
-  let best = "";
-  const allowedBytes = maxBytes - ellipsisBytes;
-  while (low <= high) {
-    const mid = Math.floor((low + high) / 2);
-    const candidate = value.slice(0, mid);
-    if (toByteLength(candidate) <= allowedBytes) {
-      best = candidate;
-      low = mid + 1;
-    } else {
-      high = mid - 1;
-    }
-  }
-  return `${best}${ELLIPSIS}`;
-}
-function truncateEntryToLimit(entry) {
-  const baseEntry = {
-    ...entry,
-    message: ""
-  };
-  const baseBytes = toByteLength(JSON.stringify(baseEntry));
-  const allowedMessageBytes = Math.max(
-    DIAGNOSTICS_LOG_ENTRY_MAX_BYTES - baseBytes,
-    toByteLength(ELLIPSIS)
-  );
-  return {
-    ...entry,
-    message: truncateToByteLength(entry.message, allowedMessageBytes)
-  };
-}
-function getSerializedLogsByteLength(logs) {
-  if (logs.length === 0) {
-    return 2;
-  }
-  const entriesBytes = logs.reduce((sum, log) => sum + log.byteSize, 0);
-  return entriesBytes + (logs.length - 1) + 2;
-}
-function createLogRecord(entry) {
-  const serialized = JSON.stringify(entry);
-  return {
-    entry,
-    serialized,
-    byteSize: toByteLength(serialized)
-  };
-}
-function trimLogsToSize(logs) {
-  return trimRegularLogsToSize(logs);
-}
-function trimImportantLogsToSize(logs) {
-  return trimLogsToSizeWithLimit(
-    logs,
-    DIAGNOSTICS_IMPORTANT_LOGS_MAX_TOTAL_BYTES,
-    (total) => {
-      diagnosticsImportantLogsTotalBytes = total;
-    }
-  );
-}
-function trimLogsToSizeWithLimit(logs, maxTotalBytes, onTotalBytes) {
-  const nextLogs = [...logs];
-  let totalBytes = getSerializedLogsByteLength(nextLogs);
-  while (nextLogs.length > 0 && totalBytes > maxTotalBytes) {
-    const removed2 = nextLogs.shift();
-    if (!removed2) {
-      break;
-    }
-    totalBytes -= removed2.byteSize;
-    totalBytes -= nextLogs.length > 0 ? 1 : 2;
-  }
-  onTotalBytes(getSerializedLogsByteLength(nextLogs));
-  return nextLogs;
-}
-function getDiagnosticsLogTimestampMs(log) {
-  const timestampMs = Date.parse(log.entry.timestamp);
-  return Number.isFinite(timestampMs) ? timestampMs : null;
-}
-function trimRegularLogsToSize(logs) {
-  let nextLogs = [...logs];
-  let totalBytes = getSerializedLogsByteLength(nextLogs);
-  if (totalBytes > DIAGNOSTICS_LOGS_MAX_TOTAL_BYTES) {
-    const recentThreshold = Date.now() - DIAGNOSTICS_LOGS_RECENT_WINDOW_MS;
-    nextLogs = nextLogs.filter((log) => {
-      const timestampMs = getDiagnosticsLogTimestampMs(log);
-      return timestampMs === null || timestampMs >= recentThreshold;
-    });
-    totalBytes = getSerializedLogsByteLength(nextLogs);
-  }
-  while (nextLogs.length > 0 && totalBytes > DIAGNOSTICS_LOGS_MAX_TOTAL_BYTES) {
-    const removed2 = nextLogs.shift();
-    if (!removed2) {
-      break;
-    }
-    totalBytes -= removed2.byteSize;
-    totalBytes -= nextLogs.length > 0 ? 1 : 2;
-  }
-  diagnosticsLogsTotalBytes = getSerializedLogsByteLength(nextLogs);
-  return nextLogs;
-}
-function normalizePersistedLogs(value) {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return value.map((entry) => {
-    if (!entry || typeof entry !== "object") {
-      return null;
-    }
-    const record = entry;
-    if (typeof record.timestamp !== "string" || typeof record.level !== "string" || typeof record.message !== "string" || typeof record.sessionId !== "string" || typeof record.source !== "string" || typeof record.timeSinceSessionStartMs !== "number" || record.storageKind !== "native" && record.storageKind !== "web") {
-      return null;
-    }
-    return createLogRecord(
-      truncateEntryToLimit({
-        id: typeof record.id === "string" ? record.id : `${record.timestamp}-${record.level}`,
-        timestamp: record.timestamp,
-        level: record.level,
-        message: record.message,
-        sessionId: record.sessionId,
-        source: record.source,
-        timeSinceSessionStartMs: record.timeSinceSessionStartMs,
-        scene: typeof record.scene === "string" ? record.scene : void 0,
-        storageKind: record.storageKind,
-        appMode: typeof record.appMode === "string" ? record.appMode : void 0,
-        debugEnabled: typeof record.debugEnabled === "boolean" ? record.debugEnabled : void 0
-      })
-    );
-  }).filter((entry) => entry !== null);
-}
-function getDiagnosticsContext() {
-  return (diagnosticsContextProvider == null ? void 0 : diagnosticsContextProvider()) ?? {};
-}
-function queuePersist() {
-  if (!diagnosticsLoggerInitialized) {
-    return;
-  }
-  if (persistTimeoutId !== null) {
-    window.clearTimeout(persistTimeoutId);
-  }
-  persistTimeoutId = window.setTimeout(() => {
-    persistTimeoutId = null;
-    void persistDiagnosticsLogs();
-  }, DIAGNOSTICS_LOGS_PERSIST_DEBOUNCE_MS);
-}
-async function persistDiagnosticsLogs() {
-  if (!diagnosticsLoggerInitialized) {
-    return;
-  }
-  if (persistenceInFlight) {
-    await persistenceInFlight;
-    return;
-  }
-  persistenceInFlight = (async () => {
-    try {
-      const storage = createClientStorage();
-      await Promise.all([
-        storage.setData(
-          DIAGNOSTICS_LOGS_STORAGE_KEY,
-          diagnosticsLogs.map((log) => log.entry)
-        ),
-        storage.setData(
-          DIAGNOSTICS_IMPORTANT_LOGS_STORAGE_KEY,
-          diagnosticsImportantLogs.map((log) => log.entry)
-        )
-      ]);
-    } catch (error) {
-      originalConsole.error("[diagnosticLogger] Failed to persist diagnostics logs", error);
-    } finally {
-      persistenceInFlight = null;
-    }
-  })();
-  await persistenceInFlight;
-}
-function appendDiagnosticsLog(level, args, options) {
-  const context2 = getDiagnosticsContext();
-  const message = args.map(stringifyConsoleArg).join(" ");
-  if (!(options == null ? void 0 : options.forceImportant) && shouldSkipDiagnosticsLog(level, message)) {
-    return;
-  }
-  const entry = truncateEntryToLimit({
-    id: typeof crypto !== "undefined" && typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
-    timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-    level,
-    message,
-    sessionId: diagnosticsSessionId,
-    source: getCallerSource(),
-    timeSinceSessionStartMs: Date.now() - diagnosticsSessionStartedAt,
-    scene: context2.scene,
-    storageKind: context2.storageKind ?? getClientStorageKind(),
-    appMode: context2.appMode,
-    debugEnabled: context2.debugEnabled
-  });
-  const record = createLogRecord(entry);
-  diagnosticsLogs = trimLogsToSize([...diagnosticsLogs, record]);
-  if ((options == null ? void 0 : options.forceImportant) || isImportantDiagnosticsMessage(level, message)) {
-    diagnosticsImportantLogs = trimImportantLogsToSize([
-      ...diagnosticsImportantLogs,
-      record
-    ]);
-  }
-  syncWindowErrorLogs();
-  queuePersist();
-}
-function installDiagnosticsConsoleCapture() {
-  if (diagnosticsConsoleInstalled) {
-    return;
-  }
-  diagnosticsConsoleInstalled = true;
-  console.log = (...args) => {
-    appendDiagnosticsLog("log", args);
-    originalConsole.log(...args);
-  };
-  console.warn = (...args) => {
-    appendDiagnosticsLog("warn", args);
-    originalConsole.warn(...args);
-  };
-  console.error = (...args) => {
-    appendDiagnosticsLog("error", args);
-    originalConsole.error(...args);
-  };
-}
-async function initializeDiagnosticsLogger() {
-  if (diagnosticsLoggerInitialized) {
-    return;
-  }
-  diagnosticsLoggerInitialized = true;
-  try {
-    const storage = createClientStorage();
-    const [persistedLogsRaw, persistedImportantLogsRaw] = await Promise.all([
-      storage.getData(DIAGNOSTICS_LOGS_STORAGE_KEY),
-      storage.getData(DIAGNOSTICS_IMPORTANT_LOGS_STORAGE_KEY)
-    ]);
-    const persistedLogs = normalizePersistedLogs(
-      persistedLogsRaw
-    );
-    const persistedImportantLogs = normalizePersistedLogs(
-      persistedImportantLogsRaw
-    );
-    diagnosticsLogs = trimLogsToSize([...persistedLogs, ...diagnosticsLogs]);
-    diagnosticsImportantLogs = trimImportantLogsToSize([
-      ...persistedImportantLogs,
-      ...diagnosticsImportantLogs
-    ]);
-    syncWindowErrorLogs();
-  } catch (error) {
-    originalConsole.error("[diagnosticLogger] Failed to initialize diagnostics logger", error);
-  }
-}
-function getDiagnosticsLogs() {
-  return diagnosticsLogs.map((log) => log.entry);
-}
-function getImportantDiagnosticsLogs() {
-  return diagnosticsImportantLogs.map((log) => log.entry);
-}
-function getDiagnosticsLoggerInfo() {
-  return {
-    sessionId: diagnosticsSessionId,
-    totalBytes: diagnosticsLogsTotalBytes,
-    entryCount: diagnosticsLogs.length,
-    maxTotalBytes: DIAGNOSTICS_LOGS_MAX_TOTAL_BYTES,
-    maxEntryBytes: DIAGNOSTICS_LOG_ENTRY_MAX_BYTES,
-    importantTotalBytes: diagnosticsImportantLogsTotalBytes,
-    importantEntryCount: diagnosticsImportantLogs.length,
-    importantMaxTotalBytes: DIAGNOSTICS_IMPORTANT_LOGS_MAX_TOTAL_BYTES
-  };
-}
-function setDiagnosticsContextProvider(provider) {
-  diagnosticsContextProvider = provider;
-}
-function logImportantDiagnostics(level, ...args) {
-  appendDiagnosticsLog(level, args, { forceImportant: true });
-  switch (level) {
-    case "warn":
-      originalConsole.warn(...args);
-      return;
-    case "error":
-      originalConsole.error(...args);
-      return;
-    default:
-      originalConsole.log(...args);
-  }
-}
 const WORLD_DATA_STORAGE_KEY = "MainSceneWorldData";
 const biteVibrationAdapter = new VibrationAdapter();
 const RECOVERY_VIBRATION_INTERVAL_MS = 180;
@@ -47663,6 +47890,66 @@ const isAndroidUserAgent = typeof navigator !== "undefined" && /DigiviceApp-Andr
 const MINI_GAME_UNAVAILABLE_VERSION = "0.1.0";
 const KEYBOARD_VIEWPORT_HEIGHT_DELTA_THRESHOLD = 80;
 const UNSUPPORTED_SQUARE_VIEWPORT_RATIO = 0.8;
+const BACK_NAVIGATION_ALERT_ENTRY = "layer:alert";
+const BACK_NAVIGATION_DIAGNOSTICS_ENTRY = "layer:diagnostics-draft";
+const BACK_NAVIGATION_SETTING_MENU_ENTRY = "layer:setting-menu";
+const BACK_NAVIGATION_SETTING_RESET_CONFIRM_ENTRY = "layer:setting-reset-confirm";
+const BACK_NAVIGATION_SCENE_ENTRY_PREFIX = "scene:";
+const ROOT_SCENE_HISTORY_STACK = [SceneKey.MAIN];
+function createSceneBackNavigationEntry(sceneKey) {
+  return `${BACK_NAVIGATION_SCENE_ENTRY_PREFIX}${sceneKey}`;
+}
+function parseSceneBackNavigationEntry(entry) {
+  if (!entry.startsWith(BACK_NAVIGATION_SCENE_ENTRY_PREFIX)) {
+    return null;
+  }
+  return entry.slice(BACK_NAVIGATION_SCENE_ENTRY_PREFIX.length);
+}
+function getTargetSceneKeyFromBackNavigationEntries(entries) {
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const sceneKey = parseSceneBackNavigationEntry(entries[index]);
+    if (sceneKey) {
+      return sceneKey;
+    }
+  }
+  return SceneKey.MAIN;
+}
+function readBackNavigationEntriesFromHistoryState(state) {
+  if (!state || typeof state !== "object" || Array.isArray(state)) {
+    return [];
+  }
+  const entries = state.__digiviceBackEntries;
+  if (!Array.isArray(entries)) {
+    return [];
+  }
+  return entries.filter(
+    (entry) => typeof entry === "string"
+  );
+}
+function createBackNavigationHistoryState(state, entries) {
+  const nextState = state && typeof state === "object" && !Array.isArray(state) ? { ...state } : {};
+  nextState.__digiviceBackEntries = [...entries];
+  return nextState;
+}
+function areBackNavigationEntriesEqual(left, right) {
+  if (left.length !== right.length) {
+    return false;
+  }
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) {
+      return false;
+    }
+  }
+  return true;
+}
+function getSharedBackNavigationPrefixLength(left, right) {
+  const maxLength = Math.min(left.length, right.length);
+  let prefixLength = 0;
+  while (prefixLength < maxLength && left[prefixLength] === right[prefixLength]) {
+    prefixLength += 1;
+  }
+  return prefixLength;
+}
 function waitForAnimationFrame() {
   return new Promise((resolve) => {
     window.requestAnimationFrame(() => resolve());
@@ -47706,12 +47993,20 @@ function isMiniGameUnavailableForCurrentVersion() {
 function isTextInputElement(element) {
   return element instanceof HTMLElement && (element.tagName === "INPUT" || element.tagName === "TEXTAREA" || element.isContentEditable);
 }
-function isKeyboardOpenForSquareViewportCheck() {
+function isKeyboardOpenForUnsupportedViewportCheck(options = {}) {
   if (typeof window === "undefined" || typeof document === "undefined") {
     return false;
   }
+  const { nativeKeyboardInset = 0 } = options;
+  const activeElement = document.activeElement;
+  if (!isTextInputElement(activeElement)) {
+    return false;
+  }
+  if (nativeKeyboardInset > 0) {
+    return true;
+  }
   const visualViewport = window.visualViewport;
-  if (!visualViewport || !isTextInputElement(document.activeElement)) {
+  if (!visualViewport) {
     return false;
   }
   const baseViewportHeight = Math.max(
@@ -47721,7 +48016,7 @@ function isKeyboardOpenForSquareViewportCheck() {
   const viewportHeightDelta = baseViewportHeight - visualViewport.height;
   return viewportHeightDelta >= KEYBOARD_VIEWPORT_HEIGHT_DELTA_THRESHOLD;
 }
-function getUnsupportedViewportReason() {
+function getUnsupportedViewportReason(options = {}) {
   var _a, _b;
   if (typeof window === "undefined") {
     return null;
@@ -47731,11 +48026,11 @@ function getUnsupportedViewportReason() {
   if (viewportWidth <= 0 || viewportHeight <= 0) {
     return null;
   }
+  if (isKeyboardOpenForUnsupportedViewportCheck(options)) {
+    return null;
+  }
   if (viewportWidth > viewportHeight) {
     return "landscape";
-  }
-  if (isKeyboardOpenForSquareViewportCheck()) {
-    return null;
   }
   if (viewportWidth / viewportHeight >= UNSUPPORTED_SQUARE_VIEWPORT_RATIO) {
     return "square";
@@ -47773,10 +48068,12 @@ function summarizeGameData(data) {
   };
 }
 function createDiagnosticsSubject(timestamp) {
-  return `[MonTTo] Diagnostics Report ${timestamp}`;
+  return `[MonTTo][${getClientReleaseLabel()}] Diagnostics Report ${timestamp}`;
 }
 function createDiagnosticsBody() {
   return [
+    `App version: ${getClientReleaseLabel()}`,
+    "",
     "Please describe the issue or symptoms you observed.",
     "",
     "- What happened?",
@@ -47784,6 +48081,13 @@ function createDiagnosticsBody() {
     "- What did you expect to happen?",
     "- How can it be reproduced?"
   ].join("\n");
+}
+function getClientReleaseLabel() {
+  return `${"0.1.0-debug"}+${1}`;
+}
+function getClientReleaseFileLabel() {
+  const sanitizedVersion = "0.1.0-debug".replace(/[^a-zA-Z0-9.-]+/g, "_");
+  return `${sanitizedVersion}-build-${1}`;
 }
 function buildGmailComposeHref(subject, body) {
   const gmailComposeUrl = new URL("https://mail.google.com/mail/");
@@ -47843,7 +48147,11 @@ const GameContainer = () => {
   const initialSetupDataRef = reactExports.useRef(null);
   const pendingSetupResolverRef = reactExports.useRef(null);
   const shouldRestartFromSetupRef = reactExports.useRef(false);
+  const [sceneHistoryStack, setSceneHistoryStack] = reactExports.useState(() => [
+    ...ROOT_SCENE_HISTORY_STACK
+  ]);
   const [showSettingMenu, setShowSettingMenu] = reactExports.useState(false);
+  const [showFinalResetConfirm, setShowFinalResetConfirm] = reactExports.useState(false);
   const [gameSettings, setGameSettings] = reactExports.useState(getGameSettings);
   const [gameSessionKey, setGameSessionKey] = reactExports.useState(0);
   const [isSendingDiagnostics, setIsSendingDiagnostics] = reactExports.useState(false);
@@ -47856,12 +48164,20 @@ const GameContainer = () => {
   const pendingSettingMenuOpenTimeoutRef = reactExports.useRef(null);
   const sceneTransitionRequestIdRef = reactExports.useRef(0);
   const recoveryVibrationIntervalRef = reactExports.useRef(null);
+  const nativeKeyboardInsetRef = reactExports.useRef(0);
   const lastValidationResultRef = reactExports.useRef(
     null
   );
   const isFullscreenAdLayoutFrozenRef = reactExports.useRef(false);
   const fullscreenAdLayoutReleaseTimeoutRef = reactExports.useRef(null);
   const fullscreenAdLayoutReleaseRafRef = reactExports.useRef(null);
+  const activeBackNavigationEntriesRef = reactExports.useRef([]);
+  const currentBackNavigationEntriesRef = reactExports.useRef([]);
+  const pendingPopstateTargetEntriesRef = reactExports.useRef(
+    null
+  );
+  const pendingBrowserHistoryTargetEntriesRef = reactExports.useRef(null);
+  const hasInitializedBackNavigationHistoryRef = reactExports.useRef(false);
   const clearPendingSettingMenuOpen = reactExports.useCallback(() => {
     if (pendingSettingMenuOpenTimeoutRef.current === null) {
       return;
@@ -47880,13 +48196,215 @@ const GameContainer = () => {
   }, [showSettingMenu]);
   const closeSettingMenu = reactExports.useCallback(() => {
     clearPendingSettingMenuOpen();
+    setShowFinalResetConfirm(false);
     setShowSettingMenu(false);
   }, [clearPendingSettingMenuOpen]);
+  const closeResetConfirm = reactExports.useCallback(() => {
+    setShowFinalResetConfirm(false);
+  }, []);
+  const backNavigationEntries = reactExports.useMemo(() => {
+    const entries = sceneHistoryStack.slice(1).map((sceneKey) => createSceneBackNavigationEntry(sceneKey));
+    if (showSettingMenu) {
+      entries.push(BACK_NAVIGATION_SETTING_MENU_ENTRY);
+    }
+    if (showFinalResetConfirm) {
+      entries.push(BACK_NAVIGATION_SETTING_RESET_CONFIRM_ENTRY);
+    }
+    if (alertState) {
+      entries.push(BACK_NAVIGATION_ALERT_ENTRY);
+    }
+    if (pendingDiagnosticsDraft) {
+      entries.push(BACK_NAVIGATION_DIAGNOSTICS_ENTRY);
+    }
+    return entries;
+  }, [
+    alertState,
+    pendingDiagnosticsDraft,
+    sceneHistoryStack,
+    showFinalResetConfirm,
+    showSettingMenu
+  ]);
+  const requestHistoryBackForEntry = reactExports.useCallback(
+    (entry, fallback) => {
+      if (typeof window === "undefined") {
+        fallback();
+        return;
+      }
+      const currentEntries = activeBackNavigationEntriesRef.current;
+      if (currentEntries[currentEntries.length - 1] !== entry) {
+        fallback();
+        return;
+      }
+      window.history.back();
+    },
+    []
+  );
+  const dismissAlert = reactExports.useCallback(() => {
+    requestHistoryBackForEntry(BACK_NAVIGATION_ALERT_ENTRY, hideAlert);
+  }, [hideAlert, requestHistoryBackForEntry]);
+  const dismissDiagnosticsDraft = reactExports.useCallback(() => {
+    requestHistoryBackForEntry(BACK_NAVIGATION_DIAGNOSTICS_ENTRY, () => {
+      setPendingDiagnosticsDraft(null);
+    });
+  }, [requestHistoryBackForEntry]);
+  const dismissResetConfirm = reactExports.useCallback(() => {
+    requestHistoryBackForEntry(
+      BACK_NAVIGATION_SETTING_RESET_CONFIRM_ENTRY,
+      closeResetConfirm
+    );
+  }, [closeResetConfirm, requestHistoryBackForEntry]);
+  const dismissSettingMenu = reactExports.useCallback(() => {
+    requestHistoryBackForEntry(
+      BACK_NAVIGATION_SETTING_MENU_ENTRY,
+      closeSettingMenu
+    );
+  }, [closeSettingMenu, requestHistoryBackForEntry]);
+  const applyBackNavigationTarget = reactExports.useCallback(
+    async (targetEntries) => {
+      const targetEntrySet = new Set(targetEntries);
+      if (!targetEntrySet.has(BACK_NAVIGATION_DIAGNOSTICS_ENTRY)) {
+        setPendingDiagnosticsDraft(null);
+      }
+      if (!targetEntrySet.has(BACK_NAVIGATION_ALERT_ENTRY)) {
+        hideAlert();
+      }
+      if (!targetEntrySet.has(BACK_NAVIGATION_SETTING_MENU_ENTRY)) {
+        closeSettingMenu();
+      } else if (!targetEntrySet.has(BACK_NAVIGATION_SETTING_RESET_CONFIRM_ENTRY)) {
+        setShowFinalResetConfirm(false);
+      }
+      if (!gameInstance || sceneTransitionLoadState.phase !== "idle") {
+        return;
+      }
+      const targetSceneKey = getTargetSceneKeyFromBackNavigationEntries(targetEntries);
+      if (gameInstance.getCurrentSceneKey() === targetSceneKey) {
+        return;
+      }
+      await gameInstance.changeScene(targetSceneKey);
+    },
+    [closeSettingMenu, gameInstance, hideAlert, sceneTransitionLoadState.phase]
+  );
   reactExports.useEffect(() => {
     return () => {
       clearPendingSettingMenuOpen();
     };
   }, [clearPendingSettingMenuOpen]);
+  reactExports.useEffect(() => {
+    activeBackNavigationEntriesRef.current = backNavigationEntries;
+  }, [backNavigationEntries]);
+  reactExports.useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    if (!hasInitializedBackNavigationHistoryRef.current) {
+      window.history.replaceState(
+        createBackNavigationHistoryState(
+          window.history.state,
+          backNavigationEntries
+        ),
+        document.title
+      );
+      currentBackNavigationEntriesRef.current = backNavigationEntries;
+      hasInitializedBackNavigationHistoryRef.current = true;
+      return;
+    }
+    if (pendingBrowserHistoryTargetEntriesRef.current) {
+      return;
+    }
+    if (pendingPopstateTargetEntriesRef.current) {
+      if (areBackNavigationEntriesEqual(
+        pendingPopstateTargetEntriesRef.current,
+        backNavigationEntries
+      )) {
+        currentBackNavigationEntriesRef.current = backNavigationEntries;
+        pendingPopstateTargetEntriesRef.current = null;
+      }
+      return;
+    }
+    const currentEntries = currentBackNavigationEntriesRef.current;
+    if (areBackNavigationEntriesEqual(currentEntries, backNavigationEntries)) {
+      const browserEntries = readBackNavigationEntriesFromHistoryState(
+        window.history.state
+      );
+      if (!areBackNavigationEntriesEqual(browserEntries, backNavigationEntries)) {
+        window.history.replaceState(
+          createBackNavigationHistoryState(
+            window.history.state,
+            backNavigationEntries
+          ),
+          document.title
+        );
+      }
+      return;
+    }
+    const sharedPrefixLength = getSharedBackNavigationPrefixLength(
+      currentEntries,
+      backNavigationEntries
+    );
+    if (sharedPrefixLength === currentEntries.length && backNavigationEntries.length > currentEntries.length) {
+      for (let index = currentEntries.length + 1; index <= backNavigationEntries.length; index += 1) {
+        window.history.pushState(
+          createBackNavigationHistoryState(
+            window.history.state,
+            backNavigationEntries.slice(0, index)
+          ),
+          document.title
+        );
+      }
+      currentBackNavigationEntriesRef.current = backNavigationEntries;
+      return;
+    }
+    if (sharedPrefixLength === backNavigationEntries.length && backNavigationEntries.length < currentEntries.length) {
+      pendingBrowserHistoryTargetEntriesRef.current = backNavigationEntries;
+      window.history.go(backNavigationEntries.length - currentEntries.length);
+      return;
+    }
+    window.history.replaceState(
+      createBackNavigationHistoryState(
+        window.history.state,
+        backNavigationEntries
+      ),
+      document.title
+    );
+    currentBackNavigationEntriesRef.current = backNavigationEntries;
+  }, [backNavigationEntries]);
+  reactExports.useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const handlePopState = (event) => {
+      const targetEntries = readBackNavigationEntriesFromHistoryState(
+        event.state
+      );
+      if (pendingBrowserHistoryTargetEntriesRef.current && areBackNavigationEntriesEqual(
+        pendingBrowserHistoryTargetEntriesRef.current,
+        targetEntries
+      )) {
+        pendingBrowserHistoryTargetEntriesRef.current = null;
+        currentBackNavigationEntriesRef.current = targetEntries;
+        return;
+      }
+      pendingPopstateTargetEntriesRef.current = targetEntries;
+      if (sceneTransitionLoadState.phase !== "idle") {
+        return;
+      }
+      void applyBackNavigationTarget(targetEntries);
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [applyBackNavigationTarget, sceneTransitionLoadState.phase]);
+  reactExports.useEffect(() => {
+    if (sceneTransitionLoadState.phase !== "idle") {
+      return;
+    }
+    const targetEntries = pendingPopstateTargetEntriesRef.current;
+    if (!targetEntries) {
+      return;
+    }
+    void applyBackNavigationTarget(targetEntries);
+  }, [applyBackNavigationTarget, sceneTransitionLoadState.phase]);
   const handleVibrationSettingChange = reactExports.useCallback((enabled) => {
     setGameSettings(updateGameSettings({ vibrationEnabled: enabled }));
   }, []);
@@ -47895,6 +48413,8 @@ const GameContainer = () => {
       scene: (gameInstance == null ? void 0 : gameInstance.getCurrentSceneKey()) !== void 0 ? String(gameInstance.getCurrentSceneKey()) : void 0,
       storageKind: getClientStorageKind(),
       appMode: "development",
+      appVersion: "0.1.0-debug",
+      buildNumber: 1,
       debugEnabled: isNativeFeatureDebugMode$1
     }));
     return () => {
@@ -47929,6 +48449,16 @@ const GameContainer = () => {
       setSceneTransitionLoadState(
         (previous) => previous.requestId === params.requestId ? { ...previous, phase: "core_ready" } : previous
       );
+      setSceneHistoryStack((previous) => {
+        if (previous[previous.length - 1] === params.to) {
+          return previous;
+        }
+        const existingSceneIndex = previous.lastIndexOf(params.to);
+        if (existingSceneIndex >= 0) {
+          return previous.slice(0, existingSceneIndex + 1);
+        }
+        return [...previous, params.to];
+      });
     },
     []
   );
@@ -47971,6 +48501,13 @@ const GameContainer = () => {
       window.cancelAnimationFrame(fullscreenAdLayoutReleaseRafRef.current);
       fullscreenAdLayoutReleaseRafRef.current = null;
     }
+  }, []);
+  const updateUnsupportedViewportOverlay = reactExports.useCallback(() => {
+    setUnsupportedViewportReason(
+      getUnsupportedViewportReason({
+        nativeKeyboardInset: nativeKeyboardInsetRef.current
+      })
+    );
   }, []);
   const freezeLayoutForFullscreenAd = reactExports.useCallback(() => {
     clearFullscreenAdLayoutRelease();
@@ -48049,6 +48586,7 @@ const GameContainer = () => {
         appInfo: {
           project: "MonTTo",
           clientAppVersion: "0.1.0-debug",
+          clientBuildNumber: 1,
           appMode: "development",
           debugEnabled: isNativeFeatureDebugMode$1,
           storageKind: getClientStorageKind(),
@@ -48073,23 +48611,24 @@ const GameContainer = () => {
       const payloadText = JSON.stringify(payload, null, 2);
       const subject = createDiagnosticsSubject(payload.generatedAt);
       const body = createDiagnosticsBody();
+      const releaseFileLabel = getClientReleaseFileLabel();
       const timestampSuffix = payload.generatedAt.replace(/\.\d{3}Z$/, "Z").replace(/[:]/g, "-");
       setPendingDiagnosticsDraft({
         subject,
         body,
         attachments: [
           {
-            fileName: `montto-diagnostics-${timestampSuffix}.json`,
+            fileName: `montto-diagnostics-${releaseFileLabel}-${timestampSuffix}.json`,
             text: payloadText,
             mimeType: "application/json"
           },
           {
-            fileName: `montto-latest-game-data-${timestampSuffix}.json`,
+            fileName: `montto-latest-game-data-${releaseFileLabel}-${timestampSuffix}.json`,
             text: JSON.stringify(latestGameData, null, 2),
             mimeType: "application/json"
           },
           {
-            fileName: `montto-important-logs-${timestampSuffix}.json`,
+            fileName: `montto-important-logs-${releaseFileLabel}-${timestampSuffix}.json`,
             text: JSON.stringify(payload.importantLogs, null, 2),
             mimeType: "application/json"
           }
@@ -48117,12 +48656,13 @@ const GameContainer = () => {
     showAlert
   ]);
   const handleCancelDiagnosticsDraft = reactExports.useCallback(() => {
-    setPendingDiagnosticsDraft(null);
-  }, []);
+    dismissDiagnosticsDraft();
+  }, [dismissDiagnosticsDraft]);
   const handleConfirmDiagnosticsDraft = reactExports.useCallback(async () => {
     if (!pendingDiagnosticsDraft) {
       return;
     }
+    let followUpAlert = null;
     try {
       const openRoute = await openMailDraft(
         pendingDiagnosticsDraft.subject,
@@ -48130,19 +48670,25 @@ const GameContainer = () => {
         pendingDiagnosticsDraft.attachments
       );
       if (openRoute !== "gmail_app") {
-        showAlert(
-          "The mail compose screen was opened outside the app. File attachment support is only guaranteed when the Gmail app opens directly.",
-          "Notice"
-        );
+        followUpAlert = {
+          title: "Notice",
+          message: "The mail compose screen was opened outside the app. File attachment support is only guaranteed when the Gmail app opens directly."
+        };
       }
     } catch (error) {
       console.error("[GameContainer] Failed to open diagnostics draft", error);
-      showAlert(
-        "Failed to open the Gmail draft. Please make sure Gmail is installed.",
-        "Error"
-      );
+      followUpAlert = {
+        title: "Error",
+        message: "Failed to open the Gmail draft. Please make sure Gmail is installed."
+      };
     } finally {
       setPendingDiagnosticsDraft(null);
+      if (followUpAlert) {
+        const alertToShow = followUpAlert;
+        window.setTimeout(() => {
+          showAlert(alertToShow.message, alertToShow.title);
+        }, 0);
+      }
     }
   }, [pendingDiagnosticsDraft, showAlert]);
   const resetGameData = reactExports.useCallback(
@@ -48166,7 +48712,9 @@ const GameContainer = () => {
         pendingSetupResolverRef.current = null;
         shouldRestartFromSetupRef.current = true;
         isInitializedRef.current = false;
+        setSceneHistoryStack([...ROOT_SCENE_HISTORY_STACK]);
         setShowSettingMenu(false);
+        setShowFinalResetConfirm(false);
         setButtonParams(null);
         setShowSetupLayer(true);
         setIsBootstrapping(false);
@@ -48308,7 +48856,7 @@ const GameContainer = () => {
       changeControlButtons: (controlButtonParams) => {
         setButtonParams((previous) => {
           if (previous && previous.every(
-            (buttonParam, index) => buttonParam.type === controlButtonParams[index].type && buttonParam.initialSliderValue === controlButtonParams[index].initialSliderValue && buttonParam.sliderSessionKey === controlButtonParams[index].sliderSessionKey
+            (buttonParam, index) => buttonParam.type === controlButtonParams[index].type && buttonParam.initialSliderValue === controlButtonParams[index].initialSliderValue && buttonParam.sliderSessionKey === controlButtonParams[index].sliderSessionKey && buttonParam.hasCleaningTarget === controlButtonParams[index].hasCleaningTarget
           )) {
             return previous;
           }
@@ -48362,8 +48910,10 @@ const GameContainer = () => {
     if (!isAndroidUserAgent) {
       return;
     }
-    const updateUnsupportedViewportOverlay = () => {
-      setUnsupportedViewportReason(getUnsupportedViewportReason());
+    const handleNativeViewportSync = (event) => {
+      const detail = event.detail;
+      nativeKeyboardInsetRef.current = Math.max(0, (detail == null ? void 0 : detail.bottomInset) ?? 0);
+      updateUnsupportedViewportOverlay();
     };
     updateUnsupportedViewportOverlay();
     window.addEventListener("resize", updateUnsupportedViewportOverlay);
@@ -48374,6 +48924,10 @@ const GameContainer = () => {
     (_a = window.visualViewport) == null ? void 0 : _a.addEventListener(
       "resize",
       updateUnsupportedViewportOverlay
+    );
+    window.addEventListener(
+      "digivice:native-viewport-sync",
+      handleNativeViewportSync
     );
     return () => {
       var _a2;
@@ -48386,8 +48940,12 @@ const GameContainer = () => {
         "resize",
         updateUnsupportedViewportOverlay
       );
+      window.removeEventListener(
+        "digivice:native-viewport-sync",
+        handleNativeViewportSync
+      );
     };
-  }, []);
+  }, [updateUnsupportedViewportOverlay]);
   reactExports.useEffect(() => {
     if (typeof window === "undefined") {
       return;
@@ -48543,7 +49101,7 @@ const GameContainer = () => {
             children: [
               /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { "aria-hidden": "true", className: "min-h-0" }, void 0, false, {
                 fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-                lineNumber: 1214,
+                lineNumber: 1706,
                 columnNumber: 9
               }, void 0),
               /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex min-h-0 min-w-0 justify-center overflow-hidden", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -48561,18 +49119,18 @@ const GameContainer = () => {
                 false,
                 {
                   fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-                  lineNumber: 1216,
+                  lineNumber: 1708,
                   columnNumber: 11
                 },
                 void 0
               ) }, void 0, false, {
                 fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-                lineNumber: 1215,
+                lineNumber: 1707,
                 columnNumber: 9
               }, void 0),
               /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { "aria-hidden": "true", className: "min-h-0" }, void 0, false, {
                 fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-                lineNumber: 1232,
+                lineNumber: 1724,
                 columnNumber: 9
               }, void 0),
               buttonParams && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { ref: controlButtonsWrapperRef, className: "z-10 w-full", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -48587,18 +49145,18 @@ const GameContainer = () => {
                 false,
                 {
                   fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-                  lineNumber: 1236,
+                  lineNumber: 1728,
                   columnNumber: 13
                 },
                 void 0
               ) }, void 0, false, {
                 fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-                lineNumber: 1235,
+                lineNumber: 1727,
                 columnNumber: 11
               }, void 0),
               buttonParams && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { "aria-hidden": "true", className: "min-h-0" }, void 0, false, {
                 fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-                lineNumber: 1244,
+                lineNumber: 1736,
                 columnNumber: 26
               }, void 0)
             ]
@@ -48607,67 +49165,67 @@ const GameContainer = () => {
           true,
           {
             fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 1205,
+            lineNumber: 1697,
             columnNumber: 7
           },
           void 0
         ),
         isLoading && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "absolute inset-0 z-50 flex items-center justify-center bg-black text-white", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-center text-lg tracking-[0.12em]", children: "Loading..." }, void 0, false, {
           fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-          lineNumber: 1248,
+          lineNumber: 1740,
           columnNumber: 11
         }, void 0) }, void 0, false, {
           fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-          lineNumber: 1247,
+          lineNumber: 1739,
           columnNumber: 9
         }, void 0),
         unsupportedViewportReason && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "absolute inset-0 z-[1000] flex items-center justify-center bg-black text-white", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "px-6 text-center", children: [
           /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-lg tracking-[0.12em]", children: "Portrait Only" }, void 0, false, {
             fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 1256,
+            lineNumber: 1748,
             columnNumber: 13
           }, void 0),
           /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "mt-6 text-[10px] leading-6 tracking-[0.12em]", children: unsupportedViewportReason === "landscape" ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(jsxDevRuntimeExports.Fragment, { children: [
             "Please rotate your device",
             /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("br", {}, void 0, false, {
               fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-              lineNumber: 1261,
+              lineNumber: 1753,
               columnNumber: 19
             }, void 0),
             "back to portrait mode."
           ] }, void 0, true, {
             fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 1259,
+            lineNumber: 1751,
             columnNumber: 17
           }, void 0) : /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(jsxDevRuntimeExports.Fragment, { children: [
             "This screen ratio is not supported.",
             /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("br", {}, void 0, false, {
               fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-              lineNumber: 1267,
+              lineNumber: 1759,
               columnNumber: 19
             }, void 0),
             "Please use a taller portrait screen."
           ] }, void 0, true, {
             fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 1265,
+            lineNumber: 1757,
             columnNumber: 17
           }, void 0) }, void 0, false, {
             fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 1257,
+            lineNumber: 1749,
             columnNumber: 13
           }, void 0)
         ] }, void 0, true, {
           fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-          lineNumber: 1255,
+          lineNumber: 1747,
           columnNumber: 11
         }, void 0) }, void 0, false, {
           fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-          lineNumber: 1254,
+          lineNumber: 1746,
           columnNumber: 9
         }, void 0),
         showSetupLayer && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(SetupLayer, { onComplete: handleSetupComplete }, void 0, false, {
           fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-          lineNumber: 1275,
+          lineNumber: 1767,
           columnNumber: 26
         }, void 0),
         showSettingMenu && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -48677,14 +49235,17 @@ const GameContainer = () => {
             onChangeVibration: handleVibrationSettingChange,
             onSendDiagnostics: handleSendDiagnostics,
             isSendingDiagnostics,
+            showFinalResetConfirm,
+            onOpenResetConfirm: () => setShowFinalResetConfirm(true),
+            onCloseResetConfirm: dismissResetConfirm,
             onResetGameData: handleResetGameData,
-            onClose: closeSettingMenu
+            onClose: dismissSettingMenu
           },
           void 0,
           false,
           {
             fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 1277,
+            lineNumber: 1769,
             columnNumber: 9
           },
           void 0
@@ -48694,13 +49255,13 @@ const GameContainer = () => {
           {
             title: alertState.title,
             message: alertState.message,
-            onClose: hideAlert
+            onClose: dismissAlert
           },
           void 0,
           false,
           {
             fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 1287,
+            lineNumber: 1782,
             columnNumber: 9
           },
           void 0
@@ -48716,7 +49277,7 @@ const GameContainer = () => {
           false,
           {
             fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 1294,
+            lineNumber: 1789,
             columnNumber: 9
           },
           void 0
@@ -48728,17 +49289,25 @@ const GameContainer = () => {
             content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-left text-sm leading-6", children: [
               /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: "The Gmail app will open next." }, void 0, false, {
                 fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-                lineNumber: 1306,
+                lineNumber: 1801,
                 columnNumber: 17
               }, void 0),
               /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "mt-2", children: "The diagnostics files will be attached to the draft email." }, void 0, false, {
                 fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-                lineNumber: 1307,
+                lineNumber: 1802,
+                columnNumber: 17
+              }, void 0),
+              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "mt-2 font-mono text-xs leading-5 text-white/70", children: [
+                "Release: ",
+                getClientReleaseLabel()
+              ] }, void 0, true, {
+                fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+                lineNumber: 1805,
                 columnNumber: 17
               }, void 0)
             ] }, void 0, true, {
               fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-              lineNumber: 1305,
+              lineNumber: 1800,
               columnNumber: 15
             }, void 0),
             onConfirm: handleConfirmDiagnosticsDraft,
@@ -48750,13 +49319,13 @@ const GameContainer = () => {
           false,
           {
             fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 1302,
+            lineNumber: 1797,
             columnNumber: 11
           },
           void 0
         ) }, void 0, false, {
           fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-          lineNumber: 1301,
+          lineNumber: 1796,
           columnNumber: 9
         }, void 0)
       ]
@@ -48765,7 +49334,7 @@ const GameContainer = () => {
     true,
     {
       fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-      lineNumber: 1202,
+      lineNumber: 1694,
       columnNumber: 5
     },
     void 0
@@ -49260,6 +49829,8 @@ const isNativeFeatureDebugMode = true;
 installDiagnosticsConsoleCapture();
 setDiagnosticsContextProvider(() => ({
   appMode: "development",
+  appVersion: "0.1.0-debug",
+  buildNumber: 1,
   debugEnabled: isNativeFeatureDebugMode
 }));
 document.addEventListener("DOMContentLoaded", () => {
@@ -49296,11 +49867,11 @@ async function bootstrap() {
   root.render(
     /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(jsxDevRuntimeExports.Fragment, { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(App, {}, void 0, false, {
       fileName: "/Users/neiz/digivice/apps/client/src/main.tsx",
-      lineNumber: 80,
+      lineNumber: 82,
       columnNumber: 7
     }, this) }, void 0, false, {
       fileName: "/Users/neiz/digivice/apps/client/src/main.tsx",
-      lineNumber: 79,
+      lineNumber: 81,
       columnNumber: 5
     }, this)
   );
