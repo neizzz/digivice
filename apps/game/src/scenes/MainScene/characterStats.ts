@@ -1,6 +1,8 @@
 import { CharacterClass } from "../../types/Character";
+import { GAME_CONSTANTS } from "./config";
 import { getEvolutionSpec } from "./evolutionConfig";
-import { CharacterKeyECS as CharacterKey } from "./types";
+import { CharacterStatusComp, VitalityComp } from "./raw-components";
+import { CharacterKeyECS as CharacterKey, CharacterStatus } from "./types";
 
 /**
  * 캐릭터별 기본 스탯 정의
@@ -50,4 +52,33 @@ export function getCharacterStats(characterKey: CharacterKey): CharacterStats {
   }
 
   return CHARACTER_STATS_BY_CLASS[evolutionSpec.class];
+}
+
+export function isCharacterUrgent(eid: number): boolean {
+  const currentStatuses = CharacterStatusComp.statuses[eid];
+
+  return (
+    CharacterStatusComp.stamina[eid] <=
+      GAME_CONSTANTS.URGENT_STAMINA_THRESHOLD ||
+    currentStatuses.includes(CharacterStatus.URGENT) ||
+    VitalityComp.urgentStartTime[eid] > 0
+  );
+}
+
+export function getUrgentSpeedMultiplier(eid: number): number {
+  return isCharacterUrgent(eid) ? GAME_CONSTANTS.URGENT_SPEED_MULTIPLIER : 1;
+}
+
+export function applyUrgentSpeedMultiplier(
+  baseSpeed: number,
+  eid: number,
+): number {
+  return baseSpeed * getUrgentSpeedMultiplier(eid);
+}
+
+export function getCharacterMovementSpeedForEntity(eid: number): number {
+  const characterKey = CharacterStatusComp.characterKey[eid];
+  const characterStats = getCharacterStats(characterKey);
+
+  return applyUrgentSpeedMultiplier(characterStats.speed, eid);
 }

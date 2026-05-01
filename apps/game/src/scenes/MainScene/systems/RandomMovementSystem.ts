@@ -10,7 +10,7 @@ import {
 import { MainSceneWorld } from "../world";
 import { CharacterState, DestinationType } from "../types";
 import { nomalizeRadian } from "@/utils/common";
-import { getCharacterStats } from "../characterStats";
+import { getCharacterMovementSpeedForEntity } from "../characterStats";
 import { repairCharacterEntityRuntimeComponents } from "../entityDataHelpers";
 
 const characterQuery = defineQuery([CharacterStatusComp, RandomMovementComp]);
@@ -109,10 +109,7 @@ export function randomMovementSystem(params: {
     const angle = AngleComp;
     const speed = SpeedComp;
 
-    // 캐릭터의 고유 속도를 가져와서 확인
-    const characterKey = CharacterStatusComp.characterKey[eid];
-    const characterStats = getCharacterStats(characterKey);
-    const characterSpeed = characterStats.speed;
+    const characterSpeed = getCharacterMovementSpeedForEntity(eid);
 
     // RandomMovementComp.nextChange가 올바르게 초기화되지 않은 경우 수정
     const nextChange = RandomMovementComp.nextChange[eid];
@@ -169,14 +166,14 @@ export function randomMovementSystem(params: {
         RandomMovementComp.nextChange[eid] = currentTime + idleTime;
         if (shouldLog) {
           console.debug(
-          `[RandomMovementSystem] Entity ${eid}: MOVING -> IDLE, idle time: ${idleTime}ms (${minIdle}-${maxIdle})`,
+            `[RandomMovementSystem] Entity ${eid}: MOVING -> IDLE, idle time: ${idleTime}ms (${minIdle}-${maxIdle})`,
           );
         }
       } else {
         // idle -> moving 전환
         angle.value[eid] = nomalizeRadian(Math.random() * Math.PI * 2);
 
-        // 캐릭터의 고유 속도 적용
+        // 캐릭터의 현재 상태를 반영한 이동 속도 적용
         speed.value[eid] = characterSpeed;
         ObjectComp.state[eid] = CharacterState.MOVING;
 
@@ -189,7 +186,7 @@ export function randomMovementSystem(params: {
         RandomMovementComp.nextChange[eid] = currentTime + moveTime;
         if (shouldLog) {
           console.debug(
-          `[RandomMovementSystem] Entity ${eid}: IDLE -> MOVING, move time: ${moveTime}ms (${minMove}-${maxMove})`,
+            `[RandomMovementSystem] Entity ${eid}: IDLE -> MOVING, move time: ${moveTime}ms (${minMove}-${maxMove})`,
           );
         }
       }

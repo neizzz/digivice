@@ -27,7 +27,7 @@ import {
   CharacterStatus,
 } from "../types";
 import { MainSceneWorld } from "../world";
-import { getCharacterStats } from "../characterStats";
+import { getCharacterMovementSpeedForEntity } from "../characterStats";
 import { addCharacterStatus } from "./CharacterManageSystem";
 import { getStaminaBonusFromFreshness, isFoodEdible } from "./FreshnessSystem";
 import { addDigestiveLoadAmount } from "./DigestiveSystem";
@@ -519,11 +519,10 @@ function moveToFood(
 
   // 현재 속도가 0이거나 없는 경우에만 캐릭터 고유 속도로 설정
   if (!SpeedComp.value[characterEid] || SpeedComp.value[characterEid] <= 0) {
-    const characterKey = CharacterStatusComp.characterKey[characterEid];
-    const characterStats = getCharacterStats(characterKey);
-    SpeedComp.value[characterEid] = characterStats.speed;
+    const movementSpeed = getCharacterMovementSpeedForEntity(characterEid);
+    SpeedComp.value[characterEid] = movementSpeed;
     console.log(
-      `[FoodEatingSystem] Set character ${characterEid} speed to ${characterStats.speed} based on character type`,
+      `[FoodEatingSystem] Set character ${characterEid} speed to ${movementSpeed} based on character state`,
     );
   }
 

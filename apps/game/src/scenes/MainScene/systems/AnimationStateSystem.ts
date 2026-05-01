@@ -4,6 +4,7 @@ import {
   ObjectComp,
   CharacterStatusComp,
 } from "../raw-components";
+import { applyUrgentSpeedMultiplier } from "../characterStats";
 import { ObjectType, CharacterState, AnimationKey } from "../types";
 import { MainSceneWorld } from "../world";
 
@@ -56,7 +57,7 @@ function updateCharacterAnimationStates(world: MainSceneWorld): void {
     const currentState = ObjectComp.state[eid] as CharacterState;
     const requiredAnimation = CHARACTER_STATE_TO_ANIMATION_KEY[currentState];
     const currentAnimation = AnimationRenderComp.animationKey[eid];
-    const requiredSpeed = getAnimationSpeedForState(currentState);
+    const requiredSpeed = getAnimationSpeedForState(currentState, eid);
 
     // 애니메이션이 변경되어야 하는 경우
     if (currentAnimation !== requiredAnimation) {
@@ -76,19 +77,19 @@ function changeAnimation(eid: number, animationKey: AnimationKey): void {
       animationKey !== AnimationKey.NULL ? 1 : 0;
 
     console.log(
-      `[AnimationStateSystem] Changed animation to ${AnimationKey[animationKey]} for entity ${eid}`
+      `[AnimationStateSystem] Changed animation to ${AnimationKey[animationKey]} for entity ${eid}`,
     );
   }
 }
 
-function getAnimationSpeedForState(state: CharacterState): number {
+function getAnimationSpeedForState(state: CharacterState, eid: number): number {
+  let baseSpeed = DEFAULT_ANIMATION_SPEED;
+
   if (state === CharacterState.IDLE) {
-    return IDLE_ANIMATION_SPEED;
+    baseSpeed = IDLE_ANIMATION_SPEED;
+  } else if (state === CharacterState.SLEEPING) {
+    baseSpeed = SLEEPING_ANIMATION_SPEED;
   }
 
-  if (state === CharacterState.SLEEPING) {
-    return SLEEPING_ANIMATION_SPEED;
-  }
-
-  return DEFAULT_ANIMATION_SPEED;
+  return applyUrgentSpeedMultiplier(baseSpeed, eid);
 }

@@ -6,7 +6,7 @@ import {
 } from "../raw-components";
 import { MainSceneWorld } from "../world";
 import { DestinationType } from "../types";
-import { getCharacterStats } from "../characterStats";
+import { getCharacterMovementSpeedForEntity } from "../characterStats";
 
 const TARGET_REACHED_EPSILON = 0.001;
 
@@ -43,8 +43,7 @@ export function moveTowardsTarget(
   let baseSpeed = 0;
   const characterKey = CharacterStatusComp.characterKey[eid];
   if (characterKey > 0) {
-    const characterStats = getCharacterStats(characterKey);
-    baseSpeed = characterStats.speed;
+    baseSpeed = getCharacterMovementSpeedForEntity(eid);
   } else {
     // 기본 속도 (Bird 등)
     baseSpeed = 0.03;

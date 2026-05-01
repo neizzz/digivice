@@ -29,6 +29,7 @@ export type TestWorld = IWorld & {
   handleThrownFoodLanded: (eid: number) => void;
   handleFoodConsumedForAd: (eid: number) => void;
   handleHospitalRecoveryAnimationComplete: (eid: number) => void;
+  isRandomMovementDebugEnabled: () => boolean;
   currentTime: number;
   timeOfDay: TimeOfDay;
   timeOfDayMode: TimeOfDayMode;
@@ -75,6 +76,7 @@ export function createTestWorld(options?: {
   world.handleThrownFoodLanded = () => {};
   world.handleFoodConsumedForAd = () => {};
   world.handleHospitalRecoveryAnimationComplete = () => {};
+  world.isRandomMovementDebugEnabled = () => false;
 
   Object.defineProperty(world, "currentTime", {
     configurable: true,

@@ -12,6 +12,8 @@ import {
   RenderComp,
   SpeedComp,
 } from "../raw-components";
+import { GAME_CONSTANTS } from "../config";
+import { getCharacterStats } from "../characterStats";
 import { foodEatingSystem } from "../systems/FoodEatingSystem";
 import { commonMovementSystem } from "../systems/CommonMovementSystem";
 import {
@@ -293,6 +295,33 @@ test("근처 음식도 가운데로 순간이동하지 않고 경계가 겹치�
   assertCharacterAtPosition(characterEid, initialPosition);
   assert.ok(hasComponent(world, AngleComp, characterEid));
   assertAngleClose(AngleComp.value[characterEid], expectedAngle);
+});
+
+test("urgent 상태 캐릭터는 음식 목표로 이동할 때 20% 감속된 속도를 사용한다", () => {
+  const world = createTestWorld({ now: 15_000 });
+  const characterEid = withMockedDateNow(15_000, () =>
+    createTestCharacter(world, {
+      state: CharacterState.IDLE,
+      stamina: 0,
+      x: 80,
+      y: 120,
+    }),
+  );
+  const foodEid = createLandedFood(world, { x: 180, y: 120 });
+  const expectedSpeed =
+    getCharacterStats(CharacterStatusComp.characterKey[characterEid]).speed *
+    GAME_CONSTANTS.URGENT_SPEED_MULTIPLIER;
+
+  foodEatingSystem({
+    world: world as any,
+    delta: 0,
+    currentTime: world.currentTime,
+  });
+
+  assert.equal(ObjectComp.state[characterEid], CharacterState.MOVING);
+  assert.equal(ObjectComp.state[foodEid], FoodState.TARGETED);
+  assert.ok(hasComponent(world, DestinationComp, characterEid));
+  assert.ok(Math.abs(SpeedComp.value[characterEid] - expectedSpeed) < 0.000001);
 });
 
 test("접근 지점에 도착해서 먹기 시작할 때 위치 보정 없이 음식 방향을 바라본다", () => {
