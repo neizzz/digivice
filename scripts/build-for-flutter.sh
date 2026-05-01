@@ -26,6 +26,12 @@ else
   NATIVE_FEATURE_DEBUG_MODE_VALUE="false"
 fi
 
+APP_LOGO_TEXT_VALUE="${APP_LOGO_TEXT:-}"
+
+if [ "$NATIVE_FEATURE_DEBUG_MODE_VALUE" = "true" ] && [ -z "$APP_LOGO_TEXT_VALUE" ]; then
+  APP_LOGO_TEXT_VALUE="DEBUG"
+fi
+
 # 프로젝트 루트 디렉터리로 이동
 cd "$(dirname "$0")/.."
 
@@ -35,7 +41,7 @@ node ./scripts/sync-app-version.mjs
 # apps/client 빌드
 echo "📦 Building apps/client..."
 cd apps/client
-pnpm --filter @digivice/game sync-assets && tsc -b && BUILD_FOR_FLUTTER=true NODE_ENV="$NODE_ENV_VALUE" NATIVE_FEATURE_DEBUG_MODE="$NATIVE_FEATURE_DEBUG_MODE_VALUE" vite build --mode "$BUILD_MODE"
+pnpm --filter @digivice/game sync-assets && tsc -b && BUILD_FOR_FLUTTER=true NODE_ENV="$NODE_ENV_VALUE" NATIVE_FEATURE_DEBUG_MODE="$NATIVE_FEATURE_DEBUG_MODE_VALUE" APP_LOGO_TEXT="$APP_LOGO_TEXT_VALUE" vite build --mode "$BUILD_MODE"
 
 # 빌드 결과 확인
 if [ ! -d "dist" ]; then
@@ -76,6 +82,7 @@ mv "$FLUTTER_WEB_TMP_DIR" "$FLUTTER_WEB_DIR"
 echo "✅ Build complete! Files copied to virtual_bridge/assets/web/"
 echo "   Mode: $BUILD_MODE"
 echo "   Debug features: $NATIVE_FEATURE_DEBUG_MODE_VALUE"
+echo "   App logo text: ${APP_LOGO_TEXT_VALUE:-<empty>}"
 echo ""
 echo "Next steps:"
 echo "  1. Run 'flutter run' from virtual_bridge directory"
