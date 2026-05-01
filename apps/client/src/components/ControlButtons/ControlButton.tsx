@@ -90,6 +90,11 @@ const ControlButton: React.FC<ControlButtonProps> = ({
   const lastSliderDragValueRef = useRef(initialSliderValue);
   const accumulatedDragDistanceRef = useRef(0);
   const lastDragDirectionRef = useRef<-1 | 0 | 1>(0);
+  const hasCleaningTargetRef = useRef(hasCleaningTarget);
+  const onSliderChangeRef = useRef(onSliderChange);
+  const onSliderEndRef = useRef(onSliderEnd);
+  const vibrationStepValueRef = useRef(0);
+  const isDraggingRef = useRef(false);
 
   const isSlider = type === ControlButtonType.Clean && !!sliderWidth;
   const sliderTrackWidth = sliderWidth
@@ -103,8 +108,14 @@ const ControlButton: React.FC<ControlButtonProps> = ({
     SLIDER_DRAG_VIBRATION_STEP_PX / Math.max(1, sliderTrackWidth),
   );
 
+  useEffect(() => {
+    hasCleaningTargetRef.current = hasCleaningTarget;
+    onSliderChangeRef.current = onSliderChange;
+    onSliderEndRef.current = onSliderEnd;
+    vibrationStepValueRef.current = vibrationStepValue;
+  }, [hasCleaningTarget, onSliderChange, onSliderEnd, vibrationStepValue]);
+
   // 슬라이더 컨트롤러 초기화 및 정리
-  // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
   useEffect(() => {
     // 슬라이더인 경우에만 컨트롤러 생성
     if (isSlider && sliderRef.current) {
@@ -123,7 +134,7 @@ const ControlButton: React.FC<ControlButtonProps> = ({
                 : 0;
 
           if (
-            hasCleaningTarget &&
+            hasCleaningTargetRef.current &&
             dragDirection !== 0 &&
             lastDragDirectionRef.current !== 0 &&
             dragDirection !== lastDragDirectionRef.current
@@ -143,10 +154,10 @@ const ControlButton: React.FC<ControlButtonProps> = ({
           currentSliderValueRef.current = value;
 
           if (
-            hasCleaningTarget &&
-            accumulatedDragDistanceRef.current >= vibrationStepValue
+            hasCleaningTargetRef.current &&
+            accumulatedDragDistanceRef.current >= vibrationStepValueRef.current
           ) {
-            accumulatedDragDistanceRef.current %= vibrationStepValue;
+            accumulatedDragDistanceRef.current %= vibrationStepValueRef.current;
             void vibrationAdapter.vibrate(
               SLIDER_DRAG_VIBRATION_DURATION,
               SLIDER_DRAG_VIBRATION_STRENGTH,
@@ -154,19 +165,21 @@ const ControlButton: React.FC<ControlButtonProps> = ({
           }
 
           setCurrentSliderValue(value);
-          onSliderChange?.(value);
+          onSliderChangeRef.current?.(value);
         },
         onDragStart: () => {
+          isDraggingRef.current = true;
           lastSliderDragValueRef.current = currentSliderValueRef.current;
           accumulatedDragDistanceRef.current = 0;
           lastDragDirectionRef.current = 0;
           setIsPressed(true);
         },
         onDragEnd: () => {
+          isDraggingRef.current = false;
           accumulatedDragDistanceRef.current = 0;
           lastDragDirectionRef.current = 0;
           setIsPressed(false);
-          onSliderEnd?.();
+          onSliderEndRef.current?.();
           vibrationAdapter.vibrate();
         },
       });
@@ -175,20 +188,18 @@ const ControlButton: React.FC<ControlButtonProps> = ({
 
       // 정리 함수
       return () => {
+        isDraggingRef.current = false;
         controller.dispose();
         sliderControllerRef.current = null;
       };
     }
-  }, [
-    hasCleaningTarget,
-    initialSliderValue,
-    isSlider,
-    onSliderChange,
-    onSliderEnd,
-    vibrationStepValue,
-  ]);
+  }, [isSlider]);
 
   useEffect(() => {
+    if (isDraggingRef.current) {
+      return;
+    }
+
     setCurrentSliderValue(initialSliderValue);
     currentSliderValueRef.current = initialSliderValue;
     lastSliderDragValueRef.current = initialSliderValue;

@@ -26,6 +26,7 @@ export class SliderController {
   private options: Required<SliderOptions>;
   private isDragging = false;
   private currentValue: number;
+  private activePointerId: number | null = null;
 
   // 포인터 다운 위치 오프셋 저장 변수
   private pointerOffsetX = Number.NaN;
@@ -79,6 +80,7 @@ export class SliderController {
 
     // 포인터 캡처 설정 (요소 외부로 이동해도 이벤트 추적)
     this.element.setPointerCapture(e.pointerId);
+    this.activePointerId = e.pointerId;
 
     this.pointerOffsetX = e.pageX;
     this.startValue = this.currentValue;
@@ -118,6 +120,7 @@ export class SliderController {
     if (this.element.hasPointerCapture(e.pointerId)) {
       this.element.releasePointerCapture(e.pointerId);
     }
+    this.activePointerId = null;
 
     // 드래그 종료
     this.isDragging = false;
@@ -190,6 +193,16 @@ export class SliderController {
    * SliderController 정리: 이벤트 리스너 제거
    */
   public dispose(): void {
+    if (
+      this.activePointerId !== null &&
+      this.element.hasPointerCapture(this.activePointerId)
+    ) {
+      this.element.releasePointerCapture(this.activePointerId);
+    }
+
+    this.activePointerId = null;
+    this.isDragging = false;
+
     // 이벤트 리스너 제거
     this.element.removeEventListener("pointerdown", this.boundPointerDown);
     document.removeEventListener("pointermove", this.boundPointerMove);
