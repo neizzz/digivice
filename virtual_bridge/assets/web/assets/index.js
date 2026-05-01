@@ -2,7 +2,7 @@ const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["./browserAll.js","./we
 var __defProp = Object.defineProperty;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
-import { g as getDefaultExportFromCjs, S as SHOW_DEBUG_GAUGE_EVENT, c as commonjsGlobal, r as reactExports, j as jsxDevRuntimeExports, a as requireReactDom, T as TopLeftBuildLogoText, R as ReactDOM } from "./index2.js";
+import { g as getDefaultExportFromCjs, S as SHOW_DEBUG_GAUGE_EVENT, c as commonjsGlobal, r as reactExports, j as jsxRuntimeExports, a as requireReactDom, T as TopLeftBuildLogoText, R as ReactDOM } from "./index2.js";
 const scriptRel = "modulepreload";
 const assetsURL = function(dep, importerUrl) {
   return new URL(dep, importerUrl).href;
@@ -27029,18 +27029,18 @@ const PRODUCTION_EVOLUTION_TARGET_DURATION_BY_CLASS_MS = {
   [CharacterClass.C]: 80 * HOUR_MS$1,
   [CharacterClass.D]: 80 * HOUR_MS$1
 };
-({
+const PRODUCTION_EVOLUTION_TARGET_DURATION_VARIANCE_BY_CLASS_MS = {
   [CharacterClass.A]: 2 * HOUR_MS$1,
   [CharacterClass.B]: 4 * HOUR_MS$1,
   [CharacterClass.C]: 8 * HOUR_MS$1,
   [CharacterClass.D]: 8 * HOUR_MS$1
-});
-const DEV_GAUGE_GAIN_BY_CLASS = {
+};
+({
   [CharacterClass.A]: 1,
   [CharacterClass.B]: 1,
   [CharacterClass.C]: 1,
   [CharacterClass.D]: 1
-};
+});
 function getGaugeGainForDurationMs(params) {
   const { maxGauge, checkIntervalMs, durationMs } = params;
   if (durationMs <= 0) {
@@ -27073,23 +27073,30 @@ function getAverageGaugeGainByClass(params) {
     })
   };
 }
-({
-  gaugeGainByClass: getAverageGaugeGainByClass({
-    maxGauge: DEFAULT_MAX_GAUGE,
-    checkIntervalMs: 1e4,
-    targetDurationByClassMs: PRODUCTION_EVOLUTION_TARGET_DURATION_BY_CLASS_MS
-  })
-});
-const DEV_EVOLUTION_GAUGE_CONFIG = {
+function getStableSeededUnitValue(seed) {
+  let hash = 2166136261;
+  for (let i2 = 0; i2 < seed.length; i2++) {
+    hash ^= seed.charCodeAt(i2);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0) / 4294967296;
+}
+const PRODUCTION_EVOLUTION_GAUGE_CONFIG = {
   maxGauge: DEFAULT_MAX_GAUGE,
   staminaThreshold: 4,
   boostedStaminaThreshold: 7,
   boostedGaugeGainMultiplier: 1.2,
   checkIntervalMs: 1e4,
   sleepingGaugeTimeProgressMultiplier: 1 / 3,
-  gaugeGainByClass: DEV_GAUGE_GAIN_BY_CLASS
+  gaugeGainByClass: getAverageGaugeGainByClass({
+    maxGauge: DEFAULT_MAX_GAUGE,
+    checkIntervalMs: 1e4,
+    targetDurationByClassMs: PRODUCTION_EVOLUTION_TARGET_DURATION_BY_CLASS_MS
+  }),
+  targetDurationByClassMs: PRODUCTION_EVOLUTION_TARGET_DURATION_BY_CLASS_MS,
+  targetDurationVarianceByClassMs: PRODUCTION_EVOLUTION_TARGET_DURATION_VARIANCE_BY_CLASS_MS
 };
-const EVOLUTION_GAUGE_CONFIG = DEV_EVOLUTION_GAUGE_CONFIG;
+const EVOLUTION_GAUGE_CONFIG = PRODUCTION_EVOLUTION_GAUGE_CONFIG;
 function createDisplayName(geneLine, classCode, variant) {
   const baseName = geneLine.split("-").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
   return `${baseName} ${classCode}${variant}`;
@@ -27305,17 +27312,26 @@ function getCharacterSpritesheetName(characterKey) {
   var _a;
   return ((_a = getEvolutionSpec(characterKey)) == null ? void 0 : _a.spritesheetName) ?? null;
 }
-function getEvolutionGaugeIncreaseAmount(characterKey) {
+function getProductionEvolutionTargetDurationMsForEntity(params) {
+  const { characterKey, objectId } = params;
   const spec = getEvolutionSpec(characterKey);
   if (!spec) {
     return 0;
   }
-  return EVOLUTION_GAUGE_CONFIG.gaugeGainByClass[spec.class] ?? 0;
+  const targetDurationMs = PRODUCTION_EVOLUTION_GAUGE_CONFIG.targetDurationByClassMs[spec.class];
+  const varianceMs = PRODUCTION_EVOLUTION_GAUGE_CONFIG.targetDurationVarianceByClassMs[spec.class];
+  const seedValue = getStableSeededUnitValue(
+    `${Math.trunc(objectId)}:${spec.classCode}:${spec.phase}`
+  );
+  const jitterRatio = seedValue * 2 - 1;
+  return targetDurationMs + varianceMs * jitterRatio;
 }
 function getEvolutionGaugeIncreaseAmountForEntity(params) {
-  {
-    return getEvolutionGaugeIncreaseAmount(params.characterKey);
-  }
+  return getGaugeGainForDurationMs({
+    maxGauge: PRODUCTION_EVOLUTION_GAUGE_CONFIG.maxGauge,
+    checkIntervalMs: PRODUCTION_EVOLUTION_GAUGE_CONFIG.checkIntervalMs,
+    durationMs: getProductionEvolutionTargetDurationMsForEntity(params)
+  });
 }
 function canEvolveFromConfig(characterKey) {
   const spec = getEvolutionSpec(characterKey);
@@ -27351,40 +27367,6 @@ function resolveEvolutionPhase(params) {
     return currentSpec.phase;
   }
   return targetSpec.phase;
-}
-const CHARACTER_STATS_BY_CLASS = {
-  [CharacterClass.A]: {
-    speed: 0.1,
-    scale: 0.8,
-    power: 1
-  },
-  [CharacterClass.B]: {
-    speed: 0.11,
-    scale: 1,
-    power: 1.4
-  },
-  [CharacterClass.C]: {
-    speed: 0.13,
-    scale: 1.1,
-    power: 1.8
-  },
-  [CharacterClass.D]: {
-    speed: 0.15,
-    scale: 1.2,
-    power: 2
-  }
-};
-function getCharacterStats(characterKey) {
-  if (characterKey === CharacterKeyECS.NULL) {
-    throw new Error("[getCharacterStats]: Invalid character key: NULL");
-  }
-  const evolutionSpec = getEvolutionSpec(characterKey);
-  if (!evolutionSpec) {
-    throw new Error(
-      `[getCharacterStats]: Unknown character key: ${characterKey}`
-    );
-  }
-  return CHARACTER_STATS_BY_CLASS[evolutionSpec.class];
 }
 const SECOND_IN_MILLISECONDS = 1e3;
 const MINUTE_IN_MILLISECONDS$1 = 60 * SECOND_IN_MILLISECONDS;
@@ -27434,6 +27416,7 @@ const PRODUCTION_GAME_CONSTANTS = {
   // 캐릭터 상태 관련
   UNHAPPY_STAMINA_THRESHOLD: 4,
   URGENT_STAMINA_THRESHOLD: 0,
+  URGENT_SPEED_MULTIPLIER: 0.8,
   DEATH_DELAY: 6 * HOUR_IN_MILLISECONDS$1,
   DEATH_DELAY_CLASS_A: 6 * HOUR_IN_MILLISECONDS$1,
   DEATH_DELAY_CLASS_B: 14 * HOUR_IN_MILLISECONDS$1,
@@ -27473,39 +27456,7 @@ const PRODUCTION_GAME_CONSTANTS = {
   SLEEPING_STAMINA_DECAY_MULTIPLIER: 0.4,
   SLEEPING_DISEASE_RATE_MULTIPLIER: 0.1
 };
-const DEV_BALANCE_COEFFICIENTS = {
-  // DEV에서는 production 기준 시간을 나눠서 빠르게 재현한다.
-  timeDivisors: {
-    EGG_HATCH_TIME: 360,
-    EGG_HATCH_MIN_TIME: 180,
-    EGG_HATCH_MODE_TIME: 360,
-    EGG_HATCH_MAX_TIME: 540,
-    POOP_DELAY: 1,
-    DIGESTIVE_SMALL_POOP_DELAY: 480,
-    DISEASE_CHECK_INTERVAL: 1,
-    FRESH_TO_NORMAL_TIME: 18,
-    NORMAL_TO_STALE_TIME: 60,
-    DEATH_DELAY: 360,
-    DEATH_DELAY_CLASS_A: 360,
-    DEATH_DELAY_CLASS_B: 360,
-    DEATH_DELAY_CLASS_C: 360,
-    DEATH_DELAY_CLASS_D: 360,
-    STAMINA_DECREASE_INTERVAL: 24,
-    NIGHT_SLEEP_MIN_DELAY: 60,
-    NIGHT_SLEEP_MAX_DELAY: 60,
-    TARGET_NIGHT_SLEEP_DURATION: 60,
-    TARGET_NIGHT_SLEEP_JITTER: 60,
-    SUNRISE_WAKE_MIN_DELAY: 60,
-    SUNRISE_WAKE_MAX_DELAY: 60,
-    SUNRISE_WAKE_OFFSET_MIN: 60,
-    SUNRISE_WAKE_OFFSET_MAX: 60,
-    NIGHT_RESLEEP_MIN_DELAY: 60,
-    NIGHT_RESLEEP_MAX_DELAY: 60,
-    DAY_NAP_CHECK_INTERVAL: 60,
-    NIGHT_WAKE_CHECK_INTERVAL: 120,
-    DAY_NAP_MIN_DURATION: 60,
-    DAY_NAP_MAX_DURATION: 60
-  },
+({
   // DEV에서는 production 기준 확률을 곱해서 빠르게 상태를 관찰한다.
   probabilityMultipliers: {
     BASE_DISEASE_RATE: 0.02 / PRODUCTION_GAME_CONSTANTS.BASE_DISEASE_RATE,
@@ -27521,29 +27472,24 @@ const DEV_BALANCE_COEFFICIENTS = {
     FATIGUE_SLEEP_RECOVERY_PER_HOUR: 2400 / PRODUCTION_GAME_CONSTANTS.FATIGUE_SLEEP_RECOVERY_PER_HOUR,
     FATIGUE_SLEEP_RECOVERY_PER_HOUR_WHEN_SICK: 800 / PRODUCTION_GAME_CONSTANTS.FATIGUE_SLEEP_RECOVERY_PER_HOUR_WHEN_SICK
   }
-};
+});
 function deriveTimeConstant(key) {
   const baseValue = PRODUCTION_GAME_CONSTANTS[key];
-  const divisor = DEV_BALANCE_COEFFICIENTS.timeDivisors[key];
-  if (divisor <= 0) {
+  {
     return baseValue;
   }
-  const derivedValue = Math.round(baseValue / divisor);
-  if (derivedValue === 0) {
-    return 0;
-  }
-  return derivedValue > 0 ? Math.max(1, derivedValue) : Math.min(-1, derivedValue);
 }
 function deriveProbabilityConstant(key) {
   const baseValue = PRODUCTION_GAME_CONSTANTS[key];
-  return Math.min(
-    1,
-    baseValue * DEV_BALANCE_COEFFICIENTS.probabilityMultipliers[key]
-  );
+  {
+    return baseValue;
+  }
 }
 function deriveRateConstant(key) {
   const baseValue = PRODUCTION_GAME_CONSTANTS[key];
-  return baseValue * DEV_BALANCE_COEFFICIENTS.rateMultipliers[key];
+  {
+    return baseValue;
+  }
 }
 const GAME_CONSTANTS = {
   ...PRODUCTION_GAME_CONSTANTS,
@@ -27641,6 +27587,55 @@ function getUrgentDeathDelayMsByCharacterKey(characterKey) {
     default:
       return GAME_CONSTANTS.DEATH_DELAY;
   }
+}
+const CHARACTER_STATS_BY_CLASS = {
+  [CharacterClass.A]: {
+    speed: 0.1,
+    scale: 0.8,
+    power: 1
+  },
+  [CharacterClass.B]: {
+    speed: 0.11,
+    scale: 1,
+    power: 1.4
+  },
+  [CharacterClass.C]: {
+    speed: 0.13,
+    scale: 1.1,
+    power: 1.8
+  },
+  [CharacterClass.D]: {
+    speed: 0.15,
+    scale: 1.2,
+    power: 2
+  }
+};
+function getCharacterStats(characterKey) {
+  if (characterKey === CharacterKeyECS.NULL) {
+    throw new Error("[getCharacterStats]: Invalid character key: NULL");
+  }
+  const evolutionSpec = getEvolutionSpec(characterKey);
+  if (!evolutionSpec) {
+    throw new Error(
+      `[getCharacterStats]: Unknown character key: ${characterKey}`
+    );
+  }
+  return CHARACTER_STATS_BY_CLASS[evolutionSpec.class];
+}
+function isCharacterUrgent(eid) {
+  const currentStatuses = CharacterStatusComp.statuses[eid];
+  return CharacterStatusComp.stamina[eid] <= GAME_CONSTANTS.URGENT_STAMINA_THRESHOLD || currentStatuses.includes(CharacterStatus.URGENT) || VitalityComp.urgentStartTime[eid] > 0;
+}
+function getUrgentSpeedMultiplier(eid) {
+  return isCharacterUrgent(eid) ? GAME_CONSTANTS.URGENT_SPEED_MULTIPLIER : 1;
+}
+function applyUrgentSpeedMultiplier(baseSpeed, eid) {
+  return baseSpeed * getUrgentSpeedMultiplier(eid);
+}
+function getCharacterMovementSpeedForEntity(eid) {
+  const characterKey = CharacterStatusComp.characterKey[eid];
+  const characterStats = getCharacterStats(characterKey);
+  return applyUrgentSpeedMultiplier(characterStats.speed, eid);
 }
 function convertECSEntityToSavedEntity(world, eid) {
   const components = {};
@@ -28083,7 +28078,7 @@ function repairCharacterEntityRuntimeComponents(world, eid, now = Date.now()) {
   }
   return repaired;
 }
-const characterQuery$a = defineQuery([CharacterStatusComp, RandomMovementComp]);
+const characterQuery$9 = defineQuery([CharacterStatusComp, RandomMovementComp]);
 const allCharacterQuery = defineQuery([CharacterStatusComp, ObjectComp]);
 function hasDirectedMovement(world, eid) {
   return hasComponent(world, DestinationComp, eid) && DestinationComp.type[eid] === DestinationType.TARGETED && DestinationComp.target[eid] !== 0;
@@ -28092,7 +28087,7 @@ function randomMovementSystem(params) {
   const { world } = params;
   const currentTime = world.currentTime;
   const shouldLog = !world.isSimulationMode && world.isRandomMovementDebugEnabled();
-  const chars = characterQuery$a(world);
+  const chars = characterQuery$9(world);
   const allChars = allCharacterQuery(world);
   for (let i2 = 0; i2 < allChars.length; i2++) {
     const eid = allChars[i2];
@@ -28136,9 +28131,7 @@ function randomMovementSystem(params) {
     }
     const angle = AngleComp;
     const speed = SpeedComp;
-    const characterKey = CharacterStatusComp.characterKey[eid];
-    const characterStats = getCharacterStats(characterKey);
-    const characterSpeed = characterStats.speed;
+    const characterSpeed = getCharacterMovementSpeedForEntity(eid);
     const nextChange = RandomMovementComp.nextChange[eid];
     if (!nextChange || nextChange <= 0 || nextChange > currentTime + 1e5) {
       RandomMovementComp.nextChange[eid] = currentTime + 1e3;
@@ -28719,11 +28712,10 @@ function getMaskSprite(eid) {
 function getTextureFromKey$1(textureKey) {
   const textureInfo = TEXTURE_MAP[textureKey];
   if (!textureInfo) {
-    {
-      throw new Error(
-        `[RenderSystem] Texture key ${textureKey} not found in TEXTURE_MAP`
-      );
-    }
+    console.warn(
+      `[RenderSystem] Texture key ${textureKey} not found in TEXTURE_MAP`
+    );
+    return void 0;
   }
   try {
     if (!textureInfo.spritesheetAlias) {
@@ -28824,13 +28816,8 @@ function updateMaskTexture(maskSprite, progress) {
     maskSprite.texture = texture;
   }
 }
-let hasValidatedTextures = false;
 function renderSystem(params) {
   const { world } = params;
-  if (!hasValidatedTextures) {
-    validateTextureMap();
-    hasValidatedTextures = true;
-  }
   const entities = renderableQuery(world);
   const exitedEntities = exitedRenderableQuery(world);
   const stage = world.stage;
@@ -28988,34 +28975,8 @@ function isTextureKeyLoaded(textureKey) {
     textureInfo.textureName
   );
 }
-function getAvailableTextureKeys() {
-  return Object.keys(TEXTURE_MAP).map(Number).sort((a2, b2) => a2 - b2);
-}
 function getTextureInfo(textureKey) {
   return TEXTURE_MAP[textureKey] || null;
-}
-function validateTextureMap() {
-  console.groupCollapsed("[RenderSystem] Texture Map Validation:");
-  const availableKeys = getAvailableTextureKeys();
-  let validCount = 0;
-  let invalidCount = 0;
-  for (const textureKey of availableKeys) {
-    const isLoaded = isTextureKeyLoaded(textureKey);
-    const textureInfo = getTextureInfo(textureKey);
-    if (isLoaded) {
-      validCount++;
-      console.log(
-        `✓ Key ${textureKey}: ${textureInfo == null ? void 0 : textureInfo.spritesheetAlias}/${textureInfo == null ? void 0 : textureInfo.textureName}`
-      );
-    } else {
-      invalidCount++;
-      console.warn(
-        `✗ Key ${textureKey}: ${textureInfo == null ? void 0 : textureInfo.spritesheetAlias}/${textureInfo == null ? void 0 : textureInfo.textureName} - NOT LOADED`
-      );
-    }
-  }
-  console.log(`Summary: ${validCount} valid, ${invalidCount} invalid textures`);
-  console.groupEnd();
 }
 const SPRITESHEET_KEY_TO_NAME = {
   [SpritesheetKey.NULL]: "null",
@@ -29243,7 +29204,7 @@ function updateCharacterAnimationStates(world) {
     const currentState = ObjectComp.state[eid];
     const requiredAnimation = CHARACTER_STATE_TO_ANIMATION_KEY[currentState];
     const currentAnimation = AnimationRenderComp.animationKey[eid];
-    const requiredSpeed = getAnimationSpeedForState(currentState);
+    const requiredSpeed = getAnimationSpeedForState(currentState, eid);
     if (currentAnimation !== requiredAnimation) {
       changeAnimation(eid, requiredAnimation);
     }
@@ -29261,14 +29222,14 @@ function changeAnimation(eid, animationKey) {
     );
   }
 }
-function getAnimationSpeedForState(state) {
+function getAnimationSpeedForState(state, eid) {
+  let baseSpeed = DEFAULT_ANIMATION_SPEED;
   if (state === CharacterState.IDLE) {
-    return IDLE_ANIMATION_SPEED;
+    baseSpeed = IDLE_ANIMATION_SPEED;
+  } else if (state === CharacterState.SLEEPING) {
+    baseSpeed = SLEEPING_ANIMATION_SPEED;
   }
-  if (state === CharacterState.SLEEPING) {
-    return SLEEPING_ANIMATION_SPEED;
-  }
-  return DEFAULT_ANIMATION_SPEED;
+  return applyUrgentSpeedMultiplier(baseSpeed, eid);
 }
 function getEffectiveCharacterZIndex(eid) {
   const configuredZIndex = RenderComp.zIndex[eid];
@@ -29995,8 +29956,8 @@ function getFallbackScale(eid) {
   const scale = RenderComp.scale[eid];
   return scale > 0 ? scale : 1;
 }
-const characterQuery$9 = defineQuery([ObjectComp, PositionComp, RenderComp]);
-const characterExitQuery$2 = exitQuery(characterQuery$9);
+const characterQuery$8 = defineQuery([ObjectComp, PositionComp, RenderComp]);
+const characterExitQuery$1 = exitQuery(characterQuery$8);
 const labelStore = /* @__PURE__ */ new Map();
 const NAME_LABEL_STYLE = new TextStyle({
   fontFamily: [...NAME_LABEL_FONT_FAMILIES],
@@ -30010,13 +29971,13 @@ const LABEL_Z_INDEX_OFFSET = 1e3;
 function characterNameLabelSystem(params) {
   var _a;
   const { world } = params;
-  const exitedEntities = characterExitQuery$2(world);
+  const exitedEntities = characterExitQuery$1(world);
   for (let i2 = 0; i2 < exitedEntities.length; i2++) {
     removeCharacterNameLabel(exitedEntities[i2]);
   }
   const rawName = (_a = world.getInMemoryData().world_metadata.monster_name) == null ? void 0 : _a.trim();
   const displayName = rawName ? truncateDisplayName(rawName) : "";
-  const entities = characterQuery$9(world);
+  const entities = characterQuery$8(world);
   for (let i2 = 0; i2 < entities.length; i2++) {
     const eid = entities[i2];
     if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
@@ -30084,76 +30045,18 @@ function updateCharacterNameLabel(label, eid) {
 function truncateDisplayName(name) {
   return truncateNameLabelToWidth(name);
 }
-const characterQuery$8 = defineQuery([ObjectComp, PositionComp, RenderComp]);
-const characterExitQuery$1 = exitQuery(characterQuery$8);
+defineQuery([ObjectComp, PositionComp, RenderComp]);
 const overlayStore = /* @__PURE__ */ new Map();
-const LAYOUT_STROKE_COLOR = 58879;
-const LAYOUT_FILL_COLOR = 58879;
-const LAYOUT_FILL_ALPHA = 0.12;
-const LAYOUT_STROKE_WIDTH = 1;
-const LAYOUT_Z_INDEX_OFFSET = 1;
 function characterLayoutDebugSystem(params) {
-  const { world, stage } = params;
-  if (!stage || false) {
+  {
     cleanupCharacterLayoutDebug();
     return params;
   }
-  const exitedEntities = characterExitQuery$1(world);
-  for (let i2 = 0; i2 < exitedEntities.length; i2++) {
-    removeOverlay(exitedEntities[i2]);
-  }
-  const entities = characterQuery$8(world);
-  const activeCharacterEids = /* @__PURE__ */ new Set();
-  for (let i2 = 0; i2 < entities.length; i2++) {
-    const eid = entities[i2];
-    if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
-      removeOverlay(eid);
-      continue;
-    }
-    const displayObject = getCharacterDisplayObject(eid);
-    if (!displayObject) {
-      removeOverlay(eid);
-      continue;
-    }
-    const bounds = getCharacterWorldBounds(eid);
-    if (bounds.width <= 0 || bounds.height <= 0) {
-      removeOverlay(eid);
-      continue;
-    }
-    const overlay = getOrCreateOverlay(eid, stage);
-    activeCharacterEids.add(eid);
-    overlay.clear();
-    overlay.rect(bounds.leftX, bounds.topY, bounds.width, bounds.height).fill({ color: LAYOUT_FILL_COLOR, alpha: LAYOUT_FILL_ALPHA }).stroke({ color: LAYOUT_STROKE_COLOR, width: LAYOUT_STROKE_WIDTH });
-    const y2 = PositionComp.y[eid];
-    const configuredZIndex = RenderComp.zIndex[eid];
-    const effectiveZIndex = configuredZIndex === 0 ? y2 : configuredZIndex;
-    overlay.zIndex = effectiveZIndex + LAYOUT_Z_INDEX_OFFSET;
-    overlay.visible = true;
-  }
-  const trackedEids = Array.from(overlayStore.keys());
-  for (let i2 = 0; i2 < trackedEids.length; i2++) {
-    const eid = trackedEids[i2];
-    if (!activeCharacterEids.has(eid)) {
-      removeOverlay(eid);
-    }
-  }
-  return params;
 }
 function cleanupCharacterLayoutDebug(_stage) {
   overlayStore.forEach((_, eid) => {
     removeOverlay(eid);
   });
-}
-function getOrCreateOverlay(eid, stage) {
-  const existingOverlay = overlayStore.get(eid);
-  if (existingOverlay) {
-    return existingOverlay;
-  }
-  const overlay = new Graphics();
-  overlay.eventMode = "none";
-  stage.addChild(overlay);
-  overlayStore.set(eid, overlay);
-  return overlay;
 }
 function removeOverlay(eid) {
   const overlay = overlayStore.get(eid);
@@ -31193,8 +31096,7 @@ function moveTowardsTarget(world, eid, _delta) {
   let baseSpeed = 0;
   const characterKey = CharacterStatusComp.characterKey[eid];
   if (characterKey > 0) {
-    const characterStats = getCharacterStats(characterKey);
-    baseSpeed = characterStats.speed;
+    baseSpeed = getCharacterMovementSpeedForEntity(eid);
   } else {
     baseSpeed = 0.03;
   }
@@ -31479,11 +31381,10 @@ function moveToFood(world, characterEid, foodEid) {
     addComponent(world, SpeedComp, characterEid);
   }
   if (!SpeedComp.value[characterEid] || SpeedComp.value[characterEid] <= 0) {
-    const characterKey = CharacterStatusComp.characterKey[characterEid];
-    const characterStats = getCharacterStats(characterKey);
-    SpeedComp.value[characterEid] = characterStats.speed;
+    const movementSpeed = getCharacterMovementSpeedForEntity(characterEid);
+    SpeedComp.value[characterEid] = movementSpeed;
     console.log(
-      `[FoodEatingSystem] Set character ${characterEid} speed to ${characterStats.speed} based on character type`
+      `[FoodEatingSystem] Set character ${characterEid} speed to ${movementSpeed} based on character state`
     );
   }
   ObjectComp.state[characterEid] = CharacterState.MOVING;
@@ -35463,25 +35364,15 @@ function handleNightWakeChecks(world, eid, currentTime, currentTimeOfDay) {
   ensureNightWakeCheckTime(eid, currentTime);
   while (currentTime >= SleepSystemComp.nextNightWakeCheckTime[eid]) {
     SleepSystemComp.nextNightWakeCheckTime[eid] += GAME_CONSTANTS.NIGHT_WAKE_CHECK_INTERVAL;
-    const fatigue = SleepSystemComp.fatigue[eid];
+    SleepSystemComp.fatigue[eid];
     const baseChance = GAME_CONSTANTS.NIGHT_WAKE_CHANCE;
     const appliedChance = baseChance;
     const roll = Math.random();
     const shouldWake = roll < appliedChance;
     logSleepCheck(world, "Night wake check", {
-      eid,
-      timeOfDay: currentTimeOfDay,
       sleepMode: SleepSystemComp.sleepMode[eid],
-      fatigue: roundForLog(fatigue),
       fatigueMax: GAME_CONSTANTS.FATIGUE_MAX,
-      checkIntervalMs: GAME_CONSTANTS.NIGHT_WAKE_CHECK_INTERVAL,
-      baseChance,
-      baseChancePercent: toPercent(baseChance),
-      appliedChance,
-      appliedChancePercent: toPercent(appliedChance),
-      roll,
-      rollPercent: toPercent(roll),
-      result: shouldWake ? "wake" : "keep_sleeping"
+      checkIntervalMs: GAME_CONSTANTS.NIGHT_WAKE_CHECK_INTERVAL
     });
     if (shouldWake) {
       SleepSystemComp.pendingWakeReason[eid] = SleepReason.NIGHT_INTERRUPT;
@@ -35519,32 +35410,19 @@ function handleDayNapChecks(world, eid, currentTime, currentTimeOfDay) {
   while (currentTime >= SleepSystemComp.nextNapCheckTime[eid]) {
     SleepSystemComp.nextNapCheckTime[eid] += GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL;
     const fatigue = SleepSystemComp.fatigue[eid];
-    const fatigueRatio = clamp(
+    clamp(
       fatigue / GAME_CONSTANTS.FATIGUE_MAX,
       0,
       1
     );
-    const fatigueMultiplier = 0.5 + fatigueRatio;
-    const baseChance = GAME_CONSTANTS.DAY_NAP_CHANCE;
+    GAME_CONSTANTS.DAY_NAP_CHANCE;
     const appliedChance = getDayNapChance(eid);
     const roll = Math.random();
     const shouldNap = roll < appliedChance;
     logSleepCheck(world, "Day nap check", {
-      eid,
-      timeOfDay: currentTimeOfDay,
-      fatigue: roundForLog(fatigue),
       fatigueThreshold: GAME_CONSTANTS.FATIGUE_DAY_NAP_MIN_THRESHOLD,
       fatigueMax: GAME_CONSTANTS.FATIGUE_MAX,
-      fatigueRatio: roundForLog(fatigueRatio),
-      fatigueMultiplier: roundForLog(fatigueMultiplier),
-      checkIntervalMs: GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL,
-      baseChance,
-      baseChancePercent: toPercent(baseChance),
-      appliedChance,
-      appliedChancePercent: toPercent(appliedChance),
-      roll,
-      rollPercent: toPercent(roll),
-      result: shouldNap ? "nap" : "stay_awake"
+      checkIntervalMs: GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL
     });
     if (shouldNap) {
       SleepSystemComp.nextSleepTime[eid] = currentTime;
@@ -35736,20 +35614,9 @@ function restoreRandomMovementIfNeeded(world, eid, currentTime) {
   RandomMovementComp.nextChange[eid] = currentTime + 1e3;
 }
 function logSleepCheck(world, event, payload) {
-  if (!shouldLogSleepChecks(world)) {
+  {
     return;
   }
-  console.log(`[SleepScheduleSystem] ${event}`, payload);
-}
-function shouldLogSleepChecks(world) {
-  return !world.isSimulationMode;
-}
-function toPercent(value) {
-  return roundForLog(value * 100, 2);
-}
-function roundForLog(value, digits = 3) {
-  const multiplier = 10 ** digits;
-  return Math.round(value * multiplier) / multiplier;
 }
 const TEMPORARY_STATUS_DURATION = 3e3;
 const characterQuery$1 = defineQuery([ObjectComp, CharacterStatusComp]);
@@ -37224,30 +37091,8 @@ const _MainSceneWorld = class _MainSceneWorld {
             this._updateControlButtonsForMenuState(focusedIndex !== null);
           }
         });
-        if (this._debugParentElement) {
-          this._debugGaugeUI = new HTMLDebugGaugeUI(
-            this,
-            this._debugParentElement,
-            {
-              initiallyVisible: true
-            }
-          );
-          this._addDebugGaugeEventListener();
-        }
-        if (this._debugParentElement) {
-          this._debugGameConstantsUI = new HTMLDebugGameConstantsUI(
-            this._debugParentElement
-          );
-          this._debugStatusUI = new HTMLDebugStatusUI(
-            this,
-            this._debugParentElement
-          );
-          this._debugToggleButton = new HTMLDebugToggleButton(() => {
-            var _a2, _b2;
-            (_a2 = this._debugStatusUI) == null ? void 0 : _a2.toggle();
-            return ((_b2 = this._debugStatusUI) == null ? void 0 : _b2.isDebugVisible()) ?? false;
-          }, this._debugParentElement);
-        }
+        if (false) ;
+        if (false) ;
       }
       this._setupVisibilityChangeHandler();
       await this._processReentrySimulation();
@@ -37827,6 +37672,10 @@ const _MainSceneWorld = class _MainSceneWorld {
     };
   }
   async _initializeSunTimes() {
+    console.log("[MainSceneWorld] Initial sun times refresh requested", {
+      promptForPermission: true,
+      hasCachedSunTimes: !!this._sunTimes
+    });
     await this._refreshSunTimes(true);
   }
   async _refreshSunTimes(promptForPermission) {
@@ -37835,6 +37684,13 @@ const _MainSceneWorld = class _MainSceneWorld {
       return;
     }
     this._sunTimesRefreshPromise = (async () => {
+      var _a;
+      console.log("[MainSceneWorld] Refreshing sun times", {
+        promptForPermission,
+        currentDate: ((_a = this._sunTimes) == null ? void 0 : _a.date) ?? null,
+        locationSource: this._sunLocationSource,
+        hasLocationPermission: this._hasLocationPermission
+      });
       const sunTimes = await getNativeSunTimes(promptForPermission);
       if (!sunTimes) {
         console.warn(
@@ -37857,9 +37713,14 @@ const _MainSceneWorld = class _MainSceneWorld {
       }
       this._autoTimeOfDayMinuteKey = null;
       this._updateAutoTimeOfDayIfNeeded(true);
-      console.log(
-        `[MainSceneWorld] Sun times loaded (${sunTimes.locationSource}, permission=${sunTimes.hasLocationPermission})`
-      );
+      console.log("[MainSceneWorld] Sun times updated", {
+        promptForPermission,
+        date: sunTimes.date,
+        locationSource: sunTimes.locationSource,
+        hasLocationPermission: sunTimes.hasLocationPermission,
+        sunriseAt: sunTimes.sunriseAt,
+        sunsetAt: sunTimes.sunsetAt
+      });
     })();
     try {
       await this._sunTimesRefreshPromise;
@@ -37873,6 +37734,12 @@ const _MainSceneWorld = class _MainSceneWorld {
     }
     const now = new Date(this.currentTime);
     if (!this.isSimulationMode && hasSunTimesDateRolledOver(now, this._sunTimes)) {
+      console.log("[MainSceneWorld] Sun times date rolled over; refreshing", {
+        previousDate: this._sunTimes.date,
+        currentDate: now.toISOString().slice(0, 10),
+        locationSource: this._sunLocationSource,
+        hasLocationPermission: this._hasLocationPermission
+      });
       void this._refreshSunTimes(false);
       return;
     }
@@ -37976,6 +37843,13 @@ const _MainSceneWorld = class _MainSceneWorld {
     );
     this._timeOfDay = this._autoTimeOfDayState.timeOfDay;
     this._applyCurrentSkyState();
+    console.log("[MainSceneWorld] Applied cached sun times", {
+      date: cachedSunTimes.date,
+      locationSource: cachedSunTimes.locationSource,
+      hasLocationPermission: cachedSunTimes.hasLocationPermission,
+      sunriseAt: cachedSunTimes.sunriseAt,
+      sunsetAt: cachedSunTimes.sunsetAt
+    });
     return true;
   }
   _getCachedSunTimes() {
@@ -38027,8 +37901,29 @@ const _MainSceneWorld = class _MainSceneWorld {
     if (!this._sunTimes || this._hasLocationPermission) {
       return;
     }
+    console.log(
+      "[MainSceneWorld] Requesting location permission after character creation",
+      {
+        date: this._sunTimes.date,
+        locationSource: this._sunLocationSource,
+        hasLocationPermission: this._hasLocationPermission,
+        sunriseAt: this._sunTimes.sunriseAt,
+        sunsetAt: this._sunTimes.sunsetAt
+      }
+    );
     void (async () => {
+      var _a;
       const granted = await requestNativeLocationPermission();
+      console.log(
+        "[MainSceneWorld] Character creation location permission result",
+        {
+          granted,
+          willRefreshSunTimes: granted,
+          date: ((_a = this._sunTimes) == null ? void 0 : _a.date) ?? null,
+          locationSource: this._sunLocationSource,
+          hasLocationPermission: this._hasLocationPermission
+        }
+      );
       if (!granted) {
         return;
       }
@@ -44961,6 +44856,7 @@ class Game {
       this.start();
     } catch (error) {
       console.error("[Game] 초기화 오류:", error);
+      throw error;
     }
   }
   start() {
@@ -45231,7 +45127,6 @@ class Game {
         to: key,
         state: "failed"
       });
-      this.showAlert("Scene transition failed.", "Error");
       return false;
     }
   }
@@ -45339,6 +45234,7 @@ class SliderController {
     __publicField(this, "options");
     __publicField(this, "isDragging", false);
     __publicField(this, "currentValue");
+    __publicField(this, "activePointerId", null);
     // 포인터 다운 위치 오프셋 저장 변수
     __publicField(this, "pointerOffsetX", Number.NaN);
     __publicField(this, "startValue", Number.NaN);
@@ -45372,6 +45268,7 @@ class SliderController {
   handlePointerDown(e2) {
     e2.preventDefault();
     this.element.setPointerCapture(e2.pointerId);
+    this.activePointerId = e2.pointerId;
     this.pointerOffsetX = e2.pageX;
     this.startValue = this.currentValue;
     this.isDragging = true;
@@ -45396,6 +45293,7 @@ class SliderController {
     if (this.element.hasPointerCapture(e2.pointerId)) {
       this.element.releasePointerCapture(e2.pointerId);
     }
+    this.activePointerId = null;
     this.isDragging = false;
     this.options.onDragEnd();
     document.removeEventListener("pointermove", this.boundPointerMove);
@@ -45446,6 +45344,11 @@ class SliderController {
    * SliderController 정리: 이벤트 리스너 제거
    */
   dispose() {
+    if (this.activePointerId !== null && this.element.hasPointerCapture(this.activePointerId)) {
+      this.element.releasePointerCapture(this.activePointerId);
+    }
+    this.activePointerId = null;
+    this.isDragging = false;
     this.element.removeEventListener("pointerdown", this.boundPointerDown);
     document.removeEventListener("pointermove", this.boundPointerMove);
     document.removeEventListener("pointerup", this.boundPointerUp);
@@ -45637,6 +45540,11 @@ const ControlButton = ({
   const lastSliderDragValueRef = reactExports.useRef(initialSliderValue);
   const accumulatedDragDistanceRef = reactExports.useRef(0);
   const lastDragDirectionRef = reactExports.useRef(0);
+  const hasCleaningTargetRef = reactExports.useRef(hasCleaningTarget);
+  const onSliderChangeRef = reactExports.useRef(onSliderChange);
+  const onSliderEndRef = reactExports.useRef(onSliderEnd);
+  const vibrationStepValueRef = reactExports.useRef(0);
+  const isDraggingRef = reactExports.useRef(false);
   const isSlider = type === ControlButtonType.Clean && !!sliderWidth;
   const sliderTrackWidth = sliderWidth ? Math.max(
     0,
@@ -45647,16 +45555,23 @@ const ControlButton = ({
     SLIDER_DRAG_VIBRATION_STEP_PX / Math.max(1, sliderTrackWidth)
   );
   reactExports.useEffect(() => {
+    hasCleaningTargetRef.current = hasCleaningTarget;
+    onSliderChangeRef.current = onSliderChange;
+    onSliderEndRef.current = onSliderEnd;
+    vibrationStepValueRef.current = vibrationStepValue;
+  }, [hasCleaningTarget, onSliderChange, onSliderEnd, vibrationStepValue]);
+  reactExports.useEffect(() => {
     if (isSlider && sliderRef.current) {
       const controller = new SliderController(sliderRef.current, {
         initialValue: initialSliderValue,
         thumbWidth: SLIDER_THUMB_SIZE,
         rangeMultiplier: SLIDER_INPUT_RANGE_MULTIPLIER,
         onChange: (value) => {
+          var _a;
           const signedDelta = value - lastSliderDragValueRef.current;
           const delta = Math.abs(signedDelta);
           const dragDirection = signedDelta > SLIDER_DIRECTION_CHANGE_THRESHOLD ? 1 : signedDelta < -8e-3 ? -1 : 0;
-          if (hasCleaningTarget && dragDirection !== 0 && lastDragDirectionRef.current !== 0 && dragDirection !== lastDragDirectionRef.current) {
+          if (hasCleaningTargetRef.current && dragDirection !== 0 && lastDragDirectionRef.current !== 0 && dragDirection !== lastDragDirectionRef.current) {
             void vibrationAdapter$1.vibrate(
               SLIDER_DIRECTION_CHANGE_VIBRATION_DURATION,
               SLIDER_DIRECTION_CHANGE_VIBRATION_STRENGTH
@@ -45668,46 +45583,46 @@ const ControlButton = ({
           accumulatedDragDistanceRef.current += delta;
           lastSliderDragValueRef.current = value;
           currentSliderValueRef.current = value;
-          if (hasCleaningTarget && accumulatedDragDistanceRef.current >= vibrationStepValue) {
-            accumulatedDragDistanceRef.current %= vibrationStepValue;
+          if (hasCleaningTargetRef.current && accumulatedDragDistanceRef.current >= vibrationStepValueRef.current) {
+            accumulatedDragDistanceRef.current %= vibrationStepValueRef.current;
             void vibrationAdapter$1.vibrate(
               SLIDER_DRAG_VIBRATION_DURATION,
               SLIDER_DRAG_VIBRATION_STRENGTH
             );
           }
           setCurrentSliderValue(value);
-          onSliderChange == null ? void 0 : onSliderChange(value);
+          (_a = onSliderChangeRef.current) == null ? void 0 : _a.call(onSliderChangeRef, value);
         },
         onDragStart: () => {
+          isDraggingRef.current = true;
           lastSliderDragValueRef.current = currentSliderValueRef.current;
           accumulatedDragDistanceRef.current = 0;
           lastDragDirectionRef.current = 0;
           setIsPressed(true);
         },
         onDragEnd: () => {
+          var _a;
+          isDraggingRef.current = false;
           accumulatedDragDistanceRef.current = 0;
           lastDragDirectionRef.current = 0;
           setIsPressed(false);
-          onSliderEnd == null ? void 0 : onSliderEnd();
+          (_a = onSliderEndRef.current) == null ? void 0 : _a.call(onSliderEndRef);
           vibrationAdapter$1.vibrate();
         }
       });
       sliderControllerRef.current = controller;
       return () => {
+        isDraggingRef.current = false;
         controller.dispose();
         sliderControllerRef.current = null;
       };
     }
-  }, [
-    hasCleaningTarget,
-    initialSliderValue,
-    isSlider,
-    onSliderChange,
-    onSliderEnd,
-    vibrationStepValue
-  ]);
+  }, [isSlider]);
   reactExports.useEffect(() => {
     var _a;
+    if (isDraggingRef.current) {
+      return;
+    }
     setCurrentSliderValue(initialSliderValue);
     currentSliderValueRef.current = initialSliderValue;
     lastSliderDragValueRef.current = initialSliderValue;
@@ -45748,14 +45663,14 @@ const ControlButton = ({
     const baseTrackWidth = Math.max(0, sliderWidth - size);
     const trackWidth = sliderTrackWidth;
     const extraTrackOffset = (trackWidth - baseTrackWidth) / 2;
-    return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+    return /* @__PURE__ */ jsxRuntimeExports.jsxs(
       "div",
       {
         className: "relative flex justify-center overflow-visible",
         style: { width: `${sliderWidth}px`, height: `${size}px` },
         ref: sliderRef,
         children: [
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
             {
               className: "absolute top-1/2 -translate-y-1/2 h-4 bg-gray-700 bg-opacity-50 rounded-full",
@@ -45763,61 +45678,29 @@ const ControlButton = ({
                 left: `${trackInset - extraTrackOffset}px`,
                 width: `${trackWidth}px`
               }
-            },
-            void 0,
-            false,
-            {
-              fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/ControlButton.tsx",
-              lineNumber: 248,
-              columnNumber: 9
-            },
-            void 0
+            }
           ),
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
             {
               className: "absolute top-0 left-0 h-full",
               style: {
                 transform: `translateX(${currentSliderValue * trackWidth - extraTrackOffset}px)`
               },
-              children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+              children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "div",
                 {
                   style: buttonStyle,
                   className: "bg-no-repeat border-none bg-transparent p-0 outline-none select-none [-webkit-tap-highlight-color:transparent] scale-[1.4]"
-                },
-                void 0,
-                false,
-                {
-                  fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/ControlButton.tsx",
-                  lineNumber: 261,
-                  columnNumber: 11
-                },
-                void 0
+                }
               )
-            },
-            void 0,
-            false,
-            {
-              fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/ControlButton.tsx",
-              lineNumber: 255,
-              columnNumber: 9
-            },
-            void 0
+            }
           )
         ]
-      },
-      void 0,
-      true,
-      {
-        fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/ControlButton.tsx",
-        lineNumber: 243,
-        columnNumber: 7
-      },
-      void 0
+      }
     );
   }
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(
     "button",
     {
       type: "button",
@@ -45826,24 +45709,12 @@ const ControlButton = ({
       onPointerUp: handlePointerUp,
       onPointerLeave: handlePointerLeave,
       className: `bg-no-repeat border-none bg-transparent p-0 outline-none select-none [-webkit-tap-highlight-color:transparent] scale-[1.4] ${className || ""}`
-    },
-    void 0,
-    false,
-    {
-      fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/ControlButton.tsx",
-      lineNumber: 272,
-      columnNumber: 5
-    },
-    void 0
+    }
   );
 };
 const ControlButtonsContainer = ({
   children
-}) => /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "w-4/5 max-w-[300px] flex justify-between mx-auto", children }, void 0, false, {
-  fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-  lineNumber: 16,
-  columnNumber: 3
-}, void 0);
+}) => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-4/5 max-w-[300px] flex justify-between mx-auto", children });
 const ControlButtons = ({
   buttonParams,
   onButtonPress,
@@ -45871,27 +45742,15 @@ const ControlButtons = ({
     }
   }, [buttonTypes[0], buttonTypes[1], buttonTypes[2], shouldRenderSlider]);
   if (shouldRenderSlider && sliderWidth) {
-    return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ControlButtonsContainer, { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { ref: containerRef, className: "flex justify-between w-full", children: [
-      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "shrink-0 ", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+    return /* @__PURE__ */ jsxRuntimeExports.jsx(ControlButtonsContainer, { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { ref: containerRef, className: "flex justify-between w-full", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "shrink-0 ", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
         ControlButton,
         {
           type: buttonParams[0].type,
           onClick: () => onButtonPress(buttonParams[0].type)
-        },
-        void 0,
-        false,
-        {
-          fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-          lineNumber: 67,
-          columnNumber: 13
-        },
-        void 0
-      ) }, void 0, false, {
-        fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-        lineNumber: 66,
-        columnNumber: 11
-      }, void 0),
-      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { ref: secondButtonRef, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+        }
+      ) }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: secondButtonRef, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
         ControlButton,
         {
           type: ControlButtonType.Clean,
@@ -45902,92 +45761,33 @@ const ControlButtons = ({
           onSliderEnd,
           onClick: () => onButtonPress(buttonParams[1].type)
         },
-        (cleanButtonParam == null ? void 0 : cleanButtonParam.sliderSessionKey) ?? "clean-slider",
-        false,
-        {
-          fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-          lineNumber: 74,
-          columnNumber: 13
-        },
-        void 0
-      ) }, void 0, false, {
-        fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-        lineNumber: 73,
-        columnNumber: 11
-      }, void 0)
-    ] }, void 0, true, {
-      fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-      lineNumber: 64,
-      columnNumber: 9
-    }, void 0) }, void 0, false, {
-      fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-      lineNumber: 63,
-      columnNumber: 7
-    }, void 0);
+        (cleanButtonParam == null ? void 0 : cleanButtonParam.sliderSessionKey) ?? "clean-slider"
+      ) })
+    ] }) });
   }
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ControlButtonsContainer, { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { ref: containerRef, className: "flex justify-between w-full", children: [
-    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(ControlButtonsContainer, { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { ref: containerRef, className: "flex justify-between w-full", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx(
       ControlButton,
       {
         type: buttonParams[0].type,
         onClick: () => onButtonPress(buttonParams[0].type)
-      },
-      void 0,
-      false,
-      {
-        fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-        lineNumber: 94,
-        columnNumber: 9
-      },
-      void 0
+      }
     ),
-    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { ref: secondButtonRef, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: secondButtonRef, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
       ControlButton,
       {
         type: buttonParams[1].type,
         onClick: () => onButtonPress(buttonParams[1].type)
-      },
-      void 0,
-      false,
-      {
-        fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-        lineNumber: 99,
-        columnNumber: 11
-      },
-      void 0
-    ) }, void 0, false, {
-      fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-      lineNumber: 98,
-      columnNumber: 9
-    }, void 0),
-    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { ref: thirdButtonRef, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+      }
+    ) }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: thirdButtonRef, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
       ControlButton,
       {
         type: buttonParams[2].type,
         onClick: () => onButtonPress(buttonParams[2].type)
-      },
-      void 0,
-      false,
-      {
-        fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-        lineNumber: 105,
-        columnNumber: 11
-      },
-      void 0
-    ) }, void 0, false, {
-      fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-      lineNumber: 104,
-      columnNumber: 9
-    }, void 0)
-  ] }, void 0, true, {
-    fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-    lineNumber: 93,
-    columnNumber: 7
-  }, void 0) }, void 0, false, {
-    fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-    lineNumber: 92,
-    columnNumber: 5
-  }, void 0);
+      }
+    ) })
+  ] }) });
 };
 function createClientStorage() {
   if (hasNativeStorageController()) {
@@ -46819,12 +46619,12 @@ const PopupLayer = ({
     }
     onCancel == null ? void 0 : onCancel();
   }, [onCancel]);
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(
     "div",
     {
       className: "flex w-full justify-center px-4 text-black",
       ...layerInteractionVibrationProps,
-      children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+      children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
         "div",
         {
           ref: containerRef,
@@ -46835,18 +46635,10 @@ const PopupLayer = ({
           },
           className: "relative w-full max-w-[22rem] overflow-y-auto border-4 border-[#222] bg-layer-bg p-5 text-center shadow-[0_4px_0_#222,0_-4px_0_#222,4px_0_0_#222,-4px_0_0_#222,4px_4px_0_#222,-4px_4px_0_#222,4px_-4px_0_#222,-4px_-4px_0_#222] focus:outline-none",
           children: [
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-xl text-component-negative font-bold mb-[15px] pb-[10px] border-b-4 border-[#222]", children: title }, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
-              lineNumber: 427,
-              columnNumber: 9
-            }, void 0),
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "mb-5 leading-[1.6] text-base", children: content }, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
-              lineNumber: 430,
-              columnNumber: 9
-            }, void 0),
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex justify-center gap-[15px]", children: [
-              onCancel && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-xl text-component-negative font-bold mb-[15px] pb-[10px] border-b-4 border-[#222]", children: title }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "mb-5 leading-[1.6] text-base", children: content }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex justify-center gap-[15px]", children: [
+              onCancel && /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "button",
                 {
                   ref: cancelButtonRef,
@@ -46854,17 +46646,9 @@ const PopupLayer = ({
                   onClick: handleCancelClick,
                   className: "text-base bg-component-negative text-white border-2 border-[#222] p-[10px_15px] cursor-pointer uppercase shadow-[2px_2px_0_#222] relative top-0 left-0 transition-all duration-50",
                   children: cancelText
-                },
-                void 0,
-                false,
-                {
-                  fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
-                  lineNumber: 433,
-                  columnNumber: 13
-                },
-                void 0
+                }
               ),
-              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "button",
                 {
                   ref: confirmButtonRef,
@@ -46872,41 +46656,13 @@ const PopupLayer = ({
                   onClick: handleConfirmClick,
                   className: "text-base bg-component-positive text-white border-2 border-[#222] p-[10px_15px]  cursor-pointer uppercase shadow-[2px_2px_0_#222]",
                   children: confirmText
-                },
-                void 0,
-                false,
-                {
-                  fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
-                  lineNumber: 442,
-                  columnNumber: 11
-                },
-                void 0
+                }
               )
-            ] }, void 0, true, {
-              fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
-              lineNumber: 431,
-              columnNumber: 9
-            }, void 0)
+            ] })
           ]
-        },
-        void 0,
-        true,
-        {
-          fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
-          lineNumber: 412,
-          columnNumber: 7
-        },
-        void 0
+        }
       )
-    },
-    void 0,
-    false,
-    {
-      fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
-      lineNumber: 408,
-      columnNumber: 5
-    },
-    void 0
+    }
   );
 };
 var reactDomExports = requireReactDom();
@@ -46914,40 +46670,12 @@ const MIN_NAME_LENGTH = 2;
 const SetupLayer = ({ onComplete }) => {
   const [name, setName] = reactExports.useState("");
   const [error, setError] = reactExports.useState(null);
-  const [isRequestingLocationPermission, setIsRequestingLocationPermission] = reactExports.useState(false);
   const nameInputRef = reactExports.useRef(null);
   const trimmedName = name.trim();
   const nameLength = countDisplayCharacters(trimmedName);
   const nameWidth = measureNameLabelWidth(trimmedName);
   const isWithinVisibleWidth = fitsNameLabelWidth(trimmedName);
-  const loadSunTimesForLocalTime = reactExports.useCallback(async () => {
-    if (typeof window === "undefined" || !window.sunController) {
-      return null;
-    }
-    setIsRequestingLocationPermission(true);
-    try {
-      const sunTimes = await window.sunController.getSunTimes(true);
-      if (sunTimes == null ? void 0 : sunTimes.hasLocationPermission) {
-        return sunTimes;
-      }
-      setError("Location permission is required to create your monster.");
-      return null;
-    } catch (permissionRequestError) {
-      console.warn(
-        "[SetupLayer] Failed to load local day/night time:",
-        permissionRequestError
-      );
-      setError("Failed to load local day/night time.");
-      return null;
-    } finally {
-      setIsRequestingLocationPermission(false);
-    }
-  }, []);
-  const handleConfirm = async () => {
-    if (isRequestingLocationPermission) {
-      setError("Please wait for the location permission request to finish.");
-      return;
-    }
+  const handleConfirm = () => {
     if (!trimmedName) {
       setError("Please enter a name.");
       return;
@@ -46965,103 +46693,51 @@ const SetupLayer = ({ onComplete }) => {
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
     }
-    const canLoadNativeSunTimes = typeof window !== "undefined" && !!window.sunController;
-    const sunTimes = canLoadNativeSunTimes ? await loadSunTimesForLocalTime() : null;
-    if (canLoadNativeSunTimes && !sunTimes) {
-      return;
-    }
     onComplete({
       name: trimmedName,
       useLocalTime: true,
-      cachedSunTimes: sunTimes
+      cachedSunTimes: null
     });
   };
-  const overlay = /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "fixed inset-0 z-[999] flex min-h-dvh items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+  const overlay = /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 z-[999] flex min-h-dvh items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
     PopupLayer,
     {
       title: "Spawn Monster!",
       keyboardAwareTargetRef: nameInputRef,
-      content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex flex-col items-center gap-4", children: [
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "w-full", children: [
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
-            "input",
-            {
-              ref: nameInputRef,
-              type: "text",
-              value: name,
-              onChange: (e2) => {
-                setName(e2.target.value);
-                setError(null);
-              },
-              placeholder: "Monster Name",
-              className: "w-full px-3 py-2 text-center border-2 border-[#222] text-xs focus:outline-none focus:ring-2 focus:ring-[#d95763]"
+      content: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex flex-col items-center gap-4", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "w-full", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "input",
+          {
+            ref: nameInputRef,
+            type: "text",
+            value: name,
+            onChange: (e2) => {
+              setName(e2.target.value);
+              setError(null);
             },
-            void 0,
-            false,
-            {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-              lineNumber: 117,
-              columnNumber: 15
-            },
-            void 0
-          ),
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
-            "div",
-            {
-              className: `mt-4 text-xs ${isWithinVisibleWidth ? "text-gray-600" : "text-red-600"}`,
-              children: [
-                "Name width: ",
-                Math.round(nameWidth),
-                "/",
-                NAME_LABEL_MAX_WIDTH,
-                "px"
-              ]
-            },
-            void 0,
-            true,
-            {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-              lineNumber: 128,
-              columnNumber: 15
-            },
-            void 0
-          ),
-          error && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("p", { className: "mt-4 text-component-negative text-[0.7em]", children: error }, void 0, false, {
-            fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-            lineNumber: 136,
-            columnNumber: 17
-          }, void 0)
-        ] }, void 0, true, {
-          fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-          lineNumber: 116,
-          columnNumber: 13
-        }, void 0),
-        isRequestingLocationPermission && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("p", { className: "text-xs text-gray-600", children: "Preparing local day/night time..." }, void 0, false, {
-          fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-          lineNumber: 142,
-          columnNumber: 15
-        }, void 0)
-      ] }, void 0, true, {
-        fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-        lineNumber: 115,
-        columnNumber: 11
-      }, void 0),
+            placeholder: "Monster Name",
+            className: "w-full px-3 py-2 text-center border-2 border-[#222] text-xs focus:outline-none focus:ring-2 focus:ring-[#d95763]"
+          }
+        ),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs(
+          "div",
+          {
+            className: `mt-4 text-xs ${isWithinVisibleWidth ? "text-gray-600" : "text-red-600"}`,
+            children: [
+              "Name width: ",
+              Math.round(nameWidth),
+              "/",
+              NAME_LABEL_MAX_WIDTH,
+              "px"
+            ]
+          }
+        ),
+        error && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "mt-4 text-component-negative text-[0.7em]", children: error })
+      ] }) }),
       onConfirm: handleConfirm,
       confirmText: "Start"
-    },
-    void 0,
-    false,
-    {
-      fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-      lineNumber: 111,
-      columnNumber: 7
-    },
-    void 0
-  ) }, void 0, false, {
-    fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-    lineNumber: 110,
-    columnNumber: 5
-  }, void 0);
+    }
+  ) });
   if (typeof document === "undefined") {
     return overlay;
   }
@@ -47072,58 +46748,30 @@ const AlertLayer = ({
   message,
   onClose
 }) => {
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+  return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
     PopupLayer,
     {
       title,
-      content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex flex-col items-center gap-4", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("p", { className: "text-base", children: message }, void 0, false, {
-        fileName: "/Users/neiz/digivice/apps/client/src/layers/AlertLayer.tsx",
-        lineNumber: 21,
-        columnNumber: 13
-      }, void 0) }, void 0, false, {
-        fileName: "/Users/neiz/digivice/apps/client/src/layers/AlertLayer.tsx",
-        lineNumber: 20,
-        columnNumber: 11
-      }, void 0),
+      content: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex flex-col items-center gap-4", children: /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-base", children: message }) }),
       onConfirm: onClose,
       confirmText: "Confirm"
-    },
-    void 0,
-    false,
-    {
-      fileName: "/Users/neiz/digivice/apps/client/src/layers/AlertLayer.tsx",
-      lineNumber: 17,
-      columnNumber: 7
-    },
-    void 0
-  ) }, void 0, false, {
-    fileName: "/Users/neiz/digivice/apps/client/src/layers/AlertLayer.tsx",
-    lineNumber: 16,
-    columnNumber: 5
-  }, void 0);
+    }
+  ) });
 };
 const ToggleButton = ({ enabled, onClick }) => {
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(
     "button",
     {
       type: "button",
       onClick,
       className: `min-w-20 border-2 border-[#222] px-4 py-2 text-sm font-bold text-white ${enabled ? "bg-component-positive" : "bg-gray-400"}`,
       children: enabled ? "ON" : "OFF"
-    },
-    void 0,
-    false,
-    {
-      fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-      lineNumber: 22,
-      columnNumber: 5
-    },
-    void 0
+    }
   );
 };
 const ActionButton = ({ text, onClick, disabled = false, variant = "positive" }) => {
   const backgroundClass = disabled ? "cursor-wait bg-gray-400 opacity-60" : variant === "warning" ? "bg-yellow-500" : variant === "negative" ? "bg-component-negative" : "bg-component-positive";
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(
     "button",
     {
       type: "button",
@@ -47131,15 +46779,7 @@ const ActionButton = ({ text, onClick, disabled = false, variant = "positive" })
       onClick,
       className: `flex min-w-20 items-center justify-center border-2 border-[#222] px-4 py-2 text-center text-sm font-bold text-white ${backgroundClass}`,
       children: text
-    },
-    void 0,
-    false,
-    {
-      fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-      lineNumber: 49,
-      columnNumber: 5
-    },
-    void 0
+    }
   );
 };
 const SettingMenuLayer = ({
@@ -47158,107 +46798,47 @@ const SettingMenuLayer = ({
     () => resetConfirmText.trim() === "confirm",
     [resetConfirmText]
   );
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50", children: [
-    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx(
       PopupLayer,
       {
         title: "Settings",
         suppressInitialActionsMs: 180,
-        content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex flex-col gap-5 text-left", children: [
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex items-center justify-between gap-4", children: [
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-sm font-bold", children: "Vibration" }, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 87,
-              columnNumber: 17
-            }, void 0) }, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 86,
-              columnNumber: 15
-            }, void 0),
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+        content: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-5 text-left", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between gap-4", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-sm font-bold", children: "Vibration" }) }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
               ToggleButton,
               {
                 enabled: vibrationEnabled,
                 onClick: () => onChangeVibration(!vibrationEnabled)
-              },
-              void 0,
-              false,
-              {
-                fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-                lineNumber: 89,
-                columnNumber: 15
-              },
-              void 0
+              }
             )
-          ] }, void 0, true, {
-            fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-            lineNumber: 85,
-            columnNumber: 13
-          }, void 0),
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "border-t-2 border-[#222] pt-4", children: [
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "mb-3 text-sm font-bold", children: "Send Diagnostics" }, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 96,
-              columnNumber: 15
-            }, void 0),
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex items-center justify-between gap-4", children: [
-              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-xs text-gray-600", children: "Open Gmail with attached diagnostics files." }, void 0, false, {
-                fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-                lineNumber: 98,
-                columnNumber: 17
-              }, void 0),
-              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "border-t-2 border-[#222] pt-4", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "mb-3 text-sm font-bold", children: "Send Diagnostics" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between gap-4", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-xs text-gray-600", children: "Open Gmail with attached diagnostics files." }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
                 ActionButton,
                 {
                   text: isSendingDiagnostics ? "Sending..." : "Send",
                   onClick: onSendDiagnostics,
                   disabled: isSendingDiagnostics,
                   variant: "warning"
-                },
-                void 0,
-                false,
-                {
-                  fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-                  lineNumber: 101,
-                  columnNumber: 17
-                },
-                void 0
+                }
               )
-            ] }, void 0, true, {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 97,
-              columnNumber: 15
-            }, void 0)
-          ] }, void 0, true, {
-            fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-            lineNumber: 95,
-            columnNumber: 13
-          }, void 0),
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "border-t-2 border-[#222] pt-4", children: [
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-sm font-bold", children: "Reset Game Data" }, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 112,
-              columnNumber: 17
-            }, void 0) }, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 111,
-              columnNumber: 15
-            }, void 0),
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "mt-1 text-xs text-gray-600", children: [
+            ] })
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "border-t-2 border-[#222] pt-4", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-sm font-bold", children: "Reset Game Data" }) }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mt-1 text-xs text-gray-600", children: [
               "Type ",
-              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { className: "font-bold", children: "confirm" }, void 0, false, {
-                fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-                lineNumber: 115,
-                columnNumber: 22
-              }, void 0),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "font-bold", children: "confirm" }),
               " below to enable the reset button."
-            ] }, void 0, true, {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 114,
-              columnNumber: 15
-            }, void 0),
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "mt-3 flex items-center justify-between gap-3", children: [
-              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+            ] }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mt-3 flex items-center justify-between gap-3", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "input",
                 {
                   type: "text",
@@ -47266,17 +46846,9 @@ const SettingMenuLayer = ({
                   onChange: (event) => setResetConfirmText(event.target.value),
                   placeholder: "confirm",
                   className: "w-40 border-2 border-[#222] px-3 py-2 text-center text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#d95763]"
-                },
-                void 0,
-                false,
-                {
-                  fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-                  lineNumber: 119,
-                  columnNumber: 17
-                },
-                void 0
+                }
               ),
-              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "button",
                 {
                   type: "button",
@@ -47284,75 +46856,27 @@ const SettingMenuLayer = ({
                   onClick: onOpenResetConfirm,
                   className: `border-2 border-[#222] px-4 py-2 text-sm font-bold text-white ${isResetEnabled ? "bg-component-negative" : "cursor-not-allowed bg-gray-400 opacity-60"}`,
                   children: "Reset"
-                },
-                void 0,
-                false,
-                {
-                  fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-                  lineNumber: 126,
-                  columnNumber: 17
-                },
-                void 0
+                }
               )
-            ] }, void 0, true, {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 118,
-              columnNumber: 15
-            }, void 0)
-          ] }, void 0, true, {
-            fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-            lineNumber: 110,
-            columnNumber: 13
-          }, void 0)
-        ] }, void 0, true, {
-          fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-          lineNumber: 84,
-          columnNumber: 11
-        }, void 0),
+            ] })
+          ] })
+        ] }),
         onConfirm: onClose,
         confirmText: "Close"
-      },
-      void 0,
-      false,
-      {
-        fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-        lineNumber: 80,
-        columnNumber: 7
-      },
-      void 0
+      }
     ),
-    showFinalResetConfirm && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+    showFinalResetConfirm && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
       PopupLayer,
       {
         title: "Final Confirmation",
-        content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-sm leading-6", children: "This will permanently delete all game data and return you to the initial setup screen. This action cannot be undone." }, void 0, false, {
-          fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-          lineNumber: 150,
-          columnNumber: 15
-        }, void 0),
+        content: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-sm leading-6", children: "This will permanently delete all game data and return you to the initial setup screen. This action cannot be undone." }),
         onConfirm: onResetGameData,
         onCancel: onCloseResetConfirm,
         confirmText: "Delete",
         cancelText: "Cancel"
-      },
-      void 0,
-      false,
-      {
-        fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-        lineNumber: 147,
-        columnNumber: 11
-      },
-      void 0
-    ) }, void 0, false, {
-      fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-      lineNumber: 146,
-      columnNumber: 9
-    }, void 0)
-  ] }, void 0, true, {
-    fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-    lineNumber: 79,
-    columnNumber: 5
-  }, void 0);
+      }
+    ) })
+  ] });
 };
 const useAlert = () => {
   const [alertState, setAlertState] = reactExports.useState(null);
@@ -47885,12 +47409,13 @@ const biteVibrationAdapter = new VibrationAdapter();
 const RECOVERY_VIBRATION_INTERVAL_MS = 180;
 const RECOVERY_VIBRATION_DURATION_MS = 14;
 const RECOVERY_VIBRATION_STRENGTH = 28;
-const isNativeFeatureDebugMode$1 = true;
+const isNativeFeatureDebugMode$1 = false;
 const isAndroidUserAgent = typeof navigator !== "undefined" && /DigiviceApp-Android|Android/i.test(navigator.userAgent);
 const MINI_GAME_UNAVAILABLE_VERSION = "0.1.0";
 const KEYBOARD_VIEWPORT_HEIGHT_DELTA_THRESHOLD = 80;
 const UNSUPPORTED_SQUARE_VIEWPORT_RATIO = 0.8;
 const BACK_NAVIGATION_ALERT_ENTRY = "layer:alert";
+const BACK_NAVIGATION_LOADING_FAILURE_ENTRY = "layer:loading-failure";
 const BACK_NAVIGATION_DIAGNOSTICS_ENTRY = "layer:diagnostics-draft";
 const BACK_NAVIGATION_SETTING_MENU_ENTRY = "layer:setting-menu";
 const BACK_NAVIGATION_SETTING_RESET_CONFIRM_ENTRY = "layer:setting-reset-confirm";
@@ -47988,7 +47513,7 @@ function getBaseAppVersion(version) {
   return version.replace(/-.+$/, "");
 }
 function isMiniGameUnavailableForCurrentVersion() {
-  return getBaseAppVersion("0.1.0-debug") === MINI_GAME_UNAVAILABLE_VERSION;
+  return getBaseAppVersion("0.1.0") === MINI_GAME_UNAVAILABLE_VERSION;
 }
 function isTextInputElement(element) {
   return element instanceof HTMLElement && (element.tagName === "INPUT" || element.tagName === "TEXTAREA" || element.isContentEditable);
@@ -48083,11 +47608,11 @@ function createDiagnosticsBody() {
   ].join("\n");
 }
 function getClientReleaseLabel() {
-  return `${"0.1.0-debug"}+${1}`;
+  return `${"0.1.0"}+${2}`;
 }
 function getClientReleaseFileLabel() {
-  const sanitizedVersion = "0.1.0-debug".replace(/[^a-zA-Z0-9.-]+/g, "_");
-  return `${sanitizedVersion}-build-${1}`;
+  const sanitizedVersion = "0.1.0".replace(/[^a-zA-Z0-9.-]+/g, "_");
+  return `${sanitizedVersion}-build-${2}`;
 }
 function buildGmailComposeHref(subject, body) {
   const gmailComposeUrl = new URL("https://mail.google.com/mail/");
@@ -48142,6 +47667,7 @@ const GameContainer = () => {
   const [showSetupLayer, setShowSetupLayer] = reactExports.useState(false);
   const [isBootstrapping, setIsBootstrapping] = reactExports.useState(true);
   const { alertState, showAlert, hideAlert } = useAlert();
+  const [loadingFailureAlert, setLoadingFailureAlert] = reactExports.useState(null);
   const [sanitizeResetAlert, setSanitizeResetAlert] = reactExports.useState(null);
   const isInitializedRef = reactExports.useRef(false);
   const initialSetupDataRef = reactExports.useRef(null);
@@ -48213,12 +47739,16 @@ const GameContainer = () => {
     if (alertState) {
       entries.push(BACK_NAVIGATION_ALERT_ENTRY);
     }
+    if (loadingFailureAlert) {
+      entries.push(BACK_NAVIGATION_LOADING_FAILURE_ENTRY);
+    }
     if (pendingDiagnosticsDraft) {
       entries.push(BACK_NAVIGATION_DIAGNOSTICS_ENTRY);
     }
     return entries;
   }, [
     alertState,
+    loadingFailureAlert,
     pendingDiagnosticsDraft,
     sceneHistoryStack,
     showFinalResetConfirm,
@@ -48242,6 +47772,11 @@ const GameContainer = () => {
   const dismissAlert = reactExports.useCallback(() => {
     requestHistoryBackForEntry(BACK_NAVIGATION_ALERT_ENTRY, hideAlert);
   }, [hideAlert, requestHistoryBackForEntry]);
+  const dismissLoadingFailureAlert = reactExports.useCallback(() => {
+    requestHistoryBackForEntry(BACK_NAVIGATION_LOADING_FAILURE_ENTRY, () => {
+      setLoadingFailureAlert(null);
+    });
+  }, [requestHistoryBackForEntry]);
   const dismissDiagnosticsDraft = reactExports.useCallback(() => {
     requestHistoryBackForEntry(BACK_NAVIGATION_DIAGNOSTICS_ENTRY, () => {
       setPendingDiagnosticsDraft(null);
@@ -48268,6 +47803,9 @@ const GameContainer = () => {
       if (!targetEntrySet.has(BACK_NAVIGATION_ALERT_ENTRY)) {
         hideAlert();
       }
+      if (!targetEntrySet.has(BACK_NAVIGATION_LOADING_FAILURE_ENTRY)) {
+        setLoadingFailureAlert(null);
+      }
       if (!targetEntrySet.has(BACK_NAVIGATION_SETTING_MENU_ENTRY)) {
         closeSettingMenu();
       } else if (!targetEntrySet.has(BACK_NAVIGATION_SETTING_RESET_CONFIRM_ENTRY)) {
@@ -48283,6 +47821,37 @@ const GameContainer = () => {
       await gameInstance.changeScene(targetSceneKey);
     },
     [closeSettingMenu, gameInstance, hideAlert, sceneTransitionLoadState.phase]
+  );
+  const stopLoadingWithFailure = reactExports.useCallback(
+    ({
+      message,
+      title = "Loading Error",
+      error,
+      context: context2
+    }) => {
+      sceneTransitionRequestIdRef.current = 0;
+      setSceneTransitionLoadState({ requestId: 0, phase: "idle" });
+      setIsBootstrapping(false);
+      const diagnosticsContext = {
+        release: getClientReleaseLabel(),
+        storageKind: getClientStorageKind(),
+        sceneTransitionPhase: sceneTransitionLoadState.phase,
+        currentSceneKey: (gameInstance == null ? void 0 : gameInstance.getCurrentSceneKey()) ?? null,
+        ...context2,
+        error: error ?? null
+      };
+      logImportantDiagnostics(
+        "error",
+        "[ImportantDiagnostics][GameContainer] Loading flow failed.",
+        diagnosticsContext
+      );
+      console.error("[GameContainer] Loading flow failed.", {
+        message,
+        ...diagnosticsContext
+      });
+      setLoadingFailureAlert({ title, message });
+    },
+    [gameInstance, sceneTransitionLoadState.phase]
   );
   reactExports.useEffect(() => {
     return () => {
@@ -48412,9 +47981,9 @@ const GameContainer = () => {
     setDiagnosticsContextProvider(() => ({
       scene: (gameInstance == null ? void 0 : gameInstance.getCurrentSceneKey()) !== void 0 ? String(gameInstance.getCurrentSceneKey()) : void 0,
       storageKind: getClientStorageKind(),
-      appMode: "development",
-      appVersion: "0.1.0-debug",
-      buildNumber: 1,
+      appMode: "production",
+      appVersion: "0.1.0",
+      buildNumber: 2,
       debugEnabled: isNativeFeatureDebugMode$1
     }));
     return () => {
@@ -48438,12 +48007,15 @@ const GameContainer = () => {
         return;
       }
       if (params.state === "failed") {
-        sceneTransitionRequestIdRef.current = 0;
-        setSceneTransitionLoadState({
-          requestId: 0,
-          phase: "idle"
+        stopLoadingWithFailure({
+          message: "A scene failed to load. Tap Okay to dismiss this popup or Send Log to share diagnostics.",
+          context: {
+            phase: "scene_transition",
+            requestId: params.requestId,
+            from: params.from ?? null,
+            to: params.to
+          }
         });
-        setIsBootstrapping(false);
         return;
       }
       setSceneTransitionLoadState(
@@ -48460,7 +48032,7 @@ const GameContainer = () => {
         return [...previous, params.to];
       });
     },
-    []
+    [stopLoadingWithFailure]
   );
   const completeSceneTransitionLoading = reactExports.useCallback((requestId) => {
     if (sceneTransitionRequestIdRef.current !== requestId) {
@@ -48585,9 +48157,9 @@ const GameContainer = () => {
         generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
         appInfo: {
           project: "MonTTo",
-          clientAppVersion: "0.1.0-debug",
-          clientBuildNumber: 1,
-          appMode: "development",
+          clientAppVersion: "0.1.0",
+          clientBuildNumber: 2,
+          appMode: "production",
           debugEnabled: isNativeFeatureDebugMode$1,
           storageKind: getClientStorageKind(),
           userAgent: navigator.userAgent,
@@ -48713,6 +48285,7 @@ const GameContainer = () => {
         shouldRestartFromSetupRef.current = true;
         isInitializedRef.current = false;
         setSceneHistoryStack([...ROOT_SCENE_HISTORY_STACK]);
+        setLoadingFailureAlert(null);
         setShowSettingMenu(false);
         setShowFinalResetConfirm(false);
         setButtonParams(null);
@@ -48811,25 +48384,74 @@ const GameContainer = () => {
       return "reset_required";
     }
   }, []);
+  const hydrateInitialSetupData = reactExports.useCallback(
+    async (formData) => {
+      if (!formData.useLocalTime || formData.cachedSunTimes) {
+        return formData;
+      }
+      try {
+        const sunTimes = await getNativeSunTimes(true);
+        if (!sunTimes) {
+          console.warn(
+            "[GameContainer] Initial sun times were unavailable during setup loading. Continuing without cached sun times."
+          );
+          return {
+            ...formData,
+            cachedSunTimes: null
+          };
+        }
+        console.log(
+          "[GameContainer] Initial sun times prepared during setup loading.",
+          {
+            date: sunTimes.date,
+            locationSource: sunTimes.locationSource,
+            hasLocationPermission: sunTimes.hasLocationPermission,
+            sunriseAt: sunTimes.sunriseAt,
+            sunsetAt: sunTimes.sunsetAt
+          }
+        );
+        return {
+          ...formData,
+          cachedSunTimes: sunTimes
+        };
+      } catch (error) {
+        console.warn(
+          "[GameContainer] Failed to prepare initial sun times during setup loading. Continuing without cached sun times.",
+          error
+        );
+        return {
+          ...formData,
+          cachedSunTimes: null
+        };
+      }
+    },
+    []
+  );
   const requestInitialGameData = reactExports.useCallback(async () => {
     if (initialSetupDataRef.current) {
       return initialSetupDataRef.current;
     }
+    setLoadingFailureAlert(null);
     setIsBootstrapping(false);
     setShowSetupLayer(true);
     return new Promise((resolve) => {
       pendingSetupResolverRef.current = (formData) => {
-        initialSetupDataRef.current = formData;
         setShowSetupLayer(false);
+        setIsBootstrapping(true);
         pendingSetupResolverRef.current = null;
-        resolve(formData);
+        void (async () => {
+          const hydratedFormData = await hydrateInitialSetupData(formData);
+          initialSetupDataRef.current = hydratedFormData;
+          resolve(hydratedFormData);
+        })();
       };
     });
-  }, []);
+  }, [hydrateInitialSetupData]);
   const initializeGame = reactExports.useCallback(() => {
     if (!gameContainerRef.current) return;
     if (!gameContainerSize || gameContainerSize <= 0) return;
     if (isInitializedRef.current) return;
+    setLoadingFailureAlert(null);
     setIsBootstrapping(true);
     const debugParentElement = gameContainerRef.current.closest("#app-container") ?? gameContainerRef.current;
     const game = new Game({
@@ -48864,10 +48486,27 @@ const GameContainer = () => {
         });
       }
     });
-    setTimeout(() => {
-      game.initialize().then(() => {
+    window.setTimeout(() => {
+      void game.initialize().then(() => {
         isInitializedRef.current = true;
         setGameInstance(game);
+      }).catch((error) => {
+        setGameInstance(null);
+        try {
+          game.destroy();
+        } catch (destroyError) {
+          console.warn(
+            "[GameContainer] Failed to clean up a partially initialized game instance.",
+            destroyError
+          );
+        }
+        stopLoadingWithFailure({
+          message: "The game could not finish loading. Tap Okay to dismiss this popup or Send Log to share diagnostics.",
+          error,
+          context: {
+            phase: "game_initialize"
+          }
+        });
       });
     });
   }, [
@@ -48876,6 +48515,7 @@ const GameContainer = () => {
     openSettingMenu,
     requestInitialGameData,
     startRecoveryVibration,
+    stopLoadingWithFailure,
     stopRecoveryVibration,
     showAlert
   ]);
@@ -49071,26 +48711,42 @@ const GameContainer = () => {
       gameInstance.handleSliderEnd();
     }
   }, [gameInstance]);
-  const handleSetupComplete = reactExports.useCallback((formData) => {
-    const pendingResolver = pendingSetupResolverRef.current;
-    if (pendingResolver) {
-      pendingResolver(formData);
-      return;
-    }
-    initialSetupDataRef.current = formData;
-    setShowSetupLayer(false);
-    if (shouldRestartFromSetupRef.current) {
-      shouldRestartFromSetupRef.current = false;
-      setGameSessionKey((previous) => previous + 1);
-    }
-  }, []);
+  const handleSetupComplete = reactExports.useCallback(
+    (formData) => {
+      const pendingResolver = pendingSetupResolverRef.current;
+      if (pendingResolver) {
+        pendingResolver(formData);
+        return;
+      }
+      setShowSetupLayer(false);
+      setLoadingFailureAlert(null);
+      setIsBootstrapping(true);
+      void (async () => {
+        const hydratedFormData = await hydrateInitialSetupData(formData);
+        initialSetupDataRef.current = hydratedFormData;
+        if (shouldRestartFromSetupRef.current) {
+          shouldRestartFromSetupRef.current = false;
+          setGameSessionKey((previous) => previous + 1);
+          return;
+        }
+        setIsBootstrapping(false);
+      })();
+    },
+    [hydrateInitialSetupData]
+  );
+  const handleSendLoadingFailureLogs = reactExports.useCallback(() => {
+    setLoadingFailureAlert(null);
+    window.setTimeout(() => {
+      void handleSendDiagnostics();
+    }, 0);
+  }, [handleSendDiagnostics]);
   const isLoading = isBootstrapping || sceneTransitionLoadState.phase === "loading" || sceneTransitionLoadState.phase === "core_ready";
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs(
     "div",
     {
       className: "relative flex h-full min-h-0 w-full flex-col overflow-hidden",
       children: [
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+        /* @__PURE__ */ jsxRuntimeExports.jsxs(
           "div",
           {
             ref: gameViewportRef,
@@ -49099,12 +48755,8 @@ const GameContainer = () => {
               gridTemplateRows: buttonParams ? "minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr)" : "minmax(0, 1fr) auto minmax(0, 1fr)"
             },
             children: [
-              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { "aria-hidden": "true", className: "min-h-0" }, void 0, false, {
-                fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-                lineNumber: 1706,
-                columnNumber: 9
-              }, void 0),
-              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex min-h-0 min-w-0 justify-center overflow-hidden", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "aria-hidden": "true", className: "min-h-0" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex min-h-0 min-w-0 justify-center overflow-hidden", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "div",
                 {
                   id: "game-container",
@@ -49114,121 +48766,37 @@ const GameContainer = () => {
                     width: `${gameContainerSize}px`,
                     height: `${gameContainerSize}px`
                   } : void 0
-                },
-                void 0,
-                false,
-                {
-                  fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-                  lineNumber: 1708,
-                  columnNumber: 11
-                },
-                void 0
-              ) }, void 0, false, {
-                fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-                lineNumber: 1707,
-                columnNumber: 9
-              }, void 0),
-              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { "aria-hidden": "true", className: "min-h-0" }, void 0, false, {
-                fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-                lineNumber: 1724,
-                columnNumber: 9
-              }, void 0),
-              buttonParams && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { ref: controlButtonsWrapperRef, className: "z-10 w-full", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+                }
+              ) }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "aria-hidden": "true", className: "min-h-0" }),
+              buttonParams && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: controlButtonsWrapperRef, className: "z-10 w-full", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                 ControlButtons,
                 {
                   buttonParams,
                   onButtonPress: handleButtonPress,
                   onSliderChange: handleSliderChange,
                   onSliderEnd: handleSliderEnd
-                },
-                void 0,
-                false,
-                {
-                  fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-                  lineNumber: 1728,
-                  columnNumber: 13
-                },
-                void 0
-              ) }, void 0, false, {
-                fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-                lineNumber: 1727,
-                columnNumber: 11
-              }, void 0),
-              buttonParams && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { "aria-hidden": "true", className: "min-h-0" }, void 0, false, {
-                fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-                lineNumber: 1736,
-                columnNumber: 26
-              }, void 0)
+                }
+              ) }),
+              buttonParams && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "aria-hidden": "true", className: "min-h-0" })
             ]
-          },
-          void 0,
-          true,
-          {
-            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 1697,
-            columnNumber: 7
-          },
-          void 0
+          }
         ),
-        isLoading && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "absolute inset-0 z-50 flex items-center justify-center bg-black text-white", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-center text-lg tracking-[0.12em]", children: "Loading..." }, void 0, false, {
-          fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-          lineNumber: 1740,
-          columnNumber: 11
-        }, void 0) }, void 0, false, {
-          fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-          lineNumber: 1739,
-          columnNumber: 9
-        }, void 0),
-        unsupportedViewportReason && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "absolute inset-0 z-[1000] flex items-center justify-center bg-black text-white", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "px-6 text-center", children: [
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-lg tracking-[0.12em]", children: "Portrait Only" }, void 0, false, {
-            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 1748,
-            columnNumber: 13
-          }, void 0),
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "mt-6 text-[10px] leading-6 tracking-[0.12em]", children: unsupportedViewportReason === "landscape" ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(jsxDevRuntimeExports.Fragment, { children: [
+        isLoading && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-50 flex items-center justify-center bg-black text-white", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-center text-lg tracking-[0.12em]", children: "Loading..." }) }),
+        unsupportedViewportReason && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-[1000] flex items-center justify-center bg-black text-white", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "px-6 text-center", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-lg tracking-[0.12em]", children: "Portrait Only" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "mt-6 text-[10px] leading-6 tracking-[0.12em]", children: unsupportedViewportReason === "landscape" ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
             "Please rotate your device",
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("br", {}, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-              lineNumber: 1753,
-              columnNumber: 19
-            }, void 0),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("br", {}),
             "back to portrait mode."
-          ] }, void 0, true, {
-            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 1751,
-            columnNumber: 17
-          }, void 0) : /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(jsxDevRuntimeExports.Fragment, { children: [
+          ] }) : /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
             "This screen ratio is not supported.",
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("br", {}, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-              lineNumber: 1759,
-              columnNumber: 19
-            }, void 0),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("br", {}),
             "Please use a taller portrait screen."
-          ] }, void 0, true, {
-            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 1757,
-            columnNumber: 17
-          }, void 0) }, void 0, false, {
-            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 1749,
-            columnNumber: 13
-          }, void 0)
-        ] }, void 0, true, {
-          fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-          lineNumber: 1747,
-          columnNumber: 11
-        }, void 0) }, void 0, false, {
-          fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-          lineNumber: 1746,
-          columnNumber: 9
-        }, void 0),
-        showSetupLayer && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(SetupLayer, { onComplete: handleSetupComplete }, void 0, false, {
-          fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-          lineNumber: 1767,
-          columnNumber: 26
-        }, void 0),
-        showSettingMenu && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+          ] }) })
+        ] }) }),
+        showSetupLayer && /* @__PURE__ */ jsxRuntimeExports.jsx(SetupLayer, { onComplete: handleSetupComplete }),
+        showSettingMenu && /* @__PURE__ */ jsxRuntimeExports.jsx(
           SettingMenuLayer,
           {
             vibrationEnabled: gameSettings.vibrationEnabled,
@@ -49240,104 +48808,55 @@ const GameContainer = () => {
             onCloseResetConfirm: dismissResetConfirm,
             onResetGameData: handleResetGameData,
             onClose: dismissSettingMenu
-          },
-          void 0,
-          false,
-          {
-            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 1769,
-            columnNumber: 9
-          },
-          void 0
+          }
         ),
-        alertState && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+        alertState && /* @__PURE__ */ jsxRuntimeExports.jsx(
           AlertLayer,
           {
             title: alertState.title,
             message: alertState.message,
             onClose: dismissAlert
-          },
-          void 0,
-          false,
-          {
-            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 1782,
-            columnNumber: 9
-          },
-          void 0
+          }
         ),
-        sanitizeResetAlert && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+        loadingFailureAlert && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+          PopupLayer,
+          {
+            title: loadingFailureAlert.title,
+            content: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-left text-sm leading-6", children: loadingFailureAlert.message }),
+            onConfirm: dismissLoadingFailureAlert,
+            onCancel: handleSendLoadingFailureLogs,
+            confirmText: "Okay",
+            cancelText: "Send Log"
+          }
+        ) }),
+        sanitizeResetAlert && /* @__PURE__ */ jsxRuntimeExports.jsx(
           AlertLayer,
           {
             title: sanitizeResetAlert.title,
             message: sanitizeResetAlert.message,
             onClose: handleSanitizeResetConfirm
-          },
-          void 0,
-          false,
-          {
-            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 1789,
-            columnNumber: 9
-          },
-          void 0
+          }
         ),
-        pendingDiagnosticsDraft && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+        pendingDiagnosticsDraft && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
           PopupLayer,
           {
             title: "Open Gmail",
-            content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-left text-sm leading-6", children: [
-              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: "The Gmail app will open next." }, void 0, false, {
-                fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-                lineNumber: 1801,
-                columnNumber: 17
-              }, void 0),
-              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "mt-2", children: "The diagnostics files will be attached to the draft email." }, void 0, false, {
-                fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-                lineNumber: 1802,
-                columnNumber: 17
-              }, void 0),
-              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "mt-2 font-mono text-xs leading-5 text-white/70", children: [
+            content: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "text-left text-sm leading-6", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: "The Gmail app will open next." }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "mt-2", children: "The diagnostics files will be attached to the draft email." }),
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mt-2 font-mono text-xs leading-5 text-white/70", children: [
                 "Release: ",
                 getClientReleaseLabel()
-              ] }, void 0, true, {
-                fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-                lineNumber: 1805,
-                columnNumber: 17
-              }, void 0)
-            ] }, void 0, true, {
-              fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-              lineNumber: 1800,
-              columnNumber: 15
-            }, void 0),
+              ] })
+            ] }),
             onConfirm: handleConfirmDiagnosticsDraft,
             onCancel: handleCancelDiagnosticsDraft,
             confirmText: "CONFIRM",
             cancelText: "Cancel"
-          },
-          void 0,
-          false,
-          {
-            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 1797,
-            columnNumber: 11
-          },
-          void 0
-        ) }, void 0, false, {
-          fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-          lineNumber: 1796,
-          columnNumber: 9
-        }, void 0)
+          }
+        ) })
       ]
-    },
-    void 0,
-    true,
-    {
-      fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-      lineNumber: 1694,
-      columnNumber: 5
-    },
-    void 0
+    }
   );
 };
 function DevEnvironmentBadge() {
@@ -49347,7 +48866,7 @@ function DevEnvironmentBadge() {
   if (isNativeApp) {
     return null;
   }
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs(
     "div",
     {
       style: {
@@ -49372,7 +48891,7 @@ function DevEnvironmentBadge() {
       tabIndex: 0,
       title: "Click to view environment details",
       children: [
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+        /* @__PURE__ */ jsxRuntimeExports.jsxs(
           "div",
           {
             style: {
@@ -49382,33 +48901,17 @@ function DevEnvironmentBadge() {
               gap: "8px"
             },
             children: [
-              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { children: "🖥️ PC Dev Mode" }, void 0, false, {
-                fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
-                lineNumber: 50,
-                columnNumber: 9
-              }, this),
-              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { style: { fontSize: "12px", opacity: 0.9 }, children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "🖥️ PC Dev Mode" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { style: { fontSize: "12px", opacity: 0.9 }, children: [
                 isExpanded ? "▲" : "▼",
                 " click to",
                 " ",
                 isExpanded ? "collapse" : "expand"
-              ] }, void 0, true, {
-                fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
-                lineNumber: 51,
-                columnNumber: 9
-              }, this)
+              ] })
             ]
-          },
-          void 0,
-          true,
-          {
-            fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
-            lineNumber: 42,
-            columnNumber: 7
-          },
-          this
+          }
         ),
-        isExpanded && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+        isExpanded && /* @__PURE__ */ jsxRuntimeExports.jsxs(
           "div",
           {
             style: {
@@ -49422,38 +48925,18 @@ function DevEnvironmentBadge() {
               margin: "12px auto 0"
             },
             children: [
-              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { style: { marginBottom: "8px" }, children: [
-                /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("strong", { children: "Environment:" }, void 0, false, {
-                  fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
-                  lineNumber: 71,
-                  columnNumber: 13
-                }, this),
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { marginBottom: "8px" }, children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: "Environment:" }),
                 " Web browser (not a Flutter native app)"
-              ] }, void 0, true, {
-                fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
-                lineNumber: 70,
-                columnNumber: 11
-              }, this),
-              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { style: { marginBottom: "8px" }, children: [
-                /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("strong", { children: "Platform:" }, void 0, false, {
-                  fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
-                  lineNumber: 74,
-                  columnNumber: 13
-                }, this),
+              ] }),
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { marginBottom: "8px" }, children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: "Platform:" }),
                 " ",
                 platformAdapter2.getPlatformName()
-              ] }, void 0, true, {
-                fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
-                lineNumber: 73,
-                columnNumber: 11
-              }, this),
-              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { style: { marginBottom: "8px" }, children: [
-                /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("strong", { children: "User Agent:" }, void 0, false, {
-                  fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
-                  lineNumber: 77,
-                  columnNumber: 13
-                }, this),
-                /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+              ] }),
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { marginBottom: "8px" }, children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: "User Agent:" }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx(
                   "div",
                   {
                     style: {
@@ -49466,55 +48949,19 @@ function DevEnvironmentBadge() {
                       fontFamily: "monospace"
                     },
                     children: navigator.userAgent
-                  },
-                  void 0,
-                  false,
-                  {
-                    fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
-                    lineNumber: 78,
-                    columnNumber: 13
-                  },
-                  this
+                  }
                 )
-              ] }, void 0, true, {
-                fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
-                lineNumber: 76,
-                columnNumber: 11
-              }, this),
-              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { style: { marginTop: "12px", opacity: 0.8, fontSize: "11px" }, children: [
+              ] }),
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { marginTop: "12px", opacity: 0.8, fontSize: "11px" }, children: [
                 "⚠️ Native-only features such as NFC do not work in this environment.",
-                /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("br", {}, void 0, false, {
-                  fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
-                  lineNumber: 94,
-                  columnNumber: 13
-                }, this),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("br", {}),
                 "Use the Flutter app to test native features."
-              ] }, void 0, true, {
-                fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
-                lineNumber: 92,
-                columnNumber: 11
-              }, this)
+              ] })
             ]
-          },
-          void 0,
-          true,
-          {
-            fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
-            lineNumber: 58,
-            columnNumber: 9
-          },
-          this
+          }
         )
       ]
-    },
-    void 0,
-    true,
-    {
-      fileName: "/Users/neiz/digivice/apps/client/src/components/DevEnvironmentBadge.tsx",
-      lineNumber: 19,
-      columnNumber: 5
-    },
-    this
+    }
   );
 }
 const COOLDOWN_KEY = "ad_last_shown_timestamp";
@@ -49791,46 +49238,22 @@ const App = () => {
     const now = Date.now();
     localStorage.setItem(LAST_ACTIVE_KEY, now.toString());
   };
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { id: "app-shell", children: [
-    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(TopLeftBuildLogoText, {}, void 0, false, {
-      fileName: "/Users/neiz/digivice/apps/client/src/App.tsx",
-      lineNumber: 117,
-      columnNumber: 7
-    }, void 0),
-    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(DevEnvironmentBadge, {}, void 0, false, {
-      fileName: "/Users/neiz/digivice/apps/client/src/App.tsx",
-      lineNumber: 118,
-      columnNumber: 7
-    }, void 0),
-    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { id: "app-container", children: [
-      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(GameContainer, {}, void 0, false, {
-        fileName: "/Users/neiz/digivice/apps/client/src/App.tsx",
-        lineNumber: 120,
-        columnNumber: 9
-      }, void 0),
-      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(SimpleLogViewer, { position: "top-right", initialOpen: false }, void 0, false, {
-        fileName: "/Users/neiz/digivice/apps/client/src/App.tsx",
-        lineNumber: 121,
-        columnNumber: 9
-      }, void 0)
-    ] }, void 0, true, {
-      fileName: "/Users/neiz/digivice/apps/client/src/App.tsx",
-      lineNumber: 119,
-      columnNumber: 7
-    }, void 0)
-  ] }, void 0, true, {
-    fileName: "/Users/neiz/digivice/apps/client/src/App.tsx",
-    lineNumber: 116,
-    columnNumber: 5
-  }, void 0);
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { id: "app-shell", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx(TopLeftBuildLogoText, {}),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(DevEnvironmentBadge, {}),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { id: "app-container", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx(GameContainer, {}),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(SimpleLogViewer, { position: "top-right", initialOpen: false })
+    ] })
+  ] });
 };
 const platformAdapter = new PlatformAdapter();
-const isNativeFeatureDebugMode = true;
+const isNativeFeatureDebugMode = false;
 installDiagnosticsConsoleCapture();
 setDiagnosticsContextProvider(() => ({
-  appMode: "development",
-  appVersion: "0.1.0-debug",
-  buildNumber: 1,
+  appMode: "production",
+  appVersion: "0.1.0",
+  buildNumber: 2,
   debugEnabled: isNativeFeatureDebugMode
 }));
 document.addEventListener("DOMContentLoaded", () => {
@@ -49865,15 +49288,7 @@ async function bootstrap() {
   }
   const root = ReactDOM.createRoot(rootElement);
   root.render(
-    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(jsxDevRuntimeExports.Fragment, { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(App, {}, void 0, false, {
-      fileName: "/Users/neiz/digivice/apps/client/src/main.tsx",
-      lineNumber: 82,
-      columnNumber: 7
-    }, this) }, void 0, false, {
-      fileName: "/Users/neiz/digivice/apps/client/src/main.tsx",
-      lineNumber: 81,
-      columnNumber: 5
-    }, this)
+    /* @__PURE__ */ jsxRuntimeExports.jsx(jsxRuntimeExports.Fragment, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(App, {}) })
   );
 }
 void bootstrap();
