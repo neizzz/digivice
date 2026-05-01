@@ -444,7 +444,7 @@ function buildGmailComposeHref(subject: string, body: string): string {
   const gmailComposeUrl = new URL("https://mail.google.com/mail/");
   gmailComposeUrl.searchParams.set("view", "cm");
   gmailComposeUrl.searchParams.set("fs", "1");
-  gmailComposeUrl.searchParams.set("to", "ch.neizzz@gmail.com");
+  gmailComposeUrl.searchParams.set("to", "dev.chchh@gmail.com");
   gmailComposeUrl.searchParams.set("su", subject);
   gmailComposeUrl.searchParams.set("body", body);
   return gmailComposeUrl.toString();
@@ -458,7 +458,7 @@ async function openMailDraft(
   "gmail_app" | "external_browser" | "browser_window" | "same_window"
 > {
   const composeUrl = buildGmailComposeHref(subject, body);
-  const recipient = "ch.neizzz@gmail.com";
+  const recipient = "dev.chchh@gmail.com";
 
   if (
     typeof window !== "undefined" &&
