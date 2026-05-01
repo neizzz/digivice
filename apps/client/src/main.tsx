@@ -1,5 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import { hasNativeStorageController } from "@shared/storage";
 import App from "./App";
 import "./index.css";
 import { PlatformAdapter } from "./adapter/PlatformAdapter.ts";
@@ -51,16 +52,18 @@ async function waitForNativeStorageController(
 
   const startedAt = Date.now();
 
-  while (!("storageController" in window)) {
+  while (!hasNativeStorageController()) {
     if (Date.now() - startedAt >= timeoutMilliseconds) {
       console.warn(
-        "[bootstrap] Native storage controller did not become available before timeout",
+        "[bootstrap] Native storage bridge did not become ready before timeout",
       );
       return;
     }
 
     await sleep(50);
   }
+
+  console.log("[bootstrap] Native storage bridge is ready");
 
   return;
 }

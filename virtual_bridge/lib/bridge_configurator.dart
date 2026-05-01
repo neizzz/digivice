@@ -153,7 +153,9 @@ class BridgeConfigurator {
   /// 기본 프로미스 시스템 설정
   Future<void> _setupBasePromiseSystem() async {
     await _runJavaScript('''
-      window.__promises = {};
+      window.__promises = window.__promises || {};
+      window.__pendingPromiseResolutions =
+        window.__pendingPromiseResolutions || [];
       window.__createPromise = function(callback) {
         return new Promise((resolve, reject) => {
           const promiseId = 'promise_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
@@ -171,6 +173,14 @@ class BridgeConfigurator {
           delete window.__promises[promiseId];
         }
       };
+      if (window.__pendingPromiseResolutions.length > 0) {
+        const pendingResolutions = [...window.__pendingPromiseResolutions];
+        window.__pendingPromiseResolutions.length = 0;
+
+        pendingResolutions.forEach(({ promiseId, data, error }) => {
+          window.__resolvePromise(promiseId, data, error);
+        });
+      }
     ''');
   }
 
@@ -223,6 +233,11 @@ class BridgeConfigurator {
       (() => {
         const __bridgeData = $encodedData;
         const __bridgeError = $encodedError;
+        const __resolution = {
+          promiseId: "$id",
+          data: __bridgeData,
+          error: __bridgeError,
+        };
         const __preview = (value) => {
           if (value === null) return "null";
           if (typeof value === "undefined") return "undefined";
@@ -243,10 +258,26 @@ class BridgeConfigurator {
           isErrorUndefined: typeof __bridgeError === "undefined",
           errorPreview: __preview(__bridgeError),
         });
-        window.__resolvePromise(
-          "$id",
-          __bridgeData,
-          __bridgeError
+        if (typeof window.__resolvePromise === "function") {
+          window.__resolvePromise(
+            __resolution.promiseId,
+            __resolution.data,
+            __resolution.error
+          );
+          return;
+        }
+
+        if (!Array.isArray(window.__pendingPromiseResolutions)) {
+          window.__pendingPromiseResolutions = [];
+        }
+
+        window.__pendingPromiseResolutions.push(__resolution);
+        console.warn(
+          "[BridgeConfigurator] __resolvePromise is not ready. Queued native resolution.",
+          {
+            id: __resolution.promiseId,
+            queueLength: window.__pendingPromiseResolutions.length,
+          }
         );
       })();
     ''';

@@ -15,6 +15,8 @@ interface NativeStorageController {
 declare global {
   interface Window {
     storageController?: NativeStorageController;
+    __createPromise?: unknown;
+    __resolvePromise?: unknown;
   }
 }
 
@@ -65,7 +67,11 @@ function _previewValue(value: unknown): string {
 export function hasNativeStorageController(): boolean {
   return (
     typeof window !== "undefined" &&
-    typeof window.storageController !== "undefined"
+    typeof window.storageController?.getData === "function" &&
+    typeof window.storageController?.setData === "function" &&
+    typeof window.storageController?.removeData === "function" &&
+    typeof window.__createPromise === "function" &&
+    typeof window.__resolvePromise === "function"
   );
 }
 
