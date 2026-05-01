@@ -93,7 +93,10 @@ const ControlButton: React.FC<ControlButtonProps> = ({
 
   const isSlider = type === ControlButtonType.Clean && !!sliderWidth;
   const sliderTrackWidth = sliderWidth
-    ? Math.max(0, (sliderWidth - SLIDER_THUMB_SIZE) * SLIDER_TRACK_RANGE_MULTIPLIER)
+    ? Math.max(
+        0,
+        (sliderWidth - SLIDER_THUMB_SIZE) * SLIDER_TRACK_RANGE_MULTIPLIER,
+      )
     : 0;
   const vibrationStepValue = Math.min(
     1,
