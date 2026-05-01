@@ -266,6 +266,7 @@ export class Game {
       this.start();
     } catch (error) {
       console.error("[Game] 초기화 오류:", error);
+      throw error;
     }
   }
 
@@ -676,7 +677,6 @@ export class Game {
         to: key,
         state: "failed",
       });
-      this.showAlert("Scene transition failed.", "Error");
       return false;
     }
   }

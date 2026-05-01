@@ -2059,6 +2059,10 @@ export class MainSceneWorld implements IWorld, Scene {
   }
 
   private async _initializeSunTimes(): Promise<void> {
+    console.log("[MainSceneWorld] Initial sun times refresh requested", {
+      promptForPermission: true,
+      hasCachedSunTimes: !!this._sunTimes,
+    });
     await this._refreshSunTimes(true);
   }
 
@@ -2069,6 +2073,13 @@ export class MainSceneWorld implements IWorld, Scene {
     }
 
     this._sunTimesRefreshPromise = (async () => {
+      console.log("[MainSceneWorld] Refreshing sun times", {
+        promptForPermission,
+        currentDate: this._sunTimes?.date ?? null,
+        locationSource: this._sunLocationSource,
+        hasLocationPermission: this._hasLocationPermission,
+      });
+
       const sunTimes = await getNativeSunTimes(promptForPermission);
       if (!sunTimes) {
         console.warn(
@@ -2096,9 +2107,14 @@ export class MainSceneWorld implements IWorld, Scene {
       this._autoTimeOfDayMinuteKey = null;
       this._updateAutoTimeOfDayIfNeeded(true);
 
-      console.log(
-        `[MainSceneWorld] Sun times loaded (${sunTimes.locationSource}, permission=${sunTimes.hasLocationPermission})`,
-      );
+      console.log("[MainSceneWorld] Sun times updated", {
+        promptForPermission,
+        date: sunTimes.date,
+        locationSource: sunTimes.locationSource,
+        hasLocationPermission: sunTimes.hasLocationPermission,
+        sunriseAt: sunTimes.sunriseAt,
+        sunsetAt: sunTimes.sunsetAt,
+      });
     })();
 
     try {
@@ -2119,6 +2135,12 @@ export class MainSceneWorld implements IWorld, Scene {
       !this.isSimulationMode &&
       hasSunTimesDateRolledOver(now, this._sunTimes)
     ) {
+      console.log("[MainSceneWorld] Sun times date rolled over; refreshing", {
+        previousDate: this._sunTimes.date,
+        currentDate: now.toISOString().slice(0, 10),
+        locationSource: this._sunLocationSource,
+        hasLocationPermission: this._hasLocationPermission,
+      });
       void this._refreshSunTimes(false);
       return;
     }
@@ -2266,6 +2288,13 @@ export class MainSceneWorld implements IWorld, Scene {
     );
     this._timeOfDay = this._autoTimeOfDayState.timeOfDay;
     this._applyCurrentSkyState();
+    console.log("[MainSceneWorld] Applied cached sun times", {
+      date: cachedSunTimes.date,
+      locationSource: cachedSunTimes.locationSource,
+      hasLocationPermission: cachedSunTimes.hasLocationPermission,
+      sunriseAt: cachedSunTimes.sunriseAt,
+      sunsetAt: cachedSunTimes.sunsetAt,
+    });
     return true;
   }
 
@@ -2339,8 +2368,30 @@ export class MainSceneWorld implements IWorld, Scene {
       return;
     }
 
+    console.log(
+      "[MainSceneWorld] Requesting location permission after character creation",
+      {
+        date: this._sunTimes.date,
+        locationSource: this._sunLocationSource,
+        hasLocationPermission: this._hasLocationPermission,
+        sunriseAt: this._sunTimes.sunriseAt,
+        sunsetAt: this._sunTimes.sunsetAt,
+      },
+    );
+
     void (async () => {
       const granted = await requestNativeLocationPermission();
+      console.log(
+        "[MainSceneWorld] Character creation location permission result",
+        {
+          granted,
+          willRefreshSunTimes: granted,
+          date: this._sunTimes?.date ?? null,
+          locationSource: this._sunLocationSource,
+          hasLocationPermission: this._hasLocationPermission,
+        },
+      );
+
       if (!granted) {
         return;
       }

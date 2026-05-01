@@ -3,6 +3,7 @@ import {
   ControlButtonType,
   Game,
   type GameDiagnosticsSnapshot,
+  getNativeSunTimes,
   SceneKey,
 } from "@digivice/game";
 import type React from "react";
@@ -100,6 +101,11 @@ type PendingDiagnosticsDraft = {
   attachments: DiagnosticsAttachment[];
 };
 
+type LoadingFailureAlertState = {
+  title: string;
+  message: string;
+};
+
 type SceneTransitionLoadState = {
   requestId: number;
   phase: "idle" | "loading" | "core_ready";
@@ -112,6 +118,7 @@ type FullscreenAdEventDetail = {
 };
 
 const BACK_NAVIGATION_ALERT_ENTRY = "layer:alert";
+const BACK_NAVIGATION_LOADING_FAILURE_ENTRY = "layer:loading-failure";
 const BACK_NAVIGATION_DIAGNOSTICS_ENTRY = "layer:diagnostics-draft";
 const BACK_NAVIGATION_SETTING_MENU_ENTRY = "layer:setting-menu";
 const BACK_NAVIGATION_SETTING_RESET_CONFIRM_ENTRY =
@@ -121,6 +128,7 @@ const ROOT_SCENE_HISTORY_STACK = [SceneKey.MAIN] as const;
 
 type BackNavigationEntry =
   | typeof BACK_NAVIGATION_ALERT_ENTRY
+  | typeof BACK_NAVIGATION_LOADING_FAILURE_ENTRY
   | typeof BACK_NAVIGATION_DIAGNOSTICS_ENTRY
   | typeof BACK_NAVIGATION_SETTING_MENU_ENTRY
   | typeof BACK_NAVIGATION_SETTING_RESET_CONFIRM_ENTRY
@@ -495,6 +503,8 @@ const GameContainer: React.FC = () => {
   const [showSetupLayer, setShowSetupLayer] = useState<boolean>(false);
   const [isBootstrapping, setIsBootstrapping] = useState<boolean>(true);
   const { alertState, showAlert, hideAlert } = useAlert();
+  const [loadingFailureAlert, setLoadingFailureAlert] =
+    useState<LoadingFailureAlertState | null>(null);
   const [sanitizeResetAlert, setSanitizeResetAlert] = useState<{
     title: string;
     message: string;
@@ -590,6 +600,10 @@ const GameContainer: React.FC = () => {
       entries.push(BACK_NAVIGATION_ALERT_ENTRY);
     }
 
+    if (loadingFailureAlert) {
+      entries.push(BACK_NAVIGATION_LOADING_FAILURE_ENTRY);
+    }
+
     if (pendingDiagnosticsDraft) {
       entries.push(BACK_NAVIGATION_DIAGNOSTICS_ENTRY);
     }
@@ -597,6 +611,7 @@ const GameContainer: React.FC = () => {
     return entries;
   }, [
     alertState,
+    loadingFailureAlert,
     pendingDiagnosticsDraft,
     sceneHistoryStack,
     showFinalResetConfirm,
@@ -625,6 +640,12 @@ const GameContainer: React.FC = () => {
   const dismissAlert = useCallback(() => {
     requestHistoryBackForEntry(BACK_NAVIGATION_ALERT_ENTRY, hideAlert);
   }, [hideAlert, requestHistoryBackForEntry]);
+
+  const dismissLoadingFailureAlert = useCallback(() => {
+    requestHistoryBackForEntry(BACK_NAVIGATION_LOADING_FAILURE_ENTRY, () => {
+      setLoadingFailureAlert(null);
+    });
+  }, [requestHistoryBackForEntry]);
 
   const dismissDiagnosticsDraft = useCallback(() => {
     requestHistoryBackForEntry(BACK_NAVIGATION_DIAGNOSTICS_ENTRY, () => {
@@ -658,6 +679,10 @@ const GameContainer: React.FC = () => {
         hideAlert();
       }
 
+      if (!targetEntrySet.has(BACK_NAVIGATION_LOADING_FAILURE_ENTRY)) {
+        setLoadingFailureAlert(null);
+      }
+
       if (!targetEntrySet.has(BACK_NAVIGATION_SETTING_MENU_ENTRY)) {
         closeSettingMenu();
       } else if (
@@ -680,6 +705,45 @@ const GameContainer: React.FC = () => {
       await gameInstance.changeScene(targetSceneKey);
     },
     [closeSettingMenu, gameInstance, hideAlert, sceneTransitionLoadState.phase],
+  );
+
+  const stopLoadingWithFailure = useCallback(
+    ({
+      message,
+      title = "Loading Error",
+      error,
+      context,
+    }: {
+      message: string;
+      title?: string;
+      error?: unknown;
+      context?: Record<string, unknown>;
+    }) => {
+      sceneTransitionRequestIdRef.current = 0;
+      setSceneTransitionLoadState({ requestId: 0, phase: "idle" });
+      setIsBootstrapping(false);
+
+      const diagnosticsContext = {
+        release: getClientReleaseLabel(),
+        storageKind: getClientStorageKind(),
+        sceneTransitionPhase: sceneTransitionLoadState.phase,
+        currentSceneKey: gameInstance?.getCurrentSceneKey() ?? null,
+        ...context,
+        error: error ?? null,
+      };
+
+      logImportantDiagnostics(
+        "error",
+        "[ImportantDiagnostics][GameContainer] Loading flow failed.",
+        diagnosticsContext,
+      );
+      console.error("[GameContainer] Loading flow failed.", {
+        message,
+        ...diagnosticsContext,
+      });
+      setLoadingFailureAlert({ title, message });
+    },
+    [gameInstance, sceneTransitionLoadState.phase],
   );
 
   useEffect(() => {
@@ -893,12 +957,16 @@ const GameContainer: React.FC = () => {
       }
 
       if (params.state === "failed") {
-        sceneTransitionRequestIdRef.current = 0;
-        setSceneTransitionLoadState({
-          requestId: 0,
-          phase: "idle",
+        stopLoadingWithFailure({
+          message:
+            "A scene failed to load. Tap Okay to dismiss this popup or Send Log to share diagnostics.",
+          context: {
+            phase: "scene_transition",
+            requestId: params.requestId,
+            from: params.from ?? null,
+            to: params.to,
+          },
         });
-        setIsBootstrapping(false);
         return;
       }
 
@@ -921,7 +989,7 @@ const GameContainer: React.FC = () => {
         return [...previous, params.to];
       });
     },
-    [],
+    [stopLoadingWithFailure],
   );
 
   const completeSceneTransitionLoading = useCallback((requestId: number) => {
@@ -1225,6 +1293,7 @@ const GameContainer: React.FC = () => {
         shouldRestartFromSetupRef.current = true;
         isInitializedRef.current = false;
         setSceneHistoryStack([...ROOT_SCENE_HISTORY_STACK]);
+        setLoadingFailureAlert(null);
         setShowSettingMenu(false);
         setShowFinalResetConfirm(false);
         setButtonParams(null);
@@ -1340,30 +1409,85 @@ const GameContainer: React.FC = () => {
     }
   }, []);
 
+  const hydrateInitialSetupData = useCallback(
+    async (formData: SetupFormData): Promise<SetupFormData> => {
+      if (!formData.useLocalTime || formData.cachedSunTimes) {
+        return formData;
+      }
+
+      try {
+        const sunTimes = await getNativeSunTimes(true);
+
+        if (!sunTimes) {
+          console.warn(
+            "[GameContainer] Initial sun times were unavailable during setup loading. Continuing without cached sun times.",
+          );
+          return {
+            ...formData,
+            cachedSunTimes: null,
+          };
+        }
+
+        console.log(
+          "[GameContainer] Initial sun times prepared during setup loading.",
+          {
+            date: sunTimes.date,
+            locationSource: sunTimes.locationSource,
+            hasLocationPermission: sunTimes.hasLocationPermission,
+            sunriseAt: sunTimes.sunriseAt,
+            sunsetAt: sunTimes.sunsetAt,
+          },
+        );
+
+        return {
+          ...formData,
+          cachedSunTimes: sunTimes,
+        };
+      } catch (error) {
+        console.warn(
+          "[GameContainer] Failed to prepare initial sun times during setup loading. Continuing without cached sun times.",
+          error,
+        );
+        return {
+          ...formData,
+          cachedSunTimes: null,
+        };
+      }
+    },
+    [],
+  );
+
   const requestInitialGameData =
     useCallback(async (): Promise<SetupFormData> => {
       if (initialSetupDataRef.current) {
         return initialSetupDataRef.current;
       }
 
+      setLoadingFailureAlert(null);
       setIsBootstrapping(false);
       setShowSetupLayer(true);
 
       return new Promise((resolve) => {
         pendingSetupResolverRef.current = (formData: SetupFormData) => {
-          initialSetupDataRef.current = formData;
           setShowSetupLayer(false);
+          setIsBootstrapping(true);
           pendingSetupResolverRef.current = null;
-          resolve(formData);
+
+          void (async () => {
+            const hydratedFormData = await hydrateInitialSetupData(formData);
+            initialSetupDataRef.current = hydratedFormData;
+            resolve(hydratedFormData);
+          })();
         };
       });
-    }, []);
+    }, [hydrateInitialSetupData]);
 
   const initializeGame = useCallback(() => {
     if (!gameContainerRef.current) return;
     if (!gameContainerSize || gameContainerSize <= 0) return;
     if (isInitializedRef.current) return;
 
+    setLoadingFailureAlert(null);
     setIsBootstrapping(true);
     const debugParentElement =
       gameContainerRef.current.closest("#app-container") ??
@@ -1415,11 +1539,34 @@ const GameContainer: React.FC = () => {
       },
     });
 
-    setTimeout(() => {
-      game.initialize().then(() => {
-        isInitializedRef.current = true;
-        setGameInstance(game);
-      });
+    window.setTimeout(() => {
+      void game
+        .initialize()
+        .then(() => {
+          isInitializedRef.current = true;
+          setGameInstance(game);
+        })
+        .catch((error) => {
+          setGameInstance(null);
+
+          try {
+            game.destroy();
+          } catch (destroyError) {
+            console.warn(
+              "[GameContainer] Failed to clean up a partially initialized game instance.",
+              destroyError,
+            );
+          }
+
+          stopLoadingWithFailure({
+            message:
+              "The game could not finish loading. Tap Okay to dismiss this popup or Send Log to share diagnostics.",
+            error,
+            context: {
+              phase: "game_initialize",
+            },
+          });
+        });
     });
   }, [
     gameContainerSize,
@@ -1427,6 +1574,7 @@ const GameContainer: React.FC = () => {
     openSettingMenu,
     requestInitialGameData,
     startRecoveryVibration,
+    stopLoadingWithFailure,
     stopRecoveryVibration,
     showAlert,
   ]);
@@ -1668,22 +1816,41 @@ const GameContainer: React.FC = () => {
   }, [gameInstance]);
 
   // SetupLayer 완료 핸들러
-  const handleSetupComplete = useCallback((formData: SetupFormData) => {
-    const pendingResolver = pendingSetupResolverRef.current;
+  const handleSetupComplete = useCallback(
+    (formData: SetupFormData) => {
+      const pendingResolver = pendingSetupResolverRef.current;
 
-    if (pendingResolver) {
-      pendingResolver(formData);
-      return;
-    }
+      if (pendingResolver) {
+        pendingResolver(formData);
+        return;
+      }
 
-    initialSetupDataRef.current = formData;
-    setShowSetupLayer(false);
+      setShowSetupLayer(false);
+      setLoadingFailureAlert(null);
+      setIsBootstrapping(true);
 
-    if (shouldRestartFromSetupRef.current) {
-      shouldRestartFromSetupRef.current = false;
-      setGameSessionKey((previous) => previous + 1);
-    }
-  }, []);
+      void (async () => {
+        const hydratedFormData = await hydrateInitialSetupData(formData);
+        initialSetupDataRef.current = hydratedFormData;
+
+        if (shouldRestartFromSetupRef.current) {
+          shouldRestartFromSetupRef.current = false;
+          setGameSessionKey((previous) => previous + 1);
+          return;
+        }
+
+        setIsBootstrapping(false);
+      })();
+    },
+    [hydrateInitialSetupData],
+  );
+
+  const handleSendLoadingFailureLogs = useCallback(() => {
+    setLoadingFailureAlert(null);
+    window.setTimeout(() => {
+      void handleSendDiagnostics();
+    }, 0);
+  }, [handleSendDiagnostics]);
 
   const isLoading =
     isBootstrapping ||
@@ -1784,6 +1951,22 @@ const GameContainer: React.FC = () => {
           message={alertState.message}
           onClose={dismissAlert}
         />
+      )}
+      {loadingFailureAlert && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
+          <PopupLayer
+            title={loadingFailureAlert.title}
+            content={
+              <div className="text-left text-sm leading-6">
+                {loadingFailureAlert.message}
+              </div>
+            }
+            onConfirm={dismissLoadingFailureAlert}
+            onCancel={handleSendLoadingFailureLogs}
+            confirmText="Okay"
+            cancelText="Send Log"
+          />
+        </div>
       )}
       {sanitizeResetAlert && (
         <AlertLayer

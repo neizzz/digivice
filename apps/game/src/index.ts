@@ -5,5 +5,6 @@ export { SceneKey } from "./SceneKey";
 
 export * from "./ui/types";
 export * from "./types/Character";
+export { getNativeSunTimes } from "./scenes/MainScene/sunTimes";
 export type { SunTimesPayload } from "./scenes/MainScene/timeOfDay";
 export * from "./utils/nameLabel";
