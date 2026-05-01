@@ -10,8 +10,10 @@ import {
   ObjectComp,
   PositionComp,
   RenderComp,
+  SpeedComp,
 } from "../raw-components";
 import { foodEatingSystem } from "../systems/FoodEatingSystem";
+import { commonMovementSystem } from "../systems/CommonMovementSystem";
 import {
   CharacterKeyECS,
   CharacterState,
@@ -330,6 +332,58 @@ test("접근 지점에 도착해서 먹기 시작할 때 위치 보정 없이 �
   assert.equal(arrived.x, expectedTarget.x);
   assert.equal(arrived.y, expectedTarget.y);
   assertHorizontalBoundaryOverlap(characterEid, foodEid);
+});
+
+test("TARGETED 이동은 마지막 프레임에 목적지로 클램프된 뒤 먹기 시작한다", () => {
+  const world = createTestWorld({ now: 21_000 });
+  const characterEid = withMockedDateNow(21_000, () =>
+    createTestCharacter(world, {
+      state: CharacterState.IDLE,
+      stamina: 3,
+      x: 40,
+      y: 40,
+    }),
+  );
+  const foodEid = createLandedFood(world, { x: 120, y: 96 });
+
+  foodEatingSystem({
+    world: world as any,
+    delta: 0,
+    currentTime: world.currentTime,
+  });
+
+  assert.ok(hasComponent(world, DestinationComp, characterEid));
+  const destination = {
+    x: DestinationComp.x[characterEid],
+    y: DestinationComp.y[characterEid],
+  };
+
+  PositionComp.x[characterEid] = destination.x;
+  PositionComp.y[characterEid] = destination.y + 2;
+
+  foodEatingSystem({
+    world: world as any,
+    delta: 0,
+    currentTime: world.currentTime,
+  });
+
+  assert.equal(ObjectComp.state[characterEid], CharacterState.MOVING);
+  assert.equal(ObjectComp.state[foodEid], FoodState.TARGETED);
+
+  SpeedComp.value[characterEid] = 10;
+  commonMovementSystem({
+    world: world as any,
+    delta: 1,
+  });
+  foodEatingSystem({
+    world: world as any,
+    delta: 0,
+    currentTime: world.currentTime,
+  });
+
+  assertCharacterAtPosition(characterEid, destination);
+  assert.equal(ObjectComp.state[characterEid], CharacterState.EATING);
+  assert.equal(ObjectComp.state[foodEid], FoodState.BEING_INTAKEN);
 });
 
 test("좌우 후보 중 현재 위치에서 더 가까운 접근 지점을 선택한다", () => {

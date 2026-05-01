@@ -1,8 +1,6 @@
-import { hasComponent } from "bitecs";
 import {
   PositionComp,
   SpeedComp,
-  AngleComp,
   DestinationComp,
   CharacterStatusComp,
 } from "../raw-components";
@@ -10,19 +8,19 @@ import { MainSceneWorld } from "../world";
 import { DestinationType } from "../types";
 import { getCharacterStats } from "../characterStats";
 
+const TARGET_REACHED_EPSILON = 0.001;
+
 /**
  * 목표 지점을 향한 이동 유틸 함수
  * @param world 월드 인스턴스
  * @param eid 엔티티 ID
  * @param _delta 델타 타임 (미사용, CommonMovementSystem에서 처리)
- * @param arrivalThreshold 도착 판정 거리 (선택사항)
  * @returns { distance: 목표까지의 거리, hasArrived: 도착 여부 }
  */
 export function moveTowardsTarget(
   world: MainSceneWorld,
   eid: number,
   _delta: number,
-  arrivalThreshold?: number
 ): { distance: number; hasArrived: boolean } {
   // TARGETED 타입이 아니면 이동하지 않음
   if (DestinationComp.type[eid] !== DestinationType.TARGETED) {
@@ -39,28 +37,12 @@ export function moveTowardsTarget(
   const deltaY = targetY - currentY;
   const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 
-  // 도착 판정 (선택사항)
-  let hasArrived = false;
-  const targetAngle = Math.atan2(deltaY, deltaX);
-  if (arrivalThreshold !== undefined) {
-    const currentAngle = hasComponent(world, AngleComp, eid)
-      ? AngleComp.value[eid]
-      : targetAngle;
-    const distanceAlongHeading =
-      Math.cos(currentAngle) * deltaX + Math.sin(currentAngle) * deltaY;
-    const hasPassedTarget = distanceAlongHeading <= 0;
-    hasArrived = distance <= arrivalThreshold || hasPassedTarget;
-  }
-
-  // 목표 방향으로의 각도 계산
-  if (!hasArrived) {
-    AngleComp.value[eid] = targetAngle;
-  }
+  const hasArrived = distance <= TARGET_REACHED_EPSILON;
 
   // 속도 확인 및 설정
   let baseSpeed = 0;
-  if (hasComponent(world, CharacterStatusComp, eid)) {
-    const characterKey = CharacterStatusComp.characterKey[eid];
+  const characterKey = CharacterStatusComp.characterKey[eid];
+  if (characterKey > 0) {
     const characterStats = getCharacterStats(characterKey);
     baseSpeed = characterStats.speed;
   } else {

@@ -1,15 +1,17 @@
-import { defineQuery } from "bitecs";
+import { defineQuery, hasComponent } from "bitecs";
 import {
   PositionComp,
   SpeedComp,
   AngleComp,
   ObjectComp,
+  DestinationComp,
 } from "../raw-components";
 import { MainSceneWorld } from "../world";
-import { CharacterState, ObjectType } from "../types";
+import { CharacterState, DestinationType, ObjectType } from "../types";
 import { nomalizeRadian } from "@/utils/common";
 
 const movingEntityQuery = defineQuery([PositionComp, SpeedComp, AngleComp]);
+const TARGET_REACHED_EPSILON = 0.001;
 
 /**
  * 공통 이동 시스템
@@ -46,13 +48,44 @@ export function commonMovementSystem(params: {
     // 이동하지 않는 엔티티는 건너뛰기
     if (speed.value[eid] === 0) continue;
 
-    // 현재 각도를 이용해 직선으로 이동
-    const velocityX = Math.cos(angle.value[eid]) * speed.value[eid];
-    const velocityY = Math.sin(angle.value[eid]) * speed.value[eid];
+    const targetedDestination = getTargetedDestination(world, eid);
+    let nextX = position.x[eid];
+    let nextY = position.y[eid];
 
-    // 다음 위치 계산
-    const nextX = position.x[eid] + velocityX * delta;
-    const nextY = position.y[eid] + velocityY * delta;
+    if (targetedDestination) {
+      const deltaXToTarget = targetedDestination.x - position.x[eid];
+      const deltaYToTarget = targetedDestination.y - position.y[eid];
+      const remainingDistance = Math.sqrt(
+        deltaXToTarget * deltaXToTarget + deltaYToTarget * deltaYToTarget,
+      );
+
+      if (remainingDistance <= TARGET_REACHED_EPSILON) {
+        position.x[eid] = targetedDestination.x;
+        position.y[eid] = targetedDestination.y;
+        continue;
+      }
+
+      const targetAngle = Math.atan2(deltaYToTarget, deltaXToTarget);
+      angle.value[eid] = targetAngle;
+
+      const stepDistance = speed.value[eid] * delta;
+      if (stepDistance >= remainingDistance) {
+        position.x[eid] = targetedDestination.x;
+        position.y[eid] = targetedDestination.y;
+        continue;
+      }
+
+      nextX = position.x[eid] + Math.cos(targetAngle) * stepDistance;
+      nextY = position.y[eid] + Math.sin(targetAngle) * stepDistance;
+    } else {
+      // 현재 각도를 이용해 직선으로 이동
+      const velocityX = Math.cos(angle.value[eid]) * speed.value[eid];
+      const velocityY = Math.sin(angle.value[eid]) * speed.value[eid];
+
+      // 다음 위치 계산
+      nextX = position.x[eid] + velocityX * delta;
+      nextY = position.y[eid] + velocityY * delta;
+    }
 
     // 경계 체크
     const maxX = boundary.x + boundary.width;
@@ -80,4 +113,22 @@ export function commonMovementSystem(params: {
   }
 
   return params;
+}
+
+function getTargetedDestination(
+  world: MainSceneWorld,
+  eid: number,
+): { x: number; y: number } | null {
+  if (!hasComponent(world, DestinationComp, eid)) {
+    return null;
+  }
+
+  if (DestinationComp.type[eid] !== DestinationType.TARGETED) {
+    return null;
+  }
+
+  return {
+    x: DestinationComp.x[eid],
+    y: DestinationComp.y[eid],
+  };
 }
