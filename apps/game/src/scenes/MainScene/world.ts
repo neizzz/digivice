@@ -80,6 +80,7 @@ import {
   applySavedEntityToECS,
   convertECSEntityToSavedEntity,
   repairCharacterEntityRuntimeComponents,
+  repairLoadedFoodInteractionState,
 } from "./entityDataHelpers";
 import {
   createCharacterEntity,
@@ -1460,6 +1461,15 @@ export class MainSceneWorld implements IWorld, Scene {
 
     const entityStats = {
       total: this._persistentData.entities.length,
+      const { repairedCharacters, repairedFoods } =
+        repairLoadedFoodInteractionState(this, this.currentTime);
+
+      if (repairedCharacters.length > 0 || repairedFoods.length > 0) {
+        console.warn(
+          `[MainSceneWorld] Repaired orphaned loaded food interaction state: ${repairedCharacters.length} characters, ${repairedFoods.length} foods`,
+        );
+      }
+
       byType: {} as Record<string, number>,
       byState: {} as Record<string, number>,
     };

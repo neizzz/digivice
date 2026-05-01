@@ -1,4 +1,10 @@
-import { hasComponent, IWorld, addComponent } from "bitecs";
+import {
+  hasComponent,
+  IWorld,
+  addComponent,
+  defineQuery,
+  removeComponent,
+} from "bitecs";
 import {
   ObjectComp,
   PositionComp,
@@ -19,6 +25,7 @@ import {
   VitalityComp,
   TemporaryStatusComp,
   FreshnessTimerComp,
+  FoodEatingComp,
 } from "./raw-components";
 import type { SavedEntity, EntityComponents } from "./world";
 import {
@@ -26,6 +33,8 @@ import {
   CharacterKeyECS as CharacterKey,
   CharacterState,
   CharacterStatus,
+  DestinationType,
+  FoodState,
   ObjectType,
   SleepMode,
   SleepReason,
@@ -573,4 +582,105 @@ export function repairCharacterEntityRuntimeComponents(
   }
 
   return repaired;
+}
+
+export function repairLoadedFoodInteractionState(
+  world: IWorld,
+  now = Date.now(),
+): {
+  repairedCharacters: number[];
+  repairedFoods: number[];
+} {
+  const objectEntities = defineQuery([ObjectComp])(world);
+  const targetedFoodIds = new Set<number>();
+  const eatingFoodIds = new Set<number>();
+
+  for (let i = 0; i < objectEntities.length; i++) {
+    const eid = objectEntities[i];
+
+    if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
+      continue;
+    }
+
+    if (
+      hasComponent(world, DestinationComp, eid) &&
+      DestinationComp.type[eid] === DestinationType.TARGETED &&
+      DestinationComp.target[eid] > 0
+    ) {
+      targetedFoodIds.add(DestinationComp.target[eid]);
+    }
+
+    if (
+      hasComponent(world, FoodEatingComp, eid) &&
+      FoodEatingComp.isActive[eid] === 1 &&
+      FoodEatingComp.targetFood[eid] > 0
+    ) {
+      eatingFoodIds.add(FoodEatingComp.targetFood[eid]);
+    }
+  }
+
+  const repairedCharacters: number[] = [];
+  const repairedFoods: number[] = [];
+
+  for (let i = 0; i < objectEntities.length; i++) {
+    const eid = objectEntities[i];
+    const objectType = ObjectComp.type[eid];
+
+    if (objectType === ObjectType.CHARACTER) {
+      const hasOrphanedEatingState =
+        ObjectComp.state[eid] === CharacterState.EATING &&
+        !hasComponent(world, FoodEatingComp, eid);
+
+      if (!hasOrphanedEatingState) {
+        continue;
+      }
+
+      if (hasComponent(world, DestinationComp, eid)) {
+        removeComponent(world, DestinationComp, eid);
+      }
+
+      ObjectComp.state[eid] = CharacterState.IDLE;
+
+      if (!hasComponent(world, SpeedComp, eid)) {
+        addComponent(world, SpeedComp, eid);
+      }
+      SpeedComp.value[eid] = 0;
+
+      if (!hasComponent(world, RandomMovementComp, eid)) {
+        addComponent(world, RandomMovementComp, eid);
+      }
+      ensureRandomMovementDefaults(eid, now);
+
+      repairedCharacters.push(eid);
+      continue;
+    }
+
+    if (objectType !== ObjectType.FOOD) {
+      continue;
+    }
+
+    const isOrphanedTargetedFood =
+      ObjectComp.state[eid] === FoodState.TARGETED &&
+      !targetedFoodIds.has(eid);
+    const isOrphanedEatingFood =
+      ObjectComp.state[eid] === FoodState.BEING_INTAKEN &&
+      !eatingFoodIds.has(eid);
+
+    if (!isOrphanedTargetedFood && !isOrphanedEatingFood) {
+      continue;
+    }
+
+    ObjectComp.state[eid] = FoodState.LANDED;
+
+    if (hasComponent(world, FreshnessTimerComp, eid)) {
+      FreshnessTimerComp.isBeingEaten[eid] = 0;
+    }
+
+    repairedFoods.push(eid);
+  }
+
+  return {
+    repairedCharacters,
+    repairedFoods,
+  };
 }

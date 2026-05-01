@@ -1,19 +1,22 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { addComponent, addEntity, hasComponent } from "bitecs";
+import { addComponent, addEntity, hasComponent, removeComponent } from "bitecs";
 import {
   AngleComp,
   CharacterStatusComp,
   DestinationComp,
   DigestiveSystemComp,
+  FoodEatingComp,
   FreshnessComp,
   ObjectComp,
   PositionComp,
+  RandomMovementComp,
   RenderComp,
   SpeedComp,
 } from "../raw-components";
 import { GAME_CONSTANTS } from "../config";
 import { getCharacterStats } from "../characterStats";
+import { repairLoadedFoodInteractionState } from "../entityDataHelpers";
 import { foodEatingSystem } from "../systems/FoodEatingSystem";
 import { commonMovementSystem } from "../systems/CommonMovementSystem";
 import {
@@ -483,6 +486,42 @@ test("먹기 시작 시 이동 방향이 음식 반대쪽이어도 음식 방향
     "character should face right toward food while eating",
   );
   assert.notEqual(arrived.approachAngle, arrived.eatingAngle);
+});
+
+test("로드 시 고아 eating 상태를 idle 자유 이동 상태로 복구한다", () => {
+  const world = createTestWorld({ now: 27_000 });
+  const characterEid = withMockedDateNow(27_000, () =>
+    createTestCharacter(world, {
+      state: CharacterState.IDLE,
+      stamina: 3,
+      x: 100,
+      y: 130,
+    }),
+  );
+  const foodEid = createLandedFood(world, { x: 104, y: 115 });
+
+  foodEatingSystem({
+    world: world as any,
+    delta: 0,
+    currentTime: world.currentTime,
+  });
+  moveToDestinationAndStartEating(world, characterEid);
+
+  assert.equal(ObjectComp.state[characterEid], CharacterState.EATING);
+  assert.equal(ObjectComp.state[foodEid], FoodState.BEING_INTAKEN);
+  assert.equal(hasComponent(world, RandomMovementComp, characterEid), false);
+
+  removeComponent(world, FoodEatingComp, characterEid);
+
+  const { repairedCharacters, repairedFoods } =
+    repairLoadedFoodInteractionState(world, world.currentTime);
+
+  assert.deepEqual(repairedCharacters, [characterEid]);
+  assert.deepEqual(repairedFoods, [foodEid]);
+  assert.equal(ObjectComp.state[characterEid], CharacterState.IDLE);
+  assert.equal(hasComponent(world, RandomMovementComp, characterEid), true);
+  assert.equal(SpeedComp.value[characterEid], 0);
+  assert.equal(ObjectComp.state[foodEid], FoodState.LANDED);
 });
 
 test("캐릭터 크기별 식사 접근 위치는 음식 경계와 약 30px 겹친다", () => {
