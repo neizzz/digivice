@@ -5,12 +5,18 @@ export interface AlertLayerProps {
   title?: string;
   message: string;
   onClose: () => void;
+  onCancel?: () => void;
+  confirmText?: string;
+  cancelText?: string;
 }
 
 export const AlertLayer: React.FC<AlertLayerProps> = ({
   title = "Alert",
   message,
   onClose,
+  onCancel,
+  confirmText = "Confirm",
+  cancelText = "Cancel",
 }) => {
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
@@ -22,7 +28,9 @@ export const AlertLayer: React.FC<AlertLayerProps> = ({
           </div>
         }
         onConfirm={onClose}
-        confirmText="Confirm"
+        onCancel={onCancel}
+        confirmText={confirmText}
+        cancelText={cancelText}
       />
     </div>
   );

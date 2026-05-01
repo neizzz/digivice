@@ -251,6 +251,21 @@ const MAIN_SCENE_AD_DEEP_NIGHT_THRESHOLD = 10;
 const MAIN_SCENE_AD_NORMAL_COOLDOWN_MS = 5 * 60 * 1000;
 const MAIN_SCENE_AD_DEEP_NIGHT_COOLDOWN_MS = 60 * 60 * 1000;
 const MAIN_SCENE_AD_POST_ACTION_DELAY_MS = 200;
+export type InitialGameData = {
+  name: string;
+  useLocalTime: boolean;
+  cachedSunTimes?: SunTimesPayload | null;
+};
+
+export class MissingInitialGameDataError extends Error {
+  constructor() {
+    super(
+      "Initial setup data is required before MainSceneWorld can be initialized.",
+    );
+    this.name = "MissingInitialGameDataError";
+  }
+}
+
 const MAIN_SCENE_AD_FEED_FALLBACK_AFTER_LAND_MS = 3000;
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -379,11 +394,7 @@ export class MainSceneWorld implements IWorld, Scene {
   };
   private _pendingRecoveryCureEids = new Set<number>();
   private _isPersistenceDisabled = false;
-  private _createInitialGameData?: () => Promise<{
-    name: string;
-    useLocalTime: boolean;
-    cachedSunTimes?: SunTimesPayload | null;
-  }>;
+  private _createInitialGameData?: () => Promise<InitialGameData>;
   private _pendingStorageWrite: Promise<void> = Promise.resolve();
   private _startMiniGame?: () => unknown | Promise<unknown>;
   private _timeOfDay: TimeOfDay = TimeOfDay.Day;
@@ -525,11 +536,7 @@ export class MainSceneWorld implements IWorld, Scene {
     parentElement?: HTMLElement;
     debugParentElement?: HTMLElement;
     startMiniGame?: () => unknown | Promise<unknown>;
-    createInitialGameData?: () => Promise<{
-      name: string;
-      useLocalTime: boolean;
-      cachedSunTimes?: SunTimesPayload | null;
-    }>;
+    createInitialGameData?: () => Promise<InitialGameData>;
     changeControlButtons?: (
       controlButtonParamsSet: [
         ControlButtonParams,
@@ -1110,7 +1117,9 @@ export class MainSceneWorld implements IWorld, Scene {
       const loadedData = await this.getData();
 
       if (!this._hasPlayableSavedData(loadedData)) {
-        const initialGameData = await this._createInitialGameData?.();
+        const initialGameData = this._requireInitialGameData(
+          await this._createInitialGameData?.(),
+        );
         console.warn(
           "No playable saved data found, initializing with default entities...",
         );
@@ -1121,7 +1130,9 @@ export class MainSceneWorld implements IWorld, Scene {
         const validatedData = this._validateAndMigrateData(loadedData);
 
         if (!this._hasPlayableSavedData(validatedData)) {
-          const initialGameData = await this._createInitialGameData?.();
+          const initialGameData = this._requireInitialGameData(
+            await this._createInitialGameData?.(),
+          );
           console.warn(
             "Saved data is missing required setup info or recoverable character entities, reinitializing with default entities...",
           );
@@ -1676,21 +1687,36 @@ export class MainSceneWorld implements IWorld, Scene {
     this._previousCleaningMode = this._isCleaningMode;
   }
 
-  private _initializeData(initialGameData?: {
-    name: string;
-    useLocalTime: boolean;
-    cachedSunTimes?: SunTimesPayload | null;
-  }): MainSceneWorldData {
-    const useLocalTime =
-      initialGameData?.useLocalTime ?? DEFAULT_USE_LOCAL_TIME;
+  private _requireInitialGameData(
+    initialGameData?: InitialGameData,
+  ): InitialGameData {
+    if (!initialGameData) {
+      throw new MissingInitialGameDataError();
+    }
+
+    const normalizedName = initialGameData?.name?.trim();
+
+    if (!normalizedName) {
+      throw new MissingInitialGameDataError();
+    }
+
+    return {
+      name: normalizedName,
+      useLocalTime: initialGameData.useLocalTime ?? DEFAULT_USE_LOCAL_TIME,
+      cachedSunTimes: initialGameData.cachedSunTimes ?? null,
+    };
+  }
+
+  private _initializeData(initialGameData: InitialGameData): MainSceneWorldData {
+    const useLocalTime = initialGameData.useLocalTime;
     const cachedSunTimes = useLocalTime
-      ? (initialGameData?.cachedSunTimes ?? undefined)
+      ? (initialGameData.cachedSunTimes ?? undefined)
       : undefined;
 
     return {
       world_metadata: {
         name: "MainScene",
-        monster_name: initialGameData?.name,
+        monster_name: initialGameData.name,
         last_ecs_saved: Date.now(),
         version: this.WORLD_DATA_SCHEMA_VERSION,
         app_state: {

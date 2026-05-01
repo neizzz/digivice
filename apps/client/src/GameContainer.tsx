@@ -4,6 +4,7 @@ import {
   Game,
   type GameDiagnosticsSnapshot,
   getNativeSunTimes,
+  MissingInitialGameDataError,
   SceneKey,
 } from "@digivice/game";
 import type React from "react";
@@ -49,6 +50,16 @@ type UnsupportedViewportReason = "landscape" | "square" | null;
 type UnsupportedViewportCheckOptions = {
   nativeKeyboardInset?: number;
 };
+function isMissingInitialGameDataError(
+  error: unknown,
+): error is MissingInitialGameDataError {
+  return (
+    error instanceof MissingInitialGameDataError ||
+    (error instanceof Error &&
+      error.name === MissingInitialGameDataError.name)
+  );
+}
+
 
 type NativeViewportSyncDetail = {
   bottomInset?: number | null;
@@ -614,6 +625,9 @@ const GameContainer: React.FC = () => {
     loadingFailureAlert,
     pendingDiagnosticsDraft,
     sceneHistoryStack,
+  const pendingInitialSetupPromiseRef = useRef<Promise<SetupFormData> | null>(
+    null,
+  );
     showFinalResetConfirm,
     showSettingMenu,
   ]);
@@ -1467,7 +1481,7 @@ const GameContainer: React.FC = () => {
       setIsBootstrapping(false);
       setShowSetupLayer(true);
 
-      return new Promise((resolve) => {
+      const setupPromise = new Promise<SetupFormData>((resolve) => {
         pendingSetupResolverRef.current = (formData: SetupFormData) => {
           setShowSetupLayer(false);
           setIsBootstrapping(true);
@@ -1627,6 +1641,7 @@ const GameContainer: React.FC = () => {
 
     updateUnsupportedViewportOverlay();
 
+        pendingInitialSetupPromiseRef.current = null;
     window.addEventListener("resize", updateUnsupportedViewportOverlay);
     window.addEventListener(
       "orientationchange",
@@ -1818,6 +1833,10 @@ const GameContainer: React.FC = () => {
   // SetupLayer 완료 핸들러
   const handleSetupComplete = useCallback(
     (formData: SetupFormData) => {
+      if (pendingInitialSetupPromiseRef.current) {
+        return pendingInitialSetupPromiseRef.current;
+      }
+
       const pendingResolver = pendingSetupResolverRef.current;
 
       if (pendingResolver) {
@@ -1831,10 +1850,14 @@ const GameContainer: React.FC = () => {
 
       void (async () => {
         const hydratedFormData = await hydrateInitialSetupData(formData);
+            pendingInitialSetupPromiseRef.current = null;
         initialSetupDataRef.current = hydratedFormData;
 
         if (shouldRestartFromSetupRef.current) {
           shouldRestartFromSetupRef.current = false;
+      pendingInitialSetupPromiseRef.current = setupPromise;
+      return setupPromise;
+
           setGameSessionKey((previous) => previous + 1);
           return;
         }
@@ -1970,6 +1993,26 @@ const GameContainer: React.FC = () => {
       )}
       {sanitizeResetAlert && (
         <AlertLayer
+          if (isMissingInitialGameDataError(error)) {
+            console.warn(
+              "[GameContainer] Initial setup data is missing. Returning to setup flow.",
+              {
+                error,
+                storageKind: getClientStorageKind(),
+              },
+            );
+            sceneTransitionRequestIdRef.current = 0;
+            setSceneTransitionLoadState({ requestId: 0, phase: "idle" });
+            initialSetupDataRef.current = null;
+            pendingInitialSetupPromiseRef.current = null;
+            pendingSetupResolverRef.current = null;
+            shouldRestartFromSetupRef.current = true;
+            setLoadingFailureAlert(null);
+            setShowSetupLayer(true);
+            setIsBootstrapping(false);
+            return;
+          }
+
           title={sanitizeResetAlert.title}
           message={sanitizeResetAlert.message}
           onClose={handleSanitizeResetConfirm}
@@ -2002,3 +2045,7 @@ const GameContainer: React.FC = () => {
 };
 
 export default GameContainer;
+          onCancel={() => {
+            void handleSendDiagnostics();
+          }}
+          cancelText={isSendingDiagnostics ? "Sending..." : "Send Logs"}
