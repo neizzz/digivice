@@ -1035,6 +1035,9 @@ export class MainSceneWorld implements IWorld, Scene {
         }
       },
     );
+            data: {
+              scaleMode: "nearest",
+            },
 
     await Promise.all(gifLoadPromises);
 
@@ -1092,6 +1095,9 @@ export class MainSceneWorld implements IWorld, Scene {
     );
 
     await Promise.all(imageLoadPromises);
+          if (loadedAsset instanceof PIXI.Texture) {
+            loadedAsset.source.scaleMode = "nearest";
+          }
 
     // 로딩 완료 후 캐시 상태 확인
     console.log(

@@ -15,6 +15,17 @@ type AssetDefinition = {
 };
 
 const ASSET_DEFINITIONS: AssetDefinition[] = [
+function applyNearestScaleMode(asset: unknown): void {
+  if (asset instanceof PIXI.Texture) {
+    asset.source.scaleMode = "nearest";
+    return;
+  }
+
+  if (asset instanceof PIXI.Spritesheet) {
+    asset.textureSource.scaleMode = "nearest";
+  }
+}
+
   {
     alias: "bird",
     src: "/assets/game/sprites/bird.json",
@@ -71,7 +82,8 @@ export class AssetLoader {
             // 이미 등록된 alias일 수 있으므로 무시
           }
 
-          await PIXI.Assets.load(alias);
+                const asset = await PIXI.Assets.load(alias);
+                applyNearestScaleMode(asset);
         }),
       );
 

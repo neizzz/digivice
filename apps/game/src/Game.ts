@@ -15,6 +15,7 @@ PIXI.TexturePool.textureOptions.scaleMode = "nearest";
 const SCREEN_HORIZONTAL_PADDING = 14;
 const SCREEN_BOTTOM_PADDING = 14;
 const SCREEN_TOP_PADDING = SCREEN_BOTTOM_PADDING + 6;
+PIXI.TextureStyle.defaultOptions.scaleMode = "nearest";
 
 export type ControlButtonsChangeCallback = (
   controlButtonParamsSet: [
