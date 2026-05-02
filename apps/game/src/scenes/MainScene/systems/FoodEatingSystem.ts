@@ -34,6 +34,7 @@ import { addDigestiveLoadAmount } from "./DigestiveSystem";
 import { moveTowardsTarget } from "../utils/movementUtils";
 import { getCharacterWorldBounds } from "./CharacterDisplayBounds";
 import { getSpriteStore } from "./RenderSystem";
+import { restoreCharacterFreeRoamingState } from "../entityDataHelpers";
 
 const characterQuery = defineQuery([
   ObjectComp,
@@ -793,29 +794,10 @@ function restoreFreeRoamingState(
   characterEid: number,
   idleDelayMs: number,
 ): void {
-  releaseTargetedFoodForCharacter(world, characterEid);
-
-  if (hasComponent(world, DestinationComp, characterEid)) {
-    removeComponent(world, DestinationComp, characterEid);
-  }
-
-  ObjectComp.state[characterEid] = CharacterState.IDLE;
-
-  if (!hasComponent(world, SpeedComp, characterEid)) {
-    addComponent(world, SpeedComp, characterEid);
-  }
-  SpeedComp.value[characterEid] = 0;
-
-  if (!hasComponent(world, RandomMovementComp, characterEid)) {
-    addComponent(world, RandomMovementComp, characterEid);
-  }
-
-  RandomMovementComp.minIdleTime[characterEid] = 1000;
-  RandomMovementComp.maxIdleTime[characterEid] = 3000;
-  RandomMovementComp.minMoveTime[characterEid] = 2000;
-  RandomMovementComp.maxMoveTime[characterEid] = 4000;
-  RandomMovementComp.nextChange[characterEid] =
-    world.currentTime + idleDelayMs + Math.random() * 1000;
+  restoreCharacterFreeRoamingState(world, characterEid, {
+    now: world.currentTime,
+    idleDelayMs,
+  });
 
   console.log(
     `[FoodEatingSystem] Restored free roaming state for character ${characterEid}`,

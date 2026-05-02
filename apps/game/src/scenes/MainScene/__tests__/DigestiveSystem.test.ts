@@ -1,13 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { defineQuery } from "bitecs";
-import { DigestiveSystemComp, ObjectComp, RenderComp } from "../raw-components";
+import { addComponent, addEntity, defineQuery } from "bitecs";
+import {
+  DigestiveSystemComp,
+  ObjectComp,
+  PositionComp,
+  RenderComp,
+} from "../raw-components";
 import { GAME_CONSTANTS } from "../config";
 import {
   addDigestiveLoadAmount,
+  createPoop,
   digestiveSystem,
 } from "../systems/DigestiveSystem";
-import { ObjectType } from "../types";
+import { FoodState, ObjectType } from "../types";
 import {
   createTestCharacter,
   createTestWorld,
@@ -196,3 +202,114 @@ test("일반 똥 배출 후 남은 load가 용량 이하이면 그 시점부터 
       GAME_CONSTANTS.DIGESTIVE_SMALL_POOP_DELAY,
   );
 });
+
+test("기본 poop 위치에 food가 있으면 재시도 후보 위치를 선택한다", () => {
+  const world = createTestWorld({ now: 8_000 });
+  const characterEid = withMockedDateNow(8_000, () =>
+    createTestCharacter(world, {
+      stamina: 5,
+      x: 200,
+      y: 200,
+    }),
+  );
+  const blockingFoodEid = createPositionedObject(world, {
+    type: ObjectType.FOOD,
+    x: 175,
+    y: 200,
+    state: FoodState.LANDED,
+  });
+
+  withMockedRandomSequence([1, 1, 0], () => {
+    createPoop(world as any, characterEid);
+  });
+
+  const spawnedPoopEid = objectQuery(world).find(
+    (eid) => ObjectComp.type[eid] === ObjectType.POOB,
+  );
+  assert.notEqual(spawnedPoopEid, undefined);
+
+  const distanceFromBlockingFood = getDistanceBetweenEntities(
+    spawnedPoopEid as number,
+    blockingFoodEid,
+  );
+
+  assert.ok(
+    distanceFromBlockingFood >= GAME_CONSTANTS.POOP_SPAWN_MIN_OBJECT_SPACING,
+    `expected spawned poop to keep at least ${GAME_CONSTANTS.POOP_SPAWN_MIN_OBJECT_SPACING}px from blocking food, got ${distanceFromBlockingFood}`,
+  );
+  assert.notEqual(PositionComp.x[spawnedPoopEid as number], 175);
+});
+
+test("재시도 후보가 모두 실패하면 기존 poop 위치로 폴백한다", () => {
+  const world = createTestWorld({ now: 9_000 });
+  const characterEid = withMockedDateNow(9_000, () =>
+    createTestCharacter(world, {
+      stamina: 5,
+      x: 200,
+      y: 200,
+    }),
+  );
+  const blockingPoobEid = createPositionedObject(world, {
+    type: ObjectType.POOB,
+    x: 175,
+    y: 200,
+  });
+
+  withMockedRandom(0.5, () => {
+    createPoop(world as any, characterEid);
+  });
+
+  const spawnedPoopEid = objectQuery(world).find(
+    (eid) => ObjectComp.type[eid] === ObjectType.POOB && eid !== blockingPoobEid,
+  );
+  assert.notEqual(spawnedPoopEid, undefined);
+  assert.equal(PositionComp.x[spawnedPoopEid as number], 175);
+  assert.equal(PositionComp.y[spawnedPoopEid as number], 200);
+});
+
+function createPositionedObject(
+  world: ReturnType<typeof createTestWorld>,
+  options: {
+    type: ObjectType;
+    x: number;
+    y: number;
+    state?: number;
+  },
+): number {
+  const eid = addEntity(world);
+
+  addComponent(world, ObjectComp, eid);
+  addComponent(world, PositionComp, eid);
+
+  ObjectComp.id[eid] = 10_000 + eid;
+  ObjectComp.type[eid] = options.type;
+  ObjectComp.state[eid] = options.state ?? 0;
+  PositionComp.x[eid] = options.x;
+  PositionComp.y[eid] = options.y;
+
+  return eid;
+}
+
+function withMockedRandomSequence<T>(values: number[], fn: () => T): T {
+  const originalRandom = Math.random;
+  let index = 0;
+
+  Math.random = () => {
+    const value = values[Math.min(index, values.length - 1)] ?? 0;
+    index += 1;
+    return value;
+  };
+
+  try {
+    return fn();
+  } finally {
+    Math.random = originalRandom;
+  }
+}
+
+function getDistanceBetweenEntities(firstEid: number, secondEid: number): number {
+  const deltaX = PositionComp.x[firstEid] - PositionComp.x[secondEid];
+  const deltaY = PositionComp.y[firstEid] - PositionComp.y[secondEid];
+
+  return Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+}

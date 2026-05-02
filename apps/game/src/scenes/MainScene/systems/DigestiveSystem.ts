@@ -18,6 +18,7 @@ const characterWithDigestiveQuery = defineQuery([
   CharacterStatusComp,
   DigestiveSystemComp,
 ]);
+const positionedObjectQuery = defineQuery([ObjectComp, PositionComp]);
 
 const NORMAL_POOP_SCALE_RANGE = {
   min: 2.8,
@@ -28,6 +29,11 @@ const SMALL_POOP_SCALE_RANGE = {
   min: 2.0,
   max: 2.4,
 } as const;
+
+type Point = {
+  x: number;
+  y: number;
+};
 
 /**
  * 소화기관 시스템
@@ -315,28 +321,12 @@ export function createPoop(
   }
   console.log(`[DigestiveSystem] Character angle: ${angle}`);
 
-  // 캐릭터가 바라보는 방향의 반대(뒤쪽)로 똥 생성
-  // 캐릭터 뒤쪽으로 20-30픽셀 정도 떨어진 위치
-  const distance = 25; // 캐릭터로부터의 거리
-  const behindAngle = angle + Math.PI; // 180도 반대 방향
-
-  const poopX = characterX + Math.cos(behindAngle) * distance;
-  const poopY = characterY + Math.sin(behindAngle) * distance;
-  console.log(`[DigestiveSystem] Initial poop position: (${poopX}, ${poopY})`);
-
-  // 경계 체크
-  const boundary = world.positionBoundary;
-  const finalX = Math.max(
-    boundary.x,
-    Math.min(boundary.x + boundary.width, poopX),
-  );
-  const finalY = Math.max(
-    boundary.y,
-    Math.min(boundary.y + boundary.height, poopY),
-  );
-  console.log(`[DigestiveSystem] Final poop position: (${finalX}, ${finalY})`);
+  const spawnPosition = selectPoopSpawnPosition(world, characterX, characterY, angle);
   console.log(
-    `[DigestiveSystem] Boundary: x=${boundary.x}, y=${boundary.y}, width=${boundary.width}, height=${boundary.height}`,
+    `[DigestiveSystem] Final poop position: (${spawnPosition.x}, ${spawnPosition.y})`,
+  );
+  console.log(
+    `[DigestiveSystem] Boundary: x=${world.positionBoundary.x}, y=${world.positionBoundary.y}, width=${world.positionBoundary.width}, height=${world.positionBoundary.height}`,
   );
 
   const poopScaleRange = options?.isSmall
@@ -347,13 +337,119 @@ export function createPoop(
     Math.random() * (poopScaleRange.max - poopScaleRange.min);
 
   const poobEntity = createPoobEntity(world, {
-    position: { x: finalX, y: finalY },
+    position: spawnPosition,
     angle: { value: 0 },
     object: { id: 0, type: ObjectType.POOB, state: 0 }, // id를 0으로 설정하여 generatePersistentNumericId가 호출되도록 함
     render: { storeIndex: 0, textureKey: 0, scale: poopScale, zIndex: 0 },
   });
 
   console.log(`[DigestiveSystem] Created poop entity with EID: ${poobEntity}`);
+}
+
+function selectPoopSpawnPosition(
+  world: MainSceneWorld,
+  characterX: number,
+  characterY: number,
+  angle: number,
+): Point {
+  const behindAngle = angle + Math.PI;
+  const fallbackPosition = getClampedPoopSpawnPosition(
+    world,
+    characterX,
+    characterY,
+    behindAngle,
+    GAME_CONSTANTS.POOP_SPAWN_DISTANCE,
+  );
+
+  console.log(
+    `[DigestiveSystem] Initial poop position: (${fallbackPosition.x}, ${fallbackPosition.y})`,
+  );
+
+  if (hasRequiredPoopSpacing(world, fallbackPosition)) {
+    return fallbackPosition;
+  }
+
+  for (let attempt = 0; attempt < GAME_CONSTANTS.POOP_SPAWN_RETRY_COUNT; attempt++) {
+    const angleOffset =
+      (Math.random() * 2 - 1) * GAME_CONSTANTS.POOP_SPAWN_ANGLE_JITTER_RAD;
+    const distanceOffset =
+      (Math.random() * 2 - 1) * GAME_CONSTANTS.POOP_SPAWN_DISTANCE_JITTER;
+    const candidateDistance = Math.max(
+      0,
+      GAME_CONSTANTS.POOP_SPAWN_DISTANCE + distanceOffset,
+    );
+    const candidatePosition = getClampedPoopSpawnPosition(
+      world,
+      characterX,
+      characterY,
+      behindAngle + angleOffset,
+      candidateDistance,
+    );
+
+    if (hasRequiredPoopSpacing(world, candidatePosition)) {
+      console.log(
+        `[DigestiveSystem] Selected alternate poop position on retry ${attempt + 1}: (${candidatePosition.x}, ${candidatePosition.y})`,
+      );
+      return candidatePosition;
+    }
+  }
+
+  console.log(
+    `[DigestiveSystem] Falling back to legacy poop position after ${GAME_CONSTANTS.POOP_SPAWN_RETRY_COUNT} retries`,
+  );
+
+  return fallbackPosition;
+}
+
+function getClampedPoopSpawnPosition(
+  world: MainSceneWorld,
+  characterX: number,
+  characterY: number,
+  angle: number,
+  distance: number,
+): Point {
+  const poopX = characterX + Math.cos(angle) * distance;
+  const poopY = characterY + Math.sin(angle) * distance;
+  const boundary = world.positionBoundary;
+
+  return {
+    x: Math.max(boundary.x, Math.min(boundary.x + boundary.width, poopX)),
+    y: Math.max(boundary.y, Math.min(boundary.y + boundary.height, poopY)),
+  };
+}
+
+function hasRequiredPoopSpacing(world: MainSceneWorld, position: Point): boolean {
+  return (
+    getNearestPoopSpacingDistance(world, position) >=
+    GAME_CONSTANTS.POOP_SPAWN_MIN_OBJECT_SPACING
+  );
+}
+
+function getNearestPoopSpacingDistance(
+  world: MainSceneWorld,
+  position: Point,
+): number {
+  const objects = positionedObjectQuery(world);
+  let nearestDistance = Number.POSITIVE_INFINITY;
+
+  for (let index = 0; index < objects.length; index++) {
+    const eid = objects[index];
+    const objectType = ObjectComp.type[eid];
+
+    if (objectType !== ObjectType.FOOD && objectType !== ObjectType.POOB) {
+      continue;
+    }
+
+    const deltaX = position.x - PositionComp.x[eid];
+    const deltaY = position.y - PositionComp.y[eid];
+    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+    if (distance < nearestDistance) {
+      nearestDistance = distance;
+    }
+  }
+
+  return nearestDistance;
 }
 
 /**

@@ -19,6 +19,10 @@ function getEffectiveCharacterZIndex(eid: number): number {
     : configuredZIndex;
 }
 
+const STATUS_ICON_SCALE = 1.8;
+const STATUS_ICON_BASE_SIZE = 16;
+const STATUS_ICON_SIZE = STATUS_ICON_BASE_SIZE * STATUS_ICON_SCALE;
+
 // 일시적인 상태들 (3초 후 자동 제거)
 const TEMPORARY_STATUSES = [CharacterStatus.HAPPY, CharacterStatus.DISCOVER];
 const TEMPORARY_STATUS_DURATION = 3000;
@@ -100,8 +104,16 @@ function createStatusIconSprite(textureKey: TextureKey): PIXI.Sprite {
   const texture = getTextureFromKey(textureKey);
   const sprite = new PIXI.Sprite(texture || PIXI.Texture.WHITE);
   sprite.anchor.set(0.5);
-  sprite.scale.set(1.8); // 16x16을 28.8x28.8로 확대
+  sprite.scale.set(STATUS_ICON_SCALE); // 16x16을 28.8x28.8로 확대
   return sprite;
+}
+
+function getStatusIconMinY(world: MainSceneWorld): number {
+  return world.positionBoundary.y + STATUS_ICON_SIZE / 2;
+}
+
+function clampStatusIconY(world: MainSceneWorld, preferredY: number): number {
+  return Math.max(preferredY, getStatusIconMinY(world));
 }
 
 function clearEntitySprites(eid: number): void {
@@ -118,6 +130,17 @@ function clearEntitySprites(eid: number): void {
     tempSprite.removeFromParent();
     entityTemporarySprites.delete(eid);
   }
+}
+
+export function cleanupStatusIconRenderStateForTests(): void {
+  entityStatusSprites.forEach((sprites) => {
+    sprites.forEach((sprite) => sprite.removeFromParent());
+  });
+  entityTemporarySprites.forEach((sprite) => {
+    sprite.removeFromParent();
+  });
+  entityStatusSprites.clear();
+  entityTemporarySprites.clear();
 }
 
 // 일시적 상태 관리 함수들
@@ -265,7 +288,7 @@ export function statusIconRenderSystem(params: {
       }
 
       // 지속적 상태 아이콘 위치 설정 (캐릭터 위쪽에 가로 배열)
-      const iconSize = 28.8; // 1.8 * 16
+      const iconSize = STATUS_ICON_SIZE;
       const spacing = 4;
       const totalWidth =
         persistent.length * iconSize + (persistent.length - 1) * spacing;
@@ -273,7 +296,7 @@ export function statusIconRenderSystem(params: {
         position.x - totalWidth / 2 + j * (iconSize + spacing) + iconSize / 2;
 
       sprites[j].x = startX;
-      sprites[j].y = position.y - 50;
+      sprites[j].y = clampStatusIconY(world, position.y - 50);
       sprites[j].zIndex = characterZIndex;
     }
 
@@ -307,7 +330,7 @@ export function statusIconRenderSystem(params: {
         // 일시적 상태 아이콘 위치 설정 (캐릭터 우측상단)
         const tempSprite = entityTemporarySprites.get(eid)!;
         tempSprite.x = position.x + 25; // 캐릭터 우측 (더 오른쪽으로)
-        tempSprite.y = position.y - 40; // 캐릭터 상단
+        tempSprite.y = clampStatusIconY(world, position.y - 40); // 캐릭터 상단
         tempSprite.zIndex = characterZIndex;
       }
     } else {

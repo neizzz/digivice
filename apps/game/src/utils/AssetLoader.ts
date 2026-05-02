@@ -3,6 +3,7 @@ import { CharacterKey } from "../types/Character";
 
 export type GameAssets = {
   birdSprites?: PIXI.Spritesheet;
+  flappyCloudSprites?: PIXI.Spritesheet;
   common16x16Sprites?: PIXI.Spritesheet;
   common32x32Sprites?: PIXI.Spritesheet;
   tilesetSprites?: PIXI.Spritesheet;
@@ -14,7 +15,6 @@ type AssetDefinition = {
   src: string;
 };
 
-const ASSET_DEFINITIONS: AssetDefinition[] = [
 function applyNearestScaleMode(asset: unknown): void {
   if (asset instanceof PIXI.Texture) {
     asset.source.scaleMode = "nearest";
@@ -26,9 +26,14 @@ function applyNearestScaleMode(asset: unknown): void {
   }
 }
 
+const ASSET_DEFINITIONS: AssetDefinition[] = [
   {
     alias: "bird",
     src: "/assets/game/sprites/bird.json",
+  },
+  {
+    alias: "flappy-cloud",
+    src: "/assets/game/sprites/clouds.json",
   },
   {
     alias: "common16x16",
@@ -41,10 +46,6 @@ function applyNearestScaleMode(asset: unknown): void {
   {
     alias: "game-tileset",
     src: "/assets/game/sprites/tiles/game-tileset.json",
-  },
-  {
-    alias: CharacterKey.TestGreenSlimeA1,
-    src: "/assets/game/sprites/monsters/green-slime_A1.json",
   },
 ];
 
@@ -59,11 +60,19 @@ function getSpritesheet(alias: string): PIXI.Spritesheet | undefined {
 }
 
 export class AssetLoader {
-  private static loadPromise: Promise<GameAssets> | null = null;
+  private static loadPromise: Promise<void> | null = null;
+  private static characterLoadPromises = new Map<CharacterKey, Promise<void>>();
 
-  static async loadAssets(): Promise<GameAssets> {
+  static async loadAssets(
+    characterKey: CharacterKey = CharacterKey.TestGreenSlimeA1,
+  ): Promise<GameAssets> {
     if (this.loadPromise) {
-      return this.loadPromise;
+      await this.loadPromise;
+      await this.ensureCharacterSpritesheetLoaded(
+        CharacterKey.TestGreenSlimeA1,
+      );
+      await this.ensureCharacterSpritesheetLoaded(characterKey);
+      return this.getAssets();
     }
 
     this.loadPromise = (async () => {
@@ -82,38 +91,87 @@ export class AssetLoader {
             // 이미 등록된 alias일 수 있으므로 무시
           }
 
-                const asset = await PIXI.Assets.load(alias);
-                applyNearestScaleMode(asset);
+          const asset = await PIXI.Assets.load(alias);
+          applyNearestScaleMode(asset);
         }),
       );
-
-      return this.getAssets();
     })();
 
     try {
-      return await this.loadPromise;
+      await this.loadPromise;
+      await this.ensureCharacterSpritesheetLoaded(
+        CharacterKey.TestGreenSlimeA1,
+      );
+      await this.ensureCharacterSpritesheetLoaded(characterKey);
+      return this.getAssets();
     } catch (error) {
       this.loadPromise = null;
       throw error;
     }
   }
 
-  static preloadAssets(): Promise<GameAssets> {
-    return this.loadAssets();
+  static preloadAssets(
+    characterKey: CharacterKey = CharacterKey.TestGreenSlimeA1,
+  ): Promise<GameAssets> {
+    return this.loadAssets(characterKey);
   }
 
   static getAssets(): GameAssets {
+    const characterSprites: Partial<Record<CharacterKey, PIXI.Spritesheet>> =
+      {};
+
+    for (const characterKey of Object.values(CharacterKey)) {
+      const spritesheet = getSpritesheet(characterKey);
+      if (spritesheet) {
+        characterSprites[characterKey] = spritesheet;
+      }
+    }
+
     return {
       birdSprites: getSpritesheet("bird"),
+      flappyCloudSprites: getSpritesheet("flappy-cloud"),
       common16x16Sprites: getSpritesheet("common16x16"),
       common32x32Sprites: getSpritesheet("common32x32"),
       tilesetSprites: getSpritesheet("game-tileset"),
-      characterSprites: {
-        [CharacterKey.TestGreenSlimeA1]: getSpritesheet(
-          CharacterKey.TestGreenSlimeA1,
-        ),
-      },
+      characterSprites,
     };
+  }
+
+  private static async ensureCharacterSpritesheetLoaded(
+    characterKey: CharacterKey,
+  ): Promise<void> {
+    if (getSpritesheet(characterKey)) {
+      return;
+    }
+
+    const existingPromise = this.characterLoadPromises.get(characterKey);
+    if (existingPromise) {
+      await existingPromise;
+      return;
+    }
+
+    const loadPromise = (async () => {
+      try {
+        PIXI.Assets.add({
+          alias: characterKey,
+          src: `/assets/game/sprites/monsters/${characterKey}.json`,
+        });
+      } catch {
+        // 이미 등록된 alias일 수 있으므로 무시
+      }
+
+      const asset = await PIXI.Assets.load(characterKey);
+      applyNearestScaleMode(asset);
+    })();
+
+    this.characterLoadPromises.set(characterKey, loadPromise);
+
+    try {
+      await loadPromise;
+    } catch (error) {
+      this.characterLoadPromises.delete(characterKey);
+      throw error;
+    }
   }
 }
 

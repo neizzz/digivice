@@ -140,6 +140,12 @@ type StoredMainSceneAdState = {
   };
 };
 
+type StoredMiniGameScoresState = {
+  flappy_bird?: {
+    best_score?: number;
+  };
+};
+
 export type StoredWorldData = {
   world_metadata?: {
     name?: string;
@@ -152,6 +158,7 @@ export type StoredWorldData = {
       use_local_time?: boolean;
       cached_sun_times?: StoredSunTimesPayload;
       main_scene_ad?: StoredMainSceneAdState;
+      mini_game_scores?: StoredMiniGameScoresState;
     };
   };
   entities?: StoredEntity[];
@@ -277,17 +284,11 @@ function sanitizeStatuses(statuses: unknown): number[] {
 }
 
 function needsAnimationRender(state: number): boolean {
-  return (
-    state !== CHARACTER_STATE.EGG &&
-    state !== CHARACTER_STATE.DEAD
-  );
+  return state !== CHARACTER_STATE.EGG && state !== CHARACTER_STATE.DEAD;
 }
 
 function needsRandomMovement(state: number): boolean {
-  return (
-    state === CHARACTER_STATE.IDLE ||
-    state === CHARACTER_STATE.MOVING
-  );
+  return state === CHARACTER_STATE.IDLE || state === CHARACTER_STATE.MOVING;
 }
 
 function sanitizeWorldMetadata(
@@ -299,6 +300,9 @@ function sanitizeWorldMetadata(
   );
   const mainSceneAd = sanitizeMainSceneAdState(
     metadata?.app_state?.main_scene_ad,
+  );
+  const miniGameScores = sanitizeMiniGameScores(
+    metadata?.app_state?.mini_game_scores,
   );
 
   return {
@@ -325,6 +329,17 @@ function sanitizeWorldMetadata(
       use_local_time: true,
       cached_sun_times: cachedSunTimes,
       main_scene_ad: mainSceneAd,
+      mini_game_scores: miniGameScores,
+    },
+  };
+}
+
+function sanitizeMiniGameScores(
+  miniGameScores: StoredMiniGameScoresState | undefined,
+): StoredMiniGameScoresState {
+  return {
+    flappy_bird: {
+      best_score: toNonNegativeInteger(miniGameScores?.flappy_bird?.best_score),
     },
   };
 }
@@ -423,8 +438,7 @@ function sanitizeCharacterEntity(
     return null;
   }
 
-  const state =
-    toFiniteNumber(components.object?.state) ?? CHARACTER_STATE.EGG;
+  const state = toFiniteNumber(components.object?.state) ?? CHARACTER_STATE.EGG;
 
   const characterKey =
     toFiniteNumber(components.characterStatus?.characterKey) ??
@@ -459,17 +473,18 @@ function sanitizeCharacterEntity(
       storeIndex: ECS_NULL_VALUE,
       textureKey:
         toFiniteNumber(components.render?.textureKey) ??
-        (state === CHARACTER_STATE.EGG ? DEFAULTS.TEXTURE_KEY_EGG0 : ECS_NULL_VALUE),
+        (state === CHARACTER_STATE.EGG
+          ? DEFAULTS.TEXTURE_KEY_EGG0
+          : ECS_NULL_VALUE),
       scale: toFiniteNumber(components.render?.scale) ?? 3,
       zIndex: toFiniteNumber(components.render?.zIndex) ?? ECS_NULL_VALUE,
     },
     statusIconRender: {
-      storeIndexes:
-        Array.isArray(components.statusIconRender?.storeIndexes)
-          ? components.statusIconRender.storeIndexes
-              .map((value) => toFiniteNumber(value) ?? ECS_NULL_VALUE)
-              .slice(0, DEFAULTS.STATUS_SLOT_COUNT)
-          : new Array(DEFAULTS.STATUS_SLOT_COUNT).fill(ECS_NULL_VALUE),
+      storeIndexes: Array.isArray(components.statusIconRender?.storeIndexes)
+        ? components.statusIconRender.storeIndexes
+            .map((value) => toFiniteNumber(value) ?? ECS_NULL_VALUE)
+            .slice(0, DEFAULTS.STATUS_SLOT_COUNT)
+        : new Array(DEFAULTS.STATUS_SLOT_COUNT).fill(ECS_NULL_VALUE),
       visibleCount:
         toFiniteNumber(components.statusIconRender?.visibleCount) ??
         ECS_NULL_VALUE,
@@ -478,8 +493,7 @@ function sanitizeCharacterEntity(
       capacity:
         toFiniteNumber(components.digestiveSystem?.capacity) ??
         DEFAULTS.DIGESTIVE_CAPACITY,
-      currentLoad:
-        toFiniteNumber(components.digestiveSystem?.currentLoad) ?? 0,
+      currentLoad: toFiniteNumber(components.digestiveSystem?.currentLoad) ?? 0,
       nextPoopTime:
         toFiniteNumber(components.digestiveSystem?.nextPoopTime) ?? 0,
       nextSmallPoopTime:
@@ -496,10 +510,8 @@ function sanitizeCharacterEntity(
       fatigue:
         toFiniteNumber(components.sleepSystem?.fatigue) ??
         DEFAULTS.FATIGUE_DEFAULT,
-      nextSleepTime:
-        toFiniteNumber(components.sleepSystem?.nextSleepTime) ?? 0,
-      nextWakeTime:
-        toFiniteNumber(components.sleepSystem?.nextWakeTime) ?? 0,
+      nextSleepTime: toFiniteNumber(components.sleepSystem?.nextSleepTime) ?? 0,
+      nextWakeTime: toFiniteNumber(components.sleepSystem?.nextWakeTime) ?? 0,
       nextNapCheckTime:
         toFiniteNumber(components.sleepSystem?.nextNapCheckTime) ??
         now + DEFAULTS.DAY_NAP_CHECK_INTERVAL,
@@ -526,20 +538,15 @@ function sanitizeCharacterEntity(
     },
     temporaryStatus: {
       statusType:
-        toFiniteNumber(components.temporaryStatus?.statusType) ?? ECS_NULL_VALUE,
-      startTime:
-        toFiniteNumber(components.temporaryStatus?.startTime) ?? 0,
+        toFiniteNumber(components.temporaryStatus?.statusType) ??
+        ECS_NULL_VALUE,
+      startTime: toFiniteNumber(components.temporaryStatus?.startTime) ?? 0,
     },
     eggHatch: {
       hatchTime:
         toFiniteNumber(components.eggHatch?.hatchTime) ??
-        (state === CHARACTER_STATE.EGG
-          ? now + getEggHatchDelayMs()
-          : 0),
-      isReadyToHatch: toBoolean(
-        components.eggHatch?.isReadyToHatch,
-        false,
-      ),
+        (state === CHARACTER_STATE.EGG ? now + getEggHatchDelayMs() : 0),
+      isReadyToHatch: toBoolean(components.eggHatch?.isReadyToHatch, false),
     },
   };
 
@@ -590,8 +597,7 @@ function sanitizeCharacterEntity(
       minMoveTime: minMove,
       maxMoveTime: maxMove,
       nextChange:
-        toFiniteNumber(components.randomMovement?.nextChange) ??
-        now + 1000,
+        toFiniteNumber(components.randomMovement?.nextChange) ?? now + 1000,
     };
   }
 
@@ -603,7 +609,8 @@ function sanitizeNonCharacterEntity(
 ): StoredEntityComponents | null {
   const objectId = toFiniteNumber(components.object?.id);
   const objectType = toFiniteNumber(components.object?.type);
-  const objectState = toFiniteNumber(components.object?.state) ?? ECS_NULL_VALUE;
+  const objectState =
+    toFiniteNumber(components.object?.state) ?? ECS_NULL_VALUE;
 
   if (!objectId || objectId <= 0) {
     return null;
@@ -689,9 +696,7 @@ export function sanitizeStoredWorldData(
         "The existing game data format is invalid and must be reset.",
       diagnostics: {
         summary: "Saved game data root shape is invalid.",
-        issues: [
-          `savedData root is not an object (type=${typeof savedData}).`,
-        ],
+        issues: [`savedData root is not an object (type=${typeof savedData}).`],
         rawEntityCount: 0,
         sanitizedEntityCount: 0,
         playableCharacterCount: 0,
@@ -708,8 +713,13 @@ export function sanitizeStoredWorldData(
 
   const now = Date.now();
   const worldData = savedData as StoredWorldData;
-  const sanitizedMetadata = sanitizeWorldMetadata(worldData.world_metadata, now);
-  const rawEntities = Array.isArray(worldData.entities) ? worldData.entities : [];
+  const sanitizedMetadata = sanitizeWorldMetadata(
+    worldData.world_metadata,
+    now,
+  );
+  const rawEntities = Array.isArray(worldData.entities)
+    ? worldData.entities
+    : [];
   const sanitizedEntities: StoredEntity[] = [];
   const seenObjectIds = new Set<number>();
   const issues: string[] = [];
@@ -720,7 +730,9 @@ export function sanitizeStoredWorldData(
   let repairedNonCharacterEntityCount = 0;
 
   if (!Array.isArray(worldData.entities) && worldData.entities !== undefined) {
-    issues.push("worldData.entities was not an array and was treated as empty.");
+    issues.push(
+      "worldData.entities was not an array and was treated as empty.",
+    );
   }
 
   if (sanitizedMetadata.name !== worldData.world_metadata?.name) {
@@ -791,7 +803,9 @@ export function sanitizeStoredWorldData(
       if (JSON.stringify(components) !== JSON.stringify(sanitizedComponents)) {
         repairedCharacterEntityCount += 1;
       }
-    } else if (JSON.stringify(components) !== JSON.stringify(sanitizedComponents)) {
+    } else if (
+      JSON.stringify(components) !== JSON.stringify(sanitizedComponents)
+    ) {
       repairedNonCharacterEntityCount += 1;
     }
 
@@ -803,8 +817,7 @@ export function sanitizeStoredWorldData(
     entities: sanitizedEntities,
   };
 
-  const changed =
-    JSON.stringify(worldData) !== JSON.stringify(sanitizedData);
+  const changed = JSON.stringify(worldData) !== JSON.stringify(sanitizedData);
 
   const playableCharacterCount = sanitizedEntities.filter((entity) => {
     return entity.components?.object?.type === CHARACTER_OBJECT_TYPE;

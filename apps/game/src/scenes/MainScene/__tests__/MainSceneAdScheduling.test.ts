@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import * as PIXI from "pixi.js";
+import { ObjectComp } from "../raw-components";
+import { CharacterState } from "../types";
 import {
   MainSceneWorld,
   type MainSceneAdMenu,
@@ -24,6 +26,7 @@ type TestableMainSceneWorld = MainSceneWorld & {
   _timeOfDayMode: TimeOfDayMode;
   _sunTimes: SunTimesPayload | null;
   _pendingFeedAdFoodEid: number | null;
+  _findMainCharacterEntity: () => number;
   _recordMainSceneMenuUse: (menu: MainSceneAdMenu) => unknown;
   _schedulePendingMainSceneAdForMenu: (
     menu: MainSceneAdMenu,
@@ -128,6 +131,16 @@ async function flushAsyncTasks(): Promise<void> {
 
 function getAdState(world: TestableMainSceneWorld) {
   return world._persistentData?.world_metadata.app_state?.main_scene_ad;
+}
+
+function setMainCharacterState(
+  world: TestableMainSceneWorld,
+  state: CharacterState = CharacterState.IDLE,
+): number {
+  const eid = 1;
+  ObjectComp.state[eid] = state;
+  world._findMainCharacterEntity = () => eid;
+  return eid;
 }
 
 test("MainScene 청소 광고 예약은 500ms 지연을 거쳐 성공 노출되면 카운트를 초기화한다", async () => {
@@ -300,6 +313,8 @@ test("먹이 메뉴 광고 예약은 음식 착지 후 fallback 지연을 거쳐
   });
 
   try {
+    setMainCharacterState(world, CharacterState.IDLE);
+
     withMockedDateNow(20_000, () => {
       for (let i = 0; i < 5; i++) {
         world._recordMainSceneMenuUse("feed");
@@ -314,13 +329,51 @@ test("먹이 메뉴 광고 예약은 음식 착지 후 fallback 지연을 거쳐
 
     browser.runNextTimer();
     assert.equal(browser.timers.length, 1);
-  assert.equal(browser.timers[0].delayMs, 500);
+    assert.equal(browser.timers[0].delayMs, 500);
 
     browser.runNextTimer();
     await flushAsyncTasks();
 
     assert.equal(requests.length, 1);
     assert.equal(requests[0].menu, "feed");
+    assert.equal(getAdState(world)?.menu_use_count, 5);
+    assert.equal(getAdState(world)?.pending?.menu, "feed");
+  } finally {
+    browser.cleanup();
+  }
+});
+
+test("먹이 메뉴 광고 fallback 은 3초 후 메인 캐릭터가 idle 상태일 때만 요청된다", async () => {
+  const world = createMainSceneWorld();
+  const requests: MainSceneAdRequest[] = [];
+  const browser = installMockBrowserEnv({
+    requestMainSceneMenuAd: async (request) => {
+      requests.push(request);
+      return true;
+    },
+  });
+
+  try {
+    setMainCharacterState(world, CharacterState.MOVING);
+
+    withMockedDateNow(25_000, () => {
+      for (let i = 0; i < 5; i++) {
+        world._recordMainSceneMenuUse("feed");
+      }
+    });
+    world._pendingFeedAdFoodEid = 123;
+
+    world.handleThrownFoodLanded(123);
+
+    assert.equal(browser.timers.length, 1);
+    assert.equal(browser.timers[0].delayMs, 3000);
+
+    browser.runNextTimer();
+    await flushAsyncTasks();
+
+    assert.equal(browser.timers.length, 0);
+    assert.equal(requests.length, 0);
+    assert.equal(world._pendingFeedAdFoodEid, 123);
     assert.equal(getAdState(world)?.menu_use_count, 5);
     assert.equal(getAdState(world)?.pending?.menu, "feed");
   } finally {

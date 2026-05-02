@@ -42,6 +42,16 @@ export class Background extends PIXI.Container {
     this.addChild(this._baseToneGraphics);
   }
 
+  public setTexture(texture: PIXI.Texture): void {
+    if (this._bgSprite.texture === texture) {
+      return;
+    }
+
+    this._bgSprite.texture = texture;
+    this._syncBackgroundScale();
+    this._redrawSky();
+  }
+
   public resize(width: number, height: number): void {
     if (this._width === width && this._height === height) {
       return;
@@ -52,9 +62,7 @@ export class Background extends PIXI.Container {
 
     this.position.set(width / 2, height / 2);
 
-    const scaleX = width / this._bgSprite.texture.width;
-    const scaleY = height / this._bgSprite.texture.height;
-    this._bgSprite.scale.set(Math.max(scaleX, scaleY));
+    this._syncBackgroundScale();
 
     this._redrawSky();
   }
@@ -69,6 +77,15 @@ export class Background extends PIXI.Container {
 
   public animate(currentTime: number): void {
     void currentTime;
+  }
+
+  private _syncBackgroundScale(): void {
+    if (this._width <= 0 || this._height <= 0) {
+      return;
+    }
+
+    this._bgSprite.width = this._width;
+    this._bgSprite.height = this._height;
   }
 
   private _redrawSky(): void {

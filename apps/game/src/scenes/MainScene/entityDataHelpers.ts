@@ -47,7 +47,7 @@ import { createEggHatchTimestamp, GAME_CONSTANTS } from "./config";
  */
 export function convertECSEntityToSavedEntity(
   world: IWorld,
-  eid: number
+  eid: number,
 ): SavedEntity {
   const components: EntityComponents = {};
 
@@ -65,7 +65,7 @@ export function convertECSEntityToSavedEntity(
       evolutionGage: CharacterStatusComp.evolutionGage[eid],
       evolutionPhase: CharacterStatusComp.evolutionPhase[eid],
       statuses: Array.from(
-        CharacterStatusComp.statuses[eid]
+        CharacterStatusComp.statuses[eid],
       ) as CharacterStatus[],
     };
   }
@@ -177,10 +177,10 @@ export function convertECSEntityToSavedEntity(
       nextNapCheckTime: SleepSystemComp.nextNapCheckTime[eid],
       nextNightWakeCheckTime: SleepSystemComp.nextNightWakeCheckTime[eid],
       sleepMode: SleepSystemComp.sleepMode[eid] as SleepMode,
-      pendingSleepReason:
-        SleepSystemComp.pendingSleepReason[eid] as SleepReason,
-      pendingWakeReason:
-        SleepSystemComp.pendingWakeReason[eid] as SleepReason,
+      pendingSleepReason: SleepSystemComp.pendingSleepReason[
+        eid
+      ] as SleepReason,
+      pendingWakeReason: SleepSystemComp.pendingWakeReason[eid] as SleepReason,
       sleepSessionStartedAt: SleepSystemComp.sleepSessionStartedAt[eid],
     };
   }
@@ -212,7 +212,7 @@ export function convertECSEntityToSavedEntity(
 export function applySavedEntityToECS(
   world: IWorld,
   eid: number,
-  savedEntity: SavedEntity
+  savedEntity: SavedEntity,
 ): void {
   const { components } = savedEntity;
 
@@ -237,7 +237,7 @@ export function applySavedEntityToECS(
     CharacterStatusComp.evolutionPhase[eid] =
       components.characterStatus.evolutionPhase;
     CharacterStatusComp.statuses[eid] = new Uint8Array(
-      components.characterStatus.statuses
+      components.characterStatus.statuses,
     );
   }
 
@@ -285,7 +285,7 @@ export function applySavedEntityToECS(
       addComponent(world, StatusIconRenderComp, eid);
     }
     StatusIconRenderComp.storeIndexes[eid] = new Uint8Array(
-      components.statusIconRender.storeIndexes
+      components.statusIconRender.storeIndexes,
     );
     StatusIconRenderComp.visibleCount[eid] =
       components.statusIconRender.visibleCount;
@@ -454,10 +454,63 @@ function ensureRandomMovementDefaults(eid: number, now: number): void {
   }
 }
 
+export function restoreCharacterFreeRoamingState(
+  world: IWorld,
+  eid: number,
+  options: {
+    now?: number;
+    idleDelayMs?: number;
+  } = {},
+): boolean {
+  if (
+    !hasComponent(world, ObjectComp, eid) ||
+    ObjectComp.type[eid] !== ObjectType.CHARACTER
+  ) {
+    return false;
+  }
+
+  const now = options.now ?? Date.now();
+  const idleDelayMs = options.idleDelayMs ?? 1000;
+
+  if (hasComponent(world, DestinationComp, eid)) {
+    const targetFoodEid = DestinationComp.target[eid];
+
+    if (
+      targetFoodEid > 0 &&
+      hasComponent(world, ObjectComp, targetFoodEid) &&
+      ObjectComp.type[targetFoodEid] === ObjectType.FOOD &&
+      ObjectComp.state[targetFoodEid] === FoodState.TARGETED
+    ) {
+      ObjectComp.state[targetFoodEid] = FoodState.LANDED;
+    }
+
+    removeComponent(world, DestinationComp, eid);
+  }
+
+  ObjectComp.state[eid] = CharacterState.IDLE;
+
+  if (!hasComponent(world, SpeedComp, eid)) {
+    addComponent(world, SpeedComp, eid);
+  }
+  SpeedComp.value[eid] = 0;
+
+  if (!hasComponent(world, RandomMovementComp, eid)) {
+    addComponent(world, RandomMovementComp, eid);
+  }
+
+  RandomMovementComp.minIdleTime[eid] = 1000;
+  RandomMovementComp.maxIdleTime[eid] = 3000;
+  RandomMovementComp.minMoveTime[eid] = 2000;
+  RandomMovementComp.maxMoveTime[eid] = 4000;
+  RandomMovementComp.nextChange[eid] = now + idleDelayMs + Math.random() * 1000;
+
+  return true;
+}
+
 export function repairCharacterEntityRuntimeComponents(
   world: IWorld,
   eid: number,
-  now = Date.now()
+  now = Date.now(),
 ): string[] {
   if (
     !hasComponent(world, ObjectComp, eid) ||
@@ -491,7 +544,7 @@ export function repairCharacterEntityRuntimeComponents(
   if (!hasComponent(world, StatusIconRenderComp, eid)) {
     addComponent(world, StatusIconRenderComp, eid);
     StatusIconRenderComp.storeIndexes[eid] = new Uint8Array(
-      ECS_CHARACTER_STATUS_LENGTH
+      ECS_CHARACTER_STATUS_LENGTH,
     ).fill(ECS_NULL_VALUE);
     StatusIconRenderComp.visibleCount[eid] = 0;
     repaired.push("StatusIconRenderComp");
@@ -660,8 +713,7 @@ export function repairLoadedFoodInteractionState(
     }
 
     const isOrphanedTargetedFood =
-      ObjectComp.state[eid] === FoodState.TARGETED &&
-      !targetedFoodIds.has(eid);
+      ObjectComp.state[eid] === FoodState.TARGETED && !targetedFoodIds.has(eid);
     const isOrphanedEatingFood =
       ObjectComp.state[eid] === FoodState.BEING_INTAKEN &&
       !eatingFoodIds.has(eid);

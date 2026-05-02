@@ -1,19 +1,38 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createWorld } from "bitecs";
+import {
+  addComponent,
+  addEntity,
+  createWorld,
+  hasComponent,
+  removeComponent,
+} from "bitecs";
 import * as PIXI from "pixi.js";
 import { MainSceneWorld } from "../world";
-import { EffectAnimationComp, ObjectComp } from "../raw-components";
 import {
+  CharacterStatusComp,
+  DestinationComp,
+  EffectAnimationComp,
+  ObjectComp,
+  RandomMovementComp,
+  SpeedComp,
+} from "../raw-components";
+import {
+  CharacterStatus,
   CharacterState,
+  DestinationType,
   EffectAnimationType,
+  FoodState,
   ObjectType,
 } from "../types";
 import {
   effectAnimationSystem,
   startEffectAnimation,
 } from "../systems/EffectAnimationSystem";
-import { createTestCharacter } from "../../../test-utils/mainSceneTestUtils";
+import {
+  createTestCharacter,
+  withMockedDateNow,
+} from "../../../test-utils/mainSceneTestUtils";
 
 function createMainSceneWorldForTest(): MainSceneWorld {
   const world = new MainSceneWorld({
@@ -37,8 +56,9 @@ test("invalid entity slot이어도 hospital 선택 시 effect animation이 크�
   ObjectComp.type[0] = ObjectType.CHARACTER;
 
   assert.doesNotThrow(() => {
-    (world as unknown as { _handleHospitalSelection: () => void })
-      ._handleHospitalSelection();
+    (
+      world as unknown as { _handleHospitalSelection: () => void }
+    )._handleHospitalSelection();
   });
 });
 
@@ -70,8 +90,9 @@ test("live character entity에서는 hospital 선택 시 recovery animation이 �
   );
 
   assert.doesNotThrow(() => {
-    (world as unknown as { _handleHospitalSelection: () => void })
-      ._handleHospitalSelection();
+    (
+      world as unknown as { _handleHospitalSelection: () => void }
+    )._handleHospitalSelection();
   });
 
   assert.equal(EffectAnimationComp.isActive[characterEid], 1);
@@ -124,4 +145,54 @@ test("recovery syringe가 꽂힌 뒤부터 사라질 때까지 recovery vibratio
     stage: null,
   });
   assert.equal(stopCount, 1);
+});
+
+test("recovery syringe impact는 stale destination을 지우고 free roaming을 즉시 복구한다", () => {
+  const world = createMainSceneWorldForTest();
+  const characterEid = withMockedDateNow(0, () =>
+    createTestCharacter(
+      world as unknown as Parameters<typeof createTestCharacter>[0],
+      {
+        state: CharacterState.SICK,
+      },
+    ),
+  );
+
+  CharacterStatusComp.statuses[characterEid][0] = CharacterStatus.SICK;
+  SpeedComp.value[characterEid] = 0.1;
+
+  const foodEid = addEntity(world);
+  addComponent(world, ObjectComp, foodEid);
+  ObjectComp.id[foodEid] = 10_000 + foodEid;
+  ObjectComp.type[foodEid] = ObjectType.FOOD;
+  ObjectComp.state[foodEid] = FoodState.TARGETED;
+
+  addComponent(world, DestinationComp, characterEid);
+  DestinationComp.type[characterEid] = DestinationType.TARGETED;
+  DestinationComp.target[characterEid] = foodEid;
+  DestinationComp.x[characterEid] = 120;
+  DestinationComp.y[characterEid] = 90;
+
+  removeComponent(world, RandomMovementComp, characterEid);
+
+  assert.equal(hasComponent(world, RandomMovementComp, characterEid), false);
+
+  withMockedDateNow(0, () => {
+    (
+      world as unknown as { _handleHospitalSelection: () => boolean }
+    )._handleHospitalSelection();
+  });
+
+  effectAnimationSystem({
+    world,
+    currentTime: 300,
+    stage: null,
+  });
+
+  assert.equal(ObjectComp.state[characterEid], CharacterState.IDLE);
+  assert.equal(CharacterStatusComp.statuses[characterEid][0], 0);
+  assert.equal(hasComponent(world, DestinationComp, characterEid), false);
+  assert.equal(hasComponent(world, RandomMovementComp, characterEid), true);
+  assert.equal(SpeedComp.value[characterEid], 0);
+  assert.equal(ObjectComp.state[foodEid], FoodState.LANDED);
 });

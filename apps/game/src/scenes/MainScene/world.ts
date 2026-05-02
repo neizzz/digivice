@@ -27,7 +27,6 @@ import {
   SpeedComponent,
   AnimationKey,
   SpritesheetKey,
-  TextureKey,
   ThrowAnimationComponent,
   DigestiveSystemComponent,
   DiseaseSystemComponent,
@@ -81,6 +80,7 @@ import {
   convertECSEntityToSavedEntity,
   repairCharacterEntityRuntimeComponents,
   repairLoadedFoodInteractionState,
+  restoreCharacterFreeRoamingState,
 } from "./entityDataHelpers";
 import {
   createCharacterEntity,
@@ -100,8 +100,9 @@ import {
   LoadSpritesheetOptions,
   loadSpritesheet,
 } from "../../utils/asset";
-import type { TriggerBiteVibrationCallback } from "../../Game";
 import type {
+  ShowAlertCallback,
+  TriggerBiteVibrationCallback,
   StartRecoveryVibrationCallback,
   StopRecoveryVibrationCallback,
 } from "../../Game";
@@ -125,31 +126,38 @@ import {
   validateAndFixStatusIcons,
 } from "./systems/CharacterManageSystem";
 import { characterStatusSystem } from "./systems/CharacterStatusSystem";
+import { getCharacterSpritesheetName } from "./evolutionConfig";
 import {
-  sleepEffectSystem,
-  cleanupSleepEffects,
-} from "./systems/SleepEffectSystem";
-import { ReentrySimulator } from "./ReentrySimulator";
-import { getNativeSunTimes, requestNativeLocationPermission } from "./sunTimes";
-import {
-  type AutoTimeOfDayState,
-  getProjectedUpcomingSunTimes as projectUpcomingSunTimes,
   getManualSkyVisualState,
+  getProjectedUpcomingSunTimes as projectUpcomingSunTimes,
   getTimeOfDayLabel,
   hasSunTimesDateRolledOver,
   projectSunTimesForDate,
-  type ProjectedUpcomingSunTimes,
   resolveAutoTimeOfDayState,
+  type AutoTimeOfDayState,
+  type ProjectedUpcomingSunTimes,
   type SunLocationSource,
   type SunTimesPayload,
   TimeOfDay,
   TimeOfDayMode,
 } from "./timeOfDay";
+import {
+  cleanupSleepEffects,
+  sleepEffectSystem,
+} from "./systems/SleepEffectSystem";
+import { getNativeSunTimes, requestNativeLocationPermission } from "./sunTimes";
+import { ReentrySimulator } from "./ReentrySimulator";
+import { CharacterKey } from "../../types/Character";
 
 const liveCharacterEntitiesQuery = defineQuery([
   ObjectComp,
   CharacterStatusComp,
 ]);
+const CHARACTER_KEY_VALUES = new Set<string>(Object.values(CharacterKey));
+
+function isCharacterKeyValue(value: string): value is CharacterKey {
+  return CHARACTER_KEY_VALUES.has(value);
+}
 
 export type EntityComponents = {
   characterStatus?: CharacterStatusComponent;
@@ -195,6 +203,14 @@ export type MainSceneAdState = {
   pending?: MainSceneAdPendingReservation;
 };
 
+export type FlappyBirdMiniGameScoreState = {
+  best_score: number;
+};
+
+export type MiniGameScoresState = {
+  flappy_bird?: FlappyBirdMiniGameScoreState;
+};
+
 export type WorldMetadata = {
   name: string;
   monster_name?: string;
@@ -207,6 +223,7 @@ export type WorldMetadata = {
     use_local_time: boolean;
     cached_sun_times?: SunTimesPayload;
     main_scene_ad?: MainSceneAdState;
+    mini_game_scores?: MiniGameScoresState;
   };
   // // 캐릭터별 위치 추적 (캐릭터 ID를 키로 사용)
   // character_positions?: Record<
@@ -242,15 +259,6 @@ export type MainSceneWorldData = {
   entities: SavedEntity[];
 };
 
-type MainSceneAppState = NonNullable<WorldMetadata["app_state"]>;
-
-const WORLD_DATA_STORAGE_KEY = "MainSceneWorldData";
-const DEFAULT_USE_LOCAL_TIME = true;
-const MAIN_SCENE_AD_NORMAL_THRESHOLD = 5;
-const MAIN_SCENE_AD_DEEP_NIGHT_THRESHOLD = 10;
-const MAIN_SCENE_AD_NORMAL_COOLDOWN_MS = 5 * 60 * 1000;
-const MAIN_SCENE_AD_DEEP_NIGHT_COOLDOWN_MS = 60 * 60 * 1000;
-const MAIN_SCENE_AD_POST_ACTION_DELAY_MS = 500;
 export type InitialGameData = {
   name: string;
   useLocalTime: boolean;
@@ -266,6 +274,15 @@ export class MissingInitialGameDataError extends Error {
   }
 }
 
+type MainSceneAppState = NonNullable<WorldMetadata["app_state"]>;
+
+const WORLD_DATA_STORAGE_KEY = "MainSceneWorldData";
+const DEFAULT_USE_LOCAL_TIME = true;
+const MAIN_SCENE_AD_NORMAL_THRESHOLD = 5;
+const MAIN_SCENE_AD_DEEP_NIGHT_THRESHOLD = 10;
+const MAIN_SCENE_AD_NORMAL_COOLDOWN_MS = 5 * 60 * 1000;
+const MAIN_SCENE_AD_DEEP_NIGHT_COOLDOWN_MS = 60 * 60 * 1000;
+const MAIN_SCENE_AD_POST_ACTION_DELAY_MS = 500;
 const MAIN_SCENE_AD_FEED_FALLBACK_AFTER_LAND_MS = 3000;
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -324,6 +341,18 @@ const COMMON_SPRITESHEET_ASSETS: LoadSpritesheetOptions[] = [
 ];
 const IMAGE_ASSETS = {
   grass: "/assets/game/tiles/grass-tile.jpg",
+  grassSunrise: "/assets/game/tiles/grass-tile-sunrise.jpg",
+  grassSunset: "/assets/game/tiles/grass-tile-sunset.jpg",
+  grassEvening: "/assets/game/tiles/grass-tile-evening.jpg",
+};
+
+type MainSceneImageAssetKey = keyof typeof IMAGE_ASSETS;
+
+const TIME_OF_DAY_TO_GRASS_ASSET: Record<TimeOfDay, MainSceneImageAssetKey> = {
+  [TimeOfDay.Day]: "grass",
+  [TimeOfDay.Sunrise]: "grassSunrise",
+  [TimeOfDay.Sunset]: "grassSunset",
+  [TimeOfDay.Night]: "grassEvening",
 };
 
 // GIF 에셋들은 @pixi/gif로 처리
@@ -397,6 +426,8 @@ export class MainSceneWorld implements IWorld, Scene {
   private _createInitialGameData?: () => Promise<InitialGameData>;
   private _pendingStorageWrite: Promise<void> = Promise.resolve();
   private _startMiniGame?: () => unknown | Promise<unknown>;
+  private _showAlert?: ShowAlertCallback;
+  private _debugMode = false;
   private _timeOfDay: TimeOfDay = TimeOfDay.Day;
   private _timeOfDayMode: TimeOfDayMode = TimeOfDayMode.Manual;
   private _sunTimes: SunTimesPayload | null = null;
@@ -535,7 +566,9 @@ export class MainSceneWorld implements IWorld, Scene {
     };
     parentElement?: HTMLElement;
     debugParentElement?: HTMLElement;
+    debugMode?: boolean;
     startMiniGame?: () => unknown | Promise<unknown>;
+    showAlert?: ShowAlertCallback;
     createInitialGameData?: () => Promise<InitialGameData>;
     changeControlButtons?: (
       controlButtonParamsSet: [
@@ -559,7 +592,9 @@ export class MainSceneWorld implements IWorld, Scene {
     this._parentElement = params.parentElement;
     this._debugParentElement =
       params.debugParentElement ?? params.parentElement;
+    this._debugMode = params.debugMode ?? false;
     this._startMiniGame = params.startMiniGame;
+    this._showAlert = params.showAlert;
     this._createInitialGameData = params.createInitialGameData;
     this._changeControlButtons = params.changeControlButtons;
     this._triggerBiteVibration = params.triggerBiteVibration;
@@ -596,6 +631,11 @@ export class MainSceneWorld implements IWorld, Scene {
       last_active_time: Date.now(),
       is_first_load: false,
       use_local_time: true,
+      mini_game_scores: {
+        flappy_bird: {
+          best_score: 0,
+        },
+      },
     };
 
     this._persistentData.world_metadata.app_state = appState;
@@ -924,6 +964,19 @@ export class MainSceneWorld implements IWorld, Scene {
     this._clearFeedAdFallbackTimer();
   }
 
+  private _isMainCharacterIdleForFeedAd(): boolean {
+    const mainCharacterEid = this._findMainCharacterEntity();
+
+    if (mainCharacterEid === -1) {
+      console.log(
+        "[MainSceneWorld] Skipped feed ad fallback because no main character was found",
+      );
+      return false;
+    }
+
+    return ObjectComp.state[mainCharacterEid] === CharacterState.IDLE;
+  }
+
   public handleThrownFoodLanded(foodEid: number): void {
     if (this.isSimulationMode || this._pendingFeedAdFoodEid !== foodEid) {
       return;
@@ -932,6 +985,17 @@ export class MainSceneWorld implements IWorld, Scene {
     this._clearFeedAdFallbackTimer();
     this._feedAdFallbackTimerId = this._setMainSceneAdTimer(() => {
       this._feedAdFallbackTimerId = null;
+
+      if (!this._isMainCharacterIdleForFeedAd()) {
+        console.log(
+          "[MainSceneWorld] Deferred feed ad fallback because main character is not idle",
+          {
+            foodEid,
+          },
+        );
+        return;
+      }
+
       this._schedulePendingMainSceneAdForMenu(
         "feed",
         MAIN_SCENE_AD_POST_ACTION_DELAY_MS,
@@ -1021,6 +1085,9 @@ export class MainSceneWorld implements IWorld, Scene {
           const animatedGif = await PIXI.Assets.load({
             alias: key,
             src: path,
+            data: {
+              scaleMode: "nearest",
+            },
           });
 
           console.log(
@@ -1035,9 +1102,6 @@ export class MainSceneWorld implements IWorld, Scene {
         }
       },
     );
-            data: {
-              scaleMode: "nearest",
-            },
 
     await Promise.all(gifLoadPromises);
 
@@ -1081,6 +1145,9 @@ export class MainSceneWorld implements IWorld, Scene {
 
           // 로드 후 캐시에서 확인
           const loadedAsset = PIXI.Assets.get(key);
+          if (loadedAsset instanceof PIXI.Texture) {
+            loadedAsset.source.scaleMode = "nearest";
+          }
           console.log(
             `[MainSceneWorld] Successfully loaded image asset: ${key}`,
             loadedAsset ? "Found in cache" : "NOT found in cache",
@@ -1095,9 +1162,6 @@ export class MainSceneWorld implements IWorld, Scene {
     );
 
     await Promise.all(imageLoadPromises);
-          if (loadedAsset instanceof PIXI.Texture) {
-            loadedAsset.source.scaleMode = "nearest";
-          }
 
     // 로딩 완료 후 캐시 상태 확인
     console.log(
@@ -1188,7 +1252,9 @@ export class MainSceneWorld implements IWorld, Scene {
       );
 
       // 배경 설정
-      this._background = new Background(PIXI.Assets.get("grass"));
+      this._background = new Background(
+        this._getGrassTextureForTimeOfDay(this._timeOfDay),
+      );
       this._stage.addChild(this._background);
       this._sceneDarknessOverlay = this._createSceneDarknessOverlay();
       this._stage.addChild(this._sceneDarknessOverlay);
@@ -1214,6 +1280,10 @@ export class MainSceneWorld implements IWorld, Scene {
         this._gameMenu = new GameMenu(this._parentElement, {
           onMiniGameSelect: () => {
             console.log("[MainSceneWorld] Mini game selected");
+            if (this._shouldBlockMiniGameEntry()) {
+              return;
+            }
+
             if (!this._startMiniGame) {
               console.warn(
                 "[MainSceneWorld] Mini game start callback is not set",
@@ -1301,6 +1371,24 @@ export class MainSceneWorld implements IWorld, Scene {
     } finally {
       console.groupEnd();
     }
+  }
+
+  private _shouldBlockMiniGameEntry(): boolean {
+    if (this._debugMode) {
+      return false;
+    }
+
+    const characterEid = this._findMainCharacterEntity();
+    if (characterEid === -1) {
+      return false;
+    }
+
+    if (ObjectComp.state[characterEid] !== CharacterState.EGG) {
+      return false;
+    }
+
+    this._showAlert?.("not available in egg state.", "Notice");
+    return true;
   }
 
   private _addDebugGaugeEventListener(): void {
@@ -1447,6 +1535,15 @@ export class MainSceneWorld implements IWorld, Scene {
         }
       });
 
+      const { repairedCharacters, repairedFoods } =
+        repairLoadedFoodInteractionState(this, this.currentTime);
+
+      if (repairedCharacters.length > 0 || repairedFoods.length > 0) {
+        console.warn(
+          `[MainSceneWorld] Repaired orphaned loaded food interaction state: ${repairedCharacters.length} characters, ${repairedFoods.length} foods`,
+        );
+      }
+
       console.log(
         `Loaded ${loadedEntitiesCount} entities successfully, ${errorCount} failed`,
       );
@@ -1478,15 +1575,6 @@ export class MainSceneWorld implements IWorld, Scene {
 
     const entityStats = {
       total: this._persistentData.entities.length,
-      const { repairedCharacters, repairedFoods } =
-        repairLoadedFoodInteractionState(this, this.currentTime);
-
-      if (repairedCharacters.length > 0 || repairedFoods.length > 0) {
-        console.warn(
-          `[MainSceneWorld] Repaired orphaned loaded food interaction state: ${repairedCharacters.length} characters, ${repairedFoods.length} foods`,
-        );
-      }
-
       byType: {} as Record<string, number>,
       byState: {} as Record<string, number>,
     };
@@ -1713,7 +1801,9 @@ export class MainSceneWorld implements IWorld, Scene {
     };
   }
 
-  private _initializeData(initialGameData: InitialGameData): MainSceneWorldData {
+  private _initializeData(
+    initialGameData: InitialGameData,
+  ): MainSceneWorldData {
     const useLocalTime = initialGameData.useLocalTime;
     const cachedSunTimes = useLocalTime
       ? (initialGameData.cachedSunTimes ?? undefined)
@@ -1732,6 +1822,11 @@ export class MainSceneWorld implements IWorld, Scene {
           cached_sun_times: cachedSunTimes,
           main_scene_ad: {
             menu_use_count: 0,
+          },
+          mini_game_scores: {
+            flappy_bird: {
+              best_score: 0,
+            },
           },
         },
       },
@@ -1931,6 +2026,11 @@ export class MainSceneWorld implements IWorld, Scene {
             main_scene_ad: {
               menu_use_count: 0,
             },
+            mini_game_scores: {
+              flappy_bird: {
+                best_score: 0,
+              },
+            },
           },
         };
       }
@@ -1943,6 +2043,11 @@ export class MainSceneWorld implements IWorld, Scene {
           main_scene_ad: {
             menu_use_count: 0,
           },
+          mini_game_scores: {
+            flappy_bird: {
+              best_score: 0,
+            },
+          },
         };
       } else if (data.world_metadata.app_state.use_local_time !== true) {
         data.world_metadata.app_state.use_local_time = true;
@@ -1951,6 +2056,18 @@ export class MainSceneWorld implements IWorld, Scene {
       if (!data.world_metadata.app_state.main_scene_ad) {
         data.world_metadata.app_state.main_scene_ad = {
           menu_use_count: 0,
+        };
+      }
+
+      if (!data.world_metadata.app_state.mini_game_scores) {
+        data.world_metadata.app_state.mini_game_scores = {
+          flappy_bird: {
+            best_score: 0,
+          },
+        };
+      } else if (!data.world_metadata.app_state.mini_game_scores.flappy_bird) {
+        data.world_metadata.app_state.mini_game_scores.flappy_bird = {
+          best_score: 0,
         };
       }
 
@@ -2217,8 +2334,28 @@ export class MainSceneWorld implements IWorld, Scene {
         ? this._autoTimeOfDayState
         : getManualSkyVisualState(this._timeOfDay);
 
+    this._background.setTexture(
+      this._getGrassTextureForTimeOfDay(state.timeOfDay),
+    );
     this._background.applySkyState(state);
     this._applySceneDarknessOverlay(state);
+  }
+
+  private _getGrassTextureForTimeOfDay(timeOfDay: TimeOfDay): PIXI.Texture {
+    const assetKey = TIME_OF_DAY_TO_GRASS_ASSET[timeOfDay] ?? "grass";
+    const texture = PIXI.Assets.get(assetKey);
+
+    if (texture instanceof PIXI.Texture) {
+      return texture;
+    }
+
+    const fallbackTexture = PIXI.Assets.get("grass");
+
+    if (fallbackTexture instanceof PIXI.Texture) {
+      return fallbackTexture;
+    }
+
+    return PIXI.Texture.WHITE;
   }
 
   private _createSceneDarknessOverlay(): PIXI.Graphics {
@@ -2360,6 +2497,11 @@ export class MainSceneWorld implements IWorld, Scene {
         main_scene_ad: {
           menu_use_count: 0,
         },
+        mini_game_scores: {
+          flappy_bird: {
+            best_score: 0,
+          },
+        },
       };
     }
 
@@ -2397,6 +2539,11 @@ export class MainSceneWorld implements IWorld, Scene {
         use_local_time: enabled,
         main_scene_ad: {
           menu_use_count: 0,
+        },
+        mini_game_scores: {
+          flappy_bird: {
+            best_score: 0,
+          },
         },
       };
       return;
@@ -2730,9 +2877,9 @@ export class MainSceneWorld implements IWorld, Scene {
       DiseaseSystemComp.sickStartTime[characterEid] = 0;
     }
 
-    if (ObjectComp.state[characterEid] === CharacterState.SICK) {
-      ObjectComp.state[characterEid] = CharacterState.IDLE;
-    }
+    restoreCharacterFreeRoamingState(this, characterEid, {
+      now: this.currentTime,
+    });
 
     console.log(
       `[MainSceneWorld] Applied hospital recovery impact for character ${characterEid} (removedStatus=${removed})`,
@@ -2754,6 +2901,27 @@ export class MainSceneWorld implements IWorld, Scene {
     }
 
     return -1; // 캐릭터를 찾지 못함
+  }
+
+  public getFlappyBirdCharacterKey(): CharacterKey | null {
+    const characterEid = this._findMainCharacterEntity();
+    if (characterEid === -1) {
+      return null;
+    }
+
+    if (ObjectComp.state[characterEid] === CharacterState.EGG) {
+      return null;
+    }
+
+    const spritesheetName = getCharacterSpritesheetName(
+      CharacterStatusComp.characterKey[characterEid],
+    );
+
+    if (!spritesheetName || !isCharacterKeyValue(spritesheetName)) {
+      return null;
+    }
+
+    return spritesheetName;
   }
 
   /**
@@ -3322,6 +3490,11 @@ export class MainSceneWorld implements IWorld, Scene {
           use_local_time: this._isLocalTimeEnabled(),
           main_scene_ad: {
             menu_use_count: 0,
+          },
+          mini_game_scores: {
+            flappy_bird: {
+              best_score: 0,
+            },
           },
         };
       }

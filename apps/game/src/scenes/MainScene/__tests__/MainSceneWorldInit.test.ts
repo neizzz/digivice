@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import * as PIXI from "pixi.js";
+import { ObjectComp } from "../raw-components";
+import { CharacterState } from "../types";
 import {
   MainSceneWorld,
   MissingInitialGameDataError,
@@ -11,6 +13,10 @@ type TestableMainSceneWorld = MainSceneWorld & {
   _requireInitialGameData: (
     initialGameData?: InitialGameData,
   ) => InitialGameData;
+  _debugMode: boolean;
+  _showAlert?: (message: string, title?: string) => void;
+  _findMainCharacterEntity: () => number;
+  _shouldBlockMiniGameEntry: () => boolean;
 };
 
 function createMainSceneWorld(): TestableMainSceneWorld {
@@ -28,7 +34,10 @@ function createMainSceneWorld(): TestableMainSceneWorld {
 test("초기 세팅 데이터가 없으면 setup 없이 기본 월드를 만들지 않는다", () => {
   const world = createMainSceneWorld();
 
-  assert.throws(() => world._requireInitialGameData(), MissingInitialGameDataError);
+  assert.throws(
+    () => world._requireInitialGameData(),
+    MissingInitialGameDataError,
+  );
   assert.throws(
     () =>
       world._requireInitialGameData({
@@ -54,4 +63,41 @@ test("초기 세팅 데이터 이름은 정리된 값으로 사용한다", () =>
       cachedSunTimes: null,
     },
   );
+});
+
+test("egg 상태면 debug 모드가 아닐 때 미니게임 진입을 막고 alert를 띄운다", () => {
+  const world = createMainSceneWorld();
+  const alerts: Array<{ message: string; title?: string }> = [];
+  const eid = 1;
+
+  world._debugMode = false;
+  world._showAlert = (message, title) => {
+    alerts.push({ message, title });
+  };
+  world._findMainCharacterEntity = () => eid;
+  ObjectComp.state[eid] = CharacterState.EGG;
+
+  assert.equal(world._shouldBlockMiniGameEntry(), true);
+  assert.deepEqual(alerts, [
+    {
+      message: "not available in egg state.",
+      title: "Notice",
+    },
+  ]);
+});
+
+test("egg 상태여도 debug 모드면 미니게임 진입을 허용한다", () => {
+  const world = createMainSceneWorld();
+  const alerts: Array<{ message: string; title?: string }> = [];
+  const eid = 1;
+
+  world._debugMode = true;
+  world._showAlert = (message, title) => {
+    alerts.push({ message, title });
+  };
+  world._findMainCharacterEntity = () => eid;
+  ObjectComp.state[eid] = CharacterState.EGG;
+
+  assert.equal(world._shouldBlockMiniGameEntry(), false);
+  assert.deepEqual(alerts, []);
 });
