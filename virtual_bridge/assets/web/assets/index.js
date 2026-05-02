@@ -3,6 +3,145 @@ var __defProp = Object.defineProperty;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 import { g as getDefaultExportFromCjs, S as SHOW_DEBUG_GAUGE_EVENT, c as commonjsGlobal, r as reactExports, j as jsxRuntimeExports, a as requireReactDom, T as TopLeftBuildLogoText, R as ReactDOM } from "./index2.js";
+const STORAGE_PREVIEW_LIMIT = 120;
+function _serialize(obj) {
+  return JSON.stringify(obj);
+}
+function _deserialize(json) {
+  return JSON.parse(json);
+}
+function _isMissingSerializedValue(value) {
+  if (value === null || typeof value === "undefined") {
+    return true;
+  }
+  if (typeof value !== "string") {
+    return false;
+  }
+  const normalizedValue = value.trim();
+  return normalizedValue === "" || normalizedValue === "undefined" || normalizedValue === "null";
+}
+function _previewValue(value) {
+  if (value === null) {
+    return "null";
+  }
+  if (typeof value === "undefined") {
+    return "undefined";
+  }
+  const stringValue = typeof value === "string" ? value : JSON.stringify(value) ?? String(value);
+  return stringValue.length > STORAGE_PREVIEW_LIMIT ? `${stringValue.slice(0, STORAGE_PREVIEW_LIMIT)}…` : stringValue;
+}
+function hasNativeStorageController() {
+  var _a, _b, _c;
+  return typeof window !== "undefined" && typeof ((_a = window.storageController) == null ? void 0 : _a.getData) === "function" && typeof ((_b = window.storageController) == null ? void 0 : _b.setData) === "function" && typeof ((_c = window.storageController) == null ? void 0 : _c.removeData) === "function" && typeof window.__createPromise === "function" && typeof window.__resolvePromise === "function";
+}
+class WebLocalStorage {
+  // private _throttledSetItem = throttle((key: string, value: string): void => {
+  //   // console.debug("[WebLocalStorage] _throttledSetItem():", key, value);
+  //   localStorage.setItem(key, value);
+  // }, 1000);
+  async getData(key) {
+    console.debug("[WebLocalStorage] getData:start", { key });
+    const value = localStorage.getItem(key);
+    if (value === null) {
+      console.debug("[WebLocalStorage] getData:miss", { key });
+      return await Promise.resolve(null);
+    }
+    console.debug("[WebLocalStorage] getData:raw", {
+      key,
+      length: value.length,
+      preview: _previewValue(value)
+    });
+    try {
+      const parsed = _deserialize(value);
+      console.debug("[WebLocalStorage] getData:parsed", {
+        key,
+        valueType: typeof parsed
+      });
+      return await Promise.resolve(parsed);
+    } catch (error) {
+      console.warn("[WebLocalStorage] getData:parse_failed", {
+        key,
+        preview: _previewValue(value),
+        error
+      });
+      throw error;
+    }
+  }
+  setData(key, data) {
+    const value = _serialize(data);
+    console.debug("[WebLocalStorage] setData:start", {
+      key,
+      length: value.length,
+      preview: _previewValue(value)
+    });
+    localStorage.setItem(key, value);
+    console.debug("[WebLocalStorage] setData:success", { key });
+    return Promise.resolve();
+  }
+  removeData(key) {
+    console.debug("[WebLocalStorage] removeData:start", { key });
+    localStorage.removeItem(key);
+    console.debug("[WebLocalStorage] removeData:success", { key });
+    return Promise.resolve();
+  }
+}
+class FlutterStorage {
+  _getStorageController() {
+    if (!hasNativeStorageController()) {
+      throw new Error("Native storage controller is not available");
+    }
+    return window.storageController;
+  }
+  async getData(key) {
+    console.debug("[FlutterStorage] getData:start", { key });
+    const value = await this._getStorageController().getData(key);
+    console.debug("[FlutterStorage] getData:raw", {
+      key,
+      rawType: typeof value,
+      isNull: value === null,
+      preview: _previewValue(value)
+    });
+    if (_isMissingSerializedValue(value)) {
+      console.debug("[FlutterStorage] getData:miss", { key });
+      return null;
+    }
+    try {
+      const serializedValue = value;
+      console.debug("[FlutterStorage] getData:parse_attempt", {
+        key,
+        preview: _previewValue(serializedValue)
+      });
+      const parsed = _deserialize(serializedValue);
+      console.debug("[FlutterStorage] getData:parsed", {
+        key,
+        valueType: typeof parsed
+      });
+      return parsed;
+    } catch (error) {
+      console.warn("[FlutterStorage] getData:parse_failed", {
+        key,
+        preview: _previewValue(value),
+        error
+      });
+      throw error;
+    }
+  }
+  async setData(key, value) {
+    const serializedValue = _serialize(value);
+    console.debug("[FlutterStorage] setData:start", {
+      key,
+      length: serializedValue.length,
+      preview: _previewValue(serializedValue)
+    });
+    await this._getStorageController().setData(key, serializedValue);
+    console.debug("[FlutterStorage] setData:success", { key });
+  }
+  async removeData(key) {
+    console.debug("[FlutterStorage] removeData:start", { key });
+    await this._getStorageController().removeData(key);
+    console.debug("[FlutterStorage] removeData:success", { key });
+  }
+}
 const scriptRel = "modulepreload";
 const assetsURL = function(dep, importerUrl) {
   return new URL(dep, importerUrl).href;
@@ -27402,6 +27541,11 @@ const PRODUCTION_GAME_CONSTANTS = {
   DIGESTIVE_LOAD_PER_MEAL: 2,
   POOP_DELAY: 20 * MINUTE_IN_MILLISECONDS$1,
   DIGESTIVE_SMALL_POOP_DELAY: 8 * HOUR_IN_MILLISECONDS$1,
+  POOP_SPAWN_DISTANCE: 25,
+  POOP_SPAWN_MIN_OBJECT_SPACING: 20,
+  POOP_SPAWN_RETRY_COUNT: 6,
+  POOP_SPAWN_DISTANCE_JITTER: 20,
+  POOP_SPAWN_ANGLE_JITTER_RAD: Math.PI / 2,
   // 질병 관련
   DISEASE_CHECK_INTERVAL: 10 * SECOND_IN_MILLISECONDS,
   BASE_DISEASE_RATE: 1862601875783909e-19,
@@ -27984,6 +28128,34 @@ function ensureRandomMovementDefaults(eid, now) {
     RandomMovementComp.nextChange[eid] = now + 1e3 + Math.random() * 2e3;
   }
 }
+function restoreCharacterFreeRoamingState(world, eid, options = {}) {
+  if (!hasComponent(world, ObjectComp, eid) || ObjectComp.type[eid] !== ObjectType.CHARACTER) {
+    return false;
+  }
+  const now = options.now ?? Date.now();
+  const idleDelayMs = options.idleDelayMs ?? 1e3;
+  if (hasComponent(world, DestinationComp, eid)) {
+    const targetFoodEid = DestinationComp.target[eid];
+    if (targetFoodEid > 0 && hasComponent(world, ObjectComp, targetFoodEid) && ObjectComp.type[targetFoodEid] === ObjectType.FOOD && ObjectComp.state[targetFoodEid] === FoodState.TARGETED) {
+      ObjectComp.state[targetFoodEid] = FoodState.LANDED;
+    }
+    removeComponent(world, DestinationComp, eid);
+  }
+  ObjectComp.state[eid] = CharacterState.IDLE;
+  if (!hasComponent(world, SpeedComp, eid)) {
+    addComponent(world, SpeedComp, eid);
+  }
+  SpeedComp.value[eid] = 0;
+  if (!hasComponent(world, RandomMovementComp, eid)) {
+    addComponent(world, RandomMovementComp, eid);
+  }
+  RandomMovementComp.minIdleTime[eid] = 1e3;
+  RandomMovementComp.maxIdleTime[eid] = 3e3;
+  RandomMovementComp.minMoveTime[eid] = 2e3;
+  RandomMovementComp.maxMoveTime[eid] = 4e3;
+  RandomMovementComp.nextChange[eid] = now + idleDelayMs + Math.random() * 1e3;
+  return true;
+}
 function repairCharacterEntityRuntimeComponents(world, eid, now = Date.now()) {
   if (!hasComponent(world, ObjectComp, eid) || ObjectComp.type[eid] !== ObjectType.CHARACTER) {
     return [];
@@ -28077,6 +28249,66 @@ function repairCharacterEntityRuntimeComponents(world, eid, now = Date.now()) {
     ensureRandomMovementDefaults(eid, now);
   }
   return repaired;
+}
+function repairLoadedFoodInteractionState(world, now = Date.now()) {
+  const objectEntities = defineQuery([ObjectComp])(world);
+  const targetedFoodIds = /* @__PURE__ */ new Set();
+  const eatingFoodIds = /* @__PURE__ */ new Set();
+  for (let i2 = 0; i2 < objectEntities.length; i2++) {
+    const eid = objectEntities[i2];
+    if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
+      continue;
+    }
+    if (hasComponent(world, DestinationComp, eid) && DestinationComp.type[eid] === DestinationType.TARGETED && DestinationComp.target[eid] > 0) {
+      targetedFoodIds.add(DestinationComp.target[eid]);
+    }
+    if (hasComponent(world, FoodEatingComp, eid) && FoodEatingComp.isActive[eid] === 1 && FoodEatingComp.targetFood[eid] > 0) {
+      eatingFoodIds.add(FoodEatingComp.targetFood[eid]);
+    }
+  }
+  const repairedCharacters = [];
+  const repairedFoods = [];
+  for (let i2 = 0; i2 < objectEntities.length; i2++) {
+    const eid = objectEntities[i2];
+    const objectType = ObjectComp.type[eid];
+    if (objectType === ObjectType.CHARACTER) {
+      const hasOrphanedEatingState = ObjectComp.state[eid] === CharacterState.EATING && !hasComponent(world, FoodEatingComp, eid);
+      if (!hasOrphanedEatingState) {
+        continue;
+      }
+      if (hasComponent(world, DestinationComp, eid)) {
+        removeComponent(world, DestinationComp, eid);
+      }
+      ObjectComp.state[eid] = CharacterState.IDLE;
+      if (!hasComponent(world, SpeedComp, eid)) {
+        addComponent(world, SpeedComp, eid);
+      }
+      SpeedComp.value[eid] = 0;
+      if (!hasComponent(world, RandomMovementComp, eid)) {
+        addComponent(world, RandomMovementComp, eid);
+      }
+      ensureRandomMovementDefaults(eid, now);
+      repairedCharacters.push(eid);
+      continue;
+    }
+    if (objectType !== ObjectType.FOOD) {
+      continue;
+    }
+    const isOrphanedTargetedFood = ObjectComp.state[eid] === FoodState.TARGETED && !targetedFoodIds.has(eid);
+    const isOrphanedEatingFood = ObjectComp.state[eid] === FoodState.BEING_INTAKEN && !eatingFoodIds.has(eid);
+    if (!isOrphanedTargetedFood && !isOrphanedEatingFood) {
+      continue;
+    }
+    ObjectComp.state[eid] = FoodState.LANDED;
+    if (hasComponent(world, FreshnessTimerComp, eid)) {
+      FreshnessTimerComp.isBeingEaten[eid] = 0;
+    }
+    repairedFoods.push(eid);
+  }
+  return {
+    repairedCharacters,
+    repairedFoods
+  };
 }
 const characterQuery$9 = defineQuery([CharacterStatusComp, RandomMovementComp]);
 const allCharacterQuery = defineQuery([CharacterStatusComp, ObjectComp]);
@@ -29235,6 +29467,9 @@ function getEffectiveCharacterZIndex(eid) {
   const configuredZIndex = RenderComp.zIndex[eid];
   return configuredZIndex === 0 ? PositionComp.y[eid] : configuredZIndex;
 }
+const STATUS_ICON_SCALE = 1.8;
+const STATUS_ICON_BASE_SIZE = 16;
+const STATUS_ICON_SIZE = STATUS_ICON_BASE_SIZE * STATUS_ICON_SCALE;
 const TEMPORARY_STATUSES = [CharacterStatus.HAPPY, CharacterStatus.DISCOVER];
 const STATUS_TO_TEXTURE_KEY = {
   [CharacterStatus.SICK]: TextureKey.SICK,
@@ -29301,8 +29536,14 @@ function createStatusIconSprite(textureKey) {
   const texture = getTextureFromKey(textureKey);
   const sprite = new Sprite(texture || Texture.WHITE);
   sprite.anchor.set(0.5);
-  sprite.scale.set(1.8);
+  sprite.scale.set(STATUS_ICON_SCALE);
   return sprite;
+}
+function getStatusIconMinY(world) {
+  return world.positionBoundary.y + STATUS_ICON_SIZE / 2;
+}
+function clampStatusIconY(world, preferredY) {
+  return Math.max(preferredY, getStatusIconMinY(world));
 }
 function clearEntitySprites(eid) {
   const sprites = entityStatusSprites.get(eid);
@@ -29393,12 +29634,12 @@ function statusIconRenderSystem(params) {
         sprites[j2] = createStatusIconSprite(textureKey);
         world.stage.addChild(sprites[j2]);
       }
-      const iconSize = 28.8;
+      const iconSize = STATUS_ICON_SIZE;
       const spacing = 4;
       const totalWidth = persistent.length * iconSize + (persistent.length - 1) * spacing;
       const startX = position.x - totalWidth / 2 + j2 * (iconSize + spacing) + iconSize / 2;
       sprites[j2].x = startX;
-      sprites[j2].y = position.y - 50;
+      sprites[j2].y = clampStatusIconY(world, position.y - 50);
       sprites[j2].zIndex = characterZIndex;
     }
     const currentTempSprite = entityTemporarySprites.get(eid);
@@ -29417,7 +29658,7 @@ function statusIconRenderSystem(params) {
         }
         const tempSprite = entityTemporarySprites.get(eid);
         tempSprite.x = position.x + 25;
-        tempSprite.y = position.y - 40;
+        tempSprite.y = clampStatusIconY(world, position.y - 40);
         tempSprite.zIndex = characterZIndex;
       }
     } else {
@@ -29966,7 +30207,7 @@ const NAME_LABEL_STYLE = new TextStyle({
   align: "center",
   stroke: { color: NAME_LABEL_STROKE_COLOR, width: NAME_LABEL_STROKE_WIDTH }
 });
-const NAME_LABEL_BOTTOM_OFFSET = 2;
+const NAME_LABEL_BOTTOM_OFFSET = 0;
 const LABEL_Z_INDEX_OFFSET = 1e3;
 function characterNameLabelSystem(params) {
   var _a;
@@ -30879,6 +31120,7 @@ const characterWithDigestiveQuery = defineQuery([
   CharacterStatusComp,
   DigestiveSystemComp
 ]);
+const positionedObjectQuery$1 = defineQuery([ObjectComp, PositionComp]);
 const NORMAL_POOP_SCALE_RANGE = {
   min: 2.8,
   max: 3.6
@@ -31051,34 +31293,94 @@ function createPoop(world, characterEid, options) {
     angle = AngleComp.value[characterEid];
   }
   console.log(`[DigestiveSystem] Character angle: ${angle}`);
-  const distance = 25;
-  const behindAngle = angle + Math.PI;
-  const poopX = characterX + Math.cos(behindAngle) * distance;
-  const poopY = characterY + Math.sin(behindAngle) * distance;
-  console.log(`[DigestiveSystem] Initial poop position: (${poopX}, ${poopY})`);
-  const boundary = world.positionBoundary;
-  const finalX = Math.max(
-    boundary.x,
-    Math.min(boundary.x + boundary.width, poopX)
-  );
-  const finalY = Math.max(
-    boundary.y,
-    Math.min(boundary.y + boundary.height, poopY)
-  );
-  console.log(`[DigestiveSystem] Final poop position: (${finalX}, ${finalY})`);
+  const spawnPosition = selectPoopSpawnPosition(world, characterX, characterY, angle);
   console.log(
-    `[DigestiveSystem] Boundary: x=${boundary.x}, y=${boundary.y}, width=${boundary.width}, height=${boundary.height}`
+    `[DigestiveSystem] Final poop position: (${spawnPosition.x}, ${spawnPosition.y})`
+  );
+  console.log(
+    `[DigestiveSystem] Boundary: x=${world.positionBoundary.x}, y=${world.positionBoundary.y}, width=${world.positionBoundary.width}, height=${world.positionBoundary.height}`
   );
   const poopScaleRange = (options == null ? void 0 : options.isSmall) ? SMALL_POOP_SCALE_RANGE : NORMAL_POOP_SCALE_RANGE;
   const poopScale = poopScaleRange.min + Math.random() * (poopScaleRange.max - poopScaleRange.min);
   const poobEntity = createPoobEntity(world, {
-    position: { x: finalX, y: finalY },
+    position: spawnPosition,
     angle: { value: 0 },
     object: { id: 0, type: ObjectType.POOB, state: 0 },
     // id를 0으로 설정하여 generatePersistentNumericId가 호출되도록 함
     render: { storeIndex: 0, textureKey: 0, scale: poopScale, zIndex: 0 }
   });
   console.log(`[DigestiveSystem] Created poop entity with EID: ${poobEntity}`);
+}
+function selectPoopSpawnPosition(world, characterX, characterY, angle) {
+  const behindAngle = angle + Math.PI;
+  const fallbackPosition = getClampedPoopSpawnPosition(
+    world,
+    characterX,
+    characterY,
+    behindAngle,
+    GAME_CONSTANTS.POOP_SPAWN_DISTANCE
+  );
+  console.log(
+    `[DigestiveSystem] Initial poop position: (${fallbackPosition.x}, ${fallbackPosition.y})`
+  );
+  if (hasRequiredPoopSpacing(world, fallbackPosition)) {
+    return fallbackPosition;
+  }
+  for (let attempt = 0; attempt < GAME_CONSTANTS.POOP_SPAWN_RETRY_COUNT; attempt++) {
+    const angleOffset = (Math.random() * 2 - 1) * GAME_CONSTANTS.POOP_SPAWN_ANGLE_JITTER_RAD;
+    const distanceOffset = (Math.random() * 2 - 1) * GAME_CONSTANTS.POOP_SPAWN_DISTANCE_JITTER;
+    const candidateDistance = Math.max(
+      0,
+      GAME_CONSTANTS.POOP_SPAWN_DISTANCE + distanceOffset
+    );
+    const candidatePosition = getClampedPoopSpawnPosition(
+      world,
+      characterX,
+      characterY,
+      behindAngle + angleOffset,
+      candidateDistance
+    );
+    if (hasRequiredPoopSpacing(world, candidatePosition)) {
+      console.log(
+        `[DigestiveSystem] Selected alternate poop position on retry ${attempt + 1}: (${candidatePosition.x}, ${candidatePosition.y})`
+      );
+      return candidatePosition;
+    }
+  }
+  console.log(
+    `[DigestiveSystem] Falling back to legacy poop position after ${GAME_CONSTANTS.POOP_SPAWN_RETRY_COUNT} retries`
+  );
+  return fallbackPosition;
+}
+function getClampedPoopSpawnPosition(world, characterX, characterY, angle, distance) {
+  const poopX = characterX + Math.cos(angle) * distance;
+  const poopY = characterY + Math.sin(angle) * distance;
+  const boundary = world.positionBoundary;
+  return {
+    x: Math.max(boundary.x, Math.min(boundary.x + boundary.width, poopX)),
+    y: Math.max(boundary.y, Math.min(boundary.y + boundary.height, poopY))
+  };
+}
+function hasRequiredPoopSpacing(world, position) {
+  return getNearestPoopSpacingDistance(world, position) >= GAME_CONSTANTS.POOP_SPAWN_MIN_OBJECT_SPACING;
+}
+function getNearestPoopSpacingDistance(world, position) {
+  const objects = positionedObjectQuery$1(world);
+  let nearestDistance = Number.POSITIVE_INFINITY;
+  for (let index = 0; index < objects.length; index++) {
+    const eid = objects[index];
+    const objectType = ObjectComp.type[eid];
+    if (objectType !== ObjectType.FOOD && objectType !== ObjectType.POOB) {
+      continue;
+    }
+    const deltaX = position.x - PositionComp.x[eid];
+    const deltaY = position.y - PositionComp.y[eid];
+    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+    if (distance < nearestDistance) {
+      nearestDistance = distance;
+    }
+  }
+  return nearestDistance;
 }
 const TARGET_REACHED_EPSILON = 1e-3;
 function moveTowardsTarget(world, eid, _delta) {
@@ -31546,23 +31848,10 @@ function cancelEating(world, characterEid) {
   }
 }
 function restoreFreeRoamingState(world, characterEid, idleDelayMs) {
-  releaseTargetedFoodForCharacter(world, characterEid);
-  if (hasComponent(world, DestinationComp, characterEid)) {
-    removeComponent(world, DestinationComp, characterEid);
-  }
-  ObjectComp.state[characterEid] = CharacterState.IDLE;
-  if (!hasComponent(world, SpeedComp, characterEid)) {
-    addComponent(world, SpeedComp, characterEid);
-  }
-  SpeedComp.value[characterEid] = 0;
-  if (!hasComponent(world, RandomMovementComp, characterEid)) {
-    addComponent(world, RandomMovementComp, characterEid);
-  }
-  RandomMovementComp.minIdleTime[characterEid] = 1e3;
-  RandomMovementComp.maxIdleTime[characterEid] = 3e3;
-  RandomMovementComp.minMoveTime[characterEid] = 2e3;
-  RandomMovementComp.maxMoveTime[characterEid] = 4e3;
-  RandomMovementComp.nextChange[characterEid] = world.currentTime + idleDelayMs + Math.random() * 1e3;
+  restoreCharacterFreeRoamingState(world, characterEid, {
+    now: world.currentTime,
+    idleDelayMs
+  });
   console.log(
     `[FoodEatingSystem] Restored free roaming state for character ${characterEid}`
   );
@@ -32565,7 +32854,7 @@ const TIME_OF_DAY_OPTIONS = [
   "night"
   /* Night */
 ];
-const SUN_TRANSITION_WINDOW_MINUTES = 20;
+const SUN_TRANSITION_WINDOW_MINUTES = 60;
 const SUN_TRANSITION_TOTAL_MINUTES = SUN_TRANSITION_WINDOW_MINUTES * 2;
 const MINUTE_IN_MILLISECONDS = 60 * 1e3;
 const MANUAL_PROGRESS_PRESET = {
@@ -34502,144 +34791,6 @@ function formatNapCheckStatus(params) {
   }
   return formatSleepCheckCountdown(nextNapCheckTime, currentTime);
 }
-const STORAGE_PREVIEW_LIMIT = 120;
-function _serialize(obj) {
-  return JSON.stringify(obj);
-}
-function _deserialize(json) {
-  return JSON.parse(json);
-}
-function _isMissingSerializedValue(value) {
-  if (value === null || typeof value === "undefined") {
-    return true;
-  }
-  if (typeof value !== "string") {
-    return false;
-  }
-  const normalizedValue = value.trim();
-  return normalizedValue === "" || normalizedValue === "undefined" || normalizedValue === "null";
-}
-function _previewValue(value) {
-  if (value === null) {
-    return "null";
-  }
-  if (typeof value === "undefined") {
-    return "undefined";
-  }
-  const stringValue = typeof value === "string" ? value : JSON.stringify(value) ?? String(value);
-  return stringValue.length > STORAGE_PREVIEW_LIMIT ? `${stringValue.slice(0, STORAGE_PREVIEW_LIMIT)}…` : stringValue;
-}
-function hasNativeStorageController() {
-  return typeof window !== "undefined" && typeof window.storageController !== "undefined";
-}
-class WebLocalStorage {
-  // private _throttledSetItem = throttle((key: string, value: string): void => {
-  //   // console.debug("[WebLocalStorage] _throttledSetItem():", key, value);
-  //   localStorage.setItem(key, value);
-  // }, 1000);
-  async getData(key) {
-    console.debug("[WebLocalStorage] getData:start", { key });
-    const value = localStorage.getItem(key);
-    if (value === null) {
-      console.debug("[WebLocalStorage] getData:miss", { key });
-      return await Promise.resolve(null);
-    }
-    console.debug("[WebLocalStorage] getData:raw", {
-      key,
-      length: value.length,
-      preview: _previewValue(value)
-    });
-    try {
-      const parsed = _deserialize(value);
-      console.debug("[WebLocalStorage] getData:parsed", {
-        key,
-        valueType: typeof parsed
-      });
-      return await Promise.resolve(parsed);
-    } catch (error) {
-      console.warn("[WebLocalStorage] getData:parse_failed", {
-        key,
-        preview: _previewValue(value),
-        error
-      });
-      throw error;
-    }
-  }
-  setData(key, data) {
-    const value = _serialize(data);
-    console.debug("[WebLocalStorage] setData:start", {
-      key,
-      length: value.length,
-      preview: _previewValue(value)
-    });
-    localStorage.setItem(key, value);
-    console.debug("[WebLocalStorage] setData:success", { key });
-    return Promise.resolve();
-  }
-  removeData(key) {
-    console.debug("[WebLocalStorage] removeData:start", { key });
-    localStorage.removeItem(key);
-    console.debug("[WebLocalStorage] removeData:success", { key });
-    return Promise.resolve();
-  }
-}
-class FlutterStorage {
-  _getStorageController() {
-    if (!hasNativeStorageController()) {
-      throw new Error("Native storage controller is not available");
-    }
-    return window.storageController;
-  }
-  async getData(key) {
-    console.debug("[FlutterStorage] getData:start", { key });
-    const value = await this._getStorageController().getData(key);
-    console.debug("[FlutterStorage] getData:raw", {
-      key,
-      rawType: typeof value,
-      isNull: value === null,
-      preview: _previewValue(value)
-    });
-    if (_isMissingSerializedValue(value)) {
-      console.debug("[FlutterStorage] getData:miss", { key });
-      return null;
-    }
-    try {
-      const serializedValue = value;
-      console.debug("[FlutterStorage] getData:parse_attempt", {
-        key,
-        preview: _previewValue(serializedValue)
-      });
-      const parsed = _deserialize(serializedValue);
-      console.debug("[FlutterStorage] getData:parsed", {
-        key,
-        valueType: typeof parsed
-      });
-      return parsed;
-    } catch (error) {
-      console.warn("[FlutterStorage] getData:parse_failed", {
-        key,
-        preview: _previewValue(value),
-        error
-      });
-      throw error;
-    }
-  }
-  async setData(key, value) {
-    const serializedValue = _serialize(value);
-    console.debug("[FlutterStorage] setData:start", {
-      key,
-      length: serializedValue.length,
-      preview: _previewValue(serializedValue)
-    });
-    await this._getStorageController().setData(key, serializedValue);
-    console.debug("[FlutterStorage] setData:success", { key });
-  }
-  async removeData(key) {
-    console.debug("[FlutterStorage] removeData:start", { key });
-    await this._getStorageController().removeData(key);
-    console.debug("[FlutterStorage] removeData:success", { key });
-  }
-}
 class _StorageManager {
   constructor() {
     this._flutterStorage = new FlutterStorage();
@@ -34683,6 +34834,14 @@ class Background extends Container {
     this._baseToneGraphics.zIndex = 1;
     this.addChild(this._baseToneGraphics);
   }
+  setTexture(texture) {
+    if (this._bgSprite.texture === texture) {
+      return;
+    }
+    this._bgSprite.texture = texture;
+    this._syncBackgroundScale();
+    this._redrawSky();
+  }
   resize(width, height) {
     if (this._width === width && this._height === height) {
       return;
@@ -34690,9 +34849,7 @@ class Background extends Container {
     this._width = width;
     this._height = height;
     this.position.set(width / 2, height / 2);
-    const scaleX = width / this._bgSprite.texture.width;
-    const scaleY = height / this._bgSprite.texture.height;
-    this._bgSprite.scale.set(Math.max(scaleX, scaleY));
+    this._syncBackgroundScale();
     this._redrawSky();
   }
   applySkyState(skyState) {
@@ -34703,6 +34860,13 @@ class Background extends Container {
     this._redrawSky();
   }
   animate(currentTime) {
+  }
+  _syncBackgroundScale() {
+    if (this._width <= 0 || this._height <= 0) {
+      return;
+    }
+    this._bgSprite.width = this._width;
+    this._bgSprite.height = this._height;
   }
   _redrawSky() {
     this._baseToneGraphics.clear();
@@ -36043,6 +36207,44 @@ function renderSleepTextFrame(container, frameIndex) {
   container.pivot.set((minX + maxRight) / 2, 0);
   return letters;
 }
+function hasNativeSunController() {
+  return typeof window !== "undefined" && !!window.sunController;
+}
+function isSunTimesPayload(value) {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+  const candidate = value;
+  return typeof candidate.sunriseAt === "string" && typeof candidate.sunsetAt === "string" && typeof candidate.date === "string" && typeof candidate.timezone === "string" && typeof candidate.timezoneOffsetMinutes === "number" && typeof candidate.fetchedAt === "string" && (candidate.locationSource === "device" || candidate.locationSource === "fallback") && typeof candidate.hasLocationPermission === "boolean";
+}
+async function getNativeSunTimes(promptForPermission = true) {
+  if (!hasNativeSunController()) {
+    return null;
+  }
+  try {
+    const payload = await window.sunController.getSunTimes(promptForPermission);
+    if (!isSunTimesPayload(payload)) {
+      console.warn("[sunTimes] Invalid native sun times payload:", payload);
+      return null;
+    }
+    return payload;
+  } catch (error) {
+    console.warn("[sunTimes] Failed to fetch native sun times:", error);
+    return null;
+  }
+}
+async function requestNativeLocationPermission() {
+  if (!hasNativeSunController()) {
+    return false;
+  }
+  try {
+    const result = await window.sunController.requestLocationPermission();
+    return !!result && typeof result.granted === "boolean" && result.granted;
+  } catch (error) {
+    console.warn("[sunTimes] Failed to request native location permission:", error);
+    return false;
+  }
+}
 class ReentrySimulator {
   constructor() {
     this._currentSimulationTime = 0;
@@ -36326,55 +36528,29 @@ class ReentrySimulator {
     return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
   }
 }
-function hasNativeSunController() {
-  return typeof window !== "undefined" && !!window.sunController;
-}
-function isSunTimesPayload(value) {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-  const candidate = value;
-  return typeof candidate.sunriseAt === "string" && typeof candidate.sunsetAt === "string" && typeof candidate.date === "string" && typeof candidate.timezone === "string" && typeof candidate.timezoneOffsetMinutes === "number" && typeof candidate.fetchedAt === "string" && (candidate.locationSource === "device" || candidate.locationSource === "fallback") && typeof candidate.hasLocationPermission === "boolean";
-}
-async function getNativeSunTimes(promptForPermission = true) {
-  if (!hasNativeSunController()) {
-    return null;
-  }
-  try {
-    const payload = await window.sunController.getSunTimes(promptForPermission);
-    if (!isSunTimesPayload(payload)) {
-      console.warn("[sunTimes] Invalid native sun times payload:", payload);
-      return null;
-    }
-    return payload;
-  } catch (error) {
-    console.warn("[sunTimes] Failed to fetch native sun times:", error);
-    return null;
-  }
-}
-async function requestNativeLocationPermission() {
-  if (!hasNativeSunController()) {
-    return false;
-  }
-  try {
-    const result = await window.sunController.requestLocationPermission();
-    return !!result && typeof result.granted === "boolean" && result.granted;
-  } catch (error) {
-    console.warn("[sunTimes] Failed to request native location permission:", error);
-    return false;
-  }
-}
 const liveCharacterEntitiesQuery = defineQuery([
   ObjectComp,
   CharacterStatusComp
 ]);
+const CHARACTER_KEY_VALUES = new Set(Object.values(CharacterKey));
+function isCharacterKeyValue(value) {
+  return CHARACTER_KEY_VALUES.has(value);
+}
+class MissingInitialGameDataError extends Error {
+  constructor() {
+    super(
+      "Initial setup data is required before MainSceneWorld can be initialized."
+    );
+    this.name = "MissingInitialGameDataError";
+  }
+}
 const WORLD_DATA_STORAGE_KEY$1 = "MainSceneWorldData";
 const DEFAULT_USE_LOCAL_TIME = true;
 const MAIN_SCENE_AD_NORMAL_THRESHOLD = 5;
 const MAIN_SCENE_AD_DEEP_NIGHT_THRESHOLD = 10;
 const MAIN_SCENE_AD_NORMAL_COOLDOWN_MS = 5 * 60 * 1e3;
 const MAIN_SCENE_AD_DEEP_NIGHT_COOLDOWN_MS = 60 * 60 * 1e3;
-const MAIN_SCENE_AD_POST_ACTION_DELAY_MS = 200;
+const MAIN_SCENE_AD_POST_ACTION_DELAY_MS = 500;
 const MAIN_SCENE_AD_FEED_FALLBACK_AFTER_LAND_MS = 3e3;
 const HOUR_MS = 60 * 60 * 1e3;
 const DAY_MS = 24 * HOUR_MS;
@@ -36431,7 +36607,16 @@ const COMMON_SPRITESHEET_ASSETS = [
   // },
 ];
 const IMAGE_ASSETS = {
-  grass: "/assets/game/tiles/grass-tile.jpg"
+  grass: "/assets/game/tiles/grass-tile.jpg",
+  grassSunrise: "/assets/game/tiles/grass-tile-sunrise.jpg",
+  grassSunset: "/assets/game/tiles/grass-tile-sunset.jpg",
+  grassEvening: "/assets/game/tiles/grass-tile-evening.jpg"
+};
+const TIME_OF_DAY_TO_GRASS_ASSET = {
+  [TimeOfDay.Day]: "grass",
+  [TimeOfDay.Sunrise]: "grassSunrise",
+  [TimeOfDay.Sunset]: "grassSunset",
+  [TimeOfDay.Night]: "grassEvening"
 };
 const GIF_ASSETS = {
   recovery: "/assets/game/gifs/recovery.gif"
@@ -36467,6 +36652,7 @@ const _MainSceneWorld = class _MainSceneWorld {
     this._pendingRecoveryCureEids = /* @__PURE__ */ new Set();
     this._isPersistenceDisabled = false;
     this._pendingStorageWrite = Promise.resolve();
+    this._debugMode = false;
     this._timeOfDay = TimeOfDay.Day;
     this._timeOfDayMode = TimeOfDayMode.Manual;
     this._sunTimes = null;
@@ -36525,7 +36711,9 @@ const _MainSceneWorld = class _MainSceneWorld {
     };
     this._parentElement = params.parentElement;
     this._debugParentElement = params.debugParentElement ?? params.parentElement;
+    this._debugMode = params.debugMode ?? false;
     this._startMiniGame = params.startMiniGame;
+    this._showAlert = params.showAlert;
     this._createInitialGameData = params.createInitialGameData;
     this._changeControlButtons = params.changeControlButtons;
     this._triggerBiteVibration = params.triggerBiteVibration;
@@ -36598,7 +36786,12 @@ const _MainSceneWorld = class _MainSceneWorld {
     const appState = {
       last_active_time: Date.now(),
       is_first_load: false,
-      use_local_time: true
+      use_local_time: true,
+      mini_game_scores: {
+        flappy_bird: {
+          best_score: 0
+        }
+      }
     };
     this._persistentData.world_metadata.app_state = appState;
     return appState;
@@ -36827,6 +37020,16 @@ const _MainSceneWorld = class _MainSceneWorld {
     this._pendingFeedAdFoodEid = foodEid;
     this._clearFeedAdFallbackTimer();
   }
+  _isMainCharacterIdleForFeedAd() {
+    const mainCharacterEid = this._findMainCharacterEntity();
+    if (mainCharacterEid === -1) {
+      console.log(
+        "[MainSceneWorld] Skipped feed ad fallback because no main character was found"
+      );
+      return false;
+    }
+    return ObjectComp.state[mainCharacterEid] === CharacterState.IDLE;
+  }
   handleThrownFoodLanded(foodEid) {
     if (this.isSimulationMode || this._pendingFeedAdFoodEid !== foodEid) {
       return;
@@ -36834,6 +37037,15 @@ const _MainSceneWorld = class _MainSceneWorld {
     this._clearFeedAdFallbackTimer();
     this._feedAdFallbackTimerId = this._setMainSceneAdTimer(() => {
       this._feedAdFallbackTimerId = null;
+      if (!this._isMainCharacterIdleForFeedAd()) {
+        console.log(
+          "[MainSceneWorld] Deferred feed ad fallback because main character is not idle",
+          {
+            foodEid
+          }
+        );
+        return;
+      }
       this._schedulePendingMainSceneAdForMenu(
         "feed",
         MAIN_SCENE_AD_POST_ACTION_DELAY_MS
@@ -36905,7 +37117,10 @@ const _MainSceneWorld = class _MainSceneWorld {
           );
           const animatedGif = await Assets.load({
             alias: key,
-            src: path2
+            src: path2,
+            data: {
+              scaleMode: "nearest"
+            }
           });
           console.log(
             `[MainSceneWorld] Successfully loaded animated GIF: ${key}`,
@@ -36953,6 +37168,9 @@ const _MainSceneWorld = class _MainSceneWorld {
             src: path2
           });
           const loadedAsset = Assets.get(key);
+          if (loadedAsset instanceof Texture) {
+            loadedAsset.source.scaleMode = "nearest";
+          }
           console.log(
             `[MainSceneWorld] Successfully loaded image asset: ${key}`,
             loadedAsset ? "Found in cache" : "NOT found in cache"
@@ -36985,7 +37203,9 @@ const _MainSceneWorld = class _MainSceneWorld {
       console.log("Loading saved data from storage...");
       const loadedData = await this.getData();
       if (!this._hasPlayableSavedData(loadedData)) {
-        const initialGameData = await ((_a = this._createInitialGameData) == null ? void 0 : _a.call(this));
+        const initialGameData = this._requireInitialGameData(
+          await ((_a = this._createInitialGameData) == null ? void 0 : _a.call(this))
+        );
         console.warn(
           "No playable saved data found, initializing with default entities..."
         );
@@ -36994,7 +37214,9 @@ const _MainSceneWorld = class _MainSceneWorld {
         console.log(`Found saved data, validating and loading...`);
         const validatedData = this._validateAndMigrateData(loadedData);
         if (!this._hasPlayableSavedData(validatedData)) {
-          const initialGameData = await ((_b = this._createInitialGameData) == null ? void 0 : _b.call(this));
+          const initialGameData = this._requireInitialGameData(
+            await ((_b = this._createInitialGameData) == null ? void 0 : _b.call(this))
+          );
           console.warn(
             "Saved data is missing required setup info or recoverable character entities, reinitializing with default entities..."
           );
@@ -37029,7 +37251,9 @@ const _MainSceneWorld = class _MainSceneWorld {
           await ensureCharacterOpaqueBoundsComputed(characterSpritesheetKey);
         })
       );
-      this._background = new Background(Assets.get("grass"));
+      this._background = new Background(
+        this._getGrassTextureForTimeOfDay(this._timeOfDay)
+      );
       this._stage.addChild(this._background);
       this._sceneDarknessOverlay = this._createSceneDarknessOverlay();
       this._stage.addChild(this._sceneDarknessOverlay);
@@ -37049,6 +37273,9 @@ const _MainSceneWorld = class _MainSceneWorld {
         this._gameMenu = new GameMenu(this._parentElement, {
           onMiniGameSelect: () => {
             console.log("[MainSceneWorld] Mini game selected");
+            if (this._shouldBlockMiniGameEntry()) {
+              return;
+            }
             if (!this._startMiniGame) {
               console.warn(
                 "[MainSceneWorld] Mini game start callback is not set"
@@ -37091,7 +37318,16 @@ const _MainSceneWorld = class _MainSceneWorld {
             this._updateControlButtonsForMenuState(focusedIndex !== null);
           }
         });
-        if (false) ;
+        if (this._debugParentElement) {
+          this._debugGaugeUI = new HTMLDebugGaugeUI(
+            this,
+            this._debugParentElement,
+            {
+              initiallyVisible: false
+            }
+          );
+          this._addDebugGaugeEventListener();
+        }
         if (false) ;
       }
       this._setupVisibilityChangeHandler();
@@ -37100,6 +37336,21 @@ const _MainSceneWorld = class _MainSceneWorld {
     } finally {
       console.groupEnd();
     }
+  }
+  _shouldBlockMiniGameEntry() {
+    var _a;
+    if (this._debugMode) {
+      return false;
+    }
+    const characterEid = this._findMainCharacterEntity();
+    if (characterEid === -1) {
+      return false;
+    }
+    if (ObjectComp.state[characterEid] !== CharacterState.EGG) {
+      return false;
+    }
+    (_a = this._showAlert) == null ? void 0 : _a.call(this, "not available in egg state.", "Notice");
+    return true;
   }
   _addDebugGaugeEventListener() {
     if (this._isDebugGaugeEventListenerRegistered || typeof window === "undefined") {
@@ -37212,6 +37463,12 @@ const _MainSceneWorld = class _MainSceneWorld {
           throw error;
         }
       });
+      const { repairedCharacters, repairedFoods } = repairLoadedFoodInteractionState(this, this.currentTime);
+      if (repairedCharacters.length > 0 || repairedFoods.length > 0) {
+        console.warn(
+          `[MainSceneWorld] Repaired orphaned loaded food interaction state: ${repairedCharacters.length} characters, ${repairedFoods.length} foods`
+        );
+      }
       console.log(
         `Loaded ${loadedEntitiesCount} entities successfully, ${errorCount} failed`
       );
@@ -37384,13 +37641,28 @@ const _MainSceneWorld = class _MainSceneWorld {
     }
     this._previousCleaningMode = this._isCleaningMode;
   }
+  _requireInitialGameData(initialGameData) {
+    var _a;
+    if (!initialGameData) {
+      throw new MissingInitialGameDataError();
+    }
+    const normalizedName = (_a = initialGameData == null ? void 0 : initialGameData.name) == null ? void 0 : _a.trim();
+    if (!normalizedName) {
+      throw new MissingInitialGameDataError();
+    }
+    return {
+      name: normalizedName,
+      useLocalTime: initialGameData.useLocalTime ?? DEFAULT_USE_LOCAL_TIME,
+      cachedSunTimes: initialGameData.cachedSunTimes ?? null
+    };
+  }
   _initializeData(initialGameData) {
-    const useLocalTime = (initialGameData == null ? void 0 : initialGameData.useLocalTime) ?? DEFAULT_USE_LOCAL_TIME;
-    const cachedSunTimes = useLocalTime ? (initialGameData == null ? void 0 : initialGameData.cachedSunTimes) ?? void 0 : void 0;
+    const useLocalTime = initialGameData.useLocalTime;
+    const cachedSunTimes = useLocalTime ? initialGameData.cachedSunTimes ?? void 0 : void 0;
     return {
       world_metadata: {
         name: "MainScene",
-        monster_name: initialGameData == null ? void 0 : initialGameData.name,
+        monster_name: initialGameData.name,
         last_ecs_saved: Date.now(),
         version: this.WORLD_DATA_SCHEMA_VERSION,
         app_state: {
@@ -37400,6 +37672,11 @@ const _MainSceneWorld = class _MainSceneWorld {
           cached_sun_times: cachedSunTimes,
           main_scene_ad: {
             menu_use_count: 0
+          },
+          mini_game_scores: {
+            flappy_bird: {
+              best_score: 0
+            }
           }
         }
       },
@@ -37550,6 +37827,11 @@ const _MainSceneWorld = class _MainSceneWorld {
             use_local_time: true,
             main_scene_ad: {
               menu_use_count: 0
+            },
+            mini_game_scores: {
+              flappy_bird: {
+                best_score: 0
+              }
             }
           }
         };
@@ -37561,6 +37843,11 @@ const _MainSceneWorld = class _MainSceneWorld {
           use_local_time: true,
           main_scene_ad: {
             menu_use_count: 0
+          },
+          mini_game_scores: {
+            flappy_bird: {
+              best_score: 0
+            }
           }
         };
       } else if (data.world_metadata.app_state.use_local_time !== true) {
@@ -37569,6 +37856,17 @@ const _MainSceneWorld = class _MainSceneWorld {
       if (!data.world_metadata.app_state.main_scene_ad) {
         data.world_metadata.app_state.main_scene_ad = {
           menu_use_count: 0
+        };
+      }
+      if (!data.world_metadata.app_state.mini_game_scores) {
+        data.world_metadata.app_state.mini_game_scores = {
+          flappy_bird: {
+            best_score: 0
+          }
+        };
+      } else if (!data.world_metadata.app_state.mini_game_scores.flappy_bird) {
+        data.world_metadata.app_state.mini_game_scores.flappy_bird = {
+          best_score: 0
         };
       }
       if (!data.entities) {
@@ -37761,8 +38059,23 @@ const _MainSceneWorld = class _MainSceneWorld {
       return;
     }
     const state = this._timeOfDayMode === TimeOfDayMode.Auto && this._autoTimeOfDayState ? this._autoTimeOfDayState : getManualSkyVisualState(this._timeOfDay);
+    this._background.setTexture(
+      this._getGrassTextureForTimeOfDay(state.timeOfDay)
+    );
     this._background.applySkyState(state);
     this._applySceneDarknessOverlay(state);
+  }
+  _getGrassTextureForTimeOfDay(timeOfDay) {
+    const assetKey = TIME_OF_DAY_TO_GRASS_ASSET[timeOfDay] ?? "grass";
+    const texture = Assets.get(assetKey);
+    if (texture instanceof Texture) {
+      return texture;
+    }
+    const fallbackTexture = Assets.get("grass");
+    if (fallbackTexture instanceof Texture) {
+      return fallbackTexture;
+    }
+    return Texture.WHITE;
   }
   _createSceneDarknessOverlay() {
     const overlay = new Graphics();
@@ -37868,6 +38181,11 @@ const _MainSceneWorld = class _MainSceneWorld {
         use_local_time: this._isLocalTimeEnabled(),
         main_scene_ad: {
           menu_use_count: 0
+        },
+        mini_game_scores: {
+          flappy_bird: {
+            best_score: 0
+          }
         }
       };
     }
@@ -37891,6 +38209,11 @@ const _MainSceneWorld = class _MainSceneWorld {
         use_local_time: enabled,
         main_scene_ad: {
           menu_use_count: 0
+        },
+        mini_game_scores: {
+          flappy_bird: {
+            best_score: 0
+          }
         }
       };
       return;
@@ -38150,9 +38473,9 @@ const _MainSceneWorld = class _MainSceneWorld {
     if (hasComponent(this, DiseaseSystemComp, characterEid)) {
       DiseaseSystemComp.sickStartTime[characterEid] = 0;
     }
-    if (ObjectComp.state[characterEid] === CharacterState.SICK) {
-      ObjectComp.state[characterEid] = CharacterState.IDLE;
-    }
+    restoreCharacterFreeRoamingState(this, characterEid, {
+      now: this.currentTime
+    });
     console.log(
       `[MainSceneWorld] Applied hospital recovery impact for character ${characterEid} (removedStatus=${removed2})`
     );
@@ -38169,6 +38492,22 @@ const _MainSceneWorld = class _MainSceneWorld {
       }
     }
     return -1;
+  }
+  getFlappyBirdCharacterKey() {
+    const characterEid = this._findMainCharacterEntity();
+    if (characterEid === -1) {
+      return null;
+    }
+    if (ObjectComp.state[characterEid] === CharacterState.EGG) {
+      return null;
+    }
+    const spritesheetName = getCharacterSpritesheetName(
+      CharacterStatusComp.characterKey[characterEid]
+    );
+    if (!spritesheetName || !isCharacterKeyValue(spritesheetName)) {
+      return null;
+    }
+    return spritesheetName;
   }
   /**
    * 청소 모드 상태를 업데이트하는 메서드들
@@ -38589,6 +38928,11 @@ const _MainSceneWorld = class _MainSceneWorld {
           use_local_time: this._isLocalTimeEnabled(),
           main_scene_ad: {
             menu_use_count: 0
+          },
+          mini_game_scores: {
+            flappy_bird: {
+              best_score: 0
+            }
           }
         };
       }
@@ -43546,13 +43890,14 @@ function requireMatter() {
 }
 var matterExports = requireMatter();
 class GameEngine {
-  constructor(width, height) {
+  constructor(width, height, gravityY = 2.5) {
     this.isRunning = false;
     this.gameObjects = [];
     this.pixiApp = null;
     this._frameCount = 0;
+    this.gravityY = gravityY;
     this.physics = matterExports.Engine.create({
-      gravity: { x: 0, y: 2.5 },
+      gravity: { x: 0, y: this.gravityY },
       enableSleeping: false
     });
     this.physics.world.bounds = {
@@ -43600,6 +43945,9 @@ class GameEngine {
       }
     }
   }
+  syncDisplayObjectsNow() {
+    this.syncDisplayObjects();
+  }
   addGameObject(displayObject, body) {
     matterExports.Composite.add(this.physics.world, body);
     this.gameObjects.push({ displayObject, body });
@@ -43622,7 +43970,7 @@ class GameEngine {
     this.gameObjects = [];
     matterExports.Engine.clear(this.physics);
     this.physics = matterExports.Engine.create({
-      gravity: { x: 0, y: 2.5 },
+      gravity: { x: 0, y: this.gravityY },
       enableSleeping: false
     });
   }
@@ -43637,10 +43985,23 @@ class GameEngine {
     return this.physics;
   }
 }
+function applyNearestScaleMode(asset) {
+  if (asset instanceof Texture) {
+    asset.source.scaleMode = "nearest";
+    return;
+  }
+  if (asset instanceof Spritesheet) {
+    asset.textureSource.scaleMode = "nearest";
+  }
+}
 const ASSET_DEFINITIONS = [
   {
     alias: "bird",
     src: "/assets/game/sprites/bird.json"
+  },
+  {
+    alias: "flappy-cloud",
+    src: "/assets/game/sprites/clouds.json"
   },
   {
     alias: "common16x16",
@@ -43653,10 +44014,6 @@ const ASSET_DEFINITIONS = [
   {
     alias: "game-tileset",
     src: "/assets/game/sprites/tiles/game-tileset.json"
-  },
-  {
-    alias: CharacterKey.TestGreenSlimeA1,
-    src: "/assets/game/sprites/monsters/green-slime_A1.json"
   }
 ];
 function getSpritesheet(alias) {
@@ -43668,9 +44025,14 @@ function getSpritesheet(alias) {
   }
 }
 const _AssetLoader = class _AssetLoader {
-  static async loadAssets() {
+  static async loadAssets(characterKey = CharacterKey.TestGreenSlimeA1) {
     if (this.loadPromise) {
-      return this.loadPromise;
+      await this.loadPromise;
+      await this.ensureCharacterSpritesheetLoaded(
+        CharacterKey.TestGreenSlimeA1
+      );
+      await this.ensureCharacterSpritesheetLoaded(characterKey);
+      return this.getAssets();
     }
     this.loadPromise = (async () => {
       await Promise.all(
@@ -43685,37 +44047,221 @@ const _AssetLoader = class _AssetLoader {
             });
           } catch {
           }
-          await Assets.load(alias);
+          const asset = await Assets.load(alias);
+          applyNearestScaleMode(asset);
         })
       );
-      return this.getAssets();
     })();
     try {
-      return await this.loadPromise;
+      await this.loadPromise;
+      await this.ensureCharacterSpritesheetLoaded(
+        CharacterKey.TestGreenSlimeA1
+      );
+      await this.ensureCharacterSpritesheetLoaded(characterKey);
+      return this.getAssets();
     } catch (error) {
       this.loadPromise = null;
       throw error;
     }
   }
-  static preloadAssets() {
-    return this.loadAssets();
+  static preloadAssets(characterKey = CharacterKey.TestGreenSlimeA1) {
+    return this.loadAssets(characterKey);
   }
   static getAssets() {
+    const characterSprites = {};
+    for (const characterKey of Object.values(CharacterKey)) {
+      const spritesheet = getSpritesheet(characterKey);
+      if (spritesheet) {
+        characterSprites[characterKey] = spritesheet;
+      }
+    }
     return {
       birdSprites: getSpritesheet("bird"),
+      flappyCloudSprites: getSpritesheet("flappy-cloud"),
       common16x16Sprites: getSpritesheet("common16x16"),
       common32x32Sprites: getSpritesheet("common32x32"),
       tilesetSprites: getSpritesheet("game-tileset"),
-      characterSprites: {
-        [CharacterKey.TestGreenSlimeA1]: getSpritesheet(
-          CharacterKey.TestGreenSlimeA1
-        )
-      }
+      characterSprites
     };
+  }
+  static async ensureCharacterSpritesheetLoaded(characterKey) {
+    if (getSpritesheet(characterKey)) {
+      return;
+    }
+    const existingPromise = this.characterLoadPromises.get(characterKey);
+    if (existingPromise) {
+      await existingPromise;
+      return;
+    }
+    const loadPromise = (async () => {
+      try {
+        Assets.add({
+          alias: characterKey,
+          src: `/assets/game/sprites/monsters/${characterKey}.json`
+        });
+      } catch {
+      }
+      const asset = await Assets.load(characterKey);
+      applyNearestScaleMode(asset);
+    })();
+    this.characterLoadPromises.set(characterKey, loadPromise);
+    try {
+      await loadPromise;
+    } catch (error) {
+      this.characterLoadPromises.delete(characterKey);
+      throw error;
+    }
   }
 };
 _AssetLoader.loadPromise = null;
+_AssetLoader.characterLoadPromises = /* @__PURE__ */ new Map();
 let AssetLoader = _AssetLoader;
+const FLAPPY_BIRD_OBJECT_SCALE = 1.1;
+const FLAPPY_BIRD_GROUND_TILE_SCALE = 0.9;
+const FLAPPY_BIRD_PIPE_TILE_SCALE = 0.81;
+const BASE_BASKET_SIZE = 40;
+const BASE_BIRD_SIZE = 32 * 1.4;
+const FLAPPY_BIRD_PLAYER_X_RATIO = 0.15;
+const FLAPPY_BIRD_CLOUD_SPEED_RATIO = 0.35;
+const FLAPPY_BIRD_CLOUD_MIN_SCALE = 1.15;
+const FLAPPY_BIRD_CLOUD_MAX_SCALE = 1.85;
+const FLAPPY_BIRD_CLOUD_MIN_GAP = 90;
+const FLAPPY_BIRD_CLOUD_MAX_GAP = 185;
+const FLAPPY_BIRD_CLOUD_TOP_PADDING = 28;
+const FLAPPY_BIRD_CLOUD_MAX_HEIGHT_RATIO = 0.72;
+const FLAPPY_BIRD_NEAR_MISS_CLEARANCE_RATIO = 0.25;
+const FLAPPY_BIRD_BASE_FRAME_MS = 1e3 / 60;
+const FLAPPY_BIRD_MAX_FRAME_SCALE = 1.25;
+function resolveFrameScale(deltaTime) {
+  return Math.min(
+    FLAPPY_BIRD_MAX_FRAME_SCALE,
+    Math.max(0, deltaTime / FLAPPY_BIRD_BASE_FRAME_MS)
+  );
+}
+class CloudManager {
+  constructor(app, speed) {
+    var _a;
+    this.cloudTextures = [];
+    this.clouds = [];
+    this.visualStyle = {
+      alphaMin: 0.16,
+      alphaMax: 0.28,
+      tint: 16777215
+    };
+    this.app = app;
+    this.cloudContainer = new Container();
+    this.cloudTextures = Object.values(
+      ((_a = AssetLoader.getAssets().flappyCloudSprites) == null ? void 0 : _a.textures) ?? {}
+    );
+    this.speed = speed * FLAPPY_BIRD_CLOUD_SPEED_RATIO;
+  }
+  setup() {
+    this.reset();
+    if (this.cloudTextures.length === 0) {
+      return;
+    }
+    let nextX = 0;
+    while (nextX < this.app.screen.width + FLAPPY_BIRD_CLOUD_MAX_GAP) {
+      nextX = this.createCloud(nextX);
+    }
+  }
+  update(deltaTime) {
+    if (this.cloudTextures.length === 0 || this.clouds.length === 0) {
+      return;
+    }
+    const frameScale = resolveFrameScale(deltaTime);
+    for (let i2 = 0; i2 < this.clouds.length; i2++) {
+      const cloud = this.clouds[i2];
+      cloud.position.x -= this.speed * frameScale;
+      if (cloud.position.x + cloud.width / 2 < 0) {
+        this.cloudContainer.removeChild(cloud);
+        this.clouds.splice(i2, 1);
+        i2 -= 1;
+      }
+    }
+    const lastCloud = this.clouds[this.clouds.length - 1];
+    if (!lastCloud || lastCloud.position.x + lastCloud.width / 2 < this.app.screen.width) {
+      const nextX = lastCloud ? lastCloud.position.x + lastCloud.width / 2 : 0;
+      this.createCloud(nextX);
+    }
+  }
+  resize() {
+    if (this.cloudTextures.length === 0) {
+      return;
+    }
+    if (this.clouds.length === 0) {
+      this.setup();
+      return;
+    }
+    const maxY = this.getMaxCloudY();
+    this.clouds.forEach((cloud) => {
+      cloud.position.y = Math.min(cloud.position.y, maxY - cloud.height / 2);
+    });
+    let nextX = this.clouds[this.clouds.length - 1].position.x + this.clouds[this.clouds.length - 1].width / 2;
+    while (nextX < this.app.screen.width + FLAPPY_BIRD_CLOUD_MAX_GAP) {
+      nextX = this.createCloud(nextX);
+    }
+  }
+  reset() {
+    this.cloudContainer.removeChildren();
+    this.clouds = [];
+  }
+  setSpeed(speed) {
+    this.speed = speed * FLAPPY_BIRD_CLOUD_SPEED_RATIO;
+  }
+  setVisualStyle(style) {
+    this.visualStyle = style;
+    this.clouds.forEach((cloud) => {
+      this.applyVisualStyle(cloud);
+    });
+  }
+  getContainer() {
+    return this.cloudContainer;
+  }
+  createCloud(startX) {
+    const cloudTexture = this.getRandomCloudTexture();
+    if (!cloudTexture) {
+      return startX;
+    }
+    const scale = FLAPPY_BIRD_CLOUD_MIN_SCALE + Math.random() * (FLAPPY_BIRD_CLOUD_MAX_SCALE - FLAPPY_BIRD_CLOUD_MIN_SCALE);
+    const cloud = new Sprite(cloudTexture);
+    cloud.anchor.set(0.5);
+    cloud.scale.set(scale);
+    cloud.__flappyCloudAlphaVariance = Math.random();
+    this.applyVisualStyle(cloud);
+    cloud.position.x = startX + cloud.width / 2 + this.getRandomCloudGap();
+    cloud.position.y = this.getRandomCloudY(cloud.height);
+    this.cloudContainer.addChild(cloud);
+    this.clouds.push(cloud);
+    return cloud.position.x + cloud.width / 2;
+  }
+  getRandomCloudGap() {
+    return FLAPPY_BIRD_CLOUD_MIN_GAP + Math.random() * (FLAPPY_BIRD_CLOUD_MAX_GAP - FLAPPY_BIRD_CLOUD_MIN_GAP);
+  }
+  applyVisualStyle(cloud) {
+    const variance = cloud.__flappyCloudAlphaVariance ?? 0.5;
+    cloud.alpha = this.visualStyle.alphaMin + variance * (this.visualStyle.alphaMax - this.visualStyle.alphaMin);
+    cloud.tint = this.visualStyle.tint;
+  }
+  getRandomCloudTexture() {
+    if (this.cloudTextures.length === 0) {
+      return null;
+    }
+    const textureIndex = Math.floor(Math.random() * this.cloudTextures.length);
+    return this.cloudTextures[textureIndex] ?? null;
+  }
+  getRandomCloudY(cloudHeight) {
+    const minY = FLAPPY_BIRD_CLOUD_TOP_PADDING + cloudHeight / 2;
+    const maxY = this.getMaxCloudY() - cloudHeight / 2;
+    if (maxY <= minY) {
+      return minY;
+    }
+    return minY + Math.random() * (maxY - minY);
+  }
+  getMaxCloudY() {
+    return this.app.screen.height * FLAPPY_BIRD_CLOUD_MAX_HEIGHT_RATIO;
+  }
+}
 class GroundManager {
   constructor(app, physicsManager, speed) {
     var _a;
@@ -43728,11 +44274,16 @@ class GroundManager {
     this.speed = speed;
     const assets = AssetLoader.getAssets();
     if ((_a = assets.tilesetSprites) == null ? void 0 : _a.textures["ground-1"]) {
-      this.groundTileSize = assets.tilesetSprites.textures["ground-1"].frame.width;
+      this.groundTileSize = Math.max(
+        1,
+        Math.round(
+          assets.tilesetSprites.textures["ground-1"].frame.width * FLAPPY_BIRD_GROUND_TILE_SCALE
+        )
+      );
     }
     this.groundBody = this.physicsManager.createRectangleBody(
       this.app.screen.width / 2,
-      this.app.screen.height,
+      this.getGroundBodyCenterY(),
       this.app.screen.width,
       this.groundTileSize,
       { isStatic: true, label: "ground" }
@@ -43743,7 +44294,7 @@ class GroundManager {
    * 초기 바닥 타일을 설정합니다.
    */
   setup() {
-    this.groundContainer.removeChildren();
+    this.groundContainer.removeChildren().forEach((child) => child.destroy());
     this.groundTiles = [];
     this.lastGroundTileX = 0;
     const assets = AssetLoader.getAssets();
@@ -43776,13 +44327,14 @@ class GroundManager {
   /**
    * 바닥 타일을 이동시킵니다.
    */
-  update() {
+  update(deltaTime) {
     if (!this.groundTiles.length) {
       return;
     }
+    const frameScale = resolveFrameScale(deltaTime);
     for (let i2 = 0; i2 < this.groundTiles.length; i2++) {
       const tile = this.groundTiles[i2];
-      tile.position.x -= this.speed;
+      tile.position.x -= this.speed * frameScale;
       if (tile.position.x + this.groundTileSize < 0) {
         this.groundContainer.removeChild(tile);
         this.groundTiles.splice(i2, 1);
@@ -43794,6 +44346,16 @@ class GroundManager {
       this.lastGroundTileX = lastTile.position.x + this.groundTileSize;
       this.createGroundTile();
     }
+  }
+  resize() {
+    this.physicsManager.setPosition(this.groundBody, {
+      x: this.groundBody.position.x,
+      y: this.getGroundBodyCenterY()
+    });
+    this.setup();
+  }
+  getGroundBodyCenterY() {
+    return this.app.screen.height;
   }
   /**
    * 지면 컨테이너를 반환합니다.
@@ -43813,11 +44375,16 @@ class GroundManager {
   getTileHeight() {
     return this.groundTileSize;
   }
+  setSpeed(speed) {
+    this.speed = speed;
+  }
 }
 class PipeManager {
   constructor(app, physicsManager, speed, spawnInterval, groundHeight) {
     this.pipesPairs = [];
     this.lastPipeSpawnTime = 0;
+    this.passageHeightMinRatio = 0.35;
+    this.passageHeightMaxRatio = 0.45;
     this.app = app;
     this.physicsManager = physicsManager;
     this.speed = speed;
@@ -43828,12 +44395,12 @@ class PipeManager {
   /**
    * 파이프를 업데이트합니다.
    */
-  update(currentTime, playerBody, onScoreUpdate) {
+  update(currentTime, playerBody, onScoreUpdate, deltaTime) {
     if (currentTime - this.lastPipeSpawnTime > this.pipeSpawnInterval) {
       this.createPipePair();
       this.lastPipeSpawnTime = currentTime;
     }
-    this.movePipes(playerBody, onScoreUpdate);
+    this.movePipes(playerBody, onScoreUpdate, deltaTime);
   }
   /**
    * 파이프 쌍을 생성합니다.
@@ -43844,7 +44411,12 @@ class PipeManager {
       throw new Error("Pipe textures not found in assets");
     }
     const texture = assets.tilesetSprites.textures["pipe-body"];
-    const tileSize = texture.frame.width;
+    const tileSize = Math.max(
+      1,
+      Math.round(
+        texture.frame.width * FLAPPY_BIRD_OBJECT_SCALE * FLAPPY_BIRD_PIPE_TILE_SCALE
+      )
+    );
     const { top, topBody, bottom, bottomBody } = this.createPipePairObjects(tileSize);
     top.position.x = topBody.position.x;
     top.position.y = topBody.position.y;
@@ -43859,7 +44431,9 @@ class PipeManager {
       bottom,
       topBody,
       bottomBody,
-      passed: false
+      passed: false,
+      minTopClearance: Number.POSITIVE_INFINITY,
+      minBottomClearance: Number.POSITIVE_INFINITY
     });
   }
   /**
@@ -43875,8 +44449,24 @@ class PipeManager {
     const pipeEndTexture = tilesetSprites.textures["pipe-end"];
     const minPipeHeight = tileSize * 2;
     const availableHeight = this.app.screen.height - this.groundHeight;
-    const minPassageHeight = Math.max(60, availableHeight * 0.2);
-    const maxPassageHeight = Math.max(80, availableHeight * 0.3);
+    const maxAvailablePassageHeight = Math.max(
+      tileSize * 2,
+      availableHeight - minPipeHeight * 2
+    );
+    const minPassageHeight = Math.min(
+      maxAvailablePassageHeight,
+      Math.max(tileSize * 2, availableHeight * this.passageHeightMinRatio)
+    );
+    const maxPassageHeight = Math.max(
+      minPassageHeight,
+      Math.min(
+        maxAvailablePassageHeight,
+        Math.max(
+          minPassageHeight,
+          availableHeight * this.passageHeightMaxRatio
+        )
+      )
+    );
     let passageHeight = minPassageHeight + Math.random() * (maxPassageHeight - minPassageHeight);
     passageHeight = Math.ceil(passageHeight / tileSize) * tileSize;
     const topPipeHeight = Math.max(
@@ -43936,17 +44526,22 @@ class PipeManager {
   /**
    * 파이프를 이동시키는 메서드
    */
-  movePipes(playerBody, onScoreUpdate) {
+  movePipes(playerBody, onScoreUpdate, deltaTime) {
+    const movementStep = this.speed * resolveFrameScale(deltaTime);
     for (let i2 = 0; i2 < this.pipesPairs.length; i2++) {
       const pair = this.pipesPairs[i2];
-      this.physicsManager.translateBody(pair.topBody, { x: -this.speed, y: 0 });
-      this.physicsManager.translateBody(pair.bottomBody, {
-        x: -this.speed,
+      this.physicsManager.translateBody(pair.topBody, {
+        x: -movementStep,
         y: 0
       });
-      if (pair.topBody.position.x < playerBody.position.x && !pair.passed) {
+      this.physicsManager.translateBody(pair.bottomBody, {
+        x: -movementStep,
+        y: 0
+      });
+      this.trackNearMissClearances(pair, playerBody);
+      if (this.hasPairPassedPlayer(pair, playerBody) && !pair.passed) {
         pair.passed = true;
-        onScoreUpdate();
+        onScoreUpdate(1 + this.getNearMissBonus(pair, playerBody));
       }
       if (pair.topBody.position.x < -pair.top.width) {
         this.removePipePair(i2);
@@ -43974,10 +44569,73 @@ class PipeManager {
     }
   }
   /**
+   * 파이프 상태를 초기화합니다.
+   */
+  reset() {
+    this.clearAllPipes();
+    this.lastPipeSpawnTime = 0;
+  }
+  applyDifficulty(options) {
+    this.speed = options.speed;
+    this.pipeSpawnInterval = options.pipeSpawnInterval;
+    this.passageHeightMinRatio = options.passageHeightMinRatio;
+    this.passageHeightMaxRatio = options.passageHeightMaxRatio;
+  }
+  /**
    * 파이프 컨테이너를 반환합니다.
    */
   getContainer() {
     return this.pipes;
+  }
+  getNearMissBonus(pair, playerBody) {
+    const playerHeight = playerBody.bounds.max.y - playerBody.bounds.min.y;
+    const threshold = Math.max(
+      6,
+      Math.round(playerHeight * FLAPPY_BIRD_NEAR_MISS_CLEARANCE_RATIO)
+    );
+    const trackedClearance = Math.min(
+      pair.minTopClearance,
+      pair.minBottomClearance
+    );
+    if (Number.isFinite(trackedClearance)) {
+      return trackedClearance <= threshold ? 1 : 0;
+    }
+    const { topClearance, bottomClearance } = this.resolveGapClearances(
+      pair,
+      playerBody
+    );
+    const currentClearance = Math.min(topClearance, bottomClearance);
+    return currentClearance <= threshold ? 1 : 0;
+  }
+  trackNearMissClearances(pair, playerBody) {
+    if (!this.isPlayerWithinNearMissWindow(pair, playerBody)) {
+      return;
+    }
+    const { topClearance, bottomClearance } = this.resolveGapClearances(
+      pair,
+      playerBody
+    );
+    pair.minTopClearance = Math.min(pair.minTopClearance, topClearance);
+    pair.minBottomClearance = Math.min(
+      pair.minBottomClearance,
+      bottomClearance
+    );
+  }
+  hasPairPassedPlayer(pair, playerBody) {
+    return pair.topBody.bounds.max.x < playerBody.bounds.min.x;
+  }
+  isPlayerWithinNearMissWindow(pair, playerBody) {
+    return playerBody.bounds.max.x >= pair.topBody.bounds.min.x && playerBody.bounds.min.x <= pair.topBody.bounds.max.x;
+  }
+  resolveGapClearances(pair, playerBody) {
+    const gapTopY = pair.topBody.bounds.max.y;
+    const gapBottomY = pair.bottomBody.bounds.min.y;
+    const playerTopY = playerBody.bounds.min.y;
+    const playerBottomY = playerBody.bounds.max.y;
+    return {
+      topClearance: Math.max(0, playerTopY - gapTopY),
+      bottomClearance: Math.max(0, gapBottomY - playerBottomY)
+    };
   }
 }
 class PlayerManager {
@@ -44000,11 +44658,11 @@ class PlayerManager {
     }
     const inBasketTexture = characterSpritesheet.textures["in-basket"];
     this.basket = new Sprite(inBasketTexture);
-    this.basket.width = 40;
-    this.basket.height = 40;
+    this.basket.width = BASE_BASKET_SIZE * FLAPPY_BIRD_OBJECT_SCALE;
+    this.basket.height = BASE_BASKET_SIZE * FLAPPY_BIRD_OBJECT_SCALE;
     this.basket.anchor.set(0.5);
     this.basketBody = this.physicsManager.createCircleBody(
-      this.app.screen.width / 3,
+      this.getPlayerStartX(),
       this.app.screen.height / 2,
       this.basket.width / 2,
       {
@@ -44032,8 +44690,8 @@ class PlayerManager {
     this.bird = new AnimatedSprite(textures);
     this.bird.animationSpeed = 0.1;
     this.bird.play();
-    this.bird.width = 32 * 1.4;
-    this.bird.height = 32 * 1.4;
+    this.bird.width = BASE_BIRD_SIZE * FLAPPY_BIRD_OBJECT_SCALE;
+    this.bird.height = BASE_BIRD_SIZE * FLAPPY_BIRD_OBJECT_SCALE;
     this.bird.anchor.set(0.5);
   }
   /**
@@ -44041,7 +44699,7 @@ class PlayerManager {
    */
   resetPosition() {
     this.physicsManager.setPosition(this.basketBody, {
-      x: this.app.screen.width / 4,
+      x: this.getPlayerStartX(),
       y: this.app.screen.height / 2
     });
     this.physicsManager.setVelocity(this.basketBody, { x: 0, y: 0 });
@@ -44051,8 +44709,8 @@ class PlayerManager {
    */
   update() {
     if (this.bird) {
-      this.bird.position.x = this.basketBody.position.x + 4;
-      this.bird.position.y = this.basketBody.position.y - 36;
+      this.bird.position.x = this.basketBody.position.x + this.basket.width * 0.1;
+      this.bird.position.y = this.basketBody.position.y - this.basket.height * 0.9;
     }
   }
   /**
@@ -44095,7 +44753,7 @@ class PlayerManager {
   resetBasket() {
     this.physicsManager.removeFromEngine(this.basketBody);
     this.basketBody = this.physicsManager.createCircleBody(
-      this.app.screen.width / 3,
+      this.getPlayerStartX(),
       this.app.screen.height / 2,
       this.basket.width / 2,
       {
@@ -44108,6 +44766,9 @@ class PlayerManager {
       }
     );
     this.physicsManager.addToEngine(this.basket, this.basketBody);
+  }
+  getPlayerStartX() {
+    return this.app.screen.width * FLAPPY_BIRD_PLAYER_X_RATIO;
   }
   /**
    * 바구니 물리 바디를 반환합니다.
@@ -44128,10 +44789,337 @@ class PlayerManager {
     return this.basket;
   }
 }
+const FLAPPY_BIRD_BGM_BPM = 144;
+const FLAPPY_BIRD_BGM_STEPS_PER_BEAT = 2;
+const FLAPPY_BIRD_BGM_STEP_DURATION_S = 60 / FLAPPY_BIRD_BGM_BPM / FLAPPY_BIRD_BGM_STEPS_PER_BEAT;
+const FLAPPY_BIRD_BGM_SCHEDULE_AHEAD_S = 0.12;
+const FLAPPY_BIRD_BGM_SCHEDULER_INTERVAL_MS = 25;
+const FLAPPY_BIRD_BGM_MASTER_GAIN = 0.045;
+const FLAPPY_BIRD_SFX_GAIN = 0.07;
+const FLAPPY_BIRD_BGM_ATTACK_S = 0.02;
+const FLAPPY_BIRD_BGM_RELEASE_S = 0.08;
+const FLAPPY_BIRD_PIPE_PASS_CUE_ATTACK_S = 4e-3;
+const FLAPPY_BIRD_PIPE_PASS_CUE_RELEASE_S = 0.12;
+const FLAPPY_BIRD_COUNTDOWN_CUE_DURATION_S = 0.09;
+const FLAPPY_BIRD_BGM_LEAD_PATTERN = [
+  76,
+  79,
+  81,
+  79,
+  76,
+  79,
+  83,
+  79,
+  74,
+  77,
+  81,
+  77,
+  74,
+  77,
+  79,
+  77
+];
+const FLAPPY_BIRD_BGM_BASS_PATTERN = [
+  52,
+  null,
+  52,
+  null,
+  55,
+  null,
+  55,
+  null,
+  50,
+  null,
+  50,
+  null,
+  55,
+  null,
+  57,
+  null
+];
+function getAudioContextConstructor() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  const audioWindow = window;
+  return window.AudioContext ?? audioWindow.webkitAudioContext ?? null;
+}
+function midiToFrequency(midi) {
+  return 440 * Math.pow(2, (midi - 69) / 12);
+}
+class FlappyBirdBgmController {
+  constructor() {
+    this.audioContext = null;
+    this.masterGain = null;
+    this.effectsGain = null;
+    this.schedulerTimerId = null;
+    this.nextStepTime = 0;
+    this.currentStep = 0;
+    this.isPlaying = false;
+    this.isDestroyed = false;
+    this.enabled = true;
+    this.sfxEnabled = true;
+  }
+  isEnabled() {
+    return this.enabled;
+  }
+  isSfxEnabled() {
+    return this.sfxEnabled;
+  }
+  setEnabled(enabled) {
+    if (this.enabled === enabled) {
+      return;
+    }
+    this.enabled = enabled;
+    if (!enabled) {
+      this.pause();
+    }
+  }
+  setSfxEnabled(enabled) {
+    this.sfxEnabled = enabled;
+  }
+  async startFromGesture() {
+    var _a;
+    if (!this.ensureAudioGraph()) {
+      return;
+    }
+    await this.resumeAudioContext();
+    if (((_a = this.audioContext) == null ? void 0 : _a.state) !== "running" || !this.enabled) {
+      return;
+    }
+    this.startPlayback();
+  }
+  playPipePassCue(hasNearMissBonus = false) {
+    if (this.isDestroyed || !this.sfxEnabled || !this.audioContext || !this.effectsGain || this.audioContext.state !== "running") {
+      return;
+    }
+    const now = this.audioContext.currentTime;
+    const baseFrequency = hasNearMissBonus ? midiToFrequency(88) : midiToFrequency(83);
+    const accentFrequency = hasNearMissBonus ? midiToFrequency(95) : midiToFrequency(90);
+    this.scheduleEffectVoice({
+      waveform: "square",
+      frequency: baseFrequency,
+      time: now,
+      duration: 0.08,
+      peakGain: hasNearMissBonus ? 0.16 : 0.12
+    });
+    this.scheduleEffectVoice({
+      waveform: "triangle",
+      frequency: accentFrequency,
+      time: now + 0.024,
+      duration: 0.1,
+      peakGain: hasNearMissBonus ? 0.1 : 0.075
+    });
+  }
+  async playCountdownCue(displayValue) {
+    if (this.isDestroyed || !this.sfxEnabled) {
+      return;
+    }
+    if (!this.ensureAudioGraph()) {
+      return;
+    }
+    await this.resumeAudioContext();
+    if (!this.audioContext || !this.effectsGain || this.audioContext.state !== "running") {
+      return;
+    }
+    const clampedDisplayValue = Math.min(3, Math.max(1, Math.floor(displayValue)));
+    const countdownStep = 3 - clampedDisplayValue;
+    const baseFrequency = midiToFrequency(69 + countdownStep * 4);
+    const accentFrequency = midiToFrequency(76 + countdownStep * 4);
+    const now = this.audioContext.currentTime;
+    this.scheduleEffectVoice({
+      waveform: "square",
+      frequency: baseFrequency,
+      time: now,
+      duration: FLAPPY_BIRD_COUNTDOWN_CUE_DURATION_S,
+      peakGain: 0.085
+    });
+    this.scheduleEffectVoice({
+      waveform: "triangle",
+      frequency: accentFrequency,
+      time: now + 0.018,
+      duration: FLAPPY_BIRD_COUNTDOWN_CUE_DURATION_S,
+      peakGain: 0.05
+    });
+  }
+  async resumeIfAvailable() {
+    if (!this.enabled || this.isDestroyed || !this.audioContext) {
+      return;
+    }
+    await this.resumeAudioContext();
+    if (this.audioContext.state !== "running") {
+      return;
+    }
+    this.startPlayback();
+  }
+  pause() {
+    if (!this.audioContext || !this.masterGain) {
+      return;
+    }
+    this.isPlaying = false;
+    if (this.schedulerTimerId !== null) {
+      window.clearInterval(this.schedulerTimerId);
+      this.schedulerTimerId = null;
+    }
+    const now = this.audioContext.currentTime;
+    this.masterGain.gain.cancelScheduledValues(now);
+    this.masterGain.gain.setValueAtTime(this.masterGain.gain.value, now);
+    this.masterGain.gain.linearRampToValueAtTime(
+      0,
+      now + FLAPPY_BIRD_BGM_RELEASE_S
+    );
+  }
+  destroy() {
+    if (this.isDestroyed) {
+      return;
+    }
+    this.pause();
+    this.isDestroyed = true;
+    const audioContext = this.audioContext;
+    this.audioContext = null;
+    this.masterGain = null;
+    this.effectsGain = null;
+    if (audioContext) {
+      void audioContext.close().catch(() => void 0);
+    }
+  }
+  ensureAudioGraph() {
+    if (this.isDestroyed) {
+      return false;
+    }
+    if (this.audioContext && this.masterGain) {
+      return true;
+    }
+    const AudioContextCtor = getAudioContextConstructor();
+    if (!AudioContextCtor) {
+      return false;
+    }
+    const audioContext = new AudioContextCtor();
+    const masterGain = audioContext.createGain();
+    const effectsGain = audioContext.createGain();
+    masterGain.gain.value = 0;
+    effectsGain.gain.value = FLAPPY_BIRD_SFX_GAIN;
+    masterGain.connect(audioContext.destination);
+    effectsGain.connect(audioContext.destination);
+    this.audioContext = audioContext;
+    this.masterGain = masterGain;
+    this.effectsGain = effectsGain;
+    return true;
+  }
+  async resumeAudioContext() {
+    if (!this.audioContext || this.audioContext.state === "running") {
+      return;
+    }
+    try {
+      await this.audioContext.resume();
+    } catch {
+    }
+  }
+  startPlayback() {
+    if (!this.audioContext || !this.masterGain || this.isPlaying) {
+      return;
+    }
+    this.isPlaying = true;
+    this.currentStep = 0;
+    this.nextStepTime = this.audioContext.currentTime + 0.03;
+    const now = this.audioContext.currentTime;
+    this.masterGain.gain.cancelScheduledValues(now);
+    this.masterGain.gain.setValueAtTime(this.masterGain.gain.value, now);
+    this.masterGain.gain.linearRampToValueAtTime(
+      FLAPPY_BIRD_BGM_MASTER_GAIN,
+      now + FLAPPY_BIRD_BGM_ATTACK_S
+    );
+    this.schedulerTimerId = window.setInterval(() => {
+      this.scheduleLoop();
+    }, FLAPPY_BIRD_BGM_SCHEDULER_INTERVAL_MS);
+    this.scheduleLoop();
+  }
+  scheduleLoop() {
+    if (!this.audioContext || !this.masterGain || !this.isPlaying) {
+      return;
+    }
+    while (this.nextStepTime < this.audioContext.currentTime + FLAPPY_BIRD_BGM_SCHEDULE_AHEAD_S) {
+      this.scheduleStep(this.currentStep, this.nextStepTime);
+      this.currentStep = (this.currentStep + 1) % FLAPPY_BIRD_BGM_LEAD_PATTERN.length;
+      this.nextStepTime += FLAPPY_BIRD_BGM_STEP_DURATION_S;
+    }
+  }
+  scheduleStep(step, time) {
+    const leadMidi = FLAPPY_BIRD_BGM_LEAD_PATTERN[step];
+    const bassMidi = FLAPPY_BIRD_BGM_BASS_PATTERN[step];
+    if (leadMidi !== null) {
+      this.scheduleVoice({
+        waveform: "square",
+        frequency: midiToFrequency(leadMidi),
+        time,
+        duration: FLAPPY_BIRD_BGM_STEP_DURATION_S * 0.9,
+        peakGain: 0.14
+      });
+    }
+    if (bassMidi !== null) {
+      this.scheduleVoice({
+        waveform: "triangle",
+        frequency: midiToFrequency(bassMidi),
+        time,
+        duration: FLAPPY_BIRD_BGM_STEP_DURATION_S * 1.8,
+        peakGain: 0.12
+      });
+    }
+  }
+  scheduleVoice(params) {
+    if (!this.audioContext || !this.masterGain) {
+      return;
+    }
+    const oscillator = this.audioContext.createOscillator();
+    const gainNode = this.audioContext.createGain();
+    const noteEndTime = params.time + params.duration;
+    oscillator.type = params.waveform;
+    oscillator.frequency.setValueAtTime(params.frequency, params.time);
+    gainNode.gain.setValueAtTime(1e-4, params.time);
+    gainNode.gain.exponentialRampToValueAtTime(
+      params.peakGain,
+      params.time + 0.01
+    );
+    gainNode.gain.exponentialRampToValueAtTime(1e-4, noteEndTime);
+    oscillator.connect(gainNode);
+    gainNode.connect(this.masterGain);
+    oscillator.start(params.time);
+    oscillator.stop(noteEndTime + 0.02);
+  }
+  scheduleEffectVoice(params) {
+    if (!this.audioContext || !this.effectsGain) {
+      return;
+    }
+    const oscillator = this.audioContext.createOscillator();
+    const gainNode = this.audioContext.createGain();
+    const noteEndTime = params.time + params.duration;
+    oscillator.type = params.waveform;
+    oscillator.frequency.setValueAtTime(params.frequency, params.time);
+    oscillator.frequency.exponentialRampToValueAtTime(
+      params.frequency * 1.06,
+      noteEndTime
+    );
+    gainNode.gain.setValueAtTime(1e-4, params.time);
+    gainNode.gain.exponentialRampToValueAtTime(
+      params.peakGain,
+      params.time + FLAPPY_BIRD_PIPE_PASS_CUE_ATTACK_S
+    );
+    gainNode.gain.exponentialRampToValueAtTime(
+      1e-4,
+      noteEndTime + FLAPPY_BIRD_PIPE_PASS_CUE_RELEASE_S
+    );
+    oscillator.connect(gainNode);
+    gainNode.connect(this.effectsGain);
+    oscillator.start(params.time);
+    oscillator.stop(noteEndTime + FLAPPY_BIRD_PIPE_PASS_CUE_RELEASE_S + 0.02);
+  }
+}
 var GameState = /* @__PURE__ */ ((GameState2) => {
   GameState2[GameState2["READY"] = 0] = "READY";
   GameState2[GameState2["PLAYING"] = 1] = "PLAYING";
   GameState2[GameState2["GAME_OVER"] = 2] = "GAME_OVER";
+  GameState2[GameState2["PAUSED"] = 3] = "PAUSED";
+  GameState2[GameState2["COUNTDOWN"] = 4] = "COUNTDOWN";
   return GameState2;
 })(GameState || {});
 class PhysicsManager {
@@ -44189,6 +45177,9 @@ class PhysicsManager {
    */
   setPosition(body, position) {
     matterExports.Body.setPosition(body, position);
+  }
+  syncDisplayObjects() {
+    this.gameEngine.syncDisplayObjectsNow();
   }
   /**
    * 충돌 이벤트 리스너를 설정합니다.
@@ -44294,34 +45285,136 @@ class PhysicsManager {
     this.cleanupDebugRenderer();
   }
 }
-class ScoreUI {
+const FLAPPY_BIRD_FONT_FAMILIES = [...NAME_LABEL_FONT_FAMILIES];
+const FLAPPY_BIRD_SCORE_FONT_SIZE = 12;
+const FLAPPY_BIRD_SCORE_MARGIN_X = 4;
+const FLAPPY_BIRD_SCORE_MARGIN_Y = 6;
+const FLAPPY_BIRD_SCORE_LINE_GAP = 16;
+const FLAPPY_BIRD_NEAR_MISS_FONT_SIZE = 14;
+const FLAPPY_BIRD_NEAR_MISS_DURATION_MS = 520;
+const FLAPPY_BIRD_NEAR_MISS_FLOAT_DISTANCE = 14;
+const FLAPPY_BIRD_NEAR_MISS_GOOD_COLOR = 15978338;
+const FLAPPY_BIRD_NEAR_MISS_GREAT_COLOR = 16769162;
+const FLAPPY_BIRD_COUNTDOWN_FONT_SIZE = 42;
+class CountdownUI {
   constructor() {
+    this.remainingMs = 0;
+    this.currentDisplayValue = 0;
+    this.baseX = 0;
+    this.baseY = 0;
+    this.text = new Text("3", {
+      fontFamily: FLAPPY_BIRD_FONT_FAMILIES,
+      fontSize: FLAPPY_BIRD_COUNTDOWN_FONT_SIZE,
+      fill: 16777215,
+      align: "center",
+      stroke: {
+        color: 0,
+        width: 6
+      }
+    });
+    this.text.anchor.set(0.5);
+    this.text.visible = false;
+  }
+  start(seconds) {
+    const countdownSeconds = Math.max(1, Math.floor(seconds));
+    this.remainingMs = countdownSeconds * 1e3;
+    this.currentDisplayValue = countdownSeconds;
+    this.text.text = String(countdownSeconds);
+    this.text.visible = true;
+    this.text.alpha = 1;
+    this.text.scale.set(1);
+    this.text.position.set(this.baseX, this.baseY);
+  }
+  update(deltaTime) {
+    if (this.remainingMs <= 0) {
+      return false;
+    }
+    this.remainingMs = Math.max(0, this.remainingMs - deltaTime);
+    if (this.remainingMs <= 0) {
+      this.hide();
+      return true;
+    }
+    const nextDisplayValue = Math.max(1, Math.ceil(this.remainingMs / 1e3));
+    if (nextDisplayValue !== this.currentDisplayValue) {
+      this.currentDisplayValue = nextDisplayValue;
+      this.text.text = String(nextDisplayValue);
+    }
+    return false;
+  }
+  hide() {
+    this.remainingMs = 0;
+    this.currentDisplayValue = 0;
+    this.text.visible = false;
+  }
+  getCurrentDisplayValue() {
+    return this.currentDisplayValue;
+  }
+  updatePosition(width, height) {
+    this.baseX = width / 2;
+    this.baseY = height / 2;
+    this.text.position.set(this.baseX, this.baseY);
+  }
+  getDisplayObject() {
+    return this.text;
+  }
+}
+class ScoreUI {
+  constructor(initialBestScore = 0) {
     this.score = 0;
-    this.scoreText = new Text("Score: 0", {
-      fontFamily: "Arial",
-      fontSize: 24,
+    this.bestScore = 0;
+    const textStyle = {
+      fontFamily: FLAPPY_BIRD_FONT_FAMILIES,
+      fontSize: FLAPPY_BIRD_SCORE_FONT_SIZE,
       fill: 16777215,
       stroke: {
         color: 0,
         width: 4
       },
-      align: "center"
-    });
-    this.scoreText.anchor.set(0.5, 0);
+      align: "left"
+    };
+    this.container = new Container();
+    this.bestScoreText = new Text("Best: 0", textStyle);
+    this.scoreText = new Text("Score: 0", textStyle);
+    this.bestScoreText.anchor.set(0, 0);
+    this.scoreText.anchor.set(0, 0);
+    this.scoreText.position.set(0, FLAPPY_BIRD_SCORE_LINE_GAP);
+    this.container.addChild(this.bestScoreText);
+    this.container.addChild(this.scoreText);
+    this.setBestScore(initialBestScore);
+    this.resetScore();
   }
   /**
    * 점수를 증가시키고 UI를 업데이트합니다.
    */
   incrementScore() {
-    this.score++;
-    this.scoreText.text = `Score: ${this.score}`;
+    return this.addScore(1);
+  }
+  addScore(amount) {
+    this.score += Math.max(0, Math.floor(amount));
+    const isNewBest = this.score > this.bestScore;
+    if (isNewBest) {
+      this.bestScore = this.score;
+    }
+    this.syncText();
+    return {
+      score: this.score,
+      bestScore: this.bestScore,
+      isNewBest
+    };
   }
   /**
    * 점수를 초기화합니다.
    */
   resetScore() {
     this.score = 0;
-    this.scoreText.text = "Score: 0";
+    this.syncText();
+  }
+  /**
+   * 최고 점수를 설정합니다.
+   */
+  setBestScore(score) {
+    this.bestScore = Math.max(0, Math.floor(score));
+    this.syncText();
   }
   /**
    * 현재 점수를 반환합니다.
@@ -44330,60 +45423,10 @@ class ScoreUI {
     return this.score;
   }
   /**
-   * UI 요소를 반환합니다.
+   * 현재 최고 점수를 반환합니다.
    */
-  getDisplayObject() {
-    return this.scoreText;
-  }
-  /**
-   * 위치를 업데이트합니다.
-   */
-  updatePosition(width) {
-    this.scoreText.position.set(width / 2, 20);
-  }
-}
-class GameOverUI {
-  constructor() {
-    this.container = new Container();
-    this.gameOverText = new Text("Game Over", {
-      fontFamily: "Arial",
-      fontSize: 48,
-      fill: 16777215,
-      align: "center",
-      stroke: {
-        color: 0,
-        width: 6
-      }
-    });
-    this.gameOverText.name = "gameOverText";
-    this.gameOverText.anchor.set(0.5);
-    this.restartText = new Text("Press SPACE to restart", {
-      fontFamily: "Arial",
-      fontSize: 24,
-      fill: 16777215,
-      align: "center",
-      stroke: {
-        color: 0,
-        width: 4
-      }
-    });
-    this.restartText.name = "restartText";
-    this.restartText.anchor.set(0.5);
-    this.container.addChild(this.gameOverText);
-    this.container.addChild(this.restartText);
-    this.container.visible = false;
-  }
-  /**
-   * 게임 오버 UI를 표시합니다.
-   */
-  show() {
-    this.container.visible = true;
-  }
-  /**
-   * 게임 오버 UI를 숨깁니다.
-   */
-  hide() {
-    this.container.visible = false;
+  getBestScore() {
+    return this.bestScore;
   }
   /**
    * UI 요소를 반환합니다.
@@ -44394,9 +45437,85 @@ class GameOverUI {
   /**
    * 위치를 업데이트합니다.
    */
+  updatePosition(_width) {
+    this.container.position.set(
+      FLAPPY_BIRD_SCORE_MARGIN_X,
+      FLAPPY_BIRD_SCORE_MARGIN_Y
+    );
+  }
+  syncText() {
+    this.bestScoreText.text = `Best: ${this.bestScore}`;
+    this.scoreText.text = `Score: ${this.score}`;
+  }
+}
+class NearMissUI {
+  constructor() {
+    this.remainingMs = 0;
+    this.totalDurationMs = FLAPPY_BIRD_NEAR_MISS_DURATION_MS;
+    this.baseX = 0;
+    this.baseY = 0;
+    this.text = new Text("Good!", {
+      fontFamily: FLAPPY_BIRD_FONT_FAMILIES,
+      fontSize: FLAPPY_BIRD_NEAR_MISS_FONT_SIZE,
+      fill: 16773544,
+      align: "center",
+      stroke: {
+        color: 0,
+        width: 4
+      }
+    });
+    this.text.anchor.set(0.5);
+    this.text.visible = false;
+    this.text.alpha = 0;
+  }
+  showBonus(amount) {
+    const bonusAmount = Math.max(1, Math.floor(amount));
+    const isGreat = bonusAmount >= 2;
+    this.text.text = isGreat ? "Great!" : "Good!";
+    this.text.style.fill = isGreat ? FLAPPY_BIRD_NEAR_MISS_GREAT_COLOR : FLAPPY_BIRD_NEAR_MISS_GOOD_COLOR;
+    this.remainingMs = this.totalDurationMs;
+    this.text.visible = true;
+    this.text.alpha = 1;
+    this.text.scale.set(1);
+    this.text.position.set(this.baseX, this.baseY);
+  }
+  update(deltaTime) {
+    if (this.remainingMs <= 0) {
+      return;
+    }
+    this.remainingMs = Math.max(0, this.remainingMs - deltaTime);
+    const progress = 1 - this.remainingMs / this.totalDurationMs;
+    const fadeStartProgress = 0.35;
+    const fadeProgress = Math.max(
+      0,
+      (progress - fadeStartProgress) / (1 - fadeStartProgress)
+    );
+    this.text.position.set(
+      this.baseX,
+      this.baseY - progress * FLAPPY_BIRD_NEAR_MISS_FLOAT_DISTANCE
+    );
+    this.text.alpha = 1 - fadeProgress;
+    this.text.scale.set(1 + (1 - progress) * 0.08);
+    if (this.remainingMs <= 0) {
+      this.text.visible = false;
+      this.text.alpha = 0;
+    }
+  }
   updatePosition(width, height) {
-    this.gameOverText.position.set(width / 2, height / 3);
-    this.restartText.position.set(width / 2, height / 2);
+    this.baseX = width / 2;
+    this.baseY = Math.max(58, height * 0.24);
+    if (this.remainingMs <= 0) {
+      this.text.position.set(this.baseX, this.baseY);
+    }
+  }
+  reset() {
+    this.remainingMs = 0;
+    this.text.visible = false;
+    this.text.alpha = 0;
+    this.text.position.set(this.baseX, this.baseY);
+  }
+  getDisplayObject() {
+    return this.text;
   }
 }
 const CONTROL_BUTTONS_SET = {
@@ -44404,18 +45523,68 @@ const CONTROL_BUTTONS_SET = {
     "game-play"
     /* GamePlay */
   ]: [
-    { type: ControlButtonType.Attack },
-    { type: ControlButtonType.DoubleJump },
-    { type: ControlButtonType.Jump }
-  ],
-  [
-    "game-end"
-    /* GameEnd */
-  ]: [
-    { type: ControlButtonType.Cancel },
-    { type: ControlButtonType.Confirm },
-    { type: ControlButtonType.Next }
+    { type: ControlButtonType.Jump },
+    { type: ControlButtonType.Settings },
+    { type: ControlButtonType.DoubleJump }
   ]
+};
+const GAME_OVER_VIBRATION_DURATION_MS = 18;
+const GAME_OVER_VIBRATION_STRENGTH = 110;
+const GAME_OVER_VIBRATION_DELAY_MS = 90;
+const PIPE_PASS_VIBRATION_DURATION_MS = 12;
+const PIPE_PASS_VIBRATION_STRENGTH = 34;
+const PIPE_PASS_NEAR_MISS_VIBRATION_STRENGTH = 48;
+const FLAPPY_BIRD_START_COUNTDOWN_SECONDS = 3;
+const SKY_DAY_COLOR = 5622271;
+const SKY_STAR_COLOR = 16772920;
+const SKY_STAR_LAYOUT = [
+  { x: 0.1, y: 0.12, radius: 1.6 },
+  { x: 0.18, y: 0.2, radius: 2.1 },
+  { x: 0.28, y: 0.11, radius: 1.4 },
+  { x: 0.37, y: 0.18, radius: 1.8 },
+  { x: 0.46, y: 0.09, radius: 1.5 },
+  { x: 0.58, y: 0.16, radius: 2.2 },
+  { x: 0.67, y: 0.1, radius: 1.7 },
+  { x: 0.76, y: 0.2, radius: 1.5 },
+  { x: 0.85, y: 0.13, radius: 2 },
+  { x: 0.91, y: 0.22, radius: 1.3 },
+  { x: 0.24, y: 0.28, radius: 1.2 },
+  { x: 0.72, y: 0.29, radius: 1.4 },
+  { x: 0.14, y: 0.38, radius: 1.4 },
+  { x: 0.31, y: 0.44, radius: 1.5 },
+  { x: 0.52, y: 0.36, radius: 1.3 },
+  { x: 0.69, y: 0.48, radius: 1.6 },
+  { x: 0.88, y: 0.41, radius: 1.4 },
+  { x: 0.09, y: 0.57, radius: 1.3 },
+  { x: 0.26, y: 0.63, radius: 1.2 },
+  { x: 0.48, y: 0.58, radius: 1.5 },
+  { x: 0.63, y: 0.69, radius: 1.3 },
+  { x: 0.84, y: 0.61, radius: 1.4 }
+];
+const FLAPPY_BIRD_GRAVITY_Y = 2.2;
+const FLAPPY_BIRD_DOUBLE_JUMP_VELOCITY = 11;
+const FLAPPY_BIRD_TUTORIAL_SCORE_LIMIT = 5;
+const FLAPPY_BIRD_SPEED_STEP_TWO_SCORE_LIMIT = 20;
+const FLAPPY_BIRD_ENDGAME_SCORE_LIMIT = 40;
+const FLAPPY_BIRD_MAX_DIFFICULTY_SCORE = 30;
+const FLAPPY_BIRD_TUTORIAL_DIFFICULTY = {
+  pipeSpeed: 3.6,
+  pipeSpawnInterval: 2740,
+  passageHeightMinRatio: 0.35,
+  passageHeightMaxRatio: 0.45
+};
+const FLAPPY_BIRD_BASE_DIFFICULTY = {
+  pipeSpeed: 3.8,
+  pipeSpawnInterval: 2480
+};
+const FLAPPY_BIRD_MAX_DIFFICULTY = {
+  pipeSpeed: 4,
+  pipeSpawnInterval: 2025
+};
+const FLAPPY_BIRD_ENDGAME_DIFFICULTY = {
+  pipeSpeed: 4,
+  passageHeightMinRatio: 0.28,
+  passageHeightMaxRatio: 0.3
 };
 class FlappyBirdGameScene extends Container {
   constructor(game) {
@@ -44423,41 +45592,54 @@ class FlappyBirdGameScene extends Container {
     this.initialized = false;
     this.gameState = GameState.READY;
     this.gameOptions = {
-      pipeSpeed: 4,
-      pipeSpawnInterval: 2e3,
-      jumpVelocity: 8
+      pipeSpeed: 3.6,
+      pipeSpawnInterval: 2740,
+      jumpVelocity: 7
     };
-    this.lastPipeSpawnTime = 0;
+    this.skyContext = null;
+    this.currentSkyState = {
+      timeOfDay: TimeOfDay.Day,
+      progress: 1
+    };
+    this.currentSkyMinuteKey = null;
     this.isReturningToMain = false;
+    this.isSettingsMenuOpen = false;
+    this.gameOverVibrationTimeoutIds = [];
     this.game = game;
     this.boundHandleKeyDown = this.handleKeyDown.bind(this);
+    this.bgmController = new FlappyBirdBgmController();
     this.gameEngine = new GameEngine(
       this.game.app.screen.width,
-      this.game.app.screen.height
+      this.game.app.screen.height,
+      FLAPPY_BIRD_GRAVITY_Y
     );
     this.createBackground();
     this.physicsManager = new PhysicsManager(this.gameEngine);
   }
   async init() {
-    await AssetLoader.loadAssets();
+    var _a, _b;
+    const playerCharacterKey = this.game.getFlappyBirdCharacterKey();
+    await AssetLoader.loadAssets(playerCharacterKey);
+    this.skyContext = await this.game.getFlappyBirdSkyContext();
+    this.syncSkyState(true);
+    const bestScore = await ((_b = (_a = this.game).getFlappyBirdBestScore) == null ? void 0 : _b.call(_a)) ?? 0;
     this.playerManager = new PlayerManager(
       this.game.app,
       this.physicsManager,
-      CharacterKey.TestGreenSlimeA1
+      playerCharacterKey
     );
     this.groundManager = new GroundManager(
       this.game.app,
       this.physicsManager,
       this.gameOptions.pipeSpeed
     );
-    this.scoreUI = new ScoreUI();
-    this.gameOverUI = new GameOverUI();
-    this.game.changeControlButtons(
-      CONTROL_BUTTONS_SET[
-        "game-play"
-        /* GamePlay */
-      ]
+    this.cloudManager = new CloudManager(
+      this.game.app,
+      this.gameOptions.pipeSpeed
     );
+    this.scoreUI = new ScoreUI(bestScore);
+    this.nearMissUI = new NearMissUI();
+    this.countdownUI = new CountdownUI();
     this.setupScene();
     return this;
   }
@@ -44465,16 +45647,11 @@ class FlappyBirdGameScene extends Container {
    * 배경을 생성합니다.
    */
   createBackground() {
-    const skyBlueColor = 8900331;
     this.background = new Graphics();
-    this.background.beginFill(skyBlueColor);
-    this.background.drawRect(
-      0,
-      0,
+    this.redrawBackground(
       this.game.app.screen.width,
       this.game.app.screen.height
     );
-    this.background.endFill();
   }
   /**
    * 씬을 설정합니다.
@@ -44483,6 +45660,8 @@ class FlappyBirdGameScene extends Container {
     try {
       this.gameEngine.initialize(this.game.app);
       this.groundManager.setup();
+      this.cloudManager.setup();
+      this.syncCloudVisualStyle();
       this.pipeManager = new PipeManager(
         this.game.app,
         this.physicsManager,
@@ -44490,13 +45669,13 @@ class FlappyBirdGameScene extends Container {
         this.gameOptions.pipeSpawnInterval,
         this.groundManager.getTileHeight()
       );
+      this.applyDifficultyForScore(0);
       this.setupCollisionListeners();
       this.addDisplayObjects();
       this.setupKeyboardListeners();
       this.initialized = true;
       this.resize(this.game.app.screen.width, this.game.app.screen.height);
-      this.physicsManager.toggleDebugMode(this.game.app);
-      this.startGame();
+      this.beginStartCountdown();
     } catch (error) {
       console.error("Error setting up FlappyBirdGameScene:", error);
     }
@@ -44506,12 +45685,14 @@ class FlappyBirdGameScene extends Container {
    */
   addDisplayObjects() {
     this.addChild(this.background);
+    this.addChild(this.cloudManager.getContainer());
     this.addChild(this.pipeManager.getContainer());
     this.addChild(this.groundManager.getContainer());
     this.addChild(this.playerManager.getBasket());
     this.addChild(this.playerManager.getBird());
+    this.addChild(this.nearMissUI.getDisplayObject());
     this.addChild(this.scoreUI.getDisplayObject());
-    this.addChild(this.gameOverUI.getDisplayObject());
+    this.addChild(this.countdownUI.getDisplayObject());
   }
   /**
    * 충돌 이벤트 리스너를 설정합니다.
@@ -44534,6 +45715,9 @@ class FlappyBirdGameScene extends Container {
    * 키보드 이벤트 처리 메서드
    */
   handleKeyDown(event) {
+    if (this.isSettingsMenuOpen) {
+      return;
+    }
     if (event.code === "Escape") {
       void this.returnToMainScene();
       return;
@@ -44541,81 +45725,318 @@ class FlappyBirdGameScene extends Container {
     if (event.code === "Space" || event.key === " ") {
       if (this.gameState === GameState.PLAYING) {
         this.jump();
+      } else if (this.gameState === GameState.PAUSED) {
+        this.resumeGame();
       } else if (this.gameState === GameState.GAME_OVER) {
         this.restartGame();
       }
     }
-    if (event.code === "KeyD") {
-      this.physicsManager.toggleDebugMode(this.game.app);
-    }
+    if (event.code === "KeyD" && false) ;
   }
   /**
    * 게임을 시작합니다.
    */
   startGame() {
+    var _a, _b;
+    this.clearGameOverVibrationPattern();
     this.gameState = GameState.PLAYING;
+    (_b = (_a = this.game).hideFlappyBirdGameOver) == null ? void 0 : _b.call(_a);
+    this.hideSettingsMenu();
+    this.countdownUI.hide();
     this.game.changeControlButtons(
       CONTROL_BUTTONS_SET[
         "game-play"
         /* GamePlay */
       ]
     );
+    this.gameEngine.resume();
+    this.playerManager.startAnimation();
     this.playerManager.resetPosition();
+    this.physicsManager.syncDisplayObjects();
+    void this.bgmController.resumeIfAvailable();
+  }
+  beginStartCountdown() {
+    var _a, _b;
+    this.clearGameOverVibrationPattern();
+    this.gameState = GameState.COUNTDOWN;
+    (_b = (_a = this.game).hideFlappyBirdGameOver) == null ? void 0 : _b.call(_a);
+    this.hideSettingsMenu();
+    this.game.changeControlButtons(
+      CONTROL_BUTTONS_SET[
+        "game-play"
+        /* GamePlay */
+      ]
+    );
+    this.gameEngine.pause();
+    this.playerManager.stopAnimation();
+    this.playerManager.resetPosition();
+    this.physicsManager.syncDisplayObjects();
+    this.countdownUI.start(FLAPPY_BIRD_START_COUNTDOWN_SECONDS);
+    void this.bgmController.playCountdownCue(
+      this.countdownUI.getCurrentDisplayValue()
+    );
+    this.bgmController.pause();
   }
   /**
    * 플레이어 점프 메서드
    */
   jump() {
+    void this.bgmController.startFromGesture();
     this.playerManager.jump(this.gameOptions.jumpVelocity);
   }
   /**
    * 강화된 점프 메서드
    */
   doubleJump() {
-    this.playerManager.jump(this.gameOptions.jumpVelocity * 1.5);
+    void this.bgmController.startFromGesture();
+    this.playerManager.jump(FLAPPY_BIRD_DOUBLE_JUMP_VELOCITY);
+  }
+  pauseGame() {
+    if (this.gameState !== GameState.PLAYING) {
+      return;
+    }
+    this.gameState = GameState.PAUSED;
+    this.gameEngine.pause();
+    this.playerManager.stopAnimation();
+    this.bgmController.pause();
+  }
+  resumeGame() {
+    if (this.gameState !== GameState.PAUSED) {
+      return;
+    }
+    this.gameState = GameState.PLAYING;
+    this.gameEngine.resume();
+    this.playerManager.startAnimation();
+    void this.bgmController.resumeIfAvailable();
+  }
+  openSettingsMenu() {
+    if (this.isSettingsMenuOpen || this.gameState === GameState.GAME_OVER || this.isReturningToMain) {
+      return;
+    }
+    if (this.gameState === GameState.PLAYING) {
+      this.pauseGame();
+    }
+    if (this.gameState !== GameState.PAUSED) {
+      return;
+    }
+    this.isSettingsMenuOpen = true;
+    this.showSettingsMenu();
+  }
+  hideSettingsMenu() {
+    var _a, _b;
+    if (!this.isSettingsMenuOpen) {
+      return;
+    }
+    this.isSettingsMenuOpen = false;
+    (_b = (_a = this.game).hideFlappyBirdSettingsMenu) == null ? void 0 : _b.call(_a);
+  }
+  showSettingsMenu() {
+    var _a, _b;
+    (_b = (_a = this.game).showFlappyBirdSettingsMenu) == null ? void 0 : _b.call(_a, {
+      isBgmEnabled: this.bgmController.isEnabled(),
+      isSfxEnabled: this.bgmController.isSfxEnabled(),
+      onChangeBgm: (enabled) => {
+        this.bgmController.setEnabled(enabled);
+        if (this.isSettingsMenuOpen) {
+          this.showSettingsMenu();
+        }
+      },
+      onChangeSfx: (enabled) => {
+        this.bgmController.setSfxEnabled(enabled);
+        if (this.isSettingsMenuOpen) {
+          this.showSettingsMenu();
+        }
+      },
+      selectedTimeOfDay: this.currentSkyState.timeOfDay,
+      onSelectTimeOfDay: (timeOfDay) => {
+        this.setDebugSkyTimeOfDay(timeOfDay);
+        if (this.isSettingsMenuOpen) {
+          this.showSettingsMenu();
+        }
+      },
+      onResume: () => {
+        this.hideSettingsMenu();
+        this.resumeGame();
+      },
+      onExit: () => {
+        this.hideSettingsMenu();
+        return this.returnToMainScene();
+      }
+    });
+  }
+  setDebugSkyTimeOfDay(timeOfDay) {
+    var _a;
+    this.skyContext = {
+      mode: TimeOfDayMode.Manual,
+      timeOfDay,
+      sunTimes: ((_a = this.skyContext) == null ? void 0 : _a.sunTimes) ?? null
+    };
+    this.currentSkyMinuteKey = null;
+    this.syncSkyState(true);
+  }
+  handleScoreIncrement(scoreDelta = 1) {
+    var _a, _b, _c, _d;
+    const hasNearMissBonus = scoreDelta > 1;
+    this.bgmController.playPipePassCue(hasNearMissBonus);
+    (_b = (_a = this.game).triggerTransientVibration) == null ? void 0 : _b.call(_a, {
+      durationMs: PIPE_PASS_VIBRATION_DURATION_MS,
+      strength: hasNearMissBonus ? PIPE_PASS_NEAR_MISS_VIBRATION_STRENGTH : PIPE_PASS_VIBRATION_STRENGTH
+    });
+    if (scoreDelta > 1) {
+      this.nearMissUI.showBonus(scoreDelta - 1);
+    }
+    const scoreState = this.scoreUI.addScore(scoreDelta);
+    this.applyDifficultyForScore(scoreState.score);
+    if (scoreState.isNewBest) {
+      void ((_d = (_c = this.game).persistFlappyBirdBestScore) == null ? void 0 : _d.call(_c, scoreState.bestScore));
+    }
+  }
+  applyDifficultyForScore(score) {
+    const difficulty = this.resolveDifficultyState(score);
+    this.pipeManager.applyDifficulty({
+      speed: difficulty.pipeSpeed,
+      pipeSpawnInterval: difficulty.pipeSpawnInterval,
+      passageHeightMinRatio: difficulty.passageHeightMinRatio,
+      passageHeightMaxRatio: difficulty.passageHeightMaxRatio
+    });
+    this.groundManager.setSpeed(difficulty.pipeSpeed);
+    this.cloudManager.setSpeed(difficulty.pipeSpeed);
+  }
+  resolveDifficultyState(score) {
+    if (score <= FLAPPY_BIRD_TUTORIAL_SCORE_LIMIT) {
+      return FLAPPY_BIRD_TUTORIAL_DIFFICULTY;
+    }
+    const progress = Math.min(
+      1,
+      (score - FLAPPY_BIRD_TUTORIAL_SCORE_LIMIT) / (FLAPPY_BIRD_MAX_DIFFICULTY_SCORE - FLAPPY_BIRD_TUTORIAL_SCORE_LIMIT)
+    );
+    return {
+      pipeSpeed: this.resolvePipeSpeedForScore(score),
+      pipeSpawnInterval: Math.round(
+        this.interpolateNumber(
+          FLAPPY_BIRD_BASE_DIFFICULTY.pipeSpawnInterval,
+          FLAPPY_BIRD_MAX_DIFFICULTY.pipeSpawnInterval,
+          progress
+        )
+      ),
+      ...this.resolvePassageHeightRatiosForScore(score)
+    };
+  }
+  resolvePassageHeightRatiosForScore(score) {
+    if (score < FLAPPY_BIRD_SPEED_STEP_TWO_SCORE_LIMIT) {
+      return {
+        passageHeightMinRatio: 0.35,
+        passageHeightMaxRatio: 0.35
+      };
+    }
+    if (score < FLAPPY_BIRD_ENDGAME_SCORE_LIMIT) {
+      return {
+        passageHeightMinRatio: 0.3,
+        passageHeightMaxRatio: 0.3
+      };
+    }
+    return {
+      passageHeightMinRatio: FLAPPY_BIRD_ENDGAME_DIFFICULTY.passageHeightMinRatio,
+      passageHeightMaxRatio: FLAPPY_BIRD_ENDGAME_DIFFICULTY.passageHeightMaxRatio
+    };
+  }
+  resolvePipeSpeedForScore(score) {
+    if (score < FLAPPY_BIRD_SPEED_STEP_TWO_SCORE_LIMIT) {
+      return FLAPPY_BIRD_BASE_DIFFICULTY.pipeSpeed;
+    }
+    if (score < FLAPPY_BIRD_ENDGAME_SCORE_LIMIT) {
+      return FLAPPY_BIRD_MAX_DIFFICULTY.pipeSpeed;
+    }
+    return FLAPPY_BIRD_ENDGAME_DIFFICULTY.pipeSpeed;
+  }
+  interpolateNumber(start, end, progress) {
+    return start + (end - start) * progress;
+  }
+  clearGameOverVibrationPattern() {
+    while (this.gameOverVibrationTimeoutIds.length > 0) {
+      const timeoutId = this.gameOverVibrationTimeoutIds.pop();
+      if (timeoutId !== void 0) {
+        window.clearTimeout(timeoutId);
+      }
+    }
+  }
+  triggerGameOverVibrationPattern() {
+    var _a, _b;
+    this.clearGameOverVibrationPattern();
+    (_b = (_a = this.game).triggerTransientVibration) == null ? void 0 : _b.call(_a, {
+      durationMs: GAME_OVER_VIBRATION_DURATION_MS,
+      strength: GAME_OVER_VIBRATION_STRENGTH
+    });
+    this.gameOverVibrationTimeoutIds.push(
+      window.setTimeout(() => {
+        var _a2, _b2;
+        (_b2 = (_a2 = this.game).triggerTransientVibration) == null ? void 0 : _b2.call(_a2, {
+          durationMs: GAME_OVER_VIBRATION_DURATION_MS,
+          strength: GAME_OVER_VIBRATION_STRENGTH
+        });
+      }, GAME_OVER_VIBRATION_DELAY_MS)
+    );
   }
   /**
    * 게임 오버 처리 메서드
    */
   handleGameOver() {
+    var _a, _b;
+    if (this.gameState !== GameState.PLAYING) {
+      return;
+    }
     this.gameState = GameState.GAME_OVER;
     this.gameEngine.pause();
+    this.hideSettingsMenu();
+    this.countdownUI.hide();
     this.playerManager.stopAnimation();
-    this.gameOverUI.show();
-    this.game.changeControlButtons(
-      CONTROL_BUTTONS_SET[
-        "game-end"
-        /* GameEnd */
-      ]
-    );
+    this.bgmController.pause();
+    this.triggerGameOverVibrationPattern();
+    (_b = (_a = this.game).showFlappyBirdGameOver) == null ? void 0 : _b.call(_a, {
+      score: this.scoreUI.getScore(),
+      bestScore: this.scoreUI.getBestScore(),
+      onRestart: () => {
+        this.restartGame();
+      },
+      onExit: () => this.returnToMainScene()
+    });
   }
   /**
    * 게임을 재시작합니다.
    */
   restartGame() {
-    this.gameState = GameState.PLAYING;
-    this.gameEngine.resume();
+    var _a, _b;
+    this.clearGameOverVibrationPattern();
+    (_b = (_a = this.game).hideFlappyBirdGameOver) == null ? void 0 : _b.call(_a);
+    this.hideSettingsMenu();
+    this.gameState = GameState.READY;
+    this.gameEngine.pause();
     this.scoreUI.resetScore();
-    this.gameOverUI.hide();
+    this.nearMissUI.reset();
+    this.applyDifficultyForScore(0);
     this.game.changeControlButtons(
       CONTROL_BUTTONS_SET[
         "game-play"
         /* GamePlay */
       ]
     );
-    this.pipeManager.clearAllPipes();
+    this.pipeManager.reset();
     this.playerManager.resetBasket();
     this.playerManager.resetPosition();
     this.groundManager.setup();
-    this.playerManager.startAnimation();
-    this.lastPipeSpawnTime = 0;
+    this.cloudManager.setup();
+    this.beginStartCountdown();
   }
   async returnToMainScene() {
+    var _a, _b;
     if (this.isReturningToMain) {
       return;
     }
     this.isReturningToMain = true;
     try {
+      this.clearGameOverVibrationPattern();
+      (_b = (_a = this.game).hideFlappyBirdGameOver) == null ? void 0 : _b.call(_a);
+      this.hideSettingsMenu();
       await this.game.changeScene(SceneKey.MAIN);
     } finally {
       this.isReturningToMain = false;
@@ -44626,24 +46047,20 @@ class FlappyBirdGameScene extends Container {
    */
   resize(width, height) {
     if (!this.initialized) return;
-    this.background.clear();
-    this.background.beginFill(8900331);
-    this.background.drawRect(0, 0, width, height);
-    this.background.endFill();
+    this.redrawBackground(width, height);
+    this.groundManager.resize();
+    this.cloudManager.resize();
     this.scoreUI.updatePosition(width);
-    this.gameOverUI.updatePosition(width, height);
+    this.nearMissUI.updatePosition(width, height);
+    this.countdownUI.updatePosition(width, height);
     this.physicsManager.updateDebugRendererSize(width, height);
+    this.physicsManager.syncDisplayObjects();
   }
   /**
    * 컨트롤 버튼 클릭 핸들러
    */
   handleControlButtonClick(buttonType) {
     switch (buttonType) {
-      case ControlButtonType.Attack:
-        if (this.gameState === GameState.PLAYING) {
-          this.jump();
-        }
-        break;
       case ControlButtonType.DoubleJump:
         if (this.gameState === GameState.PLAYING) {
           this.doubleJump();
@@ -44654,18 +46071,8 @@ class FlappyBirdGameScene extends Container {
           this.jump();
         }
         break;
-      case ControlButtonType.Cancel:
-        void this.returnToMainScene();
-        break;
-      case ControlButtonType.Confirm:
-        if (this.gameState === GameState.GAME_OVER) {
-          this.restartGame();
-        }
-        break;
-      case ControlButtonType.Next:
-        if (this.gameState === GameState.GAME_OVER) {
-          void this.returnToMainScene();
-        }
+      case ControlButtonType.Settings:
+        this.openSettingsMenu();
         break;
       default:
         throw new Error("Invalid button type");
@@ -44681,28 +46088,199 @@ class FlappyBirdGameScene extends Container {
   update(deltaTime) {
     if (!this.initialized) return;
     const currentTime = Date.now();
+    this.syncSkyState();
+    this.nearMissUI.update(deltaTime);
     this.playerManager.update();
+    if (this.gameState === GameState.COUNTDOWN) {
+      const previousDisplayValue = this.countdownUI.getCurrentDisplayValue();
+      const hasCountdownFinished = this.countdownUI.update(deltaTime);
+      const currentDisplayValue = this.countdownUI.getCurrentDisplayValue();
+      if (!hasCountdownFinished && currentDisplayValue > 0 && currentDisplayValue !== previousDisplayValue) {
+        void this.bgmController.playCountdownCue(currentDisplayValue);
+      }
+      if (hasCountdownFinished) {
+        this.startGame();
+      }
+      return;
+    }
     if (this.gameState === GameState.PLAYING) {
+      this.cloudManager.update(deltaTime);
       this.playerManager.checkCollisions();
       this.pipeManager.update(
         currentTime,
         this.playerManager.getBasketBody(),
-        () => this.scoreUI.incrementScore()
+        (scoreDelta) => this.handleScoreIncrement(scoreDelta),
+        deltaTime
       );
-      this.groundManager.update();
+      this.groundManager.update(deltaTime);
     }
   }
   /**
    * 리소스를 정리하고 객체를 파괴합니다.
    */
   destroy() {
+    var _a, _b;
     window.removeEventListener("keydown", this.boundHandleKeyDown);
+    this.clearGameOverVibrationPattern();
+    (_b = (_a = this.game).hideFlappyBirdGameOver) == null ? void 0 : _b.call(_a);
+    this.hideSettingsMenu();
+    this.countdownUI.hide();
+    this.nearMissUI.reset();
+    this.bgmController.destroy();
+    this.cloudManager.reset();
     this.physicsManager.cleanup();
     this.gameEngine.cleanup();
     super.destroy();
   }
+  syncSkyState(force = false) {
+    const now = /* @__PURE__ */ new Date();
+    const nextMinuteKey = this.getSkyMinuteKey(now);
+    if (!force && nextMinuteKey === this.currentSkyMinuteKey) {
+      return;
+    }
+    this.currentSkyState = this.resolveSkyState(now);
+    this.currentSkyMinuteKey = nextMinuteKey;
+    this.syncCloudVisualStyle();
+    this.redrawBackground(
+      this.game.app.screen.width,
+      this.game.app.screen.height
+    );
+  }
+  syncCloudVisualStyle() {
+    if (!this.cloudManager) {
+      return;
+    }
+    switch (this.currentSkyState.timeOfDay) {
+      case TimeOfDay.Day:
+        this.cloudManager.setVisualStyle({
+          alphaMin: 0.3,
+          alphaMax: 0.46,
+          tint: 16777215
+        });
+        break;
+      case TimeOfDay.Sunrise:
+        this.cloudManager.setVisualStyle({
+          alphaMin: this.lerp(0.3, 0.22, this.currentSkyState.progress),
+          alphaMax: this.lerp(0.42, 0.32, this.currentSkyState.progress),
+          tint: this.lerpColor(16775146, 16777215, this.currentSkyState.progress)
+        });
+        break;
+      default:
+        this.cloudManager.setVisualStyle({
+          alphaMin: 0.16,
+          alphaMax: 0.28,
+          tint: 16777215
+        });
+        break;
+    }
+  }
+  resolveSkyState(now) {
+    var _a, _b;
+    if (((_a = this.skyContext) == null ? void 0 : _a.mode) === TimeOfDayMode.Auto && this.skyContext.sunTimes) {
+      const nextAutoState = resolveAutoTimeOfDayState(
+        now,
+        this.skyContext.sunTimes
+      );
+      return {
+        timeOfDay: nextAutoState.timeOfDay,
+        progress: nextAutoState.progress
+      };
+    }
+    return getManualSkyVisualState(((_b = this.skyContext) == null ? void 0 : _b.timeOfDay) ?? TimeOfDay.Day);
+  }
+  getSkyMinuteKey(now) {
+    var _a, _b;
+    if (((_a = this.skyContext) == null ? void 0 : _a.mode) !== TimeOfDayMode.Auto || !this.skyContext.sunTimes) {
+      return `manual:${((_b = this.skyContext) == null ? void 0 : _b.timeOfDay) ?? TimeOfDay.Day}`;
+    }
+    return `${Math.floor(now.getTime() / (60 * 1e3))}`;
+  }
+  redrawBackground(width, height) {
+    const overlay = this.getSkyOverlayConfig();
+    this.background.clear();
+    this.background.beginFill(overlay.baseColor);
+    this.background.drawRect(0, 0, width, height);
+    this.background.endFill();
+    if (overlay.alpha > 1e-3) {
+      this.background.beginFill(overlay.color, overlay.alpha);
+      this.background.drawRect(0, 0, width, height);
+      this.background.endFill();
+    }
+    this.drawStars(width, height, overlay.starAlpha, overlay.starScale);
+  }
+  drawStars(width, height, alpha, scale) {
+    if (alpha <= 1e-3) {
+      return;
+    }
+    this.background.beginFill(SKY_STAR_COLOR, alpha);
+    for (const star of SKY_STAR_LAYOUT) {
+      this.background.drawCircle(
+        star.x * width,
+        star.y * height,
+        Math.max(0.8, star.radius * scale * 0.42)
+      );
+    }
+    this.background.endFill();
+  }
+  getSkyOverlayConfig() {
+    const progress = this.easeInOut(this.currentSkyState.progress);
+    switch (this.currentSkyState.timeOfDay) {
+      case TimeOfDay.Sunrise:
+        return {
+          baseColor: this.lerpColor(5011928, 16758888, progress),
+          color: this.lerpColor(16747064, 16763257, progress),
+          alpha: this.lerp(0.24, 0.1, progress),
+          starAlpha: 0,
+          starScale: 1
+        };
+      case TimeOfDay.Sunset:
+        return {
+          baseColor: this.lerpColor(7908863, 7428030, progress),
+          color: this.lerpColor(16747845, 1978212, progress),
+          alpha: this.lerp(0.16, 0.3, progress),
+          starAlpha: this.lerp(0.12, 0.28, progress),
+          starScale: this.lerp(0.86, 0.98, progress)
+        };
+      case TimeOfDay.Night:
+        return {
+          baseColor: 1454431,
+          color: 463917,
+          alpha: 0.36,
+          starAlpha: 0.42,
+          starScale: 0.96
+        };
+      case TimeOfDay.Day:
+      default:
+        return {
+          baseColor: SKY_DAY_COLOR,
+          color: 16777215,
+          alpha: 0,
+          starAlpha: 0,
+          starScale: 1
+        };
+    }
+  }
+  lerpColor(from, to, progress) {
+    const fromRed = from >> 16 & 255;
+    const fromGreen = from >> 8 & 255;
+    const fromBlue = from & 255;
+    const toRed = to >> 16 & 255;
+    const toGreen = to >> 8 & 255;
+    const toBlue = to & 255;
+    const red = Math.round(this.lerp(fromRed, toRed, progress));
+    const green = Math.round(this.lerp(fromGreen, toGreen, progress));
+    const blue = Math.round(this.lerp(fromBlue, toBlue, progress));
+    return red << 16 | green << 8 | blue;
+  }
+  lerp(from, to, progress) {
+    return from + (to - from) * progress;
+  }
+  easeInOut(progress) {
+    return progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+  }
 }
 TexturePool.textureOptions.scaleMode = "nearest";
+TextureStyle.defaultOptions.scaleMode = "nearest";
 const SCREEN_HORIZONTAL_PADDING = 14;
 const SCREEN_BOTTOM_PADDING = 14;
 const SCREEN_TOP_PADDING = SCREEN_BOTTOM_PADDING + 6;
@@ -44729,17 +46307,28 @@ class Game {
     this._sceneTransitionRequestId = 0;
     this._isFullscreenAdActive = false;
     this._fullscreenAdResizeSuppressedUntil = 0;
+    this._flappyBirdCharacterKey = null;
+    this._flappyBirdSkyContext = null;
     const {
       parentElement,
       debugParentElement,
+      debugMode,
+      initialSceneKey,
       onCreateInitialGameData,
       changeControlButtons,
       showSettings,
       showAlert,
       startMiniGame,
       triggerBiteVibration,
+      triggerTransientVibration,
       startRecoveryVibration,
       stopRecoveryVibration,
+      getFlappyBirdBestScore,
+      persistFlappyBirdBestScore,
+      showFlappyBirdGameOver,
+      hideFlappyBirdGameOver,
+      showFlappyBirdSettingsMenu,
+      hideFlappyBirdSettingsMenu,
       onSceneTransitionStateChange
     } = params;
     this.changeControlButtons = changeControlButtons;
@@ -44747,10 +46336,19 @@ class Game {
     this.showAlert = showAlert;
     this._startMiniGame = startMiniGame;
     this.triggerBiteVibration = triggerBiteVibration;
+    this.triggerTransientVibration = triggerTransientVibration;
     this.startRecoveryVibration = startRecoveryVibration;
     this.stopRecoveryVibration = stopRecoveryVibration;
+    this.getFlappyBirdBestScore = getFlappyBirdBestScore;
+    this.persistFlappyBirdBestScore = persistFlappyBirdBestScore;
+    this.showFlappyBirdGameOver = showFlappyBirdGameOver;
+    this.hideFlappyBirdGameOver = hideFlappyBirdGameOver;
+    this.showFlappyBirdSettingsMenu = showFlappyBirdSettingsMenu;
+    this.hideFlappyBirdSettingsMenu = hideFlappyBirdSettingsMenu;
     this._onSceneTransitionStateChange = onSceneTransitionStateChange;
     this._createInitialGameData = onCreateInitialGameData;
+    this._initialSceneKey = initialSceneKey ?? SceneKey.MAIN;
+    this._debugMode = debugMode ?? false;
     this.app = new Application();
     this._boundResizeHandler = () => {
       this._requestAnimationFrameResize("window.resize");
@@ -44842,6 +46440,7 @@ class Game {
         height: this._parentElement.clientHeight,
         backgroundColor: 11184810,
         autoDensity: true,
+        roundPixels: true,
         resolution: window.devicePixelRatio || 2
         // 해상도를 디바이스 픽셀 비율로 설정하거나 원하는 값(예: 2)으로 설정
       });
@@ -44866,7 +46465,7 @@ class Game {
     this.app.ticker.stop();
   }
   async _setupInitialScene() {
-    await this.changeScene(SceneKey.MAIN);
+    await this.changeScene(this._initialSceneKey);
   }
   preloadSceneAssets(key) {
     switch (key) {
@@ -45055,9 +46654,11 @@ class Game {
           },
           parentElement: this._parentElement,
           debugParentElement: this._debugParentElement,
+          debugMode: this._debugMode,
           startMiniGame: this._startMiniGame ?? (() => this.changeScene(SceneKey.FLAPPY_BIRD_GAME)),
           createInitialGameData: this._createInitialGameData,
           changeControlButtons: this.changeControlButtons,
+          showAlert: this.showAlert,
           triggerBiteVibration: this.triggerBiteVibration,
           startRecoveryVibration: this.startRecoveryVibration,
           stopRecoveryVibration: this.stopRecoveryVibration
@@ -45098,6 +46699,10 @@ class Game {
         console.log(`[Game] 현재 씬 종료 처리 시작: ${this.currentSceneKey}`);
         await this.currentScene.onSceneExit();
       }
+      if (this.currentScene instanceof MainSceneWorld) {
+        this._syncFlappyBirdSkyContextFromMainScene(this.currentScene);
+        this._syncFlappyBirdCharacterKeyFromMainScene(this.currentScene);
+      }
       if (this.currentScene) {
         this.currentScene.destroy();
         this.app.stage.removeChildren();
@@ -45135,6 +46740,31 @@ class Game {
    */
   getCurrentSceneKey() {
     return this.currentSceneKey;
+  }
+  async getFlappyBirdSkyContext() {
+    if (this.currentScene instanceof MainSceneWorld) {
+      this._syncFlappyBirdSkyContextFromMainScene(this.currentScene);
+      this._syncFlappyBirdCharacterKeyFromMainScene(this.currentScene);
+    }
+    if (this._flappyBirdSkyContext) {
+      return {
+        mode: this._flappyBirdSkyContext.mode,
+        timeOfDay: this._flappyBirdSkyContext.timeOfDay,
+        sunTimes: this._flappyBirdSkyContext.sunTimes ? { ...this._flappyBirdSkyContext.sunTimes } : null
+      };
+    }
+    const initialGameData = await this._createInitialGameData();
+    return {
+      mode: initialGameData.useLocalTime ? TimeOfDayMode.Auto : TimeOfDayMode.Manual,
+      timeOfDay: TimeOfDay.Day,
+      sunTimes: initialGameData.cachedSunTimes ?? null
+    };
+  }
+  getFlappyBirdCharacterKey() {
+    if (this.currentScene instanceof MainSceneWorld) {
+      this._syncFlappyBirdCharacterKeyFromMainScene(this.currentScene);
+    }
+    return this._flappyBirdCharacterKey ?? CharacterKey.TestGreenSlimeA1;
   }
   getDiagnosticsSnapshot() {
     return {
@@ -45174,7 +46804,7 @@ class Game {
   async _preloadFlappyBirdAssets() {
     const preloadStartedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
     console.log("[GameTransition] mini-game preload start");
-    await AssetLoader.preloadAssets();
+    await AssetLoader.preloadAssets(this.getFlappyBirdCharacterKey());
     console.log(
       `[GameTransition] mini-game preload end in ${Math.round(
         (typeof performance !== "undefined" ? performance.now() : Date.now()) - preloadStartedAt
@@ -45221,6 +46851,19 @@ class Game {
       texture: true
     });
     (_e = (_d = this.currentScene) == null ? void 0 : _d.destroy) == null ? void 0 : _e.call(_d);
+  }
+  _syncFlappyBirdSkyContextFromMainScene(mainSceneWorld) {
+    var _a;
+    const inMemoryData = mainSceneWorld.getInMemoryData();
+    const cachedSunTimes = ((_a = inMemoryData.world_metadata.app_state) == null ? void 0 : _a.cached_sun_times) ?? null;
+    this._flappyBirdSkyContext = {
+      mode: mainSceneWorld.getTimeOfDayMode(),
+      timeOfDay: mainSceneWorld.getTimeOfDay(),
+      sunTimes: cachedSunTimes
+    };
+  }
+  _syncFlappyBirdCharacterKeyFromMainScene(mainSceneWorld) {
+    this._flappyBirdCharacterKey = mainSceneWorld.getFlappyBirdCharacterKey();
   }
 }
 class SliderController {
@@ -45638,13 +47281,15 @@ const ControlButton = ({
   const handlePointerDown = () => {
     if (!isSlider) {
       setIsPressed(true);
+      if (onClick) onClick();
+      window.setTimeout(() => {
+        void vibrationAdapter$1.vibrate();
+      }, 0);
     }
   };
   const handlePointerUp = () => {
     if (!isSlider) {
       setIsPressed(false);
-      vibrationAdapter$1.vibrate();
-      if (onClick) onClick();
     }
   };
   const handlePointerLeave = () => {
@@ -46746,7 +48391,10 @@ const SetupLayer = ({ onComplete }) => {
 const AlertLayer = ({
   title = "Alert",
   message,
-  onClose
+  onClose,
+  onCancel,
+  confirmText = "Confirm",
+  cancelText = "Cancel"
 }) => {
   return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
     PopupLayer,
@@ -46754,7 +48402,95 @@ const AlertLayer = ({
       title,
       content: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex flex-col items-center gap-4", children: /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-base", children: message }) }),
       onConfirm: onClose,
-      confirmText: "Confirm"
+      onCancel,
+      confirmText,
+      cancelText
+    }
+  ) });
+};
+const FlappyBirdGameOverLayer = ({
+  onRestart,
+  onExit
+}) => {
+  return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 z-[50] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex w-full max-w-[22rem] flex-col items-center gap-5 px-4 text-center text-white", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-2xl font-bold tracking-[0.12em] uppercase drop-shadow-[0_2px_6px_rgba(0,0,0,0.65)]", children: "Game Over" }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex justify-center gap-[15px]", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "button",
+        {
+          type: "button",
+          onClick: onExit,
+          className: "text-base bg-component-negative text-white border-2 border-[#222] p-[10px_15px] cursor-pointer uppercase shadow-[2px_2px_0_#222] relative top-0 left-0 transition-all duration-50",
+          children: "Exit"
+        }
+      ),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "button",
+        {
+          type: "button",
+          onClick: onRestart,
+          className: "text-base bg-component-positive text-white border-2 border-[#222] p-[10px_15px] cursor-pointer uppercase shadow-[2px_2px_0_#222]",
+          children: "Retry"
+        }
+      )
+    ] })
+  ] }) });
+};
+const ToggleButton$1 = ({ enabled, onClick }) => {
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(
+    "button",
+    {
+      type: "button",
+      onClick,
+      className: `min-w-20 border-2 border-[#222] px-4 py-2 text-sm font-bold text-white ${enabled ? "bg-component-positive" : "bg-gray-400"}`,
+      children: enabled ? "ON" : "OFF"
+    }
+  );
+};
+const FlappyBirdSettingsLayer = ({
+  isBgmEnabled,
+  isSfxEnabled,
+  onChangeBgm,
+  onChangeSfx,
+  selectedTimeOfDay,
+  onSelectTimeOfDay,
+  onResume,
+  onExit
+}) => {
+  return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 z-[50] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+    PopupLayer,
+    {
+      title: "Settings",
+      suppressInitialActionsMs: 180,
+      content: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-5 text-left", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-sm text-gray-600", children: "The game is paused." }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between gap-4", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-sm font-bold", children: "BGM" }) }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            ToggleButton$1,
+            {
+              enabled: isBgmEnabled,
+              onClick: () => onChangeBgm(!isBgmEnabled)
+            }
+          )
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "border-t-2 border-[#222] pt-4", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between gap-4", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-sm font-bold", children: "SFX" }) }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            ToggleButton$1,
+            {
+              enabled: isSfxEnabled,
+              onClick: () => onChangeSfx(!isSfxEnabled)
+            }
+          )
+        ] }) }),
+        null
+      ] }),
+      onConfirm: onResume,
+      onCancel: onExit,
+      confirmText: "Resume",
+      cancelText: "Exit",
+      initialFocusTarget: "confirm"
     }
   ) });
 };
@@ -46973,12 +48709,15 @@ function needsRandomMovement(state) {
   return state === CHARACTER_STATE.IDLE || state === CHARACTER_STATE.MOVING;
 }
 function sanitizeWorldMetadata(metadata, now) {
-  var _a, _b, _c, _d;
+  var _a, _b, _c, _d, _e;
   const cachedSunTimes = sanitizeCachedSunTimes(
     (_a = metadata == null ? void 0 : metadata.app_state) == null ? void 0 : _a.cached_sun_times
   );
   const mainSceneAd = sanitizeMainSceneAdState(
     (_b = metadata == null ? void 0 : metadata.app_state) == null ? void 0 : _b.main_scene_ad
+  );
+  const miniGameScores = sanitizeMiniGameScores(
+    (_c = metadata == null ? void 0 : metadata.app_state) == null ? void 0 : _c.mini_game_scores
   );
   return {
     name: typeof (metadata == null ? void 0 : metadata.name) === "string" && metadata.name.trim() ? metadata.name.trim() : "MainScene",
@@ -46986,11 +48725,20 @@ function sanitizeWorldMetadata(metadata, now) {
     last_ecs_saved: toFiniteNumber(metadata == null ? void 0 : metadata.last_ecs_saved) ?? now,
     version: typeof (metadata == null ? void 0 : metadata.version) === "string" && metadata.version.trim() ? metadata.version : DEFAULTS.VERSION,
     app_state: {
-      last_active_time: toFiniteNumber((_c = metadata == null ? void 0 : metadata.app_state) == null ? void 0 : _c.last_active_time) ?? now,
-      is_first_load: typeof ((_d = metadata == null ? void 0 : metadata.app_state) == null ? void 0 : _d.is_first_load) === "boolean" ? metadata.app_state.is_first_load : false,
+      last_active_time: toFiniteNumber((_d = metadata == null ? void 0 : metadata.app_state) == null ? void 0 : _d.last_active_time) ?? now,
+      is_first_load: typeof ((_e = metadata == null ? void 0 : metadata.app_state) == null ? void 0 : _e.is_first_load) === "boolean" ? metadata.app_state.is_first_load : false,
       use_local_time: true,
       cached_sun_times: cachedSunTimes,
-      main_scene_ad: mainSceneAd
+      main_scene_ad: mainSceneAd,
+      mini_game_scores: miniGameScores
+    }
+  };
+}
+function sanitizeMiniGameScores(miniGameScores) {
+  var _a;
+  return {
+    flappy_bird: {
+      best_score: toNonNegativeInteger((_a = miniGameScores == null ? void 0 : miniGameScores.flappy_bird) == null ? void 0 : _a.best_score)
     }
   };
 }
@@ -47116,10 +48864,7 @@ function sanitizeCharacterEntity(components, now) {
     },
     eggHatch: {
       hatchTime: toFiniteNumber((_K = components.eggHatch) == null ? void 0 : _K.hatchTime) ?? (state === CHARACTER_STATE.EGG ? now + getEggHatchDelayMs() : 0),
-      isReadyToHatch: toBoolean(
-        (_L = components.eggHatch) == null ? void 0 : _L.isReadyToHatch,
-        false
-      )
+      isReadyToHatch: toBoolean((_L = components.eggHatch) == null ? void 0 : _L.isReadyToHatch, false)
     }
   };
   const statusIconSlots = (_M = sanitized.statusIconRender) == null ? void 0 : _M.storeIndexes;
@@ -47230,9 +48975,7 @@ function sanitizeStoredWorldData(savedData) {
       resetReason: "The existing game data format is invalid and must be reset.",
       diagnostics: {
         summary: "Saved game data root shape is invalid.",
-        issues: [
-          `savedData root is not an object (type=${typeof savedData}).`
-        ],
+        issues: [`savedData root is not an object (type=${typeof savedData}).`],
         rawEntityCount: 0,
         sanitizedEntityCount: 0,
         playableCharacterCount: 0,
@@ -47248,7 +48991,10 @@ function sanitizeStoredWorldData(savedData) {
   }
   const now = Date.now();
   const worldData = savedData;
-  const sanitizedMetadata = sanitizeWorldMetadata(worldData.world_metadata, now);
+  const sanitizedMetadata = sanitizeWorldMetadata(
+    worldData.world_metadata,
+    now
+  );
   const rawEntities = Array.isArray(worldData.entities) ? worldData.entities : [];
   const sanitizedEntities = [];
   const seenObjectIds = /* @__PURE__ */ new Set();
@@ -47259,7 +49005,9 @@ function sanitizeStoredWorldData(savedData) {
   let repairedCharacterEntityCount = 0;
   let repairedNonCharacterEntityCount = 0;
   if (!Array.isArray(worldData.entities) && worldData.entities !== void 0) {
-    issues.push("worldData.entities was not an array and was treated as empty.");
+    issues.push(
+      "worldData.entities was not an array and was treated as empty."
+    );
   }
   if (sanitizedMetadata.name !== ((_a = worldData.world_metadata) == null ? void 0 : _a.name)) {
     issues.push(
@@ -47405,15 +49153,26 @@ function sanitizeStoredWorldData(savedData) {
   };
 }
 const WORLD_DATA_STORAGE_KEY = "MainSceneWorldData";
+const FLAPPY_BIRD_GAME_OVER_AD_COUNTER_STORAGE_KEY = "FlappyBirdGameOverAdCounter";
+const FLAPPY_BIRD_GAME_OVER_AD_THRESHOLD = 5;
+const FLAPPY_BIRD_GAME_OVER_AD_DELAY_MS = 500;
+const FLAPPY_BIRD_GAME_OVER_AD_COOLDOWN_MS = 1;
 const biteVibrationAdapter = new VibrationAdapter();
 const RECOVERY_VIBRATION_INTERVAL_MS = 180;
 const RECOVERY_VIBRATION_DURATION_MS = 14;
 const RECOVERY_VIBRATION_STRENGTH = 28;
-const isNativeFeatureDebugMode$1 = false;
+const LOADING_TIMEOUT_MS = 3e4;
+const isNativeFeatureDebugMode$1 = true;
 const isAndroidUserAgent = typeof navigator !== "undefined" && /DigiviceApp-Android|Android/i.test(navigator.userAgent);
-const MINI_GAME_UNAVAILABLE_VERSION = "0.1.0";
 const KEYBOARD_VIEWPORT_HEIGHT_DELTA_THRESHOLD = 80;
 const UNSUPPORTED_SQUARE_VIEWPORT_RATIO = 0.8;
+function getConfiguredInitialSceneKey() {
+  return void 0 === SceneKey.FLAPPY_BIRD_GAME ? SceneKey.FLAPPY_BIRD_GAME : SceneKey.MAIN;
+}
+const CONFIGURED_INITIAL_SCENE_KEY = getConfiguredInitialSceneKey();
+function isMissingInitialGameDataError(error) {
+  return error instanceof MissingInitialGameDataError || error instanceof Error && error.name === MissingInitialGameDataError.name;
+}
 const BACK_NAVIGATION_ALERT_ENTRY = "layer:alert";
 const BACK_NAVIGATION_LOADING_FAILURE_ENTRY = "layer:loading-failure";
 const BACK_NAVIGATION_DIAGNOSTICS_ENTRY = "layer:diagnostics-draft";
@@ -47467,6 +49226,43 @@ function areBackNavigationEntriesEqual(left, right) {
   }
   return true;
 }
+function getStoredFlappyBirdBestScore(data) {
+  var _a, _b, _c, _d;
+  const bestScore = (_d = (_c = (_b = (_a = data == null ? void 0 : data.world_metadata) == null ? void 0 : _a.app_state) == null ? void 0 : _b.mini_game_scores) == null ? void 0 : _c.flappy_bird) == null ? void 0 : _d.best_score;
+  return typeof bestScore === "number" && Number.isFinite(bestScore) ? Math.max(0, Math.floor(bestScore)) : 0;
+}
+function withStoredFlappyBirdBestScore(data, bestScore) {
+  var _a, _b, _c, _d, _e, _f;
+  const nextBestScore = Math.max(0, Math.floor(bestScore));
+  return {
+    ...data,
+    world_metadata: {
+      ...data.world_metadata,
+      app_state: {
+        ...(_a = data.world_metadata) == null ? void 0 : _a.app_state,
+        mini_game_scores: {
+          ...(_c = (_b = data.world_metadata) == null ? void 0 : _b.app_state) == null ? void 0 : _c.mini_game_scores,
+          flappy_bird: {
+            ...(_f = (_e = (_d = data.world_metadata) == null ? void 0 : _d.app_state) == null ? void 0 : _e.mini_game_scores) == null ? void 0 : _f.flappy_bird,
+            best_score: nextBestScore
+          }
+        }
+      }
+    }
+  };
+}
+function getStoredFlappyBirdGameOverAdCount(data) {
+  if (typeof data === "number" && Number.isFinite(data)) {
+    return Math.max(0, Math.floor(data));
+  }
+  if (data && typeof data === "object" && !Array.isArray(data)) {
+    const count2 = data.count;
+    if (typeof count2 === "number" && Number.isFinite(count2)) {
+      return Math.max(0, Math.floor(count2));
+    }
+  }
+  return 0;
+}
 function getSharedBackNavigationPrefixLength(left, right) {
   const maxLength = Math.min(left.length, right.length);
   let prefixLength = 0;
@@ -47508,12 +49304,6 @@ function setFrozenAppShellHeight(height) {
     return;
   }
   document.documentElement.style.removeProperty("--digivice-app-shell-height");
-}
-function getBaseAppVersion(version) {
-  return version.replace(/-.+$/, "");
-}
-function isMiniGameUnavailableForCurrentVersion() {
-  return getBaseAppVersion("0.1.0") === MINI_GAME_UNAVAILABLE_VERSION;
 }
 function isTextInputElement(element) {
   return element instanceof HTMLElement && (element.tagName === "INPUT" || element.tagName === "TEXTAREA" || element.isContentEditable);
@@ -47566,16 +49356,55 @@ function summarizeSavedData(savedData) {
   var _a;
   if (!savedData || typeof savedData !== "object") {
     return {
+      hasData: Boolean(savedData),
       valueType: typeof savedData,
       isNull: savedData === null
     };
   }
   const savedDataRecord = savedData;
   return {
+    hasData: true,
     valueType: typeof savedData,
     monsterName: (_a = savedDataRecord.world_metadata) == null ? void 0 : _a.monster_name,
     entityCount: Array.isArray(savedDataRecord.entities) ? savedDataRecord.entities.length : "n/a"
   };
+}
+function summarizeBrowserLocalStorageEntry(key) {
+  if (typeof window === "undefined") {
+    return {
+      available: false,
+      reason: "window_unavailable"
+    };
+  }
+  try {
+    const rawValue = window.localStorage.getItem(key);
+    if (rawValue === null) {
+      return {
+        available: true,
+        hasKey: false
+      };
+    }
+    try {
+      return {
+        available: true,
+        hasKey: true,
+        rawLength: rawValue.length,
+        parsedSummary: summarizeSavedData(JSON.parse(rawValue))
+      };
+    } catch (error) {
+      return {
+        available: true,
+        hasKey: true,
+        rawLength: rawValue.length,
+        parseError: error instanceof Error ? error.message : String(error)
+      };
+    }
+  } catch (error) {
+    return {
+      available: false,
+      reason: error instanceof Error ? error.message : String(error)
+    };
+  }
 }
 function summarizeGameData(data) {
   var _a, _b, _c, _d;
@@ -47608,11 +49437,11 @@ function createDiagnosticsBody() {
   ].join("\n");
 }
 function getClientReleaseLabel() {
-  return `${"0.1.0"}+${2}`;
+  return `${"0.2.0-debug"}+${5}`;
 }
 function getClientReleaseFileLabel() {
-  const sanitizedVersion = "0.1.0".replace(/[^a-zA-Z0-9.-]+/g, "_");
-  return `${sanitizedVersion}-build-${2}`;
+  const sanitizedVersion = "0.2.0-debug".replace(/[^a-zA-Z0-9.-]+/g, "_");
+  return `${sanitizedVersion}-build-${5}`;
 }
 function buildGmailComposeHref(subject, body) {
   const gmailComposeUrl = new URL("https://mail.google.com/mail/");
@@ -47670,7 +49499,11 @@ const GameContainer = () => {
   const [loadingFailureAlert, setLoadingFailureAlert] = reactExports.useState(null);
   const [sanitizeResetAlert, setSanitizeResetAlert] = reactExports.useState(null);
   const isInitializedRef = reactExports.useRef(false);
+  const isInitializingGameRef = reactExports.useRef(false);
   const initialSetupDataRef = reactExports.useRef(null);
+  const pendingInitialSetupPromiseRef = reactExports.useRef(
+    null
+  );
   const pendingSetupResolverRef = reactExports.useRef(null);
   const shouldRestartFromSetupRef = reactExports.useRef(false);
   const [sceneHistoryStack, setSceneHistoryStack] = reactExports.useState(() => [
@@ -47682,6 +49515,8 @@ const GameContainer = () => {
   const [gameSessionKey, setGameSessionKey] = reactExports.useState(0);
   const [isSendingDiagnostics, setIsSendingDiagnostics] = reactExports.useState(false);
   const [pendingDiagnosticsDraft, setPendingDiagnosticsDraft] = reactExports.useState(null);
+  const [flappyBirdGameOverState, setFlappyBirdGameOverState] = reactExports.useState(null);
+  const [flappyBirdSettingsMenuState, setFlappyBirdSettingsMenuState] = reactExports.useState(null);
   const [buttonParams, setButtonParams] = reactExports.useState(null);
   const [sceneTransitionLoadState, setSceneTransitionLoadState] = reactExports.useState({
     requestId: 0,
@@ -47689,6 +49524,12 @@ const GameContainer = () => {
   });
   const pendingSettingMenuOpenTimeoutRef = reactExports.useRef(null);
   const sceneTransitionRequestIdRef = reactExports.useRef(0);
+  const gameInitializationAttemptIdRef = reactExports.useRef(0);
+  const pendingGameInitializationRef = reactExports.useRef(null);
+  const initializeGameStartTimeoutRef = reactExports.useRef(null);
+  const loadingTimeoutIdRef = reactExports.useRef(null);
+  const loadingTimeoutContextRef = reactExports.useRef(null);
+  const flappyBirdGameOverAdTimeoutRef = reactExports.useRef(null);
   const recoveryVibrationIntervalRef = reactExports.useRef(null);
   const nativeKeyboardInsetRef = reactExports.useRef(0);
   const lastValidationResultRef = reactExports.useRef(
@@ -47711,6 +49552,50 @@ const GameContainer = () => {
     window.clearTimeout(pendingSettingMenuOpenTimeoutRef.current);
     pendingSettingMenuOpenTimeoutRef.current = null;
   }, []);
+  const clearInitializeGameStartTimeout = reactExports.useCallback(() => {
+    if (initializeGameStartTimeoutRef.current === null) {
+      return;
+    }
+    window.clearTimeout(initializeGameStartTimeoutRef.current);
+    initializeGameStartTimeoutRef.current = null;
+  }, []);
+  const clearLoadingTimeout = reactExports.useCallback(() => {
+    if (loadingTimeoutIdRef.current !== null) {
+      window.clearTimeout(loadingTimeoutIdRef.current);
+      loadingTimeoutIdRef.current = null;
+    }
+    loadingTimeoutContextRef.current = null;
+  }, []);
+  const clearPendingFlappyBirdGameOverAd = reactExports.useCallback(() => {
+    if (flappyBirdGameOverAdTimeoutRef.current === null) {
+      return;
+    }
+    window.clearTimeout(flappyBirdGameOverAdTimeoutRef.current);
+    flappyBirdGameOverAdTimeoutRef.current = null;
+  }, []);
+  const cancelPendingGameInitialization = reactExports.useCallback(
+    (reason) => {
+      clearInitializeGameStartTimeout();
+      const pendingInitialization = pendingGameInitializationRef.current;
+      pendingGameInitializationRef.current = null;
+      isInitializingGameRef.current = false;
+      if (!pendingInitialization) {
+        return;
+      }
+      try {
+        pendingInitialization.game.destroy();
+      } catch (error) {
+        console.warn(
+          "[GameContainer] Failed to cancel a pending game initialization.",
+          {
+            reason,
+            error
+          }
+        );
+      }
+    },
+    [clearInitializeGameStartTimeout]
+  );
   const openSettingMenu = reactExports.useCallback(() => {
     if (showSettingMenu || pendingSettingMenuOpenTimeoutRef.current !== null) {
       return;
@@ -47794,6 +49679,59 @@ const GameContainer = () => {
       closeSettingMenu
     );
   }, [closeSettingMenu, requestHistoryBackForEntry]);
+  const handleNativeBackNavigation = reactExports.useCallback(() => {
+    if (typeof window === "undefined") {
+      return "consumed";
+    }
+    if (pendingBrowserHistoryTargetEntriesRef.current || pendingPopstateTargetEntriesRef.current) {
+      return "consumed";
+    }
+    if (sceneTransitionLoadState.phase !== "idle" || isBootstrapping || unsupportedViewportReason || showSetupLayer || sanitizeResetAlert) {
+      return "consumed";
+    }
+    if (pendingDiagnosticsDraft) {
+      setPendingDiagnosticsDraft(null);
+      return "consumed";
+    }
+    if (flappyBirdSettingsMenuState) {
+      const { onExit } = flappyBirdSettingsMenuState;
+      setFlappyBirdSettingsMenuState(null);
+      void Promise.resolve(onExit());
+      return "consumed";
+    }
+    if (flappyBirdGameOverState) {
+      const { onExit } = flappyBirdGameOverState;
+      setFlappyBirdGameOverState(null);
+      void Promise.resolve(onExit());
+      return "consumed";
+    }
+    if (activeBackNavigationEntriesRef.current.length === 0) {
+      const currentSceneKey = sceneHistoryStack[sceneHistoryStack.length - 1] ?? SceneKey.MAIN;
+      if (currentSceneKey !== SceneKey.MAIN) {
+        if (gameInstance) {
+          void gameInstance.changeScene(SceneKey.MAIN);
+        }
+        return "consumed";
+      }
+      return "exit";
+    }
+    window.history.back();
+    return "consumed";
+  }, [
+    flappyBirdGameOverState,
+    flappyBirdSettingsMenuState,
+    gameInstance,
+    isBootstrapping,
+    pendingDiagnosticsDraft,
+    sanitizeResetAlert,
+    sceneHistoryStack,
+    sceneTransitionLoadState.phase,
+    setFlappyBirdGameOverState,
+    setFlappyBirdSettingsMenuState,
+    setPendingDiagnosticsDraft,
+    showSetupLayer,
+    unsupportedViewportReason
+  ]);
   const applyBackNavigationTarget = reactExports.useCallback(
     async (targetEntries) => {
       const targetEntrySet = new Set(targetEntries);
@@ -47829,6 +49767,8 @@ const GameContainer = () => {
       error,
       context: context2
     }) => {
+      clearLoadingTimeout();
+      cancelPendingGameInitialization("loading_failure");
       sceneTransitionRequestIdRef.current = 0;
       setSceneTransitionLoadState({ requestId: 0, phase: "idle" });
       setIsBootstrapping(false);
@@ -47851,17 +49791,73 @@ const GameContainer = () => {
       });
       setLoadingFailureAlert({ title, message });
     },
-    [gameInstance, sceneTransitionLoadState.phase]
+    [
+      cancelPendingGameInitialization,
+      clearLoadingTimeout,
+      gameInstance,
+      sceneTransitionLoadState.phase
+    ]
+  );
+  const armLoadingTimeout = reactExports.useCallback(
+    (context2, options = {}) => {
+      const startedAt = !options.resetStart && loadingTimeoutContextRef.current ? loadingTimeoutContextRef.current.startedAt : Date.now();
+      loadingTimeoutContextRef.current = {
+        ...context2,
+        startedAt
+      };
+      if (loadingTimeoutIdRef.current !== null) {
+        window.clearTimeout(loadingTimeoutIdRef.current);
+      }
+      const elapsedMs = Date.now() - startedAt;
+      const remainingMs = Math.max(0, LOADING_TIMEOUT_MS - elapsedMs);
+      loadingTimeoutIdRef.current = window.setTimeout(() => {
+        loadingTimeoutIdRef.current = null;
+        const timeoutContext = loadingTimeoutContextRef.current;
+        loadingTimeoutContextRef.current = null;
+        if (!timeoutContext) {
+          return;
+        }
+        stopLoadingWithFailure({
+          title: "Loading Timeout",
+          message: "The game is taking too long to load. Tap Okay to dismiss this popup or Send Log to share diagnostics.",
+          context: {
+            phase: "loading_timeout",
+            loadingPhase: timeoutContext.phase,
+            initializationAttemptId: timeoutContext.initializationAttemptId ?? null,
+            requestId: timeoutContext.requestId ?? null,
+            from: timeoutContext.from ?? null,
+            to: timeoutContext.to ?? null,
+            elapsedMs: Date.now() - timeoutContext.startedAt,
+            timeoutMs: LOADING_TIMEOUT_MS
+          }
+        });
+      }, remainingMs);
+    },
+    [stopLoadingWithFailure]
   );
   reactExports.useEffect(() => {
     return () => {
       clearPendingSettingMenuOpen();
     };
   }, [clearPendingSettingMenuOpen]);
-  reactExports.useEffect(() => {
+  reactExports.useLayoutEffect(() => {
     activeBackNavigationEntriesRef.current = backNavigationEntries;
   }, [backNavigationEntries]);
-  reactExports.useEffect(() => {
+  reactExports.useLayoutEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const backBridge = {
+      handleBackNavigation: handleNativeBackNavigation
+    };
+    window.digiviceBackBridge = backBridge;
+    return () => {
+      if (window.digiviceBackBridge === backBridge) {
+        window.digiviceBackBridge = void 0;
+      }
+    };
+  }, [handleNativeBackNavigation]);
+  reactExports.useLayoutEffect(() => {
     if (typeof window === "undefined") {
       return;
     }
@@ -47982,8 +49978,8 @@ const GameContainer = () => {
       scene: (gameInstance == null ? void 0 : gameInstance.getCurrentSceneKey()) !== void 0 ? String(gameInstance.getCurrentSceneKey()) : void 0,
       storageKind: getClientStorageKind(),
       appMode: "production",
-      appVersion: "0.1.0",
-      buildNumber: 2,
+      appVersion: "0.2.0-debug",
+      buildNumber: 5,
       debugEnabled: isNativeFeatureDebugMode$1
     }));
     return () => {
@@ -47992,14 +49988,27 @@ const GameContainer = () => {
   }, [gameInstance]);
   const handleSceneTransitionStateChange = reactExports.useCallback(
     (params) => {
+      var _a;
       if (params.state === "loading") {
         sceneTransitionRequestIdRef.current = params.requestId;
+        armLoadingTimeout(
+          {
+            phase: "scene_transition",
+            initializationAttemptId: (_a = pendingGameInitializationRef.current) == null ? void 0 : _a.attemptId,
+            requestId: params.requestId,
+            from: params.from ?? null,
+            to: params.to
+          },
+          { resetStart: false }
+        );
         setSceneTransitionLoadState({
           requestId: params.requestId,
           phase: "loading",
           from: params.from,
           to: params.to
         });
+        setFlappyBirdSettingsMenuState(null);
+        setFlappyBirdGameOverState(null);
         setButtonParams(null);
         return;
       }
@@ -48021,6 +50030,7 @@ const GameContainer = () => {
       setSceneTransitionLoadState(
         (previous) => previous.requestId === params.requestId ? { ...previous, phase: "core_ready" } : previous
       );
+      clearLoadingTimeout();
       setSceneHistoryStack((previous) => {
         if (previous[previous.length - 1] === params.to) {
           return previous;
@@ -48032,16 +50042,20 @@ const GameContainer = () => {
         return [...previous, params.to];
       });
     },
-    [stopLoadingWithFailure]
+    [armLoadingTimeout, clearLoadingTimeout, stopLoadingWithFailure]
   );
-  const completeSceneTransitionLoading = reactExports.useCallback((requestId) => {
-    if (sceneTransitionRequestIdRef.current !== requestId) {
-      return;
-    }
-    sceneTransitionRequestIdRef.current = 0;
-    setSceneTransitionLoadState({ requestId: 0, phase: "idle" });
-    setIsBootstrapping(false);
-  }, []);
+  const completeSceneTransitionLoading = reactExports.useCallback(
+    (requestId) => {
+      if (sceneTransitionRequestIdRef.current !== requestId) {
+        return;
+      }
+      clearLoadingTimeout();
+      sceneTransitionRequestIdRef.current = 0;
+      setSceneTransitionLoadState({ requestId: 0, phase: "idle" });
+      setIsBootstrapping(false);
+    },
+    [clearLoadingTimeout]
+  );
   const updateGameContainerSize = reactExports.useCallback((force = false) => {
     var _a;
     const viewportElement = gameViewportRef.current;
@@ -48106,6 +50120,160 @@ const GameContainer = () => {
       recoveryVibrationIntervalRef.current = null;
     }
   }, []);
+  const triggerTransientVibration = reactExports.useCallback(
+    (params) => {
+      void biteVibrationAdapter.vibrate(params.durationMs, params.strength);
+    },
+    []
+  );
+  const getFlappyBirdBestScore = reactExports.useCallback(async () => {
+    try {
+      const storage = createClientStorage();
+      const storedData = await storage.getData(WORLD_DATA_STORAGE_KEY);
+      return getStoredFlappyBirdBestScore(storedData);
+    } catch (error) {
+      console.warn(
+        "[GameContainer] Failed to read FlappyBird best score from storage",
+        error
+      );
+      return 0;
+    }
+  }, []);
+  const persistFlappyBirdBestScore = reactExports.useCallback(async (score) => {
+    const nextBestScore = Math.max(0, Math.floor(score));
+    try {
+      const storage = createClientStorage();
+      const storedData = await storage.getData(WORLD_DATA_STORAGE_KEY);
+      const sanitizedResult = sanitizeStoredWorldData(storedData);
+      if (sanitizedResult.action === "reset_required" || !sanitizedResult.sanitizedData) {
+        return;
+      }
+      const currentBestScore = getStoredFlappyBirdBestScore(
+        sanitizedResult.sanitizedData
+      );
+      if (nextBestScore <= currentBestScore) {
+        return;
+      }
+      await storage.setData(
+        WORLD_DATA_STORAGE_KEY,
+        withStoredFlappyBirdBestScore(
+          sanitizedResult.sanitizedData,
+          nextBestScore
+        )
+      );
+    } catch (error) {
+      console.warn(
+        "[GameContainer] Failed to persist FlappyBird best score",
+        error
+      );
+    }
+  }, []);
+  const incrementFlappyBirdGameOverAdCount = reactExports.useCallback(async () => {
+    try {
+      const storage = createClientStorage();
+      const storedData = await storage.getData(
+        FLAPPY_BIRD_GAME_OVER_AD_COUNTER_STORAGE_KEY
+      );
+      const nextCount = getStoredFlappyBirdGameOverAdCount(storedData) + 1;
+      await storage.setData(
+        FLAPPY_BIRD_GAME_OVER_AD_COUNTER_STORAGE_KEY,
+        nextCount
+      );
+      return nextCount;
+    } catch (error) {
+      console.warn(
+        "[GameContainer] Failed to persist FlappyBird game-over ad count",
+        error
+      );
+      return null;
+    }
+  }, []);
+  const scheduleFlappyBirdGameOverAd = reactExports.useCallback(async () => {
+    const nextCount = await incrementFlappyBirdGameOverAdCount();
+    if (nextCount === null || nextCount % FLAPPY_BIRD_GAME_OVER_AD_THRESHOLD !== 0) {
+      return;
+    }
+    clearPendingFlappyBirdGameOverAd();
+    flappyBirdGameOverAdTimeoutRef.current = window.setTimeout(() => {
+      var _a;
+      flappyBirdGameOverAdTimeoutRef.current = null;
+      void (((_a = window.adManager) == null ? void 0 : _a.requestAd("flappy_bird_game_over", {
+        isCharacterUrgent: false,
+        metadata: {
+          trigger: "flappy_bird_game_over",
+          gameOverCount: nextCount,
+          threshold: FLAPPY_BIRD_GAME_OVER_AD_THRESHOLD,
+          timestamp: Date.now(),
+          cooldownMs: FLAPPY_BIRD_GAME_OVER_AD_COOLDOWN_MS
+        }
+      })) ?? Promise.resolve(false));
+    }, FLAPPY_BIRD_GAME_OVER_AD_DELAY_MS);
+  }, [clearPendingFlappyBirdGameOverAd, incrementFlappyBirdGameOverAdCount]);
+  const handleFlappyBirdGameOverRestart = reactExports.useCallback(() => {
+    if (!flappyBirdGameOverState) {
+      return;
+    }
+    setFlappyBirdGameOverState(null);
+    flappyBirdGameOverState.onRestart();
+  }, [flappyBirdGameOverState]);
+  const handleFlappyBirdGameOverExit = reactExports.useCallback(() => {
+    if (!flappyBirdGameOverState) {
+      return;
+    }
+    const { onExit } = flappyBirdGameOverState;
+    setFlappyBirdGameOverState(null);
+    void Promise.resolve(onExit());
+  }, [flappyBirdGameOverState]);
+  reactExports.useEffect(() => {
+    return () => {
+      clearPendingFlappyBirdGameOverAd();
+    };
+  }, [clearPendingFlappyBirdGameOverAd]);
+  const handleFlappyBirdSettingsMenuResume = reactExports.useCallback(() => {
+    if (!flappyBirdSettingsMenuState) {
+      return;
+    }
+    const { onResume } = flappyBirdSettingsMenuState;
+    setFlappyBirdSettingsMenuState(null);
+    void Promise.resolve(onResume());
+  }, [flappyBirdSettingsMenuState]);
+  const handleFlappyBirdSettingsMenuChangeBgm = reactExports.useCallback(
+    (enabled) => {
+      if (!flappyBirdSettingsMenuState) {
+        return;
+      }
+      void Promise.resolve(flappyBirdSettingsMenuState.onChangeBgm(enabled));
+    },
+    [flappyBirdSettingsMenuState]
+  );
+  const handleFlappyBirdSettingsMenuChangeSfx = reactExports.useCallback(
+    (enabled) => {
+      if (!flappyBirdSettingsMenuState) {
+        return;
+      }
+      void Promise.resolve(flappyBirdSettingsMenuState.onChangeSfx(enabled));
+    },
+    [flappyBirdSettingsMenuState]
+  );
+  const handleFlappyBirdSettingsMenuSelectTimeOfDay = reactExports.useCallback(
+    (timeOfDay) => {
+      if (!(flappyBirdSettingsMenuState == null ? void 0 : flappyBirdSettingsMenuState.onSelectTimeOfDay)) {
+        return;
+      }
+      void Promise.resolve(
+        flappyBirdSettingsMenuState.onSelectTimeOfDay(timeOfDay)
+      );
+    },
+    [flappyBirdSettingsMenuState]
+  );
+  const handleFlappyBirdSettingsMenuExit = reactExports.useCallback(() => {
+    if (!flappyBirdSettingsMenuState) {
+      return;
+    }
+    const { onExit } = flappyBirdSettingsMenuState;
+    setFlappyBirdSettingsMenuState(null);
+    void Promise.resolve(onExit());
+  }, [flappyBirdSettingsMenuState]);
   const startRecoveryVibration = reactExports.useCallback(() => {
     if (recoveryVibrationIntervalRef.current !== null) {
       return;
@@ -48157,8 +50325,8 @@ const GameContainer = () => {
         generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
         appInfo: {
           project: "MonTTo",
-          clientAppVersion: "0.1.0",
-          clientBuildNumber: 2,
+          clientAppVersion: "0.2.0-debug",
+          clientBuildNumber: 5,
           appMode: "production",
           debugEnabled: isNativeFeatureDebugMode$1,
           storageKind: getClientStorageKind(),
@@ -48280,7 +50448,10 @@ const GameContainer = () => {
         if (gameContainerRef.current) {
           gameContainerRef.current.innerHTML = "";
         }
+        clearLoadingTimeout();
+        cancelPendingGameInitialization("reset_game_data");
         initialSetupDataRef.current = null;
+        pendingInitialSetupPromiseRef.current = null;
         pendingSetupResolverRef.current = null;
         shouldRestartFromSetupRef.current = true;
         isInitializedRef.current = false;
@@ -48295,6 +50466,8 @@ const GameContainer = () => {
         setSceneTransitionLoadState({ requestId: 0, phase: "idle" });
         setGameInstance(null);
         setSanitizeResetAlert(null);
+        setFlappyBirdSettingsMenuState(null);
+        setFlappyBirdGameOverState(null);
         console.warn("[GameContainer] resetGameData:success", {
           reason,
           storageKind: getClientStorageKind()
@@ -48304,7 +50477,12 @@ const GameContainer = () => {
         showAlert("Failed to reset game data.", "Error");
       }
     },
-    [gameInstance, showAlert]
+    [
+      cancelPendingGameInitialization,
+      clearLoadingTimeout,
+      gameInstance,
+      showAlert
+    ]
   );
   const handleResetGameData = reactExports.useCallback(async () => {
     await resetGameData("user_reset");
@@ -48317,6 +50495,19 @@ const GameContainer = () => {
       const storage = createClientStorage();
       const storageKind = getClientStorageKind();
       const savedData = await storage.getData(WORLD_DATA_STORAGE_KEY);
+      const savedDataSummary = summarizeSavedData(savedData);
+      logImportantDiagnostics(
+        "log",
+        "[ImportantDiagnostics][GameDataBootstrap]",
+        {
+          key: WORLD_DATA_STORAGE_KEY,
+          storageKind,
+          activeStorageSummary: savedDataSummary,
+          browserLocalStorageSummary: summarizeBrowserLocalStorageEntry(
+            WORLD_DATA_STORAGE_KEY
+          )
+        }
+      );
       const result = sanitizeStoredWorldData(savedData);
       lastValidationResultRef.current = result;
       if (result.changed || result.action !== "playable") {
@@ -48330,7 +50521,7 @@ const GameContainer = () => {
             changed: result.changed,
             resetReason: result.resetReason ?? null,
             diagnostics: result.diagnostics,
-            savedDataSummary: summarizeSavedData(savedData)
+            savedDataSummary
           }
         );
       }
@@ -48431,10 +50622,13 @@ const GameContainer = () => {
     if (initialSetupDataRef.current) {
       return initialSetupDataRef.current;
     }
+    if (pendingInitialSetupPromiseRef.current) {
+      return pendingInitialSetupPromiseRef.current;
+    }
     setLoadingFailureAlert(null);
     setIsBootstrapping(false);
     setShowSetupLayer(true);
-    return new Promise((resolve) => {
+    const setupPromise = new Promise((resolve) => {
       pendingSetupResolverRef.current = (formData) => {
         setShowSetupLayer(false);
         setIsBootstrapping(true);
@@ -48442,40 +50636,66 @@ const GameContainer = () => {
         void (async () => {
           const hydratedFormData = await hydrateInitialSetupData(formData);
           initialSetupDataRef.current = hydratedFormData;
+          pendingInitialSetupPromiseRef.current = null;
           resolve(hydratedFormData);
         })();
       };
     });
+    pendingInitialSetupPromiseRef.current = setupPromise;
+    return setupPromise;
   }, [hydrateInitialSetupData]);
   const initializeGame = reactExports.useCallback(() => {
     if (!gameContainerRef.current) return;
     if (!gameContainerSize || gameContainerSize <= 0) return;
     if (isInitializedRef.current) return;
+    if (isInitializingGameRef.current) return;
     setLoadingFailureAlert(null);
     setIsBootstrapping(true);
+    const attemptId = gameInitializationAttemptIdRef.current + 1;
+    gameInitializationAttemptIdRef.current = attemptId;
+    isInitializingGameRef.current = true;
     const debugParentElement = gameContainerRef.current.closest("#app-container") ?? gameContainerRef.current;
     const game = new Game({
       parentElement: gameContainerRef.current,
       debugParentElement,
+      debugMode: isNativeFeatureDebugMode$1,
+      initialSceneKey: CONFIGURED_INITIAL_SCENE_KEY,
       onCreateInitialGameData: async () => {
         return initialSetupDataRef.current ?? await requestInitialGameData();
       },
       showAlert: (message, title) => {
         showAlert(message, title);
       },
-      startMiniGame: isMiniGameUnavailableForCurrentVersion() ? () => {
-        showAlert("개발중", "Notice");
-      } : void 0,
       showSettings: () => {
         openSettingMenu();
       },
       triggerBiteVibration: () => {
         void biteVibrationAdapter.vibrate();
       },
+      triggerTransientVibration,
       startRecoveryVibration,
       stopRecoveryVibration,
+      getFlappyBirdBestScore,
+      persistFlappyBirdBestScore,
+      showFlappyBirdGameOver: (params) => {
+        setFlappyBirdGameOverState(params);
+        void scheduleFlappyBirdGameOverAd();
+      },
+      hideFlappyBirdGameOver: () => {
+        setFlappyBirdGameOverState(null);
+      },
+      showFlappyBirdSettingsMenu: (params) => {
+        setFlappyBirdSettingsMenuState(params);
+      },
+      hideFlappyBirdSettingsMenu: () => {
+        setFlappyBirdSettingsMenuState(null);
+      },
       onSceneTransitionStateChange: handleSceneTransitionStateChange,
       changeControlButtons: (controlButtonParams) => {
+        if (!controlButtonParams) {
+          setButtonParams(null);
+          return;
+        }
         setButtonParams((previous) => {
           if (previous && previous.every(
             (buttonParam, index) => buttonParam.type === controlButtonParams[index].type && buttonParam.initialSliderValue === controlButtonParams[index].initialSliderValue && buttonParam.sliderSessionKey === controlButtonParams[index].sliderSessionKey && buttonParam.hasCleaningTarget === controlButtonParams[index].hasCleaningTarget
@@ -48486,11 +50706,37 @@ const GameContainer = () => {
         });
       }
     });
-    window.setTimeout(() => {
+    pendingGameInitializationRef.current = { attemptId, game };
+    armLoadingTimeout(
+      {
+        phase: "game_initialize",
+        initializationAttemptId: attemptId
+      },
+      { resetStart: true }
+    );
+    clearInitializeGameStartTimeout();
+    initializeGameStartTimeoutRef.current = window.setTimeout(() => {
+      var _a;
+      initializeGameStartTimeoutRef.current = null;
+      if (((_a = pendingGameInitializationRef.current) == null ? void 0 : _a.attemptId) !== attemptId) {
+        return;
+      }
       void game.initialize().then(() => {
+        var _a2;
+        if (((_a2 = pendingGameInitializationRef.current) == null ? void 0 : _a2.attemptId) !== attemptId) {
+          return;
+        }
+        pendingGameInitializationRef.current = null;
+        isInitializingGameRef.current = false;
         isInitializedRef.current = true;
         setGameInstance(game);
       }).catch((error) => {
+        var _a2;
+        if (((_a2 = pendingGameInitializationRef.current) == null ? void 0 : _a2.attemptId) !== attemptId) {
+          return;
+        }
+        pendingGameInitializationRef.current = null;
+        isInitializingGameRef.current = false;
         setGameInstance(null);
         try {
           game.destroy();
@@ -48499,6 +50745,26 @@ const GameContainer = () => {
             "[GameContainer] Failed to clean up a partially initialized game instance.",
             destroyError
           );
+        }
+        if (isMissingInitialGameDataError(error)) {
+          console.warn(
+            "[GameContainer] Initial setup data is missing. Returning to setup flow.",
+            {
+              error,
+              storageKind: getClientStorageKind()
+            }
+          );
+          clearLoadingTimeout();
+          sceneTransitionRequestIdRef.current = 0;
+          setSceneTransitionLoadState({ requestId: 0, phase: "idle" });
+          initialSetupDataRef.current = null;
+          pendingInitialSetupPromiseRef.current = null;
+          pendingSetupResolverRef.current = null;
+          shouldRestartFromSetupRef.current = true;
+          setLoadingFailureAlert(null);
+          setShowSetupLayer(true);
+          setIsBootstrapping(false);
+          return;
         }
         stopLoadingWithFailure({
           message: "The game could not finish loading. Tap Okay to dismiss this popup or Send Log to share diagnostics.",
@@ -48510,14 +50776,20 @@ const GameContainer = () => {
       });
     });
   }, [
+    armLoadingTimeout,
+    clearLoadingTimeout,
+    clearInitializeGameStartTimeout,
     gameContainerSize,
+    getFlappyBirdBestScore,
     handleSceneTransitionStateChange,
     openSettingMenu,
+    persistFlappyBirdBestScore,
     requestInitialGameData,
     startRecoveryVibration,
     stopLoadingWithFailure,
     stopRecoveryVibration,
-    showAlert
+    showAlert,
+    triggerTransientVibration
   ]);
   reactExports.useEffect(() => {
     const viewportElement = gameViewportRef.current;
@@ -48625,6 +50897,10 @@ const GameContainer = () => {
       if (!gameContainerRef.current) return;
       if (!gameContainerSize || gameContainerSize <= 0) return;
       if (isInitializedRef.current) return;
+      if (CONFIGURED_INITIAL_SCENE_KEY === SceneKey.FLAPPY_BIRD_GAME) {
+        initializeGame();
+        return;
+      }
       const savedGameDataState = await prepareSavedGameData();
       if (!isMounted) return;
       if (savedGameDataState === "reset_required") {
@@ -48641,7 +50917,6 @@ const GameContainer = () => {
     void bootstrap2();
     return () => {
       isMounted = false;
-      pendingSetupResolverRef.current = null;
       stopRecoveryVibration();
     };
   }, [
@@ -48654,9 +50929,17 @@ const GameContainer = () => {
   ]);
   reactExports.useEffect(() => {
     return () => {
+      clearLoadingTimeout();
+      cancelPendingGameInitialization("component_unmount");
+      pendingInitialSetupPromiseRef.current = null;
+      pendingSetupResolverRef.current = null;
       stopRecoveryVibration();
     };
-  }, [stopRecoveryVibration]);
+  }, [
+    cancelPendingGameInitialization,
+    clearLoadingTimeout,
+    stopRecoveryVibration
+  ]);
   reactExports.useEffect(() => {
     if (!gameInstance) {
       return;
@@ -48688,7 +50971,7 @@ const GameContainer = () => {
   }, [gameInstance, sceneTransitionLoadState.phase]);
   const handleButtonPress = reactExports.useCallback(
     (buttonType) => {
-      if (buttonType === ControlButtonType.Settings) {
+      if (buttonType === ControlButtonType.Settings && (gameInstance == null ? void 0 : gameInstance.getCurrentSceneKey()) !== SceneKey.FLAPPY_BIRD_GAME) {
         openSettingMenu();
         return;
       }
@@ -48834,7 +51117,11 @@ const GameContainer = () => {
           {
             title: sanitizeResetAlert.title,
             message: sanitizeResetAlert.message,
-            onClose: handleSanitizeResetConfirm
+            onClose: handleSanitizeResetConfirm,
+            onCancel: () => {
+              void handleSendDiagnostics();
+            },
+            cancelText: isSendingDiagnostics ? "Sending..." : "Send Logs"
           }
         ),
         pendingDiagnosticsDraft && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -48854,116 +51141,33 @@ const GameContainer = () => {
             confirmText: "CONFIRM",
             cancelText: "Cancel"
           }
-        ) })
-      ]
-    }
-  );
-};
-function DevEnvironmentBadge() {
-  const [platformAdapter2] = reactExports.useState(() => new PlatformAdapter());
-  const [isExpanded, setIsExpanded] = reactExports.useState(false);
-  const isNativeApp = platformAdapter2.isRunningInNativeApp();
-  if (isNativeApp) {
-    return null;
-  }
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs(
-    "div",
-    {
-      style: {
-        backgroundColor: "#ff6b6b",
-        color: "white",
-        padding: "8px 16px",
-        fontSize: "14px",
-        fontWeight: "bold",
-        textAlign: "center",
-        boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
-        cursor: "pointer",
-        fontFamily: "system-ui, -apple-system, sans-serif",
-        flexShrink: 0
-      },
-      onClick: () => setIsExpanded(!isExpanded),
-      onKeyDown: (e2) => {
-        if (e2.key === "Enter" || e2.key === " ") {
-          setIsExpanded(!isExpanded);
-        }
-      },
-      role: "button",
-      tabIndex: 0,
-      title: "Click to view environment details",
-      children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs(
-          "div",
+        ) }),
+        flappyBirdGameOverState && /* @__PURE__ */ jsxRuntimeExports.jsx(
+          FlappyBirdGameOverLayer,
           {
-            style: {
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "8px"
-            },
-            children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "🖥️ PC Dev Mode" }),
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { style: { fontSize: "12px", opacity: 0.9 }, children: [
-                isExpanded ? "▲" : "▼",
-                " click to",
-                " ",
-                isExpanded ? "collapse" : "expand"
-              ] })
-            ]
+            score: flappyBirdGameOverState.score,
+            bestScore: flappyBirdGameOverState.bestScore,
+            onRestart: handleFlappyBirdGameOverRestart,
+            onExit: handleFlappyBirdGameOverExit
           }
         ),
-        isExpanded && /* @__PURE__ */ jsxRuntimeExports.jsxs(
-          "div",
+        flappyBirdSettingsMenuState && /* @__PURE__ */ jsxRuntimeExports.jsx(
+          FlappyBirdSettingsLayer,
           {
-            style: {
-              marginTop: "12px",
-              paddingTop: "12px",
-              borderTop: "1px solid rgba(255,255,255,0.3)",
-              fontSize: "12px",
-              fontWeight: "normal",
-              textAlign: "left",
-              maxWidth: "800px",
-              margin: "12px auto 0"
-            },
-            children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { marginBottom: "8px" }, children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: "Environment:" }),
-                " Web browser (not a Flutter native app)"
-              ] }),
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { marginBottom: "8px" }, children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: "Platform:" }),
-                " ",
-                platformAdapter2.getPlatformName()
-              ] }),
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { marginBottom: "8px" }, children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: "User Agent:" }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx(
-                  "div",
-                  {
-                    style: {
-                      marginTop: "4px",
-                      padding: "8px",
-                      backgroundColor: "rgba(0,0,0,0.2)",
-                      borderRadius: "4px",
-                      wordBreak: "break-all",
-                      fontSize: "11px",
-                      fontFamily: "monospace"
-                    },
-                    children: navigator.userAgent
-                  }
-                )
-              ] }),
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { marginTop: "12px", opacity: 0.8, fontSize: "11px" }, children: [
-                "⚠️ Native-only features such as NFC do not work in this environment.",
-                /* @__PURE__ */ jsxRuntimeExports.jsx("br", {}),
-                "Use the Flutter app to test native features."
-              ] })
-            ]
+            isBgmEnabled: flappyBirdSettingsMenuState.isBgmEnabled,
+            isSfxEnabled: flappyBirdSettingsMenuState.isSfxEnabled,
+            onChangeBgm: handleFlappyBirdSettingsMenuChangeBgm,
+            onChangeSfx: handleFlappyBirdSettingsMenuChangeSfx,
+            selectedTimeOfDay: flappyBirdSettingsMenuState.selectedTimeOfDay,
+            onSelectTimeOfDay: handleFlappyBirdSettingsMenuSelectTimeOfDay,
+            onResume: handleFlappyBirdSettingsMenuResume,
+            onExit: handleFlappyBirdSettingsMenuExit
           }
         )
       ]
     }
   );
-}
+};
 const COOLDOWN_KEY = "ad_last_shown_timestamp";
 class CooldownCondition {
   /**
@@ -49134,6 +51338,17 @@ class AdManager {
     }
   }
 }
+class FlappyBirdGameOverPolicy {
+  constructor() {
+    __publicField(this, "name", "flappy_bird_game_over");
+  }
+  async shouldShow(context2) {
+    return context2.trigger === "flappy_bird_game_over";
+  }
+  getPriority() {
+    return 9;
+  }
+}
 const DEFAULT_MAIN_SCENE_MENU_COOLDOWN_MS = 5 * 60 * 1e3;
 function resolveCooldownMs(metadata) {
   const cooldownMs = metadata == null ? void 0 : metadata.cooldownMs;
@@ -49180,6 +51395,7 @@ const App = () => {
     if (isInitialized.current) return;
     isInitialized.current = true;
     adManager = new AdManager();
+    adManager.addPolicy(new FlappyBirdGameOverPolicy());
     adManager.addPolicy(new MainSceneMenuPolicy());
     window.adManager = adManager;
     window.digiviceAdBridge = {
@@ -49240,7 +51456,6 @@ const App = () => {
   };
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { id: "app-shell", children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx(TopLeftBuildLogoText, {}),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(DevEnvironmentBadge, {}),
     /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { id: "app-container", children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx(GameContainer, {}),
       /* @__PURE__ */ jsxRuntimeExports.jsx(SimpleLogViewer, { position: "top-right", initialOpen: false })
@@ -49248,12 +51463,12 @@ const App = () => {
   ] });
 };
 const platformAdapter = new PlatformAdapter();
-const isNativeFeatureDebugMode = false;
+const isNativeFeatureDebugMode = true;
 installDiagnosticsConsoleCapture();
 setDiagnosticsContextProvider(() => ({
   appMode: "production",
-  appVersion: "0.1.0",
-  buildNumber: 2,
+  appVersion: "0.2.0-debug",
+  buildNumber: 5,
   debugEnabled: isNativeFeatureDebugMode
 }));
 document.addEventListener("DOMContentLoaded", () => {
@@ -49268,15 +51483,16 @@ async function waitForNativeStorageController(timeoutMilliseconds = 4e3) {
     return;
   }
   const startedAt = Date.now();
-  while (!("storageController" in window)) {
+  while (!hasNativeStorageController()) {
     if (Date.now() - startedAt >= timeoutMilliseconds) {
       console.warn(
-        "[bootstrap] Native storage controller did not become available before timeout"
+        "[bootstrap] Native storage bridge did not become ready before timeout"
       );
       return;
     }
     await sleep(50);
   }
+  console.log("[bootstrap] Native storage bridge is ready");
   return;
 }
 async function bootstrap() {

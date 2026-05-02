@@ -12081,7 +12081,7 @@ var clientExports = requireClient();
 const ReactDOM = /* @__PURE__ */ getDefaultExportFromCjs(clientExports);
 var reactExports = requireReact();
 const SHOW_DEBUG_GAUGE_EVENT = "digivice:show-debug-gauge";
-const buildLogoText = "".trim();
+const buildLogoText = "DEBUG".trim();
 function toggleDebugGauge() {
   window.dispatchEvent(new CustomEvent(SHOW_DEBUG_GAUGE_EVENT));
 }
