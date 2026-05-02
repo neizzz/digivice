@@ -6,17 +6,30 @@ import {
   getNativeSunTimes,
   MissingInitialGameDataError,
   SceneKey,
+  TimeOfDay,
 } from "@digivice/game";
 import type React from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import ControlButtons from "./components/ControlButtons";
 import PopupLayer from "./components/PopupLayer";
 import { type SetupFormData, SetupLayer } from "./layers/SetupLayer";
 import AlertLayer from "./layers/AlertLayer";
+import FlappyBirdGameOverLayer from "./layers/FlappyBirdGameOverLayer";
+import FlappyBirdSettingsLayer from "./layers/FlappyBirdSettingsLayer";
 import SettingMenuLayer from "./layers/SettingMenuLayer";
 import useAlert from "./hooks/useAlert";
 import { getGameSettings, updateGameSettings } from "./settings/gameSettings";
-import { sanitizeStoredWorldData } from "./utils/sanitizeStoredWorldData";
+import {
+  sanitizeStoredWorldData,
+  type StoredWorldData,
+} from "./utils/sanitizeStoredWorldData";
 import { VibrationAdapter } from "./adapter/VibrationAdapter";
 import {
   getDiagnosticsLoggerInfo,
@@ -32,34 +45,46 @@ import {
 import type { SanitizeStoredWorldDataResult } from "./utils/sanitizeStoredWorldData";
 
 const WORLD_DATA_STORAGE_KEY = "MainSceneWorldData";
+const FLAPPY_BIRD_GAME_OVER_AD_COUNTER_STORAGE_KEY =
+  "FlappyBirdGameOverAdCounter";
+const FLAPPY_BIRD_GAME_OVER_AD_THRESHOLD = 5;
+const FLAPPY_BIRD_GAME_OVER_AD_DELAY_MS = 500;
+const FLAPPY_BIRD_GAME_OVER_AD_COOLDOWN_MS = 1;
 const biteVibrationAdapter = new VibrationAdapter();
 const RECOVERY_VIBRATION_INTERVAL_MS = 180;
 const RECOVERY_VIBRATION_DURATION_MS = 14;
 const RECOVERY_VIBRATION_STRENGTH = 28;
+const LOADING_TIMEOUT_MS = 30_000;
 const isNativeFeatureDebugMode =
   import.meta.env.NATIVE_FEATURE_DEBUG_MODE === "true";
 const isAndroidUserAgent =
   typeof navigator !== "undefined" &&
   /DigiviceApp-Android|Android/i.test(navigator.userAgent);
-const MINI_GAME_UNAVAILABLE_VERSION = "0.1.0";
 const KEYBOARD_VIEWPORT_HEIGHT_DELTA_THRESHOLD = 80;
 const UNSUPPORTED_SQUARE_VIEWPORT_RATIO = 0.8;
+
+function getConfiguredInitialSceneKey(): SceneKey {
+  return import.meta.env.VITE_INITIAL_SCENE === SceneKey.FLAPPY_BIRD_GAME
+    ? SceneKey.FLAPPY_BIRD_GAME
+    : SceneKey.MAIN;
+}
+
+const CONFIGURED_INITIAL_SCENE_KEY = getConfiguredInitialSceneKey();
+
+function isMissingInitialGameDataError(
+  error: unknown,
+): error is MissingInitialGameDataError {
+  return (
+    error instanceof MissingInitialGameDataError ||
+    (error instanceof Error && error.name === MissingInitialGameDataError.name)
+  );
+}
 
 type UnsupportedViewportReason = "landscape" | "square" | null;
 
 type UnsupportedViewportCheckOptions = {
   nativeKeyboardInset?: number;
 };
-function isMissingInitialGameDataError(
-  error: unknown,
-): error is MissingInitialGameDataError {
-  return (
-    error instanceof MissingInitialGameDataError ||
-    (error instanceof Error &&
-      error.name === MissingInitialGameDataError.name)
-  );
-}
-
 
 type NativeViewportSyncDetail = {
   bottomInset?: number | null;
@@ -122,6 +147,33 @@ type SceneTransitionLoadState = {
   phase: "idle" | "loading" | "core_ready";
   from?: SceneKey;
   to?: SceneKey;
+};
+
+type LoadingTimeoutContext = {
+  phase: "game_initialize" | "scene_transition";
+  startedAt: number;
+  initializationAttemptId?: number;
+  requestId?: number;
+  from?: SceneKey | null;
+  to?: SceneKey | null;
+};
+
+type FlappyBirdGameOverState = {
+  score: number;
+  bestScore: number;
+  onRestart: () => void;
+  onExit: () => void | Promise<void>;
+};
+
+type FlappyBirdSettingsMenuState = {
+  isBgmEnabled: boolean;
+  isSfxEnabled: boolean;
+  onChangeBgm: (enabled: boolean) => void | Promise<void>;
+  onChangeSfx: (enabled: boolean) => void | Promise<void>;
+  selectedTimeOfDay?: TimeOfDay;
+  onSelectTimeOfDay?: (timeOfDay: TimeOfDay) => void | Promise<void>;
+  onResume: () => void | Promise<void>;
+  onExit: () => void | Promise<void>;
 };
 
 type FullscreenAdEventDetail = {
@@ -228,6 +280,55 @@ function areBackNavigationEntriesEqual(
   return true;
 }
 
+function getStoredFlappyBirdBestScore(data: unknown): number {
+  const bestScore = (data as StoredWorldData | null)?.world_metadata?.app_state
+    ?.mini_game_scores?.flappy_bird?.best_score;
+
+  return typeof bestScore === "number" && Number.isFinite(bestScore)
+    ? Math.max(0, Math.floor(bestScore))
+    : 0;
+}
+
+function withStoredFlappyBirdBestScore(
+  data: StoredWorldData,
+  bestScore: number,
+): StoredWorldData {
+  const nextBestScore = Math.max(0, Math.floor(bestScore));
+
+  return {
+    ...data,
+    world_metadata: {
+      ...data.world_metadata,
+      app_state: {
+        ...data.world_metadata?.app_state,
+        mini_game_scores: {
+          ...data.world_metadata?.app_state?.mini_game_scores,
+          flappy_bird: {
+            ...data.world_metadata?.app_state?.mini_game_scores?.flappy_bird,
+            best_score: nextBestScore,
+          },
+        },
+      },
+    },
+  };
+}
+
+function getStoredFlappyBirdGameOverAdCount(data: unknown): number {
+  if (typeof data === "number" && Number.isFinite(data)) {
+    return Math.max(0, Math.floor(data));
+  }
+
+  if (data && typeof data === "object" && !Array.isArray(data)) {
+    const count = (data as { count?: unknown }).count;
+
+    if (typeof count === "number" && Number.isFinite(count)) {
+      return Math.max(0, Math.floor(count));
+    }
+  }
+
+  return 0;
+}
+
 function getSharedBackNavigationPrefixLength(
   left: BackNavigationEntry[],
   right: BackNavigationEntry[],
@@ -283,14 +384,6 @@ function setFrozenAppShellHeight(height: number | null): void {
   }
 
   document.documentElement.style.removeProperty("--digivice-app-shell-height");
-}
-
-function getBaseAppVersion(version: string): string {
-  return version.replace(/-.+$/, "");
-}
-
-function isMiniGameUnavailableForCurrentVersion(): boolean {
-  return getBaseAppVersion(__APP_VERSION__) === MINI_GAME_UNAVAILABLE_VERSION;
 }
 
 function isTextInputElement(element: Element | null): element is HTMLElement {
@@ -367,6 +460,7 @@ function getUnsupportedViewportReason(
 function summarizeSavedData(savedData: unknown): Record<string, unknown> {
   if (!savedData || typeof savedData !== "object") {
     return {
+      hasData: Boolean(savedData),
       valueType: typeof savedData,
       isNull: savedData === null,
     };
@@ -378,12 +472,56 @@ function summarizeSavedData(savedData: unknown): Record<string, unknown> {
   };
 
   return {
+    hasData: true,
     valueType: typeof savedData,
     monsterName: savedDataRecord.world_metadata?.monster_name,
     entityCount: Array.isArray(savedDataRecord.entities)
       ? savedDataRecord.entities.length
       : "n/a",
   };
+}
+
+function summarizeBrowserLocalStorageEntry(
+  key: string,
+): Record<string, unknown> {
+  if (typeof window === "undefined") {
+    return {
+      available: false,
+      reason: "window_unavailable",
+    };
+  }
+
+  try {
+    const rawValue = window.localStorage.getItem(key);
+
+    if (rawValue === null) {
+      return {
+        available: true,
+        hasKey: false,
+      };
+    }
+
+    try {
+      return {
+        available: true,
+        hasKey: true,
+        rawLength: rawValue.length,
+        parsedSummary: summarizeSavedData(JSON.parse(rawValue)),
+      };
+    } catch (error) {
+      return {
+        available: true,
+        hasKey: true,
+        rawLength: rawValue.length,
+        parseError: error instanceof Error ? error.message : String(error),
+      };
+    }
+  } catch (error) {
+    return {
+      available: false,
+      reason: error instanceof Error ? error.message : String(error),
+    };
+  }
 }
 
 function summarizeGameData(data: unknown): GameDataSummary {
@@ -521,7 +659,11 @@ const GameContainer: React.FC = () => {
     message: string;
   } | null>(null);
   const isInitializedRef = useRef<boolean>(false);
+  const isInitializingGameRef = useRef(false);
   const initialSetupDataRef = useRef<SetupFormData | null>(null);
+  const pendingInitialSetupPromiseRef = useRef<Promise<SetupFormData> | null>(
+    null,
+  );
   const pendingSetupResolverRef = useRef<
     ((formData: SetupFormData) => void) | null
   >(null);
@@ -536,6 +678,10 @@ const GameContainer: React.FC = () => {
   const [isSendingDiagnostics, setIsSendingDiagnostics] = useState(false);
   const [pendingDiagnosticsDraft, setPendingDiagnosticsDraft] =
     useState<PendingDiagnosticsDraft | null>(null);
+  const [flappyBirdGameOverState, setFlappyBirdGameOverState] =
+    useState<FlappyBirdGameOverState | null>(null);
+  const [flappyBirdSettingsMenuState, setFlappyBirdSettingsMenuState] =
+    useState<FlappyBirdSettingsMenuState | null>(null);
   const [buttonParams, setButtonParams] = useState<
     [ControlButtonParams, ControlButtonParams, ControlButtonParams] | null
   >(null);
@@ -546,6 +692,15 @@ const GameContainer: React.FC = () => {
     });
   const pendingSettingMenuOpenTimeoutRef = useRef<number | null>(null);
   const sceneTransitionRequestIdRef = useRef(0);
+  const gameInitializationAttemptIdRef = useRef(0);
+  const pendingGameInitializationRef = useRef<{
+    attemptId: number;
+    game: Game;
+  } | null>(null);
+  const initializeGameStartTimeoutRef = useRef<number | null>(null);
+  const loadingTimeoutIdRef = useRef<number | null>(null);
+  const loadingTimeoutContextRef = useRef<LoadingTimeoutContext | null>(null);
+  const flappyBirdGameOverAdTimeoutRef = useRef<number | null>(null);
   const recoveryVibrationIntervalRef = useRef<number | null>(null);
   const nativeKeyboardInsetRef = useRef(0);
   const lastValidationResultRef = useRef<SanitizeStoredWorldDataResult | null>(
@@ -572,6 +727,60 @@ const GameContainer: React.FC = () => {
     window.clearTimeout(pendingSettingMenuOpenTimeoutRef.current);
     pendingSettingMenuOpenTimeoutRef.current = null;
   }, []);
+
+  const clearInitializeGameStartTimeout = useCallback(() => {
+    if (initializeGameStartTimeoutRef.current === null) {
+      return;
+    }
+
+    window.clearTimeout(initializeGameStartTimeoutRef.current);
+    initializeGameStartTimeoutRef.current = null;
+  }, []);
+
+  const clearLoadingTimeout = useCallback(() => {
+    if (loadingTimeoutIdRef.current !== null) {
+      window.clearTimeout(loadingTimeoutIdRef.current);
+      loadingTimeoutIdRef.current = null;
+    }
+
+    loadingTimeoutContextRef.current = null;
+  }, []);
+
+  const clearPendingFlappyBirdGameOverAd = useCallback(() => {
+    if (flappyBirdGameOverAdTimeoutRef.current === null) {
+      return;
+    }
+
+    window.clearTimeout(flappyBirdGameOverAdTimeoutRef.current);
+    flappyBirdGameOverAdTimeoutRef.current = null;
+  }, []);
+
+  const cancelPendingGameInitialization = useCallback(
+    (reason: string) => {
+      clearInitializeGameStartTimeout();
+
+      const pendingInitialization = pendingGameInitializationRef.current;
+      pendingGameInitializationRef.current = null;
+      isInitializingGameRef.current = false;
+
+      if (!pendingInitialization) {
+        return;
+      }
+
+      try {
+        pendingInitialization.game.destroy();
+      } catch (error) {
+        console.warn(
+          "[GameContainer] Failed to cancel a pending game initialization.",
+          {
+            reason,
+            error,
+          },
+        );
+      }
+    },
+    [clearInitializeGameStartTimeout],
+  );
 
   const openSettingMenu = useCallback(() => {
     if (showSettingMenu || pendingSettingMenuOpenTimeoutRef.current !== null) {
@@ -625,9 +834,6 @@ const GameContainer: React.FC = () => {
     loadingFailureAlert,
     pendingDiagnosticsDraft,
     sceneHistoryStack,
-  const pendingInitialSetupPromiseRef = useRef<Promise<SetupFormData> | null>(
-    null,
-  );
     showFinalResetConfirm,
     showSettingMenu,
   ]);
@@ -681,6 +887,80 @@ const GameContainer: React.FC = () => {
     );
   }, [closeSettingMenu, requestHistoryBackForEntry]);
 
+  const handleNativeBackNavigation = useCallback((): "consumed" | "exit" => {
+    if (typeof window === "undefined") {
+      return "consumed";
+    }
+
+    if (
+      pendingBrowserHistoryTargetEntriesRef.current ||
+      pendingPopstateTargetEntriesRef.current
+    ) {
+      return "consumed";
+    }
+
+    if (
+      sceneTransitionLoadState.phase !== "idle" ||
+      isBootstrapping ||
+      unsupportedViewportReason ||
+      showSetupLayer ||
+      sanitizeResetAlert
+    ) {
+      return "consumed";
+    }
+
+    if (pendingDiagnosticsDraft) {
+      setPendingDiagnosticsDraft(null);
+      return "consumed";
+    }
+
+    if (flappyBirdSettingsMenuState) {
+      const { onExit } = flappyBirdSettingsMenuState;
+      setFlappyBirdSettingsMenuState(null);
+      void Promise.resolve(onExit());
+      return "consumed";
+    }
+
+    if (flappyBirdGameOverState) {
+      const { onExit } = flappyBirdGameOverState;
+      setFlappyBirdGameOverState(null);
+      void Promise.resolve(onExit());
+      return "consumed";
+    }
+
+    if (activeBackNavigationEntriesRef.current.length === 0) {
+      const currentSceneKey =
+        sceneHistoryStack[sceneHistoryStack.length - 1] ?? SceneKey.MAIN;
+
+      if (currentSceneKey !== SceneKey.MAIN) {
+        if (gameInstance) {
+          void gameInstance.changeScene(SceneKey.MAIN);
+        }
+
+        return "consumed";
+      }
+
+      return "exit";
+    }
+
+    window.history.back();
+    return "consumed";
+  }, [
+    flappyBirdGameOverState,
+    flappyBirdSettingsMenuState,
+    gameInstance,
+    isBootstrapping,
+    pendingDiagnosticsDraft,
+    sanitizeResetAlert,
+    sceneHistoryStack,
+    sceneTransitionLoadState.phase,
+    setFlappyBirdGameOverState,
+    setFlappyBirdSettingsMenuState,
+    setPendingDiagnosticsDraft,
+    showSetupLayer,
+    unsupportedViewportReason,
+  ]);
+
   const applyBackNavigationTarget = useCallback(
     async (targetEntries: BackNavigationEntry[]) => {
       const targetEntrySet = new Set(targetEntries);
@@ -733,6 +1013,8 @@ const GameContainer: React.FC = () => {
       error?: unknown;
       context?: Record<string, unknown>;
     }) => {
+      clearLoadingTimeout();
+      cancelPendingGameInitialization("loading_failure");
       sceneTransitionRequestIdRef.current = 0;
       setSceneTransitionLoadState({ requestId: 0, phase: "idle" });
       setIsBootstrapping(false);
@@ -757,7 +1039,65 @@ const GameContainer: React.FC = () => {
       });
       setLoadingFailureAlert({ title, message });
     },
-    [gameInstance, sceneTransitionLoadState.phase],
+    [
+      cancelPendingGameInitialization,
+      clearLoadingTimeout,
+      gameInstance,
+      sceneTransitionLoadState.phase,
+    ],
+  );
+
+  const armLoadingTimeout = useCallback(
+    (
+      context: Omit<LoadingTimeoutContext, "startedAt">,
+      options: { resetStart?: boolean } = {},
+    ) => {
+      const startedAt =
+        !options.resetStart && loadingTimeoutContextRef.current
+          ? loadingTimeoutContextRef.current.startedAt
+          : Date.now();
+
+      loadingTimeoutContextRef.current = {
+        ...context,
+        startedAt,
+      };
+
+      if (loadingTimeoutIdRef.current !== null) {
+        window.clearTimeout(loadingTimeoutIdRef.current);
+      }
+
+      const elapsedMs = Date.now() - startedAt;
+      const remainingMs = Math.max(0, LOADING_TIMEOUT_MS - elapsedMs);
+
+      loadingTimeoutIdRef.current = window.setTimeout(() => {
+        loadingTimeoutIdRef.current = null;
+
+        const timeoutContext = loadingTimeoutContextRef.current;
+        loadingTimeoutContextRef.current = null;
+
+        if (!timeoutContext) {
+          return;
+        }
+
+        stopLoadingWithFailure({
+          title: "Loading Timeout",
+          message:
+            "The game is taking too long to load. Tap Okay to dismiss this popup or Send Log to share diagnostics.",
+          context: {
+            phase: "loading_timeout",
+            loadingPhase: timeoutContext.phase,
+            initializationAttemptId:
+              timeoutContext.initializationAttemptId ?? null,
+            requestId: timeoutContext.requestId ?? null,
+            from: timeoutContext.from ?? null,
+            to: timeoutContext.to ?? null,
+            elapsedMs: Date.now() - timeoutContext.startedAt,
+            timeoutMs: LOADING_TIMEOUT_MS,
+          },
+        });
+      }, remainingMs);
+    },
+    [stopLoadingWithFailure],
   );
 
   useEffect(() => {
@@ -766,11 +1106,29 @@ const GameContainer: React.FC = () => {
     };
   }, [clearPendingSettingMenuOpen]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     activeBackNavigationEntriesRef.current = backNavigationEntries;
   }, [backNavigationEntries]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const backBridge = {
+      handleBackNavigation: handleNativeBackNavigation,
+    };
+
+    window.digiviceBackBridge = backBridge;
+
+    return () => {
+      if (window.digiviceBackBridge === backBridge) {
+        window.digiviceBackBridge = undefined;
+      }
+    };
+  }, [handleNativeBackNavigation]);
+
+  useLayoutEffect(() => {
     if (typeof window === "undefined") {
       return;
     }
@@ -956,12 +1314,25 @@ const GameContainer: React.FC = () => {
     }) => {
       if (params.state === "loading") {
         sceneTransitionRequestIdRef.current = params.requestId;
+        armLoadingTimeout(
+          {
+            phase: "scene_transition",
+            initializationAttemptId:
+              pendingGameInitializationRef.current?.attemptId,
+            requestId: params.requestId,
+            from: params.from ?? null,
+            to: params.to,
+          },
+          { resetStart: false },
+        );
         setSceneTransitionLoadState({
           requestId: params.requestId,
           phase: "loading",
           from: params.from,
           to: params.to,
         });
+        setFlappyBirdSettingsMenuState(null);
+        setFlappyBirdGameOverState(null);
         setButtonParams(null);
         return;
       }
@@ -989,6 +1360,7 @@ const GameContainer: React.FC = () => {
           ? { ...previous, phase: "core_ready" }
           : previous,
       );
+      clearLoadingTimeout();
       setSceneHistoryStack((previous) => {
         if (previous[previous.length - 1] === params.to) {
           return previous;
@@ -1003,18 +1375,22 @@ const GameContainer: React.FC = () => {
         return [...previous, params.to];
       });
     },
-    [stopLoadingWithFailure],
+    [armLoadingTimeout, clearLoadingTimeout, stopLoadingWithFailure],
   );
 
-  const completeSceneTransitionLoading = useCallback((requestId: number) => {
-    if (sceneTransitionRequestIdRef.current !== requestId) {
-      return;
-    }
+  const completeSceneTransitionLoading = useCallback(
+    (requestId: number) => {
+      if (sceneTransitionRequestIdRef.current !== requestId) {
+        return;
+      }
 
-    sceneTransitionRequestIdRef.current = 0;
-    setSceneTransitionLoadState({ requestId: 0, phase: "idle" });
-    setIsBootstrapping(false);
-  }, []);
+      clearLoadingTimeout();
+      sceneTransitionRequestIdRef.current = 0;
+      setSceneTransitionLoadState({ requestId: 0, phase: "idle" });
+      setIsBootstrapping(false);
+    },
+    [clearLoadingTimeout],
+  );
 
   const updateGameContainerSize = useCallback((force = false) => {
     const viewportElement = gameViewportRef.current;
@@ -1092,6 +1468,197 @@ const GameContainer: React.FC = () => {
       recoveryVibrationIntervalRef.current = null;
     }
   }, []);
+
+  const triggerTransientVibration = useCallback(
+    (params: { durationMs: number; strength: number }) => {
+      void biteVibrationAdapter.vibrate(params.durationMs, params.strength);
+    },
+    [],
+  );
+
+  const getFlappyBirdBestScore = useCallback(async (): Promise<number> => {
+    try {
+      const storage = createClientStorage();
+      const storedData = await storage.getData(WORLD_DATA_STORAGE_KEY);
+      return getStoredFlappyBirdBestScore(storedData);
+    } catch (error) {
+      console.warn(
+        "[GameContainer] Failed to read FlappyBird best score from storage",
+        error,
+      );
+      return 0;
+    }
+  }, []);
+
+  const persistFlappyBirdBestScore = useCallback(async (score: number) => {
+    const nextBestScore = Math.max(0, Math.floor(score));
+
+    try {
+      const storage = createClientStorage();
+      const storedData = await storage.getData(WORLD_DATA_STORAGE_KEY);
+      const sanitizedResult = sanitizeStoredWorldData(storedData);
+
+      if (
+        sanitizedResult.action === "reset_required" ||
+        !sanitizedResult.sanitizedData
+      ) {
+        return;
+      }
+
+      const currentBestScore = getStoredFlappyBirdBestScore(
+        sanitizedResult.sanitizedData,
+      );
+
+      if (nextBestScore <= currentBestScore) {
+        return;
+      }
+
+      await storage.setData(
+        WORLD_DATA_STORAGE_KEY,
+        withStoredFlappyBirdBestScore(
+          sanitizedResult.sanitizedData,
+          nextBestScore,
+        ),
+      );
+    } catch (error) {
+      console.warn(
+        "[GameContainer] Failed to persist FlappyBird best score",
+        error,
+      );
+    }
+  }, []);
+
+  const incrementFlappyBirdGameOverAdCount = useCallback(async () => {
+    try {
+      const storage = createClientStorage();
+      const storedData = await storage.getData(
+        FLAPPY_BIRD_GAME_OVER_AD_COUNTER_STORAGE_KEY,
+      );
+      const nextCount = getStoredFlappyBirdGameOverAdCount(storedData) + 1;
+
+      await storage.setData(
+        FLAPPY_BIRD_GAME_OVER_AD_COUNTER_STORAGE_KEY,
+        nextCount,
+      );
+
+      return nextCount;
+    } catch (error) {
+      console.warn(
+        "[GameContainer] Failed to persist FlappyBird game-over ad count",
+        error,
+      );
+      return null;
+    }
+  }, []);
+
+  const scheduleFlappyBirdGameOverAd = useCallback(async () => {
+    const nextCount = await incrementFlappyBirdGameOverAdCount();
+
+    if (
+      nextCount === null ||
+      nextCount % FLAPPY_BIRD_GAME_OVER_AD_THRESHOLD !== 0
+    ) {
+      return;
+    }
+
+    clearPendingFlappyBirdGameOverAd();
+    flappyBirdGameOverAdTimeoutRef.current = window.setTimeout(() => {
+      flappyBirdGameOverAdTimeoutRef.current = null;
+
+      void (
+        window.adManager?.requestAd("flappy_bird_game_over", {
+          isCharacterUrgent: false,
+          metadata: {
+            trigger: "flappy_bird_game_over",
+            gameOverCount: nextCount,
+            threshold: FLAPPY_BIRD_GAME_OVER_AD_THRESHOLD,
+            timestamp: Date.now(),
+            cooldownMs: FLAPPY_BIRD_GAME_OVER_AD_COOLDOWN_MS,
+          },
+        }) ?? Promise.resolve(false)
+      );
+    }, FLAPPY_BIRD_GAME_OVER_AD_DELAY_MS);
+  }, [clearPendingFlappyBirdGameOverAd, incrementFlappyBirdGameOverAdCount]);
+
+  const handleFlappyBirdGameOverRestart = useCallback(() => {
+    if (!flappyBirdGameOverState) {
+      return;
+    }
+
+    setFlappyBirdGameOverState(null);
+    flappyBirdGameOverState.onRestart();
+  }, [flappyBirdGameOverState]);
+
+  const handleFlappyBirdGameOverExit = useCallback(() => {
+    if (!flappyBirdGameOverState) {
+      return;
+    }
+
+    const { onExit } = flappyBirdGameOverState;
+    setFlappyBirdGameOverState(null);
+    void Promise.resolve(onExit());
+  }, [flappyBirdGameOverState]);
+
+  useEffect(() => {
+    return () => {
+      clearPendingFlappyBirdGameOverAd();
+    };
+  }, [clearPendingFlappyBirdGameOverAd]);
+
+  const handleFlappyBirdSettingsMenuResume = useCallback(() => {
+    if (!flappyBirdSettingsMenuState) {
+      return;
+    }
+
+    const { onResume } = flappyBirdSettingsMenuState;
+    setFlappyBirdSettingsMenuState(null);
+    void Promise.resolve(onResume());
+  }, [flappyBirdSettingsMenuState]);
+
+  const handleFlappyBirdSettingsMenuChangeBgm = useCallback(
+    (enabled: boolean) => {
+      if (!flappyBirdSettingsMenuState) {
+        return;
+      }
+
+      void Promise.resolve(flappyBirdSettingsMenuState.onChangeBgm(enabled));
+    },
+    [flappyBirdSettingsMenuState],
+  );
+
+  const handleFlappyBirdSettingsMenuChangeSfx = useCallback(
+    (enabled: boolean) => {
+      if (!flappyBirdSettingsMenuState) {
+        return;
+      }
+
+      void Promise.resolve(flappyBirdSettingsMenuState.onChangeSfx(enabled));
+    },
+    [flappyBirdSettingsMenuState],
+  );
+
+  const handleFlappyBirdSettingsMenuSelectTimeOfDay = useCallback(
+    (timeOfDay: TimeOfDay) => {
+      if (!flappyBirdSettingsMenuState?.onSelectTimeOfDay) {
+        return;
+      }
+
+      void Promise.resolve(
+        flappyBirdSettingsMenuState.onSelectTimeOfDay(timeOfDay),
+      );
+    },
+    [flappyBirdSettingsMenuState],
+  );
+
+  const handleFlappyBirdSettingsMenuExit = useCallback(() => {
+    if (!flappyBirdSettingsMenuState) {
+      return;
+    }
+
+    const { onExit } = flappyBirdSettingsMenuState;
+    setFlappyBirdSettingsMenuState(null);
+    void Promise.resolve(onExit());
+  }, [flappyBirdSettingsMenuState]);
 
   const startRecoveryVibration = useCallback(() => {
     if (recoveryVibrationIntervalRef.current !== null) {
@@ -1302,7 +1869,10 @@ const GameContainer: React.FC = () => {
           gameContainerRef.current.innerHTML = "";
         }
 
+        clearLoadingTimeout();
+        cancelPendingGameInitialization("reset_game_data");
         initialSetupDataRef.current = null;
+        pendingInitialSetupPromiseRef.current = null;
         pendingSetupResolverRef.current = null;
         shouldRestartFromSetupRef.current = true;
         isInitializedRef.current = false;
@@ -1317,6 +1887,8 @@ const GameContainer: React.FC = () => {
         setSceneTransitionLoadState({ requestId: 0, phase: "idle" });
         setGameInstance(null);
         setSanitizeResetAlert(null);
+        setFlappyBirdSettingsMenuState(null);
+        setFlappyBirdGameOverState(null);
         console.warn("[GameContainer] resetGameData:success", {
           reason,
           storageKind: getClientStorageKind(),
@@ -1326,7 +1898,12 @@ const GameContainer: React.FC = () => {
         showAlert("Failed to reset game data.", "Error");
       }
     },
-    [gameInstance, showAlert],
+    [
+      cancelPendingGameInitialization,
+      clearLoadingTimeout,
+      gameInstance,
+      showAlert,
+    ],
   );
 
   const handleResetGameData = useCallback(async () => {
@@ -1344,6 +1921,21 @@ const GameContainer: React.FC = () => {
       const storage = createClientStorage();
       const storageKind = getClientStorageKind();
       const savedData = await storage.getData(WORLD_DATA_STORAGE_KEY);
+      const savedDataSummary = summarizeSavedData(savedData);
+
+      logImportantDiagnostics(
+        "log",
+        "[ImportantDiagnostics][GameDataBootstrap]",
+        {
+          key: WORLD_DATA_STORAGE_KEY,
+          storageKind,
+          activeStorageSummary: savedDataSummary,
+          browserLocalStorageSummary: summarizeBrowserLocalStorageEntry(
+            WORLD_DATA_STORAGE_KEY,
+          ),
+        },
+      );
+
       const result = sanitizeStoredWorldData(savedData);
       lastValidationResultRef.current = result;
 
@@ -1358,7 +1950,7 @@ const GameContainer: React.FC = () => {
             changed: result.changed,
             resetReason: result.resetReason ?? null,
             diagnostics: result.diagnostics,
-            savedDataSummary: summarizeSavedData(savedData),
+            savedDataSummary,
           },
         );
       }
@@ -1477,6 +2069,10 @@ const GameContainer: React.FC = () => {
         return initialSetupDataRef.current;
       }
 
+      if (pendingInitialSetupPromiseRef.current) {
+        return pendingInitialSetupPromiseRef.current;
+      }
+
       setLoadingFailureAlert(null);
       setIsBootstrapping(false);
       setShowSetupLayer(true);
@@ -1490,19 +2086,29 @@ const GameContainer: React.FC = () => {
           void (async () => {
             const hydratedFormData = await hydrateInitialSetupData(formData);
             initialSetupDataRef.current = hydratedFormData;
+            pendingInitialSetupPromiseRef.current = null;
             resolve(hydratedFormData);
           })();
         };
       });
+
+      pendingInitialSetupPromiseRef.current = setupPromise;
+      return setupPromise;
     }, [hydrateInitialSetupData]);
 
   const initializeGame = useCallback(() => {
     if (!gameContainerRef.current) return;
     if (!gameContainerSize || gameContainerSize <= 0) return;
     if (isInitializedRef.current) return;
+    if (isInitializingGameRef.current) return;
 
     setLoadingFailureAlert(null);
     setIsBootstrapping(true);
+
+    const attemptId = gameInitializationAttemptIdRef.current + 1;
+    gameInitializationAttemptIdRef.current = attemptId;
+    isInitializingGameRef.current = true;
+
     const debugParentElement =
       gameContainerRef.current.closest("#app-container") ??
       gameContainerRef.current;
@@ -1510,27 +2116,45 @@ const GameContainer: React.FC = () => {
     const game = new Game({
       parentElement: gameContainerRef.current as HTMLDivElement,
       debugParentElement: debugParentElement as HTMLDivElement,
+      debugMode: isNativeFeatureDebugMode,
+      initialSceneKey: CONFIGURED_INITIAL_SCENE_KEY,
       onCreateInitialGameData: async () => {
         return initialSetupDataRef.current ?? (await requestInitialGameData());
       },
       showAlert: (message: string, title?: string) => {
         showAlert(message, title);
       },
-      startMiniGame: isMiniGameUnavailableForCurrentVersion()
-        ? () => {
-            showAlert("개발중", "Notice");
-          }
-        : undefined,
       showSettings: () => {
         openSettingMenu();
       },
       triggerBiteVibration: () => {
         void biteVibrationAdapter.vibrate();
       },
+      triggerTransientVibration,
       startRecoveryVibration,
       stopRecoveryVibration,
+      getFlappyBirdBestScore,
+      persistFlappyBirdBestScore,
+      showFlappyBirdGameOver: (params) => {
+        setFlappyBirdGameOverState(params);
+        void scheduleFlappyBirdGameOverAd();
+      },
+      hideFlappyBirdGameOver: () => {
+        setFlappyBirdGameOverState(null);
+      },
+      showFlappyBirdSettingsMenu: (params) => {
+        setFlappyBirdSettingsMenuState(params);
+      },
+      hideFlappyBirdSettingsMenu: () => {
+        setFlappyBirdSettingsMenuState(null);
+      },
       onSceneTransitionStateChange: handleSceneTransitionStateChange,
       changeControlButtons: (controlButtonParams) => {
+        if (!controlButtonParams) {
+          setButtonParams(null);
+          return;
+        }
+
         setButtonParams((previous) => {
           if (
             previous &&
@@ -1553,14 +2177,43 @@ const GameContainer: React.FC = () => {
       },
     });
 
-    window.setTimeout(() => {
+    pendingGameInitializationRef.current = { attemptId, game };
+    armLoadingTimeout(
+      {
+        phase: "game_initialize",
+        initializationAttemptId: attemptId,
+      },
+      { resetStart: true },
+    );
+
+    clearInitializeGameStartTimeout();
+
+    initializeGameStartTimeoutRef.current = window.setTimeout(() => {
+      initializeGameStartTimeoutRef.current = null;
+
+      if (pendingGameInitializationRef.current?.attemptId !== attemptId) {
+        return;
+      }
+
       void game
         .initialize()
         .then(() => {
+          if (pendingGameInitializationRef.current?.attemptId !== attemptId) {
+            return;
+          }
+
+          pendingGameInitializationRef.current = null;
+          isInitializingGameRef.current = false;
           isInitializedRef.current = true;
           setGameInstance(game);
         })
         .catch((error) => {
+          if (pendingGameInitializationRef.current?.attemptId !== attemptId) {
+            return;
+          }
+
+          pendingGameInitializationRef.current = null;
+          isInitializingGameRef.current = false;
           setGameInstance(null);
 
           try {
@@ -1570,6 +2223,27 @@ const GameContainer: React.FC = () => {
               "[GameContainer] Failed to clean up a partially initialized game instance.",
               destroyError,
             );
+          }
+
+          if (isMissingInitialGameDataError(error)) {
+            console.warn(
+              "[GameContainer] Initial setup data is missing. Returning to setup flow.",
+              {
+                error,
+                storageKind: getClientStorageKind(),
+              },
+            );
+            clearLoadingTimeout();
+            sceneTransitionRequestIdRef.current = 0;
+            setSceneTransitionLoadState({ requestId: 0, phase: "idle" });
+            initialSetupDataRef.current = null;
+            pendingInitialSetupPromiseRef.current = null;
+            pendingSetupResolverRef.current = null;
+            shouldRestartFromSetupRef.current = true;
+            setLoadingFailureAlert(null);
+            setShowSetupLayer(true);
+            setIsBootstrapping(false);
+            return;
           }
 
           stopLoadingWithFailure({
@@ -1583,14 +2257,20 @@ const GameContainer: React.FC = () => {
         });
     });
   }, [
+    armLoadingTimeout,
+    clearLoadingTimeout,
+    clearInitializeGameStartTimeout,
     gameContainerSize,
+    getFlappyBirdBestScore,
     handleSceneTransitionStateChange,
     openSettingMenu,
+    persistFlappyBirdBestScore,
     requestInitialGameData,
     startRecoveryVibration,
     stopLoadingWithFailure,
     stopRecoveryVibration,
     showAlert,
+    triggerTransientVibration,
   ]);
 
   // Game 인스턴스 생성은 한 번만 실행되도록 보장
@@ -1641,7 +2321,6 @@ const GameContainer: React.FC = () => {
 
     updateUnsupportedViewportOverlay();
 
-        pendingInitialSetupPromiseRef.current = null;
     window.addEventListener("resize", updateUnsupportedViewportOverlay);
     window.addEventListener(
       "orientationchange",
@@ -1720,6 +2399,11 @@ const GameContainer: React.FC = () => {
       if (!gameContainerSize || gameContainerSize <= 0) return;
       if (isInitializedRef.current) return;
 
+      if (CONFIGURED_INITIAL_SCENE_KEY === SceneKey.FLAPPY_BIRD_GAME) {
+        initializeGame();
+        return;
+      }
+
       const savedGameDataState = await prepareSavedGameData();
       if (!isMounted) return;
 
@@ -1741,7 +2425,6 @@ const GameContainer: React.FC = () => {
 
     return () => {
       isMounted = false;
-      pendingSetupResolverRef.current = null;
       stopRecoveryVibration();
     };
   }, [
@@ -1755,9 +2438,17 @@ const GameContainer: React.FC = () => {
 
   useEffect(() => {
     return () => {
+      clearLoadingTimeout();
+      cancelPendingGameInitialization("component_unmount");
+      pendingInitialSetupPromiseRef.current = null;
+      pendingSetupResolverRef.current = null;
       stopRecoveryVibration();
     };
-  }, [stopRecoveryVibration]);
+  }, [
+    cancelPendingGameInitialization,
+    clearLoadingTimeout,
+    stopRecoveryVibration,
+  ]);
 
   useEffect(() => {
     if (!gameInstance) {
@@ -1799,7 +2490,10 @@ const GameContainer: React.FC = () => {
   // 버튼 클릭 핸들러 - Game 인스턴스에 버튼 타입만 전달
   const handleButtonPress = useCallback(
     (buttonType: ControlButtonType) => {
-      if (buttonType === ControlButtonType.Settings) {
+      if (
+        buttonType === ControlButtonType.Settings &&
+        gameInstance?.getCurrentSceneKey() !== SceneKey.FLAPPY_BIRD_GAME
+      ) {
         openSettingMenu();
         return;
       }
@@ -1833,10 +2527,6 @@ const GameContainer: React.FC = () => {
   // SetupLayer 완료 핸들러
   const handleSetupComplete = useCallback(
     (formData: SetupFormData) => {
-      if (pendingInitialSetupPromiseRef.current) {
-        return pendingInitialSetupPromiseRef.current;
-      }
-
       const pendingResolver = pendingSetupResolverRef.current;
 
       if (pendingResolver) {
@@ -1850,14 +2540,10 @@ const GameContainer: React.FC = () => {
 
       void (async () => {
         const hydratedFormData = await hydrateInitialSetupData(formData);
-            pendingInitialSetupPromiseRef.current = null;
         initialSetupDataRef.current = hydratedFormData;
 
         if (shouldRestartFromSetupRef.current) {
           shouldRestartFromSetupRef.current = false;
-      pendingInitialSetupPromiseRef.current = setupPromise;
-      return setupPromise;
-
           setGameSessionKey((previous) => previous + 1);
           return;
         }
@@ -1993,29 +2679,13 @@ const GameContainer: React.FC = () => {
       )}
       {sanitizeResetAlert && (
         <AlertLayer
-          if (isMissingInitialGameDataError(error)) {
-            console.warn(
-              "[GameContainer] Initial setup data is missing. Returning to setup flow.",
-              {
-                error,
-                storageKind: getClientStorageKind(),
-              },
-            );
-            sceneTransitionRequestIdRef.current = 0;
-            setSceneTransitionLoadState({ requestId: 0, phase: "idle" });
-            initialSetupDataRef.current = null;
-            pendingInitialSetupPromiseRef.current = null;
-            pendingSetupResolverRef.current = null;
-            shouldRestartFromSetupRef.current = true;
-            setLoadingFailureAlert(null);
-            setShowSetupLayer(true);
-            setIsBootstrapping(false);
-            return;
-          }
-
           title={sanitizeResetAlert.title}
           message={sanitizeResetAlert.message}
           onClose={handleSanitizeResetConfirm}
+          onCancel={() => {
+            void handleSendDiagnostics();
+          }}
+          cancelText={isSendingDiagnostics ? "Sending..." : "Send Logs"}
         />
       )}
       {pendingDiagnosticsDraft && (
@@ -2040,12 +2710,28 @@ const GameContainer: React.FC = () => {
           />
         </div>
       )}
+      {flappyBirdGameOverState && (
+        <FlappyBirdGameOverLayer
+          score={flappyBirdGameOverState.score}
+          bestScore={flappyBirdGameOverState.bestScore}
+          onRestart={handleFlappyBirdGameOverRestart}
+          onExit={handleFlappyBirdGameOverExit}
+        />
+      )}
+      {flappyBirdSettingsMenuState && (
+        <FlappyBirdSettingsLayer
+          isBgmEnabled={flappyBirdSettingsMenuState.isBgmEnabled}
+          isSfxEnabled={flappyBirdSettingsMenuState.isSfxEnabled}
+          onChangeBgm={handleFlappyBirdSettingsMenuChangeBgm}
+          onChangeSfx={handleFlappyBirdSettingsMenuChangeSfx}
+          selectedTimeOfDay={flappyBirdSettingsMenuState.selectedTimeOfDay}
+          onSelectTimeOfDay={handleFlappyBirdSettingsMenuSelectTimeOfDay}
+          onResume={handleFlappyBirdSettingsMenuResume}
+          onExit={handleFlappyBirdSettingsMenuExit}
+        />
+      )}
     </div>
   );
 };
 
 export default GameContainer;
-          onCancel={() => {
-            void handleSendDiagnostics();
-          }}
-          cancelText={isSendingDiagnostics ? "Sending..." : "Send Logs"}

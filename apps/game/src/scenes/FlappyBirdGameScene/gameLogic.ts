@@ -4,6 +4,219 @@ import { AssetLoader, type GameAssets } from "../../utils/AssetLoader";
 import type { PipePair } from "./models";
 import type { PhysicsManager } from "./physics";
 
+const FLAPPY_BIRD_OBJECT_SCALE = 1.1;
+const FLAPPY_BIRD_GROUND_TILE_SCALE = 0.9;
+const FLAPPY_BIRD_PIPE_TILE_SCALE = 0.81;
+const BASE_BASKET_SIZE = 40;
+const BASE_BIRD_SIZE = 32 * 1.4;
+const FLAPPY_BIRD_PLAYER_X_RATIO = 0.15;
+const FLAPPY_BIRD_CLOUD_SPEED_RATIO = 0.35;
+const FLAPPY_BIRD_CLOUD_MIN_SCALE = 1.15;
+const FLAPPY_BIRD_CLOUD_MAX_SCALE = 1.85;
+const FLAPPY_BIRD_CLOUD_MIN_GAP = 90;
+const FLAPPY_BIRD_CLOUD_MAX_GAP = 185;
+const FLAPPY_BIRD_CLOUD_TOP_PADDING = 28;
+const FLAPPY_BIRD_CLOUD_MAX_HEIGHT_RATIO = 0.72;
+const FLAPPY_BIRD_NEAR_MISS_CLEARANCE_RATIO = 0.25;
+const FLAPPY_BIRD_BASE_FRAME_MS = 1000 / 60;
+const FLAPPY_BIRD_MAX_FRAME_SCALE = 1.25;
+
+type CloudSprite = PIXI.Sprite & {
+  __flappyCloudAlphaVariance?: number;
+};
+
+type CloudVisualStyle = {
+  alphaMin: number;
+  alphaMax: number;
+  tint: number;
+};
+
+function resolveFrameScale(deltaTime: number): number {
+  return Math.min(
+    FLAPPY_BIRD_MAX_FRAME_SCALE,
+    Math.max(0, deltaTime / FLAPPY_BIRD_BASE_FRAME_MS),
+  );
+}
+
+/**
+ * 배경 구름 관리 클래스
+ */
+export class CloudManager {
+  private app: PIXI.Application;
+  private cloudContainer: PIXI.Container;
+  private cloudTextures: PIXI.Texture[] = [];
+  private clouds: PIXI.Sprite[] = [];
+  private speed: number;
+  private visualStyle: CloudVisualStyle = {
+    alphaMin: 0.16,
+    alphaMax: 0.28,
+    tint: 0xffffff,
+  };
+
+  constructor(app: PIXI.Application, speed: number) {
+    this.app = app;
+    this.cloudContainer = new PIXI.Container();
+    this.cloudTextures = Object.values(
+      AssetLoader.getAssets().flappyCloudSprites?.textures ?? {},
+    );
+    this.speed = speed * FLAPPY_BIRD_CLOUD_SPEED_RATIO;
+  }
+
+  public setup(): void {
+    this.reset();
+
+    if (this.cloudTextures.length === 0) {
+      return;
+    }
+
+    let nextX = 0;
+
+    while (nextX < this.app.screen.width + FLAPPY_BIRD_CLOUD_MAX_GAP) {
+      nextX = this.createCloud(nextX);
+    }
+  }
+
+  public update(deltaTime: number): void {
+    if (this.cloudTextures.length === 0 || this.clouds.length === 0) {
+      return;
+    }
+
+    const frameScale = resolveFrameScale(deltaTime);
+
+    for (let i = 0; i < this.clouds.length; i++) {
+      const cloud = this.clouds[i];
+      cloud.position.x -= this.speed * frameScale;
+
+      if (cloud.position.x + cloud.width / 2 < 0) {
+        this.cloudContainer.removeChild(cloud);
+        this.clouds.splice(i, 1);
+        i -= 1;
+      }
+    }
+
+    const lastCloud = this.clouds[this.clouds.length - 1];
+
+    if (
+      !lastCloud ||
+      lastCloud.position.x + lastCloud.width / 2 < this.app.screen.width
+    ) {
+      const nextX = lastCloud ? lastCloud.position.x + lastCloud.width / 2 : 0;
+      this.createCloud(nextX);
+    }
+  }
+
+  public resize(): void {
+    if (this.cloudTextures.length === 0) {
+      return;
+    }
+
+    if (this.clouds.length === 0) {
+      this.setup();
+      return;
+    }
+
+    const maxY = this.getMaxCloudY();
+
+    this.clouds.forEach((cloud) => {
+      cloud.position.y = Math.min(cloud.position.y, maxY - cloud.height / 2);
+    });
+
+    let nextX =
+      this.clouds[this.clouds.length - 1].position.x +
+      this.clouds[this.clouds.length - 1].width / 2;
+
+    while (nextX < this.app.screen.width + FLAPPY_BIRD_CLOUD_MAX_GAP) {
+      nextX = this.createCloud(nextX);
+    }
+  }
+
+  public reset(): void {
+    this.cloudContainer.removeChildren();
+    this.clouds = [];
+  }
+
+  public setSpeed(speed: number): void {
+    this.speed = speed * FLAPPY_BIRD_CLOUD_SPEED_RATIO;
+  }
+
+  public setVisualStyle(style: CloudVisualStyle): void {
+    this.visualStyle = style;
+
+    this.clouds.forEach((cloud) => {
+      this.applyVisualStyle(cloud as CloudSprite);
+    });
+  }
+
+  public getContainer(): PIXI.Container {
+    return this.cloudContainer;
+  }
+
+  private createCloud(startX: number): number {
+    const cloudTexture = this.getRandomCloudTexture();
+
+    if (!cloudTexture) {
+      return startX;
+    }
+
+    const scale =
+      FLAPPY_BIRD_CLOUD_MIN_SCALE +
+      Math.random() *
+        (FLAPPY_BIRD_CLOUD_MAX_SCALE - FLAPPY_BIRD_CLOUD_MIN_SCALE);
+    const cloud = new PIXI.Sprite(cloudTexture) as CloudSprite;
+    cloud.anchor.set(0.5);
+    cloud.scale.set(scale);
+    cloud.__flappyCloudAlphaVariance = Math.random();
+    this.applyVisualStyle(cloud);
+    cloud.position.x = startX + cloud.width / 2 + this.getRandomCloudGap();
+    cloud.position.y = this.getRandomCloudY(cloud.height);
+
+    this.cloudContainer.addChild(cloud);
+    this.clouds.push(cloud);
+
+    return cloud.position.x + cloud.width / 2;
+  }
+
+  private getRandomCloudGap(): number {
+    return (
+      FLAPPY_BIRD_CLOUD_MIN_GAP +
+      Math.random() * (FLAPPY_BIRD_CLOUD_MAX_GAP - FLAPPY_BIRD_CLOUD_MIN_GAP)
+    );
+  }
+
+  private applyVisualStyle(cloud: CloudSprite): void {
+    const variance = cloud.__flappyCloudAlphaVariance ?? 0.5;
+    cloud.alpha =
+      this.visualStyle.alphaMin +
+      variance * (this.visualStyle.alphaMax - this.visualStyle.alphaMin);
+    cloud.tint = this.visualStyle.tint;
+  }
+
+  private getRandomCloudTexture(): PIXI.Texture | null {
+    if (this.cloudTextures.length === 0) {
+      return null;
+    }
+
+    const textureIndex = Math.floor(Math.random() * this.cloudTextures.length);
+
+    return this.cloudTextures[textureIndex] ?? null;
+  }
+
+  private getRandomCloudY(cloudHeight: number): number {
+    const minY = FLAPPY_BIRD_CLOUD_TOP_PADDING + cloudHeight / 2;
+    const maxY = this.getMaxCloudY() - cloudHeight / 2;
+
+    if (maxY <= minY) {
+      return minY;
+    }
+
+    return minY + Math.random() * (maxY - minY);
+  }
+
+  private getMaxCloudY(): number {
+    return this.app.screen.height * FLAPPY_BIRD_CLOUD_MAX_HEIGHT_RATIO;
+  }
+}
+
 /**
  * 지면 타일 관리 클래스
  */
@@ -20,7 +233,7 @@ export class GroundManager {
   constructor(
     app: PIXI.Application,
     physicsManager: PhysicsManager,
-    speed: number
+    speed: number,
   ) {
     this.app = app;
     this.physicsManager = physicsManager;
@@ -30,17 +243,22 @@ export class GroundManager {
     const assets = AssetLoader.getAssets();
     // 지면 타일 크기 설정
     if (assets.tilesetSprites?.textures["ground-1"]) {
-      this.groundTileSize =
-        assets.tilesetSprites.textures["ground-1"].frame.width;
+      this.groundTileSize = Math.max(
+        1,
+        Math.round(
+          assets.tilesetSprites.textures["ground-1"].frame.width *
+            FLAPPY_BIRD_GROUND_TILE_SCALE,
+        ),
+      );
     }
 
     // 지면 물리 바디 생성
     this.groundBody = this.physicsManager.createRectangleBody(
       this.app.screen.width / 2,
-      this.app.screen.height,
+      this.getGroundBodyCenterY(),
       this.app.screen.width,
       this.groundTileSize,
-      { isStatic: true, label: "ground" }
+      { isStatic: true, label: "ground" },
     );
 
     // 물리 엔진에 추가
@@ -52,7 +270,7 @@ export class GroundManager {
    */
   public setup(): void {
     // 기존 타일 제거
-    this.groundContainer.removeChildren();
+    this.groundContainer.removeChildren().forEach((child) => child.destroy());
     this.groundTiles = [];
     this.lastGroundTileX = 0;
 
@@ -101,15 +319,17 @@ export class GroundManager {
   /**
    * 바닥 타일을 이동시킵니다.
    */
-  public update(): void {
+  public update(deltaTime: number): void {
     if (!this.groundTiles.length) {
       return;
     }
 
+    const frameScale = resolveFrameScale(deltaTime);
+
     // 모든 타일 이동
     for (let i = 0; i < this.groundTiles.length; i++) {
       const tile = this.groundTiles[i];
-      tile.position.x -= this.speed;
+      tile.position.x -= this.speed * frameScale;
 
       // 타일이 화면 왼쪽으로 벗어났는지 확인
       if (tile.position.x + this.groundTileSize < 0) {
@@ -128,6 +348,18 @@ export class GroundManager {
       this.lastGroundTileX = lastTile.position.x + this.groundTileSize;
       this.createGroundTile();
     }
+  }
+
+  public resize(): void {
+    this.physicsManager.setPosition(this.groundBody, {
+      x: this.groundBody.position.x,
+      y: this.getGroundBodyCenterY(),
+    });
+    this.setup();
+  }
+
+  private getGroundBodyCenterY(): number {
+    return this.app.screen.height;
   }
 
   /**
@@ -150,6 +382,10 @@ export class GroundManager {
   public getTileHeight(): number {
     return this.groundTileSize;
   }
+
+  public setSpeed(speed: number): void {
+    this.speed = speed;
+  }
 }
 
 /**
@@ -164,13 +400,15 @@ export class PipeManager {
   private lastPipeSpawnTime = 0;
   private speed: number;
   private groundHeight: number;
+  private passageHeightMinRatio = 0.35;
+  private passageHeightMaxRatio = 0.45;
 
   constructor(
     app: PIXI.Application,
     physicsManager: PhysicsManager,
     speed: number,
     spawnInterval: number,
-    groundHeight: number
+    groundHeight: number,
   ) {
     this.app = app;
     this.physicsManager = physicsManager;
@@ -186,7 +424,8 @@ export class PipeManager {
   public update(
     currentTime: number,
     playerBody: Matter.Body,
-    onScoreUpdate: () => void
+    onScoreUpdate: (scoreDelta: number) => void,
+    deltaTime: number,
   ): void {
     // 파이프 생성 로직
     if (currentTime - this.lastPipeSpawnTime > this.pipeSpawnInterval) {
@@ -195,7 +434,7 @@ export class PipeManager {
     }
 
     // 파이프 이동 로직
-    this.movePipes(playerBody, onScoreUpdate);
+    this.movePipes(playerBody, onScoreUpdate, deltaTime);
   }
 
   /**
@@ -211,7 +450,14 @@ export class PipeManager {
     }
 
     const texture = assets.tilesetSprites.textures["pipe-body"];
-    const tileSize = texture.frame.width;
+    const tileSize = Math.max(
+      1,
+      Math.round(
+        texture.frame.width *
+          FLAPPY_BIRD_OBJECT_SCALE *
+          FLAPPY_BIRD_PIPE_TILE_SCALE,
+      ),
+    );
 
     // 파이프 생성 로직
     const { top, topBody, bottom, bottomBody } =
@@ -238,6 +484,8 @@ export class PipeManager {
       topBody,
       bottomBody,
       passed: false,
+      minTopClearance: Number.POSITIVE_INFINITY,
+      minBottomClearance: Number.POSITIVE_INFINITY,
     });
   }
 
@@ -263,8 +511,24 @@ export class PipeManager {
     const availableHeight = this.app.screen.height - this.groundHeight;
 
     // 새가 지나갈 통로 높이 설정
-    const minPassageHeight = Math.max(60, availableHeight * 0.2);
-    const maxPassageHeight = Math.max(80, availableHeight * 0.3);
+    const maxAvailablePassageHeight = Math.max(
+      tileSize * 2,
+      availableHeight - minPipeHeight * 2,
+    );
+    const minPassageHeight = Math.min(
+      maxAvailablePassageHeight,
+      Math.max(tileSize * 2, availableHeight * this.passageHeightMinRatio),
+    );
+    const maxPassageHeight = Math.max(
+      minPassageHeight,
+      Math.min(
+        maxAvailablePassageHeight,
+        Math.max(
+          minPassageHeight,
+          availableHeight * this.passageHeightMaxRatio,
+        ),
+      ),
+    );
     let passageHeight =
       minPassageHeight + Math.random() * (maxPassageHeight - minPassageHeight);
     passageHeight = Math.ceil(passageHeight / tileSize) * tileSize;
@@ -275,8 +539,8 @@ export class PipeManager {
       Math.floor(
         (Math.random() *
           (availableHeight - passageHeight - minPipeHeight * 2)) /
-          tileSize
-      ) * tileSize
+          tileSize,
+      ) * tileSize,
     );
 
     // 하단 파이프 높이 계산
@@ -333,7 +597,7 @@ export class PipeManager {
       topBodyY,
       tileSize,
       topPipeHeight,
-      { isStatic: true, label: "pipe" }
+      { isStatic: true, label: "pipe" },
     );
 
     const bottomBody = this.physicsManager.createRectangleBody(
@@ -341,7 +605,7 @@ export class PipeManager {
       bottomBodyY,
       tileSize,
       bottomPipeHeight,
-      { isStatic: true, label: "pipe" }
+      { isStatic: true, label: "pipe" },
     );
 
     return { top, topBody, bottom, bottomBody };
@@ -350,21 +614,32 @@ export class PipeManager {
   /**
    * 파이프를 이동시키는 메서드
    */
-  private movePipes(playerBody: Matter.Body, onScoreUpdate: () => void): void {
+  private movePipes(
+    playerBody: Matter.Body,
+    onScoreUpdate: (scoreDelta: number) => void,
+    deltaTime: number,
+  ): void {
+    const movementStep = this.speed * resolveFrameScale(deltaTime);
+
     for (let i = 0; i < this.pipesPairs.length; i++) {
       const pair = this.pipesPairs[i];
 
       // 물리 바디 이동
-      this.physicsManager.translateBody(pair.topBody, { x: -this.speed, y: 0 });
+      this.physicsManager.translateBody(pair.topBody, {
+        x: -movementStep,
+        y: 0,
+      });
       this.physicsManager.translateBody(pair.bottomBody, {
-        x: -this.speed,
+        x: -movementStep,
         y: 0,
       });
 
+      this.trackNearMissClearances(pair, playerBody);
+
       // 점수 처리
-      if (pair.topBody.position.x < playerBody.position.x && !pair.passed) {
+      if (this.hasPairPassedPlayer(pair, playerBody) && !pair.passed) {
         pair.passed = true;
-        onScoreUpdate();
+        onScoreUpdate(1 + this.getNearMissBonus(pair, playerBody));
       }
 
       // 화면 밖으로 나간 파이프 제거
@@ -403,10 +678,106 @@ export class PipeManager {
   }
 
   /**
+   * 파이프 상태를 초기화합니다.
+   */
+  public reset(): void {
+    this.clearAllPipes();
+    this.lastPipeSpawnTime = 0;
+  }
+
+  public applyDifficulty(options: {
+    speed: number;
+    pipeSpawnInterval: number;
+    passageHeightMinRatio: number;
+    passageHeightMaxRatio: number;
+  }): void {
+    this.speed = options.speed;
+    this.pipeSpawnInterval = options.pipeSpawnInterval;
+    this.passageHeightMinRatio = options.passageHeightMinRatio;
+    this.passageHeightMaxRatio = options.passageHeightMaxRatio;
+  }
+
+  /**
    * 파이프 컨테이너를 반환합니다.
    */
   public getContainer(): PIXI.Container {
     return this.pipes;
+  }
+
+  private getNearMissBonus(pair: PipePair, playerBody: Matter.Body): number {
+    const playerHeight = playerBody.bounds.max.y - playerBody.bounds.min.y;
+    const threshold = Math.max(
+      6,
+      Math.round(playerHeight * FLAPPY_BIRD_NEAR_MISS_CLEARANCE_RATIO),
+    );
+    const trackedClearance = Math.min(
+      pair.minTopClearance,
+      pair.minBottomClearance,
+    );
+
+    if (Number.isFinite(trackedClearance)) {
+      return trackedClearance <= threshold ? 1 : 0;
+    }
+
+    const { topClearance, bottomClearance } = this.resolveGapClearances(
+      pair,
+      playerBody,
+    );
+    const currentClearance = Math.min(topClearance, bottomClearance);
+
+    return currentClearance <= threshold ? 1 : 0;
+  }
+
+  private trackNearMissClearances(
+    pair: PipePair,
+    playerBody: Matter.Body,
+  ): void {
+    if (!this.isPlayerWithinNearMissWindow(pair, playerBody)) {
+      return;
+    }
+
+    const { topClearance, bottomClearance } = this.resolveGapClearances(
+      pair,
+      playerBody,
+    );
+
+    pair.minTopClearance = Math.min(pair.minTopClearance, topClearance);
+    pair.minBottomClearance = Math.min(
+      pair.minBottomClearance,
+      bottomClearance,
+    );
+  }
+
+  private hasPairPassedPlayer(
+    pair: PipePair,
+    playerBody: Matter.Body,
+  ): boolean {
+    return pair.topBody.bounds.max.x < playerBody.bounds.min.x;
+  }
+
+  private isPlayerWithinNearMissWindow(
+    pair: PipePair,
+    playerBody: Matter.Body,
+  ): boolean {
+    return (
+      playerBody.bounds.max.x >= pair.topBody.bounds.min.x &&
+      playerBody.bounds.min.x <= pair.topBody.bounds.max.x
+    );
+  }
+
+  private resolveGapClearances(
+    pair: PipePair,
+    playerBody: Matter.Body,
+  ): { topClearance: number; bottomClearance: number } {
+    const gapTopY = pair.topBody.bounds.max.y;
+    const gapBottomY = pair.bottomBody.bounds.min.y;
+    const playerTopY = playerBody.bounds.min.y;
+    const playerBottomY = playerBody.bounds.max.y;
+
+    return {
+      topClearance: Math.max(0, playerTopY - gapTopY),
+      bottomClearance: Math.max(0, gapBottomY - playerBottomY),
+    };
   }
 }
 
@@ -423,7 +794,7 @@ export class PlayerManager {
   constructor(
     app: PIXI.Application,
     physicsManager: PhysicsManager,
-    characterKey: CharacterKey
+    characterKey: CharacterKey,
   ) {
     this.app = app;
     this.physicsManager = physicsManager;
@@ -442,31 +813,31 @@ export class PlayerManager {
    */
   private initializeBasket(
     characterKey: CharacterKey,
-    assets: GameAssets
+    assets: GameAssets,
   ): void {
     const characterSpritesheet = assets.characterSprites[characterKey];
     if (!characterSpritesheet) {
       throw new Error(
-        `Character spritesheet not found for key: ${characterKey}`
+        `Character spritesheet not found for key: ${characterKey}`,
       );
     }
 
     const inBasketTexture = characterSpritesheet.textures["in-basket"];
     this.basket = new PIXI.Sprite(inBasketTexture);
-    this.basket.width = 40;
-    this.basket.height = 40;
+    this.basket.width = BASE_BASKET_SIZE * FLAPPY_BIRD_OBJECT_SCALE;
+    this.basket.height = BASE_BASKET_SIZE * FLAPPY_BIRD_OBJECT_SCALE;
     this.basket.anchor.set(0.5);
 
     // 바구니 물리 바디 생성
     this.basketBody = this.physicsManager.createCircleBody(
-      this.app.screen.width / 3,
+      this.getPlayerStartX(),
       this.app.screen.height / 2,
       this.basket.width / 2,
       {
         label: "basket",
         isStatic: false,
         inertia: Number.POSITIVE_INFINITY, // 회전 방지
-      }
+      },
     );
 
     // 물리 엔진에 추가
@@ -491,8 +862,8 @@ export class PlayerManager {
     this.bird = new PIXI.AnimatedSprite(textures);
     this.bird.animationSpeed = 0.1;
     this.bird.play();
-    this.bird.width = 32 * 1.4;
-    this.bird.height = 32 * 1.4;
+    this.bird.width = BASE_BIRD_SIZE * FLAPPY_BIRD_OBJECT_SCALE;
+    this.bird.height = BASE_BIRD_SIZE * FLAPPY_BIRD_OBJECT_SCALE;
     this.bird.anchor.set(0.5);
   }
 
@@ -501,7 +872,7 @@ export class PlayerManager {
    */
   public resetPosition(): void {
     this.physicsManager.setPosition(this.basketBody, {
-      x: this.app.screen.width / 4,
+      x: this.getPlayerStartX(),
       y: this.app.screen.height / 2,
     });
     this.physicsManager.setVelocity(this.basketBody, { x: 0, y: 0 });
@@ -512,8 +883,10 @@ export class PlayerManager {
    */
   public update(): void {
     if (this.bird) {
-      this.bird.position.x = this.basketBody.position.x + 4;
-      this.bird.position.y = this.basketBody.position.y - 36; // 바구니 위에 위치
+      this.bird.position.x =
+        this.basketBody.position.x + this.basket.width * 0.1;
+      this.bird.position.y =
+        this.basketBody.position.y - this.basket.height * 0.9;
     }
   }
 
@@ -565,7 +938,7 @@ export class PlayerManager {
 
     // 새 바스켓 물리 바디 생성
     this.basketBody = this.physicsManager.createCircleBody(
-      this.app.screen.width / 3,
+      this.getPlayerStartX(),
       this.app.screen.height / 2,
       this.basket.width / 2,
       {
@@ -575,11 +948,15 @@ export class PlayerManager {
         angularVelocity: 0,
         inertia: Number.POSITIVE_INFINITY,
         frictionAir: 0.01,
-      }
+      },
     );
 
     // 새로 생성한 물리 바디 추가
     this.physicsManager.addToEngine(this.basket, this.basketBody);
+  }
+
+  private getPlayerStartX(): number {
+    return this.app.screen.width * FLAPPY_BIRD_PLAYER_X_RATIO;
   }
 
   /**

@@ -219,14 +219,16 @@ const ControlButton: React.FC<ControlButtonProps> = ({
   const handlePointerDown = () => {
     if (!isSlider) {
       setIsPressed(true);
+      if (onClick) onClick();
+      window.setTimeout(() => {
+        void vibrationAdapter.vibrate();
+      }, 0);
     }
   };
 
   const handlePointerUp = () => {
     if (!isSlider) {
       setIsPressed(false);
-      vibrationAdapter.vibrate();
-      if (onClick) onClick();
     }
   };
 

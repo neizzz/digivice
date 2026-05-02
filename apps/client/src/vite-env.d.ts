@@ -3,6 +3,7 @@
 interface ImportMetaEnv {
   readonly NATIVE_FEATURE_DEBUG_MODE?: string;
   readonly APP_LOGO_TEXT?: string;
+  readonly VITE_INITIAL_SCENE?: string;
 }
 
 declare const __APP_VERSION__: string;

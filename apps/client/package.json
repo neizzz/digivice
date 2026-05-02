@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "pnpm --filter @digivice/game sync-assets && NATIVE_FEATURE_DEBUG_MODE=true APP_LOGO_TEXT=DEBUG vite --host",
+    "dev:minigame": "pnpm --filter @digivice/game sync-assets && VITE_INITIAL_SCENE=flappy_bird_game NATIVE_FEATURE_DEBUG_MODE=true APP_LOGO_TEXT=DEBUG vite --host",
     "build": "pnpm --dir ../.. run sync:versions && pnpm --filter @digivice/game sync-assets && tsc -b && NODE_ENV=development vite build",
     "build:development": "pnpm --dir ../.. run sync:versions && pnpm --filter @digivice/game sync-assets && tsc -b && NODE_ENV=development vite build",
     "build:production": "pnpm --dir ../.. run sync:versions && pnpm --filter @digivice/game sync-assets && tsc -b && NODE_ENV=production vite build --mode production",

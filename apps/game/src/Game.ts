@@ -6,23 +6,26 @@ import {
   MainSceneWorld,
   type MainSceneWorldData,
 } from "./scenes/MainScene/world";
-import type { SunTimesPayload } from "./scenes/MainScene/timeOfDay";
+import {
+  TimeOfDay,
+  TimeOfDayMode,
+  type SunTimesPayload,
+} from "./scenes/MainScene/timeOfDay";
 import { FlappyBirdGameScene } from "./scenes/FlappyBirdGameScene";
+import { CharacterKey } from "./types/Character";
 import { AssetLoader } from "./utils/AssetLoader";
 
 PIXI.TexturePool.textureOptions.scaleMode = "nearest";
+PIXI.TextureStyle.defaultOptions.scaleMode = "nearest";
 
 const SCREEN_HORIZONTAL_PADDING = 14;
 const SCREEN_BOTTOM_PADDING = 14;
 const SCREEN_TOP_PADDING = SCREEN_BOTTOM_PADDING + 6;
-PIXI.TextureStyle.defaultOptions.scaleMode = "nearest";
 
 export type ControlButtonsChangeCallback = (
-  controlButtonParamsSet: [
-    ControlButtonParams,
-    ControlButtonParams,
-    ControlButtonParams,
-  ],
+  controlButtonParamsSet:
+    | [ControlButtonParams, ControlButtonParams, ControlButtonParams]
+    | null,
 ) => void;
 
 export type CreateInitialGameDataCallback = () => Promise<{
@@ -40,15 +43,46 @@ export type ShowSettingsCallback = (params: {
 }) => void;
 export type ShowAlertCallback = (message: string, title?: string) => void;
 export type TriggerBiteVibrationCallback = () => void;
+export type TriggerTransientVibrationCallback = (params: {
+  durationMs: number;
+  strength: number;
+}) => void;
 export type StartRecoveryVibrationCallback = () => void;
 export type StopRecoveryVibrationCallback = () => void;
 export type StartMiniGameCallback = () => unknown | Promise<unknown>;
+export type GetFlappyBirdBestScoreCallback = () => Promise<number>;
+export type PersistFlappyBirdBestScoreCallback = (
+  score: number,
+) => Promise<void>;
+export type ShowFlappyBirdGameOverCallback = (params: {
+  score: number;
+  bestScore: number;
+  onRestart: () => void;
+  onExit: () => void | Promise<void>;
+}) => void;
+export type HideFlappyBirdGameOverCallback = () => void;
+export type ShowFlappyBirdSettingsMenuCallback = (params: {
+  isBgmEnabled: boolean;
+  isSfxEnabled: boolean;
+  onChangeBgm: (enabled: boolean) => void | Promise<void>;
+  onChangeSfx: (enabled: boolean) => void | Promise<void>;
+  selectedTimeOfDay?: TimeOfDay;
+  onSelectTimeOfDay?: (timeOfDay: TimeOfDay) => void | Promise<void>;
+  onResume: () => void | Promise<void>;
+  onExit: () => void | Promise<void>;
+}) => void;
+export type HideFlappyBirdSettingsMenuCallback = () => void;
 export type SceneTransitionStateChangeCallback = (params: {
   requestId: number;
   from?: SceneKey;
   to: SceneKey;
   state: "loading" | "core_ready" | "failed";
 }) => void;
+export type FlappyBirdSkyContext = {
+  mode: TimeOfDayMode;
+  timeOfDay: TimeOfDay;
+  sunTimes: SunTimesPayload | null;
+};
 export type GameDiagnosticsSnapshot = {
   currentSceneKey?: SceneKey;
   mainSceneData: MainSceneWorldData | null;
@@ -77,8 +111,15 @@ export class Game {
   public showSettings: ShowSettingsCallback; // 설정 화면 표시 콜백
   public showAlert: ShowAlertCallback; // 팝업 콜백 추가
   public triggerBiteVibration?: TriggerBiteVibrationCallback;
+  public triggerTransientVibration?: TriggerTransientVibrationCallback;
   public startRecoveryVibration?: StartRecoveryVibrationCallback;
   public stopRecoveryVibration?: StopRecoveryVibrationCallback;
+  public getFlappyBirdBestScore?: GetFlappyBirdBestScoreCallback;
+  public persistFlappyBirdBestScore?: PersistFlappyBirdBestScoreCallback;
+  public showFlappyBirdGameOver?: ShowFlappyBirdGameOverCallback;
+  public hideFlappyBirdGameOver?: HideFlappyBirdGameOverCallback;
+  public showFlappyBirdSettingsMenu?: ShowFlappyBirdSettingsMenuCallback;
+  public hideFlappyBirdSettingsMenu?: HideFlappyBirdSettingsMenuCallback;
 
   private _parentElement: HTMLElement;
   private _onSceneTransitionStateChange?: SceneTransitionStateChangeCallback;
@@ -104,33 +145,55 @@ export class Game {
   private _sceneTransitionRequestId = 0;
   private _isFullscreenAdActive = false;
   private _fullscreenAdResizeSuppressedUntil = 0;
+  private readonly _initialSceneKey: SceneKey;
+  private readonly _debugMode: boolean;
+  private _flappyBirdCharacterKey: CharacterKey | null = null;
+  private _flappyBirdSkyContext: FlappyBirdSkyContext | null = null;
   // private characterManager: CharacterManager; // CharacterManager 인스턴스 추가
   // private shouldSaveDataBeforeUnload = false;
 
   constructor(params: {
     parentElement: HTMLElement;
     debugParentElement?: HTMLElement;
+    debugMode?: boolean;
+    initialSceneKey?: SceneKey;
     onCreateInitialGameData: CreateInitialGameDataCallback;
     changeControlButtons: ControlButtonsChangeCallback;
     showSettings: ShowSettingsCallback;
     showAlert: ShowAlertCallback; // 팝업 콜백 추가
     startMiniGame?: StartMiniGameCallback;
     triggerBiteVibration?: TriggerBiteVibrationCallback;
+    triggerTransientVibration?: TriggerTransientVibrationCallback;
     startRecoveryVibration?: StartRecoveryVibrationCallback;
     stopRecoveryVibration?: StopRecoveryVibrationCallback;
+    getFlappyBirdBestScore?: GetFlappyBirdBestScoreCallback;
+    persistFlappyBirdBestScore?: PersistFlappyBirdBestScoreCallback;
+    showFlappyBirdGameOver?: ShowFlappyBirdGameOverCallback;
+    hideFlappyBirdGameOver?: HideFlappyBirdGameOverCallback;
+    showFlappyBirdSettingsMenu?: ShowFlappyBirdSettingsMenuCallback;
+    hideFlappyBirdSettingsMenu?: HideFlappyBirdSettingsMenuCallback;
     onSceneTransitionStateChange?: SceneTransitionStateChangeCallback;
   }) {
     const {
       parentElement,
       debugParentElement,
+      debugMode,
+      initialSceneKey,
       onCreateInitialGameData,
       changeControlButtons,
       showSettings,
       showAlert,
       startMiniGame,
       triggerBiteVibration,
+      triggerTransientVibration,
       startRecoveryVibration,
       stopRecoveryVibration,
+      getFlappyBirdBestScore,
+      persistFlappyBirdBestScore,
+      showFlappyBirdGameOver,
+      hideFlappyBirdGameOver,
+      showFlappyBirdSettingsMenu,
+      hideFlappyBirdSettingsMenu,
       onSceneTransitionStateChange,
     } = params;
     this.changeControlButtons = changeControlButtons;
@@ -138,10 +201,19 @@ export class Game {
     this.showAlert = showAlert; // 팝업 콜백 저장
     this._startMiniGame = startMiniGame;
     this.triggerBiteVibration = triggerBiteVibration;
+    this.triggerTransientVibration = triggerTransientVibration;
     this.startRecoveryVibration = startRecoveryVibration;
     this.stopRecoveryVibration = stopRecoveryVibration;
+    this.getFlappyBirdBestScore = getFlappyBirdBestScore;
+    this.persistFlappyBirdBestScore = persistFlappyBirdBestScore;
+    this.showFlappyBirdGameOver = showFlappyBirdGameOver;
+    this.hideFlappyBirdGameOver = hideFlappyBirdGameOver;
+    this.showFlappyBirdSettingsMenu = showFlappyBirdSettingsMenu;
+    this.hideFlappyBirdSettingsMenu = hideFlappyBirdSettingsMenu;
     this._onSceneTransitionStateChange = onSceneTransitionStateChange;
     this._createInitialGameData = onCreateInitialGameData;
+    this._initialSceneKey = initialSceneKey ?? SceneKey.MAIN;
+    this._debugMode = debugMode ?? false;
 
     this.app = new PIXI.Application();
     this._boundResizeHandler = () => {
@@ -247,6 +319,7 @@ export class Game {
         height: this._parentElement.clientHeight,
         backgroundColor: 0xaaaaaa,
         autoDensity: true,
+        roundPixels: true,
         resolution: window.devicePixelRatio || 2, // 해상도를 디바이스 픽셀 비율로 설정하거나 원하는 값(예: 2)으로 설정
       });
       this._isPixiReady = true;
@@ -280,7 +353,7 @@ export class Game {
   }
 
   private async _setupInitialScene(): Promise<void> {
-    await this.changeScene(SceneKey.MAIN);
+    await this.changeScene(this._initialSceneKey);
   }
 
   public preloadSceneAssets(key: SceneKey): Promise<void> {
@@ -564,11 +637,13 @@ export class Game {
           },
           parentElement: this._parentElement,
           debugParentElement: this._debugParentElement,
+          debugMode: this._debugMode,
           startMiniGame:
             this._startMiniGame ??
             (() => this.changeScene(SceneKey.FLAPPY_BIRD_GAME)),
           createInitialGameData: this._createInitialGameData,
           changeControlButtons: this.changeControlButtons,
+          showAlert: this.showAlert,
           triggerBiteVibration: this.triggerBiteVibration,
           startRecoveryVibration: this.startRecoveryVibration,
           stopRecoveryVibration: this.stopRecoveryVibration,
@@ -615,6 +690,11 @@ export class Game {
       if (this.currentScene?.onSceneExit) {
         console.log(`[Game] 현재 씬 종료 처리 시작: ${this.currentSceneKey}`);
         await this.currentScene.onSceneExit();
+      }
+
+      if (this.currentScene instanceof MainSceneWorld) {
+        this._syncFlappyBirdSkyContextFromMainScene(this.currentScene);
+        this._syncFlappyBirdCharacterKeyFromMainScene(this.currentScene);
       }
 
       if (this.currentScene) {
@@ -689,6 +769,41 @@ export class Game {
     return this.currentSceneKey;
   }
 
+  public async getFlappyBirdSkyContext(): Promise<FlappyBirdSkyContext> {
+    if (this.currentScene instanceof MainSceneWorld) {
+      this._syncFlappyBirdSkyContextFromMainScene(this.currentScene);
+      this._syncFlappyBirdCharacterKeyFromMainScene(this.currentScene);
+    }
+
+    if (this._flappyBirdSkyContext) {
+      return {
+        mode: this._flappyBirdSkyContext.mode,
+        timeOfDay: this._flappyBirdSkyContext.timeOfDay,
+        sunTimes: this._flappyBirdSkyContext.sunTimes
+          ? { ...this._flappyBirdSkyContext.sunTimes }
+          : null,
+      };
+    }
+
+    const initialGameData = await this._createInitialGameData();
+
+    return {
+      mode: initialGameData.useLocalTime
+        ? TimeOfDayMode.Auto
+        : TimeOfDayMode.Manual,
+      timeOfDay: TimeOfDay.Day,
+      sunTimes: initialGameData.cachedSunTimes ?? null,
+    };
+  }
+
+  public getFlappyBirdCharacterKey(): CharacterKey {
+    if (this.currentScene instanceof MainSceneWorld) {
+      this._syncFlappyBirdCharacterKeyFromMainScene(this.currentScene);
+    }
+
+    return this._flappyBirdCharacterKey ?? CharacterKey.TestGreenSlimeA1;
+  }
+
   public getDiagnosticsSnapshot(): GameDiagnosticsSnapshot {
     return {
       currentSceneKey: this.currentSceneKey,
@@ -739,7 +854,7 @@ export class Game {
       typeof performance !== "undefined" ? performance.now() : Date.now();
     console.log("[GameTransition] mini-game preload start");
 
-    await AssetLoader.preloadAssets();
+    await AssetLoader.preloadAssets(this.getFlappyBirdCharacterKey());
 
     console.log(
       `[GameTransition] mini-game preload end in ${Math.round(
@@ -791,5 +906,25 @@ export class Game {
 
     // 현재 씬이 MainScene이면 destroy 호출
     this.currentScene?.destroy?.();
+  }
+
+  private _syncFlappyBirdSkyContextFromMainScene(
+    mainSceneWorld: MainSceneWorld,
+  ): void {
+    const inMemoryData = mainSceneWorld.getInMemoryData();
+    const cachedSunTimes =
+      inMemoryData.world_metadata.app_state?.cached_sun_times ?? null;
+
+    this._flappyBirdSkyContext = {
+      mode: mainSceneWorld.getTimeOfDayMode(),
+      timeOfDay: mainSceneWorld.getTimeOfDay(),
+      sunTimes: cachedSunTimes,
+    };
+  }
+
+  private _syncFlappyBirdCharacterKeyFromMainScene(
+    mainSceneWorld: MainSceneWorld,
+  ): void {
+    this._flappyBirdCharacterKey = mainSceneWorld.getFlappyBirdCharacterKey();
   }
 }

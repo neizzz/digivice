@@ -1,9 +1,9 @@
 import { useEffect, useRef } from "react";
 import "./App.css";
 import GameContainer from "./GameContainer";
-import { DevEnvironmentBadge } from "./components/DevEnvironmentBadge";
 import TopLeftBuildLogoText from "./components/TopLeftBuildLogoText";
 import { AdManager } from "./ad/AdManager";
+import { FlappyBirdGameOverPolicy } from "./ad/policies/FlappyBirdGameOverPolicy";
 import { MainSceneMenuPolicy } from "./ad/policies/MainSceneMenuPolicy";
 import SimpleLogViewer from "../components/SimpleLogViewer/SimpleLogViewer";
 
@@ -35,6 +35,7 @@ const App = () => {
 
     // AdManager 초기화
     adManager = new AdManager();
+    adManager.addPolicy(new FlappyBirdGameOverPolicy());
     adManager.addPolicy(new MainSceneMenuPolicy());
     window.adManager = adManager;
     window.digiviceAdBridge = {
@@ -115,7 +116,6 @@ const App = () => {
   return (
     <div id="app-shell">
       <TopLeftBuildLogoText />
-      <DevEnvironmentBadge />
       <div id="app-container">
         <GameContainer />
         <SimpleLogViewer position="top-right" initialOpen={false} />

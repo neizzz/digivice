@@ -60,6 +60,9 @@ declare global {
         request: MainSceneMenuAdRequest,
       ) => Promise<boolean>;
     };
+    digiviceBackBridge?: {
+      handleBackNavigation: () => "consumed" | "exit";
+    };
   }
 }
 

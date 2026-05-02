@@ -11,10 +11,12 @@ export class GameEngine {
   private pixiApp: PIXI.Application | null = null;
   private _frameCount = 0;
   private physicsUpdateBound: (ticker: PIXI.Ticker) => void;
+  private readonly gravityY: number;
 
-  constructor(width: number, height: number) {
+  constructor(width: number, height: number, gravityY = 2.5) {
+    this.gravityY = gravityY;
     this.physics = Matter.Engine.create({
-      gravity: { x: 0, y: 2.5 },
+      gravity: { x: 0, y: this.gravityY },
       enableSleeping: false,
     });
 
@@ -39,7 +41,7 @@ export class GameEngine {
       this.pixiApp.ticker.add(
         this.physicsUpdateBound,
         null,
-        PIXI.UPDATE_PRIORITY.HIGH
+        PIXI.UPDATE_PRIORITY.HIGH,
       );
 
       this.pixiApp.ticker.start();
@@ -77,9 +79,13 @@ export class GameEngine {
     }
   }
 
+  public syncDisplayObjectsNow(): void {
+    this.syncDisplayObjects();
+  }
+
   public addGameObject(
     displayObject: PIXI.Sprite | PIXI.Container,
-    body: Matter.Body
+    body: Matter.Body,
   ): void {
     Matter.Composite.add(this.physics.world, body);
     this.gameObjects.push({ displayObject, body });
@@ -109,7 +115,7 @@ export class GameEngine {
     Matter.Engine.clear(this.physics);
 
     this.physics = Matter.Engine.create({
-      gravity: { x: 0, y: 2.5 },
+      gravity: { x: 0, y: this.gravityY },
       enableSleeping: false,
     });
   }

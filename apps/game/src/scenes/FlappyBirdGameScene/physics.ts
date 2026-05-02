@@ -96,6 +96,10 @@ export class PhysicsManager {
     Matter.Body.setPosition(body, position);
   }
 
+  public syncDisplayObjects(): void {
+    this.gameEngine.syncDisplayObjectsNow();
+  }
+
   /**
    * 충돌 이벤트 리스너를 설정합니다.
    */

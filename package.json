@@ -10,6 +10,7 @@
     "version:bump:build": "node ./scripts/bump-app-version.mjs build",
     "version:set": "node ./scripts/bump-app-version.mjs set-version",
     "dev": "pnpm --filter @digivice/client dev",
+    "dev:minigame": "pnpm --filter @digivice/client dev:minigame",
     "build": "pnpm --filter @digivice/client build",
     "dev:monster-animations": "pnpm --filter @digivice/client dev:monster-animations"
   },

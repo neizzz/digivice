@@ -7,5 +7,10 @@ export { MissingInitialGameDataError } from "./scenes/MainScene/world";
 export * from "./ui/types";
 export * from "./types/Character";
 export { getNativeSunTimes } from "./scenes/MainScene/sunTimes";
+export {
+	getTimeOfDayLabel,
+	TIME_OF_DAY_OPTIONS,
+	TimeOfDay,
+} from "./scenes/MainScene/timeOfDay";
 export type { SunTimesPayload } from "./scenes/MainScene/timeOfDay";
 export * from "./utils/nameLabel";
