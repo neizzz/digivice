@@ -41,3 +41,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Generated web asset backups
+/assets/web/assets/game/sprites/monsters_backup/

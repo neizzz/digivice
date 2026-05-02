@@ -27,3 +27,4 @@ dist-ssr
 
 # Test build artifacts
 apps/game/.test-dist/
+apps/game/.test-one/
