@@ -3,6 +3,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -23,7 +24,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   if (Platform.isAndroid) {
-    await AndroidWebViewController.enableDebugging(true);
+    await AndroidWebViewController.enableDebugging(!kReleaseMode);
   }
 
   // AdMob 초기화
@@ -179,14 +180,89 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
   }
 
   Future<void> _handleBackNavigation() async {
+    final String? webBackNavigationAction = await _requestWebBackNavigation();
+
+    if (webBackNavigationAction == 'consumed') {
+      await _log('[BackNavigation] Consumed by web app');
+      return;
+    }
+
+    if (webBackNavigationAction == 'exit') {
+      await _log('[BackNavigation] Exiting from MainScene');
+      await SystemNavigator.pop();
+      return;
+    }
+
     final bool canGoBack = await _controller.canGoBack();
 
     if (canGoBack) {
+      await _log('[BackNavigation] Falling back to WebView history');
       await _controller.goBack();
       return;
     }
 
+    await _log('[BackNavigation] Falling back to app exit');
     await SystemNavigator.pop();
+  }
+
+  Future<String?> _requestWebBackNavigation() async {
+    try {
+      final Object result = await _controller.runJavaScriptReturningResult('''
+        (() => {
+          try {
+            if (
+              typeof window === 'undefined' ||
+              !window.digiviceBackBridge ||
+              typeof window.digiviceBackBridge.handleBackNavigation !== 'function'
+            ) {
+              return null;
+            }
+
+            return window.digiviceBackBridge.handleBackNavigation();
+          } catch (error) {
+            console.error('[BackNavigation] Failed to handle native back press', error);
+            return null;
+          }
+        })();
+      ''');
+
+      return _parseJavaScriptStringResult(result);
+    } catch (error) {
+      await _log('[BackNavigation] Failed to query web app: $error');
+      return null;
+    }
+  }
+
+  String? _parseJavaScriptStringResult(Object? result) {
+    if (result is String) {
+      return _normalizeJavaScriptStringResult(result);
+    }
+
+    if (result == null) {
+      return null;
+    }
+
+    return _normalizeJavaScriptStringResult(result.toString());
+  }
+
+  String? _normalizeJavaScriptStringResult(String result) {
+    final String normalized = result.trim().toLowerCase();
+
+    if (normalized == 'consumed' || normalized == 'exit') {
+      return normalized;
+    }
+
+    if (normalized.isEmpty || normalized == 'null' || normalized == 'undefined') {
+      return null;
+    }
+
+    if (normalized.startsWith('"') && normalized.endsWith('"')) {
+      return _normalizeJavaScriptStringResult(
+        normalized.substring(1, normalized.length - 1),
+      );
+    }
+
+    return null;
   }
 
   Future<void> _initializeWebView() async {
