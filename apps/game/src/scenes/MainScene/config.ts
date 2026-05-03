@@ -1,5 +1,5 @@
 import { CharacterClass } from "../../types/Character";
-import { getEvolutionSpec } from "./evolutionConfig";
+import { EVOLUTION_GAUGE_CONFIG, getEvolutionSpec } from "./evolutionConfig";
 import { CharacterKeyECS } from "./types";
 
 type TriangularDelayConfig = {
@@ -63,6 +63,9 @@ export const PRODUCTION_BALANCE_REFERENCE = {
     PRODUCTION_NIGHT_WAKE_PER_CHECK_CHANCE,
 } as const;
 
+export const BOOSTED_STAMINA_THRESHOLD =
+  EVOLUTION_GAUGE_CONFIG.boostedStaminaThreshold;
+
 const PRODUCTION_GAME_CONSTANTS = {
   // 알 부화 관련
   EGG_HATCH_TIME: 30 * MINUTE_IN_MILLISECONDS,
@@ -107,6 +110,7 @@ const PRODUCTION_GAME_CONSTANTS = {
 
   // 캐릭터 스테미나 관련
   MAX_STAMINA: 10,
+  BOOSTED_STAMINA_THRESHOLD,
   // 기대값: awake 기준 12분마다 0.25 감소 -> 시간당 1.25 감소 -> 10 -> 0 약 8시간.
   STAMINA_DECREASE_INTERVAL: 12 * MINUTE_IN_MILLISECONDS,
   STAMINA_DECREASE_AMOUNT: 0.25,
