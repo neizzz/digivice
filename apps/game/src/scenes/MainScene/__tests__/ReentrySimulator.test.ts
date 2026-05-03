@@ -31,6 +31,15 @@ import {
 
 let nextEntitySeed = 0;
 
+const MOBILE_SCREEN_WIDTH = 360;
+const MOBILE_SCREEN_HEIGHT = 640;
+const MOBILE_POSITION_BOUNDARY = {
+  x: 14,
+  y: 20,
+  width: MOBILE_SCREEN_WIDTH - 28,
+  height: MOBILE_SCREEN_HEIGHT - 34,
+} as const;
+
 function reserveEntityRange(
   world: ReturnType<typeof createTestWorld>,
   size = 10,
@@ -216,6 +225,70 @@ test("reentry는 알 부화 시간 전이면 egg 상태와 위치를 유지한�
   assert.equal(ObjectComp.state[eggEid], CharacterState.EGG);
   assert.equal(PositionComp.x[eggEid], 70);
   assert.equal(PositionComp.y[eggEid], 90);
+});
+
+test("reentry는 10초 tick 모바일 경계에서도 부화 후 위치를 갱신한다", async () => {
+  const world = createTestWorld({
+    now: 0,
+    isSimulationMode: true,
+    positionBoundary: MOBILE_POSITION_BOUNDARY,
+  });
+  reserveEntityRange(world);
+
+  const initialEggX =
+    MOBILE_POSITION_BOUNDARY.x + MOBILE_POSITION_BOUNDARY.width / 2;
+  const initialEggY =
+    MOBILE_POSITION_BOUNDARY.y + MOBILE_POSITION_BOUNDARY.height / 2;
+
+  const eggEid = withMockedDateNow(0, () =>
+    createTestCharacter(world, {
+      state: CharacterState.EGG,
+      stamina: 5,
+      x: initialEggX,
+      y: initialEggY,
+    }),
+  );
+
+  const simulator = new ReentrySimulator();
+  const runSimulationStep = buildReentrySimulationStep(simulator);
+  const restoreSpritesheet = mockLoadedSpritesheetAliases([
+    "green-slime_A1",
+  ]);
+
+  try {
+    await withMockedRandomAsync(0, () =>
+      withMockedDateNowAsync(
+        GAME_CONSTANTS.EGG_HATCH_TIME + 10 * 60_000,
+        async () => {
+        await simulator.simulate(
+          0,
+          ({ world: simulationWorld, delta }) => {
+            runSimulationStep({
+              world: simulationWorld as typeof world,
+              delta,
+            });
+          },
+          world,
+        );
+        },
+      ),
+    );
+  } finally {
+    restoreSpritesheet();
+  }
+
+  assert.notEqual(ObjectComp.state[eggEid], CharacterState.EGG);
+  assert.ok(Math.abs(PositionComp.x[eggEid] - initialEggX) > 0.001);
+  assert.ok(PositionComp.x[eggEid] >= MOBILE_POSITION_BOUNDARY.x);
+  assert.ok(
+    PositionComp.x[eggEid] <=
+      MOBILE_POSITION_BOUNDARY.x + MOBILE_POSITION_BOUNDARY.width,
+  );
+  assert.ok(PositionComp.y[eggEid] >= MOBILE_POSITION_BOUNDARY.y);
+  assert.ok(
+    PositionComp.y[eggEid] <=
+      MOBILE_POSITION_BOUNDARY.y + MOBILE_POSITION_BOUNDARY.height,
+  );
 });
 
 test("reentry는 deathTime 전까지 urgent 상태를 유지한 채 살아있다", async () => {

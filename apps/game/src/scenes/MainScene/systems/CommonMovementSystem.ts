@@ -12,6 +12,7 @@ import { nomalizeRadian } from "@/utils/common";
 
 const movingEntityQuery = defineQuery([PositionComp, SpeedComp, AngleComp]);
 const TARGET_REACHED_EPSILON = 0.001;
+const REFLECTION_DIRECTION_PROBE_EPSILON = 0.000001;
 
 /**
  * 공통 이동 시스템
@@ -49,8 +50,6 @@ export function commonMovementSystem(params: {
     if (speed.value[eid] === 0) continue;
 
     const targetedDestination = getTargetedDestination(world, eid);
-    let nextX = position.x[eid];
-    let nextY = position.y[eid];
 
     if (targetedDestination) {
       const deltaXToTarget = targetedDestination.x - position.x[eid];
@@ -75,44 +74,125 @@ export function commonMovementSystem(params: {
         continue;
       }
 
-      nextX = position.x[eid] + Math.cos(targetAngle) * stepDistance;
-      nextY = position.y[eid] + Math.sin(targetAngle) * stepDistance;
-    } else {
-      // 현재 각도를 이용해 직선으로 이동
-      const velocityX = Math.cos(angle.value[eid]) * speed.value[eid];
-      const velocityY = Math.sin(angle.value[eid]) * speed.value[eid];
+      const nextX = position.x[eid] + Math.cos(targetAngle) * stepDistance;
+      const nextY = position.y[eid] + Math.sin(targetAngle) * stepDistance;
 
-      // 다음 위치 계산
-      nextX = position.x[eid] + velocityX * delta;
-      nextY = position.y[eid] + velocityY * delta;
+      const maxX = boundary.x + boundary.width;
+      const maxY = boundary.y + boundary.height;
+
+      if (
+        nextX <= boundary.x ||
+        nextX >= maxX ||
+        nextY <= boundary.y ||
+        nextY >= maxY
+      ) {
+        if (nextX <= boundary.x || nextX >= maxX) {
+          angle.value[eid] = nomalizeRadian(Math.PI - angle.value[eid]);
+        }
+        if (nextY <= boundary.y || nextY >= maxY) {
+          angle.value[eid] = nomalizeRadian(-angle.value[eid]);
+        }
+      } else {
+        position.x[eid] = nextX;
+        position.y[eid] = nextY;
+      }
+
+      continue;
     }
 
-    // 경계 체크
-    const maxX = boundary.x + boundary.width;
-    const maxY = boundary.y + boundary.height;
+    const freeMovementResult = calculateFreeMovementStep({
+      x: position.x[eid],
+      y: position.y[eid],
+      angle: angle.value[eid],
+      speed: speed.value[eid],
+      delta,
+      boundary,
+    });
 
-    // 경계를 벗어나면 반대 방향으로 각도 변경
-    if (
-      nextX <= boundary.x ||
-      nextX >= maxX ||
-      nextY <= boundary.y ||
-      nextY >= maxY
-    ) {
-      // x축(좌우) 경계에서만 x축 반전, y축(상하) 경계에서만 y축 반전
-      if (nextX <= boundary.x || nextX >= maxX) {
-        angle.value[eid] = nomalizeRadian(Math.PI - angle.value[eid]);
-      }
-      if (nextY <= boundary.y || nextY >= maxY) {
-        angle.value[eid] = nomalizeRadian(-angle.value[eid]);
-      }
-    } else {
-      // 경계 내부인 경우 위치 업데이트
-      position.x[eid] = nextX;
-      position.y[eid] = nextY;
-    }
+    position.x[eid] = freeMovementResult.x;
+    position.y[eid] = freeMovementResult.y;
+    angle.value[eid] = freeMovementResult.angle;
   }
 
   return params;
+}
+
+function calculateFreeMovementStep(params: {
+  x: number;
+  y: number;
+  angle: number;
+  speed: number;
+  delta: number;
+  boundary: MainSceneWorld["positionBoundary"];
+}): { x: number; y: number; angle: number } {
+  const { x, y, angle, speed, delta, boundary } = params;
+  const maxX = boundary.x + boundary.width;
+  const maxY = boundary.y + boundary.height;
+  const deltaX = Math.cos(angle) * speed * delta;
+  const deltaY = Math.sin(angle) * speed * delta;
+  const reflectedX = reflectAxisPosition(x, deltaX, boundary.x, maxX);
+  const reflectedY = reflectAxisPosition(y, deltaY, boundary.y, maxY);
+
+  let nextAngle = angle;
+  if (reflectedX.reflected) {
+    nextAngle = nomalizeRadian(Math.PI - nextAngle);
+  }
+  if (reflectedY.reflected) {
+    nextAngle = nomalizeRadian(-nextAngle);
+  }
+
+  return {
+    x: reflectedX.value,
+    y: reflectedY.value,
+    angle: nextAngle,
+  };
+}
+
+function reflectAxisPosition(
+  currentValue: number,
+  deltaValue: number,
+  minValue: number,
+  maxValue: number,
+): { value: number; reflected: boolean } {
+  const axisLength = maxValue - minValue;
+  if (axisLength <= 0) {
+    return {
+      value: minValue,
+      reflected: false,
+    };
+  }
+
+  const period = axisLength * 2;
+  const relativeEndValue = currentValue - minValue + deltaValue;
+  const normalizedEndValue = positiveModulo(relativeEndValue, period);
+  const reflectedValue =
+    normalizedEndValue <= axisLength
+      ? normalizedEndValue
+      : period - normalizedEndValue;
+
+  if (deltaValue === 0) {
+    return {
+      value: clampAxisValue(minValue + reflectedValue, minValue, maxValue),
+      reflected: false,
+    };
+  }
+
+  const probeValue =
+    relativeEndValue + Math.sign(deltaValue) * REFLECTION_DIRECTION_PROBE_EPSILON;
+  const normalizedProbeValue = positiveModulo(probeValue, period);
+
+  return {
+    value: clampAxisValue(minValue + reflectedValue, minValue, maxValue),
+    reflected: normalizedProbeValue > axisLength,
+  };
+}
+
+function positiveModulo(value: number, base: number): number {
+  return ((value % base) + base) % base;
+}
+
+function clampAxisValue(value: number, minValue: number, maxValue: number): number {
+  return Math.min(maxValue, Math.max(minValue, value));
 }
 
 function getTargetedDestination(
