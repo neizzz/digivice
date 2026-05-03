@@ -393,9 +393,7 @@ export function getEggHatchProgress(params: {
     return 0;
   }
 
-  const hatchDurationMs = getResolvedEggHatchDurationMs(
-    params.hatchDurationMs,
-  );
+  const hatchDurationMs = getResolvedEggHatchDurationMs(params.hatchDurationMs);
   if (hatchDurationMs <= 0) {
     return currentTime >= hatchTime ? 1 : 0;
   }
