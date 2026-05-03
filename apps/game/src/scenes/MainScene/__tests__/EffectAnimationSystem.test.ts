@@ -15,6 +15,7 @@ import {
   EffectAnimationComp,
   ObjectComp,
   RandomMovementComp,
+  SleepSystemComp,
   SpeedComp,
 } from "../raw-components";
 import {
@@ -24,6 +25,7 @@ import {
   EffectAnimationType,
   FoodState,
   ObjectType,
+  SleepMode,
 } from "../types";
 import {
   effectAnimationSystem,
@@ -193,6 +195,58 @@ test("recovery syringe impact는 stale destination을 지우고 free roaming을 
   assert.equal(CharacterStatusComp.statuses[characterEid][0], 0);
   assert.equal(hasComponent(world, DestinationComp, characterEid), false);
   assert.equal(hasComponent(world, RandomMovementComp, characterEid), true);
+  assert.equal(SpeedComp.value[characterEid], 0);
+  assert.equal(ObjectComp.state[foodEid], FoodState.LANDED);
+});
+
+test("recovery syringe impact는 낮잠 중 sickness만 치료하고 수면은 유지한다", () => {
+  const world = createMainSceneWorldForTest();
+  const characterEid = withMockedDateNow(0, () =>
+    createTestCharacter(
+      world as unknown as Parameters<typeof createTestCharacter>[0],
+      {
+        state: CharacterState.SLEEPING,
+      },
+    ),
+  );
+
+  CharacterStatusComp.statuses[characterEid][0] = CharacterStatus.SICK;
+  SleepSystemComp.sleepMode[characterEid] = SleepMode.DAY_NAP;
+  SleepSystemComp.sleepSessionStartedAt[characterEid] = 25;
+  SpeedComp.value[characterEid] = 0;
+
+  const foodEid = addEntity(world);
+  addComponent(world, ObjectComp, foodEid);
+  ObjectComp.id[foodEid] = 20_000 + foodEid;
+  ObjectComp.type[foodEid] = ObjectType.FOOD;
+  ObjectComp.state[foodEid] = FoodState.TARGETED;
+
+  addComponent(world, DestinationComp, characterEid);
+  DestinationComp.type[characterEid] = DestinationType.TARGETED;
+  DestinationComp.target[characterEid] = foodEid;
+  DestinationComp.x[characterEid] = 160;
+  DestinationComp.y[characterEid] = 120;
+
+  removeComponent(world, RandomMovementComp, characterEid);
+
+  withMockedDateNow(0, () => {
+    (
+      world as unknown as { _handleHospitalSelection: () => boolean }
+    )._handleHospitalSelection();
+  });
+
+  effectAnimationSystem({
+    world,
+    currentTime: 300,
+    stage: null,
+  });
+
+  assert.equal(ObjectComp.state[characterEid], CharacterState.SLEEPING);
+  assert.equal(CharacterStatusComp.statuses[characterEid][0], 0);
+  assert.equal(SleepSystemComp.sleepMode[characterEid], SleepMode.DAY_NAP);
+  assert.equal(SleepSystemComp.sleepSessionStartedAt[characterEid], 25);
+  assert.equal(hasComponent(world, DestinationComp, characterEid), false);
+  assert.equal(hasComponent(world, RandomMovementComp, characterEid), false);
   assert.equal(SpeedComp.value[characterEid], 0);
   assert.equal(ObjectComp.state[foodEid], FoodState.LANDED);
 });

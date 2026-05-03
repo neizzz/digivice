@@ -85,6 +85,7 @@ import { StorageManager } from "../../managers/StorageManager";
 import { Background } from "../../entities/Background";
 import {
   applySavedEntityToECS,
+  clearCharacterDestinationAndStop,
   convertECSEntityToSavedEntity,
   repairCharacterEntityRuntimeComponents,
   repairLoadedFoodInteractionState,
@@ -134,6 +135,7 @@ import {
   validateAndFixStatusIcons,
 } from "./systems/CharacterManageSystem";
 import { characterStatusSystem } from "./systems/CharacterStatusSystem";
+import { GAME_CONSTANTS } from "./config";
 import { getCharacterSpritesheetName } from "./evolutionConfig";
 import {
   getManualSkyVisualState,
@@ -1635,9 +1637,9 @@ export class MainSceneWorld implements IWorld, Scene {
     // 수면 효과 정리
     if (this._stage) {
       cleanupSleepEffects(this._stage);
+      cleanupEggCrackRenderState();
       cleanupStaminaGaugeRenderState();
       cleanupCharacterNameLabels();
-      cleanupEggCrackRenderState();
       cleanupCharacterLayoutDebug(this._stage);
     }
     this._pendingRecoveryCureEids.clear();
@@ -2872,6 +2874,8 @@ export class MainSceneWorld implements IWorld, Scene {
     }
 
     this._pendingRecoveryCureEids.delete(characterEid);
+    const shouldPreserveSleep =
+      ObjectComp.state[characterEid] === CharacterState.SLEEPING;
 
     const statuses = CharacterStatusComp.statuses[characterEid];
     let removed = false;
@@ -2889,12 +2893,16 @@ export class MainSceneWorld implements IWorld, Scene {
       DiseaseSystemComp.sickStartTime[characterEid] = 0;
     }
 
-    restoreCharacterFreeRoamingState(this, characterEid, {
-      now: this.currentTime,
-    });
+    if (shouldPreserveSleep) {
+      clearCharacterDestinationAndStop(this, characterEid);
+    } else {
+      restoreCharacterFreeRoamingState(this, characterEid, {
+        now: this.currentTime,
+      });
+    }
 
     console.log(
-      `[MainSceneWorld] Applied hospital recovery impact for character ${characterEid} (removedStatus=${removed})`,
+      `[MainSceneWorld] Applied hospital recovery impact for character ${characterEid} (removedStatus=${removed}, preservedSleep=${shouldPreserveSleep})`,
     );
   }
 
@@ -2934,6 +2942,25 @@ export class MainSceneWorld implements IWorld, Scene {
     }
 
     return spritesheetName;
+  }
+
+  public getMainCharacterStaminaSnapshot(): {
+    stamina: number;
+    maxStamina: number;
+    unhappyThreshold: number;
+    boostedThreshold: number;
+  } | null {
+    const characterEid = this._findMainCharacterEntity();
+    if (characterEid === -1) {
+      return null;
+    }
+
+    return {
+      stamina: CharacterStatusComp.stamina[characterEid],
+      maxStamina: GAME_CONSTANTS.MAX_STAMINA,
+      unhappyThreshold: GAME_CONSTANTS.UNHAPPY_STAMINA_THRESHOLD,
+      boostedThreshold: GAME_CONSTANTS.BOOSTED_STAMINA_THRESHOLD,
+    };
   }
 
   /**

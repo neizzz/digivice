@@ -22,7 +22,10 @@ import {
   FoodState,
 } from "../types";
 import { GAME_CONSTANTS } from "../config";
-import { releaseTargetedFoodForCharacter } from "./FoodEatingSystem";
+import {
+  clearActiveEatingState,
+  releaseTargetedFoodForCharacter,
+} from "./FoodEatingSystem";
 
 const characterQuery = defineQuery([
   ObjectComp,
@@ -63,9 +66,7 @@ export function diseaseSystem(params: {
     const isSleeping = ObjectComp.state[eid] === CharacterState.SLEEPING;
     const effectiveCheckInterval =
       GAME_CONSTANTS.DISEASE_CHECK_INTERVAL *
-      (isSleeping
-        ? 1 / GAME_CONSTANTS.SLEEPING_DISEASE_RATE_MULTIPLIER
-        : 1);
+      (isSleeping ? 1 / GAME_CONSTANTS.SLEEPING_DISEASE_RATE_MULTIPLIER : 1);
 
     while (currentTime >= diseaseComp.nextCheckTime[eid]) {
       const checkTime = diseaseComp.nextCheckTime[eid];
@@ -85,7 +86,7 @@ export function diseaseSystem(params: {
             `Disease Check - Entity ${eid}: Total Rate ${(
               diseaseRate * 100
             ).toFixed(2)}%`,
-            breakdown
+            breakdown,
           );
         }
 
@@ -141,13 +142,19 @@ export function diseaseSystem(params: {
  * 움직임 제한 - SICK 또는 SLEEPING 상태일 때 움직임 컴포넌트 제거
  */
 function restrictMovement(world: MainSceneWorld, eid: number): void {
+  if (clearActiveEatingState(world, eid)) {
+    console.log(
+      `[DiseaseSystem] Canceled active eating for entity ${eid} (restricted movement)`,
+    );
+  }
+
   releaseTargetedFoodForCharacter(world, eid);
 
   // RandomMovementComp 제거
   if (hasComponent(world, RandomMovementComp, eid)) {
     removeComponent(world, RandomMovementComp, eid);
     console.log(
-      `[DiseaseSystem] Removed RandomMovementComp from entity ${eid} (restricted movement)`
+      `[DiseaseSystem] Removed RandomMovementComp from entity ${eid} (restricted movement)`,
     );
   }
 
@@ -155,7 +162,7 @@ function restrictMovement(world: MainSceneWorld, eid: number): void {
   if (hasComponent(world, DestinationComp, eid)) {
     removeComponent(world, DestinationComp, eid);
     console.log(
-      `[DiseaseSystem] Removed DestinationComp from entity ${eid} (restricted movement)`
+      `[DiseaseSystem] Removed DestinationComp from entity ${eid} (restricted movement)`,
     );
   }
 }
@@ -176,7 +183,7 @@ function restoreMovement(world: MainSceneWorld, eid: number): void {
       RandomMovementComp.maxMoveTime[eid] = 4000;
       RandomMovementComp.nextChange[eid] = world.currentTime + 1000;
       console.log(
-        `[DiseaseSystem] Restored RandomMovementComp for entity ${eid} (movement restored)`
+        `[DiseaseSystem] Restored RandomMovementComp for entity ${eid} (movement restored)`,
       );
     }
   }
@@ -187,7 +194,7 @@ function restoreMovement(world: MainSceneWorld, eid: number): void {
  */
 export function calculateDiseaseRate(
   world: MainSceneWorld,
-  eid: number
+  eid: number,
 ): {
   rate: number;
   breakdown: {
@@ -231,8 +238,7 @@ export function calculateDiseaseRate(
   const staleCount = countStaleFoodInWorld(world);
   breakdown.staleFoodCount = staleCount;
   if (staleCount > 0) {
-    const staleFoodBonus =
-      staleCount * GAME_CONSTANTS.STALE_FOOD_DISEASE_RATE;
+    const staleFoodBonus = staleCount * GAME_CONSTANTS.STALE_FOOD_DISEASE_RATE;
     diseaseRate += staleFoodBonus;
     breakdown.staleFood = staleFoodBonus;
   }
@@ -273,7 +279,7 @@ function countStaleFoodInWorld(world: MainSceneWorld): number {
  */
 function countObjectsInWorld(
   world: MainSceneWorld,
-  objectType: ObjectType
+  objectType: ObjectType,
 ): number {
   const objectQuery = defineQuery([ObjectComp]);
   const entities = objectQuery(world);

@@ -474,15 +474,38 @@ export function restoreCharacterFreeRoamingState(
     idleDelayMs?: number;
   } = {},
 ): boolean {
+  if (!clearCharacterDestinationAndStop(world, eid)) {
+    return false;
+  }
+
+  const now = options.now ?? Date.now();
+  const idleDelayMs = options.idleDelayMs ?? 1000;
+
+  ObjectComp.state[eid] = CharacterState.IDLE;
+
+  if (!hasComponent(world, RandomMovementComp, eid)) {
+    addComponent(world, RandomMovementComp, eid);
+  }
+
+  RandomMovementComp.minIdleTime[eid] = 1000;
+  RandomMovementComp.maxIdleTime[eid] = 3000;
+  RandomMovementComp.minMoveTime[eid] = 2000;
+  RandomMovementComp.maxMoveTime[eid] = 4000;
+  RandomMovementComp.nextChange[eid] = now + idleDelayMs + Math.random() * 1000;
+
+  return true;
+}
+
+export function clearCharacterDestinationAndStop(
+  world: IWorld,
+  eid: number,
+): boolean {
   if (
     !hasComponent(world, ObjectComp, eid) ||
     ObjectComp.type[eid] !== ObjectType.CHARACTER
   ) {
     return false;
   }
-
-  const now = options.now ?? Date.now();
-  const idleDelayMs = options.idleDelayMs ?? 1000;
 
   if (hasComponent(world, DestinationComp, eid)) {
     const targetFoodEid = DestinationComp.target[eid];
@@ -499,22 +522,10 @@ export function restoreCharacterFreeRoamingState(
     removeComponent(world, DestinationComp, eid);
   }
 
-  ObjectComp.state[eid] = CharacterState.IDLE;
-
   if (!hasComponent(world, SpeedComp, eid)) {
     addComponent(world, SpeedComp, eid);
   }
   SpeedComp.value[eid] = 0;
-
-  if (!hasComponent(world, RandomMovementComp, eid)) {
-    addComponent(world, RandomMovementComp, eid);
-  }
-
-  RandomMovementComp.minIdleTime[eid] = 1000;
-  RandomMovementComp.maxIdleTime[eid] = 3000;
-  RandomMovementComp.minMoveTime[eid] = 2000;
-  RandomMovementComp.maxMoveTime[eid] = 4000;
-  RandomMovementComp.nextChange[eid] = now + idleDelayMs + Math.random() * 1000;
 
   return true;
 }
@@ -625,6 +636,11 @@ export function repairCharacterEntityRuntimeComponents(
     }
     EggHatchComp.isReadyToHatch[eid] = 0;
     repaired.push("EggHatchComp");
+  } else if (
+    state === CharacterState.EGG &&
+    EggHatchComp.hatchDurationMs[eid] <= 0
+  ) {
+    EggHatchComp.hatchDurationMs[eid] = getDefaultEggHatchDurationMs();
   }
 
   if (
@@ -636,11 +652,6 @@ export function repairCharacterEntityRuntimeComponents(
     AnimationRenderComp.storeIndex[eid] = ECS_NULL_VALUE;
     AnimationRenderComp.spritesheetKey[eid] =
       CharacterStatusComp.characterKey[eid] || SpritesheetKey.TestGreenSlimeA1;
-  } else if (
-    state === CharacterState.EGG &&
-    EggHatchComp.hatchDurationMs[eid] <= 0
-  ) {
-    EggHatchComp.hatchDurationMs[eid] = getDefaultEggHatchDurationMs();
     AnimationRenderComp.animationKey[eid] = AnimationKey.IDLE;
     AnimationRenderComp.isPlaying[eid] = 1;
     AnimationRenderComp.loop[eid] = 1;

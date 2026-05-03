@@ -109,7 +109,7 @@ function createStatusIconSprite(textureKey: TextureKey): PIXI.Sprite {
 }
 
 function getStatusIconMinY(world: MainSceneWorld): number {
-  return world.positionBoundary.y + STATUS_ICON_SIZE / 2;
+  return 0;
 }
 
 function clampStatusIconY(world: MainSceneWorld, preferredY: number): number {

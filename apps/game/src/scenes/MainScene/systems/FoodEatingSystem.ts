@@ -124,6 +124,37 @@ export function releaseTargetedFoodForCharacter(
   );
 }
 
+export function clearActiveEatingState(
+  world: MainSceneWorld,
+  characterEid: number,
+): boolean {
+  if (!hasComponent(world, FoodEatingComp, characterEid)) {
+    return false;
+  }
+
+  const targetFoodEid = FoodEatingComp.targetFood[characterEid];
+  if (
+    targetFoodEid > 0 &&
+    hasComponent(world, ObjectComp, targetFoodEid) &&
+    ObjectComp.type[targetFoodEid] === ObjectType.FOOD
+  ) {
+    if (hasComponent(world, FoodMaskComp, targetFoodEid)) {
+      removeComponent(world, FoodMaskComp, targetFoodEid);
+    }
+
+    if (ObjectComp.state[targetFoodEid] === FoodState.BEING_INTAKEN) {
+      ObjectComp.state[targetFoodEid] = FoodState.LANDED;
+    }
+  }
+
+  if (hasComponent(world, SpeedComp, characterEid)) {
+    SpeedComp.value[characterEid] = 0;
+  }
+
+  removeComponent(world, FoodEatingComp, characterEid);
+  return true;
+}
+
 /**
  * 음식을 먹고 있는 캐릭터들의 진행도 업데이트
  */
@@ -783,10 +814,7 @@ function cancelEating(world: MainSceneWorld, characterEid: number): void {
     RandomMovementComp.nextChange[characterEid] = world.currentTime + 1000;
   }
 
-  // FoodEatingComp 제거
-  if (hasComponent(world, FoodEatingComp, characterEid)) {
-    removeComponent(world, FoodEatingComp, characterEid);
-  }
+  clearActiveEatingState(world, characterEid);
 }
 
 function restoreFreeRoamingState(

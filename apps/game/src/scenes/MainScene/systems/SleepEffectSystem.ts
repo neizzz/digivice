@@ -6,9 +6,15 @@ import { MainSceneWorld } from "../world";
 import { getCharacterVerticalBounds } from "./CharacterDisplayBounds";
 
 const SLEEP_FRAME_INTERVAL = 1000;
-const SLEEP_TOP_OFFSET = 2;
-const SLEEP_HORIZONTAL_OFFSETS = [4, 0] as const;
-const SLEEP_TEXT_COLOR = 0xc8c8c8;
+const SLEEP_TOP_OFFSET = 4;
+const SLEEP_HORIZONTAL_OFFSET = -6;
+const SLEEP_GRADIENT_TOP_COLOR = 0x1f4f8f;
+const SLEEP_GRADIENT_BOTTOM_COLOR = 0x7dcfff;
+const SLEEP_STROKE_COLOR = 0x000000;
+const SLEEP_STROKE_WIDTH = 1;
+const SLEEP_SMALL_Z_FONT_SIZE = 10.8;
+const SLEEP_MEDIUM_Z_FONT_SIZE = 16.2;
+const SLEEP_LARGE_Z_FONT_SIZE = 19.44;
 const SLEEP_FONT_FAMILY = [
   "Press Start 2P",
   "Apple Color Emoji",
@@ -19,32 +25,37 @@ const SLEEP_FONT_FAMILY = [
 
 const SLEEP_BASE_TEXT_STYLE: Partial<PIXI.TextStyleOptions> = {
   fontFamily: SLEEP_FONT_FAMILY,
-  fill: SLEEP_TEXT_COLOR,
   align: "center",
 };
 
 const SLEEP_FRAME_DEFINITIONS = [
   {
-    gap: 6,
     letters: [
-      { char: "z", fontSize: 12, offsetX: 0, offsetY: 0 },
-      { char: "z", fontSize: 20, offsetX: 0, offsetY: -12 },
+      { char: "Z", fontSize: SLEEP_SMALL_Z_FONT_SIZE, offsetX: 0, offsetY: 0 },
     ],
   },
   {
-    gap: 2,
     letters: [
-      { char: "z", fontSize: 12, offsetX: 0, offsetY: 0 },
-      { char: "z", fontSize: 20, offsetX: 0, offsetY: -14 },
-      { char: "z", fontSize: 24, offsetX: -46, offsetY: -24 },
+      { char: "Z", fontSize: SLEEP_SMALL_Z_FONT_SIZE, offsetX: 0, offsetY: 0 },
+      { char: "Z", fontSize: SLEEP_MEDIUM_Z_FONT_SIZE, offsetX: 12, offsetY: -10 },
     ],
+  },
+  {
+    letters: [
+      { char: "Z", fontSize: SLEEP_SMALL_Z_FONT_SIZE, offsetX: 0, offsetY: 0 },
+      { char: "Z", fontSize: SLEEP_MEDIUM_Z_FONT_SIZE, offsetX: 12, offsetY: -10 },
+      { char: "Z", fontSize: SLEEP_LARGE_Z_FONT_SIZE, offsetX: -10, offsetY: -24 },
+    ],
+  },
+  {
+    letters: [],
   },
 ] as const;
 
 interface SleepEffect {
   container: PIXI.Container;
   letters: PIXI.Text[];
-  currentFrameIndex: 0 | 1;
+  currentFrameIndex: number;
   lastFrameChangeTime: number;
 }
 
@@ -113,6 +124,10 @@ export function cleanupSleepEffects(_stage: PIXI.Container): void {
   cleanupSleepEffectEntities();
 }
 
+export function cleanupSleepEffectStateForTests(): void {
+  cleanupSleepEffectEntities();
+}
+
 function cleanupSleepEffectEntities(): void {
   sleepEffectMap.forEach((_, eid) => {
     removeSleepEffect(eid);
@@ -165,7 +180,8 @@ function updateSleepEffectFrame(
     return;
   }
 
-  sleepEffect.currentFrameIndex = sleepEffect.currentFrameIndex === 0 ? 1 : 0;
+  sleepEffect.currentFrameIndex =
+    (sleepEffect.currentFrameIndex + 1) % SLEEP_FRAME_DEFINITIONS.length;
   sleepEffect.lastFrameChangeTime = currentTime;
   rebuildSleepEffectLetters(sleepEffect);
 }
@@ -180,12 +196,8 @@ function updateSleepEffectPosition(
   const effectiveZIndex =
     configuredZIndex === ECS_NULL_VALUE ? y : configuredZIndex;
   const { topY } = getCharacterVerticalBounds(eid);
-  const frameOffsetX =
-    SLEEP_HORIZONTAL_OFFSETS[
-      sleepEffectMap.get(eid)?.currentFrameIndex ?? 0
-    ] ?? 0;
 
-  container.position.set(x + frameOffsetX, topY + SLEEP_TOP_OFFSET);
+  container.position.set(x + SLEEP_HORIZONTAL_OFFSET, topY + SLEEP_TOP_OFFSET);
   container.zIndex = effectiveZIndex + 2;
   container.visible = true;
 }
@@ -199,20 +211,22 @@ function rebuildSleepEffectLetters(sleepEffect: SleepEffect): void {
 
 function renderSleepTextFrame(
   container: PIXI.Container,
-  frameIndex: 0 | 1,
+  frameIndex: number,
 ): PIXI.Text[] {
   const frameDefinition = SLEEP_FRAME_DEFINITIONS[frameIndex];
-  const { letters: letterDefinitions, gap: letterGap } = frameDefinition;
+  const { letters: letterDefinitions } = frameDefinition;
 
   container.removeChildren().forEach((child) => child.destroy());
+  container.pivot.set(0, 0);
+
+  if (letterDefinitions.length === 0) {
+    return [];
+  }
 
   const letters = letterDefinitions.map((letterDef) => {
     const text = new PIXI.Text({
       text: letterDef.char,
-      style: new PIXI.TextStyle({
-        ...SLEEP_BASE_TEXT_STYLE,
-        fontSize: letterDef.fontSize,
-      }),
+      style: createSleepTextStyle(letterDef.fontSize),
     });
 
     text.roundPixels = true;
@@ -226,16 +240,14 @@ function renderSleepTextFrame(
     width: number;
   }> = [];
 
-  let currentX = 0;
   for (let i = 0; i < letters.length; i++) {
     const letter = letters[i];
     const offsetX = letterDefinitions[i].offsetX;
     const offsetY = letterDefinitions[i].offsetY;
-    const x = currentX + offsetX;
+    const x = offsetX;
     const y = offsetY;
     letter.position.set(x, y);
     positionedLetters.push({ x, y, width: letter.width });
-    currentX += letter.width + letterGap;
   }
 
   const maxBottom = Math.max(
@@ -246,11 +258,28 @@ function renderSleepTextFrame(
     letters[i].y -= maxBottom;
   }
 
-  const minX = Math.min(...positionedLetters.map(({ x }) => x));
-  const maxRight = Math.max(
-    ...positionedLetters.map(({ x, width }) => x + width),
-  );
-
-  container.pivot.set((minX + maxRight) / 2, 0);
   return letters;
+}
+
+function createSleepTextStyle(fontSize: number): PIXI.TextStyle {
+  const fill = new PIXI.FillGradient({
+    type: "linear",
+    textureSpace: "local",
+    start: { x: 0, y: 0 },
+    end: { x: 0, y: fontSize },
+    colorStops: [
+      { offset: 0, color: SLEEP_GRADIENT_TOP_COLOR },
+      { offset: 1, color: SLEEP_GRADIENT_BOTTOM_COLOR },
+    ],
+  });
+
+  return new PIXI.TextStyle({
+    ...SLEEP_BASE_TEXT_STYLE,
+    fontSize,
+    fill,
+    stroke: {
+      color: SLEEP_STROKE_COLOR,
+      width: SLEEP_STROKE_WIDTH,
+    },
+  });
 }

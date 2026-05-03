@@ -1,13 +1,27 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { CharacterStatusComp, ObjectComp, SleepSystemComp } from "../raw-components";
+import { addComponent, addEntity, removeComponent } from "bitecs";
+import {
+  CharacterStatusComp,
+  DestinationComp,
+  ObjectComp,
+  SleepSystemComp,
+} from "../raw-components";
 import {
   DEV_BALANCE_COEFFICIENTS,
   GAME_CONSTANTS,
   PRODUCTION_BALANCE_REFERENCE,
 } from "../config";
 import { sleepScheduleSystem } from "../systems/SleepScheduleSystem";
-import { CharacterState, CharacterStatus, SleepMode, SleepReason } from "../types";
+import {
+  CharacterState,
+  CharacterStatus,
+  DestinationType,
+  FoodState,
+  ObjectType,
+  SleepMode,
+  SleepReason,
+} from "../types";
 import { TimeOfDay, TimeOfDayMode } from "../timeOfDay";
 import {
   createTestCharacter,
@@ -224,8 +238,7 @@ test("낮에는 피로도가 높고 확률이 맞으면 낮잠을 잔다", () =>
     currentTime: 0,
   });
 
-  SleepSystemComp.nextNapCheckTime[eid] =
-    GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL;
+  SleepSystemComp.nextNapCheckTime[eid] = GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL;
 
   withMockedRandom(0, () => {
     sleepScheduleSystem({
@@ -237,6 +250,74 @@ test("낮에는 피로도가 높고 확률이 맞으면 낮잠을 잔다", () =>
 
   assert.equal(ObjectComp.state[eid], CharacterState.SLEEPING);
   assert.equal(SleepSystemComp.sleepMode[eid], SleepMode.DAY_NAP);
+});
+
+test("먹이를 찾아가는 도중에는 예약된 수면 시각이 되어도 잠들지 않는다", () => {
+  const world = createTestWorld({
+    now: 0,
+    timeOfDay: TimeOfDay.Day,
+  });
+
+  const eid = withMockedDateNow(0, () =>
+    createTestCharacter(world, {
+      state: CharacterState.IDLE,
+      stamina: 5,
+    }),
+  );
+
+  sleepScheduleSystem({
+    world: world as any,
+    delta: 0,
+    currentTime: 0,
+  });
+
+  setWorldTimeOfDay(world, TimeOfDay.Night);
+
+  withMockedRandom(0, () => {
+    sleepScheduleSystem({
+      world: world as any,
+      delta: 0,
+      currentTime: 0,
+    });
+  });
+
+  const foodEid = addEntity(world);
+  ObjectComp.id[foodEid] = 999;
+  ObjectComp.type[foodEid] = ObjectType.FOOD;
+  ObjectComp.state[foodEid] = FoodState.TARGETED;
+
+  addComponent(world, DestinationComp, eid);
+  DestinationComp.type[eid] = DestinationType.TARGETED;
+  DestinationComp.target[eid] = foodEid;
+  DestinationComp.x[eid] = 120;
+  DestinationComp.y[eid] = 120;
+  ObjectComp.state[eid] = CharacterState.MOVING;
+
+  setWorldTime(world, GAME_CONSTANTS.NIGHT_SLEEP_MIN_DELAY);
+  sleepScheduleSystem({
+    world: world as any,
+    delta: 0,
+    currentTime: GAME_CONSTANTS.NIGHT_SLEEP_MIN_DELAY,
+  });
+
+  assert.equal(ObjectComp.state[eid], CharacterState.MOVING);
+  assert.equal(SleepSystemComp.sleepMode[eid], SleepMode.AWAKE);
+  assert.equal(
+    SleepSystemComp.nextSleepTime[eid],
+    GAME_CONSTANTS.NIGHT_SLEEP_MIN_DELAY,
+  );
+
+  removeComponent(world, DestinationComp, eid);
+  ObjectComp.state[eid] = CharacterState.IDLE;
+
+  sleepScheduleSystem({
+    world: world as any,
+    delta: 0,
+    currentTime: GAME_CONSTANTS.NIGHT_SLEEP_MIN_DELAY,
+  });
+
+  assert.equal(ObjectComp.state[eid], CharacterState.SLEEPING);
+  assert.equal(SleepSystemComp.sleepMode[eid], SleepMode.NIGHT_SLEEP);
 });
 
 test("수면 중 sickness가 남아 있으면 피로 회복이 느리다", () => {
@@ -273,7 +354,9 @@ test("수면 중 sickness가 남아 있으면 피로 회복이 느리다", () =>
     currentTime: delta,
   });
 
-  assert.ok(SleepSystemComp.fatigue[normalEid] < SleepSystemComp.fatigue[sickEid]);
+  assert.ok(
+    SleepSystemComp.fatigue[normalEid] < SleepSystemComp.fatigue[sickEid],
+  );
 });
 
 test("production 밤중 각성 기대값은 2박에 1번꼴 기준으로 계산된다", () => {

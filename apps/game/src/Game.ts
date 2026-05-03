@@ -804,6 +804,19 @@ export class Game {
     return this._flappyBirdCharacterKey ?? CharacterKey.TestGreenSlimeA1;
   }
 
+  public getMainCharacterStaminaSnapshot(): {
+    stamina: number;
+    maxStamina: number;
+    unhappyThreshold: number;
+    boostedThreshold: number;
+  } | null {
+    if (!(this.currentScene instanceof MainSceneWorld)) {
+      return null;
+    }
+
+    return this.currentScene.getMainCharacterStaminaSnapshot();
+  }
+
   public getDiagnosticsSnapshot(): GameDiagnosticsSnapshot {
     return {
       currentSceneKey: this.currentSceneKey,

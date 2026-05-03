@@ -1,121 +1,456 @@
-import { defineQuery, exitQuery } from "bitecs";
+import { defineQuery } from "bitecs";
 import * as PIXI from "pixi.js";
 import { GAME_CONSTANTS } from "../config";
-import {
-  CharacterStatusComp,
-  ObjectComp,
-  PositionComp,
-  RenderComp,
-} from "../raw-components";
-import { ObjectType, TextureKey } from "../types";
-import { MainSceneWorld } from "../world";
-import { getCharacterWorldBounds } from "./CharacterDisplayBounds";
+import { CharacterStatusComp, ObjectComp } from "../raw-components";
+import { ObjectType } from "../types";
+import type { MainSceneWorld } from "../world";
 
-const STAMINA_GAUGE_HEIGHT = 6;
-const STAMINA_GAUGE_MIN_WIDTH = 24;
-const STAMINA_GAUGE_MAX_WIDTH = 40;
-const STAMINA_GAUGE_WIDTH_RATIO = 0.85;
-const STAMINA_GAUGE_Y_OFFSET = 10;
-const STAMINA_GAUGE_MIN_Y_MARGIN = 4;
+type StaminaGaugeRenderState = {
+  container: PIXI.Container;
+  background: PIXI.Graphics;
+  fill: PIXI.Graphics;
+};
 
-const STAMINA_GAUGE_TRACK_COLOR = 0x211d18;
-const STAMINA_GAUGE_TRACK_ALPHA = 0.55;
-const STAMINA_GAUGE_BORDER_COLOR = 0xf3ead7;
-const STAMINA_GAUGE_BORDER_ALPHA = 0.65;
-const STAMINA_GAUGE_LOW_COLOR = 0xe2554b;
-const STAMINA_GAUGE_MID_COLOR = 0xf2a33a;
-const STAMINA_GAUGE_HIGH_COLOR = 0x58b86b;
+const staminaGaugeQuery = defineQuery([ObjectComp, CharacterStatusComp]);
 
-const entityGaugeStore = new Map<number, PIXI.Graphics>();
+const GAUGE_HEIGHT = 16;
+const GAUGE_BORDER_THICKNESS = 4;
+const GAUGE_BORDER_BOTTOM_CORNER_RADIUS = 3;
+const GAUGE_HIGHLIGHT_HEIGHT = 2;
+const GAUGE_FILL_HIGHLIGHT_ALPHA = 0.18;
+const GAUGE_TRACK_BASE_COLOR = 0x000000;
+const GAUGE_TRACK_BASE_ALPHA = 0.34;
+const GAUGE_Z_INDEX_OFFSET = 0.5;
+const GAUGE_BORDER_COLOR = 0x565656;
+const GAUGE_FILL_HIGHLIGHT_COLOR = 0xffffff;
+const GAUGE_LOW_STAMINA_COLOR = 0xe2554b;
+const GAUGE_MID_STAMINA_COLOR = 0xf2a33a;
+const GAUGE_HIGH_STAMINA_COLOR = 0x58b86b;
 
-const staminaGaugeQuery = defineQuery([
-  ObjectComp,
-  PositionComp,
-  CharacterStatusComp,
-  RenderComp,
-]);
+let staminaGaugeRenderState: StaminaGaugeRenderState | null = null;
 
-const staminaGaugeExitQuery = exitQuery(staminaGaugeQuery);
-
-function getEffectiveCharacterZIndex(eid: number): number {
-  const configuredZIndex = RenderComp.zIndex[eid];
-  return configuredZIndex === ECS_NULL_VALUE
-    ? PositionComp.y[eid]
-    : configuredZIndex;
+function clampUnitInterval(value: number): number {
+  return Math.max(0, Math.min(1, value));
 }
 
-function getStaminaGaugeMinY(world: MainSceneWorld): number {
-  return (
-    world.positionBoundary.y +
-    STAMINA_GAUGE_HEIGHT / 2 +
-    STAMINA_GAUGE_MIN_Y_MARGIN
-  );
-}
-
-export function clampStaminaGaugeY(
-  world: MainSceneWorld,
-  preferredY: number,
-): number {
-  return Math.max(preferredY, getStaminaGaugeMinY(world));
-}
-
-export function getStaminaGaugeFillRatio(stamina: number): number {
-  return Math.max(0, Math.min(1, stamina / GAME_CONSTANTS.MAX_STAMINA));
-}
-
-export function getStaminaGaugeFillColor(stamina: number): number {
+function getGaugeFillColor(stamina: number): number {
   if (stamina < GAME_CONSTANTS.UNHAPPY_STAMINA_THRESHOLD) {
-    return STAMINA_GAUGE_LOW_COLOR;
+    return GAUGE_LOW_STAMINA_COLOR;
   }
 
   if (stamina < GAME_CONSTANTS.BOOSTED_STAMINA_THRESHOLD) {
-    return STAMINA_GAUGE_MID_COLOR;
+    return GAUGE_MID_STAMINA_COLOR;
   }
 
-  return STAMINA_GAUGE_HIGH_COLOR;
+  return GAUGE_HIGH_STAMINA_COLOR;
 }
 
-function getStaminaGaugeWidth(boundsWidth: number): number {
-  const preferredWidth = boundsWidth * STAMINA_GAUGE_WIDTH_RATIO;
-  return Math.max(
-    STAMINA_GAUGE_MIN_WIDTH,
-    Math.min(STAMINA_GAUGE_MAX_WIDTH, preferredWidth),
-  );
-}
+function findMainCharacterEntity(world: MainSceneWorld): number {
+  const entities = staminaGaugeQuery(world);
 
-function getOrCreateGauge(
-  eid: number,
-  stage: PIXI.Container,
-): PIXI.Graphics {
-  const existingGauge = entityGaugeStore.get(eid);
-  if (existingGauge) {
-    return existingGauge;
+  for (let index = 0; index < entities.length; index += 1) {
+    const eid = entities[index];
+
+    if (ObjectComp.type[eid] === ObjectType.CHARACTER) {
+      return eid;
+    }
   }
 
-  const gauge = new PIXI.Graphics();
-  gauge.eventMode = "none";
-  stage.addChild(gauge);
-  entityGaugeStore.set(eid, gauge);
-  return gauge;
+  return -1;
 }
 
-function removeGauge(eid: number): void {
-  const gauge = entityGaugeStore.get(eid);
-  if (!gauge) {
+function fillPixelCappedRect(
+  graphics: PIXI.Graphics,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  leftRadius: number,
+  rightRadius: number,
+  fill: number | { color: number; alpha?: number },
+): void {
+  if (width <= 0 || height <= 0) {
     return;
   }
 
-  gauge.removeFromParent();
-  gauge.destroy();
-  entityGaugeStore.delete(eid);
+  const maxVerticalRadius = Math.floor((height - 1) / 2);
+  let effectiveLeftRadius = Math.max(
+    0,
+    Math.min(leftRadius, maxVerticalRadius),
+  );
+  let effectiveRightRadius = Math.max(
+    0,
+    Math.min(rightRadius, maxVerticalRadius),
+  );
+  const maxHorizontalInset = Math.max(0, width - 1);
+  const totalRadius = effectiveLeftRadius + effectiveRightRadius;
+
+  if (totalRadius > maxHorizontalInset && totalRadius > 0) {
+    const scale = maxHorizontalInset / totalRadius;
+    effectiveLeftRadius = Math.floor(effectiveLeftRadius * scale);
+    effectiveRightRadius = Math.floor(effectiveRightRadius * scale);
+  }
+
+  if (effectiveLeftRadius === 0 && effectiveRightRadius === 0) {
+    graphics.rect(x, y, width, height).fill(fill);
+    return;
+  }
+
+  for (let row = 0; row < height; row += 1) {
+    const { startX, endX } = getPixelCappedRowSpan(
+      width,
+      height,
+      effectiveLeftRadius,
+      effectiveRightRadius,
+      row,
+    );
+    const rowWidth = endX - startX;
+
+    if (rowWidth <= 0) {
+      continue;
+    }
+
+    graphics.rect(x + startX, y + row, rowWidth, 1).fill(fill);
+  }
+}
+
+function getPixelCappedRowSpan(
+  width: number,
+  height: number,
+  leftRadius: number,
+  rightRadius: number,
+  row: number,
+): {
+  startX: number;
+  endX: number;
+} {
+  const maxVerticalRadius = Math.floor((height - 1) / 2);
+  let effectiveLeftRadius = Math.max(
+    0,
+    Math.min(leftRadius, maxVerticalRadius),
+  );
+  let effectiveRightRadius = Math.max(
+    0,
+    Math.min(rightRadius, maxVerticalRadius),
+  );
+  const maxHorizontalInset = Math.max(0, width - 1);
+  const totalRadius = effectiveLeftRadius + effectiveRightRadius;
+
+  if (totalRadius > maxHorizontalInset && totalRadius > 0) {
+    const scale = maxHorizontalInset / totalRadius;
+    effectiveLeftRadius = Math.floor(effectiveLeftRadius * scale);
+    effectiveRightRadius = Math.floor(effectiveRightRadius * scale);
+  }
+
+  const distanceFromNearestEdge = Math.min(row, height - 1 - row);
+  const startX = Math.max(0, effectiveLeftRadius - distanceFromNearestEdge);
+  const endX = Math.max(
+    startX,
+    width - Math.max(0, effectiveRightRadius - distanceFromNearestEdge),
+  );
+
+  return {
+    startX,
+    endX,
+  };
+}
+
+function fillPixelRoundedRect(
+  graphics: PIXI.Graphics,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+  fill: number | { color: number; alpha?: number },
+): void {
+  fillPixelCappedRect(graphics, x, y, width, height, radius, radius, fill);
+}
+
+function fillPixelBottomCappedRect(
+  graphics: PIXI.Graphics,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  bottomLeftRadius: number,
+  bottomRightRadius: number,
+  fill: number | { color: number; alpha?: number },
+): void {
+  if (width <= 0 || height <= 0) {
+    return;
+  }
+
+  for (let row = 0; row < height; row += 1) {
+    const { startX, endX } = getPixelBottomRoundedRowSpan(
+      width,
+      height,
+      bottomLeftRadius,
+      bottomRightRadius,
+      row,
+    );
+    const rowWidth = endX - startX;
+
+    if (rowWidth <= 0) {
+      continue;
+    }
+
+    graphics.rect(x + startX, y + row, rowWidth, 1).fill(fill);
+  }
+}
+
+function fillPixelBottomRoundedRect(
+  graphics: PIXI.Graphics,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+  fill: number | { color: number; alpha?: number },
+): void {
+  fillPixelBottomCappedRect(
+    graphics,
+    x,
+    y,
+    width,
+    height,
+    radius,
+    radius,
+    fill,
+  );
+}
+
+function getPixelBottomRoundedRowSpan(
+  width: number,
+  height: number,
+  bottomLeftRadius: number,
+  bottomRightRadius: number,
+  row: number,
+): {
+  startX: number;
+  endX: number;
+} {
+  const distanceFromBottom = height - 1 - row;
+  let leftInset = Math.max(0, bottomLeftRadius - distanceFromBottom);
+  let rightInset = Math.max(0, bottomRightRadius - distanceFromBottom);
+  const maxHorizontalInset = Math.max(0, width - 1);
+  const totalInset = leftInset + rightInset;
+
+  if (totalInset > maxHorizontalInset && totalInset > 0) {
+    const scale = maxHorizontalInset / totalInset;
+    leftInset = Math.floor(leftInset * scale);
+    rightInset = Math.floor(rightInset * scale);
+  }
+
+  return {
+    startX: leftInset,
+    endX: Math.max(leftInset, width - rightInset),
+  };
+}
+
+function drawPixelRoundedFrame(
+  graphics: PIXI.Graphics,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  thickness: number,
+  bottomRadius: number,
+  fill: number | { color: number; alpha?: number },
+): void {
+  if (width <= 0 || height <= 0 || thickness <= 0) {
+    return;
+  }
+
+  const innerWidth = Math.max(0, width - thickness * 2);
+  const innerHeight = Math.max(0, height - thickness * 2);
+  const innerBottomRadius = Math.max(0, bottomRadius - 1);
+
+  for (let row = 0; row < height; row += 1) {
+    const outerSpan = getPixelBottomRoundedRowSpan(
+      width,
+      height,
+      bottomRadius,
+      bottomRadius,
+      row,
+    );
+    const outerWidth = outerSpan.endX - outerSpan.startX;
+
+    if (outerWidth <= 0) {
+      continue;
+    }
+
+    if (
+      row < thickness ||
+      row >= height - thickness ||
+      innerWidth <= 0 ||
+      innerHeight <= 0
+    ) {
+      graphics.rect(x + outerSpan.startX, y + row, outerWidth, 1).fill(fill);
+      continue;
+    }
+
+    const innerRow = row - thickness;
+    const innerSpan = getPixelBottomRoundedRowSpan(
+      innerWidth,
+      innerHeight,
+      innerBottomRadius,
+      innerBottomRadius,
+      innerRow,
+    );
+    const innerStartX = thickness + innerSpan.startX;
+    const innerEndX = thickness + innerSpan.endX;
+    const leftWidth = innerStartX - outerSpan.startX;
+    const rightWidth = outerSpan.endX - innerEndX;
+
+    if (leftWidth > 0) {
+      graphics.rect(x + outerSpan.startX, y + row, leftWidth, 1).fill(fill);
+    }
+
+    if (rightWidth > 0) {
+      graphics.rect(x + innerEndX, y + row, rightWidth, 1).fill(fill);
+    }
+  }
+}
+
+function getOrCreateRenderState(
+  stage: PIXI.Container,
+): StaminaGaugeRenderState {
+  if (staminaGaugeRenderState) {
+    return staminaGaugeRenderState;
+  }
+
+  const container = new PIXI.Container();
+  const background = new PIXI.Graphics();
+  const fill = new PIXI.Graphics();
+
+  container.eventMode = "none";
+  background.eventMode = "none";
+  fill.eventMode = "none";
+  background.roundPixels = true;
+  fill.roundPixels = true;
+  container.addChild(background);
+  container.addChild(fill);
+
+  stage.addChild(container);
+
+  staminaGaugeRenderState = {
+    container,
+    background,
+    fill,
+  };
+
+  return staminaGaugeRenderState;
+}
+
+function drawGaugeBackground(
+  graphics: PIXI.Graphics,
+  gaugeWidth: number,
+  gaugeHeight: number,
+): {
+  trackX: number;
+  trackY: number;
+  trackWidth: number;
+  trackHeight: number;
+} {
+  const trackInset = GAUGE_BORDER_THICKNESS;
+  const trackX = trackInset;
+  const trackY = trackInset;
+  const trackWidth = Math.max(1, gaugeWidth - trackInset * 2);
+  const trackHeight = Math.max(1, gaugeHeight - trackInset * 2);
+  const trackBottomRadius = Math.max(0, GAUGE_BORDER_BOTTOM_CORNER_RADIUS - 1);
+
+  graphics.clear();
+  fillPixelBottomRoundedRect(
+    graphics,
+    trackX,
+    trackY,
+    trackWidth,
+    trackHeight,
+    trackBottomRadius,
+    {
+      color: GAUGE_TRACK_BASE_COLOR,
+      alpha: GAUGE_TRACK_BASE_ALPHA,
+    },
+  );
+  drawPixelRoundedFrame(
+    graphics,
+    0,
+    0,
+    gaugeWidth,
+    gaugeHeight,
+    GAUGE_BORDER_THICKNESS,
+    GAUGE_BORDER_BOTTOM_CORNER_RADIUS,
+    GAUGE_BORDER_COLOR,
+  );
+
+  return {
+    trackX,
+    trackY,
+    trackWidth,
+    trackHeight,
+  };
+}
+
+function drawGaugeFill(
+  graphics: PIXI.Graphics,
+  stamina: number,
+  maxStamina: number,
+  trackX: number,
+  trackY: number,
+  trackWidth: number,
+  trackHeight: number,
+): void {
+  const fillColor = getGaugeFillColor(stamina);
+  const fillBottomRadius = Math.max(0, GAUGE_BORDER_BOTTOM_CORNER_RADIUS - 1);
+  const fillWidth = Math.max(
+    0,
+    Math.round(clampUnitInterval(stamina / maxStamina) * trackWidth),
+  );
+  const fillRightBottomRadius = fillWidth >= trackWidth ? fillBottomRadius : 0;
+
+  graphics.clear();
+
+  if (fillWidth <= 0) {
+    return;
+  }
+
+  fillPixelBottomCappedRect(
+    graphics,
+    trackX,
+    trackY,
+    fillWidth,
+    trackHeight,
+    fillBottomRadius,
+    fillRightBottomRadius,
+    fillColor,
+  );
+
+  if (trackHeight > 1) {
+    fillPixelCappedRect(
+      graphics,
+      trackX,
+      trackY,
+      fillWidth,
+      Math.min(GAUGE_HIGHLIGHT_HEIGHT, trackHeight),
+      0,
+      0,
+      {
+        color: GAUGE_FILL_HIGHLIGHT_COLOR,
+        alpha: GAUGE_FILL_HIGHLIGHT_ALPHA,
+      },
+    );
+  }
 }
 
 export function cleanupStaminaGaugeRenderState(): void {
-  entityGaugeStore.forEach((gauge) => {
-    gauge.removeFromParent();
-    gauge.destroy();
-  });
-  entityGaugeStore.clear();
+  if (!staminaGaugeRenderState) {
+    return;
+  }
+
+  staminaGaugeRenderState.container.removeFromParent();
+  staminaGaugeRenderState.container.destroy({ children: true });
+  staminaGaugeRenderState = null;
 }
 
 export function staminaGaugeRenderSystem(params: {
@@ -123,86 +458,42 @@ export function staminaGaugeRenderSystem(params: {
   delta: number;
 }): typeof params {
   const { world } = params;
-  const exitedEntities = staminaGaugeExitQuery(world);
+  const characterEid = findMainCharacterEntity(world);
 
-  for (let i = 0; i < exitedEntities.length; i++) {
-    removeGauge(exitedEntities[i]);
+  if (characterEid === -1) {
+    if (staminaGaugeRenderState) {
+      staminaGaugeRenderState.container.visible = false;
+    }
+
+    return params;
   }
 
-  const entities = staminaGaugeQuery(world);
-  const activeGaugeEntities = new Set<number>();
+  const gaugeWidth = Math.max(
+    48,
+    Math.round(world.positionBoundary.width + world.positionBoundary.x * 2),
+  );
+  const gaugeHeight = GAUGE_HEIGHT;
+  const gaugeState = getOrCreateRenderState(world.stage);
 
-  for (let i = 0; i < entities.length; i++) {
-    const eid = entities[i];
+  gaugeState.container.visible = true;
+  gaugeState.container.position.set(0, 0);
+  gaugeState.container.zIndex = world.positionBoundary.y - GAUGE_Z_INDEX_OFFSET;
 
-    if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
-      removeGauge(eid);
-      continue;
-    }
+  const { trackX, trackY, trackWidth, trackHeight } = drawGaugeBackground(
+    gaugeState.background,
+    gaugeWidth,
+    gaugeHeight,
+  );
 
-    if (RenderComp.textureKey[eid] === TextureKey.TOMB) {
-      removeGauge(eid);
-      continue;
-    }
-
-    const bounds = getCharacterWorldBounds(eid);
-    if (bounds.width <= 0 || bounds.height <= 0) {
-      removeGauge(eid);
-      continue;
-    }
-
-    const gauge = getOrCreateGauge(eid, world.stage);
-    const gaugeWidth = getStaminaGaugeWidth(bounds.width);
-    const gaugeRatio = getStaminaGaugeFillRatio(CharacterStatusComp.stamina[eid]);
-    const fillWidth = gaugeWidth * gaugeRatio;
-    const radius = STAMINA_GAUGE_HEIGHT / 2;
-
-    gauge.clear();
-    gauge
-      .roundRect(
-        -gaugeWidth / 2,
-        -STAMINA_GAUGE_HEIGHT / 2,
-        gaugeWidth,
-        STAMINA_GAUGE_HEIGHT,
-        radius,
-      )
-      .fill({
-        color: STAMINA_GAUGE_TRACK_COLOR,
-        alpha: STAMINA_GAUGE_TRACK_ALPHA,
-      })
-      .stroke({
-        color: STAMINA_GAUGE_BORDER_COLOR,
-        alpha: STAMINA_GAUGE_BORDER_ALPHA,
-        width: 1,
-      });
-
-    if (fillWidth > 0) {
-      gauge
-        .rect(
-          -gaugeWidth / 2,
-          -STAMINA_GAUGE_HEIGHT / 2,
-          fillWidth,
-          STAMINA_GAUGE_HEIGHT,
-        )
-        .fill({ color: getStaminaGaugeFillColor(CharacterStatusComp.stamina[eid]) });
-    }
-
-    gauge.position.set(
-      PositionComp.x[eid],
-      clampStaminaGaugeY(world, bounds.topY - STAMINA_GAUGE_Y_OFFSET),
-    );
-    gauge.zIndex = getEffectiveCharacterZIndex(eid) - 1;
-    gauge.visible = true;
-    activeGaugeEntities.add(eid);
-  }
-
-  const trackedEids = Array.from(entityGaugeStore.keys());
-  for (let i = 0; i < trackedEids.length; i++) {
-    const eid = trackedEids[i];
-    if (!activeGaugeEntities.has(eid)) {
-      removeGauge(eid);
-    }
-  }
+  drawGaugeFill(
+    gaugeState.fill,
+    CharacterStatusComp.stamina[characterEid],
+    GAME_CONSTANTS.MAX_STAMINA,
+    trackX,
+    trackY,
+    trackWidth,
+    trackHeight,
+  );
 
   return params;
 }

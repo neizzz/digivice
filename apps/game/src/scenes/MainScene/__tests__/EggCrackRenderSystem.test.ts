@@ -117,6 +117,7 @@ test("egg hatch progress와 crack stage는 임계값에 맞춰 clamp된다", () 
     getEggHatchProgress({
       currentTime: 500,
       hatchTime: 1_000,
+      hatchDurationMs: 1_000,
     }),
     0.5,
   );
@@ -187,15 +188,16 @@ test("egg crack overlay는 frame bounds 안에 머물고 stage 0 또는 non-egg�
     const crack = overlay.children[0] as PIXI.Graphics;
     const mask = overlay.children[1] as PIXI.Sprite;
     const crackBounds = crack.getLocalBounds();
-    const maskBounds = mask.getLocalBounds();
+    const eggBounds = baseSprite.getLocalBounds();
 
-    assert.ok(crackBounds.x >= maskBounds.x);
-    assert.ok(crackBounds.y >= maskBounds.y);
+    assert.ok(mask instanceof PIXI.Sprite);
+    assert.ok(crackBounds.x >= eggBounds.x);
+    assert.ok(crackBounds.y >= eggBounds.y);
     assert.ok(
-      crackBounds.x + crackBounds.width <= maskBounds.x + maskBounds.width,
+      crackBounds.x + crackBounds.width <= eggBounds.x + eggBounds.width,
     );
     assert.ok(
-      crackBounds.y + crackBounds.height <= maskBounds.y + maskBounds.height,
+      crackBounds.y + crackBounds.height <= eggBounds.y + eggBounds.height,
     );
 
     eggCrackRenderSystem({

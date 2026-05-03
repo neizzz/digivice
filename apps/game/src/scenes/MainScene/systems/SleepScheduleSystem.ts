@@ -1,6 +1,7 @@
 import { addComponent, defineQuery, hasComponent } from "bitecs";
 import {
   CharacterStatusComp,
+  DestinationComp,
   ObjectComp,
   RandomMovementComp,
   SleepSystemComp,
@@ -10,6 +11,7 @@ import { GAME_CONSTANTS } from "../config";
 import {
   CharacterState,
   CharacterStatus,
+  DestinationType,
   ObjectType,
   SleepMode,
   SleepReason,
@@ -68,7 +70,7 @@ export function sleepScheduleSystem(params: {
     reconcileExternalSleepExit(eid, currentTime, currentTimeOfDay);
     handleScheduledWake(world, eid, currentTime);
     handleNightWakeChecks(world, eid, currentTime, currentTimeOfDay);
-    handleScheduledSleep(eid, currentTime, currentTimeOfDay);
+    handleScheduledSleep(world, eid, currentTime, currentTimeOfDay);
     handleDayNapChecks(world, eid, currentTime, currentTimeOfDay);
     handleNapWake(world, eid, currentTime, currentTimeOfDay);
   }
@@ -208,8 +210,7 @@ function updateFatigue(eid: number, delta: number): void {
   const sleepRecoveryPerMillisecond =
     (isSick
       ? GAME_CONSTANTS.FATIGUE_SLEEP_RECOVERY_PER_HOUR_WHEN_SICK
-      : GAME_CONSTANTS.FATIGUE_SLEEP_RECOVERY_PER_HOUR) /
-    HOUR_IN_MILLISECONDS;
+      : GAME_CONSTANTS.FATIGUE_SLEEP_RECOVERY_PER_HOUR) / HOUR_IN_MILLISECONDS;
 
   const nextFatigue = isSleeping
     ? currentFatigue - delta * sleepRecoveryPerMillisecond
@@ -326,6 +327,7 @@ function handleNightWakeChecks(
 }
 
 function handleScheduledSleep(
+  world: MainSceneWorld,
   eid: number,
   currentTime: number,
   currentTimeOfDay: TimeOfDay,
@@ -345,7 +347,7 @@ function handleScheduledSleep(
     }
   }
 
-  if (!canEnterSleep(eid)) {
+  if (!canEnterSleep(world, eid)) {
     return;
   }
 
@@ -381,11 +383,7 @@ function handleDayNapChecks(
       GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL;
 
     const fatigue = SleepSystemComp.fatigue[eid];
-    const fatigueRatio = clamp(
-      fatigue / GAME_CONSTANTS.FATIGUE_MAX,
-      0,
-      1,
-    );
+    const fatigueRatio = clamp(fatigue / GAME_CONSTANTS.FATIGUE_MAX, 0, 1);
     const fatigueMultiplier = 0.5 + fatigueRatio;
     const baseChance = GAME_CONSTANTS.DAY_NAP_CHANCE;
     const appliedChance = getDayNapChance(eid);
@@ -414,7 +412,7 @@ function handleDayNapChecks(
       SleepSystemComp.nextSleepTime[eid] = currentTime;
       SleepSystemComp.pendingSleepReason[eid] = SleepReason.NAP;
 
-      if (canEnterSleep(eid)) {
+      if (canEnterSleep(world, eid)) {
         enterSleep(eid, currentTime, SleepMode.DAY_NAP);
       }
       break;
@@ -442,17 +440,13 @@ function handleNapWake(
   }
 
   const elapsed = currentTime - SleepSystemComp.sleepSessionStartedAt[eid];
-  const hasReachedMinDuration =
-    elapsed >= GAME_CONSTANTS.DAY_NAP_MIN_DURATION;
+  const hasReachedMinDuration = elapsed >= GAME_CONSTANTS.DAY_NAP_MIN_DURATION;
   const hasRecoveredEnough =
-    SleepSystemComp.fatigue[eid] <= GAME_CONSTANTS.FATIGUE_DAY_NAP_WAKE_THRESHOLD;
-  const hasReachedMaxDuration =
-    elapsed >= GAME_CONSTANTS.DAY_NAP_MAX_DURATION;
+    SleepSystemComp.fatigue[eid] <=
+    GAME_CONSTANTS.FATIGUE_DAY_NAP_WAKE_THRESHOLD;
+  const hasReachedMaxDuration = elapsed >= GAME_CONSTANTS.DAY_NAP_MAX_DURATION;
 
-  if (
-    hasReachedMaxDuration ||
-    (hasReachedMinDuration && hasRecoveredEnough)
-  ) {
+  if (hasReachedMaxDuration || (hasReachedMinDuration && hasRecoveredEnough)) {
     wakeCharacter(world, eid, currentTime);
   }
 }
@@ -574,11 +568,7 @@ function scheduleResleep(eid: number, currentTime: number): void {
   SleepSystemComp.pendingSleepReason[eid] = SleepReason.RESLEEP;
 }
 
-function enterSleep(
-  eid: number,
-  currentTime: number,
-  mode: SleepMode,
-): void {
+function enterSleep(eid: number, currentTime: number, mode: SleepMode): void {
   const reservedWakeTime =
     mode === SleepMode.NIGHT_SLEEP ? SleepSystemComp.nextWakeTime[eid] : 0;
   const reservedWakeReason =
@@ -647,12 +637,18 @@ function ensureNightWakeCheckTime(eid: number, currentTime: number): void {
     currentTime + GAME_CONSTANTS.NIGHT_WAKE_CHECK_INTERVAL;
 }
 
-function canEnterSleep(eid: number): boolean {
+function canEnterSleep(world: MainSceneWorld, eid: number): boolean {
   const state = ObjectComp.state[eid];
+  const isMovingToTargetedFood =
+    hasComponent(world, DestinationComp, eid) &&
+    DestinationComp.type[eid] === DestinationType.TARGETED &&
+    DestinationComp.target[eid] !== 0;
+
   return (
     state !== CharacterState.EGG &&
     state !== CharacterState.DEAD &&
-    state !== CharacterState.EATING
+    state !== CharacterState.EATING &&
+    !isMovingToTargetedFood
   );
 }
 
@@ -663,10 +659,7 @@ function getDayNapChance(eid: number): number {
     1,
   );
 
-  return Math.min(
-    1,
-    GAME_CONSTANTS.DAY_NAP_CHANCE * (0.5 + fatigueRatio),
-  );
+  return Math.min(1, GAME_CONSTANTS.DAY_NAP_CHANCE * (0.5 + fatigueRatio));
 }
 
 function hasStatus(eid: number, status: CharacterStatus): boolean {
