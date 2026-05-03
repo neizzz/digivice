@@ -65,6 +65,7 @@ export const SetupLayer: React.FC<SetupLayerProps> = ({ onComplete }) => {
       <PopupLayer
         title="Spawn Monster!"
         keyboardAwareTargetRef={nameInputRef}
+        dividerBorderClassName="border-[#555]"
         content={
           <div className="flex flex-col items-center gap-4">
             <div className="w-full">
@@ -76,15 +77,15 @@ export const SetupLayer: React.FC<SetupLayerProps> = ({ onComplete }) => {
                   setName(e.target.value);
                   setError(null);
                 }}
-                placeholder="Monster Name"
-                className="w-full border-2 border-[#222] px-3 py-0.5 text-center text-[1.5rem] focus:outline-none focus:ring-2 focus:ring-[#d95763]"
+                placeholder="monster name"
+                className="w-full border-2 border-[#222] px-3 py-0.5 text-center text-[1.4rem] focus:outline-none focus:ring-2 focus:ring-[#d95763]"
               />
               <div
-                className={`mt-4 text-xs ${
+                className={`mt-4 text-[1.4rem] ${
                   isWithinVisibleWidth ? "text-gray-600" : "text-red-600"
                 }`}
               >
-                Name width: {Math.round(nameWidth)}/{NAME_LABEL_MAX_WIDTH}px
+                name width: {Math.round(nameWidth)}/{NAME_LABEL_MAX_WIDTH}px
               </div>
               {error && (
                 <p className="mt-4 text-component-negative text-[0.7em]">

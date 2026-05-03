@@ -7,6 +7,7 @@ interface PopupProps {
   title: string;
   content: React.ReactNode;
   topLeftContent?: React.ReactNode;
+  dividerBorderClassName?: string;
   onConfirm?: () => void;
   onCancel?: () => void;
   confirmText?: string;
@@ -40,6 +41,7 @@ const PopupLayer: React.FC<PopupProps> = ({
   title = "Alert!",
   content,
   topLeftContent,
+  dividerBorderClassName = "border-[#222]",
   onConfirm,
   onCancel,
   confirmText = "Confirm",
@@ -433,11 +435,15 @@ const PopupLayer: React.FC<PopupProps> = ({
         {topLeftContent ? (
           <div className="absolute left-2 top-2 z-[1]">{topLeftContent}</div>
         ) : null}
-        <div className="mb-[15px] border-b-4 border-[#222] pb-[10px] text-[1.8rem] leading-[1.2] font-display font-bold text-component-negative">
+        <div
+          className={`mb-[15px] border-b-4 pb-[10px] text-[1.8rem] leading-[1.2] font-display font-bold text-component-negative ${dividerBorderClassName}`}
+        >
           {title}
         </div>
         <div className="pb-4 text-[1.4rem] leading-[1.6]">{content}</div>
-        <div className="flex justify-center gap-[15px] border-t-4 border-[#222] pt-4">
+        <div
+          className={`flex justify-center gap-[15px] border-t-4 pt-4 ${dividerBorderClassName}`}
+        >
           {onCancel && (
             <button
               ref={cancelButtonRef}
