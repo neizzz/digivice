@@ -79,27 +79,34 @@ const FLAPPY_BIRD_TUTORIAL_SCORE_LIMIT = 5;
 const FLAPPY_BIRD_SPEED_STEP_TWO_SCORE_LIMIT = 20;
 const FLAPPY_BIRD_ENDGAME_SCORE_LIMIT = 40;
 const FLAPPY_BIRD_MAX_DIFFICULTY_SCORE = 30;
+const FLAPPY_BIRD_PIPE_SPAWN_INTERVAL_SCALE = 0.72;
+const FLAPPY_BIRD_BGM_REFERENCE_PIPE_SPEED = 3.8;
+
+function reduceFlappyBirdPipeSpawnInterval(intervalMs: number): number {
+  return Math.round(intervalMs * FLAPPY_BIRD_PIPE_SPAWN_INTERVAL_SCALE);
+}
+
 const FLAPPY_BIRD_TUTORIAL_DIFFICULTY: FlappyBirdDifficultyState = {
-  pipeSpeed: 3.6,
-  pipeSpawnInterval: 2740,
+  pipeSpeed: 4,
+  pipeSpawnInterval: reduceFlappyBirdPipeSpawnInterval(2740),
   passageHeightMinRatio: 0.35,
   passageHeightMaxRatio: 0.45,
 };
 const FLAPPY_BIRD_BASE_DIFFICULTY: FlappyBirdDifficultyState = {
-  pipeSpeed: 3.8,
-  pipeSpawnInterval: 2480,
+  pipeSpeed: 4.6,
+  pipeSpawnInterval: reduceFlappyBirdPipeSpawnInterval(2480),
   passageHeightMinRatio: 0.35,
   passageHeightMaxRatio: 0.35,
 };
 const FLAPPY_BIRD_MAX_DIFFICULTY: FlappyBirdDifficultyState = {
-  pipeSpeed: 4,
-  pipeSpawnInterval: 2025,
+  pipeSpeed: 5,
+  pipeSpawnInterval: reduceFlappyBirdPipeSpawnInterval(2025),
   passageHeightMinRatio: 0.3,
   passageHeightMaxRatio: 0.3,
 };
 const FLAPPY_BIRD_ENDGAME_DIFFICULTY: FlappyBirdDifficultyState = {
-  pipeSpeed: 4,
-  pipeSpawnInterval: 2025,
+  pipeSpeed: 5.4,
+  pipeSpawnInterval: reduceFlappyBirdPipeSpawnInterval(2025),
   passageHeightMinRatio: 0.28,
   passageHeightMaxRatio: 0.3,
 };
@@ -127,8 +134,8 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
   // 게임 상태 및 설정
   private gameState: GameState = GameState.READY;
   private gameOptions: GameOptions = {
-    pipeSpeed: 3.6,
-    pipeSpawnInterval: 2740,
+    pipeSpeed: 4,
+    pipeSpawnInterval: reduceFlappyBirdPipeSpawnInterval(2740),
     jumpVelocity: 7,
   };
   private skyContext: FlappyBirdSkyContext | null = null;
@@ -516,6 +523,9 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
     });
     this.groundManager.setSpeed(difficulty.pipeSpeed);
     this.cloudManager.setSpeed(difficulty.pipeSpeed);
+    this.bgmController.setTempoMultiplier(
+      this.resolveBgmTempoMultiplier(difficulty.pipeSpeed),
+    );
   }
 
   private resolveDifficultyState(score: number): FlappyBirdDifficultyState {
@@ -580,6 +590,10 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
     }
 
     return FLAPPY_BIRD_ENDGAME_DIFFICULTY.pipeSpeed;
+  }
+
+  private resolveBgmTempoMultiplier(pipeSpeed: number): number {
+    return Math.max(0.5, pipeSpeed / FLAPPY_BIRD_BGM_REFERENCE_PIPE_SPEED);
   }
 
   private interpolateNumber(

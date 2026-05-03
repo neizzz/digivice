@@ -8,13 +8,14 @@ const FLAPPY_BIRD_BGM_STEP_DURATION_S =
   60 / FLAPPY_BIRD_BGM_BPM / FLAPPY_BIRD_BGM_STEPS_PER_BEAT;
 const FLAPPY_BIRD_BGM_SCHEDULE_AHEAD_S = 0.12;
 const FLAPPY_BIRD_BGM_SCHEDULER_INTERVAL_MS = 25;
-const FLAPPY_BIRD_BGM_MASTER_GAIN = 0.055;
-const FLAPPY_BIRD_SFX_GAIN = 0.085;
+const FLAPPY_BIRD_BGM_MASTER_GAIN = 0.066;
+const FLAPPY_BIRD_SFX_GAIN = 0.102;
 const FLAPPY_BIRD_BGM_ATTACK_S = 0.02;
 const FLAPPY_BIRD_BGM_RELEASE_S = 0.08;
 const FLAPPY_BIRD_PIPE_PASS_CUE_ATTACK_S = 0.004;
 const FLAPPY_BIRD_PIPE_PASS_CUE_RELEASE_S = 0.12;
 const FLAPPY_BIRD_COUNTDOWN_CUE_DURATION_S = 0.09;
+const FLAPPY_BIRD_BGM_TEMPO_TRANSITION_MS = 520;
 
 const FLAPPY_BIRD_BGM_LEAD_PATTERN: Array<number | null> = [
   76, 79, 81, 79, 76, 79, 83, 79, 74, 77, 81, 77, 74, 77, 79, 77,
@@ -55,6 +56,23 @@ function midiToFrequency(midi: number): number {
   return 440 * Math.pow(2, (midi - 69) / 12);
 }
 
+function smoothTempoMultiplier(
+  current: number,
+  target: number,
+  elapsedMs: number,
+): number {
+  if (!Number.isFinite(current) || !Number.isFinite(target)) {
+    return target;
+  }
+
+  if (Math.abs(target - current) < 0.001) {
+    return target;
+  }
+
+  const alpha = 1 - Math.exp(-Math.max(0, elapsedMs) / FLAPPY_BIRD_BGM_TEMPO_TRANSITION_MS);
+  return current + (target - current) * alpha;
+}
+
 export class FlappyBirdBgmController {
   private audioContext: AudioContext | null = null;
   private masterGain: GainNode | null = null;
@@ -66,6 +84,9 @@ export class FlappyBirdBgmController {
   private isDestroyed = false;
   private enabled = true;
   private sfxEnabled = true;
+  private currentTempoMultiplier = 1;
+  private targetTempoMultiplier = 1;
+  private lastTempoUpdateAtMs = 0;
 
   public isEnabled(): boolean {
     return this.enabled;
@@ -89,6 +110,16 @@ export class FlappyBirdBgmController {
 
   public setSfxEnabled(enabled: boolean): void {
     this.sfxEnabled = enabled;
+  }
+
+  public setTempoMultiplier(tempoMultiplier: number): void {
+    this.targetTempoMultiplier = Number.isFinite(tempoMultiplier)
+      ? Math.max(0.5, tempoMultiplier)
+      : 1;
+
+    if (!this.isPlaying) {
+      this.currentTempoMultiplier = this.targetTempoMultiplier;
+    }
   }
 
   public async startFromGesture(): Promise<void> {
@@ -129,14 +160,14 @@ export class FlappyBirdBgmController {
       frequency: baseFrequency,
       time: now,
       duration: 0.08,
-      peakGain: hasNearMissBonus ? 0.16 : 0.12,
+      peakGain: hasNearMissBonus ? 0.192 : 0.144,
     });
     this.scheduleEffectVoice({
       waveform: "triangle",
       frequency: accentFrequency,
       time: now + 0.024,
       duration: 0.1,
-      peakGain: hasNearMissBonus ? 0.1 : 0.075,
+      peakGain: hasNearMissBonus ? 0.12 : 0.09,
     });
   }
 
@@ -170,14 +201,14 @@ export class FlappyBirdBgmController {
       frequency: baseFrequency,
       time: now,
       duration: FLAPPY_BIRD_COUNTDOWN_CUE_DURATION_S,
-      peakGain: 0.085,
+      peakGain: 0.102,
     });
     this.scheduleEffectVoice({
       waveform: "triangle",
       frequency: accentFrequency,
       time: now + 0.018,
       duration: FLAPPY_BIRD_COUNTDOWN_CUE_DURATION_S,
-      peakGain: 0.05,
+      peakGain: 0.06,
     });
   }
 
@@ -283,6 +314,8 @@ export class FlappyBirdBgmController {
 
     this.isPlaying = true;
     this.currentStep = 0;
+    this.currentTempoMultiplier = this.targetTempoMultiplier;
+    this.lastTempoUpdateAtMs = this.getNowMs();
     this.nextStepTime = this.audioContext.currentTime + 0.03;
 
     const now = this.audioContext.currentTime;
@@ -305,6 +338,10 @@ export class FlappyBirdBgmController {
       return;
     }
 
+    this.updateTempoMultiplier();
+
+    const stepDuration = this.getStepDuration();
+
     while (
       this.nextStepTime <
       this.audioContext.currentTime + FLAPPY_BIRD_BGM_SCHEDULE_AHEAD_S
@@ -312,11 +349,12 @@ export class FlappyBirdBgmController {
       this.scheduleStep(this.currentStep, this.nextStepTime);
       this.currentStep =
         (this.currentStep + 1) % FLAPPY_BIRD_BGM_LEAD_PATTERN.length;
-      this.nextStepTime += FLAPPY_BIRD_BGM_STEP_DURATION_S;
+      this.nextStepTime += stepDuration;
     }
   }
 
   private scheduleStep(step: number, time: number): void {
+    const stepDuration = this.getStepDuration();
     const leadMidi = FLAPPY_BIRD_BGM_LEAD_PATTERN[step];
     const bassMidi = FLAPPY_BIRD_BGM_BASS_PATTERN[step];
 
@@ -325,7 +363,7 @@ export class FlappyBirdBgmController {
         waveform: "square",
         frequency: midiToFrequency(leadMidi),
         time,
-        duration: FLAPPY_BIRD_BGM_STEP_DURATION_S * 0.9,
+        duration: stepDuration * 0.9,
         peakGain: 0.14,
       });
     }
@@ -335,10 +373,31 @@ export class FlappyBirdBgmController {
         waveform: "triangle",
         frequency: midiToFrequency(bassMidi),
         time,
-        duration: FLAPPY_BIRD_BGM_STEP_DURATION_S * 1.8,
+        duration: stepDuration * 1.8,
         peakGain: 0.12,
       });
     }
+  }
+
+  private getStepDuration(): number {
+    return FLAPPY_BIRD_BGM_STEP_DURATION_S / this.currentTempoMultiplier;
+  }
+
+  private updateTempoMultiplier(): void {
+    const nowMs = this.getNowMs();
+    const elapsedMs =
+      this.lastTempoUpdateAtMs > 0 ? nowMs - this.lastTempoUpdateAtMs : 0;
+
+    this.lastTempoUpdateAtMs = nowMs;
+    this.currentTempoMultiplier = smoothTempoMultiplier(
+      this.currentTempoMultiplier,
+      this.targetTempoMultiplier,
+      elapsedMs,
+    );
+  }
+
+  private getNowMs(): number {
+    return typeof performance !== "undefined" ? performance.now() : Date.now();
   }
 
   private scheduleVoice(params: {

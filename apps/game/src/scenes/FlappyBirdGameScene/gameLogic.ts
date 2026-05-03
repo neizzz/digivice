@@ -20,6 +20,7 @@ const FLAPPY_BIRD_CLOUD_MAX_HEIGHT_RATIO = 0.72;
 const FLAPPY_BIRD_NEAR_MISS_CLEARANCE_RATIO = 0.25;
 const FLAPPY_BIRD_BASE_FRAME_MS = 1000 / 60;
 const FLAPPY_BIRD_MAX_FRAME_SCALE = 1.25;
+const FLAPPY_BIRD_SPEED_TRANSITION_MS = 140;
 
 type CloudSprite = PIXI.Sprite & {
   __flappyCloudAlphaVariance?: number;
@@ -38,6 +39,23 @@ function resolveFrameScale(deltaTime: number): number {
   );
 }
 
+function smoothFlappyBirdSpeed(
+  current: number,
+  target: number,
+  deltaTime: number,
+): number {
+  if (!Number.isFinite(current) || !Number.isFinite(target)) {
+    return target;
+  }
+
+  if (Math.abs(target - current) < 0.001) {
+    return target;
+  }
+
+  const alpha = 1 - Math.exp(-Math.max(0, deltaTime) / FLAPPY_BIRD_SPEED_TRANSITION_MS);
+  return current + (target - current) * alpha;
+}
+
 /**
  * 배경 구름 관리 클래스
  */
@@ -47,6 +65,7 @@ export class CloudManager {
   private cloudTextures: PIXI.Texture[] = [];
   private clouds: PIXI.Sprite[] = [];
   private speed: number;
+  private targetSpeed: number;
   private visualStyle: CloudVisualStyle = {
     alphaMin: 0.16,
     alphaMax: 0.28,
@@ -60,6 +79,7 @@ export class CloudManager {
       AssetLoader.getAssets().flappyCloudSprites?.textures ?? {},
     );
     this.speed = speed * FLAPPY_BIRD_CLOUD_SPEED_RATIO;
+    this.targetSpeed = this.speed;
   }
 
   public setup(): void {
@@ -80,6 +100,8 @@ export class CloudManager {
     if (this.cloudTextures.length === 0 || this.clouds.length === 0) {
       return;
     }
+
+    this.speed = smoothFlappyBirdSpeed(this.speed, this.targetSpeed, deltaTime);
 
     const frameScale = resolveFrameScale(deltaTime);
 
@@ -136,7 +158,7 @@ export class CloudManager {
   }
 
   public setSpeed(speed: number): void {
-    this.speed = speed * FLAPPY_BIRD_CLOUD_SPEED_RATIO;
+    this.targetSpeed = speed * FLAPPY_BIRD_CLOUD_SPEED_RATIO;
   }
 
   public setVisualStyle(style: CloudVisualStyle): void {
@@ -229,6 +251,7 @@ export class GroundManager {
   private groundTileSize = 32;
   private lastGroundTileX = 0;
   private speed: number;
+  private targetSpeed: number;
 
   constructor(
     app: PIXI.Application,
@@ -239,6 +262,7 @@ export class GroundManager {
     this.physicsManager = physicsManager;
     this.groundContainer = new PIXI.Container();
     this.speed = speed;
+    this.targetSpeed = speed;
 
     const assets = AssetLoader.getAssets();
     // 지면 타일 크기 설정
@@ -324,6 +348,8 @@ export class GroundManager {
       return;
     }
 
+    this.speed = smoothFlappyBirdSpeed(this.speed, this.targetSpeed, deltaTime);
+
     const frameScale = resolveFrameScale(deltaTime);
 
     // 모든 타일 이동
@@ -384,7 +410,7 @@ export class GroundManager {
   }
 
   public setSpeed(speed: number): void {
-    this.speed = speed;
+    this.targetSpeed = speed;
   }
 }
 
@@ -397,8 +423,10 @@ export class PipeManager {
   private pipes: PIXI.Container;
   private pipesPairs: PipePair[] = [];
   private pipeSpawnInterval: number;
+  private targetPipeSpawnInterval: number;
   private lastPipeSpawnTime = 0;
   private speed: number;
+  private targetSpeed: number;
   private groundHeight: number;
   private passageHeightMinRatio = 0.35;
   private passageHeightMaxRatio = 0.45;
@@ -413,7 +441,9 @@ export class PipeManager {
     this.app = app;
     this.physicsManager = physicsManager;
     this.speed = speed;
+    this.targetSpeed = speed;
     this.pipeSpawnInterval = spawnInterval;
+    this.targetPipeSpawnInterval = spawnInterval;
     this.groundHeight = groundHeight;
     this.pipes = new PIXI.Container();
   }
@@ -427,6 +457,12 @@ export class PipeManager {
     onScoreUpdate: (scoreDelta: number) => void,
     deltaTime: number,
   ): void {
+    this.pipeSpawnInterval = smoothFlappyBirdSpeed(
+      this.pipeSpawnInterval,
+      this.targetPipeSpawnInterval,
+      deltaTime,
+    );
+
     // 파이프 생성 로직
     if (currentTime - this.lastPipeSpawnTime > this.pipeSpawnInterval) {
       this.createPipePair();
@@ -619,6 +655,7 @@ export class PipeManager {
     onScoreUpdate: (scoreDelta: number) => void,
     deltaTime: number,
   ): void {
+    this.speed = smoothFlappyBirdSpeed(this.speed, this.targetSpeed, deltaTime);
     const movementStep = this.speed * resolveFrameScale(deltaTime);
 
     for (let i = 0; i < this.pipesPairs.length; i++) {
@@ -691,8 +728,13 @@ export class PipeManager {
     passageHeightMinRatio: number;
     passageHeightMaxRatio: number;
   }): void {
-    this.speed = options.speed;
-    this.pipeSpawnInterval = options.pipeSpawnInterval;
+    this.targetSpeed = options.speed;
+    this.targetPipeSpawnInterval = options.pipeSpawnInterval;
+
+    if (this.pipesPairs.length === 0) {
+      this.pipeSpawnInterval = options.pipeSpawnInterval;
+    }
+
     this.passageHeightMinRatio = options.passageHeightMinRatio;
     this.passageHeightMaxRatio = options.passageHeightMaxRatio;
   }
