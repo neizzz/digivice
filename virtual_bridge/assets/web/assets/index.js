@@ -27091,6 +27091,8 @@ const SparkleEffectComp = defineComponent({
 const EggHatchComp = defineComponent({
   hatchTime: Types.f64,
   // 부화할 시간 (timestamp)
+  hatchDurationMs: Types.ui32,
+  // 전체 부화 시간 (ms)
   isReadyToHatch: Types.ui8
   // 부화 준비 완료 여부 (0 = false, 1 = true)
 });
@@ -27528,6 +27530,7 @@ const PRODUCTION_BALANCE_REFERENCE = {
   NIGHT_WAKE_CHECK_INTERVAL: PRODUCTION_NIGHT_WAKE_REFERENCE.checkInterval,
   NIGHT_WAKE_PRODUCTION_PER_CHECK_CHANCE: PRODUCTION_NIGHT_WAKE_PER_CHECK_CHANCE
 };
+const BOOSTED_STAMINA_THRESHOLD = EVOLUTION_GAUGE_CONFIG.boostedStaminaThreshold;
 const PRODUCTION_GAME_CONSTANTS = {
   // 알 부화 관련
   EGG_HATCH_TIME: 30 * MINUTE_IN_MILLISECONDS$1,
@@ -27568,6 +27571,7 @@ const PRODUCTION_GAME_CONSTANTS = {
   DEATH_DELAY_CLASS_D: 30 * HOUR_IN_MILLISECONDS$1,
   // 캐릭터 스테미나 관련
   MAX_STAMINA: 10,
+  BOOSTED_STAMINA_THRESHOLD,
   // 기대값: awake 기준 12분마다 0.25 감소 -> 시간당 1.25 감소 -> 10 -> 0 약 8시간.
   STAMINA_DECREASE_INTERVAL: 12 * MINUTE_IN_MILLISECONDS$1,
   STAMINA_DECREASE_AMOUNT: 0.25,
@@ -27713,8 +27717,48 @@ function getEggHatchDelayMs$1(randomValue = Math.random()) {
     randomValue
   );
 }
-function createEggHatchTimestamp(now = Date.now(), randomValue = Math.random()) {
-  return now + getEggHatchDelayMs$1(randomValue);
+function clampProgress(value) {
+  return Math.max(0, Math.min(1, value));
+}
+function getDefaultEggHatchDurationMs() {
+  return GAME_CONSTANTS.EGG_HATCH_MODE_TIME;
+}
+function createEggHatchSchedule$1(now = Date.now(), randomValue = Math.random()) {
+  const hatchDurationMs = getEggHatchDelayMs$1(randomValue);
+  return {
+    hatchTime: now + hatchDurationMs,
+    hatchDurationMs
+  };
+}
+function getResolvedEggHatchDurationMs(hatchDurationMs) {
+  if (typeof hatchDurationMs === "number" && Number.isFinite(hatchDurationMs)) {
+    return Math.max(0, hatchDurationMs);
+  }
+  return getDefaultEggHatchDurationMs();
+}
+function getEggHatchProgress(params) {
+  const { currentTime, hatchTime } = params;
+  if (!Number.isFinite(hatchTime) || hatchTime <= 0) {
+    return 0;
+  }
+  const hatchDurationMs = getResolvedEggHatchDurationMs(params.hatchDurationMs);
+  if (hatchDurationMs <= 0) {
+    return currentTime >= hatchTime ? 1 : 0;
+  }
+  const hatchStartTime = hatchTime - hatchDurationMs;
+  return clampProgress((currentTime - hatchStartTime) / hatchDurationMs);
+}
+function getEggCrackStage(progress) {
+  if (progress >= 0.92) {
+    return 3;
+  }
+  if (progress >= 0.8) {
+    return 2;
+  }
+  if (progress >= 0.6) {
+    return 1;
+  }
+  return 0;
 }
 function getUrgentDeathDelayMsByCharacterKey(characterKey) {
   var _a;
@@ -27888,6 +27932,7 @@ function convertECSEntityToSavedEntity(world, eid) {
   if (hasComponent(world, EggHatchComp, eid)) {
     components.eggHatch = {
       hatchTime: EggHatchComp.hatchTime[eid],
+      hatchDurationMs: EggHatchComp.hatchDurationMs[eid],
       isReadyToHatch: EggHatchComp.isReadyToHatch[eid] === 1
     };
   }
@@ -28058,6 +28103,10 @@ function applySavedEntityToECS(world, eid, savedEntity) {
       addComponent(world, EggHatchComp, eid);
     }
     EggHatchComp.hatchTime[eid] = components.eggHatch.hatchTime;
+    EggHatchComp.hatchDurationMs[eid] = Math.max(
+      0,
+      components.eggHatch.hatchDurationMs ?? (ObjectComp.state[eid] === CharacterState.EGG ? getDefaultEggHatchDurationMs() : 0)
+    );
     EggHatchComp.isReadyToHatch[eid] = components.eggHatch.isReadyToHatch ? 1 : 0;
   }
   if (components.digestiveSystem) {
@@ -28129,23 +28178,12 @@ function ensureRandomMovementDefaults(eid, now) {
   }
 }
 function restoreCharacterFreeRoamingState(world, eid, options = {}) {
-  if (!hasComponent(world, ObjectComp, eid) || ObjectComp.type[eid] !== ObjectType.CHARACTER) {
+  if (!clearCharacterDestinationAndStop(world, eid)) {
     return false;
   }
   const now = options.now ?? Date.now();
   const idleDelayMs = options.idleDelayMs ?? 1e3;
-  if (hasComponent(world, DestinationComp, eid)) {
-    const targetFoodEid = DestinationComp.target[eid];
-    if (targetFoodEid > 0 && hasComponent(world, ObjectComp, targetFoodEid) && ObjectComp.type[targetFoodEid] === ObjectType.FOOD && ObjectComp.state[targetFoodEid] === FoodState.TARGETED) {
-      ObjectComp.state[targetFoodEid] = FoodState.LANDED;
-    }
-    removeComponent(world, DestinationComp, eid);
-  }
   ObjectComp.state[eid] = CharacterState.IDLE;
-  if (!hasComponent(world, SpeedComp, eid)) {
-    addComponent(world, SpeedComp, eid);
-  }
-  SpeedComp.value[eid] = 0;
   if (!hasComponent(world, RandomMovementComp, eid)) {
     addComponent(world, RandomMovementComp, eid);
   }
@@ -28154,6 +28192,23 @@ function restoreCharacterFreeRoamingState(world, eid, options = {}) {
   RandomMovementComp.minMoveTime[eid] = 2e3;
   RandomMovementComp.maxMoveTime[eid] = 4e3;
   RandomMovementComp.nextChange[eid] = now + idleDelayMs + Math.random() * 1e3;
+  return true;
+}
+function clearCharacterDestinationAndStop(world, eid) {
+  if (!hasComponent(world, ObjectComp, eid) || ObjectComp.type[eid] !== ObjectType.CHARACTER) {
+    return false;
+  }
+  if (hasComponent(world, DestinationComp, eid)) {
+    const targetFoodEid = DestinationComp.target[eid];
+    if (targetFoodEid > 0 && hasComponent(world, ObjectComp, targetFoodEid) && ObjectComp.type[targetFoodEid] === ObjectType.FOOD && ObjectComp.state[targetFoodEid] === FoodState.TARGETED) {
+      ObjectComp.state[targetFoodEid] = FoodState.LANDED;
+    }
+    removeComponent(world, DestinationComp, eid);
+  }
+  if (!hasComponent(world, SpeedComp, eid)) {
+    addComponent(world, SpeedComp, eid);
+  }
+  SpeedComp.value[eid] = 0;
   return true;
 }
 function repairCharacterEntityRuntimeComponents(world, eid, now = Date.now()) {
@@ -28227,9 +28282,18 @@ function repairCharacterEntityRuntimeComponents(world, eid, now = Date.now()) {
   }
   if (!hasComponent(world, EggHatchComp, eid)) {
     addComponent(world, EggHatchComp, eid);
-    EggHatchComp.hatchTime[eid] = state === CharacterState.EGG ? createEggHatchTimestamp(now) : 0;
+    if (state === CharacterState.EGG) {
+      const { hatchTime, hatchDurationMs } = createEggHatchSchedule$1(now);
+      EggHatchComp.hatchTime[eid] = hatchTime;
+      EggHatchComp.hatchDurationMs[eid] = hatchDurationMs;
+    } else {
+      EggHatchComp.hatchTime[eid] = 0;
+      EggHatchComp.hatchDurationMs[eid] = 0;
+    }
     EggHatchComp.isReadyToHatch[eid] = 0;
     repaired.push("EggHatchComp");
+  } else if (state === CharacterState.EGG && EggHatchComp.hatchDurationMs[eid] <= 0) {
+    EggHatchComp.hatchDurationMs[eid] = getDefaultEggHatchDurationMs();
   }
   if (needsAnimation && hasComponent(world, CharacterStatusComp, eid) && !hasComponent(world, AnimationRenderComp, eid)) {
     addComponent(world, AnimationRenderComp, eid);
@@ -28428,6 +28492,7 @@ function randomMovementSystem(params) {
 }
 const movingEntityQuery = defineQuery([PositionComp, SpeedComp, AngleComp]);
 const TARGET_REACHED_EPSILON$1 = 1e-3;
+const REFLECTION_DIRECTION_PROBE_EPSILON = 1e-6;
 function commonMovementSystem(params) {
   const { world, delta } = params;
   const entities = movingEntityQuery(world);
@@ -28443,8 +28508,6 @@ function commonMovementSystem(params) {
     const speed = SpeedComp;
     if (speed.value[eid] === 0) continue;
     const targetedDestination = getTargetedDestination(world, eid);
-    let nextX = position.x[eid];
-    let nextY = position.y[eid];
     if (targetedDestination) {
       const deltaXToTarget = targetedDestination.x - position.x[eid];
       const deltaYToTarget = targetedDestination.y - position.y[eid];
@@ -28464,29 +28527,88 @@ function commonMovementSystem(params) {
         position.y[eid] = targetedDestination.y;
         continue;
       }
-      nextX = position.x[eid] + Math.cos(targetAngle) * stepDistance;
-      nextY = position.y[eid] + Math.sin(targetAngle) * stepDistance;
-    } else {
-      const velocityX = Math.cos(angle.value[eid]) * speed.value[eid];
-      const velocityY = Math.sin(angle.value[eid]) * speed.value[eid];
-      nextX = position.x[eid] + velocityX * delta;
-      nextY = position.y[eid] + velocityY * delta;
-    }
-    const maxX = boundary.x + boundary.width;
-    const maxY = boundary.y + boundary.height;
-    if (nextX <= boundary.x || nextX >= maxX || nextY <= boundary.y || nextY >= maxY) {
-      if (nextX <= boundary.x || nextX >= maxX) {
-        angle.value[eid] = nomalizeRadian(Math.PI - angle.value[eid]);
+      const nextX = position.x[eid] + Math.cos(targetAngle) * stepDistance;
+      const nextY = position.y[eid] + Math.sin(targetAngle) * stepDistance;
+      const maxX = boundary.x + boundary.width;
+      const maxY = boundary.y + boundary.height;
+      if (nextX <= boundary.x || nextX >= maxX || nextY <= boundary.y || nextY >= maxY) {
+        if (nextX <= boundary.x || nextX >= maxX) {
+          angle.value[eid] = nomalizeRadian(Math.PI - angle.value[eid]);
+        }
+        if (nextY <= boundary.y || nextY >= maxY) {
+          angle.value[eid] = nomalizeRadian(-angle.value[eid]);
+        }
+      } else {
+        position.x[eid] = nextX;
+        position.y[eid] = nextY;
       }
-      if (nextY <= boundary.y || nextY >= maxY) {
-        angle.value[eid] = nomalizeRadian(-angle.value[eid]);
-      }
-    } else {
-      position.x[eid] = nextX;
-      position.y[eid] = nextY;
+      continue;
     }
+    const freeMovementResult = calculateFreeMovementStep({
+      x: position.x[eid],
+      y: position.y[eid],
+      angle: angle.value[eid],
+      speed: speed.value[eid],
+      delta,
+      boundary
+    });
+    position.x[eid] = freeMovementResult.x;
+    position.y[eid] = freeMovementResult.y;
+    angle.value[eid] = freeMovementResult.angle;
   }
   return params;
+}
+function calculateFreeMovementStep(params) {
+  const { x: x2, y: y2, angle, speed, delta, boundary } = params;
+  const maxX = boundary.x + boundary.width;
+  const maxY = boundary.y + boundary.height;
+  const deltaX = Math.cos(angle) * speed * delta;
+  const deltaY = Math.sin(angle) * speed * delta;
+  const reflectedX = reflectAxisPosition(x2, deltaX, boundary.x, maxX);
+  const reflectedY = reflectAxisPosition(y2, deltaY, boundary.y, maxY);
+  let nextAngle = angle;
+  if (reflectedX.reflected) {
+    nextAngle = nomalizeRadian(Math.PI - nextAngle);
+  }
+  if (reflectedY.reflected) {
+    nextAngle = nomalizeRadian(-nextAngle);
+  }
+  return {
+    x: reflectedX.value,
+    y: reflectedY.value,
+    angle: nextAngle
+  };
+}
+function reflectAxisPosition(currentValue, deltaValue, minValue, maxValue) {
+  const axisLength = maxValue - minValue;
+  if (axisLength <= 0) {
+    return {
+      value: minValue,
+      reflected: false
+    };
+  }
+  const period = axisLength * 2;
+  const relativeEndValue = currentValue - minValue + deltaValue;
+  const normalizedEndValue = positiveModulo(relativeEndValue, period);
+  const reflectedValue = normalizedEndValue <= axisLength ? normalizedEndValue : period - normalizedEndValue;
+  if (deltaValue === 0) {
+    return {
+      value: clampAxisValue(minValue + reflectedValue, minValue, maxValue),
+      reflected: false
+    };
+  }
+  const probeValue = relativeEndValue + Math.sign(deltaValue) * REFLECTION_DIRECTION_PROBE_EPSILON;
+  const normalizedProbeValue = positiveModulo(probeValue, period);
+  return {
+    value: clampAxisValue(minValue + reflectedValue, minValue, maxValue),
+    reflected: normalizedProbeValue > axisLength
+  };
+}
+function positiveModulo(value, base) {
+  return (value % base + base) % base;
+}
+function clampAxisValue(value, minValue, maxValue) {
+  return Math.min(maxValue, Math.max(minValue, value));
 }
 function getTargetedDestination(world, eid) {
   if (!hasComponent(world, DestinationComp, eid)) {
@@ -29540,10 +29662,10 @@ function createStatusIconSprite(textureKey) {
   return sprite;
 }
 function getStatusIconMinY(world) {
-  return world.positionBoundary.y + STATUS_ICON_SIZE / 2;
+  return 0;
 }
 function clampStatusIconY(world, preferredY) {
-  return Math.max(preferredY, getStatusIconMinY(world));
+  return Math.max(preferredY, getStatusIconMinY());
 }
 function clearEntitySprites(eid) {
   const sprites = entityStatusSprites.get(eid);
@@ -29671,9 +29793,615 @@ function statusIconRenderSystem(params) {
   }
   return params;
 }
+const EGG_CRACK_COLOR = 0;
+const EGG_CRACK_BASE_ALPHA = 1;
+const EGG_CRACK_STAGE_ALPHA_STEP = 0.12;
+const EGG_CRACK_PIXEL_SIZE = 1;
+const overlayStore$1 = /* @__PURE__ */ new Map();
+const eggCrackQuery = defineQuery([ObjectComp, RenderComp, EggHatchComp]);
+const eggCrackExitQuery = exitQuery(eggCrackQuery);
+function getOrCreateOverlay(eid, stage) {
+  const existing = overlayStore$1.get(eid);
+  if (existing) {
+    return existing;
+  }
+  const container = new Container();
+  const crack = new Graphics();
+  const mask = new Sprite();
+  container.eventMode = "none";
+  crack.eventMode = "none";
+  mask.eventMode = "none";
+  mask.anchor.set(0.5);
+  container.addChild(crack);
+  container.addChild(mask);
+  container.mask = mask;
+  if (!stage.sortableChildren) {
+    stage.sortableChildren = true;
+  }
+  stage.addChild(container);
+  const overlay = { container, crack, mask };
+  overlayStore$1.set(eid, overlay);
+  return overlay;
+}
+function removeOverlay$1(eid) {
+  const overlay = overlayStore$1.get(eid);
+  if (!overlay) {
+    return;
+  }
+  overlay.container.removeFromParent();
+  overlay.container.destroy({ children: true });
+  overlayStore$1.delete(eid);
+}
+function drawCrackPath(graphics, points, alpha) {
+  if (points.length < 2) {
+    return;
+  }
+  for (let i2 = 1; i2 < points.length; i2++) {
+    const [startX, startY] = points[i2 - 1];
+    const [endX, endY] = points[i2];
+    drawPixelSegment(graphics, startX, startY, endX, endY, alpha);
+  }
+}
+function drawPixelSegment(graphics, startX, startY, endX, endY, alpha) {
+  let x0 = Math.round(startX);
+  let y0 = Math.round(startY);
+  const x1 = Math.round(endX);
+  const y1 = Math.round(endY);
+  const deltaX = Math.abs(x1 - x0);
+  const deltaY = Math.abs(y1 - y0);
+  const stepX = x0 < x1 ? 1 : -1;
+  const stepY = y0 < y1 ? 1 : -1;
+  let error = deltaX - deltaY;
+  while (true) {
+    graphics.rect(x0, y0, EGG_CRACK_PIXEL_SIZE, EGG_CRACK_PIXEL_SIZE).fill({ color: EGG_CRACK_COLOR, alpha });
+    if (x0 === x1 && y0 === y1) {
+      break;
+    }
+    const doubledError = error * 2;
+    if (doubledError > -deltaY) {
+      error -= deltaY;
+      x0 += stepX;
+    }
+    if (doubledError < deltaX) {
+      error += deltaX;
+      y0 += stepY;
+    }
+  }
+}
+function drawEggCracks(graphics, bounds, stage) {
+  const inset = Math.max(6, Math.min(bounds.width, bounds.height) * 0.2);
+  const left = bounds.x + inset;
+  const right = bounds.x + bounds.width - inset;
+  const top = bounds.y + inset + 1;
+  const bottom = bounds.y + bounds.height - inset - 1;
+  const centerX = bounds.x + bounds.width / 2;
+  const centerY = bounds.y + bounds.height / 2;
+  const innerWidth = right - left;
+  const innerHeight = bottom - top;
+  const shortX = innerWidth * 0.07;
+  const shortY = innerHeight * 0.1;
+  const mediumX = innerWidth * 0.16;
+  const mediumY = innerHeight * 0.2;
+  const longX = innerWidth * 0.25;
+  const longY = innerHeight * 0.32;
+  const alpha = Math.min(
+    1,
+    EGG_CRACK_BASE_ALPHA + stage * EGG_CRACK_STAGE_ALPHA_STEP
+  );
+  const rootTop = [
+    centerX - shortX * 0.55,
+    centerY - shortY * 1.05
+  ];
+  const rootUpper = [
+    centerX + shortX * 0.18,
+    centerY - shortY * 0.28
+  ];
+  const rootMiddle = [
+    centerX - shortX * 0.46,
+    centerY + shortY * 0.28
+  ];
+  const rootLower = [
+    centerX + shortX * 0.08,
+    centerY + shortY * 1.02
+  ];
+  const upperRightStem = [
+    centerX + shortX * 0.96,
+    centerY - shortY * 1.08
+  ];
+  const upperRightTip = [
+    centerX + longX * 0.94,
+    centerY - mediumY * 1.08
+  ];
+  const lowerLeftStem = [
+    centerX - shortX * 1.18,
+    centerY + shortY * 1.02
+  ];
+  const lowerLeftTip = [
+    centerX - longX * 0.92,
+    centerY + mediumY * 0.98
+  ];
+  const upperLeftStem = [
+    centerX - shortX * 1.16,
+    centerY - shortY * 1.66
+  ];
+  const upperLeftTip = [
+    centerX - longX * 0.86,
+    centerY - longY * 0.94
+  ];
+  const lowerRightStem = [
+    centerX + shortX * 1.02,
+    centerY + shortY * 1.1
+  ];
+  const lowerRightTip = [
+    centerX + longX * 0.84,
+    centerY + longY * 0.84
+  ];
+  const upperRightSplit = [
+    centerX + mediumX * 0.78,
+    centerY - shortY * 0.44
+  ];
+  const upperRightSplitTip = [
+    centerX + longX * 0.8,
+    centerY + shortY * 0.08
+  ];
+  const lowerLeftSplit = [
+    centerX - mediumX * 0.74,
+    centerY + shortY * 0.32
+  ];
+  const lowerLeftSplitTip = [
+    centerX - longX * 0.74,
+    centerY - shortY * 0.14
+  ];
+  const topStem = [
+    centerX - shortX * 0.04,
+    centerY - mediumY * 0.96
+  ];
+  const topTip = [
+    centerX + shortX * 0.1,
+    top + innerHeight * 0.08
+  ];
+  const lowerLeftDownStem = [
+    centerX - mediumX * 0.58,
+    centerY + mediumY * 0.96
+  ];
+  const lowerLeftDownTip = [
+    left + innerWidth * 0.18,
+    bottom - innerHeight * 0.06
+  ];
+  graphics.clear();
+  drawCrackPath(graphics, [rootTop, rootUpper, rootMiddle, rootLower], alpha);
+  if (stage >= 2) {
+    drawCrackPath(graphics, [rootUpper, upperRightStem, upperRightTip], alpha);
+    drawCrackPath(graphics, [rootMiddle, lowerLeftStem, lowerLeftTip], alpha);
+  }
+  if (stage >= 3) {
+    drawCrackPath(graphics, [rootTop, upperLeftStem, upperLeftTip], alpha);
+    drawCrackPath(graphics, [rootLower, lowerRightStem, lowerRightTip], alpha);
+    drawCrackPath(
+      graphics,
+      [upperRightStem, upperRightSplit, upperRightSplitTip],
+      alpha
+    );
+    drawCrackPath(
+      graphics,
+      [lowerLeftStem, lowerLeftSplit, lowerLeftSplitTip],
+      alpha
+    );
+    drawCrackPath(graphics, [rootUpper, topStem, topTip], alpha);
+    drawCrackPath(
+      graphics,
+      [lowerLeftStem, lowerLeftDownStem, lowerLeftDownTip],
+      alpha
+    );
+  }
+}
+function syncOverlayMask(mask, sprite) {
+  mask.texture = sprite.texture;
+  mask.anchor.copyFrom(sprite.anchor);
+  mask.position.set(0, 0);
+  mask.scale.set(1, 1);
+  mask.rotation = 0;
+}
+function syncOverlayTransform(overlay, sprite) {
+  overlay.container.position.copyFrom(sprite.position);
+  overlay.container.scale.copyFrom(sprite.scale);
+  overlay.container.rotation = sprite.rotation;
+  overlay.container.zIndex = sprite.zIndex + 0.5;
+  overlay.container.visible = sprite.visible;
+  overlay.container.alpha = sprite.alpha;
+}
+function cleanupEggCrackRenderState() {
+  overlayStore$1.forEach((_overlay, eid) => {
+    removeOverlay$1(eid);
+  });
+}
+function eggCrackRenderSystem(params) {
+  const { world, currentTime } = params;
+  const exitedEntities = eggCrackExitQuery(world);
+  for (let i2 = 0; i2 < exitedEntities.length; i2++) {
+    removeOverlay$1(exitedEntities[i2]);
+  }
+  const entities = eggCrackQuery(world);
+  const activeEntities = /* @__PURE__ */ new Set();
+  const spriteStore2 = getSpriteStore();
+  for (let i2 = 0; i2 < entities.length; i2++) {
+    const eid = entities[i2];
+    const textureKey = RenderComp.textureKey[eid];
+    if (ObjectComp.state[eid] !== CharacterState.EGG || !isEggTextureKey(textureKey)) {
+      removeOverlay$1(eid);
+      continue;
+    }
+    const progress = getEggHatchProgress({
+      currentTime,
+      hatchTime: EggHatchComp.hatchTime[eid],
+      hatchDurationMs: EggHatchComp.hatchDurationMs[eid]
+    });
+    const crackStage = getEggCrackStage(progress);
+    if (crackStage === 0) {
+      removeOverlay$1(eid);
+      continue;
+    }
+    const baseSprite = spriteStore2.get(eid);
+    if (!baseSprite) {
+      removeOverlay$1(eid);
+      continue;
+    }
+    const bounds = baseSprite.getLocalBounds();
+    if (bounds.width <= 0 || bounds.height <= 0) {
+      removeOverlay$1(eid);
+      continue;
+    }
+    const overlay = getOrCreateOverlay(eid, world.stage);
+    syncOverlayTransform(overlay, baseSprite);
+    syncOverlayMask(overlay.mask, baseSprite);
+    drawEggCracks(overlay.crack, bounds, crackStage);
+    activeEntities.add(eid);
+  }
+  const trackedEids = Array.from(overlayStore$1.keys());
+  for (let i2 = 0; i2 < trackedEids.length; i2++) {
+    const eid = trackedEids[i2];
+    if (!activeEntities.has(eid)) {
+      removeOverlay$1(eid);
+    }
+  }
+  return params;
+}
+const staminaGaugeQuery = defineQuery([ObjectComp, CharacterStatusComp]);
+const GAUGE_HEIGHT = 16;
+const GAUGE_BORDER_THICKNESS = 4;
+const GAUGE_BORDER_BOTTOM_CORNER_RADIUS = 3;
+const GAUGE_HIGHLIGHT_HEIGHT = 2;
+const GAUGE_FILL_HIGHLIGHT_ALPHA = 0.18;
+const GAUGE_TRACK_BASE_COLOR = 0;
+const GAUGE_TRACK_BASE_ALPHA = 0.34;
+const GAUGE_Z_INDEX_OFFSET = 0.5;
+const GAUGE_BORDER_COLOR = 5658198;
+const GAUGE_FILL_HIGHLIGHT_COLOR = 16777215;
+const GAUGE_LOW_STAMINA_COLOR = 14832971;
+const GAUGE_MID_STAMINA_COLOR = 15901498;
+const GAUGE_HIGH_STAMINA_COLOR = 5814379;
+let staminaGaugeRenderState = null;
+function clampUnitInterval(value) {
+  return Math.max(0, Math.min(1, value));
+}
+function getGaugeFillColor(stamina) {
+  if (stamina < GAME_CONSTANTS.UNHAPPY_STAMINA_THRESHOLD) {
+    return GAUGE_LOW_STAMINA_COLOR;
+  }
+  if (stamina < GAME_CONSTANTS.BOOSTED_STAMINA_THRESHOLD) {
+    return GAUGE_MID_STAMINA_COLOR;
+  }
+  return GAUGE_HIGH_STAMINA_COLOR;
+}
+function findMainCharacterEntity(world) {
+  const entities = staminaGaugeQuery(world);
+  for (let index = 0; index < entities.length; index += 1) {
+    const eid = entities[index];
+    if (ObjectComp.type[eid] === ObjectType.CHARACTER) {
+      return eid;
+    }
+  }
+  return -1;
+}
+function fillPixelCappedRect(graphics, x2, y2, width, height, leftRadius, rightRadius, fill) {
+  if (width <= 0 || height <= 0) {
+    return;
+  }
+  const maxVerticalRadius = Math.floor((height - 1) / 2);
+  let effectiveLeftRadius = Math.max(
+    0,
+    Math.min(leftRadius, maxVerticalRadius)
+  );
+  let effectiveRightRadius = Math.max(
+    0,
+    Math.min(rightRadius, maxVerticalRadius)
+  );
+  const maxHorizontalInset = Math.max(0, width - 1);
+  const totalRadius = effectiveLeftRadius + effectiveRightRadius;
+  if (totalRadius > maxHorizontalInset && totalRadius > 0) {
+    const scale = maxHorizontalInset / totalRadius;
+    effectiveLeftRadius = Math.floor(effectiveLeftRadius * scale);
+    effectiveRightRadius = Math.floor(effectiveRightRadius * scale);
+  }
+  if (effectiveLeftRadius === 0 && effectiveRightRadius === 0) {
+    graphics.rect(x2, y2, width, height).fill(fill);
+    return;
+  }
+  for (let row = 0; row < height; row += 1) {
+    const { startX, endX } = getPixelCappedRowSpan(
+      width,
+      height,
+      effectiveLeftRadius,
+      effectiveRightRadius,
+      row
+    );
+    const rowWidth = endX - startX;
+    if (rowWidth <= 0) {
+      continue;
+    }
+    graphics.rect(x2 + startX, y2 + row, rowWidth, 1).fill(fill);
+  }
+}
+function getPixelCappedRowSpan(width, height, leftRadius, rightRadius, row) {
+  const maxVerticalRadius = Math.floor((height - 1) / 2);
+  let effectiveLeftRadius = Math.max(
+    0,
+    Math.min(leftRadius, maxVerticalRadius)
+  );
+  let effectiveRightRadius = Math.max(
+    0,
+    Math.min(rightRadius, maxVerticalRadius)
+  );
+  const maxHorizontalInset = Math.max(0, width - 1);
+  const totalRadius = effectiveLeftRadius + effectiveRightRadius;
+  if (totalRadius > maxHorizontalInset && totalRadius > 0) {
+    const scale = maxHorizontalInset / totalRadius;
+    effectiveLeftRadius = Math.floor(effectiveLeftRadius * scale);
+    effectiveRightRadius = Math.floor(effectiveRightRadius * scale);
+  }
+  const distanceFromNearestEdge = Math.min(row, height - 1 - row);
+  const startX = Math.max(0, effectiveLeftRadius - distanceFromNearestEdge);
+  const endX = Math.max(
+    startX,
+    width - Math.max(0, effectiveRightRadius - distanceFromNearestEdge)
+  );
+  return {
+    startX,
+    endX
+  };
+}
+function fillPixelBottomCappedRect(graphics, x2, y2, width, height, bottomLeftRadius, bottomRightRadius, fill) {
+  if (width <= 0 || height <= 0) {
+    return;
+  }
+  for (let row = 0; row < height; row += 1) {
+    const { startX, endX } = getPixelBottomRoundedRowSpan(
+      width,
+      height,
+      bottomLeftRadius,
+      bottomRightRadius,
+      row
+    );
+    const rowWidth = endX - startX;
+    if (rowWidth <= 0) {
+      continue;
+    }
+    graphics.rect(x2 + startX, y2 + row, rowWidth, 1).fill(fill);
+  }
+}
+function fillPixelBottomRoundedRect(graphics, x2, y2, width, height, radius, fill) {
+  fillPixelBottomCappedRect(
+    graphics,
+    x2,
+    y2,
+    width,
+    height,
+    radius,
+    radius,
+    fill
+  );
+}
+function getPixelBottomRoundedRowSpan(width, height, bottomLeftRadius, bottomRightRadius, row) {
+  const distanceFromBottom = height - 1 - row;
+  let leftInset = Math.max(0, bottomLeftRadius - distanceFromBottom);
+  let rightInset = Math.max(0, bottomRightRadius - distanceFromBottom);
+  const maxHorizontalInset = Math.max(0, width - 1);
+  const totalInset = leftInset + rightInset;
+  if (totalInset > maxHorizontalInset && totalInset > 0) {
+    const scale = maxHorizontalInset / totalInset;
+    leftInset = Math.floor(leftInset * scale);
+    rightInset = Math.floor(rightInset * scale);
+  }
+  return {
+    startX: leftInset,
+    endX: Math.max(leftInset, width - rightInset)
+  };
+}
+function drawPixelRoundedFrame(graphics, x2, y2, width, height, thickness, bottomRadius, fill) {
+  if (width <= 0 || height <= 0 || thickness <= 0) {
+    return;
+  }
+  const innerWidth = Math.max(0, width - thickness * 2);
+  const innerHeight = Math.max(0, height - thickness * 2);
+  const innerBottomRadius = Math.max(0, bottomRadius - 1);
+  for (let row = 0; row < height; row += 1) {
+    const outerSpan = getPixelBottomRoundedRowSpan(
+      width,
+      height,
+      bottomRadius,
+      bottomRadius,
+      row
+    );
+    const outerWidth = outerSpan.endX - outerSpan.startX;
+    if (outerWidth <= 0) {
+      continue;
+    }
+    if (row < thickness || row >= height - thickness || innerWidth <= 0 || innerHeight <= 0) {
+      graphics.rect(x2 + outerSpan.startX, y2 + row, outerWidth, 1).fill(fill);
+      continue;
+    }
+    const innerRow = row - thickness;
+    const innerSpan = getPixelBottomRoundedRowSpan(
+      innerWidth,
+      innerHeight,
+      innerBottomRadius,
+      innerBottomRadius,
+      innerRow
+    );
+    const innerStartX = thickness + innerSpan.startX;
+    const innerEndX = thickness + innerSpan.endX;
+    const leftWidth = innerStartX - outerSpan.startX;
+    const rightWidth = outerSpan.endX - innerEndX;
+    if (leftWidth > 0) {
+      graphics.rect(x2 + outerSpan.startX, y2 + row, leftWidth, 1).fill(fill);
+    }
+    if (rightWidth > 0) {
+      graphics.rect(x2 + innerEndX, y2 + row, rightWidth, 1).fill(fill);
+    }
+  }
+}
+function getOrCreateRenderState(stage) {
+  if (staminaGaugeRenderState) {
+    return staminaGaugeRenderState;
+  }
+  const container = new Container();
+  const background = new Graphics();
+  const fill = new Graphics();
+  container.eventMode = "none";
+  background.eventMode = "none";
+  fill.eventMode = "none";
+  background.roundPixels = true;
+  fill.roundPixels = true;
+  container.addChild(background);
+  container.addChild(fill);
+  stage.addChild(container);
+  staminaGaugeRenderState = {
+    container,
+    background,
+    fill
+  };
+  return staminaGaugeRenderState;
+}
+function drawGaugeBackground(graphics, gaugeWidth, gaugeHeight) {
+  const trackInset = GAUGE_BORDER_THICKNESS;
+  const trackX = trackInset;
+  const trackY = trackInset;
+  const trackWidth = Math.max(1, gaugeWidth - trackInset * 2);
+  const trackHeight = Math.max(1, gaugeHeight - trackInset * 2);
+  const trackBottomRadius = Math.max(0, GAUGE_BORDER_BOTTOM_CORNER_RADIUS - 1);
+  graphics.clear();
+  fillPixelBottomRoundedRect(
+    graphics,
+    trackX,
+    trackY,
+    trackWidth,
+    trackHeight,
+    trackBottomRadius,
+    {
+      color: GAUGE_TRACK_BASE_COLOR,
+      alpha: GAUGE_TRACK_BASE_ALPHA
+    }
+  );
+  drawPixelRoundedFrame(
+    graphics,
+    0,
+    0,
+    gaugeWidth,
+    gaugeHeight,
+    GAUGE_BORDER_THICKNESS,
+    GAUGE_BORDER_BOTTOM_CORNER_RADIUS,
+    GAUGE_BORDER_COLOR
+  );
+  return {
+    trackX,
+    trackY,
+    trackWidth,
+    trackHeight
+  };
+}
+function drawGaugeFill(graphics, stamina, maxStamina, trackX, trackY, trackWidth, trackHeight) {
+  const fillColor = getGaugeFillColor(stamina);
+  const fillBottomRadius = Math.max(0, GAUGE_BORDER_BOTTOM_CORNER_RADIUS - 1);
+  const fillWidth = Math.max(
+    0,
+    Math.round(clampUnitInterval(stamina / maxStamina) * trackWidth)
+  );
+  const fillRightBottomRadius = fillWidth >= trackWidth ? fillBottomRadius : 0;
+  graphics.clear();
+  if (fillWidth <= 0) {
+    return;
+  }
+  fillPixelBottomCappedRect(
+    graphics,
+    trackX,
+    trackY,
+    fillWidth,
+    trackHeight,
+    fillBottomRadius,
+    fillRightBottomRadius,
+    fillColor
+  );
+  if (trackHeight > 1) {
+    fillPixelCappedRect(
+      graphics,
+      trackX,
+      trackY,
+      fillWidth,
+      Math.min(GAUGE_HIGHLIGHT_HEIGHT, trackHeight),
+      0,
+      0,
+      {
+        color: GAUGE_FILL_HIGHLIGHT_COLOR,
+        alpha: GAUGE_FILL_HIGHLIGHT_ALPHA
+      }
+    );
+  }
+}
+function cleanupStaminaGaugeRenderState() {
+  if (!staminaGaugeRenderState) {
+    return;
+  }
+  staminaGaugeRenderState.container.removeFromParent();
+  staminaGaugeRenderState.container.destroy({ children: true });
+  staminaGaugeRenderState = null;
+}
+function staminaGaugeRenderSystem(params) {
+  const { world } = params;
+  const characterEid = findMainCharacterEntity(world);
+  if (characterEid === -1) {
+    if (staminaGaugeRenderState) {
+      staminaGaugeRenderState.container.visible = false;
+    }
+    return params;
+  }
+  const gaugeWidth = Math.max(
+    48,
+    Math.round(world.positionBoundary.width + world.positionBoundary.x * 2)
+  );
+  const gaugeHeight = GAUGE_HEIGHT;
+  const gaugeState = getOrCreateRenderState(world.stage);
+  gaugeState.container.visible = true;
+  gaugeState.container.position.set(0, 0);
+  gaugeState.container.zIndex = world.positionBoundary.y - GAUGE_Z_INDEX_OFFSET;
+  const { trackX, trackY, trackWidth, trackHeight } = drawGaugeBackground(
+    gaugeState.background,
+    gaugeWidth,
+    gaugeHeight
+  );
+  drawGaugeFill(
+    gaugeState.fill,
+    CharacterStatusComp.stamina[characterEid],
+    GAME_CONSTANTS.MAX_STAMINA,
+    trackX,
+    trackY,
+    trackWidth,
+    trackHeight
+  );
+  return params;
+}
 const NAME_LABEL_MAX_WIDTH = 80;
 const NAME_LABEL_FONT_FAMILIES = [
-  "Press Start 2P",
+  "NeoDunggeunmo Pro",
   "Apple Color Emoji",
   "Segoe UI Emoji",
   "Noto Color Emoji",
@@ -31039,10 +31767,13 @@ function createCharacterEntity(world, components) {
   TemporaryStatusComp.startTime[eid] = 0;
   addComponent(world, EggHatchComp, eid);
   if (ObjectComp.state[eid] === CharacterState.EGG) {
-    EggHatchComp.hatchTime[eid] = createEggHatchTimestamp();
+    const { hatchTime, hatchDurationMs } = createEggHatchSchedule$1();
+    EggHatchComp.hatchTime[eid] = hatchTime;
+    EggHatchComp.hatchDurationMs[eid] = hatchDurationMs;
     EggHatchComp.isReadyToHatch[eid] = 0;
   } else {
     EggHatchComp.hatchTime[eid] = 0;
+    EggHatchComp.hatchDurationMs[eid] = 0;
     EggHatchComp.isReadyToHatch[eid] = 0;
   }
   return eid;
@@ -31455,6 +32186,25 @@ function releaseTargetedFoodForCharacter(world, characterEid) {
     `[FoodEatingSystem] Released orphaned targeted food ${targetFoodEid} for character ${characterEid}`
   );
 }
+function clearActiveEatingState(world, characterEid) {
+  if (!hasComponent(world, FoodEatingComp, characterEid)) {
+    return false;
+  }
+  const targetFoodEid = FoodEatingComp.targetFood[characterEid];
+  if (targetFoodEid > 0 && hasComponent(world, ObjectComp, targetFoodEid) && ObjectComp.type[targetFoodEid] === ObjectType.FOOD) {
+    if (hasComponent(world, FoodMaskComp, targetFoodEid)) {
+      removeComponent(world, FoodMaskComp, targetFoodEid);
+    }
+    if (ObjectComp.state[targetFoodEid] === FoodState.BEING_INTAKEN) {
+      ObjectComp.state[targetFoodEid] = FoodState.LANDED;
+    }
+  }
+  if (hasComponent(world, SpeedComp, characterEid)) {
+    SpeedComp.value[characterEid] = 0;
+  }
+  removeComponent(world, FoodEatingComp, characterEid);
+  return true;
+}
 function updateEatingProgress(world, delta, currentTime) {
   const eatingCharacters = eatingCharacterQuery(world);
   for (let i2 = 0; i2 < eatingCharacters.length; i2++) {
@@ -31843,9 +32593,7 @@ function cancelEating(world, characterEid) {
     RandomMovementComp.maxMoveTime[characterEid] = 4e3;
     RandomMovementComp.nextChange[characterEid] = world.currentTime + 1e3;
   }
-  if (hasComponent(world, FoodEatingComp, characterEid)) {
-    removeComponent(world, FoodEatingComp, characterEid);
-  }
+  clearActiveEatingState(world, characterEid);
 }
 function restoreFreeRoamingState(world, characterEid, idleDelayMs) {
   restoreCharacterFreeRoamingState(world, characterEid, {
@@ -33329,7 +34077,7 @@ class HTMLDebugStatusUI {
       border-radius: 8px;
       padding: 8px;
       z-index: 1000;
-      font-family: 'Arial', sans-serif;
+      font-family: 'NeoDunggeunmo Pro', sans-serif;
       color: white;
       display: none;
     `;
@@ -33642,7 +34390,7 @@ class HTMLDebugToggleButton {
       font-weight: bold;
       cursor: pointer;
       z-index: 1002;
-      font-family: 'Arial', sans-serif;
+      font-family: 'NeoDunggeunmo Pro', sans-serif;
       transition: background-color 0.2s;
     `;
     button.addEventListener("mouseenter", () => {
@@ -33759,7 +34507,7 @@ class HTMLDebugGameConstantsUI {
       box-sizing: border-box;
       backdrop-filter: blur(4px);
       color: white;
-      font-family: 'Arial', sans-serif;
+      font-family: 'NeoDunggeunmo Pro', sans-serif;
       box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
     `;
     return container;
@@ -33770,7 +34518,7 @@ class HTMLDebugGameConstantsUI {
       margin: 0;
       white-space: pre-wrap;
       word-break: break-word;
-      font-family: 'SFMono-Regular', 'Consolas', monospace;
+      font-family: 'NeoDunggeunmo Pro', sans-serif;
       font-size: 11px;
       line-height: 1.5;
       color: #d9f7ff;
@@ -33858,7 +34606,7 @@ class HTMLDebugGameConstantsUI {
       font-weight: bold;
       cursor: pointer;
       z-index: 1002;
-      font-family: 'Arial', sans-serif;
+      font-family: 'NeoDunggeunmo Pro', sans-serif;
       transition: background-color 0.2s;
     `;
   }
@@ -33953,6 +34701,11 @@ function diseaseSystem(params) {
   return params;
 }
 function restrictMovement(world, eid) {
+  if (clearActiveEatingState(world, eid)) {
+    console.log(
+      `[DiseaseSystem] Canceled active eating for entity ${eid} (restricted movement)`
+    );
+  }
   releaseTargetedFoodForCharacter(world, eid);
   if (hasComponent(world, RandomMovementComp, eid)) {
     removeComponent(world, RandomMovementComp, eid);
@@ -34109,7 +34862,7 @@ class HTMLDebugGaugeUI {
       border-radius: 5px;
       padding: 10px;
       z-index: 998;
-      font-family: 'Arial', sans-serif;
+      font-family: 'NeoDunggeunmo Pro', sans-serif;
       color: white;
       font-size: 12px;
       min-width: 280px;
@@ -35395,7 +36148,7 @@ function sleepScheduleSystem(params) {
     reconcileExternalSleepExit(eid, currentTime, currentTimeOfDay);
     handleScheduledWake(world, eid, currentTime);
     handleNightWakeChecks(world, eid, currentTime, currentTimeOfDay);
-    handleScheduledSleep(eid, currentTime, currentTimeOfDay);
+    handleScheduledSleep(world, eid, currentTime, currentTimeOfDay);
     handleDayNapChecks(world, eid, currentTime, currentTimeOfDay);
     handleNapWake(world, eid, currentTime, currentTimeOfDay);
   }
@@ -35546,7 +36299,7 @@ function handleNightWakeChecks(world, eid, currentTime, currentTimeOfDay) {
     }
   }
 }
-function handleScheduledSleep(eid, currentTime, currentTimeOfDay) {
+function handleScheduledSleep(world, eid, currentTime, currentTimeOfDay) {
   const nextSleepTime = SleepSystemComp.nextSleepTime[eid];
   if (nextSleepTime <= 0 || currentTime < nextSleepTime) {
     return;
@@ -35558,7 +36311,7 @@ function handleScheduledSleep(eid, currentTime, currentTimeOfDay) {
       return;
     }
   }
-  if (!canEnterSleep(eid)) {
+  if (!canEnterSleep(world, eid)) {
     return;
   }
   const mode = SleepSystemComp.pendingSleepReason[eid] === SleepReason.NAP ? SleepMode.DAY_NAP : SleepMode.NIGHT_SLEEP;
@@ -35574,11 +36327,7 @@ function handleDayNapChecks(world, eid, currentTime, currentTimeOfDay) {
   while (currentTime >= SleepSystemComp.nextNapCheckTime[eid]) {
     SleepSystemComp.nextNapCheckTime[eid] += GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL;
     const fatigue = SleepSystemComp.fatigue[eid];
-    clamp(
-      fatigue / GAME_CONSTANTS.FATIGUE_MAX,
-      0,
-      1
-    );
+    clamp(fatigue / GAME_CONSTANTS.FATIGUE_MAX, 0, 1);
     GAME_CONSTANTS.DAY_NAP_CHANCE;
     const appliedChance = getDayNapChance(eid);
     const roll = Math.random();
@@ -35591,7 +36340,7 @@ function handleDayNapChecks(world, eid, currentTime, currentTimeOfDay) {
     if (shouldNap) {
       SleepSystemComp.nextSleepTime[eid] = currentTime;
       SleepSystemComp.pendingSleepReason[eid] = SleepReason.NAP;
-      if (canEnterSleep(eid)) {
+      if (canEnterSleep(world, eid)) {
         enterSleep(eid, currentTime, SleepMode.DAY_NAP);
       }
       break;
@@ -35739,9 +36488,10 @@ function ensureNightWakeCheckTime(eid, currentTime) {
   }
   SleepSystemComp.nextNightWakeCheckTime[eid] = currentTime + GAME_CONSTANTS.NIGHT_WAKE_CHECK_INTERVAL;
 }
-function canEnterSleep(eid) {
+function canEnterSleep(world, eid) {
   const state = ObjectComp.state[eid];
-  return state !== CharacterState.EGG && state !== CharacterState.DEAD && state !== CharacterState.EATING;
+  const isMovingToTargetedFood = hasComponent(world, DestinationComp, eid) && DestinationComp.type[eid] === DestinationType.TARGETED && DestinationComp.target[eid] !== 0;
+  return state !== CharacterState.EGG && state !== CharacterState.DEAD && state !== CharacterState.EATING && !isMovingToTargetedFood;
 }
 function getDayNapChance(eid) {
   const fatigueRatio = clamp(
@@ -35749,10 +36499,7 @@ function getDayNapChance(eid) {
     0,
     1
   );
-  return Math.min(
-    1,
-    GAME_CONSTANTS.DAY_NAP_CHANCE * (0.5 + fatigueRatio)
-  );
+  return Math.min(1, GAME_CONSTANTS.DAY_NAP_CHANCE * (0.5 + fatigueRatio));
 }
 function hasStatus(eid, status) {
   return Array.from(CharacterStatusComp.statuses[eid]).includes(status);
@@ -36030,11 +36777,17 @@ function restrictMovementForSickness(world, eid) {
   }
 }
 const SLEEP_FRAME_INTERVAL = 1e3;
-const SLEEP_TOP_OFFSET = 2;
-const SLEEP_HORIZONTAL_OFFSETS = [4, 0];
-const SLEEP_TEXT_COLOR = 13158600;
+const SLEEP_TOP_OFFSET = 4;
+const SLEEP_HORIZONTAL_OFFSET = -6;
+const SLEEP_GRADIENT_TOP_COLOR = 2051983;
+const SLEEP_GRADIENT_BOTTOM_COLOR = 8245247;
+const SLEEP_STROKE_COLOR = 0;
+const SLEEP_STROKE_WIDTH = 1;
+const SLEEP_SMALL_Z_FONT_SIZE = 10.8;
+const SLEEP_MEDIUM_Z_FONT_SIZE = 16.2;
+const SLEEP_LARGE_Z_FONT_SIZE = 19.44;
 const SLEEP_FONT_FAMILY = [
-  "Press Start 2P",
+  "NeoDunggeunmo Pro",
   "Apple Color Emoji",
   "Segoe UI Emoji",
   "Noto Color Emoji",
@@ -36042,24 +36795,29 @@ const SLEEP_FONT_FAMILY = [
 ];
 const SLEEP_BASE_TEXT_STYLE = {
   fontFamily: SLEEP_FONT_FAMILY,
-  fill: SLEEP_TEXT_COLOR,
   align: "center"
 };
 const SLEEP_FRAME_DEFINITIONS = [
   {
-    gap: 6,
     letters: [
-      { char: "z", fontSize: 12, offsetX: 0, offsetY: 0 },
-      { char: "z", fontSize: 20, offsetX: 0, offsetY: -12 }
+      { char: "Z", fontSize: SLEEP_SMALL_Z_FONT_SIZE, offsetX: 0, offsetY: 0 }
     ]
   },
   {
-    gap: 2,
     letters: [
-      { char: "z", fontSize: 12, offsetX: 0, offsetY: 0 },
-      { char: "z", fontSize: 20, offsetX: 0, offsetY: -14 },
-      { char: "z", fontSize: 24, offsetX: -46, offsetY: -24 }
+      { char: "Z", fontSize: SLEEP_SMALL_Z_FONT_SIZE, offsetX: 0, offsetY: 0 },
+      { char: "Z", fontSize: SLEEP_MEDIUM_Z_FONT_SIZE, offsetX: 12, offsetY: -10 }
     ]
+  },
+  {
+    letters: [
+      { char: "Z", fontSize: SLEEP_SMALL_Z_FONT_SIZE, offsetX: 0, offsetY: 0 },
+      { char: "Z", fontSize: SLEEP_MEDIUM_Z_FONT_SIZE, offsetX: 12, offsetY: -10 },
+      { char: "Z", fontSize: SLEEP_LARGE_Z_FONT_SIZE, offsetX: -10, offsetY: -24 }
+    ]
+  },
+  {
+    letters: []
   }
 ];
 const sleepEffectMap = /* @__PURE__ */ new Map();
@@ -36144,19 +36902,17 @@ function updateSleepEffectFrame(sleepEffect, currentTime) {
   if (currentTime - sleepEffect.lastFrameChangeTime < SLEEP_FRAME_INTERVAL) {
     return;
   }
-  sleepEffect.currentFrameIndex = sleepEffect.currentFrameIndex === 0 ? 1 : 0;
+  sleepEffect.currentFrameIndex = (sleepEffect.currentFrameIndex + 1) % SLEEP_FRAME_DEFINITIONS.length;
   sleepEffect.lastFrameChangeTime = currentTime;
   rebuildSleepEffectLetters(sleepEffect);
 }
 function updateSleepEffectPosition(container, eid) {
-  var _a;
   const x2 = PositionComp.x[eid];
   const y2 = PositionComp.y[eid];
   const configuredZIndex = RenderComp.zIndex[eid];
   const effectiveZIndex = configuredZIndex === 0 ? y2 : configuredZIndex;
   const { topY } = getCharacterVerticalBounds(eid);
-  const frameOffsetX = SLEEP_HORIZONTAL_OFFSETS[((_a = sleepEffectMap.get(eid)) == null ? void 0 : _a.currentFrameIndex) ?? 0] ?? 0;
-  container.position.set(x2 + frameOffsetX, topY + SLEEP_TOP_OFFSET);
+  container.position.set(x2 + SLEEP_HORIZONTAL_OFFSET, topY + SLEEP_TOP_OFFSET);
   container.zIndex = effectiveZIndex + 2;
   container.visible = true;
 }
@@ -36168,31 +36924,30 @@ function rebuildSleepEffectLetters(sleepEffect) {
 }
 function renderSleepTextFrame(container, frameIndex) {
   const frameDefinition = SLEEP_FRAME_DEFINITIONS[frameIndex];
-  const { letters: letterDefinitions, gap: letterGap } = frameDefinition;
+  const { letters: letterDefinitions } = frameDefinition;
   container.removeChildren().forEach((child) => child.destroy());
+  container.pivot.set(0, 0);
+  if (letterDefinitions.length === 0) {
+    return [];
+  }
   const letters = letterDefinitions.map((letterDef) => {
     const text = new Text({
       text: letterDef.char,
-      style: new TextStyle({
-        ...SLEEP_BASE_TEXT_STYLE,
-        fontSize: letterDef.fontSize
-      })
+      style: createSleepTextStyle(letterDef.fontSize)
     });
     text.roundPixels = true;
     container.addChild(text);
     return text;
   });
   const positionedLetters = [];
-  let currentX = 0;
   for (let i2 = 0; i2 < letters.length; i2++) {
     const letter = letters[i2];
     const offsetX = letterDefinitions[i2].offsetX;
     const offsetY = letterDefinitions[i2].offsetY;
-    const x2 = currentX + offsetX;
+    const x2 = offsetX;
     const y2 = offsetY;
     letter.position.set(x2, y2);
     positionedLetters.push({ x: x2, y: y2, width: letter.width });
-    currentX += letter.width + letterGap;
   }
   const maxBottom = Math.max(
     ...letters.map((letter, index) => letterDefinitions[index].offsetY + letter.height)
@@ -36200,12 +36955,28 @@ function renderSleepTextFrame(container, frameIndex) {
   for (let i2 = 0; i2 < letters.length; i2++) {
     letters[i2].y -= maxBottom;
   }
-  const minX = Math.min(...positionedLetters.map(({ x: x2 }) => x2));
-  const maxRight = Math.max(
-    ...positionedLetters.map(({ x: x2, width }) => x2 + width)
-  );
-  container.pivot.set((minX + maxRight) / 2, 0);
   return letters;
+}
+function createSleepTextStyle(fontSize) {
+  const fill = new FillGradient({
+    type: "linear",
+    textureSpace: "local",
+    start: { x: 0, y: 0 },
+    end: { x: 0, y: fontSize },
+    colorStops: [
+      { offset: 0, color: SLEEP_GRADIENT_TOP_COLOR },
+      { offset: 1, color: SLEEP_GRADIENT_BOTTOM_COLOR }
+    ]
+  });
+  return new TextStyle({
+    ...SLEEP_BASE_TEXT_STYLE,
+    fontSize,
+    fill,
+    stroke: {
+      color: SLEEP_STROKE_COLOR,
+      width: SLEEP_STROKE_WIDTH
+    }
+  });
 }
 function hasNativeSunController() {
   return typeof window !== "undefined" && !!window.sunController;
@@ -36607,10 +37378,10 @@ const COMMON_SPRITESHEET_ASSETS = [
   // },
 ];
 const IMAGE_ASSETS = {
-  grass: "/assets/game/tiles/grass-tile.jpg",
-  grassSunrise: "/assets/game/tiles/grass-tile-sunrise.jpg",
-  grassSunset: "/assets/game/tiles/grass-tile-sunset.jpg",
-  grassEvening: "/assets/game/tiles/grass-tile-evening.jpg"
+  grass: "/assets/game/tiles/grass-tile.png",
+  grassSunrise: "/assets/game/tiles/grass-tile-sunrise.png",
+  grassSunset: "/assets/game/tiles/grass-tile-sunset.png",
+  grassEvening: "/assets/game/tiles/grass-tile-evening.png"
 };
 const TIME_OF_DAY_TO_GRASS_ASSET = {
   [TimeOfDay.Day]: "grass",
@@ -37318,7 +38089,16 @@ const _MainSceneWorld = class _MainSceneWorld {
             this._updateControlButtonsForMenuState(focusedIndex !== null);
           }
         });
-        if (false) ;
+        if (this._debugParentElement) {
+          this._debugGaugeUI = new HTMLDebugGaugeUI(
+            this,
+            this._debugParentElement,
+            {
+              initiallyVisible: false
+            }
+          );
+          this._addDebugGaugeEventListener();
+        }
         if (false) ;
       }
       this._setupVisibilityChangeHandler();
@@ -37524,6 +38304,8 @@ const _MainSceneWorld = class _MainSceneWorld {
     this._clearMainSceneAdTimers();
     if (this._stage) {
       cleanupSleepEffects(this._stage);
+      cleanupEggCrackRenderState();
+      cleanupStaminaGaugeRenderState();
       cleanupCharacterNameLabels();
       cleanupCharacterLayoutDebug(this._stage);
     }
@@ -37599,6 +38381,8 @@ const _MainSceneWorld = class _MainSceneWorld {
         this._sceneDarknessOverlay = void 0;
       }
       cleanupSleepEffects(this._stage);
+      cleanupEggCrackRenderState();
+      cleanupStaminaGaugeRenderState();
       cleanupCharacterNameLabels();
       cleanupCharacterLayoutDebug(this._stage);
       this._pendingRecoveryCureEids.clear();
@@ -38450,6 +39234,7 @@ const _MainSceneWorld = class _MainSceneWorld {
       return;
     }
     this._pendingRecoveryCureEids.delete(characterEid);
+    const shouldPreserveSleep = ObjectComp.state[characterEid] === CharacterState.SLEEPING;
     const statuses = CharacterStatusComp.statuses[characterEid];
     let removed2 = false;
     if (statuses) {
@@ -38464,11 +39249,15 @@ const _MainSceneWorld = class _MainSceneWorld {
     if (hasComponent(this, DiseaseSystemComp, characterEid)) {
       DiseaseSystemComp.sickStartTime[characterEid] = 0;
     }
-    restoreCharacterFreeRoamingState(this, characterEid, {
-      now: this.currentTime
-    });
+    if (shouldPreserveSleep) {
+      clearCharacterDestinationAndStop(this, characterEid);
+    } else {
+      restoreCharacterFreeRoamingState(this, characterEid, {
+        now: this.currentTime
+      });
+    }
     console.log(
-      `[MainSceneWorld] Applied hospital recovery impact for character ${characterEid} (removedStatus=${removed2})`
+      `[MainSceneWorld] Applied hospital recovery impact for character ${characterEid} (removedStatus=${removed2}, preservedSleep=${shouldPreserveSleep})`
     );
   }
   /**
@@ -38499,6 +39288,18 @@ const _MainSceneWorld = class _MainSceneWorld {
       return null;
     }
     return spritesheetName;
+  }
+  getMainCharacterStaminaSnapshot() {
+    const characterEid = this._findMainCharacterEntity();
+    if (characterEid === -1) {
+      return null;
+    }
+    return {
+      stamina: CharacterStatusComp.stamina[characterEid],
+      maxStamina: GAME_CONSTANTS.MAX_STAMINA,
+      unhappyThreshold: GAME_CONSTANTS.UNHAPPY_STAMINA_THRESHOLD,
+      boostedThreshold: GAME_CONSTANTS.BOOSTED_STAMINA_THRESHOLD
+    };
   }
   /**
    * 청소 모드 상태를 업데이트하는 메서드들
@@ -38742,8 +39543,10 @@ const _MainSceneWorld = class _MainSceneWorld {
    */
   _renderAllSystems(params) {
     animationRenderSystem(params);
-    statusIconRenderSystem(params);
     renderSystem(params);
+    staminaGaugeRenderSystem(params);
+    statusIconRenderSystem(params);
+    eggCrackRenderSystem({ ...params, currentTime: this.currentTime });
     characterNameLabelSystem(params);
     characterLayoutDebugSystem({ ...params, stage: this._stage });
     cleanableRenderSystem({ ...params, stage: this._stage });
@@ -44123,11 +44926,22 @@ const FLAPPY_BIRD_CLOUD_MAX_HEIGHT_RATIO = 0.72;
 const FLAPPY_BIRD_NEAR_MISS_CLEARANCE_RATIO = 0.25;
 const FLAPPY_BIRD_BASE_FRAME_MS = 1e3 / 60;
 const FLAPPY_BIRD_MAX_FRAME_SCALE = 1.25;
+const FLAPPY_BIRD_SPEED_TRANSITION_MS = 140;
 function resolveFrameScale(deltaTime) {
   return Math.min(
     FLAPPY_BIRD_MAX_FRAME_SCALE,
     Math.max(0, deltaTime / FLAPPY_BIRD_BASE_FRAME_MS)
   );
+}
+function smoothFlappyBirdSpeed(current, target, deltaTime) {
+  if (!Number.isFinite(current) || !Number.isFinite(target)) {
+    return target;
+  }
+  if (Math.abs(target - current) < 1e-3) {
+    return target;
+  }
+  const alpha = 1 - Math.exp(-Math.max(0, deltaTime) / FLAPPY_BIRD_SPEED_TRANSITION_MS);
+  return current + (target - current) * alpha;
 }
 class CloudManager {
   constructor(app, speed) {
@@ -44145,6 +44959,7 @@ class CloudManager {
       ((_a = AssetLoader.getAssets().flappyCloudSprites) == null ? void 0 : _a.textures) ?? {}
     );
     this.speed = speed * FLAPPY_BIRD_CLOUD_SPEED_RATIO;
+    this.targetSpeed = this.speed;
   }
   setup() {
     this.reset();
@@ -44160,6 +44975,7 @@ class CloudManager {
     if (this.cloudTextures.length === 0 || this.clouds.length === 0) {
       return;
     }
+    this.speed = smoothFlappyBirdSpeed(this.speed, this.targetSpeed, deltaTime);
     const frameScale = resolveFrameScale(deltaTime);
     for (let i2 = 0; i2 < this.clouds.length; i2++) {
       const cloud = this.clouds[i2];
@@ -44198,7 +45014,7 @@ class CloudManager {
     this.clouds = [];
   }
   setSpeed(speed) {
-    this.speed = speed * FLAPPY_BIRD_CLOUD_SPEED_RATIO;
+    this.targetSpeed = speed * FLAPPY_BIRD_CLOUD_SPEED_RATIO;
   }
   setVisualStyle(style) {
     this.visualStyle = style;
@@ -44263,6 +45079,7 @@ class GroundManager {
     this.physicsManager = physicsManager;
     this.groundContainer = new Container();
     this.speed = speed;
+    this.targetSpeed = speed;
     const assets = AssetLoader.getAssets();
     if ((_a = assets.tilesetSprites) == null ? void 0 : _a.textures["ground-1"]) {
       this.groundTileSize = Math.max(
@@ -44322,6 +45139,7 @@ class GroundManager {
     if (!this.groundTiles.length) {
       return;
     }
+    this.speed = smoothFlappyBirdSpeed(this.speed, this.targetSpeed, deltaTime);
     const frameScale = resolveFrameScale(deltaTime);
     for (let i2 = 0; i2 < this.groundTiles.length; i2++) {
       const tile = this.groundTiles[i2];
@@ -44367,7 +45185,7 @@ class GroundManager {
     return this.groundTileSize;
   }
   setSpeed(speed) {
-    this.speed = speed;
+    this.targetSpeed = speed;
   }
 }
 class PipeManager {
@@ -44379,7 +45197,9 @@ class PipeManager {
     this.app = app;
     this.physicsManager = physicsManager;
     this.speed = speed;
+    this.targetSpeed = speed;
     this.pipeSpawnInterval = spawnInterval;
+    this.targetPipeSpawnInterval = spawnInterval;
     this.groundHeight = groundHeight;
     this.pipes = new Container();
   }
@@ -44387,6 +45207,11 @@ class PipeManager {
    * 파이프를 업데이트합니다.
    */
   update(currentTime, playerBody, onScoreUpdate, deltaTime) {
+    this.pipeSpawnInterval = smoothFlappyBirdSpeed(
+      this.pipeSpawnInterval,
+      this.targetPipeSpawnInterval,
+      deltaTime
+    );
     if (currentTime - this.lastPipeSpawnTime > this.pipeSpawnInterval) {
       this.createPipePair();
       this.lastPipeSpawnTime = currentTime;
@@ -44518,6 +45343,7 @@ class PipeManager {
    * 파이프를 이동시키는 메서드
    */
   movePipes(playerBody, onScoreUpdate, deltaTime) {
+    this.speed = smoothFlappyBirdSpeed(this.speed, this.targetSpeed, deltaTime);
     const movementStep = this.speed * resolveFrameScale(deltaTime);
     for (let i2 = 0; i2 < this.pipesPairs.length; i2++) {
       const pair = this.pipesPairs[i2];
@@ -44567,8 +45393,11 @@ class PipeManager {
     this.lastPipeSpawnTime = 0;
   }
   applyDifficulty(options) {
-    this.speed = options.speed;
-    this.pipeSpawnInterval = options.pipeSpawnInterval;
+    this.targetSpeed = options.speed;
+    this.targetPipeSpawnInterval = options.pipeSpawnInterval;
+    if (this.pipesPairs.length === 0) {
+      this.pipeSpawnInterval = options.pipeSpawnInterval;
+    }
     this.passageHeightMinRatio = options.passageHeightMinRatio;
     this.passageHeightMaxRatio = options.passageHeightMaxRatio;
   }
@@ -44785,13 +45614,14 @@ const FLAPPY_BIRD_BGM_STEPS_PER_BEAT = 2;
 const FLAPPY_BIRD_BGM_STEP_DURATION_S = 60 / FLAPPY_BIRD_BGM_BPM / FLAPPY_BIRD_BGM_STEPS_PER_BEAT;
 const FLAPPY_BIRD_BGM_SCHEDULE_AHEAD_S = 0.12;
 const FLAPPY_BIRD_BGM_SCHEDULER_INTERVAL_MS = 25;
-const FLAPPY_BIRD_BGM_MASTER_GAIN = 0.055;
-const FLAPPY_BIRD_SFX_GAIN = 0.085;
+const FLAPPY_BIRD_BGM_MASTER_GAIN = 0.066;
+const FLAPPY_BIRD_SFX_GAIN = 0.102;
 const FLAPPY_BIRD_BGM_ATTACK_S = 0.02;
 const FLAPPY_BIRD_BGM_RELEASE_S = 0.08;
 const FLAPPY_BIRD_PIPE_PASS_CUE_ATTACK_S = 4e-3;
 const FLAPPY_BIRD_PIPE_PASS_CUE_RELEASE_S = 0.12;
 const FLAPPY_BIRD_COUNTDOWN_CUE_DURATION_S = 0.09;
+const FLAPPY_BIRD_BGM_TEMPO_TRANSITION_MS = 520;
 const FLAPPY_BIRD_BGM_LEAD_PATTERN = [
   76,
   79,
@@ -44838,6 +45668,16 @@ function getAudioContextConstructor() {
 function midiToFrequency(midi) {
   return 440 * Math.pow(2, (midi - 69) / 12);
 }
+function smoothTempoMultiplier(current, target, elapsedMs) {
+  if (!Number.isFinite(current) || !Number.isFinite(target)) {
+    return target;
+  }
+  if (Math.abs(target - current) < 1e-3) {
+    return target;
+  }
+  const alpha = 1 - Math.exp(-Math.max(0, elapsedMs) / FLAPPY_BIRD_BGM_TEMPO_TRANSITION_MS);
+  return current + (target - current) * alpha;
+}
 class FlappyBirdBgmController {
   constructor() {
     this.audioContext = null;
@@ -44850,6 +45690,9 @@ class FlappyBirdBgmController {
     this.isDestroyed = false;
     this.enabled = true;
     this.sfxEnabled = true;
+    this.currentTempoMultiplier = 1;
+    this.targetTempoMultiplier = 1;
+    this.lastTempoUpdateAtMs = 0;
   }
   isEnabled() {
     return this.enabled;
@@ -44868,6 +45711,12 @@ class FlappyBirdBgmController {
   }
   setSfxEnabled(enabled) {
     this.sfxEnabled = enabled;
+  }
+  setTempoMultiplier(tempoMultiplier) {
+    this.targetTempoMultiplier = Number.isFinite(tempoMultiplier) ? Math.max(0.5, tempoMultiplier) : 1;
+    if (!this.isPlaying) {
+      this.currentTempoMultiplier = this.targetTempoMultiplier;
+    }
   }
   async startFromGesture() {
     var _a;
@@ -44892,14 +45741,14 @@ class FlappyBirdBgmController {
       frequency: baseFrequency,
       time: now,
       duration: 0.08,
-      peakGain: hasNearMissBonus ? 0.16 : 0.12
+      peakGain: hasNearMissBonus ? 0.192 : 0.144
     });
     this.scheduleEffectVoice({
       waveform: "triangle",
       frequency: accentFrequency,
       time: now + 0.024,
       duration: 0.1,
-      peakGain: hasNearMissBonus ? 0.1 : 0.075
+      peakGain: hasNearMissBonus ? 0.12 : 0.09
     });
   }
   async playCountdownCue(displayValue) {
@@ -44923,14 +45772,14 @@ class FlappyBirdBgmController {
       frequency: baseFrequency,
       time: now,
       duration: FLAPPY_BIRD_COUNTDOWN_CUE_DURATION_S,
-      peakGain: 0.085
+      peakGain: 0.102
     });
     this.scheduleEffectVoice({
       waveform: "triangle",
       frequency: accentFrequency,
       time: now + 0.018,
       duration: FLAPPY_BIRD_COUNTDOWN_CUE_DURATION_S,
-      peakGain: 0.05
+      peakGain: 0.06
     });
   }
   async resumeIfAvailable() {
@@ -45012,6 +45861,8 @@ class FlappyBirdBgmController {
     }
     this.isPlaying = true;
     this.currentStep = 0;
+    this.currentTempoMultiplier = this.targetTempoMultiplier;
+    this.lastTempoUpdateAtMs = this.getNowMs();
     this.nextStepTime = this.audioContext.currentTime + 0.03;
     const now = this.audioContext.currentTime;
     this.masterGain.gain.cancelScheduledValues(now);
@@ -45029,13 +45880,16 @@ class FlappyBirdBgmController {
     if (!this.audioContext || !this.masterGain || !this.isPlaying) {
       return;
     }
+    this.updateTempoMultiplier();
+    const stepDuration = this.getStepDuration();
     while (this.nextStepTime < this.audioContext.currentTime + FLAPPY_BIRD_BGM_SCHEDULE_AHEAD_S) {
       this.scheduleStep(this.currentStep, this.nextStepTime);
       this.currentStep = (this.currentStep + 1) % FLAPPY_BIRD_BGM_LEAD_PATTERN.length;
-      this.nextStepTime += FLAPPY_BIRD_BGM_STEP_DURATION_S;
+      this.nextStepTime += stepDuration;
     }
   }
   scheduleStep(step, time) {
+    const stepDuration = this.getStepDuration();
     const leadMidi = FLAPPY_BIRD_BGM_LEAD_PATTERN[step];
     const bassMidi = FLAPPY_BIRD_BGM_BASS_PATTERN[step];
     if (leadMidi !== null) {
@@ -45043,7 +45897,7 @@ class FlappyBirdBgmController {
         waveform: "square",
         frequency: midiToFrequency(leadMidi),
         time,
-        duration: FLAPPY_BIRD_BGM_STEP_DURATION_S * 0.9,
+        duration: stepDuration * 0.9,
         peakGain: 0.14
       });
     }
@@ -45052,10 +45906,26 @@ class FlappyBirdBgmController {
         waveform: "triangle",
         frequency: midiToFrequency(bassMidi),
         time,
-        duration: FLAPPY_BIRD_BGM_STEP_DURATION_S * 1.8,
+        duration: stepDuration * 1.8,
         peakGain: 0.12
       });
     }
+  }
+  getStepDuration() {
+    return FLAPPY_BIRD_BGM_STEP_DURATION_S / this.currentTempoMultiplier;
+  }
+  updateTempoMultiplier() {
+    const nowMs = this.getNowMs();
+    const elapsedMs = this.lastTempoUpdateAtMs > 0 ? nowMs - this.lastTempoUpdateAtMs : 0;
+    this.lastTempoUpdateAtMs = nowMs;
+    this.currentTempoMultiplier = smoothTempoMultiplier(
+      this.currentTempoMultiplier,
+      this.targetTempoMultiplier,
+      elapsedMs
+    );
+  }
+  getNowMs() {
+    return typeof performance !== "undefined" ? performance.now() : Date.now();
   }
   scheduleVoice(params) {
     if (!this.audioContext || !this.masterGain) {
@@ -45277,16 +46147,16 @@ class PhysicsManager {
   }
 }
 const FLAPPY_BIRD_FONT_FAMILIES = [...NAME_LABEL_FONT_FAMILIES];
-const FLAPPY_BIRD_SCORE_FONT_SIZE = 12;
+const FLAPPY_BIRD_SCORE_FONT_SIZE = 18;
 const FLAPPY_BIRD_SCORE_MARGIN_X = 4;
 const FLAPPY_BIRD_SCORE_MARGIN_Y = 6;
-const FLAPPY_BIRD_SCORE_LINE_GAP = 16;
-const FLAPPY_BIRD_NEAR_MISS_FONT_SIZE = 14;
+const FLAPPY_BIRD_SCORE_LINE_GAP = 24;
+const FLAPPY_BIRD_NEAR_MISS_FONT_SIZE = 21;
 const FLAPPY_BIRD_NEAR_MISS_DURATION_MS = 520;
 const FLAPPY_BIRD_NEAR_MISS_FLOAT_DISTANCE = 14;
 const FLAPPY_BIRD_NEAR_MISS_GOOD_COLOR = 15978338;
 const FLAPPY_BIRD_NEAR_MISS_GREAT_COLOR = 16769162;
-const FLAPPY_BIRD_COUNTDOWN_FONT_SIZE = 42;
+const FLAPPY_BIRD_COUNTDOWN_FONT_SIZE = 63;
 class CountdownUI {
   constructor() {
     this.remainingMs = 0;
@@ -45558,22 +46428,27 @@ const FLAPPY_BIRD_TUTORIAL_SCORE_LIMIT = 5;
 const FLAPPY_BIRD_SPEED_STEP_TWO_SCORE_LIMIT = 20;
 const FLAPPY_BIRD_ENDGAME_SCORE_LIMIT = 40;
 const FLAPPY_BIRD_MAX_DIFFICULTY_SCORE = 30;
+const FLAPPY_BIRD_PIPE_SPAWN_INTERVAL_SCALE = 0.72;
+const FLAPPY_BIRD_BGM_REFERENCE_PIPE_SPEED = 3.8;
+function reduceFlappyBirdPipeSpawnInterval(intervalMs) {
+  return Math.round(intervalMs * FLAPPY_BIRD_PIPE_SPAWN_INTERVAL_SCALE);
+}
 const FLAPPY_BIRD_TUTORIAL_DIFFICULTY = {
-  pipeSpeed: 3.6,
-  pipeSpawnInterval: 2740,
+  pipeSpeed: 4,
+  pipeSpawnInterval: reduceFlappyBirdPipeSpawnInterval(2740),
   passageHeightMinRatio: 0.35,
   passageHeightMaxRatio: 0.45
 };
 const FLAPPY_BIRD_BASE_DIFFICULTY = {
-  pipeSpeed: 3.8,
-  pipeSpawnInterval: 2480
+  pipeSpeed: 4.6,
+  pipeSpawnInterval: reduceFlappyBirdPipeSpawnInterval(2480)
 };
 const FLAPPY_BIRD_MAX_DIFFICULTY = {
-  pipeSpeed: 4,
-  pipeSpawnInterval: 2025
+  pipeSpeed: 5,
+  pipeSpawnInterval: reduceFlappyBirdPipeSpawnInterval(2025)
 };
 const FLAPPY_BIRD_ENDGAME_DIFFICULTY = {
-  pipeSpeed: 4,
+  pipeSpeed: 5.4,
   passageHeightMinRatio: 0.28,
   passageHeightMaxRatio: 0.3
 };
@@ -45583,8 +46458,8 @@ class FlappyBirdGameScene extends Container {
     this.initialized = false;
     this.gameState = GameState.READY;
     this.gameOptions = {
-      pipeSpeed: 3.6,
-      pipeSpawnInterval: 2740,
+      pipeSpeed: 4,
+      pipeSpawnInterval: reduceFlappyBirdPipeSpawnInterval(2740),
       jumpVelocity: 7
     };
     this.skyContext = null;
@@ -45892,6 +46767,9 @@ class FlappyBirdGameScene extends Container {
     });
     this.groundManager.setSpeed(difficulty.pipeSpeed);
     this.cloudManager.setSpeed(difficulty.pipeSpeed);
+    this.bgmController.setTempoMultiplier(
+      this.resolveBgmTempoMultiplier(difficulty.pipeSpeed)
+    );
   }
   resolveDifficultyState(score) {
     if (score <= FLAPPY_BIRD_TUTORIAL_SCORE_LIMIT) {
@@ -45939,6 +46817,9 @@ class FlappyBirdGameScene extends Container {
       return FLAPPY_BIRD_MAX_DIFFICULTY.pipeSpeed;
     }
     return FLAPPY_BIRD_ENDGAME_DIFFICULTY.pipeSpeed;
+  }
+  resolveBgmTempoMultiplier(pipeSpeed) {
+    return Math.max(0.5, pipeSpeed / FLAPPY_BIRD_BGM_REFERENCE_PIPE_SPEED);
   }
   interpolateNumber(start, end, progress) {
     return start + (end - start) * progress;
@@ -46756,6 +47637,12 @@ class Game {
       this._syncFlappyBirdCharacterKeyFromMainScene(this.currentScene);
     }
     return this._flappyBirdCharacterKey ?? CharacterKey.TestGreenSlimeA1;
+  }
+  getMainCharacterStaminaSnapshot() {
+    if (!(this.currentScene instanceof MainSceneWorld)) {
+      return null;
+    }
+    return this.currentScene.getMainCharacterStaminaSnapshot();
   }
   getDiagnosticsSnapshot() {
     return {
@@ -47954,10 +48841,13 @@ function roundKeyboardAwareDebugValue(value) {
 const PopupLayer = ({
   title = "Alert!",
   content,
+  topLeftContent,
   onConfirm,
   onCancel,
   confirmText = "Confirm",
   cancelText = "Cancel",
+  confirmVariant = "positive",
+  cancelVariant = "negative",
   initialFocusTarget = "none",
   keyboardAwareTargetRef,
   keyboardAwareViewportPadding = 16,
@@ -48269,18 +49159,19 @@ const PopupLayer = ({
             transform: keyboardAwareOffsetY !== 0 ? `translateY(${keyboardAwareOffsetY}px)` : void 0,
             maxHeight: keyboardAwareMaxHeight !== null ? `${keyboardAwareMaxHeight}px` : void 0
           },
-          className: "relative w-full max-w-[22rem] overflow-y-auto border-4 border-[#222] bg-layer-bg p-5 text-center shadow-[0_4px_0_#222,0_-4px_0_#222,4px_0_0_#222,-4px_0_0_#222,4px_4px_0_#222,-4px_4px_0_#222,4px_-4px_0_#222,-4px_-4px_0_#222] focus:outline-none",
+          className: "relative w-full max-w-[22rem] overflow-y-auto border-4 border-[#222] bg-layer-bg p-5 text-center font-dialog shadow-[0_4px_0_#222,0_-4px_0_#222,4px_0_0_#222,-4px_0_0_#222,4px_4px_0_#222,-4px_4px_0_#222,4px_-4px_0_#222,-4px_-4px_0_#222] focus:outline-none",
           children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-xl text-component-negative font-bold mb-[15px] pb-[10px] border-b-4 border-[#222]", children: title }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "mb-5 leading-[1.6] text-base", children: content }),
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex justify-center gap-[15px]", children: [
+            topLeftContent ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute left-2 top-2 z-[1]", children: topLeftContent }) : null,
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "mb-[15px] border-b-4 border-[#222] pb-[10px] text-[1.8rem] leading-[1.2] font-display font-bold text-component-negative", children: title }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "pb-4 text-[1.4rem] leading-[1.6]", children: content }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex justify-center gap-[15px] border-t-4 border-[#222] pt-4", children: [
               onCancel && /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "button",
                 {
                   ref: cancelButtonRef,
                   type: "button",
                   onClick: handleCancelClick,
-                  className: "text-base bg-component-negative text-white border-2 border-[#222] p-[10px_15px] cursor-pointer uppercase shadow-[2px_2px_0_#222] relative top-0 left-0 transition-all duration-50",
+                  className: `text-[1.5rem] text-white border-2 border-[#222] px-[15px] py-0.5 cursor-pointer uppercase font-display shadow-[2px_2px_0_#222] relative top-0 left-0 transition-all duration-50 ${cancelVariant === "negative" ? "bg-component-negative" : "bg-component-positive"}`,
                   children: cancelText
                 }
               ),
@@ -48290,7 +49181,7 @@ const PopupLayer = ({
                   ref: confirmButtonRef,
                   type: "button",
                   onClick: handleConfirmClick,
-                  className: "text-base bg-component-positive text-white border-2 border-[#222] p-[10px_15px]  cursor-pointer uppercase shadow-[2px_2px_0_#222]",
+                  className: `text-[1.5rem] text-white border-2 border-[#222] px-[15px] py-0.5 cursor-pointer uppercase font-display shadow-[2px_2px_0_#222] ${confirmVariant === "negative" ? "bg-component-negative" : "bg-component-positive"}`,
                   children: confirmText
                 }
               )
@@ -48352,7 +49243,7 @@ const SetupLayer = ({ onComplete }) => {
               setError(null);
             },
             placeholder: "Monster Name",
-            className: "w-full px-3 py-2 text-center border-2 border-[#222] text-xs focus:outline-none focus:ring-2 focus:ring-[#d95763]"
+            className: "w-full border-2 border-[#222] px-3 py-0.5 text-center text-[1.5rem] focus:outline-none focus:ring-2 focus:ring-[#d95763]"
           }
         ),
         /* @__PURE__ */ jsxRuntimeExports.jsxs(
@@ -48391,7 +49282,7 @@ const AlertLayer = ({
     PopupLayer,
     {
       title,
-      content: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex flex-col items-center gap-4", children: /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-base", children: message }) }),
+      content: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex flex-col items-center gap-4", children: /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "leading-[1.6]", children: message }) }),
       onConfirm: onClose,
       onCancel,
       confirmText,
@@ -48404,14 +49295,14 @@ const FlappyBirdGameOverLayer = ({
   onExit
 }) => {
   return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 z-[50] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex w-full max-w-[22rem] flex-col items-center gap-5 px-4 text-center text-white", children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-2xl font-bold tracking-[0.12em] uppercase drop-shadow-[0_2px_6px_rgba(0,0,0,0.65)]", children: "Game Over" }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-[2.25rem] font-bold tracking-[0.12em] uppercase drop-shadow-[0_2px_6px_rgba(0,0,0,0.65)]", children: "Game Over" }),
     /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex justify-center gap-[15px]", children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx(
         "button",
         {
           type: "button",
           onClick: onExit,
-          className: "text-base bg-component-negative text-white border-2 border-[#222] p-[10px_15px] cursor-pointer uppercase shadow-[2px_2px_0_#222] relative top-0 left-0 transition-all duration-50",
+          className: "text-[1.5rem] bg-component-negative text-white border-2 border-[#222] px-[15px] py-0.5 cursor-pointer uppercase shadow-[2px_2px_0_#222] relative top-0 left-0 transition-all duration-50",
           children: "Exit"
         }
       ),
@@ -48420,7 +49311,7 @@ const FlappyBirdGameOverLayer = ({
         {
           type: "button",
           onClick: onRestart,
-          className: "text-base bg-component-positive text-white border-2 border-[#222] p-[10px_15px] cursor-pointer uppercase shadow-[2px_2px_0_#222]",
+          className: "text-[1.5rem] bg-component-positive text-white border-2 border-[#222] px-[15px] py-0.5 cursor-pointer uppercase shadow-[2px_2px_0_#222]",
           children: "Retry"
         }
       )
@@ -48433,7 +49324,7 @@ const ToggleButton$1 = ({ enabled, onClick }) => {
     {
       type: "button",
       onClick,
-      className: `min-w-20 border-2 border-[#222] px-4 py-2 text-sm font-bold text-white ${enabled ? "bg-component-positive" : "bg-gray-400"}`,
+      className: `min-w-20 border-2 border-[#222] px-4 py-0.5 font-bold text-white ${enabled ? "bg-component-positive" : "bg-gray-400"}`,
       children: enabled ? "ON" : "OFF"
     }
   );
@@ -48453,10 +49344,10 @@ const FlappyBirdSettingsLayer = ({
     {
       title: "Settings",
       suppressInitialActionsMs: 180,
-      content: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-5 text-left", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-sm text-gray-600", children: "The game is paused." }),
+      content: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-5 text-left text-[1.5rem]", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-gray-600", children: "The game is paused." }),
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between gap-4", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-sm font-bold", children: "BGM" }) }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "font-bold", children: "BGM" }) }),
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             ToggleButton$1,
             {
@@ -48466,7 +49357,7 @@ const FlappyBirdSettingsLayer = ({
           )
         ] }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "border-t-2 border-[#222] pt-4", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between gap-4", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-sm font-bold", children: "SFX" }) }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "font-bold", children: "SFX" }) }),
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             ToggleButton$1,
             {
@@ -48491,7 +49382,7 @@ const ToggleButton = ({ enabled, onClick }) => {
     {
       type: "button",
       onClick,
-      className: `min-w-20 border-2 border-[#222] px-4 py-2 text-sm font-bold text-white ${enabled ? "bg-component-positive" : "bg-gray-400"}`,
+      className: `min-w-20 border-2 border-[#222] px-4 py-0.5 font-bold text-white ${enabled ? "bg-component-positive" : "bg-gray-400"}`,
       children: enabled ? "ON" : "OFF"
     }
   );
@@ -48504,12 +49395,13 @@ const ActionButton = ({ text, onClick, disabled = false, variant = "positive" })
       type: "button",
       disabled,
       onClick,
-      className: `flex min-w-20 items-center justify-center border-2 border-[#222] px-4 py-2 text-center text-sm font-bold text-white ${backgroundClass}`,
+      className: `flex min-w-20 items-center justify-center border-2 border-[#222] px-4 py-0.5 text-center font-bold text-white ${backgroundClass}`,
       children: text
     }
   );
 };
 const SettingMenuLayer = ({
+  releaseLabel,
   vibrationEnabled,
   onChangeVibration,
   onSendDiagnostics,
@@ -48531,9 +49423,10 @@ const SettingMenuLayer = ({
       {
         title: "Settings",
         suppressInitialActionsMs: 180,
-        content: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-5 text-left", children: [
+        topLeftContent: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-[10px] leading-none text-gray-500", children: releaseLabel }),
+        content: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-5 text-left text-[1.5rem]", children: [
           /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between gap-4", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-sm font-bold", children: "Vibration" }) }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "font-bold", children: "Vibration" }) }),
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               ToggleButton,
               {
@@ -48542,28 +49435,20 @@ const SettingMenuLayer = ({
               }
             )
           ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "border-t-2 border-[#222] pt-4", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between gap-4", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "font-bold", children: "Report Bug" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              ActionButton,
+              {
+                text: "Send",
+                onClick: onSendDiagnostics,
+                disabled: isSendingDiagnostics,
+                variant: "warning"
+              }
+            )
+          ] }) }),
           /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "border-t-2 border-[#222] pt-4", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "mb-3 text-sm font-bold", children: "Send Diagnostics" }),
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between gap-4", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-xs text-gray-600", children: "Open Gmail with attached diagnostics files." }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx(
-                ActionButton,
-                {
-                  text: isSendingDiagnostics ? "Sending..." : "Send",
-                  onClick: onSendDiagnostics,
-                  disabled: isSendingDiagnostics,
-                  variant: "warning"
-                }
-              )
-            ] })
-          ] }),
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "border-t-2 border-[#222] pt-4", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-sm font-bold", children: "Reset Game Data" }) }),
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mt-1 text-xs text-gray-600", children: [
-              "Type ",
-              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "font-bold", children: "confirm" }),
-              " below to enable the reset button."
-            ] }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "font-bold text-red-600", children: "Raise a New Monster" }) }),
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mt-3 flex items-center justify-between gap-3", children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "input",
@@ -48572,7 +49457,7 @@ const SettingMenuLayer = ({
                   value: resetConfirmText,
                   onChange: (event) => setResetConfirmText(event.target.value),
                   placeholder: "confirm",
-                  className: "w-40 border-2 border-[#222] px-3 py-2 text-center text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#d95763]"
+                  className: "w-40 border-2 border-[#222] px-3 py-0.5 text-center placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#d95763]"
                 }
               ),
               /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -48581,7 +49466,7 @@ const SettingMenuLayer = ({
                   type: "button",
                   disabled: !isResetEnabled,
                   onClick: onOpenResetConfirm,
-                  className: `border-2 border-[#222] px-4 py-2 text-sm font-bold text-white ${isResetEnabled ? "bg-component-negative" : "cursor-not-allowed bg-gray-400 opacity-60"}`,
+                  className: `border-2 border-[#222] px-4 py-0.5 font-bold text-white ${isResetEnabled ? "bg-component-negative" : "cursor-not-allowed bg-gray-400 opacity-60"}`,
                   children: "Reset"
                 }
               )
@@ -48595,12 +49480,14 @@ const SettingMenuLayer = ({
     showFinalResetConfirm && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
       PopupLayer,
       {
-        title: "Final Confirmation",
-        content: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-sm leading-6", children: "This will permanently delete all game data and return you to the initial setup screen. This action cannot be undone." }),
+        title: "Reset?",
+        content: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "leading-[1.6]", children: "This will permanently delete your current monster and all progress. You'll return to the setup screen to hatch a new one." }),
         onConfirm: onResetGameData,
         onCancel: onCloseResetConfirm,
-        confirmText: "Delete",
-        cancelText: "Cancel"
+        confirmText: "Reset",
+        cancelText: "Cancel",
+        confirmVariant: "negative",
+        cancelVariant: "positive"
       }
     ) })
   ] });
@@ -48666,6 +49553,13 @@ function getEggHatchDelayMs(randomValue = Math.random()) {
   return Math.round(
     max - Math.sqrt((1 - clampedRandom) * (max - min) * (max - mode))
   );
+}
+function createEggHatchSchedule(now, randomValue = Math.random()) {
+  const hatchDurationMs = getEggHatchDelayMs(randomValue);
+  return {
+    hatchTime: now + hatchDurationMs,
+    hatchDurationMs
+  };
 }
 function isRecord(value) {
   return typeof value === "object" && value !== null;
@@ -48780,13 +49674,14 @@ function sanitizeCachedSunTimes(sunTimes) {
   };
 }
 function sanitizeCharacterEntity(components, now) {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B, _C, _D, _E, _F, _G, _H, _I, _J, _K, _L, _M, _N, _O, _P, _Q, _R, _S, _T, _U, _V, _W;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B, _C, _D, _E, _F, _G, _H, _I, _J, _K, _L, _M, _N, _O, _P, _Q, _R, _S, _T, _U, _V, _W, _X;
   const objectId = toFiniteNumber((_a = components.object) == null ? void 0 : _a.id);
   if (!objectId || objectId <= 0) {
     return null;
   }
   const state = toFiniteNumber((_b = components.object) == null ? void 0 : _b.state) ?? CHARACTER_STATE.EGG;
   const characterKey = toFiniteNumber((_c = components.characterStatus) == null ? void 0 : _c.characterKey) ?? DEFAULTS.CHARACTER_KEY;
+  const fallbackEggHatchSchedule = state === CHARACTER_STATE.EGG ? createEggHatchSchedule(now) : null;
   const sanitized = {
     object: {
       id: objectId,
@@ -48854,11 +49749,12 @@ function sanitizeCharacterEntity(components, now) {
       startTime: toFiniteNumber((_J = components.temporaryStatus) == null ? void 0 : _J.startTime) ?? 0
     },
     eggHatch: {
-      hatchTime: toFiniteNumber((_K = components.eggHatch) == null ? void 0 : _K.hatchTime) ?? (state === CHARACTER_STATE.EGG ? now + getEggHatchDelayMs() : 0),
-      isReadyToHatch: toBoolean((_L = components.eggHatch) == null ? void 0 : _L.isReadyToHatch, false)
+      hatchTime: toFiniteNumber((_K = components.eggHatch) == null ? void 0 : _K.hatchTime) ?? (fallbackEggHatchSchedule == null ? void 0 : fallbackEggHatchSchedule.hatchTime) ?? 0,
+      hatchDurationMs: toFiniteNumber((_L = components.eggHatch) == null ? void 0 : _L.hatchDurationMs) ?? (fallbackEggHatchSchedule == null ? void 0 : fallbackEggHatchSchedule.hatchDurationMs) ?? 0,
+      isReadyToHatch: toBoolean((_M = components.eggHatch) == null ? void 0 : _M.isReadyToHatch, false)
     }
   };
-  const statusIconSlots = (_M = sanitized.statusIconRender) == null ? void 0 : _M.storeIndexes;
+  const statusIconSlots = (_N = sanitized.statusIconRender) == null ? void 0 : _N.storeIndexes;
   if (statusIconSlots && statusIconSlots.length < DEFAULTS.STATUS_SLOT_COUNT) {
     while (statusIconSlots.length < DEFAULTS.STATUS_SLOT_COUNT) {
       statusIconSlots.push(ECS_NULL_VALUE);
@@ -48867,30 +49763,30 @@ function sanitizeCharacterEntity(components, now) {
   if (needsAnimationRender(state)) {
     sanitized.animationRender = {
       storeIndex: ECS_NULL_VALUE,
-      spritesheetKey: toFiniteNumber((_N = components.animationRender) == null ? void 0 : _N.spritesheetKey) ?? characterKey ?? DEFAULTS.SPRITESHEET_KEY,
-      animationKey: toFiniteNumber((_O = components.animationRender) == null ? void 0 : _O.animationKey) ?? DEFAULTS.ANIMATION_KEY_IDLE,
-      isPlaying: toBoolean((_P = components.animationRender) == null ? void 0 : _P.isPlaying, true),
-      loop: toBoolean((_Q = components.animationRender) == null ? void 0 : _Q.loop, true),
-      speed: toFiniteNumber((_R = components.animationRender) == null ? void 0 : _R.speed) ?? 0.04
+      spritesheetKey: toFiniteNumber((_O = components.animationRender) == null ? void 0 : _O.spritesheetKey) ?? characterKey ?? DEFAULTS.SPRITESHEET_KEY,
+      animationKey: toFiniteNumber((_P = components.animationRender) == null ? void 0 : _P.animationKey) ?? DEFAULTS.ANIMATION_KEY_IDLE,
+      isPlaying: toBoolean((_Q = components.animationRender) == null ? void 0 : _Q.isPlaying, true),
+      loop: toBoolean((_R = components.animationRender) == null ? void 0 : _R.loop, true),
+      speed: toFiniteNumber((_S = components.animationRender) == null ? void 0 : _S.speed) ?? 0.04
     };
   }
   if (needsRandomMovement(state)) {
-    const minIdle = toFiniteNumber((_S = components.randomMovement) == null ? void 0 : _S.minIdleTime) ?? DEFAULTS.RANDOM_MOVEMENT.minIdleTime;
+    const minIdle = toFiniteNumber((_T = components.randomMovement) == null ? void 0 : _T.minIdleTime) ?? DEFAULTS.RANDOM_MOVEMENT.minIdleTime;
     const maxIdle = Math.max(
       minIdle,
-      toFiniteNumber((_T = components.randomMovement) == null ? void 0 : _T.maxIdleTime) ?? DEFAULTS.RANDOM_MOVEMENT.maxIdleTime
+      toFiniteNumber((_U = components.randomMovement) == null ? void 0 : _U.maxIdleTime) ?? DEFAULTS.RANDOM_MOVEMENT.maxIdleTime
     );
-    const minMove = toFiniteNumber((_U = components.randomMovement) == null ? void 0 : _U.minMoveTime) ?? DEFAULTS.RANDOM_MOVEMENT.minMoveTime;
+    const minMove = toFiniteNumber((_V = components.randomMovement) == null ? void 0 : _V.minMoveTime) ?? DEFAULTS.RANDOM_MOVEMENT.minMoveTime;
     const maxMove = Math.max(
       minMove,
-      toFiniteNumber((_V = components.randomMovement) == null ? void 0 : _V.maxMoveTime) ?? DEFAULTS.RANDOM_MOVEMENT.maxMoveTime
+      toFiniteNumber((_W = components.randomMovement) == null ? void 0 : _W.maxMoveTime) ?? DEFAULTS.RANDOM_MOVEMENT.maxMoveTime
     );
     sanitized.randomMovement = {
       minIdleTime: minIdle,
       maxIdleTime: maxIdle,
       minMoveTime: minMove,
       maxMoveTime: maxMove,
-      nextChange: toFiniteNumber((_W = components.randomMovement) == null ? void 0 : _W.nextChange) ?? now + 1e3
+      nextChange: toFiniteNumber((_X = components.randomMovement) == null ? void 0 : _X.nextChange) ?? now + 1e3
     };
   }
   return sanitized;
@@ -49153,7 +50049,7 @@ const RECOVERY_VIBRATION_INTERVAL_MS = 180;
 const RECOVERY_VIBRATION_DURATION_MS = 14;
 const RECOVERY_VIBRATION_STRENGTH = 28;
 const LOADING_TIMEOUT_MS = 3e4;
-const isNativeFeatureDebugMode$1 = false;
+const isNativeFeatureDebugMode$1 = true;
 const isAndroidUserAgent = typeof navigator !== "undefined" && /DigiviceApp-Android|Android/i.test(navigator.userAgent);
 const KEYBOARD_VIEWPORT_HEIGHT_DELTA_THRESHOLD = 80;
 const UNSUPPORTED_SQUARE_VIEWPORT_RATIO = 0.8;
@@ -49428,11 +50324,11 @@ function createDiagnosticsBody() {
   ].join("\n");
 }
 function getClientReleaseLabel() {
-  return `${"0.2.0"}+${5}`;
+  return `${"0.3.0-debug"}+${6}`;
 }
 function getClientReleaseFileLabel() {
-  const sanitizedVersion = "0.2.0".replace(/[^a-zA-Z0-9.-]+/g, "_");
-  return `${sanitizedVersion}-build-${5}`;
+  const sanitizedVersion = "0.3.0-debug".replace(/[^a-zA-Z0-9.-]+/g, "_");
+  return `${sanitizedVersion}-build-${6}`;
 }
 function buildGmailComposeHref(subject, body) {
   const gmailComposeUrl = new URL("https://mail.google.com/mail/");
@@ -49969,8 +50865,8 @@ const GameContainer = () => {
       scene: (gameInstance == null ? void 0 : gameInstance.getCurrentSceneKey()) !== void 0 ? String(gameInstance.getCurrentSceneKey()) : void 0,
       storageKind: getClientStorageKind(),
       appMode: "production",
-      appVersion: "0.2.0",
-      buildNumber: 5,
+      appVersion: "0.3.0-debug",
+      buildNumber: 6,
       debugEnabled: isNativeFeatureDebugMode$1
     }));
     return () => {
@@ -50316,8 +51212,8 @@ const GameContainer = () => {
         generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
         appInfo: {
           project: "MonTTo",
-          clientAppVersion: "0.2.0",
-          clientBuildNumber: 5,
+          clientAppVersion: "0.3.0-debug",
+          clientBuildNumber: 6,
           appMode: "production",
           debugEnabled: isNativeFeatureDebugMode$1,
           storageKind: getClientStorageKind(),
@@ -51033,13 +51929,19 @@ const GameContainer = () => {
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex min-h-0 min-w-0 justify-center overflow-hidden", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "div",
                 {
-                  id: "game-container",
-                  ref: gameContainerRef,
                   className: "relative m-0 shrink-0 p-0",
                   style: gameContainerSize ? {
                     width: `${gameContainerSize}px`,
                     height: `${gameContainerSize}px`
-                  } : void 0
+                  } : void 0,
+                  children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    "div",
+                    {
+                      id: "game-container",
+                      ref: gameContainerRef,
+                      className: "absolute inset-0 m-0 p-0"
+                    }
+                  )
                 }
               ) }),
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "aria-hidden": "true", className: "min-h-0" }),
@@ -51056,7 +51958,7 @@ const GameContainer = () => {
             ]
           }
         ),
-        isLoading && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-50 flex items-center justify-center bg-black text-white", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-center text-lg tracking-[0.12em]", children: "Loading..." }) }),
+        isLoading && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-50 flex items-center justify-center bg-black text-white", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-center text-[2.25rem] tracking-[0.12em]", children: "Loading..." }) }),
         unsupportedViewportReason && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-[1000] flex items-center justify-center bg-black text-white", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "px-6 text-center", children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-lg tracking-[0.12em]", children: "Portrait Only" }),
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "mt-6 text-[10px] leading-6 tracking-[0.12em]", children: unsupportedViewportReason === "landscape" ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
@@ -51073,6 +51975,7 @@ const GameContainer = () => {
         showSettingMenu && /* @__PURE__ */ jsxRuntimeExports.jsx(
           SettingMenuLayer,
           {
+            releaseLabel: getClientReleaseLabel(),
             vibrationEnabled: gameSettings.vibrationEnabled,
             onChangeVibration: handleVibrationSettingChange,
             onSendDiagnostics: handleSendDiagnostics,
@@ -51096,7 +51999,7 @@ const GameContainer = () => {
           PopupLayer,
           {
             title: loadingFailureAlert.title,
-            content: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-left text-sm leading-6", children: loadingFailureAlert.message }),
+            content: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-left leading-[1.6]", children: loadingFailureAlert.message }),
             onConfirm: dismissLoadingFailureAlert,
             onCancel: handleSendLoadingFailureLogs,
             confirmText: "Okay",
@@ -51119,13 +52022,9 @@ const GameContainer = () => {
           PopupLayer,
           {
             title: "Open Gmail",
-            content: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "text-left text-sm leading-6", children: [
+            content: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "text-left leading-[1.6]", children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: "The Gmail app will open next." }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "mt-2", children: "The diagnostics files will be attached to the draft email." }),
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mt-2 font-mono text-xs leading-5 text-white/70", children: [
-                "Release: ",
-                getClientReleaseLabel()
-              ] })
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "mt-2", children: "The diagnostics files will be attached to the draft email." })
             ] }),
             onConfirm: handleConfirmDiagnosticsDraft,
             onCancel: handleCancelDiagnosticsDraft,
@@ -51454,12 +52353,12 @@ const App = () => {
   ] });
 };
 const platformAdapter = new PlatformAdapter();
-const isNativeFeatureDebugMode = false;
+const isNativeFeatureDebugMode = true;
 installDiagnosticsConsoleCapture();
 setDiagnosticsContextProvider(() => ({
   appMode: "production",
-  appVersion: "0.2.0",
-  buildNumber: 5,
+  appVersion: "0.3.0-debug",
+  buildNumber: 6,
   debugEnabled: isNativeFeatureDebugMode
 }));
 document.addEventListener("DOMContentLoaded", () => {

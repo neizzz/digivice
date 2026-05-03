@@ -62,11 +62,11 @@
 
 @layer theme {
   :root, :host {
-    --font-sans: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
     --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
     --color-red-600: oklch(57.7% .245 27.325);
     --color-yellow-500: oklch(79.5% .184 86.047);
     --color-gray-400: oklch(70.7% .022 261.325);
+    --color-gray-500: oklch(55.1% .027 264.364);
     --color-gray-600: oklch(44.6% .03 256.802);
     --color-gray-700: oklch(37.3% .034 259.733);
     --color-black: #000;
@@ -74,20 +74,11 @@
     --spacing: .25rem;
     --text-xs: .75rem;
     --text-xs--line-height: calc(1 / .75);
-    --text-sm: .875rem;
-    --text-sm--line-height: calc(1.25 / .875);
-    --text-base: 1rem;
-    --text-base--line-height: calc(1.5 / 1);
     --text-lg: 1.125rem;
     --text-lg--line-height: calc(1.75 / 1.125);
-    --text-xl: 1.25rem;
-    --text-xl--line-height: calc(1.75 / 1.25);
-    --text-2xl: 1.5rem;
-    --text-2xl--line-height: calc(2 / 1.5);
     --font-weight-bold: 700;
     --default-transition-duration: .15s;
     --default-transition-timing-function: cubic-bezier(.4, 0, .2, 1);
-    --default-font-family: var(--font-sans);
     --default-mono-font-family: var(--font-mono);
   }
 }
@@ -110,11 +101,11 @@
   html, :host {
     -webkit-text-size-adjust: 100%;
     tab-size: 4;
-    line-height: 1.5;
-    font-family: var(--default-font-family, ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji");
-    font-feature-settings: var(--default-font-feature-settings, normal);
-    font-variation-settings: var(--default-font-variation-settings, normal);
+    font-feature-settings: normal;
+    font-variation-settings: normal;
     -webkit-tap-highlight-color: transparent;
+    font-family: NeoDunggeunmo Pro, ui-sans-serif, system-ui, sans-serif, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol, Noto Color Emoji;
+    line-height: 1.5;
   }
 
   hr {
@@ -374,15 +365,31 @@
     top: 50%;
   }
 
+  .top-2 {
+    top: calc(var(--spacing) * 2);
+  }
+
   .left-0 {
     left: calc(var(--spacing) * 0);
+  }
+
+  .left-2 {
+    left: calc(var(--spacing) * 2);
   }
 
   .z-10 {
     z-index: 10;
   }
 
-  .z-50, .z-\[50\] {
+  .z-50 {
+    z-index: 50;
+  }
+
+  .z-\[1\] {
+    z-index: 1;
+  }
+
+  .z-\[50\] {
     z-index: 50;
   }
 
@@ -440,10 +447,6 @@
     margin-inline: auto;
   }
 
-  .mt-1 {
-    margin-top: calc(var(--spacing) * 1);
-  }
-
   .mt-2 {
     margin-top: calc(var(--spacing) * 2);
   }
@@ -462,10 +465,6 @@
 
   .mb-3 {
     margin-bottom: calc(var(--spacing) * 3);
-  }
-
-  .mb-5 {
-    margin-bottom: calc(var(--spacing) * 5);
   }
 
   .mb-\[15px\] {
@@ -636,6 +635,11 @@
     border-top-width: 2px;
   }
 
+  .border-t-4 {
+    border-top-style: var(--tw-border-style);
+    border-top-width: 4px;
+  }
+
   .border-b-4 {
     border-bottom-style: var(--tw-border-style);
     border-bottom-width: 4px;
@@ -708,10 +712,6 @@
     padding: calc(var(--spacing) * 5);
   }
 
-  .p-\[10px_15px\] {
-    padding: 10px 15px;
-  }
-
   .px-3 {
     padding-inline: calc(var(--spacing) * 3);
   }
@@ -724,12 +724,20 @@
     padding-inline: calc(var(--spacing) * 6);
   }
 
-  .py-2 {
-    padding-block: calc(var(--spacing) * 2);
+  .px-\[15px\] {
+    padding-inline: 15px;
+  }
+
+  .py-0\.5 {
+    padding-block: calc(var(--spacing) * .5);
   }
 
   .pt-4 {
     padding-top: calc(var(--spacing) * 4);
+  }
+
+  .pb-4 {
+    padding-bottom: calc(var(--spacing) * 4);
   }
 
   .pb-\[10px\] {
@@ -744,33 +752,13 @@
     text-align: left;
   }
 
-  .font-mono {
-    font-family: var(--font-mono);
-  }
-
-  .text-2xl {
-    font-size: var(--text-2xl);
-    line-height: var(--tw-leading, var(--text-2xl--line-height));
-  }
-
-  .text-base {
-    font-size: var(--text-base);
-    line-height: var(--tw-leading, var(--text-base--line-height));
+  .font-dialog, .font-display {
+    font-family: NeoDunggeunmo Pro, ui-sans-serif, system-ui, sans-serif, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol, Noto Color Emoji;
   }
 
   .text-lg {
     font-size: var(--text-lg);
     line-height: var(--tw-leading, var(--text-lg--line-height));
-  }
-
-  .text-sm {
-    font-size: var(--text-sm);
-    line-height: var(--tw-leading, var(--text-sm--line-height));
-  }
-
-  .text-xl {
-    font-size: var(--text-xl);
-    line-height: var(--tw-leading, var(--text-xl--line-height));
   }
 
   .text-xs {
@@ -782,13 +770,24 @@
     font-size: .7em;
   }
 
-  .text-\[10px\] {
-    font-size: 10px;
+  .text-\[1\.4rem\] {
+    font-size: 1.4rem;
   }
 
-  .leading-5 {
-    --tw-leading: calc(var(--spacing) * 5);
-    line-height: calc(var(--spacing) * 5);
+  .text-\[1\.5rem\] {
+    font-size: 1.5rem;
+  }
+
+  .text-\[1\.8rem\] {
+    font-size: 1.8rem;
+  }
+
+  .text-\[2\.25rem\] {
+    font-size: 2.25rem;
+  }
+
+  .text-\[10px\] {
+    font-size: 10px;
   }
 
   .leading-6 {
@@ -796,9 +795,19 @@
     line-height: calc(var(--spacing) * 6);
   }
 
+  .leading-\[1\.2\] {
+    --tw-leading: 1.2;
+    line-height: 1.2;
+  }
+
   .leading-\[1\.6\] {
     --tw-leading: 1.6;
     line-height: 1.6;
+  }
+
+  .leading-none {
+    --tw-leading: 1;
+    line-height: 1;
   }
 
   .font-bold {
@@ -827,6 +836,10 @@
     color: #d95763;
   }
 
+  .text-gray-500 {
+    color: var(--color-gray-500);
+  }
+
   .text-gray-600 {
     color: var(--color-gray-600);
   }
@@ -837,16 +850,6 @@
 
   .text-white {
     color: var(--color-white);
-  }
-
-  .text-white\/70 {
-    color: #ffffffb3;
-  }
-
-  @supports (color: color-mix(in lab, red, red)) {
-    .text-white\/70 {
-      color: color-mix(in oklab, var(--color-white) 70%, transparent);
-    }
   }
 
   .uppercase {
@@ -923,11 +926,11 @@
 }
 
 @font-face {
-  font-family: "Press Start 2P";
+  font-family: NeoDunggeunmo Pro;
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url("/assets/ui/fonts/PressStart2P-Regular.ttf") format("truetype");
+  src: url("/assets/ui/fonts/NeoDunggeunmoPro-Regular.ttf") format("truetype");
 }
 
 :root {
@@ -953,7 +956,11 @@ body {
   min-width: 320px;
   min-height: 100dvh;
   margin: 0;
-  font-family: "Press Start 2P", sans-serif;
+  font-family: NeoDunggeunmo Pro, sans-serif;
+}
+
+button, input, textarea, select {
+  font-family: inherit;
 }
 
 #root {
