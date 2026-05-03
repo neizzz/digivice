@@ -340,10 +340,10 @@ const COMMON_SPRITESHEET_ASSETS: LoadSpritesheetOptions[] = [
   // },
 ];
 const IMAGE_ASSETS = {
-  grass: "/assets/game/tiles/grass-tile.jpg",
-  grassSunrise: "/assets/game/tiles/grass-tile-sunrise.jpg",
-  grassSunset: "/assets/game/tiles/grass-tile-sunset.jpg",
-  grassEvening: "/assets/game/tiles/grass-tile-evening.jpg",
+  grass: "/assets/game/tiles/grass-tile.png",
+  grassSunrise: "/assets/game/tiles/grass-tile-sunrise.png",
+  grassSunset: "/assets/game/tiles/grass-tile-sunset.png",
+  grassEvening: "/assets/game/tiles/grass-tile-evening.png",
 };
 
 type MainSceneImageAssetKey = keyof typeof IMAGE_ASSETS;

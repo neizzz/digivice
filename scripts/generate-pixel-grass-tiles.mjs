@@ -1,5 +1,4 @@
-import { execFileSync } from "node:child_process";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import zlib from "node:zlib";
@@ -30,9 +29,9 @@ const targetDirs = [
 const variants = [
   {
     key: "day",
-    outputName: "grass-tile.jpg",
+    outputName: "grass-tile.png",
     palette: {
-      ground: ["#79a953", "#86b360"],
+      ground: ["#86b360"],
       tuft: ["#679d3f", "#9dcd69"],
       flowerPetal: "#f4f3d7",
       flowerPinkPetal: "#efbfd0",
@@ -42,9 +41,9 @@ const variants = [
   },
   {
     key: "sunrise",
-    outputName: "grass-tile-sunrise.jpg",
+    outputName: "grass-tile-sunrise.png",
     palette: {
-      ground: ["#a69a64", "#b2a96f"],
+      ground: ["#b2a96f"],
       tuft: ["#849944", "#efcf86"],
       flowerPetal: "#ffe3cc",
       flowerPinkPetal: "#f0bfd1",
@@ -54,9 +53,9 @@ const variants = [
   },
   {
     key: "sunset",
-    outputName: "grass-tile-sunset.jpg",
+    outputName: "grass-tile-sunset.png",
     palette: {
-      ground: ["#827f62", "#91866b"],
+      ground: ["#91866b"],
       tuft: ["#62804a", "#e99d70"],
       flowerPetal: "#ffd8ca",
       flowerPinkPetal: "#f3adc5",
@@ -66,9 +65,9 @@ const variants = [
   },
   {
     key: "evening",
-    outputName: "grass-tile-evening.jpg",
+    outputName: "grass-tile-evening.png",
     palette: {
-      ground: ["#617260", "#70806d"],
+      ground: ["#70806d"],
       tuft: ["#49604b", "#98af90"],
       flowerPetal: "#dcc9d7",
       flowerPinkPetal: "#dba9c1",
@@ -218,17 +217,11 @@ function drawFlower(canvas, baseX, baseY, palette, usePinkPetal) {
 
 function addBaseNoise(canvas, palette, seed) {
   const groundColors = palette.ground.map(hexToRgb);
+  const groundColor = groundColors[groundColors.length - 1];
 
   for (let y = 0; y < logicalSize; y += 1) {
     for (let x = 0; x < logicalSize; x += 1) {
-      const broad = samplePeriodicNoise(x, y, 46, seed + 11);
-      const medium = samplePeriodicNoise(x + 9, y + 13, 22, seed + 23);
-      const edge = samplePeriodicNoise(x + 3, y + 7, 10, seed + 31);
-      const contour = broad * 0.7 + medium * 0.3;
-      const boundary = 0.5 + (edge - 0.5) * 0.12;
-      const color = contour > boundary ? groundColors[1] : groundColors[0];
-
-      setLogicalPixel(canvas, x, y, color);
+      setLogicalPixel(canvas, x, y, groundColor);
     }
   }
 }
@@ -325,26 +318,6 @@ function encodePng(width, height, rgbaData) {
   ]);
 }
 
-function convertPngToJpeg(pngPath, jpegPath) {
-  execFileSync(
-    "sips",
-    [
-      "-s",
-      "format",
-      "jpeg",
-      "-s",
-      "formatOptions",
-      "100",
-      pngPath,
-      "--out",
-      jpegPath,
-    ],
-    {
-      stdio: "pipe",
-    },
-  );
-}
-
 function renderVariant(variant) {
   const logicalCanvas = createLogicalCanvas();
 
@@ -355,24 +328,18 @@ function renderVariant(variant) {
 }
 
 function main() {
-  const tempDir = path.join(repoRoot, ".tmp-generated-tiles");
-  mkdirSync(tempDir, { recursive: true });
-
   for (const targetDir of targetDirs) {
     mkdirSync(targetDir, { recursive: true });
   }
 
   for (const variant of variants) {
     const rgba = renderVariant(variant);
-    const tempPngPath = path.join(tempDir, `${variant.key}.png`);
-    writeFileSync(tempPngPath, encodePng(outputSize, outputSize, rgba));
+    const png = encodePng(outputSize, outputSize, rgba);
 
     for (const targetDir of targetDirs) {
-      convertPngToJpeg(tempPngPath, path.join(targetDir, variant.outputName));
+      writeFileSync(path.join(targetDir, variant.outputName), png);
     }
   }
-
-  rmSync(tempDir, { recursive: true, force: true });
 
   const summary = variants
     .map((variant) => `${variant.outputName} (${outputSize}x${outputSize})`)
