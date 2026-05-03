@@ -37318,16 +37318,7 @@ const _MainSceneWorld = class _MainSceneWorld {
             this._updateControlButtonsForMenuState(focusedIndex !== null);
           }
         });
-        if (this._debugParentElement) {
-          this._debugGaugeUI = new HTMLDebugGaugeUI(
-            this,
-            this._debugParentElement,
-            {
-              initiallyVisible: false
-            }
-          );
-          this._addDebugGaugeEventListener();
-        }
+        if (false) ;
         if (false) ;
       }
       this._setupVisibilityChangeHandler();
@@ -44794,8 +44785,8 @@ const FLAPPY_BIRD_BGM_STEPS_PER_BEAT = 2;
 const FLAPPY_BIRD_BGM_STEP_DURATION_S = 60 / FLAPPY_BIRD_BGM_BPM / FLAPPY_BIRD_BGM_STEPS_PER_BEAT;
 const FLAPPY_BIRD_BGM_SCHEDULE_AHEAD_S = 0.12;
 const FLAPPY_BIRD_BGM_SCHEDULER_INTERVAL_MS = 25;
-const FLAPPY_BIRD_BGM_MASTER_GAIN = 0.045;
-const FLAPPY_BIRD_SFX_GAIN = 0.07;
+const FLAPPY_BIRD_BGM_MASTER_GAIN = 0.055;
+const FLAPPY_BIRD_SFX_GAIN = 0.085;
 const FLAPPY_BIRD_BGM_ATTACK_S = 0.02;
 const FLAPPY_BIRD_BGM_RELEASE_S = 0.08;
 const FLAPPY_BIRD_PIPE_PASS_CUE_ATTACK_S = 4e-3;
@@ -45534,7 +45525,7 @@ const GAME_OVER_VIBRATION_DELAY_MS = 90;
 const PIPE_PASS_VIBRATION_DURATION_MS = 12;
 const PIPE_PASS_VIBRATION_STRENGTH = 34;
 const PIPE_PASS_NEAR_MISS_VIBRATION_STRENGTH = 48;
-const FLAPPY_BIRD_START_COUNTDOWN_SECONDS = 3;
+const FLAPPY_BIRD_START_COUNTDOWN_SECONDS = 2;
 const SKY_DAY_COLOR = 5622271;
 const SKY_STAR_COLOR = 16772920;
 const SKY_STAR_LAYOUT = [
@@ -49162,7 +49153,7 @@ const RECOVERY_VIBRATION_INTERVAL_MS = 180;
 const RECOVERY_VIBRATION_DURATION_MS = 14;
 const RECOVERY_VIBRATION_STRENGTH = 28;
 const LOADING_TIMEOUT_MS = 3e4;
-const isNativeFeatureDebugMode$1 = true;
+const isNativeFeatureDebugMode$1 = false;
 const isAndroidUserAgent = typeof navigator !== "undefined" && /DigiviceApp-Android|Android/i.test(navigator.userAgent);
 const KEYBOARD_VIEWPORT_HEIGHT_DELTA_THRESHOLD = 80;
 const UNSUPPORTED_SQUARE_VIEWPORT_RATIO = 0.8;
@@ -49437,10 +49428,10 @@ function createDiagnosticsBody() {
   ].join("\n");
 }
 function getClientReleaseLabel() {
-  return `${"0.2.0-debug"}+${5}`;
+  return `${"0.2.0"}+${5}`;
 }
 function getClientReleaseFileLabel() {
-  const sanitizedVersion = "0.2.0-debug".replace(/[^a-zA-Z0-9.-]+/g, "_");
+  const sanitizedVersion = "0.2.0".replace(/[^a-zA-Z0-9.-]+/g, "_");
   return `${sanitizedVersion}-build-${5}`;
 }
 function buildGmailComposeHref(subject, body) {
@@ -49978,7 +49969,7 @@ const GameContainer = () => {
       scene: (gameInstance == null ? void 0 : gameInstance.getCurrentSceneKey()) !== void 0 ? String(gameInstance.getCurrentSceneKey()) : void 0,
       storageKind: getClientStorageKind(),
       appMode: "production",
-      appVersion: "0.2.0-debug",
+      appVersion: "0.2.0",
       buildNumber: 5,
       debugEnabled: isNativeFeatureDebugMode$1
     }));
@@ -50325,7 +50316,7 @@ const GameContainer = () => {
         generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
         appInfo: {
           project: "MonTTo",
-          clientAppVersion: "0.2.0-debug",
+          clientAppVersion: "0.2.0",
           clientBuildNumber: 5,
           appMode: "production",
           debugEnabled: isNativeFeatureDebugMode$1,
@@ -51463,11 +51454,11 @@ const App = () => {
   ] });
 };
 const platformAdapter = new PlatformAdapter();
-const isNativeFeatureDebugMode = true;
+const isNativeFeatureDebugMode = false;
 installDiagnosticsConsoleCapture();
 setDiagnosticsContextProvider(() => ({
   appMode: "production",
-  appVersion: "0.2.0-debug",
+  appVersion: "0.2.0",
   buildNumber: 5,
   debugEnabled: isNativeFeatureDebugMode
 }));
