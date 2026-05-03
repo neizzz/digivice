@@ -343,11 +343,81 @@ export function getEggHatchDelayMs(
   );
 }
 
+function clampProgress(value: number): number {
+  return Math.max(0, Math.min(1, value));
+}
+
+export function getDefaultEggHatchDurationMs(): number {
+  return GAME_CONSTANTS.EGG_HATCH_MODE_TIME;
+}
+
+export function createEggHatchSchedule(
+  now: number = Date.now(),
+  randomValue: number = Math.random(),
+): {
+  hatchTime: number;
+  hatchDurationMs: number;
+} {
+  const hatchDurationMs = getEggHatchDelayMs(randomValue);
+
+  return {
+    hatchTime: now + hatchDurationMs,
+    hatchDurationMs,
+  };
+}
+
 export function createEggHatchTimestamp(
   now: number = Date.now(),
   randomValue: number = Math.random(),
 ): number {
-  return now + getEggHatchDelayMs(randomValue);
+  return createEggHatchSchedule(now, randomValue).hatchTime;
+}
+
+export function getResolvedEggHatchDurationMs(
+  hatchDurationMs?: number,
+): number {
+  if (typeof hatchDurationMs === "number" && Number.isFinite(hatchDurationMs)) {
+    return Math.max(0, hatchDurationMs);
+  }
+
+  return getDefaultEggHatchDurationMs();
+}
+
+export function getEggHatchProgress(params: {
+  currentTime: number;
+  hatchTime: number;
+  hatchDurationMs?: number;
+}): number {
+  const { currentTime, hatchTime } = params;
+  if (!Number.isFinite(hatchTime) || hatchTime <= 0) {
+    return 0;
+  }
+
+  const hatchDurationMs = getResolvedEggHatchDurationMs(
+    params.hatchDurationMs,
+  );
+  if (hatchDurationMs <= 0) {
+    return currentTime >= hatchTime ? 1 : 0;
+  }
+
+  const hatchStartTime = hatchTime - hatchDurationMs;
+  return clampProgress((currentTime - hatchStartTime) / hatchDurationMs);
+}
+
+export function getEggCrackStage(progress: number): 0 | 1 | 2 | 3 {
+  if (progress >= 0.92) {
+    return 3;
+  }
+
+  if (progress >= 0.8) {
+    return 2;
+  }
+
+  if (progress >= 0.6) {
+    return 1;
+  }
+
+  return 0;
 }
 
 export function getUrgentDeathDelayMsByCharacterKey(

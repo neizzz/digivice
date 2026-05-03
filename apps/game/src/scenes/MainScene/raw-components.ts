@@ -161,6 +161,7 @@ export const SparkleEffectComp = defineComponent({
  */
 export const EggHatchComp = defineComponent({
   hatchTime: Types.f64, // 부화할 시간 (timestamp)
+  hatchDurationMs: Types.ui32, // 전체 부화 시간 (ms)
   isReadyToHatch: Types.ui8, // 부화 준비 완료 여부 (0 = false, 1 = true)
 });
 

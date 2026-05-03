@@ -40,7 +40,11 @@ import {
   SleepReason,
   SpritesheetKey,
 } from "./types";
-import { createEggHatchTimestamp, GAME_CONSTANTS } from "./config";
+import {
+  createEggHatchSchedule,
+  getDefaultEggHatchDurationMs,
+  GAME_CONSTANTS,
+} from "./config";
 
 /**
  * ECS 엔티티를 SavedEntity로 변환
@@ -152,6 +156,7 @@ export function convertECSEntityToSavedEntity(
   if (hasComponent(world, EggHatchComp, eid)) {
     components.eggHatch = {
       hatchTime: EggHatchComp.hatchTime[eid],
+      hatchDurationMs: EggHatchComp.hatchDurationMs[eid],
       isReadyToHatch: EggHatchComp.isReadyToHatch[eid] === 1,
     };
   }
@@ -355,6 +360,13 @@ export function applySavedEntityToECS(
       addComponent(world, EggHatchComp, eid);
     }
     EggHatchComp.hatchTime[eid] = components.eggHatch.hatchTime;
+    EggHatchComp.hatchDurationMs[eid] = Math.max(
+      0,
+      components.eggHatch.hatchDurationMs ??
+        (ObjectComp.state[eid] === CharacterState.EGG
+          ? getDefaultEggHatchDurationMs()
+          : 0),
+    );
     EggHatchComp.isReadyToHatch[eid] = components.eggHatch.isReadyToHatch
       ? 1
       : 0;
@@ -603,8 +615,14 @@ export function repairCharacterEntityRuntimeComponents(
 
   if (!hasComponent(world, EggHatchComp, eid)) {
     addComponent(world, EggHatchComp, eid);
-    EggHatchComp.hatchTime[eid] =
-      state === CharacterState.EGG ? createEggHatchTimestamp(now) : 0;
+    if (state === CharacterState.EGG) {
+      const { hatchTime, hatchDurationMs } = createEggHatchSchedule(now);
+      EggHatchComp.hatchTime[eid] = hatchTime;
+      EggHatchComp.hatchDurationMs[eid] = hatchDurationMs;
+    } else {
+      EggHatchComp.hatchTime[eid] = 0;
+      EggHatchComp.hatchDurationMs[eid] = 0;
+    }
     EggHatchComp.isReadyToHatch[eid] = 0;
     repaired.push("EggHatchComp");
   }
@@ -618,6 +636,11 @@ export function repairCharacterEntityRuntimeComponents(
     AnimationRenderComp.storeIndex[eid] = ECS_NULL_VALUE;
     AnimationRenderComp.spritesheetKey[eid] =
       CharacterStatusComp.characterKey[eid] || SpritesheetKey.TestGreenSlimeA1;
+  } else if (
+    state === CharacterState.EGG &&
+    EggHatchComp.hatchDurationMs[eid] <= 0
+  ) {
+    EggHatchComp.hatchDurationMs[eid] = getDefaultEggHatchDurationMs();
     AnimationRenderComp.animationKey[eid] = AnimationKey.IDLE;
     AnimationRenderComp.isPlaying[eid] = 1;
     AnimationRenderComp.loop[eid] = 1;

@@ -397,6 +397,7 @@ export type SparkleEffectComponent = {
 
 export type EggHatchComponent = {
   hatchTime: number; // 부화할 시간 (timestamp)
+  hatchDurationMs?: number; // 전체 부화 시간 (ms)
   isReadyToHatch: boolean; // 부화 준비 완료 여부
 };
 

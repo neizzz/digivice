@@ -46,6 +46,10 @@ import { animationRenderSystem } from "./systems/AnimationRenderSystem";
 import { animationStateSystem } from "./systems/AnimationStateSystem";
 import { statusIconRenderSystem } from "./systems/StatusIconRenderSystem";
 import {
+  cleanupEggCrackRenderState,
+  eggCrackRenderSystem,
+} from "./systems/EggCrackRenderSystem";
+import {
   cleanupStaminaGaugeRenderState,
   staminaGaugeRenderSystem,
 } from "./systems/StaminaGaugeRenderSystem";
@@ -1633,6 +1637,7 @@ export class MainSceneWorld implements IWorld, Scene {
       cleanupSleepEffects(this._stage);
       cleanupStaminaGaugeRenderState();
       cleanupCharacterNameLabels();
+      cleanupEggCrackRenderState();
       cleanupCharacterLayoutDebug(this._stage);
     }
     this._pendingRecoveryCureEids.clear();
@@ -1734,7 +1739,8 @@ export class MainSceneWorld implements IWorld, Scene {
       }
 
       cleanupSleepEffects(this._stage);
-  cleanupStaminaGaugeRenderState();
+      cleanupEggCrackRenderState();
+      cleanupStaminaGaugeRenderState();
       cleanupCharacterNameLabels();
       cleanupCharacterLayoutDebug(this._stage);
       this._pendingRecoveryCureEids.clear();
@@ -3250,25 +3256,28 @@ export class MainSceneWorld implements IWorld, Scene {
     // 1. 애니메이션 렌더링 (캐릭터 애니메이션)
     animationRenderSystem(params);
 
-    // 2. 스테미나 게이지 렌더링
-    staminaGaugeRenderSystem(params);
-
-    // 3. 상태 아이콘 렌더링
-    statusIconRenderSystem(params);
-
-    // 4. 정적 스프라이트 렌더링
+    // 2. 정적 스프라이트 렌더링
     renderSystem(params);
 
-    // 5. 캐릭터 이름표 렌더링
+    // 3. 상단 스태미나 게이지 렌더링
+    staminaGaugeRenderSystem(params);
+
+    // 4. 상태 아이콘 렌더링
+    statusIconRenderSystem(params);
+
+    // 5. 알 금 오버레이 렌더링
+    eggCrackRenderSystem({ ...params, currentTime: this.currentTime });
+
+    // 6. 캐릭터 이름표 렌더링
     characterNameLabelSystem(params);
 
-    // 6. dev 빌드 전용 캐릭터 레이아웃 디버그 렌더링
+    // 7. dev 빌드 전용 캐릭터 레이아웃 디버그 렌더링
     characterLayoutDebugSystem({ ...params, stage: this._stage });
 
-    // 7. 청소 대상 렌더링
+    // 8. 청소 대상 렌더링
     cleanableRenderSystem({ ...params, stage: this._stage });
 
-    // 8. 수면 효과 렌더링
+    // 9. 수면 효과 렌더링
     sleepEffectSystem({ ...params, stage: this._stage });
 
     return params;

@@ -91,6 +91,7 @@ type StoredTemporaryStatusComponent = {
 
 type StoredEggHatchComponent = {
   hatchTime?: number;
+  hatchDurationMs?: number;
   isReadyToHatch?: boolean;
 };
 
@@ -244,6 +245,20 @@ function getEggHatchDelayMs(randomValue: number = Math.random()): number {
   return Math.round(
     max - Math.sqrt((1 - clampedRandom) * (max - min) * (max - mode)),
   );
+}
+
+function createEggHatchSchedule(
+  now: number,
+  randomValue: number = Math.random(),
+): {
+  hatchTime: number;
+  hatchDurationMs: number;
+} {
+  const hatchDurationMs = getEggHatchDelayMs(randomValue);
+  return {
+    hatchTime: now + hatchDurationMs,
+    hatchDurationMs,
+  };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -443,6 +458,8 @@ function sanitizeCharacterEntity(
   const characterKey =
     toFiniteNumber(components.characterStatus?.characterKey) ??
     DEFAULTS.CHARACTER_KEY;
+  const fallbackEggHatchSchedule =
+    state === CHARACTER_STATE.EGG ? createEggHatchSchedule(now) : null;
 
   const sanitized: StoredEntityComponents = {
     object: {
@@ -545,7 +562,12 @@ function sanitizeCharacterEntity(
     eggHatch: {
       hatchTime:
         toFiniteNumber(components.eggHatch?.hatchTime) ??
-        (state === CHARACTER_STATE.EGG ? now + getEggHatchDelayMs() : 0),
+        fallbackEggHatchSchedule?.hatchTime ??
+        0,
+      hatchDurationMs:
+        toFiniteNumber(components.eggHatch?.hatchDurationMs) ??
+        fallbackEggHatchSchedule?.hatchDurationMs ??
+        0,
       isReadyToHatch: toBoolean(components.eggHatch?.isReadyToHatch, false),
     },
   };

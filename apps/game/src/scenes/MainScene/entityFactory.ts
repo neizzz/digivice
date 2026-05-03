@@ -38,7 +38,7 @@ import { generatePersistentNumericId } from "../../utils/generate";
 import { EntityComponents } from "./world";
 import { INTENTED_FRONT_Z_INDEX } from "@/constants";
 import { getCharacterStats } from "./characterStats";
-import { createEggHatchTimestamp, GAME_CONSTANTS } from "./config";
+import { createEggHatchSchedule, GAME_CONSTANTS } from "./config";
 
 type WithRequired<T, K extends keyof T> = Omit<T, K> & Required<Pick<T, K>>;
 
@@ -187,10 +187,13 @@ export function createCharacterEntity(
   // EggHatchComp 추가 (EGG 상태일 때만 의미가 있음)
   addComponent(world, EggHatchComp, eid);
   if (ObjectComp.state[eid] === CharacterState.EGG) {
-    EggHatchComp.hatchTime[eid] = createEggHatchTimestamp();
+    const { hatchTime, hatchDurationMs } = createEggHatchSchedule();
+    EggHatchComp.hatchTime[eid] = hatchTime;
+    EggHatchComp.hatchDurationMs[eid] = hatchDurationMs;
     EggHatchComp.isReadyToHatch[eid] = 0; // 아직 부화 준비 안됨
   } else {
     EggHatchComp.hatchTime[eid] = 0;
+    EggHatchComp.hatchDurationMs[eid] = 0;
     EggHatchComp.isReadyToHatch[eid] = 0;
   }
 
