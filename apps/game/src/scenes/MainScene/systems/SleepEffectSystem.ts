@@ -16,7 +16,7 @@ const SLEEP_SMALL_Z_FONT_SIZE = 10.8;
 const SLEEP_MEDIUM_Z_FONT_SIZE = 16.2;
 const SLEEP_LARGE_Z_FONT_SIZE = 19.44;
 const SLEEP_FONT_FAMILY = [
-  "Press Start 2P",
+  "NeoDunggeunmo Pro",
   "Apple Color Emoji",
   "Segoe UI Emoji",
   "Noto Color Emoji",

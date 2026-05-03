@@ -99,7 +99,7 @@ export class HTMLDebugGameConstantsUI {
       box-sizing: border-box;
       backdrop-filter: blur(4px);
       color: white;
-      font-family: 'Arial', sans-serif;
+      font-family: 'NeoDunggeunmo Pro', sans-serif;
       box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
     `;
 
@@ -112,7 +112,7 @@ export class HTMLDebugGameConstantsUI {
       margin: 0;
       white-space: pre-wrap;
       word-break: break-word;
-      font-family: 'SFMono-Regular', 'Consolas', monospace;
+      font-family: 'NeoDunggeunmo Pro', sans-serif;
       font-size: 11px;
       line-height: 1.5;
       color: #d9f7ff;
@@ -217,7 +217,7 @@ export class HTMLDebugGameConstantsUI {
       font-weight: bold;
       cursor: pointer;
       z-index: 1002;
-      font-family: 'Arial', sans-serif;
+      font-family: 'NeoDunggeunmo Pro', sans-serif;
       transition: background-color 0.2s;
     `;
   }

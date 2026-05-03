@@ -24,7 +24,7 @@ export const AlertLayer: React.FC<AlertLayerProps> = ({
         title={title}
         content={
           <div className="flex flex-col items-center gap-4">
-            <p className="text-base">{message}</p>
+            <p className="leading-[1.6]">{message}</p>
           </div>
         }
         onConfirm={onClose}

@@ -28,7 +28,7 @@ const ToggleButton: React.FC<{
     <button
       type={"button"}
       onClick={onClick}
-      className={`min-w-20 border-2 border-[#222] px-4 py-2 text-sm font-bold text-white ${
+      className={`min-w-20 border-2 border-[#222] px-4 py-0.5 font-bold text-white ${
         enabled ? "bg-component-positive" : "bg-gray-400"
       }`}
     >
@@ -46,7 +46,7 @@ const SelectButton: React.FC<{
     <button
       type={"button"}
       onClick={onClick}
-      className={`border-2 border-[#222] px-3 py-2 text-sm font-bold ${
+      className={`border-2 border-[#222] px-3 py-0.5 font-bold ${
         active ? "bg-component-positive text-white" : "bg-white text-[#222]"
       }`}
     >
@@ -77,12 +77,12 @@ const FlappyBirdSettingsLayer: React.FC<FlappyBirdSettingsLayerProps> = ({
         title="Settings"
         suppressInitialActionsMs={180}
         content={
-          <div className="flex flex-col gap-5 text-left">
-            <div className="text-sm text-gray-600">The game is paused.</div>
+          <div className="flex flex-col gap-5 text-left text-[1.5rem]">
+            <div className="text-gray-600">The game is paused.</div>
 
             <div className="flex items-center justify-between gap-4">
               <div>
-                <div className="text-sm font-bold">BGM</div>
+                <div className="font-bold">BGM</div>
               </div>
               <ToggleButton
                 enabled={isBgmEnabled}
@@ -93,7 +93,7 @@ const FlappyBirdSettingsLayer: React.FC<FlappyBirdSettingsLayerProps> = ({
             <div className="border-t-2 border-[#222] pt-4">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <div className="text-sm font-bold">SFX</div>
+                  <div className="font-bold">SFX</div>
                 </div>
                 <ToggleButton
                   enabled={isSfxEnabled}
@@ -104,7 +104,7 @@ const FlappyBirdSettingsLayer: React.FC<FlappyBirdSettingsLayerProps> = ({
 
             {shouldShowSkySelector ? (
               <div className="border-t-2 border-[#222] pt-4">
-                <div className="mb-3 text-sm font-bold">Sky Dev</div>
+                <div className="mb-3 font-bold">Sky Dev</div>
                 <div className="grid grid-cols-2 gap-2">
                   {TIME_OF_DAY_OPTIONS.map((timeOfDay) => (
                     <SelectButton

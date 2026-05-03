@@ -432,7 +432,7 @@ export class HTMLDebugStatusUI {
       border-radius: 8px;
       padding: 8px;
       z-index: 1000;
-      font-family: 'Arial', sans-serif;
+      font-family: 'NeoDunggeunmo Pro', sans-serif;
       color: white;
       display: none;
     `;

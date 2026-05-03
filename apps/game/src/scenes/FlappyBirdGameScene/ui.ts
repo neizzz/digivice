@@ -2,16 +2,18 @@ import * as PIXI from "pixi.js";
 import { NAME_LABEL_FONT_FAMILIES } from "../../utils/nameLabel";
 
 const FLAPPY_BIRD_FONT_FAMILIES = [...NAME_LABEL_FONT_FAMILIES];
-const FLAPPY_BIRD_SCORE_FONT_SIZE = 12;
+const FLAPPY_BIRD_SCORE_FONT_SIZE = 18;
 const FLAPPY_BIRD_SCORE_MARGIN_X = 4;
 const FLAPPY_BIRD_SCORE_MARGIN_Y = 6;
-const FLAPPY_BIRD_SCORE_LINE_GAP = 16;
-const FLAPPY_BIRD_NEAR_MISS_FONT_SIZE = 14;
+const FLAPPY_BIRD_SCORE_LINE_GAP = 24;
+const FLAPPY_BIRD_NEAR_MISS_FONT_SIZE = 21;
 const FLAPPY_BIRD_NEAR_MISS_DURATION_MS = 520;
 const FLAPPY_BIRD_NEAR_MISS_FLOAT_DISTANCE = 14;
 const FLAPPY_BIRD_NEAR_MISS_GOOD_COLOR = 0xf3cf62;
 const FLAPPY_BIRD_NEAR_MISS_GREAT_COLOR = 0xffe08a;
-const FLAPPY_BIRD_COUNTDOWN_FONT_SIZE = 42;
+const FLAPPY_BIRD_COUNTDOWN_FONT_SIZE = 63;
+const FLAPPY_BIRD_GAME_OVER_FONT_SIZE = 72;
+const FLAPPY_BIRD_RESTART_FONT_SIZE = 36;
 
 export class CountdownUI {
   private text: PIXI.Text;
@@ -309,7 +311,7 @@ export class GameOverUI {
 
     this.gameOverText = new PIXI.Text("Game Over", {
       fontFamily: FLAPPY_BIRD_FONT_FAMILIES,
-      fontSize: 48,
+      fontSize: FLAPPY_BIRD_GAME_OVER_FONT_SIZE,
       fill: 0xffffff,
       align: "center",
       stroke: {
@@ -322,7 +324,7 @@ export class GameOverUI {
 
     this.restartText = new PIXI.Text("Press SPACE to restart", {
       fontFamily: FLAPPY_BIRD_FONT_FAMILIES,
-      fontSize: 24,
+      fontSize: FLAPPY_BIRD_RESTART_FONT_SIZE,
       fill: 0xffffff,
       align: "center",
       stroke: {

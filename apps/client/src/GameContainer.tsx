@@ -2617,7 +2617,7 @@ const GameContainer: React.FC = () => {
       </div>
       {isLoading && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black text-white">
-          <div className="text-center text-lg tracking-[0.12em]">
+          <div className="text-center text-[2.25rem] tracking-[0.12em]">
             Loading...
           </div>
         </div>
@@ -2671,7 +2671,7 @@ const GameContainer: React.FC = () => {
           <PopupLayer
             title={loadingFailureAlert.title}
             content={
-              <div className="text-left text-sm leading-6">
+              <div className="text-left leading-[1.6]">
                 {loadingFailureAlert.message}
               </div>
             }
@@ -2698,7 +2698,7 @@ const GameContainer: React.FC = () => {
           <PopupLayer
             title="Open Gmail"
             content={
-              <div className="text-left text-sm leading-6">
+              <div className="text-left leading-[1.6]">
                 <div>The Gmail app will open next.</div>
                 <div className="mt-2">
                   The diagnostics files will be attached to the draft email.

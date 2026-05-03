@@ -77,7 +77,7 @@ export const SetupLayer: React.FC<SetupLayerProps> = ({ onComplete }) => {
                   setError(null);
                 }}
                 placeholder="Monster Name"
-                className="w-full px-3 py-2 text-center border-2 border-[#222] text-xs focus:outline-none focus:ring-2 focus:ring-[#d95763]"
+                className="w-full border-2 border-[#222] px-3 py-0.5 text-center text-[1.5rem] focus:outline-none focus:ring-2 focus:ring-[#d95763]"
               />
               <div
                 className={`mt-4 text-xs ${

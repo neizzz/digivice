@@ -2,11 +2,11 @@
 @config "../tailwind.config.js";
 
 @font-face {
-  font-family: "Press Start 2P"; /* Tailwind 설정과 일치시킬 이름 */
+  font-family: "NeoDunggeunmo Pro";
   font-style: normal;
-  font-weight: 400; /* 폰트 파일에 맞는 weight */
-  font-display: swap; /* 폰트 로딩 시 깜빡임 최소화 */
-  src: url("/assets/ui/fonts/PressStart2P-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-display: swap;
+  src: url("/assets/ui/fonts/NeoDunggeunmoPro-Regular.ttf") format("truetype");
 }
 
 :root {
@@ -26,10 +26,17 @@ a:hover {
 }
 
 body {
-  font-family: "Press Start 2P", sans-serif;
+  font-family: "NeoDunggeunmo Pro", sans-serif;
   margin: 0;
   min-width: 320px;
   min-height: 100dvh;
+}
+
+button,
+input,
+textarea,
+select {
+  font-family: inherit;
 }
 
 #root {

@@ -428,22 +428,22 @@ const PopupLayer: React.FC<PopupProps> = ({
               ? `${keyboardAwareMaxHeight}px`
               : undefined,
         }}
-        className="relative w-full max-w-[22rem] overflow-y-auto border-4 border-[#222] bg-layer-bg p-5 text-center shadow-[0_4px_0_#222,0_-4px_0_#222,4px_0_0_#222,-4px_0_0_#222,4px_4px_0_#222,-4px_4px_0_#222,4px_-4px_0_#222,-4px_-4px_0_#222] focus:outline-none"
+        className="relative w-full max-w-[22rem] overflow-y-auto border-4 border-[#222] bg-layer-bg p-5 text-center font-dialog shadow-[0_4px_0_#222,0_-4px_0_#222,4px_0_0_#222,-4px_0_0_#222,4px_4px_0_#222,-4px_4px_0_#222,4px_-4px_0_#222,-4px_-4px_0_#222] focus:outline-none"
       >
         {topLeftContent ? (
           <div className="absolute left-2 top-2 z-[1]">{topLeftContent}</div>
         ) : null}
-        <div className="mb-[15px] border-b-4 border-[#222] pb-[10px] text-lg font-bold text-component-negative">
+        <div className="mb-[15px] border-b-4 border-[#222] pb-[10px] text-[1.8rem] leading-[1.2] font-display font-bold text-component-negative">
           {title}
         </div>
-        <div className="pb-4 leading-[1.6] text-base">{content}</div>
+        <div className="pb-4 text-[1.4rem] leading-[1.6]">{content}</div>
         <div className="flex justify-center gap-[15px] border-t-4 border-[#222] pt-4">
           {onCancel && (
             <button
               ref={cancelButtonRef}
               type={"button"}
               onClick={handleCancelClick}
-              className={`text-base text-white border-2 border-[#222] p-[10px_15px] cursor-pointer uppercase shadow-[2px_2px_0_#222] relative top-0 left-0 transition-all duration-50 ${
+              className={`text-[1.5rem] text-white border-2 border-[#222] px-[15px] py-0.5 cursor-pointer uppercase font-display shadow-[2px_2px_0_#222] relative top-0 left-0 transition-all duration-50 ${
                 cancelVariant === "negative"
                   ? "bg-component-negative"
                   : "bg-component-positive"
@@ -456,7 +456,7 @@ const PopupLayer: React.FC<PopupProps> = ({
             ref={confirmButtonRef}
             type={"button"}
             onClick={handleConfirmClick}
-            className={`text-base text-white border-2 border-[#222] p-[10px_15px] cursor-pointer uppercase shadow-[2px_2px_0_#222] ${
+            className={`text-[1.5rem] text-white border-2 border-[#222] px-[15px] py-0.5 cursor-pointer uppercase font-display shadow-[2px_2px_0_#222] ${
               confirmVariant === "negative"
                 ? "bg-component-negative"
                 : "bg-component-positive"

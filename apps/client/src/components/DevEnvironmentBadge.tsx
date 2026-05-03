@@ -26,7 +26,7 @@ export function DevEnvironmentBadge() {
         textAlign: "center",
         boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
         cursor: "pointer",
-        fontFamily: "system-ui, -apple-system, sans-serif",
+        fontFamily: '"NeoDunggeunmo Pro", sans-serif',
         flexShrink: 0,
       }}
       onClick={() => setIsExpanded(!isExpanded)}
@@ -83,7 +83,7 @@ export function DevEnvironmentBadge() {
                 borderRadius: "4px",
                 wordBreak: "break-all",
                 fontSize: "11px",
-                fontFamily: "monospace",
+                fontFamily: '"NeoDunggeunmo Pro", sans-serif',
               }}
             >
               {navigator.userAgent}

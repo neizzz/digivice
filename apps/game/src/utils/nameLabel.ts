@@ -1,6 +1,6 @@
 export const NAME_LABEL_MAX_WIDTH = 80;
 export const NAME_LABEL_FONT_FAMILIES = [
-  "Press Start 2P",
+  "NeoDunggeunmo Pro",
   "Apple Color Emoji",
   "Segoe UI Emoji",
   "Noto Color Emoji",

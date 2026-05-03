@@ -14,6 +14,11 @@ module.exports = {
 					negative: "#d95763",
 				},
 			},
+			fontFamily: {
+				sans: ["\"NeoDunggeunmo Pro\"", ...defaultTheme.fontFamily.sans],
+				display: ["\"NeoDunggeunmo Pro\"", ...defaultTheme.fontFamily.sans],
+				dialog: ["\"NeoDunggeunmo Pro\"", ...defaultTheme.fontFamily.sans],
+			},
 		},
 	},
 	plugins: [],

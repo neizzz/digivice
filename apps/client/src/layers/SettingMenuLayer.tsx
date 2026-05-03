@@ -23,7 +23,7 @@ const ToggleButton: React.FC<{
     <button
       type={"button"}
       onClick={onClick}
-      className={`min-w-20 border-2 border-[#222] px-4 py-2 text-sm font-bold text-white ${
+      className={`min-w-20 border-2 border-[#222] px-4 py-0.5 font-bold text-white ${
         enabled ? "bg-component-positive" : "bg-gray-400"
       }`}
     >
@@ -51,7 +51,7 @@ const ActionButton: React.FC<{
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className={`flex min-w-20 items-center justify-center border-2 border-[#222] px-4 py-2 text-center text-sm font-bold text-white ${backgroundClass}`}
+      className={`flex min-w-20 items-center justify-center border-2 border-[#222] px-4 py-0.5 text-center font-bold text-white ${backgroundClass}`}
     >
       {text}
     </button>
@@ -83,15 +83,15 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
         title="Settings"
         suppressInitialActionsMs={180}
         topLeftContent={
-          <div className="text-[10px] font-mono leading-none text-gray-500">
+          <div className="text-[10px] leading-none text-gray-500">
             {releaseLabel}
           </div>
         }
         content={
-          <div className="flex flex-col gap-5 text-left">
+          <div className="flex flex-col gap-5 text-left text-[1.5rem]">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <div className="text-sm font-bold">Vibration</div>
+                <div className="font-bold">Vibration</div>
               </div>
               <ToggleButton
                 enabled={vibrationEnabled}
@@ -101,7 +101,7 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
 
             <div className="border-t-2 border-[#222] pt-4">
               <div className="flex items-center justify-between gap-4">
-                <div className="text-sm font-bold">Report Bug</div>
+                <div className="font-bold">Report Bug</div>
                 <ActionButton
                   text="Send"
                   onClick={onSendDiagnostics}
@@ -113,7 +113,7 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
 
             <div className="border-t-2 border-[#222] pt-4">
               <div>
-                <div className="text-sm font-bold text-red-600">
+                <div className="font-bold text-red-600">
                   Raise a New Monster
                 </div>
               </div>
@@ -123,13 +123,13 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
                   value={resetConfirmText}
                   onChange={(event) => setResetConfirmText(event.target.value)}
                   placeholder="confirm"
-                  className="w-40 border-2 border-[#222] px-3 py-2 text-center text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#d95763]"
+                  className="w-40 border-2 border-[#222] px-3 py-0.5 text-center placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#d95763]"
                 />
                 <button
                   type={"button"}
                   disabled={!isResetEnabled}
                   onClick={onOpenResetConfirm}
-                  className={`border-2 border-[#222] px-4 py-2 text-sm font-bold text-white ${
+                  className={`border-2 border-[#222] px-4 py-0.5 font-bold text-white ${
                     isResetEnabled
                       ? "bg-component-negative"
                       : "cursor-not-allowed bg-gray-400 opacity-60"
@@ -149,7 +149,7 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
           <PopupLayer
             title="Reset?"
             content={
-              <div className="text-sm leading-6">
+              <div className="leading-[1.6]">
                 This will permanently delete your current monster and all
                 progress. You&apos;ll return to the setup screen to hatch a new
                 one.
