@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import PopupLayer from "../components/PopupLayer";
 
 interface SettingMenuLayerProps {
+  releaseLabel: string;
   vibrationEnabled: boolean;
   onChangeVibration: (enabled: boolean) => void;
   onSendDiagnostics: () => void;
@@ -58,6 +59,7 @@ const ActionButton: React.FC<{
 };
 
 const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
+  releaseLabel,
   vibrationEnabled,
   onChangeVibration,
   onSendDiagnostics,
@@ -80,6 +82,11 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
       <PopupLayer
         title="Settings"
         suppressInitialActionsMs={180}
+        topLeftContent={
+          <div className="text-[10px] font-mono leading-none text-gray-500">
+            {releaseLabel}
+          </div>
+        }
         content={
           <div className="flex flex-col gap-5 text-left">
             <div className="flex items-center justify-between gap-4">
@@ -93,13 +100,10 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
             </div>
 
             <div className="border-t-2 border-[#222] pt-4">
-              <div className="mb-3 text-sm font-bold">Send Diagnostics</div>
               <div className="flex items-center justify-between gap-4">
-                <div className="text-xs text-gray-600">
-                  Open Gmail with attached diagnostics files.
-                </div>
+                <div className="text-sm font-bold">Report Bug</div>
                 <ActionButton
-                  text={isSendingDiagnostics ? "Sending..." : "Send"}
+                  text="Send"
                   onClick={onSendDiagnostics}
                   disabled={isSendingDiagnostics}
                   variant="warning"
@@ -109,11 +113,9 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
 
             <div className="border-t-2 border-[#222] pt-4">
               <div>
-                <div className="text-sm font-bold">Reset Game Data</div>
-              </div>
-              <div className="mt-1 text-xs text-gray-600">
-                Type <span className="font-bold">confirm</span> below to enable
-                the reset button.
+                <div className="text-sm font-bold text-red-600">
+                  Raise a New Monster
+                </div>
               </div>
               <div className="mt-3 flex items-center justify-between gap-3">
                 <input
@@ -145,17 +147,20 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
       {showFinalResetConfirm && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
           <PopupLayer
-            title="Final Confirmation"
+            title="Reset?"
             content={
               <div className="text-sm leading-6">
-                This will permanently delete all game data and return you to the
-                initial setup screen. This action cannot be undone.
+                This will permanently delete your current monster and all
+                progress. You&apos;ll return to the setup screen to hatch a new
+                one.
               </div>
             }
             onConfirm={onResetGameData}
             onCancel={onCloseResetConfirm}
-            confirmText="Delete"
+            confirmText="Reset"
             cancelText="Cancel"
+            confirmVariant="negative"
+            cancelVariant="positive"
           />
         </div>
       )}

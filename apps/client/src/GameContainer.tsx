@@ -2582,8 +2582,6 @@ const GameContainer: React.FC = () => {
         <div aria-hidden="true" className="min-h-0" />
         <div className={"flex min-h-0 min-w-0 justify-center overflow-hidden"}>
           <div
-            id="game-container"
-            ref={gameContainerRef}
             className={"relative m-0 shrink-0 p-0"}
             style={
               gameContainerSize
@@ -2594,7 +2592,13 @@ const GameContainer: React.FC = () => {
                 : undefined
             }
           >
-            {/* 게임 캔버스가 여기에 렌더링됨 */}
+            <div
+              id="game-container"
+              ref={gameContainerRef}
+              className={"absolute inset-0 m-0 p-0"}
+            >
+              {/* 게임 캔버스가 여기에 렌더링됨 */}
+            </div>
           </div>
         </div>
         <div aria-hidden="true" className="min-h-0" />
@@ -2643,6 +2647,7 @@ const GameContainer: React.FC = () => {
       {showSetupLayer && <SetupLayer onComplete={handleSetupComplete} />}
       {showSettingMenu && (
         <SettingMenuLayer
+          releaseLabel={getClientReleaseLabel()}
           vibrationEnabled={gameSettings.vibrationEnabled}
           onChangeVibration={handleVibrationSettingChange}
           onSendDiagnostics={handleSendDiagnostics}
@@ -2697,9 +2702,6 @@ const GameContainer: React.FC = () => {
                 <div>The Gmail app will open next.</div>
                 <div className="mt-2">
                   The diagnostics files will be attached to the draft email.
-                </div>
-                <div className="mt-2 font-mono text-xs leading-5 text-white/70">
-                  Release: {getClientReleaseLabel()}
                 </div>
               </div>
             }

@@ -6,10 +6,13 @@ import { useLayerInteractionVibration } from "../../hooks/useLayerInteractionVib
 interface PopupProps {
   title: string;
   content: React.ReactNode;
+  topLeftContent?: React.ReactNode;
   onConfirm?: () => void;
   onCancel?: () => void;
   confirmText?: string;
   cancelText?: string;
+  confirmVariant?: "positive" | "negative";
+  cancelVariant?: "positive" | "negative";
   initialFocusTarget?: "confirm" | "cancel" | "container" | "none";
   keyboardAwareTargetRef?: React.RefObject<HTMLElement | null>;
   keyboardAwareViewportPadding?: number;
@@ -36,10 +39,13 @@ function roundKeyboardAwareDebugValue(
 const PopupLayer: React.FC<PopupProps> = ({
   title = "Alert!",
   content,
+  topLeftContent,
   onConfirm,
   onCancel,
   confirmText = "Confirm",
   cancelText = "Cancel",
+  confirmVariant = "positive",
+  cancelVariant = "negative",
   initialFocusTarget = "none",
   keyboardAwareTargetRef,
   keyboardAwareViewportPadding = 16,
@@ -424,17 +430,24 @@ const PopupLayer: React.FC<PopupProps> = ({
         }}
         className="relative w-full max-w-[22rem] overflow-y-auto border-4 border-[#222] bg-layer-bg p-5 text-center shadow-[0_4px_0_#222,0_-4px_0_#222,4px_0_0_#222,-4px_0_0_#222,4px_4px_0_#222,-4px_4px_0_#222,4px_-4px_0_#222,-4px_-4px_0_#222] focus:outline-none"
       >
-        <div className="text-xl text-component-negative font-bold mb-[15px] pb-[10px] border-b-4 border-[#222]">
+        {topLeftContent ? (
+          <div className="absolute left-2 top-2 z-[1]">{topLeftContent}</div>
+        ) : null}
+        <div className="mb-[15px] border-b-4 border-[#222] pb-[10px] text-lg font-bold text-component-negative">
           {title}
         </div>
-        <div className="mb-5 leading-[1.6] text-base">{content}</div>
-        <div className="flex justify-center gap-[15px]">
+        <div className="pb-4 leading-[1.6] text-base">{content}</div>
+        <div className="flex justify-center gap-[15px] border-t-4 border-[#222] pt-4">
           {onCancel && (
             <button
               ref={cancelButtonRef}
               type={"button"}
               onClick={handleCancelClick}
-              className="text-base bg-component-negative text-white border-2 border-[#222] p-[10px_15px] cursor-pointer uppercase shadow-[2px_2px_0_#222] relative top-0 left-0 transition-all duration-50"
+              className={`text-base text-white border-2 border-[#222] p-[10px_15px] cursor-pointer uppercase shadow-[2px_2px_0_#222] relative top-0 left-0 transition-all duration-50 ${
+                cancelVariant === "negative"
+                  ? "bg-component-negative"
+                  : "bg-component-positive"
+              }`}
             >
               {cancelText}
             </button>
@@ -443,7 +456,11 @@ const PopupLayer: React.FC<PopupProps> = ({
             ref={confirmButtonRef}
             type={"button"}
             onClick={handleConfirmClick}
-            className="text-base bg-component-positive text-white border-2 border-[#222] p-[10px_15px]  cursor-pointer uppercase shadow-[2px_2px_0_#222]"
+            className={`text-base text-white border-2 border-[#222] p-[10px_15px] cursor-pointer uppercase shadow-[2px_2px_0_#222] ${
+              confirmVariant === "negative"
+                ? "bg-component-negative"
+                : "bg-component-positive"
+            }`}
           >
             {confirmText}
           </button>
