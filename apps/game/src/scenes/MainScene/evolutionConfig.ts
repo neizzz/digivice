@@ -45,6 +45,7 @@ export type EvolutionGaugeConfig = {
 
 const DEFAULT_MAX_GAUGE = 100;
 const HOUR_MS = 60 * 60 * 1000;
+export const EVOLUTION_GAUGE_GAIN_MULTIPLIER = 1.1;
 
 const PRODUCTION_EVOLUTION_TARGET_DURATION_BY_CLASS_MS: Record<
   CharacterClass,
@@ -67,10 +68,10 @@ const PRODUCTION_EVOLUTION_TARGET_DURATION_VARIANCE_BY_CLASS_MS: Record<
 };
 
 const DEV_GAUGE_GAIN_BY_CLASS: Record<CharacterClass, number> = {
-  [CharacterClass.A]: 1.0,
-  [CharacterClass.B]: 1.0,
-  [CharacterClass.C]: 1.0,
-  [CharacterClass.D]: 1.0,
+  [CharacterClass.A]: 1.0 * EVOLUTION_GAUGE_GAIN_MULTIPLIER,
+  [CharacterClass.B]: 1.0 * EVOLUTION_GAUGE_GAIN_MULTIPLIER,
+  [CharacterClass.C]: 1.0 * EVOLUTION_GAUGE_GAIN_MULTIPLIER,
+  [CharacterClass.D]: 1.0 * EVOLUTION_GAUGE_GAIN_MULTIPLIER,
 };
 
 function getGaugeGainForDurationMs(params: {
@@ -84,7 +85,10 @@ function getGaugeGainForDurationMs(params: {
     return 0;
   }
 
-  return (maxGauge * checkIntervalMs) / durationMs;
+  return (
+    ((maxGauge * checkIntervalMs) / durationMs) *
+    EVOLUTION_GAUGE_GAIN_MULTIPLIER
+  );
 }
 
 function getAverageGaugeGainByClass(params: {
@@ -131,7 +135,7 @@ function getStableSeededUnitValue(seed: string): number {
 
 export const PRODUCTION_EVOLUTION_GAUGE_CONFIG: EvolutionGaugeConfig = {
   maxGauge: DEFAULT_MAX_GAUGE,
-  staminaThreshold: 4,
+  staminaThreshold: 3,
   boostedStaminaThreshold: 7,
   boostedGaugeGainMultiplier: 1.2,
   checkIntervalMs: 10_000,
@@ -148,7 +152,7 @@ export const PRODUCTION_EVOLUTION_GAUGE_CONFIG: EvolutionGaugeConfig = {
 
 export const DEV_EVOLUTION_GAUGE_CONFIG: EvolutionGaugeConfig = {
   maxGauge: DEFAULT_MAX_GAUGE,
-  staminaThreshold: 4,
+  staminaThreshold: 3,
   boostedStaminaThreshold: 7,
   boostedGaugeGainMultiplier: 1.2,
   checkIntervalMs: 10_000,

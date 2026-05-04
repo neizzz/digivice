@@ -45,6 +45,10 @@ function getGaugeFillColor(stamina: number): number {
   return GAUGE_HIGH_STAMINA_COLOR;
 }
 
+export function getStaminaGaugeFillColorForTests(stamina: number): number {
+  return getGaugeFillColor(stamina);
+}
+
 function findMainCharacterEntity(world: MainSceneWorld): number {
   const entities = staminaGaugeQuery(world);
 

@@ -5,6 +5,7 @@ import * as PIXI from "pixi.js";
 import { MainSceneWorld } from "../world";
 import {
   cleanupStaminaGaugeRenderState,
+  getStaminaGaugeFillColorForTests,
   staminaGaugeRenderSystem,
 } from "../systems/StaminaGaugeRenderSystem";
 import { CharacterState } from "../types";
@@ -85,4 +86,11 @@ test("상단 스태미나 게이지는 배경보다 앞이고 캐릭터/상태 �
     assert.ok(gaugeIndex < characterIndex);
     assert.ok(gaugeIndex < statusIconIndex);
   });
+});
+
+test("상단 스태미나 게이지 색상은 3과 7 경계에 맞춰 바뀐다", () => {
+  assert.equal(getStaminaGaugeFillColorForTests(2.99), 0xe2554b);
+  assert.equal(getStaminaGaugeFillColorForTests(3), 0xf2a33a);
+  assert.equal(getStaminaGaugeFillColorForTests(6.99), 0xf2a33a);
+  assert.equal(getStaminaGaugeFillColorForTests(7), 0x58b86b);
 });

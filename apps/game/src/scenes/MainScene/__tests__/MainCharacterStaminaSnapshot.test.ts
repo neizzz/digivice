@@ -25,6 +25,7 @@ function createMainSceneWorldForTest(): MainSceneWorld {
 
 test("메인 캐릭터 스테미나 snapshot을 반환한다", () => {
   const world = createMainSceneWorldForTest();
+  assert.equal(GAME_CONSTANTS.UNHAPPY_STAMINA_THRESHOLD, 3);
 
   createTestCharacter(
     world as unknown as Parameters<typeof createTestCharacter>[0],
@@ -39,7 +40,7 @@ test("메인 캐릭터 스테미나 snapshot을 반환한다", () => {
   assert.deepEqual(world.getMainCharacterStaminaSnapshot(), {
     stamina: 7.25,
     maxStamina: GAME_CONSTANTS.MAX_STAMINA,
-    unhappyThreshold: GAME_CONSTANTS.UNHAPPY_STAMINA_THRESHOLD,
+    unhappyThreshold: 3,
     boostedThreshold: GAME_CONSTANTS.BOOSTED_STAMINA_THRESHOLD,
   });
 });

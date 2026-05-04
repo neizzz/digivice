@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { CharacterClass } from "../../../types/Character";
 import {
   canEvolveFromConfig,
+  DEV_EVOLUTION_GAUGE_CONFIG,
+  EVOLUTION_GAUGE_GAIN_MULTIPLIER,
   MONSTER_CHARACTER_KEYS,
   PRODUCTION_EVOLUTION_GAUGE_CONFIG,
   getProductionEvolutionTargetDurationMsForEntity,
@@ -54,6 +57,11 @@ test("최종 단계 몬스터는 더 이상 진화 후보가 없다", () => {
   );
 });
 
+test("production/dev 진화게이지 시작 경계는 3이다", () => {
+  assert.equal(PRODUCTION_EVOLUTION_GAUGE_CONFIG.staminaThreshold, 3);
+  assert.equal(DEV_EVOLUTION_GAUGE_CONFIG.staminaThreshold, 3);
+});
+
 test("production 진화 목표 시간은 클래스별 기대 범위 안에서 결정된다", () => {
   const cases = [
     {
@@ -88,6 +96,22 @@ test("production 진화 목표 시간은 클래스별 기대 범위 안에서 �
       `duration above range for ${testCase.characterKey}: ${targetDurationMs}`,
     );
   }
+});
+
+test("production/dev 기본 진화게이지 gain은 기존 대비 10% 증가한다", () => {
+  const productionExpectedClassAGain =
+    ((100 * 10_000) / (20 * HOUR_MS)) * EVOLUTION_GAUGE_GAIN_MULTIPLIER;
+
+  assert.ok(
+    Math.abs(
+      PRODUCTION_EVOLUTION_GAUGE_CONFIG.gaugeGainByClass[CharacterClass.A] -
+        productionExpectedClassAGain,
+    ) < 0.000001,
+  );
+  assert.equal(
+    DEV_EVOLUTION_GAUGE_CONFIG.gaugeGainByClass[CharacterClass.A],
+    EVOLUTION_GAUGE_GAIN_MULTIPLIER,
+  );
 });
 
 test("production 수면 중 진화 속도 배율은 1/3이다", () => {

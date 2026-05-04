@@ -54,6 +54,7 @@ test("깨어있는 캐릭터의 스테미나는 12분마다 0.25씩 감소한다
 
 test("수면 중 캐릭터의 스테미나는 sleeping multiplier 기준으로 더 천천히 감소한다", () => {
   const world = createTestWorld({ now: 10_000 });
+  assert.equal(GAME_CONSTANTS.SLEEPING_STAMINA_DECAY_MULTIPLIER, 0.2);
 
   const sleepingEid = withMockedDateNow(10_000, () =>
     createTestCharacter(world, {
@@ -263,13 +264,14 @@ test("수면 중 진화 게이지는 깨어있을 때의 1/3 속도로 오른다
   );
 });
 
-test("스테미나가 4 이상일 때 진화 게이지가 오른다", () => {
+test("스테미나가 3 이상일 때 진화 게이지가 오른다", () => {
   const world = createTestWorld({ now: 0 });
+  assert.equal(EVOLUTION_GAUGE_CONFIG.staminaThreshold, 3);
 
   const eligibleEid = withMockedDateNow(0, () =>
     createTestCharacter(world, {
       state: CharacterState.IDLE,
-      stamina: EVOLUTION_GAUGE_CONFIG.staminaThreshold,
+      stamina: 3,
       x: 80,
       y: 80,
     }),
@@ -277,7 +279,7 @@ test("스테미나가 4 이상일 때 진화 게이지가 오른다", () => {
   const ineligibleEid = withMockedDateNow(0, () =>
     createTestCharacter(world, {
       state: CharacterState.IDLE,
-      stamina: EVOLUTION_GAUGE_CONFIG.staminaThreshold - 0.01,
+      stamina: 2.99,
       x: 140,
       y: 80,
     }),
