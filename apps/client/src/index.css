@@ -9,6 +9,14 @@
   src: url("/assets/ui/fonts/NeoDunggeunmoPro-Regular.ttf") format("truetype");
 }
 
+@font-face {
+  font-family: "Press Start 2P";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/assets/ui/fonts/PressStart2P-Regular.ttf") format("truetype");
+}
+
 :root {
   line-height: 1.5;
   min-height: 100vh;

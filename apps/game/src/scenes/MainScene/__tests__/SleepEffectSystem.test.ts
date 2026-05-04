@@ -22,12 +22,13 @@ type SleepEffectTestWorld = TestWorld & {
 };
 
 const EXPECTED_GRADIENT_COLORS = ["#1f4f8fff", "#7dcfffff"] as const;
-const EXPECTED_MEDIUM_Z_FONT_SIZE = 16.2;
-const EXPECTED_LARGE_Z_FONT_SIZE = 19.44;
+const EXPECTED_MEDIUM_Z_FONT_SIZE = 14;
+const EXPECTED_LARGE_Z_FONT_SIZE = 17;
 const EXPECTED_SLEEP_OFFSET_X = -6;
 const EXPECTED_SLEEP_OFFSET_Y = 4;
 const EXPECTED_MEDIUM_Z_OFFSET_Y = -10;
 const EXPECTED_LARGE_Z_OFFSET_Y = -24;
+const EXPECTED_SLEEP_TEXT_PADDING = 4;
 
 class MockCanvasRenderingContext2D {
   public canvas: HTMLCanvasElement | null = null;
@@ -265,7 +266,8 @@ function assertRenderedLetterOffsetYs(
 ): void {
   const expectedMaxBottom = Math.max(
     ...letters.map(
-      (letter, index) => expectedOffsetYs[index] + letter.height,
+      (letter, index) =>
+        expectedOffsetYs[index] + letter.height - EXPECTED_SLEEP_TEXT_PADDING,
     ),
   );
 

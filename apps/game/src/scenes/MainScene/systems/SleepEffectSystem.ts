@@ -12,10 +12,12 @@ const SLEEP_GRADIENT_TOP_COLOR = 0x1f4f8f;
 const SLEEP_GRADIENT_BOTTOM_COLOR = 0x7dcfff;
 const SLEEP_STROKE_COLOR = 0x000000;
 const SLEEP_STROKE_WIDTH = 1;
-const SLEEP_SMALL_Z_FONT_SIZE = 10.8;
-const SLEEP_MEDIUM_Z_FONT_SIZE = 16.2;
-const SLEEP_LARGE_Z_FONT_SIZE = 19.44;
+const SLEEP_TEXT_PADDING = 4;
+const SLEEP_SMALL_Z_FONT_SIZE = 11;
+const SLEEP_MEDIUM_Z_FONT_SIZE = 14;
+const SLEEP_LARGE_Z_FONT_SIZE = 17;
 const SLEEP_FONT_FAMILY = [
+  "Press Start 2P",
   "NeoDunggeunmo Pro",
   "Apple Color Emoji",
   "Segoe UI Emoji",
@@ -251,7 +253,10 @@ function renderSleepTextFrame(
   }
 
   const maxBottom = Math.max(
-    ...letters.map((letter, index) => letterDefinitions[index].offsetY + letter.height),
+    ...letters.map(
+      (letter, index) =>
+        letterDefinitions[index].offsetY + letter.height - SLEEP_TEXT_PADDING,
+    ),
   );
 
   for (let i = 0; i < letters.length; i++) {
@@ -276,6 +281,7 @@ function createSleepTextStyle(fontSize: number): PIXI.TextStyle {
   return new PIXI.TextStyle({
     ...SLEEP_BASE_TEXT_STYLE,
     fontSize,
+    padding: SLEEP_TEXT_PADDING,
     fill,
     stroke: {
       color: SLEEP_STROKE_COLOR,
