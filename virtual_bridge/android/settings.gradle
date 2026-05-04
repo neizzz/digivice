@@ -24,4 +24,38 @@ plugins {
     id "org.jetbrains.kotlin.android" version "2.2.20" apply false
 }
 
+def ensurePatchedFlutterEmbeddingForAndroid15() {
+    def localProperties = new Properties()
+    file("local.properties").withInputStream { localProperties.load(it) }
+
+    def flutterSdkPath = localProperties.getProperty("flutter.sdk")
+    assert flutterSdkPath != null, "flutter.sdk not set in local.properties"
+
+    def patchScript = file("../../scripts/patch-flutter-embedding-android15.sh")
+    assert patchScript.exists(), "Android 15 Flutter embedding patch script is missing: ${patchScript.path}"
+
+    def outputDir = file(".patched-flutter-m2")
+    def processBuilder = new ProcessBuilder(
+        "/bin/bash",
+        patchScript.absolutePath,
+        "--flutter-sdk",
+        flutterSdkPath,
+        "--android-dir",
+        rootDir.absolutePath,
+        "--output-dir",
+        outputDir.absolutePath,
+    )
+    processBuilder.directory(rootDir)
+    processBuilder.environment().put("JAVA_HOME", System.getProperty("java.home"))
+    processBuilder.inheritIO()
+
+    def process = processBuilder.start()
+    def exitCode = process.waitFor()
+    if (exitCode != 0) {
+        throw new GradleException("Failed to generate patched Flutter embedding artifacts for Android 15 compatibility.")
+    }
+}
+
+ensurePatchedFlutterEmbeddingForAndroid15()
+
 include ":app"

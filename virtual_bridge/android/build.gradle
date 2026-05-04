@@ -1,5 +1,10 @@
+def patchedFlutterEmbeddingRepo = rootProject.file(".patched-flutter-m2")
+
 allprojects {
     repositories {
+        maven {
+            url = uri(patchedFlutterEmbeddingRepo)
+        }
         google()
         mavenCentral()
     }
