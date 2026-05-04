@@ -43,10 +43,13 @@ export class PhysicsManager {
    * 물체를 물리 엔진에 추가합니다.
    */
   public addToEngine(
-    displayObject: PIXI.Sprite | PIXI.Container,
-    body: Matter.Body
+    displayObject: PIXI.Sprite | PIXI.Container | null,
+    body: Matter.Body,
+    options: {
+      syncDisplay?: boolean;
+    } = {},
   ): void {
-    this.gameEngine.addGameObject(displayObject, body);
+    this.gameEngine.addGameObject(displayObject, body, options);
 
     if (body.label === "basket") {
       Matter.Body.set(body, {
@@ -63,7 +66,7 @@ export class PhysicsManager {
    * 물체를 물리 엔진에서 제거합니다.
    */
   public removeFromEngine(body: Matter.Body): void {
-    Matter.Composite.remove(this.gameEngine.getPhysicsEngine().world, body);
+    this.gameEngine.removeGameObject(body);
   }
 
   /**
@@ -100,6 +103,14 @@ export class PhysicsManager {
     this.gameEngine.syncDisplayObjectsNow();
   }
 
+  public getTrackedObjectCount(): number {
+    return this.gameEngine.getTrackedObjectCount();
+  }
+
+  public getTrackedDisplaySyncCount(): number {
+    return this.gameEngine.getSyncedDisplayObjectCount();
+  }
+
   /**
    * 충돌 이벤트 리스너를 설정합니다.
    */
@@ -124,9 +135,6 @@ export class PhysicsManager {
    */
   public setupDebugRenderer(app: PIXI.Application): void {
     this.cleanupDebugRenderer();
-
-    // 더 밝고 눈에 띄는 색상 사용
-    const highlightColor = "#FF00FF"; // 밝은 마젠타
 
     // 디버그 렌더러용 canvas 요소 생성
     const canvas = document.createElement("canvas");

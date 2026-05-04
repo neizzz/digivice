@@ -5,11 +5,11 @@ export class GameEngine {
   private physics: Matter.Engine;
   private isRunning = false;
   private gameObjects: {
-    displayObject: PIXI.Sprite | PIXI.Container;
+    displayObject: PIXI.Sprite | PIXI.Container | null;
     body: Matter.Body;
+    syncDisplay: boolean;
   }[] = [];
   private pixiApp: PIXI.Application | null = null;
-  private _frameCount = 0;
   private physicsUpdateBound: (ticker: PIXI.Ticker) => void;
   private readonly gravityY: number;
 
@@ -61,7 +61,7 @@ export class GameEngine {
 
   private syncDisplayObjects(): void {
     for (const obj of this.gameObjects) {
-      if (!obj.displayObject || !obj.body) continue;
+      if (!obj.syncDisplay || !obj.displayObject || !obj.body) continue;
 
       if (obj.displayObject instanceof PIXI.Sprite) {
         // PIXI.Sprite
@@ -84,12 +84,23 @@ export class GameEngine {
   }
 
   public addGameObject(
-    displayObject: PIXI.Sprite | PIXI.Container,
+    displayObject: PIXI.Sprite | PIXI.Container | null,
     body: Matter.Body,
+    options: {
+      syncDisplay?: boolean;
+    } = {},
   ): void {
     Matter.Composite.add(this.physics.world, body);
-    this.gameObjects.push({ displayObject, body });
-    this._frameCount = 0;
+    this.gameObjects.push({
+      displayObject,
+      body,
+      syncDisplay: options.syncDisplay ?? displayObject !== null,
+    });
+  }
+
+  public removeGameObject(body: Matter.Body): void {
+    Matter.Composite.remove(this.physics.world, body);
+    this.gameObjects = this.gameObjects.filter((obj) => obj.body !== body);
   }
 
   public pause(): void {
@@ -130,5 +141,13 @@ export class GameEngine {
 
   public getPhysicsEngine(): Matter.Engine {
     return this.physics;
+  }
+
+  public getTrackedObjectCount(): number {
+    return this.gameObjects.length;
+  }
+
+  public getSyncedDisplayObjectCount(): number {
+    return this.gameObjects.filter((obj) => obj.syncDisplay).length;
   }
 }
