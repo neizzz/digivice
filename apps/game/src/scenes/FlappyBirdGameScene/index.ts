@@ -889,7 +889,11 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
         this.cloudManager.setVisualStyle({
           alphaMin: this.lerp(0.3, 0.22, this.currentSkyState.progress),
           alphaMax: this.lerp(0.42, 0.32, this.currentSkyState.progress),
-          tint: this.lerpColor(0xfff7ea, 0xffffff, this.currentSkyState.progress),
+          tint: this.lerpColor(
+            0xfff7ea,
+            0xffffff,
+            this.currentSkyState.progress,
+          ),
         });
         break;
       default:

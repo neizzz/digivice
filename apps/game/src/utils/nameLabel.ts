@@ -6,9 +6,9 @@ export const NAME_LABEL_FONT_FAMILIES = [
   "Noto Color Emoji",
   "sans-serif",
 ] as const;
-export const NAME_LABEL_FONT_SIZE = 10;
+export const NAME_LABEL_FONT_SIZE = 12;
 export const NAME_LABEL_FONT_WEIGHT = 400;
-export const NAME_LABEL_STROKE_WIDTH = 3;
+export const NAME_LABEL_STROKE_WIDTH = 4;
 export const NAME_LABEL_FILL_COLOR = 0xffffff;
 export const NAME_LABEL_STROKE_COLOR = 0x000000;
 

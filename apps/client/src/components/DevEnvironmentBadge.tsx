@@ -49,8 +49,7 @@ export function DevEnvironmentBadge() {
       >
         <span>🖥️ PC Dev Mode</span>
         <span style={{ fontSize: "12px", opacity: 0.9 }}>
-          {isExpanded ? "▲" : "▼"} click to{" "}
-          {isExpanded ? "collapse" : "expand"}
+          {isExpanded ? "▲" : "▼"} click to {isExpanded ? "collapse" : "expand"}
         </span>
       </div>
 

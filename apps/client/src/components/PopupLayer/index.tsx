@@ -430,19 +430,21 @@ const PopupLayer: React.FC<PopupProps> = ({
               ? `${keyboardAwareMaxHeight}px`
               : undefined,
         }}
-        className="relative w-full max-w-[22rem] overflow-y-auto border-4 border-[#222] bg-layer-bg p-5 text-center font-dialog shadow-[0_4px_0_#222,0_-4px_0_#222,4px_0_0_#222,-4px_0_0_#222,4px_4px_0_#222,-4px_4px_0_#222,4px_-4px_0_#222,-4px_-4px_0_#222] focus:outline-none"
+        className="relative flex w-full max-w-[22rem] max-h-[calc(100vh-2rem)] flex-col overflow-hidden border-4 border-[#222] bg-layer-bg p-5 text-center font-dialog shadow-[0_4px_0_#222,0_-4px_0_#222,4px_0_0_#222,-4px_0_0_#222,4px_4px_0_#222,-4px_4px_0_#222,4px_-4px_0_#222,-4px_-4px_0_#222] focus:outline-none"
       >
         {topLeftContent ? (
           <div className="absolute left-2 top-2 z-[1]">{topLeftContent}</div>
         ) : null}
         <div
-          className={`mb-[15px] border-b-4 pb-[10px] text-[1.8rem] leading-[1.2] font-display font-bold text-component-negative ${dividerBorderClassName}`}
+          className={`mb-[15px] flex-none border-b-4 pb-[10px] text-[1.8rem] leading-[1.2] font-display font-bold text-component-negative ${dividerBorderClassName}`}
         >
           {title}
         </div>
-        <div className="pb-4 text-[1.4rem] leading-[1.6]">{content}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto pb-4 text-[1.4rem] leading-[1.6]">
+          {content}
+        </div>
         <div
-          className={`flex justify-center gap-[15px] border-t-4 pt-4 ${dividerBorderClassName}`}
+          className={`flex flex-none justify-center gap-[15px] border-t-4 pt-4 ${dividerBorderClassName}`}
         >
           {onCancel && (
             <button

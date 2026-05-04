@@ -1349,7 +1349,7 @@ export class MainSceneWorld implements IWorld, Scene {
             this,
             this._debugParentElement,
             {
-              initiallyVisible: import.meta.env.DEV,
+              initiallyVisible: false,
             },
           );
           this._addDebugGaugeEventListener();

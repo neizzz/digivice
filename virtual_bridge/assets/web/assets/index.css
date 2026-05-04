@@ -72,8 +72,6 @@
     --color-black: #000;
     --color-white: #fff;
     --spacing: .25rem;
-    --text-xs: .75rem;
-    --text-xs--line-height: calc(1 / .75);
     --text-lg: 1.125rem;
     --text-lg--line-height: calc(1.75 / 1.125);
     --font-weight-bold: 700;
@@ -654,6 +652,10 @@
     border-color: #222;
   }
 
+  .border-\[\#555\] {
+    border-color: #555;
+  }
+
   .bg-black {
     background-color: var(--color-black);
   }
@@ -759,11 +761,6 @@
   .text-lg {
     font-size: var(--text-lg);
     line-height: var(--tw-leading, var(--text-lg--line-height));
-  }
-
-  .text-xs {
-    font-size: var(--text-xs);
-    line-height: var(--tw-leading, var(--text-xs--line-height));
   }
 
   .text-\[0\.7em\] {

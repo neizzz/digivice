@@ -371,7 +371,10 @@ export class HTMLDebugGaugeUI {
     )
       ? DiseaseSystemComp.nextCheckTime[this._currentCharacterEid]
       : 0;
-    const remainingDiseaseTime = Math.max(0, nextDiseaseCheckTime - currentTime);
+    const remainingDiseaseTime = Math.max(
+      0,
+      nextDiseaseCheckTime - currentTime,
+    );
     const deathTime = hasComponent(
       this._world,
       VitalityComp,
@@ -379,7 +382,8 @@ export class HTMLDebugGaugeUI {
     )
       ? VitalityComp.deathTime[this._currentCharacterEid]
       : 0;
-    const remainingDeathTime = deathTime > 0 ? Math.max(0, deathTime - currentTime) : 0;
+    const remainingDeathTime =
+      deathTime > 0 ? Math.max(0, deathTime - currentTime) : 0;
     const hasSleepSystem = hasComponent(
       this._world,
       SleepSystemComp,
@@ -392,8 +396,10 @@ export class HTMLDebugGaugeUI {
 
     if (hasSleepSystem) {
       const sleepMode = SleepSystemComp.sleepMode[this._currentCharacterEid];
-      const nextSleepTime = SleepSystemComp.nextSleepTime[this._currentCharacterEid] || 0;
-      const nextWakeTime = SleepSystemComp.nextWakeTime[this._currentCharacterEid] || 0;
+      const nextSleepTime =
+        SleepSystemComp.nextSleepTime[this._currentCharacterEid] || 0;
+      const nextWakeTime =
+        SleepSystemComp.nextWakeTime[this._currentCharacterEid] || 0;
       const nextNapCheckTime =
         SleepSystemComp.nextNapCheckTime[this._currentCharacterEid] || 0;
       const nextNightWakeCheckTime =
@@ -459,9 +465,7 @@ export class HTMLDebugGaugeUI {
       1,
     )}% (${Math.ceil(remainingDiseaseTime / 1000)}s)`;
     this._deathTimeText.textContent =
-      deathTime > 0
-        ? `${Math.ceil(remainingDeathTime / 1000)}s`
-        : "N/A";
+      deathTime > 0 ? `${Math.ceil(remainingDeathTime / 1000)}s` : "N/A";
     this._sleepText.textContent = sleepText;
     this._fatigueText.textContent = fatigueText;
     this._sleepCheckText.textContent = sleepCheckText;
@@ -562,12 +566,11 @@ export class HTMLDebugGaugeUI {
     const testAdStatus = formatNativeAdStatus(this._nativeAdDebugState.test);
     const pending = mainSceneAdState.pending;
 
-    this._nativeAdStatusText.textContent =
-      `prod:${productionAdStatus}${formatAdUnitSuffix(
-        this._nativeAdDebugState.unit,
-      )} / test:${testAdStatus}${formatAdUnitSuffix(
-        this._nativeAdDebugState.test.unit,
-      )}`;
+    this._nativeAdStatusText.textContent = `prod:${productionAdStatus}${formatAdUnitSuffix(
+      this._nativeAdDebugState.unit,
+    )} / test:${testAdStatus}${formatAdUnitSuffix(
+      this._nativeAdDebugState.test.unit,
+    )}`;
     this._mainSceneAdText.textContent =
       `  count: ${mainSceneAdState.menuUseCount}/${mainSceneAdState.threshold}\n` +
       `  mode: ${mainSceneAdState.deepNight ? "deep-night" : "normal"}\n` +
@@ -622,7 +625,10 @@ export class HTMLDebugGaugeUI {
       return;
     }
 
-    if (!force && now - this._lastAdDebugRefreshAt < AD_DEBUG_REFRESH_INTERVAL_MS) {
+    if (
+      !force &&
+      now - this._lastAdDebugRefreshAt < AD_DEBUG_REFRESH_INTERVAL_MS
+    ) {
       return;
     }
 
@@ -691,8 +697,7 @@ export class HTMLDebugGaugeUI {
     } catch (error) {
       this._nativeAdDebugState = {
         ...this._nativeAdDebugState,
-        lastError:
-          error instanceof Error ? error.message : "Failed to show ad",
+        lastError: error instanceof Error ? error.message : "Failed to show ad",
       };
     } finally {
       this._isShowingImmediateAd = false;
@@ -759,7 +764,10 @@ export class HTMLDebugGaugeUI {
     return column;
   }
 
-  private _createMetricRow(labelText: string, labelColor: string): HTMLDivElement {
+  private _createMetricRow(
+    labelText: string,
+    labelColor: string,
+  ): HTMLDivElement {
     const row = document.createElement("div");
     row.style.cssText = `
       display: flex;
@@ -806,8 +814,8 @@ export class HTMLDebugGaugeUI {
 function hasNativeAdDebugBridge(): boolean {
   return Boolean(
     typeof window !== "undefined" &&
-      window.adController?.getAdDebugState &&
-      window.adController?.showTestInterstitial,
+    window.adController?.getAdDebugState &&
+    window.adController?.showTestInterstitial,
   );
 }
 

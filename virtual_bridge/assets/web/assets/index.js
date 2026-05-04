@@ -38089,16 +38089,7 @@ const _MainSceneWorld = class _MainSceneWorld {
             this._updateControlButtonsForMenuState(focusedIndex !== null);
           }
         });
-        if (this._debugParentElement) {
-          this._debugGaugeUI = new HTMLDebugGaugeUI(
-            this,
-            this._debugParentElement,
-            {
-              initiallyVisible: false
-            }
-          );
-          this._addDebugGaugeEventListener();
-        }
+        if (false) ;
         if (false) ;
       }
       this._setupVisibilityChangeHandler();
@@ -48842,6 +48833,7 @@ const PopupLayer = ({
   title = "Alert!",
   content,
   topLeftContent,
+  dividerBorderClassName = "border-[#222]",
   onConfirm,
   onCancel,
   confirmText = "Confirm",
@@ -49162,30 +49154,42 @@ const PopupLayer = ({
           className: "relative w-full max-w-[22rem] overflow-y-auto border-4 border-[#222] bg-layer-bg p-5 text-center font-dialog shadow-[0_4px_0_#222,0_-4px_0_#222,4px_0_0_#222,-4px_0_0_#222,4px_4px_0_#222,-4px_4px_0_#222,4px_-4px_0_#222,-4px_-4px_0_#222] focus:outline-none",
           children: [
             topLeftContent ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute left-2 top-2 z-[1]", children: topLeftContent }) : null,
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "mb-[15px] border-b-4 border-[#222] pb-[10px] text-[1.8rem] leading-[1.2] font-display font-bold text-component-negative", children: title }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "div",
+              {
+                className: `mb-[15px] border-b-4 pb-[10px] text-[1.8rem] leading-[1.2] font-display font-bold text-component-negative ${dividerBorderClassName}`,
+                children: title
+              }
+            ),
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "pb-4 text-[1.4rem] leading-[1.6]", children: content }),
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex justify-center gap-[15px] border-t-4 border-[#222] pt-4", children: [
-              onCancel && /* @__PURE__ */ jsxRuntimeExports.jsx(
-                "button",
-                {
-                  ref: cancelButtonRef,
-                  type: "button",
-                  onClick: handleCancelClick,
-                  className: `text-[1.5rem] text-white border-2 border-[#222] px-[15px] py-0.5 cursor-pointer uppercase font-display shadow-[2px_2px_0_#222] relative top-0 left-0 transition-all duration-50 ${cancelVariant === "negative" ? "bg-component-negative" : "bg-component-positive"}`,
-                  children: cancelText
-                }
-              ),
-              /* @__PURE__ */ jsxRuntimeExports.jsx(
-                "button",
-                {
-                  ref: confirmButtonRef,
-                  type: "button",
-                  onClick: handleConfirmClick,
-                  className: `text-[1.5rem] text-white border-2 border-[#222] px-[15px] py-0.5 cursor-pointer uppercase font-display shadow-[2px_2px_0_#222] ${confirmVariant === "negative" ? "bg-component-negative" : "bg-component-positive"}`,
-                  children: confirmText
-                }
-              )
-            ] })
+            /* @__PURE__ */ jsxRuntimeExports.jsxs(
+              "div",
+              {
+                className: `flex justify-center gap-[15px] border-t-4 pt-4 ${dividerBorderClassName}`,
+                children: [
+                  onCancel && /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    "button",
+                    {
+                      ref: cancelButtonRef,
+                      type: "button",
+                      onClick: handleCancelClick,
+                      className: `text-[1.5rem] text-white border-2 border-[#222] px-[15px] py-0.5 cursor-pointer uppercase font-display shadow-[2px_2px_0_#222] relative top-0 left-0 transition-all duration-50 ${cancelVariant === "negative" ? "bg-component-negative" : "bg-component-positive"}`,
+                      children: cancelText
+                    }
+                  ),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    "button",
+                    {
+                      ref: confirmButtonRef,
+                      type: "button",
+                      onClick: handleConfirmClick,
+                      className: `text-[1.5rem] text-white border-2 border-[#222] px-[15px] py-0.5 cursor-pointer uppercase font-display shadow-[2px_2px_0_#222] ${confirmVariant === "negative" ? "bg-component-negative" : "bg-component-positive"}`,
+                      children: confirmText
+                    }
+                  )
+                ]
+              }
+            )
           ]
         }
       )
@@ -49231,6 +49235,7 @@ const SetupLayer = ({ onComplete }) => {
     {
       title: "Spawn Monster!",
       keyboardAwareTargetRef: nameInputRef,
+      dividerBorderClassName: "border-[#555]",
       content: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex flex-col items-center gap-4", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "w-full", children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "input",
@@ -49242,16 +49247,16 @@ const SetupLayer = ({ onComplete }) => {
               setName(e2.target.value);
               setError(null);
             },
-            placeholder: "Monster Name",
-            className: "w-full border-2 border-[#222] px-3 py-0.5 text-center text-[1.5rem] focus:outline-none focus:ring-2 focus:ring-[#d95763]"
+            placeholder: "monster name",
+            className: "w-full border-2 border-[#222] px-3 py-0.5 text-center text-[1.4rem] focus:outline-none focus:ring-2 focus:ring-[#d95763]"
           }
         ),
         /* @__PURE__ */ jsxRuntimeExports.jsxs(
           "div",
           {
-            className: `mt-4 text-xs ${isWithinVisibleWidth ? "text-gray-600" : "text-red-600"}`,
+            className: `mt-4 text-[1.4rem] ${isWithinVisibleWidth ? "text-gray-600" : "text-red-600"}`,
             children: [
-              "Name width: ",
+              "name width: ",
               Math.round(nameWidth),
               "/",
               NAME_LABEL_MAX_WIDTH,
@@ -50049,7 +50054,7 @@ const RECOVERY_VIBRATION_INTERVAL_MS = 180;
 const RECOVERY_VIBRATION_DURATION_MS = 14;
 const RECOVERY_VIBRATION_STRENGTH = 28;
 const LOADING_TIMEOUT_MS = 3e4;
-const isNativeFeatureDebugMode$1 = true;
+const isNativeFeatureDebugMode$1 = false;
 const isAndroidUserAgent = typeof navigator !== "undefined" && /DigiviceApp-Android|Android/i.test(navigator.userAgent);
 const KEYBOARD_VIEWPORT_HEIGHT_DELTA_THRESHOLD = 80;
 const UNSUPPORTED_SQUARE_VIEWPORT_RATIO = 0.8;
@@ -50324,10 +50329,10 @@ function createDiagnosticsBody() {
   ].join("\n");
 }
 function getClientReleaseLabel() {
-  return `${"0.3.0-debug"}+${6}`;
+  return `${"0.3.0"}+${6}`;
 }
 function getClientReleaseFileLabel() {
-  const sanitizedVersion = "0.3.0-debug".replace(/[^a-zA-Z0-9.-]+/g, "_");
+  const sanitizedVersion = "0.3.0".replace(/[^a-zA-Z0-9.-]+/g, "_");
   return `${sanitizedVersion}-build-${6}`;
 }
 function buildGmailComposeHref(subject, body) {
@@ -50865,7 +50870,7 @@ const GameContainer = () => {
       scene: (gameInstance == null ? void 0 : gameInstance.getCurrentSceneKey()) !== void 0 ? String(gameInstance.getCurrentSceneKey()) : void 0,
       storageKind: getClientStorageKind(),
       appMode: "production",
-      appVersion: "0.3.0-debug",
+      appVersion: "0.3.0",
       buildNumber: 6,
       debugEnabled: isNativeFeatureDebugMode$1
     }));
@@ -51212,7 +51217,7 @@ const GameContainer = () => {
         generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
         appInfo: {
           project: "MonTTo",
-          clientAppVersion: "0.3.0-debug",
+          clientAppVersion: "0.3.0",
           clientBuildNumber: 6,
           appMode: "production",
           debugEnabled: isNativeFeatureDebugMode$1,
@@ -52353,11 +52358,11 @@ const App = () => {
   ] });
 };
 const platformAdapter = new PlatformAdapter();
-const isNativeFeatureDebugMode = true;
+const isNativeFeatureDebugMode = false;
 installDiagnosticsConsoleCapture();
 setDiagnosticsContextProvider(() => ({
   appMode: "production",
-  appVersion: "0.3.0-debug",
+  appVersion: "0.3.0",
   buildNumber: 6,
   debugEnabled: isNativeFeatureDebugMode
 }));
