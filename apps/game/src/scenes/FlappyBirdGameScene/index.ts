@@ -81,7 +81,10 @@ const FLAPPY_BIRD_SPEED_STEP_TWO_SCORE_LIMIT = 20;
 const FLAPPY_BIRD_ENDGAME_SCORE_LIMIT = 40;
 const FLAPPY_BIRD_MAX_DIFFICULTY_SCORE = 30;
 const FLAPPY_BIRD_PIPE_SPAWN_INTERVAL_SCALE = 0.72;
-const FLAPPY_BIRD_BGM_REFERENCE_PIPE_SPEED = 3.8;
+const FLAPPY_BIRD_BGM_BASE_TEMPO_MULTIPLIER = 1;
+const FLAPPY_BIRD_BGM_MIDGAME_TEMPO_MULTIPLIER = 1.08;
+const FLAPPY_BIRD_BGM_ENDGAME_TEMPO_MULTIPLIER = 1.14;
+const FLAPPY_BIRD_BGM_MAX_TEMPO_MULTIPLIER = 1.16;
 const FLAPPY_BIRD_SKY_SYNC_INTERVAL_MS = 1000;
 const FLAPPY_BIRD_SLOW_FRAME_DELTA_THRESHOLD_MS = 20;
 const FLAPPY_BIRD_SLOW_FRAME_UPDATE_COST_THRESHOLD_MS = 8;
@@ -531,9 +534,7 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
     });
     this.groundManager.setSpeed(difficulty.pipeSpeed);
     this.cloudManager.setSpeed(difficulty.pipeSpeed);
-    this.bgmController.setTempoMultiplier(
-      this.resolveBgmTempoMultiplier(difficulty.pipeSpeed),
-    );
+    this.bgmController.setTempoMultiplier(this.resolveBgmTempoMultiplier(score));
   }
 
   private resolveDifficultyState(score: number): FlappyBirdDifficultyState {
@@ -600,8 +601,36 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
     return FLAPPY_BIRD_ENDGAME_DIFFICULTY.pipeSpeed;
   }
 
-  private resolveBgmTempoMultiplier(pipeSpeed: number): number {
-    return Math.max(0.5, pipeSpeed / FLAPPY_BIRD_BGM_REFERENCE_PIPE_SPEED);
+  private resolveBgmTempoMultiplier(score: number): number {
+    if (score <= FLAPPY_BIRD_TUTORIAL_SCORE_LIMIT) {
+      return FLAPPY_BIRD_BGM_BASE_TEMPO_MULTIPLIER;
+    }
+
+    if (score < FLAPPY_BIRD_SPEED_STEP_TWO_SCORE_LIMIT) {
+      return this.interpolateNumber(
+        FLAPPY_BIRD_BGM_BASE_TEMPO_MULTIPLIER,
+        FLAPPY_BIRD_BGM_MIDGAME_TEMPO_MULTIPLIER,
+        this.resolveRangeProgress(
+          score,
+          FLAPPY_BIRD_TUTORIAL_SCORE_LIMIT + 1,
+          FLAPPY_BIRD_SPEED_STEP_TWO_SCORE_LIMIT - 1,
+        ),
+      );
+    }
+
+    if (score < FLAPPY_BIRD_ENDGAME_SCORE_LIMIT) {
+      return this.interpolateNumber(
+        FLAPPY_BIRD_BGM_MIDGAME_TEMPO_MULTIPLIER,
+        FLAPPY_BIRD_BGM_ENDGAME_TEMPO_MULTIPLIER,
+        this.resolveRangeProgress(
+          score,
+          FLAPPY_BIRD_SPEED_STEP_TWO_SCORE_LIMIT,
+          FLAPPY_BIRD_ENDGAME_SCORE_LIMIT - 1,
+        ),
+      );
+    }
+
+    return FLAPPY_BIRD_BGM_MAX_TEMPO_MULTIPLIER;
   }
 
   private interpolateNumber(
@@ -610,6 +639,21 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
     progress: number,
   ): number {
     return start + (end - start) * progress;
+  }
+
+  private resolveRangeProgress(
+    value: number,
+    rangeStart: number,
+    rangeEnd: number,
+  ): number {
+    if (rangeEnd <= rangeStart) {
+      return 1;
+    }
+
+    return Math.min(
+      1,
+      Math.max(0, (value - rangeStart) / (rangeEnd - rangeStart)),
+    );
   }
 
   private clearGameOverVibrationPattern(): void {

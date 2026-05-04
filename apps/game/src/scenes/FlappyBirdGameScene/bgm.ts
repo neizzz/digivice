@@ -15,7 +15,7 @@ const FLAPPY_BIRD_BGM_RELEASE_S = 0.08;
 const FLAPPY_BIRD_PIPE_PASS_CUE_ATTACK_S = 0.004;
 const FLAPPY_BIRD_PIPE_PASS_CUE_RELEASE_S = 0.12;
 const FLAPPY_BIRD_COUNTDOWN_CUE_DURATION_S = 0.09;
-const FLAPPY_BIRD_BGM_TEMPO_TRANSITION_MS = 520;
+const FLAPPY_BIRD_BGM_TEMPO_TRANSITION_MS = 900;
 
 const FLAPPY_BIRD_BGM_LEAD_PATTERN: Array<number | null> = [
   76, 79, 81, 79, 76, 79, 83, 79, 74, 77, 81, 77, 74, 77, 79, 77,
@@ -69,7 +69,8 @@ function smoothTempoMultiplier(
     return target;
   }
 
-  const alpha = 1 - Math.exp(-Math.max(0, elapsedMs) / FLAPPY_BIRD_BGM_TEMPO_TRANSITION_MS);
+  const alpha =
+    1 - Math.exp(-Math.max(0, elapsedMs) / FLAPPY_BIRD_BGM_TEMPO_TRANSITION_MS);
   return current + (target - current) * alpha;
 }
 
@@ -190,7 +191,10 @@ export class FlappyBirdBgmController {
       return;
     }
 
-    const clampedDisplayValue = Math.min(3, Math.max(1, Math.floor(displayValue)));
+    const clampedDisplayValue = Math.min(
+      3,
+      Math.max(1, Math.floor(displayValue)),
+    );
     const countdownStep = 3 - clampedDisplayValue;
     const baseFrequency = midiToFrequency(69 + countdownStep * 4);
     const accentFrequency = midiToFrequency(76 + countdownStep * 4);
