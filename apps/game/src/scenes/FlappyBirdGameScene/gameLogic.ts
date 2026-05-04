@@ -325,12 +325,15 @@ export class GroundManager {
     this.physicsManager.addToEngine(null, this.groundBody, {
       syncDisplay: false,
     });
+    this.syncGroundContainerPosition();
   }
 
   /**
    * 초기 바닥 타일을 설정합니다.
    */
   public setup(): void {
+    this.syncGroundContainerPosition();
+
     // 기존 타일 제거
     this.groundContainer.removeChildren().forEach((child) => child.destroy());
     this.groundTiles = [];
@@ -419,11 +422,16 @@ export class GroundManager {
       x: this.groundBody.position.x,
       y: this.getGroundBodyCenterY(),
     });
+    this.syncGroundContainerPosition();
     this.setup();
   }
 
   private getGroundBodyCenterY(): number {
     return this.app.screen.height;
+  }
+
+  private syncGroundContainerPosition(): void {
+    this.groundContainer.position.set(0, this.groundBody.bounds.min.y);
   }
 
   /**
@@ -858,10 +866,6 @@ export class PipeManager {
       pair.minTopClearance,
       pair.minBottomClearance,
     );
-
-    if (Number.isFinite(trackedClearance)) {
-      return trackedClearance <= threshold ? 1 : 0;
-    }
 
     const { topClearance, bottomClearance } = this.resolveGapClearances(
       pair,

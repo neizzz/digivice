@@ -64,10 +64,10 @@ test("tracked clearance가 있으면 current clearance보다 우선해서 near-m
 test("near-miss bonus UI 문구는 bonus 단계에 따라 Good/Great로 나뉜다", () => {
   assert.deepEqual(resolveNearMissFeedback(1), {
     text: "Good!",
-    fill: 0xf3cf62,
+    fill: 0x8ee3ff,
   });
   assert.deepEqual(resolveNearMissFeedback(2), {
     text: "Great!",
-    fill: 0xffe08a,
+    fill: 0xffc857,
   });
 });
