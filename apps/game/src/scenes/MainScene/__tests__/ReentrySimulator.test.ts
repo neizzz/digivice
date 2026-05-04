@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { addEntity, hasComponent } from "bitecs";
+import { addComponent, addEntity, hasComponent } from "bitecs";
 import {
   CharacterStatusComp,
+  DestinationComp,
   DiseaseSystemComp,
   ObjectComp,
   PositionComp,
@@ -18,7 +19,13 @@ import { eggHatchSystem } from "../systems/EggHatchSystem";
 import { commonMovementSystem } from "../systems/CommonMovementSystem";
 import { randomMovementSystem } from "../systems/RandomMovementSystem";
 import { animationStateSystem } from "../systems/AnimationStateSystem";
-import { CharacterState, CharacterStatus } from "../types";
+import {
+  CharacterState,
+  CharacterStatus,
+  DestinationType,
+  FoodState,
+  ObjectType,
+} from "../types";
 import {
   createTestCharacter,
   createTestWorld,
@@ -424,4 +431,55 @@ test("reentry는 disease check 시점과 확률이 맞으면 sick 상태로 바�
     GAME_CONSTANTS.DISEASE_CHECK_INTERVAL,
   );
   assert.equal(hasComponent(world, RandomMovementComp, eid), false);
+});
+
+test("reentry에서도 음식을 먹으러 가는 중에는 disease check로 sick가 되지 않는다", async () => {
+  const world = createTestWorld({
+    now: 0,
+    isSimulationMode: true,
+  });
+  reserveEntityRange(world);
+
+  const eid = withMockedDateNow(0, () =>
+    createTestCharacter(world, {
+      state: CharacterState.MOVING,
+      stamina: 1.5,
+      x: 220,
+      y: 260,
+    }),
+  );
+
+  const foodEid = addEntity(world);
+  addComponent(world, ObjectComp, foodEid);
+  ObjectComp.id[foodEid] = 50_000 + foodEid;
+  ObjectComp.type[foodEid] = ObjectType.FOOD;
+  ObjectComp.state[foodEid] = FoodState.TARGETED;
+
+  addComponent(world, DestinationComp, eid);
+  DestinationComp.type[eid] = DestinationType.TARGETED;
+  DestinationComp.target[eid] = foodEid;
+
+  const simulator = new ReentrySimulator();
+  const runSimulationStep = buildReentrySimulationStep(simulator, {
+    includeDisease: true,
+  });
+
+  await withMockedRandomAsync(0, () =>
+    withMockedDateNowAsync(GAME_CONSTANTS.DISEASE_CHECK_INTERVAL, async () => {
+      await simulator.simulate(
+        0,
+        ({ world: simulationWorld, delta }) => {
+          runSimulationStep({
+            world: simulationWorld as typeof world,
+            delta,
+          });
+        },
+        world,
+      );
+    }),
+  );
+
+  assert.equal(hasStatus(eid, CharacterStatus.SICK), false);
+  assert.equal(hasComponent(world, DestinationComp, eid), true);
+  assert.equal(DestinationComp.target[eid], foodEid);
 });

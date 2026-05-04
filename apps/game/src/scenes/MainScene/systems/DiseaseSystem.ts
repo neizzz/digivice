@@ -7,7 +7,9 @@ import {
 import {
   CharacterStatusComp,
   DiseaseSystemComp,
+  FoodEatingComp,
   ObjectComp,
+  SleepSystemComp,
   VitalityComp,
   RandomMovementComp,
   DestinationComp,
@@ -18,10 +20,16 @@ import {
   ObjectType,
   CharacterStatus,
   CharacterState,
+  DestinationType,
   Freshness,
   FoodState,
 } from "../types";
-import { GAME_CONSTANTS } from "../config";
+import {
+  GAME_CONSTANTS,
+  getFatigueDiseaseBonus,
+  getLowStaminaDiseaseBonus,
+  getStaminaFatigueAwakeGainMultiplier,
+} from "../config";
 import {
   clearActiveEatingState,
   releaseTargetedFoodForCharacter,
@@ -40,8 +48,8 @@ const previousStates: Map<number, { isSick: boolean; isSleeping: boolean }> =
 /**
  * 질병 시스템
  * - 일정 시간마다 질병 확률 체크
- * - 스테미나가 3이하일 때 질병 확률 3% 증가
- * - 똥이나 상한음식 1개당 질병확률 1% 증가
+ * - 낮은 스테미나와 높은 피로도가 질병 확률을 단계적으로 높임
+ * - 똥이나 상한음식은 추가 질병 확률 보정으로 누적됨
  * - sick 상태 관리
  */
 export function diseaseSystem(params: {
@@ -77,6 +85,10 @@ export function diseaseSystem(params: {
       const isSick = isCharacterSick(currentStatuses);
 
       if (!isSick) {
+        if (isDiseaseCheckBlockedByFoodInteraction(world, eid)) {
+          continue;
+        }
+
         const diseaseCalculation = calculateDiseaseRate(world, eid);
         const { rate: diseaseRate, breakdown } = diseaseCalculation;
 
@@ -97,7 +109,9 @@ export function diseaseSystem(params: {
           }
           addCharacterStatus(eid, CharacterStatus.SICK);
           diseaseComp.sickStartTime[eid] = checkTime;
-          ObjectComp.state[eid] = CharacterState.SICK;
+          if (!isSleeping) {
+            ObjectComp.state[eid] = CharacterState.SICK;
+          }
 
           // SICK 상태가 되면 움직임 제한
           restrictMovement(world, eid);
@@ -105,8 +119,6 @@ export function diseaseSystem(params: {
         }
       }
     }
-
-    // 질병은 자동으로 치료되지 않으며, 별도의 치료 방법이 필요함
 
     // SICK 또는 SLEEPING 상태인 경우 움직임 제한
     const currentStatuses = characterComp.statuses[eid];
@@ -136,6 +148,35 @@ export function diseaseSystem(params: {
   }
 
   return params;
+}
+
+function isDiseaseCheckBlockedByFoodInteraction(
+  world: MainSceneWorld,
+  eid: number,
+): boolean {
+  if (
+    hasComponent(world, FoodEatingComp, eid) &&
+    FoodEatingComp.isActive[eid] === 1
+  ) {
+    return true;
+  }
+
+  if (!hasComponent(world, DestinationComp, eid)) {
+    return false;
+  }
+
+  if (
+    DestinationComp.type[eid] !== DestinationType.TARGETED ||
+    DestinationComp.target[eid] === 0
+  ) {
+    return false;
+  }
+
+  const targetFoodEid = DestinationComp.target[eid];
+  return (
+    hasComponent(world, ObjectComp, targetFoodEid) &&
+    ObjectComp.type[targetFoodEid] === ObjectType.FOOD
+  );
 }
 
 /**
@@ -199,31 +240,45 @@ export function calculateDiseaseRate(
   rate: number;
   breakdown: {
     base: number;
-    lowStamina: number;
+    lowStaminaBonus: number;
+    fatigueBonus: number;
     poopBonus: number;
     staleFood: number;
     stamina: number;
+    fatigue: number;
     poopCount: number;
     staleFoodCount: number;
+    staminaFatigueMultiplier: number;
   };
 } {
   let diseaseRate = GAME_CONSTANTS.BASE_DISEASE_RATE;
+  const stamina = CharacterStatusComp.stamina[eid];
+  const fatigue = hasComponent(world, SleepSystemComp, eid)
+    ? SleepSystemComp.fatigue[eid]
+    : GAME_CONSTANTS.FATIGUE_DEFAULT;
   const breakdown = {
     base: GAME_CONSTANTS.BASE_DISEASE_RATE,
-    lowStamina: 0,
+    lowStaminaBonus: 0,
+    fatigueBonus: 0,
     poopBonus: 0,
     staleFood: 0,
-    stamina: CharacterStatusComp.stamina[eid],
+    stamina,
+    fatigue,
     poopCount: 0,
     staleFoodCount: 0,
+    staminaFatigueMultiplier: getStaminaFatigueAwakeGainMultiplier(stamina),
   };
 
-  // 스테미나가 3이하일 때 3% 추가
-  const stamina = CharacterStatusComp.stamina[eid];
-  if (stamina <= 3) {
-    const bonus = GAME_CONSTANTS.LOW_STAMINA_DISEASE_BONUS;
-    diseaseRate += bonus;
-    breakdown.lowStamina = bonus;
+  const lowStaminaBonus = getLowStaminaDiseaseBonus(stamina);
+  if (lowStaminaBonus > 0) {
+    diseaseRate += lowStaminaBonus;
+    breakdown.lowStaminaBonus = lowStaminaBonus;
+  }
+
+  const fatigueBonus = getFatigueDiseaseBonus(fatigue);
+  if (fatigueBonus > 0) {
+    diseaseRate += fatigueBonus;
+    breakdown.fatigueBonus = fatigueBonus;
   }
 
   // 똥 개수 계산

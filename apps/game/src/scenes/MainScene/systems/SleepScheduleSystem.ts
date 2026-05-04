@@ -2,12 +2,16 @@ import { addComponent, defineQuery, hasComponent } from "bitecs";
 import {
   CharacterStatusComp,
   DestinationComp,
+  DiseaseSystemComp,
   ObjectComp,
   RandomMovementComp,
   SleepSystemComp,
   SpeedComp,
 } from "../raw-components";
-import { GAME_CONSTANTS } from "../config";
+import {
+  GAME_CONSTANTS,
+  getStaminaFatigueAwakeGainMultiplier,
+} from "../config";
 import {
   CharacterState,
   CharacterStatus,
@@ -67,6 +71,7 @@ export function sleepScheduleSystem(params: {
     }
 
     updateFatigue(eid, delta);
+    recoverNaturallyFromSickIfReady(world, eid, currentTime);
     reconcileExternalSleepExit(eid, currentTime, currentTimeOfDay);
     handleScheduledWake(world, eid, currentTime);
     handleNightWakeChecks(world, eid, currentTime, currentTimeOfDay);
@@ -205,8 +210,11 @@ function updateFatigue(eid: number, delta: number): void {
   const currentFatigue = SleepSystemComp.fatigue[eid];
   const isSleeping = ObjectComp.state[eid] === CharacterState.SLEEPING;
   const isSick = hasStatus(eid, CharacterStatus.SICK);
+  const staminaFatigueMultiplier =
+    getStaminaFatigueAwakeGainMultiplier(CharacterStatusComp.stamina[eid]);
   const awakeGainPerMillisecond =
-    GAME_CONSTANTS.FATIGUE_AWAKE_GAIN_PER_HOUR / HOUR_IN_MILLISECONDS;
+    (GAME_CONSTANTS.FATIGUE_AWAKE_GAIN_PER_HOUR * staminaFatigueMultiplier) /
+    HOUR_IN_MILLISECONDS;
   const sleepRecoveryPerMillisecond =
     (isSick
       ? GAME_CONSTANTS.FATIGUE_SLEEP_RECOVERY_PER_HOUR_WHEN_SICK
@@ -221,6 +229,43 @@ function updateFatigue(eid: number, delta: number): void {
     0,
     GAME_CONSTANTS.FATIGUE_MAX,
   );
+}
+
+function recoverNaturallyFromSickIfReady(
+  world: MainSceneWorld,
+  eid: number,
+  currentTime: number,
+): void {
+  if (ObjectComp.state[eid] !== CharacterState.SLEEPING) {
+    return;
+  }
+
+  if (!hasStatus(eid, CharacterStatus.SICK)) {
+    return;
+  }
+
+  if (!hasComponent(world, DiseaseSystemComp, eid)) {
+    return;
+  }
+
+  const sickStartTime = DiseaseSystemComp.sickStartTime[eid];
+  if (sickStartTime <= 0) {
+    return;
+  }
+
+  const sleptLongEnough =
+    currentTime - sickStartTime >=
+    GAME_CONSTANTS.NATURAL_SICK_RECOVERY_MIN_DURATION;
+  const recoveredFatigue =
+    SleepSystemComp.fatigue[eid] <=
+    GAME_CONSTANTS.NATURAL_SICK_RECOVERY_FATIGUE_THRESHOLD;
+
+  if (!sleptLongEnough || !recoveredFatigue) {
+    return;
+  }
+
+  removeStatus(eid, CharacterStatus.SICK);
+  DiseaseSystemComp.sickStartTime[eid] = 0;
 }
 
 function reconcileExternalSleepExit(
@@ -664,6 +709,19 @@ function getDayNapChance(eid: number): number {
 
 function hasStatus(eid: number, status: CharacterStatus): boolean {
   return Array.from(CharacterStatusComp.statuses[eid]).includes(status);
+}
+
+function removeStatus(eid: number, status: CharacterStatus): void {
+  const statuses = CharacterStatusComp.statuses[eid];
+
+  for (let i = 0; i < statuses.length; i++) {
+    if (statuses[i] !== status) {
+      continue;
+    }
+
+    statuses[i] = 0;
+    return;
+  }
 }
 
 function randomBetween(min: number, max: number): number {

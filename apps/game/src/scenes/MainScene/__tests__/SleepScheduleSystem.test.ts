@@ -4,6 +4,7 @@ import { addComponent, addEntity, removeComponent } from "bitecs";
 import {
   CharacterStatusComp,
   DestinationComp,
+  DiseaseSystemComp,
   ObjectComp,
   SleepSystemComp,
 } from "../raw-components";
@@ -31,6 +32,8 @@ import {
   withMockedDateNow,
   withMockedRandom,
 } from "../../../test-utils/mainSceneTestUtils";
+
+const HOUR_IN_MILLISECONDS = 60 * 60 * 1000;
 
 test("밤이 되면 10분~1시간 사이 랜덤 시각에 잠들도록 예약한다", () => {
   const world = createTestWorld({
@@ -357,6 +360,98 @@ test("수면 중 sickness가 남아 있으면 피로 회복이 느리다", () =>
   assert.ok(
     SleepSystemComp.fatigue[normalEid] < SleepSystemComp.fatigue[sickEid],
   );
+});
+
+test("낮은 스테미나일수록 깨어 있는 동안 피로가 더 빨리 쌓인다", () => {
+  const world = createTestWorld({
+    now: 0,
+    timeOfDay: TimeOfDay.Day,
+  });
+
+  const normalEid = withMockedDateNow(0, () =>
+    createTestCharacter(world, {
+      state: CharacterState.IDLE,
+      stamina: 5,
+      x: 100,
+      y: 100,
+    }),
+  );
+  const lowEid = withMockedDateNow(1, () =>
+    createTestCharacter(world, {
+      state: CharacterState.IDLE,
+      stamina: 2.5,
+      x: 140,
+      y: 100,
+    }),
+  );
+  const criticalEid = withMockedDateNow(2, () =>
+    createTestCharacter(world, {
+      state: CharacterState.IDLE,
+      stamina: 1.5,
+      x: 180,
+      y: 100,
+    }),
+  );
+  const delta = HOUR_IN_MILLISECONDS / 100;
+
+  SleepSystemComp.fatigue[normalEid] = 0;
+  SleepSystemComp.fatigue[lowEid] = 0;
+  SleepSystemComp.fatigue[criticalEid] = 0;
+
+  sleepScheduleSystem({
+    world: world as any,
+    delta,
+    currentTime: delta,
+  });
+
+  const baseGain =
+    (GAME_CONSTANTS.FATIGUE_AWAKE_GAIN_PER_HOUR * delta) /
+    HOUR_IN_MILLISECONDS;
+
+  assert.equal(SleepSystemComp.fatigue[normalEid], baseGain);
+  assert.equal(
+    SleepSystemComp.fatigue[lowEid],
+    baseGain * GAME_CONSTANTS.LOW_STAMINA_FATIGUE_AWAKE_GAIN_MULTIPLIER,
+  );
+  assert.equal(
+    SleepSystemComp.fatigue[criticalEid],
+    baseGain * GAME_CONSTANTS.CRITICAL_STAMINA_FATIGUE_AWAKE_GAIN_MULTIPLIER,
+  );
+});
+
+test("충분히 오래 자고 피로가 낮아지면 sick 상태가 수면 중 자연 회복된다", () => {
+  const world = createTestWorld({
+    now: GAME_CONSTANTS.NATURAL_SICK_RECOVERY_MIN_DURATION,
+    timeOfDay: TimeOfDay.Night,
+  });
+
+  const eid = withMockedDateNow(
+    GAME_CONSTANTS.NATURAL_SICK_RECOVERY_MIN_DURATION,
+    () =>
+      createTestCharacter(world, {
+        state: CharacterState.SLEEPING,
+        stamina: 5,
+        x: 100,
+        y: 100,
+      }),
+  );
+
+  CharacterStatusComp.statuses[eid][0] = CharacterStatus.SICK;
+  DiseaseSystemComp.sickStartTime[eid] = 1;
+  SleepSystemComp.fatigue[eid] =
+    GAME_CONSTANTS.NATURAL_SICK_RECOVERY_FATIGUE_THRESHOLD;
+  SleepSystemComp.sleepMode[eid] = SleepMode.NIGHT_SLEEP;
+
+  sleepScheduleSystem({
+    world: world as any,
+    delta: 0,
+    currentTime: GAME_CONSTANTS.NATURAL_SICK_RECOVERY_MIN_DURATION + 1,
+  });
+
+  assert.equal(CharacterStatusComp.statuses[eid][0], 0);
+  assert.equal(DiseaseSystemComp.sickStartTime[eid], 0);
+  assert.equal(ObjectComp.state[eid], CharacterState.SLEEPING);
+  assert.equal(SleepSystemComp.sleepMode[eid], SleepMode.NIGHT_SLEEP);
 });
 
 test("production 밤중 각성 기대값은 2박에 1번꼴 기준으로 계산된다", () => {
