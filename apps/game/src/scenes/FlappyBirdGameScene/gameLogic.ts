@@ -2,6 +2,7 @@ import * as PIXI from "pixi.js";
 import type { CharacterKey } from "../../types/Character";
 import { AssetLoader, type GameAssets } from "../../utils/AssetLoader";
 import type { FlappyBirdDifficultyState, PipePair } from "./models";
+import { resolveNearMissBonusTier } from "./nearMiss";
 import { buildPipeSpawnPlan, type PipeSpawnPlanItem } from "./pipeSpawn";
 import type { PhysicsManager } from "./physics";
 
@@ -18,7 +19,6 @@ const FLAPPY_BIRD_CLOUD_MIN_GAP = 90;
 const FLAPPY_BIRD_CLOUD_MAX_GAP = 185;
 const FLAPPY_BIRD_CLOUD_TOP_PADDING = 28;
 const FLAPPY_BIRD_CLOUD_MAX_HEIGHT_RATIO = 0.72;
-const FLAPPY_BIRD_NEAR_MISS_CLEARANCE_RATIO = 0.25;
 const FLAPPY_BIRD_BASE_FRAME_MS = 1000 / 60;
 const FLAPPY_BIRD_MAX_FRAME_SCALE = 1.25;
 const FLAPPY_BIRD_SPEED_TRANSITION_MS = 140;
@@ -854,10 +854,6 @@ export class PipeManager {
 
   private getNearMissBonus(pair: PipePair, playerBody: Matter.Body): number {
     const playerHeight = playerBody.bounds.max.y - playerBody.bounds.min.y;
-    const threshold = Math.max(
-      6,
-      Math.round(playerHeight * FLAPPY_BIRD_NEAR_MISS_CLEARANCE_RATIO),
-    );
     const trackedClearance = Math.min(
       pair.minTopClearance,
       pair.minBottomClearance,
@@ -873,7 +869,11 @@ export class PipeManager {
     );
     const currentClearance = Math.min(topClearance, bottomClearance);
 
-    return currentClearance <= threshold ? 1 : 0;
+    return resolveNearMissBonusTier({
+      playerHeight,
+      trackedClearance,
+      currentClearance,
+    });
   }
 
   private trackNearMissClearances(

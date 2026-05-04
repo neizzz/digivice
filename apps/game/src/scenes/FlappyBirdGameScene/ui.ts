@@ -237,13 +237,10 @@ export class NearMissUI {
   }
 
   public showBonus(amount: number): void {
-    const bonusAmount = Math.max(1, Math.floor(amount));
-    const isGreat = bonusAmount >= 2;
+    const feedback = resolveNearMissFeedback(amount);
 
-    this.text.text = isGreat ? "Great!" : "Good!";
-    this.text.style.fill = isGreat
-      ? FLAPPY_BIRD_NEAR_MISS_GREAT_COLOR
-      : FLAPPY_BIRD_NEAR_MISS_GOOD_COLOR;
+    this.text.text = feedback.text;
+    this.text.style.fill = feedback.fill;
     this.remainingMs = this.totalDurationMs;
     this.text.visible = true;
     this.text.alpha = 1;
@@ -296,6 +293,21 @@ export class NearMissUI {
   public getDisplayObject(): PIXI.Text {
     return this.text;
   }
+}
+
+export function resolveNearMissFeedback(amount: number): {
+  text: "Good!" | "Great!";
+  fill: number;
+} {
+  const bonusAmount = Math.max(1, Math.floor(amount));
+  const isGreat = bonusAmount >= 2;
+
+  return {
+    text: isGreat ? "Great!" : "Good!",
+    fill: isGreat
+      ? FLAPPY_BIRD_NEAR_MISS_GREAT_COLOR
+      : FLAPPY_BIRD_NEAR_MISS_GOOD_COLOR,
+  };
 }
 
 /**
