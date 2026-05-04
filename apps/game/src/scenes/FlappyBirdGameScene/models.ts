@@ -19,6 +19,11 @@ export interface FlappyBirdDifficultyState {
   pipeSpawnInterval: number;
   passageHeightMinRatio: number;
   passageHeightMaxRatio: number;
+  passagePositionExpansionTiles: number;
+  doublePipePatternChance: number;
+  doublePipePatternGapTileOptions: readonly number[];
+  misalignedDoublePipePatternChance: number;
+  misalignedDoublePipePatternOffsetTiles: number;
 }
 
 /**

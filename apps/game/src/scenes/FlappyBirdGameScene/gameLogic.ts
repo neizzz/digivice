@@ -1,7 +1,8 @@
 import * as PIXI from "pixi.js";
 import type { CharacterKey } from "../../types/Character";
 import { AssetLoader, type GameAssets } from "../../utils/AssetLoader";
-import type { PipePair } from "./models";
+import type { FlappyBirdDifficultyState, PipePair } from "./models";
+import { buildPipeSpawnPlan, type PipeSpawnPlanItem } from "./pipeSpawn";
 import type { PhysicsManager } from "./physics";
 
 const FLAPPY_BIRD_OBJECT_SCALE = 1.1;
@@ -471,6 +472,11 @@ export class PipeManager {
   private groundHeight: number;
   private passageHeightMinRatio = 0.35;
   private passageHeightMaxRatio = 0.45;
+  private passagePositionExpansionTiles = 0;
+  private doublePipePatternChance = 0;
+  private doublePipePatternGapTileOptions: readonly number[] = [];
+  private misalignedDoublePipePatternChance = 0;
+  private misalignedDoublePipePatternOffsetTiles = 0;
 
   constructor(
     app: PIXI.Application,
@@ -508,9 +514,8 @@ export class PipeManager {
 
     // 파이프 생성 로직
     if (currentTime - this.lastPipeSpawnTime > this.pipeSpawnInterval) {
-      this.createPipePair();
+      spawned += this.createPipePattern();
       this.lastPipeSpawnTime = currentTime;
-      spawned += 1;
     }
 
     // 파이프 이동 로직
@@ -523,7 +528,7 @@ export class PipeManager {
   /**
    * 파이프 쌍을 생성합니다.
    */
-  private createPipePair(): void {
+  private createPipePattern(): number {
     const assets = AssetLoader.getAssets();
     if (
       !assets.tilesetSprites ||
@@ -541,22 +546,54 @@ export class PipeManager {
           FLAPPY_BIRD_PIPE_TILE_SCALE,
       ),
     );
+    const spawnPlan = buildPipeSpawnPlan({
+      tileSize,
+      availableHeight: this.app.screen.height - this.groundHeight,
+      passageHeightMinRatio: this.passageHeightMinRatio,
+      passageHeightMaxRatio: this.passageHeightMaxRatio,
+      passagePositionExpansionTiles: this.passagePositionExpansionTiles,
+      doublePipePatternChance: this.doublePipePatternChance,
+      doublePipePatternGapTileOptions: this.doublePipePatternGapTileOptions,
+      misalignedDoublePipePatternChance:
+        this.misalignedDoublePipePatternChance,
+      misalignedDoublePipePatternOffsetTiles:
+        this.misalignedDoublePipePatternOffsetTiles,
+    });
 
-    // 파이프 생성 로직
-    const { top, topBody, bottom, bottomBody } =
-      this.createPipePairObjects(tileSize);
+    for (const item of spawnPlan.items) {
+      this.createPipePair({
+        tileSize,
+        item,
+      });
+    }
 
-    // 파이프 컨테이너에 추가
+    return spawnPlan.items.length;
+  }
+
+  /**
+   * 파이프 쌍을 생성합니다.
+   */
+  private createPipePair(options: {
+    tileSize: number;
+    item: PipeSpawnPlanItem;
+  }): void {
+    const { tileSize, item } = options;
+    const { top, topBody, bottom, bottomBody } = this.createPipePairObjects({
+      tileSize,
+      passageHeight: item.passageHeight,
+      topPipeHeight: item.topPipeHeight,
+      bottomPipeHeight: item.bottomPipeHeight,
+      xOffsetTiles: item.xOffsetTiles,
+    });
+
     this.pipes.addChild(top);
     this.pipes.addChild(bottom);
 
-    // 게임 엔진에 파이프 물리 바디 추가
     this.physicsManager.addToEngine(null, topBody, { syncDisplay: false });
     this.physicsManager.addToEngine(null, bottomBody, { syncDisplay: false });
     this.syncPipeDisplayObject(top, topBody);
     this.syncPipeDisplayObject(bottom, bottomBody);
 
-    // 파이프 쌍 추적
     this.pipesPairs.push({
       top,
       bottom,
@@ -571,12 +608,25 @@ export class PipeManager {
   /**
    * 파이프 쌍 오브젝트를 생성합니다.
    */
-  private createPipePairObjects(tileSize: number): {
+  private createPipePairObjects(options: {
+    tileSize: number;
+    passageHeight: number;
+    topPipeHeight: number;
+    bottomPipeHeight: number;
+    xOffsetTiles: number;
+  }): {
     top: PIXI.Container;
     topBody: Matter.Body;
     bottom: PIXI.Container;
     bottomBody: Matter.Body;
   } {
+    const {
+      tileSize,
+      passageHeight,
+      topPipeHeight,
+      bottomPipeHeight,
+      xOffsetTiles,
+    } = options;
     const assets = AssetLoader.getAssets();
     const tilesetSprites = assets.tilesetSprites;
     if (!tilesetSprites) {
@@ -585,45 +635,6 @@ export class PipeManager {
 
     const pipeBodyTexture = tilesetSprites.textures["pipe-body"];
     const pipeEndTexture = tilesetSprites.textures["pipe-end"];
-
-    const minPipeHeight = tileSize * 2;
-    const availableHeight = this.app.screen.height - this.groundHeight;
-
-    // 새가 지나갈 통로 높이 설정
-    const maxAvailablePassageHeight = Math.max(
-      tileSize * 2,
-      availableHeight - minPipeHeight * 2,
-    );
-    const minPassageHeight = Math.min(
-      maxAvailablePassageHeight,
-      Math.max(tileSize * 2, availableHeight * this.passageHeightMinRatio),
-    );
-    const maxPassageHeight = Math.max(
-      minPassageHeight,
-      Math.min(
-        maxAvailablePassageHeight,
-        Math.max(
-          minPassageHeight,
-          availableHeight * this.passageHeightMaxRatio,
-        ),
-      ),
-    );
-    let passageHeight =
-      minPassageHeight + Math.random() * (maxPassageHeight - minPassageHeight);
-    passageHeight = Math.ceil(passageHeight / tileSize) * tileSize;
-
-    // 상단 파이프 높이 계산
-    const topPipeHeight = Math.max(
-      minPipeHeight,
-      Math.floor(
-        (Math.random() *
-          (availableHeight - passageHeight - minPipeHeight * 2)) /
-          tileSize,
-      ) * tileSize,
-    );
-
-    // 하단 파이프 높이 계산
-    const bottomPipeHeight = availableHeight - topPipeHeight - passageHeight;
 
     // 상단/하단 파이프 생성
     const top = this.createPipeContainer({
@@ -642,7 +653,8 @@ export class PipeManager {
     });
 
     // 위치 설정
-    const topBodyX = this.app.screen.width + tileSize / 2;
+    const topBodyX =
+      this.app.screen.width + tileSize / 2 + xOffsetTiles * tileSize;
     const topBodyY = topPipeHeight / 2;
     const bottomBodyX = topBodyX;
     const bottomBodyY =
@@ -752,13 +764,8 @@ export class PipeManager {
     this.lastPipeSpawnTime = 0;
   }
 
-  public applyDifficulty(options: {
-    speed: number;
-    pipeSpawnInterval: number;
-    passageHeightMinRatio: number;
-    passageHeightMaxRatio: number;
-  }): void {
-    this.targetSpeed = options.speed;
+  public applyDifficulty(options: FlappyBirdDifficultyState): void {
+    this.targetSpeed = options.pipeSpeed;
     this.targetPipeSpawnInterval = options.pipeSpawnInterval;
 
     if (this.pipesPairs.length === 0) {
@@ -767,6 +774,14 @@ export class PipeManager {
 
     this.passageHeightMinRatio = options.passageHeightMinRatio;
     this.passageHeightMaxRatio = options.passageHeightMaxRatio;
+    this.passagePositionExpansionTiles = options.passagePositionExpansionTiles;
+    this.doublePipePatternChance = options.doublePipePatternChance;
+    this.doublePipePatternGapTileOptions =
+      options.doublePipePatternGapTileOptions;
+    this.misalignedDoublePipePatternChance =
+      options.misalignedDoublePipePatternChance;
+    this.misalignedDoublePipePatternOffsetTiles =
+      options.misalignedDoublePipePatternOffsetTiles;
   }
 
   /**
