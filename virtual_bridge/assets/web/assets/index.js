@@ -30732,7 +30732,7 @@ function eggCrackRenderSystem(params) {
 const staminaGaugeQuery = defineQuery([ObjectComp, CharacterStatusComp]);
 const GAUGE_HEIGHT = 16;
 const GAUGE_BORDER_THICKNESS = 4;
-const GAUGE_BORDER_BOTTOM_CORNER_RADIUS = 3;
+const GAUGE_BORDER_CORNER_RADIUS = 3;
 const GAUGE_HIGHLIGHT_HEIGHT = 2;
 const GAUGE_FILL_HIGHLIGHT_ALPHA = 0.18;
 const GAUGE_TRACK_BASE_COLOR = 0;
@@ -30770,6 +30770,23 @@ function fillPixelCappedRect(graphics, x2, y2, width, height, leftRadius, rightR
   if (width <= 0 || height <= 0) {
     return;
   }
+  fillPixelCappedRectRows(
+    graphics,
+    x2,
+    y2,
+    width,
+    height,
+    leftRadius,
+    rightRadius,
+    0,
+    height,
+    fill
+  );
+}
+function fillPixelCappedRectRows(graphics, x2, y2, width, height, leftRadius, rightRadius, startRow, endRow, fill) {
+  if (width <= 0 || height <= 0) {
+    return;
+  }
   const maxVerticalRadius = Math.floor((height - 1) / 2);
   let effectiveLeftRadius = Math.max(
     0,
@@ -30787,10 +30804,17 @@ function fillPixelCappedRect(graphics, x2, y2, width, height, leftRadius, rightR
     effectiveRightRadius = Math.floor(effectiveRightRadius * scale);
   }
   if (effectiveLeftRadius === 0 && effectiveRightRadius === 0) {
-    graphics.rect(x2, y2, width, height).fill(fill);
+    graphics.rect(
+      x2,
+      y2 + Math.max(0, startRow),
+      width,
+      Math.max(0, Math.min(height, endRow) - Math.max(0, startRow))
+    ).fill(fill);
     return;
   }
-  for (let row = 0; row < height; row += 1) {
+  const clampedStartRow = Math.max(0, startRow);
+  const clampedEndRow = Math.min(height, endRow);
+  for (let row = clampedStartRow; row < clampedEndRow; row += 1) {
     const { startX, endX } = getPixelCappedRowSpan(
       width,
       height,
@@ -30833,68 +30857,18 @@ function getPixelCappedRowSpan(width, height, leftRadius, rightRadius, row) {
     endX
   };
 }
-function fillPixelBottomCappedRect(graphics, x2, y2, width, height, bottomLeftRadius, bottomRightRadius, fill) {
-  if (width <= 0 || height <= 0) {
-    return;
-  }
-  for (let row = 0; row < height; row += 1) {
-    const { startX, endX } = getPixelBottomRoundedRowSpan(
-      width,
-      height,
-      bottomLeftRadius,
-      bottomRightRadius,
-      row
-    );
-    const rowWidth = endX - startX;
-    if (rowWidth <= 0) {
-      continue;
-    }
-    graphics.rect(x2 + startX, y2 + row, rowWidth, 1).fill(fill);
-  }
+function fillPixelRoundedRect(graphics, x2, y2, width, height, radius, fill) {
+  fillPixelCappedRect(graphics, x2, y2, width, height, radius, radius, fill);
 }
-function fillPixelBottomRoundedRect(graphics, x2, y2, width, height, radius, fill) {
-  fillPixelBottomCappedRect(
-    graphics,
-    x2,
-    y2,
-    width,
-    height,
-    radius,
-    radius,
-    fill
-  );
-}
-function getPixelBottomRoundedRowSpan(width, height, bottomLeftRadius, bottomRightRadius, row) {
-  const distanceFromBottom = height - 1 - row;
-  let leftInset = Math.max(0, bottomLeftRadius - distanceFromBottom);
-  let rightInset = Math.max(0, bottomRightRadius - distanceFromBottom);
-  const maxHorizontalInset = Math.max(0, width - 1);
-  const totalInset = leftInset + rightInset;
-  if (totalInset > maxHorizontalInset && totalInset > 0) {
-    const scale = maxHorizontalInset / totalInset;
-    leftInset = Math.floor(leftInset * scale);
-    rightInset = Math.floor(rightInset * scale);
-  }
-  return {
-    startX: leftInset,
-    endX: Math.max(leftInset, width - rightInset)
-  };
-}
-function drawPixelRoundedFrame(graphics, x2, y2, width, height, thickness, bottomRadius, fill) {
+function drawPixelRoundedFrame(graphics, x2, y2, width, height, thickness, radius, fill) {
   if (width <= 0 || height <= 0 || thickness <= 0) {
     return;
   }
   const innerWidth = Math.max(0, width - thickness * 2);
   const innerHeight = Math.max(0, height - thickness * 2);
-  const innerBottomRadius = Math.max(0, bottomRadius - 1);
+  const innerRadius = Math.max(0, radius - 1);
   for (let row = 0; row < height; row += 1) {
-    const outerSpan = getPixelBottomRoundedRowSpan(
-      width,
-      height,
-      bottomRadius,
-      bottomRadius,
-      row
-    );
+    const outerSpan = getPixelCappedRowSpan(width, height, radius, radius, row);
     const outerWidth = outerSpan.endX - outerSpan.startX;
     if (outerWidth <= 0) {
       continue;
@@ -30904,11 +30878,11 @@ function drawPixelRoundedFrame(graphics, x2, y2, width, height, thickness, botto
       continue;
     }
     const innerRow = row - thickness;
-    const innerSpan = getPixelBottomRoundedRowSpan(
+    const innerSpan = getPixelCappedRowSpan(
       innerWidth,
       innerHeight,
-      innerBottomRadius,
-      innerBottomRadius,
+      innerRadius,
+      innerRadius,
       innerRow
     );
     const innerStartX = thickness + innerSpan.startX;
@@ -30951,15 +30925,15 @@ function drawGaugeBackground(graphics, gaugeWidth, gaugeHeight) {
   const trackY = trackInset;
   const trackWidth = Math.max(1, gaugeWidth - trackInset * 2);
   const trackHeight = Math.max(1, gaugeHeight - trackInset * 2);
-  const trackBottomRadius = Math.max(0, GAUGE_BORDER_BOTTOM_CORNER_RADIUS - 1);
+  const trackRadius = Math.max(0, GAUGE_BORDER_CORNER_RADIUS - 1);
   graphics.clear();
-  fillPixelBottomRoundedRect(
+  fillPixelRoundedRect(
     graphics,
     trackX,
     trackY,
     trackWidth,
     trackHeight,
-    trackBottomRadius,
+    trackRadius,
     {
       color: GAUGE_TRACK_BASE_COLOR,
       alpha: GAUGE_TRACK_BASE_ALPHA
@@ -30972,7 +30946,7 @@ function drawGaugeBackground(graphics, gaugeWidth, gaugeHeight) {
     gaugeWidth,
     gaugeHeight,
     GAUGE_BORDER_THICKNESS,
-    GAUGE_BORDER_BOTTOM_CORNER_RADIUS,
+    GAUGE_BORDER_CORNER_RADIUS,
     GAUGE_BORDER_COLOR
   );
   return {
@@ -30984,35 +30958,37 @@ function drawGaugeBackground(graphics, gaugeWidth, gaugeHeight) {
 }
 function drawGaugeFill(graphics, stamina, maxStamina, trackX, trackY, trackWidth, trackHeight) {
   const fillColor = getGaugeFillColor(stamina);
-  const fillBottomRadius = Math.max(0, GAUGE_BORDER_BOTTOM_CORNER_RADIUS - 1);
+  const fillRadius = Math.max(0, GAUGE_BORDER_CORNER_RADIUS - 1);
   const fillWidth = Math.max(
     0,
     Math.round(clampUnitInterval(stamina / maxStamina) * trackWidth)
   );
-  const fillRightBottomRadius = fillWidth >= trackWidth ? fillBottomRadius : 0;
+  const fillRightRadius = fillWidth >= trackWidth ? fillRadius : 0;
   graphics.clear();
   if (fillWidth <= 0) {
     return;
   }
-  fillPixelBottomCappedRect(
+  fillPixelCappedRect(
     graphics,
     trackX,
     trackY,
     fillWidth,
     trackHeight,
-    fillBottomRadius,
-    fillRightBottomRadius,
+    fillRadius,
+    fillRightRadius,
     fillColor
   );
   if (trackHeight > 1) {
-    fillPixelCappedRect(
+    fillPixelCappedRectRows(
       graphics,
       trackX,
       trackY,
       fillWidth,
+      trackHeight,
+      fillRadius,
+      fillRightRadius,
+      0,
       Math.min(GAUGE_HIGHLIGHT_HEIGHT, trackHeight),
-      0,
-      0,
       {
         color: GAUGE_FILL_HIGHLIGHT_COLOR,
         alpha: GAUGE_FILL_HIGHLIGHT_ALPHA
