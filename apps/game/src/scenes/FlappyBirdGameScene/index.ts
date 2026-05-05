@@ -129,7 +129,11 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
   private isSettingsMenuOpen = false;
   private lastSlowFrameLogAtMs = 0;
   private gameOverVibrationTimeoutIds: number[] = [];
+  private pausedStateBeforePause: GameState.PLAYING | GameState.COUNTDOWN | null =
+    null;
+  private isAppSuspended = false;
   private readonly boundHandleKeyDown: (event: KeyboardEvent) => void;
+  private readonly boundVisibilityChangeHandler: () => void;
 
   constructor(
     game: Game,
@@ -139,6 +143,7 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
     super();
     this.game = game;
     this.boundHandleKeyDown = this.handleKeyDown.bind(this);
+    this.boundVisibilityChangeHandler = this.handleVisibilityChange.bind(this);
     this.bgmController = new FlappyBirdBgmController();
     this.gameEngine = new GameEngine(
       this.game.app.screen.width,
@@ -234,6 +239,7 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
 
       // 키보드 이벤트 리스너 추가
       this.setupKeyboardListeners();
+      this.setupVisibilityChangeHandler();
 
       this.initialized = true;
 
@@ -324,6 +330,8 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
    */
   private startGame(): void {
     this.clearGameOverVibrationPattern();
+    this.pausedStateBeforePause = null;
+    this.isAppSuspended = false;
     this.gameState = GameState.PLAYING;
     this.game.hideFlappyBirdGameOver?.();
     this.hideSettingsMenu();
@@ -340,6 +348,8 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
 
   private beginStartCountdown(): void {
     this.clearGameOverVibrationPattern();
+    this.pausedStateBeforePause = null;
+    this.isAppSuspended = false;
     this.gameState = GameState.COUNTDOWN;
     this.game.hideFlappyBirdGameOver?.();
     this.hideSettingsMenu();
@@ -378,10 +388,7 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
       return;
     }
 
-    this.gameState = GameState.PAUSED;
-    this.gameEngine.pause();
-    this.playerManager.stopAnimation();
-    this.bgmController.pause();
+    this.enterPausedState(GameState.PLAYING);
   }
 
   private resumeGame(): void {
@@ -389,10 +396,109 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
       return;
     }
 
+    const resumeState = this.pausedStateBeforePause ?? GameState.PLAYING;
+    this.pausedStateBeforePause = null;
+    this.isAppSuspended = false;
+
+    if (resumeState === GameState.COUNTDOWN) {
+      this.gameState = GameState.COUNTDOWN;
+      this.gameEngine.pause();
+      this.playerManager.stopAnimation();
+      this.playerManager.update();
+      this.physicsManager.syncDisplayObjects();
+      this.bgmController.pause();
+      return;
+    }
+
     this.gameState = GameState.PLAYING;
     this.gameEngine.resume();
     this.playerManager.startAnimation();
+    this.playerManager.update();
+    this.physicsManager.syncDisplayObjects();
     void this.bgmController.resumeIfAvailable();
+  }
+
+  private enterPausedState(
+    resumeState: GameState.PLAYING | GameState.COUNTDOWN,
+    options: {
+      appSuspend?: boolean;
+    } = {},
+  ): void {
+    this.pausedStateBeforePause = resumeState;
+    this.isAppSuspended = options.appSuspend ?? false;
+    this.gameState = GameState.PAUSED;
+    this.gameEngine.pause();
+    this.playerManager.stopAnimation();
+    this.playerManager.update();
+    this.physicsManager.syncDisplayObjects();
+    this.bgmController.pause();
+  }
+
+  private handleVisibilityChange(): void {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    if (document.hidden) {
+      this.handleDocumentHidden();
+      return;
+    }
+
+    this.handleDocumentVisible();
+  }
+
+  private handleDocumentHidden(): void {
+    if (this.isReturningToMain || this.isAppSuspended) {
+      return;
+    }
+
+    if (
+      this.gameState !== GameState.PLAYING &&
+      this.gameState !== GameState.COUNTDOWN
+    ) {
+      return;
+    }
+
+    this.enterPausedState(this.gameState, { appSuspend: true });
+  }
+
+  private handleDocumentVisible(): void {
+    if (
+      !this.isAppSuspended ||
+      this.isReturningToMain ||
+      this.gameState !== GameState.PAUSED
+    ) {
+      return;
+    }
+
+    if (this.isSettingsMenuOpen) {
+      return;
+    }
+
+    this.isSettingsMenuOpen = true;
+    this.showSettingsMenu();
+  }
+
+  private setupVisibilityChangeHandler(): void {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    document.addEventListener(
+      "visibilitychange",
+      this.boundVisibilityChangeHandler,
+    );
+  }
+
+  private cleanupVisibilityChangeHandler(): void {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    document.removeEventListener(
+      "visibilitychange",
+      this.boundVisibilityChangeHandler,
+    );
   }
 
   private openSettingsMenu(): void {
@@ -595,6 +701,8 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
     }
 
     // 그 다음 게임 상태 변경 및 물리 엔진 정지
+    this.pausedStateBeforePause = null;
+    this.isAppSuspended = false;
     this.gameState = GameState.GAME_OVER;
     this.gameEngine.pause();
     this.hideSettingsMenu();
@@ -729,6 +837,11 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
     };
 
     this.syncSkyState(currentTime);
+
+    if (this.isAppSuspended) {
+      return;
+    }
+
     this.nearMissUI.update(deltaTime);
     this.playerManager.update();
 
@@ -789,6 +902,7 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
   public destroy(): void {
     // 이벤트 리스너 제거
     window.removeEventListener("keydown", this.boundHandleKeyDown);
+    this.cleanupVisibilityChangeHandler();
     this.clearGameOverVibrationPattern();
     this.game.hideFlappyBirdGameOver?.();
     this.hideSettingsMenu();
