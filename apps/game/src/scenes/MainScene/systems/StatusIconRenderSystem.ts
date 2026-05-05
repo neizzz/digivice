@@ -12,16 +12,28 @@ import * as PIXI from "pixi.js";
 import { MainSceneWorld } from "../world";
 import { CharacterStatus, ObjectType, TextureKey } from "../types";
 
-function getEffectiveCharacterZIndex(eid: number): number {
-  const configuredZIndex = RenderComp.zIndex[eid];
-  return configuredZIndex === ECS_NULL_VALUE
-    ? PositionComp.y[eid]
-    : configuredZIndex;
-}
-
 const STATUS_ICON_SCALE = 1.8;
 const STATUS_ICON_BASE_SIZE = 16;
 const STATUS_ICON_SIZE = STATUS_ICON_BASE_SIZE * STATUS_ICON_SCALE;
+const STATUS_ICON_Z_INDEX_OFFSET = 1.5;
+
+function getRenderedCharacterAttributes(eid: number): {
+  renderedX: number;
+  renderedY: number;
+  effectiveZIndex: number;
+} {
+  const renderedX = Math.round(PositionComp.x[eid]);
+  const renderedY = Math.round(PositionComp.y[eid]);
+  const configuredZIndex = RenderComp.zIndex[eid];
+  const effectiveZIndex =
+    configuredZIndex === ECS_NULL_VALUE ? renderedY : configuredZIndex;
+
+  return {
+    renderedX,
+    renderedY,
+    effectiveZIndex,
+  };
+}
 
 // 일시적인 상태들 (3초 후 자동 제거)
 const TEMPORARY_STATUSES = [CharacterStatus.HAPPY, CharacterStatus.DISCOVER];
@@ -105,6 +117,7 @@ function createStatusIconSprite(textureKey: TextureKey): PIXI.Sprite {
   const sprite = new PIXI.Sprite(texture || PIXI.Texture.WHITE);
   sprite.anchor.set(0.5);
   sprite.scale.set(STATUS_ICON_SCALE); // 16x16을 28.8x28.8로 확대
+  sprite.roundPixels = true;
   return sprite;
 }
 
@@ -228,11 +241,9 @@ export function statusIconRenderSystem(params: {
 
     // 참고: 일시적 상태 만료는 CharacterStatusSystem에서 처리됨
 
-    const position = {
-      x: PositionComp.x[eid],
-      y: PositionComp.y[eid],
-    };
-    const characterZIndex = getEffectiveCharacterZIndex(eid);
+    const { renderedX, renderedY, effectiveZIndex } =
+      getRenderedCharacterAttributes(eid);
+    const iconZIndex = effectiveZIndex + STATUS_ICON_Z_INDEX_OFFSET;
 
     // 현재 상태들 가져오기
     const allStatuses: CharacterStatus[] = [];
@@ -293,11 +304,11 @@ export function statusIconRenderSystem(params: {
       const totalWidth =
         persistent.length * iconSize + (persistent.length - 1) * spacing;
       const startX =
-        position.x - totalWidth / 2 + j * (iconSize + spacing) + iconSize / 2;
+        renderedX - totalWidth / 2 + j * (iconSize + spacing) + iconSize / 2;
 
       sprites[j].x = startX;
-      sprites[j].y = clampStatusIconY(world, position.y - 50);
-      sprites[j].zIndex = characterZIndex;
+      sprites[j].y = clampStatusIconY(world, renderedY - 50);
+      sprites[j].zIndex = iconZIndex;
     }
 
     // 일시적 상태 아이콘 처리 (캐릭터 우측상단에 1개만)
@@ -329,9 +340,9 @@ export function statusIconRenderSystem(params: {
 
         // 일시적 상태 아이콘 위치 설정 (캐릭터 우측상단)
         const tempSprite = entityTemporarySprites.get(eid)!;
-        tempSprite.x = position.x + 25; // 캐릭터 우측 (더 오른쪽으로)
-        tempSprite.y = clampStatusIconY(world, position.y - 40); // 캐릭터 상단
-        tempSprite.zIndex = characterZIndex;
+        tempSprite.x = renderedX + 25; // 캐릭터 우측 (더 오른쪽으로)
+        tempSprite.y = clampStatusIconY(world, renderedY - 40); // 캐릭터 상단
+        tempSprite.zIndex = iconZIndex;
       }
     } else {
       // 일시적 상태가 없으면 기존 일시적 스프라이트 제거

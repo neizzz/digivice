@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createWorld } from "bitecs";
 import * as PIXI from "pixi.js";
-import { CharacterStatusComp } from "../raw-components";
+import { CharacterStatusComp, PositionComp } from "../raw-components";
 import {
   cleanupStatusIconRenderStateForTests,
   statusIconRenderSystem,
@@ -141,5 +141,63 @@ test("상단 여유가 충분하면 상태 아이콘은 기존 위치를 유지�
     const sprite = getOnlyStatusIconSprite(world);
 
     assert.equal(sprite.y, 70);
+  });
+});
+
+test("지속 상태 아이콘은 캐릭터보다 앞 zIndex를 사용하고 캐릭터 렌더 좌표를 따라간다", () => {
+  withMockedStatusIconSprites(() => {
+    const world = createMainSceneWorldForTest();
+    const eid = createTestCharacter(
+      world as unknown as Parameters<typeof createTestCharacter>[0],
+      {
+        state: CharacterState.WALKING,
+        x: 80.6,
+        y: 120.6,
+      },
+    );
+
+    CharacterStatusComp.statuses[eid][0] = CharacterStatus.SICK;
+
+    statusIconRenderSystem({
+      world,
+      delta: 16,
+    });
+
+    const sprite = getOnlyStatusIconSprite(world);
+    const characterZIndex = Math.round(PositionComp.y[eid]);
+
+    assert.equal(sprite.x, 81);
+    assert.equal(sprite.y, 71);
+    assert.equal(sprite.zIndex, characterZIndex + 1.5);
+    assert.equal(sprite.roundPixels, true);
+  });
+});
+
+test("일시 상태 아이콘도 캐릭터보다 앞 zIndex를 사용하고 walking 중 좌표 반올림 기준을 따른다", () => {
+  withMockedStatusIconSprites(() => {
+    const world = createMainSceneWorldForTest();
+    const eid = createTestCharacter(
+      world as unknown as Parameters<typeof createTestCharacter>[0],
+      {
+        state: CharacterState.WALKING,
+        x: 80.6,
+        y: 120.6,
+      },
+    );
+
+    CharacterStatusComp.statuses[eid][0] = CharacterStatus.HAPPY;
+
+    statusIconRenderSystem({
+      world,
+      delta: 16,
+    });
+
+    const sprite = getOnlyStatusIconSprite(world);
+    const characterZIndex = Math.round(PositionComp.y[eid]);
+
+    assert.equal(sprite.x, 106);
+    assert.equal(sprite.y, 81);
+    assert.equal(sprite.zIndex, characterZIndex + 1.5);
+    assert.equal(sprite.roundPixels, true);
   });
 });
