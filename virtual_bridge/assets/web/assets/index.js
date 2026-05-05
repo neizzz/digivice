@@ -24626,6 +24626,596 @@ class AnimatedSprite extends Sprite {
     }
   }
 }
+class Transform {
+  /**
+   * @param options - Options for the transform.
+   * @param options.matrix - The matrix to use.
+   * @param options.observer - The observer to use.
+   */
+  constructor({ matrix, observer } = {}) {
+    this.dirty = true;
+    this._matrix = matrix ?? new Matrix();
+    this.observer = observer;
+    this.position = new ObservablePoint(this, 0, 0);
+    this.scale = new ObservablePoint(this, 1, 1);
+    this.pivot = new ObservablePoint(this, 0, 0);
+    this.skew = new ObservablePoint(this, 0, 0);
+    this._rotation = 0;
+    this._cx = 1;
+    this._sx = 0;
+    this._cy = 0;
+    this._sy = 1;
+  }
+  /**
+   * The transformation matrix computed from the transform's properties.
+   * Combines position, scale, rotation, skew, and pivot into a single matrix.
+   * @example
+   * ```ts
+   * // Get current matrix
+   * const matrix = transform.matrix;
+   * console.log(matrix.toString());
+   * ```
+   * @readonly
+   * @see {@link Matrix} For matrix operations
+   * @see {@link Transform.setFromMatrix} For setting transform from matrix
+   */
+  get matrix() {
+    const lt = this._matrix;
+    if (!this.dirty)
+      return lt;
+    lt.a = this._cx * this.scale.x;
+    lt.b = this._sx * this.scale.x;
+    lt.c = this._cy * this.scale.y;
+    lt.d = this._sy * this.scale.y;
+    lt.tx = this.position.x - (this.pivot.x * lt.a + this.pivot.y * lt.c);
+    lt.ty = this.position.y - (this.pivot.x * lt.b + this.pivot.y * lt.d);
+    this.dirty = false;
+    return lt;
+  }
+  /**
+   * Called when a value changes.
+   * @param point
+   * @internal
+   */
+  _onUpdate(point) {
+    var _a;
+    this.dirty = true;
+    if (point === this.skew) {
+      this.updateSkew();
+    }
+    (_a = this.observer) == null ? void 0 : _a._onUpdate(this);
+  }
+  /** Called when the skew or the rotation changes. */
+  updateSkew() {
+    this._cx = Math.cos(this._rotation + this.skew.y);
+    this._sx = Math.sin(this._rotation + this.skew.y);
+    this._cy = -Math.sin(this._rotation - this.skew.x);
+    this._sy = Math.cos(this._rotation - this.skew.x);
+    this.dirty = true;
+  }
+  toString() {
+    return `[pixi.js/math:Transform position=(${this.position.x}, ${this.position.y}) rotation=${this.rotation} scale=(${this.scale.x}, ${this.scale.y}) skew=(${this.skew.x}, ${this.skew.y}) ]`;
+  }
+  /**
+   * Decomposes a matrix and sets the transforms properties based on it.
+   * @example
+   * ```ts
+   * // Basic matrix decomposition
+   * const transform = new Transform();
+   * const matrix = new Matrix()
+   *     .translate(100, 100)
+   *     .rotate(Math.PI / 4)
+   *     .scale(2, 2);
+   *
+   * transform.setFromMatrix(matrix);
+   * console.log(transform.position.x); // 100
+   * console.log(transform.rotation); // ~0.785 (π/4)
+   * ```
+   * @param matrix - The matrix to decompose
+   * @see {@link Matrix#decompose} For the decomposition logic
+   * @see {@link Transform#matrix} For getting the current matrix
+   */
+  setFromMatrix(matrix) {
+    matrix.decompose(this);
+    this.dirty = true;
+  }
+  /**
+   * The rotation of the object in radians.
+   * @example
+   * ```ts
+   * // Basic rotation
+   * transform.rotation = Math.PI / 4; // 45 degrees
+   *
+   * // Rotate around pivot point
+   * transform.pivot.set(50, 50);
+   * transform.rotation = Math.PI; // 180 degrees around pivot
+   *
+   * // Animate rotation
+   * app.ticker.add(() => {
+   *     transform.rotation += 0.1;
+   * });
+   * ```
+   * @see {@link Transform#pivot} For rotation point
+   * @see {@link Transform#skew} For skew effects
+   */
+  get rotation() {
+    return this._rotation;
+  }
+  set rotation(value) {
+    if (this._rotation !== value) {
+      this._rotation = value;
+      this._onUpdate(this.skew);
+    }
+  }
+}
+const _TilingSprite = class _TilingSprite2 extends ViewContainer {
+  constructor(...args) {
+    let options = args[0] || {};
+    if (options instanceof Texture) {
+      options = { texture: options };
+    }
+    if (args.length > 1) {
+      deprecation(v8_0_0, "use new TilingSprite({ texture, width:100, height:100 }) instead");
+      options.width = args[1];
+      options.height = args[2];
+    }
+    options = { ..._TilingSprite2.defaultOptions, ...options };
+    const {
+      texture,
+      anchor,
+      tilePosition,
+      tileScale,
+      tileRotation,
+      width,
+      height,
+      applyAnchorToTexture,
+      roundPixels,
+      ...rest
+    } = options ?? {};
+    super({
+      label: "TilingSprite",
+      ...rest
+    });
+    this.renderPipeId = "tilingSprite";
+    this.batched = true;
+    this.allowChildren = false;
+    this._anchor = new ObservablePoint(
+      {
+        _onUpdate: () => {
+          this.onViewUpdate();
+        }
+      }
+    );
+    this.applyAnchorToTexture = applyAnchorToTexture;
+    this.texture = texture;
+    this._width = width ?? texture.width;
+    this._height = height ?? texture.height;
+    this._tileTransform = new Transform({
+      observer: {
+        _onUpdate: () => this.onViewUpdate()
+      }
+    });
+    if (anchor)
+      this.anchor = anchor;
+    this.tilePosition = tilePosition;
+    this.tileScale = tileScale;
+    this.tileRotation = tileRotation;
+    this.roundPixels = roundPixels ?? false;
+  }
+  /**
+   * Creates a new tiling sprite based on a source texture or image path.
+   * This is a convenience method that automatically creates and manages textures.
+   * @example
+   * ```ts
+   * // Create a new tiling sprite from an image path
+   * const pattern = TilingSprite.from('pattern.png');
+   * pattern.width = 300; // Set the width of the tiling area
+   * pattern.height = 200; // Set the height of the tiling area
+   *
+   * // Create from options
+   * const texture = Texture.from('pattern.png');
+   * const pattern = TilingSprite.from(texture, {
+   *     width: 300,
+   *     height: 200,
+   *     tileScale: { x: 0.5, y: 0.5 }
+   * });
+   * ```
+   * @param source - The source to create the sprite from. Can be a path to an image or a texture
+   * @param options - Additional options for the tiling sprite
+   * @returns A new tiling sprite based on the source
+   * @see {@link Texture.from} For texture creation details
+   * @see {@link Assets} For asset loading and management
+   */
+  static from(source, options = {}) {
+    if (typeof source === "string") {
+      return new _TilingSprite2({
+        texture: Cache.get(source),
+        ...options
+      });
+    }
+    return new _TilingSprite2({
+      texture: source,
+      ...options
+    });
+  }
+  /**
+   * @see {@link TilingSpriteOptions.applyAnchorToTexture}
+   * @deprecated since 8.0.0
+   * @advanced
+   */
+  get uvRespectAnchor() {
+    warn("uvRespectAnchor is deprecated, please use applyAnchorToTexture instead");
+    return this.applyAnchorToTexture;
+  }
+  /** @advanced */
+  set uvRespectAnchor(value) {
+    warn("uvRespectAnchor is deprecated, please use applyAnchorToTexture instead");
+    this.applyAnchorToTexture = value;
+  }
+  /**
+   * Changes frame clamping in corresponding textureMatrix
+   * Change to -0.5 to add a pixel to the edge, recommended for transparent trimmed textures in atlas
+   * @default 0.5
+   * @type {number}
+   * @advanced
+   */
+  get clampMargin() {
+    return this._texture.textureMatrix.clampMargin;
+  }
+  /** @advanced */
+  set clampMargin(value) {
+    this._texture.textureMatrix.clampMargin = value;
+  }
+  /**
+   * The anchor sets the origin point of the sprite. The default value is taken from the {@link Texture}
+   * and passed to the constructor.
+   *
+   * - The default is `(0,0)`, this means the sprite's origin is the top left.
+   * - Setting the anchor to `(0.5,0.5)` means the sprite's origin is centered.
+   * - Setting the anchor to `(1,1)` would mean the sprite's origin point will be the bottom right corner.
+   *
+   * If you pass only single parameter, it will set both x and y to the same value as shown in the example below.
+   * @example
+   * ```ts
+   * // Center the anchor point
+   * sprite.anchor = 0.5; // Sets both x and y to 0.5
+   * sprite.position.set(400, 300); // Sprite will be centered at this position
+   *
+   * // Set specific x/y anchor points
+   * sprite.anchor = {
+   *     x: 1, // Right edge
+   *     y: 0  // Top edge
+   * };
+   *
+   * // Using individual coordinates
+   * sprite.anchor.set(0.5, 1); // Center-bottom
+   *
+   * // For rotation around center
+   * sprite.anchor.set(0.5);
+   * sprite.rotation = Math.PI / 4; // 45 degrees around center
+   *
+   * // For scaling from center
+   * sprite.anchor.set(0.5);
+   * sprite.scale.set(2); // Scales from center point
+   * ```
+   */
+  get anchor() {
+    return this._anchor;
+  }
+  set anchor(value) {
+    typeof value === "number" ? this._anchor.set(value) : this._anchor.copyFrom(value);
+  }
+  /**
+   * The offset of the tiling texture.
+   * Used to scroll or position the repeated pattern.
+   * @example
+   * ```ts
+   * // Offset the tiling pattern by 100 pixels in both x and y directions
+   * tilingSprite.tilePosition = { x: 100, y: 100 };
+   * ```
+   * @default {x: 0, y: 0}
+   */
+  get tilePosition() {
+    return this._tileTransform.position;
+  }
+  set tilePosition(value) {
+    this._tileTransform.position.copyFrom(value);
+  }
+  /**
+   * Scale of the tiling texture.
+   * Affects the size of each repeated instance of the texture.
+   * @example
+   * ```ts
+   * // Scale the texture by 1.5 in both x and y directions
+   * tilingSprite.tileScale = { x: 1.5, y: 1.5 };
+   * ```
+   * @default {x: 1, y: 1}
+   */
+  get tileScale() {
+    return this._tileTransform.scale;
+  }
+  set tileScale(value) {
+    typeof value === "number" ? this._tileTransform.scale.set(value) : this._tileTransform.scale.copyFrom(value);
+  }
+  set tileRotation(value) {
+    this._tileTransform.rotation = value;
+  }
+  /**
+   * Rotation of the tiling texture in radians.
+   * This controls the rotation applied to the texture before tiling.
+   * @example
+   * ```ts
+   * // Rotate the texture by 45 degrees (in radians)
+   * tilingSprite.tileRotation = Math.PI / 4; // 45 degrees
+   * ```
+   * @default 0
+   */
+  get tileRotation() {
+    return this._tileTransform.rotation;
+  }
+  /**
+   * The transform object that controls the tiling texture's position, scale, and rotation.
+   * This transform is independent of the sprite's own transform properties.
+   * @example
+   * ```ts
+   * // Access transform properties directly
+   * sprite.tileTransform.position.set(100, 50);
+   * sprite.tileTransform.scale.set(2);
+   * sprite.tileTransform.rotation = Math.PI / 4;
+   *
+   * // Create smooth scrolling animation
+   * app.ticker.add(() => {
+   *     sprite.tileTransform.position.x += 1;
+   *     sprite.tileTransform.rotation += 0.01;
+   * });
+   *
+   * // Reset transform
+   * sprite.tileTransform.position.set(0);
+   * sprite.tileTransform.scale.set(1);
+   * sprite.tileTransform.rotation = 0;
+   * ```
+   * @returns {Transform} The transform object for the tiling texture
+   * @see {@link Transform} For transform operations
+   * @see {@link TilingSprite#tilePosition} For position control
+   * @see {@link TilingSprite#tileScale} For scale control
+   * @see {@link TilingSprite#tileRotation} For rotation control
+   * @advanced
+   */
+  get tileTransform() {
+    return this._tileTransform;
+  }
+  set texture(value) {
+    value || (value = Texture.EMPTY);
+    const currentTexture = this._texture;
+    if (currentTexture === value)
+      return;
+    if (currentTexture && currentTexture.dynamic)
+      currentTexture.off("update", this.onViewUpdate, this);
+    if (value.dynamic)
+      value.on("update", this.onViewUpdate, this);
+    this._texture = value;
+    this.onViewUpdate();
+  }
+  /**
+   * The texture to use for tiling.
+   * This is the image that will be repeated across the sprite.
+   * @example
+   * ```ts
+   * // Use a texture from the asset cache
+   * tilingSprite.texture = Texture.from('assets/pattern.png');
+   * ```
+   * @default Texture.WHITE
+   */
+  get texture() {
+    return this._texture;
+  }
+  /**
+   * The width of the tiling area. This defines how wide the area is that the texture will be tiled across.
+   * @example
+   * ```ts
+   * // Create a tiling sprite
+   * const sprite = new TilingSprite({
+   *     texture: Texture.from('pattern.png'),
+   *     width: 500,
+   *     height: 300
+   * });
+   *
+   * // Adjust width dynamically
+   * sprite.width = 800; // Expands tiling area
+   *
+   * // Update on resize
+   * window.addEventListener('resize', () => {
+   *     sprite.width = app.screen.width;
+   * });
+   * ```
+   * @see {@link TilingSprite#setSize} For setting both width and height efficiently
+   * @see {@link TilingSprite#height} For setting height
+   */
+  set width(value) {
+    this._width = value;
+    this.onViewUpdate();
+  }
+  get width() {
+    return this._width;
+  }
+  set height(value) {
+    this._height = value;
+    this.onViewUpdate();
+  }
+  /**
+   * The height of the tiling area. This defines how tall the area is that the texture will be tiled across.
+   * @example
+   * ```ts
+   * // Create a tiling sprite
+   * const sprite = new TilingSprite({
+   *     texture: Texture.from('pattern.png'),
+   *     width: 500,
+   *     height: 300
+   * });
+   *
+   * // Adjust width dynamically
+   * sprite.height = 800; // Expands tiling area
+   *
+   * // Update on resize
+   * window.addEventListener('resize', () => {
+   *     sprite.height = app.screen.height;
+   * });
+   * ```
+   * @see {@link TilingSprite#setSize} For setting both width and height efficiently
+   * @see {@link TilingSprite#width} For setting width
+   */
+  get height() {
+    return this._height;
+  }
+  /**
+   * Sets the size of the TilingSprite to the specified width and height.
+   * This is faster than setting width and height separately as it only triggers one update.
+   * @example
+   * ```ts
+   * // Set specific dimensions
+   * sprite.setSize(300, 200); // Width: 300, Height: 200
+   *
+   * // Set uniform size (square)
+   * sprite.setSize(400); // Width: 400, Height: 400
+   *
+   * // Set size using object
+   * sprite.setSize({
+   *     width: 500,
+   *     height: 300
+   * });
+   * ```
+   * @param value - This can be either a number for uniform sizing or a Size object with width/height properties
+   * @param height - The height to set. Defaults to the value of `width` if not provided
+   * @see {@link TilingSprite#width} For setting width only
+   * @see {@link TilingSprite#height} For setting height only
+   */
+  setSize(value, height) {
+    if (typeof value === "object") {
+      height = value.height ?? value.width;
+      value = value.width;
+    }
+    this._width = value;
+    this._height = height ?? value;
+    this.onViewUpdate();
+  }
+  /**
+   * Retrieves the size of the TilingSprite as a {@link Size} object.
+   * This method is more efficient than getting width and height separately as it only allocates one object.
+   * @example
+   * ```ts
+   * // Get basic size
+   * const size = sprite.getSize();
+   * console.log(`Size: ${size.width}x${size.height}`);
+   *
+   * // Reuse existing size object
+   * const reuseSize = { width: 0, height: 0 };
+   * sprite.getSize(reuseSize);
+   * ```
+   * @param out - Optional object to store the size in, to avoid allocating a new object
+   * @returns The size of the TilingSprite
+   * @see {@link TilingSprite#width} For getting just the width
+   * @see {@link TilingSprite#height} For getting just the height
+   * @see {@link TilingSprite#setSize} For setting both width and height efficiently
+   */
+  getSize(out2) {
+    out2 || (out2 = {});
+    out2.width = this._width;
+    out2.height = this._height;
+    return out2;
+  }
+  /** @private */
+  updateBounds() {
+    const bounds = this._bounds;
+    const anchor = this._anchor;
+    const width = this._width;
+    const height = this._height;
+    bounds.minX = -anchor._x * width;
+    bounds.maxX = bounds.minX + width;
+    bounds.minY = -anchor._y * height;
+    bounds.maxY = bounds.minY + height;
+  }
+  /**
+   * Checks if the object contains the given point in local coordinates.
+   * Takes into account the anchor offset when determining boundaries.
+   * @example
+   * ```ts
+   * // Create a tiling sprite
+   * const sprite = new TilingSprite({
+   *     texture: Texture.from('pattern.png'),
+   *     width: 200,
+   *     height: 100,
+   *     anchor: 0.5 // Center anchor
+   * });
+   *
+   * // Basic point check
+   * const contains = sprite.containsPoint({ x: 50, y: 25 });
+   * console.log('Point is inside:', contains);
+   *
+   * // Check with different anchors
+   * sprite.anchor.set(0); // Top-left anchor
+   * console.log('Contains point:', sprite.containsPoint({ x: 150, y: 75 }));
+   * ```
+   * @param point - The point to check in local coordinates
+   * @returns True if the point is within the sprite's bounds
+   * @see {@link TilingSprite#toLocal} For converting global coordinates to local
+   * @see {@link TilingSprite#anchor} For understanding boundary calculations
+   */
+  containsPoint(point) {
+    const width = this._width;
+    const height = this._height;
+    const x1 = -width * this._anchor._x;
+    let y1 = 0;
+    if (point.x >= x1 && point.x <= x1 + width) {
+      y1 = -height * this._anchor._y;
+      if (point.y >= y1 && point.y <= y1 + height)
+        return true;
+    }
+    return false;
+  }
+  /**
+   * Destroys this sprite renderable and optionally its texture.
+   * @param options - Options parameter. A boolean will act as if all options
+   *  have been set to that value
+   * @example
+   * tilingSprite.destroy();
+   * tilingSprite.destroy(true);
+   * tilingSprite.destroy({ texture: true, textureSource: true });
+   */
+  destroy(options = false) {
+    super.destroy(options);
+    this._anchor = null;
+    this._tileTransform = null;
+    this._bounds = null;
+    const destroyTexture = typeof options === "boolean" ? options : options == null ? void 0 : options.texture;
+    if (destroyTexture) {
+      const destroyTextureSource = typeof options === "boolean" ? options : options == null ? void 0 : options.textureSource;
+      this._texture.destroy(destroyTextureSource);
+    }
+    this._texture = null;
+  }
+};
+_TilingSprite.defaultOptions = {
+  /** The texture to use for the sprite. */
+  texture: Texture.EMPTY,
+  /** The anchor point of the sprite */
+  anchor: { x: 0, y: 0 },
+  /** The offset of the image that is being tiled. */
+  tilePosition: { x: 0, y: 0 },
+  /** Scaling of the image that is being tiled. */
+  tileScale: { x: 1, y: 1 },
+  /** The rotation of the image that is being tiled. */
+  tileRotation: 0,
+  /**
+   * Flags whether the tiling pattern should originate from the origin instead of the top-left corner in
+   * local space.
+   *
+   * This will make the texture coordinates assigned to each vertex dependent on the value of the anchor. Without
+   * this, the top-left corner always gets the (0, 0) texture coordinate.
+   * @default false
+   */
+  applyAnchorToTexture: false
+};
+let TilingSprite = _TilingSprite;
 class AbstractText extends ViewContainer {
   constructor(options, styleClass) {
     const { text, resolution, style, anchor, width, height, roundPixels, ...rest } = options;
@@ -27164,6 +27754,7 @@ var CharacterClass = /* @__PURE__ */ ((CharacterClass2) => {
 })(CharacterClass || {});
 const DEFAULT_MAX_GAUGE = 100;
 const HOUR_MS$1 = 60 * 60 * 1e3;
+const EVOLUTION_GAUGE_GAIN_MULTIPLIER = 1.1;
 const PRODUCTION_EVOLUTION_TARGET_DURATION_BY_CLASS_MS = {
   [CharacterClass.A]: 20 * HOUR_MS$1,
   [CharacterClass.B]: 40 * HOUR_MS$1,
@@ -27177,17 +27768,17 @@ const PRODUCTION_EVOLUTION_TARGET_DURATION_VARIANCE_BY_CLASS_MS = {
   [CharacterClass.D]: 8 * HOUR_MS$1
 };
 ({
-  [CharacterClass.A]: 1,
-  [CharacterClass.B]: 1,
-  [CharacterClass.C]: 1,
-  [CharacterClass.D]: 1
+  [CharacterClass.A]: 1 * EVOLUTION_GAUGE_GAIN_MULTIPLIER,
+  [CharacterClass.B]: 1 * EVOLUTION_GAUGE_GAIN_MULTIPLIER,
+  [CharacterClass.C]: 1 * EVOLUTION_GAUGE_GAIN_MULTIPLIER,
+  [CharacterClass.D]: 1 * EVOLUTION_GAUGE_GAIN_MULTIPLIER
 });
 function getGaugeGainForDurationMs(params) {
   const { maxGauge, checkIntervalMs, durationMs } = params;
   if (durationMs <= 0) {
     return 0;
   }
-  return maxGauge * checkIntervalMs / durationMs;
+  return maxGauge * checkIntervalMs / durationMs * EVOLUTION_GAUGE_GAIN_MULTIPLIER;
 }
 function getAverageGaugeGainByClass(params) {
   const { maxGauge, checkIntervalMs, targetDurationByClassMs } = params;
@@ -27224,7 +27815,7 @@ function getStableSeededUnitValue(seed) {
 }
 const PRODUCTION_EVOLUTION_GAUGE_CONFIG = {
   maxGauge: DEFAULT_MAX_GAUGE,
-  staminaThreshold: 4,
+  staminaThreshold: 3,
   boostedStaminaThreshold: 7,
   boostedGaugeGainMultiplier: 1.2,
   checkIntervalMs: 1e4,
@@ -27531,6 +28122,7 @@ const PRODUCTION_BALANCE_REFERENCE = {
   NIGHT_WAKE_PRODUCTION_PER_CHECK_CHANCE: PRODUCTION_NIGHT_WAKE_PER_CHECK_CHANCE
 };
 const BOOSTED_STAMINA_THRESHOLD = EVOLUTION_GAUGE_CONFIG.boostedStaminaThreshold;
+const UNHAPPY_STAMINA_THRESHOLD = EVOLUTION_GAUGE_CONFIG.staminaThreshold;
 const PRODUCTION_GAME_CONSTANTS = {
   // 알 부화 관련
   EGG_HATCH_TIME: 30 * MINUTE_IN_MILLISECONDS$1,
@@ -27552,16 +28144,25 @@ const PRODUCTION_GAME_CONSTANTS = {
   // 질병 관련
   DISEASE_CHECK_INTERVAL: 10 * SECOND_IN_MILLISECONDS,
   BASE_DISEASE_RATE: 1862601875783909e-19,
-  LOW_STAMINA_DISEASE_BONUS: 279e-6,
+  LOW_STAMINA_DISEASE_THRESHOLD: 3,
+  VERY_LOW_STAMINA_DISEASE_THRESHOLD: 1.5,
+  LOW_STAMINA_DISEASE_BONUS: 93e-6,
+  VERY_LOW_STAMINA_DISEASE_BONUS: 186e-6,
+  FATIGUE_DISEASE_THRESHOLD_TIRED: 55,
+  FATIGUE_DISEASE_THRESHOLD_VERY_TIRED: 70,
+  FATIGUE_DISEASE_THRESHOLD_EXHAUSTED: 85,
+  FATIGUE_DISEASE_BONUS_TIRED: 93e-6,
+  FATIGUE_DISEASE_BONUS_VERY_TIRED: 186e-6,
+  FATIGUE_DISEASE_BONUS_EXHAUSTED: 279e-6,
   POOP_DISEASE_RATE: 93e-6,
   STALE_FOOD_DISEASE_RATE: 93e-6,
   // 음식 신선도 관련
   FRESH_TO_NORMAL_TIME: 3 * MINUTE_IN_MILLISECONDS$1,
   NORMAL_TO_STALE_TIME: 10 * MINUTE_IN_MILLISECONDS$1,
-  FRESH_STAMINA_BONUS: 2,
-  NORMAL_STAMINA_BONUS: 1,
+  FRESH_STAMINA_BONUS: 2.5,
+  NORMAL_STAMINA_BONUS: 1.5,
   // 캐릭터 상태 관련
-  UNHAPPY_STAMINA_THRESHOLD: 4,
+  UNHAPPY_STAMINA_THRESHOLD,
   URGENT_STAMINA_THRESHOLD: 0,
   URGENT_SPEED_MULTIPLIER: 0.8,
   DEATH_DELAY: 6 * HOUR_IN_MILLISECONDS$1,
@@ -27585,8 +28186,8 @@ const PRODUCTION_GAME_CONSTANTS = {
   SUNRISE_WAKE_MAX_DELAY: 60 * MINUTE_IN_MILLISECONDS$1,
   SUNRISE_WAKE_OFFSET_MIN: -10 * MINUTE_IN_MILLISECONDS$1,
   SUNRISE_WAKE_OFFSET_MAX: 40 * MINUTE_IN_MILLISECONDS$1,
-  NIGHT_RESLEEP_MIN_DELAY: 10 * MINUTE_IN_MILLISECONDS$1,
-  NIGHT_RESLEEP_MAX_DELAY: 30 * MINUTE_IN_MILLISECONDS$1,
+  NIGHT_RESLEEP_MIN_DELAY: 5 * MINUTE_IN_MILLISECONDS$1,
+  NIGHT_RESLEEP_MAX_DELAY: 15 * MINUTE_IN_MILLISECONDS$1,
   DAY_NAP_CHANCE: 0.07,
   DAY_NAP_CHECK_INTERVAL: 20 * MINUTE_IN_MILLISECONDS$1,
   NIGHT_WAKE_CHANCE: PRODUCTION_BALANCE_REFERENCE.NIGHT_WAKE_PRODUCTION_PER_CHECK_CHANCE,
@@ -27595,20 +28196,31 @@ const PRODUCTION_GAME_CONSTANTS = {
   DAY_NAP_MAX_DURATION: 30 * MINUTE_IN_MILLISECONDS$1,
   FATIGUE_MAX: 100,
   FATIGUE_DEFAULT: 35,
+  LOW_STAMINA_FATIGUE_THRESHOLD: 3,
+  CRITICAL_STAMINA_FATIGUE_THRESHOLD: 1.5,
+  LOW_STAMINA_FATIGUE_AWAKE_GAIN_MULTIPLIER: 1.25,
+  CRITICAL_STAMINA_FATIGUE_AWAKE_GAIN_MULTIPLIER: 1.5,
   FATIGUE_AWAKE_GAIN_PER_HOUR: 9,
   FATIGUE_SLEEP_RECOVERY_PER_HOUR: 12,
-  FATIGUE_SLEEP_RECOVERY_PER_HOUR_WHEN_SICK: 4,
+  FATIGUE_SLEEP_RECOVERY_PER_HOUR_WHEN_SICK: 6,
   FATIGUE_DAY_NAP_MIN_THRESHOLD: 55,
   FATIGUE_DAY_NAP_WAKE_THRESHOLD: 28,
-  // sleeping 기준 실효 30분마다 0.25 감소 -> 시간당 0.5 감소 -> 10 -> 0 약 20시간.
-  SLEEPING_STAMINA_DECAY_MULTIPLIER: 0.4,
+  NATURAL_SICK_RECOVERY_FATIGUE_THRESHOLD: 28,
+  NATURAL_SICK_RECOVERY_MIN_DURATION: 30 * MINUTE_IN_MILLISECONDS$1,
+  MINI_GAME_SLEEP_INTERRUPT_FATIGUE: 10,
+  // sleeping 기준 실효 60분마다 0.25 감소 -> 시간당 0.25 감소 -> 10 -> 0 약 40시간.
+  SLEEPING_STAMINA_DECAY_MULTIPLIER: 0.2,
   SLEEPING_DISEASE_RATE_MULTIPLIER: 0.1
 };
 ({
   // DEV에서는 production 기준 확률을 곱해서 빠르게 상태를 관찰한다.
   probabilityMultipliers: {
     BASE_DISEASE_RATE: 0.02 / PRODUCTION_GAME_CONSTANTS.BASE_DISEASE_RATE,
-    LOW_STAMINA_DISEASE_BONUS: 0.03 / PRODUCTION_GAME_CONSTANTS.LOW_STAMINA_DISEASE_BONUS,
+    LOW_STAMINA_DISEASE_BONUS: 0.01 / PRODUCTION_GAME_CONSTANTS.LOW_STAMINA_DISEASE_BONUS,
+    VERY_LOW_STAMINA_DISEASE_BONUS: 0.01 / PRODUCTION_GAME_CONSTANTS.LOW_STAMINA_DISEASE_BONUS,
+    FATIGUE_DISEASE_BONUS_TIRED: 0.01 / PRODUCTION_GAME_CONSTANTS.LOW_STAMINA_DISEASE_BONUS,
+    FATIGUE_DISEASE_BONUS_VERY_TIRED: 0.01 / PRODUCTION_GAME_CONSTANTS.LOW_STAMINA_DISEASE_BONUS,
+    FATIGUE_DISEASE_BONUS_EXHAUSTED: 0.01 / PRODUCTION_GAME_CONSTANTS.LOW_STAMINA_DISEASE_BONUS,
     POOP_DISEASE_RATE: 0.01 / PRODUCTION_GAME_CONSTANTS.POOP_DISEASE_RATE,
     STALE_FOOD_DISEASE_RATE: 0.01 / PRODUCTION_GAME_CONSTANTS.STALE_FOOD_DISEASE_RATE,
     DAY_NAP_CHANCE: 0.6 / PRODUCTION_GAME_CONSTANTS.DAY_NAP_CHANCE,
@@ -27656,6 +28268,9 @@ const GAME_CONSTANTS = {
   DEATH_DELAY_CLASS_C: deriveTimeConstant("DEATH_DELAY_CLASS_C"),
   DEATH_DELAY_CLASS_D: deriveTimeConstant("DEATH_DELAY_CLASS_D"),
   STAMINA_DECREASE_INTERVAL: deriveTimeConstant("STAMINA_DECREASE_INTERVAL"),
+  NATURAL_SICK_RECOVERY_MIN_DURATION: deriveTimeConstant(
+    "NATURAL_SICK_RECOVERY_MIN_DURATION"
+  ),
   NIGHT_SLEEP_MIN_DELAY: deriveTimeConstant("NIGHT_SLEEP_MIN_DELAY"),
   NIGHT_SLEEP_MAX_DELAY: deriveTimeConstant("NIGHT_SLEEP_MAX_DELAY"),
   TARGET_NIGHT_SLEEP_DURATION: deriveTimeConstant(
@@ -27676,6 +28291,18 @@ const GAME_CONSTANTS = {
   LOW_STAMINA_DISEASE_BONUS: deriveProbabilityConstant(
     "LOW_STAMINA_DISEASE_BONUS"
   ),
+  VERY_LOW_STAMINA_DISEASE_BONUS: deriveProbabilityConstant(
+    "VERY_LOW_STAMINA_DISEASE_BONUS"
+  ),
+  FATIGUE_DISEASE_BONUS_TIRED: deriveProbabilityConstant(
+    "FATIGUE_DISEASE_BONUS_TIRED"
+  ),
+  FATIGUE_DISEASE_BONUS_VERY_TIRED: deriveProbabilityConstant(
+    "FATIGUE_DISEASE_BONUS_VERY_TIRED"
+  ),
+  FATIGUE_DISEASE_BONUS_EXHAUSTED: deriveProbabilityConstant(
+    "FATIGUE_DISEASE_BONUS_EXHAUSTED"
+  ),
   POOP_DISEASE_RATE: deriveProbabilityConstant("POOP_DISEASE_RATE"),
   STALE_FOOD_DISEASE_RATE: deriveProbabilityConstant("STALE_FOOD_DISEASE_RATE"),
   DAY_NAP_CHANCE: deriveProbabilityConstant("DAY_NAP_CHANCE"),
@@ -27690,6 +28317,36 @@ const GAME_CONSTANTS = {
     "FATIGUE_SLEEP_RECOVERY_PER_HOUR_WHEN_SICK"
   )
 };
+function getStaminaFatigueAwakeGainMultiplier(stamina) {
+  if (stamina <= GAME_CONSTANTS.CRITICAL_STAMINA_FATIGUE_THRESHOLD) {
+    return GAME_CONSTANTS.CRITICAL_STAMINA_FATIGUE_AWAKE_GAIN_MULTIPLIER;
+  }
+  if (stamina <= GAME_CONSTANTS.LOW_STAMINA_FATIGUE_THRESHOLD) {
+    return GAME_CONSTANTS.LOW_STAMINA_FATIGUE_AWAKE_GAIN_MULTIPLIER;
+  }
+  return 1;
+}
+function getLowStaminaDiseaseBonus(stamina) {
+  if (stamina <= GAME_CONSTANTS.VERY_LOW_STAMINA_DISEASE_THRESHOLD) {
+    return GAME_CONSTANTS.VERY_LOW_STAMINA_DISEASE_BONUS;
+  }
+  if (stamina <= GAME_CONSTANTS.LOW_STAMINA_DISEASE_THRESHOLD) {
+    return GAME_CONSTANTS.LOW_STAMINA_DISEASE_BONUS;
+  }
+  return 0;
+}
+function getFatigueDiseaseBonus(fatigue) {
+  if (fatigue >= GAME_CONSTANTS.FATIGUE_DISEASE_THRESHOLD_EXHAUSTED) {
+    return GAME_CONSTANTS.FATIGUE_DISEASE_BONUS_EXHAUSTED;
+  }
+  if (fatigue >= GAME_CONSTANTS.FATIGUE_DISEASE_THRESHOLD_VERY_TIRED) {
+    return GAME_CONSTANTS.FATIGUE_DISEASE_BONUS_VERY_TIRED;
+  }
+  if (fatigue >= GAME_CONSTANTS.FATIGUE_DISEASE_THRESHOLD_TIRED) {
+    return GAME_CONSTANTS.FATIGUE_DISEASE_BONUS_TIRED;
+  }
+  return 0;
+}
 function getTriangularDistributedDelayMs(config, randomValue = Math.random()) {
   const { min, mode, max } = config;
   if (max <= min) {
@@ -29585,13 +30242,21 @@ function getAnimationSpeedForState(state, eid) {
   }
   return applyUrgentSpeedMultiplier(baseSpeed, eid);
 }
-function getEffectiveCharacterZIndex(eid) {
-  const configuredZIndex = RenderComp.zIndex[eid];
-  return configuredZIndex === 0 ? PositionComp.y[eid] : configuredZIndex;
-}
 const STATUS_ICON_SCALE = 1.8;
 const STATUS_ICON_BASE_SIZE = 16;
 const STATUS_ICON_SIZE = STATUS_ICON_BASE_SIZE * STATUS_ICON_SCALE;
+const STATUS_ICON_Z_INDEX_OFFSET = 1.5;
+function getRenderedCharacterAttributes(eid) {
+  const renderedX = Math.round(PositionComp.x[eid]);
+  const renderedY = Math.round(PositionComp.y[eid]);
+  const configuredZIndex = RenderComp.zIndex[eid];
+  const effectiveZIndex = configuredZIndex === 0 ? renderedY : configuredZIndex;
+  return {
+    renderedX,
+    renderedY,
+    effectiveZIndex
+  };
+}
 const TEMPORARY_STATUSES = [CharacterStatus.HAPPY, CharacterStatus.DISCOVER];
 const STATUS_TO_TEXTURE_KEY = {
   [CharacterStatus.SICK]: TextureKey.SICK,
@@ -29659,6 +30324,7 @@ function createStatusIconSprite(textureKey) {
   const sprite = new Sprite(texture || Texture.WHITE);
   sprite.anchor.set(0.5);
   sprite.scale.set(STATUS_ICON_SCALE);
+  sprite.roundPixels = true;
   return sprite;
 }
 function getStatusIconMinY(world) {
@@ -29716,11 +30382,8 @@ function statusIconRenderSystem(params) {
       StatusIconRenderComp.visibleCount[eid] = 0;
       continue;
     }
-    const position = {
-      x: PositionComp.x[eid],
-      y: PositionComp.y[eid]
-    };
-    const characterZIndex = getEffectiveCharacterZIndex(eid);
+    const { renderedX, renderedY, effectiveZIndex } = getRenderedCharacterAttributes(eid);
+    const iconZIndex = effectiveZIndex + STATUS_ICON_Z_INDEX_OFFSET;
     const allStatuses = [];
     for (let j2 = 0; j2 < 4; j2++) {
       const status = CharacterStatusComp.statuses[eid][j2];
@@ -29759,10 +30422,10 @@ function statusIconRenderSystem(params) {
       const iconSize = STATUS_ICON_SIZE;
       const spacing = 4;
       const totalWidth = persistent.length * iconSize + (persistent.length - 1) * spacing;
-      const startX = position.x - totalWidth / 2 + j2 * (iconSize + spacing) + iconSize / 2;
+      const startX = renderedX - totalWidth / 2 + j2 * (iconSize + spacing) + iconSize / 2;
       sprites[j2].x = startX;
-      sprites[j2].y = clampStatusIconY(world, position.y - 50);
-      sprites[j2].zIndex = characterZIndex;
+      sprites[j2].y = clampStatusIconY(world, renderedY - 50);
+      sprites[j2].zIndex = iconZIndex;
     }
     const currentTempSprite = entityTemporarySprites.get(eid);
     if (latestTemporary) {
@@ -29779,9 +30442,9 @@ function statusIconRenderSystem(params) {
           world.stage.addChild(newTempSprite);
         }
         const tempSprite = entityTemporarySprites.get(eid);
-        tempSprite.x = position.x + 25;
-        tempSprite.y = clampStatusIconY(world, position.y - 40);
-        tempSprite.zIndex = characterZIndex;
+        tempSprite.x = renderedX + 25;
+        tempSprite.y = clampStatusIconY(world, renderedY - 40);
+        tempSprite.zIndex = iconZIndex;
       }
     } else {
       if (currentTempSprite) {
@@ -30407,9 +31070,9 @@ const NAME_LABEL_FONT_FAMILIES = [
   "Noto Color Emoji",
   "sans-serif"
 ];
-const NAME_LABEL_FONT_SIZE = 10;
+const NAME_LABEL_FONT_SIZE = 12;
 const NAME_LABEL_FONT_WEIGHT = 400;
-const NAME_LABEL_STROKE_WIDTH = 3;
+const NAME_LABEL_STROKE_WIDTH = 4;
 const NAME_LABEL_FILL_COLOR = 16777215;
 const NAME_LABEL_STROKE_COLOR = 0;
 let measurementContext$1;
@@ -32136,6 +32799,691 @@ function moveTowardsTarget(world, eid, _delta) {
   SpeedComp.value[eid] = baseSpeed;
   return { distance, hasArrived };
 }
+var TimeOfDay = /* @__PURE__ */ ((TimeOfDay2) => {
+  TimeOfDay2["Day"] = "day";
+  TimeOfDay2["Sunrise"] = "sunrise";
+  TimeOfDay2["Sunset"] = "sunset";
+  TimeOfDay2["Night"] = "night";
+  return TimeOfDay2;
+})(TimeOfDay || {});
+var TimeOfDayMode = /* @__PURE__ */ ((TimeOfDayMode2) => {
+  TimeOfDayMode2["Manual"] = "manual";
+  TimeOfDayMode2["Auto"] = "auto";
+  return TimeOfDayMode2;
+})(TimeOfDayMode || {});
+const TIME_OF_DAY_TONES = {
+  [
+    "day"
+    /* Day */
+  ]: {
+    label: "Day"
+  },
+  [
+    "sunrise"
+    /* Sunrise */
+  ]: {
+    label: "Sunrise"
+  },
+  [
+    "sunset"
+    /* Sunset */
+  ]: {
+    label: "Sunset"
+  },
+  [
+    "night"
+    /* Night */
+  ]: {
+    label: "Night"
+  }
+};
+const TIME_OF_DAY_OPTIONS = [
+  "day",
+  "sunrise",
+  "sunset",
+  "night"
+  /* Night */
+];
+const SUN_TRANSITION_WINDOW_MINUTES = 60;
+const SUN_TRANSITION_TOTAL_MINUTES = SUN_TRANSITION_WINDOW_MINUTES * 2;
+const MINUTE_IN_MILLISECONDS = 60 * 1e3;
+const MANUAL_PROGRESS_PRESET = {
+  [
+    "day"
+    /* Day */
+  ]: 1,
+  [
+    "sunrise"
+    /* Sunrise */
+  ]: 0.5,
+  [
+    "sunset"
+    /* Sunset */
+  ]: 0.5,
+  [
+    "night"
+    /* Night */
+  ]: 1
+};
+function getTimeOfDayLabel(timeOfDay) {
+  return TIME_OF_DAY_TONES[timeOfDay].label;
+}
+function getManualSkyVisualState(timeOfDay) {
+  return {
+    timeOfDay,
+    progress: MANUAL_PROGRESS_PRESET[timeOfDay]
+  };
+}
+function resolveAutoTimeOfDayState(now, sunTimes) {
+  const { sunriseAt, sunsetAt } = projectSunTimesForDate(now, sunTimes);
+  if (Number.isNaN(sunriseAt.getTime()) || Number.isNaN(sunsetAt.getTime()) || sunriseAt.getTime() >= sunsetAt.getTime()) {
+    return {
+      timeOfDay: "day",
+      progress: 1,
+      isTransition: false
+    };
+  }
+  const sunriseWindow = createTransitionWindow(sunriseAt);
+  const sunsetWindow = createTransitionWindow(sunsetAt);
+  const nowTime = now.getTime();
+  if (nowTime >= sunriseWindow.start && nowTime <= sunriseWindow.end) {
+    return {
+      timeOfDay: "sunrise",
+      progress: getMinuteProgress(nowTime, sunriseWindow.start),
+      isTransition: true
+    };
+  }
+  if (nowTime >= sunsetWindow.start && nowTime <= sunsetWindow.end) {
+    return {
+      timeOfDay: "sunset",
+      progress: getMinuteProgress(nowTime, sunsetWindow.start),
+      isTransition: true
+    };
+  }
+  if (nowTime > sunriseWindow.end && nowTime < sunsetWindow.start) {
+    return {
+      timeOfDay: "day",
+      progress: 1,
+      isTransition: false
+    };
+  }
+  return {
+    timeOfDay: "night",
+    progress: 1,
+    isTransition: false
+  };
+}
+function projectSunTimesForDate(now, sunTimes) {
+  const timezoneOffsetMinutes = sunTimes.timezoneOffsetMinutes;
+  const dateString = getDateStringInTimezoneOffset(now, timezoneOffsetMinutes);
+  const sunriseTemplate = new Date(sunTimes.sunriseAt);
+  const sunsetTemplate = new Date(sunTimes.sunsetAt);
+  return {
+    sunriseAt: createProjectedDateInTimezoneOffset(
+      dateString,
+      sunriseTemplate,
+      timezoneOffsetMinutes
+    ),
+    sunsetAt: createProjectedDateInTimezoneOffset(
+      dateString,
+      sunsetTemplate,
+      timezoneOffsetMinutes
+    )
+  };
+}
+function getProjectedUpcomingSunTimes(now, sunTimes) {
+  const projectedForCurrentDate = projectSunTimesForDate(now, sunTimes);
+  const projectedForNextDate = projectSunTimesForDate(
+    new Date(now.getTime() + 24 * 60 * 60 * 1e3),
+    sunTimes
+  );
+  return {
+    sunriseAt: projectedForCurrentDate.sunriseAt,
+    sunsetAt: projectedForCurrentDate.sunsetAt,
+    nextSunriseAt: projectedForCurrentDate.sunriseAt.getTime() > now.getTime() ? projectedForCurrentDate.sunriseAt : projectedForNextDate.sunriseAt,
+    nextSunsetAt: projectedForCurrentDate.sunsetAt.getTime() > now.getTime() ? projectedForCurrentDate.sunsetAt : projectedForNextDate.sunsetAt
+  };
+}
+function hasSunTimesDateRolledOver(now, sunTimes) {
+  return getDateStringInTimezoneOffset(now, sunTimes.timezoneOffsetMinutes) !== sunTimes.date;
+}
+function getDateStringInTimezoneOffset(date, timezoneOffsetMinutes) {
+  const zonedDate = new Date(date.getTime() + timezoneOffsetMinutes * 60 * 1e3);
+  const year = zonedDate.getUTCFullYear();
+  const month = `${zonedDate.getUTCMonth() + 1}`.padStart(2, "0");
+  const day = `${zonedDate.getUTCDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+function createTransitionWindow(center) {
+  const halfWindow = SUN_TRANSITION_WINDOW_MINUTES * MINUTE_IN_MILLISECONDS;
+  return {
+    start: center.getTime() - halfWindow,
+    end: center.getTime() + halfWindow
+  };
+}
+function createProjectedDateInTimezoneOffset(dateString, template, timezoneOffsetMinutes) {
+  const [year, month, day] = dateString.split("-").map(Number);
+  const zonedTemplate = new Date(
+    template.getTime() + timezoneOffsetMinutes * 60 * 1e3
+  );
+  return new Date(
+    Date.UTC(
+      year,
+      month - 1,
+      day,
+      zonedTemplate.getUTCHours(),
+      zonedTemplate.getUTCMinutes(),
+      zonedTemplate.getUTCSeconds(),
+      zonedTemplate.getUTCMilliseconds()
+    ) - timezoneOffsetMinutes * 60 * 1e3
+  );
+}
+function getMinuteProgress(nowTime, startTime) {
+  const elapsedMinutes = Math.floor((nowTime - startTime) / MINUTE_IN_MILLISECONDS);
+  const clampedMinutes = Math.max(
+    0,
+    Math.min(SUN_TRANSITION_TOTAL_MINUTES, elapsedMinutes)
+  );
+  return clampedMinutes / SUN_TRANSITION_TOTAL_MINUTES;
+}
+const characterSleepQuery = defineQuery([
+  ObjectComp,
+  CharacterStatusComp,
+  SleepSystemComp
+]);
+const objectQuery$1 = defineQuery([ObjectComp]);
+const HOUR_IN_MILLISECONDS = 60 * 60 * 1e3;
+const lastTimeOfDayByWorld = /* @__PURE__ */ new WeakMap();
+function sleepScheduleSystem(params) {
+  const { world, delta, currentTime } = params;
+  const currentTimeOfDay = world.timeOfDay;
+  const entities = characterSleepQuery(world);
+  const previousTimeOfDay = lastTimeOfDayByWorld.get(world);
+  if (!previousTimeOfDay) {
+    bootstrapSleepRuntime(world, entities, currentTime, currentTimeOfDay);
+    lastTimeOfDayByWorld.set(world, currentTimeOfDay);
+  } else if (previousTimeOfDay !== currentTimeOfDay) {
+    handleTimeOfDayTransition(
+      world,
+      entities,
+      currentTime,
+      previousTimeOfDay,
+      currentTimeOfDay
+    );
+    lastTimeOfDayByWorld.set(world, currentTimeOfDay);
+  }
+  for (let i2 = 0; i2 < entities.length; i2++) {
+    const eid = entities[i2];
+    if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
+      continue;
+    }
+    if (ObjectComp.state[eid] === CharacterState.EGG || ObjectComp.state[eid] === CharacterState.DEAD) {
+      continue;
+    }
+    updateFatigue(eid, delta);
+    recoverNaturallyFromSickIfReady(world, eid, currentTime);
+    reconcileExternalSleepExit(eid, currentTime, currentTimeOfDay);
+    handleScheduledWake(world, eid, currentTime);
+    handleNightWakeChecks(world, eid, currentTime, currentTimeOfDay);
+    handleUrgentWakeForFood(world, eid, currentTime, currentTimeOfDay);
+    handleScheduledSleep(world, eid, currentTime, currentTimeOfDay);
+    handleDayNapChecks(world, eid, currentTime, currentTimeOfDay);
+    handleNapWake(world, eid, currentTime, currentTimeOfDay);
+  }
+  return params;
+}
+function bootstrapSleepRuntime(world, entities, currentTime, currentTimeOfDay) {
+  for (let i2 = 0; i2 < entities.length; i2++) {
+    const eid = entities[i2];
+    if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
+      continue;
+    }
+    if (ObjectComp.state[eid] === CharacterState.EGG || ObjectComp.state[eid] === CharacterState.DEAD) {
+      continue;
+    }
+    if (SleepSystemComp.nextNapCheckTime[eid] <= 0) {
+      SleepSystemComp.nextNapCheckTime[eid] = currentTime + GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL;
+    }
+    if (ObjectComp.state[eid] === CharacterState.SLEEPING) {
+      if (SleepSystemComp.sleepMode[eid] === SleepMode.AWAKE) {
+        SleepSystemComp.sleepMode[eid] = currentTimeOfDay === TimeOfDay.Day ? SleepMode.DAY_NAP : SleepMode.NIGHT_SLEEP;
+      }
+      if (SleepSystemComp.sleepSessionStartedAt[eid] <= 0) {
+        SleepSystemComp.sleepSessionStartedAt[eid] = currentTime;
+      }
+      if (currentTimeOfDay === TimeOfDay.Night) {
+        ensureNightWakeCheckTime(eid, currentTime);
+      } else if (currentTimeOfDay === TimeOfDay.Sunrise || currentTimeOfDay === TimeOfDay.Day) {
+        scheduleWakeFromSunrise(eid, currentTime);
+      }
+      continue;
+    }
+    if (currentTimeOfDay === TimeOfDay.Night) {
+      scheduleNightSleep(world, eid, currentTime);
+      continue;
+    }
+    if (currentTimeOfDay === TimeOfDay.Day) {
+      SleepSystemComp.nextNapCheckTime[eid] = Math.max(
+        SleepSystemComp.nextNapCheckTime[eid],
+        currentTime + GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL
+      );
+    }
+  }
+}
+function handleTimeOfDayTransition(world, entities, currentTime, previousTimeOfDay, currentTimeOfDay) {
+  console.log(
+    `[SleepScheduleSystem] Time of day changed: ${previousTimeOfDay} -> ${currentTimeOfDay}`
+  );
+  for (let i2 = 0; i2 < entities.length; i2++) {
+    const eid = entities[i2];
+    if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
+      continue;
+    }
+    if (ObjectComp.state[eid] === CharacterState.EGG || ObjectComp.state[eid] === CharacterState.DEAD) {
+      continue;
+    }
+    switch (currentTimeOfDay) {
+      case TimeOfDay.Night:
+        if (ObjectComp.state[eid] === CharacterState.SLEEPING) {
+          SleepSystemComp.sleepMode[eid] = SleepMode.NIGHT_SLEEP;
+          ensureNightWakeCheckTime(eid, currentTime);
+        } else {
+          scheduleNightSleep(world, eid, currentTime);
+        }
+        break;
+      case TimeOfDay.Sunrise:
+        clearPendingNightSleep(eid);
+        clearDeferredResleepIntentIfStale(eid);
+        if (ObjectComp.state[eid] === CharacterState.SLEEPING) {
+          scheduleWakeFromSunrise(eid, currentTime);
+        }
+        break;
+      case TimeOfDay.Day:
+        if (ObjectComp.state[eid] === CharacterState.SLEEPING && SleepSystemComp.sleepMode[eid] === SleepMode.NIGHT_SLEEP) {
+          SleepSystemComp.nextWakeTime[eid] = currentTime;
+          SleepSystemComp.pendingWakeReason[eid] = SleepReason.SUNRISE;
+        }
+        if (SleepSystemComp.nextNapCheckTime[eid] <= currentTime) {
+          SleepSystemComp.nextNapCheckTime[eid] = currentTime + GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL;
+        }
+        clearDeferredResleepIntentIfStale(eid);
+        break;
+      case TimeOfDay.Sunset:
+    }
+  }
+}
+function updateFatigue(eid, delta) {
+  const currentFatigue = SleepSystemComp.fatigue[eid];
+  const isSleeping = ObjectComp.state[eid] === CharacterState.SLEEPING;
+  const isSick = hasStatus(eid, CharacterStatus.SICK);
+  const staminaFatigueMultiplier = getStaminaFatigueAwakeGainMultiplier(CharacterStatusComp.stamina[eid]);
+  const awakeGainPerMillisecond = GAME_CONSTANTS.FATIGUE_AWAKE_GAIN_PER_HOUR * staminaFatigueMultiplier / HOUR_IN_MILLISECONDS;
+  const sleepRecoveryPerMillisecond = (isSick ? GAME_CONSTANTS.FATIGUE_SLEEP_RECOVERY_PER_HOUR_WHEN_SICK : GAME_CONSTANTS.FATIGUE_SLEEP_RECOVERY_PER_HOUR) / HOUR_IN_MILLISECONDS;
+  const nextFatigue = isSleeping ? currentFatigue - delta * sleepRecoveryPerMillisecond : currentFatigue + delta * awakeGainPerMillisecond;
+  SleepSystemComp.fatigue[eid] = clamp(
+    nextFatigue,
+    0,
+    GAME_CONSTANTS.FATIGUE_MAX
+  );
+}
+function recoverNaturallyFromSickIfReady(world, eid, currentTime) {
+  if (ObjectComp.state[eid] !== CharacterState.SLEEPING) {
+    return;
+  }
+  if (!hasStatus(eid, CharacterStatus.SICK)) {
+    return;
+  }
+  if (!hasComponent(world, DiseaseSystemComp, eid)) {
+    return;
+  }
+  const sickStartTime = DiseaseSystemComp.sickStartTime[eid];
+  if (sickStartTime <= 0) {
+    return;
+  }
+  const sleptLongEnough = currentTime - sickStartTime >= GAME_CONSTANTS.NATURAL_SICK_RECOVERY_MIN_DURATION;
+  const recoveredFatigue = SleepSystemComp.fatigue[eid] <= GAME_CONSTANTS.NATURAL_SICK_RECOVERY_FATIGUE_THRESHOLD;
+  if (!sleptLongEnough || !recoveredFatigue) {
+    return;
+  }
+  removeStatus(eid, CharacterStatus.SICK);
+  DiseaseSystemComp.sickStartTime[eid] = 0;
+}
+function reconcileExternalSleepExit(eid, currentTime, currentTimeOfDay) {
+  if (ObjectComp.state[eid] === CharacterState.SLEEPING) {
+    return;
+  }
+  if (SleepSystemComp.sleepMode[eid] === SleepMode.AWAKE || SleepSystemComp.sleepMode[eid] === SleepMode.INTERRUPTED_AWAKE) {
+    return;
+  }
+  SleepSystemComp.nextWakeTime[eid] = 0;
+  SleepSystemComp.pendingWakeReason[eid] = SleepReason.NONE;
+  SleepSystemComp.nextNightWakeCheckTime[eid] = 0;
+  SleepSystemComp.sleepSessionStartedAt[eid] = 0;
+  if (currentTimeOfDay === TimeOfDay.Night) {
+    scheduleResleep(eid, currentTime);
+    return;
+  }
+  SleepSystemComp.sleepMode[eid] = SleepMode.AWAKE;
+  SleepSystemComp.pendingSleepReason[eid] = SleepReason.NONE;
+  SleepSystemComp.nextNapCheckTime[eid] = currentTime + GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL;
+}
+function handleScheduledWake(world, eid, currentTime) {
+  const nextWakeTime = SleepSystemComp.nextWakeTime[eid];
+  if (ObjectComp.state[eid] !== CharacterState.SLEEPING || nextWakeTime <= 0 || currentTime < nextWakeTime) {
+    return;
+  }
+  wakeCharacter(world, eid, currentTime);
+}
+function handleNightWakeChecks(world, eid, currentTime, currentTimeOfDay) {
+  if (ObjectComp.state[eid] !== CharacterState.SLEEPING || SleepSystemComp.sleepMode[eid] !== SleepMode.NIGHT_SLEEP || currentTimeOfDay !== TimeOfDay.Night) {
+    if (currentTimeOfDay !== TimeOfDay.Night) {
+      SleepSystemComp.nextNightWakeCheckTime[eid] = 0;
+    }
+    return;
+  }
+  ensureNightWakeCheckTime(eid, currentTime);
+  while (currentTime >= SleepSystemComp.nextNightWakeCheckTime[eid]) {
+    SleepSystemComp.nextNightWakeCheckTime[eid] += GAME_CONSTANTS.NIGHT_WAKE_CHECK_INTERVAL;
+    SleepSystemComp.fatigue[eid];
+    const baseChance = GAME_CONSTANTS.NIGHT_WAKE_CHANCE;
+    const appliedChance = baseChance;
+    const roll = Math.random();
+    const shouldWake = roll < appliedChance;
+    logSleepCheck(world, "Night wake check", {
+      sleepMode: SleepSystemComp.sleepMode[eid],
+      fatigueMax: GAME_CONSTANTS.FATIGUE_MAX,
+      checkIntervalMs: GAME_CONSTANTS.NIGHT_WAKE_CHECK_INTERVAL
+    });
+    if (shouldWake) {
+      SleepSystemComp.pendingWakeReason[eid] = SleepReason.NIGHT_INTERRUPT;
+      wakeCharacter(world, eid, currentTime);
+      scheduleResleep(eid, currentTime);
+      break;
+    }
+  }
+}
+function handleUrgentWakeForFood(world, eid, currentTime, currentTimeOfDay) {
+  if (ObjectComp.state[eid] !== CharacterState.SLEEPING) {
+    return;
+  }
+  if (hasStatus(eid, CharacterStatus.SICK)) {
+    return;
+  }
+  if (CharacterStatusComp.stamina[eid] > GAME_CONSTANTS.URGENT_STAMINA_THRESHOLD) {
+    return;
+  }
+  if (!hasEdibleLandedFood(world)) {
+    return;
+  }
+  wakeCharacter(world, eid, currentTime, {
+    preserveDeferredNightResleep: currentTimeOfDay === TimeOfDay.Night && SleepSystemComp.sleepMode[eid] === SleepMode.NIGHT_SLEEP
+  });
+}
+function handleScheduledSleep(world, eid, currentTime, currentTimeOfDay) {
+  const nextSleepTime = SleepSystemComp.nextSleepTime[eid];
+  if (nextSleepTime <= 0 || currentTime < nextSleepTime) {
+    return;
+  }
+  if (currentTimeOfDay === TimeOfDay.Day) {
+    const isNightSleepReservation = SleepSystemComp.pendingSleepReason[eid] === SleepReason.NIGHT || SleepSystemComp.pendingSleepReason[eid] === SleepReason.RESLEEP;
+    if (isNightSleepReservation) {
+      clearPendingNightSleep(eid);
+      return;
+    }
+  }
+  if (!canEnterSleep(world, eid)) {
+    return;
+  }
+  const mode = SleepSystemComp.pendingSleepReason[eid] === SleepReason.NAP ? SleepMode.DAY_NAP : SleepMode.NIGHT_SLEEP;
+  enterSleep(eid, currentTime, mode);
+}
+function handleDayNapChecks(world, eid, currentTime, currentTimeOfDay) {
+  if (currentTimeOfDay !== TimeOfDay.Day || ObjectComp.state[eid] === CharacterState.SLEEPING || SleepSystemComp.nextSleepTime[eid] > 0 || SleepSystemComp.fatigue[eid] < GAME_CONSTANTS.FATIGUE_DAY_NAP_MIN_THRESHOLD) {
+    return;
+  }
+  if (SleepSystemComp.nextNapCheckTime[eid] <= 0) {
+    SleepSystemComp.nextNapCheckTime[eid] = currentTime + GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL;
+  }
+  while (currentTime >= SleepSystemComp.nextNapCheckTime[eid]) {
+    SleepSystemComp.nextNapCheckTime[eid] += GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL;
+    const fatigue = SleepSystemComp.fatigue[eid];
+    clamp(fatigue / GAME_CONSTANTS.FATIGUE_MAX, 0, 1);
+    GAME_CONSTANTS.DAY_NAP_CHANCE;
+    const appliedChance = getDayNapChance(eid);
+    const roll = Math.random();
+    const shouldNap = roll < appliedChance;
+    logSleepCheck(world, "Day nap check", {
+      fatigueThreshold: GAME_CONSTANTS.FATIGUE_DAY_NAP_MIN_THRESHOLD,
+      fatigueMax: GAME_CONSTANTS.FATIGUE_MAX,
+      checkIntervalMs: GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL
+    });
+    if (shouldNap) {
+      SleepSystemComp.nextSleepTime[eid] = currentTime;
+      SleepSystemComp.pendingSleepReason[eid] = SleepReason.NAP;
+      if (canEnterSleep(world, eid)) {
+        enterSleep(eid, currentTime, SleepMode.DAY_NAP);
+      }
+      break;
+    }
+  }
+}
+function handleNapWake(world, eid, currentTime, currentTimeOfDay) {
+  if (ObjectComp.state[eid] !== CharacterState.SLEEPING || SleepSystemComp.sleepMode[eid] !== SleepMode.DAY_NAP) {
+    return;
+  }
+  if (currentTimeOfDay === TimeOfDay.Night) {
+    SleepSystemComp.sleepMode[eid] = SleepMode.NIGHT_SLEEP;
+    ensureNightWakeCheckTime(eid, currentTime);
+    return;
+  }
+  const elapsed = currentTime - SleepSystemComp.sleepSessionStartedAt[eid];
+  const hasReachedMinDuration = elapsed >= GAME_CONSTANTS.DAY_NAP_MIN_DURATION;
+  const hasRecoveredEnough = SleepSystemComp.fatigue[eid] <= GAME_CONSTANTS.FATIGUE_DAY_NAP_WAKE_THRESHOLD;
+  const hasReachedMaxDuration = elapsed >= GAME_CONSTANTS.DAY_NAP_MAX_DURATION;
+  if (hasReachedMaxDuration || hasReachedMinDuration && hasRecoveredEnough) {
+    wakeCharacter(world, eid, currentTime);
+  }
+}
+function getAutoNightSleepPlan(world, currentTime) {
+  if (world.timeOfDayMode !== TimeOfDayMode.Auto) {
+    return null;
+  }
+  const projectedUpcomingSunTimes = world.getProjectedUpcomingSunTimes(currentTime);
+  if (!projectedUpcomingSunTimes) {
+    return null;
+  }
+  const nextWakeTime = Math.round(
+    projectedUpcomingSunTimes.nextSunriseAt + randomBetween(
+      GAME_CONSTANTS.SUNRISE_WAKE_OFFSET_MIN,
+      GAME_CONSTANTS.SUNRISE_WAKE_OFFSET_MAX
+    )
+  );
+  if (nextWakeTime <= currentTime) {
+    return null;
+  }
+  const targetSleepDuration = GAME_CONSTANTS.TARGET_NIGHT_SLEEP_DURATION + randomBetween(
+    -GAME_CONSTANTS.TARGET_NIGHT_SLEEP_JITTER,
+    GAME_CONSTANTS.TARGET_NIGHT_SLEEP_JITTER
+  );
+  const latestSleepTime = nextWakeTime - 1;
+  if (latestSleepTime <= currentTime) {
+    return null;
+  }
+  const earliestSleepTime = Math.min(
+    currentTime + GAME_CONSTANTS.NIGHT_SLEEP_MIN_DELAY,
+    latestSleepTime
+  );
+  const nextSleepTime = Math.round(
+    clamp(
+      nextWakeTime - targetSleepDuration,
+      earliestSleepTime,
+      latestSleepTime
+    )
+  );
+  return {
+    nextSleepTime,
+    nextWakeTime
+  };
+}
+function scheduleNightSleep(world, eid, currentTime) {
+  const autoNightSleepPlan = getAutoNightSleepPlan(world, currentTime);
+  if (autoNightSleepPlan) {
+    SleepSystemComp.nextSleepTime[eid] = autoNightSleepPlan.nextSleepTime;
+    SleepSystemComp.pendingSleepReason[eid] = SleepReason.NIGHT;
+    SleepSystemComp.nextWakeTime[eid] = autoNightSleepPlan.nextWakeTime;
+    SleepSystemComp.pendingWakeReason[eid] = SleepReason.SUNRISE;
+    return;
+  }
+  SleepSystemComp.nextSleepTime[eid] = currentTime + randomBetween(
+    GAME_CONSTANTS.NIGHT_SLEEP_MIN_DELAY,
+    GAME_CONSTANTS.NIGHT_SLEEP_MAX_DELAY
+  );
+  SleepSystemComp.pendingSleepReason[eid] = SleepReason.NIGHT;
+  SleepSystemComp.nextWakeTime[eid] = 0;
+  SleepSystemComp.pendingWakeReason[eid] = SleepReason.NONE;
+}
+function scheduleWakeFromSunrise(eid, currentTime) {
+  if (ObjectComp.state[eid] !== CharacterState.SLEEPING) {
+    return;
+  }
+  if (SleepSystemComp.nextWakeTime[eid] > 0) {
+    return;
+  }
+  SleepSystemComp.nextWakeTime[eid] = currentTime + randomBetween(
+    GAME_CONSTANTS.SUNRISE_WAKE_MIN_DELAY,
+    GAME_CONSTANTS.SUNRISE_WAKE_MAX_DELAY
+  );
+  SleepSystemComp.pendingWakeReason[eid] = SleepReason.SUNRISE;
+  SleepSystemComp.nextSleepTime[eid] = 0;
+  SleepSystemComp.pendingSleepReason[eid] = SleepReason.NONE;
+}
+function scheduleResleep(eid, currentTime) {
+  SleepSystemComp.sleepMode[eid] = SleepMode.INTERRUPTED_AWAKE;
+  SleepSystemComp.nextSleepTime[eid] = currentTime + randomBetween(
+    GAME_CONSTANTS.NIGHT_RESLEEP_MIN_DELAY,
+    GAME_CONSTANTS.NIGHT_RESLEEP_MAX_DELAY
+  );
+  SleepSystemComp.pendingSleepReason[eid] = SleepReason.RESLEEP;
+}
+function enterSleep(eid, currentTime, mode) {
+  const reservedWakeTime = mode === SleepMode.NIGHT_SLEEP ? SleepSystemComp.nextWakeTime[eid] : 0;
+  const reservedWakeReason = mode === SleepMode.NIGHT_SLEEP ? SleepSystemComp.pendingWakeReason[eid] : SleepReason.NONE;
+  ObjectComp.state[eid] = CharacterState.SLEEPING;
+  SpeedComp.value[eid] = 0;
+  SleepSystemComp.sleepMode[eid] = mode;
+  SleepSystemComp.sleepSessionStartedAt[eid] = currentTime;
+  SleepSystemComp.nextSleepTime[eid] = 0;
+  SleepSystemComp.pendingSleepReason[eid] = SleepReason.NONE;
+  SleepSystemComp.nextWakeTime[eid] = reservedWakeTime > 0 ? Math.max(currentTime, reservedWakeTime) : 0;
+  SleepSystemComp.pendingWakeReason[eid] = reservedWakeTime > 0 ? reservedWakeReason : SleepReason.NONE;
+  SleepSystemComp.nextNightWakeCheckTime[eid] = mode === SleepMode.NIGHT_SLEEP ? currentTime + GAME_CONSTANTS.NIGHT_WAKE_CHECK_INTERVAL : 0;
+}
+function wakeCharacter(world, eid, currentTime, options = {}) {
+  const isSick = hasStatus(eid, CharacterStatus.SICK);
+  const { preserveDeferredNightResleep = false } = options;
+  ObjectComp.state[eid] = isSick ? CharacterState.SICK : CharacterState.IDLE;
+  SpeedComp.value[eid] = 0;
+  SleepSystemComp.sleepMode[eid] = preserveDeferredNightResleep ? SleepMode.INTERRUPTED_AWAKE : SleepMode.AWAKE;
+  SleepSystemComp.nextSleepTime[eid] = 0;
+  SleepSystemComp.nextWakeTime[eid] = 0;
+  SleepSystemComp.nextNightWakeCheckTime[eid] = 0;
+  SleepSystemComp.pendingSleepReason[eid] = preserveDeferredNightResleep ? SleepReason.RESLEEP : SleepReason.NONE;
+  SleepSystemComp.pendingWakeReason[eid] = SleepReason.NONE;
+  SleepSystemComp.sleepSessionStartedAt[eid] = 0;
+  SleepSystemComp.nextNapCheckTime[eid] = currentTime + GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL;
+  if (!isSick) {
+    restoreRandomMovementIfNeeded(world, eid, currentTime);
+  }
+}
+function hasEdibleLandedFood(world) {
+  const entities = objectQuery$1(world);
+  for (let i2 = 0; i2 < entities.length; i2++) {
+    const eid = entities[i2];
+    if (ObjectComp.type[eid] !== ObjectType.FOOD) {
+      continue;
+    }
+    if (ObjectComp.state[eid] !== FoodState.LANDED) {
+      continue;
+    }
+    if (hasComponent(world, FreshnessComp, eid) && !isFoodEdible(FreshnessComp.freshness[eid])) {
+      continue;
+    }
+    return true;
+  }
+  return false;
+}
+function clearPendingNightSleep(eid) {
+  if (SleepSystemComp.pendingSleepReason[eid] === SleepReason.NIGHT || SleepSystemComp.pendingSleepReason[eid] === SleepReason.RESLEEP) {
+    SleepSystemComp.nextSleepTime[eid] = 0;
+    SleepSystemComp.pendingSleepReason[eid] = SleepReason.NONE;
+    SleepSystemComp.nextWakeTime[eid] = 0;
+    SleepSystemComp.pendingWakeReason[eid] = SleepReason.NONE;
+  }
+}
+function clearDeferredResleepIntentIfStale(eid) {
+  if (ObjectComp.state[eid] === CharacterState.SLEEPING || SleepSystemComp.pendingSleepReason[eid] !== SleepReason.RESLEEP || SleepSystemComp.nextSleepTime[eid] > 0) {
+    return;
+  }
+  SleepSystemComp.sleepMode[eid] = SleepMode.AWAKE;
+  SleepSystemComp.pendingSleepReason[eid] = SleepReason.NONE;
+}
+function ensureNightWakeCheckTime(eid, currentTime) {
+  if (SleepSystemComp.nextNightWakeCheckTime[eid] > 0) {
+    return;
+  }
+  SleepSystemComp.nextNightWakeCheckTime[eid] = currentTime + GAME_CONSTANTS.NIGHT_WAKE_CHECK_INTERVAL;
+}
+function canEnterSleep(world, eid) {
+  const state = ObjectComp.state[eid];
+  const isMovingToTargetedFood = hasComponent(world, DestinationComp, eid) && DestinationComp.type[eid] === DestinationType.TARGETED && DestinationComp.target[eid] !== 0;
+  return state !== CharacterState.EGG && state !== CharacterState.DEAD && state !== CharacterState.EATING && !isMovingToTargetedFood;
+}
+function getDayNapChance(eid) {
+  const fatigueRatio = clamp(
+    SleepSystemComp.fatigue[eid] / GAME_CONSTANTS.FATIGUE_MAX,
+    0,
+    1
+  );
+  return Math.min(1, GAME_CONSTANTS.DAY_NAP_CHANCE * (0.5 + fatigueRatio));
+}
+function hasStatus(eid, status) {
+  return Array.from(CharacterStatusComp.statuses[eid]).includes(status);
+}
+function removeStatus(eid, status) {
+  const statuses = CharacterStatusComp.statuses[eid];
+  for (let i2 = 0; i2 < statuses.length; i2++) {
+    if (statuses[i2] !== status) {
+      continue;
+    }
+    statuses[i2] = 0;
+    return;
+  }
+}
+function randomBetween(min, max) {
+  if (max <= min) {
+    return min;
+  }
+  return min + Math.random() * (max - min);
+}
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+function restoreRandomMovementIfNeeded(world, eid, currentTime) {
+  if (hasComponent(world, RandomMovementComp, eid)) {
+    return;
+  }
+  addComponent(world, RandomMovementComp, eid);
+  RandomMovementComp.minIdleTime[eid] = 3e3;
+  RandomMovementComp.maxIdleTime[eid] = 6e3;
+  RandomMovementComp.minMoveTime[eid] = 2e3;
+  RandomMovementComp.maxMoveTime[eid] = 4e3;
+  RandomMovementComp.nextChange[eid] = currentTime + 1e3;
+}
+function logSleepCheck(world, event, payload) {
+  {
+    return;
+  }
+}
 const characterQuery$5 = defineQuery([
   ObjectComp,
   CharacterStatusComp,
@@ -32287,6 +33635,7 @@ function completeEating(world, characterEid, foodEid, currentTime) {
     GAME_CONSTANTS.MAX_STAMINA
   );
   CharacterStatusComp.stamina[characterEid] = newStamina;
+  const shouldResumeNightSleepAfterEating = SleepSystemComp.sleepMode[characterEid] === SleepMode.INTERRUPTED_AWAKE && SleepSystemComp.pendingSleepReason[characterEid] === SleepReason.RESLEEP && SleepSystemComp.nextSleepTime[characterEid] <= 0;
   addDigestiveLoadAmount(
     world,
     characterEid,
@@ -32298,6 +33647,14 @@ function completeEating(world, characterEid, foodEid, currentTime) {
       `[FoodEatingSystem] Character ${characterEid} stamina increased from ${currentStamina} to ${newStamina}, adding happy status`
     );
     addCharacterStatus$2(characterEid, CharacterStatus.HAPPY);
+  }
+  if (shouldResumeNightSleepAfterEating) {
+    if (world.timeOfDay === TimeOfDay.Night) {
+      scheduleResleep(characterEid, currentTime);
+    } else {
+      SleepSystemComp.sleepMode[characterEid] = SleepMode.AWAKE;
+      SleepSystemComp.pendingSleepReason[characterEid] = SleepReason.NONE;
+    }
   }
   ObjectComp.state[characterEid] = CharacterState.IDLE;
   if (hasComponent(world, SpeedComp, characterEid)) {
@@ -33557,193 +34914,6 @@ function startRecoveryAnimation(world, eid, stage, currentTime) {
     EffectAnimationType.RECOVERY_SYRINGE
   );
 }
-var TimeOfDay = /* @__PURE__ */ ((TimeOfDay2) => {
-  TimeOfDay2["Day"] = "day";
-  TimeOfDay2["Sunrise"] = "sunrise";
-  TimeOfDay2["Sunset"] = "sunset";
-  TimeOfDay2["Night"] = "night";
-  return TimeOfDay2;
-})(TimeOfDay || {});
-var TimeOfDayMode = /* @__PURE__ */ ((TimeOfDayMode2) => {
-  TimeOfDayMode2["Manual"] = "manual";
-  TimeOfDayMode2["Auto"] = "auto";
-  return TimeOfDayMode2;
-})(TimeOfDayMode || {});
-const TIME_OF_DAY_TONES = {
-  [
-    "day"
-    /* Day */
-  ]: {
-    label: "Day"
-  },
-  [
-    "sunrise"
-    /* Sunrise */
-  ]: {
-    label: "Sunrise"
-  },
-  [
-    "sunset"
-    /* Sunset */
-  ]: {
-    label: "Sunset"
-  },
-  [
-    "night"
-    /* Night */
-  ]: {
-    label: "Night"
-  }
-};
-const TIME_OF_DAY_OPTIONS = [
-  "day",
-  "sunrise",
-  "sunset",
-  "night"
-  /* Night */
-];
-const SUN_TRANSITION_WINDOW_MINUTES = 60;
-const SUN_TRANSITION_TOTAL_MINUTES = SUN_TRANSITION_WINDOW_MINUTES * 2;
-const MINUTE_IN_MILLISECONDS = 60 * 1e3;
-const MANUAL_PROGRESS_PRESET = {
-  [
-    "day"
-    /* Day */
-  ]: 1,
-  [
-    "sunrise"
-    /* Sunrise */
-  ]: 0.5,
-  [
-    "sunset"
-    /* Sunset */
-  ]: 0.5,
-  [
-    "night"
-    /* Night */
-  ]: 1
-};
-function getTimeOfDayLabel(timeOfDay) {
-  return TIME_OF_DAY_TONES[timeOfDay].label;
-}
-function getManualSkyVisualState(timeOfDay) {
-  return {
-    timeOfDay,
-    progress: MANUAL_PROGRESS_PRESET[timeOfDay]
-  };
-}
-function resolveAutoTimeOfDayState(now, sunTimes) {
-  const { sunriseAt, sunsetAt } = projectSunTimesForDate(now, sunTimes);
-  if (Number.isNaN(sunriseAt.getTime()) || Number.isNaN(sunsetAt.getTime()) || sunriseAt.getTime() >= sunsetAt.getTime()) {
-    return {
-      timeOfDay: "day",
-      progress: 1,
-      isTransition: false
-    };
-  }
-  const sunriseWindow = createTransitionWindow(sunriseAt);
-  const sunsetWindow = createTransitionWindow(sunsetAt);
-  const nowTime = now.getTime();
-  if (nowTime >= sunriseWindow.start && nowTime <= sunriseWindow.end) {
-    return {
-      timeOfDay: "sunrise",
-      progress: getMinuteProgress(nowTime, sunriseWindow.start),
-      isTransition: true
-    };
-  }
-  if (nowTime >= sunsetWindow.start && nowTime <= sunsetWindow.end) {
-    return {
-      timeOfDay: "sunset",
-      progress: getMinuteProgress(nowTime, sunsetWindow.start),
-      isTransition: true
-    };
-  }
-  if (nowTime > sunriseWindow.end && nowTime < sunsetWindow.start) {
-    return {
-      timeOfDay: "day",
-      progress: 1,
-      isTransition: false
-    };
-  }
-  return {
-    timeOfDay: "night",
-    progress: 1,
-    isTransition: false
-  };
-}
-function projectSunTimesForDate(now, sunTimes) {
-  const timezoneOffsetMinutes = sunTimes.timezoneOffsetMinutes;
-  const dateString = getDateStringInTimezoneOffset(now, timezoneOffsetMinutes);
-  const sunriseTemplate = new Date(sunTimes.sunriseAt);
-  const sunsetTemplate = new Date(sunTimes.sunsetAt);
-  return {
-    sunriseAt: createProjectedDateInTimezoneOffset(
-      dateString,
-      sunriseTemplate,
-      timezoneOffsetMinutes
-    ),
-    sunsetAt: createProjectedDateInTimezoneOffset(
-      dateString,
-      sunsetTemplate,
-      timezoneOffsetMinutes
-    )
-  };
-}
-function getProjectedUpcomingSunTimes(now, sunTimes) {
-  const projectedForCurrentDate = projectSunTimesForDate(now, sunTimes);
-  const projectedForNextDate = projectSunTimesForDate(
-    new Date(now.getTime() + 24 * 60 * 60 * 1e3),
-    sunTimes
-  );
-  return {
-    sunriseAt: projectedForCurrentDate.sunriseAt,
-    sunsetAt: projectedForCurrentDate.sunsetAt,
-    nextSunriseAt: projectedForCurrentDate.sunriseAt.getTime() > now.getTime() ? projectedForCurrentDate.sunriseAt : projectedForNextDate.sunriseAt,
-    nextSunsetAt: projectedForCurrentDate.sunsetAt.getTime() > now.getTime() ? projectedForCurrentDate.sunsetAt : projectedForNextDate.sunsetAt
-  };
-}
-function hasSunTimesDateRolledOver(now, sunTimes) {
-  return getDateStringInTimezoneOffset(now, sunTimes.timezoneOffsetMinutes) !== sunTimes.date;
-}
-function getDateStringInTimezoneOffset(date, timezoneOffsetMinutes) {
-  const zonedDate = new Date(date.getTime() + timezoneOffsetMinutes * 60 * 1e3);
-  const year = zonedDate.getUTCFullYear();
-  const month = `${zonedDate.getUTCMonth() + 1}`.padStart(2, "0");
-  const day = `${zonedDate.getUTCDate()}`.padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-function createTransitionWindow(center) {
-  const halfWindow = SUN_TRANSITION_WINDOW_MINUTES * MINUTE_IN_MILLISECONDS;
-  return {
-    start: center.getTime() - halfWindow,
-    end: center.getTime() + halfWindow
-  };
-}
-function createProjectedDateInTimezoneOffset(dateString, template, timezoneOffsetMinutes) {
-  const [year, month, day] = dateString.split("-").map(Number);
-  const zonedTemplate = new Date(
-    template.getTime() + timezoneOffsetMinutes * 60 * 1e3
-  );
-  return new Date(
-    Date.UTC(
-      year,
-      month - 1,
-      day,
-      zonedTemplate.getUTCHours(),
-      zonedTemplate.getUTCMinutes(),
-      zonedTemplate.getUTCSeconds(),
-      zonedTemplate.getUTCMilliseconds()
-    ) - timezoneOffsetMinutes * 60 * 1e3
-  );
-}
-function getMinuteProgress(nowTime, startTime) {
-  const elapsedMinutes = Math.floor((nowTime - startTime) / MINUTE_IN_MILLISECONDS);
-  const clampedMinutes = Math.max(
-    0,
-    Math.min(SUN_TRANSITION_TOTAL_MINUTES, elapsedMinutes)
-  );
-  return clampedMinutes / SUN_TRANSITION_TOTAL_MINUTES;
-}
 const characterQuery$4 = defineQuery([ObjectComp, CharacterStatusComp]);
 const objectQuery = defineQuery([ObjectComp]);
 function hasCharacterStatus$1(eid, status) {
@@ -34662,6 +35832,9 @@ function diseaseSystem(params) {
       const currentStatuses2 = characterComp.statuses[eid];
       const isSick2 = isCharacterSick(currentStatuses2);
       if (!isSick2) {
+        if (isDiseaseCheckBlockedByFoodInteraction(world, eid)) {
+          continue;
+        }
         const diseaseCalculation = calculateDiseaseRate(world, eid);
         const { rate: diseaseRate, breakdown } = diseaseCalculation;
         if (shouldLog) {
@@ -34676,7 +35849,9 @@ function diseaseSystem(params) {
           }
           addCharacterStatus$1(eid, CharacterStatus.SICK);
           diseaseComp.sickStartTime[eid] = checkTime;
-          ObjectComp.state[eid] = CharacterState.SICK;
+          if (!isSleeping) {
+            ObjectComp.state[eid] = CharacterState.SICK;
+          }
           restrictMovement(world, eid);
           break;
         }
@@ -34699,6 +35874,19 @@ function diseaseSystem(params) {
     previousStates.set(eid, { isSick, isSleeping: isSleepingNow });
   }
   return params;
+}
+function isDiseaseCheckBlockedByFoodInteraction(world, eid) {
+  if (hasComponent(world, FoodEatingComp, eid) && FoodEatingComp.isActive[eid] === 1) {
+    return true;
+  }
+  if (!hasComponent(world, DestinationComp, eid)) {
+    return false;
+  }
+  if (DestinationComp.type[eid] !== DestinationType.TARGETED || DestinationComp.target[eid] === 0) {
+    return false;
+  }
+  const targetFoodEid = DestinationComp.target[eid];
+  return hasComponent(world, ObjectComp, targetFoodEid) && ObjectComp.type[targetFoodEid] === ObjectType.FOOD;
 }
 function restrictMovement(world, eid) {
   if (clearActiveEatingState(world, eid)) {
@@ -34738,20 +35926,29 @@ function restoreMovement(world, eid) {
 }
 function calculateDiseaseRate(world, eid) {
   let diseaseRate = GAME_CONSTANTS.BASE_DISEASE_RATE;
+  const stamina = CharacterStatusComp.stamina[eid];
+  const fatigue = hasComponent(world, SleepSystemComp, eid) ? SleepSystemComp.fatigue[eid] : GAME_CONSTANTS.FATIGUE_DEFAULT;
   const breakdown = {
     base: GAME_CONSTANTS.BASE_DISEASE_RATE,
-    lowStamina: 0,
+    lowStaminaBonus: 0,
+    fatigueBonus: 0,
     poopBonus: 0,
     staleFood: 0,
-    stamina: CharacterStatusComp.stamina[eid],
+    stamina,
+    fatigue,
     poopCount: 0,
-    staleFoodCount: 0
+    staleFoodCount: 0,
+    staminaFatigueMultiplier: getStaminaFatigueAwakeGainMultiplier(stamina)
   };
-  const stamina = CharacterStatusComp.stamina[eid];
-  if (stamina <= 3) {
-    const bonus = GAME_CONSTANTS.LOW_STAMINA_DISEASE_BONUS;
-    diseaseRate += bonus;
-    breakdown.lowStamina = bonus;
+  const lowStaminaBonus = getLowStaminaDiseaseBonus(stamina);
+  if (lowStaminaBonus > 0) {
+    diseaseRate += lowStaminaBonus;
+    breakdown.lowStaminaBonus = lowStaminaBonus;
+  }
+  const fatigueBonus = getFatigueDiseaseBonus(fatigue);
+  if (fatigueBonus > 0) {
+    diseaseRate += fatigueBonus;
+    breakdown.fatigueBonus = fatigueBonus;
   }
   const poopCount = countObjectsInWorld(world, ObjectType.POOB);
   breakdown.poopCount = poopCount;
@@ -35077,7 +36274,10 @@ class HTMLDebugGaugeUI {
       DiseaseSystemComp,
       this._currentCharacterEid
     ) ? DiseaseSystemComp.nextCheckTime[this._currentCharacterEid] : 0;
-    const remainingDiseaseTime = Math.max(0, nextDiseaseCheckTime - currentTime);
+    const remainingDiseaseTime = Math.max(
+      0,
+      nextDiseaseCheckTime - currentTime
+    );
     const deathTime = hasComponent(
       this._world,
       VitalityComp,
@@ -36111,424 +37311,6 @@ async function hatchCharacter(eid, world, currentTime) {
     );
   }
 }
-const characterSleepQuery = defineQuery([
-  ObjectComp,
-  CharacterStatusComp,
-  SleepSystemComp
-]);
-const HOUR_IN_MILLISECONDS = 60 * 60 * 1e3;
-const lastTimeOfDayByWorld = /* @__PURE__ */ new WeakMap();
-function sleepScheduleSystem(params) {
-  const { world, delta, currentTime } = params;
-  const currentTimeOfDay = world.timeOfDay;
-  const entities = characterSleepQuery(world);
-  const previousTimeOfDay = lastTimeOfDayByWorld.get(world);
-  if (!previousTimeOfDay) {
-    bootstrapSleepRuntime(world, entities, currentTime, currentTimeOfDay);
-    lastTimeOfDayByWorld.set(world, currentTimeOfDay);
-  } else if (previousTimeOfDay !== currentTimeOfDay) {
-    handleTimeOfDayTransition(
-      world,
-      entities,
-      currentTime,
-      previousTimeOfDay,
-      currentTimeOfDay
-    );
-    lastTimeOfDayByWorld.set(world, currentTimeOfDay);
-  }
-  for (let i2 = 0; i2 < entities.length; i2++) {
-    const eid = entities[i2];
-    if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
-      continue;
-    }
-    if (ObjectComp.state[eid] === CharacterState.EGG || ObjectComp.state[eid] === CharacterState.DEAD) {
-      continue;
-    }
-    updateFatigue(eid, delta);
-    reconcileExternalSleepExit(eid, currentTime, currentTimeOfDay);
-    handleScheduledWake(world, eid, currentTime);
-    handleNightWakeChecks(world, eid, currentTime, currentTimeOfDay);
-    handleScheduledSleep(world, eid, currentTime, currentTimeOfDay);
-    handleDayNapChecks(world, eid, currentTime, currentTimeOfDay);
-    handleNapWake(world, eid, currentTime, currentTimeOfDay);
-  }
-  return params;
-}
-function bootstrapSleepRuntime(world, entities, currentTime, currentTimeOfDay) {
-  for (let i2 = 0; i2 < entities.length; i2++) {
-    const eid = entities[i2];
-    if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
-      continue;
-    }
-    if (ObjectComp.state[eid] === CharacterState.EGG || ObjectComp.state[eid] === CharacterState.DEAD) {
-      continue;
-    }
-    if (SleepSystemComp.nextNapCheckTime[eid] <= 0) {
-      SleepSystemComp.nextNapCheckTime[eid] = currentTime + GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL;
-    }
-    if (ObjectComp.state[eid] === CharacterState.SLEEPING) {
-      if (SleepSystemComp.sleepMode[eid] === SleepMode.AWAKE) {
-        SleepSystemComp.sleepMode[eid] = currentTimeOfDay === TimeOfDay.Day ? SleepMode.DAY_NAP : SleepMode.NIGHT_SLEEP;
-      }
-      if (SleepSystemComp.sleepSessionStartedAt[eid] <= 0) {
-        SleepSystemComp.sleepSessionStartedAt[eid] = currentTime;
-      }
-      if (currentTimeOfDay === TimeOfDay.Night) {
-        ensureNightWakeCheckTime(eid, currentTime);
-      } else if (currentTimeOfDay === TimeOfDay.Sunrise || currentTimeOfDay === TimeOfDay.Day) {
-        scheduleWakeFromSunrise(eid, currentTime);
-      }
-      continue;
-    }
-    if (currentTimeOfDay === TimeOfDay.Night) {
-      scheduleNightSleep(world, eid, currentTime);
-      continue;
-    }
-    if (currentTimeOfDay === TimeOfDay.Day) {
-      SleepSystemComp.nextNapCheckTime[eid] = Math.max(
-        SleepSystemComp.nextNapCheckTime[eid],
-        currentTime + GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL
-      );
-    }
-  }
-}
-function handleTimeOfDayTransition(world, entities, currentTime, previousTimeOfDay, currentTimeOfDay) {
-  console.log(
-    `[SleepScheduleSystem] Time of day changed: ${previousTimeOfDay} -> ${currentTimeOfDay}`
-  );
-  for (let i2 = 0; i2 < entities.length; i2++) {
-    const eid = entities[i2];
-    if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
-      continue;
-    }
-    if (ObjectComp.state[eid] === CharacterState.EGG || ObjectComp.state[eid] === CharacterState.DEAD) {
-      continue;
-    }
-    switch (currentTimeOfDay) {
-      case TimeOfDay.Night:
-        if (ObjectComp.state[eid] === CharacterState.SLEEPING) {
-          SleepSystemComp.sleepMode[eid] = SleepMode.NIGHT_SLEEP;
-          ensureNightWakeCheckTime(eid, currentTime);
-        } else {
-          scheduleNightSleep(world, eid, currentTime);
-        }
-        break;
-      case TimeOfDay.Sunrise:
-        clearPendingNightSleep(eid);
-        if (ObjectComp.state[eid] === CharacterState.SLEEPING) {
-          scheduleWakeFromSunrise(eid, currentTime);
-        }
-        break;
-      case TimeOfDay.Day:
-        if (ObjectComp.state[eid] === CharacterState.SLEEPING && SleepSystemComp.sleepMode[eid] === SleepMode.NIGHT_SLEEP) {
-          SleepSystemComp.nextWakeTime[eid] = currentTime;
-          SleepSystemComp.pendingWakeReason[eid] = SleepReason.SUNRISE;
-        }
-        if (SleepSystemComp.nextNapCheckTime[eid] <= currentTime) {
-          SleepSystemComp.nextNapCheckTime[eid] = currentTime + GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL;
-        }
-        break;
-      case TimeOfDay.Sunset:
-    }
-  }
-}
-function updateFatigue(eid, delta) {
-  const currentFatigue = SleepSystemComp.fatigue[eid];
-  const isSleeping = ObjectComp.state[eid] === CharacterState.SLEEPING;
-  const isSick = hasStatus(eid, CharacterStatus.SICK);
-  const awakeGainPerMillisecond = GAME_CONSTANTS.FATIGUE_AWAKE_GAIN_PER_HOUR / HOUR_IN_MILLISECONDS;
-  const sleepRecoveryPerMillisecond = (isSick ? GAME_CONSTANTS.FATIGUE_SLEEP_RECOVERY_PER_HOUR_WHEN_SICK : GAME_CONSTANTS.FATIGUE_SLEEP_RECOVERY_PER_HOUR) / HOUR_IN_MILLISECONDS;
-  const nextFatigue = isSleeping ? currentFatigue - delta * sleepRecoveryPerMillisecond : currentFatigue + delta * awakeGainPerMillisecond;
-  SleepSystemComp.fatigue[eid] = clamp(
-    nextFatigue,
-    0,
-    GAME_CONSTANTS.FATIGUE_MAX
-  );
-}
-function reconcileExternalSleepExit(eid, currentTime, currentTimeOfDay) {
-  if (ObjectComp.state[eid] === CharacterState.SLEEPING) {
-    return;
-  }
-  if (SleepSystemComp.sleepMode[eid] === SleepMode.AWAKE || SleepSystemComp.sleepMode[eid] === SleepMode.INTERRUPTED_AWAKE) {
-    return;
-  }
-  SleepSystemComp.nextWakeTime[eid] = 0;
-  SleepSystemComp.pendingWakeReason[eid] = SleepReason.NONE;
-  SleepSystemComp.nextNightWakeCheckTime[eid] = 0;
-  SleepSystemComp.sleepSessionStartedAt[eid] = 0;
-  if (currentTimeOfDay === TimeOfDay.Night) {
-    scheduleResleep(eid, currentTime);
-    return;
-  }
-  SleepSystemComp.sleepMode[eid] = SleepMode.AWAKE;
-  SleepSystemComp.pendingSleepReason[eid] = SleepReason.NONE;
-  SleepSystemComp.nextNapCheckTime[eid] = currentTime + GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL;
-}
-function handleScheduledWake(world, eid, currentTime) {
-  const nextWakeTime = SleepSystemComp.nextWakeTime[eid];
-  if (ObjectComp.state[eid] !== CharacterState.SLEEPING || nextWakeTime <= 0 || currentTime < nextWakeTime) {
-    return;
-  }
-  wakeCharacter(world, eid, currentTime);
-}
-function handleNightWakeChecks(world, eid, currentTime, currentTimeOfDay) {
-  if (ObjectComp.state[eid] !== CharacterState.SLEEPING || SleepSystemComp.sleepMode[eid] !== SleepMode.NIGHT_SLEEP || currentTimeOfDay !== TimeOfDay.Night) {
-    if (currentTimeOfDay !== TimeOfDay.Night) {
-      SleepSystemComp.nextNightWakeCheckTime[eid] = 0;
-    }
-    return;
-  }
-  ensureNightWakeCheckTime(eid, currentTime);
-  while (currentTime >= SleepSystemComp.nextNightWakeCheckTime[eid]) {
-    SleepSystemComp.nextNightWakeCheckTime[eid] += GAME_CONSTANTS.NIGHT_WAKE_CHECK_INTERVAL;
-    SleepSystemComp.fatigue[eid];
-    const baseChance = GAME_CONSTANTS.NIGHT_WAKE_CHANCE;
-    const appliedChance = baseChance;
-    const roll = Math.random();
-    const shouldWake = roll < appliedChance;
-    logSleepCheck(world, "Night wake check", {
-      sleepMode: SleepSystemComp.sleepMode[eid],
-      fatigueMax: GAME_CONSTANTS.FATIGUE_MAX,
-      checkIntervalMs: GAME_CONSTANTS.NIGHT_WAKE_CHECK_INTERVAL
-    });
-    if (shouldWake) {
-      SleepSystemComp.pendingWakeReason[eid] = SleepReason.NIGHT_INTERRUPT;
-      wakeCharacter(world, eid, currentTime);
-      scheduleResleep(eid, currentTime);
-      break;
-    }
-  }
-}
-function handleScheduledSleep(world, eid, currentTime, currentTimeOfDay) {
-  const nextSleepTime = SleepSystemComp.nextSleepTime[eid];
-  if (nextSleepTime <= 0 || currentTime < nextSleepTime) {
-    return;
-  }
-  if (currentTimeOfDay === TimeOfDay.Day) {
-    const isNightSleepReservation = SleepSystemComp.pendingSleepReason[eid] === SleepReason.NIGHT || SleepSystemComp.pendingSleepReason[eid] === SleepReason.RESLEEP;
-    if (isNightSleepReservation) {
-      clearPendingNightSleep(eid);
-      return;
-    }
-  }
-  if (!canEnterSleep(world, eid)) {
-    return;
-  }
-  const mode = SleepSystemComp.pendingSleepReason[eid] === SleepReason.NAP ? SleepMode.DAY_NAP : SleepMode.NIGHT_SLEEP;
-  enterSleep(eid, currentTime, mode);
-}
-function handleDayNapChecks(world, eid, currentTime, currentTimeOfDay) {
-  if (currentTimeOfDay !== TimeOfDay.Day || ObjectComp.state[eid] === CharacterState.SLEEPING || SleepSystemComp.nextSleepTime[eid] > 0 || SleepSystemComp.fatigue[eid] < GAME_CONSTANTS.FATIGUE_DAY_NAP_MIN_THRESHOLD) {
-    return;
-  }
-  if (SleepSystemComp.nextNapCheckTime[eid] <= 0) {
-    SleepSystemComp.nextNapCheckTime[eid] = currentTime + GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL;
-  }
-  while (currentTime >= SleepSystemComp.nextNapCheckTime[eid]) {
-    SleepSystemComp.nextNapCheckTime[eid] += GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL;
-    const fatigue = SleepSystemComp.fatigue[eid];
-    clamp(fatigue / GAME_CONSTANTS.FATIGUE_MAX, 0, 1);
-    GAME_CONSTANTS.DAY_NAP_CHANCE;
-    const appliedChance = getDayNapChance(eid);
-    const roll = Math.random();
-    const shouldNap = roll < appliedChance;
-    logSleepCheck(world, "Day nap check", {
-      fatigueThreshold: GAME_CONSTANTS.FATIGUE_DAY_NAP_MIN_THRESHOLD,
-      fatigueMax: GAME_CONSTANTS.FATIGUE_MAX,
-      checkIntervalMs: GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL
-    });
-    if (shouldNap) {
-      SleepSystemComp.nextSleepTime[eid] = currentTime;
-      SleepSystemComp.pendingSleepReason[eid] = SleepReason.NAP;
-      if (canEnterSleep(world, eid)) {
-        enterSleep(eid, currentTime, SleepMode.DAY_NAP);
-      }
-      break;
-    }
-  }
-}
-function handleNapWake(world, eid, currentTime, currentTimeOfDay) {
-  if (ObjectComp.state[eid] !== CharacterState.SLEEPING || SleepSystemComp.sleepMode[eid] !== SleepMode.DAY_NAP) {
-    return;
-  }
-  if (currentTimeOfDay === TimeOfDay.Night) {
-    SleepSystemComp.sleepMode[eid] = SleepMode.NIGHT_SLEEP;
-    ensureNightWakeCheckTime(eid, currentTime);
-    return;
-  }
-  const elapsed = currentTime - SleepSystemComp.sleepSessionStartedAt[eid];
-  const hasReachedMinDuration = elapsed >= GAME_CONSTANTS.DAY_NAP_MIN_DURATION;
-  const hasRecoveredEnough = SleepSystemComp.fatigue[eid] <= GAME_CONSTANTS.FATIGUE_DAY_NAP_WAKE_THRESHOLD;
-  const hasReachedMaxDuration = elapsed >= GAME_CONSTANTS.DAY_NAP_MAX_DURATION;
-  if (hasReachedMaxDuration || hasReachedMinDuration && hasRecoveredEnough) {
-    wakeCharacter(world, eid, currentTime);
-  }
-}
-function getAutoNightSleepPlan(world, currentTime) {
-  if (world.timeOfDayMode !== TimeOfDayMode.Auto) {
-    return null;
-  }
-  const projectedUpcomingSunTimes = world.getProjectedUpcomingSunTimes(currentTime);
-  if (!projectedUpcomingSunTimes) {
-    return null;
-  }
-  const nextWakeTime = Math.round(
-    projectedUpcomingSunTimes.nextSunriseAt + randomBetween(
-      GAME_CONSTANTS.SUNRISE_WAKE_OFFSET_MIN,
-      GAME_CONSTANTS.SUNRISE_WAKE_OFFSET_MAX
-    )
-  );
-  if (nextWakeTime <= currentTime) {
-    return null;
-  }
-  const targetSleepDuration = GAME_CONSTANTS.TARGET_NIGHT_SLEEP_DURATION + randomBetween(
-    -GAME_CONSTANTS.TARGET_NIGHT_SLEEP_JITTER,
-    GAME_CONSTANTS.TARGET_NIGHT_SLEEP_JITTER
-  );
-  const latestSleepTime = nextWakeTime - 1;
-  if (latestSleepTime <= currentTime) {
-    return null;
-  }
-  const earliestSleepTime = Math.min(
-    currentTime + GAME_CONSTANTS.NIGHT_SLEEP_MIN_DELAY,
-    latestSleepTime
-  );
-  const nextSleepTime = Math.round(
-    clamp(
-      nextWakeTime - targetSleepDuration,
-      earliestSleepTime,
-      latestSleepTime
-    )
-  );
-  return {
-    nextSleepTime,
-    nextWakeTime
-  };
-}
-function scheduleNightSleep(world, eid, currentTime) {
-  const autoNightSleepPlan = getAutoNightSleepPlan(world, currentTime);
-  if (autoNightSleepPlan) {
-    SleepSystemComp.nextSleepTime[eid] = autoNightSleepPlan.nextSleepTime;
-    SleepSystemComp.pendingSleepReason[eid] = SleepReason.NIGHT;
-    SleepSystemComp.nextWakeTime[eid] = autoNightSleepPlan.nextWakeTime;
-    SleepSystemComp.pendingWakeReason[eid] = SleepReason.SUNRISE;
-    return;
-  }
-  SleepSystemComp.nextSleepTime[eid] = currentTime + randomBetween(
-    GAME_CONSTANTS.NIGHT_SLEEP_MIN_DELAY,
-    GAME_CONSTANTS.NIGHT_SLEEP_MAX_DELAY
-  );
-  SleepSystemComp.pendingSleepReason[eid] = SleepReason.NIGHT;
-  SleepSystemComp.nextWakeTime[eid] = 0;
-  SleepSystemComp.pendingWakeReason[eid] = SleepReason.NONE;
-}
-function scheduleWakeFromSunrise(eid, currentTime) {
-  if (ObjectComp.state[eid] !== CharacterState.SLEEPING) {
-    return;
-  }
-  if (SleepSystemComp.nextWakeTime[eid] > 0) {
-    return;
-  }
-  SleepSystemComp.nextWakeTime[eid] = currentTime + randomBetween(
-    GAME_CONSTANTS.SUNRISE_WAKE_MIN_DELAY,
-    GAME_CONSTANTS.SUNRISE_WAKE_MAX_DELAY
-  );
-  SleepSystemComp.pendingWakeReason[eid] = SleepReason.SUNRISE;
-  SleepSystemComp.nextSleepTime[eid] = 0;
-  SleepSystemComp.pendingSleepReason[eid] = SleepReason.NONE;
-}
-function scheduleResleep(eid, currentTime) {
-  SleepSystemComp.sleepMode[eid] = SleepMode.INTERRUPTED_AWAKE;
-  SleepSystemComp.nextSleepTime[eid] = currentTime + randomBetween(
-    GAME_CONSTANTS.NIGHT_RESLEEP_MIN_DELAY,
-    GAME_CONSTANTS.NIGHT_RESLEEP_MAX_DELAY
-  );
-  SleepSystemComp.pendingSleepReason[eid] = SleepReason.RESLEEP;
-}
-function enterSleep(eid, currentTime, mode) {
-  const reservedWakeTime = mode === SleepMode.NIGHT_SLEEP ? SleepSystemComp.nextWakeTime[eid] : 0;
-  const reservedWakeReason = mode === SleepMode.NIGHT_SLEEP ? SleepSystemComp.pendingWakeReason[eid] : SleepReason.NONE;
-  ObjectComp.state[eid] = CharacterState.SLEEPING;
-  SpeedComp.value[eid] = 0;
-  SleepSystemComp.sleepMode[eid] = mode;
-  SleepSystemComp.sleepSessionStartedAt[eid] = currentTime;
-  SleepSystemComp.nextSleepTime[eid] = 0;
-  SleepSystemComp.pendingSleepReason[eid] = SleepReason.NONE;
-  SleepSystemComp.nextWakeTime[eid] = reservedWakeTime > 0 ? Math.max(currentTime, reservedWakeTime) : 0;
-  SleepSystemComp.pendingWakeReason[eid] = reservedWakeTime > 0 ? reservedWakeReason : SleepReason.NONE;
-  SleepSystemComp.nextNightWakeCheckTime[eid] = mode === SleepMode.NIGHT_SLEEP ? currentTime + GAME_CONSTANTS.NIGHT_WAKE_CHECK_INTERVAL : 0;
-}
-function wakeCharacter(world, eid, currentTime) {
-  const isSick = hasStatus(eid, CharacterStatus.SICK);
-  ObjectComp.state[eid] = isSick ? CharacterState.SICK : CharacterState.IDLE;
-  SpeedComp.value[eid] = 0;
-  SleepSystemComp.sleepMode[eid] = SleepMode.AWAKE;
-  SleepSystemComp.nextSleepTime[eid] = 0;
-  SleepSystemComp.nextWakeTime[eid] = 0;
-  SleepSystemComp.nextNightWakeCheckTime[eid] = 0;
-  SleepSystemComp.pendingSleepReason[eid] = SleepReason.NONE;
-  SleepSystemComp.pendingWakeReason[eid] = SleepReason.NONE;
-  SleepSystemComp.sleepSessionStartedAt[eid] = 0;
-  SleepSystemComp.nextNapCheckTime[eid] = currentTime + GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL;
-  if (!isSick) {
-    restoreRandomMovementIfNeeded(world, eid, currentTime);
-  }
-}
-function clearPendingNightSleep(eid) {
-  if (SleepSystemComp.pendingSleepReason[eid] === SleepReason.NIGHT || SleepSystemComp.pendingSleepReason[eid] === SleepReason.RESLEEP) {
-    SleepSystemComp.nextSleepTime[eid] = 0;
-    SleepSystemComp.pendingSleepReason[eid] = SleepReason.NONE;
-    SleepSystemComp.nextWakeTime[eid] = 0;
-    SleepSystemComp.pendingWakeReason[eid] = SleepReason.NONE;
-  }
-}
-function ensureNightWakeCheckTime(eid, currentTime) {
-  if (SleepSystemComp.nextNightWakeCheckTime[eid] > 0) {
-    return;
-  }
-  SleepSystemComp.nextNightWakeCheckTime[eid] = currentTime + GAME_CONSTANTS.NIGHT_WAKE_CHECK_INTERVAL;
-}
-function canEnterSleep(world, eid) {
-  const state = ObjectComp.state[eid];
-  const isMovingToTargetedFood = hasComponent(world, DestinationComp, eid) && DestinationComp.type[eid] === DestinationType.TARGETED && DestinationComp.target[eid] !== 0;
-  return state !== CharacterState.EGG && state !== CharacterState.DEAD && state !== CharacterState.EATING && !isMovingToTargetedFood;
-}
-function getDayNapChance(eid) {
-  const fatigueRatio = clamp(
-    SleepSystemComp.fatigue[eid] / GAME_CONSTANTS.FATIGUE_MAX,
-    0,
-    1
-  );
-  return Math.min(1, GAME_CONSTANTS.DAY_NAP_CHANCE * (0.5 + fatigueRatio));
-}
-function hasStatus(eid, status) {
-  return Array.from(CharacterStatusComp.statuses[eid]).includes(status);
-}
-function randomBetween(min, max) {
-  if (max <= min) {
-    return min;
-  }
-  return min + Math.random() * (max - min);
-}
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
-function restoreRandomMovementIfNeeded(world, eid, currentTime) {
-  if (hasComponent(world, RandomMovementComp, eid)) {
-    return;
-  }
-  addComponent(world, RandomMovementComp, eid);
-  RandomMovementComp.minIdleTime[eid] = 3e3;
-  RandomMovementComp.maxIdleTime[eid] = 6e3;
-  RandomMovementComp.minMoveTime[eid] = 2e3;
-  RandomMovementComp.maxMoveTime[eid] = 4e3;
-  RandomMovementComp.nextChange[eid] = currentTime + 1e3;
-}
-function logSleepCheck(world, event, payload) {
-  {
-    return;
-  }
-}
 const TEMPORARY_STATUS_DURATION = 3e3;
 const characterQuery$1 = defineQuery([ObjectComp, CharacterStatusComp]);
 const temporaryStatusQuery = defineQuery([
@@ -36783,10 +37565,12 @@ const SLEEP_GRADIENT_TOP_COLOR = 2051983;
 const SLEEP_GRADIENT_BOTTOM_COLOR = 8245247;
 const SLEEP_STROKE_COLOR = 0;
 const SLEEP_STROKE_WIDTH = 1;
-const SLEEP_SMALL_Z_FONT_SIZE = 10.8;
-const SLEEP_MEDIUM_Z_FONT_SIZE = 16.2;
-const SLEEP_LARGE_Z_FONT_SIZE = 19.44;
+const SLEEP_TEXT_PADDING = 4;
+const SLEEP_SMALL_Z_FONT_SIZE = 11;
+const SLEEP_MEDIUM_Z_FONT_SIZE = 14;
+const SLEEP_LARGE_Z_FONT_SIZE = 17;
 const SLEEP_FONT_FAMILY = [
+  "Press Start 2P",
   "NeoDunggeunmo Pro",
   "Apple Color Emoji",
   "Segoe UI Emoji",
@@ -36950,7 +37734,9 @@ function renderSleepTextFrame(container, frameIndex) {
     positionedLetters.push({ x: x2, y: y2, width: letter.width });
   }
   const maxBottom = Math.max(
-    ...letters.map((letter, index) => letterDefinitions[index].offsetY + letter.height)
+    ...letters.map(
+      (letter, index) => letterDefinitions[index].offsetY + letter.height - SLEEP_TEXT_PADDING
+    )
   );
   for (let i2 = 0; i2 < letters.length; i2++) {
     letters[i2].y -= maxBottom;
@@ -36971,6 +37757,7 @@ function createSleepTextStyle(fontSize) {
   return new TextStyle({
     ...SLEEP_BASE_TEXT_STYLE,
     fontSize,
+    padding: SLEEP_TEXT_PADDING,
     fill,
     stroke: {
       color: SLEEP_STROKE_COLOR,
@@ -37593,7 +38380,7 @@ const _MainSceneWorld = class _MainSceneWorld {
     return !!value && this._isMainSceneAdMenu(value.menu) && typeof value.queued_at === "number" && Number.isFinite(value.queued_at) && value.queued_at > 0 && typeof value.cooldown_ms === "number" && Number.isFinite(value.cooldown_ms) && value.cooldown_ms > 0 && typeof value.threshold === "number" && Number.isFinite(value.threshold) && value.threshold > 0 && typeof value.deep_night === "boolean";
   }
   _isMainSceneAdMenu(value) {
-    return value === "feed" || value === "clean" || value === "hospital" || value === "mini_game";
+    return value === "feed" || value === "clean" || value === "hospital";
   }
   _recordMainSceneMenuUse(menu) {
     const adState = this._getMainSceneAdState();
@@ -38053,7 +38840,7 @@ const _MainSceneWorld = class _MainSceneWorld {
               );
               return;
             }
-            this._recordMainSceneMenuUse("mini_game");
+            this._prepareMainCharacterForMiniGameEntry();
             void this._startMiniGame();
           },
           onFeedSelect: () => {
@@ -38113,6 +38900,20 @@ const _MainSceneWorld = class _MainSceneWorld {
     }
     (_a = this._showAlert) == null ? void 0 : _a.call(this, "not available in egg state.", "Notice");
     return true;
+  }
+  _prepareMainCharacterForMiniGameEntry() {
+    const characterEid = this._findMainCharacterEntity();
+    if (characterEid === -1) {
+      return;
+    }
+    if (!hasComponent(this, SleepSystemComp, characterEid) || ObjectComp.state[characterEid] !== CharacterState.SLEEPING) {
+      return;
+    }
+    wakeCharacter(this, characterEid, this.currentTime);
+    SleepSystemComp.fatigue[characterEid] = Math.min(
+      GAME_CONSTANTS.FATIGUE_MAX,
+      SleepSystemComp.fatigue[characterEid] + GAME_CONSTANTS.MINI_GAME_SLEEP_INTERRUPT_FATIGUE
+    );
   }
   _addDebugGaugeEventListener() {
     if (this._isDebugGaugeEventListenerRegistered || typeof window === "undefined") {
@@ -44679,7 +45480,6 @@ class GameEngine {
     this.isRunning = false;
     this.gameObjects = [];
     this.pixiApp = null;
-    this._frameCount = 0;
     this.gravityY = gravityY;
     this.physics = matterExports.Engine.create({
       gravity: { x: 0, y: this.gravityY },
@@ -44717,7 +45517,7 @@ class GameEngine {
   }
   syncDisplayObjects() {
     for (const obj of this.gameObjects) {
-      if (!obj.displayObject || !obj.body) continue;
+      if (!obj.syncDisplay || !obj.displayObject || !obj.body) continue;
       if (obj.displayObject instanceof Sprite) {
         obj.displayObject.position.x = obj.body.position.x;
         obj.displayObject.position.y = obj.body.position.y;
@@ -44733,10 +45533,17 @@ class GameEngine {
   syncDisplayObjectsNow() {
     this.syncDisplayObjects();
   }
-  addGameObject(displayObject, body) {
+  addGameObject(displayObject, body, options = {}) {
     matterExports.Composite.add(this.physics.world, body);
-    this.gameObjects.push({ displayObject, body });
-    this._frameCount = 0;
+    this.gameObjects.push({
+      displayObject,
+      body,
+      syncDisplay: options.syncDisplay ?? displayObject !== null
+    });
+  }
+  removeGameObject(body) {
+    matterExports.Composite.remove(this.physics.world, body);
+    this.gameObjects = this.gameObjects.filter((obj) => obj.body !== body);
   }
   pause() {
     this.isRunning = false;
@@ -44768,6 +45575,12 @@ class GameEngine {
   }
   getPhysicsEngine() {
     return this.physics;
+  }
+  getTrackedObjectCount() {
+    return this.gameObjects.length;
+  }
+  getSyncedDisplayObjectCount() {
+    return this.gameObjects.filter((obj) => obj.syncDisplay).length;
   }
 }
 function applyNearestScaleMode(asset) {
@@ -44901,6 +45714,200 @@ const _AssetLoader = class _AssetLoader {
 _AssetLoader.loadPromise = null;
 _AssetLoader.characterLoadPromises = /* @__PURE__ */ new Map();
 let AssetLoader = _AssetLoader;
+const FLAPPY_BIRD_NEAR_MISS_OUTER_CLEARANCE_RATIO = 0.25;
+const FLAPPY_BIRD_NEAR_MISS_INNER_CLEARANCE_RATIO = 0.125;
+const FLAPPY_BIRD_NEAR_MISS_OUTER_MIN_CLEARANCE_PX = 6;
+const FLAPPY_BIRD_NEAR_MISS_INNER_MIN_CLEARANCE_PX = 3;
+function resolveNearMissBonusTier(options) {
+  const effectiveClearance = Number.isFinite(options.trackedClearance) ? options.trackedClearance : options.currentClearance;
+  if (!Number.isFinite(effectiveClearance)) {
+    return 0;
+  }
+  const thresholds = resolveNearMissThresholds(options.playerHeight);
+  if (effectiveClearance <= thresholds.innerThreshold) {
+    return 2;
+  }
+  if (effectiveClearance <= thresholds.outerThreshold) {
+    return 1;
+  }
+  return 0;
+}
+function resolveNearMissThresholds(playerHeight) {
+  return {
+    outerThreshold: Math.max(
+      FLAPPY_BIRD_NEAR_MISS_OUTER_MIN_CLEARANCE_PX,
+      Math.round(playerHeight * FLAPPY_BIRD_NEAR_MISS_OUTER_CLEARANCE_RATIO)
+    ),
+    innerThreshold: Math.max(
+      FLAPPY_BIRD_NEAR_MISS_INNER_MIN_CLEARANCE_PX,
+      Math.round(playerHeight * FLAPPY_BIRD_NEAR_MISS_INNER_CLEARANCE_RATIO)
+    )
+  };
+}
+const DEFAULT_MIN_PIPE_HEIGHT_TILES = 2;
+const DEFAULT_MIN_EXPANDED_PIPE_HEIGHT_TILES = 1;
+function buildPipeSpawnPlan(options, random = Math.random) {
+  const geometry = resolvePipeGeometry(options, random);
+  const baseItem = {
+    xOffsetTiles: 0,
+    passageHeight: geometry.passageHeight,
+    topPipeHeight: geometry.topPipeHeight,
+    bottomPipeHeight: geometry.bottomPipeHeight
+  };
+  if (options.doublePipePatternChance <= 0 || options.doublePipePatternGapTileOptions.length === 0 || random() >= options.doublePipePatternChance) {
+    return {
+      items: [baseItem],
+      isDoublePattern: false,
+      isMisalignedDoublePattern: false
+    };
+  }
+  const gapTiles = options.doublePipePatternGapTileOptions[Math.floor(random() * options.doublePipePatternGapTileOptions.length)] ?? 0;
+  const secondItem = {
+    xOffsetTiles: 1 + gapTiles,
+    passageHeight: geometry.passageHeight,
+    topPipeHeight: geometry.topPipeHeight,
+    bottomPipeHeight: geometry.bottomPipeHeight
+  };
+  const shouldAttemptMisalignedPattern = options.misalignedDoublePipePatternChance > 0 && options.misalignedDoublePipePatternOffsetTiles > 0 && random() < options.misalignedDoublePipePatternChance;
+  if (!shouldAttemptMisalignedPattern) {
+    return {
+      items: [baseItem, secondItem],
+      isDoublePattern: true,
+      isMisalignedDoublePattern: false
+    };
+  }
+  const misalignedTopPipeHeight = resolveMisalignedTopPipeHeight(
+    geometry.topPipeHeight,
+    geometry.topPipeHeightMin,
+    geometry.topPipeHeightMax,
+    options.tileSize * options.misalignedDoublePipePatternOffsetTiles,
+    random()
+  );
+  const isMisalignedDoublePattern = misalignedTopPipeHeight !== geometry.topPipeHeight;
+  return {
+    items: [
+      baseItem,
+      {
+        ...secondItem,
+        topPipeHeight: misalignedTopPipeHeight,
+        bottomPipeHeight: options.availableHeight - misalignedTopPipeHeight - geometry.passageHeight
+      }
+    ],
+    isDoublePattern: true,
+    isMisalignedDoublePattern
+  };
+}
+function resolvePipeGeometry(options, random) {
+  const passageHeight = resolvePassageHeight(options, random());
+  const topPipeHeightRange = resolveTopPipeHeightRange(options, passageHeight);
+  const topPipeHeight = options.passagePositionExpansionTiles > 0 ? resolveExpandedTopPipeHeight(
+    topPipeHeightRange,
+    options.tileSize,
+    random()
+  ) : resolveLegacyTopPipeHeight(
+    options.availableHeight,
+    passageHeight,
+    options.tileSize,
+    random()
+  );
+  return {
+    passageHeight,
+    topPipeHeight,
+    bottomPipeHeight: options.availableHeight - topPipeHeight - passageHeight,
+    topPipeHeightMin: topPipeHeightRange.min,
+    topPipeHeightMax: topPipeHeightRange.max
+  };
+}
+function resolvePassageHeight(options, roll) {
+  const minPipeHeight = options.tileSize * DEFAULT_MIN_PIPE_HEIGHT_TILES;
+  const maxAvailablePassageHeight = Math.max(
+    minPipeHeight,
+    options.availableHeight - minPipeHeight * 2
+  );
+  const minPassageHeight = Math.min(
+    maxAvailablePassageHeight,
+    Math.max(
+      minPipeHeight,
+      options.availableHeight * options.passageHeightMinRatio
+    )
+  );
+  const maxPassageHeight = Math.max(
+    minPassageHeight,
+    Math.min(
+      maxAvailablePassageHeight,
+      Math.max(
+        minPassageHeight,
+        options.availableHeight * options.passageHeightMaxRatio
+      )
+    )
+  );
+  let passageHeight = minPassageHeight + clampRandom(roll) * (maxPassageHeight - minPassageHeight);
+  passageHeight = Math.ceil(passageHeight / options.tileSize) * options.tileSize;
+  return passageHeight;
+}
+function resolveTopPipeHeightRange(options, passageHeight) {
+  const tileSize = options.tileSize;
+  const minPipeHeight = tileSize * DEFAULT_MIN_PIPE_HEIGHT_TILES;
+  const minExpandedPipeHeight = tileSize * DEFAULT_MIN_EXPANDED_PIPE_HEIGHT_TILES;
+  const legacyMaxTopPipeHeight = resolveLegacyMaxTopPipeHeight(
+    options.availableHeight,
+    passageHeight,
+    tileSize
+  );
+  const expansion = Math.max(0, options.passagePositionExpansionTiles) * tileSize;
+  const min = Math.max(minExpandedPipeHeight, minPipeHeight - expansion);
+  const maxAllowedTopPipeHeight = Math.max(
+    min,
+    Math.floor(
+      (options.availableHeight - passageHeight - minExpandedPipeHeight) / tileSize
+    ) * tileSize
+  );
+  return {
+    min,
+    max: Math.min(maxAllowedTopPipeHeight, legacyMaxTopPipeHeight + expansion)
+  };
+}
+function resolveLegacyTopPipeHeight(availableHeight, passageHeight, tileSize, roll) {
+  const minPipeHeight = tileSize * DEFAULT_MIN_PIPE_HEIGHT_TILES;
+  return Math.max(
+    minPipeHeight,
+    Math.floor(
+      clampRandom(roll) * (availableHeight - passageHeight - minPipeHeight * 2) / tileSize
+    ) * tileSize
+  );
+}
+function resolveLegacyMaxTopPipeHeight(availableHeight, passageHeight, tileSize) {
+  const minPipeHeight = tileSize * DEFAULT_MIN_PIPE_HEIGHT_TILES;
+  const topPipeHeightSpan = availableHeight - passageHeight - minPipeHeight * 2;
+  const maxLegacyBucket = Math.max(0, Math.ceil(topPipeHeightSpan / tileSize) - 1) * tileSize;
+  return Math.max(minPipeHeight, maxLegacyBucket);
+}
+function resolveExpandedTopPipeHeight(range, tileSize, roll) {
+  const totalSteps = Math.max(0, Math.round((range.max - range.min) / tileSize));
+  return range.min + Math.floor(clampRandom(roll) * (totalSteps + 1)) * tileSize;
+}
+function resolveMisalignedTopPipeHeight(originalTopPipeHeight, minTopPipeHeight, maxTopPipeHeight, offsetPx, directionRoll) {
+  const candidateDirections = clampRandom(directionRoll) < 0.5 ? [1, -1] : [-1, 1];
+  for (const direction of candidateDirections) {
+    const candidate = Math.max(
+      minTopPipeHeight,
+      Math.min(
+        maxTopPipeHeight,
+        originalTopPipeHeight + direction * offsetPx
+      )
+    );
+    if (candidate !== originalTopPipeHeight) {
+      return candidate;
+    }
+  }
+  return originalTopPipeHeight;
+}
+function clampRandom(value) {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  return Math.min(0.999999, Math.max(0, value));
+}
 const FLAPPY_BIRD_OBJECT_SCALE = 1.1;
 const FLAPPY_BIRD_GROUND_TILE_SCALE = 0.9;
 const FLAPPY_BIRD_PIPE_TILE_SCALE = 0.81;
@@ -44914,7 +45921,6 @@ const FLAPPY_BIRD_CLOUD_MIN_GAP = 90;
 const FLAPPY_BIRD_CLOUD_MAX_GAP = 185;
 const FLAPPY_BIRD_CLOUD_TOP_PADDING = 28;
 const FLAPPY_BIRD_CLOUD_MAX_HEIGHT_RATIO = 0.72;
-const FLAPPY_BIRD_NEAR_MISS_CLEARANCE_RATIO = 0.25;
 const FLAPPY_BIRD_BASE_FRAME_MS = 1e3 / 60;
 const FLAPPY_BIRD_MAX_FRAME_SCALE = 1.25;
 const FLAPPY_BIRD_SPEED_TRANSITION_MS = 140;
@@ -44967,15 +45973,23 @@ class CloudManager {
       return;
     }
     this.speed = smoothFlappyBirdSpeed(this.speed, this.targetSpeed, deltaTime);
-    const frameScale = resolveFrameScale(deltaTime);
-    for (let i2 = 0; i2 < this.clouds.length; i2++) {
-      const cloud = this.clouds[i2];
-      cloud.position.x -= this.speed * frameScale;
-      if (cloud.position.x + cloud.width / 2 < 0) {
-        this.cloudContainer.removeChild(cloud);
-        this.clouds.splice(i2, 1);
-        i2 -= 1;
+    const movementStep = this.speed * resolveFrameScale(deltaTime);
+    for (const cloud of this.clouds) {
+      cloud.position.x -= movementStep;
+    }
+    while (this.clouds.length > 0) {
+      const firstCloud = this.clouds[0];
+      if (firstCloud.position.x + firstCloud.width / 2 >= 0) {
+        break;
       }
+      const recycledCloud = this.clouds.shift();
+      if (!recycledCloud) {
+        break;
+      }
+      const lastCloud2 = this.clouds[this.clouds.length - 1];
+      const nextX = lastCloud2 ? lastCloud2.position.x + lastCloud2.width / 2 : 0;
+      this.configureCloud(recycledCloud, nextX);
+      this.clouds.push(recycledCloud);
     }
     const lastCloud = this.clouds[this.clouds.length - 1];
     if (!lastCloud || lastCloud.position.x + lastCloud.width / 2 < this.app.screen.width) {
@@ -45016,22 +46030,32 @@ class CloudManager {
   getContainer() {
     return this.cloudContainer;
   }
+  getCloudCount() {
+    return this.clouds.length;
+  }
   createCloud(startX) {
     const cloudTexture = this.getRandomCloudTexture();
     if (!cloudTexture) {
       return startX;
     }
-    const scale = FLAPPY_BIRD_CLOUD_MIN_SCALE + Math.random() * (FLAPPY_BIRD_CLOUD_MAX_SCALE - FLAPPY_BIRD_CLOUD_MIN_SCALE);
     const cloud = new Sprite(cloudTexture);
     cloud.anchor.set(0.5);
+    this.configureCloud(cloud, startX, cloudTexture);
+    this.cloudContainer.addChild(cloud);
+    this.clouds.push(cloud);
+    return cloud.position.x + cloud.width / 2;
+  }
+  configureCloud(cloud, startX, texture = this.getRandomCloudTexture()) {
+    if (!texture) {
+      return;
+    }
+    const scale = FLAPPY_BIRD_CLOUD_MIN_SCALE + Math.random() * (FLAPPY_BIRD_CLOUD_MAX_SCALE - FLAPPY_BIRD_CLOUD_MIN_SCALE);
+    cloud.texture = texture;
     cloud.scale.set(scale);
     cloud.__flappyCloudAlphaVariance = Math.random();
     this.applyVisualStyle(cloud);
     cloud.position.x = startX + cloud.width / 2 + this.getRandomCloudGap();
     cloud.position.y = this.getRandomCloudY(cloud.height);
-    this.cloudContainer.addChild(cloud);
-    this.clouds.push(cloud);
-    return cloud.position.x + cloud.width / 2;
   }
   getRandomCloudGap() {
     return FLAPPY_BIRD_CLOUD_MIN_GAP + Math.random() * (FLAPPY_BIRD_CLOUD_MAX_GAP - FLAPPY_BIRD_CLOUD_MIN_GAP);
@@ -45087,12 +46111,16 @@ class GroundManager {
       this.groundTileSize,
       { isStatic: true, label: "ground" }
     );
-    this.physicsManager.addToEngine(this.groundContainer, this.groundBody);
+    this.physicsManager.addToEngine(null, this.groundBody, {
+      syncDisplay: false
+    });
+    this.syncGroundContainerPosition();
   }
   /**
    * 초기 바닥 타일을 설정합니다.
    */
   setup() {
+    this.syncGroundContainerPosition();
     this.groundContainer.removeChildren().forEach((child) => child.destroy());
     this.groundTiles = [];
     this.lastGroundTileX = 0;
@@ -45131,20 +46159,22 @@ class GroundManager {
       return;
     }
     this.speed = smoothFlappyBirdSpeed(this.speed, this.targetSpeed, deltaTime);
-    const frameScale = resolveFrameScale(deltaTime);
-    for (let i2 = 0; i2 < this.groundTiles.length; i2++) {
-      const tile = this.groundTiles[i2];
-      tile.position.x -= this.speed * frameScale;
-      if (tile.position.x + this.groundTileSize < 0) {
-        this.groundContainer.removeChild(tile);
-        this.groundTiles.splice(i2, 1);
-        i2--;
-      }
+    const movementStep = this.speed * resolveFrameScale(deltaTime);
+    for (const tile of this.groundTiles) {
+      tile.position.x -= movementStep;
     }
-    const lastTile = this.groundTiles[this.groundTiles.length - 1];
-    if (lastTile && lastTile.position.x + this.groundTileSize < this.app.screen.width) {
-      this.lastGroundTileX = lastTile.position.x + this.groundTileSize;
-      this.createGroundTile();
+    while (this.groundTiles.length > 0) {
+      const firstTile = this.groundTiles[0];
+      if (firstTile.position.x + this.groundTileSize >= 0) {
+        break;
+      }
+      const recycledTile = this.groundTiles.shift();
+      if (!recycledTile) {
+        break;
+      }
+      const lastTile = this.groundTiles[this.groundTiles.length - 1];
+      recycledTile.position.x = (lastTile ? lastTile.position.x : 0) + this.groundTileSize;
+      this.groundTiles.push(recycledTile);
     }
   }
   resize() {
@@ -45152,10 +46182,14 @@ class GroundManager {
       x: this.groundBody.position.x,
       y: this.getGroundBodyCenterY()
     });
+    this.syncGroundContainerPosition();
     this.setup();
   }
   getGroundBodyCenterY() {
     return this.app.screen.height;
+  }
+  syncGroundContainerPosition() {
+    this.groundContainer.position.set(0, this.groundBody.bounds.min.y);
   }
   /**
    * 지면 컨테이너를 반환합니다.
@@ -45175,6 +46209,9 @@ class GroundManager {
   getTileHeight() {
     return this.groundTileSize;
   }
+  getTileCount() {
+    return this.groundTiles.length;
+  }
   setSpeed(speed) {
     this.targetSpeed = speed;
   }
@@ -45182,37 +46219,47 @@ class GroundManager {
 class PipeManager {
   constructor(app, physicsManager, speed, spawnInterval, groundHeight) {
     this.pipesPairs = [];
-    this.lastPipeSpawnTime = 0;
     this.passageHeightMinRatio = 0.35;
     this.passageHeightMaxRatio = 0.45;
+    this.passagePositionExpansionTiles = 0;
+    this.doublePipePatternChance = 0;
+    this.doublePipePatternGapTileOptions = [];
+    this.misalignedDoublePipePatternChance = 0;
+    this.misalignedDoublePipePatternOffsetTiles = 0;
     this.app = app;
     this.physicsManager = physicsManager;
     this.speed = speed;
     this.targetSpeed = speed;
     this.pipeSpawnInterval = spawnInterval;
     this.targetPipeSpawnInterval = spawnInterval;
+    this.elapsedSinceLastPipeSpawnMs = spawnInterval;
     this.groundHeight = groundHeight;
     this.pipes = new Container();
   }
   /**
    * 파이프를 업데이트합니다.
    */
-  update(currentTime, playerBody, onScoreUpdate, deltaTime) {
+  update(playerBody, onScoreUpdate, deltaTime) {
+    let spawned = 0;
     this.pipeSpawnInterval = smoothFlappyBirdSpeed(
       this.pipeSpawnInterval,
       this.targetPipeSpawnInterval,
       deltaTime
     );
-    if (currentTime - this.lastPipeSpawnTime > this.pipeSpawnInterval) {
-      this.createPipePair();
-      this.lastPipeSpawnTime = currentTime;
+    this.elapsedSinceLastPipeSpawnMs += Math.max(0, deltaTime);
+    if (this.elapsedSinceLastPipeSpawnMs > this.pipeSpawnInterval) {
+      spawned += this.createPipePattern();
+      this.elapsedSinceLastPipeSpawnMs = 0;
     }
-    this.movePipes(playerBody, onScoreUpdate, deltaTime);
+    return {
+      spawned,
+      removed: this.movePipes(playerBody, onScoreUpdate, deltaTime)
+    };
   }
   /**
    * 파이프 쌍을 생성합니다.
    */
-  createPipePair() {
+  createPipePattern() {
     const assets = AssetLoader.getAssets();
     if (!assets.tilesetSprites || !assets.tilesetSprites.textures["pipe-body"]) {
       throw new Error("Pipe textures not found in assets");
@@ -45224,15 +46271,43 @@ class PipeManager {
         texture.frame.width * FLAPPY_BIRD_OBJECT_SCALE * FLAPPY_BIRD_PIPE_TILE_SCALE
       )
     );
-    const { top, topBody, bottom, bottomBody } = this.createPipePairObjects(tileSize);
-    top.position.x = topBody.position.x;
-    top.position.y = topBody.position.y;
-    bottom.position.x = bottomBody.position.x;
-    bottom.position.y = bottomBody.position.y;
+    const spawnPlan = buildPipeSpawnPlan({
+      tileSize,
+      availableHeight: this.app.screen.height - this.groundHeight,
+      passageHeightMinRatio: this.passageHeightMinRatio,
+      passageHeightMaxRatio: this.passageHeightMaxRatio,
+      passagePositionExpansionTiles: this.passagePositionExpansionTiles,
+      doublePipePatternChance: this.doublePipePatternChance,
+      doublePipePatternGapTileOptions: this.doublePipePatternGapTileOptions,
+      misalignedDoublePipePatternChance: this.misalignedDoublePipePatternChance,
+      misalignedDoublePipePatternOffsetTiles: this.misalignedDoublePipePatternOffsetTiles
+    });
+    for (const item of spawnPlan.items) {
+      this.createPipePair({
+        tileSize,
+        item
+      });
+    }
+    return spawnPlan.items.length;
+  }
+  /**
+   * 파이프 쌍을 생성합니다.
+   */
+  createPipePair(options) {
+    const { tileSize, item } = options;
+    const { top, topBody, bottom, bottomBody } = this.createPipePairObjects({
+      tileSize,
+      passageHeight: item.passageHeight,
+      topPipeHeight: item.topPipeHeight,
+      bottomPipeHeight: item.bottomPipeHeight,
+      xOffsetTiles: item.xOffsetTiles
+    });
     this.pipes.addChild(top);
     this.pipes.addChild(bottom);
-    this.physicsManager.addToEngine(top, topBody);
-    this.physicsManager.addToEngine(bottom, bottomBody);
+    this.physicsManager.addToEngine(null, topBody, { syncDisplay: false });
+    this.physicsManager.addToEngine(null, bottomBody, { syncDisplay: false });
+    this.syncPipeDisplayObject(top, topBody);
+    this.syncPipeDisplayObject(bottom, bottomBody);
     this.pipesPairs.push({
       top,
       bottom,
@@ -45246,7 +46321,14 @@ class PipeManager {
   /**
    * 파이프 쌍 오브젝트를 생성합니다.
    */
-  createPipePairObjects(tileSize) {
+  createPipePairObjects(options) {
+    const {
+      tileSize,
+      passageHeight,
+      topPipeHeight,
+      bottomPipeHeight,
+      xOffsetTiles
+    } = options;
     const assets = AssetLoader.getAssets();
     const tilesetSprites = assets.tilesetSprites;
     if (!tilesetSprites) {
@@ -45254,63 +46336,21 @@ class PipeManager {
     }
     const pipeBodyTexture = tilesetSprites.textures["pipe-body"];
     const pipeEndTexture = tilesetSprites.textures["pipe-end"];
-    const minPipeHeight = tileSize * 2;
-    const availableHeight = this.app.screen.height - this.groundHeight;
-    const maxAvailablePassageHeight = Math.max(
-      tileSize * 2,
-      availableHeight - minPipeHeight * 2
-    );
-    const minPassageHeight = Math.min(
-      maxAvailablePassageHeight,
-      Math.max(tileSize * 2, availableHeight * this.passageHeightMinRatio)
-    );
-    const maxPassageHeight = Math.max(
-      minPassageHeight,
-      Math.min(
-        maxAvailablePassageHeight,
-        Math.max(
-          minPassageHeight,
-          availableHeight * this.passageHeightMaxRatio
-        )
-      )
-    );
-    let passageHeight = minPassageHeight + Math.random() * (maxPassageHeight - minPassageHeight);
-    passageHeight = Math.ceil(passageHeight / tileSize) * tileSize;
-    const topPipeHeight = Math.max(
-      minPipeHeight,
-      Math.floor(
-        Math.random() * (availableHeight - passageHeight - minPipeHeight * 2) / tileSize
-      ) * tileSize
-    );
-    const bottomPipeHeight = availableHeight - topPipeHeight - passageHeight;
-    const top = new Container();
-    for (let i2 = 0; i2 < Math.round(topPipeHeight / tileSize) - 1; i2++) {
-      const segment = new Sprite(pipeBodyTexture);
-      segment.width = tileSize;
-      segment.height = tileSize;
-      segment.position.set(0, i2 * tileSize);
-      top.addChild(segment);
-    }
-    const topEnd = new Sprite(pipeEndTexture);
-    topEnd.width = tileSize;
-    topEnd.height = tileSize;
-    topEnd.rotation = Math.PI;
-    topEnd.position.set(tileSize, topPipeHeight);
-    top.addChild(topEnd);
-    const bottom = new Container();
-    const bottomEnd = new Sprite(pipeEndTexture);
-    bottomEnd.width = tileSize;
-    bottomEnd.height = tileSize;
-    bottomEnd.position.set(0, 0);
-    bottom.addChild(bottomEnd);
-    for (let i2 = 1; i2 <= Math.round(bottomPipeHeight / tileSize); i2++) {
-      const segment = new Sprite(pipeBodyTexture);
-      segment.width = tileSize;
-      segment.height = tileSize;
-      segment.position.set(0, i2 * tileSize);
-      bottom.addChild(segment);
-    }
-    const topBodyX = this.app.screen.width + tileSize / 2;
+    const top = this.createPipeContainer({
+      height: topPipeHeight,
+      tileSize,
+      pipeBodyTexture,
+      pipeEndTexture,
+      position: "top"
+    });
+    const bottom = this.createPipeContainer({
+      height: bottomPipeHeight,
+      tileSize,
+      pipeBodyTexture,
+      pipeEndTexture,
+      position: "bottom"
+    });
+    const topBodyX = this.app.screen.width + tileSize / 2 + xOffsetTiles * tileSize;
     const topBodyY = topPipeHeight / 2;
     const bottomBodyX = topBodyX;
     const bottomBodyY = topPipeHeight + passageHeight + bottomPipeHeight / 2 + tileSize / 2;
@@ -45336,6 +46376,7 @@ class PipeManager {
   movePipes(playerBody, onScoreUpdate, deltaTime) {
     this.speed = smoothFlappyBirdSpeed(this.speed, this.targetSpeed, deltaTime);
     const movementStep = this.speed * resolveFrameScale(deltaTime);
+    let removed2 = 0;
     for (let i2 = 0; i2 < this.pipesPairs.length; i2++) {
       const pair = this.pipesPairs[i2];
       this.physicsManager.translateBody(pair.topBody, {
@@ -45346,6 +46387,8 @@ class PipeManager {
         x: -movementStep,
         y: 0
       });
+      this.syncPipeDisplayObject(pair.top, pair.topBody);
+      this.syncPipeDisplayObject(pair.bottom, pair.bottomBody);
       this.trackNearMissClearances(pair, playerBody);
       if (this.hasPairPassedPlayer(pair, playerBody) && !pair.passed) {
         pair.passed = true;
@@ -45353,9 +46396,11 @@ class PipeManager {
       }
       if (pair.topBody.position.x < -pair.top.width) {
         this.removePipePair(i2);
+        removed2 += 1;
         i2--;
       }
     }
+    return removed2;
   }
   /**
    * 특정 인덱스의 파이프 쌍을 제거합니다.
@@ -45381,16 +46426,21 @@ class PipeManager {
    */
   reset() {
     this.clearAllPipes();
-    this.lastPipeSpawnTime = 0;
+    this.elapsedSinceLastPipeSpawnMs = this.pipeSpawnInterval;
   }
   applyDifficulty(options) {
-    this.targetSpeed = options.speed;
+    this.targetSpeed = options.pipeSpeed;
     this.targetPipeSpawnInterval = options.pipeSpawnInterval;
     if (this.pipesPairs.length === 0) {
       this.pipeSpawnInterval = options.pipeSpawnInterval;
     }
     this.passageHeightMinRatio = options.passageHeightMinRatio;
     this.passageHeightMaxRatio = options.passageHeightMaxRatio;
+    this.passagePositionExpansionTiles = options.passagePositionExpansionTiles;
+    this.doublePipePatternChance = options.doublePipePatternChance;
+    this.doublePipePatternGapTileOptions = options.doublePipePatternGapTileOptions;
+    this.misalignedDoublePipePatternChance = options.misalignedDoublePipePatternChance;
+    this.misalignedDoublePipePatternOffsetTiles = options.misalignedDoublePipePatternOffsetTiles;
   }
   /**
    * 파이프 컨테이너를 반환합니다.
@@ -45398,25 +46448,66 @@ class PipeManager {
   getContainer() {
     return this.pipes;
   }
+  getActivePairCount() {
+    return this.pipesPairs.length;
+  }
+  createPipeContainer(options) {
+    const {
+      height,
+      tileSize,
+      pipeBodyTexture,
+      pipeEndTexture,
+      position
+    } = options;
+    const pipe2 = new Container();
+    const shaftHeight = Math.max(0, height - tileSize);
+    if (shaftHeight > 0) {
+      const shaft = new TilingSprite({
+        texture: pipeBodyTexture,
+        width: tileSize,
+        height: shaftHeight
+      });
+      shaft.tileScale.set(
+        tileSize / pipeBodyTexture.frame.width,
+        tileSize / pipeBodyTexture.frame.height
+      );
+      shaft.position.set(0, position === "top" ? 0 : tileSize);
+      pipe2.addChild(shaft);
+    }
+    const endCap = new Sprite(pipeEndTexture);
+    endCap.anchor.set(0.5);
+    endCap.width = tileSize;
+    endCap.height = tileSize;
+    endCap.position.set(
+      tileSize / 2,
+      position === "top" ? height - tileSize / 2 : tileSize / 2
+    );
+    if (position === "top") {
+      endCap.rotation = Math.PI;
+    }
+    pipe2.addChild(endCap);
+    return pipe2;
+  }
+  syncPipeDisplayObject(displayObject, body) {
+    displayObject.position.x = body.bounds.min.x;
+    displayObject.position.y = body.bounds.min.y;
+  }
   getNearMissBonus(pair, playerBody) {
     const playerHeight = playerBody.bounds.max.y - playerBody.bounds.min.y;
-    const threshold = Math.max(
-      6,
-      Math.round(playerHeight * FLAPPY_BIRD_NEAR_MISS_CLEARANCE_RATIO)
-    );
     const trackedClearance = Math.min(
       pair.minTopClearance,
       pair.minBottomClearance
     );
-    if (Number.isFinite(trackedClearance)) {
-      return trackedClearance <= threshold ? 1 : 0;
-    }
     const { topClearance, bottomClearance } = this.resolveGapClearances(
       pair,
       playerBody
     );
     const currentClearance = Math.min(topClearance, bottomClearance);
-    return currentClearance <= threshold ? 1 : 0;
+    return resolveNearMissBonusTier({
+      playerHeight,
+      trackedClearance,
+      currentClearance
+    });
   }
   trackNearMissClearances(pair, playerBody) {
     if (!this.isPlayerWithinNearMissWindow(pair, playerBody)) {
@@ -45605,14 +46696,15 @@ const FLAPPY_BIRD_BGM_STEPS_PER_BEAT = 2;
 const FLAPPY_BIRD_BGM_STEP_DURATION_S = 60 / FLAPPY_BIRD_BGM_BPM / FLAPPY_BIRD_BGM_STEPS_PER_BEAT;
 const FLAPPY_BIRD_BGM_SCHEDULE_AHEAD_S = 0.12;
 const FLAPPY_BIRD_BGM_SCHEDULER_INTERVAL_MS = 25;
-const FLAPPY_BIRD_BGM_MASTER_GAIN = 0.066;
-const FLAPPY_BIRD_SFX_GAIN = 0.102;
+const FLAPPY_BIRD_AUDIO_VOLUME_MULTIPLIER = 1.3;
+const FLAPPY_BIRD_BGM_MASTER_GAIN = 0.066 * FLAPPY_BIRD_AUDIO_VOLUME_MULTIPLIER;
+const FLAPPY_BIRD_SFX_GAIN = 0.102 * FLAPPY_BIRD_AUDIO_VOLUME_MULTIPLIER;
 const FLAPPY_BIRD_BGM_ATTACK_S = 0.02;
 const FLAPPY_BIRD_BGM_RELEASE_S = 0.08;
 const FLAPPY_BIRD_PIPE_PASS_CUE_ATTACK_S = 4e-3;
 const FLAPPY_BIRD_PIPE_PASS_CUE_RELEASE_S = 0.12;
 const FLAPPY_BIRD_COUNTDOWN_CUE_DURATION_S = 0.09;
-const FLAPPY_BIRD_BGM_TEMPO_TRANSITION_MS = 520;
+const FLAPPY_BIRD_BGM_TEMPO_TRANSITION_MS = 900;
 const FLAPPY_BIRD_BGM_LEAD_PATTERN = [
   76,
   79,
@@ -45753,7 +46845,10 @@ class FlappyBirdBgmController {
     if (!this.audioContext || !this.effectsGain || this.audioContext.state !== "running") {
       return;
     }
-    const clampedDisplayValue = Math.min(3, Math.max(1, Math.floor(displayValue)));
+    const clampedDisplayValue = Math.min(
+      3,
+      Math.max(1, Math.floor(displayValue))
+    );
     const countdownStep = 3 - clampedDisplayValue;
     const baseFrequency = midiToFrequency(69 + countdownStep * 4);
     const accentFrequency = midiToFrequency(76 + countdownStep * 4);
@@ -45966,6 +47061,120 @@ class FlappyBirdBgmController {
     oscillator.stop(noteEndTime + FLAPPY_BIRD_PIPE_PASS_CUE_RELEASE_S + 0.02);
   }
 }
+const FLAPPY_BIRD_TUTORIAL_SCORE_LIMIT = 5;
+const FLAPPY_BIRD_SPEED_STEP_TWO_SCORE_LIMIT = 20;
+const FLAPPY_BIRD_ENDGAME_SCORE_LIMIT = 40;
+const FLAPPY_BIRD_MAX_DIFFICULTY_SCORE = 30;
+const FLAPPY_BIRD_PIPE_SPAWN_INTERVAL_SCALE = 0.72;
+const FLAPPY_BIRD_HIGH_SCORE_PASSAGE_EXPANSION_TILES = 1;
+const FLAPPY_BIRD_DOUBLE_PIPE_PATTERN_CHANCE = 0.25;
+const FLAPPY_BIRD_DOUBLE_PIPE_PATTERN_GAP_TILE_OPTIONS = [0, 1];
+const FLAPPY_BIRD_FAST_PIPE_SPAWN_INTERVAL_MULTIPLIER = 0.8;
+const FLAPPY_BIRD_MISALIGNED_DOUBLE_PIPE_PATTERN_CHANCE = 0.5;
+const FLAPPY_BIRD_MISALIGNED_DOUBLE_PIPE_PATTERN_OFFSET_TILES = 1;
+function reduceFlappyBirdPipeSpawnInterval(intervalMs) {
+  return Math.round(intervalMs * FLAPPY_BIRD_PIPE_SPAWN_INTERVAL_SCALE);
+}
+const FLAPPY_BIRD_TUTORIAL_DIFFICULTY = {
+  pipeSpeed: 4,
+  pipeSpawnInterval: reduceFlappyBirdPipeSpawnInterval(2740),
+  passageHeightMinRatio: 0.35,
+  passageHeightMaxRatio: 0.45,
+  passagePositionExpansionTiles: 0,
+  doublePipePatternChance: 0,
+  doublePipePatternGapTileOptions: [],
+  misalignedDoublePipePatternChance: 0,
+  misalignedDoublePipePatternOffsetTiles: 0
+};
+const FLAPPY_BIRD_BASE_DIFFICULTY = {
+  pipeSpeed: 4.6,
+  pipeSpawnInterval: reduceFlappyBirdPipeSpawnInterval(2480),
+  passageHeightMinRatio: 0.35,
+  passageHeightMaxRatio: 0.35,
+  passagePositionExpansionTiles: 0,
+  doublePipePatternChance: 0,
+  doublePipePatternGapTileOptions: [],
+  misalignedDoublePipePatternChance: 0,
+  misalignedDoublePipePatternOffsetTiles: 0
+};
+const FLAPPY_BIRD_MAX_DIFFICULTY = {
+  pipeSpeed: 5,
+  pipeSpawnInterval: reduceFlappyBirdPipeSpawnInterval(2025)
+};
+const FLAPPY_BIRD_ENDGAME_DIFFICULTY = {
+  pipeSpeed: 5.4,
+  passageHeightMinRatio: 0.28,
+  passageHeightMaxRatio: 0.3
+};
+function resolveFlappyBirdDifficultyState(score) {
+  const baseDifficulty = resolveBaseDifficultyState(score);
+  const hasExpandedPassageRange = score >= 50;
+  const hasDoublePipePattern = score >= 70;
+  const hasFastPipeSpawns = score >= 90;
+  const hasMisalignedDoublePipePattern = score >= 110;
+  return {
+    ...baseDifficulty,
+    pipeSpawnInterval: hasFastPipeSpawns ? Math.round(
+      baseDifficulty.pipeSpawnInterval * FLAPPY_BIRD_FAST_PIPE_SPAWN_INTERVAL_MULTIPLIER
+    ) : baseDifficulty.pipeSpawnInterval,
+    passagePositionExpansionTiles: hasExpandedPassageRange ? FLAPPY_BIRD_HIGH_SCORE_PASSAGE_EXPANSION_TILES : 0,
+    doublePipePatternChance: hasDoublePipePattern ? FLAPPY_BIRD_DOUBLE_PIPE_PATTERN_CHANCE : 0,
+    doublePipePatternGapTileOptions: hasDoublePipePattern ? FLAPPY_BIRD_DOUBLE_PIPE_PATTERN_GAP_TILE_OPTIONS : [],
+    misalignedDoublePipePatternChance: hasMisalignedDoublePipePattern ? FLAPPY_BIRD_MISALIGNED_DOUBLE_PIPE_PATTERN_CHANCE : 0,
+    misalignedDoublePipePatternOffsetTiles: hasMisalignedDoublePipePattern ? FLAPPY_BIRD_MISALIGNED_DOUBLE_PIPE_PATTERN_OFFSET_TILES : 0
+  };
+}
+function resolveBaseDifficultyState(score) {
+  if (score <= FLAPPY_BIRD_TUTORIAL_SCORE_LIMIT) {
+    return FLAPPY_BIRD_TUTORIAL_DIFFICULTY;
+  }
+  const progress = Math.min(
+    1,
+    (score - FLAPPY_BIRD_TUTORIAL_SCORE_LIMIT) / (FLAPPY_BIRD_MAX_DIFFICULTY_SCORE - FLAPPY_BIRD_TUTORIAL_SCORE_LIMIT)
+  );
+  return {
+    ...FLAPPY_BIRD_BASE_DIFFICULTY,
+    pipeSpeed: resolvePipeSpeedForScore(score),
+    pipeSpawnInterval: Math.round(
+      interpolateNumber(
+        FLAPPY_BIRD_BASE_DIFFICULTY.pipeSpawnInterval,
+        FLAPPY_BIRD_MAX_DIFFICULTY.pipeSpawnInterval,
+        progress
+      )
+    ),
+    ...resolvePassageHeightRatiosForScore(score)
+  };
+}
+function resolvePassageHeightRatiosForScore(score) {
+  if (score < FLAPPY_BIRD_SPEED_STEP_TWO_SCORE_LIMIT) {
+    return {
+      passageHeightMinRatio: 0.35,
+      passageHeightMaxRatio: 0.35
+    };
+  }
+  if (score < FLAPPY_BIRD_ENDGAME_SCORE_LIMIT) {
+    return {
+      passageHeightMinRatio: 0.3,
+      passageHeightMaxRatio: 0.3
+    };
+  }
+  return {
+    passageHeightMinRatio: FLAPPY_BIRD_ENDGAME_DIFFICULTY.passageHeightMinRatio,
+    passageHeightMaxRatio: FLAPPY_BIRD_ENDGAME_DIFFICULTY.passageHeightMaxRatio
+  };
+}
+function resolvePipeSpeedForScore(score) {
+  if (score < FLAPPY_BIRD_SPEED_STEP_TWO_SCORE_LIMIT) {
+    return FLAPPY_BIRD_BASE_DIFFICULTY.pipeSpeed;
+  }
+  if (score < FLAPPY_BIRD_ENDGAME_SCORE_LIMIT) {
+    return FLAPPY_BIRD_MAX_DIFFICULTY.pipeSpeed;
+  }
+  return FLAPPY_BIRD_ENDGAME_DIFFICULTY.pipeSpeed;
+}
+function interpolateNumber(start, end, progress) {
+  return start + (end - start) * progress;
+}
 var GameState = /* @__PURE__ */ ((GameState2) => {
   GameState2[GameState2["READY"] = 0] = "READY";
   GameState2[GameState2["PLAYING"] = 1] = "PLAYING";
@@ -45994,8 +47203,8 @@ class PhysicsManager {
   /**
    * 물체를 물리 엔진에 추가합니다.
    */
-  addToEngine(displayObject, body) {
-    this.gameEngine.addGameObject(displayObject, body);
+  addToEngine(displayObject, body, options = {}) {
+    this.gameEngine.addGameObject(displayObject, body, options);
     if (body.label === "basket") {
       matterExports.Body.set(body, {
         inertia: Number.POSITIVE_INFINITY,
@@ -46010,7 +47219,7 @@ class PhysicsManager {
    * 물체를 물리 엔진에서 제거합니다.
    */
   removeFromEngine(body) {
-    matterExports.Composite.remove(this.gameEngine.getPhysicsEngine().world, body);
+    this.gameEngine.removeGameObject(body);
   }
   /**
    * 물체를 특정 방향으로 이동시킵니다.
@@ -46032,6 +47241,12 @@ class PhysicsManager {
   }
   syncDisplayObjects() {
     this.gameEngine.syncDisplayObjectsNow();
+  }
+  getTrackedObjectCount() {
+    return this.gameEngine.getTrackedObjectCount();
+  }
+  getTrackedDisplaySyncCount() {
+    return this.gameEngine.getSyncedDisplayObjectCount();
   }
   /**
    * 충돌 이벤트 리스너를 설정합니다.
@@ -46145,8 +47360,8 @@ const FLAPPY_BIRD_SCORE_LINE_GAP = 24;
 const FLAPPY_BIRD_NEAR_MISS_FONT_SIZE = 21;
 const FLAPPY_BIRD_NEAR_MISS_DURATION_MS = 520;
 const FLAPPY_BIRD_NEAR_MISS_FLOAT_DISTANCE = 14;
-const FLAPPY_BIRD_NEAR_MISS_GOOD_COLOR = 15978338;
-const FLAPPY_BIRD_NEAR_MISS_GREAT_COLOR = 16769162;
+const FLAPPY_BIRD_NEAR_MISS_GOOD_COLOR = 9364479;
+const FLAPPY_BIRD_NEAR_MISS_GREAT_COLOR = 16762967;
 const FLAPPY_BIRD_COUNTDOWN_FONT_SIZE = 63;
 class CountdownUI {
   constructor() {
@@ -46309,7 +47524,7 @@ class NearMissUI {
     this.text = new Text("Good!", {
       fontFamily: FLAPPY_BIRD_FONT_FAMILIES,
       fontSize: FLAPPY_BIRD_NEAR_MISS_FONT_SIZE,
-      fill: 16773544,
+      fill: FLAPPY_BIRD_NEAR_MISS_GOOD_COLOR,
       align: "center",
       stroke: {
         color: 0,
@@ -46321,10 +47536,9 @@ class NearMissUI {
     this.text.alpha = 0;
   }
   showBonus(amount) {
-    const bonusAmount = Math.max(1, Math.floor(amount));
-    const isGreat = bonusAmount >= 2;
-    this.text.text = isGreat ? "Great!" : "Good!";
-    this.text.style.fill = isGreat ? FLAPPY_BIRD_NEAR_MISS_GREAT_COLOR : FLAPPY_BIRD_NEAR_MISS_GOOD_COLOR;
+    const feedback = resolveNearMissFeedback(amount);
+    this.text.text = feedback.text;
+    this.text.style.fill = feedback.fill;
     this.remainingMs = this.totalDurationMs;
     this.text.visible = true;
     this.text.alpha = 1;
@@ -46369,6 +47583,14 @@ class NearMissUI {
   getDisplayObject() {
     return this.text;
   }
+}
+function resolveNearMissFeedback(amount) {
+  const bonusAmount = Math.max(1, Math.floor(amount));
+  const isGreat = bonusAmount >= 2;
+  return {
+    text: isGreat ? "Great!" : "Good!",
+    fill: isGreat ? FLAPPY_BIRD_NEAR_MISS_GREAT_COLOR : FLAPPY_BIRD_NEAR_MISS_GOOD_COLOR
+  };
 }
 const CONTROL_BUTTONS_SET = {
   [
@@ -46415,42 +47637,19 @@ const SKY_STAR_LAYOUT = [
 ];
 const FLAPPY_BIRD_GRAVITY_Y = 2.2;
 const FLAPPY_BIRD_DOUBLE_JUMP_VELOCITY = 11;
-const FLAPPY_BIRD_TUTORIAL_SCORE_LIMIT = 5;
-const FLAPPY_BIRD_SPEED_STEP_TWO_SCORE_LIMIT = 20;
-const FLAPPY_BIRD_ENDGAME_SCORE_LIMIT = 40;
-const FLAPPY_BIRD_MAX_DIFFICULTY_SCORE = 30;
-const FLAPPY_BIRD_PIPE_SPAWN_INTERVAL_SCALE = 0.72;
-const FLAPPY_BIRD_BGM_REFERENCE_PIPE_SPEED = 3.8;
-function reduceFlappyBirdPipeSpawnInterval(intervalMs) {
-  return Math.round(intervalMs * FLAPPY_BIRD_PIPE_SPAWN_INTERVAL_SCALE);
-}
-const FLAPPY_BIRD_TUTORIAL_DIFFICULTY = {
-  pipeSpeed: 4,
-  pipeSpawnInterval: reduceFlappyBirdPipeSpawnInterval(2740),
-  passageHeightMinRatio: 0.35,
-  passageHeightMaxRatio: 0.45
-};
-const FLAPPY_BIRD_BASE_DIFFICULTY = {
-  pipeSpeed: 4.6,
-  pipeSpawnInterval: reduceFlappyBirdPipeSpawnInterval(2480)
-};
-const FLAPPY_BIRD_MAX_DIFFICULTY = {
-  pipeSpeed: 5,
-  pipeSpawnInterval: reduceFlappyBirdPipeSpawnInterval(2025)
-};
-const FLAPPY_BIRD_ENDGAME_DIFFICULTY = {
-  pipeSpeed: 5.4,
-  passageHeightMinRatio: 0.28,
-  passageHeightMaxRatio: 0.3
-};
+const FLAPPY_BIRD_BGM_BASE_TEMPO_MULTIPLIER = 1;
+const FLAPPY_BIRD_BGM_MIDGAME_TEMPO_MULTIPLIER = 1.08;
+const FLAPPY_BIRD_BGM_ENDGAME_TEMPO_MULTIPLIER = 1.14;
+const FLAPPY_BIRD_BGM_MAX_TEMPO_MULTIPLIER = 1.16;
+const FLAPPY_BIRD_SKY_SYNC_INTERVAL_MS = 1e3;
 class FlappyBirdGameScene extends Container {
   constructor(game) {
     super();
     this.initialized = false;
     this.gameState = GameState.READY;
     this.gameOptions = {
-      pipeSpeed: 4,
-      pipeSpawnInterval: reduceFlappyBirdPipeSpawnInterval(2740),
+      pipeSpeed: FLAPPY_BIRD_TUTORIAL_DIFFICULTY.pipeSpeed,
+      pipeSpawnInterval: FLAPPY_BIRD_TUTORIAL_DIFFICULTY.pipeSpawnInterval,
       jumpVelocity: 7
     };
     this.skyContext = null;
@@ -46459,8 +47658,10 @@ class FlappyBirdGameScene extends Container {
       progress: 1
     };
     this.currentSkyMinuteKey = null;
+    this.nextSkySyncAtMs = 0;
     this.isReturningToMain = false;
     this.isSettingsMenuOpen = false;
+    this.lastSlowFrameLogAtMs = 0;
     this.gameOverVibrationTimeoutIds = [];
     this.game = game;
     this.boundHandleKeyDown = this.handleKeyDown.bind(this);
@@ -46478,7 +47679,7 @@ class FlappyBirdGameScene extends Container {
     const playerCharacterKey = this.game.getFlappyBirdCharacterKey();
     await AssetLoader.loadAssets(playerCharacterKey);
     this.skyContext = await this.game.getFlappyBirdSkyContext();
-    this.syncSkyState(true);
+    this.syncSkyState(Date.now(), true);
     const bestScore = await ((_b = (_a = this.game).getFlappyBirdBestScore) == null ? void 0 : _b.call(_a)) ?? 0;
     this.playerManager = new PlayerManager(
       this.game.app,
@@ -46729,7 +47930,8 @@ class FlappyBirdGameScene extends Container {
       sunTimes: ((_a = this.skyContext) == null ? void 0 : _a.sunTimes) ?? null
     };
     this.currentSkyMinuteKey = null;
-    this.syncSkyState(true);
+    this.nextSkySyncAtMs = 0;
+    this.syncSkyState(Date.now(), true);
   }
   handleScoreIncrement(scoreDelta = 1) {
     var _a, _b, _c, _d;
@@ -46749,71 +47951,51 @@ class FlappyBirdGameScene extends Container {
     }
   }
   applyDifficultyForScore(score) {
-    const difficulty = this.resolveDifficultyState(score);
-    this.pipeManager.applyDifficulty({
-      speed: difficulty.pipeSpeed,
-      pipeSpawnInterval: difficulty.pipeSpawnInterval,
-      passageHeightMinRatio: difficulty.passageHeightMinRatio,
-      passageHeightMaxRatio: difficulty.passageHeightMaxRatio
-    });
+    const difficulty = resolveFlappyBirdDifficultyState(score);
+    this.pipeManager.applyDifficulty(difficulty);
     this.groundManager.setSpeed(difficulty.pipeSpeed);
     this.cloudManager.setSpeed(difficulty.pipeSpeed);
-    this.bgmController.setTempoMultiplier(
-      this.resolveBgmTempoMultiplier(difficulty.pipeSpeed)
-    );
+    this.bgmController.setTempoMultiplier(this.resolveBgmTempoMultiplier(score));
   }
-  resolveDifficultyState(score) {
+  resolveBgmTempoMultiplier(score) {
     if (score <= FLAPPY_BIRD_TUTORIAL_SCORE_LIMIT) {
-      return FLAPPY_BIRD_TUTORIAL_DIFFICULTY;
+      return FLAPPY_BIRD_BGM_BASE_TEMPO_MULTIPLIER;
     }
-    const progress = Math.min(
-      1,
-      (score - FLAPPY_BIRD_TUTORIAL_SCORE_LIMIT) / (FLAPPY_BIRD_MAX_DIFFICULTY_SCORE - FLAPPY_BIRD_TUTORIAL_SCORE_LIMIT)
-    );
-    return {
-      pipeSpeed: this.resolvePipeSpeedForScore(score),
-      pipeSpawnInterval: Math.round(
-        this.interpolateNumber(
-          FLAPPY_BIRD_BASE_DIFFICULTY.pipeSpawnInterval,
-          FLAPPY_BIRD_MAX_DIFFICULTY.pipeSpawnInterval,
-          progress
+    if (score < FLAPPY_BIRD_SPEED_STEP_TWO_SCORE_LIMIT) {
+      return this.interpolateNumber(
+        FLAPPY_BIRD_BGM_BASE_TEMPO_MULTIPLIER,
+        FLAPPY_BIRD_BGM_MIDGAME_TEMPO_MULTIPLIER,
+        this.resolveRangeProgress(
+          score,
+          FLAPPY_BIRD_TUTORIAL_SCORE_LIMIT + 1,
+          FLAPPY_BIRD_SPEED_STEP_TWO_SCORE_LIMIT - 1
         )
-      ),
-      ...this.resolvePassageHeightRatiosForScore(score)
-    };
-  }
-  resolvePassageHeightRatiosForScore(score) {
-    if (score < FLAPPY_BIRD_SPEED_STEP_TWO_SCORE_LIMIT) {
-      return {
-        passageHeightMinRatio: 0.35,
-        passageHeightMaxRatio: 0.35
-      };
+      );
     }
     if (score < FLAPPY_BIRD_ENDGAME_SCORE_LIMIT) {
-      return {
-        passageHeightMinRatio: 0.3,
-        passageHeightMaxRatio: 0.3
-      };
+      return this.interpolateNumber(
+        FLAPPY_BIRD_BGM_MIDGAME_TEMPO_MULTIPLIER,
+        FLAPPY_BIRD_BGM_ENDGAME_TEMPO_MULTIPLIER,
+        this.resolveRangeProgress(
+          score,
+          FLAPPY_BIRD_SPEED_STEP_TWO_SCORE_LIMIT,
+          FLAPPY_BIRD_ENDGAME_SCORE_LIMIT - 1
+        )
+      );
     }
-    return {
-      passageHeightMinRatio: FLAPPY_BIRD_ENDGAME_DIFFICULTY.passageHeightMinRatio,
-      passageHeightMaxRatio: FLAPPY_BIRD_ENDGAME_DIFFICULTY.passageHeightMaxRatio
-    };
-  }
-  resolvePipeSpeedForScore(score) {
-    if (score < FLAPPY_BIRD_SPEED_STEP_TWO_SCORE_LIMIT) {
-      return FLAPPY_BIRD_BASE_DIFFICULTY.pipeSpeed;
-    }
-    if (score < FLAPPY_BIRD_ENDGAME_SCORE_LIMIT) {
-      return FLAPPY_BIRD_MAX_DIFFICULTY.pipeSpeed;
-    }
-    return FLAPPY_BIRD_ENDGAME_DIFFICULTY.pipeSpeed;
-  }
-  resolveBgmTempoMultiplier(pipeSpeed) {
-    return Math.max(0.5, pipeSpeed / FLAPPY_BIRD_BGM_REFERENCE_PIPE_SPEED);
+    return FLAPPY_BIRD_BGM_MAX_TEMPO_MULTIPLIER;
   }
   interpolateNumber(start, end, progress) {
     return start + (end - start) * progress;
+  }
+  resolveRangeProgress(value, rangeStart, rangeEnd) {
+    if (rangeEnd <= rangeStart) {
+      return 1;
+    }
+    return Math.min(
+      1,
+      Math.max(0, (value - rangeStart) / (rangeEnd - rangeStart))
+    );
   }
   clearGameOverVibrationPattern() {
     while (this.gameOverVibrationTimeoutIds.length > 0) {
@@ -46950,8 +48132,13 @@ class FlappyBirdGameScene extends Container {
    */
   update(deltaTime) {
     if (!this.initialized) return;
+    const updateStartedAtMs = 0;
     const currentTime = Date.now();
-    this.syncSkyState();
+    let pipeUpdateStats = {
+      spawned: 0,
+      removed: 0
+    };
+    this.syncSkyState(currentTime);
     this.nearMissUI.update(deltaTime);
     this.playerManager.update();
     if (this.gameState === GameState.COUNTDOWN) {
@@ -46964,19 +48151,30 @@ class FlappyBirdGameScene extends Container {
       if (hasCountdownFinished) {
         this.startGame();
       }
+      this.maybeLogSlowFrame(
+        deltaTime,
+        updateStartedAtMs,
+        currentTime,
+        pipeUpdateStats
+      );
       return;
     }
     if (this.gameState === GameState.PLAYING) {
       this.cloudManager.update(deltaTime);
       this.playerManager.checkCollisions();
-      this.pipeManager.update(
-        currentTime,
+      pipeUpdateStats = this.pipeManager.update(
         this.playerManager.getBasketBody(),
         (scoreDelta) => this.handleScoreIncrement(scoreDelta),
         deltaTime
       );
       this.groundManager.update(deltaTime);
     }
+    this.maybeLogSlowFrame(
+      deltaTime,
+      updateStartedAtMs,
+      currentTime,
+      pipeUpdateStats
+    );
   }
   /**
    * 리소스를 정리하고 객체를 파괴합니다.
@@ -46995,8 +48193,12 @@ class FlappyBirdGameScene extends Container {
     this.gameEngine.cleanup();
     super.destroy();
   }
-  syncSkyState(force = false) {
-    const now = /* @__PURE__ */ new Date();
+  syncSkyState(nowTimestamp = Date.now(), force = false) {
+    if (!force && nowTimestamp < this.nextSkySyncAtMs) {
+      return;
+    }
+    this.nextSkySyncAtMs = nowTimestamp + FLAPPY_BIRD_SKY_SYNC_INTERVAL_MS;
+    const now = new Date(nowTimestamp);
     const nextMinuteKey = this.getSkyMinuteKey(now);
     if (!force && nextMinuteKey === this.currentSkyMinuteKey) {
       return;
@@ -47008,6 +48210,11 @@ class FlappyBirdGameScene extends Container {
       this.game.app.screen.width,
       this.game.app.screen.height
     );
+  }
+  maybeLogSlowFrame(deltaTime, updateStartedAtMs, currentTime, pipeUpdateStats) {
+    {
+      return;
+    }
   }
   syncCloudVisualStyle() {
     if (!this.cloudManager) {
@@ -47025,7 +48232,11 @@ class FlappyBirdGameScene extends Container {
         this.cloudManager.setVisualStyle({
           alphaMin: this.lerp(0.3, 0.22, this.currentSkyState.progress),
           alphaMax: this.lerp(0.42, 0.32, this.currentSkyState.progress),
-          tint: this.lerpColor(16775146, 16777215, this.currentSkyState.progress)
+          tint: this.lerpColor(
+            16775146,
+            16777215,
+            this.currentSkyState.progress
+          )
         });
         break;
       default:
@@ -49151,21 +50362,21 @@ const PopupLayer = ({
             transform: keyboardAwareOffsetY !== 0 ? `translateY(${keyboardAwareOffsetY}px)` : void 0,
             maxHeight: keyboardAwareMaxHeight !== null ? `${keyboardAwareMaxHeight}px` : void 0
           },
-          className: "relative w-full max-w-[22rem] overflow-y-auto border-4 border-[#222] bg-layer-bg p-5 text-center font-dialog shadow-[0_4px_0_#222,0_-4px_0_#222,4px_0_0_#222,-4px_0_0_#222,4px_4px_0_#222,-4px_4px_0_#222,4px_-4px_0_#222,-4px_-4px_0_#222] focus:outline-none",
+          className: "relative flex w-full max-w-[22rem] max-h-[calc(100vh-2rem)] flex-col overflow-hidden border-4 border-[#222] bg-layer-bg p-5 text-center font-dialog shadow-[0_4px_0_#222,0_-4px_0_#222,4px_0_0_#222,-4px_0_0_#222,4px_4px_0_#222,-4px_4px_0_#222,4px_-4px_0_#222,-4px_-4px_0_#222] focus:outline-none",
           children: [
             topLeftContent ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute left-2 top-2 z-[1]", children: topLeftContent }) : null,
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               "div",
               {
-                className: `mb-[15px] border-b-4 pb-[10px] text-[1.8rem] leading-[1.2] font-display font-bold text-component-negative ${dividerBorderClassName}`,
+                className: `mb-[15px] flex-none border-b-4 pb-[10px] text-[1.8rem] leading-[1.2] font-display font-bold text-component-negative ${dividerBorderClassName}`,
                 children: title
               }
             ),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "pb-4 text-[1.4rem] leading-[1.6]", children: content }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "min-h-0 flex-1 overflow-y-auto pb-4 text-[1.4rem] leading-[1.6]", children: content }),
             /* @__PURE__ */ jsxRuntimeExports.jsxs(
               "div",
               {
-                className: `flex justify-center gap-[15px] border-t-4 pt-4 ${dividerBorderClassName}`,
+                className: `flex flex-none justify-center gap-[15px] border-t-4 pt-4 ${dividerBorderClassName}`,
                 children: [
                   onCancel && /* @__PURE__ */ jsxRuntimeExports.jsx(
                     "button",
@@ -49381,6 +50592,80 @@ const FlappyBirdSettingsLayer = ({
     }
   ) });
 };
+const OPEN_SOURCE_NOTICE_SECTIONS = [
+  {
+    title: "Web App",
+    items: [
+      { name: "react", version: "19.1.0", license: "MIT" },
+      { name: "react-dom", version: "19.1.0", license: "MIT" },
+      { name: "tailwindcss", version: "4.1.3", license: "MIT" },
+      { name: "uuid", version: "11.1.0", license: "MIT" }
+    ]
+  },
+  {
+    title: "Game Runtime",
+    items: [
+      { name: "pixi.js", version: "8.11.0", license: "MIT" },
+      {
+        name: "@pixi/filter-color-matrix",
+        version: "7.4.3",
+        license: "MIT"
+      },
+      { name: "@pixi/gif", version: "3.0.1", license: "MIT" },
+      { name: "matter-js", version: "0.20.0", license: "MIT" },
+      { name: "bitecs", version: "0.3.40", license: "MPL-2.0" },
+      { name: "gif-frames", version: "1.0.1", license: "MIT" },
+      { name: "lodash.throttle", version: "4.1.1", license: "MIT" }
+    ]
+  },
+  {
+    title: "Native Shell",
+    items: [
+      { name: "nfc_manager", version: "4.2.1", license: "MIT" },
+      {
+        name: "webview_flutter",
+        version: "4.0.0",
+        license: "BSD-3-Clause"
+      },
+      {
+        name: "webview_flutter_android",
+        version: "4.3.2",
+        license: "BSD-3-Clause"
+      },
+      {
+        name: "path_provider",
+        version: "2.0.15",
+        license: "BSD-3-Clause"
+      },
+      {
+        name: "android_intent_plus",
+        version: "5.2.1",
+        license: "BSD-3-Clause"
+      },
+      { name: "flutter_nfc_hce", version: "0.1.8", license: "MIT" },
+      {
+        name: "google_mobile_ads",
+        version: "5.2.0",
+        license: "Apache-2.0"
+      },
+      {
+        name: "shared_preferences",
+        version: "2.3.4",
+        license: "BSD-3-Clause"
+      },
+      { name: "vibration", version: "3.1.8", license: "BSD-2-Clause" },
+      { name: "geolocator", version: "13.0.2", license: "MIT" },
+      { name: "in_app_update", version: "4.2.5", license: "MIT" }
+    ]
+  }
+];
+const FONT_NOTICE = {
+  name: "Neo둥근모 Pro",
+  lines: [
+    "Copyright © 2017-2024, Eunbin Jeong (Dalgona.) <project-neodgm@dalgona.dev>",
+    'with reserved font name "Neo둥근모 Pro" and "NeoDunggeunmo Pro".'
+  ]
+};
 const ToggleButton = ({ enabled, onClick }) => {
   return /* @__PURE__ */ jsxRuntimeExports.jsx(
     "button",
@@ -49418,6 +50703,7 @@ const SettingMenuLayer = ({
   onClose
 }) => {
   const [resetConfirmText, setResetConfirmText] = reactExports.useState("");
+  const [showOpenSourceNotice, setShowOpenSourceNotice] = reactExports.useState(false);
   const isResetEnabled = reactExports.useMemo(
     () => resetConfirmText.trim() === "confirm",
     [resetConfirmText]
@@ -49452,6 +50738,16 @@ const SettingMenuLayer = ({
               }
             )
           ] }) }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "border-t-2 border-[#222] pt-4", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between gap-4", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "font-bold", children: "OpenSource License" }) }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              ActionButton,
+              {
+                text: "View",
+                onClick: () => setShowOpenSourceNotice(true)
+              }
+            )
+          ] }) }),
           /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "border-t-2 border-[#222] pt-4", children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "font-bold text-red-600", children: "Raise a New Monster" }) }),
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mt-3 flex items-center justify-between gap-3", children: [
@@ -49482,6 +50778,41 @@ const SettingMenuLayer = ({
         confirmText: "Close"
       }
     ),
+    showOpenSourceNotice && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+      PopupLayer,
+      {
+        title: "OpenSource License",
+        content: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-left text-[1rem] leading-[1.4]", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-4", children: [
+          OPEN_SOURCE_NOTICE_SECTIONS.map((section) => /* @__PURE__ */ jsxRuntimeExports.jsxs("section", { children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "border-t-2 border-[#555] pt-3 font-bold text-[1rem] text-gray-700 first:border-t-0 first:pt-0", children: section.title }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("ul", { className: "mt-2 space-y-2", children: section.items.map((item) => /* @__PURE__ */ jsxRuntimeExports.jsxs("li", { className: "leading-[1.35]", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "break-all font-bold", children: item.name }),
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "text-[0.95rem] text-gray-600", children: [
+                item.version,
+                " · ",
+                item.license
+              ] })
+            ] }, item.name)) })
+          ] }, section.title)),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("section", { children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "border-t-2 border-[#555] pt-3 font-bold text-[1rem] text-gray-700", children: "Fonts" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mt-2 space-y-1 leading-[1.35]", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "break-all font-bold", children: FONT_NOTICE.name }),
+              FONT_NOTICE.lines.map((line) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "div",
+                {
+                  className: "break-all text-[0.95rem] text-gray-600",
+                  children: line
+                },
+                line
+              ))
+            ] })
+          ] })
+        ] }) }),
+        onConfirm: () => setShowOpenSourceNotice(false),
+        confirmText: "Close"
+      }
+    ) }),
     showFinalResetConfirm && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
       PopupLayer,
       {
