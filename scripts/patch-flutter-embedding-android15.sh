@@ -1,7 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
-PATCH_REVISION="android15-window-colors-v1"
+PATCH_REVISION="android15-window-colors-v2"
+EXPECTED_CLASS_MAJOR_VERSION=52
 
 usage() {
   cat <<'USAGE'
@@ -163,6 +164,75 @@ verify_no_direct_window_calls() {
   if grep -E 'android/view/Window\.set(StatusBarColor|NavigationBarColor|NavigationBarDividerColor)' "$verification_output" >/dev/null; then
     fail "Direct Window system bar color calls are still present in $jar_path"
   fi
+}
+
+read_class_major_version() {
+  local jar_path="$1"
+  local class_name="$2"
+
+  "$JAVAP" -classpath "$jar_path" -verbose "$class_name" \
+    | awk '/major version/ { print $3; exit }'
+}
+
+verify_class_major_version() {
+  local jar_path="$1"
+  local class_name="$2"
+  local expected_major_version="$3"
+  local actual_major_version
+
+  actual_major_version="$(read_class_major_version "$jar_path" "$class_name")"
+  [[ -n "$actual_major_version" ]] || fail "Unable to read bytecode version for $class_name in $jar_path"
+
+  if [[ "$actual_major_version" != "$expected_major_version" ]]; then
+    fail "Unexpected bytecode version for $class_name in $jar_path: expected $expected_major_version, got $actual_major_version"
+  fi
+}
+
+verify_platform_plugin_accessor_compatibility() {
+  local jar_path="$1"
+  local outer_output="$TMP_DIR/platform-plugin-outer.txt"
+  local inner_output="$TMP_DIR/platform-plugin-inner.txt"
+  local -a required_accessors=()
+
+  "$JAVAP" -classpath "$jar_path" -p io.flutter.plugin.platform.PlatformPlugin > "$outer_output"
+  "$JAVAP" -classpath "$jar_path" -c -p io.flutter.plugin.platform.PlatformPlugin\$1 > "$inner_output"
+
+  while IFS= read -r accessor; do
+    required_accessors+=("$accessor")
+  done < <(
+    grep -o 'PlatformPlugin\.access\$[0-9]\+' "$inner_output" \
+      | sed 's/.*\.//' \
+      | sort -u
+  )
+
+  [[ ${#required_accessors[@]} -gt 0 ]] || fail "Failed to detect PlatformPlugin accessor usage in $jar_path"
+
+  for accessor in "${required_accessors[@]}"; do
+    grep -F " ${accessor}(" "$outer_output" >/dev/null \
+      || fail "Missing $accessor on PlatformPlugin in $jar_path"
+  done
+}
+
+verify_platform_plugin_classes() {
+  local jar_path="$1"
+  local -a class_names=()
+
+  while IFS= read -r class_name; do
+    class_names+=("$class_name")
+  done < <(
+    "$JAR_TOOL" tf "$jar_path" \
+      | grep '^io/flutter/plugin/platform/PlatformPlugin.*\.class$' \
+      | sed 's|/|.|g; s|\.class$||' \
+      | sort
+  )
+
+  [[ ${#class_names[@]} -gt 0 ]] || fail "No PlatformPlugin classes found in $jar_path"
+
+  for class_name in "${class_names[@]}"; do
+    verify_class_major_version "$jar_path" "$class_name" "$EXPECTED_CLASS_MAJOR_VERSION"
+  done
+
+  verify_platform_plugin_accessor_compatibility "$jar_path"
 }
 
 patch_source() {
@@ -400,10 +470,32 @@ done
 
 CLASSPATH="$(IFS=:; echo "${CLASSPATH_ENTRIES[*]}")"
 
-"$JAVAC" -proc:none -cp "$CLASSPATH" -d "$TMP_DIR/classes" \
+declare -a PATCHED_CLASS_ENTRIES=()
+
+collect_patched_class_entries() {
+  PATCHED_CLASS_ENTRIES=()
+
+  while IFS= read -r class_entry; do
+    PATCHED_CLASS_ENTRIES+=("$class_entry")
+  done < <(
+    cd "$TMP_DIR/classes"
+    {
+      [[ -d io/flutter/embedding/android ]] && find io/flutter/embedding/android -maxdepth 1 \
+        \( -name 'FlutterActivity*.class' -o -name 'FlutterFragmentActivity*.class' \) -print
+      [[ -d io/flutter/plugin/platform ]] && find io/flutter/plugin/platform -maxdepth 1 \
+        -name 'PlatformPlugin*.class' -print
+    } | sort
+  )
+
+  [[ ${#PATCHED_CLASS_ENTRIES[@]} -gt 0 ]] || fail "No patched Flutter embedding classes were generated."
+}
+
+"$JAVAC" --release 8 -proc:none -cp "$CLASSPATH" -d "$TMP_DIR/classes" \
   "$TMP_DIR/source/io/flutter/embedding/android/FlutterActivity.java" \
   "$TMP_DIR/source/io/flutter/embedding/android/FlutterFragmentActivity.java" \
   "$TMP_DIR/source/io/flutter/plugin/platform/PlatformPlugin.java"
+
+collect_patched_class_entries
 
 package_embedding() {
   local artifact_id="$1"
@@ -420,14 +512,12 @@ package_embedding() {
   cp "$source_jar" "$output_jar"
   (
     cd "$TMP_DIR/classes"
-    "$JAR_TOOL" uf "$output_jar" \
-      io/flutter/embedding/android/FlutterActivity.class \
-      io/flutter/embedding/android/FlutterFragmentActivity.class \
-      io/flutter/plugin/platform/PlatformPlugin.class
+    "$JAR_TOOL" uf "$output_jar" "${PATCHED_CLASS_ENTRIES[@]}"
   )
 
   write_pom "$artifact_id" "$output_pom"
   write_maven_metadata "$artifact_dir" "$artifact_id"
+  verify_platform_plugin_classes "$output_jar"
   verify_no_direct_window_calls "$output_jar"
 }
 
