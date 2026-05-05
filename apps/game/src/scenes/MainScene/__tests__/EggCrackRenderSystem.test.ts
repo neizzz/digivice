@@ -109,10 +109,12 @@ test("egg hatch progress와 crack stage는 임계값에 맞춰 clamp된다", () 
     }),
     1,
   );
-  assert.equal(getEggCrackStage(0.59), 0);
-  assert.equal(getEggCrackStage(0.6), 1);
-  assert.equal(getEggCrackStage(0.8), 2);
-  assert.equal(getEggCrackStage(0.92), 3);
+  assert.equal(getEggCrackStage(0.24), 0);
+  assert.equal(getEggCrackStage(0.25), 1);
+  assert.equal(getEggCrackStage(0.49), 1);
+  assert.equal(getEggCrackStage(0.5), 2);
+  assert.equal(getEggCrackStage(0.74), 2);
+  assert.equal(getEggCrackStage(0.75), 3);
   assert.equal(
     getEggHatchProgress({
       currentTime: 500,

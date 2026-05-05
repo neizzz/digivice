@@ -486,15 +486,15 @@ export function getEggHatchProgress(params: {
 }
 
 export function getEggCrackStage(progress: number): 0 | 1 | 2 | 3 {
-  if (progress >= 0.92) {
+  if (progress >= 0.75) {
     return 3;
   }
 
-  if (progress >= 0.8) {
+  if (progress >= 0.5) {
     return 2;
   }
 
-  if (progress >= 0.6) {
+  if (progress >= 0.25) {
     return 1;
   }
 
