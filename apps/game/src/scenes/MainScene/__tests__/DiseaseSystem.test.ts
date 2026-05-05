@@ -337,6 +337,70 @@ test("음식을 먹는 중에는 disease check로 sick가 되지 않는다", () 
   assert.equal(ObjectComp.state[foodEid], FoodState.BEING_INTAKEN);
 });
 
+test("egg 상태 캐릭터는 disease check로 sick가 되지 않는다", () => {
+  const now = 58_000;
+  const world = createTestWorld({ now });
+  const eid = withMockedDateNow(now, () =>
+    createTestCharacter(world, {
+      state: CharacterState.EGG,
+      stamina: 1,
+      x: 100,
+      y: 100,
+    }),
+  );
+
+  DiseaseSystemComp.nextCheckTime[eid] = now;
+  SleepSystemComp.fatigue[eid] =
+    GAME_CONSTANTS.FATIGUE_DISEASE_THRESHOLD_EXHAUSTED;
+
+  withMockedRandom(0, () => {
+    diseaseSystem({
+      world: world as any,
+      currentTime: now,
+    });
+  });
+
+  assert.equal(ObjectComp.state[eid], CharacterState.EGG);
+  assert.equal(CharacterStatusComp.statuses[eid][0], 0);
+  assert.equal(DiseaseSystemComp.sickStartTime[eid], 0);
+  assert.equal(hasComponent(world, RandomMovementComp, eid), false);
+  assert.equal(
+    DiseaseSystemComp.nextCheckTime[eid],
+    now + GAME_CONSTANTS.DISEASE_CHECK_INTERVAL,
+  );
+});
+
+test("egg 상태에 남아 있던 sick 흔적은 즉시 정리된다", () => {
+  const now = 59_000;
+  const world = createTestWorld({ now });
+  const eid = withMockedDateNow(now, () =>
+    createTestCharacter(world, {
+      state: CharacterState.EGG,
+      stamina: 2,
+      x: 100,
+      y: 100,
+    }),
+  );
+
+  CharacterStatusComp.statuses[eid][0] = CharacterStatus.SICK;
+  DiseaseSystemComp.sickStartTime[eid] = now - 1_000;
+  DiseaseSystemComp.nextCheckTime[eid] = now;
+
+  diseaseSystem({
+    world: world as any,
+    currentTime: now,
+  });
+
+  assert.equal(ObjectComp.state[eid], CharacterState.EGG);
+  assert.equal(CharacterStatusComp.statuses[eid][0], 0);
+  assert.equal(DiseaseSystemComp.sickStartTime[eid], 0);
+  assert.equal(hasComponent(world, RandomMovementComp, eid), false);
+  assert.equal(
+    DiseaseSystemComp.nextCheckTime[eid],
+    now + GAME_CONSTANTS.DISEASE_CHECK_INTERVAL,
+  );
+});
+
 test("질병 확률은 낮은 스테미나와 높은 피로도 구간 보정을 함께 반영한다", () => {
   const world = createTestWorld({ now: 60_000 });
   const eid = withMockedDateNow(60_000, () =>

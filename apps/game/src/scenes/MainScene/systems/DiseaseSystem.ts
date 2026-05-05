@@ -69,6 +69,13 @@ export function diseaseSystem(params: {
       continue;
     if (ObjectComp.state[eid] === CharacterState.DEAD) continue;
 
+    if (ObjectComp.state[eid] === CharacterState.EGG) {
+      advanceDiseaseCheckTimeForEgg(eid, currentTime);
+      clearEggDiseaseState(eid);
+      previousStates.set(eid, { isSick: false, isSleeping: false });
+      continue;
+    }
+
     const diseaseComp = DiseaseSystemComp;
     const characterComp = CharacterStatusComp;
     const isSleeping = ObjectComp.state[eid] === CharacterState.SLEEPING;
@@ -148,6 +155,27 @@ export function diseaseSystem(params: {
   }
 
   return params;
+}
+
+function advanceDiseaseCheckTimeForEgg(eid: number, currentTime: number): void {
+  const interval = GAME_CONSTANTS.DISEASE_CHECK_INTERVAL;
+  if (interval <= 0) {
+    return;
+  }
+
+  if (DiseaseSystemComp.nextCheckTime[eid] <= 0) {
+    DiseaseSystemComp.nextCheckTime[eid] = currentTime + interval;
+    return;
+  }
+
+  while (currentTime >= DiseaseSystemComp.nextCheckTime[eid]) {
+    DiseaseSystemComp.nextCheckTime[eid] += interval;
+  }
+}
+
+function clearEggDiseaseState(eid: number): void {
+  removeCharacterStatus(eid, CharacterStatus.SICK);
+  DiseaseSystemComp.sickStartTime[eid] = 0;
 }
 
 function isDiseaseCheckBlockedByFoodInteraction(
@@ -379,6 +407,17 @@ function addCharacterStatus(eid: number, status: CharacterStatus): void {
   for (let i = 0; i < statuses.length; i++) {
     if (statuses[i] === 0) {
       statuses[i] = status;
+      return;
+    }
+  }
+}
+
+function removeCharacterStatus(eid: number, status: CharacterStatus): void {
+  const statuses = CharacterStatusComp.statuses[eid];
+
+  for (let i = 0; i < statuses.length; i++) {
+    if (statuses[i] === status) {
+      statuses[i] = 0;
       return;
     }
   }
