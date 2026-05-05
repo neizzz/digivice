@@ -11,7 +11,7 @@ const SLEEP_HORIZONTAL_OFFSET = -6;
 const SLEEP_GRADIENT_TOP_COLOR = 0x1f4f8f;
 const SLEEP_GRADIENT_BOTTOM_COLOR = 0x7dcfff;
 const SLEEP_STROKE_COLOR = 0x000000;
-const SLEEP_STROKE_WIDTH = 1;
+const SLEEP_STROKE_WIDTH = 2;
 const SLEEP_TEXT_PADDING = 4;
 const SLEEP_SMALL_Z_FONT_SIZE = 11;
 const SLEEP_MEDIUM_Z_FONT_SIZE = 14;
@@ -46,7 +46,7 @@ const SLEEP_FRAME_DEFINITIONS = [
     letters: [
       { char: "Z", fontSize: SLEEP_SMALL_Z_FONT_SIZE, offsetX: 0, offsetY: 0 },
       { char: "Z", fontSize: SLEEP_MEDIUM_Z_FONT_SIZE, offsetX: 12, offsetY: -10 },
-      { char: "Z", fontSize: SLEEP_LARGE_Z_FONT_SIZE, offsetX: -10, offsetY: -24 },
+      { char: "Z", fontSize: SLEEP_LARGE_Z_FONT_SIZE, offsetX: -8, offsetY: -22 },
     ],
   },
   {

@@ -27,8 +27,10 @@ const EXPECTED_LARGE_Z_FONT_SIZE = 17;
 const EXPECTED_SLEEP_OFFSET_X = -6;
 const EXPECTED_SLEEP_OFFSET_Y = 4;
 const EXPECTED_MEDIUM_Z_OFFSET_Y = -10;
-const EXPECTED_LARGE_Z_OFFSET_Y = -24;
+const EXPECTED_LARGE_Z_OFFSET_Y = -22;
+const EXPECTED_LARGE_Z_OFFSET_X = -8;
 const EXPECTED_SLEEP_TEXT_PADDING = 4;
+const EXPECTED_SLEEP_STROKE_WIDTH = 2;
 
 class MockCanvasRenderingContext2D {
   public canvas: HTMLCanvasElement | null = null;
@@ -257,7 +259,7 @@ function assertSleepLetterStyle(letter: PIXI.Text): void {
     EXPECTED_GRADIENT_COLORS,
   );
   assert.equal(letter.style.stroke?.color, 0x000000);
-  assert.equal(letter.style.stroke?.width, 1);
+  assert.equal(letter.style.stroke?.width, EXPECTED_SLEEP_STROKE_WIDTH);
 }
 
 function assertRenderedLetterOffsetYs(
@@ -329,6 +331,10 @@ test("수면 이펙트는 대문자 Z를 1개, 2개, 3개, 0개 순서로 반복
     const threeLetterPositions = getRenderedSleepLetterPositions(world);
     assert.deepEqual(threeLetterPositions[0], oneLetterPositions[0]);
     assert.deepEqual(threeLetterPositions[1], twoLetterPositions[1]);
+    assert.equal(
+      threeLetterPositions[2]?.x,
+      sleepContainer.x + EXPECTED_LARGE_Z_OFFSET_X,
+    );
 
     runSleepEffectSystem(world, 3000);
     assert.equal(getRenderedSleepLetters(world).length, 0);
