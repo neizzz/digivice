@@ -5,7 +5,9 @@ import * as PIXI from "pixi.js";
 import { MainSceneWorld } from "../world";
 import {
   cleanupStaminaGaugeRenderState,
+  getStaminaGaugeFillRowSpanForTests,
   getStaminaGaugeFillColorForTests,
+  getStaminaGaugeRoundedRowSpanForTests,
   staminaGaugeRenderSystem,
 } from "../systems/StaminaGaugeRenderSystem";
 import { CharacterState } from "../types";
@@ -93,4 +95,28 @@ test("상단 스태미나 게이지 색상은 3과 7 경계에 맞춰 바뀐다"
   assert.equal(getStaminaGaugeFillColorForTests(3), 0xf2a33a);
   assert.equal(getStaminaGaugeFillColorForTests(6.99), 0xf2a33a);
   assert.equal(getStaminaGaugeFillColorForTests(7), 0x58b86b);
+});
+
+test("상단 스태미나 게이지 bevel row span은 상하 대칭이다", () => {
+  const topEdge = getStaminaGaugeRoundedRowSpanForTests(40, 8, 2, 2, 0);
+  const upperMiddle = getStaminaGaugeRoundedRowSpanForTests(40, 8, 2, 2, 1);
+  const lowerMiddle = getStaminaGaugeRoundedRowSpanForTests(40, 8, 2, 2, 6);
+  const bottomEdge = getStaminaGaugeRoundedRowSpanForTests(40, 8, 2, 2, 7);
+
+  assert.deepEqual(topEdge, { startX: 2, endX: 38 });
+  assert.deepEqual(upperMiddle, { startX: 1, endX: 39 });
+  assert.deepEqual(lowerMiddle, upperMiddle);
+  assert.deepEqual(bottomEdge, topEdge);
+});
+
+test("상단 스태미나 게이지 fill은 부분 채움일 때 오른쪽 bevel 없이 유지된다", () => {
+  const partialTopEdge = getStaminaGaugeFillRowSpanForTests(10, 20, 8, 0);
+  const partialBottomEdge = getStaminaGaugeFillRowSpanForTests(10, 20, 8, 7);
+  const fullTopEdge = getStaminaGaugeFillRowSpanForTests(20, 20, 8, 0);
+  const fullBottomEdge = getStaminaGaugeFillRowSpanForTests(20, 20, 8, 7);
+
+  assert.deepEqual(partialTopEdge, { startX: 2, endX: 10 });
+  assert.deepEqual(partialBottomEdge, partialTopEdge);
+  assert.deepEqual(fullTopEdge, { startX: 2, endX: 18 });
+  assert.deepEqual(fullBottomEdge, fullTopEdge);
 });
