@@ -1,5 +1,5 @@
 import type React from "react";
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { logImportantDiagnostics } from "../../diagnostics/diagnosticLogger";
 import { useLayerInteractionVibration } from "../../hooks/useLayerInteractionVibration";
 
@@ -18,6 +18,7 @@ interface PopupProps {
   keyboardAwareTargetRef?: React.RefObject<HTMLElement | null>;
   keyboardAwareViewportPadding?: number;
   suppressInitialActionsMs?: number;
+  confirmEnableDelayMs?: number;
 }
 
 type NativeViewportSyncDetail = {
@@ -26,6 +27,7 @@ type NativeViewportSyncDetail = {
 
 const KEYBOARD_VIEWPORT_HEIGHT_DELTA_THRESHOLD = 80;
 const KEYBOARD_AWARE_DEBUG_LOG_LIMIT = 24;
+const CONFIRM_ENABLE_DELAY_PROGRESS_MAX = 100;
 
 function roundKeyboardAwareDebugValue(
   value: number | null | undefined,
@@ -52,11 +54,13 @@ const PopupLayer: React.FC<PopupProps> = ({
   keyboardAwareTargetRef,
   keyboardAwareViewportPadding = 16,
   suppressInitialActionsMs = 0,
+  confirmEnableDelayMs = 0,
 }) => {
   const layerInteractionVibrationProps = useLayerInteractionVibration();
   const containerRef = useRef<HTMLDivElement>(null);
   const confirmButtonRef = useRef<HTMLButtonElement>(null);
   const cancelButtonRef = useRef<HTMLButtonElement>(null);
+  const confirmEnableDelayRafIdRef = useRef<number | null>(null);
   const keyboardAwareRafIdRef = useRef<number | null>(null);
   const keyboardAwareOffsetYRef = useRef(0);
   const keyboardAwareMaxHeightRef = useRef<number | null>(null);
@@ -64,10 +68,74 @@ const PopupLayer: React.FC<PopupProps> = ({
   const keyboardAwareDebugSequenceRef = useRef(0);
   const nativeKeyboardInsetRef = useRef(0);
   const suppressInitialActionsUntilRef = useRef(0);
+  const [confirmEnableDelayProgress, setConfirmEnableDelayProgress] = useState(
+    confirmEnableDelayMs > 0 ? 0 : CONFIRM_ENABLE_DELAY_PROGRESS_MAX,
+  );
   const [keyboardAwareOffsetY, setKeyboardAwareOffsetY] = useState(0);
   const [keyboardAwareMaxHeight, setKeyboardAwareMaxHeight] = useState<
     number | null
   >(null);
+  const isConfirmEnableDelayActive =
+    confirmEnableDelayMs > 0 &&
+    confirmEnableDelayProgress < CONFIRM_ENABLE_DELAY_PROGRESS_MAX;
+  const effectiveInitialFocusTargetRef = useRef<
+    "confirm" | "cancel" | "container" | "none"
+  >(
+    confirmEnableDelayMs > 0 && initialFocusTarget === "confirm"
+      ? "container"
+      : initialFocusTarget,
+  );
+  const effectiveInitialFocusTarget = effectiveInitialFocusTargetRef.current;
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    if (confirmEnableDelayRafIdRef.current !== null) {
+      window.cancelAnimationFrame(confirmEnableDelayRafIdRef.current);
+      confirmEnableDelayRafIdRef.current = null;
+    }
+
+    if (confirmEnableDelayMs <= 0) {
+      setConfirmEnableDelayProgress(CONFIRM_ENABLE_DELAY_PROGRESS_MAX);
+      return;
+    }
+
+    setConfirmEnableDelayProgress(0);
+
+    const startedAt = window.performance.now();
+
+    const tick = (timestamp: number) => {
+      const elapsed = Math.max(0, timestamp - startedAt);
+      const nextProgress = Math.min(
+        CONFIRM_ENABLE_DELAY_PROGRESS_MAX,
+        Math.round(
+          (elapsed / confirmEnableDelayMs) * CONFIRM_ENABLE_DELAY_PROGRESS_MAX,
+        ),
+      );
+
+      setConfirmEnableDelayProgress((previous) =>
+        previous === nextProgress ? previous : nextProgress,
+      );
+
+      if (nextProgress >= CONFIRM_ENABLE_DELAY_PROGRESS_MAX) {
+        confirmEnableDelayRafIdRef.current = null;
+        return;
+      }
+
+      confirmEnableDelayRafIdRef.current = window.requestAnimationFrame(tick);
+    };
+
+    confirmEnableDelayRafIdRef.current = window.requestAnimationFrame(tick);
+
+    return () => {
+      if (confirmEnableDelayRafIdRef.current !== null) {
+        window.cancelAnimationFrame(confirmEnableDelayRafIdRef.current);
+        confirmEnableDelayRafIdRef.current = null;
+      }
+    };
+  }, [confirmEnableDelayMs]);
 
   const emitKeyboardAwareDebug = useCallback(
     (stage: string, payload: Record<string, unknown> = {}) => {
@@ -269,11 +337,11 @@ const PopupLayer: React.FC<PopupProps> = ({
 
   useLayoutEffect(() => {
     const focusTarget =
-      initialFocusTarget === "confirm"
+      effectiveInitialFocusTarget === "confirm"
         ? confirmButtonRef.current
-        : initialFocusTarget === "cancel"
+        : effectiveInitialFocusTarget === "cancel"
           ? cancelButtonRef.current
-          : initialFocusTarget === "container"
+          : effectiveInitialFocusTarget === "container"
             ? containerRef.current
             : null;
 
@@ -284,7 +352,7 @@ const PopupLayer: React.FC<PopupProps> = ({
     const rafId = window.requestAnimationFrame(() => {
       emitKeyboardAwareDebug("initial_focus", {
         focusTargetTag: focusTarget.tagName,
-        initialFocusTarget,
+        initialFocusTarget: effectiveInitialFocusTarget,
       });
       focusTarget.focus({ preventScroll: true });
     });
@@ -292,7 +360,7 @@ const PopupLayer: React.FC<PopupProps> = ({
     return () => {
       window.cancelAnimationFrame(rafId);
     };
-  }, [emitKeyboardAwareDebug, initialFocusTarget]);
+  }, [effectiveInitialFocusTarget, emitKeyboardAwareDebug]);
 
   useLayoutEffect(() => {
     if (typeof window === "undefined") {
@@ -313,7 +381,7 @@ const PopupLayer: React.FC<PopupProps> = ({
 
     emitKeyboardAwareDebug("effect_attached", {
       targetTag: targetElement.tagName,
-      initialFocusTarget,
+      initialFocusTarget: effectiveInitialFocusTarget,
     });
 
     const handleKeyboardAwareLayoutChange = (source: string) => {
@@ -389,20 +457,23 @@ const PopupLayer: React.FC<PopupProps> = ({
       resetKeyboardAwareLayout("effect_cleanup");
     };
   }, [
+    effectiveInitialFocusTarget,
     emitKeyboardAwareDebug,
-    initialFocusTarget,
     keyboardAwareTargetRef,
     resetKeyboardAwareLayout,
     scheduleKeyboardAwareLayoutUpdate,
   ]);
 
   const handleConfirmClick = useCallback(() => {
-    if (Date.now() < suppressInitialActionsUntilRef.current) {
+    if (
+      isConfirmEnableDelayActive ||
+      Date.now() < suppressInitialActionsUntilRef.current
+    ) {
       return;
     }
 
     onConfirm?.();
-  }, [onConfirm]);
+  }, [isConfirmEnableDelayActive, onConfirm]);
 
   const handleCancelClick = useCallback(() => {
     if (Date.now() < suppressInitialActionsUntilRef.current) {
@@ -463,14 +534,28 @@ const PopupLayer: React.FC<PopupProps> = ({
           <button
             ref={confirmButtonRef}
             type={"button"}
+            disabled={isConfirmEnableDelayActive}
             onClick={handleConfirmClick}
-            className={`text-[1.5rem] text-white border-2 border-[#222] px-[15px] py-0.5 cursor-pointer uppercase font-display shadow-[2px_2px_0_#222] ${
-              confirmVariant === "negative"
-                ? "bg-component-negative"
-                : "bg-component-positive"
+            className={`relative overflow-hidden text-[1.5rem] text-white border-2 border-[#222] px-[15px] py-0.5 uppercase font-display shadow-[2px_2px_0_#222] ${
+              isConfirmEnableDelayActive
+                ? "cursor-not-allowed bg-gray-400 opacity-80"
+                : confirmVariant === "negative"
+                  ? "cursor-pointer bg-component-negative"
+                  : "cursor-pointer bg-component-positive"
             }`}
           >
-            {confirmText}
+            {isConfirmEnableDelayActive && (
+              <span
+                aria-hidden="true"
+                className={`absolute inset-y-0 left-0 ${
+                  confirmVariant === "negative"
+                    ? "bg-component-negative"
+                    : "bg-component-positive"
+                }`}
+                style={{ width: `${confirmEnableDelayProgress}%` }}
+              />
+            )}
+            <span className="relative z-[1]">{confirmText}</span>
           </button>
         </div>
       </div>

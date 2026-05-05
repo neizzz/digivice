@@ -313,6 +313,7 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
             cancelText="Cancel"
             confirmVariant="negative"
             cancelVariant="positive"
+            confirmEnableDelayMs={3000}
           />
         </div>
       )}

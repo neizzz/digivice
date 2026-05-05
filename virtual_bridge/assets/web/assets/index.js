@@ -50010,6 +50010,7 @@ function useLayerInteractionVibration() {
 }
 const KEYBOARD_VIEWPORT_HEIGHT_DELTA_THRESHOLD$1 = 80;
 const KEYBOARD_AWARE_DEBUG_LOG_LIMIT = 24;
+const CONFIRM_ENABLE_DELAY_PROGRESS_MAX = 100;
 function roundKeyboardAwareDebugValue(value) {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     return null;
@@ -50030,12 +50031,14 @@ const PopupLayer = ({
   initialFocusTarget = "none",
   keyboardAwareTargetRef,
   keyboardAwareViewportPadding = 16,
-  suppressInitialActionsMs = 0
+  suppressInitialActionsMs = 0,
+  confirmEnableDelayMs = 0
 }) => {
   const layerInteractionVibrationProps = useLayerInteractionVibration();
   const containerRef = reactExports.useRef(null);
   const confirmButtonRef = reactExports.useRef(null);
   const cancelButtonRef = reactExports.useRef(null);
+  const confirmEnableDelayRafIdRef = reactExports.useRef(null);
   const keyboardAwareRafIdRef = reactExports.useRef(null);
   const keyboardAwareOffsetYRef = reactExports.useRef(0);
   const keyboardAwareMaxHeightRef = reactExports.useRef(null);
@@ -50043,8 +50046,53 @@ const PopupLayer = ({
   const keyboardAwareDebugSequenceRef = reactExports.useRef(0);
   const nativeKeyboardInsetRef = reactExports.useRef(0);
   const suppressInitialActionsUntilRef = reactExports.useRef(0);
+  const [confirmEnableDelayProgress, setConfirmEnableDelayProgress] = reactExports.useState(
+    confirmEnableDelayMs > 0 ? 0 : CONFIRM_ENABLE_DELAY_PROGRESS_MAX
+  );
   const [keyboardAwareOffsetY, setKeyboardAwareOffsetY] = reactExports.useState(0);
   const [keyboardAwareMaxHeight, setKeyboardAwareMaxHeight] = reactExports.useState(null);
+  const isConfirmEnableDelayActive = confirmEnableDelayMs > 0 && confirmEnableDelayProgress < CONFIRM_ENABLE_DELAY_PROGRESS_MAX;
+  const effectiveInitialFocusTargetRef = reactExports.useRef(
+    confirmEnableDelayMs > 0 && initialFocusTarget === "confirm" ? "container" : initialFocusTarget
+  );
+  const effectiveInitialFocusTarget = effectiveInitialFocusTargetRef.current;
+  reactExports.useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    if (confirmEnableDelayRafIdRef.current !== null) {
+      window.cancelAnimationFrame(confirmEnableDelayRafIdRef.current);
+      confirmEnableDelayRafIdRef.current = null;
+    }
+    if (confirmEnableDelayMs <= 0) {
+      setConfirmEnableDelayProgress(CONFIRM_ENABLE_DELAY_PROGRESS_MAX);
+      return;
+    }
+    setConfirmEnableDelayProgress(0);
+    const startedAt = window.performance.now();
+    const tick = (timestamp) => {
+      const elapsed = Math.max(0, timestamp - startedAt);
+      const nextProgress = Math.min(
+        CONFIRM_ENABLE_DELAY_PROGRESS_MAX,
+        Math.round(
+          elapsed / confirmEnableDelayMs * CONFIRM_ENABLE_DELAY_PROGRESS_MAX
+        )
+      );
+      setConfirmEnableDelayProgress((previous) => previous === nextProgress ? previous : nextProgress);
+      if (nextProgress >= CONFIRM_ENABLE_DELAY_PROGRESS_MAX) {
+        confirmEnableDelayRafIdRef.current = null;
+        return;
+      }
+      confirmEnableDelayRafIdRef.current = window.requestAnimationFrame(tick);
+    };
+    confirmEnableDelayRafIdRef.current = window.requestAnimationFrame(tick);
+    return () => {
+      if (confirmEnableDelayRafIdRef.current !== null) {
+        window.cancelAnimationFrame(confirmEnableDelayRafIdRef.current);
+        confirmEnableDelayRafIdRef.current = null;
+      }
+    };
+  }, [confirmEnableDelayMs]);
   const emitKeyboardAwareDebug = reactExports.useCallback(
     (stage, payload = {}) => {
       if (title !== "Settings") {
@@ -50206,21 +50254,21 @@ const PopupLayer = ({
     };
   }, [suppressInitialActionsMs]);
   reactExports.useLayoutEffect(() => {
-    const focusTarget = initialFocusTarget === "confirm" ? confirmButtonRef.current : initialFocusTarget === "cancel" ? cancelButtonRef.current : initialFocusTarget === "container" ? containerRef.current : null;
+    const focusTarget = effectiveInitialFocusTarget === "confirm" ? confirmButtonRef.current : effectiveInitialFocusTarget === "cancel" ? cancelButtonRef.current : effectiveInitialFocusTarget === "container" ? containerRef.current : null;
     if (!focusTarget) {
       return;
     }
     const rafId = window.requestAnimationFrame(() => {
       emitKeyboardAwareDebug("initial_focus", {
         focusTargetTag: focusTarget.tagName,
-        initialFocusTarget
+        initialFocusTarget: effectiveInitialFocusTarget
       });
       focusTarget.focus({ preventScroll: true });
     });
     return () => {
       window.cancelAnimationFrame(rafId);
     };
-  }, [emitKeyboardAwareDebug, initialFocusTarget]);
+  }, [effectiveInitialFocusTarget, emitKeyboardAwareDebug]);
   reactExports.useLayoutEffect(() => {
     if (typeof window === "undefined") {
       return;
@@ -50237,7 +50285,7 @@ const PopupLayer = ({
     }
     emitKeyboardAwareDebug("effect_attached", {
       targetTag: targetElement.tagName,
-      initialFocusTarget
+      initialFocusTarget: effectiveInitialFocusTarget
     });
     const handleKeyboardAwareLayoutChange = (source) => {
       var _a;
@@ -50306,18 +50354,18 @@ const PopupLayer = ({
       resetKeyboardAwareLayout("effect_cleanup");
     };
   }, [
+    effectiveInitialFocusTarget,
     emitKeyboardAwareDebug,
-    initialFocusTarget,
     keyboardAwareTargetRef,
     resetKeyboardAwareLayout,
     scheduleKeyboardAwareLayoutUpdate
   ]);
   const handleConfirmClick = reactExports.useCallback(() => {
-    if (Date.now() < suppressInitialActionsUntilRef.current) {
+    if (isConfirmEnableDelayActive || Date.now() < suppressInitialActionsUntilRef.current) {
       return;
     }
     onConfirm == null ? void 0 : onConfirm();
-  }, [onConfirm]);
+  }, [isConfirmEnableDelayActive, onConfirm]);
   const handleCancelClick = reactExports.useCallback(() => {
     if (Date.now() < suppressInitialActionsUntilRef.current) {
       return;
@@ -50364,14 +50412,25 @@ const PopupLayer = ({
                       children: cancelText
                     }
                   ),
-                  /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  /* @__PURE__ */ jsxRuntimeExports.jsxs(
                     "button",
                     {
                       ref: confirmButtonRef,
                       type: "button",
+                      disabled: isConfirmEnableDelayActive,
                       onClick: handleConfirmClick,
-                      className: `text-[1.5rem] text-white border-2 border-[#222] px-[15px] py-0.5 cursor-pointer uppercase font-display shadow-[2px_2px_0_#222] ${confirmVariant === "negative" ? "bg-component-negative" : "bg-component-positive"}`,
-                      children: confirmText
+                      className: `relative overflow-hidden text-[1.5rem] text-white border-2 border-[#222] px-[15px] py-0.5 uppercase font-display shadow-[2px_2px_0_#222] ${isConfirmEnableDelayActive ? "cursor-not-allowed bg-gray-400 opacity-80" : confirmVariant === "negative" ? "cursor-pointer bg-component-negative" : "cursor-pointer bg-component-positive"}`,
+                      children: [
+                        isConfirmEnableDelayActive && /* @__PURE__ */ jsxRuntimeExports.jsx(
+                          "span",
+                          {
+                            "aria-hidden": "true",
+                            className: `absolute inset-y-0 left-0 ${confirmVariant === "negative" ? "bg-component-negative" : "bg-component-positive"}`,
+                            style: { width: `${confirmEnableDelayProgress}%` }
+                          }
+                        ),
+                        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "relative z-[1]", children: confirmText })
+                      ]
                     }
                   )
                 ]
@@ -50799,7 +50858,8 @@ const SettingMenuLayer = ({
         confirmText: "Reset",
         cancelText: "Cancel",
         confirmVariant: "negative",
-        cancelVariant: "positive"
+        cancelVariant: "positive",
+        confirmEnableDelayMs: 3e3
       }
     ) })
   ] });
