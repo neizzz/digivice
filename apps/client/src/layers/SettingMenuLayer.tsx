@@ -32,24 +32,15 @@ const OPEN_SOURCE_NOTICE_SECTIONS: readonly OpenSourceNoticeSection[] = [
     items: [
       { name: "react", version: "19.1.0", license: "MIT" },
       { name: "react-dom", version: "19.1.0", license: "MIT" },
-      { name: "tailwindcss", version: "4.1.3", license: "MIT" },
-      { name: "uuid", version: "11.1.0", license: "MIT" },
     ],
   },
   {
     title: "Game Runtime",
     items: [
       { name: "pixi.js", version: "8.11.0", license: "MIT" },
-      {
-        name: "@pixi/filter-color-matrix",
-        version: "7.4.3",
-        license: "MIT",
-      },
       { name: "@pixi/gif", version: "3.0.1", license: "MIT" },
       { name: "matter-js", version: "0.20.0", license: "MIT" },
       { name: "bitecs", version: "0.3.40", license: "MPL-2.0" },
-      { name: "gif-frames", version: "1.0.1", license: "MIT" },
-      { name: "lodash.throttle", version: "4.1.1", license: "MIT" },
     ],
   },
   {
