@@ -102,6 +102,7 @@ import {
   CleanableComp,
   DiseaseSystemComp,
   EffectAnimationComp,
+  SleepSystemComp,
 } from "./raw-components";
 import { generatePersistentNumericId } from "@/utils/generate";
 import {
@@ -128,7 +129,10 @@ import { freshnessSystem } from "./systems/FreshnessSystem";
 import { digestiveSystem } from "./systems/DigestiveSystem";
 import { diseaseSystem } from "./systems/DiseaseSystem";
 import { eggHatchSystem } from "./systems/EggHatchSystem";
-import { sleepScheduleSystem } from "./systems/SleepScheduleSystem";
+import {
+  sleepScheduleSystem,
+  wakeCharacter,
+} from "./systems/SleepScheduleSystem";
 import {
   applyReentryHappyStatusForFullStaminaCharacters,
   characterManagerSystem,
@@ -198,7 +202,7 @@ export type SavedEntity = {
   components: EntityComponents;
 };
 
-export type MainSceneAdMenu = "feed" | "clean" | "hospital" | "mini_game";
+export type MainSceneAdMenu = "feed" | "clean" | "hospital";
 
 export type MainSceneAdPendingReservation = {
   menu: MainSceneAdMenu;
@@ -713,8 +717,7 @@ export class MainSceneWorld implements IWorld, Scene {
     return (
       value === "feed" ||
       value === "clean" ||
-      value === "hospital" ||
-      value === "mini_game"
+      value === "hospital"
     );
   }
 
@@ -1301,7 +1304,7 @@ export class MainSceneWorld implements IWorld, Scene {
               return;
             }
 
-            this._recordMainSceneMenuUse("mini_game");
+            this._prepareMainCharacterForMiniGameEntry();
             void this._startMiniGame();
           },
           onFeedSelect: () => {
@@ -1399,6 +1402,27 @@ export class MainSceneWorld implements IWorld, Scene {
 
     this._showAlert?.("not available in egg state.", "Notice");
     return true;
+  }
+
+  private _prepareMainCharacterForMiniGameEntry(): void {
+    const characterEid = this._findMainCharacterEntity();
+    if (characterEid === -1) {
+      return;
+    }
+
+    if (
+      !hasComponent(this, SleepSystemComp, characterEid) ||
+      ObjectComp.state[characterEid] !== CharacterState.SLEEPING
+    ) {
+      return;
+    }
+
+    wakeCharacter(this, characterEid, this.currentTime);
+    SleepSystemComp.fatigue[characterEid] = Math.min(
+      GAME_CONSTANTS.FATIGUE_MAX,
+      SleepSystemComp.fatigue[characterEid] +
+        GAME_CONSTANTS.MINI_GAME_SLEEP_INTERRUPT_FATIGUE,
+    );
   }
 
   private _addDebugGaugeEventListener(): void {

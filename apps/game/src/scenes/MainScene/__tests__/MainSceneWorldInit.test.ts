@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { addComponent, addEntity, createWorld } from "bitecs";
 import * as PIXI from "pixi.js";
-import { ObjectComp } from "../raw-components";
-import { CharacterState } from "../types";
+import { ObjectComp, SleepSystemComp } from "../raw-components";
+import { CharacterState, SleepMode } from "../types";
 import {
   MainSceneWorld,
   MissingInitialGameDataError,
@@ -17,6 +18,8 @@ type TestableMainSceneWorld = MainSceneWorld & {
   _showAlert?: (message: string, title?: string) => void;
   _findMainCharacterEntity: () => number;
   _shouldBlockMiniGameEntry: () => boolean;
+  _prepareMainCharacterForMiniGameEntry: () => void;
+  _simulationTime?: number | null;
 };
 
 function createMainSceneWorld(): TestableMainSceneWorld {
@@ -100,4 +103,23 @@ test("egg 상태여도 debug 모드면 미니게임 진입을 허용한다", () 
 
   assert.equal(world._shouldBlockMiniGameEntry(), false);
   assert.deepEqual(alerts, []);
+});
+
+test("수면 중 미니게임 진입 준비는 캐릭터를 깨우고 피로도를 10 올린다", () => {
+  const world = createMainSceneWorld();
+
+  createWorld(world as any, 16);
+  const eid = addEntity(world as any);
+  addComponent(world as any, SleepSystemComp, eid);
+  world._findMainCharacterEntity = () => eid;
+  world._simulationTime = 5_000;
+  ObjectComp.state[eid] = CharacterState.SLEEPING;
+  SleepSystemComp.sleepMode[eid] = SleepMode.NIGHT_SLEEP;
+  SleepSystemComp.fatigue[eid] = 35;
+
+  world._prepareMainCharacterForMiniGameEntry();
+
+  assert.equal(ObjectComp.state[eid], CharacterState.IDLE);
+  assert.equal(SleepSystemComp.sleepMode[eid], SleepMode.AWAKE);
+  assert.equal(SleepSystemComp.fatigue[eid], 45);
 });

@@ -12,6 +12,7 @@ import {
   PositionComp,
   RandomMovementComp,
   RenderComp,
+  SleepSystemComp,
   SpeedComp,
 } from "../raw-components";
 import { GAME_CONSTANTS } from "../config";
@@ -22,6 +23,8 @@ import { commonMovementSystem } from "../systems/CommonMovementSystem";
 import {
   CharacterKeyECS,
   CharacterState,
+  SleepMode,
+  SleepReason,
   FoodState,
   Freshness,
   ObjectType,
@@ -31,8 +34,10 @@ import {
   createTestCharacter,
   createTestWorld,
   withMockedDateNow,
+  withMockedRandom,
 } from "../../../test-utils/mainSceneTestUtils";
 import { getCharacterWorldBounds } from "../systems/CharacterDisplayBounds";
+import { TimeOfDay } from "../timeOfDay";
 
 const EATING_POSE_FOOD_Y_OFFSET_PX = 1;
 const FOOD_CHARACTER_BOUNDARY_OVERLAP_PX = 30;
@@ -629,4 +634,52 @@ test("보통 음식은 스테미나를 1.5 올리고 소화 부하는 고정 2�
 
   assert.equal(CharacterStatusComp.stamina[characterEid], 4.5);
   assert.equal(DigestiveSystemComp.currentLoad[characterEid], 2);
+});
+
+test("urgent 수면 기상 후 식사를 마치면 기존 밤중 각성과 같은 5~15분 재수면을 예약한다", () => {
+  const world = createTestWorld({
+    now: 45_000,
+    timeOfDay: TimeOfDay.Night,
+  });
+  const characterEid = withMockedDateNow(45_000, () =>
+    createTestCharacter(world, {
+      state: CharacterState.IDLE,
+      stamina: 3,
+      x: 100,
+      y: 100,
+    }),
+  );
+
+  createLandedFood(world, {
+    x: 112,
+    y: 112,
+    freshness: Freshness.NORMAL,
+  });
+
+  foodEatingSystem({
+    world: world as any,
+    delta: 0,
+    currentTime: 45_000,
+  });
+
+  moveToDestinationAndStartEating(world, characterEid);
+  SleepSystemComp.sleepMode[characterEid] = SleepMode.INTERRUPTED_AWAKE;
+  SleepSystemComp.pendingSleepReason[characterEid] = SleepReason.RESLEEP;
+  SleepSystemComp.nextSleepTime[characterEid] = 0;
+
+  withMockedRandom(0, () => {
+    foodEatingSystem({
+      world: world as any,
+      delta: 3_200,
+      currentTime: 48_200,
+    });
+  });
+
+  assert.equal(ObjectComp.state[characterEid], CharacterState.IDLE);
+  assert.equal(SleepSystemComp.sleepMode[characterEid], SleepMode.INTERRUPTED_AWAKE);
+  assert.equal(SleepSystemComp.pendingSleepReason[characterEid], SleepReason.RESLEEP);
+  assert.equal(
+    SleepSystemComp.nextSleepTime[characterEid],
+    48_200 + GAME_CONSTANTS.NIGHT_RESLEEP_MIN_DELAY,
+  );
 });

@@ -380,3 +380,47 @@ test("먹이 메뉴 광고 fallback 은 3초 후 메인 캐릭터가 idle 상태
     browser.cleanup();
   }
 });
+
+test("legacy mini_game pending 예약은 읽는 시점에 정리된다", () => {
+  const world = createMainSceneWorld();
+
+  const appState = world._persistentData?.world_metadata.app_state;
+  assert.ok(appState?.main_scene_ad);
+
+  appState.main_scene_ad.pending = {
+    menu: "mini_game" as unknown as MainSceneAdMenu,
+    queued_at: 12_345,
+    cooldown_ms: 5 * 60 * 1000,
+    threshold: 5,
+    deep_night: false,
+  };
+
+  const debugState = world.getMainSceneAdDebugState();
+
+  assert.equal(debugState.pending, null);
+  assert.equal(getAdState(world)?.pending, undefined);
+});
+
+test("legacy mini_game pending 예약이 있어도 clean 메뉴 예약으로 정상 복구된다", () => {
+  const world = createMainSceneWorld();
+
+  const appState = world._persistentData?.world_metadata.app_state;
+  assert.ok(appState?.main_scene_ad);
+
+  appState.main_scene_ad.menu_use_count = 4;
+  appState.main_scene_ad.pending = {
+    menu: "mini_game" as unknown as MainSceneAdMenu,
+    queued_at: 12_345,
+    cooldown_ms: 5 * 60 * 1000,
+    threshold: 5,
+    deep_night: false,
+  };
+
+  withMockedDateNow(30_000, () => {
+    world._recordMainSceneMenuUse("clean");
+  });
+
+  assert.equal(getAdState(world)?.menu_use_count, 5);
+  assert.equal(getAdState(world)?.pending?.menu, "clean");
+  assert.equal(getAdState(world)?.pending?.threshold, 5);
+});

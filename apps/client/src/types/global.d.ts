@@ -1,4 +1,4 @@
-type DigiviceMainSceneAdMenu = "feed" | "clean" | "hospital" | "mini_game";
+type DigiviceMainSceneAdMenu = "feed" | "clean" | "hospital";
 
 type AdControllerShowOptions = {
   cooldownMs?: number;

@@ -17,6 +17,7 @@ import {
   SpeedComp,
   RandomMovementComp,
   FreshnessComp,
+  SleepSystemComp,
 } from "../raw-components";
 import { GAME_CONSTANTS } from "../config";
 import {
@@ -25,6 +26,8 @@ import {
   FoodState,
   DestinationType,
   CharacterStatus,
+  SleepMode,
+  SleepReason,
 } from "../types";
 import { MainSceneWorld } from "../world";
 import { getCharacterMovementSpeedForEntity } from "../characterStats";
@@ -35,6 +38,8 @@ import { moveTowardsTarget } from "../utils/movementUtils";
 import { getCharacterWorldBounds } from "./CharacterDisplayBounds";
 import { getSpriteStore } from "./RenderSystem";
 import { restoreCharacterFreeRoamingState } from "../entityDataHelpers";
+import { TimeOfDay } from "../timeOfDay";
+import { scheduleResleep } from "./SleepScheduleSystem";
 
 const characterQuery = defineQuery([
   ObjectComp,
@@ -294,6 +299,11 @@ function completeEating(
   );
   CharacterStatusComp.stamina[characterEid] = newStamina;
 
+  const shouldResumeNightSleepAfterEating =
+    SleepSystemComp.sleepMode[characterEid] === SleepMode.INTERRUPTED_AWAKE &&
+    SleepSystemComp.pendingSleepReason[characterEid] === SleepReason.RESLEEP &&
+    SleepSystemComp.nextSleepTime[characterEid] <= 0;
+
   // 음식 신선도와 무관하게 식사 1회당 고정 소화 부하를 추가한다.
   addDigestiveLoadAmount(
     world,
@@ -311,6 +321,15 @@ function completeEating(
       `[FoodEatingSystem] Character ${characterEid} stamina increased from ${currentStamina} to ${newStamina}, adding happy status`,
     );
     addCharacterStatus(characterEid, CharacterStatus.HAPPY);
+  }
+
+  if (shouldResumeNightSleepAfterEating) {
+    if (world.timeOfDay === TimeOfDay.Night) {
+      scheduleResleep(characterEid, currentTime);
+    } else {
+      SleepSystemComp.sleepMode[characterEid] = SleepMode.AWAKE;
+      SleepSystemComp.pendingSleepReason[characterEid] = SleepReason.NONE;
+    }
   }
 
   // 캐릭터 상태를 IDLE로 변경

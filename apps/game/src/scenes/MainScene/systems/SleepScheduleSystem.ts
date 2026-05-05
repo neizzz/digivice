@@ -3,6 +3,7 @@ import {
   CharacterStatusComp,
   DestinationComp,
   DiseaseSystemComp,
+  FreshnessComp,
   ObjectComp,
   RandomMovementComp,
   SleepSystemComp,
@@ -16,18 +17,21 @@ import {
   CharacterState,
   CharacterStatus,
   DestinationType,
+  FoodState,
   ObjectType,
   SleepMode,
   SleepReason,
 } from "../types";
 import { MainSceneWorld } from "../world";
 import { TimeOfDay, TimeOfDayMode } from "../timeOfDay";
+import { isFoodEdible } from "./FreshnessSystem";
 
 const characterSleepQuery = defineQuery([
   ObjectComp,
   CharacterStatusComp,
   SleepSystemComp,
 ]);
+const objectQuery = defineQuery([ObjectComp]);
 
 const HOUR_IN_MILLISECONDS = 60 * 60 * 1000;
 const lastTimeOfDayByWorld = new WeakMap<MainSceneWorld, TimeOfDay>();
@@ -75,6 +79,7 @@ export function sleepScheduleSystem(params: {
     reconcileExternalSleepExit(eid, currentTime, currentTimeOfDay);
     handleScheduledWake(world, eid, currentTime);
     handleNightWakeChecks(world, eid, currentTime, currentTimeOfDay);
+    handleUrgentWakeForFood(world, eid, currentTime, currentTimeOfDay);
     handleScheduledSleep(world, eid, currentTime, currentTimeOfDay);
     handleDayNapChecks(world, eid, currentTime, currentTimeOfDay);
     handleNapWake(world, eid, currentTime, currentTimeOfDay);
@@ -181,6 +186,7 @@ function handleTimeOfDayTransition(
         break;
       case TimeOfDay.Sunrise:
         clearPendingNightSleep(eid);
+        clearDeferredResleepIntentIfStale(eid);
         if (ObjectComp.state[eid] === CharacterState.SLEEPING) {
           scheduleWakeFromSunrise(eid, currentTime);
         }
@@ -198,6 +204,7 @@ function handleTimeOfDayTransition(
           SleepSystemComp.nextNapCheckTime[eid] =
             currentTime + GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL;
         }
+        clearDeferredResleepIntentIfStale(eid);
         break;
       case TimeOfDay.Sunset:
       default:
@@ -369,6 +376,35 @@ function handleNightWakeChecks(
       break;
     }
   }
+}
+
+function handleUrgentWakeForFood(
+  world: MainSceneWorld,
+  eid: number,
+  currentTime: number,
+  currentTimeOfDay: TimeOfDay,
+): void {
+  if (ObjectComp.state[eid] !== CharacterState.SLEEPING) {
+    return;
+  }
+
+  if (hasStatus(eid, CharacterStatus.SICK)) {
+    return;
+  }
+
+  if (CharacterStatusComp.stamina[eid] > GAME_CONSTANTS.URGENT_STAMINA_THRESHOLD) {
+    return;
+  }
+
+  if (!hasEdibleLandedFood(world)) {
+    return;
+  }
+
+  wakeCharacter(world, eid, currentTime, {
+    preserveDeferredNightResleep:
+      currentTimeOfDay === TimeOfDay.Night &&
+      SleepSystemComp.sleepMode[eid] === SleepMode.NIGHT_SLEEP,
+  });
 }
 
 function handleScheduledSleep(
@@ -602,7 +638,7 @@ function scheduleWakeFromSunrise(eid: number, currentTime: number): void {
   SleepSystemComp.pendingSleepReason[eid] = SleepReason.NONE;
 }
 
-function scheduleResleep(eid: number, currentTime: number): void {
+export function scheduleResleep(eid: number, currentTime: number): void {
   SleepSystemComp.sleepMode[eid] = SleepMode.INTERRUPTED_AWAKE;
   SleepSystemComp.nextSleepTime[eid] =
     currentTime +
@@ -637,20 +673,28 @@ function enterSleep(eid: number, currentTime: number, mode: SleepMode): void {
       : 0;
 }
 
-function wakeCharacter(
+export function wakeCharacter(
   world: MainSceneWorld,
   eid: number,
   currentTime: number,
+  options: {
+    preserveDeferredNightResleep?: boolean;
+  } = {},
 ): void {
   const isSick = hasStatus(eid, CharacterStatus.SICK);
+  const { preserveDeferredNightResleep = false } = options;
 
   ObjectComp.state[eid] = isSick ? CharacterState.SICK : CharacterState.IDLE;
   SpeedComp.value[eid] = 0;
-  SleepSystemComp.sleepMode[eid] = SleepMode.AWAKE;
+  SleepSystemComp.sleepMode[eid] = preserveDeferredNightResleep
+    ? SleepMode.INTERRUPTED_AWAKE
+    : SleepMode.AWAKE;
   SleepSystemComp.nextSleepTime[eid] = 0;
   SleepSystemComp.nextWakeTime[eid] = 0;
   SleepSystemComp.nextNightWakeCheckTime[eid] = 0;
-  SleepSystemComp.pendingSleepReason[eid] = SleepReason.NONE;
+  SleepSystemComp.pendingSleepReason[eid] = preserveDeferredNightResleep
+    ? SleepReason.RESLEEP
+    : SleepReason.NONE;
   SleepSystemComp.pendingWakeReason[eid] = SleepReason.NONE;
   SleepSystemComp.sleepSessionStartedAt[eid] = 0;
   SleepSystemComp.nextNapCheckTime[eid] =
@@ -659,6 +703,33 @@ function wakeCharacter(
   if (!isSick) {
     restoreRandomMovementIfNeeded(world, eid, currentTime);
   }
+}
+
+function hasEdibleLandedFood(world: MainSceneWorld): boolean {
+  const entities = objectQuery(world);
+
+  for (let i = 0; i < entities.length; i++) {
+    const eid = entities[i];
+
+    if (ObjectComp.type[eid] !== ObjectType.FOOD) {
+      continue;
+    }
+
+    if (ObjectComp.state[eid] !== FoodState.LANDED) {
+      continue;
+    }
+
+    if (
+      hasComponent(world, FreshnessComp, eid) &&
+      !isFoodEdible(FreshnessComp.freshness[eid])
+    ) {
+      continue;
+    }
+
+    return true;
+  }
+
+  return false;
 }
 
 function clearPendingNightSleep(eid: number): void {
@@ -671,6 +742,19 @@ function clearPendingNightSleep(eid: number): void {
     SleepSystemComp.nextWakeTime[eid] = 0;
     SleepSystemComp.pendingWakeReason[eid] = SleepReason.NONE;
   }
+}
+
+function clearDeferredResleepIntentIfStale(eid: number): void {
+  if (
+    ObjectComp.state[eid] === CharacterState.SLEEPING ||
+    SleepSystemComp.pendingSleepReason[eid] !== SleepReason.RESLEEP ||
+    SleepSystemComp.nextSleepTime[eid] > 0
+  ) {
+    return;
+  }
+
+  SleepSystemComp.sleepMode[eid] = SleepMode.AWAKE;
+  SleepSystemComp.pendingSleepReason[eid] = SleepReason.NONE;
 }
 
 function ensureNightWakeCheckTime(eid: number, currentTime: number): void {

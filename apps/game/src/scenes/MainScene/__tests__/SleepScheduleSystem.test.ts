@@ -5,7 +5,9 @@ import {
   CharacterStatusComp,
   DestinationComp,
   DiseaseSystemComp,
+  FreshnessComp,
   ObjectComp,
+  PositionComp,
   SleepSystemComp,
 } from "../raw-components";
 import {
@@ -14,10 +16,12 @@ import {
   PRODUCTION_BALANCE_REFERENCE,
 } from "../config";
 import { sleepScheduleSystem } from "../systems/SleepScheduleSystem";
+import { foodEatingSystem } from "../systems/FoodEatingSystem";
 import {
   CharacterState,
   CharacterStatus,
   DestinationType,
+  Freshness,
   FoodState,
   ObjectType,
   SleepMode,
@@ -321,6 +325,97 @@ test("먹이를 찾아가는 도중에는 예약된 수면 시각이 되어도 �
 
   assert.equal(ObjectComp.state[eid], CharacterState.SLEEPING);
   assert.equal(SleepSystemComp.sleepMode[eid], SleepMode.NIGHT_SLEEP);
+});
+
+test("수면 중 urgent이고 먹을 수 있는 음식이 있으면 깨서 음식 목표 추적으로 전환한다", () => {
+  const world = createTestWorld({
+    now: 60_000,
+    timeOfDay: TimeOfDay.Night,
+  });
+
+  const eid = withMockedDateNow(60_000, () =>
+    createTestCharacter(world, {
+      state: CharacterState.SLEEPING,
+      stamina: 0,
+      x: 100,
+      y: 100,
+    }),
+  );
+
+  SleepSystemComp.sleepMode[eid] = SleepMode.NIGHT_SLEEP;
+  SleepSystemComp.fatigue[eid] = 40;
+
+  const foodEid = addEntity(world);
+  addComponent(world, ObjectComp, foodEid);
+  addComponent(world, PositionComp, foodEid);
+  addComponent(world, FreshnessComp, foodEid);
+  ObjectComp.id[foodEid] = 40_000 + foodEid;
+  ObjectComp.type[foodEid] = ObjectType.FOOD;
+  ObjectComp.state[foodEid] = FoodState.LANDED;
+  PositionComp.x[foodEid] = 160;
+  PositionComp.y[foodEid] = 100;
+  FreshnessComp.freshness[foodEid] = Freshness.NORMAL;
+
+  sleepScheduleSystem({
+    world: world as any,
+    delta: 0,
+    currentTime: 60_000,
+  });
+
+  assert.equal(ObjectComp.state[eid], CharacterState.IDLE);
+  assert.equal(SleepSystemComp.sleepMode[eid], SleepMode.INTERRUPTED_AWAKE);
+  assert.equal(SleepSystemComp.pendingSleepReason[eid], SleepReason.RESLEEP);
+  assert.equal(SleepSystemComp.nextSleepTime[eid], 0);
+
+  foodEatingSystem({
+    world: world as any,
+    delta: 0,
+    currentTime: 60_000,
+  });
+
+  assert.equal(ObjectComp.state[eid], CharacterState.MOVING);
+  assert.equal(ObjectComp.state[foodEid], FoodState.TARGETED);
+  assert.equal(DestinationComp.target[eid], foodEid);
+});
+
+test("수면 중 urgent여도 sick 상태면 음식 때문에 깨지 않는다", () => {
+  const world = createTestWorld({
+    now: 70_000,
+    timeOfDay: TimeOfDay.Night,
+  });
+
+  const eid = withMockedDateNow(70_000, () =>
+    createTestCharacter(world, {
+      state: CharacterState.SLEEPING,
+      stamina: 0,
+      x: 100,
+      y: 100,
+    }),
+  );
+
+  SleepSystemComp.sleepMode[eid] = SleepMode.NIGHT_SLEEP;
+  CharacterStatusComp.statuses[eid][0] = CharacterStatus.SICK;
+
+  const foodEid = addEntity(world);
+  addComponent(world, ObjectComp, foodEid);
+  addComponent(world, PositionComp, foodEid);
+  addComponent(world, FreshnessComp, foodEid);
+  ObjectComp.id[foodEid] = 50_000 + foodEid;
+  ObjectComp.type[foodEid] = ObjectType.FOOD;
+  ObjectComp.state[foodEid] = FoodState.LANDED;
+  PositionComp.x[foodEid] = 150;
+  PositionComp.y[foodEid] = 100;
+  FreshnessComp.freshness[foodEid] = Freshness.NORMAL;
+
+  sleepScheduleSystem({
+    world: world as any,
+    delta: 0,
+    currentTime: 70_000,
+  });
+
+  assert.equal(ObjectComp.state[eid], CharacterState.SLEEPING);
+  assert.equal(SleepSystemComp.sleepMode[eid], SleepMode.NIGHT_SLEEP);
+  assert.equal(ObjectComp.state[foodEid], FoodState.LANDED);
 });
 
 test("수면 중 sickness가 남아 있으면 피로 회복이 느리다", () => {
