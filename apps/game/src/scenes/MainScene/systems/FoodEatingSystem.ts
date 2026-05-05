@@ -71,6 +71,7 @@ const FALLBACK_FOOD_SOURCE_SIZE = 16;
 const EATING_POSE_FOOD_Y_OFFSET_PX = 1; // 식사 중 캐릭터 중심이 음식 중심보다 위에 있는 정도
 const ZERO_DISTANCE_EPSILON = 0.001;
 const DEFAULT_FOOD_STAMINA_BONUS = 2;
+const FOOD_STAMINA_BONUS_DISTRIBUTION = [1, 2, 2, 3, 3, 4] as const;
 
 type WorldBounds = {
   leftX: number;
@@ -86,10 +87,10 @@ export function getStaminaBonusForFoodTexture(textureKey: number): number {
     return DEFAULT_FOOD_STAMINA_BONUS;
   }
 
-  const foodIndex = textureKey - TextureKey.FOOD1 + 1;
-  const mixed = Math.imul(foodIndex, 2_654_435_761) >>> 0;
-
-  return (mixed % 4) + 1;
+  const foodIndex = textureKey - TextureKey.FOOD1;
+  return FOOD_STAMINA_BONUS_DISTRIBUTION[
+    foodIndex % FOOD_STAMINA_BONUS_DISTRIBUTION.length
+  ];
 }
 
 export function foodEatingSystem(params: {
