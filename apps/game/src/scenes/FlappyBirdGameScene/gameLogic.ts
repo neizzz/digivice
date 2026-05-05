@@ -474,7 +474,7 @@ export class PipeManager {
   private pipesPairs: PipePair[] = [];
   private pipeSpawnInterval: number;
   private targetPipeSpawnInterval: number;
-  private lastPipeSpawnTime = 0;
+  private elapsedSinceLastPipeSpawnMs: number;
   private speed: number;
   private targetSpeed: number;
   private groundHeight: number;
@@ -499,6 +499,7 @@ export class PipeManager {
     this.targetSpeed = speed;
     this.pipeSpawnInterval = spawnInterval;
     this.targetPipeSpawnInterval = spawnInterval;
+    this.elapsedSinceLastPipeSpawnMs = spawnInterval;
     this.groundHeight = groundHeight;
     this.pipes = new PIXI.Container();
   }
@@ -507,7 +508,6 @@ export class PipeManager {
    * 파이프를 업데이트합니다.
    */
   public update(
-    currentTime: number,
     playerBody: Matter.Body,
     onScoreUpdate: (scoreDelta: number) => void,
     deltaTime: number,
@@ -519,11 +519,12 @@ export class PipeManager {
       this.targetPipeSpawnInterval,
       deltaTime,
     );
+    this.elapsedSinceLastPipeSpawnMs += Math.max(0, deltaTime);
 
     // 파이프 생성 로직
-    if (currentTime - this.lastPipeSpawnTime > this.pipeSpawnInterval) {
+    if (this.elapsedSinceLastPipeSpawnMs > this.pipeSpawnInterval) {
       spawned += this.createPipePattern();
-      this.lastPipeSpawnTime = currentTime;
+      this.elapsedSinceLastPipeSpawnMs = 0;
     }
 
     // 파이프 이동 로직
@@ -769,7 +770,7 @@ export class PipeManager {
    */
   public reset(): void {
     this.clearAllPipes();
-    this.lastPipeSpawnTime = 0;
+    this.elapsedSinceLastPipeSpawnMs = this.pipeSpawnInterval;
   }
 
   public applyDifficulty(options: FlappyBirdDifficultyState): void {

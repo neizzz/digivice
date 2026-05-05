@@ -766,7 +766,6 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
 
       // 파이프 관리
       pipeUpdateStats = this.pipeManager.update(
-        currentTime,
         this.playerManager.getBasketBody(),
         (scoreDelta) => this.handleScoreIncrement(scoreDelta),
         deltaTime,
