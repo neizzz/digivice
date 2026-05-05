@@ -29,6 +29,9 @@ type MonsterDefinition = {
   jsonPath: string;
 };
 
+type MonsterFamily = "green-slime" | "skull-slime" | "soil-slime";
+type MonsterClassCode = "A" | "B" | "C" | "D";
+
 type MonsterLoadState =
   | { status: "loading" }
   | { status: "error"; message: string }
@@ -47,20 +50,51 @@ type FrameViewportProps = {
   scale?: number;
 };
 
-const MONSTER_DEFINITIONS: MonsterDefinition[] = [
-  { key: "green-slime_A1", label: "Green Slime A1", jsonPath: "/assets/game/sprites/monsters/green-slime_A1.json" },
-  { key: "green-slime_B1", label: "Green Slime B1", jsonPath: "/assets/game/sprites/monsters/green-slime_B1.json" },
-  { key: "green-slime_B2", label: "Green Slime B2", jsonPath: "/assets/game/sprites/monsters/green-slime_B2.json" },
-  { key: "green-slime_B3", label: "Green Slime B3", jsonPath: "/assets/game/sprites/monsters/green-slime_B3.json" },
-  { key: "green-slime_C1", label: "Green Slime C1", jsonPath: "/assets/game/sprites/monsters/green-slime_C1.json" },
-  { key: "green-slime_C2", label: "Green Slime C2", jsonPath: "/assets/game/sprites/monsters/green-slime_C2.json" },
-  { key: "green-slime_C3", label: "Green Slime C3", jsonPath: "/assets/game/sprites/monsters/green-slime_C3.json" },
-  { key: "green-slime_C4", label: "Green Slime C4", jsonPath: "/assets/game/sprites/monsters/green-slime_C4.json" },
-  { key: "green-slime_D1", label: "Green Slime D1", jsonPath: "/assets/game/sprites/monsters/green-slime_D1.json" },
-  { key: "green-slime_D2", label: "Green Slime D2", jsonPath: "/assets/game/sprites/monsters/green-slime_D2.json" },
-  { key: "green-slime_D3", label: "Green Slime D3", jsonPath: "/assets/game/sprites/monsters/green-slime_D3.json" },
-  { key: "green-slime_D4", label: "Green Slime D4", jsonPath: "/assets/game/sprites/monsters/green-slime_D4.json" },
-];
+const MONSTER_VARIANTS: Record<MonsterFamily, Record<MonsterClassCode, number[]>> = {
+  "green-slime": {
+    A: [1, 2],
+    B: [1, 2, 3],
+    C: [1, 2, 3, 4],
+    D: [1, 2, 3, 4],
+  },
+  "skull-slime": {
+    A: [1, 2],
+    B: [1, 2],
+    C: [1, 2],
+    D: [1, 2],
+  },
+  "soil-slime": {
+    A: [1, 2],
+    B: [1, 2],
+    C: [1, 2, 3],
+    D: [1, 2, 3],
+  },
+};
+
+function formatMonsterLabel(family: MonsterFamily, classCode: MonsterClassCode, variant: number) {
+  const baseLabel = family
+    .split("-")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+
+  return `${baseLabel} ${classCode}${variant}`;
+}
+
+const MONSTER_DEFINITIONS: MonsterDefinition[] = (
+  Object.entries(MONSTER_VARIANTS) as [MonsterFamily, Record<MonsterClassCode, number[]>][]
+).flatMap(([family, classMap]) =>
+  (Object.entries(classMap) as [MonsterClassCode, number[]][]).flatMap(([classCode, variants]) =>
+    variants.map((variant) => {
+      const key = `${family}_${classCode}${variant}`;
+
+      return {
+        key,
+        label: formatMonsterLabel(family, classCode, variant),
+        jsonPath: `/assets/game/sprites/monsters/${key}.json`,
+      };
+    }),
+  ),
+);
 
 const ANIMATION_ORDER = ["idle", "walking", "sleeping", "eating", "sick"] as const;
 const ANIMATION_LABELS: Record<(typeof ANIMATION_ORDER)[number], string> = {
@@ -101,7 +135,7 @@ function FrameViewport({
 }
 
 export default function MonsterAnimationTestPage() {
-  const [tick, setTick] = useState(0);
+  const [elapsedMs, setElapsedMs] = useState(0);
   const [monsterStates, setMonsterStates] = useState<Record<string, MonsterLoadState>>(() =>
     Object.fromEntries(
       MONSTER_DEFINITIONS.map(({ key }) => [key, { status: "loading" }]),
@@ -113,13 +147,17 @@ export default function MonsterAnimationTestPage() {
   }, []);
 
   useEffect(() => {
-    const intervalId = window.setInterval(() => {
-      setTick((current) => current + 1);
-    }, TICK_INTERVAL_MS);
+    const startTime = performance.now();
+    let animationFrameId = 0;
 
-    return () => {
-      window.clearInterval(intervalId);
+    const updateElapsedMs = () => {
+      setElapsedMs(performance.now() - startTime);
+      animationFrameId = window.requestAnimationFrame(updateElapsedMs);
     };
+
+    animationFrameId = window.requestAnimationFrame(updateElapsedMs);
+
+    return () => window.cancelAnimationFrame(animationFrameId);
   }, []);
 
   useEffect(() => {
@@ -184,7 +222,7 @@ export default function MonsterAnimationTestPage() {
         <div className="monster-animation-test-page__summary">
           <span>Loaded {summary.readyCount}/{summary.totalCount}</span>
           <span>Errors {summary.errorCount}</span>
-          <span>Tick {tick}</span>
+          <span>Elapsed {Math.floor(elapsedMs)}ms</span>
         </div>
       </header>
 
@@ -229,11 +267,10 @@ export default function MonsterAnimationTestPage() {
                 {ANIMATION_ORDER.map((animationName) => {
                   const frameNames = data.animations[animationName] ?? [];
                   const duration = ANIMATION_SPEED_OVERRIDES[animationName] ?? TICK_INTERVAL_MS;
-                  const elapsed = tick * TICK_INTERVAL_MS;
                   const frameIndex =
                     frameNames.length <= 1
                       ? 0
-                      : Math.floor(elapsed / duration) % frameNames.length;
+                      : Math.floor(elapsedMs / duration) % frameNames.length;
                   const frameName = frameNames[frameIndex];
                   const frame = frameName ? data.frames[frameName]?.frame : undefined;
 
