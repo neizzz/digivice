@@ -35,7 +35,6 @@ import {
   TemporaryStatusComponent,
   EggHatchComponent,
   FreshnessTimerComponent,
-  SparkleEffectComponent,
   CleanableComponent,
   BroomRenderComponent,
   EGG_TEXTURE_KEYS,
@@ -193,7 +192,6 @@ export type EntityComponents = {
   temporaryStatus?: TemporaryStatusComponent;
   eggHatch?: EggHatchComponent;
   freshnessTimer?: FreshnessTimerComponent;
-  sparkleEffect?: SparkleEffectComponent;
   cleanable?: CleanableComponent;
   broomRender?: BroomRenderComponent;
 };

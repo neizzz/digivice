@@ -146,16 +146,6 @@ export const TemporaryStatusComp = defineComponent({
   statusType: Types.ui8, // 임시 상태 타입 (CharacterStatus enum)
   startTime: Types.f64, // 상태 시작 시간 (timestamp)
 });
-
-/**
- * 스파클 이펙트 컴포넌트
- */
-export const SparkleEffectComp = defineComponent({
-  isActive: Types.ui8, // 효과 활성 상태 (0 = false, 1 = true)
-  sparkleCount: Types.ui8, // 현재 반짝임 개수
-  nextSpawnTime: Types.f64, // 다음 반짝임 생성 시간 (timestamp)
-  spawnInterval: Types.ui32, // 반짝임 생성 간격 (ms)
-});
 /**
  * 알 부화 컴포넌트
  */

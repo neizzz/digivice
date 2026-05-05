@@ -28,11 +28,12 @@ import {
   CharacterStatus,
   SleepMode,
   SleepReason,
+  TextureKey,
 } from "../types";
 import { MainSceneWorld } from "../world";
 import { getCharacterMovementSpeedForEntity } from "../characterStats";
 import { addCharacterStatus } from "./CharacterManageSystem";
-import { getStaminaBonusFromFreshness, isFoodEdible } from "./FreshnessSystem";
+import { isFoodEdible } from "./FreshnessSystem";
 import { addDigestiveLoadAmount } from "./DigestiveSystem";
 import { moveTowardsTarget } from "../utils/movementUtils";
 import { getCharacterWorldBounds } from "./CharacterDisplayBounds";
@@ -69,6 +70,7 @@ const FOOD_CHARACTER_BOUNDARY_OVERLAP_PX = 30; // 식사 중 캐릭터와 음식
 const FALLBACK_FOOD_SOURCE_SIZE = 16;
 const EATING_POSE_FOOD_Y_OFFSET_PX = 1; // 식사 중 캐릭터 중심이 음식 중심보다 위에 있는 정도
 const ZERO_DISTANCE_EPSILON = 0.001;
+const DEFAULT_FOOD_STAMINA_BONUS = 2;
 
 type WorldBounds = {
   leftX: number;
@@ -78,6 +80,17 @@ type WorldBounds = {
   width: number;
   height: number;
 };
+
+export function getStaminaBonusForFoodTexture(textureKey: number): number {
+  if (textureKey < TextureKey.FOOD1 || textureKey > TextureKey.FOOD64) {
+    return DEFAULT_FOOD_STAMINA_BONUS;
+  }
+
+  const foodIndex = textureKey - TextureKey.FOOD1 + 1;
+  const mixed = Math.imul(foodIndex, 2_654_435_761) >>> 0;
+
+  return (mixed % 4) + 1;
+}
 
 export function foodEatingSystem(params: {
   world: MainSceneWorld;
@@ -276,19 +289,21 @@ function completeEating(
     `[FoodEatingSystem] Character ${characterEid} completed eating food ${foodEid}`,
   );
 
-  // 음식의 신선도 확인
-  let staminaBonus = 2; // 기본값
+  let staminaBonus = DEFAULT_FOOD_STAMINA_BONUS;
   if (hasComponent(world, FreshnessComp, foodEid)) {
     const freshness = FreshnessComp.freshness[foodEid];
 
-    // 상한 음식은 먹을 수 없음
     if (!isFoodEdible(freshness)) {
       console.log(`[FoodEatingSystem] Food ${foodEid} is stale, cannot eat`);
       cancelEating(world, characterEid);
       return;
     }
+  }
 
-    staminaBonus = getStaminaBonusFromFreshness(freshness);
+  if (hasComponent(world, RenderComp, foodEid)) {
+    staminaBonus = getStaminaBonusForFoodTexture(
+      RenderComp.textureKey[foodEid],
+    );
   }
 
   // 캐릭터 스태미나 증가

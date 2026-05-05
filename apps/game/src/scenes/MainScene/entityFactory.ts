@@ -13,7 +13,6 @@ import {
   AnimationRenderComp,
   StatusIconRenderComp,
   ThrowAnimationComp,
-  FreshnessTimerComp,
   // Add new components for character creation
   DigestiveSystemComp,
   DiseaseSystemComp,
@@ -230,7 +229,7 @@ export function createCharacterEntity(
 //   // FreshnessComp
 //   addComponent(world, FreshnessComp, eid);
 //   FreshnessComp.freshness[eid] =
-//     _components.freshness.freshness || Freshness.FRESH;
+//     _components.freshness.freshness || Freshness.NORMAL;
 
 //   // FreshnessTimerComp 추가 (신선도 타이머)
 //   addComponent(world, FreshnessTimerComp, eid);
@@ -372,9 +371,9 @@ export function createThrowingFoodEntity(
   RenderComp.scale[eid] = 4; // 초기 큰 크기로 시작 (시스템에서 관리)
   RenderComp.zIndex[eid] = INTENTED_FRONT_Z_INDEX;
 
-  // Freshness component
+  // Freshness component (fresh 상태 제거: 새 음식은 바로 NORMAL)
   addComponent(world, FreshnessComp, eid);
-  FreshnessComp.freshness[eid] = Freshness.FRESH;
+  FreshnessComp.freshness[eid] = Freshness.NORMAL;
 
   // Throw animation component
   addComponent(world, ThrowAnimationComp, eid);

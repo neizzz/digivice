@@ -11,7 +11,7 @@ import { freshnessSystem } from "../systems/FreshnessSystem";
 import { FoodState, Freshness, ObjectType } from "../types";
 import { createTestWorld } from "../../../test-utils/mainSceneTestUtils";
 
-test("freshness는 설정된 FRESH/NORMAL 지속시간을 기준으로 단계 전환된다", () => {
+test("freshness는 새 음식이 NORMAL로 시작하고 기존 총 edible lifetime 후 STALE로 전환된다", () => {
   const world = createTestWorld({ now: 0 });
   const foodEid = addEntity(world);
 
@@ -24,22 +24,20 @@ test("freshness는 설정된 FRESH/NORMAL 지속시간을 기준으로 단계 �
   ObjectComp.state[foodEid] = FoodState.LANDED;
   PositionComp.x[foodEid] = 100;
   PositionComp.y[foodEid] = 100;
-  FreshnessComp.freshness[foodEid] = Freshness.FRESH;
+  FreshnessComp.freshness[foodEid] = Freshness.NORMAL;
 
   freshnessSystem({
     world: world as any,
     currentTime: 0,
   });
+  assert.equal(FreshnessComp.freshness[foodEid], Freshness.NORMAL);
 
   freshnessSystem({
     world: world as any,
-    currentTime: GAME_CONSTANTS.FRESH_TO_NORMAL_TIME - 1,
-  });
-  assert.equal(FreshnessComp.freshness[foodEid], Freshness.FRESH);
-
-  freshnessSystem({
-    world: world as any,
-    currentTime: GAME_CONSTANTS.FRESH_TO_NORMAL_TIME,
+    currentTime:
+      GAME_CONSTANTS.FRESH_TO_NORMAL_TIME +
+      GAME_CONSTANTS.NORMAL_TO_STALE_TIME -
+      1,
   });
   assert.equal(FreshnessComp.freshness[foodEid], Freshness.NORMAL);
 
@@ -60,4 +58,27 @@ test("freshness는 설정된 FRESH/NORMAL 지속시간을 기준으로 단계 �
   });
   assert.equal(FreshnessComp.freshness[foodEid], Freshness.STALE);
   assert.equal(ObjectComp.state[foodEid], FoodState.LANDED);
+});
+
+test("legacy fresh 저장값은 첫 tick에 NORMAL로 정규화된다", () => {
+  const world = createTestWorld({ now: 0 });
+  const foodEid = addEntity(world);
+
+  addComponent(world, ObjectComp, foodEid);
+  addComponent(world, PositionComp, foodEid);
+  addComponent(world, FreshnessComp, foodEid);
+
+  ObjectComp.id[foodEid] = 20_000 + foodEid;
+  ObjectComp.type[foodEid] = ObjectType.FOOD;
+  ObjectComp.state[foodEid] = FoodState.LANDED;
+  PositionComp.x[foodEid] = 120;
+  PositionComp.y[foodEid] = 80;
+  FreshnessComp.freshness[foodEid] = Freshness.FRESH;
+
+  freshnessSystem({
+    world: world as any,
+    currentTime: 0,
+  });
+
+  assert.equal(FreshnessComp.freshness[foodEid], Freshness.NORMAL);
 });

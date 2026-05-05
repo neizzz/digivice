@@ -34,6 +34,7 @@ import {
   CharacterState,
   CharacterStatus,
   DestinationType,
+  Freshness,
   FoodState,
   ObjectType,
   SleepMode,
@@ -45,6 +46,10 @@ import {
   getDefaultEggHatchDurationMs,
   GAME_CONSTANTS,
 } from "./config";
+
+function normalizeSavedFreshness(freshness: Freshness): Freshness {
+  return freshness === Freshness.FRESH ? Freshness.NORMAL : freshness;
+}
 
 /**
  * ECS 엔티티를 SavedEntity로 변환
@@ -91,7 +96,7 @@ export function convertECSEntityToSavedEntity(
   }
   if (hasComponent(world, FreshnessComp, eid)) {
     components.freshness = {
-      freshness: FreshnessComp.freshness[eid],
+      freshness: normalizeSavedFreshness(FreshnessComp.freshness[eid]),
     };
   }
   if (hasComponent(world, DestinationComp, eid)) {
@@ -307,7 +312,9 @@ export function applySavedEntityToECS(
     if (!hasComponent(world, FreshnessComp, eid)) {
       addComponent(world, FreshnessComp, eid);
     }
-    FreshnessComp.freshness[eid] = components.freshness.freshness;
+    FreshnessComp.freshness[eid] = normalizeSavedFreshness(
+      components.freshness.freshness,
+    );
   }
 
   if (components.destination) {

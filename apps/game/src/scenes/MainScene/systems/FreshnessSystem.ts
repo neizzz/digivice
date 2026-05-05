@@ -1,15 +1,14 @@
-import { defineQuery, hasComponent, addComponent } from "bitecs";
+import { addComponent, defineQuery, hasComponent } from "bitecs";
 import {
-  ObjectComp,
+  DestinationComp,
+  FoodEatingComp,
   FreshnessComp,
   FreshnessTimerComp,
-  FoodEatingComp,
-  DestinationComp,
-  SparkleEffectComp,
+  ObjectComp,
 } from "../raw-components";
-import { MainSceneWorld } from "../world";
-import { ObjectType, Freshness, FoodState } from "../types";
 import { GAME_CONSTANTS } from "../config";
+import { MainSceneWorld } from "../world";
+import { FoodState, Freshness, ObjectType } from "../types";
 
 const foodQuery = defineQuery([ObjectComp, FreshnessComp]);
 const foodWithTimerQuery = defineQuery([
@@ -20,10 +19,9 @@ const foodWithTimerQuery = defineQuery([
 
 /**
  * 음식 신선도 시스템
- * - 시간이 지날수록 FRESH -> NORMAL -> STALE으로 변화
+ * - 새 음식은 NORMAL로 시작하고 총 edible lifetime 이후 STALE이 된다.
  * - 캐릭터가 먹고 있는 음식은 신선도가 변하지 않음
  * - 캐릭터가 다가가는 도중 STALE이 되면 타게팅 취소
- * - 신선한 음식은 SparkleEffect 적용
  */
 export function freshnessSystem(params: {
   world: MainSceneWorld;
@@ -31,19 +29,26 @@ export function freshnessSystem(params: {
 }): typeof params {
   const { world, currentTime } = params;
 
-  // 기존 음식들의 타이머 초기화 (타이머가 없는 음식들)
+  normalizeLegacyFreshFood(world);
   initializeFreshnessTimes(world, currentTime);
-
-  // 신선도 업데이트
   updateFreshness(world, currentTime);
-
-  // 신선한 음식에 SparkleEffect 적용
-  applySparkleToFreshFood(world, currentTime);
-
-  // 타게팅된 음식이 상한 경우 타게팅 취소
   cancelTargetingForStalFood(world);
 
   return params;
+}
+
+function normalizeLegacyFreshFood(world: MainSceneWorld): void {
+  const foodEntities = foodQuery(world);
+
+  for (let i = 0; i < foodEntities.length; i++) {
+    const eid = foodEntities[i];
+
+    if (ObjectComp.type[eid] !== ObjectType.FOOD) continue;
+
+    if (FreshnessComp.freshness[eid] === Freshness.FRESH) {
+      FreshnessComp.freshness[eid] = Freshness.NORMAL;
+    }
+  }
 }
 
 /**
@@ -51,7 +56,7 @@ export function freshnessSystem(params: {
  */
 function initializeFreshnessTimes(
   world: MainSceneWorld,
-  currentTime: number
+  currentTime: number,
 ): void {
   const foodEntities = foodQuery(world);
 
@@ -60,7 +65,6 @@ function initializeFreshnessTimes(
 
     if (ObjectComp.type[eid] !== ObjectType.FOOD) continue;
 
-    // 타이머가 없는 음식에 타이머 추가
     if (!hasComponent(world, FreshnessTimerComp, eid)) {
       addComponent(world, FreshnessTimerComp, eid);
       FreshnessTimerComp.createdTime[eid] = currentTime;
@@ -85,45 +89,32 @@ function updateFreshness(world: MainSceneWorld, currentTime: number): void {
     const timerComp = FreshnessTimerComp;
     const freshnessComp = FreshnessComp;
 
-    // 먹히고 있는 음식은 신선도가 변하지 않음
     const isBeingEaten = isBeingEatenByCharacter(world, eid);
     timerComp.isBeingEaten[eid] = isBeingEaten ? 1 : 0;
 
     if (isBeingEaten) continue;
 
-    const createdTime = timerComp.createdTime[eid];
-    const elapsedTime = currentTime - createdTime;
+    let currentFreshness = freshnessComp.freshness[eid];
+    if (currentFreshness === Freshness.FRESH) {
+      currentFreshness = Freshness.NORMAL;
+      freshnessComp.freshness[eid] = currentFreshness;
+    }
 
-    const currentFreshness = freshnessComp.freshness[eid];
-
-    // 이미 상한 음식이라면 저장 데이터/이전 상태에서 남은 TARGETED, BEING_INTAKEN 같은
-    // 잘못된 상태를 정리해서 청소 대상으로 일관되게 취급한다.
     if (
       currentFreshness === Freshness.STALE &&
       ObjectComp.state[eid] !== FoodState.BEING_THROWING &&
-      !isBeingEaten &&
       ObjectComp.state[eid] !== FoodState.LANDED
     ) {
       ObjectComp.state[eid] = FoodState.LANDED;
+      continue;
     }
 
-    // FRESH -> NORMAL
-    if (
-      currentFreshness === Freshness.FRESH &&
-      elapsedTime >= timerComp.normalTime[eid]
-    ) {
-      freshnessComp.freshness[eid] = Freshness.NORMAL;
-    }
+    const elapsedTime = currentTime - timerComp.createdTime[eid];
+    const totalEdibleTime = timerComp.normalTime[eid] + timerComp.staleTime[eid];
 
-    // NORMAL -> STALE
-    if (
-      currentFreshness === Freshness.NORMAL &&
-      elapsedTime >= timerComp.normalTime[eid] + timerComp.staleTime[eid]
-    ) {
+    if (elapsedTime >= totalEdibleTime) {
       freshnessComp.freshness[eid] = Freshness.STALE;
-
-      // 상한 음식은 타겟 대상에서 제외
-      ObjectComp.state[eid] = FoodState.LANDED; // 타겟팅 상태 해제
+      ObjectComp.state[eid] = FoodState.LANDED;
     }
   }
 }
@@ -133,7 +124,7 @@ function updateFreshness(world: MainSceneWorld, currentTime: number): void {
  */
 function isBeingEatenByCharacter(
   world: MainSceneWorld,
-  foodEid: number
+  foodEid: number,
 ): boolean {
   const characterQuery = defineQuery([ObjectComp, FoodEatingComp]);
   const characters = characterQuery(world);
@@ -166,41 +157,17 @@ function cancelTargetingForStalFood(world: MainSceneWorld): void {
 
     const targetEid = DestinationComp.target[eid];
 
-    // 타겟이 있고, 타겟이 음식인 경우
     if (
       targetEid &&
       hasComponent(world, ObjectComp, targetEid) &&
-      ObjectComp.type[targetEid] === ObjectType.FOOD
+      ObjectComp.type[targetEid] === ObjectType.FOOD &&
+      hasComponent(world, FreshnessComp, targetEid) &&
+      FreshnessComp.freshness[targetEid] === Freshness.STALE
     ) {
-      // 타겟 음식이 상한 상태인지 확인
-      if (
-        hasComponent(world, FreshnessComp, targetEid) &&
-        FreshnessComp.freshness[targetEid] === Freshness.STALE
-      ) {
-        // 타게팅 취소
-        DestinationComp.target[eid] = 0;
-        DestinationComp.type[eid] = 0; // DestinationType.NULL
-
-        // 음식 상태도 초기화
-        ObjectComp.state[targetEid] = FoodState.LANDED;
-      }
+      DestinationComp.target[eid] = 0;
+      DestinationComp.type[eid] = 0;
+      ObjectComp.state[targetEid] = FoodState.LANDED;
     }
-  }
-}
-
-/**
- * 음식의 현재 신선도에 따른 스테미나 증가량 계산
- */
-export function getStaminaBonusFromFreshness(freshness: Freshness): number {
-  switch (freshness) {
-    case Freshness.FRESH:
-      return GAME_CONSTANTS.FRESH_STAMINA_BONUS;
-    case Freshness.NORMAL:
-      return GAME_CONSTANTS.NORMAL_STAMINA_BONUS;
-    case Freshness.STALE:
-      return 0; // 상한 음식은 먹을 수 없음
-    default:
-      return 0;
   }
 }
 
@@ -208,42 +175,5 @@ export function getStaminaBonusFromFreshness(freshness: Freshness): number {
  * 음식이 먹을 수 있는 상태인지 확인 (상하지 않은)
  */
 export function isFoodEdible(freshness: Freshness): boolean {
-  return freshness === Freshness.FRESH || freshness === Freshness.NORMAL;
-}
-
-/**
- * 신선한 음식에 SparkleEffect 적용
- */
-function applySparkleToFreshFood(
-  world: MainSceneWorld,
-  currentTime: number,
-): void {
-  const foods = foodQuery(world);
-
-  for (let i = 0; i < foods.length; i++) {
-    const eid = foods[i];
-
-    if (ObjectComp.type[eid] !== ObjectType.FOOD) continue;
-    if (!hasComponent(world, FreshnessComp, eid)) continue;
-
-    const freshness = FreshnessComp.freshness[eid];
-    const hasSparkle = hasComponent(world, SparkleEffectComp, eid);
-
-    // 신선한 음식에는 SparkleEffect 추가
-    if (freshness === Freshness.FRESH && !hasSparkle) {
-      addComponent(world, SparkleEffectComp, eid);
-      SparkleEffectComp.isActive[eid] = 1;
-      SparkleEffectComp.sparkleCount[eid] = 0;
-      SparkleEffectComp.nextSpawnTime[eid] = currentTime + 500; // 0.5초 후 첫 반짝임
-      SparkleEffectComp.spawnInterval[eid] = 800; // 0.8초마다 반짝임
-      console.log(`[FreshnessSystem] Added SparkleEffect to fresh food ${eid}`);
-    }
-    // 신선하지 않은 음식에서는 SparkleEffect 제거
-    else if (freshness !== Freshness.FRESH && hasSparkle) {
-      SparkleEffectComp.isActive[eid] = 0; // SparkleEffectSystem에서 제거 처리
-      console.log(
-        `[FreshnessSystem] Deactivated SparkleEffect for non-fresh food ${eid}`
-      );
-    }
-  }
+  return freshness !== Freshness.STALE;
 }

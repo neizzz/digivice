@@ -48,7 +48,7 @@ export enum PillState {
   BEING_INTAKEN = 2,
 }
 export enum Freshness {
-  FRESH = 1,
+  FRESH = 1, // legacy save compatibility only
   NORMAL = 2,
   STALE = 3,
 }
@@ -383,16 +383,9 @@ export type TemporaryStatusComponent = {
 
 export type FreshnessTimerComponent = {
   createdTime: number; // 음식이 생성된 시간 (timestamp)
-  normalTime: number; // FRESH -> NORMAL로 변하는 시간 (ms)
+  normalTime: number; // legacy FRESH 구간 길이 (ms)
   staleTime: number; // NORMAL -> STALE로 변하는 시간 (ms)
   isBeingEaten: boolean; // 현재 먹히고 있는지 여부
-};
-
-export type SparkleEffectComponent = {
-  isActive: boolean; // 효과 활성 상태
-  sparkleCount: number; // 현재 반짝임 개수
-  nextSpawnTime: number; // 다음 반짝임 생성 시간 (timestamp)
-  spawnInterval: number; // 반짝임 생성 간격 (ms)
 };
 
 export type EggHatchComponent = {
