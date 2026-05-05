@@ -15,76 +15,6 @@ interface SettingMenuLayerProps {
   onClose: () => void;
 }
 
-type OpenSourceNoticeItem = {
-  name: string;
-  version: string;
-  license: string;
-};
-
-type OpenSourceNoticeSection = {
-  title: string;
-  items: readonly OpenSourceNoticeItem[];
-};
-
-const OPEN_SOURCE_NOTICE_SECTIONS: readonly OpenSourceNoticeSection[] = [
-  {
-    title: "Web App",
-    items: [
-      { name: "react", version: "19.1.0", license: "MIT" },
-      { name: "react-dom", version: "19.1.0", license: "MIT" },
-    ],
-  },
-  {
-    title: "Game Runtime",
-    items: [
-      { name: "pixi.js", version: "8.11.0", license: "MIT" },
-      { name: "@pixi/gif", version: "3.0.1", license: "MIT" },
-      { name: "matter-js", version: "0.20.0", license: "MIT" },
-      { name: "bitecs", version: "0.3.40", license: "MPL-2.0" },
-    ],
-  },
-  {
-    title: "Native Shell",
-    items: [
-      { name: "nfc_manager", version: "4.2.1", license: "MIT" },
-      {
-        name: "webview_flutter",
-        version: "4.0.0",
-        license: "BSD-3-Clause",
-      },
-      {
-        name: "webview_flutter_android",
-        version: "4.3.2",
-        license: "BSD-3-Clause",
-      },
-      {
-        name: "path_provider",
-        version: "2.0.15",
-        license: "BSD-3-Clause",
-      },
-      {
-        name: "android_intent_plus",
-        version: "5.2.1",
-        license: "BSD-3-Clause",
-      },
-      { name: "flutter_nfc_hce", version: "0.1.8", license: "MIT" },
-      {
-        name: "google_mobile_ads",
-        version: "5.2.0",
-        license: "Apache-2.0",
-      },
-      {
-        name: "shared_preferences",
-        version: "2.3.4",
-        license: "BSD-3-Clause",
-      },
-      { name: "vibration", version: "3.1.8", license: "BSD-2-Clause" },
-      { name: "geolocator", version: "13.0.2", license: "MIT" },
-      { name: "in_app_update", version: "4.2.5", license: "MIT" },
-    ],
-  },
-];
-
 const FONT_NOTICE = {
   name: "Neo둥근모 Pro",
   lines: [
@@ -149,7 +79,7 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
   onClose,
 }) => {
   const [resetConfirmText, setResetConfirmText] = useState("");
-  const [showOpenSourceNotice, setShowOpenSourceNotice] = useState(false);
+  const [showFontNotice, setShowFontNotice] = useState(false);
 
   const isResetEnabled = useMemo(
     () => resetConfirmText.trim() === "confirm",
@@ -193,11 +123,11 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
             <div className="border-t-2 border-[#222] pt-4">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <div className="font-bold">OpenSource License</div>
+                  <div className="font-bold">License</div>
                 </div>
                 <ActionButton
                   text="View"
-                  onClick={() => setShowOpenSourceNotice(true)}
+                  onClick={() => setShowFontNotice(true)}
                 />
               </div>
             </div>
@@ -235,54 +165,26 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
         onConfirm={onClose}
         confirmText="Close"
       />
-      {showOpenSourceNotice && (
+      {showFontNotice && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
           <PopupLayer
-            title="OpenSource License"
+            title="License"
             content={
               <div className="text-left text-[1rem] leading-[1.4]">
-                <div className="space-y-4">
-                  {OPEN_SOURCE_NOTICE_SECTIONS.map((section) => (
-                    <section key={section.title}>
-                      <div className="border-t-2 border-[#555] pt-3 font-bold text-[1rem] text-gray-700 first:border-t-0 first:pt-0">
-                        {section.title}
-                      </div>
-                      <ul className="mt-2 space-y-2">
-                        {section.items.map((item) => (
-                          <li key={item.name} className="leading-[1.35]">
-                            <div className="break-all font-bold">
-                              {item.name}
-                            </div>
-                            <div className="text-[0.95rem] text-gray-600">
-                              {item.version} · {item.license}
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    </section>
+                <div className="space-y-1 leading-[1.35]">
+                  <div className="break-all font-bold">{FONT_NOTICE.name}</div>
+                  {FONT_NOTICE.lines.map((line) => (
+                    <div
+                      key={line}
+                      className="break-all text-[0.95rem] text-gray-600"
+                    >
+                      {line}
+                    </div>
                   ))}
-                  <section>
-                    <div className="border-t-2 border-[#555] pt-3 font-bold text-[1rem] text-gray-700">
-                      Fonts
-                    </div>
-                    <div className="mt-2 space-y-1 leading-[1.35]">
-                      <div className="break-all font-bold">
-                        {FONT_NOTICE.name}
-                      </div>
-                      {FONT_NOTICE.lines.map((line) => (
-                        <div
-                          key={line}
-                          className="break-all text-[0.95rem] text-gray-600"
-                        >
-                          {line}
-                        </div>
-                      ))}
-                    </div>
-                  </section>
                 </div>
               </div>
             }
-            onConfirm={() => setShowOpenSourceNotice(false)}
+            onConfirm={() => setShowFontNotice(false)}
             confirmText="Close"
           />
         </div>

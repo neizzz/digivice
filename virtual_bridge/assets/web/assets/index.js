@@ -50627,64 +50627,6 @@ const FlappyBirdSettingsLayer = ({
     }
   ) });
 };
-const OPEN_SOURCE_NOTICE_SECTIONS = [
-  {
-    title: "Web App",
-    items: [
-      { name: "react", version: "19.1.0", license: "MIT" },
-      { name: "react-dom", version: "19.1.0", license: "MIT" }
-    ]
-  },
-  {
-    title: "Game Runtime",
-    items: [
-      { name: "pixi.js", version: "8.11.0", license: "MIT" },
-      { name: "@pixi/gif", version: "3.0.1", license: "MIT" },
-      { name: "matter-js", version: "0.20.0", license: "MIT" },
-      { name: "bitecs", version: "0.3.40", license: "MPL-2.0" }
-    ]
-  },
-  {
-    title: "Native Shell",
-    items: [
-      { name: "nfc_manager", version: "4.2.1", license: "MIT" },
-      {
-        name: "webview_flutter",
-        version: "4.0.0",
-        license: "BSD-3-Clause"
-      },
-      {
-        name: "webview_flutter_android",
-        version: "4.3.2",
-        license: "BSD-3-Clause"
-      },
-      {
-        name: "path_provider",
-        version: "2.0.15",
-        license: "BSD-3-Clause"
-      },
-      {
-        name: "android_intent_plus",
-        version: "5.2.1",
-        license: "BSD-3-Clause"
-      },
-      { name: "flutter_nfc_hce", version: "0.1.8", license: "MIT" },
-      {
-        name: "google_mobile_ads",
-        version: "5.2.0",
-        license: "Apache-2.0"
-      },
-      {
-        name: "shared_preferences",
-        version: "2.3.4",
-        license: "BSD-3-Clause"
-      },
-      { name: "vibration", version: "3.1.8", license: "BSD-2-Clause" },
-      { name: "geolocator", version: "13.0.2", license: "MIT" },
-      { name: "in_app_update", version: "4.2.5", license: "MIT" }
-    ]
-  }
-];
 const FONT_NOTICE = {
   name: "Neo둥근모 Pro",
   lines: [
@@ -50729,7 +50671,7 @@ const SettingMenuLayer = ({
   onClose
 }) => {
   const [resetConfirmText, setResetConfirmText] = reactExports.useState("");
-  const [showOpenSourceNotice, setShowOpenSourceNotice] = reactExports.useState(false);
+  const [showFontNotice, setShowFontNotice] = reactExports.useState(false);
   const isResetEnabled = reactExports.useMemo(
     () => resetConfirmText.trim() === "confirm",
     [resetConfirmText]
@@ -50765,12 +50707,12 @@ const SettingMenuLayer = ({
             )
           ] }) }),
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "border-t-2 border-[#222] pt-4", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between gap-4", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "font-bold", children: "OpenSource License" }) }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "font-bold", children: "License" }) }),
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               ActionButton,
               {
                 text: "View",
-                onClick: () => setShowOpenSourceNotice(true)
+                onClick: () => setShowFontNotice(true)
               }
             )
           ] }) }),
@@ -50804,38 +50746,22 @@ const SettingMenuLayer = ({
         confirmText: "Close"
       }
     ),
-    showOpenSourceNotice && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+    showFontNotice && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
       PopupLayer,
       {
-        title: "OpenSource License",
-        content: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-left text-[1rem] leading-[1.4]", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-4", children: [
-          OPEN_SOURCE_NOTICE_SECTIONS.map((section) => /* @__PURE__ */ jsxRuntimeExports.jsxs("section", { children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "border-t-2 border-[#555] pt-3 font-bold text-[1rem] text-gray-700 first:border-t-0 first:pt-0", children: section.title }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("ul", { className: "mt-2 space-y-2", children: section.items.map((item) => /* @__PURE__ */ jsxRuntimeExports.jsxs("li", { className: "leading-[1.35]", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "break-all font-bold", children: item.name }),
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "text-[0.95rem] text-gray-600", children: [
-                item.version,
-                " · ",
-                item.license
-              ] })
-            ] }, item.name)) })
-          ] }, section.title)),
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("section", { children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "border-t-2 border-[#555] pt-3 font-bold text-[1rem] text-gray-700", children: "Fonts" }),
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mt-2 space-y-1 leading-[1.35]", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "break-all font-bold", children: FONT_NOTICE.name }),
-              FONT_NOTICE.lines.map((line) => /* @__PURE__ */ jsxRuntimeExports.jsx(
-                "div",
-                {
-                  className: "break-all text-[0.95rem] text-gray-600",
-                  children: line
-                },
-                line
-              ))
-            ] })
-          ] })
+        title: "License",
+        content: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-left text-[1rem] leading-[1.4]", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-1 leading-[1.35]", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "break-all font-bold", children: FONT_NOTICE.name }),
+          FONT_NOTICE.lines.map((line) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "div",
+            {
+              className: "break-all text-[0.95rem] text-gray-600",
+              children: line
+            },
+            line
+          ))
         ] }) }),
-        onConfirm: () => setShowOpenSourceNotice(false),
+        onConfirm: () => setShowFontNotice(false),
         confirmText: "Close"
       }
     ) }),
