@@ -390,6 +390,16 @@ export function renderSystem(params: {
 			console.log(
 				`[RenderSystem] Created and added sprite for entity ${eid}, total sprites after: ${spriteStore.size}`,
 			);
+			const firstSpriteTimingPayload = world.consumePendingFirstSpriteTimingLog(
+				eid,
+				"static",
+			);
+			if (firstSpriteTimingPayload) {
+				console.log(
+					"[ImportantDiagnostics][MainSceneFirstSprite]",
+					firstSpriteTimingPayload,
+				);
+			}
 		}
 
 		renderCommonAttributes(eid, sprite, world);

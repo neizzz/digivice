@@ -161,6 +161,10 @@ import {
 import { getNativeSunTimes, requestNativeLocationPermission } from "./sunTimes";
 import { ReentrySimulator } from "./ReentrySimulator";
 import { CharacterKey } from "../../types/Character";
+import {
+  MainSceneInitDiagnostics,
+  type MainSceneLoadingTraceContext,
+} from "./diagnostics/mainSceneInitDiagnostics";
 
 const liveCharacterEntitiesQuery = defineQuery([
   ObjectComp,
@@ -451,6 +455,7 @@ export class MainSceneWorld implements IWorld, Scene {
   private _pendingFeedAdFoodEid: number | null = null;
   private _feedAdFallbackTimerId: number | null = null;
   private _mainSceneAdTimerIds = new Set<number>();
+  private _initDiagnostics: MainSceneInitDiagnostics;
 
   // 실시간 모드용 시스템 파이프라인 (렌더링 포함)
   private _pipedSystems = pipe(
@@ -592,6 +597,7 @@ export class MainSceneWorld implements IWorld, Scene {
     triggerBiteVibration?: TriggerBiteVibrationCallback;
     startRecoveryVibration?: StartRecoveryVibrationCallback;
     stopRecoveryVibration?: StopRecoveryVibrationCallback;
+    loadingTraceContext?: MainSceneLoadingTraceContext | null;
   }) {
     this._stage = params.stage;
     this._positionBoundary = params.positionBoundary;
@@ -612,6 +618,9 @@ export class MainSceneWorld implements IWorld, Scene {
     this._triggerBiteVibration = params.triggerBiteVibration;
     this._startRecoveryVibration = params.startRecoveryVibration;
     this._stopRecoveryVibration = params.stopRecoveryVibration;
+    this._initDiagnostics = new MainSceneInitDiagnostics(
+      params.loadingTraceContext ?? null,
+    );
 
     // MainScene용 초기 컨트롤 버튼 설정 (메뉴에 포커스가 없는 상태)
     this._updateControlButtonsForMenuState(false);
@@ -627,6 +636,16 @@ export class MainSceneWorld implements IWorld, Scene {
 
   public stopRecoveryVibration(): void {
     this._stopRecoveryVibration?.();
+  }
+
+  public consumePendingFirstSpriteTimingLog(
+    eid: number,
+    spriteType: "static" | "animated",
+  ): Record<string, unknown> | null {
+    return this._initDiagnostics.consumePendingFirstSpriteTimingLog(
+      eid,
+      spriteType,
+    );
   }
 
   private _ensureAppState(): MainSceneAppState | null {
@@ -1047,9 +1066,15 @@ export class MainSceneWorld implements IWorld, Scene {
     try {
       // 스프라이트시트, 일반 이미지, GIF를 병렬로 로드
       const [spritesheetResults] = await Promise.all([
-        loadSpritesheets(COMMON_SPRITESHEET_ASSETS),
-        this._loadImageAssets(),
-        this._loadGifAssets(),
+        this._initDiagnostics.measurePhase("load_common_spritesheets", async () => {
+          return loadSpritesheets(COMMON_SPRITESHEET_ASSETS);
+        }),
+        this._initDiagnostics.measurePhase("load_image_assets", async () => {
+          await this._loadImageAssets();
+        }),
+        this._initDiagnostics.measurePhase("load_gif_assets", async () => {
+          await this._loadGifAssets();
+        }),
       ]);
 
       // 로드 결과 로깅
@@ -1062,8 +1087,15 @@ export class MainSceneWorld implements IWorld, Scene {
         );
       });
 
-      await precomputeLoadedCharacterOpaqueBounds();
-      await precomputeLoadedTextureOpaqueBounds(EGG_TEXTURE_KEYS);
+      await this._initDiagnostics.measurePhase(
+        "precompute_loaded_character_opaque_bounds",
+        async () => {
+          await precomputeLoadedCharacterOpaqueBounds();
+        },
+      );
+      await this._initDiagnostics.measurePhase("precompute_egg_texture_opaque_bounds", async () => {
+        await precomputeLoadedTextureOpaqueBounds(EGG_TEXTURE_KEYS);
+      });
 
       console.log("All game assets loaded successfully");
     } catch (error) {
@@ -1191,15 +1223,27 @@ export class MainSceneWorld implements IWorld, Scene {
     console.groupCollapsed("[MainSceneWorld] 🚀 Initializing world...");
 
     try {
+      this._initDiagnostics.beginInit();
+
       createWorld(this, 100);
 
       // 스토리지에서 데이터 로드 시도
       console.log("Loading saved data from storage...");
-      const loadedData = await this.getData();
+      const loadedData = await this._initDiagnostics.measurePhase("storage_load", async () => {
+        return this.getData();
+      });
 
       if (!this._hasPlayableSavedData(loadedData)) {
-        const initialGameData = this._requireInitialGameData(
-          await this._createInitialGameData?.(),
+        const initialGameData = await this._initDiagnostics.measurePhase(
+          "create_initial_game_data",
+          async () => {
+            return this._requireInitialGameData(
+              await this._createInitialGameData?.(),
+            );
+          },
+          {
+            reason: "missing_saved_data",
+          },
         );
         console.warn(
           "No playable saved data found, initializing with default entities...",
@@ -1211,8 +1255,16 @@ export class MainSceneWorld implements IWorld, Scene {
         const validatedData = this._validateAndMigrateData(loadedData);
 
         if (!this._hasPlayableSavedData(validatedData)) {
-          const initialGameData = this._requireInitialGameData(
-            await this._createInitialGameData?.(),
+          const initialGameData = await this._initDiagnostics.measurePhase(
+            "create_initial_game_data",
+            async () => {
+              return this._requireInitialGameData(
+                await this._createInitialGameData?.(),
+              );
+            },
+            {
+              reason: "invalid_saved_data",
+            },
           );
           console.warn(
             "Saved data is missing required setup info or recoverable character entities, reinitializing with default entities...",
@@ -1220,12 +1272,16 @@ export class MainSceneWorld implements IWorld, Scene {
           this._persistentData = this._initializeData(initialGameData);
         } else {
           this._persistentData = validatedData;
-          this._loadEcsEntitiesFromStorage();
+          await this._initDiagnostics.measurePhase("load_saved_entities", async () => {
+            this._loadEcsEntitiesFromStorage();
+          });
         }
       }
 
       // PIXI v8 Assets API로 게임 에셋 로드
-      await this._loadGameAssets();
+      await this._initDiagnostics.measurePhase("load_common_game_assets", async () => {
+        await this._loadGameAssets();
+      });
 
       const characterSpritesheetKeys = Array.from(
         new Set(
@@ -1249,17 +1305,25 @@ export class MainSceneWorld implements IWorld, Scene {
         ),
       );
 
-      await Promise.all(
-        characterSpritesheetKeys.map(async (characterSpritesheetKey) => {
-          const spritesheetName =
-            SPRITESHEET_KEY_TO_NAME[characterSpritesheetKey];
-          await loadSpritesheet({
-            jsonPath: `/assets/game/sprites/monsters/${spritesheetName}.json`,
-            alias: spritesheetName,
-            // pixelArt: true,
-          });
-          await ensureCharacterOpaqueBoundsComputed(characterSpritesheetKey);
-        }),
+      await this._initDiagnostics.measurePhase(
+        "load_character_spritesheets",
+        async () => {
+          await Promise.all(
+            characterSpritesheetKeys.map(async (characterSpritesheetKey) => {
+              const spritesheetName =
+                SPRITESHEET_KEY_TO_NAME[characterSpritesheetKey];
+              await loadSpritesheet({
+                jsonPath: `/assets/game/sprites/monsters/${spritesheetName}.json`,
+                alias: spritesheetName,
+                // pixelArt: true,
+              });
+              await ensureCharacterOpaqueBoundsComputed(characterSpritesheetKey);
+            }),
+          );
+        },
+        {
+          characterSpritesheetKeyCount: characterSpritesheetKeys.length,
+        },
       );
 
       // 배경 설정
@@ -1273,14 +1337,27 @@ export class MainSceneWorld implements IWorld, Scene {
       const { width, height } = this._getSceneSize();
       this._background.resize(width, height);
       this._resizeSceneDarknessOverlay(width, height);
-      if (this._isLocalTimeEnabled()) {
-        if (!this._applyCachedAutoTimeOfDay()) {
-          this._applyCurrentSkyState();
-        }
-        void this._initializeSunTimes();
-      } else {
-        this._setRandomManualTimeOfDay();
-      }
+      await this._initDiagnostics.measurePhase(
+        "apply_cached_sun_times_and_schedule_refresh",
+        async () => {
+          if (this._isLocalTimeEnabled()) {
+            const appliedCachedSunTimes = this._applyCachedAutoTimeOfDay();
+            if (!appliedCachedSunTimes) {
+              this._applyCurrentSkyState();
+            }
+            this._initDiagnostics.logPhase("initial_sun_times_refresh_requested", {
+              status: "dispatch",
+              promptForPermission: true,
+              hasCachedSunTimes: !!this._sunTimes,
+              appliedCachedSunTimes,
+            });
+            void this._initializeSunTimes();
+            return;
+          }
+
+          this._setRandomManualTimeOfDay();
+        },
+      );
 
       // zIndex 정렬을 위해 sortableChildren 활성화
       this._stage.sortableChildren = true;
@@ -1373,12 +1450,20 @@ export class MainSceneWorld implements IWorld, Scene {
       }
 
       // Page Visibility API 이벤트 리스너 등록
-      this._setupVisibilityChangeHandler();
+      await this._initDiagnostics.measurePhase("setup_visibility_handler", async () => {
+        this._setupVisibilityChangeHandler();
+      });
 
       // 재진입 시뮬레이션 처리
-      await this._processReentrySimulation();
+      await this._initDiagnostics.measurePhase("reentry_simulation", async () => {
+        await this._processReentrySimulation();
+      });
 
+      this._initDiagnostics.completeInit();
       console.log("World initialization completed");
+    } catch (error) {
+      this._initDiagnostics.failInit(error);
+      throw error;
     } finally {
       console.groupEnd();
     }
@@ -2275,7 +2360,13 @@ export class MainSceneWorld implements IWorld, Scene {
         hasLocationPermission: this._hasLocationPermission,
       });
 
-      const sunTimes = await getNativeSunTimes(promptForPermission);
+      const sunTimes = await getNativeSunTimes(
+        promptForPermission,
+        this._initDiagnostics.createSunTimesTraceContext({
+          source: "main_scene_world",
+          phase: "refresh_sun_times",
+        }),
+      );
       if (!sunTimes) {
         console.warn(
           "[MainSceneWorld] Native sun times are unavailable, staying in manual mode",
@@ -3227,7 +3318,13 @@ export class MainSceneWorld implements IWorld, Scene {
       console.log(
         "[MainSceneWorld] Reentry simulation skipped because last active time is missing",
       );
-      await this._saveCurrentState();
+      if (this._initDiagnostics.isInitTimingActive) {
+        await this._initDiagnostics.measurePhase("reentry_persist_state", async () => {
+          await this._saveCurrentState();
+        });
+      } else {
+        await this._saveCurrentState();
+      }
       return;
     }
 
@@ -3271,7 +3368,13 @@ export class MainSceneWorld implements IWorld, Scene {
 
       this._simulationTime = currentTime;
       applyReentryHappyStatusForFullStaminaCharacters(this);
-      await this._saveCurrentState();
+      if (this._initDiagnostics.isInitTimingActive) {
+        await this._initDiagnostics.measurePhase("reentry_persist_state", async () => {
+          await this._saveCurrentState();
+        });
+      } else {
+        await this._saveCurrentState();
+      }
 
       console.log("[MainSceneWorld] Reentry simulation completed successfully");
     } catch (error) {

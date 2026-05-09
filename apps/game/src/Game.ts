@@ -2,10 +2,8 @@ import * as PIXI from "pixi.js";
 import { SceneKey } from "./SceneKey";
 import type { Scene } from "./interfaces/Scene";
 import type { ControlButtonParams, ControlButtonType } from "./ui/types";
-import {
-  MainSceneWorld,
-  type MainSceneWorldData,
-} from "./scenes/MainScene/world";
+import { MainSceneWorld, type MainSceneWorldData } from "./scenes/MainScene/world";
+import type { MainSceneLoadingTraceContext } from "./scenes/MainScene/diagnostics/mainSceneInitDiagnostics";
 import {
   TimeOfDay,
   TimeOfDayMode,
@@ -149,6 +147,7 @@ export class Game {
   private readonly _debugMode: boolean;
   private _flappyBirdCharacterKey: CharacterKey | null = null;
   private _flappyBirdSkyContext: FlappyBirdSkyContext | null = null;
+  private _loadingTraceContext: MainSceneLoadingTraceContext | null = null;
   // private characterManager: CharacterManager; // CharacterManager 인스턴스 추가
   // private shouldSaveDataBeforeUnload = false;
 
@@ -173,6 +172,7 @@ export class Game {
     showFlappyBirdSettingsMenu?: ShowFlappyBirdSettingsMenuCallback;
     hideFlappyBirdSettingsMenu?: HideFlappyBirdSettingsMenuCallback;
     onSceneTransitionStateChange?: SceneTransitionStateChangeCallback;
+    loadingTraceContext?: MainSceneLoadingTraceContext | null;
   }) {
     const {
       parentElement,
@@ -195,6 +195,7 @@ export class Game {
       showFlappyBirdSettingsMenu,
       hideFlappyBirdSettingsMenu,
       onSceneTransitionStateChange,
+      loadingTraceContext,
     } = params;
     this.changeControlButtons = changeControlButtons;
     this.showSettings = showSettings; // 설정 화면 표시 콜백
@@ -214,6 +215,7 @@ export class Game {
     this._createInitialGameData = onCreateInitialGameData;
     this._initialSceneKey = initialSceneKey ?? SceneKey.MAIN;
     this._debugMode = debugMode ?? false;
+    this._loadingTraceContext = loadingTraceContext ?? null;
 
     this.app = new PIXI.Application();
     this._boundResizeHandler = () => {
@@ -623,6 +625,8 @@ export class Game {
 
     switch (key) {
       case SceneKey.MAIN:
+        const loadingTraceContext = this._loadingTraceContext;
+        this._loadingTraceContext = null;
         const mainSceneWorld = new MainSceneWorld({
           stage: this.app.stage,
           positionBoundary: createMainScenePositionBoundary(
@@ -647,6 +651,7 @@ export class Game {
           triggerBiteVibration: this.triggerBiteVibration,
           startRecoveryVibration: this.startRecoveryVibration,
           stopRecoveryVibration: this.stopRecoveryVibration,
+          loadingTraceContext,
         });
         await mainSceneWorld.init();
         return mainSceneWorld as unknown as Scene;

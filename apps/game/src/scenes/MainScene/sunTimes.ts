@@ -3,6 +3,13 @@ import type {
   SunTimesPayload,
 } from "./timeOfDay";
 
+export type NativeSunTimesTraceContext = {
+  source?: string;
+  phase?: string;
+  setupFlowId?: string | null;
+  initializationAttemptId?: number | null;
+};
+
 function hasNativeSunController(): boolean {
   return typeof window !== "undefined" && !!window.sunController;
 }
@@ -28,13 +35,17 @@ function isSunTimesPayload(value: unknown): value is SunTimesPayload {
 
 export async function getNativeSunTimes(
   promptForPermission = true,
+  traceContext?: NativeSunTimesTraceContext,
 ): Promise<SunTimesPayload | null> {
   if (!hasNativeSunController()) {
     return null;
   }
 
   try {
-    const payload = await window.sunController!.getSunTimes(promptForPermission);
+    const payload = await window.sunController!.getSunTimes(
+      promptForPermission,
+      traceContext,
+    );
     if (!isSunTimesPayload(payload)) {
       console.warn("[sunTimes] Invalid native sun times payload:", payload);
       return null;

@@ -93,6 +93,16 @@ export function animationRenderSystem(params: {
       console.log(
         `[AnimationSystem] Added animated sprite to stage for entity ${eid}`
       );
+      const firstSpriteTimingPayload = world.consumePendingFirstSpriteTimingLog(
+        eid,
+        "animated"
+      );
+      if (firstSpriteTimingPayload) {
+        console.log(
+          "[ImportantDiagnostics][MainSceneFirstSprite]",
+          firstSpriteTimingPayload
+        );
+      }
     }
 
     // const x = PositionComp.x[eid];

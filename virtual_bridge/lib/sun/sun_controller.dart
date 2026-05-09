@@ -5,6 +5,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
+import 'native_sun_times_diagnostics.dart';
 import 'sun_calculator.dart';
 
 const String _fallbackLocationKey = 'sun_fallback_location';
@@ -120,29 +121,45 @@ class _ResolvedLocation {
   });
 }
 
+class _PermissionResolutionResult {
+  final bool granted;
+  final bool alreadyGranted;
+  final bool requestedPermission;
+
+  const _PermissionResolutionResult({
+    required this.granted,
+    required this.alreadyGranted,
+    required this.requestedPermission,
+  });
+}
+
 /// 위치 기반 일출/일몰 기능의 JavaScript 인터페이스를 관리하는 컨트롤러
 class SunController {
-  final Function(String jsCode) runJavaScript;
+  final Future<void> Function(String jsCode) runJavaScript;
   final Function({required String id, String? data, String? error})
       resolvePromise;
   final Function(String message) log;
   final SunCalculator _sunCalculator = const SunCalculator();
   final Random _random = Random();
+  late final NativeSunTimesDiagnostics _diagnostics;
 
   SunController({
     required this.runJavaScript,
     required this.resolvePromise,
     required this.log,
-  });
+  }) {
+    _diagnostics = NativeSunTimesDiagnostics(runJavaScript);
+  }
 
   String getJavaScriptInterface() {
     return '''
       window.sunController = {
-        getSunTimes: (promptForPermission = true) => {
+        getSunTimes: (promptForPermission = true, traceContext = null) => {
           return __createPromise((id) => {
             __native_sun_get_times.postMessage(JSON.stringify({
               id,
               promptForPermission,
+              traceContext,
             }));
           }).then((raw) => {
             if (!raw) {
@@ -170,19 +187,41 @@ class SunController {
         jsonDecode(message.message) as Map<String, dynamic>;
     final String id = jsArgs['id'] as String;
     final bool promptForPermission = jsArgs['promptForPermission'] != false;
+    final Map<String, dynamic>? traceContext =
+        _diagnostics.sanitizeTraceContext(jsArgs['traceContext']);
+    final Stopwatch stopwatch = Stopwatch()..start();
+
+    await _diagnostics.emitRequestStart(
+      promptForPermission: promptForPermission,
+      traceContext: traceContext,
+    );
 
     try {
       final _ResolvedLocation location = await _resolveLocation(
         promptForPermission: promptForPermission,
+        traceContext: traceContext,
       );
       final Map<String, dynamic> payload = _buildSunTimesPayload(location);
 
       resolvePromise(id: id, data: jsonEncode(payload));
+      await _diagnostics.emitRequestEnd(
+        durationMs: stopwatch.elapsedMilliseconds,
+        promptForPermission: promptForPermission,
+        locationSource: location.locationSource,
+        hasLocationPermission: location.hasLocationPermission,
+        traceContext: traceContext,
+      );
       log(
         '[SunController] Sun times resolved (${location.locationSource}, permission=${location.hasLocationPermission})',
       );
     } catch (e) {
       resolvePromise(id: id, error: e.toString());
+      await _diagnostics.emitRequestError(
+        durationMs: stopwatch.elapsedMilliseconds,
+        promptForPermission: promptForPermission,
+        error: e,
+        traceContext: traceContext,
+      );
       log('[SunController] Failed to resolve sun times: $e');
     }
   }
@@ -247,33 +286,70 @@ class SunController {
 
   Future<_ResolvedLocation> _resolveLocation({
     required bool promptForPermission,
+    Map<String, dynamic>? traceContext,
   }) async {
-    final bool hasPermission = await _ensureLocationPermission(
+    final _PermissionResolutionResult permissionResult =
+        await _ensureLocationPermission(
       promptForPermission: promptForPermission,
+      traceContext: traceContext,
     );
+    final bool hasPermission = permissionResult.granted;
 
     if (hasPermission) {
+      final Stopwatch serviceCheckStopwatch = Stopwatch()..start();
       final bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      await _diagnostics.emitLocationServiceCheckEnd(
+        durationMs: serviceCheckStopwatch.elapsedMilliseconds,
+        serviceEnabled: serviceEnabled,
+        traceContext: traceContext,
+      );
 
       if (serviceEnabled) {
+        final Stopwatch currentPositionStopwatch = Stopwatch()..start();
+        await _diagnostics.emitCurrentPositionStart(
+          serviceEnabled: serviceEnabled,
+          traceContext: traceContext,
+        );
         try {
           final Position position = await Geolocator.getCurrentPosition(
             locationSettings: const LocationSettings(
               accuracy: LocationAccuracy.low,
             ),
           );
+          await _diagnostics.emitCurrentPositionEnd(
+            durationMs: currentPositionStopwatch.elapsedMilliseconds,
+            serviceEnabled: serviceEnabled,
+            traceContext: traceContext,
+          );
 
           return _createDeviceResolvedLocation(position);
         } catch (e) {
+          await _diagnostics.emitCurrentPositionError(
+            durationMs: currentPositionStopwatch.elapsedMilliseconds,
+            serviceEnabled: serviceEnabled,
+            error: e,
+            traceContext: traceContext,
+          );
           log('[SunController] Failed to get device location, trying last known location: $e');
         }
       } else {
         log('[SunController] Location service disabled, trying last known location');
       }
 
+      final Stopwatch lastKnownStopwatch = Stopwatch()..start();
+      await _diagnostics.emitLastKnownPositionStart(
+        serviceEnabled: serviceEnabled,
+        traceContext: traceContext,
+      );
       try {
         final Position? lastKnownPosition =
             await Geolocator.getLastKnownPosition();
+        await _diagnostics.emitLastKnownPositionEnd(
+          durationMs: lastKnownStopwatch.elapsedMilliseconds,
+          serviceEnabled: serviceEnabled,
+          foundPosition: lastKnownPosition != null,
+          traceContext: traceContext,
+        );
         if (lastKnownPosition != null) {
           log('[SunController] Using last known device location');
           return _createDeviceResolvedLocation(lastKnownPosition);
@@ -281,11 +357,21 @@ class SunController {
 
         log('[SunController] Last known device location is unavailable, using fallback location');
       } catch (e) {
+        await _diagnostics.emitLastKnownPositionError(
+          durationMs: lastKnownStopwatch.elapsedMilliseconds,
+          serviceEnabled: serviceEnabled,
+          error: e,
+          traceContext: traceContext,
+        );
         log('[SunController] Failed to get last known location, using fallback: $e');
       }
     }
 
     final _FallbackLocation fallback = await _getOrCreateFallbackLocation();
+    await _diagnostics.emitFallbackLocationSelected(
+      hasLocationPermission: hasPermission,
+      traceContext: traceContext,
+    );
     return _ResolvedLocation(
       latitude: fallback.latitude,
       longitude: fallback.longitude,
@@ -308,20 +394,61 @@ class SunController {
     );
   }
 
-  Future<bool> _ensureLocationPermission({
+  Future<_PermissionResolutionResult> _ensureLocationPermission({
     required bool promptForPermission,
+    Map<String, dynamic>? traceContext,
   }) async {
+    final Stopwatch stopwatch = Stopwatch()..start();
     LocationPermission permission = await Geolocator.checkPermission();
     if (_isGranted(permission)) {
-      return true;
+      final _PermissionResolutionResult result = _PermissionResolutionResult(
+        granted: true,
+        alreadyGranted: true,
+        requestedPermission: false,
+      );
+      await _diagnostics.emitPermissionResolutionEnd(
+        durationMs: stopwatch.elapsedMilliseconds,
+        promptForPermission: promptForPermission,
+        alreadyGranted: result.alreadyGranted,
+        requestedPermission: result.requestedPermission,
+        granted: result.granted,
+        traceContext: traceContext,
+      );
+      return result;
     }
 
     if (!promptForPermission) {
-      return false;
+      final _PermissionResolutionResult result = _PermissionResolutionResult(
+        granted: false,
+        alreadyGranted: false,
+        requestedPermission: false,
+      );
+      await _diagnostics.emitPermissionResolutionEnd(
+        durationMs: stopwatch.elapsedMilliseconds,
+        promptForPermission: promptForPermission,
+        alreadyGranted: result.alreadyGranted,
+        requestedPermission: result.requestedPermission,
+        granted: result.granted,
+        traceContext: traceContext,
+      );
+      return result;
     }
 
     permission = await Geolocator.requestPermission();
-    return _isGranted(permission);
+    final _PermissionResolutionResult result = _PermissionResolutionResult(
+      granted: _isGranted(permission),
+      alreadyGranted: false,
+      requestedPermission: true,
+    );
+    await _diagnostics.emitPermissionResolutionEnd(
+      durationMs: stopwatch.elapsedMilliseconds,
+      promptForPermission: promptForPermission,
+      alreadyGranted: result.alreadyGranted,
+      requestedPermission: result.requestedPermission,
+      granted: result.granted,
+      traceContext: traceContext,
+    );
+    return result;
   }
 
   Future<bool> _requestLocationPermission() async {

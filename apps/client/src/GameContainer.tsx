@@ -39,6 +39,10 @@ import {
   setDiagnosticsContextProvider,
 } from "./diagnostics/diagnosticLogger";
 import {
+  type BootstrapSavedGameDataState,
+  EntryFlowDiagnostics,
+} from "./diagnostics/entryFlowDiagnostics";
+import {
   createClientStorage,
   getClientStorageKind,
 } from "./utils/clientStorage";
@@ -667,6 +671,7 @@ const GameContainer: React.FC = () => {
   const pendingSetupResolverRef = useRef<
     ((formData: SetupFormData) => void) | null
   >(null);
+  const entryFlowDiagnostics = useMemo(() => new EntryFlowDiagnostics(), []);
   const shouldRestartFromSetupRef = useRef(false);
   const [sceneHistoryStack, setSceneHistoryStack] = useState<SceneKey[]>(() => [
     ...ROOT_SCENE_HISTORY_STACK,
@@ -1915,8 +1920,12 @@ const GameContainer: React.FC = () => {
   }, [resetGameData]);
 
   const prepareSavedGameData = useCallback(async (): Promise<
-    "playable" | "setup_required" | "reset_required"
+    BootstrapSavedGameDataState
   > => {
+    const startedAt = entryFlowDiagnostics.beginPrepareSavedGameData(
+      getClientStorageKind(),
+    );
+
     try {
       const storage = createClientStorage();
       const storageKind = getClientStorageKind();
@@ -1989,8 +1998,20 @@ const GameContainer: React.FC = () => {
         setIsBootstrapping(false);
       }
 
+      entryFlowDiagnostics.completePrepareSavedGameData({
+        startedAt,
+        storageKind,
+        resultAction: result.action,
+        savedDataSummary,
+      });
+
       return result.action;
     } catch (error) {
+      entryFlowDiagnostics.failPrepareSavedGameData({
+        startedAt,
+        storageKind: getClientStorageKind(),
+        error,
+      });
       logImportantDiagnostics(
         "error",
         "[ImportantDiagnostics][GameDataValidation] Failed to inspect saved game data.",
@@ -2013,21 +2034,47 @@ const GameContainer: React.FC = () => {
       setIsBootstrapping(false);
       return "reset_required";
     }
-  }, []);
+  }, [entryFlowDiagnostics]);
 
   const hydrateInitialSetupData = useCallback(
     async (formData: SetupFormData): Promise<SetupFormData> => {
+      const startedAt =
+        entryFlowDiagnostics.beginHydrateInitialSetupData(formData);
+
       if (!formData.useLocalTime || formData.cachedSunTimes) {
+        entryFlowDiagnostics.skipHydrateInitialSetupData({
+          startedAt,
+          formData,
+          reason: !formData.useLocalTime
+            ? "local_time_disabled"
+            : "cached_sun_times_already_present",
+        });
         return formData;
       }
 
+      const nativeSunTimesStartedAt =
+        entryFlowDiagnostics.beginNativeSunTimesRequest();
+
       try {
-        const sunTimes = await getNativeSunTimes(true);
+        const sunTimes = await getNativeSunTimes(true, {
+          ...entryFlowDiagnostics.createNativeSunTimesTraceContext({
+            source: "setup_loading",
+            phase: "hydrate_initial_setup_data",
+          }),
+        });
+        entryFlowDiagnostics.completeNativeSunTimesRequest(
+          nativeSunTimesStartedAt,
+          sunTimes,
+        );
 
         if (!sunTimes) {
           console.warn(
             "[GameContainer] Initial sun times were unavailable during setup loading. Continuing without cached sun times.",
           );
+          entryFlowDiagnostics.completeHydrateInitialSetupData({
+            startedAt,
+            sunTimes: null,
+          });
           return {
             ...formData,
             cachedSunTimes: null,
@@ -2045,22 +2092,32 @@ const GameContainer: React.FC = () => {
           },
         );
 
+        entryFlowDiagnostics.completeHydrateInitialSetupData({
+          startedAt,
+          sunTimes,
+        });
+
         return {
           ...formData,
           cachedSunTimes: sunTimes,
         };
       } catch (error) {
+        entryFlowDiagnostics.failNativeSunTimesRequest(
+          nativeSunTimesStartedAt,
+          error,
+        );
         console.warn(
           "[GameContainer] Failed to prepare initial sun times during setup loading. Continuing without cached sun times.",
           error,
         );
+        entryFlowDiagnostics.failHydrateInitialSetupData(startedAt, error);
         return {
           ...formData,
           cachedSunTimes: null,
         };
       }
     },
-    [],
+    [entryFlowDiagnostics],
   );
 
   const requestInitialGameData =
@@ -2076,17 +2133,23 @@ const GameContainer: React.FC = () => {
       setLoadingFailureAlert(null);
       setIsBootstrapping(false);
       setShowSetupLayer(true);
+      entryFlowDiagnostics.markWaitingForSetupInput();
 
       const setupPromise = new Promise<SetupFormData>((resolve) => {
         pendingSetupResolverRef.current = (formData: SetupFormData) => {
+          entryFlowDiagnostics.startSetupFlow(
+            "request_initial_game_data",
+          );
           setShowSetupLayer(false);
           setIsBootstrapping(true);
           pendingSetupResolverRef.current = null;
+          entryFlowDiagnostics.logSetupConfirmed(formData);
 
           void (async () => {
             const hydratedFormData = await hydrateInitialSetupData(formData);
             initialSetupDataRef.current = hydratedFormData;
             pendingInitialSetupPromiseRef.current = null;
+            entryFlowDiagnostics.logSetupDataReady(hydratedFormData);
             resolve(hydratedFormData);
           })();
         };
@@ -2094,7 +2157,7 @@ const GameContainer: React.FC = () => {
 
       pendingInitialSetupPromiseRef.current = setupPromise;
       return setupPromise;
-    }, [hydrateInitialSetupData]);
+    }, [entryFlowDiagnostics, hydrateInitialSetupData]);
 
   const initializeGame = useCallback(() => {
     if (!gameContainerRef.current) return;
@@ -2108,6 +2171,7 @@ const GameContainer: React.FC = () => {
     const attemptId = gameInitializationAttemptIdRef.current + 1;
     gameInitializationAttemptIdRef.current = attemptId;
     isInitializingGameRef.current = true;
+    entryFlowDiagnostics.beginInitializeGame(attemptId, gameContainerSize);
 
     const debugParentElement =
       gameContainerRef.current.closest("#app-container") ??
@@ -2149,6 +2213,8 @@ const GameContainer: React.FC = () => {
         setFlappyBirdSettingsMenuState(null);
       },
       onSceneTransitionStateChange: handleSceneTransitionStateChange,
+      loadingTraceContext:
+        entryFlowDiagnostics.createGameLoadingTraceContext(attemptId),
       changeControlButtons: (controlButtonParams) => {
         if (!controlButtonParams) {
           setButtonParams(null);
@@ -2202,6 +2268,7 @@ const GameContainer: React.FC = () => {
             return;
           }
 
+          entryFlowDiagnostics.completeInitializeGame(attemptId);
           pendingGameInitializationRef.current = null;
           isInitializingGameRef.current = false;
           isInitializedRef.current = true;
@@ -2212,6 +2279,7 @@ const GameContainer: React.FC = () => {
             return;
           }
 
+          entryFlowDiagnostics.failInitializeGame(attemptId, error);
           pendingGameInitializationRef.current = null;
           isInitializingGameRef.current = false;
           setGameInstance(null);
@@ -2270,6 +2338,7 @@ const GameContainer: React.FC = () => {
     stopLoadingWithFailure,
     stopRecoveryVibration,
     showAlert,
+    entryFlowDiagnostics,
     triggerTransientVibration,
   ]);
 
@@ -2404,6 +2473,7 @@ const GameContainer: React.FC = () => {
         return;
       }
 
+      entryFlowDiagnostics.beginBootstrap(gameContainerSize);
       const savedGameDataState = await prepareSavedGameData();
       if (!isMounted) return;
 
@@ -2412,10 +2482,22 @@ const GameContainer: React.FC = () => {
       }
 
       if (savedGameDataState === "setup_required") {
+        const initialGameDataStartedAt =
+          entryFlowDiagnostics.beginRequestInitialGameData();
         await requestInitialGameData();
         if (!isMounted) return;
+        entryFlowDiagnostics.completeRequestInitialGameData(
+          initialGameDataStartedAt,
+          !!initialSetupDataRef.current,
+        );
+        const layoutStabilizationStartedAt =
+          entryFlowDiagnostics.beginLayoutStabilization();
         await waitForLayoutStabilization();
         if (!isMounted) return;
+        entryFlowDiagnostics.completeLayoutStabilization(
+          layoutStabilizationStartedAt,
+          getCurrentViewportHeight(),
+        );
       }
 
       initializeGame();
@@ -2431,6 +2513,7 @@ const GameContainer: React.FC = () => {
     gameContainerSize,
     gameSessionKey,
     initializeGame,
+    entryFlowDiagnostics,
     prepareSavedGameData,
     requestInitialGameData,
     stopRecoveryVibration,
@@ -2534,13 +2617,16 @@ const GameContainer: React.FC = () => {
         return;
       }
 
+      entryFlowDiagnostics.startSetupFlow("handle_setup_complete");
       setShowSetupLayer(false);
       setLoadingFailureAlert(null);
       setIsBootstrapping(true);
+      entryFlowDiagnostics.logSetupConfirmed(formData);
 
       void (async () => {
         const hydratedFormData = await hydrateInitialSetupData(formData);
         initialSetupDataRef.current = hydratedFormData;
+        entryFlowDiagnostics.logSetupDataReady(hydratedFormData);
 
         if (shouldRestartFromSetupRef.current) {
           shouldRestartFromSetupRef.current = false;
@@ -2551,7 +2637,7 @@ const GameContainer: React.FC = () => {
         setIsBootstrapping(false);
       })();
     },
-    [hydrateInitialSetupData],
+    [entryFlowDiagnostics, hydrateInitialSetupData],
   );
 
   const handleSendLoadingFailureLogs = useCallback(() => {

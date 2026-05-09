@@ -12,6 +12,12 @@ declare global {
 		sunController?: {
 			getSunTimes: (
 				promptForPermission?: boolean,
+				traceContext?: {
+					source?: string;
+					phase?: string;
+					setupFlowId?: string | null;
+					initializationAttemptId?: number | null;
+				} | null,
 			) => Promise<{
 				sunriseAt: string;
 				sunsetAt: string;
