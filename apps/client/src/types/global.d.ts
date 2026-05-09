@@ -69,6 +69,10 @@ declare global {
     digiviceBackBridge?: {
       handleBackNavigation: () => "consumed" | "exit";
     };
+    nativeDebugLogger?: {
+      log: (payload: unknown) => void;
+    };
+    __digiviceNativeBridgeDiagnostics?: Array<Record<string, unknown>>;
   }
 }
 

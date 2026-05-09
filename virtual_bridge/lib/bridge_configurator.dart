@@ -13,6 +13,7 @@ class BridgeConfigurator {
   final WebViewController webViewController;
   final Function(String message) logCallback;
   final bool forwardConsoleMessages;
+  final bool enableStructuredDebugLogs;
   final void Function(String state)? onFullscreenAdStateChanged;
   bool _channelsRegistered = false;
 
@@ -27,6 +28,7 @@ class BridgeConfigurator {
     required this.webViewController,
     required this.logCallback,
     this.forwardConsoleMessages = false,
+    this.enableStructuredDebugLogs = false,
     this.onFullscreenAdStateChanged,
   }) {
     _pipController = PipController(
@@ -45,6 +47,7 @@ class BridgeConfigurator {
       runJavaScript: _runJavaScript,
       resolvePromise: _resolvePromise,
       log: logCallback,
+      emitWebViewConsoleDiagnostics: false,
     );
 
     _adController = AdController(
@@ -145,6 +148,11 @@ class BridgeConfigurator {
         '__native_vibrate',
         onMessageReceived: (JavaScriptMessage message) =>
             _vibrationController.handleVibrate(message),
+      )
+      ..addJavaScriptChannel(
+        '__native_debug_log',
+        onMessageReceived: (JavaScriptMessage message) =>
+            _handleStructuredDebugLog(message),
       );
 
     _channelsRegistered = true;
@@ -193,6 +201,9 @@ class BridgeConfigurator {
     await _runJavaScript(_adController.getJavaScriptInterface());
     await _runJavaScript(_sunController.getJavaScriptInterface());
     await _runJavaScript(_vibrationController.getJavaScriptInterface());
+    if (enableStructuredDebugLogs) {
+      await _runJavaScript(_getStructuredDebugLoggerJavaScriptInterface());
+    }
   }
 
   /// NFC 미사용 기간 동안 JS 호출이 깨지지 않도록 스텁 인터페이스를 제공합니다.
@@ -206,6 +217,29 @@ class BridgeConfigurator {
     ''';
   }
 
+  String _getStructuredDebugLoggerJavaScriptInterface() {
+    return '''
+      window.nativeDebugLogger = {
+        log: (payload) => {
+          try {
+            const serialized =
+              typeof payload === 'string' ? payload : JSON.stringify(payload);
+            __native_debug_log.postMessage(serialized);
+          } catch (error) {
+            try {
+              __native_debug_log.postMessage(
+                JSON.stringify({
+                  tag: 'NativeDebugLoggerSerializeError',
+                  message: String(error),
+                }),
+              );
+            } catch (_) {}
+          }
+        }
+      };
+    ''';
+  }
+
   /// JavaScript 코드 실행
   Future<void> _runJavaScript(String javaScript) async {
     try {
@@ -213,6 +247,14 @@ class BridgeConfigurator {
     } catch (e) {
       logCallback("JS 실행 오류: $e");
     }
+  }
+
+  void _handleStructuredDebugLog(JavaScriptMessage message) {
+    if (!enableStructuredDebugLogs) {
+      return;
+    }
+
+    logCallback('[SerializedWebLog] ${message.message}');
   }
 
   /// Promise 해결/거부

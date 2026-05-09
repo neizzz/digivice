@@ -50,18 +50,23 @@ const ASSET_DEFINITIONS: AssetDefinition[] = [
 ];
 
 function getSpritesheet(alias: string): PIXI.Spritesheet | undefined {
-  try {
-    const asset = PIXI.Assets.get(alias);
-
-    return asset instanceof PIXI.Spritesheet ? asset : undefined;
-  } catch {
+  if (!PIXI.Cache.has(alias)) {
     return undefined;
   }
+
+  const asset = PIXI.Cache.get(alias);
+
+  return asset instanceof PIXI.Spritesheet ? asset : undefined;
 }
 
 export class AssetLoader {
   private static loadPromise: Promise<void> | null = null;
   private static characterLoadPromises = new Map<CharacterKey, Promise<void>>();
+
+  static resetPendingLoadState(): void {
+    this.loadPromise = null;
+    this.characterLoadPromises.clear();
+  }
 
   static async loadAssets(
     characterKey: CharacterKey = CharacterKey.TestGreenSlimeA1,
@@ -75,7 +80,7 @@ export class AssetLoader {
       return this.getAssets();
     }
 
-    this.loadPromise = (async () => {
+    const loadPromise = (async () => {
       await Promise.all(
         ASSET_DEFINITIONS.map(async ({ alias, src }) => {
           if (getSpritesheet(alias)) {
@@ -96,6 +101,7 @@ export class AssetLoader {
         }),
       );
     })();
+    this.loadPromise = loadPromise;
 
     try {
       await this.loadPromise;
@@ -105,7 +111,9 @@ export class AssetLoader {
       await this.ensureCharacterSpritesheetLoaded(characterKey);
       return this.getAssets();
     } catch (error) {
-      this.loadPromise = null;
+      if (this.loadPromise === loadPromise) {
+        this.loadPromise = null;
+      }
       throw error;
     }
   }
@@ -169,7 +177,9 @@ export class AssetLoader {
     try {
       await loadPromise;
     } catch (error) {
-      this.characterLoadPromises.delete(characterKey);
+      if (this.characterLoadPromises.get(characterKey) === loadPromise) {
+        this.characterLoadPromises.delete(characterKey);
+      }
       throw error;
     }
   }

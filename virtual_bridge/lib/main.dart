@@ -60,6 +60,11 @@ class WebView extends StatefulWidget {
 
 class _WebViewState extends State<WebView> with WidgetsBindingObserver {
   static const bool _stopAppOnAsset404 = false;
+  static const Set<String> _webEntrypointPaths = <String>{
+    '/index.html',
+    '/index2.html',
+    '/monster-animations.html',
+  };
 
   final WebViewController _controller = WebViewController();
   late final BridgeConfigurator _bridgeConfigurator;
@@ -85,6 +90,7 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
       logCallback: _log,
       // 터미널 로그 폭주 방지를 위해 WebView console 포워딩은 기본 비활성화
       forwardConsoleMessages: false,
+      enableStructuredDebugLogs: !kReleaseMode,
       onFullscreenAdStateChanged: _handleFullscreenAdStateChanged,
     );
 
@@ -252,7 +258,9 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
       return normalized;
     }
 
-    if (normalized.isEmpty || normalized == 'null' || normalized == 'undefined') {
+    if (normalized.isEmpty ||
+        normalized == 'null' ||
+        normalized == 'undefined') {
       return null;
     }
 
@@ -639,7 +647,8 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
     }
 
     {
-      if (_missingAssetPathsLogged.add(path)) {
+      if (_shouldLogMissingAssetRequest(path) &&
+          _missingAssetPathsLogged.add(path)) {
         print(
             '@@ASSET404@@ request=$path tried=${candidateAssetPaths.join(',')}');
 
@@ -679,6 +688,42 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
     }
   }
 
+  bool _shouldLogMissingAssetRequest(String path) {
+    if (_isInspectorSourceLookup(path)) {
+      return false;
+    }
+
+    if (_webEntrypointPaths.contains(path)) {
+      return true;
+    }
+
+    return path.startsWith('/assets/');
+  }
+
+  bool _isInspectorSourceLookup(String path) {
+    final String lowerPath = path.toLowerCase();
+
+    if (lowerPath.endsWith('.map')) {
+      return true;
+    }
+
+    if (lowerPath.endsWith('.ts') ||
+        lowerPath.endsWith('.tsx') ||
+        lowerPath.endsWith('.jsx') ||
+        lowerPath.endsWith('.mjs') ||
+        lowerPath.endsWith('.cjs')) {
+      return true;
+    }
+
+    return lowerPath.startsWith('/@fs/') ||
+        lowerPath.startsWith('/@id/') ||
+        lowerPath.startsWith('/__vite') ||
+        lowerPath.startsWith('/.well-known/') ||
+        lowerPath.contains('/node_modules/') ||
+        lowerPath.contains('/src/') ||
+        lowerPath.contains('devtools');
+  }
+
   ContentType _contentTypeForPath(String path) {
     if (path.endsWith('.html')) return ContentType.html;
     if (path.endsWith('.js') || path.endsWith('.mjs')) {
@@ -715,6 +760,11 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
   }
 
   Future<void> _log(String message) async {
+    if (message.startsWith('[SerializedWebLog] ')) {
+      print(message);
+      return;
+    }
+
     // 브릿지 로그가 많아 디버깅이 어려우므로, 에셋 404 마커 로그만 우선 노출
     if (message.contains('@@ASSET404@@')) {
       print(message);

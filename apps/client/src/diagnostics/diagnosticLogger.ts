@@ -12,6 +12,18 @@ const DIAGNOSTICS_LOGS_PERSIST_DEBOUNCE_MS = 2000;
 const DIAGNOSTICS_LOGS_RECENT_WINDOW_MS = 10 * 60 * 1000;
 const ELLIPSIS = "…";
 const IMPORTANT_DIAGNOSTICS_PREFIX = "[ImportantDiagnostics]";
+const NATIVE_DEBUG_LOG_PREFIXES = [
+  IMPORTANT_DIAGNOSTICS_PREFIX,
+  "[GameTransition]",
+  "[Game]",
+  "[MainSceneWorld]",
+  "[GameContainer]",
+  "[SceneTransition",
+  "[BackNavigation]",
+  "[FlappyBird",
+  "PixiJS Warning:",
+] as const;
+const NATIVE_DEBUG_LOG_ARG_MAX_BYTES = 2 * 1024;
 
 type DiagnosticsLogLevel = "log" | "warn" | "error";
 
@@ -138,6 +150,26 @@ function shouldSkipDiagnosticsLog(
   ];
 
   return stablePatterns.some((pattern) => message.includes(pattern));
+}
+
+function shouldMirrorDiagnosticsLogToNative(
+  level: DiagnosticsLogLevel,
+  message: string,
+  forceImportant: boolean,
+): boolean {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  if (typeof window.nativeDebugLogger?.log !== "function") {
+    return false;
+  }
+
+  if (forceImportant || level === "error" || level === "warn") {
+    return true;
+  }
+
+  return NATIVE_DEBUG_LOG_PREFIXES.some((prefix) => message.includes(prefix));
 }
 
 function toByteLength(value: string): number {
@@ -366,6 +398,52 @@ function trimRegularLogsToSize(
   return nextLogs;
 }
 
+function mirrorDiagnosticsLogToNative(
+  entry: DiagnosticsLogEntry,
+  args: unknown[],
+  options?: {
+    forceImportant?: boolean;
+  },
+): void {
+  if (
+    !shouldMirrorDiagnosticsLogToNative(
+      entry.level,
+      entry.message,
+      options?.forceImportant === true,
+    )
+  ) {
+    return;
+  }
+
+  const payload = {
+    tag: "WebConsole",
+    timestamp: entry.timestamp,
+    level: entry.level,
+    source: entry.source,
+    scene: entry.scene ?? null,
+    sessionId: entry.sessionId,
+    appMode: entry.appMode ?? null,
+    appVersion: entry.appVersion ?? null,
+    buildNumber: entry.buildNumber ?? null,
+    debugEnabled: entry.debugEnabled ?? null,
+    storageKind: entry.storageKind,
+    timeSinceSessionStartMs: entry.timeSinceSessionStartMs,
+    important:
+      options?.forceImportant === true ||
+      isImportantDiagnosticsMessage(entry.level, entry.message),
+    message: entry.message,
+    args: args.map((arg) =>
+      truncateToByteLength(stringifyConsoleArg(arg), NATIVE_DEBUG_LOG_ARG_MAX_BYTES),
+    ),
+  };
+
+  try {
+    window.nativeDebugLogger?.log(payload);
+  } catch {
+    // Native logger는 diagnostics 보조 경로이므로 본 흐름을 깨지 않습니다.
+  }
+}
+
 function normalizePersistedLogs(value: unknown): DiagnosticsLogRecord[] {
   if (!Array.isArray(value)) {
     return [];
@@ -527,6 +605,7 @@ function appendDiagnosticsLog(
     ]);
   }
   syncWindowErrorLogs();
+  mirrorDiagnosticsLogToNative(entry, args, options);
   queuePersist();
 }
 

@@ -1,3 +1,4 @@
+import * as Matter from "matter-js";
 import * as PIXI from "pixi.js";
 import type { CharacterKey } from "../../types/Character";
 import { AssetLoader, type GameAssets } from "../../utils/AssetLoader";
@@ -36,7 +37,67 @@ type CloudVisualStyle = {
 export type PipeUpdateStats = {
   spawned: number;
   removed: number;
+  phaseCosts: PipeUpdatePhaseCosts;
+  poolStats: PipePoolStats;
 };
+
+export type PipeUpdatePhaseCostKey =
+  | "spawnPlanning"
+  | "createPipePairDisplay"
+  | "createPipePairBodies"
+  | "attachPipePairToScene"
+  | "recycleOrRemovePipes"
+  | "moveExistingPipes";
+
+export type PipeUpdatePhaseCosts = Partial<
+  Record<PipeUpdatePhaseCostKey, number>
+>;
+
+export type PipePoolStats = {
+  pairCreated: number;
+  pairReused: number;
+  bodyCreated: number;
+  bodyReused: number;
+  poolMissCount: number;
+};
+
+type PipeDisplayContainer = PIXI.Container & {
+  __flappyPipeShaft?: PIXI.TilingSprite;
+  __flappyPipeEndCap?: PIXI.Sprite;
+  __flappyPipePosition?: "top" | "bottom";
+};
+
+type PipeBodyWithMetrics = Matter.Body & {
+  __flappyPipeWidth?: number;
+  __flappyPipeHeight?: number;
+};
+
+type ManagedPipePair = PipePair;
+
+type PipeAssetsContext = {
+  tileSize: number;
+  pipeBodyTexture: PIXI.Texture;
+  pipeEndTexture: PIXI.Texture;
+};
+
+type PipeUpdateDiagnostics = {
+  phaseCosts: PipeUpdatePhaseCosts;
+  poolStats: PipePoolStats;
+};
+
+function getPerfNow(): number {
+  return typeof performance !== "undefined" ? performance.now() : Date.now();
+}
+
+function createEmptyPipePoolStats(): PipePoolStats {
+  return {
+    pairCreated: 0,
+    pairReused: 0,
+    bodyCreated: 0,
+    bodyReused: 0,
+    poolMissCount: 0,
+  };
+}
 
 function resolveFrameScale(deltaTime: number): number {
   return Math.min(
@@ -471,7 +532,8 @@ export class PipeManager {
   private app: PIXI.Application;
   private physicsManager: PhysicsManager;
   private pipes: PIXI.Container;
-  private pipesPairs: PipePair[] = [];
+  private pipesPairs: ManagedPipePair[] = [];
+  private pipePool: ManagedPipePair[] = [];
   private pipeSpawnInterval: number;
   private targetPipeSpawnInterval: number;
   private elapsedSinceLastPipeSpawnMs: number;
@@ -512,6 +574,10 @@ export class PipeManager {
     onScoreUpdate: (scoreDelta: number) => void,
     deltaTime: number,
   ): PipeUpdateStats {
+    const diagnostics: PipeUpdateDiagnostics = {
+      phaseCosts: {},
+      poolStats: createEmptyPipePoolStats(),
+    };
     let spawned = 0;
 
     this.pipeSpawnInterval = smoothFlappyBirdSpeed(
@@ -523,56 +589,88 @@ export class PipeManager {
 
     // 파이프 생성 로직
     if (this.elapsedSinceLastPipeSpawnMs > this.pipeSpawnInterval) {
-      spawned += this.createPipePattern();
+      spawned += this.createPipePattern(diagnostics);
       this.elapsedSinceLastPipeSpawnMs = 0;
     }
 
     // 파이프 이동 로직
     return {
       spawned,
-      removed: this.movePipes(playerBody, onScoreUpdate, deltaTime),
+      removed: this.movePipes(playerBody, onScoreUpdate, deltaTime, diagnostics),
+      phaseCosts: diagnostics.phaseCosts,
+      poolStats: diagnostics.poolStats,
     };
+  }
+
+  public prewarmPipePairs(count: number): void {
+    const targetCount = Math.max(0, Math.floor(count));
+
+    if (targetCount === 0) {
+      return;
+    }
+
+    const pipeAssets = this.resolvePipeAssetsContext();
+
+    while (this.pipesPairs.length + this.pipePool.length < targetCount) {
+      const spawnPlan = buildPipeSpawnPlan({
+        tileSize: pipeAssets.tileSize,
+        availableHeight: this.app.screen.height - this.groundHeight,
+        passageHeightMinRatio: this.passageHeightMinRatio,
+        passageHeightMaxRatio: this.passageHeightMaxRatio,
+        passagePositionExpansionTiles: this.passagePositionExpansionTiles,
+        doublePipePatternChance: this.doublePipePatternChance,
+        doublePipePatternGapTileOptions: this.doublePipePatternGapTileOptions,
+        misalignedDoublePipePatternChance:
+          this.misalignedDoublePipePatternChance,
+        misalignedDoublePipePatternOffsetTiles:
+          this.misalignedDoublePipePatternOffsetTiles,
+      });
+
+      for (const item of spawnPlan.items) {
+        const pair = this.createManagedPipePair(pipeAssets);
+        this.configurePipePair(pair, {
+          pipeAssets,
+          item,
+        });
+        this.resetPairTracking(pair);
+        this.pipePool.push(pair);
+
+        if (this.pipesPairs.length + this.pipePool.length >= targetCount) {
+          break;
+        }
+      }
+    }
   }
 
   /**
    * 파이프 쌍을 생성합니다.
    */
-  private createPipePattern(): number {
-    const assets = AssetLoader.getAssets();
-    if (
-      !assets.tilesetSprites ||
-      !assets.tilesetSprites.textures["pipe-body"]
-    ) {
-      throw new Error("Pipe textures not found in assets");
-    }
-
-    const texture = assets.tilesetSprites.textures["pipe-body"];
-    const tileSize = Math.max(
-      1,
-      Math.round(
-        texture.frame.width *
-          FLAPPY_BIRD_OBJECT_SCALE *
-          FLAPPY_BIRD_PIPE_TILE_SCALE,
-      ),
+  private createPipePattern(diagnostics: PipeUpdateDiagnostics): number {
+    const pipeAssets = this.resolvePipeAssetsContext();
+    const spawnPlan = this.measurePipePhase(
+      diagnostics.phaseCosts,
+      "spawnPlanning",
+      () =>
+        buildPipeSpawnPlan({
+          tileSize: pipeAssets.tileSize,
+          availableHeight: this.app.screen.height - this.groundHeight,
+          passageHeightMinRatio: this.passageHeightMinRatio,
+          passageHeightMaxRatio: this.passageHeightMaxRatio,
+          passagePositionExpansionTiles: this.passagePositionExpansionTiles,
+          doublePipePatternChance: this.doublePipePatternChance,
+          doublePipePatternGapTileOptions: this.doublePipePatternGapTileOptions,
+          misalignedDoublePipePatternChance:
+            this.misalignedDoublePipePatternChance,
+          misalignedDoublePipePatternOffsetTiles:
+            this.misalignedDoublePipePatternOffsetTiles,
+        }),
     );
-    const spawnPlan = buildPipeSpawnPlan({
-      tileSize,
-      availableHeight: this.app.screen.height - this.groundHeight,
-      passageHeightMinRatio: this.passageHeightMinRatio,
-      passageHeightMaxRatio: this.passageHeightMaxRatio,
-      passagePositionExpansionTiles: this.passagePositionExpansionTiles,
-      doublePipePatternChance: this.doublePipePatternChance,
-      doublePipePatternGapTileOptions: this.doublePipePatternGapTileOptions,
-      misalignedDoublePipePatternChance:
-        this.misalignedDoublePipePatternChance,
-      misalignedDoublePipePatternOffsetTiles:
-        this.misalignedDoublePipePatternOffsetTiles,
-    });
 
     for (const item of spawnPlan.items) {
       this.createPipePair({
-        tileSize,
+        pipeAssets,
         item,
+        diagnostics,
       });
     }
 
@@ -583,113 +681,70 @@ export class PipeManager {
    * 파이프 쌍을 생성합니다.
    */
   private createPipePair(options: {
-    tileSize: number;
+    pipeAssets: PipeAssetsContext;
     item: PipeSpawnPlanItem;
+    diagnostics: PipeUpdateDiagnostics;
   }): void {
-    const { tileSize, item } = options;
-    const { top, topBody, bottom, bottomBody } = this.createPipePairObjects({
-      tileSize,
-      passageHeight: item.passageHeight,
-      topPipeHeight: item.topPipeHeight,
-      bottomPipeHeight: item.bottomPipeHeight,
-      xOffsetTiles: item.xOffsetTiles,
+    const { pipeAssets, item, diagnostics } = options;
+    const pair = this.acquirePipePair({
+      pipeAssets,
+      item,
+      diagnostics,
     });
 
-    this.pipes.addChild(top);
-    this.pipes.addChild(bottom);
+    this.measurePipePhase(
+      diagnostics.phaseCosts,
+      "attachPipePairToScene",
+      () => {
+        this.pipes.addChild(pair.top);
+        this.pipes.addChild(pair.bottom);
 
-    this.physicsManager.addToEngine(null, topBody, { syncDisplay: false });
-    this.physicsManager.addToEngine(null, bottomBody, { syncDisplay: false });
-    this.syncPipeDisplayObject(top, topBody);
-    this.syncPipeDisplayObject(bottom, bottomBody);
+        this.physicsManager.addToEngine(null, pair.topBody, {
+          syncDisplay: false,
+        });
+        this.physicsManager.addToEngine(null, pair.bottomBody, {
+          syncDisplay: false,
+        });
+        this.syncPipeDisplayObject(pair.top, pair.topBody);
+        this.syncPipeDisplayObject(pair.bottom, pair.bottomBody);
+      },
+    );
 
-    this.pipesPairs.push({
-      top,
-      bottom,
-      topBody,
-      bottomBody,
-      passed: false,
-      minTopClearance: Number.POSITIVE_INFINITY,
-      minBottomClearance: Number.POSITIVE_INFINITY,
-    });
+    this.pipesPairs.push(pair);
   }
 
   /**
-   * 파이프 쌍 오브젝트를 생성합니다.
+   * 파이프 쌍 오브젝트를 준비합니다.
    */
-  private createPipePairObjects(options: {
-    tileSize: number;
-    passageHeight: number;
-    topPipeHeight: number;
-    bottomPipeHeight: number;
-    xOffsetTiles: number;
-  }): {
-    top: PIXI.Container;
-    topBody: Matter.Body;
-    bottom: PIXI.Container;
-    bottomBody: Matter.Body;
-  } {
-    const {
-      tileSize,
-      passageHeight,
-      topPipeHeight,
-      bottomPipeHeight,
-      xOffsetTiles,
-    } = options;
-    const assets = AssetLoader.getAssets();
-    const tilesetSprites = assets.tilesetSprites;
-    if (!tilesetSprites) {
-      throw new Error("Tileset spritesheet not found");
+  private acquirePipePair(options: {
+    pipeAssets: PipeAssetsContext;
+    item: PipeSpawnPlanItem;
+    diagnostics?: PipeUpdateDiagnostics;
+  }): ManagedPipePair {
+    const { pipeAssets, item, diagnostics } = options;
+    const pair = this.pipePool.pop();
+    const existingPair = pair ?? this.createManagedPipePair(pipeAssets, diagnostics);
+
+    if (pair) {
+      if (diagnostics) {
+        diagnostics.poolStats.pairReused += 1;
+        diagnostics.poolStats.bodyReused += 2;
+      }
+    } else {
+      if (diagnostics) {
+        diagnostics.poolStats.pairCreated += 1;
+        diagnostics.poolStats.bodyCreated += 2;
+        diagnostics.poolStats.poolMissCount += 1;
+      }
     }
 
-    const pipeBodyTexture = tilesetSprites.textures["pipe-body"];
-    const pipeEndTexture = tilesetSprites.textures["pipe-end"];
-
-    // 상단/하단 파이프 생성
-    const top = this.createPipeContainer({
-      height: topPipeHeight,
-      tileSize,
-      pipeBodyTexture,
-      pipeEndTexture,
-      position: "top",
+    this.configurePipePair(existingPair, {
+      pipeAssets,
+      item,
+      diagnostics,
     });
-    const bottom = this.createPipeContainer({
-      height: bottomPipeHeight,
-      tileSize,
-      pipeBodyTexture,
-      pipeEndTexture,
-      position: "bottom",
-    });
-
-    // 위치 설정
-    const topBodyX =
-      this.app.screen.width + tileSize / 2 + xOffsetTiles * tileSize;
-    const topBodyY = topPipeHeight / 2;
-    const bottomBodyX = topBodyX;
-    const bottomBodyY =
-      topPipeHeight +
-      passageHeight +
-      bottomPipeHeight / 2 +
-      tileSize / 2; /* ground 높이 */
-
-    // 물리 바디 생성
-    const topBody = this.physicsManager.createRectangleBody(
-      topBodyX,
-      topBodyY,
-      tileSize,
-      topPipeHeight,
-      { isStatic: true, label: "pipe" },
-    );
-
-    const bottomBody = this.physicsManager.createRectangleBody(
-      bottomBodyX,
-      bottomBodyY,
-      tileSize,
-      bottomPipeHeight,
-      { isStatic: true, label: "pipe" },
-    );
-
-    return { top, topBody, bottom, bottomBody };
+    this.resetPairTracking(existingPair);
+    return existingPair;
   }
 
   /**
@@ -699,43 +754,54 @@ export class PipeManager {
     playerBody: Matter.Body,
     onScoreUpdate: (scoreDelta: number) => void,
     deltaTime: number,
+    diagnostics: PipeUpdateDiagnostics,
   ): number {
     this.speed = smoothFlappyBirdSpeed(this.speed, this.targetSpeed, deltaTime);
     const movementStep = this.speed * resolveFrameScale(deltaTime);
-    let removed = 0;
+    const removalIndexes: number[] = [];
 
-    for (let i = 0; i < this.pipesPairs.length; i++) {
-      const pair = this.pipesPairs[i];
+    this.measurePipePhase(diagnostics.phaseCosts, "moveExistingPipes", () => {
+      for (let i = 0; i < this.pipesPairs.length; i++) {
+        const pair = this.pipesPairs[i];
 
-      // 물리 바디 이동
-      this.physicsManager.translateBody(pair.topBody, {
-        x: -movementStep,
-        y: 0,
-      });
-      this.physicsManager.translateBody(pair.bottomBody, {
-        x: -movementStep,
-        y: 0,
-      });
-      this.syncPipeDisplayObject(pair.top, pair.topBody);
-      this.syncPipeDisplayObject(pair.bottom, pair.bottomBody);
+        this.physicsManager.translateBody(pair.topBody, {
+          x: -movementStep,
+          y: 0,
+        });
+        this.physicsManager.translateBody(pair.bottomBody, {
+          x: -movementStep,
+          y: 0,
+        });
+        this.syncPipeDisplayObject(pair.top, pair.topBody);
+        this.syncPipeDisplayObject(pair.bottom, pair.bottomBody);
 
-      this.trackNearMissClearances(pair, playerBody);
+        this.trackNearMissClearances(pair, playerBody);
 
-      // 점수 처리
-      if (this.hasPairPassedPlayer(pair, playerBody) && !pair.passed) {
-        pair.passed = true;
-        onScoreUpdate(1 + this.getNearMissBonus(pair, playerBody));
+        if (this.hasPairPassedPlayer(pair, playerBody) && !pair.passed) {
+          pair.passed = true;
+          onScoreUpdate(1 + this.getNearMissBonus(pair, playerBody));
+        }
+
+        if (pair.topBody.position.x < -pair.top.width) {
+          removalIndexes.push(i);
+        }
       }
+    });
 
-      // 화면 밖으로 나간 파이프 제거
-      if (pair.topBody.position.x < -pair.top.width) {
-        this.removePipePair(i);
-        removed += 1;
-        i--;
-      }
-    }
+    this.measurePipePhase(
+      diagnostics.phaseCosts,
+      "recycleOrRemovePipes",
+      () => {
+        for (let index = removalIndexes.length - 1; index >= 0; index -= 1) {
+          const pairIndex = removalIndexes[index];
+          if (typeof pairIndex === "number") {
+            this.removePipePair(pairIndex);
+          }
+        }
+      },
+    );
 
-    return removed;
+    return removalIndexes.length;
   }
 
   /**
@@ -744,15 +810,13 @@ export class PipeManager {
   private removePipePair(index: number): void {
     const pair = this.pipesPairs[index];
 
-    // 디스플레이 객체 제거
-    this.pipes.removeChild(pair.top);
-    this.pipes.removeChild(pair.bottom);
+    if (!pair) {
+      return;
+    }
 
-    // 물리 바디 제거
     this.physicsManager.removeFromEngine(pair.topBody);
     this.physicsManager.removeFromEngine(pair.bottomBody);
-
-    // 배열에서 제거
+    this.releasePipePair(pair);
     this.pipesPairs.splice(index, 1);
   }
 
@@ -771,6 +835,17 @@ export class PipeManager {
   public reset(): void {
     this.clearAllPipes();
     this.elapsedSinceLastPipeSpawnMs = this.pipeSpawnInterval;
+  }
+
+  public destroy(): void {
+    this.clearAllPipes();
+
+    for (const pair of this.pipePool) {
+      pair.top.destroy({ children: true });
+      pair.bottom.destroy({ children: true });
+    }
+
+    this.pipePool = [];
   }
 
   public applyDifficulty(options: FlappyBirdDifficultyState): void {
@@ -810,7 +885,40 @@ export class PipeManager {
     pipeBodyTexture: PIXI.Texture;
     pipeEndTexture: PIXI.Texture;
     position: "top" | "bottom";
-  }): PIXI.Container {
+  }): PipeDisplayContainer {
+    const {
+      tileSize,
+      pipeBodyTexture,
+      pipeEndTexture,
+      position,
+    } = options;
+    const pipe = new PIXI.Container() as PipeDisplayContainer;
+    const shaft = new PIXI.TilingSprite({
+      texture: pipeBodyTexture,
+      width: tileSize,
+      height: 1,
+    });
+    pipe.__flappyPipeShaft = shaft;
+    pipe.__flappyPipePosition = position;
+    pipe.addChild(shaft);
+    const endCap = new PIXI.Sprite(pipeEndTexture);
+    pipe.__flappyPipeEndCap = endCap;
+    endCap.anchor.set(0.5);
+    pipe.addChild(endCap);
+    this.configurePipeContainer(pipe, options);
+    return pipe;
+  }
+
+  private configurePipeContainer(
+    pipe: PipeDisplayContainer,
+    options: {
+      height: number;
+      tileSize: number;
+      pipeBodyTexture: PIXI.Texture;
+      pipeEndTexture: PIXI.Texture;
+      position: "top" | "bottom";
+    },
+  ): void {
     const {
       height,
       tileSize,
@@ -818,39 +926,269 @@ export class PipeManager {
       pipeEndTexture,
       position,
     } = options;
-    const pipe = new PIXI.Container();
-    const shaftHeight = Math.max(0, height - tileSize);
+    const shaft = pipe.__flappyPipeShaft;
+    const endCap = pipe.__flappyPipeEndCap;
 
-    if (shaftHeight > 0) {
-      const shaft = new PIXI.TilingSprite({
-        texture: pipeBodyTexture,
-        width: tileSize,
-        height: shaftHeight,
-      });
-      shaft.tileScale.set(
-        tileSize / pipeBodyTexture.frame.width,
-        tileSize / pipeBodyTexture.frame.height,
-      );
-      shaft.position.set(0, position === "top" ? 0 : tileSize);
-      pipe.addChild(shaft);
+    if (!shaft || !endCap) {
+      return;
     }
 
-    const endCap = new PIXI.Sprite(pipeEndTexture);
-    endCap.anchor.set(0.5);
+    const shaftHeight = Math.max(0, height - tileSize);
+    shaft.texture = pipeBodyTexture;
+    shaft.width = tileSize;
+    shaft.height = Math.max(1, shaftHeight);
+    shaft.visible = shaftHeight > 0;
+    shaft.position.set(0, position === "top" ? 0 : tileSize);
+    shaft.tileScale.set(
+      tileSize / pipeBodyTexture.frame.width,
+      tileSize / pipeBodyTexture.frame.height,
+    );
+
+    endCap.texture = pipeEndTexture;
     endCap.width = tileSize;
     endCap.height = tileSize;
     endCap.position.set(
       tileSize / 2,
       position === "top" ? height - tileSize / 2 : tileSize / 2,
     );
+    endCap.rotation = position === "top" ? Math.PI : 0;
+    pipe.__flappyPipePosition = position;
+  }
 
-    if (position === "top") {
-      endCap.rotation = Math.PI;
+  private resolvePipeAssetsContext(): PipeAssetsContext {
+    const assets = AssetLoader.getAssets();
+    const tilesetSprites = assets.tilesetSprites;
+    const pipeBodyTexture = tilesetSprites?.textures["pipe-body"];
+    const pipeEndTexture = tilesetSprites?.textures["pipe-end"];
+
+    if (!pipeBodyTexture || !pipeEndTexture) {
+      throw new Error("Pipe textures not found in assets");
     }
 
-    pipe.addChild(endCap);
+    return {
+      tileSize: Math.max(
+        1,
+        Math.round(
+          pipeBodyTexture.frame.width *
+            FLAPPY_BIRD_OBJECT_SCALE *
+            FLAPPY_BIRD_PIPE_TILE_SCALE,
+        ),
+      ),
+      pipeBodyTexture,
+      pipeEndTexture,
+    };
+  }
 
-    return pipe;
+  private createManagedPipePair(
+    pipeAssets: PipeAssetsContext,
+    diagnostics?: PipeUpdateDiagnostics,
+  ): ManagedPipePair {
+    const { tileSize, pipeBodyTexture, pipeEndTexture } = pipeAssets;
+    const top = this.measurePipePhase(
+      diagnostics?.phaseCosts,
+      "createPipePairDisplay",
+      () =>
+        this.createPipeContainer({
+          height: tileSize,
+          tileSize,
+          pipeBodyTexture,
+          pipeEndTexture,
+          position: "top",
+        }),
+    );
+    const bottom = this.measurePipePhase(
+      diagnostics?.phaseCosts,
+      "createPipePairDisplay",
+      () =>
+        this.createPipeContainer({
+          height: tileSize,
+          tileSize,
+          pipeBodyTexture,
+          pipeEndTexture,
+          position: "bottom",
+        }),
+    );
+    const topBody = this.measurePipePhase(
+      diagnostics?.phaseCosts,
+      "createPipePairBodies",
+      () =>
+        this.createPipeBody({
+          width: tileSize,
+          height: tileSize,
+          x: 0,
+          y: 0,
+        }),
+    );
+    const bottomBody = this.measurePipePhase(
+      diagnostics?.phaseCosts,
+      "createPipePairBodies",
+      () =>
+        this.createPipeBody({
+          width: tileSize,
+          height: tileSize,
+          x: 0,
+          y: 0,
+        }),
+    );
+
+    return {
+      top,
+      bottom,
+      topBody,
+      bottomBody,
+      passed: false,
+      minTopClearance: Number.POSITIVE_INFINITY,
+      minBottomClearance: Number.POSITIVE_INFINITY,
+    };
+  }
+
+  private createPipeBody(options: {
+    width: number;
+    height: number;
+    x: number;
+    y: number;
+  }): Matter.Body {
+    const body = this.physicsManager.createRectangleBody(
+      options.x,
+      options.y,
+      options.width,
+      options.height,
+      { isStatic: true, label: "pipe" },
+    ) as PipeBodyWithMetrics;
+    body.__flappyPipeWidth = options.width;
+    body.__flappyPipeHeight = options.height;
+    return body;
+  }
+
+  private configurePipePair(
+    pair: ManagedPipePair,
+    options: {
+      pipeAssets: PipeAssetsContext;
+      item: PipeSpawnPlanItem;
+      diagnostics?: PipeUpdateDiagnostics;
+    },
+  ): void {
+    const { pipeAssets, item, diagnostics } = options;
+    const { tileSize, pipeBodyTexture, pipeEndTexture } = pipeAssets;
+
+    this.measurePipePhase(
+      diagnostics?.phaseCosts,
+      "createPipePairDisplay",
+      () => {
+        this.configurePipeContainer(pair.top as PipeDisplayContainer, {
+          height: item.topPipeHeight,
+          tileSize,
+          pipeBodyTexture,
+          pipeEndTexture,
+          position: "top",
+        });
+        this.configurePipeContainer(pair.bottom as PipeDisplayContainer, {
+          height: item.bottomPipeHeight,
+          tileSize,
+          pipeBodyTexture,
+          pipeEndTexture,
+          position: "bottom",
+        });
+      },
+    );
+
+    const topBodyX =
+      this.app.screen.width + tileSize / 2 + item.xOffsetTiles * tileSize;
+    const topBodyY = item.topPipeHeight / 2;
+    const bottomBodyX = topBodyX;
+    const bottomBodyY =
+      item.topPipeHeight +
+      item.passageHeight +
+      item.bottomPipeHeight / 2 +
+      tileSize / 2;
+
+    this.measurePipePhase(
+      diagnostics?.phaseCosts,
+      "createPipePairBodies",
+      () => {
+        this.configurePipeBody(pair.topBody as PipeBodyWithMetrics, {
+          width: tileSize,
+          height: item.topPipeHeight,
+          x: topBodyX,
+          y: topBodyY,
+        });
+        this.configurePipeBody(pair.bottomBody as PipeBodyWithMetrics, {
+          width: tileSize,
+          height: item.bottomPipeHeight,
+          x: bottomBodyX,
+          y: bottomBodyY,
+        });
+      },
+    );
+  }
+
+  private configurePipeBody(
+    body: PipeBodyWithMetrics,
+    options: {
+      width: number;
+      height: number;
+      x: number;
+      y: number;
+    },
+  ): void {
+    const targetWidth = Math.max(1, options.width);
+    const targetHeight = Math.max(1, options.height);
+    const currentWidth =
+      body.__flappyPipeWidth ?? body.bounds.max.x - body.bounds.min.x;
+    const currentHeight =
+      body.__flappyPipeHeight ?? body.bounds.max.y - body.bounds.min.y;
+
+    if (
+      Math.abs(currentWidth - targetWidth) > 0.01 ||
+      Math.abs(currentHeight - targetHeight) > 0.01
+    ) {
+      Matter.Body.scale(
+        body,
+        targetWidth / Math.max(1, currentWidth),
+        targetHeight / Math.max(1, currentHeight),
+      );
+    }
+
+    body.__flappyPipeWidth = targetWidth;
+    body.__flappyPipeHeight = targetHeight;
+    this.physicsManager.setPosition(body, {
+      x: options.x,
+      y: options.y,
+    });
+  }
+
+  private releasePipePair(pair: ManagedPipePair): void {
+    if (pair.top.parent) {
+      pair.top.parent.removeChild(pair.top);
+    }
+
+    if (pair.bottom.parent) {
+      pair.bottom.parent.removeChild(pair.bottom);
+    }
+
+    this.resetPairTracking(pair);
+    this.pipePool.push(pair);
+  }
+
+  private resetPairTracking(pair: ManagedPipePair): void {
+    pair.passed = false;
+    pair.minTopClearance = Number.POSITIVE_INFINITY;
+    pair.minBottomClearance = Number.POSITIVE_INFINITY;
+  }
+
+  private measurePipePhase<T>(
+    phaseCosts: PipeUpdatePhaseCosts | undefined,
+    phaseKey: PipeUpdatePhaseCostKey,
+    work: () => T,
+  ): T {
+    const startedAt = getPerfNow();
+    const result = work();
+
+    if (phaseCosts) {
+      phaseCosts[phaseKey] = (phaseCosts[phaseKey] ?? 0) + (getPerfNow() - startedAt);
+    }
+
+    return result;
   }
 
   private syncPipeDisplayObject(
