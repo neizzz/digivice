@@ -2,7 +2,7 @@ const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["./browserAll.js","./we
 var __defProp = Object.defineProperty;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
-import { g as getDefaultExportFromCjs, S as SHOW_DEBUG_GAUGE_EVENT, c as commonjsGlobal, r as reactExports, j as jsxDevRuntimeExports, a as requireReactDom, T as TopLeftBuildLogoText, R as ReactDOM } from "./index2.js";
+import { g as getDefaultExportFromCjs, S as SHOW_DEBUG_GAUGE_EVENT, c as commonjsGlobal, r as reactExports, j as jsxRuntimeExports, a as requireReactDom, T as TopLeftBuildLogoText, R as ReactDOM } from "./index2.js";
 const STORAGE_PREVIEW_LIMIT = 120;
 const FLUTTER_STORAGE_TIMEOUT_MS = {
   getData: 3e3,
@@ -10,7 +10,9 @@ const FLUTTER_STORAGE_TIMEOUT_MS = {
   removeData: 2e3
 };
 function _debugStorage(...args) {
-  console.debug(...args);
+  {
+    return;
+  }
 }
 function _serialize(obj) {
   return JSON.stringify(obj);
@@ -112,10 +114,8 @@ class WebLocalStorage {
   //   localStorage.setItem(key, value);
   // }, 1000);
   async getData(key) {
-    _debugStorage("[WebLocalStorage] getData:start", { key });
     const value = localStorage.getItem(key);
     if (value === null) {
-      _debugStorage("[WebLocalStorage] getData:miss", { key });
       return await Promise.resolve(null);
     }
     _debugStorage("[WebLocalStorage] getData:raw", {
@@ -147,13 +147,10 @@ class WebLocalStorage {
       preview: _previewValue(value)
     });
     localStorage.setItem(key, value);
-    _debugStorage("[WebLocalStorage] setData:success", { key });
     return Promise.resolve();
   }
   removeData(key) {
-    _debugStorage("[WebLocalStorage] removeData:start", { key });
     localStorage.removeItem(key);
-    _debugStorage("[WebLocalStorage] removeData:success", { key });
     return Promise.resolve();
   }
 }
@@ -165,7 +162,6 @@ class FlutterStorage {
     return window.storageController;
   }
   async getData(key) {
-    _debugStorage("[FlutterStorage] getData:start", { key });
     const value = await _withFlutterStorageTimeout({
       operation: "getData",
       key,
@@ -178,7 +174,6 @@ class FlutterStorage {
       preview: _previewValue(value)
     });
     if (_isMissingSerializedValue(value)) {
-      _debugStorage("[FlutterStorage] getData:miss", { key });
       return null;
     }
     try {
@@ -215,16 +210,13 @@ class FlutterStorage {
       payloadLength: serializedValue.length,
       promiseFactory: () => this._getStorageController().setData(key, serializedValue)
     });
-    _debugStorage("[FlutterStorage] setData:success", { key });
   }
   async removeData(key) {
-    _debugStorage("[FlutterStorage] removeData:start", { key });
     await _withFlutterStorageTimeout({
       operation: "removeData",
       key,
       promiseFactory: () => this._getStorageController().removeData(key)
     });
-    _debugStorage("[FlutterStorage] removeData:success", { key });
   }
 }
 const scriptRel = "modulepreload";
@@ -27836,18 +27828,18 @@ const PRODUCTION_EVOLUTION_TARGET_DURATION_BY_CLASS_MS = {
   [CharacterClass.C]: 80 * HOUR_MS$1,
   [CharacterClass.D]: 80 * HOUR_MS$1
 };
-({
+const PRODUCTION_EVOLUTION_TARGET_DURATION_VARIANCE_BY_CLASS_MS = {
   [CharacterClass.A]: 2 * HOUR_MS$1,
   [CharacterClass.B]: 4 * HOUR_MS$1,
   [CharacterClass.C]: 8 * HOUR_MS$1,
   [CharacterClass.D]: 8 * HOUR_MS$1
-});
-const DEV_GAUGE_GAIN_BY_CLASS = {
+};
+({
   [CharacterClass.A]: 1 * EVOLUTION_GAUGE_GAIN_MULTIPLIER,
   [CharacterClass.B]: 1 * EVOLUTION_GAUGE_GAIN_MULTIPLIER,
   [CharacterClass.C]: 1 * EVOLUTION_GAUGE_GAIN_MULTIPLIER,
   [CharacterClass.D]: 1 * EVOLUTION_GAUGE_GAIN_MULTIPLIER
-};
+});
 function getGaugeGainForDurationMs(params) {
   const { maxGauge, checkIntervalMs, durationMs } = params;
   if (durationMs <= 0) {
@@ -27880,23 +27872,30 @@ function getAverageGaugeGainByClass(params) {
     })
   };
 }
-({
-  gaugeGainByClass: getAverageGaugeGainByClass({
-    maxGauge: DEFAULT_MAX_GAUGE,
-    checkIntervalMs: 1e4,
-    targetDurationByClassMs: PRODUCTION_EVOLUTION_TARGET_DURATION_BY_CLASS_MS
-  })
-});
-const DEV_EVOLUTION_GAUGE_CONFIG = {
+function getStableSeededUnitValue(seed) {
+  let hash = 2166136261;
+  for (let i2 = 0; i2 < seed.length; i2++) {
+    hash ^= seed.charCodeAt(i2);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0) / 4294967296;
+}
+const PRODUCTION_EVOLUTION_GAUGE_CONFIG = {
   maxGauge: DEFAULT_MAX_GAUGE,
   staminaThreshold: 3,
   boostedStaminaThreshold: 7,
   boostedGaugeGainMultiplier: 1.2,
   checkIntervalMs: 1e4,
   sleepingGaugeTimeProgressMultiplier: 1 / 3,
-  gaugeGainByClass: DEV_GAUGE_GAIN_BY_CLASS
+  gaugeGainByClass: getAverageGaugeGainByClass({
+    maxGauge: DEFAULT_MAX_GAUGE,
+    checkIntervalMs: 1e4,
+    targetDurationByClassMs: PRODUCTION_EVOLUTION_TARGET_DURATION_BY_CLASS_MS
+  }),
+  targetDurationByClassMs: PRODUCTION_EVOLUTION_TARGET_DURATION_BY_CLASS_MS,
+  targetDurationVarianceByClassMs: PRODUCTION_EVOLUTION_TARGET_DURATION_VARIANCE_BY_CLASS_MS
 };
-const EVOLUTION_GAUGE_CONFIG = DEV_EVOLUTION_GAUGE_CONFIG;
+const EVOLUTION_GAUGE_CONFIG = PRODUCTION_EVOLUTION_GAUGE_CONFIG;
 function createDisplayName(geneLine, classCode, variant) {
   const baseName = geneLine.split("-").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
   return `${baseName} ${classCode}${variant}`;
@@ -28112,17 +28111,26 @@ function getCharacterSpritesheetName(characterKey) {
   var _a;
   return ((_a = getEvolutionSpec(characterKey)) == null ? void 0 : _a.spritesheetName) ?? null;
 }
-function getEvolutionGaugeIncreaseAmount(characterKey) {
+function getProductionEvolutionTargetDurationMsForEntity(params) {
+  const { characterKey, objectId } = params;
   const spec = getEvolutionSpec(characterKey);
   if (!spec) {
     return 0;
   }
-  return EVOLUTION_GAUGE_CONFIG.gaugeGainByClass[spec.class] ?? 0;
+  const targetDurationMs = PRODUCTION_EVOLUTION_GAUGE_CONFIG.targetDurationByClassMs[spec.class];
+  const varianceMs = PRODUCTION_EVOLUTION_GAUGE_CONFIG.targetDurationVarianceByClassMs[spec.class];
+  const seedValue = getStableSeededUnitValue(
+    `${Math.trunc(objectId)}:${spec.classCode}:${spec.phase}`
+  );
+  const jitterRatio = seedValue * 2 - 1;
+  return targetDurationMs + varianceMs * jitterRatio;
 }
 function getEvolutionGaugeIncreaseAmountForEntity(params) {
-  {
-    return getEvolutionGaugeIncreaseAmount(params.characterKey);
-  }
+  return getGaugeGainForDurationMs({
+    maxGauge: PRODUCTION_EVOLUTION_GAUGE_CONFIG.maxGauge,
+    checkIntervalMs: PRODUCTION_EVOLUTION_GAUGE_CONFIG.checkIntervalMs,
+    durationMs: getProductionEvolutionTargetDurationMsForEntity(params)
+  });
 }
 function canEvolveFromConfig(characterKey) {
   const spec = getEvolutionSpec(characterKey);
@@ -28270,40 +28278,7 @@ const PRODUCTION_GAME_CONSTANTS = {
   SLEEPING_STAMINA_DECAY_MULTIPLIER: 0.2,
   SLEEPING_DISEASE_RATE_MULTIPLIER: 0.1
 };
-const DEV_BALANCE_COEFFICIENTS = {
-  // DEV에서는 production 기준 시간을 나눠서 빠르게 재현한다.
-  timeDivisors: {
-    EGG_HATCH_TIME: 360,
-    EGG_HATCH_MIN_TIME: 180,
-    EGG_HATCH_MODE_TIME: 360,
-    EGG_HATCH_MAX_TIME: 540,
-    POOP_DELAY: 1,
-    DIGESTIVE_SMALL_POOP_DELAY: 480,
-    DISEASE_CHECK_INTERVAL: 1,
-    FRESH_TO_NORMAL_TIME: 18,
-    NORMAL_TO_STALE_TIME: 60,
-    DEATH_DELAY: 360,
-    DEATH_DELAY_CLASS_A: 360,
-    DEATH_DELAY_CLASS_B: 360,
-    DEATH_DELAY_CLASS_C: 360,
-    DEATH_DELAY_CLASS_D: 360,
-    STAMINA_DECREASE_INTERVAL: 24,
-    NATURAL_SICK_RECOVERY_MIN_DURATION: 60,
-    NIGHT_SLEEP_MIN_DELAY: 60,
-    NIGHT_SLEEP_MAX_DELAY: 60,
-    TARGET_NIGHT_SLEEP_DURATION: 60,
-    TARGET_NIGHT_SLEEP_JITTER: 60,
-    SUNRISE_WAKE_MIN_DELAY: 60,
-    SUNRISE_WAKE_MAX_DELAY: 60,
-    SUNRISE_WAKE_OFFSET_MIN: 60,
-    SUNRISE_WAKE_OFFSET_MAX: 60,
-    NIGHT_RESLEEP_MIN_DELAY: 60,
-    NIGHT_RESLEEP_MAX_DELAY: 60,
-    DAY_NAP_CHECK_INTERVAL: 60,
-    NIGHT_WAKE_CHECK_INTERVAL: 120,
-    DAY_NAP_MIN_DURATION: 60,
-    DAY_NAP_MAX_DURATION: 60
-  },
+({
   // DEV에서는 production 기준 확률을 곱해서 빠르게 상태를 관찰한다.
   probabilityMultipliers: {
     BASE_DISEASE_RATE: 0.02 / PRODUCTION_GAME_CONSTANTS.BASE_DISEASE_RATE,
@@ -28323,29 +28298,24 @@ const DEV_BALANCE_COEFFICIENTS = {
     FATIGUE_SLEEP_RECOVERY_PER_HOUR: 2400 / PRODUCTION_GAME_CONSTANTS.FATIGUE_SLEEP_RECOVERY_PER_HOUR,
     FATIGUE_SLEEP_RECOVERY_PER_HOUR_WHEN_SICK: 800 / PRODUCTION_GAME_CONSTANTS.FATIGUE_SLEEP_RECOVERY_PER_HOUR_WHEN_SICK
   }
-};
+});
 function deriveTimeConstant(key) {
   const baseValue = PRODUCTION_GAME_CONSTANTS[key];
-  const divisor = DEV_BALANCE_COEFFICIENTS.timeDivisors[key];
-  if (divisor <= 0) {
+  {
     return baseValue;
   }
-  const derivedValue = Math.round(baseValue / divisor);
-  if (derivedValue === 0) {
-    return 0;
-  }
-  return derivedValue > 0 ? Math.max(1, derivedValue) : Math.min(-1, derivedValue);
 }
 function deriveProbabilityConstant(key) {
   const baseValue = PRODUCTION_GAME_CONSTANTS[key];
-  return Math.min(
-    1,
-    baseValue * DEV_BALANCE_COEFFICIENTS.probabilityMultipliers[key]
-  );
+  {
+    return baseValue;
+  }
 }
 function deriveRateConstant(key) {
   const baseValue = PRODUCTION_GAME_CONSTANTS[key];
-  return baseValue * DEV_BALANCE_COEFFICIENTS.rateMultipliers[key];
+  {
+    return baseValue;
+  }
 }
 const GAME_CONSTANTS = {
   ...PRODUCTION_GAME_CONSTANTS,
@@ -29132,7 +29102,7 @@ function repairLoadedFoodInteractionState(world, now = Date.now()) {
     repairedFoods
   };
 }
-const characterQuery$9 = defineQuery([CharacterStatusComp, RandomMovementComp]);
+const characterQuery$8 = defineQuery([CharacterStatusComp, RandomMovementComp]);
 const allCharacterQuery = defineQuery([CharacterStatusComp, ObjectComp]);
 function hasDirectedMovement(world, eid) {
   return hasComponent(world, DestinationComp, eid) && DestinationComp.type[eid] === DestinationType.TARGETED && DestinationComp.target[eid] !== 0;
@@ -29141,7 +29111,7 @@ function randomMovementSystem(params) {
   const { world } = params;
   const currentTime = world.currentTime;
   const shouldLog = !world.isSimulationMode && world.isRandomMovementDebugEnabled();
-  const chars = characterQuery$9(world);
+  const chars = characterQuery$8(world);
   const allChars = allCharacterQuery(world);
   for (let i2 = 0; i2 < allChars.length; i2++) {
     const eid = allChars[i2];
@@ -29407,6 +29377,8 @@ async function ensureCharacterSpritesheetLoaded(params) {
 }
 class ObjectStore {
   constructor(name = "ObjectStore") {
+    this.debugLog = (..._args) => {
+    };
     this.store = [];
     this.name = name;
   }
@@ -29420,7 +29392,7 @@ class ObjectStore {
       this.store.push(null);
     }
     this.store[index] = obj;
-    console.log(`[${this.name}] Set object at index ${index}`);
+    this.debugLog(`[${this.name}] Set object at index ${index}`);
   }
   /**
    * 인덱스로 객체 가져오기
@@ -29446,7 +29418,7 @@ class ObjectStore {
     const item = this.store[index];
     if (item !== null) {
       this.store[index] = null;
-      console.log(`[${this.name}] Removed object from index ${index}`);
+      this.debugLog(`[${this.name}] Removed object from index ${index}`);
       return item;
     }
     return void 0;
@@ -29480,7 +29452,7 @@ class ObjectStore {
    * 저장소 초기화 (모든 객체 제거)
    */
   clear() {
-    console.log(`[${this.name}] Clearing store (${this.count} objects)`);
+    this.debugLog(`[${this.name}] Clearing store (${this.count} objects)`);
     this.store = [];
   }
   /**
@@ -29692,11 +29664,10 @@ function getMaskSprite(eid) {
 function getTextureFromKey(textureKey) {
   const textureInfo = TEXTURE_MAP[textureKey];
   if (!textureInfo) {
-    {
-      throw new Error(
-        `[RenderSystem] Texture key ${textureKey} not found in TEXTURE_MAP`
-      );
-    }
+    console.warn(
+      `[RenderSystem] Texture key ${textureKey} not found in TEXTURE_MAP`
+    );
+    return void 0;
   }
   try {
     if (!textureInfo.spritesheetAlias) {
@@ -29797,13 +29768,8 @@ function updateMaskTexture(maskSprite, progress) {
     maskSprite.texture = texture;
   }
 }
-let hasValidatedTextures = false;
 function renderSystem(params) {
   const { world } = params;
-  if (!hasValidatedTextures) {
-    validateTextureMap();
-    hasValidatedTextures = true;
-  }
   const entities = renderableQuery(world);
   const exitedEntities = exitedRenderableQuery(world);
   const stage = world.stage;
@@ -29971,34 +29937,8 @@ function isTextureKeyLoaded(textureKey) {
     textureInfo.textureName
   );
 }
-function getAvailableTextureKeys() {
-  return Object.keys(TEXTURE_MAP).map(Number).sort((a2, b2) => a2 - b2);
-}
 function getTextureInfo(textureKey) {
   return TEXTURE_MAP[textureKey] || null;
-}
-function validateTextureMap() {
-  console.groupCollapsed("[RenderSystem] Texture Map Validation:");
-  const availableKeys = getAvailableTextureKeys();
-  let validCount = 0;
-  let invalidCount = 0;
-  for (const textureKey of availableKeys) {
-    const isLoaded = isTextureKeyLoaded(textureKey);
-    const textureInfo = getTextureInfo(textureKey);
-    if (isLoaded) {
-      validCount++;
-      console.log(
-        `✓ Key ${textureKey}: ${textureInfo == null ? void 0 : textureInfo.spritesheetAlias}/${textureInfo == null ? void 0 : textureInfo.textureName}`
-      );
-    } else {
-      invalidCount++;
-      console.warn(
-        `✗ Key ${textureKey}: ${textureInfo == null ? void 0 : textureInfo.spritesheetAlias}/${textureInfo == null ? void 0 : textureInfo.textureName} - NOT LOADED`
-      );
-    }
-  }
-  console.log(`Summary: ${validCount} valid, ${invalidCount} invalid textures`);
-  console.groupEnd();
 }
 const SPRITESHEET_KEY_TO_NAME = {
   [SpritesheetKey.NULL]: "null",
@@ -30032,6 +29972,8 @@ const animatedSpriteStore = new ObjectStore(
   "AnimatedSpriteStore"
 );
 const eatingFrameIndexTracker = /* @__PURE__ */ new Map();
+const debugLog$6 = (..._args) => {
+};
 function getAnimatedSpriteStore() {
   return animatedSpriteStore;
 }
@@ -30048,18 +29990,12 @@ function animationRenderSystem(params) {
       stage.removeChild(animatedSprite);
       animatedSprite.destroy();
       animatedSpriteStore.remove(eid);
-      console.log(
-        `[AnimationSystem] Removed animated sprite from stage for entity ${eid}`
-      );
     }
   }
   for (let i2 = 0; i2 < entities.length; i2++) {
     const eid = entities[i2];
     let animatedSprite = getAnimatedSprite(eid);
     if (!animatedSprite) {
-      console.log(
-        `[AnimationSystem] Creating animated sprite for entity ${eid}`
-      );
       animatedSprite = createAnimatedSpriteForEntity(eid);
       if (!animatedSprite) {
         continue;
@@ -30067,19 +30003,10 @@ function animationRenderSystem(params) {
       stage.addChild(animatedSprite);
       animatedSpriteStore.set(eid, animatedSprite);
       AnimationRenderComp.storeIndex[eid] = eid;
-      console.log(
-        `[AnimationSystem] Added animated sprite to stage for entity ${eid}`
-      );
-      const firstSpriteTimingPayload = world.consumePendingFirstSpriteTimingLog(
+      world.consumePendingFirstSpriteTimingLog(
         eid,
         "animated"
       );
-      if (firstSpriteTimingPayload) {
-        console.log(
-          "[ImportantDiagnostics][MainSceneFirstSprite]",
-          firstSpriteTimingPayload
-        );
-      }
     }
     renderCommonAttributes(eid, animatedSprite, world);
     updateAnimatedSprite(animatedSprite, eid);
@@ -30114,7 +30041,7 @@ function getSpritesheet$1(name) {
     if (spritesheet && spritesheet instanceof Spritesheet) {
       if (!spritesheetCache.has(name)) {
         spritesheetCache.set(name, spritesheet);
-        console.log(`[AnimationSystem] Cached spritesheet: ${name}`);
+        debugLog$6(`[AnimationSystem] Cached spritesheet: ${name}`);
       }
       return spritesheet;
     }
@@ -30541,7 +30468,7 @@ function getTextureCanvasSource(texture) {
 const FALLBACK_CHARACTER_HEIGHT = 48;
 const FALLBACK_CHARACTER_WIDTH = 48;
 const CHARACTER_SCREEN_EDGE_OVERFLOW_PX = 10;
-const CHARACTER_SCREEN_TOP_EDGE_OVERFLOW_PX = 20;
+const CHARACTER_SCREEN_TOP_EDGE_OVERFLOW_PX = 14;
 function getCharacterDisplayObject(eid) {
   return getSpriteStore().get(eid) ?? getAnimatedSpriteStore().get(eid);
 }
@@ -30852,6 +30779,8 @@ function getTargetedDestination(world, eid) {
 const IDLE_ANIMATION_SPEED = 0.03;
 const DEFAULT_ANIMATION_SPEED = 0.04;
 const SLEEPING_ANIMATION_SPEED = DEFAULT_ANIMATION_SPEED / 2;
+const debugLog$5 = (..._args) => {
+};
 const CHARACTER_STATE_TO_ANIMATION_KEY = {
   [CharacterState.EGG]: AnimationKey.NULL,
   [CharacterState.IDLE]: AnimationKey.IDLE,
@@ -30893,7 +30822,7 @@ function changeAnimation(eid, animationKey) {
   if (AnimationRenderComp.animationKey[eid] !== animationKey) {
     AnimationRenderComp.animationKey[eid] = animationKey;
     AnimationRenderComp.isPlaying[eid] = animationKey !== AnimationKey.NULL ? 1 : 0;
-    console.log(
+    debugLog$5(
       `[AnimationStateSystem] Changed animation to ${AnimationKey[animationKey]} for entity ${eid}`
     );
   }
@@ -30988,13 +30917,13 @@ function toCanvasFontFamilyList(fontFamilies) {
     (fontFamily) => fontFamily.includes(" ") ? `"${fontFamily}"` : fontFamily
   ).join(", ");
 }
-const characterQuery$8 = defineQuery([
+const characterQuery$7 = defineQuery([
   ObjectComp,
   PositionComp,
   RenderComp,
   CharacterStatusComp
 ]);
-const characterExitQuery$1 = exitQuery(characterQuery$8);
+const characterExitQuery = exitQuery(characterQuery$7);
 const labelStore = /* @__PURE__ */ new Map();
 const NAME_LABEL_STYLE = new TextStyle({
   fontFamily: [...NAME_LABEL_FONT_FAMILIES],
@@ -31017,13 +30946,19 @@ const STATUS_STACK_MIN_Y = 0;
 const STATUS_STACK_ICON_SIZE = 16 * 1.625;
 const STATUS_STACK_ICON_BAR_GAP = 3;
 const STAMINA_BAR_MIN_Y = STATUS_STACK_MIN_Y + STATUS_STACK_ICON_SIZE + STATUS_STACK_ICON_BAR_GAP;
-const MINI_STAMINA_BAR_TRACK_COLOR = 8421504;
+const MINI_STAMINA_BAR_TRACK_COLOR = 7303023;
 const MINI_STAMINA_BAR_TRACK_ALPHA = 0.34;
+const MINI_STAMINA_BAR_TRACK_DOT_COLOR = 0;
+const MINI_STAMINA_BAR_TRACK_DOT_ALPHA = 0.45;
+const MINI_STAMINA_BAR_TRACK_DOT_SIZE = 2;
+const MINI_STAMINA_BAR_TRACK_DOT_STRIDE = MINI_STAMINA_BAR_TRACK_DOT_SIZE * 2;
+const MINI_STAMINA_BAR_TRACK_DOT_X_OFFSET = -1;
+const MINI_STAMINA_BAR_TRACK_DOT_Y_OFFSET = -1;
 const MINI_STAMINA_BAR_BORDER_COLOR = 0;
 const MINI_STAMINA_BAR_BORDER_ALPHA = 1;
 const MINI_STAMINA_BAR_LOW_COLOR = 14832971;
 const MINI_STAMINA_BAR_MID_COLOR = 15901498;
-const MINI_STAMINA_BAR_HIGH_COLOR = 4034382;
+const MINI_STAMINA_BAR_HIGH_COLOR = 4827485;
 const MINI_STAMINA_BAR_EGG_FILL_COLOR = 5880063;
 const MINI_STAMINA_BAR_URGENT_OVERLAY_COLOR = 14832971;
 const MINI_STAMINA_BAR_URGENT_OVERLAY_MIN_ALPHA = 0.18;
@@ -31032,13 +30967,13 @@ const MINI_STAMINA_BAR_URGENT_OVERLAY_CYCLE_MS = 1200;
 function characterNameLabelSystem(params) {
   var _a;
   const { world } = params;
-  const exitedEntities = characterExitQuery$1(world);
+  const exitedEntities = characterExitQuery(world);
   for (let i2 = 0; i2 < exitedEntities.length; i2++) {
     removeCharacterNameLabel(exitedEntities[i2]);
   }
   const rawName = (_a = world.getInMemoryData().world_metadata.monster_name) == null ? void 0 : _a.trim();
   const displayName = rawName ? truncateDisplayName(rawName) : "";
-  const entities = characterQuery$8(world);
+  const entities = characterQuery$7(world);
   for (let i2 = 0; i2 < entities.length; i2++) {
     const eid = entities[i2];
     if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
@@ -31185,6 +31120,15 @@ function drawMiniStaminaBar(renderState, barVisual, currentTime) {
     {
       color: MINI_STAMINA_BAR_TRACK_COLOR,
       alpha: MINI_STAMINA_BAR_TRACK_ALPHA
+    }
+  );
+  drawCutCornerDotGrid(
+    renderState.barTrack,
+    STAMINA_BAR_TRACK_WIDTH,
+    STAMINA_BAR_TRACK_HEIGHT,
+    {
+      color: MINI_STAMINA_BAR_TRACK_DOT_COLOR,
+      alpha: MINI_STAMINA_BAR_TRACK_DOT_ALPHA
     }
   );
   renderState.barFill.clear();
@@ -31372,6 +31316,37 @@ function drawCutCornerFrame(graphics, x2, y2, width, height, stroke) {
     if (sideWidth > 0) {
       graphics.rect(x2, y2 + row, sideWidth, 1).fill(stroke);
       graphics.rect(x2 + width - sideWidth, y2 + row, sideWidth, 1).fill(stroke);
+    }
+  }
+}
+function drawCutCornerDotGrid(graphics, width, height, fill) {
+  for (let row = 0; row < height; row += MINI_STAMINA_BAR_TRACK_DOT_SIZE) {
+    const { startX, maxXExclusive } = getCutCornerRowBounds(width, height, row);
+    const rowBandIndex = Math.floor(row / MINI_STAMINA_BAR_TRACK_DOT_SIZE);
+    const parityOffset = (rowBandIndex % 2 * MINI_STAMINA_BAR_TRACK_DOT_SIZE + MINI_STAMINA_BAR_TRACK_DOT_STRIDE) % MINI_STAMINA_BAR_TRACK_DOT_STRIDE;
+    const firstDotX = startX + (parityOffset - startX % MINI_STAMINA_BAR_TRACK_DOT_STRIDE + MINI_STAMINA_BAR_TRACK_DOT_STRIDE) % MINI_STAMINA_BAR_TRACK_DOT_STRIDE;
+    for (let x2 = firstDotX; x2 < maxXExclusive; x2 += MINI_STAMINA_BAR_TRACK_DOT_STRIDE) {
+      const dotX = x2 + MINI_STAMINA_BAR_TRACK_DOT_X_OFFSET;
+      const dotY = row + MINI_STAMINA_BAR_TRACK_DOT_Y_OFFSET;
+      const clippedX = Math.max(0, dotX);
+      const clippedY = Math.max(0, dotY);
+      const clippedWidth = Math.min(
+        MINI_STAMINA_BAR_TRACK_DOT_SIZE - (clippedX - dotX),
+        maxXExclusive - clippedX
+      );
+      const clippedHeight = Math.min(
+        MINI_STAMINA_BAR_TRACK_DOT_SIZE - (clippedY - dotY),
+        height - clippedY
+      );
+      if (clippedWidth <= 0 || clippedHeight <= 0) {
+        continue;
+      }
+      graphics.rect(
+        clippedX,
+        clippedY,
+        clippedWidth,
+        clippedHeight
+      ).fill(fill);
     }
   }
 }
@@ -31621,7 +31596,7 @@ const EGG_CRACK_PIXEL_SIZE = 1;
 const overlayStore$1 = /* @__PURE__ */ new Map();
 const eggCrackQuery = defineQuery([ObjectComp, RenderComp, EggHatchComp]);
 const eggCrackExitQuery = exitQuery(eggCrackQuery);
-function getOrCreateOverlay$1(eid, stage) {
+function getOrCreateOverlay(eid, stage) {
   const existing = overlayStore$1.get(eid);
   if (existing) {
     return existing;
@@ -31872,7 +31847,7 @@ function eggCrackRenderSystem(params) {
       removeOverlay$1(eid);
       continue;
     }
-    const overlay = getOrCreateOverlay$1(eid, world.stage);
+    const overlay = getOrCreateOverlay(eid, world.stage);
     syncOverlayTransform(overlay, baseSprite);
     syncOverlayMask(overlay.mask, baseSprite);
     drawEggCracks(overlay.crack, bounds, crackStage);
@@ -31887,76 +31862,18 @@ function eggCrackRenderSystem(params) {
   }
   return params;
 }
-const characterQuery$7 = defineQuery([ObjectComp, PositionComp, RenderComp]);
-const characterExitQuery = exitQuery(characterQuery$7);
+defineQuery([ObjectComp, PositionComp, RenderComp]);
 const overlayStore = /* @__PURE__ */ new Map();
-const LAYOUT_STROKE_COLOR = 58879;
-const LAYOUT_FILL_COLOR = 58879;
-const LAYOUT_FILL_ALPHA = 0.12;
-const LAYOUT_STROKE_WIDTH = 1;
-const LAYOUT_Z_INDEX_OFFSET = 1;
 function characterLayoutDebugSystem(params) {
-  const { world, stage } = params;
-  if (!stage || false) {
+  {
     cleanupCharacterLayoutDebug();
     return params;
   }
-  const exitedEntities = characterExitQuery(world);
-  for (let i2 = 0; i2 < exitedEntities.length; i2++) {
-    removeOverlay(exitedEntities[i2]);
-  }
-  const entities = characterQuery$7(world);
-  const activeCharacterEids = /* @__PURE__ */ new Set();
-  for (let i2 = 0; i2 < entities.length; i2++) {
-    const eid = entities[i2];
-    if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
-      removeOverlay(eid);
-      continue;
-    }
-    const displayObject = getCharacterDisplayObject(eid);
-    if (!displayObject) {
-      removeOverlay(eid);
-      continue;
-    }
-    const bounds = getCharacterWorldBounds(eid);
-    if (bounds.width <= 0 || bounds.height <= 0) {
-      removeOverlay(eid);
-      continue;
-    }
-    const overlay = getOrCreateOverlay(eid, stage);
-    activeCharacterEids.add(eid);
-    overlay.clear();
-    overlay.rect(bounds.leftX, bounds.topY, bounds.width, bounds.height).fill({ color: LAYOUT_FILL_COLOR, alpha: LAYOUT_FILL_ALPHA }).stroke({ color: LAYOUT_STROKE_COLOR, width: LAYOUT_STROKE_WIDTH });
-    const y2 = PositionComp.y[eid];
-    const configuredZIndex = RenderComp.zIndex[eid];
-    const effectiveZIndex = configuredZIndex === 0 ? y2 : configuredZIndex;
-    overlay.zIndex = effectiveZIndex + LAYOUT_Z_INDEX_OFFSET;
-    overlay.visible = true;
-  }
-  const trackedEids = Array.from(overlayStore.keys());
-  for (let i2 = 0; i2 < trackedEids.length; i2++) {
-    const eid = trackedEids[i2];
-    if (!activeCharacterEids.has(eid)) {
-      removeOverlay(eid);
-    }
-  }
-  return params;
 }
 function cleanupCharacterLayoutDebug(_stage) {
   overlayStore.forEach((_, eid) => {
     removeOverlay(eid);
   });
-}
-function getOrCreateOverlay(eid, stage) {
-  const existingOverlay = overlayStore.get(eid);
-  if (existingOverlay) {
-    return existingOverlay;
-  }
-  const overlay = new Graphics();
-  overlay.eventMode = "none";
-  stage.addChild(overlay);
-  overlayStore.set(eid, overlay);
-  return overlay;
 }
 function removeOverlay(eid) {
   const overlay = overlayStore.get(eid);
@@ -32173,6 +32090,8 @@ const staminaTimers = /* @__PURE__ */ new Map();
 const evolutionGaugeTimers = /* @__PURE__ */ new Map();
 const TIMER_EPSILON_MS = 1e-6;
 const TEMPORARY_STATUSES = [CharacterStatus.HAPPY, CharacterStatus.DISCOVER];
+const debugLog$4 = (..._args) => {
+};
 function getElapsedIntervalProgress(totalElapsedTime, interval) {
   if (interval <= 0) {
     return { count: 0, remainder: 0 };
@@ -32200,16 +32119,13 @@ function characterManagerSystem(params) {
     if (ObjectComp.state[eid] === CharacterState.EGG) {
       if (!isEggTextureKey(RenderComp.textureKey[eid])) {
         RenderComp.textureKey[eid] = getRandomEggTextureKey();
-        console.log(
+        debugLog$4(
           `[CharacterManagerSystem] Assigned random egg texture ${RenderComp.textureKey[eid]} for character ${eid}`
         );
       }
     } else if (ObjectComp.state[eid] === CharacterState.IDLE || ObjectComp.state[eid] === CharacterState.MOVING) {
       if (isEggTextureKey(RenderComp.textureKey[eid])) {
         RenderComp.textureKey[eid] = 0;
-        console.log(
-          `[CharacterManagerSystem] Cleared static texture for hatched character ${eid}, animation system will handle rendering`
-        );
       }
     }
     _updateStaminaAndEvolutionGauge(world, eid, delta);
@@ -32223,13 +32139,6 @@ function characterManagerSystem(params) {
     const previousStatuses = previousStatusStates.get(eid) || [];
     const statusesChanged = !arraysEqual(previousStatuses, currentStatuses);
     if (statusesChanged) {
-      console.log(
-        `[CharacterManagerSystem] Status changed for entity ${eid}:`,
-        {
-          previous: previousStatuses,
-          current: currentStatuses
-        }
-      );
       syncStatusIconRenderComp(eid, currentStatuses);
       previousStatusStates.set(eid, [...currentStatuses]);
     }
@@ -32257,26 +32166,20 @@ function syncStatusIconRenderComp(eid, currentStatuses) {
     storeIndexes[i2] = 0;
   }
   StatusIconRenderComp.visibleCount[eid] = currentStatuses.length;
-  console.log(
+  debugLog$4(
     `[CharacterManagerSystem] Synced StatusIconRenderComp for entity ${eid}: ${currentStatuses.length} statuses`
   );
 }
 function addCharacterStatus$2(eid, status) {
   const currentStatuses = CharacterStatusComp.statuses[eid];
-  console.log(
+  debugLog$4(
     `[addCharacterStatus] Current statuses for entity ${eid}:`,
     Array.from(currentStatuses)
   );
   if (isTemporaryStatus(status) && ObjectComp.state[eid] === CharacterState.SLEEPING) {
-    console.log(
-      `[addCharacterStatus] Skipped temporary status ${status} for sleeping entity ${eid}`
-    );
     return;
   }
   if (currentStatuses.includes(status)) {
-    console.log(
-      `[addCharacterStatus] Status ${status} already exists for entity ${eid}`
-    );
     return;
   }
   for (let i2 = 0; i2 < currentStatuses.length; i2++) {
@@ -32289,11 +32192,8 @@ function addCharacterStatus$2(eid, status) {
         const currentTime = (_cachedWorld == null ? void 0 : _cachedWorld.currentTime) ?? Date.now();
         TemporaryStatusComp.statusType[eid] = status;
         TemporaryStatusComp.startTime[eid] = currentTime;
-        console.log(
-          `[addCharacterStatus] Set temporary status ${status} for entity ${eid}, expires at ${currentTime + 3e3}`
-        );
       }
-      console.log(
+      debugLog$4(
         `[addCharacterStatus] Added status ${status} to entity ${eid} at slot ${i2}. New statuses:`,
         Array.from(currentStatuses)
       );
@@ -32357,7 +32257,7 @@ function clearTemporaryStatuses(world, eid) {
     }
   }
   if (cleared) {
-    console.log(
+    debugLog$4(
       `[clearTemporaryStatuses] Cleared temporary statuses for entity ${eid}. New statuses:`,
       Array.from(currentStatuses)
     );
@@ -32369,7 +32269,7 @@ function removeCharacterStatus$2(eid, status) {
   for (let i2 = 0; i2 < currentStatuses.length; i2++) {
     if (currentStatuses[i2] === status) {
       currentStatuses[i2] = 0;
-      console.log(
+      debugLog$4(
         `[removeCharacterStatus] Removed status ${status} from entity ${eid} at slot ${i2}. New statuses:`,
         Array.from(currentStatuses)
       );
@@ -32450,16 +32350,9 @@ function decreaseStamina(eid) {
     currentStamina - GAME_CONSTANTS.STAMINA_DECREASE_AMOUNT
   );
   CharacterStatusComp.stamina[eid] = newStamina;
-  console.log(
-    `[CharacterManagerSystem] Stamina decreased for entity ${eid}: ${currentStamina} -> ${newStamina}`
-  );
 }
 function validateAndFixStatusIcons(world) {
   const characters = characterQuery$6(world);
-  let fixedCount = 0;
-  console.log(
-    "[CharacterManagerSystem] Validating status icons for loaded entities..."
-  );
   for (let i2 = 0; i2 < characters.length; i2++) {
     const eid = characters[i2];
     if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
@@ -32470,7 +32363,6 @@ function validateAndFixStatusIcons(world) {
     let statusModified = false;
     if (ObjectComp.state[eid] === CharacterState.SLEEPING && clearTemporaryStatuses(world, eid)) {
       statusModified = true;
-      fixedCount++;
     }
     if (hasComponent(world, TemporaryStatusComp, eid)) {
       const statusType = TemporaryStatusComp.statusType[eid];
@@ -32478,9 +32370,6 @@ function validateAndFixStatusIcons(world) {
       if (statusType !== 0 && startTime !== 0) {
         const elapsedTime = now - startTime;
         if (elapsedTime >= 3e3) {
-          console.log(
-            `[CharacterManagerSystem] Removing expired temporary status ${statusType} from entity ${eid} (elapsed: ${elapsedTime}ms)`
-          );
           for (let j2 = 0; j2 < currentStatuses.length; j2++) {
             if (currentStatuses[j2] === statusType) {
               currentStatuses[j2] = 0;
@@ -32490,7 +32379,6 @@ function validateAndFixStatusIcons(world) {
           }
           TemporaryStatusComp.statusType[eid] = 0;
           TemporaryStatusComp.startTime[eid] = 0;
-          fixedCount++;
         }
       }
     }
@@ -32498,32 +32386,21 @@ function validateAndFixStatusIcons(world) {
       const status = currentStatuses[j2];
       if (status !== 0 && isTemporaryStatus(status)) {
         if (!hasComponent(world, TemporaryStatusComp, eid)) {
-          console.log(
-            `[CharacterManagerSystem] Found orphaned temporary status ${status} in entity ${eid}, removing it`
-          );
           currentStatuses[j2] = 0;
           statusModified = true;
-          fixedCount++;
         } else if (TemporaryStatusComp.statusType[eid] !== status) {
-          console.log(
-            `[CharacterManagerSystem] Found desync temporary status ${status} in entity ${eid}, removing it`
-          );
           currentStatuses[j2] = 0;
           statusModified = true;
-          fixedCount++;
         }
       }
     }
     if (statusModified) {
-      console.log(
+      debugLog$4(
         `[CharacterManagerSystem] Fixed statuses for entity ${eid}:`,
         Array.from(currentStatuses)
       );
     }
   }
-  console.log(
-    `[CharacterManagerSystem] Status validation complete. Fixed ${fixedCount} issues.`
-  );
 }
 function increaseEvolutionGauge(world, eid) {
   const currentGauge = CharacterStatusComp.evolutionGage[eid];
@@ -32539,13 +32416,7 @@ function increaseEvolutionGauge(world, eid) {
     currentGauge + gaugeIncreaseAmount
   );
   CharacterStatusComp.evolutionGage[eid] = newGauge;
-  console.log(
-    `[CharacterManagerSystem] Evolution gauge increased for entity ${eid}: ${currentGauge} -> ${newGauge} (gain=${gaugeIncreaseAmount})`
-  );
   if (canEvolve(eid)) {
-    console.log(
-      `[CharacterManagerSystem] Evolution conditions met for entity ${eid}!`
-    );
     evolveCharacter(world, eid);
   }
 }
@@ -32651,6 +32522,8 @@ const generatePersistentNumericId = /* @__PURE__ */ (() => {
     return timestamp * 1e3 + counter;
   };
 })();
+const debugLog$3 = (..._args) => {
+};
 function createCharacterEntity(world, components) {
   var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n;
   const _components = components;
@@ -32753,16 +32626,15 @@ function createPoobEntity(world, components) {
   var _a;
   const _components = components;
   const eid = addEntity(world);
-  console.log(`[EntityFactory] Creating poob entity with EID: ${eid}`);
   addComponent(world, ObjectComp, eid);
   ObjectComp.id[eid] = _components.object.id && _components.object.id !== 0 ? _components.object.id : generatePersistentNumericId();
   ObjectComp.type[eid] = ObjectType.POOB;
   ObjectComp.state[eid] = 0;
-  console.log(`[EntityFactory] Poob object ID: ${ObjectComp.id[eid]}`);
+  debugLog$3(`[EntityFactory] Poob object ID: ${ObjectComp.id[eid]}`);
   addComponent(world, PositionComp, eid);
   PositionComp.x[eid] = _components.position.x;
   PositionComp.y[eid] = _components.position.y;
-  console.log(
+  debugLog$3(
     `[EntityFactory] Poob position: (${PositionComp.x[eid]}, ${PositionComp.y[eid]})`
   );
   addComponent(world, AngleComp, eid);
@@ -32772,7 +32644,7 @@ function createPoobEntity(world, components) {
   RenderComp.textureKey[eid] = TextureKey.POOB;
   RenderComp.zIndex[eid] = 0;
   RenderComp.scale[eid] = ((_a = _components.render) == null ? void 0 : _a.scale) ?? 2.4 + Math.random() * (3.6 - 2.4);
-  console.log(
+  debugLog$3(
     `[EntityFactory] Poob entity created successfully with EID: ${eid}, ObjectID: ${ObjectComp.id[eid]}`
   );
   return eid;
@@ -32802,16 +32674,10 @@ function createThrowingFoodEntity(world, options) {
   ThrowAnimationComp.finalY[eid] = options.finalPosition.y;
   ThrowAnimationComp.elapsedTime[eid] = 0;
   ThrowAnimationComp.isActive[eid] = 1;
-  console.log(
-    `[EntityFactory] Created throwing food entity: ECS_ID=${eid}, OBJECT_ID=${entityId}`
-  );
-  console.log(
-    `[EntityFactory] - Random food texture key: ${randomFoodKey} (food-${Math.floor(Math.random() * 64) + 1})`
-  );
-  console.log(
+  debugLog$3(
     `[EntityFactory] - Initial position: (${options.initialPosition.x}, ${options.initialPosition.y})`
   );
-  console.log(
+  debugLog$3(
     `[EntityFactory] - Final position: (${options.finalPosition.x}, ${options.finalPosition.y})`
   );
   return eid;
@@ -32830,6 +32696,8 @@ const NORMAL_POOP_SCALE_RANGE = {
 const SMALL_POOP_SCALE_RANGE = {
   min: 2,
   max: 2.4
+};
+const debugLog$2 = (..._args) => {
 };
 function digestiveSystem(params) {
   const { world, currentTime } = params;
@@ -32854,17 +32722,11 @@ function initializeDigestiveSystem(world) {
   }
 }
 function addToDigestiveLoad(world, characterEid, staminaIncrease, currentTime) {
-  console.log(
-    `[DigestiveSystem] Adding digestive load - EID: ${characterEid}, staminaIncrease: ${staminaIncrease}`
-  );
   const loadIncrease = staminaIncrease * GAME_CONSTANTS.DIGESTIVE_MULTIPLIER;
   addDigestiveLoadAmount(world, characterEid, loadIncrease, currentTime);
 }
 function addDigestiveLoadAmount(world, characterEid, loadAmount, currentTime) {
   if (!hasComponent(world, DigestiveSystemComp, characterEid)) {
-    console.log(
-      `[DigestiveSystem] Adding DigestiveSystemComp to character ${characterEid}`
-    );
     addComponent(world, DigestiveSystemComp, characterEid);
     DigestiveSystemComp.capacity[characterEid] = GAME_CONSTANTS.DIGESTIVE_CAPACITY;
     DigestiveSystemComp.currentLoad[characterEid] = 0;
@@ -32878,11 +32740,8 @@ function addDigestiveLoadAmount(world, characterEid, loadAmount, currentTime) {
     capacity: digestiveComp.capacity[characterEid],
     loadAmount
   });
-  const newLoad = digestiveComp.currentLoad[characterEid];
-  const capacity = digestiveComp.capacity[characterEid];
-  console.log(
-    `[DigestiveSystem] Load change: ${oldLoad} -> ${newLoad} (capacity: ${capacity})`
-  );
+  digestiveComp.currentLoad[characterEid];
+  digestiveComp.capacity[characterEid];
   syncDigestiveTimers(digestiveComp, characterEid, currentTime);
 }
 function calculateNextDigestiveLoad(params) {
@@ -32898,16 +32757,10 @@ function calculateNextDigestiveLoad(params) {
 function scheduleNextPoop(digestiveComp, characterEid, currentTime) {
   const poopTime = currentTime + GAME_CONSTANTS.POOP_DELAY;
   digestiveComp.nextPoopTime[characterEid] = poopTime;
-  console.log(
-    `[DigestiveSystem] Capacity exceeded! Next poop time set to: ${poopTime} (current: ${currentTime})`
-  );
 }
 function scheduleNextSmallPoop(digestiveComp, characterEid, currentTime) {
   const poopTime = currentTime + GAME_CONSTANTS.DIGESTIVE_SMALL_POOP_DELAY;
   digestiveComp.nextSmallPoopTime[characterEid] = poopTime;
-  console.log(
-    `[DigestiveSystem] Under-capacity load retained. Next small poop time set to: ${poopTime} (current: ${currentTime})`
-  );
 }
 function clearDigestiveTimers(digestiveComp, characterEid) {
   digestiveComp.nextPoopTime[characterEid] = 0;
@@ -32938,17 +32791,11 @@ function processPoop(digestiveComp, characterEid, currentTime) {
   const remainingLoad = Math.max(0, previousLoad - capacity);
   digestiveComp.currentLoad[characterEid] = remainingLoad;
   syncDigestiveTimers(digestiveComp, characterEid, currentTime);
-  console.log(
-    `[DigestiveSystem] Digestive load reduced for character ${characterEid}: ${previousLoad} -> ${remainingLoad}`
-  );
 }
 function processSmallPoop(digestiveComp, characterEid) {
-  const previousLoad = digestiveComp.currentLoad[characterEid];
+  digestiveComp.currentLoad[characterEid];
   digestiveComp.currentLoad[characterEid] = 0;
   clearDigestiveTimers(digestiveComp, characterEid);
-  console.log(
-    `[DigestiveSystem] Small poop cleared digestive load for character ${characterEid}: ${previousLoad} -> 0`
-  );
 }
 function checkPoopTime(world, currentTime) {
   const characters = characterWithDigestiveQuery(world);
@@ -32961,24 +32808,17 @@ function checkPoopTime(world, currentTime) {
     const digestiveComp = DigestiveSystemComp;
     syncDigestiveTimers(digestiveComp, eid, currentTime);
     if (digestiveComp.nextPoopTime[eid] > 0 && currentTime >= digestiveComp.nextPoopTime[eid]) {
-      console.log(`[DigestiveSystem] It's time to poop! Character ${eid}`);
       createPoop(world, eid);
       processPoop(digestiveComp, eid, currentTime);
       continue;
     }
     if (digestiveComp.nextSmallPoopTime[eid] > 0 && currentTime >= digestiveComp.nextSmallPoopTime[eid]) {
-      console.log(
-        `[DigestiveSystem] It's time to create a small poop! Character ${eid}`
-      );
       createPoop(world, eid, { isSmall: true });
       processSmallPoop(digestiveComp, eid);
     }
   }
 }
 function createPoop(world, characterEid, options) {
-  console.log(
-    `[DigestiveSystem] Creating poop for character EID: ${characterEid}`
-  );
   if (!hasComponent(world, PositionComp, characterEid)) {
     console.warn(
       `[DigestiveSystem] Character ${characterEid} has no PositionComp`
@@ -32987,31 +32827,26 @@ function createPoop(world, characterEid, options) {
   }
   const characterX = PositionComp.x[characterEid];
   const characterY = PositionComp.y[characterEid];
-  console.log(
-    `[DigestiveSystem] Character position: (${characterX}, ${characterY})`
-  );
   let angle = 0;
   if (hasComponent(world, AngleComp, characterEid)) {
     angle = AngleComp.value[characterEid];
   }
-  console.log(`[DigestiveSystem] Character angle: ${angle}`);
   const spawnPosition = selectPoopSpawnPosition(world, characterX, characterY, angle);
-  console.log(
+  debugLog$2(
     `[DigestiveSystem] Final poop position: (${spawnPosition.x}, ${spawnPosition.y})`
   );
-  console.log(
+  debugLog$2(
     `[DigestiveSystem] Boundary: x=${world.positionBoundary.x}, y=${world.positionBoundary.y}, width=${world.positionBoundary.width}, height=${world.positionBoundary.height}`
   );
   const poopScaleRange = (options == null ? void 0 : options.isSmall) ? SMALL_POOP_SCALE_RANGE : NORMAL_POOP_SCALE_RANGE;
   const poopScale = poopScaleRange.min + Math.random() * (poopScaleRange.max - poopScaleRange.min);
-  const poobEntity = createPoobEntity(world, {
+  createPoobEntity(world, {
     position: spawnPosition,
     angle: { value: 0 },
     object: { id: 0, type: ObjectType.POOB, state: 0 },
     // id를 0으로 설정하여 generatePersistentNumericId가 호출되도록 함
     render: { storeIndex: 0, textureKey: 0, scale: poopScale, zIndex: 0 }
   });
-  console.log(`[DigestiveSystem] Created poop entity with EID: ${poobEntity}`);
 }
 function selectPoopSpawnPosition(world, characterX, characterY, angle) {
   const behindAngle = angle + Math.PI;
@@ -33022,7 +32857,7 @@ function selectPoopSpawnPosition(world, characterX, characterY, angle) {
     behindAngle,
     GAME_CONSTANTS.POOP_SPAWN_DISTANCE
   );
-  console.log(
+  debugLog$2(
     `[DigestiveSystem] Initial poop position: (${fallbackPosition.x}, ${fallbackPosition.y})`
   );
   if (hasRequiredPoopSpacing(world, fallbackPosition)) {
@@ -33043,13 +32878,13 @@ function selectPoopSpawnPosition(world, characterX, characterY, angle) {
       candidateDistance
     );
     if (hasRequiredPoopSpacing(world, candidatePosition)) {
-      console.log(
+      debugLog$2(
         `[DigestiveSystem] Selected alternate poop position on retry ${attempt + 1}: (${candidatePosition.x}, ${candidatePosition.y})`
       );
       return candidatePosition;
     }
   }
-  console.log(
+  debugLog$2(
     `[DigestiveSystem] Falling back to legacy poop position after ${GAME_CONSTANTS.POOP_SPAWN_RETRY_COUNT} retries`
   );
   return fallbackPosition;
@@ -33395,9 +33230,6 @@ function bootstrapSleepRuntime(world, entities, currentTime, currentTimeOfDay) {
   }
 }
 function handleTimeOfDayTransition(world, entities, currentTime, previousTimeOfDay, currentTimeOfDay) {
-  console.log(
-    `[SleepScheduleSystem] Time of day changed: ${previousTimeOfDay} -> ${currentTimeOfDay}`
-  );
   for (let i2 = 0; i2 < entities.length; i2++) {
     const eid = entities[i2];
     if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
@@ -33508,25 +33340,15 @@ function handleNightWakeChecks(world, eid, currentTime, currentTimeOfDay) {
   ensureNightWakeCheckTime(eid, currentTime);
   while (currentTime >= SleepSystemComp.nextNightWakeCheckTime[eid]) {
     SleepSystemComp.nextNightWakeCheckTime[eid] += GAME_CONSTANTS.NIGHT_WAKE_CHECK_INTERVAL;
-    const fatigue = SleepSystemComp.fatigue[eid];
+    SleepSystemComp.fatigue[eid];
     const baseChance = GAME_CONSTANTS.NIGHT_WAKE_CHANCE;
     const appliedChance = baseChance;
     const roll = Math.random();
     const shouldWake = roll < appliedChance;
     logSleepCheck(world, "Night wake check", {
-      eid,
-      timeOfDay: currentTimeOfDay,
       sleepMode: SleepSystemComp.sleepMode[eid],
-      fatigue: roundForLog(fatigue),
       fatigueMax: GAME_CONSTANTS.FATIGUE_MAX,
-      checkIntervalMs: GAME_CONSTANTS.NIGHT_WAKE_CHECK_INTERVAL,
-      baseChance,
-      baseChancePercent: toPercent(baseChance),
-      appliedChance,
-      appliedChancePercent: toPercent(appliedChance),
-      roll,
-      rollPercent: toPercent(roll),
-      result: shouldWake ? "wake" : "keep_sleeping"
+      checkIntervalMs: GAME_CONSTANTS.NIGHT_WAKE_CHECK_INTERVAL
     });
     if (shouldWake) {
       SleepSystemComp.pendingWakeReason[eid] = SleepReason.NIGHT_INTERRUPT;
@@ -33581,28 +33403,15 @@ function handleDayNapChecks(world, eid, currentTime, currentTimeOfDay) {
   while (currentTime >= SleepSystemComp.nextNapCheckTime[eid]) {
     SleepSystemComp.nextNapCheckTime[eid] += GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL;
     const fatigue = SleepSystemComp.fatigue[eid];
-    const fatigueRatio = clamp(fatigue / GAME_CONSTANTS.FATIGUE_MAX, 0, 1);
-    const fatigueMultiplier = 0.5 + fatigueRatio;
-    const baseChance = GAME_CONSTANTS.DAY_NAP_CHANCE;
+    clamp(fatigue / GAME_CONSTANTS.FATIGUE_MAX, 0, 1);
+    GAME_CONSTANTS.DAY_NAP_CHANCE;
     const appliedChance = getDayNapChance(eid);
     const roll = Math.random();
     const shouldNap = roll < appliedChance;
     logSleepCheck(world, "Day nap check", {
-      eid,
-      timeOfDay: currentTimeOfDay,
-      fatigue: roundForLog(fatigue),
       fatigueThreshold: GAME_CONSTANTS.FATIGUE_DAY_NAP_MIN_THRESHOLD,
       fatigueMax: GAME_CONSTANTS.FATIGUE_MAX,
-      fatigueRatio: roundForLog(fatigueRatio),
-      fatigueMultiplier: roundForLog(fatigueMultiplier),
-      checkIntervalMs: GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL,
-      baseChance,
-      baseChancePercent: toPercent(baseChance),
-      appliedChance,
-      appliedChancePercent: toPercent(appliedChance),
-      roll,
-      rollPercent: toPercent(roll),
-      result: shouldNap ? "nap" : "stay_awake"
+      checkIntervalMs: GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL
     });
     if (shouldNap) {
       SleepSystemComp.nextSleepTime[eid] = currentTime;
@@ -33828,20 +33637,9 @@ function restoreRandomMovementIfNeeded(world, eid, currentTime) {
   RandomMovementComp.nextChange[eid] = currentTime + 1e3;
 }
 function logSleepCheck(world, event, payload) {
-  if (!shouldLogSleepChecks(world)) {
+  {
     return;
   }
-  console.log(`[SleepScheduleSystem] ${event}`, payload);
-}
-function shouldLogSleepChecks(world) {
-  return !world.isSimulationMode;
-}
-function toPercent(value) {
-  return roundForLog(value * 100, 2);
-}
-function roundForLog(value, digits = 3) {
-  const multiplier = 10 ** digits;
-  return Math.round(value * multiplier) / multiplier;
 }
 const characterQuery$4 = defineQuery([
   ObjectComp,
@@ -33868,6 +33666,8 @@ const EATING_POSE_FOOD_Y_OFFSET_PX = 1;
 const ZERO_DISTANCE_EPSILON = 1e-3;
 const DEFAULT_FOOD_STAMINA_BONUS = 2;
 const FOOD_STAMINA_BONUS_DISTRIBUTION = [1, 2, 2, 3, 3, 4];
+const debugLog$1 = (..._args) => {
+};
 function getStaminaBonusForFoodTexture(textureKey) {
   if (textureKey < TextureKey.FOOD1 || textureKey > TextureKey.FOOD64) {
     return DEFAULT_FOOD_STAMINA_BONUS;
@@ -33898,9 +33698,6 @@ function releaseTargetedFoodForCharacter(world, characterEid) {
     return;
   }
   ObjectComp.state[targetFoodEid] = FoodState.LANDED;
-  console.log(
-    `[FoodEatingSystem] Released orphaned targeted food ${targetFoodEid} for character ${characterEid}`
-  );
 }
 function clearActiveEatingState(world, characterEid) {
   if (!hasComponent(world, FoodEatingComp, characterEid)) {
@@ -33964,16 +33761,13 @@ function updateMovingToFood(world, delta) {
       continue;
     }
     if (hasComponent(world, FreshnessComp, targetFoodEid) && !isFoodEdible(FreshnessComp.freshness[targetFoodEid])) {
-      console.log(
-        `[FoodEatingSystem] Character ${eid} target food ${targetFoodEid} became stale before arrival, restoring free roaming state`
-      );
       releaseTargetedFoodForCharacter(world, eid);
       restoreFreeRoamingState(world, eid, 1e3);
       continue;
     }
     const { distance, hasArrived } = moveTowardsTarget(world, eid);
     if (hasArrived) {
-      console.log(
+      debugLog$1(
         `[FoodEatingSystem] Character ${eid} reached food ${targetFoodEid} at distance ${distance.toFixed(
           2
         )}`
@@ -33984,14 +33778,10 @@ function updateMovingToFood(world, delta) {
   }
 }
 function completeEating(world, characterEid, foodEid, currentTime) {
-  console.log(
-    `[FoodEatingSystem] Character ${characterEid} completed eating food ${foodEid}`
-  );
   let staminaBonus = DEFAULT_FOOD_STAMINA_BONUS;
   if (hasComponent(world, FreshnessComp, foodEid)) {
     const freshness = FreshnessComp.freshness[foodEid];
     if (!isFoodEdible(freshness)) {
-      console.log(`[FoodEatingSystem] Food ${foodEid} is stale, cannot eat`);
       cancelEating(world, characterEid);
       return;
     }
@@ -34015,9 +33805,6 @@ function completeEating(world, characterEid, foodEid, currentTime) {
     currentTime
   );
   if (currentStamina < GAME_CONSTANTS.MAX_STAMINA && newStamina >= GAME_CONSTANTS.MAX_STAMINA) {
-    console.log(
-      `[FoodEatingSystem] Character ${characterEid} stamina increased from ${currentStamina} to ${newStamina}, adding happy status`
-    );
     addCharacterStatus$2(characterEid, CharacterStatus.HAPPY);
   }
   if (shouldResumeNightSleepAfterEating) {
@@ -34039,18 +33826,14 @@ function completeEating(world, characterEid, foodEid, currentTime) {
     RandomMovementComp.minMoveTime[characterEid] = 2e3;
     RandomMovementComp.maxMoveTime[characterEid] = 4e3;
     RandomMovementComp.nextChange[characterEid] = world.currentTime + 2e3 + Math.random() * 1e3;
-    console.log(
-      `[FoodEatingSystem] Added RandomMovementComp back to character ${characterEid} with idle delay`
-    );
   }
   if (hasComponent(world, FoodMaskComp, foodEid)) {
     removeComponent(world, FoodMaskComp, foodEid);
   }
   world.handleFoodConsumedForAd(foodEid);
   removeEntity(world, foodEid);
-  console.log(`[FoodEatingSystem] Removed food entity ${foodEid}`);
   removeComponent(world, FoodEatingComp, characterEid);
-  console.log(
+  debugLog$1(
     `[FoodEatingSystem] Character stamina increased to ${CharacterStatusComp.stamina[characterEid]}`
   );
 }
@@ -34082,13 +33865,10 @@ function findAndEatFood(world) {
       continue;
     }
     const { foodEid, distance } = nearestFood;
-    console.log(
+    debugLog$1(
       `[FoodEatingSystem] Found nearest food ${foodEid} at distance ${distance.toFixed(
         2
       )} for character ${characterEid}`
-    );
-    console.log(
-      `[FoodEatingSystem] Character ${characterEid} moving to food ${foodEid}`
     );
     addCharacterStatus$2(characterEid, CharacterStatus.DISCOVER);
     moveToFood(world, characterEid, foodEid);
@@ -34123,22 +33903,16 @@ function findNearestFood(_world, characterEid, foods) {
   return nearestFood;
 }
 function moveToFood(world, characterEid, foodEid) {
-  const characterX = PositionComp.x[characterEid];
-  const characterY = PositionComp.y[characterEid];
-  const foodX = PositionComp.x[foodEid];
-  const foodY = PositionComp.y[foodEid];
+  PositionComp.x[characterEid];
+  PositionComp.y[characterEid];
+  PositionComp.x[foodEid];
+  PositionComp.y[foodEid];
   const target = getEatingPoseTarget(world, characterEid, foodEid);
   const targetX = Math.round(target.x);
   const targetY = Math.round(target.y);
-  console.log(
-    `[FoodEatingSystem] Character ${characterEid} moving to food ${foodEid} at (${foodX}, ${foodY}) -> eating pose (${targetX}, ${targetY}) from (${characterX}, ${characterY})`
-  );
   ObjectComp.state[foodEid] = FoodState.TARGETED;
   if (hasComponent(world, RandomMovementComp, characterEid)) {
     removeComponent(world, RandomMovementComp, characterEid);
-    console.log(
-      `[FoodEatingSystem] Removed RandomMovementComp from character ${characterEid}`
-    );
   }
   if (!hasComponent(world, DestinationComp, characterEid)) {
     addComponent(world, DestinationComp, characterEid);
@@ -34148,7 +33922,7 @@ function moveToFood(world, characterEid, foodEid) {
   DestinationComp.x[characterEid] = targetX;
   DestinationComp.y[characterEid] = targetY;
   setCharacterApproachAngle(world, characterEid, { x: targetX, y: targetY });
-  console.log(
+  debugLog$1(
     `[FoodEatingSystem] DestinationComp set for character ${characterEid}:`,
     {
       type: DestinationComp.type[characterEid],
@@ -34164,9 +33938,6 @@ function moveToFood(world, characterEid, foodEid) {
   if (!SpeedComp.value[characterEid] || SpeedComp.value[characterEid] <= 0) {
     const movementSpeed = getCharacterMovementSpeedForEntity(characterEid);
     SpeedComp.value[characterEid] = movementSpeed;
-    console.log(
-      `[FoodEatingSystem] Set character ${characterEid} speed to ${movementSpeed} based on character state`
-    );
   }
   ObjectComp.state[characterEid] = CharacterState.MOVING;
 }
@@ -34263,16 +34034,10 @@ function setCharacterAngleTowardFood(world, characterEid, foodEid) {
 }
 function startEating(world, characterEid, foodEid) {
   if (hasComponent(world, FreshnessComp, foodEid) && !isFoodEdible(FreshnessComp.freshness[foodEid])) {
-    console.log(
-      `[FoodEatingSystem] Prevented character ${characterEid} from eating stale food ${foodEid}`
-    );
     releaseTargetedFoodForCharacter(world, characterEid);
     restoreFreeRoamingState(world, characterEid, 1e3);
     return;
   }
-  console.log(
-    `[FoodEatingSystem] Character ${characterEid} started eating food ${foodEid}`
-  );
   if (!hasComponent(world, AngleComp, characterEid)) {
     addComponent(world, AngleComp, characterEid);
   }
@@ -34295,9 +34060,6 @@ function startEating(world, characterEid, foodEid) {
   ObjectComp.state[foodEid] = FoodState.BEING_INTAKEN;
   if (hasComponent(world, RandomMovementComp, characterEid)) {
     removeComponent(world, RandomMovementComp, characterEid);
-    console.log(
-      `[FoodEatingSystem] Removed RandomMovementComp from eating character ${characterEid}`
-    );
   }
   if (hasComponent(world, DestinationComp, characterEid)) {
     removeComponent(world, DestinationComp, characterEid);
@@ -34307,9 +34069,6 @@ function startEating(world, characterEid, foodEid) {
   }
 }
 function cancelEating(world, characterEid) {
-  console.log(
-    `[FoodEatingSystem] Canceled eating for character ${characterEid}`
-  );
   ObjectComp.state[characterEid] = CharacterState.IDLE;
   if (hasComponent(world, SpeedComp, characterEid)) {
     SpeedComp.value[characterEid] = 0;
@@ -34329,9 +34088,6 @@ function restoreFreeRoamingState(world, characterEid, idleDelayMs) {
     now: world.currentTime,
     idleDelayMs
   });
-  console.log(
-    `[FoodEatingSystem] Restored free roaming state for character ${characterEid}`
-  );
 }
 const positionedObjectQuery = defineQuery([ObjectComp, PositionComp]);
 const positionedObjectExitQuery = exitQuery(positionedObjectQuery);
@@ -37694,6 +37450,8 @@ const temporaryStatusQuery = defineQuery([
   CharacterStatusComp,
   TemporaryStatusComp
 ]);
+const debugLog = (..._args) => {
+};
 const urgentSleepTrackingByWorld = /* @__PURE__ */ new WeakMap();
 function characterStatusSystem(params) {
   const { world, currentTime } = params;
@@ -37728,9 +37486,6 @@ function updateStaminaBasedStatus(world, currentTime) {
       VitalityComp.urgentStartTime[eid] = 0;
       VitalityComp.deathTime[eid] = 0;
       VitalityComp.isDead[eid] = 0;
-      console.log(
-        `[CharacterStatusSystem] Added VitalityComp to character ${eid}`
-      );
     }
     if (VitalityComp.isDead[eid]) continue;
     const stamina = CharacterStatusComp.stamina[eid];
@@ -37742,23 +37497,18 @@ function updateStaminaBasedStatus(world, currentTime) {
         VitalityComp.deathTime[eid] = currentTime + getUrgentDeathDelayMsByCharacterKey(
           CharacterStatusComp.characterKey[eid]
         );
-        console.log(
+        debugLog(
           `[CharacterStatusSystem] Character ${eid} entered URGENT state. Death scheduled at ${VitalityComp.deathTime[eid]} (current: ${currentTime})`
         );
       }
     } else {
-      const wasUrgent = hasCharacterStatus(
+      hasCharacterStatus(
         currentStatuses,
         CharacterStatus.URGENT
       );
       removeCharacterStatus(eid, CharacterStatus.URGENT);
       VitalityComp.urgentStartTime[eid] = 0;
       VitalityComp.deathTime[eid] = 0;
-      if (wasUrgent) {
-        console.log(
-          `[CharacterStatusSystem] Character ${eid} recovered from URGENT state (stamina: ${stamina})`
-        );
-      }
     }
     if (hasCharacterStatus(currentStatuses, CharacterStatus.SICK)) {
       restrictMovementForSickness(world, eid);
@@ -37832,9 +37582,6 @@ function checkDeath(world, currentTime) {
     if (VitalityComp.isDead[eid]) continue;
     const deathTime = VitalityComp.deathTime[eid];
     if (deathTime > 0 && currentTime >= deathTime) {
-      console.log(
-        `[CharacterStatusSystem] Character ${eid} death time reached. Current: ${currentTime}, Death time: ${deathTime}`
-      );
       killCharacter(world, eid);
     }
   }
@@ -37850,7 +37597,7 @@ function killCharacter(world, eid) {
     const oldTextureKey = RenderComp.textureKey[eid];
     RenderComp.textureKey[eid] = TextureKey.TOMB;
     RenderComp.zIndex[eid] = 0;
-    console.log(
+    debugLog(
       `[CharacterStatusSystem] Changed character ${eid} texture from ${oldTextureKey} to TOMB (${TextureKey.TOMB}) and reset zIndex to 0`
     );
   } else {
@@ -37860,31 +37607,16 @@ function killCharacter(world, eid) {
   }
   if (hasComponent(world, AnimationRenderComp, eid)) {
     removeComponent(world, AnimationRenderComp, eid);
-    console.log(
-      `[CharacterStatusSystem] Removed AnimationRenderComp for dead character ${eid}`
-    );
   }
   if (hasComponent(world, RandomMovementComp, eid)) {
     removeComponent(world, RandomMovementComp, eid);
-    console.log(
-      `[CharacterStatusSystem] Removed RandomMovementComp for dead character ${eid}`
-    );
   }
   if (hasComponent(world, DestinationComp, eid)) {
     removeComponent(world, DestinationComp, eid);
-    console.log(
-      `[CharacterStatusSystem] Removed DestinationComp for dead character ${eid}`
-    );
   }
   if (hasComponent(world, SpeedComp, eid)) {
     SpeedComp.value[eid] = 0;
-    console.log(
-      `[CharacterStatusSystem] Set speed to 0 for dead character ${eid}`
-    );
   }
-  console.log(
-    `[CharacterStatusSystem] Character ${eid} has died and components have been cleaned up`
-  );
 }
 function hasCharacterStatus(statuses, status) {
   for (let i2 = 0; i2 < statuses.length; i2++) {
@@ -37920,15 +37652,9 @@ function removeCharacterStatus(eid, status) {
 function restrictMovementForSickness(world, eid) {
   if (hasComponent(world, RandomMovementComp, eid)) {
     removeComponent(world, RandomMovementComp, eid);
-    console.log(
-      `[CharacterStatusSystem] Removed RandomMovementComp from sick character ${eid}`
-    );
   }
   if (hasComponent(world, DestinationComp, eid)) {
     removeComponent(world, DestinationComp, eid);
-    console.log(
-      `[CharacterStatusSystem] Removed DestinationComp from sick character ${eid}`
-    );
   }
   if (hasComponent(world, SpeedComp, eid)) {
     SpeedComp.value[eid] = 0;
@@ -38396,7 +38122,7 @@ const WORLD_DATA_STORAGE_KEY$1 = "MainSceneWorldData";
 const DEFAULT_USE_LOCAL_TIME = true;
 const MAIN_SCENE_AD_NORMAL_THRESHOLD = 5;
 const MAIN_SCENE_AD_DEEP_NIGHT_THRESHOLD = 10;
-const MAIN_SCENE_AD_NORMAL_COOLDOWN_MS = 5 * 60 * 1e3;
+const MAIN_SCENE_AD_NORMAL_COOLDOWN_MS = 2 * 60 * 1e3;
 const MAIN_SCENE_AD_DEEP_NIGHT_COOLDOWN_MS = 60 * 60 * 1e3;
 const MAIN_SCENE_AD_POST_ACTION_DELAY_MS = 500;
 const MAIN_SCENE_AD_FEED_FALLBACK_AFTER_LAND_MS = 3e3;
@@ -39248,20 +38974,7 @@ const _MainSceneWorld = class _MainSceneWorld {
           );
           this._addDebugGaugeEventListener();
         }
-        if (this._debugParentElement) {
-          this._debugGameConstantsUI = new HTMLDebugGameConstantsUI(
-            this._debugParentElement
-          );
-          this._debugStatusUI = new HTMLDebugStatusUI(
-            this,
-            this._debugParentElement
-          );
-          this._debugToggleButton = new HTMLDebugToggleButton(() => {
-            var _a, _b;
-            (_a = this._debugStatusUI) == null ? void 0 : _a.toggle();
-            return ((_b = this._debugStatusUI) == null ? void 0 : _b.isDebugVisible()) ?? false;
-          }, this._debugParentElement);
-        }
+        if (false) ;
       }
       await this._initDiagnostics.measurePhase("setup_visibility_handler", async () => {
         this._setupVisibilityChangeHandler();
@@ -39280,9 +38993,6 @@ const _MainSceneWorld = class _MainSceneWorld {
   }
   _shouldBlockMiniGameEntry() {
     var _a;
-    if (this._debugMode) {
-      return false;
-    }
     const characterEid = this._findMainCharacterEntity();
     if (characterEid === -1) {
       return false;
@@ -40532,6 +40242,13 @@ const _MainSceneWorld = class _MainSceneWorld {
       return null;
     }
     return spritesheetName;
+  }
+  getFlappyBirdCharacterState() {
+    const characterEid = this._findMainCharacterEntity();
+    if (characterEid === -1) {
+      return null;
+    }
+    return ObjectComp.state[characterEid] ?? null;
   }
   getMainCharacterStaminaSnapshot() {
     const characterEid = this._findMainCharacterEntity();
@@ -46434,6 +46151,8 @@ function clampRandom(value) {
 const FLAPPY_BIRD_OBJECT_SCALE = 1.1;
 const FLAPPY_BIRD_GROUND_TILE_SCALE = 0.9;
 const FLAPPY_BIRD_PIPE_TILE_SCALE = 0.81;
+const FLAPPY_BIRD_PIPE_COLLISION_INSET_X_PX = 1;
+const FLAPPY_BIRD_PIPE_COLLISION_INSET_BOTTOM_PX = 1;
 const BASE_BASKET_SIZE = 40;
 const BASE_BIRD_SIZE = 32 * 1.4;
 const FLAPPY_BIRD_PLAYER_X_RATIO = 0.15;
@@ -46464,6 +46183,12 @@ function resolveFrameScale(deltaTime) {
     FLAPPY_BIRD_MAX_FRAME_SCALE,
     Math.max(0, deltaTime / FLAPPY_BIRD_BASE_FRAME_MS)
   );
+}
+function resolvePipeCollisionBodySize(width, height) {
+  return {
+    width: Math.max(1, width - FLAPPY_BIRD_PIPE_COLLISION_INSET_X_PX * 2),
+    height: Math.max(1, height - FLAPPY_BIRD_PIPE_COLLISION_INSET_BOTTOM_PX)
+  };
 }
 function smoothFlappyBirdSpeed(current, target, deltaTime) {
   if (!Number.isFinite(current) || !Number.isFinite(target)) {
@@ -47160,15 +46885,19 @@ class PipeManager {
     };
   }
   createPipeBody(options) {
+    const collisionBodySize = resolvePipeCollisionBodySize(
+      options.width,
+      options.height
+    );
     const body = this.physicsManager.createRectangleBody(
       options.x,
       options.y,
-      options.width,
-      options.height,
+      collisionBodySize.width,
+      collisionBodySize.height,
       { isStatic: true, label: "pipe" }
     );
-    body.__flappyPipeWidth = options.width;
-    body.__flappyPipeHeight = options.height;
+    body.__flappyPipeWidth = collisionBodySize.width;
+    body.__flappyPipeHeight = collisionBodySize.height;
     return body;
   }
   configurePipePair(pair, options) {
@@ -47218,8 +46947,12 @@ class PipeManager {
     );
   }
   configurePipeBody(body, options) {
-    const targetWidth = Math.max(1, options.width);
-    const targetHeight = Math.max(1, options.height);
+    const collisionBodySize = resolvePipeCollisionBodySize(
+      options.width,
+      options.height
+    );
+    const targetWidth = collisionBodySize.width;
+    const targetHeight = collisionBodySize.height;
     const currentWidth = body.__flappyPipeWidth ?? body.bounds.max.x - body.bounds.min.x;
     const currentHeight = body.__flappyPipeHeight ?? body.bounds.max.y - body.bounds.min.y;
     if (Math.abs(currentWidth - targetWidth) > 0.01 || Math.abs(currentHeight - targetHeight) > 0.01) {
@@ -47312,24 +47045,33 @@ class PipeManager {
   }
 }
 class PlayerManager {
-  constructor(app, physicsManager, characterKey) {
+  constructor(app, physicsManager, characterKey, entryCharacterState = null) {
+    this.lastStableBirdPosition = null;
     this.app = app;
     this.physicsManager = physicsManager;
     const assets = AssetLoader.getAssets();
-    this.initializeBasket(characterKey, assets);
+    this.initializeBasket(characterKey, entryCharacterState, assets);
     this.initializeBird(assets.birdSprites);
   }
   /**
    * 바구니를 초기화합니다.
    */
-  initializeBasket(characterKey, assets) {
+  initializeBasket(characterKey, entryCharacterState, assets) {
+    var _a;
     const characterSpritesheet = assets.characterSprites[characterKey];
     if (!characterSpritesheet) {
       throw new Error(
         `Character spritesheet not found for key: ${characterKey}`
       );
     }
-    const inBasketTexture = characterSpritesheet.textures["in-basket"];
+    const defaultInBasketTexture = characterSpritesheet.textures["in-basket"];
+    const tombInBasketTexture = (_a = assets.common32x32Sprites) == null ? void 0 : _a.textures["tomb-in-basket"];
+    const inBasketTexture = entryCharacterState === CharacterState.DEAD && tombInBasketTexture ? tombInBasketTexture : defaultInBasketTexture;
+    if (!inBasketTexture) {
+      throw new Error(
+        `In-basket texture not found for character key: ${characterKey}`
+      );
+    }
     this.basket = new Sprite(inBasketTexture);
     this.basket.width = BASE_BASKET_SIZE * FLAPPY_BIRD_OBJECT_SCALE;
     this.basket.height = BASE_BASKET_SIZE * FLAPPY_BIRD_OBJECT_SCALE;
@@ -47382,8 +47124,12 @@ class PlayerManager {
    */
   update() {
     if (this.bird) {
-      this.bird.position.x = this.basketBody.position.x + this.basket.width * 0.1;
-      this.bird.position.y = this.basketBody.position.y - this.basket.height * 0.9;
+      this.bird.position.x = this.basket.position.x + this.basket.width * 0.1;
+      this.bird.position.y = this.basket.position.y - this.basket.height * 0.9;
+      this.lastStableBirdPosition = {
+        x: this.bird.position.x,
+        y: this.bird.position.y
+      };
     }
   }
   /**
@@ -47407,6 +47153,42 @@ class PlayerManager {
     if (this.bird) {
       this.bird.stop();
     }
+  }
+  getBirdPositionSnapshot() {
+    if (!this.bird) {
+      return null;
+    }
+    return {
+      x: this.bird.position.x,
+      y: this.bird.position.y
+    };
+  }
+  getLastStableBirdPositionSnapshot() {
+    if (this.lastStableBirdPosition === null) {
+      return this.getBirdPositionSnapshot();
+    }
+    return {
+      x: this.lastStableBirdPosition.x,
+      y: this.lastStableBirdPosition.y
+    };
+  }
+  setBirdPosition(position) {
+    if (!this.bird) {
+      return;
+    }
+    this.bird.position.set(position.x, position.y);
+  }
+  clampBasketBottomTo(maxBottomY) {
+    const basketRadius = typeof this.basketBody.circleRadius === "number" ? this.basketBody.circleRadius : this.basket.width / 2;
+    const clampedCenterY = maxBottomY - basketRadius;
+    if (this.basketBody.position.y <= clampedCenterY) {
+      return;
+    }
+    this.physicsManager.setPosition(this.basketBody, {
+      x: this.basketBody.position.x,
+      y: clampedCenterY
+    });
+    this.physicsManager.setVelocity(this.basketBody, { x: 0, y: 0 });
   }
   /**
    * 충돌 검사 메서드
@@ -48390,8 +48172,8 @@ const FLAPPY_BIRD_PERF_MAX_SECOND_BUCKETS = 60;
 const FLAPPY_BIRD_PERF_MAX_TOP_SPIKE_EVENTS = 10;
 const FLAPPY_BIRD_PERF_AUTO_FLUSH_INTERVAL_MS = 15e3;
 const FLAPPY_BIRD_FRAME_BUDGET_MS = 16.7;
-const FLAPPY_BIRD_SLOW_FRAME_DELTA_THRESHOLD_MS$1 = 20;
-const FLAPPY_BIRD_SLOW_FRAME_UPDATE_COST_THRESHOLD_MS$1 = 8;
+const FLAPPY_BIRD_SLOW_FRAME_DELTA_THRESHOLD_MS = 20;
+const FLAPPY_BIRD_SLOW_FRAME_UPDATE_COST_THRESHOLD_MS = 8;
 const FLAPPY_BIRD_BGM_SCHEDULER_SPIKE_THRESHOLD_MS = 4;
 function createSessionId() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -48976,7 +48758,7 @@ class FlappyBirdPerfDiagnostics {
     };
   }
   _isSlowFrame(sample) {
-    return sample.deltaTimeMs >= FLAPPY_BIRD_SLOW_FRAME_DELTA_THRESHOLD_MS$1 || sample.updateCostMs >= FLAPPY_BIRD_SLOW_FRAME_UPDATE_COST_THRESHOLD_MS$1;
+    return sample.deltaTimeMs >= FLAPPY_BIRD_SLOW_FRAME_DELTA_THRESHOLD_MS || sample.updateCostMs >= FLAPPY_BIRD_SLOW_FRAME_UPDATE_COST_THRESHOLD_MS;
   }
   _getOrCreateBucket(timestampMs) {
     const session = this._currentSession;
@@ -49200,13 +48982,9 @@ const FLAPPY_BIRD_BGM_MIDGAME_TEMPO_MULTIPLIER = 1.08;
 const FLAPPY_BIRD_BGM_ENDGAME_TEMPO_MULTIPLIER = 1.14;
 const FLAPPY_BIRD_BGM_MAX_TEMPO_MULTIPLIER = 1.16;
 const FLAPPY_BIRD_SKY_SYNC_INTERVAL_MS = 1e3;
-const FLAPPY_BIRD_SLOW_FRAME_DELTA_THRESHOLD_MS = 20;
-const FLAPPY_BIRD_SLOW_FRAME_UPDATE_COST_THRESHOLD_MS = 8;
-const FLAPPY_BIRD_TARGET_FRAME_BUDGET_MS = 16.7;
 const FLAPPY_BIRD_FIXED_TIMESTEP_MS = 1e3 / 60;
 const FLAPPY_BIRD_MAX_SIMULATION_DELTA_MS = 1e3 / 30;
 const FLAPPY_BIRD_MAX_SIMULATION_SUBSTEPS = 2;
-const FLAPPY_BIRD_SLOW_FRAME_LOG_COOLDOWN_MS = 400;
 const FLAPPY_BIRD_PIPE_PREWARM_PAIR_COUNT = 2;
 const FLAPPY_BIRD_INIT_ASSET_LOAD_TIMEOUT_MS = 8e3;
 const FLAPPY_BIRD_INIT_SKY_CONTEXT_TIMEOUT_MS = 4e3;
@@ -49297,10 +49075,18 @@ class FlappyBirdGameScene extends Container {
     this.createBackground();
     this.physicsManager = new PhysicsManager(this.gameEngine);
   }
+  maybeEnableCollisionDebugOverlay() {
+    if (!this.game.isDebugModeEnabled()) {
+      return;
+    }
+    this.physicsManager.setupDebugRenderer(this.game.app);
+  }
   async init() {
     const playerCharacterKey = this.game.getFlappyBirdCharacterKey();
+    const playerCharacterState = this.game.getFlappyBirdCharacterState();
     const initStartedAt = getPerfNow();
     const transitionRequestId = this.game.getActiveSceneTransitionRequestId();
+    this.maybeEnableCollisionDebugOverlay();
     const logInitPhase = (phase, payload = {}) => {
       console.log("[ImportantDiagnostics][FlappyBirdInitTiming]", {
         phase,
@@ -49364,7 +49150,8 @@ class FlappyBirdGameScene extends Container {
     this.playerManager = new PlayerManager(
       this.game.app,
       this.physicsManager,
-      playerCharacterKey
+      playerCharacterKey,
+      playerCharacterState
     );
     this.groundManager = new GroundManager(
       this.game.app,
@@ -49559,9 +49346,18 @@ class FlappyBirdGameScene extends Container {
    */
   setupCollisionListeners() {
     this.physicsManager.setupCollisionListener((bodyA, bodyB) => {
-      const isBasketCollision = bodyA.label === "basket" && (bodyB.label === "ground" || bodyB.label === "pipe") || bodyB.label === "basket" && (bodyA.label === "ground" || bodyA.label === "pipe");
-      if (isBasketCollision && this.gameState === GameState.PLAYING) {
-        this.handleGameOver();
+      let collisionTarget = null;
+      if (bodyA.label === "basket") {
+        if (bodyB.label === "ground" || bodyB.label === "pipe") {
+          collisionTarget = bodyB.label;
+        }
+      } else if (bodyB.label === "basket") {
+        if (bodyA.label === "ground" || bodyA.label === "pipe") {
+          collisionTarget = bodyA.label;
+        }
+      }
+      if (collisionTarget && this.gameState === GameState.PLAYING) {
+        this.handleGameOver(collisionTarget);
       }
     });
   }
@@ -49591,9 +49387,7 @@ class FlappyBirdGameScene extends Container {
         this.restartGame();
       }
     }
-    if (event.code === "KeyD" && true) {
-      this.physicsManager.toggleDebugMode(this.game.app);
-    }
+    if (event.code === "KeyD" && false) ;
   }
   /**
    * 게임을 시작합니다.
@@ -49664,10 +49458,13 @@ class FlappyBirdGameScene extends Container {
     this.playerManager.jump(FLAPPY_BIRD_DOUBLE_JUMP_VELOCITY);
   }
   pauseGame() {
-    if (this.gameState !== GameState.PLAYING) {
+    if (this.gameState === GameState.PLAYING) {
+      this.enterPausedState(GameState.PLAYING);
       return;
     }
-    this.enterPausedState(GameState.PLAYING);
+    if (this.gameState === GameState.COUNTDOWN) {
+      this.enterPausedState(GameState.COUNTDOWN);
+    }
   }
   resumeGame() {
     if (this.gameState !== GameState.PAUSED) {
@@ -49681,16 +49478,16 @@ class FlappyBirdGameScene extends Container {
       this.gameState = GameState.COUNTDOWN;
       this.gameEngine.pause();
       this.playerManager.stopAnimation();
-      this.playerManager.update();
       this.physicsManager.syncDisplayObjects();
+      this.playerManager.update();
       this.bgmController.pause();
       return;
     }
     this.gameState = GameState.PLAYING;
     this.gameEngine.resume();
     this.playerManager.startAnimation();
-    this.playerManager.update();
     this.physicsManager.syncDisplayObjects();
+    this.playerManager.update();
     void this.bgmController.resumeIfAvailable();
   }
   enterPausedState(resumeState, options = {}) {
@@ -49700,8 +49497,8 @@ class FlappyBirdGameScene extends Container {
     this.gameState = GameState.PAUSED;
     this.gameEngine.pause();
     this.playerManager.stopAnimation();
-    this.playerManager.update();
     this.physicsManager.syncDisplayObjects();
+    this.playerManager.update();
     this.bgmController.pause();
   }
   handleVisibilityChange() {
@@ -49758,7 +49555,7 @@ class FlappyBirdGameScene extends Container {
     if (this.isSettingsMenuOpen || this.gameState === GameState.GAME_OVER || this.isReturningToMain) {
       return;
     }
-    if (this.gameState === GameState.PLAYING) {
+    if (this.gameState === GameState.PLAYING || this.gameState === GameState.COUNTDOWN) {
       this.pauseGame();
     }
     if (this.gameState !== GameState.PAUSED) {
@@ -49903,11 +49700,12 @@ class FlappyBirdGameScene extends Container {
   /**
    * 게임 오버 처리 메서드
    */
-  handleGameOver() {
+  handleGameOver(collisionTarget = null) {
     var _a, _b, _c;
     if (this.gameState !== GameState.PLAYING) {
       return;
     }
+    const preservedBirdPosition = collisionTarget === "ground" ? this.playerManager.getLastStableBirdPositionSnapshot() : null;
     this.resetSimulationAccumulator();
     this.pausedStateBeforePause = null;
     this.isAppSuspended = false;
@@ -49915,9 +49713,17 @@ class FlappyBirdGameScene extends Container {
     this.gameEngine.pause();
     this.hideSettingsMenu();
     this.countdownUI.hide();
+    if (collisionTarget === "ground") {
+      this.playerManager.clampBasketBottomTo(
+        this.groundManager.getBody().bounds.min.y
+      );
+    }
     this.playerManager.stopAnimation();
-    this.playerManager.update();
     this.physicsManager.syncDisplayObjects();
+    this.playerManager.update();
+    if (preservedBirdPosition) {
+      this.playerManager.setBirdPosition(preservedBirdPosition);
+    }
     this.bgmController.pause();
     this.triggerGameOverVibrationPattern();
     this.flushPendingFrameDiagnostics();
@@ -50186,38 +49992,9 @@ class FlappyBirdGameScene extends Container {
     );
   }
   maybeLogSlowFrame(frameSample) {
-    if (frameSample.deltaTimeMs < FLAPPY_BIRD_SLOW_FRAME_DELTA_THRESHOLD_MS && frameSample.updateCostMs < FLAPPY_BIRD_SLOW_FRAME_UPDATE_COST_THRESHOLD_MS) {
+    {
       return;
     }
-    if (frameSample.timestampMs - this.lastSlowFrameLogAtMs < FLAPPY_BIRD_SLOW_FRAME_LOG_COOLDOWN_MS) {
-      return;
-    }
-    this.lastSlowFrameLogAtMs = frameSample.timestampMs;
-    console.warn("[FlappyBirdPerf] slow frame", {
-      deltaTimeMs: Math.round(frameSample.deltaTimeMs * 10) / 10,
-      updateCostMs: Math.round(frameSample.updateCostMs * 10) / 10,
-      tickerGapMs: typeof frameSample.tickerGapMs === "number" ? Math.round(frameSample.tickerGapMs * 10) / 10 : frameSample.tickerGapMs,
-      renderCostMs: typeof frameSample.renderCostMs === "number" ? Math.round(frameSample.renderCostMs * 10) / 10 : void 0,
-      updateToRenderStartMs: typeof frameSample.updateToRenderStartMs === "number" ? Math.round(frameSample.updateToRenderStartMs * 10) / 10 : void 0,
-      frameEndToEndCostMs: typeof frameSample.frameEndToEndCostMs === "number" ? Math.round(frameSample.frameEndToEndCostMs * 10) / 10 : void 0,
-      frameBudgetOverrunMs: typeof frameSample.frameEndToEndCostMs === "number" ? Math.max(
-        0,
-        Math.round(
-          (frameSample.frameEndToEndCostMs - FLAPPY_BIRD_TARGET_FRAME_BUDGET_MS) * 10
-        ) / 10
-      ) : void 0,
-      state: frameSample.gameState,
-      activePipePairs: frameSample.activePipePairs,
-      trackedPhysicsObjects: frameSample.trackedPhysicsObjects,
-      syncedDisplayObjects: frameSample.syncedDisplayObjects,
-      cloudCount: frameSample.cloudCount,
-      groundTileCount: frameSample.groundTileCount,
-      spawnedPipes: frameSample.spawnedPipes,
-      removedPipes: frameSample.removedPipes,
-      phaseCosts: frameSample.phaseCosts,
-      pipePhaseCosts: frameSample.pipePhaseCosts,
-      pipePoolStats: frameSample.pipePoolStats
-    });
   }
   syncCloudVisualStyle() {
     if (!this.cloudManager) {
@@ -50408,6 +50185,7 @@ class Game {
     this._pendingSceneTransitionInterruptions = /* @__PURE__ */ new Map();
     this._activeSceneTransition = null;
     this._flappyBirdCharacterKey = null;
+    this._flappyBirdCharacterState = null;
     this._flappyBirdSkyContext = null;
     this._loadingTraceContext = null;
     this._lastTickerStartedAtMs = null;
@@ -51129,6 +50907,15 @@ class Game {
     }
     return this._flappyBirdCharacterKey ?? CharacterKey.TestGreenSlimeA1;
   }
+  getFlappyBirdCharacterState() {
+    if (this.currentScene instanceof MainSceneWorld) {
+      this._syncFlappyBirdCharacterStateFromMainScene(this.currentScene);
+    }
+    return this._flappyBirdCharacterState;
+  }
+  isDebugModeEnabled() {
+    return this._debugMode;
+  }
   getMainCharacterStaminaSnapshot() {
     if (!(this.currentScene instanceof MainSceneWorld)) {
       return null;
@@ -51236,6 +51023,9 @@ class Game {
   }
   _syncFlappyBirdCharacterKeyFromMainScene(mainSceneWorld) {
     this._flappyBirdCharacterKey = mainSceneWorld.getFlappyBirdCharacterKey();
+  }
+  _syncFlappyBirdCharacterStateFromMainScene(mainSceneWorld) {
+    this._flappyBirdCharacterState = mainSceneWorld.getFlappyBirdCharacterState();
   }
 }
 class SliderController {
@@ -51680,14 +51470,14 @@ const ControlButton = ({
     const baseTrackWidth = Math.max(0, sliderWidth - size);
     const trackWidth = sliderTrackWidth;
     const extraTrackOffset = (trackWidth - baseTrackWidth) / 2;
-    return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+    return /* @__PURE__ */ jsxRuntimeExports.jsxs(
       "div",
       {
         className: "relative flex justify-center overflow-visible",
         style: { width: `${sliderWidth}px`, height: `${size}px` },
         ref: sliderRef,
         children: [
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
             {
               className: "absolute top-1/2 -translate-y-1/2 h-4 bg-gray-700 bg-opacity-50 rounded-full",
@@ -51695,61 +51485,29 @@ const ControlButton = ({
                 left: `${trackInset - extraTrackOffset}px`,
                 width: `${trackWidth}px`
               }
-            },
-            void 0,
-            false,
-            {
-              fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/ControlButton.tsx",
-              lineNumber: 261,
-              columnNumber: 9
-            },
-            void 0
+            }
           ),
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
             {
               className: "absolute top-0 left-0 h-full",
               style: {
                 transform: `translateX(${currentSliderValue * trackWidth - extraTrackOffset}px)`
               },
-              children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+              children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "div",
                 {
                   style: buttonStyle,
                   className: "bg-no-repeat border-none bg-transparent p-0 outline-none select-none [-webkit-tap-highlight-color:transparent] scale-[1.4]"
-                },
-                void 0,
-                false,
-                {
-                  fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/ControlButton.tsx",
-                  lineNumber: 274,
-                  columnNumber: 11
-                },
-                void 0
+                }
               )
-            },
-            void 0,
-            false,
-            {
-              fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/ControlButton.tsx",
-              lineNumber: 268,
-              columnNumber: 9
-            },
-            void 0
+            }
           )
         ]
-      },
-      void 0,
-      true,
-      {
-        fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/ControlButton.tsx",
-        lineNumber: 256,
-        columnNumber: 7
-      },
-      void 0
+      }
     );
   }
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(
     "button",
     {
       type: "button",
@@ -51758,24 +51516,12 @@ const ControlButton = ({
       onPointerUp: handlePointerUp,
       onPointerLeave: handlePointerLeave,
       className: `bg-no-repeat border-none bg-transparent p-0 outline-none select-none [-webkit-tap-highlight-color:transparent] scale-[1.4] ${className || ""}`
-    },
-    void 0,
-    false,
-    {
-      fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/ControlButton.tsx",
-      lineNumber: 285,
-      columnNumber: 5
-    },
-    void 0
+    }
   );
 };
 const ControlButtonsContainer = ({
   children
-}) => /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "w-4/5 max-w-[300px] flex justify-between mx-auto", children }, void 0, false, {
-  fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-  lineNumber: 16,
-  columnNumber: 3
-}, void 0);
+}) => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-4/5 max-w-[300px] flex justify-between mx-auto", children });
 const ControlButtons = ({
   buttonParams,
   onButtonPress,
@@ -51803,27 +51549,15 @@ const ControlButtons = ({
     }
   }, [buttonTypes[0], buttonTypes[1], buttonTypes[2], shouldRenderSlider]);
   if (shouldRenderSlider && sliderWidth) {
-    return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ControlButtonsContainer, { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { ref: containerRef, className: "flex justify-between w-full", children: [
-      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "shrink-0 ", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+    return /* @__PURE__ */ jsxRuntimeExports.jsx(ControlButtonsContainer, { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { ref: containerRef, className: "flex justify-between w-full", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "shrink-0 ", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
         ControlButton,
         {
           type: buttonParams[0].type,
           onClick: () => onButtonPress(buttonParams[0].type)
-        },
-        void 0,
-        false,
-        {
-          fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-          lineNumber: 67,
-          columnNumber: 13
-        },
-        void 0
-      ) }, void 0, false, {
-        fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-        lineNumber: 66,
-        columnNumber: 11
-      }, void 0),
-      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { ref: secondButtonRef, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+        }
+      ) }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: secondButtonRef, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
         ControlButton,
         {
           type: ControlButtonType.Clean,
@@ -51834,92 +51568,33 @@ const ControlButtons = ({
           onSliderEnd,
           onClick: () => onButtonPress(buttonParams[1].type)
         },
-        (cleanButtonParam == null ? void 0 : cleanButtonParam.sliderSessionKey) ?? "clean-slider",
-        false,
-        {
-          fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-          lineNumber: 74,
-          columnNumber: 13
-        },
-        void 0
-      ) }, void 0, false, {
-        fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-        lineNumber: 73,
-        columnNumber: 11
-      }, void 0)
-    ] }, void 0, true, {
-      fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-      lineNumber: 64,
-      columnNumber: 9
-    }, void 0) }, void 0, false, {
-      fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-      lineNumber: 63,
-      columnNumber: 7
-    }, void 0);
+        (cleanButtonParam == null ? void 0 : cleanButtonParam.sliderSessionKey) ?? "clean-slider"
+      ) })
+    ] }) });
   }
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ControlButtonsContainer, { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { ref: containerRef, className: "flex justify-between w-full", children: [
-    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(ControlButtonsContainer, { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { ref: containerRef, className: "flex justify-between w-full", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx(
       ControlButton,
       {
         type: buttonParams[0].type,
         onClick: () => onButtonPress(buttonParams[0].type)
-      },
-      void 0,
-      false,
-      {
-        fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-        lineNumber: 94,
-        columnNumber: 9
-      },
-      void 0
+      }
     ),
-    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { ref: secondButtonRef, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: secondButtonRef, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
       ControlButton,
       {
         type: buttonParams[1].type,
         onClick: () => onButtonPress(buttonParams[1].type)
-      },
-      void 0,
-      false,
-      {
-        fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-        lineNumber: 99,
-        columnNumber: 11
-      },
-      void 0
-    ) }, void 0, false, {
-      fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-      lineNumber: 98,
-      columnNumber: 9
-    }, void 0),
-    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { ref: thirdButtonRef, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+      }
+    ) }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: thirdButtonRef, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
       ControlButton,
       {
         type: buttonParams[2].type,
         onClick: () => onButtonPress(buttonParams[2].type)
-      },
-      void 0,
-      false,
-      {
-        fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-        lineNumber: 105,
-        columnNumber: 11
-      },
-      void 0
-    ) }, void 0, false, {
-      fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-      lineNumber: 104,
-      columnNumber: 9
-    }, void 0)
-  ] }, void 0, true, {
-    fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-    lineNumber: 93,
-    columnNumber: 7
-  }, void 0) }, void 0, false, {
-    fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-    lineNumber: 92,
-    columnNumber: 5
-  }, void 0);
+      }
+    ) })
+  ] }) });
 };
 function createClientStorage() {
   if (hasNativeStorageController()) {
@@ -52864,12 +52539,12 @@ const PopupLayer = ({
     }
     onCancel == null ? void 0 : onCancel();
   }, [onCancel]);
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(
     "div",
     {
       className: "flex w-full justify-center px-4 text-black",
       ...layerInteractionVibrationProps,
-      children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+      children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
         "div",
         {
           ref: containerRef,
@@ -52880,37 +52555,21 @@ const PopupLayer = ({
           },
           className: "relative flex w-full max-w-[22rem] flex-col overflow-auto border-4 border-[#222] bg-layer-bg p-5 text-center font-dialog shadow-[0_4px_0_#222,0_-4px_0_#222,4px_0_0_#222,-4px_0_0_#222,4px_4px_0_#222,-4px_4px_0_#222,4px_-4px_0_#222,-4px_-4px_0_#222] focus:outline-none",
           children: [
-            topLeftContent ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "absolute left-2 top-2 z-[1]", children: topLeftContent }, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
-              lineNumber: 513,
-              columnNumber: 11
-            }, void 0) : null,
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+            topLeftContent ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute left-2 top-2 z-[1]", children: topLeftContent }) : null,
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
               "div",
               {
                 className: `mb-[15px] flex-none border-b-4 pb-[10px] text-[1.8rem] leading-[1.2] font-display font-bold text-component-negative ${dividerBorderClassName}`,
                 children: title
-              },
-              void 0,
-              false,
-              {
-                fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
-                lineNumber: 515,
-                columnNumber: 9
-              },
-              void 0
+              }
             ),
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "min-h-0 flex-1 overflow-y-auto pb-4 text-[1.4rem] leading-[1.6]", children: content }, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
-              lineNumber: 520,
-              columnNumber: 9
-            }, void 0),
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "min-h-0 flex-1 overflow-y-auto pb-4 text-[1.4rem] leading-[1.6]", children: content }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs(
               "div",
               {
                 className: `flex flex-none justify-center gap-[15px] border-t-4 pt-4 ${dividerBorderClassName}`,
                 children: [
-                  onCancel && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+                  onCancel && /* @__PURE__ */ jsxRuntimeExports.jsx(
                     "button",
                     {
                       ref: cancelButtonRef,
@@ -52918,17 +52577,9 @@ const PopupLayer = ({
                       onClick: handleCancelClick,
                       className: `text-[1.5rem] text-white border-2 border-[#222] px-[15px] py-0.5 cursor-pointer uppercase font-display shadow-[2px_2px_0_#222] relative top-0 left-0 transition-all duration-50 ${cancelVariant === "negative" ? "bg-component-negative" : "bg-component-positive"}`,
                       children: cancelText
-                    },
-                    void 0,
-                    false,
-                    {
-                      fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
-                      lineNumber: 527,
-                      columnNumber: 13
-                    },
-                    void 0
+                    }
                   ),
-                  /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+                  /* @__PURE__ */ jsxRuntimeExports.jsxs(
                     "button",
                     {
                       ref: confirmButtonRef,
@@ -52937,69 +52588,25 @@ const PopupLayer = ({
                       onClick: handleConfirmClick,
                       className: `relative overflow-hidden text-[1.5rem] text-white border-2 border-[#222] px-[15px] py-0.5 uppercase font-display shadow-[2px_2px_0_#222] ${isConfirmEnableDelayActive ? "cursor-not-allowed bg-gray-400 opacity-80" : confirmVariant === "negative" ? "cursor-pointer bg-component-negative" : "cursor-pointer bg-component-positive"}`,
                       children: [
-                        isConfirmEnableDelayActive && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+                        isConfirmEnableDelayActive && /* @__PURE__ */ jsxRuntimeExports.jsx(
                           "span",
                           {
                             "aria-hidden": "true",
                             className: `absolute inset-y-0 left-0 ${confirmVariant === "negative" ? "bg-component-negative" : "bg-component-positive"}`,
                             style: { width: `${confirmEnableDelayProgress}%` }
-                          },
-                          void 0,
-                          false,
-                          {
-                            fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
-                            lineNumber: 554,
-                            columnNumber: 15
-                          },
-                          void 0
+                          }
                         ),
-                        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { className: "relative z-[1]", children: confirmText }, void 0, false, {
-                          fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
-                          lineNumber: 564,
-                          columnNumber: 13
-                        }, void 0)
+                        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "relative z-[1]", children: confirmText })
                       ]
-                    },
-                    void 0,
-                    true,
-                    {
-                      fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
-                      lineNumber: 540,
-                      columnNumber: 11
-                    },
-                    void 0
+                    }
                   )
                 ]
-              },
-              void 0,
-              true,
-              {
-                fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
-                lineNumber: 523,
-                columnNumber: 9
-              },
-              void 0
+              }
             )
           ]
-        },
-        void 0,
-        true,
-        {
-          fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
-          lineNumber: 497,
-          columnNumber: 7
-        },
-        void 0
+        }
       )
-    },
-    void 0,
-    false,
-    {
-      fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
-      lineNumber: 493,
-      columnNumber: 5
-    },
-    void 0
+    }
   );
 };
 var reactDomExports = requireReactDom();
@@ -53036,14 +52643,14 @@ const SetupLayer = ({ onComplete }) => {
       cachedSunTimes: null
     });
   };
-  const overlay = /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "fixed inset-0 z-[999] flex min-h-dvh items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+  const overlay = /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 z-[999] flex min-h-dvh items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
     PopupLayer,
     {
       title: "Spawn Monster!",
       keyboardAwareTargetRef: nameInputRef,
       dividerBorderClassName: "border-[#555]",
-      content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex flex-col items-center gap-4", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "w-full", children: [
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+      content: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex flex-col items-center gap-4", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "w-full", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
           "input",
           {
             ref: nameInputRef,
@@ -53055,17 +52662,9 @@ const SetupLayer = ({ onComplete }) => {
             },
             placeholder: "monster name",
             className: "w-full border-2 border-[#222] px-3 py-0.5 text-center text-[1.4rem] focus:outline-none focus:ring-2 focus:ring-[#d95763]"
-          },
-          void 0,
-          false,
-          {
-            fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-            lineNumber: 72,
-            columnNumber: 15
-          },
-          void 0
+          }
         ),
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+        /* @__PURE__ */ jsxRuntimeExports.jsxs(
           "div",
           {
             className: `mt-4 text-[1.4rem] ${isWithinVisibleWidth ? "text-gray-600" : "text-red-600"}`,
@@ -53076,46 +52675,14 @@ const SetupLayer = ({ onComplete }) => {
               NAME_LABEL_MAX_WIDTH,
               "px"
             ]
-          },
-          void 0,
-          true,
-          {
-            fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-            lineNumber: 83,
-            columnNumber: 15
-          },
-          void 0
+          }
         ),
-        error && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("p", { className: "mt-4 text-component-negative text-[0.7em]", children: error }, void 0, false, {
-          fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-          lineNumber: 91,
-          columnNumber: 17
-        }, void 0)
-      ] }, void 0, true, {
-        fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-        lineNumber: 71,
-        columnNumber: 13
-      }, void 0) }, void 0, false, {
-        fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-        lineNumber: 70,
-        columnNumber: 11
-      }, void 0),
+        error && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "mt-4 text-component-negative text-[0.7em]", children: error })
+      ] }) }),
       onConfirm: handleConfirm,
       confirmText: "Start"
-    },
-    void 0,
-    false,
-    {
-      fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-      lineNumber: 65,
-      columnNumber: 7
-    },
-    void 0
-  ) }, void 0, false, {
-    fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-    lineNumber: 64,
-    columnNumber: 5
-  }, void 0);
+    }
+  ) });
   if (typeof document === "undefined") {
     return overlay;
   }
@@ -53129,134 +52696,68 @@ const AlertLayer = ({
   confirmText = "Confirm",
   cancelText = "Cancel"
 }) => {
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+  return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
     PopupLayer,
     {
       title,
-      content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex flex-col items-center gap-4", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("p", { className: "leading-[1.6]", children: message }, void 0, false, {
-        fileName: "/Users/neiz/digivice/apps/client/src/layers/AlertLayer.tsx",
-        lineNumber: 27,
-        columnNumber: 13
-      }, void 0) }, void 0, false, {
-        fileName: "/Users/neiz/digivice/apps/client/src/layers/AlertLayer.tsx",
-        lineNumber: 26,
-        columnNumber: 11
-      }, void 0),
+      content: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex flex-col items-center gap-4", children: /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "leading-[1.6]", children: message }) }),
       onConfirm: onClose,
       onCancel,
       confirmText,
       cancelText
-    },
-    void 0,
-    false,
-    {
-      fileName: "/Users/neiz/digivice/apps/client/src/layers/AlertLayer.tsx",
-      lineNumber: 23,
-      columnNumber: 7
-    },
-    void 0
-  ) }, void 0, false, {
-    fileName: "/Users/neiz/digivice/apps/client/src/layers/AlertLayer.tsx",
-    lineNumber: 22,
-    columnNumber: 5
-  }, void 0);
+    }
+  ) });
 };
 const FlappyBirdGameOverLayer = ({
   onRestart,
   onExit
 }) => {
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "absolute inset-0 z-[50] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex w-full max-w-[22rem] flex-col items-center gap-5 px-4 text-center text-white", children: [
-    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-[2.25rem] font-bold tracking-[0.12em] uppercase drop-shadow-[0_2px_6px_rgba(0,0,0,0.65)]", children: "Game Over" }, void 0, false, {
-      fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdGameOverLayer.tsx",
-      lineNumber: 17,
-      columnNumber: 9
-    }, void 0),
-    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex justify-center gap-[15px]", children: [
-      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+  return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-[50] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex w-full max-w-[22rem] flex-col items-center gap-5 px-4 text-center text-white", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-[2.25rem] font-bold tracking-[0.12em] uppercase drop-shadow-[0_2px_6px_rgba(0,0,0,0.65)]", children: "Game Over" }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex justify-center gap-[15px]", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx(
         "button",
         {
           type: "button",
           onClick: onExit,
           className: "text-[1.5rem] bg-component-negative text-white border-2 border-[#222] px-[15px] py-0.5 cursor-pointer uppercase shadow-[2px_2px_0_#222] relative top-0 left-0 transition-all duration-50",
           children: "Exit"
-        },
-        void 0,
-        false,
-        {
-          fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdGameOverLayer.tsx",
-          lineNumber: 21,
-          columnNumber: 11
-        },
-        void 0
+        }
       ),
-      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+      /* @__PURE__ */ jsxRuntimeExports.jsx(
         "button",
         {
           type: "button",
           onClick: onRestart,
           className: "text-[1.5rem] bg-component-positive text-white border-2 border-[#222] px-[15px] py-0.5 cursor-pointer uppercase shadow-[2px_2px_0_#222]",
           children: "Retry"
-        },
-        void 0,
-        false,
-        {
-          fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdGameOverLayer.tsx",
-          lineNumber: 28,
-          columnNumber: 11
-        },
-        void 0
+        }
       )
-    ] }, void 0, true, {
-      fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdGameOverLayer.tsx",
-      lineNumber: 20,
-      columnNumber: 9
-    }, void 0)
-  ] }, void 0, true, {
-    fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdGameOverLayer.tsx",
-    lineNumber: 16,
-    columnNumber: 7
-  }, void 0) }, void 0, false, {
-    fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdGameOverLayer.tsx",
-    lineNumber: 15,
-    columnNumber: 5
-  }, void 0);
+    ] })
+  ] }) });
 };
 const ToggleButton$1 = ({ enabled, onClick }) => {
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(
     "button",
     {
       type: "button",
       onClick,
       className: `min-w-20 border-2 border-[#222] px-4 py-0.5 font-bold text-white ${enabled ? "bg-component-positive" : "bg-gray-400"}`,
       children: enabled ? "ON" : "OFF"
-    },
-    void 0,
-    false,
-    {
-      fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
-      lineNumber: 28,
-      columnNumber: 5
-    },
-    void 0
+    }
   );
 };
-const SelectButton = ({ active, label, onClick }) => {
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+const ActionButton$1 = ({ text, onClick, disabled = false, variant = "positive" }) => {
+  const backgroundClass = disabled ? "cursor-wait bg-gray-400 opacity-60" : variant === "warning" ? "bg-yellow-500" : variant === "negative" ? "bg-component-negative" : "bg-component-positive";
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(
     "button",
     {
       type: "button",
+      disabled,
       onClick,
-      className: `border-2 border-[#222] px-3 py-0.5 font-bold ${active ? "bg-component-positive text-white" : "bg-white text-[#222]"}`,
-      children: label
-    },
-    void 0,
-    false,
-    {
-      fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
-      lineNumber: 46,
-      columnNumber: 5
-    },
-    void 0
+      className: `flex min-w-20 items-center justify-center border-2 border-[#222] px-4 py-0.5 text-center font-bold text-white ${backgroundClass}`,
+      children: text
+    }
   );
 };
 const FlappyBirdSettingsLayer = ({
@@ -53266,140 +52767,60 @@ const FlappyBirdSettingsLayer = ({
   onChangeSfx,
   selectedTimeOfDay,
   onSelectTimeOfDay,
+  onSendLogs,
+  isSendingLogs = false,
   onResume,
   onExit
 }) => {
-  const shouldShowSkySelector = selectedTimeOfDay !== void 0 && onSelectTimeOfDay !== void 0;
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "fixed inset-0 z-[50] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+  return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 z-[50] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
     PopupLayer,
     {
       title: "Settings",
       suppressInitialActionsMs: 180,
-      content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex flex-col gap-5 text-left text-[1.5rem]", children: [
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-gray-600", children: "The game is paused." }, void 0, false, {
-          fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
-          lineNumber: 81,
-          columnNumber: 13
-        }, void 0),
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex items-center justify-between gap-4", children: [
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "font-bold", children: "BGM" }, void 0, false, {
-            fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
-            lineNumber: 85,
-            columnNumber: 17
-          }, void 0) }, void 0, false, {
-            fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
-            lineNumber: 84,
-            columnNumber: 15
-          }, void 0),
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
-            ToggleButton$1,
+      content: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-5 text-left text-[1.5rem]", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-4", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between gap-4", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "font-bold", children: "BGM" }) }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              ToggleButton$1,
+              {
+                enabled: isBgmEnabled,
+                onClick: () => onChangeBgm(!isBgmEnabled)
+              }
+            )
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between gap-4", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "font-bold", children: "SFX" }) }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              ToggleButton$1,
+              {
+                enabled: isSfxEnabled,
+                onClick: () => onChangeSfx(!isSfxEnabled)
+              }
+            )
+          ] })
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "border-t-2 border-[#222] pt-4", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between gap-4", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "font-bold", children: "Report Bug" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            ActionButton$1,
             {
-              enabled: isBgmEnabled,
-              onClick: () => onChangeBgm(!isBgmEnabled)
-            },
-            void 0,
-            false,
-            {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
-              lineNumber: 87,
-              columnNumber: 15
-            },
-            void 0
+              text: isSendingLogs ? "Preparing..." : "Send",
+              onClick: onSendLogs,
+              disabled: isSendingLogs,
+              variant: "warning"
+            }
           )
-        ] }, void 0, true, {
-          fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
-          lineNumber: 83,
-          columnNumber: 13
-        }, void 0),
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "border-t-2 border-[#222] pt-4", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex items-center justify-between gap-4", children: [
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "font-bold", children: "SFX" }, void 0, false, {
-            fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
-            lineNumber: 96,
-            columnNumber: 19
-          }, void 0) }, void 0, false, {
-            fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
-            lineNumber: 95,
-            columnNumber: 17
-          }, void 0),
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
-            ToggleButton$1,
-            {
-              enabled: isSfxEnabled,
-              onClick: () => onChangeSfx(!isSfxEnabled)
-            },
-            void 0,
-            false,
-            {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
-              lineNumber: 98,
-              columnNumber: 17
-            },
-            void 0
-          )
-        ] }, void 0, true, {
-          fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
-          lineNumber: 94,
-          columnNumber: 15
-        }, void 0) }, void 0, false, {
-          fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
-          lineNumber: 93,
-          columnNumber: 13
-        }, void 0),
-        shouldShowSkySelector ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "border-t-2 border-[#222] pt-4", children: [
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "mb-3 font-bold", children: "Sky Dev" }, void 0, false, {
-            fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
-            lineNumber: 107,
-            columnNumber: 17
-          }, void 0),
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "grid grid-cols-2 gap-2", children: TIME_OF_DAY_OPTIONS.map((timeOfDay) => /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
-            SelectButton,
-            {
-              active: selectedTimeOfDay === timeOfDay,
-              label: getTimeOfDayLabel(timeOfDay),
-              onClick: () => onSelectTimeOfDay(timeOfDay)
-            },
-            timeOfDay,
-            false,
-            {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
-              lineNumber: 110,
-              columnNumber: 21
-            },
-            void 0
-          )) }, void 0, false, {
-            fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
-            lineNumber: 108,
-            columnNumber: 17
-          }, void 0)
-        ] }, void 0, true, {
-          fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
-          lineNumber: 106,
-          columnNumber: 15
-        }, void 0) : null
-      ] }, void 0, true, {
-        fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
-        lineNumber: 80,
-        columnNumber: 11
-      }, void 0),
+        ] }) }),
+        null
+      ] }),
       onConfirm: onResume,
       onCancel: onExit,
       confirmText: "Resume",
       cancelText: "Exit",
       initialFocusTarget: "confirm"
-    },
-    void 0,
-    false,
-    {
-      fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
-      lineNumber: 76,
-      columnNumber: 7
-    },
-    void 0
-  ) }, void 0, false, {
-    fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
-    lineNumber: 75,
-    columnNumber: 5
-  }, void 0);
+    }
+  ) });
 };
 const FONT_NOTICE = {
   name: "Neo둥근모 Pro",
@@ -53409,27 +52830,19 @@ const FONT_NOTICE = {
   ]
 };
 const ToggleButton = ({ enabled, onClick }) => {
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(
     "button",
     {
       type: "button",
       onClick,
       className: `min-w-20 border-2 border-[#222] px-4 py-0.5 font-bold text-white ${enabled ? "bg-component-positive" : "bg-gray-400"}`,
       children: enabled ? "ON" : "OFF"
-    },
-    void 0,
-    false,
-    {
-      fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-      lineNumber: 31,
-      columnNumber: 5
-    },
-    void 0
+    }
   );
 };
 const ActionButton = ({ text, onClick, disabled = false, variant = "positive" }) => {
   const backgroundClass = disabled ? "cursor-wait bg-gray-400 opacity-60" : variant === "warning" ? "bg-yellow-500" : variant === "negative" ? "bg-component-negative" : "bg-component-positive";
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(
     "button",
     {
       type: "button",
@@ -53437,15 +52850,7 @@ const ActionButton = ({ text, onClick, disabled = false, variant = "positive" })
       onClick,
       className: `flex min-w-20 items-center justify-center border-2 border-[#222] px-4 py-0.5 text-center font-bold text-white ${backgroundClass}`,
       children: text
-    },
-    void 0,
-    false,
-    {
-      fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-      lineNumber: 58,
-      columnNumber: 5
-    },
-    void 0
+    }
   );
 };
 const SettingMenuLayer = ({
@@ -53466,126 +52871,50 @@ const SettingMenuLayer = ({
     () => resetConfirmText.trim() === "confirm",
     [resetConfirmText]
   );
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50", children: [
-    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx(
       PopupLayer,
       {
         title: "Settings",
         suppressInitialActionsMs: 180,
-        topLeftContent: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-[10px] leading-none text-gray-500", children: releaseLabel }, void 0, false, {
-          fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-          lineNumber: 95,
-          columnNumber: 11
-        }, void 0),
-        content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex flex-col gap-5 text-left text-[1.5rem]", children: [
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex items-center justify-between gap-4", children: [
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "font-bold", children: "Vibration" }, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 103,
-              columnNumber: 17
-            }, void 0) }, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 102,
-              columnNumber: 15
-            }, void 0),
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+        topLeftContent: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-[10px] leading-none text-gray-500", children: releaseLabel }),
+        content: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-5 text-left text-[1.5rem]", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between gap-4", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "font-bold", children: "Vibration" }) }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
               ToggleButton,
               {
                 enabled: vibrationEnabled,
                 onClick: () => onChangeVibration(!vibrationEnabled)
-              },
-              void 0,
-              false,
-              {
-                fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-                lineNumber: 105,
-                columnNumber: 15
-              },
-              void 0
+              }
             )
-          ] }, void 0, true, {
-            fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-            lineNumber: 101,
-            columnNumber: 13
-          }, void 0),
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "border-t-2 border-[#222] pt-4", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex items-center justify-between gap-4", children: [
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "font-bold", children: "Report Bug" }, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 113,
-              columnNumber: 17
-            }, void 0),
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "border-t-2 border-[#222] pt-4", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between gap-4", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "font-bold", children: "Report Bug" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
               ActionButton,
               {
                 text: "Send",
                 onClick: onSendDiagnostics,
                 disabled: isSendingDiagnostics,
                 variant: "warning"
-              },
-              void 0,
-              false,
-              {
-                fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-                lineNumber: 114,
-                columnNumber: 17
-              },
-              void 0
+              }
             )
-          ] }, void 0, true, {
-            fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-            lineNumber: 112,
-            columnNumber: 15
-          }, void 0) }, void 0, false, {
-            fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-            lineNumber: 111,
-            columnNumber: 13
-          }, void 0),
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "border-t-2 border-[#222] pt-4", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex items-center justify-between gap-4", children: [
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "font-bold", children: "License" }, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 126,
-              columnNumber: 19
-            }, void 0) }, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 125,
-              columnNumber: 17
-            }, void 0),
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+          ] }) }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "border-t-2 border-[#222] pt-4", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between gap-4", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "font-bold", children: "License" }) }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
               ActionButton,
               {
                 text: "View",
                 onClick: () => setShowFontNotice(true)
-              },
-              void 0,
-              false,
-              {
-                fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-                lineNumber: 128,
-                columnNumber: 17
-              },
-              void 0
+              }
             )
-          ] }, void 0, true, {
-            fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-            lineNumber: 124,
-            columnNumber: 15
-          }, void 0) }, void 0, false, {
-            fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-            lineNumber: 123,
-            columnNumber: 13
-          }, void 0),
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "border-t-2 border-[#222] pt-4", children: [
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "font-bold text-red-600", children: "Raise a New Monster" }, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 137,
-              columnNumber: 17
-            }, void 0) }, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 136,
-              columnNumber: 15
-            }, void 0),
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "mt-3 flex items-center justify-between gap-3", children: [
-              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+          ] }) }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "border-t-2 border-[#222] pt-4", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "font-bold text-red-600", children: "Raise a New Monster" }) }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mt-3 flex items-center justify-between gap-3", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "input",
                 {
                   type: "text",
@@ -53593,17 +52922,9 @@ const SettingMenuLayer = ({
                   onChange: (event) => setResetConfirmText(event.target.value),
                   placeholder: "confirm",
                   className: "w-40 border-2 border-[#222] px-3 py-0.5 text-center placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#d95763]"
-                },
-                void 0,
-                false,
-                {
-                  fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-                  lineNumber: 142,
-                  columnNumber: 17
-                },
-                void 0
+                }
               ),
-              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "button",
                 {
                   type: "button",
@@ -53611,128 +52932,49 @@ const SettingMenuLayer = ({
                   onClick: onOpenResetConfirm,
                   className: `border-2 border-[#222] px-4 py-0.5 font-bold text-white ${isResetEnabled ? "bg-component-negative" : "cursor-not-allowed bg-gray-400 opacity-60"}`,
                   children: "Reset"
-                },
-                void 0,
-                false,
-                {
-                  fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-                  lineNumber: 149,
-                  columnNumber: 17
-                },
-                void 0
+                }
               )
-            ] }, void 0, true, {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 141,
-              columnNumber: 15
-            }, void 0)
-          ] }, void 0, true, {
-            fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-            lineNumber: 135,
-            columnNumber: 13
-          }, void 0)
-        ] }, void 0, true, {
-          fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-          lineNumber: 100,
-          columnNumber: 11
-        }, void 0),
+            ] })
+          ] })
+        ] }),
         onConfirm: onClose,
         confirmText: "Close"
-      },
-      void 0,
-      false,
-      {
-        fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-        lineNumber: 91,
-        columnNumber: 7
-      },
-      void 0
+      }
     ),
-    showFontNotice && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+    showFontNotice && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
       PopupLayer,
       {
         title: "License",
-        content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-left text-[1rem] leading-[1.4]", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "space-y-1 leading-[1.35]", children: [
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "break-all font-bold", children: FONT_NOTICE.name }, void 0, false, {
-            fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-            lineNumber: 175,
-            columnNumber: 19
-          }, void 0),
-          FONT_NOTICE.lines.map((line) => /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+        content: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-left text-[1rem] leading-[1.4]", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-1 leading-[1.35]", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "break-all font-bold", children: FONT_NOTICE.name }),
+          FONT_NOTICE.lines.map((line) => /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
             {
               className: "break-all text-[0.95rem] text-gray-600",
               children: line
             },
-            line,
-            false,
-            {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 177,
-              columnNumber: 21
-            },
-            void 0
+            line
           ))
-        ] }, void 0, true, {
-          fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-          lineNumber: 174,
-          columnNumber: 17
-        }, void 0) }, void 0, false, {
-          fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-          lineNumber: 173,
-          columnNumber: 15
-        }, void 0),
+        ] }) }),
         onConfirm: () => setShowFontNotice(false),
         confirmText: "Close"
-      },
-      void 0,
-      false,
-      {
-        fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-        lineNumber: 170,
-        columnNumber: 11
-      },
-      void 0
-    ) }, void 0, false, {
-      fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-      lineNumber: 169,
-      columnNumber: 9
-    }, void 0),
-    showFinalResetConfirm && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+      }
+    ) }),
+    showFinalResetConfirm && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
       PopupLayer,
       {
-        title: "Reset?",
-        content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "leading-[1.6]", children: "This will permanently delete your current monster and all progress. You'll return to the setup screen to hatch a new one." }, void 0, false, {
-          fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-          lineNumber: 197,
-          columnNumber: 15
-        }, void 0),
+        title: "❗️Reset?",
+        content: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "leading-[1.6]", children: "This will permanently delete your current monster and all progress. You'll return to the setup screen to hatch a new one." }),
         onConfirm: onResetGameData,
         onCancel: onCloseResetConfirm,
         confirmText: "Reset",
         cancelText: "Cancel",
         confirmVariant: "negative",
         cancelVariant: "positive",
-        confirmEnableDelayMs: 3e3
-      },
-      void 0,
-      false,
-      {
-        fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-        lineNumber: 194,
-        columnNumber: 11
-      },
-      void 0
-    ) }, void 0, false, {
-      fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-      lineNumber: 193,
-      columnNumber: 9
-    }, void 0)
-  ] }, void 0, true, {
-    fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-    lineNumber: 90,
-    columnNumber: 5
-  }, void 0);
+        confirmEnableDelayMs: 2e3
+      }
+    ) })
+  ] });
 };
 const useAlert = () => {
   const [alertState, setAlertState] = reactExports.useState(null);
@@ -54801,12 +54043,32 @@ function createDiagnosticsBody() {
     "- How can it be reproduced?"
   ].join("\n");
 }
+function createFlappyBirdLogsSubject(timestamp) {
+  return `[MonTTo][${getClientReleaseLabel()}] FlappyBird Logs ${timestamp}`;
+}
+function createFlappyBirdLogsBody() {
+  return [
+    `App version: ${getClientReleaseLabel()}`,
+    "",
+    "FlappyBird log files are attached.",
+    "",
+    "Please describe the minigame issue or symptoms you observed.",
+    "",
+    "- What happened during the game?",
+    "- When did it happen?",
+    "- What did you expect to happen?",
+    "- How can it be reproduced?"
+  ].join("\n");
+}
 function getClientReleaseLabel() {
-  return `${"0.4.1-debug"}+${8}`;
+  return `${"0.5.0-debug"}+${9}`;
 }
 function getClientReleaseFileLabel() {
-  const sanitizedVersion = "0.4.1-debug".replace(/[^a-zA-Z0-9.-]+/g, "_");
-  return `${sanitizedVersion}-build-${8}`;
+  const sanitizedVersion = "0.5.0-debug".replace(/[^a-zA-Z0-9.-]+/g, "_");
+  return `${sanitizedVersion}-build-${9}`;
+}
+function buildDiagnosticsTimestampSuffix(timestamp) {
+  return timestamp.replace(/\.\d{3}Z$/, "Z").replace(/[:]/g, "-");
 }
 function buildGmailComposeHref(subject, body) {
   const gmailComposeUrl = new URL("https://mail.google.com/mail/");
@@ -55452,9 +54714,9 @@ const GameContainer = () => {
     setDiagnosticsContextProvider(() => ({
       scene: (gameInstance == null ? void 0 : gameInstance.getCurrentSceneKey()) !== void 0 ? String(gameInstance.getCurrentSceneKey()) : void 0,
       storageKind: getClientStorageKind(),
-      appMode: "development",
-      appVersion: "0.4.1-debug",
-      buildNumber: 8,
+      appMode: "production",
+      appVersion: "0.5.0-debug",
+      buildNumber: 9,
       debugEnabled: isNativeFeatureDebugMode$1
     }));
     return () => {
@@ -55804,13 +55066,9 @@ const GameContainer = () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [interruptLoadingFlow]);
-  const handleSendDiagnostics = reactExports.useCallback(async () => {
-    var _a, _b, _c;
-    if (isSendingDiagnostics || pendingDiagnosticsDraft) {
-      return;
-    }
-    setIsSendingDiagnostics(true);
-    try {
+  const prepareDiagnosticsDraft = reactExports.useCallback(
+    async (scope) => {
+      var _a, _b, _c;
       const storage = createClientStorage();
       const storedGameData = await storage.getData(WORLD_DATA_STORAGE_KEY);
       const storedFlappyBirdPerfHistory = await storage.getData(
@@ -55829,9 +55087,9 @@ const GameContainer = () => {
         generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
         appInfo: {
           project: "MonTTo",
-          clientAppVersion: "0.4.1-debug",
-          clientBuildNumber: 8,
-          appMode: "development",
+          clientAppVersion: "0.5.0-debug",
+          clientBuildNumber: 9,
+          appMode: "production",
           debugEnabled: isNativeFeatureDebugMode$1,
           storageKind: getClientStorageKind(),
           userAgent: navigator.userAgent,
@@ -55855,14 +55113,37 @@ const GameContainer = () => {
         lastValidationAction: ((_b = lastValidationResultRef.current) == null ? void 0 : _b.action) ?? null,
         lastValidationResetReason: ((_c = lastValidationResultRef.current) == null ? void 0 : _c.resetReason) ?? null
       };
-      const payloadText = JSON.stringify(payload, null, 2);
-      const subject = createDiagnosticsSubject(payload.generatedAt);
-      const body = createDiagnosticsBody();
       const releaseFileLabel = getClientReleaseFileLabel();
-      const timestampSuffix = payload.generatedAt.replace(/\.\d{3}Z$/, "Z").replace(/[:]/g, "-");
-      setPendingDiagnosticsDraft({
-        subject,
-        body,
+      const timestampSuffix = buildDiagnosticsTimestampSuffix(payload.generatedAt);
+      if (scope === "flappy_bird") {
+        return {
+          subject: createFlappyBirdLogsSubject(payload.generatedAt),
+          body: createFlappyBirdLogsBody(),
+          attachments: [
+            {
+              fileName: `montto-flappybird-perf-${releaseFileLabel}-${timestampSuffix}.json`,
+              text: JSON.stringify(
+                {
+                  currentFlappyBirdPerf: payload.currentFlappyBirdPerf,
+                  storedFlappyBirdPerfHistory: payload.storedFlappyBirdPerfHistory
+                },
+                null,
+                2
+              ),
+              mimeType: "application/json"
+            },
+            {
+              fileName: `montto-native-bridge-diagnostics-${releaseFileLabel}-${timestampSuffix}.json`,
+              text: JSON.stringify(payload.nativeBridgeDiagnostics, null, 2),
+              mimeType: "application/json"
+            }
+          ]
+        };
+      }
+      const payloadText = JSON.stringify(payload, null, 2);
+      return {
+        subject: createDiagnosticsSubject(payload.generatedAt),
+        body: createDiagnosticsBody(),
         attachments: [
           {
             fileName: `montto-diagnostics-${releaseFileLabel}-${timestampSuffix}.json`,
@@ -55897,7 +55178,17 @@ const GameContainer = () => {
             mimeType: "application/json"
           }
         ]
-      });
+      };
+    },
+    [gameInstance, gameSettings]
+  );
+  const handleSendDiagnostics = reactExports.useCallback(async () => {
+    if (isSendingDiagnostics || pendingDiagnosticsDraft) {
+      return;
+    }
+    setIsSendingDiagnostics(true);
+    try {
+      setPendingDiagnosticsDraft(await prepareDiagnosticsDraft("full"));
     } catch (error) {
       logImportantDiagnostics(
         "error",
@@ -55913,10 +55204,36 @@ const GameContainer = () => {
       setIsSendingDiagnostics(false);
     }
   }, [
-    gameInstance,
-    gameSettings,
     isSendingDiagnostics,
     pendingDiagnosticsDraft,
+    prepareDiagnosticsDraft,
+    showAlert
+  ]);
+  const handleSendFlappyBirdLogs = reactExports.useCallback(async () => {
+    if (isSendingDiagnostics || pendingDiagnosticsDraft) {
+      return;
+    }
+    setIsSendingDiagnostics(true);
+    try {
+      setPendingDiagnosticsDraft(await prepareDiagnosticsDraft("flappy_bird"));
+    } catch (error) {
+      logImportantDiagnostics(
+        "error",
+        "[ImportantDiagnostics][GameContainer] Failed to prepare flappybird log payload",
+        error
+      );
+      console.error(
+        "[GameContainer] Failed to prepare flappybird log payload",
+        error
+      );
+      showAlert("Failed to prepare FlappyBird logs.", "Error");
+    } finally {
+      setIsSendingDiagnostics(false);
+    }
+  }, [
+    isSendingDiagnostics,
+    pendingDiagnosticsDraft,
+    prepareDiagnosticsDraft,
     showAlert
   ]);
   const handleCancelDiagnosticsDraft = reactExports.useCallback(() => {
@@ -56650,12 +55967,12 @@ const GameContainer = () => {
     }, 0);
   }, [handleSendDiagnostics]);
   const isLoading = isBootstrapping || sceneTransitionLoadState.phase === "loading" || sceneTransitionLoadState.phase === "core_ready";
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs(
     "div",
     {
       className: "relative flex h-full min-h-0 w-full flex-col overflow-hidden",
       children: [
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+        /* @__PURE__ */ jsxRuntimeExports.jsxs(
           "div",
           {
             ref: gameViewportRef,
@@ -56664,12 +55981,8 @@ const GameContainer = () => {
               gridTemplateRows: buttonParams ? "minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr)" : "minmax(0, 1fr) auto minmax(0, 1fr)"
             },
             children: [
-              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { "aria-hidden": "true", className: "min-h-0" }, void 0, false, {
-                fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-                lineNumber: 2914,
-                columnNumber: 9
-              }, void 0),
-              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex min-h-0 min-w-0 justify-center overflow-hidden", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "aria-hidden": "true", className: "min-h-0" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex min-h-0 min-w-0 justify-center overflow-hidden", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "div",
                 {
                   className: "relative m-0 shrink-0 p-0",
@@ -56677,137 +55990,45 @@ const GameContainer = () => {
                     width: `${gameContainerSize}px`,
                     height: `${gameContainerSize}px`
                   } : void 0,
-                  children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+                  children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                     "div",
                     {
                       id: "game-container",
                       ref: gameContainerRef,
                       className: "absolute inset-0 m-0 p-0"
-                    },
-                    void 0,
-                    false,
-                    {
-                      fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-                      lineNumber: 2927,
-                      columnNumber: 13
-                    },
-                    void 0
+                    }
                   )
-                },
-                void 0,
-                false,
-                {
-                  fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-                  lineNumber: 2916,
-                  columnNumber: 11
-                },
-                void 0
-              ) }, void 0, false, {
-                fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-                lineNumber: 2915,
-                columnNumber: 9
-              }, void 0),
-              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { "aria-hidden": "true", className: "min-h-0" }, void 0, false, {
-                fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-                lineNumber: 2936,
-                columnNumber: 9
-              }, void 0),
-              buttonParams && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { ref: controlButtonsWrapperRef, className: "z-10 w-full", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+                }
+              ) }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "aria-hidden": "true", className: "min-h-0" }),
+              buttonParams && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: controlButtonsWrapperRef, className: "z-10 w-full", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                 ControlButtons,
                 {
                   buttonParams,
                   onButtonPress: handleButtonPress,
                   onSliderChange: handleSliderChange,
                   onSliderEnd: handleSliderEnd
-                },
-                void 0,
-                false,
-                {
-                  fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-                  lineNumber: 2940,
-                  columnNumber: 13
-                },
-                void 0
-              ) }, void 0, false, {
-                fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-                lineNumber: 2939,
-                columnNumber: 11
-              }, void 0),
-              buttonParams && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { "aria-hidden": "true", className: "min-h-0" }, void 0, false, {
-                fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-                lineNumber: 2948,
-                columnNumber: 26
-              }, void 0)
+                }
+              ) }),
+              buttonParams && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "aria-hidden": "true", className: "min-h-0" })
             ]
-          },
-          void 0,
-          true,
-          {
-            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 2905,
-            columnNumber: 7
-          },
-          void 0
+          }
         ),
-        isLoading && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "absolute inset-0 z-50 flex items-center justify-center bg-black text-white", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-center text-[2.25rem] tracking-[0.12em]", children: "Loading..." }, void 0, false, {
-          fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-          lineNumber: 2952,
-          columnNumber: 11
-        }, void 0) }, void 0, false, {
-          fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-          lineNumber: 2951,
-          columnNumber: 9
-        }, void 0),
-        unsupportedViewportReason && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "absolute inset-0 z-[1000] flex items-center justify-center bg-black text-white", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "px-6 text-center", children: [
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-lg tracking-[0.12em]", children: "Portrait Only" }, void 0, false, {
-            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 2960,
-            columnNumber: 13
-          }, void 0),
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "mt-6 text-[10px] leading-6 tracking-[0.12em]", children: unsupportedViewportReason === "landscape" ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(jsxDevRuntimeExports.Fragment, { children: [
+        isLoading && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-50 flex items-center justify-center bg-black text-white", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-center text-[2.25rem] tracking-[0.12em]", children: "Loading..." }) }),
+        unsupportedViewportReason && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-[1000] flex items-center justify-center bg-black text-white", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "px-6 text-center", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-lg tracking-[0.12em]", children: "Portrait Only" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "mt-6 text-[10px] leading-6 tracking-[0.12em]", children: unsupportedViewportReason === "landscape" ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
             "Please rotate your device",
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("br", {}, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-              lineNumber: 2965,
-              columnNumber: 19
-            }, void 0),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("br", {}),
             "back to portrait mode."
-          ] }, void 0, true, {
-            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 2963,
-            columnNumber: 17
-          }, void 0) : /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(jsxDevRuntimeExports.Fragment, { children: [
+          ] }) : /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
             "This screen ratio is not supported.",
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("br", {}, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-              lineNumber: 2971,
-              columnNumber: 19
-            }, void 0),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("br", {}),
             "Please use a taller portrait screen."
-          ] }, void 0, true, {
-            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 2969,
-            columnNumber: 17
-          }, void 0) }, void 0, false, {
-            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 2961,
-            columnNumber: 13
-          }, void 0)
-        ] }, void 0, true, {
-          fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-          lineNumber: 2959,
-          columnNumber: 11
-        }, void 0) }, void 0, false, {
-          fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-          lineNumber: 2958,
-          columnNumber: 9
-        }, void 0),
-        showSetupLayer && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(SetupLayer, { onComplete: handleSetupComplete }, void 0, false, {
-          fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-          lineNumber: 2979,
-          columnNumber: 26
-        }, void 0),
-        showSettingMenu && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+          ] }) })
+        ] }) }),
+        showSetupLayer && /* @__PURE__ */ jsxRuntimeExports.jsx(SetupLayer, { onComplete: handleSetupComplete }),
+        showSettingMenu && /* @__PURE__ */ jsxRuntimeExports.jsx(
           SettingMenuLayer,
           {
             releaseLabel: getClientReleaseLabel(),
@@ -56820,60 +56041,28 @@ const GameContainer = () => {
             onCloseResetConfirm: dismissResetConfirm,
             onResetGameData: handleResetGameData,
             onClose: dismissSettingMenu
-          },
-          void 0,
-          false,
-          {
-            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 2981,
-            columnNumber: 9
-          },
-          void 0
+          }
         ),
-        alertState && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+        alertState && /* @__PURE__ */ jsxRuntimeExports.jsx(
           AlertLayer,
           {
             title: alertState.title,
             message: alertState.message,
             onClose: dismissAlert
-          },
-          void 0,
-          false,
-          {
-            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 2995,
-            columnNumber: 9
-          },
-          void 0
+          }
         ),
-        loadingFailureAlert && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+        loadingFailureAlert && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
           PopupLayer,
           {
             title: loadingFailureAlert.title,
-            content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-left leading-[1.6]", children: loadingFailureAlert.message }, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-              lineNumber: 3006,
-              columnNumber: 15
-            }, void 0),
+            content: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-left leading-[1.6]", children: loadingFailureAlert.message }),
             onConfirm: dismissLoadingFailureAlert,
             onCancel: handleSendLoadingFailureLogs,
             confirmText: "Okay",
             cancelText: "Send Log"
-          },
-          void 0,
-          false,
-          {
-            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 3003,
-            columnNumber: 11
-          },
-          void 0
-        ) }, void 0, false, {
-          fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-          lineNumber: 3002,
-          columnNumber: 9
-        }, void 0),
-        sanitizeResetAlert && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+          }
+        ) }),
+        sanitizeResetAlert && /* @__PURE__ */ jsxRuntimeExports.jsx(
           AlertLayer,
           {
             title: sanitizeResetAlert.title,
@@ -56883,72 +56072,32 @@ const GameContainer = () => {
               void handleSendDiagnostics();
             },
             cancelText: isSendingDiagnostics ? "Sending..." : "Send Logs"
-          },
-          void 0,
-          false,
-          {
-            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 3018,
-            columnNumber: 9
-          },
-          void 0
+          }
         ),
-        pendingDiagnosticsDraft && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+        pendingDiagnosticsDraft && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
           PopupLayer,
           {
             title: "Open Gmail",
-            content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-left leading-[1.6]", children: [
-              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: "The Gmail app will open next." }, void 0, false, {
-                fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-                lineNumber: 3034,
-                columnNumber: 17
-              }, void 0),
-              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "mt-2", children: "The diagnostics files will be attached to the draft email." }, void 0, false, {
-                fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-                lineNumber: 3035,
-                columnNumber: 17
-              }, void 0)
-            ] }, void 0, true, {
-              fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-              lineNumber: 3033,
-              columnNumber: 15
-            }, void 0),
+            content: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "text-left leading-[1.6]", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: "The Gmail app will open next." }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "mt-2", children: "The diagnostics files will be attached to the draft email." })
+            ] }),
             onConfirm: handleConfirmDiagnosticsDraft,
             onCancel: handleCancelDiagnosticsDraft,
             confirmText: "CONFIRM",
             cancelText: "Cancel"
-          },
-          void 0,
-          false,
-          {
-            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 3030,
-            columnNumber: 11
-          },
-          void 0
-        ) }, void 0, false, {
-          fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-          lineNumber: 3029,
-          columnNumber: 9
-        }, void 0),
-        flappyBirdGameOverState && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+          }
+        ) }),
+        flappyBirdGameOverState && /* @__PURE__ */ jsxRuntimeExports.jsx(
           FlappyBirdGameOverLayer,
           {
             score: flappyBirdGameOverState.score,
             bestScore: flappyBirdGameOverState.bestScore,
             onRestart: handleFlappyBirdGameOverRestart,
             onExit: handleFlappyBirdGameOverExit
-          },
-          void 0,
-          false,
-          {
-            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 3048,
-            columnNumber: 9
-          },
-          void 0
+          }
         ),
-        flappyBirdSettingsMenuState && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+        flappyBirdSettingsMenuState && /* @__PURE__ */ jsxRuntimeExports.jsx(
           FlappyBirdSettingsLayer,
           {
             isBgmEnabled: flappyBirdSettingsMenuState.isBgmEnabled,
@@ -56957,28 +56106,14 @@ const GameContainer = () => {
             onChangeSfx: handleFlappyBirdSettingsMenuChangeSfx,
             selectedTimeOfDay: flappyBirdSettingsMenuState.selectedTimeOfDay,
             onSelectTimeOfDay: handleFlappyBirdSettingsMenuSelectTimeOfDay,
+            onSendLogs: handleSendFlappyBirdLogs,
+            isSendingLogs: isSendingDiagnostics || pendingDiagnosticsDraft !== null,
             onResume: handleFlappyBirdSettingsMenuResume,
             onExit: handleFlappyBirdSettingsMenuExit
-          },
-          void 0,
-          false,
-          {
-            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 3056,
-            columnNumber: 9
-          },
-          void 0
+          }
         )
       ]
-    },
-    void 0,
-    true,
-    {
-      fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-      lineNumber: 2902,
-      columnNumber: 5
-    },
-    void 0
+    }
   );
 };
 const COOLDOWN_KEY = "ad_last_shown_timestamp";
@@ -57162,7 +56297,7 @@ class FlappyBirdGameOverPolicy {
     return 9;
   }
 }
-const DEFAULT_MAIN_SCENE_MENU_COOLDOWN_MS = 5 * 60 * 1e3;
+const DEFAULT_MAIN_SCENE_MENU_COOLDOWN_MS = 2 * 60 * 1e3;
 function resolveCooldownMs(metadata) {
   const cooldownMs = metadata == null ? void 0 : metadata.cooldownMs;
   if (typeof cooldownMs === "number" && Number.isFinite(cooldownMs) && cooldownMs > 0) {
@@ -57267,41 +56402,21 @@ const App = () => {
     const now = Date.now();
     localStorage.setItem(LAST_ACTIVE_KEY, now.toString());
   };
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { id: "app-shell", children: [
-    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(TopLeftBuildLogoText, {}, void 0, false, {
-      fileName: "/Users/neiz/digivice/apps/client/src/App.tsx",
-      lineNumber: 118,
-      columnNumber: 7
-    }, void 0),
-    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { id: "app-container", children: [
-      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(GameContainer, {}, void 0, false, {
-        fileName: "/Users/neiz/digivice/apps/client/src/App.tsx",
-        lineNumber: 120,
-        columnNumber: 9
-      }, void 0),
-      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(SimpleLogViewer, { position: "top-right", initialOpen: false }, void 0, false, {
-        fileName: "/Users/neiz/digivice/apps/client/src/App.tsx",
-        lineNumber: 121,
-        columnNumber: 9
-      }, void 0)
-    ] }, void 0, true, {
-      fileName: "/Users/neiz/digivice/apps/client/src/App.tsx",
-      lineNumber: 119,
-      columnNumber: 7
-    }, void 0)
-  ] }, void 0, true, {
-    fileName: "/Users/neiz/digivice/apps/client/src/App.tsx",
-    lineNumber: 117,
-    columnNumber: 5
-  }, void 0);
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { id: "app-shell", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx(TopLeftBuildLogoText, {}),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { id: "app-container", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx(GameContainer, {}),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(SimpleLogViewer, { position: "top-right", initialOpen: false })
+    ] })
+  ] });
 };
 const platformAdapter = new PlatformAdapter();
 const isNativeFeatureDebugMode = true;
 installDiagnosticsConsoleCapture();
 setDiagnosticsContextProvider(() => ({
-  appMode: "development",
-  appVersion: "0.4.1-debug",
-  buildNumber: 8,
+  appMode: "production",
+  appVersion: "0.5.0-debug",
+  buildNumber: 9,
   debugEnabled: isNativeFeatureDebugMode
 }));
 document.addEventListener("DOMContentLoaded", () => {
@@ -57337,15 +56452,7 @@ async function bootstrap() {
   }
   const root = ReactDOM.createRoot(rootElement);
   root.render(
-    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(jsxDevRuntimeExports.Fragment, { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(App, {}, void 0, false, {
-      fileName: "/Users/neiz/digivice/apps/client/src/main.tsx",
-      lineNumber: 85,
-      columnNumber: 7
-    }, this) }, void 0, false, {
-      fileName: "/Users/neiz/digivice/apps/client/src/main.tsx",
-      lineNumber: 84,
-      columnNumber: 5
-    }, this)
+    /* @__PURE__ */ jsxRuntimeExports.jsx(jsxRuntimeExports.Fragment, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(App, {}) })
   );
 }
 void bootstrap();
