@@ -36,6 +36,8 @@ const previousStatusStates: Map<number, CharacterStatus[]> = new Map();
 const staminaTimers: Map<number, number> = new Map();
 const evolutionGaugeTimers: Map<number, number> = new Map();
 const TIMER_EPSILON_MS = 0.000001;
+const TEMPORARY_STATUSES = [CharacterStatus.HAPPY, CharacterStatus.DISCOVER];
+const debugLog = (..._args: unknown[]): void => {};
 
 export function resetCharacterManageSystemStateForTests(): void {
   staminaTimers.clear();
@@ -62,6 +64,10 @@ function getElapsedIntervalProgress(
 // world 인스턴스를 저장 (addCharacterStatus에서 사용)
 let _cachedWorld: MainSceneWorld | null = null;
 
+function isTemporaryStatus(status: CharacterStatus): boolean {
+  return TEMPORARY_STATUSES.includes(status);
+}
+
 export function characterManagerSystem(params: {
   world: MainSceneWorld;
   delta: number;
@@ -82,7 +88,7 @@ export function characterManagerSystem(params: {
     if (ObjectComp.state[eid] === CharacterState.EGG) {
       if (!isEggTextureKey(RenderComp.textureKey[eid])) {
         RenderComp.textureKey[eid] = getRandomEggTextureKey();
-        console.log(
+        debugLog(
           `[CharacterManagerSystem] Assigned random egg texture ${RenderComp.textureKey[eid]} for character ${eid}`,
         );
       }
@@ -95,7 +101,7 @@ export function characterManagerSystem(params: {
       // 알 텍스처에서 벗어났다면 정적 텍스처를 ECS_NULL_VALUE로 설정하여 애니메이션 시스템이 처리하도록 함
       if (isEggTextureKey(RenderComp.textureKey[eid])) {
         RenderComp.textureKey[eid] = ECS_NULL_VALUE;
-        console.log(
+        debugLog(
           `[CharacterManagerSystem] Cleared static texture for hatched character ${eid}, animation system will handle rendering`,
         );
       }
@@ -120,7 +126,7 @@ export function characterManagerSystem(params: {
     const statusesChanged = !arraysEqual(previousStatuses, currentStatuses);
 
     if (statusesChanged) {
-      console.log(
+      debugLog(
         `[CharacterManagerSystem] Status changed for entity ${eid}:`,
         {
           previous: previousStatuses,
@@ -179,21 +185,31 @@ function syncStatusIconRenderComp(
   // visibleCount 업데이트
   StatusIconRenderComp.visibleCount[eid] = currentStatuses.length;
 
-  console.log(
+  debugLog(
     `[CharacterManagerSystem] Synced StatusIconRenderComp for entity ${eid}: ${currentStatuses.length} statuses`,
   );
 }
 
 export function addCharacterStatus(eid: number, status: CharacterStatus): void {
   const currentStatuses = CharacterStatusComp.statuses[eid];
-  console.log(
+  debugLog(
     `[addCharacterStatus] Current statuses for entity ${eid}:`,
     Array.from(currentStatuses),
   );
 
+  if (
+    isTemporaryStatus(status) &&
+    ObjectComp.state[eid] === CharacterState.SLEEPING
+  ) {
+    debugLog(
+      `[addCharacterStatus] Skipped temporary status ${status} for sleeping entity ${eid}`,
+    );
+    return;
+  }
+
   // 이미 해당 상태가 있는지 확인
   if (currentStatuses.includes(status)) {
-    console.log(
+    debugLog(
       `[addCharacterStatus] Status ${status} already exists for entity ${eid}`,
     );
     return;
@@ -205,32 +221,25 @@ export function addCharacterStatus(eid: number, status: CharacterStatus): void {
       currentStatuses[i] = status;
 
       // 일시적 상태인 경우 TemporaryStatusComp 직접 설정
-      if (
-        status === CharacterStatus.HAPPY ||
-        status === CharacterStatus.DISCOVER
-      ) {
-        // world가 필요한 경우에만 체크
-        if (_cachedWorld) {
-          // TemporaryStatusComp가 없으면 추가
-          if (!hasComponent(_cachedWorld, TemporaryStatusComp, eid)) {
-            addComponent(_cachedWorld, TemporaryStatusComp, eid);
-          }
-
-          const currentTime = _cachedWorld.currentTime;
-          TemporaryStatusComp.statusType[eid] = status;
-          TemporaryStatusComp.startTime[eid] = currentTime;
-
-          console.log(
-            `[addCharacterStatus] Set temporary status ${status} for entity ${eid}, expires at ${currentTime + 3000}`,
-          );
-        } else {
-          console.warn(
-            `[addCharacterStatus] Cannot set temporary status: world not cached`,
-          );
+      if (isTemporaryStatus(status)) {
+        if (
+          _cachedWorld &&
+          hasComponent(_cachedWorld, ObjectComp, eid) &&
+          !hasComponent(_cachedWorld, TemporaryStatusComp, eid)
+        ) {
+          addComponent(_cachedWorld, TemporaryStatusComp, eid);
         }
+
+        const currentTime = _cachedWorld?.currentTime ?? Date.now();
+        TemporaryStatusComp.statusType[eid] = status;
+        TemporaryStatusComp.startTime[eid] = currentTime;
+
+        debugLog(
+          `[addCharacterStatus] Set temporary status ${status} for entity ${eid}, expires at ${currentTime + 3000}`,
+        );
       }
 
-      console.log(
+      debugLog(
         `[addCharacterStatus] Added status ${status} to entity ${eid} at slot ${i}. New statuses:`,
         Array.from(currentStatuses),
       );
@@ -264,12 +273,78 @@ export function applyReentryHappyStatusForFullStaminaCharacters(
       continue;
     }
 
-    if (CharacterStatusComp.stamina[eid] < GAME_CONSTANTS.MAX_STAMINA) {
-      continue;
-    }
-
-    addCharacterStatus(eid, CharacterStatus.HAPPY);
+    applyHappyStatusForFullStaminaCharacterIfEligible(world, eid);
   }
+}
+
+export function applyHappyStatusForFullStaminaCharacterIfEligible(
+  world: MainSceneWorld,
+  eid: number,
+): boolean {
+  _cachedWorld = world;
+
+  if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
+    return false;
+  }
+
+  if (
+    ObjectComp.state[eid] === CharacterState.EGG ||
+    ObjectComp.state[eid] === CharacterState.DEAD ||
+    ObjectComp.state[eid] === CharacterState.SICK ||
+    ObjectComp.state[eid] === CharacterState.SLEEPING
+  ) {
+    return false;
+  }
+
+  if (CharacterStatusComp.stamina[eid] < GAME_CONSTANTS.MAX_STAMINA) {
+    return false;
+  }
+
+  if (hasCharacterStatus(eid, CharacterStatus.SICK)) {
+    return false;
+  }
+
+  addCharacterStatus(eid, CharacterStatus.HAPPY);
+  return true;
+}
+
+export function clearTemporaryStatuses(
+  world: MainSceneWorld,
+  eid: number,
+): boolean {
+  _cachedWorld = world;
+
+  if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
+    return false;
+  }
+
+  let cleared = false;
+  const currentStatuses = CharacterStatusComp.statuses[eid];
+
+  for (let i = 0; i < currentStatuses.length; i++) {
+    if (isTemporaryStatus(currentStatuses[i] as CharacterStatus)) {
+      currentStatuses[i] = ECS_NULL_VALUE;
+      cleared = true;
+    }
+  }
+
+  if (hasComponent(world, TemporaryStatusComp, eid)) {
+    const temporaryStatusType = TemporaryStatusComp.statusType[eid];
+    if (isTemporaryStatus(temporaryStatusType as CharacterStatus)) {
+      TemporaryStatusComp.statusType[eid] = ECS_NULL_VALUE;
+      TemporaryStatusComp.startTime[eid] = 0;
+      cleared = true;
+    }
+  }
+
+  if (cleared) {
+    debugLog(
+      `[clearTemporaryStatuses] Cleared temporary statuses for entity ${eid}. New statuses:`,
+      Array.from(currentStatuses),
+    );
+  }
+
+  return cleared;
 }
 
 export function removeCharacterStatus(
@@ -282,7 +357,7 @@ export function removeCharacterStatus(
   for (let i = 0; i < currentStatuses.length; i++) {
     if (currentStatuses[i] === status) {
       currentStatuses[i] = ECS_NULL_VALUE;
-      console.log(
+      debugLog(
         `[removeCharacterStatus] Removed status ${status} from entity ${eid} at slot ${i}. New statuses:`,
         Array.from(currentStatuses),
       );
@@ -309,7 +384,7 @@ export function setCharacterStamina(eid: number, stamina: number): void {
     Math.min(GAME_CONSTANTS.MAX_STAMINA, stamina),
   );
   CharacterStatusComp.stamina[eid] = clampedStamina;
-  console.log(
+  debugLog(
     `[CharacterManagerSystem] Set stamina for entity ${eid}: ${clampedStamina}`,
   );
 }
@@ -317,7 +392,7 @@ export function setCharacterStamina(eid: number, stamina: number): void {
 export function setCharacterEvolutionGauge(eid: number, gauge: number): void {
   const clampedGauge = Math.max(0, Math.min(getMaxEvolutionGauge(), gauge));
   CharacterStatusComp.evolutionGage[eid] = clampedGauge;
-  console.log(
+  debugLog(
     `[CharacterManagerSystem] Set evolution gauge for entity ${eid}: ${clampedGauge}`,
   );
 }
@@ -371,7 +446,7 @@ export function clearCharacterStatuses(eid: number): void {
   for (let i = 0; i < currentStatuses.length; i++) {
     currentStatuses[i] = ECS_NULL_VALUE;
   }
-  console.log(
+  debugLog(
     `[clearCharacterStatuses] Cleared all statuses for entity ${eid}. New statuses:`,
     Array.from(currentStatuses),
   );
@@ -446,7 +521,7 @@ function decreaseStamina(eid: number): void {
   );
   CharacterStatusComp.stamina[eid] = newStamina;
 
-  console.log(
+  debugLog(
     `[CharacterManagerSystem] Stamina decreased for entity ${eid}: ${currentStamina} -> ${newStamina}`,
   );
 }
@@ -460,7 +535,7 @@ export function validateAndFixStatusIcons(world: MainSceneWorld): void {
   const characters = characterQuery(world);
   let fixedCount = 0;
 
-  console.log(
+  debugLog(
     "[CharacterManagerSystem] Validating status icons for loaded entities...",
   );
 
@@ -475,6 +550,14 @@ export function validateAndFixStatusIcons(world: MainSceneWorld): void {
     const now = world.currentTime;
     let statusModified = false;
 
+    if (
+      ObjectComp.state[eid] === CharacterState.SLEEPING &&
+      clearTemporaryStatuses(world, eid)
+    ) {
+      statusModified = true;
+      fixedCount++;
+    }
+
     // 1. TemporaryStatusComp가 있는 경우 만료 체크
     if (hasComponent(world, TemporaryStatusComp, eid)) {
       const statusType = TemporaryStatusComp.statusType[eid];
@@ -485,7 +568,7 @@ export function validateAndFixStatusIcons(world: MainSceneWorld): void {
 
         // 3초 이상 경과한 경우 제거
         if (elapsedTime >= 3000) {
-          console.log(
+          debugLog(
             `[CharacterManagerSystem] Removing expired temporary status ${statusType} from entity ${eid} (elapsed: ${elapsedTime}ms)`,
           );
 
@@ -507,15 +590,16 @@ export function validateAndFixStatusIcons(world: MainSceneWorld): void {
     }
 
     // 2. statuses 배열에 임시 상태가 있는데 TemporaryStatusComp가 없거나 동기화 안된 경우
-    const temporaryStatuses = [CharacterStatus.HAPPY, CharacterStatus.DISCOVER];
-
     for (let j = 0; j < currentStatuses.length; j++) {
       const status = currentStatuses[j];
 
-      if (status !== ECS_NULL_VALUE && temporaryStatuses.includes(status)) {
+      if (
+        status !== ECS_NULL_VALUE &&
+        isTemporaryStatus(status as CharacterStatus)
+      ) {
         // 임시 상태가 statuses에 있는데 TemporaryStatusComp가 없는 경우
         if (!hasComponent(world, TemporaryStatusComp, eid)) {
-          console.log(
+          debugLog(
             `[CharacterManagerSystem] Found orphaned temporary status ${status} in entity ${eid}, removing it`,
           );
           currentStatuses[j] = ECS_NULL_VALUE;
@@ -524,7 +608,7 @@ export function validateAndFixStatusIcons(world: MainSceneWorld): void {
         }
         // TemporaryStatusComp는 있지만 동기화 안된 경우
         else if (TemporaryStatusComp.statusType[eid] !== status) {
-          console.log(
+          debugLog(
             `[CharacterManagerSystem] Found desync temporary status ${status} in entity ${eid}, removing it`,
           );
           currentStatuses[j] = ECS_NULL_VALUE;
@@ -535,14 +619,14 @@ export function validateAndFixStatusIcons(world: MainSceneWorld): void {
     }
 
     if (statusModified) {
-      console.log(
+      debugLog(
         `[CharacterManagerSystem] Fixed statuses for entity ${eid}:`,
         Array.from(currentStatuses),
       );
     }
   }
 
-  console.log(
+  debugLog(
     `[CharacterManagerSystem] Status validation complete. Fixed ${fixedCount} issues.`,
   );
 }
@@ -567,12 +651,12 @@ function increaseEvolutionGauge(world: MainSceneWorld, eid: number): void {
   );
   CharacterStatusComp.evolutionGage[eid] = newGauge;
 
-  console.log(
+  debugLog(
     `[CharacterManagerSystem] Evolution gauge increased for entity ${eid}: ${currentGauge} -> ${newGauge} (gain=${gaugeIncreaseAmount})`,
   );
 
   if (canEvolve(eid)) {
-    console.log(
+    debugLog(
       `[CharacterManagerSystem] Evolution conditions met for entity ${eid}!`,
     );
     evolveCharacter(world, eid);

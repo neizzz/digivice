@@ -25,6 +25,7 @@ import {
 import { MainSceneWorld } from "../world";
 import { TimeOfDay, TimeOfDayMode } from "../timeOfDay";
 import { isFoodEdible } from "./FreshnessSystem";
+import { clearTemporaryStatuses } from "./CharacterManageSystem";
 
 const characterSleepQuery = defineQuery([
   ObjectComp,
@@ -35,6 +36,7 @@ const objectQuery = defineQuery([ObjectComp]);
 
 const HOUR_IN_MILLISECONDS = 60 * 60 * 1000;
 const lastTimeOfDayByWorld = new WeakMap<MainSceneWorld, TimeOfDay>();
+const debugLog = (..._args: unknown[]): void => {};
 
 export function sleepScheduleSystem(params: {
   world: MainSceneWorld;
@@ -157,7 +159,7 @@ function handleTimeOfDayTransition(
   previousTimeOfDay: TimeOfDay,
   currentTimeOfDay: TimeOfDay,
 ): void {
-  console.log(
+  debugLog(
     `[SleepScheduleSystem] Time of day changed: ${previousTimeOfDay} -> ${currentTimeOfDay}`,
   );
 
@@ -436,7 +438,7 @@ function handleScheduledSleep(
     SleepSystemComp.pendingSleepReason[eid] === SleepReason.NAP
       ? SleepMode.DAY_NAP
       : SleepMode.NIGHT_SLEEP;
-  enterSleep(eid, currentTime, mode);
+  enterSleep(world, eid, currentTime, mode);
 }
 
 function handleDayNapChecks(
@@ -494,7 +496,7 @@ function handleDayNapChecks(
       SleepSystemComp.pendingSleepReason[eid] = SleepReason.NAP;
 
       if (canEnterSleep(world, eid)) {
-        enterSleep(eid, currentTime, SleepMode.DAY_NAP);
+        enterSleep(world, eid, currentTime, SleepMode.DAY_NAP);
       }
       break;
     }
@@ -649,7 +651,12 @@ export function scheduleResleep(eid: number, currentTime: number): void {
   SleepSystemComp.pendingSleepReason[eid] = SleepReason.RESLEEP;
 }
 
-function enterSleep(eid: number, currentTime: number, mode: SleepMode): void {
+function enterSleep(
+  world: MainSceneWorld,
+  eid: number,
+  currentTime: number,
+  mode: SleepMode,
+): void {
   const reservedWakeTime =
     mode === SleepMode.NIGHT_SLEEP ? SleepSystemComp.nextWakeTime[eid] : 0;
   const reservedWakeReason =
@@ -657,6 +664,7 @@ function enterSleep(eid: number, currentTime: number, mode: SleepMode): void {
       ? SleepSystemComp.pendingWakeReason[eid]
       : SleepReason.NONE;
 
+  clearTemporaryStatuses(world, eid);
   ObjectComp.state[eid] = CharacterState.SLEEPING;
   SpeedComp.value[eid] = 0;
   SleepSystemComp.sleepMode[eid] = mode;
@@ -846,7 +854,7 @@ function logSleepCheck(
     return;
   }
 
-  console.log(`[SleepScheduleSystem] ${event}`, payload);
+  debugLog(`[SleepScheduleSystem] ${event}`, payload);
 }
 
 function shouldLogSleepChecks(world: MainSceneWorld): boolean {

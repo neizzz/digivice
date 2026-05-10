@@ -5,8 +5,14 @@ import {
   ObjectComp,
   CharacterStatusComp,
   DigestiveSystemComp,
+  DiseaseSystemComp,
+  PositionComp,
 } from "../raw-components";
 import { createPoop, addToDigestiveLoad } from "../systems/DigestiveSystem";
+import {
+  addCharacterStatus,
+  removeCharacterStatus,
+} from "../systems/CharacterManageSystem";
 import {
   TimeOfDay,
   TimeOfDayMode,
@@ -16,6 +22,7 @@ import {
 
 const characterQuery = defineQuery([ObjectComp, CharacterStatusComp]);
 const objectQuery = defineQuery([ObjectComp]); // ObjectComp만 가진 엔티티들도 찾기
+const DEBUG_POSITION_STEP_PX = 10;
 
 function hasCharacterStatus(eid: number, status: CharacterStatus): boolean {
   const currentStatuses = CharacterStatusComp.statuses[eid];
@@ -41,6 +48,7 @@ export class HTMLDebugStatusUI {
   private _timeOfDayButtons: Map<TimeOfDay, HTMLButtonElement> = new Map();
   private _autoTimeButton?: HTMLButtonElement;
   private _sleepEffectToggleButton?: HTMLButtonElement;
+  private _sickToggleButton?: HTMLButtonElement;
 
   constructor(world: MainSceneWorld, parentElement: HTMLElement) {
     this._world = world;
@@ -280,6 +288,35 @@ export class HTMLDebugStatusUI {
     poopButtonsDiv.appendChild(createPoopBtn);
     this._container.appendChild(poopButtonsDiv);
 
+    const positionButtonsDiv = document.createElement("div");
+    const positionLabel = document.createElement("span");
+    positionLabel.textContent = "Pos: ";
+    positionLabel.style.cssText = `
+      color: #a8e6ff;
+      font-size: 12px;
+      margin-right: 5px;
+    `;
+
+    const moveLeftBtn = this._createAdjustButton("←", () =>
+      this._adjustPosition(-DEBUG_POSITION_STEP_PX, 0),
+    );
+    const moveUpBtn = this._createAdjustButton("↑", () =>
+      this._adjustPosition(0, -DEBUG_POSITION_STEP_PX),
+    );
+    const moveDownBtn = this._createAdjustButton("↓", () =>
+      this._adjustPosition(0, DEBUG_POSITION_STEP_PX),
+    );
+    const moveRightBtn = this._createAdjustButton("→", () =>
+      this._adjustPosition(DEBUG_POSITION_STEP_PX, 0),
+    );
+
+    positionButtonsDiv.appendChild(positionLabel);
+    positionButtonsDiv.appendChild(moveLeftBtn);
+    positionButtonsDiv.appendChild(moveUpBtn);
+    positionButtonsDiv.appendChild(moveDownBtn);
+    positionButtonsDiv.appendChild(moveRightBtn);
+    this._container.appendChild(positionButtonsDiv);
+
     // 수면 제어 버튼
     const sleepButtonsDiv = document.createElement("div");
     const sleepLabel = document.createElement("span");
@@ -295,6 +332,24 @@ export class HTMLDebugStatusUI {
     sleepButtonsDiv.appendChild(sleepLabel);
     sleepButtonsDiv.appendChild(sleepBtn);
     this._container.appendChild(sleepButtonsDiv);
+
+    const sickButtonsDiv = document.createElement("div");
+    const sickLabel = document.createElement("span");
+    sickLabel.textContent = "Sick: ";
+    sickLabel.style.cssText = `
+      color: #ff9f9f;
+      font-size: 12px;
+      margin-right: 5px;
+    `;
+
+    this._sickToggleButton = this._createAdjustButton("OFF", () =>
+      this._toggleSick(),
+    );
+    this._sickToggleButton.style.minWidth = "42px";
+
+    sickButtonsDiv.appendChild(sickLabel);
+    sickButtonsDiv.appendChild(this._sickToggleButton);
+    this._container.appendChild(sickButtonsDiv);
 
     const sleepEffectButtonsDiv = document.createElement("div");
     const sleepEffectLabel = document.createElement("span");
@@ -567,6 +622,21 @@ export class HTMLDebugStatusUI {
       : "normal";
   }
 
+  private _updateSickToggleButton(): void {
+    if (!this._sickToggleButton) {
+      return;
+    }
+
+    const isEnabled =
+      this._currentCharacterEid >= 0 &&
+      hasCharacterStatus(this._currentCharacterEid, CharacterStatus.SICK);
+    this._sickToggleButton.textContent = isEnabled ? "ON" : "OFF";
+    this._sickToggleButton.style.background = isEnabled
+      ? "rgba(226, 85, 75, 0.9)"
+      : "rgba(100, 150, 255, 0.6)";
+    this._sickToggleButton.style.fontWeight = isEnabled ? "bold" : "normal";
+  }
+
   // 스테미나/진화 게이지 조절 버튼 생성
   private _createAdjustButton(
     text: string,
@@ -717,6 +787,75 @@ export class HTMLDebugStatusUI {
     );
   }
 
+  private _toggleSick(): void {
+    if (this._currentCharacterEid < 0) {
+      console.warn("[HTMLDebugStatusUI] No character found for sick toggle");
+      return;
+    }
+
+    const isSick = hasCharacterStatus(
+      this._currentCharacterEid,
+      CharacterStatus.SICK,
+    );
+
+    if (isSick) {
+      removeCharacterStatus(this._currentCharacterEid, CharacterStatus.SICK);
+      DiseaseSystemComp.sickStartTime[this._currentCharacterEid] = 0;
+
+      if (ObjectComp.state[this._currentCharacterEid] === CharacterState.SICK) {
+        ObjectComp.state[this._currentCharacterEid] = CharacterState.IDLE;
+      }
+
+      console.log(
+        `[HTMLDebugStatusUI] Character ${this._currentCharacterEid} recovered from sick state`,
+      );
+    } else {
+      addCharacterStatus(this._currentCharacterEid, CharacterStatus.SICK);
+      DiseaseSystemComp.sickStartTime[this._currentCharacterEid] =
+        this._world.currentTime;
+
+      if (
+        ObjectComp.state[this._currentCharacterEid] !== CharacterState.SLEEPING
+      ) {
+        ObjectComp.state[this._currentCharacterEid] = CharacterState.SICK;
+      }
+
+      console.log(
+        `[HTMLDebugStatusUI] Character ${this._currentCharacterEid} entered sick state`,
+      );
+    }
+
+    this._updateSickToggleButton();
+  }
+
+  private _adjustPosition(deltaX: number, deltaY: number): void {
+    if (this._currentCharacterEid < 0) {
+      console.warn(
+        "[HTMLDebugStatusUI] No character found for position adjustment",
+      );
+      return;
+    }
+
+    const boundary = this._world.positionBoundary;
+    const currentX = PositionComp.x[this._currentCharacterEid] || 0;
+    const currentY = PositionComp.y[this._currentCharacterEid] || 0;
+    const nextX = Math.max(
+      boundary.x,
+      Math.min(boundary.x + boundary.width, currentX + deltaX),
+    );
+    const nextY = Math.max(
+      boundary.y,
+      Math.min(boundary.y + boundary.height, currentY + deltaY),
+    );
+
+    PositionComp.x[this._currentCharacterEid] = nextX;
+    PositionComp.y[this._currentCharacterEid] = nextY;
+
+    console.log(
+      `[HTMLDebugStatusUI] Position adjusted: (${currentX}, ${currentY}) -> (${nextX}, ${nextY})`,
+    );
+  }
+
   // 상태 관리 시스템 토글 함수
   private _toggleStatusSystems(): void {
     const isEnabled = this._world.toggleStatusSystems();
@@ -757,6 +896,7 @@ export class HTMLDebugStatusUI {
     this._updateSystemStatusDisplay(); // 시스템 상태 표시 업데이트
     this._updateTimeOfDayDisplay();
     this._updateSleepEffectToggleButton();
+    this._updateSickToggleButton();
     this._updateAllStatusIndicators(); // 상태 표시 업데이트
     this._world.setRandomMovementDebugEnabled(true);
     this._container.style.display = "block";
@@ -787,6 +927,7 @@ export class HTMLDebugStatusUI {
       this._updateSystemStatusDisplay(); // 시스템 상태 업데이트
       this._updateTimeOfDayDisplay();
       this._updateSleepEffectToggleButton();
+      this._updateSickToggleButton();
       this._updateAllStatusIndicators();
     }
   }

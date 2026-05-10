@@ -20,7 +20,7 @@ export type CharacterOpaqueBounds = {
   height: number;
 };
 
-const OPAQUE_BOUNDS_PADDING_PX = 2;
+const OPAQUE_BOUNDS_PADDING_PX = 1;
 const characterOpaqueBoundsCache = new Map<number, CharacterOpaqueBounds>();
 const textureOpaqueBoundsCache = new Map<number, CharacterOpaqueBounds>();
 const inFlightOpaqueBounds = new Map<string, Promise<CharacterOpaqueBounds | null>>();

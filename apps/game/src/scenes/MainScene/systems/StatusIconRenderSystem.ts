@@ -10,12 +10,19 @@ import {
 } from "../raw-components";
 import * as PIXI from "pixi.js";
 import { MainSceneWorld } from "../world";
-import { CharacterStatus, ObjectType, TextureKey } from "../types";
+import { CharacterState, CharacterStatus, ObjectType, TextureKey } from "../types";
+import {
+  getClampedCharacterStaminaBarTopY,
+  getCharacterStaminaBarBounds,
+} from "./CharacterNameLabelSystem";
 
-const STATUS_ICON_SCALE = 1.8;
+const STATUS_ICON_SCALE = 1.625;
 const STATUS_ICON_BASE_SIZE = 16;
 const STATUS_ICON_SIZE = STATUS_ICON_BASE_SIZE * STATUS_ICON_SCALE;
 const STATUS_ICON_Z_INDEX_OFFSET = 1.5;
+const STATUS_ICON_MIN_Y = 0;
+const STATUS_ICON_BAR_STACK_GAP = 2;
+const STATUS_ICON_HORIZONTAL_SPACING = 1;
 
 function getRenderedCharacterAttributes(eid: number): {
   renderedX: number;
@@ -38,66 +45,33 @@ function getRenderedCharacterAttributes(eid: number): {
 // 일시적인 상태들 (3초 후 자동 제거)
 const TEMPORARY_STATUSES = [CharacterStatus.HAPPY, CharacterStatus.DISCOVER];
 const TEMPORARY_STATUS_DURATION = 3000;
+const SLEEP_ICON_TEXTURE_NAME = "sleeping";
 
 // 상태 아이콘 매핑
-const STATUS_TO_TEXTURE_KEY: Partial<Record<CharacterStatus, TextureKey>> = {
-  [CharacterStatus.SICK]: TextureKey.SICK,
-  [CharacterStatus.HAPPY]: TextureKey.HAPPY,
-  [CharacterStatus.URGENT]: TextureKey.URGENT,
-  [CharacterStatus.DISCOVER]: TextureKey.DISCOVER,
+const STATUS_TO_TEXTURE_NAME: Partial<Record<CharacterStatus, string>> = {
+  [CharacterStatus.SICK]: "sick",
+  [CharacterStatus.HAPPY]: "happy",
+  [CharacterStatus.DISCOVER]: "discover",
 };
 
 // 엔티티별 스프라이트 스토어
 const entityStatusSprites: Map<number, PIXI.Sprite[]> = new Map();
-const entityTemporarySprites: Map<number, PIXI.Sprite> = new Map(); // 일시적 상태용 별도 스프라이트
+const entityTemporarySprites: Map<number, PIXI.Sprite> = new Map(); // 일시적 상태/수면 아이콘용 별도 스프라이트
 
-function getTextureFromKey(textureKey: number): PIXI.Texture | undefined {
-  const textureMap: Record<
-    number,
-    { spritesheetAlias?: string; textureName: string }
-  > = {
-    [TextureKey.SICK]: { spritesheetAlias: "common16x16", textureName: "sick" },
-    [TextureKey.HAPPY]: {
-      spritesheetAlias: "common16x16",
-      textureName: "happy",
-    },
-    // [TextureKey.UNHAPPY]: {
-    //   spritesheetAlias: "common16x16",
-    //   textureName: "unhappy",
-    // },
-    [TextureKey.URGENT]: {
-      spritesheetAlias: "common16x16",
-      textureName: "urgent",
-    },
-    [TextureKey.DISCOVER]: {
-      spritesheetAlias: "common16x16",
-      textureName: "discover",
-    },
-  };
-
-  const textureInfo = textureMap[textureKey];
-  if (!textureInfo) {
-    console.warn(
-      `[StatusIconRenderSystem] Texture key ${textureKey} not found`,
-    );
-    return undefined;
-  }
-
+function getCommon16x16Texture(textureName: string): PIXI.Texture | undefined {
   try {
-    const spritesheet = PIXI.Assets.get<PIXI.Spritesheet>(
-      textureInfo.spritesheetAlias!,
-    );
+    const spritesheet = PIXI.Assets.get<PIXI.Spritesheet>("common16x16");
     if (!spritesheet) {
       console.warn(
-        `[StatusIconRenderSystem] Spritesheet not found: ${textureInfo.spritesheetAlias}`,
+        "[StatusIconRenderSystem] Spritesheet not found: common16x16",
       );
       return PIXI.Texture.WHITE;
     }
 
-    const texture = spritesheet.textures[textureInfo.textureName];
+    const texture = spritesheet.textures[textureName];
     if (!texture) {
       console.warn(
-        `[StatusIconRenderSystem] Texture not found: ${textureInfo.textureName}`,
+        `[StatusIconRenderSystem] Texture not found: ${textureName}`,
       );
       return PIXI.Texture.WHITE;
     }
@@ -105,28 +79,46 @@ function getTextureFromKey(textureKey: number): PIXI.Texture | undefined {
     return texture;
   } catch (error) {
     console.error(
-      `[StatusIconRenderSystem] Error getting texture for key ${textureKey}:`,
+      `[StatusIconRenderSystem] Error getting texture ${textureName}:`,
       error,
     );
     return PIXI.Texture.WHITE;
   }
 }
 
-function createStatusIconSprite(textureKey: TextureKey): PIXI.Sprite {
-  const texture = getTextureFromKey(textureKey);
+function createStatusIconSprite(textureName: string): PIXI.Sprite {
+  const texture = getCommon16x16Texture(textureName);
   const sprite = new PIXI.Sprite(texture || PIXI.Texture.WHITE);
   sprite.anchor.set(0.5);
-  sprite.scale.set(STATUS_ICON_SCALE); // 16x16을 28.8x28.8로 확대
+  sprite.scale.set(STATUS_ICON_SCALE); // 16x16을 25.92x25.92로 확대
   sprite.roundPixels = true;
   return sprite;
 }
 
 function getStatusIconMinY(world: MainSceneWorld): number {
-  return 0;
+  return STATUS_ICON_MIN_Y;
 }
 
 function clampStatusIconY(world: MainSceneWorld, preferredY: number): number {
   return Math.max(preferredY, getStatusIconMinY(world));
+}
+
+function getUnifiedStatusIconStartX(
+  barLeftX: number,
+  barWidth: number,
+  iconCount: number,
+): number {
+  const totalWidth =
+    iconCount * STATUS_ICON_SIZE +
+    Math.max(0, iconCount - 1) * STATUS_ICON_HORIZONTAL_SPACING;
+
+  const leftInset = Math.round((barWidth - totalWidth) / 2);
+  return barLeftX + leftInset + STATUS_ICON_SIZE / 2;
+}
+
+function getStatusIconCenterYAboveStaminaBar(eid: number): number {
+  const barTopY = getClampedCharacterStaminaBarTopY(eid);
+  return barTopY - STATUS_ICON_BAR_STACK_GAP - STATUS_ICON_SIZE / 2;
 }
 
 function clearEntitySprites(eid: number): void {
@@ -162,6 +154,7 @@ export function startTemporaryStatus(
   status: CharacterStatus,
 ): void {
   if (!TEMPORARY_STATUSES.includes(status)) return;
+  if (ObjectComp.state[eid] === CharacterState.SLEEPING) return;
 
   const currentTime = Date.now();
 
@@ -191,12 +184,30 @@ function organizeStatuses(statuses: CharacterStatus[]): {
   for (const status of statuses) {
     if (TEMPORARY_STATUSES.includes(status)) {
       latestTemporary = status; // 가장 마지막(최신) 일시적 상태만 저장
-    } else {
+    } else if (status !== CharacterStatus.URGENT) {
       persistent.push(status);
+    } else {
+      continue;
     }
   }
 
   return { persistent, latestTemporary };
+}
+
+function getOverlayIconTextureName(
+  world: MainSceneWorld,
+  eid: number,
+  latestTemporary: CharacterStatus | null,
+): string | null {
+  if (ObjectComp.state[eid] === CharacterState.SLEEPING) {
+    return world.isSleepDebugEffectEnabled() ? SLEEP_ICON_TEXTURE_NAME : null;
+  }
+
+  if (!latestTemporary) {
+    return null;
+  }
+
+  return STATUS_TO_TEXTURE_NAME[latestTemporary] ?? null;
 }
 
 const statusIconQuery = defineQuery([
@@ -256,6 +267,25 @@ export function statusIconRenderSystem(params: {
 
     // 상태를 지속적 상태와 일시적 상태로 분리
     const { persistent, latestTemporary } = organizeStatuses(allStatuses);
+    const overlayTextureName = getOverlayIconTextureName(
+      world,
+      eid,
+      latestTemporary,
+    );
+    const iconCount = persistent.length + (overlayTextureName ? 1 : 0);
+    const { leftX: barLeftX, width: barWidth } = getCharacterStaminaBarBounds(
+      eid,
+      renderedX,
+    );
+    const iconStartX = getUnifiedStatusIconStartX(
+      barLeftX,
+      barWidth,
+      iconCount,
+    );
+    const iconCenterY = clampStatusIconY(
+      world,
+      getStatusIconCenterYAboveStaminaBar(eid),
+    );
 
     // 지속적 상태 아이콘들 처리 (캐릭터 위쪽에 가로 배열)
     let sprites = entityStatusSprites.get(eid);
@@ -275,14 +305,14 @@ export function statusIconRenderSystem(params: {
     // 지속적 상태 스프라이트 생성/업데이트
     for (let j = 0; j < persistent.length; j++) {
       const status = persistent[j];
-      const textureKey = STATUS_TO_TEXTURE_KEY[status];
+      const textureName = STATUS_TO_TEXTURE_NAME[status];
 
-      if (!textureKey) {
+      if (!textureName) {
         console.warn(`[StatusIconRenderSystem] Unknown status: ${status}`);
         continue;
       }
 
-      const expectedTexture = getTextureFromKey(textureKey);
+      const expectedTexture = getCommon16x16Texture(textureName);
 
       // 기존 스프라이트가 있고 올바른 텍스처인지 확인
       if (sprites[j] && sprites[j].texture === expectedTexture) {
@@ -294,58 +324,51 @@ export function statusIconRenderSystem(params: {
         }
 
         // 새 스프라이트 생성
-        sprites[j] = createStatusIconSprite(textureKey);
+        sprites[j] = createStatusIconSprite(textureName);
         world.stage.addChild(sprites[j]);
       }
 
-      // 지속적 상태 아이콘 위치 설정 (캐릭터 위쪽에 가로 배열)
-      const iconSize = STATUS_ICON_SIZE;
-      const spacing = 4;
-      const totalWidth =
-        persistent.length * iconSize + (persistent.length - 1) * spacing;
-      const startX =
-        renderedX - totalWidth / 2 + j * (iconSize + spacing) + iconSize / 2;
-
-      sprites[j].x = startX;
-      sprites[j].y = clampStatusIconY(world, renderedY - 50);
+      // 지속적 상태 아이콘 위치 설정 (왼쪽부터 순서대로 배치)
+      sprites[j].x =
+        iconStartX +
+        j * (STATUS_ICON_SIZE + STATUS_ICON_HORIZONTAL_SPACING);
+      sprites[j].y = iconCenterY;
       sprites[j].zIndex = iconZIndex;
     }
 
-    // 일시적 상태 아이콘 처리 (캐릭터 우측상단에 1개만)
+    // 일시적 상태/수면 아이콘 처리 (상태 아이콘 라인에 통합)
     const currentTempSprite = entityTemporarySprites.get(eid);
 
-    if (latestTemporary) {
-      const textureKey = STATUS_TO_TEXTURE_KEY[latestTemporary];
+    if (overlayTextureName) {
+      const expectedTexture = getCommon16x16Texture(overlayTextureName);
 
-      if (textureKey) {
-        const expectedTexture = getTextureFromKey(textureKey);
-
-        // 기존 일시적 스프라이트가 있고 올바른 텍스처인지 확인
-        if (
-          currentTempSprite &&
-          currentTempSprite.texture === expectedTexture
-        ) {
-          // 기존 스프라이트 재사용, 위치만 업데이트
-        } else {
-          // 기존 스프라이트 제거 (있다면)
-          if (currentTempSprite) {
-            currentTempSprite.removeFromParent();
-          }
-
-          // 새 일시적 스프라이트 생성
-          const newTempSprite = createStatusIconSprite(textureKey);
-          entityTemporarySprites.set(eid, newTempSprite);
-          world.stage.addChild(newTempSprite);
+      // 기존 스프라이트가 있고 올바른 텍스처인지 확인
+      if (
+        currentTempSprite &&
+        currentTempSprite.texture === expectedTexture
+      ) {
+        // 기존 스프라이트 재사용, 위치만 업데이트
+      } else {
+        // 기존 스프라이트 제거 (있다면)
+        if (currentTempSprite) {
+          currentTempSprite.removeFromParent();
         }
 
-        // 일시적 상태 아이콘 위치 설정 (캐릭터 우측상단)
-        const tempSprite = entityTemporarySprites.get(eid)!;
-        tempSprite.x = renderedX + 25; // 캐릭터 우측 (더 오른쪽으로)
-        tempSprite.y = clampStatusIconY(world, renderedY - 40); // 캐릭터 상단
-        tempSprite.zIndex = iconZIndex;
+        // 새 스프라이트 생성
+        const newTempSprite = createStatusIconSprite(overlayTextureName);
+        entityTemporarySprites.set(eid, newTempSprite);
+        world.stage.addChild(newTempSprite);
       }
+
+      // 오버레이 아이콘 위치 설정 (persistent 다음 순서)
+      const tempSprite = entityTemporarySprites.get(eid)!;
+      tempSprite.x =
+        iconStartX +
+        persistent.length * (STATUS_ICON_SIZE + STATUS_ICON_HORIZONTAL_SPACING);
+      tempSprite.y = iconCenterY;
+      tempSprite.zIndex = iconZIndex;
     } else {
-      // 일시적 상태가 없으면 기존 일시적 스프라이트 제거
+      // 표시할 오버레이가 없으면 기존 스프라이트 제거
       if (currentTempSprite) {
         currentTempSprite.removeFromParent();
         entityTemporarySprites.delete(eid);
@@ -353,7 +376,7 @@ export function statusIconRenderSystem(params: {
     }
 
     StatusIconRenderComp.visibleCount[eid] =
-      persistent.length + (latestTemporary ? 1 : 0);
+      persistent.length + (overlayTextureName ? 1 : 0);
   }
 
   return params;

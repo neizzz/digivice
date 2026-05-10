@@ -9,6 +9,7 @@ import {
 } from "bitecs";
 import * as PIXI from "pixi.js";
 import { MainSceneWorld } from "../world";
+import { GAME_CONSTANTS } from "../config";
 import {
   CharacterStatusComp,
   DestinationComp,
@@ -17,6 +18,7 @@ import {
   RandomMovementComp,
   SleepSystemComp,
   SpeedComp,
+  TemporaryStatusComp,
 } from "../raw-components";
 import {
   CharacterStatus,
@@ -249,4 +251,80 @@ test("recovery syringe impact는 낮잠 중 sickness만 치료하고 수면은 �
   assert.equal(hasComponent(world, RandomMovementComp, characterEid), false);
   assert.equal(SpeedComp.value[characterEid], 0);
   assert.equal(ObjectComp.state[foodEid], FoodState.LANDED);
+});
+
+test("recovery syringe impact는 sick 회복 후 stamina가 max면 happy를 부여한다", () => {
+  const world = createMainSceneWorldForTest();
+  const characterEid = withMockedDateNow(10_000, () =>
+    createTestCharacter(
+      world as unknown as Parameters<typeof createTestCharacter>[0],
+      {
+        state: CharacterState.SICK,
+        stamina: GAME_CONSTANTS.MAX_STAMINA,
+      },
+    ),
+  );
+
+  CharacterStatusComp.statuses[characterEid][0] = CharacterStatus.SICK;
+
+  withMockedDateNow(10_000, () => {
+    (
+      world as unknown as { _handleHospitalSelection: () => boolean }
+    )._handleHospitalSelection();
+  });
+
+  withMockedDateNow(10_300, () => {
+    effectAnimationSystem({
+      world,
+      currentTime: 10_300,
+      stage: null,
+    });
+  });
+
+  assert.ok(
+    Array.from(CharacterStatusComp.statuses[characterEid]).includes(
+      CharacterStatus.HAPPY,
+    ),
+  );
+  assert.equal(
+    TemporaryStatusComp.statusType[characterEid],
+    CharacterStatus.HAPPY,
+  );
+  assert.equal(TemporaryStatusComp.startTime[characterEid], 10_300);
+});
+
+test("recovery syringe impact는 sick 회복 후 stamina가 max가 아니면 happy를 부여하지 않는다", () => {
+  const world = createMainSceneWorldForTest();
+  const characterEid = withMockedDateNow(20_000, () =>
+    createTestCharacter(
+      world as unknown as Parameters<typeof createTestCharacter>[0],
+      {
+        state: CharacterState.SICK,
+        stamina: GAME_CONSTANTS.MAX_STAMINA - 0.25,
+      },
+    ),
+  );
+
+  CharacterStatusComp.statuses[characterEid][0] = CharacterStatus.SICK;
+
+  withMockedDateNow(20_000, () => {
+    (
+      world as unknown as { _handleHospitalSelection: () => boolean }
+    )._handleHospitalSelection();
+  });
+
+  withMockedDateNow(20_300, () => {
+    effectAnimationSystem({
+      world,
+      currentTime: 20_300,
+      stage: null,
+    });
+  });
+
+  assert.equal(
+    Array.from(CharacterStatusComp.statuses[characterEid]).includes(
+      CharacterStatus.HAPPY,
+    ),
+    false,
+  );
 });

@@ -133,6 +133,7 @@ import {
   wakeCharacter,
 } from "./systems/SleepScheduleSystem";
 import {
+  applyHappyStatusForFullStaminaCharacterIfEligible,
   applyReentryHappyStatusForFullStaminaCharacters,
   characterManagerSystem,
   validateAndFixStatusIcons,
@@ -1745,7 +1746,6 @@ export class MainSceneWorld implements IWorld, Scene {
     if (this._stage) {
       cleanupSleepEffects(this._stage);
       cleanupEggCrackRenderState();
-      cleanupStaminaGaugeRenderState();
       cleanupCharacterNameLabels();
       cleanupCharacterLayoutDebug(this._stage);
     }
@@ -2016,6 +2016,18 @@ export class MainSceneWorld implements IWorld, Scene {
       return;
     }
 
+    if (this._shouldDeferPersistence?.()) {
+      this._hasDeferredPersistence = true;
+      console.debug("[MainSceneWorld] setData:deferred", {
+        key: WORLD_DATA_STORAGE_KEY,
+        monsterName: data.world_metadata?.monster_name,
+        entityCount: data.entities?.length ?? 0,
+      });
+      return;
+    }
+
+    this._hasDeferredPersistence = false;
+
     await this._enqueueStorageWrite(async () => {
       try {
         console.debug("[MainSceneWorld] setData:start", {
@@ -2035,6 +2047,21 @@ export class MainSceneWorld implements IWorld, Scene {
         throw error;
       }
     });
+  }
+
+  private async _flushDeferredPersistenceIfNeeded(): Promise<void> {
+    if (
+      !this._hasDeferredPersistence ||
+      !this._persistentData ||
+      this._isPersistenceDisabled ||
+      this._shouldDeferPersistence?.()
+    ) {
+      return;
+    }
+
+    const deferredData = this._persistentData;
+    this._hasDeferredPersistence = false;
+    await this.setData(deferredData);
   }
 
   async clearData(): Promise<void> {
@@ -3014,6 +3041,10 @@ export class MainSceneWorld implements IWorld, Scene {
       });
     }
 
+    if (removed) {
+      applyHappyStatusForFullStaminaCharacterIfEligible(this, characterEid);
+    }
+
     console.log(
       `[MainSceneWorld] Applied hospital recovery impact for character ${characterEid} (removedStatus=${removed}, preservedSleep=${shouldPreserveSleep})`,
     );
@@ -3411,25 +3442,22 @@ export class MainSceneWorld implements IWorld, Scene {
     // 2. 정적 스프라이트 렌더링
     renderSystem(params);
 
-    // 3. 상단 스태미나 게이지 렌더링
-    staminaGaugeRenderSystem(params);
-
-    // 4. 상태 아이콘 렌더링
+    // 3. 상태 아이콘 렌더링
     statusIconRenderSystem(params);
 
-    // 5. 알 금 오버레이 렌더링
+    // 4. 알 금 오버레이 렌더링
     eggCrackRenderSystem({ ...params, currentTime: this.currentTime });
 
-    // 6. 캐릭터 이름표 렌더링
+    // 5. 캐릭터 이름표 렌더링
     characterNameLabelSystem(params);
 
-    // 7. dev 빌드 전용 캐릭터 레이아웃 디버그 렌더링
+    // 6. dev 빌드 전용 캐릭터 레이아웃 디버그 렌더링
     characterLayoutDebugSystem({ ...params, stage: this._stage });
 
-    // 8. 청소 대상 렌더링
+    // 7. 청소 대상 렌더링
     cleanableRenderSystem({ ...params, stage: this._stage });
 
-    // 9. 수면 효과 렌더링
+    // 8. 수면 효과 렌더링
     sleepEffectSystem({ ...params, stage: this._stage });
 
     return params;

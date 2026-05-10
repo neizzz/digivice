@@ -37,6 +37,7 @@ const temporaryStatusQuery = defineQuery([
   CharacterStatusComp,
   TemporaryStatusComp,
 ]);
+const debugLog = (..._args: unknown[]): void => {};
 const urgentSleepTrackingByWorld = new WeakMap<
   MainSceneWorld,
   Map<number, { lastTime: number; wasSleepingUrgent: boolean }>
@@ -116,7 +117,7 @@ function updateStaminaBasedStatus(
       VitalityComp.urgentStartTime[eid] = 0;
       VitalityComp.deathTime[eid] = 0;
       VitalityComp.isDead[eid] = 0;
-      console.log(
+      debugLog(
         `[CharacterStatusSystem] Added VitalityComp to character ${eid}`,
       );
     }
@@ -140,7 +141,7 @@ function updateStaminaBasedStatus(
             CharacterStatusComp.characterKey[eid] as CharacterKeyECS,
           );
 
-        console.log(
+        debugLog(
           `[CharacterStatusSystem] Character ${eid} entered URGENT state. Death scheduled at ${VitalityComp.deathTime[eid]} (current: ${currentTime})`,
         );
       }
@@ -162,7 +163,7 @@ function updateStaminaBasedStatus(
 
       // URGENT에서 회복된 경우 이벤트 발생
       if (wasUrgent) {
-        console.log(
+        debugLog(
           `[CharacterStatusSystem] Character ${eid} recovered from URGENT state (stamina: ${stamina})`,
         );
       }
@@ -298,7 +299,7 @@ function checkDeath(world: MainSceneWorld, currentTime: number): void {
 
     // 죽을 시간이 되었는지 체크
     if (deathTime > 0 && currentTime >= deathTime) {
-      console.log(
+      debugLog(
         `[CharacterStatusSystem] Character ${eid} death time reached. Current: ${currentTime}, Death time: ${deathTime}`,
       );
 
@@ -327,7 +328,7 @@ function killCharacter(world: MainSceneWorld, eid: number): void {
     const oldTextureKey = RenderComp.textureKey[eid];
     RenderComp.textureKey[eid] = TextureKey.TOMB;
     RenderComp.zIndex[eid] = ECS_NULL_VALUE; // zIndex를 0으로 리셋하여 y좌표 기반 정렬 사용
-    console.log(
+    debugLog(
       `[CharacterStatusSystem] Changed character ${eid} texture from ${oldTextureKey} to TOMB (${TextureKey.TOMB}) and reset zIndex to 0`,
     );
   } else {
@@ -339,7 +340,7 @@ function killCharacter(world: MainSceneWorld, eid: number): void {
   // 애니메이션 렌더링 컴포넌트 제거
   if (hasComponent(world, AnimationRenderComp, eid)) {
     removeComponent(world, AnimationRenderComp, eid);
-    console.log(
+    debugLog(
       `[CharacterStatusSystem] Removed AnimationRenderComp for dead character ${eid}`,
     );
   }
@@ -347,14 +348,14 @@ function killCharacter(world: MainSceneWorld, eid: number): void {
   // 이동 관련 컴포넌트들 제거
   if (hasComponent(world, RandomMovementComp, eid)) {
     removeComponent(world, RandomMovementComp, eid);
-    console.log(
+    debugLog(
       `[CharacterStatusSystem] Removed RandomMovementComp for dead character ${eid}`,
     );
   }
 
   if (hasComponent(world, DestinationComp, eid)) {
     removeComponent(world, DestinationComp, eid);
-    console.log(
+    debugLog(
       `[CharacterStatusSystem] Removed DestinationComp for dead character ${eid}`,
     );
   }
@@ -362,12 +363,12 @@ function killCharacter(world: MainSceneWorld, eid: number): void {
   // 속도를 0으로 설정 (SpeedComp는 제거하지 않고 0으로 설정)
   if (hasComponent(world, SpeedComp, eid)) {
     SpeedComp.value[eid] = 0;
-    console.log(
+    debugLog(
       `[CharacterStatusSystem] Set speed to 0 for dead character ${eid}`,
     );
   }
 
-  console.log(
+  debugLog(
     `[CharacterStatusSystem] Character ${eid} has died and components have been cleaned up`,
   );
 }
@@ -430,7 +431,7 @@ function restrictMovementForSickness(world: MainSceneWorld, eid: number): void {
   // RandomMovementComp 제거 (랜덤 이동 중단)
   if (hasComponent(world, RandomMovementComp, eid)) {
     removeComponent(world, RandomMovementComp, eid);
-    console.log(
+    debugLog(
       `[CharacterStatusSystem] Removed RandomMovementComp from sick character ${eid}`,
     );
   }
@@ -438,7 +439,7 @@ function restrictMovementForSickness(world: MainSceneWorld, eid: number): void {
   // DestinationComp 제거 (음식으로 이동하는 것도 중지)
   if (hasComponent(world, DestinationComp, eid)) {
     removeComponent(world, DestinationComp, eid);
-    console.log(
+    debugLog(
       `[CharacterStatusSystem] Removed DestinationComp from sick character ${eid}`,
     );
   }

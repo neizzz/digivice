@@ -7,6 +7,7 @@
 export class ObjectStore<T> {
   private store: (T | null)[];
   private readonly name: string;
+  private readonly debugLog = (..._args: unknown[]): void => {};
 
   constructor(name: string = "ObjectStore") {
     this.store = [];
@@ -25,7 +26,7 @@ export class ObjectStore<T> {
     }
 
     this.store[index] = obj;
-    console.log(`[${this.name}] Set object at index ${index}`);
+    this.debugLog(`[${this.name}] Set object at index ${index}`);
   }
 
   /**
@@ -55,7 +56,7 @@ export class ObjectStore<T> {
     const item = this.store[index];
     if (item !== null) {
       this.store[index] = null;
-      console.log(`[${this.name}] Removed object from index ${index}`);
+      this.debugLog(`[${this.name}] Removed object from index ${index}`);
       return item;
     }
 
@@ -94,7 +95,7 @@ export class ObjectStore<T> {
    * 저장소 초기화 (모든 객체 제거)
    */
   clear(): void {
-    console.log(`[${this.name}] Clearing store (${this.count} objects)`);
+    this.debugLog(`[${this.name}] Clearing store (${this.count} objects)`);
     this.store = [];
   }
 

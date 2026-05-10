@@ -11,6 +11,7 @@ import { MainSceneWorld } from "../world";
 const IDLE_ANIMATION_SPEED = 0.03;
 const DEFAULT_ANIMATION_SPEED = 0.04;
 const SLEEPING_ANIMATION_SPEED = DEFAULT_ANIMATION_SPEED / 2;
+const debugLog = (..._args: unknown[]): void => {};
 
 const CHARACTER_STATE_TO_ANIMATION_KEY: Record<CharacterState, AnimationKey> = {
   [CharacterState.EGG]: AnimationKey.NULL,
@@ -76,7 +77,7 @@ function changeAnimation(eid: number, animationKey: AnimationKey): void {
     AnimationRenderComp.isPlaying[eid] =
       animationKey !== AnimationKey.NULL ? 1 : 0;
 
-    console.log(
+    debugLog(
       `[AnimationStateSystem] Changed animation to ${AnimationKey[animationKey]} for entity ${eid}`,
     );
   }

@@ -3,10 +3,15 @@ import {
   SpeedComp,
   DestinationComp,
   CharacterStatusComp,
+  ObjectComp,
 } from "../raw-components";
 import { MainSceneWorld } from "../world";
-import { DestinationType } from "../types";
+import { DestinationType, ObjectType } from "../types";
 import { getCharacterMovementSpeedForEntity } from "../characterStats";
+import {
+  CHARACTER_SCREEN_EDGE_OVERFLOW_PX,
+  getCharacterCenterBoundary,
+} from "../systems/CharacterDisplayBounds";
 
 const TARGET_REACHED_EPSILON = 0.001;
 
@@ -29,8 +34,24 @@ export function moveTowardsTarget(
 
   const currentX = PositionComp.x[eid];
   const currentY = PositionComp.y[eid];
-  const targetX = DestinationComp.x[eid];
-  const targetY = DestinationComp.y[eid];
+  const movementBoundary =
+    ObjectComp.type[eid] === ObjectType.CHARACTER
+      ? getCharacterCenterBoundary(
+          eid,
+          world.positionBoundary,
+          CHARACTER_SCREEN_EDGE_OVERFLOW_PX,
+        )
+      : world.positionBoundary;
+  const targetX = clampAxisValue(
+    DestinationComp.x[eid],
+    movementBoundary.x,
+    movementBoundary.x + movementBoundary.width,
+  );
+  const targetY = clampAxisValue(
+    DestinationComp.y[eid],
+    movementBoundary.y,
+    movementBoundary.y + movementBoundary.height,
+  );
 
   // 목표 지점까지의 거리 계산
   const deltaX = targetX - currentX;
@@ -54,4 +75,8 @@ export function moveTowardsTarget(
 
   // CommonMovementSystem이 실제 위치 업데이트를 담당
   return { distance, hasArrived };
+}
+
+function clampAxisValue(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
 }

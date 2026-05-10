@@ -5,6 +5,7 @@ import {
   PositionComp,
   RenderComp,
 } from "../raw-components";
+import type { Boundary } from "../types";
 import { getAnimatedSpriteStore } from "./AnimationRenderSystem";
 import { getSpriteStore } from "./RenderSystem";
 import {
@@ -16,6 +17,8 @@ import {
 
 const FALLBACK_CHARACTER_HEIGHT = 48;
 const FALLBACK_CHARACTER_WIDTH = 48;
+export const CHARACTER_SCREEN_EDGE_OVERFLOW_PX = 10;
+export const CHARACTER_SCREEN_TOP_EDGE_OVERFLOW_PX = 20;
 
 export function getCharacterDisplayObject(
   eid: number,
@@ -51,24 +54,68 @@ export function getCharacterWorldBounds(eid: number): {
 } {
   const centerX = PositionComp.x[eid];
   const centerY = PositionComp.y[eid];
+  const relativeBounds = getCharacterRelativeBounds(eid);
+
+  return {
+    leftX: centerX + relativeBounds.left,
+    rightX: centerX + relativeBounds.right,
+    topY: centerY + relativeBounds.top,
+    bottomY: centerY + relativeBounds.bottom,
+    width: relativeBounds.width,
+    height: relativeBounds.height,
+  };
+}
+
+export function getCharacterCenterBoundary(
+  eid: number,
+  boundary: Boundary,
+  overflowPx: number = CHARACTER_SCREEN_EDGE_OVERFLOW_PX,
+  topOverflowPx: number = CHARACTER_SCREEN_TOP_EDGE_OVERFLOW_PX,
+): Boundary {
+  const relativeBounds = getCharacterRelativeBounds(eid);
+  const xRange = createClampedAxisRange(
+    boundary.x - overflowPx - relativeBounds.left,
+    boundary.x + boundary.width + overflowPx - relativeBounds.right,
+  );
+  const yRange = createClampedAxisRange(
+    boundary.y - topOverflowPx - relativeBounds.top,
+    boundary.y + boundary.height + overflowPx - relativeBounds.bottom,
+  );
+
+  return {
+    x: xRange.min,
+    y: yRange.min,
+    width: xRange.max - xRange.min,
+    height: yRange.max - yRange.min,
+  };
+}
+
+function getCharacterRelativeBounds(eid: number): {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+  width: number;
+  height: number;
+} {
   const displayObject = getCharacterDisplayObject(eid);
   const opaqueBounds = getCharacterOpaqueBoundsForEntity(eid);
 
   if (opaqueBounds) {
     const scaleX = getCharacterScaleX(displayObject, eid);
     const scaleY = getCharacterScaleY(displayObject, eid);
-    const leftX = centerX + opaqueBounds.left * scaleX;
-    const rightX = centerX + opaqueBounds.right * scaleX;
-    const topY = centerY + opaqueBounds.top * scaleY;
-    const bottomY = centerY + opaqueBounds.bottom * scaleY;
+    const left = opaqueBounds.left * scaleX;
+    const right = opaqueBounds.right * scaleX;
+    const top = opaqueBounds.top * scaleY;
+    const bottom = opaqueBounds.bottom * scaleY;
 
     return {
-      leftX,
-      rightX,
-      topY,
-      bottomY,
-      width: rightX - leftX,
-      height: bottomY - topY,
+      left,
+      right,
+      top,
+      bottom,
+      width: right - left,
+      height: bottom - top,
     };
   }
 
@@ -88,10 +135,10 @@ export function getCharacterWorldBounds(eid: number): {
   const halfHeight = height / 2;
 
   return {
-    leftX: centerX - halfWidth,
-    rightX: centerX + halfWidth,
-    topY: centerY - halfHeight,
-    bottomY: centerY + halfHeight,
+    left: -halfWidth,
+    right: halfWidth,
+    top: -halfHeight,
+    bottom: halfHeight,
     width,
     height,
   };
@@ -191,4 +238,16 @@ function getFallbackDisplayDimension(
 function getFallbackScale(eid: number): number {
   const scale = RenderComp.scale[eid];
   return scale > 0 ? scale : 1;
+}
+
+function createClampedAxisRange(min: number, max: number): {
+  min: number;
+  max: number;
+} {
+  if (min <= max) {
+    return { min, max };
+  }
+
+  const center = (min + max) / 2;
+  return { min: center, max: center };
 }

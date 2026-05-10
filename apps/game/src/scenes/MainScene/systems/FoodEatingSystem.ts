@@ -72,6 +72,7 @@ const EATING_POSE_FOOD_Y_OFFSET_PX = 1; // 식사 중 캐릭터 중심이 음식
 const ZERO_DISTANCE_EPSILON = 0.001;
 const DEFAULT_FOOD_STAMINA_BONUS = 2;
 const FOOD_STAMINA_BONUS_DISTRIBUTION = [1, 2, 2, 3, 3, 4] as const;
+const debugLog = (..._args: unknown[]): void => {};
 
 type WorldBounds = {
   leftX: number;
@@ -138,7 +139,7 @@ export function releaseTargetedFoodForCharacter(
   }
 
   ObjectComp.state[targetFoodEid] = FoodState.LANDED;
-  console.log(
+  debugLog(
     `[FoodEatingSystem] Released orphaned targeted food ${targetFoodEid} for character ${characterEid}`,
   );
 }
@@ -254,7 +255,7 @@ function updateMovingToFood(world: MainSceneWorld, delta: number): void {
       hasComponent(world, FreshnessComp, targetFoodEid) &&
       !isFoodEdible(FreshnessComp.freshness[targetFoodEid])
     ) {
-      console.log(
+      debugLog(
         `[FoodEatingSystem] Character ${eid} target food ${targetFoodEid} became stale before arrival, restoring free roaming state`,
       );
       releaseTargetedFoodForCharacter(world, eid);
@@ -266,7 +267,7 @@ function updateMovingToFood(world: MainSceneWorld, delta: number): void {
     const { distance, hasArrived } = moveTowardsTarget(world, eid, delta);
 
     if (hasArrived) {
-      console.log(
+      debugLog(
         `[FoodEatingSystem] Character ${eid} reached food ${targetFoodEid} at distance ${distance.toFixed(
           2,
         )}`,
@@ -286,7 +287,7 @@ function completeEating(
   foodEid: number,
   currentTime: number,
 ): void {
-  console.log(
+  debugLog(
     `[FoodEatingSystem] Character ${characterEid} completed eating food ${foodEid}`,
   );
 
@@ -295,7 +296,7 @@ function completeEating(
     const freshness = FreshnessComp.freshness[foodEid];
 
     if (!isFoodEdible(freshness)) {
-      console.log(`[FoodEatingSystem] Food ${foodEid} is stale, cannot eat`);
+      debugLog(`[FoodEatingSystem] Food ${foodEid} is stale, cannot eat`);
       cancelEating(world, characterEid);
       return;
     }
@@ -333,7 +334,7 @@ function completeEating(
     currentStamina < GAME_CONSTANTS.MAX_STAMINA &&
     newStamina >= GAME_CONSTANTS.MAX_STAMINA
   ) {
-    console.log(
+    debugLog(
       `[FoodEatingSystem] Character ${characterEid} stamina increased from ${currentStamina} to ${newStamina}, adding happy status`,
     );
     addCharacterStatus(characterEid, CharacterStatus.HAPPY);
@@ -367,7 +368,7 @@ function completeEating(
     // 음식을 먹은 후 2-3초 정도 idle 상태를 유지하도록 설정
     RandomMovementComp.nextChange[characterEid] =
       world.currentTime + 2000 + Math.random() * 1000;
-    console.log(
+    debugLog(
       `[FoodEatingSystem] Added RandomMovementComp back to character ${characterEid} with idle delay`,
     );
   }
@@ -380,12 +381,12 @@ function completeEating(
   // 음식 엔티티 완전 삭제
   world.handleFoodConsumedForAd(foodEid);
   removeEntity(world, foodEid);
-  console.log(`[FoodEatingSystem] Removed food entity ${foodEid}`);
+  debugLog(`[FoodEatingSystem] Removed food entity ${foodEid}`);
 
   // FoodEatingComp 제거
   removeComponent(world, FoodEatingComp, characterEid);
 
-  console.log(
+  debugLog(
     `[FoodEatingSystem] Character stamina increased to ${CharacterStatusComp.stamina[characterEid]}`,
   );
 }
@@ -407,7 +408,7 @@ function findAndEatFood(world: MainSceneWorld): void {
 
     // 캐릭터 타입인지 확인
     if (ObjectComp.type[characterEid] !== ObjectType.CHARACTER) {
-      // console.log(
+      // debugLog(
       //   `[FoodEatingSystem] Entity ${characterEid} is not a character (type: ${ObjectComp.type[characterEid]})`
       // );
       continue;
@@ -415,7 +416,7 @@ function findAndEatFood(world: MainSceneWorld): void {
 
     // 이미 음식을 먹고 있는지 확인
     if (hasComponent(world, FoodEatingComp, characterEid)) {
-      // console.log(
+      // debugLog(
       //   `[FoodEatingSystem] Character ${characterEid} is already eating`
       // );
       continue;
@@ -426,7 +427,7 @@ function findAndEatFood(world: MainSceneWorld): void {
       hasComponent(world, DestinationComp, characterEid) &&
       DestinationComp.target[characterEid] !== 0
     ) {
-      // console.log(
+      // debugLog(
       //   `[FoodEatingSystem] Character ${characterEid} is already moving to food target ${DestinationComp.target[characterEid]}`
       // );
       continue;
@@ -447,7 +448,7 @@ function findAndEatFood(world: MainSceneWorld): void {
     // 스태미나가 꽉 차있지 않은지 확인
     const stamina = CharacterStatusComp.stamina[characterEid];
     if (stamina >= GAME_CONSTANTS.MAX_STAMINA) {
-      // console.log(
+      // debugLog(
       //   `[FoodEatingSystem] Character ${characterEid} has full stamina (${stamina}/${GAME_CONSTANTS.MAX_STAMINA})`
       // );
       continue;
@@ -460,13 +461,13 @@ function findAndEatFood(world: MainSceneWorld): void {
     }
 
     const { foodEid, distance } = nearestFood;
-    console.log(
+    debugLog(
       `[FoodEatingSystem] Found nearest food ${foodEid} at distance ${distance.toFixed(
         2,
       )} for character ${characterEid}`,
     );
 
-    console.log(
+    debugLog(
       `[FoodEatingSystem] Character ${characterEid} moving to food ${foodEid}`,
     );
     addCharacterStatus(characterEid, CharacterStatus.DISCOVER);
@@ -542,7 +543,7 @@ function moveToFood(
   const targetX = Math.round(target.x);
   const targetY = Math.round(target.y);
 
-  console.log(
+  debugLog(
     `[FoodEatingSystem] Character ${characterEid} moving to food ${foodEid} at (${foodX}, ${foodY}) -> eating pose (${targetX}, ${targetY}) from (${characterX}, ${characterY})`,
   );
 
@@ -552,7 +553,7 @@ function moveToFood(
   // RandomMovementComp 제거 (랜덤 이동 중단)
   if (hasComponent(world, RandomMovementComp, characterEid)) {
     removeComponent(world, RandomMovementComp, characterEid);
-    console.log(
+    debugLog(
       `[FoodEatingSystem] Removed RandomMovementComp from character ${characterEid}`,
     );
   }
@@ -568,7 +569,7 @@ function moveToFood(
   DestinationComp.y[characterEid] = targetY;
   setCharacterApproachAngle(world, characterEid, { x: targetX, y: targetY });
 
-  console.log(
+  debugLog(
     `[FoodEatingSystem] DestinationComp set for character ${characterEid}:`,
     {
       type: DestinationComp.type[characterEid],
@@ -588,7 +589,7 @@ function moveToFood(
   if (!SpeedComp.value[characterEid] || SpeedComp.value[characterEid] <= 0) {
     const movementSpeed = getCharacterMovementSpeedForEntity(characterEid);
     SpeedComp.value[characterEid] = movementSpeed;
-    console.log(
+    debugLog(
       `[FoodEatingSystem] Set character ${characterEid} speed to ${movementSpeed} based on character state`,
     );
   }
@@ -763,7 +764,7 @@ function startEating(
     hasComponent(world, FreshnessComp, foodEid) &&
     !isFoodEdible(FreshnessComp.freshness[foodEid])
   ) {
-    console.log(
+    debugLog(
       `[FoodEatingSystem] Prevented character ${characterEid} from eating stale food ${foodEid}`,
     );
     releaseTargetedFoodForCharacter(world, characterEid);
@@ -771,7 +772,7 @@ function startEating(
     return;
   }
 
-  console.log(
+  debugLog(
     `[FoodEatingSystem] Character ${characterEid} started eating food ${foodEid}`,
   );
 
@@ -807,7 +808,7 @@ function startEating(
   // RandomMovementComp 제거 (음식 먹는 동안 랜덤 이동 중단)
   if (hasComponent(world, RandomMovementComp, characterEid)) {
     removeComponent(world, RandomMovementComp, characterEid);
-    console.log(
+    debugLog(
       `[FoodEatingSystem] Removed RandomMovementComp from eating character ${characterEid}`,
     );
   }
@@ -827,7 +828,7 @@ function startEating(
  * 음식 먹기 취소
  */
 function cancelEating(world: MainSceneWorld, characterEid: number): void {
-  console.log(
+  debugLog(
     `[FoodEatingSystem] Canceled eating for character ${characterEid}`,
   );
 
@@ -862,7 +863,7 @@ function restoreFreeRoamingState(
     idleDelayMs,
   });
 
-  console.log(
+  debugLog(
     `[FoodEatingSystem] Restored free roaming state for character ${characterEid}`,
   );
 }

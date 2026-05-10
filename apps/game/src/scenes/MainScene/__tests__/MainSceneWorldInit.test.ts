@@ -105,6 +105,22 @@ test("egg 상태여도 debug 모드면 미니게임 진입을 허용한다", () 
   assert.deepEqual(alerts, []);
 });
 
+test("dead 상태여도 debug 모드면 미니게임 진입을 허용한다", () => {
+  const world = createMainSceneWorld();
+  const alerts: Array<{ message: string; title?: string }> = [];
+  const eid = 1;
+
+  world._debugMode = true;
+  world._showAlert = (message, title) => {
+    alerts.push({ message, title });
+  };
+  world._findMainCharacterEntity = () => eid;
+  ObjectComp.state[eid] = CharacterState.DEAD;
+
+  assert.equal(world._shouldBlockMiniGameEntry(), false);
+  assert.deepEqual(alerts, []);
+});
+
 test("수면 중 미니게임 진입 준비는 캐릭터를 깨우고 피로도를 10 올린다", () => {
   const world = createMainSceneWorld();
 

@@ -42,6 +42,7 @@ const animatedSpriteStore = new ObjectStore<PIXI.AnimatedSprite>(
   "AnimatedSpriteStore"
 );
 const eatingFrameIndexTracker = new Map<number, number>();
+const debugLog = (..._args: unknown[]): void => {};
 
 export function getAnimatedSpriteStore() {
   return animatedSpriteStore;
@@ -65,7 +66,7 @@ export function animationRenderSystem(params: {
       stage.removeChild(animatedSprite);
       animatedSprite.destroy();
       animatedSpriteStore.remove(eid);
-      console.log(
+      debugLog(
         `[AnimationSystem] Removed animated sprite from stage for entity ${eid}`
       );
     }
@@ -78,7 +79,7 @@ export function animationRenderSystem(params: {
 
     // 애니메이션 스프라이트가 없으면 생성
     if (!animatedSprite) {
-      console.log(
+      debugLog(
         `[AnimationSystem] Creating animated sprite for entity ${eid}`
       );
 
@@ -90,7 +91,7 @@ export function animationRenderSystem(params: {
       stage.addChild(animatedSprite);
       animatedSpriteStore.set(eid, animatedSprite); // eid를 직접 인덱스로 사용
       AnimationRenderComp.storeIndex[eid] = eid; // storeIndex는 eid와 동일
-      console.log(
+      debugLog(
         `[AnimationSystem] Added animated sprite to stage for entity ${eid}`
       );
       const firstSpriteTimingPayload = world.consumePendingFirstSpriteTimingLog(
@@ -98,7 +99,7 @@ export function animationRenderSystem(params: {
         "animated"
       );
       if (firstSpriteTimingPayload) {
-        console.log(
+        debugLog(
           "[ImportantDiagnostics][MainSceneFirstSprite]",
           firstSpriteTimingPayload
         );
@@ -169,7 +170,7 @@ function getSpritesheet(name: string): PIXI.Spritesheet | null {
     if (spritesheet && spritesheet instanceof PIXI.Spritesheet) {
       if (!spritesheetCache.has(name)) {
         spritesheetCache.set(name, spritesheet);
-        console.log(`[AnimationSystem] Cached spritesheet: ${name}`);
+        debugLog(`[AnimationSystem] Cached spritesheet: ${name}`);
       }
       return spritesheet;
     }
@@ -309,7 +310,7 @@ function updateAnimatedSprite(sprite: PIXI.AnimatedSprite, eid: number): void {
 //   AnimationRenderComp.loop[eid] = loop ? 1 : 0;
 //   AnimationRenderComp.speed[eid] = speed;
 
-//   console.log(
+//   debugLog(
 //     `[AnimationSystem] Started animation ${AnimationKey[animationKey]} for entity ${eid}`
 //   );
 // }

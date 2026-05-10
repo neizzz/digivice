@@ -9,6 +9,10 @@ import {
 import { MainSceneWorld } from "../world";
 import { CharacterState, DestinationType, ObjectType } from "../types";
 import { nomalizeRadian } from "@/utils/common";
+import {
+  CHARACTER_SCREEN_EDGE_OVERFLOW_PX,
+  getCharacterCenterBoundary,
+} from "./CharacterDisplayBounds";
 
 const movingEntityQuery = defineQuery([PositionComp, SpeedComp, AngleComp]);
 const TARGET_REACHED_EPSILON = 0.001;
@@ -30,10 +34,32 @@ export function commonMovementSystem(params: {
 
   for (let i = 0; i < entities.length; i++) {
     const eid = entities[i];
+    const isCharacter =
+      ObjectComp.type[eid] === ObjectType.CHARACTER;
+    const movementBoundary = isCharacter
+      ? getCharacterCenterBoundary(
+          eid,
+          boundary,
+          CHARACTER_SCREEN_EDGE_OVERFLOW_PX,
+        )
+      : boundary;
+
+    if (isCharacter) {
+      PositionComp.x[eid] = clampAxisValue(
+        PositionComp.x[eid],
+        movementBoundary.x,
+        movementBoundary.x + movementBoundary.width,
+      );
+      PositionComp.y[eid] = clampAxisValue(
+        PositionComp.y[eid],
+        movementBoundary.y,
+        movementBoundary.y + movementBoundary.height,
+      );
+    }
 
     // 캐릭터인 경우 SLEEPING 또는 SICK 상태 체크
     if (
-      ObjectComp.type[eid] === ObjectType.CHARACTER &&
+      isCharacter &&
       (ObjectComp.state[eid] === CharacterState.SLEEPING ||
         ObjectComp.state[eid] === CharacterState.SICK)
     ) {
@@ -49,7 +75,10 @@ export function commonMovementSystem(params: {
     // 이동하지 않는 엔티티는 건너뛰기
     if (speed.value[eid] === 0) continue;
 
-    const targetedDestination = getTargetedDestination(world, eid);
+    const targetedDestination = clampPointToBoundary(
+      getTargetedDestination(world, eid),
+      movementBoundary,
+    );
 
     if (targetedDestination) {
       const deltaXToTarget = targetedDestination.x - position.x[eid];
@@ -77,19 +106,19 @@ export function commonMovementSystem(params: {
       const nextX = position.x[eid] + Math.cos(targetAngle) * stepDistance;
       const nextY = position.y[eid] + Math.sin(targetAngle) * stepDistance;
 
-      const maxX = boundary.x + boundary.width;
-      const maxY = boundary.y + boundary.height;
+      const maxX = movementBoundary.x + movementBoundary.width;
+      const maxY = movementBoundary.y + movementBoundary.height;
 
       if (
-        nextX <= boundary.x ||
+        nextX <= movementBoundary.x ||
         nextX >= maxX ||
-        nextY <= boundary.y ||
+        nextY <= movementBoundary.y ||
         nextY >= maxY
       ) {
-        if (nextX <= boundary.x || nextX >= maxX) {
+        if (nextX <= movementBoundary.x || nextX >= maxX) {
           angle.value[eid] = nomalizeRadian(Math.PI - angle.value[eid]);
         }
-        if (nextY <= boundary.y || nextY >= maxY) {
+        if (nextY <= movementBoundary.y || nextY >= maxY) {
           angle.value[eid] = nomalizeRadian(-angle.value[eid]);
         }
       } else {
@@ -106,7 +135,7 @@ export function commonMovementSystem(params: {
       angle: angle.value[eid],
       speed: speed.value[eid],
       delta,
-      boundary,
+      boundary: movementBoundary,
     });
 
     position.x[eid] = freeMovementResult.x;
@@ -115,6 +144,20 @@ export function commonMovementSystem(params: {
   }
 
   return params;
+}
+
+function clampPointToBoundary(
+  point: { x: number; y: number } | null,
+  boundary: MainSceneWorld["positionBoundary"],
+): { x: number; y: number } | null {
+  if (!point) {
+    return null;
+  }
+
+  return {
+    x: clampAxisValue(point.x, boundary.x, boundary.x + boundary.width),
+    y: clampAxisValue(point.y, boundary.y, boundary.y + boundary.height),
+  };
 }
 
 function calculateFreeMovementStep(params: {

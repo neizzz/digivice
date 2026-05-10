@@ -1,10 +1,16 @@
 import { defineQuery, hasComponent, exitQuery } from "bitecs";
 import * as PIXI from "pixi.js";
-import { CleanableComp, PositionComp, RenderComp } from "../raw-components";
+import {
+  CleanableComp,
+  ObjectComp,
+  PositionComp,
+  RenderComp,
+} from "../raw-components";
 import { ObjectStore } from "../utils/ObjectStore";
 import { INTENTED_FRONT_Z_INDEX } from "../../../constants";
 import { getSpriteStore } from "./RenderSystem";
 import type { MainSceneWorld } from "../world";
+import { ObjectType } from "../types";
 
 // 청소 대상 엔티티 쿼리 - CleanableComp만 필수로 요구
 const cleanableQuery = defineQuery([CleanableComp]);
@@ -27,6 +33,19 @@ const broomStore = new ObjectStore<PIXI.Sprite>("BroomStore");
 const BROOM_RENDER_SCALE = 3.0;
 const BROOM_HORIZONTAL_OVERSHOOT_PX = 10;
 const BROOM_VERTICAL_OFFSET_PX = 10;
+const CLEANING_DIM_OVERLAY_PADDING_PX = 512;
+const CLEANING_DIM_OVERLAY_ALPHA = 0.45;
+const CLEANING_HIGHLIGHT_Z_INDEX_BASE = 1_000_100;
+const CLEANING_DIM_OVERLAY_Z_INDEX = CLEANING_HIGHLIGHT_Z_INDEX_BASE;
+const NON_FOCUSED_TARGET_Z_INDEX = CLEANING_HIGHLIGHT_Z_INDEX_BASE + 1;
+const NON_FOCUSED_BORDER_Z_INDEX = CLEANING_HIGHLIGHT_Z_INDEX_BASE + 2;
+const FOCUSED_TARGET_Z_INDEX = CLEANING_HIGHLIGHT_Z_INDEX_BASE + 3;
+const FOCUSED_BORDER_Z_INDEX = CLEANING_HIGHLIGHT_Z_INDEX_BASE + 4;
+const BROOM_Z_INDEX = CLEANING_HIGHLIGHT_Z_INDEX_BASE + 5;
+const FOCUSED_CLEANABLE_BORDER_COLOR = 0xff7dc2;
+const NON_FOCUSED_CLEANABLE_BORDER_COLOR = 0xffffff;
+
+let cleaningDimOverlay: PIXI.Graphics | null = null;
 
 /**
  * 청소 대상 렌더링 시스템 파라미터
@@ -49,6 +68,8 @@ export function cleanableRenderSystem(params: CleanableRenderSystemParams): {
   const cleanableEntities = cleanableQuery(world);
   const cleanableRenderEntities = cleanableRenderQuery(world);
 
+  updateCleaningDimOverlay(stage, world, cleanableEntities.length > 0);
+
   // 제거된 청소 대상 엔티티의 그래픽스 정리
   const exitedCleanableEntities = exitCleanableQuery(world);
   for (let i = 0; i < exitedCleanableEntities.length; i++) {
@@ -68,8 +89,8 @@ export function cleanableRenderSystem(params: CleanableRenderSystemParams): {
 
     // 위치 정보가 있는 엔티티만 테두리 처리
     if (hasPosition) {
-      // 포커스된 대상의 렌더링 zIndex 조정
-      updateEntityZIndex(eid, isFocused, world);
+      // 포커스된 대상만 렌더 레이어를 프레임 단위로 최전면으로 올린다
+      updateEntitySpriteZIndex(eid, isFocused, world);
 
       // 하이라이트 상태에 따른 점선 테두리 처리
       if (isHighlighted) {
@@ -96,22 +117,50 @@ export function cleanableRenderSystem(params: CleanableRenderSystemParams): {
 }
 
 /**
- * 엔티티의 zIndex 업데이트 (포커스된 대상을 앞으로)
+ * 엔티티 스프라이트의 zIndex 업데이트 (포커스된 대상을 앞으로)
  */
-function updateEntityZIndex(
+function updateEntitySpriteZIndex(
   eid: number,
   isFocused: boolean,
   world: MainSceneWorld,
 ) {
-  // RenderComp가 있는 경우 zIndex 조정
-  if (hasComponent(world, RenderComp, eid)) {
-    RenderComp.zIndex[eid] = isFocused
-      ? INTENTED_FRONT_Z_INDEX
-      : RenderComp.zIndex[eid];
-    // console.log(
-    //   `[CleanableRenderSystem] Updated zIndex for entity ${eid}: ${RenderComp.zIndex[eid]} (focused: ${isFocused})`
-    // );
+  if (!hasComponent(world, RenderComp, eid)) {
+    return;
   }
+
+  const spriteStore = getSpriteStore();
+  const sprite = spriteStore.get(RenderComp.storeIndex[eid]);
+
+  if (!sprite || sprite.destroyed) {
+    return;
+  }
+
+  const shouldLiftAboveDimOverlay =
+    world.isCleaningMode && CleanableComp.isHighlighted[eid] === 1;
+
+  if (isFocused) {
+    sprite.zIndex = FOCUSED_TARGET_Z_INDEX;
+    return;
+  }
+
+  sprite.zIndex = shouldLiftAboveDimOverlay
+    ? NON_FOCUSED_TARGET_Z_INDEX
+    : getBaselineSpriteZIndex(eid, world);
+}
+
+function getBaselineSpriteZIndex(eid: number, world: MainSceneWorld): number {
+  const configuredZIndex = RenderComp.zIndex[eid];
+
+  if (configuredZIndex !== ECS_NULL_VALUE) {
+    return configuredZIndex;
+  }
+
+  const y = PositionComp.y[eid];
+  const shouldSnapCharacterToPixelGrid =
+    hasComponent(world, ObjectComp, eid) &&
+    ObjectComp.type[eid] === ObjectType.CHARACTER;
+
+  return shouldSnapCharacterToPixelGrid ? Math.round(y) : y;
 }
 
 /**
@@ -156,11 +205,9 @@ function createOrUpdateDashedBorder(
 
   let graphics = dashedBorderStore.get(eid);
 
-  const DEFAULT_BORDER_Z_INDEX = INTENTED_FRONT_Z_INDEX + 1;
-
   if (!graphics) {
     graphics = new PIXI.Graphics();
-    graphics.zIndex = DEFAULT_BORDER_Z_INDEX;
+    graphics.zIndex = NON_FOCUSED_BORDER_Z_INDEX;
     graphics.visible = true;
     stage.addChild(graphics);
     dashedBorderStore.set(eid, graphics);
@@ -174,14 +221,16 @@ function createOrUpdateDashedBorder(
     graphics.visible = true;
   }
 
-  // 테두리 색상 결정 (포커스된 대상은 조금 더 밝은 핑크, 일반은 빨간색)
-  const borderColor = isFocused ? 0xff7dc2 : 0xff0000;
-  const lineWidth = isFocused ? 4 : 3;
+  // 테두리 색상 결정 (포커스된 대상은 밝은 핑크, 일반은 밝은 회색)
+  const borderColor = isFocused
+    ? FOCUSED_CLEANABLE_BORDER_COLOR
+    : NON_FOCUSED_CLEANABLE_BORDER_COLOR;
+  const lineWidth = 4;
 
   // zIndex 설정 (포커스된 대상이 더 앞에 나오도록)
   graphics.zIndex = isFocused
-    ? DEFAULT_BORDER_Z_INDEX + 1
-    : DEFAULT_BORDER_Z_INDEX;
+    ? FOCUSED_BORDER_Z_INDEX
+    : NON_FOCUSED_BORDER_Z_INDEX;
 
   // 점선 테두리 그리기 (오브젝트 크기에 맞게)
   const borderX = x - objectWidth / 2;
@@ -211,6 +260,61 @@ function createOrUpdateDashedBorder(
   //     16
   //   )}, focused: ${isFocused}`
   // );
+}
+
+function updateCleaningDimOverlay(
+  stage: PIXI.Container,
+  world: MainSceneWorld,
+  hasCleanableTargets: boolean,
+) {
+  const shouldShowOverlay = world.isCleaningMode && hasCleanableTargets;
+
+  if (!shouldShowOverlay) {
+    removeCleaningDimOverlay(stage);
+    return;
+  }
+
+  if (!cleaningDimOverlay) {
+    cleaningDimOverlay = new PIXI.Graphics();
+    cleaningDimOverlay.zIndex = CLEANING_DIM_OVERLAY_Z_INDEX;
+    cleaningDimOverlay.eventMode = "none";
+    cleaningDimOverlay.visible = true;
+    stage.addChild(cleaningDimOverlay);
+  }
+
+  const boundary = world.positionBoundary;
+  const overlayX = boundary.x - CLEANING_DIM_OVERLAY_PADDING_PX;
+  const overlayY = boundary.y - CLEANING_DIM_OVERLAY_PADDING_PX;
+  const overlayWidth =
+    boundary.width + CLEANING_DIM_OVERLAY_PADDING_PX * 2;
+  const overlayHeight =
+    boundary.height + CLEANING_DIM_OVERLAY_PADDING_PX * 2;
+
+  cleaningDimOverlay.clear();
+  cleaningDimOverlay.beginFill(0x000000, CLEANING_DIM_OVERLAY_ALPHA);
+  cleaningDimOverlay.drawRect(
+    overlayX,
+    overlayY,
+    overlayWidth,
+    overlayHeight,
+  );
+  cleaningDimOverlay.endFill();
+  cleaningDimOverlay.zIndex = CLEANING_DIM_OVERLAY_Z_INDEX;
+  cleaningDimOverlay.visible = true;
+
+  if (!stage.sortableChildren) {
+    stage.sortableChildren = true;
+  }
+}
+
+function removeCleaningDimOverlay(stage: PIXI.Container) {
+  if (!cleaningDimOverlay) {
+    return;
+  }
+
+  stage.removeChild(cleaningDimOverlay);
+  cleaningDimOverlay.destroy();
+  cleaningDimOverlay = null;
 }
 
 /**
@@ -335,11 +439,13 @@ function createOrUpdateBroom(
     }
 
     broomSprite = new PIXI.Sprite(broomTexture);
-    broomSprite.zIndex = INTENTED_FRONT_Z_INDEX + 20; // 테두리보다도 더 위에
+    broomSprite.zIndex = BROOM_Z_INDEX;
     broomSprite.anchor.set(0.5, 0.5); // 중심점을 가운데로
     stage.addChild(broomSprite);
     broomStore.set(eid, broomSprite);
   }
+
+  broomSprite.zIndex = BROOM_Z_INDEX;
 
   // 빗자루 방향에 따른 좌우 반전
   const sliderValue = world.sliderValue;
@@ -413,6 +519,8 @@ function updateCleaningOpacity(
  * 시스템 정리 함수 (필요시 사용)
  */
 export function cleanupCleanableRenderSystem(stage: PIXI.Container): void {
+  removeCleaningDimOverlay(stage);
+
   dashedBorderStore.forEach((dashedBorder, _eid) => {
     stage.removeChild(dashedBorder);
     dashedBorder.destroy();
@@ -424,4 +532,16 @@ export function cleanupCleanableRenderSystem(stage: PIXI.Container): void {
     broomSprite.destroy();
   });
   broomStore.clear();
+}
+
+export function getDashedBorderStore() {
+  return dashedBorderStore;
+}
+
+export function getBroomStore() {
+  return broomStore;
+}
+
+export function getCleaningDimOverlay() {
+  return cleaningDimOverlay;
 }

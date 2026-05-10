@@ -8,6 +8,7 @@ import {
 } from "../raw-components";
 import {
   applyReentryHappyStatusForFullStaminaCharacters,
+  clearTemporaryStatuses,
   characterManagerSystem,
   getRemainingEvolutionGaugeTime,
   getRemainingStaminaDecreaseTime,
@@ -180,6 +181,26 @@ test("reentry 시 최대 스테미나 캐릭터만 happy 임시 상태를 얻는
     }),
   );
 
+  const sickEid = withMockedDateNow(30_003, () =>
+    createTestCharacter(world, {
+      state: CharacterState.SICK,
+      stamina: GAME_CONSTANTS.MAX_STAMINA,
+      x: 260,
+      y: 80,
+    }),
+  );
+
+  const sleepingEid = withMockedDateNow(30_004, () =>
+    createTestCharacter(world, {
+      state: CharacterState.SLEEPING,
+      stamina: GAME_CONSTANTS.MAX_STAMINA,
+      x: 320,
+      y: 80,
+    }),
+  );
+
+  CharacterStatusComp.statuses[sickEid][0] = CharacterStatus.SICK;
+
   applyReentryHappyStatusForFullStaminaCharacters(world as any);
 
   assert.ok(
@@ -206,6 +227,42 @@ test("reentry 시 최대 스테미나 캐릭터만 happy 임시 상태를 얻는
     ),
     false,
   );
+  assert.equal(
+    Array.from(CharacterStatusComp.statuses[sickEid]).includes(
+      CharacterStatus.HAPPY,
+    ),
+    false,
+  );
+  assert.equal(
+    Array.from(CharacterStatusComp.statuses[sleepingEid]).includes(
+      CharacterStatus.HAPPY,
+    ),
+    false,
+  );
+});
+
+test("clearTemporaryStatuses는 happy/discover와 TemporaryStatusComp를 함께 비운다", () => {
+  const world = createTestWorld({ now: 10_000 });
+  const eid = withMockedDateNow(10_000, () =>
+    createTestCharacter(world, {
+      state: CharacterState.IDLE,
+      stamina: GAME_CONSTANTS.MAX_STAMINA,
+      x: 80,
+      y: 80,
+    }),
+  );
+
+  CharacterStatusComp.statuses[eid][0] = CharacterStatus.HAPPY;
+  CharacterStatusComp.statuses[eid][1] = CharacterStatus.DISCOVER;
+
+  assert.equal(hasComponent(world, TemporaryStatusComp, eid), true);
+  TemporaryStatusComp.statusType[eid] = CharacterStatus.DISCOVER;
+  TemporaryStatusComp.startTime[eid] = 10_000;
+
+  assert.equal(clearTemporaryStatuses(world as any, eid), true);
+  assert.deepEqual(Array.from(CharacterStatusComp.statuses[eid]), [0, 0, 0, 0]);
+  assert.equal(TemporaryStatusComp.statusType[eid], 0);
+  assert.equal(TemporaryStatusComp.startTime[eid], 0);
 });
 
 test("수면 중 진화 게이지는 깨어있을 때의 1/3 속도로 오른다", () => {

@@ -40,6 +40,7 @@ import { getCharacterStats } from "./characterStats";
 import { createEggHatchSchedule, GAME_CONSTANTS } from "./config";
 
 type WithRequired<T, K extends keyof T> = Omit<T, K> & Required<Pick<T, K>>;
+const debugLog = (..._args: unknown[]): void => {};
 
 export function createCharacterEntity(
   world: IWorld,
@@ -296,7 +297,7 @@ export function createPoobEntity(
   >;
   const eid = addEntity(world);
 
-  console.log(`[EntityFactory] Creating poob entity with EID: ${eid}`);
+  debugLog(`[EntityFactory] Creating poob entity with EID: ${eid}`);
 
   // ObjectComp
   addComponent(world, ObjectComp, eid);
@@ -307,14 +308,14 @@ export function createPoobEntity(
   ObjectComp.type[eid] = ObjectType.POOB;
   ObjectComp.state[eid] = ECS_NULL_VALUE; // Poob는 별도 상태 enum이 없음
 
-  console.log(`[EntityFactory] Poob object ID: ${ObjectComp.id[eid]}`);
+  debugLog(`[EntityFactory] Poob object ID: ${ObjectComp.id[eid]}`);
 
   // PositionComp
   addComponent(world, PositionComp, eid);
   PositionComp.x[eid] = _components.position.x;
   PositionComp.y[eid] = _components.position.y;
 
-  console.log(
+  debugLog(
     `[EntityFactory] Poob position: (${PositionComp.x[eid]}, ${PositionComp.y[eid]})`
   );
 
@@ -330,7 +331,7 @@ export function createPoobEntity(
   RenderComp.scale[eid] =
     _components.render?.scale ?? 2.4 + Math.random() * (3.6 - 2.4);
 
-  console.log(
+  debugLog(
     `[EntityFactory] Poob entity created successfully with EID: ${eid}, ObjectID: ${ObjectComp.id[eid]}`
   );
 
@@ -384,18 +385,18 @@ export function createThrowingFoodEntity(
   ThrowAnimationComp.elapsedTime[eid] = 0;
   ThrowAnimationComp.isActive[eid] = 1; // 활성화
 
-  console.log(
+  debugLog(
     `[EntityFactory] Created throwing food entity: ECS_ID=${eid}, OBJECT_ID=${entityId}`
   );
-  console.log(
+  debugLog(
     `[EntityFactory] - Random food texture key: ${randomFoodKey} (food-${
       Math.floor(Math.random() * 64) + 1
     })`
   );
-  console.log(
+  debugLog(
     `[EntityFactory] - Initial position: (${options.initialPosition.x}, ${options.initialPosition.y})`
   );
-  console.log(
+  debugLog(
     `[EntityFactory] - Final position: (${options.finalPosition.x}, ${options.finalPosition.y})`
   );
 

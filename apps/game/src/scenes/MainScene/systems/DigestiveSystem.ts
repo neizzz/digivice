@@ -29,6 +29,7 @@ const SMALL_POOP_SCALE_RANGE = {
   min: 2.0,
   max: 2.4,
 } as const;
+const debugLog = (..._args: unknown[]): void => {};
 
 type Point = {
   x: number;
@@ -89,7 +90,7 @@ export function addToDigestiveLoad(
   staminaIncrease: number,
   currentTime: number,
 ): void {
-  console.log(
+  debugLog(
     `[DigestiveSystem] Adding digestive load - EID: ${characterEid}, staminaIncrease: ${staminaIncrease}`,
   );
 
@@ -104,7 +105,7 @@ export function addDigestiveLoadAmount(
   currentTime: number,
 ): void {
   if (!hasComponent(world, DigestiveSystemComp, characterEid)) {
-    console.log(
+    debugLog(
       `[DigestiveSystem] Adding DigestiveSystemComp to character ${characterEid}`,
     );
     addComponent(world, DigestiveSystemComp, characterEid);
@@ -125,7 +126,7 @@ export function addDigestiveLoadAmount(
   const newLoad = digestiveComp.currentLoad[characterEid];
   const capacity = digestiveComp.capacity[characterEid];
 
-  console.log(
+  debugLog(
     `[DigestiveSystem] Load change: ${oldLoad} -> ${newLoad} (capacity: ${capacity})`,
   );
 
@@ -160,7 +161,7 @@ function scheduleNextPoop(
   const poopTime = currentTime + GAME_CONSTANTS.POOP_DELAY;
   digestiveComp.nextPoopTime[characterEid] = poopTime;
 
-  console.log(
+  debugLog(
     `[DigestiveSystem] Capacity exceeded! Next poop time set to: ${poopTime} (current: ${currentTime})`,
   );
 }
@@ -173,7 +174,7 @@ function scheduleNextSmallPoop(
   const poopTime = currentTime + GAME_CONSTANTS.DIGESTIVE_SMALL_POOP_DELAY;
   digestiveComp.nextSmallPoopTime[characterEid] = poopTime;
 
-  console.log(
+  debugLog(
     `[DigestiveSystem] Under-capacity load retained. Next small poop time set to: ${poopTime} (current: ${currentTime})`,
   );
 }
@@ -225,7 +226,7 @@ function processPoop(
   digestiveComp.currentLoad[characterEid] = remainingLoad;
   syncDigestiveTimers(digestiveComp, characterEid, currentTime);
 
-  console.log(
+  debugLog(
     `[DigestiveSystem] Digestive load reduced for character ${characterEid}: ${previousLoad} -> ${remainingLoad}`,
   );
 }
@@ -238,7 +239,7 @@ function processSmallPoop(
   digestiveComp.currentLoad[characterEid] = 0;
   clearDigestiveTimers(digestiveComp, characterEid);
 
-  console.log(
+  debugLog(
     `[DigestiveSystem] Small poop cleared digestive load for character ${characterEid}: ${previousLoad} -> 0`,
   );
 }
@@ -265,7 +266,7 @@ function checkPoopTime(world: MainSceneWorld, currentTime: number): void {
       digestiveComp.nextPoopTime[eid] > 0 &&
       currentTime >= digestiveComp.nextPoopTime[eid]
     ) {
-      console.log(`[DigestiveSystem] It's time to poop! Character ${eid}`);
+      debugLog(`[DigestiveSystem] It's time to poop! Character ${eid}`);
 
       // 똥 생성
       createPoop(world, eid);
@@ -279,7 +280,7 @@ function checkPoopTime(world: MainSceneWorld, currentTime: number): void {
       digestiveComp.nextSmallPoopTime[eid] > 0 &&
       currentTime >= digestiveComp.nextSmallPoopTime[eid]
     ) {
-      console.log(
+      debugLog(
         `[DigestiveSystem] It's time to create a small poop! Character ${eid}`,
       );
 
@@ -297,7 +298,7 @@ export function createPoop(
   characterEid: number,
   options?: { isSmall?: boolean },
 ): void {
-  console.log(
+  debugLog(
     `[DigestiveSystem] Creating poop for character EID: ${characterEid}`,
   );
 
@@ -310,7 +311,7 @@ export function createPoop(
 
   const characterX = PositionComp.x[characterEid];
   const characterY = PositionComp.y[characterEid];
-  console.log(
+  debugLog(
     `[DigestiveSystem] Character position: (${characterX}, ${characterY})`,
   );
 
@@ -319,13 +320,13 @@ export function createPoop(
   if (hasComponent(world, AngleComp, characterEid)) {
     angle = AngleComp.value[characterEid];
   }
-  console.log(`[DigestiveSystem] Character angle: ${angle}`);
+  debugLog(`[DigestiveSystem] Character angle: ${angle}`);
 
   const spawnPosition = selectPoopSpawnPosition(world, characterX, characterY, angle);
-  console.log(
+  debugLog(
     `[DigestiveSystem] Final poop position: (${spawnPosition.x}, ${spawnPosition.y})`,
   );
-  console.log(
+  debugLog(
     `[DigestiveSystem] Boundary: x=${world.positionBoundary.x}, y=${world.positionBoundary.y}, width=${world.positionBoundary.width}, height=${world.positionBoundary.height}`,
   );
 
@@ -343,7 +344,7 @@ export function createPoop(
     render: { storeIndex: 0, textureKey: 0, scale: poopScale, zIndex: 0 },
   });
 
-  console.log(`[DigestiveSystem] Created poop entity with EID: ${poobEntity}`);
+  debugLog(`[DigestiveSystem] Created poop entity with EID: ${poobEntity}`);
 }
 
 function selectPoopSpawnPosition(
@@ -361,7 +362,7 @@ function selectPoopSpawnPosition(
     GAME_CONSTANTS.POOP_SPAWN_DISTANCE,
   );
 
-  console.log(
+  debugLog(
     `[DigestiveSystem] Initial poop position: (${fallbackPosition.x}, ${fallbackPosition.y})`,
   );
 
@@ -387,14 +388,14 @@ function selectPoopSpawnPosition(
     );
 
     if (hasRequiredPoopSpacing(world, candidatePosition)) {
-      console.log(
+      debugLog(
         `[DigestiveSystem] Selected alternate poop position on retry ${attempt + 1}: (${candidatePosition.x}, ${candidatePosition.y})`,
       );
       return candidatePosition;
     }
   }
 
-  console.log(
+  debugLog(
     `[DigestiveSystem] Falling back to legacy poop position after ${GAME_CONSTANTS.POOP_SPAWN_RETRY_COUNT} retries`,
   );
 
