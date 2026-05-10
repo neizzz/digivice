@@ -2,8 +2,16 @@ const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["./browserAll.js","./we
 var __defProp = Object.defineProperty;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
-import { g as getDefaultExportFromCjs, S as SHOW_DEBUG_GAUGE_EVENT, c as commonjsGlobal, r as reactExports, j as jsxRuntimeExports, a as requireReactDom, T as TopLeftBuildLogoText, R as ReactDOM } from "./index2.js";
+import { g as getDefaultExportFromCjs, S as SHOW_DEBUG_GAUGE_EVENT, c as commonjsGlobal, r as reactExports, j as jsxDevRuntimeExports, a as requireReactDom, T as TopLeftBuildLogoText, R as ReactDOM } from "./index2.js";
 const STORAGE_PREVIEW_LIMIT = 120;
+const FLUTTER_STORAGE_TIMEOUT_MS = {
+  getData: 3e3,
+  setData: 2e3,
+  removeData: 2e3
+};
+function _debugStorage(...args) {
+  console.debug(...args);
+}
 function _serialize(obj) {
   return JSON.stringify(obj);
 }
@@ -30,6 +38,70 @@ function _previewValue(value) {
   const stringValue = typeof value === "string" ? value : JSON.stringify(value) ?? String(value);
   return stringValue.length > STORAGE_PREVIEW_LIMIT ? `${stringValue.slice(0, STORAGE_PREVIEW_LIMIT)}…` : stringValue;
 }
+function _createFlutterStorageTimeoutError(params) {
+  const message = `[FlutterStorage] ${params.operation} timed out after ${params.timeoutMs}ms for key "${params.key}"`;
+  return Object.assign(new Error(message), {
+    code: "FLUTTER_STORAGE_TIMEOUT",
+    operation: params.operation,
+    key: params.key,
+    timeoutMs: params.timeoutMs,
+    payloadLength: params.payloadLength
+  });
+}
+async function _withFlutterStorageTimeout(params) {
+  const timeoutMs = FLUTTER_STORAGE_TIMEOUT_MS[params.operation];
+  const startedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
+  return await new Promise((resolve, reject) => {
+    let isSettled = false;
+    const timeoutId = globalThis.setTimeout(() => {
+      if (isSettled) {
+        return;
+      }
+      isSettled = true;
+      const elapsedMs = Math.round(
+        (typeof performance !== "undefined" ? performance.now() : Date.now()) - startedAt
+      );
+      const error = _createFlutterStorageTimeoutError({
+        operation: params.operation,
+        key: params.key,
+        timeoutMs,
+        payloadLength: params.payloadLength
+      });
+      console.error("[ImportantDiagnostics][FlutterStorageTiming]", {
+        phase: "timeout",
+        operation: params.operation,
+        key: params.key,
+        timeoutMs,
+        elapsedMs,
+        payloadLength: params.payloadLength ?? null,
+        error: {
+          name: error.name,
+          message: error.message,
+          code: error.code
+        }
+      });
+      reject(error);
+    }, timeoutMs);
+    void params.promiseFactory().then(
+      (value) => {
+        if (isSettled) {
+          return;
+        }
+        isSettled = true;
+        globalThis.clearTimeout(timeoutId);
+        resolve(value);
+      },
+      (error) => {
+        if (isSettled) {
+          return;
+        }
+        isSettled = true;
+        globalThis.clearTimeout(timeoutId);
+        reject(error);
+      }
+    );
+  });
+}
 function hasNativeStorageController() {
   var _a, _b, _c;
   return typeof window !== "undefined" && typeof ((_a = window.storageController) == null ? void 0 : _a.getData) === "function" && typeof ((_b = window.storageController) == null ? void 0 : _b.setData) === "function" && typeof ((_c = window.storageController) == null ? void 0 : _c.removeData) === "function" && typeof window.__createPromise === "function" && typeof window.__resolvePromise === "function";
@@ -40,20 +112,20 @@ class WebLocalStorage {
   //   localStorage.setItem(key, value);
   // }, 1000);
   async getData(key) {
-    console.debug("[WebLocalStorage] getData:start", { key });
+    _debugStorage("[WebLocalStorage] getData:start", { key });
     const value = localStorage.getItem(key);
     if (value === null) {
-      console.debug("[WebLocalStorage] getData:miss", { key });
+      _debugStorage("[WebLocalStorage] getData:miss", { key });
       return await Promise.resolve(null);
     }
-    console.debug("[WebLocalStorage] getData:raw", {
+    _debugStorage("[WebLocalStorage] getData:raw", {
       key,
       length: value.length,
       preview: _previewValue(value)
     });
     try {
       const parsed = _deserialize(value);
-      console.debug("[WebLocalStorage] getData:parsed", {
+      _debugStorage("[WebLocalStorage] getData:parsed", {
         key,
         valueType: typeof parsed
       });
@@ -69,19 +141,19 @@ class WebLocalStorage {
   }
   setData(key, data) {
     const value = _serialize(data);
-    console.debug("[WebLocalStorage] setData:start", {
+    _debugStorage("[WebLocalStorage] setData:start", {
       key,
       length: value.length,
       preview: _previewValue(value)
     });
     localStorage.setItem(key, value);
-    console.debug("[WebLocalStorage] setData:success", { key });
+    _debugStorage("[WebLocalStorage] setData:success", { key });
     return Promise.resolve();
   }
   removeData(key) {
-    console.debug("[WebLocalStorage] removeData:start", { key });
+    _debugStorage("[WebLocalStorage] removeData:start", { key });
     localStorage.removeItem(key);
-    console.debug("[WebLocalStorage] removeData:success", { key });
+    _debugStorage("[WebLocalStorage] removeData:success", { key });
     return Promise.resolve();
   }
 }
@@ -93,26 +165,30 @@ class FlutterStorage {
     return window.storageController;
   }
   async getData(key) {
-    console.debug("[FlutterStorage] getData:start", { key });
-    const value = await this._getStorageController().getData(key);
-    console.debug("[FlutterStorage] getData:raw", {
+    _debugStorage("[FlutterStorage] getData:start", { key });
+    const value = await _withFlutterStorageTimeout({
+      operation: "getData",
+      key,
+      promiseFactory: () => this._getStorageController().getData(key)
+    });
+    _debugStorage("[FlutterStorage] getData:raw", {
       key,
       rawType: typeof value,
       isNull: value === null,
       preview: _previewValue(value)
     });
     if (_isMissingSerializedValue(value)) {
-      console.debug("[FlutterStorage] getData:miss", { key });
+      _debugStorage("[FlutterStorage] getData:miss", { key });
       return null;
     }
     try {
       const serializedValue = value;
-      console.debug("[FlutterStorage] getData:parse_attempt", {
+      _debugStorage("[FlutterStorage] getData:parse_attempt", {
         key,
         preview: _previewValue(serializedValue)
       });
       const parsed = _deserialize(serializedValue);
-      console.debug("[FlutterStorage] getData:parsed", {
+      _debugStorage("[FlutterStorage] getData:parsed", {
         key,
         valueType: typeof parsed
       });
@@ -128,18 +204,27 @@ class FlutterStorage {
   }
   async setData(key, value) {
     const serializedValue = _serialize(value);
-    console.debug("[FlutterStorage] setData:start", {
+    _debugStorage("[FlutterStorage] setData:start", {
       key,
       length: serializedValue.length,
       preview: _previewValue(serializedValue)
     });
-    await this._getStorageController().setData(key, serializedValue);
-    console.debug("[FlutterStorage] setData:success", { key });
+    await _withFlutterStorageTimeout({
+      operation: "setData",
+      key,
+      payloadLength: serializedValue.length,
+      promiseFactory: () => this._getStorageController().setData(key, serializedValue)
+    });
+    _debugStorage("[FlutterStorage] setData:success", { key });
   }
   async removeData(key) {
-    console.debug("[FlutterStorage] removeData:start", { key });
-    await this._getStorageController().removeData(key);
-    console.debug("[FlutterStorage] removeData:success", { key });
+    _debugStorage("[FlutterStorage] removeData:start", { key });
+    await _withFlutterStorageTimeout({
+      operation: "removeData",
+      key,
+      promiseFactory: () => this._getStorageController().removeData(key)
+    });
+    _debugStorage("[FlutterStorage] removeData:success", { key });
   }
 }
 const scriptRel = "modulepreload";
@@ -27668,16 +27753,6 @@ const TemporaryStatusComp = defineComponent({
   startTime: Types.f64
   // 상태 시작 시간 (timestamp)
 });
-const SparkleEffectComp = defineComponent({
-  isActive: Types.ui8,
-  // 효과 활성 상태 (0 = false, 1 = true)
-  sparkleCount: Types.ui8,
-  // 현재 반짝임 개수
-  nextSpawnTime: Types.f64,
-  // 다음 반짝임 생성 시간 (timestamp)
-  spawnInterval: Types.ui32
-  // 반짝임 생성 간격 (ms)
-});
 const EggHatchComp = defineComponent({
   hatchTime: Types.f64,
   // 부화할 시간 (timestamp)
@@ -27761,18 +27836,18 @@ const PRODUCTION_EVOLUTION_TARGET_DURATION_BY_CLASS_MS = {
   [CharacterClass.C]: 80 * HOUR_MS$1,
   [CharacterClass.D]: 80 * HOUR_MS$1
 };
-const PRODUCTION_EVOLUTION_TARGET_DURATION_VARIANCE_BY_CLASS_MS = {
+({
   [CharacterClass.A]: 2 * HOUR_MS$1,
   [CharacterClass.B]: 4 * HOUR_MS$1,
   [CharacterClass.C]: 8 * HOUR_MS$1,
   [CharacterClass.D]: 8 * HOUR_MS$1
-};
-({
+});
+const DEV_GAUGE_GAIN_BY_CLASS = {
   [CharacterClass.A]: 1 * EVOLUTION_GAUGE_GAIN_MULTIPLIER,
   [CharacterClass.B]: 1 * EVOLUTION_GAUGE_GAIN_MULTIPLIER,
   [CharacterClass.C]: 1 * EVOLUTION_GAUGE_GAIN_MULTIPLIER,
   [CharacterClass.D]: 1 * EVOLUTION_GAUGE_GAIN_MULTIPLIER
-});
+};
 function getGaugeGainForDurationMs(params) {
   const { maxGauge, checkIntervalMs, durationMs } = params;
   if (durationMs <= 0) {
@@ -27805,30 +27880,23 @@ function getAverageGaugeGainByClass(params) {
     })
   };
 }
-function getStableSeededUnitValue(seed) {
-  let hash = 2166136261;
-  for (let i2 = 0; i2 < seed.length; i2++) {
-    hash ^= seed.charCodeAt(i2);
-    hash = Math.imul(hash, 16777619);
-  }
-  return (hash >>> 0) / 4294967296;
-}
-const PRODUCTION_EVOLUTION_GAUGE_CONFIG = {
+({
+  gaugeGainByClass: getAverageGaugeGainByClass({
+    maxGauge: DEFAULT_MAX_GAUGE,
+    checkIntervalMs: 1e4,
+    targetDurationByClassMs: PRODUCTION_EVOLUTION_TARGET_DURATION_BY_CLASS_MS
+  })
+});
+const DEV_EVOLUTION_GAUGE_CONFIG = {
   maxGauge: DEFAULT_MAX_GAUGE,
   staminaThreshold: 3,
   boostedStaminaThreshold: 7,
   boostedGaugeGainMultiplier: 1.2,
   checkIntervalMs: 1e4,
   sleepingGaugeTimeProgressMultiplier: 1 / 3,
-  gaugeGainByClass: getAverageGaugeGainByClass({
-    maxGauge: DEFAULT_MAX_GAUGE,
-    checkIntervalMs: 1e4,
-    targetDurationByClassMs: PRODUCTION_EVOLUTION_TARGET_DURATION_BY_CLASS_MS
-  }),
-  targetDurationByClassMs: PRODUCTION_EVOLUTION_TARGET_DURATION_BY_CLASS_MS,
-  targetDurationVarianceByClassMs: PRODUCTION_EVOLUTION_TARGET_DURATION_VARIANCE_BY_CLASS_MS
+  gaugeGainByClass: DEV_GAUGE_GAIN_BY_CLASS
 };
-const EVOLUTION_GAUGE_CONFIG = PRODUCTION_EVOLUTION_GAUGE_CONFIG;
+const EVOLUTION_GAUGE_CONFIG = DEV_EVOLUTION_GAUGE_CONFIG;
 function createDisplayName(geneLine, classCode, variant) {
   const baseName = geneLine.split("-").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
   return `${baseName} ${classCode}${variant}`;
@@ -28044,26 +28112,17 @@ function getCharacterSpritesheetName(characterKey) {
   var _a;
   return ((_a = getEvolutionSpec(characterKey)) == null ? void 0 : _a.spritesheetName) ?? null;
 }
-function getProductionEvolutionTargetDurationMsForEntity(params) {
-  const { characterKey, objectId } = params;
+function getEvolutionGaugeIncreaseAmount(characterKey) {
   const spec = getEvolutionSpec(characterKey);
   if (!spec) {
     return 0;
   }
-  const targetDurationMs = PRODUCTION_EVOLUTION_GAUGE_CONFIG.targetDurationByClassMs[spec.class];
-  const varianceMs = PRODUCTION_EVOLUTION_GAUGE_CONFIG.targetDurationVarianceByClassMs[spec.class];
-  const seedValue = getStableSeededUnitValue(
-    `${Math.trunc(objectId)}:${spec.classCode}:${spec.phase}`
-  );
-  const jitterRatio = seedValue * 2 - 1;
-  return targetDurationMs + varianceMs * jitterRatio;
+  return EVOLUTION_GAUGE_CONFIG.gaugeGainByClass[spec.class] ?? 0;
 }
 function getEvolutionGaugeIncreaseAmountForEntity(params) {
-  return getGaugeGainForDurationMs({
-    maxGauge: PRODUCTION_EVOLUTION_GAUGE_CONFIG.maxGauge,
-    checkIntervalMs: PRODUCTION_EVOLUTION_GAUGE_CONFIG.checkIntervalMs,
-    durationMs: getProductionEvolutionTargetDurationMsForEntity(params)
-  });
+  {
+    return getEvolutionGaugeIncreaseAmount(params.characterKey);
+  }
 }
 function canEvolveFromConfig(characterKey) {
   const spec = getEvolutionSpec(characterKey);
@@ -28157,10 +28216,9 @@ const PRODUCTION_GAME_CONSTANTS = {
   POOP_DISEASE_RATE: 93e-6,
   STALE_FOOD_DISEASE_RATE: 93e-6,
   // 음식 신선도 관련
+  // fresh 상태는 runtime에서 제거됐지만, 총 edible lifetime은 기존 fresh + normal 합을 유지한다.
   FRESH_TO_NORMAL_TIME: 3 * MINUTE_IN_MILLISECONDS$1,
   NORMAL_TO_STALE_TIME: 10 * MINUTE_IN_MILLISECONDS$1,
-  FRESH_STAMINA_BONUS: 2.5,
-  NORMAL_STAMINA_BONUS: 1.5,
   // 캐릭터 상태 관련
   UNHAPPY_STAMINA_THRESHOLD,
   URGENT_STAMINA_THRESHOLD: 0,
@@ -28212,7 +28270,40 @@ const PRODUCTION_GAME_CONSTANTS = {
   SLEEPING_STAMINA_DECAY_MULTIPLIER: 0.2,
   SLEEPING_DISEASE_RATE_MULTIPLIER: 0.1
 };
-({
+const DEV_BALANCE_COEFFICIENTS = {
+  // DEV에서는 production 기준 시간을 나눠서 빠르게 재현한다.
+  timeDivisors: {
+    EGG_HATCH_TIME: 360,
+    EGG_HATCH_MIN_TIME: 180,
+    EGG_HATCH_MODE_TIME: 360,
+    EGG_HATCH_MAX_TIME: 540,
+    POOP_DELAY: 1,
+    DIGESTIVE_SMALL_POOP_DELAY: 480,
+    DISEASE_CHECK_INTERVAL: 1,
+    FRESH_TO_NORMAL_TIME: 18,
+    NORMAL_TO_STALE_TIME: 60,
+    DEATH_DELAY: 360,
+    DEATH_DELAY_CLASS_A: 360,
+    DEATH_DELAY_CLASS_B: 360,
+    DEATH_DELAY_CLASS_C: 360,
+    DEATH_DELAY_CLASS_D: 360,
+    STAMINA_DECREASE_INTERVAL: 24,
+    NATURAL_SICK_RECOVERY_MIN_DURATION: 60,
+    NIGHT_SLEEP_MIN_DELAY: 60,
+    NIGHT_SLEEP_MAX_DELAY: 60,
+    TARGET_NIGHT_SLEEP_DURATION: 60,
+    TARGET_NIGHT_SLEEP_JITTER: 60,
+    SUNRISE_WAKE_MIN_DELAY: 60,
+    SUNRISE_WAKE_MAX_DELAY: 60,
+    SUNRISE_WAKE_OFFSET_MIN: 60,
+    SUNRISE_WAKE_OFFSET_MAX: 60,
+    NIGHT_RESLEEP_MIN_DELAY: 60,
+    NIGHT_RESLEEP_MAX_DELAY: 60,
+    DAY_NAP_CHECK_INTERVAL: 60,
+    NIGHT_WAKE_CHECK_INTERVAL: 120,
+    DAY_NAP_MIN_DURATION: 60,
+    DAY_NAP_MAX_DURATION: 60
+  },
   // DEV에서는 production 기준 확률을 곱해서 빠르게 상태를 관찰한다.
   probabilityMultipliers: {
     BASE_DISEASE_RATE: 0.02 / PRODUCTION_GAME_CONSTANTS.BASE_DISEASE_RATE,
@@ -28232,24 +28323,29 @@ const PRODUCTION_GAME_CONSTANTS = {
     FATIGUE_SLEEP_RECOVERY_PER_HOUR: 2400 / PRODUCTION_GAME_CONSTANTS.FATIGUE_SLEEP_RECOVERY_PER_HOUR,
     FATIGUE_SLEEP_RECOVERY_PER_HOUR_WHEN_SICK: 800 / PRODUCTION_GAME_CONSTANTS.FATIGUE_SLEEP_RECOVERY_PER_HOUR_WHEN_SICK
   }
-});
+};
 function deriveTimeConstant(key) {
   const baseValue = PRODUCTION_GAME_CONSTANTS[key];
-  {
+  const divisor = DEV_BALANCE_COEFFICIENTS.timeDivisors[key];
+  if (divisor <= 0) {
     return baseValue;
   }
+  const derivedValue = Math.round(baseValue / divisor);
+  if (derivedValue === 0) {
+    return 0;
+  }
+  return derivedValue > 0 ? Math.max(1, derivedValue) : Math.min(-1, derivedValue);
 }
 function deriveProbabilityConstant(key) {
   const baseValue = PRODUCTION_GAME_CONSTANTS[key];
-  {
-    return baseValue;
-  }
+  return Math.min(
+    1,
+    baseValue * DEV_BALANCE_COEFFICIENTS.probabilityMultipliers[key]
+  );
 }
 function deriveRateConstant(key) {
   const baseValue = PRODUCTION_GAME_CONSTANTS[key];
-  {
-    return baseValue;
-  }
+  return baseValue * DEV_BALANCE_COEFFICIENTS.rateMultipliers[key];
 }
 const GAME_CONSTANTS = {
   ...PRODUCTION_GAME_CONSTANTS,
@@ -28406,13 +28502,13 @@ function getEggHatchProgress(params) {
   return clampProgress((currentTime - hatchStartTime) / hatchDurationMs);
 }
 function getEggCrackStage(progress) {
-  if (progress >= 0.92) {
+  if (progress >= 0.75) {
     return 3;
   }
-  if (progress >= 0.8) {
+  if (progress >= 0.5) {
     return 2;
   }
-  if (progress >= 0.6) {
+  if (progress >= 0.25) {
     return 1;
   }
   return 0;
@@ -28482,6 +28578,9 @@ function getCharacterMovementSpeedForEntity(eid) {
   const characterStats = getCharacterStats(characterKey);
   return applyUrgentSpeedMultiplier(characterStats.speed, eid);
 }
+function normalizeSavedFreshness(freshness) {
+  return freshness === Freshness.FRESH ? Freshness.NORMAL : freshness;
+}
 function convertECSEntityToSavedEntity(world, eid) {
   const components = {};
   if (hasComponent(world, ObjectComp, eid)) {
@@ -28520,7 +28619,7 @@ function convertECSEntityToSavedEntity(world, eid) {
   }
   if (hasComponent(world, FreshnessComp, eid)) {
     components.freshness = {
-      freshness: FreshnessComp.freshness[eid]
+      freshness: normalizeSavedFreshness(FreshnessComp.freshness[eid])
     };
   }
   if (hasComponent(world, DestinationComp, eid)) {
@@ -28718,7 +28817,9 @@ function applySavedEntityToECS(world, eid, savedEntity) {
     if (!hasComponent(world, FreshnessComp, eid)) {
       addComponent(world, FreshnessComp, eid);
     }
-    FreshnessComp.freshness[eid] = components.freshness.freshness;
+    FreshnessComp.freshness[eid] = normalizeSavedFreshness(
+      components.freshness.freshness
+    );
   }
   if (components.destination) {
     if (!hasComponent(world, DestinationComp, eid)) {
@@ -29146,138 +29247,6 @@ function randomMovementSystem(params) {
     }
   }
   return params;
-}
-const movingEntityQuery = defineQuery([PositionComp, SpeedComp, AngleComp]);
-const TARGET_REACHED_EPSILON$1 = 1e-3;
-const REFLECTION_DIRECTION_PROBE_EPSILON = 1e-6;
-function commonMovementSystem(params) {
-  const { world, delta } = params;
-  const entities = movingEntityQuery(world);
-  const boundary = world.positionBoundary;
-  for (let i2 = 0; i2 < entities.length; i2++) {
-    const eid = entities[i2];
-    if (ObjectComp.type[eid] === ObjectType.CHARACTER && (ObjectComp.state[eid] === CharacterState.SLEEPING || ObjectComp.state[eid] === CharacterState.SICK)) {
-      SpeedComp.value[eid] = 0;
-      continue;
-    }
-    const position = PositionComp;
-    const angle = AngleComp;
-    const speed = SpeedComp;
-    if (speed.value[eid] === 0) continue;
-    const targetedDestination = getTargetedDestination(world, eid);
-    if (targetedDestination) {
-      const deltaXToTarget = targetedDestination.x - position.x[eid];
-      const deltaYToTarget = targetedDestination.y - position.y[eid];
-      const remainingDistance = Math.sqrt(
-        deltaXToTarget * deltaXToTarget + deltaYToTarget * deltaYToTarget
-      );
-      if (remainingDistance <= TARGET_REACHED_EPSILON$1) {
-        position.x[eid] = targetedDestination.x;
-        position.y[eid] = targetedDestination.y;
-        continue;
-      }
-      const targetAngle = Math.atan2(deltaYToTarget, deltaXToTarget);
-      angle.value[eid] = targetAngle;
-      const stepDistance = speed.value[eid] * delta;
-      if (stepDistance >= remainingDistance) {
-        position.x[eid] = targetedDestination.x;
-        position.y[eid] = targetedDestination.y;
-        continue;
-      }
-      const nextX = position.x[eid] + Math.cos(targetAngle) * stepDistance;
-      const nextY = position.y[eid] + Math.sin(targetAngle) * stepDistance;
-      const maxX = boundary.x + boundary.width;
-      const maxY = boundary.y + boundary.height;
-      if (nextX <= boundary.x || nextX >= maxX || nextY <= boundary.y || nextY >= maxY) {
-        if (nextX <= boundary.x || nextX >= maxX) {
-          angle.value[eid] = nomalizeRadian(Math.PI - angle.value[eid]);
-        }
-        if (nextY <= boundary.y || nextY >= maxY) {
-          angle.value[eid] = nomalizeRadian(-angle.value[eid]);
-        }
-      } else {
-        position.x[eid] = nextX;
-        position.y[eid] = nextY;
-      }
-      continue;
-    }
-    const freeMovementResult = calculateFreeMovementStep({
-      x: position.x[eid],
-      y: position.y[eid],
-      angle: angle.value[eid],
-      speed: speed.value[eid],
-      delta,
-      boundary
-    });
-    position.x[eid] = freeMovementResult.x;
-    position.y[eid] = freeMovementResult.y;
-    angle.value[eid] = freeMovementResult.angle;
-  }
-  return params;
-}
-function calculateFreeMovementStep(params) {
-  const { x: x2, y: y2, angle, speed, delta, boundary } = params;
-  const maxX = boundary.x + boundary.width;
-  const maxY = boundary.y + boundary.height;
-  const deltaX = Math.cos(angle) * speed * delta;
-  const deltaY = Math.sin(angle) * speed * delta;
-  const reflectedX = reflectAxisPosition(x2, deltaX, boundary.x, maxX);
-  const reflectedY = reflectAxisPosition(y2, deltaY, boundary.y, maxY);
-  let nextAngle = angle;
-  if (reflectedX.reflected) {
-    nextAngle = nomalizeRadian(Math.PI - nextAngle);
-  }
-  if (reflectedY.reflected) {
-    nextAngle = nomalizeRadian(-nextAngle);
-  }
-  return {
-    x: reflectedX.value,
-    y: reflectedY.value,
-    angle: nextAngle
-  };
-}
-function reflectAxisPosition(currentValue, deltaValue, minValue, maxValue) {
-  const axisLength = maxValue - minValue;
-  if (axisLength <= 0) {
-    return {
-      value: minValue,
-      reflected: false
-    };
-  }
-  const period = axisLength * 2;
-  const relativeEndValue = currentValue - minValue + deltaValue;
-  const normalizedEndValue = positiveModulo(relativeEndValue, period);
-  const reflectedValue = normalizedEndValue <= axisLength ? normalizedEndValue : period - normalizedEndValue;
-  if (deltaValue === 0) {
-    return {
-      value: clampAxisValue(minValue + reflectedValue, minValue, maxValue),
-      reflected: false
-    };
-  }
-  const probeValue = relativeEndValue + Math.sign(deltaValue) * REFLECTION_DIRECTION_PROBE_EPSILON;
-  const normalizedProbeValue = positiveModulo(probeValue, period);
-  return {
-    value: clampAxisValue(minValue + reflectedValue, minValue, maxValue),
-    reflected: normalizedProbeValue > axisLength
-  };
-}
-function positiveModulo(value, base) {
-  return (value % base + base) % base;
-}
-function clampAxisValue(value, minValue, maxValue) {
-  return Math.min(maxValue, Math.max(minValue, value));
-}
-function getTargetedDestination(world, eid) {
-  if (!hasComponent(world, DestinationComp, eid)) {
-    return null;
-  }
-  if (DestinationComp.type[eid] !== DestinationType.TARGETED) {
-    return null;
-  }
-  return {
-    x: DestinationComp.x[eid],
-    y: DestinationComp.y[eid]
-  };
 }
 const inFlightSpritesheetLoads = /* @__PURE__ */ new Map();
 function sleep$1(ms) {
@@ -29720,13 +29689,14 @@ function getSprite(eid) {
 function getMaskSprite(eid) {
   return maskSpriteStore.get(eid);
 }
-function getTextureFromKey$1(textureKey) {
+function getTextureFromKey(textureKey) {
   const textureInfo = TEXTURE_MAP[textureKey];
   if (!textureInfo) {
-    console.warn(
-      `[RenderSystem] Texture key ${textureKey} not found in TEXTURE_MAP`
-    );
-    return void 0;
+    {
+      throw new Error(
+        `[RenderSystem] Texture key ${textureKey} not found in TEXTURE_MAP`
+      );
+    }
   }
   try {
     if (!textureInfo.spritesheetAlias) {
@@ -29762,7 +29732,7 @@ function getTextureFromKey$1(textureKey) {
 }
 function createSpriteForEntity(eid) {
   const textureKey = RenderComp.textureKey[eid];
-  const texture = getTextureFromKey$1(textureKey);
+  const texture = getTextureFromKey(textureKey);
   if (!texture) {
     console.warn(
       `[RenderSystem] Texture not found for entity ${eid} with key ${textureKey}`
@@ -29827,8 +29797,13 @@ function updateMaskTexture(maskSprite, progress) {
     maskSprite.texture = texture;
   }
 }
+let hasValidatedTextures = false;
 function renderSystem(params) {
   const { world } = params;
+  if (!hasValidatedTextures) {
+    validateTextureMap();
+    hasValidatedTextures = true;
+  }
   const entities = renderableQuery(world);
   const exitedEntities = exitedRenderableQuery(world);
   const stage = world.stage;
@@ -29884,9 +29859,19 @@ function renderSystem(params) {
       console.log(
         `[RenderSystem] Created and added sprite for entity ${eid}, total sprites after: ${spriteStore.size}`
       );
+      const firstSpriteTimingPayload = world.consumePendingFirstSpriteTimingLog(
+        eid,
+        "static"
+      );
+      if (firstSpriteTimingPayload) {
+        console.log(
+          "[ImportantDiagnostics][MainSceneFirstSprite]",
+          firstSpriteTimingPayload
+        );
+      }
     }
     renderCommonAttributes(eid, sprite, world);
-    const newTexture = getTextureFromKey$1(textureKey);
+    const newTexture = getTextureFromKey(textureKey);
     if (newTexture && sprite.texture !== newTexture) {
       sprite.texture = newTexture;
     }
@@ -29986,8 +29971,34 @@ function isTextureKeyLoaded(textureKey) {
     textureInfo.textureName
   );
 }
+function getAvailableTextureKeys() {
+  return Object.keys(TEXTURE_MAP).map(Number).sort((a2, b2) => a2 - b2);
+}
 function getTextureInfo(textureKey) {
   return TEXTURE_MAP[textureKey] || null;
+}
+function validateTextureMap() {
+  console.groupCollapsed("[RenderSystem] Texture Map Validation:");
+  const availableKeys = getAvailableTextureKeys();
+  let validCount = 0;
+  let invalidCount = 0;
+  for (const textureKey of availableKeys) {
+    const isLoaded = isTextureKeyLoaded(textureKey);
+    const textureInfo = getTextureInfo(textureKey);
+    if (isLoaded) {
+      validCount++;
+      console.log(
+        `✓ Key ${textureKey}: ${textureInfo == null ? void 0 : textureInfo.spritesheetAlias}/${textureInfo == null ? void 0 : textureInfo.textureName}`
+      );
+    } else {
+      invalidCount++;
+      console.warn(
+        `✗ Key ${textureKey}: ${textureInfo == null ? void 0 : textureInfo.spritesheetAlias}/${textureInfo == null ? void 0 : textureInfo.textureName} - NOT LOADED`
+      );
+    }
+  }
+  console.log(`Summary: ${validCount} valid, ${invalidCount} invalid textures`);
+  console.groupEnd();
 }
 const SPRITESHEET_KEY_TO_NAME = {
   [SpritesheetKey.NULL]: "null",
@@ -30059,6 +30070,16 @@ function animationRenderSystem(params) {
       console.log(
         `[AnimationSystem] Added animated sprite to stage for entity ${eid}`
       );
+      const firstSpriteTimingPayload = world.consumePendingFirstSpriteTimingLog(
+        eid,
+        "animated"
+      );
+      if (firstSpriteTimingPayload) {
+        console.log(
+          "[ImportantDiagnostics][MainSceneFirstSprite]",
+          firstSpriteTimingPayload
+        );
+      }
     }
     renderCommonAttributes(eid, animatedSprite, world);
     updateAnimatedSprite(animatedSprite, eid);
@@ -30184,6 +30205,650 @@ function updateAnimatedSprite(sprite, eid) {
     sprite.stop();
   }
 }
+const OPAQUE_BOUNDS_PADDING_PX = 1;
+const characterOpaqueBoundsCache = /* @__PURE__ */ new Map();
+const textureOpaqueBoundsCache = /* @__PURE__ */ new Map();
+const inFlightOpaqueBounds = /* @__PURE__ */ new Map();
+let measurementCanvas;
+let measurementContext$1;
+function getCachedCharacterOpaqueBounds(characterKey) {
+  return characterOpaqueBoundsCache.get(characterKey) ?? null;
+}
+function getCachedTextureOpaqueBounds(textureKey) {
+  return textureOpaqueBoundsCache.get(textureKey) ?? null;
+}
+async function ensureCharacterOpaqueBoundsComputed(characterKey) {
+  if (characterKey === CharacterKeyECS.NULL) {
+    return null;
+  }
+  const cached = characterOpaqueBoundsCache.get(characterKey);
+  if (cached) {
+    return cached;
+  }
+  const spritesheetOptions = getCharacterSpritesheetOptions(
+    characterKey
+  );
+  if (!spritesheetOptions) {
+    return null;
+  }
+  const alias = spritesheetOptions.alias ?? spritesheetOptions.jsonPath;
+  if (!isSpritesheetLoaded(alias)) {
+    return null;
+  }
+  const spritesheet = Assets.get(alias);
+  if (!(spritesheet instanceof Spritesheet)) {
+    return null;
+  }
+  const idleTextureEntry = resolveIdleTextureEntry(spritesheet);
+  if (!idleTextureEntry) {
+    return null;
+  }
+  return ensureOpaqueBoundsComputed({
+    cacheKey: `character:${characterKey}`,
+    getCached: () => characterOpaqueBoundsCache.get(characterKey) ?? null,
+    setCached: (bounds) => {
+      characterOpaqueBoundsCache.set(characterKey, bounds);
+    },
+    texture: idleTextureEntry.texture,
+    alias,
+    frameName: idleTextureEntry.frameName
+  });
+}
+async function ensureTextureOpaqueBoundsComputed(textureKey) {
+  var _a;
+  if (textureKey <= 0) {
+    return null;
+  }
+  const cached = textureOpaqueBoundsCache.get(textureKey);
+  if (cached) {
+    return cached;
+  }
+  if (!isTextureKeyLoaded(textureKey)) {
+    return null;
+  }
+  const textureInfo = getTextureInfo(textureKey);
+  if (!(textureInfo == null ? void 0 : textureInfo.spritesheetAlias)) {
+    return null;
+  }
+  const spritesheet = Assets.get(
+    textureInfo.spritesheetAlias
+  );
+  if (!(spritesheet instanceof Spritesheet)) {
+    return null;
+  }
+  const texture = (_a = spritesheet.textures) == null ? void 0 : _a[textureInfo.textureName];
+  if (!texture) {
+    return null;
+  }
+  return ensureOpaqueBoundsComputed({
+    cacheKey: `texture:${textureKey}`,
+    getCached: () => textureOpaqueBoundsCache.get(textureKey) ?? null,
+    setCached: (bounds) => {
+      textureOpaqueBoundsCache.set(textureKey, bounds);
+    },
+    texture,
+    alias: textureInfo.spritesheetAlias,
+    frameName: textureInfo.textureName
+  });
+}
+async function precomputeLoadedCharacterOpaqueBounds() {
+  const characterKeys = Object.values(CharacterKeyECS).filter(
+    (value) => typeof value === "number" && value !== CharacterKeyECS.NULL
+  );
+  await Promise.all(
+    characterKeys.map(async (characterKey) => {
+      const spritesheetOptions = getCharacterSpritesheetOptions(characterKey);
+      if (!spritesheetOptions) {
+        return;
+      }
+      const alias = spritesheetOptions.alias ?? spritesheetOptions.jsonPath;
+      if (!isSpritesheetLoaded(alias)) {
+        return;
+      }
+      await ensureCharacterOpaqueBoundsComputed(characterKey);
+    })
+  );
+}
+async function precomputeLoadedTextureOpaqueBounds(textureKeys) {
+  await Promise.all(
+    textureKeys.map(async (textureKey) => {
+      if (!isTextureKeyLoaded(textureKey)) {
+        return;
+      }
+      await ensureTextureOpaqueBoundsComputed(textureKey);
+    })
+  );
+}
+function resolveIdleTextureEntry(spritesheet) {
+  var _a, _b;
+  const idleAnimation = (_a = spritesheet.animations) == null ? void 0 : _a.idle;
+  if (idleAnimation && idleAnimation.length > 0) {
+    const texture2 = idleAnimation[0];
+    const frameName2 = findTextureNameByReference(spritesheet, texture2) ?? "idle:first";
+    return { texture: texture2, frameName: frameName2 };
+  }
+  const idleTexture = (_b = spritesheet.textures) == null ? void 0 : _b.idle_0;
+  if (idleTexture) {
+    return { texture: idleTexture, frameName: "idle_0" };
+  }
+  const textureEntries = Object.entries(spritesheet.textures ?? {});
+  if (textureEntries.length === 0) {
+    return null;
+  }
+  const [frameName, texture] = textureEntries[0];
+  return { texture, frameName };
+}
+function findTextureNameByReference(spritesheet, targetTexture) {
+  const textureEntries = Object.entries(spritesheet.textures ?? {});
+  for (let i2 = 0; i2 < textureEntries.length; i2++) {
+    const [frameName, texture] = textureEntries[i2];
+    if (texture === targetTexture) {
+      return frameName;
+    }
+  }
+  return null;
+}
+function computeOpaqueBoundsFromTexture(texture, sourceKey, alias, frameName) {
+  var _a, _b;
+  const context2 = getMeasurementContext$1();
+  if (!context2) {
+    return null;
+  }
+  const sourceResource = getTextureCanvasSource(texture);
+  if (!sourceResource) {
+    return null;
+  }
+  const resolution = texture.source.resolution ?? texture.source._resolution ?? 1;
+  const frame = texture.frame;
+  const frameWidth = Math.max(1, Math.round(frame.width));
+  const frameHeight = Math.max(1, Math.round(frame.height));
+  const sourceWidth = Math.max(1, Math.round(texture.orig.width || frame.width));
+  const sourceHeight = Math.max(
+    1,
+    Math.round(texture.orig.height || frame.height)
+  );
+  const trimX = Math.round(((_a = texture.trim) == null ? void 0 : _a.x) ?? 0);
+  const trimY = Math.round(((_b = texture.trim) == null ? void 0 : _b.y) ?? 0);
+  measurementCanvas.width = frameWidth;
+  measurementCanvas.height = frameHeight;
+  context2.clearRect(0, 0, frameWidth, frameHeight);
+  context2.drawImage(
+    sourceResource,
+    Math.round(frame.x * resolution),
+    Math.round(frame.y * resolution),
+    Math.max(1, Math.round(frame.width * resolution)),
+    Math.max(1, Math.round(frame.height * resolution)),
+    0,
+    0,
+    frameWidth,
+    frameHeight
+  );
+  const imageData = context2.getImageData(0, 0, frameWidth, frameHeight);
+  const scanResult = scanOpaquePixels(imageData.data, frameWidth, frameHeight);
+  if (!scanResult) {
+    return createFullFrameBounds({
+      sourceKey,
+      alias,
+      frameName,
+      sourceWidth,
+      sourceHeight,
+      trimX,
+      trimY,
+      frameWidth,
+      frameHeight
+    });
+  }
+  const minXInSource = trimX + scanResult.minX;
+  const maxXExclusiveInSource = trimX + scanResult.maxX + 1;
+  const minYInSource = trimY + scanResult.minY;
+  const maxYExclusiveInSource = trimY + scanResult.maxY + 1;
+  const paddedMinXInSource = Math.max(
+    0,
+    minXInSource - OPAQUE_BOUNDS_PADDING_PX
+  );
+  const paddedMaxXExclusiveInSource = Math.min(
+    sourceWidth,
+    maxXExclusiveInSource + OPAQUE_BOUNDS_PADDING_PX
+  );
+  const paddedMinYInSource = Math.max(
+    0,
+    minYInSource - OPAQUE_BOUNDS_PADDING_PX
+  );
+  const paddedMaxYExclusiveInSource = Math.min(
+    sourceHeight,
+    maxYExclusiveInSource + OPAQUE_BOUNDS_PADDING_PX
+  );
+  const left = paddedMinXInSource - sourceWidth / 2;
+  const right = paddedMaxXExclusiveInSource - sourceWidth / 2;
+  const top = paddedMinYInSource - sourceHeight / 2;
+  const bottom = paddedMaxYExclusiveInSource - sourceHeight / 2;
+  return {
+    sourceKey,
+    alias,
+    frameName,
+    sourceWidth,
+    sourceHeight,
+    left,
+    right,
+    top,
+    bottom,
+    width: right - left,
+    height: bottom - top
+  };
+}
+function createFullFrameBounds(params) {
+  const {
+    sourceKey,
+    alias,
+    frameName,
+    sourceWidth,
+    sourceHeight,
+    trimX,
+    trimY,
+    frameWidth,
+    frameHeight
+  } = params;
+  const left = trimX - sourceWidth / 2;
+  const right = trimX + frameWidth - sourceWidth / 2;
+  const top = trimY - sourceHeight / 2;
+  const bottom = trimY + frameHeight - sourceHeight / 2;
+  return {
+    sourceKey,
+    alias,
+    frameName,
+    sourceWidth,
+    sourceHeight,
+    left,
+    right,
+    top,
+    bottom,
+    width: right - left,
+    height: bottom - top
+  };
+}
+async function ensureOpaqueBoundsComputed(params) {
+  const cached = params.getCached();
+  if (cached) {
+    return cached;
+  }
+  const existingPromise = inFlightOpaqueBounds.get(params.cacheKey);
+  if (existingPromise) {
+    return existingPromise;
+  }
+  const computePromise = (async () => {
+    try {
+      const bounds = computeOpaqueBoundsFromTexture(
+        params.texture,
+        params.cacheKey,
+        params.alias,
+        params.frameName
+      );
+      if (bounds) {
+        params.setCached(bounds);
+      }
+      return bounds;
+    } finally {
+      inFlightOpaqueBounds.delete(params.cacheKey);
+    }
+  })();
+  inFlightOpaqueBounds.set(params.cacheKey, computePromise);
+  return computePromise;
+}
+function scanOpaquePixels(data, width, height) {
+  let minX = width;
+  let minY = height;
+  let maxX = -1;
+  let maxY = -1;
+  for (let y2 = 0; y2 < height; y2++) {
+    for (let x2 = 0; x2 < width; x2++) {
+      const alphaIndex = (y2 * width + x2) * 4 + 3;
+      if (data[alphaIndex] <= 0) {
+        continue;
+      }
+      if (x2 < minX) minX = x2;
+      if (y2 < minY) minY = y2;
+      if (x2 > maxX) maxX = x2;
+      if (y2 > maxY) maxY = y2;
+    }
+  }
+  if (maxX < minX || maxY < minY) {
+    return null;
+  }
+  return { minX, minY, maxX, maxY };
+}
+function getMeasurementContext$1() {
+  if (measurementContext$1 !== void 0) {
+    return measurementContext$1;
+  }
+  if (typeof document === "undefined") {
+    measurementCanvas = null;
+    measurementContext$1 = null;
+    return measurementContext$1;
+  }
+  measurementCanvas = document.createElement("canvas");
+  measurementContext$1 = measurementCanvas.getContext("2d", {
+    willReadFrequently: true
+  });
+  return measurementContext$1;
+}
+function getTextureCanvasSource(texture) {
+  const resource = texture.source.resource;
+  if (resource instanceof HTMLImageElement || resource instanceof HTMLCanvasElement || resource instanceof HTMLVideoElement || typeof ImageBitmap !== "undefined" && resource instanceof ImageBitmap || typeof OffscreenCanvas !== "undefined" && resource instanceof OffscreenCanvas) {
+    return resource;
+  }
+  return null;
+}
+const FALLBACK_CHARACTER_HEIGHT = 48;
+const FALLBACK_CHARACTER_WIDTH = 48;
+const CHARACTER_SCREEN_EDGE_OVERFLOW_PX = 10;
+const CHARACTER_SCREEN_TOP_EDGE_OVERFLOW_PX = 20;
+function getCharacterDisplayObject(eid) {
+  return getSpriteStore().get(eid) ?? getAnimatedSpriteStore().get(eid);
+}
+function getCharacterVerticalBounds(eid) {
+  const bounds = getCharacterWorldBounds(eid);
+  return {
+    topY: bounds.topY,
+    bottomY: bounds.bottomY,
+    height: bounds.height
+  };
+}
+function getCharacterWorldBounds(eid) {
+  const centerX = PositionComp.x[eid];
+  const centerY = PositionComp.y[eid];
+  const relativeBounds = getCharacterRelativeBounds(eid);
+  return {
+    leftX: centerX + relativeBounds.left,
+    rightX: centerX + relativeBounds.right,
+    topY: centerY + relativeBounds.top,
+    bottomY: centerY + relativeBounds.bottom,
+    width: relativeBounds.width,
+    height: relativeBounds.height
+  };
+}
+function getCharacterCenterBoundary(eid, boundary, overflowPx = CHARACTER_SCREEN_EDGE_OVERFLOW_PX, topOverflowPx = CHARACTER_SCREEN_TOP_EDGE_OVERFLOW_PX) {
+  const relativeBounds = getCharacterRelativeBounds(eid);
+  const xRange = createClampedAxisRange(
+    boundary.x - overflowPx - relativeBounds.left,
+    boundary.x + boundary.width + overflowPx - relativeBounds.right
+  );
+  const yRange = createClampedAxisRange(
+    boundary.y - topOverflowPx - relativeBounds.top,
+    boundary.y + boundary.height + overflowPx - relativeBounds.bottom
+  );
+  return {
+    x: xRange.min,
+    y: yRange.min,
+    width: xRange.max - xRange.min,
+    height: yRange.max - yRange.min
+  };
+}
+function getCharacterRelativeBounds(eid) {
+  const displayObject = getCharacterDisplayObject(eid);
+  const opaqueBounds = getCharacterOpaqueBoundsForEntity(eid);
+  if (opaqueBounds) {
+    const scaleX = getCharacterScaleX(displayObject, eid);
+    const scaleY = getCharacterScaleY(displayObject, eid);
+    const left = opaqueBounds.left * scaleX;
+    const right = opaqueBounds.right * scaleX;
+    const top = opaqueBounds.top * scaleY;
+    const bottom = opaqueBounds.bottom * scaleY;
+    return {
+      left,
+      right,
+      top,
+      bottom,
+      width: right - left,
+      height: bottom - top
+    };
+  }
+  const width = getFallbackDisplayDimension(
+    displayObject,
+    "width",
+    eid,
+    FALLBACK_CHARACTER_WIDTH
+  );
+  const height = getFallbackDisplayDimension(
+    displayObject,
+    "height",
+    eid,
+    FALLBACK_CHARACTER_HEIGHT
+  );
+  const halfWidth = width / 2;
+  const halfHeight = height / 2;
+  return {
+    left: -halfWidth,
+    right: halfWidth,
+    top: -halfHeight,
+    bottom: halfHeight,
+    width,
+    height
+  };
+}
+function getCharacterOpaqueBoundsForEntity(eid) {
+  const sprite = getSpriteStore().get(eid);
+  if (sprite) {
+    const textureKey = RenderComp.textureKey[eid];
+    if (!textureKey || textureKey === 0) {
+      return null;
+    }
+    const cachedBounds = getCachedTextureOpaqueBounds(textureKey);
+    if (cachedBounds) {
+      return cachedBounds;
+    }
+    void ensureTextureOpaqueBoundsComputed(textureKey);
+    return null;
+  }
+  const animatedSprite = getAnimatedSpriteStore().get(eid);
+  if (animatedSprite) {
+    const characterKey = AnimationRenderComp.spritesheetKey[eid] || CharacterStatusComp.characterKey[eid];
+    if (!characterKey || characterKey === 0) {
+      return null;
+    }
+    const cachedBounds = getCachedCharacterOpaqueBounds(characterKey);
+    if (cachedBounds) {
+      return cachedBounds;
+    }
+    void ensureCharacterOpaqueBoundsComputed(characterKey);
+    return null;
+  }
+  return null;
+}
+function getCharacterScaleX(displayObject, eid) {
+  const displayScaleX = displayObject && Number.isFinite(displayObject.scale.x) ? Math.abs(displayObject.scale.x) : NaN;
+  if (Number.isFinite(displayScaleX) && displayScaleX > 0) {
+    return displayScaleX;
+  }
+  return getFallbackScale(eid);
+}
+function getCharacterScaleY(displayObject, eid) {
+  const displayScaleY = displayObject && Number.isFinite(displayObject.scale.y) ? Math.abs(displayObject.scale.y) : NaN;
+  if (Number.isFinite(displayScaleY) && displayScaleY > 0) {
+    return displayScaleY;
+  }
+  return getFallbackScale(eid);
+}
+function getFallbackDisplayDimension(displayObject, axis, eid, fallbackDimension) {
+  const dimension = displayObject && Number.isFinite(displayObject[axis]) ? Number(displayObject[axis]) : NaN;
+  if (Number.isFinite(dimension) && dimension > 0) {
+    return dimension;
+  }
+  const scale = getFallbackScale(eid);
+  return scale > 0 ? scale * 16 : fallbackDimension;
+}
+function getFallbackScale(eid) {
+  const scale = RenderComp.scale[eid];
+  return scale > 0 ? scale : 1;
+}
+function createClampedAxisRange(min, max) {
+  if (min <= max) {
+    return { min, max };
+  }
+  const center = (min + max) / 2;
+  return { min: center, max: center };
+}
+const movingEntityQuery = defineQuery([PositionComp, SpeedComp, AngleComp]);
+const TARGET_REACHED_EPSILON$1 = 1e-3;
+const REFLECTION_DIRECTION_PROBE_EPSILON = 1e-6;
+function commonMovementSystem(params) {
+  const { world, delta } = params;
+  const entities = movingEntityQuery(world);
+  const boundary = world.positionBoundary;
+  for (let i2 = 0; i2 < entities.length; i2++) {
+    const eid = entities[i2];
+    const isCharacter = ObjectComp.type[eid] === ObjectType.CHARACTER;
+    const movementBoundary = isCharacter ? getCharacterCenterBoundary(
+      eid,
+      boundary,
+      CHARACTER_SCREEN_EDGE_OVERFLOW_PX
+    ) : boundary;
+    if (isCharacter) {
+      PositionComp.x[eid] = clampAxisValue$1(
+        PositionComp.x[eid],
+        movementBoundary.x,
+        movementBoundary.x + movementBoundary.width
+      );
+      PositionComp.y[eid] = clampAxisValue$1(
+        PositionComp.y[eid],
+        movementBoundary.y,
+        movementBoundary.y + movementBoundary.height
+      );
+    }
+    if (isCharacter && (ObjectComp.state[eid] === CharacterState.SLEEPING || ObjectComp.state[eid] === CharacterState.SICK)) {
+      SpeedComp.value[eid] = 0;
+      continue;
+    }
+    const position = PositionComp;
+    const angle = AngleComp;
+    const speed = SpeedComp;
+    if (speed.value[eid] === 0) continue;
+    const targetedDestination = clampPointToBoundary(
+      getTargetedDestination(world, eid),
+      movementBoundary
+    );
+    if (targetedDestination) {
+      const deltaXToTarget = targetedDestination.x - position.x[eid];
+      const deltaYToTarget = targetedDestination.y - position.y[eid];
+      const remainingDistance = Math.sqrt(
+        deltaXToTarget * deltaXToTarget + deltaYToTarget * deltaYToTarget
+      );
+      if (remainingDistance <= TARGET_REACHED_EPSILON$1) {
+        position.x[eid] = targetedDestination.x;
+        position.y[eid] = targetedDestination.y;
+        continue;
+      }
+      const targetAngle = Math.atan2(deltaYToTarget, deltaXToTarget);
+      angle.value[eid] = targetAngle;
+      const stepDistance = speed.value[eid] * delta;
+      if (stepDistance >= remainingDistance) {
+        position.x[eid] = targetedDestination.x;
+        position.y[eid] = targetedDestination.y;
+        continue;
+      }
+      const nextX = position.x[eid] + Math.cos(targetAngle) * stepDistance;
+      const nextY = position.y[eid] + Math.sin(targetAngle) * stepDistance;
+      const maxX = movementBoundary.x + movementBoundary.width;
+      const maxY = movementBoundary.y + movementBoundary.height;
+      if (nextX <= movementBoundary.x || nextX >= maxX || nextY <= movementBoundary.y || nextY >= maxY) {
+        if (nextX <= movementBoundary.x || nextX >= maxX) {
+          angle.value[eid] = nomalizeRadian(Math.PI - angle.value[eid]);
+        }
+        if (nextY <= movementBoundary.y || nextY >= maxY) {
+          angle.value[eid] = nomalizeRadian(-angle.value[eid]);
+        }
+      } else {
+        position.x[eid] = nextX;
+        position.y[eid] = nextY;
+      }
+      continue;
+    }
+    const freeMovementResult = calculateFreeMovementStep({
+      x: position.x[eid],
+      y: position.y[eid],
+      angle: angle.value[eid],
+      speed: speed.value[eid],
+      delta,
+      boundary: movementBoundary
+    });
+    position.x[eid] = freeMovementResult.x;
+    position.y[eid] = freeMovementResult.y;
+    angle.value[eid] = freeMovementResult.angle;
+  }
+  return params;
+}
+function clampPointToBoundary(point, boundary) {
+  if (!point) {
+    return null;
+  }
+  return {
+    x: clampAxisValue$1(point.x, boundary.x, boundary.x + boundary.width),
+    y: clampAxisValue$1(point.y, boundary.y, boundary.y + boundary.height)
+  };
+}
+function calculateFreeMovementStep(params) {
+  const { x: x2, y: y2, angle, speed, delta, boundary } = params;
+  const maxX = boundary.x + boundary.width;
+  const maxY = boundary.y + boundary.height;
+  const deltaX = Math.cos(angle) * speed * delta;
+  const deltaY = Math.sin(angle) * speed * delta;
+  const reflectedX = reflectAxisPosition(x2, deltaX, boundary.x, maxX);
+  const reflectedY = reflectAxisPosition(y2, deltaY, boundary.y, maxY);
+  let nextAngle = angle;
+  if (reflectedX.reflected) {
+    nextAngle = nomalizeRadian(Math.PI - nextAngle);
+  }
+  if (reflectedY.reflected) {
+    nextAngle = nomalizeRadian(-nextAngle);
+  }
+  return {
+    x: reflectedX.value,
+    y: reflectedY.value,
+    angle: nextAngle
+  };
+}
+function reflectAxisPosition(currentValue, deltaValue, minValue, maxValue) {
+  const axisLength = maxValue - minValue;
+  if (axisLength <= 0) {
+    return {
+      value: minValue,
+      reflected: false
+    };
+  }
+  const period = axisLength * 2;
+  const relativeEndValue = currentValue - minValue + deltaValue;
+  const normalizedEndValue = positiveModulo(relativeEndValue, period);
+  const reflectedValue = normalizedEndValue <= axisLength ? normalizedEndValue : period - normalizedEndValue;
+  if (deltaValue === 0) {
+    return {
+      value: clampAxisValue$1(minValue + reflectedValue, minValue, maxValue),
+      reflected: false
+    };
+  }
+  const probeValue = relativeEndValue + Math.sign(deltaValue) * REFLECTION_DIRECTION_PROBE_EPSILON;
+  const normalizedProbeValue = positiveModulo(probeValue, period);
+  return {
+    value: clampAxisValue$1(minValue + reflectedValue, minValue, maxValue),
+    reflected: normalizedProbeValue > axisLength
+  };
+}
+function positiveModulo(value, base) {
+  return (value % base + base) % base;
+}
+function clampAxisValue$1(value, minValue, maxValue) {
+  return Math.min(maxValue, Math.max(minValue, value));
+}
+function getTargetedDestination(world, eid) {
+  if (!hasComponent(world, DestinationComp, eid)) {
+    return null;
+  }
+  if (DestinationComp.type[eid] !== DestinationType.TARGETED) {
+    return null;
+  }
+  return {
+    x: DestinationComp.x[eid],
+    y: DestinationComp.y[eid]
+  };
+}
 const IDLE_ANIMATION_SPEED = 0.03;
 const DEFAULT_ANIMATION_SPEED = 0.04;
 const SLEEPING_ANIMATION_SPEED = DEFAULT_ANIMATION_SPEED / 2;
@@ -30242,10 +30907,499 @@ function getAnimationSpeedForState(state, eid) {
   }
   return applyUrgentSpeedMultiplier(baseSpeed, eid);
 }
-const STATUS_ICON_SCALE = 1.8;
+const NAME_LABEL_MAX_WIDTH = 80;
+const NAME_LABEL_FONT_FAMILIES = [
+  "NeoDunggeunmo Pro",
+  "Apple Color Emoji",
+  "Segoe UI Emoji",
+  "Noto Color Emoji",
+  "sans-serif"
+];
+const NAME_LABEL_FONT_SIZE = 13;
+const NAME_LABEL_FONT_WEIGHT = 400;
+const NAME_LABEL_STROKE_WIDTH = 5;
+const NAME_LABEL_FILL_COLOR = 16777215;
+const NAME_LABEL_STROKE_COLOR = 0;
+let measurementContext;
+function countDisplayCharacters(value) {
+  return splitDisplayCharacters(value).length;
+}
+function splitDisplayCharacters(value) {
+  const IntlWithSegmenter = Intl;
+  const SegmenterCtor = IntlWithSegmenter.Segmenter;
+  if (SegmenterCtor) {
+    return Array.from(
+      new SegmenterCtor(void 0, { granularity: "grapheme" }).segment(value),
+      (item) => item.segment
+    );
+  }
+  return Array.from(value);
+}
+function measureNameLabelWidth(value) {
+  if (!value) {
+    return 0;
+  }
+  const context2 = getMeasurementContext();
+  if (!context2) {
+    return splitDisplayCharacters(value).length * NAME_LABEL_FONT_SIZE + NAME_LABEL_STROKE_WIDTH * 2;
+  }
+  context2.font = `${NAME_LABEL_FONT_WEIGHT} ${NAME_LABEL_FONT_SIZE}px ${toCanvasFontFamilyList(
+    NAME_LABEL_FONT_FAMILIES
+  )}`;
+  return context2.measureText(value).width + NAME_LABEL_STROKE_WIDTH * 2;
+}
+function fitsNameLabelWidth(value, maxWidth = NAME_LABEL_MAX_WIDTH) {
+  return measureNameLabelWidth(value) <= maxWidth;
+}
+function truncateNameLabelToWidth(value, maxWidth = NAME_LABEL_MAX_WIDTH) {
+  if (!value || fitsNameLabelWidth(value, maxWidth)) {
+    return value;
+  }
+  const graphemes = splitDisplayCharacters(value);
+  const ellipsis = "…";
+  if (measureNameLabelWidth(ellipsis) > maxWidth) {
+    return "";
+  }
+  let truncated = "";
+  for (let i2 = 0; i2 < graphemes.length; i2++) {
+    const nextValue = `${truncated}${graphemes[i2]}`;
+    const candidate = `${nextValue}${ellipsis}`;
+    if (!fitsNameLabelWidth(candidate, maxWidth)) {
+      return truncated ? `${truncated}${ellipsis}` : ellipsis;
+    }
+    truncated = nextValue;
+  }
+  return truncated;
+}
+function getMeasurementContext() {
+  if (measurementContext !== void 0) {
+    return measurementContext;
+  }
+  if (typeof document === "undefined") {
+    measurementContext = null;
+    return measurementContext;
+  }
+  const canvas = document.createElement("canvas");
+  measurementContext = canvas.getContext("2d");
+  return measurementContext;
+}
+function toCanvasFontFamilyList(fontFamilies) {
+  return fontFamilies.map(
+    (fontFamily) => fontFamily.includes(" ") ? `"${fontFamily}"` : fontFamily
+  ).join(", ");
+}
+const characterQuery$8 = defineQuery([
+  ObjectComp,
+  PositionComp,
+  RenderComp,
+  CharacterStatusComp
+]);
+const characterExitQuery$1 = exitQuery(characterQuery$8);
+const labelStore = /* @__PURE__ */ new Map();
+const NAME_LABEL_STYLE = new TextStyle({
+  fontFamily: [...NAME_LABEL_FONT_FAMILIES],
+  fontSize: NAME_LABEL_FONT_SIZE,
+  fill: NAME_LABEL_FILL_COLOR,
+  align: "center",
+  stroke: { color: NAME_LABEL_STROKE_COLOR, width: NAME_LABEL_STROKE_WIDTH }
+});
+const NAME_LABEL_BOTTOM_OFFSET = 0;
+const LABEL_Z_INDEX_OFFSET = 1e3;
+const STAMINA_BAR_Z_INDEX_OFFSET = 1;
+const NAME_LABEL_TEXT_WIDTH = 80;
+const STAMINA_BAR_WIDTH = 56;
+const STAMINA_BAR_HEIGHT = 10;
+const STAMINA_BAR_BORDER_THICKNESS = 3;
+const STAMINA_BAR_TRACK_WIDTH = STAMINA_BAR_WIDTH;
+const STAMINA_BAR_TRACK_HEIGHT = STAMINA_BAR_HEIGHT;
+const STAMINA_BAR_BOTTOM_GAP = 4;
+const STATUS_STACK_MIN_Y = 0;
+const STATUS_STACK_ICON_SIZE = 16 * 1.625;
+const STATUS_STACK_ICON_BAR_GAP = 3;
+const STAMINA_BAR_MIN_Y = STATUS_STACK_MIN_Y + STATUS_STACK_ICON_SIZE + STATUS_STACK_ICON_BAR_GAP;
+const MINI_STAMINA_BAR_TRACK_COLOR = 8421504;
+const MINI_STAMINA_BAR_TRACK_ALPHA = 0.34;
+const MINI_STAMINA_BAR_BORDER_COLOR = 0;
+const MINI_STAMINA_BAR_BORDER_ALPHA = 1;
+const MINI_STAMINA_BAR_LOW_COLOR = 14832971;
+const MINI_STAMINA_BAR_MID_COLOR = 15901498;
+const MINI_STAMINA_BAR_HIGH_COLOR = 4034382;
+const MINI_STAMINA_BAR_EGG_FILL_COLOR = 5880063;
+const MINI_STAMINA_BAR_URGENT_OVERLAY_COLOR = 14832971;
+const MINI_STAMINA_BAR_URGENT_OVERLAY_MIN_ALPHA = 0.18;
+const MINI_STAMINA_BAR_URGENT_OVERLAY_MAX_ALPHA = 0.75;
+const MINI_STAMINA_BAR_URGENT_OVERLAY_CYCLE_MS = 1200;
+function characterNameLabelSystem(params) {
+  var _a;
+  const { world } = params;
+  const exitedEntities = characterExitQuery$1(world);
+  for (let i2 = 0; i2 < exitedEntities.length; i2++) {
+    removeCharacterNameLabel(exitedEntities[i2]);
+  }
+  const rawName = (_a = world.getInMemoryData().world_metadata.monster_name) == null ? void 0 : _a.trim();
+  const displayName = rawName ? truncateDisplayName(rawName) : "";
+  const entities = characterQuery$8(world);
+  for (let i2 = 0; i2 < entities.length; i2++) {
+    const eid = entities[i2];
+    if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
+      removeCharacterNameLabel(eid);
+      continue;
+    }
+    if (!displayName) {
+      removeCharacterNameLabel(eid);
+      continue;
+    }
+    const displayObject = getCharacterDisplayObject(eid);
+    if (!displayObject) {
+      removeCharacterNameLabel(eid);
+      continue;
+    }
+    const renderState = getOrCreateCharacterNameLabel(eid, world.stage);
+    if (renderState.label.text !== displayName) {
+      renderState.label.text = displayName;
+    }
+    updateCharacterNameLabel(renderState, world, eid, world.currentTime);
+  }
+  return params;
+}
+function cleanupCharacterNameLabels() {
+  labelStore.forEach((renderState) => {
+    renderState.label.removeFromParent();
+    renderState.label.destroy();
+    renderState.barTrack.removeFromParent();
+    renderState.barTrack.destroy();
+    renderState.barFill.removeFromParent();
+    renderState.barFill.destroy();
+    renderState.urgentOverlay.removeFromParent();
+    renderState.urgentOverlay.destroy();
+    renderState.barFrame.removeFromParent();
+    renderState.barFrame.destroy();
+  });
+  labelStore.clear();
+}
+function getOrCreateCharacterNameLabel(eid, stage) {
+  const existingRenderState = labelStore.get(eid);
+  if (existingRenderState) {
+    return existingRenderState;
+  }
+  const label = new Text({
+    text: "",
+    style: NAME_LABEL_STYLE,
+    anchor: { x: 0.5, y: 0.5 }
+  });
+  const barTrack = new Graphics();
+  const barFill = new Graphics();
+  const urgentOverlay = new Graphics();
+  const barFrame = new Graphics();
+  label.position.set(0, NAME_LABEL_FONT_SIZE / 2);
+  label.eventMode = "none";
+  label.roundPixels = true;
+  barTrack.roundPixels = true;
+  barFill.roundPixels = true;
+  urgentOverlay.roundPixels = true;
+  barFrame.roundPixels = true;
+  label.zIndex = LABEL_Z_INDEX_OFFSET;
+  barTrack.eventMode = "none";
+  barFill.eventMode = "none";
+  urgentOverlay.eventMode = "none";
+  barFrame.eventMode = "none";
+  stage.addChild(label);
+  stage.addChild(barTrack);
+  stage.addChild(barFill);
+  stage.addChild(urgentOverlay);
+  stage.addChild(barFrame);
+  const renderState = {
+    label,
+    barTrack,
+    barFill,
+    urgentOverlay,
+    barFrame,
+    lastFillColor: MINI_STAMINA_BAR_HIGH_COLOR,
+    lastFillWidth: 0,
+    lastUrgentOverlayAlpha: 0,
+    lastUrgentOverlayVisible: false
+  };
+  labelStore.set(eid, renderState);
+  return renderState;
+}
+function removeCharacterNameLabel(eid) {
+  const renderState = labelStore.get(eid);
+  if (!renderState) {
+    return;
+  }
+  renderState.label.removeFromParent();
+  renderState.label.destroy();
+  renderState.barTrack.removeFromParent();
+  renderState.barTrack.destroy();
+  renderState.barFill.removeFromParent();
+  renderState.barFill.destroy();
+  renderState.urgentOverlay.removeFromParent();
+  renderState.urgentOverlay.destroy();
+  renderState.barFrame.removeFromParent();
+  renderState.barFrame.destroy();
+  labelStore.delete(eid);
+}
+function updateCharacterNameLabel(renderState, world, eid, currentTime) {
+  const x2 = PositionComp.x[eid];
+  const y2 = PositionComp.y[eid];
+  const configuredZIndex = RenderComp.zIndex[eid];
+  const effectiveZIndex = configuredZIndex === 0 ? y2 : configuredZIndex;
+  const { topY, bottomY } = getCharacterVerticalBounds(eid);
+  const barVisual = getCharacterBarVisual(world, eid, currentTime);
+  const reserveStatusIconSpace = StatusIconRenderComp.visibleCount[eid] > 0 || hasPotentialUnifiedStatusIcon(world, eid);
+  renderState.label.position.set(
+    Math.round(x2),
+    Math.round(bottomY + NAME_LABEL_BOTTOM_OFFSET + NAME_LABEL_FONT_SIZE / 2)
+  );
+  renderState.label.zIndex = effectiveZIndex + LABEL_Z_INDEX_OFFSET;
+  renderState.label.visible = true;
+  const barLeftX = getCharacterStaminaBarLeftX(eid, x2);
+  const barTopY = Math.round(
+    getClampedCharacterStaminaBarTopY(eid, topY, reserveStatusIconSpace)
+  );
+  renderState.barTrack.position.set(barLeftX, barTopY);
+  renderState.barFill.position.set(barLeftX, barTopY);
+  renderState.urgentOverlay.position.set(barLeftX, barTopY);
+  renderState.barFrame.position.set(barLeftX, barTopY);
+  renderState.barTrack.zIndex = effectiveZIndex + STAMINA_BAR_Z_INDEX_OFFSET;
+  renderState.barFill.zIndex = effectiveZIndex + STAMINA_BAR_Z_INDEX_OFFSET;
+  renderState.urgentOverlay.zIndex = effectiveZIndex + STAMINA_BAR_Z_INDEX_OFFSET;
+  renderState.barFrame.zIndex = effectiveZIndex + STAMINA_BAR_Z_INDEX_OFFSET;
+  renderState.barTrack.visible = true;
+  renderState.barFill.visible = true;
+  renderState.urgentOverlay.visible = true;
+  renderState.barFrame.visible = true;
+  drawMiniStaminaBar(renderState, barVisual, currentTime);
+}
+function truncateDisplayName(name) {
+  return truncateNameLabelToWidth(name, NAME_LABEL_TEXT_WIDTH);
+}
+function drawMiniStaminaBar(renderState, barVisual, currentTime) {
+  renderState.barTrack.clear();
+  drawCutCornerRect(
+    renderState.barTrack,
+    0,
+    0,
+    STAMINA_BAR_TRACK_WIDTH,
+    STAMINA_BAR_TRACK_HEIGHT,
+    {
+      color: MINI_STAMINA_BAR_TRACK_COLOR,
+      alpha: MINI_STAMINA_BAR_TRACK_ALPHA
+    }
+  );
+  renderState.barFill.clear();
+  const { fillWidth, fillColor, isUrgent } = barVisual;
+  if (fillWidth > 0) {
+    drawLeftCutRect(
+      renderState.barFill,
+      0,
+      0,
+      fillWidth,
+      STAMINA_BAR_TRACK_HEIGHT,
+      fillColor
+    );
+  }
+  renderState.urgentOverlay.clear();
+  if (isUrgent) {
+    const alpha = getMiniStaminaBarUrgentOverlayAlpha(currentTime);
+    drawCutCornerRect(
+      renderState.urgentOverlay,
+      0,
+      0,
+      STAMINA_BAR_TRACK_WIDTH,
+      STAMINA_BAR_TRACK_HEIGHT,
+      {
+        color: MINI_STAMINA_BAR_URGENT_OVERLAY_COLOR,
+        alpha
+      }
+    );
+    renderState.lastUrgentOverlayAlpha = alpha;
+    renderState.lastUrgentOverlayVisible = true;
+  } else {
+    renderState.lastUrgentOverlayAlpha = 0;
+    renderState.lastUrgentOverlayVisible = false;
+  }
+  renderState.barFrame.clear();
+  drawCutCornerFrame(
+    renderState.barFrame,
+    0,
+    0,
+    STAMINA_BAR_WIDTH,
+    STAMINA_BAR_HEIGHT,
+    {
+      color: MINI_STAMINA_BAR_BORDER_COLOR,
+      alpha: MINI_STAMINA_BAR_BORDER_ALPHA
+    }
+  );
+  if (isUrgent) {
+    drawCutCornerFrame(
+      renderState.barFrame,
+      0,
+      0,
+      STAMINA_BAR_WIDTH,
+      STAMINA_BAR_HEIGHT,
+      {
+        color: MINI_STAMINA_BAR_URGENT_OVERLAY_COLOR,
+        alpha: renderState.lastUrgentOverlayAlpha
+      }
+    );
+  }
+  renderState.lastFillColor = fillColor;
+  renderState.lastFillWidth = fillWidth;
+}
+function getCharacterBarVisual(world, eid, currentTime) {
+  if (ObjectComp.state[eid] === CharacterState.EGG) {
+    return {
+      fillWidth: getEggTimerBarFillWidth(eid, currentTime),
+      fillColor: MINI_STAMINA_BAR_EGG_FILL_COLOR,
+      isUrgent: false
+    };
+  }
+  const stamina = CharacterStatusComp.stamina[eid];
+  return {
+    fillWidth: getMiniStaminaBarFillWidth(stamina),
+    fillColor: getMiniStaminaBarFillColor(stamina),
+    isUrgent: hasUrgentStatus(eid)
+  };
+}
+function hasUrgentStatus(eid) {
+  return Array.from(CharacterStatusComp.statuses[eid]).includes(
+    CharacterStatus.URGENT
+  );
+}
+function clampUnitInterval(value) {
+  return Math.max(0, Math.min(1, value));
+}
+function getMiniStaminaBarFillColor(stamina) {
+  if (stamina < GAME_CONSTANTS.UNHAPPY_STAMINA_THRESHOLD) {
+    return MINI_STAMINA_BAR_LOW_COLOR;
+  }
+  if (stamina < GAME_CONSTANTS.BOOSTED_STAMINA_THRESHOLD) {
+    return MINI_STAMINA_BAR_MID_COLOR;
+  }
+  return MINI_STAMINA_BAR_HIGH_COLOR;
+}
+function getMiniStaminaBarFillWidth(stamina) {
+  return Math.max(
+    0,
+    Math.round(
+      clampUnitInterval(stamina / GAME_CONSTANTS.MAX_STAMINA) * STAMINA_BAR_TRACK_WIDTH
+    )
+  );
+}
+function getEggTimerBarFillWidth(eid, currentTime) {
+  const progress = getEggHatchProgress({
+    currentTime,
+    hatchTime: EggHatchComp.hatchTime[eid],
+    hatchDurationMs: EggHatchComp.hatchDurationMs[eid]
+  });
+  return Math.max(0, Math.round((1 - progress) * STAMINA_BAR_TRACK_WIDTH));
+}
+function getCharacterStaminaBarTopY(eid, resolvedTopY) {
+  const { topY } = resolvedTopY === void 0 ? getCharacterVerticalBounds(eid) : { topY: resolvedTopY };
+  return topY - STAMINA_BAR_BOTTOM_GAP - STAMINA_BAR_HEIGHT;
+}
+function getClampedCharacterStaminaBarTopY(eid, resolvedTopY, reserveStatusIconSpace = true) {
+  return Math.max(
+    getCharacterStaminaBarTopY(eid, resolvedTopY),
+    reserveStatusIconSpace ? STAMINA_BAR_MIN_Y : STATUS_STACK_MIN_Y
+  );
+}
+function getCharacterStaminaBarLeftX(eid, resolvedX) {
+  const x2 = resolvedX ?? PositionComp.x[eid];
+  return Math.round(x2 - STAMINA_BAR_WIDTH / 2);
+}
+function getCharacterStaminaBarBounds(eid, resolvedX) {
+  const leftX = getCharacterStaminaBarLeftX(eid, resolvedX);
+  return {
+    leftX,
+    width: STAMINA_BAR_WIDTH,
+    centerX: leftX + STAMINA_BAR_WIDTH / 2
+  };
+}
+function hasPotentialUnifiedStatusIcon(world, eid) {
+  if (ObjectComp.state[eid] === CharacterState.SLEEPING) {
+    return world.isSleepDebugEffectEnabled();
+  }
+  return Array.from(CharacterStatusComp.statuses[eid]).some(
+    (status) => status !== 0 && status !== CharacterStatus.URGENT
+  );
+}
+function drawCutCornerRect(graphics, x2, y2, width, height, fill) {
+  for (let row = 0; row < height; row += 1) {
+    const { startX, rowWidth } = getCutCornerRowBounds(width, height, row);
+    if (rowWidth <= 0) {
+      continue;
+    }
+    graphics.rect(x2 + startX, y2 + row, rowWidth, 1).fill(fill);
+  }
+}
+function drawLeftCutRect(graphics, x2, y2, fillWidth, height, fill) {
+  if (fillWidth <= 0 || height <= 0) {
+    return;
+  }
+  for (let row = 0; row < height; row += 1) {
+    const { startX, maxXExclusive } = getCutCornerRowBounds(
+      STAMINA_BAR_TRACK_WIDTH,
+      height,
+      row
+    );
+    const clippedEndX = Math.min(fillWidth, maxXExclusive);
+    const rowWidth = clippedEndX - startX;
+    if (rowWidth <= 0) {
+      continue;
+    }
+    graphics.rect(x2 + startX, y2 + row, rowWidth, 1).fill(fill);
+  }
+}
+function drawCutCornerFrame(graphics, x2, y2, width, height, stroke) {
+  for (let row = 0; row < height; row += 1) {
+    const isTopBand = row < STAMINA_BAR_BORDER_THICKNESS;
+    const isBottomBand = row >= height - STAMINA_BAR_BORDER_THICKNESS;
+    if (isTopBand || isBottomBand) {
+      const cornerInset = Math.min(
+        STAMINA_BAR_BORDER_THICKNESS,
+        Math.floor(width / 2)
+      );
+      const startX = width > cornerInset * 2 ? cornerInset : 0;
+      const rowWidth = width > cornerInset * 2 ? width - cornerInset * 2 : width;
+      if (rowWidth > 0) {
+        graphics.rect(x2 + startX, y2 + row, rowWidth, 1).fill(stroke);
+      }
+      continue;
+    }
+    const sideWidth = Math.min(STAMINA_BAR_BORDER_THICKNESS, width);
+    if (sideWidth > 0) {
+      graphics.rect(x2, y2 + row, sideWidth, 1).fill(stroke);
+      graphics.rect(x2 + width - sideWidth, y2 + row, sideWidth, 1).fill(stroke);
+    }
+  }
+}
+function getCutCornerRowBounds(width, height, row) {
+  const inCornerBand = row < STAMINA_BAR_BORDER_THICKNESS || row >= height - STAMINA_BAR_BORDER_THICKNESS;
+  const cornerInset = inCornerBand ? Math.min(STAMINA_BAR_BORDER_THICKNESS, Math.floor(width / 2)) : 0;
+  const startX = cornerInset;
+  const maxXExclusive = width - cornerInset;
+  const rowWidth = maxXExclusive - startX;
+  return {
+    startX,
+    rowWidth,
+    maxXExclusive
+  };
+}
+function getMiniStaminaBarUrgentOverlayAlpha(currentTime) {
+  const normalizedTime = (currentTime % MINI_STAMINA_BAR_URGENT_OVERLAY_CYCLE_MS + MINI_STAMINA_BAR_URGENT_OVERLAY_CYCLE_MS) % MINI_STAMINA_BAR_URGENT_OVERLAY_CYCLE_MS;
+  const phase = normalizedTime / MINI_STAMINA_BAR_URGENT_OVERLAY_CYCLE_MS;
+  const triangleWave = phase < 0.5 ? phase * 2 : (1 - phase) * 2;
+  return MINI_STAMINA_BAR_URGENT_OVERLAY_MIN_ALPHA + (MINI_STAMINA_BAR_URGENT_OVERLAY_MAX_ALPHA - MINI_STAMINA_BAR_URGENT_OVERLAY_MIN_ALPHA) * triangleWave;
+}
+const STATUS_ICON_SCALE = 1.625;
 const STATUS_ICON_BASE_SIZE = 16;
 const STATUS_ICON_SIZE = STATUS_ICON_BASE_SIZE * STATUS_ICON_SCALE;
 const STATUS_ICON_Z_INDEX_OFFSET = 1.5;
+const STATUS_ICON_MIN_Y = 0;
+const STATUS_ICON_BAR_STACK_GAP = 2;
+const STATUS_ICON_HORIZONTAL_SPACING = 1;
 function getRenderedCharacterAttributes(eid) {
   const renderedX = Math.round(PositionComp.x[eid]);
   const renderedY = Math.round(PositionComp.y[eid]);
@@ -30257,70 +31411,42 @@ function getRenderedCharacterAttributes(eid) {
     effectiveZIndex
   };
 }
-const TEMPORARY_STATUSES = [CharacterStatus.HAPPY, CharacterStatus.DISCOVER];
-const STATUS_TO_TEXTURE_KEY = {
-  [CharacterStatus.SICK]: TextureKey.SICK,
-  [CharacterStatus.HAPPY]: TextureKey.HAPPY,
-  [CharacterStatus.URGENT]: TextureKey.URGENT,
-  [CharacterStatus.DISCOVER]: TextureKey.DISCOVER
+const TEMPORARY_STATUSES$1 = [CharacterStatus.HAPPY, CharacterStatus.DISCOVER];
+const SLEEP_ICON_TEXTURE_NAME = "sleeping";
+const STATUS_TO_TEXTURE_NAME = {
+  [CharacterStatus.SICK]: "sick",
+  [CharacterStatus.HAPPY]: "happy",
+  [CharacterStatus.DISCOVER]: "discover"
 };
 const entityStatusSprites = /* @__PURE__ */ new Map();
 const entityTemporarySprites = /* @__PURE__ */ new Map();
-function getTextureFromKey(textureKey) {
-  const textureMap = {
-    [TextureKey.SICK]: { spritesheetAlias: "common16x16", textureName: "sick" },
-    [TextureKey.HAPPY]: {
-      spritesheetAlias: "common16x16",
-      textureName: "happy"
-    },
-    // [TextureKey.UNHAPPY]: {
-    //   spritesheetAlias: "common16x16",
-    //   textureName: "unhappy",
-    // },
-    [TextureKey.URGENT]: {
-      spritesheetAlias: "common16x16",
-      textureName: "urgent"
-    },
-    [TextureKey.DISCOVER]: {
-      spritesheetAlias: "common16x16",
-      textureName: "discover"
-    }
-  };
-  const textureInfo = textureMap[textureKey];
-  if (!textureInfo) {
-    console.warn(
-      `[StatusIconRenderSystem] Texture key ${textureKey} not found`
-    );
-    return void 0;
-  }
+function getCommon16x16Texture(textureName) {
   try {
-    const spritesheet = Assets.get(
-      textureInfo.spritesheetAlias
-    );
+    const spritesheet = Assets.get("common16x16");
     if (!spritesheet) {
       console.warn(
-        `[StatusIconRenderSystem] Spritesheet not found: ${textureInfo.spritesheetAlias}`
+        "[StatusIconRenderSystem] Spritesheet not found: common16x16"
       );
       return Texture.WHITE;
     }
-    const texture = spritesheet.textures[textureInfo.textureName];
+    const texture = spritesheet.textures[textureName];
     if (!texture) {
       console.warn(
-        `[StatusIconRenderSystem] Texture not found: ${textureInfo.textureName}`
+        `[StatusIconRenderSystem] Texture not found: ${textureName}`
       );
       return Texture.WHITE;
     }
     return texture;
   } catch (error) {
     console.error(
-      `[StatusIconRenderSystem] Error getting texture for key ${textureKey}:`,
+      `[StatusIconRenderSystem] Error getting texture ${textureName}:`,
       error
     );
     return Texture.WHITE;
   }
 }
-function createStatusIconSprite(textureKey) {
-  const texture = getTextureFromKey(textureKey);
+function createStatusIconSprite(textureName) {
+  const texture = getCommon16x16Texture(textureName);
   const sprite = new Sprite(texture || Texture.WHITE);
   sprite.anchor.set(0.5);
   sprite.scale.set(STATUS_ICON_SCALE);
@@ -30328,10 +31454,19 @@ function createStatusIconSprite(textureKey) {
   return sprite;
 }
 function getStatusIconMinY(world) {
-  return 0;
+  return STATUS_ICON_MIN_Y;
 }
 function clampStatusIconY(world, preferredY) {
   return Math.max(preferredY, getStatusIconMinY());
+}
+function getUnifiedStatusIconStartX(barLeftX, barWidth, iconCount) {
+  const totalWidth = iconCount * STATUS_ICON_SIZE + Math.max(0, iconCount - 1) * STATUS_ICON_HORIZONTAL_SPACING;
+  const leftInset = Math.round((barWidth - totalWidth) / 2);
+  return barLeftX + leftInset + STATUS_ICON_SIZE / 2;
+}
+function getStatusIconCenterYAboveStaminaBar(eid) {
+  const barTopY = getClampedCharacterStaminaBarTopY(eid);
+  return barTopY - STATUS_ICON_BAR_STACK_GAP - STATUS_ICON_SIZE / 2;
 }
 function clearEntitySprites(eid) {
   const sprites = entityStatusSprites.get(eid);
@@ -30349,13 +31484,24 @@ function organizeStatuses(statuses) {
   const persistent = [];
   let latestTemporary = null;
   for (const status of statuses) {
-    if (TEMPORARY_STATUSES.includes(status)) {
+    if (TEMPORARY_STATUSES$1.includes(status)) {
       latestTemporary = status;
-    } else {
+    } else if (status !== CharacterStatus.URGENT) {
       persistent.push(status);
+    } else {
+      continue;
     }
   }
   return { persistent, latestTemporary };
+}
+function getOverlayIconTextureName(world, eid, latestTemporary) {
+  if (ObjectComp.state[eid] === CharacterState.SLEEPING) {
+    return world.isSleepDebugEffectEnabled() ? SLEEP_ICON_TEXTURE_NAME : null;
+  }
+  if (!latestTemporary) {
+    return null;
+  }
+  return STATUS_TO_TEXTURE_NAME[latestTemporary] ?? null;
 }
 const statusIconQuery = defineQuery([
   PositionComp,
@@ -30382,7 +31528,7 @@ function statusIconRenderSystem(params) {
       StatusIconRenderComp.visibleCount[eid] = 0;
       continue;
     }
-    const { renderedX, renderedY, effectiveZIndex } = getRenderedCharacterAttributes(eid);
+    const { renderedX, effectiveZIndex } = getRenderedCharacterAttributes(eid);
     const iconZIndex = effectiveZIndex + STATUS_ICON_Z_INDEX_OFFSET;
     const allStatuses = [];
     for (let j2 = 0; j2 < 4; j2++) {
@@ -30392,6 +31538,25 @@ function statusIconRenderSystem(params) {
       }
     }
     const { persistent, latestTemporary } = organizeStatuses(allStatuses);
+    const overlayTextureName = getOverlayIconTextureName(
+      world,
+      eid,
+      latestTemporary
+    );
+    const iconCount = persistent.length + (overlayTextureName ? 1 : 0);
+    const { leftX: barLeftX, width: barWidth } = getCharacterStaminaBarBounds(
+      eid,
+      renderedX
+    );
+    const iconStartX = getUnifiedStatusIconStartX(
+      barLeftX,
+      barWidth,
+      iconCount
+    );
+    const iconCenterY = clampStatusIconY(
+      world,
+      getStatusIconCenterYAboveStaminaBar(eid)
+    );
     let sprites = entityStatusSprites.get(eid);
     if (!sprites) {
       sprites = [];
@@ -30405,54 +31570,47 @@ function statusIconRenderSystem(params) {
     }
     for (let j2 = 0; j2 < persistent.length; j2++) {
       const status = persistent[j2];
-      const textureKey = STATUS_TO_TEXTURE_KEY[status];
-      if (!textureKey) {
+      const textureName = STATUS_TO_TEXTURE_NAME[status];
+      if (!textureName) {
         console.warn(`[StatusIconRenderSystem] Unknown status: ${status}`);
         continue;
       }
-      const expectedTexture = getTextureFromKey(textureKey);
+      const expectedTexture = getCommon16x16Texture(textureName);
       if (sprites[j2] && sprites[j2].texture === expectedTexture) ;
       else {
         if (sprites[j2]) {
           sprites[j2].removeFromParent();
         }
-        sprites[j2] = createStatusIconSprite(textureKey);
+        sprites[j2] = createStatusIconSprite(textureName);
         world.stage.addChild(sprites[j2]);
       }
-      const iconSize = STATUS_ICON_SIZE;
-      const spacing = 4;
-      const totalWidth = persistent.length * iconSize + (persistent.length - 1) * spacing;
-      const startX = renderedX - totalWidth / 2 + j2 * (iconSize + spacing) + iconSize / 2;
-      sprites[j2].x = startX;
-      sprites[j2].y = clampStatusIconY(world, renderedY - 50);
+      sprites[j2].x = iconStartX + j2 * (STATUS_ICON_SIZE + STATUS_ICON_HORIZONTAL_SPACING);
+      sprites[j2].y = iconCenterY;
       sprites[j2].zIndex = iconZIndex;
     }
     const currentTempSprite = entityTemporarySprites.get(eid);
-    if (latestTemporary) {
-      const textureKey = STATUS_TO_TEXTURE_KEY[latestTemporary];
-      if (textureKey) {
-        const expectedTexture = getTextureFromKey(textureKey);
-        if (currentTempSprite && currentTempSprite.texture === expectedTexture) ;
-        else {
-          if (currentTempSprite) {
-            currentTempSprite.removeFromParent();
-          }
-          const newTempSprite = createStatusIconSprite(textureKey);
-          entityTemporarySprites.set(eid, newTempSprite);
-          world.stage.addChild(newTempSprite);
+    if (overlayTextureName) {
+      const expectedTexture = getCommon16x16Texture(overlayTextureName);
+      if (currentTempSprite && currentTempSprite.texture === expectedTexture) ;
+      else {
+        if (currentTempSprite) {
+          currentTempSprite.removeFromParent();
         }
-        const tempSprite = entityTemporarySprites.get(eid);
-        tempSprite.x = renderedX + 25;
-        tempSprite.y = clampStatusIconY(world, renderedY - 40);
-        tempSprite.zIndex = iconZIndex;
+        const newTempSprite = createStatusIconSprite(overlayTextureName);
+        entityTemporarySprites.set(eid, newTempSprite);
+        world.stage.addChild(newTempSprite);
       }
+      const tempSprite = entityTemporarySprites.get(eid);
+      tempSprite.x = iconStartX + persistent.length * (STATUS_ICON_SIZE + STATUS_ICON_HORIZONTAL_SPACING);
+      tempSprite.y = iconCenterY;
+      tempSprite.zIndex = iconZIndex;
     } else {
       if (currentTempSprite) {
         currentTempSprite.removeFromParent();
         entityTemporarySprites.delete(eid);
       }
     }
-    StatusIconRenderComp.visibleCount[eid] = persistent.length + (latestTemporary ? 1 : 0);
+    StatusIconRenderComp.visibleCount[eid] = persistent.length + (overlayTextureName ? 1 : 0);
   }
   return params;
 }
@@ -30463,7 +31621,7 @@ const EGG_CRACK_PIXEL_SIZE = 1;
 const overlayStore$1 = /* @__PURE__ */ new Map();
 const eggCrackQuery = defineQuery([ObjectComp, RenderComp, EggHatchComp]);
 const eggCrackExitQuery = exitQuery(eggCrackQuery);
-function getOrCreateOverlay(eid, stage) {
+function getOrCreateOverlay$1(eid, stage) {
   const existing = overlayStore$1.get(eid);
   if (existing) {
     return existing;
@@ -30714,7 +31872,7 @@ function eggCrackRenderSystem(params) {
       removeOverlay$1(eid);
       continue;
     }
-    const overlay = getOrCreateOverlay(eid, world.stage);
+    const overlay = getOrCreateOverlay$1(eid, world.stage);
     syncOverlayTransform(overlay, baseSprite);
     syncOverlayMask(overlay.mask, baseSprite);
     drawEggCracks(overlay.crack, bounds, crackStage);
@@ -30729,942 +31887,76 @@ function eggCrackRenderSystem(params) {
   }
   return params;
 }
-const staminaGaugeQuery = defineQuery([ObjectComp, CharacterStatusComp]);
-const GAUGE_HEIGHT = 16;
-const GAUGE_BORDER_THICKNESS = 4;
-const GAUGE_BORDER_CORNER_RADIUS = 3;
-const GAUGE_HIGHLIGHT_HEIGHT = 2;
-const GAUGE_FILL_HIGHLIGHT_ALPHA = 0.18;
-const GAUGE_TRACK_BASE_COLOR = 0;
-const GAUGE_TRACK_BASE_ALPHA = 0.34;
-const GAUGE_Z_INDEX_OFFSET = 0.5;
-const GAUGE_BORDER_COLOR = 5658198;
-const GAUGE_FILL_HIGHLIGHT_COLOR = 16777215;
-const GAUGE_LOW_STAMINA_COLOR = 14832971;
-const GAUGE_MID_STAMINA_COLOR = 15901498;
-const GAUGE_HIGH_STAMINA_COLOR = 5814379;
-let staminaGaugeRenderState = null;
-function clampUnitInterval(value) {
-  return Math.max(0, Math.min(1, value));
-}
-function getGaugeFillColor(stamina) {
-  if (stamina < GAME_CONSTANTS.UNHAPPY_STAMINA_THRESHOLD) {
-    return GAUGE_LOW_STAMINA_COLOR;
-  }
-  if (stamina < GAME_CONSTANTS.BOOSTED_STAMINA_THRESHOLD) {
-    return GAUGE_MID_STAMINA_COLOR;
-  }
-  return GAUGE_HIGH_STAMINA_COLOR;
-}
-function findMainCharacterEntity(world) {
-  const entities = staminaGaugeQuery(world);
-  for (let index = 0; index < entities.length; index += 1) {
-    const eid = entities[index];
-    if (ObjectComp.type[eid] === ObjectType.CHARACTER) {
-      return eid;
-    }
-  }
-  return -1;
-}
-function fillPixelCappedRect(graphics, x2, y2, width, height, leftRadius, rightRadius, fill) {
-  if (width <= 0 || height <= 0) {
-    return;
-  }
-  fillPixelCappedRectRows(
-    graphics,
-    x2,
-    y2,
-    width,
-    height,
-    leftRadius,
-    rightRadius,
-    0,
-    height,
-    fill
-  );
-}
-function fillPixelCappedRectRows(graphics, x2, y2, width, height, leftRadius, rightRadius, startRow, endRow, fill) {
-  if (width <= 0 || height <= 0) {
-    return;
-  }
-  const maxVerticalRadius = Math.floor((height - 1) / 2);
-  let effectiveLeftRadius = Math.max(
-    0,
-    Math.min(leftRadius, maxVerticalRadius)
-  );
-  let effectiveRightRadius = Math.max(
-    0,
-    Math.min(rightRadius, maxVerticalRadius)
-  );
-  const maxHorizontalInset = Math.max(0, width - 1);
-  const totalRadius = effectiveLeftRadius + effectiveRightRadius;
-  if (totalRadius > maxHorizontalInset && totalRadius > 0) {
-    const scale = maxHorizontalInset / totalRadius;
-    effectiveLeftRadius = Math.floor(effectiveLeftRadius * scale);
-    effectiveRightRadius = Math.floor(effectiveRightRadius * scale);
-  }
-  if (effectiveLeftRadius === 0 && effectiveRightRadius === 0) {
-    graphics.rect(
-      x2,
-      y2 + Math.max(0, startRow),
-      width,
-      Math.max(0, Math.min(height, endRow) - Math.max(0, startRow))
-    ).fill(fill);
-    return;
-  }
-  const clampedStartRow = Math.max(0, startRow);
-  const clampedEndRow = Math.min(height, endRow);
-  for (let row = clampedStartRow; row < clampedEndRow; row += 1) {
-    const { startX, endX } = getPixelCappedRowSpan(
-      width,
-      height,
-      effectiveLeftRadius,
-      effectiveRightRadius,
-      row
-    );
-    const rowWidth = endX - startX;
-    if (rowWidth <= 0) {
-      continue;
-    }
-    graphics.rect(x2 + startX, y2 + row, rowWidth, 1).fill(fill);
-  }
-}
-function getPixelCappedRowSpan(width, height, leftRadius, rightRadius, row) {
-  const maxVerticalRadius = Math.floor((height - 1) / 2);
-  let effectiveLeftRadius = Math.max(
-    0,
-    Math.min(leftRadius, maxVerticalRadius)
-  );
-  let effectiveRightRadius = Math.max(
-    0,
-    Math.min(rightRadius, maxVerticalRadius)
-  );
-  const maxHorizontalInset = Math.max(0, width - 1);
-  const totalRadius = effectiveLeftRadius + effectiveRightRadius;
-  if (totalRadius > maxHorizontalInset && totalRadius > 0) {
-    const scale = maxHorizontalInset / totalRadius;
-    effectiveLeftRadius = Math.floor(effectiveLeftRadius * scale);
-    effectiveRightRadius = Math.floor(effectiveRightRadius * scale);
-  }
-  const distanceFromNearestEdge = Math.min(row, height - 1 - row);
-  const startX = Math.max(0, effectiveLeftRadius - distanceFromNearestEdge);
-  const endX = Math.max(
-    startX,
-    width - Math.max(0, effectiveRightRadius - distanceFromNearestEdge)
-  );
-  return {
-    startX,
-    endX
-  };
-}
-function fillPixelRoundedRect(graphics, x2, y2, width, height, radius, fill) {
-  fillPixelCappedRect(graphics, x2, y2, width, height, radius, radius, fill);
-}
-function drawPixelRoundedFrame(graphics, x2, y2, width, height, thickness, radius, fill) {
-  if (width <= 0 || height <= 0 || thickness <= 0) {
-    return;
-  }
-  const innerWidth = Math.max(0, width - thickness * 2);
-  const innerHeight = Math.max(0, height - thickness * 2);
-  const innerRadius = Math.max(0, radius - 1);
-  for (let row = 0; row < height; row += 1) {
-    const outerSpan = getPixelCappedRowSpan(width, height, radius, radius, row);
-    const outerWidth = outerSpan.endX - outerSpan.startX;
-    if (outerWidth <= 0) {
-      continue;
-    }
-    if (row < thickness || row >= height - thickness || innerWidth <= 0 || innerHeight <= 0) {
-      graphics.rect(x2 + outerSpan.startX, y2 + row, outerWidth, 1).fill(fill);
-      continue;
-    }
-    const innerRow = row - thickness;
-    const innerSpan = getPixelCappedRowSpan(
-      innerWidth,
-      innerHeight,
-      innerRadius,
-      innerRadius,
-      innerRow
-    );
-    const innerStartX = thickness + innerSpan.startX;
-    const innerEndX = thickness + innerSpan.endX;
-    const leftWidth = innerStartX - outerSpan.startX;
-    const rightWidth = outerSpan.endX - innerEndX;
-    if (leftWidth > 0) {
-      graphics.rect(x2 + outerSpan.startX, y2 + row, leftWidth, 1).fill(fill);
-    }
-    if (rightWidth > 0) {
-      graphics.rect(x2 + innerEndX, y2 + row, rightWidth, 1).fill(fill);
-    }
-  }
-}
-function getOrCreateRenderState(stage) {
-  if (staminaGaugeRenderState) {
-    return staminaGaugeRenderState;
-  }
-  const container = new Container();
-  const background = new Graphics();
-  const fill = new Graphics();
-  container.eventMode = "none";
-  background.eventMode = "none";
-  fill.eventMode = "none";
-  background.roundPixels = true;
-  fill.roundPixels = true;
-  container.addChild(background);
-  container.addChild(fill);
-  stage.addChild(container);
-  staminaGaugeRenderState = {
-    container,
-    background,
-    fill
-  };
-  return staminaGaugeRenderState;
-}
-function drawGaugeBackground(graphics, gaugeWidth, gaugeHeight) {
-  const trackInset = GAUGE_BORDER_THICKNESS;
-  const trackX = trackInset;
-  const trackY = trackInset;
-  const trackWidth = Math.max(1, gaugeWidth - trackInset * 2);
-  const trackHeight = Math.max(1, gaugeHeight - trackInset * 2);
-  const trackRadius = Math.max(0, GAUGE_BORDER_CORNER_RADIUS - 1);
-  graphics.clear();
-  fillPixelRoundedRect(
-    graphics,
-    trackX,
-    trackY,
-    trackWidth,
-    trackHeight,
-    trackRadius,
-    {
-      color: GAUGE_TRACK_BASE_COLOR,
-      alpha: GAUGE_TRACK_BASE_ALPHA
-    }
-  );
-  drawPixelRoundedFrame(
-    graphics,
-    0,
-    0,
-    gaugeWidth,
-    gaugeHeight,
-    GAUGE_BORDER_THICKNESS,
-    GAUGE_BORDER_CORNER_RADIUS,
-    GAUGE_BORDER_COLOR
-  );
-  return {
-    trackX,
-    trackY,
-    trackWidth,
-    trackHeight
-  };
-}
-function drawGaugeFill(graphics, stamina, maxStamina, trackX, trackY, trackWidth, trackHeight) {
-  const fillColor = getGaugeFillColor(stamina);
-  const fillRadius = Math.max(0, GAUGE_BORDER_CORNER_RADIUS - 1);
-  const fillWidth = Math.max(
-    0,
-    Math.round(clampUnitInterval(stamina / maxStamina) * trackWidth)
-  );
-  const fillRightRadius = fillWidth >= trackWidth ? fillRadius : 0;
-  graphics.clear();
-  if (fillWidth <= 0) {
-    return;
-  }
-  fillPixelCappedRect(
-    graphics,
-    trackX,
-    trackY,
-    fillWidth,
-    trackHeight,
-    fillRadius,
-    fillRightRadius,
-    fillColor
-  );
-  if (trackHeight > 1) {
-    fillPixelCappedRectRows(
-      graphics,
-      trackX,
-      trackY,
-      fillWidth,
-      trackHeight,
-      fillRadius,
-      fillRightRadius,
-      0,
-      Math.min(GAUGE_HIGHLIGHT_HEIGHT, trackHeight),
-      {
-        color: GAUGE_FILL_HIGHLIGHT_COLOR,
-        alpha: GAUGE_FILL_HIGHLIGHT_ALPHA
-      }
-    );
-  }
-}
-function cleanupStaminaGaugeRenderState() {
-  if (!staminaGaugeRenderState) {
-    return;
-  }
-  staminaGaugeRenderState.container.removeFromParent();
-  staminaGaugeRenderState.container.destroy({ children: true });
-  staminaGaugeRenderState = null;
-}
-function staminaGaugeRenderSystem(params) {
-  const { world } = params;
-  const characterEid = findMainCharacterEntity(world);
-  if (characterEid === -1) {
-    if (staminaGaugeRenderState) {
-      staminaGaugeRenderState.container.visible = false;
-    }
+const characterQuery$7 = defineQuery([ObjectComp, PositionComp, RenderComp]);
+const characterExitQuery = exitQuery(characterQuery$7);
+const overlayStore = /* @__PURE__ */ new Map();
+const LAYOUT_STROKE_COLOR = 58879;
+const LAYOUT_FILL_COLOR = 58879;
+const LAYOUT_FILL_ALPHA = 0.12;
+const LAYOUT_STROKE_WIDTH = 1;
+const LAYOUT_Z_INDEX_OFFSET = 1;
+function characterLayoutDebugSystem(params) {
+  const { world, stage } = params;
+  if (!stage || false) {
+    cleanupCharacterLayoutDebug();
     return params;
   }
-  const gaugeWidth = Math.max(
-    48,
-    Math.round(world.positionBoundary.width + world.positionBoundary.x * 2)
-  );
-  const gaugeHeight = GAUGE_HEIGHT;
-  const gaugeState = getOrCreateRenderState(world.stage);
-  gaugeState.container.visible = true;
-  gaugeState.container.position.set(0, 0);
-  gaugeState.container.zIndex = world.positionBoundary.y - GAUGE_Z_INDEX_OFFSET;
-  const { trackX, trackY, trackWidth, trackHeight } = drawGaugeBackground(
-    gaugeState.background,
-    gaugeWidth,
-    gaugeHeight
-  );
-  drawGaugeFill(
-    gaugeState.fill,
-    CharacterStatusComp.stamina[characterEid],
-    GAME_CONSTANTS.MAX_STAMINA,
-    trackX,
-    trackY,
-    trackWidth,
-    trackHeight
-  );
-  return params;
-}
-const NAME_LABEL_MAX_WIDTH = 80;
-const NAME_LABEL_FONT_FAMILIES = [
-  "NeoDunggeunmo Pro",
-  "Apple Color Emoji",
-  "Segoe UI Emoji",
-  "Noto Color Emoji",
-  "sans-serif"
-];
-const NAME_LABEL_FONT_SIZE = 12;
-const NAME_LABEL_FONT_WEIGHT = 400;
-const NAME_LABEL_STROKE_WIDTH = 4;
-const NAME_LABEL_FILL_COLOR = 16777215;
-const NAME_LABEL_STROKE_COLOR = 0;
-let measurementContext$1;
-function countDisplayCharacters(value) {
-  return splitDisplayCharacters(value).length;
-}
-function splitDisplayCharacters(value) {
-  const IntlWithSegmenter = Intl;
-  const SegmenterCtor = IntlWithSegmenter.Segmenter;
-  if (SegmenterCtor) {
-    return Array.from(
-      new SegmenterCtor(void 0, { granularity: "grapheme" }).segment(value),
-      (item) => item.segment
-    );
-  }
-  return Array.from(value);
-}
-function measureNameLabelWidth(value) {
-  if (!value) {
-    return 0;
-  }
-  const context2 = getMeasurementContext$1();
-  if (!context2) {
-    return splitDisplayCharacters(value).length * NAME_LABEL_FONT_SIZE + NAME_LABEL_STROKE_WIDTH * 2;
-  }
-  context2.font = `${NAME_LABEL_FONT_WEIGHT} ${NAME_LABEL_FONT_SIZE}px ${toCanvasFontFamilyList(
-    NAME_LABEL_FONT_FAMILIES
-  )}`;
-  return context2.measureText(value).width + NAME_LABEL_STROKE_WIDTH * 2;
-}
-function fitsNameLabelWidth(value, maxWidth = NAME_LABEL_MAX_WIDTH) {
-  return measureNameLabelWidth(value) <= maxWidth;
-}
-function truncateNameLabelToWidth(value, maxWidth = NAME_LABEL_MAX_WIDTH) {
-  if (!value || fitsNameLabelWidth(value, maxWidth)) {
-    return value;
-  }
-  const graphemes = splitDisplayCharacters(value);
-  const ellipsis = "…";
-  if (measureNameLabelWidth(ellipsis) > maxWidth) {
-    return "";
-  }
-  let truncated = "";
-  for (let i2 = 0; i2 < graphemes.length; i2++) {
-    const nextValue = `${truncated}${graphemes[i2]}`;
-    const candidate = `${nextValue}${ellipsis}`;
-    if (!fitsNameLabelWidth(candidate, maxWidth)) {
-      return truncated ? `${truncated}${ellipsis}` : ellipsis;
-    }
-    truncated = nextValue;
-  }
-  return truncated;
-}
-function getMeasurementContext$1() {
-  if (measurementContext$1 !== void 0) {
-    return measurementContext$1;
-  }
-  if (typeof document === "undefined") {
-    measurementContext$1 = null;
-    return measurementContext$1;
-  }
-  const canvas = document.createElement("canvas");
-  measurementContext$1 = canvas.getContext("2d");
-  return measurementContext$1;
-}
-function toCanvasFontFamilyList(fontFamilies) {
-  return fontFamilies.map(
-    (fontFamily) => fontFamily.includes(" ") ? `"${fontFamily}"` : fontFamily
-  ).join(", ");
-}
-const OPAQUE_BOUNDS_PADDING_PX = 2;
-const characterOpaqueBoundsCache = /* @__PURE__ */ new Map();
-const textureOpaqueBoundsCache = /* @__PURE__ */ new Map();
-const inFlightOpaqueBounds = /* @__PURE__ */ new Map();
-let measurementCanvas;
-let measurementContext;
-function getCachedCharacterOpaqueBounds(characterKey) {
-  return characterOpaqueBoundsCache.get(characterKey) ?? null;
-}
-function getCachedTextureOpaqueBounds(textureKey) {
-  return textureOpaqueBoundsCache.get(textureKey) ?? null;
-}
-async function ensureCharacterOpaqueBoundsComputed(characterKey) {
-  if (characterKey === CharacterKeyECS.NULL) {
-    return null;
-  }
-  const cached = characterOpaqueBoundsCache.get(characterKey);
-  if (cached) {
-    return cached;
-  }
-  const spritesheetOptions = getCharacterSpritesheetOptions(
-    characterKey
-  );
-  if (!spritesheetOptions) {
-    return null;
-  }
-  const alias = spritesheetOptions.alias ?? spritesheetOptions.jsonPath;
-  if (!isSpritesheetLoaded(alias)) {
-    return null;
-  }
-  const spritesheet = Assets.get(alias);
-  if (!(spritesheet instanceof Spritesheet)) {
-    return null;
-  }
-  const idleTextureEntry = resolveIdleTextureEntry(spritesheet);
-  if (!idleTextureEntry) {
-    return null;
-  }
-  return ensureOpaqueBoundsComputed({
-    cacheKey: `character:${characterKey}`,
-    getCached: () => characterOpaqueBoundsCache.get(characterKey) ?? null,
-    setCached: (bounds) => {
-      characterOpaqueBoundsCache.set(characterKey, bounds);
-    },
-    texture: idleTextureEntry.texture,
-    alias,
-    frameName: idleTextureEntry.frameName
-  });
-}
-async function ensureTextureOpaqueBoundsComputed(textureKey) {
-  var _a;
-  if (textureKey <= 0) {
-    return null;
-  }
-  const cached = textureOpaqueBoundsCache.get(textureKey);
-  if (cached) {
-    return cached;
-  }
-  if (!isTextureKeyLoaded(textureKey)) {
-    return null;
-  }
-  const textureInfo = getTextureInfo(textureKey);
-  if (!(textureInfo == null ? void 0 : textureInfo.spritesheetAlias)) {
-    return null;
-  }
-  const spritesheet = Assets.get(
-    textureInfo.spritesheetAlias
-  );
-  if (!(spritesheet instanceof Spritesheet)) {
-    return null;
-  }
-  const texture = (_a = spritesheet.textures) == null ? void 0 : _a[textureInfo.textureName];
-  if (!texture) {
-    return null;
-  }
-  return ensureOpaqueBoundsComputed({
-    cacheKey: `texture:${textureKey}`,
-    getCached: () => textureOpaqueBoundsCache.get(textureKey) ?? null,
-    setCached: (bounds) => {
-      textureOpaqueBoundsCache.set(textureKey, bounds);
-    },
-    texture,
-    alias: textureInfo.spritesheetAlias,
-    frameName: textureInfo.textureName
-  });
-}
-async function precomputeLoadedCharacterOpaqueBounds() {
-  const characterKeys = Object.values(CharacterKeyECS).filter(
-    (value) => typeof value === "number" && value !== CharacterKeyECS.NULL
-  );
-  await Promise.all(
-    characterKeys.map(async (characterKey) => {
-      const spritesheetOptions = getCharacterSpritesheetOptions(characterKey);
-      if (!spritesheetOptions) {
-        return;
-      }
-      const alias = spritesheetOptions.alias ?? spritesheetOptions.jsonPath;
-      if (!isSpritesheetLoaded(alias)) {
-        return;
-      }
-      await ensureCharacterOpaqueBoundsComputed(characterKey);
-    })
-  );
-}
-async function precomputeLoadedTextureOpaqueBounds(textureKeys) {
-  await Promise.all(
-    textureKeys.map(async (textureKey) => {
-      if (!isTextureKeyLoaded(textureKey)) {
-        return;
-      }
-      await ensureTextureOpaqueBoundsComputed(textureKey);
-    })
-  );
-}
-function resolveIdleTextureEntry(spritesheet) {
-  var _a, _b;
-  const idleAnimation = (_a = spritesheet.animations) == null ? void 0 : _a.idle;
-  if (idleAnimation && idleAnimation.length > 0) {
-    const texture2 = idleAnimation[0];
-    const frameName2 = findTextureNameByReference(spritesheet, texture2) ?? "idle:first";
-    return { texture: texture2, frameName: frameName2 };
-  }
-  const idleTexture = (_b = spritesheet.textures) == null ? void 0 : _b.idle_0;
-  if (idleTexture) {
-    return { texture: idleTexture, frameName: "idle_0" };
-  }
-  const textureEntries = Object.entries(spritesheet.textures ?? {});
-  if (textureEntries.length === 0) {
-    return null;
-  }
-  const [frameName, texture] = textureEntries[0];
-  return { texture, frameName };
-}
-function findTextureNameByReference(spritesheet, targetTexture) {
-  const textureEntries = Object.entries(spritesheet.textures ?? {});
-  for (let i2 = 0; i2 < textureEntries.length; i2++) {
-    const [frameName, texture] = textureEntries[i2];
-    if (texture === targetTexture) {
-      return frameName;
-    }
-  }
-  return null;
-}
-function computeOpaqueBoundsFromTexture(texture, sourceKey, alias, frameName) {
-  var _a, _b;
-  const context2 = getMeasurementContext();
-  if (!context2) {
-    return null;
-  }
-  const sourceResource = getTextureCanvasSource(texture);
-  if (!sourceResource) {
-    return null;
-  }
-  const resolution = texture.source.resolution ?? texture.source._resolution ?? 1;
-  const frame = texture.frame;
-  const frameWidth = Math.max(1, Math.round(frame.width));
-  const frameHeight = Math.max(1, Math.round(frame.height));
-  const sourceWidth = Math.max(1, Math.round(texture.orig.width || frame.width));
-  const sourceHeight = Math.max(
-    1,
-    Math.round(texture.orig.height || frame.height)
-  );
-  const trimX = Math.round(((_a = texture.trim) == null ? void 0 : _a.x) ?? 0);
-  const trimY = Math.round(((_b = texture.trim) == null ? void 0 : _b.y) ?? 0);
-  measurementCanvas.width = frameWidth;
-  measurementCanvas.height = frameHeight;
-  context2.clearRect(0, 0, frameWidth, frameHeight);
-  context2.drawImage(
-    sourceResource,
-    Math.round(frame.x * resolution),
-    Math.round(frame.y * resolution),
-    Math.max(1, Math.round(frame.width * resolution)),
-    Math.max(1, Math.round(frame.height * resolution)),
-    0,
-    0,
-    frameWidth,
-    frameHeight
-  );
-  const imageData = context2.getImageData(0, 0, frameWidth, frameHeight);
-  const scanResult = scanOpaquePixels(imageData.data, frameWidth, frameHeight);
-  if (!scanResult) {
-    return createFullFrameBounds({
-      sourceKey,
-      alias,
-      frameName,
-      sourceWidth,
-      sourceHeight,
-      trimX,
-      trimY,
-      frameWidth,
-      frameHeight
-    });
-  }
-  const minXInSource = trimX + scanResult.minX;
-  const maxXExclusiveInSource = trimX + scanResult.maxX + 1;
-  const minYInSource = trimY + scanResult.minY;
-  const maxYExclusiveInSource = trimY + scanResult.maxY + 1;
-  const paddedMinXInSource = Math.max(
-    0,
-    minXInSource - OPAQUE_BOUNDS_PADDING_PX
-  );
-  const paddedMaxXExclusiveInSource = Math.min(
-    sourceWidth,
-    maxXExclusiveInSource + OPAQUE_BOUNDS_PADDING_PX
-  );
-  const paddedMinYInSource = Math.max(
-    0,
-    minYInSource - OPAQUE_BOUNDS_PADDING_PX
-  );
-  const paddedMaxYExclusiveInSource = Math.min(
-    sourceHeight,
-    maxYExclusiveInSource + OPAQUE_BOUNDS_PADDING_PX
-  );
-  const left = paddedMinXInSource - sourceWidth / 2;
-  const right = paddedMaxXExclusiveInSource - sourceWidth / 2;
-  const top = paddedMinYInSource - sourceHeight / 2;
-  const bottom = paddedMaxYExclusiveInSource - sourceHeight / 2;
-  return {
-    sourceKey,
-    alias,
-    frameName,
-    sourceWidth,
-    sourceHeight,
-    left,
-    right,
-    top,
-    bottom,
-    width: right - left,
-    height: bottom - top
-  };
-}
-function createFullFrameBounds(params) {
-  const {
-    sourceKey,
-    alias,
-    frameName,
-    sourceWidth,
-    sourceHeight,
-    trimX,
-    trimY,
-    frameWidth,
-    frameHeight
-  } = params;
-  const left = trimX - sourceWidth / 2;
-  const right = trimX + frameWidth - sourceWidth / 2;
-  const top = trimY - sourceHeight / 2;
-  const bottom = trimY + frameHeight - sourceHeight / 2;
-  return {
-    sourceKey,
-    alias,
-    frameName,
-    sourceWidth,
-    sourceHeight,
-    left,
-    right,
-    top,
-    bottom,
-    width: right - left,
-    height: bottom - top
-  };
-}
-async function ensureOpaqueBoundsComputed(params) {
-  const cached = params.getCached();
-  if (cached) {
-    return cached;
-  }
-  const existingPromise = inFlightOpaqueBounds.get(params.cacheKey);
-  if (existingPromise) {
-    return existingPromise;
-  }
-  const computePromise = (async () => {
-    try {
-      const bounds = computeOpaqueBoundsFromTexture(
-        params.texture,
-        params.cacheKey,
-        params.alias,
-        params.frameName
-      );
-      if (bounds) {
-        params.setCached(bounds);
-      }
-      return bounds;
-    } finally {
-      inFlightOpaqueBounds.delete(params.cacheKey);
-    }
-  })();
-  inFlightOpaqueBounds.set(params.cacheKey, computePromise);
-  return computePromise;
-}
-function scanOpaquePixels(data, width, height) {
-  let minX = width;
-  let minY = height;
-  let maxX = -1;
-  let maxY = -1;
-  for (let y2 = 0; y2 < height; y2++) {
-    for (let x2 = 0; x2 < width; x2++) {
-      const alphaIndex = (y2 * width + x2) * 4 + 3;
-      if (data[alphaIndex] <= 0) {
-        continue;
-      }
-      if (x2 < minX) minX = x2;
-      if (y2 < minY) minY = y2;
-      if (x2 > maxX) maxX = x2;
-      if (y2 > maxY) maxY = y2;
-    }
-  }
-  if (maxX < minX || maxY < minY) {
-    return null;
-  }
-  return { minX, minY, maxX, maxY };
-}
-function getMeasurementContext() {
-  if (measurementContext !== void 0) {
-    return measurementContext;
-  }
-  if (typeof document === "undefined") {
-    measurementCanvas = null;
-    measurementContext = null;
-    return measurementContext;
-  }
-  measurementCanvas = document.createElement("canvas");
-  measurementContext = measurementCanvas.getContext("2d", {
-    willReadFrequently: true
-  });
-  return measurementContext;
-}
-function getTextureCanvasSource(texture) {
-  const resource = texture.source.resource;
-  if (resource instanceof HTMLImageElement || resource instanceof HTMLCanvasElement || resource instanceof HTMLVideoElement || typeof ImageBitmap !== "undefined" && resource instanceof ImageBitmap || typeof OffscreenCanvas !== "undefined" && resource instanceof OffscreenCanvas) {
-    return resource;
-  }
-  return null;
-}
-const FALLBACK_CHARACTER_HEIGHT = 48;
-const FALLBACK_CHARACTER_WIDTH = 48;
-function getCharacterDisplayObject(eid) {
-  return getSpriteStore().get(eid) ?? getAnimatedSpriteStore().get(eid);
-}
-function getCharacterVerticalBounds(eid) {
-  const bounds = getCharacterWorldBounds(eid);
-  return {
-    topY: bounds.topY,
-    bottomY: bounds.bottomY,
-    height: bounds.height
-  };
-}
-function getCharacterWorldBounds(eid) {
-  const centerX = PositionComp.x[eid];
-  const centerY = PositionComp.y[eid];
-  const displayObject = getCharacterDisplayObject(eid);
-  const opaqueBounds = getCharacterOpaqueBoundsForEntity(eid);
-  if (opaqueBounds) {
-    const scaleX = getCharacterScaleX(displayObject, eid);
-    const scaleY = getCharacterScaleY(displayObject, eid);
-    const leftX = centerX + opaqueBounds.left * scaleX;
-    const rightX = centerX + opaqueBounds.right * scaleX;
-    const topY = centerY + opaqueBounds.top * scaleY;
-    const bottomY = centerY + opaqueBounds.bottom * scaleY;
-    return {
-      leftX,
-      rightX,
-      topY,
-      bottomY,
-      width: rightX - leftX,
-      height: bottomY - topY
-    };
-  }
-  const width = getFallbackDisplayDimension(
-    displayObject,
-    "width",
-    eid,
-    FALLBACK_CHARACTER_WIDTH
-  );
-  const height = getFallbackDisplayDimension(
-    displayObject,
-    "height",
-    eid,
-    FALLBACK_CHARACTER_HEIGHT
-  );
-  const halfWidth = width / 2;
-  const halfHeight = height / 2;
-  return {
-    leftX: centerX - halfWidth,
-    rightX: centerX + halfWidth,
-    topY: centerY - halfHeight,
-    bottomY: centerY + halfHeight,
-    width,
-    height
-  };
-}
-function getCharacterOpaqueBoundsForEntity(eid) {
-  const sprite = getSpriteStore().get(eid);
-  if (sprite) {
-    const textureKey = RenderComp.textureKey[eid];
-    if (!textureKey || textureKey === 0) {
-      return null;
-    }
-    const cachedBounds = getCachedTextureOpaqueBounds(textureKey);
-    if (cachedBounds) {
-      return cachedBounds;
-    }
-    void ensureTextureOpaqueBoundsComputed(textureKey);
-    return null;
-  }
-  const animatedSprite = getAnimatedSpriteStore().get(eid);
-  if (animatedSprite) {
-    const characterKey = AnimationRenderComp.spritesheetKey[eid] || CharacterStatusComp.characterKey[eid];
-    if (!characterKey || characterKey === 0) {
-      return null;
-    }
-    const cachedBounds = getCachedCharacterOpaqueBounds(characterKey);
-    if (cachedBounds) {
-      return cachedBounds;
-    }
-    void ensureCharacterOpaqueBoundsComputed(characterKey);
-    return null;
-  }
-  return null;
-}
-function getCharacterScaleX(displayObject, eid) {
-  const displayScaleX = displayObject && Number.isFinite(displayObject.scale.x) ? Math.abs(displayObject.scale.x) : NaN;
-  if (Number.isFinite(displayScaleX) && displayScaleX > 0) {
-    return displayScaleX;
-  }
-  return getFallbackScale(eid);
-}
-function getCharacterScaleY(displayObject, eid) {
-  const displayScaleY = displayObject && Number.isFinite(displayObject.scale.y) ? Math.abs(displayObject.scale.y) : NaN;
-  if (Number.isFinite(displayScaleY) && displayScaleY > 0) {
-    return displayScaleY;
-  }
-  return getFallbackScale(eid);
-}
-function getFallbackDisplayDimension(displayObject, axis, eid, fallbackDimension) {
-  const dimension = displayObject && Number.isFinite(displayObject[axis]) ? Number(displayObject[axis]) : NaN;
-  if (Number.isFinite(dimension) && dimension > 0) {
-    return dimension;
-  }
-  const scale = getFallbackScale(eid);
-  return scale > 0 ? scale * 16 : fallbackDimension;
-}
-function getFallbackScale(eid) {
-  const scale = RenderComp.scale[eid];
-  return scale > 0 ? scale : 1;
-}
-const characterQuery$8 = defineQuery([ObjectComp, PositionComp, RenderComp]);
-const characterExitQuery$1 = exitQuery(characterQuery$8);
-const labelStore = /* @__PURE__ */ new Map();
-const NAME_LABEL_STYLE = new TextStyle({
-  fontFamily: [...NAME_LABEL_FONT_FAMILIES],
-  fontSize: NAME_LABEL_FONT_SIZE,
-  fill: NAME_LABEL_FILL_COLOR,
-  align: "center",
-  stroke: { color: NAME_LABEL_STROKE_COLOR, width: NAME_LABEL_STROKE_WIDTH }
-});
-const NAME_LABEL_BOTTOM_OFFSET = 0;
-const LABEL_Z_INDEX_OFFSET = 1e3;
-function characterNameLabelSystem(params) {
-  var _a;
-  const { world } = params;
-  const exitedEntities = characterExitQuery$1(world);
+  const exitedEntities = characterExitQuery(world);
   for (let i2 = 0; i2 < exitedEntities.length; i2++) {
-    removeCharacterNameLabel(exitedEntities[i2]);
+    removeOverlay(exitedEntities[i2]);
   }
-  const rawName = (_a = world.getInMemoryData().world_metadata.monster_name) == null ? void 0 : _a.trim();
-  const displayName = rawName ? truncateDisplayName(rawName) : "";
-  const entities = characterQuery$8(world);
+  const entities = characterQuery$7(world);
+  const activeCharacterEids = /* @__PURE__ */ new Set();
   for (let i2 = 0; i2 < entities.length; i2++) {
     const eid = entities[i2];
     if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
-      removeCharacterNameLabel(eid);
-      continue;
-    }
-    if (!displayName) {
-      removeCharacterNameLabel(eid);
+      removeOverlay(eid);
       continue;
     }
     const displayObject = getCharacterDisplayObject(eid);
     if (!displayObject) {
-      removeCharacterNameLabel(eid);
+      removeOverlay(eid);
       continue;
     }
-    const label = getOrCreateCharacterNameLabel(eid, world.stage);
-    if (label.text !== displayName) {
-      label.text = displayName;
+    const bounds = getCharacterWorldBounds(eid);
+    if (bounds.width <= 0 || bounds.height <= 0) {
+      removeOverlay(eid);
+      continue;
     }
-    updateCharacterNameLabel(label, eid);
+    const overlay = getOrCreateOverlay(eid, stage);
+    activeCharacterEids.add(eid);
+    overlay.clear();
+    overlay.rect(bounds.leftX, bounds.topY, bounds.width, bounds.height).fill({ color: LAYOUT_FILL_COLOR, alpha: LAYOUT_FILL_ALPHA }).stroke({ color: LAYOUT_STROKE_COLOR, width: LAYOUT_STROKE_WIDTH });
+    const y2 = PositionComp.y[eid];
+    const configuredZIndex = RenderComp.zIndex[eid];
+    const effectiveZIndex = configuredZIndex === 0 ? y2 : configuredZIndex;
+    overlay.zIndex = effectiveZIndex + LAYOUT_Z_INDEX_OFFSET;
+    overlay.visible = true;
+  }
+  const trackedEids = Array.from(overlayStore.keys());
+  for (let i2 = 0; i2 < trackedEids.length; i2++) {
+    const eid = trackedEids[i2];
+    if (!activeCharacterEids.has(eid)) {
+      removeOverlay(eid);
+    }
   }
   return params;
-}
-function cleanupCharacterNameLabels() {
-  labelStore.forEach((label) => {
-    label.removeFromParent();
-    label.destroy();
-  });
-  labelStore.clear();
-}
-function getOrCreateCharacterNameLabel(eid, stage) {
-  const existingLabel = labelStore.get(eid);
-  if (existingLabel) {
-    return existingLabel;
-  }
-  const label = new Text({
-    text: "",
-    style: NAME_LABEL_STYLE,
-    anchor: { x: 0.5, y: 0 }
-  });
-  label.roundPixels = true;
-  stage.addChild(label);
-  labelStore.set(eid, label);
-  return label;
-}
-function removeCharacterNameLabel(eid) {
-  const label = labelStore.get(eid);
-  if (!label) {
-    return;
-  }
-  label.removeFromParent();
-  label.destroy();
-  labelStore.delete(eid);
-}
-function updateCharacterNameLabel(label, eid) {
-  const x2 = PositionComp.x[eid];
-  const y2 = PositionComp.y[eid];
-  const configuredZIndex = RenderComp.zIndex[eid];
-  const effectiveZIndex = configuredZIndex === 0 ? y2 : configuredZIndex;
-  const { bottomY } = getCharacterVerticalBounds(eid);
-  label.position.set(x2, bottomY + NAME_LABEL_BOTTOM_OFFSET);
-  label.zIndex = effectiveZIndex + LABEL_Z_INDEX_OFFSET;
-  label.visible = true;
-}
-function truncateDisplayName(name) {
-  return truncateNameLabelToWidth(name);
-}
-defineQuery([ObjectComp, PositionComp, RenderComp]);
-const overlayStore = /* @__PURE__ */ new Map();
-function characterLayoutDebugSystem(params) {
-  {
-    cleanupCharacterLayoutDebug();
-    return params;
-  }
 }
 function cleanupCharacterLayoutDebug(_stage) {
   overlayStore.forEach((_, eid) => {
     removeOverlay(eid);
   });
+}
+function getOrCreateOverlay(eid, stage) {
+  const existingOverlay = overlayStore.get(eid);
+  if (existingOverlay) {
+    return existingOverlay;
+  }
+  const overlay = new Graphics();
+  overlay.eventMode = "none";
+  stage.addChild(overlay);
+  overlayStore.set(eid, overlay);
+  return overlay;
 }
 function removeOverlay(eid) {
   const overlay = overlayStore.get(eid);
@@ -31869,7 +32161,7 @@ function getCharacterNameByKey(characterKey) {
 function getMaxEvolutionGauge() {
   return EVOLUTION_GAUGE_CONFIG.maxGauge;
 }
-const characterQuery$7 = defineQuery([
+const characterQuery$6 = defineQuery([
   ObjectComp,
   CharacterStatusComp,
   StatusIconRenderComp,
@@ -31880,6 +32172,7 @@ const previousStatusStates = /* @__PURE__ */ new Map();
 const staminaTimers = /* @__PURE__ */ new Map();
 const evolutionGaugeTimers = /* @__PURE__ */ new Map();
 const TIMER_EPSILON_MS = 1e-6;
+const TEMPORARY_STATUSES = [CharacterStatus.HAPPY, CharacterStatus.DISCOVER];
 function getElapsedIntervalProgress(totalElapsedTime, interval) {
   if (interval <= 0) {
     return { count: 0, remainder: 0 };
@@ -31892,10 +32185,13 @@ function getElapsedIntervalProgress(totalElapsedTime, interval) {
   };
 }
 let _cachedWorld = null;
+function isTemporaryStatus(status) {
+  return TEMPORARY_STATUSES.includes(status);
+}
 function characterManagerSystem(params) {
   const { world, delta } = params;
   _cachedWorld = world;
-  const characters = characterQuery$7(world);
+  const characters = characterQuery$6(world);
   for (let i2 = 0; i2 < characters.length; i2++) {
     const eid = characters[i2];
     if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
@@ -31971,6 +32267,12 @@ function addCharacterStatus$2(eid, status) {
     `[addCharacterStatus] Current statuses for entity ${eid}:`,
     Array.from(currentStatuses)
   );
+  if (isTemporaryStatus(status) && ObjectComp.state[eid] === CharacterState.SLEEPING) {
+    console.log(
+      `[addCharacterStatus] Skipped temporary status ${status} for sleeping entity ${eid}`
+    );
+    return;
+  }
   if (currentStatuses.includes(status)) {
     console.log(
       `[addCharacterStatus] Status ${status} already exists for entity ${eid}`
@@ -31980,22 +32282,16 @@ function addCharacterStatus$2(eid, status) {
   for (let i2 = 0; i2 < currentStatuses.length; i2++) {
     if (currentStatuses[i2] === 0) {
       currentStatuses[i2] = status;
-      if (status === CharacterStatus.HAPPY || status === CharacterStatus.DISCOVER) {
-        if (_cachedWorld) {
-          if (!hasComponent(_cachedWorld, TemporaryStatusComp, eid)) {
-            addComponent(_cachedWorld, TemporaryStatusComp, eid);
-          }
-          const currentTime = _cachedWorld.currentTime;
-          TemporaryStatusComp.statusType[eid] = status;
-          TemporaryStatusComp.startTime[eid] = currentTime;
-          console.log(
-            `[addCharacterStatus] Set temporary status ${status} for entity ${eid}, expires at ${currentTime + 3e3}`
-          );
-        } else {
-          console.warn(
-            `[addCharacterStatus] Cannot set temporary status: world not cached`
-          );
+      if (isTemporaryStatus(status)) {
+        if (_cachedWorld && hasComponent(_cachedWorld, ObjectComp, eid) && !hasComponent(_cachedWorld, TemporaryStatusComp, eid)) {
+          addComponent(_cachedWorld, TemporaryStatusComp, eid);
         }
+        const currentTime = (_cachedWorld == null ? void 0 : _cachedWorld.currentTime) ?? Date.now();
+        TemporaryStatusComp.statusType[eid] = status;
+        TemporaryStatusComp.startTime[eid] = currentTime;
+        console.log(
+          `[addCharacterStatus] Set temporary status ${status} for entity ${eid}, expires at ${currentTime + 3e3}`
+        );
       }
       console.log(
         `[addCharacterStatus] Added status ${status} to entity ${eid} at slot ${i2}. New statuses:`,
@@ -32019,11 +32315,70 @@ function applyReentryHappyStatusForFullStaminaCharacters(world) {
     if (ObjectComp.state[eid] === CharacterState.EGG || ObjectComp.state[eid] === CharacterState.DEAD) {
       continue;
     }
-    if (CharacterStatusComp.stamina[eid] < GAME_CONSTANTS.MAX_STAMINA) {
-      continue;
-    }
-    addCharacterStatus$2(eid, CharacterStatus.HAPPY);
+    applyHappyStatusForFullStaminaCharacterIfEligible(world, eid);
   }
+}
+function applyHappyStatusForFullStaminaCharacterIfEligible(world, eid) {
+  _cachedWorld = world;
+  if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
+    return false;
+  }
+  if (ObjectComp.state[eid] === CharacterState.EGG || ObjectComp.state[eid] === CharacterState.DEAD || ObjectComp.state[eid] === CharacterState.SICK || ObjectComp.state[eid] === CharacterState.SLEEPING) {
+    return false;
+  }
+  if (CharacterStatusComp.stamina[eid] < GAME_CONSTANTS.MAX_STAMINA) {
+    return false;
+  }
+  if (hasCharacterStatus$2(eid, CharacterStatus.SICK)) {
+    return false;
+  }
+  addCharacterStatus$2(eid, CharacterStatus.HAPPY);
+  return true;
+}
+function clearTemporaryStatuses(world, eid) {
+  _cachedWorld = world;
+  if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
+    return false;
+  }
+  let cleared = false;
+  const currentStatuses = CharacterStatusComp.statuses[eid];
+  for (let i2 = 0; i2 < currentStatuses.length; i2++) {
+    if (isTemporaryStatus(currentStatuses[i2])) {
+      currentStatuses[i2] = 0;
+      cleared = true;
+    }
+  }
+  if (hasComponent(world, TemporaryStatusComp, eid)) {
+    const temporaryStatusType = TemporaryStatusComp.statusType[eid];
+    if (isTemporaryStatus(temporaryStatusType)) {
+      TemporaryStatusComp.statusType[eid] = 0;
+      TemporaryStatusComp.startTime[eid] = 0;
+      cleared = true;
+    }
+  }
+  if (cleared) {
+    console.log(
+      `[clearTemporaryStatuses] Cleared temporary statuses for entity ${eid}. New statuses:`,
+      Array.from(currentStatuses)
+    );
+  }
+  return cleared;
+}
+function removeCharacterStatus$2(eid, status) {
+  const currentStatuses = CharacterStatusComp.statuses[eid];
+  for (let i2 = 0; i2 < currentStatuses.length; i2++) {
+    if (currentStatuses[i2] === status) {
+      currentStatuses[i2] = 0;
+      console.log(
+        `[removeCharacterStatus] Removed status ${status} from entity ${eid} at slot ${i2}. New statuses:`,
+        Array.from(currentStatuses)
+      );
+      return;
+    }
+  }
+  console.warn(
+    `[removeCharacterStatus] Status ${status} not found for entity ${eid}`
+  );
 }
 function hasCharacterStatus$2(eid, status) {
   const currentStatuses = CharacterStatusComp.statuses[eid];
@@ -32100,7 +32455,7 @@ function decreaseStamina(eid) {
   );
 }
 function validateAndFixStatusIcons(world) {
-  const characters = characterQuery$7(world);
+  const characters = characterQuery$6(world);
   let fixedCount = 0;
   console.log(
     "[CharacterManagerSystem] Validating status icons for loaded entities..."
@@ -32113,6 +32468,10 @@ function validateAndFixStatusIcons(world) {
     const currentStatuses = CharacterStatusComp.statuses[eid];
     const now = world.currentTime;
     let statusModified = false;
+    if (ObjectComp.state[eid] === CharacterState.SLEEPING && clearTemporaryStatuses(world, eid)) {
+      statusModified = true;
+      fixedCount++;
+    }
     if (hasComponent(world, TemporaryStatusComp, eid)) {
       const statusType = TemporaryStatusComp.statusType[eid];
       const startTime = TemporaryStatusComp.startTime[eid];
@@ -32135,10 +32494,9 @@ function validateAndFixStatusIcons(world) {
         }
       }
     }
-    const temporaryStatuses = [CharacterStatus.HAPPY, CharacterStatus.DISCOVER];
     for (let j2 = 0; j2 < currentStatuses.length; j2++) {
       const status = currentStatuses[j2];
-      if (status !== 0 && temporaryStatuses.includes(status)) {
+      if (status !== 0 && isTemporaryStatus(status)) {
         if (!hasComponent(world, TemporaryStatusComp, eid)) {
           console.log(
             `[CharacterManagerSystem] Found orphaned temporary status ${status} in entity ${eid}, removing it`
@@ -32199,11 +32557,21 @@ const foodWithTimerQuery = defineQuery([
 ]);
 function freshnessSystem(params) {
   const { world, currentTime } = params;
+  normalizeLegacyFreshFood(world);
   initializeFreshnessTimes(world, currentTime);
   updateFreshness(world, currentTime);
-  applySparkleToFreshFood(world, currentTime);
   cancelTargetingForStalFood(world);
   return params;
+}
+function normalizeLegacyFreshFood(world) {
+  const foodEntities = foodQuery$1(world);
+  for (let i2 = 0; i2 < foodEntities.length; i2++) {
+    const eid = foodEntities[i2];
+    if (ObjectComp.type[eid] !== ObjectType.FOOD) continue;
+    if (FreshnessComp.freshness[eid] === Freshness.FRESH) {
+      FreshnessComp.freshness[eid] = Freshness.NORMAL;
+    }
+  }
 }
 function initializeFreshnessTimes(world, currentTime) {
   const foodEntities = foodQuery$1(world);
@@ -32229,16 +32597,18 @@ function updateFreshness(world, currentTime) {
     const isBeingEaten = isBeingEatenByCharacter(world, eid);
     timerComp.isBeingEaten[eid] = isBeingEaten ? 1 : 0;
     if (isBeingEaten) continue;
-    const createdTime = timerComp.createdTime[eid];
-    const elapsedTime = currentTime - createdTime;
-    const currentFreshness = freshnessComp.freshness[eid];
-    if (currentFreshness === Freshness.STALE && ObjectComp.state[eid] !== FoodState.BEING_THROWING && !isBeingEaten && ObjectComp.state[eid] !== FoodState.LANDED) {
+    let currentFreshness = freshnessComp.freshness[eid];
+    if (currentFreshness === Freshness.FRESH) {
+      currentFreshness = Freshness.NORMAL;
+      freshnessComp.freshness[eid] = currentFreshness;
+    }
+    if (currentFreshness === Freshness.STALE && ObjectComp.state[eid] !== FoodState.BEING_THROWING && ObjectComp.state[eid] !== FoodState.LANDED) {
       ObjectComp.state[eid] = FoodState.LANDED;
+      continue;
     }
-    if (currentFreshness === Freshness.FRESH && elapsedTime >= timerComp.normalTime[eid]) {
-      freshnessComp.freshness[eid] = Freshness.NORMAL;
-    }
-    if (currentFreshness === Freshness.NORMAL && elapsedTime >= timerComp.normalTime[eid] + timerComp.staleTime[eid]) {
+    const elapsedTime = currentTime - timerComp.createdTime[eid];
+    const totalEdibleTime = timerComp.normalTime[eid] + timerComp.staleTime[eid];
+    if (elapsedTime >= totalEdibleTime) {
       freshnessComp.freshness[eid] = Freshness.STALE;
       ObjectComp.state[eid] = FoodState.LANDED;
     }
@@ -32262,53 +32632,15 @@ function cancelTargetingForStalFood(world) {
     const eid = characters[i2];
     if (ObjectComp.type[eid] !== ObjectType.CHARACTER) continue;
     const targetEid = DestinationComp.target[eid];
-    if (targetEid && hasComponent(world, ObjectComp, targetEid) && ObjectComp.type[targetEid] === ObjectType.FOOD) {
-      if (hasComponent(world, FreshnessComp, targetEid) && FreshnessComp.freshness[targetEid] === Freshness.STALE) {
-        DestinationComp.target[eid] = 0;
-        DestinationComp.type[eid] = 0;
-        ObjectComp.state[targetEid] = FoodState.LANDED;
-      }
+    if (targetEid && hasComponent(world, ObjectComp, targetEid) && ObjectComp.type[targetEid] === ObjectType.FOOD && hasComponent(world, FreshnessComp, targetEid) && FreshnessComp.freshness[targetEid] === Freshness.STALE) {
+      DestinationComp.target[eid] = 0;
+      DestinationComp.type[eid] = 0;
+      ObjectComp.state[targetEid] = FoodState.LANDED;
     }
-  }
-}
-function getStaminaBonusFromFreshness(freshness) {
-  switch (freshness) {
-    case Freshness.FRESH:
-      return GAME_CONSTANTS.FRESH_STAMINA_BONUS;
-    case Freshness.NORMAL:
-      return GAME_CONSTANTS.NORMAL_STAMINA_BONUS;
-    case Freshness.STALE:
-      return 0;
-    // 상한 음식은 먹을 수 없음
-    default:
-      return 0;
   }
 }
 function isFoodEdible(freshness) {
-  return freshness === Freshness.FRESH || freshness === Freshness.NORMAL;
-}
-function applySparkleToFreshFood(world, currentTime) {
-  const foods = foodQuery$1(world);
-  for (let i2 = 0; i2 < foods.length; i2++) {
-    const eid = foods[i2];
-    if (ObjectComp.type[eid] !== ObjectType.FOOD) continue;
-    if (!hasComponent(world, FreshnessComp, eid)) continue;
-    const freshness = FreshnessComp.freshness[eid];
-    const hasSparkle = hasComponent(world, SparkleEffectComp, eid);
-    if (freshness === Freshness.FRESH && !hasSparkle) {
-      addComponent(world, SparkleEffectComp, eid);
-      SparkleEffectComp.isActive[eid] = 1;
-      SparkleEffectComp.sparkleCount[eid] = 0;
-      SparkleEffectComp.nextSpawnTime[eid] = currentTime + 500;
-      SparkleEffectComp.spawnInterval[eid] = 800;
-      console.log(`[FreshnessSystem] Added SparkleEffect to fresh food ${eid}`);
-    } else if (freshness !== Freshness.FRESH && hasSparkle) {
-      SparkleEffectComp.isActive[eid] = 0;
-      console.log(
-        `[FreshnessSystem] Deactivated SparkleEffect for non-fresh food ${eid}`
-      );
-    }
-  }
+  return freshness !== Freshness.STALE;
 }
 const generatePersistentNumericId = /* @__PURE__ */ (() => {
   let _persistentIdCounter = 1;
@@ -32462,7 +32794,7 @@ function createThrowingFoodEntity(world, options) {
   RenderComp.scale[eid] = 4;
   RenderComp.zIndex[eid] = INTENTED_FRONT_Z_INDEX;
   addComponent(world, FreshnessComp, eid);
-  FreshnessComp.freshness[eid] = Freshness.FRESH;
+  FreshnessComp.freshness[eid] = Freshness.NORMAL;
   addComponent(world, ThrowAnimationComp, eid);
   ThrowAnimationComp.initialX[eid] = options.initialPosition.x;
   ThrowAnimationComp.initialY[eid] = options.initialPosition.y;
@@ -32484,7 +32816,7 @@ function createThrowingFoodEntity(world, options) {
   );
   return eid;
 }
-const characterQuery$6 = defineQuery([ObjectComp, CharacterStatusComp]);
+const characterQuery$5 = defineQuery([ObjectComp, CharacterStatusComp]);
 const characterWithDigestiveQuery = defineQuery([
   ObjectComp,
   CharacterStatusComp,
@@ -32506,7 +32838,7 @@ function digestiveSystem(params) {
   return params;
 }
 function initializeDigestiveSystem(world) {
-  const characters = characterQuery$6(world);
+  const characters = characterQuery$5(world);
   for (let i2 = 0; i2 < characters.length; i2++) {
     const eid = characters[i2];
     if (ObjectComp.type[eid] !== ObjectType.CHARACTER) continue;
@@ -32759,8 +33091,21 @@ function moveTowardsTarget(world, eid, _delta) {
   }
   const currentX = PositionComp.x[eid];
   const currentY = PositionComp.y[eid];
-  const targetX = DestinationComp.x[eid];
-  const targetY = DestinationComp.y[eid];
+  const movementBoundary = ObjectComp.type[eid] === ObjectType.CHARACTER ? getCharacterCenterBoundary(
+    eid,
+    world.positionBoundary,
+    CHARACTER_SCREEN_EDGE_OVERFLOW_PX
+  ) : world.positionBoundary;
+  const targetX = clampAxisValue(
+    DestinationComp.x[eid],
+    movementBoundary.x,
+    movementBoundary.x + movementBoundary.width
+  );
+  const targetY = clampAxisValue(
+    DestinationComp.y[eid],
+    movementBoundary.y,
+    movementBoundary.y + movementBoundary.height
+  );
   const deltaX = targetX - currentX;
   const deltaY = targetY - currentY;
   const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
@@ -32774,6 +33119,9 @@ function moveTowardsTarget(world, eid, _delta) {
   }
   SpeedComp.value[eid] = baseSpeed;
   return { distance, hasArrived };
+}
+function clampAxisValue(value, min, max) {
+  return Math.min(max, Math.max(min, value));
 }
 var TimeOfDay = /* @__PURE__ */ ((TimeOfDay2) => {
   TimeOfDay2["Day"] = "day";
@@ -33160,15 +33508,25 @@ function handleNightWakeChecks(world, eid, currentTime, currentTimeOfDay) {
   ensureNightWakeCheckTime(eid, currentTime);
   while (currentTime >= SleepSystemComp.nextNightWakeCheckTime[eid]) {
     SleepSystemComp.nextNightWakeCheckTime[eid] += GAME_CONSTANTS.NIGHT_WAKE_CHECK_INTERVAL;
-    SleepSystemComp.fatigue[eid];
+    const fatigue = SleepSystemComp.fatigue[eid];
     const baseChance = GAME_CONSTANTS.NIGHT_WAKE_CHANCE;
     const appliedChance = baseChance;
     const roll = Math.random();
     const shouldWake = roll < appliedChance;
     logSleepCheck(world, "Night wake check", {
+      eid,
+      timeOfDay: currentTimeOfDay,
       sleepMode: SleepSystemComp.sleepMode[eid],
+      fatigue: roundForLog(fatigue),
       fatigueMax: GAME_CONSTANTS.FATIGUE_MAX,
-      checkIntervalMs: GAME_CONSTANTS.NIGHT_WAKE_CHECK_INTERVAL
+      checkIntervalMs: GAME_CONSTANTS.NIGHT_WAKE_CHECK_INTERVAL,
+      baseChance,
+      baseChancePercent: toPercent(baseChance),
+      appliedChance,
+      appliedChancePercent: toPercent(appliedChance),
+      roll,
+      rollPercent: toPercent(roll),
+      result: shouldWake ? "wake" : "keep_sleeping"
     });
     if (shouldWake) {
       SleepSystemComp.pendingWakeReason[eid] = SleepReason.NIGHT_INTERRUPT;
@@ -33211,7 +33569,7 @@ function handleScheduledSleep(world, eid, currentTime, currentTimeOfDay) {
     return;
   }
   const mode = SleepSystemComp.pendingSleepReason[eid] === SleepReason.NAP ? SleepMode.DAY_NAP : SleepMode.NIGHT_SLEEP;
-  enterSleep(eid, currentTime, mode);
+  enterSleep(world, eid, currentTime, mode);
 }
 function handleDayNapChecks(world, eid, currentTime, currentTimeOfDay) {
   if (currentTimeOfDay !== TimeOfDay.Day || ObjectComp.state[eid] === CharacterState.SLEEPING || SleepSystemComp.nextSleepTime[eid] > 0 || SleepSystemComp.fatigue[eid] < GAME_CONSTANTS.FATIGUE_DAY_NAP_MIN_THRESHOLD) {
@@ -33223,21 +33581,34 @@ function handleDayNapChecks(world, eid, currentTime, currentTimeOfDay) {
   while (currentTime >= SleepSystemComp.nextNapCheckTime[eid]) {
     SleepSystemComp.nextNapCheckTime[eid] += GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL;
     const fatigue = SleepSystemComp.fatigue[eid];
-    clamp(fatigue / GAME_CONSTANTS.FATIGUE_MAX, 0, 1);
-    GAME_CONSTANTS.DAY_NAP_CHANCE;
+    const fatigueRatio = clamp(fatigue / GAME_CONSTANTS.FATIGUE_MAX, 0, 1);
+    const fatigueMultiplier = 0.5 + fatigueRatio;
+    const baseChance = GAME_CONSTANTS.DAY_NAP_CHANCE;
     const appliedChance = getDayNapChance(eid);
     const roll = Math.random();
     const shouldNap = roll < appliedChance;
     logSleepCheck(world, "Day nap check", {
+      eid,
+      timeOfDay: currentTimeOfDay,
+      fatigue: roundForLog(fatigue),
       fatigueThreshold: GAME_CONSTANTS.FATIGUE_DAY_NAP_MIN_THRESHOLD,
       fatigueMax: GAME_CONSTANTS.FATIGUE_MAX,
-      checkIntervalMs: GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL
+      fatigueRatio: roundForLog(fatigueRatio),
+      fatigueMultiplier: roundForLog(fatigueMultiplier),
+      checkIntervalMs: GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL,
+      baseChance,
+      baseChancePercent: toPercent(baseChance),
+      appliedChance,
+      appliedChancePercent: toPercent(appliedChance),
+      roll,
+      rollPercent: toPercent(roll),
+      result: shouldNap ? "nap" : "stay_awake"
     });
     if (shouldNap) {
       SleepSystemComp.nextSleepTime[eid] = currentTime;
       SleepSystemComp.pendingSleepReason[eid] = SleepReason.NAP;
       if (canEnterSleep(world, eid)) {
-        enterSleep(eid, currentTime, SleepMode.DAY_NAP);
+        enterSleep(world, eid, currentTime, SleepMode.DAY_NAP);
       }
       break;
     }
@@ -33341,9 +33712,10 @@ function scheduleResleep(eid, currentTime) {
   );
   SleepSystemComp.pendingSleepReason[eid] = SleepReason.RESLEEP;
 }
-function enterSleep(eid, currentTime, mode) {
+function enterSleep(world, eid, currentTime, mode) {
   const reservedWakeTime = mode === SleepMode.NIGHT_SLEEP ? SleepSystemComp.nextWakeTime[eid] : 0;
   const reservedWakeReason = mode === SleepMode.NIGHT_SLEEP ? SleepSystemComp.pendingWakeReason[eid] : SleepReason.NONE;
+  clearTemporaryStatuses(world, eid);
   ObjectComp.state[eid] = CharacterState.SLEEPING;
   SpeedComp.value[eid] = 0;
   SleepSystemComp.sleepMode[eid] = mode;
@@ -33456,11 +33828,22 @@ function restoreRandomMovementIfNeeded(world, eid, currentTime) {
   RandomMovementComp.nextChange[eid] = currentTime + 1e3;
 }
 function logSleepCheck(world, event, payload) {
-  {
+  if (!shouldLogSleepChecks(world)) {
     return;
   }
+  console.log(`[SleepScheduleSystem] ${event}`, payload);
 }
-const characterQuery$5 = defineQuery([
+function shouldLogSleepChecks(world) {
+  return !world.isSimulationMode;
+}
+function toPercent(value) {
+  return roundForLog(value * 100, 2);
+}
+function roundForLog(value, digits = 3) {
+  const multiplier = 10 ** digits;
+  return Math.round(value * multiplier) / multiplier;
+}
+const characterQuery$4 = defineQuery([
   ObjectComp,
   CharacterStatusComp,
   PositionComp
@@ -33483,6 +33866,15 @@ const FOOD_CHARACTER_BOUNDARY_OVERLAP_PX = 30;
 const FALLBACK_FOOD_SOURCE_SIZE = 16;
 const EATING_POSE_FOOD_Y_OFFSET_PX = 1;
 const ZERO_DISTANCE_EPSILON = 1e-3;
+const DEFAULT_FOOD_STAMINA_BONUS = 2;
+const FOOD_STAMINA_BONUS_DISTRIBUTION = [1, 2, 2, 3, 3, 4];
+function getStaminaBonusForFoodTexture(textureKey) {
+  if (textureKey < TextureKey.FOOD1 || textureKey > TextureKey.FOOD64) {
+    return DEFAULT_FOOD_STAMINA_BONUS;
+  }
+  const foodIndex = textureKey - TextureKey.FOOD1;
+  return FOOD_STAMINA_BONUS_DISTRIBUTION[foodIndex % FOOD_STAMINA_BONUS_DISTRIBUTION.length];
+}
 function foodEatingSystem(params) {
   const { world, delta, currentTime } = params;
   const resolvedCurrentTime = currentTime ?? world.currentTime;
@@ -33595,7 +33987,7 @@ function completeEating(world, characterEid, foodEid, currentTime) {
   console.log(
     `[FoodEatingSystem] Character ${characterEid} completed eating food ${foodEid}`
   );
-  let staminaBonus = 2;
+  let staminaBonus = DEFAULT_FOOD_STAMINA_BONUS;
   if (hasComponent(world, FreshnessComp, foodEid)) {
     const freshness = FreshnessComp.freshness[foodEid];
     if (!isFoodEdible(freshness)) {
@@ -33603,7 +33995,11 @@ function completeEating(world, characterEid, foodEid, currentTime) {
       cancelEating(world, characterEid);
       return;
     }
-    staminaBonus = getStaminaBonusFromFreshness(freshness);
+  }
+  if (hasComponent(world, RenderComp, foodEid)) {
+    staminaBonus = getStaminaBonusForFoodTexture(
+      RenderComp.textureKey[foodEid]
+    );
   }
   const currentStamina = CharacterStatusComp.stamina[characterEid];
   const newStamina = Math.min(
@@ -33659,7 +34055,7 @@ function completeEating(world, characterEid, foodEid, currentTime) {
   );
 }
 function findAndEatFood(world) {
-  const characters = characterQuery$5(world);
+  const characters = characterQuery$4(world);
   const foods = foodQuery(world);
   for (let i2 = 0; i2 < characters.length; i2++) {
     const characterEid = characters[i2];
@@ -33937,11 +34333,8 @@ function restoreFreeRoamingState(world, characterEid, idleDelayMs) {
     `[FoodEatingSystem] Restored free roaming state for character ${characterEid}`
   );
 }
-const freshFoodQuery = defineQuery([ObjectComp, FreshnessComp, PositionComp]);
 const positionedObjectQuery = defineQuery([ObjectComp, PositionComp]);
 const positionedObjectExitQuery = exitQuery(positionedObjectQuery);
-const sparkleQuery = defineQuery([ObjectComp, SparkleEffectComp]);
-const entitySparkleContainers = /* @__PURE__ */ new Map();
 const STALE_FOOD_SMELL_LINE_COUNT = 3;
 const STALE_FOOD_SMELL_COLOR = 12946687;
 const POOB_SMELL_COLOR = 10906159;
@@ -33953,78 +34346,9 @@ const STALE_FOOD_SMELL_SPACING = 8;
 const STALE_FOOD_SMELL_Z_INDEX_OFFSET = 24;
 const STALE_FOOD_SMELL_STEP_PATTERN = [-1, -1, 0, 0, 1, 1, 0, 0];
 const entityStaleFoodSmellVisuals = /* @__PURE__ */ new Map();
-const animatingSparkles = /* @__PURE__ */ new Map();
-function drawSparkleGraphic(graphics) {
-  graphics.clear();
-  graphics.poly([
-    0,
-    -8,
-    1.9,
-    -1.9,
-    8,
-    0,
-    1.9,
-    1.9,
-    0,
-    8,
-    -1.9,
-    1.9,
-    -8,
-    0,
-    -1.9,
-    -1.9
-  ]);
-  graphics.fill({ color: 16777215, alpha: 0.9 });
-}
-function updateSparkleAnimations(currentTime) {
-  const toRemove = [];
-  animatingSparkles.forEach((animData, sparkleContainer) => {
-    const elapsed = currentTime - animData.startTime;
-    const progress = Math.min(elapsed / animData.duration, 1);
-    if (progress >= 1) {
-      toRemove.push(sparkleContainer);
-      try {
-        animData.onComplete();
-      } catch (error) {
-        console.warn(
-          "[SparkleEffectSystem] Error in animation complete callback:",
-          error
-        );
-      }
-      return;
-    }
-    const easeInOutCubic = (t2) => {
-      return t2 < 0.5 ? 4 * t2 * t2 * t2 : 1 - Math.pow(-2 * t2 + 2, 3) / 2;
-    };
-    let alpha;
-    let scale;
-    if (progress < 0.25) {
-      const fadeInProgress = easeInOutCubic(progress / 0.25);
-      alpha = animData.initialAlpha * fadeInProgress;
-      scale = animData.initialScale * (0.4 + 0.6 * fadeInProgress);
-    } else if (progress < 0.75) {
-      alpha = animData.initialAlpha;
-      scale = animData.initialScale;
-    } else {
-      const fadeOutProgress = easeInOutCubic((progress - 0.75) / 0.25);
-      alpha = animData.initialAlpha * (1 - fadeOutProgress);
-      scale = animData.initialScale * (1 - fadeOutProgress * 0.4);
-    }
-    sparkleContainer.alpha = Math.max(0, Math.min(1, alpha));
-    const pulse = 1 + Math.sin(progress * Math.PI) * 0.04;
-    sparkleContainer.scale.set(Math.max(0.01, scale * pulse));
-  });
-  toRemove.forEach((container) => {
-    animatingSparkles.delete(container);
-  });
-}
 function sparkleEffectSystem(params) {
   const { world, currentTime } = params;
-  addSparkleToFreshFood(world, currentTime);
-  removeSparkleFromNonFreshFood(world);
-  updateSparkleEffects(world, currentTime);
   updateDirtyObjectSmellEffects(world, currentTime);
-  updateSparkleAnimations(currentTime);
   return params;
 }
 function updateDirtyObjectSmellEffects(world, currentTime) {
@@ -34145,148 +34469,6 @@ function removeStaleFoodSmellEffect(eid) {
   }
   visual.container.destroy({ children: true });
   entityStaleFoodSmellVisuals.delete(eid);
-}
-function addSparkleToFreshFood(world, currentTime) {
-  const freshFoods = freshFoodQuery(world);
-  for (let i2 = 0; i2 < freshFoods.length; i2++) {
-    const eid = freshFoods[i2];
-    if (ObjectComp.type[eid] !== ObjectType.FOOD) continue;
-    const freshness = FreshnessComp.freshness[eid];
-    if (freshness === Freshness.FRESH && !hasComponent(world, SparkleEffectComp, eid)) {
-      addComponent(world, SparkleEffectComp, eid);
-      SparkleEffectComp.isActive[eid] = 1;
-      SparkleEffectComp.sparkleCount[eid] = 0;
-      SparkleEffectComp.nextSpawnTime[eid] = currentTime + 1e3;
-      SparkleEffectComp.spawnInterval[eid] = 1200;
-      createSimpleSparkleEffect(world, eid);
-      console.log(
-        `[SparkleEffectSystem] Added SparkleEffect to fresh food ${eid}`
-      );
-    }
-  }
-}
-function removeSparkleFromNonFreshFood(world) {
-  const sparkleEntities = sparkleQuery(world);
-  for (let i2 = 0; i2 < sparkleEntities.length; i2++) {
-    const eid = sparkleEntities[i2];
-    if (ObjectComp.type[eid] !== ObjectType.FOOD) continue;
-    if (hasComponent(world, FreshnessComp, eid)) {
-      const freshness = FreshnessComp.freshness[eid];
-      if (freshness !== Freshness.FRESH) {
-        removeComponent(world, SparkleEffectComp, eid);
-        destroySparkleEffect(eid);
-      }
-    } else {
-      removeComponent(world, SparkleEffectComp, eid);
-      destroySparkleEffect(eid);
-    }
-  }
-}
-function createSimpleSparkleEffect(_world, eid) {
-  const containers = [];
-  entitySparkleContainers.set(eid, containers);
-  console.log(
-    `[SparkleEffectSystem] Created simple sparkle effect for entity ${eid}`
-  );
-}
-function destroySparkleEffect(eid) {
-  const containers = entitySparkleContainers.get(eid);
-  if (containers) {
-    entitySparkleContainers.delete(eid);
-    console.log(
-      `[SparkleEffectSystem] Marked sparkle effect for removal for entity ${eid}, ${containers.length} sparkles will finish their animation`
-    );
-  }
-}
-function updateSparkleEffects(world, currentTime) {
-  const sparkleEntities = sparkleQuery(world);
-  for (let i2 = 0; i2 < sparkleEntities.length; i2++) {
-    const eid = sparkleEntities[i2];
-    if (!SparkleEffectComp.isActive[eid]) continue;
-    const nextSpawnTime = SparkleEffectComp.nextSpawnTime[eid];
-    const spawnInterval = SparkleEffectComp.spawnInterval[eid];
-    if (currentTime >= nextSpawnTime) {
-      if (!hasComponent(world, FreshnessComp, eid) || FreshnessComp.freshness[eid] !== Freshness.FRESH) {
-        SparkleEffectComp.isActive[eid] = 0;
-        continue;
-      }
-      const containers = entitySparkleContainers.get(eid) || [];
-      const activeSparkles = containers.filter(
-        (container) => container.parent
-      ).length;
-      if (activeSparkles < 2) {
-        const currentCount = SparkleEffectComp.sparkleCount[eid];
-        if (currentCount < 5) {
-          SparkleEffectComp.sparkleCount[eid] = currentCount + 1;
-        }
-        createSparkleVisual(world, eid);
-      }
-      const randomDelay = spawnInterval + (Math.random() - 0.5) * 400;
-      SparkleEffectComp.nextSpawnTime[eid] = currentTime + randomDelay;
-    }
-  }
-}
-function createSparkleVisual(world, eid) {
-  if (!hasComponent(world, PositionComp, eid)) return;
-  const position = {
-    x: PositionComp.x[eid],
-    y: PositionComp.y[eid]
-  };
-  const star = new Graphics();
-  drawSparkleGraphic(star);
-  const sparkleContainer = new Container();
-  sparkleContainer.addChild(star);
-  sparkleContainer.position.x = position.x + (-0.5 + Math.random()) * 30;
-  sparkleContainer.position.y = position.y + (-0.5 + Math.random()) * 30;
-  const initialScale = 0.7 + Math.random() * 0.3;
-  sparkleContainer.scale.set(initialScale);
-  sparkleContainer.alpha = 0.92;
-  sparkleContainer.rotation = Math.random() * Math.PI * 2;
-  world.stage.addChild(sparkleContainer);
-  let foodZIndex = 0;
-  if (hasComponent(world, RenderComp, eid)) {
-    const configuredZIndex = RenderComp.zIndex[eid];
-    foodZIndex = configuredZIndex === void 0 || configuredZIndex === 0 ? Math.floor(PositionComp.y[eid]) : configuredZIndex;
-  }
-  sparkleContainer.zIndex = foodZIndex + 10;
-  world.stage.sortableChildren = true;
-  let containers = entitySparkleContainers.get(eid);
-  if (!containers) {
-    if (!hasComponent(world, SparkleEffectComp, eid)) {
-      console.log(
-        `[SparkleEffectSystem] Sparkle created for removed entity ${eid}, will complete animation naturally`
-      );
-      return;
-    }
-    containers = [];
-    entitySparkleContainers.set(eid, containers);
-  }
-  containers.push(sparkleContainer);
-  startSparkleAnimation(sparkleContainer, () => {
-    if (sparkleContainer.parent) {
-      sparkleContainer.parent.removeChild(sparkleContainer);
-    }
-    const containers2 = entitySparkleContainers.get(eid);
-    if (containers2) {
-      const index = containers2.indexOf(sparkleContainer);
-      if (index > -1) {
-        containers2.splice(index, 1);
-      }
-    }
-  });
-}
-function startSparkleAnimation(sparkleContainer, onComplete) {
-  const duration = 800;
-  const startTime = Date.now();
-  const initialAlpha = sparkleContainer.alpha;
-  const initialScale = sparkleContainer.scale.x;
-  animatingSparkles.set(sparkleContainer, {
-    startTime,
-    duration,
-    initialAlpha,
-    initialScale,
-    onComplete
-  });
 }
 const CLEANING_DISTANCE = 5;
 const cleanableEntitiesQuery = defineQuery([
@@ -34439,10 +34621,23 @@ const broomStore = new ObjectStore("BroomStore");
 const BROOM_RENDER_SCALE = 3;
 const BROOM_HORIZONTAL_OVERSHOOT_PX = 10;
 const BROOM_VERTICAL_OFFSET_PX = 10;
+const CLEANING_DIM_OVERLAY_PADDING_PX = 512;
+const CLEANING_DIM_OVERLAY_ALPHA = 0.45;
+const CLEANING_HIGHLIGHT_Z_INDEX_BASE = 1000100;
+const CLEANING_DIM_OVERLAY_Z_INDEX = CLEANING_HIGHLIGHT_Z_INDEX_BASE;
+const NON_FOCUSED_TARGET_Z_INDEX = CLEANING_HIGHLIGHT_Z_INDEX_BASE + 1;
+const NON_FOCUSED_BORDER_Z_INDEX = CLEANING_HIGHLIGHT_Z_INDEX_BASE + 2;
+const FOCUSED_TARGET_Z_INDEX = CLEANING_HIGHLIGHT_Z_INDEX_BASE + 3;
+const FOCUSED_BORDER_Z_INDEX = CLEANING_HIGHLIGHT_Z_INDEX_BASE + 4;
+const BROOM_Z_INDEX = CLEANING_HIGHLIGHT_Z_INDEX_BASE + 5;
+const FOCUSED_CLEANABLE_BORDER_COLOR = 16743874;
+const NON_FOCUSED_CLEANABLE_BORDER_COLOR = 16777215;
+let cleaningDimOverlay = null;
 function cleanableRenderSystem(params) {
   const { world, delta, stage } = params;
   const cleanableEntities = cleanableQuery(world);
   const cleanableRenderEntities = cleanableRenderQuery(world);
+  updateCleaningDimOverlay(stage, world, cleanableEntities.length > 0);
   const exitedCleanableEntities = exitCleanableQuery(world);
   for (let i2 = 0; i2 < exitedCleanableEntities.length; i2++) {
     const eid = exitedCleanableEntities[i2];
@@ -34455,7 +34650,7 @@ function cleanableRenderSystem(params) {
     const isFocused = world.isCleaningMode && world.focusedTargetEid === eid;
     const isHighlighted = CleanableComp.isHighlighted[eid];
     if (hasPosition) {
-      updateEntityZIndex(eid, isFocused, world);
+      updateEntitySpriteZIndex(eid, isFocused, world);
       if (isHighlighted) {
         createOrUpdateDashedBorder(eid, stage, world);
       } else {
@@ -34473,10 +34668,30 @@ function cleanableRenderSystem(params) {
   }
   return { world, delta };
 }
-function updateEntityZIndex(eid, isFocused, world) {
-  if (hasComponent(world, RenderComp, eid)) {
-    RenderComp.zIndex[eid] = isFocused ? INTENTED_FRONT_Z_INDEX : RenderComp.zIndex[eid];
+function updateEntitySpriteZIndex(eid, isFocused, world) {
+  if (!hasComponent(world, RenderComp, eid)) {
+    return;
   }
+  const spriteStore2 = getSpriteStore();
+  const sprite = spriteStore2.get(RenderComp.storeIndex[eid]);
+  if (!sprite || sprite.destroyed) {
+    return;
+  }
+  const shouldLiftAboveDimOverlay = world.isCleaningMode && CleanableComp.isHighlighted[eid] === 1;
+  if (isFocused) {
+    sprite.zIndex = FOCUSED_TARGET_Z_INDEX;
+    return;
+  }
+  sprite.zIndex = shouldLiftAboveDimOverlay ? NON_FOCUSED_TARGET_Z_INDEX : getBaselineSpriteZIndex(eid, world);
+}
+function getBaselineSpriteZIndex(eid, world) {
+  const configuredZIndex = RenderComp.zIndex[eid];
+  if (configuredZIndex !== 0) {
+    return configuredZIndex;
+  }
+  const y2 = PositionComp.y[eid];
+  const shouldSnapCharacterToPixelGrid = hasComponent(world, ObjectComp, eid) && ObjectComp.type[eid] === ObjectType.CHARACTER;
+  return shouldSnapCharacterToPixelGrid ? Math.round(y2) : y2;
 }
 function createOrUpdateDashedBorder(eid, stage, world) {
   if (!hasComponent(world, PositionComp, eid)) {
@@ -34501,10 +34716,9 @@ function createOrUpdateDashedBorder(eid, stage, world) {
     }
   }
   let graphics = dashedBorderStore.get(eid);
-  const DEFAULT_BORDER_Z_INDEX = INTENTED_FRONT_Z_INDEX + 1;
   if (!graphics) {
     graphics = new Graphics();
-    graphics.zIndex = DEFAULT_BORDER_Z_INDEX;
+    graphics.zIndex = NON_FOCUSED_BORDER_Z_INDEX;
     graphics.visible = true;
     stage.addChild(graphics);
     dashedBorderStore.set(eid, graphics);
@@ -34515,9 +34729,9 @@ function createOrUpdateDashedBorder(eid, stage, world) {
     graphics.clear();
     graphics.visible = true;
   }
-  const borderColor = isFocused ? 16743874 : 16711680;
-  const lineWidth = isFocused ? 4 : 3;
-  graphics.zIndex = isFocused ? DEFAULT_BORDER_Z_INDEX + 1 : DEFAULT_BORDER_Z_INDEX;
+  const borderColor = isFocused ? FOCUSED_CLEANABLE_BORDER_COLOR : NON_FOCUSED_CLEANABLE_BORDER_COLOR;
+  const lineWidth = 4;
+  graphics.zIndex = isFocused ? FOCUSED_BORDER_Z_INDEX : NON_FOCUSED_BORDER_Z_INDEX;
   const borderX = x2 - objectWidth / 2;
   const borderY = y2 - objectHeight / 2;
   const borderWidth = objectWidth;
@@ -34536,6 +34750,47 @@ function createOrUpdateDashedBorder(eid, stage, world) {
   } else {
     removeBroom(eid, stage);
   }
+}
+function updateCleaningDimOverlay(stage, world, hasCleanableTargets) {
+  const shouldShowOverlay = world.isCleaningMode && hasCleanableTargets;
+  if (!shouldShowOverlay) {
+    removeCleaningDimOverlay(stage);
+    return;
+  }
+  if (!cleaningDimOverlay) {
+    cleaningDimOverlay = new Graphics();
+    cleaningDimOverlay.zIndex = CLEANING_DIM_OVERLAY_Z_INDEX;
+    cleaningDimOverlay.eventMode = "none";
+    cleaningDimOverlay.visible = true;
+    stage.addChild(cleaningDimOverlay);
+  }
+  const boundary = world.positionBoundary;
+  const overlayX = boundary.x - CLEANING_DIM_OVERLAY_PADDING_PX;
+  const overlayY = boundary.y - CLEANING_DIM_OVERLAY_PADDING_PX;
+  const overlayWidth = boundary.width + CLEANING_DIM_OVERLAY_PADDING_PX * 2;
+  const overlayHeight = boundary.height + CLEANING_DIM_OVERLAY_PADDING_PX * 2;
+  cleaningDimOverlay.clear();
+  cleaningDimOverlay.beginFill(0, CLEANING_DIM_OVERLAY_ALPHA);
+  cleaningDimOverlay.drawRect(
+    overlayX,
+    overlayY,
+    overlayWidth,
+    overlayHeight
+  );
+  cleaningDimOverlay.endFill();
+  cleaningDimOverlay.zIndex = CLEANING_DIM_OVERLAY_Z_INDEX;
+  cleaningDimOverlay.visible = true;
+  if (!stage.sortableChildren) {
+    stage.sortableChildren = true;
+  }
+}
+function removeCleaningDimOverlay(stage) {
+  if (!cleaningDimOverlay) {
+    return;
+  }
+  stage.removeChild(cleaningDimOverlay);
+  cleaningDimOverlay.destroy();
+  cleaningDimOverlay = null;
 }
 function drawDashedRect(graphics, x2, y2, width, height, lineWidth, color) {
   const dashLength = 4;
@@ -34604,11 +34859,12 @@ function createOrUpdateBroom(eid, stage, world, targetX, targetY, targetWidth) {
       return;
     }
     broomSprite = new Sprite(broomTexture);
-    broomSprite.zIndex = INTENTED_FRONT_Z_INDEX + 20;
+    broomSprite.zIndex = BROOM_Z_INDEX;
     broomSprite.anchor.set(0.5, 0.5);
     stage.addChild(broomSprite);
     broomStore.set(eid, broomSprite);
   }
+  broomSprite.zIndex = BROOM_Z_INDEX;
   const sliderValue = world.sliderValue;
   const isMovingRight = sliderValue > 0.5;
   broomSprite.scale.x = isMovingRight ? BROOM_RENDER_SCALE : -3;
@@ -34890,8 +35146,9 @@ function startRecoveryAnimation(world, eid, stage, currentTime) {
     EffectAnimationType.RECOVERY_SYRINGE
   );
 }
-const characterQuery$4 = defineQuery([ObjectComp, CharacterStatusComp]);
+const characterQuery$3 = defineQuery([ObjectComp, CharacterStatusComp]);
 const objectQuery = defineQuery([ObjectComp]);
+const DEBUG_POSITION_STEP_PX = 10;
 function hasCharacterStatus$1(eid, status) {
   const currentStatuses = CharacterStatusComp.statuses[eid];
   if (!currentStatuses) {
@@ -34919,7 +35176,7 @@ class HTMLDebugStatusUI {
     parentElement.appendChild(this._container);
   }
   _findFirstCharacter() {
-    const fullCharacterEntities = characterQuery$4(this._world);
+    const fullCharacterEntities = characterQuery$3(this._world);
     console.log(
       `[HTMLDebugStatusUI] Found ${fullCharacterEntities.length} complete character entities`
     );
@@ -35094,6 +35351,36 @@ class HTMLDebugStatusUI {
     poopButtonsDiv.appendChild(poopLabel);
     poopButtonsDiv.appendChild(createPoopBtn);
     this._container.appendChild(poopButtonsDiv);
+    const positionButtonsDiv = document.createElement("div");
+    const positionLabel = document.createElement("span");
+    positionLabel.textContent = "Pos: ";
+    positionLabel.style.cssText = `
+      color: #a8e6ff;
+      font-size: 12px;
+      margin-right: 5px;
+    `;
+    const moveLeftBtn = this._createAdjustButton(
+      "←",
+      () => this._adjustPosition(-10, 0)
+    );
+    const moveUpBtn = this._createAdjustButton(
+      "↑",
+      () => this._adjustPosition(0, -10)
+    );
+    const moveDownBtn = this._createAdjustButton(
+      "↓",
+      () => this._adjustPosition(0, DEBUG_POSITION_STEP_PX)
+    );
+    const moveRightBtn = this._createAdjustButton(
+      "→",
+      () => this._adjustPosition(DEBUG_POSITION_STEP_PX, 0)
+    );
+    positionButtonsDiv.appendChild(positionLabel);
+    positionButtonsDiv.appendChild(moveLeftBtn);
+    positionButtonsDiv.appendChild(moveUpBtn);
+    positionButtonsDiv.appendChild(moveDownBtn);
+    positionButtonsDiv.appendChild(moveRightBtn);
+    this._container.appendChild(positionButtonsDiv);
     const sleepButtonsDiv = document.createElement("div");
     const sleepLabel = document.createElement("span");
     sleepLabel.textContent = "Sleep: ";
@@ -35106,6 +35393,22 @@ class HTMLDebugStatusUI {
     sleepButtonsDiv.appendChild(sleepLabel);
     sleepButtonsDiv.appendChild(sleepBtn);
     this._container.appendChild(sleepButtonsDiv);
+    const sickButtonsDiv = document.createElement("div");
+    const sickLabel = document.createElement("span");
+    sickLabel.textContent = "Sick: ";
+    sickLabel.style.cssText = `
+      color: #ff9f9f;
+      font-size: 12px;
+      margin-right: 5px;
+    `;
+    this._sickToggleButton = this._createAdjustButton(
+      "OFF",
+      () => this._toggleSick()
+    );
+    this._sickToggleButton.style.minWidth = "42px";
+    sickButtonsDiv.appendChild(sickLabel);
+    sickButtonsDiv.appendChild(this._sickToggleButton);
+    this._container.appendChild(sickButtonsDiv);
     const sleepEffectButtonsDiv = document.createElement("div");
     const sleepEffectLabel = document.createElement("span");
     sleepEffectLabel.textContent = "SleepFX: ";
@@ -35323,6 +35626,15 @@ Set: ${new Date(debugState.sunsetAt).toLocaleTimeString("ko-KR", {
     this._sleepEffectToggleButton.style.background = isEnabled ? "rgba(120, 220, 150, 0.85)" : "rgba(100, 150, 255, 0.6)";
     this._sleepEffectToggleButton.style.fontWeight = isEnabled ? "bold" : "normal";
   }
+  _updateSickToggleButton() {
+    if (!this._sickToggleButton) {
+      return;
+    }
+    const isEnabled = this._currentCharacterEid >= 0 && hasCharacterStatus$1(this._currentCharacterEid, CharacterStatus.SICK);
+    this._sickToggleButton.textContent = isEnabled ? "ON" : "OFF";
+    this._sickToggleButton.style.background = isEnabled ? "rgba(226, 85, 75, 0.9)" : "rgba(100, 150, 255, 0.6)";
+    this._sickToggleButton.style.fontWeight = isEnabled ? "bold" : "normal";
+  }
   // 스테미나/진화 게이지 조절 버튼 생성
   _createAdjustButton(text, onClick) {
     const button = document.createElement("button");
@@ -35445,6 +35757,60 @@ Set: ${new Date(debugState.sunsetAt).toLocaleTimeString("ko-KR", {
       `[HTMLDebugStatusUI] Sleep debug effect ${isEnabled ? "enabled" : "disabled"}`
     );
   }
+  _toggleSick() {
+    if (this._currentCharacterEid < 0) {
+      console.warn("[HTMLDebugStatusUI] No character found for sick toggle");
+      return;
+    }
+    const isSick = hasCharacterStatus$1(
+      this._currentCharacterEid,
+      CharacterStatus.SICK
+    );
+    if (isSick) {
+      removeCharacterStatus$2(this._currentCharacterEid, CharacterStatus.SICK);
+      DiseaseSystemComp.sickStartTime[this._currentCharacterEid] = 0;
+      if (ObjectComp.state[this._currentCharacterEid] === CharacterState.SICK) {
+        ObjectComp.state[this._currentCharacterEid] = CharacterState.IDLE;
+      }
+      console.log(
+        `[HTMLDebugStatusUI] Character ${this._currentCharacterEid} recovered from sick state`
+      );
+    } else {
+      addCharacterStatus$2(this._currentCharacterEid, CharacterStatus.SICK);
+      DiseaseSystemComp.sickStartTime[this._currentCharacterEid] = this._world.currentTime;
+      if (ObjectComp.state[this._currentCharacterEid] !== CharacterState.SLEEPING) {
+        ObjectComp.state[this._currentCharacterEid] = CharacterState.SICK;
+      }
+      console.log(
+        `[HTMLDebugStatusUI] Character ${this._currentCharacterEid} entered sick state`
+      );
+    }
+    this._updateSickToggleButton();
+  }
+  _adjustPosition(deltaX, deltaY) {
+    if (this._currentCharacterEid < 0) {
+      console.warn(
+        "[HTMLDebugStatusUI] No character found for position adjustment"
+      );
+      return;
+    }
+    const boundary = this._world.positionBoundary;
+    const currentX = PositionComp.x[this._currentCharacterEid] || 0;
+    const currentY = PositionComp.y[this._currentCharacterEid] || 0;
+    const nextX = Math.max(
+      boundary.x,
+      Math.min(boundary.x + boundary.width, currentX + deltaX)
+    );
+    const nextY = Math.max(
+      boundary.y,
+      Math.min(boundary.y + boundary.height, currentY + deltaY)
+    );
+    PositionComp.x[this._currentCharacterEid] = nextX;
+    PositionComp.y[this._currentCharacterEid] = nextY;
+    console.log(
+      `[HTMLDebugStatusUI] Position adjusted: (${currentX}, ${currentY}) -> (${nextX}, ${nextY})`
+    );
+  }
   // 상태 관리 시스템 토글 함수
   _toggleStatusSystems() {
     const isEnabled = this._world.toggleStatusSystems();
@@ -35475,6 +35841,7 @@ Set: ${new Date(debugState.sunsetAt).toLocaleTimeString("ko-KR", {
     this._updateSystemStatusDisplay();
     this._updateTimeOfDayDisplay();
     this._updateSleepEffectToggleButton();
+    this._updateSickToggleButton();
     this._updateAllStatusIndicators();
     this._world.setRandomMovementDebugEnabled(true);
     this._container.style.display = "block";
@@ -35500,6 +35867,7 @@ Set: ${new Date(debugState.sunsetAt).toLocaleTimeString("ko-KR", {
       this._updateSystemStatusDisplay();
       this._updateTimeOfDayDisplay();
       this._updateSleepEffectToggleButton();
+      this._updateSickToggleButton();
       this._updateAllStatusIndicators();
     }
   }
@@ -35782,7 +36150,7 @@ class HTMLDebugGameConstantsUI {
     }
   }
 }
-const characterQuery$3 = defineQuery([
+const characterQuery$2 = defineQuery([
   ObjectComp,
   CharacterStatusComp,
   DiseaseSystemComp
@@ -35791,13 +36159,19 @@ const previousStates = /* @__PURE__ */ new Map();
 function diseaseSystem(params) {
   const { world, currentTime } = params;
   const shouldLog = !world.isSimulationMode;
-  const entities = characterQuery$3(world);
+  const entities = characterQuery$2(world);
   for (let i2 = 0; i2 < entities.length; i2++) {
     const eid = entities[i2];
     if (ObjectComp.type[eid] !== ObjectType.CHARACTER) continue;
     if (hasComponent(world, VitalityComp, eid) && VitalityComp.isDead[eid])
       continue;
     if (ObjectComp.state[eid] === CharacterState.DEAD) continue;
+    if (ObjectComp.state[eid] === CharacterState.EGG) {
+      advanceDiseaseCheckTimeForEgg(eid, currentTime);
+      clearEggDiseaseState(eid);
+      previousStates.set(eid, { isSick: false, isSleeping: false });
+      continue;
+    }
     const diseaseComp = DiseaseSystemComp;
     const characterComp = CharacterStatusComp;
     const isSleeping = ObjectComp.state[eid] === CharacterState.SLEEPING;
@@ -35850,6 +36224,23 @@ function diseaseSystem(params) {
     previousStates.set(eid, { isSick, isSleeping: isSleepingNow });
   }
   return params;
+}
+function advanceDiseaseCheckTimeForEgg(eid, currentTime) {
+  const interval = GAME_CONSTANTS.DISEASE_CHECK_INTERVAL;
+  if (interval <= 0) {
+    return;
+  }
+  if (DiseaseSystemComp.nextCheckTime[eid] <= 0) {
+    DiseaseSystemComp.nextCheckTime[eid] = currentTime + interval;
+    return;
+  }
+  while (currentTime >= DiseaseSystemComp.nextCheckTime[eid]) {
+    DiseaseSystemComp.nextCheckTime[eid] += interval;
+  }
+}
+function clearEggDiseaseState(eid) {
+  removeCharacterStatus$1(eid, CharacterStatus.SICK);
+  DiseaseSystemComp.sickStartTime[eid] = 0;
 }
 function isDiseaseCheckBlockedByFoodInteraction(world, eid) {
   if (hasComponent(world, FoodEatingComp, eid) && FoodEatingComp.isActive[eid] === 1) {
@@ -35999,7 +36390,16 @@ function addCharacterStatus$1(eid, status) {
     }
   }
 }
-const characterQuery$2 = defineQuery([ObjectComp, CharacterStatusComp]);
+function removeCharacterStatus$1(eid, status) {
+  const statuses = CharacterStatusComp.statuses[eid];
+  for (let i2 = 0; i2 < statuses.length; i2++) {
+    if (statuses[i2] === status) {
+      statuses[i2] = 0;
+      return;
+    }
+  }
+}
+const characterQuery$1 = defineQuery([ObjectComp, CharacterStatusComp]);
 const AD_DEBUG_REFRESH_INTERVAL_MS = 1e3;
 const createDefaultNativeAdSlotDebugState = () => ({
   isReady: false,
@@ -36177,7 +36577,7 @@ class HTMLDebugGaugeUI {
     return button;
   }
   _findFirstCharacter() {
-    const characters = characterQuery$2(this._world);
+    const characters = characterQuery$1(this._world);
     for (let i2 = 0; i2 < characters.length; i2++) {
       const eid = characters[i2];
       if (ObjectComp.type[eid] === ObjectType.CHARACTER) {
@@ -37288,7 +37688,7 @@ async function hatchCharacter(eid, world, currentTime) {
   }
 }
 const TEMPORARY_STATUS_DURATION = 3e3;
-const characterQuery$1 = defineQuery([ObjectComp, CharacterStatusComp]);
+const characterQuery = defineQuery([ObjectComp, CharacterStatusComp]);
 const temporaryStatusQuery = defineQuery([
   ObjectComp,
   CharacterStatusComp,
@@ -37306,7 +37706,7 @@ function characterStatusSystem(params) {
   return params;
 }
 function initializeVitality(world) {
-  const characters = characterQuery$1(world);
+  const characters = characterQuery(world);
   for (let i2 = 0; i2 < characters.length; i2++) {
     const eid = characters[i2];
     if (ObjectComp.type[eid] !== ObjectType.CHARACTER) continue;
@@ -37319,7 +37719,7 @@ function initializeVitality(world) {
   }
 }
 function updateStaminaBasedStatus(world, currentTime) {
-  const characters = characterQuery$1(world);
+  const characters = characterQuery(world);
   for (let i2 = 0; i2 < characters.length; i2++) {
     const eid = characters[i2];
     if (ObjectComp.type[eid] !== ObjectType.CHARACTER) continue;
@@ -37381,7 +37781,7 @@ function updateTemporaryStatus(world, currentTime) {
 }
 function pauseUrgentDeathCountdownWhileSleeping(world, currentTime) {
   const tracking = getUrgentSleepTracking(world);
-  const characters = characterQuery$1(world);
+  const characters = characterQuery(world);
   for (let i2 = 0; i2 < characters.length; i2++) {
     const eid = characters[i2];
     if (ObjectComp.type[eid] !== ObjectType.CHARACTER) continue;
@@ -37399,7 +37799,7 @@ function pauseUrgentDeathCountdownWhileSleeping(world, currentTime) {
 }
 function syncUrgentSleepTracking(world, currentTime) {
   const tracking = getUrgentSleepTracking(world);
-  const characters = characterQuery$1(world);
+  const characters = characterQuery(world);
   for (let i2 = 0; i2 < characters.length; i2++) {
     const eid = characters[i2];
     if (ObjectComp.type[eid] !== ObjectType.CHARACTER) continue;
@@ -37424,7 +37824,7 @@ function isSleepingUrgent(world, eid) {
   return ObjectComp.state[eid] === CharacterState.SLEEPING && hasCharacterStatus(CharacterStatusComp.statuses[eid], CharacterStatus.URGENT);
 }
 function checkDeath(world, currentTime) {
-  const characters = characterQuery$1(world);
+  const characters = characterQuery(world);
   for (let i2 = 0; i2 < characters.length; i2++) {
     const eid = characters[i2];
     if (ObjectComp.type[eid] !== ObjectType.CHARACTER) continue;
@@ -37534,212 +37934,10 @@ function restrictMovementForSickness(world, eid) {
     SpeedComp.value[eid] = 0;
   }
 }
-const SLEEP_FRAME_INTERVAL = 1e3;
-const SLEEP_TOP_OFFSET = 4;
-const SLEEP_HORIZONTAL_OFFSET = -6;
-const SLEEP_GRADIENT_TOP_COLOR = 2051983;
-const SLEEP_GRADIENT_BOTTOM_COLOR = 8245247;
-const SLEEP_STROKE_COLOR = 0;
-const SLEEP_STROKE_WIDTH = 1;
-const SLEEP_TEXT_PADDING = 4;
-const SLEEP_SMALL_Z_FONT_SIZE = 11;
-const SLEEP_MEDIUM_Z_FONT_SIZE = 14;
-const SLEEP_LARGE_Z_FONT_SIZE = 17;
-const SLEEP_FONT_FAMILY = [
-  "Press Start 2P",
-  "NeoDunggeunmo Pro",
-  "Apple Color Emoji",
-  "Segoe UI Emoji",
-  "Noto Color Emoji",
-  "sans-serif"
-];
-const SLEEP_BASE_TEXT_STYLE = {
-  fontFamily: SLEEP_FONT_FAMILY,
-  align: "center"
-};
-const SLEEP_FRAME_DEFINITIONS = [
-  {
-    letters: [
-      { char: "Z", fontSize: SLEEP_SMALL_Z_FONT_SIZE, offsetX: 0, offsetY: 0 }
-    ]
-  },
-  {
-    letters: [
-      { char: "Z", fontSize: SLEEP_SMALL_Z_FONT_SIZE, offsetX: 0, offsetY: 0 },
-      { char: "Z", fontSize: SLEEP_MEDIUM_Z_FONT_SIZE, offsetX: 12, offsetY: -10 }
-    ]
-  },
-  {
-    letters: [
-      { char: "Z", fontSize: SLEEP_SMALL_Z_FONT_SIZE, offsetX: 0, offsetY: 0 },
-      { char: "Z", fontSize: SLEEP_MEDIUM_Z_FONT_SIZE, offsetX: 12, offsetY: -10 },
-      { char: "Z", fontSize: SLEEP_LARGE_Z_FONT_SIZE, offsetX: -10, offsetY: -24 }
-    ]
-  },
-  {
-    letters: []
-  }
-];
-const sleepEffectMap = /* @__PURE__ */ new Map();
-const characterQuery = defineQuery([ObjectComp, PositionComp, RenderComp]);
-const characterExitQuery = exitQuery(characterQuery);
 function sleepEffectSystem(params) {
-  const { world, stage } = params;
-  if (!stage) {
-    return params;
-  }
-  const exitedEntities = characterExitQuery(world);
-  for (let i2 = 0; i2 < exitedEntities.length; i2++) {
-    removeSleepEffect(exitedEntities[i2]);
-  }
-  if (!world.isSleepDebugEffectEnabled()) {
-    cleanupSleepEffectEntities();
-    return params;
-  }
-  const entities = characterQuery(world);
-  const activeSleepingEntities = /* @__PURE__ */ new Set();
-  const currentTime = Date.now();
-  for (let i2 = 0; i2 < entities.length; i2++) {
-    const eid = entities[i2];
-    if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
-      removeSleepEffect(eid);
-      continue;
-    }
-    if (ObjectComp.state[eid] !== CharacterState.SLEEPING) {
-      removeSleepEffect(eid);
-      continue;
-    }
-    activeSleepingEntities.add(eid);
-    const sleepEffect = getOrCreateSleepEffect(eid, stage, currentTime);
-    updateSleepEffectFrame(sleepEffect, currentTime);
-    updateSleepEffectPosition(sleepEffect.container, eid);
-  }
-  const trackedEntities = Array.from(sleepEffectMap.keys());
-  for (let i2 = 0; i2 < trackedEntities.length; i2++) {
-    const eid = trackedEntities[i2];
-    if (!activeSleepingEntities.has(eid)) {
-      removeSleepEffect(eid);
-    }
-  }
   return params;
 }
 function cleanupSleepEffects(_stage) {
-  cleanupSleepEffectEntities();
-}
-function cleanupSleepEffectEntities() {
-  sleepEffectMap.forEach((_, eid) => {
-    removeSleepEffect(eid);
-  });
-}
-function getOrCreateSleepEffect(eid, stage, currentTime) {
-  const existingEffect = sleepEffectMap.get(eid);
-  if (existingEffect) {
-    return existingEffect;
-  }
-  const container = new Container();
-  container.eventMode = "none";
-  stage.addChild(container);
-  const sleepEffect = {
-    container,
-    letters: [],
-    currentFrameIndex: 0,
-    lastFrameChangeTime: currentTime
-  };
-  rebuildSleepEffectLetters(sleepEffect);
-  sleepEffectMap.set(eid, sleepEffect);
-  return sleepEffect;
-}
-function removeSleepEffect(eid) {
-  const sleepEffect = sleepEffectMap.get(eid);
-  if (!sleepEffect) {
-    return;
-  }
-  sleepEffect.container.removeFromParent();
-  sleepEffect.container.destroy({ children: true });
-  sleepEffectMap.delete(eid);
-}
-function updateSleepEffectFrame(sleepEffect, currentTime) {
-  if (currentTime - sleepEffect.lastFrameChangeTime < SLEEP_FRAME_INTERVAL) {
-    return;
-  }
-  sleepEffect.currentFrameIndex = (sleepEffect.currentFrameIndex + 1) % SLEEP_FRAME_DEFINITIONS.length;
-  sleepEffect.lastFrameChangeTime = currentTime;
-  rebuildSleepEffectLetters(sleepEffect);
-}
-function updateSleepEffectPosition(container, eid) {
-  const x2 = PositionComp.x[eid];
-  const y2 = PositionComp.y[eid];
-  const configuredZIndex = RenderComp.zIndex[eid];
-  const effectiveZIndex = configuredZIndex === 0 ? y2 : configuredZIndex;
-  const { topY } = getCharacterVerticalBounds(eid);
-  container.position.set(x2 + SLEEP_HORIZONTAL_OFFSET, topY + SLEEP_TOP_OFFSET);
-  container.zIndex = effectiveZIndex + 2;
-  container.visible = true;
-}
-function rebuildSleepEffectLetters(sleepEffect) {
-  sleepEffect.letters = renderSleepTextFrame(
-    sleepEffect.container,
-    sleepEffect.currentFrameIndex
-  );
-}
-function renderSleepTextFrame(container, frameIndex) {
-  const frameDefinition = SLEEP_FRAME_DEFINITIONS[frameIndex];
-  const { letters: letterDefinitions } = frameDefinition;
-  container.removeChildren().forEach((child) => child.destroy());
-  container.pivot.set(0, 0);
-  if (letterDefinitions.length === 0) {
-    return [];
-  }
-  const letters = letterDefinitions.map((letterDef) => {
-    const text = new Text({
-      text: letterDef.char,
-      style: createSleepTextStyle(letterDef.fontSize)
-    });
-    text.roundPixels = true;
-    container.addChild(text);
-    return text;
-  });
-  const positionedLetters = [];
-  for (let i2 = 0; i2 < letters.length; i2++) {
-    const letter = letters[i2];
-    const offsetX = letterDefinitions[i2].offsetX;
-    const offsetY = letterDefinitions[i2].offsetY;
-    const x2 = offsetX;
-    const y2 = offsetY;
-    letter.position.set(x2, y2);
-    positionedLetters.push({ x: x2, y: y2, width: letter.width });
-  }
-  const maxBottom = Math.max(
-    ...letters.map(
-      (letter, index) => letterDefinitions[index].offsetY + letter.height - SLEEP_TEXT_PADDING
-    )
-  );
-  for (let i2 = 0; i2 < letters.length; i2++) {
-    letters[i2].y -= maxBottom;
-  }
-  return letters;
-}
-function createSleepTextStyle(fontSize) {
-  const fill = new FillGradient({
-    type: "linear",
-    textureSpace: "local",
-    start: { x: 0, y: 0 },
-    end: { x: 0, y: fontSize },
-    colorStops: [
-      { offset: 0, color: SLEEP_GRADIENT_TOP_COLOR },
-      { offset: 1, color: SLEEP_GRADIENT_BOTTOM_COLOR }
-    ]
-  });
-  return new TextStyle({
-    ...SLEEP_BASE_TEXT_STYLE,
-    fontSize,
-    padding: SLEEP_TEXT_PADDING,
-    fill,
-    stroke: {
-      color: SLEEP_STROKE_COLOR,
-      width: SLEEP_STROKE_WIDTH
-    }
-  });
 }
 function hasNativeSunController() {
   return typeof window !== "undefined" && !!window.sunController;
@@ -37751,12 +37949,15 @@ function isSunTimesPayload(value) {
   const candidate = value;
   return typeof candidate.sunriseAt === "string" && typeof candidate.sunsetAt === "string" && typeof candidate.date === "string" && typeof candidate.timezone === "string" && typeof candidate.timezoneOffsetMinutes === "number" && typeof candidate.fetchedAt === "string" && (candidate.locationSource === "device" || candidate.locationSource === "fallback") && typeof candidate.hasLocationPermission === "boolean";
 }
-async function getNativeSunTimes(promptForPermission = true) {
+async function getNativeSunTimes(promptForPermission = true, traceContext) {
   if (!hasNativeSunController()) {
     return null;
   }
   try {
-    const payload = await window.sunController.getSunTimes(promptForPermission);
+    const payload = await window.sunController.getSunTimes(
+      promptForPermission,
+      traceContext
+    );
     if (!isSunTimesPayload(payload)) {
       console.warn("[sunTimes] Invalid native sun times payload:", payload);
       return null;
@@ -38062,6 +38263,119 @@ class ReentrySimulator {
     return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
   }
 }
+function getTimingNow$1() {
+  return typeof performance !== "undefined" ? performance.now() : Date.now();
+}
+function summarizeTimingError$1(error) {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message
+    };
+  }
+  return {
+    message: String(error)
+  };
+}
+class MainSceneInitDiagnostics {
+  constructor(loadingTraceContext) {
+    this._isInitTimingActive = false;
+    this._loadingTraceInitStartedAt = null;
+    this._loadingTraceInitCompletedAt = null;
+    this._hasPendingFirstSpriteTimingLog = false;
+    this._loadingTraceContext = loadingTraceContext ?? null;
+  }
+  get isInitTimingActive() {
+    return this._isInitTimingActive;
+  }
+  beginInit() {
+    this._isInitTimingActive = true;
+    this._loadingTraceInitStartedAt = getTimingNow$1();
+    this._loadingTraceInitCompletedAt = null;
+    this._hasPendingFirstSpriteTimingLog = this._loadingTraceContext !== null;
+    this.logPhase("init_total", {
+      status: "start"
+    });
+  }
+  completeInit() {
+    this._loadingTraceInitCompletedAt = getTimingNow$1();
+    this.logPhase("init_total", {
+      status: "end",
+      durationMs: this._loadingTraceInitStartedAt === null ? null : Math.round(
+        this._loadingTraceInitCompletedAt - this._loadingTraceInitStartedAt
+      )
+    });
+    this._isInitTimingActive = false;
+  }
+  failInit(error) {
+    this.logPhase("init_total", {
+      status: "error",
+      durationMs: this._loadingTraceInitStartedAt === null ? null : Math.round(getTimingNow$1() - this._loadingTraceInitStartedAt),
+      error: summarizeTimingError$1(error)
+    });
+    this._isInitTimingActive = false;
+  }
+  logPhase(phase, payload = {}) {
+    var _a, _b, _c;
+    console.log("[ImportantDiagnostics][MainSceneInitTiming]", {
+      phase,
+      initializationAttemptId: ((_a = this._loadingTraceContext) == null ? void 0 : _a.initializationAttemptId) ?? null,
+      setupFlowId: ((_b = this._loadingTraceContext) == null ? void 0 : _b.setupFlowId) ?? null,
+      bootstrapState: ((_c = this._loadingTraceContext) == null ? void 0 : _c.bootstrapState) ?? null,
+      ...payload
+    });
+  }
+  async measurePhase(phase, work, payload = {}) {
+    const startedAt = getTimingNow$1();
+    this.logPhase(phase, {
+      status: "start",
+      ...payload
+    });
+    try {
+      const result = await work();
+      this.logPhase(phase, {
+        status: "end",
+        durationMs: Math.round(getTimingNow$1() - startedAt),
+        ...payload
+      });
+      return result;
+    } catch (error) {
+      this.logPhase(phase, {
+        status: "error",
+        durationMs: Math.round(getTimingNow$1() - startedAt),
+        error: summarizeTimingError$1(error),
+        ...payload
+      });
+      throw error;
+    }
+  }
+  createSunTimesTraceContext(params) {
+    var _a, _b;
+    return {
+      source: params.source,
+      phase: params.phase,
+      setupFlowId: ((_a = this._loadingTraceContext) == null ? void 0 : _a.setupFlowId) ?? null,
+      initializationAttemptId: ((_b = this._loadingTraceContext) == null ? void 0 : _b.initializationAttemptId) ?? null
+    };
+  }
+  consumePendingFirstSpriteTimingLog(eid, spriteType) {
+    var _a, _b, _c;
+    if (!this._hasPendingFirstSpriteTimingLog) {
+      return null;
+    }
+    this._hasPendingFirstSpriteTimingLog = false;
+    const now = getTimingNow$1();
+    return {
+      eid,
+      spriteType,
+      initializationAttemptId: ((_a = this._loadingTraceContext) == null ? void 0 : _a.initializationAttemptId) ?? null,
+      setupFlowId: ((_b = this._loadingTraceContext) == null ? void 0 : _b.setupFlowId) ?? null,
+      bootstrapState: ((_c = this._loadingTraceContext) == null ? void 0 : _c.bootstrapState) ?? null,
+      sinceInitStartMs: this._loadingTraceInitStartedAt === null ? null : Math.round(now - this._loadingTraceInitStartedAt),
+      sinceInitCompletedMs: this._loadingTraceInitCompletedAt === null ? null : Math.round(now - this._loadingTraceInitCompletedAt)
+    };
+  }
+}
 const liveCharacterEntitiesQuery = defineQuery([
   ObjectComp,
   CharacterStatusComp
@@ -38187,6 +38501,7 @@ const _MainSceneWorld = class _MainSceneWorld {
     this._isPersistenceDisabled = false;
     this._pendingStorageWrite = Promise.resolve();
     this._debugMode = false;
+    this._hasDeferredPersistence = false;
     this._timeOfDay = TimeOfDay.Day;
     this._timeOfDayMode = TimeOfDayMode.Manual;
     this._sunTimes = null;
@@ -38248,11 +38563,15 @@ const _MainSceneWorld = class _MainSceneWorld {
     this._debugMode = params.debugMode ?? false;
     this._startMiniGame = params.startMiniGame;
     this._showAlert = params.showAlert;
+    this._shouldDeferPersistence = params.shouldDeferPersistence;
     this._createInitialGameData = params.createInitialGameData;
     this._changeControlButtons = params.changeControlButtons;
     this._triggerBiteVibration = params.triggerBiteVibration;
     this._startRecoveryVibration = params.startRecoveryVibration;
     this._stopRecoveryVibration = params.stopRecoveryVibration;
+    this._initDiagnostics = new MainSceneInitDiagnostics(
+      params.loadingTraceContext ?? null
+    );
     this._updateControlButtonsForMenuState(false);
   }
   get stage() {
@@ -38308,6 +38627,12 @@ const _MainSceneWorld = class _MainSceneWorld {
   stopRecoveryVibration() {
     var _a;
     (_a = this._stopRecoveryVibration) == null ? void 0 : _a.call(this);
+  }
+  consumePendingFirstSpriteTimingLog(eid, spriteType) {
+    return this._initDiagnostics.consumePendingFirstSpriteTimingLog(
+      eid,
+      spriteType
+    );
   }
   _ensureAppState() {
     if (!this._persistentData) {
@@ -38613,9 +38938,15 @@ const _MainSceneWorld = class _MainSceneWorld {
     console.groupCollapsed("[MainSceneWorld] 🎨 Loading game assets...");
     try {
       const [spritesheetResults] = await Promise.all([
-        loadSpritesheets(COMMON_SPRITESHEET_ASSETS),
-        this._loadImageAssets(),
-        this._loadGifAssets()
+        this._initDiagnostics.measurePhase("load_common_spritesheets", async () => {
+          return loadSpritesheets(COMMON_SPRITESHEET_ASSETS);
+        }),
+        this._initDiagnostics.measurePhase("load_image_assets", async () => {
+          await this._loadImageAssets();
+        }),
+        this._initDiagnostics.measurePhase("load_gif_assets", async () => {
+          await this._loadGifAssets();
+        })
       ]);
       console.log(
         `Successfully loaded ${spritesheetResults.length} spritesheets`
@@ -38625,8 +38956,15 @@ const _MainSceneWorld = class _MainSceneWorld {
           `- Spritesheet '${result.alias}': ${result.animations.length} animations, ${result.textures.length} textures`
         );
       });
-      await precomputeLoadedCharacterOpaqueBounds();
-      await precomputeLoadedTextureOpaqueBounds(EGG_TEXTURE_KEYS);
+      await this._initDiagnostics.measurePhase(
+        "precompute_loaded_character_opaque_bounds",
+        async () => {
+          await precomputeLoadedCharacterOpaqueBounds();
+        }
+      );
+      await this._initDiagnostics.measurePhase("precompute_egg_texture_opaque_bounds", async () => {
+        await precomputeLoadedTextureOpaqueBounds(EGG_TEXTURE_KEYS);
+      });
       console.log("All game assets loaded successfully");
     } catch (error) {
       console.error("Failed to load game assets:", error);
@@ -38730,15 +39068,26 @@ const _MainSceneWorld = class _MainSceneWorld {
     });
   }
   async init() {
-    var _a, _b;
     console.groupCollapsed("[MainSceneWorld] 🚀 Initializing world...");
     try {
+      this._initDiagnostics.beginInit();
       createWorld(this, 100);
       console.log("Loading saved data from storage...");
-      const loadedData = await this.getData();
+      const loadedData = await this._initDiagnostics.measurePhase("storage_load", async () => {
+        return this.getData();
+      });
       if (!this._hasPlayableSavedData(loadedData)) {
-        const initialGameData = this._requireInitialGameData(
-          await ((_a = this._createInitialGameData) == null ? void 0 : _a.call(this))
+        const initialGameData = await this._initDiagnostics.measurePhase(
+          "create_initial_game_data",
+          async () => {
+            var _a;
+            return this._requireInitialGameData(
+              await ((_a = this._createInitialGameData) == null ? void 0 : _a.call(this))
+            );
+          },
+          {
+            reason: "missing_saved_data"
+          }
         );
         console.warn(
           "No playable saved data found, initializing with default entities..."
@@ -38748,8 +39097,17 @@ const _MainSceneWorld = class _MainSceneWorld {
         console.log(`Found saved data, validating and loading...`);
         const validatedData = this._validateAndMigrateData(loadedData);
         if (!this._hasPlayableSavedData(validatedData)) {
-          const initialGameData = this._requireInitialGameData(
-            await ((_b = this._createInitialGameData) == null ? void 0 : _b.call(this))
+          const initialGameData = await this._initDiagnostics.measurePhase(
+            "create_initial_game_data",
+            async () => {
+              var _a;
+              return this._requireInitialGameData(
+                await ((_a = this._createInitialGameData) == null ? void 0 : _a.call(this))
+              );
+            },
+            {
+              reason: "invalid_saved_data"
+            }
           );
           console.warn(
             "Saved data is missing required setup info or recoverable character entities, reinitializing with default entities..."
@@ -38757,33 +39115,45 @@ const _MainSceneWorld = class _MainSceneWorld {
           this._persistentData = this._initializeData(initialGameData);
         } else {
           this._persistentData = validatedData;
-          this._loadEcsEntitiesFromStorage();
+          await this._initDiagnostics.measurePhase("load_saved_entities", async () => {
+            this._loadEcsEntitiesFromStorage();
+          });
         }
       }
-      await this._loadGameAssets();
+      await this._initDiagnostics.measurePhase("load_common_game_assets", async () => {
+        await this._loadGameAssets();
+      });
       const characterSpritesheetKeys = Array.from(
         new Set(
           this._persistentData.entities.filter((entity) => {
-            var _a2;
-            return ((_a2 = entity.components.object) == null ? void 0 : _a2.type) === ObjectType.CHARACTER;
+            var _a;
+            return ((_a = entity.components.object) == null ? void 0 : _a.type) === ObjectType.CHARACTER;
           }).map((entity) => {
-            var _a2, _b2;
-            return ((_a2 = entity.components.animationRender) == null ? void 0 : _a2.spritesheetKey) ?? ((_b2 = entity.components.characterStatus) == null ? void 0 : _b2.characterKey);
+            var _a, _b;
+            return ((_a = entity.components.animationRender) == null ? void 0 : _a.spritesheetKey) ?? ((_b = entity.components.characterStatus) == null ? void 0 : _b.characterKey);
           }).filter((key) => {
             return typeof key === "number" && Number.isFinite(key) && !!SPRITESHEET_KEY_TO_NAME[key];
           })
         )
       );
-      await Promise.all(
-        characterSpritesheetKeys.map(async (characterSpritesheetKey) => {
-          const spritesheetName = SPRITESHEET_KEY_TO_NAME[characterSpritesheetKey];
-          await loadSpritesheet({
-            jsonPath: `/assets/game/sprites/monsters/${spritesheetName}.json`,
-            alias: spritesheetName
-            // pixelArt: true,
-          });
-          await ensureCharacterOpaqueBoundsComputed(characterSpritesheetKey);
-        })
+      await this._initDiagnostics.measurePhase(
+        "load_character_spritesheets",
+        async () => {
+          await Promise.all(
+            characterSpritesheetKeys.map(async (characterSpritesheetKey) => {
+              const spritesheetName = SPRITESHEET_KEY_TO_NAME[characterSpritesheetKey];
+              await loadSpritesheet({
+                jsonPath: `/assets/game/sprites/monsters/${spritesheetName}.json`,
+                alias: spritesheetName
+                // pixelArt: true,
+              });
+              await ensureCharacterOpaqueBoundsComputed(characterSpritesheetKey);
+            })
+          );
+        },
+        {
+          characterSpritesheetKeyCount: characterSpritesheetKeys.length
+        }
       );
       this._background = new Background(
         this._getGrassTextureForTimeOfDay(this._timeOfDay)
@@ -38794,29 +39164,45 @@ const _MainSceneWorld = class _MainSceneWorld {
       const { width, height } = this._getSceneSize();
       this._background.resize(width, height);
       this._resizeSceneDarknessOverlay(width, height);
-      if (this._isLocalTimeEnabled()) {
-        if (!this._applyCachedAutoTimeOfDay()) {
-          this._applyCurrentSkyState();
+      await this._initDiagnostics.measurePhase(
+        "apply_cached_sun_times_and_schedule_refresh",
+        async () => {
+          if (this._isLocalTimeEnabled()) {
+            const appliedCachedSunTimes = this._applyCachedAutoTimeOfDay();
+            if (!appliedCachedSunTimes) {
+              this._applyCurrentSkyState();
+            }
+            this._initDiagnostics.logPhase("initial_sun_times_refresh_requested", {
+              status: "dispatch",
+              promptForPermission: true,
+              hasCachedSunTimes: !!this._sunTimes,
+              appliedCachedSunTimes
+            });
+            void this._initializeSunTimes();
+            return;
+          }
+          this._setRandomManualTimeOfDay();
         }
-        void this._initializeSunTimes();
-      } else {
-        this._setRandomManualTimeOfDay();
-      }
+      );
       this._stage.sortableChildren = true;
       if (this._parentElement) {
         this._gameMenu = new GameMenu(this._parentElement, {
           onMiniGameSelect: () => {
             console.log("[MainSceneWorld] Mini game selected");
+            this._logMiniGameEntryAttempt("selected");
             if (this._shouldBlockMiniGameEntry()) {
+              this._logMiniGameEntryAttempt("blocked");
               return;
             }
             if (!this._startMiniGame) {
               console.warn(
                 "[MainSceneWorld] Mini game start callback is not set"
               );
+              this._logMiniGameEntryAttempt("missing_callback");
               return;
             }
             this._prepareMainCharacterForMiniGameEntry();
+            this._logMiniGameEntryAttempt("start_requested");
             void this._startMiniGame();
           },
           onFeedSelect: () => {
@@ -38852,12 +39238,42 @@ const _MainSceneWorld = class _MainSceneWorld {
             this._updateControlButtonsForMenuState(focusedIndex !== null);
           }
         });
-        if (false) ;
-        if (false) ;
+        if (this._debugParentElement) {
+          this._debugGaugeUI = new HTMLDebugGaugeUI(
+            this,
+            this._debugParentElement,
+            {
+              initiallyVisible: false
+            }
+          );
+          this._addDebugGaugeEventListener();
+        }
+        if (this._debugParentElement) {
+          this._debugGameConstantsUI = new HTMLDebugGameConstantsUI(
+            this._debugParentElement
+          );
+          this._debugStatusUI = new HTMLDebugStatusUI(
+            this,
+            this._debugParentElement
+          );
+          this._debugToggleButton = new HTMLDebugToggleButton(() => {
+            var _a, _b;
+            (_a = this._debugStatusUI) == null ? void 0 : _a.toggle();
+            return ((_b = this._debugStatusUI) == null ? void 0 : _b.isDebugVisible()) ?? false;
+          }, this._debugParentElement);
+        }
       }
-      this._setupVisibilityChangeHandler();
-      await this._processReentrySimulation();
+      await this._initDiagnostics.measurePhase("setup_visibility_handler", async () => {
+        this._setupVisibilityChangeHandler();
+      });
+      await this._initDiagnostics.measurePhase("reentry_simulation", async () => {
+        await this._processReentrySimulation();
+      });
+      this._initDiagnostics.completeInit();
       console.log("World initialization completed");
+    } catch (error) {
+      this._initDiagnostics.failInit(error);
+      throw error;
     } finally {
       console.groupEnd();
     }
@@ -38876,6 +39292,25 @@ const _MainSceneWorld = class _MainSceneWorld {
     }
     (_a = this._showAlert) == null ? void 0 : _a.call(this, "not available in egg state.", "Notice");
     return true;
+  }
+  _logMiniGameEntryAttempt(phase) {
+    const characterEid = this._findMainCharacterEntity();
+    const staminaSnapshot = this.getMainCharacterStaminaSnapshot();
+    const characterState = characterEid === -1 ? null : CharacterState[ObjectComp.state[characterEid]];
+    console.log("[ImportantDiagnostics][MiniGameEntry]", {
+      phase,
+      hasCharacter: characterEid !== -1,
+      characterEid: characterEid === -1 ? null : characterEid,
+      characterState,
+      characterKey: characterEid === -1 ? null : CharacterKeyECS[CharacterStatusComp.characterKey[characterEid]] ?? null,
+      stamina: (staminaSnapshot == null ? void 0 : staminaSnapshot.stamina) ?? null,
+      maxStamina: (staminaSnapshot == null ? void 0 : staminaSnapshot.maxStamina) ?? null,
+      unhappyThreshold: (staminaSnapshot == null ? void 0 : staminaSnapshot.unhappyThreshold) ?? null,
+      boostedThreshold: (staminaSnapshot == null ? void 0 : staminaSnapshot.boostedThreshold) ?? null,
+      isPersistenceDisabled: this._isPersistenceDisabled,
+      debugMode: this._debugMode,
+      currentTime: this.currentTime
+    });
   }
   _prepareMainCharacterForMiniGameEntry() {
     const characterEid = this._findMainCharacterEntity();
@@ -39066,14 +39501,27 @@ const _MainSceneWorld = class _MainSceneWorld {
       "[MainSceneWorld] 🚪 Scene exit - saving state and cleaning up..."
     );
     if (!this._isPersistenceDisabled) {
-      await this._saveCurrentState();
+      try {
+        await this._saveCurrentState();
+      } catch (error) {
+        console.error(
+          "[ImportantDiagnostics][MainSceneExitPersistence] save_failed",
+          {
+            error: error instanceof Error ? {
+              name: error.name,
+              message: error.message
+            } : {
+              message: String(error)
+            }
+          }
+        );
+      }
     }
     this._cleanupVisibilityChangeHandler();
     this._clearMainSceneAdTimers();
     if (this._stage) {
       cleanupSleepEffects(this._stage);
       cleanupEggCrackRenderState();
-      cleanupStaminaGaugeRenderState();
       cleanupCharacterNameLabels();
       cleanupCharacterLayoutDebug(this._stage);
     }
@@ -39100,6 +39548,7 @@ const _MainSceneWorld = class _MainSceneWorld {
       await this._processReentrySimulation();
       this._isPaused = false;
       this._pauseStartTime = 0;
+      await this._flushDeferredPersistenceIfNeeded();
       console.log("[MainSceneWorld] Scene reenter completed");
     } catch (error) {
       console.error("[MainSceneWorld] Failed to reenter scene:", error);
@@ -39150,7 +39599,6 @@ const _MainSceneWorld = class _MainSceneWorld {
       }
       cleanupSleepEffects(this._stage);
       cleanupEggCrackRenderState();
-      cleanupStaminaGaugeRenderState();
       cleanupCharacterNameLabels();
       cleanupCharacterLayoutDebug(this._stage);
       this._pendingRecoveryCureEids.clear();
@@ -39254,7 +39702,7 @@ const _MainSceneWorld = class _MainSceneWorld {
     return nextWrite;
   }
   async setData(data) {
-    var _a, _b, _c;
+    var _a, _b, _c, _d, _e, _f;
     this._persistentData = data;
     if (this._isPersistenceDisabled) {
       console.debug("[MainSceneWorld] setData:skip_persistence_disabled", {
@@ -39265,8 +39713,18 @@ const _MainSceneWorld = class _MainSceneWorld {
       });
       return;
     }
+    if ((_d = this._shouldDeferPersistence) == null ? void 0 : _d.call(this)) {
+      this._hasDeferredPersistence = true;
+      console.debug("[MainSceneWorld] setData:deferred", {
+        key: WORLD_DATA_STORAGE_KEY$1,
+        monsterName: (_e = data.world_metadata) == null ? void 0 : _e.monster_name,
+        entityCount: ((_f = data.entities) == null ? void 0 : _f.length) ?? 0
+      });
+      return;
+    }
+    this._hasDeferredPersistence = false;
     await this._enqueueStorageWrite(async () => {
-      var _a2, _b2, _c2, _d, _e;
+      var _a2, _b2, _c2, _d2, _e2;
       try {
         console.debug("[MainSceneWorld] setData:start", {
           key: WORLD_DATA_STORAGE_KEY$1,
@@ -39277,14 +39735,23 @@ const _MainSceneWorld = class _MainSceneWorld {
         await StorageManager.setData(WORLD_DATA_STORAGE_KEY$1, data);
         console.debug("[MainSceneWorld] setData:success", {
           key: WORLD_DATA_STORAGE_KEY$1,
-          monsterName: (_d = data.world_metadata) == null ? void 0 : _d.monster_name,
-          entityCount: ((_e = data.entities) == null ? void 0 : _e.length) ?? 0
+          monsterName: (_d2 = data.world_metadata) == null ? void 0 : _d2.monster_name,
+          entityCount: ((_e2 = data.entities) == null ? void 0 : _e2.length) ?? 0
         });
       } catch (error) {
         console.error("[MainSceneWorld] Failed to save data:", error);
         throw error;
       }
     });
+  }
+  async _flushDeferredPersistenceIfNeeded() {
+    var _a;
+    if (!this._hasDeferredPersistence || !this._persistentData || this._isPersistenceDisabled || ((_a = this._shouldDeferPersistence) == null ? void 0 : _a.call(this))) {
+      return;
+    }
+    const deferredData = this._persistentData;
+    this._hasDeferredPersistence = false;
+    await this.setData(deferredData);
   }
   async clearData() {
     this._persistentData = void 0;
@@ -39532,7 +39999,13 @@ const _MainSceneWorld = class _MainSceneWorld {
         locationSource: this._sunLocationSource,
         hasLocationPermission: this._hasLocationPermission
       });
-      const sunTimes = await getNativeSunTimes(promptForPermission);
+      const sunTimes = await getNativeSunTimes(
+        promptForPermission,
+        this._initDiagnostics.createSunTimesTraceContext({
+          source: "main_scene_world",
+          phase: "refresh_sun_times"
+        })
+      );
       if (!sunTimes) {
         console.warn(
           "[MainSceneWorld] Native sun times are unavailable, staying in manual mode"
@@ -40024,6 +40497,9 @@ const _MainSceneWorld = class _MainSceneWorld {
         now: this.currentTime
       });
     }
+    if (removed2) {
+      applyHappyStatusForFullStaminaCharacterIfEligible(this, characterEid);
+    }
     console.log(
       `[MainSceneWorld] Applied hospital recovery impact for character ${characterEid} (removedStatus=${removed2}, preservedSleep=${shouldPreserveSleep})`
     );
@@ -40249,7 +40725,13 @@ const _MainSceneWorld = class _MainSceneWorld {
       console.log(
         "[MainSceneWorld] Reentry simulation skipped because last active time is missing"
       );
-      await this._saveCurrentState();
+      if (this._initDiagnostics.isInitTimingActive) {
+        await this._initDiagnostics.measurePhase("reentry_persist_state", async () => {
+          await this._saveCurrentState();
+        });
+      } else {
+        await this._saveCurrentState();
+      }
       return;
     }
     const currentTime = Date.now();
@@ -40283,7 +40765,13 @@ const _MainSceneWorld = class _MainSceneWorld {
       );
       this._simulationTime = currentTime;
       applyReentryHappyStatusForFullStaminaCharacters(this);
-      await this._saveCurrentState();
+      if (this._initDiagnostics.isInitTimingActive) {
+        await this._initDiagnostics.measurePhase("reentry_persist_state", async () => {
+          await this._saveCurrentState();
+        });
+      } else {
+        await this._saveCurrentState();
+      }
       console.log("[MainSceneWorld] Reentry simulation completed successfully");
     } catch (error) {
       console.error("[MainSceneWorld] Reentry simulation failed:", error);
@@ -40312,7 +40800,6 @@ const _MainSceneWorld = class _MainSceneWorld {
   _renderAllSystems(params) {
     animationRenderSystem(params);
     renderSystem(params);
-    staminaGaugeRenderSystem(params);
     statusIconRenderSystem(params);
     eggCrackRenderSystem({ ...params, currentTime: this.currentTime });
     characterNameLabelSystem(params);
@@ -45451,12 +45938,20 @@ function requireMatter() {
   return matter$1.exports;
 }
 var matterExports = requireMatter();
+const GAME_ENGINE_FIXED_TIMESTEP_MS = 1e3 / 60;
+const GAME_ENGINE_MAX_TIMESTEP_MS = 1e3 / 30;
+const GAME_ENGINE_MAX_SUBSTEPS = 2;
+function getPerfNow$2() {
+  return typeof performance !== "undefined" ? performance.now() : Date.now();
+}
 class GameEngine {
-  constructor(width, height, gravityY = 2.5) {
+  constructor(width, height, gravityY = 2.5, perfHooks = {}) {
     this.isRunning = false;
     this.gameObjects = [];
     this.pixiApp = null;
+    this.physicsAccumulatorMs = 0;
     this.gravityY = gravityY;
+    this.perfHooks = perfHooks;
     this.physics = matterExports.Engine.create({
       gravity: { x: 0, y: this.gravityY },
       enableSleeping: false
@@ -45483,10 +45978,51 @@ class GameEngine {
     }
   }
   physicsUpdate(delta) {
+    var _a, _b;
     if (!this.isRunning || !this.pixiApp) return;
     try {
-      matterExports.Engine.update(this.physics, delta);
-      this.syncDisplayObjects();
+      const clampedDeltaMs = Math.min(
+        GAME_ENGINE_MAX_TIMESTEP_MS,
+        Math.max(0, delta)
+      );
+      this.physicsAccumulatorMs = Math.min(
+        this.physicsAccumulatorMs + clampedDeltaMs,
+        GAME_ENGINE_FIXED_TIMESTEP_MS * (GAME_ENGINE_MAX_SUBSTEPS + 1)
+      );
+      let substeps = 0;
+      let totalEngineUpdateCostMs = 0;
+      let totalSyncDisplayCostMs = 0;
+      let appliedDeltaMs = 0;
+      while (this.physicsAccumulatorMs >= GAME_ENGINE_FIXED_TIMESTEP_MS && substeps < GAME_ENGINE_MAX_SUBSTEPS) {
+        const startedAt = getPerfNow$2();
+        matterExports.Engine.update(this.physics, GAME_ENGINE_FIXED_TIMESTEP_MS);
+        const afterEngineUpdate = getPerfNow$2();
+        this.syncDisplayObjects();
+        const afterSyncDisplay = getPerfNow$2();
+        totalEngineUpdateCostMs += afterEngineUpdate - startedAt;
+        totalSyncDisplayCostMs += afterSyncDisplay - afterEngineUpdate;
+        appliedDeltaMs += GAME_ENGINE_FIXED_TIMESTEP_MS;
+        this.physicsAccumulatorMs -= GAME_ENGINE_FIXED_TIMESTEP_MS;
+        substeps += 1;
+      }
+      if (substeps === GAME_ENGINE_MAX_SUBSTEPS && this.physicsAccumulatorMs >= GAME_ENGINE_FIXED_TIMESTEP_MS) {
+        this.physicsAccumulatorMs = Math.min(
+          this.physicsAccumulatorMs,
+          GAME_ENGINE_FIXED_TIMESTEP_MS
+        );
+      }
+      if (substeps === 0) {
+        return;
+      }
+      (_b = (_a = this.perfHooks).onPhysicsStep) == null ? void 0 : _b.call(_a, {
+        timestampMs: Date.now(),
+        deltaMs: appliedDeltaMs,
+        engineUpdateCostMs: totalEngineUpdateCostMs,
+        syncDisplayCostMs: totalSyncDisplayCostMs,
+        totalCostMs: totalEngineUpdateCostMs + totalSyncDisplayCostMs,
+        trackedObjectCount: this.getTrackedObjectCount(),
+        syncedDisplayObjectCount: this.getSyncedDisplayObjectCount()
+      });
     } catch (error) {
       console.error("[Physics] 물리 업데이트 오류:", error);
     }
@@ -45523,9 +46059,11 @@ class GameEngine {
   }
   pause() {
     this.isRunning = false;
+    this.physicsAccumulatorMs = 0;
   }
   resume() {
     this.isRunning = true;
+    this.physicsAccumulatorMs = 0;
   }
   cleanup() {
     this.pause();
@@ -45536,6 +46074,7 @@ class GameEngine {
       matterExports.Composite.remove(this.physics.world, obj.body);
     }
     this.gameObjects = [];
+    this.physicsAccumulatorMs = 0;
     matterExports.Engine.clear(this.physics);
     this.physics = matterExports.Engine.create({
       gravity: { x: 0, y: this.gravityY },
@@ -45591,14 +46130,17 @@ const ASSET_DEFINITIONS = [
   }
 ];
 function getSpritesheet(alias) {
-  try {
-    const asset = Assets.get(alias);
-    return asset instanceof Spritesheet ? asset : void 0;
-  } catch {
+  if (!Cache.has(alias)) {
     return void 0;
   }
+  const asset = Cache.get(alias);
+  return asset instanceof Spritesheet ? asset : void 0;
 }
 const _AssetLoader = class _AssetLoader {
+  static resetPendingLoadState() {
+    this.loadPromise = null;
+    this.characterLoadPromises.clear();
+  }
   static async loadAssets(characterKey = CharacterKey.TestGreenSlimeA1) {
     if (this.loadPromise) {
       await this.loadPromise;
@@ -45608,7 +46150,7 @@ const _AssetLoader = class _AssetLoader {
       await this.ensureCharacterSpritesheetLoaded(characterKey);
       return this.getAssets();
     }
-    this.loadPromise = (async () => {
+    const loadPromise = (async () => {
       await Promise.all(
         ASSET_DEFINITIONS.map(async ({ alias, src }) => {
           if (getSpritesheet(alias)) {
@@ -45626,6 +46168,7 @@ const _AssetLoader = class _AssetLoader {
         })
       );
     })();
+    this.loadPromise = loadPromise;
     try {
       await this.loadPromise;
       await this.ensureCharacterSpritesheetLoaded(
@@ -45634,7 +46177,9 @@ const _AssetLoader = class _AssetLoader {
       await this.ensureCharacterSpritesheetLoaded(characterKey);
       return this.getAssets();
     } catch (error) {
-      this.loadPromise = null;
+      if (this.loadPromise === loadPromise) {
+        this.loadPromise = null;
+      }
       throw error;
     }
   }
@@ -45682,7 +46227,9 @@ const _AssetLoader = class _AssetLoader {
     try {
       await loadPromise;
     } catch (error) {
-      this.characterLoadPromises.delete(characterKey);
+      if (this.characterLoadPromises.get(characterKey) === loadPromise) {
+        this.characterLoadPromises.delete(characterKey);
+      }
       throw error;
     }
   }
@@ -45900,6 +46447,18 @@ const FLAPPY_BIRD_CLOUD_MAX_HEIGHT_RATIO = 0.72;
 const FLAPPY_BIRD_BASE_FRAME_MS = 1e3 / 60;
 const FLAPPY_BIRD_MAX_FRAME_SCALE = 1.25;
 const FLAPPY_BIRD_SPEED_TRANSITION_MS = 140;
+function getPerfNow$1() {
+  return typeof performance !== "undefined" ? performance.now() : Date.now();
+}
+function createEmptyPipePoolStats() {
+  return {
+    pairCreated: 0,
+    pairReused: 0,
+    bodyCreated: 0,
+    bodyReused: 0,
+    poolMissCount: 0
+  };
+}
 function resolveFrameScale(deltaTime) {
   return Math.min(
     FLAPPY_BIRD_MAX_FRAME_SCALE,
@@ -46195,6 +46754,7 @@ class GroundManager {
 class PipeManager {
   constructor(app, physicsManager, speed, spawnInterval, groundHeight) {
     this.pipesPairs = [];
+    this.pipePool = [];
     this.passageHeightMinRatio = 0.35;
     this.passageHeightMaxRatio = 0.45;
     this.passagePositionExpansionTiles = 0;
@@ -46215,7 +46775,11 @@ class PipeManager {
   /**
    * 파이프를 업데이트합니다.
    */
-  update(playerBody, onScoreUpdate, deltaTime) {
+  update(playerBody, onScoreUpdate, deltaTime, onPlayerCollision) {
+    const diagnostics = {
+      phaseCosts: {},
+      poolStats: createEmptyPipePoolStats()
+    };
     let spawned = 0;
     this.pipeSpawnInterval = smoothFlappyBirdSpeed(
       this.pipeSpawnInterval,
@@ -46224,44 +46788,79 @@ class PipeManager {
     );
     this.elapsedSinceLastPipeSpawnMs += Math.max(0, deltaTime);
     if (this.elapsedSinceLastPipeSpawnMs > this.pipeSpawnInterval) {
-      spawned += this.createPipePattern();
+      spawned += this.createPipePattern(diagnostics);
       this.elapsedSinceLastPipeSpawnMs = 0;
     }
     return {
       spawned,
-      removed: this.movePipes(playerBody, onScoreUpdate, deltaTime)
+      removed: this.movePipes(
+        playerBody,
+        onScoreUpdate,
+        deltaTime,
+        diagnostics,
+        onPlayerCollision
+      ),
+      phaseCosts: diagnostics.phaseCosts,
+      poolStats: diagnostics.poolStats
     };
+  }
+  prewarmPipePairs(count2) {
+    const targetCount = Math.max(0, Math.floor(count2));
+    if (targetCount === 0) {
+      return;
+    }
+    const pipeAssets = this.resolvePipeAssetsContext();
+    while (this.pipesPairs.length + this.pipePool.length < targetCount) {
+      const spawnPlan = buildPipeSpawnPlan({
+        tileSize: pipeAssets.tileSize,
+        availableHeight: this.app.screen.height - this.groundHeight,
+        passageHeightMinRatio: this.passageHeightMinRatio,
+        passageHeightMaxRatio: this.passageHeightMaxRatio,
+        passagePositionExpansionTiles: this.passagePositionExpansionTiles,
+        doublePipePatternChance: this.doublePipePatternChance,
+        doublePipePatternGapTileOptions: this.doublePipePatternGapTileOptions,
+        misalignedDoublePipePatternChance: this.misalignedDoublePipePatternChance,
+        misalignedDoublePipePatternOffsetTiles: this.misalignedDoublePipePatternOffsetTiles
+      });
+      for (const item of spawnPlan.items) {
+        const pair = this.createManagedPipePair(pipeAssets);
+        this.configurePipePair(pair, {
+          pipeAssets,
+          item
+        });
+        this.resetPairTracking(pair);
+        this.pipePool.push(pair);
+        if (this.pipesPairs.length + this.pipePool.length >= targetCount) {
+          break;
+        }
+      }
+    }
   }
   /**
    * 파이프 쌍을 생성합니다.
    */
-  createPipePattern() {
-    const assets = AssetLoader.getAssets();
-    if (!assets.tilesetSprites || !assets.tilesetSprites.textures["pipe-body"]) {
-      throw new Error("Pipe textures not found in assets");
-    }
-    const texture = assets.tilesetSprites.textures["pipe-body"];
-    const tileSize = Math.max(
-      1,
-      Math.round(
-        texture.frame.width * FLAPPY_BIRD_OBJECT_SCALE * FLAPPY_BIRD_PIPE_TILE_SCALE
-      )
+  createPipePattern(diagnostics) {
+    const pipeAssets = this.resolvePipeAssetsContext();
+    const spawnPlan = this.measurePipePhase(
+      diagnostics.phaseCosts,
+      "spawnPlanning",
+      () => buildPipeSpawnPlan({
+        tileSize: pipeAssets.tileSize,
+        availableHeight: this.app.screen.height - this.groundHeight,
+        passageHeightMinRatio: this.passageHeightMinRatio,
+        passageHeightMaxRatio: this.passageHeightMaxRatio,
+        passagePositionExpansionTiles: this.passagePositionExpansionTiles,
+        doublePipePatternChance: this.doublePipePatternChance,
+        doublePipePatternGapTileOptions: this.doublePipePatternGapTileOptions,
+        misalignedDoublePipePatternChance: this.misalignedDoublePipePatternChance,
+        misalignedDoublePipePatternOffsetTiles: this.misalignedDoublePipePatternOffsetTiles
+      })
     );
-    const spawnPlan = buildPipeSpawnPlan({
-      tileSize,
-      availableHeight: this.app.screen.height - this.groundHeight,
-      passageHeightMinRatio: this.passageHeightMinRatio,
-      passageHeightMaxRatio: this.passageHeightMaxRatio,
-      passagePositionExpansionTiles: this.passagePositionExpansionTiles,
-      doublePipePatternChance: this.doublePipePatternChance,
-      doublePipePatternGapTileOptions: this.doublePipePatternGapTileOptions,
-      misalignedDoublePipePatternChance: this.misalignedDoublePipePatternChance,
-      misalignedDoublePipePatternOffsetTiles: this.misalignedDoublePipePatternOffsetTiles
-    });
     for (const item of spawnPlan.items) {
       this.createPipePair({
-        tileSize,
-        item
+        pipeAssets,
+        item,
+        diagnostics
       });
     }
     return spawnPlan.items.length;
@@ -46270,123 +46869,119 @@ class PipeManager {
    * 파이프 쌍을 생성합니다.
    */
   createPipePair(options) {
-    const { tileSize, item } = options;
-    const { top, topBody, bottom, bottomBody } = this.createPipePairObjects({
-      tileSize,
-      passageHeight: item.passageHeight,
-      topPipeHeight: item.topPipeHeight,
-      bottomPipeHeight: item.bottomPipeHeight,
-      xOffsetTiles: item.xOffsetTiles
+    const { pipeAssets, item, diagnostics } = options;
+    const pair = this.acquirePipePair({
+      pipeAssets,
+      item,
+      diagnostics
     });
-    this.pipes.addChild(top);
-    this.pipes.addChild(bottom);
-    this.physicsManager.addToEngine(null, topBody, { syncDisplay: false });
-    this.physicsManager.addToEngine(null, bottomBody, { syncDisplay: false });
-    this.syncPipeDisplayObject(top, topBody);
-    this.syncPipeDisplayObject(bottom, bottomBody);
-    this.pipesPairs.push({
-      top,
-      bottom,
-      topBody,
-      bottomBody,
-      passed: false,
-      minTopClearance: Number.POSITIVE_INFINITY,
-      minBottomClearance: Number.POSITIVE_INFINITY
-    });
+    this.measurePipePhase(
+      diagnostics.phaseCosts,
+      "attachPipePairToScene",
+      () => {
+        this.pipes.addChild(pair.top);
+        this.pipes.addChild(pair.bottom);
+        this.physicsManager.addToEngine(null, pair.topBody, {
+          syncDisplay: false
+        });
+        this.physicsManager.addToEngine(null, pair.bottomBody, {
+          syncDisplay: false
+        });
+        this.syncPipeDisplayObject(pair.top, pair.topBody);
+        this.syncPipeDisplayObject(pair.bottom, pair.bottomBody);
+      }
+    );
+    this.pipesPairs.push(pair);
   }
   /**
-   * 파이프 쌍 오브젝트를 생성합니다.
+   * 파이프 쌍 오브젝트를 준비합니다.
    */
-  createPipePairObjects(options) {
-    const {
-      tileSize,
-      passageHeight,
-      topPipeHeight,
-      bottomPipeHeight,
-      xOffsetTiles
-    } = options;
-    const assets = AssetLoader.getAssets();
-    const tilesetSprites = assets.tilesetSprites;
-    if (!tilesetSprites) {
-      throw new Error("Tileset spritesheet not found");
+  acquirePipePair(options) {
+    const { pipeAssets, item, diagnostics } = options;
+    const pair = this.pipePool.pop();
+    const existingPair = pair ?? this.createManagedPipePair(pipeAssets, diagnostics);
+    if (pair) {
+      if (diagnostics) {
+        diagnostics.poolStats.pairReused += 1;
+        diagnostics.poolStats.bodyReused += 2;
+      }
+    } else {
+      if (diagnostics) {
+        diagnostics.poolStats.pairCreated += 1;
+        diagnostics.poolStats.bodyCreated += 2;
+        diagnostics.poolStats.poolMissCount += 1;
+      }
     }
-    const pipeBodyTexture = tilesetSprites.textures["pipe-body"];
-    const pipeEndTexture = tilesetSprites.textures["pipe-end"];
-    const top = this.createPipeContainer({
-      height: topPipeHeight,
-      tileSize,
-      pipeBodyTexture,
-      pipeEndTexture,
-      position: "top"
+    this.configurePipePair(existingPair, {
+      pipeAssets,
+      item,
+      diagnostics
     });
-    const bottom = this.createPipeContainer({
-      height: bottomPipeHeight,
-      tileSize,
-      pipeBodyTexture,
-      pipeEndTexture,
-      position: "bottom"
-    });
-    const topBodyX = this.app.screen.width + tileSize / 2 + xOffsetTiles * tileSize;
-    const topBodyY = topPipeHeight / 2;
-    const bottomBodyX = topBodyX;
-    const bottomBodyY = topPipeHeight + passageHeight + bottomPipeHeight / 2 + tileSize / 2;
-    const topBody = this.physicsManager.createRectangleBody(
-      topBodyX,
-      topBodyY,
-      tileSize,
-      topPipeHeight,
-      { isStatic: true, label: "pipe" }
-    );
-    const bottomBody = this.physicsManager.createRectangleBody(
-      bottomBodyX,
-      bottomBodyY,
-      tileSize,
-      bottomPipeHeight,
-      { isStatic: true, label: "pipe" }
-    );
-    return { top, topBody, bottom, bottomBody };
+    this.resetPairTracking(existingPair);
+    return existingPair;
   }
   /**
    * 파이프를 이동시키는 메서드
    */
-  movePipes(playerBody, onScoreUpdate, deltaTime) {
+  movePipes(playerBody, onScoreUpdate, deltaTime, diagnostics, onPlayerCollision) {
     this.speed = smoothFlappyBirdSpeed(this.speed, this.targetSpeed, deltaTime);
     const movementStep = this.speed * resolveFrameScale(deltaTime);
-    let removed2 = 0;
-    for (let i2 = 0; i2 < this.pipesPairs.length; i2++) {
-      const pair = this.pipesPairs[i2];
-      this.physicsManager.translateBody(pair.topBody, {
-        x: -movementStep,
-        y: 0
-      });
-      this.physicsManager.translateBody(pair.bottomBody, {
-        x: -movementStep,
-        y: 0
-      });
-      this.syncPipeDisplayObject(pair.top, pair.topBody);
-      this.syncPipeDisplayObject(pair.bottom, pair.bottomBody);
-      this.trackNearMissClearances(pair, playerBody);
-      if (this.hasPairPassedPlayer(pair, playerBody) && !pair.passed) {
-        pair.passed = true;
-        onScoreUpdate(1 + this.getNearMissBonus(pair, playerBody));
+    const removalIndexes = [];
+    this.measurePipePhase(diagnostics.phaseCosts, "moveExistingPipes", () => {
+      for (let i2 = 0; i2 < this.pipesPairs.length; i2++) {
+        const pair = this.pipesPairs[i2];
+        this.physicsManager.translateBody(pair.topBody, {
+          x: -movementStep,
+          y: 0
+        });
+        this.physicsManager.translateBody(pair.bottomBody, {
+          x: -movementStep,
+          y: 0
+        });
+        this.syncPipeDisplayObject(pair.top, pair.topBody);
+        this.syncPipeDisplayObject(pair.bottom, pair.bottomBody);
+        if (this.hasPairCollidedWithPlayer(pair, playerBody)) {
+          onPlayerCollision == null ? void 0 : onPlayerCollision();
+          return removalIndexes.length;
+        }
+        this.trackNearMissClearances(pair, playerBody);
+        if (this.hasPairPassedPlayer(pair, playerBody) && !pair.passed) {
+          pair.passed = true;
+          onScoreUpdate(1 + this.getNearMissBonus(pair, playerBody));
+        }
+        if (pair.topBody.position.x < -pair.top.width) {
+          removalIndexes.push(i2);
+        }
       }
-      if (pair.topBody.position.x < -pair.top.width) {
-        this.removePipePair(i2);
-        removed2 += 1;
-        i2--;
+    });
+    this.measurePipePhase(
+      diagnostics.phaseCosts,
+      "recycleOrRemovePipes",
+      () => {
+        for (let index = removalIndexes.length - 1; index >= 0; index -= 1) {
+          const pairIndex = removalIndexes[index];
+          if (typeof pairIndex === "number") {
+            this.removePipePair(pairIndex);
+          }
+        }
       }
-    }
-    return removed2;
+    );
+    return removalIndexes.length;
+  }
+  hasPairCollidedWithPlayer(pair, playerBody) {
+    return matterExports.Collision.collides(pair.topBody, playerBody) !== null || matterExports.Collision.collides(pair.bottomBody, playerBody) !== null;
   }
   /**
    * 특정 인덱스의 파이프 쌍을 제거합니다.
    */
   removePipePair(index) {
     const pair = this.pipesPairs[index];
-    this.pipes.removeChild(pair.top);
-    this.pipes.removeChild(pair.bottom);
+    if (!pair) {
+      return;
+    }
     this.physicsManager.removeFromEngine(pair.topBody);
     this.physicsManager.removeFromEngine(pair.bottomBody);
+    this.releasePipePair(pair);
     this.pipesPairs.splice(index, 1);
   }
   /**
@@ -46403,6 +46998,14 @@ class PipeManager {
   reset() {
     this.clearAllPipes();
     this.elapsedSinceLastPipeSpawnMs = this.pipeSpawnInterval;
+  }
+  destroy() {
+    this.clearAllPipes();
+    for (const pair of this.pipePool) {
+      pair.top.destroy({ children: true });
+      pair.bottom.destroy({ children: true });
+    }
+    this.pipePool = [];
   }
   applyDifficulty(options) {
     this.targetSpeed = options.pipeSpeed;
@@ -46429,40 +47032,232 @@ class PipeManager {
   }
   createPipeContainer(options) {
     const {
-      height,
       tileSize,
       pipeBodyTexture,
       pipeEndTexture,
       position
     } = options;
     const pipe2 = new Container();
-    const shaftHeight = Math.max(0, height - tileSize);
-    if (shaftHeight > 0) {
-      const shaft = new TilingSprite({
-        texture: pipeBodyTexture,
-        width: tileSize,
-        height: shaftHeight
-      });
-      shaft.tileScale.set(
-        tileSize / pipeBodyTexture.frame.width,
-        tileSize / pipeBodyTexture.frame.height
-      );
-      shaft.position.set(0, position === "top" ? 0 : tileSize);
-      pipe2.addChild(shaft);
-    }
+    const shaft = new TilingSprite({
+      texture: pipeBodyTexture,
+      width: tileSize,
+      height: 1
+    });
+    pipe2.__flappyPipeShaft = shaft;
+    pipe2.__flappyPipePosition = position;
+    pipe2.addChild(shaft);
     const endCap = new Sprite(pipeEndTexture);
+    pipe2.__flappyPipeEndCap = endCap;
     endCap.anchor.set(0.5);
+    pipe2.addChild(endCap);
+    this.configurePipeContainer(pipe2, options);
+    return pipe2;
+  }
+  configurePipeContainer(pipe2, options) {
+    const {
+      height,
+      tileSize,
+      pipeBodyTexture,
+      pipeEndTexture,
+      position
+    } = options;
+    const shaft = pipe2.__flappyPipeShaft;
+    const endCap = pipe2.__flappyPipeEndCap;
+    if (!shaft || !endCap) {
+      return;
+    }
+    const shaftHeight = Math.max(0, height - tileSize);
+    shaft.texture = pipeBodyTexture;
+    shaft.width = tileSize;
+    shaft.height = Math.max(1, shaftHeight);
+    shaft.visible = shaftHeight > 0;
+    shaft.position.set(0, position === "top" ? 0 : tileSize);
+    shaft.tileScale.set(
+      tileSize / pipeBodyTexture.frame.width,
+      tileSize / pipeBodyTexture.frame.height
+    );
+    endCap.texture = pipeEndTexture;
     endCap.width = tileSize;
     endCap.height = tileSize;
     endCap.position.set(
       tileSize / 2,
       position === "top" ? height - tileSize / 2 : tileSize / 2
     );
-    if (position === "top") {
-      endCap.rotation = Math.PI;
+    endCap.rotation = position === "top" ? Math.PI : 0;
+    pipe2.__flappyPipePosition = position;
+  }
+  resolvePipeAssetsContext() {
+    const assets = AssetLoader.getAssets();
+    const tilesetSprites = assets.tilesetSprites;
+    const pipeBodyTexture = tilesetSprites == null ? void 0 : tilesetSprites.textures["pipe-body"];
+    const pipeEndTexture = tilesetSprites == null ? void 0 : tilesetSprites.textures["pipe-end"];
+    if (!pipeBodyTexture || !pipeEndTexture) {
+      throw new Error("Pipe textures not found in assets");
     }
-    pipe2.addChild(endCap);
-    return pipe2;
+    return {
+      tileSize: Math.max(
+        1,
+        Math.round(
+          pipeBodyTexture.frame.width * FLAPPY_BIRD_OBJECT_SCALE * FLAPPY_BIRD_PIPE_TILE_SCALE
+        )
+      ),
+      pipeBodyTexture,
+      pipeEndTexture
+    };
+  }
+  createManagedPipePair(pipeAssets, diagnostics) {
+    const { tileSize, pipeBodyTexture, pipeEndTexture } = pipeAssets;
+    const top = this.measurePipePhase(
+      diagnostics == null ? void 0 : diagnostics.phaseCosts,
+      "createPipePairDisplay",
+      () => this.createPipeContainer({
+        height: tileSize,
+        tileSize,
+        pipeBodyTexture,
+        pipeEndTexture,
+        position: "top"
+      })
+    );
+    const bottom = this.measurePipePhase(
+      diagnostics == null ? void 0 : diagnostics.phaseCosts,
+      "createPipePairDisplay",
+      () => this.createPipeContainer({
+        height: tileSize,
+        tileSize,
+        pipeBodyTexture,
+        pipeEndTexture,
+        position: "bottom"
+      })
+    );
+    const topBody = this.measurePipePhase(
+      diagnostics == null ? void 0 : diagnostics.phaseCosts,
+      "createPipePairBodies",
+      () => this.createPipeBody({
+        width: tileSize,
+        height: tileSize,
+        x: 0,
+        y: 0
+      })
+    );
+    const bottomBody = this.measurePipePhase(
+      diagnostics == null ? void 0 : diagnostics.phaseCosts,
+      "createPipePairBodies",
+      () => this.createPipeBody({
+        width: tileSize,
+        height: tileSize,
+        x: 0,
+        y: 0
+      })
+    );
+    return {
+      top,
+      bottom,
+      topBody,
+      bottomBody,
+      passed: false,
+      minTopClearance: Number.POSITIVE_INFINITY,
+      minBottomClearance: Number.POSITIVE_INFINITY
+    };
+  }
+  createPipeBody(options) {
+    const body = this.physicsManager.createRectangleBody(
+      options.x,
+      options.y,
+      options.width,
+      options.height,
+      { isStatic: true, label: "pipe" }
+    );
+    body.__flappyPipeWidth = options.width;
+    body.__flappyPipeHeight = options.height;
+    return body;
+  }
+  configurePipePair(pair, options) {
+    const { pipeAssets, item, diagnostics } = options;
+    const { tileSize, pipeBodyTexture, pipeEndTexture } = pipeAssets;
+    this.measurePipePhase(
+      diagnostics == null ? void 0 : diagnostics.phaseCosts,
+      "createPipePairDisplay",
+      () => {
+        this.configurePipeContainer(pair.top, {
+          height: item.topPipeHeight,
+          tileSize,
+          pipeBodyTexture,
+          pipeEndTexture,
+          position: "top"
+        });
+        this.configurePipeContainer(pair.bottom, {
+          height: item.bottomPipeHeight,
+          tileSize,
+          pipeBodyTexture,
+          pipeEndTexture,
+          position: "bottom"
+        });
+      }
+    );
+    const topBodyX = this.app.screen.width + tileSize / 2 + item.xOffsetTiles * tileSize;
+    const topBodyY = item.topPipeHeight / 2;
+    const bottomBodyX = topBodyX;
+    const bottomBodyY = item.topPipeHeight + item.passageHeight + item.bottomPipeHeight / 2 + tileSize / 2;
+    this.measurePipePhase(
+      diagnostics == null ? void 0 : diagnostics.phaseCosts,
+      "createPipePairBodies",
+      () => {
+        this.configurePipeBody(pair.topBody, {
+          width: tileSize,
+          height: item.topPipeHeight,
+          x: topBodyX,
+          y: topBodyY
+        });
+        this.configurePipeBody(pair.bottomBody, {
+          width: tileSize,
+          height: item.bottomPipeHeight,
+          x: bottomBodyX,
+          y: bottomBodyY
+        });
+      }
+    );
+  }
+  configurePipeBody(body, options) {
+    const targetWidth = Math.max(1, options.width);
+    const targetHeight = Math.max(1, options.height);
+    const currentWidth = body.__flappyPipeWidth ?? body.bounds.max.x - body.bounds.min.x;
+    const currentHeight = body.__flappyPipeHeight ?? body.bounds.max.y - body.bounds.min.y;
+    if (Math.abs(currentWidth - targetWidth) > 0.01 || Math.abs(currentHeight - targetHeight) > 0.01) {
+      matterExports.Body.scale(
+        body,
+        targetWidth / Math.max(1, currentWidth),
+        targetHeight / Math.max(1, currentHeight)
+      );
+    }
+    body.__flappyPipeWidth = targetWidth;
+    body.__flappyPipeHeight = targetHeight;
+    this.physicsManager.setPosition(body, {
+      x: options.x,
+      y: options.y
+    });
+  }
+  releasePipePair(pair) {
+    if (pair.top.parent) {
+      pair.top.parent.removeChild(pair.top);
+    }
+    if (pair.bottom.parent) {
+      pair.bottom.parent.removeChild(pair.bottom);
+    }
+    this.resetPairTracking(pair);
+    this.pipePool.push(pair);
+  }
+  resetPairTracking(pair) {
+    pair.passed = false;
+    pair.minTopClearance = Number.POSITIVE_INFINITY;
+    pair.minBottomClearance = Number.POSITIVE_INFINITY;
+  }
+  measurePipePhase(phaseCosts, phaseKey, work) {
+    const startedAt = getPerfNow$1();
+    const result = work();
+    if (phaseCosts) {
+      phaseCosts[phaseKey] = (phaseCosts[phaseKey] ?? 0) + (getPerfNow$1() - startedAt);
+    }
+    return result;
   }
   syncPipeDisplayObject(displayObject, body) {
     displayObject.position.x = body.bounds.min.x;
@@ -46738,7 +47533,7 @@ function smoothTempoMultiplier(current, target, elapsedMs) {
   return current + (target - current) * alpha;
 }
 class FlappyBirdBgmController {
-  constructor() {
+  constructor(options = {}) {
     this.audioContext = null;
     this.masterGain = null;
     this.effectsGain = null;
@@ -46752,6 +47547,7 @@ class FlappyBirdBgmController {
     this.currentTempoMultiplier = 1;
     this.targetTempoMultiplier = 1;
     this.lastTempoUpdateAtMs = 0;
+    this.onScheduleTick = options.onScheduleTick ?? null;
   }
   isEnabled() {
     return this.enabled;
@@ -46793,21 +47589,13 @@ class FlappyBirdBgmController {
       return;
     }
     const now = this.audioContext.currentTime;
-    const baseFrequency = hasNearMissBonus ? midiToFrequency(88) : midiToFrequency(83);
-    const accentFrequency = hasNearMissBonus ? midiToFrequency(95) : midiToFrequency(90);
+    const frequency = hasNearMissBonus ? midiToFrequency(88) : midiToFrequency(83);
     this.scheduleEffectVoice({
       waveform: "square",
-      frequency: baseFrequency,
+      frequency,
       time: now,
-      duration: 0.08,
+      duration: hasNearMissBonus ? 0.09 : 0.078,
       peakGain: hasNearMissBonus ? 0.192 : 0.144
-    });
-    this.scheduleEffectVoice({
-      waveform: "triangle",
-      frequency: accentFrequency,
-      time: now + 0.024,
-      duration: 0.1,
-      peakGain: hasNearMissBonus ? 0.12 : 0.09
     });
   }
   async playCountdownCue(displayValue) {
@@ -46939,21 +47727,33 @@ class FlappyBirdBgmController {
     this.scheduleLoop();
   }
   scheduleLoop() {
+    var _a;
     if (!this.audioContext || !this.masterGain || !this.isPlaying) {
       return;
     }
+    const startedAtMs = this.getNowMs();
+    let scheduledSteps = 0;
+    let scheduledVoices = 0;
     this.updateTempoMultiplier();
     const stepDuration = this.getStepDuration();
     while (this.nextStepTime < this.audioContext.currentTime + FLAPPY_BIRD_BGM_SCHEDULE_AHEAD_S) {
-      this.scheduleStep(this.currentStep, this.nextStepTime);
+      scheduledVoices += this.scheduleStep(this.currentStep, this.nextStepTime);
+      scheduledSteps += 1;
       this.currentStep = (this.currentStep + 1) % FLAPPY_BIRD_BGM_LEAD_PATTERN.length;
       this.nextStepTime += stepDuration;
     }
+    (_a = this.onScheduleTick) == null ? void 0 : _a.call(this, {
+      timestampMs: Date.now(),
+      durationMs: this.getNowMs() - startedAtMs,
+      scheduledSteps,
+      scheduledVoices
+    });
   }
   scheduleStep(step, time) {
     const stepDuration = this.getStepDuration();
     const leadMidi = FLAPPY_BIRD_BGM_LEAD_PATTERN[step];
     const bassMidi = FLAPPY_BIRD_BGM_BASS_PATTERN[step];
+    let scheduledVoices = 0;
     if (leadMidi !== null) {
       this.scheduleVoice({
         waveform: "square",
@@ -46962,6 +47762,7 @@ class FlappyBirdBgmController {
         duration: stepDuration * 0.9,
         peakGain: 0.14
       });
+      scheduledVoices += 1;
     }
     if (bassMidi !== null) {
       this.scheduleVoice({
@@ -46971,7 +47772,9 @@ class FlappyBirdBgmController {
         duration: stepDuration * 1.8,
         peakGain: 0.12
       });
+      scheduledVoices += 1;
     }
+    return scheduledVoices;
   }
   getStepDuration() {
     return FLAPPY_BIRD_BGM_STEP_DURATION_S / this.currentTempoMultiplier;
@@ -47345,14 +48148,17 @@ class CountdownUI {
     this.currentDisplayValue = 0;
     this.baseX = 0;
     this.baseY = 0;
-    this.text = new Text("3", {
-      fontFamily: FLAPPY_BIRD_FONT_FAMILIES,
-      fontSize: FLAPPY_BIRD_COUNTDOWN_FONT_SIZE,
-      fill: 16777215,
-      align: "center",
-      stroke: {
-        color: 0,
-        width: 6
+    this.text = new Text({
+      text: "3",
+      style: {
+        fontFamily: FLAPPY_BIRD_FONT_FAMILIES,
+        fontSize: FLAPPY_BIRD_COUNTDOWN_FONT_SIZE,
+        fill: 16777215,
+        align: "center",
+        stroke: {
+          color: 0,
+          width: 6
+        }
       }
     });
     this.text.anchor.set(0.5);
@@ -47416,8 +48222,14 @@ class ScoreUI {
       align: "left"
     };
     this.container = new Container();
-    this.bestScoreText = new Text("Best: 0", textStyle);
-    this.scoreText = new Text("Score: 0", textStyle);
+    this.bestScoreText = new Text({
+      text: "Best: 0",
+      style: textStyle
+    });
+    this.scoreText = new Text({
+      text: "Score: 0",
+      style: textStyle
+    });
     this.bestScoreText.anchor.set(0, 0);
     this.scoreText.anchor.set(0, 0);
     this.scoreText.position.set(0, FLAPPY_BIRD_SCORE_LINE_GAP);
@@ -47497,14 +48309,17 @@ class NearMissUI {
     this.totalDurationMs = FLAPPY_BIRD_NEAR_MISS_DURATION_MS;
     this.baseX = 0;
     this.baseY = 0;
-    this.text = new Text("Good!", {
-      fontFamily: FLAPPY_BIRD_FONT_FAMILIES,
-      fontSize: FLAPPY_BIRD_NEAR_MISS_FONT_SIZE,
-      fill: FLAPPY_BIRD_NEAR_MISS_GOOD_COLOR,
-      align: "center",
-      stroke: {
-        color: 0,
-        width: 4
+    this.text = new Text({
+      text: "Good!",
+      style: {
+        fontFamily: FLAPPY_BIRD_FONT_FAMILIES,
+        fontSize: FLAPPY_BIRD_NEAR_MISS_FONT_SIZE,
+        fill: FLAPPY_BIRD_NEAR_MISS_GOOD_COLOR,
+        align: "center",
+        stroke: {
+          color: 0,
+          width: 4
+        }
       }
     });
     this.text.anchor.set(0.5);
@@ -47568,6 +48383,774 @@ function resolveNearMissFeedback(amount) {
     fill: isGreat ? FLAPPY_BIRD_NEAR_MISS_GREAT_COLOR : FLAPPY_BIRD_NEAR_MISS_GOOD_COLOR
   };
 }
+const FLAPPY_BIRD_PERF_DIAGNOSTICS_STORAGE_KEY = "FlappyBirdPerfDiagnosticsV1";
+const FLAPPY_BIRD_PERF_HISTORY_VERSION = 1;
+const FLAPPY_BIRD_PERF_MAX_RETAINED_SESSIONS = 3;
+const FLAPPY_BIRD_PERF_MAX_SECOND_BUCKETS = 60;
+const FLAPPY_BIRD_PERF_MAX_TOP_SPIKE_EVENTS = 10;
+const FLAPPY_BIRD_PERF_AUTO_FLUSH_INTERVAL_MS = 15e3;
+const FLAPPY_BIRD_FRAME_BUDGET_MS = 16.7;
+const FLAPPY_BIRD_SLOW_FRAME_DELTA_THRESHOLD_MS$1 = 20;
+const FLAPPY_BIRD_SLOW_FRAME_UPDATE_COST_THRESHOLD_MS$1 = 8;
+const FLAPPY_BIRD_BGM_SCHEDULER_SPIKE_THRESHOLD_MS = 4;
+function createSessionId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `flappy-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+function roundToTenth(value) {
+  return Math.round(value * 10) / 10;
+}
+function toIsoString(timestampMs) {
+  return new Date(timestampMs).toISOString();
+}
+function isObjectRecord(value) {
+  return typeof value === "object" && value !== null;
+}
+function normalizeHistory(value) {
+  if (!isObjectRecord(value) || !Array.isArray(value.sessions)) {
+    return {
+      version: FLAPPY_BIRD_PERF_HISTORY_VERSION,
+      sessions: []
+    };
+  }
+  return {
+    version: typeof value.version === "number" ? value.version : FLAPPY_BIRD_PERF_HISTORY_VERSION,
+    sessions: value.sessions.filter(isObjectRecord)
+  };
+}
+function createSecondBucket(secondOffset) {
+  return {
+    secondOffset,
+    frameCount: 0,
+    renderTimingSampleCount: 0,
+    totalDeltaTimeMs: 0,
+    maxDeltaTimeMs: 0,
+    totalUpdateCostMs: 0,
+    maxUpdateCostMs: 0,
+    tickerGapSampleCount: 0,
+    totalTickerGapMs: 0,
+    maxTickerGapMs: 0,
+    totalUpdateToRenderStartMs: 0,
+    maxUpdateToRenderStartMs: 0,
+    totalRenderCostMs: 0,
+    maxRenderCostMs: 0,
+    totalFrameEndToEndCostMs: 0,
+    maxFrameEndToEndCostMs: 0,
+    slowFrameCount: 0,
+    totalActivePipePairs: 0,
+    maxActivePipePairs: 0,
+    totalCloudCount: 0,
+    maxCloudCount: 0,
+    totalGroundTileCount: 0,
+    maxGroundTileCount: 0,
+    totalSpawnedPipes: 0,
+    totalRemovedPipes: 0,
+    physicsStepCount: 0,
+    totalPhysicsUpdateCostMs: 0,
+    maxPhysicsUpdateCostMs: 0,
+    totalSyncDisplayCostMs: 0,
+    maxSyncDisplayCostMs: 0,
+    bgmTickCount: 0,
+    totalBgmScheduleCostMs: 0,
+    maxBgmScheduleCostMs: 0,
+    maxBgmScheduledVoices: 0,
+    totalPipePairsCreated: 0,
+    totalPipePairsReused: 0,
+    totalPipeBodiesCreated: 0,
+    totalPipeBodiesReused: 0,
+    totalPipePoolMissCount: 0,
+    statesSeen: /* @__PURE__ */ new Set()
+  };
+}
+function toSnapshotBucket(bucket) {
+  return {
+    secondOffset: bucket.secondOffset,
+    frameCount: bucket.frameCount,
+    renderTimingSampleCount: bucket.renderTimingSampleCount,
+    avgDeltaTimeMs: bucket.frameCount > 0 ? roundToTenth(bucket.totalDeltaTimeMs / bucket.frameCount) : 0,
+    maxDeltaTimeMs: roundToTenth(bucket.maxDeltaTimeMs),
+    avgUpdateCostMs: bucket.frameCount > 0 ? roundToTenth(bucket.totalUpdateCostMs / bucket.frameCount) : 0,
+    maxUpdateCostMs: roundToTenth(bucket.maxUpdateCostMs),
+    avgTickerGapMs: bucket.tickerGapSampleCount > 0 ? roundToTenth(bucket.totalTickerGapMs / bucket.tickerGapSampleCount) : 0,
+    maxTickerGapMs: roundToTenth(bucket.maxTickerGapMs),
+    avgUpdateToRenderStartMs: bucket.renderTimingSampleCount > 0 ? roundToTenth(
+      bucket.totalUpdateToRenderStartMs / bucket.renderTimingSampleCount
+    ) : 0,
+    maxUpdateToRenderStartMs: roundToTenth(bucket.maxUpdateToRenderStartMs),
+    avgRenderCostMs: bucket.renderTimingSampleCount > 0 ? roundToTenth(bucket.totalRenderCostMs / bucket.renderTimingSampleCount) : 0,
+    maxRenderCostMs: roundToTenth(bucket.maxRenderCostMs),
+    avgFrameEndToEndCostMs: bucket.renderTimingSampleCount > 0 ? roundToTenth(
+      bucket.totalFrameEndToEndCostMs / bucket.renderTimingSampleCount
+    ) : 0,
+    maxFrameEndToEndCostMs: roundToTenth(bucket.maxFrameEndToEndCostMs),
+    slowFrameCount: bucket.slowFrameCount,
+    avgActivePipePairs: bucket.frameCount > 0 ? roundToTenth(bucket.totalActivePipePairs / bucket.frameCount) : 0,
+    maxActivePipePairs: bucket.maxActivePipePairs,
+    avgCloudCount: bucket.frameCount > 0 ? roundToTenth(bucket.totalCloudCount / bucket.frameCount) : 0,
+    maxCloudCount: bucket.maxCloudCount,
+    avgGroundTileCount: bucket.frameCount > 0 ? roundToTenth(bucket.totalGroundTileCount / bucket.frameCount) : 0,
+    maxGroundTileCount: bucket.maxGroundTileCount,
+    totalSpawnedPipes: bucket.totalSpawnedPipes,
+    totalRemovedPipes: bucket.totalRemovedPipes,
+    physicsStepCount: bucket.physicsStepCount,
+    avgPhysicsUpdateCostMs: bucket.physicsStepCount > 0 ? roundToTenth(
+      bucket.totalPhysicsUpdateCostMs / bucket.physicsStepCount
+    ) : 0,
+    maxPhysicsUpdateCostMs: roundToTenth(bucket.maxPhysicsUpdateCostMs),
+    avgSyncDisplayCostMs: bucket.physicsStepCount > 0 ? roundToTenth(bucket.totalSyncDisplayCostMs / bucket.physicsStepCount) : 0,
+    maxSyncDisplayCostMs: roundToTenth(bucket.maxSyncDisplayCostMs),
+    bgmTickCount: bucket.bgmTickCount,
+    avgBgmScheduleCostMs: bucket.bgmTickCount > 0 ? roundToTenth(bucket.totalBgmScheduleCostMs / bucket.bgmTickCount) : 0,
+    maxBgmScheduleCostMs: roundToTenth(bucket.maxBgmScheduleCostMs),
+    maxBgmScheduledVoices: bucket.maxBgmScheduledVoices,
+    totalPipePairsCreated: bucket.totalPipePairsCreated,
+    totalPipePairsReused: bucket.totalPipePairsReused,
+    totalPipeBodiesCreated: bucket.totalPipeBodiesCreated,
+    totalPipeBodiesReused: bucket.totalPipeBodiesReused,
+    totalPipePoolMissCount: bucket.totalPipePoolMissCount,
+    statesSeen: [...bucket.statesSeen]
+  };
+}
+function clampSessions(sessions) {
+  return sessions.sort((a2, b2) => a2.startedAtMs - b2.startedAtMs).slice(-3);
+}
+function resolveFrameDelayCause(sample) {
+  const tickerGapCost = typeof sample.tickerGapMs === "number" ? Math.max(0, sample.tickerGapMs - FLAPPY_BIRD_FRAME_BUDGET_MS) : 0;
+  const renderCost = typeof sample.renderCostMs === "number" ? sample.renderCostMs : 0;
+  const updateCost = sample.updateCostMs;
+  const rankedCosts = [
+    { cause: "ticker_gap", value: tickerGapCost },
+    { cause: "render", value: renderCost },
+    { cause: "update", value: updateCost }
+  ].sort((left, right) => right.value - left.value);
+  const dominantCost = rankedCosts[0];
+  const secondaryCost = rankedCosts[1];
+  if (!dominantCost || dominantCost.value <= 0.5) {
+    return "unknown";
+  }
+  if (dominantCost.value - ((secondaryCost == null ? void 0 : secondaryCost.value) ?? 0) <= 1) {
+    return "mixed";
+  }
+  return dominantCost.cause;
+}
+function pushTopSpikeEvent(events, event) {
+  return [...events, event].sort((left, right) => {
+    if (right.metricValueMs !== left.metricValueMs) {
+      return right.metricValueMs - left.metricValueMs;
+    }
+    return left.timestamp.localeCompare(right.timestamp);
+  }).slice(0, FLAPPY_BIRD_PERF_MAX_TOP_SPIKE_EVENTS);
+}
+function createPerfSpikeEvent(params) {
+  return {
+    secondOffset: params.bucket.secondOffset,
+    timestamp: toIsoString(params.sample.timestampMs),
+    deltaTimeMs: roundToTenth(params.sample.deltaTimeMs),
+    updateCostMs: roundToTenth(params.sample.updateCostMs),
+    ...params.sample.tickerGapMs !== void 0 ? {
+      tickerGapMs: params.sample.tickerGapMs === null ? null : roundToTenth(params.sample.tickerGapMs)
+    } : {},
+    ...typeof params.sample.updateToRenderStartMs === "number" ? {
+      updateToRenderStartMs: roundToTenth(
+        params.sample.updateToRenderStartMs
+      )
+    } : {},
+    ...typeof params.sample.renderCostMs === "number" ? {
+      renderCostMs: roundToTenth(params.sample.renderCostMs)
+    } : {},
+    ...typeof params.sample.frameEndToEndCostMs === "number" ? {
+      frameEndToEndCostMs: roundToTenth(params.sample.frameEndToEndCostMs)
+    } : {},
+    delayCause: params.delayCause,
+    gameState: params.sample.gameState,
+    score: params.sample.score,
+    activePipePairs: params.sample.activePipePairs,
+    cloudCount: params.sample.cloudCount,
+    groundTileCount: params.sample.groundTileCount,
+    trackedPhysicsObjects: params.sample.trackedPhysicsObjects,
+    syncedDisplayObjects: params.sample.syncedDisplayObjects,
+    spawnedPipes: params.sample.spawnedPipes,
+    removedPipes: params.sample.removedPipes,
+    isAppSuspended: params.sample.isAppSuspended,
+    documentHidden: params.sample.documentHidden,
+    phaseCosts: Object.fromEntries(
+      Object.entries(params.sample.phaseCosts).map(([key, value]) => [
+        key,
+        roundToTenth(value)
+      ])
+    ),
+    pipePhaseCosts: Object.fromEntries(
+      Object.entries(params.sample.pipePhaseCosts).map(([key, value]) => [
+        key,
+        roundToTenth(value)
+      ])
+    ),
+    pipePoolStats: {
+      ...params.sample.pipePoolStats
+    },
+    metric: params.metric,
+    metricValueMs: roundToTenth(params.metricValueMs),
+    frameBudgetMs: FLAPPY_BIRD_FRAME_BUDGET_MS
+  };
+}
+class FlappyBirdPerfDiagnostics {
+  constructor(options = {}) {
+    this._historyLoaded = false;
+    this._historyLoadPromise = null;
+    this._history = {
+      version: FLAPPY_BIRD_PERF_HISTORY_VERSION,
+      sessions: []
+    };
+    this._currentSession = null;
+    this._lastCompletedSession = null;
+    this._pendingWrite = Promise.resolve();
+    this._autoFlushTimeoutId = null;
+    this._lastPersistedAtMs = 0;
+    this._enableAutoFlush = options.enableAutoFlush ?? true;
+  }
+  startSession(params) {
+    if (this._currentSession) {
+      return;
+    }
+    const startedAtMs = params.startedAtMs ?? Date.now();
+    this._currentSession = {
+      sessionId: createSessionId(),
+      startedAtMs,
+      lastUpdatedAtMs: startedAtMs,
+      screen: {
+        width: params.screenWidth,
+        height: params.screenHeight
+      },
+      scoreSummary: {
+        lastScore: 0,
+        maxScore: 0
+      },
+      summary: {
+        frameCount: 0,
+        renderTimingSampleCount: 0,
+        slowFrameCount: 0,
+        tickerGapDominantSlowFrameCount: 0,
+        renderDominantSlowFrameCount: 0,
+        updateDominantSlowFrameCount: 0,
+        mixedDominantSlowFrameCount: 0,
+        unknownDominantSlowFrameCount: 0,
+        physicsStepCount: 0,
+        bgmTickCount: 0,
+        bgmSpikeCount: 0,
+        maxDeltaTimeMs: 0,
+        maxUpdateCostMs: 0,
+        maxTickerGapMs: 0,
+        maxUpdateToRenderStartMs: 0,
+        maxRenderCostMs: 0,
+        maxFrameEndToEndCostMs: 0,
+        maxMatterUpdateCostMs: 0,
+        maxSyncDisplayCostMs: 0,
+        maxBgmScheduleCostMs: 0,
+        maxActivePipePairs: 0,
+        pipePairsCreated: 0,
+        pipePairsReused: 0,
+        pipeBodiesCreated: 0,
+        pipeBodiesReused: 0,
+        pipePoolMissCount: 0
+      },
+      secondBuckets: /* @__PURE__ */ new Map(),
+      slowFrames: [],
+      topTickerGapFrames: [],
+      topRenderFrames: [],
+      topFrameEndToEndFrames: [],
+      bgmSpikes: [],
+      completionReason: null,
+      lastPersistTrigger: null,
+      endedAtMs: null
+    };
+    this._lastPersistedAtMs = Date.now();
+    this._scheduleAutoFlush();
+  }
+  recordFrame(sample) {
+    const session = this._currentSession;
+    if (!session) {
+      return;
+    }
+    session.lastUpdatedAtMs = sample.timestampMs;
+    session.scoreSummary.lastScore = sample.score;
+    session.scoreSummary.maxScore = Math.max(
+      session.scoreSummary.maxScore,
+      sample.score
+    );
+    session.summary.frameCount += 1;
+    session.summary.maxDeltaTimeMs = Math.max(
+      session.summary.maxDeltaTimeMs,
+      sample.deltaTimeMs
+    );
+    session.summary.maxUpdateCostMs = Math.max(
+      session.summary.maxUpdateCostMs,
+      sample.updateCostMs
+    );
+    const bucket = this._getOrCreateBucket(sample.timestampMs);
+    const hasRenderTimingSample = typeof sample.updateToRenderStartMs === "number" || typeof sample.renderCostMs === "number" || typeof sample.frameEndToEndCostMs === "number" || typeof sample.tickerGapMs === "number";
+    if (hasRenderTimingSample) {
+      session.summary.renderTimingSampleCount += 1;
+      bucket.renderTimingSampleCount += 1;
+    }
+    if (typeof sample.tickerGapMs === "number") {
+      session.summary.maxTickerGapMs = Math.max(
+        session.summary.maxTickerGapMs,
+        sample.tickerGapMs
+      );
+      bucket.tickerGapSampleCount += 1;
+      bucket.totalTickerGapMs += sample.tickerGapMs;
+      bucket.maxTickerGapMs = Math.max(
+        bucket.maxTickerGapMs,
+        sample.tickerGapMs
+      );
+    }
+    if (typeof sample.updateToRenderStartMs === "number") {
+      session.summary.maxUpdateToRenderStartMs = Math.max(
+        session.summary.maxUpdateToRenderStartMs,
+        sample.updateToRenderStartMs
+      );
+      bucket.totalUpdateToRenderStartMs += sample.updateToRenderStartMs;
+      bucket.maxUpdateToRenderStartMs = Math.max(
+        bucket.maxUpdateToRenderStartMs,
+        sample.updateToRenderStartMs
+      );
+    }
+    if (typeof sample.renderCostMs === "number") {
+      session.summary.maxRenderCostMs = Math.max(
+        session.summary.maxRenderCostMs,
+        sample.renderCostMs
+      );
+      bucket.totalRenderCostMs += sample.renderCostMs;
+      bucket.maxRenderCostMs = Math.max(
+        bucket.maxRenderCostMs,
+        sample.renderCostMs
+      );
+    }
+    if (typeof sample.frameEndToEndCostMs === "number") {
+      session.summary.maxFrameEndToEndCostMs = Math.max(
+        session.summary.maxFrameEndToEndCostMs,
+        sample.frameEndToEndCostMs
+      );
+      bucket.totalFrameEndToEndCostMs += sample.frameEndToEndCostMs;
+      bucket.maxFrameEndToEndCostMs = Math.max(
+        bucket.maxFrameEndToEndCostMs,
+        sample.frameEndToEndCostMs
+      );
+    }
+    session.summary.maxActivePipePairs = Math.max(
+      session.summary.maxActivePipePairs,
+      sample.activePipePairs
+    );
+    session.summary.pipePairsCreated += sample.pipePoolStats.pairCreated;
+    session.summary.pipePairsReused += sample.pipePoolStats.pairReused;
+    session.summary.pipeBodiesCreated += sample.pipePoolStats.bodyCreated;
+    session.summary.pipeBodiesReused += sample.pipePoolStats.bodyReused;
+    session.summary.pipePoolMissCount += sample.pipePoolStats.poolMissCount;
+    bucket.frameCount += 1;
+    bucket.totalDeltaTimeMs += sample.deltaTimeMs;
+    bucket.maxDeltaTimeMs = Math.max(bucket.maxDeltaTimeMs, sample.deltaTimeMs);
+    bucket.totalUpdateCostMs += sample.updateCostMs;
+    bucket.maxUpdateCostMs = Math.max(
+      bucket.maxUpdateCostMs,
+      sample.updateCostMs
+    );
+    bucket.totalActivePipePairs += sample.activePipePairs;
+    bucket.maxActivePipePairs = Math.max(
+      bucket.maxActivePipePairs,
+      sample.activePipePairs
+    );
+    bucket.totalCloudCount += sample.cloudCount;
+    bucket.maxCloudCount = Math.max(bucket.maxCloudCount, sample.cloudCount);
+    bucket.totalGroundTileCount += sample.groundTileCount;
+    bucket.maxGroundTileCount = Math.max(
+      bucket.maxGroundTileCount,
+      sample.groundTileCount
+    );
+    bucket.totalSpawnedPipes += sample.spawnedPipes;
+    bucket.totalRemovedPipes += sample.removedPipes;
+    bucket.totalPipePairsCreated += sample.pipePoolStats.pairCreated;
+    bucket.totalPipePairsReused += sample.pipePoolStats.pairReused;
+    bucket.totalPipeBodiesCreated += sample.pipePoolStats.bodyCreated;
+    bucket.totalPipeBodiesReused += sample.pipePoolStats.bodyReused;
+    bucket.totalPipePoolMissCount += sample.pipePoolStats.poolMissCount;
+    bucket.statesSeen.add(sample.gameState);
+    const delayCause = resolveFrameDelayCause(sample);
+    if (typeof sample.tickerGapMs === "number") {
+      session.topTickerGapFrames = pushTopSpikeEvent(
+        session.topTickerGapFrames,
+        createPerfSpikeEvent({
+          metric: "tickerGapMs",
+          metricValueMs: sample.tickerGapMs,
+          delayCause,
+          bucket,
+          sample
+        })
+      );
+    }
+    if (typeof sample.renderCostMs === "number") {
+      session.topRenderFrames = pushTopSpikeEvent(
+        session.topRenderFrames,
+        createPerfSpikeEvent({
+          metric: "renderCostMs",
+          metricValueMs: sample.renderCostMs,
+          delayCause,
+          bucket,
+          sample
+        })
+      );
+    }
+    if (typeof sample.frameEndToEndCostMs === "number") {
+      session.topFrameEndToEndFrames = pushTopSpikeEvent(
+        session.topFrameEndToEndFrames,
+        createPerfSpikeEvent({
+          metric: "frameEndToEndCostMs",
+          metricValueMs: sample.frameEndToEndCostMs,
+          delayCause,
+          bucket,
+          sample
+        })
+      );
+    }
+    if (this._isSlowFrame(sample)) {
+      bucket.slowFrameCount += 1;
+      session.summary.slowFrameCount += 1;
+      switch (delayCause) {
+        case "ticker_gap":
+          session.summary.tickerGapDominantSlowFrameCount += 1;
+          break;
+        case "render":
+          session.summary.renderDominantSlowFrameCount += 1;
+          break;
+        case "update":
+          session.summary.updateDominantSlowFrameCount += 1;
+          break;
+        case "mixed":
+          session.summary.mixedDominantSlowFrameCount += 1;
+          break;
+        default:
+          session.summary.unknownDominantSlowFrameCount += 1;
+          break;
+      }
+      session.slowFrames.push({
+        secondOffset: bucket.secondOffset,
+        timestamp: toIsoString(sample.timestampMs),
+        deltaTimeMs: roundToTenth(sample.deltaTimeMs),
+        updateCostMs: roundToTenth(sample.updateCostMs),
+        ...sample.tickerGapMs !== void 0 ? {
+          tickerGapMs: sample.tickerGapMs === null ? null : roundToTenth(sample.tickerGapMs)
+        } : {},
+        ...typeof sample.updateToRenderStartMs === "number" ? {
+          updateToRenderStartMs: roundToTenth(
+            sample.updateToRenderStartMs
+          )
+        } : {},
+        ...typeof sample.renderCostMs === "number" ? {
+          renderCostMs: roundToTenth(sample.renderCostMs)
+        } : {},
+        ...typeof sample.frameEndToEndCostMs === "number" ? {
+          frameEndToEndCostMs: roundToTenth(
+            sample.frameEndToEndCostMs
+          )
+        } : {},
+        delayCause,
+        gameState: sample.gameState,
+        score: sample.score,
+        activePipePairs: sample.activePipePairs,
+        cloudCount: sample.cloudCount,
+        groundTileCount: sample.groundTileCount,
+        trackedPhysicsObjects: sample.trackedPhysicsObjects,
+        syncedDisplayObjects: sample.syncedDisplayObjects,
+        spawnedPipes: sample.spawnedPipes,
+        removedPipes: sample.removedPipes,
+        isAppSuspended: sample.isAppSuspended,
+        documentHidden: sample.documentHidden,
+        phaseCosts: Object.fromEntries(
+          Object.entries(sample.phaseCosts).map(([key, value]) => [
+            key,
+            roundToTenth(value)
+          ])
+        ),
+        pipePhaseCosts: Object.fromEntries(
+          Object.entries(sample.pipePhaseCosts).map(([key, value]) => [
+            key,
+            roundToTenth(value)
+          ])
+        ),
+        pipePoolStats: {
+          ...sample.pipePoolStats
+        }
+      });
+      session.slowFrames = session.slowFrames.slice(
+        -20
+      );
+    }
+    this._scheduleAutoFlush();
+  }
+  recordPhysicsStep(sample) {
+    const session = this._currentSession;
+    if (!session) {
+      return;
+    }
+    session.lastUpdatedAtMs = sample.timestampMs;
+    session.summary.physicsStepCount += 1;
+    session.summary.maxMatterUpdateCostMs = Math.max(
+      session.summary.maxMatterUpdateCostMs,
+      sample.engineUpdateCostMs
+    );
+    session.summary.maxSyncDisplayCostMs = Math.max(
+      session.summary.maxSyncDisplayCostMs,
+      sample.syncDisplayCostMs
+    );
+    const bucket = this._getOrCreateBucket(sample.timestampMs);
+    bucket.physicsStepCount += 1;
+    bucket.totalPhysicsUpdateCostMs += sample.engineUpdateCostMs;
+    bucket.maxPhysicsUpdateCostMs = Math.max(
+      bucket.maxPhysicsUpdateCostMs,
+      sample.engineUpdateCostMs
+    );
+    bucket.totalSyncDisplayCostMs += sample.syncDisplayCostMs;
+    bucket.maxSyncDisplayCostMs = Math.max(
+      bucket.maxSyncDisplayCostMs,
+      sample.syncDisplayCostMs
+    );
+    this._scheduleAutoFlush();
+  }
+  recordBgmScheduleTick(sample) {
+    const session = this._currentSession;
+    if (!session) {
+      return;
+    }
+    session.lastUpdatedAtMs = sample.timestampMs;
+    session.summary.bgmTickCount += 1;
+    session.summary.maxBgmScheduleCostMs = Math.max(
+      session.summary.maxBgmScheduleCostMs,
+      sample.durationMs
+    );
+    const bucket = this._getOrCreateBucket(sample.timestampMs);
+    bucket.bgmTickCount += 1;
+    bucket.totalBgmScheduleCostMs += sample.durationMs;
+    bucket.maxBgmScheduleCostMs = Math.max(
+      bucket.maxBgmScheduleCostMs,
+      sample.durationMs
+    );
+    bucket.maxBgmScheduledVoices = Math.max(
+      bucket.maxBgmScheduledVoices,
+      sample.scheduledVoices
+    );
+    if (sample.durationMs >= FLAPPY_BIRD_BGM_SCHEDULER_SPIKE_THRESHOLD_MS) {
+      session.summary.bgmSpikeCount += 1;
+      session.bgmSpikes.push({
+        secondOffset: bucket.secondOffset,
+        timestamp: toIsoString(sample.timestampMs),
+        durationMs: roundToTenth(sample.durationMs),
+        scheduledSteps: sample.scheduledSteps,
+        scheduledVoices: sample.scheduledVoices
+      });
+      session.bgmSpikes = session.bgmSpikes.slice(
+        -10
+      );
+    }
+    this._scheduleAutoFlush();
+  }
+  flushPartial(trigger) {
+    return this._persistCurrentSession(trigger, false);
+  }
+  finalizeSession(trigger) {
+    return this._persistCurrentSession(trigger, true);
+  }
+  async shutdown() {
+    this._clearAutoFlushTimer();
+    if (!this._currentSession) {
+      return;
+    }
+    await this.finalizeSession("scene_destroy");
+  }
+  getSnapshot() {
+    return {
+      storageKey: FLAPPY_BIRD_PERF_DIAGNOSTICS_STORAGE_KEY,
+      maxRetainedSessions: FLAPPY_BIRD_PERF_MAX_RETAINED_SESSIONS,
+      activeSession: this._currentSession ? this._createSessionSnapshot(this._currentSession) : null,
+      lastCompletedSession: this._lastCompletedSession
+    };
+  }
+  _isSlowFrame(sample) {
+    return sample.deltaTimeMs >= FLAPPY_BIRD_SLOW_FRAME_DELTA_THRESHOLD_MS$1 || sample.updateCostMs >= FLAPPY_BIRD_SLOW_FRAME_UPDATE_COST_THRESHOLD_MS$1;
+  }
+  _getOrCreateBucket(timestampMs) {
+    const session = this._currentSession;
+    if (!session) {
+      throw new Error("FlappyBirdPerfDiagnostics session is not active");
+    }
+    const secondOffset = Math.max(
+      0,
+      Math.floor((timestampMs - session.startedAtMs) / 1e3)
+    );
+    const existingBucket = session.secondBuckets.get(secondOffset);
+    if (existingBucket) {
+      return existingBucket;
+    }
+    const nextBucket = createSecondBucket(secondOffset);
+    session.secondBuckets.set(secondOffset, nextBucket);
+    while (session.secondBuckets.size > FLAPPY_BIRD_PERF_MAX_SECOND_BUCKETS) {
+      const oldestKey = session.secondBuckets.keys().next().value;
+      if (typeof oldestKey !== "number") {
+        break;
+      }
+      session.secondBuckets.delete(oldestKey);
+    }
+    return nextBucket;
+  }
+  _createSessionSnapshot(session) {
+    const secondBuckets = [...session.secondBuckets.values()].sort((a2, b2) => a2.secondOffset - b2.secondOffset).map(toSnapshotBucket);
+    return {
+      version: FLAPPY_BIRD_PERF_HISTORY_VERSION,
+      sessionId: session.sessionId,
+      startedAt: toIsoString(session.startedAtMs),
+      startedAtMs: session.startedAtMs,
+      lastUpdatedAt: toIsoString(session.lastUpdatedAtMs),
+      lastUpdatedAtMs: session.lastUpdatedAtMs,
+      endedAt: session.endedAtMs === null ? null : toIsoString(session.endedAtMs),
+      endedAtMs: session.endedAtMs,
+      isCompleted: session.endedAtMs !== null,
+      completionReason: session.completionReason,
+      lastPersistTrigger: session.lastPersistTrigger,
+      screen: { ...session.screen },
+      scoreSummary: { ...session.scoreSummary },
+      summary: {
+        frameCount: session.summary.frameCount,
+        renderTimingSampleCount: session.summary.renderTimingSampleCount,
+        slowFrameCount: session.summary.slowFrameCount,
+        tickerGapDominantSlowFrameCount: session.summary.tickerGapDominantSlowFrameCount,
+        renderDominantSlowFrameCount: session.summary.renderDominantSlowFrameCount,
+        updateDominantSlowFrameCount: session.summary.updateDominantSlowFrameCount,
+        mixedDominantSlowFrameCount: session.summary.mixedDominantSlowFrameCount,
+        unknownDominantSlowFrameCount: session.summary.unknownDominantSlowFrameCount,
+        physicsStepCount: session.summary.physicsStepCount,
+        bgmTickCount: session.summary.bgmTickCount,
+        bgmSpikeCount: session.summary.bgmSpikeCount,
+        maxDeltaTimeMs: roundToTenth(session.summary.maxDeltaTimeMs),
+        maxUpdateCostMs: roundToTenth(session.summary.maxUpdateCostMs),
+        maxTickerGapMs: roundToTenth(session.summary.maxTickerGapMs),
+        maxUpdateToRenderStartMs: roundToTenth(
+          session.summary.maxUpdateToRenderStartMs
+        ),
+        maxRenderCostMs: roundToTenth(session.summary.maxRenderCostMs),
+        maxFrameEndToEndCostMs: roundToTenth(
+          session.summary.maxFrameEndToEndCostMs
+        ),
+        maxMatterUpdateCostMs: roundToTenth(
+          session.summary.maxMatterUpdateCostMs
+        ),
+        maxSyncDisplayCostMs: roundToTenth(
+          session.summary.maxSyncDisplayCostMs
+        ),
+        maxBgmScheduleCostMs: roundToTenth(
+          session.summary.maxBgmScheduleCostMs
+        ),
+        maxActivePipePairs: session.summary.maxActivePipePairs,
+        pipePairsCreated: session.summary.pipePairsCreated,
+        pipePairsReused: session.summary.pipePairsReused,
+        pipeBodiesCreated: session.summary.pipeBodiesCreated,
+        pipeBodiesReused: session.summary.pipeBodiesReused,
+        pipePoolMissCount: session.summary.pipePoolMissCount
+      },
+      secondBuckets,
+      slowFrames: [...session.slowFrames],
+      topTickerGapFrames: [...session.topTickerGapFrames],
+      topRenderFrames: [...session.topRenderFrames],
+      topFrameEndToEndFrames: [...session.topFrameEndToEndFrames],
+      bgmSpikes: [...session.bgmSpikes]
+    };
+  }
+  _scheduleAutoFlush() {
+    if (!this._enableAutoFlush || !this._currentSession || this._autoFlushTimeoutId !== null) {
+      return;
+    }
+    const elapsedSinceLastPersist = Date.now() - this._lastPersistedAtMs;
+    if (elapsedSinceLastPersist < FLAPPY_BIRD_PERF_AUTO_FLUSH_INTERVAL_MS) {
+      return;
+    }
+    this._autoFlushTimeoutId = setTimeout(() => {
+      this._autoFlushTimeoutId = null;
+      void this.flushPartial("periodic");
+    }, 0);
+  }
+  _clearAutoFlushTimer() {
+    if (this._autoFlushTimeoutId === null) {
+      return;
+    }
+    clearTimeout(this._autoFlushTimeoutId);
+    this._autoFlushTimeoutId = null;
+  }
+  async _persistCurrentSession(trigger, finalize) {
+    const session = this._currentSession;
+    if (!session) {
+      return;
+    }
+    this._clearAutoFlushTimer();
+    session.lastPersistTrigger = trigger;
+    if (finalize) {
+      const endedAtMs = Date.now();
+      session.lastUpdatedAtMs = Math.max(session.lastUpdatedAtMs, endedAtMs);
+      session.endedAtMs = endedAtMs;
+      session.completionReason = trigger;
+    }
+    const snapshot = this._createSessionSnapshot(session);
+    await this._enqueueWrite(async () => {
+      await this._ensureHistoryLoaded();
+      const sessions = this._history.sessions.filter(
+        (candidate) => candidate.sessionId !== snapshot.sessionId
+      );
+      sessions.push(snapshot);
+      this._history = {
+        version: FLAPPY_BIRD_PERF_HISTORY_VERSION,
+        sessions: clampSessions(sessions)
+      };
+      await StorageManager.setData(
+        FLAPPY_BIRD_PERF_DIAGNOSTICS_STORAGE_KEY,
+        this._history
+      );
+      this._lastPersistedAtMs = Date.now();
+    });
+    if (finalize) {
+      this._lastCompletedSession = snapshot;
+      this._currentSession = null;
+    }
+  }
+  _enqueueWrite(operation) {
+    const nextWrite = this._pendingWrite.catch(() => void 0).then(operation);
+    this._pendingWrite = nextWrite.catch(() => void 0);
+    return nextWrite;
+  }
+  async _ensureHistoryLoaded() {
+    if (this._historyLoaded) {
+      return;
+    }
+    if (this._historyLoadPromise) {
+      await this._historyLoadPromise;
+      return;
+    }
+    this._historyLoadPromise = (async () => {
+      try {
+        const storedHistory = await StorageManager.getData(
+          FLAPPY_BIRD_PERF_DIAGNOSTICS_STORAGE_KEY
+        );
+        this._history = normalizeHistory(storedHistory);
+      } catch {
+        this._history = {
+          version: FLAPPY_BIRD_PERF_HISTORY_VERSION,
+          sessions: []
+        };
+      } finally {
+        this._historyLoaded = true;
+        this._historyLoadPromise = null;
+      }
+    })();
+    await this._historyLoadPromise;
+  }
+}
 const CONTROL_BUTTONS_SET = {
   [
     "game-play"
@@ -47578,9 +49161,8 @@ const CONTROL_BUTTONS_SET = {
     { type: ControlButtonType.DoubleJump }
   ]
 };
-const GAME_OVER_VIBRATION_DURATION_MS = 18;
-const GAME_OVER_VIBRATION_STRENGTH = 110;
-const GAME_OVER_VIBRATION_DELAY_MS = 90;
+const GAME_OVER_VIBRATION_DURATION_MS = 36;
+const GAME_OVER_VIBRATION_STRENGTH = 130;
 const PIPE_PASS_VIBRATION_DURATION_MS = 12;
 const PIPE_PASS_VIBRATION_STRENGTH = 34;
 const PIPE_PASS_NEAR_MISS_VIBRATION_STRENGTH = 48;
@@ -47618,6 +49200,44 @@ const FLAPPY_BIRD_BGM_MIDGAME_TEMPO_MULTIPLIER = 1.08;
 const FLAPPY_BIRD_BGM_ENDGAME_TEMPO_MULTIPLIER = 1.14;
 const FLAPPY_BIRD_BGM_MAX_TEMPO_MULTIPLIER = 1.16;
 const FLAPPY_BIRD_SKY_SYNC_INTERVAL_MS = 1e3;
+const FLAPPY_BIRD_SLOW_FRAME_DELTA_THRESHOLD_MS = 20;
+const FLAPPY_BIRD_SLOW_FRAME_UPDATE_COST_THRESHOLD_MS = 8;
+const FLAPPY_BIRD_TARGET_FRAME_BUDGET_MS = 16.7;
+const FLAPPY_BIRD_FIXED_TIMESTEP_MS = 1e3 / 60;
+const FLAPPY_BIRD_MAX_SIMULATION_DELTA_MS = 1e3 / 30;
+const FLAPPY_BIRD_MAX_SIMULATION_SUBSTEPS = 2;
+const FLAPPY_BIRD_SLOW_FRAME_LOG_COOLDOWN_MS = 400;
+const FLAPPY_BIRD_PIPE_PREWARM_PAIR_COUNT = 2;
+const FLAPPY_BIRD_INIT_ASSET_LOAD_TIMEOUT_MS = 8e3;
+const FLAPPY_BIRD_INIT_SKY_CONTEXT_TIMEOUT_MS = 4e3;
+const FLAPPY_BIRD_INIT_BEST_SCORE_TIMEOUT_MS = 4e3;
+function getPerfNow() {
+  return typeof performance !== "undefined" ? performance.now() : Date.now();
+}
+function roundPhaseCostEntries(phaseCosts) {
+  return Object.fromEntries(
+    Object.entries(phaseCosts).map(([key, value]) => [
+      key,
+      Math.round(value * 100) / 100
+    ])
+  );
+}
+function summarizeInitError(error) {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message
+    };
+  }
+  return {
+    message: String(error)
+  };
+}
+function createInitTimeoutError(phase, timeoutMs) {
+  return new Error(
+    `[FlappyBirdGameScene] ${phase} timed out after ${timeoutMs}ms`
+  );
+}
 class FlappyBirdGameScene extends Container {
   constructor(game) {
     super();
@@ -47638,25 +49258,109 @@ class FlappyBirdGameScene extends Container {
     this.isReturningToMain = false;
     this.isSettingsMenuOpen = false;
     this.lastSlowFrameLogAtMs = 0;
+    this.simulationAccumulatorMs = 0;
     this.gameOverVibrationTimeoutIds = [];
+    this.pausedStateBeforePause = null;
+    this.isAppSuspended = false;
+    this.pendingFrameDiagnosticsSample = null;
     this.game = game;
     this.boundHandleKeyDown = this.handleKeyDown.bind(this);
-    this.bgmController = new FlappyBirdBgmController();
+    this.boundVisibilityChangeHandler = this.handleVisibilityChange.bind(this);
+    this.perfDiagnostics = new FlappyBirdPerfDiagnostics({
+      enableAutoFlush: false
+    });
+    this.bgmController = new FlappyBirdBgmController({
+      onScheduleTick: (sample) => {
+        var _a;
+        (_a = this.perfDiagnostics) == null ? void 0 : _a.recordBgmScheduleTick(sample);
+      }
+    });
     this.gameEngine = new GameEngine(
       this.game.app.screen.width,
       this.game.app.screen.height,
-      FLAPPY_BIRD_GRAVITY_Y
+      FLAPPY_BIRD_GRAVITY_Y,
+      {
+        onPhysicsStep: (sample) => {
+          var _a;
+          (_a = this.perfDiagnostics) == null ? void 0 : _a.recordPhysicsStep({
+            timestampMs: sample.timestampMs,
+            deltaMs: sample.deltaMs,
+            engineUpdateCostMs: sample.engineUpdateCostMs,
+            syncDisplayCostMs: sample.syncDisplayCostMs,
+            totalCostMs: sample.totalCostMs,
+            trackedPhysicsObjects: sample.trackedObjectCount,
+            syncedDisplayObjects: sample.syncedDisplayObjectCount
+          });
+        }
+      }
     );
     this.createBackground();
     this.physicsManager = new PhysicsManager(this.gameEngine);
   }
   async init() {
-    var _a, _b;
     const playerCharacterKey = this.game.getFlappyBirdCharacterKey();
-    await AssetLoader.loadAssets(playerCharacterKey);
-    this.skyContext = await this.game.getFlappyBirdSkyContext();
+    const initStartedAt = getPerfNow();
+    const transitionRequestId = this.game.getActiveSceneTransitionRequestId();
+    const logInitPhase = (phase, payload = {}) => {
+      console.log("[ImportantDiagnostics][FlappyBirdInitTiming]", {
+        phase,
+        requestId: transitionRequestId,
+        playerCharacterKey,
+        elapsedMs: Math.round(getPerfNow() - initStartedAt),
+        ...payload
+      });
+    };
+    const runTimedInitPhase = async (phase, timeoutMs, work, onTimeout) => {
+      const phaseStartedAt = getPerfNow();
+      logInitPhase(`${phase}_start`, { timeoutMs });
+      let timeoutId = null;
+      try {
+        const result = await Promise.race([
+          work(),
+          new Promise((_, reject) => {
+            timeoutId = setTimeout(() => {
+              onTimeout == null ? void 0 : onTimeout();
+              reject(createInitTimeoutError(phase, timeoutMs));
+            }, timeoutMs);
+          })
+        ]);
+        logInitPhase(`${phase}_end`, {
+          durationMs: Math.round(getPerfNow() - phaseStartedAt)
+        });
+        return result;
+      } catch (error) {
+        logInitPhase(`${phase}_failed`, {
+          durationMs: Math.round(getPerfNow() - phaseStartedAt),
+          timeoutMs,
+          error: summarizeInitError(error)
+        });
+        throw error;
+      } finally {
+        if (timeoutId !== null) {
+          clearTimeout(timeoutId);
+        }
+      }
+    };
+    await runTimedInitPhase(
+      "load_assets",
+      FLAPPY_BIRD_INIT_ASSET_LOAD_TIMEOUT_MS,
+      () => AssetLoader.loadAssets(playerCharacterKey),
+      () => AssetLoader.resetPendingLoadState()
+    );
+    this.skyContext = await runTimedInitPhase(
+      "get_sky_context",
+      FLAPPY_BIRD_INIT_SKY_CONTEXT_TIMEOUT_MS,
+      () => this.game.getFlappyBirdSkyContext()
+    );
     this.syncSkyState(Date.now(), true);
-    const bestScore = await ((_b = (_a = this.game).getFlappyBirdBestScore) == null ? void 0 : _b.call(_a)) ?? 0;
+    const bestScore = await runTimedInitPhase(
+      "get_best_score",
+      FLAPPY_BIRD_INIT_BEST_SCORE_TIMEOUT_MS,
+      async () => {
+        var _a, _b;
+        return await ((_b = (_a = this.game).getFlappyBirdBestScore) == null ? void 0 : _b.call(_a)) ?? 0;
+      }
+    ) ?? 0;
     this.playerManager = new PlayerManager(
       this.game.app,
       this.physicsManager,
@@ -47674,8 +49378,20 @@ class FlappyBirdGameScene extends Container {
     this.scoreUI = new ScoreUI(bestScore);
     this.nearMissUI = new NearMissUI();
     this.countdownUI = new CountdownUI();
+    logInitPhase("setup_scene_start");
     this.setupScene();
+    logInitPhase("setup_scene_end");
+    logInitPhase("init_done");
     return this;
+  }
+  getPerfDiagnosticsSnapshot() {
+    var _a;
+    return ((_a = this.perfDiagnostics) == null ? void 0 : _a.getSnapshot()) ?? {
+      storageKey: "FlappyBirdPerfDiagnosticsV1",
+      maxRetainedSessions: 3,
+      activeSession: null,
+      lastCompletedSession: null
+    };
   }
   /**
    * 배경을 생성합니다.
@@ -47687,15 +49403,113 @@ class FlappyBirdGameScene extends Container {
       this.game.app.screen.height
     );
   }
+  measurePhase(phaseCosts, phaseKey, work) {
+    const startedAt = getPerfNow();
+    const result = work();
+    phaseCosts[phaseKey] = (phaseCosts[phaseKey] ?? 0) + (getPerfNow() - startedAt);
+    return result;
+  }
+  clampSimulationDelta(deltaTime) {
+    if (!Number.isFinite(deltaTime)) {
+      return 0;
+    }
+    return Math.min(
+      FLAPPY_BIRD_MAX_SIMULATION_DELTA_MS,
+      Math.max(0, deltaTime)
+    );
+  }
+  queueSimulationDelta(deltaTime) {
+    this.simulationAccumulatorMs = Math.min(
+      this.simulationAccumulatorMs + this.clampSimulationDelta(deltaTime),
+      FLAPPY_BIRD_FIXED_TIMESTEP_MS * (FLAPPY_BIRD_MAX_SIMULATION_SUBSTEPS + 1)
+    );
+  }
+  trimSimulationAccumulator(substeps) {
+    if (substeps === FLAPPY_BIRD_MAX_SIMULATION_SUBSTEPS && this.simulationAccumulatorMs >= FLAPPY_BIRD_FIXED_TIMESTEP_MS) {
+      this.simulationAccumulatorMs = Math.min(
+        this.simulationAccumulatorMs,
+        FLAPPY_BIRD_FIXED_TIMESTEP_MS
+      );
+    }
+  }
+  resetSimulationAccumulator() {
+    this.simulationAccumulatorMs = 0;
+  }
+  recordFrameDiagnostics(params) {
+    this.flushPendingFrameDiagnostics();
+    this.pendingFrameDiagnosticsSample = {
+      timestampMs: params.timestampMs,
+      deltaTimeMs: params.deltaTime,
+      updateCostMs: getPerfNow() - params.updateStartedAtMs,
+      gameState: GameState[this.gameState],
+      score: this.scoreUI.getScore(),
+      activePipePairs: this.pipeManager.getActivePairCount(),
+      trackedPhysicsObjects: this.physicsManager.getTrackedObjectCount(),
+      syncedDisplayObjects: this.physicsManager.getTrackedDisplaySyncCount(),
+      cloudCount: this.cloudManager.getCloudCount(),
+      groundTileCount: this.groundManager.getTileCount(),
+      spawnedPipes: params.pipeUpdateStats.spawned,
+      removedPipes: params.pipeUpdateStats.removed,
+      isAppSuspended: this.isAppSuspended,
+      documentHidden: typeof document !== "undefined" ? document.hidden : false,
+      phaseCosts: roundPhaseCostEntries(
+        params.phaseCosts
+      ),
+      pipePhaseCosts: roundPhaseCostEntries(
+        params.pipeUpdateStats.phaseCosts
+      ),
+      pipePoolStats: {
+        ...params.pipeUpdateStats.poolStats
+      }
+    };
+  }
+  onFrameRenderTiming(sample) {
+    this.flushPendingFrameDiagnostics(sample);
+  }
+  flushPendingFrameDiagnostics(renderTiming) {
+    var _a;
+    const pendingFrameSample = this.pendingFrameDiagnosticsSample;
+    if (!pendingFrameSample) {
+      return;
+    }
+    const frameSample = renderTiming ? {
+      ...pendingFrameSample,
+      tickerGapMs: renderTiming.tickerGapMs,
+      updateToRenderStartMs: renderTiming.updateToRenderStartMs,
+      renderCostMs: renderTiming.renderCostMs,
+      frameEndToEndCostMs: renderTiming.frameEndToEndCostMs
+    } : pendingFrameSample;
+    this.pendingFrameDiagnosticsSample = null;
+    (_a = this.perfDiagnostics) == null ? void 0 : _a.recordFrame(frameSample);
+    this.maybeLogSlowFrame(frameSample);
+  }
   /**
    * 씬을 설정합니다.
    */
   setupScene() {
     try {
+      const logInitPhase = (phase, payload = {}) => {
+        console.log("[ImportantDiagnostics][FlappyBirdInitTiming]", {
+          phase,
+          requestId: this.game.getActiveSceneTransitionRequestId(),
+          ...payload
+        });
+      };
+      logInitPhase("setup_scene_game_engine_initialize_start");
       this.gameEngine.initialize(this.game.app);
+      logInitPhase("setup_scene_game_engine_initialize_end");
+      logInitPhase("setup_scene_ground_setup_start");
       this.groundManager.setup();
+      logInitPhase("setup_scene_ground_setup_end", {
+        groundTileCount: this.groundManager.getTileCount()
+      });
+      logInitPhase("setup_scene_cloud_setup_start");
       this.cloudManager.setup();
       this.syncCloudVisualStyle();
+      logInitPhase("setup_scene_cloud_setup_end", {
+        cloudCount: this.cloudManager.getCloudCount()
+      });
+      logInitPhase("setup_scene_pipe_setup_start");
       this.pipeManager = new PipeManager(
         this.game.app,
         this.physicsManager,
@@ -47704,12 +49518,24 @@ class FlappyBirdGameScene extends Container {
         this.groundManager.getTileHeight()
       );
       this.applyDifficultyForScore(0);
+      this.pipeManager.prewarmPipePairs(FLAPPY_BIRD_PIPE_PREWARM_PAIR_COUNT);
+      logInitPhase("setup_scene_pipe_setup_end", {
+        prewarmedPipePairs: this.pipeManager.getActivePairCount()
+      });
       this.setupCollisionListeners();
       this.addDisplayObjects();
+      logInitPhase("setup_scene_display_objects_added");
       this.setupKeyboardListeners();
+      this.setupVisibilityChangeHandler();
+      logInitPhase("setup_scene_input_ready");
       this.initialized = true;
       this.resize(this.game.app.screen.width, this.game.app.screen.height);
+      logInitPhase("setup_scene_resize_applied", {
+        screenWidth: this.game.app.screen.width,
+        screenHeight: this.game.app.screen.height
+      });
       this.beginStartCountdown();
+      logInitPhase("setup_scene_countdown_started");
     } catch (error) {
       console.error("Error setting up FlappyBirdGameScene:", error);
     }
@@ -47765,14 +49591,19 @@ class FlappyBirdGameScene extends Container {
         this.restartGame();
       }
     }
-    if (event.code === "KeyD" && false) ;
+    if (event.code === "KeyD" && true) {
+      this.physicsManager.toggleDebugMode(this.game.app);
+    }
   }
   /**
    * 게임을 시작합니다.
    */
   startGame() {
     var _a, _b;
+    this.resetSimulationAccumulator();
     this.clearGameOverVibrationPattern();
+    this.pausedStateBeforePause = null;
+    this.isAppSuspended = false;
     this.gameState = GameState.PLAYING;
     (_b = (_a = this.game).hideFlappyBirdGameOver) == null ? void 0 : _b.call(_a);
     this.hideSettingsMenu();
@@ -47790,10 +49621,17 @@ class FlappyBirdGameScene extends Container {
     void this.bgmController.resumeIfAvailable();
   }
   beginStartCountdown() {
-    var _a, _b;
+    var _a, _b, _c;
+    this.resetSimulationAccumulator();
+    (_a = this.perfDiagnostics) == null ? void 0 : _a.startSession({
+      screenWidth: this.game.app.screen.width,
+      screenHeight: this.game.app.screen.height
+    });
     this.clearGameOverVibrationPattern();
+    this.pausedStateBeforePause = null;
+    this.isAppSuspended = false;
     this.gameState = GameState.COUNTDOWN;
-    (_b = (_a = this.game).hideFlappyBirdGameOver) == null ? void 0 : _b.call(_a);
+    (_c = (_b = this.game).hideFlappyBirdGameOver) == null ? void 0 : _c.call(_b);
     this.hideSettingsMenu();
     this.game.changeControlButtons(
       CONTROL_BUTTONS_SET[
@@ -47829,19 +49667,92 @@ class FlappyBirdGameScene extends Container {
     if (this.gameState !== GameState.PLAYING) {
       return;
     }
-    this.gameState = GameState.PAUSED;
-    this.gameEngine.pause();
-    this.playerManager.stopAnimation();
-    this.bgmController.pause();
+    this.enterPausedState(GameState.PLAYING);
   }
   resumeGame() {
     if (this.gameState !== GameState.PAUSED) {
       return;
     }
+    this.resetSimulationAccumulator();
+    const resumeState = this.pausedStateBeforePause ?? GameState.PLAYING;
+    this.pausedStateBeforePause = null;
+    this.isAppSuspended = false;
+    if (resumeState === GameState.COUNTDOWN) {
+      this.gameState = GameState.COUNTDOWN;
+      this.gameEngine.pause();
+      this.playerManager.stopAnimation();
+      this.playerManager.update();
+      this.physicsManager.syncDisplayObjects();
+      this.bgmController.pause();
+      return;
+    }
     this.gameState = GameState.PLAYING;
     this.gameEngine.resume();
     this.playerManager.startAnimation();
+    this.playerManager.update();
+    this.physicsManager.syncDisplayObjects();
     void this.bgmController.resumeIfAvailable();
+  }
+  enterPausedState(resumeState, options = {}) {
+    this.resetSimulationAccumulator();
+    this.pausedStateBeforePause = resumeState;
+    this.isAppSuspended = options.appSuspend ?? false;
+    this.gameState = GameState.PAUSED;
+    this.gameEngine.pause();
+    this.playerManager.stopAnimation();
+    this.playerManager.update();
+    this.physicsManager.syncDisplayObjects();
+    this.bgmController.pause();
+  }
+  handleVisibilityChange() {
+    if (typeof document === "undefined") {
+      return;
+    }
+    if (document.hidden) {
+      this.handleDocumentHidden();
+      return;
+    }
+    this.handleDocumentVisible();
+  }
+  handleDocumentHidden() {
+    var _a;
+    if (this.isReturningToMain || this.isAppSuspended) {
+      return;
+    }
+    if (this.gameState !== GameState.PLAYING && this.gameState !== GameState.COUNTDOWN) {
+      return;
+    }
+    this.enterPausedState(this.gameState, { appSuspend: true });
+    this.flushPendingFrameDiagnostics();
+    void ((_a = this.perfDiagnostics) == null ? void 0 : _a.flushPartial("app_hidden"));
+  }
+  handleDocumentVisible() {
+    if (!this.isAppSuspended || this.isReturningToMain || this.gameState !== GameState.PAUSED) {
+      return;
+    }
+    if (this.isSettingsMenuOpen) {
+      return;
+    }
+    this.isSettingsMenuOpen = true;
+    this.showSettingsMenu();
+  }
+  setupVisibilityChangeHandler() {
+    if (typeof document === "undefined") {
+      return;
+    }
+    document.addEventListener(
+      "visibilitychange",
+      this.boundVisibilityChangeHandler
+    );
+  }
+  cleanupVisibilityChangeHandler() {
+    if (typeof document === "undefined") {
+      return;
+    }
+    document.removeEventListener(
+      "visibilitychange",
+      this.boundVisibilityChangeHandler
+    );
   }
   openSettingsMenu() {
     if (this.isSettingsMenuOpen || this.gameState === GameState.GAME_OVER || this.isReturningToMain) {
@@ -47988,32 +49899,30 @@ class FlappyBirdGameScene extends Container {
       durationMs: GAME_OVER_VIBRATION_DURATION_MS,
       strength: GAME_OVER_VIBRATION_STRENGTH
     });
-    this.gameOverVibrationTimeoutIds.push(
-      window.setTimeout(() => {
-        var _a2, _b2;
-        (_b2 = (_a2 = this.game).triggerTransientVibration) == null ? void 0 : _b2.call(_a2, {
-          durationMs: GAME_OVER_VIBRATION_DURATION_MS,
-          strength: GAME_OVER_VIBRATION_STRENGTH
-        });
-      }, GAME_OVER_VIBRATION_DELAY_MS)
-    );
   }
   /**
    * 게임 오버 처리 메서드
    */
   handleGameOver() {
-    var _a, _b;
+    var _a, _b, _c;
     if (this.gameState !== GameState.PLAYING) {
       return;
     }
+    this.resetSimulationAccumulator();
+    this.pausedStateBeforePause = null;
+    this.isAppSuspended = false;
     this.gameState = GameState.GAME_OVER;
     this.gameEngine.pause();
     this.hideSettingsMenu();
     this.countdownUI.hide();
     this.playerManager.stopAnimation();
+    this.playerManager.update();
+    this.physicsManager.syncDisplayObjects();
     this.bgmController.pause();
     this.triggerGameOverVibrationPattern();
-    (_b = (_a = this.game).showFlappyBirdGameOver) == null ? void 0 : _b.call(_a, {
+    this.flushPendingFrameDiagnostics();
+    void ((_a = this.perfDiagnostics) == null ? void 0 : _a.finalizeSession("game_over"));
+    (_c = (_b = this.game).showFlappyBirdGameOver) == null ? void 0 : _c.call(_b, {
       score: this.scoreUI.getScore(),
       bestScore: this.scoreUI.getBestScore(),
       onRestart: () => {
@@ -48027,6 +49936,7 @@ class FlappyBirdGameScene extends Container {
    */
   restartGame() {
     var _a, _b;
+    this.resetSimulationAccumulator();
     this.clearGameOverVibrationPattern();
     (_b = (_a = this.game).hideFlappyBirdGameOver) == null ? void 0 : _b.call(_a);
     this.hideSettingsMenu();
@@ -48049,7 +49959,7 @@ class FlappyBirdGameScene extends Container {
     this.beginStartCountdown();
   }
   async returnToMainScene() {
-    var _a, _b;
+    var _a, _b, _c;
     if (this.isReturningToMain) {
       return;
     }
@@ -48058,6 +49968,8 @@ class FlappyBirdGameScene extends Container {
       this.clearGameOverVibrationPattern();
       (_b = (_a = this.game).hideFlappyBirdGameOver) == null ? void 0 : _b.call(_a);
       this.hideSettingsMenu();
+      this.flushPendingFrameDiagnostics();
+      await ((_c = this.perfDiagnostics) == null ? void 0 : _c.finalizeSession("return_to_main"));
       await this.game.changeScene(SceneKey.MAIN);
     } finally {
       this.isReturningToMain = false;
@@ -48108,56 +50020,139 @@ class FlappyBirdGameScene extends Container {
    */
   update(deltaTime) {
     if (!this.initialized) return;
-    const updateStartedAtMs = 0;
+    const updateStartedAtMs = getPerfNow();
     const currentTime = Date.now();
     let pipeUpdateStats = {
       spawned: 0,
-      removed: 0
+      removed: 0,
+      phaseCosts: {},
+      poolStats: {
+        pairCreated: 0,
+        pairReused: 0,
+        bodyCreated: 0,
+        bodyReused: 0,
+        poolMissCount: 0
+      }
     };
-    this.syncSkyState(currentTime);
-    this.nearMissUI.update(deltaTime);
-    this.playerManager.update();
+    const phaseCosts = {};
+    this.measurePhase(phaseCosts, "syncSkyState", () => {
+      this.syncSkyState(currentTime);
+    });
+    if (this.isAppSuspended) {
+      return;
+    }
+    this.queueSimulationDelta(deltaTime);
+    let simulationSubsteps = 0;
     if (this.gameState === GameState.COUNTDOWN) {
-      const previousDisplayValue = this.countdownUI.getCurrentDisplayValue();
-      const hasCountdownFinished = this.countdownUI.update(deltaTime);
-      const currentDisplayValue = this.countdownUI.getCurrentDisplayValue();
-      if (!hasCountdownFinished && currentDisplayValue > 0 && currentDisplayValue !== previousDisplayValue) {
-        void this.bgmController.playCountdownCue(currentDisplayValue);
+      while (this.simulationAccumulatorMs >= FLAPPY_BIRD_FIXED_TIMESTEP_MS && simulationSubsteps < FLAPPY_BIRD_MAX_SIMULATION_SUBSTEPS && this.gameState === GameState.COUNTDOWN) {
+        this.measurePhase(phaseCosts, "nearMissUI", () => {
+          this.nearMissUI.update(FLAPPY_BIRD_FIXED_TIMESTEP_MS);
+        });
+        this.measurePhase(phaseCosts, "playerUpdate", () => {
+          this.playerManager.update();
+        });
+        const previousDisplayValue = this.countdownUI.getCurrentDisplayValue();
+        const hasCountdownFinished = this.measurePhase(
+          phaseCosts,
+          "countdownUpdate",
+          () => this.countdownUI.update(FLAPPY_BIRD_FIXED_TIMESTEP_MS)
+        );
+        const currentDisplayValue = this.countdownUI.getCurrentDisplayValue();
+        if (!hasCountdownFinished && currentDisplayValue > 0 && currentDisplayValue !== previousDisplayValue) {
+          void this.bgmController.playCountdownCue(currentDisplayValue);
+        }
+        this.simulationAccumulatorMs -= FLAPPY_BIRD_FIXED_TIMESTEP_MS;
+        simulationSubsteps += 1;
+        if (hasCountdownFinished) {
+          this.startGame();
+        }
       }
-      if (hasCountdownFinished) {
-        this.startGame();
-      }
-      this.maybeLogSlowFrame(
+      this.trimSimulationAccumulator(simulationSubsteps);
+      this.recordFrameDiagnostics({
+        timestampMs: currentTime,
         deltaTime,
         updateStartedAtMs,
-        currentTime,
+        phaseCosts,
         pipeUpdateStats
-      );
+      });
       return;
     }
     if (this.gameState === GameState.PLAYING) {
-      this.cloudManager.update(deltaTime);
-      this.playerManager.checkCollisions();
-      pipeUpdateStats = this.pipeManager.update(
-        this.playerManager.getBasketBody(),
-        (scoreDelta) => this.handleScoreIncrement(scoreDelta),
-        deltaTime
-      );
-      this.groundManager.update(deltaTime);
+      while (this.simulationAccumulatorMs >= FLAPPY_BIRD_FIXED_TIMESTEP_MS && simulationSubsteps < FLAPPY_BIRD_MAX_SIMULATION_SUBSTEPS && this.gameState === GameState.PLAYING) {
+        this.measurePhase(phaseCosts, "nearMissUI", () => {
+          this.nearMissUI.update(FLAPPY_BIRD_FIXED_TIMESTEP_MS);
+        });
+        this.measurePhase(phaseCosts, "playerUpdate", () => {
+          this.playerManager.update();
+        });
+        this.measurePhase(phaseCosts, "cloudUpdate", () => {
+          this.cloudManager.update(FLAPPY_BIRD_FIXED_TIMESTEP_MS);
+        });
+        this.measurePhase(phaseCosts, "collisionCheck", () => {
+          this.playerManager.checkCollisions();
+        });
+        const stepPipeUpdateStats = this.measurePhase(
+          phaseCosts,
+          "pipeUpdate",
+          () => this.pipeManager.update(
+            this.playerManager.getBasketBody(),
+            (scoreDelta) => this.handleScoreIncrement(scoreDelta),
+            FLAPPY_BIRD_FIXED_TIMESTEP_MS,
+            () => this.handleGameOver()
+          )
+        );
+        pipeUpdateStats.spawned += stepPipeUpdateStats.spawned;
+        pipeUpdateStats.removed += stepPipeUpdateStats.removed;
+        pipeUpdateStats.poolStats.pairCreated += stepPipeUpdateStats.poolStats.pairCreated;
+        pipeUpdateStats.poolStats.pairReused += stepPipeUpdateStats.poolStats.pairReused;
+        pipeUpdateStats.poolStats.bodyCreated += stepPipeUpdateStats.poolStats.bodyCreated;
+        pipeUpdateStats.poolStats.bodyReused += stepPipeUpdateStats.poolStats.bodyReused;
+        pipeUpdateStats.poolStats.poolMissCount += stepPipeUpdateStats.poolStats.poolMissCount;
+        for (const [phaseKey, phaseCost] of Object.entries(
+          stepPipeUpdateStats.phaseCosts
+        )) {
+          if (typeof phaseCost !== "number") {
+            continue;
+          }
+          const typedPhaseKey = phaseKey;
+          pipeUpdateStats.phaseCosts[typedPhaseKey] = (pipeUpdateStats.phaseCosts[typedPhaseKey] ?? 0) + phaseCost;
+        }
+        this.simulationAccumulatorMs -= FLAPPY_BIRD_FIXED_TIMESTEP_MS;
+        simulationSubsteps += 1;
+        if (this.gameState !== GameState.PLAYING) {
+          break;
+        }
+        this.measurePhase(phaseCosts, "groundUpdate", () => {
+          this.groundManager.update(FLAPPY_BIRD_FIXED_TIMESTEP_MS);
+        });
+      }
+      this.trimSimulationAccumulator(simulationSubsteps);
+      if (this.gameState !== GameState.PLAYING) {
+        this.recordFrameDiagnostics({
+          timestampMs: currentTime,
+          deltaTime,
+          updateStartedAtMs,
+          phaseCosts,
+          pipeUpdateStats
+        });
+        return;
+      }
     }
-    this.maybeLogSlowFrame(
+    this.recordFrameDiagnostics({
+      timestampMs: currentTime,
       deltaTime,
       updateStartedAtMs,
-      currentTime,
+      phaseCosts,
       pipeUpdateStats
-    );
+    });
   }
   /**
    * 리소스를 정리하고 객체를 파괴합니다.
    */
   destroy() {
-    var _a, _b;
+    var _a, _b, _c, _d;
     window.removeEventListener("keydown", this.boundHandleKeyDown);
+    this.cleanupVisibilityChangeHandler();
     this.clearGameOverVibrationPattern();
     (_b = (_a = this.game).hideFlappyBirdGameOver) == null ? void 0 : _b.call(_a);
     this.hideSettingsMenu();
@@ -48165,6 +50160,9 @@ class FlappyBirdGameScene extends Container {
     this.nearMissUI.reset();
     this.bgmController.destroy();
     this.cloudManager.reset();
+    (_c = this.pipeManager) == null ? void 0 : _c.destroy();
+    this.flushPendingFrameDiagnostics();
+    void ((_d = this.perfDiagnostics) == null ? void 0 : _d.shutdown());
     this.physicsManager.cleanup();
     this.gameEngine.cleanup();
     super.destroy();
@@ -48187,10 +50185,39 @@ class FlappyBirdGameScene extends Container {
       this.game.app.screen.height
     );
   }
-  maybeLogSlowFrame(deltaTime, updateStartedAtMs, currentTime, pipeUpdateStats) {
-    {
+  maybeLogSlowFrame(frameSample) {
+    if (frameSample.deltaTimeMs < FLAPPY_BIRD_SLOW_FRAME_DELTA_THRESHOLD_MS && frameSample.updateCostMs < FLAPPY_BIRD_SLOW_FRAME_UPDATE_COST_THRESHOLD_MS) {
       return;
     }
+    if (frameSample.timestampMs - this.lastSlowFrameLogAtMs < FLAPPY_BIRD_SLOW_FRAME_LOG_COOLDOWN_MS) {
+      return;
+    }
+    this.lastSlowFrameLogAtMs = frameSample.timestampMs;
+    console.warn("[FlappyBirdPerf] slow frame", {
+      deltaTimeMs: Math.round(frameSample.deltaTimeMs * 10) / 10,
+      updateCostMs: Math.round(frameSample.updateCostMs * 10) / 10,
+      tickerGapMs: typeof frameSample.tickerGapMs === "number" ? Math.round(frameSample.tickerGapMs * 10) / 10 : frameSample.tickerGapMs,
+      renderCostMs: typeof frameSample.renderCostMs === "number" ? Math.round(frameSample.renderCostMs * 10) / 10 : void 0,
+      updateToRenderStartMs: typeof frameSample.updateToRenderStartMs === "number" ? Math.round(frameSample.updateToRenderStartMs * 10) / 10 : void 0,
+      frameEndToEndCostMs: typeof frameSample.frameEndToEndCostMs === "number" ? Math.round(frameSample.frameEndToEndCostMs * 10) / 10 : void 0,
+      frameBudgetOverrunMs: typeof frameSample.frameEndToEndCostMs === "number" ? Math.max(
+        0,
+        Math.round(
+          (frameSample.frameEndToEndCostMs - FLAPPY_BIRD_TARGET_FRAME_BUDGET_MS) * 10
+        ) / 10
+      ) : void 0,
+      state: frameSample.gameState,
+      activePipePairs: frameSample.activePipePairs,
+      trackedPhysicsObjects: frameSample.trackedPhysicsObjects,
+      syncedDisplayObjects: frameSample.syncedDisplayObjects,
+      cloudCount: frameSample.cloudCount,
+      groundTileCount: frameSample.groundTileCount,
+      spawnedPipes: frameSample.spawnedPipes,
+      removedPipes: frameSample.removedPipes,
+      phaseCosts: frameSample.phaseCosts,
+      pipePhaseCosts: frameSample.pipePhaseCosts,
+      pipePoolStats: frameSample.pipePoolStats
+    });
   }
   syncCloudVisualStyle() {
     if (!this.cloudManager) {
@@ -48264,7 +50291,7 @@ class FlappyBirdGameScene extends Container {
     }
     this.background.beginFill(SKY_STAR_COLOR, alpha);
     for (const star of SKY_STAR_LAYOUT) {
-      this.background.drawCircle(
+      this.background.circle(
         star.x * width,
         star.y * height,
         Math.max(0.8, star.radius * scale * 0.42)
@@ -48334,12 +50361,33 @@ TextureStyle.defaultOptions.scaleMode = "nearest";
 const SCREEN_HORIZONTAL_PADDING = 14;
 const SCREEN_BOTTOM_PADDING = 14;
 const SCREEN_TOP_PADDING = SCREEN_BOTTOM_PADDING + 6;
+const MAX_RENDERER_RESOLUTION = 2;
 function createMainScenePositionBoundary(width, height) {
   return {
     x: SCREEN_HORIZONTAL_PADDING,
     y: SCREEN_TOP_PADDING,
     width: width - 2 * SCREEN_HORIZONTAL_PADDING,
     height: height - SCREEN_TOP_PADDING - SCREEN_BOTTOM_PADDING
+  };
+}
+function getTransitionTimingNow() {
+  return typeof performance !== "undefined" ? performance.now() : Date.now();
+}
+function resolveRendererResolution(devicePixelRatio) {
+  if (typeof devicePixelRatio !== "number" || !Number.isFinite(devicePixelRatio) || devicePixelRatio <= 0) {
+    return MAX_RENDERER_RESOLUTION;
+  }
+  return Math.min(devicePixelRatio, MAX_RENDERER_RESOLUTION);
+}
+function summarizeTransitionError(error) {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message
+    };
+  }
+  return {
+    message: String(error)
   };
 }
 class Game {
@@ -48357,8 +50405,14 @@ class Game {
     this._sceneTransitionRequestId = 0;
     this._isFullscreenAdActive = false;
     this._fullscreenAdResizeSuppressedUntil = 0;
+    this._pendingSceneTransitionInterruptions = /* @__PURE__ */ new Map();
+    this._activeSceneTransition = null;
     this._flappyBirdCharacterKey = null;
     this._flappyBirdSkyContext = null;
+    this._loadingTraceContext = null;
+    this._lastTickerStartedAtMs = null;
+    this._pendingSceneRenderTiming = null;
+    this._isRendererPerfHookInstalled = false;
     const {
       parentElement,
       debugParentElement,
@@ -48379,7 +50433,8 @@ class Game {
       hideFlappyBirdGameOver,
       showFlappyBirdSettingsMenu,
       hideFlappyBirdSettingsMenu,
-      onSceneTransitionStateChange
+      onSceneTransitionStateChange,
+      loadingTraceContext
     } = params;
     this.changeControlButtons = changeControlButtons;
     this.showSettings = showSettings;
@@ -48399,6 +50454,7 @@ class Game {
     this._createInitialGameData = onCreateInitialGameData;
     this._initialSceneKey = initialSceneKey ?? SceneKey.MAIN;
     this._debugMode = debugMode ?? false;
+    this._loadingTraceContext = loadingTraceContext ?? null;
     this.app = new Application();
     this._boundResizeHandler = () => {
       this._requestAnimationFrameResize("window.resize");
@@ -48491,12 +50547,21 @@ class Game {
         backgroundColor: 11184810,
         autoDensity: true,
         roundPixels: true,
-        resolution: window.devicePixelRatio || 2
-        // 해상도를 디바이스 픽셀 비율로 설정하거나 원하는 값(예: 2)으로 설정
+        preference: "webgl",
+        preferWebGLVersion: 2,
+        powerPreference: "high-performance",
+        resolution: resolveRendererResolution(window.devicePixelRatio)
       });
       this._isPixiReady = true;
-      this.app.ticker.minFPS = 60;
-      this.app.ticker.maxFPS = 0;
+      this._installRendererPerfHooks();
+      console.log("[ImportantDiagnostics][RendererResolution]", {
+        phase: "initialize",
+        rawDevicePixelRatio: window.devicePixelRatio ?? null,
+        appliedResolution: this.app.renderer.resolution,
+        maxRendererResolution: MAX_RENDERER_RESOLUTION
+      });
+      this.app.ticker.minFPS = 30;
+      this.app.ticker.maxFPS = 60;
       this._parentElement.appendChild(this.app.canvas);
       this._onResize("initialize");
       this.assetsLoaded = true;
@@ -48549,8 +50614,68 @@ class Game {
   //   false;
   // }
   _update(deltaTime) {
-    var _a;
-    (_a = this.currentScene) == null ? void 0 : _a.update(deltaTime);
+    const scene = this.currentScene;
+    const updateStartedAtMs = getTransitionTimingNow();
+    const tickerGapMs = this._lastTickerStartedAtMs === null ? null : updateStartedAtMs - this._lastTickerStartedAtMs;
+    this._lastTickerStartedAtMs = updateStartedAtMs;
+    if (!scene) {
+      this._pendingSceneRenderTiming = null;
+      return;
+    }
+    scene.update(deltaTime);
+    const updateEndedAtMs = getTransitionTimingNow();
+    if (scene !== this.currentScene) {
+      this._pendingSceneRenderTiming = null;
+      return;
+    }
+    this._pendingSceneRenderTiming = {
+      scene,
+      deltaTimeMs: deltaTime,
+      tickerGapMs,
+      updateStartedAtMs,
+      updateEndedAtMs,
+      sceneUpdateCostMs: updateEndedAtMs - updateStartedAtMs
+    };
+  }
+  _installRendererPerfHooks() {
+    if (this._isRendererPerfHookInstalled || !this.app.renderer) {
+      return;
+    }
+    const renderer = this.app.renderer;
+    const originalRender = renderer.render.bind(renderer);
+    renderer.render = (...args) => {
+      const renderStartedAtMs = getTransitionTimingNow();
+      try {
+        return originalRender(...args);
+      } finally {
+        const renderEndedAtMs = getTransitionTimingNow();
+        this._handleRendererRender(renderStartedAtMs, renderEndedAtMs);
+      }
+    };
+    this._isRendererPerfHookInstalled = true;
+  }
+  _handleRendererRender(renderStartedAtMs, renderEndedAtMs) {
+    const pendingTiming = this._pendingSceneRenderTiming;
+    this._pendingSceneRenderTiming = null;
+    if (!pendingTiming) {
+      return;
+    }
+    if (!this._isFrameTimingAwareScene(pendingTiming.scene)) {
+      return;
+    }
+    const sample = {
+      timestampMs: renderEndedAtMs,
+      deltaTimeMs: pendingTiming.deltaTimeMs,
+      tickerGapMs: pendingTiming.tickerGapMs,
+      sceneUpdateCostMs: pendingTiming.sceneUpdateCostMs,
+      updateToRenderStartMs: renderStartedAtMs - pendingTiming.updateEndedAtMs,
+      renderCostMs: renderEndedAtMs - renderStartedAtMs,
+      frameEndToEndCostMs: renderEndedAtMs - pendingTiming.updateStartedAtMs
+    };
+    pendingTiming.scene.onFrameRenderTiming(sample);
+  }
+  _isFrameTimingAwareScene(scene) {
+    return typeof scene.onFrameRenderTiming === "function";
   }
   /**
    * PIXI 애플리케이션이 완전히 초기화될 때까지 대기
@@ -48583,7 +50708,8 @@ class Game {
     if (width <= 0 || height <= 0) {
       return;
     }
-    const resolution = window.devicePixelRatio || 2;
+    const rawDevicePixelRatio = window.devicePixelRatio || 0;
+    const resolution = resolveRendererResolution(rawDevicePixelRatio);
     const metricsKey = [
       width,
       height,
@@ -48591,6 +50717,7 @@ class Game {
       parent.clientHeight,
       Math.round(rect.width),
       Math.round(rect.height),
+      rawDevicePixelRatio,
       resolution
     ].join("|");
     if (metricsKey === this._lastResizeMetricsKey) {
@@ -48605,6 +50732,15 @@ class Game {
     }
     this.app.renderer.resolution = resolution;
     this.app.renderer.resize(width, height);
+    console.log("[ImportantDiagnostics][RendererResolution]", {
+      phase: "resize",
+      reason,
+      width,
+      height,
+      rawDevicePixelRatio,
+      appliedResolution: resolution,
+      maxRendererResolution: MAX_RENDERER_RESOLUTION
+    });
     if (stageScaleWasReset) {
       console.warn("[GameResize]", {
         phase: "stage-scale-reset",
@@ -48690,6 +50826,8 @@ class Game {
     }
     switch (key) {
       case SceneKey.MAIN:
+        const loadingTraceContext = this._loadingTraceContext;
+        this._loadingTraceContext = null;
         const mainSceneWorld = new MainSceneWorld({
           stage: this.app.stage,
           positionBoundary: createMainScenePositionBoundary(
@@ -48711,7 +50849,9 @@ class Game {
           showAlert: this.showAlert,
           triggerBiteVibration: this.triggerBiteVibration,
           startRecoveryVibration: this.startRecoveryVibration,
-          stopRecoveryVibration: this.stopRecoveryVibration
+          stopRecoveryVibration: this.stopRecoveryVibration,
+          shouldDeferPersistence: () => this.currentSceneKey === SceneKey.FLAPPY_BIRD_GAME,
+          loadingTraceContext
         });
         await mainSceneWorld.init();
         return mainSceneWorld;
@@ -48721,22 +50861,95 @@ class Game {
         throw new Error(`[Game] Unknown scene key: ${key}`);
     }
   }
+  async _restoreParkedSceneAfterTransitionAbort(transition, state) {
+    var _a;
+    if (transition.restorationStarted) {
+      return;
+    }
+    transition.restorationStarted = true;
+    const parkedScene = transition.parkedScene;
+    const parkedSceneKey = transition.parkedSceneKey;
+    if (parkedScene) {
+      this.currentScene = parkedScene;
+      this.currentSceneKey = parkedSceneKey;
+      if (parkedScene instanceof Container) {
+        this.app.stage.removeChildren();
+        if (parkedScene.parent !== this.app.stage) {
+          this.app.stage.addChild(parkedScene);
+        }
+      }
+    }
+    if (!transition.stateChangeEmitted) {
+      (_a = this._onSceneTransitionStateChange) == null ? void 0 : _a.call(this, {
+        requestId: transition.requestId,
+        from: transition.from,
+        to: transition.to,
+        state
+      });
+      transition.stateChangeEmitted = true;
+    }
+    if (parkedScene == null ? void 0 : parkedScene.onSceneReenter) {
+      try {
+        await parkedScene.onSceneReenter();
+      } catch (error) {
+        console.error(
+          "[Game] Failed to restore parked scene after aborted transition:",
+          error
+        );
+      }
+    }
+  }
   /**
    * 씬을 키를 통해 전환합니다
    * @param key 전환할 씬의 키
    * @returns 성공 여부
    */
   async changeScene(key) {
-    var _a, _b, _c, _d;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
     const previousSceneKey = this.currentSceneKey;
     const transitionRequestId = ++this._sceneTransitionRequestId;
-    const transitionStartedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
+    const transitionStartedAt = getTransitionTimingNow();
+    const transitionContext = {
+      requestId: transitionRequestId,
+      from: previousSceneKey,
+      to: key,
+      phase: "exiting_current",
+      parkedScene: this.currentScene,
+      parkedSceneKey: this.currentSceneKey,
+      interruption: null,
+      restorationStarted: false,
+      stateChangeEmitted: false
+    };
+    this._activeSceneTransition = transitionContext;
+    const consumePendingInterruption = () => {
+      const interruption = this._pendingSceneTransitionInterruptions.get(transitionRequestId) ?? null;
+      if (interruption) {
+        this._pendingSceneTransitionInterruptions.delete(transitionRequestId);
+      }
+      return interruption;
+    };
+    const logTransitionPhase = (phase, payload = {}) => {
+      var _a2, _b2, _c2;
+      console.log("[ImportantDiagnostics][SceneTransitionTiming]", {
+        phase,
+        requestId: transitionRequestId,
+        from: previousSceneKey ?? null,
+        to: key,
+        elapsedMs: Math.round(getTransitionTimingNow() - transitionStartedAt),
+        initializationAttemptId: ((_a2 = this._loadingTraceContext) == null ? void 0 : _a2.initializationAttemptId) ?? null,
+        setupFlowId: ((_b2 = this._loadingTraceContext) == null ? void 0 : _b2.setupFlowId) ?? null,
+        bootstrapState: ((_c2 = this._loadingTraceContext) == null ? void 0 : _c2.bootstrapState) ?? null,
+        ...payload
+      });
+    };
     try {
+      logTransitionPhase("changeScene_start");
       console.log(
         `[GameTransition] start ${previousSceneKey ?? "none"} -> ${key} (#${transitionRequestId})`
       );
       if (this.currentSceneKey === key) {
         console.log(`[Game] 이미 ${key} 씬에 있습니다`);
+        logTransitionPhase("changeScene_skipped_same_scene");
         return true;
       }
       (_a = this._onSceneTransitionStateChange) == null ? void 0 : _a.call(this, {
@@ -48747,42 +50960,110 @@ class Game {
       });
       if ((_b = this.currentScene) == null ? void 0 : _b.onSceneExit) {
         console.log(`[Game] 현재 씬 종료 처리 시작: ${this.currentSceneKey}`);
+        const sceneExitStartedAt = getTransitionTimingNow();
+        logTransitionPhase("onSceneExit_start", {
+          currentSceneKey: this.currentSceneKey ?? null
+        });
         await this.currentScene.onSceneExit();
+        logTransitionPhase("onSceneExit_end", {
+          currentSceneKey: this.currentSceneKey ?? null,
+          durationMs: Math.round(getTransitionTimingNow() - sceneExitStartedAt)
+        });
+      }
+      const interruptedBeforeDestroy = consumePendingInterruption();
+      if (interruptedBeforeDestroy) {
+        logTransitionPhase("changeScene_interrupted_before_destroy", {
+          reason: interruptedBeforeDestroy.reason,
+          fallbackScene: interruptedBeforeDestroy.fallbackScene
+        });
+        if (this.currentSceneKey === interruptedBeforeDestroy.fallbackScene && ((_c = this.currentScene) == null ? void 0 : _c.onSceneReenter)) {
+          await this.currentScene.onSceneReenter();
+        }
+        (_d = this._onSceneTransitionStateChange) == null ? void 0 : _d.call(this, {
+          requestId: transitionRequestId,
+          from: previousSceneKey,
+          to: key,
+          state: "interrupted"
+        });
+        return false;
       }
       if (this.currentScene instanceof MainSceneWorld) {
         this._syncFlappyBirdSkyContextFromMainScene(this.currentScene);
         this._syncFlappyBirdCharacterKeyFromMainScene(this.currentScene);
       }
-      if (this.currentScene) {
-        this.currentScene.destroy();
-        this.app.stage.removeChildren();
+      transitionContext.phase = "creating_target";
+      transitionContext.parkedScene = this.currentScene;
+      transitionContext.parkedSceneKey = this.currentSceneKey;
+      this.app.stage.removeChildren();
+      const createSceneStartedAt = getTransitionTimingNow();
+      logTransitionPhase("createScene_start");
+      const createdScene = await this._createScene(key);
+      logTransitionPhase("createScene_end", {
+        durationMs: Math.round(getTransitionTimingNow() - createSceneStartedAt)
+      });
+      if (transitionContext.interruption || this._activeSceneTransition !== transitionContext) {
+        logTransitionPhase("changeScene_interrupted_during_create", {
+          reason: ((_e = transitionContext.interruption) == null ? void 0 : _e.reason) ?? "stale_transition",
+          fallbackScene: ((_f = transitionContext.interruption) == null ? void 0 : _f.fallbackScene) ?? null
+        });
+        createdScene.destroy();
+        return false;
       }
-      this.currentScene = await this._createScene(key);
+      (_g = transitionContext.parkedScene) == null ? void 0 : _g.destroy();
+      this.currentScene = createdScene;
       this.currentSceneKey = key;
       if (this.currentScene instanceof Container) {
         this.app.stage.addChild(this.currentScene);
       }
-      (_c = this._onSceneTransitionStateChange) == null ? void 0 : _c.call(this, {
+      (_h = this._onSceneTransitionStateChange) == null ? void 0 : _h.call(this, {
         requestId: transitionRequestId,
         from: previousSceneKey,
         to: key,
         state: "core_ready"
       });
+      logTransitionPhase("changeScene_core_ready", {
+        sceneMounted: this.currentScene instanceof Container
+      });
       console.log(
         `[GameTransition] end ${previousSceneKey ?? "none"} -> ${key} (#${transitionRequestId}) in ${Math.round(
-          (typeof performance !== "undefined" ? performance.now() : Date.now()) - transitionStartedAt
+          getTransitionTimingNow() - transitionStartedAt
         )}ms`
       );
+      this._activeSceneTransition = null;
       return true;
     } catch (error) {
+      if (transitionContext.interruption || this._activeSceneTransition !== transitionContext) {
+        logTransitionPhase("changeScene_cancelled_after_create_error", {
+          reason: ((_i = transitionContext.interruption) == null ? void 0 : _i.reason) ?? "stale_transition",
+          fallbackScene: ((_j = transitionContext.interruption) == null ? void 0 : _j.fallbackScene) ?? null,
+          error: summarizeTransitionError(error)
+        });
+        return false;
+      }
+      if (transitionContext.phase === "creating_target") {
+        await this._restoreParkedSceneAfterTransitionAbort(
+          transitionContext,
+          "failed"
+        );
+      }
       console.error(`[Game] 씬 전환 오류 (${key}):`, error);
-      (_d = this._onSceneTransitionStateChange) == null ? void 0 : _d.call(this, {
-        requestId: transitionRequestId,
-        from: previousSceneKey,
-        to: key,
-        state: "failed"
+      logTransitionPhase("changeScene_failed", {
+        error: summarizeTransitionError(error)
       });
+      if (!transitionContext.stateChangeEmitted) {
+        (_k = this._onSceneTransitionStateChange) == null ? void 0 : _k.call(this, {
+          requestId: transitionRequestId,
+          from: previousSceneKey,
+          to: key,
+          state: "failed"
+        });
+      }
       return false;
+    } finally {
+      this._pendingSceneTransitionInterruptions.delete(transitionRequestId);
+      if (this._activeSceneTransition === transitionContext) {
+        this._activeSceneTransition = null;
+      }
     }
   }
   /**
@@ -48790,6 +51071,38 @@ class Game {
    */
   getCurrentSceneKey() {
     return this.currentSceneKey;
+  }
+  requestSceneTransitionInterruption(params) {
+    if (this._sceneTransitionRequestId !== params.requestId) {
+      return false;
+    }
+    const interruption = {
+      fallbackScene: params.fallbackScene,
+      reason: params.reason
+    };
+    this._pendingSceneTransitionInterruptions.set(params.requestId, interruption);
+    const activeTransition = this._activeSceneTransition;
+    if (activeTransition && activeTransition.requestId === params.requestId && activeTransition.phase === "creating_target" && !activeTransition.interruption) {
+      activeTransition.interruption = interruption;
+      this._activeSceneTransition = null;
+      void this._restoreParkedSceneAfterTransitionAbort(
+        activeTransition,
+        "interrupted"
+      );
+    }
+    console.log("[ImportantDiagnostics][SceneTransitionInterruption]", {
+      requestId: params.requestId,
+      fallbackScene: params.fallbackScene,
+      reason: params.reason,
+      currentSceneKey: this.currentSceneKey ?? null,
+      activeTransitionRequestId: this._sceneTransitionRequestId,
+      activeTransitionPhase: (activeTransition == null ? void 0 : activeTransition.phase) ?? null
+    });
+    return true;
+  }
+  getActiveSceneTransitionRequestId() {
+    var _a;
+    return ((_a = this._activeSceneTransition) == null ? void 0 : _a.requestId) ?? null;
   }
   async getFlappyBirdSkyContext() {
     if (this.currentScene instanceof MainSceneWorld) {
@@ -48825,7 +51138,8 @@ class Game {
   getDiagnosticsSnapshot() {
     return {
       currentSceneKey: this.currentSceneKey,
-      mainSceneData: this.currentScene instanceof MainSceneWorld ? this.currentScene.getInMemoryData() : null
+      mainSceneData: this.currentScene instanceof MainSceneWorld ? this.currentScene.getInMemoryData() : null,
+      flappyBirdPerf: this.currentScene instanceof FlappyBirdGameScene ? this.currentScene.getPerfDiagnosticsSnapshot() : null
     };
   }
   /**
@@ -48871,6 +51185,8 @@ class Game {
     var _a, _b, _c, _d, _e;
     this._isDestroyed = true;
     this._isPixiReady = false;
+    this._pendingSceneRenderTiming = null;
+    this._lastTickerStartedAtMs = null;
     window.removeEventListener("resize", this._boundResizeHandler);
     window.removeEventListener("focus", this._boundLifecycleResizeHandler);
     window.removeEventListener("pageshow", this._boundLifecycleResizeHandler);
@@ -49364,14 +51680,14 @@ const ControlButton = ({
     const baseTrackWidth = Math.max(0, sliderWidth - size);
     const trackWidth = sliderTrackWidth;
     const extraTrackOffset = (trackWidth - baseTrackWidth) / 2;
-    return /* @__PURE__ */ jsxRuntimeExports.jsxs(
+    return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
       "div",
       {
         className: "relative flex justify-center overflow-visible",
         style: { width: `${sliderWidth}px`, height: `${size}px` },
         ref: sliderRef,
         children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
             "div",
             {
               className: "absolute top-1/2 -translate-y-1/2 h-4 bg-gray-700 bg-opacity-50 rounded-full",
@@ -49379,29 +51695,61 @@ const ControlButton = ({
                 left: `${trackInset - extraTrackOffset}px`,
                 width: `${trackWidth}px`
               }
-            }
+            },
+            void 0,
+            false,
+            {
+              fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/ControlButton.tsx",
+              lineNumber: 261,
+              columnNumber: 9
+            },
+            void 0
           ),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
             "div",
             {
               className: "absolute top-0 left-0 h-full",
               style: {
                 transform: `translateX(${currentSliderValue * trackWidth - extraTrackOffset}px)`
               },
-              children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+              children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
                 "div",
                 {
                   style: buttonStyle,
                   className: "bg-no-repeat border-none bg-transparent p-0 outline-none select-none [-webkit-tap-highlight-color:transparent] scale-[1.4]"
-                }
+                },
+                void 0,
+                false,
+                {
+                  fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/ControlButton.tsx",
+                  lineNumber: 274,
+                  columnNumber: 11
+                },
+                void 0
               )
-            }
+            },
+            void 0,
+            false,
+            {
+              fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/ControlButton.tsx",
+              lineNumber: 268,
+              columnNumber: 9
+            },
+            void 0
           )
         ]
-      }
+      },
+      void 0,
+      true,
+      {
+        fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/ControlButton.tsx",
+        lineNumber: 256,
+        columnNumber: 7
+      },
+      void 0
     );
   }
-  return /* @__PURE__ */ jsxRuntimeExports.jsx(
+  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
     "button",
     {
       type: "button",
@@ -49410,12 +51758,24 @@ const ControlButton = ({
       onPointerUp: handlePointerUp,
       onPointerLeave: handlePointerLeave,
       className: `bg-no-repeat border-none bg-transparent p-0 outline-none select-none [-webkit-tap-highlight-color:transparent] scale-[1.4] ${className || ""}`
-    }
+    },
+    void 0,
+    false,
+    {
+      fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/ControlButton.tsx",
+      lineNumber: 285,
+      columnNumber: 5
+    },
+    void 0
   );
 };
 const ControlButtonsContainer = ({
   children
-}) => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-4/5 max-w-[300px] flex justify-between mx-auto", children });
+}) => /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "w-4/5 max-w-[300px] flex justify-between mx-auto", children }, void 0, false, {
+  fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
+  lineNumber: 16,
+  columnNumber: 3
+}, void 0);
 const ControlButtons = ({
   buttonParams,
   onButtonPress,
@@ -49443,15 +51803,27 @@ const ControlButtons = ({
     }
   }, [buttonTypes[0], buttonTypes[1], buttonTypes[2], shouldRenderSlider]);
   if (shouldRenderSlider && sliderWidth) {
-    return /* @__PURE__ */ jsxRuntimeExports.jsx(ControlButtonsContainer, { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { ref: containerRef, className: "flex justify-between w-full", children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "shrink-0 ", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+    return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ControlButtonsContainer, { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { ref: containerRef, className: "flex justify-between w-full", children: [
+      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "shrink-0 ", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
         ControlButton,
         {
           type: buttonParams[0].type,
           onClick: () => onButtonPress(buttonParams[0].type)
-        }
-      ) }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: secondButtonRef, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+        },
+        void 0,
+        false,
+        {
+          fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
+          lineNumber: 67,
+          columnNumber: 13
+        },
+        void 0
+      ) }, void 0, false, {
+        fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
+        lineNumber: 66,
+        columnNumber: 11
+      }, void 0),
+      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { ref: secondButtonRef, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
         ControlButton,
         {
           type: ControlButtonType.Clean,
@@ -49462,33 +51834,92 @@ const ControlButtons = ({
           onSliderEnd,
           onClick: () => onButtonPress(buttonParams[1].type)
         },
-        (cleanButtonParam == null ? void 0 : cleanButtonParam.sliderSessionKey) ?? "clean-slider"
-      ) })
-    ] }) });
+        (cleanButtonParam == null ? void 0 : cleanButtonParam.sliderSessionKey) ?? "clean-slider",
+        false,
+        {
+          fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
+          lineNumber: 74,
+          columnNumber: 13
+        },
+        void 0
+      ) }, void 0, false, {
+        fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
+        lineNumber: 73,
+        columnNumber: 11
+      }, void 0)
+    ] }, void 0, true, {
+      fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
+      lineNumber: 64,
+      columnNumber: 9
+    }, void 0) }, void 0, false, {
+      fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
+      lineNumber: 63,
+      columnNumber: 7
+    }, void 0);
   }
-  return /* @__PURE__ */ jsxRuntimeExports.jsx(ControlButtonsContainer, { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { ref: containerRef, className: "flex justify-between w-full", children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx(
+  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ControlButtonsContainer, { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { ref: containerRef, className: "flex justify-between w-full", children: [
+    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
       ControlButton,
       {
         type: buttonParams[0].type,
         onClick: () => onButtonPress(buttonParams[0].type)
-      }
+      },
+      void 0,
+      false,
+      {
+        fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
+        lineNumber: 94,
+        columnNumber: 9
+      },
+      void 0
     ),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: secondButtonRef, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { ref: secondButtonRef, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
       ControlButton,
       {
         type: buttonParams[1].type,
         onClick: () => onButtonPress(buttonParams[1].type)
-      }
-    ) }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: thirdButtonRef, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+      },
+      void 0,
+      false,
+      {
+        fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
+        lineNumber: 99,
+        columnNumber: 11
+      },
+      void 0
+    ) }, void 0, false, {
+      fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
+      lineNumber: 98,
+      columnNumber: 9
+    }, void 0),
+    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { ref: thirdButtonRef, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
       ControlButton,
       {
         type: buttonParams[2].type,
         onClick: () => onButtonPress(buttonParams[2].type)
-      }
-    ) })
-  ] }) });
+      },
+      void 0,
+      false,
+      {
+        fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
+        lineNumber: 105,
+        columnNumber: 11
+      },
+      void 0
+    ) }, void 0, false, {
+      fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
+      lineNumber: 104,
+      columnNumber: 9
+    }, void 0)
+  ] }, void 0, true, {
+    fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
+    lineNumber: 93,
+    columnNumber: 7
+  }, void 0) }, void 0, false, {
+    fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
+    lineNumber: 92,
+    columnNumber: 5
+  }, void 0);
 };
 function createClientStorage() {
   if (hasNativeStorageController()) {
@@ -49508,6 +51939,18 @@ const DIAGNOSTICS_LOGS_PERSIST_DEBOUNCE_MS = 2e3;
 const DIAGNOSTICS_LOGS_RECENT_WINDOW_MS = 10 * 60 * 1e3;
 const ELLIPSIS = "…";
 const IMPORTANT_DIAGNOSTICS_PREFIX = "[ImportantDiagnostics]";
+const NATIVE_DEBUG_LOG_PREFIXES = [
+  IMPORTANT_DIAGNOSTICS_PREFIX,
+  "[GameTransition]",
+  "[Game]",
+  "[MainSceneWorld]",
+  "[GameContainer]",
+  "[SceneTransition",
+  "[BackNavigation]",
+  "[FlappyBird",
+  "PixiJS Warning:"
+];
+const NATIVE_DEBUG_LOG_ARG_MAX_BYTES = 2 * 1024;
 const textEncoder = new TextEncoder();
 const diagnosticsSessionId = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `session-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 const diagnosticsSessionStartedAt = Date.now();
@@ -49569,6 +52012,19 @@ function shouldSkipDiagnosticsLog(level, message) {
     "[App] AdManager initialized with policies:"
   ];
   return stablePatterns.some((pattern) => message.includes(pattern));
+}
+function shouldMirrorDiagnosticsLogToNative(level, message, forceImportant) {
+  var _a;
+  if (typeof window === "undefined") {
+    return false;
+  }
+  if (typeof ((_a = window.nativeDebugLogger) == null ? void 0 : _a.log) !== "function") {
+    return false;
+  }
+  if (forceImportant || level === "error" || level === "warn") {
+    return true;
+  }
+  return NATIVE_DEBUG_LOG_PREFIXES.some((prefix) => message.includes(prefix));
 }
 function toByteLength(value) {
   return textEncoder.encode(value).length;
@@ -49749,6 +52205,39 @@ function trimRegularLogsToSize(logs) {
   diagnosticsLogsTotalBytes = getSerializedLogsByteLength(nextLogs);
   return nextLogs;
 }
+function mirrorDiagnosticsLogToNative(entry, args, options) {
+  var _a;
+  if (!shouldMirrorDiagnosticsLogToNative(
+    entry.level,
+    entry.message,
+    (options == null ? void 0 : options.forceImportant) === true
+  )) {
+    return;
+  }
+  const payload = {
+    tag: "WebConsole",
+    timestamp: entry.timestamp,
+    level: entry.level,
+    source: entry.source,
+    scene: entry.scene ?? null,
+    sessionId: entry.sessionId,
+    appMode: entry.appMode ?? null,
+    appVersion: entry.appVersion ?? null,
+    buildNumber: entry.buildNumber ?? null,
+    debugEnabled: entry.debugEnabled ?? null,
+    storageKind: entry.storageKind,
+    timeSinceSessionStartMs: entry.timeSinceSessionStartMs,
+    important: (options == null ? void 0 : options.forceImportant) === true || isImportantDiagnosticsMessage(entry.level, entry.message),
+    message: entry.message,
+    args: args.map(
+      (arg) => truncateToByteLength(stringifyConsoleArg(arg), NATIVE_DEBUG_LOG_ARG_MAX_BYTES)
+    )
+  };
+  try {
+    (_a = window.nativeDebugLogger) == null ? void 0 : _a.log(payload);
+  } catch {
+  }
+}
 function normalizePersistedLogs(value) {
   if (!Array.isArray(value)) {
     return [];
@@ -49857,6 +52346,7 @@ function appendDiagnosticsLog(level, args, options) {
     ]);
   }
   syncWindowErrorLogs();
+  mirrorDiagnosticsLogToNative(entry, args, options);
   queuePersist();
 }
 function installDiagnosticsConsoleCapture() {
@@ -50078,7 +52568,9 @@ const PopupLayer = ({
           elapsed / confirmEnableDelayMs * CONFIRM_ENABLE_DELAY_PROGRESS_MAX
         )
       );
-      setConfirmEnableDelayProgress((previous) => previous === nextProgress ? previous : nextProgress);
+      setConfirmEnableDelayProgress(
+        (previous) => previous === nextProgress ? previous : nextProgress
+      );
       if (nextProgress >= CONFIRM_ENABLE_DELAY_PROGRESS_MAX) {
         confirmEnableDelayRafIdRef.current = null;
         return;
@@ -50372,12 +52864,12 @@ const PopupLayer = ({
     }
     onCancel == null ? void 0 : onCancel();
   }, [onCancel]);
-  return /* @__PURE__ */ jsxRuntimeExports.jsx(
+  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
     "div",
     {
       className: "flex w-full justify-center px-4 text-black",
       ...layerInteractionVibrationProps,
-      children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
+      children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
         "div",
         {
           ref: containerRef,
@@ -50386,23 +52878,39 @@ const PopupLayer = ({
             transform: keyboardAwareOffsetY !== 0 ? `translateY(${keyboardAwareOffsetY}px)` : void 0,
             maxHeight: keyboardAwareMaxHeight !== null ? `${keyboardAwareMaxHeight}px` : void 0
           },
-          className: "relative flex w-full max-w-[22rem] max-h-[calc(100vh-2rem)] flex-col overflow-hidden border-4 border-[#222] bg-layer-bg p-5 text-center font-dialog shadow-[0_4px_0_#222,0_-4px_0_#222,4px_0_0_#222,-4px_0_0_#222,4px_4px_0_#222,-4px_4px_0_#222,4px_-4px_0_#222,-4px_-4px_0_#222] focus:outline-none",
+          className: "relative flex w-full max-w-[22rem] flex-col overflow-auto border-4 border-[#222] bg-layer-bg p-5 text-center font-dialog shadow-[0_4px_0_#222,0_-4px_0_#222,4px_0_0_#222,-4px_0_0_#222,4px_4px_0_#222,-4px_4px_0_#222,4px_-4px_0_#222,-4px_-4px_0_#222] focus:outline-none",
           children: [
-            topLeftContent ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute left-2 top-2 z-[1]", children: topLeftContent }) : null,
-            /* @__PURE__ */ jsxRuntimeExports.jsx(
+            topLeftContent ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "absolute left-2 top-2 z-[1]", children: topLeftContent }, void 0, false, {
+              fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
+              lineNumber: 513,
+              columnNumber: 11
+            }, void 0) : null,
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
               "div",
               {
                 className: `mb-[15px] flex-none border-b-4 pb-[10px] text-[1.8rem] leading-[1.2] font-display font-bold text-component-negative ${dividerBorderClassName}`,
                 children: title
-              }
+              },
+              void 0,
+              false,
+              {
+                fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
+                lineNumber: 515,
+                columnNumber: 9
+              },
+              void 0
             ),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "min-h-0 flex-1 overflow-y-auto pb-4 text-[1.4rem] leading-[1.6]", children: content }),
-            /* @__PURE__ */ jsxRuntimeExports.jsxs(
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "min-h-0 flex-1 overflow-y-auto pb-4 text-[1.4rem] leading-[1.6]", children: content }, void 0, false, {
+              fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
+              lineNumber: 520,
+              columnNumber: 9
+            }, void 0),
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
               "div",
               {
                 className: `flex flex-none justify-center gap-[15px] border-t-4 pt-4 ${dividerBorderClassName}`,
                 children: [
-                  onCancel && /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  onCancel && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
                     "button",
                     {
                       ref: cancelButtonRef,
@@ -50410,9 +52918,17 @@ const PopupLayer = ({
                       onClick: handleCancelClick,
                       className: `text-[1.5rem] text-white border-2 border-[#222] px-[15px] py-0.5 cursor-pointer uppercase font-display shadow-[2px_2px_0_#222] relative top-0 left-0 transition-all duration-50 ${cancelVariant === "negative" ? "bg-component-negative" : "bg-component-positive"}`,
                       children: cancelText
-                    }
+                    },
+                    void 0,
+                    false,
+                    {
+                      fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
+                      lineNumber: 527,
+                      columnNumber: 13
+                    },
+                    void 0
                   ),
-                  /* @__PURE__ */ jsxRuntimeExports.jsxs(
+                  /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
                     "button",
                     {
                       ref: confirmButtonRef,
@@ -50421,25 +52937,69 @@ const PopupLayer = ({
                       onClick: handleConfirmClick,
                       className: `relative overflow-hidden text-[1.5rem] text-white border-2 border-[#222] px-[15px] py-0.5 uppercase font-display shadow-[2px_2px_0_#222] ${isConfirmEnableDelayActive ? "cursor-not-allowed bg-gray-400 opacity-80" : confirmVariant === "negative" ? "cursor-pointer bg-component-negative" : "cursor-pointer bg-component-positive"}`,
                       children: [
-                        isConfirmEnableDelayActive && /* @__PURE__ */ jsxRuntimeExports.jsx(
+                        isConfirmEnableDelayActive && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
                           "span",
                           {
                             "aria-hidden": "true",
                             className: `absolute inset-y-0 left-0 ${confirmVariant === "negative" ? "bg-component-negative" : "bg-component-positive"}`,
                             style: { width: `${confirmEnableDelayProgress}%` }
-                          }
+                          },
+                          void 0,
+                          false,
+                          {
+                            fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
+                            lineNumber: 554,
+                            columnNumber: 15
+                          },
+                          void 0
                         ),
-                        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "relative z-[1]", children: confirmText })
+                        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { className: "relative z-[1]", children: confirmText }, void 0, false, {
+                          fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
+                          lineNumber: 564,
+                          columnNumber: 13
+                        }, void 0)
                       ]
-                    }
+                    },
+                    void 0,
+                    true,
+                    {
+                      fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
+                      lineNumber: 540,
+                      columnNumber: 11
+                    },
+                    void 0
                   )
                 ]
-              }
+              },
+              void 0,
+              true,
+              {
+                fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
+                lineNumber: 523,
+                columnNumber: 9
+              },
+              void 0
             )
           ]
-        }
+        },
+        void 0,
+        true,
+        {
+          fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
+          lineNumber: 497,
+          columnNumber: 7
+        },
+        void 0
       )
-    }
+    },
+    void 0,
+    false,
+    {
+      fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
+      lineNumber: 493,
+      columnNumber: 5
+    },
+    void 0
   );
 };
 var reactDomExports = requireReactDom();
@@ -50476,14 +53036,14 @@ const SetupLayer = ({ onComplete }) => {
       cachedSunTimes: null
     });
   };
-  const overlay = /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 z-[999] flex min-h-dvh items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+  const overlay = /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "fixed inset-0 z-[999] flex min-h-dvh items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
     PopupLayer,
     {
       title: "Spawn Monster!",
       keyboardAwareTargetRef: nameInputRef,
       dividerBorderClassName: "border-[#555]",
-      content: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex flex-col items-center gap-4", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "w-full", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
+      content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex flex-col items-center gap-4", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "w-full", children: [
+        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
           "input",
           {
             ref: nameInputRef,
@@ -50495,9 +53055,17 @@ const SetupLayer = ({ onComplete }) => {
             },
             placeholder: "monster name",
             className: "w-full border-2 border-[#222] px-3 py-0.5 text-center text-[1.4rem] focus:outline-none focus:ring-2 focus:ring-[#d95763]"
-          }
+          },
+          void 0,
+          false,
+          {
+            fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
+            lineNumber: 72,
+            columnNumber: 15
+          },
+          void 0
         ),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs(
+        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
           "div",
           {
             className: `mt-4 text-[1.4rem] ${isWithinVisibleWidth ? "text-gray-600" : "text-red-600"}`,
@@ -50508,14 +53076,46 @@ const SetupLayer = ({ onComplete }) => {
               NAME_LABEL_MAX_WIDTH,
               "px"
             ]
-          }
+          },
+          void 0,
+          true,
+          {
+            fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
+            lineNumber: 83,
+            columnNumber: 15
+          },
+          void 0
         ),
-        error && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "mt-4 text-component-negative text-[0.7em]", children: error })
-      ] }) }),
+        error && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("p", { className: "mt-4 text-component-negative text-[0.7em]", children: error }, void 0, false, {
+          fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
+          lineNumber: 91,
+          columnNumber: 17
+        }, void 0)
+      ] }, void 0, true, {
+        fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
+        lineNumber: 71,
+        columnNumber: 13
+      }, void 0) }, void 0, false, {
+        fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
+        lineNumber: 70,
+        columnNumber: 11
+      }, void 0),
       onConfirm: handleConfirm,
       confirmText: "Start"
-    }
-  ) });
+    },
+    void 0,
+    false,
+    {
+      fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
+      lineNumber: 65,
+      columnNumber: 7
+    },
+    void 0
+  ) }, void 0, false, {
+    fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
+    lineNumber: 64,
+    columnNumber: 5
+  }, void 0);
   if (typeof document === "undefined") {
     return overlay;
   }
@@ -50529,55 +53129,134 @@ const AlertLayer = ({
   confirmText = "Confirm",
   cancelText = "Cancel"
 }) => {
-  return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
     PopupLayer,
     {
       title,
-      content: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex flex-col items-center gap-4", children: /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "leading-[1.6]", children: message }) }),
+      content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex flex-col items-center gap-4", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("p", { className: "leading-[1.6]", children: message }, void 0, false, {
+        fileName: "/Users/neiz/digivice/apps/client/src/layers/AlertLayer.tsx",
+        lineNumber: 27,
+        columnNumber: 13
+      }, void 0) }, void 0, false, {
+        fileName: "/Users/neiz/digivice/apps/client/src/layers/AlertLayer.tsx",
+        lineNumber: 26,
+        columnNumber: 11
+      }, void 0),
       onConfirm: onClose,
       onCancel,
       confirmText,
       cancelText
-    }
-  ) });
+    },
+    void 0,
+    false,
+    {
+      fileName: "/Users/neiz/digivice/apps/client/src/layers/AlertLayer.tsx",
+      lineNumber: 23,
+      columnNumber: 7
+    },
+    void 0
+  ) }, void 0, false, {
+    fileName: "/Users/neiz/digivice/apps/client/src/layers/AlertLayer.tsx",
+    lineNumber: 22,
+    columnNumber: 5
+  }, void 0);
 };
 const FlappyBirdGameOverLayer = ({
   onRestart,
   onExit
 }) => {
-  return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 z-[50] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex w-full max-w-[22rem] flex-col items-center gap-5 px-4 text-center text-white", children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-[2.25rem] font-bold tracking-[0.12em] uppercase drop-shadow-[0_2px_6px_rgba(0,0,0,0.65)]", children: "Game Over" }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex justify-center gap-[15px]", children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx(
+  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "absolute inset-0 z-[50] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex w-full max-w-[22rem] flex-col items-center gap-5 px-4 text-center text-white", children: [
+    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-[2.25rem] font-bold tracking-[0.12em] uppercase drop-shadow-[0_2px_6px_rgba(0,0,0,0.65)]", children: "Game Over" }, void 0, false, {
+      fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdGameOverLayer.tsx",
+      lineNumber: 17,
+      columnNumber: 9
+    }, void 0),
+    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex justify-center gap-[15px]", children: [
+      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
         "button",
         {
           type: "button",
           onClick: onExit,
           className: "text-[1.5rem] bg-component-negative text-white border-2 border-[#222] px-[15px] py-0.5 cursor-pointer uppercase shadow-[2px_2px_0_#222] relative top-0 left-0 transition-all duration-50",
           children: "Exit"
-        }
+        },
+        void 0,
+        false,
+        {
+          fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdGameOverLayer.tsx",
+          lineNumber: 21,
+          columnNumber: 11
+        },
+        void 0
       ),
-      /* @__PURE__ */ jsxRuntimeExports.jsx(
+      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
         "button",
         {
           type: "button",
           onClick: onRestart,
           className: "text-[1.5rem] bg-component-positive text-white border-2 border-[#222] px-[15px] py-0.5 cursor-pointer uppercase shadow-[2px_2px_0_#222]",
           children: "Retry"
-        }
+        },
+        void 0,
+        false,
+        {
+          fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdGameOverLayer.tsx",
+          lineNumber: 28,
+          columnNumber: 11
+        },
+        void 0
       )
-    ] })
-  ] }) });
+    ] }, void 0, true, {
+      fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdGameOverLayer.tsx",
+      lineNumber: 20,
+      columnNumber: 9
+    }, void 0)
+  ] }, void 0, true, {
+    fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdGameOverLayer.tsx",
+    lineNumber: 16,
+    columnNumber: 7
+  }, void 0) }, void 0, false, {
+    fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdGameOverLayer.tsx",
+    lineNumber: 15,
+    columnNumber: 5
+  }, void 0);
 };
 const ToggleButton$1 = ({ enabled, onClick }) => {
-  return /* @__PURE__ */ jsxRuntimeExports.jsx(
+  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
     "button",
     {
       type: "button",
       onClick,
       className: `min-w-20 border-2 border-[#222] px-4 py-0.5 font-bold text-white ${enabled ? "bg-component-positive" : "bg-gray-400"}`,
       children: enabled ? "ON" : "OFF"
-    }
+    },
+    void 0,
+    false,
+    {
+      fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+      lineNumber: 28,
+      columnNumber: 5
+    },
+    void 0
+  );
+};
+const SelectButton = ({ active, label, onClick }) => {
+  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+    "button",
+    {
+      type: "button",
+      onClick,
+      className: `border-2 border-[#222] px-3 py-0.5 font-bold ${active ? "bg-component-positive text-white" : "bg-white text-[#222]"}`,
+      children: label
+    },
+    void 0,
+    false,
+    {
+      fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+      lineNumber: 46,
+      columnNumber: 5
+    },
+    void 0
   );
 };
 const FlappyBirdSettingsLayer = ({
@@ -50590,42 +53269,137 @@ const FlappyBirdSettingsLayer = ({
   onResume,
   onExit
 }) => {
-  return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 z-[50] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+  const shouldShowSkySelector = selectedTimeOfDay !== void 0 && onSelectTimeOfDay !== void 0;
+  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "fixed inset-0 z-[50] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
     PopupLayer,
     {
       title: "Settings",
       suppressInitialActionsMs: 180,
-      content: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-5 text-left text-[1.5rem]", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-gray-600", children: "The game is paused." }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between gap-4", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "font-bold", children: "BGM" }) }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
+      content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex flex-col gap-5 text-left text-[1.5rem]", children: [
+        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-gray-600", children: "The game is paused." }, void 0, false, {
+          fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+          lineNumber: 81,
+          columnNumber: 13
+        }, void 0),
+        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex items-center justify-between gap-4", children: [
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "font-bold", children: "BGM" }, void 0, false, {
+            fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+            lineNumber: 85,
+            columnNumber: 17
+          }, void 0) }, void 0, false, {
+            fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+            lineNumber: 84,
+            columnNumber: 15
+          }, void 0),
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
             ToggleButton$1,
             {
               enabled: isBgmEnabled,
               onClick: () => onChangeBgm(!isBgmEnabled)
-            }
+            },
+            void 0,
+            false,
+            {
+              fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+              lineNumber: 87,
+              columnNumber: 15
+            },
+            void 0
           )
-        ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "border-t-2 border-[#222] pt-4", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between gap-4", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "font-bold", children: "SFX" }) }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
+        ] }, void 0, true, {
+          fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+          lineNumber: 83,
+          columnNumber: 13
+        }, void 0),
+        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "border-t-2 border-[#222] pt-4", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex items-center justify-between gap-4", children: [
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "font-bold", children: "SFX" }, void 0, false, {
+            fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+            lineNumber: 96,
+            columnNumber: 19
+          }, void 0) }, void 0, false, {
+            fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+            lineNumber: 95,
+            columnNumber: 17
+          }, void 0),
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
             ToggleButton$1,
             {
               enabled: isSfxEnabled,
               onClick: () => onChangeSfx(!isSfxEnabled)
-            }
+            },
+            void 0,
+            false,
+            {
+              fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+              lineNumber: 98,
+              columnNumber: 17
+            },
+            void 0
           )
-        ] }) }),
-        null
-      ] }),
+        ] }, void 0, true, {
+          fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+          lineNumber: 94,
+          columnNumber: 15
+        }, void 0) }, void 0, false, {
+          fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+          lineNumber: 93,
+          columnNumber: 13
+        }, void 0),
+        shouldShowSkySelector ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "border-t-2 border-[#222] pt-4", children: [
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "mb-3 font-bold", children: "Sky Dev" }, void 0, false, {
+            fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+            lineNumber: 107,
+            columnNumber: 17
+          }, void 0),
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "grid grid-cols-2 gap-2", children: TIME_OF_DAY_OPTIONS.map((timeOfDay) => /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+            SelectButton,
+            {
+              active: selectedTimeOfDay === timeOfDay,
+              label: getTimeOfDayLabel(timeOfDay),
+              onClick: () => onSelectTimeOfDay(timeOfDay)
+            },
+            timeOfDay,
+            false,
+            {
+              fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+              lineNumber: 110,
+              columnNumber: 21
+            },
+            void 0
+          )) }, void 0, false, {
+            fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+            lineNumber: 108,
+            columnNumber: 17
+          }, void 0)
+        ] }, void 0, true, {
+          fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+          lineNumber: 106,
+          columnNumber: 15
+        }, void 0) : null
+      ] }, void 0, true, {
+        fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+        lineNumber: 80,
+        columnNumber: 11
+      }, void 0),
       onConfirm: onResume,
       onCancel: onExit,
       confirmText: "Resume",
       cancelText: "Exit",
       initialFocusTarget: "confirm"
-    }
-  ) });
+    },
+    void 0,
+    false,
+    {
+      fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+      lineNumber: 76,
+      columnNumber: 7
+    },
+    void 0
+  ) }, void 0, false, {
+    fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+    lineNumber: 75,
+    columnNumber: 5
+  }, void 0);
 };
 const FONT_NOTICE = {
   name: "Neo둥근모 Pro",
@@ -50635,19 +53409,27 @@ const FONT_NOTICE = {
   ]
 };
 const ToggleButton = ({ enabled, onClick }) => {
-  return /* @__PURE__ */ jsxRuntimeExports.jsx(
+  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
     "button",
     {
       type: "button",
       onClick,
       className: `min-w-20 border-2 border-[#222] px-4 py-0.5 font-bold text-white ${enabled ? "bg-component-positive" : "bg-gray-400"}`,
       children: enabled ? "ON" : "OFF"
-    }
+    },
+    void 0,
+    false,
+    {
+      fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+      lineNumber: 31,
+      columnNumber: 5
+    },
+    void 0
   );
 };
 const ActionButton = ({ text, onClick, disabled = false, variant = "positive" }) => {
   const backgroundClass = disabled ? "cursor-wait bg-gray-400 opacity-60" : variant === "warning" ? "bg-yellow-500" : variant === "negative" ? "bg-component-negative" : "bg-component-positive";
-  return /* @__PURE__ */ jsxRuntimeExports.jsx(
+  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
     "button",
     {
       type: "button",
@@ -50655,7 +53437,15 @@ const ActionButton = ({ text, onClick, disabled = false, variant = "positive" })
       onClick,
       className: `flex min-w-20 items-center justify-center border-2 border-[#222] px-4 py-0.5 text-center font-bold text-white ${backgroundClass}`,
       children: text
-    }
+    },
+    void 0,
+    false,
+    {
+      fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+      lineNumber: 58,
+      columnNumber: 5
+    },
+    void 0
   );
 };
 const SettingMenuLayer = ({
@@ -50676,50 +53466,126 @@ const SettingMenuLayer = ({
     () => resetConfirmText.trim() === "confirm",
     [resetConfirmText]
   );
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50", children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx(
+  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50", children: [
+    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
       PopupLayer,
       {
         title: "Settings",
         suppressInitialActionsMs: 180,
-        topLeftContent: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-[10px] leading-none text-gray-500", children: releaseLabel }),
-        content: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-5 text-left text-[1.5rem]", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between gap-4", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "font-bold", children: "Vibration" }) }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(
+        topLeftContent: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-[10px] leading-none text-gray-500", children: releaseLabel }, void 0, false, {
+          fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+          lineNumber: 95,
+          columnNumber: 11
+        }, void 0),
+        content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex flex-col gap-5 text-left text-[1.5rem]", children: [
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex items-center justify-between gap-4", children: [
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "font-bold", children: "Vibration" }, void 0, false, {
+              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+              lineNumber: 103,
+              columnNumber: 17
+            }, void 0) }, void 0, false, {
+              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+              lineNumber: 102,
+              columnNumber: 15
+            }, void 0),
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
               ToggleButton,
               {
                 enabled: vibrationEnabled,
                 onClick: () => onChangeVibration(!vibrationEnabled)
-              }
+              },
+              void 0,
+              false,
+              {
+                fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+                lineNumber: 105,
+                columnNumber: 15
+              },
+              void 0
             )
-          ] }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "border-t-2 border-[#222] pt-4", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between gap-4", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "font-bold", children: "Report Bug" }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(
+          ] }, void 0, true, {
+            fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+            lineNumber: 101,
+            columnNumber: 13
+          }, void 0),
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "border-t-2 border-[#222] pt-4", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex items-center justify-between gap-4", children: [
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "font-bold", children: "Report Bug" }, void 0, false, {
+              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+              lineNumber: 113,
+              columnNumber: 17
+            }, void 0),
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
               ActionButton,
               {
                 text: "Send",
                 onClick: onSendDiagnostics,
                 disabled: isSendingDiagnostics,
                 variant: "warning"
-              }
+              },
+              void 0,
+              false,
+              {
+                fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+                lineNumber: 114,
+                columnNumber: 17
+              },
+              void 0
             )
-          ] }) }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "border-t-2 border-[#222] pt-4", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between gap-4", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "font-bold", children: "License" }) }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(
+          ] }, void 0, true, {
+            fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+            lineNumber: 112,
+            columnNumber: 15
+          }, void 0) }, void 0, false, {
+            fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+            lineNumber: 111,
+            columnNumber: 13
+          }, void 0),
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "border-t-2 border-[#222] pt-4", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex items-center justify-between gap-4", children: [
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "font-bold", children: "License" }, void 0, false, {
+              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+              lineNumber: 126,
+              columnNumber: 19
+            }, void 0) }, void 0, false, {
+              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+              lineNumber: 125,
+              columnNumber: 17
+            }, void 0),
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
               ActionButton,
               {
                 text: "View",
                 onClick: () => setShowFontNotice(true)
-              }
+              },
+              void 0,
+              false,
+              {
+                fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+                lineNumber: 128,
+                columnNumber: 17
+              },
+              void 0
             )
-          ] }) }),
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "border-t-2 border-[#222] pt-4", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "font-bold text-red-600", children: "Raise a New Monster" }) }),
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mt-3 flex items-center justify-between gap-3", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx(
+          ] }, void 0, true, {
+            fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+            lineNumber: 124,
+            columnNumber: 15
+          }, void 0) }, void 0, false, {
+            fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+            lineNumber: 123,
+            columnNumber: 13
+          }, void 0),
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "border-t-2 border-[#222] pt-4", children: [
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "font-bold text-red-600", children: "Raise a New Monster" }, void 0, false, {
+              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+              lineNumber: 137,
+              columnNumber: 17
+            }, void 0) }, void 0, false, {
+              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+              lineNumber: 136,
+              columnNumber: 15
+            }, void 0),
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "mt-3 flex items-center justify-between gap-3", children: [
+              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
                 "input",
                 {
                   type: "text",
@@ -50727,9 +53593,17 @@ const SettingMenuLayer = ({
                   onChange: (event) => setResetConfirmText(event.target.value),
                   placeholder: "confirm",
                   className: "w-40 border-2 border-[#222] px-3 py-0.5 text-center placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#d95763]"
-                }
+                },
+                void 0,
+                false,
+                {
+                  fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+                  lineNumber: 142,
+                  columnNumber: 17
+                },
+                void 0
               ),
-              /* @__PURE__ */ jsxRuntimeExports.jsx(
+              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
                 "button",
                 {
                   type: "button",
@@ -50737,39 +53611,102 @@ const SettingMenuLayer = ({
                   onClick: onOpenResetConfirm,
                   className: `border-2 border-[#222] px-4 py-0.5 font-bold text-white ${isResetEnabled ? "bg-component-negative" : "cursor-not-allowed bg-gray-400 opacity-60"}`,
                   children: "Reset"
-                }
+                },
+                void 0,
+                false,
+                {
+                  fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+                  lineNumber: 149,
+                  columnNumber: 17
+                },
+                void 0
               )
-            ] })
-          ] })
-        ] }),
+            ] }, void 0, true, {
+              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+              lineNumber: 141,
+              columnNumber: 15
+            }, void 0)
+          ] }, void 0, true, {
+            fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+            lineNumber: 135,
+            columnNumber: 13
+          }, void 0)
+        ] }, void 0, true, {
+          fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+          lineNumber: 100,
+          columnNumber: 11
+        }, void 0),
         onConfirm: onClose,
         confirmText: "Close"
-      }
+      },
+      void 0,
+      false,
+      {
+        fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+        lineNumber: 91,
+        columnNumber: 7
+      },
+      void 0
     ),
-    showFontNotice && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+    showFontNotice && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
       PopupLayer,
       {
         title: "License",
-        content: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-left text-[1rem] leading-[1.4]", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-1 leading-[1.35]", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "break-all font-bold", children: FONT_NOTICE.name }),
-          FONT_NOTICE.lines.map((line) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+        content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-left text-[1rem] leading-[1.4]", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "space-y-1 leading-[1.35]", children: [
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "break-all font-bold", children: FONT_NOTICE.name }, void 0, false, {
+            fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+            lineNumber: 175,
+            columnNumber: 19
+          }, void 0),
+          FONT_NOTICE.lines.map((line) => /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
             "div",
             {
               className: "break-all text-[0.95rem] text-gray-600",
               children: line
             },
-            line
+            line,
+            false,
+            {
+              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+              lineNumber: 177,
+              columnNumber: 21
+            },
+            void 0
           ))
-        ] }) }),
+        ] }, void 0, true, {
+          fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+          lineNumber: 174,
+          columnNumber: 17
+        }, void 0) }, void 0, false, {
+          fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+          lineNumber: 173,
+          columnNumber: 15
+        }, void 0),
         onConfirm: () => setShowFontNotice(false),
         confirmText: "Close"
-      }
-    ) }),
-    showFinalResetConfirm && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+      },
+      void 0,
+      false,
+      {
+        fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+        lineNumber: 170,
+        columnNumber: 11
+      },
+      void 0
+    ) }, void 0, false, {
+      fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+      lineNumber: 169,
+      columnNumber: 9
+    }, void 0),
+    showFinalResetConfirm && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
       PopupLayer,
       {
         title: "Reset?",
-        content: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "leading-[1.6]", children: "This will permanently delete your current monster and all progress. You'll return to the setup screen to hatch a new one." }),
+        content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "leading-[1.6]", children: "This will permanently delete your current monster and all progress. You'll return to the setup screen to hatch a new one." }, void 0, false, {
+          fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+          lineNumber: 197,
+          columnNumber: 15
+        }, void 0),
         onConfirm: onResetGameData,
         onCancel: onCloseResetConfirm,
         confirmText: "Reset",
@@ -50777,9 +53714,25 @@ const SettingMenuLayer = ({
         confirmVariant: "negative",
         cancelVariant: "positive",
         confirmEnableDelayMs: 3e3
-      }
-    ) })
-  ] });
+      },
+      void 0,
+      false,
+      {
+        fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+        lineNumber: 194,
+        columnNumber: 11
+      },
+      void 0
+    ) }, void 0, false, {
+      fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+      lineNumber: 193,
+      columnNumber: 9
+    }, void 0)
+  ] }, void 0, true, {
+    fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+    lineNumber: 90,
+    columnNumber: 5
+  }, void 0);
 };
 const useAlert = () => {
   const [alertState, setAlertState] = reactExports.useState(null);
@@ -51328,6 +54281,242 @@ function sanitizeStoredWorldData(savedData) {
     }
   };
 }
+function getTimingNow() {
+  return typeof performance !== "undefined" ? performance.now() : Date.now();
+}
+function toDurationMs(startedAt) {
+  return Math.max(0, Math.round(getTimingNow() - startedAt));
+}
+function createTraceId(prefix) {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `${prefix}_${crypto.randomUUID()}`;
+  }
+  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+function summarizeTimingError(error) {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message
+    };
+  }
+  return {
+    message: String(error)
+  };
+}
+function summarizeSetupFormData(formData) {
+  return {
+    nameLength: formData.name.length,
+    useLocalTime: formData.useLocalTime,
+    hadCachedSunTimes: !!formData.cachedSunTimes
+  };
+}
+class EntryFlowDiagnostics {
+  constructor() {
+    __publicField(this, "_activeSetupFlowTrace", null);
+    __publicField(this, "_lastBootstrapState", null);
+  }
+  resetActiveSetupFlow() {
+    this._activeSetupFlowTrace = null;
+  }
+  beginBootstrap(gameContainerSize) {
+    this._logBootstrap("bootstrap", {
+      status: "start",
+      gameContainerSize
+    });
+  }
+  beginPrepareSavedGameData(storageKind) {
+    this.resetActiveSetupFlow();
+    this._logBootstrap("prepare_saved_game_data", {
+      status: "start",
+      storageKind
+    });
+    return getTimingNow();
+  }
+  completePrepareSavedGameData(params) {
+    this._lastBootstrapState = params.resultAction;
+    this._logBootstrap("prepare_saved_game_data", {
+      status: "end",
+      durationMs: toDurationMs(params.startedAt),
+      storageKind: params.storageKind,
+      resultAction: params.resultAction,
+      savedDataSummary: params.savedDataSummary
+    });
+  }
+  failPrepareSavedGameData(params) {
+    this._lastBootstrapState = "reset_required";
+    this._logBootstrap("prepare_saved_game_data", {
+      status: "error",
+      durationMs: toDurationMs(params.startedAt),
+      storageKind: params.storageKind,
+      error: summarizeTimingError(params.error)
+    });
+  }
+  markWaitingForSetupInput() {
+    this._logBootstrap("request_initial_game_data", {
+      status: "waiting_for_input"
+    });
+  }
+  startSetupFlow(source) {
+    const trace = {
+      setupFlowId: createTraceId("setup"),
+      source,
+      createdAt: getTimingNow()
+    };
+    this._activeSetupFlowTrace = trace;
+    return trace;
+  }
+  logSetupConfirmed(formData) {
+    this._logSetup("setup_confirmed", summarizeSetupFormData(formData));
+  }
+  logSetupDataReady(formData) {
+    this._logSetup("setup_data_ready", {
+      durationMs: this._activeSetupFlowTrace ? toDurationMs(this._activeSetupFlowTrace.createdAt) : null,
+      ...summarizeSetupFormData(formData)
+    });
+  }
+  beginHydrateInitialSetupData(formData) {
+    const startedAt = getTimingNow();
+    this._logSetup("hydrate_initial_setup_data", {
+      status: "start",
+      ...summarizeSetupFormData(formData)
+    });
+    return startedAt;
+  }
+  skipHydrateInitialSetupData(params) {
+    this._logSetup("hydrate_initial_setup_data", {
+      status: "skip",
+      durationMs: toDurationMs(params.startedAt),
+      reason: params.reason,
+      ...summarizeSetupFormData(params.formData)
+    });
+  }
+  beginNativeSunTimesRequest() {
+    const startedAt = getTimingNow();
+    this._logSetup("native_sun_times_request", {
+      status: "start",
+      promptForPermission: true
+    });
+    return startedAt;
+  }
+  completeNativeSunTimesRequest(startedAt, sunTimes) {
+    this._logSetup("native_sun_times_request", {
+      status: "end",
+      durationMs: toDurationMs(startedAt),
+      promptForPermission: true,
+      receivedSunTimes: !!sunTimes,
+      locationSource: (sunTimes == null ? void 0 : sunTimes.locationSource) ?? null,
+      hasLocationPermission: (sunTimes == null ? void 0 : sunTimes.hasLocationPermission) ?? null
+    });
+  }
+  failNativeSunTimesRequest(startedAt, error) {
+    this._logSetup("native_sun_times_request", {
+      status: "error",
+      durationMs: toDurationMs(startedAt),
+      promptForPermission: true,
+      error: summarizeTimingError(error)
+    });
+  }
+  completeHydrateInitialSetupData(params) {
+    var _a, _b;
+    this._logSetup("hydrate_initial_setup_data", {
+      status: "end",
+      durationMs: toDurationMs(params.startedAt),
+      resolvedWithCachedSunTimes: !!params.sunTimes,
+      locationSource: ((_a = params.sunTimes) == null ? void 0 : _a.locationSource) ?? null,
+      hasLocationPermission: ((_b = params.sunTimes) == null ? void 0 : _b.hasLocationPermission) ?? null
+    });
+  }
+  failHydrateInitialSetupData(startedAt, error) {
+    this._logSetup("hydrate_initial_setup_data", {
+      status: "error",
+      durationMs: toDurationMs(startedAt),
+      error: summarizeTimingError(error)
+    });
+  }
+  beginInitializeGame(initializationAttemptId, gameContainerSize) {
+    this._logBootstrap("initialize_game", {
+      status: "start",
+      initializationAttemptId,
+      gameContainerSize
+    });
+  }
+  completeInitializeGame(initializationAttemptId) {
+    this._logBootstrap("initialize_game", {
+      status: "end",
+      initializationAttemptId
+    });
+  }
+  failInitializeGame(initializationAttemptId, error) {
+    this._logBootstrap("initialize_game", {
+      status: "error",
+      initializationAttemptId,
+      error: summarizeTimingError(error)
+    });
+  }
+  beginRequestInitialGameData() {
+    this._logBootstrap("request_initial_game_data", {
+      status: "start"
+    });
+    return getTimingNow();
+  }
+  completeRequestInitialGameData(startedAt, hasInitialSetupData) {
+    this._logBootstrap("request_initial_game_data", {
+      status: "end",
+      durationMs: toDurationMs(startedAt),
+      hasInitialSetupData
+    });
+  }
+  beginLayoutStabilization() {
+    this._logBootstrap("wait_for_layout_stabilization", {
+      status: "start"
+    });
+    return getTimingNow();
+  }
+  completeLayoutStabilization(startedAt, viewportHeight) {
+    this._logBootstrap("wait_for_layout_stabilization", {
+      status: "end",
+      durationMs: toDurationMs(startedAt),
+      viewportHeight
+    });
+  }
+  createNativeSunTimesTraceContext(params) {
+    var _a;
+    return {
+      source: params.source,
+      phase: params.phase,
+      setupFlowId: ((_a = this._activeSetupFlowTrace) == null ? void 0 : _a.setupFlowId) ?? null,
+      initializationAttemptId: params.initializationAttemptId ?? null
+    };
+  }
+  createGameLoadingTraceContext(initializationAttemptId) {
+    var _a;
+    return {
+      initializationAttemptId,
+      setupFlowId: ((_a = this._activeSetupFlowTrace) == null ? void 0 : _a.setupFlowId) ?? null,
+      bootstrapState: this._lastBootstrapState
+    };
+  }
+  _logSetup(phase, payload = {}) {
+    const trace = this._activeSetupFlowTrace;
+    logImportantDiagnostics("log", "[ImportantDiagnostics][SetupFlowTiming]", {
+      phase,
+      setupFlowId: (trace == null ? void 0 : trace.setupFlowId) ?? null,
+      setupSource: (trace == null ? void 0 : trace.source) ?? null,
+      flowAgeMs: trace ? toDurationMs(trace.createdAt) : null,
+      ...payload
+    });
+  }
+  _logBootstrap(phase, payload = {}) {
+    var _a;
+    logImportantDiagnostics("log", "[ImportantDiagnostics][BootstrapTiming]", {
+      phase,
+      setupFlowId: ((_a = this._activeSetupFlowTrace) == null ? void 0 : _a.setupFlowId) ?? null,
+      bootstrapState: this._lastBootstrapState,
+      ...payload
+    });
+  }
+}
 const WORLD_DATA_STORAGE_KEY = "MainSceneWorldData";
 const FLAPPY_BIRD_GAME_OVER_AD_COUNTER_STORAGE_KEY = "FlappyBirdGameOverAdCounter";
 const FLAPPY_BIRD_GAME_OVER_AD_THRESHOLD = 5;
@@ -51338,7 +54527,7 @@ const RECOVERY_VIBRATION_INTERVAL_MS = 180;
 const RECOVERY_VIBRATION_DURATION_MS = 14;
 const RECOVERY_VIBRATION_STRENGTH = 28;
 const LOADING_TIMEOUT_MS = 3e4;
-const isNativeFeatureDebugMode$1 = false;
+const isNativeFeatureDebugMode$1 = true;
 const isAndroidUserAgent = typeof navigator !== "undefined" && /DigiviceApp-Android|Android/i.test(navigator.userAgent);
 const KEYBOARD_VIEWPORT_HEIGHT_DELTA_THRESHOLD = 80;
 const UNSUPPORTED_SQUARE_VIEWPORT_RATIO = 0.8;
@@ -51613,11 +54802,11 @@ function createDiagnosticsBody() {
   ].join("\n");
 }
 function getClientReleaseLabel() {
-  return `${"0.3.0"}+${6}`;
+  return `${"0.4.1-debug"}+${8}`;
 }
 function getClientReleaseFileLabel() {
-  const sanitizedVersion = "0.3.0".replace(/[^a-zA-Z0-9.-]+/g, "_");
-  return `${sanitizedVersion}-build-${6}`;
+  const sanitizedVersion = "0.4.1-debug".replace(/[^a-zA-Z0-9.-]+/g, "_");
+  return `${sanitizedVersion}-build-${8}`;
 }
 function buildGmailComposeHref(subject, body) {
   const gmailComposeUrl = new URL("https://mail.google.com/mail/");
@@ -51681,6 +54870,7 @@ const GameContainer = () => {
     null
   );
   const pendingSetupResolverRef = reactExports.useRef(null);
+  const entryFlowDiagnostics = reactExports.useMemo(() => new EntryFlowDiagnostics(), []);
   const shouldRestartFromSetupRef = reactExports.useRef(false);
   const [sceneHistoryStack, setSceneHistoryStack] = reactExports.useState(() => [
     ...ROOT_SCENE_HISTORY_STACK
@@ -51721,6 +54911,35 @@ const GameContainer = () => {
   );
   const pendingBrowserHistoryTargetEntriesRef = reactExports.useRef(null);
   const hasInitializedBackNavigationHistoryRef = reactExports.useRef(false);
+  const logSetupLayerVisibility = reactExports.useCallback(
+    (reason, payload = {}, level = "warn") => {
+      logImportantDiagnostics(
+        level,
+        "[ImportantDiagnostics][SetupLayerVisibility]",
+        {
+          reason,
+          hasGameInstance: !!gameInstance,
+          isInitialized: isInitializedRef.current,
+          isInitializingGame: isInitializingGameRef.current,
+          currentSceneKey: (gameInstance == null ? void 0 : gameInstance.getCurrentSceneKey()) ?? null,
+          sceneTransitionPhase: sceneTransitionLoadState.phase,
+          sceneTransitionRequestId: sceneTransitionLoadState.requestId,
+          sceneTransitionFrom: sceneTransitionLoadState.from ?? null,
+          sceneTransitionTo: sceneTransitionLoadState.to ?? null,
+          documentHidden: typeof document !== "undefined" ? document.hidden : null,
+          ...payload
+        }
+      );
+    },
+    [gameInstance, sceneTransitionLoadState]
+  );
+  const presentSetupLayer = reactExports.useCallback(
+    (reason, payload = {}) => {
+      logSetupLayerVisibility(reason, payload);
+      setShowSetupLayer(true);
+    },
+    [logSetupLayerVisibility]
+  );
   const clearPendingSettingMenuOpen = reactExports.useCallback(() => {
     if (pendingSettingMenuOpenTimeoutRef.current === null) {
       return;
@@ -51855,6 +55074,82 @@ const GameContainer = () => {
       closeSettingMenu
     );
   }, [closeSettingMenu, requestHistoryBackForEntry]);
+  const interruptLoadingFlow = reactExports.useCallback(
+    (reason) => {
+      if (sceneTransitionLoadState.phase === "loading" && gameInstance && sceneTransitionLoadState.from) {
+        const interrupted = gameInstance.requestSceneTransitionInterruption({
+          requestId: sceneTransitionLoadState.requestId,
+          fallbackScene: sceneTransitionLoadState.from,
+          reason
+        });
+        if (interrupted) {
+          logImportantDiagnostics(
+            "warn",
+            "[ImportantDiagnostics][LoadingInterruption]",
+            {
+              reason,
+              loadingKind: "scene_transition_loading",
+              requestId: sceneTransitionLoadState.requestId,
+              from: sceneTransitionLoadState.from,
+              to: sceneTransitionLoadState.to
+            }
+          );
+          return true;
+        }
+      }
+      if (sceneTransitionLoadState.phase === "core_ready" && gameInstance && sceneTransitionLoadState.from) {
+        logImportantDiagnostics(
+          "warn",
+          "[ImportantDiagnostics][LoadingInterruption]",
+          {
+            reason,
+            loadingKind: "scene_transition_core_ready",
+            requestId: sceneTransitionLoadState.requestId,
+            from: sceneTransitionLoadState.from,
+            to: sceneTransitionLoadState.to
+          }
+        );
+        clearLoadingTimeout();
+        sceneTransitionRequestIdRef.current = 0;
+        setSceneTransitionLoadState({ requestId: 0, phase: "idle" });
+        setIsBootstrapping(false);
+        void gameInstance.changeScene(sceneTransitionLoadState.from);
+        return true;
+      }
+      if (isBootstrapping && !showSetupLayer) {
+        logImportantDiagnostics(
+          "warn",
+          "[ImportantDiagnostics][LoadingInterruption]",
+          {
+            reason,
+            loadingKind: "bootstrap_to_main",
+            requestId: sceneTransitionLoadState.requestId,
+            from: "setup_layer",
+            to: SceneKey.MAIN
+          }
+        );
+        clearLoadingTimeout();
+        cancelPendingGameInitialization(`loading_interrupted:${reason}`);
+        sceneTransitionRequestIdRef.current = 0;
+        setSceneTransitionLoadState({ requestId: 0, phase: "idle" });
+        setLoadingFailureAlert(null);
+        setGameInstance(null);
+        setIsBootstrapping(false);
+        presentSetupLayer("bootstrap_loading_interrupted", { reason });
+        return true;
+      }
+      return false;
+    },
+    [
+      cancelPendingGameInitialization,
+      clearLoadingTimeout,
+      gameInstance,
+      isBootstrapping,
+      presentSetupLayer,
+      sceneTransitionLoadState,
+      showSetupLayer
+    ]
+  );
   const handleNativeBackNavigation = reactExports.useCallback(() => {
     if (typeof window === "undefined") {
       return "consumed";
@@ -51862,7 +55157,10 @@ const GameContainer = () => {
     if (pendingBrowserHistoryTargetEntriesRef.current || pendingPopstateTargetEntriesRef.current) {
       return "consumed";
     }
-    if (sceneTransitionLoadState.phase !== "idle" || isBootstrapping || unsupportedViewportReason || showSetupLayer || sanitizeResetAlert) {
+    if (interruptLoadingFlow("back_navigation")) {
+      return "consumed";
+    }
+    if (unsupportedViewportReason || showSetupLayer || sanitizeResetAlert) {
       return "consumed";
     }
     if (pendingDiagnosticsDraft) {
@@ -51906,7 +55204,8 @@ const GameContainer = () => {
     setFlappyBirdSettingsMenuState,
     setPendingDiagnosticsDraft,
     showSetupLayer,
-    unsupportedViewportReason
+    unsupportedViewportReason,
+    interruptLoadingFlow
   ]);
   const applyBackNavigationTarget = reactExports.useCallback(
     async (targetEntries) => {
@@ -52153,9 +55452,9 @@ const GameContainer = () => {
     setDiagnosticsContextProvider(() => ({
       scene: (gameInstance == null ? void 0 : gameInstance.getCurrentSceneKey()) !== void 0 ? String(gameInstance.getCurrentSceneKey()) : void 0,
       storageKind: getClientStorageKind(),
-      appMode: "production",
-      appVersion: "0.3.0",
-      buildNumber: 6,
+      appMode: "development",
+      appVersion: "0.4.1-debug",
+      buildNumber: 8,
       debugEnabled: isNativeFeatureDebugMode$1
     }));
     return () => {
@@ -52201,6 +55500,13 @@ const GameContainer = () => {
             to: params.to
           }
         });
+        return;
+      }
+      if (params.state === "interrupted") {
+        clearLoadingTimeout();
+        sceneTransitionRequestIdRef.current = 0;
+        setSceneTransitionLoadState({ requestId: 0, phase: "idle" });
+        setIsBootstrapping(false);
         return;
       }
       setSceneTransitionLoadState(
@@ -52483,6 +55789,21 @@ const GameContainer = () => {
       cancelled = true;
     };
   }, [completeSceneTransitionLoading, gameInstance, sceneTransitionLoadState]);
+  reactExports.useEffect(() => {
+    if (typeof document === "undefined") {
+      return;
+    }
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        return;
+      }
+      interruptLoadingFlow("app_hidden");
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [interruptLoadingFlow]);
   const handleSendDiagnostics = reactExports.useCallback(async () => {
     var _a, _b, _c;
     if (isSendingDiagnostics || pendingDiagnosticsDraft) {
@@ -52492,8 +55813,15 @@ const GameContainer = () => {
     try {
       const storage = createClientStorage();
       const storedGameData = await storage.getData(WORLD_DATA_STORAGE_KEY);
+      const storedFlappyBirdPerfHistory = await storage.getData(
+        FLAPPY_BIRD_PERF_DIAGNOSTICS_STORAGE_KEY
+      );
       const snapshot = gameInstance == null ? void 0 : gameInstance.getDiagnosticsSnapshot();
       const currentGameData = (snapshot == null ? void 0 : snapshot.mainSceneData) ?? null;
+      const currentFlappyBirdPerf = (snapshot == null ? void 0 : snapshot.flappyBirdPerf) ?? null;
+      const nativeBridgeDiagnostics = Array.isArray(
+        window.__digiviceNativeBridgeDiagnostics
+      ) ? window.__digiviceNativeBridgeDiagnostics : [];
       const latestGameData = currentGameData ?? storedGameData ?? null;
       const latestGameDataSource = currentGameData ? "current_game" : storedGameData ? "stored_game" : "none";
       const currentSceneKey = String((snapshot == null ? void 0 : snapshot.currentSceneKey) ?? "unknown");
@@ -52501,9 +55829,9 @@ const GameContainer = () => {
         generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
         appInfo: {
           project: "MonTTo",
-          clientAppVersion: "0.3.0",
-          clientBuildNumber: 6,
-          appMode: "production",
+          clientAppVersion: "0.4.1-debug",
+          clientBuildNumber: 8,
+          appMode: "development",
           debugEnabled: isNativeFeatureDebugMode$1,
           storageKind: getClientStorageKind(),
           userAgent: navigator.userAgent,
@@ -52517,7 +55845,10 @@ const GameContainer = () => {
         logs: getDiagnosticsLogs(),
         importantLogs: getImportantDiagnosticsLogs(),
         currentGameData,
+        currentFlappyBirdPerf,
         storedGameData,
+        storedFlappyBirdPerfHistory,
+        nativeBridgeDiagnostics,
         latestGameData,
         latestGameDataSource,
         lastValidation: ((_a = lastValidationResultRef.current) == null ? void 0 : _a.diagnostics) ?? null,
@@ -52546,6 +55877,23 @@ const GameContainer = () => {
           {
             fileName: `montto-important-logs-${releaseFileLabel}-${timestampSuffix}.json`,
             text: JSON.stringify(payload.importantLogs, null, 2),
+            mimeType: "application/json"
+          },
+          {
+            fileName: `montto-flappybird-perf-${releaseFileLabel}-${timestampSuffix}.json`,
+            text: JSON.stringify(
+              {
+                currentFlappyBirdPerf: payload.currentFlappyBirdPerf,
+                storedFlappyBirdPerfHistory: payload.storedFlappyBirdPerfHistory
+              },
+              null,
+              2
+            ),
+            mimeType: "application/json"
+          },
+          {
+            fileName: `montto-native-bridge-diagnostics-${releaseFileLabel}-${timestampSuffix}.json`,
+            text: JSON.stringify(payload.nativeBridgeDiagnostics, null, 2),
             mimeType: "application/json"
           }
         ]
@@ -52636,7 +55984,9 @@ const GameContainer = () => {
         setShowSettingMenu(false);
         setShowFinalResetConfirm(false);
         setButtonParams(null);
-        setShowSetupLayer(true);
+        presentSetupLayer(reason, {
+          storageKind: getClientStorageKind()
+        });
         setIsBootstrapping(false);
         sceneTransitionRequestIdRef.current = 0;
         setSceneTransitionLoadState({ requestId: 0, phase: "idle" });
@@ -52657,6 +56007,7 @@ const GameContainer = () => {
       cancelPendingGameInitialization,
       clearLoadingTimeout,
       gameInstance,
+      presentSetupLayer,
       showAlert
     ]
   );
@@ -52667,6 +56018,9 @@ const GameContainer = () => {
     await resetGameData("sanitize_reset");
   }, [resetGameData]);
   const prepareSavedGameData = reactExports.useCallback(async () => {
+    const startedAt = entryFlowDiagnostics.beginPrepareSavedGameData(
+      getClientStorageKind()
+    );
     try {
       const storage = createClientStorage();
       const storageKind = getClientStorageKind();
@@ -52727,8 +56081,19 @@ const GameContainer = () => {
         });
         setIsBootstrapping(false);
       }
+      entryFlowDiagnostics.completePrepareSavedGameData({
+        startedAt,
+        storageKind,
+        resultAction: result.action,
+        savedDataSummary
+      });
       return result.action;
     } catch (error) {
+      entryFlowDiagnostics.failPrepareSavedGameData({
+        startedAt,
+        storageKind: getClientStorageKind(),
+        error
+      });
       logImportantDiagnostics(
         "error",
         "[ImportantDiagnostics][GameDataValidation] Failed to inspect saved game data.",
@@ -52750,18 +56115,38 @@ const GameContainer = () => {
       setIsBootstrapping(false);
       return "reset_required";
     }
-  }, []);
+  }, [entryFlowDiagnostics]);
   const hydrateInitialSetupData = reactExports.useCallback(
     async (formData) => {
+      const startedAt = entryFlowDiagnostics.beginHydrateInitialSetupData(formData);
       if (!formData.useLocalTime || formData.cachedSunTimes) {
+        entryFlowDiagnostics.skipHydrateInitialSetupData({
+          startedAt,
+          formData,
+          reason: !formData.useLocalTime ? "local_time_disabled" : "cached_sun_times_already_present"
+        });
         return formData;
       }
+      const nativeSunTimesStartedAt = entryFlowDiagnostics.beginNativeSunTimesRequest();
       try {
-        const sunTimes = await getNativeSunTimes(true);
+        const sunTimes = await getNativeSunTimes(true, {
+          ...entryFlowDiagnostics.createNativeSunTimesTraceContext({
+            source: "setup_loading",
+            phase: "hydrate_initial_setup_data"
+          })
+        });
+        entryFlowDiagnostics.completeNativeSunTimesRequest(
+          nativeSunTimesStartedAt,
+          sunTimes
+        );
         if (!sunTimes) {
           console.warn(
             "[GameContainer] Initial sun times were unavailable during setup loading. Continuing without cached sun times."
           );
+          entryFlowDiagnostics.completeHydrateInitialSetupData({
+            startedAt,
+            sunTimes: null
+          });
           return {
             ...formData,
             cachedSunTimes: null
@@ -52777,49 +56162,85 @@ const GameContainer = () => {
             sunsetAt: sunTimes.sunsetAt
           }
         );
+        entryFlowDiagnostics.completeHydrateInitialSetupData({
+          startedAt,
+          sunTimes
+        });
         return {
           ...formData,
           cachedSunTimes: sunTimes
         };
       } catch (error) {
+        entryFlowDiagnostics.failNativeSunTimesRequest(
+          nativeSunTimesStartedAt,
+          error
+        );
         console.warn(
           "[GameContainer] Failed to prepare initial sun times during setup loading. Continuing without cached sun times.",
           error
         );
+        entryFlowDiagnostics.failHydrateInitialSetupData(startedAt, error);
         return {
           ...formData,
           cachedSunTimes: null
         };
       }
     },
-    []
+    [entryFlowDiagnostics]
   );
-  const requestInitialGameData = reactExports.useCallback(async () => {
-    if (initialSetupDataRef.current) {
-      return initialSetupDataRef.current;
-    }
-    if (pendingInitialSetupPromiseRef.current) {
-      return pendingInitialSetupPromiseRef.current;
-    }
-    setLoadingFailureAlert(null);
-    setIsBootstrapping(false);
-    setShowSetupLayer(true);
-    const setupPromise = new Promise((resolve) => {
-      pendingSetupResolverRef.current = (formData) => {
-        setShowSetupLayer(false);
-        setIsBootstrapping(true);
-        pendingSetupResolverRef.current = null;
-        void (async () => {
-          const hydratedFormData = await hydrateInitialSetupData(formData);
-          initialSetupDataRef.current = hydratedFormData;
-          pendingInitialSetupPromiseRef.current = null;
-          resolve(hydratedFormData);
-        })();
-      };
-    });
-    pendingInitialSetupPromiseRef.current = setupPromise;
-    return setupPromise;
-  }, [hydrateInitialSetupData]);
+  const requestInitialGameData = reactExports.useCallback(
+    async (options) => {
+      const { allowSetupLayer, source } = options;
+      if (initialSetupDataRef.current) {
+        return initialSetupDataRef.current;
+      }
+      if (pendingInitialSetupPromiseRef.current) {
+        return pendingInitialSetupPromiseRef.current;
+      }
+      if (!allowSetupLayer) {
+        logSetupLayerVisibility(
+          "runtime_missing_initial_data_blocked",
+          {
+            source
+          },
+          "error"
+        );
+        throw new MissingInitialGameDataError();
+      }
+      setLoadingFailureAlert(null);
+      setIsBootstrapping(false);
+      presentSetupLayer("bootstrap_setup_required", {
+        source
+      });
+      entryFlowDiagnostics.markWaitingForSetupInput();
+      const setupPromise = new Promise((resolve) => {
+        pendingSetupResolverRef.current = (formData) => {
+          entryFlowDiagnostics.startSetupFlow(
+            "request_initial_game_data"
+          );
+          setShowSetupLayer(false);
+          setIsBootstrapping(true);
+          pendingSetupResolverRef.current = null;
+          entryFlowDiagnostics.logSetupConfirmed(formData);
+          void (async () => {
+            const hydratedFormData = await hydrateInitialSetupData(formData);
+            initialSetupDataRef.current = hydratedFormData;
+            pendingInitialSetupPromiseRef.current = null;
+            entryFlowDiagnostics.logSetupDataReady(hydratedFormData);
+            resolve(hydratedFormData);
+          })();
+        };
+      });
+      pendingInitialSetupPromiseRef.current = setupPromise;
+      return setupPromise;
+    },
+    [
+      entryFlowDiagnostics,
+      hydrateInitialSetupData,
+      logSetupLayerVisibility,
+      presentSetupLayer
+    ]
+  );
   const initializeGame = reactExports.useCallback(() => {
     if (!gameContainerRef.current) return;
     if (!gameContainerSize || gameContainerSize <= 0) return;
@@ -52830,6 +56251,7 @@ const GameContainer = () => {
     const attemptId = gameInitializationAttemptIdRef.current + 1;
     gameInitializationAttemptIdRef.current = attemptId;
     isInitializingGameRef.current = true;
+    entryFlowDiagnostics.beginInitializeGame(attemptId, gameContainerSize);
     const debugParentElement = gameContainerRef.current.closest("#app-container") ?? gameContainerRef.current;
     const game = new Game({
       parentElement: gameContainerRef.current,
@@ -52837,7 +56259,10 @@ const GameContainer = () => {
       debugMode: isNativeFeatureDebugMode$1,
       initialSceneKey: CONFIGURED_INITIAL_SCENE_KEY,
       onCreateInitialGameData: async () => {
-        return initialSetupDataRef.current ?? await requestInitialGameData();
+        return initialSetupDataRef.current ?? await requestInitialGameData({
+          allowSetupLayer: false,
+          source: "game_runtime"
+        });
       },
       showAlert: (message, title) => {
         showAlert(message, title);
@@ -52867,6 +56292,7 @@ const GameContainer = () => {
         setFlappyBirdSettingsMenuState(null);
       },
       onSceneTransitionStateChange: handleSceneTransitionStateChange,
+      loadingTraceContext: entryFlowDiagnostics.createGameLoadingTraceContext(attemptId),
       changeControlButtons: (controlButtonParams) => {
         if (!controlButtonParams) {
           setButtonParams(null);
@@ -52902,6 +56328,7 @@ const GameContainer = () => {
         if (((_a2 = pendingGameInitializationRef.current) == null ? void 0 : _a2.attemptId) !== attemptId) {
           return;
         }
+        entryFlowDiagnostics.completeInitializeGame(attemptId);
         pendingGameInitializationRef.current = null;
         isInitializingGameRef.current = false;
         isInitializedRef.current = true;
@@ -52911,6 +56338,7 @@ const GameContainer = () => {
         if (((_a2 = pendingGameInitializationRef.current) == null ? void 0 : _a2.attemptId) !== attemptId) {
           return;
         }
+        entryFlowDiagnostics.failInitializeGame(attemptId, error);
         pendingGameInitializationRef.current = null;
         isInitializingGameRef.current = false;
         setGameInstance(null);
@@ -52938,7 +56366,9 @@ const GameContainer = () => {
           pendingSetupResolverRef.current = null;
           shouldRestartFromSetupRef.current = true;
           setLoadingFailureAlert(null);
-          setShowSetupLayer(true);
+          presentSetupLayer("game_initialize_missing_initial_data", {
+            storageKind: getClientStorageKind()
+          });
           setIsBootstrapping(false);
           return;
         }
@@ -52962,9 +56392,11 @@ const GameContainer = () => {
     persistFlappyBirdBestScore,
     requestInitialGameData,
     startRecoveryVibration,
+    presentSetupLayer,
     stopLoadingWithFailure,
     stopRecoveryVibration,
     showAlert,
+    entryFlowDiagnostics,
     triggerTransientVibration
   ]);
   reactExports.useEffect(() => {
@@ -53077,16 +56509,30 @@ const GameContainer = () => {
         initializeGame();
         return;
       }
+      entryFlowDiagnostics.beginBootstrap(gameContainerSize);
       const savedGameDataState = await prepareSavedGameData();
       if (!isMounted) return;
       if (savedGameDataState === "reset_required") {
         return;
       }
       if (savedGameDataState === "setup_required") {
-        await requestInitialGameData();
+        const initialGameDataStartedAt = entryFlowDiagnostics.beginRequestInitialGameData();
+        await requestInitialGameData({
+          allowSetupLayer: true,
+          source: "bootstrap"
+        });
         if (!isMounted) return;
+        entryFlowDiagnostics.completeRequestInitialGameData(
+          initialGameDataStartedAt,
+          !!initialSetupDataRef.current
+        );
+        const layoutStabilizationStartedAt = entryFlowDiagnostics.beginLayoutStabilization();
         await waitForLayoutStabilization();
         if (!isMounted) return;
+        entryFlowDiagnostics.completeLayoutStabilization(
+          layoutStabilizationStartedAt,
+          getCurrentViewportHeight()
+        );
       }
       initializeGame();
     };
@@ -53099,6 +56545,7 @@ const GameContainer = () => {
     gameContainerSize,
     gameSessionKey,
     initializeGame,
+    entryFlowDiagnostics,
     prepareSavedGameData,
     requestInitialGameData,
     stopRecoveryVibration
@@ -53177,12 +56624,15 @@ const GameContainer = () => {
         pendingResolver(formData);
         return;
       }
+      entryFlowDiagnostics.startSetupFlow("handle_setup_complete");
       setShowSetupLayer(false);
       setLoadingFailureAlert(null);
       setIsBootstrapping(true);
+      entryFlowDiagnostics.logSetupConfirmed(formData);
       void (async () => {
         const hydratedFormData = await hydrateInitialSetupData(formData);
         initialSetupDataRef.current = hydratedFormData;
+        entryFlowDiagnostics.logSetupDataReady(hydratedFormData);
         if (shouldRestartFromSetupRef.current) {
           shouldRestartFromSetupRef.current = false;
           setGameSessionKey((previous) => previous + 1);
@@ -53191,7 +56641,7 @@ const GameContainer = () => {
         setIsBootstrapping(false);
       })();
     },
-    [hydrateInitialSetupData]
+    [entryFlowDiagnostics, hydrateInitialSetupData]
   );
   const handleSendLoadingFailureLogs = reactExports.useCallback(() => {
     setLoadingFailureAlert(null);
@@ -53200,12 +56650,12 @@ const GameContainer = () => {
     }, 0);
   }, [handleSendDiagnostics]);
   const isLoading = isBootstrapping || sceneTransitionLoadState.phase === "loading" || sceneTransitionLoadState.phase === "core_ready";
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs(
+  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
     "div",
     {
       className: "relative flex h-full min-h-0 w-full flex-col overflow-hidden",
       children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs(
+        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
           "div",
           {
             ref: gameViewportRef,
@@ -53214,8 +56664,12 @@ const GameContainer = () => {
               gridTemplateRows: buttonParams ? "minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr)" : "minmax(0, 1fr) auto minmax(0, 1fr)"
             },
             children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "aria-hidden": "true", className: "min-h-0" }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex min-h-0 min-w-0 justify-center overflow-hidden", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { "aria-hidden": "true", className: "min-h-0" }, void 0, false, {
+                fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+                lineNumber: 2914,
+                columnNumber: 9
+              }, void 0),
+              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex min-h-0 min-w-0 justify-center overflow-hidden", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
                 "div",
                 {
                   className: "relative m-0 shrink-0 p-0",
@@ -53223,45 +56677,137 @@ const GameContainer = () => {
                     width: `${gameContainerSize}px`,
                     height: `${gameContainerSize}px`
                   } : void 0,
-                  children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
                     "div",
                     {
                       id: "game-container",
                       ref: gameContainerRef,
                       className: "absolute inset-0 m-0 p-0"
-                    }
+                    },
+                    void 0,
+                    false,
+                    {
+                      fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+                      lineNumber: 2927,
+                      columnNumber: 13
+                    },
+                    void 0
                   )
-                }
-              ) }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "aria-hidden": "true", className: "min-h-0" }),
-              buttonParams && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: controlButtonsWrapperRef, className: "z-10 w-full", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                },
+                void 0,
+                false,
+                {
+                  fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+                  lineNumber: 2916,
+                  columnNumber: 11
+                },
+                void 0
+              ) }, void 0, false, {
+                fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+                lineNumber: 2915,
+                columnNumber: 9
+              }, void 0),
+              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { "aria-hidden": "true", className: "min-h-0" }, void 0, false, {
+                fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+                lineNumber: 2936,
+                columnNumber: 9
+              }, void 0),
+              buttonParams && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { ref: controlButtonsWrapperRef, className: "z-10 w-full", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
                 ControlButtons,
                 {
                   buttonParams,
                   onButtonPress: handleButtonPress,
                   onSliderChange: handleSliderChange,
                   onSliderEnd: handleSliderEnd
-                }
-              ) }),
-              buttonParams && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "aria-hidden": "true", className: "min-h-0" })
+                },
+                void 0,
+                false,
+                {
+                  fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+                  lineNumber: 2940,
+                  columnNumber: 13
+                },
+                void 0
+              ) }, void 0, false, {
+                fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+                lineNumber: 2939,
+                columnNumber: 11
+              }, void 0),
+              buttonParams && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { "aria-hidden": "true", className: "min-h-0" }, void 0, false, {
+                fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+                lineNumber: 2948,
+                columnNumber: 26
+              }, void 0)
             ]
-          }
+          },
+          void 0,
+          true,
+          {
+            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+            lineNumber: 2905,
+            columnNumber: 7
+          },
+          void 0
         ),
-        isLoading && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-50 flex items-center justify-center bg-black text-white", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-center text-[2.25rem] tracking-[0.12em]", children: "Loading..." }) }),
-        unsupportedViewportReason && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-[1000] flex items-center justify-center bg-black text-white", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "px-6 text-center", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-lg tracking-[0.12em]", children: "Portrait Only" }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "mt-6 text-[10px] leading-6 tracking-[0.12em]", children: unsupportedViewportReason === "landscape" ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+        isLoading && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "absolute inset-0 z-50 flex items-center justify-center bg-black text-white", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-center text-[2.25rem] tracking-[0.12em]", children: "Loading..." }, void 0, false, {
+          fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+          lineNumber: 2952,
+          columnNumber: 11
+        }, void 0) }, void 0, false, {
+          fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+          lineNumber: 2951,
+          columnNumber: 9
+        }, void 0),
+        unsupportedViewportReason && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "absolute inset-0 z-[1000] flex items-center justify-center bg-black text-white", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "px-6 text-center", children: [
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-lg tracking-[0.12em]", children: "Portrait Only" }, void 0, false, {
+            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+            lineNumber: 2960,
+            columnNumber: 13
+          }, void 0),
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "mt-6 text-[10px] leading-6 tracking-[0.12em]", children: unsupportedViewportReason === "landscape" ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(jsxDevRuntimeExports.Fragment, { children: [
             "Please rotate your device",
-            /* @__PURE__ */ jsxRuntimeExports.jsx("br", {}),
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("br", {}, void 0, false, {
+              fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+              lineNumber: 2965,
+              columnNumber: 19
+            }, void 0),
             "back to portrait mode."
-          ] }) : /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+          ] }, void 0, true, {
+            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+            lineNumber: 2963,
+            columnNumber: 17
+          }, void 0) : /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(jsxDevRuntimeExports.Fragment, { children: [
             "This screen ratio is not supported.",
-            /* @__PURE__ */ jsxRuntimeExports.jsx("br", {}),
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("br", {}, void 0, false, {
+              fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+              lineNumber: 2971,
+              columnNumber: 19
+            }, void 0),
             "Please use a taller portrait screen."
-          ] }) })
-        ] }) }),
-        showSetupLayer && /* @__PURE__ */ jsxRuntimeExports.jsx(SetupLayer, { onComplete: handleSetupComplete }),
-        showSettingMenu && /* @__PURE__ */ jsxRuntimeExports.jsx(
+          ] }, void 0, true, {
+            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+            lineNumber: 2969,
+            columnNumber: 17
+          }, void 0) }, void 0, false, {
+            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+            lineNumber: 2961,
+            columnNumber: 13
+          }, void 0)
+        ] }, void 0, true, {
+          fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+          lineNumber: 2959,
+          columnNumber: 11
+        }, void 0) }, void 0, false, {
+          fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+          lineNumber: 2958,
+          columnNumber: 9
+        }, void 0),
+        showSetupLayer && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(SetupLayer, { onComplete: handleSetupComplete }, void 0, false, {
+          fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+          lineNumber: 2979,
+          columnNumber: 26
+        }, void 0),
+        showSettingMenu && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
           SettingMenuLayer,
           {
             releaseLabel: getClientReleaseLabel(),
@@ -53274,28 +56820,60 @@ const GameContainer = () => {
             onCloseResetConfirm: dismissResetConfirm,
             onResetGameData: handleResetGameData,
             onClose: dismissSettingMenu
-          }
+          },
+          void 0,
+          false,
+          {
+            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+            lineNumber: 2981,
+            columnNumber: 9
+          },
+          void 0
         ),
-        alertState && /* @__PURE__ */ jsxRuntimeExports.jsx(
+        alertState && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
           AlertLayer,
           {
             title: alertState.title,
             message: alertState.message,
             onClose: dismissAlert
-          }
+          },
+          void 0,
+          false,
+          {
+            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+            lineNumber: 2995,
+            columnNumber: 9
+          },
+          void 0
         ),
-        loadingFailureAlert && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+        loadingFailureAlert && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
           PopupLayer,
           {
             title: loadingFailureAlert.title,
-            content: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-left leading-[1.6]", children: loadingFailureAlert.message }),
+            content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-left leading-[1.6]", children: loadingFailureAlert.message }, void 0, false, {
+              fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+              lineNumber: 3006,
+              columnNumber: 15
+            }, void 0),
             onConfirm: dismissLoadingFailureAlert,
             onCancel: handleSendLoadingFailureLogs,
             confirmText: "Okay",
             cancelText: "Send Log"
-          }
-        ) }),
-        sanitizeResetAlert && /* @__PURE__ */ jsxRuntimeExports.jsx(
+          },
+          void 0,
+          false,
+          {
+            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+            lineNumber: 3003,
+            columnNumber: 11
+          },
+          void 0
+        ) }, void 0, false, {
+          fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+          lineNumber: 3002,
+          columnNumber: 9
+        }, void 0),
+        sanitizeResetAlert && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
           AlertLayer,
           {
             title: sanitizeResetAlert.title,
@@ -53305,32 +56883,72 @@ const GameContainer = () => {
               void handleSendDiagnostics();
             },
             cancelText: isSendingDiagnostics ? "Sending..." : "Send Logs"
-          }
+          },
+          void 0,
+          false,
+          {
+            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+            lineNumber: 3018,
+            columnNumber: 9
+          },
+          void 0
         ),
-        pendingDiagnosticsDraft && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+        pendingDiagnosticsDraft && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
           PopupLayer,
           {
             title: "Open Gmail",
-            content: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "text-left leading-[1.6]", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: "The Gmail app will open next." }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "mt-2", children: "The diagnostics files will be attached to the draft email." })
-            ] }),
+            content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-left leading-[1.6]", children: [
+              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: "The Gmail app will open next." }, void 0, false, {
+                fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+                lineNumber: 3034,
+                columnNumber: 17
+              }, void 0),
+              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "mt-2", children: "The diagnostics files will be attached to the draft email." }, void 0, false, {
+                fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+                lineNumber: 3035,
+                columnNumber: 17
+              }, void 0)
+            ] }, void 0, true, {
+              fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+              lineNumber: 3033,
+              columnNumber: 15
+            }, void 0),
             onConfirm: handleConfirmDiagnosticsDraft,
             onCancel: handleCancelDiagnosticsDraft,
             confirmText: "CONFIRM",
             cancelText: "Cancel"
-          }
-        ) }),
-        flappyBirdGameOverState && /* @__PURE__ */ jsxRuntimeExports.jsx(
+          },
+          void 0,
+          false,
+          {
+            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+            lineNumber: 3030,
+            columnNumber: 11
+          },
+          void 0
+        ) }, void 0, false, {
+          fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+          lineNumber: 3029,
+          columnNumber: 9
+        }, void 0),
+        flappyBirdGameOverState && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
           FlappyBirdGameOverLayer,
           {
             score: flappyBirdGameOverState.score,
             bestScore: flappyBirdGameOverState.bestScore,
             onRestart: handleFlappyBirdGameOverRestart,
             onExit: handleFlappyBirdGameOverExit
-          }
+          },
+          void 0,
+          false,
+          {
+            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+            lineNumber: 3048,
+            columnNumber: 9
+          },
+          void 0
         ),
-        flappyBirdSettingsMenuState && /* @__PURE__ */ jsxRuntimeExports.jsx(
+        flappyBirdSettingsMenuState && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
           FlappyBirdSettingsLayer,
           {
             isBgmEnabled: flappyBirdSettingsMenuState.isBgmEnabled,
@@ -53341,10 +56959,26 @@ const GameContainer = () => {
             onSelectTimeOfDay: handleFlappyBirdSettingsMenuSelectTimeOfDay,
             onResume: handleFlappyBirdSettingsMenuResume,
             onExit: handleFlappyBirdSettingsMenuExit
-          }
+          },
+          void 0,
+          false,
+          {
+            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+            lineNumber: 3056,
+            columnNumber: 9
+          },
+          void 0
         )
       ]
-    }
+    },
+    void 0,
+    true,
+    {
+      fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+      lineNumber: 2902,
+      columnNumber: 5
+    },
+    void 0
   );
 };
 const COOLDOWN_KEY = "ad_last_shown_timestamp";
@@ -53633,21 +57267,41 @@ const App = () => {
     const now = Date.now();
     localStorage.setItem(LAST_ACTIVE_KEY, now.toString());
   };
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { id: "app-shell", children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx(TopLeftBuildLogoText, {}),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { id: "app-container", children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx(GameContainer, {}),
-      /* @__PURE__ */ jsxRuntimeExports.jsx(SimpleLogViewer, { position: "top-right", initialOpen: false })
-    ] })
-  ] });
+  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { id: "app-shell", children: [
+    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(TopLeftBuildLogoText, {}, void 0, false, {
+      fileName: "/Users/neiz/digivice/apps/client/src/App.tsx",
+      lineNumber: 118,
+      columnNumber: 7
+    }, void 0),
+    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { id: "app-container", children: [
+      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(GameContainer, {}, void 0, false, {
+        fileName: "/Users/neiz/digivice/apps/client/src/App.tsx",
+        lineNumber: 120,
+        columnNumber: 9
+      }, void 0),
+      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(SimpleLogViewer, { position: "top-right", initialOpen: false }, void 0, false, {
+        fileName: "/Users/neiz/digivice/apps/client/src/App.tsx",
+        lineNumber: 121,
+        columnNumber: 9
+      }, void 0)
+    ] }, void 0, true, {
+      fileName: "/Users/neiz/digivice/apps/client/src/App.tsx",
+      lineNumber: 119,
+      columnNumber: 7
+    }, void 0)
+  ] }, void 0, true, {
+    fileName: "/Users/neiz/digivice/apps/client/src/App.tsx",
+    lineNumber: 117,
+    columnNumber: 5
+  }, void 0);
 };
 const platformAdapter = new PlatformAdapter();
-const isNativeFeatureDebugMode = false;
+const isNativeFeatureDebugMode = true;
 installDiagnosticsConsoleCapture();
 setDiagnosticsContextProvider(() => ({
-  appMode: "production",
-  appVersion: "0.3.0",
-  buildNumber: 6,
+  appMode: "development",
+  appVersion: "0.4.1-debug",
+  buildNumber: 8,
   debugEnabled: isNativeFeatureDebugMode
 }));
 document.addEventListener("DOMContentLoaded", () => {
@@ -53683,7 +57337,15 @@ async function bootstrap() {
   }
   const root = ReactDOM.createRoot(rootElement);
   root.render(
-    /* @__PURE__ */ jsxRuntimeExports.jsx(jsxRuntimeExports.Fragment, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(App, {}) })
+    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(jsxDevRuntimeExports.Fragment, { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(App, {}, void 0, false, {
+      fileName: "/Users/neiz/digivice/apps/client/src/main.tsx",
+      lineNumber: 85,
+      columnNumber: 7
+    }, this) }, void 0, false, {
+      fileName: "/Users/neiz/digivice/apps/client/src/main.tsx",
+      lineNumber: 84,
+      columnNumber: 5
+    }, this)
   );
 }
 void bootstrap();
