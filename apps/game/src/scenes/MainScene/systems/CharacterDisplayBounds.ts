@@ -18,7 +18,7 @@ import {
 const FALLBACK_CHARACTER_HEIGHT = 48;
 const FALLBACK_CHARACTER_WIDTH = 48;
 export const CHARACTER_SCREEN_EDGE_OVERFLOW_PX = 10;
-export const CHARACTER_SCREEN_TOP_EDGE_OVERFLOW_PX = 20;
+export const CHARACTER_SCREEN_TOP_EDGE_OVERFLOW_PX = 14;
 
 export function getCharacterDisplayObject(
   eid: number,

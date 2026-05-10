@@ -2,6 +2,7 @@ import * as Matter from "matter-js";
 import * as PIXI from "pixi.js";
 import type { CharacterKey } from "../../types/Character";
 import { AssetLoader, type GameAssets } from "../../utils/AssetLoader";
+import { CharacterState } from "../MainScene/types";
 import type { FlappyBirdDifficultyState, PipePair } from "./models";
 import { resolveNearMissBonusTier } from "./nearMiss";
 import { buildPipeSpawnPlan, type PipeSpawnPlanItem } from "./pipeSpawn";
@@ -1309,6 +1310,7 @@ export class PlayerManager {
     app: PIXI.Application,
     physicsManager: PhysicsManager,
     characterKey: CharacterKey,
+    entryCharacterState: CharacterState | null = null,
   ) {
     this.app = app;
     this.physicsManager = physicsManager;
@@ -1316,7 +1318,7 @@ export class PlayerManager {
     const assets = AssetLoader.getAssets();
 
     // 바구니 초기화
-    this.initializeBasket(characterKey, assets);
+    this.initializeBasket(characterKey, entryCharacterState, assets);
 
     // 새(버드) 초기화
     this.initializeBird(assets.birdSprites);
@@ -1327,6 +1329,7 @@ export class PlayerManager {
    */
   private initializeBasket(
     characterKey: CharacterKey,
+    entryCharacterState: CharacterState | null,
     assets: GameAssets,
   ): void {
     const characterSpritesheet = assets.characterSprites[characterKey];
@@ -1336,7 +1339,20 @@ export class PlayerManager {
       );
     }
 
-    const inBasketTexture = characterSpritesheet.textures["in-basket"];
+    const defaultInBasketTexture = characterSpritesheet.textures["in-basket"];
+    const tombInBasketTexture =
+      assets.common32x32Sprites?.textures["tomb-in-basket"];
+    const inBasketTexture =
+      entryCharacterState === CharacterState.DEAD && tombInBasketTexture
+        ? tombInBasketTexture
+        : defaultInBasketTexture;
+
+    if (!inBasketTexture) {
+      throw new Error(
+        `In-basket texture not found for character key: ${characterKey}`,
+      );
+    }
+
     this.basket = new PIXI.Sprite(inBasketTexture);
     this.basket.width = BASE_BASKET_SIZE * FLAPPY_BIRD_OBJECT_SCALE;
     this.basket.height = BASE_BASKET_SIZE * FLAPPY_BIRD_OBJECT_SCALE;

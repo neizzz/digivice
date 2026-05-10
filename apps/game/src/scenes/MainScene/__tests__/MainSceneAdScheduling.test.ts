@@ -170,7 +170,7 @@ test("MainScene 청소 광고 예약은 500ms 지연을 거쳐 성공 노출되�
     assert.equal(getAdState(world)?.menu_use_count, 5);
     assert.equal(getAdState(world)?.pending?.menu, "clean");
     assert.equal(getAdState(world)?.pending?.threshold, 5);
-    assert.equal(getAdState(world)?.pending?.cooldown_ms, 5 * 60 * 1000);
+    assert.equal(getAdState(world)?.pending?.cooldown_ms, 2 * 60 * 1000);
     assert.equal(getAdState(world)?.pending?.deep_night, false);
 
     world._schedulePendingMainSceneAdForMenu("clean", 500);
@@ -183,7 +183,7 @@ test("MainScene 청소 광고 예약은 500ms 지연을 거쳐 성공 노출되�
     assert.equal(requests.length, 1);
     assert.equal(requests[0].menu, "clean");
     assert.equal(requests[0].threshold, 5);
-    assert.equal(requests[0].cooldownMs, 5 * 60 * 1000);
+    assert.equal(requests[0].cooldownMs, 2 * 60 * 1000);
     assert.equal(requests[0].menuUseCount, 5);
     assert.equal(getAdState(world)?.menu_use_count, 0);
     assert.equal(getAdState(world)?.pending, undefined);
@@ -390,7 +390,7 @@ test("legacy mini_game pending 예약은 읽는 시점에 정리된다", () => {
   appState.main_scene_ad.pending = {
     menu: "mini_game" as unknown as MainSceneAdMenu,
     queued_at: 12_345,
-    cooldown_ms: 5 * 60 * 1000,
+    cooldown_ms: 2 * 60 * 1000,
     threshold: 5,
     deep_night: false,
   };
@@ -411,7 +411,7 @@ test("legacy mini_game pending 예약이 있어도 clean 메뉴 예약으로 정
   appState.main_scene_ad.pending = {
     menu: "mini_game" as unknown as MainSceneAdMenu,
     queued_at: 12_345,
-    cooldown_ms: 5 * 60 * 1000,
+    cooldown_ms: 2 * 60 * 1000,
     threshold: 5,
     deep_night: false,
   };

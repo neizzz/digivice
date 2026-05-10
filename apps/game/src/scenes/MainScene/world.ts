@@ -294,7 +294,7 @@ const WORLD_DATA_STORAGE_KEY = "MainSceneWorldData";
 const DEFAULT_USE_LOCAL_TIME = true;
 const MAIN_SCENE_AD_NORMAL_THRESHOLD = 5;
 const MAIN_SCENE_AD_DEEP_NIGHT_THRESHOLD = 10;
-const MAIN_SCENE_AD_NORMAL_COOLDOWN_MS = 5 * 60 * 1000;
+const MAIN_SCENE_AD_NORMAL_COOLDOWN_MS = 2 * 60 * 1000;
 const MAIN_SCENE_AD_DEEP_NIGHT_COOLDOWN_MS = 60 * 60 * 1000;
 const MAIN_SCENE_AD_POST_ACTION_DELAY_MS = 500;
 const MAIN_SCENE_AD_FEED_FALLBACK_AFTER_LAND_MS = 3000;
@@ -1476,10 +1476,6 @@ export class MainSceneWorld implements IWorld, Scene {
   }
 
   private _shouldBlockMiniGameEntry(): boolean {
-    if (this._debugMode) {
-      return false;
-    }
-
     const characterEid = this._findMainCharacterEntity();
     if (characterEid === -1) {
       return false;
@@ -3136,6 +3132,15 @@ export class MainSceneWorld implements IWorld, Scene {
     }
 
     return spritesheetName;
+  }
+
+  public getFlappyBirdCharacterState(): CharacterState | null {
+    const characterEid = this._findMainCharacterEntity();
+    if (characterEid === -1) {
+      return null;
+    }
+
+    return ObjectComp.state[characterEid] ?? null;
   }
 
   public getMainCharacterStaminaSnapshot(): {

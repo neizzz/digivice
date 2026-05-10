@@ -11,6 +11,7 @@ import {
 } from "./scenes/MainScene/timeOfDay";
 import { FlappyBirdGameScene } from "./scenes/FlappyBirdGameScene";
 import type { FlappyBirdPerfSnapshot } from "./scenes/FlappyBirdGameScene/diagnostics/flappyBirdPerfDiagnostics";
+import { CharacterState } from "./scenes/MainScene/types";
 import { CharacterKey } from "./types/Character";
 import { AssetLoader } from "./utils/AssetLoader";
 
@@ -213,6 +214,7 @@ export class Game {
   private readonly _initialSceneKey: SceneKey;
   private readonly _debugMode: boolean;
   private _flappyBirdCharacterKey: CharacterKey | null = null;
+  private _flappyBirdCharacterState: CharacterState | null = null;
   private _flappyBirdSkyContext: FlappyBirdSkyContext | null = null;
   private _loadingTraceContext: MainSceneLoadingTraceContext | null = null;
   private _lastTickerStartedAtMs: number | null = null;
@@ -1211,6 +1213,14 @@ export class Game {
     return this._flappyBirdCharacterKey ?? CharacterKey.TestGreenSlimeA1;
   }
 
+  public getFlappyBirdCharacterState(): CharacterState | null {
+    if (this.currentScene instanceof MainSceneWorld) {
+      this._syncFlappyBirdCharacterStateFromMainScene(this.currentScene);
+    }
+
+    return this._flappyBirdCharacterState;
+  }
+
   public getMainCharacterStaminaSnapshot(): {
     stamina: number;
     maxStamina: number;
@@ -1352,5 +1362,11 @@ export class Game {
     mainSceneWorld: MainSceneWorld,
   ): void {
     this._flappyBirdCharacterKey = mainSceneWorld.getFlappyBirdCharacterKey();
+  }
+
+  private _syncFlappyBirdCharacterStateFromMainScene(
+    mainSceneWorld: MainSceneWorld,
+  ): void {
+    this._flappyBirdCharacterState = mainSceneWorld.getFlappyBirdCharacterState();
   }
 }

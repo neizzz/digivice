@@ -236,6 +236,7 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
 
   public async init(): Promise<FlappyBirdGameScene> {
     const playerCharacterKey = this.game.getFlappyBirdCharacterKey();
+    const playerCharacterState = this.game.getFlappyBirdCharacterState();
     const initStartedAt = getPerfNow();
     const transitionRequestId = this.game.getActiveSceneTransitionRequestId();
     const logInitPhase = (
@@ -315,6 +316,7 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
       this.game.app,
       this.physicsManager,
       playerCharacterKey,
+      playerCharacterState,
     );
 
     // 지면 초기화

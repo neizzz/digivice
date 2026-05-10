@@ -89,7 +89,7 @@ test("egg 상태면 debug 모드가 아닐 때 미니게임 진입을 막고 ale
   ]);
 });
 
-test("egg 상태여도 debug 모드면 미니게임 진입을 허용한다", () => {
+test("egg 상태면 debug 모드여도 미니게임 진입을 막고 alert를 띄운다", () => {
   const world = createMainSceneWorld();
   const alerts: Array<{ message: string; title?: string }> = [];
   const eid = 1;
@@ -101,16 +101,21 @@ test("egg 상태여도 debug 모드면 미니게임 진입을 허용한다", () 
   world._findMainCharacterEntity = () => eid;
   ObjectComp.state[eid] = CharacterState.EGG;
 
-  assert.equal(world._shouldBlockMiniGameEntry(), false);
-  assert.deepEqual(alerts, []);
+  assert.equal(world._shouldBlockMiniGameEntry(), true);
+  assert.deepEqual(alerts, [
+    {
+      message: "not available in egg state.",
+      title: "Notice",
+    },
+  ]);
 });
 
-test("dead 상태여도 debug 모드면 미니게임 진입을 허용한다", () => {
+test("dead 상태면 debug 모드와 무관하게 미니게임 진입을 허용한다", () => {
   const world = createMainSceneWorld();
   const alerts: Array<{ message: string; title?: string }> = [];
   const eid = 1;
 
-  world._debugMode = true;
+  world._debugMode = false;
   world._showAlert = (message, title) => {
     alerts.push({ message, title });
   };

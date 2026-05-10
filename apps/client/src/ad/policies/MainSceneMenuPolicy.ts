@@ -1,7 +1,7 @@
 import type { AdContext, AdDisplayPolicy } from "../AdDisplayPolicy";
 import { CooldownCondition } from "../conditions/CooldownCondition";
 
-const DEFAULT_MAIN_SCENE_MENU_COOLDOWN_MS = 5 * 60 * 1000;
+const DEFAULT_MAIN_SCENE_MENU_COOLDOWN_MS = 2 * 60 * 1000;
 
 function resolveCooldownMs(metadata: Record<string, unknown> | undefined) {
   const cooldownMs = metadata?.cooldownMs;
