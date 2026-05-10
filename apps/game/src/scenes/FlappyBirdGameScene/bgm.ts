@@ -2,6 +2,13 @@ type AudioContextConstructor = typeof AudioContext;
 
 type Waveform = OscillatorType;
 
+export type FlappyBirdBgmSchedulePerfSample = {
+  timestampMs: number;
+  durationMs: number;
+  scheduledSteps: number;
+  scheduledVoices: number;
+};
+
 const FLAPPY_BIRD_BGM_BPM = 144;
 const FLAPPY_BIRD_BGM_STEPS_PER_BEAT = 2;
 const FLAPPY_BIRD_BGM_STEP_DURATION_S =
@@ -90,6 +97,15 @@ export class FlappyBirdBgmController {
   private currentTempoMultiplier = 1;
   private targetTempoMultiplier = 1;
   private lastTempoUpdateAtMs = 0;
+  private onScheduleTick:
+    | ((sample: FlappyBirdBgmSchedulePerfSample) => void)
+    | null;
+
+  constructor(options: {
+    onScheduleTick?: (sample: FlappyBirdBgmSchedulePerfSample) => void;
+  } = {}) {
+    this.onScheduleTick = options.onScheduleTick ?? null;
+  }
 
   public isEnabled(): boolean {
     return this.enabled;
@@ -151,26 +167,16 @@ export class FlappyBirdBgmController {
     }
 
     const now = this.audioContext.currentTime;
-    const baseFrequency = hasNearMissBonus
+    const frequency = hasNearMissBonus
       ? midiToFrequency(88)
       : midiToFrequency(83);
-    const accentFrequency = hasNearMissBonus
-      ? midiToFrequency(95)
-      : midiToFrequency(90);
 
     this.scheduleEffectVoice({
       waveform: "square",
-      frequency: baseFrequency,
+      frequency,
       time: now,
-      duration: 0.08,
+      duration: hasNearMissBonus ? 0.09 : 0.078,
       peakGain: hasNearMissBonus ? 0.192 : 0.144,
-    });
-    this.scheduleEffectVoice({
-      waveform: "triangle",
-      frequency: accentFrequency,
-      time: now + 0.024,
-      duration: 0.1,
-      peakGain: hasNearMissBonus ? 0.12 : 0.09,
     });
   }
 
@@ -344,6 +350,9 @@ export class FlappyBirdBgmController {
       return;
     }
 
+    const startedAtMs = this.getNowMs();
+    let scheduledSteps = 0;
+    let scheduledVoices = 0;
     this.updateTempoMultiplier();
 
     const stepDuration = this.getStepDuration();
@@ -352,17 +361,26 @@ export class FlappyBirdBgmController {
       this.nextStepTime <
       this.audioContext.currentTime + FLAPPY_BIRD_BGM_SCHEDULE_AHEAD_S
     ) {
-      this.scheduleStep(this.currentStep, this.nextStepTime);
+      scheduledVoices += this.scheduleStep(this.currentStep, this.nextStepTime);
+      scheduledSteps += 1;
       this.currentStep =
         (this.currentStep + 1) % FLAPPY_BIRD_BGM_LEAD_PATTERN.length;
       this.nextStepTime += stepDuration;
     }
+
+    this.onScheduleTick?.({
+      timestampMs: Date.now(),
+      durationMs: this.getNowMs() - startedAtMs,
+      scheduledSteps,
+      scheduledVoices,
+    });
   }
 
-  private scheduleStep(step: number, time: number): void {
+  private scheduleStep(step: number, time: number): number {
     const stepDuration = this.getStepDuration();
     const leadMidi = FLAPPY_BIRD_BGM_LEAD_PATTERN[step];
     const bassMidi = FLAPPY_BIRD_BGM_BASS_PATTERN[step];
+    let scheduledVoices = 0;
 
     if (leadMidi !== null) {
       this.scheduleVoice({
@@ -372,6 +390,7 @@ export class FlappyBirdBgmController {
         duration: stepDuration * 0.9,
         peakGain: 0.14,
       });
+      scheduledVoices += 1;
     }
 
     if (bassMidi !== null) {
@@ -382,7 +401,10 @@ export class FlappyBirdBgmController {
         duration: stepDuration * 1.8,
         peakGain: 0.12,
       });
+      scheduledVoices += 1;
     }
+
+    return scheduledVoices;
   }
 
   private getStepDuration(): number {

@@ -57,8 +57,8 @@ test("앱이 hidden 되면 PLAYING 상태가 app suspend pause로 전환된다",
   assert.deepEqual(callLog, [
     "engine.pause",
     "player.stopAnimation",
-    "player.update",
     "physics.syncDisplayObjects",
+    "player.update",
     "bgm.pause",
   ]);
 });
@@ -85,8 +85,8 @@ test("앱 복귀 후 resume하면 PLAYING 상태와 오디오/애니메이션이
   assert.deepEqual(callLog, [
     "engine.resume",
     "player.startAnimation",
-    "player.update",
     "physics.syncDisplayObjects",
+    "player.update",
     "bgm.resumeIfAvailable",
   ]);
 });
@@ -108,9 +108,29 @@ test("COUNTDOWN 중 suspend 후 resume하면 countdown 상태로 복원된다", 
   assert.deepEqual(callLog, [
     "engine.pause",
     "player.stopAnimation",
-    "player.update",
     "physics.syncDisplayObjects",
+    "player.update",
     "bgm.pause",
+  ]);
+});
+
+test("COUNTDOWN 중 settings를 열면 countdown pause 상태로 전환한 뒤 메뉴를 표시한다", () => {
+  const { scene, callLog } = createSceneHarness({
+    gameState: GameState.COUNTDOWN,
+  });
+
+  scene.openSettingsMenu();
+
+  assert.equal(scene.gameState, GameState.PAUSED);
+  assert.equal(scene.pausedStateBeforePause, GameState.COUNTDOWN);
+  assert.equal(scene.isSettingsMenuOpen, true);
+  assert.deepEqual(callLog, [
+    "engine.pause",
+    "player.stopAnimation",
+    "physics.syncDisplayObjects",
+    "player.update",
+    "bgm.pause",
+    "menu.show",
   ]);
 });
 
@@ -129,6 +149,60 @@ test("READY, PAUSED, GAME_OVER 상태에서는 hidden 처리로 추가 pause를 
     assert.equal(scene.pausedStateBeforePause, null);
     assert.deepEqual(callLog, []);
   }
+});
+
+test("game over 진입 시 마지막 플레이어 표시 상태를 즉시 동기화한다", async () => {
+  const { scene, callLog } = createSceneHarness();
+
+  scene.resetSimulationAccumulator = () => {
+    callLog.push("resetSimulationAccumulator");
+  };
+  scene.hideSettingsMenu = () => {
+    callLog.push("hideSettingsMenu");
+  };
+  scene.countdownUI = {
+    hide: () => callLog.push("countdown.hide"),
+  };
+  scene.triggerGameOverVibrationPattern = () => {
+    callLog.push("triggerGameOverVibrationPattern");
+  };
+  scene.flushPendingFrameDiagnostics = () => {
+    callLog.push("flushPendingFrameDiagnostics");
+  };
+  scene.perfDiagnostics = {
+    finalizeSession: () => {
+      callLog.push("perf.finalizeSession");
+      return Promise.resolve();
+    },
+  };
+  scene.scoreUI = {
+    getScore: () => 23,
+    getBestScore: () => 42,
+  };
+  scene.game = {
+    showFlappyBirdGameOver: () => {
+      callLog.push("game.showFlappyBirdGameOver");
+    },
+  };
+
+  scene.handleGameOver();
+  await Promise.resolve();
+
+  assert.equal(scene.gameState, GameState.GAME_OVER);
+  assert.deepEqual(callLog, [
+    "resetSimulationAccumulator",
+    "engine.pause",
+    "hideSettingsMenu",
+    "countdown.hide",
+    "player.stopAnimation",
+    "physics.syncDisplayObjects",
+    "player.update",
+    "bgm.pause",
+    "triggerGameOverVibrationPattern",
+    "flushPendingFrameDiagnostics",
+    "perf.finalizeSession",
+    "game.showFlappyBirdGameOver",
+  ]);
 });
 
 test("app suspend 중 update는 gameplay 진행을 멈춘다", () => {
@@ -176,6 +250,147 @@ test("app suspend 중 update는 gameplay 진행을 멈춘다", () => {
   scene.update(16);
 
   assert.deepEqual(calls, ["syncSkyState"]);
+});
+
+test("pipe 이동 중 충돌이 발생하면 같은 프레임에서 ground 이동을 더 진행하지 않는다", () => {
+  const calls: string[] = [];
+  const scene: any = Object.create(FlappyBirdGameScene.prototype);
+
+  scene.initialized = true;
+  scene.isAppSuspended = false;
+  scene.gameState = GameState.PLAYING;
+  scene.simulationAccumulatorMs = 0;
+  scene.measurePhase = (
+    _phaseCosts: Record<string, number>,
+    _phaseKey: string,
+    work: () => unknown,
+  ) => work();
+  scene.syncSkyState = () => {
+    calls.push("syncSkyState");
+  };
+  scene.nearMissUI = {
+    update: () => calls.push("nearMissUI.update"),
+  };
+  scene.playerManager = {
+    update: () => calls.push("playerManager.update"),
+    checkCollisions: () => calls.push("playerManager.checkCollisions"),
+    getBasketBody: () => ({ label: "basket" }),
+  };
+  scene.cloudManager = {
+    update: () => calls.push("cloudManager.update"),
+  };
+  scene.pipeManager = {
+    update: (
+      _playerBody: unknown,
+      _onScoreUpdate: (scoreDelta: number) => void,
+      _deltaTime: number,
+      onPlayerCollision?: () => void,
+    ) => {
+      calls.push("pipeManager.update");
+      onPlayerCollision?.();
+      return {
+        spawned: 0,
+        removed: 0,
+        phaseCosts: {},
+        poolStats: {
+          pairCreated: 0,
+          pairReused: 0,
+          bodyCreated: 0,
+          bodyReused: 0,
+          poolMissCount: 0,
+        },
+      };
+    },
+  };
+  scene.groundManager = {
+    update: () => calls.push("groundManager.update"),
+  };
+  scene.recordFrameDiagnostics = () => {
+    calls.push("recordFrameDiagnostics");
+  };
+  scene.handleGameOver = () => {
+    calls.push("handleGameOver");
+    scene.gameState = GameState.GAME_OVER;
+  };
+
+  scene.update(16.7);
+
+  assert.deepEqual(calls, [
+    "syncSkyState",
+    "nearMissUI.update",
+    "playerManager.update",
+    "cloudManager.update",
+    "playerManager.checkCollisions",
+    "pipeManager.update",
+    "handleGameOver",
+    "recordFrameDiagnostics",
+  ]);
+});
+
+test("PLAYING 상태에서는 큰 delta를 고정 스텝 2회로 쪼개서 처리한다", () => {
+  const pipeDeltaTimes: number[] = [];
+  const groundDeltaTimes: number[] = [];
+  const cloudDeltaTimes: number[] = [];
+  const nearMissDeltaTimes: number[] = [];
+  const scene: any = Object.create(FlappyBirdGameScene.prototype);
+
+  scene.initialized = true;
+  scene.isAppSuspended = false;
+  scene.gameState = GameState.PLAYING;
+  scene.simulationAccumulatorMs = 0;
+  scene.measurePhase = (
+    _phaseCosts: Record<string, number>,
+    _phaseKey: string,
+    work: () => unknown,
+  ) => work();
+  scene.syncSkyState = () => undefined;
+  scene.nearMissUI = {
+    update: (deltaTime: number) => nearMissDeltaTimes.push(deltaTime),
+  };
+  scene.playerManager = {
+    update: () => undefined,
+    checkCollisions: () => undefined,
+    getBasketBody: () => ({ label: "basket" }),
+  };
+  scene.cloudManager = {
+    update: (deltaTime: number) => cloudDeltaTimes.push(deltaTime),
+  };
+  scene.pipeManager = {
+    update: (
+      _playerBody: unknown,
+      _onScoreUpdate: (scoreDelta: number) => void,
+      deltaTime: number,
+    ) => {
+      pipeDeltaTimes.push(deltaTime);
+      return {
+        spawned: 0,
+        removed: 0,
+        phaseCosts: {},
+        poolStats: {
+          pairCreated: 0,
+          pairReused: 0,
+          bodyCreated: 0,
+          bodyReused: 0,
+          poolMissCount: 0,
+        },
+      };
+    },
+  };
+  scene.groundManager = {
+    update: (deltaTime: number) => groundDeltaTimes.push(deltaTime),
+  };
+  scene.recordFrameDiagnostics = () => undefined;
+
+  scene.update(50);
+
+  assert.equal(pipeDeltaTimes.length, 2);
+  assert.equal(groundDeltaTimes.length, 2);
+  assert.equal(cloudDeltaTimes.length, 2);
+  assert.equal(nearMissDeltaTimes.length, 2);
+
+  for (const deltaTime of pipeDeltaTimes) {
+    assert.ok(Math.abs(deltaTime - 1000 / 60) < 0.01);
+  }
 });
 
 test("cleanupVisibilityChangeHandler는 visibilitychange listener를 제거한다", () => {

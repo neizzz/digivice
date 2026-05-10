@@ -14,6 +14,7 @@ import {
   Boundary,
   CharacterState,
   CharacterStatus,
+  CharacterKeyECS,
   CharacterStatusComponent,
   DestinationComponent,
   FreshnessComponent,
@@ -48,10 +49,6 @@ import {
   cleanupEggCrackRenderState,
   eggCrackRenderSystem,
 } from "./systems/EggCrackRenderSystem";
-import {
-  cleanupStaminaGaugeRenderState,
-  staminaGaugeRenderSystem,
-} from "./systems/StaminaGaugeRenderSystem";
 import { renderSystem } from "./systems/RenderSystem";
 import {
   characterNameLabelSystem,
@@ -445,6 +442,8 @@ export class MainSceneWorld implements IWorld, Scene {
   private _startMiniGame?: () => unknown | Promise<unknown>;
   private _showAlert?: ShowAlertCallback;
   private _debugMode = false;
+  private _shouldDeferPersistence?: () => boolean;
+  private _hasDeferredPersistence = false;
   private _timeOfDay: TimeOfDay = TimeOfDay.Day;
   private _timeOfDayMode: TimeOfDayMode = TimeOfDayMode.Manual;
   private _sunTimes: SunTimesPayload | null = null;
@@ -598,6 +597,7 @@ export class MainSceneWorld implements IWorld, Scene {
     triggerBiteVibration?: TriggerBiteVibrationCallback;
     startRecoveryVibration?: StartRecoveryVibrationCallback;
     stopRecoveryVibration?: StopRecoveryVibrationCallback;
+    shouldDeferPersistence?: () => boolean;
     loadingTraceContext?: MainSceneLoadingTraceContext | null;
   }) {
     this._stage = params.stage;
@@ -614,6 +614,7 @@ export class MainSceneWorld implements IWorld, Scene {
     this._debugMode = params.debugMode ?? false;
     this._startMiniGame = params.startMiniGame;
     this._showAlert = params.showAlert;
+    this._shouldDeferPersistence = params.shouldDeferPersistence;
     this._createInitialGameData = params.createInitialGameData;
     this._changeControlButtons = params.changeControlButtons;
     this._triggerBiteVibration = params.triggerBiteVibration;
@@ -1369,7 +1370,9 @@ export class MainSceneWorld implements IWorld, Scene {
         this._gameMenu = new GameMenu(this._parentElement, {
           onMiniGameSelect: () => {
             console.log("[MainSceneWorld] Mini game selected");
+            this._logMiniGameEntryAttempt("selected");
             if (this._shouldBlockMiniGameEntry()) {
+              this._logMiniGameEntryAttempt("blocked");
               return;
             }
 
@@ -1377,10 +1380,12 @@ export class MainSceneWorld implements IWorld, Scene {
               console.warn(
                 "[MainSceneWorld] Mini game start callback is not set",
               );
+              this._logMiniGameEntryAttempt("missing_callback");
               return;
             }
 
             this._prepareMainCharacterForMiniGameEntry();
+            this._logMiniGameEntryAttempt("start_requested");
             void this._startMiniGame();
           },
           onFeedSelect: () => {
@@ -1486,6 +1491,34 @@ export class MainSceneWorld implements IWorld, Scene {
 
     this._showAlert?.("not available in egg state.", "Notice");
     return true;
+  }
+
+  private _logMiniGameEntryAttempt(
+    phase: "selected" | "blocked" | "missing_callback" | "start_requested",
+  ): void {
+    const characterEid = this._findMainCharacterEntity();
+    const staminaSnapshot = this.getMainCharacterStaminaSnapshot();
+    const characterState =
+      characterEid === -1 ? null : CharacterState[ObjectComp.state[characterEid]];
+
+    console.log("[ImportantDiagnostics][MiniGameEntry]", {
+      phase,
+      hasCharacter: characterEid !== -1,
+      characterEid: characterEid === -1 ? null : characterEid,
+      characterState,
+      characterKey:
+        characterEid === -1
+          ? null
+          : CharacterKeyECS[CharacterStatusComp.characterKey[characterEid]] ??
+            null,
+      stamina: staminaSnapshot?.stamina ?? null,
+      maxStamina: staminaSnapshot?.maxStamina ?? null,
+      unhappyThreshold: staminaSnapshot?.unhappyThreshold ?? null,
+      boostedThreshold: staminaSnapshot?.boostedThreshold ?? null,
+      isPersistenceDisabled: this._isPersistenceDisabled,
+      debugMode: this._debugMode,
+      currentTime: this.currentTime,
+    });
   }
 
   private _prepareMainCharacterForMiniGameEntry(): void {
@@ -1735,7 +1768,24 @@ export class MainSceneWorld implements IWorld, Scene {
 
     // 현재 상태 저장
     if (!this._isPersistenceDisabled) {
-      await this._saveCurrentState();
+      try {
+        await this._saveCurrentState();
+      } catch (error) {
+        console.error(
+          "[ImportantDiagnostics][MainSceneExitPersistence] save_failed",
+          {
+            error:
+              error instanceof Error
+                ? {
+                    name: error.name,
+                    message: error.message,
+                  }
+                : {
+                    message: String(error),
+                  },
+          },
+        );
+      }
     }
 
     // 이벤트 핸들러 정리
@@ -1782,6 +1832,7 @@ export class MainSceneWorld implements IWorld, Scene {
       // 일시정지 해제
       this._isPaused = false;
       this._pauseStartTime = 0;
+      await this._flushDeferredPersistenceIfNeeded();
 
       console.log("[MainSceneWorld] Scene reenter completed");
     } catch (error) {
@@ -1849,7 +1900,6 @@ export class MainSceneWorld implements IWorld, Scene {
 
       cleanupSleepEffects(this._stage);
       cleanupEggCrackRenderState();
-      cleanupStaminaGaugeRenderState();
       cleanupCharacterNameLabels();
       cleanupCharacterLayoutDebug(this._stage);
       this._pendingRecoveryCureEids.clear();

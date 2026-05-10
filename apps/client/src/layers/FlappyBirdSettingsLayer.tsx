@@ -16,6 +16,8 @@ export interface FlappyBirdSettingsLayerProps {
   onChangeSfx: (enabled: boolean) => void;
   selectedTimeOfDay?: TimeOfDay;
   onSelectTimeOfDay?: (timeOfDay: TimeOfDay) => void;
+  onSendLogs: () => void;
+  isSendingLogs?: boolean;
   onResume: () => void;
   onExit: () => void;
 }
@@ -33,6 +35,32 @@ const ToggleButton: React.FC<{
       }`}
     >
       {enabled ? "ON" : "OFF"}
+    </button>
+  );
+};
+
+const ActionButton: React.FC<{
+  text: string;
+  onClick: () => void;
+  disabled?: boolean;
+  variant?: "positive" | "warning" | "negative";
+}> = ({ text, onClick, disabled = false, variant = "positive" }) => {
+  const backgroundClass = disabled
+    ? "cursor-wait bg-gray-400 opacity-60"
+    : variant === "warning"
+      ? "bg-yellow-500"
+      : variant === "negative"
+        ? "bg-component-negative"
+        : "bg-component-positive";
+
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={`flex min-w-20 items-center justify-center border-2 border-[#222] px-4 py-0.5 text-center font-bold text-white ${backgroundClass}`}
+    >
+      {text}
     </button>
   );
 };
@@ -62,6 +90,8 @@ const FlappyBirdSettingsLayer: React.FC<FlappyBirdSettingsLayerProps> = ({
   onChangeSfx,
   selectedTimeOfDay,
   onSelectTimeOfDay,
+  onSendLogs,
+  isSendingLogs = false,
   onResume,
   onExit,
 }) => {
@@ -78,19 +108,16 @@ const FlappyBirdSettingsLayer: React.FC<FlappyBirdSettingsLayerProps> = ({
         suppressInitialActionsMs={180}
         content={
           <div className="flex flex-col gap-5 text-left text-[1.5rem]">
-            <div className="text-gray-600">The game is paused.</div>
-
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <div className="font-bold">BGM</div>
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <div className="font-bold">BGM</div>
+                </div>
+                <ToggleButton
+                  enabled={isBgmEnabled}
+                  onClick={() => onChangeBgm(!isBgmEnabled)}
+                />
               </div>
-              <ToggleButton
-                enabled={isBgmEnabled}
-                onClick={() => onChangeBgm(!isBgmEnabled)}
-              />
-            </div>
-
-            <div className="border-t-2 border-[#222] pt-4">
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <div className="font-bold">SFX</div>
@@ -98,6 +125,18 @@ const FlappyBirdSettingsLayer: React.FC<FlappyBirdSettingsLayerProps> = ({
                 <ToggleButton
                   enabled={isSfxEnabled}
                   onClick={() => onChangeSfx(!isSfxEnabled)}
+                />
+              </div>
+            </div>
+
+            <div className="border-t-2 border-[#222] pt-4">
+              <div className="flex items-center justify-between gap-4">
+                <div className="font-bold">Report Bug</div>
+                <ActionButton
+                  text={isSendingLogs ? "Preparing..." : "Send"}
+                  onClick={onSendLogs}
+                  disabled={isSendingLogs}
+                  variant="warning"
                 />
               </div>
             </div>

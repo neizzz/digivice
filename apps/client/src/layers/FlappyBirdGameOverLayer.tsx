@@ -12,7 +12,7 @@ const FlappyBirdGameOverLayer: React.FC<FlappyBirdGameOverLayerProps> = ({
   onExit,
 }) => {
   return (
-    <div className="fixed inset-0 z-[50] flex items-center justify-center bg-black/50">
+    <div className="absolute inset-0 z-[50] flex items-center justify-center bg-black/50">
       <div className="flex w-full max-w-[22rem] flex-col items-center gap-5 px-4 text-center text-white">
         <div className="text-[2.25rem] font-bold tracking-[0.12em] uppercase drop-shadow-[0_2px_6px_rgba(0,0,0,0.65)]">
           Game Over

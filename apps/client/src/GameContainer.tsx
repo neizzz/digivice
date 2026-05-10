@@ -1,6 +1,8 @@
 import {
   type ControlButtonParams,
   ControlButtonType,
+  FLAPPY_BIRD_PERF_DIAGNOSTICS_STORAGE_KEY,
+  type FlappyBirdPerfHistory,
   Game,
   type GameDiagnosticsSnapshot,
   getNativeSunTimes,
@@ -121,7 +123,10 @@ type DiagnosticsPayload = {
   logs: ReturnType<typeof getDiagnosticsLogs>;
   importantLogs: ReturnType<typeof getImportantDiagnosticsLogs>;
   currentGameData: GameDiagnosticsSnapshot["mainSceneData"];
+  currentFlappyBirdPerf: GameDiagnosticsSnapshot["flappyBirdPerf"];
   storedGameData: unknown | null;
+  storedFlappyBirdPerfHistory: FlappyBirdPerfHistory | null;
+  nativeBridgeDiagnostics: Array<Record<string, unknown>>;
   latestGameData: unknown | null;
   latestGameDataSource: "current_game" | "stored_game" | "none";
   lastValidation: SanitizeStoredWorldDataResult["diagnostics"] | null;
@@ -146,6 +151,14 @@ type LoadingFailureAlertState = {
   message: string;
 };
 
+type SetupLayerOpenReason =
+  | "bootstrap_setup_required"
+  | "bootstrap_loading_interrupted"
+  | "user_reset"
+  | "sanitize_reset"
+  | "game_initialize_missing_initial_data"
+  | "runtime_missing_initial_data_blocked";
+
 type SceneTransitionLoadState = {
   requestId: number;
   phase: "idle" | "loading" | "core_ready";
@@ -160,6 +173,11 @@ type LoadingTimeoutContext = {
   requestId?: number;
   from?: SceneKey | null;
   to?: SceneKey | null;
+};
+
+type RequestInitialGameDataOptions = {
+  allowSetupLayer: boolean;
+  source: "bootstrap" | "game_runtime";
 };
 
 type FlappyBirdGameOverState = {
@@ -573,6 +591,25 @@ function createDiagnosticsBody(): string {
   ].join("\n");
 }
 
+function createFlappyBirdLogsSubject(timestamp: string): string {
+  return `[MonTTo][${getClientReleaseLabel()}] FlappyBird Logs ${timestamp}`;
+}
+
+function createFlappyBirdLogsBody(): string {
+  return [
+    `App version: ${getClientReleaseLabel()}`,
+    "",
+    "FlappyBird log files are attached.",
+    "",
+    "Please describe the minigame issue or symptoms you observed.",
+    "",
+    "- What happened during the game?",
+    "- When did it happen?",
+    "- What did you expect to happen?",
+    "- How can it be reproduced?",
+  ].join("\n");
+}
+
 function getClientReleaseLabel(): string {
   return `${__APP_VERSION__}+${__APP_BUILD_NUMBER__}`;
 }
@@ -580,6 +617,10 @@ function getClientReleaseLabel(): string {
 function getClientReleaseFileLabel(): string {
   const sanitizedVersion = __APP_VERSION__.replace(/[^a-zA-Z0-9.-]+/g, "_");
   return `${sanitizedVersion}-build-${__APP_BUILD_NUMBER__}`;
+}
+
+function buildDiagnosticsTimestampSuffix(timestamp: string): string {
+  return timestamp.replace(/\.\d{3}Z$/, "Z").replace(/[:]/g, "-");
 }
 
 function buildGmailComposeHref(subject: string, body: string): string {
@@ -723,6 +764,45 @@ const GameContainer: React.FC = () => {
     BackNavigationEntry[] | null
   >(null);
   const hasInitializedBackNavigationHistoryRef = useRef(false);
+
+  const logSetupLayerVisibility = useCallback(
+    (
+      reason: SetupLayerOpenReason,
+      payload: Record<string, unknown> = {},
+      level: "log" | "warn" | "error" = "warn",
+    ) => {
+      logImportantDiagnostics(
+        level,
+        "[ImportantDiagnostics][SetupLayerVisibility]",
+        {
+          reason,
+          hasGameInstance: !!gameInstance,
+          isInitialized: isInitializedRef.current,
+          isInitializingGame: isInitializingGameRef.current,
+          currentSceneKey: gameInstance?.getCurrentSceneKey() ?? null,
+          sceneTransitionPhase: sceneTransitionLoadState.phase,
+          sceneTransitionRequestId: sceneTransitionLoadState.requestId,
+          sceneTransitionFrom: sceneTransitionLoadState.from ?? null,
+          sceneTransitionTo: sceneTransitionLoadState.to ?? null,
+          documentHidden:
+            typeof document !== "undefined" ? document.hidden : null,
+          ...payload,
+        },
+      );
+    },
+    [gameInstance, sceneTransitionLoadState],
+  );
+
+  const presentSetupLayer = useCallback(
+    (
+      reason: Exclude<SetupLayerOpenReason, "runtime_missing_initial_data_blocked">,
+      payload: Record<string, unknown> = {},
+    ) => {
+      logSetupLayerVisibility(reason, payload);
+      setShowSetupLayer(true);
+    },
+    [logSetupLayerVisibility],
+  );
 
   const clearPendingSettingMenuOpen = useCallback(() => {
     if (pendingSettingMenuOpenTimeoutRef.current === null) {
@@ -892,6 +972,95 @@ const GameContainer: React.FC = () => {
     );
   }, [closeSettingMenu, requestHistoryBackForEntry]);
 
+  const interruptLoadingFlow = useCallback(
+    (reason: "back_navigation" | "app_hidden"): boolean => {
+      if (
+        sceneTransitionLoadState.phase === "loading" &&
+        gameInstance &&
+        sceneTransitionLoadState.from
+      ) {
+        const interrupted = gameInstance.requestSceneTransitionInterruption({
+          requestId: sceneTransitionLoadState.requestId,
+          fallbackScene: sceneTransitionLoadState.from,
+          reason,
+        });
+
+        if (interrupted) {
+          logImportantDiagnostics(
+            "warn",
+            "[ImportantDiagnostics][LoadingInterruption]",
+            {
+              reason,
+              loadingKind: "scene_transition_loading",
+              requestId: sceneTransitionLoadState.requestId,
+              from: sceneTransitionLoadState.from,
+              to: sceneTransitionLoadState.to,
+            },
+          );
+          return true;
+        }
+      }
+
+      if (
+        sceneTransitionLoadState.phase === "core_ready" &&
+        gameInstance &&
+        sceneTransitionLoadState.from
+      ) {
+        logImportantDiagnostics(
+          "warn",
+          "[ImportantDiagnostics][LoadingInterruption]",
+          {
+            reason,
+            loadingKind: "scene_transition_core_ready",
+            requestId: sceneTransitionLoadState.requestId,
+            from: sceneTransitionLoadState.from,
+            to: sceneTransitionLoadState.to,
+          },
+        );
+        clearLoadingTimeout();
+        sceneTransitionRequestIdRef.current = 0;
+        setSceneTransitionLoadState({ requestId: 0, phase: "idle" });
+        setIsBootstrapping(false);
+        void gameInstance.changeScene(sceneTransitionLoadState.from);
+        return true;
+      }
+
+      if (isBootstrapping && !showSetupLayer) {
+        logImportantDiagnostics(
+          "warn",
+          "[ImportantDiagnostics][LoadingInterruption]",
+          {
+            reason,
+            loadingKind: "bootstrap_to_main",
+            requestId: sceneTransitionLoadState.requestId,
+            from: "setup_layer",
+            to: SceneKey.MAIN,
+          },
+        );
+        clearLoadingTimeout();
+        cancelPendingGameInitialization(`loading_interrupted:${reason}`);
+        sceneTransitionRequestIdRef.current = 0;
+        setSceneTransitionLoadState({ requestId: 0, phase: "idle" });
+        setLoadingFailureAlert(null);
+        setGameInstance(null);
+        setIsBootstrapping(false);
+        presentSetupLayer("bootstrap_loading_interrupted", { reason });
+        return true;
+      }
+
+      return false;
+    },
+    [
+      cancelPendingGameInitialization,
+      clearLoadingTimeout,
+      gameInstance,
+      isBootstrapping,
+      presentSetupLayer,
+      sceneTransitionLoadState,
+      showSetupLayer,
+    ],
+  );
+
   const handleNativeBackNavigation = useCallback((): "consumed" | "exit" => {
     if (typeof window === "undefined") {
       return "consumed";
@@ -904,9 +1073,11 @@ const GameContainer: React.FC = () => {
       return "consumed";
     }
 
+    if (interruptLoadingFlow("back_navigation")) {
+      return "consumed";
+    }
+
     if (
-      sceneTransitionLoadState.phase !== "idle" ||
-      isBootstrapping ||
       unsupportedViewportReason ||
       showSetupLayer ||
       sanitizeResetAlert
@@ -964,6 +1135,7 @@ const GameContainer: React.FC = () => {
     setPendingDiagnosticsDraft,
     showSetupLayer,
     unsupportedViewportReason,
+    interruptLoadingFlow,
   ]);
 
   const applyBackNavigationTarget = useCallback(
@@ -1315,7 +1487,7 @@ const GameContainer: React.FC = () => {
       requestId: number;
       from?: SceneKey;
       to: SceneKey;
-      state: "loading" | "core_ready" | "failed";
+      state: "loading" | "core_ready" | "failed" | "interrupted";
     }) => {
       if (params.state === "loading") {
         sceneTransitionRequestIdRef.current = params.requestId;
@@ -1357,6 +1529,14 @@ const GameContainer: React.FC = () => {
             to: params.to,
           },
         });
+        return;
+      }
+
+      if (params.state === "interrupted") {
+        clearLoadingTimeout();
+        sceneTransitionRequestIdRef.current = 0;
+        setSceneTransitionLoadState({ requestId: 0, phase: "idle" });
+        setIsBootstrapping(false);
         return;
       }
 
@@ -1708,18 +1888,43 @@ const GameContainer: React.FC = () => {
     };
   }, [completeSceneTransitionLoading, gameInstance, sceneTransitionLoadState]);
 
-  const handleSendDiagnostics = useCallback(async () => {
-    if (isSendingDiagnostics || pendingDiagnosticsDraft) {
+  useEffect(() => {
+    if (typeof document === "undefined") {
       return;
     }
 
-    setIsSendingDiagnostics(true);
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        return;
+      }
 
-    try {
+      interruptLoadingFlow("app_hidden");
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [interruptLoadingFlow]);
+
+  const prepareDiagnosticsDraft = useCallback(
+    async (
+      scope: "full" | "flappy_bird",
+    ): Promise<PendingDiagnosticsDraft> => {
       const storage = createClientStorage();
       const storedGameData = await storage.getData(WORLD_DATA_STORAGE_KEY);
+      const storedFlappyBirdPerfHistory = (await storage.getData(
+        FLAPPY_BIRD_PERF_DIAGNOSTICS_STORAGE_KEY,
+      )) as FlappyBirdPerfHistory | null;
       const snapshot = gameInstance?.getDiagnosticsSnapshot();
       const currentGameData = snapshot?.mainSceneData ?? null;
+      const currentFlappyBirdPerf = snapshot?.flappyBirdPerf ?? null;
+      const nativeBridgeDiagnostics = Array.isArray(
+        window.__digiviceNativeBridgeDiagnostics,
+      )
+        ? window.__digiviceNativeBridgeDiagnostics
+        : [];
       const latestGameData = currentGameData ?? storedGameData ?? null;
       const latestGameDataSource = currentGameData
         ? "current_game"
@@ -1747,7 +1952,10 @@ const GameContainer: React.FC = () => {
         logs: getDiagnosticsLogs(),
         importantLogs: getImportantDiagnosticsLogs(),
         currentGameData,
+        currentFlappyBirdPerf,
         storedGameData,
+        storedFlappyBirdPerfHistory,
+        nativeBridgeDiagnostics,
         latestGameData,
         latestGameDataSource,
         lastValidation: lastValidationResultRef.current?.diagnostics ?? null,
@@ -1756,16 +1964,41 @@ const GameContainer: React.FC = () => {
           lastValidationResultRef.current?.resetReason ?? null,
       };
 
-      const payloadText = JSON.stringify(payload, null, 2);
-      const subject = createDiagnosticsSubject(payload.generatedAt);
-      const body = createDiagnosticsBody();
       const releaseFileLabel = getClientReleaseFileLabel();
-      const timestampSuffix = payload.generatedAt
-        .replace(/\.\d{3}Z$/, "Z")
-        .replace(/[:]/g, "-");
-      setPendingDiagnosticsDraft({
-        subject,
-        body,
+      const timestampSuffix = buildDiagnosticsTimestampSuffix(payload.generatedAt);
+
+      if (scope === "flappy_bird") {
+        return {
+          subject: createFlappyBirdLogsSubject(payload.generatedAt),
+          body: createFlappyBirdLogsBody(),
+          attachments: [
+            {
+              fileName: `montto-flappybird-perf-${releaseFileLabel}-${timestampSuffix}.json`,
+              text: JSON.stringify(
+                {
+                  currentFlappyBirdPerf: payload.currentFlappyBirdPerf,
+                  storedFlappyBirdPerfHistory:
+                    payload.storedFlappyBirdPerfHistory,
+                },
+                null,
+                2,
+              ),
+              mimeType: "application/json",
+            },
+            {
+              fileName: `montto-native-bridge-diagnostics-${releaseFileLabel}-${timestampSuffix}.json`,
+              text: JSON.stringify(payload.nativeBridgeDiagnostics, null, 2),
+              mimeType: "application/json",
+            },
+          ],
+        };
+      }
+
+      const payloadText = JSON.stringify(payload, null, 2);
+
+      return {
+        subject: createDiagnosticsSubject(payload.generatedAt),
+        body: createDiagnosticsBody(),
         attachments: [
           {
             fileName: `montto-diagnostics-${releaseFileLabel}-${timestampSuffix}.json`,
@@ -1782,8 +2015,39 @@ const GameContainer: React.FC = () => {
             text: JSON.stringify(payload.importantLogs, null, 2),
             mimeType: "application/json",
           },
+          {
+            fileName: `montto-flappybird-perf-${releaseFileLabel}-${timestampSuffix}.json`,
+            text: JSON.stringify(
+              {
+                currentFlappyBirdPerf: payload.currentFlappyBirdPerf,
+                storedFlappyBirdPerfHistory:
+                  payload.storedFlappyBirdPerfHistory,
+              },
+              null,
+              2,
+            ),
+            mimeType: "application/json",
+          },
+          {
+            fileName: `montto-native-bridge-diagnostics-${releaseFileLabel}-${timestampSuffix}.json`,
+            text: JSON.stringify(payload.nativeBridgeDiagnostics, null, 2),
+            mimeType: "application/json",
+          },
         ],
-      });
+      };
+    },
+    [gameInstance, gameSettings],
+  );
+
+  const handleSendDiagnostics = useCallback(async () => {
+    if (isSendingDiagnostics || pendingDiagnosticsDraft) {
+      return;
+    }
+
+    setIsSendingDiagnostics(true);
+
+    try {
+      setPendingDiagnosticsDraft(await prepareDiagnosticsDraft("full"));
     } catch (error) {
       logImportantDiagnostics(
         "error",
@@ -1799,10 +2063,39 @@ const GameContainer: React.FC = () => {
       setIsSendingDiagnostics(false);
     }
   }, [
-    gameInstance,
-    gameSettings,
     isSendingDiagnostics,
     pendingDiagnosticsDraft,
+    prepareDiagnosticsDraft,
+    showAlert,
+  ]);
+
+  const handleSendFlappyBirdLogs = useCallback(async () => {
+    if (isSendingDiagnostics || pendingDiagnosticsDraft) {
+      return;
+    }
+
+    setIsSendingDiagnostics(true);
+
+    try {
+      setPendingDiagnosticsDraft(await prepareDiagnosticsDraft("flappy_bird"));
+    } catch (error) {
+      logImportantDiagnostics(
+        "error",
+        "[ImportantDiagnostics][GameContainer] Failed to prepare flappybird log payload",
+        error,
+      );
+      console.error(
+        "[GameContainer] Failed to prepare flappybird log payload",
+        error,
+      );
+      showAlert("Failed to prepare FlappyBird logs.", "Error");
+    } finally {
+      setIsSendingDiagnostics(false);
+    }
+  }, [
+    isSendingDiagnostics,
+    pendingDiagnosticsDraft,
+    prepareDiagnosticsDraft,
     showAlert,
   ]);
 
@@ -1886,7 +2179,9 @@ const GameContainer: React.FC = () => {
         setShowSettingMenu(false);
         setShowFinalResetConfirm(false);
         setButtonParams(null);
-        setShowSetupLayer(true);
+        presentSetupLayer(reason, {
+          storageKind: getClientStorageKind(),
+        });
         setIsBootstrapping(false);
         sceneTransitionRequestIdRef.current = 0;
         setSceneTransitionLoadState({ requestId: 0, phase: "idle" });
@@ -1907,6 +2202,7 @@ const GameContainer: React.FC = () => {
       cancelPendingGameInitialization,
       clearLoadingTimeout,
       gameInstance,
+      presentSetupLayer,
       showAlert,
     ],
   );
@@ -2120,8 +2416,12 @@ const GameContainer: React.FC = () => {
     [entryFlowDiagnostics],
   );
 
-  const requestInitialGameData =
-    useCallback(async (): Promise<SetupFormData> => {
+  const requestInitialGameData = useCallback(
+    async (
+      options: RequestInitialGameDataOptions,
+    ): Promise<SetupFormData> => {
+      const { allowSetupLayer, source } = options;
+
       if (initialSetupDataRef.current) {
         return initialSetupDataRef.current;
       }
@@ -2130,9 +2430,22 @@ const GameContainer: React.FC = () => {
         return pendingInitialSetupPromiseRef.current;
       }
 
+      if (!allowSetupLayer) {
+        logSetupLayerVisibility(
+          "runtime_missing_initial_data_blocked",
+          {
+            source,
+          },
+          "error",
+        );
+        throw new MissingInitialGameDataError();
+      }
+
       setLoadingFailureAlert(null);
       setIsBootstrapping(false);
-      setShowSetupLayer(true);
+      presentSetupLayer("bootstrap_setup_required", {
+        source,
+      });
       entryFlowDiagnostics.markWaitingForSetupInput();
 
       const setupPromise = new Promise<SetupFormData>((resolve) => {
@@ -2157,7 +2470,14 @@ const GameContainer: React.FC = () => {
 
       pendingInitialSetupPromiseRef.current = setupPromise;
       return setupPromise;
-    }, [entryFlowDiagnostics, hydrateInitialSetupData]);
+    },
+    [
+      entryFlowDiagnostics,
+      hydrateInitialSetupData,
+      logSetupLayerVisibility,
+      presentSetupLayer,
+    ],
+  );
 
   const initializeGame = useCallback(() => {
     if (!gameContainerRef.current) return;
@@ -2183,7 +2503,13 @@ const GameContainer: React.FC = () => {
       debugMode: isNativeFeatureDebugMode,
       initialSceneKey: CONFIGURED_INITIAL_SCENE_KEY,
       onCreateInitialGameData: async () => {
-        return initialSetupDataRef.current ?? (await requestInitialGameData());
+        return (
+          initialSetupDataRef.current ??
+          (await requestInitialGameData({
+            allowSetupLayer: false,
+            source: "game_runtime",
+          }))
+        );
       },
       showAlert: (message: string, title?: string) => {
         showAlert(message, title);
@@ -2309,7 +2635,9 @@ const GameContainer: React.FC = () => {
             pendingSetupResolverRef.current = null;
             shouldRestartFromSetupRef.current = true;
             setLoadingFailureAlert(null);
-            setShowSetupLayer(true);
+            presentSetupLayer("game_initialize_missing_initial_data", {
+              storageKind: getClientStorageKind(),
+            });
             setIsBootstrapping(false);
             return;
           }
@@ -2335,6 +2663,7 @@ const GameContainer: React.FC = () => {
     persistFlappyBirdBestScore,
     requestInitialGameData,
     startRecoveryVibration,
+    presentSetupLayer,
     stopLoadingWithFailure,
     stopRecoveryVibration,
     showAlert,
@@ -2484,7 +2813,10 @@ const GameContainer: React.FC = () => {
       if (savedGameDataState === "setup_required") {
         const initialGameDataStartedAt =
           entryFlowDiagnostics.beginRequestInitialGameData();
-        await requestInitialGameData();
+        await requestInitialGameData({
+          allowSetupLayer: true,
+          source: "bootstrap",
+        });
         if (!isMounted) return;
         entryFlowDiagnostics.completeRequestInitialGameData(
           initialGameDataStartedAt,
@@ -2814,6 +3146,8 @@ const GameContainer: React.FC = () => {
           onChangeSfx={handleFlappyBirdSettingsMenuChangeSfx}
           selectedTimeOfDay={flappyBirdSettingsMenuState.selectedTimeOfDay}
           onSelectTimeOfDay={handleFlappyBirdSettingsMenuSelectTimeOfDay}
+          onSendLogs={handleSendFlappyBirdLogs}
+          isSendingLogs={isSendingDiagnostics || pendingDiagnosticsDraft !== null}
           onResume={handleFlappyBirdSettingsMenuResume}
           onExit={handleFlappyBirdSettingsMenuExit}
         />

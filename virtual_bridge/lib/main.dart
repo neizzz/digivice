@@ -3,6 +3,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' show FrameTiming;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -59,7 +60,14 @@ class WebView extends StatefulWidget {
 }
 
 class _WebViewState extends State<WebView> with WidgetsBindingObserver {
+  static const String _nativeDiagnosticsSinkName =
+      '__digiviceNativeBridgeDiagnostics';
   static const bool _stopAppOnAsset404 = false;
+  static const double _flutterFrameBudgetMs = 16.7;
+  static const double _flutterFrameWarningMs = 20;
+  static const double _flutterFrameCriticalMs = 33.3;
+  static const int _flutterFrameSummaryBatchSize = 180;
+  static const int _maxPendingFlutterFrameDiagnosticsPayloads = 48;
   static const Set<String> _webEntrypointPaths = <String>{
     '/index.html',
     '/index2.html',
@@ -75,9 +83,18 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
   final Set<String> _missingAssetPathsLogged = <String>{};
   final List<Timer> _viewportSyncTimers = <Timer>[];
   final List<String> _pendingUpdateDiagnosticsLogs = <String>[];
+  final List<Map<String, dynamic>> _pendingFlutterFrameDiagnosticsPayloads =
+      <Map<String, dynamic>>[];
   bool _isPageReady = false;
   bool _isFullscreenAdShowing = false;
   String? _lastViewportMetricsKey;
+  int _flutterFrameSummarySequence = 0;
+  int _flutterFrameSummarySampleCount = 0;
+  int _flutterFrameSummaryWarningCount = 0;
+  int _flutterFrameSummaryCriticalCount = 0;
+  double _flutterFrameSummaryMaxTotalMs = 0;
+  double _flutterFrameSummaryMaxBuildMs = 0;
+  double _flutterFrameSummaryMaxRasterMs = 0;
 
   @override
   void initState() {
@@ -96,6 +113,7 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
 
     _updateCoordinator = UpdateCoordinator(log: _handleUpdateCoordinatorLog);
     _updateCoordinator.addListener(_handleUpdateCoordinatorChanged);
+    WidgetsBinding.instance.addTimingsCallback(_handleFlutterFrameTimings);
 
     unawaited(
         _updateCoordinator.checkForMandatoryUpdate(reason: 'app_started'));
@@ -293,6 +311,7 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
             await _bridgeConfigurator.injectJavaScriptInterfaces();
             _isPageReady = true;
             await _flushPendingUpdateDiagnosticsLogs();
+            await _flushPendingFlutterFrameDiagnosticsPayloads();
             _scheduleViewportSync('page_finished');
           },
         ),
@@ -485,6 +504,158 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
     }
 
     _pendingUpdateDiagnosticsLogs.add(message);
+  }
+
+  void _handleFlutterFrameTimings(List<FrameTiming> timings) {
+    for (final FrameTiming timing in timings) {
+      final double totalMs = _durationToMs(timing.totalSpan);
+      final double buildMs = _durationToMs(timing.buildDuration);
+      final double rasterMs = _durationToMs(timing.rasterDuration);
+      final double vsyncOverheadMs = _durationToMs(timing.vsyncOverhead);
+
+      _flutterFrameSummarySequence += 1;
+      _flutterFrameSummarySampleCount += 1;
+      if (totalMs >= _flutterFrameWarningMs) {
+        _flutterFrameSummaryWarningCount += 1;
+      }
+      if (totalMs >= _flutterFrameCriticalMs) {
+        _flutterFrameSummaryCriticalCount += 1;
+      }
+      _flutterFrameSummaryMaxTotalMs = totalMs > _flutterFrameSummaryMaxTotalMs
+          ? totalMs
+          : _flutterFrameSummaryMaxTotalMs;
+      _flutterFrameSummaryMaxBuildMs = buildMs > _flutterFrameSummaryMaxBuildMs
+          ? buildMs
+          : _flutterFrameSummaryMaxBuildMs;
+      _flutterFrameSummaryMaxRasterMs =
+          rasterMs > _flutterFrameSummaryMaxRasterMs
+              ? rasterMs
+              : _flutterFrameSummaryMaxRasterMs;
+
+      if (totalMs >= _flutterFrameCriticalMs) {
+        _queueFlutterFrameDiagnosticsPayload(
+          <String, dynamic>{
+            'type': 'flutter_frame_critical',
+            'sequence': _flutterFrameSummarySequence,
+            'frameBudgetMs': _flutterFrameBudgetMs,
+            'warningThresholdMs': _flutterFrameWarningMs,
+            'criticalThresholdMs': _flutterFrameCriticalMs,
+            'totalSpanMs': totalMs,
+            'buildMs': buildMs,
+            'rasterMs': rasterMs,
+            'vsyncOverheadMs': vsyncOverheadMs,
+          },
+        );
+      }
+    }
+
+    if (_flutterFrameSummarySampleCount >= _flutterFrameSummaryBatchSize) {
+      final Map<String, dynamic> summaryPayload =
+          _buildFlutterFrameSummaryPayload();
+      if ((summaryPayload['warningCount'] as int) > 0 ||
+          (summaryPayload['criticalCount'] as int) > 0) {
+        _queueFlutterFrameDiagnosticsPayload(summaryPayload);
+      }
+      _resetFlutterFrameSummary();
+    }
+  }
+
+  double _durationToMs(Duration duration) {
+    return double.parse(
+      (duration.inMicroseconds / 1000).toStringAsFixed(2),
+    );
+  }
+
+  Map<String, dynamic> _buildFlutterFrameSummaryPayload() {
+    return <String, dynamic>{
+      'type': 'flutter_frame_summary',
+      'sequence': _flutterFrameSummarySequence,
+      'sampleCount': _flutterFrameSummarySampleCount,
+      'frameBudgetMs': _flutterFrameBudgetMs,
+      'warningThresholdMs': _flutterFrameWarningMs,
+      'criticalThresholdMs': _flutterFrameCriticalMs,
+      'warningCount': _flutterFrameSummaryWarningCount,
+      'criticalCount': _flutterFrameSummaryCriticalCount,
+      'maxTotalSpanMs':
+          double.parse(_flutterFrameSummaryMaxTotalMs.toStringAsFixed(2)),
+      'maxBuildMs':
+          double.parse(_flutterFrameSummaryMaxBuildMs.toStringAsFixed(2)),
+      'maxRasterMs':
+          double.parse(_flutterFrameSummaryMaxRasterMs.toStringAsFixed(2)),
+    };
+  }
+
+  void _resetFlutterFrameSummary() {
+    _flutterFrameSummarySampleCount = 0;
+    _flutterFrameSummaryWarningCount = 0;
+    _flutterFrameSummaryCriticalCount = 0;
+    _flutterFrameSummaryMaxTotalMs = 0;
+    _flutterFrameSummaryMaxBuildMs = 0;
+    _flutterFrameSummaryMaxRasterMs = 0;
+  }
+
+  void _queueFlutterFrameDiagnosticsPayload(Map<String, dynamic> payload) {
+    final Map<String, dynamic> normalizedPayload = <String, dynamic>{
+      ...payload,
+      'timestamp': DateTime.now().toIso8601String(),
+    };
+
+    if (!_isPageReady) {
+      if (_pendingFlutterFrameDiagnosticsPayloads.length >=
+          _maxPendingFlutterFrameDiagnosticsPayloads) {
+        _pendingFlutterFrameDiagnosticsPayloads.removeAt(0);
+      }
+
+      _pendingFlutterFrameDiagnosticsPayloads.add(normalizedPayload);
+      return;
+    }
+
+    unawaited(_emitFlutterFrameDiagnosticsPayload(normalizedPayload));
+  }
+
+  Future<void> _flushPendingFlutterFrameDiagnosticsPayloads() async {
+    if (!_isPageReady || _pendingFlutterFrameDiagnosticsPayloads.isEmpty) {
+      return;
+    }
+
+    final List<Map<String, dynamic>> pendingPayloads =
+        List<Map<String, dynamic>>.from(
+      _pendingFlutterFrameDiagnosticsPayloads,
+    );
+    _pendingFlutterFrameDiagnosticsPayloads.clear();
+
+    for (final Map<String, dynamic> payload in pendingPayloads) {
+      await _emitFlutterFrameDiagnosticsPayload(payload);
+    }
+  }
+
+  Future<void> _emitFlutterFrameDiagnosticsPayload(
+    Map<String, dynamic> payload,
+  ) async {
+    final String encodedPayload = jsonEncode(payload);
+
+    try {
+      await _controller.runJavaScript('''
+        (() => {
+          const payload = $encodedPayload;
+          const sinkName = '$_nativeDiagnosticsSinkName';
+          const existing = Array.isArray(window[sinkName]) ? window[sinkName] : [];
+          existing.push(payload);
+          if (existing.length > 200) {
+            existing.splice(0, existing.length - 200);
+          }
+          window[sinkName] = existing;
+          console.warn('[ImportantDiagnostics][FlutterFrameTiming]', payload);
+        })();
+      ''');
+    } catch (_) {
+      if (_pendingFlutterFrameDiagnosticsPayloads.length >=
+          _maxPendingFlutterFrameDiagnosticsPayloads) {
+        _pendingFlutterFrameDiagnosticsPayloads.removeAt(0);
+      }
+
+      _pendingFlutterFrameDiagnosticsPayloads.add(payload);
+    }
   }
 
   Future<void> _flushPendingUpdateDiagnosticsLogs() async {
@@ -751,6 +922,7 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    WidgetsBinding.instance.removeTimingsCallback(_handleFlutterFrameTimings);
     _cancelViewportSyncTimers();
     _isPageReady = false;
     _updateCoordinator.removeListener(_handleUpdateCoordinatorChanged);

@@ -1,8 +1,8 @@
 import * as PIXI from "pixi.js";
 import type { FlappyBirdSkyContext, Game } from "../../Game";
-import { GameEngine } from "../../GameEngine";
+import { type GameEnginePhysicsPerfSample, GameEngine } from "../../GameEngine";
 import { SceneKey } from "../../SceneKey";
-import type { Scene } from "../../interfaces/Scene";
+import type { Scene, SceneRenderTimingSample } from "../../interfaces/Scene";
 import { type ControlButtonParams, ControlButtonType } from "../../ui/types";
 // import { GameDataManager } from "../../managers/GameDataManager";
 import {
@@ -11,6 +11,7 @@ import {
   PipeManager,
   PlayerManager,
   type PipeUpdateStats,
+  type PipeUpdatePhaseCosts,
 } from "./gameLogic";
 import { FlappyBirdBgmController } from "./bgm";
 import {
@@ -24,6 +25,11 @@ import { type GameOptions, GameState } from "./models";
 import { PhysicsManager } from "./physics";
 import { CountdownUI, NearMissUI, ScoreUI } from "./ui";
 import { AssetLoader } from "../../utils/AssetLoader";
+import {
+  FlappyBirdPerfDiagnostics,
+  type FlappyBirdFramePerfSample,
+  type FlappyBirdPerfSnapshot,
+} from "./diagnostics/flappyBirdPerfDiagnostics";
 import {
   getManualSkyVisualState,
   resolveAutoTimeOfDayState,
@@ -47,9 +53,8 @@ const CONTROL_BUTTONS_SET: Record<
   ],
 };
 
-const GAME_OVER_VIBRATION_DURATION_MS = 18;
-const GAME_OVER_VIBRATION_STRENGTH = 110;
-const GAME_OVER_VIBRATION_DELAY_MS = 90;
+const GAME_OVER_VIBRATION_DURATION_MS = 36;
+const GAME_OVER_VIBRATION_STRENGTH = 130;
 const PIPE_PASS_VIBRATION_DURATION_MS = 12;
 const PIPE_PASS_VIBRATION_STRENGTH = 34;
 const PIPE_PASS_NEAR_MISS_VIBRATION_STRENGTH = 48;
@@ -89,7 +94,52 @@ const FLAPPY_BIRD_BGM_MAX_TEMPO_MULTIPLIER = 1.16;
 const FLAPPY_BIRD_SKY_SYNC_INTERVAL_MS = 1000;
 const FLAPPY_BIRD_SLOW_FRAME_DELTA_THRESHOLD_MS = 20;
 const FLAPPY_BIRD_SLOW_FRAME_UPDATE_COST_THRESHOLD_MS = 8;
+const FLAPPY_BIRD_TARGET_FRAME_BUDGET_MS = 16.7;
+const FLAPPY_BIRD_FIXED_TIMESTEP_MS = 1000 / 60;
+const FLAPPY_BIRD_MAX_SIMULATION_DELTA_MS = 1000 / 30;
+const FLAPPY_BIRD_MAX_SIMULATION_SUBSTEPS = 2;
 const FLAPPY_BIRD_SLOW_FRAME_LOG_COOLDOWN_MS = 400;
+const FLAPPY_BIRD_PIPE_PREWARM_PAIR_COUNT = 2;
+const FLAPPY_BIRD_INIT_ASSET_LOAD_TIMEOUT_MS = 8000;
+const FLAPPY_BIRD_INIT_SKY_CONTEXT_TIMEOUT_MS = 4000;
+const FLAPPY_BIRD_INIT_BEST_SCORE_TIMEOUT_MS = 4000;
+const SHOULD_CONSOLE_LOG_SLOW_FRAMES =
+  import.meta.env.DEV &&
+  (import.meta.env?.NATIVE_FEATURE_DEBUG_MODE ?? "") === "true";
+
+function getPerfNow(): number {
+  return typeof performance !== "undefined" ? performance.now() : Date.now();
+}
+
+function roundPhaseCostEntries<T extends Record<string, number>>(
+  phaseCosts: Partial<T>,
+): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(phaseCosts).map(([key, value]) => [
+      key,
+      Math.round(value * 100) / 100,
+    ]),
+  ) as Partial<T>;
+}
+
+function summarizeInitError(error: unknown): { name?: string; message: string } {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+    };
+  }
+
+  return {
+    message: String(error),
+  };
+}
+
+function createInitTimeoutError(phase: string, timeoutMs: number): Error {
+  return new Error(
+    `[FlappyBirdGameScene] ${phase} timed out after ${timeoutMs}ms`,
+  );
+}
 
 export class FlappyBirdGameScene extends PIXI.Container implements Scene {
   // 핵심 컴포넌트
@@ -128,12 +178,16 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
   private isReturningToMain = false;
   private isSettingsMenuOpen = false;
   private lastSlowFrameLogAtMs = 0;
+  private simulationAccumulatorMs = 0;
   private gameOverVibrationTimeoutIds: number[] = [];
   private pausedStateBeforePause: GameState.PLAYING | GameState.COUNTDOWN | null =
     null;
   private isAppSuspended = false;
+  private pendingFrameDiagnosticsSample: FlappyBirdFramePerfSample | null =
+    null;
   private readonly boundHandleKeyDown: (event: KeyboardEvent) => void;
   private readonly boundVisibilityChangeHandler: () => void;
+  private readonly perfDiagnostics: FlappyBirdPerfDiagnostics;
 
   constructor(
     game: Game,
@@ -144,11 +198,31 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
     this.game = game;
     this.boundHandleKeyDown = this.handleKeyDown.bind(this);
     this.boundVisibilityChangeHandler = this.handleVisibilityChange.bind(this);
-    this.bgmController = new FlappyBirdBgmController();
+    this.perfDiagnostics = new FlappyBirdPerfDiagnostics({
+      enableAutoFlush: false,
+    });
+    this.bgmController = new FlappyBirdBgmController({
+      onScheduleTick: (sample) => {
+        this.perfDiagnostics?.recordBgmScheduleTick(sample);
+      },
+    });
     this.gameEngine = new GameEngine(
       this.game.app.screen.width,
       this.game.app.screen.height,
       FLAPPY_BIRD_GRAVITY_Y,
+      {
+        onPhysicsStep: (sample: GameEnginePhysicsPerfSample) => {
+          this.perfDiagnostics?.recordPhysicsStep({
+            timestampMs: sample.timestampMs,
+            deltaMs: sample.deltaMs,
+            engineUpdateCostMs: sample.engineUpdateCostMs,
+            syncDisplayCostMs: sample.syncDisplayCostMs,
+            totalCostMs: sample.totalCostMs,
+            trackedPhysicsObjects: sample.trackedObjectCount,
+            syncedDisplayObjects: sample.syncedDisplayObjectCount,
+          });
+        },
+      },
     );
 
     // 하늘색 배경 생성
@@ -162,12 +236,79 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
 
   public async init(): Promise<FlappyBirdGameScene> {
     const playerCharacterKey = this.game.getFlappyBirdCharacterKey();
+    const initStartedAt = getPerfNow();
+    const transitionRequestId = this.game.getActiveSceneTransitionRequestId();
+    const logInitPhase = (
+      phase: string,
+      payload: Record<string, unknown> = {},
+    ) => {
+      console.log("[ImportantDiagnostics][FlappyBirdInitTiming]", {
+        phase,
+        requestId: transitionRequestId,
+        playerCharacterKey,
+        elapsedMs: Math.round(getPerfNow() - initStartedAt),
+        ...payload,
+      });
+    };
+    const runTimedInitPhase = async <T>(
+      phase: string,
+      timeoutMs: number,
+      work: () => Promise<T>,
+      onTimeout?: () => void,
+    ): Promise<T> => {
+      const phaseStartedAt = getPerfNow();
+      logInitPhase(`${phase}_start`, { timeoutMs });
 
-    await AssetLoader.loadAssets(playerCharacterKey);
-    this.skyContext = await this.game.getFlappyBirdSkyContext();
+      let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+      try {
+        const result = await Promise.race([
+          work(),
+          new Promise<T>((_, reject) => {
+            timeoutId = setTimeout(() => {
+              onTimeout?.();
+              reject(createInitTimeoutError(phase, timeoutMs));
+            }, timeoutMs);
+          }),
+        ]);
+
+        logInitPhase(`${phase}_end`, {
+          durationMs: Math.round(getPerfNow() - phaseStartedAt),
+        });
+        return result;
+      } catch (error) {
+        logInitPhase(`${phase}_failed`, {
+          durationMs: Math.round(getPerfNow() - phaseStartedAt),
+          timeoutMs,
+          error: summarizeInitError(error),
+        });
+        throw error;
+      } finally {
+        if (timeoutId !== null) {
+          clearTimeout(timeoutId);
+        }
+      }
+    };
+
+    await runTimedInitPhase(
+      "load_assets",
+      FLAPPY_BIRD_INIT_ASSET_LOAD_TIMEOUT_MS,
+      () => AssetLoader.loadAssets(playerCharacterKey),
+      () => AssetLoader.resetPendingLoadState(),
+    );
+    this.skyContext = await runTimedInitPhase(
+      "get_sky_context",
+      FLAPPY_BIRD_INIT_SKY_CONTEXT_TIMEOUT_MS,
+      () => this.game.getFlappyBirdSkyContext(),
+    );
     this.syncSkyState(Date.now(), true);
 
-    const bestScore = (await this.game.getFlappyBirdBestScore?.()) ?? 0;
+    const bestScore =
+      (await runTimedInitPhase(
+        "get_best_score",
+        FLAPPY_BIRD_INIT_BEST_SCORE_TIMEOUT_MS,
+        async () => (await this.game.getFlappyBirdBestScore?.()) ?? 0,
+      )) ?? 0;
 
     // 플레이어 초기화
     this.playerManager = new PlayerManager(
@@ -193,9 +334,21 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
     this.countdownUI = new CountdownUI();
 
     // 씬 설정
+    logInitPhase("setup_scene_start");
     this.setupScene();
+    logInitPhase("setup_scene_end");
+    logInitPhase("init_done");
 
     return this;
+  }
+
+  public getPerfDiagnosticsSnapshot(): FlappyBirdPerfSnapshot {
+    return this.perfDiagnostics?.getSnapshot() ?? {
+      storageKey: "FlappyBirdPerfDiagnosticsV1",
+      maxRetainedSessions: 3,
+      activeSession: null,
+      lastCompletedSession: null,
+    };
   }
 
   /**
@@ -209,19 +362,149 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
     );
   }
 
+  private measurePhase<T>(
+    phaseCosts: FlappyBirdFramePerfSample["phaseCosts"],
+    phaseKey: keyof FlappyBirdFramePerfSample["phaseCosts"],
+    work: () => T,
+  ): T {
+    const startedAt = getPerfNow();
+    const result = work();
+    phaseCosts[phaseKey] =
+      (phaseCosts[phaseKey] ?? 0) + (getPerfNow() - startedAt);
+    return result;
+  }
+
+  private clampSimulationDelta(deltaTime: number): number {
+    if (!Number.isFinite(deltaTime)) {
+      return 0;
+    }
+
+    return Math.min(
+      FLAPPY_BIRD_MAX_SIMULATION_DELTA_MS,
+      Math.max(0, deltaTime),
+    );
+  }
+
+  private queueSimulationDelta(deltaTime: number): void {
+    this.simulationAccumulatorMs = Math.min(
+      this.simulationAccumulatorMs + this.clampSimulationDelta(deltaTime),
+      FLAPPY_BIRD_FIXED_TIMESTEP_MS * (FLAPPY_BIRD_MAX_SIMULATION_SUBSTEPS + 1),
+    );
+  }
+
+  private trimSimulationAccumulator(substeps: number): void {
+    if (
+      substeps === FLAPPY_BIRD_MAX_SIMULATION_SUBSTEPS &&
+      this.simulationAccumulatorMs >= FLAPPY_BIRD_FIXED_TIMESTEP_MS
+    ) {
+      this.simulationAccumulatorMs = Math.min(
+        this.simulationAccumulatorMs,
+        FLAPPY_BIRD_FIXED_TIMESTEP_MS,
+      );
+    }
+  }
+
+  private resetSimulationAccumulator(): void {
+    this.simulationAccumulatorMs = 0;
+  }
+
+  private recordFrameDiagnostics(params: {
+    timestampMs: number;
+    deltaTime: number;
+    updateStartedAtMs: number;
+    phaseCosts: FlappyBirdFramePerfSample["phaseCosts"];
+    pipeUpdateStats: PipeUpdateStats;
+  }): void {
+    this.flushPendingFrameDiagnostics();
+
+    this.pendingFrameDiagnosticsSample = {
+      timestampMs: params.timestampMs,
+      deltaTimeMs: params.deltaTime,
+      updateCostMs: getPerfNow() - params.updateStartedAtMs,
+      gameState: GameState[this.gameState],
+      score: this.scoreUI.getScore(),
+      activePipePairs: this.pipeManager.getActivePairCount(),
+      trackedPhysicsObjects: this.physicsManager.getTrackedObjectCount(),
+      syncedDisplayObjects: this.physicsManager.getTrackedDisplaySyncCount(),
+      cloudCount: this.cloudManager.getCloudCount(),
+      groundTileCount: this.groundManager.getTileCount(),
+      spawnedPipes: params.pipeUpdateStats.spawned,
+      removedPipes: params.pipeUpdateStats.removed,
+      isAppSuspended: this.isAppSuspended,
+      documentHidden:
+        typeof document !== "undefined" ? document.hidden : false,
+      phaseCosts: roundPhaseCostEntries(
+        params.phaseCosts,
+      ) as FlappyBirdFramePerfSample["phaseCosts"],
+      pipePhaseCosts: roundPhaseCostEntries(
+        params.pipeUpdateStats.phaseCosts as PipeUpdatePhaseCosts,
+      ) as FlappyBirdFramePerfSample["pipePhaseCosts"],
+      pipePoolStats: {
+        ...params.pipeUpdateStats.poolStats,
+      },
+    };
+  }
+
+  public onFrameRenderTiming(sample: SceneRenderTimingSample): void {
+    this.flushPendingFrameDiagnostics(sample);
+  }
+
+  private flushPendingFrameDiagnostics(
+    renderTiming?: SceneRenderTimingSample,
+  ): void {
+    const pendingFrameSample = this.pendingFrameDiagnosticsSample;
+    if (!pendingFrameSample) {
+      return;
+    }
+
+    const frameSample: FlappyBirdFramePerfSample = renderTiming
+      ? {
+          ...pendingFrameSample,
+          tickerGapMs: renderTiming.tickerGapMs,
+          updateToRenderStartMs: renderTiming.updateToRenderStartMs,
+          renderCostMs: renderTiming.renderCostMs,
+          frameEndToEndCostMs: renderTiming.frameEndToEndCostMs,
+        }
+      : pendingFrameSample;
+
+    this.pendingFrameDiagnosticsSample = null;
+    this.perfDiagnostics?.recordFrame(frameSample);
+    this.maybeLogSlowFrame(frameSample);
+  }
+
   /**
    * 씬을 설정합니다.
    */
   private setupScene(): void {
     try {
+      const logInitPhase = (phase: string, payload: Record<string, unknown> = {}) => {
+        console.log("[ImportantDiagnostics][FlappyBirdInitTiming]", {
+          phase,
+          requestId: this.game.getActiveSceneTransitionRequestId(),
+          ...payload,
+        });
+      };
+
+      logInitPhase("setup_scene_game_engine_initialize_start");
       this.gameEngine.initialize(this.game.app);
+      logInitPhase("setup_scene_game_engine_initialize_end");
 
       // 지면 초기화
+      logInitPhase("setup_scene_ground_setup_start");
       this.groundManager.setup();
+      logInitPhase("setup_scene_ground_setup_end", {
+        groundTileCount: this.groundManager.getTileCount(),
+      });
+
+      logInitPhase("setup_scene_cloud_setup_start");
       this.cloudManager.setup();
       this.syncCloudVisualStyle();
+      logInitPhase("setup_scene_cloud_setup_end", {
+        cloudCount: this.cloudManager.getCloudCount(),
+      });
 
       // 파이프 관리자 초기화
+      logInitPhase("setup_scene_pipe_setup_start");
       this.pipeManager = new PipeManager(
         this.game.app,
         this.physicsManager,
@@ -230,21 +513,31 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
         this.groundManager.getTileHeight(),
       );
       this.applyDifficultyForScore(0);
+      this.pipeManager.prewarmPipePairs(FLAPPY_BIRD_PIPE_PREWARM_PAIR_COUNT);
+      logInitPhase("setup_scene_pipe_setup_end", {
+        prewarmedPipePairs: this.pipeManager.getActivePairCount(),
+      });
 
       // 충돌 이벤트 설정
       this.setupCollisionListeners();
 
       // 모든 디스플레이 요소 추가
       this.addDisplayObjects();
+      logInitPhase("setup_scene_display_objects_added");
 
       // 키보드 이벤트 리스너 추가
       this.setupKeyboardListeners();
       this.setupVisibilityChangeHandler();
+      logInitPhase("setup_scene_input_ready");
 
       this.initialized = true;
 
       // 화면 크기에 맞게 조정
       this.resize(this.game.app.screen.width, this.game.app.screen.height);
+      logInitPhase("setup_scene_resize_applied", {
+        screenWidth: this.game.app.screen.width,
+        screenHeight: this.game.app.screen.height,
+      });
 
       // 캐릭터가 보이도록 설정 (MainScene에서 애니메이션 후 캐릭터를 숨겼으므로)
       // if (this.game.character) {
@@ -252,6 +545,7 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
       // }
 
       this.beginStartCountdown();
+      logInitPhase("setup_scene_countdown_started");
     } catch (error) {
       console.error("Error setting up FlappyBirdGameScene:", error);
     }
@@ -329,6 +623,7 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
    * 게임을 시작합니다.
    */
   private startGame(): void {
+    this.resetSimulationAccumulator();
     this.clearGameOverVibrationPattern();
     this.pausedStateBeforePause = null;
     this.isAppSuspended = false;
@@ -347,6 +642,11 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
   }
 
   private beginStartCountdown(): void {
+    this.resetSimulationAccumulator();
+    this.perfDiagnostics?.startSession({
+      screenWidth: this.game.app.screen.width,
+      screenHeight: this.game.app.screen.height,
+    });
     this.clearGameOverVibrationPattern();
     this.pausedStateBeforePause = null;
     this.isAppSuspended = false;
@@ -384,11 +684,14 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
   }
 
   private pauseGame(): void {
-    if (this.gameState !== GameState.PLAYING) {
+    if (this.gameState === GameState.PLAYING) {
+      this.enterPausedState(GameState.PLAYING);
       return;
     }
 
-    this.enterPausedState(GameState.PLAYING);
+    if (this.gameState === GameState.COUNTDOWN) {
+      this.enterPausedState(GameState.COUNTDOWN);
+    }
   }
 
   private resumeGame(): void {
@@ -396,6 +699,7 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
       return;
     }
 
+    this.resetSimulationAccumulator();
     const resumeState = this.pausedStateBeforePause ?? GameState.PLAYING;
     this.pausedStateBeforePause = null;
     this.isAppSuspended = false;
@@ -404,8 +708,8 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
       this.gameState = GameState.COUNTDOWN;
       this.gameEngine.pause();
       this.playerManager.stopAnimation();
-      this.playerManager.update();
       this.physicsManager.syncDisplayObjects();
+      this.playerManager.update();
       this.bgmController.pause();
       return;
     }
@@ -413,8 +717,8 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
     this.gameState = GameState.PLAYING;
     this.gameEngine.resume();
     this.playerManager.startAnimation();
-    this.playerManager.update();
     this.physicsManager.syncDisplayObjects();
+    this.playerManager.update();
     void this.bgmController.resumeIfAvailable();
   }
 
@@ -424,13 +728,14 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
       appSuspend?: boolean;
     } = {},
   ): void {
+    this.resetSimulationAccumulator();
     this.pausedStateBeforePause = resumeState;
     this.isAppSuspended = options.appSuspend ?? false;
     this.gameState = GameState.PAUSED;
     this.gameEngine.pause();
     this.playerManager.stopAnimation();
-    this.playerManager.update();
     this.physicsManager.syncDisplayObjects();
+    this.playerManager.update();
     this.bgmController.pause();
   }
 
@@ -460,6 +765,8 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
     }
 
     this.enterPausedState(this.gameState, { appSuspend: true });
+    this.flushPendingFrameDiagnostics();
+    void this.perfDiagnostics?.flushPartial("app_hidden");
   }
 
   private handleDocumentVisible(): void {
@@ -510,7 +817,10 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
       return;
     }
 
-    if (this.gameState === GameState.PLAYING) {
+    if (
+      this.gameState === GameState.PLAYING ||
+      this.gameState === GameState.COUNTDOWN
+    ) {
       this.pauseGame();
     }
 
@@ -681,15 +991,6 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
       durationMs: GAME_OVER_VIBRATION_DURATION_MS,
       strength: GAME_OVER_VIBRATION_STRENGTH,
     });
-
-    this.gameOverVibrationTimeoutIds.push(
-      window.setTimeout(() => {
-        this.game.triggerTransientVibration?.({
-          durationMs: GAME_OVER_VIBRATION_DURATION_MS,
-          strength: GAME_OVER_VIBRATION_STRENGTH,
-        });
-      }, GAME_OVER_VIBRATION_DELAY_MS),
-    );
   }
 
   /**
@@ -700,6 +1001,7 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
       return;
     }
 
+    this.resetSimulationAccumulator();
     // 그 다음 게임 상태 변경 및 물리 엔진 정지
     this.pausedStateBeforePause = null;
     this.isAppSuspended = false;
@@ -710,8 +1012,12 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
 
     // 애니메이션 정지
     this.playerManager.stopAnimation();
+    this.physicsManager.syncDisplayObjects();
+    this.playerManager.update();
     this.bgmController.pause();
     this.triggerGameOverVibrationPattern();
+    this.flushPendingFrameDiagnostics();
+    void this.perfDiagnostics?.finalizeSession("game_over");
     this.game.showFlappyBirdGameOver?.({
       score: this.scoreUI.getScore(),
       bestScore: this.scoreUI.getBestScore(),
@@ -726,6 +1032,7 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
    * 게임을 재시작합니다.
    */
   private restartGame(): void {
+    this.resetSimulationAccumulator();
     this.clearGameOverVibrationPattern();
     this.game.hideFlappyBirdGameOver?.();
     this.hideSettingsMenu();
@@ -767,6 +1074,8 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
       this.clearGameOverVibrationPattern();
       this.game.hideFlappyBirdGameOver?.();
       this.hideSettingsMenu();
+      this.flushPendingFrameDiagnostics();
+      await this.perfDiagnostics?.finalizeSession("return_to_main");
       await this.game.changeScene(SceneKey.MAIN);
     } finally {
       this.isReturningToMain = false;
@@ -826,74 +1135,172 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
   public update(deltaTime: number): void {
     if (!this.initialized) return;
 
-    const updateStartedAtMs =
-      import.meta.env.DEV && typeof performance !== "undefined"
-        ? performance.now()
-        : 0;
+    const updateStartedAtMs = getPerfNow();
     const currentTime = Date.now();
     let pipeUpdateStats: PipeUpdateStats = {
       spawned: 0,
       removed: 0,
+      phaseCosts: {},
+      poolStats: {
+        pairCreated: 0,
+        pairReused: 0,
+        bodyCreated: 0,
+        bodyReused: 0,
+        poolMissCount: 0,
+      },
     };
+    const phaseCosts: FlappyBirdFramePerfSample["phaseCosts"] = {};
 
-    this.syncSkyState(currentTime);
+    this.measurePhase(phaseCosts, "syncSkyState", () => {
+      this.syncSkyState(currentTime);
+    });
 
     if (this.isAppSuspended) {
       return;
     }
 
-    this.nearMissUI.update(deltaTime);
-    this.playerManager.update();
+    this.queueSimulationDelta(deltaTime);
+    let simulationSubsteps = 0;
 
     if (this.gameState === GameState.COUNTDOWN) {
-      const previousDisplayValue = this.countdownUI.getCurrentDisplayValue();
-      const hasCountdownFinished = this.countdownUI.update(deltaTime);
-      const currentDisplayValue = this.countdownUI.getCurrentDisplayValue();
-
-      if (
-        !hasCountdownFinished &&
-        currentDisplayValue > 0 &&
-        currentDisplayValue !== previousDisplayValue
+      while (
+        this.simulationAccumulatorMs >= FLAPPY_BIRD_FIXED_TIMESTEP_MS &&
+        simulationSubsteps < FLAPPY_BIRD_MAX_SIMULATION_SUBSTEPS &&
+        this.gameState === GameState.COUNTDOWN
       ) {
-        void this.bgmController.playCountdownCue(currentDisplayValue);
+        this.measurePhase(phaseCosts, "nearMissUI", () => {
+          this.nearMissUI.update(FLAPPY_BIRD_FIXED_TIMESTEP_MS);
+        });
+        this.measurePhase(phaseCosts, "playerUpdate", () => {
+          this.playerManager.update();
+        });
+
+        const previousDisplayValue = this.countdownUI.getCurrentDisplayValue();
+        const hasCountdownFinished = this.measurePhase(
+          phaseCosts,
+          "countdownUpdate",
+          () => this.countdownUI.update(FLAPPY_BIRD_FIXED_TIMESTEP_MS),
+        );
+        const currentDisplayValue = this.countdownUI.getCurrentDisplayValue();
+
+        if (
+          !hasCountdownFinished &&
+          currentDisplayValue > 0 &&
+          currentDisplayValue !== previousDisplayValue
+        ) {
+          void this.bgmController.playCountdownCue(currentDisplayValue);
+        }
+
+        this.simulationAccumulatorMs -= FLAPPY_BIRD_FIXED_TIMESTEP_MS;
+        simulationSubsteps += 1;
+
+        if (hasCountdownFinished) {
+          this.startGame();
+        }
       }
 
-      if (hasCountdownFinished) {
-        this.startGame();
-      }
+      this.trimSimulationAccumulator(simulationSubsteps);
 
-      this.maybeLogSlowFrame(
+      this.recordFrameDiagnostics({
+        timestampMs: currentTime,
         deltaTime,
         updateStartedAtMs,
-        currentTime,
+        phaseCosts,
         pipeUpdateStats,
-      );
+      });
       return;
     }
 
     if (this.gameState === GameState.PLAYING) {
-      this.cloudManager.update(deltaTime);
+      while (
+        this.simulationAccumulatorMs >= FLAPPY_BIRD_FIXED_TIMESTEP_MS &&
+        simulationSubsteps < FLAPPY_BIRD_MAX_SIMULATION_SUBSTEPS &&
+        this.gameState === GameState.PLAYING
+      ) {
+        this.measurePhase(phaseCosts, "nearMissUI", () => {
+          this.nearMissUI.update(FLAPPY_BIRD_FIXED_TIMESTEP_MS);
+        });
+        this.measurePhase(phaseCosts, "playerUpdate", () => {
+          this.playerManager.update();
+        });
+        this.measurePhase(phaseCosts, "cloudUpdate", () => {
+          this.cloudManager.update(FLAPPY_BIRD_FIXED_TIMESTEP_MS);
+        });
 
-      // 플레이어 경계 충돌 체크
-      this.playerManager.checkCollisions();
+        // 플레이어 경계 충돌 체크
+        this.measurePhase(phaseCosts, "collisionCheck", () => {
+          this.playerManager.checkCollisions();
+        });
 
-      // 파이프 관리
-      pipeUpdateStats = this.pipeManager.update(
-        this.playerManager.getBasketBody(),
-        (scoreDelta) => this.handleScoreIncrement(scoreDelta),
-        deltaTime,
-      );
+        const stepPipeUpdateStats = this.measurePhase(
+          phaseCosts,
+          "pipeUpdate",
+          () =>
+            this.pipeManager.update(
+              this.playerManager.getBasketBody(),
+              (scoreDelta) => this.handleScoreIncrement(scoreDelta),
+              FLAPPY_BIRD_FIXED_TIMESTEP_MS,
+              () => this.handleGameOver(),
+            ),
+        );
+        pipeUpdateStats.spawned += stepPipeUpdateStats.spawned;
+        pipeUpdateStats.removed += stepPipeUpdateStats.removed;
+        pipeUpdateStats.poolStats.pairCreated +=
+          stepPipeUpdateStats.poolStats.pairCreated;
+        pipeUpdateStats.poolStats.pairReused +=
+          stepPipeUpdateStats.poolStats.pairReused;
+        pipeUpdateStats.poolStats.bodyCreated +=
+          stepPipeUpdateStats.poolStats.bodyCreated;
+        pipeUpdateStats.poolStats.bodyReused +=
+          stepPipeUpdateStats.poolStats.bodyReused;
+        pipeUpdateStats.poolStats.poolMissCount +=
+          stepPipeUpdateStats.poolStats.poolMissCount;
+        for (const [phaseKey, phaseCost] of Object.entries(
+          stepPipeUpdateStats.phaseCosts,
+        )) {
+          if (typeof phaseCost !== "number") {
+            continue;
+          }
 
-      // 바닥 타일 이동
-      this.groundManager.update(deltaTime);
+          const typedPhaseKey = phaseKey as keyof PipeUpdatePhaseCosts;
+          pipeUpdateStats.phaseCosts[typedPhaseKey] =
+            (pipeUpdateStats.phaseCosts[typedPhaseKey] ?? 0) + phaseCost;
+        }
+
+        this.simulationAccumulatorMs -= FLAPPY_BIRD_FIXED_TIMESTEP_MS;
+        simulationSubsteps += 1;
+
+        if (this.gameState !== GameState.PLAYING) {
+          break;
+        }
+
+        // 바닥 타일 이동
+        this.measurePhase(phaseCosts, "groundUpdate", () => {
+          this.groundManager.update(FLAPPY_BIRD_FIXED_TIMESTEP_MS);
+        });
+      }
+
+      this.trimSimulationAccumulator(simulationSubsteps);
+
+      if (this.gameState !== GameState.PLAYING) {
+        this.recordFrameDiagnostics({
+          timestampMs: currentTime,
+          deltaTime,
+          updateStartedAtMs,
+          phaseCosts,
+          pipeUpdateStats,
+        });
+        return;
+      }
     }
 
-    this.maybeLogSlowFrame(
+    this.recordFrameDiagnostics({
+      timestampMs: currentTime,
       deltaTime,
       updateStartedAtMs,
-      currentTime,
+      phaseCosts,
       pipeUpdateStats,
-    );
+    });
   }
 
   /**
@@ -910,6 +1317,9 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
     this.nearMissUI.reset();
     this.bgmController.destroy();
     this.cloudManager.reset();
+    this.pipeManager?.destroy();
+    this.flushPendingFrameDiagnostics();
+    void this.perfDiagnostics?.shutdown();
 
     // 물리 시스템 정리
     this.physicsManager.cleanup();
@@ -941,47 +1351,68 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
     );
   }
 
-  private maybeLogSlowFrame(
-    deltaTime: number,
-    updateStartedAtMs: number,
-    currentTime: number,
-    pipeUpdateStats: PipeUpdateStats,
-  ): void {
-    if (!import.meta.env.DEV) {
+  private maybeLogSlowFrame(frameSample: FlappyBirdFramePerfSample): void {
+    if (!SHOULD_CONSOLE_LOG_SLOW_FRAMES) {
       return;
     }
 
-    const updateEndedAtMs =
-      typeof performance !== "undefined" ? performance.now() : Date.now();
-    const updateCostMs = updateEndedAtMs - updateStartedAtMs;
-
     if (
-      deltaTime < FLAPPY_BIRD_SLOW_FRAME_DELTA_THRESHOLD_MS &&
-      updateCostMs < FLAPPY_BIRD_SLOW_FRAME_UPDATE_COST_THRESHOLD_MS
+      frameSample.deltaTimeMs < FLAPPY_BIRD_SLOW_FRAME_DELTA_THRESHOLD_MS &&
+      frameSample.updateCostMs < FLAPPY_BIRD_SLOW_FRAME_UPDATE_COST_THRESHOLD_MS
     ) {
       return;
     }
 
     if (
-      currentTime - this.lastSlowFrameLogAtMs <
+      frameSample.timestampMs - this.lastSlowFrameLogAtMs <
       FLAPPY_BIRD_SLOW_FRAME_LOG_COOLDOWN_MS
     ) {
       return;
     }
 
-    this.lastSlowFrameLogAtMs = currentTime;
+    this.lastSlowFrameLogAtMs = frameSample.timestampMs;
 
     console.warn("[FlappyBirdPerf] slow frame", {
-      deltaTimeMs: Math.round(deltaTime * 10) / 10,
-      updateCostMs: Math.round(updateCostMs * 10) / 10,
-      state: GameState[this.gameState],
-      activePipePairs: this.pipeManager.getActivePairCount(),
-      trackedPhysicsObjects: this.physicsManager.getTrackedObjectCount(),
-      syncedDisplayObjects: this.physicsManager.getTrackedDisplaySyncCount(),
-      cloudCount: this.cloudManager.getCloudCount(),
-      groundTileCount: this.groundManager.getTileCount(),
-      spawnedPipes: pipeUpdateStats.spawned,
-      removedPipes: pipeUpdateStats.removed,
+      deltaTimeMs: Math.round(frameSample.deltaTimeMs * 10) / 10,
+      updateCostMs: Math.round(frameSample.updateCostMs * 10) / 10,
+      tickerGapMs:
+        typeof frameSample.tickerGapMs === "number"
+          ? Math.round(frameSample.tickerGapMs * 10) / 10
+          : frameSample.tickerGapMs,
+      renderCostMs:
+        typeof frameSample.renderCostMs === "number"
+          ? Math.round(frameSample.renderCostMs * 10) / 10
+          : undefined,
+      updateToRenderStartMs:
+        typeof frameSample.updateToRenderStartMs === "number"
+          ? Math.round(frameSample.updateToRenderStartMs * 10) / 10
+          : undefined,
+      frameEndToEndCostMs:
+        typeof frameSample.frameEndToEndCostMs === "number"
+          ? Math.round(frameSample.frameEndToEndCostMs * 10) / 10
+          : undefined,
+      frameBudgetOverrunMs:
+        typeof frameSample.frameEndToEndCostMs === "number"
+          ? Math.max(
+              0,
+              Math.round(
+                (frameSample.frameEndToEndCostMs -
+                  FLAPPY_BIRD_TARGET_FRAME_BUDGET_MS) *
+                  10,
+              ) / 10,
+            )
+          : undefined,
+      state: frameSample.gameState,
+      activePipePairs: frameSample.activePipePairs,
+      trackedPhysicsObjects: frameSample.trackedPhysicsObjects,
+      syncedDisplayObjects: frameSample.syncedDisplayObjects,
+      cloudCount: frameSample.cloudCount,
+      groundTileCount: frameSample.groundTileCount,
+      spawnedPipes: frameSample.spawnedPipes,
+      removedPipes: frameSample.removedPipes,
+      phaseCosts: frameSample.phaseCosts,
+      pipePhaseCosts: frameSample.pipePhaseCosts,
+      pipePoolStats: frameSample.pipePoolStats,
     });
   }
 
@@ -1079,7 +1510,7 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
     this.background.beginFill(SKY_STAR_COLOR, alpha);
 
     for (const star of SKY_STAR_LAYOUT) {
-      this.background.drawCircle(
+      this.background.circle(
         star.x * width,
         star.y * height,
         Math.max(0.8, star.radius * scale * 0.42),

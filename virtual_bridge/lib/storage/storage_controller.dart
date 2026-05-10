@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -5,15 +6,19 @@ import 'package:webview_flutter/webview_flutter.dart';
 /// Storage 기능의 JavaScript 인터페이스를 관리하는 컨트롤러
 class StorageController {
   static const int _previewLimit = 120;
+  static const String _nativeDiagnosticsSinkName =
+      '__digiviceNativeBridgeDiagnostics';
   final Function(String jsCode) runJavaScript;
   final Function({required String id, String? data, String? error})
       resolvePromise;
   final Function(String message) log;
+  final bool emitWebViewConsoleDiagnostics;
 
   StorageController({
     required this.runJavaScript,
     required this.resolvePromise,
     required this.log,
+    this.emitWebViewConsoleDiagnostics = false,
   });
 
   /// JavaScript에 Storage 인터페이스를 제공하는 코드를 반환합니다.
@@ -61,13 +66,37 @@ class StorageController {
     final Object? rawValue = jsArgs['value'];
     final String? value = rawValue is String ? rawValue : rawValue?.toString();
 
+    final Stopwatch stopwatch = Stopwatch()..start();
+
     try {
+      log(
+        '[StorageController] start id=$id operation=$operation key=${key ?? '-'} '
+        'hasValue=${value != null}',
+      );
+      _emitTimingDiagnostics(
+        phase: 'start',
+        id: id,
+        operation: operation,
+        key: key,
+        hasValue: value != null,
+        elapsedMs: stopwatch.elapsedMilliseconds,
+      );
+
       final prefs = await SharedPreferences.getInstance();
       String? result;
 
       log(
-        '[StorageController] start operation=$operation key=${key ?? '-'} '
-        'hasValue=${value != null}',
+        '[StorageController] shared_preferences_ready id=$id '
+        'operation=$operation key=${key ?? '-'} '
+        'elapsedMs=${stopwatch.elapsedMilliseconds}',
+      );
+      _emitTimingDiagnostics(
+        phase: 'shared_preferences_ready',
+        id: id,
+        operation: operation,
+        key: key,
+        hasValue: value != null,
+        elapsedMs: stopwatch.elapsedMilliseconds,
       );
 
       switch (operation) {
@@ -77,7 +106,8 @@ class StorageController {
           }
           await prefs.setString(key, value);
           log(
-            '[StorageController] set key=$key length=${value.length} '
+            '[StorageController] set id=$id key=$key length=${value.length} '
+            'elapsedMs=${stopwatch.elapsedMilliseconds} '
             'preview=${_preview(value)}',
           );
           result = 'success';
@@ -87,12 +117,17 @@ class StorageController {
             throw ArgumentError('removeData requires key');
           }
           await prefs.remove(key);
-          log('[StorageController] remove key=$key');
+          log(
+            '[StorageController] remove id=$id key=$key '
+            'elapsedMs=${stopwatch.elapsedMilliseconds}',
+          );
           result = 'success';
           break;
         case 'clear':
           await prefs.clear();
-          log('[StorageController] clear all keys');
+          log(
+            '[StorageController] clear id=$id elapsedMs=${stopwatch.elapsedMilliseconds}',
+          );
           result = 'success';
           break;
         case 'get':
@@ -102,18 +137,125 @@ class StorageController {
           }
           result = prefs.getString(key);
           log(
-            '[StorageController] get key=$key contains=${prefs.containsKey(key)} '
+            '[StorageController] get id=$id key=$key contains=${prefs.containsKey(key)} '
             'isNull=${result == null} length=${result?.length ?? 0} '
+            'elapsedMs=${stopwatch.elapsedMilliseconds} '
             'preview=${_preview(result)}',
           );
           break;
       }
 
+      _emitTimingDiagnostics(
+        phase: 'success',
+        id: id,
+        operation: operation,
+        key: key,
+        hasValue: value != null,
+        elapsedMs: stopwatch.elapsedMilliseconds,
+        valueLength: value?.length,
+        resultLength: result?.length,
+      );
       resolvePromise(id: id, data: result);
+      log(
+        '[StorageController] resolve_sent id=$id operation=$operation key=${key ?? '-'} '
+        'status=success elapsedMs=${stopwatch.elapsedMilliseconds}',
+      );
+      _emitTimingDiagnostics(
+        phase: 'resolve_sent',
+        id: id,
+        operation: operation,
+        key: key,
+        hasValue: value != null,
+        elapsedMs: stopwatch.elapsedMilliseconds,
+        valueLength: value?.length,
+        resultLength: result?.length,
+      );
     } catch (e) {
-      log('[StorageController] error operation=$operation key=${key ?? '-'} $e');
+      log(
+        '[StorageController] error id=$id operation=$operation key=${key ?? '-'} '
+        'elapsedMs=${stopwatch.elapsedMilliseconds} $e',
+      );
+      _emitTimingDiagnostics(
+        phase: 'error',
+        id: id,
+        operation: operation,
+        key: key,
+        hasValue: value != null,
+        elapsedMs: stopwatch.elapsedMilliseconds,
+        valueLength: value?.length,
+        error: e.toString(),
+      );
       resolvePromise(id: id, error: e.toString());
+      log(
+        '[StorageController] resolve_sent id=$id operation=$operation key=${key ?? '-'} '
+        'status=error elapsedMs=${stopwatch.elapsedMilliseconds}',
+      );
+      _emitTimingDiagnostics(
+        phase: 'resolve_sent',
+        id: id,
+        operation: operation,
+        key: key,
+        hasValue: value != null,
+        elapsedMs: stopwatch.elapsedMilliseconds,
+        valueLength: value?.length,
+        error: e.toString(),
+        status: 'error',
+      );
     }
+  }
+
+  void _emitTimingDiagnostics({
+    required String phase,
+    required String id,
+    required String? operation,
+    required String? key,
+    required bool hasValue,
+    required int elapsedMs,
+    int? valueLength,
+    int? resultLength,
+    String? error,
+    String? status,
+  }) {
+    final Map<String, dynamic> payload = <String, dynamic>{
+      'tag': 'NativeStorageTiming',
+      'phase': phase,
+      'id': id,
+      'operation': operation,
+      'key': key,
+      'hasValue': hasValue,
+      'elapsedMs': elapsedMs,
+      'valueLength': valueLength,
+      'resultLength': resultLength,
+      'error': error,
+      'status': status,
+    };
+    final String encodedPayload = jsonEncode(payload);
+    final String sinkScript = '''
+      (function () {
+        const nextEntry = $encodedPayload;
+        const sinkName = '$_nativeDiagnosticsSinkName';
+        const existing = Array.isArray(window[sinkName]) ? window[sinkName] : [];
+        existing.push(nextEntry);
+        if (existing.length > 200) {
+          existing.splice(0, existing.length - 200);
+        }
+        window[sinkName] = existing;
+      })();
+    ''';
+
+    unawaited(
+      runJavaScript(sinkScript).then((_) async {
+        if (!emitWebViewConsoleDiagnostics) {
+          return;
+        }
+
+        await runJavaScript(
+          "console.log('[ImportantDiagnostics][NativeStorageTiming]', $encodedPayload);",
+        );
+      }).catchError((Object emitError) {
+        log('[StorageController] emitTimingDiagnostics failed: $emitError');
+      }),
+    );
   }
 
   String _preview(String? value) {

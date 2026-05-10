@@ -23,14 +23,17 @@ export class CountdownUI {
   private baseY = 0;
 
   constructor() {
-    this.text = new PIXI.Text("3", {
-      fontFamily: FLAPPY_BIRD_FONT_FAMILIES,
-      fontSize: FLAPPY_BIRD_COUNTDOWN_FONT_SIZE,
-      fill: 0xffffff,
-      align: "center",
-      stroke: {
-        color: 0x000000,
-        width: 6,
+    this.text = new PIXI.Text({
+      text: "3",
+      style: {
+        fontFamily: FLAPPY_BIRD_FONT_FAMILIES,
+        fontSize: FLAPPY_BIRD_COUNTDOWN_FONT_SIZE,
+        fill: 0xffffff,
+        align: "center",
+        stroke: {
+          color: 0x000000,
+          width: 6,
+        },
       },
     });
     this.text.anchor.set(0.5);
@@ -114,8 +117,14 @@ export class ScoreUI {
     } as const;
 
     this.container = new PIXI.Container();
-    this.bestScoreText = new PIXI.Text("Best: 0", textStyle);
-    this.scoreText = new PIXI.Text("Score: 0", textStyle);
+    this.bestScoreText = new PIXI.Text({
+      text: "Best: 0",
+      style: textStyle,
+    });
+    this.scoreText = new PIXI.Text({
+      text: "Score: 0",
+      style: textStyle,
+    });
 
     this.bestScoreText.anchor.set(0, 0);
     this.scoreText.anchor.set(0, 0);
@@ -221,14 +230,17 @@ export class NearMissUI {
   private baseY = 0;
 
   constructor() {
-    this.text = new PIXI.Text("Good!", {
-      fontFamily: FLAPPY_BIRD_FONT_FAMILIES,
-      fontSize: FLAPPY_BIRD_NEAR_MISS_FONT_SIZE,
-      fill: FLAPPY_BIRD_NEAR_MISS_GOOD_COLOR,
-      align: "center",
-      stroke: {
-        color: 0x000000,
-        width: 4,
+    this.text = new PIXI.Text({
+      text: "Good!",
+      style: {
+        fontFamily: FLAPPY_BIRD_FONT_FAMILIES,
+        fontSize: FLAPPY_BIRD_NEAR_MISS_FONT_SIZE,
+        fill: FLAPPY_BIRD_NEAR_MISS_GOOD_COLOR,
+        align: "center",
+        stroke: {
+          color: 0x000000,
+          width: 4,
+        },
       },
     });
     this.text.anchor.set(0.5);
@@ -321,27 +333,33 @@ export class GameOverUI {
   constructor() {
     this.container = new PIXI.Container();
 
-    this.gameOverText = new PIXI.Text("Game Over", {
-      fontFamily: FLAPPY_BIRD_FONT_FAMILIES,
-      fontSize: FLAPPY_BIRD_GAME_OVER_FONT_SIZE,
-      fill: 0xffffff,
-      align: "center",
-      stroke: {
-        color: 0x000000,
-        width: 6,
+    this.gameOverText = new PIXI.Text({
+      text: "Game Over",
+      style: {
+        fontFamily: FLAPPY_BIRD_FONT_FAMILIES,
+        fontSize: FLAPPY_BIRD_GAME_OVER_FONT_SIZE,
+        fill: 0xffffff,
+        align: "center",
+        stroke: {
+          color: 0x000000,
+          width: 6,
+        },
       },
     });
     this.gameOverText.name = "gameOverText";
     this.gameOverText.anchor.set(0.5);
 
-    this.restartText = new PIXI.Text("Press SPACE to restart", {
-      fontFamily: FLAPPY_BIRD_FONT_FAMILIES,
-      fontSize: FLAPPY_BIRD_RESTART_FONT_SIZE,
-      fill: 0xffffff,
-      align: "center",
-      stroke: {
-        color: 0x000000,
-        width: 4,
+    this.restartText = new PIXI.Text({
+      text: "Press SPACE to restart",
+      style: {
+        fontFamily: FLAPPY_BIRD_FONT_FAMILIES,
+        fontSize: FLAPPY_BIRD_RESTART_FONT_SIZE,
+        fill: 0xffffff,
+        align: "center",
+        stroke: {
+          color: 0x000000,
+          width: 4,
+        },
       },
     });
     this.restartText.name = "restartText";

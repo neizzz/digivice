@@ -192,7 +192,7 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
       {showFinalResetConfirm && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
           <PopupLayer
-            title="Reset?"
+            title="❗️Reset?"
             content={
               <div className="leading-[1.6]">
                 This will permanently delete your current monster and all
@@ -206,7 +206,7 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
             cancelText="Cancel"
             confirmVariant="negative"
             cancelVariant="positive"
-            confirmEnableDelayMs={3000}
+            confirmEnableDelayMs={2000}
           />
         </div>
       )}

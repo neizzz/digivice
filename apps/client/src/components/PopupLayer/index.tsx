@@ -1,5 +1,11 @@
 import type React from "react";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { logImportantDiagnostics } from "../../diagnostics/diagnosticLogger";
 import { useLayerInteractionVibration } from "../../hooks/useLayerInteractionVibration";
 
@@ -501,7 +507,7 @@ const PopupLayer: React.FC<PopupProps> = ({
               ? `${keyboardAwareMaxHeight}px`
               : undefined,
         }}
-        className="relative flex w-full max-w-[22rem] max-h-[calc(100vh-2rem)] flex-col overflow-hidden border-4 border-[#222] bg-layer-bg p-5 text-center font-dialog shadow-[0_4px_0_#222,0_-4px_0_#222,4px_0_0_#222,-4px_0_0_#222,4px_4px_0_#222,-4px_4px_0_#222,4px_-4px_0_#222,-4px_-4px_0_#222] focus:outline-none"
+        className="relative flex w-full max-w-[22rem] flex-col overflow-auto border-4 border-[#222] bg-layer-bg p-5 text-center font-dialog shadow-[0_4px_0_#222,0_-4px_0_#222,4px_0_0_#222,-4px_0_0_#222,4px_4px_0_#222,-4px_4px_0_#222,4px_-4px_0_#222,-4px_-4px_0_#222] focus:outline-none"
       >
         {topLeftContent ? (
           <div className="absolute left-2 top-2 z-[1]">{topLeftContent}</div>

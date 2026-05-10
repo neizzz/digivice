@@ -1,6 +1,8 @@
 import 'dart:convert';
 
 class NativeSunTimesDiagnostics {
+  static const String _nativeDiagnosticsSinkName =
+      '__digiviceNativeBridgeDiagnostics';
   final Future<void> Function(String jsCode) _runJavaScript;
 
   NativeSunTimesDiagnostics(this._runJavaScript);
@@ -182,13 +184,25 @@ class NativeSunTimesDiagnostics {
 
   Future<void> _emit(String phase, Map<String, dynamic> payload) async {
     final String encodedPayload = jsonEncode(<String, dynamic>{
+      'tag': 'NativeSunTimesTiming',
       'phase': phase,
       ...payload,
     });
 
     try {
       await _runJavaScript(
-        "console.log('[ImportantDiagnostics][NativeSunTimesTiming]', $encodedPayload);",
+        '''
+        (function () {
+          const nextEntry = $encodedPayload;
+          const sinkName = '$_nativeDiagnosticsSinkName';
+          const existing = Array.isArray(window[sinkName]) ? window[sinkName] : [];
+          existing.push(nextEntry);
+          if (existing.length > 200) {
+            existing.splice(0, existing.length - 200);
+          }
+          window[sinkName] = existing;
+        })();
+        ''',
       );
     } catch (_) {
       // Diagnostics emission should never block sun time resolution.

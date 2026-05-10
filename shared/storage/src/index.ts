@@ -12,6 +12,8 @@ interface NativeStorageController {
   removeData(key: string): Promise<void>;
 }
 
+type FlutterStorageOperation = "getData" | "setData" | "removeData";
+
 declare global {
   interface Window {
     storageController?: NativeStorageController;
@@ -21,6 +23,22 @@ declare global {
 }
 
 const STORAGE_PREVIEW_LIMIT = 120;
+const FLUTTER_STORAGE_TIMEOUT_MS: Record<FlutterStorageOperation, number> = {
+  getData: 3_000,
+  setData: 2_000,
+  removeData: 2_000,
+};
+const SHOULD_LOG_VERBOSE_STORAGE =
+  (import.meta.env?.DEV ?? false) &&
+  import.meta.env?.NATIVE_FEATURE_DEBUG_MODE === "true";
+
+function _debugStorage(...args: Parameters<typeof console.debug>): void {
+  if (!SHOULD_LOG_VERBOSE_STORAGE) {
+    return;
+  }
+
+  console.debug(...args);
+}
 
 function _serialize(obj: unknown): string {
   return JSON.stringify(obj);
@@ -64,6 +82,98 @@ function _previewValue(value: unknown): string {
     : stringValue;
 }
 
+function _createFlutterStorageTimeoutError(params: {
+  operation: FlutterStorageOperation;
+  key: string;
+  timeoutMs: number;
+  payloadLength?: number;
+}): Error & {
+  code: "FLUTTER_STORAGE_TIMEOUT";
+  operation: FlutterStorageOperation;
+  key: string;
+  timeoutMs: number;
+  payloadLength?: number;
+} {
+  const message = `[FlutterStorage] ${params.operation} timed out after ${params.timeoutMs}ms for key "${params.key}"`;
+  return Object.assign(new Error(message), {
+    code: "FLUTTER_STORAGE_TIMEOUT" as const,
+    operation: params.operation,
+    key: params.key,
+    timeoutMs: params.timeoutMs,
+    payloadLength: params.payloadLength,
+  });
+}
+
+async function _withFlutterStorageTimeout<T>(
+  params: {
+    operation: FlutterStorageOperation;
+    key: string;
+    payloadLength?: number;
+    promiseFactory: () => Promise<T>;
+  },
+): Promise<T> {
+  const timeoutMs = FLUTTER_STORAGE_TIMEOUT_MS[params.operation];
+  const startedAt =
+    typeof performance !== "undefined" ? performance.now() : Date.now();
+
+  return await new Promise<T>((resolve, reject) => {
+    let isSettled = false;
+    const timeoutId = globalThis.setTimeout(() => {
+      if (isSettled) {
+        return;
+      }
+
+      isSettled = true;
+      const elapsedMs = Math.round(
+        (typeof performance !== "undefined" ? performance.now() : Date.now()) -
+          startedAt,
+      );
+      const error = _createFlutterStorageTimeoutError({
+        operation: params.operation,
+        key: params.key,
+        timeoutMs,
+        payloadLength: params.payloadLength,
+      });
+
+      console.error("[ImportantDiagnostics][FlutterStorageTiming]", {
+        phase: "timeout",
+        operation: params.operation,
+        key: params.key,
+        timeoutMs,
+        elapsedMs,
+        payloadLength: params.payloadLength ?? null,
+        error: {
+          name: error.name,
+          message: error.message,
+          code: error.code,
+        },
+      });
+      reject(error);
+    }, timeoutMs);
+
+    void params.promiseFactory().then(
+      (value) => {
+        if (isSettled) {
+          return;
+        }
+
+        isSettled = true;
+        globalThis.clearTimeout(timeoutId);
+        resolve(value);
+      },
+      (error) => {
+        if (isSettled) {
+          return;
+        }
+
+        isSettled = true;
+        globalThis.clearTimeout(timeoutId);
+        reject(error);
+      },
+    );
+  });
+}
+
 export function hasNativeStorageController(): boolean {
   return (
     typeof window !== "undefined" &&
@@ -82,14 +192,14 @@ export class WebLocalStorage implements Storage {
   // }, 1000);
 
   async getData(key: string): Promise<unknown | null> {
-    console.debug("[WebLocalStorage] getData:start", { key });
+    _debugStorage("[WebLocalStorage] getData:start", { key });
     const value = localStorage.getItem(key);
     if (value === null) {
-      console.debug("[WebLocalStorage] getData:miss", { key });
+      _debugStorage("[WebLocalStorage] getData:miss", { key });
       return await Promise.resolve(null);
     }
 
-    console.debug("[WebLocalStorage] getData:raw", {
+    _debugStorage("[WebLocalStorage] getData:raw", {
       key,
       length: value.length,
       preview: _previewValue(value),
@@ -97,7 +207,7 @@ export class WebLocalStorage implements Storage {
 
     try {
       const parsed = _deserialize(value);
-      console.debug("[WebLocalStorage] getData:parsed", {
+      _debugStorage("[WebLocalStorage] getData:parsed", {
         key,
         valueType: typeof parsed,
       });
@@ -114,20 +224,20 @@ export class WebLocalStorage implements Storage {
 
   setData(key: string, data: unknown): Promise<void> {
     const value = _serialize(data);
-    console.debug("[WebLocalStorage] setData:start", {
+    _debugStorage("[WebLocalStorage] setData:start", {
       key,
       length: value.length,
       preview: _previewValue(value),
     });
     localStorage.setItem(key, value);
-    console.debug("[WebLocalStorage] setData:success", { key });
+    _debugStorage("[WebLocalStorage] setData:success", { key });
     return Promise.resolve();
   }
 
   removeData(key: string): Promise<void> {
-    console.debug("[WebLocalStorage] removeData:start", { key });
+    _debugStorage("[WebLocalStorage] removeData:start", { key });
     localStorage.removeItem(key);
-    console.debug("[WebLocalStorage] removeData:success", { key });
+    _debugStorage("[WebLocalStorage] removeData:success", { key });
     return Promise.resolve();
   }
 }
@@ -143,10 +253,14 @@ export class FlutterStorage implements Storage {
   }
 
   async getData(key: string): Promise<unknown | null> {
-    console.debug("[FlutterStorage] getData:start", { key });
-    const value = await this._getStorageController().getData(key);
+    _debugStorage("[FlutterStorage] getData:start", { key });
+    const value = await _withFlutterStorageTimeout({
+      operation: "getData",
+      key,
+      promiseFactory: () => this._getStorageController().getData(key),
+    });
 
-    console.debug("[FlutterStorage] getData:raw", {
+    _debugStorage("[FlutterStorage] getData:raw", {
       key,
       rawType: typeof value,
       isNull: value === null,
@@ -154,18 +268,18 @@ export class FlutterStorage implements Storage {
     });
 
     if (_isMissingSerializedValue(value)) {
-      console.debug("[FlutterStorage] getData:miss", { key });
+      _debugStorage("[FlutterStorage] getData:miss", { key });
       return null;
     }
 
     try {
       const serializedValue = value as string;
-      console.debug("[FlutterStorage] getData:parse_attempt", {
+      _debugStorage("[FlutterStorage] getData:parse_attempt", {
         key,
         preview: _previewValue(serializedValue),
       });
       const parsed = _deserialize(serializedValue);
-      console.debug("[FlutterStorage] getData:parsed", {
+      _debugStorage("[FlutterStorage] getData:parsed", {
         key,
         valueType: typeof parsed,
       });
@@ -182,18 +296,28 @@ export class FlutterStorage implements Storage {
 
   async setData(key: string, value: unknown): Promise<void> {
     const serializedValue = _serialize(value);
-    console.debug("[FlutterStorage] setData:start", {
+    _debugStorage("[FlutterStorage] setData:start", {
       key,
       length: serializedValue.length,
       preview: _previewValue(serializedValue),
     });
-    await this._getStorageController().setData(key, serializedValue);
-    console.debug("[FlutterStorage] setData:success", { key });
+    await _withFlutterStorageTimeout({
+      operation: "setData",
+      key,
+      payloadLength: serializedValue.length,
+      promiseFactory: () =>
+        this._getStorageController().setData(key, serializedValue),
+    });
+    _debugStorage("[FlutterStorage] setData:success", { key });
   }
 
   async removeData(key: string): Promise<void> {
-    console.debug("[FlutterStorage] removeData:start", { key });
-    await this._getStorageController().removeData(key);
-    console.debug("[FlutterStorage] removeData:success", { key });
+    _debugStorage("[FlutterStorage] removeData:start", { key });
+    await _withFlutterStorageTimeout({
+      operation: "removeData",
+      key,
+      promiseFactory: () => this._getStorageController().removeData(key),
+    });
+    _debugStorage("[FlutterStorage] removeData:success", { key });
   }
 }

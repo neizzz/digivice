@@ -573,6 +573,7 @@ export class PipeManager {
     playerBody: Matter.Body,
     onScoreUpdate: (scoreDelta: number) => void,
     deltaTime: number,
+    onPlayerCollision?: () => void,
   ): PipeUpdateStats {
     const diagnostics: PipeUpdateDiagnostics = {
       phaseCosts: {},
@@ -596,7 +597,13 @@ export class PipeManager {
     // 파이프 이동 로직
     return {
       spawned,
-      removed: this.movePipes(playerBody, onScoreUpdate, deltaTime, diagnostics),
+      removed: this.movePipes(
+        playerBody,
+        onScoreUpdate,
+        deltaTime,
+        diagnostics,
+        onPlayerCollision,
+      ),
       phaseCosts: diagnostics.phaseCosts,
       poolStats: diagnostics.poolStats,
     };
@@ -755,6 +762,7 @@ export class PipeManager {
     onScoreUpdate: (scoreDelta: number) => void,
     deltaTime: number,
     diagnostics: PipeUpdateDiagnostics,
+    onPlayerCollision?: () => void,
   ): number {
     this.speed = smoothFlappyBirdSpeed(this.speed, this.targetSpeed, deltaTime);
     const movementStep = this.speed * resolveFrameScale(deltaTime);
@@ -774,6 +782,11 @@ export class PipeManager {
         });
         this.syncPipeDisplayObject(pair.top, pair.topBody);
         this.syncPipeDisplayObject(pair.bottom, pair.bottomBody);
+
+        if (this.hasPairCollidedWithPlayer(pair, playerBody)) {
+          onPlayerCollision?.();
+          return removalIndexes.length;
+        }
 
         this.trackNearMissClearances(pair, playerBody);
 
@@ -802,6 +815,16 @@ export class PipeManager {
     );
 
     return removalIndexes.length;
+  }
+
+  private hasPairCollidedWithPlayer(
+    pair: PipePair,
+    playerBody: Matter.Body,
+  ): boolean {
+    return (
+      Matter.Collision.collides(pair.topBody, playerBody) !== null ||
+      Matter.Collision.collides(pair.bottomBody, playerBody) !== null
+    );
   }
 
   /**
@@ -1374,10 +1397,8 @@ export class PlayerManager {
    */
   public update(): void {
     if (this.bird) {
-      this.bird.position.x =
-        this.basketBody.position.x + this.basket.width * 0.1;
-      this.bird.position.y =
-        this.basketBody.position.y - this.basket.height * 0.9;
+      this.bird.position.x = this.basket.position.x + this.basket.width * 0.1;
+      this.bird.position.y = this.basket.position.y - this.basket.height * 0.9;
     }
   }
 

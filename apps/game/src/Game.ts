@@ -1,6 +1,6 @@
 import * as PIXI from "pixi.js";
 import { SceneKey } from "./SceneKey";
-import type { Scene } from "./interfaces/Scene";
+import type { Scene, SceneRenderTimingSample } from "./interfaces/Scene";
 import type { ControlButtonParams, ControlButtonType } from "./ui/types";
 import { MainSceneWorld, type MainSceneWorldData } from "./scenes/MainScene/world";
 import type { MainSceneLoadingTraceContext } from "./scenes/MainScene/diagnostics/mainSceneInitDiagnostics";
@@ -10,6 +10,7 @@ import {
   type SunTimesPayload,
 } from "./scenes/MainScene/timeOfDay";
 import { FlappyBirdGameScene } from "./scenes/FlappyBirdGameScene";
+import type { FlappyBirdPerfSnapshot } from "./scenes/FlappyBirdGameScene/diagnostics/flappyBirdPerfDiagnostics";
 import { CharacterKey } from "./types/Character";
 import { AssetLoader } from "./utils/AssetLoader";
 
@@ -19,6 +20,7 @@ PIXI.TextureStyle.defaultOptions.scaleMode = "nearest";
 const SCREEN_HORIZONTAL_PADDING = 14;
 const SCREEN_BOTTOM_PADDING = 14;
 const SCREEN_TOP_PADDING = SCREEN_BOTTOM_PADDING + 6;
+const MAX_RENDERER_RESOLUTION = 2;
 
 export type ControlButtonsChangeCallback = (
   controlButtonParamsSet:
@@ -74,7 +76,7 @@ export type SceneTransitionStateChangeCallback = (params: {
   requestId: number;
   from?: SceneKey;
   to: SceneKey;
-  state: "loading" | "core_ready" | "failed";
+  state: "loading" | "core_ready" | "failed" | "interrupted";
 }) => void;
 export type FlappyBirdSkyContext = {
   mode: TimeOfDayMode;
@@ -84,6 +86,7 @@ export type FlappyBirdSkyContext = {
 export type GameDiagnosticsSnapshot = {
   currentSceneKey?: SceneKey;
   mainSceneData: MainSceneWorldData | null;
+  flappyBirdPerf: FlappyBirdPerfSnapshot | null;
 };
 
 type NativeViewportSyncDetail = {
@@ -94,12 +97,71 @@ type FullscreenAdEventDetail = {
   state?: "showing" | "dismissed" | "failed";
 };
 
+type SceneTransitionInterruptReason = "back_navigation" | "app_hidden";
+type PendingSceneTransitionInterruption = {
+  fallbackScene: SceneKey;
+  reason: SceneTransitionInterruptReason;
+};
+type ActiveSceneTransitionPhase = "exiting_current" | "creating_target";
+type ActiveSceneTransition = {
+  requestId: number;
+  from?: SceneKey;
+  to: SceneKey;
+  phase: ActiveSceneTransitionPhase;
+  parkedScene?: Scene;
+  parkedSceneKey?: SceneKey;
+  interruption: PendingSceneTransitionInterruption | null;
+  restorationStarted: boolean;
+  stateChangeEmitted: boolean;
+};
+
 function createMainScenePositionBoundary(width: number, height: number) {
   return {
     x: SCREEN_HORIZONTAL_PADDING,
     y: SCREEN_TOP_PADDING,
     width: width - 2 * SCREEN_HORIZONTAL_PADDING,
     height: height - SCREEN_TOP_PADDING - SCREEN_BOTTOM_PADDING,
+  };
+}
+
+function getTransitionTimingNow(): number {
+  return typeof performance !== "undefined" ? performance.now() : Date.now();
+}
+
+function resolveRendererResolution(devicePixelRatio?: number): number {
+  if (
+    typeof devicePixelRatio !== "number" ||
+    !Number.isFinite(devicePixelRatio) ||
+    devicePixelRatio <= 0
+  ) {
+    return MAX_RENDERER_RESOLUTION;
+  }
+
+  return Math.min(devicePixelRatio, MAX_RENDERER_RESOLUTION);
+}
+
+type PendingSceneRenderTiming = {
+  scene: Scene;
+  deltaTimeMs: number;
+  tickerGapMs: number | null;
+  updateStartedAtMs: number;
+  updateEndedAtMs: number;
+  sceneUpdateCostMs: number;
+};
+
+function summarizeTransitionError(error: unknown): {
+  name?: string;
+  message: string;
+} {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+    };
+  }
+
+  return {
+    message: String(error),
   };
 }
 
@@ -143,11 +205,19 @@ export class Game {
   private _sceneTransitionRequestId = 0;
   private _isFullscreenAdActive = false;
   private _fullscreenAdResizeSuppressedUntil = 0;
+  private _pendingSceneTransitionInterruptions = new Map<
+    number,
+    PendingSceneTransitionInterruption
+  >();
+  private _activeSceneTransition: ActiveSceneTransition | null = null;
   private readonly _initialSceneKey: SceneKey;
   private readonly _debugMode: boolean;
   private _flappyBirdCharacterKey: CharacterKey | null = null;
   private _flappyBirdSkyContext: FlappyBirdSkyContext | null = null;
   private _loadingTraceContext: MainSceneLoadingTraceContext | null = null;
+  private _lastTickerStartedAtMs: number | null = null;
+  private _pendingSceneRenderTiming: PendingSceneRenderTiming | null = null;
+  private _isRendererPerfHookInstalled = false;
   // private characterManager: CharacterManager; // CharacterManager 인스턴스 추가
   // private shouldSaveDataBeforeUnload = false;
 
@@ -322,12 +392,22 @@ export class Game {
         backgroundColor: 0xaaaaaa,
         autoDensity: true,
         roundPixels: true,
-        resolution: window.devicePixelRatio || 2, // 해상도를 디바이스 픽셀 비율로 설정하거나 원하는 값(예: 2)으로 설정
+        preference: "webgl",
+        preferWebGLVersion: 2,
+        powerPreference: "high-performance",
+        resolution: resolveRendererResolution(window.devicePixelRatio),
       });
       this._isPixiReady = true;
+      this._installRendererPerfHooks();
+      console.log("[ImportantDiagnostics][RendererResolution]", {
+        phase: "initialize",
+        rawDevicePixelRatio: window.devicePixelRatio ?? null,
+        appliedResolution: this.app.renderer.resolution,
+        maxRendererResolution: MAX_RENDERER_RESOLUTION,
+      });
 
-      this.app.ticker.minFPS = 60;
-      this.app.ticker.maxFPS = 0;
+      this.app.ticker.minFPS = 30;
+      this.app.ticker.maxFPS = 60;
       this._parentElement.appendChild(this.app.canvas);
       this._onResize("initialize");
 
@@ -442,7 +522,97 @@ export class Game {
   // }
 
   private _update(deltaTime: number): void {
-    this.currentScene?.update(deltaTime);
+    const scene = this.currentScene;
+    const updateStartedAtMs = getTransitionTimingNow();
+    const tickerGapMs =
+      this._lastTickerStartedAtMs === null
+        ? null
+        : updateStartedAtMs - this._lastTickerStartedAtMs;
+    this._lastTickerStartedAtMs = updateStartedAtMs;
+
+    if (!scene) {
+      this._pendingSceneRenderTiming = null;
+      return;
+    }
+
+    scene.update(deltaTime);
+    const updateEndedAtMs = getTransitionTimingNow();
+
+    if (scene !== this.currentScene) {
+      this._pendingSceneRenderTiming = null;
+      return;
+    }
+
+    this._pendingSceneRenderTiming = {
+      scene,
+      deltaTimeMs: deltaTime,
+      tickerGapMs,
+      updateStartedAtMs,
+      updateEndedAtMs,
+      sceneUpdateCostMs: updateEndedAtMs - updateStartedAtMs,
+    };
+  }
+
+  private _installRendererPerfHooks(): void {
+    if (this._isRendererPerfHookInstalled || !this.app.renderer) {
+      return;
+    }
+
+    const renderer = this.app.renderer as typeof this.app.renderer & {
+      render: (...args: unknown[]) => unknown;
+    };
+    const originalRender = renderer.render.bind(renderer);
+
+    renderer.render = ((...args: unknown[]) => {
+      const renderStartedAtMs = getTransitionTimingNow();
+
+      try {
+        return originalRender(...args);
+      } finally {
+        const renderEndedAtMs = getTransitionTimingNow();
+        this._handleRendererRender(renderStartedAtMs, renderEndedAtMs);
+      }
+    }) as typeof renderer.render;
+
+    this._isRendererPerfHookInstalled = true;
+  }
+
+  private _handleRendererRender(
+    renderStartedAtMs: number,
+    renderEndedAtMs: number,
+  ): void {
+    const pendingTiming = this._pendingSceneRenderTiming;
+    this._pendingSceneRenderTiming = null;
+
+    if (!pendingTiming) {
+      return;
+    }
+
+    if (!this._isFrameTimingAwareScene(pendingTiming.scene)) {
+      return;
+    }
+
+    const sample: SceneRenderTimingSample = {
+      timestampMs: renderEndedAtMs,
+      deltaTimeMs: pendingTiming.deltaTimeMs,
+      tickerGapMs: pendingTiming.tickerGapMs,
+      sceneUpdateCostMs: pendingTiming.sceneUpdateCostMs,
+      updateToRenderStartMs:
+        renderStartedAtMs - pendingTiming.updateEndedAtMs,
+      renderCostMs: renderEndedAtMs - renderStartedAtMs,
+      frameEndToEndCostMs:
+        renderEndedAtMs - pendingTiming.updateStartedAtMs,
+    };
+
+    pendingTiming.scene.onFrameRenderTiming(sample);
+  }
+
+  private _isFrameTimingAwareScene(
+    scene: Scene,
+  ): scene is Scene & {
+    onFrameRenderTiming: (sample: SceneRenderTimingSample) => void;
+  } {
+    return typeof scene.onFrameRenderTiming === "function";
   }
 
   /**
@@ -483,7 +653,8 @@ export class Game {
       return;
     }
 
-    const resolution = window.devicePixelRatio || 2;
+    const rawDevicePixelRatio = window.devicePixelRatio || 0;
+    const resolution = resolveRendererResolution(rawDevicePixelRatio);
     const metricsKey = [
       width,
       height,
@@ -491,6 +662,7 @@ export class Game {
       parent.clientHeight,
       Math.round(rect.width),
       Math.round(rect.height),
+      rawDevicePixelRatio,
       resolution,
     ].join("|");
 
@@ -513,6 +685,15 @@ export class Game {
 
     this.app.renderer.resolution = resolution;
     this.app.renderer.resize(width, height);
+    console.log("[ImportantDiagnostics][RendererResolution]", {
+      phase: "resize",
+      reason,
+      width,
+      height,
+      rawDevicePixelRatio,
+      appliedResolution: resolution,
+      maxRendererResolution: MAX_RENDERER_RESOLUTION,
+    });
 
     if (stageScaleWasReset) {
       console.warn("[GameResize]", {
@@ -651,6 +832,8 @@ export class Game {
           triggerBiteVibration: this.triggerBiteVibration,
           startRecoveryVibration: this.startRecoveryVibration,
           stopRecoveryVibration: this.stopRecoveryVibration,
+          shouldDeferPersistence: () =>
+            this.currentSceneKey === SceneKey.FLAPPY_BIRD_GAME,
           loadingTraceContext,
         });
         await mainSceneWorld.init();
@@ -663,6 +846,54 @@ export class Game {
     }
   }
 
+  private async _restoreParkedSceneAfterTransitionAbort(
+    transition: ActiveSceneTransition,
+    state: "interrupted" | "failed",
+  ): Promise<void> {
+    if (transition.restorationStarted) {
+      return;
+    }
+
+    transition.restorationStarted = true;
+
+    const parkedScene = transition.parkedScene;
+    const parkedSceneKey = transition.parkedSceneKey;
+
+    if (parkedScene) {
+      this.currentScene = parkedScene;
+      this.currentSceneKey = parkedSceneKey;
+
+      if (parkedScene instanceof PIXI.Container) {
+        this.app.stage.removeChildren();
+
+        if (parkedScene.parent !== this.app.stage) {
+          this.app.stage.addChild(parkedScene);
+        }
+      }
+    }
+
+    if (!transition.stateChangeEmitted) {
+      this._onSceneTransitionStateChange?.({
+        requestId: transition.requestId,
+        from: transition.from,
+        to: transition.to,
+        state,
+      });
+      transition.stateChangeEmitted = true;
+    }
+
+    if (parkedScene?.onSceneReenter) {
+      try {
+        await parkedScene.onSceneReenter();
+      } catch (error) {
+        console.error(
+          "[Game] Failed to restore parked scene after aborted transition:",
+          error,
+        );
+      }
+    }
+  }
+
   /**
    * 씬을 키를 통해 전환합니다
    * @param key 전환할 씬의 키
@@ -671,10 +902,50 @@ export class Game {
   public async changeScene(key: SceneKey): Promise<boolean> {
     const previousSceneKey = this.currentSceneKey;
     const transitionRequestId = ++this._sceneTransitionRequestId;
-    const transitionStartedAt =
-      typeof performance !== "undefined" ? performance.now() : Date.now();
+    const transitionStartedAt = getTransitionTimingNow();
+    const transitionContext: ActiveSceneTransition = {
+      requestId: transitionRequestId,
+      from: previousSceneKey,
+      to: key,
+      phase: "exiting_current",
+      parkedScene: this.currentScene,
+      parkedSceneKey: this.currentSceneKey,
+      interruption: null,
+      restorationStarted: false,
+      stateChangeEmitted: false,
+    };
+    this._activeSceneTransition = transitionContext;
+    const consumePendingInterruption = () => {
+      const interruption =
+        this._pendingSceneTransitionInterruptions.get(transitionRequestId) ??
+        null;
+
+      if (interruption) {
+        this._pendingSceneTransitionInterruptions.delete(transitionRequestId);
+      }
+
+      return interruption;
+    };
+    const logTransitionPhase = (
+      phase: string,
+      payload: Record<string, unknown> = {},
+    ) => {
+      console.log("[ImportantDiagnostics][SceneTransitionTiming]", {
+        phase,
+        requestId: transitionRequestId,
+        from: previousSceneKey ?? null,
+        to: key,
+        elapsedMs: Math.round(getTransitionTimingNow() - transitionStartedAt),
+        initializationAttemptId:
+          this._loadingTraceContext?.initializationAttemptId ?? null,
+        setupFlowId: this._loadingTraceContext?.setupFlowId ?? null,
+        bootstrapState: this._loadingTraceContext?.bootstrapState ?? null,
+        ...payload,
+      });
+    };
 
     try {
+      logTransitionPhase("changeScene_start");
       console.log(
         `[GameTransition] start ${previousSceneKey ?? "none"} -> ${key} (#${transitionRequestId})`,
       );
@@ -682,6 +953,7 @@ export class Game {
       // 기존 씬과 같은 씬으로 전환하는 경우 무시
       if (this.currentSceneKey === key) {
         console.log(`[Game] 이미 ${key} 씬에 있습니다`);
+        logTransitionPhase("changeScene_skipped_same_scene");
         return true;
       }
 
@@ -694,7 +966,38 @@ export class Game {
 
       if (this.currentScene?.onSceneExit) {
         console.log(`[Game] 현재 씬 종료 처리 시작: ${this.currentSceneKey}`);
+        const sceneExitStartedAt = getTransitionTimingNow();
+        logTransitionPhase("onSceneExit_start", {
+          currentSceneKey: this.currentSceneKey ?? null,
+        });
         await this.currentScene.onSceneExit();
+        logTransitionPhase("onSceneExit_end", {
+          currentSceneKey: this.currentSceneKey ?? null,
+          durationMs: Math.round(getTransitionTimingNow() - sceneExitStartedAt),
+        });
+      }
+
+      const interruptedBeforeDestroy = consumePendingInterruption();
+      if (interruptedBeforeDestroy) {
+        logTransitionPhase("changeScene_interrupted_before_destroy", {
+          reason: interruptedBeforeDestroy.reason,
+          fallbackScene: interruptedBeforeDestroy.fallbackScene,
+        });
+
+        if (
+          this.currentSceneKey === interruptedBeforeDestroy.fallbackScene &&
+          this.currentScene?.onSceneReenter
+        ) {
+          await this.currentScene.onSceneReenter();
+        }
+
+        this._onSceneTransitionStateChange?.({
+          requestId: transitionRequestId,
+          from: previousSceneKey,
+          to: key,
+          state: "interrupted",
+        });
+        return false;
       }
 
       if (this.currentScene instanceof MainSceneWorld) {
@@ -702,10 +1005,10 @@ export class Game {
         this._syncFlappyBirdCharacterKeyFromMainScene(this.currentScene);
       }
 
-      if (this.currentScene) {
-        this.currentScene.destroy();
-        this.app.stage.removeChildren();
-      }
+      transitionContext.phase = "creating_target";
+      transitionContext.parkedScene = this.currentScene;
+      transitionContext.parkedSceneKey = this.currentSceneKey;
+      this.app.stage.removeChildren();
 
       // 캐시된 씬이 없으면 새로 생성
       // if (!this.scenes.has(key)) {
@@ -724,7 +1027,27 @@ export class Game {
       //   this.app.stage.removeChild(this.currentScene);
       // }
 
-      this.currentScene = await this._createScene(key);
+      const createSceneStartedAt = getTransitionTimingNow();
+      logTransitionPhase("createScene_start");
+      const createdScene = await this._createScene(key);
+      logTransitionPhase("createScene_end", {
+        durationMs: Math.round(getTransitionTimingNow() - createSceneStartedAt),
+      });
+
+      if (
+        transitionContext.interruption ||
+        this._activeSceneTransition !== transitionContext
+      ) {
+        logTransitionPhase("changeScene_interrupted_during_create", {
+          reason: transitionContext.interruption?.reason ?? "stale_transition",
+          fallbackScene: transitionContext.interruption?.fallbackScene ?? null,
+        });
+        createdScene.destroy();
+        return false;
+      }
+
+      transitionContext.parkedScene?.destroy();
+      this.currentScene = createdScene;
       this.currentSceneKey = key;
 
       if (this.currentScene instanceof PIXI.Container) {
@@ -736,6 +1059,9 @@ export class Game {
         from: previousSceneKey,
         to: key,
         state: "core_ready",
+      });
+      logTransitionPhase("changeScene_core_ready", {
+        sceneMounted: this.currentScene instanceof PIXI.Container,
       });
 
       // 새 씬이 DisplayObject이면 스테이지에 추가
@@ -749,21 +1075,50 @@ export class Game {
 
       console.log(
         `[GameTransition] end ${previousSceneKey ?? "none"} -> ${key} (#${transitionRequestId}) in ${Math.round(
-          (typeof performance !== "undefined"
-            ? performance.now()
-            : Date.now()) - transitionStartedAt,
+          getTransitionTimingNow() - transitionStartedAt,
         )}ms`,
       );
+      this._activeSceneTransition = null;
       return true;
     } catch (error) {
+      if (
+        transitionContext.interruption ||
+        this._activeSceneTransition !== transitionContext
+      ) {
+        logTransitionPhase("changeScene_cancelled_after_create_error", {
+          reason: transitionContext.interruption?.reason ?? "stale_transition",
+          fallbackScene: transitionContext.interruption?.fallbackScene ?? null,
+          error: summarizeTransitionError(error),
+        });
+        return false;
+      }
+
+      if (transitionContext.phase === "creating_target") {
+        await this._restoreParkedSceneAfterTransitionAbort(
+          transitionContext,
+          "failed",
+        );
+      }
+
       console.error(`[Game] 씬 전환 오류 (${key}):`, error);
-      this._onSceneTransitionStateChange?.({
-        requestId: transitionRequestId,
-        from: previousSceneKey,
-        to: key,
-        state: "failed",
+      logTransitionPhase("changeScene_failed", {
+        error: summarizeTransitionError(error),
       });
+      if (!transitionContext.stateChangeEmitted) {
+        this._onSceneTransitionStateChange?.({
+          requestId: transitionRequestId,
+          from: previousSceneKey,
+          to: key,
+          state: "failed",
+        });
+      }
       return false;
+    } finally {
+      this._pendingSceneTransitionInterruptions.delete(transitionRequestId);
+
+      if (this._activeSceneTransition === transitionContext) {
+        this._activeSceneTransition = null;
+      }
     }
   }
 
@@ -772,6 +1127,53 @@ export class Game {
    */
   public getCurrentSceneKey(): SceneKey | undefined {
     return this.currentSceneKey;
+  }
+
+  public requestSceneTransitionInterruption(params: {
+    requestId: number;
+    fallbackScene: SceneKey;
+    reason: SceneTransitionInterruptReason;
+  }): boolean {
+    if (this._sceneTransitionRequestId !== params.requestId) {
+      return false;
+    }
+
+    const interruption = {
+      fallbackScene: params.fallbackScene,
+      reason: params.reason,
+    };
+
+    this._pendingSceneTransitionInterruptions.set(params.requestId, interruption);
+
+    const activeTransition = this._activeSceneTransition;
+    if (
+      activeTransition &&
+      activeTransition.requestId === params.requestId &&
+      activeTransition.phase === "creating_target" &&
+      !activeTransition.interruption
+    ) {
+      activeTransition.interruption = interruption;
+      this._activeSceneTransition = null;
+      void this._restoreParkedSceneAfterTransitionAbort(
+        activeTransition,
+        "interrupted",
+      );
+    }
+
+    console.log("[ImportantDiagnostics][SceneTransitionInterruption]", {
+      requestId: params.requestId,
+      fallbackScene: params.fallbackScene,
+      reason: params.reason,
+      currentSceneKey: this.currentSceneKey ?? null,
+      activeTransitionRequestId: this._sceneTransitionRequestId,
+      activeTransitionPhase: activeTransition?.phase ?? null,
+    });
+
+    return true;
+  }
+
+  public getActiveSceneTransitionRequestId(): number | null {
+    return this._activeSceneTransition?.requestId ?? null;
   }
 
   public async getFlappyBirdSkyContext(): Promise<FlappyBirdSkyContext> {
@@ -829,6 +1231,10 @@ export class Game {
         this.currentScene instanceof MainSceneWorld
           ? this.currentScene.getInMemoryData()
           : null,
+      flappyBirdPerf:
+        this.currentScene instanceof FlappyBirdGameScene
+          ? this.currentScene.getPerfDiagnosticsSnapshot()
+          : null,
     };
   }
 
@@ -885,6 +1291,8 @@ export class Game {
   public destroy(): void {
     this._isDestroyed = true;
     this._isPixiReady = false;
+    this._pendingSceneRenderTiming = null;
+    this._lastTickerStartedAtMs = null;
     // 정리 작업
     window.removeEventListener("resize", this._boundResizeHandler);
     window.removeEventListener("focus", this._boundLifecycleResizeHandler);

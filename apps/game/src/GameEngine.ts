@@ -1,6 +1,28 @@
 import * as PIXI from "pixi.js";
 import * as Matter from "matter-js";
 
+export type GameEnginePhysicsPerfSample = {
+  timestampMs: number;
+  deltaMs: number;
+  engineUpdateCostMs: number;
+  syncDisplayCostMs: number;
+  totalCostMs: number;
+  trackedObjectCount: number;
+  syncedDisplayObjectCount: number;
+};
+
+const GAME_ENGINE_FIXED_TIMESTEP_MS = 1000 / 60;
+const GAME_ENGINE_MAX_TIMESTEP_MS = 1000 / 30;
+const GAME_ENGINE_MAX_SUBSTEPS = 2;
+
+type GameEnginePerfHooks = {
+  onPhysicsStep?: (sample: GameEnginePhysicsPerfSample) => void;
+};
+
+function getPerfNow(): number {
+  return typeof performance !== "undefined" ? performance.now() : Date.now();
+}
+
 export class GameEngine {
   private physics: Matter.Engine;
   private isRunning = false;
@@ -12,9 +34,17 @@ export class GameEngine {
   private pixiApp: PIXI.Application | null = null;
   private physicsUpdateBound: (ticker: PIXI.Ticker) => void;
   private readonly gravityY: number;
+  private readonly perfHooks: GameEnginePerfHooks;
+  private physicsAccumulatorMs = 0;
 
-  constructor(width: number, height: number, gravityY = 2.5) {
+  constructor(
+    width: number,
+    height: number,
+    gravityY = 2.5,
+    perfHooks: GameEnginePerfHooks = {},
+  ) {
     this.gravityY = gravityY;
+    this.perfHooks = perfHooks;
     this.physics = Matter.Engine.create({
       gravity: { x: 0, y: this.gravityY },
       enableSleeping: false,
@@ -52,8 +82,60 @@ export class GameEngine {
     if (!this.isRunning || !this.pixiApp) return;
 
     try {
-      Matter.Engine.update(this.physics, delta);
-      this.syncDisplayObjects();
+      const clampedDeltaMs = Math.min(
+        GAME_ENGINE_MAX_TIMESTEP_MS,
+        Math.max(0, delta),
+      );
+      this.physicsAccumulatorMs = Math.min(
+        this.physicsAccumulatorMs + clampedDeltaMs,
+        GAME_ENGINE_FIXED_TIMESTEP_MS * (GAME_ENGINE_MAX_SUBSTEPS + 1),
+      );
+
+      let substeps = 0;
+      let totalEngineUpdateCostMs = 0;
+      let totalSyncDisplayCostMs = 0;
+      let appliedDeltaMs = 0;
+
+      while (
+        this.physicsAccumulatorMs >= GAME_ENGINE_FIXED_TIMESTEP_MS &&
+        substeps < GAME_ENGINE_MAX_SUBSTEPS
+      ) {
+        const startedAt = getPerfNow();
+        Matter.Engine.update(this.physics, GAME_ENGINE_FIXED_TIMESTEP_MS);
+        const afterEngineUpdate = getPerfNow();
+        this.syncDisplayObjects();
+        const afterSyncDisplay = getPerfNow();
+
+        totalEngineUpdateCostMs += afterEngineUpdate - startedAt;
+        totalSyncDisplayCostMs += afterSyncDisplay - afterEngineUpdate;
+        appliedDeltaMs += GAME_ENGINE_FIXED_TIMESTEP_MS;
+        this.physicsAccumulatorMs -= GAME_ENGINE_FIXED_TIMESTEP_MS;
+        substeps += 1;
+      }
+
+      if (
+        substeps === GAME_ENGINE_MAX_SUBSTEPS &&
+        this.physicsAccumulatorMs >= GAME_ENGINE_FIXED_TIMESTEP_MS
+      ) {
+        this.physicsAccumulatorMs = Math.min(
+          this.physicsAccumulatorMs,
+          GAME_ENGINE_FIXED_TIMESTEP_MS,
+        );
+      }
+
+      if (substeps === 0) {
+        return;
+      }
+
+      this.perfHooks.onPhysicsStep?.({
+        timestampMs: Date.now(),
+        deltaMs: appliedDeltaMs,
+        engineUpdateCostMs: totalEngineUpdateCostMs,
+        syncDisplayCostMs: totalSyncDisplayCostMs,
+        totalCostMs: totalEngineUpdateCostMs + totalSyncDisplayCostMs,
+        trackedObjectCount: this.getTrackedObjectCount(),
+        syncedDisplayObjectCount: this.getSyncedDisplayObjectCount(),
+      });
     } catch (error) {
       console.error("[Physics] 물리 업데이트 오류:", error);
     }
@@ -105,10 +187,12 @@ export class GameEngine {
 
   public pause(): void {
     this.isRunning = false;
+    this.physicsAccumulatorMs = 0;
   }
 
   public resume(): void {
     this.isRunning = true;
+    this.physicsAccumulatorMs = 0;
   }
 
   public cleanup(): void {
@@ -122,6 +206,7 @@ export class GameEngine {
       Matter.Composite.remove(this.physics.world, obj.body);
     }
     this.gameObjects = [];
+    this.physicsAccumulatorMs = 0;
 
     Matter.Engine.clear(this.physics);
 
