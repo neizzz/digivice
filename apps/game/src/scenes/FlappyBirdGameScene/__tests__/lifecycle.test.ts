@@ -26,9 +26,22 @@ function createSceneHarness(
     stopAnimation: () => callLog.push("player.stopAnimation"),
     startAnimation: () => callLog.push("player.startAnimation"),
     update: () => callLog.push("player.update"),
+    clampBasketBottomTo: (_maxBottomY: number) =>
+      callLog.push("player.clampBasketBottomTo"),
+    getBirdPositionSnapshot: () => {
+      callLog.push("player.getBirdPositionSnapshot");
+      return { x: 100, y: 120 };
+    },
+    getLastStableBirdPositionSnapshot: () => {
+      callLog.push("player.getLastStableBirdPositionSnapshot");
+      return { x: 100, y: 120 };
+    },
+    setBirdPosition: (_position: { x: number; y: number }) =>
+      callLog.push("player.setBirdPosition"),
   };
   scene.physicsManager = {
     syncDisplayObjects: () => callLog.push("physics.syncDisplayObjects"),
+    setupDebugRenderer: () => callLog.push("physics.setupDebugRenderer"),
   };
   scene.bgmController = {
     pause: () => callLog.push("bgm.pause"),
@@ -180,6 +193,7 @@ test("game over 진입 시 마지막 플레이어 표시 상태를 즉시 동기
     getBestScore: () => 42,
   };
   scene.game = {
+    isDebugModeEnabled: () => false,
     showFlappyBirdGameOver: () => {
       callLog.push("game.showFlappyBirdGameOver");
     },
@@ -201,6 +215,91 @@ test("game over 진입 시 마지막 플레이어 표시 상태를 즉시 동기
     "triggerGameOverVibrationPattern",
     "flushPendingFrameDiagnostics",
     "perf.finalizeSession",
+    "game.showFlappyBirdGameOver",
+  ]);
+});
+
+test("debug mode 빌드에서는 collision debug overlay를 자동으로 켠다", () => {
+  const { scene, callLog } = createSceneHarness();
+
+  scene.game = {
+    app: {},
+    isDebugModeEnabled: () => true,
+  };
+
+  scene.maybeEnableCollisionDebugOverlay();
+
+  assert.deepEqual(callLog, ["physics.setupDebugRenderer"]);
+});
+
+test("non-debug 빌드에서는 collision debug overlay를 자동으로 켜지 않는다", () => {
+  const { scene, callLog } = createSceneHarness();
+
+  scene.game = {
+    app: {},
+    isDebugModeEnabled: () => false,
+  };
+
+  scene.maybeEnableCollisionDebugOverlay();
+
+  assert.deepEqual(callLog, []);
+});
+
+test("ground 충돌 game over는 basket을 ground top에 맞춘 뒤 표시 상태를 동기화한다", async () => {
+  const { scene, callLog } = createSceneHarness();
+
+  scene.resetSimulationAccumulator = () => {
+    callLog.push("resetSimulationAccumulator");
+  };
+  scene.hideSettingsMenu = () => {
+    callLog.push("hideSettingsMenu");
+  };
+  scene.countdownUI = {
+    hide: () => callLog.push("countdown.hide"),
+  };
+  scene.triggerGameOverVibrationPattern = () => {
+    callLog.push("triggerGameOverVibrationPattern");
+  };
+  scene.flushPendingFrameDiagnostics = () => {
+    callLog.push("flushPendingFrameDiagnostics");
+  };
+  scene.perfDiagnostics = {
+    finalizeSession: () => Promise.resolve(),
+  };
+  scene.scoreUI = {
+    getScore: () => 23,
+    getBestScore: () => 42,
+  };
+  scene.groundManager = {
+    getBody: () => ({
+      bounds: {
+        min: { y: 464 },
+      },
+    }),
+  };
+  scene.game = {
+    showFlappyBirdGameOver: () => {
+      callLog.push("game.showFlappyBirdGameOver");
+    },
+  };
+
+  scene.handleGameOver("ground");
+  await Promise.resolve();
+
+  assert.deepEqual(callLog, [
+    "player.getLastStableBirdPositionSnapshot",
+    "resetSimulationAccumulator",
+    "engine.pause",
+    "hideSettingsMenu",
+    "countdown.hide",
+    "player.clampBasketBottomTo",
+    "player.stopAnimation",
+    "physics.syncDisplayObjects",
+    "player.update",
+    "player.setBirdPosition",
+    "bgm.pause",
+    "triggerGameOverVibrationPattern",
+    "flushPendingFrameDiagnostics",
     "game.showFlappyBirdGameOver",
   ]);
 });

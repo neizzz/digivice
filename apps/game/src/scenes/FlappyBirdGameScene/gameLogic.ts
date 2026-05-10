@@ -11,6 +11,8 @@ import type { PhysicsManager } from "./physics";
 const FLAPPY_BIRD_OBJECT_SCALE = 1.1;
 const FLAPPY_BIRD_GROUND_TILE_SCALE = 0.9;
 const FLAPPY_BIRD_PIPE_TILE_SCALE = 0.81;
+const FLAPPY_BIRD_PIPE_COLLISION_INSET_X_PX = 1;
+const FLAPPY_BIRD_PIPE_COLLISION_INSET_BOTTOM_PX = 1;
 const BASE_BASKET_SIZE = 40;
 const BASE_BIRD_SIZE = 32 * 1.4;
 const FLAPPY_BIRD_PLAYER_X_RATIO = 0.15;
@@ -105,6 +107,19 @@ function resolveFrameScale(deltaTime: number): number {
     FLAPPY_BIRD_MAX_FRAME_SCALE,
     Math.max(0, deltaTime / FLAPPY_BIRD_BASE_FRAME_MS),
   );
+}
+
+function resolvePipeCollisionBodySize(
+  width: number,
+  height: number,
+): {
+  width: number;
+  height: number;
+} {
+  return {
+    width: Math.max(1, width - FLAPPY_BIRD_PIPE_COLLISION_INSET_X_PX * 2),
+    height: Math.max(1, height - FLAPPY_BIRD_PIPE_COLLISION_INSET_BOTTOM_PX),
+  };
 }
 
 function smoothFlappyBirdSpeed(
@@ -1072,15 +1087,19 @@ export class PipeManager {
     x: number;
     y: number;
   }): Matter.Body {
+    const collisionBodySize = resolvePipeCollisionBodySize(
+      options.width,
+      options.height,
+    );
     const body = this.physicsManager.createRectangleBody(
       options.x,
       options.y,
-      options.width,
-      options.height,
+      collisionBodySize.width,
+      collisionBodySize.height,
       { isStatic: true, label: "pipe" },
     ) as PipeBodyWithMetrics;
-    body.__flappyPipeWidth = options.width;
-    body.__flappyPipeHeight = options.height;
+    body.__flappyPipeWidth = collisionBodySize.width;
+    body.__flappyPipeHeight = collisionBodySize.height;
     return body;
   }
 
@@ -1155,8 +1174,12 @@ export class PipeManager {
       y: number;
     },
   ): void {
-    const targetWidth = Math.max(1, options.width);
-    const targetHeight = Math.max(1, options.height);
+    const collisionBodySize = resolvePipeCollisionBodySize(
+      options.width,
+      options.height,
+    );
+    const targetWidth = collisionBodySize.width;
+    const targetHeight = collisionBodySize.height;
     const currentWidth =
       body.__flappyPipeWidth ?? body.bounds.max.x - body.bounds.min.x;
     const currentHeight =
@@ -1305,6 +1328,7 @@ export class PlayerManager {
   private bird!: PIXI.AnimatedSprite;
   private basket!: PIXI.Sprite;
   private basketBody!: Matter.Body;
+  private lastStableBirdPosition: { x: number; y: number } | null = null;
 
   constructor(
     app: PIXI.Application,
@@ -1415,6 +1439,10 @@ export class PlayerManager {
     if (this.bird) {
       this.bird.position.x = this.basket.position.x + this.basket.width * 0.1;
       this.bird.position.y = this.basket.position.y - this.basket.height * 0.9;
+      this.lastStableBirdPosition = {
+        x: this.bird.position.x,
+        y: this.bird.position.y,
+      };
     }
   }
 
@@ -1441,6 +1469,54 @@ export class PlayerManager {
     if (this.bird) {
       this.bird.stop();
     }
+  }
+
+  public getBirdPositionSnapshot(): { x: number; y: number } | null {
+    if (!this.bird) {
+      return null;
+    }
+
+    return {
+      x: this.bird.position.x,
+      y: this.bird.position.y,
+    };
+  }
+
+  public getLastStableBirdPositionSnapshot(): { x: number; y: number } | null {
+    if (this.lastStableBirdPosition === null) {
+      return this.getBirdPositionSnapshot();
+    }
+
+    return {
+      x: this.lastStableBirdPosition.x,
+      y: this.lastStableBirdPosition.y,
+    };
+  }
+
+  public setBirdPosition(position: { x: number; y: number }): void {
+    if (!this.bird) {
+      return;
+    }
+
+    this.bird.position.set(position.x, position.y);
+  }
+
+  public clampBasketBottomTo(maxBottomY: number): void {
+    const basketRadius =
+      typeof this.basketBody.circleRadius === "number"
+        ? this.basketBody.circleRadius
+        : this.basket.width / 2;
+    const clampedCenterY = maxBottomY - basketRadius;
+
+    if (this.basketBody.position.y <= clampedCenterY) {
+      return;
+    }
+
+    this.physicsManager.setPosition(this.basketBody, {
+      x: this.basketBody.position.x,
+      y: clampedCenterY,
+    });
+    this.physicsManager.setVelocity(this.basketBody, { x: 0, y: 0 });
   }
 
   /**

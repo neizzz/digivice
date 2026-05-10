@@ -234,11 +234,20 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
     // const data = GameDataManager.getData() as GameData;
   }
 
+  private maybeEnableCollisionDebugOverlay(): void {
+    if (!this.game.isDebugModeEnabled()) {
+      return;
+    }
+
+    this.physicsManager.setupDebugRenderer(this.game.app);
+  }
+
   public async init(): Promise<FlappyBirdGameScene> {
     const playerCharacterKey = this.game.getFlappyBirdCharacterKey();
     const playerCharacterState = this.game.getFlappyBirdCharacterState();
     const initStartedAt = getPerfNow();
     const transitionRequestId = this.game.getActiveSceneTransitionRequestId();
+    this.maybeEnableCollisionDebugOverlay();
     const logInitPhase = (
       phase: string,
       payload: Record<string, unknown> = {},
@@ -574,14 +583,20 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
    */
   private setupCollisionListeners(): void {
     this.physicsManager.setupCollisionListener((bodyA, bodyB) => {
-      const isBasketCollision =
-        (bodyA.label === "basket" &&
-          (bodyB.label === "ground" || bodyB.label === "pipe")) ||
-        (bodyB.label === "basket" &&
-          (bodyA.label === "ground" || bodyA.label === "pipe"));
+      let collisionTarget: "ground" | "pipe" | null = null;
 
-      if (isBasketCollision && this.gameState === GameState.PLAYING) {
-        this.handleGameOver();
+      if (bodyA.label === "basket") {
+        if (bodyB.label === "ground" || bodyB.label === "pipe") {
+          collisionTarget = bodyB.label;
+        }
+      } else if (bodyB.label === "basket") {
+        if (bodyA.label === "ground" || bodyA.label === "pipe") {
+          collisionTarget = bodyA.label;
+        }
+      }
+
+      if (collisionTarget && this.gameState === GameState.PLAYING) {
+        this.handleGameOver(collisionTarget);
       }
     });
   }
@@ -998,10 +1013,15 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
   /**
    * 게임 오버 처리 메서드
    */
-  private handleGameOver(): void {
+  private handleGameOver(collisionTarget: "ground" | "pipe" | null = null): void {
     if (this.gameState !== GameState.PLAYING) {
       return;
     }
+
+    const preservedBirdPosition =
+      collisionTarget === "ground"
+        ? this.playerManager.getLastStableBirdPositionSnapshot()
+        : null;
 
     this.resetSimulationAccumulator();
     // 그 다음 게임 상태 변경 및 물리 엔진 정지
@@ -1012,10 +1032,19 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
     this.hideSettingsMenu();
     this.countdownUI.hide();
 
+    if (collisionTarget === "ground") {
+      this.playerManager.clampBasketBottomTo(
+        this.groundManager.getBody().bounds.min.y,
+      );
+    }
+
     // 애니메이션 정지
     this.playerManager.stopAnimation();
     this.physicsManager.syncDisplayObjects();
     this.playerManager.update();
+    if (preservedBirdPosition) {
+      this.playerManager.setBirdPosition(preservedBirdPosition);
+    }
     this.bgmController.pause();
     this.triggerGameOverVibrationPattern();
     this.flushPendingFrameDiagnostics();

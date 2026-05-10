@@ -1221,6 +1221,10 @@ export class Game {
     return this._flappyBirdCharacterState;
   }
 
+  public isDebugModeEnabled(): boolean {
+    return this._debugMode;
+  }
+
   public getMainCharacterStaminaSnapshot(): {
     stamina: number;
     maxStamina: number;

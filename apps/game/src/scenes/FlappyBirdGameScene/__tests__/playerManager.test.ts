@@ -69,10 +69,16 @@ function createMockPhysicsManager() {
     createCircleBody: (x: number, y: number, radius: number, options: object) =>
       ({
         position: { x, y },
-        radius,
+        circleRadius: radius,
         ...options,
       }) as never,
     addToEngine: () => undefined,
+    setPosition: (body: { position: { x: number; y: number } }, position: { x: number; y: number }) => {
+      body.position = { ...position };
+    },
+    setVelocity: (body: { velocity?: { x: number; y: number } }, velocity: { x: number; y: number }) => {
+      body.velocity = { ...velocity };
+    },
   };
 }
 
@@ -113,5 +119,68 @@ test("dead가 아닌 상태로 FlappyBird에 진입하면 기존 in-basket 텍�
     );
 
     assert.equal(playerManager.getBasket().texture, inBasketTexture);
+  });
+});
+
+test("ground 충돌 보정은 basket이 ground top 아래로 내려간 경우에만 다시 올린다", () => {
+  const { assets } = createGameAssets();
+
+  withMockedAssets(assets, () => {
+    const physicsManager = createMockPhysicsManager();
+    const playerManager = new PlayerManager(
+      {
+        screen: {
+          width: 320,
+          height: 480,
+        },
+      } as PIXI.Application,
+      physicsManager as never,
+      CharacterKey.TestGreenSlimeA1,
+      CharacterState.IDLE,
+    );
+
+    const basketBody = playerManager.getBasketBody() as {
+      position: { x: number; y: number };
+      velocity?: { x: number; y: number };
+      circleRadius: number;
+    };
+    basketBody.position.y = 470;
+
+    playerManager.clampBasketBottomTo(464);
+
+    assert.equal(basketBody.position.y, 442);
+    assert.deepEqual(basketBody.velocity, { x: 0, y: 0 });
+
+    basketBody.position.y = 430;
+    playerManager.clampBasketBottomTo(464);
+    assert.equal(basketBody.position.y, 430);
+  });
+});
+
+test("last stable bird position snapshot은 update 시점의 bird 표시 좌표를 유지한다", () => {
+  const { assets } = createGameAssets();
+
+  withMockedAssets(assets, () => {
+    const playerManager = new PlayerManager(
+      {
+        screen: {
+          width: 320,
+          height: 480,
+        },
+      } as PIXI.Application,
+      createMockPhysicsManager() as never,
+      CharacterKey.TestGreenSlimeA1,
+      CharacterState.IDLE,
+    );
+
+    playerManager.getBasket().position.set(120, 200);
+    playerManager.update();
+
+    const snapshot = playerManager.getLastStableBirdPositionSnapshot();
+
+    assert.deepEqual(snapshot, {
+      x: 124.4,
+      y: 160.4,
+    });
   });
 });
