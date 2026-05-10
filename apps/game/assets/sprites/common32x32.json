@@ -1,7 +1,10 @@
 {
   "frames": {
     "basket": { "frame": { "x": 0, "y": 0, "w": 32, "h": 32 } },
-    "tomb": { "frame": { "x": 32, "y": 0, "w": 32, "h": 32 } }
+    "tomb": { "frame": { "x": 32, "y": 0, "w": 32, "h": 32 } },
+    "tomb-in-basket": {
+      "frame": { "x": 64, "y": 0, "w": 32, "h": 32 }
+    }
   },
   "meta": {
     "app": "digivice",
