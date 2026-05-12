@@ -9,10 +9,7 @@ import {
 import { MainSceneWorld } from "../world";
 import { CharacterState, DestinationType, ObjectType } from "../types";
 import { nomalizeRadian } from "@/utils/common";
-import {
-  CHARACTER_SCREEN_EDGE_OVERFLOW_PX,
-  getCharacterCenterBoundary,
-} from "./CharacterDisplayBounds";
+import { getCharacterCenterBoundary } from "./CharacterDisplayBounds";
 
 const movingEntityQuery = defineQuery([PositionComp, SpeedComp, AngleComp]);
 const TARGET_REACHED_EPSILON = 0.001;
@@ -36,12 +33,10 @@ export function commonMovementSystem(params: {
     const eid = entities[i];
     const isCharacter =
       ObjectComp.type[eid] === ObjectType.CHARACTER;
+    const characterBoundary =
+      world.characterPositionBoundary ?? world.positionBoundary;
     const movementBoundary = isCharacter
-      ? getCharacterCenterBoundary(
-          eid,
-          boundary,
-          CHARACTER_SCREEN_EDGE_OVERFLOW_PX,
-        )
+      ? getCharacterCenterBoundary(eid, characterBoundary)
       : boundary;
 
     if (isCharacter) {

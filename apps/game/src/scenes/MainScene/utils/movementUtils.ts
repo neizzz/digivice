@@ -8,10 +8,7 @@ import {
 import { MainSceneWorld } from "../world";
 import { DestinationType, ObjectType } from "../types";
 import { getCharacterMovementSpeedForEntity } from "../characterStats";
-import {
-  CHARACTER_SCREEN_EDGE_OVERFLOW_PX,
-  getCharacterCenterBoundary,
-} from "../systems/CharacterDisplayBounds";
+import { getCharacterCenterBoundary } from "../systems/CharacterDisplayBounds";
 
 const TARGET_REACHED_EPSILON = 0.001;
 
@@ -34,13 +31,11 @@ export function moveTowardsTarget(
 
   const currentX = PositionComp.x[eid];
   const currentY = PositionComp.y[eid];
+  const characterBoundary =
+    world.characterPositionBoundary ?? world.positionBoundary;
   const movementBoundary =
     ObjectComp.type[eid] === ObjectType.CHARACTER
-      ? getCharacterCenterBoundary(
-          eid,
-          world.positionBoundary,
-          CHARACTER_SCREEN_EDGE_OVERFLOW_PX,
-        )
+      ? getCharacterCenterBoundary(eid, characterBoundary)
       : world.positionBoundary;
   const targetX = clampAxisValue(
     DestinationComp.x[eid],

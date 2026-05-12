@@ -522,6 +522,17 @@ export class MainSceneWorld implements IWorld, Scene {
   get positionBoundary(): Boundary {
     return this._positionBoundary;
   }
+  get characterPositionBoundary(): Boundary {
+    return {
+      x: this._positionBoundary.x - this._positionBoundaryInsets.left,
+      y: this._positionBoundary.y - this._positionBoundaryInsets.top,
+      width:
+        this._positionBoundary.width +
+        this._positionBoundaryInsets.left +
+        this._positionBoundaryInsets.right,
+      height: this._positionBoundary.height + this._positionBoundaryInsets.top,
+    };
+  }
   get sliderValue(): number {
     return this._currentSliderValue;
   }

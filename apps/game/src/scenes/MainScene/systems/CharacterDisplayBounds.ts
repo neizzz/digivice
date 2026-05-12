@@ -17,8 +17,9 @@ import {
 
 const FALLBACK_CHARACTER_HEIGHT = 48;
 const FALLBACK_CHARACTER_WIDTH = 48;
-export const CHARACTER_SCREEN_EDGE_OVERFLOW_PX = 10;
-export const CHARACTER_SCREEN_TOP_EDGE_OVERFLOW_PX = 14;
+export const CHARACTER_SCREEN_HORIZONTAL_EDGE_OVERFLOW_PX = 1;
+export const CHARACTER_SCREEN_TOP_EDGE_OVERFLOW_PX = 1;
+export const CHARACTER_SCREEN_BOTTOM_EDGE_OVERFLOW_PX = 10;
 
 export function getCharacterDisplayObject(
   eid: number,
@@ -69,17 +70,18 @@ export function getCharacterWorldBounds(eid: number): {
 export function getCharacterCenterBoundary(
   eid: number,
   boundary: Boundary,
-  overflowPx: number = CHARACTER_SCREEN_EDGE_OVERFLOW_PX,
+  horizontalOverflowPx: number = CHARACTER_SCREEN_HORIZONTAL_EDGE_OVERFLOW_PX,
   topOverflowPx: number = CHARACTER_SCREEN_TOP_EDGE_OVERFLOW_PX,
+  bottomOverflowPx: number = CHARACTER_SCREEN_BOTTOM_EDGE_OVERFLOW_PX,
 ): Boundary {
   const relativeBounds = getCharacterRelativeBounds(eid);
   const xRange = createClampedAxisRange(
-    boundary.x - overflowPx - relativeBounds.left,
-    boundary.x + boundary.width + overflowPx - relativeBounds.right,
+    boundary.x - horizontalOverflowPx - relativeBounds.left,
+    boundary.x + boundary.width + horizontalOverflowPx - relativeBounds.right,
   );
   const yRange = createClampedAxisRange(
     boundary.y - topOverflowPx - relativeBounds.top,
-    boundary.y + boundary.height + overflowPx - relativeBounds.bottom,
+    boundary.y + boundary.height + bottomOverflowPx - relativeBounds.bottom,
   );
 
   return {
