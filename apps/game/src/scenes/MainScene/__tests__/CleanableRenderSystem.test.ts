@@ -349,6 +349,24 @@ test("청소 모드에서는 dim overlay가 생성되고 청소 가능 오브젝
   });
 });
 
+test("청소 모드에서는 cleanable 타겟이 없어도 dim overlay가 생성된다", () => {
+  withCleanableRenderHarness(({ world }) => {
+    world._isCleaningMode = true;
+
+    runCleanableRenderSystem(world);
+
+    const overlay = getCleaningDimOverlay();
+
+    assert.ok(overlay);
+    assert.equal(overlay.zIndex, 1000100);
+
+    world._isCleaningMode = false;
+    runCleanableRenderSystem(world);
+
+    assert.equal(getCleaningDimOverlay(), null);
+  });
+});
+
 test("청소 모드에서는 cleanable 오브젝트와 테두리가 밤 오버레이보다 위에 배치되어 밝게 유지된다", () => {
   withCleanableRenderHarness(({ world }) => {
     const focused = createCleanableEntity(world, { x: 80, y: 120 });

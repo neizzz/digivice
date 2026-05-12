@@ -7,7 +7,6 @@ import {
   RenderComp,
 } from "../raw-components";
 import { ObjectStore } from "../utils/ObjectStore";
-import { INTENTED_FRONT_Z_INDEX } from "../../../constants";
 import { getSpriteStore } from "./RenderSystem";
 import type { MainSceneWorld } from "../world";
 import { ObjectType } from "../types";
@@ -95,7 +94,7 @@ export function cleanableRenderSystem(params: CleanableRenderSystemParams): {
   const cleanableEntities = cleanableQuery(world);
   const cleanableRenderEntities = cleanableRenderQuery(world);
 
-  updateCleaningDimOverlay(stage, world, cleanableEntities.length > 0);
+  updateCleaningDimOverlay(stage, world);
 
   // 제거된 청소 대상 엔티티의 그래픽스 정리
   const exitedCleanableEntities = exitCleanableQuery(world);
@@ -378,9 +377,8 @@ function createOrUpdateDashedBorder(
 function updateCleaningDimOverlay(
   stage: PIXI.Container,
   world: MainSceneWorld,
-  hasCleanableTargets: boolean,
 ) {
-  const shouldShowOverlay = world.isCleaningMode && hasCleanableTargets;
+  const shouldShowOverlay = world.isCleaningMode;
 
   if (!shouldShowOverlay) {
     removeCleaningDimOverlay(stage);
