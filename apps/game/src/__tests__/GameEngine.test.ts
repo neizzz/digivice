@@ -1,57 +1,55 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import * as Matter from "matter-js";
 import { GameEngine } from "../GameEngine";
 
-test("GameEngine는 physics step 성능 샘플을 hook으로 전달한다", () => {
-  const samples: Array<{
-    deltaMs: number;
-    engineUpdateCostMs: number;
-    syncDisplayCostMs: number;
-  }> = [];
+test("GameEngine는 120Hz tick delta를 누락하지 않고 물리에 적용한다", () => {
+  const appliedDeltas: number[] = [];
+  const originalUpdate = Matter.Engine.update;
+  Matter.Engine.update = ((engine: Matter.Engine, delta?: number) => {
+    appliedDeltas.push(delta ?? 0);
+    return engine;
+  }) as typeof Matter.Engine.update;
 
-  const gameEngine = new GameEngine(320, 480, 2.5, {
-    onPhysicsStep: (sample) => {
-      samples.push(sample);
-    },
-  }) as unknown as {
-    isRunning: boolean;
-    pixiApp: object | null;
-    physicsUpdate: (delta: number) => void;
-  };
+  try {
+    const gameEngine = new GameEngine(320, 480, 2.5) as unknown as {
+      isRunning: boolean;
+      pixiApp: object | null;
+      physicsUpdate: (delta: number) => void;
+    };
 
-  gameEngine.isRunning = true;
-  gameEngine.pixiApp = {};
-  gameEngine.physicsUpdate(16.7);
+    gameEngine.isRunning = true;
+    gameEngine.pixiApp = {};
+    gameEngine.physicsUpdate(1000 / 120);
 
-  assert.equal(samples.length, 1);
-  assert.ok(Math.abs((samples[0]?.deltaMs ?? 0) - 1000 / 60) < 0.01);
-  assert.equal(typeof samples[0]?.engineUpdateCostMs, "number");
-  assert.equal(typeof samples[0]?.syncDisplayCostMs, "number");
+    assert.equal(appliedDeltas.length, 1);
+    assert.ok(Math.abs((appliedDeltas[0] ?? 0) - 1000 / 120) < 0.01);
+  } finally {
+    Matter.Engine.update = originalUpdate;
+  }
 });
 
 test("GameEngine는 큰 delta를 고정 스텝으로 clamp해서 처리한다", () => {
-  const samples: Array<{
-    deltaMs: number;
-    engineUpdateCostMs: number;
-    syncDisplayCostMs: number;
-  }> = [];
+  const appliedDeltas: number[] = [];
+  const originalUpdate = Matter.Engine.update;
+  Matter.Engine.update = ((engine: Matter.Engine, delta?: number) => {
+    appliedDeltas.push(delta ?? 0);
+    return engine;
+  }) as typeof Matter.Engine.update;
 
-  const gameEngine = new GameEngine(320, 480, 2.5, {
-    onPhysicsStep: (sample) => {
-      samples.push(sample);
-    },
-  }) as unknown as {
-    isRunning: boolean;
-    pixiApp: object | null;
-    physicsUpdate: (delta: number) => void;
-  };
+  try {
+    const gameEngine = new GameEngine(320, 480, 2.5) as unknown as {
+      isRunning: boolean;
+      pixiApp: object | null;
+      physicsUpdate: (delta: number) => void;
+    };
 
-  gameEngine.isRunning = true;
-  gameEngine.pixiApp = {};
-  gameEngine.physicsUpdate(50);
+    gameEngine.isRunning = true;
+    gameEngine.pixiApp = {};
+    gameEngine.physicsUpdate(50);
 
-  assert.equal(samples.length, 1);
-  assert.ok((samples[0]?.deltaMs ?? 0) <= 33.4);
-  assert.equal(typeof samples[0]?.engineUpdateCostMs, "number");
-  assert.equal(typeof samples[0]?.syncDisplayCostMs, "number");
+    assert.deepEqual(appliedDeltas, [1000 / 60, 1000 / 60]);
+  } finally {
+    Matter.Engine.update = originalUpdate;
+  }
 });

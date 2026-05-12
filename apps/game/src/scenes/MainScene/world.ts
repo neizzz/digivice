@@ -5,6 +5,7 @@ import {
   pipe,
   defineQuery,
   hasComponent,
+  addComponent,
 } from "bitecs";
 import * as PIXI from "pixi.js";
 import "@pixi/gif"; // GIF 지원 추가
@@ -103,6 +104,7 @@ import {
   DiseaseSystemComp,
   EffectAnimationComp,
   SleepSystemComp,
+  VitalityComp,
 } from "./raw-components";
 import { generatePersistentNumericId } from "@/utils/generate";
 import {
@@ -139,7 +141,10 @@ import {
   characterManagerSystem,
   validateAndFixStatusIcons,
 } from "./systems/CharacterManageSystem";
-import { characterStatusSystem } from "./systems/CharacterStatusSystem";
+import {
+  characterStatusSystem,
+  killCharacter,
+} from "./systems/CharacterStatusSystem";
 import { GAME_CONSTANTS } from "./config";
 import { getCharacterSpritesheetName } from "./evolutionConfig";
 import {
@@ -167,6 +172,13 @@ import {
   MainSceneInitDiagnostics,
   type MainSceneLoadingTraceContext,
 } from "./diagnostics/mainSceneInitDiagnostics";
+import {
+  trustedClock as defaultTrustedClock,
+  isTrustedTimeSnapshot,
+  type TrustedClock,
+  type TrustedElapsedResult,
+  type TrustedTimeSnapshot,
+} from "../../utils/TrustedClock";
 
 const liveCharacterEntitiesQuery = defineQuery([
   ObjectComp,
@@ -237,6 +249,7 @@ export type WorldMetadata = {
   // 앱 상태 관리
   app_state?: {
     last_active_time: number;
+    last_active_time_anchor?: TrustedTimeSnapshot;
     is_first_load: boolean;
     use_local_time: boolean;
     cached_sun_times?: SunTimesPayload;
@@ -304,6 +317,8 @@ const MAIN_SCENE_AD_POST_ACTION_DELAY_MS = 500;
 const MAIN_SCENE_AD_FEED_FALLBACK_AFTER_LAND_MS = 3000;
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
+const TRUSTED_TIME_ABUSE_ALERT_MESSAGE =
+  "Time manipulation was detected. Your monster has been set to dead.";
 
 const COMMON_SPRITESHEET_ASSETS: LoadSpritesheetOptions[] = [
   {
@@ -460,6 +475,7 @@ export class MainSceneWorld implements IWorld, Scene {
   private _feedAdFallbackTimerId: number | null = null;
   private _mainSceneAdTimerIds = new Set<number>();
   private _initDiagnostics: MainSceneInitDiagnostics;
+  private readonly _trustedClock: TrustedClock;
 
   // 실시간 모드용 시스템 파이프라인 (렌더링 포함)
   private _pipedSystems = pipe(
@@ -614,6 +630,7 @@ export class MainSceneWorld implements IWorld, Scene {
     stopRecoveryVibration?: StopRecoveryVibrationCallback;
     shouldDeferPersistence?: () => boolean;
     loadingTraceContext?: MainSceneLoadingTraceContext | null;
+    trustedClock?: TrustedClock;
   }) {
     this._stage = params.stage;
     this._positionBoundary = params.positionBoundary;
@@ -638,6 +655,7 @@ export class MainSceneWorld implements IWorld, Scene {
     this._initDiagnostics = new MainSceneInitDiagnostics(
       params.loadingTraceContext ?? null,
     );
+    this._trustedClock = params.trustedClock ?? defaultTrustedClock;
 
     // MainScene용 초기 컨트롤 버튼 설정 (메뉴에 포커스가 없는 상태)
     this._updateControlButtonsForMenuState(false);
@@ -676,7 +694,8 @@ export class MainSceneWorld implements IWorld, Scene {
     }
 
     const appState: MainSceneAppState = {
-      last_active_time: Date.now(),
+      last_active_time: this.currentTime,
+      last_active_time_anchor: this._trustedClock.captureAnchor(),
       is_first_load: false,
       use_local_time: true,
       mini_game_scores: {
@@ -1995,10 +2014,11 @@ export class MainSceneWorld implements IWorld, Scene {
       world_metadata: {
         name: "MainScene",
         monster_name: initialGameData.name,
-        last_ecs_saved: Date.now(),
+        last_ecs_saved: this.currentTime,
         version: this.WORLD_DATA_SCHEMA_VERSION,
         app_state: {
-          last_active_time: Date.now(),
+          last_active_time: this.currentTime,
+          last_active_time_anchor: this._trustedClock.captureAnchor(),
           is_first_load: false,
           use_local_time: useLocalTime,
           cached_sun_times: cachedSunTimes,
@@ -2226,10 +2246,11 @@ export class MainSceneWorld implements IWorld, Scene {
         console.warn("Missing world_metadata, creating default");
         data.world_metadata = {
           name: "MainScene",
-          last_ecs_saved: Date.now(),
+          last_ecs_saved: this.currentTime,
           version: this.WORLD_DATA_SCHEMA_VERSION,
           app_state: {
-            last_active_time: Date.now(),
+            last_active_time: this.currentTime,
+            last_active_time_anchor: this._trustedClock.captureAnchor(),
             is_first_load: false,
             use_local_time: true,
             main_scene_ad: {
@@ -2246,7 +2267,8 @@ export class MainSceneWorld implements IWorld, Scene {
 
       if (!data.world_metadata.app_state) {
         data.world_metadata.app_state = {
-          last_active_time: Date.now(),
+          last_active_time: this.currentTime,
+          last_active_time_anchor: this._trustedClock.captureAnchor(),
           is_first_load: false,
           use_local_time: true,
           main_scene_ad: {
@@ -2329,7 +2351,7 @@ export class MainSceneWorld implements IWorld, Scene {
 
       // 마이그레이션 완료 후 버전 업데이트
       data.world_metadata.version = this.WORLD_DATA_SCHEMA_VERSION;
-      data.world_metadata.last_ecs_saved = Date.now();
+      data.world_metadata.last_ecs_saved = this.currentTime;
 
       console.log("Data migration completed");
       return data;
@@ -3412,8 +3434,13 @@ export class MainSceneWorld implements IWorld, Scene {
       return;
     }
 
-    const lastActiveTime =
-      this._persistentData.world_metadata.app_state.last_active_time;
+    const appState = this._persistentData.world_metadata.app_state;
+    const lastActiveTime = appState.last_active_time;
+    const lastActiveAnchor = isTrustedTimeSnapshot(appState.last_active_time_anchor)
+      ? appState.last_active_time_anchor
+      : null;
+
+    await this._trustedClock.refresh({ forceRefresh: false });
 
     if (!lastActiveTime || lastActiveTime <= 0) {
       console.log(
@@ -3429,13 +3456,31 @@ export class MainSceneWorld implements IWorld, Scene {
       return;
     }
 
-    const currentTime = Date.now();
-    const elapsedTime = currentTime - lastActiveTime;
+    const currentTime = this.currentTime;
+    const elapsedResult = lastActiveAnchor
+      ? this._trustedClock.elapsedSince(lastActiveAnchor)
+      : null;
+    const elapsedTime = elapsedResult
+      ? elapsedResult.elapsedMs
+      : Math.max(0, currentTime - lastActiveTime);
+
+    if (elapsedResult && !elapsedResult.trusted) {
+      console.warn("[MainSceneWorld] Reentry elapsed time is not trusted", {
+        reason: elapsedResult.reason,
+        elapsedMs: elapsedResult.elapsedMs,
+      });
+
+      if (this._isTrustedTimeAbuseReason(elapsedResult.reason)) {
+        await this._handleTrustedTimeAbuse(elapsedResult);
+        return;
+      }
+    }
 
     if (elapsedTime <= 0) {
       console.log(
         "[MainSceneWorld] Reentry simulation skipped because elapsed time is not positive",
       );
+      await this._saveCurrentState();
       return;
     }
 
@@ -3465,6 +3510,7 @@ export class MainSceneWorld implements IWorld, Scene {
           return simulationPipeline(params);
         },
         this,
+        currentTime,
       );
 
       this._simulationTime = currentTime;
@@ -3486,6 +3532,46 @@ export class MainSceneWorld implements IWorld, Scene {
     }
   }
 
+
+  private _isTrustedTimeAbuseReason(
+    reason: TrustedElapsedResult["reason"],
+  ): boolean {
+    return (
+      reason === "wall_clock_rollback" ||
+      reason === "wall_clock_fast_forward"
+    );
+  }
+
+  private async _handleTrustedTimeAbuse(
+    elapsedResult: TrustedElapsedResult,
+  ): Promise<void> {
+    console.warn("[MainSceneWorld] Trusted time abuse detected", {
+      reason: elapsedResult.reason,
+      elapsedMs: elapsedResult.elapsedMs,
+      currentSnapshot: elapsedResult.currentSnapshot,
+    });
+
+    this._showAlert?.(TRUSTED_TIME_ABUSE_ALERT_MESSAGE);
+
+    const characterEid = this._findMainCharacterEntity();
+    if (characterEid !== -1) {
+      if (!hasComponent(this, VitalityComp, characterEid)) {
+        addComponent(this, VitalityComp, characterEid);
+      }
+
+      const currentTime = this.currentTime;
+      VitalityComp.urgentStartTime[characterEid] = currentTime;
+      VitalityComp.deathTime[characterEid] = currentTime;
+      killCharacter(this, characterEid);
+    } else {
+      console.warn(
+        "[MainSceneWorld] Trusted time abuse detected but main character was not found",
+      );
+    }
+
+    await this._saveCurrentState();
+  }
+
   /**
    * 현재 시뮬레이션 모드인지 확인
    * 재진입 시뮬레이션이 실행 중이 아닌 상태에서는 항상 false
@@ -3499,7 +3585,7 @@ export class MainSceneWorld implements IWorld, Scene {
    * 재진입 시뮬레이션이 실행 중이 아닌 상태에서는 항상 실시간
    */
   public get currentTime(): number {
-    return this._simulationTime ?? Date.now();
+    return this._simulationTime ?? this._trustedClock.now();
   }
 
   /**
@@ -3590,7 +3676,7 @@ export class MainSceneWorld implements IWorld, Scene {
     console.log("[MainSceneWorld] 📱 App paused (went to background)");
 
     this._isPaused = true;
-    this._pauseStartTime = Date.now();
+    this._pauseStartTime = this.currentTime;
 
     // 현재 게임 상태 저장 (ECS 엔티티 상태 포함)
     await this._saveCurrentState();
@@ -3610,7 +3696,7 @@ export class MainSceneWorld implements IWorld, Scene {
       return; // 이미 활성 상태
     }
 
-    const pauseDuration = Date.now() - this._pauseStartTime;
+    const pauseDuration = this.currentTime - this._pauseStartTime;
     console.log(
       `[MainSceneWorld] 📱 App resumed (returned to foreground) after ${this._formatPauseDuration(
         pauseDuration,
@@ -3739,7 +3825,7 @@ export class MainSceneWorld implements IWorld, Scene {
 
     // persistent data 업데이트
     this._persistentData.entities = updatedEntities;
-    this._persistentData.world_metadata.last_ecs_saved = Date.now();
+    this._persistentData.world_metadata.last_ecs_saved = this.currentTime;
 
     console.log(
       `[MainSceneWorld] Synced ${updatedEntities.length} entities to persistent data`,
@@ -3767,11 +3853,14 @@ export class MainSceneWorld implements IWorld, Scene {
         };
       }
 
+      const activeTime = this.currentTime;
       this._persistentData.world_metadata.app_state.last_active_time =
-        Date.now();
+        activeTime;
+      this._persistentData.world_metadata.app_state.last_active_time_anchor =
+        this._trustedClock.captureAnchor();
 
       console.log(
-        `[MainSceneWorld] Saved last active time: ${new Date().toLocaleString(
+        `[MainSceneWorld] Saved last active time: ${new Date(activeTime).toLocaleString(
           "ko-KR",
         )}`,
       );

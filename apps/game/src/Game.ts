@@ -1,6 +1,6 @@
 import * as PIXI from "pixi.js";
 import { SceneKey } from "./SceneKey";
-import type { Scene, SceneRenderTimingSample } from "./interfaces/Scene";
+import type { Scene } from "./interfaces/Scene";
 import type { ControlButtonParams, ControlButtonType } from "./ui/types";
 import { MainSceneWorld, type MainSceneWorldData } from "./scenes/MainScene/world";
 import type { MainSceneLoadingTraceContext } from "./scenes/MainScene/diagnostics/mainSceneInitDiagnostics";
@@ -10,10 +10,10 @@ import {
   type SunTimesPayload,
 } from "./scenes/MainScene/timeOfDay";
 import { FlappyBirdGameScene } from "./scenes/FlappyBirdGameScene";
-import type { FlappyBirdPerfSnapshot } from "./scenes/FlappyBirdGameScene/diagnostics/flappyBirdPerfDiagnostics";
 import { CharacterState } from "./scenes/MainScene/types";
 import { CharacterKey } from "./types/Character";
 import { AssetLoader } from "./utils/AssetLoader";
+import { trustedClock, type TrustedClock } from "./utils/TrustedClock";
 
 PIXI.TexturePool.textureOptions.scaleMode = "nearest";
 PIXI.TextureStyle.defaultOptions.scaleMode = "nearest";
@@ -22,6 +22,9 @@ const SCREEN_HORIZONTAL_PADDING = 14;
 const SCREEN_BOTTOM_PADDING = 14;
 const SCREEN_TOP_PADDING = SCREEN_BOTTOM_PADDING + 6;
 const MAX_RENDERER_RESOLUTION = 2;
+const DEFAULT_TICKER_MIN_FPS = 30;
+const DEFAULT_TICKER_MAX_FPS = 60;
+const FLAPPY_BIRD_TICKER_MAX_FPS = 0;
 
 export type ControlButtonsChangeCallback = (
   controlButtonParamsSet:
@@ -87,7 +90,6 @@ export type FlappyBirdSkyContext = {
 export type GameDiagnosticsSnapshot = {
   currentSceneKey?: SceneKey;
   mainSceneData: MainSceneWorldData | null;
-  flappyBirdPerf: FlappyBirdPerfSnapshot | null;
 };
 
 type NativeViewportSyncDetail = {
@@ -129,6 +131,12 @@ function getTransitionTimingNow(): number {
   return typeof performance !== "undefined" ? performance.now() : Date.now();
 }
 
+function resolveTickerMaxFPS(sceneKey?: SceneKey): number {
+  return sceneKey === SceneKey.FLAPPY_BIRD_GAME
+    ? FLAPPY_BIRD_TICKER_MAX_FPS
+    : DEFAULT_TICKER_MAX_FPS;
+}
+
 function resolveRendererResolution(devicePixelRatio?: number): number {
   if (
     typeof devicePixelRatio !== "number" ||
@@ -140,15 +148,6 @@ function resolveRendererResolution(devicePixelRatio?: number): number {
 
   return Math.min(devicePixelRatio, MAX_RENDERER_RESOLUTION);
 }
-
-type PendingSceneRenderTiming = {
-  scene: Scene;
-  deltaTimeMs: number;
-  tickerGapMs: number | null;
-  updateStartedAtMs: number;
-  updateEndedAtMs: number;
-  sceneUpdateCostMs: number;
-};
 
 function summarizeTransitionError(error: unknown): {
   name?: string;
@@ -217,9 +216,7 @@ export class Game {
   private _flappyBirdCharacterState: CharacterState | null = null;
   private _flappyBirdSkyContext: FlappyBirdSkyContext | null = null;
   private _loadingTraceContext: MainSceneLoadingTraceContext | null = null;
-  private _lastTickerStartedAtMs: number | null = null;
-  private _pendingSceneRenderTiming: PendingSceneRenderTiming | null = null;
-  private _isRendererPerfHookInstalled = false;
+  private readonly _trustedClock: TrustedClock;
   // private characterManager: CharacterManager; // CharacterManager 인스턴스 추가
   // private shouldSaveDataBeforeUnload = false;
 
@@ -245,6 +242,7 @@ export class Game {
     hideFlappyBirdSettingsMenu?: HideFlappyBirdSettingsMenuCallback;
     onSceneTransitionStateChange?: SceneTransitionStateChangeCallback;
     loadingTraceContext?: MainSceneLoadingTraceContext | null;
+    trustedClock?: TrustedClock;
   }) {
     const {
       parentElement,
@@ -268,6 +266,7 @@ export class Game {
       hideFlappyBirdSettingsMenu,
       onSceneTransitionStateChange,
       loadingTraceContext,
+      trustedClock: providedTrustedClock,
     } = params;
     this.changeControlButtons = changeControlButtons;
     this.showSettings = showSettings; // 설정 화면 표시 콜백
@@ -288,6 +287,7 @@ export class Game {
     this._initialSceneKey = initialSceneKey ?? SceneKey.MAIN;
     this._debugMode = debugMode ?? false;
     this._loadingTraceContext = loadingTraceContext ?? null;
+    this._trustedClock = providedTrustedClock ?? trustedClock;
 
     this.app = new PIXI.Application();
     this._boundResizeHandler = () => {
@@ -388,6 +388,7 @@ export class Game {
   /** NOTE: 싱글턴 인스턴스가 모두 초기화되고 호출되어야 함. */
   public async initialize(): Promise<void> {
     try {
+      await (this._trustedClock ?? trustedClock).initialize();
       await this.app.init({
         width: this._parentElement.clientWidth,
         height: this._parentElement.clientHeight,
@@ -400,7 +401,6 @@ export class Game {
         resolution: resolveRendererResolution(window.devicePixelRatio),
       });
       this._isPixiReady = true;
-      this._installRendererPerfHooks();
       console.log("[ImportantDiagnostics][RendererResolution]", {
         phase: "initialize",
         rawDevicePixelRatio: window.devicePixelRatio ?? null,
@@ -408,8 +408,7 @@ export class Game {
         maxRendererResolution: MAX_RENDERER_RESOLUTION,
       });
 
-      this.app.ticker.minFPS = 30;
-      this.app.ticker.maxFPS = 60;
+      this._applyTickerFramePolicy();
       this._parentElement.appendChild(this.app.canvas);
       this._onResize("initialize");
 
@@ -525,96 +524,12 @@ export class Game {
 
   private _update(deltaTime: number): void {
     const scene = this.currentScene;
-    const updateStartedAtMs = getTransitionTimingNow();
-    const tickerGapMs =
-      this._lastTickerStartedAtMs === null
-        ? null
-        : updateStartedAtMs - this._lastTickerStartedAtMs;
-    this._lastTickerStartedAtMs = updateStartedAtMs;
 
     if (!scene) {
-      this._pendingSceneRenderTiming = null;
       return;
     }
 
     scene.update(deltaTime);
-    const updateEndedAtMs = getTransitionTimingNow();
-
-    if (scene !== this.currentScene) {
-      this._pendingSceneRenderTiming = null;
-      return;
-    }
-
-    this._pendingSceneRenderTiming = {
-      scene,
-      deltaTimeMs: deltaTime,
-      tickerGapMs,
-      updateStartedAtMs,
-      updateEndedAtMs,
-      sceneUpdateCostMs: updateEndedAtMs - updateStartedAtMs,
-    };
-  }
-
-  private _installRendererPerfHooks(): void {
-    if (this._isRendererPerfHookInstalled || !this.app.renderer) {
-      return;
-    }
-
-    const renderer = this.app.renderer as typeof this.app.renderer & {
-      render: (...args: unknown[]) => unknown;
-    };
-    const originalRender = renderer.render.bind(renderer);
-
-    renderer.render = ((...args: unknown[]) => {
-      const renderStartedAtMs = getTransitionTimingNow();
-
-      try {
-        return originalRender(...args);
-      } finally {
-        const renderEndedAtMs = getTransitionTimingNow();
-        this._handleRendererRender(renderStartedAtMs, renderEndedAtMs);
-      }
-    }) as typeof renderer.render;
-
-    this._isRendererPerfHookInstalled = true;
-  }
-
-  private _handleRendererRender(
-    renderStartedAtMs: number,
-    renderEndedAtMs: number,
-  ): void {
-    const pendingTiming = this._pendingSceneRenderTiming;
-    this._pendingSceneRenderTiming = null;
-
-    if (!pendingTiming) {
-      return;
-    }
-
-    if (!this._isFrameTimingAwareScene(pendingTiming.scene)) {
-      return;
-    }
-
-    const sample: SceneRenderTimingSample = {
-      timestampMs: renderEndedAtMs,
-      deltaTimeMs: pendingTiming.deltaTimeMs,
-      tickerGapMs: pendingTiming.tickerGapMs,
-      sceneUpdateCostMs: pendingTiming.sceneUpdateCostMs,
-      updateToRenderStartMs:
-        renderStartedAtMs - pendingTiming.updateEndedAtMs,
-      renderCostMs: renderEndedAtMs - renderStartedAtMs,
-      frameEndToEndCostMs:
-        renderEndedAtMs - pendingTiming.updateStartedAtMs,
-    };
-
-    pendingTiming.scene.onFrameRenderTiming(sample);
-  }
-
-  private _isFrameTimingAwareScene(
-    scene: Scene,
-  ): scene is Scene & {
-    onFrameRenderTiming: (sample: SceneRenderTimingSample) => void;
-  } {
-    return typeof scene.onFrameRenderTiming === "function";
   }
 
   /**
@@ -837,6 +752,7 @@ export class Game {
           shouldDeferPersistence: () =>
             this.currentSceneKey === SceneKey.FLAPPY_BIRD_GAME,
           loadingTraceContext,
+          trustedClock: this._trustedClock,
         });
         await mainSceneWorld.init();
         return mainSceneWorld as unknown as Scene;
@@ -846,6 +762,11 @@ export class Game {
       default:
         throw new Error(`[Game] Unknown scene key: ${key}`);
     }
+  }
+
+  private _applyTickerFramePolicy(sceneKey = this.currentSceneKey): void {
+    this.app.ticker.minFPS = DEFAULT_TICKER_MIN_FPS;
+    this.app.ticker.maxFPS = resolveTickerMaxFPS(sceneKey);
   }
 
   private async _restoreParkedSceneAfterTransitionAbort(
@@ -864,6 +785,7 @@ export class Game {
     if (parkedScene) {
       this.currentScene = parkedScene;
       this.currentSceneKey = parkedSceneKey;
+      this._applyTickerFramePolicy(parkedSceneKey);
 
       if (parkedScene instanceof PIXI.Container) {
         this.app.stage.removeChildren();
@@ -1051,6 +973,7 @@ export class Game {
       transitionContext.parkedScene?.destroy();
       this.currentScene = createdScene;
       this.currentSceneKey = key;
+      this._applyTickerFramePolicy(key);
 
       if (this.currentScene instanceof PIXI.Container) {
         this.app.stage.addChild(this.currentScene);
@@ -1245,10 +1168,6 @@ export class Game {
         this.currentScene instanceof MainSceneWorld
           ? this.currentScene.getInMemoryData()
           : null,
-      flappyBirdPerf:
-        this.currentScene instanceof FlappyBirdGameScene
-          ? this.currentScene.getPerfDiagnosticsSnapshot()
-          : null,
     };
   }
 
@@ -1305,8 +1224,6 @@ export class Game {
   public destroy(): void {
     this._isDestroyed = true;
     this._isPixiReady = false;
-    this._pendingSceneRenderTiming = null;
-    this._lastTickerStartedAtMs = null;
     // 정리 작업
     window.removeEventListener("resize", this._boundResizeHandler);
     window.removeEventListener("focus", this._boundLifecycleResizeHandler);

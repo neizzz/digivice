@@ -3,6 +3,7 @@ package com.ch00n9h09.montto
 import android.content.ClipData
 import android.content.Intent
 import android.net.Uri
+import android.os.SystemClock
 import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -13,10 +14,21 @@ import java.io.File
 class MainActivity : FlutterActivity() {
     companion object {
         private const val BROWSER_MAIL_CHANNEL = "digivice/browser_mail"
+        private const val TRUSTED_TIME_CHANNEL = "digivice/trusted_time"
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            TRUSTED_TIME_CHANNEL,
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "getOsUptimeMs" -> result.success(SystemClock.elapsedRealtime())
+                else -> result.notImplemented()
+            }
+        }
 
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,

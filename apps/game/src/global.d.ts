@@ -36,6 +36,15 @@ declare global {
 			showTestInterstitial?: () => Promise<string>;
 			getAdDebugState?: () => Promise<string>;
 		};
+		trustedTimeController?: {
+			getSnapshot: (options?: { forceRefresh?: boolean }) => Promise<{
+				trustedUtcMs: number;
+				osUptimeMs: number;
+				source: "ntp" | "cached-uptime" | "web-dev-fallback";
+				uncertaintyMs: number;
+				capturedWallMs: number;
+			} | null>;
+		};
 		digiviceAdBridge?: {
 			requestMainSceneMenuAd: (request: {
 				menu: "feed" | "clean" | "hospital" | "mini_game";

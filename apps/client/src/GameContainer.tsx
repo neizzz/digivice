@@ -1,8 +1,6 @@
 import {
   type ControlButtonParams,
   ControlButtonType,
-  FLAPPY_BIRD_PERF_DIAGNOSTICS_STORAGE_KEY,
-  type FlappyBirdPerfHistory,
   Game,
   type GameDiagnosticsSnapshot,
   getNativeSunTimes,
@@ -123,9 +121,7 @@ type DiagnosticsPayload = {
   logs: ReturnType<typeof getDiagnosticsLogs>;
   importantLogs: ReturnType<typeof getImportantDiagnosticsLogs>;
   currentGameData: GameDiagnosticsSnapshot["mainSceneData"];
-  currentFlappyBirdPerf: GameDiagnosticsSnapshot["flappyBirdPerf"];
   storedGameData: unknown | null;
-  storedFlappyBirdPerfHistory: FlappyBirdPerfHistory | null;
   nativeBridgeDiagnostics: Array<Record<string, unknown>>;
   latestGameData: unknown | null;
   latestGameDataSource: "current_game" | "stored_game" | "none";
@@ -1914,12 +1910,8 @@ const GameContainer: React.FC = () => {
     ): Promise<PendingDiagnosticsDraft> => {
       const storage = createClientStorage();
       const storedGameData = await storage.getData(WORLD_DATA_STORAGE_KEY);
-      const storedFlappyBirdPerfHistory = (await storage.getData(
-        FLAPPY_BIRD_PERF_DIAGNOSTICS_STORAGE_KEY,
-      )) as FlappyBirdPerfHistory | null;
       const snapshot = gameInstance?.getDiagnosticsSnapshot();
       const currentGameData = snapshot?.mainSceneData ?? null;
-      const currentFlappyBirdPerf = snapshot?.flappyBirdPerf ?? null;
       const nativeBridgeDiagnostics = Array.isArray(
         window.__digiviceNativeBridgeDiagnostics,
       )
@@ -1952,9 +1944,7 @@ const GameContainer: React.FC = () => {
         logs: getDiagnosticsLogs(),
         importantLogs: getImportantDiagnosticsLogs(),
         currentGameData,
-        currentFlappyBirdPerf,
         storedGameData,
-        storedFlappyBirdPerfHistory,
         nativeBridgeDiagnostics,
         latestGameData,
         latestGameDataSource,
@@ -1972,19 +1962,6 @@ const GameContainer: React.FC = () => {
           subject: createFlappyBirdLogsSubject(payload.generatedAt),
           body: createFlappyBirdLogsBody(),
           attachments: [
-            {
-              fileName: `montto-flappybird-perf-${releaseFileLabel}-${timestampSuffix}.json`,
-              text: JSON.stringify(
-                {
-                  currentFlappyBirdPerf: payload.currentFlappyBirdPerf,
-                  storedFlappyBirdPerfHistory:
-                    payload.storedFlappyBirdPerfHistory,
-                },
-                null,
-                2,
-              ),
-              mimeType: "application/json",
-            },
             {
               fileName: `montto-native-bridge-diagnostics-${releaseFileLabel}-${timestampSuffix}.json`,
               text: JSON.stringify(payload.nativeBridgeDiagnostics, null, 2),
@@ -2013,19 +1990,6 @@ const GameContainer: React.FC = () => {
           {
             fileName: `montto-important-logs-${releaseFileLabel}-${timestampSuffix}.json`,
             text: JSON.stringify(payload.importantLogs, null, 2),
-            mimeType: "application/json",
-          },
-          {
-            fileName: `montto-flappybird-perf-${releaseFileLabel}-${timestampSuffix}.json`,
-            text: JSON.stringify(
-              {
-                currentFlappyBirdPerf: payload.currentFlappyBirdPerf,
-                storedFlappyBirdPerfHistory:
-                  payload.storedFlappyBirdPerfHistory,
-              },
-              null,
-              2,
-            ),
             mimeType: "application/json",
           },
           {

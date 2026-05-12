@@ -25,35 +25,43 @@ function createPlayerBody(): Matter.Body {
 test("게임 시작 직후 첫 업데이트에서는 첫 pipe가 즉시 생성된다", () => {
   const manager = createPipeManager(100) as any;
   const playerBody = createPlayerBody();
+  let spawned = 0;
 
-  manager.createPipePattern = () => 1;
+  manager.createPipePattern = () => {
+    spawned += 1;
+  };
 
-  const stats = manager.update(playerBody, () => {}, 16);
+  manager.update(playerBody, () => {}, 16);
 
-  assert.equal(stats.spawned, 1);
+  assert.equal(spawned, 1);
 });
 
 test("settings pause처럼 업데이트가 멈춘 시간은 pipe 생성 간격에 누적되지 않는다", () => {
   const manager = createPipeManager(100) as any;
   const playerBody = createPlayerBody();
+  let spawned = 0;
 
-  manager.createPipePattern = () => 1;
+  manager.createPipePattern = () => {
+    spawned += 1;
+  };
 
   manager.update(playerBody, () => {}, 16);
 
   // settings 레이어가 떠 있는 동안에는 update가 호출되지 않으므로
   // 긴 wall-clock 공백이 있어도 복귀 첫 프레임에서 바로 spawn되면 안 된다.
-  const resumeStats = manager.update(playerBody, () => {}, 16);
-  assert.equal(resumeStats.spawned, 0);
+  const spawnedAfterFirstFrame = spawned;
+  manager.update(playerBody, () => {}, 16);
+  assert.equal(spawned - spawnedAfterFirstFrame, 0);
 
-  let accumulatedSpawned = 0;
+  const spawnedBeforeAccumulation = spawned;
   for (let i = 0; i < 5; i += 1) {
-    accumulatedSpawned += manager.update(playerBody, () => {}, 16).spawned;
+    manager.update(playerBody, () => {}, 16);
   }
-  assert.equal(accumulatedSpawned, 0);
+  assert.equal(spawned - spawnedBeforeAccumulation, 0);
 
-  const nextSpawnStats = manager.update(playerBody, () => {}, 16);
-  assert.equal(nextSpawnStats.spawned, 1);
+  const spawnedBeforeNextFrame = spawned;
+  manager.update(playerBody, () => {}, 16);
+  assert.equal(spawned - spawnedBeforeNextFrame, 1);
 });
 
 test("pipe prewarm은 target count만큼 distinct pair를 준비하고 무한 루프에 빠지지 않는다", () => {

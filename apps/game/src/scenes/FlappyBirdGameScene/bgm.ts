@@ -2,20 +2,13 @@ type AudioContextConstructor = typeof AudioContext;
 
 type Waveform = OscillatorType;
 
-export type FlappyBirdBgmSchedulePerfSample = {
-  timestampMs: number;
-  durationMs: number;
-  scheduledSteps: number;
-  scheduledVoices: number;
-};
-
 const FLAPPY_BIRD_BGM_BPM = 144;
 const FLAPPY_BIRD_BGM_STEPS_PER_BEAT = 2;
 const FLAPPY_BIRD_BGM_STEP_DURATION_S =
   60 / FLAPPY_BIRD_BGM_BPM / FLAPPY_BIRD_BGM_STEPS_PER_BEAT;
 const FLAPPY_BIRD_BGM_SCHEDULE_AHEAD_S = 0.12;
 const FLAPPY_BIRD_BGM_SCHEDULER_INTERVAL_MS = 25;
-const FLAPPY_BIRD_AUDIO_VOLUME_MULTIPLIER = 1.3;
+const FLAPPY_BIRD_AUDIO_VOLUME_MULTIPLIER = 1.95;
 const FLAPPY_BIRD_BGM_MASTER_GAIN =
   0.066 * FLAPPY_BIRD_AUDIO_VOLUME_MULTIPLIER;
 const FLAPPY_BIRD_SFX_GAIN = 0.102 * FLAPPY_BIRD_AUDIO_VOLUME_MULTIPLIER;
@@ -97,15 +90,6 @@ export class FlappyBirdBgmController {
   private currentTempoMultiplier = 1;
   private targetTempoMultiplier = 1;
   private lastTempoUpdateAtMs = 0;
-  private onScheduleTick:
-    | ((sample: FlappyBirdBgmSchedulePerfSample) => void)
-    | null;
-
-  constructor(options: {
-    onScheduleTick?: (sample: FlappyBirdBgmSchedulePerfSample) => void;
-  } = {}) {
-    this.onScheduleTick = options.onScheduleTick ?? null;
-  }
 
   public isEnabled(): boolean {
     return this.enabled;
@@ -350,9 +334,6 @@ export class FlappyBirdBgmController {
       return;
     }
 
-    const startedAtMs = this.getNowMs();
-    let scheduledSteps = 0;
-    let scheduledVoices = 0;
     this.updateTempoMultiplier();
 
     const stepDuration = this.getStepDuration();
@@ -361,19 +342,11 @@ export class FlappyBirdBgmController {
       this.nextStepTime <
       this.audioContext.currentTime + FLAPPY_BIRD_BGM_SCHEDULE_AHEAD_S
     ) {
-      scheduledVoices += this.scheduleStep(this.currentStep, this.nextStepTime);
-      scheduledSteps += 1;
+      this.scheduleStep(this.currentStep, this.nextStepTime);
       this.currentStep =
         (this.currentStep + 1) % FLAPPY_BIRD_BGM_LEAD_PATTERN.length;
       this.nextStepTime += stepDuration;
     }
-
-    this.onScheduleTick?.({
-      timestampMs: Date.now(),
-      durationMs: this.getNowMs() - startedAtMs,
-      scheduledSteps,
-      scheduledVoices,
-    });
   }
 
   private scheduleStep(step: number, time: number): number {

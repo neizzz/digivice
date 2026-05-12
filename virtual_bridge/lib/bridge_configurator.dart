@@ -6,6 +6,7 @@ import 'storage/storage_controller.dart';
 import 'ad/ad_controller.dart';
 import 'sun/sun_controller.dart';
 import 'vibration/vibration_controller.dart';
+import 'trusted_time/trusted_time_controller.dart';
 
 /// WebView와 네이티브 코드 간 브릿지 설정을 담당하는 클래스
 class BridgeConfigurator {
@@ -23,6 +24,7 @@ class BridgeConfigurator {
   late final AdController _adController;
   late final SunController _sunController;
   late final VibrationController _vibrationController;
+  late final TrustedTimeController _trustedTimeController;
 
   BridgeConfigurator({
     required this.webViewController,
@@ -50,11 +52,18 @@ class BridgeConfigurator {
       emitWebViewConsoleDiagnostics: false,
     );
 
+    _trustedTimeController = TrustedTimeController(
+      resolvePromise: _resolvePromise,
+      log: logCallback,
+    );
+
     _adController = AdController(
       runJavaScript: _runJavaScript,
       resolvePromise: _resolvePromise,
       log: logCallback,
       onFullscreenAdStateChanged: onFullscreenAdStateChanged,
+      getTrustedUtcMs: () async =>
+          (await _trustedTimeController.getSnapshot())?.trustedUtcMs,
     );
 
     _sunController = SunController(
@@ -150,6 +159,11 @@ class BridgeConfigurator {
             _vibrationController.handleVibrate(message),
       )
       ..addJavaScriptChannel(
+        '__native_trusted_time_get_snapshot',
+        onMessageReceived: (JavaScriptMessage message) =>
+            _trustedTimeController.handleGetSnapshot(message),
+      )
+      ..addJavaScriptChannel(
         '__native_debug_log',
         onMessageReceived: (JavaScriptMessage message) =>
             _handleStructuredDebugLog(message),
@@ -201,6 +215,7 @@ class BridgeConfigurator {
     await _runJavaScript(_adController.getJavaScriptInterface());
     await _runJavaScript(_sunController.getJavaScriptInterface());
     await _runJavaScript(_vibrationController.getJavaScriptInterface());
+    await _runJavaScript(_trustedTimeController.getJavaScriptInterface());
     if (enableStructuredDebugLogs) {
       await _runJavaScript(_getStructuredDebugLoggerJavaScriptInterface());
     }

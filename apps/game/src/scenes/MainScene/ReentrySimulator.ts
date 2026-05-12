@@ -60,9 +60,9 @@ export class ReentrySimulator {
   async simulate<T extends IWorld>(
     lastActiveTime: number,
     simulatorFunction: (params: { world: T; delta: number }) => void,
-    context: T
+    context: T,
+    currentTime: number = Date.now()
   ): Promise<void> {
-    const currentTime = Date.now();
     const elapsedTime = currentTime - lastActiveTime;
 
     console.groupCollapsed(

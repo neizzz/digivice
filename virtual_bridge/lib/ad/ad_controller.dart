@@ -14,6 +14,7 @@ class AdController {
       resolvePromise;
   final Function(String message) log;
   final void Function(String state)? onFullscreenAdStateChanged;
+  final Future<int?> Function()? getTrustedUtcMs;
 
   static const String _cooldownKey = 'ad_last_shown_timestamp';
   static const Duration _defaultNativeCooldown = Duration(hours: 4);
@@ -46,6 +47,7 @@ class AdController {
     required this.resolvePromise,
     required this.log,
     this.onFullscreenAdStateChanged,
+    this.getTrustedUtcMs,
   }) {
     _loadInterstitialAd();
   }
@@ -360,11 +362,23 @@ class AdController {
       return true; // 한 번도 표시한 적 없음
     }
 
-    final lastShownTime = DateTime.fromMillisecondsSinceEpoch(lastShown);
-    final now = DateTime.now();
-    final difference = now.difference(lastShownTime);
+    final now = await _getNowMs();
+    final differenceMs = now - lastShown;
 
-    return difference >= cooldown;
+    return differenceMs >= cooldown.inMilliseconds;
+  }
+
+  Future<int> _getNowMs() async {
+    try {
+      final int? trustedNow = await getTrustedUtcMs?.call();
+      if (trustedNow != null) {
+        return trustedNow;
+      }
+    } catch (error) {
+      log('[AdController] Trusted time unavailable for cooldown: $error');
+    }
+
+    return DateTime.now().millisecondsSinceEpoch;
   }
 
   Duration _resolveCooldown(Map<String, dynamic> argObj) {
@@ -380,7 +394,7 @@ class AdController {
   /// 쿨다운 업데이트
   Future<void> _updateCooldown() async {
     final prefs = await SharedPreferences.getInstance();
-    final now = DateTime.now().millisecondsSinceEpoch;
+    final now = await _getNowMs();
     await prefs.setInt(_cooldownKey, now);
     log('[AdController] Cooldown updated: $now');
   }

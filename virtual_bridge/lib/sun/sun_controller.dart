@@ -401,7 +401,7 @@ class SunController {
     final Stopwatch stopwatch = Stopwatch()..start();
     LocationPermission permission = await Geolocator.checkPermission();
     if (_isGranted(permission)) {
-      final _PermissionResolutionResult result = _PermissionResolutionResult(
+      const _PermissionResolutionResult result = _PermissionResolutionResult(
         granted: true,
         alreadyGranted: true,
         requestedPermission: false,
@@ -418,7 +418,7 @@ class SunController {
     }
 
     if (!promptForPermission) {
-      final _PermissionResolutionResult result = _PermissionResolutionResult(
+      const _PermissionResolutionResult result = _PermissionResolutionResult(
         granted: false,
         alreadyGranted: false,
         requestedPermission: false,

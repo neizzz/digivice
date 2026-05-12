@@ -312,7 +312,7 @@ function checkDeath(world: MainSceneWorld, currentTime: number): void {
 /**
  * 캐릭터 죽음 처리
  */
-function killCharacter(world: MainSceneWorld, eid: number): void {
+export function killCharacter(world: MainSceneWorld, eid: number): void {
   // 상태 변경
   ObjectComp.state[eid] = CharacterState.DEAD;
   VitalityComp.isDead[eid] = 1;
