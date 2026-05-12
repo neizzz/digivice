@@ -224,6 +224,39 @@ test("urgent 상태에서는 미니 스테미나 바 내부 전체 영역이 red
   });
 });
 
+test("dead 상태에서는 이름표를 유지하고 미니 스테미나 바를 숨긴다", () => {
+  withCleanedNameLabelState(() => {
+    const world = createMainSceneWorldForTest("Dead");
+    const eid = createTestCharacter(
+      world as unknown as Parameters<typeof createTestCharacter>[0],
+      {
+        state: CharacterState.DEAD,
+        stamina: 0,
+        x: 100,
+        y: 100,
+      },
+    );
+    const displayObject = attachTestDisplayObject(world, eid);
+
+    characterNameLabelSystem({
+      world,
+      delta: 16,
+    });
+
+    const renderState = getCharacterNameLabelRenderStateForTests(eid);
+    assert.ok(renderState);
+    assert.equal(renderState.label.visible, true);
+    assert.equal(renderState.label.text, "Dead");
+    assert.equal(renderState.barTrack.visible, false);
+    assert.equal(renderState.barFill.visible, false);
+    assert.equal(renderState.urgentOverlay.visible, false);
+    assert.equal(renderState.barFrame.visible, false);
+
+    displayObject.removeFromParent();
+    getSpriteStore().remove(eid);
+  });
+});
+
 test("상태 아이콘이 없으면 상단 근처에서도 스테미나 바가 아이콘 공간을 남기지 않고 clamp된다", () => {
   withCleanedNameLabelState(() => {
     const world = createMainSceneWorldForTest("Test");

@@ -236,10 +236,6 @@ function updateCharacterNameLabel(
   const effectiveZIndex =
     configuredZIndex === ECS_NULL_VALUE ? y : configuredZIndex;
   const { topY, bottomY } = getCharacterVerticalBounds(eid);
-  const barVisual = getCharacterBarVisual(world, eid, currentTime);
-  const reserveStatusIconSpace =
-    StatusIconRenderComp.visibleCount[eid] > 0 ||
-    hasPotentialUnifiedStatusIcon(world, eid);
 
   renderState.label.position.set(
     Math.round(x),
@@ -248,6 +244,17 @@ function updateCharacterNameLabel(
   renderState.label.zIndex = effectiveZIndex + LABEL_Z_INDEX_OFFSET;
   renderState.label.visible = true;
 
+  if (ObjectComp.state[eid] === CharacterState.DEAD) {
+    setMiniStaminaBarVisible(renderState, false);
+    renderState.lastUrgentOverlayAlpha = 0;
+    renderState.lastUrgentOverlayVisible = false;
+    return;
+  }
+
+  const barVisual = getCharacterBarVisual(world, eid, currentTime);
+  const reserveStatusIconSpace =
+    StatusIconRenderComp.visibleCount[eid] > 0 ||
+    hasPotentialUnifiedStatusIcon(world, eid);
   const barLeftX = getCharacterStaminaBarLeftX(eid, x);
   const barTopY = Math.round(
     getClampedCharacterStaminaBarTopY(eid, topY, reserveStatusIconSpace),
@@ -262,16 +269,23 @@ function updateCharacterNameLabel(
   renderState.urgentOverlay.zIndex =
     effectiveZIndex + STAMINA_BAR_Z_INDEX_OFFSET;
   renderState.barFrame.zIndex = effectiveZIndex + STAMINA_BAR_Z_INDEX_OFFSET;
-  renderState.barTrack.visible = true;
-  renderState.barFill.visible = true;
-  renderState.urgentOverlay.visible = true;
-  renderState.barFrame.visible = true;
+  setMiniStaminaBarVisible(renderState, true);
 
   drawMiniStaminaBar(renderState, barVisual, currentTime);
 }
 
 function truncateDisplayName(name: string): string {
   return truncateNameLabelToWidth(name, NAME_LABEL_TEXT_WIDTH);
+}
+
+function setMiniStaminaBarVisible(
+  renderState: CharacterNameLabelRenderState,
+  visible: boolean,
+): void {
+  renderState.barTrack.visible = visible;
+  renderState.barFill.visible = visible;
+  renderState.urgentOverlay.visible = visible;
+  renderState.barFrame.visible = visible;
 }
 
 function drawMiniStaminaBar(
