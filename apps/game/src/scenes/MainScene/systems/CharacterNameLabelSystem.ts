@@ -15,6 +15,7 @@ import {
   NAME_LABEL_FILL_COLOR,
   NAME_LABEL_FONT_FAMILIES,
   NAME_LABEL_FONT_SIZE,
+  NAME_LABEL_FONT_WEIGHT,
   NAME_LABEL_STROKE_COLOR,
   NAME_LABEL_STROKE_WIDTH,
   truncateNameLabelToWidth,
@@ -49,6 +50,7 @@ const labelStore = new Map<number, CharacterNameLabelRenderState>();
 const NAME_LABEL_STYLE = new PIXI.TextStyle({
   fontFamily: [...NAME_LABEL_FONT_FAMILIES],
   fontSize: NAME_LABEL_FONT_SIZE,
+  fontWeight: NAME_LABEL_FONT_WEIGHT,
   fill: NAME_LABEL_FILL_COLOR,
   align: "center",
   stroke: { color: NAME_LABEL_STROKE_COLOR, width: NAME_LABEL_STROKE_WIDTH },

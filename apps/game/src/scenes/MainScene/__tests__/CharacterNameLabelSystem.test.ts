@@ -25,6 +25,8 @@ import { createTestCharacter } from "../../../test-utils/mainSceneTestUtils";
 import { getSpriteStore } from "../systems/RenderSystem";
 import {
   NAME_LABEL_FONT_SIZE,
+  NAME_LABEL_FONT_WEIGHT,
+  NAME_LABEL_STROKE_WIDTH,
   truncateNameLabelToWidth,
 } from "../../../utils/nameLabel";
 import {
@@ -103,6 +105,12 @@ test("이름표는 80px 슬롯 기준으로 truncate되고 이름은 중앙 정�
       Math.round(120 + displayObject.height / 2 + NAME_LABEL_FONT_SIZE / 2),
     );
     assert.equal(renderState.label.anchor.x, 0.5);
+    assert.equal(renderState.label.style.fontSize, NAME_LABEL_FONT_SIZE);
+    assert.equal(renderState.label.style.fontWeight, NAME_LABEL_FONT_WEIGHT);
+    assert.equal(
+      renderState.label.style.stroke?.width,
+      NAME_LABEL_STROKE_WIDTH,
+    );
     assert.equal(renderState.barTrack.x, 80 - layout.barWidth / 2);
     assert.equal(
       renderState.barTrack.y,
