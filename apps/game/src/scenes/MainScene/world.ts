@@ -3532,6 +3532,32 @@ export class MainSceneWorld implements IWorld, Scene {
     }
   }
 
+  private _isDebugTrustedTimeAbuseAlertEnabled(): boolean {
+    return (
+      this._debugMode ||
+      import.meta.env.DEV ||
+      import.meta.env.NATIVE_FEATURE_DEBUG_MODE === "true"
+    );
+  }
+
+  public debugShowTrustedTimeAbuseAlert(): boolean {
+    if (!this._isDebugTrustedTimeAbuseAlertEnabled()) {
+      console.warn(
+        "[MainSceneWorld] Trusted time abuse alert preview is debug mode only",
+      );
+      return false;
+    }
+
+    if (!this._showAlert) {
+      console.warn(
+        "[MainSceneWorld] Trusted time abuse alert preview unavailable: alert callback is not set",
+      );
+      return false;
+    }
+
+    this._showAlert(TRUSTED_TIME_ABUSE_ALERT_MESSAGE);
+    return true;
+  }
 
   private _isTrustedTimeAbuseReason(
     reason: TrustedElapsedResult["reason"],
