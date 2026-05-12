@@ -124,6 +124,10 @@ const PRODUCTION_GAME_CONSTANTS = {
   // 기대값: awake 기준 12분마다 0.25 감소 -> 시간당 1.25 감소 -> 10 -> 0 약 8시간.
   STAMINA_DECREASE_INTERVAL: 12 * MINUTE_IN_MILLISECONDS,
   STAMINA_DECREASE_AMOUNT: 0.25,
+  // stamina gauge 색상 구간별 감소 속도 보정.
+  // green(>= BOOSTED_STAMINA_THRESHOLD)은 30% 빠르게, red(< UNHAPPY_STAMINA_THRESHOLD)는 30% 느리게 감소한다.
+  HIGH_STAMINA_DECAY_MULTIPLIER: 1.3,
+  LOW_STAMINA_DECAY_MULTIPLIER: 0.7,
 
   // 수면 관련
   NIGHT_SLEEP_MIN_DELAY: 10 * MINUTE_IN_MILLISECONDS,
@@ -354,6 +358,18 @@ export function getStaminaFatigueAwakeGainMultiplier(stamina: number): number {
 
   if (stamina <= GAME_CONSTANTS.LOW_STAMINA_FATIGUE_THRESHOLD) {
     return GAME_CONSTANTS.LOW_STAMINA_FATIGUE_AWAKE_GAIN_MULTIPLIER;
+  }
+
+  return 1;
+}
+
+export function getStaminaDecayRateMultiplier(stamina: number): number {
+  if (stamina >= GAME_CONSTANTS.BOOSTED_STAMINA_THRESHOLD) {
+    return GAME_CONSTANTS.HIGH_STAMINA_DECAY_MULTIPLIER;
+  }
+
+  if (stamina < GAME_CONSTANTS.UNHAPPY_STAMINA_THRESHOLD) {
+    return GAME_CONSTANTS.LOW_STAMINA_DECAY_MULTIPLIER;
   }
 
   return 1;

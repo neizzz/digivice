@@ -53,6 +53,68 @@ test("깨어있는 캐릭터의 스테미나는 12분마다 0.25씩 감소한다
   assert.equal(CharacterStatusComp.stamina[awakeEid], 4.75);
 });
 
+test("초록색 스테미나 영역에서는 30% 빠르게 감소한다", () => {
+  const world = createTestWorld({ now: 10_000 });
+
+  const greenEid = withMockedDateNow(10_000, () =>
+    createTestCharacter(world, {
+      state: CharacterState.IDLE,
+      stamina: GAME_CONSTANTS.BOOSTED_STAMINA_THRESHOLD,
+      x: 80,
+      y: 80,
+    }),
+  );
+
+  characterManagerSystem({
+    world: world as any,
+    delta:
+      GAME_CONSTANTS.STAMINA_DECREASE_INTERVAL /
+      GAME_CONSTANTS.HIGH_STAMINA_DECAY_MULTIPLIER,
+  });
+
+  assert.equal(
+    CharacterStatusComp.stamina[greenEid],
+    GAME_CONSTANTS.BOOSTED_STAMINA_THRESHOLD -
+      GAME_CONSTANTS.STAMINA_DECREASE_AMOUNT,
+  );
+});
+
+test("빨간색 스테미나 영역에서는 30% 느리게 감소한다", () => {
+  const world = createTestWorld({ now: 10_000 });
+
+  const redStamina =
+    GAME_CONSTANTS.UNHAPPY_STAMINA_THRESHOLD -
+    GAME_CONSTANTS.STAMINA_DECREASE_AMOUNT;
+  const redEid = withMockedDateNow(10_000, () =>
+    createTestCharacter(world, {
+      state: CharacterState.IDLE,
+      stamina: redStamina,
+      x: 80,
+      y: 80,
+    }),
+  );
+
+  characterManagerSystem({
+    world: world as any,
+    delta: GAME_CONSTANTS.STAMINA_DECREASE_INTERVAL,
+  });
+
+  assert.equal(CharacterStatusComp.stamina[redEid], redStamina);
+
+  characterManagerSystem({
+    world: world as any,
+    delta:
+      GAME_CONSTANTS.STAMINA_DECREASE_INTERVAL /
+        GAME_CONSTANTS.LOW_STAMINA_DECAY_MULTIPLIER -
+      GAME_CONSTANTS.STAMINA_DECREASE_INTERVAL,
+  });
+
+  assert.equal(
+    CharacterStatusComp.stamina[redEid],
+    redStamina - GAME_CONSTANTS.STAMINA_DECREASE_AMOUNT,
+  );
+});
+
 test("수면 중 캐릭터의 스테미나는 sleeping multiplier 기준으로 더 천천히 감소한다", () => {
   const world = createTestWorld({ now: 10_000 });
   assert.equal(GAME_CONSTANTS.SLEEPING_STAMINA_DECAY_MULTIPLIER, 0.2);

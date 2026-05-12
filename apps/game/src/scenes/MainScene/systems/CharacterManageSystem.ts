@@ -15,7 +15,7 @@ import {
 } from "../types";
 import { MainSceneWorld } from "../world";
 import { evolveCharacter, canEvolve, getMaxEvolutionGauge } from "./EvolutionSystem";
-import { GAME_CONSTANTS } from "../config";
+import { GAME_CONSTANTS, getStaminaDecayRateMultiplier } from "../config";
 import {
   EVOLUTION_GAUGE_CONFIG,
   getEvolutionGaugeIncreaseAmountForEntity,
@@ -407,7 +407,16 @@ export function getCharacterEvolutionGauge(eid: number): number {
 
 export function getRemainingStaminaDecreaseTime(eid: number): number {
   const elapsed = staminaTimers.get(eid) || 0;
-  return Math.max(0, GAME_CONSTANTS.STAMINA_DECREASE_INTERVAL - elapsed);
+  const multiplier = getCurrentStaminaTimerMultiplier(eid);
+
+  if (multiplier <= 0) {
+    return Math.max(0, GAME_CONSTANTS.STAMINA_DECREASE_INTERVAL - elapsed);
+  }
+
+  return (
+    Math.max(0, GAME_CONSTANTS.STAMINA_DECREASE_INTERVAL - elapsed) /
+    multiplier
+  );
 }
 
 export function getRemainingEvolutionGaugeTime(eid: number): number | null {
@@ -464,23 +473,7 @@ function _updateStaminaAndEvolutionGauge(
     return;
   }
 
-  // 스테미나 타이머 업데이트
-  const currentStaminaTimer = staminaTimers.get(eid) || 0;
-  const staminaDelta =
-    ObjectComp.state[eid] === CharacterState.SLEEPING
-      ? delta * GAME_CONSTANTS.SLEEPING_STAMINA_DECAY_MULTIPLIER
-      : delta;
-  const totalStaminaTime = currentStaminaTimer + staminaDelta;
-  const staminaProgress = getElapsedIntervalProgress(
-    totalStaminaTime,
-    GAME_CONSTANTS.STAMINA_DECREASE_INTERVAL,
-  );
-  const staminaDecreaseCount = staminaProgress.count;
-  staminaTimers.set(eid, staminaProgress.remainder);
-
-  for (let i = 0; i < staminaDecreaseCount; i++) {
-    decreaseStamina(eid);
-  }
+  updateStaminaTimer(eid, delta);
 
   // 진화 게이지 타이머 업데이트 (스테미나가 설정 임계치 이상이고 SICK 상태가 아닐 때만)
   const currentStamina = CharacterStatusComp.stamina[eid];
@@ -513,6 +506,57 @@ function _updateStaminaAndEvolutionGauge(
 }
 
 // 스테미나 감소 함수
+function getCurrentStaminaTimerMultiplier(eid: number): number {
+  const sleepMultiplier =
+    ObjectComp.state[eid] === CharacterState.SLEEPING
+      ? GAME_CONSTANTS.SLEEPING_STAMINA_DECAY_MULTIPLIER
+      : 1;
+
+  return (
+    sleepMultiplier *
+    getStaminaDecayRateMultiplier(CharacterStatusComp.stamina[eid])
+  );
+}
+
+function updateStaminaTimer(eid: number, delta: number): void {
+  if (delta <= 0) {
+    return;
+  }
+
+  let remainingDelta = delta;
+  let staminaTimer = staminaTimers.get(eid) || 0;
+
+  while (remainingDelta > TIMER_EPSILON_MS) {
+    const multiplier = getCurrentStaminaTimerMultiplier(eid);
+
+    if (multiplier <= 0) {
+      break;
+    }
+
+    const remainingEffectiveTime = Math.max(
+      0,
+      GAME_CONSTANTS.STAMINA_DECREASE_INTERVAL - staminaTimer,
+    );
+    const timeUntilDecrease = remainingEffectiveTime / multiplier;
+
+    if (remainingDelta + TIMER_EPSILON_MS < timeUntilDecrease) {
+      staminaTimer += remainingDelta * multiplier;
+      remainingDelta = 0;
+      break;
+    }
+
+    staminaTimer = 0;
+    remainingDelta = Math.max(0, remainingDelta - timeUntilDecrease);
+    decreaseStamina(eid);
+
+    if (CharacterStatusComp.stamina[eid] <= 0) {
+      break;
+    }
+  }
+
+  staminaTimers.set(eid, staminaTimer < TIMER_EPSILON_MS ? 0 : staminaTimer);
+}
+
 function decreaseStamina(eid: number): void {
   const currentStamina = CharacterStatusComp.stamina[eid];
   const newStamina = Math.max(
