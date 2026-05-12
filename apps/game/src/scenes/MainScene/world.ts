@@ -104,7 +104,6 @@ import {
   DiseaseSystemComp,
   EffectAnimationComp,
   SleepSystemComp,
-  VitalityComp,
 } from "./raw-components";
 import { generatePersistentNumericId } from "@/utils/generate";
 import {
@@ -141,10 +140,7 @@ import {
   characterManagerSystem,
   validateAndFixStatusIcons,
 } from "./systems/CharacterManageSystem";
-import {
-  characterStatusSystem,
-  killCharacter,
-} from "./systems/CharacterStatusSystem";
+import { characterStatusSystem } from "./systems/CharacterStatusSystem";
 import { GAME_CONSTANTS } from "./config";
 import { getCharacterSpritesheetName } from "./evolutionConfig";
 import {
@@ -176,7 +172,6 @@ import {
   trustedClock as defaultTrustedClock,
   isTrustedTimeSnapshot,
   type TrustedClock,
-  type TrustedElapsedResult,
   type TrustedTimeSnapshot,
 } from "../../utils/TrustedClock";
 
@@ -317,8 +312,6 @@ const MAIN_SCENE_AD_POST_ACTION_DELAY_MS = 500;
 const MAIN_SCENE_AD_FEED_FALLBACK_AFTER_LAND_MS = 3000;
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
-const TRUSTED_TIME_ABUSE_ALERT_MESSAGE =
-  "Time manipulation was detected. Your monster has been set to dead.";
 
 const COMMON_SPRITESHEET_ASSETS: LoadSpritesheetOptions[] = [
   {
@@ -3469,11 +3462,6 @@ export class MainSceneWorld implements IWorld, Scene {
         reason: elapsedResult.reason,
         elapsedMs: elapsedResult.elapsedMs,
       });
-
-      if (this._isTrustedTimeAbuseReason(elapsedResult.reason)) {
-        await this._handleTrustedTimeAbuse(elapsedResult);
-        return;
-      }
     }
 
     if (elapsedTime <= 0) {
@@ -3530,72 +3518,6 @@ export class MainSceneWorld implements IWorld, Scene {
       this._isRunningReentrySimulation = false;
       this._simulationTime = null;
     }
-  }
-
-  private _isDebugTrustedTimeAbuseAlertEnabled(): boolean {
-    return (
-      this._debugMode ||
-      import.meta.env.DEV ||
-      import.meta.env.NATIVE_FEATURE_DEBUG_MODE === "true"
-    );
-  }
-
-  public debugShowTrustedTimeAbuseAlert(): boolean {
-    if (!this._isDebugTrustedTimeAbuseAlertEnabled()) {
-      console.warn(
-        "[MainSceneWorld] Trusted time abuse alert preview is debug mode only",
-      );
-      return false;
-    }
-
-    if (!this._showAlert) {
-      console.warn(
-        "[MainSceneWorld] Trusted time abuse alert preview unavailable: alert callback is not set",
-      );
-      return false;
-    }
-
-    this._showAlert(TRUSTED_TIME_ABUSE_ALERT_MESSAGE);
-    return true;
-  }
-
-  private _isTrustedTimeAbuseReason(
-    reason: TrustedElapsedResult["reason"],
-  ): boolean {
-    return (
-      reason === "wall_clock_rollback" ||
-      reason === "wall_clock_fast_forward"
-    );
-  }
-
-  private async _handleTrustedTimeAbuse(
-    elapsedResult: TrustedElapsedResult,
-  ): Promise<void> {
-    console.warn("[MainSceneWorld] Trusted time abuse detected", {
-      reason: elapsedResult.reason,
-      elapsedMs: elapsedResult.elapsedMs,
-      currentSnapshot: elapsedResult.currentSnapshot,
-    });
-
-    this._showAlert?.(TRUSTED_TIME_ABUSE_ALERT_MESSAGE);
-
-    const characterEid = this._findMainCharacterEntity();
-    if (characterEid !== -1) {
-      if (!hasComponent(this, VitalityComp, characterEid)) {
-        addComponent(this, VitalityComp, characterEid);
-      }
-
-      const currentTime = this.currentTime;
-      VitalityComp.urgentStartTime[characterEid] = currentTime;
-      VitalityComp.deathTime[characterEid] = currentTime;
-      killCharacter(this, characterEid);
-    } else {
-      console.warn(
-        "[MainSceneWorld] Trusted time abuse detected but main character was not found",
-      );
-    }
-
-    await this._saveCurrentState();
   }
 
   /**

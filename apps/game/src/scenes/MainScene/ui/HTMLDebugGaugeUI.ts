@@ -68,7 +68,6 @@ export class HTMLDebugGaugeUI {
   private _adErrorText!: HTMLDivElement;
   private _adRefreshButton!: HTMLButtonElement;
   private _adShowNowButton!: HTMLButtonElement;
-  private _timeAbuseAlertButton!: HTMLButtonElement;
   private _currentCharacterEid: number = -1;
   private _isVisible: boolean;
   private _nativeAdDebugState: NativeAdDebugState =
@@ -216,24 +215,14 @@ export class HTMLDebugGaugeUI {
     `;
     this._adRefreshButton = this._createActionButton("Refresh");
     this._adShowNowButton = this._createActionButton("Show Now");
-    this._timeAbuseAlertButton = this._createActionButton("Time Abuse Alert");
     this._adRefreshButton.addEventListener("click", () => {
       void this._refreshNativeAdDebugState(true);
     });
     this._adShowNowButton.addEventListener("click", () => {
       void this._showImmediateAd();
     });
-    this._timeAbuseAlertButton.addEventListener("click", () => {
-      const didShowAlert = this._world.debugShowTrustedTimeAbuseAlert();
-      if (!didShowAlert) {
-        console.warn(
-          "[HTMLDebugGaugeUI] Time abuse alert unavailable: debug mode only or alert callback is not set",
-        );
-      }
-    });
     adActionRow.appendChild(this._adRefreshButton);
     adActionRow.appendChild(this._adShowNowButton);
-    adActionRow.appendChild(this._timeAbuseAlertButton);
 
     this._primaryColumn.appendChild(staminaDiv);
     this._primaryColumn.appendChild(evolutionDiv);

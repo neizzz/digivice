@@ -13,12 +13,11 @@ export type TrustedElapsedResult = {
   trusted: boolean;
   reason:
     | "uptime_delta"
+    | "ntp_after_reboot"
     | "web_dev_fallback"
     | "missing_anchor"
     | "clock_unavailable"
-    | "reboot_detected"
-    | "wall_clock_rollback"
-    | "wall_clock_fast_forward";
+    | "reboot_detected";
   currentSnapshot: TrustedTimeSnapshot | null;
 };
 
@@ -27,7 +26,6 @@ type NativeTrustedTimeController = {
 };
 
 const MAX_REASONABLE_ELAPSED_MS = 14 * 24 * 60 * 60 * 1000;
-const WALL_CLOCK_MANIPULATION_TOLERANCE_MS = 5 * 60 * 1000;
 
 function getPerfNow(): number {
   return typeof performance !== "undefined" && typeof performance.now === "function"
@@ -170,23 +168,20 @@ export class TrustedClock {
     const elapsedMs = current.osUptimeMs - anchor.osUptimeMs;
 
     if (elapsedMs < 0) {
+      const ntpElapsedMs = current.trustedUtcMs - anchor.trustedUtcMs;
+      if (current.source === "ntp" && ntpElapsedMs >= 0) {
+        return {
+          elapsedMs: Math.min(ntpElapsedMs, MAX_REASONABLE_ELAPSED_MS),
+          trusted: true,
+          reason: "ntp_after_reboot",
+          currentSnapshot: current,
+        };
+      }
+
       return {
         elapsedMs: 0,
         trusted: false,
         reason: "reboot_detected",
-        currentSnapshot: current,
-      };
-    }
-
-    const manipulationReason = this._detectWallClockManipulation(
-      anchor,
-      current,
-    );
-    if (manipulationReason) {
-      return {
-        elapsedMs: 0,
-        trusted: false,
-        reason: manipulationReason,
         currentSnapshot: current,
       };
     }
@@ -201,35 +196,6 @@ export class TrustedClock {
 
   get lastSnapshot(): TrustedTimeSnapshot | null {
     return this._snapshot;
-  }
-
-  private _detectWallClockManipulation(
-    anchor: TrustedTimeSnapshot,
-    current: TrustedTimeSnapshot,
-  ): "wall_clock_rollback" | "wall_clock_fast_forward" | null {
-    if (
-      anchor.source === "web-dev-fallback" ||
-      current.source === "web-dev-fallback"
-    ) {
-      return null;
-    }
-
-    const wallDelta = current.capturedWallMs - anchor.capturedWallMs;
-    const trustedDelta = current.trustedUtcMs - anchor.trustedUtcMs;
-
-    if (wallDelta < -WALL_CLOCK_MANIPULATION_TOLERANCE_MS) {
-      return "wall_clock_rollback";
-    }
-
-    if (
-      current.source === "ntp" &&
-      trustedDelta >= 0 &&
-      wallDelta - trustedDelta > WALL_CLOCK_MANIPULATION_TOLERANCE_MS
-    ) {
-      return "wall_clock_fast_forward";
-    }
-
-    return null;
   }
 
   private async _refresh(options: { forceRefresh?: boolean }): Promise<TrustedTimeSnapshot | null> {
