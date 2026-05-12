@@ -97,6 +97,11 @@ export function clearCleaningTargets(world: MainSceneWorld): void {
   }
 }
 
+export function prepareCleaningModeTargets(world: MainSceneWorld): number {
+  syncCleanableEntities(world);
+  return findNextCleanableTarget(world, -1);
+}
+
 /**
  * 청소 모드 진입 시 처리
  */

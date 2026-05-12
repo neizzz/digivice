@@ -18,6 +18,13 @@ const ControlButtonsContainer: React.FC<{ children: React.ReactNode }> = ({
   </div>
 );
 
+const CONTROL_BUTTON_SIZE_PX = 64;
+const MAX_CONTROL_BUTTONS_WIDTH_PX = 300;
+const DEFAULT_CLEAN_SLIDER_WIDTH_PX =
+  (MAX_CONTROL_BUTTONS_WIDTH_PX + CONTROL_BUTTON_SIZE_PX) / 2;
+
+let lastMeasuredCleanSliderWidth = DEFAULT_CLEAN_SLIDER_WIDTH_PX;
+
 const ControlButtons: React.FC<ControlButtonsProps> = ({
   buttonParams,
   onButtonPress,
@@ -27,7 +34,6 @@ const ControlButtons: React.FC<ControlButtonsProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const secondButtonRef = useRef<HTMLDivElement>(null);
   const thirdButtonRef = useRef<HTMLDivElement>(null);
-  const [sliderWidth, setSliderWidth] = useState<number | undefined>(undefined); // 기본값
   const buttonTypes = buttonParams.map((buttonParam) => buttonParam.type) as [
     ControlButtonType,
     ControlButtonType,
@@ -37,6 +43,9 @@ const ControlButtons: React.FC<ControlButtonsProps> = ({
     buttonTypes.indexOf(ControlButtonType.Clean) !== -1;
   const cleanButtonParam = buttonParams.find(
     (buttonParam) => buttonParam.type === ControlButtonType.Clean,
+  );
+  const [sliderWidth, setSliderWidth] = useState<number | undefined>(() =>
+    shouldRenderSlider ? lastMeasuredCleanSliderWidth : undefined,
   );
 
   useLayoutEffect(() => {
@@ -51,14 +60,19 @@ const ControlButtons: React.FC<ControlButtonsProps> = ({
 
       const calculatedWidth =
         thirdButtonWidth + thirdButtonLeft - secondButtonLeft;
+      lastMeasuredCleanSliderWidth = calculatedWidth;
       setSliderWidth(calculatedWidth);
     } else {
       setSliderWidth(undefined);
     }
   }, [buttonTypes[0], buttonTypes[1], buttonTypes[2], shouldRenderSlider]);
 
+  const effectiveSliderWidth = shouldRenderSlider
+    ? (sliderWidth ?? lastMeasuredCleanSliderWidth)
+    : undefined;
+
   // Clean 버튼을 슬라이더로 사용
-  if (shouldRenderSlider && sliderWidth) {
+  if (shouldRenderSlider && effectiveSliderWidth) {
     return (
       <ControlButtonsContainer>
         <div ref={containerRef} className="flex justify-between w-full">
@@ -74,7 +88,7 @@ const ControlButtons: React.FC<ControlButtonsProps> = ({
             <ControlButton
               key={cleanButtonParam?.sliderSessionKey ?? "clean-slider"}
               type={ControlButtonType.Clean}
-              sliderWidth={sliderWidth}
+              sliderWidth={effectiveSliderWidth}
               initialSliderValue={cleanButtonParam?.initialSliderValue ?? 0.5}
               hasCleaningTarget={cleanButtonParam?.hasCleaningTarget ?? false}
               onSliderChange={onSliderChange}

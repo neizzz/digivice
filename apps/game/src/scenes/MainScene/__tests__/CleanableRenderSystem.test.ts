@@ -32,6 +32,11 @@ type CapturedStrokeStyle = {
   color: number;
 };
 
+type GraphicsCallCounts = {
+  clear: number;
+  drawRect: number;
+};
+
 function createCleanableRenderWorld(): CleanableRenderTestWorld {
   const world = createTestWorld() as CleanableRenderTestWorld;
 
@@ -132,6 +137,36 @@ function withCapturedStrokeStyles<T>(
     return fn(styles);
   } finally {
     PIXI.Graphics.prototype.setStrokeStyle = originalSetStrokeStyle;
+  }
+}
+
+function withGraphicsCallCounts<T>(
+  fn: (counts: GraphicsCallCounts) => T,
+): T {
+  const counts: GraphicsCallCounts = {
+    clear: 0,
+    drawRect: 0,
+  };
+  const originalClear = PIXI.Graphics.prototype.clear;
+  const originalDrawRect = PIXI.Graphics.prototype.drawRect;
+
+  PIXI.Graphics.prototype.clear = function patchedClear(this: PIXI.Graphics) {
+    counts.clear += 1;
+    return originalClear.call(this);
+  };
+  PIXI.Graphics.prototype.drawRect = function patchedDrawRect(
+    this: PIXI.Graphics,
+    ...args: Parameters<typeof originalDrawRect>
+  ) {
+    counts.drawRect += 1;
+    return originalDrawRect.apply(this, args);
+  };
+
+  try {
+    return fn(counts);
+  } finally {
+    PIXI.Graphics.prototype.clear = originalClear;
+    PIXI.Graphics.prototype.drawRect = originalDrawRect;
   }
 }
 
@@ -332,5 +367,25 @@ test("청소 모드에서는 cleanable 오브젝트와 테두리가 밤 오버�
     assert.ok(other.sprite.zIndex > 1_000_000);
     assert.ok(focusedBorder.zIndex > 1_000_000);
     assert.ok(otherBorder.zIndex > 1_000_000);
+  });
+});
+
+test("청소 렌더 상태가 바뀌지 않으면 dim overlay와 점선 테두리를 다시 그리지 않는다", () => {
+  withGraphicsCallCounts((counts) => {
+    withCleanableRenderHarness(({ world }) => {
+      const focused = createCleanableEntity(world, { x: 80, y: 120 });
+      createCleanableEntity(world, { x: 160, y: 180 });
+
+      world._isCleaningMode = true;
+      world._focusedTargetEid = focused.eid;
+
+      runCleanableRenderSystem(world);
+
+      const countsAfterFirstRender = { ...counts };
+
+      runCleanableRenderSystem(world);
+
+      assert.deepEqual(counts, countsAfterFirstRender);
+    });
   });
 });

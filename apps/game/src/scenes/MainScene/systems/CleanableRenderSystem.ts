@@ -11,6 +11,13 @@ import { INTENTED_FRONT_Z_INDEX } from "../../../constants";
 import { getSpriteStore } from "./RenderSystem";
 import type { MainSceneWorld } from "../world";
 import { ObjectType } from "../types";
+import {
+  BROOM_Z_INDEX,
+  CLEANING_DIM_OVERLAY_Z_INDEX,
+  FOCUSED_BORDER_Z_INDEX,
+  getCleaningTargetZIndex,
+  NON_FOCUSED_BORDER_Z_INDEX,
+} from "./cleaningRenderLayers";
 
 // 청소 대상 엔티티 쿼리 - CleanableComp만 필수로 요구
 const cleanableQuery = defineQuery([CleanableComp]);
@@ -35,17 +42,37 @@ const BROOM_HORIZONTAL_OVERSHOOT_PX = 10;
 const BROOM_VERTICAL_OFFSET_PX = 10;
 const CLEANING_DIM_OVERLAY_PADDING_PX = 512;
 const CLEANING_DIM_OVERLAY_ALPHA = 0.45;
-const CLEANING_HIGHLIGHT_Z_INDEX_BASE = 1_000_100;
-const CLEANING_DIM_OVERLAY_Z_INDEX = CLEANING_HIGHLIGHT_Z_INDEX_BASE;
-const NON_FOCUSED_TARGET_Z_INDEX = CLEANING_HIGHLIGHT_Z_INDEX_BASE + 1;
-const NON_FOCUSED_BORDER_Z_INDEX = CLEANING_HIGHLIGHT_Z_INDEX_BASE + 2;
-const FOCUSED_TARGET_Z_INDEX = CLEANING_HIGHLIGHT_Z_INDEX_BASE + 3;
-const FOCUSED_BORDER_Z_INDEX = CLEANING_HIGHLIGHT_Z_INDEX_BASE + 4;
-const BROOM_Z_INDEX = CLEANING_HIGHLIGHT_Z_INDEX_BASE + 5;
 const FOCUSED_CLEANABLE_BORDER_COLOR = 0xff7dc2;
 const NON_FOCUSED_CLEANABLE_BORDER_COLOR = 0xffffff;
 
 let cleaningDimOverlay: PIXI.Graphics | null = null;
+
+type CleaningDimOverlayRenderState = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+type DashedBorderRenderState = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  isFocused: boolean;
+};
+
+type RenderSizeState = {
+  width: number;
+  height: number;
+  textureId: number | string | null;
+  scaleX: number;
+  scaleY: number;
+};
+
+let cleaningDimOverlayRenderState: CleaningDimOverlayRenderState | null = null;
+const dashedBorderRenderStateByEid = new Map<number, DashedBorderRenderState>();
+const renderSizeStateByEid = new Map<number, RenderSizeState>();
 
 /**
  * 청소 대상 렌더링 시스템 파라미터
@@ -138,14 +165,13 @@ function updateEntitySpriteZIndex(
   const shouldLiftAboveDimOverlay =
     world.isCleaningMode && CleanableComp.isHighlighted[eid] === 1;
 
-  if (isFocused) {
-    sprite.zIndex = FOCUSED_TARGET_Z_INDEX;
-    return;
-  }
-
-  sprite.zIndex = shouldLiftAboveDimOverlay
-    ? NON_FOCUSED_TARGET_Z_INDEX
+  const nextZIndex = shouldLiftAboveDimOverlay
+    ? getCleaningTargetZIndex(isFocused)
     : getBaselineSpriteZIndex(eid, world);
+
+  if (sprite.zIndex !== nextZIndex) {
+    sprite.zIndex = nextZIndex;
+  }
 }
 
 function getBaselineSpriteZIndex(eid: number, world: MainSceneWorld): number {
@@ -161,6 +187,82 @@ function getBaselineSpriteZIndex(eid: number, world: MainSceneWorld): number {
     ObjectComp.type[eid] === ObjectType.CHARACTER;
 
   return shouldSnapCharacterToPixelGrid ? Math.round(y) : y;
+}
+
+function getObjectRenderSize(
+  eid: number,
+  world: MainSceneWorld,
+): {
+  width: number;
+  height: number;
+} {
+  if (!hasComponent(world, RenderComp, eid)) {
+    return { width: 32, height: 32 };
+  }
+
+  const storeIndex = RenderComp.storeIndex[eid];
+  const spriteStore = getSpriteStore();
+  const sprite = spriteStore.get(storeIndex);
+
+  if (!sprite) {
+    return { width: 32, height: 32 };
+  }
+
+  const texture = sprite.texture as PIXI.Texture & {
+    uid?: number;
+    label?: string;
+    source?: { uid?: number };
+  };
+  const textureId = texture.uid ?? texture.source?.uid ?? texture.label ?? null;
+  const scaleX = Math.abs(sprite.scale.x);
+  const scaleY = Math.abs(sprite.scale.y);
+  const cached = renderSizeStateByEid.get(eid);
+
+  if (
+    cached &&
+    cached.textureId === textureId &&
+    cached.scaleX === scaleX &&
+    cached.scaleY === scaleY
+  ) {
+    return {
+      width: cached.width,
+      height: cached.height,
+    };
+  }
+
+  const textureFrame = texture.orig ?? texture.frame;
+  let width = Math.abs((textureFrame?.width ?? texture.width ?? 32) * scaleX);
+  let height = Math.abs((textureFrame?.height ?? texture.height ?? 32) * scaleY);
+
+  if (width <= 0 || height <= 0) {
+    const bounds = sprite.getBounds();
+    width = bounds.width || 32;
+    height = bounds.height || 32;
+  }
+
+  renderSizeStateByEid.set(eid, {
+    width,
+    height,
+    textureId,
+    scaleX,
+    scaleY,
+  });
+
+  return { width, height };
+}
+
+function isSameDashedBorderRenderState(
+  previous: DashedBorderRenderState | undefined,
+  next: DashedBorderRenderState,
+): boolean {
+  return (
+    !!previous &&
+    previous.x === next.x &&
+    previous.y === next.y &&
+    previous.width === next.width &&
+    previous.height === next.height &&
+    previous.isFocused === next.isFocused
+  );
 }
 
 /**
@@ -185,25 +287,19 @@ function createOrUpdateDashedBorder(
   // 포커스된 대상인지 확인
   const isFocused = world.isCleaningMode && world.focusedTargetEid === eid;
 
-  // 오브젝트 크기 결정 (실제 렌더링된 스프라이트에서 가져오기)
-  let objectWidth = 32; // 기본값
-  let objectHeight = 32; // 기본값
-
-  // RenderComp가 있으면 실제 스프라이트에서 크기 가져오기
-  if (hasComponent(world, RenderComp, eid)) {
-    const storeIndex = RenderComp.storeIndex[eid];
-    const spriteStore = getSpriteStore();
-    const sprite = spriteStore.get(storeIndex);
-
-    if (sprite) {
-      // 실제 렌더링된 스프라이트의 bounds 사용
-      const bounds = sprite.getBounds();
-      objectWidth = bounds.width;
-      objectHeight = bounds.height;
-    }
-  }
+  const { width: objectWidth, height: objectHeight } = getObjectRenderSize(
+    eid,
+    world,
+  );
 
   let graphics = dashedBorderStore.get(eid);
+  const nextRenderState = {
+    x,
+    y,
+    width: objectWidth,
+    height: objectHeight,
+    isFocused,
+  };
 
   if (!graphics) {
     graphics = new PIXI.Graphics();
@@ -217,6 +313,21 @@ function createOrUpdateDashedBorder(
       stage.sortableChildren = true;
     }
   } else {
+    const previousRenderState = dashedBorderRenderStateByEid.get(eid);
+    graphics.zIndex = isFocused
+      ? FOCUSED_BORDER_Z_INDEX
+      : NON_FOCUSED_BORDER_Z_INDEX;
+    graphics.visible = true;
+
+    if (isSameDashedBorderRenderState(previousRenderState, nextRenderState)) {
+      if (isFocused) {
+        createOrUpdateBroom(eid, stage, world, x, y, objectWidth);
+      } else {
+        removeBroom(eid, stage);
+      }
+      return;
+    }
+
     graphics.clear();
     graphics.visible = true;
   }
@@ -237,6 +348,8 @@ function createOrUpdateDashedBorder(
   const borderY = y - objectHeight / 2;
   const borderWidth = objectWidth;
   const borderHeight = objectHeight;
+
+  dashedBorderRenderStateByEid.set(eid, nextRenderState);
 
   drawDashedRect(
     graphics,
@@ -289,6 +402,27 @@ function updateCleaningDimOverlay(
     boundary.width + CLEANING_DIM_OVERLAY_PADDING_PX * 2;
   const overlayHeight =
     boundary.height + CLEANING_DIM_OVERLAY_PADDING_PX * 2;
+  const nextRenderState = {
+    x: overlayX,
+    y: overlayY,
+    width: overlayWidth,
+    height: overlayHeight,
+  };
+
+  cleaningDimOverlay.zIndex = CLEANING_DIM_OVERLAY_Z_INDEX;
+  cleaningDimOverlay.visible = true;
+
+  if (
+    isSameCleaningDimOverlayRenderState(
+      cleaningDimOverlayRenderState,
+      nextRenderState,
+    )
+  ) {
+    if (!stage.sortableChildren) {
+      stage.sortableChildren = true;
+    }
+    return;
+  }
 
   cleaningDimOverlay.clear();
   cleaningDimOverlay.beginFill(0x000000, CLEANING_DIM_OVERLAY_ALPHA);
@@ -299,12 +433,24 @@ function updateCleaningDimOverlay(
     overlayHeight,
   );
   cleaningDimOverlay.endFill();
-  cleaningDimOverlay.zIndex = CLEANING_DIM_OVERLAY_Z_INDEX;
-  cleaningDimOverlay.visible = true;
+  cleaningDimOverlayRenderState = nextRenderState;
 
   if (!stage.sortableChildren) {
     stage.sortableChildren = true;
   }
+}
+
+function isSameCleaningDimOverlayRenderState(
+  previous: CleaningDimOverlayRenderState | null,
+  next: CleaningDimOverlayRenderState,
+): boolean {
+  return (
+    !!previous &&
+    previous.x === next.x &&
+    previous.y === next.y &&
+    previous.width === next.width &&
+    previous.height === next.height
+  );
 }
 
 function removeCleaningDimOverlay(stage: PIXI.Container) {
@@ -315,6 +461,7 @@ function removeCleaningDimOverlay(stage: PIXI.Container) {
   stage.removeChild(cleaningDimOverlay);
   cleaningDimOverlay.destroy();
   cleaningDimOverlay = null;
+  cleaningDimOverlayRenderState = null;
 }
 
 /**
@@ -412,6 +559,8 @@ function removeDashedBorder(eid: number, stage: PIXI.Container) {
     stage.removeChild(graphics);
     dashedBorderStore.remove(eid);
   }
+  dashedBorderRenderStateByEid.delete(eid);
+  renderSizeStateByEid.delete(eid);
 
   // 빗자루도 함께 제거
   removeBroom(eid, stage);
@@ -526,6 +675,8 @@ export function cleanupCleanableRenderSystem(stage: PIXI.Container): void {
     dashedBorder.destroy();
   });
   dashedBorderStore.clear();
+  dashedBorderRenderStateByEid.clear();
+  renderSizeStateByEid.clear();
 
   broomStore.forEach((broomSprite, _eid) => {
     stage.removeChild(broomSprite);

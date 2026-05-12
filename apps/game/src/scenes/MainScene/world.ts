@@ -67,7 +67,11 @@ import { dataSyncSystem } from "./systems/DataSyncSystem";
 import { throwAnimationSystem } from "./systems/ThrowAnimationSystem";
 import { foodEatingSystem } from "./systems/FoodEatingSystem";
 import { sparkleEffectSystem } from "./systems/SparkleEffectSystem";
-import { cleaningSystem, clearCleaningTargets } from "./systems/CleaningSystem";
+import {
+  cleaningSystem,
+  clearCleaningTargets,
+  prepareCleaningModeTargets,
+} from "./systems/CleaningSystem";
 import { cleanableRenderSystem } from "./systems/CleanableRenderSystem";
 import {
   effectAnimationSystem,
@@ -3227,7 +3231,7 @@ export class MainSceneWorld implements IWorld, Scene {
 
     this._isCleaningMode = true;
     this._cleaningSliderSessionKey += 1;
-    this._focusedTargetEid = -1;
+    this._focusedTargetEid = prepareCleaningModeTargets(this);
     this._currentSliderValue = initialCleaningSliderValue;
     this._broomProgress = initialCleaningSliderValue;
     this._pendingCleaningSliderDelta = 0;

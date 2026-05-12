@@ -7,6 +7,7 @@ import {
 	FoodMaskComp,
 	FreshnessComp,
 	ObjectComp,
+	CleanableComp,
 } from "../raw-components";
 import * as PIXI from "pixi.js";
 import { MainSceneWorld } from "../world";
@@ -14,6 +15,7 @@ import { TextureKey, Freshness, EGG_TEXTURE_KEYS, ObjectType } from "../types";
 import { getTextureFromSpritesheet } from "../../../utils/asset";
 import { hasComponent } from "bitecs";
 import { ObjectStore } from "../utils/ObjectStore";
+import { getCleaningTargetZIndex } from "./cleaningRenderLayers";
 
 /** NOTE: types.ts에 {@link TextureKey}과 싱크가 맞아야 함. */
 const EGG_TEXTURE_MAP = Object.fromEntries(
@@ -503,8 +505,16 @@ export function renderCommonAttributes(
 
 	// zIndex가 0이거나 설정되지 않았으면 y 좌표를 zIndex로 사용
 	const configuredZIndex = RenderComp.zIndex[eid];
-	sprite.zIndex =
+	const baselineZIndex =
 		configuredZIndex === ECS_NULL_VALUE ? renderedY : configuredZIndex;
+	const isHighlightedCleaningTarget =
+		world.isCleaningMode &&
+		hasComponent(world, CleanableComp, eid) &&
+		CleanableComp.isHighlighted[eid] === 1;
+
+	sprite.zIndex = isHighlightedCleaningTarget
+		? getCleaningTargetZIndex(world.focusedTargetEid === eid)
+		: baselineZIndex;
 
 	const baseScale = RenderComp.scale[eid];
 
