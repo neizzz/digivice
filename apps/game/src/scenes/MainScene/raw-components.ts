@@ -145,6 +145,7 @@ export const VitalityComp = defineComponent({
 export const TemporaryStatusComp = defineComponent({
   statusType: Types.ui8, // 임시 상태 타입 (CharacterStatus enum)
   startTime: Types.f64, // 상태 시작 시간 (timestamp)
+  lastHappyStatusTime: Types.f64, // 마지막 happy 상태 시작 시간 (timestamp)
 });
 /**
  * 알 부화 컴포넌트

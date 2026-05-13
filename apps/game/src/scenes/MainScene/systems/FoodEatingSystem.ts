@@ -337,7 +337,7 @@ function completeEating(
     debugLog(
       `[FoodEatingSystem] Character ${characterEid} stamina increased from ${currentStamina} to ${newStamina}, adding happy status`,
     );
-    addCharacterStatus(characterEid, CharacterStatus.HAPPY);
+    addCharacterStatus(characterEid, CharacterStatus.HAPPY, world);
   }
 
   if (shouldResumeNightSleepAfterEating) {
@@ -470,7 +470,7 @@ function findAndEatFood(world: MainSceneWorld): void {
     debugLog(
       `[FoodEatingSystem] Character ${characterEid} moving to food ${foodEid}`,
     );
-    addCharacterStatus(characterEid, CharacterStatus.DISCOVER);
+    addCharacterStatus(characterEid, CharacterStatus.DISCOVER, world);
     moveToFood(world, characterEid, foodEid);
   }
 }

@@ -190,8 +190,13 @@ function syncStatusIconRenderComp(
   );
 }
 
-export function addCharacterStatus(eid: number, status: CharacterStatus): void {
+export function addCharacterStatus(
+  eid: number,
+  status: CharacterStatus,
+  world: MainSceneWorld | null = _cachedWorld,
+): boolean {
   const currentStatuses = CharacterStatusComp.statuses[eid];
+  const currentTime = world?.currentTime ?? Date.now();
   debugLog(
     `[addCharacterStatus] Current statuses for entity ${eid}:`,
     Array.from(currentStatuses),
@@ -204,7 +209,7 @@ export function addCharacterStatus(eid: number, status: CharacterStatus): void {
     debugLog(
       `[addCharacterStatus] Skipped temporary status ${status} for sleeping entity ${eid}`,
     );
-    return;
+    return false;
   }
 
   // 이미 해당 상태가 있는지 확인
@@ -212,7 +217,22 @@ export function addCharacterStatus(eid: number, status: CharacterStatus): void {
     debugLog(
       `[addCharacterStatus] Status ${status} already exists for entity ${eid}`,
     );
-    return;
+    return false;
+  }
+
+  if (status === CharacterStatus.HAPPY) {
+    const lastHappyStatusTime = TemporaryStatusComp.lastHappyStatusTime[eid];
+    const elapsedSinceLastHappy = currentTime - lastHappyStatusTime;
+
+    if (
+      lastHappyStatusTime > 0 &&
+      elapsedSinceLastHappy < GAME_CONSTANTS.HAPPY_EMOTION_COOLDOWN_MS
+    ) {
+      debugLog(
+        `[addCharacterStatus] Skipped happy status for entity ${eid} due to cooldown (${elapsedSinceLastHappy}/${GAME_CONSTANTS.HAPPY_EMOTION_COOLDOWN_MS}ms)`,
+      );
+      return false;
+    }
   }
 
   // 첫 번째 빈 슬롯(ECS_NULL_VALUE)에 상태 추가
@@ -223,16 +243,18 @@ export function addCharacterStatus(eid: number, status: CharacterStatus): void {
       // 일시적 상태인 경우 TemporaryStatusComp 직접 설정
       if (isTemporaryStatus(status)) {
         if (
-          _cachedWorld &&
-          hasComponent(_cachedWorld, ObjectComp, eid) &&
-          !hasComponent(_cachedWorld, TemporaryStatusComp, eid)
+          world &&
+          hasComponent(world, ObjectComp, eid) &&
+          !hasComponent(world, TemporaryStatusComp, eid)
         ) {
-          addComponent(_cachedWorld, TemporaryStatusComp, eid);
+          addComponent(world, TemporaryStatusComp, eid);
         }
 
-        const currentTime = _cachedWorld?.currentTime ?? Date.now();
         TemporaryStatusComp.statusType[eid] = status;
         TemporaryStatusComp.startTime[eid] = currentTime;
+        if (status === CharacterStatus.HAPPY) {
+          TemporaryStatusComp.lastHappyStatusTime[eid] = currentTime;
+        }
 
         debugLog(
           `[addCharacterStatus] Set temporary status ${status} for entity ${eid}, expires at ${currentTime + 3000}`,
@@ -243,13 +265,14 @@ export function addCharacterStatus(eid: number, status: CharacterStatus): void {
         `[addCharacterStatus] Added status ${status} to entity ${eid} at slot ${i}. New statuses:`,
         Array.from(currentStatuses),
       );
-      return;
+      return true;
     }
   }
 
   console.warn(
     `[addCharacterStatus] No empty slot available for entity ${eid} to add status ${status}`,
   );
+  return false;
 }
 
 export function applyReentryHappyStatusForFullStaminaCharacters(
@@ -304,8 +327,7 @@ export function applyHappyStatusForFullStaminaCharacterIfEligible(
     return false;
   }
 
-  addCharacterStatus(eid, CharacterStatus.HAPPY);
-  return true;
+  return addCharacterStatus(eid, CharacterStatus.HAPPY, world);
 }
 
 export function clearTemporaryStatuses(

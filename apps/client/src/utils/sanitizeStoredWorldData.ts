@@ -87,6 +87,7 @@ type StoredVitalityComponent = {
 type StoredTemporaryStatusComponent = {
   statusType?: number;
   startTime?: number;
+  lastHappyStatusTime?: number;
 };
 
 type StoredEggHatchComponent = {
@@ -558,6 +559,8 @@ function sanitizeCharacterEntity(
         toFiniteNumber(components.temporaryStatus?.statusType) ??
         ECS_NULL_VALUE,
       startTime: toFiniteNumber(components.temporaryStatus?.startTime) ?? 0,
+      lastHappyStatusTime:
+        toFiniteNumber(components.temporaryStatus?.lastHappyStatusTime) ?? 0,
     },
     eggHatch: {
       hatchTime:

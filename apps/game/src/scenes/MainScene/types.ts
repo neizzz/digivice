@@ -379,6 +379,7 @@ export type VitalityComponent = {
 export type TemporaryStatusComponent = {
   statusType: number; // 임시 상태 타입 (CharacterStatus enum)
   startTime: number; // 상태 시작 시간 (timestamp)
+  lastHappyStatusTime: number; // 마지막 happy 상태 시작 시간 (timestamp)
 };
 
 export type FreshnessTimerComponent = {

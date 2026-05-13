@@ -205,6 +205,7 @@ export function convertECSEntityToSavedEntity(
     components.temporaryStatus = {
       statusType: TemporaryStatusComp.statusType[eid],
       startTime: TemporaryStatusComp.startTime[eid],
+      lastHappyStatusTime: TemporaryStatusComp.lastHappyStatusTime[eid],
     };
   }
   if (hasComponent(world, FreshnessTimerComp, eid)) {
@@ -437,6 +438,8 @@ export function applySavedEntityToECS(
     }
     TemporaryStatusComp.statusType[eid] = components.temporaryStatus.statusType;
     TemporaryStatusComp.startTime[eid] = components.temporaryStatus.startTime;
+    TemporaryStatusComp.lastHappyStatusTime[eid] =
+      components.temporaryStatus.lastHappyStatusTime ?? 0;
   }
 
   if (components.freshnessTimer) {
@@ -628,6 +631,7 @@ export function repairCharacterEntityRuntimeComponents(
     addComponent(world, TemporaryStatusComp, eid);
     TemporaryStatusComp.statusType[eid] = ECS_NULL_VALUE;
     TemporaryStatusComp.startTime[eid] = 0;
+    TemporaryStatusComp.lastHappyStatusTime[eid] = 0;
     repaired.push("TemporaryStatusComp");
   }
 

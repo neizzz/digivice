@@ -182,6 +182,7 @@ export function createCharacterEntity(
   addComponent(world, TemporaryStatusComp, eid);
   TemporaryStatusComp.statusType[eid] = ECS_NULL_VALUE; // 임시 상태 타입 (초기에는 상태 없음)
   TemporaryStatusComp.startTime[eid] = 0; // 상태 시작 시간
+  TemporaryStatusComp.lastHappyStatusTime[eid] = 0; // 마지막 happy 상태 시작 시간
   // 참고: Happy 상태는 스테미나가 GAME_CONSTANTS.MAX_STAMINA 미만에서 GAME_CONSTANTS.MAX_STAMINA로 회복될 때만 시스템에서 설정됨
 
   // EggHatchComp 추가 (EGG 상태일 때만 의미가 있음)

@@ -7,6 +7,7 @@ import {
   TemporaryStatusComp,
 } from "../raw-components";
 import {
+  applyHappyStatusForFullStaminaCharacterIfEligible,
   applyReentryHappyStatusForFullStaminaCharacters,
   clearTemporaryStatuses,
   characterManagerSystem,
@@ -25,6 +26,7 @@ import { EVOLUTION_GAUGE_CONFIG } from "../evolutionConfig";
 import {
   createTestCharacter,
   createTestWorld,
+  setWorldTime,
   withMockedDateNow,
   withMockedRandom,
 } from "../../../test-utils/mainSceneTestUtils";
@@ -276,6 +278,10 @@ test("reentry 시 최대 스테미나 캐릭터만 happy 임시 상태를 얻는
     CharacterStatus.HAPPY,
   );
   assert.equal(TemporaryStatusComp.startTime[fullStaminaEid], 30_000);
+  assert.equal(
+    TemporaryStatusComp.lastHappyStatusTime[fullStaminaEid],
+    30_000,
+  );
 
   assert.equal(
     Array.from(CharacterStatusComp.statuses[partialStaminaEid]).includes(
@@ -303,6 +309,76 @@ test("reentry 시 최대 스테미나 캐릭터만 happy 임시 상태를 얻는
   );
 });
 
+test("happy 임시 상태는 캐릭터별 10분 쿨다운이 지나야 다시 발동한다", () => {
+  const world = createTestWorld({ now: 100_000 });
+  const eid = withMockedDateNow(100_000, () =>
+    createTestCharacter(world, {
+      state: CharacterState.IDLE,
+      stamina: GAME_CONSTANTS.MAX_STAMINA,
+      x: 80,
+      y: 80,
+    }),
+  );
+
+  assert.equal(
+    applyHappyStatusForFullStaminaCharacterIfEligible(world as any, eid),
+    true,
+  );
+  assert.ok(
+    Array.from(CharacterStatusComp.statuses[eid]).includes(
+      CharacterStatus.HAPPY,
+    ),
+  );
+  assert.equal(TemporaryStatusComp.startTime[eid], 100_000);
+  assert.equal(TemporaryStatusComp.lastHappyStatusTime[eid], 100_000);
+
+  assert.equal(clearTemporaryStatuses(world as any, eid), true);
+  assert.equal(
+    Array.from(CharacterStatusComp.statuses[eid]).includes(
+      CharacterStatus.HAPPY,
+    ),
+    false,
+  );
+  assert.equal(TemporaryStatusComp.lastHappyStatusTime[eid], 100_000);
+
+  setWorldTime(
+    world,
+    100_000 + GAME_CONSTANTS.HAPPY_EMOTION_COOLDOWN_MS - 1,
+  );
+
+  assert.equal(
+    applyHappyStatusForFullStaminaCharacterIfEligible(world as any, eid),
+    false,
+  );
+  assert.equal(
+    Array.from(CharacterStatusComp.statuses[eid]).includes(
+      CharacterStatus.HAPPY,
+    ),
+    false,
+  );
+  assert.equal(TemporaryStatusComp.lastHappyStatusTime[eid], 100_000);
+
+  setWorldTime(world, 100_000 + GAME_CONSTANTS.HAPPY_EMOTION_COOLDOWN_MS);
+
+  assert.equal(
+    applyHappyStatusForFullStaminaCharacterIfEligible(world as any, eid),
+    true,
+  );
+  assert.ok(
+    Array.from(CharacterStatusComp.statuses[eid]).includes(
+      CharacterStatus.HAPPY,
+    ),
+  );
+  assert.equal(
+    TemporaryStatusComp.startTime[eid],
+    100_000 + GAME_CONSTANTS.HAPPY_EMOTION_COOLDOWN_MS,
+  );
+  assert.equal(
+    TemporaryStatusComp.lastHappyStatusTime[eid],
+    100_000 + GAME_CONSTANTS.HAPPY_EMOTION_COOLDOWN_MS,
+  );
+});
+
 test("clearTemporaryStatuses는 happy/discover와 TemporaryStatusComp를 함께 비운다", () => {
   const world = createTestWorld({ now: 10_000 });
   const eid = withMockedDateNow(10_000, () =>
@@ -320,11 +396,13 @@ test("clearTemporaryStatuses는 happy/discover와 TemporaryStatusComp를 함께 
   assert.equal(hasComponent(world, TemporaryStatusComp, eid), true);
   TemporaryStatusComp.statusType[eid] = CharacterStatus.DISCOVER;
   TemporaryStatusComp.startTime[eid] = 10_000;
+  TemporaryStatusComp.lastHappyStatusTime[eid] = 9_000;
 
   assert.equal(clearTemporaryStatuses(world as any, eid), true);
   assert.deepEqual(Array.from(CharacterStatusComp.statuses[eid]), [0, 0, 0, 0]);
   assert.equal(TemporaryStatusComp.statusType[eid], 0);
   assert.equal(TemporaryStatusComp.startTime[eid], 0);
+  assert.equal(TemporaryStatusComp.lastHappyStatusTime[eid], 9_000);
 });
 
 test("수면 중 진화 게이지는 깨어있을 때의 1/3 속도로 오른다", () => {
