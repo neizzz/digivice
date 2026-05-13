@@ -25,6 +25,7 @@ interface PopupProps {
   keyboardAwareViewportPadding?: number;
   suppressInitialActionsMs?: number;
   confirmEnableDelayMs?: number;
+  showActions?: boolean;
 }
 
 type NativeViewportSyncDetail = {
@@ -61,6 +62,7 @@ const PopupLayer: React.FC<PopupProps> = ({
   keyboardAwareViewportPadding = 16,
   suppressInitialActionsMs = 0,
   confirmEnableDelayMs = 0,
+  showActions = true,
 }) => {
   const layerInteractionVibrationProps = useLayerInteractionVibration();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -520,50 +522,52 @@ const PopupLayer: React.FC<PopupProps> = ({
         <div className="min-h-0 flex-1 overflow-y-auto pb-4 text-[1.4rem] leading-[1.6]">
           {content}
         </div>
-        <div
-          className={`flex flex-none justify-center gap-[15px] border-t-4 pt-4 ${dividerBorderClassName}`}
-        >
-          {onCancel && (
-            <button
-              ref={cancelButtonRef}
-              type={"button"}
-              onClick={handleCancelClick}
-              className={`text-[1.5rem] text-white border-2 border-[#222] px-[15px] py-0.5 cursor-pointer uppercase font-display shadow-[2px_2px_0_#222] relative top-0 left-0 transition-all duration-50 ${
-                cancelVariant === "negative"
-                  ? "bg-component-negative"
-                  : "bg-component-positive"
-              }`}
-            >
-              {cancelText}
-            </button>
-          )}
-          <button
-            ref={confirmButtonRef}
-            type={"button"}
-            disabled={isConfirmEnableDelayActive}
-            onClick={handleConfirmClick}
-            className={`relative overflow-hidden text-[1.5rem] text-white border-2 border-[#222] px-[15px] py-0.5 uppercase font-display shadow-[2px_2px_0_#222] ${
-              isConfirmEnableDelayActive
-                ? "cursor-not-allowed bg-gray-400 opacity-80"
-                : confirmVariant === "negative"
-                  ? "cursor-pointer bg-component-negative"
-                  : "cursor-pointer bg-component-positive"
-            }`}
+        {showActions && (
+          <div
+            className={`flex flex-none justify-center gap-[15px] border-t-4 pt-4 ${dividerBorderClassName}`}
           >
-            {isConfirmEnableDelayActive && (
-              <span
-                aria-hidden="true"
-                className={`absolute inset-y-0 left-0 ${
-                  confirmVariant === "negative"
+            {onCancel && (
+              <button
+                ref={cancelButtonRef}
+                type={"button"}
+                onClick={handleCancelClick}
+                className={`text-[1.5rem] text-white border-2 border-[#222] px-[15px] py-0.5 cursor-pointer uppercase font-display shadow-[2px_2px_0_#222] relative top-0 left-0 transition-all duration-50 ${
+                  cancelVariant === "negative"
                     ? "bg-component-negative"
                     : "bg-component-positive"
                 }`}
-                style={{ width: `${confirmEnableDelayProgress}%` }}
-              />
+              >
+                {cancelText}
+              </button>
             )}
-            <span className="relative z-[1]">{confirmText}</span>
-          </button>
-        </div>
+            <button
+              ref={confirmButtonRef}
+              type={"button"}
+              disabled={isConfirmEnableDelayActive}
+              onClick={handleConfirmClick}
+              className={`relative overflow-hidden text-[1.5rem] text-white border-2 border-[#222] px-[15px] py-0.5 uppercase font-display shadow-[2px_2px_0_#222] ${
+                isConfirmEnableDelayActive
+                  ? "cursor-not-allowed bg-gray-400 opacity-80"
+                  : confirmVariant === "negative"
+                    ? "cursor-pointer bg-component-negative"
+                    : "cursor-pointer bg-component-positive"
+              }`}
+            >
+              {isConfirmEnableDelayActive && (
+                <span
+                  aria-hidden="true"
+                  className={`absolute inset-y-0 left-0 ${
+                    confirmVariant === "negative"
+                      ? "bg-component-negative"
+                      : "bg-component-positive"
+                  }`}
+                  style={{ width: `${confirmEnableDelayProgress}%` }}
+                />
+              )}
+              <span className="relative z-[1]">{confirmText}</span>
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -139,6 +139,7 @@ type StoredMainSceneAdState = {
     cooldown_ms?: number;
     threshold?: number;
     deep_night?: boolean;
+    online_retry?: boolean;
   };
 };
 
@@ -393,18 +394,26 @@ function sanitizeMainSceneAdPendingReservation(
     cooldownMs <= 0 ||
     threshold === null ||
     threshold <= 0 ||
-    typeof pending.deep_night !== "boolean"
+    typeof pending.deep_night !== "boolean" ||
+    (pending.online_retry !== undefined &&
+      typeof pending.online_retry !== "boolean")
   ) {
     return undefined;
   }
 
-  return {
+  const sanitizedPending: NonNullable<StoredMainSceneAdState["pending"]> = {
     menu: pending.menu,
     queued_at: queuedAt,
     cooldown_ms: cooldownMs,
     threshold: Math.floor(threshold),
     deep_night: pending.deep_night,
   };
+
+  if (pending.online_retry === true) {
+    sanitizedPending.online_retry = true;
+  }
+
+  return sanitizedPending;
 }
 
 function isMainSceneAdMenu(value: unknown): value is StoredMainSceneAdMenu {

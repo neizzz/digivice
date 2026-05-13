@@ -3,6 +3,7 @@ import { CooldownCondition } from "./conditions/CooldownCondition";
 import { PlatformAdapter } from "../adapter/PlatformAdapter";
 
 const DEFAULT_NATIVE_AD_COOLDOWN_MS = 4 * 60 * 60 * 1000;
+const ONLINE_AD_RETRY_STORAGE_KEY = "digivice_pending_online_ad_retry";
 
 function resolveCooldownMs(metadata: Record<string, unknown> | undefined) {
   const cooldownMs = metadata?.cooldownMs;
@@ -78,6 +79,7 @@ export class AdManager {
 
     console.log(`[AdManager] Policy matched: ${policy.name}`);
     const cooldownMs = resolveCooldownMs(fullContext.metadata);
+    const isOnlineRetry = fullContext.metadata?.onlineRetry === true;
 
     // 네이티브 쿨다운 체크 (안전장치)
     try {
@@ -100,10 +102,27 @@ export class AdManager {
 
       // 쿨다운 업데이트
       CooldownCondition.updateCooldown();
+      if (isOnlineRetry) {
+        this.clearPendingOnlineAdRetry();
+      }
 
       return true;
     } catch (error) {
       console.error("[AdManager] Error showing ad:", error);
+      if (isOnlineRetry) {
+        return false;
+      }
+
+      const fallbackDidComplete = await this.showOfflineInterstitialFallback(
+        trigger,
+        cooldownMs,
+      );
+
+      if (fallbackDidComplete) {
+        this.markPendingOnlineAdRetry();
+        return true;
+      }
+
       return false;
     }
   }
@@ -139,6 +158,7 @@ export class AdManager {
    */
   resetCooldown(): void {
     CooldownCondition.resetCooldown();
+    this.clearPendingOnlineAdRetry();
   }
 
   /**
@@ -155,9 +175,79 @@ export class AdManager {
         cooldownMs: DEFAULT_NATIVE_AD_COOLDOWN_MS,
       });
       CooldownCondition.updateCooldown();
+      this.clearPendingOnlineAdRetry();
       return true;
     } catch (error) {
       console.error("[AdManager] Error forcing ad:", error);
+      return false;
+    }
+  }
+
+  hasPendingOnlineAdRetry(): boolean {
+    if (typeof window === "undefined") {
+      return false;
+    }
+
+    try {
+      return localStorage.getItem(ONLINE_AD_RETRY_STORAGE_KEY) === "true";
+    } catch {
+      return false;
+    }
+  }
+
+  private markPendingOnlineAdRetry(): void {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    try {
+      localStorage.setItem(ONLINE_AD_RETRY_STORAGE_KEY, "true");
+      console.log("[AdManager] Pending online ad retry marked");
+    } catch (error) {
+      console.warn("[AdManager] Failed to mark pending online ad retry", error);
+    }
+  }
+
+  private clearPendingOnlineAdRetry(): void {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    try {
+      localStorage.removeItem(ONLINE_AD_RETRY_STORAGE_KEY);
+      console.log("[AdManager] Pending online ad retry cleared");
+    } catch (error) {
+      console.warn("[AdManager] Failed to clear pending online ad retry", error);
+    }
+  }
+
+  private async showOfflineInterstitialFallback(
+    trigger: string,
+    cooldownMs: number,
+  ): Promise<boolean> {
+    const fallbackBridge =
+      typeof window !== "undefined"
+        ? window.digiviceAdFallbackBridge
+        : undefined;
+
+    if (!fallbackBridge?.showOfflineInterstitialFallback) {
+      console.warn("[AdManager] Offline interstitial fallback unavailable");
+      return false;
+    }
+
+    try {
+      const completed = await fallbackBridge.showOfflineInterstitialFallback({
+        trigger,
+        cooldownMs,
+        timestamp: Date.now(),
+      });
+
+      return completed === true;
+    } catch (fallbackError) {
+      console.error(
+        "[AdManager] Error showing offline interstitial fallback:",
+        fallbackError,
+      );
       return false;
     }
   }

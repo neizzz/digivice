@@ -53,7 +53,12 @@ declare global {
 				queuedAt: number;
 				deepNight: boolean;
 				menuUseCount: number;
+				onlineRetry: boolean;
 			}) => Promise<boolean>;
+			hasPendingOnlineAdRetry: () => boolean;
+		};
+		digiviceAdFallbackBridge?: {
+			isActive: () => boolean;
 		};
 	}
 

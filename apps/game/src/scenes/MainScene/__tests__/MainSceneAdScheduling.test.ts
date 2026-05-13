@@ -18,6 +18,7 @@ type MainSceneAdRequest = {
   queuedAt: number;
   deepNight: boolean;
   menuUseCount: number;
+  onlineRetry: boolean;
 };
 
 type TestableMainSceneWorld = MainSceneWorld & {
@@ -75,6 +76,7 @@ function createMainSceneWorld(): TestableMainSceneWorld {
 
 function installMockBrowserEnv(options: {
   requestMainSceneMenuAd?: (request: MainSceneAdRequest) => Promise<boolean>;
+  hasPendingOnlineAdRetry?: () => boolean;
 }): {
   timers: MockTimer[];
   runNextTimer: () => void;
@@ -89,6 +91,8 @@ function installMockBrowserEnv(options: {
     digiviceAdBridge: options.requestMainSceneMenuAd
       ? {
           requestMainSceneMenuAd: options.requestMainSceneMenuAd,
+          hasPendingOnlineAdRetry:
+            options.hasPendingOnlineAdRetry ?? (() => false),
         }
       : undefined,
     setTimeout(callback: () => void, delayMs: number) {
@@ -185,8 +189,85 @@ test("MainScene 청소 광고 예약은 500ms 지연을 거쳐 성공 노출되�
     assert.equal(requests[0].threshold, 5);
     assert.equal(requests[0].cooldownMs, 2 * 60 * 1000);
     assert.equal(requests[0].menuUseCount, 5);
+    assert.equal(requests[0].onlineRetry, false);
     assert.equal(getAdState(world)?.menu_use_count, 0);
     assert.equal(getAdState(world)?.pending, undefined);
+  } finally {
+    browser.cleanup();
+  }
+});
+
+test("오프라인 대체 광고 후 다음 메뉴 사용은 threshold 없이 온라인 광고 retry 예약을 만든다", async () => {
+  const world = createMainSceneWorld();
+  const requests: MainSceneAdRequest[] = [];
+  let pendingOnlineRetry = true;
+  const browser = installMockBrowserEnv({
+    hasPendingOnlineAdRetry: () => pendingOnlineRetry,
+    requestMainSceneMenuAd: async (request) => {
+      requests.push(request);
+      pendingOnlineRetry = false;
+      return true;
+    },
+  });
+
+  try {
+    withMockedDateNow(40_000, () => {
+      world._recordMainSceneMenuUse("clean");
+    });
+
+    assert.equal(getAdState(world)?.menu_use_count, 1);
+    assert.equal(getAdState(world)?.pending?.menu, "clean");
+    assert.equal(getAdState(world)?.pending?.threshold, 1);
+    assert.equal(getAdState(world)?.pending?.online_retry, true);
+
+    world._schedulePendingMainSceneAdForMenu("clean", 500);
+    assert.equal(browser.timers.length, 1);
+    assert.equal(browser.timers[0].delayMs, 500);
+
+    browser.runNextTimer();
+    await flushAsyncTasks();
+
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0].menu, "clean");
+    assert.equal(requests[0].onlineRetry, true);
+    assert.equal(requests[0].threshold, 1);
+    assert.equal(getAdState(world)?.menu_use_count, 0);
+    assert.equal(getAdState(world)?.pending, undefined);
+  } finally {
+    browser.cleanup();
+  }
+});
+
+test("온라인 retry 광고가 아직 실패하면 예약을 유지하고 다음 메뉴에 맞춰 갱신한다", async () => {
+  const world = createMainSceneWorld();
+  const requests: MainSceneAdRequest[] = [];
+  const browser = installMockBrowserEnv({
+    hasPendingOnlineAdRetry: () => true,
+    requestMainSceneMenuAd: async (request) => {
+      requests.push(request);
+      return false;
+    },
+  });
+
+  try {
+    withMockedDateNow(45_000, () => {
+      world._recordMainSceneMenuUse("clean");
+    });
+    world._schedulePendingMainSceneAdForMenu("clean", 500);
+    browser.runNextTimer();
+    await flushAsyncTasks();
+
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0].onlineRetry, true);
+    assert.equal(getAdState(world)?.pending?.menu, "clean");
+    assert.equal(getAdState(world)?.pending?.online_retry, true);
+
+    withMockedDateNow(46_000, () => {
+      world._recordMainSceneMenuUse("hospital");
+    });
+
+    assert.equal(getAdState(world)?.pending?.menu, "hospital");
+    assert.equal(getAdState(world)?.pending?.online_retry, true);
   } finally {
     browser.cleanup();
   }

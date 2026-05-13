@@ -1,7 +1,8 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import "./App.css";
 import GameContainer from "./GameContainer";
 import TopLeftBuildLogoText from "./components/TopLeftBuildLogoText";
+import OfflineInterstitialFallbackLayer from "./components/OfflineInterstitialFallbackLayer";
 import { AdManager } from "./ad/AdManager";
 import { FlappyBirdGameOverPolicy } from "./ad/policies/FlappyBirdGameOverPolicy";
 import { MainSceneMenuPolicy } from "./ad/policies/MainSceneMenuPolicy";
@@ -28,6 +29,43 @@ const App = () => {
   const isInitialized = useRef(false);
   const isFullscreenAdActiveRef = useRef(false);
   const suppressAppReenterUntilRef = useRef(0);
+  const offlineAdFallbackPromiseRef = useRef<Promise<boolean> | null>(null);
+  const offlineAdFallbackResolverRef = useRef<
+    ((completed: boolean) => void) | null
+  >(null);
+  const isOfflineAdFallbackActiveRef = useRef(false);
+  const [offlineAdFallbackKey, setOfflineAdFallbackKey] = useState<
+    number | null
+  >(null);
+
+  const clearOfflineAdFallback = useCallback((completed: boolean) => {
+    const resolver = offlineAdFallbackResolverRef.current;
+
+    offlineAdFallbackPromiseRef.current = null;
+    offlineAdFallbackResolverRef.current = null;
+    isOfflineAdFallbackActiveRef.current = false;
+    setOfflineAdFallbackKey(null);
+    resolver?.(completed);
+  }, []);
+
+  const showOfflineInterstitialFallback = useCallback(
+    () => {
+      if (offlineAdFallbackPromiseRef.current) {
+        return offlineAdFallbackPromiseRef.current;
+      }
+
+      const promise = new Promise<boolean>((resolve) => {
+        offlineAdFallbackResolverRef.current = resolve;
+      });
+
+      offlineAdFallbackPromiseRef.current = promise;
+      isOfflineAdFallbackActiveRef.current = true;
+      setOfflineAdFallbackKey(Date.now());
+
+      return promise;
+    },
+    [],
+  );
 
   useEffect(() => {
     if (isInitialized.current) return;
@@ -49,10 +87,17 @@ const App = () => {
               ...request,
               trigger: "main_scene_menu",
               timestamp: Date.now(),
+              onlineRetry: request.onlineRetry === true,
             },
           }) ?? Promise.resolve(false)
         );
       },
+      hasPendingOnlineAdRetry: () =>
+        adManager?.hasPendingOnlineAdRetry() ?? false,
+    };
+    window.digiviceAdFallbackBridge = {
+      showOfflineInterstitialFallback: () => showOfflineInterstitialFallback(),
+      isActive: () => isOfflineAdFallbackActiveRef.current,
     };
 
     // visibility 기반 활성 시간 동기화
@@ -105,8 +150,10 @@ const App = () => {
         handleFullscreenAdState as EventListener,
       );
       window.digiviceAdBridge = undefined;
+      window.digiviceAdFallbackBridge = undefined;
+      clearOfflineAdFallback(false);
     };
-  }, []);
+  }, [clearOfflineAdFallback, showOfflineInterstitialFallback]);
 
   const updateLastActiveTime = () => {
     const now = Date.now();
@@ -118,6 +165,12 @@ const App = () => {
       <TopLeftBuildLogoText />
       <div id="app-container">
         <GameContainer />
+        {offlineAdFallbackKey !== null && (
+          <OfflineInterstitialFallbackLayer
+            key={offlineAdFallbackKey}
+            onComplete={() => clearOfflineAdFallback(true)}
+          />
+        )}
         <SimpleLogViewer position="top-right" initialOpen={false} />
       </div>
     </div>

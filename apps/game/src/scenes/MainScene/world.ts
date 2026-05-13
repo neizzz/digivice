@@ -221,6 +221,7 @@ export type MainSceneAdPendingReservation = {
   cooldown_ms: number;
   threshold: number;
   deep_night: boolean;
+  online_retry?: boolean;
 };
 
 export type MainSceneAdState = {
@@ -755,7 +756,9 @@ export class MainSceneWorld implements IWorld, Scene {
       typeof value.threshold === "number" &&
       Number.isFinite(value.threshold) &&
       value.threshold > 0 &&
-      typeof value.deep_night === "boolean"
+      typeof value.deep_night === "boolean" &&
+      (value.online_retry === undefined ||
+        typeof value.online_retry === "boolean")
     );
   }
 
@@ -779,9 +782,34 @@ export class MainSceneWorld implements IWorld, Scene {
       Math.max(0, Math.floor(adState.menu_use_count)) + 1;
 
     let createdReservation: MainSceneAdPendingReservation | null = null;
-    if (!adState.pending) {
-      const config = this._getMainSceneAdConfig();
-      if (adState.menu_use_count >= config.threshold) {
+    const config = this._getMainSceneAdConfig();
+    if (adState.pending?.online_retry) {
+      adState.pending = {
+        ...adState.pending,
+        menu,
+        queued_at: this.currentTime,
+        cooldown_ms: config.cooldownMs,
+        deep_night: config.deepNight,
+      };
+      createdReservation = adState.pending;
+    } else if (!adState.pending) {
+      if (this._hasPendingOnlineAdRetry()) {
+        createdReservation = {
+          menu,
+          queued_at: this.currentTime,
+          cooldown_ms: config.cooldownMs,
+          threshold: 1,
+          deep_night: config.deepNight,
+          online_retry: true,
+        };
+        adState.pending = createdReservation;
+
+        console.log("[MainSceneWorld] MainScene online ad retry reserved", {
+          menu,
+          menuUseCount: adState.menu_use_count,
+          ...config,
+        });
+      } else if (adState.menu_use_count >= config.threshold) {
         createdReservation = {
           menu,
           queued_at: this.currentTime,
@@ -801,6 +829,21 @@ export class MainSceneWorld implements IWorld, Scene {
 
     this._persistMainSceneAdState();
     return createdReservation;
+  }
+
+  private _hasPendingOnlineAdRetry(): boolean {
+    if (typeof window === "undefined") {
+      return false;
+    }
+
+    try {
+      return window.digiviceAdBridge?.hasPendingOnlineAdRetry?.() === true;
+    } catch (error) {
+      console.warn("[MainSceneWorld] Failed to check online ad retry state", {
+        error,
+      });
+      return false;
+    }
   }
 
   private _getMainSceneAdConfig(): {
@@ -931,6 +974,7 @@ export class MainSceneWorld implements IWorld, Scene {
         queuedAt: pending.queued_at,
         deepNight: pending.deep_night,
         menuUseCount: adState.menu_use_count,
+        onlineRetry: pending.online_retry === true,
       });
 
       if (didShow) {
@@ -2994,6 +3038,7 @@ export class MainSceneWorld implements IWorld, Scene {
       cooldownMs: number;
       threshold: number;
       deepNight: boolean;
+      onlineRetry: boolean;
     } | null;
   } {
     const adState = this._getMainSceneAdState();
@@ -3012,6 +3057,7 @@ export class MainSceneWorld implements IWorld, Scene {
             cooldownMs: pending.cooldown_ms,
             threshold: pending.threshold,
             deepNight: pending.deep_night,
+            onlineRetry: pending.online_retry === true,
           }
         : null,
     };

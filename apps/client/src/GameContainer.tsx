@@ -1073,6 +1073,10 @@ const GameContainer: React.FC = () => {
       return "consumed";
     }
 
+    if (window.digiviceAdFallbackBridge?.isActive()) {
+      return "consumed";
+    }
+
     if (
       unsupportedViewportReason ||
       showSetupLayer ||

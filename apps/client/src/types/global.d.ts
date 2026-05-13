@@ -4,6 +4,12 @@ type AdControllerShowOptions = {
   cooldownMs?: number;
 };
 
+type OfflineInterstitialFallbackRequest = {
+  trigger: string;
+  cooldownMs: number;
+  timestamp: number;
+};
+
 type MainSceneMenuAdRequest = {
   menu: DigiviceMainSceneAdMenu;
   cooldownMs: number;
@@ -11,6 +17,7 @@ type MainSceneMenuAdRequest = {
   queuedAt: number;
   deepNight: boolean;
   menuUseCount: number;
+  onlineRetry: boolean;
 };
 
 declare global {
@@ -74,6 +81,13 @@ declare global {
       requestMainSceneMenuAd: (
         request: MainSceneMenuAdRequest,
       ) => Promise<boolean>;
+      hasPendingOnlineAdRetry: () => boolean;
+    };
+    digiviceAdFallbackBridge?: {
+      showOfflineInterstitialFallback: (
+        request: OfflineInterstitialFallbackRequest,
+      ) => Promise<boolean>;
+      isActive: () => boolean;
     };
     digiviceBackBridge?: {
       handleBackNavigation: () => "consumed" | "exit";
