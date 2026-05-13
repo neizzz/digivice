@@ -488,14 +488,18 @@ export function getCharacterStaminaBarBounds(
   resolvedX?: number,
 ): {
   leftX: number;
+  rightX: number;
   width: number;
+  height: number;
   centerX: number;
 } {
   const leftX = getCharacterStaminaBarLeftX(eid, resolvedX);
 
   return {
     leftX,
+    rightX: leftX + STAMINA_BAR_WIDTH,
     width: STAMINA_BAR_WIDTH,
+    height: STAMINA_BAR_HEIGHT,
     centerX: leftX + STAMINA_BAR_WIDTH / 2,
   };
 }

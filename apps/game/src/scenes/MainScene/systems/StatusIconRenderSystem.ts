@@ -20,8 +20,6 @@ const STATUS_ICON_SCALE = 1.625;
 const STATUS_ICON_BASE_SIZE = 16;
 const STATUS_ICON_SIZE = STATUS_ICON_BASE_SIZE * STATUS_ICON_SCALE;
 const STATUS_ICON_Z_INDEX_OFFSET = 1.5;
-const STATUS_ICON_MIN_Y = 0;
-const STATUS_ICON_BAR_STACK_GAP = 2;
 const STATUS_ICON_HORIZONTAL_SPACING = 1;
 
 function getRenderedCharacterAttributes(eid: number): {
@@ -95,30 +93,93 @@ function createStatusIconSprite(textureName: string): PIXI.Sprite {
   return sprite;
 }
 
-function getStatusIconMinY(world: MainSceneWorld): number {
-  return STATUS_ICON_MIN_Y;
+function getStatusIconListWidth(iconCount: number): number {
+  return (
+    iconCount * STATUS_ICON_SIZE +
+    Math.max(0, iconCount - 1) * STATUS_ICON_HORIZONTAL_SPACING
+  );
 }
 
-function clampStatusIconY(world: MainSceneWorld, preferredY: number): number {
-  return Math.max(preferredY, getStatusIconMinY(world));
+function clampNumber(value: number, min: number, max: number): number {
+  if (min > max) {
+    return (min + max) / 2;
+  }
+
+  return Math.max(min, Math.min(max, value));
+}
+
+function getStatusIconScreenBounds(world: MainSceneWorld): {
+  leftX: number;
+  rightX: number;
+  topY: number;
+  bottomY: number;
+} {
+  const boundary = world.characterPositionBoundary ?? world.positionBoundary;
+
+  return {
+    leftX: boundary.x,
+    rightX: boundary.x + boundary.width,
+    topY: boundary.y,
+    bottomY: boundary.y + boundary.height,
+  };
+}
+
+function getClampedStatusIconListCenter(params: {
+  world: MainSceneWorld;
+  preferredCenterX: number;
+  preferredCenterY: number;
+  iconCount: number;
+}): {
+  centerX: number;
+  centerY: number;
+} {
+  const { world, preferredCenterX, preferredCenterY, iconCount } = params;
+  const bounds = getStatusIconScreenBounds(world);
+  const halfListWidth = getStatusIconListWidth(iconCount) / 2;
+  const halfIconHeight = STATUS_ICON_SIZE / 2;
+
+  return {
+    centerX: clampNumber(
+      preferredCenterX,
+      bounds.leftX + halfListWidth,
+      bounds.rightX - halfListWidth,
+    ),
+    centerY: clampNumber(
+      preferredCenterY,
+      bounds.topY + halfIconHeight,
+      bounds.bottomY - halfIconHeight,
+    ),
+  };
 }
 
 function getUnifiedStatusIconStartX(
-  barLeftX: number,
-  barWidth: number,
+  listCenterX: number,
   iconCount: number,
 ): number {
-  const totalWidth =
-    iconCount * STATUS_ICON_SIZE +
-    Math.max(0, iconCount - 1) * STATUS_ICON_HORIZONTAL_SPACING;
-
-  const leftInset = Math.round((barWidth - totalWidth) / 2);
-  return barLeftX + leftInset + STATUS_ICON_SIZE / 2;
+  const totalWidth = getStatusIconListWidth(iconCount);
+  return listCenterX - totalWidth / 2 + STATUS_ICON_SIZE / 2;
 }
 
-function getStatusIconCenterYAboveStaminaBar(eid: number): number {
-  const barTopY = getClampedCharacterStaminaBarTopY(eid);
-  return barTopY - STATUS_ICON_BAR_STACK_GAP - STATUS_ICON_SIZE / 2;
+function getStatusIconListCenterAtStaminaBarBottomRight(params: {
+  world: MainSceneWorld;
+  eid: number;
+  renderedX: number;
+  iconCount: number;
+}): {
+  centerX: number;
+  centerY: number;
+} {
+  const { world, eid, renderedX, iconCount } = params;
+  const { rightX: barRightX, height: barHeight } =
+    getCharacterStaminaBarBounds(eid, renderedX);
+  const barTopY = Math.round(getClampedCharacterStaminaBarTopY(eid));
+
+  return getClampedStatusIconListCenter({
+    world,
+    preferredCenterX: barRightX,
+    preferredCenterY: barTopY + barHeight,
+    iconCount,
+  });
 }
 
 function clearEntitySprites(eid: number): void {
@@ -273,21 +334,19 @@ export function statusIconRenderSystem(params: {
       latestTemporary,
     );
     const iconCount = persistent.length + (overlayTextureName ? 1 : 0);
-    const { leftX: barLeftX, width: barWidth } = getCharacterStaminaBarBounds(
-      eid,
-      renderedX,
-    );
+    const { centerX: iconListCenterX, centerY: iconCenterY } =
+      getStatusIconListCenterAtStaminaBarBottomRight({
+        world,
+        eid,
+        renderedX,
+        iconCount,
+      });
     const iconStartX = getUnifiedStatusIconStartX(
-      barLeftX,
-      barWidth,
+      iconListCenterX,
       iconCount,
     );
-    const iconCenterY = clampStatusIconY(
-      world,
-      getStatusIconCenterYAboveStaminaBar(eid),
-    );
 
-    // 지속적 상태 아이콘들 처리 (캐릭터 위쪽에 가로 배열)
+    // 지속적 상태 아이콘들 처리 (게이지바 우측 하단 기준 가로 배열)
     let sprites = entityStatusSprites.get(eid);
     if (!sprites) {
       sprites = [];

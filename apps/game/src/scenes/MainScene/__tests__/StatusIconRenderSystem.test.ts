@@ -13,14 +13,15 @@ import { createTestCharacter } from "../../../test-utils/mainSceneTestUtils";
 
 const POSITION_BOUNDARY_TOP = 20;
 const POSITION_BOUNDARY_WIDTH = 320;
-const CENTERED_SINGLE_ICON_X = 80;
-const CENTERED_SINGLE_ICON_X_WALKING = 81;
-const RIGHT_EDGE_SINGLE_ICON_X = 310;
-const CENTERED_DOUBLE_ICON_LEFT_X = 67;
-const CENTERED_DOUBLE_ICON_RIGHT_X = 94;
-const CLAMPED_STATUS_ICON_CENTER_Y = 14;
-const STATUS_ICON_CENTER_Y_ABOVE_BAR = 67;
-const STATUS_ICON_CENTER_Y_ABOVE_BAR_WALKING = 67.6;
+const BAR_BOTTOM_RIGHT_SINGLE_ICON_X = 108;
+const BAR_BOTTOM_RIGHT_SINGLE_ICON_X_WALKING = 109;
+const RIGHT_CLAMPED_SINGLE_ICON_X = 307;
+const BAR_BOTTOM_RIGHT_DOUBLE_ICON_LEFT_X = 94.5;
+const BAR_BOTTOM_RIGHT_DOUBLE_ICON_RIGHT_X = 121.5;
+const STATUS_ICON_CENTER_Y_AT_CLAMPED_BAR_BOTTOM = 39;
+const STATUS_ICON_CENTER_Y_AT_BAR_BOTTOM = 92;
+const STATUS_ICON_CENTER_Y_AT_BAR_BOTTOM_WALKING = 93;
+const BOTTOM_CLAMPED_STATUS_ICON_CENTER_Y = 327;
 
 function assertApproximatelyEqual(actual: number, expected: number): void {
   assert.ok(Math.abs(actual - expected) < 0.0001);
@@ -89,7 +90,7 @@ function getStatusIconSprites(world: MainSceneWorld): PIXI.Sprite[] {
   });
 }
 
-test("상단 근처의 지속 상태 아이콘은 게이지 영역보다 0px 아래까지만 올라가도록 clamp된다", () => {
+test("상단 근처의 지속 상태 아이콘은 현재 게이지바 우측 하단에 걸쳐진다", () => {
   withMockedStatusIconSprites(() => {
     const world = createMainSceneWorldForTest();
     const eid = createTestCharacter(
@@ -109,8 +110,8 @@ test("상단 근처의 지속 상태 아이콘은 게이지 영역보다 0px 아
     });
 
     const sprite = getOnlyStatusIconSprite(world);
-    assertApproximatelyEqual(sprite.x, CENTERED_SINGLE_ICON_X);
-    assertApproximatelyEqual(sprite.y, CLAMPED_STATUS_ICON_CENTER_Y);
+    assertApproximatelyEqual(sprite.x, BAR_BOTTOM_RIGHT_SINGLE_ICON_X);
+    assertApproximatelyEqual(sprite.y, STATUS_ICON_CENTER_Y_AT_CLAMPED_BAR_BOTTOM);
   });
 });
 
@@ -137,7 +138,7 @@ test("urgent 상태는 더 이상 상태 아이콘으로 렌더링되지 않는�
   });
 });
 
-test("상단 근처의 emotion 아이콘은 status icon 라인에 통합된 상태로 clamp된다", () => {
+test("상단 근처의 emotion 아이콘도 현재 게이지바 우측 하단에 걸쳐진다", () => {
   withMockedStatusIconSprites(() => {
     const world = createMainSceneWorldForTest();
     const eid = createTestCharacter(
@@ -157,12 +158,12 @@ test("상단 근처의 emotion 아이콘은 status icon 라인에 통합된 상�
     });
 
     const sprite = getOnlyStatusIconSprite(world);
-    assertApproximatelyEqual(sprite.x, CENTERED_SINGLE_ICON_X);
-    assertApproximatelyEqual(sprite.y, CLAMPED_STATUS_ICON_CENTER_Y);
+    assertApproximatelyEqual(sprite.x, BAR_BOTTOM_RIGHT_SINGLE_ICON_X);
+    assertApproximatelyEqual(sprite.y, STATUS_ICON_CENTER_Y_AT_CLAMPED_BAR_BOTTOM);
   });
 });
 
-test("우측 가장자리 근처의 일시 상태 아이콘은 우측 clamp 없이 게이지바 시작 지점부터 배치된다", () => {
+test("우측 가장자리 근처의 일시 상태 아이콘은 화면 안으로 clamp된다", () => {
   withMockedStatusIconSprites(() => {
     const world = createMainSceneWorldForTest();
     const eid = createTestCharacter(
@@ -182,12 +183,12 @@ test("우측 가장자리 근처의 일시 상태 아이콘은 우측 clamp 없�
     });
 
     const sprite = getOnlyStatusIconSprite(world);
-    assertApproximatelyEqual(sprite.x, RIGHT_EDGE_SINGLE_ICON_X);
-    assertApproximatelyEqual(sprite.y, STATUS_ICON_CENTER_Y_ABOVE_BAR);
+    assertApproximatelyEqual(sprite.x, RIGHT_CLAMPED_SINGLE_ICON_X);
+    assertApproximatelyEqual(sprite.y, STATUS_ICON_CENTER_Y_AT_BAR_BOTTOM);
   });
 });
 
-test("상단 여유가 충분하면 상태 아이콘은 기존 위치를 유지한다", () => {
+test("상단 여유가 충분하면 상태 아이콘은 현재 게이지바 우측 하단에 배치된다", () => {
   withMockedStatusIconSprites(() => {
     const world = createMainSceneWorldForTest();
     const eid = createTestCharacter(
@@ -208,7 +209,8 @@ test("상단 여유가 충분하면 상태 아이콘은 기존 위치를 유지�
 
     const sprite = getOnlyStatusIconSprite(world);
 
-    assertApproximatelyEqual(sprite.y, STATUS_ICON_CENTER_Y_ABOVE_BAR);
+    assertApproximatelyEqual(sprite.x, BAR_BOTTOM_RIGHT_SINGLE_ICON_X);
+    assertApproximatelyEqual(sprite.y, STATUS_ICON_CENTER_Y_AT_BAR_BOTTOM);
   });
 });
 
@@ -235,10 +237,10 @@ test("persistent status와 emotion이 함께 있으면 status icon이 왼쪽부�
     const sprites = getStatusIconSprites(world).sort((a, b) => a.x - b.x);
 
     assert.equal(sprites.length, 2);
-    assertApproximatelyEqual(sprites[0].x, CENTERED_DOUBLE_ICON_LEFT_X);
-    assertApproximatelyEqual(sprites[1].x, CENTERED_DOUBLE_ICON_RIGHT_X);
-    assertApproximatelyEqual(sprites[0].y, STATUS_ICON_CENTER_Y_ABOVE_BAR);
-    assertApproximatelyEqual(sprites[1].y, STATUS_ICON_CENTER_Y_ABOVE_BAR);
+    assertApproximatelyEqual(sprites[0].x, BAR_BOTTOM_RIGHT_DOUBLE_ICON_LEFT_X);
+    assertApproximatelyEqual(sprites[1].x, BAR_BOTTOM_RIGHT_DOUBLE_ICON_RIGHT_X);
+    assertApproximatelyEqual(sprites[0].y, STATUS_ICON_CENTER_Y_AT_BAR_BOTTOM);
+    assertApproximatelyEqual(sprites[1].y, STATUS_ICON_CENTER_Y_AT_BAR_BOTTOM);
   });
 });
 
@@ -264,8 +266,8 @@ test("지속 상태 아이콘은 캐릭터보다 앞 zIndex를 사용하고 캐�
     const sprite = getOnlyStatusIconSprite(world);
     const characterZIndex = Math.round(PositionComp.y[eid]);
 
-    assertApproximatelyEqual(sprite.x, CENTERED_SINGLE_ICON_X_WALKING);
-    assertApproximatelyEqual(sprite.y, STATUS_ICON_CENTER_Y_ABOVE_BAR_WALKING);
+    assertApproximatelyEqual(sprite.x, BAR_BOTTOM_RIGHT_SINGLE_ICON_X_WALKING);
+    assertApproximatelyEqual(sprite.y, STATUS_ICON_CENTER_Y_AT_BAR_BOTTOM_WALKING);
     assert.equal(sprite.zIndex, characterZIndex + 1.5);
     assert.equal(sprite.roundPixels, true);
   });
@@ -293,8 +295,8 @@ test("emotion 아이콘도 캐릭터보다 앞 zIndex를 사용하고 walking �
     const sprite = getOnlyStatusIconSprite(world);
     const characterZIndex = Math.round(PositionComp.y[eid]);
 
-    assertApproximatelyEqual(sprite.x, CENTERED_SINGLE_ICON_X_WALKING);
-    assertApproximatelyEqual(sprite.y, STATUS_ICON_CENTER_Y_ABOVE_BAR_WALKING);
+    assertApproximatelyEqual(sprite.x, BAR_BOTTOM_RIGHT_SINGLE_ICON_X_WALKING);
+    assertApproximatelyEqual(sprite.y, STATUS_ICON_CENTER_Y_AT_BAR_BOTTOM_WALKING);
     assert.equal(sprite.zIndex, characterZIndex + 1.5);
     assert.equal(sprite.roundPixels, true);
   });
@@ -320,10 +322,35 @@ test("수면 중에는 임시 상태 슬롯에 sleeping 아이콘이 렌더링�
     const sprite = getOnlyStatusIconSprite(world);
     const characterZIndex = Math.round(PositionComp.y[eid]);
 
-    assertApproximatelyEqual(sprite.x, CENTERED_SINGLE_ICON_X_WALKING);
-    assertApproximatelyEqual(sprite.y, STATUS_ICON_CENTER_Y_ABOVE_BAR_WALKING);
+    assertApproximatelyEqual(sprite.x, BAR_BOTTOM_RIGHT_SINGLE_ICON_X_WALKING);
+    assertApproximatelyEqual(sprite.y, STATUS_ICON_CENTER_Y_AT_BAR_BOTTOM_WALKING);
     assert.equal(sprite.zIndex, characterZIndex + 1.5);
     assert.equal(sprite.roundPixels, true);
+  });
+});
+
+test("하단 가장자리 근처의 상태 아이콘은 화면 안으로 clamp된다", () => {
+  withMockedStatusIconSprites(() => {
+    const world = createMainSceneWorldForTest();
+    const eid = createTestCharacter(
+      world as unknown as Parameters<typeof createTestCharacter>[0],
+      {
+        state: CharacterState.IDLE,
+        x: 80,
+        y: 370,
+      },
+    );
+
+    CharacterStatusComp.statuses[eid][0] = CharacterStatus.SICK;
+
+    statusIconRenderSystem({
+      world,
+      delta: 16,
+    });
+
+    const sprite = getOnlyStatusIconSprite(world);
+    assertApproximatelyEqual(sprite.x, BAR_BOTTOM_RIGHT_SINGLE_ICON_X);
+    assertApproximatelyEqual(sprite.y, BOTTOM_CLAMPED_STATUS_ICON_CENTER_Y);
   });
 });
 
