@@ -1,0 +1,4 @@
+interface:
+  display_name: "Digivice Release Packaging"
+  short_description: "Digivice 버전 bump, 노트, 커밋, 태그 패키징"
+  default_prompt: "Use $digivice-release-packaging to bump versions/app.json, write release notes, commit, and create the release tag."
