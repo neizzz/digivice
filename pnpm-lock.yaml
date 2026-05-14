@@ -17,6 +17,12 @@ importers:
       '@digivice/game':
         specifier: workspace:*
         version: link:../game
+      '@shared/i18n':
+        specifier: workspace:*
+        version: link:../../shared/i18n
+      '@shared/storage':
+        specifier: workspace:*
+        version: link:../../shared/storage
       react:
         specifier: ^19.1.0
         version: 19.1.0
@@ -81,6 +87,9 @@ importers:
       '@pixi/gif':
         specifier: ^3.0.1
         version: 3.0.1(pixi.js@8.11.0)
+      '@shared/i18n':
+        specifier: workspace:*
+        version: link:../../shared/i18n
       '@shared/storage':
         specifier: workspace:*
         version: link:../../shared/storage
@@ -130,6 +139,8 @@ importers:
       typescript-eslint:
         specifier: ^8.15.0
         version: 8.26.1(eslint@9.22.0(jiti@2.4.2))(typescript@5.6.3)
+
+  shared/i18n: {}
 
   shared/storage:
     dependencies:

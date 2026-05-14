@@ -1,8 +1,17 @@
 {
-	"files": [],
-	"references": [
-		{ "path": "./apps/client" },
-		{ "path": "./apps/game" },
-		{ "path": "./shared/storage" }
-	]
+  "files": [],
+  "references": [
+    {
+      "path": "./apps/client"
+    },
+    {
+      "path": "./apps/game"
+    },
+    {
+      "path": "./shared/storage"
+    },
+    {
+      "path": "./shared/i18n"
+    }
+  ]
 }

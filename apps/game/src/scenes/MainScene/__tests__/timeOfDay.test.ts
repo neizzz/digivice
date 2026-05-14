@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  getTimeOfDayLabel,
   resolveAutoTimeOfDayState,
   SUN_TRANSITION_TOTAL_MINUTES,
   SUN_TRANSITION_WINDOW_MINUTES,
@@ -100,4 +101,10 @@ test("일몰 전후 1시간 동안 sunset 전환 상태를 유지한다", () => 
     progress: 1,
     isTransition: false,
   });
+});
+
+test("timeOfDay label은 locale별 문구를 반환한다", () => {
+  assert.equal(getTimeOfDayLabel(TimeOfDay.Day), "Day");
+  assert.equal(getTimeOfDayLabel(TimeOfDay.Night, "ko"), "밤");
+  assert.equal(getTimeOfDayLabel(TimeOfDay.Sunrise, "zh-HK"), "日出");
 });

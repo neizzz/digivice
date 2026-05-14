@@ -5,6 +5,7 @@ import {
   type TimeOfDay,
 } from "@digivice/game";
 import PopupLayer from "../components/PopupLayer";
+import { useI18n } from "../i18n";
 
 const isNativeFeatureDebugMode =
   import.meta.env.NATIVE_FEATURE_DEBUG_MODE === "true";
@@ -26,6 +27,8 @@ const ToggleButton: React.FC<{
   enabled: boolean;
   onClick: () => void;
 }> = ({ enabled, onClick }) => {
+  const { t } = useI18n();
+
   return (
     <button
       type={"button"}
@@ -34,7 +37,7 @@ const ToggleButton: React.FC<{
         enabled ? "bg-component-positive" : "bg-gray-400"
       }`}
     >
-      {enabled ? "ON" : "OFF"}
+      {enabled ? t("common.on") : t("common.off")}
     </button>
   );
 };
@@ -95,6 +98,7 @@ const FlappyBirdSettingsLayer: React.FC<FlappyBirdSettingsLayerProps> = ({
   onResume,
   onExit,
 }) => {
+  const { locale, t } = useI18n();
   const shouldShowSkySelector =
     import.meta.env.DEV &&
     isNativeFeatureDebugMode &&
@@ -104,14 +108,14 @@ const FlappyBirdSettingsLayer: React.FC<FlappyBirdSettingsLayerProps> = ({
   return (
     <div className="fixed inset-0 z-[50] flex items-center justify-center bg-black/50">
       <PopupLayer
-        title="Settings"
+        title={t("settings.title")}
         suppressInitialActionsMs={180}
         content={
           <div className="flex flex-col gap-5 text-left text-[1.5rem]">
             <div className="flex flex-col gap-4">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <div className="font-bold">BGM</div>
+                  <div className="font-bold">{t("flappy.bgm")}</div>
                 </div>
                 <ToggleButton
                   enabled={isBgmEnabled}
@@ -120,7 +124,7 @@ const FlappyBirdSettingsLayer: React.FC<FlappyBirdSettingsLayerProps> = ({
               </div>
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <div className="font-bold">SFX</div>
+                  <div className="font-bold">{t("flappy.sfx")}</div>
                 </div>
                 <ToggleButton
                   enabled={isSfxEnabled}
@@ -131,9 +135,9 @@ const FlappyBirdSettingsLayer: React.FC<FlappyBirdSettingsLayerProps> = ({
 
             <div className="border-t-2 border-[#222] pt-4">
               <div className="flex items-center justify-between gap-4">
-                <div className="font-bold">Report Bug</div>
+                <div className="font-bold">{t("settings.reportBug")}</div>
                 <ActionButton
-                  text={isSendingLogs ? "Preparing..." : "Send"}
+                  text={isSendingLogs ? t("flappy.preparing") : t("settings.send")}
                   onClick={onSendLogs}
                   disabled={isSendingLogs}
                   variant="warning"
@@ -143,13 +147,13 @@ const FlappyBirdSettingsLayer: React.FC<FlappyBirdSettingsLayerProps> = ({
 
             {shouldShowSkySelector ? (
               <div className="border-t-2 border-[#222] pt-4">
-                <div className="mb-3 font-bold">Sky Dev</div>
+                <div className="mb-3 font-bold">{t("flappy.skyDev")}</div>
                 <div className="grid grid-cols-2 gap-2">
                   {TIME_OF_DAY_OPTIONS.map((timeOfDay) => (
                     <SelectButton
                       key={timeOfDay}
                       active={selectedTimeOfDay === timeOfDay}
-                      label={getTimeOfDayLabel(timeOfDay)}
+                      label={getTimeOfDayLabel(timeOfDay, locale)}
                       onClick={() => onSelectTimeOfDay(timeOfDay)}
                     />
                   ))}
@@ -160,8 +164,8 @@ const FlappyBirdSettingsLayer: React.FC<FlappyBirdSettingsLayerProps> = ({
         }
         onConfirm={onResume}
         onCancel={onExit}
-        confirmText="Resume"
-        cancelText="Exit"
+        confirmText={t("flappy.resume")}
+        cancelText={t("flappy.exit")}
         initialFocusTarget="confirm"
       />
     </div>

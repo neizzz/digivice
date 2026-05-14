@@ -15,7 +15,8 @@
     "noUncheckedSideEffectImports": true,
     "paths": {
       "@/*": ["../game/src/*"], // for @digivice/game
-      "@shared/storage": ["../../shared/storage/src/index.ts"]
+      "@shared/storage": ["../../shared/storage/src/index.ts"],
+      "@shared/i18n": ["../../shared/i18n/src/index.ts"]
     }
   },
   "include": ["src", "../game/src/global.d.ts"]

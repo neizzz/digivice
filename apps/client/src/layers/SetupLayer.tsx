@@ -9,6 +9,7 @@ import {
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import PopupLayer from "../components/PopupLayer";
+import { useI18n } from "../i18n";
 
 const MIN_NAME_LENGTH = 2;
 
@@ -23,6 +24,7 @@ export interface SetupLayerProps {
 }
 
 export const SetupLayer: React.FC<SetupLayerProps> = ({ onComplete }) => {
+  const { t } = useI18n();
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
@@ -33,18 +35,18 @@ export const SetupLayer: React.FC<SetupLayerProps> = ({ onComplete }) => {
 
   const handleConfirm = () => {
     if (!trimmedName) {
-      setError("Please enter a name.");
+      setError(t("setup.error.emptyName"));
       return;
     }
 
     if (nameLength < MIN_NAME_LENGTH) {
-      setError(`Name must be at least ${MIN_NAME_LENGTH} characters long.`);
+      setError(t("setup.error.minLength", { minLength: MIN_NAME_LENGTH }));
       return;
     }
 
     if (!isWithinVisibleWidth) {
       setError(
-        `Name must fit within ${NAME_LABEL_MAX_WIDTH}px on the in-game label.`,
+        t("setup.error.maxWidth", { maxWidth: NAME_LABEL_MAX_WIDTH }),
       );
       return;
     }
@@ -63,7 +65,7 @@ export const SetupLayer: React.FC<SetupLayerProps> = ({ onComplete }) => {
   const overlay = (
     <div className="fixed inset-0 z-[999] flex min-h-dvh items-center justify-center bg-black/50">
       <PopupLayer
-        title="Spawn Monster!"
+        title={t("setup.title")}
         keyboardAwareTargetRef={nameInputRef}
         dividerBorderClassName="border-[#555]"
         content={
@@ -77,7 +79,7 @@ export const SetupLayer: React.FC<SetupLayerProps> = ({ onComplete }) => {
                   setName(e.target.value);
                   setError(null);
                 }}
-                placeholder="monster name"
+                placeholder={t("setup.placeholder.name")}
                 className="w-full border-2 border-[#222] px-3 py-0.5 text-center text-[1.4rem] focus:outline-none focus:ring-2 focus:ring-[#d95763]"
               />
               <div
@@ -85,7 +87,7 @@ export const SetupLayer: React.FC<SetupLayerProps> = ({ onComplete }) => {
                   isWithinVisibleWidth ? "text-gray-600" : "text-red-600"
                 }`}
               >
-                name width: {Math.round(nameWidth)}/{NAME_LABEL_MAX_WIDTH}px
+                {t("setup.nameWidth", { width: Math.round(nameWidth), maxWidth: NAME_LABEL_MAX_WIDTH })}
               </div>
               {error && (
                 <p className="mt-4 text-component-negative text-[0.7em]">
@@ -96,7 +98,7 @@ export const SetupLayer: React.FC<SetupLayerProps> = ({ onComplete }) => {
           </div>
         }
         onConfirm={handleConfirm}
-        confirmText="Start"
+        confirmText={t("setup.start")}
       />
     </div>
   );

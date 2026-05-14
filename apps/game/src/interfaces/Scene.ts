@@ -1,3 +1,4 @@
+import type { LocaleCode } from "@shared/i18n";
 import { ControlButtonType } from "..";
 
 export interface Scene {
@@ -13,4 +14,5 @@ export interface Scene {
   // Scene 생명주기 메서드들 (선택적 구현)
   onSceneExit?: () => void | Promise<void>; // Scene 종료 시 호출
   onSceneReenter?: () => Promise<void>; // Scene 재진입 시 호출
+  onLocaleChange?: (locale: LocaleCode) => void;
 }

@@ -18,7 +18,9 @@
     "dev:production:debug": "pnpm build:production:debug && vite preview --host",
     "lint": "eslint . --config eslint.config.js --no-config-lookup",
     "preview": "vite preview",
-    "dev:monster-animations": "pnpm --filter @digivice/game sync-assets && vite --host --open /monster-animations.html"
+    "dev:monster-animations": "pnpm --filter @digivice/game sync-assets && vite --host --open /monster-animations.html",
+    "snapshot:i18n": "node scripts/capture-i18n-snapshots.mjs --serve",
+    "snapshot:i18n:current": "node scripts/capture-i18n-snapshots.mjs"
   },
   "dependencies": {
     "@digivice/game": "workspace:*",
@@ -26,7 +28,8 @@
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "tailwindcss": "^4.1.3",
-    "uuid": "^11.1.0"
+    "uuid": "^11.1.0",
+    "@shared/i18n": "workspace:*"
   },
   "devDependencies": {
     "@eslint/js": "^9.15.0",

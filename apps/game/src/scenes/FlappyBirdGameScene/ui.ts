@@ -1,3 +1,4 @@
+import { DEFAULT_LOCALE, type LocaleCode, translate } from "@shared/i18n";
 import * as PIXI from "pixi.js";
 import { NAME_LABEL_FONT_FAMILIES } from "../../utils/nameLabel";
 
@@ -103,8 +104,10 @@ export class ScoreUI {
   private scoreText: PIXI.Text;
   private score: number = 0;
   private bestScore: number = 0;
+  private locale: LocaleCode;
 
-  constructor(initialBestScore = 0) {
+  constructor(initialBestScore = 0, locale: LocaleCode = DEFAULT_LOCALE) {
+    this.locale = locale;
     const textStyle = {
       fontFamily: FLAPPY_BIRD_FONT_FAMILIES,
       fontSize: FLAPPY_BIRD_SCORE_FONT_SIZE,
@@ -118,11 +121,11 @@ export class ScoreUI {
 
     this.container = new PIXI.Container();
     this.bestScoreText = new PIXI.Text({
-      text: "Best: 0",
+      text: translate(this.locale, "flappy.best", { score: 0 }),
       style: textStyle,
     });
     this.scoreText = new PIXI.Text({
-      text: "Score: 0",
+      text: translate(this.locale, "flappy.score", { score: 0 }),
       style: textStyle,
     });
 
@@ -216,9 +219,18 @@ export class ScoreUI {
     );
   }
 
+  public setLocale(locale: LocaleCode): void {
+    this.locale = locale;
+    this.syncText();
+  }
+
   private syncText(): void {
-    this.bestScoreText.text = `Best: ${this.bestScore}`;
-    this.scoreText.text = `Score: ${this.score}`;
+    this.bestScoreText.text = translate(this.locale, "flappy.best", {
+      score: this.bestScore,
+    });
+    this.scoreText.text = translate(this.locale, "flappy.score", {
+      score: this.score,
+    });
   }
 }
 
@@ -226,12 +238,14 @@ export class NearMissUI {
   private text: PIXI.Text;
   private remainingMs = 0;
   private readonly totalDurationMs = FLAPPY_BIRD_NEAR_MISS_DURATION_MS;
+  private locale: LocaleCode;
   private baseX = 0;
   private baseY = 0;
 
-  constructor() {
+  constructor(locale: LocaleCode = DEFAULT_LOCALE) {
+    this.locale = locale;
     this.text = new PIXI.Text({
-      text: "Good!",
+      text: translate(this.locale, "flappy.nearMissGood"),
       style: {
         fontFamily: FLAPPY_BIRD_FONT_FAMILIES,
         fontSize: FLAPPY_BIRD_NEAR_MISS_FONT_SIZE,
@@ -249,7 +263,7 @@ export class NearMissUI {
   }
 
   public showBonus(amount: number): void {
-    const feedback = resolveNearMissFeedback(amount);
+    const feedback = resolveNearMissFeedback(amount, this.locale);
 
     this.text.text = feedback.text;
     this.text.style.fill = feedback.fill;
@@ -295,6 +309,10 @@ export class NearMissUI {
     }
   }
 
+  public setLocale(locale: LocaleCode): void {
+    this.locale = locale;
+  }
+
   public reset(): void {
     this.remainingMs = 0;
     this.text.visible = false;
@@ -307,15 +325,18 @@ export class NearMissUI {
   }
 }
 
-export function resolveNearMissFeedback(amount: number): {
-  text: "Good!" | "Great!";
+export function resolveNearMissFeedback(
+  amount: number,
+  locale: LocaleCode = DEFAULT_LOCALE,
+): {
+  text: string;
   fill: number;
 } {
   const bonusAmount = Math.max(1, Math.floor(amount));
   const isGreat = bonusAmount >= 2;
 
   return {
-    text: isGreat ? "Great!" : "Good!",
+    text: translate(locale, isGreat ? "flappy.nearMissGreat" : "flappy.nearMissGood"),
     fill: isGreat
       ? FLAPPY_BIRD_NEAR_MISS_GREAT_COLOR
       : FLAPPY_BIRD_NEAR_MISS_GOOD_COLOR,
@@ -329,12 +350,14 @@ export class GameOverUI {
   private container: PIXI.Container;
   private gameOverText: PIXI.Text;
   private restartText: PIXI.Text;
+  private locale: LocaleCode;
 
-  constructor() {
+  constructor(locale: LocaleCode = DEFAULT_LOCALE) {
+    this.locale = locale;
     this.container = new PIXI.Container();
 
     this.gameOverText = new PIXI.Text({
-      text: "Game Over",
+      text: translate(this.locale, "flappy.gameOver"),
       style: {
         fontFamily: FLAPPY_BIRD_FONT_FAMILIES,
         fontSize: FLAPPY_BIRD_GAME_OVER_FONT_SIZE,
@@ -350,7 +373,7 @@ export class GameOverUI {
     this.gameOverText.anchor.set(0.5);
 
     this.restartText = new PIXI.Text({
-      text: "Press SPACE to restart",
+      text: translate(this.locale, "flappy.restartInstruction"),
       style: {
         fontFamily: FLAPPY_BIRD_FONT_FAMILIES,
         fontSize: FLAPPY_BIRD_RESTART_FONT_SIZE,
@@ -377,6 +400,12 @@ export class GameOverUI {
    */
   public show(): void {
     this.container.visible = true;
+  }
+
+  public setLocale(locale: LocaleCode): void {
+    this.locale = locale;
+    this.gameOverText.text = translate(this.locale, "flappy.gameOver");
+    this.restartText.text = translate(this.locale, "flappy.restartInstruction");
   }
 
   /**

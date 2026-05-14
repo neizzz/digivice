@@ -1,3 +1,4 @@
+import type { LocaleCode } from "@shared/i18n";
 import * as PIXI from "pixi.js";
 import type { FlappyBirdSkyContext, Game } from "../../Game";
 import { GameEngine } from "../../GameEngine";
@@ -149,6 +150,7 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
   private nextSkySyncAtMs = 0;
   private isReturningToMain = false;
   private isSettingsMenuOpen = false;
+  private locale: LocaleCode;
   private gameOverVibrationTimeoutIds: number[] = [];
   private pausedStateBeforePause: GameState.PLAYING | GameState.COUNTDOWN | null =
     null;
@@ -163,6 +165,7 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
   ) {
     super();
     this.game = game;
+    this.locale = game.getLocale();
     this.boundHandleKeyDown = this.handleKeyDown.bind(this);
     this.boundVisibilityChangeHandler = this.handleVisibilityChange.bind(this);
     this.bgmController = new FlappyBirdBgmController();
@@ -287,8 +290,8 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
     );
 
     // UI 초기화
-    this.scoreUI = new ScoreUI(bestScore);
-    this.nearMissUI = new NearMissUI();
+    this.scoreUI = new ScoreUI(bestScore, this.locale);
+    this.nearMissUI = new NearMissUI(this.locale);
     this.countdownUI = new CountdownUI();
 
     // 씬 설정
@@ -325,6 +328,15 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
   /**
    * 씬을 설정합니다.
    */
+  public onLocaleChange(locale: LocaleCode): void {
+    this.locale = locale;
+    this.scoreUI?.setLocale(locale);
+    this.nearMissUI?.setLocale(locale);
+    if (this.isSettingsMenuOpen) {
+      this.showSettingsMenu();
+    }
+  }
+
   private setupScene(): void {
     try {
       const logInitPhase = (phase: string, payload: Record<string, unknown> = {}) => {

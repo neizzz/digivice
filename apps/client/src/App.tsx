@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import "./App.css";
 import GameContainer from "./GameContainer";
+import SnapshotScreen, { getSnapshotLayer } from "./SnapshotScreen";
 import TopLeftBuildLogoText from "./components/TopLeftBuildLogoText";
 import OfflineInterstitialFallbackLayer from "./components/OfflineInterstitialFallbackLayer";
 import { AdManager } from "./ad/AdManager";
 import { FlappyBirdGameOverPolicy } from "./ad/policies/FlappyBirdGameOverPolicy";
 import { MainSceneMenuPolicy } from "./ad/policies/MainSceneMenuPolicy";
 import SimpleLogViewer from "../components/SimpleLogViewer/SimpleLogViewer";
+import { useI18n } from "./i18n";
 
 // AdManager 글로벌 인스턴스
 let adManager: AdManager | null = null;
@@ -26,6 +28,8 @@ type FullscreenAdEventDetail = {
 };
 
 const App = () => {
+  const { t } = useI18n();
+  const snapshotLayer = getSnapshotLayer();
   const isInitialized = useRef(false);
   const isFullscreenAdActiveRef = useRef(false);
   const suppressAppReenterUntilRef = useRef(0);
@@ -164,11 +168,16 @@ const App = () => {
     <div id="app-shell">
       <TopLeftBuildLogoText />
       <div id="app-container">
-        <GameContainer />
+        {snapshotLayer ? (
+          <SnapshotScreen layer={snapshotLayer} />
+        ) : (
+          <GameContainer />
+        )}
         {offlineAdFallbackKey !== null && (
           <OfflineInterstitialFallbackLayer
             key={offlineAdFallbackKey}
             onComplete={() => clearOfflineAdFallback(true)}
+            t={t}
           />
         )}
         <SimpleLogViewer position="top-right" initialOpen={false} />

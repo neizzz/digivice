@@ -1,3 +1,5 @@
+import { DEFAULT_LOCALE, type LocaleCode, translate } from "@shared/i18n";
+
 export enum TimeOfDay {
   Day = "day",
   Sunrise = "sunrise",
@@ -44,21 +46,21 @@ export type ProjectedUpcomingSunTimes = {
 };
 
 export type TimeOfDayTone = {
-  label: string;
+  labelKey: Parameters<typeof translate>[1];
 };
 
 export const TIME_OF_DAY_TONES: Record<TimeOfDay, TimeOfDayTone> = {
   [TimeOfDay.Day]: {
-    label: "Day",
+    labelKey: "timeOfDay.day",
   },
   [TimeOfDay.Sunrise]: {
-    label: "Sunrise",
+    labelKey: "timeOfDay.sunrise",
   },
   [TimeOfDay.Sunset]: {
-    label: "Sunset",
+    labelKey: "timeOfDay.sunset",
   },
   [TimeOfDay.Night]: {
-    label: "Night",
+    labelKey: "timeOfDay.night",
   },
 };
 
@@ -80,8 +82,11 @@ const MANUAL_PROGRESS_PRESET: Record<TimeOfDay, number> = {
   [TimeOfDay.Night]: 1,
 };
 
-export function getTimeOfDayLabel(timeOfDay: TimeOfDay): string {
-  return TIME_OF_DAY_TONES[timeOfDay].label;
+export function getTimeOfDayLabel(
+  timeOfDay: TimeOfDay,
+  locale: LocaleCode = DEFAULT_LOCALE,
+): string {
+  return translate(locale, TIME_OF_DAY_TONES[timeOfDay].labelKey);
 }
 
 export function getManualSkyVisualState(timeOfDay: TimeOfDay): SkyVisualState {

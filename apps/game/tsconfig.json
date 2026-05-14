@@ -10,7 +10,8 @@
     "paths": {
       // 실질적으로 dev에서 쓰이는 paths는 '@divigice/client'의 tsconfig설정임.
       // 여기서는 ide상 ts에러가 나지 않도록 설정하는 것.
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@shared/i18n": ["../../shared/i18n/src/index.ts"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.d.ts"],

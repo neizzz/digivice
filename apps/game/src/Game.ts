@@ -1,3 +1,4 @@
+import { DEFAULT_LOCALE, type LocaleCode } from "@shared/i18n";
 import * as PIXI from "pixi.js";
 import { SceneKey } from "./SceneKey";
 import type { Scene } from "./interfaces/Scene";
@@ -181,6 +182,7 @@ export class Game {
   public showFlappyBirdSettingsMenu?: ShowFlappyBirdSettingsMenuCallback;
   public hideFlappyBirdSettingsMenu?: HideFlappyBirdSettingsMenuCallback;
 
+  private _locale: LocaleCode;
   private _parentElement: HTMLElement;
   private _onSceneTransitionStateChange?: SceneTransitionStateChangeCallback;
   private _debugParentElement: HTMLElement;
@@ -224,6 +226,7 @@ export class Game {
     parentElement: HTMLElement;
     debugParentElement?: HTMLElement;
     debugMode?: boolean;
+    locale?: LocaleCode;
     initialSceneKey?: SceneKey;
     onCreateInitialGameData: CreateInitialGameDataCallback;
     changeControlButtons: ControlButtonsChangeCallback;
@@ -248,6 +251,7 @@ export class Game {
       parentElement,
       debugParentElement,
       debugMode,
+      locale = DEFAULT_LOCALE,
       initialSceneKey,
       onCreateInitialGameData,
       changeControlButtons,
@@ -286,6 +290,7 @@ export class Game {
     this._createInitialGameData = onCreateInitialGameData;
     this._initialSceneKey = initialSceneKey ?? SceneKey.MAIN;
     this._debugMode = debugMode ?? false;
+    this._locale = locale;
     this._loadingTraceContext = loadingTraceContext ?? null;
     this._trustedClock = providedTrustedClock ?? trustedClock;
 
@@ -368,6 +373,16 @@ export class Game {
       });
       this._resizeObserver.observe(this._parentElement);
     }
+  }
+
+
+  public getLocale(): LocaleCode {
+    return this._locale;
+  }
+
+  public setLocale(locale: LocaleCode): void {
+    this._locale = locale;
+    this.currentScene?.onLocaleChange?.(locale);
   }
 
   /**
@@ -746,6 +761,7 @@ export class Game {
           createInitialGameData: this._createInitialGameData,
           changeControlButtons: this.changeControlButtons,
           showAlert: this.showAlert,
+          locale: this._locale,
           triggerBiteVibration: this.triggerBiteVibration,
           startRecoveryVibration: this.startRecoveryVibration,
           stopRecoveryVibration: this.stopRecoveryVibration,

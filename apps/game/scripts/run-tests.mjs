@@ -82,6 +82,7 @@ async function buildTests(esbuild, testFiles) {
     alias: {
       "@": path.join(gameRoot, "src"),
       "@shared/storage": path.join(repoRoot, "shared", "storage", "src", "index.ts"),
+      "@shared/i18n": path.join(repoRoot, "shared", "i18n", "src", "index.ts"),
     },
     define: {
       "import.meta.env.DEV": "true",

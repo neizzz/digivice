@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { hasNativeStorageController } from "@shared/storage";
 import App from "./App";
+import { I18nProvider } from "./i18n";
 import "./index.css";
 import { PlatformAdapter } from "./adapter/PlatformAdapter.ts";
 import {
@@ -82,7 +83,9 @@ async function bootstrap(): Promise<void> {
 
   root.render(
     <>
-      <App />
+      <I18nProvider>
+        <App />
+      </I18nProvider>
     </>,
   );
 }

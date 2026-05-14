@@ -47,6 +47,7 @@ import {
   getClientStorageKind,
 } from "./utils/clientStorage";
 import type { SanitizeStoredWorldDataResult } from "./utils/sanitizeStoredWorldData";
+import { useI18n } from "./i18n";
 
 const WORLD_DATA_STORAGE_KEY = "MainSceneWorldData";
 const FLAPPY_BIRD_GAME_OVER_AD_COUNTER_STORAGE_KEY =
@@ -692,6 +693,7 @@ const GameContainer: React.FC = () => {
     );
   const [showSetupLayer, setShowSetupLayer] = useState<boolean>(false);
   const [isBootstrapping, setIsBootstrapping] = useState<boolean>(true);
+  const { locale, setLocale, t } = useI18n();
   const { alertState, showAlert, hideAlert } = useAlert();
   const [loadingFailureAlert, setLoadingFailureAlert] =
     useState<LoadingFailureAlertState | null>(null);
@@ -1181,7 +1183,7 @@ const GameContainer: React.FC = () => {
   const stopLoadingWithFailure = useCallback(
     ({
       message,
-      title = "Loading Error",
+      title = t("loading.errorTitle"),
       error,
       context,
     }: {
@@ -1221,6 +1223,7 @@ const GameContainer: React.FC = () => {
       clearLoadingTimeout,
       gameInstance,
       sceneTransitionLoadState.phase,
+      t,
     ],
   );
 
@@ -1257,9 +1260,8 @@ const GameContainer: React.FC = () => {
         }
 
         stopLoadingWithFailure({
-          title: "Loading Timeout",
-          message:
-            "The game is taking too long to load. Tap Okay to dismiss this popup or Send Log to share diagnostics.",
+          title: t("loading.timeoutTitle"),
+          message: t("loading.timeoutMessage"),
           context: {
             phase: "loading_timeout",
             loadingPhase: timeoutContext.phase,
@@ -1274,7 +1276,7 @@ const GameContainer: React.FC = () => {
         });
       }, remainingMs);
     },
-    [stopLoadingWithFailure],
+    [stopLoadingWithFailure, t],
   );
 
   useEffect(() => {
@@ -1463,6 +1465,11 @@ const GameContainer: React.FC = () => {
   const handleVibrationSettingChange = useCallback((enabled: boolean) => {
     setGameSettings(updateGameSettings({ vibrationEnabled: enabled }));
   }, []);
+
+  useEffect(() => {
+    setGameSettings(getGameSettings());
+    gameInstance?.setLocale(locale);
+  }, [gameInstance, locale]);
 
   useEffect(() => {
     setDiagnosticsContextProvider(() => ({
@@ -2026,7 +2033,7 @@ const GameContainer: React.FC = () => {
         "[GameContainer] Failed to prepare diagnostics payload",
         error,
       );
-      showAlert("Failed to prepare diagnostics payload.", "Error");
+      showAlert(t("diagnostics.prepareFailed"), t("common.error"));
     } finally {
       setIsSendingDiagnostics(false);
     }
@@ -2035,6 +2042,7 @@ const GameContainer: React.FC = () => {
     pendingDiagnosticsDraft,
     prepareDiagnosticsDraft,
     showAlert,
+    t,
   ]);
 
   const handleSendFlappyBirdLogs = useCallback(async () => {
@@ -2056,7 +2064,7 @@ const GameContainer: React.FC = () => {
         "[GameContainer] Failed to prepare flappybird log payload",
         error,
       );
-      showAlert("Failed to prepare FlappyBird logs.", "Error");
+      showAlert(t("diagnostics.flappyPrepareFailed"), t("common.error"));
     } finally {
       setIsSendingDiagnostics(false);
     }
@@ -2065,6 +2073,7 @@ const GameContainer: React.FC = () => {
     pendingDiagnosticsDraft,
     prepareDiagnosticsDraft,
     showAlert,
+    t,
   ]);
 
   const handleCancelDiagnosticsDraft = useCallback(() => {
@@ -2090,17 +2099,15 @@ const GameContainer: React.FC = () => {
 
       if (openRoute !== "gmail_app") {
         followUpAlert = {
-          title: "Notice",
-          message:
-            "The mail compose screen was opened outside the app. File attachment support is only guaranteed when the Gmail app opens directly.",
+          title: t("common.notice"),
+          message: t("diagnostics.gmailNotice"),
         };
       }
     } catch (error) {
       console.error("[GameContainer] Failed to open diagnostics draft", error);
       followUpAlert = {
-        title: "Error",
-        message:
-          "Failed to open the Gmail draft. Please make sure Gmail is installed.",
+        title: t("common.error"),
+        message: t("diagnostics.gmailOpenFailed"),
       };
     } finally {
       setPendingDiagnosticsDraft(null);
@@ -2113,7 +2120,7 @@ const GameContainer: React.FC = () => {
         }, 0);
       }
     }
-  }, [pendingDiagnosticsDraft, showAlert]);
+  }, [pendingDiagnosticsDraft, showAlert, t]);
 
   const resetGameData = useCallback(
     async (reason: "user_reset" | "sanitize_reset") => {
@@ -2163,7 +2170,7 @@ const GameContainer: React.FC = () => {
         });
       } catch (error) {
         console.error("[GameContainer] Failed to reset game data:", error);
-        showAlert("Failed to reset game data.", "Error");
+        showAlert(t("diagnostics.resetFailed"), t("common.error"));
       }
     },
     [
@@ -2172,6 +2179,7 @@ const GameContainer: React.FC = () => {
       gameInstance,
       presentSetupLayer,
       showAlert,
+      t,
     ],
   );
 
@@ -2254,10 +2262,8 @@ const GameContainer: React.FC = () => {
           },
         );
         setSanitizeResetAlert({
-          title: "Data Recovery",
-          message:
-            result.resetReason ??
-            "Existing game data is corrupted and cannot be recovered. Press Confirm to reset the data and return to the initial setup screen.",
+          title: t("dataRecovery.title"),
+          message: result.resetReason ?? t("dataRecovery.corruptedReset"),
         });
         setIsBootstrapping(false);
       }
@@ -2291,14 +2297,13 @@ const GameContainer: React.FC = () => {
         error,
       });
       setSanitizeResetAlert({
-        title: "Data Recovery",
-        message:
-          "There was a problem reading the existing game data. Press Confirm to reset the data and return to the initial setup screen.",
+        title: t("dataRecovery.title"),
+        message: t("dataRecovery.readFailedReset"),
       });
       setIsBootstrapping(false);
       return "reset_required";
     }
-  }, [entryFlowDiagnostics]);
+  }, [entryFlowDiagnostics, t]);
 
   const hydrateInitialSetupData = useCallback(
     async (formData: SetupFormData): Promise<SetupFormData> => {
@@ -2469,6 +2474,7 @@ const GameContainer: React.FC = () => {
       parentElement: gameContainerRef.current as HTMLDivElement,
       debugParentElement: debugParentElement as HTMLDivElement,
       debugMode: isNativeFeatureDebugMode,
+      locale,
       initialSceneKey: CONFIGURED_INITIAL_SCENE_KEY,
       onCreateInitialGameData: async () => {
         return (
@@ -2611,8 +2617,7 @@ const GameContainer: React.FC = () => {
           }
 
           stopLoadingWithFailure({
-            message:
-              "The game could not finish loading. Tap Okay to dismiss this popup or Send Log to share diagnostics.",
+            message: t("loading.finishFailed"),
             error,
             context: {
               phase: "game_initialize",
@@ -2625,6 +2630,7 @@ const GameContainer: React.FC = () => {
     clearLoadingTimeout,
     clearInitializeGameStartTimeout,
     gameContainerSize,
+    locale,
     getFlappyBirdBestScore,
     handleSceneTransitionStateChange,
     openSettingMenu,
@@ -2637,6 +2643,7 @@ const GameContainer: React.FC = () => {
     showAlert,
     entryFlowDiagnostics,
     triggerTransientVibration,
+    t,
   ]);
 
   // Game 인스턴스 생성은 한 번만 실행되도록 보장
@@ -3004,26 +3011,26 @@ const GameContainer: React.FC = () => {
       {isLoading && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black text-white">
           <div className="text-center text-[2.25rem] tracking-[0.12em]">
-            Loading...
+            {t("loading.label")}
           </div>
         </div>
       )}
       {unsupportedViewportReason && (
         <div className="absolute inset-0 z-[1000] flex items-center justify-center bg-black text-white">
           <div className="px-6 text-center">
-            <div className="text-lg tracking-[0.12em]">Portrait Only</div>
+            <div className="text-lg tracking-[0.12em]">{t("viewport.portraitOnly")}</div>
             <div className="mt-6 text-[10px] leading-6 tracking-[0.12em]">
               {unsupportedViewportReason === "landscape" ? (
                 <>
-                  Please rotate your device
+                  {t("viewport.rotateDevice")}
                   <br />
-                  back to portrait mode.
+                  {t("viewport.backToPortrait")}
                 </>
               ) : (
                 <>
-                  This screen ratio is not supported.
+                  {t("viewport.unsupportedRatio")}
                   <br />
-                  Please use a taller portrait screen.
+                  {t("viewport.useTallerPortrait")}
                 </>
               )}
             </div>
@@ -3035,7 +3042,9 @@ const GameContainer: React.FC = () => {
         <SettingMenuLayer
           releaseLabel={getClientReleaseLabel()}
           vibrationEnabled={gameSettings.vibrationEnabled}
+          locale={locale}
           onChangeVibration={handleVibrationSettingChange}
+          onChangeLocale={setLocale}
           onSendDiagnostics={handleSendDiagnostics}
           isSendingDiagnostics={isSendingDiagnostics}
           showFinalResetConfirm={showFinalResetConfirm}
@@ -3063,8 +3072,8 @@ const GameContainer: React.FC = () => {
             }
             onConfirm={dismissLoadingFailureAlert}
             onCancel={handleSendLoadingFailureLogs}
-            confirmText="Okay"
-            cancelText="Send Log"
+            confirmText={t("common.okay")}
+            cancelText={t("diagnostics.sendLog")}
           />
         </div>
       )}
@@ -3076,25 +3085,25 @@ const GameContainer: React.FC = () => {
           onCancel={() => {
             void handleSendDiagnostics();
           }}
-          cancelText={isSendingDiagnostics ? "Sending..." : "Send Logs"}
+          cancelText={isSendingDiagnostics ? t("settings.sending") : t("diagnostics.sendLogs")}
         />
       )}
       {pendingDiagnosticsDraft && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
           <PopupLayer
-            title="Open Gmail"
+            title={t("diagnostics.openGmail")}
             content={
               <div className="text-left leading-[1.6]">
-                <div>The Gmail app will open next.</div>
+                <div>{t("diagnostics.gmailWillOpen")}</div>
                 <div className="mt-2">
-                  The diagnostics files will be attached to the draft email.
+                  {t("diagnostics.gmailAttachments")}
                 </div>
               </div>
             }
             onConfirm={handleConfirmDiagnosticsDraft}
             onCancel={handleCancelDiagnosticsDraft}
-            confirmText="CONFIRM"
-            cancelText="Cancel"
+            confirmText={t("common.confirmUpper")}
+            cancelText={t("common.cancel")}
           />
         </div>
       )}

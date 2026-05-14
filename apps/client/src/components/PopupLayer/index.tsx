@@ -7,10 +7,11 @@ import {
   useState,
 } from "react";
 import { logImportantDiagnostics } from "../../diagnostics/diagnosticLogger";
+import { useI18n } from "../../i18n";
 import { useLayerInteractionVibration } from "../../hooks/useLayerInteractionVibration";
 
 interface PopupProps {
-  title: string;
+  title?: string;
   content: React.ReactNode;
   topLeftContent?: React.ReactNode;
   dividerBorderClassName?: string;
@@ -47,14 +48,14 @@ function roundKeyboardAwareDebugValue(
 }
 
 const PopupLayer: React.FC<PopupProps> = ({
-  title = "Alert!",
+  title,
   content,
   topLeftContent,
   dividerBorderClassName = "border-[#222]",
   onConfirm,
   onCancel,
-  confirmText = "Confirm",
-  cancelText = "Cancel",
+  confirmText,
+  cancelText,
   confirmVariant = "positive",
   cancelVariant = "negative",
   initialFocusTarget = "none",
@@ -64,6 +65,10 @@ const PopupLayer: React.FC<PopupProps> = ({
   confirmEnableDelayMs = 0,
   showActions = true,
 }) => {
+  const { t } = useI18n();
+  const resolvedTitle = title ?? t("alert.title");
+  const resolvedConfirmText = confirmText ?? t("common.confirm");
+  const resolvedCancelText = cancelText ?? t("common.cancel");
   const layerInteractionVibrationProps = useLayerInteractionVibration();
   const containerRef = useRef<HTMLDivElement>(null);
   const confirmButtonRef = useRef<HTMLButtonElement>(null);
@@ -147,7 +152,7 @@ const PopupLayer: React.FC<PopupProps> = ({
 
   const emitKeyboardAwareDebug = useCallback(
     (stage: string, payload: Record<string, unknown> = {}) => {
-      if (title !== "Settings") {
+      if (resolvedTitle !== t("settings.title")) {
         return;
       }
 
@@ -163,14 +168,14 @@ const PopupLayer: React.FC<PopupProps> = ({
         "warn",
         "[ImportantDiagnostics][PopupLayerKeyboardAware]",
         {
-          title,
+          title: resolvedTitle,
           stage,
           sequence: keyboardAwareDebugSequenceRef.current,
           ...payload,
         },
       );
     },
-    [title],
+    [resolvedTitle, t],
   );
 
   const resetKeyboardAwareLayout = useCallback(
@@ -517,7 +522,7 @@ const PopupLayer: React.FC<PopupProps> = ({
         <div
           className={`mb-[15px] flex-none border-b-4 pb-[10px] text-[1.8rem] leading-[1.2] font-display font-bold text-component-negative ${dividerBorderClassName}`}
         >
-          {title}
+          {resolvedTitle}
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto pb-4 text-[1.4rem] leading-[1.6]">
           {content}
@@ -537,7 +542,7 @@ const PopupLayer: React.FC<PopupProps> = ({
                     : "bg-component-positive"
                 }`}
               >
-                {cancelText}
+                {resolvedCancelText}
               </button>
             )}
             <button
@@ -564,7 +569,7 @@ const PopupLayer: React.FC<PopupProps> = ({
                   style={{ width: `${confirmEnableDelayProgress}%` }}
                 />
               )}
-              <span className="relative z-[1]">{confirmText}</span>
+              <span className="relative z-[1]">{resolvedConfirmText}</span>
             </button>
           </div>
         )}

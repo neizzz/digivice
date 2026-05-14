@@ -1,5 +1,8 @@
 export const NAME_LABEL_MAX_WIDTH = 80;
 export const NAME_LABEL_FONT_FAMILIES = [
+  "Droid Sans Mono",
+  "SF Mono",
+  "SFMono-Regular",
   "NeoDunggeunmo Pro",
   "Apple Color Emoji",
   "Segoe UI Emoji",

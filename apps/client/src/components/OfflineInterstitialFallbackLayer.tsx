@@ -1,3 +1,4 @@
+import type { TranslationKey, TranslationParams } from "@shared/i18n";
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
 import PopupLayer from "./PopupLayer";
@@ -7,11 +8,12 @@ const FALLBACK_AD_TICK_MS = 100;
 
 type OfflineInterstitialFallbackLayerProps = {
   onComplete: () => void;
+  t: (key: TranslationKey, params?: TranslationParams) => string;
 };
 
 const OfflineInterstitialFallbackLayer: React.FC<
   OfflineInterstitialFallbackLayerProps
-> = ({ onComplete }) => {
+> = ({ onComplete, t }) => {
   const remainingMsRef = useRef(FALLBACK_AD_DURATION_MS);
   const lastTickAtRef = useRef(0);
   const hasCompletedRef = useRef(false);
@@ -110,18 +112,17 @@ const OfflineInterstitialFallbackLayer: React.FC<
       </div>
       <div className="relative z-[1] w-full">
         <PopupLayer
-          title="Connecting Ad..."
+          title={t("offlineAd.title")}
           content={
             <div className="space-y-4 text-center">
               <div id="offline-ad-title" className="sr-only">
-                Connecting Ad...
+                {t("offlineAd.title")}
               </div>
               <div>
-                We're connecting to the ad network. You'll return to the game
-                automatically.
+                {t("offlineAd.message")}
               </div>
               <div className="text-[1.1rem] leading-[1.4] text-[#534741]">
-                This can take up to 10 seconds.
+                {t("offlineAd.maxDuration")}
               </div>
               <div
                 className="mx-auto w-full max-w-[14rem] border-4 border-[#222] bg-[#201236] p-1 shadow-[2px_2px_0_#222]"
@@ -138,7 +139,7 @@ const OfflineInterstitialFallbackLayer: React.FC<
                 className="font-display text-[1.6rem] leading-[1.2] text-component-negative"
                 aria-live="polite"
               >
-                Returning in {remainingSeconds}s
+                {t("offlineAd.returningIn", { seconds: remainingSeconds })}
               </div>
             </div>
           }

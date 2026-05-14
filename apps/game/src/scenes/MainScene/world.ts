@@ -1,4 +1,9 @@
 import {
+  DEFAULT_LOCALE,
+  type LocaleCode,
+  translate,
+} from "@shared/i18n";
+import {
   addEntity,
   createWorld,
   IWorld,
@@ -454,6 +459,7 @@ export class MainSceneWorld implements IWorld, Scene {
   private _pendingStorageWrite: Promise<void> = Promise.resolve();
   private _startMiniGame?: () => unknown | Promise<unknown>;
   private _showAlert?: ShowAlertCallback;
+  private _locale: LocaleCode = DEFAULT_LOCALE;
   private _debugMode = false;
   private _shouldDeferPersistence?: () => boolean;
   private _hasDeferredPersistence = false;
@@ -611,6 +617,7 @@ export class MainSceneWorld implements IWorld, Scene {
     debugMode?: boolean;
     startMiniGame?: () => unknown | Promise<unknown>;
     showAlert?: ShowAlertCallback;
+    locale?: LocaleCode;
     createInitialGameData?: () => Promise<InitialGameData>;
     changeControlButtons?: (
       controlButtonParamsSet: [
@@ -640,6 +647,7 @@ export class MainSceneWorld implements IWorld, Scene {
     this._debugMode = params.debugMode ?? false;
     this._startMiniGame = params.startMiniGame;
     this._showAlert = params.showAlert;
+    this._locale = params.locale ?? DEFAULT_LOCALE;
     this._shouldDeferPersistence = params.shouldDeferPersistence;
     this._createInitialGameData = params.createInitialGameData;
     this._changeControlButtons = params.changeControlButtons;
@@ -653,6 +661,14 @@ export class MainSceneWorld implements IWorld, Scene {
 
     // MainScene용 초기 컨트롤 버튼 설정 (메뉴에 포커스가 없는 상태)
     this._updateControlButtonsForMenuState(false);
+  }
+
+  public onLocaleChange(locale: LocaleCode): void {
+    this._locale = locale;
+  }
+
+  private t(key: Parameters<typeof translate>[1], params?: Parameters<typeof translate>[2]): string {
+    return translate(this._locale, key, params);
   }
 
   public triggerBiteVibration(): void {
@@ -1556,7 +1572,7 @@ export class MainSceneWorld implements IWorld, Scene {
       return false;
     }
 
-    this._showAlert?.("not available in egg state.", "Notice");
+    this._showAlert?.(this.t("main.eggUnavailable"), this.t("common.notice"));
     return true;
   }
 
@@ -2444,7 +2460,7 @@ export class MainSceneWorld implements IWorld, Scene {
     this._applyCurrentSkyState();
 
     console.log(
-      `[MainSceneWorld] Time of day changed to ${getTimeOfDayLabel(timeOfDay)} (manual)`,
+      `[MainSceneWorld] Time of day changed to ${getTimeOfDayLabel(timeOfDay, this._locale)} (manual)`,
     );
   }
 
@@ -2476,7 +2492,7 @@ export class MainSceneWorld implements IWorld, Scene {
   } {
     return {
       mode: this._timeOfDayMode,
-      label: getTimeOfDayLabel(this._timeOfDay),
+      label: getTimeOfDayLabel(this._timeOfDay, this._locale),
       progress: this._autoTimeOfDayState?.progress ?? null,
       hasLocationPermission: this._hasLocationPermission,
       locationSource: this._sunLocationSource,
@@ -2714,6 +2730,7 @@ export class MainSceneWorld implements IWorld, Scene {
     console.log(
       `[MainSceneWorld] Local time disabled, randomly selected ${getTimeOfDayLabel(
         this._timeOfDay,
+        this._locale,
       )}`,
     );
   }

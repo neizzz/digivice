@@ -1,5 +1,6 @@
 import type React from "react";
 import PopupLayer from "../components/PopupLayer";
+import { useI18n } from "../i18n";
 
 export interface AlertLayerProps {
   title?: string;
@@ -11,17 +12,19 @@ export interface AlertLayerProps {
 }
 
 export const AlertLayer: React.FC<AlertLayerProps> = ({
-  title = "Alert",
+  title,
   message,
   onClose,
   onCancel,
-  confirmText = "Confirm",
-  cancelText = "Cancel",
+  confirmText,
+  cancelText,
 }) => {
+  const { t } = useI18n();
+
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
       <PopupLayer
-        title={title}
+        title={title ?? t("alert.title")}
         content={
           <div className="flex flex-col items-center gap-4">
             <p className="leading-[1.6]">{message}</p>
@@ -29,8 +32,8 @@ export const AlertLayer: React.FC<AlertLayerProps> = ({
         }
         onConfirm={onClose}
         onCancel={onCancel}
-        confirmText={confirmText}
-        cancelText={cancelText}
+        confirmText={confirmText ?? t("common.confirm")}
+        cancelText={cancelText ?? t("common.cancel")}
       />
     </div>
   );
