@@ -157,6 +157,38 @@ test("ground 충돌 보정은 basket이 ground top 아래로 내려간 경우에
   });
 });
 
+test("ground 도달 판정은 화면상 basket 하단이 ground top에 닿을 때 true가 된다", () => {
+  const { assets } = createGameAssets();
+
+  withMockedAssets(assets, () => {
+    const physicsManager = createMockPhysicsManager();
+    const playerManager = new PlayerManager(
+      {
+        screen: {
+          width: 320,
+          height: 480,
+        },
+      } as PIXI.Application,
+      physicsManager as never,
+      CharacterKey.TestGreenSlimeA1,
+      CharacterState.IDLE,
+    );
+
+    const basketBody = playerManager.getBasketBody() as {
+      position: { x: number; y: number };
+    };
+
+    basketBody.position.y = 441.4;
+    assert.equal(playerManager.hasBasketBottomReached(464), false);
+
+    basketBody.position.y = 441.5;
+    assert.equal(playerManager.hasBasketBottomReached(464), true);
+
+    basketBody.position.y = 442;
+    assert.equal(playerManager.hasBasketBottomReached(464, 0), true);
+  });
+});
+
 test("last stable bird position snapshot은 update 시점의 bird 표시 좌표를 유지한다", () => {
   const { assets } = createGameAssets();
 

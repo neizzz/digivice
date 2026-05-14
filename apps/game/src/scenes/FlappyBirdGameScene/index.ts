@@ -422,14 +422,14 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
    */
   private setupCollisionListeners(): void {
     this.physicsManager.setupCollisionListener((bodyA, bodyB) => {
-      let collisionTarget: "ground" | "pipe" | null = null;
+      let collisionTarget: "pipe" | null = null;
 
       if (bodyA.label === "basket") {
-        if (bodyB.label === "ground" || bodyB.label === "pipe") {
+        if (bodyB.label === "pipe") {
           collisionTarget = bodyB.label;
         }
       } else if (bodyB.label === "basket") {
-        if (bodyA.label === "ground" || bodyA.label === "pipe") {
+        if (bodyA.label === "pipe") {
           collisionTarget = bodyA.label;
         }
       }
@@ -1028,6 +1028,16 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
       if (simulationDeltaTime > 0) {
         this.nearMissUI.update(simulationDeltaTime);
         this.playerManager.update();
+
+        if (
+          this.playerManager.hasBasketBottomReached(
+            this.groundManager.getBody().bounds.min.y,
+          )
+        ) {
+          this.handleGameOver("ground");
+          return;
+        }
+
         this.cloudManager.update(simulationDeltaTime);
 
         // 플레이어 경계 충돌 체크

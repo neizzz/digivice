@@ -28,6 +28,7 @@ function createSceneHarness(
     update: () => callLog.push("player.update"),
     clampBasketBottomTo: (_maxBottomY: number) =>
       callLog.push("player.clampBasketBottomTo"),
+    hasBasketBottomReached: () => false,
     getBirdPositionSnapshot: () => {
       callLog.push("player.getBirdPositionSnapshot");
       return { x: 100, y: 120 };
@@ -278,6 +279,54 @@ test("ground 충돌 game over는 basket을 ground top에 맞춘 뒤 표시 상�
   ]);
 });
 
+test("collisionStart에서 basket ground 충돌은 즉시 game over를 발생시키지 않는다", () => {
+  const { scene, callLog } = createSceneHarness();
+  let collisionCallback:
+    | ((bodyA: { label: string }, bodyB: { label: string }) => void)
+    | null = null;
+
+  scene.physicsManager = {
+    setupCollisionListener: (
+      callback: (bodyA: { label: string }, bodyB: { label: string }) => void,
+    ) => {
+      collisionCallback = callback;
+    },
+  };
+  scene.handleGameOver = (collisionTarget: "ground" | "pipe" | null) => {
+    callLog.push(`handleGameOver:${collisionTarget}`);
+  };
+
+  scene.setupCollisionListeners();
+  collisionCallback?.({ label: "basket" }, { label: "ground" });
+  collisionCallback?.({ label: "ground" }, { label: "basket" });
+
+  assert.deepEqual(callLog, []);
+});
+
+test("collisionStart에서 basket pipe 충돌은 즉시 game over를 발생시킨다", () => {
+  const { scene, callLog } = createSceneHarness();
+  let collisionCallback:
+    | ((bodyA: { label: string }, bodyB: { label: string }) => void)
+    | null = null;
+
+  scene.physicsManager = {
+    setupCollisionListener: (
+      callback: (bodyA: { label: string }, bodyB: { label: string }) => void,
+    ) => {
+      collisionCallback = callback;
+    },
+  };
+  scene.handleGameOver = (collisionTarget: "ground" | "pipe" | null) => {
+    callLog.push(`handleGameOver:${collisionTarget}`);
+  };
+
+  scene.setupCollisionListeners();
+  collisionCallback?.({ label: "basket" }, { label: "pipe" });
+  collisionCallback?.({ label: "pipe" }, { label: "basket" });
+
+  assert.deepEqual(callLog, ["handleGameOver:pipe", "handleGameOver:pipe"]);
+});
+
 test("app suspend 중 update는 gameplay 진행을 멈춘다", () => {
   const calls: string[] = [];
   const scene: any = Object.create(FlappyBirdGameScene.prototype);
@@ -336,6 +385,7 @@ test("pipe 이동 중 충돌이 발생하면 같은 프레임에서 ground 이�
   };
   scene.playerManager = {
     update: () => calls.push("playerManager.update"),
+    hasBasketBottomReached: () => false,
     checkCollisions: () => calls.push("playerManager.checkCollisions"),
     getBasketBody: () => ({ label: "basket" }),
   };
@@ -354,6 +404,11 @@ test("pipe 이동 중 충돌이 발생하면 같은 프레임에서 ground 이�
     },
   };
   scene.groundManager = {
+    getBody: () => ({
+      bounds: {
+        min: { y: 464 },
+      },
+    }),
     update: () => calls.push("groundManager.update"),
   };
   scene.handleGameOver = () => {
@@ -374,6 +429,58 @@ test("pipe 이동 중 충돌이 발생하면 같은 프레임에서 ground 이�
   ]);
 });
 
+test("PLAYING update에서 basket 하단이 ground top에 닿으면 ground game over 후 같은 프레임 진행을 멈춘다", () => {
+  const calls: string[] = [];
+  const scene: any = Object.create(FlappyBirdGameScene.prototype);
+
+  scene.initialized = true;
+  scene.isAppSuspended = false;
+  scene.gameState = GameState.PLAYING;
+  scene.syncSkyState = () => {
+    calls.push("syncSkyState");
+  };
+  scene.nearMissUI = {
+    update: () => calls.push("nearMissUI.update"),
+  };
+  scene.playerManager = {
+    update: () => calls.push("playerManager.update"),
+    hasBasketBottomReached: (groundTopY: number) => {
+      calls.push(`playerManager.hasBasketBottomReached:${groundTopY}`);
+      return true;
+    },
+    checkCollisions: () => calls.push("playerManager.checkCollisions"),
+    getBasketBody: () => ({ label: "basket" }),
+  };
+  scene.cloudManager = {
+    update: () => calls.push("cloudManager.update"),
+  };
+  scene.pipeManager = {
+    update: () => calls.push("pipeManager.update"),
+  };
+  scene.groundManager = {
+    getBody: () => ({
+      bounds: {
+        min: { y: 464 },
+      },
+    }),
+    update: () => calls.push("groundManager.update"),
+  };
+  scene.handleGameOver = (collisionTarget: "ground" | "pipe" | null) => {
+    calls.push(`handleGameOver:${collisionTarget}`);
+    scene.gameState = GameState.GAME_OVER;
+  };
+
+  scene.update(16.7);
+
+  assert.deepEqual(calls, [
+    "syncSkyState",
+    "nearMissUI.update",
+    "playerManager.update",
+    "playerManager.hasBasketBottomReached:464",
+    "handleGameOver:ground",
+  ]);
+});
+
 test("PLAYING 상태에서는 ticker delta를 직접 적용하고 큰 delta는 clamp한다", () => {
   const pipeDeltaTimes: number[] = [];
   const groundDeltaTimes: number[] = [];
@@ -390,6 +497,7 @@ test("PLAYING 상태에서는 ticker delta를 직접 적용하고 큰 delta는 c
   };
   scene.playerManager = {
     update: () => undefined,
+    hasBasketBottomReached: () => false,
     checkCollisions: () => undefined,
     getBasketBody: () => ({ label: "basket" }),
   };
@@ -406,6 +514,11 @@ test("PLAYING 상태에서는 ticker delta를 직접 적용하고 큰 delta는 c
     },
   };
   scene.groundManager = {
+    getBody: () => ({
+      bounds: {
+        min: { y: 464 },
+      },
+    }),
     update: (deltaTime: number) => groundDeltaTimes.push(deltaTime),
   };
   scene.update(1000 / 120);

@@ -1367,6 +1367,14 @@ export class PlayerManager {
     this.physicsManager.setVelocity(this.basketBody, { x: 0, y: 0 });
   }
 
+  public hasBasketBottomReached(
+    groundTopY: number,
+    tolerancePx = 0.5,
+  ): boolean {
+    const basketBottomY = this.basketBody.position.y + this.basket.height / 2;
+    return basketBottomY >= groundTopY - tolerancePx;
+  }
+
   /**
    * 충돌 검사 메서드
    */
