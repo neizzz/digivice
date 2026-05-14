@@ -3,18 +3,35 @@ package com.ch00n9h09.montto
 import android.content.ClipData
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
+import android.os.Bundle
 import android.os.SystemClock
+import android.util.Log
 import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.util.ArrayList
 import java.io.File
+import kotlin.math.abs
 
 class MainActivity : FlutterActivity() {
     companion object {
+        private const val TAG = "MainActivity"
         private const val BROWSER_MAIL_CHANNEL = "digivice/browser_mail"
         private const val TRUSTED_TIME_CHANNEL = "digivice/trusted_time"
+        private const val TARGET_REFRESH_RATE_HZ = 60f
+        private const val TARGET_REFRESH_RATE_TOLERANCE_HZ = 1f
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        applyPreferredDisplayRefreshRate()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        applyPreferredDisplayRefreshRate()
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -71,6 +88,61 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+    }
+
+    private fun applyPreferredDisplayRefreshRate() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            Log.d(TAG, "Skipping preferred display mode: API < 23.")
+            return
+        }
+
+        try {
+            applyPreferredDisplayRefreshRateApi23()
+        } catch (error: Exception) {
+            Log.w(TAG, "Failed to apply preferred display mode.", error)
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun applyPreferredDisplayRefreshRateApi23() {
+        val display = windowManager.defaultDisplay
+        val currentMode = display.mode
+        val supportedModes = display.supportedModes
+        val targetMode = supportedModes
+            .filter { mode ->
+                mode.physicalWidth == currentMode.physicalWidth &&
+                    mode.physicalHeight == currentMode.physicalHeight &&
+                    abs(mode.refreshRate - TARGET_REFRESH_RATE_HZ) <= TARGET_REFRESH_RATE_TOLERANCE_HZ
+            }
+            .minByOrNull { mode -> abs(mode.refreshRate - TARGET_REFRESH_RATE_HZ) }
+
+        if (targetMode == null) {
+            Log.d(
+                TAG,
+                "Skipping preferred display mode: no 60Hz mode for " +
+                    "${currentMode.physicalWidth}x${currentMode.physicalHeight}.",
+            )
+            return
+        }
+
+        val attributes = window.attributes
+        if (attributes.preferredDisplayModeId == targetMode.modeId) {
+            Log.d(
+                TAG,
+                "Preferred display mode already set: " +
+                    "modeId=${targetMode.modeId}, refreshRate=${targetMode.refreshRate}Hz.",
+            )
+            return
+        }
+
+        attributes.preferredDisplayModeId = targetMode.modeId
+        window.attributes = attributes
+        Log.d(
+            TAG,
+            "Applied preferred display mode: " +
+                "modeId=${targetMode.modeId}, refreshRate=${targetMode.refreshRate}Hz, " +
+                "size=${targetMode.physicalWidth}x${targetMode.physicalHeight}.",
+        )
     }
 
     private fun openGmailDraft(
