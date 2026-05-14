@@ -7,7 +7,6 @@ import {
   ObjectComp,
   PositionComp,
   RenderComp,
-  StatusIconRenderComp,
 } from "../raw-components";
 import { CharacterState, CharacterStatus, ObjectType } from "../types";
 import { MainSceneWorld } from "../world";
@@ -56,7 +55,6 @@ const NAME_LABEL_STYLE = new PIXI.TextStyle({
   stroke: { color: NAME_LABEL_STROKE_COLOR, width: NAME_LABEL_STROKE_WIDTH },
 });
 
-const NAME_LABEL_BOTTOM_OFFSET = 0;
 const LABEL_Z_INDEX_OFFSET = 1000;
 const STAMINA_BAR_Z_INDEX_OFFSET = 1;
 const NAME_LABEL_TEXT_WIDTH = 80;
@@ -65,12 +63,8 @@ const STAMINA_BAR_HEIGHT = 10;
 const STAMINA_BAR_BORDER_THICKNESS = 3;
 const STAMINA_BAR_TRACK_WIDTH = STAMINA_BAR_WIDTH;
 const STAMINA_BAR_TRACK_HEIGHT = STAMINA_BAR_HEIGHT;
-const STAMINA_BAR_BOTTOM_GAP = 4;
-const STATUS_STACK_MIN_Y = 0;
-const STATUS_STACK_ICON_SIZE = 16 * 1.625;
-const STATUS_STACK_ICON_BAR_GAP = 3;
-const STAMINA_BAR_MIN_Y =
-  STATUS_STACK_MIN_Y + STATUS_STACK_ICON_SIZE + STATUS_STACK_ICON_BAR_GAP;
+const CHARACTER_STAMINA_BAR_TOP_GAP = 2;
+const STAMINA_BAR_LABEL_GAP = 2;
 const MINI_STAMINA_BAR_TRACK_COLOR = 0x6f6f6f;
 const MINI_STAMINA_BAR_TRACK_ALPHA = 0.34;
 const MINI_STAMINA_BAR_TRACK_DOT_COLOR = 0x000000;
@@ -235,12 +229,16 @@ function updateCharacterNameLabel(
   const configuredZIndex = RenderComp.zIndex[eid];
   const effectiveZIndex =
     configuredZIndex === ECS_NULL_VALUE ? y : configuredZIndex;
-  const { topY, bottomY } = getCharacterVerticalBounds(eid);
-
-  renderState.label.position.set(
-    Math.round(x),
-    Math.round(bottomY + NAME_LABEL_BOTTOM_OFFSET + NAME_LABEL_FONT_SIZE / 2),
+  const { bottomY } = getCharacterVerticalBounds(eid);
+  const barTopY = Math.round(getCharacterStaminaBarTopY(eid, bottomY));
+  const labelCenterY = Math.round(
+    barTopY +
+      STAMINA_BAR_HEIGHT +
+      STAMINA_BAR_LABEL_GAP +
+      NAME_LABEL_FONT_SIZE / 2,
   );
+
+  renderState.label.position.set(Math.round(x), labelCenterY);
   renderState.label.zIndex = effectiveZIndex + LABEL_Z_INDEX_OFFSET;
   renderState.label.visible = true;
 
@@ -252,13 +250,7 @@ function updateCharacterNameLabel(
   }
 
   const barVisual = getCharacterBarVisual(world, eid, currentTime);
-  const reserveStatusIconSpace =
-    StatusIconRenderComp.visibleCount[eid] > 0 ||
-    hasPotentialUnifiedStatusIcon(world, eid);
   const barLeftX = getCharacterStaminaBarLeftX(eid, x);
-  const barTopY = Math.round(
-    getClampedCharacterStaminaBarTopY(eid, topY, reserveStatusIconSpace),
-  );
 
   renderState.barTrack.position.set(barLeftX, barTopY);
   renderState.barFill.position.set(barLeftX, barTopY);
@@ -458,21 +450,13 @@ function getEggTimerBarFillWidth(eid: number, currentTime: number): number {
 
 export function getCharacterStaminaBarTopY(
   eid: number,
-  resolvedTopY?: number,
+  resolvedBottomY?: number,
 ): number {
-  const { topY } = resolvedTopY === undefined ? getCharacterVerticalBounds(eid) : { topY: resolvedTopY };
-  return topY - STAMINA_BAR_BOTTOM_GAP - STAMINA_BAR_HEIGHT;
-}
-
-export function getClampedCharacterStaminaBarTopY(
-  eid: number,
-  resolvedTopY?: number,
-  reserveStatusIconSpace = true,
-): number {
-  return Math.max(
-    getCharacterStaminaBarTopY(eid, resolvedTopY),
-    reserveStatusIconSpace ? STAMINA_BAR_MIN_Y : STATUS_STACK_MIN_Y,
-  );
+  const { bottomY } =
+    resolvedBottomY === undefined
+      ? getCharacterVerticalBounds(eid)
+      : { bottomY: resolvedBottomY };
+  return bottomY + CHARACTER_STAMINA_BAR_TOP_GAP;
 }
 
 export function getCharacterStaminaBarLeftX(
@@ -503,20 +487,6 @@ export function getCharacterStaminaBarBounds(
     centerX: leftX + STAMINA_BAR_WIDTH / 2,
   };
 }
-
-function hasPotentialUnifiedStatusIcon(
-  world: MainSceneWorld,
-  eid: number,
-): boolean {
-  if (ObjectComp.state[eid] === CharacterState.SLEEPING) {
-    return world.isSleepDebugEffectEnabled();
-  }
-
-  return Array.from(CharacterStatusComp.statuses[eid]).some(
-    (status) => status !== ECS_NULL_VALUE && status !== CharacterStatus.URGENT,
-  );
-}
-
 
 function drawCutCornerRect(
   graphics: PIXI.Graphics,
@@ -745,7 +715,8 @@ export function getCharacterNameLabelLayoutForTests(): {
   barBorderThickness: number;
   barTrackWidth: number;
   barTrackHeight: number;
-  barBottomGap: number;
+  characterBarTopGap: number;
+  barLabelGap: number;
 } {
   return {
     textWidth: NAME_LABEL_TEXT_WIDTH,
@@ -754,6 +725,7 @@ export function getCharacterNameLabelLayoutForTests(): {
     barBorderThickness: STAMINA_BAR_BORDER_THICKNESS,
     barTrackWidth: STAMINA_BAR_TRACK_WIDTH,
     barTrackHeight: STAMINA_BAR_TRACK_HEIGHT,
-    barBottomGap: STAMINA_BAR_BOTTOM_GAP,
+    characterBarTopGap: CHARACTER_STAMINA_BAR_TOP_GAP,
+    barLabelGap: STAMINA_BAR_LABEL_GAP,
   };
 }

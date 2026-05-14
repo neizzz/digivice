@@ -15,11 +15,7 @@ import {
   getMiniStaminaBarFillWidthForTests,
   getMiniStaminaBarUrgentOverlayAlphaForTests,
 } from "../systems/CharacterNameLabelSystem";
-import {
-  CharacterStatusComp,
-  EggHatchComp,
-  StatusIconRenderComp,
-} from "../raw-components";
+import { CharacterStatusComp, EggHatchComp } from "../raw-components";
 import { CharacterState, CharacterStatus } from "../types";
 import { createTestCharacter } from "../../../test-utils/mainSceneTestUtils";
 import { getSpriteStore } from "../systems/RenderSystem";
@@ -31,7 +27,6 @@ import {
 } from "../../../utils/nameLabel";
 import {
   cleanupStatusIconRenderStateForTests,
-  statusIconRenderSystem,
 } from "../systems/StatusIconRenderSystem";
 
 function createMainSceneWorldForTest(monsterName: string): MainSceneWorld {
@@ -102,7 +97,14 @@ test("이름표는 80px 슬롯 기준으로 truncate되고 이름은 중앙 정�
     assert.equal(renderState.label.x, 80);
     assert.equal(
       renderState.label.y,
-      Math.round(120 + displayObject.height / 2 + NAME_LABEL_FONT_SIZE / 2),
+      Math.round(
+        120 +
+          displayObject.height / 2 +
+          layout.characterBarTopGap +
+          layout.barHeight +
+          layout.barLabelGap +
+          NAME_LABEL_FONT_SIZE / 2,
+      ),
     );
     assert.equal(renderState.label.anchor.x, 0.5);
     assert.equal(renderState.label.style.fontSize, NAME_LABEL_FONT_SIZE);
@@ -114,7 +116,9 @@ test("이름표는 80px 슬롯 기준으로 truncate되고 이름은 중앙 정�
     assert.equal(renderState.barTrack.x, 80 - layout.barWidth / 2);
     assert.equal(
       renderState.barTrack.y,
-      Math.round(getCharacterStaminaBarTopY(eid, 120 - displayObject.height / 2)),
+      Math.round(
+        getCharacterStaminaBarTopY(eid, 120 + displayObject.height / 2),
+      ),
     );
     assert.equal(renderState.barFrame.x, renderState.barTrack.x);
     assert.equal(renderState.barFrame.y, renderState.barTrack.y);
@@ -257,7 +261,7 @@ test("dead 상태에서는 이름표를 유지하고 미니 스테미나 바를 
   });
 });
 
-test("상태 아이콘이 없으면 상단 근처에서도 스테미나 바가 아이콘 공간을 남기지 않고 clamp된다", () => {
+test("미니 스테미나 바는 캐릭터 bottom 기준 2px 아래에 배치되고 이름표는 그 아래 2px 간격을 둔다", () => {
   withCleanedNameLabelState(() => {
     const world = createMainSceneWorldForTest("Test");
     const eid = createTestCharacter(
@@ -270,6 +274,7 @@ test("상태 아이콘이 없으면 상단 근처에서도 스테미나 바가 �
       },
     );
     const displayObject = attachTestDisplayObject(world, eid);
+    const layout = getCharacterNameLabelLayoutForTests();
 
     characterNameLabelSystem({
       world,
@@ -278,14 +283,26 @@ test("상태 아이콘이 없으면 상단 근처에서도 스테미나 바가 �
 
     const renderState = getCharacterNameLabelRenderStateForTests(eid);
     assert.ok(renderState);
-    assert.equal(renderState.barTrack.y, 0);
-    assert.equal(renderState.barFrame.y, 0);
+    assert.equal(
+      renderState.barTrack.y,
+      Math.round(30 + displayObject.height / 2 + layout.characterBarTopGap),
+    );
+    assert.equal(renderState.barFrame.y, renderState.barTrack.y);
+    assert.equal(
+      renderState.label.y,
+      Math.round(
+        renderState.barTrack.y +
+          layout.barHeight +
+          layout.barLabelGap +
+          NAME_LABEL_FONT_SIZE / 2,
+      ),
+    );
     displayObject.removeFromParent();
     getSpriteStore().remove(eid);
   });
 });
 
-test("상태 아이콘이 있으면 상단 근처에서 스테미나 바가 아이콘 아래 위치를 유지하도록 clamp된다", () => {
+test("상태 아이콘이 있어도 미니 스테미나 바는 상단 reserve 없이 캐릭터 bottom 기준 위치를 유지한다", () => {
   withCleanedNameLabelState(() => {
     const world = createMainSceneWorldForTest("Test");
     const eid = createTestCharacter(
@@ -298,6 +315,7 @@ test("상태 아이콘이 있으면 상단 근처에서 스테미나 바가 아�
       },
     );
     const displayObject = attachTestDisplayObject(world, eid);
+    const layout = getCharacterNameLabelLayoutForTests();
     CharacterStatusComp.statuses[eid][0] = CharacterStatus.SICK;
 
     characterNameLabelSystem({
@@ -307,62 +325,18 @@ test("상태 아이콘이 있으면 상단 근처에서 스테미나 바가 아�
 
     const renderState = getCharacterNameLabelRenderStateForTests(eid);
     assert.ok(renderState);
-    assert.equal(renderState.barTrack.y, 29);
-    assert.equal(renderState.barFrame.y, 29);
-
-    displayObject.removeFromParent();
-    getSpriteStore().remove(eid);
-  });
-});
-
-test("상단 clamp 상태에서 아이콘이 새로 생기면 다음 프레임에 스테미나 바도 아이콘 아래로 내려간다", () => {
-  withCleanedNameLabelState(() => {
-    const world = createMainSceneWorldForTest("Test");
-    const eid = createTestCharacter(
-      world as unknown as Parameters<typeof createTestCharacter>[0],
-      {
-        state: CharacterState.IDLE,
-        stamina: 5,
-        x: 80,
-        y: 30,
-      },
+    assert.equal(
+      renderState.barTrack.y,
+      Math.round(30 + displayObject.height / 2 + layout.characterBarTopGap),
     );
-    const displayObject = attachTestDisplayObject(world, eid);
-
-    statusIconRenderSystem({
-      world,
-      delta: 16,
-    });
-    characterNameLabelSystem({
-      world,
-      delta: 16,
-    });
-
-    let renderState = getCharacterNameLabelRenderStateForTests(eid);
-    assert.ok(renderState);
-    assert.equal(renderState.barTrack.y, 0);
-
-    CharacterStatusComp.statuses[eid][0] = CharacterStatus.SICK;
-
-    statusIconRenderSystem({
-      world,
-      delta: 16,
-    });
-    characterNameLabelSystem({
-      world,
-      delta: 16,
-    });
-
-    renderState = getCharacterNameLabelRenderStateForTests(eid);
-    assert.ok(renderState);
-    assert.equal(renderState.barTrack.y, 29);
+    assert.equal(renderState.barFrame.y, renderState.barTrack.y);
 
     displayObject.removeFromParent();
     getSpriteStore().remove(eid);
   });
 });
 
-test("수면 상태에서는 status icon 렌더 후 이름표 시스템도 sleeping icon 공간을 반영해 clamp한다", () => {
+test("수면 상태에서도 미니 스테미나 바는 상단 reserve 없이 캐릭터 bottom 기준 위치를 유지한다", () => {
   withCleanedNameLabelState(() => {
     const world = createMainSceneWorldForTest("Test");
     const eid = createTestCharacter(
@@ -375,11 +349,8 @@ test("수면 상태에서는 status icon 렌더 후 이름표 시스템도 sleep
       },
     );
     const displayObject = attachTestDisplayObject(world, eid);
+    const layout = getCharacterNameLabelLayoutForTests();
 
-    statusIconRenderSystem({
-      world,
-      delta: 16,
-    });
     characterNameLabelSystem({
       world,
       delta: 16,
@@ -387,8 +358,10 @@ test("수면 상태에서는 status icon 렌더 후 이름표 시스템도 sleep
 
     const renderState = getCharacterNameLabelRenderStateForTests(eid);
     assert.ok(renderState);
-    assert.equal(StatusIconRenderComp.visibleCount[eid], 1);
-    assert.equal(renderState.barTrack.y, 29);
+    assert.equal(
+      renderState.barTrack.y,
+      Math.round(30 + displayObject.height / 2 + layout.characterBarTopGap),
+    );
 
     displayObject.removeFromParent();
     getSpriteStore().remove(eid);

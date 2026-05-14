@@ -10,11 +10,13 @@ import {
 } from "../raw-components";
 import * as PIXI from "pixi.js";
 import { MainSceneWorld } from "../world";
-import { CharacterState, CharacterStatus, ObjectType, TextureKey } from "../types";
 import {
-  getClampedCharacterStaminaBarTopY,
-  getCharacterStaminaBarBounds,
-} from "./CharacterNameLabelSystem";
+  CharacterState,
+  CharacterStatus,
+  ObjectType,
+  TextureKey,
+} from "../types";
+import { getCharacterWorldBounds } from "./CharacterDisplayBounds";
 
 const STATUS_ICON_SCALE = 1.625;
 const STATUS_ICON_BASE_SIZE = 16;
@@ -37,6 +39,28 @@ function getRenderedCharacterAttributes(eid: number): {
     renderedX,
     renderedY,
     effectiveZIndex,
+  };
+}
+
+function getRenderedCharacterWorldBounds(eid: number): {
+  leftX: number;
+  rightX: number;
+  topY: number;
+  bottomY: number;
+  width: number;
+  height: number;
+} {
+  const bounds = getCharacterWorldBounds(eid);
+  const offsetX = Math.round(PositionComp.x[eid]) - PositionComp.x[eid];
+  const offsetY = Math.round(PositionComp.y[eid]) - PositionComp.y[eid];
+
+  return {
+    leftX: bounds.leftX + offsetX,
+    rightX: bounds.rightX + offsetX,
+    topY: bounds.topY + offsetY,
+    bottomY: bounds.bottomY + offsetY,
+    width: bounds.width,
+    height: bounds.height,
   };
 }
 
@@ -160,24 +184,21 @@ function getUnifiedStatusIconStartX(
   return listCenterX - totalWidth / 2 + STATUS_ICON_SIZE / 2;
 }
 
-function getStatusIconListCenterAtStaminaBarBottomRight(params: {
+function getStatusIconListCenterAtCharacterTopRight(params: {
   world: MainSceneWorld;
   eid: number;
-  renderedX: number;
   iconCount: number;
 }): {
   centerX: number;
   centerY: number;
 } {
-  const { world, eid, renderedX, iconCount } = params;
-  const { rightX: barRightX, height: barHeight } =
-    getCharacterStaminaBarBounds(eid, renderedX);
-  const barTopY = Math.round(getClampedCharacterStaminaBarTopY(eid));
+  const { world, eid, iconCount } = params;
+  const bounds = getRenderedCharacterWorldBounds(eid);
 
   return getClampedStatusIconListCenter({
     world,
-    preferredCenterX: barRightX,
-    preferredCenterY: barTopY + barHeight,
+    preferredCenterX: bounds.rightX,
+    preferredCenterY: bounds.topY,
     iconCount,
   });
 }
@@ -313,8 +334,7 @@ export function statusIconRenderSystem(params: {
 
     // 참고: 일시적 상태 만료는 CharacterStatusSystem에서 처리됨
 
-    const { renderedX, renderedY, effectiveZIndex } =
-      getRenderedCharacterAttributes(eid);
+    const { effectiveZIndex } = getRenderedCharacterAttributes(eid);
     const iconZIndex = effectiveZIndex + STATUS_ICON_Z_INDEX_OFFSET;
 
     // 현재 상태들 가져오기
@@ -335,10 +355,9 @@ export function statusIconRenderSystem(params: {
     );
     const iconCount = persistent.length + (overlayTextureName ? 1 : 0);
     const { centerX: iconListCenterX, centerY: iconCenterY } =
-      getStatusIconListCenterAtStaminaBarBottomRight({
+      getStatusIconListCenterAtCharacterTopRight({
         world,
         eid,
-        renderedX,
         iconCount,
       });
     const iconStartX = getUnifiedStatusIconStartX(
@@ -346,7 +365,7 @@ export function statusIconRenderSystem(params: {
       iconCount,
     );
 
-    // 지속적 상태 아이콘들 처리 (게이지바 우측 하단 기준 가로 배열)
+    // 지속적 상태 아이콘들 처리 (캐릭터 우측 상단 기준 가로 배열)
     let sprites = entityStatusSprites.get(eid);
     if (!sprites) {
       sprites = [];
