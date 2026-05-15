@@ -24,7 +24,6 @@ const FLAPPY_BIRD_CLOUD_MAX_GAP = 185;
 const FLAPPY_BIRD_CLOUD_TOP_PADDING = 28;
 const FLAPPY_BIRD_CLOUD_MAX_HEIGHT_RATIO = 0.72;
 const FLAPPY_BIRD_BASE_FRAME_MS = 1000 / 60;
-const FLAPPY_BIRD_MAX_FRAME_SCALE = 2;
 const FLAPPY_BIRD_SPEED_TRANSITION_MS = 140;
 
 type CloudSprite = PIXI.Sprite & {
@@ -57,10 +56,11 @@ type PipeAssetsContext = {
 };
 
 function resolveFrameScale(deltaTime: number): number {
-  return Math.min(
-    FLAPPY_BIRD_MAX_FRAME_SCALE,
-    Math.max(0, deltaTime / FLAPPY_BIRD_BASE_FRAME_MS),
-  );
+  if (!Number.isFinite(deltaTime) || deltaTime <= 0) {
+    return 0;
+  }
+
+  return deltaTime / FLAPPY_BIRD_BASE_FRAME_MS;
 }
 
 function resolvePipeCollisionBodySize(

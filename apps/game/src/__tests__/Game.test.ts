@@ -525,7 +525,7 @@ test("changeScene는 FlappyBird 진입 시 ticker 제한을 풀고 MainScene 복
 
   assert.equal(changedToFlappyBird, true);
   assert.equal(fakeGame.currentSceneKey, SceneKey.FLAPPY_BIRD_GAME);
-  assert.equal(fakeGame.app.ticker.minFPS, 30);
+  assert.equal(fakeGame.app.ticker.minFPS, 0);
   assert.equal(fakeGame.app.ticker.maxFPS, 0);
   assert.equal(mainSceneDestroyed, 1);
 

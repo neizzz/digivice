@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import * as Matter from "matter-js";
+import * as PIXI from "pixi.js";
 import { PipeManager } from "../gameLogic";
 
 function createPipeManager(spawnInterval = 100): PipeManager {
@@ -62,6 +63,45 @@ test("settings pause처럼 업데이트가 멈춘 시간은 pipe 생성 간격�
   const spawnedBeforeNextFrame = spawned;
   manager.update(playerBody, () => {}, 16);
   assert.equal(spawned - spawnedBeforeNextFrame, 1);
+});
+
+test("pipe 이동은 50ms delta를 3 frame scale로 그대로 적용한다", () => {
+  const manager = createPipeManager(100) as any;
+  const playerBody = createPlayerBody();
+  const topBody = Matter.Bodies.rectangle(240, 80, 40, 80, {
+    isStatic: true,
+  });
+  const bottomBody = Matter.Bodies.rectangle(240, 320, 40, 80, {
+    isStatic: true,
+  });
+  const top = new PIXI.Container();
+  const bottom = new PIXI.Container();
+
+  manager.physicsManager = {
+    translateBody: (body: Matter.Body, vector: Matter.Vector) => {
+      Matter.Body.translate(body, vector);
+    },
+    removeFromEngine: () => undefined,
+  };
+  manager.pipesPairs = [
+    {
+      top,
+      bottom,
+      topBody,
+      bottomBody,
+      passed: false,
+      minTopClearance: Number.POSITIVE_INFINITY,
+      minBottomClearance: Number.POSITIVE_INFINITY,
+    },
+  ];
+
+  const initialTopX = topBody.position.x;
+  const initialBottomX = bottomBody.position.x;
+
+  manager.movePipes(playerBody, () => undefined, 50);
+
+  assert.ok(Math.abs(topBody.position.x - (initialTopX - 12)) < 1e-9);
+  assert.ok(Math.abs(bottomBody.position.x - (initialBottomX - 12)) < 1e-9);
 });
 
 test("pipe prewarm은 target count만큼 distinct pair를 준비하고 무한 루프에 빠지지 않는다", () => {

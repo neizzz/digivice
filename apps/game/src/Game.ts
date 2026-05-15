@@ -29,6 +29,7 @@ const SCREEN_TOP_PADDING = SCREEN_BOTTOM_PADDING + 6;
 const MAX_RENDERER_RESOLUTION = 2;
 const DEFAULT_TICKER_MIN_FPS = 30;
 const DEFAULT_TICKER_MAX_FPS = 60;
+const FLAPPY_BIRD_TICKER_MIN_FPS = 0;
 const FLAPPY_BIRD_TICKER_MAX_FPS = 0;
 
 export type ControlButtonsChangeCallback = (
@@ -138,6 +139,12 @@ function resolveTickerMaxFPS(sceneKey?: SceneKey): number {
   return sceneKey === SceneKey.FLAPPY_BIRD_GAME
     ? FLAPPY_BIRD_TICKER_MAX_FPS
     : DEFAULT_TICKER_MAX_FPS;
+}
+
+function resolveTickerMinFPS(sceneKey?: SceneKey): number {
+  return sceneKey === SceneKey.FLAPPY_BIRD_GAME
+    ? FLAPPY_BIRD_TICKER_MIN_FPS
+    : DEFAULT_TICKER_MIN_FPS;
 }
 
 function resolveRendererResolution(devicePixelRatio?: number): number {
@@ -783,8 +790,8 @@ export class Game {
   }
 
   private _applyTickerFramePolicy(sceneKey = this.currentSceneKey): void {
-    this.app.ticker.minFPS = DEFAULT_TICKER_MIN_FPS;
     this.app.ticker.maxFPS = resolveTickerMaxFPS(sceneKey);
+    this.app.ticker.minFPS = resolveTickerMinFPS(sceneKey);
   }
 
   private async _restoreParkedSceneAfterTransitionAbort(
