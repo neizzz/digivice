@@ -23,6 +23,7 @@ const STATUS_ICON_BASE_SIZE = 16;
 const STATUS_ICON_SIZE = STATUS_ICON_BASE_SIZE * STATUS_ICON_SCALE;
 const STATUS_ICON_Z_INDEX_OFFSET = 1.5;
 const STATUS_ICON_HORIZONTAL_SPACING = 1;
+const STATUS_ICON_CONTAINER_LEFT_OFFSET = 6;
 
 function getRenderedCharacterAttributes(eid: number): {
   renderedX: number;
@@ -197,7 +198,7 @@ function getStatusIconListCenterAtCharacterTopRight(params: {
 
   return getClampedStatusIconListCenter({
     world,
-    preferredCenterX: bounds.rightX,
+    preferredCenterX: bounds.rightX - STATUS_ICON_CONTAINER_LEFT_OFFSET,
     preferredCenterY: bounds.topY,
     iconCount,
   });
