@@ -20,10 +20,11 @@ import { CharacterState, CharacterStatus } from "../types";
 import { createTestCharacter } from "../../../test-utils/mainSceneTestUtils";
 import { getSpriteStore } from "../systems/RenderSystem";
 import {
+  NAME_LABEL_FILL_COLOR,
   NAME_LABEL_FONT_SIZE,
   NAME_LABEL_FONT_WEIGHT,
+  NAME_LABEL_STROKE_COLOR,
   NAME_LABEL_STROKE_WIDTH,
-  truncateNameLabelToWidth,
 } from "../../../utils/nameLabel";
 import {
   cleanupStatusIconRenderStateForTests,
@@ -68,9 +69,10 @@ function withCleanedNameLabelState<T>(fn: () => T): T {
   }
 }
 
-test("이름표는 80px 슬롯 기준으로 truncate되고 이름은 중앙 정렬된다", () => {
+test("이름표는 저장된 이름을 생략 없이 표시하고 중앙 정렬된다", () => {
   withCleanedNameLabelState(() => {
-    const world = createMainSceneWorldForTest("가나다라마바사아자차카타파하");
+    const monsterName = "가나다라마바사아자차카타파하";
+    const world = createMainSceneWorldForTest(monsterName);
     const eid = createTestCharacter(
       world as unknown as Parameters<typeof createTestCharacter>[0],
       {
@@ -90,10 +92,7 @@ test("이름표는 80px 슬롯 기준으로 truncate되고 이름은 중앙 정�
 
     const renderState = getCharacterNameLabelRenderStateForTests(eid);
     assert.ok(renderState);
-    assert.equal(
-      renderState.label.text,
-      truncateNameLabelToWidth("가나다라마바사아자차카타파하", layout.textWidth),
-    );
+    assert.equal(renderState.label.text, monsterName);
     assert.equal(renderState.label.x, 80);
     assert.equal(
       renderState.label.y,
@@ -107,6 +106,9 @@ test("이름표는 80px 슬롯 기준으로 truncate되고 이름은 중앙 정�
       ),
     );
     assert.equal(renderState.label.anchor.x, 0.5);
+    assert.equal(renderState.label.alpha, 1);
+    assert.equal(renderState.label.scale.x, 1);
+    assert.equal(renderState.label.scale.y, 1);
     assert.equal(renderState.label.style.fontSize, NAME_LABEL_FONT_SIZE);
     assert.equal(renderState.label.style.fontWeight, NAME_LABEL_FONT_WEIGHT);
     assert.equal(
@@ -228,9 +230,10 @@ test("urgent 상태에서는 미니 스테미나 바 내부 전체 영역이 red
   });
 });
 
-test("dead 상태에서는 이름표를 유지하고 미니 스테미나 바를 숨긴다", () => {
+test("dead 상태에서는 미니 스테미나 바를 숨기고 이름표를 무덤 아래에 일반 스타일로 표시한다", () => {
   withCleanedNameLabelState(() => {
-    const world = createMainSceneWorldForTest("Dead");
+    const monsterName = "DeadMonster123";
+    const world = createMainSceneWorldForTest(monsterName);
     const eid = createTestCharacter(
       world as unknown as Parameters<typeof createTestCharacter>[0],
       {
@@ -241,6 +244,8 @@ test("dead 상태에서는 이름표를 유지하고 미니 스테미나 바를 
       },
     );
     const displayObject = attachTestDisplayObject(world, eid);
+    const layout = getCharacterNameLabelLayoutForTests();
+    const bottomY = 100 + displayObject.height / 2;
 
     characterNameLabelSystem({
       world,
@@ -250,7 +255,29 @@ test("dead 상태에서는 이름표를 유지하고 미니 스테미나 바를 
     const renderState = getCharacterNameLabelRenderStateForTests(eid);
     assert.ok(renderState);
     assert.equal(renderState.label.visible, true);
-    assert.equal(renderState.label.text, "Dead");
+    assert.equal(renderState.label.text, monsterName);
+    assert.equal(renderState.label.text.includes("…"), false);
+    assert.equal(renderState.label.x, 100);
+    assert.equal(
+      renderState.label.y,
+      Math.round(
+        bottomY + layout.characterBarTopGap + NAME_LABEL_FONT_SIZE / 2,
+      ),
+    );
+    assert.equal(renderState.label.style.fill, NAME_LABEL_FILL_COLOR);
+    assert.equal(renderState.label.alpha, 1);
+    assert.equal(renderState.label.scale.x, 1);
+    assert.equal(renderState.label.scale.y, 1);
+    assert.equal(renderState.label.style.fontSize, NAME_LABEL_FONT_SIZE);
+    assert.equal(renderState.label.style.fontWeight, NAME_LABEL_FONT_WEIGHT);
+    assert.equal(
+      renderState.label.style.stroke?.color,
+      NAME_LABEL_STROKE_COLOR,
+    );
+    assert.equal(
+      renderState.label.style.stroke?.width,
+      NAME_LABEL_STROKE_WIDTH,
+    );
     assert.equal(renderState.barTrack.visible, false);
     assert.equal(renderState.barFill.visible, false);
     assert.equal(renderState.urgentOverlay.visible, false);

@@ -15,9 +15,9 @@ import {
   NAME_LABEL_FONT_FAMILIES,
   NAME_LABEL_FONT_SIZE,
   NAME_LABEL_FONT_WEIGHT,
+  NAME_LABEL_MAX_WIDTH,
   NAME_LABEL_STROKE_COLOR,
   NAME_LABEL_STROKE_WIDTH,
-  truncateNameLabelToWidth,
 } from "../../../utils/nameLabel";
 import {
   getCharacterDisplayObject,
@@ -57,7 +57,7 @@ const NAME_LABEL_STYLE = new PIXI.TextStyle({
 
 const LABEL_Z_INDEX_OFFSET = 1000;
 const STAMINA_BAR_Z_INDEX_OFFSET = 1;
-const NAME_LABEL_TEXT_WIDTH = 80;
+const NAME_LABEL_TEXT_WIDTH = NAME_LABEL_MAX_WIDTH;
 const STAMINA_BAR_WIDTH = 56;
 const STAMINA_BAR_HEIGHT = 10;
 const STAMINA_BAR_BORDER_THICKNESS = 3;
@@ -70,8 +70,7 @@ const MINI_STAMINA_BAR_TRACK_ALPHA = 0.34;
 const MINI_STAMINA_BAR_TRACK_DOT_COLOR = 0x000000;
 const MINI_STAMINA_BAR_TRACK_DOT_ALPHA = 0.45;
 const MINI_STAMINA_BAR_TRACK_DOT_SIZE = 2;
-const MINI_STAMINA_BAR_TRACK_DOT_STRIDE =
-  MINI_STAMINA_BAR_TRACK_DOT_SIZE * 2;
+const MINI_STAMINA_BAR_TRACK_DOT_STRIDE = MINI_STAMINA_BAR_TRACK_DOT_SIZE * 2;
 const MINI_STAMINA_BAR_TRACK_DOT_X_OFFSET = -1;
 const MINI_STAMINA_BAR_TRACK_DOT_Y_OFFSET = -1;
 const MINI_STAMINA_BAR_BORDER_COLOR = 0x000000;
@@ -97,7 +96,6 @@ export function characterNameLabelSystem(params: {
   }
 
   const rawName = world.getInMemoryData().world_metadata.monster_name?.trim();
-  const displayName = rawName ? truncateDisplayName(rawName) : "";
   const entities = characterQuery(world);
 
   for (let i = 0; i < entities.length; i++) {
@@ -107,6 +105,8 @@ export function characterNameLabelSystem(params: {
       removeCharacterNameLabel(eid);
       continue;
     }
+
+    const displayName = rawName ?? "";
 
     if (!displayName) {
       removeCharacterNameLabel(eid);
@@ -229,6 +229,31 @@ function updateCharacterNameLabel(
   const configuredZIndex = RenderComp.zIndex[eid];
   const effectiveZIndex =
     configuredZIndex === ECS_NULL_VALUE ? y : configuredZIndex;
+
+  renderState.label.zIndex = effectiveZIndex + LABEL_Z_INDEX_OFFSET;
+  renderState.label.visible = true;
+
+  if (ObjectComp.state[eid] === CharacterState.DEAD) {
+    setCharacterNameLabelStyle(renderState, NAME_LABEL_STYLE);
+    renderState.label.alpha = 1;
+    renderState.label.scale.set(1, 1);
+    const { bottomY } = getCharacterVerticalBounds(eid);
+    renderState.label.position.set(
+      Math.round(x),
+      Math.round(
+        bottomY + CHARACTER_STAMINA_BAR_TOP_GAP + NAME_LABEL_FONT_SIZE / 2,
+      ),
+    );
+    setMiniStaminaBarVisible(renderState, false);
+    renderState.lastUrgentOverlayAlpha = 0;
+    renderState.lastUrgentOverlayVisible = false;
+    return;
+  }
+
+  setCharacterNameLabelStyle(renderState, NAME_LABEL_STYLE);
+  renderState.label.alpha = 1;
+  renderState.label.scale.set(1, 1);
+
   const { bottomY } = getCharacterVerticalBounds(eid);
   const barTopY = Math.round(getCharacterStaminaBarTopY(eid, bottomY));
   const labelCenterY = Math.round(
@@ -239,15 +264,6 @@ function updateCharacterNameLabel(
   );
 
   renderState.label.position.set(Math.round(x), labelCenterY);
-  renderState.label.zIndex = effectiveZIndex + LABEL_Z_INDEX_OFFSET;
-  renderState.label.visible = true;
-
-  if (ObjectComp.state[eid] === CharacterState.DEAD) {
-    setMiniStaminaBarVisible(renderState, false);
-    renderState.lastUrgentOverlayAlpha = 0;
-    renderState.lastUrgentOverlayVisible = false;
-    return;
-  }
 
   const barVisual = getCharacterBarVisual(world, eid, currentTime);
   const barLeftX = getCharacterStaminaBarLeftX(eid, x);
@@ -266,10 +282,6 @@ function updateCharacterNameLabel(
   drawMiniStaminaBar(renderState, barVisual, currentTime);
 }
 
-function truncateDisplayName(name: string): string {
-  return truncateNameLabelToWidth(name, NAME_LABEL_TEXT_WIDTH);
-}
-
 function setMiniStaminaBarVisible(
   renderState: CharacterNameLabelRenderState,
   visible: boolean,
@@ -278,6 +290,15 @@ function setMiniStaminaBarVisible(
   renderState.barFill.visible = visible;
   renderState.urgentOverlay.visible = visible;
   renderState.barFrame.visible = visible;
+}
+
+function setCharacterNameLabelStyle(
+  renderState: CharacterNameLabelRenderState,
+  style: PIXI.TextStyle,
+): void {
+  if (renderState.label.style !== style) {
+    renderState.label.style = style;
+  }
 }
 
 function drawMiniStaminaBar(
@@ -562,7 +583,8 @@ function drawCutCornerFrame(
         Math.floor(width / 2),
       );
       const startX = width > cornerInset * 2 ? cornerInset : 0;
-      const rowWidth = width > cornerInset * 2 ? width - cornerInset * 2 : width;
+      const rowWidth =
+        width > cornerInset * 2 ? width - cornerInset * 2 : width;
 
       if (rowWidth > 0) {
         graphics.rect(x + startX, y + row, rowWidth, 1).fill(stroke);
@@ -592,11 +614,14 @@ function drawCutCornerDotGrid(
     const { startX, maxXExclusive } = getCutCornerRowBounds(width, height, row);
     const rowBandIndex = Math.floor(row / MINI_STAMINA_BAR_TRACK_DOT_SIZE);
     const parityOffset =
-      (((rowBandIndex % 2) * MINI_STAMINA_BAR_TRACK_DOT_SIZE) +
+      ((rowBandIndex % 2) * MINI_STAMINA_BAR_TRACK_DOT_SIZE +
         MINI_STAMINA_BAR_TRACK_DOT_STRIDE) %
       MINI_STAMINA_BAR_TRACK_DOT_STRIDE;
     const firstDotX =
-      startX + ((parityOffset - (startX % MINI_STAMINA_BAR_TRACK_DOT_STRIDE) + MINI_STAMINA_BAR_TRACK_DOT_STRIDE) %
+      startX +
+      ((parityOffset -
+        (startX % MINI_STAMINA_BAR_TRACK_DOT_STRIDE) +
+        MINI_STAMINA_BAR_TRACK_DOT_STRIDE) %
         MINI_STAMINA_BAR_TRACK_DOT_STRIDE);
 
     for (
@@ -621,14 +646,7 @@ function drawCutCornerDotGrid(
         continue;
       }
 
-      graphics
-        .rect(
-          clippedX,
-          clippedY,
-          clippedWidth,
-          clippedHeight,
-        )
-        .fill(fill);
+      graphics.rect(clippedX, clippedY, clippedWidth, clippedHeight).fill(fill);
     }
   }
 }
@@ -689,9 +707,7 @@ export function getMiniStaminaBarFillWidthForTests(stamina: number): number {
   return getMiniStaminaBarFillWidth(stamina);
 }
 
-export function getEggTimerBarFillWidthForTests(
-  progress: number,
-): number {
+export function getEggTimerBarFillWidthForTests(progress: number): number {
   return Math.max(
     0,
     Math.round((1 - clampUnitInterval(progress)) * STAMINA_BAR_TRACK_WIDTH),
