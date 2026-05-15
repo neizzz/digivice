@@ -1,9 +1,6 @@
 import * as PIXI from "pixi.js";
 import * as Matter from "matter-js";
 
-const GAME_ENGINE_MAX_STEP_MS = 1000 / 60;
-const GAME_ENGINE_MAX_TIMESTEP_MS = 1000 / 30;
-
 export class GameEngine {
   private physics: Matter.Engine;
   private isRunning = false;
@@ -59,23 +56,11 @@ export class GameEngine {
     if (!this.isRunning || !this.pixiApp) return;
 
     try {
-      const appliedDeltaMs = Math.min(
-        GAME_ENGINE_MAX_TIMESTEP_MS,
-        Math.max(0, delta),
-      );
-
-      if (appliedDeltaMs <= 0) {
+      if (!Number.isFinite(delta) || delta <= 0) {
         return;
       }
 
-      let remainingDeltaMs = appliedDeltaMs;
-
-      while (remainingDeltaMs > 0) {
-        const stepDeltaMs = Math.min(GAME_ENGINE_MAX_STEP_MS, remainingDeltaMs);
-        Matter.Engine.update(this.physics, stepDeltaMs);
-        remainingDeltaMs -= stepDeltaMs;
-      }
-
+      Matter.Engine.update(this.physics, delta);
       this.syncDisplayObjects();
     } catch (error) {
       console.error("[Physics] 물리 업데이트 오류:", error);

@@ -481,7 +481,7 @@ test("PLAYING update에서 basket 하단이 ground top에 닿으면 ground game 
   ]);
 });
 
-test("PLAYING 상태에서는 ticker delta를 직접 적용하고 큰 delta는 clamp한다", () => {
+test("PLAYING 상태에서는 ticker delta를 clamp 없이 직접 적용한다", () => {
   const pipeDeltaTimes: number[] = [];
   const groundDeltaTimes: number[] = [];
   const cloudDeltaTimes: number[] = [];
@@ -541,7 +541,10 @@ test("PLAYING 상태에서는 ticker delta를 직접 적용하고 큰 delta는 c
   assert.equal(cloudDeltaTimes.length, 1);
   assert.equal(nearMissDeltaTimes.length, 1);
 
-  assert.ok(Math.abs(pipeDeltaTimes[0] - 1000 / 30) < 0.01);
+  assert.equal(pipeDeltaTimes[0], 50);
+  assert.equal(groundDeltaTimes[0], 50);
+  assert.equal(cloudDeltaTimes[0], 50);
+  assert.equal(nearMissDeltaTimes[0], 50);
 });
 
 test("cleanupVisibilityChangeHandler는 visibilitychange listener를 제거한다", () => {

@@ -86,7 +86,6 @@ const FLAPPY_BIRD_BGM_MIDGAME_TEMPO_MULTIPLIER = 1.08;
 const FLAPPY_BIRD_BGM_ENDGAME_TEMPO_MULTIPLIER = 1.14;
 const FLAPPY_BIRD_BGM_MAX_TEMPO_MULTIPLIER = 1.16;
 const FLAPPY_BIRD_SKY_SYNC_INTERVAL_MS = 1000;
-const FLAPPY_BIRD_MAX_SIMULATION_DELTA_MS = 1000 / 30;
 const FLAPPY_BIRD_PIPE_PREWARM_PAIR_COUNT = 2;
 const FLAPPY_BIRD_INIT_ASSET_LOAD_TIMEOUT_MS = 8000;
 const FLAPPY_BIRD_INIT_SKY_CONTEXT_TIMEOUT_MS = 4000;
@@ -319,15 +318,12 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
     );
   }
 
-  private clampSimulationDelta(deltaTime: number): number {
+  private normalizeSimulationDelta(deltaTime: number): number {
     if (!Number.isFinite(deltaTime)) {
       return 0;
     }
 
-    return Math.min(
-      FLAPPY_BIRD_MAX_SIMULATION_DELTA_MS,
-      Math.max(0, deltaTime),
-    );
+    return Math.max(0, deltaTime);
   }
 
   /**
@@ -1018,7 +1014,7 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
       return;
     }
 
-    const simulationDeltaTime = this.clampSimulationDelta(deltaTime);
+    const simulationDeltaTime = this.normalizeSimulationDelta(deltaTime);
 
     if (this.gameState === GameState.COUNTDOWN) {
       if (simulationDeltaTime > 0) {
