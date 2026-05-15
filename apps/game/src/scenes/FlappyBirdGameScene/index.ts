@@ -900,8 +900,6 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
     this.bgmController.pause();
     this.triggerGameOverVibrationPattern();
     this.game.showFlappyBirdGameOver?.({
-      score: this.scoreUI.getScore(),
-      bestScore: this.scoreUI.getBestScore(),
       onRestart: () => {
         this.restartGame();
       },

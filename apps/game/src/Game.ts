@@ -60,8 +60,6 @@ export type PersistFlappyBirdBestScoreCallback = (
   score: number,
 ) => Promise<void>;
 export type ShowFlappyBirdGameOverCallback = (params: {
-  score: number;
-  bestScore: number;
   onRestart: () => void;
   onExit: () => void | Promise<void>;
 }) => void;

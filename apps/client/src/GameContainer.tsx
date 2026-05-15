@@ -178,8 +178,6 @@ type RequestInitialGameDataOptions = {
 };
 
 type FlappyBirdGameOverState = {
-  score: number;
-  bestScore: number;
   onRestart: () => void;
   onExit: () => void | Promise<void>;
 };
@@ -3109,8 +3107,6 @@ const GameContainer: React.FC = () => {
       )}
       {flappyBirdGameOverState && (
         <FlappyBirdGameOverLayer
-          score={flappyBirdGameOverState.score}
-          bestScore={flappyBirdGameOverState.bestScore}
           onRestart={handleFlappyBirdGameOverRestart}
           onExit={handleFlappyBirdGameOverExit}
         />

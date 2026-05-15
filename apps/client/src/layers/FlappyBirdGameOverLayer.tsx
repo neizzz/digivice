@@ -2,8 +2,6 @@ import type React from "react";
 import { useI18n } from "../i18n";
 
 export interface FlappyBirdGameOverLayerProps {
-  score: number;
-  bestScore: number;
   onRestart: () => void;
   onExit: () => void;
 }
@@ -12,8 +10,6 @@ const FLAPPY_BIRD_GAME_OVER_FONT_FAMILY =
   '"NeoDunggeunmo Pro", "Droid Sans Mono", "SF Mono", monospace, sans-serif';
 
 const FlappyBirdGameOverLayer: React.FC<FlappyBirdGameOverLayerProps> = ({
-  score,
-  bestScore,
   onRestart,
   onExit,
 }) => {
@@ -27,13 +23,6 @@ const FlappyBirdGameOverLayer: React.FC<FlappyBirdGameOverLayerProps> = ({
           style={{ fontFamily: FLAPPY_BIRD_GAME_OVER_FONT_FAMILY }}
         >
           {t("flappy.gameOver")}
-        </div>
-        <div
-          className="flex flex-col gap-1 text-[1.25rem] leading-tight tracking-[0.08em] drop-shadow-[0_2px_4px_rgba(0,0,0,0.65)]"
-          style={{ fontFamily: FLAPPY_BIRD_GAME_OVER_FONT_FAMILY }}
-        >
-          <div>{t("flappy.score", { score })}</div>
-          <div>{t("flappy.best", { score: bestScore })}</div>
         </div>
         <div className="flex justify-center gap-[15px]">
           <button
