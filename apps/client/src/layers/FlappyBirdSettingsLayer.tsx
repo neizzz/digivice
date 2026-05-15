@@ -102,8 +102,6 @@ const FlappyBirdSettingsLayer: React.FC<FlappyBirdSettingsLayerProps> = ({
   onChangeSfx,
   selectedTimeOfDay,
   onSelectTimeOfDay,
-  onSendLogs,
-  isSendingLogs = false,
   onResume,
   onExit,
 }) => {
@@ -143,20 +141,6 @@ const FlappyBirdSettingsLayer: React.FC<FlappyBirdSettingsLayerProps> = ({
                 <ToggleButton
                   enabled={isSfxEnabled}
                   onClick={() => onChangeSfx(!isSfxEnabled)}
-                />
-              </div>
-            </div>
-
-            <div className="border-t-2 border-[#222] pt-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="whitespace-nowrap font-bold">
-                  {t("settings.reportBug")}
-                </div>
-                <ActionButton
-                  text={isSendingLogs ? t("flappy.preparing") : t("settings.send")}
-                  onClick={onSendLogs}
-                  disabled={isSendingLogs}
-                  variant="warning"
                 />
               </div>
             </div>
