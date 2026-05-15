@@ -2,7 +2,7 @@ const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["./browserAll.js","./we
 var __defProp = Object.defineProperty;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
-import { g as getDefaultExportFromCjs, S as SHOW_DEBUG_GAUGE_EVENT, c as commonjsGlobal, r as reactExports, j as jsxDevRuntimeExports, a as requireReactDom, T as TopLeftBuildLogoText, R as ReactDOM } from "./index2.js";
+import { g as getDefaultExportFromCjs, S as SHOW_DEBUG_GAUGE_EVENT, c as commonjsGlobal, r as reactExports, j as jsxRuntimeExports, a as requireReactDom, T as TopLeftBuildLogoText, R as ReactDOM } from "./index2.js";
 const STORAGE_PREVIEW_LIMIT = 120;
 const FLUTTER_STORAGE_TIMEOUT_MS = {
   getData: 3e3,
@@ -10,7 +10,9 @@ const FLUTTER_STORAGE_TIMEOUT_MS = {
   removeData: 2e3
 };
 function _debugStorage(...args) {
-  console.debug(...args);
+  {
+    return;
+  }
 }
 function _serialize(obj) {
   return JSON.stringify(obj);
@@ -112,10 +114,8 @@ class WebLocalStorage {
   //   localStorage.setItem(key, value);
   // }, 1000);
   async getData(key) {
-    _debugStorage("[WebLocalStorage] getData:start", { key });
     const value = localStorage.getItem(key);
     if (value === null) {
-      _debugStorage("[WebLocalStorage] getData:miss", { key });
       return await Promise.resolve(null);
     }
     _debugStorage("[WebLocalStorage] getData:raw", {
@@ -147,13 +147,10 @@ class WebLocalStorage {
       preview: _previewValue(value)
     });
     localStorage.setItem(key, value);
-    _debugStorage("[WebLocalStorage] setData:success", { key });
     return Promise.resolve();
   }
   removeData(key) {
-    _debugStorage("[WebLocalStorage] removeData:start", { key });
     localStorage.removeItem(key);
-    _debugStorage("[WebLocalStorage] removeData:success", { key });
     return Promise.resolve();
   }
 }
@@ -165,7 +162,6 @@ class FlutterStorage {
     return window.storageController;
   }
   async getData(key) {
-    _debugStorage("[FlutterStorage] getData:start", { key });
     const value = await _withFlutterStorageTimeout({
       operation: "getData",
       key,
@@ -178,7 +174,6 @@ class FlutterStorage {
       preview: _previewValue(value)
     });
     if (_isMissingSerializedValue(value)) {
-      _debugStorage("[FlutterStorage] getData:miss", { key });
       return null;
     }
     try {
@@ -215,17 +210,706 @@ class FlutterStorage {
       payloadLength: serializedValue.length,
       promiseFactory: () => this._getStorageController().setData(key, serializedValue)
     });
-    _debugStorage("[FlutterStorage] setData:success", { key });
   }
   async removeData(key) {
-    _debugStorage("[FlutterStorage] removeData:start", { key });
     await _withFlutterStorageTimeout({
       operation: "removeData",
       key,
       promiseFactory: () => this._getStorageController().removeData(key)
     });
-    _debugStorage("[FlutterStorage] removeData:success", { key });
   }
+}
+const SUPPORTED_LOCALES = [
+  "en",
+  "ko",
+  "ja",
+  "zh-TW",
+  "zh-HK",
+  "hi",
+  "th",
+  "vi",
+  "pt-BR"
+];
+const DEFAULT_LOCALE = "en";
+const LOCALE_METADATA = {
+  en: { code: "en", nativeName: "English", englishName: "English" },
+  ko: { code: "ko", nativeName: "한국어", englishName: "Korean" },
+  ja: { code: "ja", nativeName: "日本語", englishName: "Japanese" },
+  "zh-TW": {
+    code: "zh-TW",
+    nativeName: "繁體中文（台灣）",
+    englishName: "Chinese (Taiwan)"
+  },
+  "zh-HK": {
+    code: "zh-HK",
+    nativeName: "繁體中文（香港）",
+    englishName: "Chinese (Hong Kong)"
+  },
+  hi: { code: "hi", nativeName: "हिन्दी", englishName: "Hindi" },
+  th: { code: "th", nativeName: "ไทย", englishName: "Thai" },
+  vi: { code: "vi", nativeName: "Tiếng Việt", englishName: "Vietnamese" },
+  "pt-BR": {
+    code: "pt-BR",
+    nativeName: "Português (Brasil)",
+    englishName: "Portuguese (Brazil)"
+  }
+};
+const en = {
+  "common.on": "ON",
+  "common.off": "OFF",
+  "common.confirm": "Confirm",
+  "common.confirmUpper": "CONFIRM",
+  "common.cancel": "Cancel",
+  "common.close": "Close",
+  "common.reset": "Reset",
+  "common.okay": "Okay",
+  "common.notice": "Notice",
+  "common.view": "View",
+  "common.error": "Error",
+  "alert.title": "Alert",
+  "setup.title": "Spawn Monster!",
+  "setup.placeholder.name": "monster name",
+  "setup.nameWidth": "name length: {width}/{maxWidth}px",
+  "setup.error.emptyName": "Please enter a name.",
+  "setup.error.minLength": "Name must be at least {minLength} characters long.",
+  "setup.error.maxWidth": "Name must fit within {maxWidth}px on the in-game label.",
+  "setup.start": "Start",
+  "settings.title": "Settings",
+  "settings.vibration": "Vibration",
+  "settings.reportBug": "Report Bug",
+  "settings.send": "Send",
+  "settings.sending": "Sending...",
+  "settings.language": "Language",
+  "settings.raiseNewMonster": "Raise a New Monster",
+  "settings.resetConfirmCodeLabel": "Reset code",
+  "settings.resetTitle": "❗️Reset?",
+  "settings.resetMessage": "This will permanently delete your current monster and all progress. You'll return to the setup screen to hatch a new one.",
+  "loading.label": "Loading...",
+  "loading.errorTitle": "Loading Error",
+  "loading.timeoutTitle": "Loading Timeout",
+  "loading.timeoutMessage": "The game is taking too long to load. Tap Okay to dismiss this popup or Send Log to share diagnostics.",
+  "loading.finishFailed": "The game could not finish loading. Tap Okay to dismiss this popup or Send Log to share diagnostics.",
+  "viewport.portraitOnly": "Portrait Only",
+  "viewport.rotateDevice": "Please rotate your device",
+  "viewport.backToPortrait": "back to portrait mode.",
+  "viewport.unsupportedRatio": "This screen ratio is not supported.",
+  "viewport.useTallerPortrait": "Please use a taller portrait screen.",
+  "offlineAd.title": "Connecting Ad...",
+  "offlineAd.message": "We're connecting to the ad network. You'll return to the game automatically.",
+  "offlineAd.maxDuration": "This can take up to 10 seconds.",
+  "offlineAd.returningIn": "Returning in {seconds}s",
+  "diagnostics.prepareFailed": "Failed to prepare diagnostics payload.",
+  "diagnostics.flappyPrepareFailed": "Failed to prepare FlappyBird logs.",
+  "diagnostics.gmailNotice": "The mail compose screen was opened outside the app. File attachment support is only guaranteed when the Gmail app opens directly.",
+  "diagnostics.gmailOpenFailed": "Failed to open the Gmail draft. Please make sure Gmail is installed.",
+  "diagnostics.resetFailed": "Failed to reset game data.",
+  "diagnostics.sendLog": "Send Log",
+  "diagnostics.sendLogs": "Send Logs",
+  "diagnostics.openGmail": "Open Gmail",
+  "diagnostics.gmailWillOpen": "The Gmail app will open next.",
+  "diagnostics.gmailAttachments": "The diagnostics files will be attached to the draft email.",
+  "dataRecovery.title": "Data Recovery",
+  "dataRecovery.corruptedReset": "Existing game data is corrupted and cannot be recovered. Press Confirm to reset the data and return to the initial setup screen.",
+  "dataRecovery.readFailedReset": "There was a problem reading the existing game data. Press Confirm to reset the data and return to the initial setup screen.",
+  "flappy.gameOver": "Game Over",
+  "flappy.exit": "Exit",
+  "flappy.retry": "Retry",
+  "flappy.bgm": "BGM",
+  "flappy.sfx": "SFX",
+  "flappy.preparing": "Preparing...",
+  "flappy.skyDev": "Sky Dev",
+  "flappy.resume": "Resume",
+  "flappy.best": "Best: {score}",
+  "flappy.score": "Score: {score}",
+  "flappy.nearMissGood": "Good!",
+  "flappy.nearMissGreat": "Great!",
+  "flappy.restartInstruction": "Retry",
+  "flappy.openSource": "Open Source",
+  "timeOfDay.day": "Day",
+  "timeOfDay.sunrise": "Sunrise",
+  "timeOfDay.sunset": "Sunset",
+  "timeOfDay.night": "Night",
+  "main.eggUnavailable": "not available in egg state."
+};
+const ko = {
+  "common.on": "켜짐",
+  "common.off": "꺼짐",
+  "common.confirm": "확인",
+  "common.confirmUpper": "확인",
+  "common.cancel": "취소",
+  "common.close": "닫기",
+  "common.reset": "초기화",
+  "common.okay": "확인",
+  "common.notice": "알림",
+  "common.view": "보기",
+  "common.error": "오류",
+  "alert.title": "알림",
+  "setup.title": "몬스터 탄생!",
+  "setup.placeholder.name": "몬스터 이름",
+  "setup.nameWidth": "이름 길이: {width}/{maxWidth}px",
+  "setup.error.emptyName": "이름을 입력해 주세요.",
+  "setup.error.minLength": "이름은 최소 {minLength}자 이상이어야 합니다.",
+  "setup.error.maxWidth": "게임 이름표의 {maxWidth}px 안에 들어가야 합니다.",
+  "setup.start": "시작",
+  "settings.title": "설정",
+  "settings.vibration": "진동",
+  "settings.reportBug": "버그 신고",
+  "settings.send": "보내기",
+  "settings.sending": "보내는 중...",
+  "settings.language": "언어",
+  "settings.raiseNewMonster": "새 몬스터 키우기",
+  "settings.resetConfirmCodeLabel": "초기화 코드",
+  "settings.resetTitle": "❗️초기화?",
+  "settings.resetMessage": "현재 몬스터와 모든 진행 상황이 영구 삭제됩니다. 초기 설정 화면으로 돌아가 새 몬스터를 부화합니다.",
+  "loading.label": "로딩 중...",
+  "loading.errorTitle": "로딩 오류",
+  "loading.timeoutTitle": "로딩 시간 초과",
+  "loading.timeoutMessage": "게임 로딩이 너무 오래 걸리고 있습니다. 확인을 눌러 닫거나 로그 보내기로 진단 정보를 공유해 주세요.",
+  "loading.finishFailed": "게임 로딩을 완료하지 못했습니다. 확인을 눌러 닫거나 로그 보내기로 진단 정보를 공유해 주세요.",
+  "viewport.portraitOnly": "세로 모드 전용",
+  "viewport.rotateDevice": "기기를 다시",
+  "viewport.backToPortrait": "세로 모드로 돌려 주세요.",
+  "viewport.unsupportedRatio": "지원하지 않는 화면 비율입니다.",
+  "viewport.useTallerPortrait": "더 긴 세로 화면을 사용해 주세요.",
+  "offlineAd.title": "광고 연결 중...",
+  "offlineAd.message": "광고 네트워크에 연결하고 있습니다. 완료되면 게임으로 자동 복귀합니다.",
+  "offlineAd.maxDuration": "최대 10초가 걸릴 수 있습니다.",
+  "offlineAd.returningIn": "{seconds}초 후 복귀",
+  "diagnostics.prepareFailed": "진단 정보를 준비하지 못했습니다.",
+  "diagnostics.flappyPrepareFailed": "FlappyBird 로그를 준비하지 못했습니다.",
+  "diagnostics.gmailNotice": "메일 작성 화면이 앱 밖에서 열렸습니다. 파일 첨부는 Gmail 앱이 직접 열릴 때만 보장됩니다.",
+  "diagnostics.gmailOpenFailed": "Gmail 초안을 열지 못했습니다. Gmail이 설치되어 있는지 확인해 주세요.",
+  "diagnostics.resetFailed": "게임 데이터를 초기화하지 못했습니다.",
+  "diagnostics.sendLog": "로그 보내기",
+  "diagnostics.sendLogs": "로그 보내기",
+  "diagnostics.openGmail": "Gmail 열기",
+  "diagnostics.gmailWillOpen": "다음에 Gmail 앱이 열립니다.",
+  "diagnostics.gmailAttachments": "진단 파일이 초안 메일에 첨부됩니다.",
+  "dataRecovery.title": "데이터 복구",
+  "dataRecovery.corruptedReset": "기존 게임 데이터가 손상되어 복구할 수 없습니다. 확인을 누르면 데이터를 초기화하고 초기 설정 화면으로 돌아갑니다.",
+  "dataRecovery.readFailedReset": "기존 게임 데이터를 읽는 중 문제가 발생했습니다. 확인을 누르면 데이터를 초기화하고 초기 설정 화면으로 돌아갑니다.",
+  "flappy.gameOver": "게임 오버",
+  "flappy.exit": "나가기",
+  "flappy.retry": "다시하기",
+  "flappy.bgm": "BGM",
+  "flappy.sfx": "효과음",
+  "flappy.preparing": "준비 중...",
+  "flappy.skyDev": "하늘 개발",
+  "flappy.resume": "계속하기",
+  "flappy.best": "최고: {score}",
+  "flappy.score": "점수: {score}",
+  "flappy.nearMissGood": "좋아요!",
+  "flappy.nearMissGreat": "훌륭해요!",
+  "flappy.restartInstruction": "다시",
+  "flappy.openSource": "오픈소스",
+  "timeOfDay.day": "낮",
+  "timeOfDay.sunrise": "일출",
+  "timeOfDay.sunset": "일몰",
+  "timeOfDay.night": "밤",
+  "main.eggUnavailable": "알 상태에서는 사용할 수 없습니다."
+};
+const ja = {
+  "common.on": "オン",
+  "common.off": "オフ",
+  "common.confirm": "確認",
+  "common.confirmUpper": "確認",
+  "common.cancel": "キャンセル",
+  "common.close": "閉じる",
+  "common.reset": "リセット",
+  "common.okay": "OK",
+  "common.notice": "お知らせ",
+  "common.view": "見る",
+  "common.error": "エラー",
+  "alert.title": "アラート",
+  "setup.title": "モンスター誕生!",
+  "setup.placeholder.name": "モンスター名",
+  "setup.nameWidth": "名前の長さ: {width}/{maxWidth}px",
+  "setup.error.emptyName": "名前を入力してください。",
+  "setup.error.minLength": "名前は{minLength}文字以上にしてください。",
+  "setup.error.maxWidth": "ゲーム内ラベルの{maxWidth}px以内に収めてください。",
+  "setup.start": "開始",
+  "settings.title": "設定",
+  "settings.vibration": "バイブ",
+  "settings.reportBug": "バグ報告",
+  "settings.send": "送信",
+  "settings.sending": "送信中...",
+  "settings.language": "言語",
+  "settings.raiseNewMonster": "新しいモンスターを育てる",
+  "settings.resetConfirmCodeLabel": "リセットコード",
+  "settings.resetTitle": "❗️リセット?",
+  "settings.resetMessage": "現在のモンスターと進行状況は完全に削除されます。初期設定画面に戻り、新しいモンスターを孵化します。",
+  "loading.label": "読み込み中...",
+  "loading.errorTitle": "読み込みエラー",
+  "loading.timeoutTitle": "読み込みタイムアウト",
+  "loading.timeoutMessage": "ゲームの読み込みに時間がかかっています。OKで閉じるか、ログ送信で診断情報を共有してください。",
+  "loading.finishFailed": "ゲームの読み込みを完了できませんでした。OKで閉じるか、ログ送信で診断情報を共有してください。",
+  "viewport.portraitOnly": "縦向き専用",
+  "viewport.rotateDevice": "端末を",
+  "viewport.backToPortrait": "縦向きに戻してください。",
+  "viewport.unsupportedRatio": "この画面比率は対応していません。",
+  "viewport.useTallerPortrait": "より縦長の画面を使用してください。",
+  "offlineAd.title": "広告に接続中...",
+  "offlineAd.message": "広告ネットワークに接続しています。完了後、自動的にゲームへ戻ります。",
+  "offlineAd.maxDuration": "最大10秒かかる場合があります。",
+  "offlineAd.returningIn": "{seconds}秒後に戻ります",
+  "diagnostics.prepareFailed": "診断データを準備できませんでした。",
+  "diagnostics.flappyPrepareFailed": "FlappyBirdログを準備できませんでした。",
+  "diagnostics.gmailNotice": "メール作成画面がアプリ外で開かれました。添付ファイルはGmailアプリが直接開いた場合のみ保証されます。",
+  "diagnostics.gmailOpenFailed": "Gmail下書きを開けませんでした。Gmailがインストールされているか確認してください。",
+  "diagnostics.resetFailed": "ゲームデータをリセットできませんでした。",
+  "diagnostics.sendLog": "ログ送信",
+  "diagnostics.sendLogs": "ログ送信",
+  "diagnostics.openGmail": "Gmailを開く",
+  "diagnostics.gmailWillOpen": "次にGmailアプリが開きます。",
+  "diagnostics.gmailAttachments": "診断ファイルが下書きメールに添付されます。",
+  "dataRecovery.title": "データ復旧",
+  "dataRecovery.corruptedReset": "既存のゲームデータが破損しており復旧できません。確認を押すとデータをリセットし、初期設定画面に戻ります。",
+  "dataRecovery.readFailedReset": "既存のゲームデータの読み込み中に問題が発生しました。確認を押すとデータをリセットし、初期設定画面に戻ります。",
+  "flappy.gameOver": "ゲームオーバー",
+  "flappy.exit": "終了",
+  "flappy.retry": "再開",
+  "flappy.bgm": "BGM",
+  "flappy.sfx": "効果音",
+  "flappy.preparing": "準備中...",
+  "flappy.skyDev": "空 Dev",
+  "flappy.resume": "再開",
+  "flappy.best": "ベスト: {score}",
+  "flappy.score": "スコア: {score}",
+  "flappy.nearMissGood": "Good!",
+  "flappy.nearMissGreat": "Great!",
+  "flappy.restartInstruction": "再開",
+  "flappy.openSource": "OSS",
+  "timeOfDay.day": "昼",
+  "timeOfDay.sunrise": "日の出",
+  "timeOfDay.sunset": "夕日",
+  "timeOfDay.night": "夜",
+  "main.eggUnavailable": "卵の状態では使用できません。"
+};
+const zhTW = {
+  "common.on": "開",
+  "common.off": "關",
+  "common.confirm": "確認",
+  "common.confirmUpper": "確認",
+  "common.cancel": "取消",
+  "common.close": "關閉",
+  "common.reset": "重設",
+  "common.okay": "好",
+  "common.notice": "通知",
+  "common.view": "查看",
+  "common.error": "錯誤",
+  "alert.title": "提醒",
+  "setup.title": "召喚怪獸！",
+  "setup.placeholder.name": "怪獸名稱",
+  "setup.nameWidth": "名稱長度：{width}/{maxWidth}px",
+  "setup.error.emptyName": "請輸入名稱。",
+  "setup.error.minLength": "名稱至少需要 {minLength} 個字元。",
+  "setup.error.maxWidth": "名稱必須符合遊戲標籤的 {maxWidth}px 長度。",
+  "setup.start": "開始",
+  "settings.title": "設定",
+  "settings.vibration": "震動",
+  "settings.reportBug": "回報錯誤",
+  "settings.send": "傳送",
+  "settings.sending": "傳送中...",
+  "settings.language": "語言",
+  "settings.raiseNewMonster": "培育新怪獸",
+  "settings.resetConfirmCodeLabel": "重設代碼",
+  "settings.resetTitle": "❗️要重設嗎？",
+  "settings.resetMessage": "目前的怪獸與所有進度將永久刪除。你會回到初始設定畫面來孵化新怪獸。",
+  "loading.label": "載入中...",
+  "loading.errorTitle": "載入錯誤",
+  "loading.timeoutTitle": "載入逾時",
+  "loading.timeoutMessage": "遊戲載入時間過長。點選好關閉，或傳送記錄分享診斷資訊。",
+  "loading.finishFailed": "遊戲無法完成載入。點選好關閉，或傳送記錄分享診斷資訊。",
+  "viewport.portraitOnly": "僅支援直向",
+  "viewport.rotateDevice": "請將裝置",
+  "viewport.backToPortrait": "轉回直向模式。",
+  "viewport.unsupportedRatio": "不支援此螢幕比例。",
+  "viewport.useTallerPortrait": "請使用較高的直向螢幕。",
+  "offlineAd.title": "正在連接廣告...",
+  "offlineAd.message": "正在連接廣告網路。完成後會自動回到遊戲。",
+  "offlineAd.maxDuration": "最多可能需要 10 秒。",
+  "offlineAd.returningIn": "{seconds} 秒後返回",
+  "diagnostics.prepareFailed": "無法準備診斷資料。",
+  "diagnostics.flappyPrepareFailed": "無法準備 FlappyBird 記錄。",
+  "diagnostics.gmailNotice": "郵件撰寫畫面已在 App 外開啟。只有直接開啟 Gmail App 時才保證支援附件。",
+  "diagnostics.gmailOpenFailed": "無法開啟 Gmail 草稿。請確認已安裝 Gmail。",
+  "diagnostics.resetFailed": "無法重設遊戲資料。",
+  "diagnostics.sendLog": "傳送記錄",
+  "diagnostics.sendLogs": "傳送記錄",
+  "diagnostics.openGmail": "開啟 Gmail",
+  "diagnostics.gmailWillOpen": "接下來會開啟 Gmail App。",
+  "diagnostics.gmailAttachments": "診斷檔案會附加到草稿郵件。",
+  "dataRecovery.title": "資料復原",
+  "dataRecovery.corruptedReset": "現有遊戲資料已損毀且無法復原。按確認會重設資料並回到初始設定畫面。",
+  "dataRecovery.readFailedReset": "讀取現有遊戲資料時發生問題。按確認會重設資料並回到初始設定畫面。",
+  "flappy.gameOver": "遊戲結束",
+  "flappy.exit": "離開",
+  "flappy.retry": "重試",
+  "flappy.bgm": "BGM",
+  "flappy.sfx": "音效",
+  "flappy.preparing": "準備中...",
+  "flappy.skyDev": "天空 Dev",
+  "flappy.resume": "繼續",
+  "flappy.best": "最佳：{score}",
+  "flappy.score": "分數：{score}",
+  "flappy.nearMissGood": "不錯！",
+  "flappy.nearMissGreat": "太棒了！",
+  "flappy.restartInstruction": "重開",
+  "flappy.openSource": "開源",
+  "timeOfDay.day": "白天",
+  "timeOfDay.sunrise": "日出",
+  "timeOfDay.sunset": "日落",
+  "timeOfDay.night": "夜晚",
+  "main.eggUnavailable": "蛋狀態無法使用。"
+};
+const zhHK = {
+  ...zhTW,
+  "setup.title": "召喚怪獸！",
+  "settings.title": "設定",
+  "settings.vibration": "震動",
+  "settings.reportBug": "回報問題",
+  "settings.raiseNewMonster": "培育新怪獸",
+  "loading.label": "載入中...",
+  "viewport.portraitOnly": "只支援直向",
+  "flappy.retry": "再試"
+};
+const hi = {
+  "common.on": "चालू",
+  "common.off": "बंद",
+  "common.confirm": "पुष्टि करें",
+  "common.confirmUpper": "पुष्टि",
+  "common.cancel": "रद्द करें",
+  "common.close": "बंद करें",
+  "common.reset": "रीसेट",
+  "common.okay": "ठीक है",
+  "common.notice": "सूचना",
+  "common.view": "देखें",
+  "common.error": "त्रुटि",
+  "alert.title": "चेतावनी",
+  "setup.title": "मॉन्स्टर जन्म!",
+  "setup.placeholder.name": "मॉन्स्टर नाम",
+  "setup.nameWidth": "नाम लंबाई: {width}/{maxWidth}px",
+  "setup.error.emptyName": "कृपया नाम दर्ज करें।",
+  "setup.error.minLength": "नाम कम से कम {minLength} अक्षरों का होना चाहिए।",
+  "setup.error.maxWidth": "नाम गेम लेबल के {maxWidth}px में फिट होना चाहिए।",
+  "setup.start": "शुरू करें",
+  "settings.title": "सेटिंग्स",
+  "settings.vibration": "वाइब्रेशन",
+  "settings.reportBug": "बग रिपोर्ट",
+  "settings.send": "भेजें",
+  "settings.sending": "भेज रहा है...",
+  "settings.language": "भाषा",
+  "settings.raiseNewMonster": "नया मॉन्स्टर पालें",
+  "settings.resetConfirmCodeLabel": "रीसेट कोड",
+  "settings.resetTitle": "❗️रीसेट?",
+  "settings.resetMessage": "आपका वर्तमान मॉन्स्टर और सारी प्रगति स्थायी रूप से हट जाएगी। नया मॉन्स्टर हैच करने के लिए सेटअप स्क्रीन पर लौटेंगे।",
+  "loading.label": "लोड हो रहा है...",
+  "loading.errorTitle": "लोडिंग त्रुटि",
+  "loading.timeoutTitle": "लोडिंग टाइमआउट",
+  "loading.timeoutMessage": "गेम लोड होने में बहुत समय लग रहा है। पॉपअप बंद करने के लिए ठीक है दबाएँ या डायग्नोस्टिक्स भेजने के लिए लॉग भेजें।",
+  "loading.finishFailed": "गेम लोड पूरा नहीं कर सका। पॉपअप बंद करने के लिए ठीक है दबाएँ या डायग्नोस्टिक्स भेजने के लिए लॉग भेजें।",
+  "viewport.portraitOnly": "केवल पोर्ट्रेट",
+  "viewport.rotateDevice": "कृपया डिवाइस को",
+  "viewport.backToPortrait": "वापस पोर्ट्रेट मोड में घुमाएँ।",
+  "viewport.unsupportedRatio": "यह स्क्रीन अनुपात समर्थित नहीं है।",
+  "viewport.useTallerPortrait": "कृपया लंबी पोर्ट्रेट स्क्रीन का उपयोग करें।",
+  "offlineAd.title": "विज्ञापन कनेक्ट हो रहा है...",
+  "offlineAd.message": "हम विज्ञापन नेटवर्क से जुड़ रहे हैं। आप अपने आप गेम में लौट आएँगे।",
+  "offlineAd.maxDuration": "इसमें 10 सेकंड तक लग सकते हैं।",
+  "offlineAd.returningIn": "{seconds}s में वापसी",
+  "diagnostics.prepareFailed": "डायग्नोस्टिक्स पेलोड तैयार नहीं हो सका।",
+  "diagnostics.flappyPrepareFailed": "FlappyBird लॉग तैयार नहीं हो सके।",
+  "diagnostics.gmailNotice": "मेल कंपोज़ स्क्रीन ऐप के बाहर खुली। अटैचमेंट सपोर्ट केवल Gmail ऐप सीधे खुलने पर गारंटी है।",
+  "diagnostics.gmailOpenFailed": "Gmail ड्राफ्ट नहीं खुल सका। कृपया सुनिश्चित करें कि Gmail इंस्टॉल है।",
+  "diagnostics.resetFailed": "गेम डेटा रीसेट नहीं हो सका।",
+  "diagnostics.sendLog": "लॉग भेजें",
+  "diagnostics.sendLogs": "लॉग भेजें",
+  "diagnostics.openGmail": "Gmail खोलें",
+  "diagnostics.gmailWillOpen": "अब Gmail ऐप खुलेगा।",
+  "diagnostics.gmailAttachments": "डायग्नोस्टिक्स फाइलें ड्राफ्ट ईमेल में जुड़ेंगी।",
+  "dataRecovery.title": "डेटा रिकवरी",
+  "dataRecovery.corruptedReset": "मौजूदा गेम डेटा खराब है और रिकवर नहीं किया जा सकता। पुष्टि दबाने पर डेटा रीसेट होगा और प्रारंभिक सेटअप स्क्रीन खुलेगी।",
+  "dataRecovery.readFailedReset": "मौजूदा गेम डेटा पढ़ने में समस्या हुई। पुष्टि दबाने पर डेटा रीसेट होगा और प्रारंभिक सेटअप स्क्रीन खुलेगी।",
+  "flappy.gameOver": "गेम ओवर",
+  "flappy.exit": "बाहर जाएँ",
+  "flappy.retry": "रीट्राई",
+  "flappy.bgm": "BGM",
+  "flappy.sfx": "SFX",
+  "flappy.preparing": "तैयार हो रहा है...",
+  "flappy.skyDev": "Sky Dev",
+  "flappy.resume": "जारी रखें",
+  "flappy.best": "सर्वश्रेष्ठ: {score}",
+  "flappy.score": "स्कोर: {score}",
+  "flappy.nearMissGood": "अच्छा!",
+  "flappy.nearMissGreat": "बहुत बढ़िया!",
+  "flappy.restartInstruction": "रीट्राई",
+  "flappy.openSource": "ओपन सोर्स",
+  "timeOfDay.day": "दिन",
+  "timeOfDay.sunrise": "सूर्योदय",
+  "timeOfDay.sunset": "सूर्यास्त",
+  "timeOfDay.night": "रात",
+  "main.eggUnavailable": "अंडे की अवस्था में उपलब्ध नहीं।"
+};
+const th = {
+  "common.on": "เปิด",
+  "common.off": "ปิด",
+  "common.confirm": "ยืนยัน",
+  "common.confirmUpper": "ยืนยัน",
+  "common.cancel": "ยกเลิก",
+  "common.close": "ปิด",
+  "common.reset": "รีเซ็ต",
+  "common.okay": "ตกลง",
+  "common.notice": "แจ้งเตือน",
+  "common.view": "ดู",
+  "common.error": "ข้อผิดพลาด",
+  "alert.title": "แจ้งเตือน",
+  "setup.title": "สร้างมอนสเตอร์!",
+  "setup.placeholder.name": "ชื่อมอนสเตอร์",
+  "setup.nameWidth": "ความยาวชื่อ: {width}/{maxWidth}px",
+  "setup.error.emptyName": "กรุณาใส่ชื่อ",
+  "setup.error.minLength": "ชื่อต้องมีอย่างน้อย {minLength} ตัวอักษร",
+  "setup.error.maxWidth": "ชื่อต้องพอดีกับป้ายในเกมขนาด {maxWidth}px",
+  "setup.start": "เริ่ม",
+  "settings.title": "ตั้งค่า",
+  "settings.vibration": "สั่น",
+  "settings.reportBug": "รายงานบั๊ก",
+  "settings.send": "ส่ง",
+  "settings.sending": "กำลังส่ง...",
+  "settings.language": "ภาษา",
+  "settings.raiseNewMonster": "เลี้ยงมอนสเตอร์ใหม่",
+  "settings.resetConfirmCodeLabel": "รหัสรีเซ็ต",
+  "settings.resetTitle": "❗️รีเซ็ต?",
+  "settings.resetMessage": "มอนสเตอร์ปัจจุบันและความคืบหน้าทั้งหมดจะถูกลบถาวร คุณจะกลับไปหน้าตั้งค่าเพื่อฟักมอนสเตอร์ใหม่",
+  "loading.label": "กำลังโหลด...",
+  "loading.errorTitle": "โหลดผิดพลาด",
+  "loading.timeoutTitle": "โหลดหมดเวลา",
+  "loading.timeoutMessage": "เกมใช้เวลาโหลดนานเกินไป แตะตกลงเพื่อปิด หรือส่งล็อกเพื่อแชร์ข้อมูลวินิจฉัย",
+  "loading.finishFailed": "เกมโหลดไม่สำเร็จ แตะตกลงเพื่อปิด หรือส่งล็อกเพื่อแชร์ข้อมูลวินิจฉัย",
+  "viewport.portraitOnly": "แนวตั้งเท่านั้น",
+  "viewport.rotateDevice": "กรุณาหมุนอุปกรณ์",
+  "viewport.backToPortrait": "กลับเป็นแนวตั้ง",
+  "viewport.unsupportedRatio": "ไม่รองรับอัตราส่วนหน้าจอนี้",
+  "viewport.useTallerPortrait": "กรุณาใช้หน้าจอแนวตั้งที่สูงกว่า",
+  "offlineAd.title": "กำลังเชื่อมต่อโฆษณา...",
+  "offlineAd.message": "กำลังเชื่อมต่อเครือข่ายโฆษณา แล้วจะกลับเข้าเกมโดยอัตโนมัติ",
+  "offlineAd.maxDuration": "อาจใช้เวลาสูงสุด 10 วินาที",
+  "offlineAd.returningIn": "กลับใน {seconds} วินาที",
+  "diagnostics.prepareFailed": "เตรียมข้อมูลวินิจฉัยไม่สำเร็จ",
+  "diagnostics.flappyPrepareFailed": "เตรียมล็อก FlappyBird ไม่สำเร็จ",
+  "diagnostics.gmailNotice": "หน้าร่างอีเมลเปิดนอกแอป การแนบไฟล์รับประกันเฉพาะเมื่อเปิด Gmail โดยตรง",
+  "diagnostics.gmailOpenFailed": "เปิดร่าง Gmail ไม่สำเร็จ โปรดตรวจสอบว่าติดตั้ง Gmail แล้ว",
+  "diagnostics.resetFailed": "รีเซ็ตข้อมูลเกมไม่สำเร็จ",
+  "diagnostics.sendLog": "ส่งล็อก",
+  "diagnostics.sendLogs": "ส่งล็อก",
+  "diagnostics.openGmail": "เปิด Gmail",
+  "diagnostics.gmailWillOpen": "แอป Gmail จะเปิดถัดไป",
+  "diagnostics.gmailAttachments": "ไฟล์วินิจฉัยจะแนบไปกับอีเมลร่าง",
+  "dataRecovery.title": "กู้คืนข้อมูล",
+  "dataRecovery.corruptedReset": "ข้อมูลเกมเดิมเสียหายและกู้คืนไม่ได้ กดยืนยันเพื่อรีเซ็ตข้อมูลและกลับไปหน้าตั้งค่าเริ่มต้น",
+  "dataRecovery.readFailedReset": "มีปัญหาในการอ่านข้อมูลเกมเดิม กดยืนยันเพื่อรีเซ็ตข้อมูลและกลับไปหน้าตั้งค่าเริ่มต้น",
+  "flappy.gameOver": "เกมจบแล้ว",
+  "flappy.exit": "ออก",
+  "flappy.retry": "ลองใหม่",
+  "flappy.bgm": "BGM",
+  "flappy.sfx": "SFX",
+  "flappy.preparing": "กำลังเตรียม...",
+  "flappy.skyDev": "Sky Dev",
+  "flappy.resume": "เล่นต่อ",
+  "flappy.best": "สูงสุด: {score}",
+  "flappy.score": "คะแนน: {score}",
+  "flappy.nearMissGood": "ดี!",
+  "flappy.nearMissGreat": "เยี่ยม!",
+  "flappy.restartInstruction": "ลองใหม่",
+  "flappy.openSource": "โอเพนซอร์ส",
+  "timeOfDay.day": "กลางวัน",
+  "timeOfDay.sunrise": "พระอาทิตย์ขึ้น",
+  "timeOfDay.sunset": "พระอาทิตย์ตก",
+  "timeOfDay.night": "กลางคืน",
+  "main.eggUnavailable": "ใช้ไม่ได้ตอนเป็นไข่"
+};
+const vi = {
+  "common.on": "BẬT",
+  "common.off": "TẮT",
+  "common.confirm": "Xác nhận",
+  "common.confirmUpper": "XÁC NHẬN",
+  "common.cancel": "Hủy",
+  "common.close": "Đóng",
+  "common.reset": "Đặt lại",
+  "common.okay": "OK",
+  "common.notice": "Thông báo",
+  "common.view": "Xem",
+  "common.error": "Lỗi",
+  "alert.title": "Cảnh báo",
+  "setup.title": "Tạo quái vật!",
+  "setup.placeholder.name": "tên quái vật",
+  "setup.nameWidth": "độ dài tên: {width}/{maxWidth}px",
+  "setup.error.emptyName": "Vui lòng nhập tên.",
+  "setup.error.minLength": "Tên phải có ít nhất {minLength} ký tự.",
+  "setup.error.maxWidth": "Tên phải vừa trong nhãn game {maxWidth}px.",
+  "setup.start": "Bắt đầu",
+  "settings.title": "Cài đặt",
+  "settings.vibration": "Rung",
+  "settings.reportBug": "Báo lỗi",
+  "settings.send": "Gửi",
+  "settings.sending": "Đang gửi...",
+  "settings.language": "Ngôn ngữ",
+  "settings.raiseNewMonster": "Nuôi quái vật mới",
+  "settings.resetConfirmCodeLabel": "Mã đặt lại",
+  "settings.resetTitle": "❗️Đặt lại?",
+  "settings.resetMessage": "Quái vật hiện tại và toàn bộ tiến trình sẽ bị xóa vĩnh viễn. Bạn sẽ quay lại màn hình thiết lập để ấp quái vật mới.",
+  "loading.label": "Đang tải...",
+  "loading.errorTitle": "Lỗi tải",
+  "loading.timeoutTitle": "Tải quá lâu",
+  "loading.timeoutMessage": "Game tải quá lâu. Nhấn OK để đóng hoặc Gửi nhật ký để chia sẻ chẩn đoán.",
+  "loading.finishFailed": "Game không thể tải xong. Nhấn OK để đóng hoặc Gửi nhật ký để chia sẻ chẩn đoán.",
+  "viewport.portraitOnly": "Chỉ chế độ dọc",
+  "viewport.rotateDevice": "Vui lòng xoay thiết bị",
+  "viewport.backToPortrait": "về chế độ dọc.",
+  "viewport.unsupportedRatio": "Tỷ lệ màn hình này không được hỗ trợ.",
+  "viewport.useTallerPortrait": "Vui lòng dùng màn hình dọc cao hơn.",
+  "offlineAd.title": "Đang kết nối quảng cáo...",
+  "offlineAd.message": "Đang kết nối mạng quảng cáo. Bạn sẽ tự động quay lại game.",
+  "offlineAd.maxDuration": "Có thể mất tối đa 10 giây.",
+  "offlineAd.returningIn": "Quay lại sau {seconds}s",
+  "diagnostics.prepareFailed": "Không thể chuẩn bị dữ liệu chẩn đoán.",
+  "diagnostics.flappyPrepareFailed": "Không thể chuẩn bị nhật ký FlappyBird.",
+  "diagnostics.gmailNotice": "Màn hình soạn thư đã mở ngoài ứng dụng. Tệp đính kèm chỉ được đảm bảo khi Gmail mở trực tiếp.",
+  "diagnostics.gmailOpenFailed": "Không thể mở bản nháp Gmail. Vui lòng kiểm tra Gmail đã được cài đặt.",
+  "diagnostics.resetFailed": "Không thể đặt lại dữ liệu game.",
+  "diagnostics.sendLog": "Gửi nhật ký",
+  "diagnostics.sendLogs": "Gửi nhật ký",
+  "diagnostics.openGmail": "Mở Gmail",
+  "diagnostics.gmailWillOpen": "Ứng dụng Gmail sẽ mở tiếp theo.",
+  "diagnostics.gmailAttachments": "Các tệp chẩn đoán sẽ được đính kèm vào email nháp.",
+  "dataRecovery.title": "Khôi phục dữ liệu",
+  "dataRecovery.corruptedReset": "Dữ liệu game hiện có bị hỏng và không thể khôi phục. Nhấn Xác nhận để đặt lại dữ liệu và quay lại màn hình thiết lập ban đầu.",
+  "dataRecovery.readFailedReset": "Đã xảy ra sự cố khi đọc dữ liệu game hiện có. Nhấn Xác nhận để đặt lại dữ liệu và quay lại màn hình thiết lập ban đầu.",
+  "flappy.gameOver": "Game Over",
+  "flappy.exit": "Thoát",
+  "flappy.retry": "Chơi lại",
+  "flappy.bgm": "BGM",
+  "flappy.sfx": "SFX",
+  "flappy.preparing": "Đang chuẩn bị...",
+  "flappy.skyDev": "Sky Dev",
+  "flappy.resume": "Tiếp tục",
+  "flappy.best": "Kỷ lục: {score}",
+  "flappy.score": "Điểm: {score}",
+  "flappy.nearMissGood": "Tốt!",
+  "flappy.nearMissGreat": "Tuyệt!",
+  "flappy.restartInstruction": "Chơi lại",
+  "flappy.openSource": "Mã nguồn mở",
+  "timeOfDay.day": "Ngày",
+  "timeOfDay.sunrise": "Bình minh",
+  "timeOfDay.sunset": "Hoàng hôn",
+  "timeOfDay.night": "Đêm",
+  "main.eggUnavailable": "không khả dụng khi ở trạng thái trứng."
+};
+const ptBR = {
+  "common.on": "LIG",
+  "common.off": "DESL",
+  "common.confirm": "Confirmar",
+  "common.confirmUpper": "CONFIRMAR",
+  "common.cancel": "Cancelar",
+  "common.close": "Fechar",
+  "common.reset": "Redefinir",
+  "common.okay": "OK",
+  "common.notice": "Aviso",
+  "common.view": "Ver",
+  "common.error": "Erro",
+  "alert.title": "Alerta",
+  "setup.title": "Criar Monstro!",
+  "setup.placeholder.name": "nome do monstro",
+  "setup.nameWidth": "comprimento do nome: {width}/{maxWidth}px",
+  "setup.error.emptyName": "Digite um nome.",
+  "setup.error.minLength": "O nome deve ter pelo menos {minLength} caracteres.",
+  "setup.error.maxWidth": "O nome deve caber em {maxWidth}px no rótulo do jogo.",
+  "setup.start": "Iniciar",
+  "settings.title": "Configurações",
+  "settings.vibration": "Vibração",
+  "settings.reportBug": "Reportar bug",
+  "settings.send": "Enviar",
+  "settings.sending": "Enviando...",
+  "settings.language": "Idioma",
+  "settings.raiseNewMonster": "Criar novo monstro",
+  "settings.resetConfirmCodeLabel": "Código de redefinição",
+  "settings.resetTitle": "❗️Redefinir?",
+  "settings.resetMessage": "Seu monstro atual e todo o progresso serão excluídos permanentemente. Você voltará à tela de configuração para chocar um novo.",
+  "loading.label": "Carregando...",
+  "loading.errorTitle": "Erro de carregamento",
+  "loading.timeoutTitle": "Tempo de carregamento esgotado",
+  "loading.timeoutMessage": "O jogo está demorando muito para carregar. Toque em OK para fechar ou Enviar log para compartilhar diagnósticos.",
+  "loading.finishFailed": "O jogo não conseguiu terminar de carregar. Toque em OK para fechar ou Enviar log para compartilhar diagnósticos.",
+  "viewport.portraitOnly": "Somente retrato",
+  "viewport.rotateDevice": "Gire o dispositivo",
+  "viewport.backToPortrait": "de volta ao modo retrato.",
+  "viewport.unsupportedRatio": "Esta proporção de tela não é suportada.",
+  "viewport.useTallerPortrait": "Use uma tela retrato mais alta.",
+  "offlineAd.title": "Conectando anúncio...",
+  "offlineAd.message": "Estamos conectando à rede de anúncios. Você voltará ao jogo automaticamente.",
+  "offlineAd.maxDuration": "Isso pode levar até 10 segundos.",
+  "offlineAd.returningIn": "Voltando em {seconds}s",
+  "diagnostics.prepareFailed": "Falha ao preparar os diagnósticos.",
+  "diagnostics.flappyPrepareFailed": "Falha ao preparar os logs do FlappyBird.",
+  "diagnostics.gmailNotice": "A tela de composição abriu fora do app. O suporte a anexos só é garantido quando o Gmail abre diretamente.",
+  "diagnostics.gmailOpenFailed": "Falha ao abrir o rascunho do Gmail. Verifique se o Gmail está instalado.",
+  "diagnostics.resetFailed": "Falha ao redefinir os dados do jogo.",
+  "diagnostics.sendLog": "Enviar log",
+  "diagnostics.sendLogs": "Enviar logs",
+  "diagnostics.openGmail": "Abrir Gmail",
+  "diagnostics.gmailWillOpen": "O app Gmail será aberto em seguida.",
+  "diagnostics.gmailAttachments": "Os arquivos de diagnóstico serão anexados ao e-mail de rascunho.",
+  "dataRecovery.title": "Recuperação de dados",
+  "dataRecovery.corruptedReset": "Os dados existentes do jogo estão corrompidos e não podem ser recuperados. Pressione Confirmar para redefinir os dados e voltar à tela inicial de configuração.",
+  "dataRecovery.readFailedReset": "Houve um problema ao ler os dados existentes do jogo. Pressione Confirmar para redefinir os dados e voltar à tela inicial de configuração.",
+  "flappy.gameOver": "Fim de jogo",
+  "flappy.exit": "Sair",
+  "flappy.retry": "Repetir",
+  "flappy.bgm": "BGM",
+  "flappy.sfx": "SFX",
+  "flappy.preparing": "Preparando...",
+  "flappy.skyDev": "Sky Dev",
+  "flappy.resume": "Continuar",
+  "flappy.best": "Recorde: {score}",
+  "flappy.score": "Pontuação: {score}",
+  "flappy.nearMissGood": "Bom!",
+  "flappy.nearMissGreat": "Ótimo!",
+  "flappy.restartInstruction": "Repetir",
+  "flappy.openSource": "Open source",
+  "timeOfDay.day": "Dia",
+  "timeOfDay.sunrise": "Nascer do sol",
+  "timeOfDay.sunset": "Pôr do sol",
+  "timeOfDay.night": "Noite",
+  "main.eggUnavailable": "não disponível no estado de ovo."
+};
+const TRANSLATIONS = {
+  en,
+  ko,
+  ja,
+  "zh-TW": zhTW,
+  "zh-HK": zhHK,
+  hi,
+  th,
+  vi,
+  "pt-BR": ptBR
+};
+function isLocaleCode(value) {
+  return typeof value === "string" && SUPPORTED_LOCALES.includes(value);
+}
+function normalizeLocale(value) {
+  if (isLocaleCode(value)) {
+    return value;
+  }
+  return DEFAULT_LOCALE;
+}
+function translate(locale, key, params = {}) {
+  const template = TRANSLATIONS[locale][key] ?? TRANSLATIONS[DEFAULT_LOCALE][key];
+  return template.replace(/\{(\w+)\}/g, (match, paramKey) => {
+    const value = params[paramKey];
+    if (value === null || typeof value === "undefined") {
+      return match;
+    }
+    return String(value);
+  });
 }
 const scriptRel = "modulepreload";
 const assetsURL = function(dep, importerUrl) {
@@ -27750,8 +28434,10 @@ const VitalityComp = defineComponent({
 const TemporaryStatusComp = defineComponent({
   statusType: Types.ui8,
   // 임시 상태 타입 (CharacterStatus enum)
-  startTime: Types.f64
+  startTime: Types.f64,
   // 상태 시작 시간 (timestamp)
+  lastHappyStatusTime: Types.f64
+  // 마지막 happy 상태 시작 시간 (timestamp)
 });
 const EggHatchComp = defineComponent({
   hatchTime: Types.f64,
@@ -27836,18 +28522,18 @@ const PRODUCTION_EVOLUTION_TARGET_DURATION_BY_CLASS_MS = {
   [CharacterClass.C]: 80 * HOUR_MS$1,
   [CharacterClass.D]: 80 * HOUR_MS$1
 };
-({
+const PRODUCTION_EVOLUTION_TARGET_DURATION_VARIANCE_BY_CLASS_MS = {
   [CharacterClass.A]: 2 * HOUR_MS$1,
   [CharacterClass.B]: 4 * HOUR_MS$1,
   [CharacterClass.C]: 8 * HOUR_MS$1,
   [CharacterClass.D]: 8 * HOUR_MS$1
-});
-const DEV_GAUGE_GAIN_BY_CLASS = {
+};
+({
   [CharacterClass.A]: 1 * EVOLUTION_GAUGE_GAIN_MULTIPLIER,
   [CharacterClass.B]: 1 * EVOLUTION_GAUGE_GAIN_MULTIPLIER,
   [CharacterClass.C]: 1 * EVOLUTION_GAUGE_GAIN_MULTIPLIER,
   [CharacterClass.D]: 1 * EVOLUTION_GAUGE_GAIN_MULTIPLIER
-};
+});
 function getGaugeGainForDurationMs(params) {
   const { maxGauge, checkIntervalMs, durationMs } = params;
   if (durationMs <= 0) {
@@ -27880,23 +28566,30 @@ function getAverageGaugeGainByClass(params) {
     })
   };
 }
-({
-  gaugeGainByClass: getAverageGaugeGainByClass({
-    maxGauge: DEFAULT_MAX_GAUGE,
-    checkIntervalMs: 1e4,
-    targetDurationByClassMs: PRODUCTION_EVOLUTION_TARGET_DURATION_BY_CLASS_MS
-  })
-});
-const DEV_EVOLUTION_GAUGE_CONFIG = {
+function getStableSeededUnitValue(seed) {
+  let hash = 2166136261;
+  for (let i2 = 0; i2 < seed.length; i2++) {
+    hash ^= seed.charCodeAt(i2);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0) / 4294967296;
+}
+const PRODUCTION_EVOLUTION_GAUGE_CONFIG = {
   maxGauge: DEFAULT_MAX_GAUGE,
   staminaThreshold: 3,
   boostedStaminaThreshold: 7,
   boostedGaugeGainMultiplier: 1.2,
   checkIntervalMs: 1e4,
   sleepingGaugeTimeProgressMultiplier: 1 / 3,
-  gaugeGainByClass: DEV_GAUGE_GAIN_BY_CLASS
+  gaugeGainByClass: getAverageGaugeGainByClass({
+    maxGauge: DEFAULT_MAX_GAUGE,
+    checkIntervalMs: 1e4,
+    targetDurationByClassMs: PRODUCTION_EVOLUTION_TARGET_DURATION_BY_CLASS_MS
+  }),
+  targetDurationByClassMs: PRODUCTION_EVOLUTION_TARGET_DURATION_BY_CLASS_MS,
+  targetDurationVarianceByClassMs: PRODUCTION_EVOLUTION_TARGET_DURATION_VARIANCE_BY_CLASS_MS
 };
-const EVOLUTION_GAUGE_CONFIG = DEV_EVOLUTION_GAUGE_CONFIG;
+const EVOLUTION_GAUGE_CONFIG = PRODUCTION_EVOLUTION_GAUGE_CONFIG;
 function createDisplayName(geneLine, classCode, variant) {
   const baseName = geneLine.split("-").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
   return `${baseName} ${classCode}${variant}`;
@@ -28112,17 +28805,26 @@ function getCharacterSpritesheetName(characterKey) {
   var _a;
   return ((_a = getEvolutionSpec(characterKey)) == null ? void 0 : _a.spritesheetName) ?? null;
 }
-function getEvolutionGaugeIncreaseAmount(characterKey) {
+function getProductionEvolutionTargetDurationMsForEntity(params) {
+  const { characterKey, objectId } = params;
   const spec = getEvolutionSpec(characterKey);
   if (!spec) {
     return 0;
   }
-  return EVOLUTION_GAUGE_CONFIG.gaugeGainByClass[spec.class] ?? 0;
+  const targetDurationMs = PRODUCTION_EVOLUTION_GAUGE_CONFIG.targetDurationByClassMs[spec.class];
+  const varianceMs = PRODUCTION_EVOLUTION_GAUGE_CONFIG.targetDurationVarianceByClassMs[spec.class];
+  const seedValue = getStableSeededUnitValue(
+    `${Math.trunc(objectId)}:${spec.classCode}:${spec.phase}`
+  );
+  const jitterRatio = seedValue * 2 - 1;
+  return targetDurationMs + varianceMs * jitterRatio;
 }
 function getEvolutionGaugeIncreaseAmountForEntity(params) {
-  {
-    return getEvolutionGaugeIncreaseAmount(params.characterKey);
-  }
+  return getGaugeGainForDurationMs({
+    maxGauge: PRODUCTION_EVOLUTION_GAUGE_CONFIG.maxGauge,
+    checkIntervalMs: PRODUCTION_EVOLUTION_GAUGE_CONFIG.checkIntervalMs,
+    durationMs: getProductionEvolutionTargetDurationMsForEntity(params)
+  });
 }
 function canEvolveFromConfig(characterKey) {
   const spec = getEvolutionSpec(characterKey);
@@ -28221,6 +28923,7 @@ const PRODUCTION_GAME_CONSTANTS = {
   NORMAL_TO_STALE_TIME: 10 * MINUTE_IN_MILLISECONDS$1,
   // 캐릭터 상태 관련
   UNHAPPY_STAMINA_THRESHOLD,
+  HAPPY_EMOTION_COOLDOWN_MS: 10 * MINUTE_IN_MILLISECONDS$1,
   URGENT_STAMINA_THRESHOLD: 0,
   URGENT_SPEED_MULTIPLIER: 0.8,
   DEATH_DELAY: 6 * HOUR_IN_MILLISECONDS$1,
@@ -28270,44 +28973,12 @@ const PRODUCTION_GAME_CONSTANTS = {
   NATURAL_SICK_RECOVERY_FATIGUE_THRESHOLD: 28,
   NATURAL_SICK_RECOVERY_MIN_DURATION: 30 * MINUTE_IN_MILLISECONDS$1,
   MINI_GAME_SLEEP_INTERRUPT_FATIGUE: 10,
+  MINI_GAME_SLEEP_INTERRUPT_STAMINA: 1,
   // sleeping 기준 실효 60분마다 0.25 감소 -> 시간당 0.25 감소 -> 10 -> 0 약 40시간.
   SLEEPING_STAMINA_DECAY_MULTIPLIER: 0.2,
   SLEEPING_DISEASE_RATE_MULTIPLIER: 0.1
 };
-const DEV_BALANCE_COEFFICIENTS = {
-  // DEV에서는 production 기준 시간을 나눠서 빠르게 재현한다.
-  timeDivisors: {
-    EGG_HATCH_TIME: 360,
-    EGG_HATCH_MIN_TIME: 180,
-    EGG_HATCH_MODE_TIME: 360,
-    EGG_HATCH_MAX_TIME: 540,
-    POOP_DELAY: 1,
-    DIGESTIVE_SMALL_POOP_DELAY: 480,
-    DISEASE_CHECK_INTERVAL: 1,
-    FRESH_TO_NORMAL_TIME: 18,
-    NORMAL_TO_STALE_TIME: 60,
-    DEATH_DELAY: 360,
-    DEATH_DELAY_CLASS_A: 360,
-    DEATH_DELAY_CLASS_B: 360,
-    DEATH_DELAY_CLASS_C: 360,
-    DEATH_DELAY_CLASS_D: 360,
-    STAMINA_DECREASE_INTERVAL: 24,
-    NATURAL_SICK_RECOVERY_MIN_DURATION: 60,
-    NIGHT_SLEEP_MIN_DELAY: 60,
-    NIGHT_SLEEP_MAX_DELAY: 60,
-    TARGET_NIGHT_SLEEP_DURATION: 60,
-    TARGET_NIGHT_SLEEP_JITTER: 60,
-    SUNRISE_WAKE_MIN_DELAY: 60,
-    SUNRISE_WAKE_MAX_DELAY: 60,
-    SUNRISE_WAKE_OFFSET_MIN: 60,
-    SUNRISE_WAKE_OFFSET_MAX: 60,
-    NIGHT_RESLEEP_MIN_DELAY: 60,
-    NIGHT_RESLEEP_MAX_DELAY: 60,
-    DAY_NAP_CHECK_INTERVAL: 60,
-    NIGHT_WAKE_CHECK_INTERVAL: 120,
-    DAY_NAP_MIN_DURATION: 60,
-    DAY_NAP_MAX_DURATION: 60
-  },
+({
   // DEV에서는 production 기준 확률을 곱해서 빠르게 상태를 관찰한다.
   probabilityMultipliers: {
     BASE_DISEASE_RATE: 0.02 / PRODUCTION_GAME_CONSTANTS.BASE_DISEASE_RATE,
@@ -28327,29 +28998,24 @@ const DEV_BALANCE_COEFFICIENTS = {
     FATIGUE_SLEEP_RECOVERY_PER_HOUR: 2400 / PRODUCTION_GAME_CONSTANTS.FATIGUE_SLEEP_RECOVERY_PER_HOUR,
     FATIGUE_SLEEP_RECOVERY_PER_HOUR_WHEN_SICK: 800 / PRODUCTION_GAME_CONSTANTS.FATIGUE_SLEEP_RECOVERY_PER_HOUR_WHEN_SICK
   }
-};
+});
 function deriveTimeConstant(key) {
   const baseValue = PRODUCTION_GAME_CONSTANTS[key];
-  const divisor = DEV_BALANCE_COEFFICIENTS.timeDivisors[key];
-  if (divisor <= 0) {
+  {
     return baseValue;
   }
-  const derivedValue = Math.round(baseValue / divisor);
-  if (derivedValue === 0) {
-    return 0;
-  }
-  return derivedValue > 0 ? Math.max(1, derivedValue) : Math.min(-1, derivedValue);
 }
 function deriveProbabilityConstant(key) {
   const baseValue = PRODUCTION_GAME_CONSTANTS[key];
-  return Math.min(
-    1,
-    baseValue * DEV_BALANCE_COEFFICIENTS.probabilityMultipliers[key]
-  );
+  {
+    return baseValue;
+  }
 }
 function deriveRateConstant(key) {
   const baseValue = PRODUCTION_GAME_CONSTANTS[key];
-  return baseValue * DEV_BALANCE_COEFFICIENTS.rateMultipliers[key];
+  {
+    return baseValue;
+  }
 }
 const GAME_CONSTANTS = {
   ...PRODUCTION_GAME_CONSTANTS,
@@ -28742,7 +29408,8 @@ function convertECSEntityToSavedEntity(world, eid) {
   if (hasComponent(world, TemporaryStatusComp, eid)) {
     components.temporaryStatus = {
       statusType: TemporaryStatusComp.statusType[eid],
-      startTime: TemporaryStatusComp.startTime[eid]
+      startTime: TemporaryStatusComp.startTime[eid],
+      lastHappyStatusTime: TemporaryStatusComp.lastHappyStatusTime[eid]
     };
   }
   if (hasComponent(world, FreshnessTimerComp, eid)) {
@@ -28924,6 +29591,7 @@ function applySavedEntityToECS(world, eid, savedEntity) {
     }
     TemporaryStatusComp.statusType[eid] = components.temporaryStatus.statusType;
     TemporaryStatusComp.startTime[eid] = components.temporaryStatus.startTime;
+    TemporaryStatusComp.lastHappyStatusTime[eid] = components.temporaryStatus.lastHappyStatusTime ?? 0;
   }
   if (components.freshnessTimer) {
     if (!hasComponent(world, FreshnessTimerComp, eid)) {
@@ -29049,6 +29717,7 @@ function repairCharacterEntityRuntimeComponents(world, eid, now = Date.now()) {
     addComponent(world, TemporaryStatusComp, eid);
     TemporaryStatusComp.statusType[eid] = 0;
     TemporaryStatusComp.startTime[eid] = 0;
+    TemporaryStatusComp.lastHappyStatusTime[eid] = 0;
     repaired.push("TemporaryStatusComp");
   }
   if (!hasComponent(world, EggHatchComp, eid)) {
@@ -29145,7 +29814,7 @@ function repairLoadedFoodInteractionState(world, now = Date.now()) {
     repairedFoods
   };
 }
-const characterQuery$9 = defineQuery([CharacterStatusComp, RandomMovementComp]);
+const characterQuery$8 = defineQuery([CharacterStatusComp, RandomMovementComp]);
 const allCharacterQuery = defineQuery([CharacterStatusComp, ObjectComp]);
 function hasDirectedMovement(world, eid) {
   return hasComponent(world, DestinationComp, eid) && DestinationComp.type[eid] === DestinationType.TARGETED && DestinationComp.target[eid] !== 0;
@@ -29154,7 +29823,7 @@ function randomMovementSystem(params) {
   const { world } = params;
   const currentTime = world.currentTime;
   const shouldLog = !world.isSimulationMode && world.isRandomMovementDebugEnabled();
-  const chars = characterQuery$9(world);
+  const chars = characterQuery$8(world);
   const allChars = allCharacterQuery(world);
   for (let i2 = 0; i2 < allChars.length; i2++) {
     const eid = allChars[i2];
@@ -29717,11 +30386,10 @@ function getMaskSprite(eid) {
 function getTextureFromKey(textureKey) {
   const textureInfo = TEXTURE_MAP[textureKey];
   if (!textureInfo) {
-    {
-      throw new Error(
-        `[RenderSystem] Texture key ${textureKey} not found in TEXTURE_MAP`
-      );
-    }
+    console.warn(
+      `[RenderSystem] Texture key ${textureKey} not found in TEXTURE_MAP`
+    );
+    return void 0;
   }
   try {
     if (!textureInfo.spritesheetAlias) {
@@ -29822,13 +30490,8 @@ function updateMaskTexture(maskSprite, progress) {
     maskSprite.texture = texture;
   }
 }
-let hasValidatedTextures = false;
 function renderSystem(params) {
   const { world } = params;
-  if (!hasValidatedTextures) {
-    validateTextureMap();
-    hasValidatedTextures = true;
-  }
   const entities = renderableQuery(world);
   const exitedEntities = exitedRenderableQuery(world);
   const stage = world.stage;
@@ -29998,34 +30661,8 @@ function isTextureKeyLoaded(textureKey) {
     textureInfo.textureName
   );
 }
-function getAvailableTextureKeys() {
-  return Object.keys(TEXTURE_MAP).map(Number).sort((a2, b2) => a2 - b2);
-}
 function getTextureInfo(textureKey) {
   return TEXTURE_MAP[textureKey] || null;
-}
-function validateTextureMap() {
-  console.groupCollapsed("[RenderSystem] Texture Map Validation:");
-  const availableKeys = getAvailableTextureKeys();
-  let validCount = 0;
-  let invalidCount = 0;
-  for (const textureKey of availableKeys) {
-    const isLoaded = isTextureKeyLoaded(textureKey);
-    const textureInfo = getTextureInfo(textureKey);
-    if (isLoaded) {
-      validCount++;
-      console.log(
-        `✓ Key ${textureKey}: ${textureInfo == null ? void 0 : textureInfo.spritesheetAlias}/${textureInfo == null ? void 0 : textureInfo.textureName}`
-      );
-    } else {
-      invalidCount++;
-      console.warn(
-        `✗ Key ${textureKey}: ${textureInfo == null ? void 0 : textureInfo.spritesheetAlias}/${textureInfo == null ? void 0 : textureInfo.textureName} - NOT LOADED`
-      );
-    }
-  }
-  console.log(`Summary: ${validCount} valid, ${invalidCount} invalid textures`);
-  console.groupEnd();
 }
 const SPRITESHEET_KEY_TO_NAME = {
   [SpritesheetKey.NULL]: "null",
@@ -30554,8 +31191,9 @@ function getTextureCanvasSource(texture) {
 }
 const FALLBACK_CHARACTER_HEIGHT = 48;
 const FALLBACK_CHARACTER_WIDTH = 48;
-const CHARACTER_SCREEN_EDGE_OVERFLOW_PX = 10;
-const CHARACTER_SCREEN_TOP_EDGE_OVERFLOW_PX = 14;
+const CHARACTER_SCREEN_HORIZONTAL_EDGE_OVERFLOW_PX = 1;
+const CHARACTER_SCREEN_TOP_EDGE_OVERFLOW_PX = 1;
+const CHARACTER_SCREEN_BOTTOM_EDGE_OVERFLOW_PX = 10;
 function getCharacterDisplayObject(eid) {
   return getSpriteStore().get(eid) ?? getAnimatedSpriteStore().get(eid);
 }
@@ -30580,15 +31218,15 @@ function getCharacterWorldBounds(eid) {
     height: relativeBounds.height
   };
 }
-function getCharacterCenterBoundary(eid, boundary, overflowPx = CHARACTER_SCREEN_EDGE_OVERFLOW_PX, topOverflowPx = CHARACTER_SCREEN_TOP_EDGE_OVERFLOW_PX) {
+function getCharacterCenterBoundary(eid, boundary, horizontalOverflowPx = CHARACTER_SCREEN_HORIZONTAL_EDGE_OVERFLOW_PX, topOverflowPx = CHARACTER_SCREEN_TOP_EDGE_OVERFLOW_PX, bottomOverflowPx = CHARACTER_SCREEN_BOTTOM_EDGE_OVERFLOW_PX) {
   const relativeBounds = getCharacterRelativeBounds(eid);
   const xRange = createClampedAxisRange(
-    boundary.x - overflowPx - relativeBounds.left,
-    boundary.x + boundary.width + overflowPx - relativeBounds.right
+    boundary.x - horizontalOverflowPx - relativeBounds.left,
+    boundary.x + boundary.width + horizontalOverflowPx - relativeBounds.right
   );
   const yRange = createClampedAxisRange(
     boundary.y - topOverflowPx - relativeBounds.top,
-    boundary.y + boundary.height + overflowPx - relativeBounds.bottom
+    boundary.y + boundary.height + bottomOverflowPx - relativeBounds.bottom
   );
   return {
     x: xRange.min,
@@ -30711,11 +31349,8 @@ function commonMovementSystem(params) {
   for (let i2 = 0; i2 < entities.length; i2++) {
     const eid = entities[i2];
     const isCharacter = ObjectComp.type[eid] === ObjectType.CHARACTER;
-    const movementBoundary = isCharacter ? getCharacterCenterBoundary(
-      eid,
-      boundary,
-      CHARACTER_SCREEN_EDGE_OVERFLOW_PX
-    ) : boundary;
+    const characterBoundary = world.characterPositionBoundary ?? world.positionBoundary;
+    const movementBoundary = isCharacter ? getCharacterCenterBoundary(eid, characterBoundary) : boundary;
     if (isCharacter) {
       PositionComp.x[eid] = clampAxisValue$1(
         PositionComp.x[eid],
@@ -30923,545 +31558,10 @@ function getAnimationSpeedForState(state, eid) {
   }
   return applyUrgentSpeedMultiplier(baseSpeed, eid);
 }
-const NAME_LABEL_MAX_WIDTH = 80;
-const NAME_LABEL_FONT_FAMILIES = [
-  "NeoDunggeunmo Pro",
-  "Apple Color Emoji",
-  "Segoe UI Emoji",
-  "Noto Color Emoji",
-  "sans-serif"
-];
-const NAME_LABEL_FONT_SIZE = 12;
-const NAME_LABEL_FONT_WEIGHT = "700";
-const NAME_LABEL_STROKE_WIDTH = 4;
-const NAME_LABEL_FILL_COLOR = 16777215;
-const NAME_LABEL_STROKE_COLOR = 0;
-let measurementContext;
-function countDisplayCharacters(value) {
-  return splitDisplayCharacters(value).length;
-}
-function splitDisplayCharacters(value) {
-  const IntlWithSegmenter = Intl;
-  const SegmenterCtor = IntlWithSegmenter.Segmenter;
-  if (SegmenterCtor) {
-    return Array.from(
-      new SegmenterCtor(void 0, { granularity: "grapheme" }).segment(value),
-      (item) => item.segment
-    );
-  }
-  return Array.from(value);
-}
-function measureNameLabelWidth(value) {
-  if (!value) {
-    return 0;
-  }
-  const context2 = getMeasurementContext();
-  if (!context2) {
-    return splitDisplayCharacters(value).length * NAME_LABEL_FONT_SIZE + NAME_LABEL_STROKE_WIDTH * 2;
-  }
-  context2.font = `${NAME_LABEL_FONT_WEIGHT} ${NAME_LABEL_FONT_SIZE}px ${toCanvasFontFamilyList(
-    NAME_LABEL_FONT_FAMILIES
-  )}`;
-  return context2.measureText(value).width + NAME_LABEL_STROKE_WIDTH * 2;
-}
-function fitsNameLabelWidth(value, maxWidth = NAME_LABEL_MAX_WIDTH) {
-  return measureNameLabelWidth(value) <= maxWidth;
-}
-function truncateNameLabelToWidth(value, maxWidth = NAME_LABEL_MAX_WIDTH) {
-  if (!value || fitsNameLabelWidth(value, maxWidth)) {
-    return value;
-  }
-  const graphemes = splitDisplayCharacters(value);
-  const ellipsis = "…";
-  if (measureNameLabelWidth(ellipsis) > maxWidth) {
-    return "";
-  }
-  let truncated = "";
-  for (let i2 = 0; i2 < graphemes.length; i2++) {
-    const nextValue = `${truncated}${graphemes[i2]}`;
-    const candidate = `${nextValue}${ellipsis}`;
-    if (!fitsNameLabelWidth(candidate, maxWidth)) {
-      return truncated ? `${truncated}${ellipsis}` : ellipsis;
-    }
-    truncated = nextValue;
-  }
-  return truncated;
-}
-function getMeasurementContext() {
-  if (measurementContext !== void 0) {
-    return measurementContext;
-  }
-  if (typeof document === "undefined") {
-    measurementContext = null;
-    return measurementContext;
-  }
-  const canvas = document.createElement("canvas");
-  measurementContext = canvas.getContext("2d");
-  return measurementContext;
-}
-function toCanvasFontFamilyList(fontFamilies) {
-  return fontFamilies.map(
-    (fontFamily) => fontFamily.includes(" ") ? `"${fontFamily}"` : fontFamily
-  ).join(", ");
-}
-const characterQuery$8 = defineQuery([
-  ObjectComp,
-  PositionComp,
-  RenderComp,
-  CharacterStatusComp
-]);
-const characterExitQuery$1 = exitQuery(characterQuery$8);
-const labelStore = /* @__PURE__ */ new Map();
-const NAME_LABEL_STYLE = new TextStyle({
-  fontFamily: [...NAME_LABEL_FONT_FAMILIES],
-  fontSize: NAME_LABEL_FONT_SIZE,
-  fontWeight: NAME_LABEL_FONT_WEIGHT,
-  fill: NAME_LABEL_FILL_COLOR,
-  align: "center",
-  stroke: { color: NAME_LABEL_STROKE_COLOR, width: NAME_LABEL_STROKE_WIDTH }
-});
-const NAME_LABEL_BOTTOM_OFFSET = 0;
-const LABEL_Z_INDEX_OFFSET = 1e3;
-const STAMINA_BAR_Z_INDEX_OFFSET = 1;
-const NAME_LABEL_TEXT_WIDTH = 80;
-const STAMINA_BAR_WIDTH = 56;
-const STAMINA_BAR_HEIGHT = 10;
-const STAMINA_BAR_BORDER_THICKNESS = 3;
-const STAMINA_BAR_TRACK_WIDTH = STAMINA_BAR_WIDTH;
-const STAMINA_BAR_TRACK_HEIGHT = STAMINA_BAR_HEIGHT;
-const STAMINA_BAR_BOTTOM_GAP = 4;
-const STATUS_STACK_MIN_Y = 0;
-const STATUS_STACK_ICON_SIZE = 16 * 1.625;
-const STATUS_STACK_ICON_BAR_GAP = 3;
-const STAMINA_BAR_MIN_Y = STATUS_STACK_MIN_Y + STATUS_STACK_ICON_SIZE + STATUS_STACK_ICON_BAR_GAP;
-const MINI_STAMINA_BAR_TRACK_COLOR = 7303023;
-const MINI_STAMINA_BAR_TRACK_ALPHA = 0.34;
-const MINI_STAMINA_BAR_TRACK_DOT_COLOR = 0;
-const MINI_STAMINA_BAR_TRACK_DOT_ALPHA = 0.45;
-const MINI_STAMINA_BAR_TRACK_DOT_SIZE = 2;
-const MINI_STAMINA_BAR_TRACK_DOT_STRIDE = MINI_STAMINA_BAR_TRACK_DOT_SIZE * 2;
-const MINI_STAMINA_BAR_TRACK_DOT_X_OFFSET = -1;
-const MINI_STAMINA_BAR_TRACK_DOT_Y_OFFSET = -1;
-const MINI_STAMINA_BAR_BORDER_COLOR = 0;
-const MINI_STAMINA_BAR_BORDER_ALPHA = 1;
-const MINI_STAMINA_BAR_LOW_COLOR = 14832971;
-const MINI_STAMINA_BAR_MID_COLOR = 15901498;
-const MINI_STAMINA_BAR_HIGH_COLOR = 4827485;
-const MINI_STAMINA_BAR_EGG_FILL_COLOR = 5880063;
-const MINI_STAMINA_BAR_URGENT_OVERLAY_COLOR = 14832971;
-const MINI_STAMINA_BAR_URGENT_OVERLAY_MIN_ALPHA = 0.18;
-const MINI_STAMINA_BAR_URGENT_OVERLAY_MAX_ALPHA = 0.75;
-const MINI_STAMINA_BAR_URGENT_OVERLAY_CYCLE_MS = 1200;
-function characterNameLabelSystem(params) {
-  var _a;
-  const { world } = params;
-  const exitedEntities = characterExitQuery$1(world);
-  for (let i2 = 0; i2 < exitedEntities.length; i2++) {
-    removeCharacterNameLabel(exitedEntities[i2]);
-  }
-  const rawName = (_a = world.getInMemoryData().world_metadata.monster_name) == null ? void 0 : _a.trim();
-  const displayName = rawName ? truncateDisplayName(rawName) : "";
-  const entities = characterQuery$8(world);
-  for (let i2 = 0; i2 < entities.length; i2++) {
-    const eid = entities[i2];
-    if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
-      removeCharacterNameLabel(eid);
-      continue;
-    }
-    if (!displayName) {
-      removeCharacterNameLabel(eid);
-      continue;
-    }
-    const displayObject = getCharacterDisplayObject(eid);
-    if (!displayObject) {
-      removeCharacterNameLabel(eid);
-      continue;
-    }
-    const renderState = getOrCreateCharacterNameLabel(eid, world.stage);
-    if (renderState.label.text !== displayName) {
-      renderState.label.text = displayName;
-    }
-    updateCharacterNameLabel(renderState, world, eid, world.currentTime);
-  }
-  return params;
-}
-function cleanupCharacterNameLabels() {
-  labelStore.forEach((renderState) => {
-    renderState.label.removeFromParent();
-    renderState.label.destroy();
-    renderState.barTrack.removeFromParent();
-    renderState.barTrack.destroy();
-    renderState.barFill.removeFromParent();
-    renderState.barFill.destroy();
-    renderState.urgentOverlay.removeFromParent();
-    renderState.urgentOverlay.destroy();
-    renderState.barFrame.removeFromParent();
-    renderState.barFrame.destroy();
-  });
-  labelStore.clear();
-}
-function getOrCreateCharacterNameLabel(eid, stage) {
-  const existingRenderState = labelStore.get(eid);
-  if (existingRenderState) {
-    return existingRenderState;
-  }
-  const label = new Text({
-    text: "",
-    style: NAME_LABEL_STYLE,
-    anchor: { x: 0.5, y: 0.5 }
-  });
-  const barTrack = new Graphics();
-  const barFill = new Graphics();
-  const urgentOverlay = new Graphics();
-  const barFrame = new Graphics();
-  label.position.set(0, NAME_LABEL_FONT_SIZE / 2);
-  label.eventMode = "none";
-  label.roundPixels = true;
-  barTrack.roundPixels = true;
-  barFill.roundPixels = true;
-  urgentOverlay.roundPixels = true;
-  barFrame.roundPixels = true;
-  label.zIndex = LABEL_Z_INDEX_OFFSET;
-  barTrack.eventMode = "none";
-  barFill.eventMode = "none";
-  urgentOverlay.eventMode = "none";
-  barFrame.eventMode = "none";
-  stage.addChild(label);
-  stage.addChild(barTrack);
-  stage.addChild(barFill);
-  stage.addChild(urgentOverlay);
-  stage.addChild(barFrame);
-  const renderState = {
-    label,
-    barTrack,
-    barFill,
-    urgentOverlay,
-    barFrame,
-    lastFillColor: MINI_STAMINA_BAR_HIGH_COLOR,
-    lastFillWidth: 0,
-    lastUrgentOverlayAlpha: 0,
-    lastUrgentOverlayVisible: false
-  };
-  labelStore.set(eid, renderState);
-  return renderState;
-}
-function removeCharacterNameLabel(eid) {
-  const renderState = labelStore.get(eid);
-  if (!renderState) {
-    return;
-  }
-  renderState.label.removeFromParent();
-  renderState.label.destroy();
-  renderState.barTrack.removeFromParent();
-  renderState.barTrack.destroy();
-  renderState.barFill.removeFromParent();
-  renderState.barFill.destroy();
-  renderState.urgentOverlay.removeFromParent();
-  renderState.urgentOverlay.destroy();
-  renderState.barFrame.removeFromParent();
-  renderState.barFrame.destroy();
-  labelStore.delete(eid);
-}
-function updateCharacterNameLabel(renderState, world, eid, currentTime) {
-  const x2 = PositionComp.x[eid];
-  const y2 = PositionComp.y[eid];
-  const configuredZIndex = RenderComp.zIndex[eid];
-  const effectiveZIndex = configuredZIndex === 0 ? y2 : configuredZIndex;
-  const { topY, bottomY } = getCharacterVerticalBounds(eid);
-  const barVisual = getCharacterBarVisual(world, eid, currentTime);
-  const reserveStatusIconSpace = StatusIconRenderComp.visibleCount[eid] > 0 || hasPotentialUnifiedStatusIcon(world, eid);
-  renderState.label.position.set(
-    Math.round(x2),
-    Math.round(bottomY + NAME_LABEL_BOTTOM_OFFSET + NAME_LABEL_FONT_SIZE / 2)
-  );
-  renderState.label.zIndex = effectiveZIndex + LABEL_Z_INDEX_OFFSET;
-  renderState.label.visible = true;
-  const barLeftX = getCharacterStaminaBarLeftX(eid, x2);
-  const barTopY = Math.round(
-    getClampedCharacterStaminaBarTopY(eid, topY, reserveStatusIconSpace)
-  );
-  renderState.barTrack.position.set(barLeftX, barTopY);
-  renderState.barFill.position.set(barLeftX, barTopY);
-  renderState.urgentOverlay.position.set(barLeftX, barTopY);
-  renderState.barFrame.position.set(barLeftX, barTopY);
-  renderState.barTrack.zIndex = effectiveZIndex + STAMINA_BAR_Z_INDEX_OFFSET;
-  renderState.barFill.zIndex = effectiveZIndex + STAMINA_BAR_Z_INDEX_OFFSET;
-  renderState.urgentOverlay.zIndex = effectiveZIndex + STAMINA_BAR_Z_INDEX_OFFSET;
-  renderState.barFrame.zIndex = effectiveZIndex + STAMINA_BAR_Z_INDEX_OFFSET;
-  renderState.barTrack.visible = true;
-  renderState.barFill.visible = true;
-  renderState.urgentOverlay.visible = true;
-  renderState.barFrame.visible = true;
-  drawMiniStaminaBar(renderState, barVisual, currentTime);
-}
-function truncateDisplayName(name) {
-  return truncateNameLabelToWidth(name, NAME_LABEL_TEXT_WIDTH);
-}
-function drawMiniStaminaBar(renderState, barVisual, currentTime) {
-  renderState.barTrack.clear();
-  drawCutCornerRect(
-    renderState.barTrack,
-    0,
-    0,
-    STAMINA_BAR_TRACK_WIDTH,
-    STAMINA_BAR_TRACK_HEIGHT,
-    {
-      color: MINI_STAMINA_BAR_TRACK_COLOR,
-      alpha: MINI_STAMINA_BAR_TRACK_ALPHA
-    }
-  );
-  drawCutCornerDotGrid(
-    renderState.barTrack,
-    STAMINA_BAR_TRACK_WIDTH,
-    STAMINA_BAR_TRACK_HEIGHT,
-    {
-      color: MINI_STAMINA_BAR_TRACK_DOT_COLOR,
-      alpha: MINI_STAMINA_BAR_TRACK_DOT_ALPHA
-    }
-  );
-  renderState.barFill.clear();
-  const { fillWidth, fillColor, isUrgent } = barVisual;
-  if (fillWidth > 0) {
-    drawLeftCutRect(
-      renderState.barFill,
-      0,
-      0,
-      fillWidth,
-      STAMINA_BAR_TRACK_HEIGHT,
-      fillColor
-    );
-  }
-  renderState.urgentOverlay.clear();
-  if (isUrgent) {
-    const alpha = getMiniStaminaBarUrgentOverlayAlpha(currentTime);
-    drawCutCornerRect(
-      renderState.urgentOverlay,
-      0,
-      0,
-      STAMINA_BAR_TRACK_WIDTH,
-      STAMINA_BAR_TRACK_HEIGHT,
-      {
-        color: MINI_STAMINA_BAR_URGENT_OVERLAY_COLOR,
-        alpha
-      }
-    );
-    renderState.lastUrgentOverlayAlpha = alpha;
-    renderState.lastUrgentOverlayVisible = true;
-  } else {
-    renderState.lastUrgentOverlayAlpha = 0;
-    renderState.lastUrgentOverlayVisible = false;
-  }
-  renderState.barFrame.clear();
-  drawCutCornerFrame(
-    renderState.barFrame,
-    0,
-    0,
-    STAMINA_BAR_WIDTH,
-    STAMINA_BAR_HEIGHT,
-    {
-      color: MINI_STAMINA_BAR_BORDER_COLOR,
-      alpha: MINI_STAMINA_BAR_BORDER_ALPHA
-    }
-  );
-  if (isUrgent) {
-    drawCutCornerFrame(
-      renderState.barFrame,
-      0,
-      0,
-      STAMINA_BAR_WIDTH,
-      STAMINA_BAR_HEIGHT,
-      {
-        color: MINI_STAMINA_BAR_URGENT_OVERLAY_COLOR,
-        alpha: renderState.lastUrgentOverlayAlpha
-      }
-    );
-  }
-  renderState.lastFillColor = fillColor;
-  renderState.lastFillWidth = fillWidth;
-}
-function getCharacterBarVisual(world, eid, currentTime) {
-  if (ObjectComp.state[eid] === CharacterState.EGG) {
-    return {
-      fillWidth: getEggTimerBarFillWidth(eid, currentTime),
-      fillColor: MINI_STAMINA_BAR_EGG_FILL_COLOR,
-      isUrgent: false
-    };
-  }
-  const stamina = CharacterStatusComp.stamina[eid];
-  return {
-    fillWidth: getMiniStaminaBarFillWidth(stamina),
-    fillColor: getMiniStaminaBarFillColor(stamina),
-    isUrgent: hasUrgentStatus(eid)
-  };
-}
-function hasUrgentStatus(eid) {
-  return Array.from(CharacterStatusComp.statuses[eid]).includes(
-    CharacterStatus.URGENT
-  );
-}
-function clampUnitInterval(value) {
-  return Math.max(0, Math.min(1, value));
-}
-function getMiniStaminaBarFillColor(stamina) {
-  if (stamina < GAME_CONSTANTS.UNHAPPY_STAMINA_THRESHOLD) {
-    return MINI_STAMINA_BAR_LOW_COLOR;
-  }
-  if (stamina < GAME_CONSTANTS.BOOSTED_STAMINA_THRESHOLD) {
-    return MINI_STAMINA_BAR_MID_COLOR;
-  }
-  return MINI_STAMINA_BAR_HIGH_COLOR;
-}
-function getMiniStaminaBarFillWidth(stamina) {
-  return Math.max(
-    0,
-    Math.round(
-      clampUnitInterval(stamina / GAME_CONSTANTS.MAX_STAMINA) * STAMINA_BAR_TRACK_WIDTH
-    )
-  );
-}
-function getEggTimerBarFillWidth(eid, currentTime) {
-  const progress = getEggHatchProgress({
-    currentTime,
-    hatchTime: EggHatchComp.hatchTime[eid],
-    hatchDurationMs: EggHatchComp.hatchDurationMs[eid]
-  });
-  return Math.max(0, Math.round((1 - progress) * STAMINA_BAR_TRACK_WIDTH));
-}
-function getCharacterStaminaBarTopY(eid, resolvedTopY) {
-  const { topY } = resolvedTopY === void 0 ? getCharacterVerticalBounds(eid) : { topY: resolvedTopY };
-  return topY - STAMINA_BAR_BOTTOM_GAP - STAMINA_BAR_HEIGHT;
-}
-function getClampedCharacterStaminaBarTopY(eid, resolvedTopY, reserveStatusIconSpace = true) {
-  return Math.max(
-    getCharacterStaminaBarTopY(eid, resolvedTopY),
-    reserveStatusIconSpace ? STAMINA_BAR_MIN_Y : STATUS_STACK_MIN_Y
-  );
-}
-function getCharacterStaminaBarLeftX(eid, resolvedX) {
-  const x2 = resolvedX ?? PositionComp.x[eid];
-  return Math.round(x2 - STAMINA_BAR_WIDTH / 2);
-}
-function getCharacterStaminaBarBounds(eid, resolvedX) {
-  const leftX = getCharacterStaminaBarLeftX(eid, resolvedX);
-  return {
-    leftX,
-    width: STAMINA_BAR_WIDTH,
-    centerX: leftX + STAMINA_BAR_WIDTH / 2
-  };
-}
-function hasPotentialUnifiedStatusIcon(world, eid) {
-  if (ObjectComp.state[eid] === CharacterState.SLEEPING) {
-    return world.isSleepDebugEffectEnabled();
-  }
-  return Array.from(CharacterStatusComp.statuses[eid]).some(
-    (status) => status !== 0 && status !== CharacterStatus.URGENT
-  );
-}
-function drawCutCornerRect(graphics, x2, y2, width, height, fill) {
-  for (let row = 0; row < height; row += 1) {
-    const { startX, rowWidth } = getCutCornerRowBounds(width, height, row);
-    if (rowWidth <= 0) {
-      continue;
-    }
-    graphics.rect(x2 + startX, y2 + row, rowWidth, 1).fill(fill);
-  }
-}
-function drawLeftCutRect(graphics, x2, y2, fillWidth, height, fill) {
-  if (fillWidth <= 0 || height <= 0) {
-    return;
-  }
-  for (let row = 0; row < height; row += 1) {
-    const { startX, maxXExclusive } = getCutCornerRowBounds(
-      STAMINA_BAR_TRACK_WIDTH,
-      height,
-      row
-    );
-    const clippedEndX = Math.min(fillWidth, maxXExclusive);
-    const rowWidth = clippedEndX - startX;
-    if (rowWidth <= 0) {
-      continue;
-    }
-    graphics.rect(x2 + startX, y2 + row, rowWidth, 1).fill(fill);
-  }
-}
-function drawCutCornerFrame(graphics, x2, y2, width, height, stroke) {
-  for (let row = 0; row < height; row += 1) {
-    const isTopBand = row < STAMINA_BAR_BORDER_THICKNESS;
-    const isBottomBand = row >= height - STAMINA_BAR_BORDER_THICKNESS;
-    if (isTopBand || isBottomBand) {
-      const cornerInset = Math.min(
-        STAMINA_BAR_BORDER_THICKNESS,
-        Math.floor(width / 2)
-      );
-      const startX = width > cornerInset * 2 ? cornerInset : 0;
-      const rowWidth = width > cornerInset * 2 ? width - cornerInset * 2 : width;
-      if (rowWidth > 0) {
-        graphics.rect(x2 + startX, y2 + row, rowWidth, 1).fill(stroke);
-      }
-      continue;
-    }
-    const sideWidth = Math.min(STAMINA_BAR_BORDER_THICKNESS, width);
-    if (sideWidth > 0) {
-      graphics.rect(x2, y2 + row, sideWidth, 1).fill(stroke);
-      graphics.rect(x2 + width - sideWidth, y2 + row, sideWidth, 1).fill(stroke);
-    }
-  }
-}
-function drawCutCornerDotGrid(graphics, width, height, fill) {
-  for (let row = 0; row < height; row += MINI_STAMINA_BAR_TRACK_DOT_SIZE) {
-    const { startX, maxXExclusive } = getCutCornerRowBounds(width, height, row);
-    const rowBandIndex = Math.floor(row / MINI_STAMINA_BAR_TRACK_DOT_SIZE);
-    const parityOffset = (rowBandIndex % 2 * MINI_STAMINA_BAR_TRACK_DOT_SIZE + MINI_STAMINA_BAR_TRACK_DOT_STRIDE) % MINI_STAMINA_BAR_TRACK_DOT_STRIDE;
-    const firstDotX = startX + (parityOffset - startX % MINI_STAMINA_BAR_TRACK_DOT_STRIDE + MINI_STAMINA_BAR_TRACK_DOT_STRIDE) % MINI_STAMINA_BAR_TRACK_DOT_STRIDE;
-    for (let x2 = firstDotX; x2 < maxXExclusive; x2 += MINI_STAMINA_BAR_TRACK_DOT_STRIDE) {
-      const dotX = x2 + MINI_STAMINA_BAR_TRACK_DOT_X_OFFSET;
-      const dotY = row + MINI_STAMINA_BAR_TRACK_DOT_Y_OFFSET;
-      const clippedX = Math.max(0, dotX);
-      const clippedY = Math.max(0, dotY);
-      const clippedWidth = Math.min(
-        MINI_STAMINA_BAR_TRACK_DOT_SIZE - (clippedX - dotX),
-        maxXExclusive - clippedX
-      );
-      const clippedHeight = Math.min(
-        MINI_STAMINA_BAR_TRACK_DOT_SIZE - (clippedY - dotY),
-        height - clippedY
-      );
-      if (clippedWidth <= 0 || clippedHeight <= 0) {
-        continue;
-      }
-      graphics.rect(
-        clippedX,
-        clippedY,
-        clippedWidth,
-        clippedHeight
-      ).fill(fill);
-    }
-  }
-}
-function getCutCornerRowBounds(width, height, row) {
-  const inCornerBand = row < STAMINA_BAR_BORDER_THICKNESS || row >= height - STAMINA_BAR_BORDER_THICKNESS;
-  const cornerInset = inCornerBand ? Math.min(STAMINA_BAR_BORDER_THICKNESS, Math.floor(width / 2)) : 0;
-  const startX = cornerInset;
-  const maxXExclusive = width - cornerInset;
-  const rowWidth = maxXExclusive - startX;
-  return {
-    startX,
-    rowWidth,
-    maxXExclusive
-  };
-}
-function getMiniStaminaBarUrgentOverlayAlpha(currentTime) {
-  const normalizedTime = (currentTime % MINI_STAMINA_BAR_URGENT_OVERLAY_CYCLE_MS + MINI_STAMINA_BAR_URGENT_OVERLAY_CYCLE_MS) % MINI_STAMINA_BAR_URGENT_OVERLAY_CYCLE_MS;
-  const phase = normalizedTime / MINI_STAMINA_BAR_URGENT_OVERLAY_CYCLE_MS;
-  const triangleWave = phase < 0.5 ? phase * 2 : (1 - phase) * 2;
-  return MINI_STAMINA_BAR_URGENT_OVERLAY_MIN_ALPHA + (MINI_STAMINA_BAR_URGENT_OVERLAY_MAX_ALPHA - MINI_STAMINA_BAR_URGENT_OVERLAY_MIN_ALPHA) * triangleWave;
-}
 const STATUS_ICON_SCALE = 1.625;
 const STATUS_ICON_BASE_SIZE = 16;
 const STATUS_ICON_SIZE = STATUS_ICON_BASE_SIZE * STATUS_ICON_SCALE;
 const STATUS_ICON_Z_INDEX_OFFSET = 1.5;
-const STATUS_ICON_MIN_Y = 0;
-const STATUS_ICON_BAR_STACK_GAP = 2;
 const STATUS_ICON_HORIZONTAL_SPACING = 1;
 function getRenderedCharacterAttributes(eid) {
   const renderedX = Math.round(PositionComp.x[eid]);
@@ -31472,6 +31572,19 @@ function getRenderedCharacterAttributes(eid) {
     renderedX,
     renderedY,
     effectiveZIndex
+  };
+}
+function getRenderedCharacterWorldBounds(eid) {
+  const bounds = getCharacterWorldBounds(eid);
+  const offsetX = Math.round(PositionComp.x[eid]) - PositionComp.x[eid];
+  const offsetY = Math.round(PositionComp.y[eid]) - PositionComp.y[eid];
+  return {
+    leftX: bounds.leftX + offsetX,
+    rightX: bounds.rightX + offsetX,
+    topY: bounds.topY + offsetY,
+    bottomY: bounds.bottomY + offsetY,
+    width: bounds.width,
+    height: bounds.height
   };
 }
 const TEMPORARY_STATUSES$1 = [CharacterStatus.HAPPY, CharacterStatus.DISCOVER];
@@ -31516,20 +31629,55 @@ function createStatusIconSprite(textureName) {
   sprite.roundPixels = true;
   return sprite;
 }
-function getStatusIconMinY(world) {
-  return STATUS_ICON_MIN_Y;
+function getStatusIconListWidth(iconCount) {
+  return iconCount * STATUS_ICON_SIZE + Math.max(0, iconCount - 1) * STATUS_ICON_HORIZONTAL_SPACING;
 }
-function clampStatusIconY(world, preferredY) {
-  return Math.max(preferredY, getStatusIconMinY());
+function clampNumber(value, min, max) {
+  if (min > max) {
+    return (min + max) / 2;
+  }
+  return Math.max(min, Math.min(max, value));
 }
-function getUnifiedStatusIconStartX(barLeftX, barWidth, iconCount) {
-  const totalWidth = iconCount * STATUS_ICON_SIZE + Math.max(0, iconCount - 1) * STATUS_ICON_HORIZONTAL_SPACING;
-  const leftInset = Math.round((barWidth - totalWidth) / 2);
-  return barLeftX + leftInset + STATUS_ICON_SIZE / 2;
+function getStatusIconScreenBounds(world) {
+  const boundary = world.characterPositionBoundary ?? world.positionBoundary;
+  return {
+    leftX: boundary.x,
+    rightX: boundary.x + boundary.width,
+    topY: boundary.y,
+    bottomY: boundary.y + boundary.height
+  };
 }
-function getStatusIconCenterYAboveStaminaBar(eid) {
-  const barTopY = getClampedCharacterStaminaBarTopY(eid);
-  return barTopY - STATUS_ICON_BAR_STACK_GAP - STATUS_ICON_SIZE / 2;
+function getClampedStatusIconListCenter(params) {
+  const { world, preferredCenterX, preferredCenterY, iconCount } = params;
+  const bounds = getStatusIconScreenBounds(world);
+  const halfListWidth = getStatusIconListWidth(iconCount) / 2;
+  const halfIconHeight = STATUS_ICON_SIZE / 2;
+  return {
+    centerX: clampNumber(
+      preferredCenterX,
+      bounds.leftX + halfListWidth,
+      bounds.rightX - halfListWidth
+    ),
+    centerY: clampNumber(
+      preferredCenterY,
+      bounds.topY + halfIconHeight,
+      bounds.bottomY - halfIconHeight
+    )
+  };
+}
+function getUnifiedStatusIconStartX(listCenterX, iconCount) {
+  const totalWidth = getStatusIconListWidth(iconCount);
+  return listCenterX - totalWidth / 2 + STATUS_ICON_SIZE / 2;
+}
+function getStatusIconListCenterAtCharacterTopRight(params) {
+  const { world, eid, iconCount } = params;
+  const bounds = getRenderedCharacterWorldBounds(eid);
+  return getClampedStatusIconListCenter({
+    world,
+    preferredCenterX: bounds.rightX,
+    preferredCenterY: bounds.topY,
+    iconCount
+  });
 }
 function clearEntitySprites(eid) {
   const sprites = entityStatusSprites.get(eid);
@@ -31591,7 +31739,7 @@ function statusIconRenderSystem(params) {
       StatusIconRenderComp.visibleCount[eid] = 0;
       continue;
     }
-    const { renderedX, effectiveZIndex } = getRenderedCharacterAttributes(eid);
+    const { effectiveZIndex } = getRenderedCharacterAttributes(eid);
     const iconZIndex = effectiveZIndex + STATUS_ICON_Z_INDEX_OFFSET;
     const allStatuses = [];
     for (let j2 = 0; j2 < 4; j2++) {
@@ -31607,18 +31755,14 @@ function statusIconRenderSystem(params) {
       latestTemporary
     );
     const iconCount = persistent.length + (overlayTextureName ? 1 : 0);
-    const { leftX: barLeftX, width: barWidth } = getCharacterStaminaBarBounds(
-      eid,
-      renderedX
-    );
-    const iconStartX = getUnifiedStatusIconStartX(
-      barLeftX,
-      barWidth,
-      iconCount
-    );
-    const iconCenterY = clampStatusIconY(
+    const { centerX: iconListCenterX, centerY: iconCenterY } = getStatusIconListCenterAtCharacterTopRight({
       world,
-      getStatusIconCenterYAboveStaminaBar(eid)
+      eid,
+      iconCount
+    });
+    const iconStartX = getUnifiedStatusIconStartX(
+      iconListCenterX,
+      iconCount
     );
     let sprites = entityStatusSprites.get(eid);
     if (!sprites) {
@@ -31684,7 +31828,7 @@ const EGG_CRACK_PIXEL_SIZE = 1;
 const overlayStore$1 = /* @__PURE__ */ new Map();
 const eggCrackQuery = defineQuery([ObjectComp, RenderComp, EggHatchComp]);
 const eggCrackExitQuery = exitQuery(eggCrackQuery);
-function getOrCreateOverlay$1(eid, stage) {
+function getOrCreateOverlay(eid, stage) {
   const existing = overlayStore$1.get(eid);
   if (existing) {
     return existing;
@@ -31935,7 +32079,7 @@ function eggCrackRenderSystem(params) {
       removeOverlay$1(eid);
       continue;
     }
-    const overlay = getOrCreateOverlay$1(eid, world.stage);
+    const overlay = getOrCreateOverlay(eid, world.stage);
     syncOverlayTransform(overlay, baseSprite);
     syncOverlayMask(overlay.mask, baseSprite);
     drawEggCracks(overlay.crack, bounds, crackStage);
@@ -31950,76 +32094,523 @@ function eggCrackRenderSystem(params) {
   }
   return params;
 }
-const characterQuery$7 = defineQuery([ObjectComp, PositionComp, RenderComp]);
-const characterExitQuery = exitQuery(characterQuery$7);
-const overlayStore = /* @__PURE__ */ new Map();
-const LAYOUT_STROKE_COLOR = 58879;
-const LAYOUT_FILL_COLOR = 58879;
-const LAYOUT_FILL_ALPHA = 0.12;
-const LAYOUT_STROKE_WIDTH = 1;
-const LAYOUT_Z_INDEX_OFFSET = 1;
-function characterLayoutDebugSystem(params) {
-  const { world, stage } = params;
-  if (!stage || false) {
-    cleanupCharacterLayoutDebug();
-    return params;
+const NAME_LABEL_MAX_WIDTH = 60;
+const NAME_LABEL_FONT_FAMILIES = [
+  "Droid Sans Mono",
+  "SF Mono",
+  "SFMono-Regular",
+  "monospace",
+  "sans-serif",
+  "Apple Color Emoji",
+  "Segoe UI Emoji",
+  "Noto Color Emoji"
+];
+const NAME_LABEL_FONT_SIZE = 11;
+const NAME_LABEL_FONT_WEIGHT = "700";
+const NAME_LABEL_STROKE_WIDTH = 4;
+const NAME_LABEL_FILL_COLOR = 14540253;
+const NAME_LABEL_STROKE_COLOR = 0;
+let measurementContext;
+function countDisplayCharacters(value) {
+  return splitDisplayCharacters(value).length;
+}
+function splitDisplayCharacters(value) {
+  const IntlWithSegmenter = Intl;
+  const SegmenterCtor = IntlWithSegmenter.Segmenter;
+  if (SegmenterCtor) {
+    return Array.from(
+      new SegmenterCtor(void 0, { granularity: "grapheme" }).segment(value),
+      (item) => item.segment
+    );
   }
+  return Array.from(value);
+}
+function measureNameLabelWidth(value) {
+  if (!value) {
+    return 0;
+  }
+  const context2 = getMeasurementContext();
+  if (!context2) {
+    return splitDisplayCharacters(value).length * NAME_LABEL_FONT_SIZE + NAME_LABEL_STROKE_WIDTH * 2;
+  }
+  context2.font = `${NAME_LABEL_FONT_WEIGHT} ${NAME_LABEL_FONT_SIZE}px ${toCanvasFontFamilyList(
+    NAME_LABEL_FONT_FAMILIES
+  )}`;
+  return context2.measureText(value).width + NAME_LABEL_STROKE_WIDTH * 2;
+}
+function fitsNameLabelWidth(value, maxWidth = NAME_LABEL_MAX_WIDTH) {
+  return measureNameLabelWidth(value) <= maxWidth;
+}
+function getMeasurementContext() {
+  if (measurementContext !== void 0) {
+    return measurementContext;
+  }
+  if (typeof document === "undefined") {
+    measurementContext = null;
+    return measurementContext;
+  }
+  const canvas = document.createElement("canvas");
+  measurementContext = canvas.getContext("2d");
+  return measurementContext;
+}
+function toCanvasFontFamilyList(fontFamilies) {
+  return fontFamilies.map(
+    (fontFamily) => fontFamily.includes(" ") ? `"${fontFamily}"` : fontFamily
+  ).join(", ");
+}
+const characterQuery$7 = defineQuery([
+  ObjectComp,
+  PositionComp,
+  RenderComp,
+  CharacterStatusComp
+]);
+const characterExitQuery = exitQuery(characterQuery$7);
+const labelStore = /* @__PURE__ */ new Map();
+const NAME_LABEL_STYLE = new TextStyle({
+  fontFamily: [...NAME_LABEL_FONT_FAMILIES],
+  fontSize: NAME_LABEL_FONT_SIZE,
+  fontWeight: NAME_LABEL_FONT_WEIGHT,
+  fill: NAME_LABEL_FILL_COLOR,
+  align: "center",
+  stroke: { color: NAME_LABEL_STROKE_COLOR, width: NAME_LABEL_STROKE_WIDTH }
+});
+const LABEL_Z_INDEX_OFFSET = 1e3;
+const STAMINA_BAR_Z_INDEX_OFFSET = 1;
+const STAMINA_BAR_WIDTH = 56;
+const STAMINA_BAR_HEIGHT = 10;
+const STAMINA_BAR_BORDER_THICKNESS = 3;
+const STAMINA_BAR_TRACK_WIDTH = STAMINA_BAR_WIDTH;
+const STAMINA_BAR_TRACK_HEIGHT = STAMINA_BAR_HEIGHT;
+const CHARACTER_STAMINA_BAR_TOP_GAP = 2;
+const STAMINA_BAR_LABEL_GAP = 2;
+const MINI_STAMINA_BAR_TRACK_COLOR = 7303023;
+const MINI_STAMINA_BAR_TRACK_ALPHA = 0.34;
+const MINI_STAMINA_BAR_TRACK_DOT_COLOR = 0;
+const MINI_STAMINA_BAR_TRACK_DOT_ALPHA = 0.45;
+const MINI_STAMINA_BAR_TRACK_DOT_SIZE = 2;
+const MINI_STAMINA_BAR_TRACK_DOT_STRIDE = MINI_STAMINA_BAR_TRACK_DOT_SIZE * 2;
+const MINI_STAMINA_BAR_TRACK_DOT_X_OFFSET = -1;
+const MINI_STAMINA_BAR_TRACK_DOT_Y_OFFSET = -1;
+const MINI_STAMINA_BAR_BORDER_COLOR = 0;
+const MINI_STAMINA_BAR_BORDER_ALPHA = 1;
+const MINI_STAMINA_BAR_LOW_COLOR = 14832971;
+const MINI_STAMINA_BAR_MID_COLOR = 15901498;
+const MINI_STAMINA_BAR_HIGH_COLOR = 4827485;
+const MINI_STAMINA_BAR_EGG_FILL_COLOR = 5880063;
+const MINI_STAMINA_BAR_URGENT_OVERLAY_COLOR = 14832971;
+const MINI_STAMINA_BAR_URGENT_OVERLAY_MIN_ALPHA = 0.18;
+const MINI_STAMINA_BAR_URGENT_OVERLAY_MAX_ALPHA = 0.75;
+const MINI_STAMINA_BAR_URGENT_OVERLAY_CYCLE_MS = 1200;
+function characterNameLabelSystem(params) {
+  var _a;
+  const { world } = params;
   const exitedEntities = characterExitQuery(world);
   for (let i2 = 0; i2 < exitedEntities.length; i2++) {
-    removeOverlay(exitedEntities[i2]);
+    removeCharacterNameLabel(exitedEntities[i2]);
   }
+  const rawName = (_a = world.getInMemoryData().world_metadata.monster_name) == null ? void 0 : _a.trim();
   const entities = characterQuery$7(world);
-  const activeCharacterEids = /* @__PURE__ */ new Set();
   for (let i2 = 0; i2 < entities.length; i2++) {
     const eid = entities[i2];
     if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
-      removeOverlay(eid);
+      removeCharacterNameLabel(eid);
+      continue;
+    }
+    const displayName = rawName ?? "";
+    if (!displayName) {
+      removeCharacterNameLabel(eid);
       continue;
     }
     const displayObject = getCharacterDisplayObject(eid);
     if (!displayObject) {
-      removeOverlay(eid);
+      removeCharacterNameLabel(eid);
       continue;
     }
-    const bounds = getCharacterWorldBounds(eid);
-    if (bounds.width <= 0 || bounds.height <= 0) {
-      removeOverlay(eid);
-      continue;
+    const renderState = getOrCreateCharacterNameLabel(eid, world.stage);
+    if (renderState.label.text !== displayName) {
+      renderState.label.text = displayName;
     }
-    const overlay = getOrCreateOverlay(eid, stage);
-    activeCharacterEids.add(eid);
-    overlay.clear();
-    overlay.rect(bounds.leftX, bounds.topY, bounds.width, bounds.height).fill({ color: LAYOUT_FILL_COLOR, alpha: LAYOUT_FILL_ALPHA }).stroke({ color: LAYOUT_STROKE_COLOR, width: LAYOUT_STROKE_WIDTH });
-    const y2 = PositionComp.y[eid];
-    const configuredZIndex = RenderComp.zIndex[eid];
-    const effectiveZIndex = configuredZIndex === 0 ? y2 : configuredZIndex;
-    overlay.zIndex = effectiveZIndex + LAYOUT_Z_INDEX_OFFSET;
-    overlay.visible = true;
-  }
-  const trackedEids = Array.from(overlayStore.keys());
-  for (let i2 = 0; i2 < trackedEids.length; i2++) {
-    const eid = trackedEids[i2];
-    if (!activeCharacterEids.has(eid)) {
-      removeOverlay(eid);
-    }
+    updateCharacterNameLabel(renderState, world, eid, world.currentTime);
   }
   return params;
+}
+function cleanupCharacterNameLabels() {
+  labelStore.forEach((renderState) => {
+    renderState.label.removeFromParent();
+    renderState.label.destroy();
+    renderState.barTrack.removeFromParent();
+    renderState.barTrack.destroy();
+    renderState.barFill.removeFromParent();
+    renderState.barFill.destroy();
+    renderState.urgentOverlay.removeFromParent();
+    renderState.urgentOverlay.destroy();
+    renderState.barFrame.removeFromParent();
+    renderState.barFrame.destroy();
+  });
+  labelStore.clear();
+}
+function getOrCreateCharacterNameLabel(eid, stage) {
+  const existingRenderState = labelStore.get(eid);
+  if (existingRenderState) {
+    return existingRenderState;
+  }
+  const label = new Text({
+    text: "",
+    style: NAME_LABEL_STYLE,
+    anchor: { x: 0.5, y: 0.5 }
+  });
+  const barTrack = new Graphics();
+  const barFill = new Graphics();
+  const urgentOverlay = new Graphics();
+  const barFrame = new Graphics();
+  label.position.set(0, NAME_LABEL_FONT_SIZE / 2);
+  label.eventMode = "none";
+  label.roundPixels = true;
+  barTrack.roundPixels = true;
+  barFill.roundPixels = true;
+  urgentOverlay.roundPixels = true;
+  barFrame.roundPixels = true;
+  label.zIndex = LABEL_Z_INDEX_OFFSET;
+  barTrack.eventMode = "none";
+  barFill.eventMode = "none";
+  urgentOverlay.eventMode = "none";
+  barFrame.eventMode = "none";
+  stage.addChild(label);
+  stage.addChild(barTrack);
+  stage.addChild(barFill);
+  stage.addChild(urgentOverlay);
+  stage.addChild(barFrame);
+  const renderState = {
+    label,
+    barTrack,
+    barFill,
+    urgentOverlay,
+    barFrame,
+    lastFillColor: MINI_STAMINA_BAR_HIGH_COLOR,
+    lastFillWidth: 0,
+    lastUrgentOverlayAlpha: 0,
+    lastUrgentOverlayVisible: false
+  };
+  labelStore.set(eid, renderState);
+  return renderState;
+}
+function removeCharacterNameLabel(eid) {
+  const renderState = labelStore.get(eid);
+  if (!renderState) {
+    return;
+  }
+  renderState.label.removeFromParent();
+  renderState.label.destroy();
+  renderState.barTrack.removeFromParent();
+  renderState.barTrack.destroy();
+  renderState.barFill.removeFromParent();
+  renderState.barFill.destroy();
+  renderState.urgentOverlay.removeFromParent();
+  renderState.urgentOverlay.destroy();
+  renderState.barFrame.removeFromParent();
+  renderState.barFrame.destroy();
+  labelStore.delete(eid);
+}
+function updateCharacterNameLabel(renderState, world, eid, currentTime) {
+  const x2 = PositionComp.x[eid];
+  const y2 = PositionComp.y[eid];
+  const configuredZIndex = RenderComp.zIndex[eid];
+  const effectiveZIndex = configuredZIndex === 0 ? y2 : configuredZIndex;
+  renderState.label.zIndex = effectiveZIndex + LABEL_Z_INDEX_OFFSET;
+  renderState.label.visible = true;
+  if (ObjectComp.state[eid] === CharacterState.DEAD) {
+    setCharacterNameLabelStyle(renderState, NAME_LABEL_STYLE);
+    renderState.label.alpha = 1;
+    renderState.label.scale.set(1, 1);
+    const { bottomY: bottomY2 } = getCharacterVerticalBounds(eid);
+    renderState.label.position.set(
+      Math.round(x2),
+      Math.round(
+        bottomY2 + CHARACTER_STAMINA_BAR_TOP_GAP + NAME_LABEL_FONT_SIZE / 2
+      )
+    );
+    setMiniStaminaBarVisible(renderState, false);
+    renderState.lastUrgentOverlayAlpha = 0;
+    renderState.lastUrgentOverlayVisible = false;
+    return;
+  }
+  setCharacterNameLabelStyle(renderState, NAME_LABEL_STYLE);
+  renderState.label.alpha = 1;
+  renderState.label.scale.set(1, 1);
+  const { bottomY } = getCharacterVerticalBounds(eid);
+  const barTopY = Math.round(getCharacterStaminaBarTopY(eid, bottomY));
+  const labelCenterY = Math.round(
+    barTopY + STAMINA_BAR_HEIGHT + STAMINA_BAR_LABEL_GAP + NAME_LABEL_FONT_SIZE / 2
+  );
+  renderState.label.position.set(Math.round(x2), labelCenterY);
+  const barVisual = getCharacterBarVisual(world, eid, currentTime);
+  const barLeftX = getCharacterStaminaBarLeftX(eid, x2);
+  renderState.barTrack.position.set(barLeftX, barTopY);
+  renderState.barFill.position.set(barLeftX, barTopY);
+  renderState.urgentOverlay.position.set(barLeftX, barTopY);
+  renderState.barFrame.position.set(barLeftX, barTopY);
+  renderState.barTrack.zIndex = effectiveZIndex + STAMINA_BAR_Z_INDEX_OFFSET;
+  renderState.barFill.zIndex = effectiveZIndex + STAMINA_BAR_Z_INDEX_OFFSET;
+  renderState.urgentOverlay.zIndex = effectiveZIndex + STAMINA_BAR_Z_INDEX_OFFSET;
+  renderState.barFrame.zIndex = effectiveZIndex + STAMINA_BAR_Z_INDEX_OFFSET;
+  setMiniStaminaBarVisible(renderState, true);
+  drawMiniStaminaBar(renderState, barVisual, currentTime);
+}
+function setMiniStaminaBarVisible(renderState, visible) {
+  renderState.barTrack.visible = visible;
+  renderState.barFill.visible = visible;
+  renderState.urgentOverlay.visible = visible;
+  renderState.barFrame.visible = visible;
+}
+function setCharacterNameLabelStyle(renderState, style) {
+  if (renderState.label.style !== style) {
+    renderState.label.style = style;
+  }
+}
+function drawMiniStaminaBar(renderState, barVisual, currentTime) {
+  renderState.barTrack.clear();
+  drawCutCornerRect(
+    renderState.barTrack,
+    0,
+    0,
+    STAMINA_BAR_TRACK_WIDTH,
+    STAMINA_BAR_TRACK_HEIGHT,
+    {
+      color: MINI_STAMINA_BAR_TRACK_COLOR,
+      alpha: MINI_STAMINA_BAR_TRACK_ALPHA
+    }
+  );
+  drawCutCornerDotGrid(
+    renderState.barTrack,
+    STAMINA_BAR_TRACK_WIDTH,
+    STAMINA_BAR_TRACK_HEIGHT,
+    {
+      color: MINI_STAMINA_BAR_TRACK_DOT_COLOR,
+      alpha: MINI_STAMINA_BAR_TRACK_DOT_ALPHA
+    }
+  );
+  renderState.barFill.clear();
+  const { fillWidth, fillColor, isUrgent } = barVisual;
+  if (fillWidth > 0) {
+    drawLeftCutRect(
+      renderState.barFill,
+      0,
+      0,
+      fillWidth,
+      STAMINA_BAR_TRACK_HEIGHT,
+      fillColor
+    );
+  }
+  renderState.urgentOverlay.clear();
+  if (isUrgent) {
+    const alpha = getMiniStaminaBarUrgentOverlayAlpha(currentTime);
+    drawCutCornerRect(
+      renderState.urgentOverlay,
+      0,
+      0,
+      STAMINA_BAR_TRACK_WIDTH,
+      STAMINA_BAR_TRACK_HEIGHT,
+      {
+        color: MINI_STAMINA_BAR_URGENT_OVERLAY_COLOR,
+        alpha
+      }
+    );
+    renderState.lastUrgentOverlayAlpha = alpha;
+    renderState.lastUrgentOverlayVisible = true;
+  } else {
+    renderState.lastUrgentOverlayAlpha = 0;
+    renderState.lastUrgentOverlayVisible = false;
+  }
+  renderState.barFrame.clear();
+  drawCutCornerFrame(
+    renderState.barFrame,
+    0,
+    0,
+    STAMINA_BAR_WIDTH,
+    STAMINA_BAR_HEIGHT,
+    {
+      color: MINI_STAMINA_BAR_BORDER_COLOR,
+      alpha: MINI_STAMINA_BAR_BORDER_ALPHA
+    }
+  );
+  if (isUrgent) {
+    drawCutCornerFrame(
+      renderState.barFrame,
+      0,
+      0,
+      STAMINA_BAR_WIDTH,
+      STAMINA_BAR_HEIGHT,
+      {
+        color: MINI_STAMINA_BAR_URGENT_OVERLAY_COLOR,
+        alpha: renderState.lastUrgentOverlayAlpha
+      }
+    );
+  }
+  renderState.lastFillColor = fillColor;
+  renderState.lastFillWidth = fillWidth;
+}
+function getCharacterBarVisual(world, eid, currentTime) {
+  if (ObjectComp.state[eid] === CharacterState.EGG) {
+    return {
+      fillWidth: getEggTimerBarFillWidth(eid, currentTime),
+      fillColor: MINI_STAMINA_BAR_EGG_FILL_COLOR,
+      isUrgent: false
+    };
+  }
+  const stamina = CharacterStatusComp.stamina[eid];
+  return {
+    fillWidth: getMiniStaminaBarFillWidth(stamina),
+    fillColor: getMiniStaminaBarFillColor(stamina),
+    isUrgent: hasUrgentStatus(eid)
+  };
+}
+function hasUrgentStatus(eid) {
+  return Array.from(CharacterStatusComp.statuses[eid]).includes(
+    CharacterStatus.URGENT
+  );
+}
+function clampUnitInterval(value) {
+  return Math.max(0, Math.min(1, value));
+}
+function getMiniStaminaBarFillColor(stamina) {
+  if (stamina < GAME_CONSTANTS.UNHAPPY_STAMINA_THRESHOLD) {
+    return MINI_STAMINA_BAR_LOW_COLOR;
+  }
+  if (stamina < GAME_CONSTANTS.BOOSTED_STAMINA_THRESHOLD) {
+    return MINI_STAMINA_BAR_MID_COLOR;
+  }
+  return MINI_STAMINA_BAR_HIGH_COLOR;
+}
+function getMiniStaminaBarFillWidth(stamina) {
+  return Math.max(
+    0,
+    Math.round(
+      clampUnitInterval(stamina / GAME_CONSTANTS.MAX_STAMINA) * STAMINA_BAR_TRACK_WIDTH
+    )
+  );
+}
+function getEggTimerBarFillWidth(eid, currentTime) {
+  const progress = getEggHatchProgress({
+    currentTime,
+    hatchTime: EggHatchComp.hatchTime[eid],
+    hatchDurationMs: EggHatchComp.hatchDurationMs[eid]
+  });
+  return Math.max(0, Math.round((1 - progress) * STAMINA_BAR_TRACK_WIDTH));
+}
+function getCharacterStaminaBarTopY(eid, resolvedBottomY) {
+  const { bottomY } = resolvedBottomY === void 0 ? getCharacterVerticalBounds(eid) : { bottomY: resolvedBottomY };
+  return bottomY + CHARACTER_STAMINA_BAR_TOP_GAP;
+}
+function getCharacterStaminaBarLeftX(eid, resolvedX) {
+  const x2 = resolvedX ?? PositionComp.x[eid];
+  return Math.round(x2 - STAMINA_BAR_WIDTH / 2);
+}
+function drawCutCornerRect(graphics, x2, y2, width, height, fill) {
+  for (let row = 0; row < height; row += 1) {
+    const { startX, rowWidth } = getCutCornerRowBounds(width, height, row);
+    if (rowWidth <= 0) {
+      continue;
+    }
+    graphics.rect(x2 + startX, y2 + row, rowWidth, 1).fill(fill);
+  }
+}
+function drawLeftCutRect(graphics, x2, y2, fillWidth, height, fill) {
+  if (fillWidth <= 0 || height <= 0) {
+    return;
+  }
+  for (let row = 0; row < height; row += 1) {
+    const { startX, maxXExclusive } = getCutCornerRowBounds(
+      STAMINA_BAR_TRACK_WIDTH,
+      height,
+      row
+    );
+    const clippedEndX = Math.min(fillWidth, maxXExclusive);
+    const rowWidth = clippedEndX - startX;
+    if (rowWidth <= 0) {
+      continue;
+    }
+    graphics.rect(x2 + startX, y2 + row, rowWidth, 1).fill(fill);
+  }
+}
+function drawCutCornerFrame(graphics, x2, y2, width, height, stroke) {
+  for (let row = 0; row < height; row += 1) {
+    const isTopBand = row < STAMINA_BAR_BORDER_THICKNESS;
+    const isBottomBand = row >= height - STAMINA_BAR_BORDER_THICKNESS;
+    if (isTopBand || isBottomBand) {
+      const cornerInset = Math.min(
+        STAMINA_BAR_BORDER_THICKNESS,
+        Math.floor(width / 2)
+      );
+      const startX = width > cornerInset * 2 ? cornerInset : 0;
+      const rowWidth = width > cornerInset * 2 ? width - cornerInset * 2 : width;
+      if (rowWidth > 0) {
+        graphics.rect(x2 + startX, y2 + row, rowWidth, 1).fill(stroke);
+      }
+      continue;
+    }
+    const sideWidth = Math.min(STAMINA_BAR_BORDER_THICKNESS, width);
+    if (sideWidth > 0) {
+      graphics.rect(x2, y2 + row, sideWidth, 1).fill(stroke);
+      graphics.rect(x2 + width - sideWidth, y2 + row, sideWidth, 1).fill(stroke);
+    }
+  }
+}
+function drawCutCornerDotGrid(graphics, width, height, fill) {
+  for (let row = 0; row < height; row += MINI_STAMINA_BAR_TRACK_DOT_SIZE) {
+    const { startX, maxXExclusive } = getCutCornerRowBounds(width, height, row);
+    const rowBandIndex = Math.floor(row / MINI_STAMINA_BAR_TRACK_DOT_SIZE);
+    const parityOffset = (rowBandIndex % 2 * MINI_STAMINA_BAR_TRACK_DOT_SIZE + MINI_STAMINA_BAR_TRACK_DOT_STRIDE) % MINI_STAMINA_BAR_TRACK_DOT_STRIDE;
+    const firstDotX = startX + (parityOffset - startX % MINI_STAMINA_BAR_TRACK_DOT_STRIDE + MINI_STAMINA_BAR_TRACK_DOT_STRIDE) % MINI_STAMINA_BAR_TRACK_DOT_STRIDE;
+    for (let x2 = firstDotX; x2 < maxXExclusive; x2 += MINI_STAMINA_BAR_TRACK_DOT_STRIDE) {
+      const dotX = x2 + MINI_STAMINA_BAR_TRACK_DOT_X_OFFSET;
+      const dotY = row + MINI_STAMINA_BAR_TRACK_DOT_Y_OFFSET;
+      const clippedX = Math.max(0, dotX);
+      const clippedY = Math.max(0, dotY);
+      const clippedWidth = Math.min(
+        MINI_STAMINA_BAR_TRACK_DOT_SIZE - (clippedX - dotX),
+        maxXExclusive - clippedX
+      );
+      const clippedHeight = Math.min(
+        MINI_STAMINA_BAR_TRACK_DOT_SIZE - (clippedY - dotY),
+        height - clippedY
+      );
+      if (clippedWidth <= 0 || clippedHeight <= 0) {
+        continue;
+      }
+      graphics.rect(clippedX, clippedY, clippedWidth, clippedHeight).fill(fill);
+    }
+  }
+}
+function getCutCornerRowBounds(width, height, row) {
+  const inCornerBand = row < STAMINA_BAR_BORDER_THICKNESS || row >= height - STAMINA_BAR_BORDER_THICKNESS;
+  const cornerInset = inCornerBand ? Math.min(STAMINA_BAR_BORDER_THICKNESS, Math.floor(width / 2)) : 0;
+  const startX = cornerInset;
+  const maxXExclusive = width - cornerInset;
+  const rowWidth = maxXExclusive - startX;
+  return {
+    startX,
+    rowWidth,
+    maxXExclusive
+  };
+}
+function getMiniStaminaBarUrgentOverlayAlpha(currentTime) {
+  const normalizedTime = (currentTime % MINI_STAMINA_BAR_URGENT_OVERLAY_CYCLE_MS + MINI_STAMINA_BAR_URGENT_OVERLAY_CYCLE_MS) % MINI_STAMINA_BAR_URGENT_OVERLAY_CYCLE_MS;
+  const phase = normalizedTime / MINI_STAMINA_BAR_URGENT_OVERLAY_CYCLE_MS;
+  const triangleWave = phase < 0.5 ? phase * 2 : (1 - phase) * 2;
+  return MINI_STAMINA_BAR_URGENT_OVERLAY_MIN_ALPHA + (MINI_STAMINA_BAR_URGENT_OVERLAY_MAX_ALPHA - MINI_STAMINA_BAR_URGENT_OVERLAY_MIN_ALPHA) * triangleWave;
+}
+defineQuery([ObjectComp, PositionComp, RenderComp]);
+const overlayStore = /* @__PURE__ */ new Map();
+function characterLayoutDebugSystem(params) {
+  {
+    cleanupCharacterLayoutDebug();
+    return params;
+  }
 }
 function cleanupCharacterLayoutDebug(_stage) {
   overlayStore.forEach((_, eid) => {
     removeOverlay(eid);
   });
-}
-function getOrCreateOverlay(eid, stage) {
-  const existingOverlay = overlayStore.get(eid);
-  if (existingOverlay) {
-    return existingOverlay;
-  }
-  const overlay = new Graphics();
-  overlay.eventMode = "none";
-  stage.addChild(overlay);
-  overlayStore.set(eid, overlay);
-  return overlay;
 }
 function removeOverlay(eid) {
   const overlay = overlayStore.get(eid);
@@ -32313,39 +32904,53 @@ function syncStatusIconRenderComp(eid, currentStatuses) {
     `[CharacterManagerSystem] Synced StatusIconRenderComp for entity ${eid}: ${currentStatuses.length} statuses`
   );
 }
-function addCharacterStatus$2(eid, status) {
+function addCharacterStatus$2(eid, status, world = _cachedWorld) {
   const currentStatuses = CharacterStatusComp.statuses[eid];
+  const currentTime = (world == null ? void 0 : world.currentTime) ?? Date.now();
   debugLog$4(
     `[addCharacterStatus] Current statuses for entity ${eid}:`,
     Array.from(currentStatuses)
   );
   if (isTemporaryStatus(status) && ObjectComp.state[eid] === CharacterState.SLEEPING) {
-    return;
+    return false;
   }
   if (currentStatuses.includes(status)) {
-    return;
+    return false;
+  }
+  if (status === CharacterStatus.HAPPY) {
+    const lastHappyStatusTime = TemporaryStatusComp.lastHappyStatusTime[eid];
+    const elapsedSinceLastHappy = currentTime - lastHappyStatusTime;
+    if (lastHappyStatusTime > 0 && elapsedSinceLastHappy < GAME_CONSTANTS.HAPPY_EMOTION_COOLDOWN_MS) {
+      debugLog$4(
+        `[addCharacterStatus] Skipped happy status for entity ${eid} due to cooldown (${elapsedSinceLastHappy}/${GAME_CONSTANTS.HAPPY_EMOTION_COOLDOWN_MS}ms)`
+      );
+      return false;
+    }
   }
   for (let i2 = 0; i2 < currentStatuses.length; i2++) {
     if (currentStatuses[i2] === 0) {
       currentStatuses[i2] = status;
       if (isTemporaryStatus(status)) {
-        if (_cachedWorld && hasComponent(_cachedWorld, ObjectComp, eid) && !hasComponent(_cachedWorld, TemporaryStatusComp, eid)) {
-          addComponent(_cachedWorld, TemporaryStatusComp, eid);
+        if (world && hasComponent(world, ObjectComp, eid) && !hasComponent(world, TemporaryStatusComp, eid)) {
+          addComponent(world, TemporaryStatusComp, eid);
         }
-        const currentTime = (_cachedWorld == null ? void 0 : _cachedWorld.currentTime) ?? Date.now();
         TemporaryStatusComp.statusType[eid] = status;
         TemporaryStatusComp.startTime[eid] = currentTime;
+        if (status === CharacterStatus.HAPPY) {
+          TemporaryStatusComp.lastHappyStatusTime[eid] = currentTime;
+        }
       }
       debugLog$4(
         `[addCharacterStatus] Added status ${status} to entity ${eid} at slot ${i2}. New statuses:`,
         Array.from(currentStatuses)
       );
-      return;
+      return true;
     }
   }
   console.warn(
     `[addCharacterStatus] No empty slot available for entity ${eid} to add status ${status}`
   );
+  return false;
 }
 function applyReentryHappyStatusForFullStaminaCharacters(world) {
   _cachedWorld = world;
@@ -32375,8 +32980,7 @@ function applyHappyStatusForFullStaminaCharacterIfEligible(world, eid) {
   if (hasCharacterStatus$2(eid, CharacterStatus.SICK)) {
     return false;
   }
-  addCharacterStatus$2(eid, CharacterStatus.HAPPY);
-  return true;
+  return addCharacterStatus$2(eid, CharacterStatus.HAPPY, world);
 }
 function clearTemporaryStatuses(world, eid) {
   _cachedWorld = world;
@@ -32779,6 +33383,7 @@ function createCharacterEntity(world, components) {
   addComponent(world, TemporaryStatusComp, eid);
   TemporaryStatusComp.statusType[eid] = 0;
   TemporaryStatusComp.startTime[eid] = 0;
+  TemporaryStatusComp.lastHappyStatusTime[eid] = 0;
   addComponent(world, EggHatchComp, eid);
   if (ObjectComp.state[eid] === CharacterState.EGG) {
     const { hatchTime, hatchDurationMs } = createEggHatchSchedule$1();
@@ -33096,11 +33701,8 @@ function moveTowardsTarget(world, eid, _delta) {
   }
   const currentX = PositionComp.x[eid];
   const currentY = PositionComp.y[eid];
-  const movementBoundary = ObjectComp.type[eid] === ObjectType.CHARACTER ? getCharacterCenterBoundary(
-    eid,
-    world.positionBoundary,
-    CHARACTER_SCREEN_EDGE_OVERFLOW_PX
-  ) : world.positionBoundary;
+  const characterBoundary = world.characterPositionBoundary ?? world.positionBoundary;
+  const movementBoundary = ObjectComp.type[eid] === ObjectType.CHARACTER ? getCharacterCenterBoundary(eid, characterBoundary) : world.positionBoundary;
   const targetX = clampAxisValue(
     DestinationComp.x[eid],
     movementBoundary.x,
@@ -33145,25 +33747,25 @@ const TIME_OF_DAY_TONES = {
     "day"
     /* Day */
   ]: {
-    label: "Day"
+    labelKey: "timeOfDay.day"
   },
   [
     "sunrise"
     /* Sunrise */
   ]: {
-    label: "Sunrise"
+    labelKey: "timeOfDay.sunrise"
   },
   [
     "sunset"
     /* Sunset */
   ]: {
-    label: "Sunset"
+    labelKey: "timeOfDay.sunset"
   },
   [
     "night"
     /* Night */
   ]: {
-    label: "Night"
+    labelKey: "timeOfDay.night"
   }
 };
 const TIME_OF_DAY_OPTIONS = [
@@ -33194,8 +33796,8 @@ const MANUAL_PROGRESS_PRESET = {
     /* Night */
   ]: 1
 };
-function getTimeOfDayLabel(timeOfDay) {
-  return TIME_OF_DAY_TONES[timeOfDay].label;
+function getTimeOfDayLabel(timeOfDay, locale = DEFAULT_LOCALE) {
+  return translate(locale, TIME_OF_DAY_TONES[timeOfDay].labelKey);
 }
 function getManualSkyVisualState(timeOfDay) {
   return {
@@ -33807,12 +34409,9 @@ function restoreRandomMovementIfNeeded(world, eid, currentTime) {
   RandomMovementComp.nextChange[eid] = currentTime + 1e3;
 }
 function logSleepCheck(world, event, payload) {
-  if (!shouldLogSleepChecks(world)) {
+  {
     return;
   }
-}
-function shouldLogSleepChecks(world) {
-  return !world.isSimulationMode;
 }
 const characterQuery$4 = defineQuery([
   ObjectComp,
@@ -33978,7 +34577,7 @@ function completeEating(world, characterEid, foodEid, currentTime) {
     currentTime
   );
   if (currentStamina < GAME_CONSTANTS.MAX_STAMINA && newStamina >= GAME_CONSTANTS.MAX_STAMINA) {
-    addCharacterStatus$2(characterEid, CharacterStatus.HAPPY);
+    addCharacterStatus$2(characterEid, CharacterStatus.HAPPY, world);
   }
   if (shouldResumeNightSleepAfterEating) {
     if (world.timeOfDay === TimeOfDay.Night) {
@@ -34043,7 +34642,7 @@ function findAndEatFood(world) {
         2
       )} for character ${characterEid}`
     );
-    addCharacterStatus$2(characterEid, CharacterStatus.DISCOVER);
+    addCharacterStatus$2(characterEid, CharacterStatus.DISCOVER, world);
     moveToFood(world, characterEid, foodEid);
   }
 }
@@ -34566,7 +35165,7 @@ function cleanableRenderSystem(params) {
   const { world, delta, stage } = params;
   const cleanableEntities = cleanableQuery(world);
   const cleanableRenderEntities = cleanableRenderQuery(world);
-  updateCleaningDimOverlay(stage, world, cleanableEntities.length > 0);
+  updateCleaningDimOverlay(stage, world);
   const exitedCleanableEntities = exitCleanableQuery(world);
   for (let i2 = 0; i2 < exitedCleanableEntities.length; i2++) {
     const eid = exitedCleanableEntities[i2];
@@ -34732,8 +35331,8 @@ function createOrUpdateDashedBorder(eid, stage, world) {
     removeBroom(eid, stage);
   }
 }
-function updateCleaningDimOverlay(stage, world, hasCleanableTargets) {
-  const shouldShowOverlay = world.isCleaningMode && hasCleanableTargets;
+function updateCleaningDimOverlay(stage, world) {
+  const shouldShowOverlay = world.isCleaningMode;
   if (!shouldShowOverlay) {
     removeCleaningDimOverlay(stage);
     return;
@@ -35529,7 +36128,7 @@ class HTMLDebugStatusUI {
       border-radius: 8px;
       padding: 8px;
       z-index: 1000;
-      font-family: 'NeoDunggeunmo Pro', sans-serif;
+      font-family: 'Droid Sans Mono', 'SF Mono', monospace, sans-serif;
       color: white;
       display: none;
     `;
@@ -35607,7 +36206,7 @@ Set: ${new Date(debugState.sunsetAt).toLocaleTimeString("ko-KR", {
         button.style.fontWeight = "bold";
       } else {
         button.style.background = "rgba(100, 150, 255, 0.6)";
-        button.style.fontWeight = "normal";
+        button.style.fontWeight = "bold";
       }
     });
     if (this._autoTimeButton) {
@@ -35616,7 +36215,7 @@ Set: ${new Date(debugState.sunsetAt).toLocaleTimeString("ko-KR", {
         this._autoTimeButton.style.fontWeight = "bold";
       } else {
         this._autoTimeButton.style.background = "rgba(100, 150, 255, 0.6)";
-        this._autoTimeButton.style.fontWeight = "normal";
+        this._autoTimeButton.style.fontWeight = "bold";
       }
     }
   }
@@ -35627,7 +36226,7 @@ Set: ${new Date(debugState.sunsetAt).toLocaleTimeString("ko-KR", {
     const isEnabled = this._world.isSleepDebugEffectEnabled();
     this._sleepEffectToggleButton.textContent = isEnabled ? "ON" : "OFF";
     this._sleepEffectToggleButton.style.background = isEnabled ? "rgba(120, 220, 150, 0.85)" : "rgba(100, 150, 255, 0.6)";
-    this._sleepEffectToggleButton.style.fontWeight = isEnabled ? "bold" : "normal";
+    this._sleepEffectToggleButton.style.fontWeight = "bold";
   }
   _updateSickToggleButton() {
     if (!this._sickToggleButton) {
@@ -35636,7 +36235,7 @@ Set: ${new Date(debugState.sunsetAt).toLocaleTimeString("ko-KR", {
     const isEnabled = this._currentCharacterEid >= 0 && hasCharacterStatus$1(this._currentCharacterEid, CharacterStatus.SICK);
     this._sickToggleButton.textContent = isEnabled ? "ON" : "OFF";
     this._sickToggleButton.style.background = isEnabled ? "rgba(226, 85, 75, 0.9)" : "rgba(100, 150, 255, 0.6)";
-    this._sickToggleButton.style.fontWeight = isEnabled ? "bold" : "normal";
+    this._sickToggleButton.style.fontWeight = "bold";
   }
   // 스테미나/진화 게이지 조절 버튼 생성
   _createAdjustButton(text, onClick) {
@@ -35907,7 +36506,7 @@ class HTMLDebugToggleButton {
       font-weight: bold;
       cursor: pointer;
       z-index: 1002;
-      font-family: 'NeoDunggeunmo Pro', sans-serif;
+      font-family: 'Droid Sans Mono', 'SF Mono', monospace, sans-serif;
       transition: background-color 0.2s;
     `;
     button.addEventListener("mouseenter", () => {
@@ -36024,7 +36623,7 @@ class HTMLDebugGameConstantsUI {
       box-sizing: border-box;
       backdrop-filter: blur(4px);
       color: white;
-      font-family: 'NeoDunggeunmo Pro', sans-serif;
+      font-family: 'Droid Sans Mono', 'SF Mono', monospace, sans-serif;
       box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
     `;
     return container;
@@ -36035,7 +36634,7 @@ class HTMLDebugGameConstantsUI {
       margin: 0;
       white-space: pre-wrap;
       word-break: break-word;
-      font-family: 'NeoDunggeunmo Pro', sans-serif;
+      font-family: 'Droid Sans Mono', 'SF Mono', monospace, sans-serif;
       font-size: 11px;
       line-height: 1.5;
       color: #d9f7ff;
@@ -36123,7 +36722,7 @@ class HTMLDebugGameConstantsUI {
       font-weight: bold;
       cursor: pointer;
       z-index: 1002;
-      font-family: 'NeoDunggeunmo Pro', sans-serif;
+      font-family: 'Droid Sans Mono', 'SF Mono', monospace, sans-serif;
       transition: background-color 0.2s;
     `;
   }
@@ -36438,7 +37037,7 @@ class HTMLDebugGaugeUI {
       border-radius: 5px;
       padding: 10px;
       z-index: 998;
-      font-family: 'NeoDunggeunmo Pro', sans-serif;
+      font-family: 'Droid Sans Mono', 'SF Mono', monospace, sans-serif;
       color: white;
       font-size: 12px;
       min-width: 280px;
@@ -38349,8 +38948,7 @@ class MainSceneInitDiagnostics {
   }
 }
 const MAX_REASONABLE_ELAPSED_MS = 14 * 24 * 60 * 60 * 1e3;
-const WALL_CLOCK_MANIPULATION_TOLERANCE_MS = 5 * 60 * 1e3;
-function getPerfNow$3() {
+function getPerfNow$1() {
   return typeof performance !== "undefined" && typeof performance.now === "function" ? performance.now() : Date.now();
 }
 function isFiniteNumber(value) {
@@ -38374,7 +38972,7 @@ function createWebDevFallbackSnapshot() {
   const now = Date.now();
   return {
     trustedUtcMs: now,
-    osUptimeMs: getPerfNow$3(),
+    osUptimeMs: getPerfNow$1(),
     source: "web-dev-fallback",
     uncertaintyMs: Number.POSITIVE_INFINITY,
     capturedWallMs: now
@@ -38405,11 +39003,11 @@ class TrustedClock {
     if (!this._snapshot) {
       return Date.now();
     }
-    const elapsedSinceSnapshot = Math.max(0, getPerfNow$3() - this._perfAtSnapshotMs);
+    const elapsedSinceSnapshot = Math.max(0, getPerfNow$1() - this._perfAtSnapshotMs);
     return this._snapshot.trustedUtcMs + elapsedSinceSnapshot;
   }
   captureAnchor() {
-    const elapsedSinceSnapshot = this._snapshot ? Math.max(0, getPerfNow$3() - this._perfAtSnapshotMs) : 0;
+    const elapsedSinceSnapshot = this._snapshot ? Math.max(0, getPerfNow$1() - this._perfAtSnapshotMs) : 0;
     if (this._snapshot) {
       return {
         ...this._snapshot,
@@ -38450,22 +39048,19 @@ class TrustedClock {
     }
     const elapsedMs = current.osUptimeMs - anchor.osUptimeMs;
     if (elapsedMs < 0) {
+      const ntpElapsedMs = current.trustedUtcMs - anchor.trustedUtcMs;
+      if (current.source === "ntp" && ntpElapsedMs >= 0) {
+        return {
+          elapsedMs: Math.min(ntpElapsedMs, MAX_REASONABLE_ELAPSED_MS),
+          trusted: true,
+          reason: "ntp_after_reboot",
+          currentSnapshot: current
+        };
+      }
       return {
         elapsedMs: 0,
         trusted: false,
         reason: "reboot_detected",
-        currentSnapshot: current
-      };
-    }
-    const manipulationReason = this._detectWallClockManipulation(
-      anchor,
-      current
-    );
-    if (manipulationReason) {
-      return {
-        elapsedMs: 0,
-        trusted: false,
-        reason: manipulationReason,
         currentSnapshot: current
       };
     }
@@ -38478,20 +39073,6 @@ class TrustedClock {
   }
   get lastSnapshot() {
     return this._snapshot;
-  }
-  _detectWallClockManipulation(anchor, current) {
-    if (anchor.source === "web-dev-fallback" || current.source === "web-dev-fallback") {
-      return null;
-    }
-    const wallDelta = current.capturedWallMs - anchor.capturedWallMs;
-    const trustedDelta = current.trustedUtcMs - anchor.trustedUtcMs;
-    if (wallDelta < -3e5) {
-      return "wall_clock_rollback";
-    }
-    if (current.source === "ntp" && trustedDelta >= 0 && wallDelta - trustedDelta > WALL_CLOCK_MANIPULATION_TOLERANCE_MS) {
-      return "wall_clock_fast_forward";
-    }
-    return null;
   }
   async _refresh(options) {
     const controller = getNativeTrustedTimeController();
@@ -38519,7 +39100,7 @@ class TrustedClock {
   }
   _setSnapshot(snapshot) {
     this._snapshot = snapshot;
-    this._perfAtSnapshotMs = getPerfNow$3();
+    this._perfAtSnapshotMs = getPerfNow$1();
   }
 }
 const trustedClock = new TrustedClock();
@@ -38549,7 +39130,6 @@ const MAIN_SCENE_AD_POST_ACTION_DELAY_MS = 500;
 const MAIN_SCENE_AD_FEED_FALLBACK_AFTER_LAND_MS = 3e3;
 const HOUR_MS = 60 * 60 * 1e3;
 const DAY_MS = 24 * HOUR_MS;
-const TRUSTED_TIME_ABUSE_ALERT_MESSAGE = "Time manipulation was detected. Your monster has been set to dead.";
 const COMMON_SPRITESHEET_ASSETS = [
   {
     jsonPath: "/assets/game/sprites/bird.json",
@@ -38648,6 +39228,7 @@ const _MainSceneWorld = class _MainSceneWorld {
     this._pendingRecoveryCureEids = /* @__PURE__ */ new Set();
     this._isPersistenceDisabled = false;
     this._pendingStorageWrite = Promise.resolve();
+    this._locale = DEFAULT_LOCALE;
     this._debugMode = false;
     this._hasDeferredPersistence = false;
     this._timeOfDay = TimeOfDay.Day;
@@ -38711,6 +39292,7 @@ const _MainSceneWorld = class _MainSceneWorld {
     this._debugMode = params.debugMode ?? false;
     this._startMiniGame = params.startMiniGame;
     this._showAlert = params.showAlert;
+    this._locale = params.locale ?? DEFAULT_LOCALE;
     this._shouldDeferPersistence = params.shouldDeferPersistence;
     this._createInitialGameData = params.createInitialGameData;
     this._changeControlButtons = params.changeControlButtons;
@@ -38728,6 +39310,14 @@ const _MainSceneWorld = class _MainSceneWorld {
   }
   get positionBoundary() {
     return this._positionBoundary;
+  }
+  get characterPositionBoundary() {
+    return {
+      x: this._positionBoundary.x - this._positionBoundaryInsets.left,
+      y: this._positionBoundary.y - this._positionBoundaryInsets.top,
+      width: this._positionBoundary.width + this._positionBoundaryInsets.left + this._positionBoundaryInsets.right,
+      height: this._positionBoundary.height + this._positionBoundaryInsets.top
+    };
   }
   get sliderValue() {
     return this._currentSliderValue;
@@ -38764,6 +39354,12 @@ const _MainSceneWorld = class _MainSceneWorld {
       nextSunriseAt: projectedSunTimes.nextSunriseAt.getTime(),
       nextSunsetAt: projectedSunTimes.nextSunsetAt.getTime()
     };
+  }
+  onLocaleChange(locale) {
+    this._locale = locale;
+  }
+  t(key, params) {
+    return translate(this._locale, key, params);
   }
   triggerBiteVibration() {
     var _a;
@@ -38828,21 +39424,46 @@ const _MainSceneWorld = class _MainSceneWorld {
     return true;
   }
   _isValidMainSceneAdPendingReservation(value) {
-    return !!value && this._isMainSceneAdMenu(value.menu) && typeof value.queued_at === "number" && Number.isFinite(value.queued_at) && value.queued_at > 0 && typeof value.cooldown_ms === "number" && Number.isFinite(value.cooldown_ms) && value.cooldown_ms > 0 && typeof value.threshold === "number" && Number.isFinite(value.threshold) && value.threshold > 0 && typeof value.deep_night === "boolean";
+    return !!value && this._isMainSceneAdMenu(value.menu) && typeof value.queued_at === "number" && Number.isFinite(value.queued_at) && value.queued_at > 0 && typeof value.cooldown_ms === "number" && Number.isFinite(value.cooldown_ms) && value.cooldown_ms > 0 && typeof value.threshold === "number" && Number.isFinite(value.threshold) && value.threshold > 0 && typeof value.deep_night === "boolean" && (value.online_retry === void 0 || typeof value.online_retry === "boolean");
   }
   _isMainSceneAdMenu(value) {
     return value === "feed" || value === "clean" || value === "hospital";
   }
   _recordMainSceneMenuUse(menu) {
+    var _a;
     const adState = this._getMainSceneAdState();
     if (!adState) {
       return null;
     }
     adState.menu_use_count = Math.max(0, Math.floor(adState.menu_use_count)) + 1;
     let createdReservation = null;
-    if (!adState.pending) {
-      const config = this._getMainSceneAdConfig();
-      if (adState.menu_use_count >= config.threshold) {
+    const config = this._getMainSceneAdConfig();
+    if ((_a = adState.pending) == null ? void 0 : _a.online_retry) {
+      adState.pending = {
+        ...adState.pending,
+        menu,
+        queued_at: this.currentTime,
+        cooldown_ms: config.cooldownMs,
+        deep_night: config.deepNight
+      };
+      createdReservation = adState.pending;
+    } else if (!adState.pending) {
+      if (this._hasPendingOnlineAdRetry()) {
+        createdReservation = {
+          menu,
+          queued_at: this.currentTime,
+          cooldown_ms: config.cooldownMs,
+          threshold: 1,
+          deep_night: config.deepNight,
+          online_retry: true
+        };
+        adState.pending = createdReservation;
+        console.log("[MainSceneWorld] MainScene online ad retry reserved", {
+          menu,
+          menuUseCount: adState.menu_use_count,
+          ...config
+        });
+      } else if (adState.menu_use_count >= config.threshold) {
         createdReservation = {
           menu,
           queued_at: this.currentTime,
@@ -38860,6 +39481,20 @@ const _MainSceneWorld = class _MainSceneWorld {
     }
     this._persistMainSceneAdState();
     return createdReservation;
+  }
+  _hasPendingOnlineAdRetry() {
+    var _a, _b;
+    if (typeof window === "undefined") {
+      return false;
+    }
+    try {
+      return ((_b = (_a = window.digiviceAdBridge) == null ? void 0 : _a.hasPendingOnlineAdRetry) == null ? void 0 : _b.call(_a)) === true;
+    } catch (error) {
+      console.warn("[MainSceneWorld] Failed to check online ad retry state", {
+        error
+      });
+      return false;
+    }
   }
   _getMainSceneAdConfig() {
     const deepNight = this._isMainSceneAdDeepNight();
@@ -38952,7 +39587,8 @@ const _MainSceneWorld = class _MainSceneWorld {
         threshold: pending.threshold,
         queuedAt: pending.queued_at,
         deepNight: pending.deep_night,
-        menuUseCount: adState.menu_use_count
+        menuUseCount: adState.menu_use_count,
+        onlineRetry: pending.online_retry === true
       });
       if (didShow) {
         adState.menu_use_count = 0;
@@ -39398,20 +40034,7 @@ const _MainSceneWorld = class _MainSceneWorld {
           );
           this._addDebugGaugeEventListener();
         }
-        if (this._debugParentElement) {
-          this._debugGameConstantsUI = new HTMLDebugGameConstantsUI(
-            this._debugParentElement
-          );
-          this._debugStatusUI = new HTMLDebugStatusUI(
-            this,
-            this._debugParentElement
-          );
-          this._debugToggleButton = new HTMLDebugToggleButton(() => {
-            var _a, _b;
-            (_a = this._debugStatusUI) == null ? void 0 : _a.toggle();
-            return ((_b = this._debugStatusUI) == null ? void 0 : _b.isDebugVisible()) ?? false;
-          }, this._debugParentElement);
-        }
+        if (false) ;
       }
       await this._initDiagnostics.measurePhase("setup_visibility_handler", async () => {
         this._setupVisibilityChangeHandler();
@@ -39437,7 +40060,7 @@ const _MainSceneWorld = class _MainSceneWorld {
     if (ObjectComp.state[characterEid] !== CharacterState.EGG) {
       return false;
     }
-    (_a = this._showAlert) == null ? void 0 : _a.call(this, "not available in egg state.", "Notice");
+    (_a = this._showAlert) == null ? void 0 : _a.call(this, this.t("main.eggUnavailable"), this.t("common.notice"));
     return true;
   }
   _logMiniGameEntryAttempt(phase) {
@@ -39471,6 +40094,10 @@ const _MainSceneWorld = class _MainSceneWorld {
     SleepSystemComp.fatigue[characterEid] = Math.min(
       GAME_CONSTANTS.FATIGUE_MAX,
       SleepSystemComp.fatigue[characterEid] + GAME_CONSTANTS.MINI_GAME_SLEEP_INTERRUPT_FATIGUE
+    );
+    CharacterStatusComp.stamina[characterEid] = Math.max(
+      0,
+      CharacterStatusComp.stamina[characterEid] - GAME_CONSTANTS.MINI_GAME_SLEEP_INTERRUPT_STAMINA
     );
   }
   _addDebugGaugeEventListener() {
@@ -40101,7 +40728,7 @@ const _MainSceneWorld = class _MainSceneWorld {
     this._timeOfDay = timeOfDay;
     this._applyCurrentSkyState();
     console.log(
-      `[MainSceneWorld] Time of day changed to ${getTimeOfDayLabel(timeOfDay)} (manual)`
+      `[MainSceneWorld] Time of day changed to ${getTimeOfDayLabel(timeOfDay, this._locale)} (manual)`
     );
   }
   enableAutoTimeOfDay() {
@@ -40121,7 +40748,7 @@ const _MainSceneWorld = class _MainSceneWorld {
     var _a, _b, _c;
     return {
       mode: this._timeOfDayMode,
-      label: getTimeOfDayLabel(this._timeOfDay),
+      label: getTimeOfDayLabel(this._timeOfDay, this._locale),
       progress: ((_a = this._autoTimeOfDayState) == null ? void 0 : _a.progress) ?? null,
       hasLocationPermission: this._hasLocationPermission,
       locationSource: this._sunLocationSource,
@@ -40298,7 +40925,8 @@ const _MainSceneWorld = class _MainSceneWorld {
     this._applyCurrentSkyState();
     console.log(
       `[MainSceneWorld] Local time disabled, randomly selected ${getTimeOfDayLabel(
-        this._timeOfDay
+        this._timeOfDay,
+        this._locale
       )}`
     );
   }
@@ -40565,7 +41193,8 @@ const _MainSceneWorld = class _MainSceneWorld {
         queuedAt: pending.queued_at,
         cooldownMs: pending.cooldown_ms,
         threshold: pending.threshold,
-        deepNight: pending.deep_night
+        deepNight: pending.deep_night,
+        onlineRetry: pending.online_retry === true
       } : null
     };
   }
@@ -40902,10 +41531,6 @@ const _MainSceneWorld = class _MainSceneWorld {
         reason: elapsedResult.reason,
         elapsedMs: elapsedResult.elapsedMs
       });
-      if (this._isTrustedTimeAbuseReason(elapsedResult.reason)) {
-        await this._handleTrustedTimeAbuse(elapsedResult);
-        return;
-      }
     }
     if (elapsedTime <= 0) {
       console.log(
@@ -40952,33 +41577,6 @@ const _MainSceneWorld = class _MainSceneWorld {
       this._isRunningReentrySimulation = false;
       this._simulationTime = null;
     }
-  }
-  _isTrustedTimeAbuseReason(reason) {
-    return reason === "wall_clock_rollback" || reason === "wall_clock_fast_forward";
-  }
-  async _handleTrustedTimeAbuse(elapsedResult) {
-    var _a;
-    console.warn("[MainSceneWorld] Trusted time abuse detected", {
-      reason: elapsedResult.reason,
-      elapsedMs: elapsedResult.elapsedMs,
-      currentSnapshot: elapsedResult.currentSnapshot
-    });
-    (_a = this._showAlert) == null ? void 0 : _a.call(this, TRUSTED_TIME_ABUSE_ALERT_MESSAGE);
-    const characterEid = this._findMainCharacterEntity();
-    if (characterEid !== -1) {
-      if (!hasComponent(this, VitalityComp, characterEid)) {
-        addComponent(this, VitalityComp, characterEid);
-      }
-      const currentTime = this.currentTime;
-      VitalityComp.urgentStartTime[characterEid] = currentTime;
-      VitalityComp.deathTime[characterEid] = currentTime;
-      killCharacter(this, characterEid);
-    } else {
-      console.warn(
-        "[MainSceneWorld] Trusted time abuse detected but main character was not found"
-      );
-    }
-    await this._saveCurrentState();
   }
   /**
    * 현재 시뮬레이션 모드인지 확인
@@ -46140,20 +46738,14 @@ function requireMatter() {
   return matter$1.exports;
 }
 var matterExports = requireMatter();
-const GAME_ENGINE_FIXED_TIMESTEP_MS = 1e3 / 60;
+const GAME_ENGINE_MAX_STEP_MS = 1e3 / 60;
 const GAME_ENGINE_MAX_TIMESTEP_MS = 1e3 / 30;
-const GAME_ENGINE_MAX_SUBSTEPS = 2;
-function getPerfNow$2() {
-  return typeof performance !== "undefined" ? performance.now() : Date.now();
-}
 class GameEngine {
-  constructor(width, height, gravityY = 2.5, perfHooks = {}) {
+  constructor(width, height, gravityY = 2.5) {
     this.isRunning = false;
     this.gameObjects = [];
     this.pixiApp = null;
-    this.physicsAccumulatorMs = 0;
     this.gravityY = gravityY;
-    this.perfHooks = perfHooks;
     this.physics = matterExports.Engine.create({
       gravity: { x: 0, y: this.gravityY },
       enableSleeping: false
@@ -46180,51 +46772,22 @@ class GameEngine {
     }
   }
   physicsUpdate(delta) {
-    var _a, _b;
     if (!this.isRunning || !this.pixiApp) return;
     try {
-      const clampedDeltaMs = Math.min(
+      const appliedDeltaMs = Math.min(
         GAME_ENGINE_MAX_TIMESTEP_MS,
         Math.max(0, delta)
       );
-      this.physicsAccumulatorMs = Math.min(
-        this.physicsAccumulatorMs + clampedDeltaMs,
-        GAME_ENGINE_FIXED_TIMESTEP_MS * (GAME_ENGINE_MAX_SUBSTEPS + 1)
-      );
-      let substeps = 0;
-      let totalEngineUpdateCostMs = 0;
-      let totalSyncDisplayCostMs = 0;
-      let appliedDeltaMs = 0;
-      while (this.physicsAccumulatorMs >= GAME_ENGINE_FIXED_TIMESTEP_MS && substeps < GAME_ENGINE_MAX_SUBSTEPS) {
-        const startedAt = getPerfNow$2();
-        matterExports.Engine.update(this.physics, GAME_ENGINE_FIXED_TIMESTEP_MS);
-        const afterEngineUpdate = getPerfNow$2();
-        this.syncDisplayObjects();
-        const afterSyncDisplay = getPerfNow$2();
-        totalEngineUpdateCostMs += afterEngineUpdate - startedAt;
-        totalSyncDisplayCostMs += afterSyncDisplay - afterEngineUpdate;
-        appliedDeltaMs += GAME_ENGINE_FIXED_TIMESTEP_MS;
-        this.physicsAccumulatorMs -= GAME_ENGINE_FIXED_TIMESTEP_MS;
-        substeps += 1;
-      }
-      if (substeps === GAME_ENGINE_MAX_SUBSTEPS && this.physicsAccumulatorMs >= GAME_ENGINE_FIXED_TIMESTEP_MS) {
-        this.physicsAccumulatorMs = Math.min(
-          this.physicsAccumulatorMs,
-          GAME_ENGINE_FIXED_TIMESTEP_MS
-        );
-      }
-      if (substeps === 0) {
+      if (appliedDeltaMs <= 0) {
         return;
       }
-      (_b = (_a = this.perfHooks).onPhysicsStep) == null ? void 0 : _b.call(_a, {
-        timestampMs: Date.now(),
-        deltaMs: appliedDeltaMs,
-        engineUpdateCostMs: totalEngineUpdateCostMs,
-        syncDisplayCostMs: totalSyncDisplayCostMs,
-        totalCostMs: totalEngineUpdateCostMs + totalSyncDisplayCostMs,
-        trackedObjectCount: this.getTrackedObjectCount(),
-        syncedDisplayObjectCount: this.getSyncedDisplayObjectCount()
-      });
+      let remainingDeltaMs = appliedDeltaMs;
+      while (remainingDeltaMs > 0) {
+        const stepDeltaMs = Math.min(GAME_ENGINE_MAX_STEP_MS, remainingDeltaMs);
+        matterExports.Engine.update(this.physics, stepDeltaMs);
+        remainingDeltaMs -= stepDeltaMs;
+      }
+      this.syncDisplayObjects();
     } catch (error) {
       console.error("[Physics] 물리 업데이트 오류:", error);
     }
@@ -46261,11 +46824,9 @@ class GameEngine {
   }
   pause() {
     this.isRunning = false;
-    this.physicsAccumulatorMs = 0;
   }
   resume() {
     this.isRunning = true;
-    this.physicsAccumulatorMs = 0;
   }
   cleanup() {
     this.pause();
@@ -46276,7 +46837,6 @@ class GameEngine {
       matterExports.Composite.remove(this.physics.world, obj.body);
     }
     this.gameObjects = [];
-    this.physicsAccumulatorMs = 0;
     matterExports.Engine.clear(this.physics);
     this.physics = matterExports.Engine.create({
       gravity: { x: 0, y: this.gravityY },
@@ -46649,20 +47209,8 @@ const FLAPPY_BIRD_CLOUD_MAX_GAP = 185;
 const FLAPPY_BIRD_CLOUD_TOP_PADDING = 28;
 const FLAPPY_BIRD_CLOUD_MAX_HEIGHT_RATIO = 0.72;
 const FLAPPY_BIRD_BASE_FRAME_MS = 1e3 / 60;
-const FLAPPY_BIRD_MAX_FRAME_SCALE = 1.25;
+const FLAPPY_BIRD_MAX_FRAME_SCALE = 2;
 const FLAPPY_BIRD_SPEED_TRANSITION_MS = 140;
-function getPerfNow$1() {
-  return typeof performance !== "undefined" ? performance.now() : Date.now();
-}
-function createEmptyPipePoolStats() {
-  return {
-    pairCreated: 0,
-    pairReused: 0,
-    bodyCreated: 0,
-    bodyReused: 0,
-    poolMissCount: 0
-  };
-}
 function resolveFrameScale(deltaTime) {
   return Math.min(
     FLAPPY_BIRD_MAX_FRAME_SCALE,
@@ -46986,11 +47534,6 @@ class PipeManager {
    * 파이프를 업데이트합니다.
    */
   update(playerBody, onScoreUpdate, deltaTime, onPlayerCollision) {
-    const diagnostics = {
-      phaseCosts: {},
-      poolStats: createEmptyPipePoolStats()
-    };
-    let spawned = 0;
     this.pipeSpawnInterval = smoothFlappyBirdSpeed(
       this.pipeSpawnInterval,
       this.targetPipeSpawnInterval,
@@ -46998,21 +47541,10 @@ class PipeManager {
     );
     this.elapsedSinceLastPipeSpawnMs += Math.max(0, deltaTime);
     if (this.elapsedSinceLastPipeSpawnMs > this.pipeSpawnInterval) {
-      spawned += this.createPipePattern(diagnostics);
+      this.createPipePattern();
       this.elapsedSinceLastPipeSpawnMs = 0;
     }
-    return {
-      spawned,
-      removed: this.movePipes(
-        playerBody,
-        onScoreUpdate,
-        deltaTime,
-        diagnostics,
-        onPlayerCollision
-      ),
-      phaseCosts: diagnostics.phaseCosts,
-      poolStats: diagnostics.poolStats
-    };
+    this.movePipes(playerBody, onScoreUpdate, deltaTime, onPlayerCollision);
   }
   prewarmPipePairs(count2) {
     const targetCount = Math.max(0, Math.floor(count2));
@@ -47049,28 +47581,23 @@ class PipeManager {
   /**
    * 파이프 쌍을 생성합니다.
    */
-  createPipePattern(diagnostics) {
+  createPipePattern() {
     const pipeAssets = this.resolvePipeAssetsContext();
-    const spawnPlan = this.measurePipePhase(
-      diagnostics.phaseCosts,
-      "spawnPlanning",
-      () => buildPipeSpawnPlan({
-        tileSize: pipeAssets.tileSize,
-        availableHeight: this.app.screen.height - this.groundHeight,
-        passageHeightMinRatio: this.passageHeightMinRatio,
-        passageHeightMaxRatio: this.passageHeightMaxRatio,
-        passagePositionExpansionTiles: this.passagePositionExpansionTiles,
-        doublePipePatternChance: this.doublePipePatternChance,
-        doublePipePatternGapTileOptions: this.doublePipePatternGapTileOptions,
-        misalignedDoublePipePatternChance: this.misalignedDoublePipePatternChance,
-        misalignedDoublePipePatternOffsetTiles: this.misalignedDoublePipePatternOffsetTiles
-      })
-    );
+    const spawnPlan = buildPipeSpawnPlan({
+      tileSize: pipeAssets.tileSize,
+      availableHeight: this.app.screen.height - this.groundHeight,
+      passageHeightMinRatio: this.passageHeightMinRatio,
+      passageHeightMaxRatio: this.passageHeightMaxRatio,
+      passagePositionExpansionTiles: this.passagePositionExpansionTiles,
+      doublePipePatternChance: this.doublePipePatternChance,
+      doublePipePatternGapTileOptions: this.doublePipePatternGapTileOptions,
+      misalignedDoublePipePatternChance: this.misalignedDoublePipePatternChance,
+      misalignedDoublePipePatternOffsetTiles: this.misalignedDoublePipePatternOffsetTiles
+    });
     for (const item of spawnPlan.items) {
       this.createPipePair({
         pipeAssets,
-        item,
-        diagnostics
+        item
       });
     }
     return spawnPlan.items.length;
@@ -47079,53 +47606,33 @@ class PipeManager {
    * 파이프 쌍을 생성합니다.
    */
   createPipePair(options) {
-    const { pipeAssets, item, diagnostics } = options;
+    const { pipeAssets, item } = options;
     const pair = this.acquirePipePair({
       pipeAssets,
-      item,
-      diagnostics
+      item
     });
-    this.measurePipePhase(
-      diagnostics.phaseCosts,
-      "attachPipePairToScene",
-      () => {
-        this.pipes.addChild(pair.top);
-        this.pipes.addChild(pair.bottom);
-        this.physicsManager.addToEngine(null, pair.topBody, {
-          syncDisplay: false
-        });
-        this.physicsManager.addToEngine(null, pair.bottomBody, {
-          syncDisplay: false
-        });
-        this.syncPipeDisplayObject(pair.top, pair.topBody);
-        this.syncPipeDisplayObject(pair.bottom, pair.bottomBody);
-      }
-    );
+    this.pipes.addChild(pair.top);
+    this.pipes.addChild(pair.bottom);
+    this.physicsManager.addToEngine(null, pair.topBody, {
+      syncDisplay: false
+    });
+    this.physicsManager.addToEngine(null, pair.bottomBody, {
+      syncDisplay: false
+    });
+    this.syncPipeDisplayObject(pair.top, pair.topBody);
+    this.syncPipeDisplayObject(pair.bottom, pair.bottomBody);
     this.pipesPairs.push(pair);
   }
   /**
    * 파이프 쌍 오브젝트를 준비합니다.
    */
   acquirePipePair(options) {
-    const { pipeAssets, item, diagnostics } = options;
+    const { pipeAssets, item } = options;
     const pair = this.pipePool.pop();
-    const existingPair = pair ?? this.createManagedPipePair(pipeAssets, diagnostics);
-    if (pair) {
-      if (diagnostics) {
-        diagnostics.poolStats.pairReused += 1;
-        diagnostics.poolStats.bodyReused += 2;
-      }
-    } else {
-      if (diagnostics) {
-        diagnostics.poolStats.pairCreated += 1;
-        diagnostics.poolStats.bodyCreated += 2;
-        diagnostics.poolStats.poolMissCount += 1;
-      }
-    }
+    const existingPair = pair ?? this.createManagedPipePair(pipeAssets);
     this.configurePipePair(existingPair, {
       pipeAssets,
-      item,
-      diagnostics
+      item
     });
     this.resetPairTracking(existingPair);
     return existingPair;
@@ -47133,50 +47640,41 @@ class PipeManager {
   /**
    * 파이프를 이동시키는 메서드
    */
-  movePipes(playerBody, onScoreUpdate, deltaTime, diagnostics, onPlayerCollision) {
+  movePipes(playerBody, onScoreUpdate, deltaTime, onPlayerCollision) {
     this.speed = smoothFlappyBirdSpeed(this.speed, this.targetSpeed, deltaTime);
     const movementStep = this.speed * resolveFrameScale(deltaTime);
     const removalIndexes = [];
-    this.measurePipePhase(diagnostics.phaseCosts, "moveExistingPipes", () => {
-      for (let i2 = 0; i2 < this.pipesPairs.length; i2++) {
-        const pair = this.pipesPairs[i2];
-        this.physicsManager.translateBody(pair.topBody, {
-          x: -movementStep,
-          y: 0
-        });
-        this.physicsManager.translateBody(pair.bottomBody, {
-          x: -movementStep,
-          y: 0
-        });
-        this.syncPipeDisplayObject(pair.top, pair.topBody);
-        this.syncPipeDisplayObject(pair.bottom, pair.bottomBody);
-        if (this.hasPairCollidedWithPlayer(pair, playerBody)) {
-          onPlayerCollision == null ? void 0 : onPlayerCollision();
-          return removalIndexes.length;
-        }
-        this.trackNearMissClearances(pair, playerBody);
-        if (this.hasPairPassedPlayer(pair, playerBody) && !pair.passed) {
-          pair.passed = true;
-          onScoreUpdate(1 + this.getNearMissBonus(pair, playerBody));
-        }
-        if (pair.topBody.position.x < -pair.top.width) {
-          removalIndexes.push(i2);
-        }
+    for (let i2 = 0; i2 < this.pipesPairs.length; i2++) {
+      const pair = this.pipesPairs[i2];
+      this.physicsManager.translateBody(pair.topBody, {
+        x: -movementStep,
+        y: 0
+      });
+      this.physicsManager.translateBody(pair.bottomBody, {
+        x: -movementStep,
+        y: 0
+      });
+      this.syncPipeDisplayObject(pair.top, pair.topBody);
+      this.syncPipeDisplayObject(pair.bottom, pair.bottomBody);
+      if (this.hasPairCollidedWithPlayer(pair, playerBody)) {
+        onPlayerCollision == null ? void 0 : onPlayerCollision();
+        return;
       }
-    });
-    this.measurePipePhase(
-      diagnostics.phaseCosts,
-      "recycleOrRemovePipes",
-      () => {
-        for (let index = removalIndexes.length - 1; index >= 0; index -= 1) {
-          const pairIndex = removalIndexes[index];
-          if (typeof pairIndex === "number") {
-            this.removePipePair(pairIndex);
-          }
-        }
+      this.trackNearMissClearances(pair, playerBody);
+      if (this.hasPairPassedPlayer(pair, playerBody) && !pair.passed) {
+        pair.passed = true;
+        onScoreUpdate(1 + this.getNearMissBonus(pair, playerBody));
       }
-    );
-    return removalIndexes.length;
+      if (pair.topBody.position.x < -pair.top.width) {
+        removalIndexes.push(i2);
+      }
+    }
+    for (let index = removalIndexes.length - 1; index >= 0; index -= 1) {
+      const pairIndex = removalIndexes[index];
+      if (typeof pairIndex === "number") {
+        this.removePipePair(pairIndex);
+      }
+    }
   }
   hasPairCollidedWithPlayer(pair, playerBody) {
     return matterExports.Collision.collides(pair.topBody, playerBody) !== null || matterExports.Collision.collides(pair.bottomBody, playerBody) !== null;
@@ -47315,50 +47813,34 @@ class PipeManager {
       pipeEndTexture
     };
   }
-  createManagedPipePair(pipeAssets, diagnostics) {
+  createManagedPipePair(pipeAssets) {
     const { tileSize, pipeBodyTexture, pipeEndTexture } = pipeAssets;
-    const top = this.measurePipePhase(
-      diagnostics == null ? void 0 : diagnostics.phaseCosts,
-      "createPipePairDisplay",
-      () => this.createPipeContainer({
-        height: tileSize,
-        tileSize,
-        pipeBodyTexture,
-        pipeEndTexture,
-        position: "top"
-      })
-    );
-    const bottom = this.measurePipePhase(
-      diagnostics == null ? void 0 : diagnostics.phaseCosts,
-      "createPipePairDisplay",
-      () => this.createPipeContainer({
-        height: tileSize,
-        tileSize,
-        pipeBodyTexture,
-        pipeEndTexture,
-        position: "bottom"
-      })
-    );
-    const topBody = this.measurePipePhase(
-      diagnostics == null ? void 0 : diagnostics.phaseCosts,
-      "createPipePairBodies",
-      () => this.createPipeBody({
-        width: tileSize,
-        height: tileSize,
-        x: 0,
-        y: 0
-      })
-    );
-    const bottomBody = this.measurePipePhase(
-      diagnostics == null ? void 0 : diagnostics.phaseCosts,
-      "createPipePairBodies",
-      () => this.createPipeBody({
-        width: tileSize,
-        height: tileSize,
-        x: 0,
-        y: 0
-      })
-    );
+    const top = this.createPipeContainer({
+      height: tileSize,
+      tileSize,
+      pipeBodyTexture,
+      pipeEndTexture,
+      position: "top"
+    });
+    const bottom = this.createPipeContainer({
+      height: tileSize,
+      tileSize,
+      pipeBodyTexture,
+      pipeEndTexture,
+      position: "bottom"
+    });
+    const topBody = this.createPipeBody({
+      width: tileSize,
+      height: tileSize,
+      x: 0,
+      y: 0
+    });
+    const bottomBody = this.createPipeBody({
+      width: tileSize,
+      height: tileSize,
+      x: 0,
+      y: 0
+    });
     return {
       top,
       bottom,
@@ -47386,50 +47868,38 @@ class PipeManager {
     return body;
   }
   configurePipePair(pair, options) {
-    const { pipeAssets, item, diagnostics } = options;
+    const { pipeAssets, item } = options;
     const { tileSize, pipeBodyTexture, pipeEndTexture } = pipeAssets;
-    this.measurePipePhase(
-      diagnostics == null ? void 0 : diagnostics.phaseCosts,
-      "createPipePairDisplay",
-      () => {
-        this.configurePipeContainer(pair.top, {
-          height: item.topPipeHeight,
-          tileSize,
-          pipeBodyTexture,
-          pipeEndTexture,
-          position: "top"
-        });
-        this.configurePipeContainer(pair.bottom, {
-          height: item.bottomPipeHeight,
-          tileSize,
-          pipeBodyTexture,
-          pipeEndTexture,
-          position: "bottom"
-        });
-      }
-    );
+    this.configurePipeContainer(pair.top, {
+      height: item.topPipeHeight,
+      tileSize,
+      pipeBodyTexture,
+      pipeEndTexture,
+      position: "top"
+    });
+    this.configurePipeContainer(pair.bottom, {
+      height: item.bottomPipeHeight,
+      tileSize,
+      pipeBodyTexture,
+      pipeEndTexture,
+      position: "bottom"
+    });
     const topBodyX = this.app.screen.width + tileSize / 2 + item.xOffsetTiles * tileSize;
     const topBodyY = item.topPipeHeight / 2;
     const bottomBodyX = topBodyX;
     const bottomBodyY = item.topPipeHeight + item.passageHeight + item.bottomPipeHeight / 2 + tileSize / 2;
-    this.measurePipePhase(
-      diagnostics == null ? void 0 : diagnostics.phaseCosts,
-      "createPipePairBodies",
-      () => {
-        this.configurePipeBody(pair.topBody, {
-          width: tileSize,
-          height: item.topPipeHeight,
-          x: topBodyX,
-          y: topBodyY
-        });
-        this.configurePipeBody(pair.bottomBody, {
-          width: tileSize,
-          height: item.bottomPipeHeight,
-          x: bottomBodyX,
-          y: bottomBodyY
-        });
-      }
-    );
+    this.configurePipeBody(pair.topBody, {
+      width: tileSize,
+      height: item.topPipeHeight,
+      x: topBodyX,
+      y: topBodyY
+    });
+    this.configurePipeBody(pair.bottomBody, {
+      width: tileSize,
+      height: item.bottomPipeHeight,
+      x: bottomBodyX,
+      y: bottomBodyY
+    });
   }
   configurePipeBody(body, options) {
     const collisionBodySize = resolvePipeCollisionBodySize(
@@ -47468,14 +47938,6 @@ class PipeManager {
     pair.passed = false;
     pair.minTopClearance = Number.POSITIVE_INFINITY;
     pair.minBottomClearance = Number.POSITIVE_INFINITY;
-  }
-  measurePipePhase(phaseCosts, phaseKey, work) {
-    const startedAt = getPerfNow$1();
-    const result = work();
-    if (phaseCosts) {
-      phaseCosts[phaseKey] = (phaseCosts[phaseKey] ?? 0) + (getPerfNow$1() - startedAt);
-    }
-    return result;
   }
   syncPipeDisplayObject(displayObject, body) {
     displayObject.position.x = body.bounds.min.x;
@@ -47675,6 +48137,10 @@ class PlayerManager {
     });
     this.physicsManager.setVelocity(this.basketBody, { x: 0, y: 0 });
   }
+  hasBasketBottomReached(groundTopY, tolerancePx = 0.5) {
+    const basketBottomY = this.basketBody.position.y + this.basket.height / 2;
+    return basketBottomY >= groundTopY - tolerancePx;
+  }
   /**
    * 충돌 검사 메서드
    */
@@ -47734,7 +48200,7 @@ const FLAPPY_BIRD_BGM_STEPS_PER_BEAT = 2;
 const FLAPPY_BIRD_BGM_STEP_DURATION_S = 60 / FLAPPY_BIRD_BGM_BPM / FLAPPY_BIRD_BGM_STEPS_PER_BEAT;
 const FLAPPY_BIRD_BGM_SCHEDULE_AHEAD_S = 0.12;
 const FLAPPY_BIRD_BGM_SCHEDULER_INTERVAL_MS = 25;
-const FLAPPY_BIRD_AUDIO_VOLUME_MULTIPLIER = 1.95;
+const FLAPPY_BIRD_AUDIO_VOLUME_MULTIPLIER = 2.925;
 const FLAPPY_BIRD_BGM_MASTER_GAIN = 0.066 * FLAPPY_BIRD_AUDIO_VOLUME_MULTIPLIER;
 const FLAPPY_BIRD_SFX_GAIN = 0.102 * FLAPPY_BIRD_AUDIO_VOLUME_MULTIPLIER;
 const FLAPPY_BIRD_BGM_ATTACK_S = 0.02;
@@ -47800,7 +48266,7 @@ function smoothTempoMultiplier(current, target, elapsedMs) {
   return current + (target - current) * alpha;
 }
 class FlappyBirdBgmController {
-  constructor(options = {}) {
+  constructor() {
     this.audioContext = null;
     this.masterGain = null;
     this.effectsGain = null;
@@ -47814,7 +48280,6 @@ class FlappyBirdBgmController {
     this.currentTempoMultiplier = 1;
     this.targetTempoMultiplier = 1;
     this.lastTempoUpdateAtMs = 0;
-    this.onScheduleTick = options.onScheduleTick ?? null;
   }
   isEnabled() {
     return this.enabled;
@@ -47994,27 +48459,16 @@ class FlappyBirdBgmController {
     this.scheduleLoop();
   }
   scheduleLoop() {
-    var _a;
     if (!this.audioContext || !this.masterGain || !this.isPlaying) {
       return;
     }
-    const startedAtMs = this.getNowMs();
-    let scheduledSteps = 0;
-    let scheduledVoices = 0;
     this.updateTempoMultiplier();
     const stepDuration = this.getStepDuration();
     while (this.nextStepTime < this.audioContext.currentTime + FLAPPY_BIRD_BGM_SCHEDULE_AHEAD_S) {
-      scheduledVoices += this.scheduleStep(this.currentStep, this.nextStepTime);
-      scheduledSteps += 1;
+      this.scheduleStep(this.currentStep, this.nextStepTime);
       this.currentStep = (this.currentStep + 1) % FLAPPY_BIRD_BGM_LEAD_PATTERN.length;
       this.nextStepTime += stepDuration;
     }
-    (_a = this.onScheduleTick) == null ? void 0 : _a.call(this, {
-      timestampMs: Date.now(),
-      durationMs: this.getNowMs() - startedAtMs,
-      scheduledSteps,
-      scheduledVoices
-    });
   }
   scheduleStep(step, time) {
     const stepDuration = this.getStepDuration();
@@ -48399,6 +48853,11 @@ class PhysicsManager {
   }
 }
 const FLAPPY_BIRD_FONT_FAMILIES = [...NAME_LABEL_FONT_FAMILIES];
+const FLAPPY_BIRD_RETRO_FONT_FAMILY = "NeoDunggeunmo Pro";
+const FLAPPY_BIRD_RETRO_FONT_FAMILIES = [
+  FLAPPY_BIRD_RETRO_FONT_FAMILY,
+  ...NAME_LABEL_FONT_FAMILIES
+];
 const FLAPPY_BIRD_SCORE_FONT_SIZE = 18;
 const FLAPPY_BIRD_SCORE_MARGIN_X = 4;
 const FLAPPY_BIRD_SCORE_MARGIN_Y = 6;
@@ -48409,6 +48868,54 @@ const FLAPPY_BIRD_NEAR_MISS_FLOAT_DISTANCE = 14;
 const FLAPPY_BIRD_NEAR_MISS_GOOD_COLOR = 9364479;
 const FLAPPY_BIRD_NEAR_MISS_GREAT_COLOR = 16762967;
 const FLAPPY_BIRD_COUNTDOWN_FONT_SIZE = 63;
+function formatFlappyBirdBestScore(score) {
+  return `Best: ${score}`;
+}
+function formatFlappyBirdScore(score) {
+  return `Score: ${score}`;
+}
+function createFlappyBirdScoreTextStyle(fontFamily) {
+  return {
+    fontFamily: [...fontFamily],
+    fontSize: FLAPPY_BIRD_SCORE_FONT_SIZE,
+    fill: 16777215,
+    stroke: {
+      color: 0,
+      width: 4
+    },
+    align: "left"
+  };
+}
+function getDocumentFontSet() {
+  if (typeof document === "undefined") {
+    return null;
+  }
+  return document.fonts ?? null;
+}
+function isFlappyBirdRetroFontLoaded() {
+  const fonts = getDocumentFontSet();
+  if (typeof (fonts == null ? void 0 : fonts.check) !== "function") {
+    return true;
+  }
+  return fonts.check(`12px "${FLAPPY_BIRD_RETRO_FONT_FAMILY}"`);
+}
+async function loadFlappyBirdRetroFont() {
+  const fonts = getDocumentFontSet();
+  if (!fonts) {
+    return true;
+  }
+  try {
+    if (typeof fonts.load === "function") {
+      await fonts.load(`12px "${FLAPPY_BIRD_RETRO_FONT_FAMILY}"`);
+    } else {
+      await fonts.ready;
+    }
+  } catch (error) {
+    console.warn("[FlappyBirdScoreUI] Failed to load score font", error);
+    return false;
+  }
+  return isFlappyBirdRetroFontLoaded();
+}
 class CountdownUI {
   constructor() {
     this.remainingMs = 0;
@@ -48418,7 +48925,7 @@ class CountdownUI {
     this.text = new Text({
       text: "3",
       style: {
-        fontFamily: FLAPPY_BIRD_FONT_FAMILIES,
+        fontFamily: FLAPPY_BIRD_RETRO_FONT_FAMILIES,
         fontSize: FLAPPY_BIRD_COUNTDOWN_FONT_SIZE,
         fill: 16777215,
         align: "center",
@@ -48475,27 +48982,20 @@ class CountdownUI {
   }
 }
 class ScoreUI {
-  constructor(initialBestScore = 0) {
+  constructor(initialBestScore = 0, _locale = DEFAULT_LOCALE) {
     this.score = 0;
     this.bestScore = 0;
-    const textStyle = {
-      fontFamily: FLAPPY_BIRD_FONT_FAMILIES,
-      fontSize: FLAPPY_BIRD_SCORE_FONT_SIZE,
-      fill: 16777215,
-      stroke: {
-        color: 0,
-        width: 4
-      },
-      align: "left"
-    };
+    this.isUsingRetroScoreFont = false;
+    const initialFontFamily = isFlappyBirdRetroFontLoaded() ? FLAPPY_BIRD_RETRO_FONT_FAMILIES : NAME_LABEL_FONT_FAMILIES;
+    this.isUsingRetroScoreFont = initialFontFamily[0] === FLAPPY_BIRD_RETRO_FONT_FAMILY;
     this.container = new Container();
     this.bestScoreText = new Text({
-      text: "Best: 0",
-      style: textStyle
+      text: formatFlappyBirdBestScore(0),
+      style: createFlappyBirdScoreTextStyle(initialFontFamily)
     });
     this.scoreText = new Text({
-      text: "Score: 0",
-      style: textStyle
+      text: formatFlappyBirdScore(0),
+      style: createFlappyBirdScoreTextStyle(initialFontFamily)
     });
     this.bestScoreText.anchor.set(0, 0);
     this.scoreText.anchor.set(0, 0);
@@ -48504,6 +49004,9 @@ class ScoreUI {
     this.container.addChild(this.scoreText);
     this.setBestScore(initialBestScore);
     this.resetScore();
+    if (!this.isUsingRetroScoreFont) {
+      void this.loadAndApplyRetroScoreFont();
+    }
   }
   /**
    * 점수를 증가시키고 UI를 업데이트합니다.
@@ -48565,19 +49068,36 @@ class ScoreUI {
       FLAPPY_BIRD_SCORE_MARGIN_Y
     );
   }
+  setLocale(_locale) {
+    this.syncText();
+  }
   syncText() {
-    this.bestScoreText.text = `Best: ${this.bestScore}`;
-    this.scoreText.text = `Score: ${this.score}`;
+    this.bestScoreText.text = formatFlappyBirdBestScore(this.bestScore);
+    this.scoreText.text = formatFlappyBirdScore(this.score);
+  }
+  async loadAndApplyRetroScoreFont() {
+    if (this.isUsingRetroScoreFont) {
+      return;
+    }
+    const isLoaded = await loadFlappyBirdRetroFont();
+    if (!isLoaded) {
+      return;
+    }
+    this.bestScoreText.style.fontFamily = [...FLAPPY_BIRD_RETRO_FONT_FAMILIES];
+    this.scoreText.style.fontFamily = [...FLAPPY_BIRD_RETRO_FONT_FAMILIES];
+    this.isUsingRetroScoreFont = true;
+    this.syncText();
   }
 }
 class NearMissUI {
-  constructor() {
+  constructor(locale = DEFAULT_LOCALE) {
     this.remainingMs = 0;
     this.totalDurationMs = FLAPPY_BIRD_NEAR_MISS_DURATION_MS;
     this.baseX = 0;
     this.baseY = 0;
+    this.locale = locale;
     this.text = new Text({
-      text: "Good!",
+      text: translate(this.locale, "flappy.nearMissGood"),
       style: {
         fontFamily: FLAPPY_BIRD_FONT_FAMILIES,
         fontSize: FLAPPY_BIRD_NEAR_MISS_FONT_SIZE,
@@ -48594,7 +49114,7 @@ class NearMissUI {
     this.text.alpha = 0;
   }
   showBonus(amount) {
-    const feedback = resolveNearMissFeedback(amount);
+    const feedback = resolveNearMissFeedback(amount, this.locale);
     this.text.text = feedback.text;
     this.text.style.fill = feedback.fill;
     this.remainingMs = this.totalDurationMs;
@@ -48632,6 +49152,9 @@ class NearMissUI {
       this.text.position.set(this.baseX, this.baseY);
     }
   }
+  setLocale(locale) {
+    this.locale = locale;
+  }
   reset() {
     this.remainingMs = 0;
     this.text.visible = false;
@@ -48642,781 +49165,13 @@ class NearMissUI {
     return this.text;
   }
 }
-function resolveNearMissFeedback(amount) {
+function resolveNearMissFeedback(amount, locale = DEFAULT_LOCALE) {
   const bonusAmount = Math.max(1, Math.floor(amount));
   const isGreat = bonusAmount >= 2;
   return {
-    text: isGreat ? "Great!" : "Good!",
+    text: translate(locale, isGreat ? "flappy.nearMissGreat" : "flappy.nearMissGood"),
     fill: isGreat ? FLAPPY_BIRD_NEAR_MISS_GREAT_COLOR : FLAPPY_BIRD_NEAR_MISS_GOOD_COLOR
   };
-}
-const FLAPPY_BIRD_PERF_DIAGNOSTICS_STORAGE_KEY = "FlappyBirdPerfDiagnosticsV1";
-const FLAPPY_BIRD_PERF_HISTORY_VERSION = 1;
-const FLAPPY_BIRD_PERF_MAX_RETAINED_SESSIONS = 3;
-const FLAPPY_BIRD_PERF_MAX_SECOND_BUCKETS = 60;
-const FLAPPY_BIRD_PERF_MAX_TOP_SPIKE_EVENTS = 10;
-const FLAPPY_BIRD_PERF_AUTO_FLUSH_INTERVAL_MS = 15e3;
-const FLAPPY_BIRD_FRAME_BUDGET_MS = 16.7;
-const FLAPPY_BIRD_SLOW_FRAME_DELTA_THRESHOLD_MS$1 = 20;
-const FLAPPY_BIRD_SLOW_FRAME_UPDATE_COST_THRESHOLD_MS$1 = 8;
-const FLAPPY_BIRD_BGM_SCHEDULER_SPIKE_THRESHOLD_MS = 4;
-function createSessionId() {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID();
-  }
-  return `flappy-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-}
-function roundToTenth(value) {
-  return Math.round(value * 10) / 10;
-}
-function toIsoString(timestampMs) {
-  return new Date(timestampMs).toISOString();
-}
-function isObjectRecord(value) {
-  return typeof value === "object" && value !== null;
-}
-function normalizeHistory(value) {
-  if (!isObjectRecord(value) || !Array.isArray(value.sessions)) {
-    return {
-      version: FLAPPY_BIRD_PERF_HISTORY_VERSION,
-      sessions: []
-    };
-  }
-  return {
-    version: typeof value.version === "number" ? value.version : FLAPPY_BIRD_PERF_HISTORY_VERSION,
-    sessions: value.sessions.filter(isObjectRecord)
-  };
-}
-function createSecondBucket(secondOffset) {
-  return {
-    secondOffset,
-    frameCount: 0,
-    renderTimingSampleCount: 0,
-    totalDeltaTimeMs: 0,
-    maxDeltaTimeMs: 0,
-    totalUpdateCostMs: 0,
-    maxUpdateCostMs: 0,
-    tickerGapSampleCount: 0,
-    totalTickerGapMs: 0,
-    maxTickerGapMs: 0,
-    totalUpdateToRenderStartMs: 0,
-    maxUpdateToRenderStartMs: 0,
-    totalRenderCostMs: 0,
-    maxRenderCostMs: 0,
-    totalFrameEndToEndCostMs: 0,
-    maxFrameEndToEndCostMs: 0,
-    slowFrameCount: 0,
-    totalActivePipePairs: 0,
-    maxActivePipePairs: 0,
-    totalCloudCount: 0,
-    maxCloudCount: 0,
-    totalGroundTileCount: 0,
-    maxGroundTileCount: 0,
-    totalSpawnedPipes: 0,
-    totalRemovedPipes: 0,
-    physicsStepCount: 0,
-    totalPhysicsUpdateCostMs: 0,
-    maxPhysicsUpdateCostMs: 0,
-    totalSyncDisplayCostMs: 0,
-    maxSyncDisplayCostMs: 0,
-    bgmTickCount: 0,
-    totalBgmScheduleCostMs: 0,
-    maxBgmScheduleCostMs: 0,
-    maxBgmScheduledVoices: 0,
-    totalPipePairsCreated: 0,
-    totalPipePairsReused: 0,
-    totalPipeBodiesCreated: 0,
-    totalPipeBodiesReused: 0,
-    totalPipePoolMissCount: 0,
-    statesSeen: /* @__PURE__ */ new Set()
-  };
-}
-function toSnapshotBucket(bucket) {
-  return {
-    secondOffset: bucket.secondOffset,
-    frameCount: bucket.frameCount,
-    renderTimingSampleCount: bucket.renderTimingSampleCount,
-    avgDeltaTimeMs: bucket.frameCount > 0 ? roundToTenth(bucket.totalDeltaTimeMs / bucket.frameCount) : 0,
-    maxDeltaTimeMs: roundToTenth(bucket.maxDeltaTimeMs),
-    avgUpdateCostMs: bucket.frameCount > 0 ? roundToTenth(bucket.totalUpdateCostMs / bucket.frameCount) : 0,
-    maxUpdateCostMs: roundToTenth(bucket.maxUpdateCostMs),
-    avgTickerGapMs: bucket.tickerGapSampleCount > 0 ? roundToTenth(bucket.totalTickerGapMs / bucket.tickerGapSampleCount) : 0,
-    maxTickerGapMs: roundToTenth(bucket.maxTickerGapMs),
-    avgUpdateToRenderStartMs: bucket.renderTimingSampleCount > 0 ? roundToTenth(
-      bucket.totalUpdateToRenderStartMs / bucket.renderTimingSampleCount
-    ) : 0,
-    maxUpdateToRenderStartMs: roundToTenth(bucket.maxUpdateToRenderStartMs),
-    avgRenderCostMs: bucket.renderTimingSampleCount > 0 ? roundToTenth(bucket.totalRenderCostMs / bucket.renderTimingSampleCount) : 0,
-    maxRenderCostMs: roundToTenth(bucket.maxRenderCostMs),
-    avgFrameEndToEndCostMs: bucket.renderTimingSampleCount > 0 ? roundToTenth(
-      bucket.totalFrameEndToEndCostMs / bucket.renderTimingSampleCount
-    ) : 0,
-    maxFrameEndToEndCostMs: roundToTenth(bucket.maxFrameEndToEndCostMs),
-    slowFrameCount: bucket.slowFrameCount,
-    avgActivePipePairs: bucket.frameCount > 0 ? roundToTenth(bucket.totalActivePipePairs / bucket.frameCount) : 0,
-    maxActivePipePairs: bucket.maxActivePipePairs,
-    avgCloudCount: bucket.frameCount > 0 ? roundToTenth(bucket.totalCloudCount / bucket.frameCount) : 0,
-    maxCloudCount: bucket.maxCloudCount,
-    avgGroundTileCount: bucket.frameCount > 0 ? roundToTenth(bucket.totalGroundTileCount / bucket.frameCount) : 0,
-    maxGroundTileCount: bucket.maxGroundTileCount,
-    totalSpawnedPipes: bucket.totalSpawnedPipes,
-    totalRemovedPipes: bucket.totalRemovedPipes,
-    physicsStepCount: bucket.physicsStepCount,
-    avgPhysicsUpdateCostMs: bucket.physicsStepCount > 0 ? roundToTenth(
-      bucket.totalPhysicsUpdateCostMs / bucket.physicsStepCount
-    ) : 0,
-    maxPhysicsUpdateCostMs: roundToTenth(bucket.maxPhysicsUpdateCostMs),
-    avgSyncDisplayCostMs: bucket.physicsStepCount > 0 ? roundToTenth(bucket.totalSyncDisplayCostMs / bucket.physicsStepCount) : 0,
-    maxSyncDisplayCostMs: roundToTenth(bucket.maxSyncDisplayCostMs),
-    bgmTickCount: bucket.bgmTickCount,
-    avgBgmScheduleCostMs: bucket.bgmTickCount > 0 ? roundToTenth(bucket.totalBgmScheduleCostMs / bucket.bgmTickCount) : 0,
-    maxBgmScheduleCostMs: roundToTenth(bucket.maxBgmScheduleCostMs),
-    maxBgmScheduledVoices: bucket.maxBgmScheduledVoices,
-    totalPipePairsCreated: bucket.totalPipePairsCreated,
-    totalPipePairsReused: bucket.totalPipePairsReused,
-    totalPipeBodiesCreated: bucket.totalPipeBodiesCreated,
-    totalPipeBodiesReused: bucket.totalPipeBodiesReused,
-    totalPipePoolMissCount: bucket.totalPipePoolMissCount,
-    statesSeen: [...bucket.statesSeen]
-  };
-}
-function clampSessions(sessions) {
-  return sessions.sort((a2, b2) => a2.startedAtMs - b2.startedAtMs).slice(-3);
-}
-function resolveFrameDelayCause(sample) {
-  const tickerGapCost = typeof sample.tickerGapMs === "number" ? Math.max(0, sample.tickerGapMs - FLAPPY_BIRD_FRAME_BUDGET_MS) : 0;
-  const renderCost = typeof sample.renderCostMs === "number" ? sample.renderCostMs : 0;
-  const updateCost = sample.updateCostMs;
-  const rankedCosts = [
-    { cause: "ticker_gap", value: tickerGapCost },
-    { cause: "render", value: renderCost },
-    { cause: "update", value: updateCost }
-  ].sort((left, right) => right.value - left.value);
-  const dominantCost = rankedCosts[0];
-  const secondaryCost = rankedCosts[1];
-  if (!dominantCost || dominantCost.value <= 0.5) {
-    return "unknown";
-  }
-  if (dominantCost.value - ((secondaryCost == null ? void 0 : secondaryCost.value) ?? 0) <= 1) {
-    return "mixed";
-  }
-  return dominantCost.cause;
-}
-function pushTopSpikeEvent(events, event) {
-  return [...events, event].sort((left, right) => {
-    if (right.metricValueMs !== left.metricValueMs) {
-      return right.metricValueMs - left.metricValueMs;
-    }
-    return left.timestamp.localeCompare(right.timestamp);
-  }).slice(0, FLAPPY_BIRD_PERF_MAX_TOP_SPIKE_EVENTS);
-}
-function createPerfSpikeEvent(params) {
-  return {
-    secondOffset: params.bucket.secondOffset,
-    timestamp: toIsoString(params.sample.timestampMs),
-    deltaTimeMs: roundToTenth(params.sample.deltaTimeMs),
-    updateCostMs: roundToTenth(params.sample.updateCostMs),
-    ...params.sample.tickerGapMs !== void 0 ? {
-      tickerGapMs: params.sample.tickerGapMs === null ? null : roundToTenth(params.sample.tickerGapMs)
-    } : {},
-    ...typeof params.sample.updateToRenderStartMs === "number" ? {
-      updateToRenderStartMs: roundToTenth(
-        params.sample.updateToRenderStartMs
-      )
-    } : {},
-    ...typeof params.sample.renderCostMs === "number" ? {
-      renderCostMs: roundToTenth(params.sample.renderCostMs)
-    } : {},
-    ...typeof params.sample.frameEndToEndCostMs === "number" ? {
-      frameEndToEndCostMs: roundToTenth(params.sample.frameEndToEndCostMs)
-    } : {},
-    delayCause: params.delayCause,
-    gameState: params.sample.gameState,
-    score: params.sample.score,
-    activePipePairs: params.sample.activePipePairs,
-    cloudCount: params.sample.cloudCount,
-    groundTileCount: params.sample.groundTileCount,
-    trackedPhysicsObjects: params.sample.trackedPhysicsObjects,
-    syncedDisplayObjects: params.sample.syncedDisplayObjects,
-    spawnedPipes: params.sample.spawnedPipes,
-    removedPipes: params.sample.removedPipes,
-    isAppSuspended: params.sample.isAppSuspended,
-    documentHidden: params.sample.documentHidden,
-    phaseCosts: Object.fromEntries(
-      Object.entries(params.sample.phaseCosts).map(([key, value]) => [
-        key,
-        roundToTenth(value)
-      ])
-    ),
-    pipePhaseCosts: Object.fromEntries(
-      Object.entries(params.sample.pipePhaseCosts).map(([key, value]) => [
-        key,
-        roundToTenth(value)
-      ])
-    ),
-    pipePoolStats: {
-      ...params.sample.pipePoolStats
-    },
-    metric: params.metric,
-    metricValueMs: roundToTenth(params.metricValueMs),
-    frameBudgetMs: FLAPPY_BIRD_FRAME_BUDGET_MS
-  };
-}
-class FlappyBirdPerfDiagnostics {
-  constructor(options = {}) {
-    this._historyLoaded = false;
-    this._historyLoadPromise = null;
-    this._history = {
-      version: FLAPPY_BIRD_PERF_HISTORY_VERSION,
-      sessions: []
-    };
-    this._currentSession = null;
-    this._lastCompletedSession = null;
-    this._pendingWrite = Promise.resolve();
-    this._autoFlushTimeoutId = null;
-    this._lastPersistedAtMs = 0;
-    this._enableAutoFlush = options.enableAutoFlush ?? true;
-  }
-  startSession(params) {
-    if (this._currentSession) {
-      return;
-    }
-    const startedAtMs = params.startedAtMs ?? Date.now();
-    this._currentSession = {
-      sessionId: createSessionId(),
-      startedAtMs,
-      lastUpdatedAtMs: startedAtMs,
-      screen: {
-        width: params.screenWidth,
-        height: params.screenHeight
-      },
-      scoreSummary: {
-        lastScore: 0,
-        maxScore: 0
-      },
-      summary: {
-        frameCount: 0,
-        renderTimingSampleCount: 0,
-        slowFrameCount: 0,
-        tickerGapDominantSlowFrameCount: 0,
-        renderDominantSlowFrameCount: 0,
-        updateDominantSlowFrameCount: 0,
-        mixedDominantSlowFrameCount: 0,
-        unknownDominantSlowFrameCount: 0,
-        physicsStepCount: 0,
-        bgmTickCount: 0,
-        bgmSpikeCount: 0,
-        maxDeltaTimeMs: 0,
-        maxUpdateCostMs: 0,
-        maxTickerGapMs: 0,
-        maxUpdateToRenderStartMs: 0,
-        maxRenderCostMs: 0,
-        maxFrameEndToEndCostMs: 0,
-        maxMatterUpdateCostMs: 0,
-        maxSyncDisplayCostMs: 0,
-        maxBgmScheduleCostMs: 0,
-        maxActivePipePairs: 0,
-        pipePairsCreated: 0,
-        pipePairsReused: 0,
-        pipeBodiesCreated: 0,
-        pipeBodiesReused: 0,
-        pipePoolMissCount: 0
-      },
-      secondBuckets: /* @__PURE__ */ new Map(),
-      slowFrames: [],
-      topTickerGapFrames: [],
-      topRenderFrames: [],
-      topFrameEndToEndFrames: [],
-      bgmSpikes: [],
-      completionReason: null,
-      lastPersistTrigger: null,
-      endedAtMs: null
-    };
-    this._lastPersistedAtMs = Date.now();
-    this._scheduleAutoFlush();
-  }
-  recordFrame(sample) {
-    const session = this._currentSession;
-    if (!session) {
-      return;
-    }
-    session.lastUpdatedAtMs = sample.timestampMs;
-    session.scoreSummary.lastScore = sample.score;
-    session.scoreSummary.maxScore = Math.max(
-      session.scoreSummary.maxScore,
-      sample.score
-    );
-    session.summary.frameCount += 1;
-    session.summary.maxDeltaTimeMs = Math.max(
-      session.summary.maxDeltaTimeMs,
-      sample.deltaTimeMs
-    );
-    session.summary.maxUpdateCostMs = Math.max(
-      session.summary.maxUpdateCostMs,
-      sample.updateCostMs
-    );
-    const bucket = this._getOrCreateBucket(sample.timestampMs);
-    const hasRenderTimingSample = typeof sample.updateToRenderStartMs === "number" || typeof sample.renderCostMs === "number" || typeof sample.frameEndToEndCostMs === "number" || typeof sample.tickerGapMs === "number";
-    if (hasRenderTimingSample) {
-      session.summary.renderTimingSampleCount += 1;
-      bucket.renderTimingSampleCount += 1;
-    }
-    if (typeof sample.tickerGapMs === "number") {
-      session.summary.maxTickerGapMs = Math.max(
-        session.summary.maxTickerGapMs,
-        sample.tickerGapMs
-      );
-      bucket.tickerGapSampleCount += 1;
-      bucket.totalTickerGapMs += sample.tickerGapMs;
-      bucket.maxTickerGapMs = Math.max(
-        bucket.maxTickerGapMs,
-        sample.tickerGapMs
-      );
-    }
-    if (typeof sample.updateToRenderStartMs === "number") {
-      session.summary.maxUpdateToRenderStartMs = Math.max(
-        session.summary.maxUpdateToRenderStartMs,
-        sample.updateToRenderStartMs
-      );
-      bucket.totalUpdateToRenderStartMs += sample.updateToRenderStartMs;
-      bucket.maxUpdateToRenderStartMs = Math.max(
-        bucket.maxUpdateToRenderStartMs,
-        sample.updateToRenderStartMs
-      );
-    }
-    if (typeof sample.renderCostMs === "number") {
-      session.summary.maxRenderCostMs = Math.max(
-        session.summary.maxRenderCostMs,
-        sample.renderCostMs
-      );
-      bucket.totalRenderCostMs += sample.renderCostMs;
-      bucket.maxRenderCostMs = Math.max(
-        bucket.maxRenderCostMs,
-        sample.renderCostMs
-      );
-    }
-    if (typeof sample.frameEndToEndCostMs === "number") {
-      session.summary.maxFrameEndToEndCostMs = Math.max(
-        session.summary.maxFrameEndToEndCostMs,
-        sample.frameEndToEndCostMs
-      );
-      bucket.totalFrameEndToEndCostMs += sample.frameEndToEndCostMs;
-      bucket.maxFrameEndToEndCostMs = Math.max(
-        bucket.maxFrameEndToEndCostMs,
-        sample.frameEndToEndCostMs
-      );
-    }
-    session.summary.maxActivePipePairs = Math.max(
-      session.summary.maxActivePipePairs,
-      sample.activePipePairs
-    );
-    session.summary.pipePairsCreated += sample.pipePoolStats.pairCreated;
-    session.summary.pipePairsReused += sample.pipePoolStats.pairReused;
-    session.summary.pipeBodiesCreated += sample.pipePoolStats.bodyCreated;
-    session.summary.pipeBodiesReused += sample.pipePoolStats.bodyReused;
-    session.summary.pipePoolMissCount += sample.pipePoolStats.poolMissCount;
-    bucket.frameCount += 1;
-    bucket.totalDeltaTimeMs += sample.deltaTimeMs;
-    bucket.maxDeltaTimeMs = Math.max(bucket.maxDeltaTimeMs, sample.deltaTimeMs);
-    bucket.totalUpdateCostMs += sample.updateCostMs;
-    bucket.maxUpdateCostMs = Math.max(
-      bucket.maxUpdateCostMs,
-      sample.updateCostMs
-    );
-    bucket.totalActivePipePairs += sample.activePipePairs;
-    bucket.maxActivePipePairs = Math.max(
-      bucket.maxActivePipePairs,
-      sample.activePipePairs
-    );
-    bucket.totalCloudCount += sample.cloudCount;
-    bucket.maxCloudCount = Math.max(bucket.maxCloudCount, sample.cloudCount);
-    bucket.totalGroundTileCount += sample.groundTileCount;
-    bucket.maxGroundTileCount = Math.max(
-      bucket.maxGroundTileCount,
-      sample.groundTileCount
-    );
-    bucket.totalSpawnedPipes += sample.spawnedPipes;
-    bucket.totalRemovedPipes += sample.removedPipes;
-    bucket.totalPipePairsCreated += sample.pipePoolStats.pairCreated;
-    bucket.totalPipePairsReused += sample.pipePoolStats.pairReused;
-    bucket.totalPipeBodiesCreated += sample.pipePoolStats.bodyCreated;
-    bucket.totalPipeBodiesReused += sample.pipePoolStats.bodyReused;
-    bucket.totalPipePoolMissCount += sample.pipePoolStats.poolMissCount;
-    bucket.statesSeen.add(sample.gameState);
-    const delayCause = resolveFrameDelayCause(sample);
-    if (typeof sample.tickerGapMs === "number") {
-      session.topTickerGapFrames = pushTopSpikeEvent(
-        session.topTickerGapFrames,
-        createPerfSpikeEvent({
-          metric: "tickerGapMs",
-          metricValueMs: sample.tickerGapMs,
-          delayCause,
-          bucket,
-          sample
-        })
-      );
-    }
-    if (typeof sample.renderCostMs === "number") {
-      session.topRenderFrames = pushTopSpikeEvent(
-        session.topRenderFrames,
-        createPerfSpikeEvent({
-          metric: "renderCostMs",
-          metricValueMs: sample.renderCostMs,
-          delayCause,
-          bucket,
-          sample
-        })
-      );
-    }
-    if (typeof sample.frameEndToEndCostMs === "number") {
-      session.topFrameEndToEndFrames = pushTopSpikeEvent(
-        session.topFrameEndToEndFrames,
-        createPerfSpikeEvent({
-          metric: "frameEndToEndCostMs",
-          metricValueMs: sample.frameEndToEndCostMs,
-          delayCause,
-          bucket,
-          sample
-        })
-      );
-    }
-    if (this._isSlowFrame(sample)) {
-      bucket.slowFrameCount += 1;
-      session.summary.slowFrameCount += 1;
-      switch (delayCause) {
-        case "ticker_gap":
-          session.summary.tickerGapDominantSlowFrameCount += 1;
-          break;
-        case "render":
-          session.summary.renderDominantSlowFrameCount += 1;
-          break;
-        case "update":
-          session.summary.updateDominantSlowFrameCount += 1;
-          break;
-        case "mixed":
-          session.summary.mixedDominantSlowFrameCount += 1;
-          break;
-        default:
-          session.summary.unknownDominantSlowFrameCount += 1;
-          break;
-      }
-      session.slowFrames.push({
-        secondOffset: bucket.secondOffset,
-        timestamp: toIsoString(sample.timestampMs),
-        deltaTimeMs: roundToTenth(sample.deltaTimeMs),
-        updateCostMs: roundToTenth(sample.updateCostMs),
-        ...sample.tickerGapMs !== void 0 ? {
-          tickerGapMs: sample.tickerGapMs === null ? null : roundToTenth(sample.tickerGapMs)
-        } : {},
-        ...typeof sample.updateToRenderStartMs === "number" ? {
-          updateToRenderStartMs: roundToTenth(
-            sample.updateToRenderStartMs
-          )
-        } : {},
-        ...typeof sample.renderCostMs === "number" ? {
-          renderCostMs: roundToTenth(sample.renderCostMs)
-        } : {},
-        ...typeof sample.frameEndToEndCostMs === "number" ? {
-          frameEndToEndCostMs: roundToTenth(
-            sample.frameEndToEndCostMs
-          )
-        } : {},
-        delayCause,
-        gameState: sample.gameState,
-        score: sample.score,
-        activePipePairs: sample.activePipePairs,
-        cloudCount: sample.cloudCount,
-        groundTileCount: sample.groundTileCount,
-        trackedPhysicsObjects: sample.trackedPhysicsObjects,
-        syncedDisplayObjects: sample.syncedDisplayObjects,
-        spawnedPipes: sample.spawnedPipes,
-        removedPipes: sample.removedPipes,
-        isAppSuspended: sample.isAppSuspended,
-        documentHidden: sample.documentHidden,
-        phaseCosts: Object.fromEntries(
-          Object.entries(sample.phaseCosts).map(([key, value]) => [
-            key,
-            roundToTenth(value)
-          ])
-        ),
-        pipePhaseCosts: Object.fromEntries(
-          Object.entries(sample.pipePhaseCosts).map(([key, value]) => [
-            key,
-            roundToTenth(value)
-          ])
-        ),
-        pipePoolStats: {
-          ...sample.pipePoolStats
-        }
-      });
-      session.slowFrames = session.slowFrames.slice(
-        -20
-      );
-    }
-    this._scheduleAutoFlush();
-  }
-  recordPhysicsStep(sample) {
-    const session = this._currentSession;
-    if (!session) {
-      return;
-    }
-    session.lastUpdatedAtMs = sample.timestampMs;
-    session.summary.physicsStepCount += 1;
-    session.summary.maxMatterUpdateCostMs = Math.max(
-      session.summary.maxMatterUpdateCostMs,
-      sample.engineUpdateCostMs
-    );
-    session.summary.maxSyncDisplayCostMs = Math.max(
-      session.summary.maxSyncDisplayCostMs,
-      sample.syncDisplayCostMs
-    );
-    const bucket = this._getOrCreateBucket(sample.timestampMs);
-    bucket.physicsStepCount += 1;
-    bucket.totalPhysicsUpdateCostMs += sample.engineUpdateCostMs;
-    bucket.maxPhysicsUpdateCostMs = Math.max(
-      bucket.maxPhysicsUpdateCostMs,
-      sample.engineUpdateCostMs
-    );
-    bucket.totalSyncDisplayCostMs += sample.syncDisplayCostMs;
-    bucket.maxSyncDisplayCostMs = Math.max(
-      bucket.maxSyncDisplayCostMs,
-      sample.syncDisplayCostMs
-    );
-    this._scheduleAutoFlush();
-  }
-  recordBgmScheduleTick(sample) {
-    const session = this._currentSession;
-    if (!session) {
-      return;
-    }
-    session.lastUpdatedAtMs = sample.timestampMs;
-    session.summary.bgmTickCount += 1;
-    session.summary.maxBgmScheduleCostMs = Math.max(
-      session.summary.maxBgmScheduleCostMs,
-      sample.durationMs
-    );
-    const bucket = this._getOrCreateBucket(sample.timestampMs);
-    bucket.bgmTickCount += 1;
-    bucket.totalBgmScheduleCostMs += sample.durationMs;
-    bucket.maxBgmScheduleCostMs = Math.max(
-      bucket.maxBgmScheduleCostMs,
-      sample.durationMs
-    );
-    bucket.maxBgmScheduledVoices = Math.max(
-      bucket.maxBgmScheduledVoices,
-      sample.scheduledVoices
-    );
-    if (sample.durationMs >= FLAPPY_BIRD_BGM_SCHEDULER_SPIKE_THRESHOLD_MS) {
-      session.summary.bgmSpikeCount += 1;
-      session.bgmSpikes.push({
-        secondOffset: bucket.secondOffset,
-        timestamp: toIsoString(sample.timestampMs),
-        durationMs: roundToTenth(sample.durationMs),
-        scheduledSteps: sample.scheduledSteps,
-        scheduledVoices: sample.scheduledVoices
-      });
-      session.bgmSpikes = session.bgmSpikes.slice(
-        -10
-      );
-    }
-    this._scheduleAutoFlush();
-  }
-  flushPartial(trigger) {
-    return this._persistCurrentSession(trigger, false);
-  }
-  finalizeSession(trigger) {
-    return this._persistCurrentSession(trigger, true);
-  }
-  async shutdown() {
-    this._clearAutoFlushTimer();
-    if (!this._currentSession) {
-      return;
-    }
-    await this.finalizeSession("scene_destroy");
-  }
-  getSnapshot() {
-    return {
-      storageKey: FLAPPY_BIRD_PERF_DIAGNOSTICS_STORAGE_KEY,
-      maxRetainedSessions: FLAPPY_BIRD_PERF_MAX_RETAINED_SESSIONS,
-      activeSession: this._currentSession ? this._createSessionSnapshot(this._currentSession) : null,
-      lastCompletedSession: this._lastCompletedSession
-    };
-  }
-  _isSlowFrame(sample) {
-    return sample.deltaTimeMs >= FLAPPY_BIRD_SLOW_FRAME_DELTA_THRESHOLD_MS$1 || sample.updateCostMs >= FLAPPY_BIRD_SLOW_FRAME_UPDATE_COST_THRESHOLD_MS$1;
-  }
-  _getOrCreateBucket(timestampMs) {
-    const session = this._currentSession;
-    if (!session) {
-      throw new Error("FlappyBirdPerfDiagnostics session is not active");
-    }
-    const secondOffset = Math.max(
-      0,
-      Math.floor((timestampMs - session.startedAtMs) / 1e3)
-    );
-    const existingBucket = session.secondBuckets.get(secondOffset);
-    if (existingBucket) {
-      return existingBucket;
-    }
-    const nextBucket = createSecondBucket(secondOffset);
-    session.secondBuckets.set(secondOffset, nextBucket);
-    while (session.secondBuckets.size > FLAPPY_BIRD_PERF_MAX_SECOND_BUCKETS) {
-      const oldestKey = session.secondBuckets.keys().next().value;
-      if (typeof oldestKey !== "number") {
-        break;
-      }
-      session.secondBuckets.delete(oldestKey);
-    }
-    return nextBucket;
-  }
-  _createSessionSnapshot(session) {
-    const secondBuckets = [...session.secondBuckets.values()].sort((a2, b2) => a2.secondOffset - b2.secondOffset).map(toSnapshotBucket);
-    return {
-      version: FLAPPY_BIRD_PERF_HISTORY_VERSION,
-      sessionId: session.sessionId,
-      startedAt: toIsoString(session.startedAtMs),
-      startedAtMs: session.startedAtMs,
-      lastUpdatedAt: toIsoString(session.lastUpdatedAtMs),
-      lastUpdatedAtMs: session.lastUpdatedAtMs,
-      endedAt: session.endedAtMs === null ? null : toIsoString(session.endedAtMs),
-      endedAtMs: session.endedAtMs,
-      isCompleted: session.endedAtMs !== null,
-      completionReason: session.completionReason,
-      lastPersistTrigger: session.lastPersistTrigger,
-      screen: { ...session.screen },
-      scoreSummary: { ...session.scoreSummary },
-      summary: {
-        frameCount: session.summary.frameCount,
-        renderTimingSampleCount: session.summary.renderTimingSampleCount,
-        slowFrameCount: session.summary.slowFrameCount,
-        tickerGapDominantSlowFrameCount: session.summary.tickerGapDominantSlowFrameCount,
-        renderDominantSlowFrameCount: session.summary.renderDominantSlowFrameCount,
-        updateDominantSlowFrameCount: session.summary.updateDominantSlowFrameCount,
-        mixedDominantSlowFrameCount: session.summary.mixedDominantSlowFrameCount,
-        unknownDominantSlowFrameCount: session.summary.unknownDominantSlowFrameCount,
-        physicsStepCount: session.summary.physicsStepCount,
-        bgmTickCount: session.summary.bgmTickCount,
-        bgmSpikeCount: session.summary.bgmSpikeCount,
-        maxDeltaTimeMs: roundToTenth(session.summary.maxDeltaTimeMs),
-        maxUpdateCostMs: roundToTenth(session.summary.maxUpdateCostMs),
-        maxTickerGapMs: roundToTenth(session.summary.maxTickerGapMs),
-        maxUpdateToRenderStartMs: roundToTenth(
-          session.summary.maxUpdateToRenderStartMs
-        ),
-        maxRenderCostMs: roundToTenth(session.summary.maxRenderCostMs),
-        maxFrameEndToEndCostMs: roundToTenth(
-          session.summary.maxFrameEndToEndCostMs
-        ),
-        maxMatterUpdateCostMs: roundToTenth(
-          session.summary.maxMatterUpdateCostMs
-        ),
-        maxSyncDisplayCostMs: roundToTenth(
-          session.summary.maxSyncDisplayCostMs
-        ),
-        maxBgmScheduleCostMs: roundToTenth(
-          session.summary.maxBgmScheduleCostMs
-        ),
-        maxActivePipePairs: session.summary.maxActivePipePairs,
-        pipePairsCreated: session.summary.pipePairsCreated,
-        pipePairsReused: session.summary.pipePairsReused,
-        pipeBodiesCreated: session.summary.pipeBodiesCreated,
-        pipeBodiesReused: session.summary.pipeBodiesReused,
-        pipePoolMissCount: session.summary.pipePoolMissCount
-      },
-      secondBuckets,
-      slowFrames: [...session.slowFrames],
-      topTickerGapFrames: [...session.topTickerGapFrames],
-      topRenderFrames: [...session.topRenderFrames],
-      topFrameEndToEndFrames: [...session.topFrameEndToEndFrames],
-      bgmSpikes: [...session.bgmSpikes]
-    };
-  }
-  _scheduleAutoFlush() {
-    if (!this._enableAutoFlush || !this._currentSession || this._autoFlushTimeoutId !== null) {
-      return;
-    }
-    const elapsedSinceLastPersist = Date.now() - this._lastPersistedAtMs;
-    if (elapsedSinceLastPersist < FLAPPY_BIRD_PERF_AUTO_FLUSH_INTERVAL_MS) {
-      return;
-    }
-    this._autoFlushTimeoutId = setTimeout(() => {
-      this._autoFlushTimeoutId = null;
-      void this.flushPartial("periodic");
-    }, 0);
-  }
-  _clearAutoFlushTimer() {
-    if (this._autoFlushTimeoutId === null) {
-      return;
-    }
-    clearTimeout(this._autoFlushTimeoutId);
-    this._autoFlushTimeoutId = null;
-  }
-  async _persistCurrentSession(trigger, finalize) {
-    const session = this._currentSession;
-    if (!session) {
-      return;
-    }
-    this._clearAutoFlushTimer();
-    session.lastPersistTrigger = trigger;
-    if (finalize) {
-      const endedAtMs = Date.now();
-      session.lastUpdatedAtMs = Math.max(session.lastUpdatedAtMs, endedAtMs);
-      session.endedAtMs = endedAtMs;
-      session.completionReason = trigger;
-    }
-    const snapshot = this._createSessionSnapshot(session);
-    await this._enqueueWrite(async () => {
-      await this._ensureHistoryLoaded();
-      const sessions = this._history.sessions.filter(
-        (candidate) => candidate.sessionId !== snapshot.sessionId
-      );
-      sessions.push(snapshot);
-      this._history = {
-        version: FLAPPY_BIRD_PERF_HISTORY_VERSION,
-        sessions: clampSessions(sessions)
-      };
-      await StorageManager.setData(
-        FLAPPY_BIRD_PERF_DIAGNOSTICS_STORAGE_KEY,
-        this._history
-      );
-      this._lastPersistedAtMs = Date.now();
-    });
-    if (finalize) {
-      this._lastCompletedSession = snapshot;
-      this._currentSession = null;
-    }
-  }
-  _enqueueWrite(operation) {
-    const nextWrite = this._pendingWrite.catch(() => void 0).then(operation);
-    this._pendingWrite = nextWrite.catch(() => void 0);
-    return nextWrite;
-  }
-  async _ensureHistoryLoaded() {
-    if (this._historyLoaded) {
-      return;
-    }
-    if (this._historyLoadPromise) {
-      await this._historyLoadPromise;
-      return;
-    }
-    this._historyLoadPromise = (async () => {
-      try {
-        const storedHistory = await StorageManager.getData(
-          FLAPPY_BIRD_PERF_DIAGNOSTICS_STORAGE_KEY
-        );
-        this._history = normalizeHistory(storedHistory);
-      } catch {
-        this._history = {
-          version: FLAPPY_BIRD_PERF_HISTORY_VERSION,
-          sessions: []
-        };
-      } finally {
-        this._historyLoaded = true;
-        this._historyLoadPromise = null;
-      }
-    })();
-    await this._historyLoadPromise;
-  }
 }
 const CONTROL_BUTTONS_SET = {
   [
@@ -49467,27 +49222,13 @@ const FLAPPY_BIRD_BGM_MIDGAME_TEMPO_MULTIPLIER = 1.08;
 const FLAPPY_BIRD_BGM_ENDGAME_TEMPO_MULTIPLIER = 1.14;
 const FLAPPY_BIRD_BGM_MAX_TEMPO_MULTIPLIER = 1.16;
 const FLAPPY_BIRD_SKY_SYNC_INTERVAL_MS = 1e3;
-const FLAPPY_BIRD_SLOW_FRAME_DELTA_THRESHOLD_MS = 20;
-const FLAPPY_BIRD_SLOW_FRAME_UPDATE_COST_THRESHOLD_MS = 8;
-const FLAPPY_BIRD_TARGET_FRAME_BUDGET_MS = 16.7;
-const FLAPPY_BIRD_FIXED_TIMESTEP_MS = 1e3 / 60;
 const FLAPPY_BIRD_MAX_SIMULATION_DELTA_MS = 1e3 / 30;
-const FLAPPY_BIRD_MAX_SIMULATION_SUBSTEPS = 2;
-const FLAPPY_BIRD_SLOW_FRAME_LOG_COOLDOWN_MS = 400;
 const FLAPPY_BIRD_PIPE_PREWARM_PAIR_COUNT = 2;
 const FLAPPY_BIRD_INIT_ASSET_LOAD_TIMEOUT_MS = 8e3;
 const FLAPPY_BIRD_INIT_SKY_CONTEXT_TIMEOUT_MS = 4e3;
 const FLAPPY_BIRD_INIT_BEST_SCORE_TIMEOUT_MS = 4e3;
 function getPerfNow() {
   return typeof performance !== "undefined" ? performance.now() : Date.now();
-}
-function roundPhaseCostEntries(phaseCosts) {
-  return Object.fromEntries(
-    Object.entries(phaseCosts).map(([key, value]) => [
-      key,
-      Math.round(value * 100) / 100
-    ])
-  );
 }
 function summarizeInitError(error) {
   if (error instanceof Error) {
@@ -49524,42 +49265,18 @@ class FlappyBirdGameScene extends Container {
     this.nextSkySyncAtMs = 0;
     this.isReturningToMain = false;
     this.isSettingsMenuOpen = false;
-    this.lastSlowFrameLogAtMs = 0;
-    this.simulationAccumulatorMs = 0;
     this.gameOverVibrationTimeoutIds = [];
     this.pausedStateBeforePause = null;
     this.isAppSuspended = false;
-    this.pendingFrameDiagnosticsSample = null;
     this.game = game;
+    this.locale = game.getLocale();
     this.boundHandleKeyDown = this.handleKeyDown.bind(this);
     this.boundVisibilityChangeHandler = this.handleVisibilityChange.bind(this);
-    this.perfDiagnostics = new FlappyBirdPerfDiagnostics({
-      enableAutoFlush: false
-    });
-    this.bgmController = new FlappyBirdBgmController({
-      onScheduleTick: (sample) => {
-        var _a;
-        (_a = this.perfDiagnostics) == null ? void 0 : _a.recordBgmScheduleTick(sample);
-      }
-    });
+    this.bgmController = new FlappyBirdBgmController();
     this.gameEngine = new GameEngine(
       this.game.app.screen.width,
       this.game.app.screen.height,
-      FLAPPY_BIRD_GRAVITY_Y,
-      {
-        onPhysicsStep: (sample) => {
-          var _a;
-          (_a = this.perfDiagnostics) == null ? void 0 : _a.recordPhysicsStep({
-            timestampMs: sample.timestampMs,
-            deltaMs: sample.deltaMs,
-            engineUpdateCostMs: sample.engineUpdateCostMs,
-            syncDisplayCostMs: sample.syncDisplayCostMs,
-            totalCostMs: sample.totalCostMs,
-            trackedPhysicsObjects: sample.trackedObjectCount,
-            syncedDisplayObjects: sample.syncedDisplayObjectCount
-          });
-        }
-      }
+      FLAPPY_BIRD_GRAVITY_Y
     );
     this.createBackground();
     this.physicsManager = new PhysicsManager(this.gameEngine);
@@ -49651,23 +49368,14 @@ class FlappyBirdGameScene extends Container {
       this.game.app,
       this.gameOptions.pipeSpeed
     );
-    this.scoreUI = new ScoreUI(bestScore);
-    this.nearMissUI = new NearMissUI();
+    this.scoreUI = new ScoreUI(bestScore, this.locale);
+    this.nearMissUI = new NearMissUI(this.locale);
     this.countdownUI = new CountdownUI();
     logInitPhase("setup_scene_start");
     this.setupScene();
     logInitPhase("setup_scene_end");
     logInitPhase("init_done");
     return this;
-  }
-  getPerfDiagnosticsSnapshot() {
-    var _a;
-    return ((_a = this.perfDiagnostics) == null ? void 0 : _a.getSnapshot()) ?? {
-      storageKey: "FlappyBirdPerfDiagnosticsV1",
-      maxRetainedSessions: 3,
-      activeSession: null,
-      lastCompletedSession: null
-    };
   }
   /**
    * 배경을 생성합니다.
@@ -49679,12 +49387,6 @@ class FlappyBirdGameScene extends Container {
       this.game.app.screen.height
     );
   }
-  measurePhase(phaseCosts, phaseKey, work) {
-    const startedAt = getPerfNow();
-    const result = work();
-    phaseCosts[phaseKey] = (phaseCosts[phaseKey] ?? 0) + (getPerfNow() - startedAt);
-    return result;
-  }
   clampSimulationDelta(deltaTime) {
     if (!Number.isFinite(deltaTime)) {
       return 0;
@@ -49694,74 +49396,18 @@ class FlappyBirdGameScene extends Container {
       Math.max(0, deltaTime)
     );
   }
-  queueSimulationDelta(deltaTime) {
-    this.simulationAccumulatorMs = Math.min(
-      this.simulationAccumulatorMs + this.clampSimulationDelta(deltaTime),
-      FLAPPY_BIRD_FIXED_TIMESTEP_MS * (FLAPPY_BIRD_MAX_SIMULATION_SUBSTEPS + 1)
-    );
-  }
-  trimSimulationAccumulator(substeps) {
-    if (substeps === FLAPPY_BIRD_MAX_SIMULATION_SUBSTEPS && this.simulationAccumulatorMs >= FLAPPY_BIRD_FIXED_TIMESTEP_MS) {
-      this.simulationAccumulatorMs = Math.min(
-        this.simulationAccumulatorMs,
-        FLAPPY_BIRD_FIXED_TIMESTEP_MS
-      );
-    }
-  }
-  resetSimulationAccumulator() {
-    this.simulationAccumulatorMs = 0;
-  }
-  recordFrameDiagnostics(params) {
-    this.flushPendingFrameDiagnostics();
-    this.pendingFrameDiagnosticsSample = {
-      timestampMs: params.timestampMs,
-      deltaTimeMs: params.deltaTime,
-      updateCostMs: getPerfNow() - params.updateStartedAtMs,
-      gameState: GameState[this.gameState],
-      score: this.scoreUI.getScore(),
-      activePipePairs: this.pipeManager.getActivePairCount(),
-      trackedPhysicsObjects: this.physicsManager.getTrackedObjectCount(),
-      syncedDisplayObjects: this.physicsManager.getTrackedDisplaySyncCount(),
-      cloudCount: this.cloudManager.getCloudCount(),
-      groundTileCount: this.groundManager.getTileCount(),
-      spawnedPipes: params.pipeUpdateStats.spawned,
-      removedPipes: params.pipeUpdateStats.removed,
-      isAppSuspended: this.isAppSuspended,
-      documentHidden: typeof document !== "undefined" ? document.hidden : false,
-      phaseCosts: roundPhaseCostEntries(
-        params.phaseCosts
-      ),
-      pipePhaseCosts: roundPhaseCostEntries(
-        params.pipeUpdateStats.phaseCosts
-      ),
-      pipePoolStats: {
-        ...params.pipeUpdateStats.poolStats
-      }
-    };
-  }
-  onFrameRenderTiming(sample) {
-    this.flushPendingFrameDiagnostics(sample);
-  }
-  flushPendingFrameDiagnostics(renderTiming) {
-    var _a;
-    const pendingFrameSample = this.pendingFrameDiagnosticsSample;
-    if (!pendingFrameSample) {
-      return;
-    }
-    const frameSample = renderTiming ? {
-      ...pendingFrameSample,
-      tickerGapMs: renderTiming.tickerGapMs,
-      updateToRenderStartMs: renderTiming.updateToRenderStartMs,
-      renderCostMs: renderTiming.renderCostMs,
-      frameEndToEndCostMs: renderTiming.frameEndToEndCostMs
-    } : pendingFrameSample;
-    this.pendingFrameDiagnosticsSample = null;
-    (_a = this.perfDiagnostics) == null ? void 0 : _a.recordFrame(frameSample);
-    this.maybeLogSlowFrame(frameSample);
-  }
   /**
    * 씬을 설정합니다.
    */
+  onLocaleChange(locale) {
+    var _a, _b;
+    this.locale = locale;
+    (_a = this.scoreUI) == null ? void 0 : _a.setLocale(locale);
+    (_b = this.nearMissUI) == null ? void 0 : _b.setLocale(locale);
+    if (this.isSettingsMenuOpen) {
+      this.showSettingsMenu();
+    }
+  }
   setupScene() {
     try {
       const logInitPhase = (phase, payload = {}) => {
@@ -49837,11 +49483,11 @@ class FlappyBirdGameScene extends Container {
     this.physicsManager.setupCollisionListener((bodyA, bodyB) => {
       let collisionTarget = null;
       if (bodyA.label === "basket") {
-        if (bodyB.label === "ground" || bodyB.label === "pipe") {
+        if (bodyB.label === "pipe") {
           collisionTarget = bodyB.label;
         }
       } else if (bodyB.label === "basket") {
-        if (bodyA.label === "ground" || bodyA.label === "pipe") {
+        if (bodyA.label === "pipe") {
           collisionTarget = bodyA.label;
         }
       }
@@ -49876,16 +49522,13 @@ class FlappyBirdGameScene extends Container {
         this.restartGame();
       }
     }
-    if (event.code === "KeyD" && true) {
-      this.physicsManager.toggleDebugMode(this.game.app);
-    }
+    if (event.code === "KeyD" && false) ;
   }
   /**
    * 게임을 시작합니다.
    */
   startGame() {
     var _a, _b;
-    this.resetSimulationAccumulator();
     this.clearGameOverVibrationPattern();
     this.pausedStateBeforePause = null;
     this.isAppSuspended = false;
@@ -49906,17 +49549,12 @@ class FlappyBirdGameScene extends Container {
     void this.bgmController.resumeIfAvailable();
   }
   beginStartCountdown() {
-    var _a, _b, _c;
-    this.resetSimulationAccumulator();
-    (_a = this.perfDiagnostics) == null ? void 0 : _a.startSession({
-      screenWidth: this.game.app.screen.width,
-      screenHeight: this.game.app.screen.height
-    });
+    var _a, _b;
     this.clearGameOverVibrationPattern();
     this.pausedStateBeforePause = null;
     this.isAppSuspended = false;
     this.gameState = GameState.COUNTDOWN;
-    (_c = (_b = this.game).hideFlappyBirdGameOver) == null ? void 0 : _c.call(_b);
+    (_b = (_a = this.game).hideFlappyBirdGameOver) == null ? void 0 : _b.call(_a);
     this.hideSettingsMenu();
     this.game.changeControlButtons(
       CONTROL_BUTTONS_SET[
@@ -49961,7 +49599,6 @@ class FlappyBirdGameScene extends Container {
     if (this.gameState !== GameState.PAUSED) {
       return;
     }
-    this.resetSimulationAccumulator();
     const resumeState = this.pausedStateBeforePause ?? GameState.PLAYING;
     this.pausedStateBeforePause = null;
     this.isAppSuspended = false;
@@ -49982,7 +49619,6 @@ class FlappyBirdGameScene extends Container {
     void this.bgmController.resumeIfAvailable();
   }
   enterPausedState(resumeState, options = {}) {
-    this.resetSimulationAccumulator();
     this.pausedStateBeforePause = resumeState;
     this.isAppSuspended = options.appSuspend ?? false;
     this.gameState = GameState.PAUSED;
@@ -50003,7 +49639,6 @@ class FlappyBirdGameScene extends Container {
     this.handleDocumentVisible();
   }
   handleDocumentHidden() {
-    var _a;
     if (this.isReturningToMain || this.isAppSuspended) {
       return;
     }
@@ -50011,8 +49646,6 @@ class FlappyBirdGameScene extends Container {
       return;
     }
     this.enterPausedState(this.gameState, { appSuspend: true });
-    this.flushPendingFrameDiagnostics();
-    void ((_a = this.perfDiagnostics) == null ? void 0 : _a.flushPartial("app_hidden"));
   }
   handleDocumentVisible() {
     if (!this.isAppSuspended || this.isReturningToMain || this.gameState !== GameState.PAUSED) {
@@ -50130,7 +49763,9 @@ class FlappyBirdGameScene extends Container {
     this.pipeManager.applyDifficulty(difficulty);
     this.groundManager.setSpeed(difficulty.pipeSpeed);
     this.cloudManager.setSpeed(difficulty.pipeSpeed);
-    this.bgmController.setTempoMultiplier(this.resolveBgmTempoMultiplier(score));
+    this.bgmController.setTempoMultiplier(
+      this.resolveBgmTempoMultiplier(score)
+    );
   }
   resolveBgmTempoMultiplier(score) {
     if (score <= FLAPPY_BIRD_TUTORIAL_SCORE_LIMIT) {
@@ -50192,12 +49827,11 @@ class FlappyBirdGameScene extends Container {
    * 게임 오버 처리 메서드
    */
   handleGameOver(collisionTarget = null) {
-    var _a, _b, _c;
+    var _a, _b;
     if (this.gameState !== GameState.PLAYING) {
       return;
     }
     const preservedBirdPosition = collisionTarget === "ground" ? this.playerManager.getLastStableBirdPositionSnapshot() : null;
-    this.resetSimulationAccumulator();
     this.pausedStateBeforePause = null;
     this.isAppSuspended = false;
     this.gameState = GameState.GAME_OVER;
@@ -50217,9 +49851,7 @@ class FlappyBirdGameScene extends Container {
     }
     this.bgmController.pause();
     this.triggerGameOverVibrationPattern();
-    this.flushPendingFrameDiagnostics();
-    void ((_a = this.perfDiagnostics) == null ? void 0 : _a.finalizeSession("game_over"));
-    (_c = (_b = this.game).showFlappyBirdGameOver) == null ? void 0 : _c.call(_b, {
+    (_b = (_a = this.game).showFlappyBirdGameOver) == null ? void 0 : _b.call(_a, {
       score: this.scoreUI.getScore(),
       bestScore: this.scoreUI.getBestScore(),
       onRestart: () => {
@@ -50233,7 +49865,6 @@ class FlappyBirdGameScene extends Container {
    */
   restartGame() {
     var _a, _b;
-    this.resetSimulationAccumulator();
     this.clearGameOverVibrationPattern();
     (_b = (_a = this.game).hideFlappyBirdGameOver) == null ? void 0 : _b.call(_a);
     this.hideSettingsMenu();
@@ -50256,7 +49887,7 @@ class FlappyBirdGameScene extends Container {
     this.beginStartCountdown();
   }
   async returnToMainScene() {
-    var _a, _b, _c;
+    var _a, _b;
     if (this.isReturningToMain) {
       return;
     }
@@ -50265,8 +49896,6 @@ class FlappyBirdGameScene extends Container {
       this.clearGameOverVibrationPattern();
       (_b = (_a = this.game).hideFlappyBirdGameOver) == null ? void 0 : _b.call(_a);
       this.hideSettingsMenu();
-      this.flushPendingFrameDiagnostics();
-      await ((_c = this.perfDiagnostics) == null ? void 0 : _c.finalizeSession("return_to_main"));
       await this.game.changeScene(SceneKey.MAIN);
     } finally {
       this.isReturningToMain = false;
@@ -50317,137 +49946,58 @@ class FlappyBirdGameScene extends Container {
    */
   update(deltaTime) {
     if (!this.initialized) return;
-    const updateStartedAtMs = getPerfNow();
     const currentTime = Date.now();
-    let pipeUpdateStats = {
-      spawned: 0,
-      removed: 0,
-      phaseCosts: {},
-      poolStats: {
-        pairCreated: 0,
-        pairReused: 0,
-        bodyCreated: 0,
-        bodyReused: 0,
-        poolMissCount: 0
-      }
-    };
-    const phaseCosts = {};
-    this.measurePhase(phaseCosts, "syncSkyState", () => {
-      this.syncSkyState(currentTime);
-    });
+    this.syncSkyState(currentTime);
     if (this.isAppSuspended) {
       return;
     }
-    this.queueSimulationDelta(deltaTime);
-    let simulationSubsteps = 0;
+    const simulationDeltaTime = this.clampSimulationDelta(deltaTime);
     if (this.gameState === GameState.COUNTDOWN) {
-      while (this.simulationAccumulatorMs >= FLAPPY_BIRD_FIXED_TIMESTEP_MS && simulationSubsteps < FLAPPY_BIRD_MAX_SIMULATION_SUBSTEPS && this.gameState === GameState.COUNTDOWN) {
-        this.measurePhase(phaseCosts, "nearMissUI", () => {
-          this.nearMissUI.update(FLAPPY_BIRD_FIXED_TIMESTEP_MS);
-        });
-        this.measurePhase(phaseCosts, "playerUpdate", () => {
-          this.playerManager.update();
-        });
+      if (simulationDeltaTime > 0) {
+        this.nearMissUI.update(simulationDeltaTime);
+        this.playerManager.update();
         const previousDisplayValue = this.countdownUI.getCurrentDisplayValue();
-        const hasCountdownFinished = this.measurePhase(
-          phaseCosts,
-          "countdownUpdate",
-          () => this.countdownUI.update(FLAPPY_BIRD_FIXED_TIMESTEP_MS)
-        );
+        const hasCountdownFinished = this.countdownUI.update(simulationDeltaTime);
         const currentDisplayValue = this.countdownUI.getCurrentDisplayValue();
         if (!hasCountdownFinished && currentDisplayValue > 0 && currentDisplayValue !== previousDisplayValue) {
           void this.bgmController.playCountdownCue(currentDisplayValue);
         }
-        this.simulationAccumulatorMs -= FLAPPY_BIRD_FIXED_TIMESTEP_MS;
-        simulationSubsteps += 1;
         if (hasCountdownFinished) {
           this.startGame();
         }
       }
-      this.trimSimulationAccumulator(simulationSubsteps);
-      this.recordFrameDiagnostics({
-        timestampMs: currentTime,
-        deltaTime,
-        updateStartedAtMs,
-        phaseCosts,
-        pipeUpdateStats
-      });
       return;
     }
     if (this.gameState === GameState.PLAYING) {
-      while (this.simulationAccumulatorMs >= FLAPPY_BIRD_FIXED_TIMESTEP_MS && simulationSubsteps < FLAPPY_BIRD_MAX_SIMULATION_SUBSTEPS && this.gameState === GameState.PLAYING) {
-        this.measurePhase(phaseCosts, "nearMissUI", () => {
-          this.nearMissUI.update(FLAPPY_BIRD_FIXED_TIMESTEP_MS);
-        });
-        this.measurePhase(phaseCosts, "playerUpdate", () => {
-          this.playerManager.update();
-        });
-        this.measurePhase(phaseCosts, "cloudUpdate", () => {
-          this.cloudManager.update(FLAPPY_BIRD_FIXED_TIMESTEP_MS);
-        });
-        this.measurePhase(phaseCosts, "collisionCheck", () => {
-          this.playerManager.checkCollisions();
-        });
-        const stepPipeUpdateStats = this.measurePhase(
-          phaseCosts,
-          "pipeUpdate",
-          () => this.pipeManager.update(
-            this.playerManager.getBasketBody(),
-            (scoreDelta) => this.handleScoreIncrement(scoreDelta),
-            FLAPPY_BIRD_FIXED_TIMESTEP_MS,
-            () => this.handleGameOver()
-          )
-        );
-        pipeUpdateStats.spawned += stepPipeUpdateStats.spawned;
-        pipeUpdateStats.removed += stepPipeUpdateStats.removed;
-        pipeUpdateStats.poolStats.pairCreated += stepPipeUpdateStats.poolStats.pairCreated;
-        pipeUpdateStats.poolStats.pairReused += stepPipeUpdateStats.poolStats.pairReused;
-        pipeUpdateStats.poolStats.bodyCreated += stepPipeUpdateStats.poolStats.bodyCreated;
-        pipeUpdateStats.poolStats.bodyReused += stepPipeUpdateStats.poolStats.bodyReused;
-        pipeUpdateStats.poolStats.poolMissCount += stepPipeUpdateStats.poolStats.poolMissCount;
-        for (const [phaseKey, phaseCost] of Object.entries(
-          stepPipeUpdateStats.phaseCosts
+      if (simulationDeltaTime > 0) {
+        this.nearMissUI.update(simulationDeltaTime);
+        this.playerManager.update();
+        if (this.playerManager.hasBasketBottomReached(
+          this.groundManager.getBody().bounds.min.y
         )) {
-          if (typeof phaseCost !== "number") {
-            continue;
-          }
-          const typedPhaseKey = phaseKey;
-          pipeUpdateStats.phaseCosts[typedPhaseKey] = (pipeUpdateStats.phaseCosts[typedPhaseKey] ?? 0) + phaseCost;
+          this.handleGameOver("ground");
+          return;
         }
-        this.simulationAccumulatorMs -= FLAPPY_BIRD_FIXED_TIMESTEP_MS;
-        simulationSubsteps += 1;
+        this.cloudManager.update(simulationDeltaTime);
+        this.playerManager.checkCollisions();
+        this.pipeManager.update(
+          this.playerManager.getBasketBody(),
+          (scoreDelta) => this.handleScoreIncrement(scoreDelta),
+          simulationDeltaTime,
+          () => this.handleGameOver()
+        );
         if (this.gameState !== GameState.PLAYING) {
-          break;
+          return;
         }
-        this.measurePhase(phaseCosts, "groundUpdate", () => {
-          this.groundManager.update(FLAPPY_BIRD_FIXED_TIMESTEP_MS);
-        });
-      }
-      this.trimSimulationAccumulator(simulationSubsteps);
-      if (this.gameState !== GameState.PLAYING) {
-        this.recordFrameDiagnostics({
-          timestampMs: currentTime,
-          deltaTime,
-          updateStartedAtMs,
-          phaseCosts,
-          pipeUpdateStats
-        });
-        return;
+        this.groundManager.update(simulationDeltaTime);
       }
     }
-    this.recordFrameDiagnostics({
-      timestampMs: currentTime,
-      deltaTime,
-      updateStartedAtMs,
-      phaseCosts,
-      pipeUpdateStats
-    });
   }
   /**
    * 리소스를 정리하고 객체를 파괴합니다.
    */
   destroy() {
-    var _a, _b, _c, _d;
+    var _a, _b, _c;
     window.removeEventListener("keydown", this.boundHandleKeyDown);
     this.cleanupVisibilityChangeHandler();
     this.clearGameOverVibrationPattern();
@@ -50458,8 +50008,6 @@ class FlappyBirdGameScene extends Container {
     this.bgmController.destroy();
     this.cloudManager.reset();
     (_c = this.pipeManager) == null ? void 0 : _c.destroy();
-    this.flushPendingFrameDiagnostics();
-    void ((_d = this.perfDiagnostics) == null ? void 0 : _d.shutdown());
     this.physicsManager.cleanup();
     this.gameEngine.cleanup();
     super.destroy();
@@ -50481,40 +50029,6 @@ class FlappyBirdGameScene extends Container {
       this.game.app.screen.width,
       this.game.app.screen.height
     );
-  }
-  maybeLogSlowFrame(frameSample) {
-    if (frameSample.deltaTimeMs < FLAPPY_BIRD_SLOW_FRAME_DELTA_THRESHOLD_MS && frameSample.updateCostMs < FLAPPY_BIRD_SLOW_FRAME_UPDATE_COST_THRESHOLD_MS) {
-      return;
-    }
-    if (frameSample.timestampMs - this.lastSlowFrameLogAtMs < FLAPPY_BIRD_SLOW_FRAME_LOG_COOLDOWN_MS) {
-      return;
-    }
-    this.lastSlowFrameLogAtMs = frameSample.timestampMs;
-    console.warn("[FlappyBirdPerf] slow frame", {
-      deltaTimeMs: Math.round(frameSample.deltaTimeMs * 10) / 10,
-      updateCostMs: Math.round(frameSample.updateCostMs * 10) / 10,
-      tickerGapMs: typeof frameSample.tickerGapMs === "number" ? Math.round(frameSample.tickerGapMs * 10) / 10 : frameSample.tickerGapMs,
-      renderCostMs: typeof frameSample.renderCostMs === "number" ? Math.round(frameSample.renderCostMs * 10) / 10 : void 0,
-      updateToRenderStartMs: typeof frameSample.updateToRenderStartMs === "number" ? Math.round(frameSample.updateToRenderStartMs * 10) / 10 : void 0,
-      frameEndToEndCostMs: typeof frameSample.frameEndToEndCostMs === "number" ? Math.round(frameSample.frameEndToEndCostMs * 10) / 10 : void 0,
-      frameBudgetOverrunMs: typeof frameSample.frameEndToEndCostMs === "number" ? Math.max(
-        0,
-        Math.round(
-          (frameSample.frameEndToEndCostMs - FLAPPY_BIRD_TARGET_FRAME_BUDGET_MS) * 10
-        ) / 10
-      ) : void 0,
-      state: frameSample.gameState,
-      activePipePairs: frameSample.activePipePairs,
-      trackedPhysicsObjects: frameSample.trackedPhysicsObjects,
-      syncedDisplayObjects: frameSample.syncedDisplayObjects,
-      cloudCount: frameSample.cloudCount,
-      groundTileCount: frameSample.groundTileCount,
-      spawnedPipes: frameSample.spawnedPipes,
-      removedPipes: frameSample.removedPipes,
-      phaseCosts: frameSample.phaseCosts,
-      pipePhaseCosts: frameSample.pipePhaseCosts,
-      pipePoolStats: frameSample.pipePoolStats
-    });
   }
   syncCloudVisualStyle() {
     if (!this.cloudManager) {
@@ -50659,6 +50173,9 @@ const SCREEN_HORIZONTAL_PADDING = 14;
 const SCREEN_BOTTOM_PADDING = 14;
 const SCREEN_TOP_PADDING = SCREEN_BOTTOM_PADDING + 6;
 const MAX_RENDERER_RESOLUTION = 2;
+const DEFAULT_TICKER_MIN_FPS = 30;
+const DEFAULT_TICKER_MAX_FPS = 60;
+const FLAPPY_BIRD_TICKER_MAX_FPS = 0;
 function createMainScenePositionBoundary(width, height) {
   return {
     x: SCREEN_HORIZONTAL_PADDING,
@@ -50669,6 +50186,9 @@ function createMainScenePositionBoundary(width, height) {
 }
 function getTransitionTimingNow() {
   return typeof performance !== "undefined" ? performance.now() : Date.now();
+}
+function resolveTickerMaxFPS(sceneKey) {
+  return sceneKey === SceneKey.FLAPPY_BIRD_GAME ? FLAPPY_BIRD_TICKER_MAX_FPS : DEFAULT_TICKER_MAX_FPS;
 }
 function resolveRendererResolution(devicePixelRatio) {
   if (typeof devicePixelRatio !== "number" || !Number.isFinite(devicePixelRatio) || devicePixelRatio <= 0) {
@@ -50708,13 +50228,11 @@ class Game {
     this._flappyBirdCharacterState = null;
     this._flappyBirdSkyContext = null;
     this._loadingTraceContext = null;
-    this._lastTickerStartedAtMs = null;
-    this._pendingSceneRenderTiming = null;
-    this._isRendererPerfHookInstalled = false;
     const {
       parentElement,
       debugParentElement,
       debugMode,
+      locale = DEFAULT_LOCALE,
       initialSceneKey,
       onCreateInitialGameData,
       changeControlButtons,
@@ -50753,6 +50271,7 @@ class Game {
     this._createInitialGameData = onCreateInitialGameData;
     this._initialSceneKey = initialSceneKey ?? SceneKey.MAIN;
     this._debugMode = debugMode ?? false;
+    this._locale = locale;
     this._loadingTraceContext = loadingTraceContext ?? null;
     this._trustedClock = providedTrustedClock ?? trustedClock;
     this.app = new Application();
@@ -50822,6 +50341,14 @@ class Game {
       this._resizeObserver.observe(this._parentElement);
     }
   }
+  getLocale() {
+    return this._locale;
+  }
+  setLocale(locale) {
+    var _a, _b;
+    this._locale = locale;
+    (_b = (_a = this.currentScene) == null ? void 0 : _a.onLocaleChange) == null ? void 0 : _b.call(_a, locale);
+  }
   /**
    * ControlButton 클릭 이벤트를 처리합니다
    * @param buttonType 클릭된 버튼 타입
@@ -50854,15 +50381,13 @@ class Game {
         resolution: resolveRendererResolution(window.devicePixelRatio)
       });
       this._isPixiReady = true;
-      this._installRendererPerfHooks();
       console.log("[ImportantDiagnostics][RendererResolution]", {
         phase: "initialize",
         rawDevicePixelRatio: window.devicePixelRatio ?? null,
         appliedResolution: this.app.renderer.resolution,
         maxRendererResolution: MAX_RENDERER_RESOLUTION
       });
-      this.app.ticker.minFPS = 30;
-      this.app.ticker.maxFPS = 60;
+      this._applyTickerFramePolicy();
       this._parentElement.appendChild(this.app.canvas);
       this._onResize("initialize");
       this.assetsLoaded = true;
@@ -50916,67 +50441,10 @@ class Game {
   // }
   _update(deltaTime) {
     const scene = this.currentScene;
-    const updateStartedAtMs = getTransitionTimingNow();
-    const tickerGapMs = this._lastTickerStartedAtMs === null ? null : updateStartedAtMs - this._lastTickerStartedAtMs;
-    this._lastTickerStartedAtMs = updateStartedAtMs;
     if (!scene) {
-      this._pendingSceneRenderTiming = null;
       return;
     }
     scene.update(deltaTime);
-    const updateEndedAtMs = getTransitionTimingNow();
-    if (scene !== this.currentScene) {
-      this._pendingSceneRenderTiming = null;
-      return;
-    }
-    this._pendingSceneRenderTiming = {
-      scene,
-      deltaTimeMs: deltaTime,
-      tickerGapMs,
-      updateStartedAtMs,
-      updateEndedAtMs,
-      sceneUpdateCostMs: updateEndedAtMs - updateStartedAtMs
-    };
-  }
-  _installRendererPerfHooks() {
-    if (this._isRendererPerfHookInstalled || !this.app.renderer) {
-      return;
-    }
-    const renderer = this.app.renderer;
-    const originalRender = renderer.render.bind(renderer);
-    renderer.render = (...args) => {
-      const renderStartedAtMs = getTransitionTimingNow();
-      try {
-        return originalRender(...args);
-      } finally {
-        const renderEndedAtMs = getTransitionTimingNow();
-        this._handleRendererRender(renderStartedAtMs, renderEndedAtMs);
-      }
-    };
-    this._isRendererPerfHookInstalled = true;
-  }
-  _handleRendererRender(renderStartedAtMs, renderEndedAtMs) {
-    const pendingTiming = this._pendingSceneRenderTiming;
-    this._pendingSceneRenderTiming = null;
-    if (!pendingTiming) {
-      return;
-    }
-    if (!this._isFrameTimingAwareScene(pendingTiming.scene)) {
-      return;
-    }
-    const sample = {
-      timestampMs: renderEndedAtMs,
-      deltaTimeMs: pendingTiming.deltaTimeMs,
-      tickerGapMs: pendingTiming.tickerGapMs,
-      sceneUpdateCostMs: pendingTiming.sceneUpdateCostMs,
-      updateToRenderStartMs: renderStartedAtMs - pendingTiming.updateEndedAtMs,
-      renderCostMs: renderEndedAtMs - renderStartedAtMs,
-      frameEndToEndCostMs: renderEndedAtMs - pendingTiming.updateStartedAtMs
-    };
-    pendingTiming.scene.onFrameRenderTiming(sample);
-  }
-  _isFrameTimingAwareScene(scene) {
-    return typeof scene.onFrameRenderTiming === "function";
   }
   /**
    * PIXI 애플리케이션이 완전히 초기화될 때까지 대기
@@ -51148,6 +50616,7 @@ class Game {
           createInitialGameData: this._createInitialGameData,
           changeControlButtons: this.changeControlButtons,
           showAlert: this.showAlert,
+          locale: this._locale,
           triggerBiteVibration: this.triggerBiteVibration,
           startRecoveryVibration: this.startRecoveryVibration,
           stopRecoveryVibration: this.stopRecoveryVibration,
@@ -51163,6 +50632,10 @@ class Game {
         throw new Error(`[Game] Unknown scene key: ${key}`);
     }
   }
+  _applyTickerFramePolicy(sceneKey = this.currentSceneKey) {
+    this.app.ticker.minFPS = DEFAULT_TICKER_MIN_FPS;
+    this.app.ticker.maxFPS = resolveTickerMaxFPS(sceneKey);
+  }
   async _restoreParkedSceneAfterTransitionAbort(transition, state) {
     var _a;
     if (transition.restorationStarted) {
@@ -51174,6 +50647,7 @@ class Game {
     if (parkedScene) {
       this.currentScene = parkedScene;
       this.currentSceneKey = parkedSceneKey;
+      this._applyTickerFramePolicy(parkedSceneKey);
       if (parkedScene instanceof Container) {
         this.app.stage.removeChildren();
         if (parkedScene.parent !== this.app.stage) {
@@ -51314,6 +50788,7 @@ class Game {
       (_g = transitionContext.parkedScene) == null ? void 0 : _g.destroy();
       this.currentScene = createdScene;
       this.currentSceneKey = key;
+      this._applyTickerFramePolicy(key);
       if (this.currentScene instanceof Container) {
         this.app.stage.addChild(this.currentScene);
       }
@@ -51449,8 +50924,7 @@ class Game {
   getDiagnosticsSnapshot() {
     return {
       currentSceneKey: this.currentSceneKey,
-      mainSceneData: this.currentScene instanceof MainSceneWorld ? this.currentScene.getInMemoryData() : null,
-      flappyBirdPerf: this.currentScene instanceof FlappyBirdGameScene ? this.currentScene.getPerfDiagnosticsSnapshot() : null
+      mainSceneData: this.currentScene instanceof MainSceneWorld ? this.currentScene.getInMemoryData() : null
     };
   }
   /**
@@ -51496,8 +50970,6 @@ class Game {
     var _a, _b, _c, _d, _e;
     this._isDestroyed = true;
     this._isPixiReady = false;
-    this._pendingSceneRenderTiming = null;
-    this._lastTickerStartedAtMs = null;
     window.removeEventListener("resize", this._boundResizeHandler);
     window.removeEventListener("focus", this._boundLifecycleResizeHandler);
     window.removeEventListener("pageshow", this._boundLifecycleResizeHandler);
@@ -51716,10 +51188,12 @@ class PlatformAdapter {
   }
 }
 const STORAGE_KEYS = {
-  vibrationEnabled: "game.settings.vibrationEnabled"
+  vibrationEnabled: "game.settings.vibrationEnabled",
+  locale: "game.settings.locale"
 };
 const DEFAULT_SETTINGS = {
-  vibrationEnabled: true
+  vibrationEnabled: true,
+  locale: DEFAULT_LOCALE
 };
 function getBooleanSetting(key, defaultValue) {
   if (typeof window === "undefined") {
@@ -51731,12 +51205,19 @@ function getBooleanSetting(key, defaultValue) {
   }
   return value === "true";
 }
+function getLocaleSetting() {
+  if (typeof window === "undefined") {
+    return DEFAULT_SETTINGS.locale;
+  }
+  return normalizeLocale(window.localStorage.getItem(STORAGE_KEYS.locale));
+}
 function getGameSettings() {
   return {
     vibrationEnabled: getBooleanSetting(
       STORAGE_KEYS.vibrationEnabled,
       DEFAULT_SETTINGS.vibrationEnabled
-    )
+    ),
+    locale: getLocaleSetting()
   };
 }
 function updateGameSettings(partialSettings) {
@@ -51749,6 +51230,7 @@ function updateGameSettings(partialSettings) {
       STORAGE_KEYS.vibrationEnabled,
       String(nextSettings.vibrationEnabled)
     );
+    window.localStorage.setItem(STORAGE_KEYS.locale, nextSettings.locale);
   }
   return nextSettings;
 }
@@ -51874,6 +51356,7 @@ const ControlButton = ({
   const onSliderEndRef = reactExports.useRef(onSliderEnd);
   const vibrationStepValueRef = reactExports.useRef(0);
   const isDraggingRef = reactExports.useRef(false);
+  const isPressedRef = reactExports.useRef(false);
   const isSlider = type === ControlButtonType.Clean && !!sliderWidth;
   const sliderTrackWidth = sliderWidth ? Math.max(
     0,
@@ -51964,22 +51447,41 @@ const ControlButton = ({
   const size = SLIDER_THUMB_SIZE;
   const spriteState = isPressed ? "pressed" : "normal";
   const spriteInfo = spriteInfoMap[type][spriteState];
+  const shouldTriggerOnPointerDown = type === ControlButtonType.Jump || type === ControlButtonType.DoubleJump;
   const handlePointerDown = () => {
     if (!isSlider) {
+      isPressedRef.current = true;
       setIsPressed(true);
-      if (onClick) onClick();
-      window.setTimeout(() => {
-        void vibrationAdapter$1.vibrate();
-      }, 0);
+      if (shouldTriggerOnPointerDown) {
+        onClick == null ? void 0 : onClick();
+        window.setTimeout(() => {
+          void vibrationAdapter$1.vibrate();
+        }, 0);
+      }
     }
   };
   const handlePointerUp = () => {
     if (!isSlider) {
+      const shouldTriggerClick = isPressedRef.current;
+      isPressedRef.current = false;
       setIsPressed(false);
+      if (shouldTriggerClick && !shouldTriggerOnPointerDown) {
+        onClick == null ? void 0 : onClick();
+        window.setTimeout(() => {
+          void vibrationAdapter$1.vibrate();
+        }, 0);
+      }
     }
   };
   const handlePointerLeave = () => {
     if (!isSlider && isPressed) {
+      isPressedRef.current = false;
+      setIsPressed(false);
+    }
+  };
+  const handlePointerCancel = () => {
+    if (!isSlider) {
+      isPressedRef.current = false;
       setIsPressed(false);
     }
   };
@@ -51994,14 +51496,14 @@ const ControlButton = ({
     const baseTrackWidth = Math.max(0, sliderWidth - size);
     const trackWidth = sliderTrackWidth;
     const extraTrackOffset = (trackWidth - baseTrackWidth) / 2;
-    return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+    return /* @__PURE__ */ jsxRuntimeExports.jsxs(
       "div",
       {
         className: "relative flex justify-center overflow-visible",
         style: { width: `${sliderWidth}px`, height: `${size}px` },
         ref: sliderRef,
         children: [
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
             {
               className: "absolute top-1/2 -translate-y-1/2 h-4 bg-gray-700 bg-opacity-50 rounded-full",
@@ -52009,61 +51511,29 @@ const ControlButton = ({
                 left: `${trackInset - extraTrackOffset}px`,
                 width: `${trackWidth}px`
               }
-            },
-            void 0,
-            false,
-            {
-              fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/ControlButton.tsx",
-              lineNumber: 261,
-              columnNumber: 9
-            },
-            void 0
+            }
           ),
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
             {
               className: "absolute top-0 left-0 h-full",
               style: {
                 transform: `translateX(${currentSliderValue * trackWidth - extraTrackOffset}px)`
               },
-              children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+              children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "div",
                 {
                   style: buttonStyle,
                   className: "bg-no-repeat border-none bg-transparent p-0 outline-none select-none [-webkit-tap-highlight-color:transparent] scale-[1.4]"
-                },
-                void 0,
-                false,
-                {
-                  fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/ControlButton.tsx",
-                  lineNumber: 274,
-                  columnNumber: 11
-                },
-                void 0
+                }
               )
-            },
-            void 0,
-            false,
-            {
-              fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/ControlButton.tsx",
-              lineNumber: 268,
-              columnNumber: 9
-            },
-            void 0
+            }
           )
         ]
-      },
-      void 0,
-      true,
-      {
-        fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/ControlButton.tsx",
-        lineNumber: 256,
-        columnNumber: 7
-      },
-      void 0
+      }
     );
   }
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(
     "button",
     {
       type: "button",
@@ -52071,25 +51541,14 @@ const ControlButton = ({
       onPointerDown: handlePointerDown,
       onPointerUp: handlePointerUp,
       onPointerLeave: handlePointerLeave,
+      onPointerCancel: handlePointerCancel,
       className: `bg-no-repeat border-none bg-transparent p-0 outline-none select-none [-webkit-tap-highlight-color:transparent] scale-[1.4] ${className || ""}`
-    },
-    void 0,
-    false,
-    {
-      fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/ControlButton.tsx",
-      lineNumber: 285,
-      columnNumber: 5
-    },
-    void 0
+    }
   );
 };
 const ControlButtonsContainer = ({
   children
-}) => /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "w-4/5 max-w-[300px] flex justify-between mx-auto", children }, void 0, false, {
-  fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-  lineNumber: 16,
-  columnNumber: 3
-}, void 0);
+}) => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-4/5 max-w-[300px] flex justify-between mx-auto", children });
 const CONTROL_BUTTON_SIZE_PX = 64;
 const MAX_CONTROL_BUTTONS_WIDTH_PX = 300;
 const DEFAULT_CLEAN_SLIDER_WIDTH_PX = (MAX_CONTROL_BUTTONS_WIDTH_PX + CONTROL_BUTTON_SIZE_PX) / 2;
@@ -52125,27 +51584,15 @@ const ControlButtons = ({
   }, [buttonTypes[0], buttonTypes[1], buttonTypes[2], shouldRenderSlider]);
   const effectiveSliderWidth = shouldRenderSlider ? sliderWidth ?? lastMeasuredCleanSliderWidth : void 0;
   if (shouldRenderSlider && effectiveSliderWidth) {
-    return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ControlButtonsContainer, { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { ref: containerRef, className: "flex justify-between w-full", children: [
-      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "shrink-0 ", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+    return /* @__PURE__ */ jsxRuntimeExports.jsx(ControlButtonsContainer, { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { ref: containerRef, className: "flex justify-between w-full", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "shrink-0 ", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
         ControlButton,
         {
           type: buttonParams[0].type,
           onClick: () => onButtonPress(buttonParams[0].type)
-        },
-        void 0,
-        false,
-        {
-          fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-          lineNumber: 81,
-          columnNumber: 13
-        },
-        void 0
-      ) }, void 0, false, {
-        fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-        lineNumber: 80,
-        columnNumber: 11
-      }, void 0),
-      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { ref: secondButtonRef, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+        }
+      ) }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: secondButtonRef, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
         ControlButton,
         {
           type: ControlButtonType.Clean,
@@ -52156,92 +51603,33 @@ const ControlButtons = ({
           onSliderEnd,
           onClick: () => onButtonPress(buttonParams[1].type)
         },
-        (cleanButtonParam == null ? void 0 : cleanButtonParam.sliderSessionKey) ?? "clean-slider",
-        false,
-        {
-          fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-          lineNumber: 88,
-          columnNumber: 13
-        },
-        void 0
-      ) }, void 0, false, {
-        fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-        lineNumber: 87,
-        columnNumber: 11
-      }, void 0)
-    ] }, void 0, true, {
-      fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-      lineNumber: 78,
-      columnNumber: 9
-    }, void 0) }, void 0, false, {
-      fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-      lineNumber: 77,
-      columnNumber: 7
-    }, void 0);
+        (cleanButtonParam == null ? void 0 : cleanButtonParam.sliderSessionKey) ?? "clean-slider"
+      ) })
+    ] }) });
   }
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ControlButtonsContainer, { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { ref: containerRef, className: "flex justify-between w-full", children: [
-    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(ControlButtonsContainer, { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { ref: containerRef, className: "flex justify-between w-full", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx(
       ControlButton,
       {
         type: buttonParams[0].type,
         onClick: () => onButtonPress(buttonParams[0].type)
-      },
-      void 0,
-      false,
-      {
-        fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-        lineNumber: 108,
-        columnNumber: 9
-      },
-      void 0
+      }
     ),
-    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { ref: secondButtonRef, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: secondButtonRef, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
       ControlButton,
       {
         type: buttonParams[1].type,
         onClick: () => onButtonPress(buttonParams[1].type)
-      },
-      void 0,
-      false,
-      {
-        fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-        lineNumber: 113,
-        columnNumber: 11
-      },
-      void 0
-    ) }, void 0, false, {
-      fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-      lineNumber: 112,
-      columnNumber: 9
-    }, void 0),
-    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { ref: thirdButtonRef, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+      }
+    ) }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: thirdButtonRef, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
       ControlButton,
       {
         type: buttonParams[2].type,
         onClick: () => onButtonPress(buttonParams[2].type)
-      },
-      void 0,
-      false,
-      {
-        fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-        lineNumber: 119,
-        columnNumber: 11
-      },
-      void 0
-    ) }, void 0, false, {
-      fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-      lineNumber: 118,
-      columnNumber: 9
-    }, void 0)
-  ] }, void 0, true, {
-    fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-    lineNumber: 107,
-    columnNumber: 7
-  }, void 0) }, void 0, false, {
-    fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
-    lineNumber: 106,
-    columnNumber: 5
-  }, void 0);
+      }
+    ) })
+  ] }) });
 };
 function createClientStorage() {
   if (hasNativeStorageController()) {
@@ -52751,6 +52139,46 @@ function logImportantDiagnostics(level, ...args) {
       originalConsole.log(...args);
   }
 }
+const I18nContext = reactExports.createContext(null);
+const I18nProvider = ({
+  children
+}) => {
+  const [locale, setLocaleState] = reactExports.useState(
+    () => getGameSettings().locale ?? DEFAULT_LOCALE
+  );
+  const setLocale = reactExports.useCallback((nextLocale) => {
+    updateGameSettings({ locale: nextLocale });
+    setLocaleState(nextLocale);
+  }, []);
+  const t2 = reactExports.useCallback(
+    (key, params) => translate(locale, key, params),
+    [locale]
+  );
+  reactExports.useEffect(() => {
+    document.documentElement.lang = locale;
+  }, [locale]);
+  const value = reactExports.useMemo(
+    () => ({
+      locale,
+      setLocale,
+      t: t2
+    }),
+    [locale, setLocale, t2]
+  );
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(I18nContext.Provider, { value, children });
+};
+function useI18n() {
+  const context2 = reactExports.useContext(I18nContext);
+  if (!context2) {
+    return {
+      locale: DEFAULT_LOCALE,
+      setLocale: () => {
+      },
+      t: (key, params) => translate(DEFAULT_LOCALE, key, params)
+    };
+  }
+  return context2;
+}
 const CLICK_VIBRATION_SELECTOR = [
   "button",
   "[role='button']",
@@ -52830,22 +52258,28 @@ function roundKeyboardAwareDebugValue(value) {
   return Math.round(value * 100) / 100;
 }
 const PopupLayer = ({
-  title = "Alert!",
+  title,
   content,
   topLeftContent,
   dividerBorderClassName = "border-[#222]",
   onConfirm,
   onCancel,
-  confirmText = "Confirm",
-  cancelText = "Cancel",
+  confirmText,
+  cancelText,
+  confirmDisabled = false,
   confirmVariant = "positive",
   cancelVariant = "negative",
   initialFocusTarget = "none",
   keyboardAwareTargetRef,
   keyboardAwareViewportPadding = 16,
   suppressInitialActionsMs = 0,
-  confirmEnableDelayMs = 0
+  confirmEnableDelayMs = 0,
+  showActions = true
 }) => {
+  const { t: t2 } = useI18n();
+  const resolvedTitle = title ?? t2("alert.title");
+  const resolvedConfirmText = confirmText ?? t2("common.confirm");
+  const resolvedCancelText = cancelText ?? t2("common.cancel");
   const layerInteractionVibrationProps = useLayerInteractionVibration();
   const containerRef = reactExports.useRef(null);
   const confirmButtonRef = reactExports.useRef(null);
@@ -52863,7 +52297,8 @@ const PopupLayer = ({
   );
   const [keyboardAwareOffsetY, setKeyboardAwareOffsetY] = reactExports.useState(0);
   const [keyboardAwareMaxHeight, setKeyboardAwareMaxHeight] = reactExports.useState(null);
-  const isConfirmEnableDelayActive = confirmEnableDelayMs > 0 && confirmEnableDelayProgress < CONFIRM_ENABLE_DELAY_PROGRESS_MAX;
+  const isConfirmEnableDelayActive = !confirmDisabled && confirmEnableDelayMs > 0 && confirmEnableDelayProgress < CONFIRM_ENABLE_DELAY_PROGRESS_MAX;
+  const isConfirmButtonDisabled = confirmDisabled || isConfirmEnableDelayActive;
   const effectiveInitialFocusTargetRef = reactExports.useRef(
     confirmEnableDelayMs > 0 && initialFocusTarget === "confirm" ? "container" : initialFocusTarget
   );
@@ -52878,6 +52313,10 @@ const PopupLayer = ({
     }
     if (confirmEnableDelayMs <= 0) {
       setConfirmEnableDelayProgress(CONFIRM_ENABLE_DELAY_PROGRESS_MAX);
+      return;
+    }
+    if (confirmDisabled) {
+      setConfirmEnableDelayProgress(0);
       return;
     }
     setConfirmEnableDelayProgress(0);
@@ -52906,10 +52345,10 @@ const PopupLayer = ({
         confirmEnableDelayRafIdRef.current = null;
       }
     };
-  }, [confirmEnableDelayMs]);
+  }, [confirmDisabled, confirmEnableDelayMs]);
   const emitKeyboardAwareDebug = reactExports.useCallback(
     (stage, payload = {}) => {
-      if (title !== "Settings") {
+      if (resolvedTitle !== t2("settings.title")) {
         return;
       }
       if (keyboardAwareDebugSequenceRef.current >= KEYBOARD_AWARE_DEBUG_LOG_LIMIT) {
@@ -52920,14 +52359,14 @@ const PopupLayer = ({
         "warn",
         "[ImportantDiagnostics][PopupLayerKeyboardAware]",
         {
-          title,
+          title: resolvedTitle,
           stage,
           sequence: keyboardAwareDebugSequenceRef.current,
           ...payload
         }
       );
     },
-    [title]
+    [resolvedTitle, t2]
   );
   const resetKeyboardAwareLayout = reactExports.useCallback(
     (reason) => {
@@ -53175,23 +52614,23 @@ const PopupLayer = ({
     scheduleKeyboardAwareLayoutUpdate
   ]);
   const handleConfirmClick = reactExports.useCallback(() => {
-    if (isConfirmEnableDelayActive || Date.now() < suppressInitialActionsUntilRef.current) {
+    if (isConfirmButtonDisabled || Date.now() < suppressInitialActionsUntilRef.current) {
       return;
     }
     onConfirm == null ? void 0 : onConfirm();
-  }, [isConfirmEnableDelayActive, onConfirm]);
+  }, [isConfirmButtonDisabled, onConfirm]);
   const handleCancelClick = reactExports.useCallback(() => {
     if (Date.now() < suppressInitialActionsUntilRef.current) {
       return;
     }
     onCancel == null ? void 0 : onCancel();
   }, [onCancel]);
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(
     "div",
     {
       className: "flex w-full justify-center px-4 text-black",
       ...layerInteractionVibrationProps,
-      children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+      children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
         "div",
         {
           ref: containerRef,
@@ -53202,150 +52641,87 @@ const PopupLayer = ({
           },
           className: "relative flex w-full max-w-[22rem] flex-col overflow-auto border-4 border-[#222] bg-layer-bg p-5 text-center font-dialog shadow-[0_4px_0_#222,0_-4px_0_#222,4px_0_0_#222,-4px_0_0_#222,4px_4px_0_#222,-4px_4px_0_#222,4px_-4px_0_#222,-4px_-4px_0_#222] focus:outline-none",
           children: [
-            topLeftContent ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "absolute left-2 top-2 z-[1]", children: topLeftContent }, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
-              lineNumber: 513,
-              columnNumber: 11
-            }, void 0) : null,
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+            topLeftContent ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute left-2 top-2 z-[1]", children: topLeftContent }) : null,
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
               "div",
               {
                 className: `mb-[15px] flex-none border-b-4 pb-[10px] text-[1.8rem] leading-[1.2] font-display font-bold text-component-negative ${dividerBorderClassName}`,
-                children: title
-              },
-              void 0,
-              false,
-              {
-                fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
-                lineNumber: 515,
-                columnNumber: 9
-              },
-              void 0
+                children: resolvedTitle
+              }
             ),
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "min-h-0 flex-1 overflow-y-auto pb-4 text-[1.4rem] leading-[1.6]", children: content }, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
-              lineNumber: 520,
-              columnNumber: 9
-            }, void 0),
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "min-h-0 flex-1 overflow-y-auto pb-4 text-[1.4rem] leading-[1.6]", children: content }),
+            showActions && /* @__PURE__ */ jsxRuntimeExports.jsxs(
               "div",
               {
                 className: `flex flex-none justify-center gap-[15px] border-t-4 pt-4 ${dividerBorderClassName}`,
                 children: [
-                  onCancel && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+                  onCancel && /* @__PURE__ */ jsxRuntimeExports.jsx(
                     "button",
                     {
                       ref: cancelButtonRef,
                       type: "button",
                       onClick: handleCancelClick,
                       className: `text-[1.5rem] text-white border-2 border-[#222] px-[15px] py-0.5 cursor-pointer uppercase font-display shadow-[2px_2px_0_#222] relative top-0 left-0 transition-all duration-50 ${cancelVariant === "negative" ? "bg-component-negative" : "bg-component-positive"}`,
-                      children: cancelText
-                    },
-                    void 0,
-                    false,
-                    {
-                      fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
-                      lineNumber: 527,
-                      columnNumber: 13
-                    },
-                    void 0
+                      children: resolvedCancelText
+                    }
                   ),
-                  /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+                  /* @__PURE__ */ jsxRuntimeExports.jsxs(
                     "button",
                     {
                       ref: confirmButtonRef,
                       type: "button",
-                      disabled: isConfirmEnableDelayActive,
+                      disabled: isConfirmButtonDisabled,
                       onClick: handleConfirmClick,
-                      className: `relative overflow-hidden text-[1.5rem] text-white border-2 border-[#222] px-[15px] py-0.5 uppercase font-display shadow-[2px_2px_0_#222] ${isConfirmEnableDelayActive ? "cursor-not-allowed bg-gray-400 opacity-80" : confirmVariant === "negative" ? "cursor-pointer bg-component-negative" : "cursor-pointer bg-component-positive"}`,
+                      className: `relative overflow-hidden text-[1.5rem] text-white border-2 border-[#222] px-[15px] py-0.5 uppercase font-display shadow-[2px_2px_0_#222] ${isConfirmButtonDisabled ? "cursor-not-allowed bg-gray-400 opacity-80" : confirmVariant === "negative" ? "cursor-pointer bg-component-negative" : "cursor-pointer bg-component-positive"}`,
                       children: [
-                        isConfirmEnableDelayActive && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+                        isConfirmEnableDelayActive && /* @__PURE__ */ jsxRuntimeExports.jsx(
                           "span",
                           {
                             "aria-hidden": "true",
                             className: `absolute inset-y-0 left-0 ${confirmVariant === "negative" ? "bg-component-negative" : "bg-component-positive"}`,
                             style: { width: `${confirmEnableDelayProgress}%` }
-                          },
-                          void 0,
-                          false,
-                          {
-                            fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
-                            lineNumber: 554,
-                            columnNumber: 15
-                          },
-                          void 0
+                          }
                         ),
-                        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { className: "relative z-[1]", children: confirmText }, void 0, false, {
-                          fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
-                          lineNumber: 564,
-                          columnNumber: 13
-                        }, void 0)
+                        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "relative z-[1]", children: resolvedConfirmText })
                       ]
-                    },
-                    void 0,
-                    true,
-                    {
-                      fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
-                      lineNumber: 540,
-                      columnNumber: 11
-                    },
-                    void 0
+                    }
                   )
                 ]
-              },
-              void 0,
-              true,
-              {
-                fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
-                lineNumber: 523,
-                columnNumber: 9
-              },
-              void 0
+              }
             )
           ]
-        },
-        void 0,
-        true,
-        {
-          fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
-          lineNumber: 497,
-          columnNumber: 7
-        },
-        void 0
+        }
       )
-    },
-    void 0,
-    false,
-    {
-      fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
-      lineNumber: 493,
-      columnNumber: 5
-    },
-    void 0
+    }
   );
 };
 var reactDomExports = requireReactDom();
 const MIN_NAME_LENGTH = 2;
+const SETUP_NAME_MAX_WIDTH = 55;
 const SetupLayer = ({ onComplete }) => {
+  const { t: t2 } = useI18n();
   const [name, setName] = reactExports.useState("");
   const [error, setError] = reactExports.useState(null);
   const nameInputRef = reactExports.useRef(null);
   const trimmedName = name.trim();
   const nameLength = countDisplayCharacters(trimmedName);
   const nameWidth = measureNameLabelWidth(trimmedName);
-  const isWithinVisibleWidth = fitsNameLabelWidth(trimmedName);
+  const isWithinVisibleWidth = fitsNameLabelWidth(
+    trimmedName,
+    SETUP_NAME_MAX_WIDTH
+  );
   const handleConfirm = () => {
     if (!trimmedName) {
-      setError("Please enter a name.");
+      setError(t2("setup.error.emptyName"));
       return;
     }
     if (nameLength < MIN_NAME_LENGTH) {
-      setError(`Name must be at least ${MIN_NAME_LENGTH} characters long.`);
+      setError(t2("setup.error.minLength", { minLength: MIN_NAME_LENGTH }));
       return;
     }
     if (!isWithinVisibleWidth) {
       setError(
-        `Name must fit within ${NAME_LABEL_MAX_WIDTH}px on the in-game label.`
+        t2("setup.error.maxWidth", { maxWidth: SETUP_NAME_MAX_WIDTH })
       );
       return;
     }
@@ -53358,14 +52734,14 @@ const SetupLayer = ({ onComplete }) => {
       cachedSunTimes: null
     });
   };
-  const overlay = /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "fixed inset-0 z-[999] flex min-h-dvh items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+  const overlay = /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 z-[999] flex min-h-dvh items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
     PopupLayer,
     {
-      title: "Spawn Monster!",
+      title: t2("setup.title"),
       keyboardAwareTargetRef: nameInputRef,
       dividerBorderClassName: "border-[#555]",
-      content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex flex-col items-center gap-4", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "w-full", children: [
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+      content: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex flex-col items-center gap-4", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "w-full", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
           "input",
           {
             ref: nameInputRef,
@@ -53375,231 +52751,132 @@ const SetupLayer = ({ onComplete }) => {
               setName(e2.target.value);
               setError(null);
             },
-            placeholder: "monster name",
+            placeholder: t2("setup.placeholder.name"),
             className: "w-full border-2 border-[#222] px-3 py-0.5 text-center text-[1.4rem] focus:outline-none focus:ring-2 focus:ring-[#d95763]"
-          },
-          void 0,
-          false,
-          {
-            fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-            lineNumber: 72,
-            columnNumber: 15
-          },
-          void 0
+          }
         ),
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
           "div",
           {
             className: `mt-4 text-[1.4rem] ${isWithinVisibleWidth ? "text-gray-600" : "text-red-600"}`,
-            children: [
-              "name width: ",
-              Math.round(nameWidth),
-              "/",
-              NAME_LABEL_MAX_WIDTH,
-              "px"
-            ]
-          },
-          void 0,
-          true,
-          {
-            fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-            lineNumber: 83,
-            columnNumber: 15
-          },
-          void 0
+            children: t2("setup.nameWidth", {
+              width: Math.round(nameWidth),
+              maxWidth: SETUP_NAME_MAX_WIDTH
+            })
+          }
         ),
-        error && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("p", { className: "mt-4 text-component-negative text-[0.7em]", children: error }, void 0, false, {
-          fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-          lineNumber: 91,
-          columnNumber: 17
-        }, void 0)
-      ] }, void 0, true, {
-        fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-        lineNumber: 71,
-        columnNumber: 13
-      }, void 0) }, void 0, false, {
-        fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-        lineNumber: 70,
-        columnNumber: 11
-      }, void 0),
+        error && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "mt-4 text-component-negative text-[0.7em]", children: error })
+      ] }) }),
       onConfirm: handleConfirm,
-      confirmText: "Start"
-    },
-    void 0,
-    false,
-    {
-      fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-      lineNumber: 65,
-      columnNumber: 7
-    },
-    void 0
-  ) }, void 0, false, {
-    fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
-    lineNumber: 64,
-    columnNumber: 5
-  }, void 0);
+      confirmText: t2("setup.start")
+    }
+  ) });
   if (typeof document === "undefined") {
     return overlay;
   }
   return reactDomExports.createPortal(overlay, document.body);
 };
 const AlertLayer = ({
-  title = "Alert",
+  title,
   message,
   onClose,
   onCancel,
-  confirmText = "Confirm",
-  cancelText = "Cancel"
+  confirmText,
+  cancelText
 }) => {
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+  const { t: t2 } = useI18n();
+  return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
     PopupLayer,
     {
-      title,
-      content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex flex-col items-center gap-4", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("p", { className: "leading-[1.6]", children: message }, void 0, false, {
-        fileName: "/Users/neiz/digivice/apps/client/src/layers/AlertLayer.tsx",
-        lineNumber: 27,
-        columnNumber: 13
-      }, void 0) }, void 0, false, {
-        fileName: "/Users/neiz/digivice/apps/client/src/layers/AlertLayer.tsx",
-        lineNumber: 26,
-        columnNumber: 11
-      }, void 0),
+      title: title ?? t2("alert.title"),
+      content: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex flex-col items-center gap-4", children: /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "leading-[1.6]", children: message }) }),
       onConfirm: onClose,
       onCancel,
-      confirmText,
-      cancelText
-    },
-    void 0,
-    false,
-    {
-      fileName: "/Users/neiz/digivice/apps/client/src/layers/AlertLayer.tsx",
-      lineNumber: 23,
-      columnNumber: 7
-    },
-    void 0
-  ) }, void 0, false, {
-    fileName: "/Users/neiz/digivice/apps/client/src/layers/AlertLayer.tsx",
-    lineNumber: 22,
-    columnNumber: 5
-  }, void 0);
+      confirmText: confirmText ?? t2("common.confirm"),
+      cancelText: cancelText ?? t2("common.cancel")
+    }
+  ) });
 };
+const FLAPPY_BIRD_GAME_OVER_FONT_FAMILY = '"NeoDunggeunmo Pro", "Droid Sans Mono", "SF Mono", monospace, sans-serif';
 const FlappyBirdGameOverLayer = ({
+  score,
+  bestScore,
   onRestart,
   onExit
 }) => {
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "absolute inset-0 z-[50] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex w-full max-w-[22rem] flex-col items-center gap-5 px-4 text-center text-white", children: [
-    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-[2.25rem] font-bold tracking-[0.12em] uppercase drop-shadow-[0_2px_6px_rgba(0,0,0,0.65)]", children: "Game Over" }, void 0, false, {
-      fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdGameOverLayer.tsx",
-      lineNumber: 17,
-      columnNumber: 9
-    }, void 0),
-    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex justify-center gap-[15px]", children: [
-      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+  const { t: t2 } = useI18n();
+  return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-[50] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex w-full max-w-[22rem] flex-col items-center gap-5 px-4 text-center text-white", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx(
+      "div",
+      {
+        className: "text-[2.25rem] font-bold tracking-[0.12em] uppercase drop-shadow-[0_2px_6px_rgba(0,0,0,0.65)]",
+        style: { fontFamily: FLAPPY_BIRD_GAME_OVER_FONT_FAMILY },
+        children: t2("flappy.gameOver")
+      }
+    ),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs(
+      "div",
+      {
+        className: "flex flex-col gap-1 text-[1.25rem] leading-tight tracking-[0.08em] drop-shadow-[0_2px_4px_rgba(0,0,0,0.65)]",
+        style: { fontFamily: FLAPPY_BIRD_GAME_OVER_FONT_FAMILY },
+        children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: t2("flappy.score", { score }) }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: t2("flappy.best", { score: bestScore }) })
+        ]
+      }
+    ),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex justify-center gap-[15px]", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx(
         "button",
         {
           type: "button",
           onClick: onExit,
           className: "text-[1.5rem] bg-component-negative text-white border-2 border-[#222] px-[15px] py-0.5 cursor-pointer uppercase shadow-[2px_2px_0_#222] relative top-0 left-0 transition-all duration-50",
-          children: "Exit"
-        },
-        void 0,
-        false,
-        {
-          fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdGameOverLayer.tsx",
-          lineNumber: 21,
-          columnNumber: 11
-        },
-        void 0
+          children: t2("flappy.exit")
+        }
       ),
-      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+      /* @__PURE__ */ jsxRuntimeExports.jsx(
         "button",
         {
           type: "button",
           onClick: onRestart,
           className: "text-[1.5rem] bg-component-positive text-white border-2 border-[#222] px-[15px] py-0.5 cursor-pointer uppercase shadow-[2px_2px_0_#222]",
-          children: "Retry"
-        },
-        void 0,
-        false,
-        {
-          fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdGameOverLayer.tsx",
-          lineNumber: 28,
-          columnNumber: 11
-        },
-        void 0
+          children: t2("flappy.retry")
+        }
       )
-    ] }, void 0, true, {
-      fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdGameOverLayer.tsx",
-      lineNumber: 20,
-      columnNumber: 9
-    }, void 0)
-  ] }, void 0, true, {
-    fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdGameOverLayer.tsx",
-    lineNumber: 16,
-    columnNumber: 7
-  }, void 0) }, void 0, false, {
-    fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdGameOverLayer.tsx",
-    lineNumber: 15,
-    columnNumber: 5
-  }, void 0);
+    ] })
+  ] }) });
+};
+const FLAPPY_BIRD_OPEN_SOURCE_NOTICE = {
+  name: "Neo둥근모 Pro",
+  lines: [
+    "Copyright © 2017-2024, Eunbin Jeong (Dalgona.) <project-neodgm@dalgona.dev>",
+    'with reserved font name "Neo둥근모 Pro" and "NeoDunggeunmo Pro".'
+  ]
 };
 const ToggleButton$1 = ({ enabled, onClick }) => {
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+  const { t: t2 } = useI18n();
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(
     "button",
     {
       type: "button",
       onClick,
-      className: `min-w-20 border-2 border-[#222] px-4 py-0.5 font-bold text-white ${enabled ? "bg-component-positive" : "bg-gray-400"}`,
-      children: enabled ? "ON" : "OFF"
-    },
-    void 0,
-    false,
-    {
-      fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
-      lineNumber: 30,
-      columnNumber: 5
-    },
-    void 0
+      className: `ml-auto min-w-20 shrink-0 border-2 border-[#222] px-4 py-0.5 font-bold text-white ${enabled ? "bg-component-positive" : "bg-gray-400"}`,
+      children: enabled ? t2("common.on") : t2("common.off")
+    }
   );
 };
 const ActionButton$1 = ({ text, onClick, disabled = false, variant = "positive" }) => {
   const backgroundClass = disabled ? "cursor-wait bg-gray-400 opacity-60" : variant === "warning" ? "bg-yellow-500" : variant === "negative" ? "bg-component-negative" : "bg-component-positive";
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(
     "button",
     {
       type: "button",
       disabled,
       onClick,
-      className: `flex min-w-20 items-center justify-center border-2 border-[#222] px-4 py-0.5 text-center font-bold text-white ${backgroundClass}`,
+      className: `ml-auto flex min-w-20 shrink-0 items-center justify-center border-2 border-[#222] px-4 py-0.5 text-center font-bold text-white ${backgroundClass}`,
       children: text
-    },
-    void 0,
-    false,
-    {
-      fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
-      lineNumber: 57,
-      columnNumber: 5
-    },
-    void 0
-  );
-};
-const SelectButton = ({ active, label, onClick }) => {
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
-    "button",
-    {
-      type: "button",
-      onClick,
-      className: `border-2 border-[#222] px-3 py-0.5 font-bold ${active ? "bg-component-positive text-white" : "bg-white text-[#222]"}`,
-      children: label
-    },
-    void 0,
-    false,
-    {
-      fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
-      lineNumber: 74,
-      columnNumber: 5
-    },
-    void 0
+    }
   );
 };
 const FlappyBirdSettingsLayer = ({
@@ -53614,218 +52891,153 @@ const FlappyBirdSettingsLayer = ({
   onResume,
   onExit
 }) => {
-  const shouldShowSkySelector = selectedTimeOfDay !== void 0 && onSelectTimeOfDay !== void 0;
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "fixed inset-0 z-[50] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
-    PopupLayer,
-    {
-      title: "Settings",
-      suppressInitialActionsMs: 180,
-      content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex flex-col gap-5 text-left text-[1.5rem]", children: [
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex flex-col gap-4", children: [
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex items-center justify-between gap-4", children: [
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "font-bold", children: "BGM" }, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
-              lineNumber: 114,
-              columnNumber: 19
-            }, void 0) }, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
-              lineNumber: 113,
-              columnNumber: 17
-            }, void 0),
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
-              ToggleButton$1,
+  const { locale, t: t2 } = useI18n();
+  const [showOpenSourceNotice, setShowOpenSourceNotice] = reactExports.useState(false);
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "fixed inset-0 z-[50] flex items-center justify-center bg-black/50", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx(
+      PopupLayer,
+      {
+        title: t2("settings.title"),
+        suppressInitialActionsMs: 180,
+        content: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-5 text-left text-[1.5rem]", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-4", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-wrap items-center justify-between gap-3", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "whitespace-nowrap font-bold", children: t2("flappy.bgm") }) }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
+                ToggleButton$1,
+                {
+                  enabled: isBgmEnabled,
+                  onClick: () => onChangeBgm(!isBgmEnabled)
+                }
+              )
+            ] }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-wrap items-center justify-between gap-3", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "whitespace-nowrap font-bold", children: t2("flappy.sfx") }) }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
+                ToggleButton$1,
+                {
+                  enabled: isSfxEnabled,
+                  onClick: () => onChangeSfx(!isSfxEnabled)
+                }
+              )
+            ] })
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "border-t-2 border-[#222] pt-4", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-wrap items-center justify-between gap-3", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "whitespace-nowrap font-bold", children: t2("settings.reportBug") }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              ActionButton$1,
               {
-                enabled: isBgmEnabled,
-                onClick: () => onChangeBgm(!isBgmEnabled)
-              },
-              void 0,
-              false,
-              {
-                fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
-                lineNumber: 116,
-                columnNumber: 17
-              },
-              void 0
+                text: isSendingLogs ? t2("flappy.preparing") : t2("settings.send"),
+                onClick: onSendLogs,
+                disabled: isSendingLogs,
+                variant: "warning"
+              }
             )
-          ] }, void 0, true, {
-            fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
-            lineNumber: 112,
-            columnNumber: 15
-          }, void 0),
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex items-center justify-between gap-4", children: [
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "font-bold", children: "SFX" }, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
-              lineNumber: 123,
-              columnNumber: 19
-            }, void 0) }, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
-              lineNumber: 122,
-              columnNumber: 17
-            }, void 0),
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
-              ToggleButton$1,
+          ] }) }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "border-t-2 border-[#222] pt-4", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-wrap items-center justify-between gap-3", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "whitespace-nowrap font-bold", children: t2("flappy.openSource") }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              ActionButton$1,
               {
-                enabled: isSfxEnabled,
-                onClick: () => onChangeSfx(!isSfxEnabled)
-              },
-              void 0,
-              false,
-              {
-                fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
-                lineNumber: 125,
-                columnNumber: 17
-              },
-              void 0
+                text: t2("common.view"),
+                onClick: () => setShowOpenSourceNotice(true)
+              }
             )
-          ] }, void 0, true, {
-            fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
-            lineNumber: 121,
-            columnNumber: 15
-          }, void 0)
-        ] }, void 0, true, {
-          fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
-          lineNumber: 111,
-          columnNumber: 13
-        }, void 0),
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "border-t-2 border-[#222] pt-4", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex items-center justify-between gap-4", children: [
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "font-bold", children: "Report Bug" }, void 0, false, {
-            fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
-            lineNumber: 134,
-            columnNumber: 17
-          }, void 0),
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
-            ActionButton$1,
+          ] }) }),
+          null
+        ] }),
+        onConfirm: onResume,
+        onCancel: onExit,
+        confirmText: t2("flappy.resume"),
+        cancelText: t2("flappy.exit"),
+        initialFocusTarget: "confirm"
+      }
+    ),
+    showOpenSourceNotice && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+      PopupLayer,
+      {
+        title: t2("flappy.openSource"),
+        content: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-left text-[1rem] leading-[1.4]", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-1 leading-[1.35]", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "break-all font-bold", children: FLAPPY_BIRD_OPEN_SOURCE_NOTICE.name }),
+          FLAPPY_BIRD_OPEN_SOURCE_NOTICE.lines.map((line) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "div",
             {
-              text: isSendingLogs ? "Preparing..." : "Send",
-              onClick: onSendLogs,
-              disabled: isSendingLogs,
-              variant: "warning"
+              className: "break-all text-[0.95rem] text-gray-600",
+              children: line
             },
-            void 0,
-            false,
-            {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
-              lineNumber: 135,
-              columnNumber: 17
-            },
-            void 0
-          )
-        ] }, void 0, true, {
-          fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
-          lineNumber: 133,
-          columnNumber: 15
-        }, void 0) }, void 0, false, {
-          fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
-          lineNumber: 132,
-          columnNumber: 13
-        }, void 0),
-        shouldShowSkySelector ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "border-t-2 border-[#222] pt-4", children: [
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "mb-3 font-bold", children: "Sky Dev" }, void 0, false, {
-            fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
-            lineNumber: 146,
-            columnNumber: 17
-          }, void 0),
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "grid grid-cols-2 gap-2", children: TIME_OF_DAY_OPTIONS.map((timeOfDay) => /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
-            SelectButton,
-            {
-              active: selectedTimeOfDay === timeOfDay,
-              label: getTimeOfDayLabel(timeOfDay),
-              onClick: () => onSelectTimeOfDay(timeOfDay)
-            },
-            timeOfDay,
-            false,
-            {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
-              lineNumber: 149,
-              columnNumber: 21
-            },
-            void 0
-          )) }, void 0, false, {
-            fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
-            lineNumber: 147,
-            columnNumber: 17
-          }, void 0)
-        ] }, void 0, true, {
-          fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
-          lineNumber: 145,
-          columnNumber: 15
-        }, void 0) : null
-      ] }, void 0, true, {
-        fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
-        lineNumber: 110,
-        columnNumber: 11
-      }, void 0),
-      onConfirm: onResume,
-      onCancel: onExit,
-      confirmText: "Resume",
-      cancelText: "Exit",
-      initialFocusTarget: "confirm"
-    },
-    void 0,
-    false,
-    {
-      fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
-      lineNumber: 106,
-      columnNumber: 7
-    },
-    void 0
-  ) }, void 0, false, {
-    fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
-    lineNumber: 105,
-    columnNumber: 5
-  }, void 0);
+            line
+          ))
+        ] }) }),
+        onConfirm: () => setShowOpenSourceNotice(false),
+        confirmText: t2("common.close")
+      }
+    ) })
+  ] });
 };
-const FONT_NOTICE = {
-  name: "Neo둥근모 Pro",
-  lines: [
-    "Copyright © 2017-2024, Eunbin Jeong (Dalgona.) <project-neodgm@dalgona.dev>",
-    'with reserved font name "Neo둥근모 Pro" and "NeoDunggeunmo Pro".'
-  ]
-};
+const RESET_CONFIRM_CODE_LENGTH = 6;
+const RESET_CONFIRM_CODE_INDEXES = Array.from(
+  { length: RESET_CONFIRM_CODE_LENGTH },
+  (_, index) => index
+);
 const ToggleButton = ({ enabled, onClick }) => {
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+  const { t: t2 } = useI18n();
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(
     "button",
     {
       type: "button",
       onClick,
-      className: `min-w-20 border-2 border-[#222] px-4 py-0.5 font-bold text-white ${enabled ? "bg-component-positive" : "bg-gray-400"}`,
-      children: enabled ? "ON" : "OFF"
-    },
-    void 0,
-    false,
-    {
-      fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-      lineNumber: 31,
-      columnNumber: 5
-    },
-    void 0
+      className: `ml-auto min-w-20 shrink-0 border-2 border-[#222] px-4 py-0.5 font-bold text-white ${enabled ? "bg-component-positive" : "bg-gray-400"}`,
+      children: enabled ? t2("common.on") : t2("common.off")
+    }
   );
 };
 const ActionButton = ({ text, onClick, disabled = false, variant = "positive" }) => {
   const backgroundClass = disabled ? "cursor-wait bg-gray-400 opacity-60" : variant === "warning" ? "bg-yellow-500" : variant === "negative" ? "bg-component-negative" : "bg-component-positive";
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(
     "button",
     {
       type: "button",
       disabled,
       onClick,
-      className: `flex min-w-20 items-center justify-center border-2 border-[#222] px-4 py-0.5 text-center font-bold text-white ${backgroundClass}`,
+      className: `ml-auto flex min-w-20 shrink-0 items-center justify-center border-2 border-[#222] px-4 py-0.5 text-center font-bold text-white ${backgroundClass}`,
       children: text
-    },
-    void 0,
-    false,
-    {
-      fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-      lineNumber: 58,
-      columnNumber: 5
-    },
-    void 0
+    }
   );
 };
+const LanguageButton = ({ locale, active, onClick }) => {
+  const meta = LOCALE_METADATA[locale];
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(
+    "button",
+    {
+      type: "button",
+      onClick,
+      className: `border-2 border-[#222] px-2 py-0.5 text-[1rem] font-bold ${active ? "bg-component-positive text-white" : "bg-white text-[#222]"}`,
+      "aria-pressed": active,
+      children: meta.nativeName
+    }
+  );
+};
+function createResetConfirmCode() {
+  if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+    const values = crypto.getRandomValues(
+      new Uint8Array(RESET_CONFIRM_CODE_LENGTH)
+    );
+    return Array.from(values, (value) => String(value % 10)).join("");
+  }
+  return Array.from(
+    { length: RESET_CONFIRM_CODE_LENGTH },
+    () => String(Math.floor(Math.random() * 10))
+  ).join("");
+}
+function sanitizeResetConfirmCodeInput(value) {
+  return value.replace(/\D/g, "").slice(0, RESET_CONFIRM_CODE_LENGTH);
+}
 const SettingMenuLayer = ({
   releaseLabel,
   vibrationEnabled,
+  locale,
   onChangeVibration,
+  onChangeLocale,
   onSendDiagnostics,
   isSendingDiagnostics,
   showFinalResetConfirm,
@@ -53834,279 +53046,202 @@ const SettingMenuLayer = ({
   onResetGameData,
   onClose
 }) => {
-  const [resetConfirmText, setResetConfirmText] = reactExports.useState("");
-  const [showFontNotice, setShowFontNotice] = reactExports.useState(false);
-  const isResetEnabled = reactExports.useMemo(
-    () => resetConfirmText.trim() === "confirm",
-    [resetConfirmText]
+  const { t: t2 } = useI18n();
+  const [resetConfirmCode, setResetConfirmCode] = reactExports.useState(createResetConfirmCode);
+  const [resetConfirmDigits, setResetConfirmDigits] = reactExports.useState(
+    () => Array.from({ length: RESET_CONFIRM_CODE_LENGTH }, () => "")
   );
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50", children: [
-    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+  const resetCodeInputRefs = reactExports.useRef([]);
+  reactExports.useEffect(() => {
+    if (!showFinalResetConfirm) {
+      return;
+    }
+    setResetConfirmCode(createResetConfirmCode());
+    setResetConfirmDigits(
+      Array.from({ length: RESET_CONFIRM_CODE_LENGTH }, () => "")
+    );
+    window.requestAnimationFrame(() => {
+      const firstInput = resetCodeInputRefs.current[0];
+      firstInput == null ? void 0 : firstInput.focus();
+      firstInput == null ? void 0 : firstInput.select();
+    });
+  }, [showFinalResetConfirm]);
+  const resetConfirmText = reactExports.useMemo(
+    () => resetConfirmDigits.join(""),
+    [resetConfirmDigits]
+  );
+  const isResetComplete = reactExports.useMemo(
+    () => resetConfirmDigits.every((digit) => digit.length === 1),
+    [resetConfirmDigits]
+  );
+  const isResetEnabled = reactExports.useMemo(
+    () => isResetComplete && resetConfirmText === resetConfirmCode,
+    [isResetComplete, resetConfirmCode, resetConfirmText]
+  );
+  const isResetMismatch = isResetComplete && !isResetEnabled;
+  const focusResetCodeInput = (index) => {
+    const nextIndex = Math.max(0, Math.min(index, RESET_CONFIRM_CODE_LENGTH - 1));
+    window.requestAnimationFrame(() => {
+      const input = resetCodeInputRefs.current[nextIndex];
+      input == null ? void 0 : input.focus();
+      input == null ? void 0 : input.select();
+    });
+  };
+  const fillResetConfirmDigits = (startIndex, value) => {
+    const digits = sanitizeResetConfirmCodeInput(value);
+    if (!digits) {
+      return;
+    }
+    setResetConfirmDigits((currentDigits) => {
+      const nextDigits = [...currentDigits];
+      for (let offset = 0; offset < digits.length && startIndex + offset < RESET_CONFIRM_CODE_LENGTH; offset += 1) {
+        nextDigits[startIndex + offset] = digits[offset];
+      }
+      return nextDigits;
+    });
+    focusResetCodeInput(startIndex + digits.length);
+  };
+  const clearResetConfirmDigit = (index, direction) => {
+    const previousIndex = Math.max(0, index - 1);
+    setResetConfirmDigits((currentDigits) => {
+      const nextDigits = [...currentDigits];
+      if (direction === "current") {
+        nextDigits[index] = "";
+      } else {
+        nextDigits[previousIndex] = "";
+      }
+      return nextDigits;
+    });
+    focusResetCodeInput(direction === "current" ? index : previousIndex);
+  };
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx(
       PopupLayer,
       {
-        title: "Settings",
+        title: t2("settings.title"),
         suppressInitialActionsMs: 180,
-        topLeftContent: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-[10px] leading-none text-gray-500", children: releaseLabel }, void 0, false, {
-          fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-          lineNumber: 95,
-          columnNumber: 11
-        }, void 0),
-        content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex flex-col gap-5 text-left text-[1.5rem]", children: [
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex items-center justify-between gap-4", children: [
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "font-bold", children: "Vibration" }, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 103,
-              columnNumber: 17
-            }, void 0) }, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 102,
-              columnNumber: 15
-            }, void 0),
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+        topLeftContent: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-[10px] leading-none text-gray-500", children: releaseLabel }),
+        content: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-4 text-left text-[1.5rem] leading-[1.4]", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-wrap items-center justify-between gap-3", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "whitespace-nowrap font-bold", children: t2("settings.vibration") }) }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
               ToggleButton,
               {
                 enabled: vibrationEnabled,
                 onClick: () => onChangeVibration(!vibrationEnabled)
-              },
-              void 0,
-              false,
-              {
-                fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-                lineNumber: 105,
-                columnNumber: 15
-              },
-              void 0
+              }
             )
-          ] }, void 0, true, {
-            fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-            lineNumber: 101,
-            columnNumber: 13
-          }, void 0),
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "border-t-2 border-[#222] pt-4", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex items-center justify-between gap-4", children: [
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "font-bold", children: "Report Bug" }, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 113,
-              columnNumber: 17
-            }, void 0),
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "border-t-2 border-[#222] pt-4", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-wrap items-center justify-between gap-3", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "whitespace-nowrap font-bold", children: t2("settings.reportBug") }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
               ActionButton,
               {
-                text: "Send",
+                text: isSendingDiagnostics ? t2("settings.sending") : t2("settings.send"),
                 onClick: onSendDiagnostics,
                 disabled: isSendingDiagnostics,
                 variant: "warning"
-              },
-              void 0,
-              false,
-              {
-                fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-                lineNumber: 114,
-                columnNumber: 17
-              },
-              void 0
+              }
             )
-          ] }, void 0, true, {
-            fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-            lineNumber: 112,
-            columnNumber: 15
-          }, void 0) }, void 0, false, {
-            fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-            lineNumber: 111,
-            columnNumber: 13
-          }, void 0),
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "border-t-2 border-[#222] pt-4", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex items-center justify-between gap-4", children: [
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "font-bold", children: "License" }, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 126,
-              columnNumber: 19
-            }, void 0) }, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 125,
-              columnNumber: 17
-            }, void 0),
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+          ] }) }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "border-t-2 border-[#222] pt-4", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "font-bold text-red-600", children: t2("settings.raiseNewMonster") }) }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "mt-3 flex justify-end", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
               ActionButton,
               {
-                text: "View",
-                onClick: () => setShowFontNotice(true)
-              },
-              void 0,
-              false,
+                text: t2("common.reset"),
+                onClick: onOpenResetConfirm,
+                variant: "negative"
+              }
+            ) })
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "border-t-2 border-[#222] pt-4", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mb-3 flex flex-wrap items-center gap-2 font-bold", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Language" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "border-2 border-[#222] bg-yellow-300 px-2 py-0.5 text-[0.85rem] uppercase leading-none text-[#222]", children: "Dev Mode" })
+            ] }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "grid grid-cols-2 gap-2", children: SUPPORTED_LOCALES.map((localeOption) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+              LanguageButton,
               {
-                fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-                lineNumber: 128,
-                columnNumber: 17
+                locale: localeOption,
+                active: locale === localeOption,
+                onClick: () => onChangeLocale(localeOption)
               },
-              void 0
-            )
-          ] }, void 0, true, {
-            fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-            lineNumber: 124,
-            columnNumber: 15
-          }, void 0) }, void 0, false, {
-            fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-            lineNumber: 123,
-            columnNumber: 13
-          }, void 0),
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "border-t-2 border-[#222] pt-4", children: [
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "font-bold text-red-600", children: "Raise a New Monster" }, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 137,
-              columnNumber: 17
-            }, void 0) }, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 136,
-              columnNumber: 15
-            }, void 0),
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "mt-3 flex items-center justify-between gap-3", children: [
-              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
-                "input",
-                {
-                  type: "text",
-                  value: resetConfirmText,
-                  onChange: (event) => setResetConfirmText(event.target.value),
-                  placeholder: "confirm",
-                  className: "w-40 border-2 border-[#222] px-3 py-0.5 text-center placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#d95763]"
-                },
-                void 0,
-                false,
-                {
-                  fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-                  lineNumber: 142,
-                  columnNumber: 17
-                },
-                void 0
-              ),
-              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
-                "button",
-                {
-                  type: "button",
-                  disabled: !isResetEnabled,
-                  onClick: onOpenResetConfirm,
-                  className: `border-2 border-[#222] px-4 py-0.5 font-bold text-white ${isResetEnabled ? "bg-component-negative" : "cursor-not-allowed bg-gray-400 opacity-60"}`,
-                  children: "Reset"
-                },
-                void 0,
-                false,
-                {
-                  fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-                  lineNumber: 149,
-                  columnNumber: 17
-                },
-                void 0
-              )
-            ] }, void 0, true, {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 141,
-              columnNumber: 15
-            }, void 0)
-          ] }, void 0, true, {
-            fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-            lineNumber: 135,
-            columnNumber: 13
-          }, void 0)
-        ] }, void 0, true, {
-          fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-          lineNumber: 100,
-          columnNumber: 11
-        }, void 0),
+              localeOption
+            )) })
+          ] })
+        ] }),
         onConfirm: onClose,
-        confirmText: "Close"
-      },
-      void 0,
-      false,
-      {
-        fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-        lineNumber: 91,
-        columnNumber: 7
-      },
-      void 0
+        confirmText: t2("common.close")
+      }
     ),
-    showFontNotice && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+    showFinalResetConfirm && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
       PopupLayer,
       {
-        title: "License",
-        content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-left text-[1rem] leading-[1.4]", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "space-y-1 leading-[1.35]", children: [
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "break-all font-bold", children: FONT_NOTICE.name }, void 0, false, {
-            fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-            lineNumber: 175,
-            columnNumber: 19
-          }, void 0),
-          FONT_NOTICE.lines.map((line) => /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+        title: t2("settings.resetTitle"),
+        content: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-4 leading-[1.4]", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: t2("settings.resetMessage") }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
             {
-              className: "break-all text-[0.95rem] text-gray-600",
-              children: line
-            },
-            line,
-            false,
-            {
-              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-              lineNumber: 177,
-              columnNumber: 21
-            },
-            void 0
-          ))
-        ] }, void 0, true, {
-          fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-          lineNumber: 174,
-          columnNumber: 17
-        }, void 0) }, void 0, false, {
-          fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-          lineNumber: 173,
-          columnNumber: 15
-        }, void 0),
-        onConfirm: () => setShowFontNotice(false),
-        confirmText: "Close"
-      },
-      void 0,
-      false,
-      {
-        fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-        lineNumber: 170,
-        columnNumber: 11
-      },
-      void 0
-    ) }, void 0, false, {
-      fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-      lineNumber: 169,
-      columnNumber: 9
-    }, void 0),
-    showFinalResetConfirm && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
-      PopupLayer,
-      {
-        title: "❗️Reset?",
-        content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "leading-[1.6]", children: "This will permanently delete your current monster and all progress. You'll return to the setup screen to hatch a new one." }, void 0, false, {
-          fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-          lineNumber: 197,
-          columnNumber: 15
-        }, void 0),
+              className: "grid grid-cols-6 gap-1 self-center",
+              "aria-label": t2("settings.resetConfirmCodeLabel"),
+              children: RESET_CONFIRM_CODE_INDEXES.map((index) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "input",
+                {
+                  ref: (element) => {
+                    resetCodeInputRefs.current[index] = element;
+                  },
+                  type: "text",
+                  inputMode: "numeric",
+                  pattern: "[0-9]*",
+                  maxLength: 1,
+                  autoComplete: "off",
+                  value: resetConfirmDigits[index],
+                  placeholder: resetConfirmCode[index],
+                  onChange: (event) => fillResetConfirmDigits(index, event.target.value),
+                  onFocus: (event) => event.target.select(),
+                  onKeyDown: (event) => {
+                    if (event.key !== "Backspace") {
+                      if (event.key === "Delete") {
+                        event.preventDefault();
+                        clearResetConfirmDigit(index, "current");
+                      }
+                      return;
+                    }
+                    event.preventDefault();
+                    clearResetConfirmDigit(
+                      index,
+                      resetConfirmDigits[index] ? "current" : "previous"
+                    );
+                  },
+                  onPaste: (event) => {
+                    event.preventDefault();
+                    fillResetConfirmDigits(
+                      index,
+                      event.clipboardData.getData("text")
+                    );
+                  },
+                  "aria-label": `${t2("settings.resetConfirmCodeLabel")} ${index + 1}`,
+                  "aria-invalid": isResetMismatch,
+                  className: `h-11 w-9 border-2 px-0 text-center text-[1.2rem] font-bold focus:outline-none focus:ring-2 focus:ring-[#d95763] ${isResetMismatch ? "border-component-negative bg-[#fff0f2] text-component-negative placeholder:text-component-negative/50" : "border-[#222] bg-white text-[#222] placeholder:text-gray-400"}`
+                },
+                index
+              ))
+            }
+          )
+        ] }),
         onConfirm: onResetGameData,
         onCancel: onCloseResetConfirm,
-        confirmText: "Reset",
-        cancelText: "Cancel",
+        confirmText: t2("common.reset"),
+        cancelText: t2("common.cancel"),
+        confirmDisabled: !isResetEnabled,
         confirmVariant: "negative",
         cancelVariant: "positive",
         confirmEnableDelayMs: 2e3
-      },
-      void 0,
-      false,
-      {
-        fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-        lineNumber: 194,
-        columnNumber: 11
-      },
-      void 0
-    ) }, void 0, false, {
-      fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-      lineNumber: 193,
-      columnNumber: 9
-    }, void 0)
-  ] }, void 0, true, {
-    fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
-    lineNumber: 90,
-    columnNumber: 5
-  }, void 0);
+      }
+    ) })
+  ] });
 };
 const useAlert = () => {
   const [alertState, setAlertState] = reactExports.useState(null);
@@ -54260,16 +53395,20 @@ function sanitizeMainSceneAdPendingReservation(pending) {
   const queuedAt = toFiniteNumber(pending.queued_at);
   const cooldownMs = toFiniteNumber(pending.cooldown_ms);
   const threshold = toFiniteNumber(pending.threshold);
-  if (queuedAt === null || queuedAt <= 0 || cooldownMs === null || cooldownMs <= 0 || threshold === null || threshold <= 0 || typeof pending.deep_night !== "boolean") {
+  if (queuedAt === null || queuedAt <= 0 || cooldownMs === null || cooldownMs <= 0 || threshold === null || threshold <= 0 || typeof pending.deep_night !== "boolean" || pending.online_retry !== void 0 && typeof pending.online_retry !== "boolean") {
     return void 0;
   }
-  return {
+  const sanitizedPending = {
     menu: pending.menu,
     queued_at: queuedAt,
     cooldown_ms: cooldownMs,
     threshold: Math.floor(threshold),
     deep_night: pending.deep_night
   };
+  if (pending.online_retry === true) {
+    sanitizedPending.online_retry = true;
+  }
+  return sanitizedPending;
 }
 function isMainSceneAdMenu(value) {
   return value === "feed" || value === "clean" || value === "hospital" || value === "mini_game";
@@ -54290,7 +53429,7 @@ function sanitizeCachedSunTimes(sunTimes) {
   };
 }
 function sanitizeCharacterEntity(components, now) {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B, _C, _D, _E, _F, _G, _H, _I, _J, _K, _L, _M, _N, _O, _P, _Q, _R, _S, _T, _U, _V, _W, _X;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B, _C, _D, _E, _F, _G, _H, _I, _J, _K, _L, _M, _N, _O, _P, _Q, _R, _S, _T, _U, _V, _W, _X, _Y;
   const objectId = toFiniteNumber((_a = components.object) == null ? void 0 : _a.id);
   if (!objectId || objectId <= 0) {
     return null;
@@ -54362,15 +53501,16 @@ function sanitizeCharacterEntity(components, now) {
     },
     temporaryStatus: {
       statusType: toFiniteNumber((_I = components.temporaryStatus) == null ? void 0 : _I.statusType) ?? ECS_NULL_VALUE,
-      startTime: toFiniteNumber((_J = components.temporaryStatus) == null ? void 0 : _J.startTime) ?? 0
+      startTime: toFiniteNumber((_J = components.temporaryStatus) == null ? void 0 : _J.startTime) ?? 0,
+      lastHappyStatusTime: toFiniteNumber((_K = components.temporaryStatus) == null ? void 0 : _K.lastHappyStatusTime) ?? 0
     },
     eggHatch: {
-      hatchTime: toFiniteNumber((_K = components.eggHatch) == null ? void 0 : _K.hatchTime) ?? (fallbackEggHatchSchedule == null ? void 0 : fallbackEggHatchSchedule.hatchTime) ?? 0,
-      hatchDurationMs: toFiniteNumber((_L = components.eggHatch) == null ? void 0 : _L.hatchDurationMs) ?? (fallbackEggHatchSchedule == null ? void 0 : fallbackEggHatchSchedule.hatchDurationMs) ?? 0,
-      isReadyToHatch: toBoolean((_M = components.eggHatch) == null ? void 0 : _M.isReadyToHatch, false)
+      hatchTime: toFiniteNumber((_L = components.eggHatch) == null ? void 0 : _L.hatchTime) ?? (fallbackEggHatchSchedule == null ? void 0 : fallbackEggHatchSchedule.hatchTime) ?? 0,
+      hatchDurationMs: toFiniteNumber((_M = components.eggHatch) == null ? void 0 : _M.hatchDurationMs) ?? (fallbackEggHatchSchedule == null ? void 0 : fallbackEggHatchSchedule.hatchDurationMs) ?? 0,
+      isReadyToHatch: toBoolean((_N = components.eggHatch) == null ? void 0 : _N.isReadyToHatch, false)
     }
   };
-  const statusIconSlots = (_N = sanitized.statusIconRender) == null ? void 0 : _N.storeIndexes;
+  const statusIconSlots = (_O = sanitized.statusIconRender) == null ? void 0 : _O.storeIndexes;
   if (statusIconSlots && statusIconSlots.length < DEFAULTS.STATUS_SLOT_COUNT) {
     while (statusIconSlots.length < DEFAULTS.STATUS_SLOT_COUNT) {
       statusIconSlots.push(ECS_NULL_VALUE);
@@ -54379,30 +53519,30 @@ function sanitizeCharacterEntity(components, now) {
   if (needsAnimationRender(state)) {
     sanitized.animationRender = {
       storeIndex: ECS_NULL_VALUE,
-      spritesheetKey: toFiniteNumber((_O = components.animationRender) == null ? void 0 : _O.spritesheetKey) ?? characterKey ?? DEFAULTS.SPRITESHEET_KEY,
-      animationKey: toFiniteNumber((_P = components.animationRender) == null ? void 0 : _P.animationKey) ?? DEFAULTS.ANIMATION_KEY_IDLE,
-      isPlaying: toBoolean((_Q = components.animationRender) == null ? void 0 : _Q.isPlaying, true),
-      loop: toBoolean((_R = components.animationRender) == null ? void 0 : _R.loop, true),
-      speed: toFiniteNumber((_S = components.animationRender) == null ? void 0 : _S.speed) ?? 0.04
+      spritesheetKey: toFiniteNumber((_P = components.animationRender) == null ? void 0 : _P.spritesheetKey) ?? characterKey ?? DEFAULTS.SPRITESHEET_KEY,
+      animationKey: toFiniteNumber((_Q = components.animationRender) == null ? void 0 : _Q.animationKey) ?? DEFAULTS.ANIMATION_KEY_IDLE,
+      isPlaying: toBoolean((_R = components.animationRender) == null ? void 0 : _R.isPlaying, true),
+      loop: toBoolean((_S = components.animationRender) == null ? void 0 : _S.loop, true),
+      speed: toFiniteNumber((_T = components.animationRender) == null ? void 0 : _T.speed) ?? 0.04
     };
   }
   if (needsRandomMovement(state)) {
-    const minIdle = toFiniteNumber((_T = components.randomMovement) == null ? void 0 : _T.minIdleTime) ?? DEFAULTS.RANDOM_MOVEMENT.minIdleTime;
+    const minIdle = toFiniteNumber((_U = components.randomMovement) == null ? void 0 : _U.minIdleTime) ?? DEFAULTS.RANDOM_MOVEMENT.minIdleTime;
     const maxIdle = Math.max(
       minIdle,
-      toFiniteNumber((_U = components.randomMovement) == null ? void 0 : _U.maxIdleTime) ?? DEFAULTS.RANDOM_MOVEMENT.maxIdleTime
+      toFiniteNumber((_V = components.randomMovement) == null ? void 0 : _V.maxIdleTime) ?? DEFAULTS.RANDOM_MOVEMENT.maxIdleTime
     );
-    const minMove = toFiniteNumber((_V = components.randomMovement) == null ? void 0 : _V.minMoveTime) ?? DEFAULTS.RANDOM_MOVEMENT.minMoveTime;
+    const minMove = toFiniteNumber((_W = components.randomMovement) == null ? void 0 : _W.minMoveTime) ?? DEFAULTS.RANDOM_MOVEMENT.minMoveTime;
     const maxMove = Math.max(
       minMove,
-      toFiniteNumber((_W = components.randomMovement) == null ? void 0 : _W.maxMoveTime) ?? DEFAULTS.RANDOM_MOVEMENT.maxMoveTime
+      toFiniteNumber((_X = components.randomMovement) == null ? void 0 : _X.maxMoveTime) ?? DEFAULTS.RANDOM_MOVEMENT.maxMoveTime
     );
     sanitized.randomMovement = {
       minIdleTime: minIdle,
       maxIdleTime: maxIdle,
       minMoveTime: minMove,
       maxMoveTime: maxMove,
-      nextChange: toFiniteNumber((_X = components.randomMovement) == null ? void 0 : _X.nextChange) ?? now + 1e3
+      nextChange: toFiniteNumber((_Y = components.randomMovement) == null ? void 0 : _Y.nextChange) ?? now + 1e3
     };
   }
   return sanitized;
@@ -55193,11 +54333,11 @@ function createFlappyBirdLogsBody() {
   ].join("\n");
 }
 function getClientReleaseLabel() {
-  return `${"0.5.1-debug"}+${10}`;
+  return `${"0.5.2-debug"}+${11}`;
 }
 function getClientReleaseFileLabel() {
-  const sanitizedVersion = "0.5.1-debug".replace(/[^a-zA-Z0-9.-]+/g, "_");
-  return `${sanitizedVersion}-build-${10}`;
+  const sanitizedVersion = "0.5.2-debug".replace(/[^a-zA-Z0-9.-]+/g, "_");
+  return `${sanitizedVersion}-build-${11}`;
 }
 function buildDiagnosticsTimestampSuffix(timestamp) {
   return timestamp.replace(/\.\d{3}Z$/, "Z").replace(/[:]/g, "-");
@@ -55254,6 +54394,7 @@ const GameContainer = () => {
   );
   const [showSetupLayer, setShowSetupLayer] = reactExports.useState(false);
   const [isBootstrapping, setIsBootstrapping] = reactExports.useState(true);
+  const { locale, setLocale, t: t2 } = useI18n();
   const { alertState, showAlert, hideAlert } = useAlert();
   const [loadingFailureAlert, setLoadingFailureAlert] = reactExports.useState(null);
   const [sanitizeResetAlert, setSanitizeResetAlert] = reactExports.useState(null);
@@ -55545,6 +54686,7 @@ const GameContainer = () => {
     ]
   );
   const handleNativeBackNavigation = reactExports.useCallback(() => {
+    var _a;
     if (typeof window === "undefined") {
       return "consumed";
     }
@@ -55552,6 +54694,9 @@ const GameContainer = () => {
       return "consumed";
     }
     if (interruptLoadingFlow("back_navigation")) {
+      return "consumed";
+    }
+    if ((_a = window.digiviceAdFallbackBridge) == null ? void 0 : _a.isActive()) {
       return "consumed";
     }
     if (unsupportedViewportReason || showSetupLayer || sanitizeResetAlert) {
@@ -55632,7 +54777,7 @@ const GameContainer = () => {
   const stopLoadingWithFailure = reactExports.useCallback(
     ({
       message,
-      title = "Loading Error",
+      title = t2("loading.errorTitle"),
       error,
       context: context2
     }) => {
@@ -55664,7 +54809,8 @@ const GameContainer = () => {
       cancelPendingGameInitialization,
       clearLoadingTimeout,
       gameInstance,
-      sceneTransitionLoadState.phase
+      sceneTransitionLoadState.phase,
+      t2
     ]
   );
   const armLoadingTimeout = reactExports.useCallback(
@@ -55687,8 +54833,8 @@ const GameContainer = () => {
           return;
         }
         stopLoadingWithFailure({
-          title: "Loading Timeout",
-          message: "The game is taking too long to load. Tap Okay to dismiss this popup or Send Log to share diagnostics.",
+          title: t2("loading.timeoutTitle"),
+          message: t2("loading.timeoutMessage"),
           context: {
             phase: "loading_timeout",
             loadingPhase: timeoutContext.phase,
@@ -55702,7 +54848,7 @@ const GameContainer = () => {
         });
       }, remainingMs);
     },
-    [stopLoadingWithFailure]
+    [stopLoadingWithFailure, t2]
   );
   reactExports.useEffect(() => {
     return () => {
@@ -55843,12 +54989,16 @@ const GameContainer = () => {
     setGameSettings(updateGameSettings({ vibrationEnabled: enabled }));
   }, []);
   reactExports.useEffect(() => {
+    setGameSettings(getGameSettings());
+    gameInstance == null ? void 0 : gameInstance.setLocale(locale);
+  }, [gameInstance, locale]);
+  reactExports.useEffect(() => {
     setDiagnosticsContextProvider(() => ({
       scene: (gameInstance == null ? void 0 : gameInstance.getCurrentSceneKey()) !== void 0 ? String(gameInstance.getCurrentSceneKey()) : void 0,
       storageKind: getClientStorageKind(),
-      appMode: "development",
-      appVersion: "0.5.1-debug",
-      buildNumber: 10,
+      appMode: "production",
+      appVersion: "0.5.2-debug",
+      buildNumber: 11,
       debugEnabled: isNativeFeatureDebugMode$1
     }));
     return () => {
@@ -56203,12 +55353,8 @@ const GameContainer = () => {
       var _a, _b, _c;
       const storage = createClientStorage();
       const storedGameData = await storage.getData(WORLD_DATA_STORAGE_KEY);
-      const storedFlappyBirdPerfHistory = await storage.getData(
-        FLAPPY_BIRD_PERF_DIAGNOSTICS_STORAGE_KEY
-      );
       const snapshot = gameInstance == null ? void 0 : gameInstance.getDiagnosticsSnapshot();
       const currentGameData = (snapshot == null ? void 0 : snapshot.mainSceneData) ?? null;
-      const currentFlappyBirdPerf = (snapshot == null ? void 0 : snapshot.flappyBirdPerf) ?? null;
       const nativeBridgeDiagnostics = Array.isArray(
         window.__digiviceNativeBridgeDiagnostics
       ) ? window.__digiviceNativeBridgeDiagnostics : [];
@@ -56219,9 +55365,9 @@ const GameContainer = () => {
         generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
         appInfo: {
           project: "MonTTo",
-          clientAppVersion: "0.5.1-debug",
-          clientBuildNumber: 10,
-          appMode: "development",
+          clientAppVersion: "0.5.2-debug",
+          clientBuildNumber: 11,
+          appMode: "production",
           debugEnabled: isNativeFeatureDebugMode$1,
           storageKind: getClientStorageKind(),
           userAgent: navigator.userAgent,
@@ -56235,9 +55381,7 @@ const GameContainer = () => {
         logs: getDiagnosticsLogs(),
         importantLogs: getImportantDiagnosticsLogs(),
         currentGameData,
-        currentFlappyBirdPerf,
         storedGameData,
-        storedFlappyBirdPerfHistory,
         nativeBridgeDiagnostics,
         latestGameData,
         latestGameDataSource,
@@ -56252,18 +55396,6 @@ const GameContainer = () => {
           subject: createFlappyBirdLogsSubject(payload.generatedAt),
           body: createFlappyBirdLogsBody(),
           attachments: [
-            {
-              fileName: `montto-flappybird-perf-${releaseFileLabel}-${timestampSuffix}.json`,
-              text: JSON.stringify(
-                {
-                  currentFlappyBirdPerf: payload.currentFlappyBirdPerf,
-                  storedFlappyBirdPerfHistory: payload.storedFlappyBirdPerfHistory
-                },
-                null,
-                2
-              ),
-              mimeType: "application/json"
-            },
             {
               fileName: `montto-native-bridge-diagnostics-${releaseFileLabel}-${timestampSuffix}.json`,
               text: JSON.stringify(payload.nativeBridgeDiagnostics, null, 2),
@@ -56293,18 +55425,6 @@ const GameContainer = () => {
             mimeType: "application/json"
           },
           {
-            fileName: `montto-flappybird-perf-${releaseFileLabel}-${timestampSuffix}.json`,
-            text: JSON.stringify(
-              {
-                currentFlappyBirdPerf: payload.currentFlappyBirdPerf,
-                storedFlappyBirdPerfHistory: payload.storedFlappyBirdPerfHistory
-              },
-              null,
-              2
-            ),
-            mimeType: "application/json"
-          },
-          {
             fileName: `montto-native-bridge-diagnostics-${releaseFileLabel}-${timestampSuffix}.json`,
             text: JSON.stringify(payload.nativeBridgeDiagnostics, null, 2),
             mimeType: "application/json"
@@ -56331,7 +55451,7 @@ const GameContainer = () => {
         "[GameContainer] Failed to prepare diagnostics payload",
         error
       );
-      showAlert("Failed to prepare diagnostics payload.", "Error");
+      showAlert(t2("diagnostics.prepareFailed"), t2("common.error"));
     } finally {
       setIsSendingDiagnostics(false);
     }
@@ -56339,7 +55459,8 @@ const GameContainer = () => {
     isSendingDiagnostics,
     pendingDiagnosticsDraft,
     prepareDiagnosticsDraft,
-    showAlert
+    showAlert,
+    t2
   ]);
   const handleSendFlappyBirdLogs = reactExports.useCallback(async () => {
     if (isSendingDiagnostics || pendingDiagnosticsDraft) {
@@ -56358,7 +55479,7 @@ const GameContainer = () => {
         "[GameContainer] Failed to prepare flappybird log payload",
         error
       );
-      showAlert("Failed to prepare FlappyBird logs.", "Error");
+      showAlert(t2("diagnostics.flappyPrepareFailed"), t2("common.error"));
     } finally {
       setIsSendingDiagnostics(false);
     }
@@ -56366,7 +55487,8 @@ const GameContainer = () => {
     isSendingDiagnostics,
     pendingDiagnosticsDraft,
     prepareDiagnosticsDraft,
-    showAlert
+    showAlert,
+    t2
   ]);
   const handleCancelDiagnosticsDraft = reactExports.useCallback(() => {
     dismissDiagnosticsDraft();
@@ -56384,15 +55506,15 @@ const GameContainer = () => {
       );
       if (openRoute !== "gmail_app") {
         followUpAlert = {
-          title: "Notice",
-          message: "The mail compose screen was opened outside the app. File attachment support is only guaranteed when the Gmail app opens directly."
+          title: t2("common.notice"),
+          message: t2("diagnostics.gmailNotice")
         };
       }
     } catch (error) {
       console.error("[GameContainer] Failed to open diagnostics draft", error);
       followUpAlert = {
-        title: "Error",
-        message: "Failed to open the Gmail draft. Please make sure Gmail is installed."
+        title: t2("common.error"),
+        message: t2("diagnostics.gmailOpenFailed")
       };
     } finally {
       setPendingDiagnosticsDraft(null);
@@ -56403,7 +55525,7 @@ const GameContainer = () => {
         }, 0);
       }
     }
-  }, [pendingDiagnosticsDraft, showAlert]);
+  }, [pendingDiagnosticsDraft, showAlert, t2]);
   const resetGameData = reactExports.useCallback(
     async (reason) => {
       console.warn("[GameContainer] resetGameData:start", {
@@ -56449,7 +55571,7 @@ const GameContainer = () => {
         });
       } catch (error) {
         console.error("[GameContainer] Failed to reset game data:", error);
-        showAlert("Failed to reset game data.", "Error");
+        showAlert(t2("diagnostics.resetFailed"), t2("common.error"));
       }
     },
     [
@@ -56457,7 +55579,8 @@ const GameContainer = () => {
       clearLoadingTimeout,
       gameInstance,
       presentSetupLayer,
-      showAlert
+      showAlert,
+      t2
     ]
   );
   const handleResetGameData = reactExports.useCallback(async () => {
@@ -56525,8 +55648,8 @@ const GameContainer = () => {
           }
         );
         setSanitizeResetAlert({
-          title: "Data Recovery",
-          message: result.resetReason ?? "Existing game data is corrupted and cannot be recovered. Press Confirm to reset the data and return to the initial setup screen."
+          title: t2("dataRecovery.title"),
+          message: result.resetReason ?? t2("dataRecovery.corruptedReset")
         });
         setIsBootstrapping(false);
       }
@@ -56558,13 +55681,13 @@ const GameContainer = () => {
         error
       });
       setSanitizeResetAlert({
-        title: "Data Recovery",
-        message: "There was a problem reading the existing game data. Press Confirm to reset the data and return to the initial setup screen."
+        title: t2("dataRecovery.title"),
+        message: t2("dataRecovery.readFailedReset")
       });
       setIsBootstrapping(false);
       return "reset_required";
     }
-  }, [entryFlowDiagnostics]);
+  }, [entryFlowDiagnostics, t2]);
   const hydrateInitialSetupData = reactExports.useCallback(
     async (formData) => {
       const startedAt = entryFlowDiagnostics.beginHydrateInitialSetupData(formData);
@@ -56706,6 +55829,7 @@ const GameContainer = () => {
       parentElement: gameContainerRef.current,
       debugParentElement,
       debugMode: isNativeFeatureDebugMode$1,
+      locale,
       initialSceneKey: CONFIGURED_INITIAL_SCENE_KEY,
       onCreateInitialGameData: async () => {
         return initialSetupDataRef.current ?? await requestInitialGameData({
@@ -56822,7 +55946,7 @@ const GameContainer = () => {
           return;
         }
         stopLoadingWithFailure({
-          message: "The game could not finish loading. Tap Okay to dismiss this popup or Send Log to share diagnostics.",
+          message: t2("loading.finishFailed"),
           error,
           context: {
             phase: "game_initialize"
@@ -56835,6 +55959,7 @@ const GameContainer = () => {
     clearLoadingTimeout,
     clearInitializeGameStartTimeout,
     gameContainerSize,
+    locale,
     getFlappyBirdBestScore,
     handleSceneTransitionStateChange,
     openSettingMenu,
@@ -56846,7 +55971,8 @@ const GameContainer = () => {
     stopRecoveryVibration,
     showAlert,
     entryFlowDiagnostics,
-    triggerTransientVibration
+    triggerTransientVibration,
+    t2
   ]);
   reactExports.useEffect(() => {
     const viewportElement = gameViewportRef.current;
@@ -57099,12 +56225,12 @@ const GameContainer = () => {
     }, 0);
   }, [handleSendDiagnostics]);
   const isLoading = isBootstrapping || sceneTransitionLoadState.phase === "loading" || sceneTransitionLoadState.phase === "core_ready";
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs(
     "div",
     {
       className: "relative flex h-full min-h-0 w-full flex-col overflow-hidden",
       children: [
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+        /* @__PURE__ */ jsxRuntimeExports.jsxs(
           "div",
           {
             ref: gameViewportRef,
@@ -57113,12 +56239,8 @@ const GameContainer = () => {
               gridTemplateRows: buttonParams ? "minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr)" : "minmax(0, 1fr) auto minmax(0, 1fr)"
             },
             children: [
-              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { "aria-hidden": "true", className: "min-h-0" }, void 0, false, {
-                fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-                lineNumber: 3e3,
-                columnNumber: 9
-              }, void 0),
-              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex min-h-0 min-w-0 justify-center overflow-hidden", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "aria-hidden": "true", className: "min-h-0" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex min-h-0 min-w-0 justify-center overflow-hidden", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "div",
                 {
                   className: "relative m-0 shrink-0 p-0",
@@ -57126,142 +56248,52 @@ const GameContainer = () => {
                     width: `${gameContainerSize}px`,
                     height: `${gameContainerSize}px`
                   } : void 0,
-                  children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+                  children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                     "div",
                     {
                       id: "game-container",
                       ref: gameContainerRef,
                       className: "absolute inset-0 m-0 p-0"
-                    },
-                    void 0,
-                    false,
-                    {
-                      fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-                      lineNumber: 3013,
-                      columnNumber: 13
-                    },
-                    void 0
+                    }
                   )
-                },
-                void 0,
-                false,
-                {
-                  fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-                  lineNumber: 3002,
-                  columnNumber: 11
-                },
-                void 0
-              ) }, void 0, false, {
-                fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-                lineNumber: 3001,
-                columnNumber: 9
-              }, void 0),
-              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { "aria-hidden": "true", className: "min-h-0" }, void 0, false, {
-                fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-                lineNumber: 3022,
-                columnNumber: 9
-              }, void 0),
-              buttonParams && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { ref: controlButtonsWrapperRef, className: "z-10 w-full", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+                }
+              ) }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "aria-hidden": "true", className: "min-h-0" }),
+              buttonParams && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: controlButtonsWrapperRef, className: "z-10 w-full", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                 ControlButtons,
                 {
                   buttonParams,
                   onButtonPress: handleButtonPress,
                   onSliderChange: handleSliderChange,
                   onSliderEnd: handleSliderEnd
-                },
-                void 0,
-                false,
-                {
-                  fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-                  lineNumber: 3026,
-                  columnNumber: 13
-                },
-                void 0
-              ) }, void 0, false, {
-                fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-                lineNumber: 3025,
-                columnNumber: 11
-              }, void 0),
-              buttonParams && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { "aria-hidden": "true", className: "min-h-0" }, void 0, false, {
-                fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-                lineNumber: 3034,
-                columnNumber: 26
-              }, void 0)
+                }
+              ) }),
+              buttonParams && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "aria-hidden": "true", className: "min-h-0" })
             ]
-          },
-          void 0,
-          true,
-          {
-            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 2991,
-            columnNumber: 7
-          },
-          void 0
+          }
         ),
-        isLoading && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "absolute inset-0 z-50 flex items-center justify-center bg-black text-white", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-center text-[2.25rem] tracking-[0.12em]", children: "Loading..." }, void 0, false, {
-          fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-          lineNumber: 3038,
-          columnNumber: 11
-        }, void 0) }, void 0, false, {
-          fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-          lineNumber: 3037,
-          columnNumber: 9
-        }, void 0),
-        unsupportedViewportReason && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "absolute inset-0 z-[1000] flex items-center justify-center bg-black text-white", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "px-6 text-center", children: [
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-lg tracking-[0.12em]", children: "Portrait Only" }, void 0, false, {
-            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 3046,
-            columnNumber: 13
-          }, void 0),
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "mt-6 text-[10px] leading-6 tracking-[0.12em]", children: unsupportedViewportReason === "landscape" ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(jsxDevRuntimeExports.Fragment, { children: [
-            "Please rotate your device",
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("br", {}, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-              lineNumber: 3051,
-              columnNumber: 19
-            }, void 0),
-            "back to portrait mode."
-          ] }, void 0, true, {
-            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 3049,
-            columnNumber: 17
-          }, void 0) : /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(jsxDevRuntimeExports.Fragment, { children: [
-            "This screen ratio is not supported.",
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("br", {}, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-              lineNumber: 3057,
-              columnNumber: 19
-            }, void 0),
-            "Please use a taller portrait screen."
-          ] }, void 0, true, {
-            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 3055,
-            columnNumber: 17
-          }, void 0) }, void 0, false, {
-            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 3047,
-            columnNumber: 13
-          }, void 0)
-        ] }, void 0, true, {
-          fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-          lineNumber: 3045,
-          columnNumber: 11
-        }, void 0) }, void 0, false, {
-          fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-          lineNumber: 3044,
-          columnNumber: 9
-        }, void 0),
-        showSetupLayer && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(SetupLayer, { onComplete: handleSetupComplete }, void 0, false, {
-          fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-          lineNumber: 3065,
-          columnNumber: 26
-        }, void 0),
-        showSettingMenu && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+        isLoading && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-50 flex items-center justify-center bg-black text-white", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-center text-[2.25rem] tracking-[0.12em]", children: t2("loading.label") }) }),
+        unsupportedViewportReason && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-[1000] flex items-center justify-center bg-black text-white", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "px-6 text-center", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-lg tracking-[0.12em]", children: t2("viewport.portraitOnly") }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "mt-6 text-[10px] leading-6 tracking-[0.12em]", children: unsupportedViewportReason === "landscape" ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+            t2("viewport.rotateDevice"),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("br", {}),
+            t2("viewport.backToPortrait")
+          ] }) : /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+            t2("viewport.unsupportedRatio"),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("br", {}),
+            t2("viewport.useTallerPortrait")
+          ] }) })
+        ] }) }),
+        showSetupLayer && /* @__PURE__ */ jsxRuntimeExports.jsx(SetupLayer, { onComplete: handleSetupComplete }),
+        showSettingMenu && /* @__PURE__ */ jsxRuntimeExports.jsx(
           SettingMenuLayer,
           {
             releaseLabel: getClientReleaseLabel(),
             vibrationEnabled: gameSettings.vibrationEnabled,
+            locale,
             onChangeVibration: handleVibrationSettingChange,
+            onChangeLocale: setLocale,
             onSendDiagnostics: handleSendDiagnostics,
             isSendingDiagnostics,
             showFinalResetConfirm,
@@ -57269,60 +56301,28 @@ const GameContainer = () => {
             onCloseResetConfirm: dismissResetConfirm,
             onResetGameData: handleResetGameData,
             onClose: dismissSettingMenu
-          },
-          void 0,
-          false,
-          {
-            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 3067,
-            columnNumber: 9
-          },
-          void 0
+          }
         ),
-        alertState && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+        alertState && /* @__PURE__ */ jsxRuntimeExports.jsx(
           AlertLayer,
           {
             title: alertState.title,
             message: alertState.message,
             onClose: dismissAlert
-          },
-          void 0,
-          false,
-          {
-            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 3081,
-            columnNumber: 9
-          },
-          void 0
+          }
         ),
-        loadingFailureAlert && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+        loadingFailureAlert && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
           PopupLayer,
           {
             title: loadingFailureAlert.title,
-            content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-left leading-[1.6]", children: loadingFailureAlert.message }, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-              lineNumber: 3092,
-              columnNumber: 15
-            }, void 0),
+            content: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-left leading-[1.6]", children: loadingFailureAlert.message }),
             onConfirm: dismissLoadingFailureAlert,
             onCancel: handleSendLoadingFailureLogs,
-            confirmText: "Okay",
-            cancelText: "Send Log"
-          },
-          void 0,
-          false,
-          {
-            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 3089,
-            columnNumber: 11
-          },
-          void 0
-        ) }, void 0, false, {
-          fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-          lineNumber: 3088,
-          columnNumber: 9
-        }, void 0),
-        sanitizeResetAlert && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+            confirmText: t2("common.okay"),
+            cancelText: t2("diagnostics.sendLog")
+          }
+        ) }),
+        sanitizeResetAlert && /* @__PURE__ */ jsxRuntimeExports.jsx(
           AlertLayer,
           {
             title: sanitizeResetAlert.title,
@@ -57331,73 +56331,33 @@ const GameContainer = () => {
             onCancel: () => {
               void handleSendDiagnostics();
             },
-            cancelText: isSendingDiagnostics ? "Sending..." : "Send Logs"
-          },
-          void 0,
-          false,
-          {
-            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 3104,
-            columnNumber: 9
-          },
-          void 0
+            cancelText: isSendingDiagnostics ? t2("settings.sending") : t2("diagnostics.sendLogs")
+          }
         ),
-        pendingDiagnosticsDraft && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+        pendingDiagnosticsDraft && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
           PopupLayer,
           {
-            title: "Open Gmail",
-            content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-left leading-[1.6]", children: [
-              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: "The Gmail app will open next." }, void 0, false, {
-                fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-                lineNumber: 3120,
-                columnNumber: 17
-              }, void 0),
-              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "mt-2", children: "The diagnostics files will be attached to the draft email." }, void 0, false, {
-                fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-                lineNumber: 3121,
-                columnNumber: 17
-              }, void 0)
-            ] }, void 0, true, {
-              fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-              lineNumber: 3119,
-              columnNumber: 15
-            }, void 0),
+            title: t2("diagnostics.openGmail"),
+            content: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "text-left leading-[1.6]", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: t2("diagnostics.gmailWillOpen") }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "mt-2", children: t2("diagnostics.gmailAttachments") })
+            ] }),
             onConfirm: handleConfirmDiagnosticsDraft,
             onCancel: handleCancelDiagnosticsDraft,
-            confirmText: "CONFIRM",
-            cancelText: "Cancel"
-          },
-          void 0,
-          false,
-          {
-            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 3116,
-            columnNumber: 11
-          },
-          void 0
-        ) }, void 0, false, {
-          fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-          lineNumber: 3115,
-          columnNumber: 9
-        }, void 0),
-        flappyBirdGameOverState && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+            confirmText: t2("common.confirmUpper"),
+            cancelText: t2("common.cancel")
+          }
+        ) }),
+        flappyBirdGameOverState && /* @__PURE__ */ jsxRuntimeExports.jsx(
           FlappyBirdGameOverLayer,
           {
             score: flappyBirdGameOverState.score,
             bestScore: flappyBirdGameOverState.bestScore,
             onRestart: handleFlappyBirdGameOverRestart,
             onExit: handleFlappyBirdGameOverExit
-          },
-          void 0,
-          false,
-          {
-            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 3134,
-            columnNumber: 9
-          },
-          void 0
+          }
         ),
-        flappyBirdSettingsMenuState && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+        flappyBirdSettingsMenuState && /* @__PURE__ */ jsxRuntimeExports.jsx(
           FlappyBirdSettingsLayer,
           {
             isBgmEnabled: flappyBirdSettingsMenuState.isBgmEnabled,
@@ -57410,26 +56370,161 @@ const GameContainer = () => {
             isSendingLogs: isSendingDiagnostics || pendingDiagnosticsDraft !== null,
             onResume: handleFlappyBirdSettingsMenuResume,
             onExit: handleFlappyBirdSettingsMenuExit
-          },
-          void 0,
-          false,
-          {
-            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-            lineNumber: 3142,
-            columnNumber: 9
-          },
-          void 0
+          }
         )
       ]
-    },
-    void 0,
-    true,
+    }
+  );
+};
+function getSnapshotLayer() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  const value = new URLSearchParams(window.location.search).get(
+    "snapshotLayer"
+  );
+  return value === "setup" || value === "settings" ? value : null;
+}
+const SnapshotScreen = ({ layer }) => {
+  const { locale, setLocale } = useI18n();
+  const [gameSettings, setGameSettings] = reactExports.useState(getGameSettings);
+  if (layer === "setup") {
+    return /* @__PURE__ */ jsxRuntimeExports.jsx(SetupLayer, { onComplete: () => void 0 });
+  }
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(
+    SettingMenuLayer,
     {
-      fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
-      lineNumber: 2988,
-      columnNumber: 5
-    },
-    void 0
+      releaseLabel: "snapshot",
+      vibrationEnabled: gameSettings.vibrationEnabled,
+      locale,
+      onChangeVibration: (enabled) => {
+        setGameSettings(updateGameSettings({ vibrationEnabled: enabled }));
+      },
+      onChangeLocale: setLocale,
+      onSendDiagnostics: () => void 0,
+      isSendingDiagnostics: false,
+      showFinalResetConfirm: false,
+      onOpenResetConfirm: () => void 0,
+      onCloseResetConfirm: () => void 0,
+      onResetGameData: () => void 0,
+      onClose: () => void 0
+    }
+  );
+};
+const FALLBACK_AD_DURATION_MS = 1e4;
+const FALLBACK_AD_TICK_MS = 100;
+const OfflineInterstitialFallbackLayer = ({ onComplete, t: t2 }) => {
+  const remainingMsRef = reactExports.useRef(FALLBACK_AD_DURATION_MS);
+  const lastTickAtRef = reactExports.useRef(0);
+  const hasCompletedRef = reactExports.useRef(false);
+  const onCompleteRef = reactExports.useRef(onComplete);
+  const [remainingMs, setRemainingMs] = reactExports.useState(FALLBACK_AD_DURATION_MS);
+  reactExports.useEffect(() => {
+    onCompleteRef.current = onComplete;
+  }, [onComplete]);
+  reactExports.useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const getNow = () => {
+      var _a;
+      return typeof ((_a = window.performance) == null ? void 0 : _a.now) === "function" ? window.performance.now() : Date.now();
+    };
+    const complete = () => {
+      if (hasCompletedRef.current) {
+        return;
+      }
+      hasCompletedRef.current = true;
+      remainingMsRef.current = 0;
+      setRemainingMs(0);
+      onCompleteRef.current();
+    };
+    const tick = () => {
+      const now = getNow();
+      const isHidden = typeof document !== "undefined" && document.visibilityState !== "visible";
+      if (isHidden) {
+        lastTickAtRef.current = now;
+        return;
+      }
+      if (lastTickAtRef.current <= 0) {
+        lastTickAtRef.current = now;
+        return;
+      }
+      const elapsedMs = Math.max(0, now - lastTickAtRef.current);
+      lastTickAtRef.current = now;
+      const nextRemainingMs = Math.max(0, remainingMsRef.current - elapsedMs);
+      remainingMsRef.current = nextRemainingMs;
+      setRemainingMs(
+        (previous) => Math.ceil(previous / 100) === Math.ceil(nextRemainingMs / 100) ? previous : nextRemainingMs
+      );
+      if (nextRemainingMs <= 0) {
+        complete();
+      }
+    };
+    const handleVisibilityChange = () => {
+      lastTickAtRef.current = getNow();
+    };
+    lastTickAtRef.current = getNow();
+    const intervalId = window.setInterval(tick, FALLBACK_AD_TICK_MS);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, []);
+  const remainingSeconds = Math.max(0, Math.ceil(remainingMs / 1e3));
+  const progressPercent = (FALLBACK_AD_DURATION_MS - Math.max(0, remainingMs)) / FALLBACK_AD_DURATION_MS * 100;
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs(
+    "div",
+    {
+      className: "fixed inset-0 z-[80] flex items-center justify-center overflow-hidden bg-black text-white",
+      role: "dialog",
+      "aria-modal": "true",
+      "aria-labelledby": "offline-ad-title",
+      children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "offline-ad-fallback-visualizer", "aria-hidden": "true", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "offline-ad-fallback-visualizer__bar offline-ad-fallback-visualizer__bar--one" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "offline-ad-fallback-visualizer__bar offline-ad-fallback-visualizer__bar--two" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "offline-ad-fallback-visualizer__bar offline-ad-fallback-visualizer__bar--three" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "offline-ad-fallback-visualizer__bar offline-ad-fallback-visualizer__bar--four" })
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "relative z-[1] w-full", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+          PopupLayer,
+          {
+            title: t2("offlineAd.title"),
+            content: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-4 text-center", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { id: "offline-ad-title", className: "sr-only", children: t2("offlineAd.title") }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: t2("offlineAd.message") }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-[1.1rem] leading-[1.4] text-[#534741]", children: t2("offlineAd.maxDuration") }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "div",
+                {
+                  className: "mx-auto w-full max-w-[14rem] border-4 border-[#222] bg-[#201236] p-1 shadow-[2px_2px_0_#222]",
+                  "aria-hidden": "true",
+                  children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "h-4 bg-[#12091f]", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    "div",
+                    {
+                      className: "h-full bg-[#69f0ae]",
+                      style: { width: `${progressPercent}%` }
+                    }
+                  ) })
+                }
+              ),
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "div",
+                {
+                  className: "font-display text-[1.6rem] leading-[1.2] text-component-negative",
+                  "aria-live": "polite",
+                  children: t2("offlineAd.returningIn", { seconds: remainingSeconds })
+                }
+              )
+            ] }),
+            showActions: false,
+            initialFocusTarget: "container"
+          }
+        ) })
+      ]
+    }
   );
 };
 const COOLDOWN_KEY = "ad_last_shown_timestamp";
@@ -57485,6 +56580,7 @@ class CooldownCondition {
   }
 }
 const DEFAULT_NATIVE_AD_COOLDOWN_MS = 4 * 60 * 60 * 1e3;
+const ONLINE_AD_RETRY_STORAGE_KEY = "digivice_pending_online_ad_retry";
 function resolveCooldownMs$1(metadata) {
   const cooldownMs = metadata == null ? void 0 : metadata.cooldownMs;
   if (typeof cooldownMs === "number" && Number.isFinite(cooldownMs) && cooldownMs > 0) {
@@ -57512,6 +56608,7 @@ class AdManager {
    * @param context 광고 컨텍스트
    */
   async requestAd(trigger, context2 = {}) {
+    var _a;
     const fullContext = {
       trigger,
       isCharacterUrgent: false,
@@ -57533,6 +56630,7 @@ class AdManager {
     }
     console.log(`[AdManager] Policy matched: ${policy.name}`);
     const cooldownMs = resolveCooldownMs$1(fullContext.metadata);
+    const isOnlineRetry = ((_a = fullContext.metadata) == null ? void 0 : _a.onlineRetry) === true;
     try {
       const canShowStr = await window.adController.canShowAd({ cooldownMs });
       const canShow = canShowStr === "true";
@@ -57548,9 +56646,23 @@ class AdManager {
       await window.adController.showInterstitial({ cooldownMs });
       console.log("[AdManager] Ad shown successfully");
       CooldownCondition.updateCooldown();
+      if (isOnlineRetry) {
+        this.clearPendingOnlineAdRetry();
+      }
       return true;
     } catch (error) {
       console.error("[AdManager] Error showing ad:", error);
+      if (isOnlineRetry) {
+        return false;
+      }
+      const fallbackDidComplete = await this.showOfflineInterstitialFallback(
+        trigger,
+        cooldownMs
+      );
+      if (fallbackDidComplete) {
+        this.markPendingOnlineAdRetry();
+        return true;
+      }
       return false;
     }
   }
@@ -57581,6 +56693,7 @@ class AdManager {
    */
   resetCooldown() {
     CooldownCondition.resetCooldown();
+    this.clearPendingOnlineAdRetry();
   }
   /**
    * 강제로 광고 표시 (디버그용)
@@ -57595,9 +56708,63 @@ class AdManager {
         cooldownMs: DEFAULT_NATIVE_AD_COOLDOWN_MS
       });
       CooldownCondition.updateCooldown();
+      this.clearPendingOnlineAdRetry();
       return true;
     } catch (error) {
       console.error("[AdManager] Error forcing ad:", error);
+      return false;
+    }
+  }
+  hasPendingOnlineAdRetry() {
+    if (typeof window === "undefined") {
+      return false;
+    }
+    try {
+      return localStorage.getItem(ONLINE_AD_RETRY_STORAGE_KEY) === "true";
+    } catch {
+      return false;
+    }
+  }
+  markPendingOnlineAdRetry() {
+    if (typeof window === "undefined") {
+      return;
+    }
+    try {
+      localStorage.setItem(ONLINE_AD_RETRY_STORAGE_KEY, "true");
+      console.log("[AdManager] Pending online ad retry marked");
+    } catch (error) {
+      console.warn("[AdManager] Failed to mark pending online ad retry", error);
+    }
+  }
+  clearPendingOnlineAdRetry() {
+    if (typeof window === "undefined") {
+      return;
+    }
+    try {
+      localStorage.removeItem(ONLINE_AD_RETRY_STORAGE_KEY);
+      console.log("[AdManager] Pending online ad retry cleared");
+    } catch (error) {
+      console.warn("[AdManager] Failed to clear pending online ad retry", error);
+    }
+  }
+  async showOfflineInterstitialFallback(trigger, cooldownMs) {
+    const fallbackBridge = typeof window !== "undefined" ? window.digiviceAdFallbackBridge : void 0;
+    if (!(fallbackBridge == null ? void 0 : fallbackBridge.showOfflineInterstitialFallback)) {
+      console.warn("[AdManager] Offline interstitial fallback unavailable");
+      return false;
+    }
+    try {
+      const completed = await fallbackBridge.showOfflineInterstitialFallback({
+        trigger,
+        cooldownMs,
+        timestamp: Date.now()
+      });
+      return completed === true;
+    } catch (fallbackError) {
+      console.error(
+        "[AdManager] Error showing offline interstitial fallback:",
+        fallbackError
+      );
       return false;
     }
   }
@@ -57652,9 +56819,38 @@ let adManager = null;
 const LAST_ACTIVE_KEY = "app_last_active_timestamp";
 const FULLSCREEN_AD_REENTER_SUPPRESS_MS = 1200;
 const App = () => {
+  const { t: t2 } = useI18n();
+  const snapshotLayer = getSnapshotLayer();
   const isInitialized = reactExports.useRef(false);
   const isFullscreenAdActiveRef = reactExports.useRef(false);
   const suppressAppReenterUntilRef = reactExports.useRef(0);
+  const offlineAdFallbackPromiseRef = reactExports.useRef(null);
+  const offlineAdFallbackResolverRef = reactExports.useRef(null);
+  const isOfflineAdFallbackActiveRef = reactExports.useRef(false);
+  const [offlineAdFallbackKey, setOfflineAdFallbackKey] = reactExports.useState(null);
+  const clearOfflineAdFallback = reactExports.useCallback((completed) => {
+    const resolver = offlineAdFallbackResolverRef.current;
+    offlineAdFallbackPromiseRef.current = null;
+    offlineAdFallbackResolverRef.current = null;
+    isOfflineAdFallbackActiveRef.current = false;
+    setOfflineAdFallbackKey(null);
+    resolver == null ? void 0 : resolver(completed);
+  }, []);
+  const showOfflineInterstitialFallback = reactExports.useCallback(
+    () => {
+      if (offlineAdFallbackPromiseRef.current) {
+        return offlineAdFallbackPromiseRef.current;
+      }
+      const promise2 = new Promise((resolve) => {
+        offlineAdFallbackResolverRef.current = resolve;
+      });
+      offlineAdFallbackPromiseRef.current = promise2;
+      isOfflineAdFallbackActiveRef.current = true;
+      setOfflineAdFallbackKey(Date.now());
+      return promise2;
+    },
+    []
+  );
   reactExports.useEffect(() => {
     if (isInitialized.current) return;
     isInitialized.current = true;
@@ -57670,10 +56866,16 @@ const App = () => {
           metadata: {
             ...request,
             trigger: "main_scene_menu",
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            onlineRetry: request.onlineRetry === true
           }
         })) ?? Promise.resolve(false);
-      }
+      },
+      hasPendingOnlineAdRetry: () => (adManager == null ? void 0 : adManager.hasPendingOnlineAdRetry()) ?? false
+    };
+    window.digiviceAdFallbackBridge = {
+      showOfflineInterstitialFallback: () => showOfflineInterstitialFallback(),
+      isActive: () => isOfflineAdFallbackActiveRef.current
     };
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
@@ -57712,47 +56914,37 @@ const App = () => {
         handleFullscreenAdState
       );
       window.digiviceAdBridge = void 0;
+      window.digiviceAdFallbackBridge = void 0;
+      clearOfflineAdFallback(false);
     };
-  }, []);
+  }, [clearOfflineAdFallback, showOfflineInterstitialFallback]);
   const updateLastActiveTime = () => {
     const now = Date.now();
     localStorage.setItem(LAST_ACTIVE_KEY, now.toString());
   };
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { id: "app-shell", children: [
-    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(TopLeftBuildLogoText, {}, void 0, false, {
-      fileName: "/Users/neiz/digivice/apps/client/src/App.tsx",
-      lineNumber: 118,
-      columnNumber: 7
-    }, void 0),
-    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { id: "app-container", children: [
-      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(GameContainer, {}, void 0, false, {
-        fileName: "/Users/neiz/digivice/apps/client/src/App.tsx",
-        lineNumber: 120,
-        columnNumber: 9
-      }, void 0),
-      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(SimpleLogViewer, { position: "top-right", initialOpen: false }, void 0, false, {
-        fileName: "/Users/neiz/digivice/apps/client/src/App.tsx",
-        lineNumber: 121,
-        columnNumber: 9
-      }, void 0)
-    ] }, void 0, true, {
-      fileName: "/Users/neiz/digivice/apps/client/src/App.tsx",
-      lineNumber: 119,
-      columnNumber: 7
-    }, void 0)
-  ] }, void 0, true, {
-    fileName: "/Users/neiz/digivice/apps/client/src/App.tsx",
-    lineNumber: 117,
-    columnNumber: 5
-  }, void 0);
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { id: "app-shell", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx(TopLeftBuildLogoText, {}),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { id: "app-container", children: [
+      snapshotLayer ? /* @__PURE__ */ jsxRuntimeExports.jsx(SnapshotScreen, { layer: snapshotLayer }) : /* @__PURE__ */ jsxRuntimeExports.jsx(GameContainer, {}),
+      offlineAdFallbackKey !== null && /* @__PURE__ */ jsxRuntimeExports.jsx(
+        OfflineInterstitialFallbackLayer,
+        {
+          onComplete: () => clearOfflineAdFallback(true),
+          t: t2
+        },
+        offlineAdFallbackKey
+      ),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(SimpleLogViewer, { position: "top-right", initialOpen: false })
+    ] })
+  ] });
 };
 const platformAdapter = new PlatformAdapter();
 const isNativeFeatureDebugMode = true;
 installDiagnosticsConsoleCapture();
 setDiagnosticsContextProvider(() => ({
-  appMode: "development",
-  appVersion: "0.5.1-debug",
-  buildNumber: 10,
+  appMode: "production",
+  appVersion: "0.5.2-debug",
+  buildNumber: 11,
   debugEnabled: isNativeFeatureDebugMode
 }));
 document.addEventListener("DOMContentLoaded", () => {
@@ -57788,15 +56980,7 @@ async function bootstrap() {
   }
   const root = ReactDOM.createRoot(rootElement);
   root.render(
-    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(jsxDevRuntimeExports.Fragment, { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(App, {}, void 0, false, {
-      fileName: "/Users/neiz/digivice/apps/client/src/main.tsx",
-      lineNumber: 85,
-      columnNumber: 7
-    }, this) }, void 0, false, {
-      fileName: "/Users/neiz/digivice/apps/client/src/main.tsx",
-      lineNumber: 84,
-      columnNumber: 5
-    }, this)
+    /* @__PURE__ */ jsxRuntimeExports.jsx(jsxRuntimeExports.Fragment, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(I18nProvider, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(App, {}) }) })
   );
 }
 void bootstrap();

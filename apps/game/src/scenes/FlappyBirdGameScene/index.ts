@@ -95,7 +95,10 @@ function getPerfNow(): number {
   return typeof performance !== "undefined" ? performance.now() : Date.now();
 }
 
-function summarizeInitError(error: unknown): { name?: string; message: string } {
+function summarizeInitError(error: unknown): {
+  name?: string;
+  message: string;
+} {
   if (error instanceof Error) {
     return {
       name: error.name,
@@ -152,8 +155,10 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
   private isSettingsMenuOpen = false;
   private locale: LocaleCode;
   private gameOverVibrationTimeoutIds: number[] = [];
-  private pausedStateBeforePause: GameState.PLAYING | GameState.COUNTDOWN | null =
-    null;
+  private pausedStateBeforePause:
+    | GameState.PLAYING
+    | GameState.COUNTDOWN
+    | null = null;
   private isAppSuspended = false;
   private readonly boundHandleKeyDown: (event: KeyboardEvent) => void;
   private readonly boundVisibilityChangeHandler: () => void;
@@ -339,7 +344,10 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
 
   private setupScene(): void {
     try {
-      const logInitPhase = (phase: string, payload: Record<string, unknown> = {}) => {
+      const logInitPhase = (
+        phase: string,
+        payload: Record<string, unknown> = {},
+      ) => {
         console.log("[ImportantDiagnostics][FlappyBirdInitTiming]", {
           phase,
           requestId: this.game.getActiveSceneTransitionRequestId(),
@@ -775,7 +783,9 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
     this.pipeManager.applyDifficulty(difficulty);
     this.groundManager.setSpeed(difficulty.pipeSpeed);
     this.cloudManager.setSpeed(difficulty.pipeSpeed);
-    this.bgmController.setTempoMultiplier(this.resolveBgmTempoMultiplier(score));
+    this.bgmController.setTempoMultiplier(
+      this.resolveBgmTempoMultiplier(score),
+    );
   }
 
   private resolveBgmTempoMultiplier(score: number): number {
@@ -854,7 +864,9 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
   /**
    * 게임 오버 처리 메서드
    */
-  private handleGameOver(collisionTarget: "ground" | "pipe" | null = null): void {
+  private handleGameOver(
+    collisionTarget: "ground" | "pipe" | null = null,
+  ): void {
     if (this.gameState !== GameState.PLAYING) {
       return;
     }

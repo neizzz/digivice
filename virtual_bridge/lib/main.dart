@@ -323,6 +323,7 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
       final androidController =
           _controller.platform as AndroidWebViewController;
       await androidController.setAllowFileAccess(true);
+      await androidController.setMediaPlaybackRequiresUserGesture(false);
     }
 
     // 브릿지 설정

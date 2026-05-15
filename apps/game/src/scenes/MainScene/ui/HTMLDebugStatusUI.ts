@@ -487,7 +487,7 @@ export class HTMLDebugStatusUI {
       border-radius: 8px;
       padding: 8px;
       z-index: 1000;
-      font-family: 'NeoDunggeunmo Pro', sans-serif;
+      font-family: 'Droid Sans Mono', 'SF Mono', monospace, sans-serif;
       color: white;
       display: none;
     `;
@@ -592,7 +592,7 @@ export class HTMLDebugStatusUI {
         button.style.fontWeight = "bold";
       } else {
         button.style.background = "rgba(100, 150, 255, 0.6)";
-        button.style.fontWeight = "normal";
+        button.style.fontWeight = "bold";
       }
     });
 
@@ -602,7 +602,7 @@ export class HTMLDebugStatusUI {
         this._autoTimeButton.style.fontWeight = "bold";
       } else {
         this._autoTimeButton.style.background = "rgba(100, 150, 255, 0.6)";
-        this._autoTimeButton.style.fontWeight = "normal";
+        this._autoTimeButton.style.fontWeight = "bold";
       }
     }
   }
@@ -617,9 +617,7 @@ export class HTMLDebugStatusUI {
     this._sleepEffectToggleButton.style.background = isEnabled
       ? "rgba(120, 220, 150, 0.85)"
       : "rgba(100, 150, 255, 0.6)";
-    this._sleepEffectToggleButton.style.fontWeight = isEnabled
-      ? "bold"
-      : "normal";
+    this._sleepEffectToggleButton.style.fontWeight = "bold";
   }
 
   private _updateSickToggleButton(): void {
@@ -634,7 +632,7 @@ export class HTMLDebugStatusUI {
     this._sickToggleButton.style.background = isEnabled
       ? "rgba(226, 85, 75, 0.9)"
       : "rgba(100, 150, 255, 0.6)";
-    this._sickToggleButton.style.fontWeight = isEnabled ? "bold" : "normal";
+    this._sickToggleButton.style.fontWeight = "bold";
   }
 
   // 스테미나/진화 게이지 조절 버튼 생성

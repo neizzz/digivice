@@ -1,18 +1,18 @@
-export const NAME_LABEL_MAX_WIDTH = 80;
+export const NAME_LABEL_MAX_WIDTH = 60;
 export const NAME_LABEL_FONT_FAMILIES = [
   "Droid Sans Mono",
   "SF Mono",
   "SFMono-Regular",
-  "NeoDunggeunmo Pro",
+  "monospace",
+  "sans-serif",
   "Apple Color Emoji",
   "Segoe UI Emoji",
   "Noto Color Emoji",
-  "sans-serif",
 ] as const;
-export const NAME_LABEL_FONT_SIZE = 12;
+export const NAME_LABEL_FONT_SIZE = 11;
 export const NAME_LABEL_FONT_WEIGHT = "700";
 export const NAME_LABEL_STROKE_WIDTH = 4;
-export const NAME_LABEL_FILL_COLOR = 0xffffff;
+export const NAME_LABEL_FILL_COLOR = 0xdddddd;
 export const NAME_LABEL_STROKE_COLOR = 0x000000;
 
 let measurementContext: CanvasRenderingContext2D | null | undefined;

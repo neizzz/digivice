@@ -65,6 +65,7 @@
   :root, :host {
     --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
     --color-red-600: oklch(57.7% .245 27.325);
+    --color-yellow-300: oklch(90.5% .182 98.111);
     --color-yellow-500: oklch(79.5% .184 86.047);
     --color-gray-400: oklch(70.7% .022 261.325);
     --color-gray-500: oklch(55.1% .027 264.364);
@@ -76,6 +77,7 @@
     --text-lg: 1.125rem;
     --text-lg--line-height: calc(1.75 / 1.125);
     --font-weight-bold: 700;
+    --leading-tight: 1.25;
     --default-transition-duration: .15s;
     --default-transition-timing-function: cubic-bezier(.4, 0, .2, 1);
     --default-mono-font-family: var(--font-mono);
@@ -103,7 +105,7 @@
     font-feature-settings: normal;
     font-variation-settings: normal;
     -webkit-tap-highlight-color: transparent;
-    font-family: NeoDunggeunmo Pro, ui-sans-serif, system-ui, sans-serif, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol, Noto Color Emoji;
+    font-family: Droid Sans Mono, SF Mono, monospace, ui-sans-serif, system-ui, sans-serif, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol, Noto Color Emoji;
     line-height: 1.5;
   }
 
@@ -336,6 +338,18 @@
     visibility: visible;
   }
 
+  .sr-only {
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    position: absolute;
+    overflow: hidden;
+  }
+
   .absolute {
     position: absolute;
   }
@@ -398,6 +412,10 @@
 
   .z-\[60\] {
     z-index: 60;
+  }
+
+  .z-\[80\] {
+    z-index: 80;
   }
 
   .z-\[999\] {
@@ -474,6 +492,10 @@
     margin-bottom: 15px;
   }
 
+  .ml-auto {
+    margin-left: auto;
+  }
+
   .flex {
     display: flex;
   }
@@ -488,6 +510,10 @@
 
   .h-4 {
     height: calc(var(--spacing) * 4);
+  }
+
+  .h-11 {
+    height: calc(var(--spacing) * 11);
   }
 
   .h-full {
@@ -506,12 +532,16 @@
     width: 80%;
   }
 
-  .w-40 {
-    width: calc(var(--spacing) * 40);
+  .w-9 {
+    width: calc(var(--spacing) * 9);
   }
 
   .w-full {
     width: 100%;
+  }
+
+  .max-w-\[14rem\] {
+    max-width: 14rem;
   }
 
   .max-w-\[22rem\] {
@@ -575,8 +605,16 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .grid-cols-6 {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
   .flex-col {
     flex-direction: column;
+  }
+
+  .flex-wrap {
+    flex-wrap: wrap;
   }
 
   .items-center {
@@ -589,6 +627,14 @@
 
   .justify-center {
     justify-content: center;
+  }
+
+  .justify-end {
+    justify-content: flex-end;
+  }
+
+  .gap-1 {
+    gap: calc(var(--spacing) * 1);
   }
 
   .gap-2 {
@@ -615,6 +661,16 @@
     --tw-space-y-reverse: 0;
     margin-block-start: calc(calc(var(--spacing) * 1) * var(--tw-space-y-reverse));
     margin-block-end: calc(calc(var(--spacing) * 1) * calc(1 - var(--tw-space-y-reverse)));
+  }
+
+  :where(.space-y-4 > :not(:last-child)) {
+    --tw-space-y-reverse: 0;
+    margin-block-start: calc(calc(var(--spacing) * 4) * var(--tw-space-y-reverse));
+    margin-block-end: calc(calc(var(--spacing) * 4) * calc(1 - var(--tw-space-y-reverse)));
+  }
+
+  .self-center {
+    align-self: center;
   }
 
   .overflow-auto {
@@ -675,6 +731,26 @@
     border-color: #555;
   }
 
+  .border-component-negative {
+    border-color: #d95763;
+  }
+
+  .bg-\[\#69f0ae\] {
+    background-color: #69f0ae;
+  }
+
+  .bg-\[\#12091f\] {
+    background-color: #12091f;
+  }
+
+  .bg-\[\#201236\] {
+    background-color: #201236;
+  }
+
+  .bg-\[\#fff0f2\] {
+    background-color: #fff0f2;
+  }
+
   .bg-black {
     background-color: var(--color-black);
   }
@@ -717,6 +793,10 @@
     background-color: var(--color-white);
   }
 
+  .bg-yellow-300 {
+    background-color: var(--color-yellow-300);
+  }
+
   .bg-yellow-500 {
     background-color: var(--color-yellow-500);
   }
@@ -729,8 +809,20 @@
     padding: calc(var(--spacing) * 0);
   }
 
+  .p-1 {
+    padding: calc(var(--spacing) * 1);
+  }
+
   .p-5 {
     padding: calc(var(--spacing) * 5);
+  }
+
+  .px-0 {
+    padding-inline: calc(var(--spacing) * 0);
+  }
+
+  .px-2 {
+    padding-inline: calc(var(--spacing) * 2);
   }
 
   .px-3 {
@@ -774,7 +866,7 @@
   }
 
   .font-dialog, .font-display {
-    font-family: NeoDunggeunmo Pro, ui-sans-serif, system-ui, sans-serif, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol, Noto Color Emoji;
+    font-family: Droid Sans Mono, SF Mono, monospace, ui-sans-serif, system-ui, sans-serif, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol, Noto Color Emoji;
   }
 
   .text-lg {
@@ -786,8 +878,20 @@
     font-size: .7em;
   }
 
+  .text-\[0\.85rem\] {
+    font-size: .85rem;
+  }
+
   .text-\[0\.95rem\] {
     font-size: .95rem;
+  }
+
+  .text-\[1\.1rem\] {
+    font-size: 1.1rem;
+  }
+
+  .text-\[1\.2rem\] {
+    font-size: 1.2rem;
   }
 
   .text-\[1\.4rem\] {
@@ -798,8 +902,16 @@
     font-size: 1.5rem;
   }
 
+  .text-\[1\.6rem\] {
+    font-size: 1.6rem;
+  }
+
   .text-\[1\.8rem\] {
     font-size: 1.8rem;
+  }
+
+  .text-\[1\.25rem\] {
+    font-size: 1.25rem;
   }
 
   .text-\[1rem\] {
@@ -844,9 +956,19 @@
     line-height: 1;
   }
 
+  .leading-tight {
+    --tw-leading: var(--leading-tight);
+    line-height: var(--leading-tight);
+  }
+
   .font-bold {
     --tw-font-weight: var(--font-weight-bold);
     font-weight: var(--font-weight-bold);
+  }
+
+  .tracking-\[0\.08em\] {
+    --tw-tracking: .08em;
+    letter-spacing: .08em;
   }
 
   .tracking-\[0\.12em\] {
@@ -858,8 +980,16 @@
     word-break: break-all;
   }
 
+  .whitespace-nowrap {
+    white-space: nowrap;
+  }
+
   .text-\[\#222\] {
     color: #222;
+  }
+
+  .text-\[\#534741\] {
+    color: #534741;
   }
 
   .text-black {
@@ -913,6 +1043,12 @@
     filter: var(--tw-blur, ) var(--tw-brightness, ) var(--tw-contrast, ) var(--tw-grayscale, ) var(--tw-hue-rotate, ) var(--tw-invert, ) var(--tw-saturate, ) var(--tw-sepia, ) var(--tw-drop-shadow, );
   }
 
+  .drop-shadow-\[0_2px_4px_rgba\(0\,0\,0\,0\.65\)\] {
+    --tw-drop-shadow-size: drop-shadow(0 2px 4px var(--tw-drop-shadow-color, #000000a6));
+    --tw-drop-shadow: var(--tw-drop-shadow-size);
+    filter: var(--tw-blur, ) var(--tw-brightness, ) var(--tw-contrast, ) var(--tw-grayscale, ) var(--tw-hue-rotate, ) var(--tw-invert, ) var(--tw-saturate, ) var(--tw-sepia, ) var(--tw-drop-shadow, );
+  }
+
   .drop-shadow-\[0_2px_6px_rgba\(0\,0\,0\,0\.65\)\] {
     --tw-drop-shadow-size: drop-shadow(0 2px 6px var(--tw-drop-shadow-color, #000000a6));
     --tw-drop-shadow: var(--tw-drop-shadow-size);
@@ -944,6 +1080,10 @@
     -webkit-tap-highlight-color: transparent;
   }
 
+  .placeholder\:text-component-negative\/50::placeholder {
+    color: oklab(62.8073% .155561 .0493762 / .5);
+  }
+
   .placeholder\:text-gray-400::placeholder {
     color: var(--color-gray-400);
   }
@@ -964,19 +1104,19 @@
 }
 
 @font-face {
-  font-family: NeoDunggeunmo Pro;
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url("/assets/ui/fonts/NeoDunggeunmoPro-Regular.ttf") format("truetype");
-}
-
-@font-face {
   font-family: "Press Start 2P";
   font-style: normal;
   font-weight: 400;
   font-display: swap;
   src: url("/assets/ui/fonts/PressStart2P-Regular.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: NeoDunggeunmo Pro;
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/assets/ui/fonts/NeoDunggeunmoPro-Regular.ttf") format("truetype");
 }
 
 :root {
@@ -991,7 +1131,7 @@ a {
   -webkit-text-decoration: inherit;
   -webkit-text-decoration: inherit;
   text-decoration: inherit;
-  font-weight: 500;
+  font-weight: 700;
 }
 
 a:hover {
@@ -1002,11 +1142,13 @@ body {
   min-width: 320px;
   min-height: 100dvh;
   margin: 0;
-  font-family: NeoDunggeunmo Pro, sans-serif;
+  font-family: Droid Sans Mono, SF Mono, monospace, sans-serif;
+  font-weight: 700;
 }
 
 button, input, textarea, select {
   font-family: inherit;
+  font-weight: inherit;
 }
 
 #root {

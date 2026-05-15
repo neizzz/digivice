@@ -1,4 +1,5 @@
 import type React from "react";
+import { useState } from "react";
 import {
   getTimeOfDayLabel,
   TIME_OF_DAY_OPTIONS,
@@ -9,6 +10,14 @@ import { useI18n } from "../i18n";
 
 const isNativeFeatureDebugMode =
   import.meta.env.NATIVE_FEATURE_DEBUG_MODE === "true";
+
+const FLAPPY_BIRD_OPEN_SOURCE_NOTICE = {
+  name: "Neo둥근모 Pro",
+  lines: [
+    "Copyright © 2017-2024, Eunbin Jeong (Dalgona.) <project-neodgm@dalgona.dev>",
+    'with reserved font name "Neo둥근모 Pro" and "NeoDunggeunmo Pro".',
+  ] as const,
+};
 
 export interface FlappyBirdSettingsLayerProps {
   isBgmEnabled: boolean;
@@ -33,7 +42,7 @@ const ToggleButton: React.FC<{
     <button
       type={"button"}
       onClick={onClick}
-      className={`min-w-20 border-2 border-[#222] px-4 py-0.5 font-bold text-white ${
+      className={`ml-auto min-w-20 shrink-0 border-2 border-[#222] px-4 py-0.5 font-bold text-white ${
         enabled ? "bg-component-positive" : "bg-gray-400"
       }`}
     >
@@ -61,7 +70,7 @@ const ActionButton: React.FC<{
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className={`flex min-w-20 items-center justify-center border-2 border-[#222] px-4 py-0.5 text-center font-bold text-white ${backgroundClass}`}
+      className={`ml-auto flex min-w-20 shrink-0 items-center justify-center border-2 border-[#222] px-4 py-0.5 text-center font-bold text-white ${backgroundClass}`}
     >
       {text}
     </button>
@@ -99,6 +108,7 @@ const FlappyBirdSettingsLayer: React.FC<FlappyBirdSettingsLayerProps> = ({
   onExit,
 }) => {
   const { locale, t } = useI18n();
+  const [showOpenSourceNotice, setShowOpenSourceNotice] = useState(false);
   const shouldShowSkySelector =
     import.meta.env.DEV &&
     isNativeFeatureDebugMode &&
@@ -113,18 +123,22 @@ const FlappyBirdSettingsLayer: React.FC<FlappyBirdSettingsLayerProps> = ({
         content={
           <div className="flex flex-col gap-5 text-left text-[1.5rem]">
             <div className="flex flex-col gap-4">
-              <div className="flex items-center justify-between gap-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <div className="font-bold">{t("flappy.bgm")}</div>
+                  <div className="whitespace-nowrap font-bold">
+                    {t("flappy.bgm")}
+                  </div>
                 </div>
                 <ToggleButton
                   enabled={isBgmEnabled}
                   onClick={() => onChangeBgm(!isBgmEnabled)}
                 />
               </div>
-              <div className="flex items-center justify-between gap-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <div className="font-bold">{t("flappy.sfx")}</div>
+                  <div className="whitespace-nowrap font-bold">
+                    {t("flappy.sfx")}
+                  </div>
                 </div>
                 <ToggleButton
                   enabled={isSfxEnabled}
@@ -134,13 +148,27 @@ const FlappyBirdSettingsLayer: React.FC<FlappyBirdSettingsLayerProps> = ({
             </div>
 
             <div className="border-t-2 border-[#222] pt-4">
-              <div className="flex items-center justify-between gap-4">
-                <div className="font-bold">{t("settings.reportBug")}</div>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="whitespace-nowrap font-bold">
+                  {t("settings.reportBug")}
+                </div>
                 <ActionButton
                   text={isSendingLogs ? t("flappy.preparing") : t("settings.send")}
                   onClick={onSendLogs}
                   disabled={isSendingLogs}
                   variant="warning"
+                />
+              </div>
+            </div>
+
+            <div className="border-t-2 border-[#222] pt-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="whitespace-nowrap font-bold">
+                  {t("flappy.openSource")}
+                </div>
+                <ActionButton
+                  text={t("common.view")}
+                  onClick={() => setShowOpenSourceNotice(true)}
                 />
               </div>
             </div>
@@ -168,6 +196,32 @@ const FlappyBirdSettingsLayer: React.FC<FlappyBirdSettingsLayerProps> = ({
         cancelText={t("flappy.exit")}
         initialFocusTarget="confirm"
       />
+      {showOpenSourceNotice && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
+          <PopupLayer
+            title={t("flappy.openSource")}
+            content={
+              <div className="text-left text-[1rem] leading-[1.4]">
+                <div className="space-y-1 leading-[1.35]">
+                  <div className="break-all font-bold">
+                    {FLAPPY_BIRD_OPEN_SOURCE_NOTICE.name}
+                  </div>
+                  {FLAPPY_BIRD_OPEN_SOURCE_NOTICE.lines.map((line) => (
+                    <div
+                      key={line}
+                      className="break-all text-[0.95rem] text-gray-600"
+                    >
+                      {line}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            }
+            onConfirm={() => setShowOpenSourceNotice(false)}
+            confirmText={t("common.close")}
+          />
+        </div>
+      )}
     </div>
   );
 };

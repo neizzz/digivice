@@ -95,6 +95,7 @@ const ControlButton: React.FC<ControlButtonProps> = ({
   const onSliderEndRef = useRef(onSliderEnd);
   const vibrationStepValueRef = useRef(0);
   const isDraggingRef = useRef(false);
+  const isPressedRef = useRef(false);
 
   const isSlider = type === ControlButtonType.Clean && !!sliderWidth;
   const sliderTrackWidth = sliderWidth
@@ -214,26 +215,49 @@ const ControlButton: React.FC<ControlButtonProps> = ({
   const size = SLIDER_THUMB_SIZE;
   const spriteState = isPressed ? "pressed" : "normal";
   const spriteInfo = spriteInfoMap[type][spriteState];
+  const shouldTriggerOnPointerDown =
+    type === ControlButtonType.Jump || type === ControlButtonType.DoubleJump;
 
   // 일반 버튼 이벤트 핸들러
   const handlePointerDown = () => {
     if (!isSlider) {
+      isPressedRef.current = true;
       setIsPressed(true);
-      if (onClick) onClick();
-      window.setTimeout(() => {
-        void vibrationAdapter.vibrate();
-      }, 0);
+
+      if (shouldTriggerOnPointerDown) {
+        onClick?.();
+        window.setTimeout(() => {
+          void vibrationAdapter.vibrate();
+        }, 0);
+      }
     }
   };
 
   const handlePointerUp = () => {
     if (!isSlider) {
+      const shouldTriggerClick = isPressedRef.current;
+      isPressedRef.current = false;
       setIsPressed(false);
+
+      if (shouldTriggerClick && !shouldTriggerOnPointerDown) {
+        onClick?.();
+        window.setTimeout(() => {
+          void vibrationAdapter.vibrate();
+        }, 0);
+      }
     }
   };
 
   const handlePointerLeave = () => {
     if (!isSlider && isPressed) {
+      isPressedRef.current = false;
+      setIsPressed(false);
+    }
+  };
+
+  const handlePointerCancel = () => {
+    if (!isSlider) {
+      isPressedRef.current = false;
       setIsPressed(false);
     }
   };
@@ -288,6 +312,7 @@ const ControlButton: React.FC<ControlButtonProps> = ({
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
       onPointerLeave={handlePointerLeave}
+      onPointerCancel={handlePointerCancel}
       className={`bg-no-repeat border-none bg-transparent p-0 outline-none select-none [-webkit-tap-highlight-color:transparent] scale-[1.4] ${
         className || ""
       }`}

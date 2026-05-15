@@ -367,7 +367,10 @@ async function captureScreen({ locale, screen, options, localeDir }) {
       await waitUntil(session, "Boolean(document.querySelector('input[placeholder]'))");
       await sleep(300);
     } else if (screen === "settings") {
-      await waitUntil(session, "document.querySelectorAll('[aria-pressed]').length > 0");
+      await waitUntil(
+        session,
+        "document.querySelectorAll('#app-container button').length >= 4",
+      );
       await sleep(300);
     } else {
       throw new Error(`Unsupported screen: ${screen}`);

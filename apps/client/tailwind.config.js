@@ -1,5 +1,12 @@
 const defaultTheme = require("tailwindcss/defaultTheme");
 
+const appFontFamily = [
+  '"Droid Sans Mono"',
+  '"SF Mono"',
+  "monospace",
+  ...defaultTheme.fontFamily.sans,
+];
+
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: ["./src/**/*.{ts,tsx}"], // ts와 tsx 사이의 공백 제거
@@ -15,9 +22,9 @@ module.exports = {
         },
       },
       fontFamily: {
-        sans: ['"NeoDunggeunmo Pro"', ...defaultTheme.fontFamily.sans],
-        display: ['"NeoDunggeunmo Pro"', ...defaultTheme.fontFamily.sans],
-        dialog: ['"NeoDunggeunmo Pro"', ...defaultTheme.fontFamily.sans],
+        sans: appFontFamily,
+        display: appFontFamily,
+        dialog: appFontFamily,
       },
     },
   },

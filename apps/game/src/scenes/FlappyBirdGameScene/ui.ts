@@ -3,6 +3,11 @@ import * as PIXI from "pixi.js";
 import { NAME_LABEL_FONT_FAMILIES } from "../../utils/nameLabel";
 
 const FLAPPY_BIRD_FONT_FAMILIES = [...NAME_LABEL_FONT_FAMILIES];
+const FLAPPY_BIRD_RETRO_FONT_FAMILY = "NeoDunggeunmo Pro";
+const FLAPPY_BIRD_RETRO_FONT_FAMILIES = [
+  FLAPPY_BIRD_RETRO_FONT_FAMILY,
+  ...NAME_LABEL_FONT_FAMILIES,
+];
 const FLAPPY_BIRD_SCORE_FONT_SIZE = 18;
 const FLAPPY_BIRD_SCORE_MARGIN_X = 4;
 const FLAPPY_BIRD_SCORE_MARGIN_Y = 6;
@@ -16,6 +21,68 @@ const FLAPPY_BIRD_COUNTDOWN_FONT_SIZE = 63;
 const FLAPPY_BIRD_GAME_OVER_FONT_SIZE = 72;
 const FLAPPY_BIRD_RESTART_FONT_SIZE = 36;
 
+function formatFlappyBirdBestScore(score: number): string {
+  return `Best: ${score}`;
+}
+
+function formatFlappyBirdScore(score: number): string {
+  return `Score: ${score}`;
+}
+
+function createFlappyBirdScoreTextStyle(
+  fontFamily: readonly string[],
+): PIXI.TextStyleOptions {
+  return {
+    fontFamily: [...fontFamily],
+    fontSize: FLAPPY_BIRD_SCORE_FONT_SIZE,
+    fill: 0xffffff,
+    stroke: {
+      color: 0x000000,
+      width: 4,
+    },
+    align: "left",
+  };
+}
+
+function getDocumentFontSet(): FontFaceSet | null {
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  return document.fonts ?? null;
+}
+
+function isFlappyBirdRetroFontLoaded(): boolean {
+  const fonts = getDocumentFontSet();
+
+  if (typeof fonts?.check !== "function") {
+    return true;
+  }
+
+  return fonts.check(`12px "${FLAPPY_BIRD_RETRO_FONT_FAMILY}"`);
+}
+
+async function loadFlappyBirdRetroFont(): Promise<boolean> {
+  const fonts = getDocumentFontSet();
+
+  if (!fonts) {
+    return true;
+  }
+
+  try {
+    if (typeof fonts.load === "function") {
+      await fonts.load(`12px "${FLAPPY_BIRD_RETRO_FONT_FAMILY}"`);
+    } else {
+      await fonts.ready;
+    }
+  } catch (error) {
+    console.warn("[FlappyBirdScoreUI] Failed to load score font", error);
+    return false;
+  }
+
+  return isFlappyBirdRetroFontLoaded();
+}
+
 export class CountdownUI {
   private text: PIXI.Text;
   private remainingMs = 0;
@@ -27,7 +94,7 @@ export class CountdownUI {
     this.text = new PIXI.Text({
       text: "3",
       style: {
-        fontFamily: FLAPPY_BIRD_FONT_FAMILIES,
+        fontFamily: FLAPPY_BIRD_RETRO_FONT_FAMILIES,
         fontSize: FLAPPY_BIRD_COUNTDOWN_FONT_SIZE,
         fill: 0xffffff,
         align: "center",
@@ -104,29 +171,23 @@ export class ScoreUI {
   private scoreText: PIXI.Text;
   private score: number = 0;
   private bestScore: number = 0;
-  private locale: LocaleCode;
+  private isUsingRetroScoreFont = false;
 
-  constructor(initialBestScore = 0, locale: LocaleCode = DEFAULT_LOCALE) {
-    this.locale = locale;
-    const textStyle = {
-      fontFamily: FLAPPY_BIRD_FONT_FAMILIES,
-      fontSize: FLAPPY_BIRD_SCORE_FONT_SIZE,
-      fill: 0xffffff,
-      stroke: {
-        color: 0x000000,
-        width: 4,
-      },
-      align: "left",
-    } as const;
+  constructor(initialBestScore = 0, _locale: LocaleCode = DEFAULT_LOCALE) {
+    const initialFontFamily = isFlappyBirdRetroFontLoaded()
+      ? FLAPPY_BIRD_RETRO_FONT_FAMILIES
+      : NAME_LABEL_FONT_FAMILIES;
+    this.isUsingRetroScoreFont =
+      initialFontFamily[0] === FLAPPY_BIRD_RETRO_FONT_FAMILY;
 
     this.container = new PIXI.Container();
     this.bestScoreText = new PIXI.Text({
-      text: translate(this.locale, "flappy.best", { score: 0 }),
-      style: textStyle,
+      text: formatFlappyBirdBestScore(0),
+      style: createFlappyBirdScoreTextStyle(initialFontFamily),
     });
     this.scoreText = new PIXI.Text({
-      text: translate(this.locale, "flappy.score", { score: 0 }),
-      style: textStyle,
+      text: formatFlappyBirdScore(0),
+      style: createFlappyBirdScoreTextStyle(initialFontFamily),
     });
 
     this.bestScoreText.anchor.set(0, 0);
@@ -138,6 +199,10 @@ export class ScoreUI {
 
     this.setBestScore(initialBestScore);
     this.resetScore();
+
+    if (!this.isUsingRetroScoreFont) {
+      void this.loadAndApplyRetroScoreFont();
+    }
   }
 
   /**
@@ -219,18 +284,30 @@ export class ScoreUI {
     );
   }
 
-  public setLocale(locale: LocaleCode): void {
-    this.locale = locale;
+  public setLocale(_locale: LocaleCode): void {
     this.syncText();
   }
 
   private syncText(): void {
-    this.bestScoreText.text = translate(this.locale, "flappy.best", {
-      score: this.bestScore,
-    });
-    this.scoreText.text = translate(this.locale, "flappy.score", {
-      score: this.score,
-    });
+    this.bestScoreText.text = formatFlappyBirdBestScore(this.bestScore);
+    this.scoreText.text = formatFlappyBirdScore(this.score);
+  }
+
+  private async loadAndApplyRetroScoreFont(): Promise<void> {
+    if (this.isUsingRetroScoreFont) {
+      return;
+    }
+
+    const isLoaded = await loadFlappyBirdRetroFont();
+
+    if (!isLoaded) {
+      return;
+    }
+
+    this.bestScoreText.style.fontFamily = [...FLAPPY_BIRD_RETRO_FONT_FAMILIES];
+    this.scoreText.style.fontFamily = [...FLAPPY_BIRD_RETRO_FONT_FAMILIES];
+    this.isUsingRetroScoreFont = true;
+    this.syncText();
   }
 }
 

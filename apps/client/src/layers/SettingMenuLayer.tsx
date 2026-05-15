@@ -4,9 +4,17 @@ import {
   type LocaleCode,
 } from "@shared/i18n";
 import type React from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import PopupLayer from "../components/PopupLayer";
 import { useI18n } from "../i18n";
+
+const isNativeFeatureDebugMode =
+  import.meta.env.NATIVE_FEATURE_DEBUG_MODE === "true";
+const RESET_CONFIRM_CODE_LENGTH = 6;
+const RESET_CONFIRM_CODE_INDEXES = Array.from(
+  { length: RESET_CONFIRM_CODE_LENGTH },
+  (_, index) => index,
+);
 
 interface SettingMenuLayerProps {
   releaseLabel: string;
@@ -23,14 +31,6 @@ interface SettingMenuLayerProps {
   onClose: () => void;
 }
 
-const FONT_NOTICE = {
-  name: "Neo둥근모 Pro",
-  lines: [
-    "Copyright © 2017-2024, Eunbin Jeong (Dalgona.) <project-neodgm@dalgona.dev>",
-    'with reserved font name "Neo둥근모 Pro" and "NeoDunggeunmo Pro".',
-  ] as const,
-};
-
 const ToggleButton: React.FC<{
   enabled: boolean;
   onClick: () => void;
@@ -41,7 +41,7 @@ const ToggleButton: React.FC<{
     <button
       type={"button"}
       onClick={onClick}
-      className={`min-w-20 border-2 border-[#222] px-4 py-0.5 font-bold text-white ${
+      className={`ml-auto min-w-20 shrink-0 border-2 border-[#222] px-4 py-0.5 font-bold text-white ${
         enabled ? "bg-component-positive" : "bg-gray-400"
       }`}
     >
@@ -69,7 +69,7 @@ const ActionButton: React.FC<{
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className={`flex min-w-20 items-center justify-center border-2 border-[#222] px-4 py-0.5 text-center font-bold text-white ${backgroundClass}`}
+      className={`ml-auto flex min-w-20 shrink-0 items-center justify-center border-2 border-[#222] px-4 py-0.5 text-center font-bold text-white ${backgroundClass}`}
     >
       {text}
     </button>
@@ -97,6 +97,24 @@ const LanguageButton: React.FC<{
   );
 };
 
+function createResetConfirmCode(): string {
+  if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+    const values = crypto.getRandomValues(
+      new Uint8Array(RESET_CONFIRM_CODE_LENGTH),
+    );
+
+    return Array.from(values, (value) => String(value % 10)).join("");
+  }
+
+  return Array.from({ length: RESET_CONFIRM_CODE_LENGTH }, () =>
+    String(Math.floor(Math.random() * 10)),
+  ).join("");
+}
+
+function sanitizeResetConfirmCodeInput(value: string): string {
+  return value.replace(/\D/g, "").slice(0, RESET_CONFIRM_CODE_LENGTH);
+}
+
 const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
   releaseLabel,
   vibrationEnabled,
@@ -112,13 +130,100 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
   onClose,
 }) => {
   const { t } = useI18n();
-  const [resetConfirmText, setResetConfirmText] = useState("");
-  const [showFontNotice, setShowFontNotice] = useState(false);
+  const [resetConfirmCode, setResetConfirmCode] =
+    useState(createResetConfirmCode);
+  const [resetConfirmDigits, setResetConfirmDigits] = useState<string[]>(() =>
+    Array.from({ length: RESET_CONFIRM_CODE_LENGTH }, () => ""),
+  );
+  const resetCodeInputRefs = useRef<Array<HTMLInputElement | null>>([]);
+
+  useEffect(() => {
+    if (!showFinalResetConfirm) {
+      return;
+    }
+
+    setResetConfirmCode(createResetConfirmCode());
+    setResetConfirmDigits(
+      Array.from({ length: RESET_CONFIRM_CODE_LENGTH }, () => ""),
+    );
+
+    window.requestAnimationFrame(() => {
+      const firstInput = resetCodeInputRefs.current[0];
+      firstInput?.focus();
+      firstInput?.select();
+    });
+  }, [showFinalResetConfirm]);
+
+  const resetConfirmText = useMemo(
+    () => resetConfirmDigits.join(""),
+    [resetConfirmDigits],
+  );
+  const isResetComplete = useMemo(
+    () => resetConfirmDigits.every((digit) => digit.length === 1),
+    [resetConfirmDigits],
+  );
 
   const isResetEnabled = useMemo(
-    () => resetConfirmText.trim() === "confirm",
-    [resetConfirmText],
+    () => isResetComplete && resetConfirmText === resetConfirmCode,
+    [isResetComplete, resetConfirmCode, resetConfirmText],
   );
+  const isResetMismatch = isResetComplete && !isResetEnabled;
+
+  const focusResetCodeInput = (index: number) => {
+    const nextIndex = Math.max(0, Math.min(index, RESET_CONFIRM_CODE_LENGTH - 1));
+
+    window.requestAnimationFrame(() => {
+      const input = resetCodeInputRefs.current[nextIndex];
+      input?.focus();
+      input?.select();
+    });
+  };
+
+  const fillResetConfirmDigits = (startIndex: number, value: string) => {
+    const digits = sanitizeResetConfirmCodeInput(value);
+
+    if (!digits) {
+      return;
+    }
+
+    setResetConfirmDigits((currentDigits) => {
+      const nextDigits = [...currentDigits];
+
+      for (
+        let offset = 0;
+        offset < digits.length &&
+        startIndex + offset < RESET_CONFIRM_CODE_LENGTH;
+        offset += 1
+      ) {
+        nextDigits[startIndex + offset] = digits[offset];
+      }
+
+      return nextDigits;
+    });
+
+    focusResetCodeInput(startIndex + digits.length);
+  };
+
+  const clearResetConfirmDigit = (
+    index: number,
+    direction: "current" | "previous",
+  ) => {
+    const previousIndex = Math.max(0, index - 1);
+
+    setResetConfirmDigits((currentDigits) => {
+      const nextDigits = [...currentDigits];
+
+      if (direction === "current") {
+        nextDigits[index] = "";
+      } else {
+        nextDigits[previousIndex] = "";
+      }
+
+      return nextDigits;
+    });
+
+    focusResetCodeInput(direction === "current" ? index : previousIndex);
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
@@ -131,10 +236,12 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
           </div>
         }
         content={
-          <div className="flex flex-col gap-5 text-left text-[1.5rem]">
-            <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-col gap-4 text-left text-[1.5rem] leading-[1.4]">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <div className="font-bold">{t("settings.vibration")}</div>
+                <div className="whitespace-nowrap font-bold">
+                  {t("settings.vibration")}
+                </div>
               </div>
               <ToggleButton
                 enabled={vibrationEnabled}
@@ -143,22 +250,10 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
             </div>
 
             <div className="border-t-2 border-[#222] pt-4">
-              <div className="mb-3 font-bold">{t("settings.language")}</div>
-              <div className="grid grid-cols-2 gap-2">
-                {SUPPORTED_LOCALES.map((localeOption) => (
-                  <LanguageButton
-                    key={localeOption}
-                    locale={localeOption}
-                    active={locale === localeOption}
-                    onClick={() => onChangeLocale(localeOption)}
-                  />
-                ))}
-              </div>
-            </div>
-
-            <div className="border-t-2 border-[#222] pt-4">
-              <div className="flex items-center justify-between gap-4">
-                <div className="font-bold">{t("settings.reportBug")}</div>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="whitespace-nowrap font-bold">
+                  {t("settings.reportBug")}
+                </div>
                 <ActionButton
                   text={
                     isSendingDiagnostics
@@ -173,85 +268,114 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
             </div>
 
             <div className="border-t-2 border-[#222] pt-4">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <div className="font-bold">{t("settings.license")}</div>
-                </div>
-                <ActionButton
-                  text={t("settings.view")}
-                  onClick={() => setShowFontNotice(true)}
-                />
-              </div>
-            </div>
-
-            <div className="border-t-2 border-[#222] pt-4">
               <div>
                 <div className="font-bold text-red-600">
                   {t("settings.raiseNewMonster")}
                 </div>
               </div>
-              <div className="mt-3 flex items-center justify-between gap-3">
-                <input
-                  type="text"
-                  value={resetConfirmText}
-                  onChange={(event) => setResetConfirmText(event.target.value)}
-                  placeholder={t("settings.resetConfirmPlaceholder")}
-                  className="w-40 border-2 border-[#222] px-3 py-0.5 text-center placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#d95763]"
-                />
-                <button
-                  type={"button"}
-                  disabled={!isResetEnabled}
+              <div className="mt-3 flex justify-end">
+                <ActionButton
+                  text={t("common.reset")}
                   onClick={onOpenResetConfirm}
-                  className={`border-2 border-[#222] px-4 py-0.5 font-bold text-white ${
-                    isResetEnabled
-                      ? "bg-component-negative"
-                      : "cursor-not-allowed bg-gray-400 opacity-60"
-                  }`}
-                >
-                  {t("common.reset")}
-                </button>
+                  variant="negative"
+                />
               </div>
             </div>
+
+            {isNativeFeatureDebugMode && (
+              <div className="border-t-2 border-[#222] pt-4">
+                <div className="mb-3 flex flex-wrap items-center gap-2 font-bold">
+                  <span>Language</span>
+                  <span className="border-2 border-[#222] bg-yellow-300 px-2 py-0.5 text-[0.85rem] uppercase leading-none text-[#222]">
+                    Dev Mode
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {SUPPORTED_LOCALES.map((localeOption) => (
+                    <LanguageButton
+                      key={localeOption}
+                      locale={localeOption}
+                      active={locale === localeOption}
+                      onClick={() => onChangeLocale(localeOption)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         }
         onConfirm={onClose}
         confirmText={t("common.close")}
       />
-      {showFontNotice && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
-          <PopupLayer
-            title={t("settings.license")}
-            content={
-              <div className="text-left text-[1rem] leading-[1.4]">
-                <div className="space-y-1 leading-[1.35]">
-                  <div className="break-all font-bold">{FONT_NOTICE.name}</div>
-                  {FONT_NOTICE.lines.map((line) => (
-                    <div
-                      key={line}
-                      className="break-all text-[0.95rem] text-gray-600"
-                    >
-                      {line}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            }
-            onConfirm={() => setShowFontNotice(false)}
-            confirmText={t("common.close")}
-          />
-        </div>
-      )}
       {showFinalResetConfirm && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
           <PopupLayer
             title={t("settings.resetTitle")}
             content={
-              <div className="leading-[1.6]">{t("settings.resetMessage")}</div>
+              <div className="flex flex-col gap-4 leading-[1.4]">
+                <div>{t("settings.resetMessage")}</div>
+                <div
+                  className="grid grid-cols-6 gap-1 self-center"
+                  aria-label={t("settings.resetConfirmCodeLabel")}
+                >
+                  {RESET_CONFIRM_CODE_INDEXES.map((index) => (
+                    <input
+                      key={index}
+                      ref={(element) => {
+                        resetCodeInputRefs.current[index] = element;
+                      }}
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={1}
+                      autoComplete="off"
+                      value={resetConfirmDigits[index]}
+                      placeholder={resetConfirmCode[index]}
+                      onChange={(event) =>
+                        fillResetConfirmDigits(index, event.target.value)
+                      }
+                      onFocus={(event) => event.target.select()}
+                      onKeyDown={(event) => {
+                        if (event.key !== "Backspace") {
+                          if (event.key === "Delete") {
+                            event.preventDefault();
+                            clearResetConfirmDigit(index, "current");
+                          }
+                          return;
+                        }
+
+                        event.preventDefault();
+                        clearResetConfirmDigit(
+                          index,
+                          resetConfirmDigits[index] ? "current" : "previous",
+                        );
+                      }}
+                      onPaste={(event) => {
+                        event.preventDefault();
+                        fillResetConfirmDigits(
+                          index,
+                          event.clipboardData.getData("text"),
+                        );
+                      }}
+                      aria-label={`${t("settings.resetConfirmCodeLabel")} ${
+                        index + 1
+                      }`}
+                      aria-invalid={isResetMismatch}
+                      className={`h-11 w-9 border-2 px-0 text-center text-[1.2rem] font-bold focus:outline-none focus:ring-2 focus:ring-[#d95763] ${
+                        isResetMismatch
+                          ? "border-component-negative bg-[#fff0f2] text-component-negative placeholder:text-component-negative/50"
+                          : "border-[#222] bg-white text-[#222] placeholder:text-gray-400"
+                      }`}
+                    />
+                  ))}
+                </div>
+              </div>
             }
             onConfirm={onResetGameData}
             onCancel={onCloseResetConfirm}
             confirmText={t("common.reset")}
             cancelText={t("common.cancel")}
+            confirmDisabled={!isResetEnabled}
             confirmVariant="negative"
             cancelVariant="positive"
             confirmEnableDelayMs={2000}

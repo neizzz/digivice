@@ -28,7 +28,7 @@ export class HTMLDebugToggleButton {
       font-weight: bold;
       cursor: pointer;
       z-index: 1002;
-      font-family: 'NeoDunggeunmo Pro', sans-serif;
+      font-family: 'Droid Sans Mono', 'SF Mono', monospace, sans-serif;
       transition: background-color 0.2s;
     `;
 

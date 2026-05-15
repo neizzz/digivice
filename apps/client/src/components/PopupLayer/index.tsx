@@ -19,6 +19,7 @@ interface PopupProps {
   onCancel?: () => void;
   confirmText?: string;
   cancelText?: string;
+  confirmDisabled?: boolean;
   confirmVariant?: "positive" | "negative";
   cancelVariant?: "positive" | "negative";
   initialFocusTarget?: "confirm" | "cancel" | "container" | "none";
@@ -56,6 +57,7 @@ const PopupLayer: React.FC<PopupProps> = ({
   onCancel,
   confirmText,
   cancelText,
+  confirmDisabled = false,
   confirmVariant = "positive",
   cancelVariant = "negative",
   initialFocusTarget = "none",
@@ -89,8 +91,11 @@ const PopupLayer: React.FC<PopupProps> = ({
     number | null
   >(null);
   const isConfirmEnableDelayActive =
+    !confirmDisabled &&
     confirmEnableDelayMs > 0 &&
     confirmEnableDelayProgress < CONFIRM_ENABLE_DELAY_PROGRESS_MAX;
+  const isConfirmButtonDisabled =
+    confirmDisabled || isConfirmEnableDelayActive;
   const effectiveInitialFocusTargetRef = useRef<
     "confirm" | "cancel" | "container" | "none"
   >(
@@ -112,6 +117,11 @@ const PopupLayer: React.FC<PopupProps> = ({
 
     if (confirmEnableDelayMs <= 0) {
       setConfirmEnableDelayProgress(CONFIRM_ENABLE_DELAY_PROGRESS_MAX);
+      return;
+    }
+
+    if (confirmDisabled) {
+      setConfirmEnableDelayProgress(0);
       return;
     }
 
@@ -148,7 +158,7 @@ const PopupLayer: React.FC<PopupProps> = ({
         confirmEnableDelayRafIdRef.current = null;
       }
     };
-  }, [confirmEnableDelayMs]);
+  }, [confirmDisabled, confirmEnableDelayMs]);
 
   const emitKeyboardAwareDebug = useCallback(
     (stage: string, payload: Record<string, unknown> = {}) => {
@@ -479,14 +489,14 @@ const PopupLayer: React.FC<PopupProps> = ({
 
   const handleConfirmClick = useCallback(() => {
     if (
-      isConfirmEnableDelayActive ||
+      isConfirmButtonDisabled ||
       Date.now() < suppressInitialActionsUntilRef.current
     ) {
       return;
     }
 
     onConfirm?.();
-  }, [isConfirmEnableDelayActive, onConfirm]);
+  }, [isConfirmButtonDisabled, onConfirm]);
 
   const handleCancelClick = useCallback(() => {
     if (Date.now() < suppressInitialActionsUntilRef.current) {
@@ -548,10 +558,10 @@ const PopupLayer: React.FC<PopupProps> = ({
             <button
               ref={confirmButtonRef}
               type={"button"}
-              disabled={isConfirmEnableDelayActive}
+              disabled={isConfirmButtonDisabled}
               onClick={handleConfirmClick}
               className={`relative overflow-hidden text-[1.5rem] text-white border-2 border-[#222] px-[15px] py-0.5 uppercase font-display shadow-[2px_2px_0_#222] ${
-                isConfirmEnableDelayActive
+                isConfirmButtonDisabled
                   ? "cursor-not-allowed bg-gray-400 opacity-80"
                   : confirmVariant === "negative"
                     ? "cursor-pointer bg-component-negative"

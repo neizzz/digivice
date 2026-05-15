@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-PATCH_REVISION="android15-window-colors-v2"
+PATCH_REVISION="android15-window-colors-v3"
 EXPECTED_CLASS_MAJOR_VERSION=52
 
 usage() {
@@ -166,6 +166,42 @@ verify_no_direct_window_calls() {
   fi
 }
 
+verify_no_system_bar_color_references() {
+  local jar_path="$1"
+
+  python3 - "$jar_path" <<'PY'
+import sys
+import zipfile
+
+jar_path = sys.argv[1]
+forbidden = (
+    b"setStatusBarColor",
+    b"setNavigationBarColor",
+    b"setNavigationBarDividerColor",
+)
+
+hits = []
+with zipfile.ZipFile(jar_path) as jar:
+    for name in jar.namelist():
+        if not name.endswith(".class"):
+            continue
+        data = jar.read(name)
+        for needle in forbidden:
+            if needle in data:
+                hits.append(f"{name}: {needle.decode('ascii')}")
+
+if hits:
+    print(
+        "Forbidden Window system bar color references are still present in "
+        f"{jar_path}:",
+        file=sys.stderr,
+    )
+    for hit in hits:
+        print(f"  {hit}", file=sys.stderr)
+    raise SystemExit(1)
+PY
+}
+
 read_class_major_version() {
   local jar_path="$1"
   local class_name="$2"
@@ -260,7 +296,7 @@ if mode == "flutter_activity":
         r"""  private void configureStatusBarForFullscreenFlutterExperience\(\) \{\n(?:    .*\n)+?  \}\n""",
         re.MULTILINE,
     )
-    replacement = """  private void configureStatusBarForFullscreenFlutterExperience() {\n    Window window = getWindow();\n    window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);\n    if (Build.VERSION.SDK_INT < API_LEVELS.API_35) {\n      maybeSetStatusBarColor(window, 0x40000000);\n    }\n    window.getDecorView().setSystemUiVisibility(PlatformPlugin.DEFAULT_SYSTEM_UI);\n  }\n\n  private static void maybeSetStatusBarColor(Window window, int color) {\n    if (Build.VERSION.SDK_INT >= API_LEVELS.API_35) {\n      return;\n    }\n    try {\n      Window.class.getMethod("setStatusBarColor", int.class).invoke(window, color);\n    } catch (ReflectiveOperationException | SecurityException ignored) {\n    }\n  }\n"""
+    replacement = """  private void configureStatusBarForFullscreenFlutterExperience() {\n    Window window = getWindow();\n    window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);\n    window.getDecorView().setSystemUiVisibility(PlatformPlugin.DEFAULT_SYSTEM_UI);\n  }\n"""
     text, count = pattern.subn(replacement, text, count=1)
     if count != 1:
         raise SystemExit(f"Failed to patch fullscreen status bar method in {path}")
@@ -269,32 +305,29 @@ elif mode == "flutter_fragment_activity":
         r"""  private void configureStatusBarForFullscreenFlutterExperience\(\) \{\n(?:    .*\n)+?  \}\n""",
         re.MULTILINE,
     )
-    replacement = """  private void configureStatusBarForFullscreenFlutterExperience() {\n    Window window = getWindow();\n    window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);\n    if (Build.VERSION.SDK_INT < API_LEVELS.API_35) {\n      maybeSetStatusBarColor(window, 0x40000000);\n    }\n    window.getDecorView().setSystemUiVisibility(PlatformPlugin.DEFAULT_SYSTEM_UI);\n  }\n\n  private static void maybeSetStatusBarColor(Window window, int color) {\n    if (Build.VERSION.SDK_INT >= API_LEVELS.API_35) {\n      return;\n    }\n    try {\n      Window.class.getMethod("setStatusBarColor", int.class).invoke(window, color);\n    } catch (ReflectiveOperationException | SecurityException ignored) {\n    }\n  }\n"""
+    replacement = """  private void configureStatusBarForFullscreenFlutterExperience() {\n    Window window = getWindow();\n    window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);\n    window.getDecorView().setSystemUiVisibility(PlatformPlugin.DEFAULT_SYSTEM_UI);\n  }\n"""
     text, count = pattern.subn(replacement, text, count=1)
     if count != 1:
         raise SystemExit(f"Failed to patch fullscreen status bar method in {path}")
 elif mode == "platform_plugin":
     text = replace_once(
         text,
-        "      window.setStatusBarColor(systemChromeStyle.statusBarColor);",
-        "      maybeSetStatusBarColor(window, systemChromeStyle.statusBarColor);",
+        "    if (systemChromeStyle.statusBarColor != null) {\n      window.setStatusBarColor(systemChromeStyle.statusBarColor);\n    }\n",
+        "",
         "PlatformPlugin.statusBarColor call",
     )
     text = replace_once(
         text,
-        "        window.setNavigationBarColor(systemChromeStyle.systemNavigationBarColor);",
-        "        maybeSetNavigationBarColor(window, systemChromeStyle.systemNavigationBarColor);",
+        "\n      if (systemChromeStyle.systemNavigationBarColor != null) {\n        window.setNavigationBarColor(systemChromeStyle.systemNavigationBarColor);\n      }\n",
+        "\n",
         "PlatformPlugin.navigationBarColor call",
     )
     text = replace_once(
         text,
-        "      window.setNavigationBarDividerColor(systemChromeStyle.systemNavigationBarDividerColor);",
-        "      maybeSetNavigationBarDividerColor(window, systemChromeStyle.systemNavigationBarDividerColor);",
+        "    // You can't change the color of the navigation bar divider color until SDK 28.\n    if (systemChromeStyle.systemNavigationBarDividerColor != null\n        && Build.VERSION.SDK_INT >= API_LEVELS.API_28) {\n      window.setNavigationBarDividerColor(systemChromeStyle.systemNavigationBarDividerColor);\n    }\n\n",
+        "",
         "PlatformPlugin.navigationBarDividerColor call",
     )
-    helper_anchor = "  private void setFrameworkHandlesBack(boolean frameworkHandlesBack) {"
-    helper_block = """  private static void maybeSetStatusBarColor(Window window, int color) {\n    if (Build.VERSION.SDK_INT >= API_LEVELS.API_35) {\n      return;\n    }\n    try {\n      Window.class.getMethod("setStatusBarColor", int.class).invoke(window, color);\n    } catch (ReflectiveOperationException | SecurityException ignored) {\n    }\n  }\n\n  private static void maybeSetNavigationBarColor(Window window, int color) {\n    if (Build.VERSION.SDK_INT >= API_LEVELS.API_35) {\n      return;\n    }\n    try {\n      Window.class.getMethod("setNavigationBarColor", int.class).invoke(window, color);\n    } catch (ReflectiveOperationException | SecurityException ignored) {\n    }\n  }\n\n  private static void maybeSetNavigationBarDividerColor(Window window, int color) {\n    if (Build.VERSION.SDK_INT >= API_LEVELS.API_35) {\n      return;\n    }\n    try {\n      Window.class.getMethod("setNavigationBarDividerColor", int.class).invoke(window, color);\n    } catch (ReflectiveOperationException | SecurityException ignored) {\n    }\n  }\n\n  private void setFrameworkHandlesBack(boolean frameworkHandlesBack) {\n"""
-    text = replace_once(text, helper_anchor, helper_block, "PlatformPlugin helper insertion anchor")
 else:
     raise SystemExit(f"Unknown patch mode: {mode}")
 
@@ -519,6 +552,7 @@ package_embedding() {
   write_maven_metadata "$artifact_dir" "$artifact_id"
   verify_platform_plugin_classes "$output_jar"
   verify_no_direct_window_calls "$output_jar"
+  verify_no_system_bar_color_references "$output_jar"
 }
 
 mkdir -p "$OUTPUT_DIR"

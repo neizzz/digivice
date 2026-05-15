@@ -3,7 +3,6 @@ import {
   countDisplayCharacters,
   fitsNameLabelWidth,
   measureNameLabelWidth,
-  NAME_LABEL_MAX_WIDTH,
   type SunTimesPayload,
 } from "@digivice/game";
 import { useRef, useState } from "react";
@@ -12,6 +11,7 @@ import PopupLayer from "../components/PopupLayer";
 import { useI18n } from "../i18n";
 
 const MIN_NAME_LENGTH = 2;
+const SETUP_NAME_MAX_WIDTH = 55;
 
 export type SetupFormData = {
   name: string;
@@ -31,7 +31,10 @@ export const SetupLayer: React.FC<SetupLayerProps> = ({ onComplete }) => {
   const trimmedName = name.trim();
   const nameLength = countDisplayCharacters(trimmedName);
   const nameWidth = measureNameLabelWidth(trimmedName);
-  const isWithinVisibleWidth = fitsNameLabelWidth(trimmedName);
+  const isWithinVisibleWidth = fitsNameLabelWidth(
+    trimmedName,
+    SETUP_NAME_MAX_WIDTH,
+  );
 
   const handleConfirm = () => {
     if (!trimmedName) {
@@ -46,7 +49,7 @@ export const SetupLayer: React.FC<SetupLayerProps> = ({ onComplete }) => {
 
     if (!isWithinVisibleWidth) {
       setError(
-        t("setup.error.maxWidth", { maxWidth: NAME_LABEL_MAX_WIDTH }),
+        t("setup.error.maxWidth", { maxWidth: SETUP_NAME_MAX_WIDTH }),
       );
       return;
     }
@@ -87,7 +90,10 @@ export const SetupLayer: React.FC<SetupLayerProps> = ({ onComplete }) => {
                   isWithinVisibleWidth ? "text-gray-600" : "text-red-600"
                 }`}
               >
-                {t("setup.nameWidth", { width: Math.round(nameWidth), maxWidth: NAME_LABEL_MAX_WIDTH })}
+                {t("setup.nameWidth", {
+                  width: Math.round(nameWidth),
+                  maxWidth: SETUP_NAME_MAX_WIDTH,
+                })}
               </div>
               {error && (
                 <p className="mt-4 text-component-negative text-[0.7em]">

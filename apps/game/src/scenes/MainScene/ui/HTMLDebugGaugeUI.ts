@@ -101,7 +101,7 @@ export class HTMLDebugGaugeUI {
       border-radius: 5px;
       padding: 10px;
       z-index: 998;
-      font-family: 'NeoDunggeunmo Pro', sans-serif;
+      font-family: 'Droid Sans Mono', 'SF Mono', monospace, sans-serif;
       color: white;
       font-size: 12px;
       min-width: 280px;

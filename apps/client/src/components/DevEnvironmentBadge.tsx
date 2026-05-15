@@ -26,7 +26,7 @@ export function DevEnvironmentBadge() {
         textAlign: "center",
         boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
         cursor: "pointer",
-        fontFamily: '"NeoDunggeunmo Pro", sans-serif',
+        fontFamily: '"Droid Sans Mono", "SF Mono", monospace, sans-serif',
         flexShrink: 0,
       }}
       onClick={() => setIsExpanded(!isExpanded)}
@@ -60,7 +60,7 @@ export function DevEnvironmentBadge() {
             paddingTop: "12px",
             borderTop: "1px solid rgba(255,255,255,0.3)",
             fontSize: "12px",
-            fontWeight: "normal",
+            fontWeight: "bold",
             textAlign: "left",
             maxWidth: "800px",
             margin: "12px auto 0",
@@ -82,7 +82,7 @@ export function DevEnvironmentBadge() {
                 borderRadius: "4px",
                 wordBreak: "break-all",
                 fontSize: "11px",
-                fontFamily: '"NeoDunggeunmo Pro", sans-serif',
+                fontFamily: '"Droid Sans Mono", "SF Mono", monospace, sans-serif',
               }}
             >
               {navigator.userAgent}
