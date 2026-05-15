@@ -20,6 +20,9 @@ const FLAPPY_BIRD_NEAR_MISS_GREAT_COLOR = 0xffc857;
 const FLAPPY_BIRD_COUNTDOWN_FONT_SIZE = 63;
 const FLAPPY_BIRD_GAME_OVER_FONT_SIZE = 72;
 const FLAPPY_BIRD_RESTART_FONT_SIZE = 36;
+export const FLAPPY_BIRD_RETRO_FONT_PRELOAD_TIMEOUT_MS = 2_000;
+
+let flappyBirdRetroFontLoadPromise: Promise<boolean> | null = null;
 
 function formatFlappyBirdBestScore(score: number): string {
   return `Best: ${score}`;
@@ -44,6 +47,21 @@ function createFlappyBirdScoreTextStyle(
   };
 }
 
+function createFlappyBirdCountdownTextStyle(
+  fontFamily: readonly string[],
+): PIXI.TextStyleOptions {
+  return {
+    fontFamily: [...fontFamily],
+    fontSize: FLAPPY_BIRD_COUNTDOWN_FONT_SIZE,
+    fill: 0xffffff,
+    align: "center",
+    stroke: {
+      color: 0x000000,
+      width: 6,
+    },
+  };
+}
+
 function getDocumentFontSet(): FontFaceSet | null {
   if (typeof document === "undefined") {
     return null;
@@ -52,7 +70,7 @@ function getDocumentFontSet(): FontFaceSet | null {
   return document.fonts ?? null;
 }
 
-function isFlappyBirdRetroFontLoaded(): boolean {
+export function isFlappyBirdRetroFontLoaded(): boolean {
   const fonts = getDocumentFontSet();
 
   if (typeof fonts?.check !== "function") {
@@ -62,25 +80,103 @@ function isFlappyBirdRetroFontLoaded(): boolean {
   return fonts.check(`12px "${FLAPPY_BIRD_RETRO_FONT_FAMILY}"`);
 }
 
-async function loadFlappyBirdRetroFont(): Promise<boolean> {
+function getInitialFlappyBirdRetroSafeFontFamilies(): readonly string[] {
+  return isFlappyBirdRetroFontLoaded()
+    ? FLAPPY_BIRD_RETRO_FONT_FAMILIES
+    : NAME_LABEL_FONT_FAMILIES;
+}
+
+function createFlappyBirdRetroFontLoadPromise(): Promise<boolean> {
   const fonts = getDocumentFontSet();
 
   if (!fonts) {
+    return Promise.resolve(true);
+  }
+
+  return (async () => {
+    try {
+      if (isFlappyBirdRetroFontLoaded()) {
+        return true;
+      }
+
+      if (typeof fonts.load === "function") {
+        await fonts.load(`12px "${FLAPPY_BIRD_RETRO_FONT_FAMILY}"`);
+      } else {
+        await fonts.ready;
+      }
+    } catch (error) {
+      console.warn("[FlappyBirdUI] Failed to load retro font", error);
+      return false;
+    }
+
+    return isFlappyBirdRetroFontLoaded();
+  })();
+}
+
+export async function preloadFlappyBirdRetroFont(
+  options: {
+    timeoutMs?: number;
+  } = {},
+): Promise<boolean> {
+  if (isFlappyBirdRetroFontLoaded()) {
     return true;
   }
 
-  try {
-    if (typeof fonts.load === "function") {
-      await fonts.load(`12px "${FLAPPY_BIRD_RETRO_FONT_FAMILY}"`);
-    } else {
-      await fonts.ready;
-    }
-  } catch (error) {
-    console.warn("[FlappyBirdScoreUI] Failed to load score font", error);
-    return false;
+  if (!flappyBirdRetroFontLoadPromise) {
+    const loadPromise = createFlappyBirdRetroFontLoadPromise();
+    let handledLoadPromise: Promise<boolean>;
+    handledLoadPromise = loadPromise.then(
+      (isLoaded) => {
+        if (!isLoaded && flappyBirdRetroFontLoadPromise === handledLoadPromise) {
+          flappyBirdRetroFontLoadPromise = null;
+        }
+
+        return isLoaded;
+      },
+      (error) => {
+        if (flappyBirdRetroFontLoadPromise === handledLoadPromise) {
+          flappyBirdRetroFontLoadPromise = null;
+        }
+
+        throw error;
+      },
+    );
+    flappyBirdRetroFontLoadPromise = handledLoadPromise;
   }
 
-  return isFlappyBirdRetroFontLoaded();
+  const timeoutMs = options.timeoutMs;
+
+  if (typeof timeoutMs !== "number" || timeoutMs <= 0) {
+    return flappyBirdRetroFontLoadPromise;
+  }
+
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+  try {
+    return await Promise.race([
+      flappyBirdRetroFontLoadPromise,
+      new Promise<boolean>((resolve) => {
+        timeoutId = setTimeout(() => resolve(false), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeoutId !== null) {
+      clearTimeout(timeoutId);
+    }
+  }
+}
+
+export function resetFlappyBirdRetroFontLoadStateForTest(): void {
+  flappyBirdRetroFontLoadPromise = null;
+}
+
+async function loadFlappyBirdRetroFont(): Promise<boolean> {
+  try {
+    return await preloadFlappyBirdRetroFont();
+  } catch (error) {
+    console.warn("[FlappyBirdUI] Failed to load retro font", error);
+    return false;
+  }
 }
 
 export class CountdownUI {
@@ -89,26 +185,27 @@ export class CountdownUI {
   private currentDisplayValue = 0;
   private baseX = 0;
   private baseY = 0;
+  private isUsingRetroCountdownFont = false;
+  private pendingRetroCountdownFontApply = false;
 
   constructor() {
+    const initialFontFamily = getInitialFlappyBirdRetroSafeFontFamilies();
+    this.isUsingRetroCountdownFont =
+      initialFontFamily[0] === FLAPPY_BIRD_RETRO_FONT_FAMILY;
     this.text = new PIXI.Text({
       text: "3",
-      style: {
-        fontFamily: FLAPPY_BIRD_RETRO_FONT_FAMILIES,
-        fontSize: FLAPPY_BIRD_COUNTDOWN_FONT_SIZE,
-        fill: 0xffffff,
-        align: "center",
-        stroke: {
-          color: 0x000000,
-          width: 6,
-        },
-      },
+      style: createFlappyBirdCountdownTextStyle(initialFontFamily),
     });
     this.text.anchor.set(0.5);
     this.text.visible = false;
+
+    if (!this.isUsingRetroCountdownFont) {
+      void this.loadAndApplyRetroCountdownFont();
+    }
   }
 
   public start(seconds: number): void {
+    this.syncCountdownFontForStart();
     const countdownSeconds = Math.max(1, Math.floor(seconds));
     this.remainingMs = countdownSeconds * 1000;
     this.currentDisplayValue = countdownSeconds;
@@ -145,6 +242,10 @@ export class CountdownUI {
     this.remainingMs = 0;
     this.currentDisplayValue = 0;
     this.text.visible = false;
+
+    if (this.pendingRetroCountdownFontApply) {
+      this.applyRetroCountdownFont();
+    }
   }
 
   public getCurrentDisplayValue(): number {
@@ -160,6 +261,44 @@ export class CountdownUI {
   public getDisplayObject(): PIXI.Text {
     return this.text;
   }
+
+  private syncCountdownFontForStart(): void {
+    this.pendingRetroCountdownFontApply = false;
+
+    if (isFlappyBirdRetroFontLoaded()) {
+      this.applyRetroCountdownFont();
+      return;
+    }
+
+    this.text.style.fontFamily = [...NAME_LABEL_FONT_FAMILIES];
+    this.isUsingRetroCountdownFont = false;
+    void this.loadAndApplyRetroCountdownFont();
+  }
+
+  private applyRetroCountdownFont(): void {
+    this.text.style.fontFamily = [...FLAPPY_BIRD_RETRO_FONT_FAMILIES];
+    this.isUsingRetroCountdownFont = true;
+    this.pendingRetroCountdownFontApply = false;
+  }
+
+  private async loadAndApplyRetroCountdownFont(): Promise<void> {
+    if (this.isUsingRetroCountdownFont) {
+      return;
+    }
+
+    const isLoaded = await loadFlappyBirdRetroFont();
+
+    if (!isLoaded) {
+      return;
+    }
+
+    if (this.remainingMs > 0) {
+      this.pendingRetroCountdownFontApply = true;
+      return;
+    }
+
+    this.applyRetroCountdownFont();
+  }
 }
 
 /**
@@ -174,9 +313,7 @@ export class ScoreUI {
   private isUsingRetroScoreFont = false;
 
   constructor(initialBestScore = 0, _locale: LocaleCode = DEFAULT_LOCALE) {
-    const initialFontFamily = isFlappyBirdRetroFontLoaded()
-      ? FLAPPY_BIRD_RETRO_FONT_FAMILIES
-      : NAME_LABEL_FONT_FAMILIES;
+    const initialFontFamily = getInitialFlappyBirdRetroSafeFontFamilies();
     this.isUsingRetroScoreFont =
       initialFontFamily[0] === FLAPPY_BIRD_RETRO_FONT_FAMILY;
 

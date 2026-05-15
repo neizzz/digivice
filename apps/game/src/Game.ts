@@ -11,6 +11,10 @@ import {
   type SunTimesPayload,
 } from "./scenes/MainScene/timeOfDay";
 import { FlappyBirdGameScene } from "./scenes/FlappyBirdGameScene";
+import {
+  FLAPPY_BIRD_RETRO_FONT_PRELOAD_TIMEOUT_MS,
+  preloadFlappyBirdRetroFont,
+} from "./scenes/FlappyBirdGameScene/ui";
 import { CharacterState } from "./scenes/MainScene/types";
 import { CharacterKey } from "./types/Character";
 import { AssetLoader } from "./utils/AssetLoader";
@@ -902,6 +906,40 @@ export class Game {
         state: "loading",
       });
 
+      if (key === SceneKey.FLAPPY_BIRD_GAME) {
+        const preloadSceneStartedAt = getTransitionTimingNow();
+        logTransitionPhase("preloadSceneAssets_start");
+        await this.preloadSceneAssets(key);
+        logTransitionPhase("preloadSceneAssets_end", {
+          durationMs: Math.round(
+            getTransitionTimingNow() - preloadSceneStartedAt,
+          ),
+        });
+
+        const interruptedAfterPreload = consumePendingInterruption();
+        if (interruptedAfterPreload) {
+          logTransitionPhase("changeScene_interrupted_after_preload", {
+            reason: interruptedAfterPreload.reason,
+            fallbackScene: interruptedAfterPreload.fallbackScene,
+          });
+
+          if (
+            this.currentSceneKey === interruptedAfterPreload.fallbackScene &&
+            this.currentScene?.onSceneReenter
+          ) {
+            await this.currentScene.onSceneReenter();
+          }
+
+          this._onSceneTransitionStateChange?.({
+            requestId: transitionRequestId,
+            from: previousSceneKey,
+            to: key,
+            state: "interrupted",
+          });
+          return false;
+        }
+      }
+
       if (this.currentScene?.onSceneExit) {
         console.log(`[Game] 현재 씬 종료 처리 시작: ${this.currentSceneKey}`);
         const sceneExitStartedAt = getTransitionTimingNow();
@@ -1225,7 +1263,18 @@ export class Game {
       typeof performance !== "undefined" ? performance.now() : Date.now();
     console.log("[GameTransition] mini-game preload start");
 
-    await AssetLoader.preloadAssets(this.getFlappyBirdCharacterKey());
+    const [, isFontLoaded] = await Promise.all([
+      AssetLoader.preloadAssets(this.getFlappyBirdCharacterKey()),
+      preloadFlappyBirdRetroFont({
+        timeoutMs: FLAPPY_BIRD_RETRO_FONT_PRELOAD_TIMEOUT_MS,
+      }),
+    ]);
+
+    if (!isFontLoaded) {
+      console.warn(
+        `[GameTransition] mini-game font preload did not finish before scene transition (timeoutMs: ${FLAPPY_BIRD_RETRO_FONT_PRELOAD_TIMEOUT_MS})`,
+      );
+    }
 
     console.log(
       `[GameTransition] mini-game preload end in ${Math.round(
