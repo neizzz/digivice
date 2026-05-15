@@ -1623,6 +1623,11 @@ export class MainSceneWorld implements IWorld, Scene {
       SleepSystemComp.fatigue[characterEid] +
         GAME_CONSTANTS.MINI_GAME_SLEEP_INTERRUPT_FATIGUE,
     );
+    CharacterStatusComp.stamina[characterEid] = Math.max(
+      0,
+      CharacterStatusComp.stamina[characterEid] -
+        GAME_CONSTANTS.MINI_GAME_SLEEP_INTERRUPT_STAMINA,
+    );
   }
 
   private _addDebugGaugeEventListener(): void {

@@ -10,13 +10,19 @@ import {
   SleepSystemComp,
   VitalityComp,
 } from "../raw-components";
-import { CharacterState, ObjectType, SleepMode } from "../types";
+import {
+  CharacterKeyECS,
+  CharacterState,
+  ObjectType,
+  SleepMode,
+} from "../types";
 import { ControlButtonType, type ControlButtonParams } from "../../../ui/types";
 import {
   MainSceneWorld,
   MissingInitialGameDataError,
   type InitialGameData,
 } from "../world";
+import { GAME_CONSTANTS } from "../config";
 
 type TestableMainSceneWorld = MainSceneWorld & {
   _requireInitialGameData: (
@@ -226,23 +232,132 @@ function setupReentryUntrustedClockWorld(
   };
 }
 
-test("수면 중 미니게임 진입 준비는 캐릭터를 깨우고 피로도를 10 올린다", () => {
+test("수면 중 미니게임 진입 준비는 캐릭터를 깨우고 피로도와 스테미나 패널티를 적용한다", () => {
   const world = createMainSceneWorld();
 
   createWorld(world as any, 16);
   const eid = addEntity(world as any);
   addComponent(world as any, SleepSystemComp, eid);
+  addComponent(world as any, CharacterStatusComp, eid);
   world._findMainCharacterEntity = () => eid;
   world._simulationTime = 5_000;
   ObjectComp.state[eid] = CharacterState.SLEEPING;
   SleepSystemComp.sleepMode[eid] = SleepMode.NIGHT_SLEEP;
   SleepSystemComp.fatigue[eid] = 35;
+  CharacterStatusComp.stamina[eid] = 5;
 
   world._prepareMainCharacterForMiniGameEntry();
 
   assert.equal(ObjectComp.state[eid], CharacterState.IDLE);
   assert.equal(SleepSystemComp.sleepMode[eid], SleepMode.AWAKE);
   assert.equal(SleepSystemComp.fatigue[eid], 45);
+  assert.equal(
+    CharacterStatusComp.stamina[eid],
+    5 - GAME_CONSTANTS.MINI_GAME_SLEEP_INTERRUPT_STAMINA,
+  );
+});
+
+test("수면 중 미니게임 진입 준비는 스테미나를 0 아래로 내리지 않는다", () => {
+  const world = createMainSceneWorld();
+
+  createWorld(world as any, 16);
+  const eid = addEntity(world as any);
+  addComponent(world as any, SleepSystemComp, eid);
+  addComponent(world as any, CharacterStatusComp, eid);
+  world._findMainCharacterEntity = () => eid;
+  world._simulationTime = 5_000;
+  ObjectComp.state[eid] = CharacterState.SLEEPING;
+  SleepSystemComp.sleepMode[eid] = SleepMode.NIGHT_SLEEP;
+  SleepSystemComp.fatigue[eid] = 35;
+  CharacterStatusComp.stamina[eid] = 0;
+
+  world._prepareMainCharacterForMiniGameEntry();
+
+  assert.equal(CharacterStatusComp.stamina[eid], 0);
+});
+
+test("미니게임 복귀 reentry는 수면 중단 후 깨어있는 상태로 피로도 경과를 적용한다", async () => {
+  const lastActiveTime = 1_000_000;
+  const elapsedMs = 2_000;
+  const currentTime = lastActiveTime + elapsedMs;
+  const currentSnapshot = {
+    trustedUtcMs: currentTime,
+    osUptimeMs: 3_610_000,
+    source: "ntp" as const,
+    uncertaintyMs: 10,
+    capturedWallMs: currentTime,
+  };
+  const lastActiveAnchor = {
+    trustedUtcMs: lastActiveTime,
+    osUptimeMs: 10_000,
+    source: "ntp" as const,
+    uncertaintyMs: 10,
+    capturedWallMs: lastActiveTime,
+  };
+  const trustedClock = {
+    refresh: async () => currentSnapshot,
+    now: () => currentTime,
+    elapsedSince: () => ({
+      elapsedMs,
+      trusted: true,
+      currentSnapshot,
+    }),
+    captureAnchor: () => currentSnapshot,
+  };
+  const world = createMainSceneWorld({ trustedClock });
+
+  createWorld(world as any, 16);
+  const eid = addEntity(world as any);
+  addComponent(world as any, ObjectComp, eid);
+  addComponent(world as any, CharacterStatusComp, eid);
+  addComponent(world as any, PositionComp, eid);
+  addComponent(world as any, SleepSystemComp, eid);
+  ObjectComp.id[eid] = 1;
+  ObjectComp.type[eid] = ObjectType.CHARACTER;
+  ObjectComp.state[eid] = CharacterState.SLEEPING;
+  PositionComp.x[eid] = 160;
+  PositionComp.y[eid] = 160;
+  CharacterStatusComp.characterKey[eid] = CharacterKeyECS.TestGreenSlimeA1;
+  CharacterStatusComp.stamina[eid] = 5;
+  SleepSystemComp.sleepMode[eid] = SleepMode.NIGHT_SLEEP;
+  SleepSystemComp.fatigue[eid] = 35;
+  world._findMainCharacterEntity = () => eid;
+  world._simulationTime = lastActiveTime;
+
+  world._prepareMainCharacterForMiniGameEntry();
+  const fatigueAfterInterrupt = SleepSystemComp.fatigue[eid];
+
+  world._simulationTime = null;
+  world._persistentData = {
+    world_metadata: {
+      name: "MainScene",
+      monster_name: "Test",
+      last_ecs_saved: lastActiveTime,
+      version: "1.0.0",
+      app_state: {
+        last_active_time: lastActiveTime,
+        last_active_time_anchor: lastActiveAnchor,
+        is_first_load: false,
+        use_local_time: true,
+        mini_game_scores: {
+          flappy_bird: {
+            best_score: 0,
+          },
+        },
+      },
+    },
+    entities: [],
+  };
+  world._saveCurrentState = async () => {};
+
+  await world._processReentrySimulation();
+
+  assert.notEqual(ObjectComp.state[eid], CharacterState.SLEEPING);
+  assert.equal(SleepSystemComp.sleepMode[eid], SleepMode.AWAKE);
+  assert.ok(
+    SleepSystemComp.fatigue[eid] > fatigueAfterInterrupt,
+    `expected awake fatigue gain, before=${fatigueAfterInterrupt}, after=${SleepSystemComp.fatigue[eid]}`,
+  );
 });
 
 test("청소 모드 진입은 첫 타겟을 확정한 뒤 버튼을 한 번만 갱신한다", () => {
