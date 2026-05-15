@@ -4,7 +4,7 @@ import {
   resolveNearMissBonusTier,
   resolveNearMissThresholds,
 } from "../nearMiss";
-import { resolveNearMissFeedback } from "../ui";
+import { NearMissUI, resolveNearMissFeedback } from "../ui";
 
 test("near-miss threshold는 플레이어 높이 기준 2단계 band로 계산된다", () => {
   assert.deepEqual(resolveNearMissThresholds(40), {
@@ -70,4 +70,12 @@ test("near-miss bonus UI 문구는 locale별 Good/Great로 나뉜다", () => {
     text: "훌륭해요!",
     fill: 0xffc857,
   });
+});
+
+test("near-miss bonus UI 문구는 bold와 6px stroke를 사용한다", () => {
+  const nearMissUI = new NearMissUI();
+  const text = nearMissUI.getDisplayObject();
+
+  assert.equal(text.style.fontWeight, "700");
+  assert.equal(text.style.stroke?.width, 6);
 });

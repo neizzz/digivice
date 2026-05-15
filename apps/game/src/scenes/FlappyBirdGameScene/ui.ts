@@ -1,6 +1,9 @@
 import { DEFAULT_LOCALE, type LocaleCode, translate } from "@shared/i18n";
 import * as PIXI from "pixi.js";
-import { NAME_LABEL_FONT_FAMILIES } from "../../utils/nameLabel";
+import {
+  NAME_LABEL_FONT_FAMILIES,
+  NAME_LABEL_FONT_WEIGHT,
+} from "../../utils/nameLabel";
 
 const FLAPPY_BIRD_FONT_FAMILIES = [...NAME_LABEL_FONT_FAMILIES];
 const FLAPPY_BIRD_RETRO_FONT_FAMILY = "NeoDunggeunmo Pro";
@@ -13,6 +16,7 @@ const FLAPPY_BIRD_SCORE_MARGIN_X = 4;
 const FLAPPY_BIRD_SCORE_MARGIN_Y = 6;
 const FLAPPY_BIRD_SCORE_LINE_GAP = 24;
 const FLAPPY_BIRD_NEAR_MISS_FONT_SIZE = 21;
+const FLAPPY_BIRD_NEAR_MISS_STROKE_WIDTH = 6;
 const FLAPPY_BIRD_NEAR_MISS_DURATION_MS = 520;
 const FLAPPY_BIRD_NEAR_MISS_FLOAT_DISTANCE = 14;
 const FLAPPY_BIRD_NEAR_MISS_GOOD_COLOR = 0x8ee3ff;
@@ -463,11 +467,12 @@ export class NearMissUI {
       style: {
         fontFamily: FLAPPY_BIRD_FONT_FAMILIES,
         fontSize: FLAPPY_BIRD_NEAR_MISS_FONT_SIZE,
+        fontWeight: NAME_LABEL_FONT_WEIGHT,
         fill: FLAPPY_BIRD_NEAR_MISS_GOOD_COLOR,
         align: "center",
         stroke: {
           color: 0x000000,
-          width: 4,
+          width: FLAPPY_BIRD_NEAR_MISS_STROKE_WIDTH,
         },
       },
     });
