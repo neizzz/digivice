@@ -51,6 +51,14 @@ function normalizeSavedFreshness(freshness: Freshness): Freshness {
   return freshness === Freshness.FRESH ? Freshness.NORMAL : freshness;
 }
 
+function normalizeEggSyringeCount(value: number | undefined): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return 0;
+  }
+
+  return Math.min(10, Math.floor(value));
+}
+
 /**
  * ECS 엔티티를 SavedEntity로 변환
  */
@@ -163,6 +171,7 @@ export function convertECSEntityToSavedEntity(
       hatchTime: EggHatchComp.hatchTime[eid],
       hatchDurationMs: EggHatchComp.hatchDurationMs[eid],
       isReadyToHatch: EggHatchComp.isReadyToHatch[eid] === 1,
+      syringeCount: normalizeEggSyringeCount(EggHatchComp.syringeCount[eid]),
     };
   }
   if (hasComponent(world, DigestiveSystemComp, eid)) {
@@ -378,6 +387,9 @@ export function applySavedEntityToECS(
     EggHatchComp.isReadyToHatch[eid] = components.eggHatch.isReadyToHatch
       ? 1
       : 0;
+    EggHatchComp.syringeCount[eid] = normalizeEggSyringeCount(
+      components.eggHatch.syringeCount,
+    );
   }
 
   if (components.digestiveSystem) {
@@ -646,12 +658,16 @@ export function repairCharacterEntityRuntimeComponents(
       EggHatchComp.hatchDurationMs[eid] = 0;
     }
     EggHatchComp.isReadyToHatch[eid] = 0;
+    EggHatchComp.syringeCount[eid] = 0;
     repaired.push("EggHatchComp");
   } else if (
     state === CharacterState.EGG &&
     EggHatchComp.hatchDurationMs[eid] <= 0
   ) {
     EggHatchComp.hatchDurationMs[eid] = getDefaultEggHatchDurationMs();
+    EggHatchComp.syringeCount[eid] = normalizeEggSyringeCount(
+      EggHatchComp.syringeCount[eid],
+    );
   }
 
   if (
@@ -662,7 +678,7 @@ export function repairCharacterEntityRuntimeComponents(
     addComponent(world, AnimationRenderComp, eid);
     AnimationRenderComp.storeIndex[eid] = ECS_NULL_VALUE;
     AnimationRenderComp.spritesheetKey[eid] =
-      CharacterStatusComp.characterKey[eid] || SpritesheetKey.TestGreenSlimeA1;
+      CharacterStatusComp.characterKey[eid] || SpritesheetKey.GreenSlimeA1;
     AnimationRenderComp.animationKey[eid] = AnimationKey.IDLE;
     AnimationRenderComp.isPlaying[eid] = 1;
     AnimationRenderComp.loop[eid] = 1;

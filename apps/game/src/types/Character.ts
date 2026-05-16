@@ -1,17 +1,35 @@
 export enum CharacterKey {
   /** NOTE: asset 파일명과 직결됨 */
-  TestGreenSlimeA1 = "green-slime_A1",
-  TestGreenSlimeB1 = "green-slime_B1",
-  TestGreenSlimeB2 = "green-slime_B2",
-  TestGreenSlimeB3 = "green-slime_B3",
-  TestGreenSlimeC1 = "green-slime_C1",
-  TestGreenSlimeC2 = "green-slime_C2",
-  TestGreenSlimeC3 = "green-slime_C3",
-  TestGreenSlimeC4 = "green-slime_C4",
-  TestGreenSlimeD1 = "green-slime_D1",
-  TestGreenSlimeD2 = "green-slime_D2",
-  TestGreenSlimeD3 = "green-slime_D3",
-  TestGreenSlimeD4 = "green-slime_D4",
+  GreenSlimeA1 = "green-slime_A1",
+  GreenSlimeB1 = "green-slime_B1",
+  GreenSlimeB2 = "green-slime_B2",
+  GreenSlimeB3 = "green-slime_B3",
+  GreenSlimeC1 = "green-slime_C1",
+  GreenSlimeC2 = "green-slime_C2",
+  GreenSlimeC3 = "green-slime_C3",
+  GreenSlimeC4 = "green-slime_C4",
+  GreenSlimeD1 = "green-slime_D1",
+  GreenSlimeD2 = "green-slime_D2",
+  GreenSlimeD3 = "green-slime_D3",
+  GreenSlimeD4 = "green-slime_D4",
+
+  SkullSlimeA1 = "skull-slime_A1",
+  SkullSlimeB1 = "skull-slime_B1",
+  SkullSlimeB2 = "skull-slime_B2",
+  SkullSlimeC1 = "skull-slime_C1",
+  SkullSlimeC2 = "skull-slime_C2",
+  SkullSlimeD1 = "skull-slime_D1",
+  SkullSlimeD2 = "skull-slime_D2",
+
+  SoilSlimeA1 = "soil-slime_A1",
+  SoilSlimeB1 = "soil-slime_B1",
+  SoilSlimeB2 = "soil-slime_B2",
+  SoilSlimeC1 = "soil-slime_C1",
+  SoilSlimeC2 = "soil-slime_C2",
+  SoilSlimeC3 = "soil-slime_C3",
+  SoilSlimeD1 = "soil-slime_D1",
+  SoilSlimeD2 = "soil-slime_D2",
+  SoilSlimeD3 = "soil-slime_D3",
 }
 
 export enum CharacterClass {
@@ -88,53 +106,27 @@ function createCharacterMetadata(
   }
 }
 
-export const CharacterDictionary: Record<CharacterKey, CharacterMetadata> = {
-  [CharacterKey.TestGreenSlimeA1]: createCharacterMetadata(
-    CharacterKey.TestGreenSlimeA1,
-    CharacterClass.A,
-  ),
-  [CharacterKey.TestGreenSlimeB1]: createCharacterMetadata(
-    CharacterKey.TestGreenSlimeB1,
-    CharacterClass.B,
-  ),
-  [CharacterKey.TestGreenSlimeB2]: createCharacterMetadata(
-    CharacterKey.TestGreenSlimeB2,
-    CharacterClass.B,
-  ),
-  [CharacterKey.TestGreenSlimeB3]: createCharacterMetadata(
-    CharacterKey.TestGreenSlimeB3,
-    CharacterClass.B,
-  ),
-  [CharacterKey.TestGreenSlimeC1]: createCharacterMetadata(
-    CharacterKey.TestGreenSlimeC1,
-    CharacterClass.C,
-  ),
-  [CharacterKey.TestGreenSlimeC2]: createCharacterMetadata(
-    CharacterKey.TestGreenSlimeC2,
-    CharacterClass.C,
-  ),
-  [CharacterKey.TestGreenSlimeC3]: createCharacterMetadata(
-    CharacterKey.TestGreenSlimeC3,
-    CharacterClass.C,
-  ),
-  [CharacterKey.TestGreenSlimeC4]: createCharacterMetadata(
-    CharacterKey.TestGreenSlimeC4,
-    CharacterClass.C,
-  ),
-  [CharacterKey.TestGreenSlimeD1]: createCharacterMetadata(
-    CharacterKey.TestGreenSlimeD1,
-    CharacterClass.D,
-  ),
-  [CharacterKey.TestGreenSlimeD2]: createCharacterMetadata(
-    CharacterKey.TestGreenSlimeD2,
-    CharacterClass.D,
-  ),
-  [CharacterKey.TestGreenSlimeD3]: createCharacterMetadata(
-    CharacterKey.TestGreenSlimeD3,
-    CharacterClass.D,
-  ),
-  [CharacterKey.TestGreenSlimeD4]: createCharacterMetadata(
-    CharacterKey.TestGreenSlimeD4,
-    CharacterClass.D,
-  ),
-};
+function getCharacterClassFromKey(key: CharacterKey): CharacterClass {
+  const classCode = key.split("_")[1]?.charAt(0);
+
+  switch (classCode) {
+    case "A":
+      return CharacterClass.A;
+    case "B":
+      return CharacterClass.B;
+    case "C":
+      return CharacterClass.C;
+    case "D":
+      return CharacterClass.D;
+    default:
+      throw new Error(`[Character] Unknown character class for key=${key}`);
+  }
+}
+
+export const CharacterDictionary: Record<CharacterKey, CharacterMetadata> =
+  Object.fromEntries(
+    Object.values(CharacterKey).map((key) => [
+      key,
+      createCharacterMetadata(key, getCharacterClassFromKey(key)),
+    ]),
+  ) as Record<CharacterKey, CharacterMetadata>;

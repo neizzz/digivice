@@ -52,19 +52,19 @@ type FrameViewportProps = {
 
 const MONSTER_VARIANTS: Record<MonsterFamily, Record<MonsterClassCode, number[]>> = {
   "green-slime": {
-    A: [1, 2],
+    A: [1],
     B: [1, 2, 3],
     C: [1, 2, 3, 4],
     D: [1, 2, 3, 4],
   },
   "skull-slime": {
-    A: [1, 2],
+    A: [1],
     B: [1, 2],
     C: [1, 2],
     D: [1, 2],
   },
   "soil-slime": {
-    A: [1, 2],
+    A: [1],
     B: [1, 2],
     C: [1, 2, 3],
     D: [1, 2, 3],

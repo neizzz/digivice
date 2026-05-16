@@ -69,12 +69,12 @@ export class AssetLoader {
   }
 
   static async loadAssets(
-    characterKey: CharacterKey = CharacterKey.TestGreenSlimeA1,
+    characterKey: CharacterKey = CharacterKey.GreenSlimeA1,
   ): Promise<GameAssets> {
     if (this.loadPromise) {
       await this.loadPromise;
       await this.ensureCharacterSpritesheetLoaded(
-        CharacterKey.TestGreenSlimeA1,
+        CharacterKey.GreenSlimeA1,
       );
       await this.ensureCharacterSpritesheetLoaded(characterKey);
       return this.getAssets();
@@ -106,7 +106,7 @@ export class AssetLoader {
     try {
       await this.loadPromise;
       await this.ensureCharacterSpritesheetLoaded(
-        CharacterKey.TestGreenSlimeA1,
+        CharacterKey.GreenSlimeA1,
       );
       await this.ensureCharacterSpritesheetLoaded(characterKey);
       return this.getAssets();
@@ -119,7 +119,7 @@ export class AssetLoader {
   }
 
   static preloadAssets(
-    characterKey: CharacterKey = CharacterKey.TestGreenSlimeA1,
+    characterKey: CharacterKey = CharacterKey.GreenSlimeA1,
   ): Promise<GameAssets> {
     return this.loadAssets(characterKey);
   }

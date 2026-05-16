@@ -29,22 +29,22 @@ export const EvolutionMap: Partial<
 	Record<CharacterKey, Partial<Record<CharacterKey, number>>>
 > = import.meta.env.DEV
 	? {
-			[CharacterKey.TestGreenSlimeA1]: {
-				[CharacterKey.TestGreenSlimeB1]: 1.0, // 100% chance to evolve to B1
+			[CharacterKey.GreenSlimeA1]: {
+				[CharacterKey.GreenSlimeB1]: 1.0, // 100% chance to evolve to B1
 			},
-			[CharacterKey.TestGreenSlimeB1]: {
-				[CharacterKey.TestGreenSlimeC1]: 1.0, // 100% chance to evolve to C1
+			[CharacterKey.GreenSlimeB1]: {
+				[CharacterKey.GreenSlimeC1]: 1.0, // 100% chance to evolve to C1
 			},
-			[CharacterKey.TestGreenSlimeC1]: {
-				[CharacterKey.TestGreenSlimeD1]: 1.0, // 100% chance to evolve to D1
+			[CharacterKey.GreenSlimeC1]: {
+				[CharacterKey.GreenSlimeD1]: 1.0, // 100% chance to evolve to D1
 			},
-			[CharacterKey.TestGreenSlimeD1]: {}, // No further evolution
+			[CharacterKey.GreenSlimeD1]: {}, // No further evolution
 		}
 	: {};
 
 export function hatch(): CharacterKey {
 	// TODO: 알에서 태어날 캐릭터를 랜덤으로 선택하는 로직 추가
-	return CharacterKey.TestGreenSlimeA1; // Default to A1 for now
+	return CharacterKey.GreenSlimeA1; // Default to A1 for now
 }
 
 /**

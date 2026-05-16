@@ -39,6 +39,7 @@ export default defineConfig(({ mode }) => {
   const htmlInputs = {
     index: resolve(__dirname, "index.html"),
     "monster-animations": resolve(__dirname, "monster-animations.html"),
+    "evolution-admin": resolve(__dirname, "evolution-admin.html"),
   };
   const appVersionLabel = isDebugBuild ? `${appVersion}-debug` : appVersion;
   const appLogoText = (

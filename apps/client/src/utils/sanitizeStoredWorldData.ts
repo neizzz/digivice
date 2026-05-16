@@ -94,6 +94,7 @@ type StoredEggHatchComponent = {
   hatchTime?: number;
   hatchDurationMs?: number;
   isReadyToHatch?: boolean;
+  syringeCount?: number;
 };
 
 type StoredEntityComponents = {
@@ -581,6 +582,10 @@ function sanitizeCharacterEntity(
         fallbackEggHatchSchedule?.hatchDurationMs ??
         0,
       isReadyToHatch: toBoolean(components.eggHatch?.isReadyToHatch, false),
+      syringeCount: Math.min(
+        10,
+        toNonNegativeInteger(components.eggHatch?.syringeCount, 0),
+      ),
     },
   };
 

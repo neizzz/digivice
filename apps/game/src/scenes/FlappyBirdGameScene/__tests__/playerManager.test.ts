@@ -31,7 +31,7 @@ function createGameAssets(): {
         },
       } as unknown as PIXI.Spritesheet,
       characterSprites: {
-        [CharacterKey.TestGreenSlimeA1]: {
+        [CharacterKey.GreenSlimeA1]: {
           textures: {
             "in-basket": inBasketTexture,
           },
@@ -94,7 +94,7 @@ test("dead 상태로 FlappyBird에 진입하면 tomb-in-basket 텍스처를 사�
         },
       } as PIXI.Application,
       createMockPhysicsManager() as never,
-      CharacterKey.TestGreenSlimeA1,
+      CharacterKey.GreenSlimeA1,
       CharacterState.DEAD,
     );
 
@@ -114,7 +114,7 @@ test("dead가 아닌 상태로 FlappyBird에 진입하면 기존 in-basket 텍�
         },
       } as PIXI.Application,
       createMockPhysicsManager() as never,
-      CharacterKey.TestGreenSlimeA1,
+      CharacterKey.GreenSlimeA1,
       CharacterState.IDLE,
     );
 
@@ -135,7 +135,7 @@ test("ground 충돌 보정은 basket이 ground top 아래로 내려간 경우에
         },
       } as PIXI.Application,
       physicsManager as never,
-      CharacterKey.TestGreenSlimeA1,
+      CharacterKey.GreenSlimeA1,
       CharacterState.IDLE,
     );
 
@@ -170,7 +170,7 @@ test("ground 도달 판정은 화면상 basket 하단이 ground top에 닿을 �
         },
       } as PIXI.Application,
       physicsManager as never,
-      CharacterKey.TestGreenSlimeA1,
+      CharacterKey.GreenSlimeA1,
       CharacterState.IDLE,
     );
 
@@ -201,7 +201,7 @@ test("last stable bird position snapshot은 update 시점의 bird 표시 좌표�
         },
       } as PIXI.Application,
       createMockPhysicsManager() as never,
-      CharacterKey.TestGreenSlimeA1,
+      CharacterKey.GreenSlimeA1,
       CharacterState.IDLE,
     );
 
