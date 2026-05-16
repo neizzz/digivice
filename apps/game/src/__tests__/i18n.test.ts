@@ -4,6 +4,7 @@ import {
   assertTranslationParity,
   DEFAULT_LOCALE,
   normalizeLocale,
+  resolveLocaleFromLanguageTags,
   translate,
 } from "@shared/i18n";
 
@@ -16,6 +17,20 @@ test("i18n locale normalization falls back to default locale", () => {
   assert.equal(normalizeLocale("ko"), "ko");
   assert.equal(normalizeLocale("zh-CN"), "en");
   assert.equal(normalizeLocale(undefined), "en");
+});
+
+test("i18n resolves browser language tags to supported locales", () => {
+  assert.equal(resolveLocaleFromLanguageTags(["ko-KR"]), "ko");
+  assert.equal(resolveLocaleFromLanguageTags(["en-US"]), "en");
+  assert.equal(resolveLocaleFromLanguageTags(["pt-BR"]), "pt-BR");
+  assert.equal(resolveLocaleFromLanguageTags(["zh-Hant-TW"]), "zh-TW");
+  assert.equal(resolveLocaleFromLanguageTags(["zh-MO"]), "zh-HK");
+  assert.equal(resolveLocaleFromLanguageTags(["zh-CN"]), "en");
+  assert.equal(resolveLocaleFromLanguageTags(["fr-FR"]), "en");
+});
+
+test("i18n checks browser language tags in priority order", () => {
+  assert.equal(resolveLocaleFromLanguageTags(["fr-FR", "ja-JP"]), "ja");
 });
 
 test("i18n interpolation uses locale dictionary text", () => {

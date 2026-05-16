@@ -1,7 +1,7 @@
 import {
   DEFAULT_LOCALE,
   type LocaleCode,
-  normalizeLocale,
+  resolveLocaleFromLanguageTags,
 } from "@shared/i18n";
 
 export interface GameSettings {
@@ -33,11 +33,14 @@ function getBooleanSetting(key: string, defaultValue: boolean): boolean {
 }
 
 function getLocaleSetting(): LocaleCode {
-  if (typeof window === "undefined") {
+  if (typeof navigator === "undefined") {
     return DEFAULT_SETTINGS.locale;
   }
 
-  return normalizeLocale(window.localStorage.getItem(STORAGE_KEYS.locale));
+  return resolveLocaleFromLanguageTags([
+    ...Array.from(navigator.languages ?? []),
+    navigator.language,
+  ]);
 }
 
 export function getGameSettings(): GameSettings {

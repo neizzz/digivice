@@ -723,6 +723,87 @@ export function normalizeLocale(value: unknown): LocaleCode {
   return DEFAULT_LOCALE;
 }
 
+function normalizeLanguageTag(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  return trimmed.replace(/_/g, "-");
+}
+
+function getSupportedLocaleByCanonicalTag(languageTag: string): LocaleCode | null {
+  const lowerLanguageTag = languageTag.toLowerCase();
+
+  for (const locale of SUPPORTED_LOCALES) {
+    if (locale.toLowerCase() === lowerLanguageTag) {
+      return locale;
+    }
+  }
+
+  return null;
+}
+
+function resolveChineseLocale(parts: string[]): LocaleCode | null {
+  const subtags = parts.slice(1).map((part) => part.toLowerCase());
+
+  if (subtags.includes("hk") || subtags.includes("mo")) {
+    return "zh-HK";
+  }
+
+  if (subtags.includes("tw") || subtags.includes("hant")) {
+    return "zh-TW";
+  }
+
+  return null;
+}
+
+export function resolveLocaleFromLanguageTag(value: unknown): LocaleCode | null {
+  const languageTag = normalizeLanguageTag(value);
+
+  if (!languageTag) {
+    return null;
+  }
+
+  const exactLocale = getSupportedLocaleByCanonicalTag(languageTag);
+  if (exactLocale) {
+    return exactLocale;
+  }
+
+  const parts = languageTag.split("-").filter(Boolean);
+  const baseLanguage = parts[0]?.toLowerCase();
+
+  if (!baseLanguage) {
+    return null;
+  }
+
+  if (baseLanguage === "zh") {
+    return resolveChineseLocale(parts);
+  }
+
+  return getSupportedLocaleByCanonicalTag(baseLanguage);
+}
+
+export function resolveLocaleFromLanguageTags(
+  values: unknown,
+  fallback: LocaleCode = DEFAULT_LOCALE,
+): LocaleCode {
+  const languageTags = Array.isArray(values) ? values : [values];
+
+  for (const languageTag of languageTags) {
+    const locale = resolveLocaleFromLanguageTag(languageTag);
+    if (locale) {
+      return locale;
+    }
+  }
+
+  return fallback;
+}
+
 export function translate(
   locale: LocaleCode,
   key: TranslationKey,

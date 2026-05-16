@@ -30,6 +30,17 @@ const DEFAULT_VIEWPORT = {
 
 const SETTING_POPUP_SCREENS = ["settings-reset"];
 const DEFAULT_SCREENS = ["setup", "settings", ...SETTING_POPUP_SCREENS];
+const SNAPSHOT_LANGUAGE_TAGS = {
+  en: ["en-US", "en"],
+  ko: ["ko-KR", "ko"],
+  ja: ["ja-JP", "ja"],
+  "zh-TW": ["zh-Hant-TW", "zh-TW"],
+  "zh-HK": ["zh-HK"],
+  hi: ["hi-IN", "hi"],
+  th: ["th-TH", "th"],
+  vi: ["vi-VN", "vi"],
+  "pt-BR": ["pt-BR"],
+};
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -310,9 +321,14 @@ async function evaluate(session, expression, awaitPromise = true) {
 }
 
 async function preparePage(session, locale) {
+  const languageTags = SNAPSHOT_LANGUAGE_TAGS[locale] ?? [locale];
+
   await session.open();
   await session.send("Page.enable");
   await session.send("Runtime.enable");
+  await session.send("Emulation.setLocaleOverride", {
+    locale: languageTags[0].replace(/-/g, "_"),
+  });
   await session.send("Emulation.setDeviceMetricsOverride", {
     width: DEFAULT_VIEWPORT.width,
     height: DEFAULT_VIEWPORT.height,
@@ -322,8 +338,13 @@ async function preparePage(session, locale) {
   await session.send("Page.addScriptToEvaluateOnNewDocument", {
     source: `
       localStorage.clear();
-      localStorage.setItem("game.settings.locale", ${JSON.stringify(locale)});
       localStorage.setItem("game.settings.vibrationEnabled", "false");
+      Object.defineProperty(navigator, "languages", {
+        get: () => ${JSON.stringify(languageTags)},
+      });
+      Object.defineProperty(navigator, "language", {
+        get: () => ${JSON.stringify(languageTags[0])},
+      });
     `,
   });
 }
