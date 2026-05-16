@@ -32,6 +32,7 @@ interface SettingMenuLayerProps {
   onBack?: () => void;
   onShowOfflineAdFallback?: () => void;
   onResetConfirmBack?: () => void;
+  resetConfirmCodeFactory?: () => string;
 }
 
 const ToggleButton: React.FC<{
@@ -58,7 +59,14 @@ const ActionButton: React.FC<{
   onClick: () => void;
   disabled?: boolean;
   variant?: "positive" | "warning" | "negative";
-}> = ({ text, onClick, disabled = false, variant = "positive" }) => {
+  snapshotAction?: string;
+}> = ({
+  text,
+  onClick,
+  disabled = false,
+  variant = "positive",
+  snapshotAction,
+}) => {
   const backgroundClass = disabled
     ? "cursor-wait bg-gray-400 opacity-60"
     : variant === "warning"
@@ -72,6 +80,7 @@ const ActionButton: React.FC<{
       type="button"
       disabled={disabled}
       onClick={onClick}
+      data-snapshot-action={snapshotAction}
       className={`ml-auto flex min-w-20 shrink-0 items-center justify-center border-2 border-[#222] px-4 py-0.5 text-center font-bold text-white ${backgroundClass}`}
     >
       {text}
@@ -140,10 +149,11 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
   onBack,
   onShowOfflineAdFallback,
   onResetConfirmBack,
+  resetConfirmCodeFactory = createResetConfirmCode,
 }) => {
   const { t } = useI18n();
   const [resetConfirmCode, setResetConfirmCode] =
-    useState(createResetConfirmCode);
+    useState(resetConfirmCodeFactory);
   const [resetConfirmDigits, setResetConfirmDigits] = useState<string[]>(() =>
     Array.from({ length: RESET_CONFIRM_CODE_LENGTH }, () => ""),
   );
@@ -154,7 +164,7 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
       return;
     }
 
-    setResetConfirmCode(createResetConfirmCode());
+    setResetConfirmCode(resetConfirmCodeFactory());
     setResetConfirmDigits(
       Array.from({ length: RESET_CONFIRM_CODE_LENGTH }, () => ""),
     );
@@ -164,7 +174,7 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
       firstInput?.focus();
       firstInput?.select();
     });
-  }, [showFinalResetConfirm]);
+  }, [resetConfirmCodeFactory, showFinalResetConfirm]);
 
   const resetConfirmText = useMemo(
     () => resetConfirmDigits.join(""),
@@ -179,8 +189,6 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
     () => isResetComplete && resetConfirmText === resetConfirmCode,
     [isResetComplete, resetConfirmCode, resetConfirmText],
   );
-  const isResetMismatch = isResetComplete && !isResetEnabled;
-
   const focusResetCodeInput = (index: number) => {
     const nextIndex = Math.max(0, Math.min(index, RESET_CONFIRM_CODE_LENGTH - 1));
 
@@ -250,8 +258,8 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
         content={
           <div className="flex flex-col gap-4 text-left text-[1.5rem] leading-[1.4]">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <div className="whitespace-nowrap font-bold">
+              <div className="min-w-0 flex-1">
+                <div className="font-bold">
                   {t("settings.vibration")}
                 </div>
               </div>
@@ -263,15 +271,11 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
 
             <div className="border-t-2 border-[#222] pt-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="whitespace-nowrap font-bold">
+                <div className="min-w-0 flex-1 font-bold">
                   {t("settings.reportBug")}
                 </div>
                 <ActionButton
-                  text={
-                    isSendingDiagnostics
-                      ? t("settings.sending")
-                      : t("settings.send")
-                  }
+                  text={t("settings.send")}
                   onClick={onSendDiagnostics}
                   disabled={isSendingDiagnostics}
                   variant="warning"
@@ -280,7 +284,7 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
             </div>
 
             <div className="border-t-2 border-[#222] pt-4">
-              <div>
+              <div className="min-w-0">
                 <div className="font-bold text-red-600">
                   {t("settings.raiseNewMonster")}
                 </div>
@@ -290,6 +294,7 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
                   text={t("common.reset")}
                   onClick={onOpenResetConfirm}
                   variant="negative"
+                  snapshotAction="open-settings-reset-popup"
                 />
               </div>
             </div>
@@ -335,7 +340,10 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
         confirmText={t("common.close")}
       />
       {showFinalResetConfirm && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50"
+          data-snapshot-popup="settings-reset"
+        >
           <PopupLayer
             title={t("settings.resetTitle")}
             content={
@@ -345,56 +353,66 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
                   className="grid grid-cols-6 gap-1 self-center"
                   aria-label={t("settings.resetConfirmCodeLabel")}
                 >
-                  {RESET_CONFIRM_CODE_INDEXES.map((index) => (
-                    <input
-                      key={index}
-                      ref={(element) => {
-                        resetCodeInputRefs.current[index] = element;
-                      }}
-                      type="text"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      maxLength={1}
-                      autoComplete="off"
-                      value={resetConfirmDigits[index]}
-                      placeholder={resetConfirmCode[index]}
-                      onChange={(event) =>
-                        fillResetConfirmDigits(index, event.target.value)
-                      }
-                      onFocus={(event) => event.target.select()}
-                      onKeyDown={(event) => {
-                        if (event.key !== "Backspace") {
-                          if (event.key === "Delete") {
-                            event.preventDefault();
-                            clearResetConfirmDigit(index, "current");
-                          }
-                          return;
-                        }
+                  {RESET_CONFIRM_CODE_INDEXES.map((index) => {
+                    const digit = resetConfirmDigits[index];
+                    const isDigitFilled = digit.length === 1;
+                    const isDigitCorrect =
+                      isDigitFilled && digit === resetConfirmCode[index];
+                    const isDigitMismatch = isDigitFilled && !isDigitCorrect;
 
-                        event.preventDefault();
-                        clearResetConfirmDigit(
-                          index,
-                          resetConfirmDigits[index] ? "current" : "previous",
-                        );
-                      }}
-                      onPaste={(event) => {
-                        event.preventDefault();
-                        fillResetConfirmDigits(
-                          index,
-                          event.clipboardData.getData("text"),
-                        );
-                      }}
-                      aria-label={`${t("settings.resetConfirmCodeLabel")} ${
-                        index + 1
-                      }`}
-                      aria-invalid={isResetMismatch}
-                      className={`h-11 w-9 border-2 px-0 text-center text-[1.2rem] font-bold focus:outline-none focus:ring-2 focus:ring-[#d95763] ${
-                        isResetMismatch
-                          ? "border-component-negative bg-[#fff0f2] text-component-negative placeholder:text-component-negative/50"
-                          : "border-[#222] bg-white text-[#222] placeholder:text-gray-400"
-                      }`}
-                    />
-                  ))}
+                    return (
+                      <input
+                        key={index}
+                        ref={(element) => {
+                          resetCodeInputRefs.current[index] = element;
+                        }}
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        maxLength={1}
+                        autoComplete="off"
+                        value={digit}
+                        placeholder={resetConfirmCode[index]}
+                        onChange={(event) =>
+                          fillResetConfirmDigits(index, event.target.value)
+                        }
+                        onFocus={(event) => event.target.select()}
+                        onKeyDown={(event) => {
+                          if (event.key !== "Backspace") {
+                            if (event.key === "Delete") {
+                              event.preventDefault();
+                              clearResetConfirmDigit(index, "current");
+                            }
+                            return;
+                          }
+
+                          event.preventDefault();
+                          clearResetConfirmDigit(
+                            index,
+                            digit ? "current" : "previous",
+                          );
+                        }}
+                        onPaste={(event) => {
+                          event.preventDefault();
+                          fillResetConfirmDigits(
+                            index,
+                            event.clipboardData.getData("text"),
+                          );
+                        }}
+                        aria-label={`${t("settings.resetConfirmCodeLabel")} ${
+                          index + 1
+                        }`}
+                        aria-invalid={isDigitMismatch}
+                        className={`h-11 w-9 border-2 px-0 text-center text-[1.2rem] font-bold focus:outline-none focus:ring-2 ${
+                          isDigitCorrect
+                            ? "border-component-positive bg-[#f0fff4] text-component-positive placeholder:text-component-positive/60 focus:ring-component-positive"
+                            : isDigitMismatch
+                              ? "border-component-negative bg-[#fff0f2] text-component-negative placeholder:text-component-negative/50 focus:ring-[#d95763]"
+                              : "border-[#222] bg-white text-[#222] placeholder:text-gray-400 focus:ring-[#d95763]"
+                        }`}
+                      />
+                    );
+                  })}
                 </div>
               </div>
             }

@@ -28,6 +28,9 @@ const DEFAULT_VIEWPORT = {
   deviceScaleFactor: 2,
 };
 
+const SETTING_POPUP_SCREENS = ["settings-reset"];
+const DEFAULT_SCREENS = ["setup", "settings", ...SETTING_POPUP_SCREENS];
+
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function parseArgs(argv) {
@@ -38,7 +41,7 @@ function parseArgs(argv) {
     cdpPort: Number(process.env.DIGIVICE_SNAPSHOT_CDP_PORT ?? 9222),
     outDir: null,
     locales: LOCALES,
-    screens: ["setup", "settings"],
+    screens: DEFAULT_SCREENS,
     chromePath:
       process.env.CHROME_PATH ??
       "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
@@ -116,7 +119,7 @@ Options:
   --cdp-port <port>       Chrome DevTools Protocol port. Default: 9222
   --out <dir>             Output directory. Default: tmp/i18n-snapshots/<timestamp>
   --locales <csv>         Locale list. Default: ${LOCALES.join(",")}
-  --screens <csv>         Screens to capture. Default: setup,settings
+  --screens <csv>         Screens to capture. Default: ${DEFAULT_SCREENS.join(",")}
   --chrome <path>         Chrome executable path.
 `);
 }
@@ -140,7 +143,7 @@ function runCommand(command, args, options = {}) {
   });
 }
 
-async function waitForHttp(url, timeoutMs = 30_000) {
+async function waitForHttp(url, timeoutMs = 30000) {
   const startedAt = Date.now();
   let lastError;
 
@@ -334,7 +337,7 @@ async function navigate(session, url) {
   await sleep(800);
 }
 
-async function waitUntil(session, expression, timeoutMs = 15_000) {
+async function waitUntil(session, expression, timeoutMs = 15000) {
   const startedAt = Date.now();
   while (Date.now() - startedAt < timeoutMs) {
     if (await evaluate(session, expression)) {
@@ -360,7 +363,13 @@ async function captureScreen({ locale, screen, options, localeDir }) {
   try {
     await preparePage(session, locale);
     const screenUrl = new URL(options.url);
-    screenUrl.searchParams.set("snapshotLayer", screen);
+    const snapshotLayer = SETTING_POPUP_SCREENS.includes(screen)
+      ? "settings"
+      : screen;
+    screenUrl.searchParams.set("snapshotLayer", snapshotLayer);
+    if (screen === "settings-reset") {
+      screenUrl.searchParams.set("snapshotPopup", "settings-reset");
+    }
     await navigate(session, screenUrl.toString());
 
     if (screen === "setup") {
@@ -370,6 +379,12 @@ async function captureScreen({ locale, screen, options, localeDir }) {
       await waitUntil(
         session,
         "document.querySelectorAll('#app-container button').length >= 4",
+      );
+      await sleep(300);
+    } else if (screen === "settings-reset") {
+      await waitUntil(
+        session,
+        "Boolean(document.querySelector('[data-snapshot-popup=\"settings-reset\"]')) && document.querySelectorAll('[data-snapshot-popup=\"settings-reset\"] input').length === 6",
       );
       await sleep(300);
     } else {

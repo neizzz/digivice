@@ -50,3 +50,9 @@ h1 {
   font-size: 3.2em;
   line-height: 1.1;
 }
+
+.i18n-word-wrap {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
