@@ -69,35 +69,71 @@ export enum DestinationType {
 export enum CharacterKeyECS {
   NULL = ECS_NULL_VALUE,
 
-  TestGreenSlimeA1 = 1,
-  TestGreenSlimeB1 = 2,
-  TestGreenSlimeC1 = 3,
-  TestGreenSlimeD1 = 4,
-  TestGreenSlimeB2 = 5,
-  TestGreenSlimeB3 = 6,
-  TestGreenSlimeC2 = 7,
-  TestGreenSlimeC3 = 8,
-  TestGreenSlimeC4 = 9,
-  TestGreenSlimeD2 = 10,
-  TestGreenSlimeD3 = 11,
-  TestGreenSlimeD4 = 12,
+  GreenSlimeA1 = 1,
+  GreenSlimeB1 = 2,
+  GreenSlimeB2 = 5,
+  GreenSlimeB3 = 6,
+  GreenSlimeC1 = 3,
+  GreenSlimeC2 = 7,
+  GreenSlimeC3 = 8,
+  GreenSlimeC4 = 9,
+  GreenSlimeD1 = 4,
+  GreenSlimeD2 = 10,
+  GreenSlimeD3 = 11,
+  GreenSlimeD4 = 12,
+
+  SkullSlimeA1 = 14,
+  SkullSlimeB1 = 16,
+  SkullSlimeB2 = 17,
+  SkullSlimeC1 = 18,
+  SkullSlimeC2 = 19,
+  SkullSlimeD1 = 20,
+  SkullSlimeD2 = 21,
+
+  SoilSlimeA1 = 22,
+  SoilSlimeB1 = 24,
+  SoilSlimeB2 = 25,
+  SoilSlimeC1 = 26,
+  SoilSlimeC2 = 27,
+  SoilSlimeC3 = 28,
+  SoilSlimeD1 = 29,
+  SoilSlimeD2 = 30,
+  SoilSlimeD3 = 31,
 }
 export enum SpritesheetKey {
   NULL = ECS_NULL_VALUE,
 
   // Character spriteshsetKey (= CharacterKey)
-  TestGreenSlimeA1 = 1,
-  TestGreenSlimeB1 = 2,
-  TestGreenSlimeC1 = 3,
-  TestGreenSlimeD1 = 4,
-  TestGreenSlimeB2 = 5,
-  TestGreenSlimeB3 = 6,
-  TestGreenSlimeC2 = 7,
-  TestGreenSlimeC3 = 8,
-  TestGreenSlimeC4 = 9,
-  TestGreenSlimeD2 = 10,
-  TestGreenSlimeD3 = 11,
-  TestGreenSlimeD4 = 12,
+  GreenSlimeA1 = 1,
+  GreenSlimeB1 = 2,
+  GreenSlimeB2 = 5,
+  GreenSlimeB3 = 6,
+  GreenSlimeC1 = 3,
+  GreenSlimeC2 = 7,
+  GreenSlimeC3 = 8,
+  GreenSlimeC4 = 9,
+  GreenSlimeD1 = 4,
+  GreenSlimeD2 = 10,
+  GreenSlimeD3 = 11,
+  GreenSlimeD4 = 12,
+
+  SkullSlimeA1 = 14,
+  SkullSlimeB1 = 16,
+  SkullSlimeB2 = 17,
+  SkullSlimeC1 = 18,
+  SkullSlimeC2 = 19,
+  SkullSlimeD1 = 20,
+  SkullSlimeD2 = 21,
+
+  SoilSlimeA1 = 22,
+  SoilSlimeB1 = 24,
+  SoilSlimeB2 = 25,
+  SoilSlimeC1 = 26,
+  SoilSlimeC2 = 27,
+  SoilSlimeC3 = 28,
+  SoilSlimeD1 = 29,
+  SoilSlimeD2 = 30,
+  SoilSlimeD3 = 31,
 }
 export enum AnimationKey {
   NULL = ECS_NULL_VALUE,
@@ -129,10 +165,10 @@ export enum TextureKey {
   NULL = ECS_NULL_VALUE,
 
   // Character Keys (1-99)
-  // TestGreenSlimeA1 = 1,
-  // TestGreenSlimeB1 = 2,
-  // TestGreenSlimeC1 = 3,
-  // TestGreenSlimeD1 = 4,
+  // GreenSlimeA1 = 1,
+  // GreenSlimeB1 = 2,
+  // GreenSlimeC1 = 3,
+  // GreenSlimeD1 = 4,
 
   // Bird sprites (100-199)
   BIRD = 100,
@@ -393,6 +429,7 @@ export type EggHatchComponent = {
   hatchTime: number; // 부화할 시간 (timestamp)
   hatchDurationMs?: number; // 전체 부화 시간 (ms)
   isReadyToHatch: boolean; // 부화 준비 완료 여부
+  syringeCount?: number; // 알 상태에서 병원/주사기 메뉴를 누른 횟수
 };
 
 export type CleanableComponent = {

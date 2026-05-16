@@ -1192,7 +1192,7 @@ export class Game {
       this._syncFlappyBirdCharacterKeyFromMainScene(this.currentScene);
     }
 
-    return this._flappyBirdCharacterKey ?? CharacterKey.TestGreenSlimeA1;
+    return this._flappyBirdCharacterKey ?? CharacterKey.GreenSlimeA1;
   }
 
   public getFlappyBirdCharacterState(): CharacterState | null {

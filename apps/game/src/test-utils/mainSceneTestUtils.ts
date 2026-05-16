@@ -193,7 +193,7 @@ export function createTestCharacter(
   },
 ): number {
   const state = options?.state ?? CharacterState.IDLE;
-  const characterKey = options?.characterKey ?? CharacterKeyECS.TestGreenSlimeA1;
+  const characterKey = options?.characterKey ?? CharacterKeyECS.GreenSlimeA1;
   const evolutionPhase = getEvolutionSpec(characterKey)?.phase ?? 1;
 
   return createCharacterEntity(world, {

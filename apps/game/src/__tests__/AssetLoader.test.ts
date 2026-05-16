@@ -15,7 +15,7 @@ test("AssetLoader.getAssets는 캐시에 없는 캐릭터 alias를 조회하지 
     "common16x16",
     "common32x32",
     "game-tileset",
-    CharacterKey.TestGreenSlimeA1,
+    CharacterKey.GreenSlimeA1,
   ]);
   const fakeSpritesheet = Object.create(PIXI.Spritesheet.prototype);
 
@@ -38,21 +38,21 @@ test("AssetLoader.getAssets는 캐시에 없는 캐릭터 alias를 조회하지 
 
     assert.ok(assets.birdSprites instanceof PIXI.Spritesheet);
     assert.ok(
-      assets.characterSprites[CharacterKey.TestGreenSlimeA1] instanceof
+      assets.characterSprites[CharacterKey.GreenSlimeA1] instanceof
         PIXI.Spritesheet,
     );
     assert.equal(
-      assets.characterSprites[CharacterKey.TestGreenSlimeC1],
+      assets.characterSprites[CharacterKey.GreenSlimeC1],
       undefined,
     );
     assert.equal(
-      assets.characterSprites[CharacterKey.TestGreenSlimeC2],
+      assets.characterSprites[CharacterKey.GreenSlimeC2],
       undefined,
     );
-    assert.ok(hasCalls.includes(CharacterKey.TestGreenSlimeC1));
-    assert.ok(hasCalls.includes(CharacterKey.TestGreenSlimeC2));
-    assert.equal(getCalls.includes(CharacterKey.TestGreenSlimeC1), false);
-    assert.equal(getCalls.includes(CharacterKey.TestGreenSlimeC2), false);
+    assert.ok(hasCalls.includes(CharacterKey.GreenSlimeC1));
+    assert.ok(hasCalls.includes(CharacterKey.GreenSlimeC2));
+    assert.equal(getCalls.includes(CharacterKey.GreenSlimeC1), false);
+    assert.equal(getCalls.includes(CharacterKey.GreenSlimeC2), false);
   } finally {
     (PIXI.Cache as unknown as { has: typeof originalHas }).has = originalHas;
     (PIXI.Cache as unknown as { get: typeof originalGet }).get = originalGet;

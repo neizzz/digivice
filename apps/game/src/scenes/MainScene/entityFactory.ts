@@ -67,7 +67,7 @@ export function createCharacterEntity(
   );
   CharacterStatusComp.characterKey[eid] =
     _components.characterStatus?.characterKey ||
-    CharacterKeyECS.TestGreenSlimeA1; // 기본 캐릭터 키
+    CharacterKeyECS.GreenSlimeA1; // 기본 캐릭터 키
   CharacterStatusComp.stamina[eid] = _components.characterStatus?.stamina ?? 5; // 기본 스테미나 (MAX보다 낮게 시작)
   CharacterStatusComp.evolutionPhase[eid] =
     _components.characterStatus?.evolutionPhase || 1; // 기본 진화 페이즈는 1
@@ -192,10 +192,12 @@ export function createCharacterEntity(
     EggHatchComp.hatchTime[eid] = hatchTime;
     EggHatchComp.hatchDurationMs[eid] = hatchDurationMs;
     EggHatchComp.isReadyToHatch[eid] = 0; // 아직 부화 준비 안됨
+    EggHatchComp.syringeCount[eid] = 0;
   } else {
     EggHatchComp.hatchTime[eid] = 0;
     EggHatchComp.hatchDurationMs[eid] = 0;
     EggHatchComp.isReadyToHatch[eid] = 0;
+    EggHatchComp.syringeCount[eid] = 0;
   }
 
   return eid;

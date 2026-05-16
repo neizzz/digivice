@@ -12,7 +12,8 @@
     "dev": "pnpm --filter @digivice/client dev",
     "dev:minigame": "pnpm --filter @digivice/client dev:minigame",
     "build": "pnpm --filter @digivice/client build",
-    "dev:monster-animations": "pnpm --filter @digivice/client dev:monster-animations"
+    "dev:monster-animations": "pnpm --filter @digivice/client dev:monster-animations",
+    "dev:evolution-admin": "pnpm --filter @digivice/client dev:evolution-admin"
   },
   "workspaces": [
     "apps/*"

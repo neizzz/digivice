@@ -1,7 +1,9 @@
 import { CharacterClass } from "../../types/Character";
+import evolutionOverrideData from "./evolution-overrides.v1.json";
 import { CharacterKeyECS } from "./types";
+import { resolveWeightedCandidate } from "./weightedSelection";
 
-export type MonsterGeneLine = "green-slime";
+export type MonsterGeneLine = "green-slime" | "skull-slime" | "soil-slime";
 export type MonsterClassCode = "A" | "B" | "C" | "D";
 export type MonsterCharacterKey = Exclude<
   CharacterKeyECS,
@@ -29,6 +31,23 @@ export type MonsterEvolutionSpec = {
   displayName: string;
   spritesheetName: string;
   evolutionCandidates: EvolutionCandidate[];
+};
+
+export type MonsterEvolutionCode = MonsterEvolutionSpec["code"];
+
+type EvolutionOverrideCandidate = {
+  toCode: MonsterEvolutionCode;
+  weight: number;
+  kind?: EvolutionCandidateKind;
+};
+
+type EvolutionOverrideEntry = {
+  evolutionCandidates: EvolutionOverrideCandidate[];
+};
+
+export type EvolutionOverrideConfig = {
+  schemaVersion: 1;
+  overrides: Partial<Record<MonsterEvolutionCode, EvolutionOverrideEntry>>;
 };
 
 export type EvolutionGaugeConfig = {
@@ -180,208 +199,418 @@ function createDisplayName(
   return `${baseName} ${classCode}${variant}`;
 }
 
-function createBaseCandidate(
-  to: CharacterKeyECS,
-  weight: number,
-): EvolutionCandidate {
-  return { to, weight, kind: "base" };
+type MonsterLineDefinition = {
+  geneLine: MonsterGeneLine;
+  classes: Record<MonsterClassCode, CharacterKeyECS[]>;
+};
+
+type MonsterVariantDefinition = {
+  key: CharacterKeyECS;
+  geneLine: MonsterGeneLine;
+  classCode: MonsterClassCode;
+  class: CharacterClass;
+  variant: number;
+  phase: number;
+};
+
+const MONSTER_CLASS_BY_CODE: Record<MonsterClassCode, CharacterClass> = {
+  A: CharacterClass.A,
+  B: CharacterClass.B,
+  C: CharacterClass.C,
+  D: CharacterClass.D,
+};
+
+const MONSTER_PHASE_BY_CLASS_CODE: Record<MonsterClassCode, number> = {
+  A: 1,
+  B: 2,
+  C: 3,
+  D: 4,
+};
+
+const DEFAULT_CANDIDATE_WEIGHTS: Record<number, number[]> = {
+  1: [100],
+  2: [70, 30],
+  3: [50, 25, 25],
+  4: [40, 25, 20, 15],
+};
+
+const MONSTER_LINE_DEFINITIONS: MonsterLineDefinition[] = [
+  {
+    geneLine: "green-slime",
+    classes: {
+      A: [CharacterKeyECS.GreenSlimeA1],
+      B: [
+        CharacterKeyECS.GreenSlimeB1,
+        CharacterKeyECS.GreenSlimeB2,
+        CharacterKeyECS.GreenSlimeB3,
+      ],
+      C: [
+        CharacterKeyECS.GreenSlimeC1,
+        CharacterKeyECS.GreenSlimeC2,
+        CharacterKeyECS.GreenSlimeC3,
+        CharacterKeyECS.GreenSlimeC4,
+      ],
+      D: [
+        CharacterKeyECS.GreenSlimeD1,
+        CharacterKeyECS.GreenSlimeD2,
+        CharacterKeyECS.GreenSlimeD3,
+        CharacterKeyECS.GreenSlimeD4,
+      ],
+    },
+  },
+  {
+    geneLine: "skull-slime",
+    classes: {
+      A: [CharacterKeyECS.SkullSlimeA1],
+      B: [CharacterKeyECS.SkullSlimeB1, CharacterKeyECS.SkullSlimeB2],
+      C: [CharacterKeyECS.SkullSlimeC1, CharacterKeyECS.SkullSlimeC2],
+      D: [CharacterKeyECS.SkullSlimeD1, CharacterKeyECS.SkullSlimeD2],
+    },
+  },
+  {
+    geneLine: "soil-slime",
+    classes: {
+      A: [CharacterKeyECS.SoilSlimeA1],
+      B: [CharacterKeyECS.SoilSlimeB1, CharacterKeyECS.SoilSlimeB2],
+      C: [
+        CharacterKeyECS.SoilSlimeC1,
+        CharacterKeyECS.SoilSlimeC2,
+        CharacterKeyECS.SoilSlimeC3,
+      ],
+      D: [
+        CharacterKeyECS.SoilSlimeD1,
+        CharacterKeyECS.SoilSlimeD2,
+        CharacterKeyECS.SoilSlimeD3,
+      ],
+    },
+  },
+];
+
+function getNextClassCode(
+  classCode: MonsterClassCode,
+): MonsterClassCode | null {
+  switch (classCode) {
+    case "A":
+      return "B";
+    case "B":
+      return "C";
+    case "C":
+      return "D";
+    case "D":
+      return null;
+  }
 }
 
-function createVariantMutationCandidate(
-  to: CharacterKeyECS,
-  weight: number,
-): EvolutionCandidate {
-  return { to, weight, kind: "same_line_variant_mutation" };
+function getDefaultCandidateWeights(candidateCount: number): number[] {
+  const presetWeights = DEFAULT_CANDIDATE_WEIGHTS[candidateCount];
+
+  if (presetWeights) {
+    return presetWeights;
+  }
+
+  return Array.from({ length: candidateCount }, () =>
+    Math.max(1, Math.floor(100 / candidateCount)),
+  );
 }
+
+function createMonsterVariantDefinition(params: {
+  geneLine: MonsterGeneLine;
+  classCode: MonsterClassCode;
+  key: CharacterKeyECS;
+  variant: number;
+}): MonsterVariantDefinition {
+  return {
+    key: params.key,
+    geneLine: params.geneLine,
+    classCode: params.classCode,
+    class: MONSTER_CLASS_BY_CODE[params.classCode],
+    variant: params.variant,
+    phase: MONSTER_PHASE_BY_CLASS_CODE[params.classCode],
+  };
+}
+
+function getVariantDefinitionsByClass(
+  lineDefinition: MonsterLineDefinition,
+): Record<MonsterClassCode, MonsterVariantDefinition[]> {
+  return {
+    A: lineDefinition.classes.A.map((key, index) =>
+      createMonsterVariantDefinition({
+        geneLine: lineDefinition.geneLine,
+        classCode: "A",
+        key,
+        variant: index + 1,
+      }),
+    ),
+    B: lineDefinition.classes.B.map((key, index) =>
+      createMonsterVariantDefinition({
+        geneLine: lineDefinition.geneLine,
+        classCode: "B",
+        key,
+        variant: index + 1,
+      }),
+    ),
+    C: lineDefinition.classes.C.map((key, index) =>
+      createMonsterVariantDefinition({
+        geneLine: lineDefinition.geneLine,
+        classCode: "C",
+        key,
+        variant: index + 1,
+      }),
+    ),
+    D: lineDefinition.classes.D.map((key, index) =>
+      createMonsterVariantDefinition({
+        geneLine: lineDefinition.geneLine,
+        classCode: "D",
+        key,
+        variant: index + 1,
+      }),
+    ),
+  };
+}
+
+function getOrderedNextVariantDefinitions(params: {
+  sourceDefinition: MonsterVariantDefinition;
+  nextDefinitions: MonsterVariantDefinition[];
+}): MonsterVariantDefinition[] {
+  const { sourceDefinition, nextDefinitions } = params;
+  const baseVariant = Math.min(sourceDefinition.variant, nextDefinitions.length);
+  const baseDefinition = nextDefinitions.find(
+    (definition) => definition.variant === baseVariant,
+  );
+
+  if (!baseDefinition) {
+    return nextDefinitions;
+  }
+
+  return [
+    baseDefinition,
+    ...nextDefinitions.filter((definition) => definition !== baseDefinition),
+  ];
+}
+
+function createEvolutionCandidates(params: {
+  sourceDefinition: MonsterVariantDefinition;
+  definitionsByClass: Record<MonsterClassCode, MonsterVariantDefinition[]>;
+}): EvolutionCandidate[] {
+  const { sourceDefinition, definitionsByClass } = params;
+  const nextClassCode = getNextClassCode(sourceDefinition.classCode);
+
+  if (!nextClassCode) {
+    return [];
+  }
+
+  const nextDefinitions = getOrderedNextVariantDefinitions({
+    sourceDefinition,
+    nextDefinitions: definitionsByClass[nextClassCode],
+  });
+  const weights = getDefaultCandidateWeights(nextDefinitions.length);
+
+  return nextDefinitions.map((definition, index) => ({
+    to: definition.key,
+    weight: weights[index] ?? 1,
+    kind:
+      index === 0
+        ? "base"
+        : "same_line_variant_mutation",
+  }));
+}
+
+function createMonsterEvolutionSpec(params: {
+  definition: MonsterVariantDefinition;
+  definitionsByClass: Record<MonsterClassCode, MonsterVariantDefinition[]>;
+}): MonsterEvolutionSpec {
+  const { definition, definitionsByClass } = params;
+  const code = `${definition.geneLine}_${definition.classCode}${definition.variant}` as MonsterEvolutionCode;
+
+  return {
+    key: definition.key,
+    code,
+    geneLine: definition.geneLine,
+    classCode: definition.classCode,
+    class: definition.class,
+    variant: definition.variant,
+    phase: definition.phase,
+    displayName: createDisplayName(
+      definition.geneLine,
+      definition.classCode,
+      definition.variant,
+    ),
+    spritesheetName: code,
+    evolutionCandidates: createEvolutionCandidates({
+      sourceDefinition: definition,
+      definitionsByClass,
+    }),
+  };
+}
+
+function createMonsterEvolutionCatalog(): Record<
+  MonsterCharacterKey,
+  MonsterEvolutionSpec
+> {
+  const entries = MONSTER_LINE_DEFINITIONS.flatMap((lineDefinition) => {
+    const definitionsByClass = getVariantDefinitionsByClass(lineDefinition);
+    const definitions = Object.values(definitionsByClass).flat();
+
+    return definitions.map((definition) => [
+      definition.key,
+      createMonsterEvolutionSpec({ definition, definitionsByClass }),
+    ]);
+  });
+
+  return Object.fromEntries(entries) as Record<
+    MonsterCharacterKey,
+    MonsterEvolutionSpec
+  >;
+}
+
+function cloneEvolutionSpec(spec: MonsterEvolutionSpec): MonsterEvolutionSpec {
+  return {
+    ...spec,
+    evolutionCandidates: spec.evolutionCandidates.map((candidate) => ({
+      ...candidate,
+    })),
+  };
+}
+
+function assertEvolutionOverrideConfig(
+  value: unknown,
+): asserts value is EvolutionOverrideConfig {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    Array.isArray(value) ||
+    (value as { schemaVersion?: unknown }).schemaVersion !== 1 ||
+    !(value as { overrides?: unknown }).overrides ||
+    typeof (value as { overrides?: unknown }).overrides !== "object" ||
+    Array.isArray((value as { overrides?: unknown }).overrides)
+  ) {
+    throw new Error(
+      "[evolution] evolution-overrides.v1.json must match schemaVersion 1.",
+    );
+  }
+}
+
+export function applyEvolutionOverrideConfig(
+  baseCatalog: Record<MonsterCharacterKey, MonsterEvolutionSpec>,
+  overrideConfig: EvolutionOverrideConfig,
+): Record<MonsterCharacterKey, MonsterEvolutionSpec> {
+  const nextCatalog = Object.fromEntries(
+    Object.entries(baseCatalog).map(([key, spec]) => [
+      key,
+      cloneEvolutionSpec(spec),
+    ]),
+  ) as Record<MonsterCharacterKey, MonsterEvolutionSpec>;
+  const specsByCode = new Map(
+    Object.values(nextCatalog).map((spec) => [spec.code, spec]),
+  );
+
+  for (const [sourceCode, overrideEntry] of Object.entries(
+    overrideConfig.overrides,
+  )) {
+    if (
+      !overrideEntry ||
+      typeof overrideEntry !== "object" ||
+      Array.isArray(overrideEntry)
+    ) {
+      throw new Error(`[evolution] Invalid override entry for ${sourceCode}.`);
+    }
+
+    const sourceSpec = specsByCode.get(sourceCode as MonsterEvolutionCode);
+
+    if (!sourceSpec) {
+      throw new Error(`[evolution] Unknown override source code: ${sourceCode}`);
+    }
+
+    if (sourceSpec.evolutionCandidates.length === 0) {
+      throw new Error(
+        `[evolution] Terminal monster cannot be overridden: ${sourceCode}`,
+      );
+    }
+
+    if (
+      !Array.isArray(overrideEntry.evolutionCandidates) ||
+      overrideEntry.evolutionCandidates.length !==
+        sourceSpec.evolutionCandidates.length
+    ) {
+      throw new Error(
+        `[evolution] Candidate count mismatch for ${sourceCode}. Expected ${sourceSpec.evolutionCandidates.length}.`,
+      );
+    }
+
+    const overrideCandidatesByCode = new Map<
+      MonsterEvolutionCode,
+      EvolutionOverrideCandidate
+    >();
+
+    for (const overrideCandidate of overrideEntry.evolutionCandidates) {
+      const baselineCandidate = sourceSpec.evolutionCandidates.find(
+        (candidate) => {
+          const targetSpec = nextCatalog[candidate.to as MonsterCharacterKey];
+          return targetSpec?.code === overrideCandidate.toCode;
+        },
+      );
+
+      if (!baselineCandidate) {
+        throw new Error(
+          `[evolution] Unknown override target for ${sourceCode}: ${overrideCandidate.toCode}`,
+        );
+      }
+
+      if (
+        !Number.isInteger(overrideCandidate.weight) ||
+        overrideCandidate.weight < 0 ||
+        overrideCandidate.weight > 100
+      ) {
+        throw new Error(
+          `[evolution] Invalid override weight for ${sourceCode} -> ${overrideCandidate.toCode}: ${overrideCandidate.weight}`,
+        );
+      }
+
+      if (
+        overrideCandidate.kind !== undefined &&
+        overrideCandidate.kind !== baselineCandidate.kind
+      ) {
+        throw new Error(
+          `[evolution] Override kind mismatch for ${sourceCode} -> ${overrideCandidate.toCode}.`,
+        );
+      }
+
+      if (overrideCandidatesByCode.has(overrideCandidate.toCode)) {
+        throw new Error(
+          `[evolution] Duplicate override target for ${sourceCode}: ${overrideCandidate.toCode}`,
+        );
+      }
+
+      overrideCandidatesByCode.set(overrideCandidate.toCode, overrideCandidate);
+    }
+
+    sourceSpec.evolutionCandidates = sourceSpec.evolutionCandidates.map(
+      (candidate) => {
+        const targetSpec = nextCatalog[candidate.to as MonsterCharacterKey];
+        const overrideCandidate = targetSpec
+          ? overrideCandidatesByCode.get(targetSpec.code)
+          : undefined;
+
+        return {
+          ...candidate,
+          weight: overrideCandidate?.weight ?? candidate.weight,
+        };
+      },
+    );
+  }
+
+  return nextCatalog;
+}
+
+assertEvolutionOverrideConfig(evolutionOverrideData);
 
 export const MONSTER_EVOLUTION_CATALOG: Record<
   MonsterCharacterKey,
   MonsterEvolutionSpec
-> = {
-  [CharacterKeyECS.TestGreenSlimeA1]: {
-    key: CharacterKeyECS.TestGreenSlimeA1,
-    code: "green-slime_A1",
-    geneLine: "green-slime",
-    classCode: "A",
-    class: CharacterClass.A,
-    variant: 1,
-    phase: 1,
-    displayName: createDisplayName("green-slime", "A", 1),
-    spritesheetName: "green-slime_A1",
-    evolutionCandidates: [
-      createBaseCandidate(CharacterKeyECS.TestGreenSlimeB1, 50),
-      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeB2, 25),
-      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeB3, 25),
-    ],
-  },
-  [CharacterKeyECS.TestGreenSlimeB1]: {
-    key: CharacterKeyECS.TestGreenSlimeB1,
-    code: "green-slime_B1",
-    geneLine: "green-slime",
-    classCode: "B",
-    class: CharacterClass.B,
-    variant: 1,
-    phase: 2,
-    displayName: createDisplayName("green-slime", "B", 1),
-    spritesheetName: "green-slime_B1",
-    evolutionCandidates: [
-      createBaseCandidate(CharacterKeyECS.TestGreenSlimeC1, 40),
-      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeC2, 25),
-      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeC3, 20),
-      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeC4, 15),
-    ],
-  },
-  [CharacterKeyECS.TestGreenSlimeB2]: {
-    key: CharacterKeyECS.TestGreenSlimeB2,
-    code: "green-slime_B2",
-    geneLine: "green-slime",
-    classCode: "B",
-    class: CharacterClass.B,
-    variant: 2,
-    phase: 2,
-    displayName: createDisplayName("green-slime", "B", 2),
-    spritesheetName: "green-slime_B2",
-    evolutionCandidates: [
-      createBaseCandidate(CharacterKeyECS.TestGreenSlimeC2, 40),
-      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeC1, 25),
-      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeC3, 20),
-      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeC4, 15),
-    ],
-  },
-  [CharacterKeyECS.TestGreenSlimeB3]: {
-    key: CharacterKeyECS.TestGreenSlimeB3,
-    code: "green-slime_B3",
-    geneLine: "green-slime",
-    classCode: "B",
-    class: CharacterClass.B,
-    variant: 3,
-    phase: 2,
-    displayName: createDisplayName("green-slime", "B", 3),
-    spritesheetName: "green-slime_B3",
-    evolutionCandidates: [
-      createBaseCandidate(CharacterKeyECS.TestGreenSlimeC3, 40),
-      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeC1, 25),
-      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeC2, 20),
-      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeC4, 15),
-    ],
-  },
-  [CharacterKeyECS.TestGreenSlimeC1]: {
-    key: CharacterKeyECS.TestGreenSlimeC1,
-    code: "green-slime_C1",
-    geneLine: "green-slime",
-    classCode: "C",
-    class: CharacterClass.C,
-    variant: 1,
-    phase: 3,
-    displayName: createDisplayName("green-slime", "C", 1),
-    spritesheetName: "green-slime_C1",
-    evolutionCandidates: [
-      createBaseCandidate(CharacterKeyECS.TestGreenSlimeD1, 40),
-      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeD2, 25),
-      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeD3, 20),
-      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeD4, 15),
-    ],
-  },
-  [CharacterKeyECS.TestGreenSlimeC2]: {
-    key: CharacterKeyECS.TestGreenSlimeC2,
-    code: "green-slime_C2",
-    geneLine: "green-slime",
-    classCode: "C",
-    class: CharacterClass.C,
-    variant: 2,
-    phase: 3,
-    displayName: createDisplayName("green-slime", "C", 2),
-    spritesheetName: "green-slime_C2",
-    evolutionCandidates: [
-      createBaseCandidate(CharacterKeyECS.TestGreenSlimeD2, 40),
-      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeD1, 25),
-      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeD3, 20),
-      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeD4, 15),
-    ],
-  },
-  [CharacterKeyECS.TestGreenSlimeC3]: {
-    key: CharacterKeyECS.TestGreenSlimeC3,
-    code: "green-slime_C3",
-    geneLine: "green-slime",
-    classCode: "C",
-    class: CharacterClass.C,
-    variant: 3,
-    phase: 3,
-    displayName: createDisplayName("green-slime", "C", 3),
-    spritesheetName: "green-slime_C3",
-    evolutionCandidates: [
-      createBaseCandidate(CharacterKeyECS.TestGreenSlimeD3, 40),
-      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeD1, 25),
-      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeD2, 20),
-      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeD4, 15),
-    ],
-  },
-  [CharacterKeyECS.TestGreenSlimeC4]: {
-    key: CharacterKeyECS.TestGreenSlimeC4,
-    code: "green-slime_C4",
-    geneLine: "green-slime",
-    classCode: "C",
-    class: CharacterClass.C,
-    variant: 4,
-    phase: 3,
-    displayName: createDisplayName("green-slime", "C", 4),
-    spritesheetName: "green-slime_C4",
-    evolutionCandidates: [
-      createBaseCandidate(CharacterKeyECS.TestGreenSlimeD4, 40),
-      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeD1, 25),
-      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeD2, 20),
-      createVariantMutationCandidate(CharacterKeyECS.TestGreenSlimeD3, 15),
-    ],
-  },
-  [CharacterKeyECS.TestGreenSlimeD1]: {
-    key: CharacterKeyECS.TestGreenSlimeD1,
-    code: "green-slime_D1",
-    geneLine: "green-slime",
-    classCode: "D",
-    class: CharacterClass.D,
-    variant: 1,
-    phase: 4,
-    displayName: createDisplayName("green-slime", "D", 1),
-    spritesheetName: "green-slime_D1",
-    evolutionCandidates: [],
-  },
-  [CharacterKeyECS.TestGreenSlimeD2]: {
-    key: CharacterKeyECS.TestGreenSlimeD2,
-    code: "green-slime_D2",
-    geneLine: "green-slime",
-    classCode: "D",
-    class: CharacterClass.D,
-    variant: 2,
-    phase: 4,
-    displayName: createDisplayName("green-slime", "D", 2),
-    spritesheetName: "green-slime_D2",
-    evolutionCandidates: [],
-  },
-  [CharacterKeyECS.TestGreenSlimeD3]: {
-    key: CharacterKeyECS.TestGreenSlimeD3,
-    code: "green-slime_D3",
-    geneLine: "green-slime",
-    classCode: "D",
-    class: CharacterClass.D,
-    variant: 3,
-    phase: 4,
-    displayName: createDisplayName("green-slime", "D", 3),
-    spritesheetName: "green-slime_D3",
-    evolutionCandidates: [],
-  },
-  [CharacterKeyECS.TestGreenSlimeD4]: {
-    key: CharacterKeyECS.TestGreenSlimeD4,
-    code: "green-slime_D4",
-    geneLine: "green-slime",
-    classCode: "D",
-    class: CharacterClass.D,
-    variant: 4,
-    phase: 4,
-    displayName: createDisplayName("green-slime", "D", 4),
-    spritesheetName: "green-slime_D4",
-    evolutionCandidates: [],
-  },
-};
+> = applyEvolutionOverrideConfig(
+  createMonsterEvolutionCatalog(),
+  evolutionOverrideData,
+);
 
 export const MONSTER_CHARACTER_KEYS = Object.keys(
   MONSTER_EVOLUTION_CATALOG,
@@ -488,12 +717,12 @@ export function validateEvolutionWeights(
     return false;
   }
 
-  const totalWeight = spec.evolutionCandidates.reduce(
-    (sum, candidate) => sum + candidate.weight,
-    0,
+  return spec.evolutionCandidates.every(
+    (candidate) =>
+      Number.isInteger(candidate.weight) &&
+      candidate.weight >= 0 &&
+      candidate.weight <= 100,
   );
-
-  return spec.evolutionCandidates.length === 0 || totalWeight === 100;
 }
 
 export function resolveEvolutionCandidate(
@@ -505,18 +734,7 @@ export function resolveEvolutionCandidate(
     return null;
   }
 
-  const normalizedRandom = Math.min(Math.max(randomValue, 0), 0.999999);
-  const roll = normalizedRandom * 100;
-  let accumulatedWeight = 0;
-
-  for (const candidate of spec.evolutionCandidates) {
-    accumulatedWeight += candidate.weight;
-    if (roll < accumulatedWeight) {
-      return candidate;
-    }
-  }
-
-  return spec.evolutionCandidates[spec.evolutionCandidates.length - 1] ?? null;
+  return resolveWeightedCandidate(spec.evolutionCandidates, randomValue);
 }
 
 export function resolveEvolutionTarget(

@@ -108,6 +108,7 @@ import {
   CleanableComp,
   DiseaseSystemComp,
   EffectAnimationComp,
+  EggHatchComp,
   SleepSystemComp,
 } from "./raw-components";
 import { generatePersistentNumericId } from "@/utils/generate";
@@ -1687,7 +1688,7 @@ export class MainSceneWorld implements IWorld, Scene {
       },
       animationRender: {
         storeIndex: ECS_NULL_VALUE,
-        spritesheetKey: SpritesheetKey.TestGreenSlimeA1,
+        spritesheetKey: SpritesheetKey.GreenSlimeA1,
         animationKey: AnimationKey.IDLE,
         isPlaying: true,
         loop: true,
@@ -3106,6 +3107,16 @@ export class MainSceneWorld implements IWorld, Scene {
         `[MainSceneWorld] Recovery animation already active for character ${characterEid}`,
       );
       return false;
+    }
+
+    if (
+      ObjectComp.state[characterEid] === CharacterState.EGG &&
+      hasComponent(this, EggHatchComp, characterEid)
+    ) {
+      EggHatchComp.syringeCount[characterEid] = Math.min(
+        10,
+        EggHatchComp.syringeCount[characterEid] + 1,
+      );
     }
 
     const isSick = this._isCharacterSick(characterEid);

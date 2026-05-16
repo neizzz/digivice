@@ -31,10 +31,10 @@ const TEXTURE_MAP: Record<
 > = {
 	// TODO: animation으로 취급
 	// Character sprites (monsters) (1-99)
-	// 1: { spritesheetAlias: "test-green-slime_A1", textureName: "idle-1" }, // CharacterKey.TestGreenSlimeA1
-	// 2: { spritesheetAlias: "test-green-slime_B1", textureName: "idle-1" }, // CharacterKey.TestGreenSlimeB1
-	// 3: { spritesheetAlias: "test-green-slime_C1", textureName: "idle-1" }, // CharacterKey.TestGreenSlimeC1
-	// 4: { spritesheetAlias: "test-green-slime_D1", textureName: "idle-1" }, // CharacterKey.TestGreenSlimeD1
+	// 1: { spritesheetAlias: "test-green-slime_A1", textureName: "idle-1" }, // CharacterKey.GreenSlimeA1
+	// 2: { spritesheetAlias: "test-green-slime_B1", textureName: "idle-1" }, // CharacterKey.GreenSlimeB1
+	// 3: { spritesheetAlias: "test-green-slime_C1", textureName: "idle-1" }, // CharacterKey.GreenSlimeC1
+	// 4: { spritesheetAlias: "test-green-slime_D1", textureName: "idle-1" }, // CharacterKey.GreenSlimeD1
 
 	// Bird sprites (100-199)
 	100: { spritesheetAlias: "bird", textureName: "fly_0" }, // TextureKey.BIRD

@@ -13,6 +13,7 @@ import { GAME_CONSTANTS } from "../config";
 import {
   CharacterStatusComp,
   DestinationComp,
+  EggHatchComp,
   EffectAnimationComp,
   ObjectComp,
   RandomMovementComp,
@@ -100,6 +101,25 @@ test("live character entity에서는 hospital 선택 시 recovery animation이 �
   });
 
   assert.equal(EffectAnimationComp.isActive[characterEid], 1);
+});
+
+test("egg 상태에서 hospital 선택은 syringeCount를 최대 10회까지 누적한다", () => {
+  const world = createMainSceneWorldForTest();
+  const characterEid = createTestCharacter(
+    world as unknown as Parameters<typeof createTestCharacter>[0],
+    {
+      state: CharacterState.EGG,
+    },
+  );
+
+  for (let i = 0; i < 12; i++) {
+    (
+      world as unknown as { _handleHospitalSelection: () => boolean }
+    )._handleHospitalSelection();
+    removeComponent(world, EffectAnimationComp, characterEid);
+  }
+
+  assert.equal(EggHatchComp.syringeCount[characterEid], 10);
 });
 
 test("recovery syringe가 꽂힌 뒤부터 사라질 때까지 recovery vibration start/stop이 호출된다", () => {

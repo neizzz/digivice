@@ -2,20 +2,29 @@ import { defineQuery, hasComponent, addComponent } from "bitecs";
 import {
   ObjectComp,
   EggHatchComp,
+  FreshnessComp,
   RandomMovementComp,
   AnimationRenderComp,
   CharacterStatusComp,
 } from "../raw-components";
 import { MainSceneWorld } from "../world";
-import { CharacterState, AnimationKey } from "../types";
+import {
+  CharacterKeyECS,
+  CharacterState,
+  AnimationKey,
+  Freshness,
+  ObjectType,
+} from "../types";
 import {
   ensureCharacterSpritesheetLoaded,
   getCharacterSpritesheetOptions,
   isSpritesheetLoaded,
 } from "../../../utils/asset";
 import { ensureCharacterOpaqueBoundsComputed } from "./CharacterOpaqueBounds";
+import { selectEggHatchStartingGene } from "../eggHatchGeneSelection";
 
 const eggQuery = defineQuery([ObjectComp, EggHatchComp]);
+const staleFoodQuery = defineQuery([ObjectComp, FreshnessComp]);
 
 /**
  * 알 부화 시스템
@@ -62,11 +71,14 @@ function completeHatch(
   eid: number,
   world: MainSceneWorld,
   currentTime: number,
+  characterKey: CharacterKeyECS,
 ): void {
-  const characterKey = CharacterStatusComp.characterKey[eid];
+  CharacterStatusComp.characterKey[eid] = characterKey;
+  CharacterStatusComp.evolutionPhase[eid] = 1;
 
   // 캐릭터 상태를 IDLE로 변경
   ObjectComp.state[eid] = CharacterState.IDLE;
+  EggHatchComp.syringeCount[eid] = 0;
 
   // RandomMovementComp 추가 (이제 움직일 수 있음)
   if (!hasComponent(world, RandomMovementComp, eid)) {
@@ -100,12 +112,40 @@ function completeHatch(
   );
 }
 
+function countStaleFoodAtHatch(world: MainSceneWorld): number {
+  const entities = staleFoodQuery(world);
+  let count = 0;
+
+  for (let i = 0; i < entities.length; i++) {
+    const eid = entities[i];
+    if (
+      ObjectComp.type[eid] === ObjectType.FOOD &&
+      FreshnessComp.freshness[eid] === Freshness.STALE
+    ) {
+      count += 1;
+    }
+  }
+
+  return count;
+}
+
+function selectStartingCharacterForHatch(
+  eid: number,
+  world: MainSceneWorld,
+): CharacterKeyECS {
+  return selectEggHatchStartingGene({
+    staleFoodCountAtHatch: countStaleFoodAtHatch(world),
+    syringeCount: EggHatchComp.syringeCount[eid],
+    random: Math.random(),
+  });
+}
+
 function hatchCharacterForSimulation(
   eid: number,
   world: MainSceneWorld,
   currentTime: number,
 ): void {
-  const characterKey = CharacterStatusComp.characterKey[eid];
+  const characterKey = selectStartingCharacterForHatch(eid, world);
   const spritesheetOptions = getCharacterSpritesheetOptions(characterKey);
   const spritesheetAlias =
     spritesheetOptions?.alias || spritesheetOptions?.jsonPath;
@@ -119,7 +159,7 @@ function hatchCharacterForSimulation(
   }
 
   void ensureCharacterOpaqueBoundsComputed(characterKey);
-  completeHatch(eid, world, currentTime);
+  completeHatch(eid, world, currentTime, characterKey);
 }
 
 /**
@@ -131,8 +171,7 @@ async function hatchCharacter(
   currentTime: number
 ): Promise<void> {
   try {
-    // 캐릭터의 실제 characterKey 사용
-    const characterKey = CharacterStatusComp.characterKey[eid];
+    const characterKey = selectStartingCharacterForHatch(eid, world);
 
     const isLoaded = await ensureCharacterSpritesheetLoaded({
       characterKey,
@@ -149,7 +188,7 @@ async function hatchCharacter(
     }
 
     await ensureCharacterOpaqueBoundsComputed(characterKey);
-    completeHatch(eid, world, currentTime);
+    completeHatch(eid, world, currentTime, characterKey);
   } catch (error) {
     console.error(
       `[EggHatchSystem] Error during hatching process for character ${eid}:`,

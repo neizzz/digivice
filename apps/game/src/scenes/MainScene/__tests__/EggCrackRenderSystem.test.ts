@@ -221,7 +221,7 @@ test("egg crack overlay는 frame bounds 안에 머물고 stage 0 또는 non-egg�
   });
 });
 
-test("egg hatch duration은 저장과 복원 시 round-trip된다", () => {
+test("egg hatch duration과 syringeCount는 저장과 복원 시 round-trip된다", () => {
   const world = createTestWorld({ now: 0 });
   const eid = withMockedDateNow(0, () =>
     createTestCharacter(world, {
@@ -231,9 +231,11 @@ test("egg hatch duration은 저장과 복원 시 round-trip된다", () => {
 
   EggHatchComp.hatchTime[eid] = 4_000;
   EggHatchComp.hatchDurationMs[eid] = 1_234;
+  EggHatchComp.syringeCount[eid] = 7;
 
   const saved = convertECSEntityToSavedEntity(world, eid);
   assert.equal(saved.components.eggHatch?.hatchDurationMs, 1_234);
+  assert.equal(saved.components.eggHatch?.syringeCount, 7);
 
   const restoredWorld = createTestWorld({ now: 0 });
   const restoredEid = addEntity(restoredWorld);
@@ -241,6 +243,7 @@ test("egg hatch duration은 저장과 복원 시 round-trip된다", () => {
 
   assert.equal(EggHatchComp.hatchTime[restoredEid], 4_000);
   assert.equal(EggHatchComp.hatchDurationMs[restoredEid], 1_234);
+  assert.equal(EggHatchComp.syringeCount[restoredEid], 7);
 });
 
 test("legacy egg save에 hatchDurationMs가 없어도 기본 duration으로 복원된다", () => {
@@ -266,4 +269,5 @@ test("legacy egg save에 hatchDurationMs가 없어도 기본 duration으로 복�
     EggHatchComp.hatchDurationMs[eid],
     getDefaultEggHatchDurationMs(),
   );
+  assert.equal(EggHatchComp.syringeCount[eid], 0);
 });
