@@ -101,6 +101,8 @@ const App = () => {
     };
     window.digiviceAdFallbackBridge = {
       showOfflineInterstitialFallback: () => showOfflineInterstitialFallback(),
+      completeOfflineInterstitialFallback: (completed = true) =>
+        clearOfflineAdFallback(completed),
       isActive: () => isOfflineAdFallbackActiveRef.current,
     };
 

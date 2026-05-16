@@ -4,6 +4,12 @@ import { PlatformAdapter } from "../adapter/PlatformAdapter";
 
 const DEFAULT_NATIVE_AD_COOLDOWN_MS = 4 * 60 * 60 * 1000;
 const ONLINE_AD_RETRY_STORAGE_KEY = "digivice_pending_online_ad_retry";
+const OFFLINE_FALLBACK_AD_RETRY_INTERVAL_MS = 1000;
+
+type OfflineInterstitialFallbackResult =
+  | "fallback_completed"
+  | "ad_shown"
+  | false;
 
 function resolveCooldownMs(metadata: Record<string, unknown> | undefined) {
   const cooldownMs = metadata?.cooldownMs;
@@ -113,12 +119,16 @@ export class AdManager {
         return false;
       }
 
-      const fallbackDidComplete = await this.showOfflineInterstitialFallback(
+      const fallbackResult = await this.showOfflineInterstitialFallback(
         trigger,
         cooldownMs,
       );
 
-      if (fallbackDidComplete) {
+      if (fallbackResult === "ad_shown") {
+        return true;
+      }
+
+      if (fallbackResult === "fallback_completed") {
         this.markPendingOnlineAdRetry();
         return true;
       }
@@ -224,7 +234,7 @@ export class AdManager {
   private async showOfflineInterstitialFallback(
     trigger: string,
     cooldownMs: number,
-  ): Promise<boolean> {
+  ): Promise<OfflineInterstitialFallbackResult> {
     const fallbackBridge =
       typeof window !== "undefined"
         ? window.digiviceAdFallbackBridge
@@ -235,18 +245,99 @@ export class AdManager {
       return false;
     }
 
-    try {
-      const completed = await fallbackBridge.showOfflineInterstitialFallback({
-        trigger,
-        cooldownMs,
-        timestamp: Date.now(),
-      });
+    return new Promise<OfflineInterstitialFallbackResult>((resolve) => {
+      let settled = false;
+      let retryTimerId: number | null = null;
 
-      return completed === true;
-    } catch (fallbackError) {
-      console.error(
-        "[AdManager] Error showing offline interstitial fallback:",
-        fallbackError,
+      const finish = (result: OfflineInterstitialFallbackResult) => {
+        if (settled) {
+          return;
+        }
+
+        settled = true;
+        if (retryTimerId !== null) {
+          window.clearTimeout(retryTimerId);
+          retryTimerId = null;
+        }
+
+        resolve(result);
+      };
+
+      const scheduleRetry = () => {
+        if (settled) {
+          return;
+        }
+
+        retryTimerId = window.setTimeout(() => {
+          retryTimerId = null;
+          void retryAdConnection();
+        }, OFFLINE_FALLBACK_AD_RETRY_INTERVAL_MS);
+      };
+
+      const retryAdConnection = async () => {
+        if (settled) {
+          return;
+        }
+
+        const didShow = await this.tryShowRecoveredInterstitial(cooldownMs);
+
+        if (settled) {
+          return;
+        }
+
+        if (didShow) {
+          try {
+            fallbackBridge.completeOfflineInterstitialFallback?.(true);
+          } finally {
+            finish("ad_shown");
+          }
+          return;
+        }
+
+        scheduleRetry();
+      };
+
+      fallbackBridge
+        .showOfflineInterstitialFallback({
+          trigger,
+          cooldownMs,
+          timestamp: Date.now(),
+        })
+        .then((completed) => {
+          finish(completed === true ? "fallback_completed" : false);
+        })
+        .catch((fallbackError) => {
+          console.error(
+            "[AdManager] Error showing offline interstitial fallback:",
+            fallbackError,
+          );
+          finish(false);
+        });
+
+      scheduleRetry();
+    });
+  }
+
+  private async tryShowRecoveredInterstitial(cooldownMs: number): Promise<boolean> {
+    if (!window.adController) {
+      return false;
+    }
+
+    try {
+      const canShowStr = await window.adController.canShowAd({ cooldownMs });
+      if (canShowStr !== "true") {
+        return false;
+      }
+
+      await window.adController.showInterstitial({ cooldownMs });
+      console.log("[AdManager] Recovered ad shown during offline fallback");
+      CooldownCondition.updateCooldown();
+      this.clearPendingOnlineAdRetry();
+      return true;
+    } catch (error) {
+      console.warn(
+        "[AdManager] Recovered ad attempt failed during offline fallback",
+        error,
       );
       return false;
     }

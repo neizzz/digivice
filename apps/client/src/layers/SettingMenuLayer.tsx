@@ -29,6 +29,7 @@ interface SettingMenuLayerProps {
   onCloseResetConfirm: () => void;
   onResetGameData: () => void;
   onClose: () => void;
+  onShowOfflineAdFallback?: () => void;
 }
 
 const ToggleButton: React.FC<{
@@ -75,6 +76,12 @@ const ActionButton: React.FC<{
     </button>
   );
 };
+
+const DevModeBadge: React.FC = () => (
+  <span className="border-2 border-[#222] bg-yellow-300 px-2 py-0.5 text-[0.85rem] uppercase leading-none text-[#222]">
+    Dev Mode
+  </span>
+);
 
 const LanguageButton: React.FC<{
   locale: LocaleCode;
@@ -128,6 +135,7 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
   onCloseResetConfirm,
   onResetGameData,
   onClose,
+  onShowOfflineAdFallback,
 }) => {
   const { t } = useI18n();
   const [resetConfirmCode, setResetConfirmCode] =
@@ -286,9 +294,7 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
               <div className="border-t-2 border-[#222] pt-4">
                 <div className="mb-3 flex flex-wrap items-center gap-2 font-bold">
                   <span>Language</span>
-                  <span className="border-2 border-[#222] bg-yellow-300 px-2 py-0.5 text-[0.85rem] uppercase leading-none text-[#222]">
-                    Dev Mode
-                  </span>
+                  <DevModeBadge />
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   {SUPPORTED_LOCALES.map((localeOption) => (
@@ -299,6 +305,22 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
                       onClick={() => onChangeLocale(localeOption)}
                     />
                   ))}
+                </div>
+                <div className="mt-4 border-t-2 border-[#222] pt-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2 font-bold">
+                        <span>Offline Ad</span>
+                        <DevModeBadge />
+                      </div>
+                    </div>
+                    <ActionButton
+                      text="Show"
+                      onClick={() => onShowOfflineAdFallback?.()}
+                      disabled={!onShowOfflineAdFallback}
+                      variant="warning"
+                    />
+                  </div>
                 </div>
               </div>
             )}

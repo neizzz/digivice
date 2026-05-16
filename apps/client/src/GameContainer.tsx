@@ -2074,6 +2074,30 @@ const GameContainer: React.FC = () => {
     t,
   ]);
 
+  const handleShowOfflineAdFallback = useCallback(() => {
+    const fallbackBridge =
+      typeof window !== "undefined"
+        ? window.digiviceAdFallbackBridge
+        : undefined;
+
+    if (!fallbackBridge?.showOfflineInterstitialFallback) {
+      console.warn("[GameContainer] Offline ad fallback bridge is unavailable");
+      return;
+    }
+
+    void fallbackBridge
+      .showOfflineInterstitialFallback({
+        trigger: "debug_settings",
+        cooldownMs: 0,
+        timestamp: Date.now(),
+      })
+      .catch((error) => {
+        console.warn("[GameContainer] Failed to show offline ad fallback", {
+          error,
+        });
+      });
+  }, []);
+
   const handleCancelDiagnosticsDraft = useCallback(() => {
     dismissDiagnosticsDraft();
   }, [dismissDiagnosticsDraft]);
@@ -3050,6 +3074,7 @@ const GameContainer: React.FC = () => {
           onCloseResetConfirm={dismissResetConfirm}
           onResetGameData={handleResetGameData}
           onClose={dismissSettingMenu}
+          onShowOfflineAdFallback={handleShowOfflineAdFallback}
         />
       )}
       {alertState && (

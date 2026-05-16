@@ -95,6 +95,12 @@ const SelectButton: React.FC<{
   );
 };
 
+const DevModeBadge: React.FC = () => (
+  <span className="border-2 border-[#222] bg-yellow-300 px-2 py-0.5 text-[0.85rem] uppercase leading-none text-[#222]">
+    Dev Mode
+  </span>
+);
+
 const FlappyBirdSettingsLayer: React.FC<FlappyBirdSettingsLayerProps> = ({
   isBgmEnabled,
   isSfxEnabled,
@@ -122,8 +128,8 @@ const FlappyBirdSettingsLayer: React.FC<FlappyBirdSettingsLayerProps> = ({
           <div className="flex flex-col gap-5 text-left text-[1.5rem]">
             <div className="flex flex-col gap-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <div className="whitespace-nowrap font-bold">
+                <div className="min-w-0 flex-1">
+                  <div className="font-bold">
                     {t("flappy.bgm")}
                   </div>
                 </div>
@@ -133,8 +139,8 @@ const FlappyBirdSettingsLayer: React.FC<FlappyBirdSettingsLayerProps> = ({
                 />
               </div>
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <div className="whitespace-nowrap font-bold">
+                <div className="min-w-0 flex-1">
+                  <div className="font-bold">
                     {t("flappy.sfx")}
                   </div>
                 </div>
@@ -147,7 +153,7 @@ const FlappyBirdSettingsLayer: React.FC<FlappyBirdSettingsLayerProps> = ({
 
             <div className="border-t-2 border-[#222] pt-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="whitespace-nowrap font-bold">
+                <div className="min-w-0 flex-1 font-bold">
                   {t("flappy.openSource")}
                 </div>
                 <ActionButton
@@ -159,7 +165,10 @@ const FlappyBirdSettingsLayer: React.FC<FlappyBirdSettingsLayerProps> = ({
 
             {shouldShowSkySelector ? (
               <div className="border-t-2 border-[#222] pt-4">
-                <div className="mb-3 font-bold">{t("flappy.skyDev")}</div>
+                <div className="mb-3 flex flex-wrap items-center gap-2 font-bold">
+                  <span>{t("flappy.skyDev")}</span>
+                  <DevModeBadge />
+                </div>
                 <div className="grid grid-cols-2 gap-2">
                   {TIME_OF_DAY_OPTIONS.map((timeOfDay) => (
                     <SelectButton

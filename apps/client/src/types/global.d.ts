@@ -87,6 +87,7 @@ declare global {
       showOfflineInterstitialFallback: (
         request: OfflineInterstitialFallbackRequest,
       ) => Promise<boolean>;
+      completeOfflineInterstitialFallback: (completed?: boolean) => void;
       isActive: () => boolean;
     };
     digiviceBackBridge?: {
