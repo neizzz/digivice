@@ -316,6 +316,7 @@ const MAIN_SCENE_AD_NORMAL_COOLDOWN_MS = 2 * 60 * 1000;
 const MAIN_SCENE_AD_DEEP_NIGHT_COOLDOWN_MS = 60 * 60 * 1000;
 const MAIN_SCENE_AD_POST_ACTION_DELAY_MS = 500;
 const MAIN_SCENE_AD_FEED_FALLBACK_AFTER_LAND_MS = 3000;
+const MAIN_SCENE_AD_FEED_IDLE_RETRY_MS = 1000;
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 
@@ -799,15 +800,24 @@ export class MainSceneWorld implements IWorld, Scene {
 
     let createdReservation: MainSceneAdPendingReservation | null = null;
     const config = this._getMainSceneAdConfig();
-    if (adState.pending?.online_retry) {
+    if (adState.pending) {
+      const isOnlineRetry = adState.pending.online_retry === true;
       adState.pending = {
         ...adState.pending,
         menu,
         queued_at: this.currentTime,
         cooldown_ms: config.cooldownMs,
+        threshold: isOnlineRetry ? 1 : config.threshold,
         deep_night: config.deepNight,
+        online_retry: isOnlineRetry ? true : undefined,
       };
       createdReservation = adState.pending;
+      console.log("[MainSceneWorld] MainScene pending ad retargeted", {
+        menu,
+        menuUseCount: adState.menu_use_count,
+        onlineRetry: isOnlineRetry,
+        ...config,
+      });
     } else if (!adState.pending) {
       if (this._hasPendingOnlineAdRetry()) {
         createdReservation = {
@@ -1096,21 +1106,31 @@ export class MainSceneWorld implements IWorld, Scene {
     return ObjectComp.state[mainCharacterEid] === CharacterState.IDLE;
   }
 
-  public handleThrownFoodLanded(foodEid: number): void {
-    if (this.isSimulationMode || this._pendingFeedAdFoodEid !== foodEid) {
-      return;
-    }
-
+  private _scheduleFeedAdFallback(foodEid: number, delayMs: number): void {
     this._clearFeedAdFallbackTimer();
     this._feedAdFallbackTimerId = this._setMainSceneAdTimer(() => {
       this._feedAdFallbackTimerId = null;
+
+      if (this.isSimulationMode || this._pendingFeedAdFoodEid !== foodEid) {
+        return;
+      }
+
+      const pending = this._getMainSceneAdState()?.pending;
+      if (!pending || pending.menu !== "feed") {
+        return;
+      }
 
       if (!this._isMainCharacterIdleForFeedAd()) {
         console.log(
           "[MainSceneWorld] Deferred feed ad fallback because main character is not idle",
           {
             foodEid,
+            retryMs: MAIN_SCENE_AD_FEED_IDLE_RETRY_MS,
           },
+        );
+        this._scheduleFeedAdFallback(
+          foodEid,
+          MAIN_SCENE_AD_FEED_IDLE_RETRY_MS,
         );
         return;
       }
@@ -1119,7 +1139,18 @@ export class MainSceneWorld implements IWorld, Scene {
         "feed",
         MAIN_SCENE_AD_POST_ACTION_DELAY_MS,
       );
-    }, MAIN_SCENE_AD_FEED_FALLBACK_AFTER_LAND_MS);
+    }, delayMs);
+  }
+
+  public handleThrownFoodLanded(foodEid: number): void {
+    if (this.isSimulationMode || this._pendingFeedAdFoodEid !== foodEid) {
+      return;
+    }
+
+    this._scheduleFeedAdFallback(
+      foodEid,
+      MAIN_SCENE_AD_FEED_FALLBACK_AFTER_LAND_MS,
+    );
   }
 
   public handleFoodConsumedForAd(foodEid: number): void {

@@ -383,6 +383,52 @@ test("병원 메뉴 광고는 회복 완료 후 500ms 지연을 거쳐 요청된
   }
 });
 
+test("이전 pending 메뉴가 완료되지 않아도 다음 완료 메뉴로 광고 예약을 갱신한다", async () => {
+  const world = createMainSceneWorld();
+  const requests: MainSceneAdRequest[] = [];
+  const browser = installMockBrowserEnv({
+    requestMainSceneMenuAd: async (request) => {
+      requests.push(request);
+      return true;
+    },
+  });
+
+  try {
+    withMockedDateNow(20_000, () => {
+      for (let i = 0; i < 5; i++) {
+        world._recordMainSceneMenuUse("feed");
+      }
+    });
+
+    assert.equal(getAdState(world)?.menu_use_count, 5);
+    assert.equal(getAdState(world)?.pending?.menu, "feed");
+
+    withMockedDateNow(21_000, () => {
+      world._recordMainSceneMenuUse("clean");
+    });
+
+    assert.equal(getAdState(world)?.menu_use_count, 6);
+    assert.equal(getAdState(world)?.pending?.menu, "clean");
+    assert.equal(getAdState(world)?.pending?.threshold, 5);
+    assert.equal(getAdState(world)?.pending?.queued_at, 21_000);
+
+    world._schedulePendingMainSceneAdForMenu("clean", 500);
+    assert.equal(browser.timers.length, 1);
+    assert.equal(browser.timers[0].delayMs, 500);
+
+    browser.runNextTimer();
+    await flushAsyncTasks();
+
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0].menu, "clean");
+    assert.equal(requests[0].menuUseCount, 6);
+    assert.equal(getAdState(world)?.menu_use_count, 0);
+    assert.equal(getAdState(world)?.pending, undefined);
+  } finally {
+    browser.cleanup();
+  }
+});
+
 test("먹이 메뉴 광고 예약은 음식 착지 후 fallback 지연을 거쳐 안전 시점에 요청된다", async () => {
   const world = createMainSceneWorld();
   const requests: MainSceneAdRequest[] = [];
@@ -424,7 +470,7 @@ test("먹이 메뉴 광고 예약은 음식 착지 후 fallback 지연을 거쳐
   }
 });
 
-test("먹이 메뉴 광고 fallback 은 3초 후 메인 캐릭터가 idle 상태일 때만 요청된다", async () => {
+test("먹이 메뉴 광고 fallback 은 3초 후 idle이 아니면 재시도하고 idle 전환 후 요청된다", async () => {
   const world = createMainSceneWorld();
   const requests: MainSceneAdRequest[] = [];
   const browser = installMockBrowserEnv({
@@ -452,11 +498,26 @@ test("먹이 메뉴 광고 fallback 은 3초 후 메인 캐릭터가 idle 상태
     browser.runNextTimer();
     await flushAsyncTasks();
 
-    assert.equal(browser.timers.length, 0);
+    assert.equal(browser.timers.length, 1);
+    assert.equal(browser.timers[0].delayMs, 1000);
     assert.equal(requests.length, 0);
     assert.equal(world._pendingFeedAdFoodEid, 123);
     assert.equal(getAdState(world)?.menu_use_count, 5);
     assert.equal(getAdState(world)?.pending?.menu, "feed");
+
+    setMainCharacterState(world, CharacterState.IDLE);
+
+    browser.runNextTimer();
+    assert.equal(browser.timers.length, 1);
+    assert.equal(browser.timers[0].delayMs, 500);
+
+    browser.runNextTimer();
+    await flushAsyncTasks();
+
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0].menu, "feed");
+    assert.equal(getAdState(world)?.menu_use_count, 0);
+    assert.equal(getAdState(world)?.pending, undefined);
   } finally {
     browser.cleanup();
   }
