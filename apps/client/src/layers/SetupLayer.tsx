@@ -86,7 +86,7 @@ export const SetupLayer: React.FC<SetupLayerProps> = ({ onComplete }) => {
                 className="w-full border-2 border-[#222] px-3 py-0.5 text-center text-[1.4rem] focus:outline-none focus:ring-2 focus:ring-[#d95763]"
               />
               <div
-                className={`mt-4 text-[1.4rem] ${
+                className={`mt-2 text-[1.2rem] ${
                   isWithinVisibleWidth ? "text-gray-600" : "text-red-600"
                 }`}
               >
