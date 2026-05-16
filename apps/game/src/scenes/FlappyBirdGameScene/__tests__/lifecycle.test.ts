@@ -77,6 +77,45 @@ test("앱이 hidden 되면 PLAYING 상태가 app suspend pause로 전환된다",
   ]);
 });
 
+test("native back exit 준비는 PLAYING 상태를 app suspend pause로 전환한다", () => {
+  const { scene, callLog } = createSceneHarness();
+
+  scene.clearGameOverVibrationPattern = () => {
+    callLog.push("clearGameOverVibrationPattern");
+  };
+
+  scene.prepareForNativeBackExit();
+
+  assert.equal(scene.gameState, GameState.PAUSED);
+  assert.equal(scene.isAppSuspended, true);
+  assert.equal(scene.pausedStateBeforePause, GameState.PLAYING);
+  assert.deepEqual(callLog, [
+    "clearGameOverVibrationPattern",
+    "engine.pause",
+    "player.stopAnimation",
+    "physics.syncDisplayObjects",
+    "player.update",
+    "bgm.pause",
+  ]);
+});
+
+test("native back exit 준비는 GAME_OVER 상태에서 진행 중인 vibration timer만 정리한다", () => {
+  const { scene, callLog } = createSceneHarness({
+    gameState: GameState.GAME_OVER,
+  });
+
+  scene.clearGameOverVibrationPattern = () => {
+    callLog.push("clearGameOverVibrationPattern");
+  };
+
+  scene.prepareForNativeBackExit();
+
+  assert.equal(scene.gameState, GameState.GAME_OVER);
+  assert.equal(scene.isAppSuspended, false);
+  assert.equal(scene.pausedStateBeforePause, null);
+  assert.deepEqual(callLog, ["clearGameOverVibrationPattern"]);
+});
+
 test("앱 복귀 후 resume하면 PLAYING 상태와 오디오/애니메이션이 복원된다", async () => {
   const { scene, callLog } = createSceneHarness();
 

@@ -1104,7 +1104,23 @@ const GameContainer: React.FC = () => {
       return "consumed";
     }
 
-    if (flappyBirdGameOverState) {
+    const currentSceneKey =
+      gameInstance?.getCurrentSceneKey() ??
+      sceneHistoryStack[sceneHistoryStack.length - 1] ??
+      SceneKey.MAIN;
+
+    if (
+      currentSceneKey === SceneKey.FLAPPY_BIRD_GAME &&
+      activeBackNavigationEntriesRef.current.length === 0
+    ) {
+      gameInstance?.prepareCurrentSceneForNativeBackExit();
+      return "exit";
+    }
+
+    if (
+      flappyBirdGameOverState &&
+      currentSceneKey !== SceneKey.FLAPPY_BIRD_GAME
+    ) {
       const { onExit } = flappyBirdGameOverState;
       setFlappyBirdGameOverState(null);
       void Promise.resolve(onExit());
@@ -1112,9 +1128,6 @@ const GameContainer: React.FC = () => {
     }
 
     if (activeBackNavigationEntriesRef.current.length === 0) {
-      const currentSceneKey =
-        sceneHistoryStack[sceneHistoryStack.length - 1] ?? SceneKey.MAIN;
-
       if (currentSceneKey !== SceneKey.MAIN) {
         if (gameInstance) {
           void gameInstance.changeScene(SceneKey.MAIN);
@@ -1565,6 +1578,10 @@ const GameContainer: React.FC = () => {
       );
       clearLoadingTimeout();
       setSceneHistoryStack((previous) => {
+        if (params.to === SceneKey.FLAPPY_BIRD_GAME) {
+          return previous;
+        }
+
         if (previous[previous.length - 1] === params.to) {
           return previous;
         }

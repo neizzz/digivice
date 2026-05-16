@@ -631,6 +631,19 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
     this.enterPausedState(this.gameState, { appSuspend: true });
   }
 
+  public prepareForNativeBackExit(): void {
+    this.clearGameOverVibrationPattern();
+
+    if (
+      this.gameState !== GameState.PLAYING &&
+      this.gameState !== GameState.COUNTDOWN
+    ) {
+      return;
+    }
+
+    this.enterPausedState(this.gameState, { appSuspend: true });
+  }
+
   private handleDocumentVisible(): void {
     if (
       !this.isAppSuspended ||

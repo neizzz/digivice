@@ -1113,6 +1113,15 @@ export class Game {
     return this.currentSceneKey;
   }
 
+  public prepareCurrentSceneForNativeBackExit(): boolean {
+    if (!this.currentScene?.prepareForNativeBackExit) {
+      return false;
+    }
+
+    this.currentScene.prepareForNativeBackExit();
+    return true;
+  }
+
   public requestSceneTransitionInterruption(params: {
     requestId: number;
     fallbackScene: SceneKey;
