@@ -370,6 +370,11 @@ function selectPoopSpawnPosition(
     return fallbackPosition;
   }
 
+  const shouldSpreadUnseenReentryPoop =
+    world.isSimulationMode && hasNearbyPoop(world, fallbackPosition);
+  let bestReentryCandidate: Point | null = null;
+  let bestReentryCandidateSpacing = Number.NEGATIVE_INFINITY;
+
   for (let attempt = 0; attempt < GAME_CONSTANTS.POOP_SPAWN_RETRY_COUNT; attempt++) {
     const angleOffset =
       (Math.random() * 2 - 1) * GAME_CONSTANTS.POOP_SPAWN_ANGLE_JITTER_RAD;
@@ -386,13 +391,32 @@ function selectPoopSpawnPosition(
       behindAngle + angleOffset,
       candidateDistance,
     );
+    const candidateSpacing = getNearestPoopSpacingDistance(
+      world,
+      candidatePosition,
+    );
 
-    if (hasRequiredPoopSpacing(world, candidatePosition)) {
+    if (
+      shouldSpreadUnseenReentryPoop &&
+      candidateSpacing > bestReentryCandidateSpacing
+    ) {
+      bestReentryCandidate = candidatePosition;
+      bestReentryCandidateSpacing = candidateSpacing;
+    }
+
+    if (candidateSpacing >= GAME_CONSTANTS.POOP_SPAWN_MIN_OBJECT_SPACING) {
       debugLog(
         `[DigestiveSystem] Selected alternate poop position on retry ${attempt + 1}: (${candidatePosition.x}, ${candidatePosition.y})`,
       );
       return candidatePosition;
     }
+  }
+
+  if (shouldSpreadUnseenReentryPoop && bestReentryCandidate) {
+    debugLog(
+      `[DigestiveSystem] Selected best-effort reentry poop position after ${GAME_CONSTANTS.POOP_SPAWN_RETRY_COUNT} retries: (${bestReentryCandidate.x}, ${bestReentryCandidate.y})`,
+    );
+    return bestReentryCandidate;
   }
 
   debugLog(
@@ -451,6 +475,28 @@ function getNearestPoopSpacingDistance(
   }
 
   return nearestDistance;
+}
+
+function hasNearbyPoop(world: MainSceneWorld, position: Point): boolean {
+  const objects = positionedObjectQuery(world);
+
+  for (let index = 0; index < objects.length; index++) {
+    const eid = objects[index];
+
+    if (ObjectComp.type[eid] !== ObjectType.POOB) {
+      continue;
+    }
+
+    const deltaX = position.x - PositionComp.x[eid];
+    const deltaY = position.y - PositionComp.y[eid];
+    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+    if (distance < GAME_CONSTANTS.POOP_SPAWN_MIN_OBJECT_SPACING) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 /**

@@ -267,6 +267,41 @@ test("재시도 후보가 모두 실패하면 기존 poop 위치로 폴백한다
   assert.equal(PositionComp.y[spawnedPoopEid as number], 200);
 });
 
+test("재진입 중 새 poop 기본 위치에 기존 poop이 있으면 후보가 막혀도 랜덤 후보 위치를 사용한다", () => {
+  const world = createTestWorld({ now: 10_000, isSimulationMode: true });
+  const characterEid = withMockedDateNow(10_000, () =>
+    createTestCharacter(world, {
+      stamina: 5,
+      x: 200,
+      y: 200,
+    }),
+  );
+  const blockingPoobEid = createPositionedObject(world, {
+    type: ObjectType.POOB,
+    x: 175,
+    y: 200,
+  });
+  createPositionedObject(world, {
+    type: ObjectType.FOOD,
+    x: 200,
+    y: 155,
+    state: FoodState.LANDED,
+  });
+
+  withMockedRandom(1, () => {
+    createPoop(world as any, characterEid);
+  });
+
+  const spawnedPoopEid = objectQuery(world).find(
+    (eid) => ObjectComp.type[eid] === ObjectType.POOB && eid !== blockingPoobEid,
+  );
+  assert.notEqual(spawnedPoopEid, undefined);
+  assert.notEqual(PositionComp.x[spawnedPoopEid as number], 175);
+  assert.notEqual(PositionComp.y[spawnedPoopEid as number], 200);
+  assert.equal(Math.round(PositionComp.x[spawnedPoopEid as number]), 200);
+  assert.equal(Math.round(PositionComp.y[spawnedPoopEid as number]), 155);
+});
+
 function createPositionedObject(
   world: ReturnType<typeof createTestWorld>,
   options: {
