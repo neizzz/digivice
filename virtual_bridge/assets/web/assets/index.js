@@ -2,7 +2,7 @@ const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["./browserAll.js","./we
 var __defProp = Object.defineProperty;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
-import { g as getDefaultExportFromCjs, S as SHOW_DEBUG_GAUGE_EVENT, c as commonjsGlobal, r as reactExports, j as jsxRuntimeExports, a as requireReactDom, T as TopLeftBuildLogoText, R as ReactDOM } from "./index2.js";
+import { g as getDefaultExportFromCjs, S as SHOW_DEBUG_GAUGE_EVENT, c as commonjsGlobal, r as reactExports, j as jsxDevRuntimeExports, a as requireReactDom, T as TopLeftBuildLogoText, R as ReactDOM } from "./index2.js";
 const STORAGE_PREVIEW_LIMIT = 120;
 const FLUTTER_STORAGE_TIMEOUT_MS = {
   getData: 3e3,
@@ -10,9 +10,7 @@ const FLUTTER_STORAGE_TIMEOUT_MS = {
   removeData: 2e3
 };
 function _debugStorage(...args) {
-  {
-    return;
-  }
+  console.debug(...args);
 }
 function _serialize(obj) {
   return JSON.stringify(obj);
@@ -114,8 +112,10 @@ class WebLocalStorage {
   //   localStorage.setItem(key, value);
   // }, 1000);
   async getData(key) {
+    _debugStorage("[WebLocalStorage] getData:start", { key });
     const value = localStorage.getItem(key);
     if (value === null) {
+      _debugStorage("[WebLocalStorage] getData:miss", { key });
       return await Promise.resolve(null);
     }
     _debugStorage("[WebLocalStorage] getData:raw", {
@@ -147,10 +147,13 @@ class WebLocalStorage {
       preview: _previewValue(value)
     });
     localStorage.setItem(key, value);
+    _debugStorage("[WebLocalStorage] setData:success", { key });
     return Promise.resolve();
   }
   removeData(key) {
+    _debugStorage("[WebLocalStorage] removeData:start", { key });
     localStorage.removeItem(key);
+    _debugStorage("[WebLocalStorage] removeData:success", { key });
     return Promise.resolve();
   }
 }
@@ -162,6 +165,7 @@ class FlutterStorage {
     return window.storageController;
   }
   async getData(key) {
+    _debugStorage("[FlutterStorage] getData:start", { key });
     const value = await _withFlutterStorageTimeout({
       operation: "getData",
       key,
@@ -174,6 +178,7 @@ class FlutterStorage {
       preview: _previewValue(value)
     });
     if (_isMissingSerializedValue(value)) {
+      _debugStorage("[FlutterStorage] getData:miss", { key });
       return null;
     }
     try {
@@ -210,13 +215,16 @@ class FlutterStorage {
       payloadLength: serializedValue.length,
       promiseFactory: () => this._getStorageController().setData(key, serializedValue)
     });
+    _debugStorage("[FlutterStorage] setData:success", { key });
   }
   async removeData(key) {
+    _debugStorage("[FlutterStorage] removeData:start", { key });
     await _withFlutterStorageTimeout({
       operation: "removeData",
       key,
       promiseFactory: () => this._getStorageController().removeData(key)
     });
+    _debugStorage("[FlutterStorage] removeData:success", { key });
   }
 }
 const SUPPORTED_LOCALES = [
@@ -295,8 +303,7 @@ const en = {
   "viewport.unsupportedRatio": "This screen ratio is not supported.",
   "viewport.useTallerPortrait": "Please use a taller portrait screen.",
   "offlineAd.title": "Connecting Ad...",
-  "offlineAd.message": "We're connecting to the ad network. You'll return to the game automatically.",
-  "offlineAd.maxDuration": "This can take up to 10 seconds.",
+  "offlineAd.message": "Repeated ad connection failures may negatively affect monster growth.",
   "offlineAd.returningIn": "Returning in {seconds}s",
   "diagnostics.prepareFailed": "Failed to prepare diagnostics payload.",
   "diagnostics.flappyPrepareFailed": "Failed to prepare FlappyBird logs.",
@@ -372,8 +379,7 @@ const ko = {
   "viewport.unsupportedRatio": "지원하지 않는 화면 비율입니다.",
   "viewport.useTallerPortrait": "더 긴 세로 화면을 사용해 주세요.",
   "offlineAd.title": "광고 연결 중...",
-  "offlineAd.message": "광고 네트워크에 연결하고 있습니다. 완료되면 게임으로 자동 복귀합니다.",
-  "offlineAd.maxDuration": "최대 10초가 걸릴 수 있습니다.",
+  "offlineAd.message": "지속적인 광고 연결 실패 시, 몬스터 육성에 불이익이 있을 수 있습니다.",
   "offlineAd.returningIn": "{seconds}초 후 복귀",
   "diagnostics.prepareFailed": "진단 정보를 준비하지 못했습니다.",
   "diagnostics.flappyPrepareFailed": "FlappyBird 로그를 준비하지 못했습니다.",
@@ -449,8 +455,7 @@ const ja = {
   "viewport.unsupportedRatio": "この画面比率は対応していません。",
   "viewport.useTallerPortrait": "より縦長の画面を使用してください。",
   "offlineAd.title": "広告に接続中...",
-  "offlineAd.message": "広告ネットワークに接続しています。完了後、自動的にゲームへ戻ります。",
-  "offlineAd.maxDuration": "最大10秒かかる場合があります。",
+  "offlineAd.message": "広告接続の失敗が続くと、モンスター育成に不利な影響が出る場合があります。",
   "offlineAd.returningIn": "{seconds}秒後に戻ります",
   "diagnostics.prepareFailed": "診断データを準備できませんでした。",
   "diagnostics.flappyPrepareFailed": "FlappyBirdログを準備できませんでした。",
@@ -526,8 +531,7 @@ const zhTW = {
   "viewport.unsupportedRatio": "不支援此螢幕比例。",
   "viewport.useTallerPortrait": "請使用較高的直向螢幕。",
   "offlineAd.title": "正在連接廣告...",
-  "offlineAd.message": "正在連接廣告網路。完成後會自動回到遊戲。",
-  "offlineAd.maxDuration": "最多可能需要 10 秒。",
+  "offlineAd.message": "如果廣告連線持續失敗，怪獸培育可能會受到不利影響。",
   "offlineAd.returningIn": "{seconds} 秒後返回",
   "diagnostics.prepareFailed": "無法準備診斷資料。",
   "diagnostics.flappyPrepareFailed": "無法準備 FlappyBird 記錄。",
@@ -614,8 +618,7 @@ const hi = {
   "viewport.unsupportedRatio": "यह स्क्रीन अनुपात समर्थित नहीं है।",
   "viewport.useTallerPortrait": "कृपया लंबी पोर्ट्रेट स्क्रीन का उपयोग करें।",
   "offlineAd.title": "विज्ञापन कनेक्ट हो रहा है...",
-  "offlineAd.message": "हम विज्ञापन नेटवर्क से जुड़ रहे हैं। आप अपने आप गेम में लौट आएँगे।",
-  "offlineAd.maxDuration": "इसमें 10 सेकंड तक लग सकते हैं।",
+  "offlineAd.message": "लगातार विज्ञापन कनेक्शन विफल होने पर मॉन्स्टर पालने में नुकसान हो सकता है।",
   "offlineAd.returningIn": "{seconds}s में वापसी",
   "diagnostics.prepareFailed": "डायग्नोस्टिक्स पेलोड तैयार नहीं हो सका।",
   "diagnostics.flappyPrepareFailed": "FlappyBird लॉग तैयार नहीं हो सके।",
@@ -691,8 +694,7 @@ const th = {
   "viewport.unsupportedRatio": "ไม่รองรับอัตราส่วนหน้าจอนี้",
   "viewport.useTallerPortrait": "กรุณาใช้หน้าจอแนวตั้งที่สูงกว่า",
   "offlineAd.title": "กำลังเชื่อมต่อโฆษณา...",
-  "offlineAd.message": "กำลังเชื่อมต่อเครือข่ายโฆษณา แล้วจะกลับเข้าเกมโดยอัตโนมัติ",
-  "offlineAd.maxDuration": "อาจใช้เวลาสูงสุด 10 วินาที",
+  "offlineAd.message": "หากเชื่อมต่อโฆษณาล้มเหลวต่อเนื่อง การเลี้ยงมอนสเตอร์อาจได้รับผลเสีย",
   "offlineAd.returningIn": "กลับใน {seconds} วินาที",
   "diagnostics.prepareFailed": "เตรียมข้อมูลวินิจฉัยไม่สำเร็จ",
   "diagnostics.flappyPrepareFailed": "เตรียมล็อก FlappyBird ไม่สำเร็จ",
@@ -768,8 +770,7 @@ const vi = {
   "viewport.unsupportedRatio": "Tỷ lệ màn hình này không được hỗ trợ.",
   "viewport.useTallerPortrait": "Vui lòng dùng màn hình dọc cao hơn.",
   "offlineAd.title": "Đang kết nối quảng cáo...",
-  "offlineAd.message": "Đang kết nối mạng quảng cáo. Bạn sẽ tự động quay lại game.",
-  "offlineAd.maxDuration": "Có thể mất tối đa 10 giây.",
+  "offlineAd.message": "Nếu kết nối quảng cáo liên tục thất bại, việc nuôi quái vật có thể bị bất lợi.",
   "offlineAd.returningIn": "Quay lại sau {seconds}s",
   "diagnostics.prepareFailed": "Không thể chuẩn bị dữ liệu chẩn đoán.",
   "diagnostics.flappyPrepareFailed": "Không thể chuẩn bị nhật ký FlappyBird.",
@@ -845,8 +846,7 @@ const ptBR = {
   "viewport.unsupportedRatio": "Esta proporção de tela não é suportada.",
   "viewport.useTallerPortrait": "Use uma tela retrato mais alta.",
   "offlineAd.title": "Conectando anúncio...",
-  "offlineAd.message": "Estamos conectando à rede de anúncios. Você voltará ao jogo automaticamente.",
-  "offlineAd.maxDuration": "Isso pode levar até 10 segundos.",
+  "offlineAd.message": "Falhas contínuas na conexão de anúncios podem prejudicar a criação do monstro.",
   "offlineAd.returningIn": "Voltando em {seconds}s",
   "diagnostics.prepareFailed": "Falha ao preparar os diagnósticos.",
   "diagnostics.flappyPrepareFailed": "Falha ao preparar os logs do FlappyBird.",
@@ -28522,18 +28522,18 @@ const PRODUCTION_EVOLUTION_TARGET_DURATION_BY_CLASS_MS = {
   [CharacterClass.C]: 80 * HOUR_MS$1,
   [CharacterClass.D]: 80 * HOUR_MS$1
 };
-const PRODUCTION_EVOLUTION_TARGET_DURATION_VARIANCE_BY_CLASS_MS = {
+({
   [CharacterClass.A]: 2 * HOUR_MS$1,
   [CharacterClass.B]: 4 * HOUR_MS$1,
   [CharacterClass.C]: 8 * HOUR_MS$1,
   [CharacterClass.D]: 8 * HOUR_MS$1
-};
-({
+});
+const DEV_GAUGE_GAIN_BY_CLASS = {
   [CharacterClass.A]: 1 * EVOLUTION_GAUGE_GAIN_MULTIPLIER,
   [CharacterClass.B]: 1 * EVOLUTION_GAUGE_GAIN_MULTIPLIER,
   [CharacterClass.C]: 1 * EVOLUTION_GAUGE_GAIN_MULTIPLIER,
   [CharacterClass.D]: 1 * EVOLUTION_GAUGE_GAIN_MULTIPLIER
-});
+};
 function getGaugeGainForDurationMs(params) {
   const { maxGauge, checkIntervalMs, durationMs } = params;
   if (durationMs <= 0) {
@@ -28566,30 +28566,23 @@ function getAverageGaugeGainByClass(params) {
     })
   };
 }
-function getStableSeededUnitValue(seed) {
-  let hash = 2166136261;
-  for (let i2 = 0; i2 < seed.length; i2++) {
-    hash ^= seed.charCodeAt(i2);
-    hash = Math.imul(hash, 16777619);
-  }
-  return (hash >>> 0) / 4294967296;
-}
-const PRODUCTION_EVOLUTION_GAUGE_CONFIG = {
+({
+  gaugeGainByClass: getAverageGaugeGainByClass({
+    maxGauge: DEFAULT_MAX_GAUGE,
+    checkIntervalMs: 1e4,
+    targetDurationByClassMs: PRODUCTION_EVOLUTION_TARGET_DURATION_BY_CLASS_MS
+  })
+});
+const DEV_EVOLUTION_GAUGE_CONFIG = {
   maxGauge: DEFAULT_MAX_GAUGE,
   staminaThreshold: 3,
   boostedStaminaThreshold: 7,
   boostedGaugeGainMultiplier: 1.2,
   checkIntervalMs: 1e4,
   sleepingGaugeTimeProgressMultiplier: 1 / 3,
-  gaugeGainByClass: getAverageGaugeGainByClass({
-    maxGauge: DEFAULT_MAX_GAUGE,
-    checkIntervalMs: 1e4,
-    targetDurationByClassMs: PRODUCTION_EVOLUTION_TARGET_DURATION_BY_CLASS_MS
-  }),
-  targetDurationByClassMs: PRODUCTION_EVOLUTION_TARGET_DURATION_BY_CLASS_MS,
-  targetDurationVarianceByClassMs: PRODUCTION_EVOLUTION_TARGET_DURATION_VARIANCE_BY_CLASS_MS
+  gaugeGainByClass: DEV_GAUGE_GAIN_BY_CLASS
 };
-const EVOLUTION_GAUGE_CONFIG = PRODUCTION_EVOLUTION_GAUGE_CONFIG;
+const EVOLUTION_GAUGE_CONFIG = DEV_EVOLUTION_GAUGE_CONFIG;
 function createDisplayName(geneLine, classCode, variant) {
   const baseName = geneLine.split("-").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
   return `${baseName} ${classCode}${variant}`;
@@ -28805,26 +28798,17 @@ function getCharacterSpritesheetName(characterKey) {
   var _a;
   return ((_a = getEvolutionSpec(characterKey)) == null ? void 0 : _a.spritesheetName) ?? null;
 }
-function getProductionEvolutionTargetDurationMsForEntity(params) {
-  const { characterKey, objectId } = params;
+function getEvolutionGaugeIncreaseAmount(characterKey) {
   const spec = getEvolutionSpec(characterKey);
   if (!spec) {
     return 0;
   }
-  const targetDurationMs = PRODUCTION_EVOLUTION_GAUGE_CONFIG.targetDurationByClassMs[spec.class];
-  const varianceMs = PRODUCTION_EVOLUTION_GAUGE_CONFIG.targetDurationVarianceByClassMs[spec.class];
-  const seedValue = getStableSeededUnitValue(
-    `${Math.trunc(objectId)}:${spec.classCode}:${spec.phase}`
-  );
-  const jitterRatio = seedValue * 2 - 1;
-  return targetDurationMs + varianceMs * jitterRatio;
+  return EVOLUTION_GAUGE_CONFIG.gaugeGainByClass[spec.class] ?? 0;
 }
 function getEvolutionGaugeIncreaseAmountForEntity(params) {
-  return getGaugeGainForDurationMs({
-    maxGauge: PRODUCTION_EVOLUTION_GAUGE_CONFIG.maxGauge,
-    checkIntervalMs: PRODUCTION_EVOLUTION_GAUGE_CONFIG.checkIntervalMs,
-    durationMs: getProductionEvolutionTargetDurationMsForEntity(params)
-  });
+  {
+    return getEvolutionGaugeIncreaseAmount(params.characterKey);
+  }
 }
 function canEvolveFromConfig(characterKey) {
   const spec = getEvolutionSpec(characterKey);
@@ -28978,7 +28962,40 @@ const PRODUCTION_GAME_CONSTANTS = {
   SLEEPING_STAMINA_DECAY_MULTIPLIER: 0.2,
   SLEEPING_DISEASE_RATE_MULTIPLIER: 0.1
 };
-({
+const DEV_BALANCE_COEFFICIENTS = {
+  // DEV에서는 production 기준 시간을 나눠서 빠르게 재현한다.
+  timeDivisors: {
+    EGG_HATCH_TIME: 360,
+    EGG_HATCH_MIN_TIME: 180,
+    EGG_HATCH_MODE_TIME: 360,
+    EGG_HATCH_MAX_TIME: 540,
+    POOP_DELAY: 1,
+    DIGESTIVE_SMALL_POOP_DELAY: 480,
+    DISEASE_CHECK_INTERVAL: 1,
+    FRESH_TO_NORMAL_TIME: 18,
+    NORMAL_TO_STALE_TIME: 60,
+    DEATH_DELAY: 360,
+    DEATH_DELAY_CLASS_A: 360,
+    DEATH_DELAY_CLASS_B: 360,
+    DEATH_DELAY_CLASS_C: 360,
+    DEATH_DELAY_CLASS_D: 360,
+    STAMINA_DECREASE_INTERVAL: 24,
+    NATURAL_SICK_RECOVERY_MIN_DURATION: 60,
+    NIGHT_SLEEP_MIN_DELAY: 60,
+    NIGHT_SLEEP_MAX_DELAY: 60,
+    TARGET_NIGHT_SLEEP_DURATION: 60,
+    TARGET_NIGHT_SLEEP_JITTER: 60,
+    SUNRISE_WAKE_MIN_DELAY: 60,
+    SUNRISE_WAKE_MAX_DELAY: 60,
+    SUNRISE_WAKE_OFFSET_MIN: 60,
+    SUNRISE_WAKE_OFFSET_MAX: 60,
+    NIGHT_RESLEEP_MIN_DELAY: 60,
+    NIGHT_RESLEEP_MAX_DELAY: 60,
+    DAY_NAP_CHECK_INTERVAL: 60,
+    NIGHT_WAKE_CHECK_INTERVAL: 120,
+    DAY_NAP_MIN_DURATION: 60,
+    DAY_NAP_MAX_DURATION: 60
+  },
   // DEV에서는 production 기준 확률을 곱해서 빠르게 상태를 관찰한다.
   probabilityMultipliers: {
     BASE_DISEASE_RATE: 0.02 / PRODUCTION_GAME_CONSTANTS.BASE_DISEASE_RATE,
@@ -28998,24 +29015,29 @@ const PRODUCTION_GAME_CONSTANTS = {
     FATIGUE_SLEEP_RECOVERY_PER_HOUR: 2400 / PRODUCTION_GAME_CONSTANTS.FATIGUE_SLEEP_RECOVERY_PER_HOUR,
     FATIGUE_SLEEP_RECOVERY_PER_HOUR_WHEN_SICK: 800 / PRODUCTION_GAME_CONSTANTS.FATIGUE_SLEEP_RECOVERY_PER_HOUR_WHEN_SICK
   }
-});
+};
 function deriveTimeConstant(key) {
   const baseValue = PRODUCTION_GAME_CONSTANTS[key];
-  {
+  const divisor = DEV_BALANCE_COEFFICIENTS.timeDivisors[key];
+  if (divisor <= 0) {
     return baseValue;
   }
+  const derivedValue = Math.round(baseValue / divisor);
+  if (derivedValue === 0) {
+    return 0;
+  }
+  return derivedValue > 0 ? Math.max(1, derivedValue) : Math.min(-1, derivedValue);
 }
 function deriveProbabilityConstant(key) {
   const baseValue = PRODUCTION_GAME_CONSTANTS[key];
-  {
-    return baseValue;
-  }
+  return Math.min(
+    1,
+    baseValue * DEV_BALANCE_COEFFICIENTS.probabilityMultipliers[key]
+  );
 }
 function deriveRateConstant(key) {
   const baseValue = PRODUCTION_GAME_CONSTANTS[key];
-  {
-    return baseValue;
-  }
+  return baseValue * DEV_BALANCE_COEFFICIENTS.rateMultipliers[key];
 }
 const GAME_CONSTANTS = {
   ...PRODUCTION_GAME_CONSTANTS,
@@ -29814,7 +29836,7 @@ function repairLoadedFoodInteractionState(world, now = Date.now()) {
     repairedFoods
   };
 }
-const characterQuery$8 = defineQuery([CharacterStatusComp, RandomMovementComp]);
+const characterQuery$9 = defineQuery([CharacterStatusComp, RandomMovementComp]);
 const allCharacterQuery = defineQuery([CharacterStatusComp, ObjectComp]);
 function hasDirectedMovement(world, eid) {
   return hasComponent(world, DestinationComp, eid) && DestinationComp.type[eid] === DestinationType.TARGETED && DestinationComp.target[eid] !== 0;
@@ -29823,7 +29845,7 @@ function randomMovementSystem(params) {
   const { world } = params;
   const currentTime = world.currentTime;
   const shouldLog = !world.isSimulationMode && world.isRandomMovementDebugEnabled();
-  const chars = characterQuery$8(world);
+  const chars = characterQuery$9(world);
   const allChars = allCharacterQuery(world);
   for (let i2 = 0; i2 < allChars.length; i2++) {
     const eid = allChars[i2];
@@ -30386,10 +30408,11 @@ function getMaskSprite(eid) {
 function getTextureFromKey(textureKey) {
   const textureInfo = TEXTURE_MAP[textureKey];
   if (!textureInfo) {
-    console.warn(
-      `[RenderSystem] Texture key ${textureKey} not found in TEXTURE_MAP`
-    );
-    return void 0;
+    {
+      throw new Error(
+        `[RenderSystem] Texture key ${textureKey} not found in TEXTURE_MAP`
+      );
+    }
   }
   try {
     if (!textureInfo.spritesheetAlias) {
@@ -30490,8 +30513,13 @@ function updateMaskTexture(maskSprite, progress) {
     maskSprite.texture = texture;
   }
 }
+let hasValidatedTextures = false;
 function renderSystem(params) {
   const { world } = params;
+  if (!hasValidatedTextures) {
+    validateTextureMap();
+    hasValidatedTextures = true;
+  }
   const entities = renderableQuery(world);
   const exitedEntities = exitedRenderableQuery(world);
   const stage = world.stage;
@@ -30661,8 +30689,34 @@ function isTextureKeyLoaded(textureKey) {
     textureInfo.textureName
   );
 }
+function getAvailableTextureKeys() {
+  return Object.keys(TEXTURE_MAP).map(Number).sort((a2, b2) => a2 - b2);
+}
 function getTextureInfo(textureKey) {
   return TEXTURE_MAP[textureKey] || null;
+}
+function validateTextureMap() {
+  console.groupCollapsed("[RenderSystem] Texture Map Validation:");
+  const availableKeys = getAvailableTextureKeys();
+  let validCount = 0;
+  let invalidCount = 0;
+  for (const textureKey of availableKeys) {
+    const isLoaded = isTextureKeyLoaded(textureKey);
+    const textureInfo = getTextureInfo(textureKey);
+    if (isLoaded) {
+      validCount++;
+      console.log(
+        `✓ Key ${textureKey}: ${textureInfo == null ? void 0 : textureInfo.spritesheetAlias}/${textureInfo == null ? void 0 : textureInfo.textureName}`
+      );
+    } else {
+      invalidCount++;
+      console.warn(
+        `✗ Key ${textureKey}: ${textureInfo == null ? void 0 : textureInfo.spritesheetAlias}/${textureInfo == null ? void 0 : textureInfo.textureName} - NOT LOADED`
+      );
+    }
+  }
+  console.log(`Summary: ${validCount} valid, ${invalidCount} invalid textures`);
+  console.groupEnd();
 }
 const SPRITESHEET_KEY_TO_NAME = {
   [SpritesheetKey.NULL]: "null",
@@ -31563,6 +31617,7 @@ const STATUS_ICON_BASE_SIZE = 16;
 const STATUS_ICON_SIZE = STATUS_ICON_BASE_SIZE * STATUS_ICON_SCALE;
 const STATUS_ICON_Z_INDEX_OFFSET = 1.5;
 const STATUS_ICON_HORIZONTAL_SPACING = 1;
+const STATUS_ICON_CONTAINER_LEFT_OFFSET = 6;
 function getRenderedCharacterAttributes(eid) {
   const renderedX = Math.round(PositionComp.x[eid]);
   const renderedY = Math.round(PositionComp.y[eid]);
@@ -31674,7 +31729,7 @@ function getStatusIconListCenterAtCharacterTopRight(params) {
   const bounds = getRenderedCharacterWorldBounds(eid);
   return getClampedStatusIconListCenter({
     world,
-    preferredCenterX: bounds.rightX,
+    preferredCenterX: bounds.rightX - STATUS_ICON_CONTAINER_LEFT_OFFSET,
     preferredCenterY: bounds.topY,
     iconCount
   });
@@ -31828,7 +31883,7 @@ const EGG_CRACK_PIXEL_SIZE = 1;
 const overlayStore$1 = /* @__PURE__ */ new Map();
 const eggCrackQuery = defineQuery([ObjectComp, RenderComp, EggHatchComp]);
 const eggCrackExitQuery = exitQuery(eggCrackQuery);
-function getOrCreateOverlay(eid, stage) {
+function getOrCreateOverlay$1(eid, stage) {
   const existing = overlayStore$1.get(eid);
   if (existing) {
     return existing;
@@ -32079,7 +32134,7 @@ function eggCrackRenderSystem(params) {
       removeOverlay$1(eid);
       continue;
     }
-    const overlay = getOrCreateOverlay(eid, world.stage);
+    const overlay = getOrCreateOverlay$1(eid, world.stage);
     syncOverlayTransform(overlay, baseSprite);
     syncOverlayMask(overlay.mask, baseSprite);
     drawEggCracks(overlay.crack, bounds, crackStage);
@@ -32158,13 +32213,13 @@ function toCanvasFontFamilyList(fontFamilies) {
     (fontFamily) => fontFamily.includes(" ") ? `"${fontFamily}"` : fontFamily
   ).join(", ");
 }
-const characterQuery$7 = defineQuery([
+const characterQuery$8 = defineQuery([
   ObjectComp,
   PositionComp,
   RenderComp,
   CharacterStatusComp
 ]);
-const characterExitQuery = exitQuery(characterQuery$7);
+const characterExitQuery$1 = exitQuery(characterQuery$8);
 const labelStore = /* @__PURE__ */ new Map();
 const NAME_LABEL_STYLE = new TextStyle({
   fontFamily: [...NAME_LABEL_FONT_FAMILIES],
@@ -32204,12 +32259,12 @@ const MINI_STAMINA_BAR_URGENT_OVERLAY_CYCLE_MS = 1200;
 function characterNameLabelSystem(params) {
   var _a;
   const { world } = params;
-  const exitedEntities = characterExitQuery(world);
+  const exitedEntities = characterExitQuery$1(world);
   for (let i2 = 0; i2 < exitedEntities.length; i2++) {
     removeCharacterNameLabel(exitedEntities[i2]);
   }
   const rawName = (_a = world.getInMemoryData().world_metadata.monster_name) == null ? void 0 : _a.trim();
-  const entities = characterQuery$7(world);
+  const entities = characterQuery$8(world);
   for (let i2 = 0; i2 < entities.length; i2++) {
     const eid = entities[i2];
     if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
@@ -32599,18 +32654,76 @@ function getMiniStaminaBarUrgentOverlayAlpha(currentTime) {
   const triangleWave = phase < 0.5 ? phase * 2 : (1 - phase) * 2;
   return MINI_STAMINA_BAR_URGENT_OVERLAY_MIN_ALPHA + (MINI_STAMINA_BAR_URGENT_OVERLAY_MAX_ALPHA - MINI_STAMINA_BAR_URGENT_OVERLAY_MIN_ALPHA) * triangleWave;
 }
-defineQuery([ObjectComp, PositionComp, RenderComp]);
+const characterQuery$7 = defineQuery([ObjectComp, PositionComp, RenderComp]);
+const characterExitQuery = exitQuery(characterQuery$7);
 const overlayStore = /* @__PURE__ */ new Map();
+const LAYOUT_STROKE_COLOR = 58879;
+const LAYOUT_FILL_COLOR = 58879;
+const LAYOUT_FILL_ALPHA = 0.12;
+const LAYOUT_STROKE_WIDTH = 1;
+const LAYOUT_Z_INDEX_OFFSET = 1;
 function characterLayoutDebugSystem(params) {
-  {
+  const { world, stage } = params;
+  if (!stage || false) {
     cleanupCharacterLayoutDebug();
     return params;
   }
+  const exitedEntities = characterExitQuery(world);
+  for (let i2 = 0; i2 < exitedEntities.length; i2++) {
+    removeOverlay(exitedEntities[i2]);
+  }
+  const entities = characterQuery$7(world);
+  const activeCharacterEids = /* @__PURE__ */ new Set();
+  for (let i2 = 0; i2 < entities.length; i2++) {
+    const eid = entities[i2];
+    if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
+      removeOverlay(eid);
+      continue;
+    }
+    const displayObject = getCharacterDisplayObject(eid);
+    if (!displayObject) {
+      removeOverlay(eid);
+      continue;
+    }
+    const bounds = getCharacterWorldBounds(eid);
+    if (bounds.width <= 0 || bounds.height <= 0) {
+      removeOverlay(eid);
+      continue;
+    }
+    const overlay = getOrCreateOverlay(eid, stage);
+    activeCharacterEids.add(eid);
+    overlay.clear();
+    overlay.rect(bounds.leftX, bounds.topY, bounds.width, bounds.height).fill({ color: LAYOUT_FILL_COLOR, alpha: LAYOUT_FILL_ALPHA }).stroke({ color: LAYOUT_STROKE_COLOR, width: LAYOUT_STROKE_WIDTH });
+    const y2 = PositionComp.y[eid];
+    const configuredZIndex = RenderComp.zIndex[eid];
+    const effectiveZIndex = configuredZIndex === 0 ? y2 : configuredZIndex;
+    overlay.zIndex = effectiveZIndex + LAYOUT_Z_INDEX_OFFSET;
+    overlay.visible = true;
+  }
+  const trackedEids = Array.from(overlayStore.keys());
+  for (let i2 = 0; i2 < trackedEids.length; i2++) {
+    const eid = trackedEids[i2];
+    if (!activeCharacterEids.has(eid)) {
+      removeOverlay(eid);
+    }
+  }
+  return params;
 }
 function cleanupCharacterLayoutDebug(_stage) {
   overlayStore.forEach((_, eid) => {
     removeOverlay(eid);
   });
+}
+function getOrCreateOverlay(eid, stage) {
+  const existingOverlay = overlayStore.get(eid);
+  if (existingOverlay) {
+    return existingOverlay;
+  }
+  const overlay = new Graphics();
+  overlay.eventMode = "none";
+  stage.addChild(overlay);
+  overlayStore.set(eid, overlay);
+  return overlay;
 }
 function removeOverlay(eid) {
   const overlay = overlayStore.get(eid);
@@ -33638,6 +33751,9 @@ function selectPoopSpawnPosition(world, characterX, characterY, angle) {
   if (hasRequiredPoopSpacing(world, fallbackPosition)) {
     return fallbackPosition;
   }
+  const shouldSpreadUnseenReentryPoop = world.isSimulationMode && hasNearbyPoop(world, fallbackPosition);
+  let bestReentryCandidate = null;
+  let bestReentryCandidateSpacing = Number.NEGATIVE_INFINITY;
   for (let attempt = 0; attempt < GAME_CONSTANTS.POOP_SPAWN_RETRY_COUNT; attempt++) {
     const angleOffset = (Math.random() * 2 - 1) * GAME_CONSTANTS.POOP_SPAWN_ANGLE_JITTER_RAD;
     const distanceOffset = (Math.random() * 2 - 1) * GAME_CONSTANTS.POOP_SPAWN_DISTANCE_JITTER;
@@ -33652,12 +33768,26 @@ function selectPoopSpawnPosition(world, characterX, characterY, angle) {
       behindAngle + angleOffset,
       candidateDistance
     );
-    if (hasRequiredPoopSpacing(world, candidatePosition)) {
+    const candidateSpacing = getNearestPoopSpacingDistance(
+      world,
+      candidatePosition
+    );
+    if (shouldSpreadUnseenReentryPoop && candidateSpacing > bestReentryCandidateSpacing) {
+      bestReentryCandidate = candidatePosition;
+      bestReentryCandidateSpacing = candidateSpacing;
+    }
+    if (candidateSpacing >= GAME_CONSTANTS.POOP_SPAWN_MIN_OBJECT_SPACING) {
       debugLog$2(
         `[DigestiveSystem] Selected alternate poop position on retry ${attempt + 1}: (${candidatePosition.x}, ${candidatePosition.y})`
       );
       return candidatePosition;
     }
+  }
+  if (shouldSpreadUnseenReentryPoop && bestReentryCandidate) {
+    debugLog$2(
+      `[DigestiveSystem] Selected best-effort reentry poop position after ${GAME_CONSTANTS.POOP_SPAWN_RETRY_COUNT} retries: (${bestReentryCandidate.x}, ${bestReentryCandidate.y})`
+    );
+    return bestReentryCandidate;
   }
   debugLog$2(
     `[DigestiveSystem] Falling back to legacy poop position after ${GAME_CONSTANTS.POOP_SPAWN_RETRY_COUNT} retries`
@@ -33693,6 +33823,22 @@ function getNearestPoopSpacingDistance(world, position) {
     }
   }
   return nearestDistance;
+}
+function hasNearbyPoop(world, position) {
+  const objects = positionedObjectQuery$1(world);
+  for (let index = 0; index < objects.length; index++) {
+    const eid = objects[index];
+    if (ObjectComp.type[eid] !== ObjectType.POOB) {
+      continue;
+    }
+    const deltaX = position.x - PositionComp.x[eid];
+    const deltaY = position.y - PositionComp.y[eid];
+    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+    if (distance < GAME_CONSTANTS.POOP_SPAWN_MIN_OBJECT_SPACING) {
+      return true;
+    }
+  }
+  return false;
 }
 const TARGET_REACHED_EPSILON = 1e-3;
 function moveTowardsTarget(world, eid, _delta) {
@@ -34409,9 +34555,12 @@ function restoreRandomMovementIfNeeded(world, eid, currentTime) {
   RandomMovementComp.nextChange[eid] = currentTime + 1e3;
 }
 function logSleepCheck(world, event, payload) {
-  {
+  if (!shouldLogSleepChecks(world)) {
     return;
   }
+}
+function shouldLogSleepChecks(world) {
+  return !world.isSimulationMode;
 }
 const characterQuery$4 = defineQuery([
   ObjectComp,
@@ -40034,7 +40183,20 @@ const _MainSceneWorld = class _MainSceneWorld {
           );
           this._addDebugGaugeEventListener();
         }
-        if (false) ;
+        if (this._debugParentElement) {
+          this._debugGameConstantsUI = new HTMLDebugGameConstantsUI(
+            this._debugParentElement
+          );
+          this._debugStatusUI = new HTMLDebugStatusUI(
+            this,
+            this._debugParentElement
+          );
+          this._debugToggleButton = new HTMLDebugToggleButton(() => {
+            var _a, _b;
+            (_a = this._debugStatusUI) == null ? void 0 : _a.toggle();
+            return ((_b = this._debugStatusUI) == null ? void 0 : _b.isDebugVisible()) ?? false;
+          }, this._debugParentElement);
+        }
       }
       await this._initDiagnostics.measurePhase("setup_visibility_handler", async () => {
         this._setupVisibilityChangeHandler();
@@ -46738,8 +46900,6 @@ function requireMatter() {
   return matter$1.exports;
 }
 var matterExports = requireMatter();
-const GAME_ENGINE_MAX_STEP_MS = 1e3 / 60;
-const GAME_ENGINE_MAX_TIMESTEP_MS = 1e3 / 30;
 class GameEngine {
   constructor(width, height, gravityY = 2.5) {
     this.isRunning = false;
@@ -46774,19 +46934,10 @@ class GameEngine {
   physicsUpdate(delta) {
     if (!this.isRunning || !this.pixiApp) return;
     try {
-      const appliedDeltaMs = Math.min(
-        GAME_ENGINE_MAX_TIMESTEP_MS,
-        Math.max(0, delta)
-      );
-      if (appliedDeltaMs <= 0) {
+      if (!Number.isFinite(delta) || delta <= 0) {
         return;
       }
-      let remainingDeltaMs = appliedDeltaMs;
-      while (remainingDeltaMs > 0) {
-        const stepDeltaMs = Math.min(GAME_ENGINE_MAX_STEP_MS, remainingDeltaMs);
-        matterExports.Engine.update(this.physics, stepDeltaMs);
-        remainingDeltaMs -= stepDeltaMs;
-      }
+      matterExports.Engine.update(this.physics, delta);
       this.syncDisplayObjects();
     } catch (error) {
       console.error("[Physics] 물리 업데이트 오류:", error);
@@ -47209,13 +47360,12 @@ const FLAPPY_BIRD_CLOUD_MAX_GAP = 185;
 const FLAPPY_BIRD_CLOUD_TOP_PADDING = 28;
 const FLAPPY_BIRD_CLOUD_MAX_HEIGHT_RATIO = 0.72;
 const FLAPPY_BIRD_BASE_FRAME_MS = 1e3 / 60;
-const FLAPPY_BIRD_MAX_FRAME_SCALE = 2;
 const FLAPPY_BIRD_SPEED_TRANSITION_MS = 140;
 function resolveFrameScale(deltaTime) {
-  return Math.min(
-    FLAPPY_BIRD_MAX_FRAME_SCALE,
-    Math.max(0, deltaTime / FLAPPY_BIRD_BASE_FRAME_MS)
-  );
+  if (!Number.isFinite(deltaTime) || deltaTime <= 0) {
+    return 0;
+  }
+  return deltaTime / FLAPPY_BIRD_BASE_FRAME_MS;
 }
 function resolvePipeCollisionBodySize(width, height) {
   return {
@@ -48863,11 +49013,14 @@ const FLAPPY_BIRD_SCORE_MARGIN_X = 4;
 const FLAPPY_BIRD_SCORE_MARGIN_Y = 6;
 const FLAPPY_BIRD_SCORE_LINE_GAP = 24;
 const FLAPPY_BIRD_NEAR_MISS_FONT_SIZE = 21;
+const FLAPPY_BIRD_NEAR_MISS_STROKE_WIDTH = 6;
 const FLAPPY_BIRD_NEAR_MISS_DURATION_MS = 520;
 const FLAPPY_BIRD_NEAR_MISS_FLOAT_DISTANCE = 14;
 const FLAPPY_BIRD_NEAR_MISS_GOOD_COLOR = 9364479;
 const FLAPPY_BIRD_NEAR_MISS_GREAT_COLOR = 16762967;
 const FLAPPY_BIRD_COUNTDOWN_FONT_SIZE = 63;
+const FLAPPY_BIRD_RETRO_FONT_PRELOAD_TIMEOUT_MS = 2e3;
+let flappyBirdRetroFontLoadPromise = null;
 function formatFlappyBirdBestScore(score) {
   return `Best: ${score}`;
 }
@@ -48886,6 +49039,18 @@ function createFlappyBirdScoreTextStyle(fontFamily) {
     align: "left"
   };
 }
+function createFlappyBirdCountdownTextStyle(fontFamily) {
+  return {
+    fontFamily: [...fontFamily],
+    fontSize: FLAPPY_BIRD_COUNTDOWN_FONT_SIZE,
+    fill: 16777215,
+    align: "center",
+    stroke: {
+      color: 0,
+      width: 6
+    }
+  };
+}
 function getDocumentFontSet() {
   if (typeof document === "undefined") {
     return null;
@@ -48899,22 +49064,79 @@ function isFlappyBirdRetroFontLoaded() {
   }
   return fonts.check(`12px "${FLAPPY_BIRD_RETRO_FONT_FAMILY}"`);
 }
-async function loadFlappyBirdRetroFont() {
+function getInitialFlappyBirdRetroSafeFontFamilies() {
+  return isFlappyBirdRetroFontLoaded() ? FLAPPY_BIRD_RETRO_FONT_FAMILIES : NAME_LABEL_FONT_FAMILIES;
+}
+function createFlappyBirdRetroFontLoadPromise() {
   const fonts = getDocumentFontSet();
   if (!fonts) {
+    return Promise.resolve(true);
+  }
+  return (async () => {
+    try {
+      if (isFlappyBirdRetroFontLoaded()) {
+        return true;
+      }
+      if (typeof fonts.load === "function") {
+        await fonts.load(`12px "${FLAPPY_BIRD_RETRO_FONT_FAMILY}"`);
+      } else {
+        await fonts.ready;
+      }
+    } catch (error) {
+      console.warn("[FlappyBirdUI] Failed to load retro font", error);
+      return false;
+    }
+    return isFlappyBirdRetroFontLoaded();
+  })();
+}
+async function preloadFlappyBirdRetroFont(options = {}) {
+  if (isFlappyBirdRetroFontLoaded()) {
     return true;
   }
+  if (!flappyBirdRetroFontLoadPromise) {
+    const loadPromise = createFlappyBirdRetroFontLoadPromise();
+    let handledLoadPromise;
+    handledLoadPromise = loadPromise.then(
+      (isLoaded) => {
+        if (!isLoaded && flappyBirdRetroFontLoadPromise === handledLoadPromise) {
+          flappyBirdRetroFontLoadPromise = null;
+        }
+        return isLoaded;
+      },
+      (error) => {
+        if (flappyBirdRetroFontLoadPromise === handledLoadPromise) {
+          flappyBirdRetroFontLoadPromise = null;
+        }
+        throw error;
+      }
+    );
+    flappyBirdRetroFontLoadPromise = handledLoadPromise;
+  }
+  const timeoutMs = options.timeoutMs;
+  if (typeof timeoutMs !== "number" || timeoutMs <= 0) {
+    return flappyBirdRetroFontLoadPromise;
+  }
+  let timeoutId = null;
   try {
-    if (typeof fonts.load === "function") {
-      await fonts.load(`12px "${FLAPPY_BIRD_RETRO_FONT_FAMILY}"`);
-    } else {
-      await fonts.ready;
+    return await Promise.race([
+      flappyBirdRetroFontLoadPromise,
+      new Promise((resolve) => {
+        timeoutId = setTimeout(() => resolve(false), timeoutMs);
+      })
+    ]);
+  } finally {
+    if (timeoutId !== null) {
+      clearTimeout(timeoutId);
     }
+  }
+}
+async function loadFlappyBirdRetroFont() {
+  try {
+    return await preloadFlappyBirdRetroFont();
   } catch (error) {
-    console.warn("[FlappyBirdScoreUI] Failed to load score font", error);
+    console.warn("[FlappyBirdUI] Failed to load retro font", error);
     return false;
   }
-  return isFlappyBirdRetroFontLoaded();
 }
 class CountdownUI {
   constructor() {
@@ -48922,23 +49144,22 @@ class CountdownUI {
     this.currentDisplayValue = 0;
     this.baseX = 0;
     this.baseY = 0;
+    this.isUsingRetroCountdownFont = false;
+    this.pendingRetroCountdownFontApply = false;
+    const initialFontFamily = getInitialFlappyBirdRetroSafeFontFamilies();
+    this.isUsingRetroCountdownFont = initialFontFamily[0] === FLAPPY_BIRD_RETRO_FONT_FAMILY;
     this.text = new Text({
       text: "3",
-      style: {
-        fontFamily: FLAPPY_BIRD_RETRO_FONT_FAMILIES,
-        fontSize: FLAPPY_BIRD_COUNTDOWN_FONT_SIZE,
-        fill: 16777215,
-        align: "center",
-        stroke: {
-          color: 0,
-          width: 6
-        }
-      }
+      style: createFlappyBirdCountdownTextStyle(initialFontFamily)
     });
     this.text.anchor.set(0.5);
     this.text.visible = false;
+    if (!this.isUsingRetroCountdownFont) {
+      void this.loadAndApplyRetroCountdownFont();
+    }
   }
   start(seconds) {
+    this.syncCountdownFontForStart();
     const countdownSeconds = Math.max(1, Math.floor(seconds));
     this.remainingMs = countdownSeconds * 1e3;
     this.currentDisplayValue = countdownSeconds;
@@ -48968,6 +49189,9 @@ class CountdownUI {
     this.remainingMs = 0;
     this.currentDisplayValue = 0;
     this.text.visible = false;
+    if (this.pendingRetroCountdownFontApply) {
+      this.applyRetroCountdownFont();
+    }
   }
   getCurrentDisplayValue() {
     return this.currentDisplayValue;
@@ -48980,13 +49204,42 @@ class CountdownUI {
   getDisplayObject() {
     return this.text;
   }
+  syncCountdownFontForStart() {
+    this.pendingRetroCountdownFontApply = false;
+    if (isFlappyBirdRetroFontLoaded()) {
+      this.applyRetroCountdownFont();
+      return;
+    }
+    this.text.style.fontFamily = [...NAME_LABEL_FONT_FAMILIES];
+    this.isUsingRetroCountdownFont = false;
+    void this.loadAndApplyRetroCountdownFont();
+  }
+  applyRetroCountdownFont() {
+    this.text.style.fontFamily = [...FLAPPY_BIRD_RETRO_FONT_FAMILIES];
+    this.isUsingRetroCountdownFont = true;
+    this.pendingRetroCountdownFontApply = false;
+  }
+  async loadAndApplyRetroCountdownFont() {
+    if (this.isUsingRetroCountdownFont) {
+      return;
+    }
+    const isLoaded = await loadFlappyBirdRetroFont();
+    if (!isLoaded) {
+      return;
+    }
+    if (this.remainingMs > 0) {
+      this.pendingRetroCountdownFontApply = true;
+      return;
+    }
+    this.applyRetroCountdownFont();
+  }
 }
 class ScoreUI {
   constructor(initialBestScore = 0, _locale = DEFAULT_LOCALE) {
     this.score = 0;
     this.bestScore = 0;
     this.isUsingRetroScoreFont = false;
-    const initialFontFamily = isFlappyBirdRetroFontLoaded() ? FLAPPY_BIRD_RETRO_FONT_FAMILIES : NAME_LABEL_FONT_FAMILIES;
+    const initialFontFamily = getInitialFlappyBirdRetroSafeFontFamilies();
     this.isUsingRetroScoreFont = initialFontFamily[0] === FLAPPY_BIRD_RETRO_FONT_FAMILY;
     this.container = new Container();
     this.bestScoreText = new Text({
@@ -49101,11 +49354,12 @@ class NearMissUI {
       style: {
         fontFamily: FLAPPY_BIRD_FONT_FAMILIES,
         fontSize: FLAPPY_BIRD_NEAR_MISS_FONT_SIZE,
+        fontWeight: NAME_LABEL_FONT_WEIGHT,
         fill: FLAPPY_BIRD_NEAR_MISS_GOOD_COLOR,
         align: "center",
         stroke: {
           color: 0,
-          width: 4
+          width: FLAPPY_BIRD_NEAR_MISS_STROKE_WIDTH
         }
       }
     });
@@ -49222,7 +49476,6 @@ const FLAPPY_BIRD_BGM_MIDGAME_TEMPO_MULTIPLIER = 1.08;
 const FLAPPY_BIRD_BGM_ENDGAME_TEMPO_MULTIPLIER = 1.14;
 const FLAPPY_BIRD_BGM_MAX_TEMPO_MULTIPLIER = 1.16;
 const FLAPPY_BIRD_SKY_SYNC_INTERVAL_MS = 1e3;
-const FLAPPY_BIRD_MAX_SIMULATION_DELTA_MS = 1e3 / 30;
 const FLAPPY_BIRD_PIPE_PREWARM_PAIR_COUNT = 2;
 const FLAPPY_BIRD_INIT_ASSET_LOAD_TIMEOUT_MS = 8e3;
 const FLAPPY_BIRD_INIT_SKY_CONTEXT_TIMEOUT_MS = 4e3;
@@ -49387,14 +49640,11 @@ class FlappyBirdGameScene extends Container {
       this.game.app.screen.height
     );
   }
-  clampSimulationDelta(deltaTime) {
+  normalizeSimulationDelta(deltaTime) {
     if (!Number.isFinite(deltaTime)) {
       return 0;
     }
-    return Math.min(
-      FLAPPY_BIRD_MAX_SIMULATION_DELTA_MS,
-      Math.max(0, deltaTime)
-    );
+    return Math.max(0, deltaTime);
   }
   /**
    * 씬을 설정합니다.
@@ -49522,7 +49772,9 @@ class FlappyBirdGameScene extends Container {
         this.restartGame();
       }
     }
-    if (event.code === "KeyD" && false) ;
+    if (event.code === "KeyD" && true) {
+      this.physicsManager.toggleDebugMode(this.game.app);
+    }
   }
   /**
    * 게임을 시작합니다.
@@ -49852,8 +50104,6 @@ class FlappyBirdGameScene extends Container {
     this.bgmController.pause();
     this.triggerGameOverVibrationPattern();
     (_b = (_a = this.game).showFlappyBirdGameOver) == null ? void 0 : _b.call(_a, {
-      score: this.scoreUI.getScore(),
-      bestScore: this.scoreUI.getBestScore(),
       onRestart: () => {
         this.restartGame();
       },
@@ -49951,7 +50201,7 @@ class FlappyBirdGameScene extends Container {
     if (this.isAppSuspended) {
       return;
     }
-    const simulationDeltaTime = this.clampSimulationDelta(deltaTime);
+    const simulationDeltaTime = this.normalizeSimulationDelta(deltaTime);
     if (this.gameState === GameState.COUNTDOWN) {
       if (simulationDeltaTime > 0) {
         this.nearMissUI.update(simulationDeltaTime);
@@ -50175,6 +50425,7 @@ const SCREEN_TOP_PADDING = SCREEN_BOTTOM_PADDING + 6;
 const MAX_RENDERER_RESOLUTION = 2;
 const DEFAULT_TICKER_MIN_FPS = 30;
 const DEFAULT_TICKER_MAX_FPS = 60;
+const FLAPPY_BIRD_TICKER_MIN_FPS = 0;
 const FLAPPY_BIRD_TICKER_MAX_FPS = 0;
 function createMainScenePositionBoundary(width, height) {
   return {
@@ -50189,6 +50440,9 @@ function getTransitionTimingNow() {
 }
 function resolveTickerMaxFPS(sceneKey) {
   return sceneKey === SceneKey.FLAPPY_BIRD_GAME ? FLAPPY_BIRD_TICKER_MAX_FPS : DEFAULT_TICKER_MAX_FPS;
+}
+function resolveTickerMinFPS(sceneKey) {
+  return sceneKey === SceneKey.FLAPPY_BIRD_GAME ? FLAPPY_BIRD_TICKER_MIN_FPS : DEFAULT_TICKER_MIN_FPS;
 }
 function resolveRendererResolution(devicePixelRatio) {
   if (typeof devicePixelRatio !== "number" || !Number.isFinite(devicePixelRatio) || devicePixelRatio <= 0) {
@@ -50633,8 +50887,8 @@ class Game {
     }
   }
   _applyTickerFramePolicy(sceneKey = this.currentSceneKey) {
-    this.app.ticker.minFPS = DEFAULT_TICKER_MIN_FPS;
     this.app.ticker.maxFPS = resolveTickerMaxFPS(sceneKey);
+    this.app.ticker.minFPS = resolveTickerMinFPS(sceneKey);
   }
   async _restoreParkedSceneAfterTransitionAbort(transition, state) {
     var _a;
@@ -50681,7 +50935,7 @@ class Game {
    * @returns 성공 여부
    */
   async changeScene(key) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
     const previousSceneKey = this.currentSceneKey;
     const transitionRequestId = ++this._sceneTransitionRequestId;
     const transitionStartedAt = getTransitionTimingNow();
@@ -50734,7 +50988,34 @@ class Game {
         to: key,
         state: "loading"
       });
-      if ((_b = this.currentScene) == null ? void 0 : _b.onSceneExit) {
+      if (key === SceneKey.FLAPPY_BIRD_GAME) {
+        const preloadSceneStartedAt = getTransitionTimingNow();
+        logTransitionPhase("preloadSceneAssets_start");
+        await this.preloadSceneAssets(key);
+        logTransitionPhase("preloadSceneAssets_end", {
+          durationMs: Math.round(
+            getTransitionTimingNow() - preloadSceneStartedAt
+          )
+        });
+        const interruptedAfterPreload = consumePendingInterruption();
+        if (interruptedAfterPreload) {
+          logTransitionPhase("changeScene_interrupted_after_preload", {
+            reason: interruptedAfterPreload.reason,
+            fallbackScene: interruptedAfterPreload.fallbackScene
+          });
+          if (this.currentSceneKey === interruptedAfterPreload.fallbackScene && ((_b = this.currentScene) == null ? void 0 : _b.onSceneReenter)) {
+            await this.currentScene.onSceneReenter();
+          }
+          (_c = this._onSceneTransitionStateChange) == null ? void 0 : _c.call(this, {
+            requestId: transitionRequestId,
+            from: previousSceneKey,
+            to: key,
+            state: "interrupted"
+          });
+          return false;
+        }
+      }
+      if ((_d = this.currentScene) == null ? void 0 : _d.onSceneExit) {
         console.log(`[Game] 현재 씬 종료 처리 시작: ${this.currentSceneKey}`);
         const sceneExitStartedAt = getTransitionTimingNow();
         logTransitionPhase("onSceneExit_start", {
@@ -50752,10 +51033,10 @@ class Game {
           reason: interruptedBeforeDestroy.reason,
           fallbackScene: interruptedBeforeDestroy.fallbackScene
         });
-        if (this.currentSceneKey === interruptedBeforeDestroy.fallbackScene && ((_c = this.currentScene) == null ? void 0 : _c.onSceneReenter)) {
+        if (this.currentSceneKey === interruptedBeforeDestroy.fallbackScene && ((_e = this.currentScene) == null ? void 0 : _e.onSceneReenter)) {
           await this.currentScene.onSceneReenter();
         }
-        (_d = this._onSceneTransitionStateChange) == null ? void 0 : _d.call(this, {
+        (_f = this._onSceneTransitionStateChange) == null ? void 0 : _f.call(this, {
           requestId: transitionRequestId,
           from: previousSceneKey,
           to: key,
@@ -50779,20 +51060,20 @@ class Game {
       });
       if (transitionContext.interruption || this._activeSceneTransition !== transitionContext) {
         logTransitionPhase("changeScene_interrupted_during_create", {
-          reason: ((_e = transitionContext.interruption) == null ? void 0 : _e.reason) ?? "stale_transition",
-          fallbackScene: ((_f = transitionContext.interruption) == null ? void 0 : _f.fallbackScene) ?? null
+          reason: ((_g = transitionContext.interruption) == null ? void 0 : _g.reason) ?? "stale_transition",
+          fallbackScene: ((_h = transitionContext.interruption) == null ? void 0 : _h.fallbackScene) ?? null
         });
         createdScene.destroy();
         return false;
       }
-      (_g = transitionContext.parkedScene) == null ? void 0 : _g.destroy();
+      (_i = transitionContext.parkedScene) == null ? void 0 : _i.destroy();
       this.currentScene = createdScene;
       this.currentSceneKey = key;
       this._applyTickerFramePolicy(key);
       if (this.currentScene instanceof Container) {
         this.app.stage.addChild(this.currentScene);
       }
-      (_h = this._onSceneTransitionStateChange) == null ? void 0 : _h.call(this, {
+      (_j = this._onSceneTransitionStateChange) == null ? void 0 : _j.call(this, {
         requestId: transitionRequestId,
         from: previousSceneKey,
         to: key,
@@ -50811,8 +51092,8 @@ class Game {
     } catch (error) {
       if (transitionContext.interruption || this._activeSceneTransition !== transitionContext) {
         logTransitionPhase("changeScene_cancelled_after_create_error", {
-          reason: ((_i = transitionContext.interruption) == null ? void 0 : _i.reason) ?? "stale_transition",
-          fallbackScene: ((_j = transitionContext.interruption) == null ? void 0 : _j.fallbackScene) ?? null,
+          reason: ((_k = transitionContext.interruption) == null ? void 0 : _k.reason) ?? "stale_transition",
+          fallbackScene: ((_l = transitionContext.interruption) == null ? void 0 : _l.fallbackScene) ?? null,
           error: summarizeTransitionError(error)
         });
         return false;
@@ -50828,7 +51109,7 @@ class Game {
         error: summarizeTransitionError(error)
       });
       if (!transitionContext.stateChangeEmitted) {
-        (_k = this._onSceneTransitionStateChange) == null ? void 0 : _k.call(this, {
+        (_m = this._onSceneTransitionStateChange) == null ? void 0 : _m.call(this, {
           requestId: transitionRequestId,
           from: previousSceneKey,
           to: key,
@@ -50959,7 +51240,17 @@ class Game {
   async _preloadFlappyBirdAssets() {
     const preloadStartedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
     console.log("[GameTransition] mini-game preload start");
-    await AssetLoader.preloadAssets(this.getFlappyBirdCharacterKey());
+    const [, isFontLoaded] = await Promise.all([
+      AssetLoader.preloadAssets(this.getFlappyBirdCharacterKey()),
+      preloadFlappyBirdRetroFont({
+        timeoutMs: FLAPPY_BIRD_RETRO_FONT_PRELOAD_TIMEOUT_MS
+      })
+    ]);
+    if (!isFontLoaded) {
+      console.warn(
+        `[GameTransition] mini-game font preload did not finish before scene transition (timeoutMs: ${FLAPPY_BIRD_RETRO_FONT_PRELOAD_TIMEOUT_MS})`
+      );
+    }
     console.log(
       `[GameTransition] mini-game preload end in ${Math.round(
         (typeof performance !== "undefined" ? performance.now() : Date.now()) - preloadStartedAt
@@ -51496,14 +51787,14 @@ const ControlButton = ({
     const baseTrackWidth = Math.max(0, sliderWidth - size);
     const trackWidth = sliderTrackWidth;
     const extraTrackOffset = (trackWidth - baseTrackWidth) / 2;
-    return /* @__PURE__ */ jsxRuntimeExports.jsxs(
+    return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
       "div",
       {
         className: "relative flex justify-center overflow-visible",
         style: { width: `${sliderWidth}px`, height: `${size}px` },
         ref: sliderRef,
         children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
             "div",
             {
               className: "absolute top-1/2 -translate-y-1/2 h-4 bg-gray-700 bg-opacity-50 rounded-full",
@@ -51511,29 +51802,61 @@ const ControlButton = ({
                 left: `${trackInset - extraTrackOffset}px`,
                 width: `${trackWidth}px`
               }
-            }
+            },
+            void 0,
+            false,
+            {
+              fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/ControlButton.tsx",
+              lineNumber: 285,
+              columnNumber: 9
+            },
+            void 0
           ),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
             "div",
             {
               className: "absolute top-0 left-0 h-full",
               style: {
                 transform: `translateX(${currentSliderValue * trackWidth - extraTrackOffset}px)`
               },
-              children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+              children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
                 "div",
                 {
                   style: buttonStyle,
                   className: "bg-no-repeat border-none bg-transparent p-0 outline-none select-none [-webkit-tap-highlight-color:transparent] scale-[1.4]"
-                }
+                },
+                void 0,
+                false,
+                {
+                  fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/ControlButton.tsx",
+                  lineNumber: 298,
+                  columnNumber: 11
+                },
+                void 0
               )
-            }
+            },
+            void 0,
+            false,
+            {
+              fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/ControlButton.tsx",
+              lineNumber: 292,
+              columnNumber: 9
+            },
+            void 0
           )
         ]
-      }
+      },
+      void 0,
+      true,
+      {
+        fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/ControlButton.tsx",
+        lineNumber: 280,
+        columnNumber: 7
+      },
+      void 0
     );
   }
-  return /* @__PURE__ */ jsxRuntimeExports.jsx(
+  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
     "button",
     {
       type: "button",
@@ -51543,12 +51866,24 @@ const ControlButton = ({
       onPointerLeave: handlePointerLeave,
       onPointerCancel: handlePointerCancel,
       className: `bg-no-repeat border-none bg-transparent p-0 outline-none select-none [-webkit-tap-highlight-color:transparent] scale-[1.4] ${className || ""}`
-    }
+    },
+    void 0,
+    false,
+    {
+      fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/ControlButton.tsx",
+      lineNumber: 309,
+      columnNumber: 5
+    },
+    void 0
   );
 };
 const ControlButtonsContainer = ({
   children
-}) => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-4/5 max-w-[300px] flex justify-between mx-auto", children });
+}) => /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "w-4/5 max-w-[300px] flex justify-between mx-auto", children }, void 0, false, {
+  fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
+  lineNumber: 16,
+  columnNumber: 3
+}, void 0);
 const CONTROL_BUTTON_SIZE_PX = 64;
 const MAX_CONTROL_BUTTONS_WIDTH_PX = 300;
 const DEFAULT_CLEAN_SLIDER_WIDTH_PX = (MAX_CONTROL_BUTTONS_WIDTH_PX + CONTROL_BUTTON_SIZE_PX) / 2;
@@ -51584,15 +51919,27 @@ const ControlButtons = ({
   }, [buttonTypes[0], buttonTypes[1], buttonTypes[2], shouldRenderSlider]);
   const effectiveSliderWidth = shouldRenderSlider ? sliderWidth ?? lastMeasuredCleanSliderWidth : void 0;
   if (shouldRenderSlider && effectiveSliderWidth) {
-    return /* @__PURE__ */ jsxRuntimeExports.jsx(ControlButtonsContainer, { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { ref: containerRef, className: "flex justify-between w-full", children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "shrink-0 ", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+    return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ControlButtonsContainer, { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { ref: containerRef, className: "flex justify-between w-full", children: [
+      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "shrink-0 ", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
         ControlButton,
         {
           type: buttonParams[0].type,
           onClick: () => onButtonPress(buttonParams[0].type)
-        }
-      ) }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: secondButtonRef, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+        },
+        void 0,
+        false,
+        {
+          fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
+          lineNumber: 81,
+          columnNumber: 13
+        },
+        void 0
+      ) }, void 0, false, {
+        fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
+        lineNumber: 80,
+        columnNumber: 11
+      }, void 0),
+      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { ref: secondButtonRef, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
         ControlButton,
         {
           type: ControlButtonType.Clean,
@@ -51603,33 +51950,92 @@ const ControlButtons = ({
           onSliderEnd,
           onClick: () => onButtonPress(buttonParams[1].type)
         },
-        (cleanButtonParam == null ? void 0 : cleanButtonParam.sliderSessionKey) ?? "clean-slider"
-      ) })
-    ] }) });
+        (cleanButtonParam == null ? void 0 : cleanButtonParam.sliderSessionKey) ?? "clean-slider",
+        false,
+        {
+          fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
+          lineNumber: 88,
+          columnNumber: 13
+        },
+        void 0
+      ) }, void 0, false, {
+        fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
+        lineNumber: 87,
+        columnNumber: 11
+      }, void 0)
+    ] }, void 0, true, {
+      fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
+      lineNumber: 78,
+      columnNumber: 9
+    }, void 0) }, void 0, false, {
+      fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
+      lineNumber: 77,
+      columnNumber: 7
+    }, void 0);
   }
-  return /* @__PURE__ */ jsxRuntimeExports.jsx(ControlButtonsContainer, { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { ref: containerRef, className: "flex justify-between w-full", children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx(
+  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ControlButtonsContainer, { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { ref: containerRef, className: "flex justify-between w-full", children: [
+    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
       ControlButton,
       {
         type: buttonParams[0].type,
         onClick: () => onButtonPress(buttonParams[0].type)
-      }
+      },
+      void 0,
+      false,
+      {
+        fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
+        lineNumber: 108,
+        columnNumber: 9
+      },
+      void 0
     ),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: secondButtonRef, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { ref: secondButtonRef, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
       ControlButton,
       {
         type: buttonParams[1].type,
         onClick: () => onButtonPress(buttonParams[1].type)
-      }
-    ) }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: thirdButtonRef, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+      },
+      void 0,
+      false,
+      {
+        fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
+        lineNumber: 113,
+        columnNumber: 11
+      },
+      void 0
+    ) }, void 0, false, {
+      fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
+      lineNumber: 112,
+      columnNumber: 9
+    }, void 0),
+    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { ref: thirdButtonRef, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
       ControlButton,
       {
         type: buttonParams[2].type,
         onClick: () => onButtonPress(buttonParams[2].type)
-      }
-    ) })
-  ] }) });
+      },
+      void 0,
+      false,
+      {
+        fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
+        lineNumber: 119,
+        columnNumber: 11
+      },
+      void 0
+    ) }, void 0, false, {
+      fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
+      lineNumber: 118,
+      columnNumber: 9
+    }, void 0)
+  ] }, void 0, true, {
+    fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
+    lineNumber: 107,
+    columnNumber: 7
+  }, void 0) }, void 0, false, {
+    fileName: "/Users/neiz/digivice/apps/client/src/components/ControlButtons/index.tsx",
+    lineNumber: 106,
+    columnNumber: 5
+  }, void 0);
 };
 function createClientStorage() {
   if (hasNativeStorageController()) {
@@ -52165,7 +52571,11 @@ const I18nProvider = ({
     }),
     [locale, setLocale, t2]
   );
-  return /* @__PURE__ */ jsxRuntimeExports.jsx(I18nContext.Provider, { value, children });
+  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(I18nContext.Provider, { value, children }, void 0, false, {
+    fileName: "/Users/neiz/digivice/apps/client/src/i18n.tsx",
+    lineNumber: 58,
+    columnNumber: 10
+  }, void 0);
 };
 function useI18n() {
   const context2 = reactExports.useContext(I18nContext);
@@ -52248,6 +52658,74 @@ function useLayerInteractionVibration() {
     onFocusCapture: handleFocusCapture
   };
 }
+const popupBackHandlerStack = [];
+const POPUP_BACK_EVENT_NAME = "digivice:native-back-request";
+let isPopupBackEventListenerInstalled = false;
+let isPopupBackBridgeInstalled = false;
+function reportPopupBackHandlerError(error) {
+  logImportantDiagnostics(
+    "error",
+    "[ImportantDiagnostics][PopupBackNavigation] Failed to handle popup back navigation.",
+    error
+  );
+  console.warn(
+    "[PopupBackNavigation] Failed to handle popup back navigation.",
+    error
+  );
+}
+function registerPopupBackHandler(getHandler) {
+  const registration = {
+    id: Symbol("popupBackHandler"),
+    getHandler
+  };
+  popupBackHandlerStack.push(registration);
+  return () => {
+    const index = popupBackHandlerStack.findIndex(
+      (candidate) => candidate.id === registration.id
+    );
+    if (index >= 0) {
+      popupBackHandlerStack.splice(index, 1);
+    }
+  };
+}
+function consumeTopPopupBackHandler() {
+  var _a;
+  for (let index = popupBackHandlerStack.length - 1; index >= 0; index -= 1) {
+    const handler = (_a = popupBackHandlerStack[index]) == null ? void 0 : _a.getHandler();
+    if (!handler) {
+      continue;
+    }
+    try {
+      void Promise.resolve(handler()).catch(reportPopupBackHandlerError);
+    } catch (error) {
+      reportPopupBackHandlerError(error);
+    }
+    return true;
+  }
+  return false;
+}
+function installPopupBackEventListener() {
+  if (typeof window === "undefined" || isPopupBackEventListenerInstalled) {
+    return;
+  }
+  isPopupBackEventListenerInstalled = true;
+  window.addEventListener(POPUP_BACK_EVENT_NAME, (event) => {
+    if (consumeTopPopupBackHandler()) {
+      event.preventDefault();
+    }
+  });
+}
+function installPopupBackBridge() {
+  if (typeof window === "undefined" || isPopupBackBridgeInstalled) {
+    return;
+  }
+  isPopupBackBridgeInstalled = true;
+  window.digivicePopupBackBridge = {
+    handleBackNavigation: consumeTopPopupBackHandler
+  };
+}
+installPopupBackEventListener();
+installPopupBackBridge();
 const KEYBOARD_VIEWPORT_HEIGHT_DELTA_THRESHOLD$1 = 80;
 const KEYBOARD_AWARE_DEBUG_LOG_LIMIT = 24;
 const CONFIRM_ENABLE_DELAY_PROGRESS_MAX = 100;
@@ -52264,6 +52742,7 @@ const PopupLayer = ({
   dividerBorderClassName = "border-[#222]",
   onConfirm,
   onCancel,
+  onBack,
   confirmText,
   cancelText,
   confirmDisabled = false,
@@ -52292,6 +52771,7 @@ const PopupLayer = ({
   const keyboardAwareDebugSequenceRef = reactExports.useRef(0);
   const nativeKeyboardInsetRef = reactExports.useRef(0);
   const suppressInitialActionsUntilRef = reactExports.useRef(0);
+  const backHandlerRef = reactExports.useRef(onBack ?? null);
   const [confirmEnableDelayProgress, setConfirmEnableDelayProgress] = reactExports.useState(
     confirmEnableDelayMs > 0 ? 0 : CONFIRM_ENABLE_DELAY_PROGRESS_MAX
   );
@@ -52303,6 +52783,16 @@ const PopupLayer = ({
     confirmEnableDelayMs > 0 && initialFocusTarget === "confirm" ? "container" : initialFocusTarget
   );
   const effectiveInitialFocusTarget = effectiveInitialFocusTargetRef.current;
+  const isBackHandlerEnabled = typeof onBack === "function";
+  reactExports.useLayoutEffect(() => {
+    backHandlerRef.current = onBack ?? null;
+  }, [onBack]);
+  reactExports.useLayoutEffect(() => {
+    if (!isBackHandlerEnabled) {
+      return;
+    }
+    return registerPopupBackHandler(() => backHandlerRef.current);
+  }, [isBackHandlerEnabled]);
   reactExports.useEffect(() => {
     if (typeof window === "undefined") {
       return;
@@ -52625,12 +53115,12 @@ const PopupLayer = ({
     }
     onCancel == null ? void 0 : onCancel();
   }, [onCancel]);
-  return /* @__PURE__ */ jsxRuntimeExports.jsx(
+  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
     "div",
     {
       className: "flex w-full justify-center px-4 text-black",
       ...layerInteractionVibrationProps,
-      children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
+      children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
         "div",
         {
           ref: containerRef,
@@ -52639,23 +53129,39 @@ const PopupLayer = ({
             transform: keyboardAwareOffsetY !== 0 ? `translateY(${keyboardAwareOffsetY}px)` : void 0,
             maxHeight: keyboardAwareMaxHeight !== null ? `${keyboardAwareMaxHeight}px` : void 0
           },
-          className: "relative flex w-full max-w-[22rem] flex-col overflow-auto border-4 border-[#222] bg-layer-bg p-5 text-center font-dialog shadow-[0_4px_0_#222,0_-4px_0_#222,4px_0_0_#222,-4px_0_0_#222,4px_4px_0_#222,-4px_4px_0_#222,4px_-4px_0_#222,-4px_-4px_0_#222] focus:outline-none",
+          className: "i18n-word-wrap relative flex w-full max-w-[22rem] flex-col overflow-auto border-4 border-[#222] bg-layer-bg p-5 text-center font-dialog shadow-[0_4px_0_#222,0_-4px_0_#222,4px_0_0_#222,-4px_0_0_#222,4px_4px_0_#222,-4px_4px_0_#222,4px_-4px_0_#222,-4px_-4px_0_#222] focus:outline-none",
           children: [
-            topLeftContent ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute left-2 top-2 z-[1]", children: topLeftContent }) : null,
-            /* @__PURE__ */ jsxRuntimeExports.jsx(
+            topLeftContent ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "absolute left-2 top-2 z-[1]", children: topLeftContent }, void 0, false, {
+              fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
+              lineNumber: 550,
+              columnNumber: 11
+            }, void 0) : null,
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
               "div",
               {
                 className: `mb-[15px] flex-none border-b-4 pb-[10px] text-[1.8rem] leading-[1.2] font-display font-bold text-component-negative ${dividerBorderClassName}`,
                 children: resolvedTitle
-              }
+              },
+              void 0,
+              false,
+              {
+                fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
+                lineNumber: 552,
+                columnNumber: 9
+              },
+              void 0
             ),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "min-h-0 flex-1 overflow-y-auto pb-4 text-[1.4rem] leading-[1.6]", children: content }),
-            showActions && /* @__PURE__ */ jsxRuntimeExports.jsxs(
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "min-h-0 flex-1 overflow-y-auto pb-4 text-[1.4rem] leading-[1.6]", children: content }, void 0, false, {
+              fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
+              lineNumber: 557,
+              columnNumber: 9
+            }, void 0),
+            showActions && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
               "div",
               {
-                className: `flex flex-none justify-center gap-[15px] border-t-4 pt-4 ${dividerBorderClassName}`,
+                className: `flex flex-none flex-wrap justify-center gap-[15px] border-t-4 pt-4 ${dividerBorderClassName}`,
                 children: [
-                  onCancel && /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  onCancel && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
                     "button",
                     {
                       ref: cancelButtonRef,
@@ -52663,9 +53169,17 @@ const PopupLayer = ({
                       onClick: handleCancelClick,
                       className: `text-[1.5rem] text-white border-2 border-[#222] px-[15px] py-0.5 cursor-pointer uppercase font-display shadow-[2px_2px_0_#222] relative top-0 left-0 transition-all duration-50 ${cancelVariant === "negative" ? "bg-component-negative" : "bg-component-positive"}`,
                       children: resolvedCancelText
-                    }
+                    },
+                    void 0,
+                    false,
+                    {
+                      fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
+                      lineNumber: 565,
+                      columnNumber: 15
+                    },
+                    void 0
                   ),
-                  /* @__PURE__ */ jsxRuntimeExports.jsxs(
+                  /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
                     "button",
                     {
                       ref: confirmButtonRef,
@@ -52674,25 +53188,69 @@ const PopupLayer = ({
                       onClick: handleConfirmClick,
                       className: `relative overflow-hidden text-[1.5rem] text-white border-2 border-[#222] px-[15px] py-0.5 uppercase font-display shadow-[2px_2px_0_#222] ${isConfirmButtonDisabled ? "cursor-not-allowed bg-gray-400 opacity-80" : confirmVariant === "negative" ? "cursor-pointer bg-component-negative" : "cursor-pointer bg-component-positive"}`,
                       children: [
-                        isConfirmEnableDelayActive && /* @__PURE__ */ jsxRuntimeExports.jsx(
+                        isConfirmEnableDelayActive && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
                           "span",
                           {
                             "aria-hidden": "true",
                             className: `absolute inset-y-0 left-0 ${confirmVariant === "negative" ? "bg-component-negative" : "bg-component-positive"}`,
                             style: { width: `${confirmEnableDelayProgress}%` }
-                          }
+                          },
+                          void 0,
+                          false,
+                          {
+                            fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
+                            lineNumber: 592,
+                            columnNumber: 17
+                          },
+                          void 0
                         ),
-                        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "relative z-[1]", children: resolvedConfirmText })
+                        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { className: "relative z-[1]", children: resolvedConfirmText }, void 0, false, {
+                          fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
+                          lineNumber: 602,
+                          columnNumber: 15
+                        }, void 0)
                       ]
-                    }
+                    },
+                    void 0,
+                    true,
+                    {
+                      fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
+                      lineNumber: 578,
+                      columnNumber: 13
+                    },
+                    void 0
                   )
                 ]
-              }
+              },
+              void 0,
+              true,
+              {
+                fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
+                lineNumber: 561,
+                columnNumber: 11
+              },
+              void 0
             )
           ]
-        }
+        },
+        void 0,
+        true,
+        {
+          fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
+          lineNumber: 534,
+          columnNumber: 7
+        },
+        void 0
       )
-    }
+    },
+    void 0,
+    false,
+    {
+      fileName: "/Users/neiz/digivice/apps/client/src/components/PopupLayer/index.tsx",
+      lineNumber: 530,
+      columnNumber: 5
+    },
+    void 0
   );
 };
 var reactDomExports = requireReactDom();
@@ -52734,14 +53292,14 @@ const SetupLayer = ({ onComplete }) => {
       cachedSunTimes: null
     });
   };
-  const overlay = /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 z-[999] flex min-h-dvh items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+  const overlay = /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "fixed inset-0 z-[999] flex min-h-dvh items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
     PopupLayer,
     {
       title: t2("setup.title"),
       keyboardAwareTargetRef: nameInputRef,
       dividerBorderClassName: "border-[#555]",
-      content: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex flex-col items-center gap-4", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "w-full", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
+      content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex flex-col items-center gap-4", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "w-full", children: [
+        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
           "input",
           {
             ref: nameInputRef,
@@ -52753,24 +53311,64 @@ const SetupLayer = ({ onComplete }) => {
             },
             placeholder: t2("setup.placeholder.name"),
             className: "w-full border-2 border-[#222] px-3 py-0.5 text-center text-[1.4rem] focus:outline-none focus:ring-2 focus:ring-[#d95763]"
-          }
+          },
+          void 0,
+          false,
+          {
+            fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
+            lineNumber: 77,
+            columnNumber: 15
+          },
+          void 0
         ),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
+        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
           "div",
           {
-            className: `mt-4 text-[1.4rem] ${isWithinVisibleWidth ? "text-gray-600" : "text-red-600"}`,
+            className: `mt-2 text-[1.2rem] ${isWithinVisibleWidth ? "text-gray-600" : "text-red-600"}`,
             children: t2("setup.nameWidth", {
               width: Math.round(nameWidth),
               maxWidth: SETUP_NAME_MAX_WIDTH
             })
-          }
+          },
+          void 0,
+          false,
+          {
+            fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
+            lineNumber: 88,
+            columnNumber: 15
+          },
+          void 0
         ),
-        error && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "mt-4 text-component-negative text-[0.7em]", children: error })
-      ] }) }),
+        error && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("p", { className: "mt-4 text-component-negative text-[0.7em]", children: error }, void 0, false, {
+          fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
+          lineNumber: 99,
+          columnNumber: 17
+        }, void 0)
+      ] }, void 0, true, {
+        fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
+        lineNumber: 76,
+        columnNumber: 13
+      }, void 0) }, void 0, false, {
+        fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
+        lineNumber: 75,
+        columnNumber: 11
+      }, void 0),
       onConfirm: handleConfirm,
       confirmText: t2("setup.start")
-    }
-  ) });
+    },
+    void 0,
+    false,
+    {
+      fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
+      lineNumber: 70,
+      columnNumber: 7
+    },
+    void 0
+  ) }, void 0, false, {
+    fileName: "/Users/neiz/digivice/apps/client/src/layers/SetupLayer.tsx",
+    lineNumber: 69,
+    columnNumber: 5
+  }, void 0);
   if (typeof document === "undefined") {
     return overlay;
   }
@@ -52781,71 +53379,116 @@ const AlertLayer = ({
   message,
   onClose,
   onCancel,
+  onBack,
   confirmText,
   cancelText
 }) => {
   const { t: t2 } = useI18n();
-  return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
     PopupLayer,
     {
       title: title ?? t2("alert.title"),
-      content: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex flex-col items-center gap-4", children: /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "leading-[1.6]", children: message }) }),
+      content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex flex-col items-center gap-4", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("p", { className: "leading-[1.6]", children: message }, void 0, false, {
+        fileName: "/Users/neiz/digivice/apps/client/src/layers/AlertLayer.tsx",
+        lineNumber: 32,
+        columnNumber: 13
+      }, void 0) }, void 0, false, {
+        fileName: "/Users/neiz/digivice/apps/client/src/layers/AlertLayer.tsx",
+        lineNumber: 31,
+        columnNumber: 11
+      }, void 0),
       onConfirm: onClose,
       onCancel,
+      onBack,
       confirmText: confirmText ?? t2("common.confirm"),
       cancelText: cancelText ?? t2("common.cancel")
-    }
-  ) });
+    },
+    void 0,
+    false,
+    {
+      fileName: "/Users/neiz/digivice/apps/client/src/layers/AlertLayer.tsx",
+      lineNumber: 28,
+      columnNumber: 7
+    },
+    void 0
+  ) }, void 0, false, {
+    fileName: "/Users/neiz/digivice/apps/client/src/layers/AlertLayer.tsx",
+    lineNumber: 27,
+    columnNumber: 5
+  }, void 0);
 };
 const FLAPPY_BIRD_GAME_OVER_FONT_FAMILY = '"NeoDunggeunmo Pro", "Droid Sans Mono", "SF Mono", monospace, sans-serif';
 const FlappyBirdGameOverLayer = ({
-  score,
-  bestScore,
   onRestart,
   onExit
 }) => {
   const { t: t2 } = useI18n();
-  return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-[50] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex w-full max-w-[22rem] flex-col items-center gap-5 px-4 text-center text-white", children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx(
+  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "absolute inset-0 z-[50] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex w-full max-w-[22rem] flex-col items-center gap-5 px-4 text-center text-white", children: [
+    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
       "div",
       {
         className: "text-[2.25rem] font-bold tracking-[0.12em] uppercase drop-shadow-[0_2px_6px_rgba(0,0,0,0.65)]",
         style: { fontFamily: FLAPPY_BIRD_GAME_OVER_FONT_FAMILY },
         children: t2("flappy.gameOver")
-      }
-    ),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs(
-      "div",
+      },
+      void 0,
+      false,
       {
-        className: "flex flex-col gap-1 text-[1.25rem] leading-tight tracking-[0.08em] drop-shadow-[0_2px_4px_rgba(0,0,0,0.65)]",
-        style: { fontFamily: FLAPPY_BIRD_GAME_OVER_FONT_FAMILY },
-        children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: t2("flappy.score", { score }) }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: t2("flappy.best", { score: bestScore }) })
-        ]
-      }
+        fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdGameOverLayer.tsx",
+        lineNumber: 21,
+        columnNumber: 9
+      },
+      void 0
     ),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex justify-center gap-[15px]", children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx(
+    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex justify-center gap-[15px]", children: [
+      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
         "button",
         {
           type: "button",
           onClick: onExit,
           className: "text-[1.5rem] bg-component-negative text-white border-2 border-[#222] px-[15px] py-0.5 cursor-pointer uppercase shadow-[2px_2px_0_#222] relative top-0 left-0 transition-all duration-50",
           children: t2("flappy.exit")
-        }
+        },
+        void 0,
+        false,
+        {
+          fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdGameOverLayer.tsx",
+          lineNumber: 28,
+          columnNumber: 11
+        },
+        void 0
       ),
-      /* @__PURE__ */ jsxRuntimeExports.jsx(
+      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
         "button",
         {
           type: "button",
           onClick: onRestart,
           className: "text-[1.5rem] bg-component-positive text-white border-2 border-[#222] px-[15px] py-0.5 cursor-pointer uppercase shadow-[2px_2px_0_#222]",
           children: t2("flappy.retry")
-        }
+        },
+        void 0,
+        false,
+        {
+          fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdGameOverLayer.tsx",
+          lineNumber: 35,
+          columnNumber: 11
+        },
+        void 0
       )
-    ] })
-  ] }) });
+    ] }, void 0, true, {
+      fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdGameOverLayer.tsx",
+      lineNumber: 27,
+      columnNumber: 9
+    }, void 0)
+  ] }, void 0, true, {
+    fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdGameOverLayer.tsx",
+    lineNumber: 20,
+    columnNumber: 7
+  }, void 0) }, void 0, false, {
+    fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdGameOverLayer.tsx",
+    lineNumber: 19,
+    columnNumber: 5
+  }, void 0);
 };
 const FLAPPY_BIRD_OPEN_SOURCE_NOTICE = {
   name: "Neo둥근모 Pro",
@@ -52856,19 +53499,27 @@ const FLAPPY_BIRD_OPEN_SOURCE_NOTICE = {
 };
 const ToggleButton$1 = ({ enabled, onClick }) => {
   const { t: t2 } = useI18n();
-  return /* @__PURE__ */ jsxRuntimeExports.jsx(
+  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
     "button",
     {
       type: "button",
       onClick,
       className: `ml-auto min-w-20 shrink-0 border-2 border-[#222] px-4 py-0.5 font-bold text-white ${enabled ? "bg-component-positive" : "bg-gray-400"}`,
       children: enabled ? t2("common.on") : t2("common.off")
-    }
+    },
+    void 0,
+    false,
+    {
+      fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+      lineNumber: 42,
+      columnNumber: 5
+    },
+    void 0
   );
 };
 const ActionButton$1 = ({ text, onClick, disabled = false, variant = "positive" }) => {
   const backgroundClass = disabled ? "cursor-wait bg-gray-400 opacity-60" : variant === "warning" ? "bg-yellow-500" : variant === "negative" ? "bg-component-negative" : "bg-component-positive";
-  return /* @__PURE__ */ jsxRuntimeExports.jsx(
+  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
     "button",
     {
       type: "button",
@@ -52876,9 +53527,41 @@ const ActionButton$1 = ({ text, onClick, disabled = false, variant = "positive" 
       onClick,
       className: `ml-auto flex min-w-20 shrink-0 items-center justify-center border-2 border-[#222] px-4 py-0.5 text-center font-bold text-white ${backgroundClass}`,
       children: text
-    }
+    },
+    void 0,
+    false,
+    {
+      fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+      lineNumber: 69,
+      columnNumber: 5
+    },
+    void 0
   );
 };
+const SelectButton = ({ active, label, onClick }) => {
+  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+    "button",
+    {
+      type: "button",
+      onClick,
+      className: `border-2 border-[#222] px-3 py-0.5 font-bold ${active ? "bg-component-positive text-white" : "bg-white text-[#222]"}`,
+      children: label
+    },
+    void 0,
+    false,
+    {
+      fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+      lineNumber: 86,
+      columnNumber: 5
+    },
+    void 0
+  );
+};
+const DevModeBadge$1 = () => /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { className: "border-2 border-[#222] bg-yellow-300 px-2 py-0.5 text-[0.85rem] uppercase leading-none text-[#222]", children: "Dev Mode" }, void 0, false, {
+  fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+  lineNumber: 99,
+  columnNumber: 3
+}, void 0);
 const FlappyBirdSettingsLayer = ({
   isBgmEnabled,
   isSfxEnabled,
@@ -52886,93 +53569,234 @@ const FlappyBirdSettingsLayer = ({
   onChangeSfx,
   selectedTimeOfDay,
   onSelectTimeOfDay,
-  onSendLogs,
-  isSendingLogs = false,
   onResume,
   onExit
 }) => {
   const { locale, t: t2 } = useI18n();
   const [showOpenSourceNotice, setShowOpenSourceNotice] = reactExports.useState(false);
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "fixed inset-0 z-[50] flex items-center justify-center bg-black/50", children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx(
+  const shouldShowSkySelector = selectedTimeOfDay !== void 0 && onSelectTimeOfDay !== void 0;
+  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "fixed inset-0 z-[50] flex items-center justify-center bg-black/50", children: [
+    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
       PopupLayer,
       {
         title: t2("settings.title"),
         suppressInitialActionsMs: 180,
-        content: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-5 text-left text-[1.5rem]", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-4", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-wrap items-center justify-between gap-3", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "whitespace-nowrap font-bold", children: t2("flappy.bgm") }) }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx(
+        content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex flex-col gap-5 text-left text-[1.5rem]", children: [
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex flex-col gap-4", children: [
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex flex-wrap items-center justify-between gap-3", children: [
+              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "min-w-0 flex-1", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "font-bold", children: t2("flappy.bgm") }, void 0, false, {
+                fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+                lineNumber: 132,
+                columnNumber: 19
+              }, void 0) }, void 0, false, {
+                fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+                lineNumber: 131,
+                columnNumber: 17
+              }, void 0),
+              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
                 ToggleButton$1,
                 {
                   enabled: isBgmEnabled,
                   onClick: () => onChangeBgm(!isBgmEnabled)
-                }
+                },
+                void 0,
+                false,
+                {
+                  fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+                  lineNumber: 136,
+                  columnNumber: 17
+                },
+                void 0
               )
-            ] }),
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-wrap items-center justify-between gap-3", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "whitespace-nowrap font-bold", children: t2("flappy.sfx") }) }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx(
+            ] }, void 0, true, {
+              fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+              lineNumber: 130,
+              columnNumber: 15
+            }, void 0),
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex flex-wrap items-center justify-between gap-3", children: [
+              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "min-w-0 flex-1", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "font-bold", children: t2("flappy.sfx") }, void 0, false, {
+                fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+                lineNumber: 143,
+                columnNumber: 19
+              }, void 0) }, void 0, false, {
+                fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+                lineNumber: 142,
+                columnNumber: 17
+              }, void 0),
+              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
                 ToggleButton$1,
                 {
                   enabled: isSfxEnabled,
                   onClick: () => onChangeSfx(!isSfxEnabled)
-                }
+                },
+                void 0,
+                false,
+                {
+                  fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+                  lineNumber: 147,
+                  columnNumber: 17
+                },
+                void 0
               )
-            ] })
-          ] }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "border-t-2 border-[#222] pt-4", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-wrap items-center justify-between gap-3", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "whitespace-nowrap font-bold", children: t2("settings.reportBug") }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(
-              ActionButton$1,
-              {
-                text: isSendingLogs ? t2("flappy.preparing") : t2("settings.send"),
-                onClick: onSendLogs,
-                disabled: isSendingLogs,
-                variant: "warning"
-              }
-            )
-          ] }) }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "border-t-2 border-[#222] pt-4", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-wrap items-center justify-between gap-3", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "whitespace-nowrap font-bold", children: t2("flappy.openSource") }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(
+            ] }, void 0, true, {
+              fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+              lineNumber: 141,
+              columnNumber: 15
+            }, void 0)
+          ] }, void 0, true, {
+            fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+            lineNumber: 129,
+            columnNumber: 13
+          }, void 0),
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "border-t-2 border-[#222] pt-4", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex flex-wrap items-center justify-between gap-3", children: [
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "min-w-0 flex-1 font-bold", children: t2("flappy.openSource") }, void 0, false, {
+              fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+              lineNumber: 156,
+              columnNumber: 17
+            }, void 0),
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
               ActionButton$1,
               {
                 text: t2("common.view"),
                 onClick: () => setShowOpenSourceNotice(true)
-              }
+              },
+              void 0,
+              false,
+              {
+                fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+                lineNumber: 159,
+                columnNumber: 17
+              },
+              void 0
             )
-          ] }) }),
-          null
-        ] }),
+          ] }, void 0, true, {
+            fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+            lineNumber: 155,
+            columnNumber: 15
+          }, void 0) }, void 0, false, {
+            fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+            lineNumber: 154,
+            columnNumber: 13
+          }, void 0),
+          shouldShowSkySelector ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "border-t-2 border-[#222] pt-4", children: [
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "mb-3 flex flex-wrap items-center gap-2 font-bold", children: [
+              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { children: t2("flappy.skyDev") }, void 0, false, {
+                fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+                lineNumber: 169,
+                columnNumber: 19
+              }, void 0),
+              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(DevModeBadge$1, {}, void 0, false, {
+                fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+                lineNumber: 170,
+                columnNumber: 19
+              }, void 0)
+            ] }, void 0, true, {
+              fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+              lineNumber: 168,
+              columnNumber: 17
+            }, void 0),
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "grid grid-cols-2 gap-2", children: TIME_OF_DAY_OPTIONS.map((timeOfDay) => /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+              SelectButton,
+              {
+                active: selectedTimeOfDay === timeOfDay,
+                label: getTimeOfDayLabel(timeOfDay, locale),
+                onClick: () => onSelectTimeOfDay(timeOfDay)
+              },
+              timeOfDay,
+              false,
+              {
+                fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+                lineNumber: 174,
+                columnNumber: 21
+              },
+              void 0
+            )) }, void 0, false, {
+              fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+              lineNumber: 172,
+              columnNumber: 17
+            }, void 0)
+          ] }, void 0, true, {
+            fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+            lineNumber: 167,
+            columnNumber: 15
+          }, void 0) : null
+        ] }, void 0, true, {
+          fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+          lineNumber: 128,
+          columnNumber: 11
+        }, void 0),
         onConfirm: onResume,
         onCancel: onExit,
+        onBack: onResume,
         confirmText: t2("flappy.resume"),
         cancelText: t2("flappy.exit"),
         initialFocusTarget: "confirm"
-      }
+      },
+      void 0,
+      false,
+      {
+        fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+        lineNumber: 124,
+        columnNumber: 7
+      },
+      void 0
     ),
-    showOpenSourceNotice && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+    showOpenSourceNotice && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
       PopupLayer,
       {
         title: t2("flappy.openSource"),
-        content: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-left text-[1rem] leading-[1.4]", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-1 leading-[1.35]", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "break-all font-bold", children: FLAPPY_BIRD_OPEN_SOURCE_NOTICE.name }),
-          FLAPPY_BIRD_OPEN_SOURCE_NOTICE.lines.map((line) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+        content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-left text-[1rem] leading-[1.4]", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "space-y-1 leading-[1.35]", children: [
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "break-all font-bold", children: FLAPPY_BIRD_OPEN_SOURCE_NOTICE.name }, void 0, false, {
+            fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+            lineNumber: 200,
+            columnNumber: 19
+          }, void 0),
+          FLAPPY_BIRD_OPEN_SOURCE_NOTICE.lines.map((line) => /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
             "div",
             {
               className: "break-all text-[0.95rem] text-gray-600",
               children: line
             },
-            line
+            line,
+            false,
+            {
+              fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+              lineNumber: 204,
+              columnNumber: 21
+            },
+            void 0
           ))
-        ] }) }),
+        ] }, void 0, true, {
+          fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+          lineNumber: 199,
+          columnNumber: 17
+        }, void 0) }, void 0, false, {
+          fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+          lineNumber: 198,
+          columnNumber: 15
+        }, void 0),
         onConfirm: () => setShowOpenSourceNotice(false),
+        onBack: () => setShowOpenSourceNotice(false),
         confirmText: t2("common.close")
-      }
-    ) })
-  ] });
+      },
+      void 0,
+      false,
+      {
+        fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+        lineNumber: 195,
+        columnNumber: 11
+      },
+      void 0
+    ) }, void 0, false, {
+      fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+      lineNumber: 194,
+      columnNumber: 9
+    }, void 0)
+  ] }, void 0, true, {
+    fileName: "/Users/neiz/digivice/apps/client/src/layers/FlappyBirdSettingsLayer.tsx",
+    lineNumber: 123,
+    columnNumber: 5
+  }, void 0);
 };
 const RESET_CONFIRM_CODE_LENGTH = 6;
 const RESET_CONFIRM_CODE_INDEXES = Array.from(
@@ -52981,32 +53805,60 @@ const RESET_CONFIRM_CODE_INDEXES = Array.from(
 );
 const ToggleButton = ({ enabled, onClick }) => {
   const { t: t2 } = useI18n();
-  return /* @__PURE__ */ jsxRuntimeExports.jsx(
+  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
     "button",
     {
       type: "button",
       onClick,
       className: `ml-auto min-w-20 shrink-0 border-2 border-[#222] px-4 py-0.5 font-bold text-white ${enabled ? "bg-component-positive" : "bg-gray-400"}`,
       children: enabled ? t2("common.on") : t2("common.off")
-    }
+    },
+    void 0,
+    false,
+    {
+      fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+      lineNumber: 45,
+      columnNumber: 5
+    },
+    void 0
   );
 };
-const ActionButton = ({ text, onClick, disabled = false, variant = "positive" }) => {
+const ActionButton = ({
+  text,
+  onClick,
+  disabled = false,
+  variant = "positive",
+  snapshotAction
+}) => {
   const backgroundClass = disabled ? "cursor-wait bg-gray-400 opacity-60" : variant === "warning" ? "bg-yellow-500" : variant === "negative" ? "bg-component-negative" : "bg-component-positive";
-  return /* @__PURE__ */ jsxRuntimeExports.jsx(
+  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
     "button",
     {
       type: "button",
       disabled,
       onClick,
+      "data-snapshot-action": snapshotAction,
       className: `ml-auto flex min-w-20 shrink-0 items-center justify-center border-2 border-[#222] px-4 py-0.5 text-center font-bold text-white ${backgroundClass}`,
       children: text
-    }
+    },
+    void 0,
+    false,
+    {
+      fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+      lineNumber: 79,
+      columnNumber: 5
+    },
+    void 0
   );
 };
+const DevModeBadge = () => /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { className: "border-2 border-[#222] bg-yellow-300 px-2 py-0.5 text-[0.85rem] uppercase leading-none text-[#222]", children: "Dev Mode" }, void 0, false, {
+  fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+  lineNumber: 92,
+  columnNumber: 3
+}, void 0);
 const LanguageButton = ({ locale, active, onClick }) => {
   const meta = LOCALE_METADATA[locale];
-  return /* @__PURE__ */ jsxRuntimeExports.jsx(
+  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
     "button",
     {
       type: "button",
@@ -53014,7 +53866,15 @@ const LanguageButton = ({ locale, active, onClick }) => {
       className: `border-2 border-[#222] px-2 py-0.5 text-[1rem] font-bold ${active ? "bg-component-positive text-white" : "bg-white text-[#222]"}`,
       "aria-pressed": active,
       children: meta.nativeName
-    }
+    },
+    void 0,
+    false,
+    {
+      fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+      lineNumber: 105,
+      columnNumber: 5
+    },
+    void 0
   );
 };
 function createResetConfirmCode() {
@@ -53044,10 +53904,14 @@ const SettingMenuLayer = ({
   onOpenResetConfirm,
   onCloseResetConfirm,
   onResetGameData,
-  onClose
+  onClose,
+  onBack,
+  onShowOfflineAdFallback,
+  onResetConfirmBack,
+  resetConfirmCodeFactory = createResetConfirmCode
 }) => {
   const { t: t2 } = useI18n();
-  const [resetConfirmCode, setResetConfirmCode] = reactExports.useState(createResetConfirmCode);
+  const [resetConfirmCode, setResetConfirmCode] = reactExports.useState(resetConfirmCodeFactory);
   const [resetConfirmDigits, setResetConfirmDigits] = reactExports.useState(
     () => Array.from({ length: RESET_CONFIRM_CODE_LENGTH }, () => "")
   );
@@ -53056,7 +53920,7 @@ const SettingMenuLayer = ({
     if (!showFinalResetConfirm) {
       return;
     }
-    setResetConfirmCode(createResetConfirmCode());
+    setResetConfirmCode(resetConfirmCodeFactory());
     setResetConfirmDigits(
       Array.from({ length: RESET_CONFIRM_CODE_LENGTH }, () => "")
     );
@@ -53065,7 +53929,7 @@ const SettingMenuLayer = ({
       firstInput == null ? void 0 : firstInput.focus();
       firstInput == null ? void 0 : firstInput.select();
     });
-  }, [showFinalResetConfirm]);
+  }, [resetConfirmCodeFactory, showFinalResetConfirm]);
   const resetConfirmText = reactExports.useMemo(
     () => resetConfirmDigits.join(""),
     [resetConfirmDigits]
@@ -53078,7 +53942,6 @@ const SettingMenuLayer = ({
     () => isResetComplete && resetConfirmText === resetConfirmCode,
     [isResetComplete, resetConfirmCode, resetConfirmText]
   );
-  const isResetMismatch = isResetComplete && !isResetEnabled;
   const focusResetCodeInput = (index) => {
     const nextIndex = Math.max(0, Math.min(index, RESET_CONFIRM_CODE_LENGTH - 1));
     window.requestAnimationFrame(() => {
@@ -53114,134 +53977,347 @@ const SettingMenuLayer = ({
     });
     focusResetCodeInput(direction === "current" ? index : previousIndex);
   };
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50", children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx(
+  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50", children: [
+    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
       PopupLayer,
       {
         title: t2("settings.title"),
         suppressInitialActionsMs: 180,
-        topLeftContent: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-[10px] leading-none text-gray-500", children: releaseLabel }),
-        content: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-4 text-left text-[1.5rem] leading-[1.4]", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-wrap items-center justify-between gap-3", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "whitespace-nowrap font-bold", children: t2("settings.vibration") }) }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(
+        topLeftContent: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-[10px] leading-none text-gray-500", children: releaseLabel }, void 0, false, {
+          fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+          lineNumber: 254,
+          columnNumber: 11
+        }, void 0),
+        content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex flex-col gap-4 text-left text-[1.5rem] leading-[1.4]", children: [
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex flex-wrap items-center justify-between gap-3", children: [
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "min-w-0 flex-1", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "font-bold", children: t2("settings.vibration") }, void 0, false, {
+              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+              lineNumber: 262,
+              columnNumber: 17
+            }, void 0) }, void 0, false, {
+              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+              lineNumber: 261,
+              columnNumber: 15
+            }, void 0),
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
               ToggleButton,
               {
                 enabled: vibrationEnabled,
                 onClick: () => onChangeVibration(!vibrationEnabled)
-              }
+              },
+              void 0,
+              false,
+              {
+                fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+                lineNumber: 266,
+                columnNumber: 15
+              },
+              void 0
             )
-          ] }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "border-t-2 border-[#222] pt-4", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-wrap items-center justify-between gap-3", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "whitespace-nowrap font-bold", children: t2("settings.reportBug") }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(
+          ] }, void 0, true, {
+            fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+            lineNumber: 260,
+            columnNumber: 13
+          }, void 0),
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "border-t-2 border-[#222] pt-4", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex flex-wrap items-center justify-between gap-3", children: [
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "min-w-0 flex-1 font-bold", children: t2("settings.reportBug") }, void 0, false, {
+              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+              lineNumber: 274,
+              columnNumber: 17
+            }, void 0),
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
               ActionButton,
               {
-                text: isSendingDiagnostics ? t2("settings.sending") : t2("settings.send"),
+                text: t2("settings.send"),
                 onClick: onSendDiagnostics,
                 disabled: isSendingDiagnostics,
                 variant: "warning"
-              }
+              },
+              void 0,
+              false,
+              {
+                fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+                lineNumber: 277,
+                columnNumber: 17
+              },
+              void 0
             )
-          ] }) }),
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "border-t-2 border-[#222] pt-4", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "font-bold text-red-600", children: t2("settings.raiseNewMonster") }) }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "mt-3 flex justify-end", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+          ] }, void 0, true, {
+            fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+            lineNumber: 273,
+            columnNumber: 15
+          }, void 0) }, void 0, false, {
+            fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+            lineNumber: 272,
+            columnNumber: 13
+          }, void 0),
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "border-t-2 border-[#222] pt-4", children: [
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "min-w-0", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "font-bold text-red-600", children: t2("settings.raiseNewMonster") }, void 0, false, {
+              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+              lineNumber: 288,
+              columnNumber: 17
+            }, void 0) }, void 0, false, {
+              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+              lineNumber: 287,
+              columnNumber: 15
+            }, void 0),
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "mt-3 flex justify-end", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
               ActionButton,
               {
                 text: t2("common.reset"),
                 onClick: onOpenResetConfirm,
-                variant: "negative"
-              }
-            ) })
-          ] }),
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "border-t-2 border-[#222] pt-4", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mb-3 flex flex-wrap items-center gap-2 font-bold", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Language" }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "border-2 border-[#222] bg-yellow-300 px-2 py-0.5 text-[0.85rem] uppercase leading-none text-[#222]", children: "Dev Mode" })
-            ] }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "grid grid-cols-2 gap-2", children: SUPPORTED_LOCALES.map((localeOption) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+                variant: "negative",
+                snapshotAction: "open-settings-reset-popup"
+              },
+              void 0,
+              false,
+              {
+                fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+                lineNumber: 293,
+                columnNumber: 17
+              },
+              void 0
+            ) }, void 0, false, {
+              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+              lineNumber: 292,
+              columnNumber: 15
+            }, void 0)
+          ] }, void 0, true, {
+            fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+            lineNumber: 286,
+            columnNumber: 13
+          }, void 0),
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "border-t-2 border-[#222] pt-4", children: [
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "mb-3 flex flex-wrap items-center gap-2 font-bold", children: [
+              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { children: "Language" }, void 0, false, {
+                fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+                lineNumber: 305,
+                columnNumber: 19
+              }, void 0),
+              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(DevModeBadge, {}, void 0, false, {
+                fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+                lineNumber: 306,
+                columnNumber: 19
+              }, void 0)
+            ] }, void 0, true, {
+              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+              lineNumber: 304,
+              columnNumber: 17
+            }, void 0),
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "grid grid-cols-2 gap-2", children: SUPPORTED_LOCALES.map((localeOption) => /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
               LanguageButton,
               {
                 locale: localeOption,
                 active: locale === localeOption,
                 onClick: () => onChangeLocale(localeOption)
               },
-              localeOption
-            )) })
-          ] })
-        ] }),
-        onConfirm: onClose,
-        confirmText: t2("common.close")
-      }
-    ),
-    showFinalResetConfirm && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-      PopupLayer,
-      {
-        title: t2("settings.resetTitle"),
-        content: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-4 leading-[1.4]", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: t2("settings.resetMessage") }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
-            "div",
-            {
-              className: "grid grid-cols-6 gap-1 self-center",
-              "aria-label": t2("settings.resetConfirmCodeLabel"),
-              children: RESET_CONFIRM_CODE_INDEXES.map((index) => /* @__PURE__ */ jsxRuntimeExports.jsx(
-                "input",
+              localeOption,
+              false,
+              {
+                fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+                lineNumber: 310,
+                columnNumber: 21
+              },
+              void 0
+            )) }, void 0, false, {
+              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+              lineNumber: 308,
+              columnNumber: 17
+            }, void 0),
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "mt-4 border-t-2 border-[#222] pt-4", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex flex-wrap items-center justify-between gap-3", children: [
+              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "min-w-0 flex-1", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex flex-wrap items-center gap-2 font-bold", children: [
+                /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { children: "Offline Ad" }, void 0, false, {
+                  fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+                  lineNumber: 322,
+                  columnNumber: 25
+                }, void 0),
+                /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(DevModeBadge, {}, void 0, false, {
+                  fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+                  lineNumber: 323,
+                  columnNumber: 25
+                }, void 0)
+              ] }, void 0, true, {
+                fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+                lineNumber: 321,
+                columnNumber: 23
+              }, void 0) }, void 0, false, {
+                fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+                lineNumber: 320,
+                columnNumber: 21
+              }, void 0),
+              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+                ActionButton,
                 {
-                  ref: (element) => {
-                    resetCodeInputRefs.current[index] = element;
-                  },
-                  type: "text",
-                  inputMode: "numeric",
-                  pattern: "[0-9]*",
-                  maxLength: 1,
-                  autoComplete: "off",
-                  value: resetConfirmDigits[index],
-                  placeholder: resetConfirmCode[index],
-                  onChange: (event) => fillResetConfirmDigits(index, event.target.value),
-                  onFocus: (event) => event.target.select(),
-                  onKeyDown: (event) => {
-                    if (event.key !== "Backspace") {
-                      if (event.key === "Delete") {
-                        event.preventDefault();
-                        clearResetConfirmDigit(index, "current");
-                      }
-                      return;
-                    }
-                    event.preventDefault();
-                    clearResetConfirmDigit(
-                      index,
-                      resetConfirmDigits[index] ? "current" : "previous"
-                    );
-                  },
-                  onPaste: (event) => {
-                    event.preventDefault();
-                    fillResetConfirmDigits(
-                      index,
-                      event.clipboardData.getData("text")
-                    );
-                  },
-                  "aria-label": `${t2("settings.resetConfirmCodeLabel")} ${index + 1}`,
-                  "aria-invalid": isResetMismatch,
-                  className: `h-11 w-9 border-2 px-0 text-center text-[1.2rem] font-bold focus:outline-none focus:ring-2 focus:ring-[#d95763] ${isResetMismatch ? "border-component-negative bg-[#fff0f2] text-component-negative placeholder:text-component-negative/50" : "border-[#222] bg-white text-[#222] placeholder:text-gray-400"}`
+                  text: "Show",
+                  onClick: () => onShowOfflineAdFallback == null ? void 0 : onShowOfflineAdFallback(),
+                  disabled: !onShowOfflineAdFallback,
+                  variant: "warning"
                 },
-                index
-              ))
-            }
-          )
-        ] }),
-        onConfirm: onResetGameData,
-        onCancel: onCloseResetConfirm,
-        confirmText: t2("common.reset"),
-        cancelText: t2("common.cancel"),
-        confirmDisabled: !isResetEnabled,
-        confirmVariant: "negative",
-        cancelVariant: "positive",
-        confirmEnableDelayMs: 2e3
-      }
-    ) })
-  ] });
+                void 0,
+                false,
+                {
+                  fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+                  lineNumber: 326,
+                  columnNumber: 21
+                },
+                void 0
+              )
+            ] }, void 0, true, {
+              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+              lineNumber: 319,
+              columnNumber: 19
+            }, void 0) }, void 0, false, {
+              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+              lineNumber: 318,
+              columnNumber: 17
+            }, void 0)
+          ] }, void 0, true, {
+            fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+            lineNumber: 303,
+            columnNumber: 15
+          }, void 0)
+        ] }, void 0, true, {
+          fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+          lineNumber: 259,
+          columnNumber: 11
+        }, void 0),
+        onConfirm: onClose,
+        onBack: onBack ?? onClose,
+        confirmText: t2("common.close")
+      },
+      void 0,
+      false,
+      {
+        fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+        lineNumber: 250,
+        columnNumber: 7
+      },
+      void 0
+    ),
+    showFinalResetConfirm && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+      "div",
+      {
+        className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50",
+        "data-snapshot-popup": "settings-reset",
+        children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+          PopupLayer,
+          {
+            title: t2("settings.resetTitle"),
+            content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex flex-col gap-4 leading-[1.4]", children: [
+              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: t2("settings.resetMessage") }, void 0, false, {
+                fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+                lineNumber: 351,
+                columnNumber: 17
+              }, void 0),
+              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+                "div",
+                {
+                  className: "grid grid-cols-6 gap-1 self-center",
+                  "aria-label": t2("settings.resetConfirmCodeLabel"),
+                  children: RESET_CONFIRM_CODE_INDEXES.map((index) => {
+                    const digit = resetConfirmDigits[index];
+                    const isDigitFilled = digit.length === 1;
+                    const isDigitCorrect = isDigitFilled && digit === resetConfirmCode[index];
+                    const isDigitMismatch = isDigitFilled && !isDigitCorrect;
+                    return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+                      "input",
+                      {
+                        ref: (element) => {
+                          resetCodeInputRefs.current[index] = element;
+                        },
+                        type: "text",
+                        inputMode: "numeric",
+                        pattern: "[0-9]*",
+                        maxLength: 1,
+                        autoComplete: "off",
+                        value: digit,
+                        placeholder: resetConfirmCode[index],
+                        onChange: (event) => fillResetConfirmDigits(index, event.target.value),
+                        onFocus: (event) => event.target.select(),
+                        onKeyDown: (event) => {
+                          if (event.key !== "Backspace") {
+                            if (event.key === "Delete") {
+                              event.preventDefault();
+                              clearResetConfirmDigit(index, "current");
+                            }
+                            return;
+                          }
+                          event.preventDefault();
+                          clearResetConfirmDigit(
+                            index,
+                            digit ? "current" : "previous"
+                          );
+                        },
+                        onPaste: (event) => {
+                          event.preventDefault();
+                          fillResetConfirmDigits(
+                            index,
+                            event.clipboardData.getData("text")
+                          );
+                        },
+                        "aria-label": `${t2("settings.resetConfirmCodeLabel")} ${index + 1}`,
+                        "aria-invalid": isDigitMismatch,
+                        className: `h-11 w-9 border-2 px-0 text-center text-[1.2rem] font-bold focus:outline-none focus:ring-2 ${isDigitCorrect ? "border-component-positive bg-[#f0fff4] text-component-positive placeholder:text-component-positive/60 focus:ring-component-positive" : isDigitMismatch ? "border-component-negative bg-[#fff0f2] text-component-negative placeholder:text-component-negative/50 focus:ring-[#d95763]" : "border-[#222] bg-white text-[#222] placeholder:text-gray-400 focus:ring-[#d95763]"}`
+                      },
+                      index,
+                      false,
+                      {
+                        fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+                        lineNumber: 364,
+                        columnNumber: 23
+                      },
+                      void 0
+                    );
+                  })
+                },
+                void 0,
+                false,
+                {
+                  fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+                  lineNumber: 352,
+                  columnNumber: 17
+                },
+                void 0
+              )
+            ] }, void 0, true, {
+              fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+              lineNumber: 350,
+              columnNumber: 15
+            }, void 0),
+            onConfirm: onResetGameData,
+            onCancel: onCloseResetConfirm,
+            onBack: onResetConfirmBack ?? onCloseResetConfirm,
+            confirmText: t2("common.reset"),
+            cancelText: t2("common.cancel"),
+            confirmDisabled: !isResetEnabled,
+            confirmVariant: "negative",
+            cancelVariant: "positive",
+            confirmEnableDelayMs: 2e3
+          },
+          void 0,
+          false,
+          {
+            fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+            lineNumber: 347,
+            columnNumber: 11
+          },
+          void 0
+        )
+      },
+      void 0,
+      false,
+      {
+        fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+        lineNumber: 343,
+        columnNumber: 9
+      },
+      void 0
+    )
+  ] }, void 0, true, {
+    fileName: "/Users/neiz/digivice/apps/client/src/layers/SettingMenuLayer.tsx",
+    lineNumber: 249,
+    columnNumber: 5
+  }, void 0);
 };
 const useAlert = () => {
   const [alertState, setAlertState] = reactExports.useState(null);
@@ -54044,6 +55120,7 @@ const LOADING_TIMEOUT_MS = 3e4;
 const isNativeFeatureDebugMode$1 = true;
 const isAndroidUserAgent = typeof navigator !== "undefined" && /DigiviceApp-Android|Android/i.test(navigator.userAgent);
 const KEYBOARD_VIEWPORT_HEIGHT_DELTA_THRESHOLD = 80;
+const UNSUPPORTED_VIEWPORT_OVERLAY_SHOW_DEBOUNCE_MS = 180;
 const UNSUPPORTED_SQUARE_VIEWPORT_RATIO = 0.8;
 function getConfiguredInitialSceneKey() {
   return void 0 === SceneKey.FLAPPY_BIRD_GAME ? SceneKey.FLAPPY_BIRD_GAME : SceneKey.MAIN;
@@ -54192,10 +55269,6 @@ function isKeyboardOpenForUnsupportedViewportCheck(options = {}) {
     return false;
   }
   const { nativeKeyboardInset = 0 } = options;
-  const activeElement = document.activeElement;
-  if (!isTextInputElement(activeElement)) {
-    return false;
-  }
   if (nativeKeyboardInset > 0) {
     return true;
   }
@@ -54333,11 +55406,11 @@ function createFlappyBirdLogsBody() {
   ].join("\n");
 }
 function getClientReleaseLabel() {
-  return `${"0.5.2-debug"}+${11}`;
+  return `${"0.6.1-debug"}+${13}`;
 }
 function getClientReleaseFileLabel() {
-  const sanitizedVersion = "0.5.2-debug".replace(/[^a-zA-Z0-9.-]+/g, "_");
-  return `${sanitizedVersion}-build-${11}`;
+  const sanitizedVersion = "0.6.1-debug".replace(/[^a-zA-Z0-9.-]+/g, "_");
+  return `${sanitizedVersion}-build-${13}`;
 }
 function buildDiagnosticsTimestampSuffix(timestamp) {
   return timestamp.replace(/\.\d{3}Z$/, "Z").replace(/[:]/g, "-");
@@ -54389,9 +55462,7 @@ const GameContainer = () => {
   const [gameContainerSize, setGameContainerSize] = reactExports.useState(
     null
   );
-  const [unsupportedViewportReason, setUnsupportedViewportReason] = reactExports.useState(
-    () => isAndroidUserAgent ? getUnsupportedViewportReason() : null
-  );
+  const [unsupportedViewportReason, setUnsupportedViewportReason] = reactExports.useState(null);
   const [showSetupLayer, setShowSetupLayer] = reactExports.useState(false);
   const [isBootstrapping, setIsBootstrapping] = reactExports.useState(true);
   const { locale, setLocale, t: t2 } = useI18n();
@@ -54433,6 +55504,7 @@ const GameContainer = () => {
   const flappyBirdGameOverAdTimeoutRef = reactExports.useRef(null);
   const recoveryVibrationIntervalRef = reactExports.useRef(null);
   const nativeKeyboardInsetRef = reactExports.useRef(0);
+  const unsupportedViewportOverlayShowTimeoutRef = reactExports.useRef(null);
   const lastValidationResultRef = reactExports.useRef(
     null
   );
@@ -54541,6 +55613,12 @@ const GameContainer = () => {
     setShowSettingMenu(false);
   }, [clearPendingSettingMenuOpen]);
   const closeResetConfirm = reactExports.useCallback(() => {
+    if (typeof document !== "undefined") {
+      const activeElement = document.activeElement;
+      if (isTextInputElement(activeElement)) {
+        activeElement.blur();
+      }
+    }
     setShowFinalResetConfirm(false);
   }, []);
   const backNavigationEntries = reactExports.useMemo(() => {
@@ -54693,6 +55771,9 @@ const GameContainer = () => {
     if (pendingBrowserHistoryTargetEntriesRef.current || pendingPopstateTargetEntriesRef.current) {
       return "consumed";
     }
+    if (consumeTopPopupBackHandler()) {
+      return "consumed";
+    }
     if (interruptLoadingFlow("back_navigation")) {
       return "consumed";
     }
@@ -54707,9 +55788,9 @@ const GameContainer = () => {
       return "consumed";
     }
     if (flappyBirdSettingsMenuState) {
-      const { onExit } = flappyBirdSettingsMenuState;
+      const { onResume } = flappyBirdSettingsMenuState;
       setFlappyBirdSettingsMenuState(null);
-      void Promise.resolve(onExit());
+      void Promise.resolve(onResume());
       return "consumed";
     }
     if (flappyBirdGameOverState) {
@@ -54761,7 +55842,7 @@ const GameContainer = () => {
       if (!targetEntrySet.has(BACK_NAVIGATION_SETTING_MENU_ENTRY)) {
         closeSettingMenu();
       } else if (!targetEntrySet.has(BACK_NAVIGATION_SETTING_RESET_CONFIRM_ENTRY)) {
-        setShowFinalResetConfirm(false);
+        closeResetConfirm();
       }
       if (!gameInstance || sceneTransitionLoadState.phase !== "idle") {
         return;
@@ -54772,7 +55853,13 @@ const GameContainer = () => {
       }
       await gameInstance.changeScene(targetSceneKey);
     },
-    [closeSettingMenu, gameInstance, hideAlert, sceneTransitionLoadState.phase]
+    [
+      closeResetConfirm,
+      closeSettingMenu,
+      gameInstance,
+      hideAlert,
+      sceneTransitionLoadState.phase
+    ]
   );
   const stopLoadingWithFailure = reactExports.useCallback(
     ({
@@ -54996,9 +56083,9 @@ const GameContainer = () => {
     setDiagnosticsContextProvider(() => ({
       scene: (gameInstance == null ? void 0 : gameInstance.getCurrentSceneKey()) !== void 0 ? String(gameInstance.getCurrentSceneKey()) : void 0,
       storageKind: getClientStorageKind(),
-      appMode: "production",
-      appVersion: "0.5.2-debug",
-      buildNumber: 11,
+      appMode: "development",
+      appVersion: "0.6.1-debug",
+      buildNumber: 13,
       debugEnabled: isNativeFeatureDebugMode$1
     }));
     return () => {
@@ -55114,13 +56201,30 @@ const GameContainer = () => {
       fullscreenAdLayoutReleaseRafRef.current = null;
     }
   }, []);
-  const updateUnsupportedViewportOverlay = reactExports.useCallback(() => {
-    setUnsupportedViewportReason(
-      getUnsupportedViewportReason({
-        nativeKeyboardInset: nativeKeyboardInsetRef.current
-      })
-    );
+  const clearPendingUnsupportedViewportOverlayShow = reactExports.useCallback(() => {
+    if (unsupportedViewportOverlayShowTimeoutRef.current !== null) {
+      window.clearTimeout(unsupportedViewportOverlayShowTimeoutRef.current);
+      unsupportedViewportOverlayShowTimeoutRef.current = null;
+    }
   }, []);
+  const updateUnsupportedViewportOverlay = reactExports.useCallback(() => {
+    const nextReason = getUnsupportedViewportReason({
+      nativeKeyboardInset: nativeKeyboardInsetRef.current
+    });
+    clearPendingUnsupportedViewportOverlayShow();
+    if (nextReason === null) {
+      setUnsupportedViewportReason(null);
+      return;
+    }
+    unsupportedViewportOverlayShowTimeoutRef.current = window.setTimeout(() => {
+      unsupportedViewportOverlayShowTimeoutRef.current = null;
+      setUnsupportedViewportReason(
+        getUnsupportedViewportReason({
+          nativeKeyboardInset: nativeKeyboardInsetRef.current
+        })
+      );
+    }, UNSUPPORTED_VIEWPORT_OVERLAY_SHOW_DEBOUNCE_MS);
+  }, [clearPendingUnsupportedViewportOverlayShow]);
   const freezeLayoutForFullscreenAd = reactExports.useCallback(() => {
     clearFullscreenAdLayoutRelease();
     isFullscreenAdLayoutFrozenRef.current = true;
@@ -55365,9 +56469,9 @@ const GameContainer = () => {
         generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
         appInfo: {
           project: "MonTTo",
-          clientAppVersion: "0.5.2-debug",
-          clientBuildNumber: 11,
-          appMode: "production",
+          clientAppVersion: "0.6.1-debug",
+          clientBuildNumber: 13,
+          appMode: "development",
           debugEnabled: isNativeFeatureDebugMode$1,
           storageKind: getClientStorageKind(),
           userAgent: navigator.userAgent,
@@ -55490,6 +56594,22 @@ const GameContainer = () => {
     showAlert,
     t2
   ]);
+  const handleShowOfflineAdFallback = reactExports.useCallback(() => {
+    const fallbackBridge = typeof window !== "undefined" ? window.digiviceAdFallbackBridge : void 0;
+    if (!(fallbackBridge == null ? void 0 : fallbackBridge.showOfflineInterstitialFallback)) {
+      console.warn("[GameContainer] Offline ad fallback bridge is unavailable");
+      return;
+    }
+    void fallbackBridge.showOfflineInterstitialFallback({
+      trigger: "debug_settings",
+      cooldownMs: 0,
+      timestamp: Date.now()
+    }).catch((error) => {
+      console.warn("[GameContainer] Failed to show offline ad fallback", {
+        error
+      });
+    });
+  }, []);
   const handleCancelDiagnosticsDraft = reactExports.useCallback(() => {
     dismissDiagnosticsDraft();
   }, [dismissDiagnosticsDraft]);
@@ -56026,6 +57146,7 @@ const GameContainer = () => {
     );
     return () => {
       var _a2;
+      clearPendingUnsupportedViewportOverlayShow();
       window.removeEventListener("resize", updateUnsupportedViewportOverlay);
       window.removeEventListener(
         "orientationchange",
@@ -56040,7 +57161,10 @@ const GameContainer = () => {
         handleNativeViewportSync
       );
     };
-  }, [updateUnsupportedViewportOverlay]);
+  }, [
+    clearPendingUnsupportedViewportOverlayShow,
+    updateUnsupportedViewportOverlay
+  ]);
   reactExports.useEffect(() => {
     if (typeof window === "undefined") {
       return;
@@ -56225,12 +57349,12 @@ const GameContainer = () => {
     }, 0);
   }, [handleSendDiagnostics]);
   const isLoading = isBootstrapping || sceneTransitionLoadState.phase === "loading" || sceneTransitionLoadState.phase === "core_ready";
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs(
+  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
     "div",
     {
       className: "relative flex h-full min-h-0 w-full flex-col overflow-hidden",
       children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs(
+        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
           "div",
           {
             ref: gameViewportRef,
@@ -56239,8 +57363,12 @@ const GameContainer = () => {
               gridTemplateRows: buttonParams ? "minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr)" : "minmax(0, 1fr) auto minmax(0, 1fr)"
             },
             children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "aria-hidden": "true", className: "min-h-0" }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex min-h-0 min-w-0 justify-center overflow-hidden", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { "aria-hidden": "true", className: "min-h-0" }, void 0, false, {
+                fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+                lineNumber: 3035,
+                columnNumber: 9
+              }, void 0),
+              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "flex min-h-0 min-w-0 justify-center overflow-hidden", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
                 "div",
                 {
                   className: "relative m-0 shrink-0 p-0",
@@ -56248,45 +57376,137 @@ const GameContainer = () => {
                     width: `${gameContainerSize}px`,
                     height: `${gameContainerSize}px`
                   } : void 0,
-                  children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
                     "div",
                     {
                       id: "game-container",
                       ref: gameContainerRef,
                       className: "absolute inset-0 m-0 p-0"
-                    }
+                    },
+                    void 0,
+                    false,
+                    {
+                      fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+                      lineNumber: 3048,
+                      columnNumber: 13
+                    },
+                    void 0
                   )
-                }
-              ) }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "aria-hidden": "true", className: "min-h-0" }),
-              buttonParams && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: controlButtonsWrapperRef, className: "z-10 w-full", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                },
+                void 0,
+                false,
+                {
+                  fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+                  lineNumber: 3037,
+                  columnNumber: 11
+                },
+                void 0
+              ) }, void 0, false, {
+                fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+                lineNumber: 3036,
+                columnNumber: 9
+              }, void 0),
+              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { "aria-hidden": "true", className: "min-h-0" }, void 0, false, {
+                fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+                lineNumber: 3057,
+                columnNumber: 9
+              }, void 0),
+              buttonParams && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { ref: controlButtonsWrapperRef, className: "z-10 w-full", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
                 ControlButtons,
                 {
                   buttonParams,
                   onButtonPress: handleButtonPress,
                   onSliderChange: handleSliderChange,
                   onSliderEnd: handleSliderEnd
-                }
-              ) }),
-              buttonParams && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "aria-hidden": "true", className: "min-h-0" })
+                },
+                void 0,
+                false,
+                {
+                  fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+                  lineNumber: 3061,
+                  columnNumber: 13
+                },
+                void 0
+              ) }, void 0, false, {
+                fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+                lineNumber: 3060,
+                columnNumber: 11
+              }, void 0),
+              buttonParams && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { "aria-hidden": "true", className: "min-h-0" }, void 0, false, {
+                fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+                lineNumber: 3069,
+                columnNumber: 26
+              }, void 0)
             ]
-          }
+          },
+          void 0,
+          true,
+          {
+            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+            lineNumber: 3026,
+            columnNumber: 7
+          },
+          void 0
         ),
-        isLoading && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-50 flex items-center justify-center bg-black text-white", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-center text-[2.25rem] tracking-[0.12em]", children: t2("loading.label") }) }),
-        unsupportedViewportReason && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-[1000] flex items-center justify-center bg-black text-white", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "px-6 text-center", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-lg tracking-[0.12em]", children: t2("viewport.portraitOnly") }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "mt-6 text-[10px] leading-6 tracking-[0.12em]", children: unsupportedViewportReason === "landscape" ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+        isLoading && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "absolute inset-0 z-50 flex items-center justify-center bg-black text-white", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-center text-[2.25rem] tracking-[0.12em]", children: t2("loading.label") }, void 0, false, {
+          fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+          lineNumber: 3073,
+          columnNumber: 11
+        }, void 0) }, void 0, false, {
+          fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+          lineNumber: 3072,
+          columnNumber: 9
+        }, void 0),
+        unsupportedViewportReason && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "absolute inset-0 z-[1000] flex items-center justify-center bg-black text-white", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "px-6 text-center", children: [
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-lg tracking-[0.12em]", children: t2("viewport.portraitOnly") }, void 0, false, {
+            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+            lineNumber: 3081,
+            columnNumber: 13
+          }, void 0),
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "mt-6 text-[10px] leading-6 tracking-[0.12em]", children: unsupportedViewportReason === "landscape" ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(jsxDevRuntimeExports.Fragment, { children: [
             t2("viewport.rotateDevice"),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("br", {}),
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("br", {}, void 0, false, {
+              fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+              lineNumber: 3086,
+              columnNumber: 19
+            }, void 0),
             t2("viewport.backToPortrait")
-          ] }) : /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+          ] }, void 0, true, {
+            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+            lineNumber: 3084,
+            columnNumber: 17
+          }, void 0) : /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(jsxDevRuntimeExports.Fragment, { children: [
             t2("viewport.unsupportedRatio"),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("br", {}),
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("br", {}, void 0, false, {
+              fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+              lineNumber: 3092,
+              columnNumber: 19
+            }, void 0),
             t2("viewport.useTallerPortrait")
-          ] }) })
-        ] }) }),
-        showSetupLayer && /* @__PURE__ */ jsxRuntimeExports.jsx(SetupLayer, { onComplete: handleSetupComplete }),
-        showSettingMenu && /* @__PURE__ */ jsxRuntimeExports.jsx(
+          ] }, void 0, true, {
+            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+            lineNumber: 3090,
+            columnNumber: 17
+          }, void 0) }, void 0, false, {
+            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+            lineNumber: 3082,
+            columnNumber: 13
+          }, void 0)
+        ] }, void 0, true, {
+          fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+          lineNumber: 3080,
+          columnNumber: 11
+        }, void 0) }, void 0, false, {
+          fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+          lineNumber: 3079,
+          columnNumber: 9
+        }, void 0),
+        showSetupLayer && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(SetupLayer, { onComplete: handleSetupComplete }, void 0, false, {
+          fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+          lineNumber: 3100,
+          columnNumber: 26
+        }, void 0),
+        showSettingMenu && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
           SettingMenuLayer,
           {
             releaseLabel: getClientReleaseLabel(),
@@ -56299,30 +57519,69 @@ const GameContainer = () => {
             showFinalResetConfirm,
             onOpenResetConfirm: () => setShowFinalResetConfirm(true),
             onCloseResetConfirm: dismissResetConfirm,
+            onResetConfirmBack: closeResetConfirm,
             onResetGameData: handleResetGameData,
-            onClose: dismissSettingMenu
-          }
+            onClose: dismissSettingMenu,
+            onBack: closeSettingMenu,
+            onShowOfflineAdFallback: handleShowOfflineAdFallback
+          },
+          void 0,
+          false,
+          {
+            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+            lineNumber: 3102,
+            columnNumber: 9
+          },
+          void 0
         ),
-        alertState && /* @__PURE__ */ jsxRuntimeExports.jsx(
+        alertState && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
           AlertLayer,
           {
             title: alertState.title,
             message: alertState.message,
-            onClose: dismissAlert
-          }
+            onClose: dismissAlert,
+            onBack: hideAlert
+          },
+          void 0,
+          false,
+          {
+            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+            lineNumber: 3121,
+            columnNumber: 9
+          },
+          void 0
         ),
-        loadingFailureAlert && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+        loadingFailureAlert && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
           PopupLayer,
           {
             title: loadingFailureAlert.title,
-            content: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-left leading-[1.6]", children: loadingFailureAlert.message }),
+            content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-left leading-[1.6]", children: loadingFailureAlert.message }, void 0, false, {
+              fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+              lineNumber: 3133,
+              columnNumber: 15
+            }, void 0),
             onConfirm: dismissLoadingFailureAlert,
             onCancel: handleSendLoadingFailureLogs,
+            onBack: () => {
+              setLoadingFailureAlert(null);
+            },
             confirmText: t2("common.okay"),
             cancelText: t2("diagnostics.sendLog")
-          }
-        ) }),
-        sanitizeResetAlert && /* @__PURE__ */ jsxRuntimeExports.jsx(
+          },
+          void 0,
+          false,
+          {
+            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+            lineNumber: 3130,
+            columnNumber: 11
+          },
+          void 0
+        ) }, void 0, false, {
+          fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+          lineNumber: 3129,
+          columnNumber: 9
+        }, void 0),
+        sanitizeResetAlert && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
           AlertLayer,
           {
             title: sanitizeResetAlert.title,
@@ -56332,32 +57591,73 @@ const GameContainer = () => {
               void handleSendDiagnostics();
             },
             cancelText: isSendingDiagnostics ? t2("settings.sending") : t2("diagnostics.sendLogs")
-          }
+          },
+          void 0,
+          false,
+          {
+            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+            lineNumber: 3148,
+            columnNumber: 9
+          },
+          void 0
         ),
-        pendingDiagnosticsDraft && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+        pendingDiagnosticsDraft && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
           PopupLayer,
           {
             title: t2("diagnostics.openGmail"),
-            content: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "text-left leading-[1.6]", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: t2("diagnostics.gmailWillOpen") }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "mt-2", children: t2("diagnostics.gmailAttachments") })
-            ] }),
+            content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "text-left leading-[1.6]", children: [
+              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: t2("diagnostics.gmailWillOpen") }, void 0, false, {
+                fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+                lineNumber: 3164,
+                columnNumber: 17
+              }, void 0),
+              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "mt-2", children: t2("diagnostics.gmailAttachments") }, void 0, false, {
+                fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+                lineNumber: 3165,
+                columnNumber: 17
+              }, void 0)
+            ] }, void 0, true, {
+              fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+              lineNumber: 3163,
+              columnNumber: 15
+            }, void 0),
             onConfirm: handleConfirmDiagnosticsDraft,
             onCancel: handleCancelDiagnosticsDraft,
+            onBack: () => {
+              setPendingDiagnosticsDraft(null);
+            },
             confirmText: t2("common.confirmUpper"),
             cancelText: t2("common.cancel")
-          }
-        ) }),
-        flappyBirdGameOverState && /* @__PURE__ */ jsxRuntimeExports.jsx(
+          },
+          void 0,
+          false,
+          {
+            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+            lineNumber: 3160,
+            columnNumber: 11
+          },
+          void 0
+        ) }, void 0, false, {
+          fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+          lineNumber: 3159,
+          columnNumber: 9
+        }, void 0),
+        flappyBirdGameOverState && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
           FlappyBirdGameOverLayer,
           {
-            score: flappyBirdGameOverState.score,
-            bestScore: flappyBirdGameOverState.bestScore,
             onRestart: handleFlappyBirdGameOverRestart,
             onExit: handleFlappyBirdGameOverExit
-          }
+          },
+          void 0,
+          false,
+          {
+            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+            lineNumber: 3181,
+            columnNumber: 9
+          },
+          void 0
         ),
-        flappyBirdSettingsMenuState && /* @__PURE__ */ jsxRuntimeExports.jsx(
+        flappyBirdSettingsMenuState && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
           FlappyBirdSettingsLayer,
           {
             isBgmEnabled: flappyBirdSettingsMenuState.isBgmEnabled,
@@ -56370,12 +57670,30 @@ const GameContainer = () => {
             isSendingLogs: isSendingDiagnostics || pendingDiagnosticsDraft !== null,
             onResume: handleFlappyBirdSettingsMenuResume,
             onExit: handleFlappyBirdSettingsMenuExit
-          }
+          },
+          void 0,
+          false,
+          {
+            fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+            lineNumber: 3187,
+            columnNumber: 9
+          },
+          void 0
         )
       ]
-    }
+    },
+    void 0,
+    true,
+    {
+      fileName: "/Users/neiz/digivice/apps/client/src/GameContainer.tsx",
+      lineNumber: 3023,
+      columnNumber: 5
+    },
+    void 0
   );
 };
+const SNAPSHOT_RESET_CONFIRM_CODE = "123456";
+const createSnapshotResetConfirmCode = () => SNAPSHOT_RESET_CONFIRM_CODE;
 function getSnapshotLayer() {
   if (typeof window === "undefined") {
     return null;
@@ -56385,13 +57703,30 @@ function getSnapshotLayer() {
   );
   return value === "setup" || value === "settings" ? value : null;
 }
+function getSnapshotPopup() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  const value = new URLSearchParams(window.location.search).get(
+    "snapshotPopup"
+  );
+  return value === "settings-reset" ? value : null;
+}
 const SnapshotScreen = ({ layer }) => {
   const { locale, setLocale } = useI18n();
   const [gameSettings, setGameSettings] = reactExports.useState(getGameSettings);
+  const snapshotPopup = getSnapshotPopup();
+  const [showFinalResetConfirm, setShowFinalResetConfirm] = reactExports.useState(
+    snapshotPopup === "settings-reset"
+  );
   if (layer === "setup") {
-    return /* @__PURE__ */ jsxRuntimeExports.jsx(SetupLayer, { onComplete: () => void 0 });
+    return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(SetupLayer, { onComplete: () => void 0 }, void 0, false, {
+      fileName: "/Users/neiz/digivice/apps/client/src/SnapshotScreen.tsx",
+      lineNumber: 47,
+      columnNumber: 12
+    }, void 0);
   }
-  return /* @__PURE__ */ jsxRuntimeExports.jsx(
+  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
     SettingMenuLayer,
     {
       releaseLabel: "snapshot",
@@ -56403,16 +57738,126 @@ const SnapshotScreen = ({ layer }) => {
       onChangeLocale: setLocale,
       onSendDiagnostics: () => void 0,
       isSendingDiagnostics: false,
-      showFinalResetConfirm: false,
-      onOpenResetConfirm: () => void 0,
-      onCloseResetConfirm: () => void 0,
+      showFinalResetConfirm,
+      onOpenResetConfirm: () => setShowFinalResetConfirm(true),
+      onCloseResetConfirm: () => setShowFinalResetConfirm(false),
       onResetGameData: () => void 0,
-      onClose: () => void 0
-    }
+      onClose: () => void 0,
+      resetConfirmCodeFactory: createSnapshotResetConfirmCode
+    },
+    void 0,
+    false,
+    {
+      fileName: "/Users/neiz/digivice/apps/client/src/SnapshotScreen.tsx",
+      lineNumber: 51,
+      columnNumber: 5
+    },
+    void 0
   );
 };
-const FALLBACK_AD_DURATION_MS = 1e4;
+const FALLBACK_AD_DURATION_MS = 15e3;
 const FALLBACK_AD_TICK_MS = 100;
+const OFFLINE_AD_PIXEL_COLUMNS = 56;
+const OFFLINE_AD_PIXEL_ROWS = 88;
+const OFFLINE_AD_PIXEL_PALETTE = [
+  "#010604",
+  "#03100a",
+  "#062016",
+  "#0b3a24",
+  "#116339",
+  "#1f8f4f",
+  "#34b86c",
+  "#68d989"
+];
+function parseHexColor(hex) {
+  return {
+    r: Number.parseInt(hex.slice(1, 3), 16),
+    g: Number.parseInt(hex.slice(3, 5), 16),
+    b: Number.parseInt(hex.slice(5, 7), 16)
+  };
+}
+function mixColors(start, end, amount) {
+  const r2 = Math.round(start.r + (end.r - start.r) * amount);
+  const g2 = Math.round(start.g + (end.g - start.g) * amount);
+  const b2 = Math.round(start.b + (end.b - start.b) * amount);
+  return `rgb(${r2}, ${g2}, ${b2})`;
+}
+function samplePixelGradient(position) {
+  const normalizedPosition = (position % 1 + 1) % 1;
+  const scaledPosition = normalizedPosition * (OFFLINE_AD_PIXEL_PALETTE.length - 1);
+  const startIndex = Math.floor(scaledPosition);
+  const endIndex = Math.min(
+    OFFLINE_AD_PIXEL_PALETTE.length - 1,
+    startIndex + 1
+  );
+  const amount = scaledPosition - startIndex;
+  return mixColors(
+    parseHexColor(OFFLINE_AD_PIXEL_PALETTE[startIndex]),
+    parseHexColor(OFFLINE_AD_PIXEL_PALETTE[endIndex]),
+    amount
+  );
+}
+function sampleCircularBlob(x2, y2, centerX, centerY, radius) {
+  const distance = Math.hypot(x2 - centerX, y2 - centerY);
+  return Math.max(0, 1 - distance / radius);
+}
+const OFFLINE_AD_PIXEL_CELLS = Array.from(
+  { length: OFFLINE_AD_PIXEL_COLUMNS * OFFLINE_AD_PIXEL_ROWS },
+  (_, index) => {
+    const x2 = index % OFFLINE_AD_PIXEL_COLUMNS;
+    const y2 = Math.floor(index / OFFLINE_AD_PIXEL_COLUMNS);
+    const normalizedX = x2 / (OFFLINE_AD_PIXEL_COLUMNS - 1);
+    const normalizedY = y2 / (OFFLINE_AD_PIXEL_ROWS - 1);
+    const diagonalDown = normalizedX * 0.24 + normalizedY * 0.26;
+    const diagonalUp = normalizedX * 0.22 + (1 - normalizedY) * 0.18;
+    const centerBlob = sampleCircularBlob(
+      normalizedX,
+      normalizedY,
+      0.5,
+      0.5,
+      0.5
+    );
+    const upperBlob = sampleCircularBlob(
+      normalizedX,
+      normalizedY,
+      0.28,
+      0.24,
+      0.34
+    );
+    const rightBlob = sampleCircularBlob(
+      normalizedX,
+      normalizedY,
+      0.75,
+      0.4,
+      0.38
+    );
+    const lowerBlob = sampleCircularBlob(
+      normalizedX,
+      normalizedY,
+      0.36,
+      0.78,
+      0.36
+    );
+    const waveA = (Math.sin((normalizedX * 1.5 + normalizedY * 1.2) * Math.PI) + 1) / 2;
+    const waveB = (Math.cos((normalizedX * 1.2 - normalizedY * 1.4) * Math.PI) + 1) / 2;
+    const gradientPosition = diagonalDown + diagonalUp + centerBlob * 0.22 + upperBlob * 0.2 + rightBlob * 0.18 + lowerBlob * 0.16 + waveA * 0.08 + waveB * 0.06;
+    return {
+      id: index,
+      style: {
+        "--pixel-color-a": samplePixelGradient(gradientPosition),
+        "--pixel-color-b": samplePixelGradient(
+          gradientPosition + upperBlob * 0.16 + waveB * 0.08
+        ),
+        "--pixel-color-c": samplePixelGradient(
+          gradientPosition + centerBlob * 0.18 + rightBlob * 0.1
+        ),
+        "--pixel-color-d": samplePixelGradient(
+          gradientPosition + lowerBlob * 0.16 + waveA * 0.1
+        )
+      }
+    };
+  }
+);
 const OfflineInterstitialFallbackLayer = ({ onComplete, t: t2 }) => {
   const remainingMsRef = reactExports.useRef(FALLBACK_AD_DURATION_MS);
   const lastTickAtRef = reactExports.useRef(0);
@@ -56474,7 +57919,7 @@ const OfflineInterstitialFallbackLayer = ({ onComplete, t: t2 }) => {
   }, []);
   const remainingSeconds = Math.max(0, Math.ceil(remainingMs / 1e3));
   const progressPercent = (FALLBACK_AD_DURATION_MS - Math.max(0, remainingMs)) / FALLBACK_AD_DURATION_MS * 100;
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs(
+  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
     "div",
     {
       className: "fixed inset-0 z-[80] flex items-center justify-center overflow-hidden bg-black text-white",
@@ -56482,49 +57927,121 @@ const OfflineInterstitialFallbackLayer = ({ onComplete, t: t2 }) => {
       "aria-modal": "true",
       "aria-labelledby": "offline-ad-title",
       children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "offline-ad-fallback-visualizer", "aria-hidden": "true", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "offline-ad-fallback-visualizer__bar offline-ad-fallback-visualizer__bar--one" }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "offline-ad-fallback-visualizer__bar offline-ad-fallback-visualizer__bar--two" }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "offline-ad-fallback-visualizer__bar offline-ad-fallback-visualizer__bar--three" }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "offline-ad-fallback-visualizer__bar offline-ad-fallback-visualizer__bar--four" })
-        ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "relative z-[1] w-full", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "offline-ad-fallback-visualizer", "aria-hidden": "true", children: OFFLINE_AD_PIXEL_CELLS.map((pixel) => /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+          "span",
+          {
+            className: "offline-ad-fallback-visualizer__pixel",
+            style: pixel.style
+          },
+          pixel.id,
+          false,
+          {
+            fileName: "/Users/neiz/digivice/apps/client/src/components/OfflineInterstitialFallbackLayer.tsx",
+            lineNumber: 249,
+            columnNumber: 11
+          },
+          void 0
+        )) }, void 0, false, {
+          fileName: "/Users/neiz/digivice/apps/client/src/components/OfflineInterstitialFallbackLayer.tsx",
+          lineNumber: 247,
+          columnNumber: 7
+        }, void 0),
+        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "relative z-[1] w-full", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
           PopupLayer,
           {
             title: t2("offlineAd.title"),
-            content: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-4 text-center", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { id: "offline-ad-title", className: "sr-only", children: t2("offlineAd.title") }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: t2("offlineAd.message") }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-[1.1rem] leading-[1.4] text-[#534741]", children: t2("offlineAd.maxDuration") }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx(
+            content: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "space-y-4 text-center", children: [
+              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { id: "offline-ad-title", className: "sr-only", children: t2("offlineAd.title") }, void 0, false, {
+                fileName: "/Users/neiz/digivice/apps/client/src/components/OfflineInterstitialFallbackLayer.tsx",
+                lineNumber: 261,
+                columnNumber: 15
+              }, void 0),
+              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: t2("offlineAd.message") }, void 0, false, {
+                fileName: "/Users/neiz/digivice/apps/client/src/components/OfflineInterstitialFallbackLayer.tsx",
+                lineNumber: 264,
+                columnNumber: 15
+              }, void 0),
+              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
                 "div",
                 {
                   className: "mx-auto w-full max-w-[14rem] border-4 border-[#222] bg-[#201236] p-1 shadow-[2px_2px_0_#222]",
                   "aria-hidden": "true",
-                  children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "h-4 bg-[#12091f]", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "h-4 bg-[#12091f]", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
                     "div",
                     {
                       className: "h-full bg-[#69f0ae]",
                       style: { width: `${progressPercent}%` }
-                    }
-                  ) })
-                }
+                    },
+                    void 0,
+                    false,
+                    {
+                      fileName: "/Users/neiz/digivice/apps/client/src/components/OfflineInterstitialFallbackLayer.tsx",
+                      lineNumber: 272,
+                      columnNumber: 19
+                    },
+                    void 0
+                  ) }, void 0, false, {
+                    fileName: "/Users/neiz/digivice/apps/client/src/components/OfflineInterstitialFallbackLayer.tsx",
+                    lineNumber: 271,
+                    columnNumber: 17
+                  }, void 0)
+                },
+                void 0,
+                false,
+                {
+                  fileName: "/Users/neiz/digivice/apps/client/src/components/OfflineInterstitialFallbackLayer.tsx",
+                  lineNumber: 267,
+                  columnNumber: 15
+                },
+                void 0
               ),
-              /* @__PURE__ */ jsxRuntimeExports.jsx(
+              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
                 "div",
                 {
                   className: "font-display text-[1.6rem] leading-[1.2] text-component-negative",
                   "aria-live": "polite",
                   children: t2("offlineAd.returningIn", { seconds: remainingSeconds })
-                }
+                },
+                void 0,
+                false,
+                {
+                  fileName: "/Users/neiz/digivice/apps/client/src/components/OfflineInterstitialFallbackLayer.tsx",
+                  lineNumber: 278,
+                  columnNumber: 15
+                },
+                void 0
               )
-            ] }),
+            ] }, void 0, true, {
+              fileName: "/Users/neiz/digivice/apps/client/src/components/OfflineInterstitialFallbackLayer.tsx",
+              lineNumber: 260,
+              columnNumber: 13
+            }, void 0),
             showActions: false,
             initialFocusTarget: "container"
-          }
-        ) })
+          },
+          void 0,
+          false,
+          {
+            fileName: "/Users/neiz/digivice/apps/client/src/components/OfflineInterstitialFallbackLayer.tsx",
+            lineNumber: 257,
+            columnNumber: 9
+          },
+          void 0
+        ) }, void 0, false, {
+          fileName: "/Users/neiz/digivice/apps/client/src/components/OfflineInterstitialFallbackLayer.tsx",
+          lineNumber: 256,
+          columnNumber: 7
+        }, void 0)
       ]
-    }
+    },
+    void 0,
+    true,
+    {
+      fileName: "/Users/neiz/digivice/apps/client/src/components/OfflineInterstitialFallbackLayer.tsx",
+      lineNumber: 241,
+      columnNumber: 5
+    },
+    void 0
   );
 };
 const COOLDOWN_KEY = "ad_last_shown_timestamp";
@@ -56581,6 +58098,7 @@ class CooldownCondition {
 }
 const DEFAULT_NATIVE_AD_COOLDOWN_MS = 4 * 60 * 60 * 1e3;
 const ONLINE_AD_RETRY_STORAGE_KEY = "digivice_pending_online_ad_retry";
+const OFFLINE_FALLBACK_AD_RETRY_INTERVAL_MS = 1e3;
 function resolveCooldownMs$1(metadata) {
   const cooldownMs = metadata == null ? void 0 : metadata.cooldownMs;
   if (typeof cooldownMs === "number" && Number.isFinite(cooldownMs) && cooldownMs > 0) {
@@ -56655,11 +58173,14 @@ class AdManager {
       if (isOnlineRetry) {
         return false;
       }
-      const fallbackDidComplete = await this.showOfflineInterstitialFallback(
+      const fallbackResult = await this.showOfflineInterstitialFallback(
         trigger,
         cooldownMs
       );
-      if (fallbackDidComplete) {
+      if (fallbackResult === "ad_shown") {
+        return true;
+      }
+      if (fallbackResult === "fallback_completed") {
         this.markPendingOnlineAdRetry();
         return true;
       }
@@ -56753,17 +58274,82 @@ class AdManager {
       console.warn("[AdManager] Offline interstitial fallback unavailable");
       return false;
     }
-    try {
-      const completed = await fallbackBridge.showOfflineInterstitialFallback({
+    return new Promise((resolve) => {
+      let settled = false;
+      let retryTimerId = null;
+      const finish = (result) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        if (retryTimerId !== null) {
+          window.clearTimeout(retryTimerId);
+          retryTimerId = null;
+        }
+        resolve(result);
+      };
+      const scheduleRetry = () => {
+        if (settled) {
+          return;
+        }
+        retryTimerId = window.setTimeout(() => {
+          retryTimerId = null;
+          void retryAdConnection();
+        }, OFFLINE_FALLBACK_AD_RETRY_INTERVAL_MS);
+      };
+      const retryAdConnection = async () => {
+        var _a;
+        if (settled) {
+          return;
+        }
+        const didShow = await this.tryShowRecoveredInterstitial(cooldownMs);
+        if (settled) {
+          return;
+        }
+        if (didShow) {
+          try {
+            (_a = fallbackBridge.completeOfflineInterstitialFallback) == null ? void 0 : _a.call(fallbackBridge, true);
+          } finally {
+            finish("ad_shown");
+          }
+          return;
+        }
+        scheduleRetry();
+      };
+      fallbackBridge.showOfflineInterstitialFallback({
         trigger,
         cooldownMs,
         timestamp: Date.now()
+      }).then((completed) => {
+        finish(completed === true ? "fallback_completed" : false);
+      }).catch((fallbackError) => {
+        console.error(
+          "[AdManager] Error showing offline interstitial fallback:",
+          fallbackError
+        );
+        finish(false);
       });
-      return completed === true;
-    } catch (fallbackError) {
-      console.error(
-        "[AdManager] Error showing offline interstitial fallback:",
-        fallbackError
+      scheduleRetry();
+    });
+  }
+  async tryShowRecoveredInterstitial(cooldownMs) {
+    if (!window.adController) {
+      return false;
+    }
+    try {
+      const canShowStr = await window.adController.canShowAd({ cooldownMs });
+      if (canShowStr !== "true") {
+        return false;
+      }
+      await window.adController.showInterstitial({ cooldownMs });
+      console.log("[AdManager] Recovered ad shown during offline fallback");
+      CooldownCondition.updateCooldown();
+      this.clearPendingOnlineAdRetry();
+      return true;
+    } catch (error) {
+      console.warn(
+        "[AdManager] Recovered ad attempt failed during offline fallback",
+        error
       );
       return false;
     }
@@ -56875,6 +58461,7 @@ const App = () => {
     };
     window.digiviceAdFallbackBridge = {
       showOfflineInterstitialFallback: () => showOfflineInterstitialFallback(),
+      completeOfflineInterstitialFallback: (completed = true) => clearOfflineAdFallback(completed),
       isActive: () => isOfflineAdFallbackActiveRef.current
     };
     const handleVisibilityChange = () => {
@@ -56922,29 +58509,60 @@ const App = () => {
     const now = Date.now();
     localStorage.setItem(LAST_ACTIVE_KEY, now.toString());
   };
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { id: "app-shell", children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx(TopLeftBuildLogoText, {}),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { id: "app-container", children: [
-      snapshotLayer ? /* @__PURE__ */ jsxRuntimeExports.jsx(SnapshotScreen, { layer: snapshotLayer }) : /* @__PURE__ */ jsxRuntimeExports.jsx(GameContainer, {}),
-      offlineAdFallbackKey !== null && /* @__PURE__ */ jsxRuntimeExports.jsx(
+  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { id: "app-shell", children: [
+    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(TopLeftBuildLogoText, {}, void 0, false, {
+      fileName: "/Users/neiz/digivice/apps/client/src/App.tsx",
+      lineNumber: 171,
+      columnNumber: 7
+    }, void 0),
+    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { id: "app-container", children: [
+      snapshotLayer ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(SnapshotScreen, { layer: snapshotLayer }, void 0, false, {
+        fileName: "/Users/neiz/digivice/apps/client/src/App.tsx",
+        lineNumber: 174,
+        columnNumber: 11
+      }, void 0) : /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(GameContainer, {}, void 0, false, {
+        fileName: "/Users/neiz/digivice/apps/client/src/App.tsx",
+        lineNumber: 176,
+        columnNumber: 11
+      }, void 0),
+      offlineAdFallbackKey !== null && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
         OfflineInterstitialFallbackLayer,
         {
           onComplete: () => clearOfflineAdFallback(true),
           t: t2
         },
-        offlineAdFallbackKey
+        offlineAdFallbackKey,
+        false,
+        {
+          fileName: "/Users/neiz/digivice/apps/client/src/App.tsx",
+          lineNumber: 179,
+          columnNumber: 11
+        },
+        void 0
       ),
-      /* @__PURE__ */ jsxRuntimeExports.jsx(SimpleLogViewer, { position: "top-right", initialOpen: false })
-    ] })
-  ] });
+      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(SimpleLogViewer, { position: "top-right", initialOpen: false }, void 0, false, {
+        fileName: "/Users/neiz/digivice/apps/client/src/App.tsx",
+        lineNumber: 185,
+        columnNumber: 9
+      }, void 0)
+    ] }, void 0, true, {
+      fileName: "/Users/neiz/digivice/apps/client/src/App.tsx",
+      lineNumber: 172,
+      columnNumber: 7
+    }, void 0)
+  ] }, void 0, true, {
+    fileName: "/Users/neiz/digivice/apps/client/src/App.tsx",
+    lineNumber: 170,
+    columnNumber: 5
+  }, void 0);
 };
 const platformAdapter = new PlatformAdapter();
 const isNativeFeatureDebugMode = true;
 installDiagnosticsConsoleCapture();
 setDiagnosticsContextProvider(() => ({
-  appMode: "production",
-  appVersion: "0.5.2-debug",
-  buildNumber: 11,
+  appMode: "development",
+  appVersion: "0.6.1-debug",
+  buildNumber: 13,
   debugEnabled: isNativeFeatureDebugMode
 }));
 document.addEventListener("DOMContentLoaded", () => {
@@ -56980,7 +58598,19 @@ async function bootstrap() {
   }
   const root = ReactDOM.createRoot(rootElement);
   root.render(
-    /* @__PURE__ */ jsxRuntimeExports.jsx(jsxRuntimeExports.Fragment, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(I18nProvider, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(App, {}) }) })
+    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(jsxDevRuntimeExports.Fragment, { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(I18nProvider, { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(App, {}, void 0, false, {
+      fileName: "/Users/neiz/digivice/apps/client/src/main.tsx",
+      lineNumber: 87,
+      columnNumber: 9
+    }, this) }, void 0, false, {
+      fileName: "/Users/neiz/digivice/apps/client/src/main.tsx",
+      lineNumber: 86,
+      columnNumber: 7
+    }, this) }, void 0, false, {
+      fileName: "/Users/neiz/digivice/apps/client/src/main.tsx",
+      lineNumber: 85,
+      columnNumber: 5
+    }, this)
   );
 }
 void bootstrap();

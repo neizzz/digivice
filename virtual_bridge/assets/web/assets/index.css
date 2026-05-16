@@ -77,7 +77,6 @@
     --text-lg: 1.125rem;
     --text-lg--line-height: calc(1.75 / 1.125);
     --font-weight-bold: 700;
-    --leading-tight: 1.25;
     --default-transition-duration: .15s;
     --default-transition-timing-function: cubic-bezier(.4, 0, .2, 1);
     --default-mono-font-family: var(--font-mono);
@@ -735,6 +734,10 @@
     border-color: #d95763;
   }
 
+  .border-component-positive {
+    border-color: #8b956d;
+  }
+
   .bg-\[\#69f0ae\] {
     background-color: #69f0ae;
   }
@@ -745,6 +748,10 @@
 
   .bg-\[\#201236\] {
     background-color: #201236;
+  }
+
+  .bg-\[\#f0fff4\] {
+    background-color: #f0fff4;
   }
 
   .bg-\[\#fff0f2\] {
@@ -886,10 +893,6 @@
     font-size: .95rem;
   }
 
-  .text-\[1\.1rem\] {
-    font-size: 1.1rem;
-  }
-
   .text-\[1\.2rem\] {
     font-size: 1.2rem;
   }
@@ -908,10 +911,6 @@
 
   .text-\[1\.8rem\] {
     font-size: 1.8rem;
-  }
-
-  .text-\[1\.25rem\] {
-    font-size: 1.25rem;
   }
 
   .text-\[1rem\] {
@@ -956,19 +955,9 @@
     line-height: 1;
   }
 
-  .leading-tight {
-    --tw-leading: var(--leading-tight);
-    line-height: var(--leading-tight);
-  }
-
   .font-bold {
     --tw-font-weight: var(--font-weight-bold);
     font-weight: var(--font-weight-bold);
-  }
-
-  .tracking-\[0\.08em\] {
-    --tw-tracking: .08em;
-    letter-spacing: .08em;
   }
 
   .tracking-\[0\.12em\] {
@@ -980,16 +969,8 @@
     word-break: break-all;
   }
 
-  .whitespace-nowrap {
-    white-space: nowrap;
-  }
-
   .text-\[\#222\] {
     color: #222;
-  }
-
-  .text-\[\#534741\] {
-    color: #534741;
   }
 
   .text-black {
@@ -998,6 +979,10 @@
 
   .text-component-negative {
     color: #d95763;
+  }
+
+  .text-component-positive {
+    color: #8b956d;
   }
 
   .text-gray-500 {
@@ -1043,12 +1028,6 @@
     filter: var(--tw-blur, ) var(--tw-brightness, ) var(--tw-contrast, ) var(--tw-grayscale, ) var(--tw-hue-rotate, ) var(--tw-invert, ) var(--tw-saturate, ) var(--tw-sepia, ) var(--tw-drop-shadow, );
   }
 
-  .drop-shadow-\[0_2px_4px_rgba\(0\,0\,0\,0\.65\)\] {
-    --tw-drop-shadow-size: drop-shadow(0 2px 4px var(--tw-drop-shadow-color, #000000a6));
-    --tw-drop-shadow: var(--tw-drop-shadow-size);
-    filter: var(--tw-blur, ) var(--tw-brightness, ) var(--tw-contrast, ) var(--tw-grayscale, ) var(--tw-hue-rotate, ) var(--tw-invert, ) var(--tw-saturate, ) var(--tw-sepia, ) var(--tw-drop-shadow, );
-  }
-
   .drop-shadow-\[0_2px_6px_rgba\(0\,0\,0\,0\.65\)\] {
     --tw-drop-shadow-size: drop-shadow(0 2px 6px var(--tw-drop-shadow-color, #000000a6));
     --tw-drop-shadow: var(--tw-drop-shadow-size);
@@ -1084,6 +1063,10 @@
     color: oklab(62.8073% .155561 .0493762 / .5);
   }
 
+  .placeholder\:text-component-positive\/60::placeholder {
+    color: oklab(65.1074% -.0284544 .0504299 / .6);
+  }
+
   .placeholder\:text-gray-400::placeholder {
     color: var(--color-gray-400);
   }
@@ -1097,18 +1080,14 @@
     --tw-ring-color: #d95763;
   }
 
+  .focus\:ring-component-positive:focus {
+    --tw-ring-color: #8b956d;
+  }
+
   .focus\:outline-none:focus {
     --tw-outline-style: none;
     outline-style: none;
   }
-}
-
-@font-face {
-  font-family: "Press Start 2P";
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url("/assets/ui/fonts/PressStart2P-Regular.ttf") format("truetype");
 }
 
 @font-face {
@@ -1159,6 +1138,13 @@ button, input, textarea, select {
 h1 {
   font-size: 3.2em;
   line-height: 1.1;
+}
+
+.i18n-word-wrap {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+  -webkit-hyphens: auto;
+  hyphens: auto;
 }
 
 @property --tw-translate-x {
