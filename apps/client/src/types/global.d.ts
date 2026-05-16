@@ -90,6 +90,9 @@ declare global {
       completeOfflineInterstitialFallback: (completed?: boolean) => void;
       isActive: () => boolean;
     };
+    digivicePopupBackBridge?: {
+      handleBackNavigation: () => boolean;
+    };
     digiviceBackBridge?: {
       handleBackNavigation: () => "consumed" | "exit";
     };

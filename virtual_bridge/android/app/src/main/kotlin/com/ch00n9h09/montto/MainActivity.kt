@@ -7,6 +7,11 @@ import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
 import android.util.Log
+import android.view.KeyEvent
+import android.window.OnBackInvokedCallback
+import android.window.OnBackInvokedDispatcher
+import androidx.activity.OnBackPressedCallback
+import androidx.activity.OnBackPressedDispatcherOwner
 import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -18,20 +23,66 @@ import kotlin.math.abs
 class MainActivity : FlutterActivity() {
     companion object {
         private const val TAG = "MainActivity"
+        private const val BACK_NAVIGATION_CHANNEL = "digivice/back_navigation"
         private const val BROWSER_MAIL_CHANNEL = "digivice/browser_mail"
         private const val TRUSTED_TIME_CHANNEL = "digivice/trusted_time"
         private const val TARGET_REFRESH_RATE_HZ = 60f
         private const val TARGET_REFRESH_RATE_TOLERANCE_HZ = 1f
     }
 
+    private var nativeBackCallback: OnBackInvokedCallback? = null
+    private var dispatcherBackCallback: OnBackPressedCallback? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         applyPreferredDisplayRefreshRate()
+        installOnBackPressedDispatcherDiagnostics()
+        installNativeBackDiagnostics()
     }
 
     override fun onResume() {
         super.onResume()
         applyPreferredDisplayRefreshRate()
+    }
+
+    override fun onDestroy() {
+        uninstallOnBackPressedDispatcherDiagnostics()
+        uninstallNativeBackDiagnostics()
+        super.onDestroy()
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        Log.w(
+            TAG,
+            "[BackNavigation][Native] onBackPressed invoked. " +
+                "flutterEngineAttached=${flutterEngine != null}",
+        )
+        super.onBackPressed()
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_BACK) {
+            Log.w(
+                TAG,
+                "[BackNavigation][Native] onKeyDown KEYCODE_BACK " +
+                    "action=${event?.action} repeat=${event?.repeatCount}",
+            )
+        }
+
+        return super.onKeyDown(keyCode, event)
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_BACK) {
+            Log.w(
+                TAG,
+                "[BackNavigation][Native] onKeyUp KEYCODE_BACK " +
+                    "action=${event?.action} repeat=${event?.repeatCount}",
+            )
+        }
+
+        return super.onKeyUp(keyCode, event)
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -88,6 +139,143 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+    }
+
+    private fun installOnBackPressedDispatcherDiagnostics() {
+        if (dispatcherBackCallback != null) {
+            return
+        }
+
+        val dispatcherOwner = this as? OnBackPressedDispatcherOwner
+
+        if (dispatcherOwner == null) {
+            Log.w(
+                TAG,
+                "[BackNavigation][Native] OnBackPressedDispatcher unavailable.",
+            )
+            return
+        }
+
+        dispatcherBackCallback = object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                val engine = flutterEngine
+                Log.w(
+                    TAG,
+                    "[BackNavigation][Native] OnBackPressedDispatcher invoked. " +
+                        "flutterEngineAttached=${engine != null}",
+                )
+
+                if (engine == null) {
+                    isEnabled = false
+                    @Suppress("DEPRECATION")
+                    onBackPressed()
+                    isEnabled = true
+                    return
+                }
+
+                dispatchBackNavigationToFlutter(engine)
+            }
+        }
+
+        dispatcherOwner.onBackPressedDispatcher.addCallback(dispatcherBackCallback!!)
+        Log.w(TAG, "[BackNavigation][Native] Registered OnBackPressedDispatcher callback.")
+    }
+
+    private fun uninstallOnBackPressedDispatcherDiagnostics() {
+        val callback = dispatcherBackCallback ?: return
+        callback.remove()
+        dispatcherBackCallback = null
+        Log.w(TAG, "[BackNavigation][Native] Removed OnBackPressedDispatcher callback.")
+    }
+
+    private fun installNativeBackDiagnostics() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            Log.w(
+                TAG,
+                "[BackNavigation][Native] Using legacy onBackPressed path: API < 33.",
+            )
+            return
+        }
+
+        if (nativeBackCallback != null) {
+            return
+        }
+
+        nativeBackCallback = OnBackInvokedCallback {
+            val engine = flutterEngine
+            Log.w(
+                TAG,
+                "[BackNavigation][Native] OnBackInvokedCallback invoked. " +
+                    "flutterEngineAttached=${engine != null}",
+            )
+
+            if (engine == null) {
+                @Suppress("DEPRECATION")
+                super.onBackPressed()
+                return@OnBackInvokedCallback
+            }
+
+            dispatchBackNavigationToFlutter(engine)
+        }
+
+        onBackInvokedDispatcher.registerOnBackInvokedCallback(
+            OnBackInvokedDispatcher.PRIORITY_OVERLAY,
+            nativeBackCallback!!,
+        )
+        Log.w(
+            TAG,
+            "[BackNavigation][Native] Registered OnBackInvokedCallback " +
+                "priority=${OnBackInvokedDispatcher.PRIORITY_OVERLAY}.",
+        )
+    }
+
+    private fun uninstallNativeBackDiagnostics() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            return
+        }
+
+        val callback = nativeBackCallback ?: return
+        onBackInvokedDispatcher.unregisterOnBackInvokedCallback(callback)
+        nativeBackCallback = null
+        Log.w(TAG, "[BackNavigation][Native] Unregistered OnBackInvokedCallback.")
+    }
+
+    private fun dispatchBackNavigationToFlutter(engine: FlutterEngine) {
+        MethodChannel(
+            engine.dartExecutor.binaryMessenger,
+            BACK_NAVIGATION_CHANNEL,
+        ).invokeMethod(
+            "handleBackNavigation",
+            null,
+            object : MethodChannel.Result {
+                override fun success(result: Any?) {
+                    Log.w(
+                        TAG,
+                        "[BackNavigation][Native] Flutter back handler completed: $result",
+                    )
+                }
+
+                override fun error(
+                    errorCode: String,
+                    errorMessage: String?,
+                    errorDetails: Any?,
+                ) {
+                    Log.w(
+                        TAG,
+                        "[BackNavigation][Native] Flutter back handler failed: " +
+                            "$errorCode $errorMessage",
+                    )
+                }
+
+                override fun notImplemented() {
+                    Log.w(
+                        TAG,
+                        "[BackNavigation][Native] Flutter back handler not implemented.",
+                    )
+                    engine.navigationChannel.popRoute()
+                }
+            },
+        )
     }
 
     private fun applyPreferredDisplayRefreshRate() {

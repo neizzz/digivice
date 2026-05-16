@@ -48,6 +48,7 @@ import {
 } from "./utils/clientStorage";
 import type { SanitizeStoredWorldDataResult } from "./utils/sanitizeStoredWorldData";
 import { useI18n } from "./i18n";
+import { consumeTopPopupBackHandler } from "./popupBackNavigation";
 
 const WORLD_DATA_STORAGE_KEY = "MainSceneWorldData";
 const FLAPPY_BIRD_GAME_OVER_AD_COUNTER_STORAGE_KEY =
@@ -1071,6 +1072,10 @@ const GameContainer: React.FC = () => {
       return "consumed";
     }
 
+    if (consumeTopPopupBackHandler()) {
+      return "consumed";
+    }
+
     if (interruptLoadingFlow("back_navigation")) {
       return "consumed";
     }
@@ -1093,9 +1098,9 @@ const GameContainer: React.FC = () => {
     }
 
     if (flappyBirdSettingsMenuState) {
-      const { onExit } = flappyBirdSettingsMenuState;
+      const { onResume } = flappyBirdSettingsMenuState;
       setFlappyBirdSettingsMenuState(null);
-      void Promise.resolve(onExit());
+      void Promise.resolve(onResume());
       return "consumed";
     }
 
@@ -3105,8 +3110,10 @@ const GameContainer: React.FC = () => {
           showFinalResetConfirm={showFinalResetConfirm}
           onOpenResetConfirm={() => setShowFinalResetConfirm(true)}
           onCloseResetConfirm={dismissResetConfirm}
+          onResetConfirmBack={closeResetConfirm}
           onResetGameData={handleResetGameData}
           onClose={dismissSettingMenu}
+          onBack={closeSettingMenu}
           onShowOfflineAdFallback={handleShowOfflineAdFallback}
         />
       )}
@@ -3115,6 +3122,7 @@ const GameContainer: React.FC = () => {
           title={alertState.title}
           message={alertState.message}
           onClose={dismissAlert}
+          onBack={hideAlert}
         />
       )}
       {loadingFailureAlert && (
@@ -3128,6 +3136,9 @@ const GameContainer: React.FC = () => {
             }
             onConfirm={dismissLoadingFailureAlert}
             onCancel={handleSendLoadingFailureLogs}
+            onBack={() => {
+              setLoadingFailureAlert(null);
+            }}
             confirmText={t("common.okay")}
             cancelText={t("diagnostics.sendLog")}
           />
@@ -3158,6 +3169,9 @@ const GameContainer: React.FC = () => {
             }
             onConfirm={handleConfirmDiagnosticsDraft}
             onCancel={handleCancelDiagnosticsDraft}
+            onBack={() => {
+              setPendingDiagnosticsDraft(null);
+            }}
             confirmText={t("common.confirmUpper")}
             cancelText={t("common.cancel")}
           />

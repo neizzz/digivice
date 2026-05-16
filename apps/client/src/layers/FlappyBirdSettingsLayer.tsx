@@ -185,6 +185,7 @@ const FlappyBirdSettingsLayer: React.FC<FlappyBirdSettingsLayerProps> = ({
         }
         onConfirm={onResume}
         onCancel={onExit}
+        onBack={onResume}
         confirmText={t("flappy.resume")}
         cancelText={t("flappy.exit")}
         initialFocusTarget="confirm"
@@ -211,6 +212,7 @@ const FlappyBirdSettingsLayer: React.FC<FlappyBirdSettingsLayerProps> = ({
               </div>
             }
             onConfirm={() => setShowOpenSourceNotice(false)}
+            onBack={() => setShowOpenSourceNotice(false)}
             confirmText={t("common.close")}
           />
         </div>

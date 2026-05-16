@@ -60,6 +60,8 @@ class WebView extends StatefulWidget {
 }
 
 class _WebViewState extends State<WebView> with WidgetsBindingObserver {
+  static const MethodChannel _backNavigationChannel =
+      MethodChannel('digivice/back_navigation');
   static const String _nativeDiagnosticsSinkName =
       '__digiviceNativeBridgeDiagnostics';
   static const bool _stopAppOnAsset404 = false;
@@ -114,6 +116,7 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
     _updateCoordinator = UpdateCoordinator(log: _handleUpdateCoordinatorLog);
     _updateCoordinator.addListener(_handleUpdateCoordinatorChanged);
     WidgetsBinding.instance.addTimingsCallback(_handleFlutterFrameTimings);
+    _backNavigationChannel.setMethodCallHandler(_handleBackNavigationCall);
 
     unawaited(
         _updateCoordinator.checkForMandatoryUpdate(reason: 'app_started'));
@@ -203,11 +206,53 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
     await SystemNavigator.pop();
   }
 
+  Future<String> _handleBackNavigationCall(MethodCall call) async {
+    if (call.method != 'handleBackNavigation') {
+      throw PlatformException(
+        code: 'not_implemented',
+        message: 'Unknown back navigation method: ${call.method}',
+      );
+    }
+
+    if (_updateCoordinator.state.isBlocking) {
+      return 'blocked';
+    }
+
+    await _handleBackNavigation();
+    return 'handled';
+  }
+
   Future<void> _handleBackNavigation() async {
     final String? webBackNavigationAction = await _requestWebBackNavigation();
 
     if (webBackNavigationAction == 'consumed') {
       await _log('[BackNavigation] Consumed by web app');
+      return;
+    }
+
+    if (await _requestManagedJavaScriptHistoryBack()) {
+      if (webBackNavigationAction == 'exit') {
+        await _log(
+          '[BackNavigation] Web requested exit, but managed web history is available. Dispatching window.history.back().',
+        );
+      } else {
+        await _log(
+            '[BackNavigation] Dispatching managed window.history.back()');
+      }
+      return;
+    }
+
+    final bool canGoBack = await _controller.canGoBack();
+
+    if (canGoBack) {
+      if (webBackNavigationAction == 'exit') {
+        await _log(
+          '[BackNavigation] Web requested exit, but WebView history is available. Going back first.',
+        );
+      } else {
+        await _log('[BackNavigation] Falling back to WebView history');
+      }
+      await _controller.goBack();
       return;
     }
 
@@ -217,16 +262,41 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
       return;
     }
 
-    final bool canGoBack = await _controller.canGoBack();
-
-    if (canGoBack) {
-      await _log('[BackNavigation] Falling back to WebView history');
-      await _controller.goBack();
-      return;
-    }
-
     await _log('[BackNavigation] Falling back to app exit');
     await SystemNavigator.pop();
+  }
+
+  Future<bool> _requestManagedJavaScriptHistoryBack() async {
+    try {
+      final Object result = await _controller.runJavaScriptReturningResult('''
+        (() => {
+          try {
+            const entries =
+              window &&
+              window.history &&
+              window.history.state &&
+              window.history.state.__digiviceBackEntries;
+
+            if (Array.isArray(entries) && entries.length > 0) {
+              window.history.back();
+              return true;
+            }
+
+            return false;
+          } catch (error) {
+            console.error('[BackNavigation] Failed to dispatch managed history back', error);
+            return false;
+          }
+        })();
+      ''');
+
+      final bool didDispatchBack = _parseJavaScriptBooleanResult(result);
+      return didDispatchBack;
+    } catch (error) {
+      await _log(
+          '[BackNavigation] Failed to dispatch managed history back: $error');
+      return false;
+    }
   }
 
   Future<String?> _requestWebBackNavigation() async {
@@ -234,6 +304,30 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
       final Object result = await _controller.runJavaScriptReturningResult('''
         (() => {
           try {
+            if (
+              typeof window !== 'undefined' &&
+              window.digivicePopupBackBridge &&
+              typeof window.digivicePopupBackBridge.handleBackNavigation === 'function' &&
+              window.digivicePopupBackBridge.handleBackNavigation()
+            ) {
+              return 'consumed';
+            }
+
+            const popupBackEvent =
+              typeof CustomEvent === 'function'
+                ? new CustomEvent('digivice:native-back-request', {
+                    cancelable: true,
+                  })
+                : new Event('digivice:native-back-request', {
+                    cancelable: true,
+                  });
+
+            window.dispatchEvent(popupBackEvent);
+
+            if (popupBackEvent.defaultPrevented) {
+              return 'consumed';
+            }
+
             if (
               typeof window === 'undefined' ||
               !window.digiviceBackBridge ||
@@ -267,6 +361,24 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
     }
 
     return _normalizeJavaScriptStringResult(result.toString());
+  }
+
+  bool _parseJavaScriptBooleanResult(Object? result) {
+    if (result is bool) {
+      return result;
+    }
+
+    if (result == null) {
+      return false;
+    }
+
+    final String normalized = result.toString().trim().toLowerCase();
+
+    if (normalized == 'true' || normalized == '"true"') {
+      return true;
+    }
+
+    return false;
   }
 
   String? _normalizeJavaScriptStringResult(String result) {
@@ -340,8 +452,6 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    print('[WebViewLifecycle] appLifecycleState=$state');
-
     if (state == AppLifecycleState.resumed) {
       unawaited(
         _updateCoordinator.checkForMandatoryUpdate(
@@ -359,16 +469,6 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
 
   @override
   void didChangeMetrics() {
-    final view = WidgetsBinding.instance.platformDispatcher.views.first;
-    final Size logicalSize = view.physicalSize / view.devicePixelRatio;
-
-    print(
-      '[WebViewLifecycle] didChangeMetrics '
-      'physical=${view.physicalSize.width}x${view.physicalSize.height} '
-      'logical=${logicalSize.width}x${logicalSize.height} '
-      'dpr=${view.devicePixelRatio}',
-    );
-
     _scheduleViewportSync('flutter.metrics_changed');
   }
 
@@ -377,8 +477,6 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
       _assetServer = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       _assetServerPort = _assetServer!.port;
       _assetServer!.listen(_handleAssetRequest);
-      print(
-          '[WebView] Local asset server started on 127.0.0.1:$_assetServerPort');
     } catch (e) {
       _errorMessage = '로컬 웹 서버 시작 실패: $e';
       print('[WebView] Failed to start local asset server: $e');
@@ -398,7 +496,6 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
     );
 
     try {
-      print('[WebView] Hot reload detected. Reloading $uri');
       await _controller.loadRequest(uri);
     } catch (e) {
       print('[WebView] Failed to reload WebView on hot reload: $e');
@@ -412,20 +509,15 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
     bool force = false,
   }) {
     if (!_isPageReady) {
-      print('[WebViewLifecycle] skip viewport sync before page ready: $reason');
       return;
     }
 
     if (_isFullscreenAdShowing && !force) {
-      print(
-        '[WebViewLifecycle] skip viewport sync while fullscreen ad is showing: $reason',
-      );
       return;
     }
 
     final String metricsKey = _buildViewportMetricsKey();
     if (!force && metricsKey == _lastViewportMetricsKey) {
-      print('[WebViewLifecycle] skip duplicate viewport sync: $reason');
       return;
     }
 
@@ -466,8 +558,6 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
   }
 
   void _handleFullscreenAdStateChanged(String state) {
-    print('[WebViewLifecycle] fullscreenAdState=$state');
-
     if (state == 'showing') {
       _isFullscreenAdShowing = true;
       _cancelViewportSyncTimers();
@@ -704,8 +794,6 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
       return;
     }
 
-    print('[WebViewLifecycle] dispatchViewportSync reason=$reason');
-
     final view = WidgetsBinding.instance.platformDispatcher.views.first;
     final double bottomInset = view.viewInsets.bottom / view.devicePixelRatio;
     final String encodedReason = jsonEncode(reason);
@@ -924,6 +1012,7 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     WidgetsBinding.instance.removeTimingsCallback(_handleFlutterFrameTimings);
+    _backNavigationChannel.setMethodCallHandler(null);
     _cancelViewportSyncTimers();
     _isPageReady = false;
     _updateCoordinator.removeListener(_handleUpdateCoordinatorChanged);
@@ -934,6 +1023,11 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
 
   Future<void> _log(String message) async {
     if (message.startsWith('[SerializedWebLog] ')) {
+      print(message);
+      return;
+    }
+
+    if (message.startsWith('[BackNavigation]')) {
       print(message);
       return;
     }

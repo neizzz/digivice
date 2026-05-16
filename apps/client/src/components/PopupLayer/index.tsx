@@ -9,6 +9,10 @@ import {
 import { logImportantDiagnostics } from "../../diagnostics/diagnosticLogger";
 import { useI18n } from "../../i18n";
 import { useLayerInteractionVibration } from "../../hooks/useLayerInteractionVibration";
+import {
+  registerPopupBackHandler,
+  type PopupBackHandler,
+} from "../../popupBackNavigation";
 
 interface PopupProps {
   title?: string;
@@ -17,6 +21,7 @@ interface PopupProps {
   dividerBorderClassName?: string;
   onConfirm?: () => void;
   onCancel?: () => void;
+  onBack?: PopupBackHandler;
   confirmText?: string;
   cancelText?: string;
   confirmDisabled?: boolean;
@@ -55,6 +60,7 @@ const PopupLayer: React.FC<PopupProps> = ({
   dividerBorderClassName = "border-[#222]",
   onConfirm,
   onCancel,
+  onBack,
   confirmText,
   cancelText,
   confirmDisabled = false,
@@ -83,6 +89,7 @@ const PopupLayer: React.FC<PopupProps> = ({
   const keyboardAwareDebugSequenceRef = useRef(0);
   const nativeKeyboardInsetRef = useRef(0);
   const suppressInitialActionsUntilRef = useRef(0);
+  const backHandlerRef = useRef<PopupBackHandler | null>(onBack ?? null);
   const [confirmEnableDelayProgress, setConfirmEnableDelayProgress] = useState(
     confirmEnableDelayMs > 0 ? 0 : CONFIRM_ENABLE_DELAY_PROGRESS_MAX,
   );
@@ -104,6 +111,19 @@ const PopupLayer: React.FC<PopupProps> = ({
       : initialFocusTarget,
   );
   const effectiveInitialFocusTarget = effectiveInitialFocusTargetRef.current;
+  const isBackHandlerEnabled = typeof onBack === "function";
+
+  useLayoutEffect(() => {
+    backHandlerRef.current = onBack ?? null;
+  }, [onBack]);
+
+  useLayoutEffect(() => {
+    if (!isBackHandlerEnabled) {
+      return;
+    }
+
+    return registerPopupBackHandler(() => backHandlerRef.current);
+  }, [isBackHandlerEnabled]);
 
   useEffect(() => {
     if (typeof window === "undefined") {

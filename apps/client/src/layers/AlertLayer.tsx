@@ -7,6 +7,7 @@ export interface AlertLayerProps {
   message: string;
   onClose: () => void;
   onCancel?: () => void;
+  onBack?: () => void;
   confirmText?: string;
   cancelText?: string;
 }
@@ -16,6 +17,7 @@ export const AlertLayer: React.FC<AlertLayerProps> = ({
   message,
   onClose,
   onCancel,
+  onBack,
   confirmText,
   cancelText,
 }) => {
@@ -32,6 +34,7 @@ export const AlertLayer: React.FC<AlertLayerProps> = ({
         }
         onConfirm={onClose}
         onCancel={onCancel}
+        onBack={onBack}
         confirmText={confirmText ?? t("common.confirm")}
         cancelText={cancelText ?? t("common.cancel")}
       />

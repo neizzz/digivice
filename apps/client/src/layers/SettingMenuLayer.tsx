@@ -29,7 +29,9 @@ interface SettingMenuLayerProps {
   onCloseResetConfirm: () => void;
   onResetGameData: () => void;
   onClose: () => void;
+  onBack?: () => void;
   onShowOfflineAdFallback?: () => void;
+  onResetConfirmBack?: () => void;
 }
 
 const ToggleButton: React.FC<{
@@ -135,7 +137,9 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
   onCloseResetConfirm,
   onResetGameData,
   onClose,
+  onBack,
   onShowOfflineAdFallback,
+  onResetConfirmBack,
 }) => {
   const { t } = useI18n();
   const [resetConfirmCode, setResetConfirmCode] =
@@ -327,6 +331,7 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
           </div>
         }
         onConfirm={onClose}
+        onBack={onBack ?? onClose}
         confirmText={t("common.close")}
       />
       {showFinalResetConfirm && (
@@ -395,6 +400,7 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
             }
             onConfirm={onResetGameData}
             onCancel={onCloseResetConfirm}
+            onBack={onResetConfirmBack ?? onCloseResetConfirm}
             confirmText={t("common.reset")}
             cancelText={t("common.cancel")}
             confirmDisabled={!isResetEnabled}
