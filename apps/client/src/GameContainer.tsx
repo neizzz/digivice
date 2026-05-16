@@ -66,6 +66,7 @@ const isAndroidUserAgent =
   typeof navigator !== "undefined" &&
   /DigiviceApp-Android|Android/i.test(navigator.userAgent);
 const KEYBOARD_VIEWPORT_HEIGHT_DELTA_THRESHOLD = 80;
+const UNSUPPORTED_VIEWPORT_OVERLAY_SHOW_DEBOUNCE_MS = 180;
 const UNSUPPORTED_SQUARE_VIEWPORT_RATIO = 0.8;
 
 function getConfiguredInitialSceneKey(): SceneKey {
@@ -420,12 +421,6 @@ function isKeyboardOpenForUnsupportedViewportCheck(
   }
 
   const { nativeKeyboardInset = 0 } = options;
-  const activeElement = document.activeElement;
-
-  if (!isTextInputElement(activeElement)) {
-    return false;
-  }
-
   if (nativeKeyboardInset > 0) {
     return true;
   }
@@ -686,9 +681,7 @@ const GameContainer: React.FC = () => {
     null,
   );
   const [unsupportedViewportReason, setUnsupportedViewportReason] =
-    useState<UnsupportedViewportReason>(() =>
-      isAndroidUserAgent ? getUnsupportedViewportReason() : null,
-    );
+    useState<UnsupportedViewportReason>(null);
   const [showSetupLayer, setShowSetupLayer] = useState<boolean>(false);
   const [isBootstrapping, setIsBootstrapping] = useState<boolean>(true);
   const { locale, setLocale, t } = useI18n();
@@ -745,6 +738,7 @@ const GameContainer: React.FC = () => {
   const flappyBirdGameOverAdTimeoutRef = useRef<number | null>(null);
   const recoveryVibrationIntervalRef = useRef<number | null>(null);
   const nativeKeyboardInsetRef = useRef(0);
+  const unsupportedViewportOverlayShowTimeoutRef = useRef<number | null>(null);
   const lastValidationResultRef = useRef<SanitizeStoredWorldDataResult | null>(
     null,
   );
@@ -881,6 +875,14 @@ const GameContainer: React.FC = () => {
   }, [clearPendingSettingMenuOpen]);
 
   const closeResetConfirm = useCallback(() => {
+    if (typeof document !== "undefined") {
+      const activeElement = document.activeElement;
+
+      if (isTextInputElement(activeElement)) {
+        activeElement.blur();
+      }
+    }
+
     setShowFinalResetConfirm(false);
   }, []);
 
@@ -1159,7 +1161,7 @@ const GameContainer: React.FC = () => {
       } else if (
         !targetEntrySet.has(BACK_NAVIGATION_SETTING_RESET_CONFIRM_ENTRY)
       ) {
-        setShowFinalResetConfirm(false);
+        closeResetConfirm();
       }
 
       if (!gameInstance || sceneTransitionLoadState.phase !== "idle") {
@@ -1175,7 +1177,13 @@ const GameContainer: React.FC = () => {
 
       await gameInstance.changeScene(targetSceneKey);
     },
-    [closeSettingMenu, gameInstance, hideAlert, sceneTransitionLoadState.phase],
+    [
+      closeResetConfirm,
+      closeSettingMenu,
+      gameInstance,
+      hideAlert,
+      sceneTransitionLoadState.phase,
+    ],
   );
 
   const stopLoadingWithFailure = useCallback(
@@ -1621,13 +1629,34 @@ const GameContainer: React.FC = () => {
     }
   }, []);
 
-  const updateUnsupportedViewportOverlay = useCallback(() => {
-    setUnsupportedViewportReason(
-      getUnsupportedViewportReason({
-        nativeKeyboardInset: nativeKeyboardInsetRef.current,
-      }),
-    );
+  const clearPendingUnsupportedViewportOverlayShow = useCallback(() => {
+    if (unsupportedViewportOverlayShowTimeoutRef.current !== null) {
+      window.clearTimeout(unsupportedViewportOverlayShowTimeoutRef.current);
+      unsupportedViewportOverlayShowTimeoutRef.current = null;
+    }
   }, []);
+
+  const updateUnsupportedViewportOverlay = useCallback(() => {
+    const nextReason = getUnsupportedViewportReason({
+      nativeKeyboardInset: nativeKeyboardInsetRef.current,
+    });
+
+    clearPendingUnsupportedViewportOverlayShow();
+
+    if (nextReason === null) {
+      setUnsupportedViewportReason(null);
+      return;
+    }
+
+    unsupportedViewportOverlayShowTimeoutRef.current = window.setTimeout(() => {
+      unsupportedViewportOverlayShowTimeoutRef.current = null;
+      setUnsupportedViewportReason(
+        getUnsupportedViewportReason({
+          nativeKeyboardInset: nativeKeyboardInsetRef.current,
+        }),
+      );
+    }, UNSUPPORTED_VIEWPORT_OVERLAY_SHOW_DEBOUNCE_MS);
+  }, [clearPendingUnsupportedViewportOverlayShow]);
 
   const freezeLayoutForFullscreenAd = useCallback(() => {
     clearFullscreenAdLayoutRelease();
@@ -2731,6 +2760,7 @@ const GameContainer: React.FC = () => {
     );
 
     return () => {
+      clearPendingUnsupportedViewportOverlayShow();
       window.removeEventListener("resize", updateUnsupportedViewportOverlay);
       window.removeEventListener(
         "orientationchange",
@@ -2745,7 +2775,10 @@ const GameContainer: React.FC = () => {
         handleNativeViewportSync as EventListener,
       );
     };
-  }, [updateUnsupportedViewportOverlay]);
+  }, [
+    clearPendingUnsupportedViewportOverlayShow,
+    updateUnsupportedViewportOverlay,
+  ]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
