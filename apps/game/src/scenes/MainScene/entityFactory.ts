@@ -20,6 +20,7 @@ import {
   VitalityComp,
   TemporaryStatusComp,
   EggHatchComp,
+  MutationRiskComp,
 } from "./raw-components";
 import {
   CharacterKeyECS,
@@ -199,6 +200,13 @@ export function createCharacterEntity(
     EggHatchComp.isReadyToHatch[eid] = 0;
     EggHatchComp.syringeCount[eid] = 0;
   }
+
+  // MutationRiskComp 추가
+  addComponent(world, MutationRiskComp, eid);
+  MutationRiskComp.unnecessaryInjectionStacks[eid] = 0;
+  MutationRiskComp.dirtyExposureStacks[eid] = 0;
+  MutationRiskComp.lastInjectionDetoxTime[eid] = Date.now();
+  MutationRiskComp.lastDirtyDetoxTime[eid] = Date.now();
 
   return eid;
 }

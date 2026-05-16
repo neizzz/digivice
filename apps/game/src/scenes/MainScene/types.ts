@@ -432,6 +432,19 @@ export type EggHatchComponent = {
   syringeCount?: number; // 알 상태에서 병원/주사기 메뉴를 누른 횟수
 };
 
+export type MutationRiskComponent = {
+  unnecessaryInjectionStacks: number;
+  dirtyExposureStacks: number;
+  lastInjectionDetoxTime: number;
+  lastDirtyDetoxTime: number;
+};
+
+export type DirtyExposureComponent = {
+  stackCount: number;
+  accumulatedExposureMs: number;
+  lastUpdatedTime: number;
+};
+
 export type CleanableComponent = {
   isHighlighted: boolean; // 점선 테두리 표시 여부
   cleaningProgress: number; // 청소 진행도 (0.0 = 투명하지 않음, 1.0 = 완전 투명)

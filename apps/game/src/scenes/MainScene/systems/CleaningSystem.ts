@@ -15,6 +15,7 @@ import {
 } from "../raw-components";
 import { ObjectType, Freshness, FoodState } from "../types";
 import type { MainSceneWorld } from "../world";
+import { finalizeDirtyExposureForEntity } from "./MutationRiskSystem";
 
 // 청소 시스템 상수
 const CLEANING_DISTANCE = 5;
@@ -168,6 +169,11 @@ function updateBroomMovement(
       // 청소 완료된 엔티티 제거
       console.log(
         `[CleaningSystem] Entity ${focusedTargetEid} cleaning completed, removing entity`,
+      );
+      finalizeDirtyExposureForEntity(
+        world,
+        focusedTargetEid,
+        world.currentTime,
       );
       removeEntity(world, focusedTargetEid);
 

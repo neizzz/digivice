@@ -41,6 +41,8 @@ import {
   VitalityComponent,
   TemporaryStatusComponent,
   EggHatchComponent,
+  MutationRiskComponent,
+  DirtyExposureComponent,
   FreshnessTimerComponent,
   CleanableComponent,
   BroomRenderComponent,
@@ -137,6 +139,10 @@ import { digestiveSystem } from "./systems/DigestiveSystem";
 import { diseaseSystem } from "./systems/DiseaseSystem";
 import { eggHatchSystem } from "./systems/EggHatchSystem";
 import {
+  mutationRiskSystem,
+  recordUnnecessaryMutationInjection,
+} from "./systems/MutationRiskSystem";
+import {
   sleepScheduleSystem,
   wakeCharacter,
 } from "./systems/SleepScheduleSystem";
@@ -210,6 +216,8 @@ export type EntityComponents = {
   vitality?: VitalityComponent;
   temporaryStatus?: TemporaryStatusComponent;
   eggHatch?: EggHatchComponent;
+  mutationRisk?: MutationRiskComponent;
+  dirtyExposure?: DirtyExposureComponent;
   freshnessTimer?: FreshnessTimerComponent;
   cleanable?: CleanableComponent;
   broomRender?: BroomRenderComponent;
@@ -502,6 +510,10 @@ export class MainSceneWorld implements IWorld, Scene {
         : params,
     (params: any) =>
       eggHatchSystem({ ...params, currentTime: this.currentTime }),
+    (params: any) =>
+      this._statusSystemsEnabled
+        ? mutationRiskSystem({ ...params, currentTime: this.currentTime })
+        : params,
     (params: any) =>
       this._statusSystemsEnabled ? characterManagerSystem(params) : params,
     // 캐릭터 상태 시스템 (임시 상태 만료, 긴급 상태, 사망 처리)
@@ -3120,9 +3132,15 @@ export class MainSceneWorld implements IWorld, Scene {
     }
 
     const isSick = this._isCharacterSick(characterEid);
+    const isUnnecessaryMutationInjection =
+      !isSick &&
+      ObjectComp.state[characterEid] !== CharacterState.EGG &&
+      ObjectComp.state[characterEid] !== CharacterState.DEAD;
 
     if (isSick) {
       this._pendingRecoveryCureEids.add(characterEid);
+    } else if (isUnnecessaryMutationInjection) {
+      recordUnnecessaryMutationInjection(this, characterEid, this.currentTime);
     } else {
       console.log(
         `[MainSceneWorld] Character ${characterEid} is not sick, starting hospital animation only`,
@@ -3466,6 +3484,10 @@ export class MainSceneWorld implements IWorld, Scene {
           : params,
       (params: any) =>
         eggHatchSystem({ ...params, currentTime: getCurrentTime() }),
+      (params: any) =>
+        this._statusSystemsEnabled
+          ? mutationRiskSystem({ ...params, currentTime: getCurrentTime() })
+          : params,
       (params: any) =>
         this._statusSystemsEnabled ? characterManagerSystem(params) : params,
       (params: any) =>
