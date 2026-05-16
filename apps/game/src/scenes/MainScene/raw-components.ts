@@ -158,6 +158,25 @@ export const EggHatchComp = defineComponent({
 });
 
 /**
+ * 돌연변이 위험 누적 컴포넌트
+ */
+export const MutationRiskComp = defineComponent({
+  unnecessaryInjectionStacks: Types.ui8,
+  dirtyExposureStacks: Types.ui16,
+  lastInjectionDetoxTime: Types.f64,
+  lastDirtyDetoxTime: Types.f64,
+});
+
+/**
+ * 오염물별 돌연변이 노출 컴포넌트
+ */
+export const DirtyExposureComp = defineComponent({
+  stackCount: Types.ui8,
+  accumulatedExposureMs: Types.f64,
+  lastUpdatedTime: Types.f64,
+});
+
+/**
  * 청소 대상 컴포넌트 (청소가 가능한 엔티티에 추가)
  */
 export const CleanableComp = defineComponent({

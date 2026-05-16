@@ -24,6 +24,8 @@ import {
   SleepSystemComp,
   VitalityComp,
   TemporaryStatusComp,
+  MutationRiskComp,
+  DirtyExposureComp,
   FreshnessTimerComp,
   FoodEatingComp,
 } from "./raw-components";
@@ -174,6 +176,15 @@ export function convertECSEntityToSavedEntity(
       syringeCount: normalizeEggSyringeCount(EggHatchComp.syringeCount[eid]),
     };
   }
+  if (hasComponent(world, MutationRiskComp, eid)) {
+    components.mutationRisk = {
+      unnecessaryInjectionStacks:
+        MutationRiskComp.unnecessaryInjectionStacks[eid],
+      dirtyExposureStacks: MutationRiskComp.dirtyExposureStacks[eid],
+      lastInjectionDetoxTime: MutationRiskComp.lastInjectionDetoxTime[eid],
+      lastDirtyDetoxTime: MutationRiskComp.lastDirtyDetoxTime[eid],
+    };
+  }
   if (hasComponent(world, DigestiveSystemComp, eid)) {
     components.digestiveSystem = {
       capacity: DigestiveSystemComp.capacity[eid],
@@ -223,6 +234,13 @@ export function convertECSEntityToSavedEntity(
       normalTime: FreshnessTimerComp.normalTime[eid],
       staleTime: FreshnessTimerComp.staleTime[eid],
       isBeingEaten: FreshnessTimerComp.isBeingEaten[eid] === 1,
+    };
+  }
+  if (hasComponent(world, DirtyExposureComp, eid)) {
+    components.dirtyExposure = {
+      stackCount: DirtyExposureComp.stackCount[eid],
+      accumulatedExposureMs: DirtyExposureComp.accumulatedExposureMs[eid],
+      lastUpdatedTime: DirtyExposureComp.lastUpdatedTime[eid],
     };
   }
 
@@ -392,6 +410,27 @@ export function applySavedEntityToECS(
     );
   }
 
+  if (components.mutationRisk) {
+    if (!hasComponent(world, MutationRiskComp, eid)) {
+      addComponent(world, MutationRiskComp, eid);
+    }
+    MutationRiskComp.unnecessaryInjectionStacks[eid] = Math.min(
+      10,
+      Math.max(
+        0,
+        Math.floor(components.mutationRisk.unnecessaryInjectionStacks ?? 0),
+      ),
+    );
+    MutationRiskComp.dirtyExposureStacks[eid] = Math.min(
+      65_535,
+      Math.max(0, Math.floor(components.mutationRisk.dirtyExposureStacks ?? 0)),
+    );
+    MutationRiskComp.lastInjectionDetoxTime[eid] =
+      components.mutationRisk.lastInjectionDetoxTime ?? 0;
+    MutationRiskComp.lastDirtyDetoxTime[eid] =
+      components.mutationRisk.lastDirtyDetoxTime ?? 0;
+  }
+
   if (components.digestiveSystem) {
     if (!hasComponent(world, DigestiveSystemComp, eid)) {
       addComponent(world, DigestiveSystemComp, eid);
@@ -465,6 +504,22 @@ export function applySavedEntityToECS(
       .isBeingEaten
       ? 1
       : 0;
+  }
+
+  if (components.dirtyExposure) {
+    if (!hasComponent(world, DirtyExposureComp, eid)) {
+      addComponent(world, DirtyExposureComp, eid);
+    }
+    DirtyExposureComp.stackCount[eid] = Math.min(
+      10,
+      Math.max(0, Math.floor(components.dirtyExposure.stackCount ?? 0)),
+    );
+    DirtyExposureComp.accumulatedExposureMs[eid] = Math.max(
+      0,
+      components.dirtyExposure.accumulatedExposureMs ?? 0,
+    );
+    DirtyExposureComp.lastUpdatedTime[eid] =
+      components.dirtyExposure.lastUpdatedTime ?? 0;
   }
 }
 
@@ -668,6 +723,15 @@ export function repairCharacterEntityRuntimeComponents(
     EggHatchComp.syringeCount[eid] = normalizeEggSyringeCount(
       EggHatchComp.syringeCount[eid],
     );
+  }
+
+  if (!hasComponent(world, MutationRiskComp, eid)) {
+    addComponent(world, MutationRiskComp, eid);
+    MutationRiskComp.unnecessaryInjectionStacks[eid] = 0;
+    MutationRiskComp.dirtyExposureStacks[eid] = 0;
+    MutationRiskComp.lastInjectionDetoxTime[eid] = now;
+    MutationRiskComp.lastDirtyDetoxTime[eid] = now;
+    repaired.push("MutationRiskComp");
   }
 
   if (

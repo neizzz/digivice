@@ -15,6 +15,8 @@ import {
   resolveEvolutionCandidate,
   resolveEvolutionPhase,
 } from "../evolutionConfig";
+import { resolveMutationEvolutionCandidate } from "../mutationConfig";
+import { getMutationRiskStacks } from "./MutationRiskSystem";
 import { ensureCharacterSpritesheetLoaded } from "../../../utils/asset";
 import { ensureCharacterOpaqueBoundsComputed } from "./CharacterOpaqueBounds";
 import { recordMonsterBookReach } from "../monsterBook";
@@ -38,7 +40,14 @@ export function evolveCharacter(world: MainSceneWorld, eid: number): void {
     return;
   }
 
-  const evolutionCandidate = resolveEvolutionCandidate(currentCharacterKey);
+  const mutationStacks = getMutationRiskStacks(world, eid);
+  const mutationCandidate = resolveMutationEvolutionCandidate({
+    characterKey: currentCharacterKey,
+    unnecessaryInjectionStacks: mutationStacks.unnecessaryInjectionStacks,
+    dirtyExposureStacks: mutationStacks.dirtyExposureStacks,
+  });
+  const evolutionCandidate =
+    mutationCandidate ?? resolveEvolutionCandidate(currentCharacterKey);
   if (!evolutionCandidate) {
     console.warn(
       `[EvolutionSystem] No evolution candidate resolved for character ${eid}: key=${currentCharacterKey}`,
