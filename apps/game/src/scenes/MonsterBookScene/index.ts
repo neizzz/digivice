@@ -55,6 +55,15 @@ const RARITY_STAR_GAP = 1;
 const TEMP_REVEAL_ALL_MONSTERS_FOR_TEST = import.meta.env.DEV;
 const CARD_BORDER_WIDTH = 1.5;
 const CURRENT_MONSTER_CARD_BORDER_WIDTH = 3.5;
+const CLASS_TITLE_FONT_SIZE = 31.68;
+const CLASS_TITLE_Y_OFFSET = 16;
+const CLASS_TITLE_UNDERLINE_GAP = 0.6;
+const CLASS_TITLE_TO_CARD_GAP = 32.464;
+const PAGE_NUMBER_FONT_SIZE = 20.9088;
+const GRID_BOTTOM_PADDING = 34;
+const CARD_COLUMN_GAP = 7;
+const CARD_ROW_GAP = 17;
+const CARD_GRID_BOTTOM_GAP = 7;
 const CLASS_ACCENT_COLORS: Record<MonsterClassCode, number> = {
   A: 0x5c5147,
   B: 0x1368c4,
@@ -276,18 +285,24 @@ export class MonsterBookScene extends PIXI.Container implements Scene {
     const currentPage = this.getCurrentPage();
     const accentColor = this.getCurrentClassAccentColor();
     const title = this.createText(`Class ${currentPage.classCode}`, {
-      fontSize: 26.4,
+      fontSize: CLASS_TITLE_FONT_SIZE,
       fill: accentColor,
       fontWeight: "700",
     });
     title.anchor.set(0.5, 0);
-    title.position.set(layout.pageX + layout.pageWidth / 2, layout.pageY + 16);
+    title.position.set(
+      layout.pageX + layout.pageWidth / 2,
+      layout.pageY + CLASS_TITLE_Y_OFFSET,
+    );
 
     const underlineWidth = Math.max(78, title.width + 10);
     const underline = new PIXI.Graphics()
       .roundRect(
         layout.pageX + layout.pageWidth / 2 - underlineWidth / 2,
-        layout.pageY + 43,
+        layout.pageY +
+          CLASS_TITLE_Y_OFFSET +
+          CLASS_TITLE_FONT_SIZE +
+          CLASS_TITLE_UNDERLINE_GAP,
         underlineWidth,
         2,
         1,
@@ -304,7 +319,7 @@ export class MonsterBookScene extends PIXI.Container implements Scene {
     const pageNumber = this.createText(
       `${currentPage.globalPageIndex + 1} / ${currentPage.totalGlobalPages}`,
       {
-        fontSize: 13.2,
+        fontSize: PAGE_NUMBER_FONT_SIZE,
         fill: accentColor,
         fontWeight: "700",
       },
@@ -316,15 +331,18 @@ export class MonsterBookScene extends PIXI.Container implements Scene {
 
   private drawCards(layout: ReturnType<MonsterBookScene["getLayout"]>): void {
     const entries = this.getCurrentPageEntries();
-    const gap = 7;
-    const cardWidth = Math.floor((layout.contentWidth - gap * 2) / CARD_COLUMNS);
-    const cardHeight = Math.floor((layout.gridHeight - gap * 2) / CARD_ROWS);
+    const cardWidth = Math.floor(
+      (layout.contentWidth - CARD_COLUMN_GAP * 2) / CARD_COLUMNS,
+    );
+    const cardHeight = Math.floor(
+      (layout.gridHeight - CARD_ROW_GAP - CARD_GRID_BOTTOM_GAP) / CARD_ROWS,
+    );
 
     entries.forEach((characterKey, index) => {
       const col = index % CARD_COLUMNS;
       const row = Math.floor(index / CARD_COLUMNS);
-      const x = layout.contentX + col * (cardWidth + gap);
-      const y = layout.gridY + row * (cardHeight + gap);
+      const x = layout.contentX + col * (cardWidth + CARD_COLUMN_GAP);
+      const y = layout.gridY + row * (cardHeight + CARD_ROW_GAP);
       const card = this.createCard(characterKey, {
         x,
         y,
@@ -505,8 +523,13 @@ export class MonsterBookScene extends PIXI.Container implements Scene {
     const pageHeight = Math.max(260, height * 0.915);
     const contentX = pageX + Math.max(12, width * 0.035);
     const contentWidth = pageWidth - Math.max(28, width * 0.075);
-    const gridY = pageY + 58;
-    const gridHeight = Math.max(210, pageHeight - 92);
+    const gridYOffset =
+      CLASS_TITLE_Y_OFFSET + CLASS_TITLE_FONT_SIZE + CLASS_TITLE_TO_CARD_GAP;
+    const gridY = pageY + gridYOffset;
+    const gridHeight = Math.max(
+      210,
+      pageHeight - gridYOffset - GRID_BOTTOM_PADDING,
+    );
 
     return {
       pageX,
