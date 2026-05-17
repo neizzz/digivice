@@ -1,4 +1,133 @@
 {
   "schemaVersion": 1,
-  "overrides": {}
+  "overrides": {
+    "skull-slime_C2": {
+      "evolutionCandidates": [
+        {
+          "toCode": "skull-slime_D2",
+          "weight": 50,
+          "kind": "base"
+        },
+        {
+          "toCode": "skull-slime_D1",
+          "weight": 50,
+          "kind": "same_line_variant_mutation"
+        }
+      ]
+    }
+  },
+  "rarities": {
+    "green-slime_A1": {
+      "reachProbability": 0.65,
+      "rarity": 1
+    },
+    "soil-slime_A1": {
+      "reachProbability": 0.2,
+      "rarity": 2
+    },
+    "skull-slime_A1": {
+      "reachProbability": 0.15,
+      "rarity": 2
+    },
+    "green-slime_B1": {
+      "reachProbability": 0.325,
+      "rarity": 1
+    },
+    "green-slime_B2": {
+      "reachProbability": 0.1625,
+      "rarity": 2
+    },
+    "green-slime_B3": {
+      "reachProbability": 0.1625,
+      "rarity": 2
+    },
+    "soil-slime_B1": {
+      "reachProbability": 0.14,
+      "rarity": 2
+    },
+    "skull-slime_B1": {
+      "reachProbability": 0.105,
+      "rarity": 3
+    },
+    "soil-slime_B2": {
+      "reachProbability": 0.06,
+      "rarity": 3
+    },
+    "skull-slime_B2": {
+      "reachProbability": 0.045,
+      "rarity": 3
+    },
+    "green-slime_C1": {
+      "reachProbability": 0.21125,
+      "rarity": 2
+    },
+    "green-slime_C2": {
+      "reachProbability": 0.17875,
+      "rarity": 2
+    },
+    "green-slime_C3": {
+      "reachProbability": 0.1625,
+      "rarity": 2
+    },
+    "green-slime_C4": {
+      "reachProbability": 0.0975,
+      "rarity": 3
+    },
+    "skull-slime_C1": {
+      "reachProbability": 0.087,
+      "rarity": 3
+    },
+    "soil-slime_C1": {
+      "reachProbability": 0.085,
+      "rarity": 4
+    },
+    "soil-slime_C2": {
+      "reachProbability": 0.065,
+      "rarity": 4
+    },
+    "skull-slime_C2": {
+      "reachProbability": 0.063,
+      "rarity": 4
+    },
+    "soil-slime_C3": {
+      "reachProbability": 0.05,
+      "rarity": 4
+    },
+    "green-slime_D1": {
+      "reachProbability": 0.1941875,
+      "rarity": 2
+    },
+    "green-slime_D2": {
+      "reachProbability": 0.1763125,
+      "rarity": 2
+    },
+    "green-slime_D3": {
+      "reachProbability": 0.157625,
+      "rarity": 2
+    },
+    "green-slime_D4": {
+      "reachProbability": 0.121875,
+      "rarity": 3
+    },
+    "skull-slime_D1": {
+      "reachProbability": 0.0924,
+      "rarity": 3
+    },
+    "soil-slime_D1": {
+      "reachProbability": 0.07125,
+      "rarity": 4
+    },
+    "skull-slime_D2": {
+      "reachProbability": 0.0576,
+      "rarity": 5
+    },
+    "soil-slime_D2": {
+      "reachProbability": 0.06625,
+      "rarity": 4
+    },
+    "soil-slime_D3": {
+      "reachProbability": 0.0625,
+      "rarity": 4
+    }
+  }
 }

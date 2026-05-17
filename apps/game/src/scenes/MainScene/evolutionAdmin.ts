@@ -1,10 +1,13 @@
 import {
   MONSTER_CHARACTER_KEYS,
+  type EvolutionRarityEntry,
   type EvolutionCandidateKind,
   type MonsterClassCode,
   type MonsterEvolutionCode,
   type MonsterGeneLine,
   getEvolutionSpec,
+  getMaxEvolutionRarityForClass,
+  getMinEvolutionRarityForClass,
 } from "./evolutionConfig";
 import { CharacterKeyECS } from "./types";
 import { resolveWeightedCandidate } from "./weightedSelection";
@@ -45,6 +48,7 @@ export type EvolutionAdminOverrideMap = Partial<
 export type EvolutionAdminExportV1 = {
   schemaVersion: 1;
   overrides: EvolutionAdminOverrideMap;
+  rarities?: Partial<Record<MonsterEvolutionCode, EvolutionRarityEntry>>;
 };
 
 export type EvolutionAdminValidationResult =
@@ -217,6 +221,73 @@ export function validateEvolutionAdminExport(
 
   const baseCatalogMap = createBaseCatalogMap(baseCatalog);
   const sanitizedOverrides: EvolutionAdminOverrideMap = {};
+  const sanitizedRarities: Partial<
+    Record<MonsterEvolutionCode, EvolutionRarityEntry>
+  > = {};
+
+  if (input.rarities !== undefined) {
+    if (!isRecord(input.rarities)) {
+      errors.push("rarities must be an object.");
+    } else {
+      for (const [rawCode, rawEntry] of Object.entries(input.rarities)) {
+        const code = rawCode as MonsterEvolutionCode;
+
+        if (!baseCatalogMap.has(code)) {
+          errors.push(`Unknown rarity source code: ${rawCode}`);
+          continue;
+        }
+
+        if (!isRecord(rawEntry)) {
+          errors.push(`Invalid rarity entry for ${rawCode}.`);
+          continue;
+        }
+
+        const { reachProbability, rarity } = rawEntry;
+
+        if (
+          typeof reachProbability !== "number" ||
+          !Number.isFinite(reachProbability) ||
+          reachProbability < 0 ||
+          reachProbability > 1
+        ) {
+          errors.push(
+            `Invalid reachProbability for ${rawCode}. Value must be a number between 0 and 1.`,
+          );
+          continue;
+        }
+
+        if (
+          typeof rarity !== "number" ||
+          !Number.isInteger(rarity) ||
+          rarity < 1 ||
+          rarity > 5
+        ) {
+          errors.push(`Invalid rarity for ${rawCode}. Value must be 1-5.`);
+          continue;
+        }
+
+        const baseEntry = baseCatalogMap.get(code);
+        const minRarity = baseEntry
+          ? getMinEvolutionRarityForClass(baseEntry.classCode)
+          : 1;
+        const maxRarity = baseEntry
+          ? getMaxEvolutionRarityForClass(baseEntry.classCode)
+          : 5;
+
+        if (rarity < minRarity || rarity > maxRarity) {
+          errors.push(
+            `Invalid rarity for ${rawCode}. Class ${baseEntry?.classCode ?? "?"} supports ${minRarity}-${maxRarity}.`,
+          );
+          continue;
+        }
+
+        sanitizedRarities[code] = {
+          reachProbability,
+          rarity: rarity as EvolutionRarityEntry["rarity"],
+        };
+      }
+    }
+  }
 
   for (const [rawSourceCode, rawEntry] of Object.entries(input.overrides)) {
     const sourceCode = rawSourceCode as MonsterEvolutionCode;
@@ -354,6 +425,7 @@ export function validateEvolutionAdminExport(
     data: {
       schemaVersion: 1,
       overrides: sanitizedOverrides,
+      ...(input.rarities !== undefined ? { rarities: sanitizedRarities } : {}),
     },
   };
 }

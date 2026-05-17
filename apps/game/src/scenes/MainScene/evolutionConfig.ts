@@ -34,6 +34,11 @@ export type MonsterEvolutionSpec = {
 };
 
 export type MonsterEvolutionCode = MonsterEvolutionSpec["code"];
+export type EvolutionRarity = 1 | 2 | 3 | 4 | 5;
+export type EvolutionRarityEntry = {
+  reachProbability: number;
+  rarity: EvolutionRarity;
+};
 
 type EvolutionOverrideCandidate = {
   toCode: MonsterEvolutionCode;
@@ -48,6 +53,7 @@ type EvolutionOverrideEntry = {
 export type EvolutionOverrideConfig = {
   schemaVersion: 1;
   overrides: Partial<Record<MonsterEvolutionCode, EvolutionOverrideEntry>>;
+  rarities?: Partial<Record<MonsterEvolutionCode, EvolutionRarityEntry>>;
 };
 
 export type EvolutionGaugeConfig = {
@@ -225,6 +231,26 @@ const MONSTER_PHASE_BY_CLASS_CODE: Record<MonsterClassCode, number> = {
   B: 2,
   C: 3,
   D: 4,
+};
+
+const MAX_EVOLUTION_RARITY_BY_CLASS_CODE: Record<
+  MonsterClassCode,
+  EvolutionRarity
+> = {
+  A: 2,
+  B: 3,
+  C: 4,
+  D: 5,
+};
+
+const MIN_EVOLUTION_RARITY_BY_CLASS_CODE: Record<
+  MonsterClassCode,
+  EvolutionRarity
+> = {
+  A: 1,
+  B: 1,
+  C: 2,
+  D: 2,
 };
 
 const DEFAULT_CANDIDATE_WEIGHTS: Record<number, number[]> = {
@@ -488,6 +514,76 @@ function assertEvolutionOverrideConfig(
       "[evolution] evolution-overrides.v1.json must match schemaVersion 1.",
     );
   }
+
+  const rarities = (value as { rarities?: unknown }).rarities;
+
+  if (
+    rarities !== undefined &&
+    (!rarities || typeof rarities !== "object" || Array.isArray(rarities))
+  ) {
+    throw new Error(
+      "[evolution] evolution-overrides.v1.json rarities must be an object.",
+    );
+  }
+}
+
+function validateEvolutionRarityConfig(params: {
+  baseCatalog: Record<MonsterCharacterKey, MonsterEvolutionSpec>;
+  overrideConfig: EvolutionOverrideConfig;
+}): Partial<Record<MonsterEvolutionCode, EvolutionRarityEntry>> {
+  const { baseCatalog, overrideConfig } = params;
+  const rarityConfig = overrideConfig.rarities ?? {};
+  const specsByCode = new Map(
+    Object.values(baseCatalog).map((spec) => [spec.code, spec]),
+  );
+  const result: Partial<Record<MonsterEvolutionCode, EvolutionRarityEntry>> = {};
+
+  for (const [rawCode, rawEntry] of Object.entries(rarityConfig)) {
+    const code = rawCode as MonsterEvolutionCode;
+
+    const spec = specsByCode.get(code);
+
+    if (!spec) {
+      throw new Error(`[evolution] Unknown rarity source code: ${rawCode}`);
+    }
+
+    if (!rawEntry || typeof rawEntry !== "object" || Array.isArray(rawEntry)) {
+      throw new Error(`[evolution] Invalid rarity entry for ${rawCode}.`);
+    }
+
+    const { reachProbability, rarity } = rawEntry;
+
+    if (
+      typeof reachProbability !== "number" ||
+      !Number.isFinite(reachProbability) ||
+      reachProbability < 0 ||
+      reachProbability > 1
+    ) {
+      throw new Error(
+        `[evolution] Invalid reachProbability for ${rawCode}: ${reachProbability}`,
+      );
+    }
+
+    if (!Number.isInteger(rarity) || rarity < 1 || rarity > 5) {
+      throw new Error(`[evolution] Invalid rarity for ${rawCode}: ${rarity}`);
+    }
+
+    const minRarity = getMinEvolutionRarityForClass(spec.classCode);
+    const maxRarity = getMaxEvolutionRarityForClass(spec.classCode);
+
+    if (rarity < minRarity || rarity > maxRarity) {
+      throw new Error(
+        `[evolution] Invalid rarity for ${rawCode}: ${rarity}. Class ${spec.classCode} supports ${minRarity}-${maxRarity}.`,
+      );
+    }
+
+    result[code] = {
+      reachProbability,
+      rarity: rarity as EvolutionRarity,
+    };
+  }
+
+  return result;
 }
 
 export function applyEvolutionOverrideConfig(
@@ -602,13 +698,32 @@ export function applyEvolutionOverrideConfig(
   return nextCatalog;
 }
 
+export function getMaxEvolutionRarityForClass(
+  classCode: MonsterClassCode,
+): EvolutionRarity {
+  return MAX_EVOLUTION_RARITY_BY_CLASS_CODE[classCode];
+}
+
+export function getMinEvolutionRarityForClass(
+  classCode: MonsterClassCode,
+): EvolutionRarity {
+  return MIN_EVOLUTION_RARITY_BY_CLASS_CODE[classCode];
+}
+
 assertEvolutionOverrideConfig(evolutionOverrideData);
+
+const BASE_MONSTER_EVOLUTION_CATALOG = createMonsterEvolutionCatalog();
+
+export const MONSTER_EVOLUTION_RARITIES = validateEvolutionRarityConfig({
+  baseCatalog: BASE_MONSTER_EVOLUTION_CATALOG,
+  overrideConfig: evolutionOverrideData,
+});
 
 export const MONSTER_EVOLUTION_CATALOG: Record<
   MonsterCharacterKey,
   MonsterEvolutionSpec
 > = applyEvolutionOverrideConfig(
-  createMonsterEvolutionCatalog(),
+  BASE_MONSTER_EVOLUTION_CATALOG,
   evolutionOverrideData,
 );
 
@@ -633,6 +748,18 @@ export function getEvolutionSpec(
   }
 
   return MONSTER_EVOLUTION_CATALOG[characterKey];
+}
+
+export function getEvolutionRarity(
+  characterKey: CharacterKeyECS | number,
+): EvolutionRarityEntry | null {
+  const spec = getEvolutionSpec(characterKey);
+
+  if (!spec) {
+    return null;
+  }
+
+  return MONSTER_EVOLUTION_RARITIES[spec.code] ?? null;
 }
 
 export function getCharacterDisplayName(

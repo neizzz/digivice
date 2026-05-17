@@ -177,6 +177,57 @@ test("진화 어드민 import 검증은 잘못된 override를 거부한다", () 
   );
 });
 
+test("진화 어드민 import 검증은 최종 단계 몬스터 rarity를 허용한다", () => {
+  const validation = validateEvolutionAdminExport({
+    schemaVersion: 1,
+    overrides: {},
+    rarities: {
+      "green-slime_D1": {
+        reachProbability: 0.1941875,
+        rarity: 2,
+      },
+    },
+  });
+
+  assert.equal(validation.ok, true);
+
+  if (!validation.ok) {
+    return;
+  }
+
+  assert.deepEqual(validation.data.rarities, {
+    "green-slime_D1": {
+      reachProbability: 0.1941875,
+      rarity: 2,
+    },
+  });
+});
+
+test("진화 어드민 import 검증은 class별 rarity 범위를 적용한다", () => {
+  const validation = validateEvolutionAdminExport({
+    schemaVersion: 1,
+    overrides: {},
+    rarities: {
+      "green-slime_C1": {
+        reachProbability: 0.21125,
+        rarity: 1,
+      },
+    },
+  });
+
+  assert.equal(validation.ok, false);
+
+  if (validation.ok) {
+    return;
+  }
+
+  assert.ok(
+    validation.errors.some((error) =>
+      error.includes("Class C supports 2-4"),
+    ),
+  );
+});
+
 test("진화 어드민 시뮬레이션은 공용 weighted roll 규칙을 그대로 사용한다", () => {
   const entry = getEvolutionAdminCatalog().find(
     (catalogEntry) => catalogEntry.code === "green-slime_A1",

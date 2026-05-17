@@ -1,8 +1,8 @@
 import * as PIXI from "pixi.js";
 import type { Game } from "../../Game";
+import { SceneKey } from "../../SceneKey";
 import type { Scene } from "../../interfaces/Scene";
 import { StorageManager } from "../../managers/StorageManager";
-import { SceneKey } from "../../SceneKey";
 import { ControlButtonType } from "../../ui/types";
 import {
   ensureCharacterSpritesheetLoaded,
@@ -10,22 +10,29 @@ import {
 } from "../../utils/asset";
 import {
   MONSTER_CHARACTER_KEYS,
-  MONSTER_EVOLUTION_CATALOG,
+  isMonsterCharacterKey,
   type MonsterCharacterKey,
   type MonsterClassCode,
 } from "../MainScene/evolutionConfig";
 import {
+  type MonsterBookState,
+  ensureMonsterBookBackfillFromSavedData,
   hasReachedMonster,
   normalizeMonsterBookState,
-  ensureMonsterBookBackfillFromSavedData,
-  type MonsterBookState,
 } from "../MainScene/monsterBook";
 import {
   type MainSceneWorldData,
   WORLD_DATA_STORAGE_KEY,
 } from "../MainScene/world";
-
-type MonsterBookClassPageIndex = Record<MonsterClassCode, number>;
+import { CharacterState, ObjectType } from "../MainScene/types";
+import {
+  type MonsterBookGlobalPage,
+  createMonsterBookCardInfo,
+  getMonsterBookFirstPageIndexForClass,
+  getMonsterBookGlobalPages,
+  getMonsterBookPageIndexByDelta,
+  normalizeMonsterBookPageIndex,
+} from "./catalog";
 
 type MonsterBookCardView = {
   container: PIXI.Container;
@@ -43,13 +50,16 @@ const CARD_ROWS = 2;
 const MONSTER_BOOK_BACKGROUND_URL =
   "/assets/game/sprites/monster-book.png";
 const RARITY_STAR_URL = "/assets/game/sprites/star.png";
-const RARITY_STAR_SIZE = 12;
+const RARITY_STAR_SIZE = 14.4;
 const RARITY_STAR_GAP = 1;
-const RARITY_STAR_COUNT_BY_CLASS: Record<MonsterClassCode, number> = {
-  A: 1,
-  B: 2,
-  C: 3,
-  D: 4,
+const TEMP_REVEAL_ALL_MONSTERS_FOR_TEST = import.meta.env.DEV;
+const CARD_BORDER_WIDTH = 1.5;
+const CURRENT_MONSTER_CARD_BORDER_WIDTH = 3.5;
+const CLASS_ACCENT_COLORS: Record<MonsterClassCode, number> = {
+  A: 0x5c5147,
+  B: 0x1368c4,
+  C: 0x2d8a3f,
+  D: 0xbe2f70,
 };
 
 export class MonsterBookScene extends PIXI.Container implements Scene {
@@ -58,14 +68,8 @@ export class MonsterBookScene extends PIXI.Container implements Scene {
   private readonly bookLayer = new PIXI.Container();
   private readonly contentLayer = new PIXI.Container();
   private monsterBookState: MonsterBookState = normalizeMonsterBookState(null);
-  private selectedClass: MonsterClassCode = "A";
-  private selectedCardIndex = 0;
-  private classPageIndex: MonsterBookClassPageIndex = {
-    A: 0,
-    B: 0,
-    C: 0,
-    D: 0,
-  };
+  private currentMonsterKeys = new Set<MonsterCharacterKey>();
+  private selectedPageIndex = 0;
   private cardViews: MonsterBookCardView[] = [];
   private isInitialized = false;
 
@@ -85,10 +89,6 @@ export class MonsterBookScene extends PIXI.Container implements Scene {
         break;
       case "ArrowDown":
         this.selectNextClass();
-        break;
-      case "Tab":
-        event.preventDefault();
-        this.selectNextCard();
         break;
     }
   };
@@ -167,6 +167,12 @@ export class MonsterBookScene extends PIXI.Container implements Scene {
 
     if (!data) {
       this.monsterBookState = normalizeMonsterBookState(null);
+      this.currentMonsterKeys = new Set();
+      if (TEMP_REVEAL_ALL_MONSTERS_FOR_TEST) {
+        this.monsterBookState = createTemporaryRevealedMonsterBookState(
+          this.monsterBookState,
+        );
+      }
       return;
     }
 
@@ -174,6 +180,14 @@ export class MonsterBookScene extends PIXI.Container implements Scene {
     this.monsterBookState = normalizeMonsterBookState(
       data.world_metadata.app_state?.monster_book,
     );
+    this.currentMonsterKeys = getCurrentMonsterCharacterKeys(data);
+
+    if (TEMP_REVEAL_ALL_MONSTERS_FOR_TEST) {
+      this.monsterBookState = createTemporaryRevealedMonsterBookState(
+        this.monsterBookState,
+      );
+    }
+
     await StorageManager.setData(WORLD_DATA_STORAGE_KEY, data);
   }
 
@@ -213,9 +227,11 @@ export class MonsterBookScene extends PIXI.Container implements Scene {
   }
 
   private async preloadReachedMonsterSprites(): Promise<void> {
-    const reachedKeys = MONSTER_CHARACTER_KEYS.filter((characterKey) =>
-      hasReachedMonster(this.monsterBookState, characterKey),
-    );
+    const reachedKeys = TEMP_REVEAL_ALL_MONSTERS_FOR_TEST
+      ? MONSTER_CHARACTER_KEYS
+      : MONSTER_CHARACTER_KEYS.filter((characterKey) =>
+          hasReachedMonster(this.monsterBookState, characterKey),
+        );
 
     await Promise.all(
       reachedKeys.map((characterKey) =>
@@ -257,16 +273,15 @@ export class MonsterBookScene extends PIXI.Container implements Scene {
   }
 
   private drawHeader(layout: ReturnType<MonsterBookScene["getLayout"]>): void {
-    const title = this.createText(`Class ${this.selectedClass}`, {
-      fontSize: 22,
-      fill: 0x4a160f,
+    const currentPage = this.getCurrentPage();
+    const accentColor = this.getCurrentClassAccentColor();
+    const title = this.createText(`Class ${currentPage.classCode}`, {
+      fontSize: 26.4,
+      fill: accentColor,
       fontWeight: "700",
     });
     title.anchor.set(0.5, 0);
     title.position.set(layout.pageX + layout.pageWidth / 2, layout.pageY + 16);
-    title.eventMode = "static";
-    title.cursor = "pointer";
-    title.on("pointertap", () => this.selectNextClass());
 
     const underlineWidth = Math.max(78, title.width + 10);
     const underline = new PIXI.Graphics()
@@ -277,20 +292,23 @@ export class MonsterBookScene extends PIXI.Container implements Scene {
         2,
         1,
       )
-      .fill({ color: 0x4a160f, alpha: 0.86 });
+      .fill({ color: accentColor, alpha: 0.86 });
     this.contentLayer.addChild(title, underline);
   }
 
   private drawPageNumber(
     layout: ReturnType<MonsterBookScene["getLayout"]>,
   ): void {
-    const currentPage = this.classPageIndex[this.selectedClass] ?? 0;
-    const totalPages = this.getTotalPages(this.selectedClass);
-    const pageNumber = this.createText(`${currentPage + 1} / ${totalPages}`, {
-      fontSize: 11,
-      fill: 0x6d3b24,
-      fontWeight: "700",
-    });
+    const currentPage = this.getCurrentPage();
+    const accentColor = this.getCurrentClassAccentColor();
+    const pageNumber = this.createText(
+      `${currentPage.globalPageIndex + 1} / ${currentPage.totalGlobalPages}`,
+      {
+        fontSize: 13.2,
+        fill: accentColor,
+        fontWeight: "700",
+      },
+    );
     pageNumber.anchor.set(0, 0);
     pageNumber.position.set(layout.contentX, layout.pageY + 21);
     this.contentLayer.addChild(pageNumber);
@@ -312,7 +330,6 @@ export class MonsterBookScene extends PIXI.Container implements Scene {
         y,
         width: cardWidth,
         height: cardHeight,
-        index,
       });
       this.contentLayer.addChild(card.container);
       this.cardViews.push(card);
@@ -321,38 +338,35 @@ export class MonsterBookScene extends PIXI.Container implements Scene {
 
   private createCard(
     characterKey: MonsterCharacterKey,
-    params: { x: number; y: number; width: number; height: number; index: number },
+    params: { x: number; y: number; width: number; height: number },
   ): MonsterBookCardView {
-    const spec = MONSTER_EVOLUTION_CATALOG[characterKey];
-    const isReached = hasReachedMonster(this.monsterBookState, characterKey);
-    const isSelected = this.selectedCardIndex === params.index;
+    const cardInfo = createMonsterBookCardInfo({
+      characterKey,
+      monsterBookState: this.monsterBookState,
+    });
+    const isReached = cardInfo.isReached;
+    const isCurrentMonster = this.currentMonsterKeys.has(characterKey);
     const container = new PIXI.Container();
     const cardBackground = new PIXI.Graphics()
       .roundRect(params.x, params.y, params.width, params.height, 6)
       .fill({ color: isReached ? 0xffe7af : 0xb58a62 })
       .stroke({
-        color: isSelected ? 0x9d2025 : 0x6c3f24,
-        width: isSelected ? 3 : 1.5,
+        color: this.getCurrentClassAccentColor(),
+        width: isCurrentMonster
+          ? CURRENT_MONSTER_CARD_BORDER_WIDTH
+          : CARD_BORDER_WIDTH,
       });
     container.addChild(cardBackground);
 
     this.drawRarityStars(
       container,
-      RARITY_STAR_COUNT_BY_CLASS[spec.classCode],
+      cardInfo.rarity,
       params.x + 6,
       params.y + 5,
     );
 
     if (isReached) {
       this.addMonsterSprite(container, characterKey, params);
-      const name = this.createText(spec.code.replace("green-slime_", ""), {
-        fontSize: 8,
-        fill: 0x4a160f,
-        fontWeight: "700",
-      });
-      name.anchor.set(0.5, 1);
-      name.position.set(params.x + params.width / 2, params.y + params.height - 5);
-      container.addChild(name);
     } else {
       const unknown = this.createText("?", {
         fontSize: Math.max(26, Math.floor(params.height * 0.48)),
@@ -363,13 +377,6 @@ export class MonsterBookScene extends PIXI.Container implements Scene {
       unknown.position.set(params.x + params.width / 2, params.y + params.height / 2 + 3);
       container.addChild(unknown);
     }
-
-    container.eventMode = "static";
-    container.cursor = "pointer";
-    container.on("pointertap", () => {
-      this.selectedCardIndex = params.index;
-      this.renderScene();
-    });
 
     return {
       container,
@@ -421,7 +428,7 @@ export class MonsterBookScene extends PIXI.Container implements Scene {
     sprite.anchor.set(0.5);
     sprite.animationSpeed = 0.04;
     sprite.play();
-    const maxSpriteSize = Math.min(params.width * 0.58, params.height * 0.52);
+    const maxSpriteSize = Math.min(params.width * 0.696, params.height * 0.624);
     const sourceWidth = sprite.texture.width || 16;
     const sourceHeight = sprite.texture.height || 16;
     const scale = maxSpriteSize / Math.max(sourceWidth, sourceHeight);
@@ -433,58 +440,62 @@ export class MonsterBookScene extends PIXI.Container implements Scene {
     container.addChild(sprite);
   }
 
-  private selectNextCard(): void {
-    const entries = this.getCurrentPageEntries();
-    if (entries.length === 0) {
-      return;
-    }
-
-    this.selectedCardIndex = (this.selectedCardIndex + 1) % entries.length;
-    this.renderScene();
-  }
-
   private selectPreviousClass(): void {
-    const currentIndex = CLASS_ORDER.indexOf(this.selectedClass);
-    this.selectedClass =
-      CLASS_ORDER[(currentIndex - 1 + CLASS_ORDER.length) % CLASS_ORDER.length];
-    this.selectedCardIndex = 0;
-    this.renderScene();
+    const currentIndex = CLASS_ORDER.indexOf(this.getCurrentPage().classCode);
+    this.selectClass(
+      CLASS_ORDER[(currentIndex - 1 + CLASS_ORDER.length) % CLASS_ORDER.length],
+    );
   }
 
   private selectNextClass(): void {
-    const currentIndex = CLASS_ORDER.indexOf(this.selectedClass);
-    this.selectedClass = CLASS_ORDER[(currentIndex + 1) % CLASS_ORDER.length];
-    this.selectedCardIndex = 0;
+    const currentIndex = CLASS_ORDER.indexOf(this.getCurrentPage().classCode);
+    this.selectClass(CLASS_ORDER[(currentIndex + 1) % CLASS_ORDER.length]);
+  }
+
+  private selectClass(classCode: MonsterClassCode): void {
+    this.selectedPageIndex = getMonsterBookFirstPageIndexForClass({
+      classOrder: CLASS_ORDER,
+      cardsPerPage: CARDS_PER_PAGE,
+      classCode,
+    });
     this.renderScene();
   }
 
   private changePage(delta: number): void {
-    const totalPages = this.getTotalPages(this.selectedClass);
-    const currentPage = this.classPageIndex[this.selectedClass] ?? 0;
-    this.classPageIndex[this.selectedClass] =
-      (currentPage + delta + totalPages) % totalPages;
-    this.selectedCardIndex = 0;
+    const globalPages = this.getGlobalPages();
+    this.selectedPageIndex = getMonsterBookPageIndexByDelta({
+      pageIndex: this.getNormalizedSelectedPageIndex(),
+      delta,
+      totalPages: globalPages.length,
+    });
     this.renderScene();
   }
 
   private getCurrentPageEntries(): MonsterCharacterKey[] {
-    const entries = this.getEntriesForClass(this.selectedClass);
-    const page = this.classPageIndex[this.selectedClass] ?? 0;
-    return entries.slice(page * CARDS_PER_PAGE, (page + 1) * CARDS_PER_PAGE);
+    return this.getCurrentPage().entries;
   }
 
-  private getEntriesForClass(classCode: MonsterClassCode): MonsterCharacterKey[] {
-    return MONSTER_CHARACTER_KEYS.filter(
-      (characterKey) =>
-        MONSTER_EVOLUTION_CATALOG[characterKey].classCode === classCode,
-    );
+  private getCurrentPage(): MonsterBookGlobalPage {
+    const globalPages = this.getGlobalPages();
+    return globalPages[this.getNormalizedSelectedPageIndex()];
   }
 
-  private getTotalPages(classCode: MonsterClassCode): number {
-    return Math.max(
-      1,
-      Math.ceil(this.getEntriesForClass(classCode).length / CARDS_PER_PAGE),
-    );
+  private getNormalizedSelectedPageIndex(): number {
+    return normalizeMonsterBookPageIndex({
+      pageIndex: this.selectedPageIndex,
+      totalPages: this.getGlobalPages().length,
+    });
+  }
+
+  private getGlobalPages(): MonsterBookGlobalPage[] {
+    return getMonsterBookGlobalPages({
+      classOrder: CLASS_ORDER,
+      cardsPerPage: CARDS_PER_PAGE,
+    });
+  }
+
+  private getCurrentClassAccentColor(): number {
+    return CLASS_ACCENT_COLORS[this.getCurrentPage().classCode];
   }
 
   private getLayout(width: number, height: number) {
@@ -532,4 +543,53 @@ export class MonsterBookScene extends PIXI.Container implements Scene {
   private async returnToMainScene(): Promise<void> {
     await this.game.changeScene(SceneKey.MAIN);
   }
+}
+
+function createTemporaryRevealedMonsterBookState(
+  state: MonsterBookState,
+): MonsterBookState {
+  const revealedState = normalizeMonsterBookState(state);
+
+  for (const characterKey of MONSTER_CHARACTER_KEYS) {
+    if ((revealedState.reached[characterKey]?.length ?? 0) > 0) {
+      continue;
+    }
+
+    revealedState.reached[characterKey] = [
+      {
+        name: "Test",
+        reached_at: 0,
+        object_id: -1,
+        source: "backfill",
+      },
+    ];
+  }
+
+  return revealedState;
+}
+
+function getCurrentMonsterCharacterKeys(
+  data: MainSceneWorldData,
+): Set<MonsterCharacterKey> {
+  const characterKeys = new Set<MonsterCharacterKey>();
+
+  for (const entity of data.entities ?? []) {
+    const object = entity.components.object;
+    const characterStatus = entity.components.characterStatus;
+
+    if (
+      object?.type !== ObjectType.CHARACTER ||
+      object.state === CharacterState.EGG ||
+      object.state === CharacterState.DEAD ||
+      !characterStatus
+    ) {
+      continue;
+    }
+
+    if (isMonsterCharacterKey(characterStatus.characterKey)) {
+      characterKeys.add(characterStatus.characterKey);
+    }
+  }
+
+  return characterKeys;
 }
