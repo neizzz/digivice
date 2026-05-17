@@ -35,36 +35,44 @@ const spriteInfoMap: Record<
   }
 > = {
   [ControlButtonType.Clean]: {
-    normal: { x: 320, y: 0 },
-    pressed: { x: 320, y: 64 },
+    normal: { x: 640, y: 0 },
+    pressed: { x: 704, y: 0 },
   },
   [ControlButtonType.Jump]: {
-    normal: { x: 384, y: 0 },
-    pressed: { x: 384, y: 64 },
+    normal: { x: 768, y: 0 },
+    pressed: { x: 832, y: 0 },
   },
   [ControlButtonType.DoubleJump]: {
-    normal: { x: 448, y: 0 },
-    pressed: { x: 448, y: 64 },
+    normal: { x: 896, y: 0 },
+    pressed: { x: 960, y: 0 },
   },
   [ControlButtonType.Attack]: {
-    normal: { x: 512, y: 0 },
-    pressed: { x: 512, y: 64 },
+    normal: { x: 1024, y: 0 },
+    pressed: { x: 1088, y: 0 },
   },
   [ControlButtonType.Settings]: {
-    normal: { x: 576, y: 0 },
-    pressed: { x: 576, y: 64 },
+    normal: { x: 1152, y: 0 },
+    pressed: { x: 1216, y: 0 },
   },
   [ControlButtonType.Next]: {
-    normal: { x: 640, y: 0 },
-    pressed: { x: 640, y: 64 },
+    normal: { x: 1280, y: 0 },
+    pressed: { x: 1344, y: 0 },
   },
   [ControlButtonType.Confirm]: {
-    normal: { x: 704, y: 0 },
-    pressed: { x: 704, y: 64 },
+    normal: { x: 1408, y: 0 },
+    pressed: { x: 1472, y: 0 },
   },
   [ControlButtonType.Cancel]: {
-    normal: { x: 768, y: 0 },
-    pressed: { x: 768, y: 64 },
+    normal: { x: 1536, y: 0 },
+    pressed: { x: 1600, y: 0 },
+  },
+  [ControlButtonType.Book]: {
+    normal: { x: 1664, y: 0 },
+    pressed: { x: 1728, y: 0 },
+  },
+  [ControlButtonType.Previous]: {
+    normal: { x: 1792, y: 0 },
+    pressed: { x: 1856, y: 0 },
   },
 };
 

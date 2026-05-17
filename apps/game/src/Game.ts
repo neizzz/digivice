@@ -11,6 +11,7 @@ import {
   type SunTimesPayload,
 } from "./scenes/MainScene/timeOfDay";
 import { FlappyBirdGameScene } from "./scenes/FlappyBirdGameScene";
+import { MonsterBookScene } from "./scenes/MonsterBookScene";
 import {
   FLAPPY_BIRD_RETRO_FONT_PRELOAD_TIMEOUT_MS,
   preloadFlappyBirdRetroFont,
@@ -767,6 +768,7 @@ export class Game {
           startMiniGame:
             this._startMiniGame ??
             (() => this.changeScene(SceneKey.FLAPPY_BIRD_GAME)),
+          startMonsterBook: () => this.changeScene(SceneKey.MONSTER_BOOK),
           createInitialGameData: this._createInitialGameData,
           changeControlButtons: this.changeControlButtons,
           showAlert: this.showAlert,
@@ -784,6 +786,8 @@ export class Game {
 
       case SceneKey.FLAPPY_BIRD_GAME:
         return new FlappyBirdGameScene(this).init();
+      case SceneKey.MONSTER_BOOK:
+        return new MonsterBookScene(this).init();
       default:
         throw new Error(`[Game] Unknown scene key: ${key}`);
     }

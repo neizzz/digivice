@@ -28,4 +28,6 @@ export enum ControlButtonType {
   Next = "next",
   Confirm = "confirm",
   Cancel = "cancel",
+  Book = "book",
+  Previous = "previous",
 }

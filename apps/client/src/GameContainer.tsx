@@ -71,9 +71,15 @@ const UNSUPPORTED_VIEWPORT_OVERLAY_SHOW_DEBOUNCE_MS = 180;
 const UNSUPPORTED_SQUARE_VIEWPORT_RATIO = 0.8;
 
 function getConfiguredInitialSceneKey(): SceneKey {
-  return import.meta.env.VITE_INITIAL_SCENE === SceneKey.FLAPPY_BIRD_GAME
-    ? SceneKey.FLAPPY_BIRD_GAME
-    : SceneKey.MAIN;
+  if (import.meta.env.VITE_INITIAL_SCENE === SceneKey.FLAPPY_BIRD_GAME) {
+    return SceneKey.FLAPPY_BIRD_GAME;
+  }
+
+  if (import.meta.env.VITE_INITIAL_SCENE === SceneKey.MONSTER_BOOK) {
+    return SceneKey.MONSTER_BOOK;
+  }
+
+  return SceneKey.MAIN;
 }
 
 const CONFIGURED_INITIAL_SCENE_KEY = getConfiguredInitialSceneKey();
@@ -2849,7 +2855,7 @@ const GameContainer: React.FC = () => {
       if (!gameContainerSize || gameContainerSize <= 0) return;
       if (isInitializedRef.current) return;
 
-      if (CONFIGURED_INITIAL_SCENE_KEY === SceneKey.FLAPPY_BIRD_GAME) {
+      if (CONFIGURED_INITIAL_SCENE_KEY !== SceneKey.MAIN) {
         initializeGame();
         return;
       }

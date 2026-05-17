@@ -14,6 +14,7 @@ import {
   isSpritesheetLoaded,
 } from "../../../utils/asset";
 import { ensureCharacterOpaqueBoundsComputed } from "./CharacterOpaqueBounds";
+import { recordMonsterBookReach } from "../monsterBook";
 
 const eggQuery = defineQuery([ObjectComp, EggHatchComp]);
 
@@ -98,6 +99,14 @@ function completeHatch(
   console.log(
     `[EggHatchSystem] Character ${eid} has hatched! State changed to IDLE with characterKey: ${characterKey}`,
   );
+
+  recordMonsterBookReach({
+    world,
+    characterKey,
+    source: "hatch",
+    reachedAt: currentTime,
+    objectId: ObjectComp.id[eid],
+  });
 }
 
 function hatchCharacterForSimulation(

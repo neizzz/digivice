@@ -17,6 +17,7 @@ import {
 } from "../evolutionConfig";
 import { ensureCharacterSpritesheetLoaded } from "../../../utils/asset";
 import { ensureCharacterOpaqueBoundsComputed } from "./CharacterOpaqueBounds";
+import { recordMonsterBookReach } from "../monsterBook";
 
 /**
  * 진화 처리 함수
@@ -105,6 +106,14 @@ async function applyEvolutionWithLoadedAsset(params: {
   console.log(
     `[EvolutionSystem] Character ${eid} evolved: phase ${currentPhase} -> ${nextPhase}, key ${currentCharacterKey} -> ${nextCharacterKey}, kind=${candidateKind}`,
   );
+
+  recordMonsterBookReach({
+    world,
+    characterKey: nextCharacterKey,
+    source: "evolution",
+    reachedAt: world.currentTime,
+    objectId: ObjectComp.id[eid],
+  });
 
   updateCharacterSprites(world, eid, nextCharacterKey);
 }

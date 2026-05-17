@@ -168,6 +168,12 @@ import {
 } from "./systems/SleepEffectSystem";
 import { getNativeSunTimes, requestNativeLocationPermission } from "./sunTimes";
 import { ReentrySimulator } from "./ReentrySimulator";
+import {
+  createEmptyMonsterBookState,
+  ensureMonsterBookBackfillFromSavedData,
+  ensureMonsterBookState,
+  type MonsterBookState,
+} from "./monsterBook";
 import { CharacterKey } from "../../types/Character";
 import {
   MainSceneInitDiagnostics,
@@ -256,6 +262,7 @@ export type WorldMetadata = {
     cached_sun_times?: SunTimesPayload;
     main_scene_ad?: MainSceneAdState;
     mini_game_scores?: MiniGameScoresState;
+    monster_book?: MonsterBookState;
   };
   // // 캐릭터별 위치 추적 (캐릭터 ID를 키로 사용)
   // character_positions?: Record<
@@ -308,7 +315,7 @@ export class MissingInitialGameDataError extends Error {
 
 type MainSceneAppState = NonNullable<WorldMetadata["app_state"]>;
 
-const WORLD_DATA_STORAGE_KEY = "MainSceneWorldData";
+export const WORLD_DATA_STORAGE_KEY = "MainSceneWorldData";
 const DEFAULT_USE_LOCAL_TIME = true;
 const MAIN_SCENE_AD_NORMAL_THRESHOLD = 5;
 const MAIN_SCENE_AD_DEEP_NIGHT_THRESHOLD = 10;
@@ -459,6 +466,7 @@ export class MainSceneWorld implements IWorld, Scene {
   private _createInitialGameData?: () => Promise<InitialGameData>;
   private _pendingStorageWrite: Promise<void> = Promise.resolve();
   private _startMiniGame?: () => unknown | Promise<unknown>;
+  private _startMonsterBook?: () => unknown | Promise<unknown>;
   private _showAlert?: ShowAlertCallback;
   private _locale: LocaleCode = DEFAULT_LOCALE;
   private _debugMode = false;
@@ -617,6 +625,7 @@ export class MainSceneWorld implements IWorld, Scene {
     debugParentElement?: HTMLElement;
     debugMode?: boolean;
     startMiniGame?: () => unknown | Promise<unknown>;
+    startMonsterBook?: () => unknown | Promise<unknown>;
     showAlert?: ShowAlertCallback;
     locale?: LocaleCode;
     createInitialGameData?: () => Promise<InitialGameData>;
@@ -647,6 +656,7 @@ export class MainSceneWorld implements IWorld, Scene {
       params.debugParentElement ?? params.parentElement;
     this._debugMode = params.debugMode ?? false;
     this._startMiniGame = params.startMiniGame;
+    this._startMonsterBook = params.startMonsterBook;
     this._showAlert = params.showAlert;
     this._locale = params.locale ?? DEFAULT_LOCALE;
     this._shouldDeferPersistence = params.shouldDeferPersistence;
@@ -714,6 +724,7 @@ export class MainSceneWorld implements IWorld, Scene {
           best_score: 0,
         },
       },
+      monster_book: createEmptyMonsterBookState(),
     };
 
     this._persistentData.world_metadata.app_state = appState;
@@ -2119,6 +2130,7 @@ export class MainSceneWorld implements IWorld, Scene {
               best_score: 0,
             },
           },
+          monster_book: createEmptyMonsterBookState(),
         },
       },
       entities: [this._createDefaultCharacterEntity()],
@@ -2350,6 +2362,7 @@ export class MainSceneWorld implements IWorld, Scene {
                 best_score: 0,
               },
             },
+            monster_book: createEmptyMonsterBookState(),
           },
         };
       }
@@ -2368,6 +2381,7 @@ export class MainSceneWorld implements IWorld, Scene {
               best_score: 0,
             },
           },
+          monster_book: createEmptyMonsterBookState(),
         };
       } else if (data.world_metadata.app_state.use_local_time !== true) {
         data.world_metadata.app_state.use_local_time = true;
@@ -2390,6 +2404,8 @@ export class MainSceneWorld implements IWorld, Scene {
           best_score: 0,
         };
       }
+
+      ensureMonsterBookState(data);
 
       if (!data.entities) {
         console.warn("Missing entities array, creating empty array");
@@ -2414,6 +2430,8 @@ export class MainSceneWorld implements IWorld, Scene {
           } corrupted entities`,
         );
       }
+
+      ensureMonsterBookBackfillFromSavedData(data, this.currentTime);
 
       console.log(
         `Data validation completed, ${data.entities.length} valid entities found`,
@@ -2829,6 +2847,7 @@ export class MainSceneWorld implements IWorld, Scene {
             best_score: 0,
           },
         },
+        monster_book: createEmptyMonsterBookState(),
       };
     }
 
@@ -2872,6 +2891,7 @@ export class MainSceneWorld implements IWorld, Scene {
             best_score: 0,
           },
         },
+        monster_book: createEmptyMonsterBookState(),
       };
       return;
     }
@@ -2932,6 +2952,16 @@ export class MainSceneWorld implements IWorld, Scene {
         // Clean 버튼은 슬라이더로 처리됨
         return;
       }
+    }
+
+    if (buttonType === ControlButtonType.Book) {
+      if (!this._startMonsterBook) {
+        console.warn("[MainSceneWorld] Monster book start callback is not set");
+        return;
+      }
+
+      void this._startMonsterBook();
+      return;
     }
 
     // Settings 버튼 클릭 시 메뉴 활성화 (첫 번째 메뉴 항목에 포커스)
@@ -3019,9 +3049,9 @@ export class MainSceneWorld implements IWorld, Scene {
         { type: ControlButtonType.Next },
       ]);
     } else {
-      // 메뉴에 포커스가 없을 때: Cancel, Settings, Next
+      // 메뉴에 포커스가 없을 때: Book, Settings, Next
       this._changeControlButtons([
-        { type: ControlButtonType.Cancel },
+        { type: ControlButtonType.Book },
         { type: ControlButtonType.Settings },
         { type: ControlButtonType.Next },
       ]);
@@ -3897,6 +3927,7 @@ export class MainSceneWorld implements IWorld, Scene {
               best_score: 0,
             },
           },
+          monster_book: createEmptyMonsterBookState(),
         };
       }
 

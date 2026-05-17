@@ -2,6 +2,7 @@
 export enum SceneKey {
   MAIN = "main",
   FLAPPY_BIRD_GAME = "flappy_bird_game",
+  MONSTER_BOOK = "monster_book",
   // 나중에 추가될 씬들
   // BATTLE = "battle",
   // INVENTORY = "inventory",
