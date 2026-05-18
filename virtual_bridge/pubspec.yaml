@@ -44,6 +44,8 @@ flutter:
     - assets/web/assets/
     - assets/web/assets/game/
     - assets/web/assets/ui/
+    - assets/web/assets/game/sounds/
+    - assets/web/assets/ui/sounds/
     - assets/web/assets/game/sprites/
     - assets/web/assets/game/sprites/monsters/
     - assets/web/assets/game/sprites/tiles/

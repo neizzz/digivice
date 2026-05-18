@@ -175,6 +175,7 @@ function updateRecoverySyringe(
     !recoveryImpactTriggeredEids.has(eid)
   ) {
     recoveryImpactTriggeredEids.add(eid);
+    world.triggerMainSceneSfx("syringe-insert");
     world.applyPendingRecoverySyringeImpact(eid);
   }
 

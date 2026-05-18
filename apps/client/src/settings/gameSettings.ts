@@ -6,16 +6,19 @@ import {
 
 export interface GameSettings {
   vibrationEnabled: boolean;
+  sfxEnabled: boolean;
   locale: LocaleCode;
 }
 
 const STORAGE_KEYS = {
   vibrationEnabled: "game.settings.vibrationEnabled",
+  sfxEnabled: "game.settings.sfxEnabled",
   locale: "game.settings.locale",
 } as const;
 
 const DEFAULT_SETTINGS: GameSettings = {
   vibrationEnabled: true,
+  sfxEnabled: true,
   locale: DEFAULT_LOCALE,
 };
 
@@ -49,6 +52,10 @@ export function getGameSettings(): GameSettings {
       STORAGE_KEYS.vibrationEnabled,
       DEFAULT_SETTINGS.vibrationEnabled,
     ),
+    sfxEnabled: getBooleanSetting(
+      STORAGE_KEYS.sfxEnabled,
+      DEFAULT_SETTINGS.sfxEnabled,
+    ),
     locale: getLocaleSetting(),
   };
 }
@@ -66,6 +73,10 @@ export function updateGameSettings(
       STORAGE_KEYS.vibrationEnabled,
       String(nextSettings.vibrationEnabled),
     );
+    window.localStorage.setItem(
+      STORAGE_KEYS.sfxEnabled,
+      String(nextSettings.sfxEnabled),
+    );
     window.localStorage.setItem(STORAGE_KEYS.locale, nextSettings.locale);
   }
 
@@ -74,4 +85,8 @@ export function updateGameSettings(
 
 export function isVibrationEnabled(): boolean {
   return getGameSettings().vibrationEnabled;
+}
+
+export function isSfxEnabled(): boolean {
+  return getGameSettings().sfxEnabled;
 }

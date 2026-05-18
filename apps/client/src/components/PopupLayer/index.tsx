@@ -13,6 +13,7 @@ import {
   registerPopupBackHandler,
   type PopupBackHandler,
 } from "../../popupBackNavigation";
+import { playUiPopSound } from "../../utils/uiSfx";
 
 interface PopupProps {
   title?: string;
@@ -112,6 +113,10 @@ const PopupLayer: React.FC<PopupProps> = ({
   );
   const effectiveInitialFocusTarget = effectiveInitialFocusTargetRef.current;
   const isBackHandlerEnabled = typeof onBack === "function";
+
+  useEffect(() => {
+    playUiPopSound();
+  }, []);
 
   useLayoutEffect(() => {
     backHandlerRef.current = onBack ?? null;

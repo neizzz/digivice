@@ -133,12 +133,16 @@ test("recovery syringe가 꽂힌 뒤부터 사라질 때까지 recovery vibratio
 
   let startCount = 0;
   let stopCount = 0;
+  const sfxKinds: string[] = [];
 
   world.startRecoveryVibration = () => {
     startCount += 1;
   };
   world.stopRecoveryVibration = () => {
     stopCount += 1;
+  };
+  world.triggerMainSceneSfx = (kind) => {
+    sfxKinds.push(kind);
   };
 
   startEffectAnimation(
@@ -155,6 +159,7 @@ test("recovery syringe가 꽂힌 뒤부터 사라질 때까지 recovery vibratio
     stage: null,
   });
   assert.equal(startCount, 0);
+  assert.deepEqual(sfxKinds, []);
 
   effectAnimationSystem({
     world,
@@ -162,6 +167,7 @@ test("recovery syringe가 꽂힌 뒤부터 사라질 때까지 recovery vibratio
     stage: null,
   });
   assert.equal(startCount, 1);
+  assert.deepEqual(sfxKinds, ["syringe-insert"]);
 
   effectAnimationSystem({
     world,
@@ -169,6 +175,7 @@ test("recovery syringe가 꽂힌 뒤부터 사라질 때까지 recovery vibratio
     stage: null,
   });
   assert.equal(stopCount, 1);
+  assert.deepEqual(sfxKinds, ["syringe-insert"]);
 });
 
 test("recovery syringe impact는 stale destination을 지우고 free roaming을 즉시 복구한다", () => {

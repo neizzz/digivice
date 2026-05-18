@@ -3,6 +3,7 @@ import {
   ControlButtonType,
   Game,
   type GameDiagnosticsSnapshot,
+  type MainSceneSfxKind,
   getNativeSunTimes,
   MissingInitialGameDataError,
   SceneKey,
@@ -49,6 +50,10 @@ import {
 import type { SanitizeStoredWorldDataResult } from "./utils/sanitizeStoredWorldData";
 import { useI18n } from "./i18n";
 import { consumeTopPopupBackHandler } from "./popupBackNavigation";
+import {
+  playFoodThrowSound,
+  playSyringeInsertSound,
+} from "./utils/uiSfx";
 
 const WORLD_DATA_STORAGE_KEY = "MainSceneWorldData";
 const FLAPPY_BIRD_GAME_OVER_AD_COUNTER_STORAGE_KEY =
@@ -1496,6 +1501,10 @@ const GameContainer: React.FC = () => {
     setGameSettings(updateGameSettings({ vibrationEnabled: enabled }));
   }, []);
 
+  const handleSfxSettingChange = useCallback((enabled: boolean) => {
+    setGameSettings(updateGameSettings({ sfxEnabled: enabled }));
+  }, []);
+
   useEffect(() => {
     setGameSettings(getGameSettings());
     gameInstance?.setLocale(locale);
@@ -1722,6 +1731,17 @@ const GameContainer: React.FC = () => {
     },
     [],
   );
+
+  const triggerMainSceneSfx = useCallback((kind: MainSceneSfxKind) => {
+    switch (kind) {
+      case "food-throw":
+        playFoodThrowSound();
+        return;
+      case "syringe-insert":
+        playSyringeInsertSound();
+        return;
+    }
+  }, []);
 
   const getFlappyBirdBestScore = useCallback(async (): Promise<number> => {
     try {
@@ -2573,6 +2593,7 @@ const GameContainer: React.FC = () => {
       triggerBiteVibration: () => {
         void biteVibrationAdapter.vibrate();
       },
+      triggerMainSceneSfx,
       triggerTransientVibration,
       startRecoveryVibration,
       stopRecoveryVibration,
@@ -2721,6 +2742,7 @@ const GameContainer: React.FC = () => {
     stopRecoveryVibration,
     showAlert,
     entryFlowDiagnostics,
+    triggerMainSceneSfx,
     triggerTransientVibration,
     t,
   ]);
@@ -3125,8 +3147,10 @@ const GameContainer: React.FC = () => {
         <SettingMenuLayer
           releaseLabel={getClientReleaseLabel()}
           vibrationEnabled={gameSettings.vibrationEnabled}
+          sfxEnabled={gameSettings.sfxEnabled}
           locale={locale}
           onChangeVibration={handleVibrationSettingChange}
+          onChangeSfx={handleSfxSettingChange}
           onChangeLocale={setLocale}
           onSendDiagnostics={handleSendDiagnostics}
           isSendingDiagnostics={isSendingDiagnostics}

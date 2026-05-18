@@ -3,6 +3,13 @@ import type React from "react";
 import { useEffect, useState, useRef } from "react";
 import { SliderController } from "../SliderController";
 import { VibrationAdapter } from "../../adapter/VibrationAdapter";
+import {
+  playBroomSound,
+  playBigJumpSound,
+  playControlButtonDownSound,
+  playControlButtonUpSound,
+  playSmallJumpSound,
+} from "../../utils/uiSfx";
 
 const SLIDER_THUMB_SIZE = 64;
 const SLIDER_TRACK_RANGE_MULTIPLIER = 1.1;
@@ -142,16 +149,22 @@ const ControlButton: React.FC<ControlButtonProps> = ({
                 ? -1
                 : 0;
 
-          if (
-            hasCleaningTargetRef.current &&
-            dragDirection !== 0 &&
-            lastDragDirectionRef.current !== 0 &&
-            dragDirection !== lastDragDirectionRef.current
-          ) {
-            void vibrationAdapter.vibrate(
-              SLIDER_DIRECTION_CHANGE_VIBRATION_DURATION,
-              SLIDER_DIRECTION_CHANGE_VIBRATION_STRENGTH,
-            );
+          if (hasCleaningTargetRef.current && dragDirection !== 0) {
+            const hasStartedMoving = lastDragDirectionRef.current === 0;
+            const hasChangedDirection =
+              lastDragDirectionRef.current !== 0 &&
+              dragDirection !== lastDragDirectionRef.current;
+
+            if (hasStartedMoving || hasChangedDirection) {
+              playBroomSound();
+            }
+
+            if (hasChangedDirection) {
+              void vibrationAdapter.vibrate(
+                SLIDER_DIRECTION_CHANGE_VIBRATION_DURATION,
+                SLIDER_DIRECTION_CHANGE_VIBRATION_STRENGTH,
+              );
+            }
           }
 
           if (dragDirection !== 0) {
@@ -177,6 +190,7 @@ const ControlButton: React.FC<ControlButtonProps> = ({
           onSliderChangeRef.current?.(value);
         },
         onDragStart: () => {
+          playControlButtonDownSound();
           isDraggingRef.current = true;
           lastSliderDragValueRef.current = currentSliderValueRef.current;
           accumulatedDragDistanceRef.current = 0;
@@ -184,6 +198,7 @@ const ControlButton: React.FC<ControlButtonProps> = ({
           setIsPressed(true);
         },
         onDragEnd: () => {
+          playControlButtonUpSound();
           isDraggingRef.current = false;
           accumulatedDragDistanceRef.current = 0;
           lastDragDirectionRef.current = 0;
@@ -225,12 +240,23 @@ const ControlButton: React.FC<ControlButtonProps> = ({
   const spriteInfo = spriteInfoMap[type][spriteState];
   const shouldTriggerOnPointerDown =
     type === ControlButtonType.Jump || type === ControlButtonType.DoubleJump;
+  const shouldPlayControlButtonKeySound = !(
+    type === ControlButtonType.Jump || type === ControlButtonType.DoubleJump
+  );
 
   // 일반 버튼 이벤트 핸들러
   const handlePointerDown = () => {
     if (!isSlider) {
       isPressedRef.current = true;
       setIsPressed(true);
+
+      if (shouldPlayControlButtonKeySound) {
+        playControlButtonDownSound();
+      } else if (type === ControlButtonType.Jump) {
+        playSmallJumpSound();
+      } else if (type === ControlButtonType.DoubleJump) {
+        playBigJumpSound();
+      }
 
       if (shouldTriggerOnPointerDown) {
         onClick?.();
@@ -247,6 +273,10 @@ const ControlButton: React.FC<ControlButtonProps> = ({
       isPressedRef.current = false;
       setIsPressed(false);
 
+      if (shouldTriggerClick && shouldPlayControlButtonKeySound) {
+        playControlButtonUpSound();
+      }
+
       if (shouldTriggerClick && !shouldTriggerOnPointerDown) {
         onClick?.();
         window.setTimeout(() => {
@@ -257,16 +287,22 @@ const ControlButton: React.FC<ControlButtonProps> = ({
   };
 
   const handlePointerLeave = () => {
-    if (!isSlider && isPressed) {
+    if (!isSlider && isPressedRef.current) {
       isPressedRef.current = false;
       setIsPressed(false);
+      if (shouldPlayControlButtonKeySound) {
+        playControlButtonUpSound();
+      }
     }
   };
 
   const handlePointerCancel = () => {
-    if (!isSlider) {
+    if (!isSlider && isPressedRef.current) {
       isPressedRef.current = false;
       setIsPressed(false);
+      if (shouldPlayControlButtonKeySound) {
+        playControlButtonUpSound();
+      }
     }
   };
 

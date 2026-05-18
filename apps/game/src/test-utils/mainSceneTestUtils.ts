@@ -29,6 +29,8 @@ export type TestWorld = IWorld & {
   handleThrownFoodLanded: (eid: number) => void;
   handleFoodConsumedForAd: (eid: number) => void;
   handleHospitalRecoveryAnimationComplete: (eid: number) => void;
+  triggerFoodLandingVibration: () => void;
+  triggerMainSceneSfx: (kind: "food-throw" | "syringe-insert") => void;
   isRandomMovementDebugEnabled: () => boolean;
   currentTime: number;
   timeOfDay: TimeOfDay;
@@ -76,6 +78,8 @@ export function createTestWorld(options?: {
   world.handleThrownFoodLanded = () => {};
   world.handleFoodConsumedForAd = () => {};
   world.handleHospitalRecoveryAnimationComplete = () => {};
+  world.triggerFoodLandingVibration = () => {};
+  world.triggerMainSceneSfx = () => {};
   world.isRandomMovementDebugEnabled = () => false;
 
   Object.defineProperty(world, "currentTime", {

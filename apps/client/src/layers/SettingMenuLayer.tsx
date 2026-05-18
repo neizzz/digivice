@@ -19,8 +19,10 @@ const RESET_CONFIRM_CODE_INDEXES = Array.from(
 interface SettingMenuLayerProps {
   releaseLabel: string;
   vibrationEnabled: boolean;
+  sfxEnabled: boolean;
   locale: LocaleCode;
   onChangeVibration: (enabled: boolean) => void;
+  onChangeSfx: (enabled: boolean) => void;
   onChangeLocale: (locale: LocaleCode) => void;
   onSendDiagnostics: () => void;
   isSendingDiagnostics: boolean;
@@ -136,8 +138,10 @@ function sanitizeResetConfirmCodeInput(value: string): string {
 const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
   releaseLabel,
   vibrationEnabled,
+  sfxEnabled,
   locale,
   onChangeVibration,
+  onChangeSfx,
   onChangeLocale,
   onSendDiagnostics,
   isSendingDiagnostics,
@@ -266,6 +270,18 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
               <ToggleButton
                 enabled={vibrationEnabled}
                 onClick={() => onChangeVibration(!vibrationEnabled)}
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="font-bold">
+                  {t("settings.sfx")}
+                </div>
+              </div>
+              <ToggleButton
+                enabled={sfxEnabled}
+                onClick={() => onChangeSfx(!sfxEnabled)}
               />
             </div>
 

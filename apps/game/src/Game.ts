@@ -58,6 +58,8 @@ export type TriggerTransientVibrationCallback = (params: {
   durationMs: number;
   strength: number;
 }) => void;
+export type MainSceneSfxKind = "food-throw" | "syringe-insert";
+export type TriggerMainSceneSfxCallback = (kind: MainSceneSfxKind) => void;
 export type StartRecoveryVibrationCallback = () => void;
 export type StopRecoveryVibrationCallback = () => void;
 export type StartMiniGameCallback = () => unknown | Promise<unknown>;
@@ -182,6 +184,7 @@ export class Game {
   public showSettings: ShowSettingsCallback; // 설정 화면 표시 콜백
   public showAlert: ShowAlertCallback; // 팝업 콜백 추가
   public triggerBiteVibration?: TriggerBiteVibrationCallback;
+  public triggerMainSceneSfx?: TriggerMainSceneSfxCallback;
   public triggerTransientVibration?: TriggerTransientVibrationCallback;
   public startRecoveryVibration?: StartRecoveryVibrationCallback;
   public stopRecoveryVibration?: StopRecoveryVibrationCallback;
@@ -244,6 +247,7 @@ export class Game {
     showAlert: ShowAlertCallback; // 팝업 콜백 추가
     startMiniGame?: StartMiniGameCallback;
     triggerBiteVibration?: TriggerBiteVibrationCallback;
+    triggerMainSceneSfx?: TriggerMainSceneSfxCallback;
     triggerTransientVibration?: TriggerTransientVibrationCallback;
     startRecoveryVibration?: StartRecoveryVibrationCallback;
     stopRecoveryVibration?: StopRecoveryVibrationCallback;
@@ -269,6 +273,7 @@ export class Game {
       showAlert,
       startMiniGame,
       triggerBiteVibration,
+      triggerMainSceneSfx,
       triggerTransientVibration,
       startRecoveryVibration,
       stopRecoveryVibration,
@@ -287,6 +292,7 @@ export class Game {
     this.showAlert = showAlert; // 팝업 콜백 저장
     this._startMiniGame = startMiniGame;
     this.triggerBiteVibration = triggerBiteVibration;
+    this.triggerMainSceneSfx = triggerMainSceneSfx;
     this.triggerTransientVibration = triggerTransientVibration;
     this.startRecoveryVibration = startRecoveryVibration;
     this.stopRecoveryVibration = stopRecoveryVibration;
@@ -774,6 +780,8 @@ export class Game {
           showAlert: this.showAlert,
           locale: this._locale,
           triggerBiteVibration: this.triggerBiteVibration,
+          triggerTransientVibration: this.triggerTransientVibration,
+          triggerMainSceneSfx: this.triggerMainSceneSfx,
           startRecoveryVibration: this.startRecoveryVibration,
           stopRecoveryVibration: this.stopRecoveryVibration,
           shouldDeferPersistence: () =>

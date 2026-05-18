@@ -51,9 +51,13 @@ const SnapshotScreen: React.FC<{ layer: SnapshotLayer }> = ({ layer }) => {
     <SettingMenuLayer
       releaseLabel="snapshot"
       vibrationEnabled={gameSettings.vibrationEnabled}
+      sfxEnabled={gameSettings.sfxEnabled}
       locale={locale}
       onChangeVibration={(enabled) => {
         setGameSettings(updateGameSettings({ vibrationEnabled: enabled }));
+      }}
+      onChangeSfx={(enabled) => {
+        setGameSettings(updateGameSettings({ sfxEnabled: enabled }));
       }}
       onChangeLocale={setLocale}
       onSendDiagnostics={() => undefined}

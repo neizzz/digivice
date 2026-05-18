@@ -127,6 +127,9 @@ import {
 import type {
   ShowAlertCallback,
   TriggerBiteVibrationCallback,
+  TriggerTransientVibrationCallback,
+  TriggerMainSceneSfxCallback,
+  MainSceneSfxKind,
   StartRecoveryVibrationCallback,
   StopRecoveryVibrationCallback,
 } from "../../Game";
@@ -201,6 +204,8 @@ const liveCharacterEntitiesQuery = defineQuery([
   ObjectComp,
   CharacterStatusComp,
 ]);
+const FOOD_LANDING_VIBRATION_DURATION_MS = 16;
+const FOOD_LANDING_VIBRATION_STRENGTH = 36;
 const CHARACTER_KEY_VALUES = new Set<string>(Object.values(CharacterKey));
 
 function isCharacterKeyValue(value: string): value is CharacterKey {
@@ -455,6 +460,8 @@ export class MainSceneWorld implements IWorld, Scene {
     ],
   ) => void;
   private _triggerBiteVibration?: TriggerBiteVibrationCallback;
+  private _triggerTransientVibration?: TriggerTransientVibrationCallback;
+  private _triggerMainSceneSfx?: TriggerMainSceneSfxCallback;
   private _startRecoveryVibration?: StartRecoveryVibrationCallback;
   private _stopRecoveryVibration?: StopRecoveryVibrationCallback;
   private _isCleaningMode = false; // 청소 모드 상태
@@ -655,6 +662,8 @@ export class MainSceneWorld implements IWorld, Scene {
       ],
     ) => void;
     triggerBiteVibration?: TriggerBiteVibrationCallback;
+    triggerTransientVibration?: TriggerTransientVibrationCallback;
+    triggerMainSceneSfx?: TriggerMainSceneSfxCallback;
     startRecoveryVibration?: StartRecoveryVibrationCallback;
     stopRecoveryVibration?: StopRecoveryVibrationCallback;
     shouldDeferPersistence?: () => boolean;
@@ -681,6 +690,8 @@ export class MainSceneWorld implements IWorld, Scene {
     this._createInitialGameData = params.createInitialGameData;
     this._changeControlButtons = params.changeControlButtons;
     this._triggerBiteVibration = params.triggerBiteVibration;
+    this._triggerTransientVibration = params.triggerTransientVibration;
+    this._triggerMainSceneSfx = params.triggerMainSceneSfx;
     this._startRecoveryVibration = params.startRecoveryVibration;
     this._stopRecoveryVibration = params.stopRecoveryVibration;
     this._initDiagnostics = new MainSceneInitDiagnostics(
@@ -702,6 +713,25 @@ export class MainSceneWorld implements IWorld, Scene {
 
   public triggerBiteVibration(): void {
     this._triggerBiteVibration?.();
+  }
+
+  public triggerFoodLandingVibration(): void {
+    if (this.isSimulationMode) {
+      return;
+    }
+
+    this._triggerTransientVibration?.({
+      durationMs: FOOD_LANDING_VIBRATION_DURATION_MS,
+      strength: FOOD_LANDING_VIBRATION_STRENGTH,
+    });
+  }
+
+  public triggerMainSceneSfx(kind: MainSceneSfxKind): void {
+    if (this.isSimulationMode) {
+      return;
+    }
+
+    this._triggerMainSceneSfx?.(kind);
   }
 
   public startRecoveryVibration(): void {
@@ -3120,6 +3150,7 @@ export class MainSceneWorld implements IWorld, Scene {
       initialPosition,
       finalPosition,
     });
+    this.triggerMainSceneSfx("food-throw");
 
     console.log(
       `[MainSceneWorld] Food thrown from ${

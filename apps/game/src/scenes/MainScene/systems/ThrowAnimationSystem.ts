@@ -115,6 +115,7 @@ export function throwAnimationSystem(params: {
 
       // ThrowAnimationComp 제거
       removeComponent(world, ThrowAnimationComp, eid);
+      world.triggerFoodLandingVibration();
       world.handleThrownFoodLanded(eid);
 
       console.log(

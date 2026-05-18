@@ -876,6 +876,13 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
       'assets/web$path',
     ];
 
+    // Vite public assets are copied into assets/web/assets/** for Flutter.
+    // Browser URLs keep their root paths (/ui/**, /game/**), so try the
+    // packaged location as a fallback when the direct path is not present.
+    if (path.startsWith('/ui/') || path.startsWith('/game/')) {
+      candidateAssetPaths.add('assets/web/assets$path');
+    }
+
     // 빌드/패키징 환경에 따라 /assets 하위가 assets/web/assets/** 또는
     // assets/web/**로 들어가는 차이를 흡수합니다.
     if (path.startsWith('/assets/')) {
@@ -1000,6 +1007,9 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
       return ContentType('image', 'jpeg');
     }
     if (path.endsWith('.gif')) return ContentType('image', 'gif');
+    if (path.endsWith('.mp3')) return ContentType('audio', 'mpeg');
+    if (path.endsWith('.wav')) return ContentType('audio', 'wav');
+    if (path.endsWith('.ogg')) return ContentType('audio', 'ogg');
     if (path.endsWith('.svg')) {
       return ContentType('image', 'svg+xml', charset: 'utf-8');
     }
