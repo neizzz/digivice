@@ -5,16 +5,26 @@ import * as PIXI from "pixi.js";
 import {
   CharacterStatusComp,
   CleanableComp,
+  DestinationComp,
+  FoodEatingComp,
+  FreshnessComp,
   ObjectComp,
   PositionComp,
+  RandomMovementComp,
+  RenderComp,
   SleepSystemComp,
+  SpeedComp,
   VitalityComp,
 } from "../raw-components";
 import {
   CharacterKeyECS,
   CharacterState,
+  DestinationType,
+  FoodState,
+  Freshness,
   ObjectType,
   SleepMode,
+  TextureKey,
 } from "../types";
 import { ControlButtonType, type ControlButtonParams } from "../../../ui/types";
 import {
@@ -23,6 +33,7 @@ import {
   type InitialGameData,
 } from "../world";
 import { GAME_CONSTANTS } from "../config";
+import { foodEatingSystem } from "../systems/FoodEatingSystem";
 
 type TestableMainSceneWorld = MainSceneWorld & {
   _requireInitialGameData: (
@@ -55,6 +66,30 @@ function createMainSceneWorld(options?: {
     showAlert: options?.showAlert,
     trustedClock: options?.trustedClock as never,
   }) as TestableMainSceneWorld;
+}
+
+function createFoodEntity(
+  world: TestableMainSceneWorld,
+  options: { x: number; y: number; state?: FoodState } = { x: 100, y: 100 },
+): number {
+  const foodEid = addEntity(world as any);
+
+  addComponent(world as any, ObjectComp, foodEid);
+  addComponent(world as any, PositionComp, foodEid);
+  addComponent(world as any, RenderComp, foodEid);
+  addComponent(world as any, FreshnessComp, foodEid);
+  ObjectComp.id[foodEid] = 10_000 + foodEid;
+  ObjectComp.type[foodEid] = ObjectType.FOOD;
+  ObjectComp.state[foodEid] = options.state ?? FoodState.LANDED;
+  PositionComp.x[foodEid] = options.x;
+  PositionComp.y[foodEid] = options.y;
+  RenderComp.storeIndex[foodEid] = ECS_NULL_VALUE;
+  RenderComp.textureKey[foodEid] = TextureKey.FOOD1;
+  RenderComp.scale[foodEid] = 1.4;
+  RenderComp.zIndex[foodEid] = ECS_NULL_VALUE;
+  FreshnessComp.freshness[foodEid] = Freshness.NORMAL;
+
+  return foodEid;
 }
 
 test("초기 세팅 데이터가 없으면 setup 없이 기본 월드를 만들지 않는다", () => {
@@ -276,6 +311,70 @@ test("수면 중 미니게임 진입 준비는 스테미나를 0 아래로 내�
   assert.equal(CharacterStatusComp.stamina[eid], 0);
 });
 
+test("미니게임 진입 준비는 이동 중이던 목표 음식을 LANDED로 되돌리고 목적지를 제거한다", () => {
+  const world = createMainSceneWorld();
+
+  createWorld(world as any, 16);
+  const eid = addEntity(world as any);
+  addComponent(world as any, ObjectComp, eid);
+  addComponent(world as any, CharacterStatusComp, eid);
+  addComponent(world as any, PositionComp, eid);
+  addComponent(world as any, DestinationComp, eid);
+  addComponent(world as any, SpeedComp, eid);
+  ObjectComp.id[eid] = 1;
+  ObjectComp.type[eid] = ObjectType.CHARACTER;
+  ObjectComp.state[eid] = CharacterState.MOVING;
+  CharacterStatusComp.stamina[eid] = 3;
+  PositionComp.x[eid] = 50;
+  PositionComp.y[eid] = 50;
+  SpeedComp.value[eid] = 2;
+
+  const foodEid = createFoodEntity(world, {
+    x: 120,
+    y: 120,
+    state: FoodState.TARGETED,
+  });
+  DestinationComp.type[eid] = DestinationType.TARGETED;
+  DestinationComp.target[eid] = foodEid;
+  DestinationComp.x[eid] = 120;
+  DestinationComp.y[eid] = 120;
+
+  world._findMainCharacterEntity = () => eid;
+  world._simulationTime = 5_000;
+  world._persistentData = {
+    world_metadata: {
+      name: "MainScene",
+      monster_name: "Test",
+      last_ecs_saved: 1_000,
+      version: "1.0.0",
+      app_state: {
+        last_active_time: 1_000,
+        is_first_load: false,
+        use_local_time: true,
+      },
+    },
+    entities: [],
+  };
+
+  world._prepareMainCharacterForMiniGameEntry();
+
+  assert.equal(ObjectComp.state[foodEid], FoodState.LANDED);
+  assert.equal(hasComponent(world as any, DestinationComp, eid), false);
+  assert.equal(ObjectComp.state[eid], CharacterState.IDLE);
+  assert.equal(SpeedComp.value[eid], 0);
+  assert.equal(hasComponent(world as any, RandomMovementComp, eid), true);
+  assert.equal(
+    (
+      world._persistentData as {
+        world_metadata: {
+          app_state: { suspend_food_interaction_until_reentry?: boolean };
+        };
+      }
+    ).world_metadata.app_state.suspend_food_interaction_until_reentry,
+    true,
+  );
+});
+
 test("미니게임 복귀 reentry는 수면 중단 후 깨어있는 상태로 피로도 경과를 적용한다", async () => {
   const lastActiveTime = 1_000_000;
   const elapsedMs = 2_000;
@@ -358,6 +457,99 @@ test("미니게임 복귀 reentry는 수면 중단 후 깨어있는 상태로 �
     SleepSystemComp.fatigue[eid] > fatigueAfterInterrupt,
     `expected awake fatigue gain, before=${fatigueAfterInterrupt}, after=${SleepSystemComp.fatigue[eid]}`,
   );
+});
+
+test("미니게임 복귀 reentry는 음식 상호작용 suspend 플래그가 있으면 foodEatingSystem만 건너뛰고 이후 플래그를 지운다", async () => {
+  const lastActiveTime = 2_000_000;
+  const elapsedMs = 10_000;
+  const currentTime = lastActiveTime + elapsedMs;
+  const currentSnapshot = {
+    trustedUtcMs: currentTime,
+    osUptimeMs: 20_000,
+    source: "ntp" as const,
+    uncertaintyMs: 10,
+    capturedWallMs: currentTime,
+  };
+  const lastActiveAnchor = {
+    trustedUtcMs: lastActiveTime,
+    osUptimeMs: 10_000,
+    source: "ntp" as const,
+    uncertaintyMs: 10,
+    capturedWallMs: lastActiveTime,
+  };
+  const trustedClock = {
+    refresh: async () => currentSnapshot,
+    now: () => currentTime,
+    elapsedSince: () => ({
+      elapsedMs,
+      trusted: true,
+      currentSnapshot,
+    }),
+    captureAnchor: () => currentSnapshot,
+  };
+  const world = createMainSceneWorld({ trustedClock });
+
+  createWorld(world as any, 16);
+  const eid = addEntity(world as any);
+  addComponent(world as any, ObjectComp, eid);
+  addComponent(world as any, CharacterStatusComp, eid);
+  addComponent(world as any, PositionComp, eid);
+  ObjectComp.id[eid] = 1;
+  ObjectComp.type[eid] = ObjectType.CHARACTER;
+  ObjectComp.state[eid] = CharacterState.IDLE;
+  PositionComp.x[eid] = 100;
+  PositionComp.y[eid] = 100;
+  CharacterStatusComp.characterKey[eid] = CharacterKeyECS.GreenSlimeA1;
+  CharacterStatusComp.stamina[eid] = 3;
+
+  const foodEid = createFoodEntity(world, { x: 112, y: 112 });
+  world._persistentData = {
+    world_metadata: {
+      name: "MainScene",
+      monster_name: "Test",
+      last_ecs_saved: lastActiveTime,
+      version: "1.0.0",
+      app_state: {
+        last_active_time: lastActiveTime,
+        last_active_time_anchor: lastActiveAnchor,
+        is_first_load: false,
+        use_local_time: true,
+        suspend_food_interaction_until_reentry: true,
+      },
+    },
+    entities: [],
+  };
+  world._saveCurrentState = async () => {};
+
+  await world._processReentrySimulation();
+
+  assert.equal(hasComponent(world as any, ObjectComp, foodEid), true);
+  assert.equal(ObjectComp.state[foodEid], FoodState.LANDED);
+  if (hasComponent(world as any, DestinationComp, eid)) {
+    assert.notEqual(DestinationComp.type[eid], DestinationType.TARGETED);
+    assert.notEqual(DestinationComp.target[eid], foodEid);
+  }
+  assert.equal(hasComponent(world as any, FoodEatingComp, eid), false);
+  assert.equal(
+    (
+      world._persistentData as {
+        world_metadata: {
+          app_state: { suspend_food_interaction_until_reentry?: boolean };
+        };
+      }
+    ).world_metadata.app_state.suspend_food_interaction_until_reentry,
+    undefined,
+  );
+
+  foodEatingSystem({
+    world: world as any,
+    delta: 0,
+    currentTime,
+  });
+
+  assert.equal(ObjectComp.state[foodEid], FoodState.TARGETED);
+  assert.equal(hasComponent(world as any, DestinationComp, eid), true);
+  assert.equal(DestinationComp.target[eid], foodEid);
 });
 
 test("청소 모드 진입은 첫 타겟을 확정한 뒤 버튼을 한 번만 갱신한다", () => {

@@ -175,6 +175,32 @@ export function clearActiveEatingState(
   return true;
 }
 
+export function completeActiveEatingForCharacter(
+  world: MainSceneWorld,
+  characterEid: number,
+  currentTime = world.currentTime,
+): boolean {
+  if (
+    !hasComponent(world, FoodEatingComp, characterEid) ||
+    FoodEatingComp.isActive[characterEid] !== 1
+  ) {
+    return false;
+  }
+
+  const targetFoodEid = FoodEatingComp.targetFood[characterEid];
+  if (
+    targetFoodEid <= 0 ||
+    !hasComponent(world, ObjectComp, targetFoodEid) ||
+    ObjectComp.type[targetFoodEid] !== ObjectType.FOOD
+  ) {
+    clearActiveEatingState(world, characterEid);
+    return false;
+  }
+
+  completeEating(world, characterEid, targetFoodEid, currentTime);
+  return true;
+}
+
 /**
  * 음식을 먹고 있는 캐릭터들의 진행도 업데이트
  */

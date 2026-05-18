@@ -52,7 +52,6 @@ const MONSTER_BOOK_BACKGROUND_URL =
 const RARITY_STAR_URL = "/assets/game/sprites/star.png";
 const RARITY_STAR_SIZE = 14.4;
 const RARITY_STAR_GAP = 1;
-const TEMP_REVEAL_ALL_MONSTERS_FOR_TEST = import.meta.env.DEV;
 const CARD_BORDER_WIDTH = 1.5;
 const CURRENT_MONSTER_CARD_BORDER_WIDTH = 3.5;
 const CLASS_TITLE_FONT_SIZE = 31.68;
@@ -177,11 +176,6 @@ export class MonsterBookScene extends PIXI.Container implements Scene {
     if (!data) {
       this.monsterBookState = normalizeMonsterBookState(null);
       this.currentMonsterKeys = new Set();
-      if (TEMP_REVEAL_ALL_MONSTERS_FOR_TEST) {
-        this.monsterBookState = createTemporaryRevealedMonsterBookState(
-          this.monsterBookState,
-        );
-      }
       return;
     }
 
@@ -190,12 +184,6 @@ export class MonsterBookScene extends PIXI.Container implements Scene {
       data.world_metadata.app_state?.monster_book,
     );
     this.currentMonsterKeys = getCurrentMonsterCharacterKeys(data);
-
-    if (TEMP_REVEAL_ALL_MONSTERS_FOR_TEST) {
-      this.monsterBookState = createTemporaryRevealedMonsterBookState(
-        this.monsterBookState,
-      );
-    }
 
     await StorageManager.setData(WORLD_DATA_STORAGE_KEY, data);
   }
@@ -236,11 +224,9 @@ export class MonsterBookScene extends PIXI.Container implements Scene {
   }
 
   private async preloadReachedMonsterSprites(): Promise<void> {
-    const reachedKeys = TEMP_REVEAL_ALL_MONSTERS_FOR_TEST
-      ? MONSTER_CHARACTER_KEYS
-      : MONSTER_CHARACTER_KEYS.filter((characterKey) =>
-          hasReachedMonster(this.monsterBookState, characterKey),
-        );
+    const reachedKeys = MONSTER_CHARACTER_KEYS.filter((characterKey) =>
+      hasReachedMonster(this.monsterBookState, characterKey),
+    );
 
     await Promise.all(
       reachedKeys.map((characterKey) =>
@@ -566,29 +552,6 @@ export class MonsterBookScene extends PIXI.Container implements Scene {
   private async returnToMainScene(): Promise<void> {
     await this.game.changeScene(SceneKey.MAIN);
   }
-}
-
-function createTemporaryRevealedMonsterBookState(
-  state: MonsterBookState,
-): MonsterBookState {
-  const revealedState = normalizeMonsterBookState(state);
-
-  for (const characterKey of MONSTER_CHARACTER_KEYS) {
-    if ((revealedState.reached[characterKey]?.length ?? 0) > 0) {
-      continue;
-    }
-
-    revealedState.reached[characterKey] = [
-      {
-        name: "Test",
-        reached_at: 0,
-        object_id: -1,
-        source: "backfill",
-      },
-    ];
-  }
-
-  return revealedState;
 }
 
 function getCurrentMonsterCharacterKeys(

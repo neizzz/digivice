@@ -35,6 +35,7 @@ import {
   AnimationKey,
   SpritesheetKey,
   ThrowAnimationComponent,
+  DestinationType,
   DigestiveSystemComponent,
   DiseaseSystemComponent,
   SleepSystemComponent,
@@ -73,7 +74,10 @@ import {
 } from "./systems/CharacterOpaqueBounds";
 import { dataSyncSystem } from "./systems/DataSyncSystem";
 import { throwAnimationSystem } from "./systems/ThrowAnimationSystem";
-import { foodEatingSystem } from "./systems/FoodEatingSystem";
+import {
+  completeActiveEatingForCharacter,
+  foodEatingSystem,
+} from "./systems/FoodEatingSystem";
 import { sparkleEffectSystem } from "./systems/SparkleEffectSystem";
 import {
   cleaningSystem,
@@ -107,6 +111,7 @@ import {
   ObjectComp,
   CharacterStatusComp,
   PositionComp,
+  DestinationComp,
   CleanableComp,
   DiseaseSystemComp,
   EffectAnimationComp,
@@ -272,6 +277,7 @@ export type WorldMetadata = {
     main_scene_ad?: MainSceneAdState;
     mini_game_scores?: MiniGameScoresState;
     monster_book?: MonsterBookState;
+    suspend_food_interaction_until_reentry?: boolean;
   };
   // // 캐릭터별 위치 추적 (캐릭터 ID를 키로 사용)
   // character_positions?: Record<
@@ -1663,6 +1669,28 @@ export class MainSceneWorld implements IWorld, Scene {
     const characterEid = this._findMainCharacterEntity();
     if (characterEid === -1) {
       return;
+    }
+
+    const appState = this._ensureAppState();
+    if (appState) {
+      appState.suspend_food_interaction_until_reentry = true;
+    }
+
+    const completedActiveEating = completeActiveEatingForCharacter(
+      this,
+      characterEid,
+      this.currentTime,
+    );
+
+    if (
+      !completedActiveEating &&
+      hasComponent(this, DestinationComp, characterEid) &&
+      DestinationComp.type[characterEid] === DestinationType.TARGETED
+    ) {
+      restoreCharacterFreeRoamingState(this, characterEid, {
+        now: this.currentTime,
+        idleDelayMs: 1000,
+      });
     }
 
     if (
@@ -3521,7 +3549,10 @@ export class MainSceneWorld implements IWorld, Scene {
    * 렌더링 관련 시스템들을 제외한 로직 시스템들만 포함
    * @param getCurrentTime 현재 시뮬레이션 시간을 반환하는 함수
    */
-  private _createSimulationPipeline(getCurrentTime: () => number) {
+  private _createSimulationPipeline(
+    getCurrentTime: () => number,
+    options: { skipFoodInteraction?: boolean } = {},
+  ) {
     return pipe(
       // 시간 기반 시스템들 (상태 관리 시스템 토글 적용)
       (params: any) =>
@@ -3570,7 +3601,9 @@ export class MainSceneWorld implements IWorld, Scene {
       // 착지 상태를 먼저 반영해 같은 프레임에 음식 탐색이 가능하도록 한다.
       throwAnimationSystem,
       (params: any) =>
-        foodEatingSystem({ ...params, currentTime: getCurrentTime() }),
+        options.skipFoodInteraction
+          ? params
+          : foodEatingSystem({ ...params, currentTime: getCurrentTime() }),
       // 애니메이션 상태 시스템들 (시뮬레이션에서도 실행)
       animationStateSystem,
     );
@@ -3590,6 +3623,13 @@ export class MainSceneWorld implements IWorld, Scene {
     }
 
     const appState = this._persistentData.world_metadata.app_state;
+    const shouldSuspendFoodInteraction =
+      appState.suspend_food_interaction_until_reentry === true;
+    const clearFoodInteractionSuspendFlag = (): void => {
+      if (shouldSuspendFoodInteraction) {
+        delete appState.suspend_food_interaction_until_reentry;
+      }
+    };
     const lastActiveTime = appState.last_active_time;
     const lastActiveAnchor = isTrustedTimeSnapshot(appState.last_active_time_anchor)
       ? appState.last_active_time_anchor
@@ -3601,6 +3641,7 @@ export class MainSceneWorld implements IWorld, Scene {
       console.log(
         "[MainSceneWorld] Reentry simulation skipped because last active time is missing",
       );
+      clearFoodInteractionSuspendFlag();
       if (this._initDiagnostics.isInitTimingActive) {
         await this._initDiagnostics.measurePhase("reentry_persist_state", async () => {
           await this._saveCurrentState();
@@ -3630,6 +3671,7 @@ export class MainSceneWorld implements IWorld, Scene {
       console.log(
         "[MainSceneWorld] Reentry simulation skipped because elapsed time is not positive",
       );
+      clearFoodInteractionSuspendFlag();
       await this._saveCurrentState();
       return;
     }
@@ -3644,8 +3686,11 @@ export class MainSceneWorld implements IWorld, Scene {
     const reentrySimulator = new ReentrySimulator();
 
     // 시뮬레이션 전용 파이프라인을 생성하여 시뮬레이션 실행
-    const simulationPipeline = this._createSimulationPipeline(() =>
-      reentrySimulator.getCurrentSimulationTime(),
+    const simulationPipeline = this._createSimulationPipeline(
+      () => reentrySimulator.getCurrentSimulationTime(),
+      {
+        skipFoodInteraction: shouldSuspendFoodInteraction,
+      },
     );
 
     try {
@@ -3664,6 +3709,7 @@ export class MainSceneWorld implements IWorld, Scene {
       );
 
       this._simulationTime = currentTime;
+      clearFoodInteractionSuspendFlag();
       applyReentryHappyStatusForFullStaminaCharacters(this);
       if (this._initDiagnostics.isInitTimingActive) {
         await this._initDiagnostics.measurePhase("reentry_persist_state", async () => {
@@ -3677,6 +3723,7 @@ export class MainSceneWorld implements IWorld, Scene {
     } catch (error) {
       console.error("[MainSceneWorld] Reentry simulation failed:", error);
     } finally {
+      clearFoodInteractionSuspendFlag();
       this._isRunningReentrySimulation = false;
       this._simulationTime = null;
     }

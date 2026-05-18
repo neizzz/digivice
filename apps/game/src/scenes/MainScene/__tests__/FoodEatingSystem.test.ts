@@ -19,6 +19,7 @@ import { GAME_CONSTANTS } from "../config";
 import { getCharacterStats } from "../characterStats";
 import { repairLoadedFoodInteractionState } from "../entityDataHelpers";
 import {
+  completeActiveEatingForCharacter,
   foodEatingSystem,
   getStaminaBonusForFoodTexture,
 } from "../systems/FoodEatingSystem";
@@ -633,6 +634,49 @@ test("식사는 음식 종류별 고정 회복량을 사용하고 소화 부하�
     currentTime: 33_200,
   });
 
+  assert.equal(CharacterStatusComp.stamina[characterEid], 3 + staminaBonus);
+  assert.equal(DigestiveSystemComp.currentLoad[characterEid], 2);
+});
+
+test("active 식사를 즉시 완료하면 음식 엔티티와 FoodEatingComp를 정리하고 식사 효과를 적용한다", () => {
+  const world = createTestWorld({ now: 34_000 });
+  const characterEid = withMockedDateNow(34_000, () =>
+    createTestCharacter(world, {
+      state: CharacterState.IDLE,
+      stamina: 3,
+      x: 100,
+      y: 100,
+    }),
+  );
+  const textureKey = TextureKey.FOOD17;
+  const staminaBonus = getStaminaBonusForFoodTexture(textureKey);
+  const foodEid = createLandedFood(world, {
+    x: 112,
+    y: 112,
+    freshness: Freshness.NORMAL,
+    textureKey,
+  });
+
+  foodEatingSystem({
+    world: world as any,
+    delta: 0,
+    currentTime: 34_000,
+  });
+  moveToDestinationAndStartEating(world, characterEid);
+
+  assert.equal(ObjectComp.state[characterEid], CharacterState.EATING);
+  assert.equal(ObjectComp.state[foodEid], FoodState.BEING_INTAKEN);
+
+  const completed = completeActiveEatingForCharacter(
+    world as any,
+    characterEid,
+    34_500,
+  );
+
+  assert.equal(completed, true);
+  assert.equal(hasComponent(world, FoodEatingComp, characterEid), false);
+  assert.equal(hasComponent(world, ObjectComp, foodEid), false);
+  assert.equal(ObjectComp.state[characterEid], CharacterState.IDLE);
   assert.equal(CharacterStatusComp.stamina[characterEid], 3 + staminaBonus);
   assert.equal(DigestiveSystemComp.currentLoad[characterEid], 2);
 });
