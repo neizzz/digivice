@@ -20,8 +20,12 @@ const UI_SOUND_SOURCES = [
 ] as const;
 const VOLUME_REDUCED_40_PERCENT = 0.6;
 const VOLUME_REDUCED_50_PERCENT = 0.5;
-const SMALL_JUMP_VOLUME = VOLUME_REDUCED_50_PERCENT * 0.8 * 0.7;
-const BIG_JUMP_VOLUME = VOLUME_REDUCED_50_PERCENT * 0.9;
+const VOLUME_REDUCED_20_PERCENT = 0.8;
+const CONTROL_BUTTON_KEY_VOLUME =
+  VOLUME_REDUCED_40_PERCENT * VOLUME_REDUCED_20_PERCENT;
+const SMALL_JUMP_VOLUME = 0.18;
+const BIG_JUMP_VOLUME =
+  VOLUME_REDUCED_50_PERCENT * 0.9 * VOLUME_REDUCED_20_PERCENT;
 
 const activeSounds = new Set<HTMLAudioElement>();
 const preloadedSounds = new Map<string, HTMLAudioElement>();
@@ -103,11 +107,11 @@ function playUiSound(src: string, volume = 1): void {
 }
 
 export function playControlButtonDownSound(): void {
-  playUiSound(CONTROL_BUTTON_DOWN_SOUND_SRC, VOLUME_REDUCED_40_PERCENT);
+  playUiSound(CONTROL_BUTTON_DOWN_SOUND_SRC, CONTROL_BUTTON_KEY_VOLUME);
 }
 
 export function playControlButtonUpSound(): void {
-  playUiSound(CONTROL_BUTTON_UP_SOUND_SRC, VOLUME_REDUCED_40_PERCENT);
+  playUiSound(CONTROL_BUTTON_UP_SOUND_SRC, CONTROL_BUTTON_KEY_VOLUME);
 }
 
 export function playUiPopSound(): void {

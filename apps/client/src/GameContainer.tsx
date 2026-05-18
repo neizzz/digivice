@@ -740,6 +740,8 @@ const GameContainer: React.FC = () => {
   const [buttonParams, setButtonParams] = useState<
     [ControlButtonParams, ControlButtonParams, ControlButtonParams] | null
   >(null);
+  const [controlButtonSoundEnabled, setControlButtonSoundEnabled] =
+    useState(true);
   const [sceneTransitionLoadState, setSceneTransitionLoadState] =
     useState<SceneTransitionLoadState>({
       requestId: 0,
@@ -2005,6 +2007,7 @@ const GameContainer: React.FC = () => {
         return;
       }
 
+      setControlButtonSoundEnabled(enabled);
       void Promise.resolve(flappyBirdSettingsMenuState.onChangeSfx(enabled));
     },
     [flappyBirdSettingsMenuState],
@@ -2713,6 +2716,7 @@ const GameContainer: React.FC = () => {
         setFlappyBirdGameOverState(null);
       },
       showFlappyBirdSettingsMenu: (params) => {
+        setControlButtonSoundEnabled(params.isSfxEnabled);
         setFlappyBirdSettingsMenuState(params);
       },
       hideFlappyBirdSettingsMenu: () => {
@@ -2726,7 +2730,18 @@ const GameContainer: React.FC = () => {
       changeControlButtons: (controlButtonParams) => {
         if (!controlButtonParams) {
           setButtonParams(null);
+          setControlButtonSoundEnabled(true);
           return;
+        }
+
+        const hasMiniGameJumpButton = controlButtonParams.some(
+          (buttonParam) =>
+            buttonParam.type === ControlButtonType.Jump ||
+            buttonParam.type === ControlButtonType.DoubleJump,
+        );
+
+        if (!hasMiniGameJumpButton) {
+          setControlButtonSoundEnabled(true);
         }
 
         setButtonParams((previous) => {
@@ -3290,6 +3305,7 @@ const GameContainer: React.FC = () => {
           <div ref={controlButtonsWrapperRef} className={"z-10 w-full"}>
             <ControlButtons
               buttonParams={buttonParams}
+              soundEnabled={controlButtonSoundEnabled}
               onButtonPress={handleButtonPress}
               onSliderChange={handleSliderChange}
               onSliderEnd={handleSliderEnd}

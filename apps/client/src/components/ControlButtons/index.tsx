@@ -6,6 +6,7 @@ import ControlButton from "./ControlButton";
 interface ControlButtonsProps {
   buttonParams: [ControlButtonParams, ControlButtonParams, ControlButtonParams];
   onButtonPress: (buttonType: ControlButtonType) => void;
+  soundEnabled?: boolean;
   onSliderChange?: (value: number) => void;
   onSliderEnd?: () => void;
 }
@@ -28,6 +29,7 @@ let lastMeasuredCleanSliderWidth = DEFAULT_CLEAN_SLIDER_WIDTH_PX;
 const ControlButtons: React.FC<ControlButtonsProps> = ({
   buttonParams,
   onButtonPress,
+  soundEnabled = true,
   onSliderChange,
   onSliderEnd,
 }) => {
@@ -80,6 +82,7 @@ const ControlButtons: React.FC<ControlButtonsProps> = ({
           <div className={"shrink-0 "}>
             <ControlButton
               type={buttonParams[0].type}
+              soundEnabled={soundEnabled}
               onClick={() => onButtonPress(buttonParams[0].type)}
             />
           </div>
@@ -88,6 +91,7 @@ const ControlButtons: React.FC<ControlButtonsProps> = ({
             <ControlButton
               key={cleanButtonParam?.sliderSessionKey ?? "clean-slider"}
               type={ControlButtonType.Clean}
+              soundEnabled={soundEnabled}
               sliderWidth={effectiveSliderWidth}
               initialSliderValue={cleanButtonParam?.initialSliderValue ?? 0.5}
               hasCleaningTarget={cleanButtonParam?.hasCleaningTarget ?? false}
@@ -107,17 +111,20 @@ const ControlButtons: React.FC<ControlButtonsProps> = ({
       <div ref={containerRef} className="flex justify-between w-full">
         <ControlButton
           type={buttonParams[0].type}
+          soundEnabled={soundEnabled}
           onClick={() => onButtonPress(buttonParams[0].type)}
         />
         <div ref={secondButtonRef}>
           <ControlButton
             type={buttonParams[1].type}
+            soundEnabled={soundEnabled}
             onClick={() => onButtonPress(buttonParams[1].type)}
           />
         </div>
         <div ref={thirdButtonRef}>
           <ControlButton
             type={buttonParams[2].type}
+            soundEnabled={soundEnabled}
             onClick={() => onButtonPress(buttonParams[2].type)}
           />
         </div>

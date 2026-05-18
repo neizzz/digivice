@@ -25,6 +25,7 @@ interface ControlButtonProps {
   type: ControlButtonType;
   onClick?: () => void; // 클릭 이벤트 핸들러
   className?: string; // 추가 스타일링을 위한 클래스
+  soundEnabled?: boolean;
   // 슬라이더 버튼을 위한 추가 props
   sliderWidth?: number;
   initialSliderValue?: number;
@@ -90,6 +91,7 @@ const ControlButton: React.FC<ControlButtonProps> = ({
   type,
   onClick,
   className,
+  soundEnabled = true,
   sliderWidth,
   initialSliderValue = 0.5,
   hasCleaningTarget = false,
@@ -156,7 +158,9 @@ const ControlButton: React.FC<ControlButtonProps> = ({
               dragDirection !== lastDragDirectionRef.current;
 
             if (hasStartedMoving || hasChangedDirection) {
-              playBroomSound();
+              if (soundEnabled) {
+                playBroomSound();
+              }
             }
 
             if (hasChangedDirection) {
@@ -190,7 +194,9 @@ const ControlButton: React.FC<ControlButtonProps> = ({
           onSliderChangeRef.current?.(value);
         },
         onDragStart: () => {
-          playControlButtonDownSound();
+          if (soundEnabled) {
+            playControlButtonDownSound();
+          }
           isDraggingRef.current = true;
           lastSliderDragValueRef.current = currentSliderValueRef.current;
           accumulatedDragDistanceRef.current = 0;
@@ -198,7 +204,9 @@ const ControlButton: React.FC<ControlButtonProps> = ({
           setIsPressed(true);
         },
         onDragEnd: () => {
-          playControlButtonUpSound();
+          if (soundEnabled) {
+            playControlButtonUpSound();
+          }
           isDraggingRef.current = false;
           accumulatedDragDistanceRef.current = 0;
           lastDragDirectionRef.current = 0;
@@ -217,7 +225,7 @@ const ControlButton: React.FC<ControlButtonProps> = ({
         sliderControllerRef.current = null;
       };
     }
-  }, [isSlider]);
+  }, [isSlider, soundEnabled]);
 
   useEffect(() => {
     if (isDraggingRef.current) {
@@ -250,12 +258,14 @@ const ControlButton: React.FC<ControlButtonProps> = ({
       isPressedRef.current = true;
       setIsPressed(true);
 
-      if (shouldPlayControlButtonKeySound) {
-        playControlButtonDownSound();
-      } else if (type === ControlButtonType.Jump) {
-        playSmallJumpSound();
-      } else if (type === ControlButtonType.DoubleJump) {
-        playBigJumpSound();
+      if (soundEnabled) {
+        if (shouldPlayControlButtonKeySound) {
+          playControlButtonDownSound();
+        } else if (type === ControlButtonType.Jump) {
+          playSmallJumpSound();
+        } else if (type === ControlButtonType.DoubleJump) {
+          playBigJumpSound();
+        }
       }
 
       if (shouldTriggerOnPointerDown) {
@@ -273,7 +283,11 @@ const ControlButton: React.FC<ControlButtonProps> = ({
       isPressedRef.current = false;
       setIsPressed(false);
 
-      if (shouldTriggerClick && shouldPlayControlButtonKeySound) {
+      if (
+        soundEnabled &&
+        shouldTriggerClick &&
+        shouldPlayControlButtonKeySound
+      ) {
         playControlButtonUpSound();
       }
 
@@ -290,7 +304,7 @@ const ControlButton: React.FC<ControlButtonProps> = ({
     if (!isSlider && isPressedRef.current) {
       isPressedRef.current = false;
       setIsPressed(false);
-      if (shouldPlayControlButtonKeySound) {
+      if (soundEnabled && shouldPlayControlButtonKeySound) {
         playControlButtonUpSound();
       }
     }
@@ -300,7 +314,7 @@ const ControlButton: React.FC<ControlButtonProps> = ({
     if (!isSlider && isPressedRef.current) {
       isPressedRef.current = false;
       setIsPressed(false);
-      if (shouldPlayControlButtonKeySound) {
+      if (soundEnabled && shouldPlayControlButtonKeySound) {
         playControlButtonUpSound();
       }
     }
