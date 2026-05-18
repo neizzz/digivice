@@ -1,4 +1,5 @@
 import type React from "react";
+import { VibrationAdapter } from "../adapter/VibrationAdapter";
 import { useI18n } from "../i18n";
 
 export interface FlappyBirdGameOverLayerProps {
@@ -9,11 +10,23 @@ export interface FlappyBirdGameOverLayerProps {
 const FLAPPY_BIRD_GAME_OVER_FONT_FAMILY =
   '"NeoDunggeunmo Pro", "Droid Sans Mono", "SF Mono", monospace, sans-serif';
 
+const vibrationAdapter = new VibrationAdapter();
+
 const FlappyBirdGameOverLayer: React.FC<FlappyBirdGameOverLayerProps> = ({
   onRestart,
   onExit,
 }) => {
   const { t } = useI18n();
+
+  const handleExitClick = () => {
+    void vibrationAdapter.vibrate();
+    onExit();
+  };
+
+  const handleRestartClick = () => {
+    void vibrationAdapter.vibrate();
+    onRestart();
+  };
 
   return (
     <div className="absolute inset-0 z-[50] flex items-center justify-center bg-black/50">
@@ -27,14 +40,14 @@ const FlappyBirdGameOverLayer: React.FC<FlappyBirdGameOverLayerProps> = ({
         <div className="flex justify-center gap-[15px]">
           <button
             type="button"
-            onClick={onExit}
+            onClick={handleExitClick}
             className="text-[1.5rem] bg-component-negative text-white border-2 border-[#222] px-[15px] py-0.5 cursor-pointer uppercase shadow-[2px_2px_0_#222] relative top-0 left-0 transition-all duration-50"
           >
             {t("flappy.exit")}
           </button>
           <button
             type="button"
-            onClick={onRestart}
+            onClick={handleRestartClick}
             className="text-[1.5rem] bg-component-positive text-white border-2 border-[#222] px-[15px] py-0.5 cursor-pointer uppercase shadow-[2px_2px_0_#222]"
           >
             {t("flappy.retry")}
