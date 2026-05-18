@@ -28,10 +28,12 @@ type RecoveryEffectSpriteData = {
 };
 
 const effectSpriteMap = new Map<number, RecoveryEffectSpriteData>();
+const recoverySfxTriggeredEids = new Set<number>();
 const recoveryImpactTriggeredEids = new Set<number>();
 const recoveryVibrationStartedEids = new Set<number>();
 
 const RECOVERY_APPROACH_DURATION = 300;
+const RECOVERY_INSERT_SFX_TRIGGER_DURATION = 240;
 const RECOVERY_HOLD_DURATION = 1000;
 const RECOVERY_FADE_DURATION = 300;
 const RECOVERY_TOTAL_DURATION =
@@ -117,6 +119,7 @@ function cleanupEffectSprite(
     effectSpriteMap.delete(eid);
   }
 
+  recoverySfxTriggeredEids.delete(eid);
   recoveryImpactTriggeredEids.delete(eid);
   recoveryVibrationStartedEids.delete(eid);
   if (didStartRecoveryVibration) {
@@ -171,11 +174,18 @@ function updateRecoverySyringe(
   }
 
   if (
+    elapsed >= RECOVERY_INSERT_SFX_TRIGGER_DURATION &&
+    !recoverySfxTriggeredEids.has(eid)
+  ) {
+    recoverySfxTriggeredEids.add(eid);
+    world.triggerMainSceneSfx("syringe-insert");
+  }
+
+  if (
     elapsed >= RECOVERY_APPROACH_DURATION &&
     !recoveryImpactTriggeredEids.has(eid)
   ) {
     recoveryImpactTriggeredEids.add(eid);
-    world.triggerMainSceneSfx("syringe-insert");
     world.applyPendingRecoverySyringeImpact(eid);
   }
 
@@ -295,6 +305,7 @@ export function startEffectAnimation(
   customDuration?: number,
 ): void {
   cleanupEffectSprite(world, eid, stage);
+  recoverySfxTriggeredEids.delete(eid);
   recoveryImpactTriggeredEids.delete(eid);
   recoveryVibrationStartedEids.delete(eid);
 
