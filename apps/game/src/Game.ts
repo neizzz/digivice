@@ -89,6 +89,12 @@ export type SceneTransitionStateChangeCallback = (params: {
   to: SceneKey;
   state: "loading" | "core_ready" | "failed" | "interrupted";
 }) => void;
+export type MainSceneReentrySimulationStateChangeCallback = (params: {
+  source: "init" | "app_resume" | "manual";
+  phase: "started" | "finished";
+  result?: "completed" | "skipped" | "failed";
+  error?: unknown;
+}) => void;
 export type FlappyBirdSkyContext = {
   mode: TimeOfDayMode;
   timeOfDay: TimeOfDay;
@@ -198,6 +204,7 @@ export class Game {
   private _locale: LocaleCode;
   private _parentElement: HTMLElement;
   private _onSceneTransitionStateChange?: SceneTransitionStateChangeCallback;
+  private _onMainSceneReentrySimulationStateChange?: MainSceneReentrySimulationStateChangeCallback;
   private _debugParentElement: HTMLElement;
   private _createInitialGameData: CreateInitialGameDataCallback;
   private _startMiniGame?: StartMiniGameCallback;
@@ -258,6 +265,7 @@ export class Game {
     showFlappyBirdSettingsMenu?: ShowFlappyBirdSettingsMenuCallback;
     hideFlappyBirdSettingsMenu?: HideFlappyBirdSettingsMenuCallback;
     onSceneTransitionStateChange?: SceneTransitionStateChangeCallback;
+    onMainSceneReentrySimulationStateChange?: MainSceneReentrySimulationStateChangeCallback;
     loadingTraceContext?: MainSceneLoadingTraceContext | null;
     trustedClock?: TrustedClock;
   }) {
@@ -284,6 +292,7 @@ export class Game {
       showFlappyBirdSettingsMenu,
       hideFlappyBirdSettingsMenu,
       onSceneTransitionStateChange,
+      onMainSceneReentrySimulationStateChange,
       loadingTraceContext,
       trustedClock: providedTrustedClock,
     } = params;
@@ -303,6 +312,8 @@ export class Game {
     this.showFlappyBirdSettingsMenu = showFlappyBirdSettingsMenu;
     this.hideFlappyBirdSettingsMenu = hideFlappyBirdSettingsMenu;
     this._onSceneTransitionStateChange = onSceneTransitionStateChange;
+    this._onMainSceneReentrySimulationStateChange =
+      onMainSceneReentrySimulationStateChange;
     this._createInitialGameData = onCreateInitialGameData;
     this._initialSceneKey = initialSceneKey ?? SceneKey.MAIN;
     this._debugMode = debugMode ?? false;
@@ -788,6 +799,8 @@ export class Game {
             this.currentSceneKey === SceneKey.FLAPPY_BIRD_GAME,
           loadingTraceContext,
           trustedClock: this._trustedClock,
+          onReentrySimulationStateChange:
+            this._onMainSceneReentrySimulationStateChange,
         });
         await mainSceneWorld.init();
         return mainSceneWorld as unknown as Scene;

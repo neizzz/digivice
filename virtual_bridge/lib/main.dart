@@ -452,6 +452,8 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    unawaited(_dispatchAppLifecycleEvent(state));
+
     if (state == AppLifecycleState.resumed) {
       unawaited(
         _updateCoordinator.checkForMandatoryUpdate(
@@ -463,6 +465,38 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
         'flutter.lifecycle.resumed',
         dispatchLifecycleEvents: true,
         force: true,
+      );
+    }
+  }
+
+  Future<void> _dispatchAppLifecycleEvent(AppLifecycleState state) async {
+    if (!_isPageReady) {
+      return;
+    }
+
+    final String encodedState = jsonEncode(state.name);
+    final String encodedTimestamp =
+        jsonEncode(DateTime.now().toIso8601String());
+
+    try {
+      await _controller.runJavaScript('''
+        (() => {
+          try {
+            window.dispatchEvent(
+              new CustomEvent('digivice:native-app-lifecycle', {
+                detail: {
+                  state: $encodedState,
+                  timestamp: $encodedTimestamp,
+                },
+              }),
+            );
+          } catch (_) {}
+        })();
+      ''');
+    } catch (error) {
+      print(
+        '[WebViewLifecycle] dispatchAppLifecycleEvent failed '
+        'state=${state.name} error=$error',
       );
     }
   }

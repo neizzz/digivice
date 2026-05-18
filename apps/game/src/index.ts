@@ -2,6 +2,7 @@ export { Game } from "./Game";
 export type {
 	GameDiagnosticsSnapshot,
 	MainSceneSfxKind,
+	MainSceneReentrySimulationStateChangeCallback,
 } from "./Game";
 export { SceneKey } from "./SceneKey";
 export { MissingInitialGameDataError } from "./scenes/MainScene/world";

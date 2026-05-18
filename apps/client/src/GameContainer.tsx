@@ -4,12 +4,14 @@ import {
   Game,
   type GameDiagnosticsSnapshot,
   type MainSceneSfxKind,
+  type MainSceneReentrySimulationStateChangeCallback,
   getNativeSunTimes,
   MissingInitialGameDataError,
   SceneKey,
   TimeOfDay,
 } from "@digivice/game";
 import type React from "react";
+import { flushSync } from "react-dom";
 import {
   useCallback,
   useEffect,
@@ -208,6 +210,11 @@ type FlappyBirdSettingsMenuState = {
 
 type FullscreenAdEventDetail = {
   state?: "showing" | "dismissed" | "failed";
+};
+
+type NativeAppLifecycleEventDetail = {
+  state?: "resumed" | "inactive" | "hidden" | "paused" | "detached";
+  timestamp?: string;
 };
 
 const BACK_NAVIGATION_ALERT_ENTRY = "layer:alert";
@@ -737,8 +744,10 @@ const GameContainer: React.FC = () => {
       requestId: 0,
       phase: "idle",
     });
+  const [isResumeGuardVisible, setIsResumeGuardVisible] = useState(false);
   const pendingSettingMenuOpenTimeoutRef = useRef<number | null>(null);
   const sceneTransitionRequestIdRef = useRef(0);
+  const resumeGuardReleaseRequestIdRef = useRef(0);
   const gameInitializationAttemptIdRef = useRef(0);
   const pendingGameInitializationRef = useRef<{
     attemptId: number;
@@ -755,6 +764,8 @@ const GameContainer: React.FC = () => {
     null,
   );
   const isFullscreenAdLayoutFrozenRef = useRef(false);
+  const isResumeGuardVisibleRef = useRef(false);
+  const isResumeReentrySimulationRunningRef = useRef(false);
   const fullscreenAdLayoutReleaseTimeoutRef = useRef<number | null>(null);
   const fullscreenAdLayoutReleaseRafRef = useRef<number | null>(null);
   const activeBackNavigationEntriesRef = useRef<BackNavigationEntry[]>([]);
@@ -831,6 +842,73 @@ const GameContainer: React.FC = () => {
     }
 
     loadingTimeoutContextRef.current = null;
+  }, []);
+
+  const showResumeGuard = useCallback(
+    (reason: string, options: { sync?: boolean } = {}) => {
+      if (isFullscreenAdLayoutFrozenRef.current) {
+        return;
+      }
+
+      resumeGuardReleaseRequestIdRef.current += 1;
+      isResumeGuardVisibleRef.current = true;
+
+      const applyVisibleState = () => {
+        setIsResumeGuardVisible(true);
+      };
+
+      if (options.sync) {
+        flushSync(applyVisibleState);
+      } else {
+        applyVisibleState();
+      }
+
+      logImportantDiagnostics(
+        "log",
+        "[ImportantDiagnostics][ResumeGuard]",
+        {
+          state: "shown",
+          reason,
+          currentSceneKey: gameInstance?.getCurrentSceneKey() ?? null,
+        },
+      );
+    },
+    [gameInstance],
+  );
+
+  const hideResumeGuardAfterLayout = useCallback((reason: string) => {
+    if (!isResumeGuardVisibleRef.current) {
+      return;
+    }
+
+    if (isResumeReentrySimulationRunningRef.current) {
+      return;
+    }
+
+    const requestId = resumeGuardReleaseRequestIdRef.current + 1;
+    resumeGuardReleaseRequestIdRef.current = requestId;
+
+    void (async () => {
+      await waitForLayoutStabilization();
+
+      if (
+        resumeGuardReleaseRequestIdRef.current !== requestId ||
+        isResumeReentrySimulationRunningRef.current
+      ) {
+        return;
+      }
+
+      isResumeGuardVisibleRef.current = false;
+      setIsResumeGuardVisible(false);
+      logImportantDiagnostics(
+        "log",
+        "[ImportantDiagnostics][ResumeGuard]",
+        {
+          state: "hidden",
+          reason,
+        },
+      );
+    })();
   }, []);
 
   const clearPendingFlappyBirdGameOverAd = useCallback(() => {
@@ -1626,6 +1704,29 @@ const GameContainer: React.FC = () => {
     },
     [clearLoadingTimeout],
   );
+
+  const handleMainSceneReentrySimulationStateChange =
+    useCallback<MainSceneReentrySimulationStateChangeCallback>(
+      (params) => {
+        if (params.source !== "app_resume") {
+          return;
+        }
+
+        if (params.phase === "started") {
+          isResumeReentrySimulationRunningRef.current = true;
+          showResumeGuard("main_scene_reentry");
+          return;
+        }
+
+        isResumeReentrySimulationRunningRef.current = false;
+        hideResumeGuardAfterLayout(
+          params.result === "failed"
+            ? "main_scene_reentry_failed"
+            : "main_scene_reentry_finished",
+        );
+      },
+      [hideResumeGuardAfterLayout, showResumeGuard],
+    );
 
   const updateGameContainerSize = useCallback((force = false) => {
     const viewportElement = gameViewportRef.current;
@@ -2613,6 +2714,8 @@ const GameContainer: React.FC = () => {
         setFlappyBirdSettingsMenuState(null);
       },
       onSceneTransitionStateChange: handleSceneTransitionStateChange,
+      onMainSceneReentrySimulationStateChange:
+        handleMainSceneReentrySimulationStateChange,
       loadingTraceContext:
         entryFlowDiagnostics.createGameLoadingTraceContext(attemptId),
       changeControlButtons: (controlButtonParams) => {
@@ -2732,6 +2835,7 @@ const GameContainer: React.FC = () => {
     gameContainerSize,
     locale,
     getFlappyBirdBestScore,
+    handleMainSceneReentrySimulationStateChange,
     handleSceneTransitionStateChange,
     openSettingMenu,
     persistFlappyBirdBestScore,
@@ -2870,6 +2974,78 @@ const GameContainer: React.FC = () => {
   ]);
 
   useEffect(() => {
+    if (typeof window === "undefined" || typeof document === "undefined") {
+      return;
+    }
+
+    const handleBackgroundEntry = (reason: string) => {
+      showResumeGuard(reason, { sync: true });
+    };
+
+    const handleForegroundEntry = (reason: string) => {
+      hideResumeGuardAfterLayout(reason);
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        handleBackgroundEntry("document_hidden");
+        return;
+      }
+
+      if (document.visibilityState === "visible") {
+        handleForegroundEntry("document_visible");
+      }
+    };
+
+    const handlePageHide = () => {
+      handleBackgroundEntry("pagehide");
+    };
+
+    const handlePageShow = () => {
+      handleForegroundEntry("pageshow");
+    };
+
+    const handleFocus = () => {
+      handleForegroundEntry("window_focus");
+    };
+
+    const handleNativeAppLifecycle = (event: Event) => {
+      const detail = (event as CustomEvent<NativeAppLifecycleEventDetail>)
+        .detail;
+      const state = detail?.state;
+
+      if (state === "inactive" || state === "hidden" || state === "paused") {
+        handleBackgroundEntry(`native_${state}`);
+        return;
+      }
+
+      if (state === "resumed") {
+        handleForegroundEntry("native_resumed");
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pagehide", handlePageHide);
+    window.addEventListener("pageshow", handlePageShow);
+    window.addEventListener("focus", handleFocus);
+    window.addEventListener(
+      "digivice:native-app-lifecycle",
+      handleNativeAppLifecycle as EventListener,
+    );
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pagehide", handlePageHide);
+      window.removeEventListener("pageshow", handlePageShow);
+      window.removeEventListener("focus", handleFocus);
+      window.removeEventListener(
+        "digivice:native-app-lifecycle",
+        handleNativeAppLifecycle as EventListener,
+      );
+    };
+  }, [hideResumeGuardAfterLayout, showResumeGuard]);
+
+  useEffect(() => {
     let isMounted = true;
 
     const bootstrap = async () => {
@@ -2933,6 +3109,9 @@ const GameContainer: React.FC = () => {
 
   useEffect(() => {
     return () => {
+      resumeGuardReleaseRequestIdRef.current += 1;
+      isResumeGuardVisibleRef.current = false;
+      isResumeReentrySimulationRunningRef.current = false;
       clearLoadingTimeout();
       cancelPendingGameInitialization("component_unmount");
       pendingInitialSetupPromiseRef.current = null;
@@ -3061,6 +3240,7 @@ const GameContainer: React.FC = () => {
 
   const isLoading =
     isBootstrapping ||
+    isResumeGuardVisible ||
     sceneTransitionLoadState.phase === "loading" ||
     sceneTransitionLoadState.phase === "core_ready";
 

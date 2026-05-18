@@ -323,6 +323,22 @@ export type InitialGameData = {
   cachedSunTimes?: SunTimesPayload | null;
 };
 
+export type MainSceneReentrySimulationSource =
+  | "init"
+  | "app_resume"
+  | "manual";
+
+export type MainSceneReentrySimulationStateChange = {
+  source: MainSceneReentrySimulationSource;
+  phase: "started" | "finished";
+  result?: "completed" | "skipped" | "failed";
+  error?: unknown;
+};
+
+export type MainSceneReentrySimulationStateChangeCallback = (
+  params: MainSceneReentrySimulationStateChange,
+) => void;
+
 export class MissingInitialGameDataError extends Error {
   constructor() {
     super(
@@ -492,6 +508,7 @@ export class MainSceneWorld implements IWorld, Scene {
   private _locale: LocaleCode = DEFAULT_LOCALE;
   private _debugMode = false;
   private _shouldDeferPersistence?: () => boolean;
+  private _onReentrySimulationStateChange?: MainSceneReentrySimulationStateChangeCallback;
   private _hasDeferredPersistence = false;
   private _timeOfDay: TimeOfDay = TimeOfDay.Day;
   private _timeOfDayMode: TimeOfDayMode = TimeOfDayMode.Manual;
@@ -669,6 +686,7 @@ export class MainSceneWorld implements IWorld, Scene {
     shouldDeferPersistence?: () => boolean;
     loadingTraceContext?: MainSceneLoadingTraceContext | null;
     trustedClock?: TrustedClock;
+    onReentrySimulationStateChange?: MainSceneReentrySimulationStateChangeCallback;
   }) {
     this._stage = params.stage;
     this._positionBoundary = params.positionBoundary;
@@ -687,6 +705,8 @@ export class MainSceneWorld implements IWorld, Scene {
     this._showAlert = params.showAlert;
     this._locale = params.locale ?? DEFAULT_LOCALE;
     this._shouldDeferPersistence = params.shouldDeferPersistence;
+    this._onReentrySimulationStateChange =
+      params.onReentrySimulationStateChange;
     this._createInitialGameData = params.createInitialGameData;
     this._changeControlButtons = params.changeControlButtons;
     this._triggerBiteVibration = params.triggerBiteVibration;
@@ -1639,7 +1659,7 @@ export class MainSceneWorld implements IWorld, Scene {
 
       // 재진입 시뮬레이션 처리
       await this._initDiagnostics.measurePhase("reentry_simulation", async () => {
-        await this._processReentrySimulation();
+        await this._processReentrySimulation("init");
       });
 
       this._initDiagnostics.completeInit();
@@ -3641,119 +3661,149 @@ export class MainSceneWorld implements IWorld, Scene {
    * 재진입 시뮬레이션 처리
    * 앱을 다시 켤 때 경과된 시간을 계산하고 해당 시간만큼 시뮬레이션 실행
    */
-  private async _processReentrySimulation(): Promise<void> {
-    if (!this._persistentData?.world_metadata.app_state) {
-      // 첫 실행이거나 앱 상태가 없으면 그냥 리턴
-      console.log(
-        "[MainSceneWorld] No app state found, skipping reentry simulation",
-      );
-      return;
-    }
+  private async _processReentrySimulation(
+    source: MainSceneReentrySimulationSource = "manual",
+  ): Promise<void> {
+    let result: MainSceneReentrySimulationStateChange["result"] = "completed";
+    let capturedError: unknown;
 
-    const appState = this._persistentData.world_metadata.app_state;
-    const shouldSuspendFoodInteraction =
-      appState.suspend_food_interaction_until_reentry === true;
-    const clearFoodInteractionSuspendFlag = (): void => {
-      if (shouldSuspendFoodInteraction) {
-        delete appState.suspend_food_interaction_until_reentry;
-      }
-    };
-    const lastActiveTime = appState.last_active_time;
-    const lastActiveAnchor = isTrustedTimeSnapshot(appState.last_active_time_anchor)
-      ? appState.last_active_time_anchor
-      : null;
-
-    await this._trustedClock.refresh({ forceRefresh: false });
-
-    if (!lastActiveTime || lastActiveTime <= 0) {
-      console.log(
-        "[MainSceneWorld] Reentry simulation skipped because last active time is missing",
-      );
-      clearFoodInteractionSuspendFlag();
-      if (this._initDiagnostics.isInitTimingActive) {
-        await this._initDiagnostics.measurePhase("reentry_persist_state", async () => {
-          await this._saveCurrentState();
-        });
-      } else {
-        await this._saveCurrentState();
-      }
-      return;
-    }
-
-    const currentTime = this.currentTime;
-    const elapsedResult = lastActiveAnchor
-      ? this._trustedClock.elapsedSince(lastActiveAnchor)
-      : null;
-    const elapsedTime = elapsedResult
-      ? elapsedResult.elapsedMs
-      : Math.max(0, currentTime - lastActiveTime);
-
-    if (elapsedResult && !elapsedResult.trusted) {
-      console.warn("[MainSceneWorld] Reentry elapsed time is not trusted", {
-        reason: elapsedResult.reason,
-        elapsedMs: elapsedResult.elapsedMs,
-      });
-    }
-
-    if (elapsedTime <= 0) {
-      console.log(
-        "[MainSceneWorld] Reentry simulation skipped because elapsed time is not positive",
-      );
-      clearFoodInteractionSuspendFlag();
-      await this._saveCurrentState();
-      return;
-    }
-
-    console.log(
-      `[MainSceneWorld] Starting reentry simulation for ${this._formatPauseDuration(
-        elapsedTime,
-      )} elapsed time`,
-    );
-
-    // 일회성 ReentrySimulator 인스턴스 생성
-    const reentrySimulator = new ReentrySimulator();
-
-    // 시뮬레이션 전용 파이프라인을 생성하여 시뮬레이션 실행
-    const simulationPipeline = this._createSimulationPipeline(
-      () => reentrySimulator.getCurrentSimulationTime(),
-      {
-        skipFoodInteraction: shouldSuspendFoodInteraction,
-      },
-    );
+    this._onReentrySimulationStateChange?.({
+      source,
+      phase: "started",
+    });
 
     try {
-      this._isRunningReentrySimulation = true;
-      this._simulationTime = lastActiveTime;
-
-      await reentrySimulator.simulate(
-        lastActiveTime,
-        (params: any) => {
-          this._simulationTime = reentrySimulator.getCurrentSimulationTime();
-          this._updateAutoTimeOfDayIfNeeded();
-          return simulationPipeline(params);
-        },
-        this,
-        currentTime,
-      );
-
-      this._simulationTime = currentTime;
-      clearFoodInteractionSuspendFlag();
-      applyReentryHappyStatusForFullStaminaCharacters(this);
-      if (this._initDiagnostics.isInitTimingActive) {
-        await this._initDiagnostics.measurePhase("reentry_persist_state", async () => {
-          await this._saveCurrentState();
-        });
-      } else {
-        await this._saveCurrentState();
+      if (!this._persistentData?.world_metadata.app_state) {
+        // 첫 실행이거나 앱 상태가 없으면 그냥 리턴
+        console.log(
+          "[MainSceneWorld] No app state found, skipping reentry simulation",
+        );
+        result = "skipped";
+        return;
       }
 
-      console.log("[MainSceneWorld] Reentry simulation completed successfully");
+      const appState = this._persistentData.world_metadata.app_state;
+      const shouldSuspendFoodInteraction =
+        appState.suspend_food_interaction_until_reentry === true;
+      const clearFoodInteractionSuspendFlag = (): void => {
+        if (shouldSuspendFoodInteraction) {
+          delete appState.suspend_food_interaction_until_reentry;
+        }
+      };
+      const lastActiveTime = appState.last_active_time;
+      const lastActiveAnchor = isTrustedTimeSnapshot(
+        appState.last_active_time_anchor,
+      )
+        ? appState.last_active_time_anchor
+        : null;
+
+      await this._trustedClock.refresh({ forceRefresh: false });
+
+      if (!lastActiveTime || lastActiveTime <= 0) {
+        console.log(
+          "[MainSceneWorld] Reentry simulation skipped because last active time is missing",
+        );
+        result = "skipped";
+        clearFoodInteractionSuspendFlag();
+        if (this._initDiagnostics.isInitTimingActive) {
+          await this._initDiagnostics.measurePhase("reentry_persist_state", async () => {
+            await this._saveCurrentState();
+          });
+        } else {
+          await this._saveCurrentState();
+        }
+        return;
+      }
+
+      const currentTime = this.currentTime;
+      const elapsedResult = lastActiveAnchor
+        ? this._trustedClock.elapsedSince(lastActiveAnchor)
+        : null;
+      const elapsedTime = elapsedResult
+        ? elapsedResult.elapsedMs
+        : Math.max(0, currentTime - lastActiveTime);
+
+      if (elapsedResult && !elapsedResult.trusted) {
+        console.warn("[MainSceneWorld] Reentry elapsed time is not trusted", {
+          reason: elapsedResult.reason,
+          elapsedMs: elapsedResult.elapsedMs,
+        });
+      }
+
+      if (elapsedTime <= 0) {
+        console.log(
+          "[MainSceneWorld] Reentry simulation skipped because elapsed time is not positive",
+        );
+        result = "skipped";
+        clearFoodInteractionSuspendFlag();
+        await this._saveCurrentState();
+        return;
+      }
+
+      console.log(
+        `[MainSceneWorld] Starting reentry simulation for ${this._formatPauseDuration(
+          elapsedTime,
+        )} elapsed time`,
+      );
+
+      // 일회성 ReentrySimulator 인스턴스 생성
+      const reentrySimulator = new ReentrySimulator();
+
+      // 시뮬레이션 전용 파이프라인을 생성하여 시뮬레이션 실행
+      const simulationPipeline = this._createSimulationPipeline(
+        () => reentrySimulator.getCurrentSimulationTime(),
+        {
+          skipFoodInteraction: shouldSuspendFoodInteraction,
+        },
+      );
+
+      try {
+        this._isRunningReentrySimulation = true;
+        this._simulationTime = lastActiveTime;
+
+        await reentrySimulator.simulate(
+          lastActiveTime,
+          (params: any) => {
+            this._simulationTime = reentrySimulator.getCurrentSimulationTime();
+            this._updateAutoTimeOfDayIfNeeded();
+            return simulationPipeline(params);
+          },
+          this,
+          currentTime,
+        );
+
+        this._simulationTime = currentTime;
+        clearFoodInteractionSuspendFlag();
+        applyReentryHappyStatusForFullStaminaCharacters(this);
+        if (this._initDiagnostics.isInitTimingActive) {
+          await this._initDiagnostics.measurePhase("reentry_persist_state", async () => {
+            await this._saveCurrentState();
+          });
+        } else {
+          await this._saveCurrentState();
+        }
+
+        console.log("[MainSceneWorld] Reentry simulation completed successfully");
+      } catch (error) {
+        result = "failed";
+        capturedError = error;
+        console.error("[MainSceneWorld] Reentry simulation failed:", error);
+      } finally {
+        clearFoodInteractionSuspendFlag();
+        this._isRunningReentrySimulation = false;
+        this._simulationTime = null;
+      }
     } catch (error) {
-      console.error("[MainSceneWorld] Reentry simulation failed:", error);
+      result = "failed";
+      capturedError = error;
+      throw error;
     } finally {
-      clearFoodInteractionSuspendFlag();
-      this._isRunningReentrySimulation = false;
-      this._simulationTime = null;
+      this._onReentrySimulationStateChange?.({
+        source,
+        phase: "finished",
+        result,
+        error: capturedError,
+      });
     }
   }
 
@@ -3896,7 +3946,7 @@ export class MainSceneWorld implements IWorld, Scene {
     );
 
     // 재진입 시뮬레이션 실행
-    await this._processReentrySimulation();
+    await this._processReentrySimulation("app_resume");
 
     this._isPaused = false;
     this._pauseStartTime = 0;
