@@ -10,6 +10,7 @@ const BIG_JUMP_SOUND_SRC = "/game/sounds/big_jump.wav";
 const SYRINGE_INSERT_SOUND_SRC = "/game/sounds/syringe-insert.mp3";
 const VOLUME_REDUCED_40_PERCENT = 0.6;
 const VOLUME_REDUCED_50_PERCENT = 0.5;
+const SMALL_JUMP_VOLUME = VOLUME_REDUCED_50_PERCENT * 0.8;
 
 const activeSounds = new Set<HTMLAudioElement>();
 
@@ -54,7 +55,7 @@ export function playBroomSound(): void {
 }
 
 export function playSmallJumpSound(): void {
-  playUiSound(SMALL_JUMP_SOUND_SRC, VOLUME_REDUCED_50_PERCENT);
+  playUiSound(SMALL_JUMP_SOUND_SRC, SMALL_JUMP_VOLUME);
 }
 
 export function playBigJumpSound(): void {
