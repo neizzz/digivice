@@ -158,7 +158,7 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
     } else {
       content = ColoredBox(
         color: Colors.black,
-        child: WebViewWidget(controller: _controller),
+        child: _buildWebViewWidget(),
       );
     }
 
@@ -204,6 +204,24 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
 
   Future<void> _exitApp() async {
     await SystemNavigator.pop();
+  }
+
+  Widget _buildWebViewWidget() {
+    final platformParams = PlatformWebViewWidgetCreationParams(
+      controller: _controller.platform,
+    );
+
+    if (Platform.isAndroid) {
+      final androidParams = AndroidWebViewWidgetCreationParams
+          .fromPlatformWebViewWidgetCreationParams(
+        platformParams,
+        displayWithHybridComposition: true,
+      );
+
+      return WebViewWidget.fromPlatformCreationParams(params: androidParams);
+    }
+
+    return WebViewWidget.fromPlatformCreationParams(params: platformParams);
   }
 
   Future<String> _handleBackNavigationCall(MethodCall call) async {
