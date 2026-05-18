@@ -55,6 +55,7 @@ import { consumeTopPopupBackHandler } from "./popupBackNavigation";
 import {
   playFoodThrowSound,
   playSyringeInsertSound,
+  preloadUiSfx,
 } from "./utils/uiSfx";
 
 const WORLD_DATA_STORAGE_KEY = "MainSceneWorldData";
@@ -1391,6 +1392,10 @@ const GameContainer: React.FC = () => {
     },
     [stopLoadingWithFailure, t],
   );
+
+  useEffect(() => {
+    preloadUiSfx();
+  }, []);
 
   useEffect(() => {
     return () => {
