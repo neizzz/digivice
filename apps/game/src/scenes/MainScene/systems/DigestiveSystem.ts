@@ -297,16 +297,21 @@ export function createPoop(
   world: MainSceneWorld,
   characterEid: number,
   options?: { isSmall?: boolean },
-): void {
+): boolean {
   debugLog(
     `[DigestiveSystem] Creating poop for character EID: ${characterEid}`,
   );
+
+  if (!world.canSpawnPoop()) {
+    world.showObjectLimitAlert();
+    return false;
+  }
 
   if (!hasComponent(world, PositionComp, characterEid)) {
     console.warn(
       `[DigestiveSystem] Character ${characterEid} has no PositionComp`,
     );
-    return;
+    return false;
   }
 
   const characterX = PositionComp.x[characterEid];
@@ -345,6 +350,7 @@ export function createPoop(
   });
 
   debugLog(`[DigestiveSystem] Created poop entity with EID: ${poobEntity}`);
+  return true;
 }
 
 function selectPoopSpawnPosition(

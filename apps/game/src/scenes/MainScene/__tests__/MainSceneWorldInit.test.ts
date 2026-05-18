@@ -46,6 +46,7 @@ type TestableMainSceneWorld = MainSceneWorld & {
   _shouldBlockMiniGameEntry: () => boolean;
   _prepareMainCharacterForMiniGameEntry: () => void;
   _enterCleaningMode: () => boolean;
+  _throwFood: () => number | null;
   _processReentrySimulation: (
     source?: MainSceneReentrySimulationSource,
   ) => Promise<void>;
@@ -58,6 +59,7 @@ type TestableMainSceneWorld = MainSceneWorld & {
 function createMainSceneWorld(options?: {
   trustedClock?: unknown;
   showAlert?: (message: string, title?: string) => void;
+  locale?: ConstructorParameters<typeof MainSceneWorld>[0]["locale"];
   onReentrySimulationStateChange?: ConstructorParameters<
     typeof MainSceneWorld
   >[0]["onReentrySimulationStateChange"];
@@ -71,6 +73,7 @@ function createMainSceneWorld(options?: {
       height: 320,
     },
     showAlert: options?.showAlert,
+    locale: options?.locale,
     trustedClock: options?.trustedClock as never,
     onReentrySimulationStateChange:
       options?.onReentrySimulationStateChange,
@@ -99,6 +102,20 @@ function createFoodEntity(
   FreshnessComp.freshness[foodEid] = Freshness.NORMAL;
 
   return foodEid;
+}
+
+function createObjectEntity(
+  world: TestableMainSceneWorld,
+  type: ObjectType,
+): number {
+  const eid = addEntity(world as any);
+
+  addComponent(world as any, ObjectComp, eid);
+  ObjectComp.id[eid] = 20_000 + eid;
+  ObjectComp.type[eid] = type;
+  ObjectComp.state[eid] = 0;
+
+  return eid;
 }
 
 test("초기 세팅 데이터가 없으면 setup 없이 기본 월드를 만들지 않는다", () => {
@@ -718,4 +735,64 @@ test("reentry는 reboot 추정만으로는 시간 조작 패널티를 주지 않
   assert.equal(ObjectComp.state[eid], CharacterState.IDLE);
   assert.equal(hasComponent(world as any, VitalityComp, eid), false);
   assert.equal(getSaveCount(), 1);
+});
+
+test("food가 최대 개수에 도달하면 새 food 생성 대신 한국어 alert를 띄운다", () => {
+  const alerts: Array<{ message: string; title?: string }> = [];
+  const world = createMainSceneWorld({
+    locale: "ko",
+    showAlert: (message, title) => {
+      alerts.push({ message, title });
+    },
+  });
+
+  createWorld(world as any, 128);
+  for (let i = 0; i < GAME_CONSTANTS.MAX_ACTIVE_FOOD_COUNT; i += 1) {
+    createFoodEntity(world, {
+      x: 32 + i,
+      y: 64,
+    });
+  }
+
+  const foodEid = world._throwFood();
+
+  assert.equal(foodEid, null);
+  assert.deepEqual(alerts, [
+    {
+      message: "최대 객체 개수에 도달했습니다.\n청소 후 다시 시도해 주세요.",
+      title: "알림",
+    },
+  ]);
+});
+
+test("총 object가 최대 개수에 도달하면 시도마다 alert를 다시 띄운다", () => {
+  const alerts: Array<{ message: string; title?: string }> = [];
+  const world = createMainSceneWorld({
+    locale: "ko",
+    showAlert: (message, title) => {
+      alerts.push({ message, title });
+    },
+  });
+
+  createWorld(world as any, 128);
+  for (let i = 0; i < GAME_CONSTANTS.MAX_ACTIVE_OBJECT_COUNT; i += 1) {
+    createObjectEntity(world, ObjectType.POOB);
+  }
+
+  assert.equal(world._throwFood(), null);
+  assert.equal(world._throwFood(), null);
+  assert.equal(
+    world.getActiveObjectCountByType(),
+    GAME_CONSTANTS.MAX_ACTIVE_OBJECT_COUNT,
+  );
+  assert.deepEqual(alerts, [
+    {
+      message: "최대 객체 개수에 도달했습니다.\n청소 후 다시 시도해 주세요.",
+      title: "알림",
+    },
+    {
+      message: "최대 객체 개수에 도달했습니다.\n청소 후 다시 시도해 주세요.",
+      title: "알림",
+    },
+  ]);
 });

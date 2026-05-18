@@ -140,6 +140,8 @@ const en = {
   "timeOfDay.night": "Night",
 
   "main.eggUnavailable": "not available in egg state.",
+  "main.objectLimitReached": "Maximum object count reached.",
+  "main.cleanObjectsPrompt": "Please clean up and try again.",
 } as const;
 
 export type TranslationKey = keyof typeof en;
@@ -222,6 +224,8 @@ const ko: TranslationDictionary = {
   "timeOfDay.sunset": "일몰",
   "timeOfDay.night": "밤",
   "main.eggUnavailable": "알 상태에서는 사용할 수 없습니다.",
+  "main.objectLimitReached": "최대 객체 개수에 도달했습니다.",
+  "main.cleanObjectsPrompt": "청소 후 다시 시도해 주세요.",
 };
 
 const ja: TranslationDictionary = {
@@ -300,6 +304,8 @@ const ja: TranslationDictionary = {
   "timeOfDay.sunset": "夕日",
   "timeOfDay.night": "夜",
   "main.eggUnavailable": "卵の状態では使用できません。",
+  "main.objectLimitReached": "最大オブジェクト数に達しました。",
+  "main.cleanObjectsPrompt": "掃除してからもう一度お試しください。",
 };
 
 const zhTW: TranslationDictionary = {
@@ -378,6 +384,8 @@ const zhTW: TranslationDictionary = {
   "timeOfDay.sunset": "日落",
   "timeOfDay.night": "夜晚",
   "main.eggUnavailable": "蛋狀態無法使用。",
+  "main.objectLimitReached": "已達到最大物件數量。",
+  "main.cleanObjectsPrompt": "請先清理後再試一次。",
 };
 
 const zhHK: TranslationDictionary = {
@@ -391,6 +399,8 @@ const zhHK: TranslationDictionary = {
   "loading.label": "載入中...",
   "viewport.portraitOnly": "只支援直向",
   "flappy.retry": "再試",
+  "main.objectLimitReached": "已達到最大物件數量。",
+  "main.cleanObjectsPrompt": "請先清理後再試一次。",
 };
 
 const hi: TranslationDictionary = {
@@ -469,6 +479,8 @@ const hi: TranslationDictionary = {
   "timeOfDay.sunset": "सूर्यास्त",
   "timeOfDay.night": "रात",
   "main.eggUnavailable": "अंडे की अवस्था में उपलब्ध नहीं।",
+  "main.objectLimitReached": "अधिकतम ऑब्जेक्ट संख्या तक पहुँच गए।",
+  "main.cleanObjectsPrompt": "साफ़ करके फिर से प्रयास करें।",
 };
 
 const th: TranslationDictionary = {
@@ -547,6 +559,8 @@ const th: TranslationDictionary = {
   "timeOfDay.sunset": "พระอาทิตย์ตก",
   "timeOfDay.night": "กลางคืน",
   "main.eggUnavailable": "ใช้ไม่ได้ตอนเป็นไข่",
+  "main.objectLimitReached": "ถึงจำนวนวัตถุสูงสุดแล้ว",
+  "main.cleanObjectsPrompt": "กรุณาทำความสะอาดแล้วลองอีกครั้ง",
 };
 
 const vi: TranslationDictionary = {
@@ -625,6 +639,8 @@ const vi: TranslationDictionary = {
   "timeOfDay.sunset": "Hoàng hôn",
   "timeOfDay.night": "Đêm",
   "main.eggUnavailable": "không khả dụng khi ở trạng thái trứng.",
+  "main.objectLimitReached": "Đã đạt đến số lượng đối tượng tối đa.",
+  "main.cleanObjectsPrompt": "Hãy dọn dẹp rồi thử lại.",
 };
 
 const ptBR: TranslationDictionary = {
@@ -703,6 +719,8 @@ const ptBR: TranslationDictionary = {
   "timeOfDay.sunset": "Pôr do sol",
   "timeOfDay.night": "Noite",
   "main.eggUnavailable": "não disponível no estado de ovo.",
+  "main.objectLimitReached": "O número máximo de objetos foi atingido.",
+  "main.cleanObjectsPrompt": "Limpe e tente novamente.",
 };
 
 export const TRANSLATIONS: Record<LocaleCode, TranslationDictionary> = {

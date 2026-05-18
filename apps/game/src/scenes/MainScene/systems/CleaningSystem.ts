@@ -5,7 +5,6 @@ import {
   addComponent,
   hasComponent,
   removeComponent,
-  removeEntity,
 } from "bitecs";
 import {
   ObjectComp,
@@ -175,7 +174,7 @@ function updateBroomMovement(
         focusedTargetEid,
         world.currentTime,
       );
-      removeEntity(world, focusedTargetEid);
+      world.removeObjectEntity(focusedTargetEid);
 
       // 다음 대상으로 이동 (청소 모드 종료는 슬라이더 종료 시 처리)
       const nextTarget = findNextCleanableTarget(world, focusedTargetEid);

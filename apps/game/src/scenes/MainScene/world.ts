@@ -6,11 +6,14 @@ import {
 import {
   addEntity,
   createWorld,
+  enableManualEntityRecycling,
+  flushRemovedEntities,
   IWorld,
   pipe,
   defineQuery,
   hasComponent,
   addComponent,
+  removeEntity,
 } from "bitecs";
 import * as PIXI from "pixi.js";
 import "@pixi/gif"; // GIF 지원 추가
@@ -440,6 +443,9 @@ const GIF_ASSETS = {
   // healing: "/assets/game/gifs/healing.gif",
 };
 
+const liveObjectQuery = defineQuery([ObjectComp]);
+const MAIN_SCENE_WORLD_ENTITY_CAPACITY = 256;
+
 /**
  * a) ecs구조에서 다루기 힘든 browser event핸들링
  * b) 전역 데이터 저장
@@ -729,6 +735,62 @@ export class MainSceneWorld implements IWorld, Scene {
 
   private t(key: Parameters<typeof translate>[1], params?: Parameters<typeof translate>[2]): string {
     return translate(this._locale, key, params);
+  }
+
+  public getActiveObjectCountByType(objectType?: ObjectType): number {
+    const objectEntities = liveObjectQuery(this);
+
+    if (objectType === undefined) {
+      return objectEntities.length;
+    }
+
+    let count = 0;
+    for (let i = 0; i < objectEntities.length; i++) {
+      const eid = objectEntities[i];
+      if (ObjectComp.type[eid] === objectType) {
+        count += 1;
+      }
+    }
+
+    return count;
+  }
+
+  public canSpawnFood(): boolean {
+    return (
+      this.getActiveObjectCountByType() < GAME_CONSTANTS.MAX_ACTIVE_OBJECT_COUNT &&
+      this.getActiveObjectCountByType(ObjectType.FOOD) <
+        GAME_CONSTANTS.MAX_ACTIVE_FOOD_COUNT
+    );
+  }
+
+  public canSpawnPoop(): boolean {
+    return (
+      this.getActiveObjectCountByType() < GAME_CONSTANTS.MAX_ACTIVE_OBJECT_COUNT
+    );
+  }
+
+  public showObjectLimitAlert(): void {
+    this._showAlert?.(
+      `${this.t("main.objectLimitReached")}\n${this.t("main.cleanObjectsPrompt")}`,
+      this.t("common.notice"),
+    );
+  }
+
+  public removeObjectEntity(eid: number): void {
+    removeEntity(this, eid);
+
+    try {
+      flushRemovedEntities(this);
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message.includes("cannot flush removed entities")
+      ) {
+        return;
+      }
+
+      throw error;
+    }
   }
 
   public triggerBiteVibration(): void {
@@ -1424,7 +1486,8 @@ export class MainSceneWorld implements IWorld, Scene {
     try {
       this._initDiagnostics.beginInit();
 
-      createWorld(this, 100);
+      createWorld(this, MAIN_SCENE_WORLD_ENTITY_CAPACITY);
+      enableManualEntityRecycling(this);
 
       // 스토리지에서 데이터 로드 시도
       console.log("Loading saved data from storage...");
@@ -3150,6 +3213,11 @@ export class MainSceneWorld implements IWorld, Scene {
    * 음식을 던지는 메서드
    */
   private _throwFood(): number | null {
+    if (!this.canSpawnFood()) {
+      this.showObjectLimitAlert();
+      return null;
+    }
+
     const boundary = this._positionBoundary;
 
     // 초기 위치 - 왼쪽 또는 오른쪽 구석에서 시작

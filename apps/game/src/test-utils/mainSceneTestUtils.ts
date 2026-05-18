@@ -1,7 +1,16 @@
-import { createWorld, type IWorld } from "bitecs";
+import {
+  createWorld,
+  defineQuery,
+  enableManualEntityRecycling,
+  flushRemovedEntities,
+  removeEntity,
+  type IWorld,
+} from "bitecs";
 import * as PIXI from "pixi.js";
+import { GAME_CONSTANTS } from "../scenes/MainScene/config";
 import { createCharacterEntity } from "../scenes/MainScene/entityFactory";
 import { getEvolutionSpec } from "../scenes/MainScene/evolutionConfig";
+import { ObjectComp } from "../scenes/MainScene/raw-components";
 import {
   AnimationKey,
   CharacterKeyECS,
@@ -32,6 +41,10 @@ export type TestWorld = IWorld & {
   triggerFoodLandingVibration: () => void;
   triggerMainSceneSfx: (kind: "food-throw" | "syringe-insert") => void;
   isRandomMovementDebugEnabled: () => boolean;
+  getActiveObjectCountByType: (objectType?: ObjectType) => number;
+  canSpawnPoop: () => boolean;
+  showObjectLimitAlert: () => void;
+  removeObjectEntity: (eid: number) => void;
   currentTime: number;
   timeOfDay: TimeOfDay;
   timeOfDayMode: TimeOfDayMode;
@@ -62,6 +75,9 @@ export function createTestWorld(options?: {
 }): TestWorld {
   const world = createWorld({}) as TestWorld;
   const now = options?.now ?? 0;
+  const objectQuery = defineQuery([ObjectComp]);
+
+  enableManualEntityRecycling(world);
 
   world._currentTime = now;
   world._timeOfDay = options?.timeOfDay ?? TimeOfDay.Day;
@@ -81,6 +97,33 @@ export function createTestWorld(options?: {
   world.triggerFoodLandingVibration = () => {};
   world.triggerMainSceneSfx = () => {};
   world.isRandomMovementDebugEnabled = () => false;
+  world.getActiveObjectCountByType = (objectType?: ObjectType) => {
+    const objectEntities = objectQuery(world);
+
+    if (objectType === undefined) {
+      return objectEntities.length;
+    }
+
+    let count = 0;
+    for (let i = 0; i < objectEntities.length; i++) {
+      const eid = objectEntities[i];
+      if (ObjectComp.type[eid] === objectType) {
+        count += 1;
+      }
+    }
+
+    return count;
+  };
+  world.canSpawnPoop = () => {
+    return (
+      world.getActiveObjectCountByType() < GAME_CONSTANTS.MAX_ACTIVE_OBJECT_COUNT
+    );
+  };
+  world.showObjectLimitAlert = () => {};
+  world.removeObjectEntity = (eid: number) => {
+    removeEntity(world, eid);
+    flushRemovedEntities(world);
+  };
 
   Object.defineProperty(world, "currentTime", {
     configurable: true,

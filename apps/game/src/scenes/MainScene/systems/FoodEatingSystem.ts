@@ -3,7 +3,6 @@ import {
   hasComponent,
   addComponent,
   removeComponent,
-  removeEntity,
 } from "bitecs";
 import {
   ObjectComp,
@@ -406,7 +405,7 @@ function completeEating(
 
   // 음식 엔티티 완전 삭제
   world.handleFoodConsumedForAd(foodEid);
-  removeEntity(world, foodEid);
+  world.removeObjectEntity(foodEid);
   debugLog(`[FoodEatingSystem] Removed food entity ${foodEid}`);
 
   // FoodEatingComp 제거

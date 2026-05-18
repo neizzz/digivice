@@ -302,6 +302,46 @@ test("재진입 중 새 poop 기본 위치에 기존 poop이 있으면 후보가
   assert.equal(Math.round(PositionComp.y[spawnedPoopEid as number]), 155);
 });
 
+test("최대 object 개수에 도달하면 poop 생성은 막히지만 소화 load는 기존처럼 소모된다", () => {
+  const alerts: string[] = [];
+  const world = createTestWorld({ now: 11_000 });
+  const characterEid = withMockedDateNow(11_000, () =>
+    createTestCharacter(world, {
+      stamina: 5,
+      x: 200,
+      y: 200,
+    }),
+  );
+
+  world.showObjectLimitAlert = () => {
+    alerts.push("shown");
+  };
+  DigestiveSystemComp.currentLoad[characterEid] = 9;
+  DigestiveSystemComp.nextPoopTime[characterEid] = 11_000;
+
+  for (let i = 0; i < GAME_CONSTANTS.MAX_ACTIVE_OBJECT_COUNT - 1; i += 1) {
+    createPositionedObject(world, {
+      type: ObjectType.POOB,
+      x: 100 + i,
+      y: 100,
+    });
+  }
+
+  digestiveSystem({ world: world as any, currentTime: 11_000 });
+
+  assert.deepEqual(alerts, ["shown"]);
+  assert.equal(DigestiveSystemComp.currentLoad[characterEid], 4);
+  assert.equal(
+    DigestiveSystemComp.nextSmallPoopTime[characterEid],
+    11_000 + GAME_CONSTANTS.DIGESTIVE_SMALL_POOP_DELAY,
+  );
+  assert.equal(
+    objectQuery(world).filter((eid) => ObjectComp.type[eid] === ObjectType.POOB)
+      .length,
+    GAME_CONSTANTS.MAX_ACTIVE_OBJECT_COUNT - 1,
+  );
+});
+
 function createPositionedObject(
   world: ReturnType<typeof createTestWorld>,
   options: {

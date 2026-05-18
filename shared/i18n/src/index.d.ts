@@ -83,6 +83,8 @@ declare const en: {
     readonly "timeOfDay.sunset": "Sunset";
     readonly "timeOfDay.night": "Night";
     readonly "main.eggUnavailable": "not available in egg state.";
+    readonly "main.objectLimitReached": "Maximum object count reached.";
+    readonly "main.cleanObjectsPrompt": "Please clean up and try again.";
 };
 export type TranslationKey = keyof typeof en;
 export type TranslationParams = Record<string, string | number | boolean | null | undefined>;
