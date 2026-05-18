@@ -182,7 +182,6 @@ import { getNativeSunTimes, requestNativeLocationPermission } from "./sunTimes";
 import { ReentrySimulator } from "./ReentrySimulator";
 import {
   createEmptyMonsterBookState,
-  ensureMonsterBookBackfillFromSavedData,
   ensureMonsterBookState,
   type MonsterBookState,
 } from "./monsterBook";
@@ -2471,8 +2470,6 @@ export class MainSceneWorld implements IWorld, Scene {
           } corrupted entities`,
         );
       }
-
-      ensureMonsterBookBackfillFromSavedData(data, this.currentTime);
 
       console.log(
         `Data validation completed, ${data.entities.length} valid entities found`,

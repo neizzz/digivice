@@ -1,5 +1,5 @@
 import type { MainSceneWorldData, SavedEntity } from "./world";
-import { CharacterKeyECS, CharacterState, ObjectType } from "./types";
+import { type CharacterKeyECS, CharacterState, ObjectType } from "./types";
 import {
   MONSTER_CHARACTER_KEYS,
   type MonsterCharacterKey,
@@ -144,15 +144,23 @@ export function recordMonsterBookReach(params: {
   return true;
 }
 
-export function ensureMonsterBookBackfillFromSavedData(
+export type CurrentMonsterBookCandidate = {
+  characterKey: MonsterCharacterKey;
+  objectId: number;
+};
+
+export type MonsterBookCurrentBackfillResult = {
+  state: MonsterBookState;
+  didBackfill: boolean;
+};
+
+export function getSavedCurrentMonsterBookCandidates(
   data: MainSceneWorldData,
-  reachedAt: number,
-): MonsterBookState {
-  const monsterBook = ensureMonsterBookState(data);
-  const monsterName = data.world_metadata.monster_name?.trim();
-  if (!monsterName) {
-    return monsterBook;
-  }
+): CurrentMonsterBookCandidate[] {
+  const currentMonstersByKey = new Map<
+    MonsterCharacterKey,
+    CurrentMonsterBookCandidate
+  >();
 
   for (const entity of data.entities ?? []) {
     const characterKey = getSavedMonsterCharacterKey(entity);
@@ -160,22 +168,55 @@ export function ensureMonsterBookBackfillFromSavedData(
       continue;
     }
 
-    const existingRecords = monsterBook.reached[characterKey] ?? [];
-    if (existingRecords.length > 0) {
+    if (!currentMonstersByKey.has(characterKey)) {
+      currentMonstersByKey.set(characterKey, {
+        characterKey,
+        objectId: normalizeObjectId(entity.components.object?.id),
+      });
+    }
+  }
+
+  return [...currentMonstersByKey.values()];
+}
+
+export function backfillCurrentMonsterIfHidden(
+  data: MainSceneWorldData,
+  currentMonsters: Iterable<CurrentMonsterBookCandidate>,
+  reachedAt: number,
+): MonsterBookCurrentBackfillResult {
+  const monsterBook = ensureMonsterBookState(data);
+  const monsterName = data.world_metadata.monster_name?.trim();
+  if (!monsterName) {
+    return { state: monsterBook, didBackfill: false };
+  }
+
+  const normalizedReachedAt = Number.isFinite(reachedAt)
+    ? reachedAt
+    : Date.now();
+  let didBackfill = false;
+
+  for (const currentMonster of currentMonsters) {
+    const { characterKey } = currentMonster;
+    if (!isMonsterCharacterKey(characterKey)) {
+      continue;
+    }
+
+    if ((monsterBook.reached[characterKey]?.length ?? 0) > 0) {
       continue;
     }
 
     monsterBook.reached[characterKey] = [
       {
         name: monsterName,
-        reached_at: Number.isFinite(reachedAt) ? reachedAt : Date.now(),
-        object_id: normalizeObjectId(entity.components.object?.id),
+        reached_at: normalizedReachedAt,
+        object_id: normalizeObjectId(currentMonster.objectId),
         source: "backfill",
       },
     ];
+    didBackfill = true;
   }
 
-  return monsterBook;
+  return { state: monsterBook, didBackfill };
 }
 
 function getSavedMonsterCharacterKey(

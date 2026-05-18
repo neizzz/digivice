@@ -10,13 +10,13 @@ import {
 } from "../../utils/asset";
 import {
   MONSTER_CHARACTER_KEYS,
-  isMonsterCharacterKey,
   type MonsterCharacterKey,
   type MonsterClassCode,
 } from "../MainScene/evolutionConfig";
 import {
   type MonsterBookState,
-  ensureMonsterBookBackfillFromSavedData,
+  backfillCurrentMonsterIfHidden,
+  getSavedCurrentMonsterBookCandidates,
   hasReachedMonster,
   normalizeMonsterBookState,
 } from "../MainScene/monsterBook";
@@ -24,7 +24,6 @@ import {
   type MainSceneWorldData,
   WORLD_DATA_STORAGE_KEY,
 } from "../MainScene/world";
-import { CharacterState, ObjectType } from "../MainScene/types";
 import {
   type MonsterBookGlobalPage,
   createMonsterBookCardInfo,
@@ -179,13 +178,21 @@ export class MonsterBookScene extends PIXI.Container implements Scene {
       return;
     }
 
-    ensureMonsterBookBackfillFromSavedData(data, Date.now());
-    this.monsterBookState = normalizeMonsterBookState(
-      data.world_metadata.app_state?.monster_book,
+    const currentMonsters = getSavedCurrentMonsterBookCandidates(data);
+    this.currentMonsterKeys = new Set(
+      currentMonsters.map((currentMonster) => currentMonster.characterKey),
     );
-    this.currentMonsterKeys = getCurrentMonsterCharacterKeys(data);
 
-    await StorageManager.setData(WORLD_DATA_STORAGE_KEY, data);
+    const { state, didBackfill } = backfillCurrentMonsterIfHidden(
+      data,
+      currentMonsters,
+      Date.now(),
+    );
+    this.monsterBookState = normalizeMonsterBookState(state);
+
+    if (didBackfill) {
+      await StorageManager.setData(WORLD_DATA_STORAGE_KEY, data);
+    }
   }
 
   private async preloadBookBackground(): Promise<void> {
@@ -552,30 +559,4 @@ export class MonsterBookScene extends PIXI.Container implements Scene {
   private async returnToMainScene(): Promise<void> {
     await this.game.changeScene(SceneKey.MAIN);
   }
-}
-
-function getCurrentMonsterCharacterKeys(
-  data: MainSceneWorldData,
-): Set<MonsterCharacterKey> {
-  const characterKeys = new Set<MonsterCharacterKey>();
-
-  for (const entity of data.entities ?? []) {
-    const object = entity.components.object;
-    const characterStatus = entity.components.characterStatus;
-
-    if (
-      object?.type !== ObjectType.CHARACTER ||
-      object.state === CharacterState.EGG ||
-      object.state === CharacterState.DEAD ||
-      !characterStatus
-    ) {
-      continue;
-    }
-
-    if (isMonsterCharacterKey(characterStatus.characterKey)) {
-      characterKeys.add(characterStatus.characterKey);
-    }
-  }
-
-  return characterKeys;
 }
