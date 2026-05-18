@@ -1,4 +1,4 @@
-import { P as Point, r as removeItems, E as ExtensionType, T as Ticker, U as UPDATE_PRIORITY, a as EventEmitter, w as warn, e as extensions, C as Container } from "./index.js";
+import { P as Point, r as removeItems, E as ExtensionType, T as Ticker, U as UPDATE_PRIORITY, c as EventEmitter, w as warn, e as extensions, C as Container } from "./evolutionAdmin.js";
 import "./webworkerAll.js";
 import "./index2.js";
 import "./colorToUniform.js";
