@@ -13,22 +13,24 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  nfc_manager: ^4.2.1
   webview_flutter: ^4.0.0
-  webview_flutter_android: ^4.3.2
+  webview_flutter_android: ^4.12.0
   path_provider: ^2.0.15
-  android_intent_plus: ^5.2.1
-  flutter_nfc_hce: ^0.1.8
+  android_intent_plus: ^6.0.0
+  # nfc_manager: ^4.2.1
+  # flutter_nfc_hce: ^0.1.8
   google_mobile_ads: ^8.0.0
   shared_preferences: ^2.3.4
   vibration: ^3.1.8
-  geolocator: ^13.0.2
+  geolocator: ^14.0.2
   in_app_update: ^4.2.5
   # flutter_custom_hce:
   #   path: ../../flutter_custom_hce
 
 dev_dependencies:
-  flutter_lints: ^4.0.0
+  flutter_lints: ^6.0.0
+  flutter_test:
+    sdk: flutter
 
 flutter:
   # uses-material-design: true
