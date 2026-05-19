@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { StorageManager } from "../../../managers/StorageManager";
+import { MONSTER_BOOK_STORAGE_KEY } from "../monsterBookStorage";
 import { MainSceneWorld } from "../world";
 
 test("MainSceneWorld.onSceneExit는 저장 실패가 있어도 cleanup을 계속 진행한다", async () => {
@@ -51,12 +52,12 @@ test("MainSceneWorld.onSceneExit는 저장 실패가 있어도 cleanup을 계속
 
 test("MainSceneWorld.setData는 FlappyBird active 동안 persistence를 defer하고 reenter 시 1회 flush한다", async () => {
   const originalSetData = StorageManager.setData.bind(StorageManager);
-  const writes: unknown[] = [];
+  const writes: Array<{ key: string; data: unknown }> = [];
 
   (StorageManager as {
     setData: typeof StorageManager.setData;
   }).setData = async (_key, data) => {
-    writes.push(data);
+    writes.push({ key: _key, data });
   };
 
   try {
@@ -67,6 +68,8 @@ test("MainSceneWorld.setData는 FlappyBird active 동안 persistence를 defer하
       _hasDeferredPersistence: false,
       _pendingStorageWrite: Promise.resolve(),
       _enqueueStorageWrite: MainSceneWorld.prototype["_enqueueStorageWrite"],
+      _createStoragePersistableData:
+        MainSceneWorld.prototype["_createStoragePersistableData"],
       setData: MainSceneWorld.prototype.setData,
       _flushDeferredPersistenceIfNeeded:
         MainSceneWorld.prototype["_flushDeferredPersistenceIfNeeded"],
@@ -79,6 +82,7 @@ test("MainSceneWorld.setData는 FlappyBird active 동안 persistence를 defer하
       _enqueueStorageWrite: (
         work: () => Promise<void>,
       ) => Promise<void>;
+      _createStoragePersistableData: (data: unknown) => unknown;
       _flushDeferredPersistenceIfNeeded: () => Promise<void>;
     };
 
@@ -86,6 +90,14 @@ test("MainSceneWorld.setData는 FlappyBird active 동안 persistence를 defer하
       world_metadata: {
         monster_name: "Test",
         last_ecs_saved: Date.now(),
+        app_state: {
+          last_active_time: Date.now(),
+          is_first_load: false,
+          use_local_time: true,
+          monster_book: {
+            reached: {},
+          },
+        },
       },
       entities: [],
     };
@@ -98,8 +110,20 @@ test("MainSceneWorld.setData는 FlappyBird active 동안 persistence를 defer하
     world._shouldDeferPersistence = () => false;
     await world._flushDeferredPersistenceIfNeeded();
 
-    assert.equal(writes.length, 1);
+    assert.equal(writes.length, 2);
     assert.equal(world._hasDeferredPersistence, false);
+    assert.equal(writes[0]?.key, MONSTER_BOOK_STORAGE_KEY);
+    assert.equal(writes[1]?.key, "MainSceneWorldData");
+    assert.equal(
+      (
+        writes[1]?.data as {
+          world_metadata?: {
+            app_state?: { monster_book?: unknown };
+          };
+        }
+      ).world_metadata?.app_state?.monster_book,
+      undefined,
+    );
   } finally {
     (StorageManager as {
       setData: typeof StorageManager.setData;

@@ -21,6 +21,11 @@ import {
   normalizeMonsterBookState,
 } from "../MainScene/monsterBook";
 import {
+  loadMonsterBookState,
+  migrateLegacyMonsterBookIfNeeded,
+  saveMonsterBookState,
+} from "../MainScene/monsterBookStorage";
+import {
   type MainSceneWorldData,
   WORLD_DATA_STORAGE_KEY,
 } from "../MainScene/world";
@@ -173,25 +178,41 @@ export class MonsterBookScene extends PIXI.Container implements Scene {
     );
 
     if (!data) {
-      this.monsterBookState = normalizeMonsterBookState(null);
+      this.monsterBookState = await loadMonsterBookState(StorageManager);
       this.currentMonsterKeys = new Set();
       return;
     }
+
+    await migrateLegacyMonsterBookIfNeeded(StorageManager, data);
 
     const currentMonsters = getSavedCurrentMonsterBookCandidates(data);
     this.currentMonsterKeys = new Set(
       currentMonsters.map((currentMonster) => currentMonster.characterKey),
     );
 
+    const persistedMonsterBookState = await loadMonsterBookState(StorageManager);
+    const currentAppState = data.world_metadata.app_state;
     const { state, didBackfill } = backfillCurrentMonsterIfHidden(
-      data,
+      {
+        ...data,
+        world_metadata: {
+          ...data.world_metadata,
+          app_state: {
+            last_active_time: currentAppState?.last_active_time ?? Date.now(),
+            is_first_load: currentAppState?.is_first_load ?? false,
+            use_local_time: currentAppState?.use_local_time ?? true,
+            ...currentAppState,
+            monster_book: persistedMonsterBookState,
+          },
+        },
+      },
       currentMonsters,
       Date.now(),
     );
     this.monsterBookState = normalizeMonsterBookState(state);
 
     if (didBackfill) {
-      await StorageManager.setData(WORLD_DATA_STORAGE_KEY, data);
+      await saveMonsterBookState(StorageManager, this.monsterBookState);
     }
   }
 

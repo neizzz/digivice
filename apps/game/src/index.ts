@@ -6,6 +6,15 @@ export type {
 } from "./Game";
 export { SceneKey } from "./SceneKey";
 export { MissingInitialGameDataError } from "./scenes/MainScene/world";
+export {
+	MONSTER_BOOK_STORAGE_KEY,
+	getLegacyMonsterBookState,
+	hasLegacyMonsterBookState,
+	loadMonsterBookState,
+	migrateLegacyMonsterBookIfNeeded,
+	removeMonsterBookState,
+	saveMonsterBookState,
+} from "./scenes/MainScene/monsterBookStorage";
 // export * from "./managers/GameDataManager";
 
 export * from "./ui/types";

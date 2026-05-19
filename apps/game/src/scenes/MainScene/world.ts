@@ -191,6 +191,11 @@ import {
   ensureMonsterBookState,
   type MonsterBookState,
 } from "./monsterBook";
+import {
+  migrateLegacyMonsterBookIfNeeded,
+  removeMonsterBookState,
+  saveMonsterBookState,
+} from "./monsterBookStorage";
 import { CharacterKey } from "../../types/Character";
 import {
   MainSceneInitDiagnostics,
@@ -861,6 +866,38 @@ export class MainSceneWorld implements IWorld, Scene {
     return appState;
   }
 
+  private _applyPersistedMonsterBookState(state: MonsterBookState): void {
+    if (!this._persistentData) {
+      return;
+    }
+
+    const appState = this._ensureAppState();
+    if (!appState) {
+      return;
+    }
+
+    appState.monster_book = state;
+  }
+
+  private _createStoragePersistableData(
+    data: MainSceneWorldData,
+  ): MainSceneWorldData {
+    const appState = data.world_metadata.app_state;
+
+    return {
+      ...data,
+      world_metadata: {
+        ...data.world_metadata,
+        app_state: appState
+          ? {
+              ...appState,
+              monster_book: undefined,
+            }
+          : appState,
+      },
+    };
+  }
+
   private _getMainSceneAdState(): MainSceneAdState | null {
     const appState = this._ensureAppState();
     if (!appState) {
@@ -1494,6 +1531,15 @@ export class MainSceneWorld implements IWorld, Scene {
       const loadedData = await this._initDiagnostics.measurePhase("storage_load", async () => {
         return this.getData();
       });
+      const monsterBookStorageState = await this._initDiagnostics.measurePhase(
+        "monster_book_storage_load",
+        async () => {
+          return await migrateLegacyMonsterBookIfNeeded(
+            StorageManager,
+            loadedData,
+          );
+        },
+      );
 
       if (!this._hasPlayableSavedData(loadedData)) {
         const initialGameData = await this._initDiagnostics.measurePhase(
@@ -1539,6 +1585,7 @@ export class MainSceneWorld implements IWorld, Scene {
           });
         }
       }
+      this._applyPersistedMonsterBookState(monsterBookStorageState.state);
 
       // PIXI v8 Assets API로 게임 에셋 로드
       await this._initDiagnostics.measurePhase("load_common_game_assets", async () => {
@@ -2365,13 +2412,17 @@ export class MainSceneWorld implements IWorld, Scene {
 
     await this._enqueueStorageWrite(async () => {
       try {
+        const monsterBookState =
+          data.world_metadata.app_state?.monster_book ?? null;
+        const persistableData = this._createStoragePersistableData(data);
         console.debug("[MainSceneWorld] setData:start", {
           key: WORLD_DATA_STORAGE_KEY,
           monsterName: data.world_metadata?.monster_name,
           entityCount: data.entities?.length ?? 0,
           savedAt: data.world_metadata?.last_ecs_saved,
         });
-        await StorageManager.setData(WORLD_DATA_STORAGE_KEY, data);
+        await saveMonsterBookState(StorageManager, monsterBookState);
+        await StorageManager.setData(WORLD_DATA_STORAGE_KEY, persistableData);
         console.debug("[MainSceneWorld] setData:success", {
           key: WORLD_DATA_STORAGE_KEY,
           monsterName: data.world_metadata?.monster_name,
@@ -2408,6 +2459,7 @@ export class MainSceneWorld implements IWorld, Scene {
           key: WORLD_DATA_STORAGE_KEY,
         });
         await StorageManager.removeData(WORLD_DATA_STORAGE_KEY);
+        await removeMonsterBookState(StorageManager);
         console.warn("[MainSceneWorld] clearData:success", {
           key: WORLD_DATA_STORAGE_KEY,
         });

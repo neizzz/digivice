@@ -6,7 +6,10 @@ import {
   type MainSceneSfxKind,
   type MainSceneReentrySimulationStateChangeCallback,
   getNativeSunTimes,
+  hasLegacyMonsterBookState,
+  migrateLegacyMonsterBookIfNeeded,
   MissingInitialGameDataError,
+  removeMonsterBookState,
   SceneKey,
   TimeOfDay,
 } from "@digivice/game";
@@ -2344,6 +2347,7 @@ const GameContainer: React.FC = () => {
         } else {
           const storage = createClientStorage();
           await storage.removeData(WORLD_DATA_STORAGE_KEY);
+          await removeMonsterBookState(storage);
         }
 
         if (gameContainerRef.current) {
@@ -2410,6 +2414,9 @@ const GameContainer: React.FC = () => {
       const storage = createClientStorage();
       const storageKind = getClientStorageKind();
       const savedData = await storage.getData(WORLD_DATA_STORAGE_KEY);
+      const legacyMonsterBookDetected = hasLegacyMonsterBookState(savedData);
+      const monsterBookMigrationResult =
+        await migrateLegacyMonsterBookIfNeeded(storage, savedData);
       const savedDataSummary = summarizeSavedData(savedData);
 
       logImportantDiagnostics(
@@ -2428,6 +2435,18 @@ const GameContainer: React.FC = () => {
       const result = sanitizeStoredWorldData(savedData);
       lastValidationResultRef.current = result;
 
+      if (monsterBookMigrationResult.didMigrate) {
+        logImportantDiagnostics(
+          "warn",
+          "[ImportantDiagnostics][MonsterBookMigration] Legacy monster book data was migrated to dedicated storage.",
+          {
+            key: WORLD_DATA_STORAGE_KEY,
+            monsterBookStorageKey: "MonsterBookData",
+            savedDataSummary,
+          },
+        );
+      }
+
       if (result.changed || result.action !== "playable") {
         logImportantDiagnostics(
           result.action === "reset_required" ? "error" : "warn",
@@ -2445,7 +2464,7 @@ const GameContainer: React.FC = () => {
       }
 
       if (
-        result.changed &&
+        (result.changed || legacyMonsterBookDetected) &&
         result.sanitizedData &&
         result.action !== "reset_required"
       ) {
