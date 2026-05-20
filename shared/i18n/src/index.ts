@@ -74,6 +74,21 @@ const en = {
   "settings.send": "Send",
   "settings.sending": "Sending...",
   "settings.language": "Language",
+  "settings.homeWidget": "Home Widget",
+  "settings.homeWidgetDescription":
+    "Add MonTTo to your Android home screen.",
+  "settings.homeWidgetAdd": "Add",
+  "settings.homeWidgetAdding": "Adding...",
+  "settings.homeWidgetUnavailable":
+    "Home Widget is only available in the Android app.",
+  "settings.homeWidgetRequested":
+    "Launcher widget add popup opened. Please confirm on your home screen.",
+  "settings.homeWidgetUnsupportedApi":
+    "This Android version does not support adding pinned widgets.",
+  "settings.homeWidgetUnsupportedLauncher":
+    "Your current launcher does not support adding pinned widgets.",
+  "settings.homeWidgetRequestFailed":
+    "Failed to open the widget add popup.",
   "settings.raiseNewMonster": "Raise a New Monster",
   "settings.resetConfirmCodeLabel": "Reset code",
   "settings.resetTitle": "❗️Reset?",
@@ -175,6 +190,21 @@ const ko: TranslationDictionary = {
   "settings.send": "보내기",
   "settings.sending": "보내는 중...",
   "settings.language": "언어",
+  "settings.homeWidget": "홈 위젯",
+  "settings.homeWidgetDescription":
+    "Android 홈 화면에 MonTTo 위젯을 추가합니다.",
+  "settings.homeWidgetAdd": "추가",
+  "settings.homeWidgetAdding": "추가 중...",
+  "settings.homeWidgetUnavailable":
+    "홈 위젯은 Android 앱에서만 사용할 수 있습니다.",
+  "settings.homeWidgetRequested":
+    "런처의 위젯 추가 팝업이 열렸습니다. 홈 화면에서 확인해 주세요.",
+  "settings.homeWidgetUnsupportedApi":
+    "현재 Android 버전에서는 고정 위젯 추가를 지원하지 않습니다.",
+  "settings.homeWidgetUnsupportedLauncher":
+    "현재 런처에서는 고정 위젯 추가를 지원하지 않습니다.",
+  "settings.homeWidgetRequestFailed":
+    "위젯 추가 팝업을 열지 못했습니다.",
   "settings.raiseNewMonster": "새 몬스터 키우기",
   "settings.resetConfirmCodeLabel": "초기화 코드",
   "settings.resetTitle": "❗️초기화?",
@@ -255,6 +285,21 @@ const ja: TranslationDictionary = {
   "settings.send": "送信",
   "settings.sending": "送信中...",
   "settings.language": "言語",
+  "settings.homeWidget": "ホームウィジェット",
+  "settings.homeWidgetDescription":
+    "Android のホーム画面に MonTTo ウィジェットを追加します。",
+  "settings.homeWidgetAdd": "追加",
+  "settings.homeWidgetAdding": "追加中...",
+  "settings.homeWidgetUnavailable":
+    "ホームウィジェットは Android アプリでのみ利用できます。",
+  "settings.homeWidgetRequested":
+    "ランチャーのウィジェット追加ポップアップが開きました。ホーム画面で確認してください。",
+  "settings.homeWidgetUnsupportedApi":
+    "この Android バージョンでは固定ウィジェットの追加に対応していません。",
+  "settings.homeWidgetUnsupportedLauncher":
+    "現在のランチャーは固定ウィジェットの追加に対応していません。",
+  "settings.homeWidgetRequestFailed":
+    "ウィジェット追加ポップアップを開けませんでした。",
   "settings.raiseNewMonster": "新しいモンスターを育てる",
   "settings.resetConfirmCodeLabel": "リセットコード",
   "settings.resetTitle": "❗️リセット?",
@@ -335,6 +380,19 @@ const zhTW: TranslationDictionary = {
   "settings.send": "傳送",
   "settings.sending": "傳送中...",
   "settings.language": "語言",
+  "settings.homeWidget": "主畫面小工具",
+  "settings.homeWidgetDescription": "將 MonTTo 小工具加入 Android 主畫面。",
+  "settings.homeWidgetAdd": "加入",
+  "settings.homeWidgetAdding": "加入中...",
+  "settings.homeWidgetUnavailable":
+    "主畫面小工具僅可在 Android App 中使用。",
+  "settings.homeWidgetRequested":
+    "已開啟啟動器的小工具加入視窗。請在主畫面確認。",
+  "settings.homeWidgetUnsupportedApi":
+    "目前的 Android 版本不支援釘選小工具。",
+  "settings.homeWidgetUnsupportedLauncher":
+    "目前的啟動器不支援釘選小工具。",
+  "settings.homeWidgetRequestFailed": "無法開啟小工具加入視窗。",
   "settings.raiseNewMonster": "培育新怪獸",
   "settings.resetConfirmCodeLabel": "重設代碼",
   "settings.resetTitle": "❗️要重設嗎？",
@@ -430,6 +488,21 @@ const hi: TranslationDictionary = {
   "settings.send": "भेजें",
   "settings.sending": "भेज रहा है...",
   "settings.language": "भाषा",
+  "settings.homeWidget": "होम विजेट",
+  "settings.homeWidgetDescription":
+    "MonTTo विजेट को अपने Android होम स्क्रीन पर जोड़ें।",
+  "settings.homeWidgetAdd": "जोड़ें",
+  "settings.homeWidgetAdding": "जोड़ा जा रहा है...",
+  "settings.homeWidgetUnavailable":
+    "होम विजेट केवल Android ऐप में उपलब्ध है।",
+  "settings.homeWidgetRequested":
+    "लॉन्चर विजेट जोड़ने का पॉपअप खुल गया है। कृपया होम स्क्रीन पर पुष्टि करें।",
+  "settings.homeWidgetUnsupportedApi":
+    "यह Android संस्करण pinned widget जोड़ने को सपोर्ट नहीं करता।",
+  "settings.homeWidgetUnsupportedLauncher":
+    "आपका वर्तमान launcher pinned widget जोड़ने को सपोर्ट नहीं करता।",
+  "settings.homeWidgetRequestFailed":
+    "विजेट जोड़ने का पॉपअप नहीं खुल सका।",
   "settings.raiseNewMonster": "नया मॉन्स्टर पालें",
   "settings.resetConfirmCodeLabel": "रीसेट कोड",
   "settings.resetTitle": "❗️रीसेट?",
@@ -510,6 +583,21 @@ const th: TranslationDictionary = {
   "settings.send": "ส่ง",
   "settings.sending": "กำลังส่ง...",
   "settings.language": "ภาษา",
+  "settings.homeWidget": "โฮมวิดเจ็ต",
+  "settings.homeWidgetDescription":
+    "เพิ่มวิดเจ็ต MonTTo ไปยังหน้าจอหลัก Android ของคุณ",
+  "settings.homeWidgetAdd": "เพิ่ม",
+  "settings.homeWidgetAdding": "กำลังเพิ่ม...",
+  "settings.homeWidgetUnavailable":
+    "โฮมวิดเจ็ตใช้ได้เฉพาะในแอป Android เท่านั้น",
+  "settings.homeWidgetRequested":
+    "เปิดหน้าต่างเพิ่มวิดเจ็ตของ launcher แล้ว โปรดยืนยันบนหน้าจอหลัก",
+  "settings.homeWidgetUnsupportedApi":
+    "Android เวอร์ชันนี้ไม่รองรับการเพิ่ม pinned widget",
+  "settings.homeWidgetUnsupportedLauncher":
+    "launcher ปัจจุบันไม่รองรับการเพิ่ม pinned widget",
+  "settings.homeWidgetRequestFailed":
+    "ไม่สามารถเปิดหน้าต่างเพิ่มวิดเจ็ตได้",
   "settings.raiseNewMonster": "เลี้ยงมอนสเตอร์ใหม่",
   "settings.resetConfirmCodeLabel": "รหัสรีเซ็ต",
   "settings.resetTitle": "❗️รีเซ็ต?",
@@ -590,6 +678,21 @@ const vi: TranslationDictionary = {
   "settings.send": "Gửi",
   "settings.sending": "Đang gửi...",
   "settings.language": "Ngôn ngữ",
+  "settings.homeWidget": "Tiện ích màn hình chính",
+  "settings.homeWidgetDescription":
+    "Thêm tiện ích MonTTo vào màn hình chính Android của bạn.",
+  "settings.homeWidgetAdd": "Thêm",
+  "settings.homeWidgetAdding": "Đang thêm...",
+  "settings.homeWidgetUnavailable":
+    "Tiện ích màn hình chính chỉ khả dụng trong ứng dụng Android.",
+  "settings.homeWidgetRequested":
+    "Đã mở cửa sổ thêm tiện ích của launcher. Vui lòng xác nhận trên màn hình chính.",
+  "settings.homeWidgetUnsupportedApi":
+    "Phiên bản Android này không hỗ trợ thêm pinned widget.",
+  "settings.homeWidgetUnsupportedLauncher":
+    "Launcher hiện tại không hỗ trợ thêm pinned widget.",
+  "settings.homeWidgetRequestFailed":
+    "Không thể mở cửa sổ thêm tiện ích.",
   "settings.raiseNewMonster": "Nuôi quái vật mới",
   "settings.resetConfirmCodeLabel": "Mã đặt lại",
   "settings.resetTitle": "❗️Đặt lại?",
@@ -670,6 +773,21 @@ const ptBR: TranslationDictionary = {
   "settings.send": "Enviar",
   "settings.sending": "Enviando...",
   "settings.language": "Idioma",
+  "settings.homeWidget": "Widget da tela inicial",
+  "settings.homeWidgetDescription":
+    "Adicione o widget do MonTTo à tela inicial do Android.",
+  "settings.homeWidgetAdd": "Adicionar",
+  "settings.homeWidgetAdding": "Adicionando...",
+  "settings.homeWidgetUnavailable":
+    "O widget da tela inicial está disponível apenas no app Android.",
+  "settings.homeWidgetRequested":
+    "A janela do launcher para adicionar o widget foi aberta. Confirme na tela inicial.",
+  "settings.homeWidgetUnsupportedApi":
+    "Esta versão do Android não oferece suporte para adicionar widgets fixados.",
+  "settings.homeWidgetUnsupportedLauncher":
+    "O launcher atual não oferece suporte para adicionar widgets fixados.",
+  "settings.homeWidgetRequestFailed":
+    "Não foi possível abrir a janela para adicionar o widget.",
   "settings.raiseNewMonster": "Criar novo monstro",
   "settings.resetConfirmCodeLabel": "Código de redefinição",
   "settings.resetTitle": "❗️Redefinir?",
@@ -734,6 +852,8 @@ export const TRANSLATIONS: Record<LocaleCode, TranslationDictionary> = {
   vi,
   "pt-BR": ptBR,
 };
+
+const missingTranslationWarnings = new Set<string>();
 
 export function isLocaleCode(value: unknown): value is LocaleCode {
   return (
@@ -836,7 +956,22 @@ export function translate(
   key: TranslationKey,
   params: TranslationParams = {},
 ): string {
-  const template = TRANSLATIONS[locale][key] ?? TRANSLATIONS[DEFAULT_LOCALE][key];
+  const template =
+    (TRANSLATIONS[locale] as Record<string, string | undefined>)[key] ??
+    (TRANSLATIONS[DEFAULT_LOCALE] as Record<string, string | undefined>)[key];
+
+  if (typeof template !== "string") {
+    const warningKey = `${locale}:${key}`;
+
+    if (!missingTranslationWarnings.has(warningKey)) {
+      missingTranslationWarnings.add(warningKey);
+      console.warn(
+        `[i18n] missing translation for key "${key}" in locale "${locale}" and fallback "${DEFAULT_LOCALE}"`,
+      );
+    }
+
+    return key;
+  }
 
   return template.replace(/\{(\w+)\}/g, (match, paramKey: string) => {
     const value = params[paramKey];

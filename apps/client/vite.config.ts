@@ -121,7 +121,9 @@ export default defineConfig(({ mode }) => {
       alias: {
         "@digivice/game": resolve(__dirname, "../game/src"),
         "@shared/storage": resolve(__dirname, "../../shared/storage/src"),
-        "@shared/i18n": resolve(__dirname, "../../shared/i18n/src"),
+        // Workspace source aliases must point at concrete entry files so Vite
+        // never prefers stale sibling JS outputs over the current TS source.
+        "@shared/i18n": resolve(__dirname, "../../shared/i18n/src/index.ts"),
       },
     },
     // 정적 파일 디렉토리 명시적 설정
