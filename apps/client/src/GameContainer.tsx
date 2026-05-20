@@ -1136,9 +1136,48 @@ const GameContainer: React.FC = () => {
         sceneTransitionRequestIdRef.current = 0;
         setSceneTransitionLoadState({ requestId: 0, phase: "idle" });
         setLoadingFailureAlert(null);
+        setButtonParams(null);
+        isInitializedRef.current = false;
+
+        if (gameInstance) {
+          try {
+            gameInstance.destroy();
+          } catch (error) {
+            console.warn(
+              "[GameContainer] Failed to destroy the active game while interrupting bootstrap loading.",
+              {
+                reason,
+                error,
+              },
+            );
+          }
+        }
+
+        if (gameContainerRef.current) {
+          gameContainerRef.current.innerHTML = "";
+        }
+
         setGameInstance(null);
         setIsBootstrapping(false);
-        presentSetupLayer("bootstrap_loading_interrupted", { reason });
+
+        if (reason === "back_navigation") {
+          logImportantDiagnostics(
+            "warn",
+            "[ImportantDiagnostics][LoadingInterruption] Bootstrap interruption from back navigation will fall through to native exit handling.",
+            {
+              reason,
+              loadingKind: "bootstrap_to_main_back_navigation_exit",
+              requestId: sceneTransitionLoadState.requestId,
+              sceneHistoryTop:
+                sceneHistoryStack[sceneHistoryStack.length - 1] ?? null,
+            },
+          );
+          return false;
+        }
+
+        presentSetupLayer("bootstrap_loading_interrupted", {
+          triggerReason: reason,
+        });
         return true;
       }
 
@@ -1149,6 +1188,7 @@ const GameContainer: React.FC = () => {
       clearLoadingTimeout,
       gameInstance,
       isBootstrapping,
+      sceneHistoryStack,
       presentSetupLayer,
       sceneTransitionLoadState,
       showSetupLayer,
