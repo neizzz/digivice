@@ -7,6 +7,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
 import android.util.Log
+import android.view.WindowManager
 import android.view.KeyEvent
 import android.window.OnBackInvokedCallback
 import android.window.OnBackInvokedDispatcher
@@ -35,6 +36,7 @@ class MainActivity : FlutterActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        updateKeepScreenOn()
         applyPreferredDisplayRefreshRate()
         installOnBackPressedDispatcherDiagnostics()
         installNativeBackDiagnostics()
@@ -42,10 +44,12 @@ class MainActivity : FlutterActivity() {
 
     override fun onResume() {
         super.onResume()
+        updateKeepScreenOn()
         applyPreferredDisplayRefreshRate()
     }
 
     override fun onDestroy() {
+        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         uninstallOnBackPressedDispatcherDiagnostics()
         uninstallNativeBackDiagnostics()
         super.onDestroy()
@@ -83,6 +87,10 @@ class MainActivity : FlutterActivity() {
         }
 
         return super.onKeyUp(keyCode, event)
+    }
+
+    private fun updateKeepScreenOn() {
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {

@@ -359,8 +359,7 @@ type MainSceneAppState = NonNullable<WorldMetadata["app_state"]>;
 
 export const WORLD_DATA_STORAGE_KEY = "MainSceneWorldData";
 const DEFAULT_USE_LOCAL_TIME = true;
-const MAIN_SCENE_AD_NORMAL_THRESHOLD = 5;
-const MAIN_SCENE_AD_DEEP_NIGHT_THRESHOLD = 10;
+const MAIN_SCENE_AD_THRESHOLD = 8;
 const MAIN_SCENE_AD_NORMAL_COOLDOWN_MS = 2 * 60 * 1000;
 const MAIN_SCENE_AD_DEEP_NIGHT_COOLDOWN_MS = 60 * 60 * 1000;
 const MAIN_SCENE_AD_POST_ACTION_DELAY_MS = 500;
@@ -1058,12 +1057,12 @@ export class MainSceneWorld implements IWorld, Scene {
 
     return deepNight
       ? {
-          threshold: MAIN_SCENE_AD_DEEP_NIGHT_THRESHOLD,
+          threshold: MAIN_SCENE_AD_THRESHOLD,
           cooldownMs: MAIN_SCENE_AD_DEEP_NIGHT_COOLDOWN_MS,
           deepNight,
         }
       : {
-          threshold: MAIN_SCENE_AD_NORMAL_THRESHOLD,
+          threshold: MAIN_SCENE_AD_THRESHOLD,
           cooldownMs: MAIN_SCENE_AD_NORMAL_COOLDOWN_MS,
           deepNight,
         };

@@ -28,9 +28,7 @@ const BIG_JUMP_VOLUME =
 
 type AudioContextConstructor = typeof AudioContext;
 
-const activeHtmlAudioElements = new Set<HTMLAudioElement>();
 const activeBufferSources = new Set<AudioBufferSourceNode>();
-const preloadedHtmlAudioElements = new Map<string, HTMLAudioElement>();
 const preloadedAudioBuffers = new Map<string, AudioBuffer>();
 let uiSfxAudioContext: AudioContext | null = null;
 let uiSfxMasterGainNode: GainNode | null = null;
@@ -78,45 +76,6 @@ function getUiSfxAudioContext(): AudioContext | null {
   }
 }
 
-function createAudioElement(src: string): HTMLAudioElement | null {
-  if (typeof Audio === "undefined") {
-    return null;
-  }
-
-  try {
-    return new Audio(src);
-  } catch {
-    return null;
-  }
-}
-
-function preloadHtmlAudioElements(): void {
-  if (typeof Audio === "undefined") {
-    return;
-  }
-
-  for (const src of UI_SOUND_SOURCES) {
-    if (preloadedHtmlAudioElements.has(src)) {
-      continue;
-    }
-
-    const audio = createAudioElement(src);
-
-    if (!audio) {
-      continue;
-    }
-
-    audio.preload = "auto";
-    preloadedHtmlAudioElements.set(src, audio);
-
-    try {
-      audio.load();
-    } catch {
-      preloadedHtmlAudioElements.delete(src);
-    }
-  }
-}
-
 async function decodeAudioBuffer(
   audioContext: AudioContext,
   src: string,
@@ -137,8 +96,6 @@ async function decodeAudioBuffer(
 }
 
 async function ensureUiSfxPreloaded(): Promise<void> {
-  preloadHtmlAudioElements();
-
   if (preloadUiSfxPromise) {
     await preloadUiSfxPromise;
     return;
@@ -171,18 +128,6 @@ async function ensureUiSfxPreloaded(): Promise<void> {
 
 export function preloadUiSfx(): void {
   void ensureUiSfxPreloaded();
-}
-
-function createPlayableHtmlAudioElement(src: string): HTMLAudioElement | null {
-  const preloadedAudio = preloadedHtmlAudioElements.get(src);
-
-  if (preloadedAudio) {
-    const audio = preloadedAudio.cloneNode(true) as HTMLAudioElement;
-    audio.preload = "auto";
-    return audio;
-  }
-
-  return createAudioElement(src);
 }
 
 function warmUpUiSfxAudioContext(audioContext: AudioContext): void {
@@ -274,27 +219,6 @@ function playAudioBuffer(buffer: AudioBuffer, volume = 1): boolean {
   }
 }
 
-function playHtmlAudio(src: string, volume = 1): void {
-  const audio = createPlayableHtmlAudioElement(src);
-
-  if (!audio) {
-    return;
-  }
-
-  audio.volume = volume;
-
-  activeHtmlAudioElements.add(audio);
-
-  const cleanup = () => {
-    activeHtmlAudioElements.delete(audio);
-  };
-
-  audio.addEventListener("ended", cleanup, { once: true });
-  audio.addEventListener("error", cleanup, { once: true });
-
-  void audio.play().catch(cleanup);
-}
-
 function playUiSound(src: string, volume = 1): void {
   if (!isSfxEnabled()) {
     return;
@@ -307,7 +231,6 @@ function playUiSound(src: string, volume = 1): void {
   }
 
   void ensureUiSfxPreloaded();
-  playHtmlAudio(src, volume);
 }
 
 export function playControlButtonDownSound(): void {
