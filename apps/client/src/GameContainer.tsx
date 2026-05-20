@@ -58,6 +58,7 @@ import {
   playFoodThrowSound,
   playSyringeInsertSound,
   preloadUiSfx,
+  resumeUiSfxFromGesture,
 } from "./utils/uiSfx";
 
 const WORLD_DATA_STORAGE_KEY = "MainSceneWorldData";
@@ -1399,6 +1400,54 @@ const GameContainer: React.FC = () => {
 
   useEffect(() => {
     preloadUiSfx();
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    let hasResumedUiSfx = false;
+
+    const cleanupListeners = () => {
+      window.removeEventListener("pointerdown", handlePointerDown, true);
+      window.removeEventListener("touchstart", handleTouchStart, true);
+      window.removeEventListener("keydown", handleKeyDown, true);
+    };
+
+    const handleFirstGesture = () => {
+      if (hasResumedUiSfx) {
+        return;
+      }
+
+      hasResumedUiSfx = true;
+      resumeUiSfxFromGesture();
+      cleanupListeners();
+    };
+
+    const handlePointerDown = () => {
+      handleFirstGesture();
+    };
+
+    const handleTouchStart = () => {
+      handleFirstGesture();
+    };
+
+    const handleKeyDown = () => {
+      handleFirstGesture();
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown, {
+      capture: true,
+      passive: true,
+    });
+    window.addEventListener("touchstart", handleTouchStart, {
+      capture: true,
+      passive: true,
+    });
+    window.addEventListener("keydown", handleKeyDown, true);
+
+    return cleanupListeners;
   }, []);
 
   useEffect(() => {
