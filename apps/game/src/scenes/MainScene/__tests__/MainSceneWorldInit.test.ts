@@ -21,6 +21,7 @@ import {
   RenderComp,
   SleepSystemComp,
   SpeedComp,
+  ThrowAnimationComp,
   VitalityComp,
 } from "../raw-components";
 import {
@@ -630,6 +631,88 @@ test("미니게임 복귀 reentry는 수면 중단 후 깨어있는 상태로 �
     SleepSystemComp.fatigue[eid] > fatigueAfterInterrupt,
     `expected awake fatigue gain, before=${fatigueAfterInterrupt}, after=${SleepSystemComp.fatigue[eid]}`,
   );
+});
+
+test("reentry는 투척 중이던 음식이 완료되면 landed 시각 상태로 정규화한다", async () => {
+  const lastActiveTime = 3_000_000;
+  const elapsedMs = 1_500;
+  const currentTime = lastActiveTime + elapsedMs;
+  const currentSnapshot = {
+    trustedUtcMs: currentTime,
+    osUptimeMs: 30_000,
+    source: "ntp" as const,
+    uncertaintyMs: 10,
+    capturedWallMs: currentTime,
+  };
+  const lastActiveAnchor = {
+    trustedUtcMs: lastActiveTime,
+    osUptimeMs: 20_000,
+    source: "ntp" as const,
+    uncertaintyMs: 10,
+    capturedWallMs: lastActiveTime,
+  };
+  const trustedClock = {
+    refresh: async () => currentSnapshot,
+    now: () => currentTime,
+    elapsedSince: () => ({
+      elapsedMs,
+      trusted: true,
+      currentSnapshot,
+    }),
+    captureAnchor: () => currentSnapshot,
+  };
+  const world = createMainSceneWorld({ trustedClock });
+
+  createWorld(world as any, 16);
+  const foodEid = addEntity(world as any);
+  addComponent(world as any, ObjectComp, foodEid);
+  addComponent(world as any, PositionComp, foodEid);
+  addComponent(world as any, RenderComp, foodEid);
+  addComponent(world as any, FreshnessComp, foodEid);
+  addComponent(world as any, ThrowAnimationComp, foodEid);
+
+  ObjectComp.id[foodEid] = 30_000 + foodEid;
+  ObjectComp.type[foodEid] = ObjectType.FOOD;
+  ObjectComp.state[foodEid] = FoodState.BEING_THROWING;
+  PositionComp.x[foodEid] = -120;
+  PositionComp.y[foodEid] = 420;
+  RenderComp.storeIndex[foodEid] = ECS_NULL_VALUE;
+  RenderComp.textureKey[foodEid] = TextureKey.FOOD1;
+  RenderComp.scale[foodEid] = 5;
+  RenderComp.zIndex[foodEid] = 999_999;
+  FreshnessComp.freshness[foodEid] = Freshness.NORMAL;
+  ThrowAnimationComp.initialX[foodEid] = -120;
+  ThrowAnimationComp.initialY[foodEid] = 420;
+  ThrowAnimationComp.finalX[foodEid] = 180;
+  ThrowAnimationComp.finalY[foodEid] = 140;
+  ThrowAnimationComp.elapsedTime[foodEid] = 0;
+  ThrowAnimationComp.isActive[foodEid] = 1;
+
+  world._persistentData = {
+    world_metadata: {
+      name: "MainScene",
+      monster_name: "Test",
+      last_ecs_saved: lastActiveTime,
+      version: "1.0.0",
+      app_state: {
+        last_active_time: lastActiveTime,
+        last_active_time_anchor: lastActiveAnchor,
+        is_first_load: false,
+        use_local_time: true,
+      },
+    },
+    entities: [],
+  };
+  world._saveCurrentState = async () => {};
+
+  await world._processReentrySimulation();
+
+  assert.equal(hasComponent(world as any, ThrowAnimationComp, foodEid), false);
+  assert.equal(ObjectComp.state[foodEid], FoodState.LANDED);
+  assert.equal(PositionComp.x[foodEid], 180);
+  assert.equal(PositionComp.y[foodEid], 140);
+  assert.ok(Math.abs(RenderComp.scale[foodEid] - 1.4) < 1e-6);
+  assert.equal(RenderComp.zIndex[foodEid], 0);
 });
 
 test("미니게임 복귀 reentry는 음식 상호작용 suspend 플래그가 있으면 foodEatingSystem만 건너뛰고 이후 플래그를 지운다", async () => {

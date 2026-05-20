@@ -15,6 +15,29 @@ const INITIAL_SCALE = 5.0; // 큰 크기로 시작 (앞쪽)
 const FINAL_SCALE = 1.4; // 작은 크기로 끝 (뒤쪽)
 const MAX_HEIGHT = 150; // 포물선 최대 높이
 
+function finalizeThrowAnimation(world: MainSceneWorld, eid: number): void {
+  const finalX = ThrowAnimationComp.finalX[eid];
+  const finalY = ThrowAnimationComp.finalY[eid];
+
+  ThrowAnimationComp.isActive[eid] = 0;
+  PositionComp.x[eid] = finalX;
+  PositionComp.y[eid] = finalY;
+  RenderComp.scale[eid] = FINAL_SCALE;
+  RenderComp.zIndex[eid] = 0;
+
+  if (ObjectComp.type[eid] === ObjectType.FOOD) {
+    ObjectComp.state[eid] = FoodState.LANDED;
+  }
+
+  removeComponent(world, ThrowAnimationComp, eid);
+  world.triggerFoodLandingVibration();
+  world.handleThrownFoodLanded(eid);
+
+  console.log(
+    `[ThrowAnimationSystem] Food ${eid} completed throw animation and landed at (${finalX}, ${finalY})`,
+  );
+}
+
 // 던지기 애니메이션이 활성화된 음식들을 쿼리
 const throwAnimationQuery = defineQuery([
   ThrowAnimationComp,
@@ -95,32 +118,7 @@ export function throwAnimationSystem(params: {
 
     // 애니메이션 완료 처리
     if (progress >= 1) {
-      // 애니메이션 비활성화
-      ThrowAnimationComp.isActive[eid] = 0;
-
-      // 최종 위치 설정
-      PositionComp.x[eid] = finalX;
-      PositionComp.y[eid] = finalY;
-
-      if (!isSimulationMode) {
-        // 실시간 모드에서만 시각적 정리
-        RenderComp.scale[eid] = FINAL_SCALE;
-        RenderComp.zIndex[eid] = 0;
-      }
-
-      // 음식 상태를 LANDED로 변경
-      if (ObjectComp.type[eid] === ObjectType.FOOD) {
-        ObjectComp.state[eid] = FoodState.LANDED;
-      }
-
-      // ThrowAnimationComp 제거
-      removeComponent(world, ThrowAnimationComp, eid);
-      world.triggerFoodLandingVibration();
-      world.handleThrownFoodLanded(eid);
-
-      console.log(
-        `[ThrowAnimationSystem] Food ${eid} completed throw animation and landed at (${finalX}, ${finalY})`,
-      );
+      finalizeThrowAnimation(world, eid);
     }
   }
 
