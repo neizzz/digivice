@@ -135,6 +135,7 @@ export async function migrateLegacyMonsterBookIfNeeded(
   return {
     hasStoredState: true,
     state: normalizedState,
+    didRepair: false,
     didMigrate: true,
   };
 }
