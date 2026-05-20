@@ -797,8 +797,8 @@ function startEating(
     return;
   }
 
-  debugLog(
-    `[FoodEatingSystem] Character ${characterEid} started eating food ${foodEid}`,
+  console.log(
+    `[FoodEatingSystem] Character ${characterEid} started eating food ${foodEid} (duration=${FOOD_EATING_DURATION}ms, worldTime=${Math.round(world.currentTime)})`,
   );
 
   if (!hasComponent(world, AngleComp, characterEid)) {

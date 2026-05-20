@@ -147,12 +147,36 @@ const MASK_FRAME_NAMES = [
 	"vite-mask_4",
 ];
 
+type FoodMaskInitSummary = {
+	eid: number;
+	progress: number;
+	width: number;
+	height: number;
+	currentTime: number | null;
+};
+
 function getSprite(eid: number): PIXI.Sprite | undefined {
 	return spriteStore.get(eid);
 }
 
 function getMaskSprite(eid: number): PIXI.Sprite | undefined {
 	return maskSpriteStore.get(eid);
+}
+
+function logFoodMaskInitializationSummary(summary: FoodMaskInitSummary): void {
+	const { eid, progress, width, height, currentTime } = summary;
+	const roundedWidth = Number.isFinite(width) ? Math.round(width * 10) / 10 : 0;
+	const roundedHeight = Number.isFinite(height)
+		? Math.round(height * 10) / 10
+		: 0;
+	const timestamp =
+		typeof currentTime === "number" && Number.isFinite(currentTime)
+			? `, worldTime=${Math.round(currentTime)}`
+			: "";
+
+	console.log(
+		`[RenderSystem] Initialized food mask for entity ${eid} (progress=${progress.toFixed(2)}, size=${roundedWidth}x${roundedHeight}${timestamp})`,
+	);
 }
 
 function getTextureFromKey(textureKey: number): PIXI.Texture | undefined {
@@ -233,20 +257,12 @@ const foodMaskQuery = defineQuery([RenderComp, FoodMaskComp]);
  * 음식 마스크 스프라이트 생성
  */
 function createMaskSpriteForFood(eid: number): PIXI.Sprite | undefined {
-	console.log(`[RenderSystem] Creating mask sprite for entity ${eid}`);
-
 	// vite-food-mask 스프라이트시트에서 첫 번째 프레임 가져오기
 	const spritesheet = PIXI.Assets.get<PIXI.Spritesheet>("vite-food-mask");
 	if (!spritesheet) {
 		console.warn("[RenderSystem] vite-food-mask spritesheet not found");
 		return undefined;
 	}
-
-	console.log(`[RenderSystem] Found vite-food-mask spritesheet:`, spritesheet);
-	console.log(
-		`[RenderSystem] Available textures:`,
-		Object.keys(spritesheet.textures),
-	);
 
 	const texture = getTextureFromSpritesheet(spritesheet, MASK_FRAME_NAMES[0]);
 	if (!texture) {
@@ -255,8 +271,6 @@ function createMaskSpriteForFood(eid: number): PIXI.Sprite | undefined {
 		);
 		return undefined;
 	}
-
-	console.log(`[RenderSystem] Created mask texture: ${MASK_FRAME_NAMES[0]}`);
 
 	const maskSprite = new PIXI.Sprite(texture);
 	maskSprite.anchor.set(0.5);
@@ -267,9 +281,6 @@ function createMaskSpriteForFood(eid: number): PIXI.Sprite | undefined {
 	if (foodSprite) {
 		maskSprite.width = foodSprite.width;
 		maskSprite.height = foodSprite.height;
-		console.log(
-			`[RenderSystem] Set mask size to match food sprite: ${maskSprite.width}x${maskSprite.height}`,
-		);
 	}
 
 	return maskSprite;
@@ -446,8 +457,6 @@ function processFoodMasks(world: MainSceneWorld, stage: PIXI.Container): void {
 
 		// 마스크 스프라이트가 초기화되지 않았거나 없다면 생성
 		if (!isInitialized || !maskSprite) {
-			console.log(`[RenderSystem] Creating new mask sprite for entity ${eid}`);
-
 			maskSprite = createMaskSpriteForFood(eid);
 			if (!maskSprite) {
 				console.warn(
@@ -465,10 +474,14 @@ function processFoodMasks(world: MainSceneWorld, stage: PIXI.Container): void {
 			maskSpriteStore.set(eid, maskSprite); // eid를 직접 인덱스로 사용
 			FoodMaskComp.maskStoreIndex[eid] = eid; // maskStoreIndex는 eid와 동일
 			FoodMaskComp.isInitialized[eid] = 1;
-
-			console.log(`[RenderSystem] Created food mask for entity ${eid}`);
-			console.log(`[RenderSystem] Food sprite mask set:`, foodSprite.mask);
-			console.log(`[RenderSystem] Mask sprite parent:`, maskSprite.parent);
+			logFoodMaskInitializationSummary({
+				eid,
+				progress,
+				width: maskSprite.width,
+				height: maskSprite.height,
+				currentTime:
+					typeof world.currentTime === "number" ? world.currentTime : null,
+			});
 		}
 
 		// 마스크 위치 업데이트 (음식 스프라이트의 위치와 동기화)
@@ -596,6 +609,19 @@ export function getTextureInfo(
 	textureKey: number,
 ): { spritesheetAlias?: string; textureName: string } | null {
 	return TEXTURE_MAP[textureKey] || null;
+}
+
+export function cleanupRenderSystemState(): void {
+	spriteStore.forEach((sprite) => {
+		sprite.removeFromParent();
+		sprite.destroy();
+	});
+	maskSpriteStore.forEach((maskSprite) => {
+		maskSprite.removeFromParent();
+		maskSprite.destroy();
+	});
+	spriteStore.clear();
+	maskSpriteStore.clear();
 }
 
 /**
