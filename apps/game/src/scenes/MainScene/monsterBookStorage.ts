@@ -2,6 +2,7 @@ import type { Storage } from "@shared/storage";
 import {
   createEmptyMonsterBookState,
   normalizeMonsterBookState,
+  normalizeMonsterBookStateWithMeta,
   type MonsterBookState,
 } from "./monsterBook";
 
@@ -10,6 +11,7 @@ export const MONSTER_BOOK_STORAGE_KEY = "MonsterBookData";
 type MonsterBookStorageReadResult = {
   hasStoredState: boolean;
   state: MonsterBookState;
+  didRepair: boolean;
 };
 
 function getLegacyMonsterBookRaw(savedWorldData: unknown): {
@@ -62,20 +64,31 @@ export function getLegacyMonsterBookState(
 }
 
 export async function readMonsterBookState(
-  storage: Pick<Storage, "getData">,
+  storage: Pick<Storage, "getData"> & Partial<Pick<Storage, "setData">>,
 ): Promise<MonsterBookStorageReadResult> {
   const rawState = await storage.getData(MONSTER_BOOK_STORAGE_KEY);
+  const hasStoredState = rawState !== null && typeof rawState !== "undefined";
+  const normalizedResult = normalizeMonsterBookStateWithMeta(
+    rawState as MonsterBookState | null | undefined,
+  );
+
+  if (
+    hasStoredState &&
+    normalizedResult.didRepair &&
+    typeof storage.setData === "function"
+  ) {
+    await storage.setData(MONSTER_BOOK_STORAGE_KEY, normalizedResult.state);
+  }
 
   return {
-    hasStoredState: rawState !== null && typeof rawState !== "undefined",
-    state: normalizeMonsterBookState(
-      rawState as MonsterBookState | null | undefined,
-    ),
+    hasStoredState,
+    state: normalizedResult.state,
+    didRepair: normalizedResult.didRepair,
   };
 }
 
 export async function loadMonsterBookState(
-  storage: Pick<Storage, "getData">,
+  storage: Pick<Storage, "getData"> & Partial<Pick<Storage, "setData">>,
 ): Promise<MonsterBookState> {
   const { state } = await readMonsterBookState(storage);
   return state;
@@ -113,6 +126,7 @@ export async function migrateLegacyMonsterBookIfNeeded(
     return {
       hasStoredState: false,
       state: createEmptyMonsterBookState(),
+      didRepair: false,
       didMigrate: false,
     };
   }

@@ -19,6 +19,11 @@ export type MonsterBookState = {
   reached: Partial<Record<MonsterCharacterKey, MonsterBookReachRecord[]>>;
 };
 
+export type NormalizeMonsterBookStateResult = {
+  state: MonsterBookState;
+  didRepair: boolean;
+};
+
 export type MonsterBookRecordableWorld = {
   getInMemoryData: () => MainSceneWorldData;
   setData: (data: MainSceneWorldData) => Promise<void>;
@@ -35,26 +40,40 @@ export function createEmptyMonsterBookState(): MonsterBookState {
 export function normalizeMonsterBookState(
   state: MonsterBookState | null | undefined,
 ): MonsterBookState {
+  return normalizeMonsterBookStateWithMeta(state).state;
+}
+
+export function normalizeMonsterBookStateWithMeta(
+  state: MonsterBookState | null | undefined,
+): NormalizeMonsterBookStateResult {
   const normalized = createEmptyMonsterBookState();
   const rawReached = state?.reached;
+  let didRepair = false;
 
   if (!rawReached || typeof rawReached !== "object") {
-    return normalized;
+    return { state: normalized, didRepair };
   }
 
   for (const characterKey of MONSTER_CHARACTER_KEYS) {
     const records = rawReached[characterKey];
     if (!Array.isArray(records)) {
+      if (typeof records !== "undefined") {
+        didRepair = true;
+      }
       continue;
     }
 
-    normalized.reached[characterKey] = records
-      .filter(isValidReachRecord)
-      .sort((a, b) => b.reached_at - a.reached_at)
-      .slice(0, MONSTER_BOOK_MAX_RECORDS_PER_CHARACTER);
+    const normalizedRecords = normalizeReachRecords(records);
+    if (normalizedRecords.length > 0) {
+      normalized.reached[characterKey] = normalizedRecords;
+    }
+
+    if (!areReachRecordArraysEqual(records, normalizedRecords)) {
+      didRepair = true;
+    }
   }
 
-  return normalized;
+  return { state: normalized, didRepair };
 }
 
 export function hasReachedMonster(
@@ -135,10 +154,7 @@ export function recordMonsterBookReach(params: {
   };
   const monsterBook = ensureMonsterBookState(data);
   const records = monsterBook.reached[characterKey] ?? [];
-  monsterBook.reached[characterKey] = [record, ...records]
-    .filter(isValidReachRecord)
-    .sort((a, b) => b.reached_at - a.reached_at)
-    .slice(0, MONSTER_BOOK_MAX_RECORDS_PER_CHARACTER);
+  monsterBook.reached[characterKey] = normalizeReachRecords([record, ...records]);
 
   void world.setData(data);
   return true;
@@ -255,4 +271,56 @@ function normalizeObjectId(objectId: unknown): number {
   return typeof objectId === "number" && Number.isFinite(objectId)
     ? objectId
     : 0;
+}
+
+function normalizeReachRecords(records: readonly unknown[]): MonsterBookReachRecord[] {
+  const sortedRecords = records
+    .filter(isValidReachRecord)
+    .sort((a, b) => b.reached_at - a.reached_at);
+  const seenObjectIds = new Set<number>();
+  const dedupedRecords: MonsterBookReachRecord[] = [];
+
+  for (const record of sortedRecords) {
+    if (record.object_id > 0) {
+      if (seenObjectIds.has(record.object_id)) {
+        continue;
+      }
+      seenObjectIds.add(record.object_id);
+    }
+
+    dedupedRecords.push(record);
+    if (dedupedRecords.length >= MONSTER_BOOK_MAX_RECORDS_PER_CHARACTER) {
+      break;
+    }
+  }
+
+  return dedupedRecords;
+}
+
+function areReachRecordArraysEqual(
+  input: readonly unknown[],
+  normalized: readonly MonsterBookReachRecord[],
+): boolean {
+  if (input.length !== normalized.length) {
+    return false;
+  }
+
+  for (let i = 0; i < input.length; i++) {
+    const left = input[i];
+    const right = normalized[i];
+    if (!isValidReachRecord(left)) {
+      return false;
+    }
+
+    if (
+      left.name !== right.name ||
+      left.reached_at !== right.reached_at ||
+      left.object_id !== right.object_id ||
+      left.source !== right.source
+    ) {
+      return false;
+    }
+  }
+
+  return true;
 }
