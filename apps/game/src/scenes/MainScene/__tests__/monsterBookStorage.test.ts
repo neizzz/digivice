@@ -98,3 +98,33 @@ test("migrateLegacyMonsterBookIfNeeded는 전용 storage key가 이미 있으면
     "현재 도감",
   );
 });
+
+test("loadMonsterBookState는 world save가 없어도 전용 storage key의 reached state를 그대로 복원한다", async () => {
+  const storage = createMemoryStorage({
+    [MONSTER_BOOK_STORAGE_KEY]: {
+      reached: {
+        [CharacterKeyECS.GreenSlimeA1]: [
+          {
+            name: "초기 슬라임",
+            reached_at: 1111,
+            object_id: 1,
+            source: "hatch",
+          },
+        ],
+        [CharacterKeyECS.GreenSlimeB1]: [
+          {
+            name: "진화 슬라임",
+            reached_at: 2222,
+            object_id: 2,
+            source: "evolution",
+          },
+        ],
+      },
+    },
+  });
+
+  const reloaded = await loadMonsterBookState(storage);
+
+  assert.equal(reloaded.reached[CharacterKeyECS.GreenSlimeA1]?.[0]?.name, "초기 슬라임");
+  assert.equal(reloaded.reached[CharacterKeyECS.GreenSlimeB1]?.[0]?.name, "진화 슬라임");
+});

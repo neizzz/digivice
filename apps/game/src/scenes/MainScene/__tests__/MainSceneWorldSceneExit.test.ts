@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { StorageManager } from "../../../managers/StorageManager";
 import { MONSTER_BOOK_STORAGE_KEY } from "../monsterBookStorage";
-import { MainSceneWorld } from "../world";
+import { MainSceneWorld, WORLD_DATA_STORAGE_KEY } from "../world";
 
 test("MainSceneWorld.onSceneExit는 저장 실패가 있어도 cleanup을 계속 진행한다", async () => {
   const callCounts = {
@@ -128,5 +128,52 @@ test("MainSceneWorld.setData는 FlappyBird active 동안 persistence를 defer하
     (StorageManager as {
       setData: typeof StorageManager.setData;
     }).setData = originalSetData;
+  }
+});
+
+test("MainSceneWorld.clearData는 reset 시 world 저장만 지우고 Monster Book 저장은 유지한다", async () => {
+  const originalRemoveData = StorageManager.removeData.bind(StorageManager);
+  const storage = new Map<string, unknown>([
+    [WORLD_DATA_STORAGE_KEY, { world_metadata: { monster_name: "Before Reset" } }],
+    [MONSTER_BOOK_STORAGE_KEY, { reached: { someMonster: [{ name: "몽이" }] } }],
+  ]);
+  const removedKeys: string[] = [];
+
+  (StorageManager as {
+    removeData: typeof StorageManager.removeData;
+  }).removeData = async (key) => {
+    removedKeys.push(key);
+    storage.delete(key);
+  };
+
+  try {
+    const world = {
+      _persistentData: {
+        world_metadata: {
+          monster_name: "Before Reset",
+        },
+        entities: [],
+      },
+      _pendingStorageWrite: Promise.resolve(),
+      _enqueueStorageWrite: MainSceneWorld.prototype["_enqueueStorageWrite"],
+      clearData: MainSceneWorld.prototype.clearData,
+    } as unknown as MainSceneWorld & {
+      _persistentData: unknown;
+      _pendingStorageWrite: Promise<void>;
+      _enqueueStorageWrite: (
+        work: () => Promise<void>,
+      ) => Promise<void>;
+    };
+
+    await MainSceneWorld.prototype.clearData.call(world);
+
+    assert.deepEqual(removedKeys, [WORLD_DATA_STORAGE_KEY]);
+    assert.equal(storage.has(WORLD_DATA_STORAGE_KEY), false);
+    assert.equal(storage.has(MONSTER_BOOK_STORAGE_KEY), true);
+    assert.equal(world._persistentData, undefined);
+  } finally {
+    (StorageManager as {
+      removeData: typeof StorageManager.removeData;
+    }).removeData = originalRemoveData;
   }
 });

@@ -2,6 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { addComponent, addEntity, createWorld, hasComponent } from "bitecs";
 import * as PIXI from "pixi.js";
+import { StorageManager } from "../../../managers/StorageManager";
+import { createMonsterBookCardInfo } from "../../MonsterBookScene/catalog";
+import { hasReachedMonster } from "../monsterBook";
+import {
+  MONSTER_BOOK_STORAGE_KEY,
+  migrateLegacyMonsterBookIfNeeded,
+} from "../monsterBookStorage";
 import {
   CharacterStatusComp,
   CleanableComp,
@@ -32,6 +39,7 @@ import {
   MissingInitialGameDataError,
   type InitialGameData,
   type MainSceneReentrySimulationSource,
+  WORLD_DATA_STORAGE_KEY,
 } from "../world";
 import { GAME_CONSTANTS } from "../config";
 import { foodEatingSystem } from "../systems/FoodEatingSystem";
@@ -52,6 +60,9 @@ type TestableMainSceneWorld = MainSceneWorld & {
   ) => Promise<void>;
   _createSimulationPipeline: () => unknown;
   _saveCurrentState: () => Promise<void>;
+  _initializeData: (initialGameData: InitialGameData) => unknown;
+  _applyPersistedMonsterBookState: (state: unknown) => void;
+  _hasPlayableSavedData: (data: unknown) => boolean;
   _persistentData?: unknown;
   _simulationTime?: number | null;
 };
@@ -150,6 +161,142 @@ test("초기 세팅 데이터 이름은 정리된 값으로 사용한다", () =>
       cachedSunTimes: null,
     },
   );
+});
+
+test("reset 후 새 world bootstrap은 persisted Monster Book state를 복원해 기존 reached monster를 다시 공개한다", async () => {
+  const originalGetData = StorageManager.getData.bind(StorageManager);
+  const originalRemoveData = StorageManager.removeData.bind(StorageManager);
+  const seededMonsterBookState = {
+    reached: {
+      [CharacterKeyECS.GreenSlimeA1]: [
+        {
+          name: "초기 슬라임",
+          reached_at: 1111,
+          object_id: 1,
+          source: "hatch" as const,
+        },
+      ],
+      [CharacterKeyECS.GreenSlimeB1]: [
+        {
+          name: "진화 슬라임",
+          reached_at: 2222,
+          object_id: 2,
+          source: "evolution" as const,
+        },
+      ],
+    },
+  };
+  const storage = new Map<string, unknown>([
+    [
+      WORLD_DATA_STORAGE_KEY,
+      {
+        world_metadata: {
+          monster_name: "Before Reset",
+        },
+        entities: [],
+      },
+    ],
+    [MONSTER_BOOK_STORAGE_KEY, seededMonsterBookState],
+  ]);
+
+  (StorageManager as {
+    getData: typeof StorageManager.getData;
+    removeData: typeof StorageManager.removeData;
+  }).getData = async (key) => {
+    return (storage.has(key) ? storage.get(key)! : null) as never;
+  };
+  (StorageManager as {
+    removeData: typeof StorageManager.removeData;
+  }).removeData = async (key) => {
+    storage.delete(key);
+  };
+
+  try {
+    const resetWorld = {
+      _persistentData: {
+        world_metadata: {
+          monster_name: "Before Reset",
+        },
+        entities: [],
+      },
+      _pendingStorageWrite: Promise.resolve(),
+      _enqueueStorageWrite: MainSceneWorld.prototype["_enqueueStorageWrite"],
+    } as unknown as MainSceneWorld & {
+      _persistentData: unknown;
+      _pendingStorageWrite: Promise<void>;
+      _enqueueStorageWrite: (
+        work: () => Promise<void>,
+      ) => Promise<void>;
+    };
+
+    await MainSceneWorld.prototype.clearData.call(resetWorld);
+
+    assert.equal(storage.has(WORLD_DATA_STORAGE_KEY), false);
+    assert.deepEqual(storage.get(MONSTER_BOOK_STORAGE_KEY), seededMonsterBookState);
+
+    const world = createMainSceneWorld();
+    createWorld(world as any, 16);
+    const loadedData = await world.getData();
+    const monsterBookStorageState = await migrateLegacyMonsterBookIfNeeded(
+      StorageManager,
+      loadedData,
+    );
+
+    assert.equal(loadedData, null);
+    assert.equal(world._hasPlayableSavedData(loadedData), false);
+
+    const initialGameData = world._requireInitialGameData({
+      name: "Reset Egg",
+      useLocalTime: true,
+      cachedSunTimes: null,
+    });
+    world._persistentData = world._initializeData(initialGameData);
+    world._applyPersistedMonsterBookState(monsterBookStorageState.state);
+
+    const restoredMonsterBookState =
+      world.getInMemoryData().world_metadata.app_state?.monster_book;
+
+    assert.equal(
+      hasReachedMonster(restoredMonsterBookState, CharacterKeyECS.GreenSlimeA1),
+      true,
+    );
+    assert.equal(
+      hasReachedMonster(restoredMonsterBookState, CharacterKeyECS.GreenSlimeB1),
+      true,
+    );
+    assert.equal(
+      hasReachedMonster(restoredMonsterBookState, CharacterKeyECS.SkullSlimeA1),
+      false,
+    );
+
+    const firstReachedCard = createMonsterBookCardInfo({
+      characterKey: CharacterKeyECS.GreenSlimeA1,
+      monsterBookState: restoredMonsterBookState!,
+    });
+    const secondReachedCard = createMonsterBookCardInfo({
+      characterKey: CharacterKeyECS.GreenSlimeB1,
+      monsterBookState: restoredMonsterBookState!,
+    });
+    const hiddenCard = createMonsterBookCardInfo({
+      characterKey: CharacterKeyECS.SkullSlimeA1,
+      monsterBookState: restoredMonsterBookState!,
+    });
+
+    assert.equal(firstReachedCard.isReached, true);
+    assert.notEqual(firstReachedCard.details, null);
+    assert.equal(secondReachedCard.isReached, true);
+    assert.notEqual(secondReachedCard.details, null);
+    assert.equal(hiddenCard.isReached, false);
+    assert.equal(hiddenCard.details, null);
+  } finally {
+    (StorageManager as {
+      getData: typeof StorageManager.getData;
+      removeData: typeof StorageManager.removeData;
+    }).getData = originalGetData;
+    (StorageManager as {
+      removeData: typeof StorageManager.removeData;
+    }).removeData = originalRemoveData;
+  }
 });
 
 test("egg 상태면 debug 모드가 아닐 때 미니게임 진입을 막고 alert를 띄운다", () => {

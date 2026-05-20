@@ -193,7 +193,6 @@ import {
 } from "./monsterBook";
 import {
   migrateLegacyMonsterBookIfNeeded,
-  removeMonsterBookState,
   saveMonsterBookState,
 } from "./monsterBookStorage";
 import { CharacterKey } from "../../types/Character";
@@ -2459,7 +2458,6 @@ export class MainSceneWorld implements IWorld, Scene {
           key: WORLD_DATA_STORAGE_KEY,
         });
         await StorageManager.removeData(WORLD_DATA_STORAGE_KEY);
-        await removeMonsterBookState(StorageManager);
         console.warn("[MainSceneWorld] clearData:success", {
           key: WORLD_DATA_STORAGE_KEY,
         });

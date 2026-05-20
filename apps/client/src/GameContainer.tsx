@@ -9,7 +9,6 @@ import {
   hasLegacyMonsterBookState,
   migrateLegacyMonsterBookIfNeeded,
   MissingInitialGameDataError,
-  removeMonsterBookState,
   SceneKey,
   TimeOfDay,
 } from "@digivice/game";
@@ -2347,7 +2346,6 @@ const GameContainer: React.FC = () => {
         } else {
           const storage = createClientStorage();
           await storage.removeData(WORLD_DATA_STORAGE_KEY);
-          await removeMonsterBookState(storage);
         }
 
         if (gameContainerRef.current) {
