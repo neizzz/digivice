@@ -1,0 +1,214 @@
+package com.ch00n9h09.montto
+
+import android.content.Context
+import androidx.annotation.ColorRes
+import androidx.annotation.DrawableRes
+import org.json.JSONArray
+import org.json.JSONObject
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+data class HomeWidgetSnapshot(
+    val schemaVersion: Int,
+    val snapshotKind: String,
+    val monsterName: String?,
+    val characterKey: Int?,
+    val characterState: String,
+    val displayState: String,
+    val timeOfDay: String,
+    val stamina: Double,
+    val maxStamina: Double,
+    val staminaPercent: Double,
+    val staminaLevel: String,
+    val useLocalTime: Boolean,
+    val animationFrameIndex: Int,
+    val updatedAtMs: Long,
+    val snapshotComputedAtMs: Long,
+    val lastActiveTimeMs: Long?,
+    val baseLastActiveTimeMs: Long?,
+    val projectedElapsedMs: Long,
+    val projectionVersion: Int,
+    val staminaTimerMs: Double,
+    val hasUrgentStatus: Boolean,
+    val visibleStatusIcons: List<String>,
+) {
+    fun resolveTimeOfDayLabel(): String {
+        return when (timeOfDay) {
+            "sunrise" -> "Sunrise"
+            "sunset" -> "Sunset"
+            "night" -> "Night"
+            else -> "Day"
+        }
+    }
+
+    fun resolveStateLabel(): String {
+        return when (displayState) {
+            "sleep" -> "sleep"
+            "sick" -> "sick"
+            else -> "idle"
+        }
+    }
+
+    @DrawableRes
+    fun resolveBackgroundDrawableRes(): Int {
+        return when (timeOfDay) {
+            "sunrise" -> R.drawable.bg_home_widget_sunrise
+            "sunset" -> R.drawable.bg_home_widget_sunset
+            "night" -> R.drawable.bg_home_widget_night
+            else -> R.drawable.bg_home_widget_day
+        }
+    }
+
+    @ColorRes
+    fun resolveAccentColorRes(): Int {
+        return when (displayState) {
+            "sleep" -> R.color.home_widget_accent_sleep
+            "sick" -> R.color.home_widget_accent_sick
+            else -> R.color.home_widget_accent_idle
+        }
+    }
+
+    @DrawableRes
+    fun resolveStaminaDotDrawableRes(): Int {
+        return when (staminaLevel) {
+            "green" -> R.drawable.ic_home_widget_stamina_green
+            "orange" -> R.drawable.ic_home_widget_stamina_orange
+            else -> R.drawable.ic_home_widget_stamina_red
+        }
+    }
+
+    fun resolveUpdatedAtLabel(): String {
+        val formatter = SimpleDateFormat("HH:mm", Locale.getDefault())
+        return formatter.format(Date(updatedAtMs))
+    }
+
+    fun toJsonString(): String {
+        return JSONObject()
+            .put("schemaVersion", schemaVersion)
+            .put("snapshotKind", snapshotKind)
+            .put("monsterName", monsterName)
+            .put("characterKey", characterKey)
+            .put("characterState", characterState)
+            .put("displayState", displayState)
+            .put("primaryStatus", displayState)
+            .put("timeOfDay", timeOfDay)
+            .put("stamina", stamina)
+            .put("maxStamina", maxStamina)
+            .put("staminaPercent", staminaPercent)
+            .put("staminaLevel", staminaLevel)
+            .put("useLocalTime", useLocalTime)
+            .put("animationFrameIndex", animationFrameIndex)
+            .put("updatedAtMs", updatedAtMs)
+            .put("snapshotComputedAtMs", snapshotComputedAtMs)
+            .put("lastActiveTimeMs", lastActiveTimeMs)
+            .put("baseLastActiveTimeMs", baseLastActiveTimeMs)
+            .put("projectedElapsedMs", projectedElapsedMs)
+            .put("projectionVersion", projectionVersion)
+            .put("staminaTimerMs", staminaTimerMs)
+            .put("hasUrgentStatus", hasUrgentStatus)
+            .put("visibleStatusIcons", JSONArray(visibleStatusIcons))
+            .toString()
+    }
+
+    companion object {
+        fun load(context: Context): HomeWidgetSnapshot? {
+            val prefs = context.getSharedPreferences(
+                HomeWidgetConstants.STORAGE_NAME,
+                Context.MODE_PRIVATE,
+            )
+            return fromJson(prefs.getString(HomeWidgetConstants.SNAPSHOT_KEY, null))
+        }
+
+        fun loadAuthoritative(context: Context): HomeWidgetSnapshot? {
+            val prefs = context.getSharedPreferences(
+                HomeWidgetConstants.STORAGE_NAME,
+                Context.MODE_PRIVATE,
+            )
+            return fromJson(
+                prefs.getString(HomeWidgetConstants.AUTHORITATIVE_SNAPSHOT_KEY, null),
+            )
+        }
+
+        fun fromJson(raw: String?): HomeWidgetSnapshot? {
+            if (raw.isNullOrBlank()) {
+                return null
+            }
+
+            return runCatching {
+                val json = JSONObject(raw)
+                val stamina = json.optDouble("stamina", 0.0).coerceIn(0.0, 10.0)
+                val maxStamina = json.optDouble("maxStamina", 10.0).coerceIn(1.0, 10.0)
+                val visibleStatusIconsJson = json.optJSONArray("visibleStatusIcons") ?: JSONArray()
+                val visibleStatusIcons = buildList {
+                    for (index in 0 until visibleStatusIconsJson.length()) {
+                        visibleStatusIconsJson.optString(index).takeIf { it.isNotBlank() }?.let(::add)
+                    }
+                }
+                val rawDisplayState = json.optString(
+                    "displayState",
+                    json.optString("primaryStatus", "idle"),
+                )
+                val normalizedDisplayState = when {
+                    rawDisplayState == "sleeping" -> "sleep"
+                    rawDisplayState == "sick" -> "sick"
+                    json.optString("characterState", "idle") == "sleeping" ||
+                        visibleStatusIcons.contains("sleeping") -> "sleep"
+                    json.optString("characterState", "idle") == "sick" ||
+                        visibleStatusIcons.contains("sick") -> "sick"
+                    else -> "idle"
+                }
+
+                HomeWidgetSnapshot(
+                    schemaVersion = json.optInt("schemaVersion", 2),
+                    snapshotKind = json.optString("snapshotKind", "authoritativeAppState"),
+                    monsterName = json.optString("monsterName").ifBlank { null },
+                    characterKey = json.optInt("characterKey").takeIf { json.has("characterKey") },
+                    characterState = json.optString("characterState", "idle"),
+                    displayState = normalizedDisplayState,
+                    timeOfDay = json.optString("timeOfDay", "day"),
+                    stamina = stamina,
+                    maxStamina = maxStamina,
+                    staminaPercent = json.optDouble("staminaPercent", stamina / maxStamina)
+                        .coerceIn(0.0, 1.0),
+                    staminaLevel = json.optString(
+                        "staminaLevel",
+                        when {
+                            stamina <= 3.0 -> "red"
+                            stamina >= 7.0 -> "green"
+                            else -> "orange"
+                        },
+                    ),
+                    useLocalTime = if (json.has("useLocalTime")) {
+                        json.optBoolean("useLocalTime", true)
+                    } else {
+                        true
+                    },
+                    animationFrameIndex = json.optInt("animationFrameIndex", 0).mod(4),
+                    updatedAtMs = json.optLong(
+                        "updatedAtMs",
+                        json.optLong("snapshotComputedAtMs", 0L),
+                    ),
+                    snapshotComputedAtMs = json.optLong(
+                        "snapshotComputedAtMs",
+                        json.optLong("updatedAtMs", 0L),
+                    ),
+                    lastActiveTimeMs = json.optLong("lastActiveTimeMs").takeIf {
+                        json.has("lastActiveTimeMs")
+                    },
+                    baseLastActiveTimeMs = json.optLong("baseLastActiveTimeMs").takeIf {
+                        json.has("baseLastActiveTimeMs")
+                    } ?: json.optLong("lastActiveTimeMs").takeIf {
+                        json.has("lastActiveTimeMs")
+                    },
+                    projectedElapsedMs = json.optLong("projectedElapsedMs", 0L).coerceAtLeast(0L),
+                    projectionVersion = json.optInt("projectionVersion", 1),
+                    staminaTimerMs = json.optDouble("staminaTimerMs", 0.0)
+                        .coerceIn(0.0, 12 * 60 * 1000.0),
+                    hasUrgentStatus = json.optBoolean("hasUrgentStatus", false),
+                    visibleStatusIcons = visibleStatusIcons,
+                )
+            }.getOrNull()
+        }
+    }
+}

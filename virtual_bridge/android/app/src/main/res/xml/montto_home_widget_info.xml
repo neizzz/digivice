@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/home_widget_description"
+    android:initialLayout="@layout/montto_home_widget"
+    android:minHeight="56dp"
+    android:minWidth="110dp"
+    android:previewLayout="@layout/montto_home_widget"
+    android:resizeMode="none"
+    android:targetCellHeight="1"
+    android:targetCellWidth="2"
+    android:autoAdvanceViewId="@id/widget_character_flipper"
+    android:updatePeriodMillis="0"
+    android:widgetCategory="home_screen" />
