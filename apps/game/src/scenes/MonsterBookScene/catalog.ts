@@ -39,6 +39,13 @@ export type MonsterBookGlobalPage = {
   entries: MonsterCharacterKey[];
 };
 
+const MONSTER_BOOK_LEVEL_BY_CLASS_CODE: Record<MonsterClassCode, number> = {
+  A: 1,
+  B: 2,
+  C: 3,
+  D: 4,
+};
+
 export function getMonsterBookEntriesForClass(
   classCode: MonsterClassCode,
 ): MonsterCharacterKey[] {
@@ -127,6 +134,12 @@ export function getMonsterBookFirstPageIndexForClass(params: {
   );
 
   return pageIndex >= 0 ? pageIndex : 0;
+}
+
+export function formatMonsterBookClassLabel(
+  classCode: MonsterClassCode,
+): string {
+  return `Lv. ${MONSTER_BOOK_LEVEL_BY_CLASS_CODE[classCode]}`;
 }
 
 export function createMonsterBookCardInfo(params: {

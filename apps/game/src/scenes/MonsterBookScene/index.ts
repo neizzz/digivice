@@ -32,6 +32,7 @@ import {
 import {
   type MonsterBookGlobalPage,
   createMonsterBookCardInfo,
+  formatMonsterBookClassLabel,
   getMonsterBookFirstPageIndexForClass,
   getMonsterBookGlobalPages,
   getMonsterBookPageIndexByDelta,
@@ -298,11 +299,14 @@ export class MonsterBookScene extends PIXI.Container implements Scene {
   private drawHeader(layout: ReturnType<MonsterBookScene["getLayout"]>): void {
     const currentPage = this.getCurrentPage();
     const accentColor = this.getCurrentClassAccentColor();
-    const title = this.createText(`Class ${currentPage.classCode}`, {
-      fontSize: CLASS_TITLE_FONT_SIZE,
-      fill: accentColor,
-      fontWeight: "700",
-    });
+    const title = this.createText(
+      formatMonsterBookClassLabel(currentPage.classCode),
+      {
+        fontSize: CLASS_TITLE_FONT_SIZE,
+        fill: accentColor,
+        fontWeight: "700",
+      },
+    );
     title.anchor.set(0.5, 0);
     title.position.set(
       layout.pageX + layout.pageWidth / 2,

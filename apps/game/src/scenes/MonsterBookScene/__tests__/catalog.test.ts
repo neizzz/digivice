@@ -11,6 +11,7 @@ import { createEmptyMonsterBookState } from "../../MainScene/monsterBook";
 import { CharacterKeyECS } from "../../MainScene/types";
 import {
   createMonsterBookCardInfo,
+  formatMonsterBookClassLabel,
   getMonsterBookEntriesForClass,
   getMonsterBookFirstPageIndexForClass,
   getMonsterBookGlobalPages,
@@ -184,6 +185,13 @@ test("몬스터북 class 선택은 해당 class의 첫 global page index로 이�
     assert.equal(pages[firstPageIndex]?.classCode, classCode);
     assert.equal(pages[firstPageIndex]?.classPageIndex, 0);
   }
+});
+
+test("몬스터북 class 표기는 Lv. 1~4 형식이다", () => {
+  assert.deepEqual(
+    CLASS_ORDER.map((classCode) => formatMonsterBookClassLabel(classCode)),
+    ["Lv. 1", "Lv. 2", "Lv. 3", "Lv. 4"],
+  );
 });
 
 test("몬스터북 next/previous는 global page index 기준으로 순환 이동한다", () => {
