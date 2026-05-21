@@ -13,7 +13,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  webview_flutter: ^4.0.0
+  webview_flutter: ^4.13.1
   webview_flutter_android: ^4.12.0
   path_provider: ^2.0.15
   android_intent_plus: ^6.0.0
