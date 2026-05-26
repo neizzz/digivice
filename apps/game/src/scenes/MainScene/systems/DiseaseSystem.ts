@@ -20,7 +20,6 @@ import {
   ObjectType,
   CharacterStatus,
   CharacterState,
-  DestinationType,
   Freshness,
   FoodState,
 } from "../types";
@@ -34,6 +33,7 @@ import {
   clearActiveEatingState,
   releaseTargetedFoodForCharacter,
 } from "./FoodEatingSystem";
+import { getTargetedFoodEntityRef } from "../foodEntityRef";
 
 const characterQuery = defineQuery([
   ObjectComp,
@@ -189,22 +189,7 @@ function isDiseaseCheckBlockedByFoodInteraction(
     return true;
   }
 
-  if (!hasComponent(world, DestinationComp, eid)) {
-    return false;
-  }
-
-  if (
-    DestinationComp.type[eid] !== DestinationType.TARGETED ||
-    DestinationComp.target[eid] === 0
-  ) {
-    return false;
-  }
-
-  const targetFoodEid = DestinationComp.target[eid];
-  return (
-    hasComponent(world, ObjectComp, targetFoodEid) &&
-    ObjectComp.type[targetFoodEid] === ObjectType.FOOD
-  );
+  return getTargetedFoodEntityRef(world, eid) !== null;
 }
 
 /**

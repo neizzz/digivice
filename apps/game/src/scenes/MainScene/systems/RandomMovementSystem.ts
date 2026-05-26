@@ -12,6 +12,7 @@ import { CharacterState, DestinationType } from "../types";
 import { nomalizeRadian } from "@/utils/common";
 import { getCharacterMovementSpeedForEntity } from "../characterStats";
 import { repairCharacterEntityRuntimeComponents } from "../entityDataHelpers";
+import { getTargetedFoodEntityRef } from "../foodEntityRef";
 
 const characterQuery = defineQuery([CharacterStatusComp, RandomMovementComp]);
 const allCharacterQuery = defineQuery([CharacterStatusComp, ObjectComp]);
@@ -20,7 +21,7 @@ function hasDirectedMovement(world: MainSceneWorld, eid: number): boolean {
   return (
     hasComponent(world, DestinationComp, eid) &&
     DestinationComp.type[eid] === DestinationType.TARGETED &&
-    DestinationComp.target[eid] !== 0
+    getTargetedFoodEntityRef(world, eid) !== null
   );
 }
 

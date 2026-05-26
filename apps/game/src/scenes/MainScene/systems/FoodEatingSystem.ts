@@ -40,6 +40,10 @@ import { getSpriteStore } from "./RenderSystem";
 import { restoreCharacterFreeRoamingState } from "../entityDataHelpers";
 import { TimeOfDay } from "../timeOfDay";
 import { scheduleResleep } from "./SleepScheduleSystem";
+import {
+  getFoodEatingEntityRef,
+  getTargetedFoodEntityRef,
+} from "../foodEntityRef";
 
 const characterQuery = defineQuery([
   ObjectComp,
@@ -117,19 +121,8 @@ export function releaseTargetedFoodForCharacter(
   world: MainSceneWorld,
   characterEid: number,
 ): void {
-  if (!hasComponent(world, DestinationComp, characterEid)) {
-    return;
-  }
-
-  const targetFoodEid = DestinationComp.target[characterEid];
-  if (targetFoodEid === 0) {
-    return;
-  }
-
-  if (
-    !hasComponent(world, ObjectComp, targetFoodEid) ||
-    ObjectComp.type[targetFoodEid] !== ObjectType.FOOD
-  ) {
+  const targetFoodEid = getTargetedFoodEntityRef(world, characterEid);
+  if (targetFoodEid === null) {
     return;
   }
 
@@ -151,12 +144,8 @@ export function clearActiveEatingState(
     return false;
   }
 
-  const targetFoodEid = FoodEatingComp.targetFood[characterEid];
-  if (
-    targetFoodEid > 0 &&
-    hasComponent(world, ObjectComp, targetFoodEid) &&
-    ObjectComp.type[targetFoodEid] === ObjectType.FOOD
-  ) {
+  const targetFoodEid = getFoodEatingEntityRef(world, characterEid);
+  if (targetFoodEid !== null) {
     if (hasComponent(world, FoodMaskComp, targetFoodEid)) {
       removeComponent(world, FoodMaskComp, targetFoodEid);
     }
@@ -186,12 +175,8 @@ export function completeActiveEatingForCharacter(
     return false;
   }
 
-  const targetFoodEid = FoodEatingComp.targetFood[characterEid];
-  if (
-    targetFoodEid <= 0 ||
-    !hasComponent(world, ObjectComp, targetFoodEid) ||
-    ObjectComp.type[targetFoodEid] !== ObjectType.FOOD
-  ) {
+  const targetFoodEid = getFoodEatingEntityRef(world, characterEid);
+  if (targetFoodEid === null) {
     clearActiveEatingState(world, characterEid);
     return false;
   }
@@ -226,7 +211,12 @@ function updateEatingProgress(
     FoodEatingComp.progress[eid] = progress;
 
     // 음식에 마스킹 진행도 적용
-    const targetFoodEid = FoodEatingComp.targetFood[eid];
+    const targetFoodEid = getFoodEatingEntityRef(world, eid);
+    if (targetFoodEid === null) {
+      clearActiveEatingState(world, eid);
+      continue;
+    }
+
     if (hasComponent(world, FoodMaskComp, targetFoodEid)) {
       FoodMaskComp.progress[targetFoodEid] = progress;
     }
@@ -253,24 +243,10 @@ function updateMovingToFood(world: MainSceneWorld, delta: number): void {
     // DestinationType이 TARGETED인지 확인
     if (DestinationComp.type[eid] !== DestinationType.TARGETED) continue;
 
-    const targetFoodEid = DestinationComp.target[eid];
-
-    // target이 0인지 확인 (잘못된 상태)
-    if (targetFoodEid === 0) {
+    const targetFoodEid = getTargetedFoodEntityRef(world, eid);
+    if (targetFoodEid === null) {
       console.warn(
-        `[FoodEatingSystem] Character ${eid} has DestinationComp but target is 0 (NULL), removing DestinationComp`,
-      );
-      restoreFreeRoamingState(world, eid, 1000);
-      continue;
-    }
-
-    const hasValidTargetFood =
-      hasComponent(world, ObjectComp, targetFoodEid) &&
-      ObjectComp.type[targetFoodEid] === ObjectType.FOOD;
-
-    if (!hasValidTargetFood) {
-      console.warn(
-        `[FoodEatingSystem] Character ${eid} lost target food ${targetFoodEid}, restoring free roaming state`,
+        `[FoodEatingSystem] Character ${eid} lost target food ${DestinationComp.target[eid]}, restoring free roaming state`,
       );
       restoreFreeRoamingState(world, eid, 1000);
       continue;
@@ -448,10 +424,7 @@ function findAndEatFood(world: MainSceneWorld): void {
     }
 
     // 이미 음식으로 이동 중인지 확인 (순간이동 방지)
-    if (
-      hasComponent(world, DestinationComp, characterEid) &&
-      DestinationComp.target[characterEid] !== 0
-    ) {
+    if (getTargetedFoodEntityRef(world, characterEid) !== null) {
       // debugLog(
       //   `[FoodEatingSystem] Character ${characterEid} is already moving to food target ${DestinationComp.target[characterEid]}`
       // );

@@ -35,7 +35,6 @@ import {
   CharacterKeyECS as CharacterKey,
   CharacterState,
   CharacterStatus,
-  DestinationType,
   Freshness,
   FoodState,
   ObjectType,
@@ -48,6 +47,10 @@ import {
   getDefaultEggHatchDurationMs,
   GAME_CONSTANTS,
 } from "./config";
+import {
+  getFoodEatingEntityRef,
+  getTargetedFoodEntityRef,
+} from "./foodEntityRef";
 
 function normalizeSavedFreshness(freshness: Freshness): Freshness {
   return freshness === Freshness.FRESH ? Freshness.NORMAL : freshness;
@@ -585,12 +588,10 @@ export function clearCharacterDestinationAndStop(
   }
 
   if (hasComponent(world, DestinationComp, eid)) {
-    const targetFoodEid = DestinationComp.target[eid];
+    const targetFoodEid = getTargetedFoodEntityRef(world, eid);
 
     if (
-      targetFoodEid > 0 &&
-      hasComponent(world, ObjectComp, targetFoodEid) &&
-      ObjectComp.type[targetFoodEid] === ObjectType.FOOD &&
+      targetFoodEid !== null &&
       ObjectComp.state[targetFoodEid] === FoodState.TARGETED
     ) {
       ObjectComp.state[targetFoodEid] = FoodState.LANDED;
@@ -780,20 +781,19 @@ export function repairLoadedFoodInteractionState(
       continue;
     }
 
-    if (
-      hasComponent(world, DestinationComp, eid) &&
-      DestinationComp.type[eid] === DestinationType.TARGETED &&
-      DestinationComp.target[eid] > 0
-    ) {
-      targetedFoodIds.add(DestinationComp.target[eid]);
+    const targetedFoodEid = getTargetedFoodEntityRef(world, eid);
+    if (targetedFoodEid !== null) {
+      targetedFoodIds.add(targetedFoodEid);
     }
 
     if (
       hasComponent(world, FoodEatingComp, eid) &&
-      FoodEatingComp.isActive[eid] === 1 &&
-      FoodEatingComp.targetFood[eid] > 0
+      FoodEatingComp.isActive[eid] === 1
     ) {
-      eatingFoodIds.add(FoodEatingComp.targetFood[eid]);
+      const eatingFoodEid = getFoodEatingEntityRef(world, eid);
+      if (eatingFoodEid !== null) {
+        eatingFoodIds.add(eatingFoodEid);
+      }
     }
   }
 

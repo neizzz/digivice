@@ -26,6 +26,7 @@ import { MainSceneWorld } from "../world";
 import { TimeOfDay, TimeOfDayMode } from "../timeOfDay";
 import { isFoodEdible } from "./FreshnessSystem";
 import { clearTemporaryStatuses } from "./CharacterManageSystem";
+import { getTargetedFoodEntityRef } from "../foodEntityRef";
 
 const characterSleepQuery = defineQuery([
   ObjectComp,
@@ -779,7 +780,7 @@ function canEnterSleep(world: MainSceneWorld, eid: number): boolean {
   const isMovingToTargetedFood =
     hasComponent(world, DestinationComp, eid) &&
     DestinationComp.type[eid] === DestinationType.TARGETED &&
-    DestinationComp.target[eid] !== 0;
+    getTargetedFoodEntityRef(world, eid) !== null;
 
   return (
     state !== CharacterState.EGG &&

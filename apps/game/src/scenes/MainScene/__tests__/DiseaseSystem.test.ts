@@ -129,6 +129,7 @@ test("sick 치료 후에는 다시 주변 LANDED food를 탐색한다", () => {
   FreshnessComp.freshness[foodEid] = Freshness.NORMAL;
 
   addComponent(world, DestinationComp, characterEid);
+  DestinationComp.type[characterEid] = DestinationType.TARGETED;
   DestinationComp.target[characterEid] = foodEid;
 
   CharacterStatusComp.statuses[characterEid][0] = CharacterStatus.SICK;

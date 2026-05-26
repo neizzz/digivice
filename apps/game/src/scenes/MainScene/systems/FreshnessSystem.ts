@@ -9,6 +9,7 @@ import {
 import { GAME_CONSTANTS } from "../config";
 import { MainSceneWorld } from "../world";
 import { FoodState, Freshness, ObjectType } from "../types";
+import { getTargetedFoodEntityRef } from "../foodEntityRef";
 
 const foodQuery = defineQuery([ObjectComp, FreshnessComp]);
 const foodWithTimerQuery = defineQuery([
@@ -155,12 +156,9 @@ function cancelTargetingForStalFood(world: MainSceneWorld): void {
 
     if (ObjectComp.type[eid] !== ObjectType.CHARACTER) continue;
 
-    const targetEid = DestinationComp.target[eid];
-
+    const targetEid = getTargetedFoodEntityRef(world, eid);
     if (
-      targetEid &&
-      hasComponent(world, ObjectComp, targetEid) &&
-      ObjectComp.type[targetEid] === ObjectType.FOOD &&
+      targetEid !== null &&
       hasComponent(world, FreshnessComp, targetEid) &&
       FreshnessComp.freshness[targetEid] === Freshness.STALE
     ) {
