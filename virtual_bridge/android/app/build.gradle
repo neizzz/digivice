@@ -48,6 +48,10 @@ android {
     // ndkVersion = flutter.ndkVersion
     ndkVersion = "28.2.13676358"
 
+    buildFeatures {
+        buildConfig = true
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
@@ -67,6 +71,9 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        def nativeFeatureDebugMode =
+            (System.getenv("NATIVE_FEATURE_DEBUG_MODE") ?: "false").toBoolean()
+        buildConfigField "boolean", "NATIVE_FEATURE_DEBUG_MODE", nativeFeatureDebugMode.toString()
     }
 
     signingConfigs {
@@ -87,6 +94,10 @@ android {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    testImplementation "junit:junit:4.13.2"
 }
 
 tasks.matching { task ->

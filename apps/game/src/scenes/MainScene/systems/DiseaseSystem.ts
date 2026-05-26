@@ -55,9 +55,13 @@ const previousStates: Map<number, { isSick: boolean; isSleeping: boolean }> =
 export function diseaseSystem(params: {
   world: MainSceneWorld;
   currentTime: number;
+  entryStatusSuppression?: {
+    suppressSick?: boolean;
+  };
 }): typeof params {
-  const { world, currentTime } = params;
+  const { world, currentTime, entryStatusSuppression } = params;
   const shouldLog = !world.isSimulationMode;
+  const suppressSick = entryStatusSuppression?.suppressSick === true;
   const entities = characterQuery(world);
 
   for (let i = 0; i < entities.length; i++) {
@@ -110,6 +114,10 @@ export function diseaseSystem(params: {
         }
 
         if (Math.random() < diseaseRate) {
+          if (suppressSick) {
+            continue;
+          }
+
           // 질병 발생
           if (shouldLog) {
             console.log(`Disease occurred for entity ${eid}!`);

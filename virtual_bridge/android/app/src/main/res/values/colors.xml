@@ -1,4 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="ic_launcher_background">#8BB312</color>
+    <color name="home_widget_bg_day">#8BB312</color>
+    <color name="home_widget_bg_sunrise">#F4B66A</color>
+    <color name="home_widget_bg_sunset">#D98563</color>
+    <color name="home_widget_bg_night">#2C3558</color>
+    <color name="home_widget_stamina_green">#72D95A</color>
+    <color name="home_widget_stamina_orange">#F6AA3B</color>
+    <color name="home_widget_stamina_red">#F26B6B</color>
+    <color name="home_widget_accent_idle">#FFF6D2</color>
+    <color name="home_widget_accent_sleep">#A9C8FF</color>
+    <color name="home_widget_accent_sick">#FFB3B3</color>
 </resources>

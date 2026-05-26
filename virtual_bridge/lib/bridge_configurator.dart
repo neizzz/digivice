@@ -7,6 +7,7 @@ import 'ad/ad_controller.dart';
 import 'sun/sun_controller.dart';
 import 'vibration/vibration_controller.dart';
 import 'trusted_time/trusted_time_controller.dart';
+import 'home_widget/home_widget_refresh_controller.dart';
 
 /// WebView와 네이티브 코드 간 브릿지 설정을 담당하는 클래스
 class BridgeConfigurator {
@@ -25,6 +26,7 @@ class BridgeConfigurator {
   late final SunController _sunController;
   late final VibrationController _vibrationController;
   late final TrustedTimeController _trustedTimeController;
+  late final HomeWidgetRefreshController _homeWidgetRefreshController;
 
   BridgeConfigurator({
     required this.webViewController,
@@ -53,6 +55,11 @@ class BridgeConfigurator {
     );
 
     _trustedTimeController = TrustedTimeController(
+      resolvePromise: _resolvePromise,
+      log: logCallback,
+    );
+
+    _homeWidgetRefreshController = HomeWidgetRefreshController(
       resolvePromise: _resolvePromise,
       log: logCallback,
     );
@@ -164,6 +171,11 @@ class BridgeConfigurator {
             _trustedTimeController.handleGetSnapshot(message),
       )
       ..addJavaScriptChannel(
+        '__native_home_widget',
+        onMessageReceived: (JavaScriptMessage message) =>
+            _homeWidgetRefreshController.handleAction(message),
+      )
+      ..addJavaScriptChannel(
         '__native_debug_log',
         onMessageReceived: (JavaScriptMessage message) =>
             _handleStructuredDebugLog(message),
@@ -216,6 +228,7 @@ class BridgeConfigurator {
     await _runJavaScript(_sunController.getJavaScriptInterface());
     await _runJavaScript(_vibrationController.getJavaScriptInterface());
     await _runJavaScript(_trustedTimeController.getJavaScriptInterface());
+    await _runJavaScript(_homeWidgetRefreshController.getJavaScriptInterface());
     if (enableStructuredDebugLogs) {
       await _runJavaScript(_getStructuredDebugLoggerJavaScriptInterface());
     }

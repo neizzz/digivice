@@ -29,4 +29,9 @@
   <string name="app_name">MonTTo</string>
   <string name="servicedesc">digivice_virtual_bridge</string>
   <string name="aiddescription">digivice_virtual_bridge</string>
+  <string name="home_widget_description">MonTTo home widget</string>
+  <string name="home_widget_pin_requested">Choose a location for the MonTTo home widget.</string>
+  <string name="home_widget_pin_failed">Failed to add the MonTTo home widget.</string>
+  <string name="home_widget_pin_unsupported_api">This Android version does not support adding the MonTTo home widget from the app.</string>
+  <string name="home_widget_pin_unsupported_launcher">Your home launcher does not support adding the MonTTo home widget from the app.</string>
 </resources>

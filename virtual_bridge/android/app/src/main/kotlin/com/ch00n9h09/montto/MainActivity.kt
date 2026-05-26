@@ -1,6 +1,7 @@
 package com.ch00n9h09.montto
 
 import android.content.ClipData
+import android.content.ComponentName
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -9,6 +10,8 @@ import android.os.SystemClock
 import android.util.Log
 import android.view.WindowManager
 import android.view.KeyEvent
+import android.widget.Toast
+import android.appwidget.AppWidgetManager
 import android.window.OnBackInvokedCallback
 import android.window.OnBackInvokedDispatcher
 import androidx.activity.OnBackPressedCallback
@@ -21,7 +24,7 @@ import java.util.ArrayList
 import java.io.File
 import kotlin.math.abs
 
-class MainActivity : FlutterActivity() {
+open class MainActivity : FlutterActivity() {
     companion object {
         private const val TAG = "MainActivity"
         private const val BACK_NAVIGATION_CHANNEL = "digivice/back_navigation"
@@ -93,6 +96,8 @@ class MainActivity : FlutterActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
+    protected open fun isWidgetRefreshMode(): Boolean = false
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
@@ -142,6 +147,46 @@ class MainActivity : FlutterActivity() {
                             null,
                         )
                     }
+                }
+
+                else -> result.notImplemented()
+            }
+        }
+
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            HomeWidgetConstants.CHANNEL,
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "requestPinWidget" -> result.success(requestPinWidget())
+                "getLaunchContext" -> result.success(
+                    mapOf(
+                        "mode" to if (isWidgetRefreshMode()) {
+                            "widget_refresh"
+                        } else {
+                            "default"
+                        },
+                    ),
+                )
+
+                "completeRefresh" -> {
+                    val payload = call.arguments as? Map<*, *>
+                    getSharedPreferences(
+                        HomeWidgetConstants.STORAGE_NAME,
+                        MODE_PRIVATE,
+                    ).edit().putString(
+                        HomeWidgetConstants.REFRESH_SMOKE_RESULT_KEY,
+                        payload?.toString() ?: "completed",
+                    ).apply()
+                    HomeWidgetProvider.notifySnapshotUpdated(
+                        this,
+                        "completeRefresh",
+                    )
+                    result.success(
+                        mapOf(
+                            "status" to "ok",
+                        ),
+                    )
                 }
 
                 else -> result.notImplemented()
@@ -417,5 +462,55 @@ class MainActivity : FlutterActivity() {
             "$packageName.fileprovider",
             attachmentFile,
         )
+    }
+
+    private fun requestPinWidget(): Map<String, String> {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            Toast.makeText(
+                this,
+                getString(R.string.home_widget_pin_unsupported_api),
+                Toast.LENGTH_SHORT,
+            ).show()
+            return mapOf("status" to "unsupported_api")
+        }
+
+        val appWidgetManager = AppWidgetManager.getInstance(this)
+        if (!appWidgetManager.isRequestPinAppWidgetSupported) {
+            Toast.makeText(
+                this,
+                getString(R.string.home_widget_pin_unsupported_launcher),
+                Toast.LENGTH_SHORT,
+            ).show()
+            return mapOf("status" to "unsupported_launcher")
+        }
+
+        return try {
+            val provider = ComponentName(this, HomeWidgetProvider::class.java)
+            val requested = appWidgetManager.requestPinAppWidget(provider, null, null)
+
+            if (requested) {
+                Toast.makeText(
+                    this,
+                    getString(R.string.home_widget_pin_requested),
+                    Toast.LENGTH_SHORT,
+                ).show()
+                mapOf("status" to "requested")
+            } else {
+                Toast.makeText(
+                    this,
+                    getString(R.string.home_widget_pin_failed),
+                    Toast.LENGTH_SHORT,
+                ).show()
+                mapOf("status" to "failed")
+            }
+        } catch (error: Exception) {
+            Log.w(TAG, "Failed to request pinned home widget.", error)
+            Toast.makeText(
+                this,
+                getString(R.string.home_widget_pin_failed),
+                Toast.LENGTH_SHORT,
+            ).show()
+            mapOf("status" to "failed")
+        }
     }
 }

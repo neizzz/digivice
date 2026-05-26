@@ -40,6 +40,31 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <activity
+            android:name=".WidgetRefreshActivity"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:theme="@style/LaunchTheme"
+            android:excludeFromRecents="true"
+            android:finishOnTaskLaunch="true"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:screenOrientation="portrait"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize" />
+        <receiver
+            android:name=".HomeWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.ch00n9h09.montto.HOME_WIDGET_SNAPSHOT_UPDATED" />
+                <action android:name="com.ch00n9h09.montto.HOME_WIDGET_REFRESH" />
+                <action android:name="com.ch00n9h09.montto.HOME_WIDGET_DEBUG_PRESET_PREV" />
+                <action android:name="com.ch00n9h09.montto.HOME_WIDGET_DEBUG_PRESET_NEXT" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/montto_home_widget_info" />
+        </receiver>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

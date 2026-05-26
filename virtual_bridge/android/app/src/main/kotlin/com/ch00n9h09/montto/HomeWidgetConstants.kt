@@ -13,8 +13,14 @@ object HomeWidgetConstants {
     const val FLUTTER_AUTHORITATIVE_SNAPSHOT_KEY =
         "${FLUTTER_PREFIX}HomeWidgetAuthoritativeSnapshotV1"
     const val REFRESH_SMOKE_RESULT_KEY = "home_widget_refresh_smoke_last_result"
+    const val DEBUG_PRESET_OVERRIDE_ENABLED_KEY = "home_widget_debug_preset_override_enabled"
+    const val DEBUG_PRESET_INDEX_KEY = "home_widget_debug_preset_index"
     const val ACTION_SNAPSHOT_UPDATED =
         "com.ch00n9h09.montto.HOME_WIDGET_SNAPSHOT_UPDATED"
     const val ACTION_REFRESH =
         "com.ch00n9h09.montto.HOME_WIDGET_REFRESH"
+    const val ACTION_DEBUG_PRESET_PREV =
+        "com.ch00n9h09.montto.HOME_WIDGET_DEBUG_PRESET_PREV"
+    const val ACTION_DEBUG_PRESET_NEXT =
+        "com.ch00n9h09.montto.HOME_WIDGET_DEBUG_PRESET_NEXT"
 }

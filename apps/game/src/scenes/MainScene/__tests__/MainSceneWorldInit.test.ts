@@ -3,6 +3,11 @@ import test from "node:test";
 import { addComponent, addEntity, createWorld, hasComponent } from "bitecs";
 import * as PIXI from "pixi.js";
 import { StorageManager } from "../../../managers/StorageManager";
+import {
+  createTestCharacter,
+  withMockedRandom,
+  withMockedRandomAsync,
+} from "../../../test-utils/mainSceneTestUtils";
 import { createMonsterBookCardInfo } from "../../MonsterBookScene/catalog";
 import { hasReachedMonster } from "../monsterBook";
 import {
@@ -12,6 +17,7 @@ import {
 import {
   CharacterStatusComp,
   CleanableComp,
+  DiseaseSystemComp,
   DestinationComp,
   FoodEatingComp,
   FreshnessComp,
@@ -26,6 +32,7 @@ import {
 } from "../raw-components";
 import {
   CharacterKeyECS,
+  CharacterStatus,
   CharacterState,
   DestinationType,
   FoodState,
@@ -44,6 +51,7 @@ import {
 } from "../world";
 import { GAME_CONSTANTS } from "../config";
 import { foodEatingSystem } from "../systems/FoodEatingSystem";
+import { TimeOfDay } from "../timeOfDay";
 
 type TestableMainSceneWorld = MainSceneWorld & {
   _requireInitialGameData: (
@@ -128,6 +136,10 @@ function createObjectEntity(
   ObjectComp.state[eid] = 0;
 
   return eid;
+}
+
+function hasCharacterStatus(eid: number, status: number): boolean {
+  return Array.from(CharacterStatusComp.statuses[eid]).includes(status);
 }
 
 test("초기 세팅 데이터가 없으면 setup 없이 기본 월드를 만들지 않는다", () => {
@@ -631,6 +643,168 @@ test("미니게임 복귀 reentry는 수면 중단 후 깨어있는 상태로 �
     SleepSystemComp.fatigue[eid] > fatigueAfterInterrupt,
     `expected awake fatigue gain, before=${fatigueAfterInterrupt}, after=${SleepSystemComp.fatigue[eid]}`,
   );
+});
+
+test("앱 복귀 reentry에서 새로 생긴 sick 상태는 즉시 노출하지 않고 다음 자연 변화 뒤에만 다시 허용한다", async () => {
+  const lastActiveTime = 0;
+  let nowRef = GAME_CONSTANTS.DISEASE_CHECK_INTERVAL;
+  const buildSnapshot = () => ({
+    trustedUtcMs: nowRef,
+    osUptimeMs: nowRef + 10_000,
+    source: "ntp" as const,
+    uncertaintyMs: 10,
+    capturedWallMs: nowRef,
+  });
+  const trustedClock = {
+    refresh: async () => buildSnapshot(),
+    now: () => nowRef,
+    elapsedSince: () => ({
+      elapsedMs: nowRef - lastActiveTime,
+      trusted: true,
+      currentSnapshot: buildSnapshot(),
+    }),
+    captureAnchor: () => buildSnapshot(),
+  };
+  const world = createMainSceneWorld({ trustedClock });
+
+  createWorld(world as any, 32);
+  const eid = createTestCharacter(world as any, {
+    state: CharacterState.IDLE,
+    stamina: 5,
+    x: 160,
+    y: 160,
+  });
+  DiseaseSystemComp.nextCheckTime[eid] = lastActiveTime;
+  world._findMainCharacterEntity = () => eid;
+  world._persistentData = {
+    world_metadata: {
+      name: "MainScene",
+      monster_name: "Test",
+      last_ecs_saved: lastActiveTime,
+      version: "1.0.0",
+      app_state: {
+        last_active_time: lastActiveTime,
+        last_active_time_anchor: {
+          trustedUtcMs: lastActiveTime,
+          osUptimeMs: 10_000,
+          source: "ntp" as const,
+          uncertaintyMs: 10,
+          capturedWallMs: lastActiveTime,
+        },
+        is_first_load: false,
+        use_local_time: true,
+      },
+    },
+    entities: [],
+  };
+  world._saveCurrentState = async () => {};
+  (world as any)._isPersistenceDisabled = true;
+
+  const preReentrySnapshot = (world as any)._captureMainCharacterEntryStatusSnapshot();
+  CharacterStatusComp.statuses[eid][0] = CharacterStatus.SICK;
+  ObjectComp.state[eid] = CharacterState.SICK;
+  DiseaseSystemComp.sickStartTime[eid] = nowRef;
+  (world as any)._applyEntryStatusSuppression("app_resume", preReentrySnapshot);
+
+  assert.notEqual(ObjectComp.state[eid], CharacterState.SICK);
+  assert.equal(hasCharacterStatus(eid, CharacterStatus.SICK), false);
+  assert.equal(
+    (world as any)._entryStatusSuppression?.suppressSick,
+    true,
+  );
+
+  CharacterStatusComp.statuses[eid][0] = CharacterStatus.HAPPY;
+  (world as any)._releaseEntryStatusSuppressionIfNeeded();
+  assert.equal((world as any)._entryStatusSuppression, null);
+
+  DiseaseSystemComp.nextCheckTime[eid] = nowRef;
+  withMockedRandom(0, () => {
+    world.update(0);
+  });
+
+  assert.equal(ObjectComp.state[eid], CharacterState.SICK);
+  assert.equal(hasCharacterStatus(eid, CharacterStatus.SICK), true);
+});
+
+test("앱 복귀 reentry에서 새로 생긴 sleeping 상태는 즉시 노출하지 않고 자연 변화 뒤에만 다시 허용한다", async () => {
+  const lastActiveTime = 0;
+  let nowRef = GAME_CONSTANTS.NIGHT_SLEEP_MIN_DELAY + 1;
+  const buildSnapshot = () => ({
+    trustedUtcMs: nowRef,
+    osUptimeMs: nowRef + 20_000,
+    source: "ntp" as const,
+    uncertaintyMs: 10,
+    capturedWallMs: nowRef,
+  });
+  const trustedClock = {
+    refresh: async () => buildSnapshot(),
+    now: () => nowRef,
+    elapsedSince: () => ({
+      elapsedMs: nowRef - lastActiveTime,
+      trusted: true,
+      currentSnapshot: buildSnapshot(),
+    }),
+    captureAnchor: () => buildSnapshot(),
+  };
+  const world = createMainSceneWorld({ trustedClock });
+
+  createWorld(world as any, 32);
+  const eid = createTestCharacter(world as any, {
+    state: CharacterState.IDLE,
+    stamina: 5,
+    x: 160,
+    y: 160,
+  });
+  world._findMainCharacterEntity = () => eid;
+  (world as any)._timeOfDay = TimeOfDay.Night;
+  world._persistentData = {
+    world_metadata: {
+      name: "MainScene",
+      monster_name: "Test",
+      last_ecs_saved: lastActiveTime,
+      version: "1.0.0",
+      app_state: {
+        last_active_time: lastActiveTime,
+        last_active_time_anchor: {
+          trustedUtcMs: lastActiveTime,
+          osUptimeMs: 5_000,
+          source: "ntp" as const,
+          uncertaintyMs: 10,
+          capturedWallMs: lastActiveTime,
+        },
+        is_first_load: false,
+        use_local_time: true,
+      },
+    },
+    entities: [],
+  };
+  world._saveCurrentState = async () => {};
+  (world as any)._isPersistenceDisabled = true;
+
+  await withMockedRandomAsync(0, async () => {
+    await world._processReentrySimulation("app_resume");
+  });
+
+  assert.notEqual(ObjectComp.state[eid], CharacterState.SLEEPING);
+  assert.equal(SleepSystemComp.sleepMode[eid], SleepMode.AWAKE);
+
+  ObjectComp.state[eid] = CharacterState.MOVING;
+  world.update(0);
+
+  (world as any)._timeOfDay = TimeOfDay.Day;
+  world.update(0);
+
+  (world as any)._timeOfDay = TimeOfDay.Night;
+  withMockedRandom(0, () => {
+    world.update(0);
+  });
+
+  nowRef += GAME_CONSTANTS.NIGHT_SLEEP_MIN_DELAY;
+  withMockedRandom(0, () => {
+    world.update(0);
+  });
+
+  assert.equal(ObjectComp.state[eid], CharacterState.SLEEPING);
 });
 
 test("reentry는 투척 중이던 음식이 완료되면 landed 시각 상태로 정규화한다", async () => {

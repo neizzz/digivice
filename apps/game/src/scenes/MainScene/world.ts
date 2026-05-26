@@ -42,6 +42,8 @@ import {
   DigestiveSystemComponent,
   DiseaseSystemComponent,
   SleepSystemComponent,
+  SleepMode,
+  SleepReason,
   VitalityComponent,
   TemporaryStatusComponent,
   EggHatchComponent,
@@ -357,6 +359,19 @@ export class MissingInitialGameDataError extends Error {
 
 type MainSceneAppState = NonNullable<WorldMetadata["app_state"]>;
 
+type MainSceneEntryStatusSnapshot = {
+  eid: number;
+  signature: string;
+  hasSick: boolean;
+  isSleeping: boolean;
+};
+
+type MainSceneEntryStatusSuppressionState = {
+  suppressSick: boolean;
+  suppressSleep: boolean;
+  baselineSignature: string;
+};
+
 export const WORLD_DATA_STORAGE_KEY = "MainSceneWorldData";
 const DEFAULT_USE_LOCAL_TIME = true;
 const MAIN_SCENE_AD_THRESHOLD = 8;
@@ -519,6 +534,8 @@ export class MainSceneWorld implements IWorld, Scene {
   private _shouldDeferPersistence?: () => boolean;
   private _onReentrySimulationStateChange?: MainSceneReentrySimulationStateChangeCallback;
   private _hasDeferredPersistence = false;
+  private _entryStatusSuppression: MainSceneEntryStatusSuppressionState | null =
+    null;
   private _timeOfDay: TimeOfDay = TimeOfDay.Day;
   private _timeOfDayMode: TimeOfDayMode = TimeOfDayMode.Manual;
   private _sunTimes: SunTimesPayload | null = null;
@@ -549,11 +566,16 @@ export class MainSceneWorld implements IWorld, Scene {
         ? sleepScheduleSystem({
             ...params,
             currentTime: this.currentTime,
+            entryStatusSuppression: this._entryStatusSuppression ?? undefined,
           })
         : params,
     (params: any) =>
       this._statusSystemsEnabled
-        ? diseaseSystem({ ...params, currentTime: this.currentTime })
+        ? diseaseSystem({
+            ...params,
+            currentTime: this.currentTime,
+            entryStatusSuppression: this._entryStatusSuppression ?? undefined,
+          })
         : params,
     (params: any) =>
       eggHatchSystem({ ...params, currentTime: this.currentTime }),
@@ -2258,6 +2280,7 @@ export class MainSceneWorld implements IWorld, Scene {
       world: this,
       delta,
     });
+    this._releaseEntryStatusSuppressionIfNeeded();
 
     // UI 업데이트
     if (this._debugGaugeUI) {
@@ -3783,6 +3806,7 @@ export class MainSceneWorld implements IWorld, Scene {
   ): Promise<void> {
     let result: MainSceneReentrySimulationStateChange["result"] = "completed";
     let capturedError: unknown;
+    const preReentrySnapshot = this._captureMainCharacterEntryStatusSnapshot();
 
     this._onReentrySimulationStateChange?.({
       source,
@@ -3892,6 +3916,7 @@ export class MainSceneWorld implements IWorld, Scene {
         this._simulationTime = currentTime;
         clearFoodInteractionSuspendFlag();
         applyReentryHappyStatusForFullStaminaCharacters(this);
+        this._applyEntryStatusSuppression(source, preReentrySnapshot);
         if (this._initDiagnostics.isInitTimingActive) {
           await this._initDiagnostics.measurePhase("reentry_persist_state", async () => {
             await this._saveCurrentState();
@@ -3938,6 +3963,158 @@ export class MainSceneWorld implements IWorld, Scene {
    */
   public get currentTime(): number {
     return this._simulationTime ?? this._trustedClock.now();
+  }
+
+  private _shouldPreserveWidgetEntryStatuses(
+    source: MainSceneReentrySimulationSource,
+  ): boolean {
+    return source === "init" || source === "app_resume";
+  }
+
+  private _captureMainCharacterEntryStatusSnapshot():
+    | MainSceneEntryStatusSnapshot
+    | null {
+    let characterEid = -1;
+    try {
+      characterEid = this._findMainCharacterEntity();
+    } catch {
+      return null;
+    }
+
+    if (characterEid < 0 || !hasComponent(this, ObjectComp, characterEid)) {
+      return null;
+    }
+
+    const statuses = hasComponent(this, CharacterStatusComp, characterEid)
+      ? Array.from(CharacterStatusComp.statuses[characterEid]).filter(
+          (status) => status > 0,
+        )
+      : [];
+    const hasSick =
+      ObjectComp.state[characterEid] === CharacterState.SICK ||
+      statuses.includes(CharacterStatus.SICK);
+    const isSleeping =
+      ObjectComp.state[characterEid] === CharacterState.SLEEPING;
+
+    return {
+      eid: characterEid,
+      signature: `${ObjectComp.state[characterEid]}|${statuses.join(",")}`,
+      hasSick,
+      isSleeping,
+    };
+  }
+
+  private _clearMainCharacterSickState(eid: number): void {
+    for (let i = 0; i < CharacterStatusComp.statuses[eid].length; i += 1) {
+      if (CharacterStatusComp.statuses[eid][i] === CharacterStatus.SICK) {
+        CharacterStatusComp.statuses[eid][i] = 0;
+      }
+    }
+
+    if (hasComponent(this, DiseaseSystemComp, eid)) {
+      DiseaseSystemComp.sickStartTime[eid] = 0;
+    }
+
+    if (ObjectComp.state[eid] === CharacterState.SICK) {
+      restoreCharacterFreeRoamingState(this, eid, {
+        now: this.currentTime,
+      });
+    }
+  }
+
+  private _clearMainCharacterSleepState(eid: number): void {
+    if (!hasComponent(this, SleepSystemComp, eid)) {
+      return;
+    }
+
+    if (ObjectComp.state[eid] === CharacterState.SLEEPING) {
+      wakeCharacter(this, eid, this.currentTime);
+    }
+
+    SleepSystemComp.sleepMode[eid] = SleepMode.AWAKE;
+    SleepSystemComp.nextSleepTime[eid] = 0;
+    SleepSystemComp.nextWakeTime[eid] = 0;
+    SleepSystemComp.nextNightWakeCheckTime[eid] = 0;
+    SleepSystemComp.pendingSleepReason[eid] = SleepReason.NONE;
+    SleepSystemComp.pendingWakeReason[eid] = SleepReason.NONE;
+    SleepSystemComp.sleepSessionStartedAt[eid] = 0;
+    SleepSystemComp.nextNapCheckTime[eid] = Math.max(
+      SleepSystemComp.nextNapCheckTime[eid],
+      this.currentTime + GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL,
+    );
+
+    if (
+      ObjectComp.state[eid] !== CharacterState.SICK &&
+      !Array.from(CharacterStatusComp.statuses[eid]).includes(
+        CharacterStatus.SICK,
+      )
+    ) {
+      restoreCharacterFreeRoamingState(this, eid, {
+        now: this.currentTime,
+      });
+    }
+  }
+
+  private _applyEntryStatusSuppression(
+    source: MainSceneReentrySimulationSource,
+    preReentrySnapshot: MainSceneEntryStatusSnapshot | null,
+  ): void {
+    if (!this._shouldPreserveWidgetEntryStatuses(source)) {
+      this._entryStatusSuppression = null;
+      return;
+    }
+
+    const postReentrySnapshot = this._captureMainCharacterEntryStatusSnapshot();
+    if (!preReentrySnapshot || !postReentrySnapshot) {
+      this._entryStatusSuppression = null;
+      return;
+    }
+
+    const previousSuppression = this._entryStatusSuppression;
+    const suppressSick =
+      previousSuppression?.suppressSick === true ||
+      (!preReentrySnapshot.hasSick && postReentrySnapshot.hasSick);
+    const suppressSleep =
+      previousSuppression?.suppressSleep === true ||
+      (!preReentrySnapshot.isSleeping && postReentrySnapshot.isSleeping);
+
+    if (!suppressSick && !suppressSleep) {
+      return;
+    }
+
+    if (suppressSick) {
+      this._clearMainCharacterSickState(postReentrySnapshot.eid);
+    }
+
+    if (suppressSleep) {
+      this._clearMainCharacterSleepState(postReentrySnapshot.eid);
+    }
+
+    const suppressedSnapshot = this._captureMainCharacterEntryStatusSnapshot();
+    this._entryStatusSuppression = {
+      suppressSick,
+      suppressSleep,
+      baselineSignature:
+        suppressedSnapshot?.signature ?? postReentrySnapshot.signature,
+    };
+  }
+
+  private _releaseEntryStatusSuppressionIfNeeded(): void {
+    if (!this._entryStatusSuppression) {
+      return;
+    }
+
+    const snapshot = this._captureMainCharacterEntryStatusSnapshot();
+    if (!snapshot) {
+      this._entryStatusSuppression = null;
+      return;
+    }
+
+    if (snapshot.signature === this._entryStatusSuppression.baselineSignature) {
+      return;
+    }
+
+    this._entryStatusSuppression = null;
   }
 
   /**

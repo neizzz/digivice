@@ -43,14 +43,24 @@ export function sleepScheduleSystem(params: {
   world: MainSceneWorld;
   delta: number;
   currentTime: number;
+  entryStatusSuppression?: {
+    suppressSleep?: boolean;
+  };
 }): typeof params {
-  const { world, delta, currentTime } = params;
+  const { world, delta, currentTime, entryStatusSuppression } = params;
   const currentTimeOfDay = world.timeOfDay;
+  const suppressSleep = entryStatusSuppression?.suppressSleep === true;
   const entities = characterSleepQuery(world);
   const previousTimeOfDay = lastTimeOfDayByWorld.get(world);
 
   if (!previousTimeOfDay) {
-    bootstrapSleepRuntime(world, entities, currentTime, currentTimeOfDay);
+    bootstrapSleepRuntime(
+      world,
+      entities,
+      currentTime,
+      currentTimeOfDay,
+      suppressSleep,
+    );
     lastTimeOfDayByWorld.set(world, currentTimeOfDay);
   } else if (previousTimeOfDay !== currentTimeOfDay) {
     handleTimeOfDayTransition(
@@ -59,6 +69,7 @@ export function sleepScheduleSystem(params: {
       currentTime,
       previousTimeOfDay,
       currentTimeOfDay,
+      suppressSleep,
     );
     lastTimeOfDayByWorld.set(world, currentTimeOfDay);
   }
@@ -83,8 +94,20 @@ export function sleepScheduleSystem(params: {
     handleScheduledWake(world, eid, currentTime);
     handleNightWakeChecks(world, eid, currentTime, currentTimeOfDay);
     handleUrgentWakeForFood(world, eid, currentTime, currentTimeOfDay);
-    handleScheduledSleep(world, eid, currentTime, currentTimeOfDay);
-    handleDayNapChecks(world, eid, currentTime, currentTimeOfDay);
+    handleScheduledSleep(
+      world,
+      eid,
+      currentTime,
+      currentTimeOfDay,
+      suppressSleep,
+    );
+    handleDayNapChecks(
+      world,
+      eid,
+      currentTime,
+      currentTimeOfDay,
+      suppressSleep,
+    );
     handleNapWake(world, eid, currentTime, currentTimeOfDay);
   }
 
@@ -96,6 +119,7 @@ function bootstrapSleepRuntime(
   entities: number[],
   currentTime: number,
   currentTimeOfDay: TimeOfDay,
+  suppressSleep: boolean,
 ): void {
   for (let i = 0; i < entities.length; i++) {
     const eid = entities[i];
@@ -139,7 +163,7 @@ function bootstrapSleepRuntime(
       continue;
     }
 
-    if (currentTimeOfDay === TimeOfDay.Night) {
+    if (currentTimeOfDay === TimeOfDay.Night && !suppressSleep) {
       scheduleNightSleep(world, eid, currentTime);
       continue;
     }
@@ -159,6 +183,7 @@ function handleTimeOfDayTransition(
   currentTime: number,
   previousTimeOfDay: TimeOfDay,
   currentTimeOfDay: TimeOfDay,
+  suppressSleep: boolean,
 ): void {
   debugLog(
     `[SleepScheduleSystem] Time of day changed: ${previousTimeOfDay} -> ${currentTimeOfDay}`,
@@ -183,7 +208,7 @@ function handleTimeOfDayTransition(
         if (ObjectComp.state[eid] === CharacterState.SLEEPING) {
           SleepSystemComp.sleepMode[eid] = SleepMode.NIGHT_SLEEP;
           ensureNightWakeCheckTime(eid, currentTime);
-        } else {
+        } else if (!suppressSleep) {
           scheduleNightSleep(world, eid, currentTime);
         }
         break;
@@ -415,7 +440,14 @@ function handleScheduledSleep(
   eid: number,
   currentTime: number,
   currentTimeOfDay: TimeOfDay,
+  suppressSleep: boolean,
 ): void {
+  if (suppressSleep) {
+    SleepSystemComp.nextSleepTime[eid] = 0;
+    SleepSystemComp.pendingSleepReason[eid] = SleepReason.NONE;
+    return;
+  }
+
   const nextSleepTime = SleepSystemComp.nextSleepTime[eid];
   if (nextSleepTime <= 0 || currentTime < nextSleepTime) {
     return;
@@ -447,7 +479,12 @@ function handleDayNapChecks(
   eid: number,
   currentTime: number,
   currentTimeOfDay: TimeOfDay,
+  suppressSleep: boolean,
 ): void {
+  if (suppressSleep) {
+    return;
+  }
+
   if (
     currentTimeOfDay !== TimeOfDay.Day ||
     ObjectComp.state[eid] === CharacterState.SLEEPING ||

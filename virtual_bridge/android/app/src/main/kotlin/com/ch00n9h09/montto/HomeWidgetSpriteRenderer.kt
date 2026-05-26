@@ -7,6 +7,10 @@ import org.json.JSONObject
 
 object HomeWidgetSpriteRenderer {
     private const val WIDGET_LOOP_FRAME_COUNT = 4
+    private val widgetBackgroundAsset = SpriteAsset(
+        pngPath = "assets/web/assets/game/sprites/widget-bg.png",
+        jsonPath = "assets/web/assets/game/sprites/widget-bg.json",
+    )
 
     private val frameCache = mutableMapOf<String, Map<String, FrameRect>>()
     private val sheetCache = mutableMapOf<String, Bitmap>()
@@ -54,6 +58,33 @@ object HomeWidgetSpriteRenderer {
         }
     }
 
+    fun renderBackground(
+        context: Context,
+        snapshot: HomeWidgetSnapshot,
+        targetWidthPx: Int,
+        targetHeightPx: Int,
+    ): Bitmap? {
+        val frames = frameCache.getOrPut(widgetBackgroundAsset.jsonPath) {
+            loadFrameMap(context, widgetBackgroundAsset.jsonPath)
+        }
+        val frameRect = frames[snapshot.resolveBackgroundVariant().frameName] ?: return null
+        val bitmap = sheetCache.getOrPut(widgetBackgroundAsset.pngPath) {
+            loadBitmap(context, widgetBackgroundAsset.pngPath)
+        }
+        val cropped = Bitmap.createBitmap(
+            bitmap,
+            frameRect.x,
+            frameRect.y,
+            frameRect.width,
+            frameRect.height,
+        )
+        return cropAndScaleToFill(
+            source = cropped,
+            targetWidthPx = targetWidthPx,
+            targetHeightPx = targetHeightPx,
+        )
+    }
+
     fun resolveFrameCount(snapshot: HomeWidgetSnapshot?): Int {
         if (snapshot == null) {
             return 1
@@ -88,7 +119,8 @@ object HomeWidgetSpriteRenderer {
             frameRect.width,
             frameRect.height,
         )
-        return Bitmap.createScaledBitmap(cropped, 24, 24, false)
+        val targetSizePx = if (iconName == "urgent") 26 else 24
+        return Bitmap.createScaledBitmap(cropped, targetSizePx, targetSizePx, false)
     }
 
     private fun resolveCharacterAsset(snapshot: HomeWidgetSnapshot): SpriteAsset? {
@@ -206,6 +238,51 @@ object HomeWidgetSpriteRenderer {
         context.assets.open(toFlutterAssetPath(relativePath)).use { stream ->
             return BitmapFactory.decodeStream(stream)
                 ?: error("Failed to decode widget sprite asset: $relativePath")
+        }
+    }
+
+    private fun cropAndScaleToFill(
+        source: Bitmap,
+        targetWidthPx: Int,
+        targetHeightPx: Int,
+    ): Bitmap {
+        val safeTargetWidth = targetWidthPx.coerceAtLeast(1)
+        val safeTargetHeight = targetHeightPx.coerceAtLeast(1)
+        val sourceAspectRatio = source.width.toFloat() / source.height.toFloat()
+        val targetAspectRatio = safeTargetWidth.toFloat() / safeTargetHeight.toFloat()
+
+        val cropWidth: Int
+        val cropHeight: Int
+        val cropX: Int
+        val cropY: Int
+
+        if (sourceAspectRatio > targetAspectRatio) {
+            cropHeight = source.height
+            cropWidth = (cropHeight * targetAspectRatio).toInt().coerceIn(1, source.width)
+            cropX = ((source.width - cropWidth) / 2).coerceAtLeast(0)
+            cropY = 0
+        } else {
+            cropWidth = source.width
+            cropHeight = (cropWidth / targetAspectRatio).toInt().coerceIn(1, source.height)
+            cropX = 0
+            cropY = ((source.height - cropHeight) / 2).coerceAtLeast(0)
+        }
+
+        val cropped = if (
+            cropWidth == source.width &&
+            cropHeight == source.height &&
+            cropX == 0 &&
+            cropY == 0
+        ) {
+            source
+        } else {
+            Bitmap.createBitmap(source, cropX, cropY, cropWidth, cropHeight)
+        }
+
+        return if (cropped.width == safeTargetWidth && cropped.height == safeTargetHeight) {
+            cropped
+        } else {
+            Bitmap.createScaledBitmap(cropped, safeTargetWidth, safeTargetHeight, true)
         }
     }
 

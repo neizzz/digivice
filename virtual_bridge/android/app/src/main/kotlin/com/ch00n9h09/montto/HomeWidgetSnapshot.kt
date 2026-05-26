@@ -9,6 +9,15 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+enum class HomeWidgetBackgroundVariant(
+    val frameName: String,
+) {
+    BROWN("widget-bg_brown"),
+    BLUE("widget-bg_blue"),
+    GREEN("widget-bg_green"),
+    RED("widget-bg_red"),
+}
+
 data class HomeWidgetSnapshot(
     val schemaVersion: Int,
     val snapshotKind: String,
@@ -50,14 +59,22 @@ data class HomeWidgetSnapshot(
         }
     }
 
+    fun resolveBackgroundVariant(): HomeWidgetBackgroundVariant {
+        if (characterState == "egg") {
+            return HomeWidgetBackgroundVariant.BROWN
+        }
+
+        return when (resolveEvolutionPhase(characterKey)) {
+            2 -> HomeWidgetBackgroundVariant.BLUE
+            3 -> HomeWidgetBackgroundVariant.GREEN
+            4 -> HomeWidgetBackgroundVariant.RED
+            else -> HomeWidgetBackgroundVariant.BROWN
+        }
+    }
+
     @DrawableRes
     fun resolveBackgroundDrawableRes(): Int {
-        return when (timeOfDay) {
-            "sunrise" -> R.drawable.bg_home_widget_sunrise
-            "sunset" -> R.drawable.bg_home_widget_sunset
-            "night" -> R.drawable.bg_home_widget_night
-            else -> R.drawable.bg_home_widget_day
-        }
+        return R.drawable.bg_home_widget_day
     }
 
     @ColorRes
@@ -112,6 +129,16 @@ data class HomeWidgetSnapshot(
     }
 
     companion object {
+        private fun resolveEvolutionPhase(characterKey: Int?): Int {
+            return when (characterKey) {
+                1, 14, 22 -> 1
+                2, 5, 6, 16, 17, 24, 25 -> 2
+                3, 7, 8, 9, 18, 19, 26, 27, 28 -> 3
+                4, 10, 11, 12, 20, 21, 29, 30, 31 -> 4
+                else -> 1
+            }
+        }
+
         fun load(context: Context): HomeWidgetSnapshot? {
             val prefs = context.getSharedPreferences(
                 HomeWidgetConstants.STORAGE_NAME,

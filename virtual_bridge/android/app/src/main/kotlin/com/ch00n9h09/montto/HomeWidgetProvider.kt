@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.view.View
 import android.widget.RemoteViews
+import kotlin.math.roundToInt
 
 class HomeWidgetProvider : AppWidgetProvider() {
     companion object {
@@ -40,6 +41,16 @@ class HomeWidgetProvider : AppWidgetProvider() {
                 updateAllWidgets(context)
             }
 
+            HomeWidgetConstants.ACTION_DEBUG_PRESET_PREV -> {
+                HomeWidgetDebugPresetStore.advancePreset(context, step = -1)
+                updateAllWidgets(context)
+            }
+
+            HomeWidgetConstants.ACTION_DEBUG_PRESET_NEXT -> {
+                HomeWidgetDebugPresetStore.advancePreset(context, step = 1)
+                updateAllWidgets(context)
+            }
+
             HomeWidgetConstants.ACTION_SNAPSHOT_UPDATED,
             AppWidgetManager.ACTION_APPWIDGET_UPDATE,
             -> updateAllWidgets(context)
@@ -59,9 +70,16 @@ class HomeWidgetProvider : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetId: Int,
     ) {
-        val snapshot = HomeWidgetSnapshot.load(context)
-            ?: HomeWidgetSnapshot.loadAuthoritative(context)
-            ?: HomeWidgetSnapshotFactory.refreshFromWorldData(context)
+        val debugModeEnabled = HomeWidgetDebugPresetStore.isNativeDebugModeEnabled()
+        val snapshot = HomeWidgetSnapshotSelector.select(
+            debugModeEnabled = debugModeEnabled,
+            debugOverrideSnapshot = HomeWidgetDebugPresetStore.resolveOverrideSnapshot(context),
+            currentSnapshot = HomeWidgetSnapshot.load(context),
+            authoritativeSnapshot = HomeWidgetSnapshot.loadAuthoritative(context),
+            worldDataFallback = {
+                HomeWidgetSnapshotFactory.refreshFromWorldData(context)
+            },
+        )
         val views = RemoteViews(context.packageName, R.layout.montto_home_widget)
 
         val launchIntent = Intent(context, MainActivity::class.java)
@@ -72,6 +90,12 @@ class HomeWidgetProvider : AppWidgetProvider() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         views.setOnClickPendingIntent(R.id.widget_root, launchPendingIntent)
+        bindDebugControls(
+            context = context,
+            views = views,
+            appWidgetId = appWidgetId,
+            debugModeEnabled = debugModeEnabled,
+        )
 
         if (snapshot == null) {
             bindCharacterFrames(views = views, frameBitmaps = emptyList(), initialFrameIndex = 0)
@@ -79,10 +103,12 @@ class HomeWidgetProvider : AppWidgetProvider() {
                 R.id.widget_stamina_dot,
                 R.drawable.ic_home_widget_stamina_orange,
             )
-            views.setInt(
-                R.id.widget_root,
-                "setBackgroundResource",
-                R.drawable.bg_home_widget_day,
+            bindBackground(
+                context = context,
+                appWidgetManager = appWidgetManager,
+                appWidgetId = appWidgetId,
+                views = views,
+                snapshot = null,
             )
             renderStatusIcons(
                 context = context,
@@ -111,10 +137,12 @@ class HomeWidgetProvider : AppWidgetProvider() {
                 snapshot.resolveStaminaDotDrawableRes(),
             )
         }
-        views.setInt(
-            R.id.widget_root,
-            "setBackgroundResource",
-            snapshot.resolveBackgroundDrawableRes(),
+        bindBackground(
+            context = context,
+            appWidgetManager = appWidgetManager,
+            appWidgetId = appWidgetId,
+            views = views,
+            snapshot = snapshot,
         )
         renderStatusIcons(
             context = context,
@@ -122,6 +150,85 @@ class HomeWidgetProvider : AppWidgetProvider() {
             visibleStatusIcons = snapshot.visibleStatusIcons,
         )
         appWidgetManager.updateAppWidget(appWidgetId, views)
+    }
+
+    private fun bindDebugControls(
+        context: Context,
+        views: RemoteViews,
+        appWidgetId: Int,
+        debugModeEnabled: Boolean,
+    ) {
+        views.setViewVisibility(
+            R.id.widget_debug_controls,
+            if (debugModeEnabled) View.VISIBLE else View.GONE,
+        )
+        if (!debugModeEnabled) {
+            return
+        }
+
+        views.setOnClickPendingIntent(
+            R.id.widget_debug_prev_button,
+            createDebugPresetPendingIntent(
+                context = context,
+                action = HomeWidgetConstants.ACTION_DEBUG_PRESET_PREV,
+                appWidgetId = appWidgetId,
+                requestCodeOffset = 1,
+            ),
+        )
+        views.setOnClickPendingIntent(
+            R.id.widget_debug_next_button,
+            createDebugPresetPendingIntent(
+                context = context,
+                action = HomeWidgetConstants.ACTION_DEBUG_PRESET_NEXT,
+                appWidgetId = appWidgetId,
+                requestCodeOffset = 2,
+            ),
+        )
+    }
+
+    private fun createDebugPresetPendingIntent(
+        context: Context,
+        action: String,
+        appWidgetId: Int,
+        requestCodeOffset: Int,
+    ): PendingIntent {
+        val intent = Intent(context, HomeWidgetProvider::class.java).apply {
+            this.action = action
+            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+        }
+        return PendingIntent.getBroadcast(
+            context,
+            (appWidgetId * 10) + requestCodeOffset,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+    }
+
+    private fun bindBackground(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetId: Int,
+        views: RemoteViews,
+        snapshot: HomeWidgetSnapshot?,
+    ) {
+        val targetSizePx = resolveBackgroundTargetSizePx(context, appWidgetManager, appWidgetId)
+        val backgroundBitmap = snapshot?.let {
+            HomeWidgetSpriteRenderer.renderBackground(
+                context = context,
+                snapshot = it,
+                targetWidthPx = targetSizePx.width,
+                targetHeightPx = targetSizePx.height,
+            )
+        }
+
+        if (backgroundBitmap != null) {
+            views.setImageViewBitmap(R.id.widget_background_image, backgroundBitmap)
+        } else {
+            views.setImageViewResource(
+                R.id.widget_background_image,
+                R.drawable.bg_home_widget_day,
+            )
+        }
     }
 
     private fun renderStatusIcons(
@@ -185,4 +292,42 @@ class HomeWidgetProvider : AppWidgetProvider() {
             initialFrameIndex.coerceIn(0, frameViewIds.lastIndex),
         )
     }
+
+    private fun resolveBackgroundTargetSizePx(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetId: Int,
+    ): WidgetBackgroundSizePx {
+        val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
+        val density = context.resources.displayMetrics.density
+
+        fun resolveDimensionPx(
+            minKey: String,
+            maxKey: String,
+            fallbackDp: Int,
+        ): Int {
+            val minDp = options.getInt(minKey, 0)
+            val maxDp = options.getInt(maxKey, 0)
+            val resolvedDp = maxOf(minDp, maxDp, fallbackDp)
+            return (resolvedDp * density).roundToInt().coerceAtLeast(1)
+        }
+
+        return WidgetBackgroundSizePx(
+            width = resolveDimensionPx(
+                AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH,
+                AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH,
+                180,
+            ),
+            height = resolveDimensionPx(
+                AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT,
+                AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT,
+                90,
+            ),
+        )
+    }
+
+    private data class WidgetBackgroundSizePx(
+        val width: Int,
+        val height: Int,
+    )
 }
