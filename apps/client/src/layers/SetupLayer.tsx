@@ -66,46 +66,48 @@ export const SetupLayer: React.FC<SetupLayerProps> = ({ onComplete }) => {
   };
 
   const overlay = (
-    <div className="fixed inset-0 z-[999] flex min-h-dvh items-center justify-center bg-black/50">
-      <PopupLayer
-        title={t("setup.title")}
-        keyboardAwareTargetRef={nameInputRef}
-        dividerBorderClassName="border-[#555]"
-        content={
-          <div className="flex flex-col items-center gap-4">
-            <div className="w-full">
-              <input
-                ref={nameInputRef}
-                type="text"
-                value={name}
-                onChange={(e) => {
-                  setName(e.target.value);
-                  setError(null);
-                }}
-                placeholder={t("setup.placeholder.name")}
-                className="w-full border-2 border-[#222] px-3 py-0.5 text-center text-[1.4rem] focus:outline-none focus:ring-2 focus:ring-[#d95763]"
-              />
-              <div
-                className={`mt-2 text-[1.2rem] ${
-                  isWithinVisibleWidth ? "text-gray-600" : "text-red-600"
-                }`}
-              >
-                {t("setup.nameWidth", {
-                  width: Math.round(nameWidth),
-                  maxWidth: SETUP_NAME_MAX_WIDTH,
-                })}
+    <div className="fixed inset-0 z-[999] overflow-y-auto bg-black/50">
+      <div className="flex min-h-dvh items-center justify-center p-4">
+        <PopupLayer
+          title={t("setup.title")}
+          keyboardAwareTargetRef={nameInputRef}
+          dividerBorderClassName="border-[#555]"
+          content={
+            <div className="flex flex-col items-center gap-4">
+              <div className="w-full">
+                <input
+                  ref={nameInputRef}
+                  type="text"
+                  value={name}
+                  onChange={(e) => {
+                    setName(e.target.value);
+                    setError(null);
+                  }}
+                  placeholder={t("setup.placeholder.name")}
+                  className="w-full border-2 border-[#222] px-3 py-0.5 text-center text-[1.4rem] focus:outline-none focus:ring-2 focus:ring-[#d95763]"
+                />
+                <div
+                  className={`mt-2 text-[1.2rem] ${
+                    isWithinVisibleWidth ? "text-gray-600" : "text-red-600"
+                  }`}
+                >
+                  {t("setup.nameWidth", {
+                    width: Math.round(nameWidth),
+                    maxWidth: SETUP_NAME_MAX_WIDTH,
+                  })}
+                </div>
+                {error && (
+                  <p className="mt-4 text-component-negative text-[0.7em]">
+                    {error}
+                  </p>
+                )}
               </div>
-              {error && (
-                <p className="mt-4 text-component-negative text-[0.7em]">
-                  {error}
-                </p>
-              )}
             </div>
-          </div>
-        }
-        onConfirm={handleConfirm}
-        confirmText={t("setup.start")}
-      />
+          }
+          onConfirm={handleConfirm}
+          confirmText={t("setup.start")}
+        />
+      </div>
     </div>
   );
 

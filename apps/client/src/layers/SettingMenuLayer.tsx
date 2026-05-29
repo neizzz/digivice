@@ -250,27 +250,28 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-      <PopupLayer
-        title={t("settings.title")}
-        suppressInitialActionsMs={180}
-        topLeftContent={
-          <div className="text-[10px] leading-none text-gray-500">
-            {releaseLabel}
-          </div>
-        }
-        content={
-          <div className="flex flex-col gap-4 text-left text-[1.5rem] leading-[1.4]">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <div className="font-bold">
-                  {t("settings.vibration")}
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-50">
+      <div className="flex min-h-dvh items-center justify-center p-4">
+        <PopupLayer
+          title={t("settings.title")}
+          suppressInitialActionsMs={180}
+          topLeftContent={
+            <div className="text-[10px] leading-none text-gray-500">
+              {releaseLabel}
+            </div>
+          }
+          content={
+            <div className="flex flex-col gap-4 text-left text-[1.5rem] leading-[1.4]">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="font-bold">
+                    {t("settings.vibration")}
+                  </div>
                 </div>
-              </div>
-              <ToggleButton
-                enabled={vibrationEnabled}
-                onClick={() => onChangeVibration(!vibrationEnabled)}
-              />
+                <ToggleButton
+                  enabled={vibrationEnabled}
+                  onClick={() => onChangeVibration(!vibrationEnabled)}
+                />
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -351,16 +352,18 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
             )}
           </div>
         }
-        onConfirm={onClose}
-        onBack={onBack ?? onClose}
-        confirmText={t("common.close")}
-      />
+          onConfirm={onClose}
+          onBack={onBack ?? onClose}
+          confirmText={t("common.close")}
+        />
+      </div>
       {showFinalResetConfirm && (
         <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50"
+          className="fixed inset-0 z-[60] overflow-y-auto bg-black/50"
           data-snapshot-popup="settings-reset"
         >
-          <PopupLayer
+          <div className="flex min-h-dvh items-center justify-center p-4">
+            <PopupLayer
             title={t("settings.resetTitle")}
             content={
               <div className="flex flex-col gap-4 leading-[1.4]">
@@ -432,16 +435,17 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
                 </div>
               </div>
             }
-            onConfirm={onResetGameData}
-            onCancel={onCloseResetConfirm}
-            onBack={onResetConfirmBack ?? onCloseResetConfirm}
-            confirmText={t("common.reset")}
-            cancelText={t("common.cancel")}
-            confirmDisabled={!isResetEnabled}
-            confirmVariant="negative"
-            cancelVariant="positive"
-            confirmEnableDelayMs={2000}
-          />
+              onConfirm={onResetGameData}
+              onCancel={onCloseResetConfirm}
+              onBack={onResetConfirmBack ?? onCloseResetConfirm}
+              confirmText={t("common.reset")}
+              cancelText={t("common.cancel")}
+              confirmDisabled={!isResetEnabled}
+              confirmVariant="negative"
+              cancelVariant="positive"
+              confirmEnableDelayMs={2000}
+            />
+          </div>
         </div>
       )}
     </div>
