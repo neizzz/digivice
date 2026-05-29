@@ -3,6 +3,7 @@ import {
   ControlButtonType,
   Game,
   type GameDiagnosticsSnapshot,
+  type MainCharacterInfoSnapshot,
   type MainSceneSfxKind,
   type MainSceneReentrySimulationStateChangeCallback,
   getNativeSunTimes,
@@ -28,6 +29,7 @@ import { type SetupFormData, SetupLayer } from "./layers/SetupLayer";
 import AlertLayer from "./layers/AlertLayer";
 import FlappyBirdGameOverLayer from "./layers/FlappyBirdGameOverLayer";
 import FlappyBirdSettingsLayer from "./layers/FlappyBirdSettingsLayer";
+import MonsterInfoLayer from "./layers/MonsterInfoLayer";
 import SettingMenuLayer from "./layers/SettingMenuLayer";
 import useAlert from "./hooks/useAlert";
 import { getGameSettings, updateGameSettings } from "./settings/gameSettings";
@@ -224,6 +226,7 @@ type NativeAppLifecycleEventDetail = {
 const BACK_NAVIGATION_ALERT_ENTRY = "layer:alert";
 const BACK_NAVIGATION_LOADING_FAILURE_ENTRY = "layer:loading-failure";
 const BACK_NAVIGATION_DIAGNOSTICS_ENTRY = "layer:diagnostics-draft";
+const BACK_NAVIGATION_MONSTER_INFO_ENTRY = "layer:monster-info";
 const BACK_NAVIGATION_SETTING_MENU_ENTRY = "layer:setting-menu";
 const BACK_NAVIGATION_SETTING_RESET_CONFIRM_ENTRY =
   "layer:setting-reset-confirm";
@@ -234,6 +237,7 @@ type BackNavigationEntry =
   | typeof BACK_NAVIGATION_ALERT_ENTRY
   | typeof BACK_NAVIGATION_LOADING_FAILURE_ENTRY
   | typeof BACK_NAVIGATION_DIAGNOSTICS_ENTRY
+  | typeof BACK_NAVIGATION_MONSTER_INFO_ENTRY
   | typeof BACK_NAVIGATION_SETTING_MENU_ENTRY
   | typeof BACK_NAVIGATION_SETTING_RESET_CONFIRM_ENTRY
   | `${typeof BACK_NAVIGATION_SCENE_ENTRY_PREFIX}${SceneKey}`;
@@ -391,6 +395,31 @@ function waitForAnimationFrame(): Promise<void> {
   return new Promise((resolve) => {
     window.requestAnimationFrame(() => resolve());
   });
+}
+
+function areMainCharacterInfoSnapshotsEqual(
+  left: MainCharacterInfoSnapshot | null,
+  right: MainCharacterInfoSnapshot | null,
+): boolean {
+  if (left === right) {
+    return true;
+  }
+
+  if (!left || !right) {
+    return false;
+  }
+
+  return (
+    left.monsterName === right.monsterName &&
+    left.isEgg === right.isEgg &&
+    left.evolutionPhase === right.evolutionPhase &&
+    left.stamina === right.stamina &&
+    left.maxStamina === right.maxStamina &&
+    left.unhappyThreshold === right.unhappyThreshold &&
+    left.boostedThreshold === right.boostedThreshold &&
+    left.evolutionGauge === right.evolutionGauge &&
+    left.maxEvolutionGauge === right.maxEvolutionGauge
+  );
 }
 
 async function waitForLayoutStabilization(): Promise<void> {
@@ -729,6 +758,8 @@ const GameContainer: React.FC = () => {
   const [sceneHistoryStack, setSceneHistoryStack] = useState<SceneKey[]>(() => [
     ...ROOT_SCENE_HISTORY_STACK,
   ]);
+  const [monsterInfoState, setMonsterInfoState] =
+    useState<MainCharacterInfoSnapshot | null>(null);
   const [showSettingMenu, setShowSettingMenu] = useState(false);
   const [showFinalResetConfirm, setShowFinalResetConfirm] = useState(false);
   const [gameSettings, setGameSettings] = useState(getGameSettings);
@@ -964,6 +995,25 @@ const GameContainer: React.FC = () => {
     }, 0);
   }, [showSettingMenu]);
 
+  const openMonsterInfo = useCallback(
+    (snapshot: MainCharacterInfoSnapshot | null) => {
+      if (!snapshot) {
+        return;
+      }
+
+      setMonsterInfoState((previous) =>
+        areMainCharacterInfoSnapshotsEqual(previous, snapshot)
+          ? previous
+          : snapshot,
+      );
+    },
+    [],
+  );
+
+  const closeMonsterInfo = useCallback(() => {
+    setMonsterInfoState(null);
+  }, []);
+
   const closeSettingMenu = useCallback(() => {
     clearPendingSettingMenuOpen();
     setShowFinalResetConfirm(false);
@@ -986,6 +1036,10 @@ const GameContainer: React.FC = () => {
     const entries = sceneHistoryStack
       .slice(1)
       .map((sceneKey) => createSceneBackNavigationEntry(sceneKey));
+
+    if (monsterInfoState) {
+      entries.push(BACK_NAVIGATION_MONSTER_INFO_ENTRY);
+    }
 
     if (showSettingMenu) {
       entries.push(BACK_NAVIGATION_SETTING_MENU_ENTRY);
@@ -1011,6 +1065,7 @@ const GameContainer: React.FC = () => {
   }, [
     alertState,
     loadingFailureAlert,
+    monsterInfoState,
     pendingDiagnosticsDraft,
     sceneHistoryStack,
     showFinalResetConfirm,
@@ -1049,6 +1104,12 @@ const GameContainer: React.FC = () => {
   const dismissDiagnosticsDraft = useCallback(() => {
     requestHistoryBackForEntry(BACK_NAVIGATION_DIAGNOSTICS_ENTRY, () => {
       setPendingDiagnosticsDraft(null);
+    });
+  }, [requestHistoryBackForEntry]);
+
+  const dismissMonsterInfo = useCallback(() => {
+    requestHistoryBackForEntry(BACK_NAVIGATION_MONSTER_INFO_ENTRY, () => {
+      setMonsterInfoState(null);
     });
   }, [requestHistoryBackForEntry]);
 
@@ -1309,6 +1370,10 @@ const GameContainer: React.FC = () => {
         setLoadingFailureAlert(null);
       }
 
+      if (!targetEntrySet.has(BACK_NAVIGATION_MONSTER_INFO_ENTRY)) {
+        closeMonsterInfo();
+      }
+
       if (!targetEntrySet.has(BACK_NAVIGATION_SETTING_MENU_ENTRY)) {
         closeSettingMenu();
       } else if (
@@ -1331,6 +1396,7 @@ const GameContainer: React.FC = () => {
       await gameInstance.changeScene(targetSceneKey);
     },
     [
+      closeMonsterInfo,
       closeResetConfirm,
       closeSettingMenu,
       gameInstance,
@@ -2450,6 +2516,7 @@ const GameContainer: React.FC = () => {
         isInitializedRef.current = false;
         setSceneHistoryStack([...ROOT_SCENE_HISTORY_STACK]);
         setLoadingFailureAlert(null);
+        setMonsterInfoState(null);
         setShowSettingMenu(false);
         setShowFinalResetConfirm(false);
         setButtonParams(null);
@@ -2805,6 +2872,9 @@ const GameContainer: React.FC = () => {
       showSettings: () => {
         openSettingMenu();
       },
+      showMonsterInfo: () => {
+        openMonsterInfo(game.getMainCharacterInfoSnapshot());
+      },
       triggerBiteVibration: () => {
         void biteVibrationAdapter.vibrate();
       },
@@ -2963,6 +3033,7 @@ const GameContainer: React.FC = () => {
     getFlappyBirdBestScore,
     handleMainSceneReentrySimulationStateChange,
     handleSceneTransitionStateChange,
+    openMonsterInfo,
     openSettingMenu,
     persistFlappyBirdBestScore,
     requestInitialGameData,
@@ -3357,6 +3428,48 @@ const GameContainer: React.FC = () => {
     [entryFlowDiagnostics, hydrateInitialSetupData],
   );
 
+  useEffect(() => {
+    if (!monsterInfoState) {
+      return;
+    }
+
+    if (!gameInstance) {
+      setMonsterInfoState(null);
+      return;
+    }
+
+    let rafId = 0;
+    let cancelled = false;
+
+    const pollSnapshot = () => {
+      if (cancelled) {
+        return;
+      }
+
+      const nextSnapshot = gameInstance.getMainCharacterInfoSnapshot();
+
+      if (!nextSnapshot) {
+        setMonsterInfoState(null);
+        return;
+      }
+
+      setMonsterInfoState((previous) =>
+        areMainCharacterInfoSnapshotsEqual(previous, nextSnapshot)
+          ? previous
+          : nextSnapshot,
+      );
+
+      rafId = window.requestAnimationFrame(pollSnapshot);
+    };
+
+    rafId = window.requestAnimationFrame(pollSnapshot);
+
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(rafId);
+    };
+  }, [gameInstance, monsterInfoState]);
+
   const handleSendLoadingFailureLogs = useCallback(() => {
     setLoadingFailureAlert(null);
     window.setTimeout(() => {
@@ -3450,6 +3563,13 @@ const GameContainer: React.FC = () => {
         </div>
       )}
       {showSetupLayer && <SetupLayer onComplete={handleSetupComplete} />}
+      {monsterInfoState && (
+        <MonsterInfoLayer
+          snapshot={monsterInfoState}
+          onClose={dismissMonsterInfo}
+          onBack={closeMonsterInfo}
+        />
+      )}
       {showSettingMenu && (
         <SettingMenuLayer
           releaseLabel={getClientReleaseLabel()}

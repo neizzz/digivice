@@ -130,7 +130,9 @@ import {
   loadSpritesheet,
 } from "../../utils/asset";
 import type {
+  MainCharacterInfoSnapshot,
   ShowAlertCallback,
+  ShowMonsterInfoCallback,
   TriggerBiteVibrationCallback,
   TriggerTransientVibrationCallback,
   TriggerMainSceneSfxCallback,
@@ -167,7 +169,10 @@ import {
 } from "./systems/CharacterManageSystem";
 import { characterStatusSystem } from "./systems/CharacterStatusSystem";
 import { GAME_CONSTANTS } from "./config";
-import { getCharacterSpritesheetName } from "./evolutionConfig";
+import {
+  EVOLUTION_GAUGE_CONFIG,
+  getCharacterSpritesheetName,
+} from "./evolutionConfig";
 import {
   getManualSkyVisualState,
   getProjectedUpcomingSunTimes as projectUpcomingSunTimes,
@@ -528,6 +533,7 @@ export class MainSceneWorld implements IWorld, Scene {
   private _pendingStorageWrite: Promise<void> = Promise.resolve();
   private _startMiniGame?: () => unknown | Promise<unknown>;
   private _startMonsterBook?: () => unknown | Promise<unknown>;
+  private _showMonsterInfo?: ShowMonsterInfoCallback;
   private _showAlert?: ShowAlertCallback;
   private _locale: LocaleCode = DEFAULT_LOCALE;
   private _debugMode = false;
@@ -699,6 +705,7 @@ export class MainSceneWorld implements IWorld, Scene {
     debugMode?: boolean;
     startMiniGame?: () => unknown | Promise<unknown>;
     startMonsterBook?: () => unknown | Promise<unknown>;
+    showMonsterInfo?: ShowMonsterInfoCallback;
     showAlert?: ShowAlertCallback;
     locale?: LocaleCode;
     createInitialGameData?: () => Promise<InitialGameData>;
@@ -733,6 +740,7 @@ export class MainSceneWorld implements IWorld, Scene {
     this._debugMode = params.debugMode ?? false;
     this._startMiniGame = params.startMiniGame;
     this._startMonsterBook = params.startMonsterBook;
+    this._showMonsterInfo = params.showMonsterInfo;
     this._showAlert = params.showAlert;
     this._locale = params.locale ?? DEFAULT_LOCALE;
     this._shouldDeferPersistence = params.shouldDeferPersistence;
@@ -1740,6 +1748,17 @@ export class MainSceneWorld implements IWorld, Scene {
             if (this._handleHospitalSelection()) {
               this._recordMainSceneMenuUse("hospital");
             }
+          },
+          onInformationSelect: () => {
+            console.log("[MainSceneWorld] Information selected");
+            if (!this._showMonsterInfo) {
+              console.warn(
+                "[MainSceneWorld] Monster info callback is not set",
+              );
+              return;
+            }
+
+            this._showMonsterInfo();
           },
           onCancel: () => {
             console.log("[MainSceneWorld] Menu cancelled");
@@ -3563,6 +3582,25 @@ export class MainSceneWorld implements IWorld, Scene {
       maxStamina: GAME_CONSTANTS.MAX_STAMINA,
       unhappyThreshold: GAME_CONSTANTS.UNHAPPY_STAMINA_THRESHOLD,
       boostedThreshold: GAME_CONSTANTS.BOOSTED_STAMINA_THRESHOLD,
+    };
+  }
+
+  public getMainCharacterInfoSnapshot(): MainCharacterInfoSnapshot | null {
+    const characterEid = this._findMainCharacterEntity();
+    if (characterEid === -1) {
+      return null;
+    }
+
+    return {
+      monsterName: this._persistentData?.world_metadata.monster_name?.trim() ?? "",
+      isEgg: ObjectComp.state[characterEid] === CharacterState.EGG,
+      evolutionPhase: CharacterStatusComp.evolutionPhase[characterEid],
+      stamina: CharacterStatusComp.stamina[characterEid],
+      maxStamina: GAME_CONSTANTS.MAX_STAMINA,
+      unhappyThreshold: GAME_CONSTANTS.UNHAPPY_STAMINA_THRESHOLD,
+      boostedThreshold: GAME_CONSTANTS.BOOSTED_STAMINA_THRESHOLD,
+      evolutionGauge: CharacterStatusComp.evolutionGage[characterEid],
+      maxEvolutionGauge: EVOLUTION_GAUGE_CONFIG.maxGauge,
     };
   }
 

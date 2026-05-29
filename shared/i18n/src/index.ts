@@ -157,6 +157,12 @@ const en = {
   "main.eggUnavailable": "not available in egg state.",
   "main.objectLimitReached": "Maximum object count reached.",
   "main.cleanObjectsPrompt": "Please clean up and try again.",
+  "monsterInfo.title": "About {name}",
+  "monsterInfo.level": "Level",
+  "monsterInfo.stamina": "Stamina",
+  "monsterInfo.evolution": "Evolution",
+  "monsterInfo.levelEgg": "Egg",
+  "monsterInfo.levelPhase": "Lv.{phase}",
 } as const;
 
 export type TranslationKey = keyof typeof en;
@@ -256,6 +262,12 @@ const ko: TranslationDictionary = {
   "main.eggUnavailable": "알 상태에서는 사용할 수 없습니다.",
   "main.objectLimitReached": "최대 객체 개수에 도달했습니다.",
   "main.cleanObjectsPrompt": "청소 후 다시 시도해 주세요.",
+  "monsterInfo.title": "{name} 정보",
+  "monsterInfo.level": "레벨",
+  "monsterInfo.stamina": "체력",
+  "monsterInfo.evolution": "진화",
+  "monsterInfo.levelEgg": "알",
+  "monsterInfo.levelPhase": "Lv.{phase}",
 };
 
 const ja: TranslationDictionary = {
@@ -351,6 +363,12 @@ const ja: TranslationDictionary = {
   "main.eggUnavailable": "卵の状態では使用できません。",
   "main.objectLimitReached": "最大オブジェクト数に達しました。",
   "main.cleanObjectsPrompt": "掃除してからもう一度お試しください。",
+  "monsterInfo.title": "{name}の情報",
+  "monsterInfo.level": "レベル",
+  "monsterInfo.stamina": "スタミナ",
+  "monsterInfo.evolution": "進化",
+  "monsterInfo.levelEgg": "タマゴ",
+  "monsterInfo.levelPhase": "Lv.{phase}",
 };
 
 const zhTW: TranslationDictionary = {
@@ -444,6 +462,12 @@ const zhTW: TranslationDictionary = {
   "main.eggUnavailable": "蛋狀態無法使用。",
   "main.objectLimitReached": "已達到最大物件數量。",
   "main.cleanObjectsPrompt": "請先清理後再試一次。",
+  "monsterInfo.title": "{name}資訊",
+  "monsterInfo.level": "等級",
+  "monsterInfo.stamina": "體力",
+  "monsterInfo.evolution": "進化",
+  "monsterInfo.levelEgg": "蛋",
+  "monsterInfo.levelPhase": "Lv.{phase}",
 };
 
 const zhHK: TranslationDictionary = {
@@ -459,6 +483,12 @@ const zhHK: TranslationDictionary = {
   "flappy.retry": "再試",
   "main.objectLimitReached": "已達到最大物件數量。",
   "main.cleanObjectsPrompt": "請先清理後再試一次。",
+  "monsterInfo.title": "{name}資訊",
+  "monsterInfo.level": "等級",
+  "monsterInfo.stamina": "體力",
+  "monsterInfo.evolution": "進化",
+  "monsterInfo.levelEgg": "蛋",
+  "monsterInfo.levelPhase": "Lv.{phase}",
 };
 
 const hi: TranslationDictionary = {
@@ -554,6 +584,12 @@ const hi: TranslationDictionary = {
   "main.eggUnavailable": "अंडे की अवस्था में उपलब्ध नहीं।",
   "main.objectLimitReached": "अधिकतम ऑब्जेक्ट संख्या तक पहुँच गए।",
   "main.cleanObjectsPrompt": "साफ़ करके फिर से प्रयास करें।",
+  "monsterInfo.title": "{name} के बारे में",
+  "monsterInfo.level": "लेवल",
+  "monsterInfo.stamina": "स्टैमिना",
+  "monsterInfo.evolution": "विकास",
+  "monsterInfo.levelEgg": "अंडा",
+  "monsterInfo.levelPhase": "Lv.{phase}",
 };
 
 const th: TranslationDictionary = {
@@ -649,6 +685,12 @@ const th: TranslationDictionary = {
   "main.eggUnavailable": "ใช้ไม่ได้ตอนเป็นไข่",
   "main.objectLimitReached": "ถึงจำนวนวัตถุสูงสุดแล้ว",
   "main.cleanObjectsPrompt": "กรุณาทำความสะอาดแล้วลองอีกครั้ง",
+  "monsterInfo.title": "เกี่ยวกับ {name}",
+  "monsterInfo.level": "เลเวล",
+  "monsterInfo.stamina": "สตามินา",
+  "monsterInfo.evolution": "วิวัฒนาการ",
+  "monsterInfo.levelEgg": "ไข่",
+  "monsterInfo.levelPhase": "Lv.{phase}",
 };
 
 const vi: TranslationDictionary = {
@@ -744,6 +786,12 @@ const vi: TranslationDictionary = {
   "main.eggUnavailable": "không khả dụng khi ở trạng thái trứng.",
   "main.objectLimitReached": "Đã đạt đến số lượng đối tượng tối đa.",
   "main.cleanObjectsPrompt": "Hãy dọn dẹp rồi thử lại.",
+  "monsterInfo.title": "Về {name}",
+  "monsterInfo.level": "Cấp độ",
+  "monsterInfo.stamina": "Thể lực",
+  "monsterInfo.evolution": "Tiến hóa",
+  "monsterInfo.levelEgg": "Trứng",
+  "monsterInfo.levelPhase": "Lv.{phase}",
 };
 
 const ptBR: TranslationDictionary = {
@@ -839,6 +887,12 @@ const ptBR: TranslationDictionary = {
   "main.eggUnavailable": "não disponível no estado de ovo.",
   "main.objectLimitReached": "O número máximo de objetos foi atingido.",
   "main.cleanObjectsPrompt": "Limpe e tente novamente.",
+  "monsterInfo.title": "Sobre {name}",
+  "monsterInfo.level": "Nível",
+  "monsterInfo.stamina": "Stamina",
+  "monsterInfo.evolution": "Evolução",
+  "monsterInfo.levelEgg": "Ovo",
+  "monsterInfo.levelPhase": "Lv.{phase}",
 };
 
 export const TRANSLATIONS: Record<LocaleCode, TranslationDictionary> = {

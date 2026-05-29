@@ -52,6 +52,7 @@ export type ShowSettingsCallback = (params: {
   onReset: () => void;
   onClose: () => void;
 }) => void;
+export type ShowMonsterInfoCallback = () => void;
 export type ShowAlertCallback = (message: string, title?: string) => void;
 export type TriggerBiteVibrationCallback = () => void;
 export type TriggerTransientVibrationCallback = (params: {
@@ -103,6 +104,18 @@ export type FlappyBirdSkyContext = {
 export type GameDiagnosticsSnapshot = {
   currentSceneKey?: SceneKey;
   mainSceneData: MainSceneWorldData | null;
+};
+
+export type MainCharacterInfoSnapshot = {
+  monsterName: string;
+  isEgg: boolean;
+  evolutionPhase: number;
+  stamina: number;
+  maxStamina: number;
+  unhappyThreshold: number;
+  boostedThreshold: number;
+  evolutionGauge: number;
+  maxEvolutionGauge: number;
 };
 
 type NativeViewportSyncDetail = {
@@ -188,6 +201,7 @@ export class Game {
   public app: PIXI.Application;
   public changeControlButtons: ControlButtonsChangeCallback;
   public showSettings: ShowSettingsCallback; // 설정 화면 표시 콜백
+  public showMonsterInfo: ShowMonsterInfoCallback;
   public showAlert: ShowAlertCallback; // 팝업 콜백 추가
   public triggerBiteVibration?: TriggerBiteVibrationCallback;
   public triggerMainSceneSfx?: TriggerMainSceneSfxCallback;
@@ -251,6 +265,7 @@ export class Game {
     onCreateInitialGameData: CreateInitialGameDataCallback;
     changeControlButtons: ControlButtonsChangeCallback;
     showSettings: ShowSettingsCallback;
+    showMonsterInfo: ShowMonsterInfoCallback;
     showAlert: ShowAlertCallback; // 팝업 콜백 추가
     startMiniGame?: StartMiniGameCallback;
     triggerBiteVibration?: TriggerBiteVibrationCallback;
@@ -278,6 +293,7 @@ export class Game {
       onCreateInitialGameData,
       changeControlButtons,
       showSettings,
+      showMonsterInfo,
       showAlert,
       startMiniGame,
       triggerBiteVibration,
@@ -298,6 +314,7 @@ export class Game {
     } = params;
     this.changeControlButtons = changeControlButtons;
     this.showSettings = showSettings; // 설정 화면 표시 콜백
+    this.showMonsterInfo = showMonsterInfo;
     this.showAlert = showAlert; // 팝업 콜백 저장
     this._startMiniGame = startMiniGame;
     this.triggerBiteVibration = triggerBiteVibration;
@@ -788,6 +805,7 @@ export class Game {
           startMonsterBook: () => this.changeScene(SceneKey.MONSTER_BOOK),
           createInitialGameData: this._createInitialGameData,
           changeControlButtons: this.changeControlButtons,
+          showMonsterInfo: this.showMonsterInfo,
           showAlert: this.showAlert,
           locale: this._locale,
           triggerBiteVibration: this.triggerBiteVibration,
@@ -1252,6 +1270,14 @@ export class Game {
     }
 
     return this.currentScene.getMainCharacterStaminaSnapshot();
+  }
+
+  public getMainCharacterInfoSnapshot(): MainCharacterInfoSnapshot | null {
+    if (!(this.currentScene instanceof MainSceneWorld)) {
+      return null;
+    }
+
+    return this.currentScene.getMainCharacterInfoSnapshot();
   }
 
   public getDiagnosticsSnapshot(): GameDiagnosticsSnapshot {

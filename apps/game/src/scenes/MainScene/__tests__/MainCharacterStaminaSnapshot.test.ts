@@ -3,6 +3,8 @@ import test from "node:test";
 import { createWorld } from "bitecs";
 import * as PIXI from "pixi.js";
 import { GAME_CONSTANTS } from "../config";
+import { EVOLUTION_GAUGE_CONFIG } from "../evolutionConfig";
+import { CharacterStatusComp } from "../raw-components";
 import { CharacterState } from "../types";
 import { MainSceneWorld } from "../world";
 import { createTestCharacter } from "../../../test-utils/mainSceneTestUtils";
@@ -49,4 +51,82 @@ test("메인 캐릭터가 없으면 스테미나 snapshot은 null이다", () => 
   const world = createMainSceneWorldForTest();
 
   assert.equal(world.getMainCharacterStaminaSnapshot(), null);
+});
+
+test("메인 캐릭터 info snapshot은 이름, 레벨, 게이지 정보를 반환한다", () => {
+  const world = createMainSceneWorldForTest();
+  const characterEid = createTestCharacter(
+    world as unknown as Parameters<typeof createTestCharacter>[0],
+    {
+      state: CharacterState.IDLE,
+      stamina: 7.25,
+      x: 90,
+      y: 120,
+    },
+  );
+
+  CharacterStatusComp.evolutionPhase[characterEid] = 3;
+  CharacterStatusComp.evolutionGage[characterEid] = 42.5;
+  (world as unknown as {
+    _persistentData?: {
+      world_metadata: {
+        monster_name: string;
+      };
+    };
+  })._persistentData = {
+    world_metadata: {
+      monster_name: "MonTTo",
+    },
+  };
+
+  assert.deepEqual(world.getMainCharacterInfoSnapshot(), {
+    monsterName: "MonTTo",
+    isEgg: false,
+    evolutionPhase: 3,
+    stamina: 7.25,
+    maxStamina: GAME_CONSTANTS.MAX_STAMINA,
+    unhappyThreshold: GAME_CONSTANTS.UNHAPPY_STAMINA_THRESHOLD,
+    boostedThreshold: GAME_CONSTANTS.BOOSTED_STAMINA_THRESHOLD,
+    evolutionGauge: 42.5,
+    maxEvolutionGauge: EVOLUTION_GAUGE_CONFIG.maxGauge,
+  });
+});
+
+test("알 상태 메인 캐릭터 info snapshot은 egg 상태를 그대로 반환한다", () => {
+  const world = createMainSceneWorldForTest();
+  const characterEid = createTestCharacter(
+    world as unknown as Parameters<typeof createTestCharacter>[0],
+    {
+      state: CharacterState.EGG,
+      stamina: 5,
+      x: 64,
+      y: 88,
+    },
+  );
+
+  CharacterStatusComp.evolutionPhase[characterEid] = 1;
+  CharacterStatusComp.evolutionGage[characterEid] = 10;
+  (world as unknown as {
+    _persistentData?: {
+      world_metadata: {
+        monster_name: string;
+      };
+    };
+  })._persistentData = {
+    world_metadata: {
+      monster_name: "Eggy",
+    },
+  };
+
+  assert.deepEqual(world.getMainCharacterInfoSnapshot(), {
+    monsterName: "Eggy",
+    isEgg: true,
+    evolutionPhase: 1,
+    stamina: 5,
+    maxStamina: GAME_CONSTANTS.MAX_STAMINA,
+    unhappyThreshold: GAME_CONSTANTS.UNHAPPY_STAMINA_THRESHOLD,
+    boostedThreshold: GAME_CONSTANTS.BOOSTED_STAMINA_THRESHOLD,
+    evolutionGauge: 10,
+    maxEvolutionGauge: EVOLUTION_GAUGE_CONFIG.maxGauge,
+  });
 });

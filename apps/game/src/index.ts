@@ -1,6 +1,7 @@
 export { Game } from "./Game";
 export type {
 	GameDiagnosticsSnapshot,
+	MainCharacterInfoSnapshot,
 	MainSceneSfxKind,
 	MainSceneReentrySimulationStateChangeCallback,
 } from "./Game";

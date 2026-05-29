@@ -5,7 +5,7 @@ export enum GameMenuItemType {
   Drug = "drug",
   Clean = "clean",
   Hospital = "hospital",
-  // Information = "information",
+  Information = "information",
   // Training = "training",
 }
 
@@ -36,6 +36,8 @@ const getSpriteSlotIndex = (type: GameMenuItemType): number => {
       return 3;
     case GameMenuItemType.Clean:
       return 4;
+    case GameMenuItemType.Information:
+      return 5;
     case GameMenuItemType.Hospital:
       return 7;
     default:

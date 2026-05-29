@@ -22,7 +22,7 @@ export class GameMenu {
   private itemContainer: HTMLDivElement;
   // 메뉴 아이템 순서 반영 배열
   private menuItems: GameMenuItemType[] = [
-    // GameMenuItemType.Information,
+    GameMenuItemType.Information,
     GameMenuItemType.MiniGame,
     GameMenuItemType.Feed,
     GameMenuItemType.Clean,
@@ -184,10 +184,11 @@ export class GameMenu {
       // case GameMenuItemType.Training:
       //   if (this.options.onTrainingSelect) this.options.onTrainingSelect();
       //   break;
-      // case GameMenuItemType.Information:
-      //   if (this.options.onInformationSelect)
-      //     this.options.onInformationSelect();
-      //   break;
+      case GameMenuItemType.Information:
+        if (this.options.onInformationSelect) {
+          this.options.onInformationSelect();
+        }
+        break;
     }
   }
 

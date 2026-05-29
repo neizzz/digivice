@@ -17,6 +17,7 @@ import { playUiPopSound } from "../../utils/uiSfx";
 
 interface PopupProps {
   title?: string;
+  titleContent?: React.ReactNode;
   content: React.ReactNode;
   topLeftContent?: React.ReactNode;
   dividerBorderClassName?: string;
@@ -56,6 +57,7 @@ function roundKeyboardAwareDebugValue(
 
 const PopupLayer: React.FC<PopupProps> = ({
   title,
+  titleContent,
   content,
   topLeftContent,
   dividerBorderClassName = "border-[#222]",
@@ -557,7 +559,7 @@ const PopupLayer: React.FC<PopupProps> = ({
         <div
           className={`mb-[15px] flex-none border-b-4 pb-[10px] text-[1.8rem] leading-[1.2] font-display font-bold text-component-negative ${dividerBorderClassName}`}
         >
-          {resolvedTitle}
+          {titleContent ?? resolvedTitle}
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto pb-4 text-[1.4rem] leading-[1.6]">
           {content}
