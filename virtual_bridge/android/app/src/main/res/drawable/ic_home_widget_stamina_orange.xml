@@ -1,21 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item>
-        <shape android:shape="rectangle">
-            <size android:width="12dp" android:height="12dp" />
-            <corners android:radius="1dp" />
-            <solid android:color="#111111" />
-        </shape>
-    </item>
-    <item
-        android:bottom="1dp"
-        android:left="1dp"
-        android:right="1dp"
-        android:top="1dp">
-        <shape android:shape="rectangle">
-            <size android:width="10dp" android:height="10dp" />
-            <corners android:radius="1dp" />
-            <solid android:color="@color/home_widget_stamina_orange" />
-        </shape>
-    </item>
-</layer-list>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="14dp"
+    android:height="14dp"
+    android:viewportWidth="14"
+    android:viewportHeight="14">
+    <path
+        android:fillColor="#111111"
+        android:pathData="M1,0H13V1H14V13H13V14H1V13H0V1H1Z" />
+    <path
+        android:fillColor="@color/home_widget_stamina_orange"
+        android:pathData="M3,2H11V3H12V11H11V12H3V11H2V3H3Z" />
+</vector>
