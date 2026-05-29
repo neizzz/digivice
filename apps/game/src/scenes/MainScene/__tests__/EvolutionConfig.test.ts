@@ -10,6 +10,7 @@ import {
   MONSTER_EVOLUTION_RARITIES,
   PRODUCTION_EVOLUTION_GAUGE_CONFIG,
   getEvolutionSpec,
+  getEvolutionPhaseDurationEstimate,
   getEvolutionRarity,
   getMaxEvolutionRarityForClass,
   getMinEvolutionRarityForClass,
@@ -292,8 +293,8 @@ test("production 진화 목표 시간은 클래스별 기대 범위 안에서 �
     },
     {
       characterKey: CharacterKeyECS.GreenSlimeC1,
-      expectedDurationMs: 80 * HOUR_MS,
-      varianceMs: 8 * HOUR_MS,
+      expectedDurationMs: 60 * HOUR_MS,
+      varianceMs: 6 * HOUR_MS,
     },
   ];
 
@@ -312,6 +313,47 @@ test("production 진화 목표 시간은 클래스별 기대 범위 안에서 �
       `duration above range for ${testCase.characterKey}: ${targetDurationMs}`,
     );
   }
+});
+
+test("레벨별 예상 진화 시간 표시는 production 기준 시간/분산을 그대로 사용한다", () => {
+  assert.deepEqual(getEvolutionPhaseDurationEstimate(1), {
+    phase: 1,
+    classCode: "A",
+    expectedDurationMs: 20 * HOUR_MS,
+    varianceMs: 2 * HOUR_MS,
+    minDurationMs: 18 * HOUR_MS,
+    maxDurationMs: 22 * HOUR_MS,
+    canEvolve: true,
+  });
+  assert.deepEqual(getEvolutionPhaseDurationEstimate(2), {
+    phase: 2,
+    classCode: "B",
+    expectedDurationMs: 40 * HOUR_MS,
+    varianceMs: 4 * HOUR_MS,
+    minDurationMs: 36 * HOUR_MS,
+    maxDurationMs: 44 * HOUR_MS,
+    canEvolve: true,
+  });
+  assert.deepEqual(getEvolutionPhaseDurationEstimate(3), {
+    phase: 3,
+    classCode: "C",
+    expectedDurationMs: 60 * HOUR_MS,
+    varianceMs: 6 * HOUR_MS,
+    minDurationMs: 54 * HOUR_MS,
+    maxDurationMs: 66 * HOUR_MS,
+    canEvolve: true,
+  });
+  assert.deepEqual(getEvolutionPhaseDurationEstimate(4), {
+    phase: 4,
+    classCode: "D",
+    expectedDurationMs: null,
+    varianceMs: null,
+    minDurationMs: null,
+    maxDurationMs: null,
+    canEvolve: false,
+  });
+  assert.equal(getEvolutionPhaseDurationEstimate(0), null);
+  assert.equal(getEvolutionPhaseDurationEstimate(99), null);
 });
 
 test("production/dev 기본 진화게이지 gain은 기존 대비 10% 증가한다", () => {

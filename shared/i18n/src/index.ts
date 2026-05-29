@@ -78,6 +78,8 @@ const en = {
   "settings.homeWidgetDescription":
     "Add MonTTo to your Android home screen.",
   "settings.homeWidgetAdd": "Add",
+  "settings.homeWidgetAdd1x1": "Add 1x1",
+  "settings.homeWidgetAdd2x1": "Add 2x1",
   "settings.homeWidgetAdding": "Adding...",
   "settings.homeWidgetUnavailable":
     "Home Widget is only available in the Android app.",
@@ -163,6 +165,9 @@ const en = {
   "monsterInfo.evolution": "Evolution",
   "monsterInfo.levelEgg": "Egg",
   "monsterInfo.levelPhase": "Lv.{phase}",
+  "monsterInfo.evolutionEstimate": "Expected evolution time",
+  "monsterInfo.evolutionEstimateRange": "{average} avg ({min} - {max})",
+  "monsterInfo.evolutionEstimateTerminal": "No further evolution",
 } as const;
 
 export type TranslationKey = keyof typeof en;
@@ -200,6 +205,8 @@ const ko: TranslationDictionary = {
   "settings.homeWidgetDescription":
     "Android 홈 화면에 MonTTo 위젯을 추가합니다.",
   "settings.homeWidgetAdd": "추가",
+  "settings.homeWidgetAdd1x1": "1x1 추가",
+  "settings.homeWidgetAdd2x1": "2x1 추가",
   "settings.homeWidgetAdding": "추가 중...",
   "settings.homeWidgetUnavailable":
     "홈 위젯은 Android 앱에서만 사용할 수 있습니다.",
@@ -268,6 +275,9 @@ const ko: TranslationDictionary = {
   "monsterInfo.evolution": "진화",
   "monsterInfo.levelEgg": "알",
   "monsterInfo.levelPhase": "Lv.{phase}",
+  "monsterInfo.evolutionEstimate": "예상 진화 시간",
+  "monsterInfo.evolutionEstimateRange": "평균 {average} ({min} ~ {max})",
+  "monsterInfo.evolutionEstimateTerminal": "다음 진화 없음",
 };
 
 const ja: TranslationDictionary = {
@@ -301,6 +311,8 @@ const ja: TranslationDictionary = {
   "settings.homeWidgetDescription":
     "Android のホーム画面に MonTTo ウィジェットを追加します。",
   "settings.homeWidgetAdd": "追加",
+  "settings.homeWidgetAdd1x1": "1x1追加",
+  "settings.homeWidgetAdd2x1": "2x1追加",
   "settings.homeWidgetAdding": "追加中...",
   "settings.homeWidgetUnavailable":
     "ホームウィジェットは Android アプリでのみ利用できます。",
@@ -369,6 +381,9 @@ const ja: TranslationDictionary = {
   "monsterInfo.evolution": "進化",
   "monsterInfo.levelEgg": "タマゴ",
   "monsterInfo.levelPhase": "Lv.{phase}",
+  "monsterInfo.evolutionEstimate": "予想進化時間",
+  "monsterInfo.evolutionEstimateRange": "平均{average} ({min}〜{max})",
+  "monsterInfo.evolutionEstimateTerminal": "次の進化なし",
 };
 
 const zhTW: TranslationDictionary = {
@@ -401,6 +416,8 @@ const zhTW: TranslationDictionary = {
   "settings.homeWidget": "主畫面小工具",
   "settings.homeWidgetDescription": "將 MonTTo 小工具加入 Android 主畫面。",
   "settings.homeWidgetAdd": "加入",
+  "settings.homeWidgetAdd1x1": "加入 1x1",
+  "settings.homeWidgetAdd2x1": "加入 2x1",
   "settings.homeWidgetAdding": "加入中...",
   "settings.homeWidgetUnavailable":
     "主畫面小工具僅可在 Android App 中使用。",
@@ -468,6 +485,9 @@ const zhTW: TranslationDictionary = {
   "monsterInfo.evolution": "進化",
   "monsterInfo.levelEgg": "蛋",
   "monsterInfo.levelPhase": "Lv.{phase}",
+  "monsterInfo.evolutionEstimate": "預計進化時間",
+  "monsterInfo.evolutionEstimateRange": "平均 {average} ({min}～{max})",
+  "monsterInfo.evolutionEstimateTerminal": "沒有下一次進化",
 };
 
 const zhHK: TranslationDictionary = {
@@ -489,6 +509,9 @@ const zhHK: TranslationDictionary = {
   "monsterInfo.evolution": "進化",
   "monsterInfo.levelEgg": "蛋",
   "monsterInfo.levelPhase": "Lv.{phase}",
+  "monsterInfo.evolutionEstimate": "預計進化時間",
+  "monsterInfo.evolutionEstimateRange": "平均 {average} ({min}～{max})",
+  "monsterInfo.evolutionEstimateTerminal": "沒有下一次進化",
 };
 
 const hi: TranslationDictionary = {
@@ -522,6 +545,8 @@ const hi: TranslationDictionary = {
   "settings.homeWidgetDescription":
     "MonTTo विजेट को अपने Android होम स्क्रीन पर जोड़ें।",
   "settings.homeWidgetAdd": "जोड़ें",
+  "settings.homeWidgetAdd1x1": "1x1 जोड़ें",
+  "settings.homeWidgetAdd2x1": "2x1 जोड़ें",
   "settings.homeWidgetAdding": "जोड़ा जा रहा है...",
   "settings.homeWidgetUnavailable":
     "होम विजेट केवल Android ऐप में उपलब्ध है।",
@@ -590,6 +615,9 @@ const hi: TranslationDictionary = {
   "monsterInfo.evolution": "विकास",
   "monsterInfo.levelEgg": "अंडा",
   "monsterInfo.levelPhase": "Lv.{phase}",
+  "monsterInfo.evolutionEstimate": "अनुमानित विकास समय",
+  "monsterInfo.evolutionEstimateRange": "औसत {average} ({min} - {max})",
+  "monsterInfo.evolutionEstimateTerminal": "आगे विकास नहीं",
 };
 
 const th: TranslationDictionary = {
@@ -623,6 +651,8 @@ const th: TranslationDictionary = {
   "settings.homeWidgetDescription":
     "เพิ่มวิดเจ็ต MonTTo ไปยังหน้าจอหลัก Android ของคุณ",
   "settings.homeWidgetAdd": "เพิ่ม",
+  "settings.homeWidgetAdd1x1": "เพิ่ม 1x1",
+  "settings.homeWidgetAdd2x1": "เพิ่ม 2x1",
   "settings.homeWidgetAdding": "กำลังเพิ่ม...",
   "settings.homeWidgetUnavailable":
     "โฮมวิดเจ็ตใช้ได้เฉพาะในแอป Android เท่านั้น",
@@ -691,6 +721,9 @@ const th: TranslationDictionary = {
   "monsterInfo.evolution": "วิวัฒนาการ",
   "monsterInfo.levelEgg": "ไข่",
   "monsterInfo.levelPhase": "Lv.{phase}",
+  "monsterInfo.evolutionEstimate": "เวลาวิวัฒนาการโดยประมาณ",
+  "monsterInfo.evolutionEstimateRange": "เฉลี่ย {average} ({min} - {max})",
+  "monsterInfo.evolutionEstimateTerminal": "ไม่มีการวิวัฒนาการถัดไป",
 };
 
 const vi: TranslationDictionary = {
@@ -724,6 +757,8 @@ const vi: TranslationDictionary = {
   "settings.homeWidgetDescription":
     "Thêm tiện ích MonTTo vào màn hình chính Android của bạn.",
   "settings.homeWidgetAdd": "Thêm",
+  "settings.homeWidgetAdd1x1": "Thêm 1x1",
+  "settings.homeWidgetAdd2x1": "Thêm 2x1",
   "settings.homeWidgetAdding": "Đang thêm...",
   "settings.homeWidgetUnavailable":
     "Tiện ích màn hình chính chỉ khả dụng trong ứng dụng Android.",
@@ -792,6 +827,9 @@ const vi: TranslationDictionary = {
   "monsterInfo.evolution": "Tiến hóa",
   "monsterInfo.levelEgg": "Trứng",
   "monsterInfo.levelPhase": "Lv.{phase}",
+  "monsterInfo.evolutionEstimate": "Thời gian tiến hóa dự kiến",
+  "monsterInfo.evolutionEstimateRange": "Trung bình {average} ({min} - {max})",
+  "monsterInfo.evolutionEstimateTerminal": "Không có tiến hóa tiếp theo",
 };
 
 const ptBR: TranslationDictionary = {
@@ -825,6 +863,8 @@ const ptBR: TranslationDictionary = {
   "settings.homeWidgetDescription":
     "Adicione o widget do MonTTo à tela inicial do Android.",
   "settings.homeWidgetAdd": "Adicionar",
+  "settings.homeWidgetAdd1x1": "Adicionar 1x1",
+  "settings.homeWidgetAdd2x1": "Adicionar 2x1",
   "settings.homeWidgetAdding": "Adicionando...",
   "settings.homeWidgetUnavailable":
     "O widget da tela inicial está disponível apenas no app Android.",
@@ -893,6 +933,9 @@ const ptBR: TranslationDictionary = {
   "monsterInfo.evolution": "Evolução",
   "monsterInfo.levelEgg": "Ovo",
   "monsterInfo.levelPhase": "Lv.{phase}",
+  "monsterInfo.evolutionEstimate": "Tempo estimado de evolução",
+  "monsterInfo.evolutionEstimateRange": "média {average} ({min} - {max})",
+  "monsterInfo.evolutionEstimateTerminal": "Sem próxima evolução",
 };
 
 export const TRANSLATIONS: Record<LocaleCode, TranslationDictionary> = {

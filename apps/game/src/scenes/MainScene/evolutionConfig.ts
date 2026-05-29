@@ -68,6 +68,16 @@ export type EvolutionGaugeConfig = {
   targetDurationVarianceByClassMs: Record<CharacterClass, number>;
 };
 
+export type EvolutionPhaseDurationEstimate = {
+  phase: number;
+  classCode: MonsterClassCode;
+  expectedDurationMs: number | null;
+  varianceMs: number | null;
+  minDurationMs: number | null;
+  maxDurationMs: number | null;
+  canEvolve: boolean;
+};
+
 const DEFAULT_MAX_GAUGE = 100;
 const HOUR_MS = 60 * 60 * 1000;
 export const EVOLUTION_GAUGE_GAIN_MULTIPLIER = 1.1;
@@ -78,7 +88,7 @@ const PRODUCTION_EVOLUTION_TARGET_DURATION_BY_CLASS_MS: Record<
 > = {
   [CharacterClass.A]: 20 * HOUR_MS,
   [CharacterClass.B]: 40 * HOUR_MS,
-  [CharacterClass.C]: 80 * HOUR_MS,
+  [CharacterClass.C]: 60 * HOUR_MS,
   [CharacterClass.D]: 80 * HOUR_MS,
 };
 
@@ -88,7 +98,7 @@ const PRODUCTION_EVOLUTION_TARGET_DURATION_VARIANCE_BY_CLASS_MS: Record<
 > = {
   [CharacterClass.A]: 2 * HOUR_MS,
   [CharacterClass.B]: 4 * HOUR_MS,
-  [CharacterClass.C]: 8 * HOUR_MS,
+  [CharacterClass.C]: 6 * HOUR_MS,
   [CharacterClass.D]: 8 * HOUR_MS,
 };
 
@@ -232,6 +242,14 @@ const MONSTER_PHASE_BY_CLASS_CODE: Record<MonsterClassCode, number> = {
   C: 3,
   D: 4,
 };
+
+const MONSTER_CLASS_CODE_BY_PHASE: Partial<Record<number, MonsterClassCode>> =
+  Object.fromEntries(
+    Object.entries(MONSTER_PHASE_BY_CLASS_CODE).map(([classCode, phase]) => [
+      phase,
+      classCode as MonsterClassCode,
+    ]),
+  );
 
 const MAX_EVOLUTION_RARITY_BY_CLASS_CODE: Record<
   MonsterClassCode,
@@ -783,6 +801,47 @@ export function getEvolutionGaugeIncreaseAmount(
   }
 
   return EVOLUTION_GAUGE_CONFIG.gaugeGainByClass[spec.class] ?? 0;
+}
+
+export function getEvolutionPhaseDurationEstimate(
+  phase: number,
+): EvolutionPhaseDurationEstimate | null {
+  const normalizedPhase = Math.trunc(phase);
+  const classCode = MONSTER_CLASS_CODE_BY_PHASE[normalizedPhase];
+
+  if (!classCode) {
+    return null;
+  }
+
+  if (classCode === "D") {
+    return {
+      phase: normalizedPhase,
+      classCode,
+      expectedDurationMs: null,
+      varianceMs: null,
+      minDurationMs: null,
+      maxDurationMs: null,
+      canEvolve: false,
+    };
+  }
+
+  const characterClass = MONSTER_CLASS_BY_CODE[classCode];
+  const expectedDurationMs =
+    PRODUCTION_EVOLUTION_GAUGE_CONFIG.targetDurationByClassMs[characterClass];
+  const varianceMs =
+    PRODUCTION_EVOLUTION_GAUGE_CONFIG.targetDurationVarianceByClassMs[
+      characterClass
+    ];
+
+  return {
+    phase: normalizedPhase,
+    classCode,
+    expectedDurationMs,
+    varianceMs,
+    minDurationMs: Math.max(0, expectedDurationMs - varianceMs),
+    maxDurationMs: expectedDurationMs + varianceMs,
+    canEvolve: true,
+  };
 }
 
 export function getProductionEvolutionTargetDurationMsForEntity(params: {

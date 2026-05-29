@@ -4,6 +4,7 @@ import {
   NAME_LABEL_FONT_WEIGHT,
   NAME_LABEL_STROKE_COLOR,
   NAME_LABEL_STROKE_WIDTH,
+  getEvolutionPhaseDurationEstimate,
   type MainCharacterInfoSnapshot,
 } from "@digivice/game";
 import { DEFAULT_LOCALE, TRANSLATIONS } from "@shared/i18n";
@@ -17,6 +18,7 @@ const STAMINA_HIGH_COLOR = "#49A95D";
 const EVOLUTION_FILL_COLOR = "#59B8FF";
 const MONSTER_INFO_TITLE_KEY = "monsterInfo.title";
 const DOM_NAME_LABEL_STROKE_WIDTH = Math.max(1, NAME_LABEL_STROKE_WIDTH / 2);
+const EVOLUTION_DURATION_PHASES = [1, 2, 3, 4] as const;
 
 function colorNumberToCssHex(color: number): string {
   return `#${color.toString(16).padStart(6, "0")}`;
@@ -84,6 +86,18 @@ function getStaminaFillColor(snapshot: MainCharacterInfoSnapshot): string {
   return STAMINA_HIGH_COLOR;
 }
 
+function formatDurationForEstimate(milliseconds: number): string {
+  const totalMinutes = Math.max(0, Math.round(milliseconds / 60000));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (minutes === 0) {
+    return `${hours}h`;
+  }
+
+  return `${hours}h ${minutes}m`;
+}
+
 const StatusBar: React.FC<{
   label: string;
   currentValue: number;
@@ -134,6 +148,9 @@ const MonsterInfoLayer: React.FC<MonsterInfoLayerProps> = ({
     : t("monsterInfo.levelPhase", { phase: snapshot.evolutionPhase });
   const titleText = t(MONSTER_INFO_TITLE_KEY, { name: snapshot.monsterName });
   const titleTemplate = splitMonsterInfoTitleTemplate(locale);
+  const evolutionDurationEstimates = EVOLUTION_DURATION_PHASES.map((phase) =>
+    getEvolutionPhaseDurationEstimate(phase),
+  ).filter((estimate): estimate is NonNullable<typeof estimate> => !!estimate);
   const nameLabelFillColor = colorNumberToCssHex(NAME_LABEL_FILL_COLOR);
   const nameLabelStrokeColor = colorNumberToCssHex(NAME_LABEL_STROKE_COLOR);
   const nameTitleStyle: React.CSSProperties = {
@@ -194,6 +211,46 @@ const MonsterInfoLayer: React.FC<MonsterInfoLayerProps> = ({
               maxValue={snapshot.maxEvolutionGauge}
               fillColor={EVOLUTION_FILL_COLOR}
             />
+            <div className="flex flex-col gap-2 text-left">
+              <div className="text-[1.2rem] leading-[1.2] text-[#222]">
+                {t("monsterInfo.evolutionEstimate")}
+              </div>
+              <div className="flex flex-col gap-2 border-2 border-[#222] bg-[#f5ecd1] px-3 py-2 text-[1.05rem]">
+                {evolutionDurationEstimates.map((estimate) => {
+                  const isCurrentLevel =
+                    !snapshot.isEgg && snapshot.evolutionPhase === estimate.phase;
+                  const estimateText = estimate.canEvolve
+                    ? t("monsterInfo.evolutionEstimateRange", {
+                        average: formatDurationForEstimate(
+                          estimate.expectedDurationMs,
+                        ),
+                        min: formatDurationForEstimate(estimate.minDurationMs),
+                        max: formatDurationForEstimate(estimate.maxDurationMs),
+                      })
+                    : t("monsterInfo.evolutionEstimateTerminal");
+
+                  return (
+                    <div
+                      key={estimate.phase}
+                      className="flex items-center justify-between gap-3"
+                    >
+                      <span className="text-[#222]">
+                        {t("monsterInfo.levelPhase", { phase: estimate.phase })}
+                      </span>
+                      <span
+                        className={
+                          isCurrentLevel
+                            ? "text-right font-bold text-component-positive"
+                            : "text-right text-[#5a5346]"
+                        }
+                      >
+                        {estimateText}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         }
         onConfirm={onClose}

@@ -23,6 +23,12 @@ export * from "./types/Character";
 export { getNativeSunTimes } from "./scenes/MainScene/sunTimes";
 export * from "./scenes/MainScene/evolutionAdmin";
 export {
+	getEvolutionPhaseDurationEstimate,
+} from "./scenes/MainScene/evolutionConfig";
+export type {
+	EvolutionPhaseDurationEstimate,
+} from "./scenes/MainScene/evolutionConfig";
+export {
 	getTimeOfDayLabel,
 	TIME_OF_DAY_OPTIONS,
 	TimeOfDay,
