@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  FLAPPY_BIRD_FINAL_STAGE_START_SCORE,
   FLAPPY_BIRD_TUTORIAL_DIFFICULTY,
+  reduceFlappyBirdPipeSpawnInterval,
   resolveFlappyBirdDifficultyState,
 } from "../difficulty";
 import { buildPipeSpawnPlan } from "../pipeSpawn";
@@ -16,45 +18,283 @@ function createRandomSequence(values: number[]): () => number {
   };
 }
 
-test("49점 이하에서는 고득점 파이프 modifier가 비활성화된다", () => {
-  const difficulty = resolveFlappyBirdDifficultyState(49);
+type DifficultyExpectation = {
+  pipeSpeed: number;
+  pipeSpawnInterval: number;
+  passageHeightMinRatio: number;
+  passageHeightMaxRatio: number;
+  passagePositionExpansionTiles: number;
+  doublePipePatternChance: number;
+  misalignedDoublePipePatternChance: number;
+  misalignedDoublePipePatternOffsetTiles: number;
+  doublePipePatternGapTileOptions?: readonly number[];
+};
 
-  assert.equal(difficulty.passagePositionExpansionTiles, 0);
-  assert.equal(difficulty.doublePipePatternChance, 0);
-  assert.deepEqual(difficulty.doublePipePatternGapTileOptions, []);
-  assert.equal(difficulty.misalignedDoublePipePatternChance, 0);
-  assert.equal(difficulty.misalignedDoublePipePatternOffsetTiles, 0);
-});
+const BASE_PIPE_SPAWN_INTERVAL = reduceFlappyBirdPipeSpawnInterval(2480);
+const MAX_PIPE_SPAWN_INTERVAL = reduceFlappyBirdPipeSpawnInterval(2025);
+const FINAL_STAGE_PIPE_SPAWN_INTERVAL = Math.round(MAX_PIPE_SPAWN_INTERVAL * 0.8);
 
-test("50점 이상에서는 통로 위치 범위가 1타일 확장된다", () => {
-  const difficulty = resolveFlappyBirdDifficultyState(50);
+function resolveBasicSpawnInterval(score: number): number {
+  if (score <= 3) {
+    return FLAPPY_BIRD_TUTORIAL_DIFFICULTY.pipeSpawnInterval;
+  }
 
-  assert.equal(difficulty.passagePositionExpansionTiles, 1);
-});
+  if (score >= 21) {
+    return MAX_PIPE_SPAWN_INTERVAL;
+  }
 
-test("70점 이상에서는 2연속 파이프 패턴이 25% 확률로 활성화된다", () => {
-  const difficulty = resolveFlappyBirdDifficultyState(70);
-
-  assert.equal(difficulty.doublePipePatternChance, 0.25);
-  assert.deepEqual(difficulty.doublePipePatternGapTileOptions, [0, 1]);
-});
-
-test("90점 이상에서는 같은 점수대 기본 간격 대비 파이프 생성 간격이 20% 감소한다", () => {
-  const difficulty89 = resolveFlappyBirdDifficultyState(89);
-  const difficulty90 = resolveFlappyBirdDifficultyState(90);
-
-  assert.equal(
-    difficulty90.pipeSpawnInterval,
-    Math.round(difficulty89.pipeSpawnInterval * 0.8),
+  const progress = (score - 4) / (20 - 4);
+  return Math.round(
+    BASE_PIPE_SPAWN_INTERVAL +
+      (MAX_PIPE_SPAWN_INTERVAL - BASE_PIPE_SPAWN_INTERVAL) * progress,
   );
+}
+
+function assertDifficulty(score: number, expectation: DifficultyExpectation): void {
+  const difficulty = resolveFlappyBirdDifficultyState(score);
+
+  assert.equal(difficulty.pipeSpeed, expectation.pipeSpeed, `score=${score} pipeSpeed`);
+  assert.equal(
+    difficulty.pipeSpawnInterval,
+    expectation.pipeSpawnInterval,
+    `score=${score} pipeSpawnInterval`,
+  );
+  assert.equal(
+    difficulty.passageHeightMinRatio,
+    expectation.passageHeightMinRatio,
+    `score=${score} passageHeightMinRatio`,
+  );
+  assert.equal(
+    difficulty.passageHeightMaxRatio,
+    expectation.passageHeightMaxRatio,
+    `score=${score} passageHeightMaxRatio`,
+  );
+  assert.equal(
+    difficulty.passagePositionExpansionTiles,
+    expectation.passagePositionExpansionTiles,
+    `score=${score} passagePositionExpansionTiles`,
+  );
+  assert.equal(
+    difficulty.doublePipePatternChance,
+    expectation.doublePipePatternChance,
+    `score=${score} doublePipePatternChance`,
+  );
+  assert.deepEqual(
+    difficulty.doublePipePatternGapTileOptions,
+    expectation.doublePipePatternGapTileOptions ??
+      (expectation.doublePipePatternChance > 0 ? [0, 1] : []),
+    `score=${score} doublePipePatternGapTileOptions`,
+  );
+  assert.equal(
+    difficulty.misalignedDoublePipePatternChance,
+    expectation.misalignedDoublePipePatternChance,
+    `score=${score} misalignedDoublePipePatternChance`,
+  );
+  assert.equal(
+    difficulty.misalignedDoublePipePatternOffsetTiles,
+    expectation.misalignedDoublePipePatternOffsetTiles,
+    `score=${score} misalignedDoublePipePatternOffsetTiles`,
+  );
+}
+
+test("난이도 score 경계값이 새 단계 배치를 따른다", () => {
+  const cases: Array<[number, DifficultyExpectation]> = [
+    [
+      3,
+      {
+        pipeSpeed: 4,
+        pipeSpawnInterval: FLAPPY_BIRD_TUTORIAL_DIFFICULTY.pipeSpawnInterval,
+        passageHeightMinRatio: 0.35,
+        passageHeightMaxRatio: 0.45,
+        passagePositionExpansionTiles: 0,
+        doublePipePatternChance: 0,
+        misalignedDoublePipePatternChance: 0,
+        misalignedDoublePipePatternOffsetTiles: 0,
+      },
+    ],
+    [
+      4,
+      {
+        pipeSpeed: 4.6,
+        pipeSpawnInterval: resolveBasicSpawnInterval(4),
+        passageHeightMinRatio: 0.35,
+        passageHeightMaxRatio: 0.35,
+        passagePositionExpansionTiles: 0,
+        doublePipePatternChance: 0,
+        misalignedDoublePipePatternChance: 0,
+        misalignedDoublePipePatternOffsetTiles: 0,
+      },
+    ],
+    [
+      10,
+      {
+        pipeSpeed: 4.6,
+        pipeSpawnInterval: resolveBasicSpawnInterval(10),
+        passageHeightMinRatio: 0.35,
+        passageHeightMaxRatio: 0.35,
+        passagePositionExpansionTiles: 0,
+        doublePipePatternChance: 0,
+        misalignedDoublePipePatternChance: 0,
+        misalignedDoublePipePatternOffsetTiles: 0,
+      },
+    ],
+    [
+      11,
+      {
+        pipeSpeed: 5,
+        pipeSpawnInterval: resolveBasicSpawnInterval(11),
+        passageHeightMinRatio: 0.3,
+        passageHeightMaxRatio: 0.3,
+        passagePositionExpansionTiles: 0,
+        doublePipePatternChance: 0,
+        misalignedDoublePipePatternChance: 0,
+        misalignedDoublePipePatternOffsetTiles: 0,
+      },
+    ],
+    [
+      20,
+      {
+        pipeSpeed: 5,
+        pipeSpawnInterval: resolveBasicSpawnInterval(20),
+        passageHeightMinRatio: 0.3,
+        passageHeightMaxRatio: 0.3,
+        passagePositionExpansionTiles: 0,
+        doublePipePatternChance: 0,
+        misalignedDoublePipePatternChance: 0,
+        misalignedDoublePipePatternOffsetTiles: 0,
+      },
+    ],
+    [
+      21,
+      {
+        pipeSpeed: 5,
+        pipeSpawnInterval: MAX_PIPE_SPAWN_INTERVAL,
+        passageHeightMinRatio: 0.3,
+        passageHeightMaxRatio: 0.3,
+        passagePositionExpansionTiles: 0,
+        doublePipePatternChance: 0,
+        misalignedDoublePipePatternChance: 0,
+        misalignedDoublePipePatternOffsetTiles: 0,
+      },
+    ],
+    [
+      30,
+      {
+        pipeSpeed: 5,
+        pipeSpawnInterval: MAX_PIPE_SPAWN_INTERVAL,
+        passageHeightMinRatio: 0.3,
+        passageHeightMaxRatio: 0.3,
+        passagePositionExpansionTiles: 0,
+        doublePipePatternChance: 0,
+        misalignedDoublePipePatternChance: 0,
+        misalignedDoublePipePatternOffsetTiles: 0,
+      },
+    ],
+    [
+      31,
+      {
+        pipeSpeed: 5.4,
+        pipeSpawnInterval: MAX_PIPE_SPAWN_INTERVAL,
+        passageHeightMinRatio: 0.28,
+        passageHeightMaxRatio: 0.3,
+        passagePositionExpansionTiles: 0,
+        doublePipePatternChance: 0,
+        misalignedDoublePipePatternChance: 0,
+        misalignedDoublePipePatternOffsetTiles: 0,
+      },
+    ],
+    [
+      40,
+      {
+        pipeSpeed: 5.4,
+        pipeSpawnInterval: MAX_PIPE_SPAWN_INTERVAL,
+        passageHeightMinRatio: 0.28,
+        passageHeightMaxRatio: 0.3,
+        passagePositionExpansionTiles: 0,
+        doublePipePatternChance: 0,
+        misalignedDoublePipePatternChance: 0,
+        misalignedDoublePipePatternOffsetTiles: 0,
+      },
+    ],
+    [
+      41,
+      {
+        pipeSpeed: 5.4,
+        pipeSpawnInterval: MAX_PIPE_SPAWN_INTERVAL,
+        passageHeightMinRatio: 0.28,
+        passageHeightMaxRatio: 0.3,
+        passagePositionExpansionTiles: 1,
+        doublePipePatternChance: 0,
+        misalignedDoublePipePatternChance: 0,
+        misalignedDoublePipePatternOffsetTiles: 0,
+      },
+    ],
+    [
+      60,
+      {
+        pipeSpeed: 5.4,
+        pipeSpawnInterval: MAX_PIPE_SPAWN_INTERVAL,
+        passageHeightMinRatio: 0.28,
+        passageHeightMaxRatio: 0.3,
+        passagePositionExpansionTiles: 1,
+        doublePipePatternChance: 0,
+        misalignedDoublePipePatternChance: 0,
+        misalignedDoublePipePatternOffsetTiles: 0,
+      },
+    ],
+    [
+      61,
+      {
+        pipeSpeed: 5.4,
+        pipeSpawnInterval: MAX_PIPE_SPAWN_INTERVAL,
+        passageHeightMinRatio: 0.28,
+        passageHeightMaxRatio: 0.3,
+        passagePositionExpansionTiles: 1,
+        doublePipePatternChance: 0.25,
+        misalignedDoublePipePatternChance: 0,
+        misalignedDoublePipePatternOffsetTiles: 0,
+      },
+    ],
+    [
+      80,
+      {
+        pipeSpeed: 5.4,
+        pipeSpawnInterval: MAX_PIPE_SPAWN_INTERVAL,
+        passageHeightMinRatio: 0.28,
+        passageHeightMaxRatio: 0.3,
+        passagePositionExpansionTiles: 1,
+        doublePipePatternChance: 0.25,
+        misalignedDoublePipePatternChance: 0,
+        misalignedDoublePipePatternOffsetTiles: 0,
+      },
+    ],
+    [
+      81,
+      {
+        pipeSpeed: 5.4,
+        pipeSpawnInterval: FINAL_STAGE_PIPE_SPAWN_INTERVAL,
+        passageHeightMinRatio: 0.28,
+        passageHeightMaxRatio: 0.3,
+        passagePositionExpansionTiles: 1,
+        doublePipePatternChance: 0.25,
+        misalignedDoublePipePatternChance: 0.5,
+        misalignedDoublePipePatternOffsetTiles: 1,
+      },
+    ],
+  ];
+
+  for (const [score, expectation] of cases) {
+    assertDifficulty(score, expectation);
+  }
 });
 
-test("110점 이상에서는 어긋난 2연속 파이프 패턴 설정이 추가된다", () => {
-  const difficulty = resolveFlappyBirdDifficultyState(110);
+test("81점 이후에도 최종 난이도 단계가 그대로 유지된다", () => {
+  const finalStageDifficulty = resolveFlappyBirdDifficultyState(
+    FLAPPY_BIRD_FINAL_STAGE_START_SCORE,
+  );
+  const laterDifficulty = resolveFlappyBirdDifficultyState(120);
 
-  assert.equal(difficulty.doublePipePatternChance, 0.25);
-  assert.equal(difficulty.misalignedDoublePipePatternChance, 0.5);
-  assert.equal(difficulty.misalignedDoublePipePatternOffsetTiles, 1);
+  assert.deepEqual(laterDifficulty, finalStageDifficulty);
 });
 
 test("튜토리얼 난이도는 기존 단일 파이프 세팅을 유지한다", () => {

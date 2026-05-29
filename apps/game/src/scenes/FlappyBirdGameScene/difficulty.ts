@@ -1,10 +1,14 @@
 import type { FlappyBirdDifficultyState } from "./models";
 
-export const FLAPPY_BIRD_TUTORIAL_SCORE_LIMIT = 5;
-export const FLAPPY_BIRD_SPEED_STEP_TWO_SCORE_LIMIT = 20;
-export const FLAPPY_BIRD_ENDGAME_SCORE_LIMIT = 40;
+export const FLAPPY_BIRD_TUTORIAL_SCORE_LIMIT = 3;
+export const FLAPPY_BIRD_SPEED_STEP_TWO_START_SCORE = 11;
+export const FLAPPY_BIRD_MAX_BASIC_DIFFICULTY_SCORE = 20;
+export const FLAPPY_BIRD_ENDGAME_START_SCORE = 31;
+export const FLAPPY_BIRD_EXPANDED_PASSAGE_START_SCORE = 41;
+export const FLAPPY_BIRD_DOUBLE_PIPE_START_SCORE = 61;
+export const FLAPPY_BIRD_FINAL_STAGE_START_SCORE = 81;
 
-const FLAPPY_BIRD_MAX_DIFFICULTY_SCORE = 30;
+const FLAPPY_BIRD_FIRST_BASIC_SCORE = FLAPPY_BIRD_TUTORIAL_SCORE_LIMIT + 1;
 const FLAPPY_BIRD_PIPE_SPAWN_INTERVAL_SCALE = 0.72;
 const FLAPPY_BIRD_HIGH_SCORE_PASSAGE_EXPANSION_TILES = 1;
 const FLAPPY_BIRD_DOUBLE_PIPE_PATTERN_CHANCE = 0.25;
@@ -69,14 +73,14 @@ export function resolveFlappyBirdDifficultyState(
   score: number,
 ): FlappyBirdDifficultyState {
   const baseDifficulty = resolveBaseDifficultyState(score);
-  const hasExpandedPassageRange = score >= 50;
-  const hasDoublePipePattern = score >= 70;
-  const hasFastPipeSpawns = score >= 90;
-  const hasMisalignedDoublePipePattern = score >= 110;
+  const hasExpandedPassageRange =
+    score >= FLAPPY_BIRD_EXPANDED_PASSAGE_START_SCORE;
+  const hasDoublePipePattern = score >= FLAPPY_BIRD_DOUBLE_PIPE_START_SCORE;
+  const isFinalStage = score >= FLAPPY_BIRD_FINAL_STAGE_START_SCORE;
 
   return {
     ...baseDifficulty,
-    pipeSpawnInterval: hasFastPipeSpawns
+    pipeSpawnInterval: isFinalStage
       ? Math.round(
           baseDifficulty.pipeSpawnInterval *
             FLAPPY_BIRD_FAST_PIPE_SPAWN_INTERVAL_MULTIPLIER,
@@ -91,10 +95,10 @@ export function resolveFlappyBirdDifficultyState(
     doublePipePatternGapTileOptions: hasDoublePipePattern
       ? FLAPPY_BIRD_DOUBLE_PIPE_PATTERN_GAP_TILE_OPTIONS
       : [],
-    misalignedDoublePipePatternChance: hasMisalignedDoublePipePattern
+    misalignedDoublePipePatternChance: isFinalStage
       ? FLAPPY_BIRD_MISALIGNED_DOUBLE_PIPE_PATTERN_CHANCE
       : 0,
-    misalignedDoublePipePatternOffsetTiles: hasMisalignedDoublePipePattern
+    misalignedDoublePipePatternOffsetTiles: isFinalStage
       ? FLAPPY_BIRD_MISALIGNED_DOUBLE_PIPE_PATTERN_OFFSET_TILES
       : 0,
   };
@@ -105,24 +109,34 @@ function resolveBaseDifficultyState(score: number): FlappyBirdDifficultyState {
     return FLAPPY_BIRD_TUTORIAL_DIFFICULTY;
   }
 
-  const progress = Math.min(
-    1,
-    (score - FLAPPY_BIRD_TUTORIAL_SCORE_LIMIT) /
-      (FLAPPY_BIRD_MAX_DIFFICULTY_SCORE - FLAPPY_BIRD_TUTORIAL_SCORE_LIMIT),
-  );
+  if (score < FLAPPY_BIRD_ENDGAME_START_SCORE) {
+    return {
+      ...FLAPPY_BIRD_BASE_DIFFICULTY,
+      pipeSpeed: resolvePipeSpeedForScore(score),
+      pipeSpawnInterval: resolvePipeSpawnIntervalForScore(score),
+      ...resolvePassageHeightRatiosForScore(score),
+    };
+  }
 
-  return {
-    ...FLAPPY_BIRD_BASE_DIFFICULTY,
-    pipeSpeed: resolvePipeSpeedForScore(score),
-    pipeSpawnInterval: Math.round(
-      interpolateNumber(
-        FLAPPY_BIRD_BASE_DIFFICULTY.pipeSpawnInterval,
-        FLAPPY_BIRD_MAX_DIFFICULTY.pipeSpawnInterval,
-        progress,
+  return FLAPPY_BIRD_ENDGAME_DIFFICULTY;
+}
+
+function resolvePipeSpawnIntervalForScore(score: number): number {
+  if (score > FLAPPY_BIRD_MAX_BASIC_DIFFICULTY_SCORE) {
+    return FLAPPY_BIRD_MAX_DIFFICULTY.pipeSpawnInterval;
+  }
+
+  return Math.round(
+    interpolateNumber(
+      FLAPPY_BIRD_BASE_DIFFICULTY.pipeSpawnInterval,
+      FLAPPY_BIRD_MAX_DIFFICULTY.pipeSpawnInterval,
+      resolveRangeProgress(
+        score,
+        FLAPPY_BIRD_FIRST_BASIC_SCORE,
+        FLAPPY_BIRD_MAX_BASIC_DIFFICULTY_SCORE,
       ),
     ),
-    ...resolvePassageHeightRatiosForScore(score),
-  };
+  );
 }
 
 function resolvePassageHeightRatiosForScore(
@@ -131,17 +145,17 @@ function resolvePassageHeightRatiosForScore(
   FlappyBirdDifficultyState,
   "passageHeightMinRatio" | "passageHeightMaxRatio"
 > {
-  if (score < FLAPPY_BIRD_SPEED_STEP_TWO_SCORE_LIMIT) {
+  if (score < FLAPPY_BIRD_SPEED_STEP_TWO_START_SCORE) {
     return {
-      passageHeightMinRatio: 0.35,
-      passageHeightMaxRatio: 0.35,
+      passageHeightMinRatio: FLAPPY_BIRD_BASE_DIFFICULTY.passageHeightMinRatio,
+      passageHeightMaxRatio: FLAPPY_BIRD_BASE_DIFFICULTY.passageHeightMaxRatio,
     };
   }
 
-  if (score < FLAPPY_BIRD_ENDGAME_SCORE_LIMIT) {
+  if (score < FLAPPY_BIRD_ENDGAME_START_SCORE) {
     return {
-      passageHeightMinRatio: 0.3,
-      passageHeightMaxRatio: 0.3,
+      passageHeightMinRatio: FLAPPY_BIRD_MAX_DIFFICULTY.passageHeightMinRatio,
+      passageHeightMaxRatio: FLAPPY_BIRD_MAX_DIFFICULTY.passageHeightMaxRatio,
     };
   }
 
@@ -152,11 +166,11 @@ function resolvePassageHeightRatiosForScore(
 }
 
 function resolvePipeSpeedForScore(score: number): number {
-  if (score < FLAPPY_BIRD_SPEED_STEP_TWO_SCORE_LIMIT) {
+  if (score < FLAPPY_BIRD_SPEED_STEP_TWO_START_SCORE) {
     return FLAPPY_BIRD_BASE_DIFFICULTY.pipeSpeed;
   }
 
-  if (score < FLAPPY_BIRD_ENDGAME_SCORE_LIMIT) {
+  if (score < FLAPPY_BIRD_ENDGAME_START_SCORE) {
     return FLAPPY_BIRD_MAX_DIFFICULTY.pipeSpeed;
   }
 
@@ -169,4 +183,16 @@ function interpolateNumber(
   progress: number,
 ): number {
   return start + (end - start) * progress;
+}
+
+function resolveRangeProgress(
+  value: number,
+  rangeStart: number,
+  rangeEnd: number,
+): number {
+  if (rangeEnd <= rangeStart) {
+    return 1;
+  }
+
+  return Math.min(1, Math.max(0, (value - rangeStart) / (rangeEnd - rangeStart)));
 }

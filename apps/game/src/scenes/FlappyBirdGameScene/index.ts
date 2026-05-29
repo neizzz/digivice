@@ -14,8 +14,8 @@ import {
 } from "./gameLogic";
 import { FlappyBirdBgmController } from "./bgm";
 import {
-  FLAPPY_BIRD_ENDGAME_SCORE_LIMIT,
-  FLAPPY_BIRD_SPEED_STEP_TWO_SCORE_LIMIT,
+  FLAPPY_BIRD_ENDGAME_START_SCORE,
+  FLAPPY_BIRD_SPEED_STEP_TWO_START_SCORE,
   FLAPPY_BIRD_TUTORIAL_DIFFICULTY,
   FLAPPY_BIRD_TUTORIAL_SCORE_LIMIT,
   resolveFlappyBirdDifficultyState,
@@ -802,26 +802,26 @@ export class FlappyBirdGameScene extends PIXI.Container implements Scene {
       return FLAPPY_BIRD_BGM_BASE_TEMPO_MULTIPLIER;
     }
 
-    if (score < FLAPPY_BIRD_SPEED_STEP_TWO_SCORE_LIMIT) {
+    if (score < FLAPPY_BIRD_SPEED_STEP_TWO_START_SCORE) {
       return this.interpolateNumber(
         FLAPPY_BIRD_BGM_BASE_TEMPO_MULTIPLIER,
         FLAPPY_BIRD_BGM_MIDGAME_TEMPO_MULTIPLIER,
         this.resolveRangeProgress(
           score,
           FLAPPY_BIRD_TUTORIAL_SCORE_LIMIT + 1,
-          FLAPPY_BIRD_SPEED_STEP_TWO_SCORE_LIMIT - 1,
+          FLAPPY_BIRD_SPEED_STEP_TWO_START_SCORE - 1,
         ),
       );
     }
 
-    if (score < FLAPPY_BIRD_ENDGAME_SCORE_LIMIT) {
+    if (score < FLAPPY_BIRD_ENDGAME_START_SCORE) {
       return this.interpolateNumber(
         FLAPPY_BIRD_BGM_MIDGAME_TEMPO_MULTIPLIER,
         FLAPPY_BIRD_BGM_ENDGAME_TEMPO_MULTIPLIER,
         this.resolveRangeProgress(
           score,
-          FLAPPY_BIRD_SPEED_STEP_TWO_SCORE_LIMIT,
-          FLAPPY_BIRD_ENDGAME_SCORE_LIMIT - 1,
+          FLAPPY_BIRD_SPEED_STEP_TWO_START_SCORE,
+          FLAPPY_BIRD_ENDGAME_START_SCORE - 1,
         ),
       );
     }
