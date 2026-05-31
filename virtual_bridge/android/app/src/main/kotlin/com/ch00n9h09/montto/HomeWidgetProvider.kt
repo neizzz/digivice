@@ -30,6 +30,93 @@ abstract class BaseHomeWidgetProvider : AppWidgetProvider() {
         return snapshot?.resolveStaminaDotDrawableRes() ?: R.drawable.ic_home_widget_stamina_orange
     }
 
+    internal fun buildRemoteViews(
+        context: Context,
+        snapshot: HomeWidgetSnapshot?,
+        debugModeEnabled: Boolean,
+        appWidgetId: Int? = null,
+        appWidgetManager: AppWidgetManager? = null,
+    ): RemoteViews {
+        val views = RemoteViews(context.packageName, layoutResId)
+
+        if (appWidgetId != null) {
+            val launchIntent = Intent(context, MainActivity::class.java)
+            val launchPendingIntent = PendingIntent.getActivity(
+                context,
+                appWidgetId,
+                launchIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+            views.setOnClickPendingIntent(R.id.widget_root, launchPendingIntent)
+        }
+
+        bindDebugControls(
+            context = context,
+            views = views,
+            appWidgetId = appWidgetId ?: 0,
+            debugModeEnabled = debugModeEnabled && appWidgetId != null,
+        )
+
+        if (snapshot == null) {
+            bindCharacterFrames(views = views, frameBitmaps = emptyList(), initialFrameIndex = 0)
+            views.setImageViewResource(
+                R.id.widget_stamina_dot,
+                resolveStaminaDotDrawableRes(snapshot = null),
+            )
+            bindBackground(
+                context = context,
+                views = views,
+                snapshot = null,
+                targetSizePx = resolveBackgroundTargetSizePx(
+                    context = context,
+                    appWidgetManager = appWidgetManager,
+                    appWidgetId = appWidgetId,
+                ),
+            )
+            renderStatusIcons(
+                context = context,
+                views = views,
+                visibleStatusIcons = emptyList(),
+            )
+            return views
+        }
+
+        bindCharacterFrames(
+            views = views,
+            frameBitmaps = HomeWidgetSpriteRenderer.renderLoopFrames(context, snapshot),
+            initialFrameIndex = snapshot.animationFrameIndex.mod(4),
+        )
+        if (snapshot.hasUrgentStatus) {
+            HomeWidgetSpriteRenderer.renderStatusIcon(context, "urgent")?.let { bitmap ->
+                views.setImageViewBitmap(R.id.widget_stamina_dot, bitmap)
+            } ?: views.setImageViewResource(
+                R.id.widget_stamina_dot,
+                resolveStaminaDotDrawableRes(snapshot),
+            )
+        } else {
+            views.setImageViewResource(
+                R.id.widget_stamina_dot,
+                resolveStaminaDotDrawableRes(snapshot),
+            )
+        }
+        bindBackground(
+            context = context,
+            views = views,
+            snapshot = snapshot,
+            targetSizePx = resolveBackgroundTargetSizePx(
+                context = context,
+                appWidgetManager = appWidgetManager,
+                appWidgetId = appWidgetId,
+            ),
+        )
+        renderStatusIcons(
+            context = context,
+            views = views,
+            visibleStatusIcons = snapshot.visibleStatusIcons,
+        )
+        return views
+    }
+
     override fun onUpdate(
         context: Context,
         appWidgetManager: AppWidgetManager,
@@ -90,74 +177,12 @@ abstract class BaseHomeWidgetProvider : AppWidgetProvider() {
                 HomeWidgetSnapshotFactory.refreshFromWorldData(context)
             },
         )
-        val views = RemoteViews(context.packageName, layoutResId)
-
-        val launchIntent = Intent(context, MainActivity::class.java)
-        val launchPendingIntent = PendingIntent.getActivity(
-            context,
-            appWidgetId,
-            launchIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
-        views.setOnClickPendingIntent(R.id.widget_root, launchPendingIntent)
-        bindDebugControls(
+        val views = buildRemoteViews(
             context = context,
-            views = views,
-            appWidgetId = appWidgetId,
-            debugModeEnabled = debugModeEnabled,
-        )
-
-        if (snapshot == null) {
-            bindCharacterFrames(views = views, frameBitmaps = emptyList(), initialFrameIndex = 0)
-            views.setImageViewResource(
-                R.id.widget_stamina_dot,
-                resolveStaminaDotDrawableRes(snapshot = null),
-            )
-            bindBackground(
-                context = context,
-                appWidgetManager = appWidgetManager,
-                appWidgetId = appWidgetId,
-                views = views,
-                snapshot = null,
-            )
-            renderStatusIcons(
-                context = context,
-                views = views,
-                visibleStatusIcons = emptyList(),
-            )
-            appWidgetManager.updateAppWidget(appWidgetId, views)
-            return
-        }
-
-        bindCharacterFrames(
-            views = views,
-            frameBitmaps = HomeWidgetSpriteRenderer.renderLoopFrames(context, snapshot),
-            initialFrameIndex = snapshot.animationFrameIndex.mod(4),
-        )
-        if (snapshot.hasUrgentStatus) {
-            HomeWidgetSpriteRenderer.renderStatusIcon(context, "urgent")?.let { bitmap ->
-                views.setImageViewBitmap(R.id.widget_stamina_dot, bitmap)
-            } ?: views.setImageViewResource(
-                R.id.widget_stamina_dot,
-                resolveStaminaDotDrawableRes(snapshot),
-            )
-        } else {
-            views.setImageViewResource(
-                R.id.widget_stamina_dot,
-                resolveStaminaDotDrawableRes(snapshot),
-            )
-        }
-        bindBackground(
-            context = context,
-            appWidgetManager = appWidgetManager,
-            appWidgetId = appWidgetId,
-            views = views,
             snapshot = snapshot,
-        )
-        renderStatusIcons(
-            context = context,
-            views = views,
-            visibleStatusIcons = snapshot.visibleStatusIcons,
+            debugModeEnabled = debugModeEnabled,
+            appWidgetId = appWidgetId,
+            appWidgetManager = appWidgetManager,
         )
         appWidgetManager.updateAppWidget(appWidgetId, views)
     }
@@ -216,12 +241,10 @@ abstract class BaseHomeWidgetProvider : AppWidgetProvider() {
 
     private fun bindBackground(
         context: Context,
-        appWidgetManager: AppWidgetManager,
-        appWidgetId: Int,
         views: RemoteViews,
         snapshot: HomeWidgetSnapshot?,
+        targetSizePx: WidgetBackgroundSizePx,
     ) {
-        val targetSizePx = resolveBackgroundTargetSizePx(context, appWidgetManager, appWidgetId)
         val backgroundBitmap = snapshot?.let {
             HomeWidgetSpriteRenderer.renderBackground(
                 context = context,
@@ -318,11 +341,17 @@ abstract class BaseHomeWidgetProvider : AppWidgetProvider() {
 
     private fun resolveBackgroundTargetSizePx(
         context: Context,
-        appWidgetManager: AppWidgetManager,
-        appWidgetId: Int,
+        appWidgetManager: AppWidgetManager?,
+        appWidgetId: Int?,
     ): WidgetBackgroundSizePx {
+        if (appWidgetManager == null || appWidgetId == null) {
+            return WidgetBackgroundSizePx(
+                width = dpToPx(context, fallbackWidgetWidthDp),
+                height = dpToPx(context, fallbackWidgetHeightDp),
+            )
+        }
+
         val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
-        val density = context.resources.displayMetrics.density
 
         fun resolveDimensionPx(
             minKey: String,
@@ -332,7 +361,7 @@ abstract class BaseHomeWidgetProvider : AppWidgetProvider() {
             val minDp = options.getInt(minKey, 0)
             val maxDp = options.getInt(maxKey, 0)
             val resolvedDp = maxOf(minDp, maxDp, fallbackDp)
-            return (resolvedDp * density).roundToInt().coerceAtLeast(1)
+            return dpToPx(context, resolvedDp)
         }
 
         return WidgetBackgroundSizePx(
@@ -349,7 +378,11 @@ abstract class BaseHomeWidgetProvider : AppWidgetProvider() {
         )
     }
 
-    private data class WidgetBackgroundSizePx(
+    private fun dpToPx(context: Context, dp: Int): Int {
+        return (dp * context.resources.displayMetrics.density).roundToInt().coerceAtLeast(1)
+    }
+
+    internal data class WidgetBackgroundSizePx(
         val width: Int,
         val height: Int,
     )

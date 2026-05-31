@@ -13,6 +13,8 @@ import android.view.KeyEvent
 import android.widget.Toast
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
+import android.appwidget.AppWidgetProviderInfo
+import android.widget.RemoteViews
 import android.window.OnBackInvokedCallback
 import android.window.OnBackInvokedDispatcher
 import androidx.activity.OnBackPressedCallback
@@ -497,7 +499,9 @@ open class MainActivity : FlutterActivity() {
 
         return try {
             val provider = ComponentName(this, providerClass)
-            val requested = appWidgetManager.requestPinAppWidget(provider, null, null)
+            val extras = buildWidgetPreviewExtras(providerClass)
+            maybeSetWidgetPreview(provider, extras?.resolvePreviewRemoteViews())
+            val requested = appWidgetManager.requestPinAppWidget(provider, extras, null)
 
             if (requested) {
                 Toast.makeText(
@@ -522,6 +526,58 @@ open class MainActivity : FlutterActivity() {
                 Toast.LENGTH_SHORT,
             ).show()
             mapOf("status" to "failed")
+        }
+    }
+
+    private fun buildWidgetPreviewExtras(
+        providerClass: Class<out AppWidgetProvider>,
+    ): Bundle? {
+        val provider = (runCatching { providerClass.getDeclaredConstructor().newInstance() }.getOrNull()
+            as? BaseHomeWidgetProvider) ?: return null
+        val snapshot = HomeWidgetSnapshotFactory.progressSnapshot(this)
+            ?: HomeWidgetSnapshot.load(this)
+            ?: HomeWidgetSnapshot.loadAuthoritative(this)
+            ?: HomeWidgetSnapshotFactory.refreshFromWorldData(this)
+        val preview = provider.buildRemoteViews(
+            context = this,
+            snapshot = snapshot,
+            debugModeEnabled = false,
+        )
+        return Bundle().apply {
+            putParcelable(AppWidgetManager.EXTRA_APPWIDGET_PREVIEW, preview)
+        }
+    }
+
+    private fun maybeSetWidgetPreview(
+        provider: ComponentName,
+        preview: RemoteViews?,
+    ) {
+        if (preview == null) {
+            return
+        }
+
+        runCatching {
+            val method = AppWidgetManager::class.java.getMethod(
+                "setWidgetPreview",
+                ComponentName::class.java,
+                Int::class.javaPrimitiveType,
+                RemoteViews::class.java,
+            )
+            method.invoke(
+                AppWidgetManager.getInstance(this),
+                provider,
+                AppWidgetProviderInfo.WIDGET_CATEGORY_HOME_SCREEN,
+                preview,
+            )
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun Bundle.resolvePreviewRemoteViews(): RemoteViews? {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            getParcelable(AppWidgetManager.EXTRA_APPWIDGET_PREVIEW, RemoteViews::class.java)
+        } else {
+            getParcelable(AppWidgetManager.EXTRA_APPWIDGET_PREVIEW)
         }
     }
 }

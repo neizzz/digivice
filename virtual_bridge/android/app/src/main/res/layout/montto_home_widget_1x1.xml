@@ -14,17 +14,17 @@
         android:scaleType="centerCrop"
         android:src="@drawable/bg_home_widget_day" />
 
-    <LinearLayout
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:orientation="vertical"
         android:padding="4dp"
         android:translationY="4dp">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:gravity="center_vertical"
+            android:layout_gravity="top"
+            android:gravity="top"
             android:orientation="horizontal"
             android:paddingStart="2dp"
             android:paddingEnd="2dp"
@@ -101,60 +101,54 @@
             </LinearLayout>
         </LinearLayout>
 
-        <FrameLayout
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1">
+        <ViewFlipper
+            android:id="@+id/widget_character_flipper"
+            android:layout_width="52dp"
+            android:layout_height="52dp"
+            android:layout_gravity="center"
+            android:animateFirstView="false"
+            android:autoStart="true"
+            android:flipInterval="500"
+            android:inAnimation="@anim/widget_noop"
+            android:outAnimation="@anim/widget_noop">
 
-            <ViewFlipper
-                android:id="@+id/widget_character_flipper"
-                android:layout_width="52dp"
-                android:layout_height="52dp"
-                android:layout_gravity="center"
-                android:animateFirstView="false"
-                android:autoStart="true"
-                android:flipInterval="500"
-                android:inAnimation="@anim/widget_noop"
-                android:outAnimation="@anim/widget_noop">
+            <ImageView
+                android:id="@+id/widget_character_frame_1"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:adjustViewBounds="true"
+                android:contentDescription="@null"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_home_widget_placeholder" />
 
-                <ImageView
-                    android:id="@+id/widget_character_frame_1"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:adjustViewBounds="true"
-                    android:contentDescription="@null"
-                    android:scaleType="fitCenter"
-                    android:src="@drawable/ic_home_widget_placeholder" />
+            <ImageView
+                android:id="@+id/widget_character_frame_2"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:adjustViewBounds="true"
+                android:contentDescription="@null"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_home_widget_placeholder" />
 
-                <ImageView
-                    android:id="@+id/widget_character_frame_2"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:adjustViewBounds="true"
-                    android:contentDescription="@null"
-                    android:scaleType="fitCenter"
-                    android:src="@drawable/ic_home_widget_placeholder" />
+            <ImageView
+                android:id="@+id/widget_character_frame_3"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:adjustViewBounds="true"
+                android:contentDescription="@null"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_home_widget_placeholder" />
 
-                <ImageView
-                    android:id="@+id/widget_character_frame_3"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:adjustViewBounds="true"
-                    android:contentDescription="@null"
-                    android:scaleType="fitCenter"
-                    android:src="@drawable/ic_home_widget_placeholder" />
-
-                <ImageView
-                    android:id="@+id/widget_character_frame_4"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:adjustViewBounds="true"
-                    android:contentDescription="@null"
-                    android:scaleType="fitCenter"
-                    android:src="@drawable/ic_home_widget_placeholder" />
-            </ViewFlipper>
-        </FrameLayout>
-    </LinearLayout>
+            <ImageView
+                android:id="@+id/widget_character_frame_4"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:adjustViewBounds="true"
+                android:contentDescription="@null"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_home_widget_placeholder" />
+        </ViewFlipper>
+    </FrameLayout>
 
     <LinearLayout
         android:id="@+id/widget_debug_controls"
