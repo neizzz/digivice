@@ -200,6 +200,31 @@ open class MainActivity : FlutterActivity() {
                     )
                 }
 
+                "publishSnapshot" -> {
+                    val storageName = call.argument<String>("storageName")
+                    val snapshotKey = call.argument<String>("snapshotKey")
+
+                    if (storageName.isNullOrBlank() || snapshotKey.isNullOrBlank()) {
+                        result.error(
+                            "invalid_args",
+                            "publishSnapshot requires storageName and snapshotKey.",
+                            null,
+                        )
+                        return@setMethodCallHandler
+                    }
+
+                    val publishResult = HomeWidgetSnapshotPublisher.publish(
+                        prefs = getSharedPreferences(storageName, MODE_PRIVATE),
+                        snapshotKey = snapshotKey,
+                        snapshotJson = call.argument<String>("snapshotJson"),
+                        reason = call.argument<String>("reason").orEmpty(),
+                        notifySnapshotUpdated = { reason ->
+                            HomeWidgetProvider.notifySnapshotUpdated(this, reason)
+                        },
+                    )
+                    result.success(publishResult)
+                }
+
                 else -> result.notImplemented()
             }
         }

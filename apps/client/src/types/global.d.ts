@@ -100,11 +100,19 @@ declare global {
       requestPinWidget: () => Promise<string>;
       requestPinWidget1x1: () => Promise<string>;
       requestPinWidget2x1: () => Promise<string>;
+      syncFromWorldDataJson: (payload: {
+        rawWorldData?: string | null;
+        reason?: string;
+      }) => void;
     };
     homeWidgetRefreshController?: {
       requestPinWidget: () => Promise<string>;
       requestPinWidget1x1: () => Promise<string>;
       requestPinWidget2x1: () => Promise<string>;
+      syncFromWorldDataJson: (payload: {
+        rawWorldData?: string | null;
+        reason?: string;
+      }) => void;
     };
     nativeDebugLogger?: {
       log: (payload: unknown) => void;

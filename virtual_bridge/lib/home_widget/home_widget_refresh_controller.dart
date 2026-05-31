@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'home_widget_sync_service.dart';
 
 class HomeWidgetRefreshController {
   static const MethodChannel _platformChannel = MethodChannel(
@@ -47,6 +48,14 @@ class HomeWidgetRefreshController {
             }));
           });
         },
+        syncFromWorldDataJson: (payload = {}) => {
+          try {
+            __native_home_widget.postMessage(JSON.stringify({
+              action: "syncFromWorldDataJson",
+              payload
+            }));
+          } catch (_) {}
+        },
         completeRefresh: (payload = {}) => {
           try {
             __native_home_widget.postMessage(JSON.stringify({
@@ -63,9 +72,8 @@ class HomeWidgetRefreshController {
   Future<void> handleAction(JavaScriptMessage message) async {
     try {
       final Object decoded = jsonDecode(message.message);
-      final Map<String, dynamic> request = decoded is Map<String, dynamic>
-          ? decoded
-          : <String, dynamic>{};
+      final Map<String, dynamic> request =
+          decoded is Map<String, dynamic> ? decoded : <String, dynamic>{};
       final String action = request['action'] as String? ?? '';
       final String? id = request['id'] as String?;
       final Map<String, dynamic> payload = request['payload'] is Map
@@ -114,6 +122,18 @@ class HomeWidgetRefreshController {
           );
           log?.call(
             '[HomeWidgetRefreshController] completeRefresh result=${payload['result']} source=${payload['source']}',
+          );
+          return;
+        case 'syncFromWorldDataJson':
+          await HomeWidgetSyncService.syncFromWorldDataJson(
+            rawWorldData: payload['rawWorldData'] as String?,
+            reason: payload['reason'] as String? ?? 'manual',
+            log: log,
+          );
+          log?.call(
+            '[HomeWidgetRefreshController] syncFromWorldDataJson '
+            'reason=${payload['reason']} '
+            'hasWorldData=${payload['rawWorldData'] is String && (payload['rawWorldData'] as String).isNotEmpty}',
           );
           return;
         default:

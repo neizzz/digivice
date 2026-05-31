@@ -62,6 +62,7 @@ import {
   preloadUiSfx,
   resumeUiSfxFromGesture,
 } from "./utils/uiSfx";
+import { selectHomeWidgetSyncWorldData } from "./utils/selectHomeWidgetSyncWorldData";
 
 const WORLD_DATA_STORAGE_KEY = "MainSceneWorldData";
 const FLAPPY_BIRD_GAME_OVER_AD_COUNTER_STORAGE_KEY =
@@ -803,6 +804,7 @@ const GameContainer: React.FC = () => {
   const isFullscreenAdLayoutFrozenRef = useRef(false);
   const isResumeGuardVisibleRef = useRef(false);
   const isResumeReentrySimulationRunningRef = useRef(false);
+  const nativeBackgroundWidgetSyncTriggeredRef = useRef(false);
   const fullscreenAdLayoutReleaseTimeoutRef = useRef<number | null>(null);
   const fullscreenAdLayoutReleaseRafRef = useRef<number | null>(null);
   const activeBackNavigationEntriesRef = useRef<BackNavigationEntry[]>([]);
@@ -2355,6 +2357,98 @@ const GameContainer: React.FC = () => {
     [gameInstance, gameSettings],
   );
 
+  const syncHomeWidgetForNativeBackground = useCallback(
+    async (reason: string) => {
+      if (typeof window === "undefined") {
+        return;
+      }
+
+      const controller =
+        window.homeWidgetController ?? window.homeWidgetRefreshController;
+
+      if (typeof controller?.syncFromWorldDataJson !== "function") {
+        logImportantDiagnostics(
+          "log",
+          "[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+          {
+            reason,
+            action: "skipped_missing_controller",
+            hasGameInstance: !!gameInstance,
+            currentSceneKey: gameInstance?.getCurrentSceneKey() ?? null,
+          },
+        );
+        return;
+      }
+
+      try {
+        const storage = createClientStorage();
+        const storedWorldData = (await storage.getData(
+          WORLD_DATA_STORAGE_KEY,
+        )) as StoredWorldData | null;
+        const inMemoryWorldData =
+          gameInstance?.getDiagnosticsSnapshot().mainSceneData ?? null;
+        const selection = selectHomeWidgetSyncWorldData({
+          storedWorldData,
+          inMemoryWorldData,
+        });
+
+        if (!selection.selectedWorldData) {
+          logImportantDiagnostics(
+            "log",
+            "[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+            {
+              reason,
+              action: "skipped_no_world_data",
+              hasGameInstance: !!gameInstance,
+              currentSceneKey: gameInstance?.getCurrentSceneKey() ?? null,
+              storedLastEcsSaved: selection.storedLastEcsSaved,
+              inMemoryLastEcsSaved: selection.inMemoryLastEcsSaved,
+            },
+          );
+          return;
+        }
+
+        controller.syncFromWorldDataJson({
+          rawWorldData: JSON.stringify(selection.selectedWorldData),
+          reason,
+        });
+
+        logImportantDiagnostics(
+          "log",
+          "[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+          {
+            reason,
+            action: "dispatched",
+            selectedSource: selection.source,
+            hasGameInstance: !!gameInstance,
+            currentSceneKey: gameInstance?.getCurrentSceneKey() ?? null,
+            storedLastEcsSaved: selection.storedLastEcsSaved,
+            inMemoryLastEcsSaved: selection.inMemoryLastEcsSaved,
+          },
+        );
+      } catch (error) {
+        logImportantDiagnostics(
+          "warn",
+          "[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+          {
+            reason,
+            action: "failed",
+            hasGameInstance: !!gameInstance,
+            currentSceneKey: gameInstance?.getCurrentSceneKey() ?? null,
+            error:
+              error instanceof Error
+                ? {
+                    name: error.name,
+                    message: error.message,
+                  }
+                : String(error),
+          },
+        );
+      }
+    },
+    [gameInstance],
+  );
+
   const handleSendDiagnostics = useCallback(async () => {
     if (isSendingDiagnostics || pendingDiagnosticsDraft) {
       return;
@@ -3215,11 +3309,28 @@ const GameContainer: React.FC = () => {
       const state = detail?.state;
 
       if (state === "inactive" || state === "hidden" || state === "paused") {
-        handleBackgroundEntry(`native_${state}`);
+        const reason = `native_${state}`;
+        handleBackgroundEntry(reason);
+
+        if (nativeBackgroundWidgetSyncTriggeredRef.current) {
+          logImportantDiagnostics(
+            "log",
+            "[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+            {
+              reason,
+              action: "skipped_duplicate_burst",
+            },
+          );
+          return;
+        }
+
+        nativeBackgroundWidgetSyncTriggeredRef.current = true;
+        void syncHomeWidgetForNativeBackground(reason);
         return;
       }
 
       if (state === "resumed") {
+        nativeBackgroundWidgetSyncTriggeredRef.current = false;
         handleForegroundEntry("native_resumed");
       }
     };
@@ -3243,7 +3354,11 @@ const GameContainer: React.FC = () => {
         handleNativeAppLifecycle as EventListener,
       );
     };
-  }, [hideResumeGuardAfterLayout, showResumeGuard]);
+  }, [
+    hideResumeGuardAfterLayout,
+    showResumeGuard,
+    syncHomeWidgetForNativeBackground,
+  ]);
 
   useEffect(() => {
     let isMounted = true;
