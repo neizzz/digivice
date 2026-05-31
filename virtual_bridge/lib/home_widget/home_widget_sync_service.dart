@@ -252,7 +252,9 @@ class HomeWidgetSnapshot {
         json['hasUrgentStatus'] is bool ? json['hasUrgentStatus'] as bool : false;
     final List<HomeWidgetStatusIcon> visibleStatusIcons =
         HomeWidgetSyncService._resolveVisibleStatusIconsFromNames(
-            json['visibleStatusIcons']);
+      json['visibleStatusIcons'],
+      characterState: characterState,
+    );
     final HomeWidgetDisplayState displayState =
         HomeWidgetSyncService._resolveDisplayStateName(
       (json['displayState'] ?? json['primaryStatus']) as String?,
@@ -710,6 +712,10 @@ class HomeWidgetSyncService {
     required HomeWidgetCharacterState characterState,
     required List<dynamic> rawStatuses,
   }) {
+    if (characterState == HomeWidgetCharacterState.dead) {
+      return const <HomeWidgetStatusIcon>[];
+    }
+
     final List<int> statuses = rawStatuses
         .map(_readInt)
         .whereType<int>()
@@ -717,7 +723,6 @@ class HomeWidgetSyncService {
         .toList(growable: false);
 
     final List<HomeWidgetStatusIcon> visibleIcons = <HomeWidgetStatusIcon>[];
-    HomeWidgetStatusIcon? latestOverlayIcon;
 
     for (final int status in statuses) {
       switch (status) {
@@ -729,42 +734,50 @@ class HomeWidgetSyncService {
           }
           break;
         case _characterStatusHappy:
-          latestOverlayIcon = HomeWidgetStatusIcon.happy;
-          break;
         case _characterStatusDiscover:
-          latestOverlayIcon = HomeWidgetStatusIcon.discover;
           break;
       }
     }
 
     if (characterState == HomeWidgetCharacterState.sleeping) {
-      latestOverlayIcon = HomeWidgetStatusIcon.sleeping;
-    }
-
-    if (latestOverlayIcon != null &&
-        !visibleIcons.contains(latestOverlayIcon)) {
-      visibleIcons.add(latestOverlayIcon);
+      visibleIcons.add(HomeWidgetStatusIcon.sleeping);
     }
 
     return visibleIcons;
   }
 
   static List<HomeWidgetStatusIcon> _resolveVisibleStatusIconsFromNames(
-    Object? rawValue,
-  ) {
+    Object? rawValue, {
+    required HomeWidgetCharacterState characterState,
+  }) {
+    if (characterState == HomeWidgetCharacterState.dead) {
+      return const <HomeWidgetStatusIcon>[];
+    }
+
     final List<dynamic> values =
         rawValue is List<dynamic> ? rawValue : const <dynamic>[];
 
-    return values
-        .map((dynamic value) => value is String ? value : null)
-        .whereType<String>()
-        .map(
-          (String name) => HomeWidgetStatusIcon.values.firstWhere(
-            (HomeWidgetStatusIcon icon) => icon.name == name,
-            orElse: () => HomeWidgetStatusIcon.sick,
-          ),
-        )
-        .toList(growable: false);
+    final List<HomeWidgetStatusIcon> visibleIcons = <HomeWidgetStatusIcon>[];
+
+    for (final String name in values.whereType<String>()) {
+      final HomeWidgetStatusIcon? icon = _resolveWidgetStatusIconName(name);
+      if (icon != null && !visibleIcons.contains(icon)) {
+        visibleIcons.add(icon);
+      }
+    }
+
+    return visibleIcons;
+  }
+
+  static HomeWidgetStatusIcon? _resolveWidgetStatusIconName(String name) {
+    switch (name) {
+      case 'sick':
+        return HomeWidgetStatusIcon.sick;
+      case 'sleeping':
+        return HomeWidgetStatusIcon.sleeping;
+      default:
+        return null;
+    }
   }
 
   static bool _hasUrgentStatus(List<dynamic> rawStatuses) {

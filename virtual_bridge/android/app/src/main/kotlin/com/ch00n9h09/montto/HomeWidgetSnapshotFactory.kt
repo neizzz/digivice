@@ -257,8 +257,11 @@ object HomeWidgetSnapshotFactory {
     }
 
     private fun resolveVisibleStatusIcons(characterState: String, statuses: List<Int>): List<String> {
+        if (characterState == "dead") {
+            return emptyList()
+        }
+
         val visibleIcons = mutableListOf<String>()
-        var latestOverlayIcon: String? = null
 
         statuses.forEach { status ->
             when (status) {
@@ -266,16 +269,16 @@ object HomeWidgetSnapshotFactory {
                 CHARACTER_STATUS_SICK -> if (!visibleIcons.contains("sick")) {
                     visibleIcons.add("sick")
                 }
-                CHARACTER_STATUS_HAPPY -> latestOverlayIcon = "happy"
-                CHARACTER_STATUS_DISCOVER -> latestOverlayIcon = "discover"
+                CHARACTER_STATUS_HAPPY,
+                CHARACTER_STATUS_DISCOVER,
+                -> Unit
             }
         }
 
         if (characterState == "sleeping") {
-            latestOverlayIcon = "sleeping"
+            visibleIcons.add("sleeping")
         }
 
-        latestOverlayIcon?.takeIf { !visibleIcons.contains(it) }?.let(visibleIcons::add)
         return visibleIcons
     }
 

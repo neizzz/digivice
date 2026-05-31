@@ -95,6 +95,10 @@ data class HomeWidgetSnapshot(
         }
     }
 
+    fun shouldShowStaminaDot(): Boolean {
+        return characterState != "egg" && characterState != "dead"
+    }
+
     fun resolveUpdatedAtLabel(): String {
         val formatter = SimpleDateFormat("HH:mm", Locale.getDefault())
         return formatter.format(Date(updatedAtMs))
@@ -166,12 +170,18 @@ data class HomeWidgetSnapshot(
                 val json = JSONObject(raw)
                 val stamina = json.optDouble("stamina", 0.0).coerceIn(0.0, 10.0)
                 val maxStamina = json.optDouble("maxStamina", 10.0).coerceIn(1.0, 10.0)
+                val characterState = json.optString("characterState", "idle")
                 val visibleStatusIconsJson = json.optJSONArray("visibleStatusIcons") ?: JSONArray()
-                val visibleStatusIcons = buildList {
-                    for (index in 0 until visibleStatusIconsJson.length()) {
-                        visibleStatusIconsJson.optString(index).takeIf { it.isNotBlank() }?.let(::add)
-                    }
-                }
+                val visibleStatusIcons = sanitizeVisibleStatusIconsForWidget(
+                    characterState = characterState,
+                    iconNames = buildList {
+                        for (index in 0 until visibleStatusIconsJson.length()) {
+                            visibleStatusIconsJson.optString(index)
+                                .takeIf { it.isNotBlank() }
+                                ?.let(::add)
+                        }
+                    },
+                )
                 val rawDisplayState = json.optString(
                     "displayState",
                     json.optString("primaryStatus", "idle"),
@@ -179,9 +189,9 @@ data class HomeWidgetSnapshot(
                 val normalizedDisplayState = when {
                     rawDisplayState == "sleeping" -> "sleep"
                     rawDisplayState == "sick" -> "sick"
-                    json.optString("characterState", "idle") == "sleeping" ||
+                    characterState == "sleeping" ||
                         visibleStatusIcons.contains("sleeping") -> "sleep"
-                    json.optString("characterState", "idle") == "sick" ||
+                    characterState == "sick" ||
                         visibleStatusIcons.contains("sick") -> "sick"
                     else -> "idle"
                 }
@@ -236,6 +246,27 @@ data class HomeWidgetSnapshot(
                     visibleStatusIcons = visibleStatusIcons,
                 )
             }.getOrNull()
+        }
+
+        internal fun sanitizeVisibleStatusIconsForWidget(
+            characterState: String,
+            iconNames: List<String>,
+        ): List<String> {
+            if (characterState == "dead") {
+                return emptyList()
+            }
+
+            return buildList {
+                iconNames.forEach { iconName ->
+                    when (iconName) {
+                        "sick",
+                        "sleeping",
+                        -> if (!contains(iconName)) {
+                            add(iconName)
+                        }
+                    }
+                }
+            }
         }
     }
 }

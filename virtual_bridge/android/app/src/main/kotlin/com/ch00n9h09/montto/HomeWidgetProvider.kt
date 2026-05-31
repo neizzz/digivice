@@ -58,6 +58,7 @@ abstract class BaseHomeWidgetProvider : AppWidgetProvider() {
         )
 
         if (snapshot == null) {
+            views.setViewVisibility(R.id.widget_stamina_dot, View.VISIBLE)
             bindCharacterFrames(views = views, frameBitmaps = emptyList(), initialFrameIndex = 0)
             views.setImageViewResource(
                 R.id.widget_stamina_dot,
@@ -81,6 +82,10 @@ abstract class BaseHomeWidgetProvider : AppWidgetProvider() {
             return views
         }
 
+        views.setViewVisibility(
+            R.id.widget_stamina_dot,
+            if (snapshot.shouldShowStaminaDot()) View.VISIBLE else View.GONE,
+        )
         bindCharacterFrames(
             views = views,
             frameBitmaps = HomeWidgetSpriteRenderer.renderLoopFrames(context, snapshot),
