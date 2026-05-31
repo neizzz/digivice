@@ -2,7 +2,7 @@ import { CharacterClass } from "../../types/Character";
 import { EVOLUTION_GAUGE_CONFIG, getEvolutionSpec } from "./evolutionConfig";
 import { CharacterKeyECS } from "./types";
 
-type TriangularDelayConfig = {
+type DelayRangeConfig = {
   min: number;
   mode: number;
   max: number;
@@ -71,9 +71,9 @@ export const UNHAPPY_STAMINA_THRESHOLD =
 const PRODUCTION_GAME_CONSTANTS = {
   // 알 부화 관련
   EGG_HATCH_TIME: 30 * MINUTE_IN_MILLISECONDS,
-  EGG_HATCH_MIN_TIME: 15 * MINUTE_IN_MILLISECONDS,
+  EGG_HATCH_MIN_TIME: 20 * MINUTE_IN_MILLISECONDS,
   EGG_HATCH_MODE_TIME: 30 * MINUTE_IN_MILLISECONDS,
-  EGG_HATCH_MAX_TIME: 45 * MINUTE_IN_MILLISECONDS,
+  EGG_HATCH_MAX_TIME: 40 * MINUTE_IN_MILLISECONDS,
 
   // 소화기관 관련
   DIGESTIVE_CAPACITY: 5.0,
@@ -177,9 +177,9 @@ export const DEV_BALANCE_COEFFICIENTS = {
   // DEV에서는 production 기준 시간을 나눠서 빠르게 재현한다.
   timeDivisors: {
     EGG_HATCH_TIME: 360,
-    EGG_HATCH_MIN_TIME: 180,
+    EGG_HATCH_MIN_TIME: 300,
     EGG_HATCH_MODE_TIME: 360,
-    EGG_HATCH_MAX_TIME: 540,
+    EGG_HATCH_MAX_TIME: 400,
     POOP_DELAY: 1,
     DIGESTIVE_SMALL_POOP_DELAY: 480,
     DISEASE_CHECK_INTERVAL: 1,
@@ -407,8 +407,66 @@ export function getFatigueDiseaseBonus(fatigue: number): number {
   return 0;
 }
 
-function getTriangularDistributedDelayMs(
-  config: TriangularDelayConfig,
+function approximateInverseNormalCdf(probability: number): number {
+  const a = [
+    -39.69683028665376,
+    220.9460984245205,
+    -275.9285104469687,
+    138.357751867269,
+    -30.66479806614716,
+    2.506628277459239,
+  ] as const;
+  const b = [
+    -54.47609879822406,
+    161.5858368580409,
+    -155.6989798598866,
+    66.80131188771972,
+    -13.28068155288572,
+  ] as const;
+  const c = [
+    -0.007784894002430293,
+    -0.3223964580411365,
+    -2.400758277161838,
+    -2.549732539343734,
+    4.374664141464968,
+    2.938163982698783,
+  ] as const;
+  const d = [
+    0.007784695709041462,
+    0.3224671290700398,
+    2.445134137142996,
+    3.754408661907416,
+  ] as const;
+  const low = 0.02425;
+  const high = 1 - low;
+
+  if (probability < low) {
+    const q = Math.sqrt(-2 * Math.log(probability));
+    return (
+      (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) /
+      ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1)
+    );
+  }
+
+  if (probability <= high) {
+    const q = probability - 0.5;
+    const r = q * q;
+    return (
+      (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) *
+      q /
+      (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1)
+    );
+  }
+
+  const q = Math.sqrt(-2 * Math.log(1 - probability));
+  return -(
+    (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) /
+    ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1)
+  );
+}
+
+function getNormalLikeDistributedDelayMs(
+  config: DelayRangeConfig,
   randomValue: number = Math.random(),
 ): number {
   const { min, mode, max } = config;
@@ -417,25 +475,32 @@ function getTriangularDistributedDelayMs(
     return min;
   }
 
-  const clampedMode = Math.max(min, Math.min(max, mode));
-  const clampedRandom = Math.max(0, Math.min(1, randomValue));
-  const pivot = (clampedMode - min) / (max - min);
-
-  if (clampedRandom <= pivot) {
-    return Math.round(
-      min + Math.sqrt(clampedRandom * (max - min) * (clampedMode - min)),
-    );
+  const mean = Math.max(min, Math.min(max, mode));
+  const radius = Math.min(mean - min, max - mean);
+  if (radius <= 0) {
+    return mean;
   }
 
+  // +/- 3 sigma가 min/max와 맞도록 자른 truncated normal
+  const sigma = radius / 3;
+  const lowerZ = -3;
+  const upperZ = 3;
+  const lowerCdf = 0.0013498980316301035;
+  const upperCdf = 0.9986501019683699;
+  const clampedRandom = Math.max(0, Math.min(1, randomValue));
+  const probability = lowerCdf + clampedRandom * (upperCdf - lowerCdf);
+  const zScore = approximateInverseNormalCdf(probability);
+  const boundedZ = Math.max(lowerZ, Math.min(upperZ, zScore));
+
   return Math.round(
-    max - Math.sqrt((1 - clampedRandom) * (max - min) * (max - clampedMode)),
+    Math.max(min, Math.min(max, mean + boundedZ * sigma)),
   );
 }
 
 export function getEggHatchDelayMs(
   randomValue: number = Math.random(),
 ): number {
-  return getTriangularDistributedDelayMs(
+  return getNormalLikeDistributedDelayMs(
     {
       min: GAME_CONSTANTS.EGG_HATCH_MIN_TIME,
       mode: GAME_CONSTANTS.EGG_HATCH_MODE_TIME,

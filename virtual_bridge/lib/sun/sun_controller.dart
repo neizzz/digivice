@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
@@ -9,6 +10,10 @@ import 'native_sun_times_diagnostics.dart';
 import 'sun_calculator.dart';
 
 const String _fallbackLocationKey = 'sun_fallback_location';
+const Duration _locationPermissionTimeout = Duration(seconds: 8);
+const Duration _locationServiceCheckTimeout = Duration(seconds: 4);
+const Duration _currentPositionTimeout = Duration(seconds: 8);
+const Duration _lastKnownPositionTimeout = Duration(seconds: 4);
 
 class _FallbackLocation {
   final double latitude;
@@ -297,7 +302,8 @@ class SunController {
 
     if (hasPermission) {
       final Stopwatch serviceCheckStopwatch = Stopwatch()..start();
-      final bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      final bool serviceEnabled = await Geolocator.isLocationServiceEnabled()
+          .timeout(_locationServiceCheckTimeout);
       await _diagnostics.emitLocationServiceCheckEnd(
         durationMs: serviceCheckStopwatch.elapsedMilliseconds,
         serviceEnabled: serviceEnabled,
@@ -315,7 +321,7 @@ class SunController {
             locationSettings: const LocationSettings(
               accuracy: LocationAccuracy.low,
             ),
-          );
+          ).timeout(_currentPositionTimeout);
           await _diagnostics.emitCurrentPositionEnd(
             durationMs: currentPositionStopwatch.elapsedMilliseconds,
             serviceEnabled: serviceEnabled,
@@ -343,7 +349,8 @@ class SunController {
       );
       try {
         final Position? lastKnownPosition =
-            await Geolocator.getLastKnownPosition();
+            await Geolocator.getLastKnownPosition()
+                .timeout(_lastKnownPositionTimeout);
         await _diagnostics.emitLastKnownPositionEnd(
           durationMs: lastKnownStopwatch.elapsedMilliseconds,
           serviceEnabled: serviceEnabled,
@@ -399,7 +406,8 @@ class SunController {
     Map<String, dynamic>? traceContext,
   }) async {
     final Stopwatch stopwatch = Stopwatch()..start();
-    LocationPermission permission = await Geolocator.checkPermission();
+    LocationPermission permission = await Geolocator.checkPermission()
+        .timeout(_locationPermissionTimeout);
     if (_isGranted(permission)) {
       const _PermissionResolutionResult result = _PermissionResolutionResult(
         granted: true,
@@ -434,7 +442,8 @@ class SunController {
       return result;
     }
 
-    permission = await Geolocator.requestPermission();
+    permission = await Geolocator.requestPermission()
+        .timeout(_locationPermissionTimeout);
     final _PermissionResolutionResult result = _PermissionResolutionResult(
       granted: _isGranted(permission),
       alreadyGranted: false,
@@ -452,7 +461,8 @@ class SunController {
   }
 
   Future<bool> _requestLocationPermission() async {
-    final LocationPermission permission = await Geolocator.requestPermission();
+    final LocationPermission permission = await Geolocator.requestPermission()
+        .timeout(_locationPermissionTimeout);
     return _isGranted(permission);
   }
 

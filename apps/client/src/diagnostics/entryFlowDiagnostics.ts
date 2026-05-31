@@ -183,11 +183,11 @@ export class EntryFlowDiagnostics {
     });
   }
 
-  public beginNativeSunTimesRequest(): number {
+  public beginNativeSunTimesRequest(promptForPermission: boolean): number {
     const startedAt = getTimingNow();
     this._logSetup("native_sun_times_request", {
       status: "start",
-      promptForPermission: true,
+      promptForPermission,
     });
     return startedAt;
   }
@@ -195,22 +195,27 @@ export class EntryFlowDiagnostics {
   public completeNativeSunTimesRequest(
     startedAt: number,
     sunTimes: SunTimesPayload | null,
+    promptForPermission: boolean,
   ): void {
     this._logSetup("native_sun_times_request", {
       status: "end",
       durationMs: toDurationMs(startedAt),
-      promptForPermission: true,
+      promptForPermission,
       receivedSunTimes: !!sunTimes,
       locationSource: sunTimes?.locationSource ?? null,
       hasLocationPermission: sunTimes?.hasLocationPermission ?? null,
     });
   }
 
-  public failNativeSunTimesRequest(startedAt: number, error: unknown): void {
+  public failNativeSunTimesRequest(
+    startedAt: number,
+    error: unknown,
+    promptForPermission: boolean,
+  ): void {
     this._logSetup("native_sun_times_request", {
       status: "error",
       durationMs: toDurationMs(startedAt),
-      promptForPermission: true,
+      promptForPermission,
       error: summarizeTimingError(error),
     });
   }

@@ -2702,11 +2702,12 @@ const GameContainer: React.FC = () => {
         return formData;
       }
 
+      const promptForPermission = false;
       const nativeSunTimesStartedAt =
-        entryFlowDiagnostics.beginNativeSunTimesRequest();
+        entryFlowDiagnostics.beginNativeSunTimesRequest(promptForPermission);
 
       try {
-        const sunTimes = await getNativeSunTimes(true, {
+        const sunTimes = await getNativeSunTimes(promptForPermission, {
           ...entryFlowDiagnostics.createNativeSunTimesTraceContext({
             source: "setup_loading",
             phase: "hydrate_initial_setup_data",
