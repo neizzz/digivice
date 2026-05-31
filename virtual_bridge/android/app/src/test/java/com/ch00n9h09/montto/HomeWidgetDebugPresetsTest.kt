@@ -179,6 +179,77 @@ class HomeWidgetDebugPresetsTest {
     }
 
     @Test
+    fun `selector prefers authoritative egg snapshot when hatch timing baseline changed`() {
+        val nowMs = 1_717_171_717L
+        val authoritativeSnapshot = HomeWidgetDebugPresets.resolveSnapshot(index = 0, nowMs = nowMs)!!.copy(
+            snapshotKind = "authoritativeAppState",
+            characterState = "egg",
+            eggTextureKey = 517,
+            eggHatchTimeMs = nowMs + 120_000,
+            eggHatchDurationMs = 180_000,
+            eggCrackStage = 0,
+            displayState = "idle",
+            baseLastActiveTimeMs = nowMs - 5_000,
+            updatedAtMs = nowMs,
+            snapshotComputedAtMs = nowMs,
+            projectedElapsedMs = 0,
+        )
+        val currentSnapshot = authoritativeSnapshot.copy(
+            snapshotKind = "widgetProgressed",
+            eggHatchTimeMs = authoritativeSnapshot.eggHatchTimeMs!! - 30_000,
+            eggCrackStage = 2,
+            updatedAtMs = nowMs + 30_000,
+            snapshotComputedAtMs = nowMs + 30_000,
+            projectedElapsedMs = 30_000,
+        )
+
+        val selected = HomeWidgetSnapshotSelector.select(
+            debugModeEnabled = false,
+            debugOverrideSnapshot = null,
+            currentSnapshot = currentSnapshot,
+            authoritativeSnapshot = authoritativeSnapshot,
+            worldDataFallback = { authoritativeSnapshot },
+        )
+
+        assertEquals(authoritativeSnapshot, selected)
+    }
+
+    @Test
+    fun `selector keeps progressed egg snapshot when hatch timing baseline is same`() {
+        val nowMs = 1_717_171_717L
+        val authoritativeSnapshot = HomeWidgetDebugPresets.resolveSnapshot(index = 0, nowMs = nowMs)!!.copy(
+            snapshotKind = "authoritativeAppState",
+            characterState = "egg",
+            eggTextureKey = 517,
+            eggHatchTimeMs = nowMs + 120_000,
+            eggHatchDurationMs = 180_000,
+            eggCrackStage = 0,
+            displayState = "idle",
+            baseLastActiveTimeMs = nowMs - 5_000,
+            updatedAtMs = nowMs,
+            snapshotComputedAtMs = nowMs,
+            projectedElapsedMs = 0,
+        )
+        val currentSnapshot = authoritativeSnapshot.copy(
+            snapshotKind = "widgetProgressed",
+            eggCrackStage = 2,
+            updatedAtMs = nowMs + 30_000,
+            snapshotComputedAtMs = nowMs + 30_000,
+            projectedElapsedMs = 30_000,
+        )
+
+        val selected = HomeWidgetSnapshotSelector.select(
+            debugModeEnabled = false,
+            debugOverrideSnapshot = null,
+            currentSnapshot = currentSnapshot,
+            authoritativeSnapshot = authoritativeSnapshot,
+            worldDataFallback = { authoritativeSnapshot },
+        )
+
+        assertEquals(currentSnapshot, selected)
+    }
+
+    @Test
     fun `preset background variants follow character phase`() {
         val expectations = listOf(
             0 to HomeWidgetBackgroundVariant.BROWN,
