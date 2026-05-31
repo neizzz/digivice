@@ -241,6 +241,18 @@ export class GameMenu {
     }
   }
 
+  public setFeedPreviewTextureName(textureName: string | null): void {
+    const feedIndex = this.menuItems.findIndex(
+      (type) => type === GameMenuItemType.Feed,
+    );
+
+    if (feedIndex === -1 || feedIndex >= this.menuItemElements.length) {
+      return;
+    }
+
+    this.menuItemElements[feedIndex].setFeedPreviewTextureName(textureName);
+  }
+
   public disable(): void {
     const itemSize = this.menuItemElements[0].getSize();
     this.container.style.transition =
