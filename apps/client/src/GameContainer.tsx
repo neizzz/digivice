@@ -2716,6 +2716,7 @@ const GameContainer: React.FC = () => {
         entryFlowDiagnostics.completeNativeSunTimesRequest(
           nativeSunTimesStartedAt,
           sunTimes,
+          promptForPermission,
         );
 
         if (!sunTimes) {
@@ -2756,6 +2757,7 @@ const GameContainer: React.FC = () => {
         entryFlowDiagnostics.failNativeSunTimesRequest(
           nativeSunTimesStartedAt,
           error,
+          promptForPermission,
         );
         console.warn(
           "[GameContainer] Failed to prepare initial sun times during setup loading. Continuing without cached sun times.",
