@@ -23,6 +23,10 @@ data class HomeWidgetSnapshot(
     val snapshotKind: String,
     val monsterName: String?,
     val characterKey: Int?,
+    val eggTextureKey: Int?,
+    val eggHatchTimeMs: Long?,
+    val eggHatchDurationMs: Long?,
+    val eggCrackStage: Int,
     val characterState: String,
     val displayState: String,
     val timeOfDay: String,
@@ -110,6 +114,10 @@ data class HomeWidgetSnapshot(
             .put("snapshotKind", snapshotKind)
             .put("monsterName", monsterName)
             .put("characterKey", characterKey)
+            .put("eggTextureKey", eggTextureKey)
+            .put("eggHatchTimeMs", eggHatchTimeMs)
+            .put("eggHatchDurationMs", eggHatchDurationMs)
+            .put("eggCrackStage", eggCrackStage)
             .put("characterState", characterState)
             .put("displayState", displayState)
             .put("primaryStatus", displayState)
@@ -201,7 +209,13 @@ data class HomeWidgetSnapshot(
                     snapshotKind = json.optString("snapshotKind", "authoritativeAppState"),
                     monsterName = json.optString("monsterName").ifBlank { null },
                     characterKey = json.optInt("characterKey").takeIf { json.has("characterKey") },
-                    characterState = json.optString("characterState", "idle"),
+                    eggTextureKey = json.optInt("eggTextureKey").takeIf { json.has("eggTextureKey") },
+                    eggHatchTimeMs = json.optLong("eggHatchTimeMs").takeIf { json.has("eggHatchTimeMs") },
+                    eggHatchDurationMs = json.optLong("eggHatchDurationMs").takeIf {
+                        json.has("eggHatchDurationMs")
+                    },
+                    eggCrackStage = json.optInt("eggCrackStage", 0).coerceIn(0, 3),
+                    characterState = characterState,
                     displayState = normalizedDisplayState,
                     timeOfDay = json.optString("timeOfDay", "day"),
                     stamina = stamina,

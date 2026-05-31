@@ -1,6 +1,7 @@
 package com.ch00n9h09.montto
 
 import android.content.Context
+import android.content.SharedPreferences
 
 private const val DEBUG_PRESET_SCHEMA_VERSION = 2
 private const val DEBUG_PRESET_MAX_STAMINA = 10.0
@@ -26,6 +27,10 @@ data class HomeWidgetDebugPreset(
             snapshotKind = "debugPreset",
             monsterName = monsterName,
             characterKey = characterKey,
+            eggTextureKey = if (characterState == "egg") 500 else null,
+            eggHatchTimeMs = null,
+            eggHatchDurationMs = null,
+            eggCrackStage = 0,
             characterState = characterState,
             displayState = displayState,
             timeOfDay = timeOfDay,
@@ -202,32 +207,66 @@ object HomeWidgetDebugPresetStore {
         context: Context,
         nowMs: Long = System.currentTimeMillis(),
     ): HomeWidgetSnapshot? {
-        if (!isNativeDebugModeEnabled() || !isOverrideEnabled(context)) {
-            return null
-        }
-
-        return HomeWidgetDebugPresets.resolveSnapshot(loadPresetIndex(context), nowMs)
+        return resolveOverrideSnapshot(
+            prefs = prefs(context),
+            nowMs = nowMs,
+            debugModeEnabled = isNativeDebugModeEnabled(),
+        )
     }
 
     fun advancePreset(context: Context, step: Int): Int? {
-        if (!isNativeDebugModeEnabled()) {
+        return advancePreset(
+            prefs = prefs(context),
+            step = step,
+            debugModeEnabled = isNativeDebugModeEnabled(),
+        )
+    }
+
+    fun disableOverride(context: Context) {
+        disableOverride(prefs(context))
+    }
+
+    internal fun resolveOverrideSnapshot(
+        prefs: SharedPreferences,
+        nowMs: Long = System.currentTimeMillis(),
+        debugModeEnabled: Boolean,
+    ): HomeWidgetSnapshot? {
+        if (!debugModeEnabled || !isOverrideEnabled(prefs)) {
             return null
         }
 
-        val nextIndex = HomeWidgetDebugPresets.wrapIndex(loadPresetIndex(context), step)
-        prefs(context).edit()
+        return HomeWidgetDebugPresets.resolveSnapshot(loadPresetIndex(prefs), nowMs)
+    }
+
+    internal fun advancePreset(
+        prefs: SharedPreferences,
+        step: Int,
+        debugModeEnabled: Boolean,
+    ): Int? {
+        if (!debugModeEnabled) {
+            return null
+        }
+
+        val nextIndex = HomeWidgetDebugPresets.wrapIndex(loadPresetIndex(prefs), step)
+        prefs.edit()
             .putBoolean(HomeWidgetConstants.DEBUG_PRESET_OVERRIDE_ENABLED_KEY, true)
             .putInt(HomeWidgetConstants.DEBUG_PRESET_INDEX_KEY, nextIndex)
             .apply()
         return nextIndex
     }
 
-    private fun isOverrideEnabled(context: Context): Boolean {
-        return prefs(context).getBoolean(HomeWidgetConstants.DEBUG_PRESET_OVERRIDE_ENABLED_KEY, false)
+    internal fun disableOverride(prefs: SharedPreferences) {
+        prefs.edit()
+            .putBoolean(HomeWidgetConstants.DEBUG_PRESET_OVERRIDE_ENABLED_KEY, false)
+            .apply()
     }
 
-    private fun loadPresetIndex(context: Context): Int {
-        return prefs(context).getInt(HomeWidgetConstants.DEBUG_PRESET_INDEX_KEY, 0)
+    internal fun isOverrideEnabled(prefs: SharedPreferences): Boolean {
+        return prefs.getBoolean(HomeWidgetConstants.DEBUG_PRESET_OVERRIDE_ENABLED_KEY, false)
+    }
+
+    internal fun loadPresetIndex(prefs: SharedPreferences): Int {
+        return prefs.getInt(HomeWidgetConstants.DEBUG_PRESET_INDEX_KEY, 0)
     }
 
     private fun prefs(context: Context) = context.getSharedPreferences(
@@ -245,6 +284,38 @@ object HomeWidgetSnapshotSelector {
         worldDataFallback: () -> HomeWidgetSnapshot?,
     ): HomeWidgetSnapshot? {
         val debugSnapshot = if (debugModeEnabled) debugOverrideSnapshot else null
-        return debugSnapshot ?: currentSnapshot ?: authoritativeSnapshot ?: worldDataFallback()
+        if (debugSnapshot != null) {
+            return debugSnapshot
+        }
+
+        val liveAuthoritativeSnapshot = worldDataFallback()
+        val authoritativeCandidate = liveAuthoritativeSnapshot ?: authoritativeSnapshot
+
+        if (currentSnapshot == null) {
+            return authoritativeCandidate
+        }
+
+        if (authoritativeCandidate == null) {
+            return currentSnapshot
+        }
+
+        return if (shouldPreferAuthoritativeSnapshot(currentSnapshot, authoritativeCandidate)) {
+            authoritativeCandidate
+        } else {
+            currentSnapshot
+        }
+    }
+
+    private fun shouldPreferAuthoritativeSnapshot(
+        currentSnapshot: HomeWidgetSnapshot,
+        authoritativeSnapshot: HomeWidgetSnapshot,
+    ): Boolean {
+        return currentSnapshot.baseLastActiveTimeMs != authoritativeSnapshot.baseLastActiveTimeMs ||
+            currentSnapshot.characterState != authoritativeSnapshot.characterState ||
+            currentSnapshot.characterKey != authoritativeSnapshot.characterKey ||
+            currentSnapshot.eggTextureKey != authoritativeSnapshot.eggTextureKey ||
+            currentSnapshot.displayState != authoritativeSnapshot.displayState ||
+            currentSnapshot.hasUrgentStatus != authoritativeSnapshot.hasUrgentStatus ||
+            currentSnapshot.visibleStatusIcons != authoritativeSnapshot.visibleStatusIcons
     }
 }

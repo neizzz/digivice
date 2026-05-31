@@ -534,10 +534,15 @@ open class MainActivity : FlutterActivity() {
     ): Bundle? {
         val provider = (runCatching { providerClass.getDeclaredConstructor().newInstance() }.getOrNull()
             as? BaseHomeWidgetProvider) ?: return null
-        val snapshot = HomeWidgetSnapshotFactory.progressSnapshot(this)
-            ?: HomeWidgetSnapshot.load(this)
-            ?: HomeWidgetSnapshot.loadAuthoritative(this)
-            ?: HomeWidgetSnapshotFactory.refreshFromWorldData(this)
+        val snapshot = HomeWidgetSnapshotSelector.select(
+            debugModeEnabled = false,
+            debugOverrideSnapshot = null,
+            currentSnapshot = HomeWidgetSnapshot.load(this),
+            authoritativeSnapshot = HomeWidgetSnapshot.loadAuthoritative(this),
+            worldDataFallback = {
+                HomeWidgetSnapshotFactory.refreshFromWorldData(this)
+            },
+        )
         val preview = provider.buildRemoteViews(
             context = this,
             snapshot = snapshot,

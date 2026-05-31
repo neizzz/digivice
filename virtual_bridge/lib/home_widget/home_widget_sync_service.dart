@@ -26,6 +26,8 @@ const int _characterStatusUrgent = 2;
 const int _characterStatusSick = 3;
 const int _characterStatusHappy = 4;
 const int _characterStatusDiscover = 5;
+const int _eggTextureKeyStart = 500;
+const int _eggTextureKeyEnd = 529;
 
 const double _maxStamina = 10;
 const double _lowStaminaThreshold = 3;
@@ -85,6 +87,10 @@ class HomeWidgetSnapshot {
   final HomeWidgetSnapshotKind snapshotKind;
   final String? monsterName;
   final int? characterKey;
+  final int? eggTextureKey;
+  final int? eggHatchTimeMs;
+  final int? eggHatchDurationMs;
+  final int eggCrackStage;
   final HomeWidgetCharacterState characterState;
   final HomeWidgetDisplayState displayState;
   final HomeWidgetTimeOfDay timeOfDay;
@@ -109,6 +115,10 @@ class HomeWidgetSnapshot {
     required this.snapshotKind,
     required this.monsterName,
     required this.characterKey,
+    required this.eggTextureKey,
+    required this.eggHatchTimeMs,
+    required this.eggHatchDurationMs,
+    required this.eggCrackStage,
     required this.characterState,
     required this.displayState,
     required this.timeOfDay,
@@ -133,6 +143,10 @@ class HomeWidgetSnapshot {
     HomeWidgetSnapshotKind? snapshotKind,
     String? monsterName,
     int? characterKey,
+    Object? eggTextureKey = _sentinel,
+    Object? eggHatchTimeMs = _sentinel,
+    Object? eggHatchDurationMs = _sentinel,
+    int? eggCrackStage,
     HomeWidgetCharacterState? characterState,
     HomeWidgetDisplayState? displayState,
     HomeWidgetTimeOfDay? timeOfDay,
@@ -157,6 +171,16 @@ class HomeWidgetSnapshot {
       snapshotKind: snapshotKind ?? this.snapshotKind,
       monsterName: monsterName ?? this.monsterName,
       characterKey: characterKey ?? this.characterKey,
+      eggTextureKey: identical(eggTextureKey, _sentinel)
+          ? this.eggTextureKey
+          : eggTextureKey as int?,
+      eggHatchTimeMs: identical(eggHatchTimeMs, _sentinel)
+          ? this.eggHatchTimeMs
+          : eggHatchTimeMs as int?,
+      eggHatchDurationMs: identical(eggHatchDurationMs, _sentinel)
+          ? this.eggHatchDurationMs
+          : eggHatchDurationMs as int?,
+      eggCrackStage: eggCrackStage ?? this.eggCrackStage,
       characterState: characterState ?? this.characterState,
       displayState: displayState ?? this.displayState,
       timeOfDay: timeOfDay ?? this.timeOfDay,
@@ -189,6 +213,10 @@ class HomeWidgetSnapshot {
       'snapshotKind': snapshotKind.name,
       'monsterName': monsterName,
       'characterKey': characterKey,
+      'eggTextureKey': eggTextureKey,
+      'eggHatchTimeMs': eggHatchTimeMs,
+      'eggHatchDurationMs': eggHatchDurationMs,
+      'eggCrackStage': eggCrackStage,
       'characterState': characterState.name,
       'displayState': displayState.name,
       'timeOfDay': timeOfDay.name,
@@ -248,8 +276,13 @@ class HomeWidgetSnapshot {
         HomeWidgetSyncService._resolveCharacterStateName(
       json['characterState'] as String?,
     );
-    final bool hasUrgentStatus =
-        json['hasUrgentStatus'] is bool ? json['hasUrgentStatus'] as bool : false;
+    final int? eggHatchTimeMs =
+        HomeWidgetSyncService._readInt(json['eggHatchTimeMs']);
+    final int? eggHatchDurationMs =
+        HomeWidgetSyncService._readInt(json['eggHatchDurationMs']);
+    final bool hasUrgentStatus = json['hasUrgentStatus'] is bool
+        ? json['hasUrgentStatus'] as bool
+        : false;
     final List<HomeWidgetStatusIcon> visibleStatusIcons =
         HomeWidgetSyncService._resolveVisibleStatusIconsFromNames(
       json['visibleStatusIcons'],
@@ -267,6 +300,16 @@ class HomeWidgetSnapshot {
       snapshotKind: snapshotKind,
       monsterName: json['monsterName'] as String?,
       characterKey: HomeWidgetSyncService._readInt(json['characterKey']),
+      eggTextureKey: HomeWidgetSyncService._readInt(json['eggTextureKey']),
+      eggHatchTimeMs: eggHatchTimeMs,
+      eggHatchDurationMs: eggHatchDurationMs,
+      eggCrackStage: HomeWidgetSyncService._readInt(json['eggCrackStage']) ??
+          HomeWidgetSyncService._resolveEggCrackStage(
+            nowMs: updatedAtMs,
+            characterState: characterState,
+            hatchTimeMs: eggHatchTimeMs,
+            hatchDurationMs: eggHatchDurationMs,
+          ),
       characterState: characterState,
       displayState: displayState,
       timeOfDay: HomeWidgetSyncService._resolveTimeOfDayName(
@@ -441,6 +484,8 @@ class HomeWidgetSyncService {
         characterState: characterState,
         visibleStatusIcons: visibleStatusIcons,
       );
+      final int? eggHatchTimeMs = _readInt(source.eggHatchTime);
+      final int? eggHatchDurationMs = _readInt(source.eggHatchDurationMs);
 
       final double stamina = _clampDouble(source.stamina ?? 0, 0, _maxStamina);
       final int updatedAtMs = now.millisecondsSinceEpoch;
@@ -456,6 +501,18 @@ class HomeWidgetSyncService {
         snapshotKind: HomeWidgetSnapshotKind.authoritativeAppState,
         monsterName: worldMetadata['monster_name'] as String?,
         characterKey: source.characterKey,
+        eggTextureKey: _resolveEggTextureKey(
+          characterState: characterState,
+          rawTextureKey: source.textureKey,
+        ),
+        eggHatchTimeMs: eggHatchTimeMs,
+        eggHatchDurationMs: eggHatchDurationMs,
+        eggCrackStage: _resolveEggCrackStage(
+          nowMs: updatedAtMs,
+          characterState: characterState,
+          hatchTimeMs: eggHatchTimeMs,
+          hatchDurationMs: eggHatchDurationMs,
+        ),
         characterState: characterState,
         displayState: displayState,
         timeOfDay: timeOfDay,
@@ -540,6 +597,12 @@ class HomeWidgetSyncService {
       projectionVersion: _projectionVersion,
       staminaTimerMs: staminaTimerMs,
       hasUrgentStatus: snapshot.hasUrgentStatus,
+      eggCrackStage: _resolveEggCrackStage(
+        nowMs: now.millisecondsSinceEpoch,
+        characterState: snapshot.characterState,
+        hatchTimeMs: snapshot.eggHatchTimeMs,
+        hatchDurationMs: snapshot.eggHatchDurationMs,
+      ),
     );
   }
 
@@ -632,9 +695,14 @@ class HomeWidgetSyncService {
 
       final Map<String, dynamic> characterStatus =
           _readMap(components['characterStatus']);
+      final Map<String, dynamic> render = _readMap(components['render']);
+      final Map<String, dynamic> eggHatch = _readMap(components['eggHatch']);
       return _CharacterSnapshotSource(
         state: _readInt(object['state']),
         characterKey: _readInt(characterStatus['characterKey']),
+        textureKey: _readInt(render['textureKey']),
+        eggHatchTime: eggHatch['hatchTime'],
+        eggHatchDurationMs: eggHatch['hatchDurationMs'],
         stamina: _readDouble(characterStatus['stamina']),
         statuses: characterStatus['statuses'] is List<dynamic>
             ? characterStatus['statuses'] as List<dynamic>
@@ -795,6 +863,57 @@ class HomeWidgetSyncService {
       return HomeWidgetStaminaLevel.green;
     }
     return HomeWidgetStaminaLevel.orange;
+  }
+
+  static int? _resolveEggTextureKey({
+    required HomeWidgetCharacterState characterState,
+    required int? rawTextureKey,
+  }) {
+    if (characterState != HomeWidgetCharacterState.egg) {
+      return null;
+    }
+    if (rawTextureKey == null ||
+        rawTextureKey < _eggTextureKeyStart ||
+        rawTextureKey > _eggTextureKeyEnd) {
+      return _eggTextureKeyStart;
+    }
+    return rawTextureKey;
+  }
+
+  static int _resolveEggCrackStage({
+    required int nowMs,
+    required HomeWidgetCharacterState characterState,
+    required int? hatchTimeMs,
+    required int? hatchDurationMs,
+  }) {
+    if (characterState != HomeWidgetCharacterState.egg) {
+      return 0;
+    }
+    if (hatchTimeMs == null || hatchTimeMs <= 0) {
+      return 0;
+    }
+
+    final int resolvedDurationMs =
+        hatchDurationMs != null && hatchDurationMs > 0
+            ? hatchDurationMs
+            : 30 * 60 * 1000;
+    final int hatchStartTimeMs = hatchTimeMs - resolvedDurationMs;
+    final double progress = _clampDouble(
+      (nowMs - hatchStartTimeMs) / resolvedDurationMs,
+      0,
+      1,
+    );
+
+    if (progress >= 0.75) {
+      return 3;
+    }
+    if (progress >= 0.5) {
+      return 2;
+    }
+    if (progress >= 0.25) {
+      return 1;
+    }
+    return 0;
   }
 
   static HomeWidgetStaminaLevel _resolveStaminaLevelName(
@@ -993,12 +1112,18 @@ class HomeWidgetSyncService {
 class _CharacterSnapshotSource {
   final int? state;
   final int? characterKey;
+  final int? textureKey;
+  final Object? eggHatchTime;
+  final Object? eggHatchDurationMs;
   final double? stamina;
   final List<dynamic> statuses;
 
   const _CharacterSnapshotSource({
     required this.state,
     required this.characterKey,
+    required this.textureKey,
+    required this.eggHatchTime,
+    required this.eggHatchDurationMs,
     required this.stamina,
     required this.statuses,
   });

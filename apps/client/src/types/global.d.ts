@@ -96,6 +96,16 @@ declare global {
     digiviceBackBridge?: {
       handleBackNavigation: () => "consumed" | "exit";
     };
+    homeWidgetController?: {
+      requestPinWidget: () => Promise<string>;
+      requestPinWidget1x1: () => Promise<string>;
+      requestPinWidget2x1: () => Promise<string>;
+    };
+    homeWidgetRefreshController?: {
+      requestPinWidget: () => Promise<string>;
+      requestPinWidget1x1: () => Promise<string>;
+      requestPinWidget2x1: () => Promise<string>;
+    };
     nativeDebugLogger?: {
       log: (payload: unknown) => void;
     };

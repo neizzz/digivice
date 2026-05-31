@@ -20,6 +20,55 @@
         android:padding="4dp"
         android:translationY="4dp">
 
+        <ViewFlipper
+            android:id="@+id/widget_character_flipper"
+            android:layout_width="52dp"
+            android:layout_height="52dp"
+            android:layout_gravity="center"
+            android:translationY="6dp"
+            android:animateFirstView="false"
+            android:autoStart="true"
+            android:flipInterval="500"
+            android:inAnimation="@anim/widget_noop"
+            android:outAnimation="@anim/widget_noop">
+
+            <ImageView
+                android:id="@+id/widget_character_frame_1"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:adjustViewBounds="true"
+                android:contentDescription="@null"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_home_widget_placeholder" />
+
+            <ImageView
+                android:id="@+id/widget_character_frame_2"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:adjustViewBounds="true"
+                android:contentDescription="@null"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_home_widget_placeholder" />
+
+            <ImageView
+                android:id="@+id/widget_character_frame_3"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:adjustViewBounds="true"
+                android:contentDescription="@null"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_home_widget_placeholder" />
+
+            <ImageView
+                android:id="@+id/widget_character_frame_4"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:adjustViewBounds="true"
+                android:contentDescription="@null"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_home_widget_placeholder" />
+        </ViewFlipper>
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -100,54 +149,6 @@
                 </LinearLayout>
             </LinearLayout>
         </LinearLayout>
-
-        <ViewFlipper
-            android:id="@+id/widget_character_flipper"
-            android:layout_width="52dp"
-            android:layout_height="52dp"
-            android:layout_gravity="center"
-            android:animateFirstView="false"
-            android:autoStart="true"
-            android:flipInterval="500"
-            android:inAnimation="@anim/widget_noop"
-            android:outAnimation="@anim/widget_noop">
-
-            <ImageView
-                android:id="@+id/widget_character_frame_1"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:adjustViewBounds="true"
-                android:contentDescription="@null"
-                android:scaleType="fitCenter"
-                android:src="@drawable/ic_home_widget_placeholder" />
-
-            <ImageView
-                android:id="@+id/widget_character_frame_2"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:adjustViewBounds="true"
-                android:contentDescription="@null"
-                android:scaleType="fitCenter"
-                android:src="@drawable/ic_home_widget_placeholder" />
-
-            <ImageView
-                android:id="@+id/widget_character_frame_3"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:adjustViewBounds="true"
-                android:contentDescription="@null"
-                android:scaleType="fitCenter"
-                android:src="@drawable/ic_home_widget_placeholder" />
-
-            <ImageView
-                android:id="@+id/widget_character_frame_4"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:adjustViewBounds="true"
-                android:contentDescription="@null"
-                android:scaleType="fitCenter"
-                android:src="@drawable/ic_home_widget_placeholder" />
-        </ViewFlipper>
     </FrameLayout>
 
     <LinearLayout
@@ -163,9 +164,9 @@
 
         <Button
             android:id="@+id/widget_debug_prev_button"
-            android:layout_width="28dp"
+            android:layout_width="24dp"
             android:layout_height="18dp"
-            android:layout_marginEnd="2dp"
+            android:layout_marginEnd="1dp"
             android:gravity="center"
             android:minHeight="0dp"
             android:minWidth="0dp"
@@ -173,12 +174,13 @@
             android:paddingVertical="0dp"
             android:text="Prev"
             android:textAllCaps="false"
-            android:textSize="7sp" />
+            android:textSize="6sp" />
 
         <Button
             android:id="@+id/widget_debug_next_button"
-            android:layout_width="28dp"
+            android:layout_width="24dp"
             android:layout_height="18dp"
+            android:layout_marginEnd="1dp"
             android:gravity="center"
             android:minHeight="0dp"
             android:minWidth="0dp"
@@ -186,6 +188,19 @@
             android:paddingVertical="0dp"
             android:text="Next"
             android:textAllCaps="false"
-            android:textSize="7sp" />
+            android:textSize="6sp" />
+
+        <Button
+            android:id="@+id/widget_debug_live_button"
+            android:layout_width="24dp"
+            android:layout_height="18dp"
+            android:gravity="center"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:paddingHorizontal="0dp"
+            android:paddingVertical="0dp"
+            android:text="Live"
+            android:textAllCaps="false"
+            android:textSize="6sp" />
     </LinearLayout>
 </FrameLayout>

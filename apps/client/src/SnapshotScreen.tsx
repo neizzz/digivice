@@ -66,6 +66,7 @@ const SnapshotScreen: React.FC<{ layer: SnapshotLayer }> = ({ layer }) => {
       onOpenResetConfirm={() => setShowFinalResetConfirm(true)}
       onCloseResetConfirm={() => setShowFinalResetConfirm(false)}
       onResetGameData={() => undefined}
+      onRequestPinHomeWidget={async (_size) => ({ status: "unavailable" })}
       onClose={() => undefined}
       resetConfirmCodeFactory={createSnapshotResetConfirmCode}
     />

@@ -9,6 +9,9 @@ import kotlin.math.roundToInt
 
 object HomeWidgetSnapshotFactory {
     private const val CHARACTER_OBJECT_TYPE = 1
+    private const val EGG_TEXTURE_KEY_START = 500
+    private const val EGG_TEXTURE_KEY_END = 529
+    private const val DEFAULT_EGG_HATCH_DURATION_MS = 30 * 60 * 1000L
     private const val CHARACTER_STATE_EGG = 0
     private const val CHARACTER_STATE_IDLE = 1
     private const val CHARACTER_STATE_MOVING = 2
@@ -125,6 +128,8 @@ object HomeWidgetSnapshotFactory {
             val displayState = resolveDisplayState(characterState, visibleStatusIcons)
             val stamina = (source.stamina ?: 0.0).coerceIn(0.0, MAX_STAMINA)
             val updatedAtMs = nowMs
+            val eggHatchTimeMs = source.eggHatchTimeMs
+            val eggHatchDurationMs = source.eggHatchDurationMs
             val lastActiveTimeMs = appState.optLong("last_active_time").takeIf {
                 appState.has("last_active_time")
             }
@@ -134,6 +139,18 @@ object HomeWidgetSnapshotFactory {
                 snapshotKind = "authoritativeAppState",
                 monsterName = worldMetadata.optString("monster_name").ifBlank { null },
                 characterKey = source.characterKey,
+                eggTextureKey = resolveEggTextureKey(
+                    characterState = characterState,
+                    rawTextureKey = source.textureKey,
+                ),
+                eggHatchTimeMs = eggHatchTimeMs,
+                eggHatchDurationMs = eggHatchDurationMs,
+                eggCrackStage = resolveEggCrackStage(
+                    nowMs = nowMs,
+                    characterState = characterState,
+                    hatchTimeMs = eggHatchTimeMs,
+                    hatchDurationMs = eggHatchDurationMs,
+                ),
                 characterState = characterState,
                 displayState = displayState,
                 timeOfDay = resolveTimeOfDay(
@@ -208,6 +225,12 @@ object HomeWidgetSnapshotFactory {
             projectionVersion = PROJECTION_VERSION,
             staminaTimerMs = staminaTimerMs,
             hasUrgentStatus = snapshot.hasUrgentStatus,
+            eggCrackStage = resolveEggCrackStage(
+                nowMs = nowMs,
+                characterState = snapshot.characterState,
+                hatchTimeMs = snapshot.eggHatchTimeMs,
+                hatchDurationMs = snapshot.eggHatchDurationMs,
+            ),
         )
     }
 
@@ -233,6 +256,16 @@ object HomeWidgetSnapshotFactory {
                 characterKey = statusComponent.optInt("characterKey").takeIf {
                     statusComponent.has("characterKey")
                 },
+                textureKey = components.optJSONObject("render")?.optInt("textureKey")?.takeIf {
+                    components.optJSONObject("render")?.has("textureKey") == true
+                },
+                eggHatchTimeMs = components.optJSONObject("eggHatch")?.optLong("hatchTime")?.takeIf {
+                    components.optJSONObject("eggHatch")?.has("hatchTime") == true
+                },
+                eggHatchDurationMs = components.optJSONObject("eggHatch")?.optLong("hatchDurationMs")
+                    ?.takeIf {
+                        components.optJSONObject("eggHatch")?.has("hatchDurationMs") == true
+                    },
                 stamina = statusComponent.optDouble("stamina").takeIf {
                     statusComponent.has("stamina")
                 },
@@ -295,6 +328,43 @@ object HomeWidgetSnapshotFactory {
             stamina <= LOW_STAMINA_THRESHOLD -> "red"
             stamina >= BOOSTED_STAMINA_THRESHOLD -> "green"
             else -> "orange"
+        }
+    }
+
+    private fun resolveEggTextureKey(
+        characterState: String,
+        rawTextureKey: Int?,
+    ): Int? {
+        if (characterState != "egg") {
+            return null
+        }
+        if (rawTextureKey == null || rawTextureKey !in EGG_TEXTURE_KEY_START..EGG_TEXTURE_KEY_END) {
+            return EGG_TEXTURE_KEY_START
+        }
+        return rawTextureKey
+    }
+
+    private fun resolveEggCrackStage(
+        nowMs: Long,
+        characterState: String,
+        hatchTimeMs: Long?,
+        hatchDurationMs: Long?,
+    ): Int {
+        if (characterState != "egg") {
+            return 0
+        }
+        if (hatchTimeMs == null || hatchTimeMs <= 0L) {
+            return 0
+        }
+        val resolvedDurationMs = hatchDurationMs?.takeIf { it > 0L } ?: DEFAULT_EGG_HATCH_DURATION_MS
+        val hatchStartTime = hatchTimeMs - resolvedDurationMs
+        val progress = ((nowMs - hatchStartTime).toDouble() / resolvedDurationMs.toDouble())
+            .coerceIn(0.0, 1.0)
+        return when {
+            progress >= 0.75 -> 3
+            progress >= 0.5 -> 2
+            progress >= 0.25 -> 1
+            else -> 0
         }
     }
 
@@ -444,6 +514,9 @@ object HomeWidgetSnapshotFactory {
     private data class CharacterSnapshotSource(
         val state: Int,
         val characterKey: Int?,
+        val textureKey: Int?,
+        val eggHatchTimeMs: Long?,
+        val eggHatchDurationMs: Long?,
         val stamina: Double?,
         val statuses: List<Int>,
     )

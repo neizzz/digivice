@@ -8,6 +8,8 @@ Map<String, dynamic> _buildWorldData({
   required double stamina,
   List<int> statuses = const <int>[],
   Map<String, dynamic>? appState,
+  int? textureKey,
+  Map<String, dynamic>? eggHatch,
 }) {
   return <String, dynamic>{
     'world_metadata': <String, dynamic>{
@@ -24,6 +26,14 @@ Map<String, dynamic> _buildWorldData({
           'object': <String, dynamic>{
             'type': 1,
             'state': state,
+          },
+          'render': <String, dynamic>{
+            'textureKey': textureKey ?? 500,
+          },
+          'eggHatch': <String, dynamic>{
+            'hatchTime': 0,
+            'hatchDurationMs': 0,
+            ...?eggHatch,
           },
           'characterStatus': <String, dynamic>{
             'characterKey': 1,
@@ -61,7 +71,7 @@ void main() {
       expect(snapshot.visibleStatusIcons, isEmpty);
     });
 
-    test('상태 아이콘은 persistent 전부 + latest overlay만 표시하고 urgent는 제외한다', () {
+    test('위젯 상태 아이콘은 sick/sleeping만 표시하고 temporary overlay는 제외한다', () {
       final sleepingSnapshot =
           HomeWidgetSyncService.buildSnapshotFromWorldDataJson(
         jsonEncode(
@@ -75,6 +85,12 @@ void main() {
       );
       final sickSnapshot = HomeWidgetSyncService.buildSnapshotFromWorldDataJson(
         jsonEncode(_buildWorldData(state: 1, stamina: 2, statuses: <int>[3])),
+        now: DateTime(2026, 5, 19, 12),
+      );
+      final discoverSnapshot =
+          HomeWidgetSyncService.buildSnapshotFromWorldDataJson(
+        jsonEncode(
+            _buildWorldData(state: 1, stamina: 6, statuses: <int>[4, 5])),
         now: DateTime(2026, 5, 19, 12),
       );
 
@@ -98,6 +114,56 @@ void main() {
       );
       expect(sickSnapshot.hasUrgentStatus, isFalse);
       expect(sickSnapshot.staminaLevel, HomeWidgetStaminaLevel.red);
+
+      expect(discoverSnapshot, isNotNull);
+      expect(discoverSnapshot!.displayState, HomeWidgetDisplayState.idle);
+      expect(discoverSnapshot.visibleStatusIcons, isEmpty);
+    });
+
+    test('알 상태면 현재 egg texture key를 snapshot에 보존한다', () {
+      final snapshot = HomeWidgetSyncService.buildSnapshotFromWorldDataJson(
+        jsonEncode(_buildWorldData(state: 0, stamina: 10, textureKey: 517)),
+        now: DateTime(2026, 5, 19, 12),
+      );
+
+      expect(snapshot, isNotNull);
+      expect(snapshot!.characterState, HomeWidgetCharacterState.egg);
+      expect(snapshot.eggTextureKey, 517);
+    });
+
+    test('dead 상태면 상태 아이콘을 모두 숨긴다', () {
+      final snapshot = HomeWidgetSyncService.buildSnapshotFromWorldDataJson(
+        jsonEncode(
+          _buildWorldData(state: 6, stamina: 0, statuses: <int>[3, 4, 5]),
+        ),
+        now: DateTime(2026, 5, 19, 12),
+      );
+
+      expect(snapshot, isNotNull);
+      expect(snapshot!.characterState, HomeWidgetCharacterState.dead);
+      expect(snapshot.visibleStatusIcons, isEmpty);
+    });
+
+    test('알 상태면 부화 진행도에 따라 crack stage를 계산한다', () {
+      final now = DateTime(2026, 5, 19, 12, 0, 0);
+      final snapshot = HomeWidgetSyncService.buildSnapshotFromWorldDataJson(
+        jsonEncode(
+          _buildWorldData(
+            state: 0,
+            stamina: 10,
+            textureKey: 517,
+            eggHatch: <String, dynamic>{
+              'hatchTime': now.millisecondsSinceEpoch + 10 * 60 * 1000,
+              'hatchDurationMs': 40 * 60 * 1000,
+            },
+          ),
+        ),
+        now: now,
+      );
+
+      expect(snapshot, isNotNull);
+      expect(snapshot!.eggCrackStage, 3);
+      expect(snapshot.eggHatchDurationMs, 40 * 60 * 1000);
     });
   });
 

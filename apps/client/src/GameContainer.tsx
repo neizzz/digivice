@@ -3592,6 +3592,43 @@ const GameContainer: React.FC = () => {
           onClose={dismissSettingMenu}
           onBack={closeSettingMenu}
           onShowOfflineAdFallback={handleShowOfflineAdFallback}
+          onRequestPinHomeWidget={async (size) => {
+            const controller =
+              window.homeWidgetController ??
+              window.homeWidgetRefreshController;
+
+            const requestPinWidget =
+              size === "1x1"
+                ? controller?.requestPinWidget1x1
+                : controller?.requestPinWidget2x1 ?? controller?.requestPinWidget;
+
+            if (!requestPinWidget) {
+              return { status: "unavailable" as const };
+            }
+
+            try {
+              const rawResult = await requestPinWidget();
+              const parsedResult =
+                typeof rawResult === "string" ? JSON.parse(rawResult) : rawResult;
+              const status =
+                typeof parsedResult?.status === "string"
+                  ? parsedResult.status
+                  : "failed";
+
+              if (
+                status === "requested" ||
+                status === "unavailable" ||
+                status === "unsupported_api" ||
+                status === "unsupported_launcher"
+              ) {
+                return { status };
+              }
+
+              return { status: "failed" as const };
+            } catch {
+              return { status: "failed" as const };
+            }
+          }}
         />
       )}
       {alertState && (

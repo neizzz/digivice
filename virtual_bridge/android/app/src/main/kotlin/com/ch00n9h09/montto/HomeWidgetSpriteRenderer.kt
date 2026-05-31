@@ -3,10 +3,15 @@ package com.ch00n9h09.montto
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Paint
 import org.json.JSONObject
 
 object HomeWidgetSpriteRenderer {
     private const val WIDGET_LOOP_FRAME_COUNT = 4
+    private const val EGG_TEXTURE_KEY_START = 500
+    private const val EGG_CRACK_BASE_ALPHA = 1.0f
+    private const val EGG_CRACK_STAGE_ALPHA_STEP = 0.12f
     private val widgetBackgroundAsset = SpriteAsset(
         pngPath = "assets/web/assets/game/sprites/widget-bg.png",
         jsonPath = "assets/web/assets/game/sprites/widget-bg.json",
@@ -39,7 +44,8 @@ object HomeWidgetSpriteRenderer {
             frameRect.width,
             frameRect.height,
         )
-        return Bitmap.createScaledBitmap(cropped, 96, 96, false)
+        val scaled = Bitmap.createScaledBitmap(cropped, 96, 96, false)
+        return applyEggCrackOverlayIfNeeded(snapshot, scaled)
     }
 
     fun renderLoopFrames(
@@ -182,7 +188,9 @@ object HomeWidgetSpriteRenderer {
         frameIndex: Int,
     ): String {
         if (snapshot.characterState == "egg") {
-            return "egg-0"
+            val eggFrameIndex = (snapshot.eggTextureKey ?: EGG_TEXTURE_KEY_START) - EGG_TEXTURE_KEY_START
+            val eggFrameName = "egg-${eggFrameIndex.coerceAtLeast(0)}"
+            return if (frames.containsKey(eggFrameName)) eggFrameName else "egg-0"
         }
 
         if (snapshot.characterState == "dead") {
@@ -207,6 +215,143 @@ object HomeWidgetSpriteRenderer {
             }
         }
     }
+
+    private fun applyEggCrackOverlayIfNeeded(
+        snapshot: HomeWidgetSnapshot,
+        bitmap: Bitmap,
+    ): Bitmap {
+        val crackStage = snapshot.eggCrackStage.coerceIn(0, 3)
+        if (snapshot.characterState != "egg" || crackStage == 0) {
+            return bitmap
+        }
+
+        val mutableBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true)
+        val canvas = Canvas(mutableBitmap)
+        val paint = Paint().apply {
+            color = android.graphics.Color.BLACK
+            style = Paint.Style.FILL
+            isAntiAlias = false
+        }
+        drawEggCracks(
+            canvas = canvas,
+            paint = paint,
+            width = mutableBitmap.width.toFloat(),
+            height = mutableBitmap.height.toFloat(),
+            stage = crackStage,
+        )
+        return mutableBitmap
+    }
+
+    private fun drawEggCracks(
+        canvas: Canvas,
+        paint: Paint,
+        width: Float,
+        height: Float,
+        stage: Int,
+    ) {
+        val inset = maxOf(6f, minOf(width, height) * 0.2f)
+        val left = inset
+        val right = width - inset
+        val top = inset + 1f
+        val bottom = height - inset - 1f
+        val centerX = width / 2f
+        val centerY = height / 2f
+        val innerWidth = right - left
+        val innerHeight = bottom - top
+        val shortX = innerWidth * 0.07f
+        val shortY = innerHeight * 0.1f
+        val mediumX = innerWidth * 0.16f
+        val mediumY = innerHeight * 0.2f
+        val longX = innerWidth * 0.25f
+        val longY = innerHeight * 0.32f
+        val alpha = minOf(1f, EGG_CRACK_BASE_ALPHA + stage * EGG_CRACK_STAGE_ALPHA_STEP)
+        paint.alpha = (alpha * 255).toInt().coerceIn(0, 255)
+
+        val rootTop = point(centerX - shortX * 0.55f, centerY - shortY * 1.05f)
+        val rootUpper = point(centerX + shortX * 0.18f, centerY - shortY * 0.28f)
+        val rootMiddle = point(centerX - shortX * 0.46f, centerY + shortY * 0.28f)
+        val rootLower = point(centerX + shortX * 0.08f, centerY + shortY * 1.02f)
+        val upperRightStem = point(centerX + shortX * 0.96f, centerY - shortY * 1.08f)
+        val upperRightTip = point(centerX + longX * 0.94f, centerY - mediumY * 1.08f)
+        val lowerLeftStem = point(centerX - shortX * 1.18f, centerY + shortY * 1.02f)
+        val lowerLeftTip = point(centerX - longX * 0.92f, centerY + mediumY * 0.98f)
+        val upperLeftStem = point(centerX - shortX * 1.16f, centerY - shortY * 1.66f)
+        val upperLeftTip = point(centerX - longX * 0.86f, centerY - longY * 0.94f)
+        val lowerRightStem = point(centerX + shortX * 1.02f, centerY + shortY * 1.1f)
+        val lowerRightTip = point(centerX + longX * 0.84f, centerY + longY * 0.84f)
+        val upperRightSplit = point(centerX + mediumX * 0.78f, centerY - shortY * 0.44f)
+        val upperRightSplitTip = point(centerX + longX * 0.8f, centerY + shortY * 0.08f)
+        val lowerLeftSplit = point(centerX - mediumX * 0.74f, centerY + shortY * 0.32f)
+        val lowerLeftSplitTip = point(centerX - longX * 0.74f, centerY - shortY * 0.14f)
+        val topStem = point(centerX - shortX * 0.04f, centerY - mediumY * 0.96f)
+        val topTip = point(centerX + shortX * 0.1f, top + innerHeight * 0.08f)
+        val lowerLeftDownStem = point(centerX - mediumX * 0.58f, centerY + mediumY * 0.96f)
+        val lowerLeftDownTip = point(left + innerWidth * 0.18f, bottom - innerHeight * 0.06f)
+
+        drawCrackPath(canvas, paint, listOf(rootTop, rootUpper, rootMiddle, rootLower))
+
+        if (stage >= 2) {
+            drawCrackPath(canvas, paint, listOf(rootUpper, upperRightStem, upperRightTip))
+            drawCrackPath(canvas, paint, listOf(rootMiddle, lowerLeftStem, lowerLeftTip))
+        }
+
+        if (stage >= 3) {
+            drawCrackPath(canvas, paint, listOf(rootTop, upperLeftStem, upperLeftTip))
+            drawCrackPath(canvas, paint, listOf(rootLower, lowerRightStem, lowerRightTip))
+            drawCrackPath(canvas, paint, listOf(upperRightStem, upperRightSplit, upperRightSplitTip))
+            drawCrackPath(canvas, paint, listOf(lowerLeftStem, lowerLeftSplit, lowerLeftSplitTip))
+            drawCrackPath(canvas, paint, listOf(rootUpper, topStem, topTip))
+            drawCrackPath(canvas, paint, listOf(lowerLeftStem, lowerLeftDownStem, lowerLeftDownTip))
+        }
+    }
+
+    private fun drawCrackPath(
+        canvas: Canvas,
+        paint: Paint,
+        points: List<Pair<Float, Float>>,
+    ) {
+        if (points.size < 2) return
+        for (index in 1 until points.size) {
+            val start = points[index - 1]
+            val end = points[index]
+            drawPixelSegment(canvas, paint, start.first, start.second, end.first, end.second)
+        }
+    }
+
+    private fun drawPixelSegment(
+        canvas: Canvas,
+        paint: Paint,
+        startX: Float,
+        startY: Float,
+        endX: Float,
+        endY: Float,
+    ) {
+        var x0 = startX.toInt()
+        var y0 = startY.toInt()
+        val x1 = endX.toInt()
+        val y1 = endY.toInt()
+        val deltaX = kotlin.math.abs(x1 - x0)
+        val deltaY = kotlin.math.abs(y1 - y0)
+        val stepX = if (x0 < x1) 1 else -1
+        val stepY = if (y0 < y1) 1 else -1
+        var error = deltaX - deltaY
+
+        while (true) {
+            canvas.drawRect(x0.toFloat(), y0.toFloat(), x0 + 1f, y0 + 1f, paint)
+            if (x0 == x1 && y0 == y1) break
+            val doubledError = error * 2
+            if (doubledError > -deltaY) {
+                error -= deltaY
+                x0 += stepX
+            }
+            if (doubledError < deltaX) {
+                error += deltaX
+                y0 += stepY
+            }
+        }
+    }
+
+    private fun point(x: Float, y: Float): Pair<Float, Float> = x to y
 
     private fun loadFrameMap(
         context: Context,
