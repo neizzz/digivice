@@ -1290,6 +1290,14 @@ export class Game {
     };
   }
 
+  public getHomeWidgetSyncWorldData(): MainSceneWorldData | null {
+    if (!(this.currentScene instanceof MainSceneWorld)) {
+      return null;
+    }
+
+    return this.currentScene.buildHomeWidgetSyncWorldData();
+  }
+
   /**
    * 사용 가능한 모든 씬 키 목록을 반환합니다
    */

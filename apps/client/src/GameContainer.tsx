@@ -2386,7 +2386,7 @@ const GameContainer: React.FC = () => {
           WORLD_DATA_STORAGE_KEY,
         )) as StoredWorldData | null;
         const inMemoryWorldData =
-          gameInstance?.getDiagnosticsSnapshot().mainSceneData ?? null;
+          gameInstance?.getHomeWidgetSyncWorldData() ?? null;
         const selection = selectHomeWidgetSyncWorldData({
           storedWorldData,
           inMemoryWorldData,

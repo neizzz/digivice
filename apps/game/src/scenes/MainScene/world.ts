@@ -215,6 +215,7 @@ import {
   type TrustedClock,
   type TrustedTimeSnapshot,
 } from "../../utils/TrustedClock";
+import { cloneDeep } from "../../utils/common";
 
 const liveCharacterEntitiesQuery = defineQuery([
   ObjectComp,
@@ -2374,6 +2375,62 @@ export class MainSceneWorld implements IWorld, Scene {
 
   getInMemoryData(): MainSceneWorldData {
     return this._persistentData as MainSceneWorldData;
+  }
+
+  public buildHomeWidgetSyncWorldData(): MainSceneWorldData | null {
+    if (!this._persistentData) {
+      return null;
+    }
+
+    try {
+      const syncWorldData = cloneDeep(this._persistentData);
+      const currentTime = this.currentTime;
+      const currentAnchor = this._trustedClock.captureAnchor();
+      const worldMetadata = syncWorldData.world_metadata ?? {
+        name: "MainScene",
+        last_ecs_saved: currentTime,
+        version: this.WORLD_DATA_SCHEMA_VERSION,
+      };
+
+      syncWorldData.world_metadata = worldMetadata;
+      worldMetadata.last_ecs_saved = currentTime;
+      worldMetadata.version =
+        worldMetadata.version || this.WORLD_DATA_SCHEMA_VERSION;
+
+      const appState = worldMetadata.app_state ?? {
+        last_active_time: currentTime,
+        last_active_time_anchor: currentAnchor,
+        is_first_load: false,
+        use_local_time: true,
+        main_scene_ad: {
+          menu_use_count: 0,
+        },
+        mini_game_scores: {
+          flappy_bird: {
+            best_score: 0,
+          },
+        },
+        monster_book: createEmptyMonsterBookState(),
+      };
+
+      worldMetadata.app_state = appState;
+      appState.last_active_time = currentTime;
+      appState.last_active_time_anchor = currentAnchor;
+      appState.use_local_time = true;
+
+      const objectEntities = liveObjectQuery(this);
+      syncWorldData.entities = objectEntities.map((eid) =>
+        convertECSEntityToSavedEntity(this, eid),
+      );
+
+      return syncWorldData;
+    } catch (error) {
+      console.warn(
+        "[MainSceneWorld] Failed to build home widget sync world data",
+        error,
+      );
+      return null;
+    }
   }
 
   async getData(): Promise<MainSceneWorldData | null> {

@@ -50,6 +50,8 @@ test("in-memory가 더 최신이면 in-memory를 선택한다", () => {
   });
 
   assert.equal(selection.source, "in_memory");
+  assert.equal(selection.storedLastEcsSaved, 400);
+  assert.equal(selection.inMemoryLastEcsSaved, 450);
   assert.deepEqual(selection.selectedWorldData, worldData(450));
 });
 

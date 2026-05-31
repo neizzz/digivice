@@ -3,6 +3,7 @@ import test from "node:test";
 import * as PIXI from "pixi.js";
 import { Game } from "../Game";
 import { SceneKey } from "../SceneKey";
+import { MainSceneWorld } from "../scenes/MainScene/world";
 
 test("changeScene는 loading 중 인터럽트 요청이 오면 이전 scene으로 복귀한다", async () => {
   const states: string[] = [];
@@ -455,6 +456,33 @@ test("changeScene는 target scene 생성 실패 시 이전 scene을 복구한 �
   assert.equal(fakeGame.app.ticker.minFPS, 30);
   assert.equal(fakeGame.app.ticker.maxFPS, 60);
   assert.equal(stage.children.includes(previousScene), true);
+});
+
+test("getHomeWidgetSyncWorldData는 MainSceneWorld일 때만 live export를 전달한다", () => {
+  const worldData = {
+    world_metadata: {
+      name: "MainScene",
+      last_ecs_saved: 100,
+      version: "1.0.0",
+    },
+    entities: [],
+  };
+  const mainScene = Object.create(MainSceneWorld.prototype) as MainSceneWorld;
+  mainScene.buildHomeWidgetSyncWorldData = () => worldData;
+
+  const result = Game.prototype.getHomeWidgetSyncWorldData.call({
+    currentScene: mainScene,
+  } as unknown as Game);
+
+  assert.equal(result, worldData);
+});
+
+test("getHomeWidgetSyncWorldData는 MainSceneWorld가 아니면 null을 반환한다", () => {
+  const result = Game.prototype.getHomeWidgetSyncWorldData.call({
+    currentScene: new PIXI.Container(),
+  } as unknown as Game);
+
+  assert.equal(result, null);
 });
 
 test("changeScene는 FlappyBird 진입 시 ticker 제한을 풀고 MainScene 복귀 시 60fps로 되돌린다", async () => {
