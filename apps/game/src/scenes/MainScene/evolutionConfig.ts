@@ -274,8 +274,8 @@ const MIN_EVOLUTION_RARITY_BY_CLASS_CODE: Record<
 const DEFAULT_CANDIDATE_WEIGHTS: Record<number, number[]> = {
   1: [100],
   2: [70, 30],
-  3: [50, 25, 25],
-  4: [40, 25, 20, 15],
+  3: [55, 25, 20],
+  4: [50, 20, 15, 15],
 };
 
 const MONSTER_LINE_DEFINITIONS: MonsterLineDefinition[] = [
@@ -417,7 +417,10 @@ function getOrderedNextVariantDefinitions(params: {
   nextDefinitions: MonsterVariantDefinition[];
 }): MonsterVariantDefinition[] {
   const { sourceDefinition, nextDefinitions } = params;
-  const baseVariant = Math.min(sourceDefinition.variant, nextDefinitions.length);
+  const baseVariant = Math.min(
+    sourceDefinition.variant,
+    nextDefinitions.length,
+  );
   const baseDefinition = nextDefinitions.find(
     (definition) => definition.variant === baseVariant,
   );
@@ -452,10 +455,7 @@ function createEvolutionCandidates(params: {
   return nextDefinitions.map((definition, index) => ({
     to: definition.key,
     weight: weights[index] ?? 1,
-    kind:
-      index === 0
-        ? "base"
-        : "same_line_variant_mutation",
+    kind: index === 0 ? "base" : "same_line_variant_mutation",
   }));
 }
 
@@ -464,7 +464,8 @@ function createMonsterEvolutionSpec(params: {
   definitionsByClass: Record<MonsterClassCode, MonsterVariantDefinition[]>;
 }): MonsterEvolutionSpec {
   const { definition, definitionsByClass } = params;
-  const code = `${definition.geneLine}_${definition.classCode}${definition.variant}` as MonsterEvolutionCode;
+  const code =
+    `${definition.geneLine}_${definition.classCode}${definition.variant}` as MonsterEvolutionCode;
 
   return {
     key: definition.key,
@@ -554,7 +555,8 @@ function validateEvolutionRarityConfig(params: {
   const specsByCode = new Map(
     Object.values(baseCatalog).map((spec) => [spec.code, spec]),
   );
-  const result: Partial<Record<MonsterEvolutionCode, EvolutionRarityEntry>> = {};
+  const result: Partial<Record<MonsterEvolutionCode, EvolutionRarityEntry>> =
+    {};
 
   for (const [rawCode, rawEntry] of Object.entries(rarityConfig)) {
     const code = rawCode as MonsterEvolutionCode;
@@ -632,7 +634,9 @@ export function applyEvolutionOverrideConfig(
     const sourceSpec = specsByCode.get(sourceCode as MonsterEvolutionCode);
 
     if (!sourceSpec) {
-      throw new Error(`[evolution] Unknown override source code: ${sourceCode}`);
+      throw new Error(
+        `[evolution] Unknown override source code: ${sourceCode}`,
+      );
     }
 
     if (sourceSpec.evolutionCandidates.length === 0) {

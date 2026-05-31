@@ -1,4 +1,4 @@
-import { r as reactExports, j as jsxDevRuntimeExports, R as ReactDOM, T as TopLeftBuildLogoText } from "./index2.js";
+import { r as reactExports, j as jsxRuntimeExports, R as ReactDOM, T as TopLeftBuildLogoText } from "./index2.js";
 import { g as getEvolutionAdminCatalog, b as buildEvolutionAdminExport, s as simulateEvolutionAdminRolls, v as validateEvolutionAdminExport, a as applyEvolutionAdminExport } from "./evolutionAdmin.js";
 const BASE_CATALOG = getEvolutionAdminCatalog();
 const BASE_CATALOG_BY_CODE = new Map(
@@ -98,11 +98,7 @@ function FrameViewport({
     backgroundPosition: `${-frame.x * scale}px ${-frame.y * scale}px`,
     backgroundSize: `${sheetWidth * scale}px ${sheetHeight * scale}px`
   };
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "evolution-admin-frame-preview__viewport", style: viewportStyle }, void 0, false, {
-    fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-    lineNumber: 195,
-    columnNumber: 10
-  }, this);
+  return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "evolution-admin-frame-preview__viewport", style: viewportStyle });
 }
 function EvolutionAdminPage() {
   const [catalog, setCatalog] = reactExports.useState(
@@ -321,158 +317,50 @@ function EvolutionAdminPage() {
     URL.revokeObjectURL(objectUrl);
     setStatusMessage("Downloaded override JSON.");
   };
-  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "evolution-admin-page", children: [
-    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("header", { className: "evolution-admin-page__header", children: [
-      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: [
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("p", { className: "evolution-admin-page__eyebrow", children: "PC DEV TOOL" }, void 0, false, {
-          fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-          lineNumber: 467,
-          columnNumber: 11
-        }, this),
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("h1", { children: "MonTTo Evolution Probability Admin" }, void 0, false, {
-          fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-          lineNumber: 468,
-          columnNumber: 11
-        }, this),
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("p", { className: "evolution-admin-page__description", children: "Tune next-stage evolution weights, preview weighted probabilities, and export source-friendly override JSON for the current catalog." }, void 0, false, {
-          fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-          lineNumber: 469,
-          columnNumber: 11
-        }, this)
-      ] }, void 0, true, {
-        fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-        lineNumber: 466,
-        columnNumber: 9
-      }, this),
-      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "evolution-admin-page__summary-grid", children: [
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "evolution-admin-summary-card", children: [
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { className: "evolution-admin-summary-card__label", children: "Catalog" }, void 0, false, {
-            fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-            lineNumber: 476,
-            columnNumber: 13
-          }, this),
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("strong", { children: summary.totalEntries }, void 0, false, {
-            fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-            lineNumber: 477,
-            columnNumber: 13
-          }, this),
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { children: [
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "evolution-admin-page", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("header", { className: "evolution-admin-page__header", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "evolution-admin-page__eyebrow", children: "PC DEV TOOL" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("h1", { children: "MonTTo Evolution Probability Admin" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "evolution-admin-page__description", children: "Tune next-stage evolution weights, preview weighted probabilities, and export source-friendly override JSON for the current catalog." })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "evolution-admin-page__summary-grid", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "evolution-admin-summary-card", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "evolution-admin-summary-card__label", children: "Catalog" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: summary.totalEntries }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { children: [
             summary.editableEntries,
             " editable"
-          ] }, void 0, true, {
-            fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-            lineNumber: 478,
-            columnNumber: 13
-          }, this)
-        ] }, void 0, true, {
-          fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-          lineNumber: 475,
-          columnNumber: 11
-        }, this),
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "evolution-admin-summary-card", children: [
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { className: "evolution-admin-summary-card__label", children: "Invalid" }, void 0, false, {
-            fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-            lineNumber: 481,
-            columnNumber: 13
-          }, this),
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("strong", { children: summary.invalidEditableEntries }, void 0, false, {
-            fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-            lineNumber: 482,
-            columnNumber: 13
-          }, this),
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { children: "invalid weights" }, void 0, false, {
-            fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-            lineNumber: 483,
-            columnNumber: 13
-          }, this)
-        ] }, void 0, true, {
-          fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-          lineNumber: 480,
-          columnNumber: 11
-        }, this),
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "evolution-admin-summary-card", children: [
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { className: "evolution-admin-summary-card__label", children: "Changed" }, void 0, false, {
-            fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-            lineNumber: 486,
-            columnNumber: 13
-          }, this),
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("strong", { children: summary.changedEntries }, void 0, false, {
-            fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-            lineNumber: 487,
-            columnNumber: 13
-          }, this),
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { children: "rows differ from baseline" }, void 0, false, {
-            fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-            lineNumber: 488,
-            columnNumber: 13
-          }, this)
-        ] }, void 0, true, {
-          fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-          lineNumber: 485,
-          columnNumber: 11
-        }, this)
-      ] }, void 0, true, {
-        fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-        lineNumber: 474,
-        columnNumber: 9
-      }, this)
-    ] }, void 0, true, {
-      fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-      lineNumber: 465,
-      columnNumber: 7
-    }, this),
-    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("section", { className: "evolution-admin-toolbar", children: [
-      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "evolution-admin-toolbar__buttons", children: [
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("button", { type: "button", onClick: handleImportClick, children: "Import JSON" }, void 0, false, {
-          fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-          lineNumber: 495,
-          columnNumber: 11
-        }, this),
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("button", { type: "button", onClick: handleCopyJson, disabled: !canExport, children: "Copy JSON" }, void 0, false, {
-          fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-          lineNumber: 498,
-          columnNumber: 11
-        }, this),
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("button", { type: "button", onClick: handleDownloadJson, disabled: !canExport, children: "Download JSON" }, void 0, false, {
-          fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-          lineNumber: 501,
-          columnNumber: 11
-        }, this),
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("button", { type: "button", onClick: handleResetAll, children: "Reset All" }, void 0, false, {
-          fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-          lineNumber: 504,
-          columnNumber: 11
-        }, this)
-      ] }, void 0, true, {
-        fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-        lineNumber: 494,
-        columnNumber: 9
-      }, this),
-      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "evolution-admin-toolbar__meta", children: [
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { children: "Schema v1" }, void 0, false, {
-          fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-          lineNumber: 509,
-          columnNumber: 11
-        }, this),
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { children: [
+          ] })
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "evolution-admin-summary-card", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "evolution-admin-summary-card__label", children: "Invalid" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: summary.invalidEditableEntries }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "invalid weights" })
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "evolution-admin-summary-card", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "evolution-admin-summary-card__label", children: "Changed" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: summary.changedEntries }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "rows differ from baseline" })
+        ] })
+      ] })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("section", { className: "evolution-admin-toolbar", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "evolution-admin-toolbar__buttons", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "button", onClick: handleImportClick, children: "Import JSON" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "button", onClick: handleCopyJson, disabled: !canExport, children: "Copy JSON" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "button", onClick: handleDownloadJson, disabled: !canExport, children: "Download JSON" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "button", onClick: handleResetAll, children: "Reset All" })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "evolution-admin-toolbar__meta", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Schema v1" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { children: [
           Object.keys(exportData.overrides).length,
           " override rows"
-        ] }, void 0, true, {
-          fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-          lineNumber: 510,
-          columnNumber: 11
-        }, this),
-        !canExport && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { className: "evolution-admin-toolbar__error", children: "Export blocked until every weight is a whole number from 0 to 100." }, void 0, false, {
-          fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-          lineNumber: 512,
-          columnNumber: 13
-        }, this)
-      ] }, void 0, true, {
-        fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-        lineNumber: 508,
-        columnNumber: 9
-      }, this),
-      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+        ] }),
+        !canExport && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "evolution-admin-toolbar__error", children: "Export blocked until every weight is a whole number from 0 to 100." })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(
         "input",
         {
           ref: fileInputRef,
@@ -480,68 +368,24 @@ function EvolutionAdminPage() {
           accept: "application/json",
           className: "evolution-admin-page__file-input",
           onChange: handleImportFile
-        },
-        void 0,
-        false,
-        {
-          fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-          lineNumber: 517,
-          columnNumber: 9
-        },
-        this
+        }
       )
-    ] }, void 0, true, {
-      fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-      lineNumber: 493,
-      columnNumber: 7
-    }, this),
-    statusMessage && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("section", { className: "evolution-admin-status evolution-admin-status--info", children: statusMessage }, void 0, false, {
-      fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-      lineNumber: 527,
-      columnNumber: 9
-    }, this),
-    importErrors.length > 0 && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("section", { className: "evolution-admin-status evolution-admin-status--error", children: [
-      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("strong", { children: "Import validation errors" }, void 0, false, {
-        fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-        lineNumber: 534,
-        columnNumber: 11
-      }, this),
-      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("ul", { children: importErrors.map((error) => /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("li", { children: error }, error, false, {
-        fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-        lineNumber: 537,
-        columnNumber: 15
-      }, this)) }, void 0, false, {
-        fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-        lineNumber: 535,
-        columnNumber: 11
-      }, this)
-    ] }, void 0, true, {
-      fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-      lineNumber: 533,
-      columnNumber: 9
-    }, this),
-    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("main", { className: "evolution-admin-page__content", children: [
-      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("section", { className: "evolution-admin-page__catalog", children: entriesByPhase.map(([phase, entries]) => /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("section", { className: "evolution-admin-phase-group", children: [
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "evolution-admin-phase-group__header", children: [
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("h2", { children: formatPhaseLabel(phase) }, void 0, false, {
-            fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-            lineNumber: 548,
-            columnNumber: 17
-          }, this),
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { children: [
+    ] }),
+    statusMessage && /* @__PURE__ */ jsxRuntimeExports.jsx("section", { className: "evolution-admin-status evolution-admin-status--info", children: statusMessage }),
+    importErrors.length > 0 && /* @__PURE__ */ jsxRuntimeExports.jsxs("section", { className: "evolution-admin-status evolution-admin-status--error", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: "Import validation errors" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("ul", { children: importErrors.map((error) => /* @__PURE__ */ jsxRuntimeExports.jsx("li", { children: error }, error)) })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("main", { className: "evolution-admin-page__content", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("section", { className: "evolution-admin-page__catalog", children: entriesByPhase.map(([phase, entries]) => /* @__PURE__ */ jsxRuntimeExports.jsxs("section", { className: "evolution-admin-phase-group", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "evolution-admin-phase-group__header", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { children: formatPhaseLabel(phase) }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { children: [
             entries.length,
             " rows"
-          ] }, void 0, true, {
-            fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-            lineNumber: 549,
-            columnNumber: 17
-          }, this)
-        ] }, void 0, true, {
-          fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-          lineNumber: 547,
-          columnNumber: 15
-        }, this),
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "evolution-admin-phase-group__grid", children: entries.map((entry) => {
+          ] })
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "evolution-admin-phase-group__grid", children: entries.map((entry) => {
           const totalWeight = getEntryTotalWeight(entry);
           const entryValid = isEntryValid(entry);
           const changed = isEntryChanged(entry);
@@ -549,7 +393,7 @@ function EvolutionAdminPage() {
           const simulation = simulationResults[entry.code] ?? [];
           const frameState = frameStates[entry.code];
           const preview = getRepresentativeFrame(frameState);
-          return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+          return /* @__PURE__ */ jsxRuntimeExports.jsxs(
             "article",
             {
               className: [
@@ -558,155 +402,63 @@ function EvolutionAdminPage() {
                 !entryValid ? "evolution-admin-card--invalid" : ""
               ].filter(Boolean).join(" "),
               children: [
-                /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("header", { className: "evolution-admin-card__header", children: [
-                  /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: [
-                    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("p", { className: "evolution-admin-card__eyebrow", children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("header", { className: "evolution-admin-card__header", children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { className: "evolution-admin-card__eyebrow", children: [
                       entry.geneLine,
                       " · ",
                       entry.classCode
-                    ] }, void 0, true, {
-                      fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                      lineNumber: 575,
-                      columnNumber: 27
-                    }, this),
-                    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("h3", { children: entry.displayName }, void 0, false, {
-                      fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                      lineNumber: 578,
-                      columnNumber: 27
-                    }, this),
-                    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("p", { children: entry.code }, void 0, false, {
-                      fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                      lineNumber: 579,
-                      columnNumber: 27
-                    }, this)
-                  ] }, void 0, true, {
-                    fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                    lineNumber: 574,
-                    columnNumber: 25
-                  }, this),
-                  /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "evolution-admin-card__badges", children: [
-                    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { children: changed ? "Changed" : "Baseline" }, void 0, false, {
-                      fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                      lineNumber: 583,
-                      columnNumber: 27
-                    }, this),
-                    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { children: isTerminal ? "Terminal" : `Total ${totalWeight}` }, void 0, false, {
-                      fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                      lineNumber: 584,
-                      columnNumber: 27
-                    }, this)
-                  ] }, void 0, true, {
-                    fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                    lineNumber: 582,
-                    columnNumber: 25
-                  }, this)
-                ] }, void 0, true, {
-                  fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                  lineNumber: 573,
-                  columnNumber: 23
-                }, this),
-                /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("section", { className: "evolution-admin-card__monster-preview", children: [
-                  /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "evolution-admin-card__monster-preview-meta", children: [
-                    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("strong", { children: "Frame" }, void 0, false, {
-                      fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                      lineNumber: 590,
-                      columnNumber: 27
-                    }, this),
-                    (frameState == null ? void 0 : frameState.status) === "ready" ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { children: [
+                    ] }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { children: entry.displayName }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: entry.code })
+                  ] }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "evolution-admin-card__badges", children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: changed ? "Changed" : "Baseline" }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: isTerminal ? "Terminal" : `Total ${totalWeight}` })
+                  ] })
+                ] }),
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("section", { className: "evolution-admin-card__monster-preview", children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "evolution-admin-card__monster-preview-meta", children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: "Frame" }),
+                    (frameState == null ? void 0 : frameState.status) === "ready" ? /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { children: [
                       frameState.data.meta.size.w,
                       "x",
                       frameState.data.meta.size.h
-                    ] }, void 0, true, {
-                      fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                      lineNumber: 592,
-                      columnNumber: 29
-                    }, this) : null
-                  ] }, void 0, true, {
-                    fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                    lineNumber: 589,
-                    columnNumber: 25
-                  }, this),
-                  !frameState || frameState.status === "loading" ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "evolution-admin-card__monster-preview-placeholder", children: "Loading frame..." }, void 0, false, {
-                    fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                    lineNumber: 599,
-                    columnNumber: 27
-                  }, this) : null,
-                  (frameState == null ? void 0 : frameState.status) === "error" ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "evolution-admin-card__monster-preview-placeholder evolution-admin-card__monster-preview-placeholder--error", children: [
+                    ] }) : null
+                  ] }),
+                  !frameState || frameState.status === "loading" ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "evolution-admin-card__monster-preview-placeholder", children: "Loading frame..." }) : null,
+                  (frameState == null ? void 0 : frameState.status) === "error" ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "evolution-admin-card__monster-preview-placeholder evolution-admin-card__monster-preview-placeholder--error", children: [
                     "Failed to load frame: ",
                     frameState.message
-                  ] }, void 0, true, {
-                    fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                    lineNumber: 605,
-                    columnNumber: 27
-                  }, this) : null,
-                  (frameState == null ? void 0 : frameState.status) === "ready" ? preview ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+                  ] }) : null,
+                  (frameState == null ? void 0 : frameState.status) === "ready" ? preview ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                     FrameViewport,
                     {
                       imagePath: preview.imagePath,
                       sheetWidth: preview.sheetWidth,
                       sheetHeight: preview.sheetHeight,
                       frame: preview.frame
-                    },
-                    void 0,
-                    false,
-                    {
-                      fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                      lineNumber: 612,
-                      columnNumber: 29
-                    },
-                    this
-                  ) : /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "evolution-admin-card__monster-preview-placeholder", children: "Missing representative frame" }, void 0, false, {
-                    fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                    lineNumber: 619,
-                    columnNumber: 29
-                  }, this) : null
-                ] }, void 0, true, {
-                  fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                  lineNumber: 588,
-                  columnNumber: 23
-                }, this),
-                isTerminal ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "evolution-admin-card__empty", children: "No further evolution candidates." }, void 0, false, {
-                  fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                  lineNumber: 627,
-                  columnNumber: 25
-                }, this) : /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(jsxDevRuntimeExports.Fragment, { children: [
-                  /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "evolution-admin-candidate-table", children: [
-                    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "evolution-admin-candidate-table__head", children: [
-                      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { children: "Target" }, void 0, false, {
-                        fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                        lineNumber: 634,
-                        columnNumber: 31
-                      }, this),
-                      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { children: "Kind" }, void 0, false, {
-                        fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                        lineNumber: 635,
-                        columnNumber: 31
-                      }, this),
-                      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { children: "Weight" }, void 0, false, {
-                        fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                        lineNumber: 636,
-                        columnNumber: 31
-                      }, this),
-                      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { children: "Expected" }, void 0, false, {
-                        fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                        lineNumber: 637,
-                        columnNumber: 31
-                      }, this)
-                    ] }, void 0, true, {
-                      fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                      lineNumber: 633,
-                      columnNumber: 29
-                    }, this),
+                    }
+                  ) : /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "evolution-admin-card__monster-preview-placeholder", children: "Missing representative frame" }) : null
+                ] }),
+                isTerminal ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "evolution-admin-card__empty", children: "No further evolution candidates." }) : /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "evolution-admin-candidate-table", children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "evolution-admin-candidate-table__head", children: [
+                      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Target" }),
+                      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Kind" }),
+                      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Weight" }),
+                      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Expected" })
+                    ] }),
                     entry.candidates.map((candidate) => (() => {
                       const targetFrameState = frameStates[candidate.toCode];
                       const targetPreview = getRepresentativeFrame(targetFrameState);
-                      return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+                      return /* @__PURE__ */ jsxRuntimeExports.jsxs(
                         "div",
                         {
                           className: "evolution-admin-candidate-table__row",
                           children: [
-                            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "evolution-admin-candidate-table__target", children: [
-                              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "evolution-admin-candidate-table__target-preview", children: targetPreview ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+                            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "evolution-admin-candidate-table__target", children: [
+                              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "evolution-admin-candidate-table__target-preview", children: targetPreview ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                                 FrameViewport,
                                 {
                                   imagePath: targetPreview.imagePath,
@@ -714,62 +466,22 @@ function EvolutionAdminPage() {
                                   sheetHeight: targetPreview.sheetHeight,
                                   frame: targetPreview.frame,
                                   scale: TARGET_PREVIEW_FRAME_SCALE
-                                },
-                                void 0,
-                                false,
-                                {
-                                  fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                                  lineNumber: 654,
-                                  columnNumber: 43
-                                },
-                                this
-                              ) : /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "evolution-admin-candidate-table__target-preview-placeholder", children: (targetFrameState == null ? void 0 : targetFrameState.status) === "error" ? "Err" : "…" }, void 0, false, {
-                                fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                                lineNumber: 662,
-                                columnNumber: 43
-                              }, this) }, void 0, false, {
-                                fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                                lineNumber: 652,
-                                columnNumber: 39
-                              }, this),
-                              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: [
-                                /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("strong", { children: candidate.toDisplayName }, void 0, false, {
-                                  fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                                  lineNumber: 670,
-                                  columnNumber: 41
-                                }, this),
-                                /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { children: candidate.toCode }, void 0, false, {
-                                  fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                                  lineNumber: 671,
-                                  columnNumber: 41
-                                }, this)
-                              ] }, void 0, true, {
-                                fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                                lineNumber: 669,
-                                columnNumber: 39
-                              }, this)
-                            ] }, void 0, true, {
-                              fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                              lineNumber: 651,
-                              columnNumber: 37
-                            }, this),
-                            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { children: formatKindLabel(candidate.kind) }, void 0, false, {
-                              fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                              lineNumber: 674,
-                              columnNumber: 37
-                            }, this),
-                            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("label", { children: [
-                              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { className: "sr-only", children: [
+                                }
+                              ) : /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "evolution-admin-candidate-table__target-preview-placeholder", children: (targetFrameState == null ? void 0 : targetFrameState.status) === "error" ? "Err" : "…" }) }),
+                              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+                                /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: candidate.toDisplayName }),
+                                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: candidate.toCode })
+                              ] })
+                            ] }),
+                            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: formatKindLabel(candidate.kind) }),
+                            /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { children: [
+                              /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "sr-only", children: [
                                 entry.code,
                                 " to ",
                                 candidate.toCode,
                                 " weight"
-                              ] }, void 0, true, {
-                                fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                                lineNumber: 676,
-                                columnNumber: 39
-                              }, this),
-                              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+                              ] }),
+                              /* @__PURE__ */ jsxRuntimeExports.jsx(
                                 "input",
                                 {
                                   type: "number",
@@ -782,67 +494,28 @@ function EvolutionAdminPage() {
                                     candidate.toCode,
                                     event.target.value
                                   )
-                                },
-                                void 0,
-                                false,
-                                {
-                                  fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                                  lineNumber: 679,
-                                  columnNumber: 39
-                                },
-                                this
+                                }
                               )
-                            ] }, void 0, true, {
-                              fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                              lineNumber: 675,
-                              columnNumber: 37
-                            }, this),
-                            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { children: formatPercent(
+                            ] }),
+                            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: formatPercent(
                               getExpectedPercent(candidate.weight, totalWeight)
-                            ) }, void 0, false, {
-                              fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                              lineNumber: 694,
-                              columnNumber: 37
-                            }, this)
+                            ) })
                           ]
                         },
-                        `${entry.code}-${candidate.toCode}`,
-                        true,
-                        {
-                          fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                          lineNumber: 647,
-                          columnNumber: 35
-                        },
-                        this
+                        `${entry.code}-${candidate.toCode}`
                       );
                     })())
-                  ] }, void 0, true, {
-                    fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                    lineNumber: 632,
-                    columnNumber: 27
-                  }, this),
-                  /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "evolution-admin-card__footer", children: [
-                    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: [
-                      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("strong", { children: [
+                  ] }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "evolution-admin-card__footer", children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+                      /* @__PURE__ */ jsxRuntimeExports.jsxs("strong", { children: [
                         "Total: ",
                         totalWeight
-                      ] }, void 0, true, {
-                        fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                        lineNumber: 707,
-                        columnNumber: 31
-                      }, this),
-                      !entryValid && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("p", { className: "evolution-admin-card__error", children: "Weights must be whole numbers from 0 to 100." }, void 0, false, {
-                        fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                        lineNumber: 709,
-                        columnNumber: 33
-                      }, this)
-                    ] }, void 0, true, {
-                      fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                      lineNumber: 706,
-                      columnNumber: 29
-                    }, this),
-                    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "evolution-admin-card__actions", children: [
-                      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+                      ] }),
+                      !entryValid && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "evolution-admin-card__error", children: "Weights must be whole numbers from 0 to 100." })
+                    ] }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "evolution-admin-card__actions", children: [
+                      /* @__PURE__ */ jsxRuntimeExports.jsxs(
                         "button",
                         {
                           type: "button",
@@ -853,245 +526,87 @@ function EvolutionAdminPage() {
                             SIMULATION_ROLL_COUNT.toLocaleString(),
                             " Rolls"
                           ]
-                        },
-                        void 0,
-                        true,
-                        {
-                          fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                          lineNumber: 716,
-                          columnNumber: 31
-                        },
-                        this
+                        }
                       ),
-                      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+                      /* @__PURE__ */ jsxRuntimeExports.jsx(
                         "button",
                         {
                           type: "button",
                           className: "evolution-admin-card__ghost-button",
                           onClick: () => handleResetRow(entry.code),
                           children: "Reset Row"
-                        },
-                        void 0,
-                        false,
-                        {
-                          fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                          lineNumber: 723,
-                          columnNumber: 31
-                        },
-                        this
+                        }
                       )
-                    ] }, void 0, true, {
-                      fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                      lineNumber: 715,
-                      columnNumber: 29
-                    }, this)
-                  ] }, void 0, true, {
-                    fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                    lineNumber: 705,
-                    columnNumber: 27
-                  }, this),
-                  simulation.length > 0 && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "evolution-admin-simulation", children: [
-                    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "evolution-admin-simulation__head", children: [
-                      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { children: "Simulation" }, void 0, false, {
-                        fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                        lineNumber: 736,
-                        columnNumber: 33
-                      }, this),
-                      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { children: [
+                    ] })
+                  ] }),
+                  simulation.length > 0 && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "evolution-admin-simulation", children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "evolution-admin-simulation__head", children: [
+                      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Simulation" }),
+                      /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { children: [
                         SIMULATION_ROLL_COUNT.toLocaleString(),
                         " rolls"
-                      ] }, void 0, true, {
-                        fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                        lineNumber: 737,
-                        columnNumber: 33
-                      }, this)
-                    ] }, void 0, true, {
-                      fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                      lineNumber: 735,
-                      columnNumber: 31
-                    }, this),
-                    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "evolution-admin-simulation__table", children: [
-                      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "evolution-admin-simulation__table-head", children: [
-                        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { children: "Target" }, void 0, false, {
-                          fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                          lineNumber: 742,
-                          columnNumber: 35
-                        }, this),
-                        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { children: "Expected" }, void 0, false, {
-                          fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                          lineNumber: 743,
-                          columnNumber: 35
-                        }, this),
-                        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { children: "Count" }, void 0, false, {
-                          fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                          lineNumber: 744,
-                          columnNumber: 35
-                        }, this),
-                        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { children: "Simulated" }, void 0, false, {
-                          fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                          lineNumber: 745,
-                          columnNumber: 35
-                        }, this)
-                      ] }, void 0, true, {
-                        fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                        lineNumber: 741,
-                        columnNumber: 33
-                      }, this),
+                      ] })
+                    ] }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "evolution-admin-simulation__table", children: [
+                      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "evolution-admin-simulation__table-head", children: [
+                        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Target" }),
+                        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Expected" }),
+                        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Count" }),
+                        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Simulated" })
+                      ] }),
                       simulation.map((result) => {
                         const candidate = entry.candidates.find(
                           ({ toCode }) => toCode === result.toCode
                         );
-                        return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+                        return /* @__PURE__ */ jsxRuntimeExports.jsxs(
                           "div",
                           {
                             className: "evolution-admin-simulation__table-row",
                             children: [
-                              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { children: (candidate == null ? void 0 : candidate.toDisplayName) ?? result.toCode }, void 0, false, {
-                                fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                                lineNumber: 758,
-                                columnNumber: 39
-                              }, this),
-                              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { children: formatPercent(
+                              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: (candidate == null ? void 0 : candidate.toDisplayName) ?? result.toCode }),
+                              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: formatPercent(
                                 getExpectedPercent(
                                   (candidate == null ? void 0 : candidate.weight) ?? 0,
                                   totalWeight
                                 )
-                              ) }, void 0, false, {
-                                fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                                lineNumber: 759,
-                                columnNumber: 39
-                              }, this),
-                              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { children: result.count.toLocaleString() }, void 0, false, {
-                                fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                                lineNumber: 767,
-                                columnNumber: 39
-                              }, this),
-                              /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { children: formatPercent(result.percent) }, void 0, false, {
-                                fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                                lineNumber: 768,
-                                columnNumber: 39
-                              }, this)
+                              ) }),
+                              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: result.count.toLocaleString() }),
+                              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: formatPercent(result.percent) })
                             ]
                           },
-                          `${entry.code}-${result.toCode}-simulation`,
-                          true,
-                          {
-                            fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                            lineNumber: 754,
-                            columnNumber: 37
-                          },
-                          this
+                          `${entry.code}-${result.toCode}-simulation`
                         );
                       })
-                    ] }, void 0, true, {
-                      fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                      lineNumber: 740,
-                      columnNumber: 31
-                    }, this)
-                  ] }, void 0, true, {
-                    fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                    lineNumber: 734,
-                    columnNumber: 29
-                  }, this)
-                ] }, void 0, true, {
-                  fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-                  lineNumber: 631,
-                  columnNumber: 25
-                }, this)
+                    ] })
+                  ] })
+                ] })
               ]
             },
-            entry.code,
-            true,
-            {
-              fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-              lineNumber: 563,
-              columnNumber: 21
-            },
-            this
+            entry.code
           );
-        }) }, void 0, false, {
-          fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-          lineNumber: 552,
-          columnNumber: 15
-        }, this)
-      ] }, phase, true, {
-        fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-        lineNumber: 546,
-        columnNumber: 13
-      }, this)) }, void 0, false, {
-        fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-        lineNumber: 544,
-        columnNumber: 9
-      }, this),
-      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("aside", { className: "evolution-admin-export-panel", children: [
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "evolution-admin-export-panel__header", children: [
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: [
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("h2", { children: "Export Preview" }, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-              lineNumber: 788,
-              columnNumber: 15
-            }, this),
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("p", { children: "Only changed rows are included." }, void 0, false, {
-              fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-              lineNumber: 789,
-              columnNumber: 15
-            }, this)
-          ] }, void 0, true, {
-            fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-            lineNumber: 787,
-            columnNumber: 13
-          }, this),
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { children: "schemaVersion: 1" }, void 0, false, {
-            fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-            lineNumber: 791,
-            columnNumber: 13
-          }, this)
-        ] }, void 0, true, {
-          fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-          lineNumber: 786,
-          columnNumber: 11
-        }, this),
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("pre", { children: exportJson }, void 0, false, {
-          fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-          lineNumber: 793,
-          columnNumber: 11
-        }, this)
-      ] }, void 0, true, {
-        fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-        lineNumber: 785,
-        columnNumber: 9
-      }, this)
-    ] }, void 0, true, {
-      fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-      lineNumber: 543,
-      columnNumber: 7
-    }, this)
-  ] }, void 0, true, {
-    fileName: "/Users/neiz/digivice/apps/client/src/pages/EvolutionAdminPage.tsx",
-    lineNumber: 464,
-    columnNumber: 5
-  }, this);
+        }) })
+      ] }, phase)) }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("aside", { className: "evolution-admin-export-panel", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "evolution-admin-export-panel__header", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { children: "Export Preview" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: "Only changed rows are included." })
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "schemaVersion: 1" })
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { children: exportJson })
+      ] })
+    ] })
+  ] });
 }
 const rootElement = document.getElementById("root");
 if (!rootElement) {
   throw new Error("Root element not found");
 }
 ReactDOM.createRoot(rootElement).render(
-  /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(jsxDevRuntimeExports.Fragment, { children: [
-    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(TopLeftBuildLogoText, {}, void 0, false, {
-      fileName: "/Users/neiz/digivice/apps/client/src/evolution-admin.tsx",
-      lineNumber: 14,
-      columnNumber: 5
-    }, void 0),
-    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(EvolutionAdminPage, {}, void 0, false, {
-      fileName: "/Users/neiz/digivice/apps/client/src/evolution-admin.tsx",
-      lineNumber: 15,
-      columnNumber: 5
-    }, void 0)
-  ] }, void 0, true, {
-    fileName: "/Users/neiz/digivice/apps/client/src/evolution-admin.tsx",
-    lineNumber: 13,
-    columnNumber: 3
-  }, void 0)
+  /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx(TopLeftBuildLogoText, {}),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(EvolutionAdminPage, {})
+  ] })
 );
 //# sourceMappingURL=evolution-admin.js.map

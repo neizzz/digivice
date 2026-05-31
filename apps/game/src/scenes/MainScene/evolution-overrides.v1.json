@@ -5,12 +5,12 @@
       "evolutionCandidates": [
         {
           "toCode": "skull-slime_D2",
-          "weight": 50,
+          "weight": 60,
           "kind": "base"
         },
         {
           "toCode": "skull-slime_D1",
-          "weight": 50,
+          "weight": 40,
           "kind": "same_line_variant_mutation"
         }
       ]
