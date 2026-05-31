@@ -22,10 +22,10 @@
 
         <ViewFlipper
             android:id="@+id/widget_character_flipper"
-            android:layout_width="52dp"
-            android:layout_height="52dp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             android:layout_gravity="center"
-            android:translationY="6dp"
+            android:translationY="8dp"
             android:animateFirstView="false"
             android:autoStart="true"
             android:flipInterval="500"
@@ -34,8 +34,8 @@
 
             <ImageView
                 android:id="@+id/widget_character_frame_1"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
                 android:adjustViewBounds="true"
                 android:contentDescription="@null"
                 android:scaleType="fitCenter"
@@ -43,8 +43,8 @@
 
             <ImageView
                 android:id="@+id/widget_character_frame_2"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
                 android:adjustViewBounds="true"
                 android:contentDescription="@null"
                 android:scaleType="fitCenter"
@@ -52,8 +52,8 @@
 
             <ImageView
                 android:id="@+id/widget_character_frame_3"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
                 android:adjustViewBounds="true"
                 android:contentDescription="@null"
                 android:scaleType="fitCenter"
@@ -61,8 +61,8 @@
 
             <ImageView
                 android:id="@+id/widget_character_frame_4"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
                 android:adjustViewBounds="true"
                 android:contentDescription="@null"
                 android:scaleType="fitCenter"

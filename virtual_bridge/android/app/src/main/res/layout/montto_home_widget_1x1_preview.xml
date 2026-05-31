@@ -19,13 +19,13 @@
         android:translationY="4dp">
 
         <ImageView
-            android:layout_width="52dp"
-            android:layout_height="52dp"
+            android:layout_width="58dp"
+            android:layout_height="58dp"
             android:layout_gravity="center"
             android:adjustViewBounds="true"
             android:contentDescription="@null"
             android:scaleType="fitCenter"
-            android:translationY="6dp"
+            android:translationY="8dp"
             android:src="@drawable/montto_home_widget_preview_character" />
 
         <LinearLayout

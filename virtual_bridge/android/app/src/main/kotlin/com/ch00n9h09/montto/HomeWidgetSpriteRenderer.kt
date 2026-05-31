@@ -6,9 +6,13 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Paint
 import org.json.JSONObject
+import kotlin.math.ceil
+import kotlin.math.roundToInt
 
 object HomeWidgetSpriteRenderer {
     private const val WIDGET_LOOP_FRAME_COUNT = 4
+    private const val DEFAULT_CHARACTER_FRAME_SIZE_PX = 96
+    private const val BASE_EGG_FRAME_SIZE_PX = 32f
     private const val EGG_TEXTURE_KEY_START = 500
     private const val EGG_CRACK_BASE_ALPHA = 1.0f
     private const val EGG_CRACK_STAGE_ALPHA_STEP = 0.12f
@@ -44,7 +48,12 @@ object HomeWidgetSpriteRenderer {
             frameRect.width,
             frameRect.height,
         )
-        val scaled = Bitmap.createScaledBitmap(cropped, 96, 96, false)
+        val scaled = Bitmap.createScaledBitmap(
+            cropped,
+            DEFAULT_CHARACTER_FRAME_SIZE_PX,
+            DEFAULT_CHARACTER_FRAME_SIZE_PX,
+            false,
+        )
         return applyEggCrackOverlayIfNeeded(snapshot, scaled)
     }
 
@@ -52,15 +61,67 @@ object HomeWidgetSpriteRenderer {
         context: Context,
         snapshot: HomeWidgetSnapshot,
         frameSlots: Int = WIDGET_LOOP_FRAME_COUNT,
+        targetVisibleWidthPx: Int? = null,
     ): List<Bitmap?> {
         val animationFrameCount = resolveFrameCount(snapshot).coerceAtLeast(1)
-        return List(frameSlots.coerceAtLeast(1)) { slotIndex ->
+        val normalizedFrameSlots = frameSlots.coerceAtLeast(1)
+        if (targetVisibleWidthPx == null || targetVisibleWidthPx <= 0) {
+            return List(normalizedFrameSlots) { slotIndex ->
+                val sourceFrameIndex = when (animationFrameCount) {
+                    1 -> 0
+                    2 -> slotIndex % 2
+                    else -> slotIndex % animationFrameCount
+                }
+                renderFrame(context, snapshot, sourceFrameIndex)
+            }
+        }
+
+        val asset = resolveCharacterAsset(snapshot) ?: return List(normalizedFrameSlots) { null }
+        val frames = frameCache.getOrPut(asset.jsonPath) {
+            loadFrameMap(context, asset.jsonPath)
+        }
+        val sheet = sheetCache.getOrPut(asset.pngPath) {
+            loadBitmap(context, asset.pngPath)
+        }
+        val frameNames = List(normalizedFrameSlots) { slotIndex ->
             val sourceFrameIndex = when (animationFrameCount) {
                 1 -> 0
                 2 -> slotIndex % 2
                 else -> slotIndex % animationFrameCount
             }
-            renderFrame(context, snapshot, sourceFrameIndex)
+            resolveCharacterFrameName(snapshot, frames, sourceFrameIndex)
+        }
+
+        val referenceFrameName = resolveReferenceFrameName(snapshot, frames)
+        val referenceFrame = renderCharacterFrameSource(
+            sheet = sheet,
+            frameRect = frames[referenceFrameName] ?: return List(normalizedFrameSlots) { null },
+        )
+        val referenceVisibleBounds = resolveVisibleBounds(referenceFrame)
+        val scaleMultiplier = resolveScaleMultiplier(
+            referenceVisibleWidthPx = referenceVisibleBounds?.width ?: referenceFrame.width,
+            targetVisibleWidthPx = targetVisibleWidthPx,
+        )
+
+        val scaledFrames = frameNames.map { frameName ->
+            val frameRect = frames[frameName] ?: return@map null
+            val frameBitmap = renderCharacterFrameSource(sheet = sheet, frameRect = frameRect)
+            val visibleBounds = resolveVisibleBounds(frameBitmap)
+            val trimmedBitmap = trimToVisibleBounds(frameBitmap, visibleBounds)
+            val scaledBitmap = scaleBitmap(trimmedBitmap, scaleMultiplier)
+            applyEggCrackOverlayIfNeeded(snapshot, scaledBitmap)
+        }
+
+        val canvasWidth = scaledFrames.filterNotNull().maxOfOrNull { it.width } ?: 1
+        val canvasHeight = scaledFrames.filterNotNull().maxOfOrNull { it.height } ?: 1
+        return scaledFrames.map { frame ->
+            frame?.let {
+                composeOnCanvas(
+                    bitmap = it,
+                    canvasWidth = canvasWidth,
+                    canvasHeight = canvasHeight,
+                )
+            }
         }
     }
 
@@ -216,6 +277,18 @@ object HomeWidgetSpriteRenderer {
         }
     }
 
+    private fun resolveReferenceFrameName(
+        snapshot: HomeWidgetSnapshot,
+        frames: Map<String, FrameRect>,
+    ): String {
+        return when {
+            snapshot.characterState == "egg" -> resolveCharacterFrameName(snapshot, frames, 0)
+            snapshot.characterState == "dead" -> "tomb"
+            frames.containsKey("idle_0") -> "idle_0"
+            else -> resolveCharacterFrameName(snapshot, frames, 0)
+        }
+    }
+
     private fun applyEggCrackOverlayIfNeeded(
         snapshot: HomeWidgetSnapshot,
         bitmap: Bitmap,
@@ -238,8 +311,84 @@ object HomeWidgetSpriteRenderer {
             width = mutableBitmap.width.toFloat(),
             height = mutableBitmap.height.toFloat(),
             stage = crackStage,
+            crackPixelSize = resolveEggCrackPixelSize(
+                width = mutableBitmap.width,
+                height = mutableBitmap.height,
+            ),
         )
         return mutableBitmap
+    }
+
+    private fun renderCharacterFrameSource(
+        sheet: Bitmap,
+        frameRect: FrameRect,
+    ): Bitmap {
+        return Bitmap.createBitmap(
+            sheet,
+            frameRect.x,
+            frameRect.y,
+            frameRect.width,
+            frameRect.height,
+        )
+    }
+
+    private fun trimToVisibleBounds(
+        bitmap: Bitmap,
+        visibleBounds: VisibleBounds?,
+    ): Bitmap {
+        if (visibleBounds == null) {
+            return bitmap
+        }
+
+        if (
+            visibleBounds.left == 0 &&
+            visibleBounds.top == 0 &&
+            visibleBounds.width == bitmap.width &&
+            visibleBounds.height == bitmap.height
+        ) {
+            return bitmap
+        }
+
+        return Bitmap.createBitmap(
+            bitmap,
+            visibleBounds.left,
+            visibleBounds.top,
+            visibleBounds.width,
+            visibleBounds.height,
+        )
+    }
+
+    private fun scaleBitmap(
+        bitmap: Bitmap,
+        scaleMultiplier: Float,
+    ): Bitmap {
+        val targetWidth = resolveScaledDimension(bitmap.width, scaleMultiplier)
+        val targetHeight = resolveScaledDimension(bitmap.height, scaleMultiplier)
+        if (bitmap.width == targetWidth && bitmap.height == targetHeight) {
+            return bitmap
+        }
+        return Bitmap.createScaledBitmap(bitmap, targetWidth, targetHeight, false)
+    }
+
+    private fun composeOnCanvas(
+        bitmap: Bitmap,
+        canvasWidth: Int,
+        canvasHeight: Int,
+    ): Bitmap {
+        if (bitmap.width == canvasWidth && bitmap.height == canvasHeight) {
+            return bitmap
+        }
+
+        val composed = Bitmap.createBitmap(
+            canvasWidth.coerceAtLeast(1),
+            canvasHeight.coerceAtLeast(1),
+            Bitmap.Config.ARGB_8888,
+        )
+        val canvas = Canvas(composed)
+        val left = ((canvasWidth - bitmap.width) / 2f).coerceAtLeast(0f)
+        val top = (canvasHeight - bitmap.height).toFloat().coerceAtLeast(0f)
+        canvas.drawBitmap(bitmap, left, top, null)
+        return composed
     }
 
     private fun drawEggCracks(
@@ -248,6 +397,7 @@ object HomeWidgetSpriteRenderer {
         width: Float,
         height: Float,
         stage: Int,
+        crackPixelSize: Int,
     ) {
         val inset = maxOf(6f, minOf(width, height) * 0.2f)
         val left = inset
@@ -288,20 +438,65 @@ object HomeWidgetSpriteRenderer {
         val lowerLeftDownStem = point(centerX - mediumX * 0.58f, centerY + mediumY * 0.96f)
         val lowerLeftDownTip = point(left + innerWidth * 0.18f, bottom - innerHeight * 0.06f)
 
-        drawCrackPath(canvas, paint, listOf(rootTop, rootUpper, rootMiddle, rootLower))
+        drawCrackPath(
+            canvas,
+            paint,
+            listOf(rootTop, rootUpper, rootMiddle, rootLower),
+            crackPixelSize,
+        )
 
         if (stage >= 2) {
-            drawCrackPath(canvas, paint, listOf(rootUpper, upperRightStem, upperRightTip))
-            drawCrackPath(canvas, paint, listOf(rootMiddle, lowerLeftStem, lowerLeftTip))
+            drawCrackPath(
+                canvas,
+                paint,
+                listOf(rootUpper, upperRightStem, upperRightTip),
+                crackPixelSize,
+            )
+            drawCrackPath(
+                canvas,
+                paint,
+                listOf(rootMiddle, lowerLeftStem, lowerLeftTip),
+                crackPixelSize,
+            )
         }
 
         if (stage >= 3) {
-            drawCrackPath(canvas, paint, listOf(rootTop, upperLeftStem, upperLeftTip))
-            drawCrackPath(canvas, paint, listOf(rootLower, lowerRightStem, lowerRightTip))
-            drawCrackPath(canvas, paint, listOf(upperRightStem, upperRightSplit, upperRightSplitTip))
-            drawCrackPath(canvas, paint, listOf(lowerLeftStem, lowerLeftSplit, lowerLeftSplitTip))
-            drawCrackPath(canvas, paint, listOf(rootUpper, topStem, topTip))
-            drawCrackPath(canvas, paint, listOf(lowerLeftStem, lowerLeftDownStem, lowerLeftDownTip))
+            drawCrackPath(
+                canvas,
+                paint,
+                listOf(rootTop, upperLeftStem, upperLeftTip),
+                crackPixelSize,
+            )
+            drawCrackPath(
+                canvas,
+                paint,
+                listOf(rootLower, lowerRightStem, lowerRightTip),
+                crackPixelSize,
+            )
+            drawCrackPath(
+                canvas,
+                paint,
+                listOf(upperRightStem, upperRightSplit, upperRightSplitTip),
+                crackPixelSize,
+            )
+            drawCrackPath(
+                canvas,
+                paint,
+                listOf(lowerLeftStem, lowerLeftSplit, lowerLeftSplitTip),
+                crackPixelSize,
+            )
+            drawCrackPath(
+                canvas,
+                paint,
+                listOf(rootUpper, topStem, topTip),
+                crackPixelSize,
+            )
+            drawCrackPath(
+                canvas,
+                paint,
+                listOf(lowerLeftStem, lowerLeftDownStem, lowerLeftDownTip),
+                crackPixelSize,
+            )
         }
     }
 
@@ -309,12 +504,21 @@ object HomeWidgetSpriteRenderer {
         canvas: Canvas,
         paint: Paint,
         points: List<Pair<Float, Float>>,
+        crackPixelSize: Int,
     ) {
         if (points.size < 2) return
         for (index in 1 until points.size) {
             val start = points[index - 1]
             val end = points[index]
-            drawPixelSegment(canvas, paint, start.first, start.second, end.first, end.second)
+            drawPixelSegment(
+                canvas,
+                paint,
+                start.first,
+                start.second,
+                end.first,
+                end.second,
+                crackPixelSize,
+            )
         }
     }
 
@@ -325,6 +529,7 @@ object HomeWidgetSpriteRenderer {
         startY: Float,
         endX: Float,
         endY: Float,
+        crackPixelSize: Int,
     ) {
         var x0 = startX.toInt()
         var y0 = startY.toInt()
@@ -337,7 +542,13 @@ object HomeWidgetSpriteRenderer {
         var error = deltaX - deltaY
 
         while (true) {
-            canvas.drawRect(x0.toFloat(), y0.toFloat(), x0 + 1f, y0 + 1f, paint)
+            canvas.drawRect(
+                x0.toFloat(),
+                y0.toFloat(),
+                x0 + crackPixelSize.toFloat(),
+                y0 + crackPixelSize.toFloat(),
+                paint,
+            )
             if (x0 == x1 && y0 == y1) break
             val doubledError = error * 2
             if (doubledError > -deltaY) {
@@ -349,6 +560,14 @@ object HomeWidgetSpriteRenderer {
                 y0 += stepY
             }
         }
+    }
+
+    internal fun resolveEggCrackPixelSize(
+        width: Int,
+        height: Int,
+    ): Int {
+        val scale = minOf(width, height).coerceAtLeast(1) / BASE_EGG_FRAME_SIZE_PX
+        return scale.roundToInt().coerceAtLeast(1)
     }
 
     private fun point(x: Float, y: Float): Pair<Float, Float> = x to y
@@ -435,6 +654,77 @@ object HomeWidgetSpriteRenderer {
         return "flutter_assets/$relativePath"
     }
 
+    internal fun resolveVisibleBounds(
+        width: Int,
+        height: Int,
+        pixels: IntArray,
+    ): VisibleBounds? {
+        if (width <= 0 || height <= 0 || pixels.size < width * height) {
+            return null
+        }
+
+        var minX = width
+        var minY = height
+        var maxX = -1
+        var maxY = -1
+
+        for (y in 0 until height) {
+            for (x in 0 until width) {
+                val pixel = pixels[(y * width) + x]
+                val alpha = pixel ushr 24
+                if (alpha == 0) {
+                    continue
+                }
+
+                if (x < minX) minX = x
+                if (y < minY) minY = y
+                if (x > maxX) maxX = x
+                if (y > maxY) maxY = y
+            }
+        }
+
+        if (maxX < minX || maxY < minY) {
+            return null
+        }
+
+        return VisibleBounds(
+            left = minX,
+            top = minY,
+            right = maxX,
+            bottom = maxY,
+        )
+    }
+
+    internal fun resolveScaleMultiplier(
+        referenceVisibleWidthPx: Int,
+        targetVisibleWidthPx: Int,
+    ): Float {
+        val requiredScale = targetVisibleWidthPx.coerceAtLeast(1).toFloat() /
+            referenceVisibleWidthPx.coerceAtLeast(1).toFloat()
+        return maxOf(1f, requiredScale)
+    }
+
+    internal fun resolveScaledDimension(
+        sizePx: Int,
+        scaleMultiplier: Float,
+    ): Int {
+        return ceil(sizePx.coerceAtLeast(1) * scaleMultiplier.toDouble()).toInt().coerceAtLeast(1)
+    }
+
+    private fun resolveVisibleBounds(bitmap: Bitmap): VisibleBounds? {
+        val pixels = IntArray(bitmap.width * bitmap.height)
+        bitmap.getPixels(
+            pixels,
+            0,
+            bitmap.width,
+            0,
+            0,
+            bitmap.width,
+            bitmap.height,
+        )
+        return resolveVisibleBounds(bitmap.width, bitmap.height, pixels)
+    }
+
     private data class SpriteAsset(
         val pngPath: String,
         val jsonPath: String,
@@ -446,4 +736,16 @@ object HomeWidgetSpriteRenderer {
         val width: Int,
         val height: Int,
     )
+
+    internal data class VisibleBounds(
+        val left: Int,
+        val top: Int,
+        val right: Int,
+        val bottom: Int,
+    ) {
+        val width: Int
+            get() = (right - left + 1).coerceAtLeast(1)
+        val height: Int
+            get() = (bottom - top + 1).coerceAtLeast(1)
+    }
 }

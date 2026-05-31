@@ -10,6 +10,37 @@ import android.view.View
 import android.widget.RemoteViews
 import kotlin.math.roundToInt
 
+internal object HomeWidgetLayoutSizing {
+    private const val ONE_BY_ONE_CHARACTER_VISIBLE_WIDTH_NUMERATOR = 60
+    private const val ONE_BY_ONE_CHARACTER_VISIBLE_WIDTH_DENOMINATOR = 100
+
+    fun resolveWidgetDimensionDp(
+        minDp: Int,
+        maxDp: Int,
+        fallbackDp: Int,
+    ): Int {
+        val resolvedDp = listOf(minDp, maxDp)
+            .filter { it > 0 }
+            .maxOrNull()
+        return resolvedDp ?: fallbackDp
+    }
+
+    fun dpToPx(
+        dp: Int,
+        density: Float,
+    ): Int {
+        return (dp * density).roundToInt().coerceAtLeast(1)
+    }
+
+    fun resolveOneByOneCharacterTargetVisibleWidthPx(widgetWidthPx: Int): Int {
+        val safeWidgetWidthPx = widgetWidthPx.coerceAtLeast(1)
+        return (
+            (safeWidgetWidthPx * ONE_BY_ONE_CHARACTER_VISIBLE_WIDTH_NUMERATOR) +
+                (ONE_BY_ONE_CHARACTER_VISIBLE_WIDTH_DENOMINATOR - 1)
+        ) / ONE_BY_ONE_CHARACTER_VISIBLE_WIDTH_DENOMINATOR
+    }
+}
+
 internal object HomeWidgetBroadcastActionHandler {
     fun handle(
         action: String?,
@@ -70,6 +101,12 @@ abstract class BaseHomeWidgetProvider : AppWidgetProvider() {
         return snapshot?.resolveStaminaDotDrawableRes() ?: R.drawable.ic_home_widget_stamina_orange
     }
 
+    protected open fun resolveCharacterTargetVisibleWidthPx(
+        context: Context,
+        appWidgetManager: AppWidgetManager?,
+        appWidgetId: Int?,
+    ): Int? = null
+
     internal fun buildRemoteViews(
         context: Context,
         snapshot: HomeWidgetSnapshot?,
@@ -128,7 +165,15 @@ abstract class BaseHomeWidgetProvider : AppWidgetProvider() {
         )
         bindCharacterFrames(
             views = views,
-            frameBitmaps = HomeWidgetSpriteRenderer.renderLoopFrames(context, snapshot),
+            frameBitmaps = HomeWidgetSpriteRenderer.renderLoopFrames(
+                context = context,
+                snapshot = snapshot,
+                targetVisibleWidthPx = resolveCharacterTargetVisibleWidthPx(
+                    context = context,
+                    appWidgetManager = appWidgetManager,
+                    appWidgetId = appWidgetId,
+                ),
+            ),
             initialFrameIndex = snapshot.animationFrameIndex.mod(4),
         )
         if (snapshot.hasUrgentStatus) {
@@ -420,7 +465,11 @@ abstract class BaseHomeWidgetProvider : AppWidgetProvider() {
         ): Int {
             val minDp = options.getInt(minKey, 0)
             val maxDp = options.getInt(maxKey, 0)
-            val resolvedDp = maxOf(minDp, maxDp, fallbackDp)
+            val resolvedDp = HomeWidgetLayoutSizing.resolveWidgetDimensionDp(
+                minDp = minDp,
+                maxDp = maxDp,
+                fallbackDp = fallbackDp,
+            )
             return dpToPx(context, resolvedDp)
         }
 
@@ -438,8 +487,49 @@ abstract class BaseHomeWidgetProvider : AppWidgetProvider() {
         )
     }
 
+    protected fun resolveWidgetWidthPx(
+        context: Context,
+        appWidgetManager: AppWidgetManager?,
+        appWidgetId: Int?,
+    ): Int {
+        return resolveWidgetDimensionPx(
+            context = context,
+            appWidgetManager = appWidgetManager,
+            appWidgetId = appWidgetId,
+            minKey = AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH,
+            maxKey = AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH,
+            fallbackDp = fallbackWidgetWidthDp,
+        )
+    }
+
+    private fun resolveWidgetDimensionPx(
+        context: Context,
+        appWidgetManager: AppWidgetManager?,
+        appWidgetId: Int?,
+        minKey: String,
+        maxKey: String,
+        fallbackDp: Int,
+    ): Int {
+        if (appWidgetManager == null || appWidgetId == null) {
+            return dpToPx(context, fallbackDp)
+        }
+
+        val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
+        val minDp = options.getInt(minKey, 0)
+        val maxDp = options.getInt(maxKey, 0)
+        val resolvedDp = HomeWidgetLayoutSizing.resolveWidgetDimensionDp(
+            minDp = minDp,
+            maxDp = maxDp,
+            fallbackDp = fallbackDp,
+        )
+        return dpToPx(context, resolvedDp)
+    }
+
     private fun dpToPx(context: Context, dp: Int): Int {
-        return (dp * context.resources.displayMetrics.density).roundToInt().coerceAtLeast(1)
+        return HomeWidgetLayoutSizing.dpToPx(
+            dp = dp,
+            density = context.resources.displayMetrics.density,
+        )
     }
 
     internal data class WidgetBackgroundSizePx(
@@ -481,5 +571,19 @@ class HomeWidget1x1Provider : BaseHomeWidgetProvider() {
             "red" -> R.drawable.ic_home_widget_1x1_stamina_red
             else -> R.drawable.ic_home_widget_1x1_stamina_orange
         }
+    }
+
+    override fun resolveCharacterTargetVisibleWidthPx(
+        context: Context,
+        appWidgetManager: AppWidgetManager?,
+        appWidgetId: Int?,
+    ): Int {
+        return HomeWidgetLayoutSizing.resolveOneByOneCharacterTargetVisibleWidthPx(
+            resolveWidgetWidthPx(
+                context = context,
+                appWidgetManager = appWidgetManager,
+                appWidgetId = appWidgetId,
+            ),
+        )
     }
 }
