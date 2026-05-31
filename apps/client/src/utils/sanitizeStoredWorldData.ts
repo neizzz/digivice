@@ -326,6 +326,55 @@ function createEggHatchSchedule(
   };
 }
 
+function resolveEggHatchSchedule(params: {
+  now: number;
+  hatchTime: unknown;
+  hatchDurationMs: unknown;
+  fallbackToNewSchedule: boolean;
+}): {
+  hatchTime: number;
+  hatchDurationMs: number;
+} {
+  const normalizedHatchTime = toFiniteNumber(params.hatchTime);
+  const safeHatchTime =
+    normalizedHatchTime !== null && normalizedHatchTime > 0
+      ? normalizedHatchTime
+      : null;
+  const normalizedDurationMs = toFiniteNumber(params.hatchDurationMs);
+  const safeDurationMs =
+    normalizedDurationMs !== null && normalizedDurationMs > 0
+      ? normalizedDurationMs
+      : null;
+
+  if (safeDurationMs !== null && safeHatchTime !== null) {
+    return {
+      hatchTime: safeHatchTime,
+      hatchDurationMs: safeDurationMs,
+    };
+  }
+
+  if (safeHatchTime !== null) {
+    return {
+      hatchTime: safeHatchTime,
+      hatchDurationMs: Math.max(0, safeHatchTime - params.now),
+    };
+  }
+
+  if (safeDurationMs !== null) {
+    return {
+      hatchTime: params.now + safeDurationMs,
+      hatchDurationMs: safeDurationMs,
+    };
+  }
+
+  return params.fallbackToNewSchedule
+    ? createEggHatchSchedule(params.now)
+    : {
+        hatchTime: 0,
+        hatchDurationMs: 0,
+      };
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -531,8 +580,12 @@ function sanitizeCharacterEntity(
   const characterKey =
     toFiniteNumber(components.characterStatus?.characterKey) ??
     DEFAULTS.CHARACTER_KEY;
-  const fallbackEggHatchSchedule =
-    state === CHARACTER_STATE.EGG ? createEggHatchSchedule(now) : null;
+  const resolvedEggHatchSchedule = resolveEggHatchSchedule({
+    now,
+    hatchTime: components.eggHatch?.hatchTime,
+    hatchDurationMs: components.eggHatch?.hatchDurationMs,
+    fallbackToNewSchedule: state === CHARACTER_STATE.EGG,
+  });
 
   const sanitized: StoredEntityComponents = {
     object: {
@@ -635,14 +688,8 @@ function sanitizeCharacterEntity(
         toFiniteNumber(components.temporaryStatus?.lastHappyStatusTime) ?? 0,
     },
     eggHatch: {
-      hatchTime:
-        toFiniteNumber(components.eggHatch?.hatchTime) ??
-        fallbackEggHatchSchedule?.hatchTime ??
-        0,
-      hatchDurationMs:
-        toFiniteNumber(components.eggHatch?.hatchDurationMs) ??
-        fallbackEggHatchSchedule?.hatchDurationMs ??
-        0,
+      hatchTime: resolvedEggHatchSchedule.hatchTime,
+      hatchDurationMs: resolvedEggHatchSchedule.hatchDurationMs,
       isReadyToHatch: toBoolean(components.eggHatch?.isReadyToHatch, false),
       syringeCount: Math.min(
         10,

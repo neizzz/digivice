@@ -44,8 +44,8 @@ import {
 } from "./types";
 import {
   createEggHatchSchedule,
-  getDefaultEggHatchDurationMs,
   GAME_CONSTANTS,
+  resolveEggHatchTiming,
 } from "./config";
 import {
   getFoodEatingEntityRef,
@@ -62,6 +62,34 @@ function normalizeEggSyringeCount(value: number | undefined): number {
   }
 
   return Math.min(10, Math.floor(value));
+}
+
+function resolveEggHatchComponentForState(params: {
+  currentTime: number;
+  state: number;
+  hatchTime?: number;
+  hatchDurationMs?: number;
+}): {
+  hatchTime: number;
+  hatchDurationMs: number;
+} {
+  if (params.state !== CharacterState.EGG) {
+    return {
+      hatchTime: 0,
+      hatchDurationMs: 0,
+    };
+  }
+
+  const resolved = resolveEggHatchTiming({
+    currentTime: params.currentTime,
+    hatchTime: params.hatchTime,
+    hatchDurationMs: params.hatchDurationMs,
+  });
+
+  return {
+    hatchTime: resolved.hatchTime,
+    hatchDurationMs: resolved.hatchDurationMs,
+  };
 }
 
 /**
@@ -397,14 +425,14 @@ export function applySavedEntityToECS(
     if (!hasComponent(world, EggHatchComp, eid)) {
       addComponent(world, EggHatchComp, eid);
     }
-    EggHatchComp.hatchTime[eid] = components.eggHatch.hatchTime;
-    EggHatchComp.hatchDurationMs[eid] = Math.max(
-      0,
-      components.eggHatch.hatchDurationMs ??
-        (ObjectComp.state[eid] === CharacterState.EGG
-          ? getDefaultEggHatchDurationMs()
-          : 0),
-    );
+    const resolvedEggHatch = resolveEggHatchComponentForState({
+      currentTime: Date.now(),
+      state: ObjectComp.state[eid],
+      hatchTime: components.eggHatch.hatchTime,
+      hatchDurationMs: components.eggHatch.hatchDurationMs,
+    });
+    EggHatchComp.hatchTime[eid] = resolvedEggHatch.hatchTime;
+    EggHatchComp.hatchDurationMs[eid] = resolvedEggHatch.hatchDurationMs;
     EggHatchComp.isReadyToHatch[eid] = components.eggHatch.isReadyToHatch
       ? 1
       : 0;
@@ -716,11 +744,15 @@ export function repairCharacterEntityRuntimeComponents(
     EggHatchComp.isReadyToHatch[eid] = 0;
     EggHatchComp.syringeCount[eid] = 0;
     repaired.push("EggHatchComp");
-  } else if (
-    state === CharacterState.EGG &&
-    EggHatchComp.hatchDurationMs[eid] <= 0
-  ) {
-    EggHatchComp.hatchDurationMs[eid] = getDefaultEggHatchDurationMs();
+  } else if (state === CharacterState.EGG) {
+    const resolvedEggHatch = resolveEggHatchComponentForState({
+      currentTime: now,
+      state,
+      hatchTime: EggHatchComp.hatchTime[eid],
+      hatchDurationMs: EggHatchComp.hatchDurationMs[eid],
+    });
+    EggHatchComp.hatchTime[eid] = resolvedEggHatch.hatchTime;
+    EggHatchComp.hatchDurationMs[eid] = resolvedEggHatch.hatchDurationMs;
     EggHatchComp.syringeCount[eid] = normalizeEggSyringeCount(
       EggHatchComp.syringeCount[eid],
     );

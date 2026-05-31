@@ -15,7 +15,7 @@ import {
   getRemainingEvolutionGaugeTime,
   getRemainingStaminaDecreaseTime,
 } from "../systems/CharacterManageSystem";
-import { GAME_CONSTANTS } from "../config";
+import { GAME_CONSTANTS, getRemainingEggHatchTime } from "../config";
 import { TimeOfDay } from "../timeOfDay";
 
 const characterQuery = defineQuery([ObjectComp, CharacterStatusComp]);
@@ -324,7 +324,7 @@ export class HTMLDebugGaugeUI {
     const remainingEvolutionTime = getRemainingEvolutionGaugeTime(
       this._currentCharacterEid,
     );
-    const remainingEggHatchTime = getRemainingEggHatchTime(
+    const remainingEggHatchTime = getRemainingEggHatchTimeForEntity(
       this._world,
       this._currentCharacterEid,
       currentTime,
@@ -881,7 +881,7 @@ function formatAdQueuedAge(queuedAt: number, currentTime: number): string {
   return `${formatAdDuration(elapsed)} ago`;
 }
 
-function getRemainingEggHatchTime(
+function getRemainingEggHatchTimeForEntity(
   world: MainSceneWorld,
   eid: number,
   currentTime: number,
@@ -895,7 +895,11 @@ function getRemainingEggHatchTime(
     return null;
   }
 
-  return Math.max(0, hatchTime - currentTime);
+  return getRemainingEggHatchTime({
+    currentTime,
+    hatchTime,
+    hatchDurationMs: EggHatchComp.hatchDurationMs[eid],
+  });
 }
 
 function formatEggHatchCountdown(params: {

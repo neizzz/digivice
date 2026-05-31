@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -28,6 +29,7 @@ const int _characterStatusHappy = 4;
 const int _characterStatusDiscover = 5;
 const int _eggTextureKeyStart = 500;
 const int _eggTextureKeyEnd = 529;
+const int _defaultEggHatchDurationMs = 30 * 60 * 1000;
 
 const double _maxStamina = 10;
 const double _lowStaminaThreshold = 3;
@@ -80,6 +82,18 @@ enum HomeWidgetStatusIcon {
   happy,
   discover,
   sleeping,
+}
+
+class _ResolvedEggHatchTiming {
+  final int hatchTimeMs;
+  final int hatchDurationMs;
+  final double progress;
+
+  const _ResolvedEggHatchTiming({
+    required this.hatchTimeMs,
+    required this.hatchDurationMs,
+    required this.progress,
+  });
 }
 
 class HomeWidgetSnapshot {
@@ -280,6 +294,13 @@ class HomeWidgetSnapshot {
         HomeWidgetSyncService._readInt(json['eggHatchTimeMs']);
     final int? eggHatchDurationMs =
         HomeWidgetSyncService._readInt(json['eggHatchDurationMs']);
+    final _ResolvedEggHatchTiming? eggHatchTiming =
+        HomeWidgetSyncService._resolveEggHatchTiming(
+      nowMs: updatedAtMs,
+      characterState: characterState,
+      hatchTimeMs: eggHatchTimeMs,
+      hatchDurationMs: eggHatchDurationMs,
+    );
     final bool hasUrgentStatus = json['hasUrgentStatus'] is bool
         ? json['hasUrgentStatus'] as bool
         : false;
@@ -301,14 +322,12 @@ class HomeWidgetSnapshot {
       monsterName: json['monsterName'] as String?,
       characterKey: HomeWidgetSyncService._readInt(json['characterKey']),
       eggTextureKey: HomeWidgetSyncService._readInt(json['eggTextureKey']),
-      eggHatchTimeMs: eggHatchTimeMs,
-      eggHatchDurationMs: eggHatchDurationMs,
+      eggHatchTimeMs: eggHatchTiming?.hatchTimeMs,
+      eggHatchDurationMs: eggHatchTiming?.hatchDurationMs,
       eggCrackStage: HomeWidgetSyncService._readInt(json['eggCrackStage']) ??
           HomeWidgetSyncService._resolveEggCrackStage(
-            nowMs: updatedAtMs,
             characterState: characterState,
-            hatchTimeMs: eggHatchTimeMs,
-            hatchDurationMs: eggHatchDurationMs,
+            timing: eggHatchTiming,
           ),
       characterState: characterState,
       displayState: displayState,
@@ -484,8 +503,12 @@ class HomeWidgetSyncService {
         characterState: characterState,
         visibleStatusIcons: visibleStatusIcons,
       );
-      final int? eggHatchTimeMs = _readInt(source.eggHatchTime);
-      final int? eggHatchDurationMs = _readInt(source.eggHatchDurationMs);
+      final _ResolvedEggHatchTiming? eggHatchTiming = _resolveEggHatchTiming(
+        nowMs: now.millisecondsSinceEpoch,
+        characterState: characterState,
+        hatchTimeMs: _readInt(source.eggHatchTime),
+        hatchDurationMs: _readInt(source.eggHatchDurationMs),
+      );
 
       final double stamina = _clampDouble(source.stamina ?? 0, 0, _maxStamina);
       final int updatedAtMs = now.millisecondsSinceEpoch;
@@ -505,13 +528,11 @@ class HomeWidgetSyncService {
           characterState: characterState,
           rawTextureKey: source.textureKey,
         ),
-        eggHatchTimeMs: eggHatchTimeMs,
-        eggHatchDurationMs: eggHatchDurationMs,
+        eggHatchTimeMs: eggHatchTiming?.hatchTimeMs,
+        eggHatchDurationMs: eggHatchTiming?.hatchDurationMs,
         eggCrackStage: _resolveEggCrackStage(
-          nowMs: updatedAtMs,
           characterState: characterState,
-          hatchTimeMs: eggHatchTimeMs,
-          hatchDurationMs: eggHatchDurationMs,
+          timing: eggHatchTiming,
         ),
         characterState: characterState,
         displayState: displayState,
@@ -581,6 +602,12 @@ class HomeWidgetSyncService {
       useLocalTime: snapshot.useLocalTime,
       appState: const <String, dynamic>{},
     );
+    final _ResolvedEggHatchTiming? eggHatchTiming = _resolveEggHatchTiming(
+      nowMs: now.millisecondsSinceEpoch,
+      characterState: snapshot.characterState,
+      hatchTimeMs: snapshot.eggHatchTimeMs,
+      hatchDurationMs: snapshot.eggHatchDurationMs,
+    );
 
     return snapshot.copyWith(
       snapshotKind: HomeWidgetSnapshotKind.widgetProgressed,
@@ -597,11 +624,11 @@ class HomeWidgetSyncService {
       projectionVersion: _projectionVersion,
       staminaTimerMs: staminaTimerMs,
       hasUrgentStatus: snapshot.hasUrgentStatus,
+      eggHatchTimeMs: eggHatchTiming?.hatchTimeMs,
+      eggHatchDurationMs: eggHatchTiming?.hatchDurationMs,
       eggCrackStage: _resolveEggCrackStage(
-        nowMs: now.millisecondsSinceEpoch,
         characterState: snapshot.characterState,
-        hatchTimeMs: snapshot.eggHatchTimeMs,
-        hatchDurationMs: snapshot.eggHatchDurationMs,
+        timing: eggHatchTiming,
       ),
     );
   }
@@ -880,37 +907,71 @@ class HomeWidgetSyncService {
     return rawTextureKey;
   }
 
-  static int _resolveEggCrackStage({
+  static _ResolvedEggHatchTiming? _resolveEggHatchTiming({
     required int nowMs,
     required HomeWidgetCharacterState characterState,
     required int? hatchTimeMs,
     required int? hatchDurationMs,
   }) {
     if (characterState != HomeWidgetCharacterState.egg) {
-      return 0;
-    }
-    if (hatchTimeMs == null || hatchTimeMs <= 0) {
-      return 0;
+      return null;
     }
 
-    final int resolvedDurationMs =
-        hatchDurationMs != null && hatchDurationMs > 0
-            ? hatchDurationMs
-            : 30 * 60 * 1000;
-    final int hatchStartTimeMs = hatchTimeMs - resolvedDurationMs;
-    final double progress = _clampDouble(
-      (nowMs - hatchStartTimeMs) / resolvedDurationMs,
-      0,
-      1,
+    final int? normalizedHatchTime =
+        hatchTimeMs != null && hatchTimeMs > 0 ? hatchTimeMs : null;
+    final int? normalizedDurationMs =
+        hatchDurationMs != null && hatchDurationMs > 0 ? hatchDurationMs : null;
+
+    late final int resolvedHatchTimeMs;
+    late final int resolvedDurationMs;
+
+    if (normalizedDurationMs != null && normalizedHatchTime != null) {
+      resolvedHatchTimeMs = normalizedHatchTime;
+      resolvedDurationMs = normalizedDurationMs;
+    } else if (normalizedHatchTime != null) {
+      resolvedHatchTimeMs = normalizedHatchTime;
+      resolvedDurationMs = math.max(0, normalizedHatchTime - nowMs);
+    } else if (normalizedDurationMs != null) {
+      resolvedDurationMs = normalizedDurationMs;
+      resolvedHatchTimeMs = nowMs + normalizedDurationMs;
+    } else {
+      resolvedDurationMs = _defaultEggHatchDurationMs;
+      resolvedHatchTimeMs = nowMs + resolvedDurationMs;
+    }
+
+    final int hatchStartTimeMs = resolvedDurationMs > 0
+        ? resolvedHatchTimeMs - resolvedDurationMs
+        : resolvedHatchTimeMs;
+    final double progress = resolvedDurationMs <= 0
+        ? (nowMs >= resolvedHatchTimeMs ? 1 : 0).toDouble()
+        : _clampDouble(
+            (nowMs - hatchStartTimeMs) / resolvedDurationMs,
+            0,
+            1,
+          );
+
+    return _ResolvedEggHatchTiming(
+      hatchTimeMs: resolvedHatchTimeMs,
+      hatchDurationMs: resolvedDurationMs,
+      progress: progress,
     );
+  }
 
-    if (progress >= 0.75) {
+  static int _resolveEggCrackStage({
+    required HomeWidgetCharacterState characterState,
+    required _ResolvedEggHatchTiming? timing,
+  }) {
+    if (characterState != HomeWidgetCharacterState.egg || timing == null) {
+      return 0;
+    }
+
+    if (timing.progress >= 0.75) {
       return 3;
     }
-    if (progress >= 0.5) {
+    if (timing.progress >= 0.5) {
       return 2;
     }
-    if (progress >= 0.25) {
+    if (timing.progress >= 0.25) {
       return 1;
     }
     return 0;

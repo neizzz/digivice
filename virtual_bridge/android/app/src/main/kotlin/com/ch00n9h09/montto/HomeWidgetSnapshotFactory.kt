@@ -37,6 +37,12 @@ object HomeWidgetSnapshotFactory {
     private const val SLEEPING_STAMINA_DECAY_MULTIPLIER = 0.2
     private const val PROJECTION_VERSION = 1
 
+    private data class ResolvedEggHatchTiming(
+        val hatchTimeMs: Long,
+        val hatchDurationMs: Long,
+        val progress: Double,
+    )
+
     fun refreshFromWorldData(context: Context): HomeWidgetSnapshot? {
         val worldData = context
             .getSharedPreferences(HomeWidgetConstants.FLUTTER_STORAGE_NAME, Context.MODE_PRIVATE)
@@ -128,8 +134,12 @@ object HomeWidgetSnapshotFactory {
             val displayState = resolveDisplayState(characterState, visibleStatusIcons)
             val stamina = (source.stamina ?: 0.0).coerceIn(0.0, MAX_STAMINA)
             val updatedAtMs = nowMs
-            val eggHatchTimeMs = source.eggHatchTimeMs
-            val eggHatchDurationMs = source.eggHatchDurationMs
+            val eggHatchTiming = resolveEggHatchTiming(
+                nowMs = nowMs,
+                characterState = characterState,
+                hatchTimeMs = source.eggHatchTimeMs,
+                hatchDurationMs = source.eggHatchDurationMs,
+            )
             val lastActiveTimeMs = appState.optLong("last_active_time").takeIf {
                 appState.has("last_active_time")
             }
@@ -143,13 +153,11 @@ object HomeWidgetSnapshotFactory {
                     characterState = characterState,
                     rawTextureKey = source.textureKey,
                 ),
-                eggHatchTimeMs = eggHatchTimeMs,
-                eggHatchDurationMs = eggHatchDurationMs,
+                eggHatchTimeMs = eggHatchTiming?.hatchTimeMs,
+                eggHatchDurationMs = eggHatchTiming?.hatchDurationMs,
                 eggCrackStage = resolveEggCrackStage(
-                    nowMs = nowMs,
                     characterState = characterState,
-                    hatchTimeMs = eggHatchTimeMs,
-                    hatchDurationMs = eggHatchDurationMs,
+                    timing = eggHatchTiming,
                 ),
                 characterState = characterState,
                 displayState = displayState,
@@ -206,6 +214,12 @@ object HomeWidgetSnapshotFactory {
             stamina = progressed.stamina
             staminaTimerMs = progressed.staminaTimerMs
         }
+        val eggHatchTiming = resolveEggHatchTiming(
+            nowMs = nowMs,
+            characterState = snapshot.characterState,
+            hatchTimeMs = snapshot.eggHatchTimeMs,
+            hatchDurationMs = snapshot.eggHatchDurationMs,
+        )
 
         return snapshot.copy(
             snapshotKind = "widgetProgressed",
@@ -225,11 +239,11 @@ object HomeWidgetSnapshotFactory {
             projectionVersion = PROJECTION_VERSION,
             staminaTimerMs = staminaTimerMs,
             hasUrgentStatus = snapshot.hasUrgentStatus,
+            eggHatchTimeMs = eggHatchTiming?.hatchTimeMs,
+            eggHatchDurationMs = eggHatchTiming?.hatchDurationMs,
             eggCrackStage = resolveEggCrackStage(
-                nowMs = nowMs,
                 characterState = snapshot.characterState,
-                hatchTimeMs = snapshot.eggHatchTimeMs,
-                hatchDurationMs = snapshot.eggHatchDurationMs,
+                timing = eggHatchTiming,
             ),
         )
     }
@@ -344,26 +358,72 @@ object HomeWidgetSnapshotFactory {
         return rawTextureKey
     }
 
-    private fun resolveEggCrackStage(
+    private fun resolveEggHatchTiming(
         nowMs: Long,
         characterState: String,
         hatchTimeMs: Long?,
         hatchDurationMs: Long?,
-    ): Int {
+    ): ResolvedEggHatchTiming? {
         if (characterState != "egg") {
+            return null
+        }
+
+        val normalizedHatchTime = hatchTimeMs?.takeIf { it > 0L }
+        val normalizedDurationMs = hatchDurationMs?.takeIf { it > 0L }
+
+        val resolvedHatchTimeMs: Long
+        val resolvedDurationMs: Long
+
+        when {
+            normalizedDurationMs != null && normalizedHatchTime != null -> {
+                resolvedHatchTimeMs = normalizedHatchTime
+                resolvedDurationMs = normalizedDurationMs
+            }
+            normalizedHatchTime != null -> {
+                resolvedHatchTimeMs = normalizedHatchTime
+                resolvedDurationMs = (normalizedHatchTime - nowMs).coerceAtLeast(0L)
+            }
+            normalizedDurationMs != null -> {
+                resolvedDurationMs = normalizedDurationMs
+                resolvedHatchTimeMs = nowMs + normalizedDurationMs
+            }
+            else -> {
+                resolvedDurationMs = DEFAULT_EGG_HATCH_DURATION_MS
+                resolvedHatchTimeMs = nowMs + resolvedDurationMs
+            }
+        }
+
+        val hatchStartTime = if (resolvedDurationMs > 0L) {
+            resolvedHatchTimeMs - resolvedDurationMs
+        } else {
+            resolvedHatchTimeMs
+        }
+        val progress = if (resolvedDurationMs <= 0L) {
+            if (nowMs >= resolvedHatchTimeMs) 1.0 else 0.0
+        } else {
+            ((nowMs - hatchStartTime).toDouble() / resolvedDurationMs.toDouble())
+                .coerceIn(0.0, 1.0)
+        }
+
+        return ResolvedEggHatchTiming(
+            hatchTimeMs = resolvedHatchTimeMs,
+            hatchDurationMs = resolvedDurationMs,
+            progress = progress,
+        )
+    }
+
+    private fun resolveEggCrackStage(
+        characterState: String,
+        timing: ResolvedEggHatchTiming?,
+    ): Int {
+        if (characterState != "egg" || timing == null) {
             return 0
         }
-        if (hatchTimeMs == null || hatchTimeMs <= 0L) {
-            return 0
-        }
-        val resolvedDurationMs = hatchDurationMs?.takeIf { it > 0L } ?: DEFAULT_EGG_HATCH_DURATION_MS
-        val hatchStartTime = hatchTimeMs - resolvedDurationMs
-        val progress = ((nowMs - hatchStartTime).toDouble() / resolvedDurationMs.toDouble())
-            .coerceIn(0.0, 1.0)
+
         return when {
-            progress >= 0.75 -> 3
-            progress >= 0.5 -> 2
-            progress >= 0.25 -> 1
+            timing.progress >= 0.75 -> 3
+            timing.progress >= 0.5 -> 2
+            timing.progress >= 0.25 -> 1
             else -> 0
         }
     }

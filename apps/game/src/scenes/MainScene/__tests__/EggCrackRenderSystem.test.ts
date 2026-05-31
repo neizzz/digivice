@@ -3,9 +3,9 @@ import test from "node:test";
 import { addEntity, createWorld } from "bitecs";
 import * as PIXI from "pixi.js";
 import {
-  getDefaultEggHatchDurationMs,
   getEggCrackStage,
   getEggHatchProgress,
+  resolveEggHatchTiming,
 } from "../config";
 import {
   applySavedEntityToECS,
@@ -120,6 +120,26 @@ test("egg hatch progress와 crack stage는 임계값에 맞춰 clamp된다", () 
       currentTime: 500,
       hatchTime: 1_000,
       hatchDurationMs: 1_000,
+    }),
+    0.5,
+  );
+});
+
+test("legacy egg timing은 hatchTime 기준 남은 시간을 canonical duration으로 복구한다", () => {
+  const resolved = resolveEggHatchTiming({
+    currentTime: 1_000,
+    hatchTime: 5_000,
+  });
+
+  assert.equal(resolved.hatchTime, 5_000);
+  assert.equal(resolved.hatchDurationMs, 4_000);
+  assert.equal(resolved.remainingTimeMs, 4_000);
+  assert.equal(resolved.progress, 0);
+  assert.equal(
+    getEggHatchProgress({
+      currentTime: 3_000,
+      hatchTime: resolved.hatchTime,
+      hatchDurationMs: resolved.hatchDurationMs,
     }),
     0.5,
   );
@@ -246,28 +266,27 @@ test("egg hatch duration과 syringeCount는 저장과 복원 시 round-trip된�
   assert.equal(EggHatchComp.syringeCount[restoredEid], 7);
 });
 
-test("legacy egg save에 hatchDurationMs가 없어도 기본 duration으로 복원된다", () => {
+test("legacy egg save에 hatchDurationMs가 없어도 남은 시간 기준 duration으로 복원된다", () => {
   const world = createTestWorld({ now: 0 });
   const eid = addEntity(world);
 
-  applySavedEntityToECS(world, eid, {
-    components: {
-      object: {
-        id: 100,
-        type: 1,
-        state: CharacterState.EGG,
+  withMockedDateNow(1_000, () => {
+    applySavedEntityToECS(world, eid, {
+      components: {
+        object: {
+          id: 100,
+          type: 1,
+          state: CharacterState.EGG,
+        },
+        eggHatch: {
+          hatchTime: 5_000,
+          isReadyToHatch: false,
+        },
       },
-      eggHatch: {
-        hatchTime: 5_000,
-        isReadyToHatch: false,
-      },
-    },
+    });
   });
 
   assert.equal(EggHatchComp.hatchTime[eid], 5_000);
-  assert.equal(
-    EggHatchComp.hatchDurationMs[eid],
-    getDefaultEggHatchDurationMs(),
-  );
+  assert.equal(EggHatchComp.hatchDurationMs[eid], 4_000);
   assert.equal(EggHatchComp.syringeCount[eid], 0);
 });

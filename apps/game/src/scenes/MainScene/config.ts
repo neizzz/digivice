@@ -540,14 +540,92 @@ export function createEggHatchTimestamp(
   return createEggHatchSchedule(now, randomValue).hatchTime;
 }
 
-export function getResolvedEggHatchDurationMs(
-  hatchDurationMs?: number,
-): number {
-  if (typeof hatchDurationMs === "number" && Number.isFinite(hatchDurationMs)) {
-    return Math.max(0, hatchDurationMs);
+function normalizePositiveEggHatchValue(value?: number): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return null;
   }
 
-  return getDefaultEggHatchDurationMs();
+  return value;
+}
+
+export type ResolvedEggHatchTiming = {
+  hatchTime: number;
+  hatchDurationMs: number;
+  hatchStartTime: number;
+  remainingTimeMs: number;
+  progress: number;
+};
+
+export function resolveEggHatchTiming(params: {
+  currentTime: number;
+  hatchTime?: number;
+  hatchDurationMs?: number;
+  fallbackDurationMs?: number;
+}): ResolvedEggHatchTiming {
+  const currentTime = Number.isFinite(params.currentTime)
+    ? params.currentTime
+    : Date.now();
+  const fallbackDurationMs = Math.max(
+    0,
+    params.fallbackDurationMs ?? getDefaultEggHatchDurationMs(),
+  );
+  const normalizedHatchTime = normalizePositiveEggHatchValue(params.hatchTime);
+  const normalizedDurationMs = normalizePositiveEggHatchValue(
+    params.hatchDurationMs,
+  );
+
+  let hatchTime: number;
+  let hatchDurationMs: number;
+
+  if (normalizedDurationMs !== null && normalizedHatchTime !== null) {
+    hatchTime = normalizedHatchTime;
+    hatchDurationMs = normalizedDurationMs;
+  } else if (normalizedHatchTime !== null) {
+    hatchTime = normalizedHatchTime;
+    hatchDurationMs = Math.max(0, normalizedHatchTime - currentTime);
+  } else if (normalizedDurationMs !== null) {
+    hatchDurationMs = normalizedDurationMs;
+    hatchTime = currentTime + normalizedDurationMs;
+  } else {
+    hatchDurationMs = fallbackDurationMs;
+    hatchTime = currentTime + hatchDurationMs;
+  }
+
+  const remainingTimeMs = Math.max(0, hatchTime - currentTime);
+  const hatchStartTime =
+    hatchDurationMs > 0 ? hatchTime - hatchDurationMs : hatchTime;
+  const progress =
+    hatchDurationMs <= 0
+      ? currentTime >= hatchTime
+        ? 1
+        : 0
+      : clampProgress((currentTime - hatchStartTime) / hatchDurationMs);
+
+  return {
+    hatchTime,
+    hatchDurationMs,
+    hatchStartTime,
+    remainingTimeMs,
+    progress,
+  };
+}
+
+export function getResolvedEggHatchDurationMs(params: {
+  currentTime: number;
+  hatchTime?: number;
+  hatchDurationMs?: number;
+  fallbackDurationMs?: number;
+}): number {
+  return resolveEggHatchTiming(params).hatchDurationMs;
+}
+
+export function getRemainingEggHatchTime(params: {
+  currentTime: number;
+  hatchTime?: number;
+  hatchDurationMs?: number;
+  fallbackDurationMs?: number;
+}): number {
+  return resolveEggHatchTiming(params).remainingTimeMs;
 }
 
 export function getEggHatchProgress(params: {
@@ -555,18 +633,7 @@ export function getEggHatchProgress(params: {
   hatchTime: number;
   hatchDurationMs?: number;
 }): number {
-  const { currentTime, hatchTime } = params;
-  if (!Number.isFinite(hatchTime) || hatchTime <= 0) {
-    return 0;
-  }
-
-  const hatchDurationMs = getResolvedEggHatchDurationMs(params.hatchDurationMs);
-  if (hatchDurationMs <= 0) {
-    return currentTime >= hatchTime ? 1 : 0;
-  }
-
-  const hatchStartTime = hatchTime - hatchDurationMs;
-  return clampProgress((currentTime - hatchStartTime) / hatchDurationMs);
+  return resolveEggHatchTiming(params).progress;
 }
 
 export function getEggCrackStage(progress: number): 0 | 1 | 2 | 3 {
