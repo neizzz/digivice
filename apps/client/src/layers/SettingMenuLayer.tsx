@@ -152,7 +152,7 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
   onChangeSfx,
   onChangeLocale,
   onSendDiagnostics,
-  isSendingDiagnostics,
+  isSendingDiagnostics: _isSendingDiagnostics,
   showFinalResetConfirm,
   onOpenResetConfirm,
   onCloseResetConfirm,
@@ -320,7 +320,6 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
                   <ActionButton
                     text={t("settings.send")}
                     onClick={onSendDiagnostics}
-                    disabled={isSendingDiagnostics}
                     variant="warning"
                   />
                 </div>
@@ -332,17 +331,11 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
                 </div>
                 <div className="mt-3 flex justify-end gap-2">
                   <ActionButton
-                    text={
-                      requestingHomeWidgetSize === "1x1"
-                        ? t("settings.homeWidgetAdding")
-                        : t("settings.homeWidgetAdd")
-                    }
+                    text={t("settings.homeWidgetAdd")}
                     onClick={() => {
                       void handleRequestPinHomeWidget("1x1");
                     }}
-                    disabled={
-                      !onRequestPinHomeWidget || requestingHomeWidgetSize !== null
-                    }
+                    disabled={!onRequestPinHomeWidget}
                     variant="positive"
                   />
                 </div>
