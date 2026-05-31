@@ -109,6 +109,7 @@ export type GameDiagnosticsSnapshot = {
 export type MainCharacterInfoSnapshot = {
   monsterName: string;
   isEgg: boolean;
+  eggHatchRemainingMs: number | null;
   evolutionPhase: number;
   stamina: number;
   maxStamina: number;

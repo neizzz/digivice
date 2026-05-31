@@ -84,6 +84,25 @@ function getStaminaFillColor(snapshot: MainCharacterInfoSnapshot): string {
   return STAMINA_HIGH_COLOR;
 }
 
+function formatEggHatchRemainingTime(remainingMs: number | null): string {
+  const safeRemainingMs =
+    typeof remainingMs === "number" && Number.isFinite(remainingMs)
+      ? Math.max(0, remainingMs)
+      : 0;
+  const totalSeconds = Math.floor(safeRemainingMs / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    return `${hours}:${minutes.toString().padStart(2, "0")}:${seconds
+      .toString()
+      .padStart(2, "0")}`;
+  }
+
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
 const StatusBar: React.FC<{
   label: string;
   currentValue: number;
@@ -116,6 +135,18 @@ const StatusBar: React.FC<{
     </div>
   );
 };
+
+const ValueRow: React.FC<{
+  label: string;
+  value: string;
+}> = ({ label, value }) => (
+  <div className="flex items-end justify-between gap-3">
+    <div className="text-[1.2rem] leading-[1.2] text-[#222]">{label}</div>
+    <div className="text-[1.3rem] leading-none font-bold text-component-positive">
+      {value}
+    </div>
+  </div>
+);
 
 const NameTitleText: React.FC<{
   text: string;
@@ -214,12 +245,19 @@ const MonsterInfoLayer: React.FC<MonsterInfoLayerProps> = ({
                 {levelText}
               </div>
             </div>
-            <StatusBar
-              label={t("monsterInfo.stamina")}
-              currentValue={snapshot.stamina}
-              maxValue={snapshot.maxStamina}
-              fillColor={getStaminaFillColor(snapshot)}
-            />
+            {snapshot.isEgg ? (
+              <ValueRow
+                label={t("monsterInfo.hatchRemaining")}
+                value={formatEggHatchRemainingTime(snapshot.eggHatchRemainingMs)}
+              />
+            ) : (
+              <StatusBar
+                label={t("monsterInfo.stamina")}
+                currentValue={snapshot.stamina}
+                maxValue={snapshot.maxStamina}
+                fillColor={getStaminaFillColor(snapshot)}
+              />
+            )}
             <StatusBar
               label={t("monsterInfo.evolution")}
               currentValue={snapshot.evolutionGauge}

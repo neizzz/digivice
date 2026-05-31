@@ -170,7 +170,7 @@ import {
   validateAndFixStatusIcons,
 } from "./systems/CharacterManageSystem";
 import { characterStatusSystem } from "./systems/CharacterStatusSystem";
-import { GAME_CONSTANTS } from "./config";
+import { GAME_CONSTANTS, getRemainingEggHatchTime } from "./config";
 import {
   EVOLUTION_GAUGE_CONFIG,
   getCharacterSpritesheetName,
@@ -3661,9 +3661,20 @@ export class MainSceneWorld implements IWorld, Scene {
       return null;
     }
 
+    const isEgg = ObjectComp.state[characterEid] === CharacterState.EGG;
+    const eggHatchRemainingMs =
+      isEgg && hasComponent(this, EggHatchComp, characterEid)
+        ? getRemainingEggHatchTime({
+            currentTime: this.currentTime,
+            hatchTime: EggHatchComp.hatchTime[characterEid],
+            hatchDurationMs: EggHatchComp.hatchDurationMs[characterEid],
+          })
+        : null;
+
     return {
       monsterName: this._persistentData?.world_metadata.monster_name?.trim() ?? "",
-      isEgg: ObjectComp.state[characterEid] === CharacterState.EGG,
+      isEgg,
+      eggHatchRemainingMs,
       evolutionPhase: CharacterStatusComp.evolutionPhase[characterEid],
       stamina: CharacterStatusComp.stamina[characterEid],
       maxStamina: GAME_CONSTANTS.MAX_STAMINA,

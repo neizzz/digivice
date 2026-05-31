@@ -413,6 +413,7 @@ function areMainCharacterInfoSnapshotsEqual(
   return (
     left.monsterName === right.monsterName &&
     left.isEgg === right.isEgg &&
+    left.eggHatchRemainingMs === right.eggHatchRemainingMs &&
     left.evolutionPhase === right.evolutionPhase &&
     left.stamina === right.stamina &&
     left.maxStamina === right.maxStamina &&

@@ -4,7 +4,7 @@ import { createWorld } from "bitecs";
 import * as PIXI from "pixi.js";
 import { GAME_CONSTANTS } from "../config";
 import { EVOLUTION_GAUGE_CONFIG } from "../evolutionConfig";
-import { CharacterStatusComp } from "../raw-components";
+import { CharacterStatusComp, EggHatchComp } from "../raw-components";
 import { CharacterState } from "../types";
 import { MainSceneWorld } from "../world";
 import { createTestCharacter } from "../../../test-utils/mainSceneTestUtils";
@@ -82,6 +82,7 @@ test("메인 캐릭터 info snapshot은 이름, 레벨, 게이지 정보를 반�
   assert.deepEqual(world.getMainCharacterInfoSnapshot(), {
     monsterName: "MonTTo",
     isEgg: false,
+    eggHatchRemainingMs: null,
     evolutionPhase: 3,
     stamina: 7.25,
     maxStamina: GAME_CONSTANTS.MAX_STAMINA,
@@ -104,6 +105,8 @@ test("알 상태 메인 캐릭터 info snapshot은 egg 상태를 그대로 반�
     },
   );
 
+  EggHatchComp.hatchTime[characterEid] = 22_000;
+  EggHatchComp.hatchDurationMs[characterEid] = 12_000;
   CharacterStatusComp.evolutionPhase[characterEid] = 1;
   CharacterStatusComp.evolutionGage[characterEid] = 10;
   (world as unknown as {
@@ -117,10 +120,12 @@ test("알 상태 메인 캐릭터 info snapshot은 egg 상태를 그대로 반�
       monster_name: "Eggy",
     },
   };
+  (world as unknown as { _simulationTime: number | null })._simulationTime = 15_000;
 
   assert.deepEqual(world.getMainCharacterInfoSnapshot(), {
     monsterName: "Eggy",
     isEgg: true,
+    eggHatchRemainingMs: 7_000,
     evolutionPhase: 1,
     stamina: 5,
     maxStamina: GAME_CONSTANTS.MAX_STAMINA,
