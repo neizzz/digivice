@@ -7,7 +7,9 @@ const FLUTTER_STORAGE_TIMEOUT_MS = {
   removeData: 2e3
 };
 function _debugStorage(...args) {
-  console.debug(...args);
+  {
+    return;
+  }
 }
 function _serialize(obj) {
   return JSON.stringify(obj);
@@ -109,10 +111,8 @@ class WebLocalStorage {
   //   localStorage.setItem(key, value);
   // }, 1000);
   async getData(key) {
-    _debugStorage("[WebLocalStorage] getData:start", { key });
     const value = localStorage.getItem(key);
     if (value === null) {
-      _debugStorage("[WebLocalStorage] getData:miss", { key });
       return await Promise.resolve(null);
     }
     _debugStorage("[WebLocalStorage] getData:raw", {
@@ -144,13 +144,10 @@ class WebLocalStorage {
       preview: _previewValue(value)
     });
     localStorage.setItem(key, value);
-    _debugStorage("[WebLocalStorage] setData:success", { key });
     return Promise.resolve();
   }
   removeData(key) {
-    _debugStorage("[WebLocalStorage] removeData:start", { key });
     localStorage.removeItem(key);
-    _debugStorage("[WebLocalStorage] removeData:success", { key });
     return Promise.resolve();
   }
 }
@@ -162,7 +159,6 @@ class FlutterStorage {
     return window.storageController;
   }
   async getData(key) {
-    _debugStorage("[FlutterStorage] getData:start", { key });
     const value = await _withFlutterStorageTimeout({
       operation: "getData",
       key,
@@ -175,7 +171,6 @@ class FlutterStorage {
       preview: _previewValue(value)
     });
     if (_isMissingSerializedValue(value)) {
-      _debugStorage("[FlutterStorage] getData:miss", { key });
       return null;
     }
     try {
@@ -212,16 +207,13 @@ class FlutterStorage {
       payloadLength: serializedValue.length,
       promiseFactory: () => this._getStorageController().setData(key, serializedValue)
     });
-    _debugStorage("[FlutterStorage] setData:success", { key });
   }
   async removeData(key) {
-    _debugStorage("[FlutterStorage] removeData:start", { key });
     await _withFlutterStorageTimeout({
       operation: "removeData",
       key,
       promiseFactory: () => this._getStorageController().removeData(key)
     });
-    _debugStorage("[FlutterStorage] removeData:success", { key });
   }
 }
 const SUPPORTED_LOCALES = [
@@ -351,6 +343,7 @@ const en = {
   "monsterInfo.title": "About {name}",
   "monsterInfo.level": "Level",
   "monsterInfo.stamina": "Health",
+  "monsterInfo.hatchRemaining": "Time to hatch",
   "monsterInfo.evolution": "Evolution",
   "monsterInfo.levelEgg": "Egg",
   "monsterInfo.levelPhase": "Lv.{phase}"
@@ -447,6 +440,7 @@ const ko = {
   "monsterInfo.title": "{name} 정보",
   "monsterInfo.level": "레벨",
   "monsterInfo.stamina": "체력",
+  "monsterInfo.hatchRemaining": "남은 부화 시간",
   "monsterInfo.evolution": "진화",
   "monsterInfo.levelEgg": "알",
   "monsterInfo.levelPhase": "Lv.{phase}"
@@ -543,6 +537,7 @@ const ja = {
   "monsterInfo.title": "{name}の情報",
   "monsterInfo.level": "レベル",
   "monsterInfo.stamina": "体力",
+  "monsterInfo.hatchRemaining": "ふ化まで残り時間",
   "monsterInfo.evolution": "進化",
   "monsterInfo.levelEgg": "タマゴ",
   "monsterInfo.levelPhase": "Lv.{phase}"
@@ -639,6 +634,7 @@ const zhTW = {
   "monsterInfo.title": "{name}資訊",
   "monsterInfo.level": "等級",
   "monsterInfo.stamina": "體力",
+  "monsterInfo.hatchRemaining": "剩餘孵化時間",
   "monsterInfo.evolution": "進化",
   "monsterInfo.levelEgg": "蛋",
   "monsterInfo.levelPhase": "Lv.{phase}"
@@ -659,6 +655,7 @@ const zhHK = {
   "monsterInfo.title": "{name}資訊",
   "monsterInfo.level": "等級",
   "monsterInfo.stamina": "體力",
+  "monsterInfo.hatchRemaining": "剩餘孵化時間",
   "monsterInfo.evolution": "進化",
   "monsterInfo.levelEgg": "蛋",
   "monsterInfo.levelPhase": "Lv.{phase}"
@@ -755,6 +752,7 @@ const hi = {
   "monsterInfo.title": "{name} के बारे में",
   "monsterInfo.level": "लेवल",
   "monsterInfo.stamina": "ताकत",
+  "monsterInfo.hatchRemaining": "फूटने में बचा समय",
   "monsterInfo.evolution": "विकास",
   "monsterInfo.levelEgg": "अंडा",
   "monsterInfo.levelPhase": "Lv.{phase}"
@@ -851,6 +849,7 @@ const th = {
   "monsterInfo.title": "เกี่ยวกับ {name}",
   "monsterInfo.level": "เลเวล",
   "monsterInfo.stamina": "พละกำลัง",
+  "monsterInfo.hatchRemaining": "เวลาที่เหลือก่อนฟัก",
   "monsterInfo.evolution": "วิวัฒนาการ",
   "monsterInfo.levelEgg": "ไข่",
   "monsterInfo.levelPhase": "Lv.{phase}"
@@ -947,6 +946,7 @@ const vi = {
   "monsterInfo.title": "Về {name}",
   "monsterInfo.level": "Cấp độ",
   "monsterInfo.stamina": "Thể lực",
+  "monsterInfo.hatchRemaining": "Thời gian còn lại để nở",
   "monsterInfo.evolution": "Tiến hóa",
   "monsterInfo.levelEgg": "Trứng",
   "monsterInfo.levelPhase": "Lv.{phase}"
@@ -1043,6 +1043,7 @@ const ptBR = {
   "monsterInfo.title": "Sobre {name}",
   "monsterInfo.level": "Nível",
   "monsterInfo.stamina": "Saúde",
+  "monsterInfo.hatchRemaining": "Tempo restante para chocar",
   "monsterInfo.evolution": "Evolução",
   "monsterInfo.levelEgg": "Ovo",
   "monsterInfo.levelPhase": "Lv.{phase}"
@@ -28932,18 +28933,18 @@ const PRODUCTION_EVOLUTION_TARGET_DURATION_BY_CLASS_MS = {
   [CharacterClass.C]: 60 * HOUR_MS$1,
   [CharacterClass.D]: 80 * HOUR_MS$1
 };
-({
+const PRODUCTION_EVOLUTION_TARGET_DURATION_VARIANCE_BY_CLASS_MS = {
   [CharacterClass.A]: 2 * HOUR_MS$1,
   [CharacterClass.B]: 4 * HOUR_MS$1,
   [CharacterClass.C]: 6 * HOUR_MS$1,
   [CharacterClass.D]: 8 * HOUR_MS$1
-});
-const DEV_GAUGE_GAIN_BY_CLASS = {
+};
+({
   [CharacterClass.A]: 1 * EVOLUTION_GAUGE_GAIN_MULTIPLIER,
   [CharacterClass.B]: 1 * EVOLUTION_GAUGE_GAIN_MULTIPLIER,
   [CharacterClass.C]: 1 * EVOLUTION_GAUGE_GAIN_MULTIPLIER,
   [CharacterClass.D]: 1 * EVOLUTION_GAUGE_GAIN_MULTIPLIER
-};
+});
 function getGaugeGainForDurationMs(params) {
   const { maxGauge, checkIntervalMs, durationMs } = params;
   if (durationMs <= 0) {
@@ -28976,23 +28977,30 @@ function getAverageGaugeGainByClass(params) {
     })
   };
 }
-({
-  gaugeGainByClass: getAverageGaugeGainByClass({
-    maxGauge: DEFAULT_MAX_GAUGE,
-    checkIntervalMs: 1e4,
-    targetDurationByClassMs: PRODUCTION_EVOLUTION_TARGET_DURATION_BY_CLASS_MS
-  })
-});
-const DEV_EVOLUTION_GAUGE_CONFIG = {
+function getStableSeededUnitValue(seed) {
+  let hash = 2166136261;
+  for (let i2 = 0; i2 < seed.length; i2++) {
+    hash ^= seed.charCodeAt(i2);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0) / 4294967296;
+}
+const PRODUCTION_EVOLUTION_GAUGE_CONFIG = {
   maxGauge: DEFAULT_MAX_GAUGE,
   staminaThreshold: 3,
   boostedStaminaThreshold: 7,
   boostedGaugeGainMultiplier: 1.2,
   checkIntervalMs: 1e4,
   sleepingGaugeTimeProgressMultiplier: 1 / 3,
-  gaugeGainByClass: DEV_GAUGE_GAIN_BY_CLASS
+  gaugeGainByClass: getAverageGaugeGainByClass({
+    maxGauge: DEFAULT_MAX_GAUGE,
+    checkIntervalMs: 1e4,
+    targetDurationByClassMs: PRODUCTION_EVOLUTION_TARGET_DURATION_BY_CLASS_MS
+  }),
+  targetDurationByClassMs: PRODUCTION_EVOLUTION_TARGET_DURATION_BY_CLASS_MS,
+  targetDurationVarianceByClassMs: PRODUCTION_EVOLUTION_TARGET_DURATION_VARIANCE_BY_CLASS_MS
 };
-const EVOLUTION_GAUGE_CONFIG = DEV_EVOLUTION_GAUGE_CONFIG;
+const EVOLUTION_GAUGE_CONFIG = PRODUCTION_EVOLUTION_GAUGE_CONFIG;
 function createDisplayName(geneLine, classCode, variant) {
   const baseName = geneLine.split("-").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
   return `${baseName} ${classCode}${variant}`;
@@ -29393,17 +29401,26 @@ function getCharacterSpritesheetName(characterKey) {
   var _a;
   return ((_a = getEvolutionSpec(characterKey)) == null ? void 0 : _a.spritesheetName) ?? null;
 }
-function getEvolutionGaugeIncreaseAmount(characterKey) {
+function getProductionEvolutionTargetDurationMsForEntity(params) {
+  const { characterKey, objectId } = params;
   const spec = getEvolutionSpec(characterKey);
   if (!spec) {
     return 0;
   }
-  return EVOLUTION_GAUGE_CONFIG.gaugeGainByClass[spec.class] ?? 0;
+  const targetDurationMs = PRODUCTION_EVOLUTION_GAUGE_CONFIG.targetDurationByClassMs[spec.class];
+  const varianceMs = PRODUCTION_EVOLUTION_GAUGE_CONFIG.targetDurationVarianceByClassMs[spec.class];
+  const seedValue = getStableSeededUnitValue(
+    `${Math.trunc(objectId)}:${spec.classCode}:${spec.phase}`
+  );
+  const jitterRatio = seedValue * 2 - 1;
+  return targetDurationMs + varianceMs * jitterRatio;
 }
 function getEvolutionGaugeIncreaseAmountForEntity(params) {
-  {
-    return getEvolutionGaugeIncreaseAmount(params.characterKey);
-  }
+  return getGaugeGainForDurationMs({
+    maxGauge: PRODUCTION_EVOLUTION_GAUGE_CONFIG.maxGauge,
+    checkIntervalMs: PRODUCTION_EVOLUTION_GAUGE_CONFIG.checkIntervalMs,
+    durationMs: getProductionEvolutionTargetDurationMsForEntity(params)
+  });
 }
 function canEvolveFromConfig(characterKey) {
   const spec = getEvolutionSpec(characterKey);
@@ -29550,40 +29567,7 @@ const PRODUCTION_GAME_CONSTANTS = {
   SLEEPING_STAMINA_DECAY_MULTIPLIER: 0.2,
   SLEEPING_DISEASE_RATE_MULTIPLIER: 0.1
 };
-const DEV_BALANCE_COEFFICIENTS = {
-  // DEV에서는 production 기준 시간을 나눠서 빠르게 재현한다.
-  timeDivisors: {
-    EGG_HATCH_TIME: 360,
-    EGG_HATCH_MIN_TIME: 300,
-    EGG_HATCH_MODE_TIME: 360,
-    EGG_HATCH_MAX_TIME: 400,
-    POOP_DELAY: 1,
-    DIGESTIVE_SMALL_POOP_DELAY: 480,
-    DISEASE_CHECK_INTERVAL: 1,
-    FRESH_TO_NORMAL_TIME: 18,
-    NORMAL_TO_STALE_TIME: 60,
-    DEATH_DELAY: 360,
-    DEATH_DELAY_CLASS_A: 360,
-    DEATH_DELAY_CLASS_B: 360,
-    DEATH_DELAY_CLASS_C: 360,
-    DEATH_DELAY_CLASS_D: 360,
-    STAMINA_DECREASE_INTERVAL: 24,
-    NATURAL_SICK_RECOVERY_MIN_DURATION: 60,
-    NIGHT_SLEEP_MIN_DELAY: 60,
-    NIGHT_SLEEP_MAX_DELAY: 60,
-    TARGET_NIGHT_SLEEP_DURATION: 60,
-    TARGET_NIGHT_SLEEP_JITTER: 60,
-    SUNRISE_WAKE_MIN_DELAY: 60,
-    SUNRISE_WAKE_MAX_DELAY: 60,
-    SUNRISE_WAKE_OFFSET_MIN: 60,
-    SUNRISE_WAKE_OFFSET_MAX: 60,
-    NIGHT_RESLEEP_MIN_DELAY: 60,
-    NIGHT_RESLEEP_MAX_DELAY: 60,
-    DAY_NAP_CHECK_INTERVAL: 60,
-    NIGHT_WAKE_CHECK_INTERVAL: 120,
-    DAY_NAP_MIN_DURATION: 60,
-    DAY_NAP_MAX_DURATION: 60
-  },
+({
   // DEV에서는 production 기준 확률을 곱해서 빠르게 상태를 관찰한다.
   probabilityMultipliers: {
     BASE_DISEASE_RATE: 0.02 / PRODUCTION_GAME_CONSTANTS.BASE_DISEASE_RATE,
@@ -29603,29 +29587,24 @@ const DEV_BALANCE_COEFFICIENTS = {
     FATIGUE_SLEEP_RECOVERY_PER_HOUR: 2400 / PRODUCTION_GAME_CONSTANTS.FATIGUE_SLEEP_RECOVERY_PER_HOUR,
     FATIGUE_SLEEP_RECOVERY_PER_HOUR_WHEN_SICK: 800 / PRODUCTION_GAME_CONSTANTS.FATIGUE_SLEEP_RECOVERY_PER_HOUR_WHEN_SICK
   }
-};
+});
 function deriveTimeConstant(key) {
   const baseValue = PRODUCTION_GAME_CONSTANTS[key];
-  const divisor = DEV_BALANCE_COEFFICIENTS.timeDivisors[key];
-  if (divisor <= 0) {
+  {
     return baseValue;
   }
-  const derivedValue = Math.round(baseValue / divisor);
-  if (derivedValue === 0) {
-    return 0;
-  }
-  return derivedValue > 0 ? Math.max(1, derivedValue) : Math.min(-1, derivedValue);
 }
 function deriveProbabilityConstant(key) {
   const baseValue = PRODUCTION_GAME_CONSTANTS[key];
-  return Math.min(
-    1,
-    baseValue * DEV_BALANCE_COEFFICIENTS.probabilityMultipliers[key]
-  );
+  {
+    return baseValue;
+  }
 }
 function deriveRateConstant(key) {
   const baseValue = PRODUCTION_GAME_CONSTANTS[key];
-  return baseValue * DEV_BALANCE_COEFFICIENTS.rateMultipliers[key];
+  {
+    return baseValue;
+  }
 }
 const GAME_CONSTANTS = {
   ...PRODUCTION_GAME_CONSTANTS,
@@ -29822,23 +29801,53 @@ function createEggHatchSchedule(now = Date.now(), randomValue = Math.random()) {
     hatchDurationMs
   };
 }
-function getResolvedEggHatchDurationMs(hatchDurationMs) {
-  if (typeof hatchDurationMs === "number" && Number.isFinite(hatchDurationMs)) {
-    return Math.max(0, hatchDurationMs);
+function normalizePositiveEggHatchValue(value) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return null;
   }
-  return getDefaultEggHatchDurationMs();
+  return value;
+}
+function resolveEggHatchTiming(params) {
+  const currentTime = Number.isFinite(params.currentTime) ? params.currentTime : Date.now();
+  const fallbackDurationMs = Math.max(
+    0,
+    params.fallbackDurationMs ?? getDefaultEggHatchDurationMs()
+  );
+  const normalizedHatchTime = normalizePositiveEggHatchValue(params.hatchTime);
+  const normalizedDurationMs = normalizePositiveEggHatchValue(
+    params.hatchDurationMs
+  );
+  let hatchTime;
+  let hatchDurationMs;
+  if (normalizedDurationMs !== null && normalizedHatchTime !== null) {
+    hatchTime = normalizedHatchTime;
+    hatchDurationMs = normalizedDurationMs;
+  } else if (normalizedHatchTime !== null) {
+    hatchTime = normalizedHatchTime;
+    hatchDurationMs = Math.max(0, normalizedHatchTime - currentTime);
+  } else if (normalizedDurationMs !== null) {
+    hatchDurationMs = normalizedDurationMs;
+    hatchTime = currentTime + normalizedDurationMs;
+  } else {
+    hatchDurationMs = fallbackDurationMs;
+    hatchTime = currentTime + hatchDurationMs;
+  }
+  const remainingTimeMs = Math.max(0, hatchTime - currentTime);
+  const hatchStartTime = hatchDurationMs > 0 ? hatchTime - hatchDurationMs : hatchTime;
+  const progress = hatchDurationMs <= 0 ? currentTime >= hatchTime ? 1 : 0 : clampProgress((currentTime - hatchStartTime) / hatchDurationMs);
+  return {
+    hatchTime,
+    hatchDurationMs,
+    hatchStartTime,
+    remainingTimeMs,
+    progress
+  };
+}
+function getRemainingEggHatchTime(params) {
+  return resolveEggHatchTiming(params).remainingTimeMs;
 }
 function getEggHatchProgress(params) {
-  const { currentTime, hatchTime } = params;
-  if (!Number.isFinite(hatchTime) || hatchTime <= 0) {
-    return 0;
-  }
-  const hatchDurationMs = getResolvedEggHatchDurationMs(params.hatchDurationMs);
-  if (hatchDurationMs <= 0) {
-    return currentTime >= hatchTime ? 1 : 0;
-  }
-  const hatchStartTime = hatchTime - hatchDurationMs;
-  return clampProgress((currentTime - hatchStartTime) / hatchDurationMs);
+  return resolveEggHatchTiming(params).progress;
 }
 function getEggCrackStage(progress) {
   if (progress >= 0.75) {
@@ -29942,6 +29951,23 @@ function normalizeEggSyringeCount(value) {
     return 0;
   }
   return Math.min(10, Math.floor(value));
+}
+function resolveEggHatchComponentForState(params) {
+  if (params.state !== CharacterState.EGG) {
+    return {
+      hatchTime: 0,
+      hatchDurationMs: 0
+    };
+  }
+  const resolved = resolveEggHatchTiming({
+    currentTime: params.currentTime,
+    hatchTime: params.hatchTime,
+    hatchDurationMs: params.hatchDurationMs
+  });
+  return {
+    hatchTime: resolved.hatchTime,
+    hatchDurationMs: resolved.hatchDurationMs
+  };
 }
 function convertECSEntityToSavedEntity(world, eid) {
   const components = {};
@@ -30239,11 +30265,14 @@ function applySavedEntityToECS(world, eid, savedEntity) {
     if (!hasComponent(world, EggHatchComp, eid)) {
       addComponent(world, EggHatchComp, eid);
     }
-    EggHatchComp.hatchTime[eid] = components.eggHatch.hatchTime;
-    EggHatchComp.hatchDurationMs[eid] = Math.max(
-      0,
-      components.eggHatch.hatchDurationMs ?? (ObjectComp.state[eid] === CharacterState.EGG ? getDefaultEggHatchDurationMs() : 0)
-    );
+    const resolvedEggHatch = resolveEggHatchComponentForState({
+      currentTime: Date.now(),
+      state: ObjectComp.state[eid],
+      hatchTime: components.eggHatch.hatchTime,
+      hatchDurationMs: components.eggHatch.hatchDurationMs
+    });
+    EggHatchComp.hatchTime[eid] = resolvedEggHatch.hatchTime;
+    EggHatchComp.hatchDurationMs[eid] = resolvedEggHatch.hatchDurationMs;
     EggHatchComp.isReadyToHatch[eid] = components.eggHatch.isReadyToHatch ? 1 : 0;
     EggHatchComp.syringeCount[eid] = normalizeEggSyringeCount(
       components.eggHatch.syringeCount
@@ -30467,8 +30496,15 @@ function repairCharacterEntityRuntimeComponents(world, eid, now = Date.now()) {
     EggHatchComp.isReadyToHatch[eid] = 0;
     EggHatchComp.syringeCount[eid] = 0;
     repaired.push("EggHatchComp");
-  } else if (state === CharacterState.EGG && EggHatchComp.hatchDurationMs[eid] <= 0) {
-    EggHatchComp.hatchDurationMs[eid] = getDefaultEggHatchDurationMs();
+  } else if (state === CharacterState.EGG) {
+    const resolvedEggHatch = resolveEggHatchComponentForState({
+      currentTime: now,
+      state,
+      hatchTime: EggHatchComp.hatchTime[eid],
+      hatchDurationMs: EggHatchComp.hatchDurationMs[eid]
+    });
+    EggHatchComp.hatchTime[eid] = resolvedEggHatch.hatchTime;
+    EggHatchComp.hatchDurationMs[eid] = resolvedEggHatch.hatchDurationMs;
     EggHatchComp.syringeCount[eid] = normalizeEggSyringeCount(
       EggHatchComp.syringeCount[eid]
     );
@@ -30564,7 +30600,7 @@ function repairLoadedFoodInteractionState(world, now = Date.now()) {
     repairedFoods
   };
 }
-const characterQuery$a = defineQuery([CharacterStatusComp, RandomMovementComp]);
+const characterQuery$9 = defineQuery([CharacterStatusComp, RandomMovementComp]);
 const allCharacterQuery = defineQuery([CharacterStatusComp, ObjectComp]);
 function hasDirectedMovement(world, eid) {
   return hasComponent(world, DestinationComp, eid) && DestinationComp.type[eid] === DestinationType.TARGETED && getTargetedFoodEntityRef(world, eid) !== null;
@@ -30573,7 +30609,7 @@ function randomMovementSystem(params) {
   const { world } = params;
   const currentTime = world.currentTime;
   const shouldLog = !world.isSimulationMode && world.isRandomMovementDebugEnabled();
-  const chars = characterQuery$a(world);
+  const chars = characterQuery$9(world);
   const allChars = allCharacterQuery(world);
   for (let i2 = 0; i2 < allChars.length; i2++) {
     const eid = allChars[i2];
@@ -31145,11 +31181,10 @@ function logFoodMaskInitializationSummary(summary) {
 function getTextureFromKey(textureKey) {
   const textureInfo = TEXTURE_MAP[textureKey];
   if (!textureInfo) {
-    {
-      throw new Error(
-        `[RenderSystem] Texture key ${textureKey} not found in TEXTURE_MAP`
-      );
-    }
+    console.warn(
+      `[RenderSystem] Texture key ${textureKey} not found in TEXTURE_MAP`
+    );
+    return void 0;
   }
   try {
     if (!textureInfo.spritesheetAlias) {
@@ -31240,13 +31275,8 @@ function updateMaskTexture(maskSprite, progress) {
     maskSprite.texture = texture;
   }
 }
-let hasValidatedTextures = false;
 function renderSystem(params) {
   const { world } = params;
-  if (!hasValidatedTextures) {
-    validateTextureMap();
-    hasValidatedTextures = true;
-  }
   const entities = renderableQuery(world);
   const exitedEntities = exitedRenderableQuery(world);
   const stage = world.stage;
@@ -31419,34 +31449,8 @@ function isTextureKeyLoaded(textureKey) {
     textureInfo.textureName
   );
 }
-function getAvailableTextureKeys() {
-  return Object.keys(TEXTURE_MAP).map(Number).sort((a2, b2) => a2 - b2);
-}
 function getTextureInfo(textureKey) {
   return TEXTURE_MAP[textureKey] || null;
-}
-function validateTextureMap() {
-  console.groupCollapsed("[RenderSystem] Texture Map Validation:");
-  const availableKeys = getAvailableTextureKeys();
-  let validCount = 0;
-  let invalidCount = 0;
-  for (const textureKey of availableKeys) {
-    const isLoaded = isTextureKeyLoaded(textureKey);
-    const textureInfo = getTextureInfo(textureKey);
-    if (isLoaded) {
-      validCount++;
-      console.log(
-        `✓ Key ${textureKey}: ${textureInfo == null ? void 0 : textureInfo.spritesheetAlias}/${textureInfo == null ? void 0 : textureInfo.textureName}`
-      );
-    } else {
-      invalidCount++;
-      console.warn(
-        `✗ Key ${textureKey}: ${textureInfo == null ? void 0 : textureInfo.spritesheetAlias}/${textureInfo == null ? void 0 : textureInfo.textureName} - NOT LOADED`
-      );
-    }
-  }
-  console.log(`Summary: ${validCount} valid, ${invalidCount} invalid textures`);
-  console.groupEnd();
 }
 const SPRITESHEET_KEY_TO_NAME = {
   [SpritesheetKey.NULL]: "null",
@@ -32607,7 +32611,7 @@ const EGG_CRACK_PIXEL_SIZE = 1;
 const overlayStore$1 = /* @__PURE__ */ new Map();
 const eggCrackQuery = defineQuery([ObjectComp, RenderComp, EggHatchComp]);
 const eggCrackExitQuery = exitQuery(eggCrackQuery);
-function getOrCreateOverlay$1(eid, stage) {
+function getOrCreateOverlay(eid, stage) {
   const existing = overlayStore$1.get(eid);
   if (existing) {
     return existing;
@@ -32858,7 +32862,7 @@ function eggCrackRenderSystem(params) {
       removeOverlay$1(eid);
       continue;
     }
-    const overlay = getOrCreateOverlay$1(eid, world.stage);
+    const overlay = getOrCreateOverlay(eid, world.stage);
     syncOverlayTransform(overlay, baseSprite);
     syncOverlayMask(overlay.mask, baseSprite);
     drawEggCracks(overlay.crack, bounds, crackStage);
@@ -32937,13 +32941,13 @@ function toCanvasFontFamilyList(fontFamilies) {
     (fontFamily) => fontFamily.includes(" ") ? `"${fontFamily}"` : fontFamily
   ).join(", ");
 }
-const characterQuery$9 = defineQuery([
+const characterQuery$8 = defineQuery([
   ObjectComp,
   PositionComp,
   RenderComp,
   CharacterStatusComp
 ]);
-const characterExitQuery$1 = exitQuery(characterQuery$9);
+const characterExitQuery = exitQuery(characterQuery$8);
 const labelStore = /* @__PURE__ */ new Map();
 const NAME_LABEL_STYLE = new TextStyle({
   fontFamily: [...NAME_LABEL_FONT_FAMILIES],
@@ -32983,12 +32987,12 @@ const MINI_STAMINA_BAR_URGENT_OVERLAY_CYCLE_MS = 1200;
 function characterNameLabelSystem(params) {
   var _a;
   const { world } = params;
-  const exitedEntities = characterExitQuery$1(world);
+  const exitedEntities = characterExitQuery(world);
   for (let i2 = 0; i2 < exitedEntities.length; i2++) {
     removeCharacterNameLabel(exitedEntities[i2]);
   }
   const rawName = (_a = world.getInMemoryData().world_metadata.monster_name) == null ? void 0 : _a.trim();
-  const entities = characterQuery$9(world);
+  const entities = characterQuery$8(world);
   for (let i2 = 0; i2 < entities.length; i2++) {
     const eid = entities[i2];
     if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
@@ -33378,76 +33382,18 @@ function getMiniStaminaBarUrgentOverlayAlpha(currentTime) {
   const triangleWave = phase < 0.5 ? phase * 2 : (1 - phase) * 2;
   return MINI_STAMINA_BAR_URGENT_OVERLAY_MIN_ALPHA + (MINI_STAMINA_BAR_URGENT_OVERLAY_MAX_ALPHA - MINI_STAMINA_BAR_URGENT_OVERLAY_MIN_ALPHA) * triangleWave;
 }
-const characterQuery$8 = defineQuery([ObjectComp, PositionComp, RenderComp]);
-const characterExitQuery = exitQuery(characterQuery$8);
+defineQuery([ObjectComp, PositionComp, RenderComp]);
 const overlayStore = /* @__PURE__ */ new Map();
-const LAYOUT_STROKE_COLOR = 58879;
-const LAYOUT_FILL_COLOR = 58879;
-const LAYOUT_FILL_ALPHA = 0.12;
-const LAYOUT_STROKE_WIDTH = 1;
-const LAYOUT_Z_INDEX_OFFSET = 1;
 function characterLayoutDebugSystem(params) {
-  const { world, stage } = params;
-  if (!stage || false) {
+  {
     cleanupCharacterLayoutDebug();
     return params;
   }
-  const exitedEntities = characterExitQuery(world);
-  for (let i2 = 0; i2 < exitedEntities.length; i2++) {
-    removeOverlay(exitedEntities[i2]);
-  }
-  const entities = characterQuery$8(world);
-  const activeCharacterEids = /* @__PURE__ */ new Set();
-  for (let i2 = 0; i2 < entities.length; i2++) {
-    const eid = entities[i2];
-    if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
-      removeOverlay(eid);
-      continue;
-    }
-    const displayObject = getCharacterDisplayObject(eid);
-    if (!displayObject) {
-      removeOverlay(eid);
-      continue;
-    }
-    const bounds = getCharacterWorldBounds(eid);
-    if (bounds.width <= 0 || bounds.height <= 0) {
-      removeOverlay(eid);
-      continue;
-    }
-    const overlay = getOrCreateOverlay(eid, stage);
-    activeCharacterEids.add(eid);
-    overlay.clear();
-    overlay.rect(bounds.leftX, bounds.topY, bounds.width, bounds.height).fill({ color: LAYOUT_FILL_COLOR, alpha: LAYOUT_FILL_ALPHA }).stroke({ color: LAYOUT_STROKE_COLOR, width: LAYOUT_STROKE_WIDTH });
-    const y2 = PositionComp.y[eid];
-    const configuredZIndex = RenderComp.zIndex[eid];
-    const effectiveZIndex = configuredZIndex === 0 ? y2 : configuredZIndex;
-    overlay.zIndex = effectiveZIndex + LAYOUT_Z_INDEX_OFFSET;
-    overlay.visible = true;
-  }
-  const trackedEids = Array.from(overlayStore.keys());
-  for (let i2 = 0; i2 < trackedEids.length; i2++) {
-    const eid = trackedEids[i2];
-    if (!activeCharacterEids.has(eid)) {
-      removeOverlay(eid);
-    }
-  }
-  return params;
 }
 function cleanupCharacterLayoutDebug(_stage) {
   overlayStore.forEach((_, eid) => {
     removeOverlay(eid);
   });
-}
-function getOrCreateOverlay(eid, stage) {
-  const existingOverlay = overlayStore.get(eid);
-  if (existingOverlay) {
-    return existingOverlay;
-  }
-  const overlay = new Graphics();
-  overlay.eventMode = "none";
-  stage.addChild(overlay);
-  overlayStore.set(eid, overlay);
-  return overlay;
 }
 function removeOverlay(eid) {
   const overlay = overlayStore.get(eid);
@@ -35864,12 +35810,9 @@ function restoreRandomMovementIfNeeded(world, eid, currentTime) {
   RandomMovementComp.nextChange[eid] = currentTime + 1e3;
 }
 function logSleepCheck(world, event, payload) {
-  if (!shouldLogSleepChecks(world)) {
+  {
     return;
   }
-}
-function shouldLogSleepChecks(world) {
-  return !world.isSimulationMode;
 }
 const characterQuery$4 = defineQuery([
   ObjectComp,
@@ -38692,7 +38635,7 @@ class HTMLDebugGaugeUI {
     const remainingEvolutionTime = getRemainingEvolutionGaugeTime(
       this._currentCharacterEid
     );
-    const remainingEggHatchTime = getRemainingEggHatchTime(
+    const remainingEggHatchTime = getRemainingEggHatchTimeForEntity(
       this._world,
       this._currentCharacterEid,
       currentTime
@@ -39097,7 +39040,7 @@ function formatAdQueuedAge(queuedAt, currentTime) {
   const elapsed = Math.max(0, currentTime - queuedAt);
   return `${formatAdDuration(elapsed)} ago`;
 }
-function getRemainingEggHatchTime(world, eid, currentTime) {
+function getRemainingEggHatchTimeForEntity(world, eid, currentTime) {
   if (!hasComponent(world, EggHatchComp, eid)) {
     return null;
   }
@@ -39105,7 +39048,11 @@ function getRemainingEggHatchTime(world, eid, currentTime) {
   if (hatchTime <= 0) {
     return null;
   }
-  return Math.max(0, hatchTime - currentTime);
+  return getRemainingEggHatchTime({
+    currentTime,
+    hatchTime,
+    hatchDurationMs: EggHatchComp.hatchDurationMs[eid]
+  });
 }
 function formatEggHatchCountdown(params) {
   if (!params.isEgg || params.remainingTime === null) {
@@ -42128,20 +42075,7 @@ ${this.t("main.cleanObjectsPrompt")}`,
           );
           this._addDebugGaugeEventListener();
         }
-        if (this._debugParentElement) {
-          this._debugGameConstantsUI = new HTMLDebugGameConstantsUI(
-            this._debugParentElement
-          );
-          this._debugStatusUI = new HTMLDebugStatusUI(
-            this,
-            this._debugParentElement
-          );
-          this._debugToggleButton = new HTMLDebugToggleButton(() => {
-            var _a, _b;
-            (_a = this._debugStatusUI) == null ? void 0 : _a.toggle();
-            return ((_b = this._debugStatusUI) == null ? void 0 : _b.isDebugVisible()) ?? false;
-          }, this._debugParentElement);
-        }
+        if (false) ;
       }
       await this._initDiagnostics.measurePhase("setup_visibility_handler", async () => {
         this._setupVisibilityChangeHandler();
@@ -42575,6 +42509,54 @@ ${this.t("main.cleanObjectsPrompt")}`,
   }
   getInMemoryData() {
     return this._persistentData;
+  }
+  buildHomeWidgetSyncWorldData() {
+    if (!this._persistentData) {
+      return null;
+    }
+    try {
+      const syncWorldData = cloneDeep(this._persistentData);
+      const currentTime = this.currentTime;
+      const currentAnchor = this._trustedClock.captureAnchor();
+      const worldMetadata = syncWorldData.world_metadata ?? {
+        name: "MainScene",
+        last_ecs_saved: currentTime,
+        version: this.WORLD_DATA_SCHEMA_VERSION
+      };
+      syncWorldData.world_metadata = worldMetadata;
+      worldMetadata.last_ecs_saved = currentTime;
+      worldMetadata.version = worldMetadata.version || this.WORLD_DATA_SCHEMA_VERSION;
+      const appState = worldMetadata.app_state ?? {
+        last_active_time: currentTime,
+        last_active_time_anchor: currentAnchor,
+        is_first_load: false,
+        use_local_time: true,
+        main_scene_ad: {
+          menu_use_count: 0
+        },
+        mini_game_scores: {
+          flappy_bird: {
+            best_score: 0
+          }
+        },
+        monster_book: createEmptyMonsterBookState()
+      };
+      worldMetadata.app_state = appState;
+      appState.last_active_time = currentTime;
+      appState.last_active_time_anchor = currentAnchor;
+      appState.use_local_time = true;
+      const objectEntities = liveObjectQuery(this);
+      syncWorldData.entities = objectEntities.map(
+        (eid) => convertECSEntityToSavedEntity(this, eid)
+      );
+      return syncWorldData;
+    } catch (error) {
+      console.warn(
+        "[MainSceneWorld] Failed to build home widget sync world data",
+        error
+      );
+      return null;
+    }
   }
   async getData() {
     console.groupCollapsed("💾 Loading saved data from storage...");
@@ -43505,9 +43487,16 @@ ${this.t("main.cleanObjectsPrompt")}`,
     if (characterEid === -1) {
       return null;
     }
+    const isEgg = ObjectComp.state[characterEid] === CharacterState.EGG;
+    const eggHatchRemainingMs = isEgg && hasComponent(this, EggHatchComp, characterEid) ? getRemainingEggHatchTime({
+      currentTime: this.currentTime,
+      hatchTime: EggHatchComp.hatchTime[characterEid],
+      hatchDurationMs: EggHatchComp.hatchDurationMs[characterEid]
+    }) : null;
     return {
       monsterName: ((_b = (_a = this._persistentData) == null ? void 0 : _a.world_metadata.monster_name) == null ? void 0 : _b.trim()) ?? "",
-      isEgg: ObjectComp.state[characterEid] === CharacterState.EGG,
+      isEgg,
+      eggHatchRemainingMs,
       evolutionPhase: CharacterStatusComp.evolutionPhase[characterEid],
       stamina: CharacterStatusComp.stamina[characterEid],
       maxStamina: GAME_CONSTANTS.MAX_STAMINA,
@@ -51973,9 +51962,7 @@ class FlappyBirdGameScene extends Container {
         this.restartGame();
       }
     }
-    if (event.code === "KeyD" && true) {
-      this.physicsManager.toggleDebugMode(this.game.app);
-    }
+    if (event.code === "KeyD" && false) ;
   }
   /**
    * 게임을 시작합니다.
@@ -53988,6 +53975,12 @@ class Game {
       mainSceneData: this.currentScene instanceof MainSceneWorld ? this.currentScene.getInMemoryData() : null
     };
   }
+  getHomeWidgetSyncWorldData() {
+    if (!(this.currentScene instanceof MainSceneWorld)) {
+      return null;
+    }
+    return this.currentScene.buildHomeWidgetSyncWorldData();
+  }
   /**
    * 사용 가능한 모든 씬 키 목록을 반환합니다
    */
@@ -54416,7 +54409,7 @@ function simulateEvolutionAdminRolls(params) {
   });
 }
 export {
-  NAME_LABEL_STROKE_WIDTH as $,
+  LOCALE_METADATA as $,
   AbstractRenderer as A,
   BufferUsage as B,
   Container as C,
@@ -54431,73 +54424,72 @@ export {
   measureNameLabelWidth as L,
   Matrix as M,
   fitsNameLabelWidth as N,
-  TIME_OF_DAY_OPTIONS as O,
+  TRANSLATIONS as O,
   Point as P,
-  getTimeOfDayLabel as Q,
+  NAME_LABEL_FONT_FAMILIES as Q,
   RendererType as R,
   STENCIL_MODES as S,
   Ticker as T,
   UPDATE_PRIORITY as U,
-  TRANSLATIONS as V,
+  NAME_LABEL_FONT_WEIGHT as V,
   WebLocalStorage as W,
-  NAME_LABEL_FONT_FAMILIES as X,
-  NAME_LABEL_FONT_WEIGHT as Y,
-  NAME_LABEL_STROKE_COLOR as Z,
-  NAME_LABEL_FILL_COLOR as _,
+  NAME_LABEL_STROKE_COLOR as X,
+  NAME_LABEL_FILL_COLOR as Y,
+  NAME_LABEL_STROKE_WIDTH as Z,
+  SUPPORTED_LOCALES as _,
   applyEvolutionAdminExport as a,
-  SUPPORTED_LOCALES as a0,
-  LOCALE_METADATA as a1,
-  SceneKey as a2,
-  hasLegacyMonsterBookState as a3,
-  migrateLegacyMonsterBookIfNeeded as a4,
-  getNativeSunTimes as a5,
-  MissingInitialGameDataError as a6,
-  Game as a7,
-  GpuProgram as a8,
-  GlProgram as a9,
-  colorBitGl as aA,
-  generateTextureBatchBitGl as aB,
-  roundPixelsBitGl as aC,
-  getBatchSamplersUniformGroup as aD,
-  TextStyle as aE,
-  BatchableGraphics as aF,
-  getAdjustedBlendModeBlend as aG,
-  ViewableBuffer as aH,
-  TextureStyle as aI,
-  BitmapFontManager as aJ,
-  CanvasTextMetrics as aK,
-  getBitmapTextLayout as aL,
-  Cache as aM,
-  Graphics as aN,
-  updateQuadBounds as aO,
-  CanvasTextGenerator as aP,
-  GraphicsContextSystem as aQ,
-  TextureMatrix as aa,
-  DefaultBatcher as ab,
-  BigPool as ac,
-  getGlobalBounds as ad,
-  Bounds as ae,
-  TexturePool as af,
-  FilterEffect as ag,
-  Sprite as ah,
-  getAttributeInfoFromFormat as ai,
-  unsafeEvalSupported as aj,
-  uid as ak,
-  Rectangle as al,
-  SystemRunner as am,
-  multiplyColors as an,
-  UPDATE_VISIBLE as ao,
-  UPDATE_COLOR as ap,
-  UPDATE_BLEND as aq,
-  Color as ar,
-  getLocalBounds as as,
-  VERSION as at,
-  deprecation as au,
-  v8_0_0 as av,
-  RendererInitHook as aw,
-  Geometry as ax,
-  checkMaxIfStatementsInShader as ay,
-  compileHighShaderGlProgram as az,
+  GAME_CONSTANTS as a0,
+  SceneKey as a1,
+  hasLegacyMonsterBookState as a2,
+  migrateLegacyMonsterBookIfNeeded as a3,
+  getNativeSunTimes as a4,
+  MissingInitialGameDataError as a5,
+  Game as a6,
+  GpuProgram as a7,
+  GlProgram as a8,
+  TextureMatrix as a9,
+  generateTextureBatchBitGl as aA,
+  roundPixelsBitGl as aB,
+  getBatchSamplersUniformGroup as aC,
+  TextStyle as aD,
+  BatchableGraphics as aE,
+  getAdjustedBlendModeBlend as aF,
+  ViewableBuffer as aG,
+  TextureStyle as aH,
+  BitmapFontManager as aI,
+  CanvasTextMetrics as aJ,
+  getBitmapTextLayout as aK,
+  Cache as aL,
+  Graphics as aM,
+  updateQuadBounds as aN,
+  CanvasTextGenerator as aO,
+  GraphicsContextSystem as aP,
+  DefaultBatcher as aa,
+  BigPool as ab,
+  getGlobalBounds as ac,
+  Bounds as ad,
+  TexturePool as ae,
+  FilterEffect as af,
+  Sprite as ag,
+  getAttributeInfoFromFormat as ah,
+  unsafeEvalSupported as ai,
+  uid as aj,
+  Rectangle as ak,
+  SystemRunner as al,
+  multiplyColors as am,
+  UPDATE_VISIBLE as an,
+  UPDATE_COLOR as ao,
+  UPDATE_BLEND as ap,
+  Color as aq,
+  getLocalBounds as ar,
+  VERSION as as,
+  deprecation as at,
+  v8_0_0 as au,
+  RendererInitHook as av,
+  Geometry as aw,
+  checkMaxIfStatementsInShader as ax,
+  compileHighShaderGlProgram as ay,
+  colorBitGl as az,
   buildEvolutionAdminExport as b,
   EventEmitter as c,
   getTextureBatchBindGroup as d,

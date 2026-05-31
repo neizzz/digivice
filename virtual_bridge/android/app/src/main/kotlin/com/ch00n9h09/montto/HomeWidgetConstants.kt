@@ -5,6 +5,9 @@ object HomeWidgetConstants {
     const val STORAGE_NAME = "digivice_home_widget"
     const val SNAPSHOT_KEY = "home_widget_snapshot_v1"
     const val AUTHORITATIVE_SNAPSHOT_KEY = "home_widget_authoritative_snapshot_v1"
+    const val PERIODIC_REFRESH_WORK_NAME = "home_widget_periodic_refresh"
+    const val PERIODIC_REFRESH_REASON = "periodic_work"
+    const val PERIODIC_REFRESH_INTERVAL_MINUTES = 15L
     const val FLUTTER_STORAGE_NAME = "FlutterSharedPreferences"
     const val FLUTTER_PREFIX = "flutter."
     const val WORLD_DATA_KEY = "MainSceneWorldData"

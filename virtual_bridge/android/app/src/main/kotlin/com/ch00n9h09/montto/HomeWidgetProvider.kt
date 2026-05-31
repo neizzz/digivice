@@ -167,9 +167,20 @@ abstract class BaseHomeWidgetProvider : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray,
     ) {
+        HomeWidgetPeriodicRefreshScheduler.scheduleIfNeeded(context)
         appWidgetIds.forEach { appWidgetId ->
             updateAppWidget(context, appWidgetManager, appWidgetId)
         }
+    }
+
+    override fun onEnabled(context: Context) {
+        super.onEnabled(context)
+        HomeWidgetPeriodicRefreshScheduler.scheduleIfNeeded(context)
+    }
+
+    override fun onDisabled(context: Context) {
+        super.onDisabled(context)
+        HomeWidgetPeriodicRefreshScheduler.cancelIfNoWidgets(context)
     }
 
     override fun onReceive(context: Context, intent: Intent) {
