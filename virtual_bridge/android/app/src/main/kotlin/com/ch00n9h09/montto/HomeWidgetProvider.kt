@@ -10,6 +10,46 @@ import android.view.View
 import android.widget.RemoteViews
 import kotlin.math.roundToInt
 
+internal object HomeWidgetBroadcastActionHandler {
+    fun handle(
+        action: String?,
+        onRefresh: () -> Unit,
+        onAdvancePreset: (step: Int) -> Unit,
+        onDisableOverride: () -> Unit,
+        onUpdateAllWidgets: () -> Unit,
+    ): Boolean {
+        when (action) {
+            HomeWidgetConstants.ACTION_REFRESH -> {
+                onRefresh()
+                onUpdateAllWidgets()
+            }
+
+            HomeWidgetConstants.ACTION_DEBUG_PRESET_PREV -> {
+                onAdvancePreset(-1)
+                onUpdateAllWidgets()
+            }
+
+            HomeWidgetConstants.ACTION_DEBUG_PRESET_NEXT -> {
+                onAdvancePreset(1)
+                onUpdateAllWidgets()
+            }
+
+            HomeWidgetConstants.ACTION_DEBUG_PRESET_LIVE -> {
+                onDisableOverride()
+                onUpdateAllWidgets()
+            }
+
+            HomeWidgetConstants.ACTION_SNAPSHOT_UPDATED,
+            AppWidgetManager.ACTION_APPWIDGET_UPDATE,
+            -> onUpdateAllWidgets()
+
+            else -> return false
+        }
+
+        return true
+    }
+}
+
 abstract class BaseHomeWidgetProvider : AppWidgetProvider() {
     protected open val layoutResId: Int = R.layout.montto_home_widget
     protected open val statusIconsRightToLeft: Boolean = false
@@ -135,26 +175,21 @@ abstract class BaseHomeWidgetProvider : AppWidgetProvider() {
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
 
-        when (intent.action) {
-            HomeWidgetConstants.ACTION_REFRESH -> {
+        HomeWidgetBroadcastActionHandler.handle(
+            action = intent.action,
+            onRefresh = {
                 HomeWidgetSnapshotFactory.progressSnapshot(context)
+            },
+            onAdvancePreset = { step ->
+                HomeWidgetDebugPresetStore.advancePreset(context, step = step)
+            },
+            onDisableOverride = {
+                HomeWidgetDebugPresetStore.disableOverride(context)
+            },
+            onUpdateAllWidgets = {
                 updateAllWidgets(context)
-            }
-
-            HomeWidgetConstants.ACTION_DEBUG_PRESET_PREV -> {
-                HomeWidgetDebugPresetStore.advancePreset(context, step = -1)
-                updateAllWidgets(context)
-            }
-
-            HomeWidgetConstants.ACTION_DEBUG_PRESET_NEXT -> {
-                HomeWidgetDebugPresetStore.advancePreset(context, step = 1)
-                updateAllWidgets(context)
-            }
-
-            HomeWidgetConstants.ACTION_SNAPSHOT_UPDATED,
-            AppWidgetManager.ACTION_APPWIDGET_UPDATE,
-            -> updateAllWidgets(context)
-        }
+            },
+        )
     }
 
     private fun providerComponent(context: Context): ComponentName {
@@ -222,6 +257,15 @@ abstract class BaseHomeWidgetProvider : AppWidgetProvider() {
                 action = HomeWidgetConstants.ACTION_DEBUG_PRESET_NEXT,
                 appWidgetId = appWidgetId,
                 requestCodeOffset = 2,
+            ),
+        )
+        views.setOnClickPendingIntent(
+            R.id.widget_debug_live_button,
+            createDebugPresetPendingIntent(
+                context = context,
+                action = HomeWidgetConstants.ACTION_DEBUG_PRESET_LIVE,
+                appWidgetId = appWidgetId,
+                requestCodeOffset = 3,
             ),
         )
     }

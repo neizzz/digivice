@@ -175,9 +175,9 @@
 
             <Button
                 android:id="@+id/widget_debug_prev_button"
-                android:layout_width="40dp"
+                android:layout_width="34dp"
                 android:layout_height="24dp"
-                android:layout_marginEnd="4dp"
+                android:layout_marginEnd="2dp"
                 android:gravity="center"
                 android:minHeight="0dp"
                 android:minWidth="0dp"
@@ -189,14 +189,28 @@
 
             <Button
                 android:id="@+id/widget_debug_next_button"
-                android:layout_width="40dp"
+                android:layout_width="34dp"
                 android:layout_height="24dp"
+                android:layout_marginEnd="2dp"
                 android:gravity="center"
                 android:minHeight="0dp"
                 android:minWidth="0dp"
                 android:paddingHorizontal="0dp"
                 android:paddingVertical="0dp"
                 android:text="Next"
+                android:textAllCaps="false"
+                android:textSize="10sp" />
+
+            <Button
+                android:id="@+id/widget_debug_live_button"
+                android:layout_width="34dp"
+                android:layout_height="24dp"
+                android:gravity="center"
+                android:minHeight="0dp"
+                android:minWidth="0dp"
+                android:paddingHorizontal="0dp"
+                android:paddingVertical="0dp"
+                android:text="Live"
                 android:textAllCaps="false"
                 android:textSize="10sp" />
         </LinearLayout>

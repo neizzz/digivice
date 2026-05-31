@@ -23,4 +23,6 @@ object HomeWidgetConstants {
         "com.ch00n9h09.montto.HOME_WIDGET_DEBUG_PRESET_PREV"
     const val ACTION_DEBUG_PRESET_NEXT =
         "com.ch00n9h09.montto.HOME_WIDGET_DEBUG_PRESET_NEXT"
+    const val ACTION_DEBUG_PRESET_LIVE =
+        "com.ch00n9h09.montto.HOME_WIDGET_DEBUG_PRESET_LIVE"
 }
