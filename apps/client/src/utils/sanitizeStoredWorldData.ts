@@ -1,3 +1,5 @@
+import { GAME_CONSTANTS } from "@/scenes/MainScene/config";
+
 type StoredObjectComponent = {
   id?: number;
   type?: number;
@@ -205,6 +207,18 @@ const CHARACTER_STATE = {
   DEAD: 6,
 } as const;
 
+function isDevBuild(): boolean {
+  return import.meta.env.DEV;
+}
+
+function isDevEggHatchDurationMs(value: number | null): boolean {
+  return (
+    value !== null &&
+    value >= GAME_CONSTANTS.EGG_HATCH_MIN_TIME &&
+    value <= GAME_CONSTANTS.EGG_HATCH_MAX_TIME
+  );
+}
+
 const DEFAULTS = {
   VERSION: "1.0.0",
   CHARACTER_KEY: 1,
@@ -214,9 +228,9 @@ const DEFAULTS = {
   STATUS_SLOT_COUNT: 4,
   DIGESTIVE_CAPACITY: 5,
   DISEASE_CHECK_INTERVAL: 10_000,
-  EGG_HATCH_MIN_TIME: 20 * 60 * 1_000,
-  EGG_HATCH_MODE_TIME: 30 * 60 * 1_000,
-  EGG_HATCH_MAX_TIME: 40 * 60 * 1_000,
+  EGG_HATCH_MIN_TIME: GAME_CONSTANTS.EGG_HATCH_MIN_TIME,
+  EGG_HATCH_MODE_TIME: GAME_CONSTANTS.EGG_HATCH_MODE_TIME,
+  EGG_HATCH_MAX_TIME: GAME_CONSTANTS.EGG_HATCH_MAX_TIME,
   DAY_NAP_CHECK_INTERVAL: 20 * 60 * 1000,
   FATIGUE_DEFAULT: 35,
   RANDOM_MOVEMENT: {
@@ -345,6 +359,16 @@ function resolveEggHatchSchedule(params: {
     normalizedDurationMs !== null && normalizedDurationMs > 0
       ? normalizedDurationMs
       : null;
+
+  if (isDevBuild() && params.fallbackToNewSchedule) {
+    if (
+      safeHatchTime === null ||
+      safeDurationMs === null ||
+      !isDevEggHatchDurationMs(safeDurationMs)
+    ) {
+      return createEggHatchSchedule(params.now);
+    }
+  }
 
   if (safeDurationMs !== null && safeHatchTime !== null) {
     return {
