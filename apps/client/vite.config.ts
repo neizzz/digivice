@@ -40,6 +40,10 @@ export default defineConfig(({ mode }) => {
     index: resolve(__dirname, "index.html"),
     "monster-animations": resolve(__dirname, "monster-animations.html"),
     "evolution-admin": resolve(__dirname, "evolution-admin.html"),
+    "spritesheet-frame-viewer": resolve(
+      __dirname,
+      "spritesheet-frame-viewer.html",
+    ),
   };
   const appVersionLabel = isDebugBuild ? `${appVersion}-debug` : appVersion;
   const appLogoText = (

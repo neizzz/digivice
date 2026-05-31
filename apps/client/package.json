@@ -21,7 +21,8 @@
     "dev:monster-animations": "pnpm --filter @digivice/game sync-assets && vite --host --open /monster-animations.html",
     "snapshot:i18n": "node scripts/capture-i18n-snapshots.mjs --serve",
     "snapshot:i18n:current": "node scripts/capture-i18n-snapshots.mjs",
-    "dev:evolution-admin": "pnpm --filter @digivice/game sync-assets && vite --host --open /evolution-admin.html"
+    "dev:evolution-admin": "pnpm --filter @digivice/game sync-assets && vite --host --open /evolution-admin.html",
+    "dev:spritesheet-frame-viewer": "pnpm --filter @digivice/game sync-assets && vite --host --open /spritesheet-frame-viewer.html"
   },
   "dependencies": {
     "@digivice/game": "workspace:*",
