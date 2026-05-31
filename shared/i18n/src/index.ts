@@ -165,9 +165,6 @@ const en = {
   "monsterInfo.evolution": "Evolution",
   "monsterInfo.levelEgg": "Egg",
   "monsterInfo.levelPhase": "Lv.{phase}",
-  "monsterInfo.evolutionEstimate": "Expected evolution time",
-  "monsterInfo.evolutionEstimateRange": "{average} avg ({min} - {max})",
-  "monsterInfo.evolutionEstimateTerminal": "No further evolution",
 } as const;
 
 export type TranslationKey = keyof typeof en;
@@ -275,9 +272,6 @@ const ko: TranslationDictionary = {
   "monsterInfo.evolution": "진화",
   "monsterInfo.levelEgg": "알",
   "monsterInfo.levelPhase": "Lv.{phase}",
-  "monsterInfo.evolutionEstimate": "예상 진화 시간",
-  "monsterInfo.evolutionEstimateRange": "평균 {average} ({min} ~ {max})",
-  "monsterInfo.evolutionEstimateTerminal": "다음 진화 없음",
 };
 
 const ja: TranslationDictionary = {
@@ -381,9 +375,6 @@ const ja: TranslationDictionary = {
   "monsterInfo.evolution": "進化",
   "monsterInfo.levelEgg": "タマゴ",
   "monsterInfo.levelPhase": "Lv.{phase}",
-  "monsterInfo.evolutionEstimate": "予想進化時間",
-  "monsterInfo.evolutionEstimateRange": "平均{average} ({min}〜{max})",
-  "monsterInfo.evolutionEstimateTerminal": "次の進化なし",
 };
 
 const zhTW: TranslationDictionary = {
@@ -485,9 +476,6 @@ const zhTW: TranslationDictionary = {
   "monsterInfo.evolution": "進化",
   "monsterInfo.levelEgg": "蛋",
   "monsterInfo.levelPhase": "Lv.{phase}",
-  "monsterInfo.evolutionEstimate": "預計進化時間",
-  "monsterInfo.evolutionEstimateRange": "平均 {average} ({min}～{max})",
-  "monsterInfo.evolutionEstimateTerminal": "沒有下一次進化",
 };
 
 const zhHK: TranslationDictionary = {
@@ -509,9 +497,6 @@ const zhHK: TranslationDictionary = {
   "monsterInfo.evolution": "進化",
   "monsterInfo.levelEgg": "蛋",
   "monsterInfo.levelPhase": "Lv.{phase}",
-  "monsterInfo.evolutionEstimate": "預計進化時間",
-  "monsterInfo.evolutionEstimateRange": "平均 {average} ({min}～{max})",
-  "monsterInfo.evolutionEstimateTerminal": "沒有下一次進化",
 };
 
 const hi: TranslationDictionary = {
@@ -615,9 +600,6 @@ const hi: TranslationDictionary = {
   "monsterInfo.evolution": "विकास",
   "monsterInfo.levelEgg": "अंडा",
   "monsterInfo.levelPhase": "Lv.{phase}",
-  "monsterInfo.evolutionEstimate": "अनुमानित विकास समय",
-  "monsterInfo.evolutionEstimateRange": "औसत {average} ({min} - {max})",
-  "monsterInfo.evolutionEstimateTerminal": "आगे विकास नहीं",
 };
 
 const th: TranslationDictionary = {
@@ -721,9 +703,6 @@ const th: TranslationDictionary = {
   "monsterInfo.evolution": "วิวัฒนาการ",
   "monsterInfo.levelEgg": "ไข่",
   "monsterInfo.levelPhase": "Lv.{phase}",
-  "monsterInfo.evolutionEstimate": "เวลาวิวัฒนาการโดยประมาณ",
-  "monsterInfo.evolutionEstimateRange": "เฉลี่ย {average} ({min} - {max})",
-  "monsterInfo.evolutionEstimateTerminal": "ไม่มีการวิวัฒนาการถัดไป",
 };
 
 const vi: TranslationDictionary = {
@@ -827,9 +806,6 @@ const vi: TranslationDictionary = {
   "monsterInfo.evolution": "Tiến hóa",
   "monsterInfo.levelEgg": "Trứng",
   "monsterInfo.levelPhase": "Lv.{phase}",
-  "monsterInfo.evolutionEstimate": "Thời gian tiến hóa dự kiến",
-  "monsterInfo.evolutionEstimateRange": "Trung bình {average} ({min} - {max})",
-  "monsterInfo.evolutionEstimateTerminal": "Không có tiến hóa tiếp theo",
 };
 
 const ptBR: TranslationDictionary = {
@@ -933,9 +909,6 @@ const ptBR: TranslationDictionary = {
   "monsterInfo.evolution": "Evolução",
   "monsterInfo.levelEgg": "Ovo",
   "monsterInfo.levelPhase": "Lv.{phase}",
-  "monsterInfo.evolutionEstimate": "Tempo estimado de evolução",
-  "monsterInfo.evolutionEstimateRange": "média {average} ({min} - {max})",
-  "monsterInfo.evolutionEstimateTerminal": "Sem próxima evolução",
 };
 
 export const TRANSLATIONS: Record<LocaleCode, TranslationDictionary> = {
