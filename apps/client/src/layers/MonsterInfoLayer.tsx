@@ -117,6 +117,54 @@ const StatusBar: React.FC<{
   );
 };
 
+const NameTitleText: React.FC<{
+  text: string;
+  fillColor: string;
+  strokeColor: string;
+}> = ({ text, fillColor, strokeColor }) => {
+  const nameTitleTextStyle: React.CSSProperties = {
+    fontFamily: NAME_LABEL_FONT_FAMILIES
+      .map((fontFamily) =>
+        fontFamily.includes(" ") ? `"${fontFamily}"` : fontFamily,
+      )
+      .join(", "),
+    fontWeight: NAME_LABEL_FONT_WEIGHT,
+  };
+  const nameTitleOutlineStyle: React.CSSProperties = {
+    ...nameTitleTextStyle,
+    color: "transparent",
+    textShadow: createNameLabelTextShadow(
+      strokeColor,
+      DOM_NAME_LABEL_STROKE_WIDTH,
+    ),
+  };
+  const nameTitleFillStyle: React.CSSProperties = {
+    ...nameTitleTextStyle,
+    color: fillColor,
+  };
+
+  return (
+    <span className="relative inline-block align-baseline">
+      <span aria-hidden="true" className="opacity-0" style={nameTitleFillStyle}>
+        {text}
+      </span>
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0"
+        style={nameTitleOutlineStyle}
+      >
+        {text}
+      </span>
+      <span
+        className="pointer-events-none absolute inset-0"
+        style={nameTitleFillStyle}
+      >
+        {text}
+      </span>
+    </span>
+  );
+};
+
 export interface MonsterInfoLayerProps {
   snapshot: MainCharacterInfoSnapshot;
   onClose: () => void;
@@ -136,21 +184,6 @@ const MonsterInfoLayer: React.FC<MonsterInfoLayerProps> = ({
   const titleTemplate = splitMonsterInfoTitleTemplate(locale);
   const nameLabelFillColor = colorNumberToCssHex(NAME_LABEL_FILL_COLOR);
   const nameLabelStrokeColor = colorNumberToCssHex(NAME_LABEL_STROKE_COLOR);
-  const nameTitleStyle: React.CSSProperties = {
-    fontFamily: NAME_LABEL_FONT_FAMILIES
-      .map((fontFamily) =>
-        fontFamily.includes(" ") ? `"${fontFamily}"` : fontFamily,
-      )
-      .join(", "),
-    fontWeight: NAME_LABEL_FONT_WEIGHT,
-    color: nameLabelFillColor,
-    WebkitTextFillColor: nameLabelFillColor,
-    WebkitTextStroke: `${DOM_NAME_LABEL_STROKE_WIDTH}px ${nameLabelStrokeColor}`,
-    textShadow: createNameLabelTextShadow(
-      nameLabelStrokeColor,
-      DOM_NAME_LABEL_STROKE_WIDTH,
-    ),
-  };
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
@@ -160,12 +193,11 @@ const MonsterInfoLayer: React.FC<MonsterInfoLayerProps> = ({
           titleTemplate.hasNamePlaceholder ? (
             <>
               {titleTemplate.before}
-              <span
-                className="inline-block align-baseline"
-                style={nameTitleStyle}
-              >
-                {snapshot.monsterName}
-              </span>
+              <NameTitleText
+                text={snapshot.monsterName}
+                fillColor={nameLabelFillColor}
+                strokeColor={nameLabelStrokeColor}
+              />
               {titleTemplate.after}
             </>
           ) : (
