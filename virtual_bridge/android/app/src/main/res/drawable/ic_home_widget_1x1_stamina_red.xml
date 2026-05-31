@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="15dp"
+    android:height="15dp"
+    android:viewportWidth="15"
+    android:viewportHeight="15">
+    <path
+        android:fillColor="#111111"
+        android:pathData="M1,0H14V1H15V14H14V15H1V14H0V1H1Z" />
+    <path
+        android:fillColor="@color/home_widget_stamina_red"
+        android:pathData="M3,2H12V3H13V12H12V13H3V12H2V3H3Z" />
+</vector>

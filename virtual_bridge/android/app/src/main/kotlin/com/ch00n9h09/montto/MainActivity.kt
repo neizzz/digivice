@@ -12,6 +12,7 @@ import android.view.WindowManager
 import android.view.KeyEvent
 import android.widget.Toast
 import android.appwidget.AppWidgetManager
+import android.appwidget.AppWidgetProvider
 import android.window.OnBackInvokedCallback
 import android.window.OnBackInvokedDispatcher
 import androidx.activity.OnBackPressedCallback
@@ -158,7 +159,15 @@ open class MainActivity : FlutterActivity() {
             HomeWidgetConstants.CHANNEL,
         ).setMethodCallHandler { call, result ->
             when (call.method) {
-                "requestPinWidget" -> result.success(requestPinWidget())
+                "requestPinWidget" -> result.success(
+                    requestPinWidget(HomeWidgetProvider::class.java),
+                )
+                "requestPinWidget1x1" -> result.success(
+                    requestPinWidget(HomeWidget1x1Provider::class.java),
+                )
+                "requestPinWidget2x1" -> result.success(
+                    requestPinWidget(HomeWidgetProvider::class.java),
+                )
                 "getLaunchContext" -> result.success(
                     mapOf(
                         "mode" to if (isWidgetRefreshMode()) {
@@ -464,7 +473,9 @@ open class MainActivity : FlutterActivity() {
         )
     }
 
-    private fun requestPinWidget(): Map<String, String> {
+    private fun requestPinWidget(
+        providerClass: Class<out AppWidgetProvider>,
+    ): Map<String, String> {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
             Toast.makeText(
                 this,
@@ -485,7 +496,7 @@ open class MainActivity : FlutterActivity() {
         }
 
         return try {
-            val provider = ComponentName(this, HomeWidgetProvider::class.java)
+            val provider = ComponentName(this, providerClass)
             val requested = appWidgetManager.requestPinAppWidget(provider, null, null)
 
             if (requested) {

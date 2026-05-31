@@ -10,16 +10,24 @@ import android.view.View
 import android.widget.RemoteViews
 import kotlin.math.roundToInt
 
-class HomeWidgetProvider : AppWidgetProvider() {
-    companion object {
-        fun notifySnapshotUpdated(context: Context, reason: String) {
-            context.sendBroadcast(
-                Intent(HomeWidgetConstants.ACTION_SNAPSHOT_UPDATED).apply {
-                    `package` = context.packageName
-                    putExtra("reason", reason)
-                },
-            )
-        }
+abstract class BaseHomeWidgetProvider : AppWidgetProvider() {
+    protected open val layoutResId: Int = R.layout.montto_home_widget
+    protected open val statusIconsRightToLeft: Boolean = false
+    protected open val fallbackWidgetWidthDp: Int = 180
+    protected open val fallbackWidgetHeightDp: Int = 90
+    protected open val statusIconGroupViewId: Int = R.id.widget_status_icon_row
+    protected open val statusIconRowViewIds: List<Int> = listOf(R.id.widget_status_icon_row)
+    protected open val statusIconRows: List<List<Int>> = listOf(
+        listOf(
+            R.id.widget_status_icon_1,
+            R.id.widget_status_icon_2,
+            R.id.widget_status_icon_3,
+            R.id.widget_status_icon_4,
+        ),
+    )
+
+    protected open fun resolveStaminaDotDrawableRes(snapshot: HomeWidgetSnapshot?): Int {
+        return snapshot?.resolveStaminaDotDrawableRes() ?: R.drawable.ic_home_widget_stamina_orange
     }
 
     override fun onUpdate(
@@ -57,11 +65,13 @@ class HomeWidgetProvider : AppWidgetProvider() {
         }
     }
 
+    private fun providerComponent(context: Context): ComponentName {
+        return ComponentName(context, javaClass)
+    }
+
     private fun updateAllWidgets(context: Context) {
         val manager = AppWidgetManager.getInstance(context)
-        val ids = manager.getAppWidgetIds(
-            ComponentName(context, HomeWidgetProvider::class.java),
-        )
+        val ids = manager.getAppWidgetIds(providerComponent(context))
         onUpdate(context, manager, ids)
     }
 
@@ -80,7 +90,7 @@ class HomeWidgetProvider : AppWidgetProvider() {
                 HomeWidgetSnapshotFactory.refreshFromWorldData(context)
             },
         )
-        val views = RemoteViews(context.packageName, R.layout.montto_home_widget)
+        val views = RemoteViews(context.packageName, layoutResId)
 
         val launchIntent = Intent(context, MainActivity::class.java)
         val launchPendingIntent = PendingIntent.getActivity(
@@ -101,7 +111,7 @@ class HomeWidgetProvider : AppWidgetProvider() {
             bindCharacterFrames(views = views, frameBitmaps = emptyList(), initialFrameIndex = 0)
             views.setImageViewResource(
                 R.id.widget_stamina_dot,
-                R.drawable.ic_home_widget_stamina_orange,
+                resolveStaminaDotDrawableRes(snapshot = null),
             )
             bindBackground(
                 context = context,
@@ -129,12 +139,12 @@ class HomeWidgetProvider : AppWidgetProvider() {
                 views.setImageViewBitmap(R.id.widget_stamina_dot, bitmap)
             } ?: views.setImageViewResource(
                 R.id.widget_stamina_dot,
-                snapshot.resolveStaminaDotDrawableRes(),
+                resolveStaminaDotDrawableRes(snapshot),
             )
         } else {
             views.setImageViewResource(
                 R.id.widget_stamina_dot,
-                snapshot.resolveStaminaDotDrawableRes(),
+                resolveStaminaDotDrawableRes(snapshot),
             )
         }
         bindBackground(
@@ -192,7 +202,7 @@ class HomeWidgetProvider : AppWidgetProvider() {
         appWidgetId: Int,
         requestCodeOffset: Int,
     ): PendingIntent {
-        val intent = Intent(context, HomeWidgetProvider::class.java).apply {
+        val intent = Intent(context, javaClass).apply {
             this.action = action
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
         }
@@ -236,34 +246,47 @@ class HomeWidgetProvider : AppWidgetProvider() {
         views: RemoteViews,
         visibleStatusIcons: List<String>,
     ) {
-        val iconViewIds = listOf(
-            R.id.widget_status_icon_1,
-            R.id.widget_status_icon_2,
-            R.id.widget_status_icon_3,
-            R.id.widget_status_icon_4,
-        )
+        val iconViewIds = statusIconRows.flatten().distinct()
         val iconsToRender = visibleStatusIcons.take(iconViewIds.size)
 
         if (iconsToRender.isEmpty()) {
-            views.setViewVisibility(R.id.widget_status_icon_row, View.GONE)
+            views.setViewVisibility(statusIconGroupViewId, View.GONE)
             return
         }
 
-        views.setViewVisibility(R.id.widget_status_icon_row, View.VISIBLE)
-        iconViewIds.forEachIndexed { index, viewId ->
-            val iconName = iconsToRender.getOrNull(index)
-            if (iconName == null) {
-                views.setViewVisibility(viewId, View.GONE)
-                views.setImageViewResource(viewId, R.drawable.ic_home_widget_placeholder)
+        views.setViewVisibility(statusIconGroupViewId, View.VISIBLE)
+
+        var iconIndex = 0
+        statusIconRows.forEachIndexed { rowIndex, rowViewIds ->
+            val rowIcons = iconsToRender.drop(iconIndex).take(rowViewIds.size)
+            val rowViewId = statusIconRowViewIds.getOrNull(rowIndex)
+            rowViewId?.let { views.setViewVisibility(it, if (rowIcons.isEmpty()) View.GONE else View.VISIBLE) }
+
+            val orderedViewIds = if (statusIconsRightToLeft) {
+                rowViewIds.reversed()
             } else {
-                val bitmap = HomeWidgetSpriteRenderer.renderStatusIcon(context, iconName)
-                if (bitmap != null) {
-                    views.setViewVisibility(viewId, View.VISIBLE)
-                    views.setImageViewBitmap(viewId, bitmap)
-                } else {
+                rowViewIds
+            }
+            val iconByViewId = orderedViewIds.withIndex().associate { indexedValue ->
+                indexedValue.value to rowIcons.getOrNull(indexedValue.index)
+            }
+
+            rowViewIds.forEach { viewId ->
+                val iconName = iconByViewId[viewId]
+                if (iconName == null) {
                     views.setViewVisibility(viewId, View.GONE)
+                    views.setImageViewResource(viewId, R.drawable.ic_home_widget_placeholder)
+                } else {
+                    val bitmap = HomeWidgetSpriteRenderer.renderStatusIcon(context, iconName)
+                    if (bitmap != null) {
+                        views.setViewVisibility(viewId, View.VISIBLE)
+                        views.setImageViewBitmap(viewId, bitmap)
+                    } else {
+                        views.setViewVisibility(viewId, View.GONE)
+                    }
                 }
             }
+            iconIndex += rowViewIds.size
         }
     }
 
@@ -316,12 +339,12 @@ class HomeWidgetProvider : AppWidgetProvider() {
             width = resolveDimensionPx(
                 AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH,
                 AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH,
-                180,
+                fallbackWidgetWidthDp,
             ),
             height = resolveDimensionPx(
                 AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT,
                 AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT,
-                90,
+                fallbackWidgetHeightDp,
             ),
         )
     }
@@ -330,4 +353,40 @@ class HomeWidgetProvider : AppWidgetProvider() {
         val width: Int,
         val height: Int,
     )
+}
+
+class HomeWidgetProvider : BaseHomeWidgetProvider() {
+    companion object {
+        fun notifySnapshotUpdated(context: Context, reason: String) {
+            context.sendBroadcast(
+                Intent(HomeWidgetConstants.ACTION_SNAPSHOT_UPDATED).apply {
+                    `package` = context.packageName
+                    putExtra("reason", reason)
+                },
+            )
+        }
+    }
+}
+
+class HomeWidget1x1Provider : BaseHomeWidgetProvider() {
+    override val layoutResId: Int = R.layout.montto_home_widget_1x1
+    override val statusIconsRightToLeft: Boolean = true
+    override val fallbackWidgetWidthDp: Int = 90
+    override val fallbackWidgetHeightDp: Int = 90
+    override val statusIconRowViewIds: List<Int> = listOf(
+        R.id.widget_status_icon_row_1,
+        R.id.widget_status_icon_row_2,
+    )
+    override val statusIconRows: List<List<Int>> = listOf(
+        listOf(R.id.widget_status_icon_1, R.id.widget_status_icon_2),
+        listOf(R.id.widget_status_icon_3, R.id.widget_status_icon_4),
+    )
+
+    override fun resolveStaminaDotDrawableRes(snapshot: HomeWidgetSnapshot?): Int {
+        return when (snapshot?.staminaLevel) {
+            "green" -> R.drawable.ic_home_widget_1x1_stamina_green
+            "red" -> R.drawable.ic_home_widget_1x1_stamina_red
+            else -> R.drawable.ic_home_widget_1x1_stamina_orange
+        }
+    }
 }

@@ -31,6 +31,22 @@ class HomeWidgetRefreshController {
             }));
           });
         },
+        requestPinWidget1x1: () => {
+          return __createPromise((id) => {
+            __native_home_widget.postMessage(JSON.stringify({
+              id,
+              action: "requestPinWidget1x1"
+            }));
+          });
+        },
+        requestPinWidget2x1: () => {
+          return __createPromise((id) => {
+            __native_home_widget.postMessage(JSON.stringify({
+              id,
+              action: "requestPinWidget2x1"
+            }));
+          });
+        },
         completeRefresh: (payload = {}) => {
           try {
             __native_home_widget.postMessage(JSON.stringify({
@@ -58,10 +74,17 @@ class HomeWidgetRefreshController {
 
       switch (action) {
         case 'requestPinWidget':
+        case 'requestPinWidget1x1':
+        case 'requestPinWidget2x1':
           try {
+            final String method = switch (action) {
+              'requestPinWidget1x1' => 'requestPinWidget1x1',
+              'requestPinWidget2x1' => 'requestPinWidget2x1',
+              _ => 'requestPinWidget',
+            };
             final Map<Object?, Object?>? result =
                 await _platformChannel.invokeMethod<Map<Object?, Object?>>(
-              'requestPinWidget',
+              method,
             );
             if (id != null) {
               final String encodedResult = jsonEncode(
@@ -75,7 +98,7 @@ class HomeWidgetRefreshController {
               await resolvePromise(id: id, data: encodedResult);
             }
             log?.call(
-              '[HomeWidgetRefreshController] requestPinWidget result=${result?['status']}',
+              '[HomeWidgetRefreshController] $action result=${result?['status']}',
             );
           } catch (error) {
             if (id != null) {
