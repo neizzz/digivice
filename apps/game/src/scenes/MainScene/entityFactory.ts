@@ -42,6 +42,37 @@ import { createEggHatchSchedule, GAME_CONSTANTS } from "./config";
 
 type WithRequired<T, K extends keyof T> = Omit<T, K> & Required<Pick<T, K>>;
 const debugLog = (..._args: unknown[]): void => {};
+const FOOD_TEXTURE_KEY_MIN = TextureKey.FOOD1;
+const FOOD_TEXTURE_KEY_MAX = TextureKey.FOOD64;
+export type FeedMenuFoodOption = {
+  textureKey: TextureKey;
+  textureName: string;
+};
+
+export const FEED_MENU_FOOD_OPTIONS = [
+  { textureKey: TextureKey.FOOD1, textureName: "food_apple" },
+  { textureKey: TextureKey.FOOD2, textureName: "food_avocado" },
+  { textureKey: TextureKey.FOOD3, textureName: "food_beer" },
+  { textureKey: TextureKey.FOOD4, textureName: "food_cookie" },
+  { textureKey: TextureKey.FOOD5, textureName: "food_egg" },
+  { textureKey: TextureKey.FOOD6, textureName: "food_kiwi" },
+  { textureKey: TextureKey.FOOD7, textureName: "food_pineapple" },
+  { textureKey: TextureKey.FOOD9, textureName: "food_tomato" },
+  { textureKey: TextureKey.FOOD10, textureName: "food_watermelon" },
+] as const satisfies readonly FeedMenuFoodOption[];
+
+export function getRandomFoodTextureKey(): TextureKey {
+  return (
+    FOOD_TEXTURE_KEY_MIN +
+    Math.floor(Math.random() * (FOOD_TEXTURE_KEY_MAX - FOOD_TEXTURE_KEY_MIN + 1))
+  ) as TextureKey;
+}
+
+export function getRandomFeedMenuFoodOption(): FeedMenuFoodOption {
+  return FEED_MENU_FOOD_OPTIONS[
+    Math.floor(Math.random() * FEED_MENU_FOOD_OPTIONS.length)
+  ]!;
+}
 
 export function createCharacterEntity(
   world: IWorld,
@@ -357,12 +388,12 @@ export function createThrowingFoodEntity(
   options: {
     initialPosition: { x: number; y: number };
     finalPosition: { x: number; y: number };
+    textureKey?: TextureKey;
   }
 ): number {
   const eid = addEntity(world);
 
-  // 64가지 음식 중 랜덤 선택 (FOOD1 = 400 ~ FOOD64 = 463)
-  const randomFoodKey = TextureKey.FOOD1 + Math.floor(Math.random() * 64);
+  const selectedFoodKey = options.textureKey ?? getRandomFoodTextureKey();
 
   // Object component
   addComponent(world, ObjectComp, eid);
@@ -379,7 +410,7 @@ export function createThrowingFoodEntity(
   // Render component
   addComponent(world, RenderComp, eid);
   RenderComp.storeIndex[eid] = ECS_NULL_VALUE; // 렌더링 시스템에서 eid로 설정됨
-  RenderComp.textureKey[eid] = randomFoodKey;
+  RenderComp.textureKey[eid] = selectedFoodKey;
   RenderComp.scale[eid] = 4; // 초기 큰 크기로 시작 (시스템에서 관리)
   RenderComp.zIndex[eid] = INTENTED_FRONT_Z_INDEX;
 
@@ -400,8 +431,8 @@ export function createThrowingFoodEntity(
     `[EntityFactory] Created throwing food entity: ECS_ID=${eid}, OBJECT_ID=${entityId}`
   );
   debugLog(
-    `[EntityFactory] - Random food texture key: ${randomFoodKey} (food-${
-      Math.floor(Math.random() * 64) + 1
+    `[EntityFactory] - Selected food texture key: ${selectedFoodKey} (food-${
+      selectedFoodKey - FOOD_TEXTURE_KEY_MIN + 1
     })`
   );
   debugLog(

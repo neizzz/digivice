@@ -111,6 +111,8 @@ import {
 import {
   createCharacterEntity,
   createThrowingFoodEntity,
+  getRandomFeedMenuFoodOption,
+  type FeedMenuFoodOption,
 } from "./entityFactory";
 import {
   ObjectComp,
@@ -550,6 +552,7 @@ export class MainSceneWorld implements IWorld, Scene {
   private _hasLocationPermission = false;
   private _sunLocationSource: SunLocationSource | null = null;
   private _pendingFeedAdFoodEid: number | null = null;
+  private _nextFeedMenuFood: FeedMenuFoodOption = getRandomFeedMenuFoodOption();
   private _feedAdFallbackTimerId: number | null = null;
   private _mainSceneAdTimerIds = new Set<number>();
   private _initDiagnostics: MainSceneInitDiagnostics;
@@ -1759,6 +1762,7 @@ export class MainSceneWorld implements IWorld, Scene {
             this._updateControlButtonsForMenuState(focusedIndex !== null);
           },
         });
+        this._syncFeedMenuPreview();
 
         // 디버그 Gauge UI는 dev 또는 native debug build에서 노출 가능
         if (
@@ -3294,6 +3298,22 @@ export class MainSceneWorld implements IWorld, Scene {
   /**
    * 음식을 던지는 메서드
    */
+  private _syncFeedMenuPreview(): void {
+    if (!this._gameMenu) {
+      return;
+    }
+
+    this._gameMenu.setFeedPreviewTextureName(this._nextFeedMenuFood.textureName);
+  }
+
+  private _consumeNextFeedMenuFood(): FeedMenuFoodOption {
+    const selectedFeedMenuFood = this._nextFeedMenuFood;
+    this._nextFeedMenuFood = getRandomFeedMenuFoodOption();
+    this._syncFeedMenuPreview();
+
+    return selectedFeedMenuFood;
+  }
+
   private _throwFood(): number | null {
     if (!this.canSpawnFood()) {
       this.showObjectLimitAlert();
@@ -3314,11 +3334,13 @@ export class MainSceneWorld implements IWorld, Scene {
       x: boundary.x + 20 + Math.random() * (boundary.width - 40), // 좌우 20px 여유
       y: boundary.y + 40 + Math.random() * (boundary.height - 80), // 위아래 40px 여유
     };
+    const nextFeedMenuFood = this._consumeNextFeedMenuFood();
 
-    // 음식 엔티티 생성 (64가지 음식 중 랜덤 선택)
+    // 음식 엔티티 생성 (다음 미리보기와 동일한 음식 사용)
     const foodEid = createThrowingFoodEntity(this, {
       initialPosition,
       finalPosition,
+      textureKey: nextFeedMenuFood.textureKey,
     });
     this.triggerMainSceneSfx("food-throw");
 
