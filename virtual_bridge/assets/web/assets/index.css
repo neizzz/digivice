@@ -57,6 +57,7 @@
       --tw-drop-shadow-alpha: 100%;
       --tw-drop-shadow-size: initial;
       --tw-duration: initial;
+      --tw-ease: initial;
     }
   }
 }
@@ -329,6 +330,10 @@
 @layer components;
 
 @layer utilities {
+  .pointer-events-none {
+    pointer-events: none;
+  }
+
   .collapse {
     visibility: collapse;
   }
@@ -507,8 +512,16 @@
     display: none;
   }
 
+  .inline-block {
+    display: inline-block;
+  }
+
   .h-4 {
     height: calc(var(--spacing) * 4);
+  }
+
+  .h-5 {
+    height: calc(var(--spacing) * 5);
   }
 
   .h-11 {
@@ -620,6 +633,10 @@
     align-items: center;
   }
 
+  .items-end {
+    align-items: flex-end;
+  }
+
   .justify-between {
     justify-content: space-between;
   }
@@ -712,6 +729,11 @@
     border-top-width: 4px;
   }
 
+  .border-r-2 {
+    border-right-style: var(--tw-border-style);
+    border-right-width: 2px;
+  }
+
   .border-b-4 {
     border-bottom-style: var(--tw-border-style);
     border-bottom-width: 4px;
@@ -726,6 +748,10 @@
     border-color: #222;
   }
 
+  .border-\[\#222\]\/25 {
+    border-color: oklab(25.1965% -7.45058e-9 0 / .25);
+  }
+
   .border-\[\#555\] {
     border-color: #555;
   }
@@ -736,6 +762,10 @@
 
   .border-component-positive {
     border-color: #8b956d;
+  }
+
+  .bg-\[\#6f6f6f\] {
+    background-color: #6f6f6f;
   }
 
   .bg-\[\#69f0ae\] {
@@ -820,6 +850,10 @@
     padding: calc(var(--spacing) * 1);
   }
 
+  .p-4 {
+    padding: calc(var(--spacing) * 4);
+  }
+
   .p-5 {
     padding: calc(var(--spacing) * 5);
   }
@@ -838,6 +872,10 @@
 
   .px-4 {
     padding-inline: calc(var(--spacing) * 4);
+  }
+
+  .px-5 {
+    padding-inline: calc(var(--spacing) * 5);
   }
 
   .px-6 {
@@ -872,6 +910,10 @@
     text-align: left;
   }
 
+  .align-baseline {
+    vertical-align: baseline;
+  }
+
   .font-dialog, .font-display {
     font-family: Droid Sans Mono, SF Mono, monospace, ui-sans-serif, system-ui, sans-serif, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol, Noto Color Emoji;
   }
@@ -895,6 +937,10 @@
 
   .text-\[1\.2rem\] {
     font-size: 1.2rem;
+  }
+
+  .text-\[1\.3rem\] {
+    font-size: 1.3rem;
   }
 
   .text-\[1\.4rem\] {
@@ -1005,6 +1051,10 @@
     text-transform: uppercase;
   }
 
+  .opacity-0 {
+    opacity: 0;
+  }
+
   .opacity-60 {
     opacity: .6;
   }
@@ -1023,6 +1073,11 @@
     box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
   }
 
+  .shadow-\[inset_0_0_0_1px_rgba\(0\,0\,0\,0\.2\)\] {
+    --tw-shadow: inset 0 0 0 1px var(--tw-shadow-color, #0003);
+    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+  }
+
   .blur {
     --tw-blur: blur(8px);
     filter: var(--tw-blur, ) var(--tw-brightness, ) var(--tw-contrast, ) var(--tw-grayscale, ) var(--tw-hue-rotate, ) var(--tw-invert, ) var(--tw-saturate, ) var(--tw-sepia, ) var(--tw-drop-shadow, );
@@ -1034,6 +1089,16 @@
     filter: var(--tw-blur, ) var(--tw-brightness, ) var(--tw-contrast, ) var(--tw-grayscale, ) var(--tw-hue-rotate, ) var(--tw-invert, ) var(--tw-saturate, ) var(--tw-sepia, ) var(--tw-drop-shadow, );
   }
 
+  .filter {
+    filter: var(--tw-blur, ) var(--tw-brightness, ) var(--tw-contrast, ) var(--tw-grayscale, ) var(--tw-hue-rotate, ) var(--tw-invert, ) var(--tw-saturate, ) var(--tw-sepia, ) var(--tw-drop-shadow, );
+  }
+
+  .transition-\[width\] {
+    transition-property: width;
+    transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+    transition-duration: var(--tw-duration, var(--default-transition-duration));
+  }
+
   .transition-all {
     transition-property: all;
     transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
@@ -1043,6 +1108,16 @@
   .duration-50 {
     --tw-duration: 50ms;
     transition-duration: 50ms;
+  }
+
+  .duration-150 {
+    --tw-duration: .15s;
+    transition-duration: .15s;
+  }
+
+  .ease-linear {
+    --tw-ease: linear;
+    transition-timing-function: linear;
   }
 
   .outline-none {
@@ -1368,6 +1443,11 @@ h1 {
 }
 
 @property --tw-duration {
+  syntax: "*";
+  inherits: false
+}
+
+@property --tw-ease {
   syntax: "*";
   inherits: false
 }

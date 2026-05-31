@@ -41,7 +41,7 @@ node ./scripts/sync-app-version.mjs
 # apps/client 빌드
 echo "📦 Building apps/client..."
 cd apps/client
-pnpm --filter @digivice/game sync-assets && tsc -b && BUILD_FOR_FLUTTER=true NODE_ENV="$NODE_ENV_VALUE" NATIVE_FEATURE_DEBUG_MODE="$NATIVE_FEATURE_DEBUG_MODE_VALUE" APP_LOGO_TEXT="$APP_LOGO_TEXT_VALUE" vite build --mode "$BUILD_MODE"
+pnpm --filter @digivice/game sync-assets && pnpm exec tsc -b && BUILD_FOR_FLUTTER=true NODE_ENV="$NODE_ENV_VALUE" NATIVE_FEATURE_DEBUG_MODE="$NATIVE_FEATURE_DEBUG_MODE_VALUE" APP_LOGO_TEXT="$APP_LOGO_TEXT_VALUE" pnpm exec vite build --mode "$BUILD_MODE"
 
 # 빌드 결과 확인
 if [ ! -d "dist" ]; then
