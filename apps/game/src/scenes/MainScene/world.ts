@@ -379,9 +379,8 @@ type MainSceneEntryStatusSuppressionState = {
 
 export const WORLD_DATA_STORAGE_KEY = "MainSceneWorldData";
 const DEFAULT_USE_LOCAL_TIME = true;
-const MAIN_SCENE_AD_THRESHOLD = 8;
+const MAIN_SCENE_AD_THRESHOLD = 20;
 const MAIN_SCENE_AD_NORMAL_COOLDOWN_MS = 2 * 60 * 1000;
-const MAIN_SCENE_AD_DEEP_NIGHT_COOLDOWN_MS = 60 * 60 * 1000;
 const MAIN_SCENE_AD_POST_ACTION_DELAY_MS = 500;
 const MAIN_SCENE_AD_FEED_FALLBACK_AFTER_LAND_MS = 3000;
 const MAIN_SCENE_AD_FEED_IDLE_RETRY_MS = 1000;
@@ -1083,19 +1082,11 @@ export class MainSceneWorld implements IWorld, Scene {
     cooldownMs: number;
     deepNight: boolean;
   } {
-    const deepNight = this._isMainSceneAdDeepNight();
-
-    return deepNight
-      ? {
-          threshold: MAIN_SCENE_AD_THRESHOLD,
-          cooldownMs: MAIN_SCENE_AD_DEEP_NIGHT_COOLDOWN_MS,
-          deepNight,
-        }
-      : {
-          threshold: MAIN_SCENE_AD_THRESHOLD,
-          cooldownMs: MAIN_SCENE_AD_NORMAL_COOLDOWN_MS,
-          deepNight,
-        };
+    return {
+      threshold: MAIN_SCENE_AD_THRESHOLD,
+      cooldownMs: MAIN_SCENE_AD_NORMAL_COOLDOWN_MS,
+      deepNight: false,
+    };
   }
 
   private _isMainSceneAdDeepNight(

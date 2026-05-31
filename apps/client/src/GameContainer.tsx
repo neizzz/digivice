@@ -66,7 +66,7 @@ import {
 const WORLD_DATA_STORAGE_KEY = "MainSceneWorldData";
 const FLAPPY_BIRD_GAME_OVER_AD_COUNTER_STORAGE_KEY =
   "FlappyBirdGameOverAdCounter";
-const FLAPPY_BIRD_GAME_OVER_AD_THRESHOLD = 5;
+const FLAPPY_BIRD_GAME_OVER_AD_THRESHOLD = 15;
 const FLAPPY_BIRD_GAME_OVER_AD_DELAY_MS = 500;
 const FLAPPY_BIRD_GAME_OVER_AD_COOLDOWN_MS = 1;
 const biteVibrationAdapter = new VibrationAdapter();
