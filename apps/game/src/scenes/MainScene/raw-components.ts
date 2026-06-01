@@ -125,8 +125,8 @@ export const SleepSystemComp = defineComponent({
  */
 export const FreshnessTimerComp = defineComponent({
   createdTime: Types.f64, // 음식이 생성된 시간 (timestamp)
-  normalTime: Types.ui32, // FRESH -> NORMAL로 변하는 시간 (ms)
-  staleTime: Types.ui32, // NORMAL -> STALE로 변하는 시간 (ms)
+  normalTime: Types.ui32, // legacy fresh -> normal 시간 (ms), runtime stale 판정에는 사용하지 않음
+  staleTime: Types.ui32, // 생성 후 STALE 판정 기준 시간 (ms)
   isBeingEaten: Types.ui8, // 현재 먹히고 있는지 여부 (0 = false, 1 = true)
 });
 

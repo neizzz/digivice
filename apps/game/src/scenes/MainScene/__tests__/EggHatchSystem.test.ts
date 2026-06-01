@@ -5,9 +5,12 @@ import {
   CharacterStatusComp,
   EggHatchComp,
   FreshnessComp,
+  FreshnessTimerComp,
   ObjectComp,
 } from "../raw-components";
+import { GAME_CONSTANTS } from "../config";
 import { eggHatchSystem } from "../systems/EggHatchSystem";
+import { freshnessSystem } from "../systems/FreshnessSystem";
 import {
   CharacterKeyECS,
   CharacterState,
@@ -33,6 +36,28 @@ function addFood(world: ReturnType<typeof createTestWorld>, freshness: Freshness
 
   addComponent(world, FreshnessComp, eid);
   FreshnessComp.freshness[eid] = freshness;
+
+  return eid;
+}
+
+function addFoodWithTimer(
+  world: ReturnType<typeof createTestWorld>,
+  params: {
+    freshness: Freshness;
+    createdTime: number;
+    normalTime?: number;
+    staleTime?: number;
+  },
+): number {
+  const eid = addFood(world, params.freshness);
+
+  addComponent(world, FreshnessTimerComp, eid);
+  FreshnessTimerComp.createdTime[eid] = params.createdTime;
+  FreshnessTimerComp.normalTime[eid] =
+    params.normalTime ?? GAME_CONSTANTS.FRESH_TO_NORMAL_TIME;
+  FreshnessTimerComp.staleTime[eid] =
+    params.staleTime ?? GAME_CONSTANTS.NORMAL_TO_STALE_TIME;
+  FreshnessTimerComp.isBeingEaten[eid] = 0;
 
   return eid;
 }
@@ -97,6 +122,55 @@ test("EggHatchSystem은 egg syringeCount로 skull 선택 구간을 늘린다", (
   assert.equal(
     CharacterStatusComp.characterKey[eggEid],
     CharacterKeyECS.SkullSlimeA1,
+  );
+  assert.equal(CharacterStatusComp.evolutionPhase[eggEid], 1);
+});
+
+test("EggHatchSystem은 부화 시점에 생성 후 10분이 지난 음식만 stale 개수에 포함한다", () => {
+  const currentTime = GAME_CONSTANTS.NORMAL_TO_STALE_TIME;
+  const world = createTestWorld({ now: currentTime, isSimulationMode: true });
+  const eggEid = withMockedDateNow(currentTime, () =>
+    createTestCharacter(world, {
+      state: CharacterState.EGG,
+    }),
+  );
+  EggHatchComp.hatchTime[eggEid] = currentTime;
+
+  for (let i = 0; i < 9; i++) {
+    addFoodWithTimer(world, {
+      freshness: Freshness.NORMAL,
+      createdTime: 0,
+    });
+  }
+
+  const recentFoodEid = addFoodWithTimer(world, {
+    freshness: Freshness.NORMAL,
+    createdTime: 1,
+  });
+
+  freshnessSystem({
+    world: world as any,
+    currentTime,
+  });
+
+  assert.equal(FreshnessComp.freshness[recentFoodEid], Freshness.NORMAL);
+
+  const restoreSpritesheet = mockLoadedSpritesheetAliases(["green-slime_A1"]);
+  try {
+    withMockedRandom(0.46, () => {
+      eggHatchSystem({
+        world: world as any,
+        currentTime,
+      });
+    });
+  } finally {
+    restoreSpritesheet();
+  }
+
+  assert.equal(ObjectComp.state[eggEid], CharacterState.IDLE);
+  assert.equal(
+    CharacterStatusComp.characterKey[eggEid],
+    CharacterKeyECS.GreenSlimeA1,
   );
   assert.equal(CharacterStatusComp.evolutionPhase[eggEid], 1);
 });

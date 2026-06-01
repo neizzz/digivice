@@ -106,7 +106,9 @@ const PRODUCTION_GAME_CONSTANTS = {
   STALE_FOOD_DISEASE_RATE: 0.000093,
 
   // 음식 신선도 관련
-  // fresh 상태는 runtime에서 제거됐지만, 총 edible lifetime은 기존 fresh + normal 합을 유지한다.
+  // runtime에서는 fresh 상태를 쓰지 않고 음식이 바로 NORMAL로 시작한다.
+  // stale 판정은 createdTime 기준 NORMAL_TO_STALE_TIME만 사용한다.
+  // FRESH_TO_NORMAL_TIME은 저장 포맷/legacy timer 호환용 보조값이며 stale 계산에는 더하지 않는다.
   FRESH_TO_NORMAL_TIME: 3 * MINUTE_IN_MILLISECONDS,
   NORMAL_TO_STALE_TIME: 10 * MINUTE_IN_MILLISECONDS,
 

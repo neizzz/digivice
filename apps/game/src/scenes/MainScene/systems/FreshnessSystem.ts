@@ -20,7 +20,7 @@ const foodWithTimerQuery = defineQuery([
 
 /**
  * 음식 신선도 시스템
- * - 새 음식은 NORMAL로 시작하고 총 edible lifetime 이후 STALE이 된다.
+ * - 새 음식은 NORMAL로 시작하고 생성 후 staleTime 경과 시 STALE이 된다.
  * - 캐릭터가 먹고 있는 음식은 신선도가 변하지 않음
  * - 캐릭터가 다가가는 도중 STALE이 되면 타게팅 취소
  */
@@ -69,6 +69,7 @@ function initializeFreshnessTimes(
     if (!hasComponent(world, FreshnessTimerComp, eid)) {
       addComponent(world, FreshnessTimerComp, eid);
       FreshnessTimerComp.createdTime[eid] = currentTime;
+      // normalTime은 저장 포맷/legacy 호환용으로만 유지한다.
       FreshnessTimerComp.normalTime[eid] = GAME_CONSTANTS.FRESH_TO_NORMAL_TIME;
       FreshnessTimerComp.staleTime[eid] = GAME_CONSTANTS.NORMAL_TO_STALE_TIME;
       FreshnessTimerComp.isBeingEaten[eid] = 0;
@@ -111,9 +112,12 @@ function updateFreshness(world: MainSceneWorld, currentTime: number): void {
     }
 
     const elapsedTime = currentTime - timerComp.createdTime[eid];
-    const totalEdibleTime = timerComp.normalTime[eid] + timerComp.staleTime[eid];
+    const staleThreshold =
+      timerComp.staleTime[eid] > 0
+        ? timerComp.staleTime[eid]
+        : GAME_CONSTANTS.NORMAL_TO_STALE_TIME;
 
-    if (elapsedTime >= totalEdibleTime) {
+    if (elapsedTime >= staleThreshold) {
       freshnessComp.freshness[eid] = Freshness.STALE;
       ObjectComp.state[eid] = FoodState.LANDED;
     }
