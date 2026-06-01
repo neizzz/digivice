@@ -182,16 +182,9 @@ open class MainActivity : FlutterActivity() {
 
                 "completeRefresh" -> {
                     val payload = call.arguments as? Map<*, *>
-                    getSharedPreferences(
-                        HomeWidgetConstants.STORAGE_NAME,
-                        MODE_PRIVATE,
-                    ).edit().putString(
-                        HomeWidgetConstants.REFRESH_SMOKE_RESULT_KEY,
-                        payload?.toString() ?: "completed",
-                    ).apply()
-                    HomeWidgetProvider.notifySnapshotUpdated(
-                        this,
-                        "completeRefresh",
+                    HomeWidgetAuthoritativeRefreshRequester.completeRefresh(
+                        context = this,
+                        payloadSummary = payload?.toString() ?: "completed",
                     )
                     result.success(
                         mapOf(

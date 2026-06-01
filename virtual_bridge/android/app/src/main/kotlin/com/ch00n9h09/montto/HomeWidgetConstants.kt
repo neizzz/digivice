@@ -16,6 +16,11 @@ object HomeWidgetConstants {
     const val FLUTTER_AUTHORITATIVE_SNAPSHOT_KEY =
         "${FLUTTER_PREFIX}HomeWidgetAuthoritativeSnapshotV1"
     const val REFRESH_SMOKE_RESULT_KEY = "home_widget_refresh_smoke_last_result"
+    const val REFRESH_REQUESTED_AT_MS_KEY = "home_widget_refresh_requested_at_ms"
+    const val REFRESH_COMPLETED_AT_MS_KEY = "home_widget_refresh_completed_at_ms"
+    const val REFRESH_IN_FLIGHT_KEY = "home_widget_refresh_in_flight"
+    const val PERIODIC_REFRESH_STATUS_KEY = "home_widget_periodic_refresh_status"
+    const val PERIODIC_REFRESH_STATUS_AT_MS_KEY = "home_widget_periodic_refresh_status_at_ms"
     const val DEBUG_PRESET_OVERRIDE_ENABLED_KEY = "home_widget_debug_preset_override_enabled"
     const val DEBUG_PRESET_INDEX_KEY = "home_widget_debug_preset_index"
     const val ACTION_SNAPSHOT_UPDATED =

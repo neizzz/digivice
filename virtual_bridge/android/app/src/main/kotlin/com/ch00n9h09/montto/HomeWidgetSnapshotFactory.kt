@@ -62,6 +62,29 @@ object HomeWidgetSnapshotFactory {
         return progressedSnapshot
     }
 
+    internal fun requiresAuthoritativeRefresh(
+        currentSnapshot: HomeWidgetSnapshot?,
+        authoritativeSnapshot: HomeWidgetSnapshot?,
+        nowMs: Long,
+    ): Boolean {
+        if (authoritativeSnapshot?.characterState != null &&
+            authoritativeSnapshot.characterState != "egg"
+        ) {
+            return false
+        }
+
+        return isEggMaturedPastHatchTime(currentSnapshot, nowMs) ||
+            isEggMaturedPastHatchTime(authoritativeSnapshot, nowMs)
+    }
+
+    internal fun isEggMaturedPastHatchTime(
+        snapshot: HomeWidgetSnapshot?,
+        nowMs: Long,
+    ): Boolean {
+        return snapshot?.characterState == "egg" &&
+            snapshot.eggHatchTimeMs?.let { it <= nowMs } == true
+    }
+
     fun persistAuthoritativeSnapshot(context: Context, snapshot: HomeWidgetSnapshot?) {
         val snapshotJson = snapshot?.toJsonString()
         val nativePrefs = context.getSharedPreferences(
