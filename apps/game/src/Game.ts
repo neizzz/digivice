@@ -1273,6 +1273,24 @@ export class Game {
     return this.currentScene.getMainCharacterStaminaSnapshot();
   }
 
+  public getMainSceneTimeOfDay(): TimeOfDay | null {
+    if (!(this.currentScene instanceof MainSceneWorld)) {
+      return null;
+    }
+
+    return this.currentScene.getTimeOfDay();
+  }
+
+  public setMainSceneTimeOfDay(timeOfDay: TimeOfDay): boolean {
+    if (!(this.currentScene instanceof MainSceneWorld)) {
+      return false;
+    }
+
+    this.currentScene.setTimeOfDay(timeOfDay);
+    this._syncFlappyBirdSkyContextFromMainScene(this.currentScene);
+    return true;
+  }
+
   public getMainCharacterInfoSnapshot(): MainCharacterInfoSnapshot | null {
     if (!(this.currentScene instanceof MainSceneWorld)) {
       return null;

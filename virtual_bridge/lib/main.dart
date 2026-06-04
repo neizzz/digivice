@@ -62,6 +62,8 @@ class WebView extends StatefulWidget {
 class _WebViewState extends State<WebView> with WidgetsBindingObserver {
   static const MethodChannel _backNavigationChannel =
       MethodChannel('digivice/back_navigation');
+  static const MethodChannel _homeWidgetChannel =
+      MethodChannel('digivice/home_widget');
   static const String _nativeDiagnosticsSinkName =
       '__digiviceNativeBridgeDiagnostics';
   static const bool _stopAppOnAsset404 = false;
@@ -495,6 +497,7 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
     final String encodedState = jsonEncode(state.name);
     final String encodedTimestamp =
         jsonEncode(DateTime.now().toIso8601String());
+    final String encodedLaunchMode = jsonEncode(await _getLaunchMode());
 
     try {
       await _controller.runJavaScript('''
@@ -505,6 +508,7 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
                 detail: {
                   state: $encodedState,
                   timestamp: $encodedTimestamp,
+                  launchMode: $encodedLaunchMode,
                 },
               }),
             );
@@ -516,6 +520,19 @@ class _WebViewState extends State<WebView> with WidgetsBindingObserver {
         '[WebViewLifecycle] dispatchAppLifecycleEvent failed '
         'state=${state.name} error=$error',
       );
+    }
+  }
+
+  Future<String> _getLaunchMode() async {
+    try {
+      final Map<Object?, Object?>? result =
+          await _homeWidgetChannel.invokeMethod<Map<Object?, Object?>>(
+        'getLaunchContext',
+      );
+      final Object? mode = result?['mode'];
+      return mode is String && mode.isNotEmpty ? mode : 'default';
+    } catch (_) {
+      return 'default';
     }
   }
 

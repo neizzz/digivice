@@ -21,6 +21,26 @@ type MainSceneMenuAdRequest = {
 };
 
 declare global {
+  type HomeWidgetControllerBridge = {
+    requestPinWidget: () => Promise<string>;
+    requestPinWidget1x1: () => Promise<string>;
+    requestPinWidget2x1: () => Promise<string>;
+    getLaunchContext?: () => Promise<{
+      mode?: string;
+    }>;
+    syncFromWorldDataJson: (payload: {
+      rawWorldData?: string | null;
+      reason?: string;
+    }) => Promise<Record<string, unknown>>;
+    completeRefresh?: (payload: {
+      result?: string;
+      source?: string;
+      [key: string]: unknown;
+    }) => Promise<{
+      status?: string;
+    }>;
+  };
+
   interface Window {
     errorLogs: string[];
     vibrationController?: {
@@ -96,24 +116,8 @@ declare global {
     digiviceBackBridge?: {
       handleBackNavigation: () => "consumed" | "exit";
     };
-    homeWidgetController?: {
-      requestPinWidget: () => Promise<string>;
-      requestPinWidget1x1: () => Promise<string>;
-      requestPinWidget2x1: () => Promise<string>;
-      syncFromWorldDataJson: (payload: {
-        rawWorldData?: string | null;
-        reason?: string;
-      }) => void;
-    };
-    homeWidgetRefreshController?: {
-      requestPinWidget: () => Promise<string>;
-      requestPinWidget1x1: () => Promise<string>;
-      requestPinWidget2x1: () => Promise<string>;
-      syncFromWorldDataJson: (payload: {
-        rawWorldData?: string | null;
-        reason?: string;
-      }) => void;
-    };
+    homeWidgetController?: HomeWidgetControllerBridge;
+    homeWidgetRefreshController?: HomeWidgetControllerBridge;
     nativeDebugLogger?: {
       log: (payload: unknown) => void;
     };

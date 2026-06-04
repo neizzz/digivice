@@ -10,6 +10,16 @@ import android.view.View
 import android.widget.RemoteViews
 import kotlin.math.roundToInt
 
+enum class WidgetRenderMode {
+    LIVE_WIDGET,
+    PICKER_PREVIEW,
+}
+
+data class WidgetDimensionDpOverride(
+    val widthDp: Int? = null,
+    val heightDp: Int? = null,
+)
+
 internal object HomeWidgetLayoutSizing {
     private const val ONE_BY_ONE_CHARACTER_VISIBLE_WIDTH_NUMERATOR = 60
     private const val ONE_BY_ONE_CHARACTER_VISIBLE_WIDTH_DENOMINATOR = 100
@@ -18,7 +28,13 @@ internal object HomeWidgetLayoutSizing {
         minDp: Int,
         maxDp: Int,
         fallbackDp: Int,
+        renderMode: WidgetRenderMode,
+        previewOverrideDp: Int? = null,
     ): Int {
+        if (renderMode == WidgetRenderMode.PICKER_PREVIEW && previewOverrideDp != null) {
+            return previewOverrideDp
+        }
+
         val resolvedDp = listOf(minDp, maxDp)
             .filter { it > 0 }
             .maxOrNull()
@@ -30,6 +46,22 @@ internal object HomeWidgetLayoutSizing {
         density: Float,
     ): Int {
         return (dp * density).roundToInt().coerceAtLeast(1)
+    }
+
+    fun resolveOneByOneCharacterReferenceWidthPx(
+        renderMode: WidgetRenderMode,
+        characterState: String?,
+        liveWidgetMinWidthPx: Int,
+        resolvedWidgetWidthPx: Int,
+    ): Int {
+        return if (
+            renderMode == WidgetRenderMode.PICKER_PREVIEW &&
+            characterState == "egg"
+        ) {
+            liveWidgetMinWidthPx.coerceAtLeast(1)
+        } else {
+            resolvedWidgetWidthPx.coerceAtLeast(1)
+        }
     }
 
     fun resolveOneByOneCharacterTargetVisibleWidthPx(widgetWidthPx: Int): Int {
@@ -105,12 +137,19 @@ abstract class BaseHomeWidgetProvider : AppWidgetProvider() {
         context: Context,
         appWidgetManager: AppWidgetManager?,
         appWidgetId: Int?,
+        renderMode: WidgetRenderMode,
+        snapshot: HomeWidgetSnapshot?,
     ): Int? = null
+
+    protected open fun resolveWidgetDimensionOverrideDp(
+        renderMode: WidgetRenderMode,
+    ): WidgetDimensionDpOverride? = null
 
     internal fun buildRemoteViews(
         context: Context,
         snapshot: HomeWidgetSnapshot?,
         debugModeEnabled: Boolean,
+        renderMode: WidgetRenderMode,
         appWidgetId: Int? = null,
         appWidgetManager: AppWidgetManager? = null,
     ): RemoteViews {
@@ -149,6 +188,7 @@ abstract class BaseHomeWidgetProvider : AppWidgetProvider() {
                     context = context,
                     appWidgetManager = appWidgetManager,
                     appWidgetId = appWidgetId,
+                    renderMode = renderMode,
                 ),
             )
             renderStatusIcons(
@@ -172,6 +212,8 @@ abstract class BaseHomeWidgetProvider : AppWidgetProvider() {
                     context = context,
                     appWidgetManager = appWidgetManager,
                     appWidgetId = appWidgetId,
+                    renderMode = renderMode,
+                    snapshot = snapshot,
                 ),
             ),
             initialFrameIndex = snapshot.animationFrameIndex.mod(4),
@@ -197,6 +239,7 @@ abstract class BaseHomeWidgetProvider : AppWidgetProvider() {
                 context = context,
                 appWidgetManager = appWidgetManager,
                 appWidgetId = appWidgetId,
+                renderMode = renderMode,
             ),
         )
         renderStatusIcons(
@@ -277,6 +320,7 @@ abstract class BaseHomeWidgetProvider : AppWidgetProvider() {
             context = context,
             snapshot = snapshot,
             debugModeEnabled = debugModeEnabled,
+            renderMode = WidgetRenderMode.LIVE_WIDGET,
             appWidgetId = appWidgetId,
             appWidgetManager = appWidgetManager,
         )
@@ -448,7 +492,16 @@ abstract class BaseHomeWidgetProvider : AppWidgetProvider() {
         context: Context,
         appWidgetManager: AppWidgetManager?,
         appWidgetId: Int?,
+        renderMode: WidgetRenderMode,
     ): WidgetBackgroundSizePx {
+        val dimensionOverride = resolveWidgetDimensionOverrideDp(renderMode)
+        if (renderMode == WidgetRenderMode.PICKER_PREVIEW && dimensionOverride != null) {
+            return WidgetBackgroundSizePx(
+                width = dpToPx(context, dimensionOverride.widthDp ?: fallbackWidgetWidthDp),
+                height = dpToPx(context, dimensionOverride.heightDp ?: fallbackWidgetHeightDp),
+            )
+        }
+
         if (appWidgetManager == null || appWidgetId == null) {
             return WidgetBackgroundSizePx(
                 width = dpToPx(context, fallbackWidgetWidthDp),
@@ -469,6 +522,7 @@ abstract class BaseHomeWidgetProvider : AppWidgetProvider() {
                 minDp = minDp,
                 maxDp = maxDp,
                 fallbackDp = fallbackDp,
+                renderMode = renderMode,
             )
             return dpToPx(context, resolvedDp)
         }
@@ -491,6 +545,7 @@ abstract class BaseHomeWidgetProvider : AppWidgetProvider() {
         context: Context,
         appWidgetManager: AppWidgetManager?,
         appWidgetId: Int?,
+        renderMode: WidgetRenderMode,
     ): Int {
         return resolveWidgetDimensionPx(
             context = context,
@@ -499,6 +554,8 @@ abstract class BaseHomeWidgetProvider : AppWidgetProvider() {
             minKey = AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH,
             maxKey = AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH,
             fallbackDp = fallbackWidgetWidthDp,
+            renderMode = renderMode,
+            previewOverrideDp = resolveWidgetDimensionOverrideDp(renderMode)?.widthDp,
         )
     }
 
@@ -509,9 +566,18 @@ abstract class BaseHomeWidgetProvider : AppWidgetProvider() {
         minKey: String,
         maxKey: String,
         fallbackDp: Int,
+        renderMode: WidgetRenderMode,
+        previewOverrideDp: Int? = null,
     ): Int {
         if (appWidgetManager == null || appWidgetId == null) {
-            return dpToPx(context, fallbackDp)
+            val resolvedDp = HomeWidgetLayoutSizing.resolveWidgetDimensionDp(
+                minDp = 0,
+                maxDp = 0,
+                fallbackDp = fallbackDp,
+                renderMode = renderMode,
+                previewOverrideDp = previewOverrideDp,
+            )
+            return dpToPx(context, resolvedDp)
         }
 
         val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
@@ -521,6 +587,8 @@ abstract class BaseHomeWidgetProvider : AppWidgetProvider() {
             minDp = minDp,
             maxDp = maxDp,
             fallbackDp = fallbackDp,
+            renderMode = renderMode,
+            previewOverrideDp = previewOverrideDp,
         )
         return dpToPx(context, resolvedDp)
     }
@@ -552,6 +620,10 @@ class HomeWidgetProvider : BaseHomeWidgetProvider() {
 }
 
 class HomeWidget1x1Provider : BaseHomeWidgetProvider() {
+    companion object {
+        private const val LIVE_WIDGET_MIN_WIDTH_DP = 50
+    }
+
     override val layoutResId: Int = R.layout.montto_home_widget_1x1
     override val statusIconsRightToLeft: Boolean = true
     override val fallbackWidgetWidthDp: Int = 90
@@ -577,13 +649,39 @@ class HomeWidget1x1Provider : BaseHomeWidgetProvider() {
         context: Context,
         appWidgetManager: AppWidgetManager?,
         appWidgetId: Int?,
+        renderMode: WidgetRenderMode,
+        snapshot: HomeWidgetSnapshot?,
     ): Int {
-        return HomeWidgetLayoutSizing.resolveOneByOneCharacterTargetVisibleWidthPx(
-            resolveWidgetWidthPx(
-                context = context,
-                appWidgetManager = appWidgetManager,
-                appWidgetId = appWidgetId,
+        val resolvedWidgetWidthPx = resolveWidgetWidthPx(
+            context = context,
+            appWidgetManager = appWidgetManager,
+            appWidgetId = appWidgetId,
+            renderMode = renderMode,
+        )
+        val referenceWidthPx = HomeWidgetLayoutSizing.resolveOneByOneCharacterReferenceWidthPx(
+            renderMode = renderMode,
+            characterState = snapshot?.characterState,
+            liveWidgetMinWidthPx = HomeWidgetLayoutSizing.dpToPx(
+                dp = LIVE_WIDGET_MIN_WIDTH_DP,
+                density = context.resources.displayMetrics.density,
             ),
+            resolvedWidgetWidthPx = resolvedWidgetWidthPx,
+        )
+        return HomeWidgetLayoutSizing.resolveOneByOneCharacterTargetVisibleWidthPx(
+            referenceWidthPx,
+        )
+    }
+
+    override fun resolveWidgetDimensionOverrideDp(
+        renderMode: WidgetRenderMode,
+    ): WidgetDimensionDpOverride? {
+        if (renderMode != WidgetRenderMode.PICKER_PREVIEW) {
+            return null
+        }
+
+        return WidgetDimensionDpOverride(
+            widthDp = 74,
+            heightDp = 74,
         )
     }
 }

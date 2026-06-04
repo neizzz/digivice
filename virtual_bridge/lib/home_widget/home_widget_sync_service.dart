@@ -396,19 +396,19 @@ class HomeWidgetSyncService {
     }
   }
 
-  static Future<void> syncFromStorage({
+  static Future<Map<String, Object?>> syncFromStorage({
     String reason = 'manual',
     void Function(String message)? log,
   }) async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
-    await syncFromWorldDataJson(
+    return syncFromWorldDataJson(
       rawWorldData: prefs.getString(worldDataStorageKey),
       reason: reason,
       log: log,
     );
   }
 
-  static Future<void> syncFromWorldDataJson({
+  static Future<Map<String, Object?>> syncFromWorldDataJson({
     required String? rawWorldData,
     String reason = 'manual',
     void Function(String message)? log,
@@ -424,8 +424,13 @@ class HomeWidgetSyncService {
     if (snapshot == null) {
       await prefs.remove(homeWidgetSnapshotStorageKey);
       await prefs.remove(homeWidgetAuthoritativeSnapshotStorageKey);
-      await _publishSnapshot(snapshotJson: null, reason: reason, log: log);
-      await _publishAuthoritativeSnapshot(
+      final Map<String, Object?> currentPublishResult = await _publishSnapshot(
+        snapshotJson: null,
+        reason: reason,
+        log: log,
+      );
+      final Map<String, Object?> authoritativePublishResult =
+          await _publishAuthoritativeSnapshot(
         snapshotJson: null,
         reason: reason,
         log: log,
@@ -433,21 +438,40 @@ class HomeWidgetSyncService {
       log?.call(
         '[HomeWidgetSyncService] cleared snapshot reason=$reason hasWorldData=${rawWorldData != null && rawWorldData.isNotEmpty}',
       );
-      return;
+      return <String, Object?>{
+        'status': 'cleared',
+        'reason': reason,
+        'hasWorldData': rawWorldData != null && rawWorldData.isNotEmpty,
+        'hasSnapshot': false,
+        'currentPublishStatus': currentPublishResult['status'],
+        'authoritativePublishStatus': authoritativePublishResult['status'],
+        'currentPublishResult': currentPublishResult,
+        'authoritativePublishResult': authoritativePublishResult,
+      };
     }
 
     final String snapshotJson = jsonEncode(snapshot.toJson());
+    log?.call(
+      '[HomeWidgetSyncService] built snapshot reason=$reason '
+      'characterState=${snapshot.characterState.name} '
+      'characterKey=${snapshot.characterKey} '
+      'snapshotKind=${snapshot.snapshotKind.name} '
+      'eggHatchTimeMs=${snapshot.eggHatchTimeMs} '
+      'eggHatchDurationMs=${snapshot.eggHatchDurationMs} '
+      'lastActiveTimeMs=${snapshot.lastActiveTimeMs}',
+    );
     await prefs.setString(homeWidgetSnapshotStorageKey, snapshotJson);
     await prefs.setString(
       homeWidgetAuthoritativeSnapshotStorageKey,
       snapshotJson,
     );
-    await _publishSnapshot(
+    final Map<String, Object?> currentPublishResult = await _publishSnapshot(
       snapshotJson: snapshotJson,
       reason: reason,
       log: log,
     );
-    await _publishAuthoritativeSnapshot(
+    final Map<String, Object?> authoritativePublishResult =
+        await _publishAuthoritativeSnapshot(
       snapshotJson: snapshotJson,
       reason: reason,
       log: log,
@@ -459,6 +483,19 @@ class HomeWidgetSyncService {
       'staminaPercent=${snapshot.staminaPercent.toStringAsFixed(3)} '
       'visibleStatusIcons=${snapshot.visibleStatusIcons.map((e) => e.name).join(",")}',
     );
+    return <String, Object?>{
+      'status': 'synced',
+      'reason': reason,
+      'hasWorldData': rawWorldData != null && rawWorldData.isNotEmpty,
+      'hasSnapshot': true,
+      'characterState': snapshot.characterState.name,
+      'characterKey': snapshot.characterKey,
+      'snapshotKind': snapshot.snapshotKind.name,
+      'currentPublishStatus': currentPublishResult['status'],
+      'authoritativePublishStatus': authoritativePublishResult['status'],
+      'currentPublishResult': currentPublishResult,
+      'authoritativePublishResult': authoritativePublishResult,
+    };
   }
 
   static HomeWidgetSnapshot? buildSnapshotFromWorldDataJson(
@@ -633,42 +670,118 @@ class HomeWidgetSyncService {
     );
   }
 
-  static Future<void> _publishSnapshot({
+  static Future<Map<String, Object?>> _publishSnapshot({
     required String? snapshotJson,
     required String reason,
     void Function(String message)? log,
   }) async {
     try {
-      await _platformChannel
-          .invokeMethod<void>('publishSnapshot', <String, dynamic>{
+      final Map<Object?, Object?>? result = await _platformChannel
+          .invokeMethod<Map<Object?, Object?>>(
+              'publishSnapshot', <String, dynamic>{
         'snapshotJson': snapshotJson,
         'storageName': nativeHomeWidgetStorageName,
         'snapshotKey': nativeHomeWidgetSnapshotKey,
         'reason': reason,
       });
+      log?.call(
+        '[HomeWidgetSyncService] native publish result=${_describeNativePublishResult(result)}',
+      );
+      return _normalizePublishResult(
+        result,
+        fallbackReason: reason,
+        fallbackSnapshotKey: nativeHomeWidgetSnapshotKey,
+      );
     } catch (error) {
       log?.call('[HomeWidgetSyncService] native publish failed: $error');
+      return <String, Object?>{
+        'status': 'error',
+        'reason': reason,
+        'snapshotKey': nativeHomeWidgetSnapshotKey,
+        'hasSnapshot': snapshotJson != null,
+        'error': error.toString(),
+      };
     }
   }
 
-  static Future<void> _publishAuthoritativeSnapshot({
+  static Future<Map<String, Object?>> _publishAuthoritativeSnapshot({
     required String? snapshotJson,
     required String reason,
     void Function(String message)? log,
   }) async {
+    final String authoritativeReason = '${reason}_authoritative';
+
     try {
-      await _platformChannel
-          .invokeMethod<void>('publishSnapshot', <String, dynamic>{
+      final Map<Object?, Object?>? result = await _platformChannel
+          .invokeMethod<Map<Object?, Object?>>(
+              'publishSnapshot', <String, dynamic>{
         'snapshotJson': snapshotJson,
         'storageName': nativeHomeWidgetStorageName,
         'snapshotKey': nativeHomeWidgetAuthoritativeSnapshotKey,
-        'reason': '${reason}_authoritative',
+        'reason': authoritativeReason,
       });
+      log?.call(
+        '[HomeWidgetSyncService] native authoritative publish result=${_describeNativePublishResult(result)}',
+      );
+      return _normalizePublishResult(
+        result,
+        fallbackReason: authoritativeReason,
+        fallbackSnapshotKey: nativeHomeWidgetAuthoritativeSnapshotKey,
+      );
     } catch (error) {
       log?.call(
         '[HomeWidgetSyncService] native authoritative publish failed: $error',
       );
+      return <String, Object?>{
+        'status': 'error',
+        'reason': authoritativeReason,
+        'snapshotKey': nativeHomeWidgetAuthoritativeSnapshotKey,
+        'hasSnapshot': snapshotJson != null,
+        'error': error.toString(),
+      };
     }
+  }
+
+  static String _describeNativePublishResult(Map<Object?, Object?>? result) {
+    if (result == null) {
+      return 'null';
+    }
+
+    return <String>[
+      'status=${result['status']}',
+      'snapshotKey=${result['snapshotKey']}',
+      'reason=${result['reason']}',
+      'hasSnapshot=${result['hasSnapshot']}',
+      'characterState=${result['characterState']}',
+      'characterKey=${result['characterKey']}',
+      'eggHatchTimeMs=${result['eggHatchTimeMs']}',
+      'snapshotKind=${result['snapshotKind']}',
+    ].join(' ');
+  }
+
+  static Map<String, Object?> _normalizePublishResult(
+    Map<Object?, Object?>? result, {
+    required String fallbackReason,
+    required String fallbackSnapshotKey,
+  }) {
+    if (result == null) {
+      return <String, Object?>{
+        'status': 'unknown',
+        'reason': fallbackReason,
+        'snapshotKey': fallbackSnapshotKey,
+      };
+    }
+
+    return <String, Object?>{
+      'status': result['status']?.toString() ?? 'unknown',
+      'reason': result['reason']?.toString() ?? fallbackReason,
+      'snapshotKey': result['snapshotKey']?.toString() ?? fallbackSnapshotKey,
+      'hasSnapshot': result['hasSnapshot'] == true,
+      'characterState': result['characterState']?.toString(),
+      'characterKey': _readInt(result['characterKey']),
+      'eggHatchTimeMs': _readInt(result['eggHatchTimeMs']),
+      'snapshotKind': result['snapshotKind']?.toString(),
+    };
   }
 
   static Map<String, dynamic> _readMap(Object? value) {

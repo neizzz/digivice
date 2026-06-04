@@ -28689,9 +28689,9 @@ const FreshnessTimerComp = defineComponent({
   createdTime: Types.f64,
   // 음식이 생성된 시간 (timestamp)
   normalTime: Types.ui32,
-  // FRESH -> NORMAL로 변하는 시간 (ms)
+  // legacy fresh -> normal 시간 (ms), runtime stale 판정에는 사용하지 않음
   staleTime: Types.ui32,
-  // NORMAL -> STALE로 변하는 시간 (ms)
+  // 생성 후 STALE 판정 기준 시간 (ms)
   isBeingEaten: Types.ui8
   // 현재 먹히고 있는지 여부 (0 = false, 1 = true)
 });
@@ -28718,8 +28718,10 @@ const EggHatchComp = defineComponent({
   // 전체 부화 시간 (ms)
   isReadyToHatch: Types.ui8,
   // 부화 준비 완료 여부 (0 = false, 1 = true)
-  syringeCount: Types.ui8
+  syringeCount: Types.ui8,
   // 알 상태에서 병원/주사기 메뉴를 누른 횟수
+  pendingCharacterKey: Types.ui8
+  // 부화 결과가 한 번 결정된 뒤 재사용할 시작 캐릭터 키
 });
 const MutationRiskComp = defineComponent({
   unnecessaryInjectionStacks: Types.ui8,
@@ -28895,7 +28897,7 @@ Object.fromEntries(
   ])
 );
 const schemaVersion = 1;
-const overrides = { "skull-slime_C2": { "evolutionCandidates": [{ "toCode": "skull-slime_D2", "weight": 50, "kind": "base" }, { "toCode": "skull-slime_D1", "weight": 50, "kind": "same_line_variant_mutation" }] } };
+const overrides = { "skull-slime_C2": { "evolutionCandidates": [{ "toCode": "skull-slime_D2", "weight": 60, "kind": "base" }, { "toCode": "skull-slime_D1", "weight": 40, "kind": "same_line_variant_mutation" }] } };
 const rarities = { "green-slime_A1": { "reachProbability": 0.65, "rarity": 1 }, "soil-slime_A1": { "reachProbability": 0.2, "rarity": 2 }, "skull-slime_A1": { "reachProbability": 0.15, "rarity": 2 }, "green-slime_B1": { "reachProbability": 0.325, "rarity": 1 }, "green-slime_B2": { "reachProbability": 0.1625, "rarity": 2 }, "green-slime_B3": { "reachProbability": 0.1625, "rarity": 2 }, "soil-slime_B1": { "reachProbability": 0.14, "rarity": 2 }, "skull-slime_B1": { "reachProbability": 0.105, "rarity": 3 }, "soil-slime_B2": { "reachProbability": 0.06, "rarity": 3 }, "skull-slime_B2": { "reachProbability": 0.045, "rarity": 3 }, "green-slime_C1": { "reachProbability": 0.21125, "rarity": 2 }, "green-slime_C2": { "reachProbability": 0.17875, "rarity": 2 }, "green-slime_C3": { "reachProbability": 0.1625, "rarity": 2 }, "green-slime_C4": { "reachProbability": 0.0975, "rarity": 3 }, "skull-slime_C1": { "reachProbability": 0.087, "rarity": 3 }, "soil-slime_C1": { "reachProbability": 0.085, "rarity": 4 }, "soil-slime_C2": { "reachProbability": 0.065, "rarity": 4 }, "skull-slime_C2": { "reachProbability": 0.063, "rarity": 4 }, "soil-slime_C3": { "reachProbability": 0.05, "rarity": 4 }, "green-slime_D1": { "reachProbability": 0.1941875, "rarity": 2 }, "green-slime_D2": { "reachProbability": 0.1763125, "rarity": 2 }, "green-slime_D3": { "reachProbability": 0.157625, "rarity": 2 }, "green-slime_D4": { "reachProbability": 0.121875, "rarity": 3 }, "skull-slime_D1": { "reachProbability": 0.0924, "rarity": 3 }, "soil-slime_D1": { "reachProbability": 0.07125, "rarity": 4 }, "skull-slime_D2": { "reachProbability": 0.0576, "rarity": 5 }, "soil-slime_D2": { "reachProbability": 0.06625, "rarity": 4 }, "soil-slime_D3": { "reachProbability": 0.0625, "rarity": 4 } };
 const evolutionOverrideData = {
   schemaVersion,
@@ -29038,8 +29040,8 @@ const MIN_EVOLUTION_RARITY_BY_CLASS_CODE = {
 const DEFAULT_CANDIDATE_WEIGHTS = {
   1: [100],
   2: [70, 30],
-  3: [50, 25, 25],
-  4: [40, 25, 20, 15]
+  3: [55, 25, 20],
+  4: [50, 20, 15, 15]
 };
 const MONSTER_LINE_DEFINITIONS = [
   {
@@ -29162,7 +29164,10 @@ function getVariantDefinitionsByClass(lineDefinition) {
 }
 function getOrderedNextVariantDefinitions(params) {
   const { sourceDefinition, nextDefinitions } = params;
-  const baseVariant = Math.min(sourceDefinition.variant, nextDefinitions.length);
+  const baseVariant = Math.min(
+    sourceDefinition.variant,
+    nextDefinitions.length
+  );
   const baseDefinition = nextDefinitions.find(
     (definition) => definition.variant === baseVariant
   );
@@ -29303,7 +29308,9 @@ function applyEvolutionOverrideConfig(baseCatalog, overrideConfig) {
     }
     const sourceSpec = specsByCode.get(sourceCode);
     if (!sourceSpec) {
-      throw new Error(`[evolution] Unknown override source code: ${sourceCode}`);
+      throw new Error(
+        `[evolution] Unknown override source code: ${sourceCode}`
+      );
     }
     if (sourceSpec.evolutionCandidates.length === 0) {
       throw new Error(
@@ -29507,7 +29514,9 @@ const PRODUCTION_GAME_CONSTANTS = {
   POOP_DISEASE_RATE: 93e-6,
   STALE_FOOD_DISEASE_RATE: 93e-6,
   // 음식 신선도 관련
-  // fresh 상태는 runtime에서 제거됐지만, 총 edible lifetime은 기존 fresh + normal 합을 유지한다.
+  // runtime에서는 fresh 상태를 쓰지 않고 음식이 바로 NORMAL로 시작한다.
+  // stale 판정은 createdTime 기준 NORMAL_TO_STALE_TIME만 사용한다.
+  // FRESH_TO_NORMAL_TIME은 저장 포맷/legacy timer 호환용 보조값이며 stale 계산에는 더하지 않는다.
   FRESH_TO_NORMAL_TIME: 3 * MINUTE_IN_MILLISECONDS$1,
   NORMAL_TO_STALE_TIME: 10 * MINUTE_IN_MILLISECONDS$1,
   // 캐릭터 상태 관련
@@ -29952,6 +29961,16 @@ function normalizeEggSyringeCount(value) {
   }
   return Math.min(10, Math.floor(value));
 }
+function normalizePendingEggHatchCharacterKey(value) {
+  switch (value) {
+    case CharacterKeyECS.GreenSlimeA1:
+    case CharacterKeyECS.SoilSlimeA1:
+    case CharacterKeyECS.SkullSlimeA1:
+      return value;
+    default:
+      return CharacterKeyECS.NULL;
+  }
+}
 function resolveEggHatchComponentForState(params) {
   if (params.state !== CharacterState.EGG) {
     return {
@@ -30078,7 +30097,10 @@ function convertECSEntityToSavedEntity(world, eid) {
       hatchTime: EggHatchComp.hatchTime[eid],
       hatchDurationMs: EggHatchComp.hatchDurationMs[eid],
       isReadyToHatch: EggHatchComp.isReadyToHatch[eid] === 1,
-      syringeCount: normalizeEggSyringeCount(EggHatchComp.syringeCount[eid])
+      syringeCount: normalizeEggSyringeCount(EggHatchComp.syringeCount[eid]),
+      pendingCharacterKey: normalizePendingEggHatchCharacterKey(
+        EggHatchComp.pendingCharacterKey[eid]
+      )
     };
   }
   if (hasComponent(world, MutationRiskComp, eid)) {
@@ -30277,6 +30299,9 @@ function applySavedEntityToECS(world, eid, savedEntity) {
     EggHatchComp.syringeCount[eid] = normalizeEggSyringeCount(
       components.eggHatch.syringeCount
     );
+    EggHatchComp.pendingCharacterKey[eid] = ObjectComp.state[eid] === CharacterState.EGG ? normalizePendingEggHatchCharacterKey(
+      components.eggHatch.pendingCharacterKey
+    ) : CharacterKeyECS.NULL;
   }
   if (components.mutationRisk) {
     if (!hasComponent(world, MutationRiskComp, eid)) {
@@ -30495,6 +30520,7 @@ function repairCharacterEntityRuntimeComponents(world, eid, now = Date.now()) {
     }
     EggHatchComp.isReadyToHatch[eid] = 0;
     EggHatchComp.syringeCount[eid] = 0;
+    EggHatchComp.pendingCharacterKey[eid] = CharacterKeyECS.NULL;
     repaired.push("EggHatchComp");
   } else if (state === CharacterState.EGG) {
     const resolvedEggHatch = resolveEggHatchComponentForState({
@@ -30508,6 +30534,11 @@ function repairCharacterEntityRuntimeComponents(world, eid, now = Date.now()) {
     EggHatchComp.syringeCount[eid] = normalizeEggSyringeCount(
       EggHatchComp.syringeCount[eid]
     );
+    EggHatchComp.pendingCharacterKey[eid] = normalizePendingEggHatchCharacterKey(
+      EggHatchComp.pendingCharacterKey[eid]
+    );
+  } else {
+    EggHatchComp.pendingCharacterKey[eid] = CharacterKeyECS.NULL;
   }
   if (!hasComponent(world, MutationRiskComp, eid)) {
     addComponent(world, MutationRiskComp, eid);
@@ -34561,8 +34592,8 @@ function updateFreshness(world, currentTime) {
       continue;
     }
     const elapsedTime = currentTime - timerComp.createdTime[eid];
-    const totalEdibleTime = timerComp.normalTime[eid] + timerComp.staleTime[eid];
-    if (elapsedTime >= totalEdibleTime) {
+    const staleThreshold = timerComp.staleTime[eid] > 0 ? timerComp.staleTime[eid] : GAME_CONSTANTS.NORMAL_TO_STALE_TIME;
+    if (elapsedTime >= staleThreshold) {
       freshnessComp.freshness[eid] = Freshness.STALE;
       ObjectComp.state[eid] = FoodState.LANDED;
     }
@@ -34719,11 +34750,13 @@ function createCharacterEntity(world, components) {
     EggHatchComp.hatchDurationMs[eid] = hatchDurationMs;
     EggHatchComp.isReadyToHatch[eid] = 0;
     EggHatchComp.syringeCount[eid] = 0;
+    EggHatchComp.pendingCharacterKey[eid] = CharacterKeyECS.NULL;
   } else {
     EggHatchComp.hatchTime[eid] = 0;
     EggHatchComp.hatchDurationMs[eid] = 0;
     EggHatchComp.isReadyToHatch[eid] = 0;
     EggHatchComp.syringeCount[eid] = 0;
+    EggHatchComp.pendingCharacterKey[eid] = CharacterKeyECS.NULL;
   }
   addComponent(world, MutationRiskComp, eid);
   MutationRiskComp.unnecessaryInjectionStacks[eid] = 0;
@@ -39979,42 +40012,77 @@ function calculateEggHatchGeneProbabilities(params) {
     skull: BASE_SKULL_PERCENT + skullBonus
   };
 }
-function selectEggHatchStartingGene(params) {
-  const probabilities = calculateEggHatchGeneProbabilities(params);
-  const roll = normalizeRandom(params.random) * 100;
-  if (roll < probabilities.green) {
-    return CharacterKeyECS.GreenSlimeA1;
+function resolveEggHatchStartingGeneSelection(params) {
+  const normalizedStaleFoodCountAtHatch = normalizeBonusCount(
+    params.staleFoodCountAtHatch
+  );
+  const normalizedSyringeCount = normalizeBonusCount(params.syringeCount);
+  const normalizedRandom = normalizeRandom(params.random);
+  const probabilities = calculateEggHatchGeneProbabilities({
+    staleFoodCountAtHatch: normalizedStaleFoodCountAtHatch,
+    syringeCount: normalizedSyringeCount
+  });
+  const rollPercent = normalizedRandom * 100;
+  let selectedCharacterKey;
+  if (rollPercent < probabilities.green) {
+    selectedCharacterKey = CharacterKeyECS.GreenSlimeA1;
+  } else if (rollPercent < probabilities.green + probabilities.soil) {
+    selectedCharacterKey = CharacterKeyECS.SoilSlimeA1;
+  } else {
+    selectedCharacterKey = CharacterKeyECS.SkullSlimeA1;
   }
-  if (roll < probabilities.green + probabilities.soil) {
-    return CharacterKeyECS.SoilSlimeA1;
-  }
-  return CharacterKeyECS.SkullSlimeA1;
+  return {
+    normalizedStaleFoodCountAtHatch,
+    normalizedSyringeCount,
+    normalizedRandom,
+    rollPercent,
+    probabilities,
+    selectedCharacterKey
+  };
 }
 const eggQuery = defineQuery([ObjectComp, EggHatchComp]);
 const staleFoodQuery = defineQuery([ObjectComp, FreshnessComp]);
+const pendingRealtimeHatchAttemptsByWorld = /* @__PURE__ */ new WeakMap();
 function eggHatchSystem(params) {
   const { world, currentTime } = params;
   const entities = eggQuery(world);
   for (let i2 = 0; i2 < entities.length; i2++) {
     const eid = entities[i2];
     if (ObjectComp.state[eid] !== CharacterState.EGG) continue;
-    if (currentTime >= EggHatchComp.hatchTime[eid] && !EggHatchComp.isReadyToHatch[eid]) {
+    if (currentTime < EggHatchComp.hatchTime[eid]) {
+      continue;
+    }
+    if (!EggHatchComp.isReadyToHatch[eid]) {
+      const logContext = buildEggHatchDiagnosticsContext(
+        eid,
+        world,
+        currentTime
+      );
       EggHatchComp.isReadyToHatch[eid] = 1;
       console.log(`[EggHatchSystem] Character ${eid} is ready to hatch!`);
-      if (world.isSimulationMode) {
-        hatchCharacterForSimulation(eid, world, currentTime);
-      } else {
-        void hatchCharacter(eid, world, currentTime);
-      }
+      console.warn("[ImportantDiagnostics][EggHatchExecution]", {
+        phase: "ready_to_hatch",
+        ...logContext
+      });
+    }
+    if (world.isSimulationMode) {
+      hatchCharacterForSimulation(eid, world, currentTime);
+    } else {
+      void hatchCharacter(eid, world, currentTime);
     }
   }
   return params;
 }
 function completeHatch(eid, world, currentTime, characterKey) {
+  const previousCharacterKey = CharacterStatusComp.characterKey[eid];
   CharacterStatusComp.characterKey[eid] = characterKey;
   CharacterStatusComp.evolutionPhase[eid] = 1;
   ObjectComp.state[eid] = CharacterState.IDLE;
+  EggHatchComp.hatchTime[eid] = 0;
+  EggHatchComp.hatchDurationMs[eid] = 0;
+  EggHatchComp.isReadyToHatch[eid] = 0;
   EggHatchComp.syringeCount[eid] = 0;
+  EggHatchComp.pendingCharacterKey[eid] = CharacterKeyECS.NULL;
   if (!hasComponent(world, RandomMovementComp, eid)) {
     addComponent(world, RandomMovementComp, eid);
     RandomMovementComp.minIdleTime[eid] = 2e3;
@@ -40038,6 +40106,12 @@ function completeHatch(eid, world, currentTime, characterKey) {
   console.log(
     `[EggHatchSystem] Character ${eid} has hatched! State changed to IDLE with characterKey: ${characterKey}`
   );
+  console.warn("[ImportantDiagnostics][EggHatchExecution]", {
+    phase: "complete_hatch",
+    ...buildEggHatchDiagnosticsContext(eid, world, currentTime),
+    previousCharacterKey,
+    appliedCharacterKey: characterKey
+  });
   recordMonsterBookReach({
     world,
     characterKey,
@@ -40058,29 +40132,96 @@ function countStaleFoodAtHatch(world) {
   return count2;
 }
 function selectStartingCharacterForHatch(eid, world) {
-  return selectEggHatchStartingGene({
-    staleFoodCountAtHatch: countStaleFoodAtHatch(world),
-    syringeCount: EggHatchComp.syringeCount[eid],
-    random: Math.random()
+  const staleFoodCountAtHatch = countStaleFoodAtHatch(world);
+  const syringeCount = EggHatchComp.syringeCount[eid];
+  const random = Math.random();
+  const selection = resolveEggHatchStartingGeneSelection({
+    staleFoodCountAtHatch,
+    syringeCount,
+    random
   });
+  console.warn("[ImportantDiagnostics][EggHatchSelection]", {
+    eid,
+    objectId: ObjectComp.id[eid],
+    currentTime: world.currentTime,
+    hatchTime: EggHatchComp.hatchTime[eid],
+    hatchDurationMs: EggHatchComp.hatchDurationMs[eid],
+    isReadyToHatch: EggHatchComp.isReadyToHatch[eid] === 1,
+    currentCharacterKey: CharacterStatusComp.characterKey[eid],
+    isSimulationMode: world.isSimulationMode,
+    state: ObjectComp.state[eid],
+    staleFoodCountAtHatch,
+    syringeCount,
+    random,
+    normalizedStaleFoodCountAtHatch: selection.normalizedStaleFoodCountAtHatch,
+    normalizedSyringeCount: selection.normalizedSyringeCount,
+    normalizedRandom: selection.normalizedRandom,
+    rollPercent: selection.rollPercent,
+    probabilities: selection.probabilities,
+    selectedCharacterKey: selection.selectedCharacterKey
+  });
+  return {
+    staleFoodCountAtHatch,
+    syringeCount,
+    random,
+    characterKey: selection.selectedCharacterKey
+  };
+}
+function getPendingStartingCharacterKey(eid) {
+  const pendingCharacterKey = EggHatchComp.pendingCharacterKey[eid];
+  switch (pendingCharacterKey) {
+    case CharacterKeyECS.GreenSlimeA1:
+    case CharacterKeyECS.SoilSlimeA1:
+    case CharacterKeyECS.SkullSlimeA1:
+      return pendingCharacterKey;
+    default:
+      return null;
+  }
+}
+function getOrCreatePendingStartingCharacterForHatch(eid, world) {
+  const pendingCharacterKey = getPendingStartingCharacterKey(eid);
+  if (pendingCharacterKey !== null) {
+    return pendingCharacterKey;
+  }
+  const { characterKey } = selectStartingCharacterForHatch(eid, world);
+  EggHatchComp.pendingCharacterKey[eid] = characterKey;
+  return characterKey;
 }
 function hatchCharacterForSimulation(eid, world, currentTime) {
-  const characterKey = selectStartingCharacterForHatch(eid, world);
+  console.warn("[ImportantDiagnostics][EggHatchExecution]", {
+    phase: "simulation_start",
+    ...buildEggHatchDiagnosticsContext(eid, world, currentTime)
+  });
+  const characterKey = getOrCreatePendingStartingCharacterForHatch(eid, world);
   const spritesheetOptions = getCharacterSpritesheetOptions(characterKey);
   const spritesheetAlias = (spritesheetOptions == null ? void 0 : spritesheetOptions.alias) || (spritesheetOptions == null ? void 0 : spritesheetOptions.jsonPath);
   if (!spritesheetAlias || !isSpritesheetLoaded(spritesheetAlias)) {
     console.warn(
       `[EggHatchSystem] Simulation hatch skipped for character ${eid} because spritesheet is not preloaded. Keeping EGG state.`
     );
-    EggHatchComp.isReadyToHatch[eid] = 0;
+    console.warn("[ImportantDiagnostics][EggHatchExecution]", {
+      phase: "simulation_skipped_unloaded_spritesheet",
+      ...buildEggHatchDiagnosticsContext(eid, world, currentTime),
+      selectedCharacterKey: characterKey,
+      spritesheetAlias: spritesheetAlias ?? null
+    });
     return;
   }
   void ensureCharacterOpaqueBoundsComputed(characterKey);
   completeHatch(eid, world, currentTime, characterKey);
 }
 async function hatchCharacter(eid, world, currentTime) {
+  const pendingAttempts = getPendingRealtimeHatchAttempts(world);
+  if (pendingAttempts.has(eid)) {
+    return;
+  }
+  pendingAttempts.add(eid);
   try {
-    const characterKey = selectStartingCharacterForHatch(eid, world);
+    console.warn("[ImportantDiagnostics][EggHatchExecution]", {
+      phase: "realtime_start",
+      ...buildEggHatchDiagnosticsContext(eid, world, currentTime)
+    });
+    const characterKey = getOrCreatePendingStartingCharacterForHatch(eid, world);
     const isLoaded = await ensureCharacterSpritesheetLoaded({
       characterKey,
       reason: "hatch",
@@ -40091,7 +40232,11 @@ async function hatchCharacter(eid, world, currentTime) {
       console.warn(
         `[EggHatchSystem] Hatch delayed for character ${eid}. Keeping EGG state because spritesheet could not be loaded.`
       );
-      EggHatchComp.isReadyToHatch[eid] = 0;
+      console.warn("[ImportantDiagnostics][EggHatchExecution]", {
+        phase: "realtime_delayed_unloaded_spritesheet",
+        ...buildEggHatchDiagnosticsContext(eid, world, currentTime),
+        selectedCharacterKey: characterKey
+      });
       return;
     }
     await ensureCharacterOpaqueBoundsComputed(characterKey);
@@ -40101,7 +40246,32 @@ async function hatchCharacter(eid, world, currentTime) {
       `[EggHatchSystem] Error during hatching process for character ${eid}:`,
       error
     );
+  } finally {
+    pendingAttempts.delete(eid);
   }
+}
+function getPendingRealtimeHatchAttempts(world) {
+  let pendingAttempts = pendingRealtimeHatchAttemptsByWorld.get(world);
+  if (!pendingAttempts) {
+    pendingAttempts = /* @__PURE__ */ new Set();
+    pendingRealtimeHatchAttemptsByWorld.set(world, pendingAttempts);
+  }
+  return pendingAttempts;
+}
+function buildEggHatchDiagnosticsContext(eid, world, currentTime) {
+  return {
+    eid,
+    objectId: ObjectComp.id[eid],
+    currentTime,
+    hatchTime: EggHatchComp.hatchTime[eid],
+    hatchDurationMs: EggHatchComp.hatchDurationMs[eid],
+    isReadyToHatch: EggHatchComp.isReadyToHatch[eid] === 1,
+    state: ObjectComp.state[eid],
+    currentCharacterKey: CharacterStatusComp.characterKey[eid],
+    syringeCount: EggHatchComp.syringeCount[eid],
+    pendingCharacterKey: EggHatchComp.pendingCharacterKey[eid],
+    isSimulationMode: world.isSimulationMode
+  };
 }
 const TEMPORARY_STATUS_DURATION = 3e3;
 const characterQuery = defineQuery([ObjectComp, CharacterStatusComp]);
@@ -41031,6 +41201,11 @@ const MAIN_SCENE_AD_FEED_FALLBACK_AFTER_LAND_MS = 3e3;
 const MAIN_SCENE_AD_FEED_IDLE_RETRY_MS = 1e3;
 const HOUR_MS = 60 * 60 * 1e3;
 const DAY_MS = 24 * HOUR_MS;
+const EGG_HATCH_STARTING_SPRITESHEET_KEYS = [
+  SpritesheetKey.GreenSlimeA1,
+  SpritesheetKey.SkullSlimeA1,
+  SpritesheetKey.SoilSlimeA1
+];
 const COMMON_SPRITESHEET_ASSETS = [
   {
     jsonPath: "/assets/game/sprites/bird.json",
@@ -42512,6 +42687,9 @@ ${this.t("main.cleanObjectsPrompt")}`,
   }
   buildHomeWidgetSyncWorldData() {
     if (!this._persistentData) {
+      console.warn("[ImportantDiagnostics][HomeWidgetSyncWorldData]", {
+        phase: "build_skipped_missing_persistent_data"
+      });
       return null;
     }
     try {
@@ -42549,6 +42727,25 @@ ${this.t("main.cleanObjectsPrompt")}`,
       syncWorldData.entities = objectEntities.map(
         (eid) => convertECSEntityToSavedEntity(this, eid)
       );
+      const characterEid = this._findMainCharacterEntity();
+      if (characterEid >= 0) {
+        console.warn("[ImportantDiagnostics][HomeWidgetSyncWorldData]", {
+          phase: "build_completed",
+          currentTime,
+          worldLastEcsSaved: worldMetadata.last_ecs_saved,
+          appLastActiveTime: appState.last_active_time,
+          appMonsterName: worldMetadata.monster_name ?? null,
+          eid: characterEid,
+          objectId: ObjectComp.id[characterEid],
+          state: ObjectComp.state[characterEid],
+          characterKey: CharacterStatusComp.characterKey[characterEid],
+          hatchTime: EggHatchComp.hatchTime[characterEid],
+          hatchDurationMs: EggHatchComp.hatchDurationMs[characterEid],
+          isReadyToHatch: EggHatchComp.isReadyToHatch[characterEid] === 1,
+          isSimulationMode: this.isSimulationMode,
+          isRunningReentrySimulation: this._isRunningReentrySimulation
+        });
+      }
       return syncWorldData;
     } catch (error) {
       console.warn(
@@ -43742,6 +43939,20 @@ ${this.t("main.cleanObjectsPrompt")}`,
         )} elapsed time`
       );
       const reentrySimulator = new ReentrySimulator();
+      if (this._hasEggCharacterForReentrySimulation()) {
+        await Promise.all(
+          EGG_HATCH_STARTING_SPRITESHEET_KEYS.map(
+            async (characterSpritesheetKey) => {
+              const spritesheetName = SPRITESHEET_KEY_TO_NAME[characterSpritesheetKey];
+              await loadSpritesheet({
+                jsonPath: `/assets/game/sprites/monsters/${spritesheetName}.json`,
+                alias: spritesheetName
+              });
+              await ensureCharacterOpaqueBoundsComputed(characterSpritesheetKey);
+            }
+          )
+        );
+      }
       const simulationPipeline = this._createSimulationPipeline(
         () => reentrySimulator.getCurrentSimulationTime(),
         {
@@ -43794,6 +44005,13 @@ ${this.t("main.cleanObjectsPrompt")}`,
         error: capturedError
       });
     }
+  }
+  _hasEggCharacterForReentrySimulation() {
+    var _a, _b;
+    return ((_b = (_a = this._persistentData) == null ? void 0 : _a.entities) == null ? void 0 : _b.some((entity) => {
+      var _a2, _b2;
+      return ((_a2 = entity.components.object) == null ? void 0 : _a2.type) === ObjectType.CHARACTER && ((_b2 = entity.components.object) == null ? void 0 : _b2.state) === CharacterState.EGG;
+    })) ?? false;
   }
   /**
    * 현재 시뮬레이션 모드인지 확인
@@ -53963,6 +54181,20 @@ class Game {
     }
     return this.currentScene.getMainCharacterStaminaSnapshot();
   }
+  getMainSceneTimeOfDay() {
+    if (!(this.currentScene instanceof MainSceneWorld)) {
+      return null;
+    }
+    return this.currentScene.getTimeOfDay();
+  }
+  setMainSceneTimeOfDay(timeOfDay) {
+    if (!(this.currentScene instanceof MainSceneWorld)) {
+      return false;
+    }
+    this.currentScene.setTimeOfDay(timeOfDay);
+    this._syncFlappyBirdSkyContextFromMainScene(this.currentScene);
+    return true;
+  }
   getMainCharacterInfoSnapshot() {
     if (!(this.currentScene instanceof MainSceneWorld)) {
       return null;
@@ -54438,58 +54670,61 @@ export {
   NAME_LABEL_STROKE_WIDTH as Z,
   SUPPORTED_LOCALES as _,
   applyEvolutionAdminExport as a,
-  GAME_CONSTANTS as a0,
-  SceneKey as a1,
-  hasLegacyMonsterBookState as a2,
-  migrateLegacyMonsterBookIfNeeded as a3,
-  getNativeSunTimes as a4,
-  MissingInitialGameDataError as a5,
-  Game as a6,
-  GpuProgram as a7,
-  GlProgram as a8,
-  TextureMatrix as a9,
-  generateTextureBatchBitGl as aA,
-  roundPixelsBitGl as aB,
-  getBatchSamplersUniformGroup as aC,
-  TextStyle as aD,
-  BatchableGraphics as aE,
-  getAdjustedBlendModeBlend as aF,
-  ViewableBuffer as aG,
-  TextureStyle as aH,
-  BitmapFontManager as aI,
-  CanvasTextMetrics as aJ,
-  getBitmapTextLayout as aK,
-  Cache as aL,
-  Graphics as aM,
-  updateQuadBounds as aN,
-  CanvasTextGenerator as aO,
-  GraphicsContextSystem as aP,
-  DefaultBatcher as aa,
-  BigPool as ab,
-  getGlobalBounds as ac,
-  Bounds as ad,
-  TexturePool as ae,
-  FilterEffect as af,
-  Sprite as ag,
-  getAttributeInfoFromFormat as ah,
-  unsafeEvalSupported as ai,
-  uid as aj,
-  Rectangle as ak,
-  SystemRunner as al,
-  multiplyColors as am,
-  UPDATE_VISIBLE as an,
-  UPDATE_COLOR as ao,
-  UPDATE_BLEND as ap,
-  Color as aq,
-  getLocalBounds as ar,
-  VERSION as as,
-  deprecation as at,
-  v8_0_0 as au,
-  RendererInitHook as av,
-  Geometry as aw,
-  checkMaxIfStatementsInShader as ax,
-  compileHighShaderGlProgram as ay,
-  colorBitGl as az,
+  CharacterState as a0,
+  CharacterKeyECS as a1,
+  GAME_CONSTANTS as a2,
+  SceneKey as a3,
+  TimeOfDay as a4,
+  hasLegacyMonsterBookState as a5,
+  migrateLegacyMonsterBookIfNeeded as a6,
+  getNativeSunTimes as a7,
+  MissingInitialGameDataError as a8,
+  Game as a9,
+  checkMaxIfStatementsInShader as aA,
+  compileHighShaderGlProgram as aB,
+  colorBitGl as aC,
+  generateTextureBatchBitGl as aD,
+  roundPixelsBitGl as aE,
+  getBatchSamplersUniformGroup as aF,
+  TextStyle as aG,
+  BatchableGraphics as aH,
+  getAdjustedBlendModeBlend as aI,
+  ViewableBuffer as aJ,
+  TextureStyle as aK,
+  BitmapFontManager as aL,
+  CanvasTextMetrics as aM,
+  getBitmapTextLayout as aN,
+  Cache as aO,
+  Graphics as aP,
+  updateQuadBounds as aQ,
+  CanvasTextGenerator as aR,
+  GraphicsContextSystem as aS,
+  GpuProgram as aa,
+  GlProgram as ab,
+  TextureMatrix as ac,
+  DefaultBatcher as ad,
+  BigPool as ae,
+  getGlobalBounds as af,
+  Bounds as ag,
+  TexturePool as ah,
+  FilterEffect as ai,
+  Sprite as aj,
+  getAttributeInfoFromFormat as ak,
+  unsafeEvalSupported as al,
+  uid as am,
+  Rectangle as an,
+  SystemRunner as ao,
+  multiplyColors as ap,
+  UPDATE_VISIBLE as aq,
+  UPDATE_COLOR as ar,
+  UPDATE_BLEND as as,
+  Color as at,
+  getLocalBounds as au,
+  VERSION as av,
+  deprecation as aw,
+  v8_0_0 as ax,
+  RendererInitHook as ay,
+  Geometry as az,
   buildEvolutionAdminExport as b,
   EventEmitter as c,
   getTextureBatchBindGroup as d,

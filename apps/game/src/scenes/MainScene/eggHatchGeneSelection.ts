@@ -18,6 +18,15 @@ export type EggHatchGeneSelectionInput = {
   random: number;
 };
 
+export type EggHatchGeneSelectionDiagnostics = {
+  normalizedStaleFoodCountAtHatch: number;
+  normalizedSyringeCount: number;
+  normalizedRandom: number;
+  rollPercent: number;
+  probabilities: EggHatchGeneProbabilities;
+  selectedCharacterKey: CharacterKeyECS;
+};
+
 function normalizeBonusCount(value: number): number {
   if (!Number.isFinite(value) || value <= 0) {
     return 0;
@@ -54,19 +63,42 @@ export function calculateEggHatchGeneProbabilities(params: {
   };
 }
 
+export function resolveEggHatchStartingGeneSelection(
+  params: EggHatchGeneSelectionInput,
+): EggHatchGeneSelectionDiagnostics {
+  const normalizedStaleFoodCountAtHatch = normalizeBonusCount(
+    params.staleFoodCountAtHatch,
+  );
+  const normalizedSyringeCount = normalizeBonusCount(params.syringeCount);
+  const normalizedRandom = normalizeRandom(params.random);
+  const probabilities = calculateEggHatchGeneProbabilities({
+    staleFoodCountAtHatch: normalizedStaleFoodCountAtHatch,
+    syringeCount: normalizedSyringeCount,
+  });
+  const rollPercent = normalizedRandom * 100;
+
+  let selectedCharacterKey: CharacterKeyECS;
+
+  if (rollPercent < probabilities.green) {
+    selectedCharacterKey = CharacterKeyECS.GreenSlimeA1;
+  } else if (rollPercent < probabilities.green + probabilities.soil) {
+    selectedCharacterKey = CharacterKeyECS.SoilSlimeA1;
+  } else {
+    selectedCharacterKey = CharacterKeyECS.SkullSlimeA1;
+  }
+
+  return {
+    normalizedStaleFoodCountAtHatch,
+    normalizedSyringeCount,
+    normalizedRandom,
+    rollPercent,
+    probabilities,
+    selectedCharacterKey,
+  };
+}
+
 export function selectEggHatchStartingGene(
   params: EggHatchGeneSelectionInput,
 ): CharacterKeyECS {
-  const probabilities = calculateEggHatchGeneProbabilities(params);
-  const roll = normalizeRandom(params.random) * 100;
-
-  if (roll < probabilities.green) {
-    return CharacterKeyECS.GreenSlimeA1;
-  }
-
-  if (roll < probabilities.green + probabilities.soil) {
-    return CharacterKeyECS.SoilSlimeA1;
-  }
-
-  return CharacterKeyECS.SkullSlimeA1;
+  return resolveEggHatchStartingGeneSelection(params).selectedCharacterKey;
 }

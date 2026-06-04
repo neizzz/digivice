@@ -565,6 +565,7 @@ open class MainActivity : FlutterActivity() {
             context = this,
             snapshot = snapshot,
             debugModeEnabled = false,
+            renderMode = WidgetRenderMode.PICKER_PREVIEW,
         )
         return Bundle().apply {
             putParcelable(AppWidgetManager.EXTRA_APPWIDGET_PREVIEW, preview)

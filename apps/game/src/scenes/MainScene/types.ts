@@ -430,6 +430,7 @@ export type EggHatchComponent = {
   hatchDurationMs?: number; // 전체 부화 시간 (ms)
   isReadyToHatch: boolean; // 부화 준비 완료 여부
   syringeCount?: number; // 알 상태에서 병원/주사기 메뉴를 누른 횟수
+  pendingCharacterKey?: CharacterKeyECS; // 고정된 1회성 부화 결과
 };
 
 export type MutationRiskComponent = {

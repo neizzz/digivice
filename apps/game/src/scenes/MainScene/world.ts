@@ -389,6 +389,11 @@ const MAIN_SCENE_AD_FEED_FALLBACK_AFTER_LAND_MS = 3000;
 const MAIN_SCENE_AD_FEED_IDLE_RETRY_MS = 1000;
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
+const EGG_HATCH_STARTING_SPRITESHEET_KEYS: readonly SpritesheetKey[] = [
+  SpritesheetKey.GreenSlimeA1,
+  SpritesheetKey.SkullSlimeA1,
+  SpritesheetKey.SoilSlimeA1,
+];
 
 const COMMON_SPRITESHEET_ASSETS: LoadSpritesheetOptions[] = [
   {
@@ -2379,6 +2384,9 @@ export class MainSceneWorld implements IWorld, Scene {
 
   public buildHomeWidgetSyncWorldData(): MainSceneWorldData | null {
     if (!this._persistentData) {
+      console.warn("[ImportantDiagnostics][HomeWidgetSyncWorldData]", {
+        phase: "build_skipped_missing_persistent_data",
+      });
       return null;
     }
 
@@ -2422,6 +2430,26 @@ export class MainSceneWorld implements IWorld, Scene {
       syncWorldData.entities = objectEntities.map((eid) =>
         convertECSEntityToSavedEntity(this, eid),
       );
+      const characterEid = this._findMainCharacterEntity();
+
+      if (characterEid >= 0) {
+        console.warn("[ImportantDiagnostics][HomeWidgetSyncWorldData]", {
+          phase: "build_completed",
+          currentTime,
+          worldLastEcsSaved: worldMetadata.last_ecs_saved,
+          appLastActiveTime: appState.last_active_time,
+          appMonsterName: worldMetadata.monster_name ?? null,
+          eid: characterEid,
+          objectId: ObjectComp.id[characterEid],
+          state: ObjectComp.state[characterEid],
+          characterKey: CharacterStatusComp.characterKey[characterEid],
+          hatchTime: EggHatchComp.hatchTime[characterEid],
+          hatchDurationMs: EggHatchComp.hatchDurationMs[characterEid],
+          isReadyToHatch: EggHatchComp.isReadyToHatch[characterEid] === 1,
+          isSimulationMode: this.isSimulationMode,
+          isRunningReentrySimulation: this._isRunningReentrySimulation,
+        });
+      }
 
       return syncWorldData;
     } catch (error) {
@@ -4009,6 +4037,22 @@ export class MainSceneWorld implements IWorld, Scene {
       // 일회성 ReentrySimulator 인스턴스 생성
       const reentrySimulator = new ReentrySimulator();
 
+      if (this._hasEggCharacterForReentrySimulation()) {
+        await Promise.all(
+          EGG_HATCH_STARTING_SPRITESHEET_KEYS.map(
+            async (characterSpritesheetKey) => {
+              const spritesheetName =
+                SPRITESHEET_KEY_TO_NAME[characterSpritesheetKey];
+              await loadSpritesheet({
+                jsonPath: `/assets/game/sprites/monsters/${spritesheetName}.json`,
+                alias: spritesheetName,
+              });
+              await ensureCharacterOpaqueBoundsComputed(characterSpritesheetKey);
+            },
+          ),
+        );
+      }
+
       // 시뮬레이션 전용 파이프라인을 생성하여 시뮬레이션 실행
       const simulationPipeline = this._createSimulationPipeline(
         () => reentrySimulator.getCurrentSimulationTime(),
@@ -4066,6 +4110,15 @@ export class MainSceneWorld implements IWorld, Scene {
         error: capturedError,
       });
     }
+  }
+
+  private _hasEggCharacterForReentrySimulation(): boolean {
+    return this._persistentData?.entities?.some((entity) => {
+      return (
+        entity.components.object?.type === ObjectType.CHARACTER &&
+        entity.components.object?.state === CharacterState.EGG
+      );
+    }) ?? false;
   }
 
   /**

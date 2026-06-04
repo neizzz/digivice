@@ -225,11 +225,13 @@ export function createCharacterEntity(
     EggHatchComp.hatchDurationMs[eid] = hatchDurationMs;
     EggHatchComp.isReadyToHatch[eid] = 0; // 아직 부화 준비 안됨
     EggHatchComp.syringeCount[eid] = 0;
+    EggHatchComp.pendingCharacterKey[eid] = CharacterKeyECS.NULL;
   } else {
     EggHatchComp.hatchTime[eid] = 0;
     EggHatchComp.hatchDurationMs[eid] = 0;
     EggHatchComp.isReadyToHatch[eid] = 0;
     EggHatchComp.syringeCount[eid] = 0;
+    EggHatchComp.pendingCharacterKey[eid] = CharacterKeyECS.NULL;
   }
 
   // MutationRiskComp 추가

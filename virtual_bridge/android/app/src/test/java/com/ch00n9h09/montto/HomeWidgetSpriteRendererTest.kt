@@ -1,7 +1,9 @@
 package com.ch00n9h09.montto
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class HomeWidgetSpriteRendererTest {
@@ -98,25 +100,51 @@ class HomeWidgetSpriteRendererTest {
     }
 
     @Test
-    fun `egg crack pixel size scales with enlarged widget bitmap`() {
-        assertEquals(
-            2,
-            HomeWidgetSpriteRenderer.resolveEggCrackPixelSize(
-                width = 54,
-                height = 68,
-            ),
-        )
+    fun `egg crack overlay applies only to egg stages above zero`() {
+        assertFalse(HomeWidgetSpriteRenderer.shouldApplyEggCrackOverlay("egg", 0))
+        assertTrue(HomeWidgetSpriteRenderer.shouldApplyEggCrackOverlay("egg", 1))
+        assertTrue(HomeWidgetSpriteRenderer.shouldApplyEggCrackOverlay("egg", 2))
+        assertTrue(HomeWidgetSpriteRenderer.shouldApplyEggCrackOverlay("egg", 3))
+        assertFalse(HomeWidgetSpriteRenderer.shouldApplyEggCrackOverlay("idle", 3))
     }
 
     @Test
-    fun `egg crack pixel size stays at one for base size bitmap`() {
-        assertEquals(
-            1,
-            HomeWidgetSpriteRenderer.resolveEggCrackPixelSize(
-                width = 32,
-                height = 32,
-            ),
-        )
+    fun `egg crack pixels stay empty at stage zero and expand with later stages`() {
+        val stage0 = HomeWidgetSpriteRenderer.resolveEggCrackPixels(width = 32, height = 32, stage = 0)
+        val stage1 = HomeWidgetSpriteRenderer.resolveEggCrackPixels(width = 32, height = 32, stage = 1)
+        val stage2 = HomeWidgetSpriteRenderer.resolveEggCrackPixels(width = 32, height = 32, stage = 2)
+        val stage3 = HomeWidgetSpriteRenderer.resolveEggCrackPixels(width = 32, height = 32, stage = 3)
+
+        assertTrue(stage0.isEmpty())
+        assertEquals(6, stage1.size)
+        assertEquals(15, stage2.size)
+        assertEquals(40, stage3.size)
+        assertTrue(stage2.containsAll(stage1))
+        assertTrue(stage3.containsAll(stage2))
+    }
+
+    @Test
+    fun `stage 3 crack pixels match app rounding semantics at representative branches`() {
+        val stage3 = HomeWidgetSpriteRenderer.resolveEggCrackPixels(width = 32, height = 32, stage = 3)
+
+        listOf(
+            15 to 15,
+            16 to 16,
+            21 to 12,
+            12 to 19,
+            16 to 10,
+            10 to 24,
+        ).forEach { pixel ->
+            assertTrue("missing app pixel $pixel", stage3.contains(pixel))
+        }
+
+        listOf(
+            16 to 17,
+            18 to 13,
+            15 to 10,
+        ).forEach { pixel ->
+            assertFalse("unexpected truncated pixel $pixel", stage3.contains(pixel))
+        }
     }
 
     private fun alphaMask(

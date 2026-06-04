@@ -52,18 +52,93 @@ class HomeWidgetProviderTest {
                 minDp = 0,
                 maxDp = 0,
                 fallbackDp = 90,
+                renderMode = WidgetRenderMode.LIVE_WIDGET,
             ),
         )
     }
 
     @Test
-    fun `widget dimension prefers actual widget options over larger fallback`() {
+    fun `1x1 live widget path prefers actual widget options over picker preview override`() {
         assertEquals(
             74,
             HomeWidgetLayoutSizing.resolveWidgetDimensionDp(
                 minDp = 74,
-                maxDp = 74,
+                maxDp = 70,
                 fallbackDp = 90,
+                renderMode = WidgetRenderMode.LIVE_WIDGET,
+                previewOverrideDp = 60,
+            ),
+        )
+    }
+
+    @Test
+    fun `1x1 picker preview path uses fixed 74dp width without widget options`() {
+        assertEquals(
+            74,
+            HomeWidgetLayoutSizing.resolveWidgetDimensionDp(
+                minDp = 0,
+                maxDp = 0,
+                fallbackDp = 90,
+                renderMode = WidgetRenderMode.PICKER_PREVIEW,
+                previewOverrideDp = 74,
+            ),
+        )
+    }
+
+    @Test
+    fun `1x1 picker preview egg target visible width uses live 1x1 baseline`() {
+        val widgetWidthPx = HomeWidgetLayoutSizing.resolveOneByOneCharacterReferenceWidthPx(
+            renderMode = WidgetRenderMode.PICKER_PREVIEW,
+            characterState = "egg",
+            liveWidgetMinWidthPx = 50,
+            resolvedWidgetWidthPx = 74,
+        )
+
+        assertEquals(
+            30,
+            HomeWidgetLayoutSizing.resolveOneByOneCharacterTargetVisibleWidthPx(widgetWidthPx),
+        )
+    }
+
+    @Test
+    fun `1x1 picker preview non egg target visible width keeps 74px preview width`() {
+        val widgetWidthPx = HomeWidgetLayoutSizing.resolveOneByOneCharacterReferenceWidthPx(
+            renderMode = WidgetRenderMode.PICKER_PREVIEW,
+            characterState = "idle",
+            liveWidgetMinWidthPx = 50,
+            resolvedWidgetWidthPx = 74,
+        )
+
+        assertEquals(
+            45,
+            HomeWidgetLayoutSizing.resolveOneByOneCharacterTargetVisibleWidthPx(widgetWidthPx),
+        )
+    }
+
+    @Test
+    fun `1x1 live widget path keeps resolved width even for egg state`() {
+        val widgetWidthPx = HomeWidgetLayoutSizing.resolveOneByOneCharacterReferenceWidthPx(
+            renderMode = WidgetRenderMode.LIVE_WIDGET,
+            characterState = "egg",
+            liveWidgetMinWidthPx = 50,
+            resolvedWidgetWidthPx = 74,
+        )
+
+        assertEquals(
+            45,
+            HomeWidgetLayoutSizing.resolveOneByOneCharacterTargetVisibleWidthPx(widgetWidthPx),
+        )
+    }
+
+    @Test
+    fun `2x1 picker preview path keeps existing fallback sizing`() {
+        assertEquals(
+            180,
+            HomeWidgetLayoutSizing.resolveWidgetDimensionDp(
+                minDp = 0,
+                maxDp = 0,
+                fallbackDp = 180,
+                renderMode = WidgetRenderMode.PICKER_PREVIEW,
             ),
         )
     }

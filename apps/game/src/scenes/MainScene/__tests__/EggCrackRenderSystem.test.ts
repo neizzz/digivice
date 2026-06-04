@@ -17,7 +17,7 @@ import {
   eggCrackRenderSystem,
 } from "../systems/EggCrackRenderSystem";
 import { getSpriteStore } from "../systems/RenderSystem";
-import { CharacterState } from "../types";
+import { CharacterKeyECS, CharacterState } from "../types";
 import { MainSceneWorld } from "../world";
 import {
   createTestCharacter,
@@ -252,10 +252,15 @@ test("egg hatch duration과 syringeCount는 저장과 복원 시 round-trip된�
   EggHatchComp.hatchTime[eid] = 4_000;
   EggHatchComp.hatchDurationMs[eid] = 1_234;
   EggHatchComp.syringeCount[eid] = 7;
+  EggHatchComp.pendingCharacterKey[eid] = CharacterKeyECS.SoilSlimeA1;
 
   const saved = convertECSEntityToSavedEntity(world, eid);
   assert.equal(saved.components.eggHatch?.hatchDurationMs, 1_234);
   assert.equal(saved.components.eggHatch?.syringeCount, 7);
+  assert.equal(
+    saved.components.eggHatch?.pendingCharacterKey,
+    CharacterKeyECS.SoilSlimeA1,
+  );
 
   const restoredWorld = createTestWorld({ now: 0 });
   const restoredEid = addEntity(restoredWorld);
@@ -264,6 +269,10 @@ test("egg hatch duration과 syringeCount는 저장과 복원 시 round-trip된�
   assert.equal(EggHatchComp.hatchTime[restoredEid], 4_000);
   assert.equal(EggHatchComp.hatchDurationMs[restoredEid], 1_234);
   assert.equal(EggHatchComp.syringeCount[restoredEid], 7);
+  assert.equal(
+    EggHatchComp.pendingCharacterKey[restoredEid],
+    CharacterKeyECS.SoilSlimeA1,
+  );
 });
 
 test("legacy egg save에 hatchDurationMs가 없어도 남은 시간 기준 duration으로 복원된다", () => {

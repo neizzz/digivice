@@ -64,6 +64,19 @@ function normalizeEggSyringeCount(value: number | undefined): number {
   return Math.min(10, Math.floor(value));
 }
 
+function normalizePendingEggHatchCharacterKey(
+  value: number | undefined,
+): CharacterKey {
+  switch (value) {
+    case CharacterKey.GreenSlimeA1:
+    case CharacterKey.SoilSlimeA1:
+    case CharacterKey.SkullSlimeA1:
+      return value;
+    default:
+      return CharacterKey.NULL;
+  }
+}
+
 function resolveEggHatchComponentForState(params: {
   currentTime: number;
   state: number;
@@ -205,6 +218,9 @@ export function convertECSEntityToSavedEntity(
       hatchDurationMs: EggHatchComp.hatchDurationMs[eid],
       isReadyToHatch: EggHatchComp.isReadyToHatch[eid] === 1,
       syringeCount: normalizeEggSyringeCount(EggHatchComp.syringeCount[eid]),
+      pendingCharacterKey: normalizePendingEggHatchCharacterKey(
+        EggHatchComp.pendingCharacterKey[eid],
+      ),
     };
   }
   if (hasComponent(world, MutationRiskComp, eid)) {
@@ -439,6 +455,12 @@ export function applySavedEntityToECS(
     EggHatchComp.syringeCount[eid] = normalizeEggSyringeCount(
       components.eggHatch.syringeCount,
     );
+    EggHatchComp.pendingCharacterKey[eid] =
+      ObjectComp.state[eid] === CharacterState.EGG
+        ? normalizePendingEggHatchCharacterKey(
+            components.eggHatch.pendingCharacterKey,
+          )
+        : CharacterKey.NULL;
   }
 
   if (components.mutationRisk) {
@@ -743,6 +765,7 @@ export function repairCharacterEntityRuntimeComponents(
     }
     EggHatchComp.isReadyToHatch[eid] = 0;
     EggHatchComp.syringeCount[eid] = 0;
+    EggHatchComp.pendingCharacterKey[eid] = CharacterKey.NULL;
     repaired.push("EggHatchComp");
   } else if (state === CharacterState.EGG) {
     const resolvedEggHatch = resolveEggHatchComponentForState({
@@ -756,6 +779,11 @@ export function repairCharacterEntityRuntimeComponents(
     EggHatchComp.syringeCount[eid] = normalizeEggSyringeCount(
       EggHatchComp.syringeCount[eid],
     );
+    EggHatchComp.pendingCharacterKey[eid] = normalizePendingEggHatchCharacterKey(
+      EggHatchComp.pendingCharacterKey[eid],
+    );
+  } else {
+    EggHatchComp.pendingCharacterKey[eid] = CharacterKey.NULL;
   }
 
   if (!hasComponent(world, MutationRiskComp, eid)) {

@@ -9,6 +9,7 @@ import {
   ObjectComp,
 } from "../raw-components";
 import { GAME_CONSTANTS } from "../config";
+import { applySavedEntityToECS, convertECSEntityToSavedEntity } from "../entityDataHelpers";
 import { eggHatchSystem } from "../systems/EggHatchSystem";
 import { freshnessSystem } from "../systems/FreshnessSystem";
 import {
@@ -173,4 +174,82 @@ test("EggHatchSystem은 부화 시점에 생성 후 10분이 지난 음식만 st
     CharacterKeyECS.GreenSlimeA1,
   );
   assert.equal(CharacterStatusComp.evolutionPhase[eggEid], 1);
+});
+
+test("EggHatchSystem은 asset 지연과 저장/복원 이후에도 최초 pending 부화 결과를 재사용한다", () => {
+  const currentTime = 5_000;
+  const world = createTestWorld({ now: currentTime, isSimulationMode: true });
+  const eggEid = withMockedDateNow(currentTime, () =>
+    createTestCharacter(world, {
+      state: CharacterState.EGG,
+    }),
+  );
+  EggHatchComp.hatchTime[eggEid] = currentTime;
+
+  for (let i = 0; i < 10; i++) {
+    addFood(world, Freshness.STALE);
+  }
+
+  const originalWarn = console.warn;
+  let selectionLogCount = 0;
+  console.warn = (...args: unknown[]) => {
+    if (args[0] === "[ImportantDiagnostics][EggHatchSelection]") {
+      selectionLogCount += 1;
+    }
+    originalWarn(...args);
+  };
+
+  try {
+    withMockedRandom(0.46, () => {
+      eggHatchSystem({
+        world: world as any,
+        currentTime,
+      });
+    });
+  } finally {
+    console.warn = originalWarn;
+  }
+
+  assert.equal(ObjectComp.state[eggEid], CharacterState.EGG);
+  assert.equal(EggHatchComp.isReadyToHatch[eggEid], 1);
+  assert.equal(
+    EggHatchComp.pendingCharacterKey[eggEid],
+    CharacterKeyECS.SoilSlimeA1,
+  );
+  assert.equal(selectionLogCount, 1);
+
+  const savedEntity = convertECSEntityToSavedEntity(world, eggEid);
+  assert.equal(
+    savedEntity.components.eggHatch?.pendingCharacterKey,
+    CharacterKeyECS.SoilSlimeA1,
+  );
+
+  const restoredWorld = createTestWorld({
+    now: currentTime,
+    isSimulationMode: true,
+  });
+  const restoredEid = addEntity(restoredWorld);
+  withMockedDateNow(currentTime, () => {
+    applySavedEntityToECS(restoredWorld, restoredEid, savedEntity);
+  });
+
+  const restoreSpritesheet = mockLoadedSpritesheetAliases(["soil-slime_A1"]);
+  try {
+    withMockedRandom(0.99, () => {
+      eggHatchSystem({
+        world: restoredWorld as any,
+        currentTime,
+      });
+    });
+  } finally {
+    restoreSpritesheet();
+  }
+
+  assert.equal(ObjectComp.state[restoredEid], CharacterState.IDLE);
+  assert.equal(
+    CharacterStatusComp.characterKey[restoredEid],
+    CharacterKeyECS.SoilSlimeA1,
+  );
+  assert.equal(CharacterStatusComp.evolutionPhase[restoredEid], 1);
+  assert.equal(EggHatchComp.pendingCharacterKey[restoredEid], CharacterKeyECS.NULL);
 });

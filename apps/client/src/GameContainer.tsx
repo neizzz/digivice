@@ -63,6 +63,12 @@ import {
   resumeUiSfxFromGesture,
 } from "./utils/uiSfx";
 import { selectHomeWidgetSyncWorldData } from "./utils/selectHomeWidgetSyncWorldData";
+import {
+  clearStoreSnapshotBridgeState,
+  getStoreSnapshotConfig,
+  resolveStoreSnapshotTimeOfDay,
+  setStoreSnapshotBridgeState,
+} from "./storeSnapshot";
 
 const WORLD_DATA_STORAGE_KEY = "MainSceneWorldData";
 const FLAPPY_BIRD_GAME_OVER_AD_COUNTER_STORAGE_KEY =
@@ -215,6 +221,22 @@ type FlappyBirdSettingsMenuState = {
   onExit: () => void | Promise<void>;
 };
 
+type HomeWidgetLaunchMode = "default" | "widget_refresh";
+
+type HomeWidgetBackgroundSyncResult = {
+  status:
+    | "completed"
+    | "failed"
+    | "skipped_missing_controller"
+    | "skipped_no_world_data";
+  reason: string;
+  selectedSource: "stored" | "in_memory" | null;
+  storedLastEcsSaved: number | null;
+  inMemoryLastEcsSaved: number | null;
+  syncResult?: Record<string, unknown> | null;
+  error?: string;
+};
+
 type FullscreenAdEventDetail = {
   state?: "showing" | "dismissed" | "failed";
 };
@@ -222,6 +244,7 @@ type FullscreenAdEventDetail = {
 type NativeAppLifecycleEventDetail = {
   state?: "resumed" | "inactive" | "hidden" | "paused" | "detached";
   timestamp?: string;
+  launchMode?: string;
 };
 
 const BACK_NAVIGATION_ALERT_ENTRY = "layer:alert";
@@ -784,6 +807,8 @@ const GameContainer: React.FC = () => {
       phase: "idle",
     });
   const [isResumeGuardVisible, setIsResumeGuardVisible] = useState(false);
+  const [storeSnapshotAppliedTimeOfDay, setStoreSnapshotAppliedTimeOfDay] =
+    useState<TimeOfDay | null>(null);
   const pendingSettingMenuOpenTimeoutRef = useRef<number | null>(null);
   const sceneTransitionRequestIdRef = useRef(0);
   const resumeGuardReleaseRequestIdRef = useRef(0);
@@ -805,7 +830,16 @@ const GameContainer: React.FC = () => {
   const isFullscreenAdLayoutFrozenRef = useRef(false);
   const isResumeGuardVisibleRef = useRef(false);
   const isResumeReentrySimulationRunningRef = useRef(false);
+  const homeWidgetLaunchModeRef = useRef<HomeWidgetLaunchMode>("default");
   const nativeBackgroundWidgetSyncTriggeredRef = useRef(false);
+  const syncHomeWidgetForNativeBackgroundRef = useRef<
+    ((reason: string) => Promise<HomeWidgetBackgroundSyncResult>) | null
+  >(null);
+  const completeWidgetRefreshAfterInitReentryRef = useRef<
+    ((
+      result: "completed" | "skipped" | "failed" | undefined,
+    ) => Promise<void>) | null
+  >(null);
   const fullscreenAdLayoutReleaseTimeoutRef = useRef<number | null>(null);
   const fullscreenAdLayoutReleaseRafRef = useRef<number | null>(null);
   const activeBackNavigationEntriesRef = useRef<BackNavigationEntry[]>([]);
@@ -817,6 +851,9 @@ const GameContainer: React.FC = () => {
     BackNavigationEntry[] | null
   >(null);
   const hasInitializedBackNavigationHistoryRef = useRef(false);
+  const storeSnapshotConfig = useMemo(() => getStoreSnapshotConfig(), []);
+  const storeSnapshotSceneRequestedRef = useRef<SceneKey | null>(null);
+  const storeSnapshotMonsterInfoRequestedRef = useRef(false);
 
   const logSetupLayerVisibility = useCallback(
     (
@@ -1875,25 +1912,88 @@ const GameContainer: React.FC = () => {
   const handleMainSceneReentrySimulationStateChange =
     useCallback<MainSceneReentrySimulationStateChangeCallback>(
       (params) => {
-        if (params.source !== "app_resume") {
+        if (params.source !== "app_resume" && params.source !== "init") {
           return;
         }
 
         if (params.phase === "started") {
-          isResumeReentrySimulationRunningRef.current = true;
-          showResumeGuard("main_scene_reentry");
+          if (params.source === "app_resume") {
+            isResumeReentrySimulationRunningRef.current = true;
+            showResumeGuard("main_scene_reentry");
+          }
           return;
         }
 
-        isResumeReentrySimulationRunningRef.current = false;
-        hideResumeGuardAfterLayout(
-          params.result === "failed"
-            ? "main_scene_reentry_failed"
-            : "main_scene_reentry_finished",
-        );
+        if (params.source === "app_resume") {
+          isResumeReentrySimulationRunningRef.current = false;
+          hideResumeGuardAfterLayout(
+            params.result === "failed"
+              ? "main_scene_reentry_failed"
+              : "main_scene_reentry_finished",
+          );
+        }
+
+        if (homeWidgetLaunchModeRef.current === "widget_refresh") {
+          void completeWidgetRefreshAfterInitReentryRef.current?.(params.result);
+          return;
+        }
+
+        if (params.result === "completed") {
+          void syncHomeWidgetForNativeBackgroundRef.current?.(
+            params.source === "init"
+              ? "main_scene_reentry_finished_init"
+              : "main_scene_reentry_finished",
+          );
+        }
       },
       [hideResumeGuardAfterLayout, showResumeGuard],
     );
+
+  const loadHomeWidgetLaunchContext = useCallback(async () => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const controller =
+      window.homeWidgetController ?? window.homeWidgetRefreshController;
+
+    if (typeof controller?.getLaunchContext !== "function") {
+      homeWidgetLaunchModeRef.current = "default";
+      return;
+    }
+
+    try {
+      const context = await controller.getLaunchContext();
+      const mode: HomeWidgetLaunchMode =
+        context?.mode === "widget_refresh" ? "widget_refresh" : "default";
+
+      homeWidgetLaunchModeRef.current = mode;
+      logImportantDiagnostics(
+        "log",
+        "[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+        {
+          action: "launch_context_loaded",
+          launchMode: mode,
+        },
+      );
+    } catch (error) {
+      homeWidgetLaunchModeRef.current = "default";
+      logImportantDiagnostics(
+        "warn",
+        "[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+        {
+          action: "launch_context_failed",
+          error:
+            error instanceof Error
+              ? {
+                  name: error.name,
+                  message: error.message,
+                }
+              : String(error),
+        },
+      );
+    }
+  }, []);
 
   const updateGameContainerSize = useCallback((force = false) => {
     const viewportElement = gameViewportRef.current;
@@ -2359,13 +2459,21 @@ const GameContainer: React.FC = () => {
   );
 
   const syncHomeWidgetForNativeBackground = useCallback(
-    async (reason: string) => {
+    async (reason: string): Promise<HomeWidgetBackgroundSyncResult> => {
       if (typeof window === "undefined") {
-        return;
+        return {
+          status: "failed",
+          reason,
+          selectedSource: null,
+          storedLastEcsSaved: null,
+          inMemoryLastEcsSaved: null,
+          error: "window_unavailable",
+        };
       }
 
       const controller =
         window.homeWidgetController ?? window.homeWidgetRefreshController;
+      const currentSceneKey = gameInstance?.getCurrentSceneKey() ?? null;
 
       if (typeof controller?.syncFromWorldDataJson !== "function") {
         logImportantDiagnostics(
@@ -2375,10 +2483,16 @@ const GameContainer: React.FC = () => {
             reason,
             action: "skipped_missing_controller",
             hasGameInstance: !!gameInstance,
-            currentSceneKey: gameInstance?.getCurrentSceneKey() ?? null,
+            currentSceneKey,
           },
         );
-        return;
+        return {
+          status: "skipped_missing_controller",
+          reason,
+          selectedSource: null,
+          storedLastEcsSaved: null,
+          inMemoryLastEcsSaved: null,
+        };
       }
 
       try {
@@ -2401,15 +2515,21 @@ const GameContainer: React.FC = () => {
               reason,
               action: "skipped_no_world_data",
               hasGameInstance: !!gameInstance,
-              currentSceneKey: gameInstance?.getCurrentSceneKey() ?? null,
+              currentSceneKey,
               storedLastEcsSaved: selection.storedLastEcsSaved,
               inMemoryLastEcsSaved: selection.inMemoryLastEcsSaved,
             },
           );
-          return;
+          return {
+            status: "skipped_no_world_data",
+            reason,
+            selectedSource: null,
+            storedLastEcsSaved: selection.storedLastEcsSaved,
+            inMemoryLastEcsSaved: selection.inMemoryLastEcsSaved,
+          };
         }
 
-        controller.syncFromWorldDataJson({
+        const syncPromise = controller.syncFromWorldDataJson({
           rawWorldData: JSON.stringify(selection.selectedWorldData),
           reason,
         });
@@ -2422,11 +2542,22 @@ const GameContainer: React.FC = () => {
             action: "dispatched",
             selectedSource: selection.source,
             hasGameInstance: !!gameInstance,
-            currentSceneKey: gameInstance?.getCurrentSceneKey() ?? null,
+            currentSceneKey,
             storedLastEcsSaved: selection.storedLastEcsSaved,
             inMemoryLastEcsSaved: selection.inMemoryLastEcsSaved,
           },
         );
+
+        const syncResult = await syncPromise;
+
+        return {
+          status: "completed",
+          reason,
+          selectedSource: selection.source,
+          storedLastEcsSaved: selection.storedLastEcsSaved,
+          inMemoryLastEcsSaved: selection.inMemoryLastEcsSaved,
+          syncResult,
+        };
       } catch (error) {
         logImportantDiagnostics(
           "warn",
@@ -2435,7 +2566,7 @@ const GameContainer: React.FC = () => {
             reason,
             action: "failed",
             hasGameInstance: !!gameInstance,
-            currentSceneKey: gameInstance?.getCurrentSceneKey() ?? null,
+            currentSceneKey,
             error:
               error instanceof Error
                 ? {
@@ -2445,10 +2576,179 @@ const GameContainer: React.FC = () => {
                 : String(error),
           },
         );
+
+        return {
+          status: "failed",
+          reason,
+          selectedSource: null,
+          storedLastEcsSaved: null,
+          inMemoryLastEcsSaved: null,
+          error:
+            error instanceof Error
+              ? `${error.name}: ${error.message}`
+              : String(error),
+        };
       }
     },
     [gameInstance],
   );
+  syncHomeWidgetForNativeBackgroundRef.current =
+    syncHomeWidgetForNativeBackground;
+
+  const completeWidgetRefreshAfterReentry = useCallback(
+    async (result: "completed" | "skipped" | "failed" | undefined) => {
+      if (typeof window === "undefined") {
+        return;
+      }
+
+      const controller =
+        window.homeWidgetController ?? window.homeWidgetRefreshController;
+      const reason = "main_scene_reentry_finished_init_widget_refresh";
+      let completionResult = result ?? "failed";
+      let syncOutcome: HomeWidgetBackgroundSyncResult | null = null;
+
+      logImportantDiagnostics(
+        "log",
+        "[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+        {
+          action: "widget_refresh_started",
+          reason,
+          reentryResult: result ?? null,
+          launchMode: homeWidgetLaunchModeRef.current,
+          hasGameInstance: !!gameInstance,
+          currentSceneKey: gameInstance?.getCurrentSceneKey() ?? null,
+        },
+      );
+
+      try {
+        if (result === "completed") {
+          logImportantDiagnostics(
+            "log",
+            "[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+            {
+              action: "widget_refresh_sync_dispatched",
+              reason,
+            },
+          );
+
+          syncOutcome = await syncHomeWidgetForNativeBackground(reason);
+
+          if (syncOutcome.status === "completed") {
+            logImportantDiagnostics(
+              "log",
+              "[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+              {
+                action: "widget_refresh_sync_completed",
+                reason,
+                selectedSource: syncOutcome.selectedSource,
+                storedLastEcsSaved: syncOutcome.storedLastEcsSaved,
+                inMemoryLastEcsSaved: syncOutcome.inMemoryLastEcsSaved,
+                syncStatus:
+                  typeof syncOutcome.syncResult?.status === "string"
+                    ? syncOutcome.syncResult.status
+                    : null,
+                currentPublishStatus:
+                  typeof syncOutcome.syncResult?.currentPublishStatus ===
+                  "string"
+                    ? syncOutcome.syncResult.currentPublishStatus
+                    : null,
+                authoritativePublishStatus:
+                  typeof syncOutcome.syncResult?.authoritativePublishStatus ===
+                  "string"
+                    ? syncOutcome.syncResult.authoritativePublishStatus
+                    : null,
+              },
+            );
+          } else {
+            completionResult = "failed";
+            logImportantDiagnostics(
+              "warn",
+              "[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+              {
+                action: "widget_refresh_failed",
+                reason,
+                failureStage: "sync",
+                reentryResult: result,
+                syncOutcome,
+              },
+            );
+          }
+        } else {
+          logImportantDiagnostics(
+            "warn",
+            "[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+            {
+              action: "widget_refresh_failed",
+              reason,
+              failureStage: "reentry",
+              reentryResult: result ?? null,
+            },
+          );
+        }
+      } finally {
+        try {
+          if (typeof controller?.completeRefresh === "function") {
+            await controller.completeRefresh({
+              result: completionResult,
+              source: "main_scene_reentry_finished_widget_refresh",
+              launchMode: homeWidgetLaunchModeRef.current,
+              reentryResult: result ?? null,
+              selectedSource: syncOutcome?.selectedSource ?? null,
+              syncStatus:
+                typeof syncOutcome?.syncResult?.status === "string"
+                  ? syncOutcome.syncResult.status
+                  : null,
+            });
+            logImportantDiagnostics(
+              "log",
+              "[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+              {
+                action: "widget_refresh_completed",
+                reason,
+                completionResult,
+                reentryResult: result ?? null,
+                selectedSource: syncOutcome?.selectedSource ?? null,
+              },
+            );
+          } else {
+            logImportantDiagnostics(
+              "warn",
+              "[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+              {
+                action: "widget_refresh_failed",
+                reason,
+                failureStage: "complete_refresh_missing_controller",
+                reentryResult: result ?? null,
+              },
+            );
+          }
+        } catch (error) {
+          logImportantDiagnostics(
+            "warn",
+            "[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+            {
+              action: "widget_refresh_failed",
+              reason,
+              failureStage: "complete_refresh",
+              reentryResult: result ?? null,
+              error:
+                error instanceof Error
+                  ? {
+                      name: error.name,
+                      message: error.message,
+                    }
+                  : String(error),
+            },
+          );
+        } finally {
+          homeWidgetLaunchModeRef.current = "default";
+        }
+      }
+    },
+    [gameInstance, syncHomeWidgetForNativeBackground],
+  );
+  completeWidgetRefreshAfterInitReentryRef.current =
+    completeWidgetRefreshAfterReentry;
 
   const handleSendDiagnostics = useCallback(async () => {
     if (isSendingDiagnostics || pendingDiagnosticsDraft) {
@@ -3308,6 +3608,21 @@ const GameContainer: React.FC = () => {
       const detail = (event as CustomEvent<NativeAppLifecycleEventDetail>)
         .detail;
       const state = detail?.state;
+      const launchMode =
+        detail?.launchMode === "widget_refresh" ? "widget_refresh" : "default";
+
+      if (launchMode === "widget_refresh") {
+        homeWidgetLaunchModeRef.current = "widget_refresh";
+        logImportantDiagnostics(
+          "log",
+          "[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+          {
+            action: "launch_context_lifecycle",
+            launchMode,
+            state: state ?? null,
+          },
+        );
+      }
 
       if (state === "inactive" || state === "hidden" || state === "paused") {
         const reason = `native_${state}`;
@@ -3369,6 +3684,9 @@ const GameContainer: React.FC = () => {
       if (!gameContainerSize || gameContainerSize <= 0) return;
       if (isInitializedRef.current) return;
 
+      await loadHomeWidgetLaunchContext();
+      if (!isMounted) return;
+
       if (CONFIGURED_INITIAL_SCENE_KEY !== SceneKey.MAIN) {
         initializeGame();
         return;
@@ -3418,6 +3736,7 @@ const GameContainer: React.FC = () => {
     gameSessionKey,
     initializeGame,
     entryFlowDiagnostics,
+    loadHomeWidgetLaunchContext,
     prepareSavedGameData,
     requestInitialGameData,
     stopRecoveryVibration,
@@ -3548,6 +3867,12 @@ const GameContainer: React.FC = () => {
   );
 
   useEffect(() => {
+    storeSnapshotSceneRequestedRef.current = null;
+    storeSnapshotMonsterInfoRequestedRef.current = false;
+    setStoreSnapshotAppliedTimeOfDay(null);
+  }, [gameSessionKey]);
+
+  useEffect(() => {
     if (!monsterInfoState) {
       return;
     }
@@ -3601,6 +3926,156 @@ const GameContainer: React.FC = () => {
     isResumeGuardVisible ||
     sceneTransitionLoadState.phase === "loading" ||
     sceneTransitionLoadState.phase === "core_ready";
+  const storeSnapshotTargetScene =
+    storeSnapshotConfig.enabled ? storeSnapshotConfig.scene : null;
+  const storeSnapshotTargetTimeOfDay = resolveStoreSnapshotTimeOfDay(
+    storeSnapshotConfig.timeOfDay,
+  );
+  const storeSnapshotCurrentScene = gameInstance?.getCurrentSceneKey() ?? null;
+  const storeSnapshotCurrentTimeOfDay =
+    storeSnapshotCurrentScene === SceneKey.MAIN
+      ? storeSnapshotAppliedTimeOfDay ?? gameInstance?.getMainSceneTimeOfDay() ?? null
+      : null;
+  const storeSnapshotReadyReason = !storeSnapshotConfig.enabled
+    ? "disabled"
+    : !gameInstance
+      ? "game_unavailable"
+      : showSetupLayer
+        ? "setup_visible"
+        : isLoading
+          ? "loading"
+          : storeSnapshotCurrentScene !== storeSnapshotConfig.scene
+            ? "waiting_scene"
+            : storeSnapshotTargetTimeOfDay !== null &&
+                storeSnapshotCurrentScene === SceneKey.MAIN &&
+                storeSnapshotCurrentTimeOfDay !== storeSnapshotTargetTimeOfDay
+              ? "waiting_time_of_day"
+              : storeSnapshotConfig.overlay === "monster-info" &&
+                  !monsterInfoState
+                ? "waiting_monster_info"
+                : "ready";
+  const isStoreSnapshotReady = storeSnapshotReadyReason === "ready";
+
+  useEffect(() => {
+    if (!storeSnapshotConfig.enabled) {
+      clearStoreSnapshotBridgeState();
+      return;
+    }
+
+    setStoreSnapshotBridgeState({
+      enabled: true,
+      shot: storeSnapshotConfig.shot,
+      targetScene: storeSnapshotTargetScene,
+      currentScene: storeSnapshotCurrentScene,
+      overlay: storeSnapshotConfig.overlay,
+      timeOfDay: storeSnapshotConfig.timeOfDay,
+      isLoading,
+      isBootstrapping,
+      showSetupLayer,
+      gameContainerSize,
+      loadingFailureMessage: loadingFailureAlert?.message ?? null,
+      unsupportedViewportReason,
+      ready: isStoreSnapshotReady,
+      reason: storeSnapshotReadyReason,
+      monsterInfoOpen: monsterInfoState !== null,
+    });
+  }, [
+    gameContainerSize,
+    isBootstrapping,
+    isLoading,
+    isStoreSnapshotReady,
+    loadingFailureAlert,
+    monsterInfoState,
+    showSetupLayer,
+    storeSnapshotConfig.enabled,
+    storeSnapshotConfig.overlay,
+    storeSnapshotConfig.shot,
+    storeSnapshotConfig.timeOfDay,
+    storeSnapshotCurrentScene,
+    storeSnapshotReadyReason,
+    storeSnapshotTargetScene,
+    unsupportedViewportReason,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      clearStoreSnapshotBridgeState();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!storeSnapshotConfig.enabled || !gameInstance) {
+      return;
+    }
+
+    if (showSetupLayer || isLoading) {
+      return;
+    }
+
+    if (sceneTransitionLoadState.phase !== "idle") {
+      return;
+    }
+
+    if (storeSnapshotCurrentScene !== storeSnapshotConfig.scene) {
+      if (
+        storeSnapshotSceneRequestedRef.current === storeSnapshotConfig.scene
+      ) {
+        return;
+      }
+
+      storeSnapshotSceneRequestedRef.current = storeSnapshotConfig.scene;
+      setMonsterInfoState(null);
+      void gameInstance.changeScene(storeSnapshotConfig.scene);
+      return;
+    }
+
+    storeSnapshotSceneRequestedRef.current = storeSnapshotConfig.scene;
+
+    if (
+      storeSnapshotCurrentScene === SceneKey.MAIN &&
+      storeSnapshotTargetTimeOfDay !== null
+    ) {
+      if (storeSnapshotCurrentTimeOfDay !== storeSnapshotTargetTimeOfDay) {
+        gameInstance.setMainSceneTimeOfDay(storeSnapshotTargetTimeOfDay);
+        setStoreSnapshotAppliedTimeOfDay(storeSnapshotTargetTimeOfDay);
+        return;
+      }
+
+    }
+
+    if (
+      storeSnapshotCurrentScene !== SceneKey.MAIN ||
+      storeSnapshotConfig.overlay !== "monster-info" ||
+      monsterInfoState
+    ) {
+      return;
+    }
+
+    if (storeSnapshotMonsterInfoRequestedRef.current) {
+      return;
+    }
+
+    const nextSnapshot = gameInstance.getMainCharacterInfoSnapshot();
+    if (!nextSnapshot) {
+      return;
+    }
+
+    storeSnapshotMonsterInfoRequestedRef.current = true;
+    openMonsterInfo(nextSnapshot);
+  }, [
+    gameInstance,
+    isLoading,
+    monsterInfoState,
+    openMonsterInfo,
+    sceneTransitionLoadState.phase,
+    showSetupLayer,
+    storeSnapshotConfig.enabled,
+    storeSnapshotConfig.overlay,
+    storeSnapshotConfig.scene,
+    storeSnapshotCurrentScene,
+    storeSnapshotCurrentTimeOfDay,
+    storeSnapshotTargetTimeOfDay,
+  ]);
 
   return (
     <div

@@ -12,19 +12,61 @@ class HomeWidgetSnapshotPublisherTest {
     fun `publish saves snapshot and notifies update`() {
         val prefs = FakeSharedPreferences()
         val notifiedReasons = mutableListOf<String>()
+        val snapshotJson = """
+            {
+              "schemaVersion":2,
+              "snapshotKind":"authoritativeAppState",
+              "monsterName":null,
+              "characterKey":1,
+              "eggTextureKey":null,
+              "eggHatchTimeMs":12345,
+              "eggHatchDurationMs":null,
+              "eggCrackStage":0,
+              "characterState":"egg",
+              "displayState":"idle",
+              "primaryStatus":"idle",
+              "timeOfDay":"day",
+              "stamina":0,
+              "maxStamina":10,
+              "staminaPercent":0,
+              "staminaLevel":"red",
+              "useLocalTime":true,
+              "animationFrameIndex":0,
+              "updatedAtMs":0,
+              "snapshotComputedAtMs":0,
+              "lastActiveTimeMs":null,
+              "baseLastActiveTimeMs":null,
+              "projectedElapsedMs":0,
+              "projectionVersion":1,
+              "staminaTimerMs":0,
+              "hasUrgentStatus":false,
+              "visibleStatusIcons":[]
+            }
+        """.trimIndent()
 
         val result = HomeWidgetSnapshotPublisher.publish(
             prefs = prefs,
             snapshotKey = "home_widget_snapshot_v1",
-            snapshotJson = """{"foo":"bar"}""",
+            snapshotJson = snapshotJson,
             reason = "native_hidden",
             notifySnapshotUpdated = { reason ->
                 notifiedReasons += reason
             },
         )
 
-        assertEquals(mapOf("status" to "ok"), result)
-        assertEquals("""{"foo":"bar"}""", prefs.getString("home_widget_snapshot_v1", null))
+        assertEquals("ok", result["status"])
+        assertEquals("home_widget_snapshot_v1", result["snapshotKey"])
+        assertEquals("native_hidden", result["reason"])
+        assertEquals(true, result["hasSnapshot"])
+        assertEquals("egg", result["characterState"])
+        assertEquals(1, result["characterKey"])
+        assertEquals(12345L, result["eggHatchTimeMs"])
+        assertEquals("authoritativeAppState", result["snapshotKind"])
+        assertTrue(
+            prefs.getString("home_widget_snapshot_v1", null)?.contains(
+                "\"characterState\":\"egg\"",
+            ) == true,
+        )
         assertEquals(listOf("native_hidden"), notifiedReasons)
     }
 
@@ -45,7 +87,10 @@ class HomeWidgetSnapshotPublisherTest {
             },
         )
 
-        assertEquals(mapOf("status" to "ok"), result)
+        assertEquals("ok", result["status"])
+        assertEquals(false, result["hasSnapshot"])
+        assertEquals("native_paused", result["reason"])
+        assertNull(result["characterState"])
         assertFalse(prefs.contains("home_widget_snapshot_v1"))
         assertNull(prefs.getString("home_widget_snapshot_v1", null))
         assertEquals(listOf("native_paused"), notifiedReasons)

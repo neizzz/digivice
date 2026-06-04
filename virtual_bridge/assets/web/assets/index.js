@@ -2,7 +2,7 @@ var __defProp = Object.defineProperty;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 import { a as requireReactDom, r as reactExports, j as jsxRuntimeExports, T as TopLeftBuildLogoText, R as ReactDOM } from "./index2.js";
-import { z as DEFAULT_LOCALE, F as resolveLocaleFromLanguageTags, G as ControlButtonType, H as hasNativeStorageController, I as FlutterStorage, W as WebLocalStorage, J as translate, K as countDisplayCharacters, L as measureNameLabelWidth, N as fitsNameLabelWidth, O as TRANSLATIONS, Q as NAME_LABEL_FONT_FAMILIES, V as NAME_LABEL_FONT_WEIGHT, X as NAME_LABEL_STROKE_COLOR, Y as NAME_LABEL_FILL_COLOR, Z as NAME_LABEL_STROKE_WIDTH, _ as SUPPORTED_LOCALES, $ as LOCALE_METADATA, a0 as GAME_CONSTANTS, a1 as SceneKey, a2 as hasLegacyMonsterBookState, a3 as migrateLegacyMonsterBookIfNeeded, a4 as getNativeSunTimes, a5 as MissingInitialGameDataError, a6 as Game } from "./evolutionAdmin.js";
+import { z as DEFAULT_LOCALE, F as resolveLocaleFromLanguageTags, G as ControlButtonType, H as hasNativeStorageController, I as FlutterStorage, W as WebLocalStorage, J as translate, K as countDisplayCharacters, L as measureNameLabelWidth, N as fitsNameLabelWidth, O as TRANSLATIONS, Q as NAME_LABEL_FONT_FAMILIES, V as NAME_LABEL_FONT_WEIGHT, X as NAME_LABEL_STROKE_COLOR, Y as NAME_LABEL_FILL_COLOR, Z as NAME_LABEL_STROKE_WIDTH, _ as SUPPORTED_LOCALES, $ as LOCALE_METADATA, a0 as CharacterState, a1 as CharacterKeyECS, a2 as GAME_CONSTANTS, a3 as SceneKey, a4 as TimeOfDay, a5 as hasLegacyMonsterBookState, a6 as migrateLegacyMonsterBookIfNeeded, a7 as getNativeSunTimes, a8 as MissingInitialGameDataError, a9 as Game } from "./evolutionAdmin.js";
 var reactDomExports = requireReactDom();
 class SliderController {
   /**
@@ -2860,7 +2860,7 @@ const useAlert = () => {
   };
 };
 const ECS_NULL_VALUE = 0;
-const CHARACTER_OBJECT_TYPE = 1;
+const CHARACTER_OBJECT_TYPE$1 = 1;
 const FOOD_OBJECT_TYPE = 3;
 const POOB_OBJECT_TYPE = 4;
 const PILL_OBJECT_TYPE = 5;
@@ -3009,6 +3009,17 @@ function toNonNegativeInteger(value, fallback = 0) {
   }
   return Math.floor(numericValue);
 }
+function sanitizePendingEggHatchCharacterKey(value) {
+  const numericValue = toFiniteNumber(value);
+  switch (numericValue) {
+    case CharacterKeyECS.GreenSlimeA1:
+    case CharacterKeyECS.SoilSlimeA1:
+    case CharacterKeyECS.SkullSlimeA1:
+      return numericValue;
+    default:
+      return CharacterKeyECS.NULL;
+  }
+}
 function sanitizeStatuses(statuses) {
   if (!Array.isArray(statuses)) {
     return new Array(DEFAULTS.STATUS_SLOT_COUNT).fill(ECS_NULL_VALUE);
@@ -3110,7 +3121,7 @@ function sanitizeCachedSunTimes(sunTimes) {
   };
 }
 function sanitizeCharacterEntity(components, now) {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B, _C, _D, _E, _F, _G, _H, _I, _J, _K, _L, _M, _N, _O, _P, _Q, _R, _S, _T, _U, _V, _W, _X, _Y, _Z;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B, _C, _D, _E, _F, _G, _H, _I, _J, _K, _L, _M, _N, _O, _P, _Q, _R, _S, _T, _U, _V, _W, _X, _Y, _Z, __;
   const objectId = toFiniteNumber((_a = components.object) == null ? void 0 : _a.id);
   if (!objectId || objectId <= 0) {
     return null;
@@ -3126,7 +3137,7 @@ function sanitizeCharacterEntity(components, now) {
   const sanitized = {
     object: {
       id: objectId,
-      type: CHARACTER_OBJECT_TYPE,
+      type: CHARACTER_OBJECT_TYPE$1,
       state
     },
     characterStatus: {
@@ -3197,10 +3208,13 @@ function sanitizeCharacterEntity(components, now) {
       syringeCount: Math.min(
         10,
         toNonNegativeInteger((_O = components.eggHatch) == null ? void 0 : _O.syringeCount, 0)
-      )
+      ),
+      pendingCharacterKey: state === CharacterState.EGG ? sanitizePendingEggHatchCharacterKey(
+        (_P = components.eggHatch) == null ? void 0 : _P.pendingCharacterKey
+      ) : CharacterKeyECS.NULL
     }
   };
-  const statusIconSlots = (_P = sanitized.statusIconRender) == null ? void 0 : _P.storeIndexes;
+  const statusIconSlots = (_Q = sanitized.statusIconRender) == null ? void 0 : _Q.storeIndexes;
   if (statusIconSlots && statusIconSlots.length < DEFAULTS.STATUS_SLOT_COUNT) {
     while (statusIconSlots.length < DEFAULTS.STATUS_SLOT_COUNT) {
       statusIconSlots.push(ECS_NULL_VALUE);
@@ -3209,30 +3223,30 @@ function sanitizeCharacterEntity(components, now) {
   if (needsAnimationRender(state)) {
     sanitized.animationRender = {
       storeIndex: ECS_NULL_VALUE,
-      spritesheetKey: toFiniteNumber((_Q = components.animationRender) == null ? void 0 : _Q.spritesheetKey) ?? characterKey ?? DEFAULTS.SPRITESHEET_KEY,
-      animationKey: toFiniteNumber((_R = components.animationRender) == null ? void 0 : _R.animationKey) ?? DEFAULTS.ANIMATION_KEY_IDLE,
-      isPlaying: toBoolean((_S = components.animationRender) == null ? void 0 : _S.isPlaying, true),
-      loop: toBoolean((_T = components.animationRender) == null ? void 0 : _T.loop, true),
-      speed: toFiniteNumber((_U = components.animationRender) == null ? void 0 : _U.speed) ?? 0.04
+      spritesheetKey: toFiniteNumber((_R = components.animationRender) == null ? void 0 : _R.spritesheetKey) ?? characterKey ?? DEFAULTS.SPRITESHEET_KEY,
+      animationKey: toFiniteNumber((_S = components.animationRender) == null ? void 0 : _S.animationKey) ?? DEFAULTS.ANIMATION_KEY_IDLE,
+      isPlaying: toBoolean((_T = components.animationRender) == null ? void 0 : _T.isPlaying, true),
+      loop: toBoolean((_U = components.animationRender) == null ? void 0 : _U.loop, true),
+      speed: toFiniteNumber((_V = components.animationRender) == null ? void 0 : _V.speed) ?? 0.04
     };
   }
   if (needsRandomMovement(state)) {
-    const minIdle = toFiniteNumber((_V = components.randomMovement) == null ? void 0 : _V.minIdleTime) ?? DEFAULTS.RANDOM_MOVEMENT.minIdleTime;
+    const minIdle = toFiniteNumber((_W = components.randomMovement) == null ? void 0 : _W.minIdleTime) ?? DEFAULTS.RANDOM_MOVEMENT.minIdleTime;
     const maxIdle = Math.max(
       minIdle,
-      toFiniteNumber((_W = components.randomMovement) == null ? void 0 : _W.maxIdleTime) ?? DEFAULTS.RANDOM_MOVEMENT.maxIdleTime
+      toFiniteNumber((_X = components.randomMovement) == null ? void 0 : _X.maxIdleTime) ?? DEFAULTS.RANDOM_MOVEMENT.maxIdleTime
     );
-    const minMove = toFiniteNumber((_X = components.randomMovement) == null ? void 0 : _X.minMoveTime) ?? DEFAULTS.RANDOM_MOVEMENT.minMoveTime;
+    const minMove = toFiniteNumber((_Y = components.randomMovement) == null ? void 0 : _Y.minMoveTime) ?? DEFAULTS.RANDOM_MOVEMENT.minMoveTime;
     const maxMove = Math.max(
       minMove,
-      toFiniteNumber((_Y = components.randomMovement) == null ? void 0 : _Y.maxMoveTime) ?? DEFAULTS.RANDOM_MOVEMENT.maxMoveTime
+      toFiniteNumber((_Z = components.randomMovement) == null ? void 0 : _Z.maxMoveTime) ?? DEFAULTS.RANDOM_MOVEMENT.maxMoveTime
     );
     sanitized.randomMovement = {
       minIdleTime: minIdle,
       maxIdleTime: maxIdle,
       minMoveTime: minMove,
       maxMoveTime: maxMove,
-      nextChange: toFiniteNumber((_Z = components.randomMovement) == null ? void 0 : _Z.nextChange) ?? now + 1e3
+      nextChange: toFiniteNumber((__ = components.randomMovement) == null ? void 0 : __.nextChange) ?? now + 1e3
     };
   }
   return sanitized;
@@ -3366,7 +3380,7 @@ function sanitizeStoredWorldData(savedData) {
     }
     const components = entity.components;
     const rawObjectType = toFiniteNumber((_a2 = components.object) == null ? void 0 : _a2.type);
-    const looksLikeCharacter = rawObjectType === CHARACTER_OBJECT_TYPE || !!components.characterStatus;
+    const looksLikeCharacter = rawObjectType === CHARACTER_OBJECT_TYPE$1 || !!components.characterStatus;
     if (looksLikeCharacter) {
       sawCharacterCandidate = true;
     }
@@ -3408,7 +3422,7 @@ function sanitizeStoredWorldData(savedData) {
   const changed = JSON.stringify(worldData) !== JSON.stringify(sanitizedData);
   const playableCharacterCount = sanitizedEntities.filter((entity) => {
     var _a2, _b2;
-    return ((_b2 = (_a2 = entity.components) == null ? void 0 : _a2.object) == null ? void 0 : _b2.type) === CHARACTER_OBJECT_TYPE;
+    return ((_b2 = (_a2 = entity.components) == null ? void 0 : _a2.object) == null ? void 0 : _b2.type) === CHARACTER_OBJECT_TYPE$1;
   }).length;
   const hasMonsterName = !!((_c = sanitizedMetadata.monster_name) == null ? void 0 : _c.trim());
   const hadAnySavedShape = rawEntities.length > 0 || !!((_d = worldData.world_metadata) == null ? void 0 : _d.monster_name) || !!((_e = worldData.world_metadata) == null ? void 0 : _e.name);
@@ -3726,11 +3740,33 @@ function readLastEcsSaved(worldData) {
   const lastEcsSaved = (_a = worldData == null ? void 0 : worldData.world_metadata) == null ? void 0 : _a.last_ecs_saved;
   return typeof lastEcsSaved === "number" && Number.isFinite(lastEcsSaved) ? lastEcsSaved : null;
 }
+const CHARACTER_OBJECT_TYPE = 1;
+const EGG_CHARACTER_STATE = 0;
+function readMainCharacterState(worldData) {
+  var _a;
+  const entities = worldData == null ? void 0 : worldData.entities;
+  if (!Array.isArray(entities)) {
+    return null;
+  }
+  for (const entity of entities) {
+    const object = (_a = entity == null ? void 0 : entity.components) == null ? void 0 : _a.object;
+    if ((object == null ? void 0 : object.type) !== CHARACTER_OBJECT_TYPE) {
+      continue;
+    }
+    const state = object.state;
+    if (typeof state === "number" && Number.isFinite(state)) {
+      return state;
+    }
+  }
+  return null;
+}
 function selectHomeWidgetSyncWorldData(params) {
   const storedWorldData = params.storedWorldData ?? null;
   const inMemoryWorldData = params.inMemoryWorldData ?? null;
   const storedLastEcsSaved = readLastEcsSaved(storedWorldData);
   const inMemoryLastEcsSaved = readLastEcsSaved(inMemoryWorldData);
+  const storedMainCharacterState = readMainCharacterState(storedWorldData);
+  const inMemoryMainCharacterState = readMainCharacterState(inMemoryWorldData);
   if (!storedWorldData && !inMemoryWorldData) {
     return {
       selectedWorldData: null,
@@ -3755,13 +3791,92 @@ function selectHomeWidgetSyncWorldData(params) {
       inMemoryLastEcsSaved
     };
   }
-  const shouldUseInMemory = inMemoryLastEcsSaved !== null && (storedLastEcsSaved === null || inMemoryLastEcsSaved > storedLastEcsSaved);
+  const shouldPreferStoredCompletedHatch = storedMainCharacterState !== null && storedMainCharacterState !== EGG_CHARACTER_STATE && inMemoryMainCharacterState === EGG_CHARACTER_STATE;
+  const shouldUseInMemory = !shouldPreferStoredCompletedHatch && inMemoryLastEcsSaved !== null && (storedLastEcsSaved === null || inMemoryLastEcsSaved > storedLastEcsSaved);
   return {
     selectedWorldData: shouldUseInMemory ? inMemoryWorldData : storedWorldData,
     source: shouldUseInMemory ? "in_memory" : "stored",
     storedLastEcsSaved,
     inMemoryLastEcsSaved
   };
+}
+function getStoreSnapshotSearchParams() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  return new URLSearchParams(window.location.search);
+}
+function parseStoreSnapshotScene(value) {
+  if (value === SceneKey.MAIN) {
+    return SceneKey.MAIN;
+  }
+  if (value === SceneKey.FLAPPY_BIRD_GAME) {
+    return SceneKey.FLAPPY_BIRD_GAME;
+  }
+  if (value === SceneKey.MONSTER_BOOK) {
+    return SceneKey.MONSTER_BOOK;
+  }
+  return null;
+}
+function parseStoreSnapshotOverlay(value) {
+  return value === "monster-info" ? value : null;
+}
+function parseStoreSnapshotTimeOfDay(value) {
+  if (value === "day" || value === "night") {
+    return value;
+  }
+  return null;
+}
+function getStoreSnapshotConfig() {
+  const searchParams = getStoreSnapshotSearchParams();
+  if (!searchParams) {
+    return {
+      enabled: false,
+      shot: null,
+      scene: SceneKey.MAIN,
+      overlay: null,
+      timeOfDay: null
+    };
+  }
+  const shot = searchParams.get("storeSnapshotShot");
+  const scene = parseStoreSnapshotScene(searchParams.get("storeSnapshotScene")) ?? SceneKey.MAIN;
+  const overlay = parseStoreSnapshotOverlay(
+    searchParams.get("storeSnapshotOverlay")
+  );
+  const timeOfDay = parseStoreSnapshotTimeOfDay(
+    searchParams.get("storeSnapshotTimeOfDay")
+  );
+  const enabled = searchParams.get("storeSnapshot") === "1" || shot !== null || overlay !== null || timeOfDay !== null || scene !== SceneKey.MAIN;
+  return {
+    enabled,
+    shot,
+    scene,
+    overlay,
+    timeOfDay
+  };
+}
+function resolveStoreSnapshotTimeOfDay(timeOfDay) {
+  if (timeOfDay === "day") {
+    return TimeOfDay.Day;
+  }
+  if (timeOfDay === "night") {
+    return TimeOfDay.Night;
+  }
+  return null;
+}
+function setStoreSnapshotBridgeState(state) {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.__DIGIVICE_STORE_SNAPSHOT__ = {
+    state
+  };
+}
+function clearStoreSnapshotBridgeState() {
+  if (typeof window === "undefined") {
+    return;
+  }
+  delete window.__DIGIVICE_STORE_SNAPSHOT__;
 }
 const WORLD_DATA_STORAGE_KEY = "MainSceneWorldData";
 const FLAPPY_BIRD_GAME_OVER_AD_COUNTER_STORAGE_KEY = "FlappyBirdGameOverAdCounter";
@@ -4169,6 +4284,7 @@ const GameContainer = () => {
     phase: "idle"
   });
   const [isResumeGuardVisible, setIsResumeGuardVisible] = reactExports.useState(false);
+  const [storeSnapshotAppliedTimeOfDay, setStoreSnapshotAppliedTimeOfDay] = reactExports.useState(null);
   const pendingSettingMenuOpenTimeoutRef = reactExports.useRef(null);
   const sceneTransitionRequestIdRef = reactExports.useRef(0);
   const resumeGuardReleaseRequestIdRef = reactExports.useRef(0);
@@ -4187,7 +4303,10 @@ const GameContainer = () => {
   const isFullscreenAdLayoutFrozenRef = reactExports.useRef(false);
   const isResumeGuardVisibleRef = reactExports.useRef(false);
   const isResumeReentrySimulationRunningRef = reactExports.useRef(false);
+  const homeWidgetLaunchModeRef = reactExports.useRef("default");
   const nativeBackgroundWidgetSyncTriggeredRef = reactExports.useRef(false);
+  const syncHomeWidgetForNativeBackgroundRef = reactExports.useRef(null);
+  const completeWidgetRefreshAfterInitReentryRef = reactExports.useRef(null);
   const fullscreenAdLayoutReleaseTimeoutRef = reactExports.useRef(null);
   const fullscreenAdLayoutReleaseRafRef = reactExports.useRef(null);
   const activeBackNavigationEntriesRef = reactExports.useRef([]);
@@ -4197,6 +4316,9 @@ const GameContainer = () => {
   );
   const pendingBrowserHistoryTargetEntriesRef = reactExports.useRef(null);
   const hasInitializedBackNavigationHistoryRef = reactExports.useRef(false);
+  const storeSnapshotConfig = reactExports.useMemo(() => getStoreSnapshotConfig(), []);
+  const storeSnapshotSceneRequestedRef = reactExports.useRef(null);
+  const storeSnapshotMonsterInfoRequestedRef = reactExports.useRef(false);
   const logSetupLayerVisibility = reactExports.useCallback(
     (reason, payload = {}, level = "warn") => {
       logImportantDiagnostics(
@@ -5015,21 +5137,72 @@ const GameContainer = () => {
   );
   const handleMainSceneReentrySimulationStateChange = reactExports.useCallback(
     (params) => {
-      if (params.source !== "app_resume") {
+      var _a, _b;
+      if (params.source !== "app_resume" && params.source !== "init") {
         return;
       }
       if (params.phase === "started") {
-        isResumeReentrySimulationRunningRef.current = true;
-        showResumeGuard("main_scene_reentry");
+        if (params.source === "app_resume") {
+          isResumeReentrySimulationRunningRef.current = true;
+          showResumeGuard("main_scene_reentry");
+        }
         return;
       }
-      isResumeReentrySimulationRunningRef.current = false;
-      hideResumeGuardAfterLayout(
-        params.result === "failed" ? "main_scene_reentry_failed" : "main_scene_reentry_finished"
-      );
+      if (params.source === "app_resume") {
+        isResumeReentrySimulationRunningRef.current = false;
+        hideResumeGuardAfterLayout(
+          params.result === "failed" ? "main_scene_reentry_failed" : "main_scene_reentry_finished"
+        );
+      }
+      if (params.source === "init" && homeWidgetLaunchModeRef.current === "widget_refresh") {
+        void ((_a = completeWidgetRefreshAfterInitReentryRef.current) == null ? void 0 : _a.call(completeWidgetRefreshAfterInitReentryRef, params.result));
+        return;
+      }
+      if (params.result === "completed") {
+        void ((_b = syncHomeWidgetForNativeBackgroundRef.current) == null ? void 0 : _b.call(
+          syncHomeWidgetForNativeBackgroundRef,
+          params.source === "init" ? "main_scene_reentry_finished_init" : "main_scene_reentry_finished"
+        ));
+      }
     },
     [hideResumeGuardAfterLayout, showResumeGuard]
   );
+  const loadHomeWidgetLaunchContext = reactExports.useCallback(async () => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const controller = window.homeWidgetController ?? window.homeWidgetRefreshController;
+    if (typeof (controller == null ? void 0 : controller.getLaunchContext) !== "function") {
+      homeWidgetLaunchModeRef.current = "default";
+      return;
+    }
+    try {
+      const context = await controller.getLaunchContext();
+      const mode = (context == null ? void 0 : context.mode) === "widget_refresh" ? "widget_refresh" : "default";
+      homeWidgetLaunchModeRef.current = mode;
+      logImportantDiagnostics(
+        "log",
+        "[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+        {
+          action: "launch_context_loaded",
+          launchMode: mode
+        }
+      );
+    } catch (error) {
+      homeWidgetLaunchModeRef.current = "default";
+      logImportantDiagnostics(
+        "warn",
+        "[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+        {
+          action: "launch_context_failed",
+          error: error instanceof Error ? {
+            name: error.name,
+            message: error.message
+          } : String(error)
+        }
+      );
+    }
+  }, []);
   const updateGameContainerSize = reactExports.useCallback((force = false) => {
     var _a;
     const viewportElement = gameViewportRef.current;
@@ -5413,9 +5586,17 @@ const GameContainer = () => {
   const syncHomeWidgetForNativeBackground = reactExports.useCallback(
     async (reason) => {
       if (typeof window === "undefined") {
-        return;
+        return {
+          status: "failed",
+          reason,
+          selectedSource: null,
+          storedLastEcsSaved: null,
+          inMemoryLastEcsSaved: null,
+          error: "window_unavailable"
+        };
       }
       const controller = window.homeWidgetController ?? window.homeWidgetRefreshController;
+      const currentSceneKey = (gameInstance == null ? void 0 : gameInstance.getCurrentSceneKey()) ?? null;
       if (typeof (controller == null ? void 0 : controller.syncFromWorldDataJson) !== "function") {
         logImportantDiagnostics(
           "log",
@@ -5424,10 +5605,16 @@ const GameContainer = () => {
             reason,
             action: "skipped_missing_controller",
             hasGameInstance: !!gameInstance,
-            currentSceneKey: (gameInstance == null ? void 0 : gameInstance.getCurrentSceneKey()) ?? null
+            currentSceneKey
           }
         );
-        return;
+        return {
+          status: "skipped_missing_controller",
+          reason,
+          selectedSource: null,
+          storedLastEcsSaved: null,
+          inMemoryLastEcsSaved: null
+        };
       }
       try {
         const storage = createClientStorage();
@@ -5447,14 +5634,20 @@ const GameContainer = () => {
               reason,
               action: "skipped_no_world_data",
               hasGameInstance: !!gameInstance,
-              currentSceneKey: (gameInstance == null ? void 0 : gameInstance.getCurrentSceneKey()) ?? null,
+              currentSceneKey,
               storedLastEcsSaved: selection.storedLastEcsSaved,
               inMemoryLastEcsSaved: selection.inMemoryLastEcsSaved
             }
           );
-          return;
+          return {
+            status: "skipped_no_world_data",
+            reason,
+            selectedSource: null,
+            storedLastEcsSaved: selection.storedLastEcsSaved,
+            inMemoryLastEcsSaved: selection.inMemoryLastEcsSaved
+          };
         }
-        controller.syncFromWorldDataJson({
+        const syncPromise = controller.syncFromWorldDataJson({
           rawWorldData: JSON.stringify(selection.selectedWorldData),
           reason
         });
@@ -5466,11 +5659,20 @@ const GameContainer = () => {
             action: "dispatched",
             selectedSource: selection.source,
             hasGameInstance: !!gameInstance,
-            currentSceneKey: (gameInstance == null ? void 0 : gameInstance.getCurrentSceneKey()) ?? null,
+            currentSceneKey,
             storedLastEcsSaved: selection.storedLastEcsSaved,
             inMemoryLastEcsSaved: selection.inMemoryLastEcsSaved
           }
         );
+        const syncResult = await syncPromise;
+        return {
+          status: "completed",
+          reason,
+          selectedSource: selection.source,
+          storedLastEcsSaved: selection.storedLastEcsSaved,
+          inMemoryLastEcsSaved: selection.inMemoryLastEcsSaved,
+          syncResult
+        };
       } catch (error) {
         logImportantDiagnostics(
           "warn",
@@ -5479,17 +5681,157 @@ const GameContainer = () => {
             reason,
             action: "failed",
             hasGameInstance: !!gameInstance,
-            currentSceneKey: (gameInstance == null ? void 0 : gameInstance.getCurrentSceneKey()) ?? null,
+            currentSceneKey,
             error: error instanceof Error ? {
               name: error.name,
               message: error.message
             } : String(error)
           }
         );
+        return {
+          status: "failed",
+          reason,
+          selectedSource: null,
+          storedLastEcsSaved: null,
+          inMemoryLastEcsSaved: null,
+          error: error instanceof Error ? `${error.name}: ${error.message}` : String(error)
+        };
       }
     },
     [gameInstance]
   );
+  syncHomeWidgetForNativeBackgroundRef.current = syncHomeWidgetForNativeBackground;
+  const completeWidgetRefreshAfterInitReentry = reactExports.useCallback(
+    async (result) => {
+      var _a, _b, _c, _d;
+      if (typeof window === "undefined") {
+        return;
+      }
+      const controller = window.homeWidgetController ?? window.homeWidgetRefreshController;
+      const reason = "main_scene_reentry_finished_init_widget_refresh";
+      let completionResult = result ?? "failed";
+      let syncOutcome = null;
+      logImportantDiagnostics(
+        "log",
+        "[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+        {
+          action: "widget_refresh_started",
+          reason,
+          reentryResult: result ?? null,
+          launchMode: homeWidgetLaunchModeRef.current,
+          hasGameInstance: !!gameInstance,
+          currentSceneKey: (gameInstance == null ? void 0 : gameInstance.getCurrentSceneKey()) ?? null
+        }
+      );
+      try {
+        if (result === "completed") {
+          logImportantDiagnostics(
+            "log",
+            "[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+            {
+              action: "widget_refresh_sync_dispatched",
+              reason
+            }
+          );
+          syncOutcome = await syncHomeWidgetForNativeBackground(reason);
+          if (syncOutcome.status === "completed") {
+            logImportantDiagnostics(
+              "log",
+              "[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+              {
+                action: "widget_refresh_sync_completed",
+                reason,
+                selectedSource: syncOutcome.selectedSource,
+                storedLastEcsSaved: syncOutcome.storedLastEcsSaved,
+                inMemoryLastEcsSaved: syncOutcome.inMemoryLastEcsSaved,
+                syncStatus: typeof ((_a = syncOutcome.syncResult) == null ? void 0 : _a.status) === "string" ? syncOutcome.syncResult.status : null,
+                currentPublishStatus: typeof ((_b = syncOutcome.syncResult) == null ? void 0 : _b.currentPublishStatus) === "string" ? syncOutcome.syncResult.currentPublishStatus : null,
+                authoritativePublishStatus: typeof ((_c = syncOutcome.syncResult) == null ? void 0 : _c.authoritativePublishStatus) === "string" ? syncOutcome.syncResult.authoritativePublishStatus : null
+              }
+            );
+          } else {
+            completionResult = "failed";
+            logImportantDiagnostics(
+              "warn",
+              "[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+              {
+                action: "widget_refresh_failed",
+                reason,
+                failureStage: "sync",
+                reentryResult: result,
+                syncOutcome
+              }
+            );
+          }
+        } else {
+          logImportantDiagnostics(
+            "warn",
+            "[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+            {
+              action: "widget_refresh_failed",
+              reason,
+              failureStage: "reentry",
+              reentryResult: result ?? null
+            }
+          );
+        }
+      } finally {
+        try {
+          if (typeof (controller == null ? void 0 : controller.completeRefresh) === "function") {
+            await controller.completeRefresh({
+              result: completionResult,
+              source: "main_scene_reentry_finished_init",
+              launchMode: homeWidgetLaunchModeRef.current,
+              reentryResult: result ?? null,
+              selectedSource: (syncOutcome == null ? void 0 : syncOutcome.selectedSource) ?? null,
+              syncStatus: typeof ((_d = syncOutcome == null ? void 0 : syncOutcome.syncResult) == null ? void 0 : _d.status) === "string" ? syncOutcome.syncResult.status : null
+            });
+            logImportantDiagnostics(
+              "log",
+              "[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+              {
+                action: "widget_refresh_completed",
+                reason,
+                completionResult,
+                reentryResult: result ?? null,
+                selectedSource: (syncOutcome == null ? void 0 : syncOutcome.selectedSource) ?? null
+              }
+            );
+          } else {
+            logImportantDiagnostics(
+              "warn",
+              "[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+              {
+                action: "widget_refresh_failed",
+                reason,
+                failureStage: "complete_refresh_missing_controller",
+                reentryResult: result ?? null
+              }
+            );
+          }
+        } catch (error) {
+          logImportantDiagnostics(
+            "warn",
+            "[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+            {
+              action: "widget_refresh_failed",
+              reason,
+              failureStage: "complete_refresh",
+              reentryResult: result ?? null,
+              error: error instanceof Error ? {
+                name: error.name,
+                message: error.message
+              } : String(error)
+            }
+          );
+        } finally {
+          homeWidgetLaunchModeRef.current = "default";
+        }
+      }
+    },
+    [gameInstance, syncHomeWidgetForNativeBackground]
+  );
+  completeWidgetRefreshAfterInitReentryRef.current = completeWidgetRefreshAfterInitReentry;
   const handleSendDiagnostics = reactExports.useCallback(async () => {
     if (isSendingDiagnostics || pendingDiagnosticsDraft) {
       return;
@@ -6266,6 +6608,8 @@ const GameContainer = () => {
       if (!gameContainerRef.current) return;
       if (!gameContainerSize || gameContainerSize <= 0) return;
       if (isInitializedRef.current) return;
+      await loadHomeWidgetLaunchContext();
+      if (!isMounted) return;
       if (CONFIGURED_INITIAL_SCENE_KEY !== SceneKey.MAIN) {
         initializeGame();
         return;
@@ -6307,6 +6651,7 @@ const GameContainer = () => {
     gameSessionKey,
     initializeGame,
     entryFlowDiagnostics,
+    loadHomeWidgetLaunchContext,
     prepareSavedGameData,
     requestInitialGameData,
     stopRecoveryVibration
@@ -6408,6 +6753,11 @@ const GameContainer = () => {
     [entryFlowDiagnostics, hydrateInitialSetupData]
   );
   reactExports.useEffect(() => {
+    storeSnapshotSceneRequestedRef.current = null;
+    storeSnapshotMonsterInfoRequestedRef.current = false;
+    setStoreSnapshotAppliedTimeOfDay(null);
+  }, [gameSessionKey]);
+  reactExports.useEffect(() => {
     if (!monsterInfoState) {
       return;
     }
@@ -6444,6 +6794,111 @@ const GameContainer = () => {
     }, 0);
   }, [handleSendDiagnostics]);
   const isLoading = isBootstrapping || isResumeGuardVisible || sceneTransitionLoadState.phase === "loading" || sceneTransitionLoadState.phase === "core_ready";
+  const storeSnapshotTargetScene = storeSnapshotConfig.enabled ? storeSnapshotConfig.scene : null;
+  const storeSnapshotTargetTimeOfDay = resolveStoreSnapshotTimeOfDay(
+    storeSnapshotConfig.timeOfDay
+  );
+  const storeSnapshotCurrentScene = (gameInstance == null ? void 0 : gameInstance.getCurrentSceneKey()) ?? null;
+  const storeSnapshotCurrentTimeOfDay = storeSnapshotCurrentScene === SceneKey.MAIN ? storeSnapshotAppliedTimeOfDay ?? (gameInstance == null ? void 0 : gameInstance.getMainSceneTimeOfDay()) ?? null : null;
+  const storeSnapshotReadyReason = !storeSnapshotConfig.enabled ? "disabled" : !gameInstance ? "game_unavailable" : showSetupLayer ? "setup_visible" : isLoading ? "loading" : storeSnapshotCurrentScene !== storeSnapshotConfig.scene ? "waiting_scene" : storeSnapshotTargetTimeOfDay !== null && storeSnapshotCurrentScene === SceneKey.MAIN && storeSnapshotCurrentTimeOfDay !== storeSnapshotTargetTimeOfDay ? "waiting_time_of_day" : storeSnapshotConfig.overlay === "monster-info" && !monsterInfoState ? "waiting_monster_info" : "ready";
+  const isStoreSnapshotReady = storeSnapshotReadyReason === "ready";
+  reactExports.useEffect(() => {
+    if (!storeSnapshotConfig.enabled) {
+      clearStoreSnapshotBridgeState();
+      return;
+    }
+    setStoreSnapshotBridgeState({
+      enabled: true,
+      shot: storeSnapshotConfig.shot,
+      targetScene: storeSnapshotTargetScene,
+      currentScene: storeSnapshotCurrentScene,
+      overlay: storeSnapshotConfig.overlay,
+      timeOfDay: storeSnapshotConfig.timeOfDay,
+      isLoading,
+      isBootstrapping,
+      showSetupLayer,
+      gameContainerSize,
+      loadingFailureMessage: (loadingFailureAlert == null ? void 0 : loadingFailureAlert.message) ?? null,
+      unsupportedViewportReason,
+      ready: isStoreSnapshotReady,
+      reason: storeSnapshotReadyReason,
+      monsterInfoOpen: monsterInfoState !== null
+    });
+  }, [
+    gameContainerSize,
+    isBootstrapping,
+    isLoading,
+    isStoreSnapshotReady,
+    loadingFailureAlert,
+    monsterInfoState,
+    showSetupLayer,
+    storeSnapshotConfig.enabled,
+    storeSnapshotConfig.overlay,
+    storeSnapshotConfig.shot,
+    storeSnapshotConfig.timeOfDay,
+    storeSnapshotCurrentScene,
+    storeSnapshotReadyReason,
+    storeSnapshotTargetScene,
+    unsupportedViewportReason
+  ]);
+  reactExports.useEffect(() => {
+    return () => {
+      clearStoreSnapshotBridgeState();
+    };
+  }, []);
+  reactExports.useEffect(() => {
+    if (!storeSnapshotConfig.enabled || !gameInstance) {
+      return;
+    }
+    if (showSetupLayer || isLoading) {
+      return;
+    }
+    if (sceneTransitionLoadState.phase !== "idle") {
+      return;
+    }
+    if (storeSnapshotCurrentScene !== storeSnapshotConfig.scene) {
+      if (storeSnapshotSceneRequestedRef.current === storeSnapshotConfig.scene) {
+        return;
+      }
+      storeSnapshotSceneRequestedRef.current = storeSnapshotConfig.scene;
+      setMonsterInfoState(null);
+      void gameInstance.changeScene(storeSnapshotConfig.scene);
+      return;
+    }
+    storeSnapshotSceneRequestedRef.current = storeSnapshotConfig.scene;
+    if (storeSnapshotCurrentScene === SceneKey.MAIN && storeSnapshotTargetTimeOfDay !== null) {
+      if (storeSnapshotCurrentTimeOfDay !== storeSnapshotTargetTimeOfDay) {
+        gameInstance.setMainSceneTimeOfDay(storeSnapshotTargetTimeOfDay);
+        setStoreSnapshotAppliedTimeOfDay(storeSnapshotTargetTimeOfDay);
+        return;
+      }
+    }
+    if (storeSnapshotCurrentScene !== SceneKey.MAIN || storeSnapshotConfig.overlay !== "monster-info" || monsterInfoState) {
+      return;
+    }
+    if (storeSnapshotMonsterInfoRequestedRef.current) {
+      return;
+    }
+    const nextSnapshot = gameInstance.getMainCharacterInfoSnapshot();
+    if (!nextSnapshot) {
+      return;
+    }
+    storeSnapshotMonsterInfoRequestedRef.current = true;
+    openMonsterInfo(nextSnapshot);
+  }, [
+    gameInstance,
+    isLoading,
+    monsterInfoState,
+    openMonsterInfo,
+    sceneTransitionLoadState.phase,
+    showSetupLayer,
+    storeSnapshotConfig.enabled,
+    storeSnapshotConfig.overlay,
+    storeSnapshotConfig.scene,
+    storeSnapshotCurrentScene,
+    storeSnapshotCurrentTimeOfDay,
+    storeSnapshotTargetTimeOfDay
+  ]);
   return /* @__PURE__ */ jsxRuntimeExports.jsxs(
     "div",
     {

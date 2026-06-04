@@ -4,7 +4,6 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
-import android.graphics.Paint
 import org.json.JSONObject
 import kotlin.math.ceil
 import kotlin.math.roundToInt
@@ -12,7 +11,6 @@ import kotlin.math.roundToInt
 object HomeWidgetSpriteRenderer {
     private const val WIDGET_LOOP_FRAME_COUNT = 4
     private const val DEFAULT_CHARACTER_FRAME_SIZE_PX = 96
-    private const val BASE_EGG_FRAME_SIZE_PX = 32f
     private const val EGG_TEXTURE_KEY_START = 500
     private const val EGG_CRACK_BASE_ALPHA = 1.0f
     private const val EGG_CRACK_STAGE_ALPHA_STEP = 0.12f
@@ -48,13 +46,14 @@ object HomeWidgetSpriteRenderer {
             frameRect.width,
             frameRect.height,
         )
+        val cracked = applyEggCrackOverlayIfNeeded(snapshot, cropped)
         val scaled = Bitmap.createScaledBitmap(
-            cropped,
+            cracked,
             DEFAULT_CHARACTER_FRAME_SIZE_PX,
             DEFAULT_CHARACTER_FRAME_SIZE_PX,
             false,
         )
-        return applyEggCrackOverlayIfNeeded(snapshot, scaled)
+        return scaled
     }
 
     fun renderLoopFrames(
@@ -106,10 +105,11 @@ object HomeWidgetSpriteRenderer {
         val scaledFrames = frameNames.map { frameName ->
             val frameRect = frames[frameName] ?: return@map null
             val frameBitmap = renderCharacterFrameSource(sheet = sheet, frameRect = frameRect)
-            val visibleBounds = resolveVisibleBounds(frameBitmap)
-            val trimmedBitmap = trimToVisibleBounds(frameBitmap, visibleBounds)
+            val crackedBitmap = applyEggCrackOverlayIfNeeded(snapshot, frameBitmap)
+            val visibleBounds = resolveVisibleBounds(crackedBitmap)
+            val trimmedBitmap = trimToVisibleBounds(crackedBitmap, visibleBounds)
             val scaledBitmap = scaleBitmap(trimmedBitmap, scaleMultiplier)
-            applyEggCrackOverlayIfNeeded(snapshot, scaledBitmap)
+            scaledBitmap
         }
 
         val canvasWidth = scaledFrames.filterNotNull().maxOfOrNull { it.width } ?: 1
@@ -294,27 +294,35 @@ object HomeWidgetSpriteRenderer {
         bitmap: Bitmap,
     ): Bitmap {
         val crackStage = snapshot.eggCrackStage.coerceIn(0, 3)
-        if (snapshot.characterState != "egg" || crackStage == 0) {
+        if (!shouldApplyEggCrackOverlay(snapshot.characterState, crackStage)) {
             return bitmap
         }
 
         val mutableBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true)
-        val canvas = Canvas(mutableBitmap)
-        val paint = Paint().apply {
-            color = android.graphics.Color.BLACK
-            style = Paint.Style.FILL
-            isAntiAlias = false
-        }
+        val pixels = IntArray(mutableBitmap.width * mutableBitmap.height)
+        mutableBitmap.getPixels(
+            pixels,
+            0,
+            mutableBitmap.width,
+            0,
+            0,
+            mutableBitmap.width,
+            mutableBitmap.height,
+        )
         drawEggCracks(
-            canvas = canvas,
-            paint = paint,
-            width = mutableBitmap.width.toFloat(),
-            height = mutableBitmap.height.toFloat(),
+            pixels = pixels,
+            width = mutableBitmap.width,
+            height = mutableBitmap.height,
             stage = crackStage,
-            crackPixelSize = resolveEggCrackPixelSize(
-                width = mutableBitmap.width,
-                height = mutableBitmap.height,
-            ),
+        )
+        mutableBitmap.setPixels(
+            pixels,
+            0,
+            mutableBitmap.width,
+            0,
+            0,
+            mutableBitmap.width,
+            mutableBitmap.height,
         )
         return mutableBitmap
     }
@@ -392,20 +400,54 @@ object HomeWidgetSpriteRenderer {
     }
 
     private fun drawEggCracks(
-        canvas: Canvas,
-        paint: Paint,
-        width: Float,
-        height: Float,
+        pixels: IntArray,
+        width: Int,
+        height: Int,
         stage: Int,
-        crackPixelSize: Int,
     ) {
+        val crackPixels = resolveEggCrackPixels(
+            width = width,
+            height = height,
+            stage = stage,
+        )
+        val alpha = minOf(1f, EGG_CRACK_BASE_ALPHA + stage * EGG_CRACK_STAGE_ALPHA_STEP)
+        crackPixels.forEach { (x, y) ->
+            if (x in 0 until width && y in 0 until height) {
+                val index = y * width + x
+                pixels[index] = blendBlackOverlay(
+                    pixel = pixels[index],
+                    alpha = alpha,
+                )
+            }
+        }
+    }
+
+    internal fun shouldApplyEggCrackOverlay(
+        characterState: String,
+        crackStage: Int,
+    ): Boolean {
+        return characterState == "egg" && crackStage.coerceIn(0, 3) > 0
+    }
+
+    internal fun resolveEggCrackPixels(
+        width: Int,
+        height: Int,
+        stage: Int,
+    ): Set<Pair<Int, Int>> {
+        val clampedStage = stage.coerceIn(0, 3)
+        if (clampedStage == 0 || width <= 0 || height <= 0) {
+            return emptySet()
+        }
+
+        val widthPx = width.toFloat()
+        val heightPx = height.toFloat()
         val inset = maxOf(6f, minOf(width, height) * 0.2f)
         val left = inset
-        val right = width - inset
+        val right = widthPx - inset
         val top = inset + 1f
-        val bottom = height - inset - 1f
-        val centerX = width / 2f
-        val centerY = height / 2f
+        val bottom = heightPx - inset - 1f
+        val centerX = widthPx / 2f
+        val centerY = heightPx / 2f
         val innerWidth = right - left
         val innerHeight = bottom - top
         val shortX = innerWidth * 0.07f
@@ -414,9 +456,6 @@ object HomeWidgetSpriteRenderer {
         val mediumY = innerHeight * 0.2f
         val longX = innerWidth * 0.25f
         val longY = innerHeight * 0.32f
-        val alpha = minOf(1f, EGG_CRACK_BASE_ALPHA + stage * EGG_CRACK_STAGE_ALPHA_STEP)
-        paint.alpha = (alpha * 255).toInt().coerceIn(0, 255)
-
         val rootTop = point(centerX - shortX * 0.55f, centerY - shortY * 1.05f)
         val rootUpper = point(centerX + shortX * 0.18f, centerY - shortY * 0.28f)
         val rootMiddle = point(centerX - shortX * 0.46f, centerY + shortY * 0.28f)
@@ -437,104 +476,68 @@ object HomeWidgetSpriteRenderer {
         val topTip = point(centerX + shortX * 0.1f, top + innerHeight * 0.08f)
         val lowerLeftDownStem = point(centerX - mediumX * 0.58f, centerY + mediumY * 0.96f)
         val lowerLeftDownTip = point(left + innerWidth * 0.18f, bottom - innerHeight * 0.06f)
-
-        drawCrackPath(
-            canvas,
-            paint,
-            listOf(rootTop, rootUpper, rootMiddle, rootLower),
-            crackPixelSize,
-        )
-
-        if (stage >= 2) {
-            drawCrackPath(
-                canvas,
-                paint,
-                listOf(rootUpper, upperRightStem, upperRightTip),
-                crackPixelSize,
-            )
-            drawCrackPath(
-                canvas,
-                paint,
-                listOf(rootMiddle, lowerLeftStem, lowerLeftTip),
-                crackPixelSize,
-            )
+        val crackPixels = linkedSetOf<Pair<Int, Int>>()
+        val collectPixel = { x: Int, y: Int ->
+            crackPixels += x to y
         }
 
-        if (stage >= 3) {
+        drawCrackPath(listOf(rootTop, rootUpper, rootMiddle, rootLower), collectPixel)
+
+        if (clampedStage >= 2) {
+            drawCrackPath(listOf(rootUpper, upperRightStem, upperRightTip), collectPixel)
+            drawCrackPath(listOf(rootMiddle, lowerLeftStem, lowerLeftTip), collectPixel)
+        }
+
+        if (clampedStage >= 3) {
+            drawCrackPath(listOf(rootTop, upperLeftStem, upperLeftTip), collectPixel)
+            drawCrackPath(listOf(rootLower, lowerRightStem, lowerRightTip), collectPixel)
             drawCrackPath(
-                canvas,
-                paint,
-                listOf(rootTop, upperLeftStem, upperLeftTip),
-                crackPixelSize,
-            )
-            drawCrackPath(
-                canvas,
-                paint,
-                listOf(rootLower, lowerRightStem, lowerRightTip),
-                crackPixelSize,
-            )
-            drawCrackPath(
-                canvas,
-                paint,
                 listOf(upperRightStem, upperRightSplit, upperRightSplitTip),
-                crackPixelSize,
+                collectPixel,
             )
             drawCrackPath(
-                canvas,
-                paint,
                 listOf(lowerLeftStem, lowerLeftSplit, lowerLeftSplitTip),
-                crackPixelSize,
+                collectPixel,
             )
+            drawCrackPath(listOf(rootUpper, topStem, topTip), collectPixel)
             drawCrackPath(
-                canvas,
-                paint,
-                listOf(rootUpper, topStem, topTip),
-                crackPixelSize,
-            )
-            drawCrackPath(
-                canvas,
-                paint,
                 listOf(lowerLeftStem, lowerLeftDownStem, lowerLeftDownTip),
-                crackPixelSize,
+                collectPixel,
             )
         }
+
+        return crackPixels
     }
 
     private fun drawCrackPath(
-        canvas: Canvas,
-        paint: Paint,
         points: List<Pair<Float, Float>>,
-        crackPixelSize: Int,
+        drawPixel: (x: Int, y: Int) -> Unit,
     ) {
         if (points.size < 2) return
         for (index in 1 until points.size) {
             val start = points[index - 1]
             val end = points[index]
             drawPixelSegment(
-                canvas,
-                paint,
                 start.first,
                 start.second,
                 end.first,
                 end.second,
-                crackPixelSize,
+                drawPixel,
             )
         }
     }
 
     private fun drawPixelSegment(
-        canvas: Canvas,
-        paint: Paint,
         startX: Float,
         startY: Float,
         endX: Float,
         endY: Float,
-        crackPixelSize: Int,
+        drawPixel: (x: Int, y: Int) -> Unit,
     ) {
-        var x0 = startX.toInt()
-        var y0 = startY.toInt()
-        val x1 = endX.toInt()
-        val y1 = endY.toInt()
+        var x0 = startX.roundToInt()
+        var y0 = startY.roundToInt()
+        val x1 = endX.roundToInt()
+        val y1 = endY.roundToInt()
         val deltaX = kotlin.math.abs(x1 - x0)
         val deltaY = kotlin.math.abs(y1 - y0)
         val stepX = if (x0 < x1) 1 else -1
@@ -542,13 +545,7 @@ object HomeWidgetSpriteRenderer {
         var error = deltaX - deltaY
 
         while (true) {
-            canvas.drawRect(
-                x0.toFloat(),
-                y0.toFloat(),
-                x0 + crackPixelSize.toFloat(),
-                y0 + crackPixelSize.toFloat(),
-                paint,
-            )
+            drawPixel(x0, y0)
             if (x0 == x1 && y0 == y1) break
             val doubledError = error * 2
             if (doubledError > -deltaY) {
@@ -562,12 +559,30 @@ object HomeWidgetSpriteRenderer {
         }
     }
 
-    internal fun resolveEggCrackPixelSize(
-        width: Int,
-        height: Int,
+    internal fun blendBlackOverlay(
+        pixel: Int,
+        alpha: Float,
     ): Int {
-        val scale = minOf(width, height).coerceAtLeast(1) / BASE_EGG_FRAME_SIZE_PX
-        return scale.roundToInt().coerceAtLeast(1)
+        val pixelAlpha = pixel ushr 24
+        if (pixelAlpha == 0) {
+            return pixel
+        }
+
+        val clampedAlpha = alpha.coerceIn(0f, 1f)
+        if (clampedAlpha == 0f) {
+            return pixel
+        }
+
+        val red = ((pixel shr 16) and 0xFF)
+        val green = ((pixel shr 8) and 0xFF)
+        val blue = (pixel and 0xFF)
+        val scaledRed = ((red * (1f - clampedAlpha)).roundToInt()).coerceIn(0, 255)
+        val scaledGreen = ((green * (1f - clampedAlpha)).roundToInt()).coerceIn(0, 255)
+        val scaledBlue = ((blue * (1f - clampedAlpha)).roundToInt()).coerceIn(0, 255)
+        return (pixelAlpha shl 24) or
+            (scaledRed shl 16) or
+            (scaledGreen shl 8) or
+            scaledBlue
     }
 
     private fun point(x: Float, y: Float): Pair<Float, Float> = x to y

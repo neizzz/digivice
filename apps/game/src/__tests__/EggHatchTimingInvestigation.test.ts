@@ -61,6 +61,7 @@ type StoredWorldData = {
       eggHatch?: {
         hatchTime?: number;
         hatchDurationMs?: number;
+        pendingCharacterKey?: number;
       };
     };
   }>;
@@ -72,7 +73,7 @@ import {
   GAME_CONSTANTS,
 } from "../scenes/MainScene/config";
 import { EggHatchComp } from "../scenes/MainScene/raw-components";
-import { CharacterState } from "../scenes/MainScene/types";
+import { CharacterKeyECS, CharacterState } from "../scenes/MainScene/types";
 import {
   createTestCharacter,
   createTestWorld,
@@ -85,6 +86,7 @@ const TEN_MINUTES_MS = 10 * 60 * 1_000;
 function buildStoredEggWorldData(eggHatch: {
   hatchTime?: number;
   hatchDurationMs?: number;
+  pendingCharacterKey?: number;
 }): StoredWorldData {
   return {
     world_metadata: {
@@ -248,4 +250,26 @@ test("sanitizeStoredWorldData는 DEV에서 egg hatch 정보가 비면 4~6초 새
   const eggHatch = getSanitizedEggHatch(result);
   assert.equal(eggHatch?.hatchTime, now + 5_000);
   assert.equal(eggHatch?.hatchDurationMs, 5_000);
+});
+
+test("sanitizeStoredWorldData는 egg pendingCharacterKey를 보존한다", () => {
+  const now = 6_000_000;
+
+  const result = withMockedDateNow(now, () =>
+    withMockedRandom(0.5, () =>
+      sanitizeStoredWorldData(
+        buildStoredEggWorldData({
+          hatchTime: now + 5_000,
+          hatchDurationMs: 5_000,
+          pendingCharacterKey: CharacterKeyECS.SoilSlimeA1,
+        }),
+      ),
+    ),
+  );
+
+  const eggHatch = getSanitizedEggHatch(result);
+  assert.equal(
+    eggHatch?.pendingCharacterKey,
+    CharacterKeyECS.SoilSlimeA1,
+  );
 });

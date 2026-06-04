@@ -1,7 +1,9 @@
 import 'dart:convert';
 
 import 'package:digivice_virtual_bridge/home_widget/home_widget_sync_service.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 Map<String, dynamic> _buildWorldData({
   required int state,
@@ -47,6 +49,47 @@ Map<String, dynamic> _buildWorldData({
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  const MethodChannel channel = MethodChannel('digivice/home_widget');
+  late List<MethodCall> methodCalls;
+
+  setUp(() {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    methodCalls = <MethodCall>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (MethodCall call) async {
+      methodCalls.add(call);
+
+      switch (call.method) {
+        case 'getLaunchContext':
+          return <String, Object?>{'mode': 'widget_refresh'};
+        case 'publishSnapshot':
+          final Map<Object?, Object?> arguments =
+              call.arguments as Map<Object?, Object?>;
+          return <String, Object?>{
+            'status': 'ok',
+            'snapshotKey': arguments['snapshotKey'],
+            'reason': arguments['reason'],
+            'hasSnapshot': arguments['snapshotJson'] != null,
+            'characterState': arguments['snapshotJson'] == null ? null : 'idle',
+            'characterKey': arguments['snapshotJson'] == null ? null : 1,
+            'eggHatchTimeMs': null,
+            'snapshotKind': arguments['snapshotJson'] == null
+                ? null
+                : 'authoritativeAppState',
+          };
+      }
+
+      return null;
+    });
+  });
+
+  tearDown(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, null);
+  });
+
   group('HomeWidgetSyncService.buildSnapshotFromWorldDataJson', () {
     test('앱 저장 상태를 authoritative snapshot으로 그대로 반영한다', () {
       final snapshot = HomeWidgetSyncService.buildSnapshotFromWorldDataJson(
@@ -219,6 +262,69 @@ void main() {
       expect(
         progressed.visibleStatusIcons,
         contains(HomeWidgetStatusIcon.sleeping),
+      );
+    });
+  });
+
+  group('HomeWidgetSyncService bridge completion', () {
+    test('launch mode를 native bridge에서 읽는다', () async {
+      final String mode = await HomeWidgetSyncService.getLaunchMode();
+
+      expect(mode, widgetRefreshLaunchMode);
+      expect(methodCalls.single.method, 'getLaunchContext');
+    });
+
+    test('syncFromWorldDataJson은 두 native publish 완료 후 결과를 반환한다', () async {
+      final Map<String, Object?> result =
+          await HomeWidgetSyncService.syncFromWorldDataJson(
+        rawWorldData: jsonEncode(_buildWorldData(state: 1, stamina: 6)),
+        reason: 'widget_refresh_test',
+      );
+
+      expect(result['status'], 'synced');
+      expect(result['characterState'], 'idle');
+      expect(result['currentPublishStatus'], 'ok');
+      expect(result['authoritativePublishStatus'], 'ok');
+
+      final List<MethodCall> publishCalls = methodCalls
+          .where((MethodCall call) => call.method == 'publishSnapshot')
+          .toList();
+
+      expect(publishCalls, hasLength(2));
+      expect(
+        (publishCalls.first.arguments as Map<Object?, Object?>)['reason'],
+        'widget_refresh_test',
+      );
+      expect(
+        (publishCalls.last.arguments as Map<Object?, Object?>)['reason'],
+        'widget_refresh_test_authoritative',
+      );
+    });
+
+    test('world data가 없으면 cleared 결과와 함께 native snapshot 둘 다 비운다', () async {
+      final Map<String, Object?> result =
+          await HomeWidgetSyncService.syncFromWorldDataJson(
+        rawWorldData: null,
+        reason: 'widget_refresh_empty',
+      );
+
+      expect(result['status'], 'cleared');
+      expect(result['hasSnapshot'], isFalse);
+      expect(result['currentPublishStatus'], 'ok');
+      expect(result['authoritativePublishStatus'], 'ok');
+
+      final List<MethodCall> publishCalls = methodCalls
+          .where((MethodCall call) => call.method == 'publishSnapshot')
+          .toList();
+
+      expect(publishCalls, hasLength(2));
+      expect(
+        (publishCalls.first.arguments as Map<Object?, Object?>)['snapshotJson'],
+        isNull,
+      );
+      expect(
+        (publishCalls.last.arguments as Map<Object?, Object?>)['snapshotJson'],
+        isNull,
       );
     });
   });

@@ -48,21 +48,48 @@ class HomeWidgetRefreshController {
             }));
           });
         },
-        syncFromWorldDataJson: (payload = {}) => {
-          try {
+        getLaunchContext: () => {
+          return __createPromise((id) => {
             __native_home_widget.postMessage(JSON.stringify({
+              id,
+              action: "getLaunchContext"
+            }));
+          }).then((raw) => {
+            if (!raw) {
+              return { mode: "default" };
+            }
+            return typeof raw === "string" ? JSON.parse(raw) : raw;
+          }).catch(() => {
+            return { mode: "default" };
+          });
+        },
+        syncFromWorldDataJson: (payload = {}) => {
+          return __createPromise((id) => {
+            __native_home_widget.postMessage(JSON.stringify({
+              id,
               action: "syncFromWorldDataJson",
               payload
             }));
-          } catch (_) {}
+          }).then((raw) => {
+            if (!raw) {
+              return { status: "unknown" };
+            }
+            return typeof raw === "string" ? JSON.parse(raw) : raw;
+          });
         },
         completeRefresh: (payload = {}) => {
-          try {
+          return __createPromise((id) => {
             __native_home_widget.postMessage(JSON.stringify({
+              id,
               action: "completeRefresh",
               payload
             }));
-          } catch (_) {}
+          }).then((raw) => {
+            if (!raw) {
+              return { status: "ok" };
+            }
+            return typeof raw === "string" ? JSON.parse(raw) : raw;
+          });
         }
       };
       window.homeWidgetRefreshController = window.homeWidgetController;
@@ -70,12 +97,15 @@ class HomeWidgetRefreshController {
   }
 
   Future<void> handleAction(JavaScriptMessage message) async {
+    String? requestId;
+
     try {
       final Object decoded = jsonDecode(message.message);
       final Map<String, dynamic> request =
           decoded is Map<String, dynamic> ? decoded : <String, dynamic>{};
       final String action = request['action'] as String? ?? '';
       final String? id = request['id'] as String?;
+      requestId = id;
       final Map<String, dynamic> payload = request['payload'] is Map
           ? Map<String, dynamic>.from(request['payload'] as Map)
           : <String, dynamic>{};
@@ -110,37 +140,92 @@ class HomeWidgetRefreshController {
             );
           } catch (error) {
             if (id != null) {
+              requestId = null;
               await resolvePromise(id: id, error: error.toString());
             }
             rethrow;
           }
           return;
+        case 'getLaunchContext':
+          final Map<Object?, Object?>? launchContext =
+              await _platformChannel.invokeMethod<Map<Object?, Object?>>(
+            'getLaunchContext',
+          );
+          if (id != null) {
+            await resolvePromise(
+              id: id,
+              data: jsonEncode(
+                _normalizePlatformResult(
+                  launchContext ?? <Object?, Object?>{'mode': 'default'},
+                ),
+              ),
+            );
+          }
+          log?.call(
+            '[HomeWidgetRefreshController] getLaunchContext '
+            'mode=${launchContext?['mode'] ?? 'default'}',
+          );
+          return;
         case 'completeRefresh':
-          await _platformChannel.invokeMethod<void>(
+          final Map<Object?, Object?>? completeResult =
+              await _platformChannel.invokeMethod<Map<Object?, Object?>>(
             'completeRefresh',
             payload,
           );
+          if (id != null) {
+            await resolvePromise(
+              id: id,
+              data: jsonEncode(_normalizePlatformResult(completeResult)),
+            );
+          }
           log?.call(
             '[HomeWidgetRefreshController] completeRefresh result=${payload['result']} source=${payload['source']}',
           );
           return;
         case 'syncFromWorldDataJson':
-          await HomeWidgetSyncService.syncFromWorldDataJson(
+          final Map<String, Object?> syncResult =
+              await HomeWidgetSyncService.syncFromWorldDataJson(
             rawWorldData: payload['rawWorldData'] as String?,
             reason: payload['reason'] as String? ?? 'manual',
             log: log,
           );
+          if (id != null) {
+            await resolvePromise(id: id, data: jsonEncode(syncResult));
+          }
           log?.call(
             '[HomeWidgetRefreshController] syncFromWorldDataJson '
             'reason=${payload['reason']} '
+            'status=${syncResult['status']} '
             'hasWorldData=${payload['rawWorldData'] is String && (payload['rawWorldData'] as String).isNotEmpty}',
           );
           return;
         default:
+          if (id != null) {
+            await resolvePromise(
+              id: id,
+              error: 'Unsupported home widget action: $action',
+            );
+          }
           return;
       }
     } catch (error) {
+      if (requestId != null) {
+        await resolvePromise(id: requestId!, error: error.toString());
+      }
       log?.call('[HomeWidgetRefreshController] action failed: $error');
     }
+  }
+
+  Map<String, Object?> _normalizePlatformResult(Map<Object?, Object?>? result) {
+    if (result == null) {
+      return <String, Object?>{};
+    }
+
+    return result.map(
+      (Object? key, Object? value) => MapEntry(
+        key?.toString() ?? '',
+        value,
+      ),
+    );
   }
 }

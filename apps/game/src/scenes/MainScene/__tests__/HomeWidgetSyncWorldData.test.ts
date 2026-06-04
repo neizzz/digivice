@@ -3,7 +3,7 @@ import test from "node:test";
 import { createWorld } from "bitecs";
 import * as PIXI from "pixi.js";
 import { CharacterStatusComp, EggHatchComp, ObjectComp } from "../raw-components";
-import { CharacterState } from "../types";
+import { CharacterKeyECS, CharacterState } from "../types";
 import {
   MainSceneWorld,
   type MainSceneWorldData,
@@ -66,6 +66,7 @@ test("buildHomeWidgetSyncWorldData는 저장본 대신 현재 ECS egg 상태를 
   EggHatchComp.hatchTime[characterEid] = 12_345;
   EggHatchComp.hatchDurationMs[characterEid] = 2_222;
   EggHatchComp.syringeCount[characterEid] = 4;
+  EggHatchComp.pendingCharacterKey[characterEid] = CharacterKeyECS.SoilSlimeA1;
 
   const persistedData: MainSceneWorldData = {
     world_metadata: {
@@ -106,6 +107,7 @@ test("buildHomeWidgetSyncWorldData는 저장본 대신 현재 ECS egg 상태를 
             hatchDurationMs: 1_000,
             isReadyToHatch: false,
             syringeCount: 0,
+            pendingCharacterKey: CharacterKeyECS.GreenSlimeA1,
           },
           render: {
             storeIndex: 0,
@@ -155,6 +157,10 @@ test("buildHomeWidgetSyncWorldData는 저장본 대신 현재 ECS egg 상태를 
   assert.equal(
     snapshot.entities[0]?.components.eggHatch?.syringeCount,
     EggHatchComp.syringeCount[characterEid],
+  );
+  assert.equal(
+    snapshot.entities[0]?.components.eggHatch?.pendingCharacterKey,
+    EggHatchComp.pendingCharacterKey[characterEid],
   );
 
   assert.equal(persistedData.world_metadata.last_ecs_saved, 1_000);

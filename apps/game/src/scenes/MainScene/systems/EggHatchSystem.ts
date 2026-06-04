@@ -22,10 +22,14 @@ import {
 } from "../../../utils/asset";
 import { ensureCharacterOpaqueBoundsComputed } from "./CharacterOpaqueBounds";
 import { recordMonsterBookReach } from "../monsterBook";
-import { selectEggHatchStartingGene } from "../eggHatchGeneSelection";
+import { resolveEggHatchStartingGeneSelection } from "../eggHatchGeneSelection";
 
 const eggQuery = defineQuery([ObjectComp, EggHatchComp]);
 const staleFoodQuery = defineQuery([ObjectComp, FreshnessComp]);
+const pendingRealtimeHatchAttemptsByWorld = new WeakMap<
+  MainSceneWorld,
+  Set<number>
+>();
 
 /**
  * 알 부화 시스템
@@ -47,21 +51,30 @@ export function eggHatchSystem(params: {
     if (ObjectComp.state[eid] !== CharacterState.EGG) continue;
 
     // 부화 시간이 되었는지 확인
-    if (
-      currentTime >= EggHatchComp.hatchTime[eid] &&
-      !EggHatchComp.isReadyToHatch[eid]
-    ) {
-      // 부화 준비 완료 표시
+    if (currentTime < EggHatchComp.hatchTime[eid]) {
+      continue;
+    }
+
+    if (!EggHatchComp.isReadyToHatch[eid]) {
+      const logContext = buildEggHatchDiagnosticsContext(
+        eid,
+        world,
+        currentTime,
+      );
       EggHatchComp.isReadyToHatch[eid] = 1;
 
       console.log(`[EggHatchSystem] Character ${eid} is ready to hatch!`);
+      console.warn("[ImportantDiagnostics][EggHatchExecution]", {
+        phase: "ready_to_hatch",
+        ...logContext,
+      });
+    }
 
-      if (world.isSimulationMode) {
-        hatchCharacterForSimulation(eid, world, currentTime);
-      } else {
-        // 실시간 모드에서는 필요한 에셋을 보장 로드한 뒤 부화 처리
-        void hatchCharacter(eid, world, currentTime);
-      }
+    if (world.isSimulationMode) {
+      hatchCharacterForSimulation(eid, world, currentTime);
+    } else {
+      // 실시간 모드에서는 필요한 에셋을 보장 로드한 뒤 부화 처리
+      void hatchCharacter(eid, world, currentTime);
     }
   }
 
@@ -74,12 +87,17 @@ function completeHatch(
   currentTime: number,
   characterKey: CharacterKeyECS,
 ): void {
+  const previousCharacterKey = CharacterStatusComp.characterKey[eid];
   CharacterStatusComp.characterKey[eid] = characterKey;
   CharacterStatusComp.evolutionPhase[eid] = 1;
 
   // 캐릭터 상태를 IDLE로 변경
   ObjectComp.state[eid] = CharacterState.IDLE;
+  EggHatchComp.hatchTime[eid] = 0;
+  EggHatchComp.hatchDurationMs[eid] = 0;
+  EggHatchComp.isReadyToHatch[eid] = 0;
   EggHatchComp.syringeCount[eid] = 0;
+  EggHatchComp.pendingCharacterKey[eid] = CharacterKeyECS.NULL;
 
   // RandomMovementComp 추가 (이제 움직일 수 있음)
   if (!hasComponent(world, RandomMovementComp, eid)) {
@@ -111,6 +129,12 @@ function completeHatch(
   console.log(
     `[EggHatchSystem] Character ${eid} has hatched! State changed to IDLE with characterKey: ${characterKey}`,
   );
+  console.warn("[ImportantDiagnostics][EggHatchExecution]", {
+    phase: "complete_hatch",
+    ...buildEggHatchDiagnosticsContext(eid, world, currentTime),
+    previousCharacterKey,
+    appliedCharacterKey: characterKey,
+  });
 
   recordMonsterBookReach({
     world,
@@ -141,12 +165,75 @@ function countStaleFoodAtHatch(world: MainSceneWorld): number {
 function selectStartingCharacterForHatch(
   eid: number,
   world: MainSceneWorld,
-): CharacterKeyECS {
-  return selectEggHatchStartingGene({
-    staleFoodCountAtHatch: countStaleFoodAtHatch(world),
-    syringeCount: EggHatchComp.syringeCount[eid],
-    random: Math.random(),
+): {
+  staleFoodCountAtHatch: number;
+  syringeCount: number;
+  random: number;
+  characterKey: CharacterKeyECS;
+} {
+  const staleFoodCountAtHatch = countStaleFoodAtHatch(world);
+  const syringeCount = EggHatchComp.syringeCount[eid];
+  const random = Math.random();
+  const selection = resolveEggHatchStartingGeneSelection({
+    staleFoodCountAtHatch,
+    syringeCount,
+    random,
   });
+
+  console.warn("[ImportantDiagnostics][EggHatchSelection]", {
+    eid,
+    objectId: ObjectComp.id[eid],
+    currentTime: world.currentTime,
+    hatchTime: EggHatchComp.hatchTime[eid],
+    hatchDurationMs: EggHatchComp.hatchDurationMs[eid],
+    isReadyToHatch: EggHatchComp.isReadyToHatch[eid] === 1,
+    currentCharacterKey: CharacterStatusComp.characterKey[eid],
+    isSimulationMode: world.isSimulationMode,
+    state: ObjectComp.state[eid],
+    staleFoodCountAtHatch,
+    syringeCount,
+    random,
+    normalizedStaleFoodCountAtHatch:
+      selection.normalizedStaleFoodCountAtHatch,
+    normalizedSyringeCount: selection.normalizedSyringeCount,
+    normalizedRandom: selection.normalizedRandom,
+    rollPercent: selection.rollPercent,
+    probabilities: selection.probabilities,
+    selectedCharacterKey: selection.selectedCharacterKey,
+  });
+
+  return {
+    staleFoodCountAtHatch,
+    syringeCount,
+    random,
+    characterKey: selection.selectedCharacterKey,
+  };
+}
+
+function getPendingStartingCharacterKey(eid: number): CharacterKeyECS | null {
+  const pendingCharacterKey = EggHatchComp.pendingCharacterKey[eid];
+  switch (pendingCharacterKey) {
+    case CharacterKeyECS.GreenSlimeA1:
+    case CharacterKeyECS.SoilSlimeA1:
+    case CharacterKeyECS.SkullSlimeA1:
+      return pendingCharacterKey;
+    default:
+      return null;
+  }
+}
+
+function getOrCreatePendingStartingCharacterForHatch(
+  eid: number,
+  world: MainSceneWorld,
+): CharacterKeyECS {
+  const pendingCharacterKey = getPendingStartingCharacterKey(eid);
+  if (pendingCharacterKey !== null) {
+    return pendingCharacterKey;
+  }
+
+  const { characterKey } = selectStartingCharacterForHatch(eid, world);
+  EggHatchComp.pendingCharacterKey[eid] = characterKey;
+  return characterKey;
 }
 
 function hatchCharacterForSimulation(
@@ -154,7 +241,11 @@ function hatchCharacterForSimulation(
   world: MainSceneWorld,
   currentTime: number,
 ): void {
-  const characterKey = selectStartingCharacterForHatch(eid, world);
+  console.warn("[ImportantDiagnostics][EggHatchExecution]", {
+    phase: "simulation_start",
+    ...buildEggHatchDiagnosticsContext(eid, world, currentTime),
+  });
+  const characterKey = getOrCreatePendingStartingCharacterForHatch(eid, world);
   const spritesheetOptions = getCharacterSpritesheetOptions(characterKey);
   const spritesheetAlias =
     spritesheetOptions?.alias || spritesheetOptions?.jsonPath;
@@ -163,7 +254,12 @@ function hatchCharacterForSimulation(
     console.warn(
       `[EggHatchSystem] Simulation hatch skipped for character ${eid} because spritesheet is not preloaded. Keeping EGG state.`,
     );
-    EggHatchComp.isReadyToHatch[eid] = 0;
+    console.warn("[ImportantDiagnostics][EggHatchExecution]", {
+      phase: "simulation_skipped_unloaded_spritesheet",
+      ...buildEggHatchDiagnosticsContext(eid, world, currentTime),
+      selectedCharacterKey: characterKey,
+      spritesheetAlias: spritesheetAlias ?? null,
+    });
     return;
   }
 
@@ -179,8 +275,18 @@ async function hatchCharacter(
   world: MainSceneWorld,
   currentTime: number
 ): Promise<void> {
+  const pendingAttempts = getPendingRealtimeHatchAttempts(world);
+  if (pendingAttempts.has(eid)) {
+    return;
+  }
+  pendingAttempts.add(eid);
+
   try {
-    const characterKey = selectStartingCharacterForHatch(eid, world);
+    console.warn("[ImportantDiagnostics][EggHatchExecution]", {
+      phase: "realtime_start",
+      ...buildEggHatchDiagnosticsContext(eid, world, currentTime),
+    });
+    const characterKey = getOrCreatePendingStartingCharacterForHatch(eid, world);
 
     const isLoaded = await ensureCharacterSpritesheetLoaded({
       characterKey,
@@ -192,7 +298,11 @@ async function hatchCharacter(
       console.warn(
         `[EggHatchSystem] Hatch delayed for character ${eid}. Keeping EGG state because spritesheet could not be loaded.`
       );
-      EggHatchComp.isReadyToHatch[eid] = 0;
+      console.warn("[ImportantDiagnostics][EggHatchExecution]", {
+        phase: "realtime_delayed_unloaded_spritesheet",
+        ...buildEggHatchDiagnosticsContext(eid, world, currentTime),
+        selectedCharacterKey: characterKey,
+      });
       return;
     }
 
@@ -203,5 +313,37 @@ async function hatchCharacter(
       `[EggHatchSystem] Error during hatching process for character ${eid}:`,
       error
     );
+  } finally {
+    pendingAttempts.delete(eid);
   }
+}
+
+function getPendingRealtimeHatchAttempts(world: MainSceneWorld): Set<number> {
+  let pendingAttempts = pendingRealtimeHatchAttemptsByWorld.get(world);
+  if (!pendingAttempts) {
+    pendingAttempts = new Set<number>();
+    pendingRealtimeHatchAttemptsByWorld.set(world, pendingAttempts);
+  }
+
+  return pendingAttempts;
+}
+
+function buildEggHatchDiagnosticsContext(
+  eid: number,
+  world: MainSceneWorld,
+  currentTime: number,
+): Record<string, unknown> {
+  return {
+    eid,
+    objectId: ObjectComp.id[eid],
+    currentTime,
+    hatchTime: EggHatchComp.hatchTime[eid],
+    hatchDurationMs: EggHatchComp.hatchDurationMs[eid],
+    isReadyToHatch: EggHatchComp.isReadyToHatch[eid] === 1,
+    state: ObjectComp.state[eid],
+    currentCharacterKey: CharacterStatusComp.characterKey[eid],
+    syringeCount: EggHatchComp.syringeCount[eid],
+    pendingCharacterKey: EggHatchComp.pendingCharacterKey[eid],
+    isSimulationMode: world.isSimulationMode,
+  };
 }

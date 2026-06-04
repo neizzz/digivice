@@ -1,4 +1,8 @@
 import { GAME_CONSTANTS } from "@/scenes/MainScene/config";
+import {
+  CharacterKeyECS,
+  CharacterState,
+} from "@/scenes/MainScene/types";
 
 type StoredObjectComponent = {
   id?: number;
@@ -97,6 +101,7 @@ type StoredEggHatchComponent = {
   hatchDurationMs?: number;
   isReadyToHatch?: boolean;
   syringeCount?: number;
+  pendingCharacterKey?: number;
 };
 
 type StoredEntityComponents = {
@@ -420,6 +425,19 @@ function toNonNegativeInteger(value: unknown, fallback = 0): number {
   return Math.floor(numericValue);
 }
 
+function sanitizePendingEggHatchCharacterKey(value: unknown): number {
+  const numericValue = toFiniteNumber(value);
+
+  switch (numericValue) {
+    case CharacterKeyECS.GreenSlimeA1:
+    case CharacterKeyECS.SoilSlimeA1:
+    case CharacterKeyECS.SkullSlimeA1:
+      return numericValue;
+    default:
+      return CharacterKeyECS.NULL;
+  }
+}
+
 function sanitizeStatuses(statuses: unknown): number[] {
   if (!Array.isArray(statuses)) {
     return new Array(DEFAULTS.STATUS_SLOT_COUNT).fill(ECS_NULL_VALUE);
@@ -719,6 +737,12 @@ function sanitizeCharacterEntity(
         10,
         toNonNegativeInteger(components.eggHatch?.syringeCount, 0),
       ),
+      pendingCharacterKey:
+        state === CharacterState.EGG
+          ? sanitizePendingEggHatchCharacterKey(
+              components.eggHatch?.pendingCharacterKey,
+            )
+          : CharacterKeyECS.NULL,
     },
   };
 

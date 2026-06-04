@@ -2,6 +2,14 @@ export type HomeWidgetSyncWorldDataLike = {
   world_metadata?: {
     last_ecs_saved?: number | null;
   } | null;
+  entities?: Array<{
+    components?: {
+      object?: {
+        type?: number | null;
+        state?: number | null;
+      } | null;
+    } | null;
+  } | null> | null;
 } | null;
 
 export type HomeWidgetSyncWorldDataSource = "stored" | "in_memory";
@@ -22,6 +30,32 @@ function readLastEcsSaved(
     : null;
 }
 
+const CHARACTER_OBJECT_TYPE = 1;
+const EGG_CHARACTER_STATE = 0;
+
+function readMainCharacterState(
+  worldData: HomeWidgetSyncWorldDataLike | undefined,
+): number | null {
+  const entities = worldData?.entities;
+  if (!Array.isArray(entities)) {
+    return null;
+  }
+
+  for (const entity of entities) {
+    const object = entity?.components?.object;
+    if (object?.type !== CHARACTER_OBJECT_TYPE) {
+      continue;
+    }
+
+    const state = object.state;
+    if (typeof state === "number" && Number.isFinite(state)) {
+      return state;
+    }
+  }
+
+  return null;
+}
+
 export function selectHomeWidgetSyncWorldData(params: {
   storedWorldData: HomeWidgetSyncWorldDataLike | undefined;
   inMemoryWorldData: HomeWidgetSyncWorldDataLike | undefined;
@@ -30,6 +64,8 @@ export function selectHomeWidgetSyncWorldData(params: {
   const inMemoryWorldData = params.inMemoryWorldData ?? null;
   const storedLastEcsSaved = readLastEcsSaved(storedWorldData);
   const inMemoryLastEcsSaved = readLastEcsSaved(inMemoryWorldData);
+  const storedMainCharacterState = readMainCharacterState(storedWorldData);
+  const inMemoryMainCharacterState = readMainCharacterState(inMemoryWorldData);
 
   if (!storedWorldData && !inMemoryWorldData) {
     return {
@@ -58,7 +94,13 @@ export function selectHomeWidgetSyncWorldData(params: {
     };
   }
 
+  const shouldPreferStoredCompletedHatch =
+    storedMainCharacterState !== null &&
+    storedMainCharacterState !== EGG_CHARACTER_STATE &&
+    inMemoryMainCharacterState === EGG_CHARACTER_STATE;
+
   const shouldUseInMemory =
+    !shouldPreferStoredCompletedHatch &&
     inMemoryLastEcsSaved !== null &&
     (storedLastEcsSaved === null || inMemoryLastEcsSaved > storedLastEcsSaved);
 
