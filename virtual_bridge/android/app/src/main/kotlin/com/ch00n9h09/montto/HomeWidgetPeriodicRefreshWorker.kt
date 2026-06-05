@@ -18,13 +18,19 @@ internal object HomeWidgetPeriodicRefreshRunner {
     ): Boolean {
         if (!hasAnyWidgets()) {
             onNoWidgets()
-            recordPeriodicRefreshStatus("no_widgets", nowMsProvider())
+            recordPeriodicRefreshStatus(
+                HomeWidgetPeriodicRefreshStatus.NO_WIDGETS.value,
+                nowMsProvider(),
+            )
             return false
         }
 
         val nowMs = nowMsProvider()
         val progressedSnapshot = progressSnapshot(nowMs) ?: run {
-            recordPeriodicRefreshStatus("progress_unavailable", nowMs)
+            recordPeriodicRefreshStatus(
+                HomeWidgetPeriodicRefreshStatus.PROGRESS_UNAVAILABLE.value,
+                nowMs,
+            )
             return false
         }
         val authoritativeSnapshot = loadAuthoritativeSnapshot()
@@ -35,7 +41,10 @@ internal object HomeWidgetPeriodicRefreshRunner {
                 nowMs = nowMs,
             )
         ) {
-            recordPeriodicRefreshStatus("native_authoritative_completion_started", nowMs)
+            recordPeriodicRefreshStatus(
+                HomeWidgetNativeAuthoritativeRefreshStatus.STARTED.value,
+                nowMs,
+            )
             val nativeCompletionResult = completeNativeAuthoritativeRefresh(nowMs)
             if (nativeCompletionResult.succeeded) {
                 nativeCompletionResult.status
@@ -44,7 +53,7 @@ internal object HomeWidgetPeriodicRefreshRunner {
                 requestAuthoritativeRefreshFallback().status
             }
         } else {
-            "periodic_progress_only"
+            HomeWidgetPeriodicRefreshStatus.PROGRESS_ONLY.value
         }
         recordPeriodicRefreshStatus(periodicStatus, nowMs)
         notifySnapshotUpdated(
