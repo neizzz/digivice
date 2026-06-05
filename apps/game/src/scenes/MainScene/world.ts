@@ -53,6 +53,7 @@ import {
   CleanableComponent,
   BroomRenderComponent,
   EGG_TEXTURE_KEYS,
+  Freshness,
 } from "./types";
 import { randomMovementSystem } from "./systems/RandomMovementSystem";
 import { commonMovementSystem } from "./systems/CommonMovementSystem";
@@ -123,6 +124,8 @@ import {
   DiseaseSystemComp,
   EffectAnimationComp,
   EggHatchComp,
+  FreshnessComp,
+  MutationRiskComp,
   SleepSystemComp,
 } from "./raw-components";
 import { generatePersistentNumericId } from "@/utils/generate";
@@ -132,6 +135,7 @@ import {
   loadSpritesheet,
 } from "../../utils/asset";
 import type {
+  MainCharacterGeneOutcome,
   MainCharacterInfoSnapshot,
   ShowAlertCallback,
   ShowMonsterInfoCallback,
@@ -174,7 +178,14 @@ import { GAME_CONSTANTS, getRemainingEggHatchTime } from "./config";
 import {
   EVOLUTION_GAUGE_CONFIG,
   getCharacterSpritesheetName,
+  getEvolutionSpec,
+  type MonsterGeneLine,
 } from "./evolutionConfig";
+import { calculateEggHatchGeneProbabilities } from "./eggHatchGeneSelection";
+import {
+  calculateMutationRate,
+  getSameClassCrossGeneMutationTargets,
+} from "./mutationConfig";
 import {
   getManualSkyVisualState,
   getProjectedUpcomingSunTimes as projectUpcomingSunTimes,
@@ -221,12 +232,210 @@ const liveCharacterEntitiesQuery = defineQuery([
   ObjectComp,
   CharacterStatusComp,
 ]);
+const hatchOutcomeFoodQuery = defineQuery([ObjectComp, FreshnessComp]);
 const FOOD_LANDING_VIBRATION_DURATION_MS = 16;
 const FOOD_LANDING_VIBRATION_STRENGTH = 36;
 const CHARACTER_KEY_VALUES = new Set<string>(Object.values(CharacterKey));
+const HATCH_OUTCOME_GENE_LINES: MonsterGeneLine[] = [
+  "green-slime",
+  "soil-slime",
+  "skull-slime",
+];
 
 function isCharacterKeyValue(value: string): value is CharacterKey {
   return CHARACTER_KEY_VALUES.has(value);
+}
+
+function createHatchGeneOutcomesForProbabilities(
+  probabilities: Record<"green" | "soil" | "skull", number>,
+): MainCharacterGeneOutcome[] {
+  const probabilityByGeneLine: Record<MonsterGeneLine, number> = {
+    "green-slime": probabilities.green / 100,
+    "soil-slime": probabilities.soil / 100,
+    "skull-slime": probabilities.skull / 100,
+  };
+
+  return HATCH_OUTCOME_GENE_LINES.map((geneLine) => ({
+    kind: "hatch",
+    geneLine,
+    level: 1,
+    probability: probabilityByGeneLine[geneLine],
+  }));
+}
+
+function createFixedHatchGeneOutcomes(
+  fixedGeneLine: MonsterGeneLine,
+): MainCharacterGeneOutcome[] {
+  return HATCH_OUTCOME_GENE_LINES.map((geneLine) => ({
+    kind: "hatch",
+    geneLine,
+    level: 1,
+    probability: geneLine === fixedGeneLine ? 1 : 0,
+  }));
+}
+
+function countCurrentStaleFoodForHatch(world: MainSceneWorld): number {
+  const entities = hatchOutcomeFoodQuery(world);
+  let count = 0;
+
+  for (let i = 0; i < entities.length; i++) {
+    const eid = entities[i];
+    if (
+      ObjectComp.type[eid] === ObjectType.FOOD &&
+      FreshnessComp.freshness[eid] === Freshness.STALE
+    ) {
+      count += 1;
+    }
+  }
+
+  return count;
+}
+
+function getHatchGeneOutcomes(
+  world: MainSceneWorld,
+  characterEid: number,
+): MainCharacterGeneOutcome[] {
+  if (!hasComponent(world, EggHatchComp, characterEid)) {
+    return createHatchGeneOutcomesForProbabilities(
+      calculateEggHatchGeneProbabilities({
+        staleFoodCountAtHatch: countCurrentStaleFoodForHatch(world),
+        syringeCount: 0,
+      }),
+    );
+  }
+
+  const pendingSpec = getEvolutionSpec(
+    EggHatchComp.pendingCharacterKey[characterEid],
+  );
+
+  if (pendingSpec?.phase === 1) {
+    return createFixedHatchGeneOutcomes(pendingSpec.geneLine);
+  }
+
+  return createHatchGeneOutcomesForProbabilities(
+    calculateEggHatchGeneProbabilities({
+      staleFoodCountAtHatch: countCurrentStaleFoodForHatch(world),
+      syringeCount: EggHatchComp.syringeCount[characterEid],
+    }),
+  );
+}
+
+function getGeneLineSortIndex(geneLine: MonsterGeneLine): number {
+  const index = HATCH_OUTCOME_GENE_LINES.indexOf(geneLine);
+
+  return index >= 0 ? index : HATCH_OUTCOME_GENE_LINES.length;
+}
+
+function addGeneOutcomeProbability(
+  map: Map<string, MainCharacterGeneOutcome>,
+  outcome: MainCharacterGeneOutcome,
+): void {
+  const key = `${outcome.kind}:${outcome.geneLine}:${outcome.level}`;
+  const existing = map.get(key);
+
+  if (existing) {
+    existing.probability += outcome.probability;
+    return;
+  }
+
+  map.set(key, { ...outcome });
+}
+
+function getEvolutionGeneOutcomes(
+  world: MainSceneWorld,
+  characterEid: number,
+): MainCharacterGeneOutcome[] {
+  const characterKey = CharacterStatusComp.characterKey[characterEid];
+  const spec = getEvolutionSpec(characterKey);
+
+  if (!spec || spec.evolutionCandidates.length === 0) {
+    return [];
+  }
+
+  const totalEvolutionWeight = spec.evolutionCandidates.reduce(
+    (sum, candidate) => sum + Math.max(0, candidate.weight),
+    0,
+  );
+
+  if (totalEvolutionWeight <= 0) {
+    return [];
+  }
+
+  const mutationTargets = getSameClassCrossGeneMutationTargets(characterKey);
+  const hasMutationRisk = hasComponent(world, MutationRiskComp, characterEid);
+  const mutationRate =
+    mutationTargets.length > 0
+      ? calculateMutationRate({
+          characterKey,
+          unnecessaryInjectionStacks: hasMutationRisk
+            ? MutationRiskComp.unnecessaryInjectionStacks[characterEid]
+            : 0,
+          dirtyExposureStacks: hasMutationRisk
+            ? MutationRiskComp.dirtyExposureStacks[characterEid]
+            : 0,
+        })
+      : 0;
+  const normalEvolutionRate = Math.max(0, 1 - mutationRate);
+  const normalOutcomeMap = new Map<string, MainCharacterGeneOutcome>();
+
+  for (const candidate of spec.evolutionCandidates) {
+    if (candidate.weight <= 0) {
+      continue;
+    }
+
+    const targetSpec = getEvolutionSpec(candidate.to);
+    if (!targetSpec) {
+      continue;
+    }
+
+    addGeneOutcomeProbability(normalOutcomeMap, {
+      kind: "evolution",
+      geneLine: targetSpec.geneLine,
+      level: targetSpec.phase,
+      probability:
+        normalEvolutionRate * (candidate.weight / totalEvolutionWeight),
+    });
+  }
+
+  const mutationOutcomeMap = new Map<string, MainCharacterGeneOutcome>();
+  if (mutationRate > 0 && mutationTargets.length > 0) {
+    const probabilityPerTarget = mutationRate / mutationTargets.length;
+
+    for (const targetKey of mutationTargets) {
+      const targetSpec = getEvolutionSpec(targetKey);
+      if (!targetSpec || targetSpec.geneLine === spec.geneLine) {
+        continue;
+      }
+
+      addGeneOutcomeProbability(mutationOutcomeMap, {
+        kind: "mutation",
+        geneLine: targetSpec.geneLine,
+        level: spec.phase,
+        probability: probabilityPerTarget,
+      });
+    }
+  }
+
+  const normalRows = Array.from(normalOutcomeMap.values()).sort((a, b) => {
+    if (a.geneLine === spec.geneLine && b.geneLine !== spec.geneLine) {
+      return -1;
+    }
+    if (a.geneLine !== spec.geneLine && b.geneLine === spec.geneLine) {
+      return 1;
+    }
+
+    return (
+      a.level - b.level ||
+      getGeneLineSortIndex(a.geneLine) - getGeneLineSortIndex(b.geneLine)
+    );
+  });
+  const mutationRows = Array.from(mutationOutcomeMap.values()).sort(
+    (a, b) =>
+      getGeneLineSortIndex(a.geneLine) - getGeneLineSortIndex(b.geneLine) ||
+      a.level - b.level,
+  );
+
+  return [...normalRows, ...mutationRows];
 }
 
 export type EntityComponents = {
@@ -3690,6 +3899,7 @@ export class MainSceneWorld implements IWorld, Scene {
     }
 
     const isEgg = ObjectComp.state[characterEid] === CharacterState.EGG;
+    const characterKey = CharacterStatusComp.characterKey[characterEid];
     const eggHatchRemainingMs =
       isEgg && hasComponent(this, EggHatchComp, characterEid)
         ? getRemainingEggHatchTime({
@@ -3702,6 +3912,10 @@ export class MainSceneWorld implements IWorld, Scene {
     return {
       monsterName: this._persistentData?.world_metadata.monster_name?.trim() ?? "",
       isEgg,
+      geneLine: isEgg ? null : getEvolutionSpec(characterKey)?.geneLine ?? null,
+      geneOutcomes: isEgg
+        ? getHatchGeneOutcomes(this, characterEid)
+        : getEvolutionGeneOutcomes(this, characterEid),
       eggHatchRemainingMs,
       evolutionPhase: CharacterStatusComp.evolutionPhase[characterEid],
       stamina: CharacterStatusComp.stamina[characterEid],

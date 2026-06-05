@@ -10,6 +10,7 @@ import {
   TimeOfDayMode,
   type SunTimesPayload,
 } from "./scenes/MainScene/timeOfDay";
+import type { MonsterGeneLine } from "./scenes/MainScene/evolutionConfig";
 import { FlappyBirdGameScene } from "./scenes/FlappyBirdGameScene";
 import { MonsterBookScene } from "./scenes/MonsterBookScene";
 import {
@@ -106,9 +107,18 @@ export type GameDiagnosticsSnapshot = {
   mainSceneData: MainSceneWorldData | null;
 };
 
+export type MainCharacterGeneOutcome = {
+  kind: "hatch" | "evolution" | "mutation";
+  geneLine: MonsterGeneLine;
+  level: number;
+  probability: number;
+};
+
 export type MainCharacterInfoSnapshot = {
   monsterName: string;
   isEgg: boolean;
+  geneLine: MonsterGeneLine | null;
+  geneOutcomes: MainCharacterGeneOutcome[];
   eggHatchRemainingMs: number | null;
   evolutionPhase: number;
   stamina: number;

@@ -421,6 +421,27 @@ function waitForAnimationFrame(): Promise<void> {
   });
 }
 
+function areMainCharacterGeneOutcomesEqual(
+  left: MainCharacterInfoSnapshot["geneOutcomes"],
+  right: MainCharacterInfoSnapshot["geneOutcomes"],
+): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  return left.every((leftOutcome, index) => {
+    const rightOutcome = right[index];
+
+    return (
+      rightOutcome !== undefined &&
+      leftOutcome.kind === rightOutcome.kind &&
+      leftOutcome.geneLine === rightOutcome.geneLine &&
+      leftOutcome.level === rightOutcome.level &&
+      leftOutcome.probability === rightOutcome.probability
+    );
+  });
+}
+
 function areMainCharacterInfoSnapshotsEqual(
   left: MainCharacterInfoSnapshot | null,
   right: MainCharacterInfoSnapshot | null,
@@ -436,6 +457,8 @@ function areMainCharacterInfoSnapshotsEqual(
   return (
     left.monsterName === right.monsterName &&
     left.isEgg === right.isEgg &&
+    left.geneLine === right.geneLine &&
+    areMainCharacterGeneOutcomesEqual(left.geneOutcomes, right.geneOutcomes) &&
     left.eggHatchRemainingMs === right.eggHatchRemainingMs &&
     left.evolutionPhase === right.evolutionPhase &&
     left.stamina === right.stamina &&
