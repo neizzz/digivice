@@ -12,6 +12,7 @@ import {
   MONSTER_CHARACTER_KEYS,
   type MonsterCharacterKey,
   type MonsterClassCode,
+  type MonsterGeneLine,
 } from "../MainScene/evolutionConfig";
 import {
   type MonsterBookState,
@@ -55,8 +56,18 @@ const CARD_ROWS = 2;
 const MONSTER_BOOK_BACKGROUND_URL =
   "/assets/game/sprites/monster-book.png";
 const RARITY_STAR_URL = "/assets/game/sprites/star.png";
+const GENE_SYMBOL_SPRITESHEET_ALIAS = "gene-symbol";
+const GENE_SYMBOL_SPRITESHEET_URL =
+  "/assets/game/sprites/gene-symbol.json";
+const GENE_SYMBOL_FRAME_BY_LINE: Record<MonsterGeneLine, string> = {
+  "green-slime": "green",
+  "soil-slime": "soil",
+  "skull-slime": "skull",
+};
 const RARITY_STAR_SIZE = 14.4;
 const RARITY_STAR_GAP = 1;
+const GENE_SYMBOL_SIZE = 16;
+const GENE_SYMBOL_INSET = 5;
 const CARD_BORDER_WIDTH = 1.5;
 const CURRENT_MONSTER_CARD_BORDER_WIDTH = 3.5;
 const CLASS_TITLE_FONT_SIZE = 31.68;
@@ -125,6 +136,7 @@ export class MonsterBookScene extends PIXI.Container implements Scene {
     await Promise.all([
       this.preloadBookBackground(),
       this.preloadRarityStar(),
+      this.preloadGeneSymbolSpritesheet(),
       this.preloadReachedMonsterSprites(),
     ]);
     window.addEventListener("keydown", this.handleKeyDown);
@@ -235,6 +247,29 @@ export class MonsterBookScene extends PIXI.Container implements Scene {
     } catch (error) {
       console.error("[MonsterBookScene] Failed to load rarity star", {
         url: RARITY_STAR_URL,
+        error,
+      });
+    }
+  }
+
+  private async preloadGeneSymbolSpritesheet(): Promise<void> {
+    try {
+      try {
+        PIXI.Assets.add({
+          alias: GENE_SYMBOL_SPRITESHEET_ALIAS,
+          src: GENE_SYMBOL_SPRITESHEET_URL,
+        });
+      } catch {
+        // The alias may already be registered by a previous MonsterBookScene.
+      }
+
+      const spritesheet = await PIXI.Assets.load<PIXI.Spritesheet>(
+        GENE_SYMBOL_SPRITESHEET_ALIAS,
+      );
+      spritesheet.textureSource.scaleMode = "nearest";
+    } catch (error) {
+      console.warn("[MonsterBookScene] Failed to load gene symbol spritesheet", {
+        url: GENE_SYMBOL_SPRITESHEET_URL,
         error,
       });
     }
@@ -414,6 +449,8 @@ export class MonsterBookScene extends PIXI.Container implements Scene {
       container.addChild(unknown);
     }
 
+    this.addGeneSymbol(container, cardInfo.geneLine, params);
+
     return {
       container,
       characterKey,
@@ -442,6 +479,46 @@ export class MonsterBookScene extends PIXI.Container implements Scene {
 
     starContainer.position.set(x, y);
     container.addChild(starContainer);
+  }
+
+  private addGeneSymbol(
+    container: PIXI.Container,
+    geneLine: MonsterGeneLine,
+    params: { x: number; y: number; width: number; height: number },
+  ): void {
+    const texture = this.getGeneSymbolTexture(geneLine);
+
+    if (!texture) {
+      return;
+    }
+
+    const sprite = new PIXI.Sprite(texture);
+    sprite.width = GENE_SYMBOL_SIZE;
+    sprite.height = GENE_SYMBOL_SIZE;
+    sprite.roundPixels = true;
+    sprite.position.set(
+      params.x + params.width - GENE_SYMBOL_INSET - GENE_SYMBOL_SIZE,
+      params.y + params.height - GENE_SYMBOL_INSET - GENE_SYMBOL_SIZE,
+    );
+    container.addChild(sprite);
+  }
+
+  private getGeneSymbolTexture(geneLine: MonsterGeneLine): PIXI.Texture | null {
+    try {
+      const spritesheet = PIXI.Assets.get<PIXI.Spritesheet>(
+        GENE_SYMBOL_SPRITESHEET_ALIAS,
+      );
+
+      if (!(spritesheet instanceof PIXI.Spritesheet)) {
+        return null;
+      }
+
+      return (
+        spritesheet.textures[GENE_SYMBOL_FRAME_BY_LINE[geneLine]] ?? null
+      );
+    } catch {
+      return null;
+    }
   }
 
   private addMonsterSprite(
