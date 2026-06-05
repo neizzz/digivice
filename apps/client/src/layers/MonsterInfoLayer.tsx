@@ -151,7 +151,7 @@ const StatusBar: React.FC<{
         className="h-5 overflow-hidden border-2 border-[#222] bg-[#6f6f6f] shadow-[inset_0_0_0_1px_rgba(0,0,0,0.2)]"
       >
         <div
-          className="h-full border-r-2 border-[#222]/25 transition-[width] duration-150 ease-linear"
+          className="h-full border-r-2 border-[#222]/25"
           style={{
             width: `${percent * 100}%`,
             backgroundColor: fillColor,
