@@ -11,7 +11,11 @@ object HomeWidgetConstants {
     const val FLUTTER_STORAGE_NAME = "FlutterSharedPreferences"
     const val FLUTTER_PREFIX = "flutter."
     const val WORLD_DATA_KEY = "MainSceneWorldData"
+    const val RESET_BOOTSTRAP_MARKER_STORAGE_KEY = "DigiviceResetBootstrapMarkerV1"
+    const val RESET_BOOTSTRAP_MARKER_FIELD_KEY = "reset_bootstrap_marker_id"
     const val FLUTTER_WORLD_DATA_KEY = "${FLUTTER_PREFIX}${WORLD_DATA_KEY}"
+    const val FLUTTER_RESET_BOOTSTRAP_MARKER_STORAGE_KEY =
+        "${FLUTTER_PREFIX}${RESET_BOOTSTRAP_MARKER_STORAGE_KEY}"
     const val FLUTTER_SNAPSHOT_KEY = "${FLUTTER_PREFIX}HomeWidgetSnapshotV1"
     const val FLUTTER_AUTHORITATIVE_SNAPSHOT_KEY =
         "${FLUTTER_PREFIX}HomeWidgetAuthoritativeSnapshotV1"

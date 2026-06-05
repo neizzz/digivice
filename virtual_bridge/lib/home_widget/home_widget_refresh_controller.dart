@@ -90,6 +90,21 @@ class HomeWidgetRefreshController {
             }
             return typeof raw === "string" ? JSON.parse(raw) : raw;
           });
+        },
+        getRefreshDiagnostics: () => {
+          return __createPromise((id) => {
+            __native_home_widget.postMessage(JSON.stringify({
+              id,
+              action: "getRefreshDiagnostics"
+            }));
+          }).then((raw) => {
+            if (!raw) {
+              return {};
+            }
+            return typeof raw === "string" ? JSON.parse(raw) : raw;
+          }).catch(() => {
+            return {};
+          });
         }
       };
       window.homeWidgetRefreshController = window.homeWidgetController;
@@ -180,6 +195,25 @@ class HomeWidgetRefreshController {
           }
           log?.call(
             '[HomeWidgetRefreshController] completeRefresh result=${payload['result']} source=${payload['source']}',
+          );
+          return;
+        case 'getRefreshDiagnostics':
+          final Map<Object?, Object?>? diagnosticsResult =
+              await _platformChannel.invokeMethod<Map<Object?, Object?>>(
+            'getRefreshDiagnostics',
+          );
+          if (id != null) {
+            await resolvePromise(
+              id: id,
+              data: jsonEncode(_normalizePlatformResult(diagnosticsResult)),
+            );
+          }
+          log?.call(
+            '[HomeWidgetRefreshController] getRefreshDiagnostics '
+            'periodicStatus=${diagnosticsResult?['periodicRefreshStatus']} '
+            'requestedAtMs=${diagnosticsResult?['requestedAtMs']} '
+            'completedAtMs=${diagnosticsResult?['completedAtMs']} '
+            'inFlight=${diagnosticsResult?['inFlight']}',
           );
           return;
         case 'syncFromWorldDataJson':

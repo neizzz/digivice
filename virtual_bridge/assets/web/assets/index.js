@@ -3037,7 +3037,7 @@ function needsRandomMovement(state) {
   return state === CHARACTER_STATE.IDLE || state === CHARACTER_STATE.MOVING;
 }
 function sanitizeWorldMetadata(metadata, now) {
-  var _a, _b, _c, _d, _e;
+  var _a, _b, _c, _d, _e, _f;
   const cachedSunTimes = sanitizeCachedSunTimes(
     (_a = metadata == null ? void 0 : metadata.app_state) == null ? void 0 : _a.cached_sun_times
   );
@@ -3056,6 +3056,7 @@ function sanitizeWorldMetadata(metadata, now) {
       last_active_time: toFiniteNumber((_d = metadata == null ? void 0 : metadata.app_state) == null ? void 0 : _d.last_active_time) ?? now,
       is_first_load: typeof ((_e = metadata == null ? void 0 : metadata.app_state) == null ? void 0 : _e.is_first_load) === "boolean" ? metadata.app_state.is_first_load : false,
       use_local_time: true,
+      reset_bootstrap_marker_id: typeof ((_f = metadata == null ? void 0 : metadata.app_state) == null ? void 0 : _f.reset_bootstrap_marker_id) === "string" && metadata.app_state.reset_bootstrap_marker_id.trim() ? metadata.app_state.reset_bootstrap_marker_id : void 0,
       cached_sun_times: cachedSunTimes,
       main_scene_ad: mainSceneAd,
       mini_game_scores: miniGameScores
@@ -3734,6 +3735,49 @@ class EntryFlowDiagnostics {
       ...payload
     });
   }
+}
+const RESET_BOOTSTRAP_MARKER_STORAGE_KEY = "DigiviceResetBootstrapMarkerV1";
+const RESET_BOOTSTRAP_MARKER_FIELD_KEY = "reset_bootstrap_marker_id";
+function createResetId(now) {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `reset:${now}:${crypto.randomUUID()}`;
+  }
+  return `reset:${now}:${Math.random().toString(36).slice(2, 10)}`;
+}
+function isResetBootstrapMarker(value) {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+  const marker = value;
+  return marker.version === 1 && typeof marker.resetId === "string" && marker.resetId.length > 0 && (marker.reason === "user_reset" || marker.reason === "sanitize_reset") && typeof marker.createdAt === "number" && Number.isFinite(marker.createdAt);
+}
+function createResetBootstrapMarker(reason, now = Date.now()) {
+  return {
+    version: 1,
+    resetId: createResetId(now),
+    reason,
+    createdAt: now
+  };
+}
+async function readResetBootstrapMarker(storage) {
+  const rawMarker = await storage.getData(RESET_BOOTSTRAP_MARKER_STORAGE_KEY);
+  return isResetBootstrapMarker(rawMarker) ? rawMarker : null;
+}
+async function writeResetBootstrapMarker(storage, reason, now = Date.now()) {
+  const marker = createResetBootstrapMarker(reason, now);
+  await storage.setData(RESET_BOOTSTRAP_MARKER_STORAGE_KEY, marker);
+  return marker;
+}
+function readWorldResetBootstrapMarkerId(worldData) {
+  var _a, _b;
+  const markerId = (_b = (_a = worldData == null ? void 0 : worldData.world_metadata) == null ? void 0 : _a.app_state) == null ? void 0 : _b[RESET_BOOTSTRAP_MARKER_FIELD_KEY];
+  return typeof markerId === "string" && markerId.trim() ? markerId : null;
+}
+function shouldForceFreshWorldAfterReset(marker, worldData) {
+  if (!marker) {
+    return false;
+  }
+  return readWorldResetBootstrapMarkerId(worldData) !== marker.resetId;
 }
 function readLastEcsSaved(worldData) {
   var _a;
@@ -5154,7 +5198,7 @@ const GameContainer = () => {
           params.result === "failed" ? "main_scene_reentry_failed" : "main_scene_reentry_finished"
         );
       }
-      if (params.source === "init" && homeWidgetLaunchModeRef.current === "widget_refresh") {
+      if (homeWidgetLaunchModeRef.current === "widget_refresh") {
         void ((_a = completeWidgetRefreshAfterInitReentryRef.current) == null ? void 0 : _a.call(completeWidgetRefreshAfterInitReentryRef, params.result));
         return;
       }
@@ -5504,9 +5548,19 @@ const GameContainer = () => {
       const storedGameData = await storage.getData(WORLD_DATA_STORAGE_KEY);
       const snapshot = gameInstance == null ? void 0 : gameInstance.getDiagnosticsSnapshot();
       const currentGameData = (snapshot == null ? void 0 : snapshot.mainSceneData) ?? null;
-      const nativeBridgeDiagnostics = Array.isArray(
+      const controller = window.homeWidgetController ?? window.homeWidgetRefreshController;
+      const homeWidgetRefreshDiagnostics = typeof (controller == null ? void 0 : controller.getRefreshDiagnostics) === "function" ? await controller.getRefreshDiagnostics().catch(() => null) : null;
+      const nativeBridgeDiagnosticsBase = Array.isArray(
         window.__digiviceNativeBridgeDiagnostics
       ) ? window.__digiviceNativeBridgeDiagnostics : [];
+      const nativeBridgeDiagnostics = homeWidgetRefreshDiagnostics && typeof homeWidgetRefreshDiagnostics === "object" && !Array.isArray(homeWidgetRefreshDiagnostics) ? [
+        ...nativeBridgeDiagnosticsBase,
+        {
+          tag: "HomeWidgetRefreshDiagnostics",
+          timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+          ...homeWidgetRefreshDiagnostics
+        }
+      ] : nativeBridgeDiagnosticsBase;
       const latestGameData = currentGameData ?? storedGameData ?? null;
       const latestGameDataSource = currentGameData ? "current_game" : storedGameData ? "stored_game" : "none";
       const currentSceneKey = String((snapshot == null ? void 0 : snapshot.currentSceneKey) ?? "unknown");
@@ -5531,6 +5585,7 @@ const GameContainer = () => {
         importantLogs: getImportantDiagnosticsLogs(),
         currentGameData,
         storedGameData,
+        homeWidgetRefreshDiagnostics: homeWidgetRefreshDiagnostics && typeof homeWidgetRefreshDiagnostics === "object" && !Array.isArray(homeWidgetRefreshDiagnostics) ? homeWidgetRefreshDiagnostics : null,
         nativeBridgeDiagnostics,
         latestGameData,
         latestGameDataSource,
@@ -5701,7 +5756,7 @@ const GameContainer = () => {
     [gameInstance]
   );
   syncHomeWidgetForNativeBackgroundRef.current = syncHomeWidgetForNativeBackground;
-  const completeWidgetRefreshAfterInitReentry = reactExports.useCallback(
+  const completeWidgetRefreshAfterReentry = reactExports.useCallback(
     async (result) => {
       var _a, _b, _c, _d;
       if (typeof window === "undefined") {
@@ -5780,7 +5835,7 @@ const GameContainer = () => {
           if (typeof (controller == null ? void 0 : controller.completeRefresh) === "function") {
             await controller.completeRefresh({
               result: completionResult,
-              source: "main_scene_reentry_finished_init",
+              source: "main_scene_reentry_finished_widget_refresh",
               launchMode: homeWidgetLaunchModeRef.current,
               reentryResult: result ?? null,
               selectedSource: (syncOutcome == null ? void 0 : syncOutcome.selectedSource) ?? null,
@@ -5831,7 +5886,7 @@ const GameContainer = () => {
     },
     [gameInstance, syncHomeWidgetForNativeBackground]
   );
-  completeWidgetRefreshAfterInitReentryRef.current = completeWidgetRefreshAfterInitReentry;
+  completeWidgetRefreshAfterInitReentryRef.current = completeWidgetRefreshAfterReentry;
   const handleSendDiagnostics = reactExports.useCallback(async () => {
     if (isSendingDiagnostics || pendingDiagnosticsDraft) {
       return;
@@ -5948,12 +6003,13 @@ const GameContainer = () => {
         storageKind: getClientStorageKind()
       });
       try {
+        const storage = createClientStorage();
         if (gameInstance) {
           await gameInstance.destroyForReset();
         } else {
-          const storage = createClientStorage();
           await storage.removeData(WORLD_DATA_STORAGE_KEY);
         }
+        const resetMarker = await writeResetBootstrapMarker(storage, reason);
         if (gameContainerRef.current) {
           gameContainerRef.current.innerHTML = "";
         }
@@ -5982,7 +6038,8 @@ const GameContainer = () => {
         setFlappyBirdGameOverState(null);
         console.warn("[GameContainer] resetGameData:success", {
           reason,
-          storageKind: getClientStorageKind()
+          storageKind: getClientStorageKind(),
+          resetBootstrapMarkerId: resetMarker.resetId
         });
       } catch (error) {
         console.error("[GameContainer] Failed to reset game data:", error);
@@ -6015,6 +6072,7 @@ const GameContainer = () => {
       const legacyMonsterBookDetected = hasLegacyMonsterBookState(savedData);
       const monsterBookMigrationResult = await migrateLegacyMonsterBookIfNeeded(storage, savedData);
       const savedDataSummary = summarizeSavedData(savedData);
+      const resetBootstrapMarker = await readResetBootstrapMarker(storage);
       logImportantDiagnostics(
         "log",
         "[ImportantDiagnostics][GameDataBootstrap]",
@@ -6027,6 +6085,31 @@ const GameContainer = () => {
           )
         }
       );
+      if (shouldForceFreshWorldAfterReset(
+        resetBootstrapMarker,
+        savedData
+      )) {
+        await storage.removeData(WORLD_DATA_STORAGE_KEY);
+        lastValidationResultRef.current = null;
+        logImportantDiagnostics(
+          "warn",
+          "[ImportantDiagnostics][ResetBootstrapGuard]",
+          {
+            key: WORLD_DATA_STORAGE_KEY,
+            storageKind,
+            action: "stale_world_removed",
+            resetBootstrapMarkerId: (resetBootstrapMarker == null ? void 0 : resetBootstrapMarker.resetId) ?? null,
+            savedDataSummary
+          }
+        );
+        entryFlowDiagnostics.completePrepareSavedGameData({
+          startedAt,
+          storageKind,
+          resultAction: "setup_required",
+          savedDataSummary
+        });
+        return "setup_required";
+      }
       const result = sanitizeStoredWorldData(savedData);
       lastValidationResultRef.current = result;
       if (monsterBookMigrationResult.didMigrate) {
@@ -6119,13 +6202,20 @@ const GameContainer = () => {
   const hydrateInitialSetupData = reactExports.useCallback(
     async (formData) => {
       const startedAt = entryFlowDiagnostics.beginHydrateInitialSetupData(formData);
+      const resetBootstrapMarker = await readResetBootstrapMarker(
+        createClientStorage()
+      ).catch(() => null);
+      const attachResetBootstrapMarker = (data) => resetBootstrapMarker ? {
+        ...data,
+        resetBootstrapMarkerId: resetBootstrapMarker.resetId
+      } : data;
       if (!formData.useLocalTime || formData.cachedSunTimes) {
         entryFlowDiagnostics.skipHydrateInitialSetupData({
           startedAt,
           formData,
           reason: !formData.useLocalTime ? "local_time_disabled" : "cached_sun_times_already_present"
         });
-        return formData;
+        return attachResetBootstrapMarker(formData);
       }
       const promptForPermission = false;
       const nativeSunTimesStartedAt = entryFlowDiagnostics.beginNativeSunTimesRequest(promptForPermission);
@@ -6149,10 +6239,10 @@ const GameContainer = () => {
             startedAt,
             sunTimes: null
           });
-          return {
+          return attachResetBootstrapMarker({
             ...formData,
             cachedSunTimes: null
-          };
+          });
         }
         console.log(
           "[GameContainer] Initial sun times prepared during setup loading.",
@@ -6168,10 +6258,10 @@ const GameContainer = () => {
           startedAt,
           sunTimes
         });
-        return {
+        return attachResetBootstrapMarker({
           ...formData,
           cachedSunTimes: sunTimes
-        };
+        });
       } catch (error) {
         entryFlowDiagnostics.failNativeSunTimesRequest(
           nativeSunTimesStartedAt,
@@ -6183,10 +6273,10 @@ const GameContainer = () => {
           error
         );
         entryFlowDiagnostics.failHydrateInitialSetupData(startedAt, error);
-        return {
+        return attachResetBootstrapMarker({
           ...formData,
           cachedSunTimes: null
-        };
+        });
       }
     },
     [entryFlowDiagnostics]
@@ -6556,6 +6646,19 @@ const GameContainer = () => {
     const handleNativeAppLifecycle = (event) => {
       const detail = event.detail;
       const state = detail == null ? void 0 : detail.state;
+      const launchMode = (detail == null ? void 0 : detail.launchMode) === "widget_refresh" ? "widget_refresh" : "default";
+      if (launchMode === "widget_refresh") {
+        homeWidgetLaunchModeRef.current = "widget_refresh";
+        logImportantDiagnostics(
+          "log",
+          "[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+          {
+            action: "launch_context_lifecycle",
+            launchMode,
+            state: state ?? null
+          }
+        );
+      }
       if (state === "inactive" || state === "hidden" || state === "paused") {
         const reason = `native_${state}`;
         handleBackgroundEntry(reason);

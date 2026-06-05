@@ -42650,7 +42650,8 @@ ${this.t("main.cleanObjectsPrompt")}`,
     return {
       name: normalizedName,
       useLocalTime: initialGameData.useLocalTime ?? DEFAULT_USE_LOCAL_TIME,
-      cachedSunTimes: initialGameData.cachedSunTimes ?? null
+      cachedSunTimes: initialGameData.cachedSunTimes ?? null,
+      resetBootstrapMarkerId: initialGameData.resetBootstrapMarkerId
     };
   }
   _initializeData(initialGameData) {
@@ -42667,6 +42668,7 @@ ${this.t("main.cleanObjectsPrompt")}`,
           last_active_time_anchor: this._trustedClock.captureAnchor(),
           is_first_load: false,
           use_local_time: useLocalTime,
+          reset_bootstrap_marker_id: initialGameData.resetBootstrapMarkerId,
           cached_sun_times: cachedSunTimes,
           main_scene_ad: {
             menu_use_count: 0

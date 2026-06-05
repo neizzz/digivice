@@ -39,6 +39,7 @@ declare global {
     }) => Promise<{
       status?: string;
     }>;
+    getRefreshDiagnostics?: () => Promise<Record<string, unknown>>;
   };
 
   interface Window {

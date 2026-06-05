@@ -10,7 +10,8 @@ internal object HomeWidgetPeriodicRefreshRunner {
         onNoWidgets: () -> Unit,
         progressSnapshot: (nowMs: Long) -> HomeWidgetSnapshot?,
         loadAuthoritativeSnapshot: () -> HomeWidgetSnapshot?,
-        requestAuthoritativeRefresh: () -> HomeWidgetAuthoritativeRefreshRequestResult,
+        completeNativeAuthoritativeRefresh: (nowMs: Long) -> HomeWidgetNativeAuthoritativeRefreshResult,
+        requestAuthoritativeRefreshFallback: () -> HomeWidgetAuthoritativeRefreshRequestResult,
         notifySnapshotUpdated: (reason: String) -> Unit,
         recordPeriodicRefreshStatus: (status: String, nowMs: Long) -> Unit,
         nowMsProvider: () -> Long = { System.currentTimeMillis() },
@@ -34,9 +35,16 @@ internal object HomeWidgetPeriodicRefreshRunner {
                 nowMs = nowMs,
             )
         ) {
-            requestAuthoritativeRefresh().status
+            recordPeriodicRefreshStatus("native_authoritative_completion_started", nowMs)
+            val nativeCompletionResult = completeNativeAuthoritativeRefresh(nowMs)
+            if (nativeCompletionResult.succeeded) {
+                nativeCompletionResult.status
+            } else {
+                recordPeriodicRefreshStatus(nativeCompletionResult.status, nowMs)
+                requestAuthoritativeRefreshFallback().status
+            }
         } else {
-            "progress_only"
+            "periodic_progress_only"
         }
         recordPeriodicRefreshStatus(periodicStatus, nowMs)
         notifySnapshotUpdated(
@@ -64,7 +72,13 @@ internal class HomeWidgetPeriodicRefreshWorker(
             loadAuthoritativeSnapshot = {
                 HomeWidgetSnapshot.loadAuthoritative(applicationContext)
             },
-            requestAuthoritativeRefresh = {
+            completeNativeAuthoritativeRefresh = { nowMs ->
+                HomeWidgetNativeAuthoritativeRefresh.complete(
+                    context = applicationContext,
+                    nowMs = nowMs,
+                )
+            },
+            requestAuthoritativeRefreshFallback = {
                 HomeWidgetAuthoritativeRefreshRequester.request(applicationContext)
             },
             notifySnapshotUpdated = { reason ->

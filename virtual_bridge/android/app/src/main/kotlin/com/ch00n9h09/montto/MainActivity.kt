@@ -193,6 +193,12 @@ open class MainActivity : FlutterActivity() {
                     )
                 }
 
+                "getRefreshDiagnostics" -> {
+                    result.success(
+                        HomeWidgetAuthoritativeRefreshRequester.readDiagnostics(this),
+                    )
+                }
+
                 "publishSnapshot" -> {
                     val storageName = call.argument<String>("storageName")
                     val snapshotKey = call.argument<String>("snapshotKey")

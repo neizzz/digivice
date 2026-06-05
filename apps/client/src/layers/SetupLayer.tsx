@@ -17,6 +17,7 @@ export type SetupFormData = {
   name: string;
   useLocalTime: boolean;
   cachedSunTimes?: SunTimesPayload | null;
+  resetBootstrapMarkerId?: string;
 };
 
 export interface SetupLayerProps {

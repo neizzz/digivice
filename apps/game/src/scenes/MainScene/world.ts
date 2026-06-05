@@ -299,6 +299,7 @@ export type WorldMetadata = {
     mini_game_scores?: MiniGameScoresState;
     monster_book?: MonsterBookState;
     suspend_food_interaction_until_reentry?: boolean;
+    reset_bootstrap_marker_id?: string;
   };
   // // 캐릭터별 위치 추적 (캐릭터 ID를 키로 사용)
   // character_positions?: Record<
@@ -338,6 +339,7 @@ export type InitialGameData = {
   name: string;
   useLocalTime: boolean;
   cachedSunTimes?: SunTimesPayload | null;
+  resetBootstrapMarkerId?: string;
 };
 
 export type MainSceneReentrySimulationSource =
@@ -2340,6 +2342,7 @@ export class MainSceneWorld implements IWorld, Scene {
       name: normalizedName,
       useLocalTime: initialGameData.useLocalTime ?? DEFAULT_USE_LOCAL_TIME,
       cachedSunTimes: initialGameData.cachedSunTimes ?? null,
+      resetBootstrapMarkerId: initialGameData.resetBootstrapMarkerId,
     };
   }
 
@@ -2362,6 +2365,7 @@ export class MainSceneWorld implements IWorld, Scene {
           last_active_time_anchor: this._trustedClock.captureAnchor(),
           is_first_load: false,
           use_local_time: useLocalTime,
+          reset_bootstrap_marker_id: initialGameData.resetBootstrapMarkerId,
           cached_sun_times: cachedSunTimes,
           main_scene_ad: {
             menu_use_count: 0,

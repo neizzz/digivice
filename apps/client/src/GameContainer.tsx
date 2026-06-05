@@ -54,6 +54,11 @@ import {
   getClientStorageKind,
 } from "./utils/clientStorage";
 import type { SanitizeStoredWorldDataResult } from "./utils/sanitizeStoredWorldData";
+import {
+  readResetBootstrapMarker,
+  shouldForceFreshWorldAfterReset,
+  writeResetBootstrapMarker,
+} from "./utils/resetBootstrapGuard";
 import { useI18n } from "./i18n";
 import { consumeTopPopupBackHandler } from "./popupBackNavigation";
 import {
@@ -151,6 +156,7 @@ type DiagnosticsPayload = {
   importantLogs: ReturnType<typeof getImportantDiagnosticsLogs>;
   currentGameData: GameDiagnosticsSnapshot["mainSceneData"];
   storedGameData: unknown | null;
+  homeWidgetRefreshDiagnostics: Record<string, unknown> | null;
   nativeBridgeDiagnostics: Array<Record<string, unknown>>;
   latestGameData: unknown | null;
   latestGameDataSource: "current_game" | "stored_game" | "none";
@@ -2367,11 +2373,31 @@ const GameContainer: React.FC = () => {
       const storedGameData = await storage.getData(WORLD_DATA_STORAGE_KEY);
       const snapshot = gameInstance?.getDiagnosticsSnapshot();
       const currentGameData = snapshot?.mainSceneData ?? null;
-      const nativeBridgeDiagnostics = Array.isArray(
+      const controller =
+        window.homeWidgetController ?? window.homeWidgetRefreshController;
+      const homeWidgetRefreshDiagnostics =
+        typeof controller?.getRefreshDiagnostics === "function"
+          ? await controller.getRefreshDiagnostics().catch(() => null)
+          : null;
+      const nativeBridgeDiagnosticsBase = Array.isArray(
         window.__digiviceNativeBridgeDiagnostics,
       )
         ? window.__digiviceNativeBridgeDiagnostics
         : [];
+      const nativeBridgeDiagnostics = (
+        homeWidgetRefreshDiagnostics &&
+        typeof homeWidgetRefreshDiagnostics === "object" &&
+        !Array.isArray(homeWidgetRefreshDiagnostics)
+          ? [
+              ...nativeBridgeDiagnosticsBase,
+              {
+                tag: "HomeWidgetRefreshDiagnostics",
+                timestamp: new Date().toISOString(),
+                ...homeWidgetRefreshDiagnostics,
+              },
+            ]
+          : nativeBridgeDiagnosticsBase
+      ) as Array<Record<string, unknown>>;
       const latestGameData = currentGameData ?? storedGameData ?? null;
       const latestGameDataSource = currentGameData
         ? "current_game"
@@ -2400,6 +2426,12 @@ const GameContainer: React.FC = () => {
         importantLogs: getImportantDiagnosticsLogs(),
         currentGameData,
         storedGameData,
+        homeWidgetRefreshDiagnostics:
+          homeWidgetRefreshDiagnostics &&
+          typeof homeWidgetRefreshDiagnostics === "object" &&
+          !Array.isArray(homeWidgetRefreshDiagnostics)
+            ? (homeWidgetRefreshDiagnostics as Record<string, unknown>)
+            : null,
         nativeBridgeDiagnostics,
         latestGameData,
         latestGameDataSource,
@@ -2891,12 +2923,14 @@ const GameContainer: React.FC = () => {
       });
 
       try {
+        const storage = createClientStorage();
+
         if (gameInstance) {
           await gameInstance.destroyForReset();
         } else {
-          const storage = createClientStorage();
           await storage.removeData(WORLD_DATA_STORAGE_KEY);
         }
+        const resetMarker = await writeResetBootstrapMarker(storage, reason);
 
         if (gameContainerRef.current) {
           gameContainerRef.current.innerHTML = "";
@@ -2928,6 +2962,7 @@ const GameContainer: React.FC = () => {
         console.warn("[GameContainer] resetGameData:success", {
           reason,
           storageKind: getClientStorageKind(),
+          resetBootstrapMarkerId: resetMarker.resetId,
         });
       } catch (error) {
         console.error("[GameContainer] Failed to reset game data:", error);
@@ -2967,6 +3002,7 @@ const GameContainer: React.FC = () => {
       const monsterBookMigrationResult =
         await migrateLegacyMonsterBookIfNeeded(storage, savedData);
       const savedDataSummary = summarizeSavedData(savedData);
+      const resetBootstrapMarker = await readResetBootstrapMarker(storage);
 
       logImportantDiagnostics(
         "log",
@@ -2980,6 +3016,34 @@ const GameContainer: React.FC = () => {
           ),
         },
       );
+
+      if (
+        shouldForceFreshWorldAfterReset(
+          resetBootstrapMarker,
+          savedData as StoredWorldData | null,
+        )
+      ) {
+        await storage.removeData(WORLD_DATA_STORAGE_KEY);
+        lastValidationResultRef.current = null;
+        logImportantDiagnostics(
+          "warn",
+          "[ImportantDiagnostics][ResetBootstrapGuard]",
+          {
+            key: WORLD_DATA_STORAGE_KEY,
+            storageKind,
+            action: "stale_world_removed",
+            resetBootstrapMarkerId: resetBootstrapMarker?.resetId ?? null,
+            savedDataSummary,
+          },
+        );
+        entryFlowDiagnostics.completePrepareSavedGameData({
+          startedAt,
+          storageKind,
+          resultAction: "setup_required",
+          savedDataSummary,
+        });
+        return "setup_required";
+      }
 
       const result = sanitizeStoredWorldData(savedData);
       lastValidationResultRef.current = result;
@@ -3085,6 +3149,18 @@ const GameContainer: React.FC = () => {
     async (formData: SetupFormData): Promise<SetupFormData> => {
       const startedAt =
         entryFlowDiagnostics.beginHydrateInitialSetupData(formData);
+      const resetBootstrapMarker = await readResetBootstrapMarker(
+        createClientStorage(),
+      ).catch(() => null);
+      const attachResetBootstrapMarker = (
+        data: SetupFormData,
+      ): SetupFormData =>
+        resetBootstrapMarker
+          ? {
+              ...data,
+              resetBootstrapMarkerId: resetBootstrapMarker.resetId,
+            }
+          : data;
 
       if (!formData.useLocalTime || formData.cachedSunTimes) {
         entryFlowDiagnostics.skipHydrateInitialSetupData({
@@ -3094,7 +3170,7 @@ const GameContainer: React.FC = () => {
             ? "local_time_disabled"
             : "cached_sun_times_already_present",
         });
-        return formData;
+        return attachResetBootstrapMarker(formData);
       }
 
       const promptForPermission = false;
@@ -3122,10 +3198,10 @@ const GameContainer: React.FC = () => {
             startedAt,
             sunTimes: null,
           });
-          return {
+          return attachResetBootstrapMarker({
             ...formData,
             cachedSunTimes: null,
-          };
+          });
         }
 
         console.log(
@@ -3144,10 +3220,10 @@ const GameContainer: React.FC = () => {
           sunTimes,
         });
 
-        return {
+        return attachResetBootstrapMarker({
           ...formData,
           cachedSunTimes: sunTimes,
-        };
+        });
       } catch (error) {
         entryFlowDiagnostics.failNativeSunTimesRequest(
           nativeSunTimesStartedAt,
@@ -3159,10 +3235,10 @@ const GameContainer: React.FC = () => {
           error,
         );
         entryFlowDiagnostics.failHydrateInitialSetupData(startedAt, error);
-        return {
+        return attachResetBootstrapMarker({
           ...formData,
           cachedSunTimes: null,
-        };
+        });
       }
     },
     [entryFlowDiagnostics],

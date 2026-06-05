@@ -7,10 +7,10 @@ import android.content.SharedPreferences
 internal enum class HomeWidgetAuthoritativeRefreshRequestResult(
     val status: String,
 ) {
-    REQUESTED("refresh_requested"),
-    SKIPPED_IN_FLIGHT("refresh_skipped_in_flight"),
-    SKIPPED_THROTTLED("refresh_skipped_throttled"),
-    FAILED("refresh_request_failed"),
+    REQUESTED("fallback_refresh_requested"),
+    SKIPPED_IN_FLIGHT("fallback_refresh_skipped_in_flight"),
+    SKIPPED_THROTTLED("fallback_refresh_skipped_throttled"),
+    FAILED("fallback_refresh_failed"),
 }
 
 internal object HomeWidgetAuthoritativeRefreshRequester {
@@ -46,6 +46,10 @@ internal object HomeWidgetAuthoritativeRefreshRequester {
             completedAtMs = completedAtMs,
         )
         HomeWidgetProvider.notifySnapshotUpdated(context, "completeRefresh")
+    }
+
+    fun readDiagnostics(context: Context): Map<String, Any?> {
+        return readDiagnostics(prefs(context))
     }
 
     internal fun request(
@@ -100,6 +104,37 @@ internal object HomeWidgetAuthoritativeRefreshRequester {
                 payloadSummary ?: "completed",
             )
             .apply()
+    }
+
+    internal fun readDiagnostics(
+        prefs: SharedPreferences,
+    ): Map<String, Any?> {
+        return linkedMapOf(
+            "periodicRefreshStatus" to prefs.getString(
+                HomeWidgetConstants.PERIODIC_REFRESH_STATUS_KEY,
+                null,
+            ),
+            "periodicRefreshStatusAtMs" to prefs.getLong(
+                HomeWidgetConstants.PERIODIC_REFRESH_STATUS_AT_MS_KEY,
+                0L,
+            ).takeIf { it > 0L },
+            "requestedAtMs" to prefs.getLong(
+                HomeWidgetConstants.REFRESH_REQUESTED_AT_MS_KEY,
+                0L,
+            ).takeIf { it > 0L },
+            "completedAtMs" to prefs.getLong(
+                HomeWidgetConstants.REFRESH_COMPLETED_AT_MS_KEY,
+                0L,
+            ).takeIf { it > 0L },
+            "inFlight" to prefs.getBoolean(
+                HomeWidgetConstants.REFRESH_IN_FLIGHT_KEY,
+                false,
+            ),
+            "smokeResult" to prefs.getString(
+                HomeWidgetConstants.REFRESH_SMOKE_RESULT_KEY,
+                null,
+            ),
+        )
     }
 
     private fun prefs(context: Context): SharedPreferences {

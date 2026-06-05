@@ -167,6 +167,7 @@ export type StoredWorldData = {
       last_active_time?: number;
       is_first_load?: boolean;
       use_local_time?: boolean;
+      reset_bootstrap_marker_id?: string;
       cached_sun_times?: StoredSunTimesPayload;
       main_scene_ad?: StoredMainSceneAdState;
       mini_game_scores?: StoredMiniGameScoresState;
@@ -498,6 +499,11 @@ function sanitizeWorldMetadata(
           ? metadata.app_state.is_first_load
           : false,
       use_local_time: true,
+      reset_bootstrap_marker_id:
+        typeof metadata?.app_state?.reset_bootstrap_marker_id === "string" &&
+        metadata.app_state.reset_bootstrap_marker_id.trim()
+          ? metadata.app_state.reset_bootstrap_marker_id
+          : undefined,
       cached_sun_times: cachedSunTimes,
       main_scene_ad: mainSceneAd,
       mini_game_scores: miniGameScores,
