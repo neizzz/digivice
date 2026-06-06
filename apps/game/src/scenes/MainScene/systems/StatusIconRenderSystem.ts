@@ -235,11 +235,10 @@ export function cleanupStatusIconRenderStateForTests(): void {
 export function startTemporaryStatus(
   eid: number,
   status: CharacterStatus,
+  currentTime: number = Date.now(),
 ): void {
   if (!TEMPORARY_STATUSES.includes(status)) return;
   if (ObjectComp.state[eid] === CharacterState.SLEEPING) return;
-
-  const currentTime = Date.now();
 
   // 이미 같은 상태가 활성화되어 있는지 확인
   if (TemporaryStatusComp.statusType[eid] === status) {

@@ -39,6 +39,7 @@ import { EntityComponents } from "./world";
 import { INTENTED_FRONT_Z_INDEX } from "@/constants";
 import { getCharacterStats } from "./characterStats";
 import { createEggHatchSchedule, GAME_CONSTANTS } from "./config";
+import { resolveWorldCurrentTime } from "./worldTime";
 
 type WithRequired<T, K extends keyof T> = Omit<T, K> & Required<Pick<T, K>>;
 const debugLog = (..._args: unknown[]): void => {};
@@ -78,6 +79,7 @@ export function createCharacterEntity(
   world: IWorld,
   components: EntityComponents
 ): number {
+  const now = resolveWorldCurrentTime(world);
   const _components = components as WithRequired<
     EntityComponents,
     "position" | "speed" | "render" | "object"
@@ -165,7 +167,7 @@ export function createCharacterEntity(
     RandomMovementComp.maxMoveTime[eid] = 8000;
     // 캐릭터 생성 시 idle 상태로 시작하도록 설정
     RandomMovementComp.nextChange[eid] =
-      Date.now() + 1000 + Math.random() * 2000; // 1-3초 후 첫 이동
+      now + 1000 + Math.random() * 2000; // 1-3초 후 첫 이동
   }
 
   addComponent(world, DestinationComp, eid);
@@ -184,7 +186,7 @@ export function createCharacterEntity(
   // DiseaseSystemComp 추가
   addComponent(world, DiseaseSystemComp, eid);
   DiseaseSystemComp.nextCheckTime[eid] =
-    Date.now() + GAME_CONSTANTS.DISEASE_CHECK_INTERVAL; // 첫 질병 체크
+    now + GAME_CONSTANTS.DISEASE_CHECK_INTERVAL; // 첫 질병 체크
   DiseaseSystemComp.sickStartTime[eid] = 0; // 질병 시작 시간 (처음엔 건강)
 
   // SleepSystemComp 추가
@@ -193,7 +195,7 @@ export function createCharacterEntity(
   SleepSystemComp.nextSleepTime[eid] = 0;
   SleepSystemComp.nextWakeTime[eid] = 0;
   SleepSystemComp.nextNapCheckTime[eid] =
-    Date.now() + GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL;
+    now + GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL;
   SleepSystemComp.nextNightWakeCheckTime[eid] = 0;
   SleepSystemComp.sleepMode[eid] =
     ObjectComp.state[eid] === CharacterState.SLEEPING
@@ -202,7 +204,7 @@ export function createCharacterEntity(
   SleepSystemComp.pendingSleepReason[eid] = SleepReason.NONE;
   SleepSystemComp.pendingWakeReason[eid] = SleepReason.NONE;
   SleepSystemComp.sleepSessionStartedAt[eid] =
-    ObjectComp.state[eid] === CharacterState.SLEEPING ? Date.now() : 0;
+    ObjectComp.state[eid] === CharacterState.SLEEPING ? now : 0;
 
   // VitalityComp 추가
   addComponent(world, VitalityComp, eid);
@@ -220,7 +222,7 @@ export function createCharacterEntity(
   // EggHatchComp 추가 (EGG 상태일 때만 의미가 있음)
   addComponent(world, EggHatchComp, eid);
   if (ObjectComp.state[eid] === CharacterState.EGG) {
-    const { hatchTime, hatchDurationMs } = createEggHatchSchedule();
+    const { hatchTime, hatchDurationMs } = createEggHatchSchedule(now);
     EggHatchComp.hatchTime[eid] = hatchTime;
     EggHatchComp.hatchDurationMs[eid] = hatchDurationMs;
     EggHatchComp.isReadyToHatch[eid] = 0; // 아직 부화 준비 안됨
@@ -238,8 +240,8 @@ export function createCharacterEntity(
   addComponent(world, MutationRiskComp, eid);
   MutationRiskComp.unnecessaryInjectionStacks[eid] = 0;
   MutationRiskComp.dirtyExposureStacks[eid] = 0;
-  MutationRiskComp.lastInjectionDetoxTime[eid] = Date.now();
-  MutationRiskComp.lastDirtyDetoxTime[eid] = Date.now();
+  MutationRiskComp.lastInjectionDetoxTime[eid] = now;
+  MutationRiskComp.lastDirtyDetoxTime[eid] = now;
 
   return eid;
 }

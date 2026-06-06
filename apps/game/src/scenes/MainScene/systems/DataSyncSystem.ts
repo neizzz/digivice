@@ -19,9 +19,10 @@ export function dataSyncSystem(params: {
 }): typeof params {
   const { world: mainSceneWorld } = params;
   const worldData = mainSceneWorld.getInMemoryData();
+  const currentTime = mainSceneWorld.currentTime;
 
   if (
-    Date.now() - worldData.world_metadata.last_ecs_saved <
+    currentTime - worldData.world_metadata.last_ecs_saved <
     THIS_CONFIG.SAVE_INTERVAL
   ) {
     // 마지막 저장 이후 saveInterval이 지나지 않았다면 동기화하지 않음
@@ -64,7 +65,7 @@ export function dataSyncSystem(params: {
   // 현재는 새로 추가된 엔티티와 삭제된 엔티티만 처리
   // 기존 엔티티의 업데이트는 별도 시스템에서 처리하거나 dirty flag로 관리
 
-  newWorldData.world_metadata.last_ecs_saved = Date.now();
+  newWorldData.world_metadata.last_ecs_saved = currentTime;
   void mainSceneWorld.setData(newWorldData);
   return params;
 }

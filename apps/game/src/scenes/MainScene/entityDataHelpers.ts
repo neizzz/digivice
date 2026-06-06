@@ -51,6 +51,7 @@ import {
   getFoodEatingEntityRef,
   getTargetedFoodEntityRef,
 } from "./foodEntityRef";
+import { resolveWorldCurrentTime } from "./worldTime";
 
 function normalizeSavedFreshness(freshness: Freshness): Freshness {
   return freshness === Freshness.FRESH ? Freshness.NORMAL : freshness;
@@ -300,6 +301,7 @@ export function applySavedEntityToECS(
   savedEntity: SavedEntity,
 ): void {
   const { components } = savedEntity;
+  const currentTime = resolveWorldCurrentTime(world);
 
   if (components.object) {
     if (!hasComponent(world, ObjectComp, eid)) {
@@ -411,7 +413,7 @@ export function applySavedEntityToECS(
     RandomMovementComp.minMoveTime[eid] = components.randomMovement.minMoveTime;
     RandomMovementComp.maxMoveTime[eid] = components.randomMovement.maxMoveTime;
     if (components.randomMovement?.nextChange) {
-      const diffFromNow = components.randomMovement.nextChange - Date.now();
+      const diffFromNow = components.randomMovement.nextChange - currentTime;
       RandomMovementComp.nextChange[eid] =
         diffFromNow < 3000
           ? components.randomMovement.nextChange
@@ -442,7 +444,7 @@ export function applySavedEntityToECS(
       addComponent(world, EggHatchComp, eid);
     }
     const resolvedEggHatch = resolveEggHatchComponentForState({
-      currentTime: Date.now(),
+      currentTime,
       state: ObjectComp.state[eid],
       hatchTime: components.eggHatch.hatchTime,
       hatchDurationMs: components.eggHatch.hatchDurationMs,

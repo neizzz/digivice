@@ -716,7 +716,7 @@ export class HTMLDebugStatusUI {
       return;
     }
 
-    const currentTime = Date.now();
+    const currentTime = this._world.currentTime;
 
     // 실제 게임 시스템과 동일한 규칙을 사용한다.
     addToDigestiveLoad(
@@ -741,7 +741,7 @@ export class HTMLDebugStatusUI {
     }
 
     // addToDigestiveLoad(0)으로 컴포넌트가 없으면 자동 추가
-    const currentTime = Date.now();
+    const currentTime = this._world.currentTime;
     addToDigestiveLoad(this._world, this._currentCharacterEid, 0, currentTime);
 
     // 리셋

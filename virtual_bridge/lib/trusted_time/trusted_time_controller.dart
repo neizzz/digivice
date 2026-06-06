@@ -10,6 +10,7 @@ const String _trustedTimeCacheKey = 'trusted_time_snapshot_v1';
 const int _ntpEpochOffsetSeconds = 2208988800;
 const int _ntpPort = 123;
 const Duration _ntpTimeout = Duration(seconds: 2);
+const Duration _cachedBootWallClockTolerance = Duration(minutes: 5);
 const List<String> _googleNtpServers = <String>[
   'time.google.com',
   'time1.google.com',
@@ -286,10 +287,20 @@ class TrustedTimeController {
     }
 
     final int currentUptimeMs = await _getOsUptimeMs();
+    final int currentWallMs = DateTime.now().toUtc().millisecondsSinceEpoch;
     final int elapsedUptimeMs = currentUptimeMs - cached.osUptimeMs;
 
     if (elapsedUptimeMs < 0) {
       log('[TrustedTimeController] Cached trusted time ignored after reboot');
+      return null;
+    }
+
+    final int cachedBootWallMs = cached.capturedWallMs - cached.osUptimeMs;
+    final int currentBootWallMs = currentWallMs - currentUptimeMs;
+    final int bootWallDriftMs = (currentBootWallMs - cachedBootWallMs).abs();
+
+    if (bootWallDriftMs > _cachedBootWallClockTolerance.inMilliseconds) {
+      log('[TrustedTimeController] Cached trusted time ignored because boot wall clock drift is ${bootWallDriftMs}ms');
       return null;
     }
 
@@ -298,7 +309,7 @@ class TrustedTimeController {
       osUptimeMs: currentUptimeMs,
       source: 'cached-uptime',
       uncertaintyMs: cached.uncertaintyMs + 1000,
-      capturedWallMs: DateTime.now().toUtc().millisecondsSinceEpoch,
+      capturedWallMs: currentWallMs,
     );
   }
 

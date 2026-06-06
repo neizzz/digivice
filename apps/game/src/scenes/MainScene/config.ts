@@ -558,6 +558,8 @@ export type ResolvedEggHatchTiming = {
   progress: number;
 };
 
+const EGG_HATCH_CLOCK_DRIFT_TOLERANCE_MS = 1000;
+
 export function resolveEggHatchTiming(params: {
   currentTime: number;
   hatchTime?: number;
@@ -582,6 +584,12 @@ export function resolveEggHatchTiming(params: {
   if (normalizedDurationMs !== null && normalizedHatchTime !== null) {
     hatchTime = normalizedHatchTime;
     hatchDurationMs = normalizedDurationMs;
+    if (
+      hatchTime - currentTime >
+      hatchDurationMs + EGG_HATCH_CLOCK_DRIFT_TOLERANCE_MS
+    ) {
+      hatchTime = currentTime + hatchDurationMs;
+    }
   } else if (normalizedHatchTime !== null) {
     hatchTime = normalizedHatchTime;
     hatchDurationMs = Math.max(0, normalizedHatchTime - currentTime);

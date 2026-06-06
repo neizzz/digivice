@@ -4,6 +4,8 @@ import {
   CharacterState,
 } from "@/scenes/MainScene/types";
 
+const EGG_HATCH_CLOCK_DRIFT_TOLERANCE_MS = 1000;
+
 type StoredObjectComponent = {
   id?: number;
   type?: number;
@@ -377,6 +379,16 @@ function resolveEggHatchSchedule(params: {
   }
 
   if (safeDurationMs !== null && safeHatchTime !== null) {
+    if (
+      safeHatchTime - params.now >
+      safeDurationMs + EGG_HATCH_CLOCK_DRIFT_TOLERANCE_MS
+    ) {
+      return {
+        hatchTime: params.now + safeDurationMs,
+        hatchDurationMs: safeDurationMs,
+      };
+    }
+
     return {
       hatchTime: safeHatchTime,
       hatchDurationMs: safeDurationMs,
