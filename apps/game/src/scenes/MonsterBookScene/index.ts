@@ -86,6 +86,24 @@ const CLASS_ACCENT_COLORS: Record<MonsterClassCode, number> = {
   D: 0xbe2f70,
 };
 
+function createDevUnlockedMonsterBookState(): MonsterBookState {
+  const reachedAt = Date.now();
+  const reached: MonsterBookState["reached"] = {};
+
+  for (const characterKey of MONSTER_CHARACTER_KEYS) {
+    reached[characterKey] = [
+      {
+        name: "DEV",
+        reached_at: reachedAt,
+        object_id: characterKey,
+        source: "backfill",
+      },
+    ];
+  }
+
+  return normalizeMonsterBookState({ reached });
+}
+
 export class MonsterBookScene extends PIXI.Container implements Scene {
   private readonly game: Game;
   private readonly background = new PIXI.Graphics();
@@ -193,6 +211,7 @@ export class MonsterBookScene extends PIXI.Container implements Scene {
     if (!data) {
       this.monsterBookState = await loadMonsterBookState(StorageManager);
       this.currentMonsterKeys = new Set();
+      this.unlockAllCardsForDevMode();
       return;
     }
 
@@ -227,6 +246,16 @@ export class MonsterBookScene extends PIXI.Container implements Scene {
     if (didBackfill) {
       await saveMonsterBookState(StorageManager, this.monsterBookState);
     }
+
+    this.unlockAllCardsForDevMode();
+  }
+
+  private unlockAllCardsForDevMode(): void {
+    if (!import.meta.env.DEV) {
+      return;
+    }
+
+    this.monsterBookState = createDevUnlockedMonsterBookState();
   }
 
   private async preloadBookBackground(): Promise<void> {
