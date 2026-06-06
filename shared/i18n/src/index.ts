@@ -165,6 +165,7 @@ const en = {
   "monsterInfo.hatch": "Hatch",
   "monsterInfo.hatchRemaining": "Time to hatch",
   "monsterInfo.evolution": "Evolution",
+  "monsterInfo.nextEvolution": "Next Evolution",
   "monsterInfo.evolutionPausedSick": "Evolution paused while sick.",
   "monsterInfo.evolutionPausedLowStamina":
     "Evolution paused: health is too low.",
@@ -277,6 +278,7 @@ const ko: TranslationDictionary = {
   "monsterInfo.hatch": "부화",
   "monsterInfo.hatchRemaining": "남은 부화 시간",
   "monsterInfo.evolution": "진화",
+  "monsterInfo.nextEvolution": "다음 진화",
   "monsterInfo.evolutionPausedSick": "아픈 상태라 진화가 멈췄어요.",
   "monsterInfo.evolutionPausedLowStamina": "체력이 낮아 진화가 멈췄어요.",
   "monsterInfo.levelEgg": "알",
@@ -384,6 +386,7 @@ const ja: TranslationDictionary = {
   "monsterInfo.hatch": "ふ化",
   "monsterInfo.hatchRemaining": "ふ化まで残り時間",
   "monsterInfo.evolution": "進化",
+  "monsterInfo.nextEvolution": "次の進化",
   "monsterInfo.evolutionPausedSick": "病気のため進化が止まっています。",
   "monsterInfo.evolutionPausedLowStamina": "体力が低いため進化が止まっています。",
   "monsterInfo.levelEgg": "タマゴ",
@@ -489,6 +492,7 @@ const zhTW: TranslationDictionary = {
   "monsterInfo.hatch": "孵化",
   "monsterInfo.hatchRemaining": "剩餘孵化時間",
   "monsterInfo.evolution": "進化",
+  "monsterInfo.nextEvolution": "下一次進化",
   "monsterInfo.evolutionPausedSick": "生病中，進化已暫停。",
   "monsterInfo.evolutionPausedLowStamina": "體力過低，進化已暫停。",
   "monsterInfo.levelEgg": "蛋",
@@ -514,6 +518,7 @@ const zhHK: TranslationDictionary = {
   "monsterInfo.hatch": "孵化",
   "monsterInfo.hatchRemaining": "剩餘孵化時間",
   "monsterInfo.evolution": "進化",
+  "monsterInfo.nextEvolution": "下一次進化",
   "monsterInfo.evolutionPausedSick": "生病中，進化已暫停。",
   "monsterInfo.evolutionPausedLowStamina": "體力過低，進化已暫停。",
   "monsterInfo.levelEgg": "蛋",
@@ -621,6 +626,7 @@ const hi: TranslationDictionary = {
   "monsterInfo.hatch": "हैच",
   "monsterInfo.hatchRemaining": "फूटने में बचा समय",
   "monsterInfo.evolution": "विकास",
+  "monsterInfo.nextEvolution": "अगला विकास",
   "monsterInfo.evolutionPausedSick": "बीमार होने पर विकास रुका है।",
   "monsterInfo.evolutionPausedLowStamina":
     "ताकत कम है, इसलिए विकास रुका है।",
@@ -729,6 +735,7 @@ const th: TranslationDictionary = {
   "monsterInfo.hatch": "ฟัก",
   "monsterInfo.hatchRemaining": "เวลาที่เหลือก่อนฟัก",
   "monsterInfo.evolution": "วิวัฒนาการ",
+  "monsterInfo.nextEvolution": "วิวัฒนาการถัดไป",
   "monsterInfo.evolutionPausedSick": "ป่วยอยู่ วิวัฒนาการจึงหยุดไว้",
   "monsterInfo.evolutionPausedLowStamina":
     "พละกำลังต่ำ วิวัฒนาการจึงหยุดไว้",
@@ -837,6 +844,7 @@ const vi: TranslationDictionary = {
   "monsterInfo.hatch": "Nở",
   "monsterInfo.hatchRemaining": "Thời gian còn lại để nở",
   "monsterInfo.evolution": "Tiến hóa",
+  "monsterInfo.nextEvolution": "Tiến hóa tiếp theo",
   "monsterInfo.evolutionPausedSick": "Đang bị bệnh nên tiến hóa tạm dừng.",
   "monsterInfo.evolutionPausedLowStamina":
     "Thể lực quá thấp nên tiến hóa tạm dừng.",
@@ -945,6 +953,7 @@ const ptBR: TranslationDictionary = {
   "monsterInfo.hatch": "Chocar",
   "monsterInfo.hatchRemaining": "Tempo restante para chocar",
   "monsterInfo.evolution": "Evolução",
+  "monsterInfo.nextEvolution": "Próxima Evolução",
   "monsterInfo.evolutionPausedSick": "A evolução pausa enquanto está doente.",
   "monsterInfo.evolutionPausedLowStamina":
     "A evolução pausa com saúde baixa.",

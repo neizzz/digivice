@@ -157,6 +157,7 @@ const StatusBar: React.FC<{
   const percent = clampUnitInterval(
     maxValue > 0 ? currentValue / maxValue : 0,
   );
+  const percentLabel = `${Math.round(percent * 100)}%`;
 
   return (
     <div className="flex flex-col gap-2 text-left">
@@ -167,7 +168,8 @@ const StatusBar: React.FC<{
         aria-valuemin={0}
         aria-valuemax={maxValue}
         aria-valuenow={Math.max(0, currentValue)}
-        className="h-5 overflow-hidden border-2 border-[#222] bg-[#6f6f6f] shadow-[inset_0_0_0_1px_rgba(0,0,0,0.2)]"
+        aria-valuetext={percentLabel}
+        className="relative h-5 overflow-hidden border-2 border-[#222] bg-[#6f6f6f] shadow-[inset_0_0_0_1px_rgba(0,0,0,0.2)]"
       >
         <div
           className="h-full border-r-2 border-[#222]/25"
@@ -176,6 +178,9 @@ const StatusBar: React.FC<{
             backgroundColor: fillColor,
           }}
         />
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-[0.9rem] leading-none font-bold text-white [text-shadow:0_1px_0_rgba(0,0,0,0.6)]">
+          {percentLabel}
+        </div>
       </div>
       {description ? (
         <div className="text-[1rem] leading-[1.2] font-bold text-[#9A4F00]">
@@ -425,6 +430,7 @@ const MonsterInfoLayer: React.FC<MonsterInfoLayerProps> = ({
                     description={evolutionGaugeDescription}
                   />
                   <GeneOutcomeList
+                    label={t("monsterInfo.nextEvolution")}
                     locale={locale}
                     outcomes={snapshot.geneOutcomes}
                   />
