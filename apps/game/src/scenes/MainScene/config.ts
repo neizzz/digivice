@@ -70,7 +70,6 @@ export const UNHAPPY_STAMINA_THRESHOLD =
 
 const PRODUCTION_GAME_CONSTANTS = {
   // 알 부화 관련
-  EGG_HATCH_TIME: 30 * MINUTE_IN_MILLISECONDS,
   EGG_HATCH_MIN_TIME: 20 * MINUTE_IN_MILLISECONDS,
   EGG_HATCH_MODE_TIME: 30 * MINUTE_IN_MILLISECONDS,
   EGG_HATCH_MAX_TIME: 40 * MINUTE_IN_MILLISECONDS,
@@ -178,7 +177,6 @@ const PRODUCTION_GAME_CONSTANTS = {
 export const DEV_BALANCE_COEFFICIENTS = {
   // DEV에서는 production 기준 시간을 나눠서 빠르게 재현한다.
   timeDivisors: {
-    EGG_HATCH_TIME: 360,
     EGG_HATCH_MIN_TIME: 300,
     EGG_HATCH_MODE_TIME: 360,
     EGG_HATCH_MAX_TIME: 400,
@@ -292,7 +290,6 @@ function deriveRateConstant(key: DevRateConstantKey): number {
  */
 export const GAME_CONSTANTS = {
   ...PRODUCTION_GAME_CONSTANTS,
-  EGG_HATCH_TIME: deriveTimeConstant("EGG_HATCH_TIME"),
   EGG_HATCH_MIN_TIME: deriveTimeConstant("EGG_HATCH_MIN_TIME"),
   EGG_HATCH_MODE_TIME: deriveTimeConstant("EGG_HATCH_MODE_TIME"),
   EGG_HATCH_MAX_TIME: deriveTimeConstant("EGG_HATCH_MAX_TIME"),
