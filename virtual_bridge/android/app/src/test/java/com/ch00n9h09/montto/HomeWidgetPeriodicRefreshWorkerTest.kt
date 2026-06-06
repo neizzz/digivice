@@ -509,6 +509,93 @@ class HomeWidgetPeriodicRefreshWorkerTest {
     }
 
     @Test
+    fun `native authoritative refresh writes sick status into padded empty status slot`() {
+        val nowMs = 20_000L
+        val widgetPrefs = FakeSharedPreferences()
+        val flutterPrefs = FakeSharedPreferences()
+        var persistedSnapshot: HomeWidgetSnapshot? = null
+
+        flutterPrefs.edit()
+            .putString(
+                HomeWidgetConstants.FLUTTER_WORLD_DATA_KEY,
+                buildHomeWidgetCharacterWorldData(
+                    state = 4,
+                    lastEcsSaved = 0L,
+                    stamina = 5.0,
+                    nextDiseaseCheckTime = nowMs + 60_000L,
+                    nextNapCheckTime = nowMs + 60_000L,
+                    statuses = "[0,0,0,0]",
+                    sickStartTime = 1L,
+                ),
+            )
+            .apply()
+
+        val result = HomeWidgetNativeAuthoritativeRefresh.complete(
+            widgetPrefs = widgetPrefs,
+            flutterPrefs = flutterPrefs,
+            nowMs = nowMs,
+            persistSnapshot = { snapshot ->
+                persistedSnapshot = snapshot
+            },
+        )
+
+        val updatedWorldData = flutterPrefs.getString(
+            HomeWidgetConstants.FLUTTER_WORLD_DATA_KEY,
+            null,
+        )
+
+        assertTrue(result.succeeded)
+        assertEquals("sick", persistedSnapshot?.characterState)
+        assertEquals(listOf("sick"), persistedSnapshot?.visibleStatusIcons)
+        assertTrue(updatedWorldData?.contains(""""state":4""") == true)
+        assertTrue(updatedWorldData?.contains(""""statuses":[3,0,0,0]""") == true)
+    }
+
+    @Test
+    fun `native authoritative refresh does not append sick status when status slots are full`() {
+        val nowMs = 20_000L
+        val widgetPrefs = FakeSharedPreferences()
+        val flutterPrefs = FakeSharedPreferences()
+        var persistedSnapshot: HomeWidgetSnapshot? = null
+
+        flutterPrefs.edit()
+            .putString(
+                HomeWidgetConstants.FLUTTER_WORLD_DATA_KEY,
+                buildHomeWidgetCharacterWorldData(
+                    state = 4,
+                    lastEcsSaved = 0L,
+                    stamina = 5.0,
+                    nextDiseaseCheckTime = nowMs + 60_000L,
+                    nextNapCheckTime = nowMs + 60_000L,
+                    statuses = "[2,4,5,2]",
+                    sickStartTime = 1L,
+                ),
+            )
+            .apply()
+
+        val result = HomeWidgetNativeAuthoritativeRefresh.complete(
+            widgetPrefs = widgetPrefs,
+            flutterPrefs = flutterPrefs,
+            nowMs = nowMs,
+            persistSnapshot = { snapshot ->
+                persistedSnapshot = snapshot
+            },
+        )
+
+        val updatedWorldData = flutterPrefs.getString(
+            HomeWidgetConstants.FLUTTER_WORLD_DATA_KEY,
+            null,
+        )
+
+        assertTrue(result.succeeded)
+        assertEquals("sick", persistedSnapshot?.characterState)
+        assertEquals(listOf("sick"), persistedSnapshot?.visibleStatusIcons)
+        assertTrue(updatedWorldData?.contains(""""state":4""") == true)
+        assertTrue(updatedWorldData?.contains(""""statuses":[2,4,5,2]""") == true)
+        assertFalse(updatedWorldData?.contains(""""statuses":[2,4,5,2,3]""") == true)
+    }
+
+    @Test
     fun `native authoritative refresh keeps sleeping sick status without natural recovery`() {
         val nowMs = 40 * 60 * 1000L
         val widgetPrefs = FakeSharedPreferences()

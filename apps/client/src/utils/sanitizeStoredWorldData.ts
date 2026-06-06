@@ -215,6 +215,10 @@ const CHARACTER_STATE = {
   DEAD: 6,
 } as const;
 
+const CHARACTER_STATUS = {
+  SICK: 3,
+} as const;
+
 function isDevBuild(): boolean {
   return import.meta.env.DEV;
 }
@@ -451,9 +455,31 @@ function sanitizePendingEggHatchCharacterKey(value: unknown): number {
   }
 }
 
-function sanitizeStatuses(statuses: unknown): number[] {
+function syncSickStatusFromState(state: number, statuses: number[]): number[] {
+  if (
+    state !== CHARACTER_STATE.SICK ||
+    statuses.includes(CHARACTER_STATUS.SICK)
+  ) {
+    return statuses;
+  }
+
+  const emptySlotIndex = statuses.findIndex(
+    (status) => status === ECS_NULL_VALUE,
+  );
+  if (emptySlotIndex >= 0) {
+    statuses[emptySlotIndex] = CHARACTER_STATUS.SICK;
+    return statuses;
+  }
+
+  return statuses;
+}
+
+function sanitizeStatuses(statuses: unknown, state: number): number[] {
   if (!Array.isArray(statuses)) {
-    return new Array(DEFAULTS.STATUS_SLOT_COUNT).fill(ECS_NULL_VALUE);
+    return syncSickStatusFromState(
+      state,
+      new Array(DEFAULTS.STATUS_SLOT_COUNT).fill(ECS_NULL_VALUE),
+    );
   }
 
   const sanitized = statuses
@@ -464,7 +490,7 @@ function sanitizeStatuses(statuses: unknown): number[] {
     sanitized.push(ECS_NULL_VALUE);
   }
 
-  return sanitized;
+  return syncSickStatusFromState(state, sanitized);
 }
 
 function needsAnimationRender(state: number): boolean {
@@ -660,7 +686,7 @@ function sanitizeCharacterEntity(
         toFiniteNumber(components.characterStatus?.evolutionGage) ?? 0,
       evolutionPhase:
         toFiniteNumber(components.characterStatus?.evolutionPhase) ?? 1,
-      statuses: sanitizeStatuses(components.characterStatus?.statuses),
+      statuses: sanitizeStatuses(components.characterStatus?.statuses, state),
     },
     position: {
       x: toFiniteNumber(components.position?.x) ?? 0,

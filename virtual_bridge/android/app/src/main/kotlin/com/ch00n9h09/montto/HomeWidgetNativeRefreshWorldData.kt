@@ -14,6 +14,7 @@ private const val NATIVE_CHARACTER_STATE_SICK = 4
 private const val NATIVE_CHARACTER_STATE_EATING = 5
 private const val NATIVE_CHARACTER_STATE_DEAD = 6
 private const val NATIVE_CHARACTER_STATUS_SICK = 3
+private const val NATIVE_CHARACTER_STATUS_SLOT_COUNT = 4
 private const val NATIVE_FOOD_STATE_BEING_THROWING = 1
 private const val NATIVE_FOOD_STATE_LANDED = 2
 private const val NATIVE_FOOD_FRESHNESS_FRESH = 1
@@ -117,6 +118,7 @@ internal object HomeWidgetNativeRefreshWorldData {
         if (source != null) {
             previousCharacterState = source.objectComponent.optIntOrNull("state")
             nextCharacterState = previousCharacterState
+            changed = syncSickStatusFromState(source) || changed
 
             if (previousCharacterState == NATIVE_CHARACTER_STATE_EGG) {
                 val hatchTimeMs = source.eggHatch.optLongOrNull("hatchTime")
@@ -207,6 +209,17 @@ internal object HomeWidgetNativeRefreshWorldData {
         ) || changed
 
         return changed
+    }
+
+    private fun syncSickStatusFromState(source: CharacterEntitySource): Boolean {
+        if (source.objectComponent.optIntOrNull("state") != NATIVE_CHARACTER_STATE_SICK) {
+            return false
+        }
+        if (hasStatus(source.statuses, NATIVE_CHARACTER_STATUS_SICK)) {
+            return false
+        }
+
+        return addStatus(source.statuses, NATIVE_CHARACTER_STATUS_SICK)
     }
 
     private fun progressStamina(
@@ -852,11 +865,17 @@ internal object HomeWidgetNativeRefreshWorldData {
         return false
     }
 
-    private fun addStatus(statuses: JSONArray, status: Int) {
+    private fun addStatus(statuses: JSONArray, status: Int): Boolean {
         if (hasStatus(statuses, status)) {
-            return
+            return false
         }
-        statuses.put(status)
+        for (index in 0 until NATIVE_CHARACTER_STATUS_SLOT_COUNT) {
+            if (statuses.optInt(index) == 0) {
+                statuses.put(index, status)
+                return true
+            }
+        }
+        return false
     }
 
     private fun removeStatus(statuses: JSONArray, status: Int) {

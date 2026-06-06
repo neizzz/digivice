@@ -305,6 +305,30 @@ function getOverlayIconTextureName(
   return STATUS_TO_TEXTURE_NAME[latestTemporary] ?? null;
 }
 
+function collectEffectiveStatuses(eid: number): CharacterStatus[] {
+  const statuses = CharacterStatusComp.statuses[eid];
+  const allStatuses: CharacterStatus[] = [];
+  let hasSickStatus = false;
+
+  for (let j = 0; j < statuses.length; j++) {
+    const status = statuses[j];
+    if (status === ECS_NULL_VALUE) {
+      continue;
+    }
+
+    if (status === CharacterStatus.SICK) {
+      hasSickStatus = true;
+    }
+    allStatuses.push(status);
+  }
+
+  if (ObjectComp.state[eid] === CharacterState.SICK && !hasSickStatus) {
+    allStatuses.push(CharacterStatus.SICK);
+  }
+
+  return allStatuses;
+}
+
 const statusIconQuery = defineQuery([
   PositionComp,
   CharacterStatusComp,
@@ -351,13 +375,7 @@ export function statusIconRenderSystem(params: {
     const iconZIndex = effectiveZIndex + STATUS_ICON_Z_INDEX_OFFSET;
 
     // 현재 상태들 가져오기
-    const allStatuses: CharacterStatus[] = [];
-    for (let j = 0; j < 4; j++) {
-      const status = CharacterStatusComp.statuses[eid][j];
-      if (status !== ECS_NULL_VALUE) {
-        allStatuses.push(status);
-      }
-    }
+    const allStatuses = collectEffectiveStatuses(eid);
 
     // 상태를 지속적 상태와 일시적 상태로 분리
     const { persistent, latestTemporary } = organizeStatuses(allStatuses);

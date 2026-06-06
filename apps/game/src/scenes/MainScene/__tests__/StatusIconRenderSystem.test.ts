@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createWorld } from "bitecs";
 import * as PIXI from "pixi.js";
-import { CharacterStatusComp, PositionComp } from "../raw-components";
+import {
+  CharacterStatusComp,
+  PositionComp,
+  StatusIconRenderComp,
+} from "../raw-components";
 import {
   cleanupStatusIconRenderStateForTests,
   statusIconRenderSystem,
@@ -247,6 +251,37 @@ test("stage에서 분리된 기존 sick 아이콘은 다음 렌더에서 즉시 
 
     assert.equal(world.stage.children.length, 1);
     assert.equal(world.stage.children[0], sprite);
+  });
+});
+
+test("sick state는 저장 status 슬롯이 비어 있어도 sick 아이콘을 렌더링한다", () => {
+  withMockedStatusIconSprites(() => {
+    const world = createMainSceneWorldForTest();
+    const eid = createTestCharacter(
+      world as unknown as Parameters<typeof createTestCharacter>[0],
+      {
+        state: CharacterState.SICK,
+        x: 80,
+        y: 120,
+      },
+    );
+
+    assert.equal(
+      Array.from(CharacterStatusComp.statuses[eid]).includes(
+        CharacterStatus.SICK,
+      ),
+      false,
+    );
+
+    statusIconRenderSystem({
+      world,
+      delta: 16,
+    });
+
+    const sprite = getOnlyStatusIconSprite(world);
+    assertApproximatelyEqual(sprite.x, CHARACTER_TOP_RIGHT_SINGLE_ICON_X);
+    assertApproximatelyEqual(sprite.y, STATUS_ICON_CENTER_Y_AT_CHARACTER_TOP);
+    assert.equal(StatusIconRenderComp.visibleCount[eid], 1);
   });
 });
 

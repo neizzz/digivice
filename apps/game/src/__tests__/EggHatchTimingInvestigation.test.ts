@@ -10,6 +10,9 @@ const { sanitizeStoredWorldData } = require("../../../client/src/utils/sanitizeS
             hatchTime?: number;
             hatchDurationMs?: number;
           };
+          characterStatus?: {
+            statuses?: number[];
+          };
         };
       }>;
     } | null;
@@ -73,7 +76,11 @@ import {
   GAME_CONSTANTS,
 } from "../scenes/MainScene/config";
 import { EggHatchComp } from "../scenes/MainScene/raw-components";
-import { CharacterKeyECS, CharacterState } from "../scenes/MainScene/types";
+import {
+  CharacterKeyECS,
+  CharacterState,
+  CharacterStatus,
+} from "../scenes/MainScene/types";
 import {
   createTestCharacter,
   createTestWorld,
@@ -138,6 +145,60 @@ function buildStoredEggWorldData(eggHatch: {
   };
 }
 
+function buildStoredCharacterWorldData(params: {
+  state: CharacterState;
+  statuses: number[];
+}): StoredWorldData {
+  return {
+    world_metadata: {
+      name: "MainScene",
+      monster_name: "DebugCharacter",
+      last_ecs_saved: 1,
+      version: "1.0.0",
+      app_state: {
+        last_active_time: 1,
+        is_first_load: false,
+        use_local_time: true,
+      },
+    },
+    entities: [
+      {
+        components: {
+          object: {
+            id: 1001,
+            type: 1,
+            state: params.state,
+          },
+          characterStatus: {
+            characterKey: 1,
+            stamina: 5,
+            evolutionGage: 0,
+            evolutionPhase: 1,
+            statuses: params.statuses,
+          },
+          position: {
+            x: 0,
+            y: 0,
+          },
+          angle: {
+            value: 0,
+          },
+          speed: {
+            value: 0,
+          },
+          render: {
+            storeIndex: 0,
+            textureKey: 500,
+            scale: 3,
+            zIndex: 0,
+          },
+          eggHatch: {},
+        },
+      },
+    ],
+  };
+}
+
 function getSanitizedEggHatch(
   result: SanitizeStoredWorldDataResult,
 ): NonNullable<
@@ -149,6 +210,18 @@ function getSanitizedEggHatch(
   const eggHatch = result.sanitizedData.entities?.[0]?.components?.eggHatch;
   assert.ok(eggHatch);
   return eggHatch;
+}
+
+function getSanitizedCharacterStatuses(
+  result: SanitizeStoredWorldDataResult,
+): number[] {
+  assert.equal(result.action, "playable");
+  assert.ok(result.sanitizedData);
+
+  const statuses =
+    result.sanitizedData.entities?.[0]?.components?.characterStatus?.statuses;
+  assert.ok(statuses);
+  return statuses;
 }
 
 test("DEV 신규 egg 생성 경로는 4~6초 hatch schedule만 만든다", () => {
@@ -305,4 +378,37 @@ test("sanitizeStoredWorldData는 egg pendingCharacterKey를 보존한다", () =>
     eggHatch?.pendingCharacterKey,
     CharacterKeyECS.SoilSlimeA1,
   );
+});
+
+test("sanitizeStoredWorldData는 sick state 저장본의 빈 status 슬롯에 sick을 보정한다", () => {
+  const result = sanitizeStoredWorldData(
+    buildStoredCharacterWorldData({
+      state: CharacterState.SICK,
+      statuses: [0, 0, 0, 0],
+    }),
+  );
+
+  assert.deepEqual(getSanitizedCharacterStatuses(result), [
+    CharacterStatus.SICK,
+    0,
+    0,
+    0,
+  ]);
+});
+
+test("sanitizeStoredWorldData는 status 슬롯이 꽉 차면 sick status를 덧붙이지 않는다", () => {
+  const statuses = [
+    CharacterStatus.URGENT,
+    CharacterStatus.HAPPY,
+    CharacterStatus.DISCOVER,
+    CharacterStatus.URGENT,
+  ];
+  const result = sanitizeStoredWorldData(
+    buildStoredCharacterWorldData({
+      state: CharacterState.SICK,
+      statuses,
+    }),
+  );
+
+  assert.deepEqual(getSanitizedCharacterStatuses(result), statuses);
 });

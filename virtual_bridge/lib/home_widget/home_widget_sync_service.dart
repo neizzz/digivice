@@ -947,6 +947,11 @@ class HomeWidgetSyncService {
       }
     }
 
+    if (characterState == HomeWidgetCharacterState.sick &&
+        !visibleIcons.contains(HomeWidgetStatusIcon.sick)) {
+      visibleIcons.add(HomeWidgetStatusIcon.sick);
+    }
+
     if (characterState == HomeWidgetCharacterState.sleeping) {
       visibleIcons.add(HomeWidgetStatusIcon.sleeping);
     }

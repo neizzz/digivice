@@ -363,6 +363,10 @@ object HomeWidgetSnapshotFactory {
             }
         }
 
+        if (characterState == "sick" && !visibleIcons.contains("sick")) {
+            visibleIcons.add("sick")
+        }
+
         if (characterState == "sleeping") {
             visibleIcons.add("sleeping")
         }
