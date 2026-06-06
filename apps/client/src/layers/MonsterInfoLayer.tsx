@@ -128,12 +128,32 @@ function formatGeneOutcomeProbability(
   }).format(safeProbability);
 }
 
+function getEvolutionGaugeDescriptionKey(
+  snapshot: MainCharacterInfoSnapshot,
+):
+  | "monsterInfo.evolutionPausedSick"
+  | "monsterInfo.evolutionPausedLowStamina"
+  | null {
+  switch (snapshot.evolutionGaugeState) {
+    case "paused_sick":
+      return "monsterInfo.evolutionPausedSick";
+    case "paused_low_stamina":
+      return "monsterInfo.evolutionPausedLowStamina";
+    case "charging":
+    case "unavailable":
+      return null;
+  }
+
+  return null;
+}
+
 const StatusBar: React.FC<{
   label: string;
   currentValue: number;
   maxValue: number;
   fillColor: string;
-}> = ({ label, currentValue, maxValue, fillColor }) => {
+  description?: string | null;
+}> = ({ label, currentValue, maxValue, fillColor, description }) => {
   const percent = clampUnitInterval(
     maxValue > 0 ? currentValue / maxValue : 0,
   );
@@ -157,6 +177,11 @@ const StatusBar: React.FC<{
           }}
         />
       </div>
+      {description ? (
+        <div className="text-[1rem] leading-[1.2] font-bold text-[#9A4F00]">
+          {description}
+        </div>
+      ) : null}
     </div>
   );
 };
@@ -331,6 +356,11 @@ const MonsterInfoLayer: React.FC<MonsterInfoLayerProps> = ({
   const titleTemplate = splitMonsterInfoTitleTemplate(locale);
   const nameLabelFillColor = colorNumberToCssHex(NAME_LABEL_FILL_COLOR);
   const nameLabelStrokeColor = colorNumberToCssHex(NAME_LABEL_STROKE_COLOR);
+  const evolutionGaugeDescriptionKey =
+    getEvolutionGaugeDescriptionKey(snapshot);
+  const evolutionGaugeDescription = evolutionGaugeDescriptionKey
+    ? t(evolutionGaugeDescriptionKey)
+    : null;
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
@@ -392,6 +422,7 @@ const MonsterInfoLayer: React.FC<MonsterInfoLayerProps> = ({
                     currentValue={snapshot.evolutionGauge}
                     maxValue={snapshot.maxEvolutionGauge}
                     fillColor={EVOLUTION_FILL_COLOR}
+                    description={evolutionGaugeDescription}
                   />
                   <GeneOutcomeList
                     locale={locale}

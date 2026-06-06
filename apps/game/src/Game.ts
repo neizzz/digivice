@@ -120,6 +120,12 @@ export type MainCharacterGeneOutcome = {
   probability: number;
 };
 
+export type EvolutionGaugeState =
+  | "charging"
+  | "paused_sick"
+  | "paused_low_stamina"
+  | "unavailable";
+
 export type MainCharacterInfoSnapshot = {
   monsterName: string;
   isEgg: boolean;
@@ -133,6 +139,7 @@ export type MainCharacterInfoSnapshot = {
   boostedThreshold: number;
   evolutionGauge: number;
   maxEvolutionGauge: number;
+  evolutionGaugeState: EvolutionGaugeState;
 };
 
 type NativeViewportSyncDetail = {

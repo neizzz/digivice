@@ -13,6 +13,7 @@ import {
 } from "../raw-components";
 import {
   CharacterKeyECS,
+  CharacterStatus,
   CharacterState,
   Freshness,
   ObjectType,
@@ -134,6 +135,7 @@ test("메인 캐릭터 info snapshot은 이름, 레벨, 게이지 정보를 반�
     boostedThreshold: GAME_CONSTANTS.BOOSTED_STAMINA_THRESHOLD,
     evolutionGauge: 42.5,
     maxEvolutionGauge: EVOLUTION_GAUGE_CONFIG.maxGauge,
+    evolutionGaugeState: "charging",
   });
 });
 
@@ -198,7 +200,76 @@ test("알 상태 메인 캐릭터 info snapshot은 egg 상태를 그대로 반�
     boostedThreshold: GAME_CONSTANTS.BOOSTED_STAMINA_THRESHOLD,
     evolutionGauge: 10,
     maxEvolutionGauge: EVOLUTION_GAUGE_CONFIG.maxGauge,
+    evolutionGaugeState: "unavailable",
   });
+});
+
+test("메인 캐릭터 info snapshot은 진화 게이지 상태를 반환한다", () => {
+  const chargingWorld = createMainSceneWorldForTest();
+  createTestCharacter(
+    chargingWorld as unknown as Parameters<typeof createTestCharacter>[0],
+    {
+      state: CharacterState.IDLE,
+      stamina: EVOLUTION_GAUGE_CONFIG.staminaThreshold,
+      x: 64,
+      y: 88,
+    },
+  );
+
+  assert.equal(
+    chargingWorld.getMainCharacterInfoSnapshot()?.evolutionGaugeState,
+    "charging",
+  );
+
+  const sickWorld = createMainSceneWorldForTest();
+  const sickEid = createTestCharacter(
+    sickWorld as unknown as Parameters<typeof createTestCharacter>[0],
+    {
+      state: CharacterState.SICK,
+      stamina: EVOLUTION_GAUGE_CONFIG.boostedStaminaThreshold,
+      x: 64,
+      y: 88,
+    },
+  );
+  CharacterStatusComp.statuses[sickEid][0] = CharacterStatus.SICK;
+
+  assert.equal(
+    sickWorld.getMainCharacterInfoSnapshot()?.evolutionGaugeState,
+    "paused_sick",
+  );
+
+  const lowStaminaWorld = createMainSceneWorldForTest();
+  createTestCharacter(
+    lowStaminaWorld as unknown as Parameters<typeof createTestCharacter>[0],
+    {
+      state: CharacterState.IDLE,
+      stamina: EVOLUTION_GAUGE_CONFIG.staminaThreshold - 0.01,
+      x: 64,
+      y: 88,
+    },
+  );
+
+  assert.equal(
+    lowStaminaWorld.getMainCharacterInfoSnapshot()?.evolutionGaugeState,
+    "paused_low_stamina",
+  );
+
+  const finalPhaseWorld = createMainSceneWorldForTest();
+  createTestCharacter(
+    finalPhaseWorld as unknown as Parameters<typeof createTestCharacter>[0],
+    {
+      characterKey: CharacterKeyECS.GreenSlimeD1,
+      state: CharacterState.IDLE,
+      stamina: EVOLUTION_GAUGE_CONFIG.boostedStaminaThreshold,
+      x: 64,
+      y: 88,
+    },
+  );
+
+  assert.equal(
+    finalPhaseWorld.getMainCharacterInfoSnapshot()?.evolutionGaugeState,
+    "unavailable",
+  );
 });
 
 test("알 상태 info snapshot은 주사 횟수와 상한 음식 수를 부화 gene 확률에 반영한다", () => {

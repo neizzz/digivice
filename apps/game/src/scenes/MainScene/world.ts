@@ -135,6 +135,7 @@ import {
   loadSpritesheet,
 } from "../../utils/asset";
 import type {
+  EvolutionGaugeState,
   MainCharacterGeneOutcome,
   MainCharacterInfoSnapshot,
   ShowAlertCallback,
@@ -177,6 +178,7 @@ import { characterStatusSystem } from "./systems/CharacterStatusSystem";
 import { GAME_CONSTANTS, getRemainingEggHatchTime } from "./config";
 import {
   EVOLUTION_GAUGE_CONFIG,
+  canEvolveFromConfig,
   getCharacterSpritesheetName,
   getEvolutionSpec,
   type MonsterGeneLine,
@@ -4006,6 +4008,38 @@ export class MainSceneWorld implements IWorld, Scene {
     };
   }
 
+  private _getEvolutionGaugeState(
+    characterEid: number,
+    isEgg: boolean,
+    characterKey: number,
+  ): EvolutionGaugeState {
+    const characterState = ObjectComp.state[characterEid] as CharacterState;
+
+    if (
+      isEgg ||
+      characterState === CharacterState.DEAD ||
+      !canEvolveFromConfig(characterKey)
+    ) {
+      return "unavailable";
+    }
+
+    if (
+      characterState === CharacterState.SICK ||
+      CharacterStatusComp.statuses[characterEid].includes(CharacterStatus.SICK)
+    ) {
+      return "paused_sick";
+    }
+
+    if (
+      CharacterStatusComp.stamina[characterEid] <
+      EVOLUTION_GAUGE_CONFIG.staminaThreshold
+    ) {
+      return "paused_low_stamina";
+    }
+
+    return "charging";
+  }
+
   public getMainCharacterInfoSnapshot(): MainCharacterInfoSnapshot | null {
     const characterEid = this._findMainCharacterEntity();
     if (characterEid === -1) {
@@ -4014,6 +4048,11 @@ export class MainSceneWorld implements IWorld, Scene {
 
     const isEgg = ObjectComp.state[characterEid] === CharacterState.EGG;
     const characterKey = CharacterStatusComp.characterKey[characterEid];
+    const evolutionGaugeState = this._getEvolutionGaugeState(
+      characterEid,
+      isEgg,
+      characterKey,
+    );
     const eggHatchRemainingMs =
       isEgg && hasComponent(this, EggHatchComp, characterEid)
         ? getRemainingEggHatchTime({
@@ -4038,6 +4077,7 @@ export class MainSceneWorld implements IWorld, Scene {
       boostedThreshold: GAME_CONSTANTS.BOOSTED_STAMINA_THRESHOLD,
       evolutionGauge: CharacterStatusComp.evolutionGage[characterEid],
       maxEvolutionGauge: EVOLUTION_GAUGE_CONFIG.maxGauge,
+      evolutionGaugeState,
     };
   }
 

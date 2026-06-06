@@ -473,7 +473,8 @@ function areMainCharacterInfoSnapshotsEqual(
     left.unhappyThreshold === right.unhappyThreshold &&
     left.boostedThreshold === right.boostedThreshold &&
     left.evolutionGauge === right.evolutionGauge &&
-    left.maxEvolutionGauge === right.maxEvolutionGauge
+    left.maxEvolutionGauge === right.maxEvolutionGauge &&
+    left.evolutionGaugeState === right.evolutionGaugeState
   );
 }
 

@@ -3,6 +3,7 @@ import test from "node:test";
 import { addEntity, hasComponent } from "bitecs";
 import {
   CharacterStatusComp,
+  ObjectComp,
   RenderComp,
   TemporaryStatusComp,
 } from "../raw-components";
@@ -13,6 +14,7 @@ import {
   characterManagerSystem,
   getRemainingEvolutionGaugeTime,
   getRemainingStaminaDecreaseTime,
+  removeCharacterStatus,
   resetCharacterManageSystemStateForTests,
 } from "../systems/CharacterManageSystem";
 import { GAME_CONSTANTS } from "../config";
@@ -490,6 +492,38 @@ test("스테미나가 3 이상일 때 진화 게이지가 오른다", () => {
   assert.ok(CharacterStatusComp.evolutionGage[eligibleEid] > 0);
   assert.equal(CharacterStatusComp.evolutionGage[ineligibleEid], 0);
   assert.equal(getRemainingEvolutionGaugeTime(ineligibleEid), null);
+});
+
+test("sick 상태에서는 진화 게이지가 멈추고 회복 후 다시 오른다", () => {
+  const world = createTestWorld({ now: 0 });
+  const eid = withMockedDateNow(0, () =>
+    createTestCharacter(world, {
+      state: CharacterState.IDLE,
+      stamina: EVOLUTION_GAUGE_CONFIG.boostedStaminaThreshold,
+      x: 80,
+      y: 80,
+    }),
+  );
+
+  CharacterStatusComp.statuses[eid][0] = CharacterStatus.SICK;
+
+  characterManagerSystem({
+    world: world as any,
+    delta: EVOLUTION_GAUGE_CONFIG.checkIntervalMs,
+  });
+
+  assert.equal(CharacterStatusComp.evolutionGage[eid], 0);
+  assert.equal(getRemainingEvolutionGaugeTime(eid), null);
+
+  removeCharacterStatus(eid, CharacterStatus.SICK);
+  ObjectComp.state[eid] = CharacterState.IDLE;
+
+  characterManagerSystem({
+    world: world as any,
+    delta: EVOLUTION_GAUGE_CONFIG.checkIntervalMs,
+  });
+
+  assert.ok(CharacterStatusComp.evolutionGage[eid] > 0);
 });
 
 test("스테미나가 7 이상이면 진화 게이지 증가량이 20% 커진다", () => {
