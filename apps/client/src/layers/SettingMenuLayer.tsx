@@ -465,10 +465,10 @@ const SettingMenuLayer: React.FC<SettingMenuLayerProps> = ({
                           aria-invalid={isDigitMismatch}
                           className={`h-11 w-9 border-2 px-0 text-center text-[1.2rem] font-bold focus:outline-none focus:ring-2 ${
                             isDigitCorrect
-                              ? "border-component-positive bg-[#f0fff4] text-component-positive placeholder:text-component-positive/60 focus:ring-component-positive"
+                              ? "border-component-positive bg-[#f0fff4] text-component-positive placeholder:text-component-positive/60 caret-component-positive/30 focus:ring-component-positive"
                               : isDigitMismatch
-                                ? "border-component-negative bg-[#fff0f2] text-component-negative placeholder:text-component-negative/50 focus:ring-[#d95763]"
-                                : "border-[#222] bg-white text-[#222] placeholder:text-gray-400 focus:ring-[#d95763]"
+                                ? "border-component-negative bg-[#fff0f2] text-component-negative placeholder:text-component-negative/50 caret-component-negative/30 focus:ring-[#d95763]"
+                                : "border-[#222] bg-white text-[#222] placeholder:text-gray-400 caret-[#222]/30 focus:ring-[#d95763]"
                           }`}
                         />
                       );
