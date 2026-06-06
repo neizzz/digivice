@@ -27,6 +27,19 @@ class HomeWidgetSnapshotTest {
     }
 
     @Test
+    fun `sick status takes display priority over sleeping when loading snapshot`() {
+        val rawSnapshot = HomeWidgetDebugPresets.resolveSnapshot(index = 4, nowMs = 10_000L)
+            .copy(displayState = "sleep")
+            .toJsonString()
+
+        val snapshot = HomeWidgetSnapshot.fromJson(rawSnapshot)
+
+        assertEquals("sleeping", snapshot?.characterState)
+        assertEquals(listOf("sick", "sleeping"), snapshot?.visibleStatusIcons)
+        assertEquals("sick", snapshot?.displayState)
+    }
+
+    @Test
     fun `mature egg snapshot is detected for authoritative refresh`() {
         val nowMs = 10_000L
         val snapshot = HomeWidgetDebugPresets.resolveSnapshot(index = 0, nowMs = nowMs).copy(

@@ -195,12 +195,13 @@ data class HomeWidgetSnapshot(
                     json.optString("primaryStatus", "idle"),
                 )
                 val normalizedDisplayState = when {
-                    rawDisplayState == "sleeping" -> "sleep"
-                    rawDisplayState == "sick" -> "sick"
-                    characterState == "sleeping" ||
-                        visibleStatusIcons.contains("sleeping") -> "sleep"
-                    characterState == "sick" ||
+                    rawDisplayState == "sick" ||
+                        characterState == "sick" ||
                         visibleStatusIcons.contains("sick") -> "sick"
+                    rawDisplayState == "sleeping" ||
+                        rawDisplayState == "sleep" ||
+                        characterState == "sleeping" ||
+                        visibleStatusIcons.contains("sleeping") -> "sleep"
                     else -> "idle"
                 }
 

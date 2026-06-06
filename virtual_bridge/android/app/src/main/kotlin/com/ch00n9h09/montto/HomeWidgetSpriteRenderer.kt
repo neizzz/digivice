@@ -160,8 +160,10 @@ object HomeWidgetSpriteRenderer {
         return when {
             snapshot.characterState == "egg" -> 1
             snapshot.characterState == "dead" -> 1
+            snapshot.displayState == "sick" ||
+                snapshot.characterState == "sick" ||
+                snapshot.visibleStatusIcons.contains("sick") -> 1
             snapshot.displayState == "sleep" -> 2
-            snapshot.displayState == "sick" -> 1
             snapshot.characterState == "eating" -> 2
             else -> 2
         }
@@ -261,9 +263,12 @@ object HomeWidgetSpriteRenderer {
         val idleFrame = "idle_${frameIndex % 2}"
         val sleepFrame = "sleeping_${frameIndex % 2}"
         val eatingFrame = "eating_${frameIndex % 2}"
-        return when (snapshot.displayState) {
-            "sleep" -> if (frames.containsKey(sleepFrame)) sleepFrame else idleFrame
-            "sick" -> if (frames.containsKey("sick_0")) "sick_0" else idleFrame
+        return when {
+            snapshot.displayState == "sick" ||
+                snapshot.characterState == "sick" ||
+                snapshot.visibleStatusIcons.contains("sick") ->
+                if (frames.containsKey("sick_0")) "sick_0" else idleFrame
+            snapshot.displayState == "sleep" -> if (frames.containsKey(sleepFrame)) sleepFrame else idleFrame
             else -> when (snapshot.characterState) {
                 "eating" ->
                     if (frames.containsKey(eatingFrame)) {

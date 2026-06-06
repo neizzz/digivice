@@ -372,8 +372,8 @@ object HomeWidgetSnapshotFactory {
 
     private fun resolveDisplayState(characterState: String, visibleStatusIcons: List<String>): String {
         return when {
-            characterState == "sleeping" || visibleStatusIcons.contains("sleeping") -> "sleep"
             characterState == "sick" || visibleStatusIcons.contains("sick") -> "sick"
+            characterState == "sleeping" || visibleStatusIcons.contains("sleeping") -> "sleep"
             else -> "idle"
         }
     }

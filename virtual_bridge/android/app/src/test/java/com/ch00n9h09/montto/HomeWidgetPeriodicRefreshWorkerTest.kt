@@ -549,7 +549,7 @@ class HomeWidgetPeriodicRefreshWorkerTest {
         assertEquals("native_authoritative_completion_completed", result.status)
         assertTrue(result.succeeded)
         assertEquals("sleeping", persistedSnapshot?.characterState)
-        assertEquals("sleep", persistedSnapshot?.displayState)
+        assertEquals("sick", persistedSnapshot?.displayState)
         assertEquals(listOf("sick", "sleeping"), persistedSnapshot?.visibleStatusIcons)
         assertTrue(updatedWorldData?.contains(""""state":3""") == true)
         assertTrue(updatedWorldData?.contains(""""statuses":[3]""") == true)

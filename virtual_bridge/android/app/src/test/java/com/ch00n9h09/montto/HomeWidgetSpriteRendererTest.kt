@@ -100,6 +100,16 @@ class HomeWidgetSpriteRendererTest {
     }
 
     @Test
+    fun `sick sleeping widget snapshot renders as single sick frame`() {
+        val snapshot = HomeWidgetDebugPresets.resolveSnapshot(index = 4, nowMs = 10_000L)
+            .copy(displayState = "sleep")
+
+        assertEquals("sleeping", snapshot.characterState)
+        assertEquals(listOf("sick", "sleeping"), snapshot.visibleStatusIcons)
+        assertEquals(1, HomeWidgetSpriteRenderer.resolveFrameCount(snapshot))
+    }
+
+    @Test
     fun `egg crack overlay applies only to egg stages above zero`() {
         assertFalse(HomeWidgetSpriteRenderer.shouldApplyEggCrackOverlay("egg", 0))
         assertTrue(HomeWidgetSpriteRenderer.shouldApplyEggCrackOverlay("egg", 1))

@@ -112,7 +112,7 @@ object HomeWidgetDebugPresets {
             monsterName = "Debug Sick + Sleep",
             characterKey = 7,
             characterState = "sleeping",
-            displayState = "sleep",
+            displayState = "sick",
             timeOfDay = "night",
             stamina = 3.5,
             staminaLevel = "orange",

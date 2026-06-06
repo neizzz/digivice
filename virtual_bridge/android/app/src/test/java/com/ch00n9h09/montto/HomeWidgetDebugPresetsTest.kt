@@ -302,7 +302,7 @@ class HomeWidgetDebugPresetsTest {
         val preset = HomeWidgetDebugPresets.resolvePresetByKey("sick_sleep")
         assertNotNull(preset)
         assertEquals(listOf("sick", "sleeping"), preset?.visibleStatusIcons)
-        assertEquals("sleep", preset?.displayState)
+        assertEquals("sick", preset?.displayState)
     }
 
     @Test
