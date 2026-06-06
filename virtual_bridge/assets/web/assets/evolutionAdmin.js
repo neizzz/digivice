@@ -343,6 +343,7 @@ const en = {
   "monsterInfo.title": "About {name}",
   "monsterInfo.level": "Level",
   "monsterInfo.stamina": "Health",
+  "monsterInfo.hatch": "Hatch",
   "monsterInfo.hatchRemaining": "Time to hatch",
   "monsterInfo.evolution": "Evolution",
   "monsterInfo.levelEgg": "Egg",
@@ -440,6 +441,7 @@ const ko = {
   "monsterInfo.title": "{name} 정보",
   "monsterInfo.level": "레벨",
   "monsterInfo.stamina": "체력",
+  "monsterInfo.hatch": "부화",
   "monsterInfo.hatchRemaining": "남은 부화 시간",
   "monsterInfo.evolution": "진화",
   "monsterInfo.levelEgg": "알",
@@ -537,6 +539,7 @@ const ja = {
   "monsterInfo.title": "{name}の情報",
   "monsterInfo.level": "レベル",
   "monsterInfo.stamina": "体力",
+  "monsterInfo.hatch": "ふ化",
   "monsterInfo.hatchRemaining": "ふ化まで残り時間",
   "monsterInfo.evolution": "進化",
   "monsterInfo.levelEgg": "タマゴ",
@@ -634,6 +637,7 @@ const zhTW = {
   "monsterInfo.title": "{name}資訊",
   "monsterInfo.level": "等級",
   "monsterInfo.stamina": "體力",
+  "monsterInfo.hatch": "孵化",
   "monsterInfo.hatchRemaining": "剩餘孵化時間",
   "monsterInfo.evolution": "進化",
   "monsterInfo.levelEgg": "蛋",
@@ -655,6 +659,7 @@ const zhHK = {
   "monsterInfo.title": "{name}資訊",
   "monsterInfo.level": "等級",
   "monsterInfo.stamina": "體力",
+  "monsterInfo.hatch": "孵化",
   "monsterInfo.hatchRemaining": "剩餘孵化時間",
   "monsterInfo.evolution": "進化",
   "monsterInfo.levelEgg": "蛋",
@@ -752,6 +757,7 @@ const hi = {
   "monsterInfo.title": "{name} के बारे में",
   "monsterInfo.level": "लेवल",
   "monsterInfo.stamina": "ताकत",
+  "monsterInfo.hatch": "हैच",
   "monsterInfo.hatchRemaining": "फूटने में बचा समय",
   "monsterInfo.evolution": "विकास",
   "monsterInfo.levelEgg": "अंडा",
@@ -849,6 +855,7 @@ const th = {
   "monsterInfo.title": "เกี่ยวกับ {name}",
   "monsterInfo.level": "เลเวล",
   "monsterInfo.stamina": "พละกำลัง",
+  "monsterInfo.hatch": "ฟัก",
   "monsterInfo.hatchRemaining": "เวลาที่เหลือก่อนฟัก",
   "monsterInfo.evolution": "วิวัฒนาการ",
   "monsterInfo.levelEgg": "ไข่",
@@ -946,6 +953,7 @@ const vi = {
   "monsterInfo.title": "Về {name}",
   "monsterInfo.level": "Cấp độ",
   "monsterInfo.stamina": "Thể lực",
+  "monsterInfo.hatch": "Nở",
   "monsterInfo.hatchRemaining": "Thời gian còn lại để nở",
   "monsterInfo.evolution": "Tiến hóa",
   "monsterInfo.levelEgg": "Trứng",
@@ -1043,6 +1051,7 @@ const ptBR = {
   "monsterInfo.title": "Sobre {name}",
   "monsterInfo.level": "Nível",
   "monsterInfo.stamina": "Saúde",
+  "monsterInfo.hatch": "Chocar",
   "monsterInfo.hatchRemaining": "Tempo restante para chocar",
   "monsterInfo.evolution": "Evolução",
   "monsterInfo.levelEgg": "Ovo",
@@ -29816,6 +29825,7 @@ function normalizePositiveEggHatchValue(value) {
   }
   return value;
 }
+const EGG_HATCH_CLOCK_DRIFT_TOLERANCE_MS = 1e3;
 function resolveEggHatchTiming(params) {
   const currentTime = Number.isFinite(params.currentTime) ? params.currentTime : Date.now();
   const fallbackDurationMs = Math.max(
@@ -29831,6 +29841,9 @@ function resolveEggHatchTiming(params) {
   if (normalizedDurationMs !== null && normalizedHatchTime !== null) {
     hatchTime = normalizedHatchTime;
     hatchDurationMs = normalizedDurationMs;
+    if (hatchTime - currentTime > hatchDurationMs + EGG_HATCH_CLOCK_DRIFT_TOLERANCE_MS) {
+      hatchTime = currentTime + hatchDurationMs;
+    }
   } else if (normalizedHatchTime !== null) {
     hatchTime = normalizedHatchTime;
     hatchDurationMs = Math.max(0, normalizedHatchTime - currentTime);
@@ -29951,6 +29964,16 @@ function getFoodEatingEntityRef(world, characterEid) {
   }
   const targetFoodEid = FoodEatingComp.targetFood[characterEid];
   return isValidFoodEntityRef(world, targetFoodEid) ? targetFoodEid : null;
+}
+function resolveWorldCurrentTime(world, fallback = Date.now()) {
+  try {
+    const currentTime = world.currentTime;
+    if (typeof currentTime === "number" && Number.isFinite(currentTime)) {
+      return currentTime;
+    }
+  } catch {
+  }
+  return fallback;
 }
 function normalizeSavedFreshness(freshness) {
   return freshness === Freshness.FRESH ? Freshness.NORMAL : freshness;
@@ -30172,6 +30195,7 @@ function convertECSEntityToSavedEntity(world, eid) {
 function applySavedEntityToECS(world, eid, savedEntity) {
   var _a;
   const { components } = savedEntity;
+  const currentTime = resolveWorldCurrentTime(world);
   if (components.object) {
     if (!hasComponent(world, ObjectComp, eid)) {
       addComponent(world, ObjectComp, eid);
@@ -30266,7 +30290,7 @@ function applySavedEntityToECS(world, eid, savedEntity) {
     RandomMovementComp.minMoveTime[eid] = components.randomMovement.minMoveTime;
     RandomMovementComp.maxMoveTime[eid] = components.randomMovement.maxMoveTime;
     if ((_a = components.randomMovement) == null ? void 0 : _a.nextChange) {
-      const diffFromNow = components.randomMovement.nextChange - Date.now();
+      const diffFromNow = components.randomMovement.nextChange - currentTime;
       RandomMovementComp.nextChange[eid] = diffFromNow < 3e3 ? components.randomMovement.nextChange : 0;
     } else {
       RandomMovementComp.nextChange[eid] = 0;
@@ -30288,7 +30312,7 @@ function applySavedEntityToECS(world, eid, savedEntity) {
       addComponent(world, EggHatchComp, eid);
     }
     const resolvedEggHatch = resolveEggHatchComponentForState({
-      currentTime: Date.now(),
+      currentTime,
       state: ObjectComp.state[eid],
       hatchTime: components.eggHatch.hatchTime,
       hatchDurationMs: components.eggHatch.hatchDurationMs
@@ -32443,6 +32467,15 @@ function createStatusIconSprite(textureName) {
   sprite.roundPixels = true;
   return sprite;
 }
+function attachStatusIconSpriteToStage(sprite, stage) {
+  if (!stage.sortableChildren) {
+    stage.sortableChildren = true;
+  }
+  if (sprite.parent !== stage) {
+    sprite.removeFromParent();
+    stage.addChild(sprite);
+  }
+}
 function getStatusIconListWidth(iconCount) {
   return iconCount * STATUS_ICON_SIZE + Math.max(0, iconCount - 1) * STATUS_ICON_HORIZONTAL_SPACING;
 }
@@ -32519,9 +32552,9 @@ function organizeStatuses(statuses) {
   }
   return { persistent, latestTemporary };
 }
-function getOverlayIconTextureName(world, eid, latestTemporary) {
+function getOverlayIconTextureName(eid, latestTemporary) {
   if (ObjectComp.state[eid] === CharacterState.SLEEPING) {
-    return world.isSleepDebugEffectEnabled() ? SLEEP_ICON_TEXTURE_NAME : null;
+    return SLEEP_ICON_TEXTURE_NAME;
   }
   if (!latestTemporary) {
     return null;
@@ -32563,21 +32596,14 @@ function statusIconRenderSystem(params) {
       }
     }
     const { persistent, latestTemporary } = organizeStatuses(allStatuses);
-    const overlayTextureName = getOverlayIconTextureName(
-      world,
-      eid,
-      latestTemporary
-    );
+    const overlayTextureName = getOverlayIconTextureName(eid, latestTemporary);
     const iconCount = persistent.length + (overlayTextureName ? 1 : 0);
     const { centerX: iconListCenterX, centerY: iconCenterY } = getStatusIconListCenterAtCharacterTopRight({
       world,
       eid,
       iconCount
     });
-    const iconStartX = getUnifiedStatusIconStartX(
-      iconListCenterX,
-      iconCount
-    );
+    const iconStartX = getUnifiedStatusIconStartX(iconListCenterX, iconCount);
     let sprites = entityStatusSprites.get(eid);
     if (!sprites) {
       sprites = [];
@@ -32597,13 +32623,14 @@ function statusIconRenderSystem(params) {
         continue;
       }
       const expectedTexture = getCommon16x16Texture(textureName);
-      if (sprites[j2] && sprites[j2].texture === expectedTexture) ;
-      else {
-        if (sprites[j2]) {
+      if (sprites[j2] && !sprites[j2].destroyed && sprites[j2].texture === expectedTexture) {
+        attachStatusIconSpriteToStage(sprites[j2], world.stage);
+      } else {
+        if (sprites[j2] && !sprites[j2].destroyed) {
           sprites[j2].removeFromParent();
         }
         sprites[j2] = createStatusIconSprite(textureName);
-        world.stage.addChild(sprites[j2]);
+        attachStatusIconSpriteToStage(sprites[j2], world.stage);
       }
       sprites[j2].x = iconStartX + j2 * (STATUS_ICON_SIZE + STATUS_ICON_HORIZONTAL_SPACING);
       sprites[j2].y = iconCenterY;
@@ -32612,14 +32639,15 @@ function statusIconRenderSystem(params) {
     const currentTempSprite = entityTemporarySprites.get(eid);
     if (overlayTextureName) {
       const expectedTexture = getCommon16x16Texture(overlayTextureName);
-      if (currentTempSprite && currentTempSprite.texture === expectedTexture) ;
-      else {
-        if (currentTempSprite) {
+      if (currentTempSprite && !currentTempSprite.destroyed && currentTempSprite.texture === expectedTexture) {
+        attachStatusIconSpriteToStage(currentTempSprite, world.stage);
+      } else {
+        if (currentTempSprite && !currentTempSprite.destroyed) {
           currentTempSprite.removeFromParent();
         }
         const newTempSprite = createStatusIconSprite(overlayTextureName);
         entityTemporarySprites.set(eid, newTempSprite);
-        world.stage.addChild(newTempSprite);
+        attachStatusIconSpriteToStage(newTempSprite, world.stage);
       }
       const tempSprite = entityTemporarySprites.get(eid);
       tempSprite.x = iconStartX + persistent.length * (STATUS_ICON_SIZE + STATUS_ICON_HORIZONTAL_SPACING);
@@ -33442,7 +33470,8 @@ const allEntitiesQuery = defineQuery([ObjectComp]);
 function dataSyncSystem(params) {
   const { world: mainSceneWorld } = params;
   const worldData = mainSceneWorld.getInMemoryData();
-  if (Date.now() - worldData.world_metadata.last_ecs_saved < THIS_CONFIG.SAVE_INTERVAL) {
+  const currentTime = mainSceneWorld.currentTime;
+  if (currentTime - worldData.world_metadata.last_ecs_saved < THIS_CONFIG.SAVE_INTERVAL) {
     return params;
   }
   const newWorldData = cloneDeep(worldData);
@@ -33465,7 +33494,7 @@ function dataSyncSystem(params) {
     const savedEntity = convertECSEntityToSavedEntity(mainSceneWorld, eid);
     newWorldData.entities.push(savedEntity);
   }
-  newWorldData.world_metadata.last_ecs_saved = Date.now();
+  newWorldData.world_metadata.last_ecs_saved = currentTime;
   void mainSceneWorld.setData(newWorldData);
   return params;
 }
@@ -34659,6 +34688,7 @@ function getRandomFeedMenuFoodOption() {
 }
 function createCharacterEntity(world, components) {
   var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n;
+  const now = resolveWorldCurrentTime(world);
   const _components = components;
   const eid = addEntity(world);
   addComponent(world, ObjectComp, eid);
@@ -34710,7 +34740,7 @@ function createCharacterEntity(world, components) {
     RandomMovementComp.maxIdleTime[eid] = 8e3;
     RandomMovementComp.minMoveTime[eid] = 1e3;
     RandomMovementComp.maxMoveTime[eid] = 8e3;
-    RandomMovementComp.nextChange[eid] = Date.now() + 1e3 + Math.random() * 2e3;
+    RandomMovementComp.nextChange[eid] = now + 1e3 + Math.random() * 2e3;
   }
   addComponent(world, DestinationComp, eid);
   DestinationComp.type[eid] = 0;
@@ -34723,18 +34753,18 @@ function createCharacterEntity(world, components) {
   DigestiveSystemComp.nextPoopTime[eid] = 0;
   DigestiveSystemComp.nextSmallPoopTime[eid] = 0;
   addComponent(world, DiseaseSystemComp, eid);
-  DiseaseSystemComp.nextCheckTime[eid] = Date.now() + GAME_CONSTANTS.DISEASE_CHECK_INTERVAL;
+  DiseaseSystemComp.nextCheckTime[eid] = now + GAME_CONSTANTS.DISEASE_CHECK_INTERVAL;
   DiseaseSystemComp.sickStartTime[eid] = 0;
   addComponent(world, SleepSystemComp, eid);
   SleepSystemComp.fatigue[eid] = GAME_CONSTANTS.FATIGUE_DEFAULT;
   SleepSystemComp.nextSleepTime[eid] = 0;
   SleepSystemComp.nextWakeTime[eid] = 0;
-  SleepSystemComp.nextNapCheckTime[eid] = Date.now() + GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL;
+  SleepSystemComp.nextNapCheckTime[eid] = now + GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL;
   SleepSystemComp.nextNightWakeCheckTime[eid] = 0;
   SleepSystemComp.sleepMode[eid] = ObjectComp.state[eid] === CharacterState.SLEEPING ? SleepMode.NIGHT_SLEEP : SleepMode.AWAKE;
   SleepSystemComp.pendingSleepReason[eid] = SleepReason.NONE;
   SleepSystemComp.pendingWakeReason[eid] = SleepReason.NONE;
-  SleepSystemComp.sleepSessionStartedAt[eid] = ObjectComp.state[eid] === CharacterState.SLEEPING ? Date.now() : 0;
+  SleepSystemComp.sleepSessionStartedAt[eid] = ObjectComp.state[eid] === CharacterState.SLEEPING ? now : 0;
   addComponent(world, VitalityComp, eid);
   VitalityComp.urgentStartTime[eid] = 0;
   VitalityComp.deathTime[eid] = 0;
@@ -34745,7 +34775,7 @@ function createCharacterEntity(world, components) {
   TemporaryStatusComp.lastHappyStatusTime[eid] = 0;
   addComponent(world, EggHatchComp, eid);
   if (ObjectComp.state[eid] === CharacterState.EGG) {
-    const { hatchTime, hatchDurationMs } = createEggHatchSchedule();
+    const { hatchTime, hatchDurationMs } = createEggHatchSchedule(now);
     EggHatchComp.hatchTime[eid] = hatchTime;
     EggHatchComp.hatchDurationMs[eid] = hatchDurationMs;
     EggHatchComp.isReadyToHatch[eid] = 0;
@@ -34761,8 +34791,8 @@ function createCharacterEntity(world, components) {
   addComponent(world, MutationRiskComp, eid);
   MutationRiskComp.unnecessaryInjectionStacks[eid] = 0;
   MutationRiskComp.dirtyExposureStacks[eid] = 0;
-  MutationRiskComp.lastInjectionDetoxTime[eid] = Date.now();
-  MutationRiskComp.lastDirtyDetoxTime[eid] = Date.now();
+  MutationRiskComp.lastInjectionDetoxTime[eid] = now;
+  MutationRiskComp.lastDirtyDetoxTime[eid] = now;
   return eid;
 }
 function createPoobEntity(world, components) {
@@ -35366,7 +35396,6 @@ function sleepScheduleSystem(params) {
       continue;
     }
     updateFatigue(eid, delta);
-    recoverNaturallyFromSickIfReady(world, eid, currentTime);
     reconcileExternalSleepExit(eid, currentTime, currentTimeOfDay);
     handleScheduledWake(world, eid, currentTime);
     handleNightWakeChecks(world, eid, currentTime, currentTimeOfDay);
@@ -35479,28 +35508,6 @@ function updateFatigue(eid, delta) {
     0,
     GAME_CONSTANTS.FATIGUE_MAX
   );
-}
-function recoverNaturallyFromSickIfReady(world, eid, currentTime) {
-  if (ObjectComp.state[eid] !== CharacterState.SLEEPING) {
-    return;
-  }
-  if (!hasStatus(eid, CharacterStatus.SICK)) {
-    return;
-  }
-  if (!hasComponent(world, DiseaseSystemComp, eid)) {
-    return;
-  }
-  const sickStartTime = DiseaseSystemComp.sickStartTime[eid];
-  if (sickStartTime <= 0) {
-    return;
-  }
-  const sleptLongEnough = currentTime - sickStartTime >= GAME_CONSTANTS.NATURAL_SICK_RECOVERY_MIN_DURATION;
-  const recoveredFatigue = SleepSystemComp.fatigue[eid] <= GAME_CONSTANTS.NATURAL_SICK_RECOVERY_FATIGUE_THRESHOLD;
-  if (!sleptLongEnough || !recoveredFatigue) {
-    return;
-  }
-  removeStatus(eid, CharacterStatus.SICK);
-  DiseaseSystemComp.sickStartTime[eid] = 0;
 }
 function reconcileExternalSleepExit(eid, currentTime, currentTimeOfDay) {
   if (ObjectComp.state[eid] === CharacterState.SLEEPING) {
@@ -35811,16 +35818,6 @@ function getDayNapChance(eid) {
 }
 function hasStatus(eid, status) {
   return Array.from(CharacterStatusComp.statuses[eid]).includes(status);
-}
-function removeStatus(eid, status) {
-  const statuses = CharacterStatusComp.statuses[eid];
-  for (let i2 = 0; i2 < statuses.length; i2++) {
-    if (statuses[i2] !== status) {
-      continue;
-    }
-    statuses[i2] = 0;
-    return;
-  }
 }
 function randomBetween(min, max) {
   if (max <= min) {
@@ -37757,7 +37754,7 @@ Set: ${new Date(debugState.sunsetAt).toLocaleTimeString("ko-KR", {
       );
       return;
     }
-    const currentTime = Date.now();
+    const currentTime = this._world.currentTime;
     addToDigestiveLoad(
       this._world,
       this._currentCharacterEid,
@@ -37776,7 +37773,7 @@ Set: ${new Date(debugState.sunsetAt).toLocaleTimeString("ko-KR", {
       );
       return;
     }
-    const currentTime = Date.now();
+    const currentTime = this._world.currentTime;
     addToDigestiveLoad(this._world, this._currentCharacterEid, 0, currentTime);
     DigestiveSystemComp.currentLoad[this._currentCharacterEid] = 0;
     DigestiveSystemComp.nextPoopTime[this._currentCharacterEid] = 0;
@@ -38211,9 +38208,8 @@ const characterQuery$2 = defineQuery([
 ]);
 const previousStates = /* @__PURE__ */ new Map();
 function diseaseSystem(params) {
-  const { world, currentTime, entryStatusSuppression } = params;
+  const { world, currentTime } = params;
   const shouldLog = !world.isSimulationMode;
-  const suppressSick = (entryStatusSuppression == null ? void 0 : entryStatusSuppression.suppressSick) === true;
   const entities = characterQuery$2(world);
   for (let i2 = 0; i2 < entities.length; i2++) {
     const eid = entities[i2];
@@ -38249,9 +38245,6 @@ function diseaseSystem(params) {
           );
         }
         if (Math.random() < diseaseRate) {
-          if (suppressSick) {
-            continue;
-          }
           if (shouldLog) {
             console.log(`Disease occurred for entity ${eid}!`);
           }
@@ -41178,11 +41171,161 @@ const liveCharacterEntitiesQuery = defineQuery([
   ObjectComp,
   CharacterStatusComp
 ]);
+const hatchOutcomeFoodQuery = defineQuery([ObjectComp, FreshnessComp]);
 const FOOD_LANDING_VIBRATION_DURATION_MS = 16;
 const FOOD_LANDING_VIBRATION_STRENGTH = 36;
 const CHARACTER_KEY_VALUES = new Set(Object.values(CharacterKey));
+const HATCH_OUTCOME_GENE_LINES = [
+  "green-slime",
+  "soil-slime",
+  "skull-slime"
+];
 function isCharacterKeyValue(value) {
   return CHARACTER_KEY_VALUES.has(value);
+}
+function createHatchGeneOutcomesForProbabilities(probabilities) {
+  const probabilityByGeneLine = {
+    "green-slime": probabilities.green / 100,
+    "soil-slime": probabilities.soil / 100,
+    "skull-slime": probabilities.skull / 100
+  };
+  return HATCH_OUTCOME_GENE_LINES.map((geneLine) => ({
+    kind: "hatch",
+    geneLine,
+    level: 1,
+    probability: probabilityByGeneLine[geneLine]
+  }));
+}
+function createFixedHatchGeneOutcomes(fixedGeneLine) {
+  return HATCH_OUTCOME_GENE_LINES.map((geneLine) => ({
+    kind: "hatch",
+    geneLine,
+    level: 1,
+    probability: geneLine === fixedGeneLine ? 1 : 0
+  }));
+}
+function countCurrentStaleFoodForHatch(world) {
+  const entities = hatchOutcomeFoodQuery(world);
+  let count2 = 0;
+  for (let i2 = 0; i2 < entities.length; i2++) {
+    const eid = entities[i2];
+    if (ObjectComp.type[eid] === ObjectType.FOOD && FreshnessComp.freshness[eid] === Freshness.STALE) {
+      count2 += 1;
+    }
+  }
+  return count2;
+}
+function getHatchGeneOutcomes(world, characterEid) {
+  if (!hasComponent(world, EggHatchComp, characterEid)) {
+    return createHatchGeneOutcomesForProbabilities(
+      calculateEggHatchGeneProbabilities({
+        staleFoodCountAtHatch: countCurrentStaleFoodForHatch(world),
+        syringeCount: 0
+      })
+    );
+  }
+  const pendingSpec = getEvolutionSpec(
+    EggHatchComp.pendingCharacterKey[characterEid]
+  );
+  if ((pendingSpec == null ? void 0 : pendingSpec.phase) === 1) {
+    return createFixedHatchGeneOutcomes(pendingSpec.geneLine);
+  }
+  return createHatchGeneOutcomesForProbabilities(
+    calculateEggHatchGeneProbabilities({
+      staleFoodCountAtHatch: countCurrentStaleFoodForHatch(world),
+      syringeCount: EggHatchComp.syringeCount[characterEid]
+    })
+  );
+}
+function getGeneLineSortIndex(geneLine) {
+  const index = HATCH_OUTCOME_GENE_LINES.indexOf(geneLine);
+  return index >= 0 ? index : HATCH_OUTCOME_GENE_LINES.length;
+}
+function addGeneOutcomeProbability(map, outcome) {
+  const key = `${outcome.kind}:${outcome.geneLine}:${outcome.level}`;
+  const existing = map.get(key);
+  if (existing) {
+    existing.probability += outcome.probability;
+    return;
+  }
+  map.set(key, { ...outcome });
+}
+function getEvolutionGeneOutcomes(world, characterEid) {
+  const characterKey = CharacterStatusComp.characterKey[characterEid];
+  const spec = getEvolutionSpec(characterKey);
+  if (!spec || spec.evolutionCandidates.length === 0) {
+    return [];
+  }
+  const totalEvolutionWeight = spec.evolutionCandidates.reduce(
+    (sum, candidate) => sum + Math.max(0, candidate.weight),
+    0
+  );
+  if (totalEvolutionWeight <= 0) {
+    return [];
+  }
+  const mutationTargets = getSameClassCrossGeneMutationTargets(characterKey);
+  const hasMutationRisk = hasComponent(world, MutationRiskComp, characterEid);
+  const mutationRate = mutationTargets.length > 0 ? calculateMutationRate({
+    characterKey,
+    unnecessaryInjectionStacks: hasMutationRisk ? MutationRiskComp.unnecessaryInjectionStacks[characterEid] : 0,
+    dirtyExposureStacks: hasMutationRisk ? MutationRiskComp.dirtyExposureStacks[characterEid] : 0
+  }) : 0;
+  const normalEvolutionRate = Math.max(0, 1 - mutationRate);
+  const normalOutcomeMap = /* @__PURE__ */ new Map();
+  for (const candidate of spec.evolutionCandidates) {
+    if (candidate.weight <= 0) {
+      continue;
+    }
+    const targetSpec = getEvolutionSpec(candidate.to);
+    if (!targetSpec) {
+      continue;
+    }
+    addGeneOutcomeProbability(normalOutcomeMap, {
+      kind: "evolution",
+      geneLine: targetSpec.geneLine,
+      level: targetSpec.phase,
+      probability: normalEvolutionRate * (candidate.weight / totalEvolutionWeight)
+    });
+  }
+  const mutationOutcomeMap = /* @__PURE__ */ new Map();
+  if (mutationRate > 0 && mutationTargets.length > 0) {
+    const probabilityPerTarget = mutationRate / mutationTargets.length;
+    for (const targetKey of mutationTargets) {
+      const targetSpec = getEvolutionSpec(targetKey);
+      if (!targetSpec || targetSpec.geneLine === spec.geneLine) {
+        continue;
+      }
+      addGeneOutcomeProbability(mutationOutcomeMap, {
+        kind: "mutation",
+        geneLine: targetSpec.geneLine,
+        level: spec.phase,
+        probability: probabilityPerTarget
+      });
+    }
+  }
+  const normalRows = Array.from(normalOutcomeMap.values()).sort((a2, b2) => {
+    if (a2.geneLine === spec.geneLine && b2.geneLine !== spec.geneLine) {
+      return -1;
+    }
+    if (a2.geneLine !== spec.geneLine && b2.geneLine === spec.geneLine) {
+      return 1;
+    }
+    return a2.level - b2.level || getGeneLineSortIndex(a2.geneLine) - getGeneLineSortIndex(b2.geneLine);
+  });
+  const mutationRows = Array.from(mutationOutcomeMap.values()).sort(
+    (a2, b2) => getGeneLineSortIndex(a2.geneLine) - getGeneLineSortIndex(b2.geneLine) || a2.level - b2.level
+  );
+  return [...normalRows, ...mutationRows];
+}
+function runCatchingFlushRemovedEntities(world) {
+  try {
+    flushRemovedEntities(world);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!message.includes("enableManualEntityRecycling")) {
+      throw error;
+    }
+  }
 }
 class MissingInitialGameDataError extends Error {
   constructor() {
@@ -41199,6 +41342,7 @@ const MAIN_SCENE_AD_NORMAL_COOLDOWN_MS = 2 * 60 * 1e3;
 const MAIN_SCENE_AD_POST_ACTION_DELAY_MS = 500;
 const MAIN_SCENE_AD_FEED_FALLBACK_AFTER_LAND_MS = 3e3;
 const MAIN_SCENE_AD_FEED_IDLE_RETRY_MS = 1e3;
+const MAIN_SCENE_STATUS_HEARTBEAT_INTERVAL_MS = 60 * 1e3;
 const HOUR_MS = 60 * 60 * 1e3;
 const DAY_MS = 24 * HOUR_MS;
 const EGG_HATCH_STARTING_SPRITESHEET_KEYS = [
@@ -41318,6 +41462,7 @@ const _MainSceneWorld = class _MainSceneWorld {
     this._sunTimesRefreshPromise = null;
     this._hasLocationPermission = false;
     this._sunLocationSource = null;
+    this._lastStatusHeartbeatLogTime = null;
     this._pendingFeedAdFoodEid = null;
     this._nextFeedMenuFood = getRandomFeedMenuFoodOption();
     this._feedAdFallbackTimerId = null;
@@ -41333,8 +41478,7 @@ const _MainSceneWorld = class _MainSceneWorld {
       }) : params2,
       (params2) => this._statusSystemsEnabled ? diseaseSystem({
         ...params2,
-        currentTime: this.currentTime,
-        entryStatusSuppression: this._entryStatusSuppression ?? void 0
+        currentTime: this.currentTime
       }) : params2,
       (params2) => eggHatchSystem({ ...params2, currentTime: this.currentTime }),
       (params2) => this._statusSystemsEnabled ? mutationRiskSystem({ ...params2, currentTime: this.currentTime }) : params2,
@@ -41383,6 +41527,7 @@ const _MainSceneWorld = class _MainSceneWorld {
     this._locale = params.locale ?? DEFAULT_LOCALE;
     this._shouldDeferPersistence = params.shouldDeferPersistence;
     this._onReentrySimulationStateChange = params.onReentrySimulationStateChange;
+    this._onNativeWorldDataUpdateForReentry = params.onNativeWorldDataUpdateForReentry;
     this._createInitialGameData = params.createInitialGameData;
     this._changeControlButtons = params.changeControlButtons;
     this._triggerBiteVibration = params.triggerBiteVibration;
@@ -42616,6 +42761,7 @@ ${this.t("main.cleanObjectsPrompt")}`,
   update(delta) {
     var _a;
     if (this._isPaused || this._isRunningReentrySimulation) {
+      this._logStatusHeartbeatIfNeeded(delta);
       return;
     }
     this._updateAutoTimeOfDayIfNeeded();
@@ -42625,6 +42771,7 @@ ${this.t("main.cleanObjectsPrompt")}`,
       delta
     });
     this._releaseEntryStatusSuppressionIfNeeded();
+    this._logStatusHeartbeatIfNeeded(delta);
     if (this._debugGaugeUI) {
       this._debugGaugeUI.update();
     }
@@ -42637,6 +42784,53 @@ ${this.t("main.cleanObjectsPrompt")}`,
       }
     }
     this._previousCleaningMode = this._isCleaningMode;
+  }
+  _logStatusHeartbeatIfNeeded(delta) {
+    var _a;
+    const currentTime = this.currentTime;
+    const heartbeatTime = Number.isFinite(currentTime) ? currentTime : Date.now();
+    const lastLogTime = this._lastStatusHeartbeatLogTime;
+    if (lastLogTime !== null && heartbeatTime - lastLogTime < MAIN_SCENE_STATUS_HEARTBEAT_INTERVAL_MS) {
+      return;
+    }
+    this._lastStatusHeartbeatLogTime = heartbeatTime;
+    const worldMetadata = (_a = this._persistentData) == null ? void 0 : _a.world_metadata;
+    const lastEcsSaved = worldMetadata == null ? void 0 : worldMetadata.last_ecs_saved;
+    const lastEcsSavedAgeMs = typeof lastEcsSaved === "number" && Number.isFinite(lastEcsSaved) ? Math.max(0, heartbeatTime - lastEcsSaved) : null;
+    const mainCharacter = this._getMainCharacterStatusHeartbeatSnapshot();
+    console.warn("[ImportantDiagnostics][MainSceneStatusHeartbeat]", {
+      isPaused: this._isPaused,
+      isRunningReentrySimulation: this._isRunningReentrySimulation,
+      statusSystemsEnabled: this._statusSystemsEnabled,
+      delta,
+      currentTime,
+      lastEcsSaved: lastEcsSaved ?? null,
+      lastEcsSavedAgeMs,
+      mainCharacter
+    });
+  }
+  _getMainCharacterStatusHeartbeatSnapshot() {
+    let eid = -1;
+    try {
+      eid = this._findMainCharacterEntity();
+    } catch {
+      return null;
+    }
+    if (eid < 0 || !hasComponent(this, ObjectComp, eid) || !hasComponent(this, CharacterStatusComp, eid)) {
+      return null;
+    }
+    const state = ObjectComp.state[eid];
+    return {
+      eid,
+      objectId: ObjectComp.id[eid],
+      stamina: CharacterStatusComp.stamina[eid],
+      evolutionGauge: CharacterStatusComp.evolutionGage[eid],
+      statuses: Array.from(CharacterStatusComp.statuses[eid]).filter(
+        (status) => status !== 0
+      ),
+      state,
+      stateName: CharacterState[state] ?? `Unknown(${state})`
+    };
   }
   _requireInitialGameData(initialGameData) {
     var _a;
@@ -43681,12 +43875,13 @@ ${this.t("main.cleanObjectsPrompt")}`,
     };
   }
   getMainCharacterInfoSnapshot() {
-    var _a, _b;
+    var _a, _b, _c;
     const characterEid = this._findMainCharacterEntity();
     if (characterEid === -1) {
       return null;
     }
     const isEgg = ObjectComp.state[characterEid] === CharacterState.EGG;
+    const characterKey = CharacterStatusComp.characterKey[characterEid];
     const eggHatchRemainingMs = isEgg && hasComponent(this, EggHatchComp, characterEid) ? getRemainingEggHatchTime({
       currentTime: this.currentTime,
       hatchTime: EggHatchComp.hatchTime[characterEid],
@@ -43695,6 +43890,8 @@ ${this.t("main.cleanObjectsPrompt")}`,
     return {
       monsterName: ((_b = (_a = this._persistentData) == null ? void 0 : _a.world_metadata.monster_name) == null ? void 0 : _b.trim()) ?? "",
       isEgg,
+      geneLine: isEgg ? null : ((_c = getEvolutionSpec(characterKey)) == null ? void 0 : _c.geneLine) ?? null,
+      geneOutcomes: isEgg ? getHatchGeneOutcomes(this, characterEid) : getEvolutionGeneOutcomes(this, characterEid),
       eggHatchRemainingMs,
       evolutionPhase: CharacterStatusComp.evolutionPhase[characterEid],
       stamina: CharacterStatusComp.stamina[characterEid],
@@ -43869,6 +44066,65 @@ ${this.t("main.cleanObjectsPrompt")}`,
       animationStateSystem
     );
   }
+  _isNativeWorldDataUpdateSuccessful(result) {
+    const status = result == null ? void 0 : result.status;
+    return status === "native_authoritative_completion_completed" || status === "native_world_data_update_completed" || status === "completed" || status === "ok";
+  }
+  async _processNativeWorldDataUpdateForReentry(source, preReentrySnapshot, options) {
+    var _a;
+    if (!this._onNativeWorldDataUpdateForReentry) {
+      throw new Error("missing_native_world_data_update_for_reentry");
+    }
+    this._isRunningReentrySimulation = true;
+    try {
+      const updateResult = await this._onNativeWorldDataUpdateForReentry(source);
+      if (!this._isNativeWorldDataUpdateSuccessful(updateResult)) {
+        throw new Error(
+          typeof (updateResult == null ? void 0 : updateResult.error) === "string" ? updateResult.error : `native_world_data_update_failed:${(updateResult == null ? void 0 : updateResult.status) ?? "unknown"}`
+        );
+      }
+      const reloadedData = await StorageManager.getData(WORLD_DATA_STORAGE_KEY);
+      const validatedData = reloadedData ? this._validateAndMigrateData(reloadedData) : null;
+      if (!this._hasPlayableSavedData(validatedData)) {
+        throw new Error("native_world_data_update_missing_reloaded_world_data");
+      }
+      this.applyPersistedWorldDataForReentry(validatedData);
+      options.clearFoodInteractionSuspendFlag();
+      if ((_a = this._persistentData) == null ? void 0 : _a.world_metadata.app_state) {
+        delete this._persistentData.world_metadata.app_state.suspend_food_interaction_until_reentry;
+      }
+      applyReentryHappyStatusForFullStaminaCharacters(this);
+      this._applyEntryStatusSuppression(source, preReentrySnapshot);
+      if (this._initDiagnostics.isInitTimingActive) {
+        await this._initDiagnostics.measurePhase("reentry_persist_state", async () => {
+          await this._saveCurrentState();
+        });
+      } else {
+        await this._saveCurrentState();
+      }
+      console.log("[MainSceneWorld] Native world data update completed for reentry", {
+        source,
+        status: updateResult.status,
+        worldDataChanged: updateResult.worldDataChanged ?? null,
+        hatched: updateResult.hatched ?? null,
+        previousCharacterState: updateResult.previousCharacterState ?? null,
+        nextCharacterState: updateResult.nextCharacterState ?? null,
+        selectedCharacterKey: updateResult.selectedCharacterKey ?? null
+      });
+    } finally {
+      this._finishReentryRuntimeState();
+    }
+  }
+  applyPersistedWorldDataForReentry(data) {
+    const objectEntities = liveObjectQuery(this);
+    for (const eid of objectEntities) {
+      removeEntity(this, eid);
+    }
+    runCatchingFlushRemovedEntities(this);
+    this._persistentData = data;
+    this._loadEcsEntitiesFromStorage();
+    this._updateAutoTimeOfDayIfNeeded(true);
+  }
   /**
    * 재진입 시뮬레이션 처리
    * 앱을 다시 켤 때 경과된 시간을 계산하고 해당 시간만큼 시뮬레이션 실행
@@ -43940,6 +44196,25 @@ ${this.t("main.cleanObjectsPrompt")}`,
           elapsedTime
         )} elapsed time`
       );
+      if (source === "init" || source === "app_resume") {
+        try {
+          await this._processNativeWorldDataUpdateForReentry(
+            source,
+            preReentrySnapshot,
+            {
+              clearFoodInteractionSuspendFlag
+            }
+          );
+        } catch (error) {
+          result = "failed";
+          capturedError = error;
+          console.error(
+            "[MainSceneWorld] Native reentry world data update failed:",
+            error
+          );
+        }
+        return;
+      }
       const reentrySimulator = new ReentrySimulator();
       if (this._hasEggCharacterForReentrySimulation()) {
         await Promise.all(
@@ -43992,8 +44267,7 @@ ${this.t("main.cleanObjectsPrompt")}`,
         console.error("[MainSceneWorld] Reentry simulation failed:", error);
       } finally {
         clearFoodInteractionSuspendFlag();
-        this._isRunningReentrySimulation = false;
-        this._simulationTime = null;
+        this._finishReentryRuntimeState();
       }
     } catch (error) {
       result = "failed";
@@ -44007,6 +44281,10 @@ ${this.t("main.cleanObjectsPrompt")}`,
         error: capturedError
       });
     }
+  }
+  _finishReentryRuntimeState() {
+    this._isRunningReentrySimulation = false;
+    this._simulationTime = null;
   }
   _hasEggCharacterForReentrySimulation() {
     var _a, _b;
@@ -44045,29 +44323,12 @@ ${this.t("main.cleanObjectsPrompt")}`,
     const statuses = hasComponent(this, CharacterStatusComp, characterEid) ? Array.from(CharacterStatusComp.statuses[characterEid]).filter(
       (status) => status > 0
     ) : [];
-    const hasSick = ObjectComp.state[characterEid] === CharacterState.SICK || statuses.includes(CharacterStatus.SICK);
     const isSleeping = ObjectComp.state[characterEid] === CharacterState.SLEEPING;
     return {
       eid: characterEid,
       signature: `${ObjectComp.state[characterEid]}|${statuses.join(",")}`,
-      hasSick,
       isSleeping
     };
-  }
-  _clearMainCharacterSickState(eid) {
-    for (let i2 = 0; i2 < CharacterStatusComp.statuses[eid].length; i2 += 1) {
-      if (CharacterStatusComp.statuses[eid][i2] === CharacterStatus.SICK) {
-        CharacterStatusComp.statuses[eid][i2] = 0;
-      }
-    }
-    if (hasComponent(this, DiseaseSystemComp, eid)) {
-      DiseaseSystemComp.sickStartTime[eid] = 0;
-    }
-    if (ObjectComp.state[eid] === CharacterState.SICK) {
-      restoreCharacterFreeRoamingState(this, eid, {
-        now: this.currentTime
-      });
-    }
   }
   _clearMainCharacterSleepState(eid) {
     if (!hasComponent(this, SleepSystemComp, eid)) {
@@ -44106,20 +44367,13 @@ ${this.t("main.cleanObjectsPrompt")}`,
       return;
     }
     const previousSuppression = this._entryStatusSuppression;
-    const suppressSick = (previousSuppression == null ? void 0 : previousSuppression.suppressSick) === true || !preReentrySnapshot.hasSick && postReentrySnapshot.hasSick;
     const suppressSleep = (previousSuppression == null ? void 0 : previousSuppression.suppressSleep) === true || !preReentrySnapshot.isSleeping && postReentrySnapshot.isSleeping;
-    if (!suppressSick && !suppressSleep) {
+    if (!suppressSleep) {
       return;
     }
-    if (suppressSick) {
-      this._clearMainCharacterSickState(postReentrySnapshot.eid);
-    }
-    if (suppressSleep) {
-      this._clearMainCharacterSleepState(postReentrySnapshot.eid);
-    }
+    this._clearMainCharacterSleepState(postReentrySnapshot.eid);
     const suppressedSnapshot = this._captureMainCharacterEntryStatusSnapshot();
     this._entryStatusSuppression = {
-      suppressSick,
       suppressSleep,
       baselineSignature: (suppressedSnapshot == null ? void 0 : suppressedSnapshot.signature) ?? postReentrySnapshot.signature
     };
@@ -52911,6 +53165,7 @@ function createMonsterBookCardInfo(params) {
     isReached,
     rarity,
     reachProbability,
+    geneLine: spec.geneLine,
     details: isReached ? {
       displayName: spec.displayName,
       code: spec.code,
@@ -52940,8 +53195,17 @@ const CARD_COLUMNS = 3;
 const CARD_ROWS = 2;
 const MONSTER_BOOK_BACKGROUND_URL = "/assets/game/sprites/monster-book.png";
 const RARITY_STAR_URL = "/assets/game/sprites/star.png";
+const GENE_SYMBOL_SPRITESHEET_ALIAS = "gene-symbol";
+const GENE_SYMBOL_SPRITESHEET_URL = "/assets/game/sprites/gene-symbol.json";
+const GENE_SYMBOL_FRAME_BY_LINE = {
+  "green-slime": "green",
+  "soil-slime": "soil",
+  "skull-slime": "skull"
+};
 const RARITY_STAR_SIZE = 14.4;
 const RARITY_STAR_GAP = 1;
+const GENE_SYMBOL_SIZE = 16;
+const GENE_SYMBOL_INSET = 5;
 const CARD_BORDER_WIDTH = 1.5;
 const CURRENT_MONSTER_CARD_BORDER_WIDTH = 3.5;
 const CLASS_TITLE_FONT_SIZE = 31.68;
@@ -53004,6 +53268,7 @@ class MonsterBookScene extends Container {
     await Promise.all([
       this.preloadBookBackground(),
       this.preloadRarityStar(),
+      this.preloadGeneSymbolSpritesheet(),
       this.preloadReachedMonsterSprites()
     ]);
     window.addEventListener("keydown", this.handleKeyDown);
@@ -53096,6 +53361,26 @@ class MonsterBookScene extends Container {
     } catch (error) {
       console.error("[MonsterBookScene] Failed to load rarity star", {
         url: RARITY_STAR_URL,
+        error
+      });
+    }
+  }
+  async preloadGeneSymbolSpritesheet() {
+    try {
+      try {
+        Assets.add({
+          alias: GENE_SYMBOL_SPRITESHEET_ALIAS,
+          src: GENE_SYMBOL_SPRITESHEET_URL
+        });
+      } catch {
+      }
+      const spritesheet = await Assets.load(
+        GENE_SYMBOL_SPRITESHEET_ALIAS
+      );
+      spritesheet.textureSource.scaleMode = "nearest";
+    } catch (error) {
+      console.warn("[MonsterBookScene] Failed to load gene symbol spritesheet", {
+        url: GENE_SYMBOL_SPRITESHEET_URL,
         error
       });
     }
@@ -53241,6 +53526,7 @@ class MonsterBookScene extends Container {
       unknown.position.set(params.x + params.width / 2, params.y + params.height / 2 + 3);
       container.addChild(unknown);
     }
+    this.addGeneSymbol(container, cardInfo.geneLine, params);
     return {
       container,
       characterKey,
@@ -53260,6 +53546,34 @@ class MonsterBookScene extends Container {
     }
     starContainer.position.set(x2, y2);
     container.addChild(starContainer);
+  }
+  addGeneSymbol(container, geneLine, params) {
+    const texture = this.getGeneSymbolTexture(geneLine);
+    if (!texture) {
+      return;
+    }
+    const sprite = new Sprite(texture);
+    sprite.width = GENE_SYMBOL_SIZE;
+    sprite.height = GENE_SYMBOL_SIZE;
+    sprite.roundPixels = true;
+    sprite.position.set(
+      params.x + params.width - GENE_SYMBOL_INSET - GENE_SYMBOL_SIZE,
+      params.y + params.height - GENE_SYMBOL_INSET - GENE_SYMBOL_SIZE
+    );
+    container.addChild(sprite);
+  }
+  getGeneSymbolTexture(geneLine) {
+    try {
+      const spritesheet = Assets.get(
+        GENE_SYMBOL_SPRITESHEET_ALIAS
+      );
+      if (!(spritesheet instanceof Spritesheet)) {
+        return null;
+      }
+      return spritesheet.textures[GENE_SYMBOL_FRAME_BY_LINE[geneLine]] ?? null;
+    } catch {
+      return null;
+    }
   }
   addMonsterSprite(container, characterKey, params) {
     var _a;
@@ -53467,6 +53781,7 @@ class Game {
       hideFlappyBirdSettingsMenu,
       onSceneTransitionStateChange,
       onMainSceneReentrySimulationStateChange,
+      onNativeWorldDataUpdateForReentry,
       loadingTraceContext,
       trustedClock: providedTrustedClock
     } = params;
@@ -53488,6 +53803,7 @@ class Game {
     this.hideFlappyBirdSettingsMenu = hideFlappyBirdSettingsMenu;
     this._onSceneTransitionStateChange = onSceneTransitionStateChange;
     this._onMainSceneReentrySimulationStateChange = onMainSceneReentrySimulationStateChange;
+    this._onNativeWorldDataUpdateForReentry = onNativeWorldDataUpdateForReentry;
     this._createInitialGameData = onCreateInitialGameData;
     this._initialSceneKey = initialSceneKey ?? SceneKey.MAIN;
     this._debugMode = debugMode ?? false;
@@ -53847,7 +54163,8 @@ class Game {
           shouldDeferPersistence: () => this.currentSceneKey === SceneKey.FLAPPY_BIRD_GAME,
           loadingTraceContext,
           trustedClock: this._trustedClock,
-          onReentrySimulationStateChange: this._onMainSceneReentrySimulationStateChange
+          onReentrySimulationStateChange: this._onMainSceneReentrySimulationStateChange,
+          onNativeWorldDataUpdateForReentry: this._onNativeWorldDataUpdateForReentry
         });
         await mainSceneWorld.init();
         return mainSceneWorld;
@@ -54672,9 +54989,9 @@ export {
   NAME_LABEL_STROKE_WIDTH as Z,
   SUPPORTED_LOCALES as _,
   applyEvolutionAdminExport as a,
-  CharacterState as a0,
-  CharacterKeyECS as a1,
-  GAME_CONSTANTS as a2,
+  GAME_CONSTANTS as a0,
+  CharacterState as a1,
+  CharacterKeyECS as a2,
   SceneKey as a3,
   TimeOfDay as a4,
   hasLegacyMonsterBookState as a5,

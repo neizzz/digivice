@@ -6,6 +6,7 @@ import {
   type MainCharacterInfoSnapshot,
   type MainSceneSfxKind,
   type MainSceneReentrySimulationStateChangeCallback,
+  type NativeWorldDataUpdateForReentryCallback,
   getNativeSunTimes,
   hasLegacyMonsterBookState,
   migrateLegacyMonsterBookIfNeeded,
@@ -861,9 +862,6 @@ const GameContainer: React.FC = () => {
   const isResumeReentrySimulationRunningRef = useRef(false);
   const homeWidgetLaunchModeRef = useRef<HomeWidgetLaunchMode>("default");
   const nativeBackgroundWidgetSyncTriggeredRef = useRef(false);
-  const syncHomeWidgetForNativeBackgroundRef = useRef<
-    ((reason: string) => Promise<HomeWidgetBackgroundSyncResult>) | null
-  >(null);
   const completeWidgetRefreshAfterInitReentryRef = useRef<
     ((
       result: "completed" | "skipped" | "failed" | undefined,
@@ -1967,16 +1965,44 @@ const GameContainer: React.FC = () => {
           return;
         }
 
-        if (params.result === "completed") {
-          void syncHomeWidgetForNativeBackgroundRef.current?.(
-            params.source === "init"
-              ? "main_scene_reentry_finished_init"
-              : "main_scene_reentry_finished",
-          );
-        }
       },
       [hideResumeGuardAfterLayout, showResumeGuard],
     );
+
+  const handleNativeWorldDataUpdateForReentry =
+    useCallback<NativeWorldDataUpdateForReentryCallback>(async (source) => {
+      if (typeof window === "undefined") {
+        throw new Error("native_world_data_update_unavailable");
+      }
+
+      const controller =
+        window.homeWidgetController ?? window.homeWidgetRefreshController;
+
+      if (typeof controller?.completeNativeWorldDataUpdate !== "function") {
+        throw new Error("native_world_data_update_unavailable");
+      }
+
+      const result = await controller.completeNativeWorldDataUpdate({
+        source,
+      });
+
+      logImportantDiagnostics(
+        "log",
+        "[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+        {
+          action: "native_world_data_update_for_reentry",
+          source,
+          status: result?.status ?? null,
+          worldDataChanged: result?.worldDataChanged ?? null,
+          hatched: result?.hatched ?? null,
+          previousCharacterState: result?.previousCharacterState ?? null,
+          nextCharacterState: result?.nextCharacterState ?? null,
+          selectedCharacterKey: result?.selectedCharacterKey ?? null,
+        },
+      );
+
+      return result;
+    }, []);
 
   const loadHomeWidgetLaunchContext = useCallback(async () => {
     if (typeof window === "undefined") {
@@ -2647,9 +2673,6 @@ const GameContainer: React.FC = () => {
     },
     [gameInstance],
   );
-  syncHomeWidgetForNativeBackgroundRef.current =
-    syncHomeWidgetForNativeBackground;
-
   const completeWidgetRefreshAfterReentry = useCallback(
     async (result: "completed" | "skipped" | "failed" | undefined) => {
       if (typeof window === "undefined") {
@@ -2660,7 +2683,6 @@ const GameContainer: React.FC = () => {
         window.homeWidgetController ?? window.homeWidgetRefreshController;
       const reason = "main_scene_reentry_finished_init_widget_refresh";
       let completionResult = result ?? "failed";
-      let syncOutcome: HomeWidgetBackgroundSyncResult | null = null;
 
       logImportantDiagnostics(
         "log",
@@ -2676,59 +2698,8 @@ const GameContainer: React.FC = () => {
       );
 
       try {
-        if (result === "completed") {
-          logImportantDiagnostics(
-            "log",
-            "[ImportantDiagnostics][HomeWidgetBackgroundSync]",
-            {
-              action: "widget_refresh_sync_dispatched",
-              reason,
-            },
-          );
-
-          syncOutcome = await syncHomeWidgetForNativeBackground(reason);
-
-          if (syncOutcome.status === "completed") {
-            logImportantDiagnostics(
-              "log",
-              "[ImportantDiagnostics][HomeWidgetBackgroundSync]",
-              {
-                action: "widget_refresh_sync_completed",
-                reason,
-                selectedSource: syncOutcome.selectedSource,
-                storedLastEcsSaved: syncOutcome.storedLastEcsSaved,
-                inMemoryLastEcsSaved: syncOutcome.inMemoryLastEcsSaved,
-                syncStatus:
-                  typeof syncOutcome.syncResult?.status === "string"
-                    ? syncOutcome.syncResult.status
-                    : null,
-                currentPublishStatus:
-                  typeof syncOutcome.syncResult?.currentPublishStatus ===
-                  "string"
-                    ? syncOutcome.syncResult.currentPublishStatus
-                    : null,
-                authoritativePublishStatus:
-                  typeof syncOutcome.syncResult?.authoritativePublishStatus ===
-                  "string"
-                    ? syncOutcome.syncResult.authoritativePublishStatus
-                    : null,
-              },
-            );
-          } else {
-            completionResult = "failed";
-            logImportantDiagnostics(
-              "warn",
-              "[ImportantDiagnostics][HomeWidgetBackgroundSync]",
-              {
-                action: "widget_refresh_failed",
-                reason,
-                failureStage: "sync",
-                reentryResult: result,
-                syncOutcome,
-              },
-            );
-          }
-        } else {
+        if (result !== "completed") {
+          completionResult = "failed";
           logImportantDiagnostics(
             "warn",
             "[ImportantDiagnostics][HomeWidgetBackgroundSync]",
@@ -2748,11 +2719,7 @@ const GameContainer: React.FC = () => {
               source: "main_scene_reentry_finished_widget_refresh",
               launchMode: homeWidgetLaunchModeRef.current,
               reentryResult: result ?? null,
-              selectedSource: syncOutcome?.selectedSource ?? null,
-              syncStatus:
-                typeof syncOutcome?.syncResult?.status === "string"
-                  ? syncOutcome.syncResult.status
-                  : null,
+              nativeUpdateSource: "main_scene_reentry",
             });
             logImportantDiagnostics(
               "log",
@@ -2762,7 +2729,7 @@ const GameContainer: React.FC = () => {
                 reason,
                 completionResult,
                 reentryResult: result ?? null,
-                selectedSource: syncOutcome?.selectedSource ?? null,
+                nativeUpdateSource: "main_scene_reentry",
               },
             );
           } else {
@@ -2800,7 +2767,7 @@ const GameContainer: React.FC = () => {
         }
       }
     },
-    [gameInstance, syncHomeWidgetForNativeBackground],
+    [gameInstance],
   );
   completeWidgetRefreshAfterInitReentryRef.current =
     completeWidgetRefreshAfterReentry;
@@ -3398,6 +3365,8 @@ const GameContainer: React.FC = () => {
       onSceneTransitionStateChange: handleSceneTransitionStateChange,
       onMainSceneReentrySimulationStateChange:
         handleMainSceneReentrySimulationStateChange,
+      onNativeWorldDataUpdateForReentry:
+        handleNativeWorldDataUpdateForReentry,
       loadingTraceContext:
         entryFlowDiagnostics.createGameLoadingTraceContext(attemptId),
       changeControlButtons: (controlButtonParams) => {
@@ -3529,6 +3498,7 @@ const GameContainer: React.FC = () => {
     locale,
     getFlappyBirdBestScore,
     handleMainSceneReentrySimulationStateChange,
+    handleNativeWorldDataUpdateForReentry,
     handleSceneTransitionStateChange,
     openMonsterInfo,
     openSettingMenu,

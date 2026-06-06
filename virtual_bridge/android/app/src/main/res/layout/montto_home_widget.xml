@@ -162,6 +162,22 @@
             </LinearLayout>
         </LinearLayout>
 
+        <TextView
+            android:id="@+id/widget_update_time_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|start"
+            android:layout_marginStart="2dp"
+            android:layout_marginBottom="2dp"
+            android:background="#66000000"
+            android:includeFontPadding="false"
+            android:paddingHorizontal="4dp"
+            android:paddingVertical="1dp"
+            android:text="upd 00:00:00"
+            android:textColor="#FFFFFFFF"
+            android:textSize="10sp"
+            android:visibility="gone" />
+
         <LinearLayout
             android:id="@+id/widget_debug_controls"
             android:layout_width="wrap_content"

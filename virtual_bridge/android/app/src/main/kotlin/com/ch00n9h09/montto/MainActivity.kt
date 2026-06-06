@@ -193,6 +193,14 @@ open class MainActivity : FlutterActivity() {
                     )
                 }
 
+                "completeNativeWorldDataUpdate" -> {
+                    val nativeUpdateResult = HomeWidgetNativeAuthoritativeRefresh.complete(
+                        context = this,
+                        allowEggSnapshot = true,
+                    )
+                    result.success(nativeUpdateResult.toMap())
+                }
+
                 "getRefreshDiagnostics" -> {
                     result.success(
                         HomeWidgetAuthoritativeRefreshRequester.readDiagnostics(this),

@@ -118,6 +118,20 @@ function createStatusIconSprite(textureName: string): PIXI.Sprite {
   return sprite;
 }
 
+function attachStatusIconSpriteToStage(
+	sprite: PIXI.Sprite,
+	stage: PIXI.Container,
+): void {
+	if (!stage.sortableChildren) {
+		stage.sortableChildren = true;
+	}
+
+	if (sprite.parent !== stage) {
+		sprite.removeFromParent();
+		stage.addChild(sprite);
+	}
+}
+
 function getStatusIconListWidth(iconCount: number): number {
   return (
     iconCount * STATUS_ICON_SIZE +
@@ -277,12 +291,11 @@ function organizeStatuses(statuses: CharacterStatus[]): {
 }
 
 function getOverlayIconTextureName(
-  world: MainSceneWorld,
   eid: number,
   latestTemporary: CharacterStatus | null,
 ): string | null {
   if (ObjectComp.state[eid] === CharacterState.SLEEPING) {
-    return world.isSleepDebugEffectEnabled() ? SLEEP_ICON_TEXTURE_NAME : null;
+		return SLEEP_ICON_TEXTURE_NAME;
   }
 
   if (!latestTemporary) {
@@ -348,11 +361,7 @@ export function statusIconRenderSystem(params: {
 
     // 상태를 지속적 상태와 일시적 상태로 분리
     const { persistent, latestTemporary } = organizeStatuses(allStatuses);
-    const overlayTextureName = getOverlayIconTextureName(
-      world,
-      eid,
-      latestTemporary,
-    );
+		const overlayTextureName = getOverlayIconTextureName(eid, latestTemporary);
     const iconCount = persistent.length + (overlayTextureName ? 1 : 0);
     const { centerX: iconListCenterX, centerY: iconCenterY } =
       getStatusIconListCenterAtCharacterTopRight({
@@ -360,10 +369,7 @@ export function statusIconRenderSystem(params: {
         eid,
         iconCount,
       });
-    const iconStartX = getUnifiedStatusIconStartX(
-      iconListCenterX,
-      iconCount,
-    );
+		const iconStartX = getUnifiedStatusIconStartX(iconListCenterX, iconCount);
 
     // 지속적 상태 아이콘들 처리 (캐릭터 우측 상단 기준 가로 배열)
     let sprites = entityStatusSprites.get(eid);
@@ -393,23 +399,27 @@ export function statusIconRenderSystem(params: {
       const expectedTexture = getCommon16x16Texture(textureName);
 
       // 기존 스프라이트가 있고 올바른 텍스처인지 확인
-      if (sprites[j] && sprites[j].texture === expectedTexture) {
-        // 기존 스프라이트 재사용, 위치만 업데이트
+			if (
+				sprites[j] &&
+				!sprites[j].destroyed &&
+				sprites[j].texture === expectedTexture
+			) {
+				// 기존 스프라이트 재사용, stage에서 분리되어 있으면 재부착
+				attachStatusIconSpriteToStage(sprites[j], world.stage);
       } else {
         // 기존 스프라이트 제거 (있다면)
-        if (sprites[j]) {
+				if (sprites[j] && !sprites[j].destroyed) {
           sprites[j].removeFromParent();
         }
 
         // 새 스프라이트 생성
         sprites[j] = createStatusIconSprite(textureName);
-        world.stage.addChild(sprites[j]);
+				attachStatusIconSpriteToStage(sprites[j], world.stage);
       }
 
       // 지속적 상태 아이콘 위치 설정 (왼쪽부터 순서대로 배치)
       sprites[j].x =
-        iconStartX +
-        j * (STATUS_ICON_SIZE + STATUS_ICON_HORIZONTAL_SPACING);
+				iconStartX + j * (STATUS_ICON_SIZE + STATUS_ICON_HORIZONTAL_SPACING);
       sprites[j].y = iconCenterY;
       sprites[j].zIndex = iconZIndex;
     }
@@ -423,19 +433,21 @@ export function statusIconRenderSystem(params: {
       // 기존 스프라이트가 있고 올바른 텍스처인지 확인
       if (
         currentTempSprite &&
+				!currentTempSprite.destroyed &&
         currentTempSprite.texture === expectedTexture
       ) {
-        // 기존 스프라이트 재사용, 위치만 업데이트
+				// 기존 스프라이트 재사용, stage에서 분리되어 있으면 재부착
+				attachStatusIconSpriteToStage(currentTempSprite, world.stage);
       } else {
         // 기존 스프라이트 제거 (있다면)
-        if (currentTempSprite) {
+				if (currentTempSprite && !currentTempSprite.destroyed) {
           currentTempSprite.removeFromParent();
         }
 
         // 새 스프라이트 생성
         const newTempSprite = createStatusIconSprite(overlayTextureName);
         entityTemporarySprites.set(eid, newTempSprite);
-        world.stage.addChild(newTempSprite);
+				attachStatusIconSpriteToStage(newTempSprite, world.stage);
       }
 
       // 오버레이 아이콘 위치 설정 (persistent 다음 순서)

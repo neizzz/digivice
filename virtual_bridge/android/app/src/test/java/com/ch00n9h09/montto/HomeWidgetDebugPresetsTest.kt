@@ -147,11 +147,38 @@ class HomeWidgetDebugPresetsTest {
             debugModeEnabled = false,
             debugOverrideSnapshot = null,
             currentSnapshot = currentSnapshot,
-            authoritativeSnapshot = null,
-            worldDataFallback = { authoritativeSnapshot },
+            authoritativeSnapshot = authoritativeSnapshot,
+            worldDataFallback = { null },
         )
 
         assertEquals(authoritativeSnapshot, selected)
+    }
+
+    @Test
+    fun `selector does not revive stale world data fallback when current snapshot exists`() {
+        val nowMs = 1_717_171_717L
+        val currentSnapshot = HomeWidgetDebugPresets.resolveSnapshot(index = 1, nowMs = nowMs)!!
+        val staleFallbackSnapshot = currentSnapshot.copy(
+            snapshotKind = "authoritativeAppState",
+            characterState = "sleeping",
+            displayState = "sleep",
+            visibleStatusIcons = listOf("sick", "sleeping"),
+        )
+        var fallbackCalled = false
+
+        val selected = HomeWidgetSnapshotSelector.select(
+            debugModeEnabled = false,
+            debugOverrideSnapshot = null,
+            currentSnapshot = currentSnapshot,
+            authoritativeSnapshot = null,
+            worldDataFallback = {
+                fallbackCalled = true
+                staleFallbackSnapshot
+            },
+        )
+
+        assertEquals(currentSnapshot, selected)
+        assertFalse(fallbackCalled)
     }
 
     @Test

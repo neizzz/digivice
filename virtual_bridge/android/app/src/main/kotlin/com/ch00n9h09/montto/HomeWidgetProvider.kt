@@ -8,6 +8,10 @@ import android.content.Context
 import android.content.Intent
 import android.view.View
 import android.widget.RemoteViews
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 import kotlin.math.roundToInt
 
 enum class WidgetRenderMode {
@@ -113,11 +117,30 @@ internal object HomeWidgetBroadcastActionHandler {
     }
 }
 
+internal object HomeWidgetUpdateTimeLabel {
+    fun resolveVisibility(debugModeEnabled: Boolean): Int {
+        return if (debugModeEnabled) View.VISIBLE else View.GONE
+    }
+
+    fun format(
+        nowMs: Long,
+        compact: Boolean,
+        timeZone: TimeZone = TimeZone.getDefault(),
+    ): String {
+        val formatter = SimpleDateFormat("HH:mm:ss", Locale.US).apply {
+            this.timeZone = timeZone
+        }
+        val timeText = formatter.format(Date(nowMs))
+        return if (compact) timeText else "upd $timeText"
+    }
+}
+
 abstract class BaseHomeWidgetProvider : AppWidgetProvider() {
     protected open val layoutResId: Int = R.layout.montto_home_widget
     protected open val statusIconsRightToLeft: Boolean = false
     protected open val fallbackWidgetWidthDp: Int = 180
     protected open val fallbackWidgetHeightDp: Int = 90
+    protected open val compactUpdateTimeLabel: Boolean = false
     protected open val statusIconGroupViewId: Int = R.id.widget_status_icon_row
     protected open val statusIconRowViewIds: List<Int> = listOf(R.id.widget_status_icon_row)
     protected open val statusIconRows: List<List<Int>> = listOf(
@@ -171,6 +194,12 @@ abstract class BaseHomeWidgetProvider : AppWidgetProvider() {
             views = views,
             appWidgetId = appWidgetId ?: 0,
             debugModeEnabled = debugModeEnabled && appWidgetId != null,
+        )
+        bindUpdateTimeLabel(
+            views = views,
+            debugModeEnabled = debugModeEnabled,
+            compact = compactUpdateTimeLabel,
+            nowMs = System.currentTimeMillis(),
         )
 
         if (snapshot == null) {
@@ -367,6 +396,26 @@ abstract class BaseHomeWidgetProvider : AppWidgetProvider() {
                 appWidgetId = appWidgetId,
                 requestCodeOffset = 3,
             ),
+        )
+    }
+
+    private fun bindUpdateTimeLabel(
+        views: RemoteViews,
+        debugModeEnabled: Boolean,
+        compact: Boolean,
+        nowMs: Long,
+    ) {
+        views.setViewVisibility(
+            R.id.widget_update_time_label,
+            HomeWidgetUpdateTimeLabel.resolveVisibility(debugModeEnabled),
+        )
+        if (!debugModeEnabled) {
+            return
+        }
+
+        views.setTextViewText(
+            R.id.widget_update_time_label,
+            HomeWidgetUpdateTimeLabel.format(nowMs = nowMs, compact = compact),
         )
     }
 
@@ -628,6 +677,7 @@ class HomeWidget1x1Provider : BaseHomeWidgetProvider() {
     override val statusIconsRightToLeft: Boolean = true
     override val fallbackWidgetWidthDp: Int = 90
     override val fallbackWidgetHeightDp: Int = 90
+    override val compactUpdateTimeLabel: Boolean = true
     override val statusIconRowViewIds: List<Int> = listOf(
         R.id.widget_status_icon_row_1,
         R.id.widget_status_icon_row_2,

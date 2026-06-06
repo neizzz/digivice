@@ -39,6 +39,19 @@ declare global {
     }) => Promise<{
       status?: string;
     }>;
+    completeNativeWorldDataUpdate?: (payload: {
+      source?: "init" | "app_resume";
+    }) => Promise<{
+      status?: string;
+      updatedRawWorldData?: string | null;
+      worldDataChanged?: boolean;
+      hatched?: boolean;
+      previousCharacterState?: number | null;
+      nextCharacterState?: number | null;
+      selectedCharacterKey?: number | null;
+      error?: unknown;
+      [key: string]: unknown;
+    }>;
     getRefreshDiagnostics?: () => Promise<Record<string, unknown>>;
   };
 

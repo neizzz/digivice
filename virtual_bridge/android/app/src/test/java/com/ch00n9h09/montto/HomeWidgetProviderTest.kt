@@ -1,7 +1,9 @@
 package com.ch00n9h09.montto
 
+import android.view.View
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import java.util.TimeZone
 
 class HomeWidgetProviderTest {
     @Test
@@ -140,6 +142,42 @@ class HomeWidgetProviderTest {
                 fallbackDp = 180,
                 renderMode = WidgetRenderMode.PICKER_PREVIEW,
             ),
+        )
+    }
+
+    @Test
+    fun `debug update time label is visible and includes prefix for 2x1`() {
+        assertEquals(
+            View.VISIBLE,
+            HomeWidgetUpdateTimeLabel.resolveVisibility(debugModeEnabled = true),
+        )
+        assertEquals(
+            "upd 14:32:05",
+            HomeWidgetUpdateTimeLabel.format(
+                nowMs = 52_325_000L,
+                compact = false,
+                timeZone = TimeZone.getTimeZone("UTC"),
+            ),
+        )
+    }
+
+    @Test
+    fun `debug update time label is compact for 1x1`() {
+        assertEquals(
+            "14:32:05",
+            HomeWidgetUpdateTimeLabel.format(
+                nowMs = 52_325_000L,
+                compact = true,
+                timeZone = TimeZone.getTimeZone("UTC"),
+            ),
+        )
+    }
+
+    @Test
+    fun `release update time label is gone`() {
+        assertEquals(
+            View.GONE,
+            HomeWidgetUpdateTimeLabel.resolveVisibility(debugModeEnabled = false),
         )
     }
 }

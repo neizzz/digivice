@@ -3,7 +3,11 @@ import * as PIXI from "pixi.js";
 import { SceneKey } from "./SceneKey";
 import type { Scene } from "./interfaces/Scene";
 import type { ControlButtonParams, ControlButtonType } from "./ui/types";
-import { MainSceneWorld, type MainSceneWorldData } from "./scenes/MainScene/world";
+import {
+  MainSceneWorld,
+  type MainSceneNativeWorldDataUpdateForReentryCallback,
+  type MainSceneWorldData,
+} from "./scenes/MainScene/world";
 import type { MainSceneLoadingTraceContext } from "./scenes/MainScene/diagnostics/mainSceneInitDiagnostics";
 import {
   TimeOfDay,
@@ -97,6 +101,8 @@ export type MainSceneReentrySimulationStateChangeCallback = (params: {
   result?: "completed" | "skipped" | "failed";
   error?: unknown;
 }) => void;
+export type NativeWorldDataUpdateForReentryCallback =
+  MainSceneNativeWorldDataUpdateForReentryCallback;
 export type FlappyBirdSkyContext = {
   mode: TimeOfDayMode;
   timeOfDay: TimeOfDay;
@@ -230,6 +236,7 @@ export class Game {
   private _parentElement: HTMLElement;
   private _onSceneTransitionStateChange?: SceneTransitionStateChangeCallback;
   private _onMainSceneReentrySimulationStateChange?: MainSceneReentrySimulationStateChangeCallback;
+  private _onNativeWorldDataUpdateForReentry?: NativeWorldDataUpdateForReentryCallback;
   private _debugParentElement: HTMLElement;
   private _createInitialGameData: CreateInitialGameDataCallback;
   private _startMiniGame?: StartMiniGameCallback;
@@ -292,6 +299,7 @@ export class Game {
     hideFlappyBirdSettingsMenu?: HideFlappyBirdSettingsMenuCallback;
     onSceneTransitionStateChange?: SceneTransitionStateChangeCallback;
     onMainSceneReentrySimulationStateChange?: MainSceneReentrySimulationStateChangeCallback;
+    onNativeWorldDataUpdateForReentry?: NativeWorldDataUpdateForReentryCallback;
     loadingTraceContext?: MainSceneLoadingTraceContext | null;
     trustedClock?: TrustedClock;
   }) {
@@ -320,6 +328,7 @@ export class Game {
       hideFlappyBirdSettingsMenu,
       onSceneTransitionStateChange,
       onMainSceneReentrySimulationStateChange,
+      onNativeWorldDataUpdateForReentry,
       loadingTraceContext,
       trustedClock: providedTrustedClock,
     } = params;
@@ -342,6 +351,8 @@ export class Game {
     this._onSceneTransitionStateChange = onSceneTransitionStateChange;
     this._onMainSceneReentrySimulationStateChange =
       onMainSceneReentrySimulationStateChange;
+    this._onNativeWorldDataUpdateForReentry =
+      onNativeWorldDataUpdateForReentry;
     this._createInitialGameData = onCreateInitialGameData;
     this._initialSceneKey = initialSceneKey ?? SceneKey.MAIN;
     this._debugMode = debugMode ?? false;
@@ -830,6 +841,8 @@ export class Game {
           trustedClock: this._trustedClock,
           onReentrySimulationStateChange:
             this._onMainSceneReentrySimulationStateChange,
+          onNativeWorldDataUpdateForReentry:
+            this._onNativeWorldDataUpdateForReentry,
         });
         await mainSceneWorld.init();
         return mainSceneWorld as unknown as Scene;

@@ -17,12 +17,28 @@ internal data class HomeWidgetNativeAuthoritativeRefreshResult(
 ) {
     val succeeded: Boolean
         get() = status == HomeWidgetNativeAuthoritativeRefreshStatus.COMPLETED.value
+
+    fun toMap(includeWorldData: Boolean = true): Map<String, Any?> {
+        return mapOf(
+            "status" to status,
+            "updatedRawWorldData" to if (includeWorldData) updatedRawWorldData else null,
+            "hasUpdatedRawWorldData" to !updatedRawWorldData.isNullOrBlank(),
+            "hasSnapshot" to hasSnapshot,
+            "worldDataChanged" to worldDataChanged,
+            "hatched" to hatched,
+            "selectedCharacterKey" to selectedCharacterKey,
+            "previousCharacterState" to previousCharacterState,
+            "nextCharacterState" to nextCharacterState,
+            "error" to error,
+        )
+    }
 }
 
 internal object HomeWidgetNativeAuthoritativeRefresh {
     fun complete(
         context: Context,
         nowMs: Long = System.currentTimeMillis(),
+        allowEggSnapshot: Boolean = false,
     ): HomeWidgetNativeAuthoritativeRefreshResult {
         val widgetPrefs = context.getSharedPreferences(
             HomeWidgetConstants.STORAGE_NAME,
@@ -41,6 +57,7 @@ internal object HomeWidgetNativeAuthoritativeRefresh {
                 HomeWidgetSnapshotFactory.persistCurrentSnapshot(context, snapshot)
                 HomeWidgetSnapshotFactory.persistAuthoritativeSnapshot(context, snapshot)
             },
+            allowEggSnapshot = allowEggSnapshot,
         )
     }
 
@@ -52,6 +69,8 @@ internal object HomeWidgetNativeAuthoritativeRefresh {
         clearSnapshots: () -> Unit = {
             HomeWidgetNativeRefreshSnapshotStore.clear(widgetPrefs, flutterPrefs)
         },
+        randomProvider: HomeWidgetNativeLifecycleRandomProvider? = null,
+        allowEggSnapshot: Boolean = false,
     ): HomeWidgetNativeAuthoritativeRefreshResult {
         val rawWorldData = flutterPrefs.getString(HomeWidgetConstants.FLUTTER_WORLD_DATA_KEY, null)
             ?: return failed("missing_world_data")
@@ -62,10 +81,18 @@ internal object HomeWidgetNativeAuthoritativeRefresh {
                 rawWorldData = rawWorldData,
                 clearSnapshots = clearSnapshots,
             )
-            val refreshedWorldData = HomeWidgetNativeRefreshWorldData.refresh(
-                rawWorldData = rawWorldData,
-                nowMs = nowMs,
-            )
+            val refreshedWorldData = if (randomProvider == null) {
+                HomeWidgetNativeRefreshWorldData.refresh(
+                    rawWorldData = rawWorldData,
+                    nowMs = nowMs,
+                )
+            } else {
+                HomeWidgetNativeRefreshWorldData.refresh(
+                    rawWorldData = rawWorldData,
+                    nowMs = nowMs,
+                    randomProvider = randomProvider,
+                )
+            }
 
             HomeWidgetNativeRefreshSnapshotStore.publishCompletion(
                 widgetPrefs = widgetPrefs,
@@ -73,6 +100,7 @@ internal object HomeWidgetNativeAuthoritativeRefresh {
                 refreshedWorldData = refreshedWorldData,
                 nowMs = nowMs,
                 persistSnapshot = persistSnapshot,
+                allowEggSnapshot = allowEggSnapshot,
             )
         }.getOrElse { error ->
             failed(error.message ?: error.toString())
@@ -146,13 +174,14 @@ private object HomeWidgetNativeRefreshSnapshotStore {
         refreshedWorldData: RefreshedHomeWidgetWorldData,
         nowMs: Long,
         persistSnapshot: (HomeWidgetSnapshot?) -> Unit,
+        allowEggSnapshot: Boolean = false,
     ): HomeWidgetNativeAuthoritativeRefreshResult {
         val snapshot = HomeWidgetSnapshotFactory.buildFromWorldDataJson(
             refreshedWorldData.rawWorldData,
             nowMs = nowMs,
         ) ?: throw IllegalStateException("snapshot_unavailable")
 
-        if (snapshot.characterState == "egg") {
+        if (!allowEggSnapshot && snapshot.characterState == "egg") {
             throw IllegalStateException("egg_not_completed")
         }
 

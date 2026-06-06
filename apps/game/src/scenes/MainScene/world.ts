@@ -438,6 +438,17 @@ function getEvolutionGeneOutcomes(
   return [...normalRows, ...mutationRows];
 }
 
+function runCatchingFlushRemovedEntities(world: IWorld): void {
+  try {
+    flushRemovedEntities(world);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!message.includes("enableManualEntityRecycling")) {
+      throw error;
+    }
+  }
+}
+
 export type EntityComponents = {
   characterStatus?: CharacterStatusComponent;
   position?: PositionComponent;
@@ -567,6 +578,24 @@ export type MainSceneReentrySimulationStateChangeCallback = (
   params: MainSceneReentrySimulationStateChange,
 ) => void;
 
+export type MainSceneNativeWorldDataUpdateForReentryResult = {
+  status?: string;
+  updatedRawWorldData?: string | null;
+  worldDataChanged?: boolean;
+  hatched?: boolean;
+  previousCharacterState?: number | null;
+  nextCharacterState?: number | null;
+  selectedCharacterKey?: number | null;
+  error?: unknown;
+  [key: string]: unknown;
+};
+
+export type MainSceneNativeWorldDataUpdateForReentryCallback = (
+  source: Extract<MainSceneReentrySimulationSource, "init" | "app_resume">,
+) =>
+  | MainSceneNativeWorldDataUpdateForReentryResult
+  | Promise<MainSceneNativeWorldDataUpdateForReentryResult>;
+
 export class MissingInitialGameDataError extends Error {
   constructor() {
     super(
@@ -581,12 +610,10 @@ type MainSceneAppState = NonNullable<WorldMetadata["app_state"]>;
 type MainSceneEntryStatusSnapshot = {
   eid: number;
   signature: string;
-  hasSick: boolean;
   isSleeping: boolean;
 };
 
 type MainSceneEntryStatusSuppressionState = {
-  suppressSick: boolean;
   suppressSleep: boolean;
   baselineSignature: string;
 };
@@ -598,6 +625,7 @@ const MAIN_SCENE_AD_NORMAL_COOLDOWN_MS = 2 * 60 * 1000;
 const MAIN_SCENE_AD_POST_ACTION_DELAY_MS = 500;
 const MAIN_SCENE_AD_FEED_FALLBACK_AFTER_LAND_MS = 3000;
 const MAIN_SCENE_AD_FEED_IDLE_RETRY_MS = 1000;
+const MAIN_SCENE_STATUS_HEARTBEAT_INTERVAL_MS = 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 const EGG_HATCH_STARTING_SPRITESHEET_KEYS: readonly SpritesheetKey[] = [
@@ -757,6 +785,7 @@ export class MainSceneWorld implements IWorld, Scene {
   private _debugMode = false;
   private _shouldDeferPersistence?: () => boolean;
   private _onReentrySimulationStateChange?: MainSceneReentrySimulationStateChangeCallback;
+  private _onNativeWorldDataUpdateForReentry?: MainSceneNativeWorldDataUpdateForReentryCallback;
   private _hasDeferredPersistence = false;
   private _entryStatusSuppression: MainSceneEntryStatusSuppressionState | null =
     null;
@@ -768,6 +797,7 @@ export class MainSceneWorld implements IWorld, Scene {
   private _sunTimesRefreshPromise: Promise<void> | null = null;
   private _hasLocationPermission = false;
   private _sunLocationSource: SunLocationSource | null = null;
+  private _lastStatusHeartbeatLogTime: number | null = null;
   private _pendingFeedAdFoodEid: number | null = null;
   private _nextFeedMenuFood: FeedMenuFoodOption = getRandomFeedMenuFoodOption();
   private _feedAdFallbackTimerId: number | null = null;
@@ -799,7 +829,6 @@ export class MainSceneWorld implements IWorld, Scene {
         ? diseaseSystem({
             ...params,
             currentTime: this.currentTime,
-            entryStatusSuppression: this._entryStatusSuppression ?? undefined,
           })
         : params,
     (params: any) =>
@@ -944,6 +973,7 @@ export class MainSceneWorld implements IWorld, Scene {
     loadingTraceContext?: MainSceneLoadingTraceContext | null;
     trustedClock?: TrustedClock;
     onReentrySimulationStateChange?: MainSceneReentrySimulationStateChangeCallback;
+    onNativeWorldDataUpdateForReentry?: MainSceneNativeWorldDataUpdateForReentryCallback;
   }) {
     this._stage = params.stage;
     this._positionBoundary = params.positionBoundary;
@@ -965,6 +995,8 @@ export class MainSceneWorld implements IWorld, Scene {
     this._shouldDeferPersistence = params.shouldDeferPersistence;
     this._onReentrySimulationStateChange =
       params.onReentrySimulationStateChange;
+    this._onNativeWorldDataUpdateForReentry =
+      params.onNativeWorldDataUpdateForReentry;
     this._createInitialGameData = params.createInitialGameData;
     this._changeControlButtons = params.changeControlButtons;
     this._triggerBiteVibration = params.triggerBiteVibration;
@@ -2500,6 +2532,7 @@ export class MainSceneWorld implements IWorld, Scene {
   update(delta: number): void {
     // 앱이 일시정지 상태일 때는 시스템 업데이트 건너뛰기
     if (this._isPaused || this._isRunningReentrySimulation) {
+      this._logStatusHeartbeatIfNeeded(delta);
       return;
     }
 
@@ -2512,6 +2545,7 @@ export class MainSceneWorld implements IWorld, Scene {
       delta,
     });
     this._releaseEntryStatusSuppressionIfNeeded();
+    this._logStatusHeartbeatIfNeeded(delta);
 
     // UI 업데이트
     if (this._debugGaugeUI) {
@@ -2532,6 +2566,82 @@ export class MainSceneWorld implements IWorld, Scene {
 
     // 이전 상태 업데이트 (진입 감지용)
     this._previousCleaningMode = this._isCleaningMode;
+  }
+
+  private _logStatusHeartbeatIfNeeded(delta: number): void {
+    const currentTime = this.currentTime;
+    const heartbeatTime = Number.isFinite(currentTime)
+      ? currentTime
+      : Date.now();
+    const lastLogTime = this._lastStatusHeartbeatLogTime;
+
+    if (
+      lastLogTime !== null &&
+      heartbeatTime - lastLogTime < MAIN_SCENE_STATUS_HEARTBEAT_INTERVAL_MS
+    ) {
+      return;
+    }
+
+    this._lastStatusHeartbeatLogTime = heartbeatTime;
+
+    const worldMetadata = this._persistentData?.world_metadata;
+    const lastEcsSaved = worldMetadata?.last_ecs_saved;
+    const lastEcsSavedAgeMs =
+      typeof lastEcsSaved === "number" && Number.isFinite(lastEcsSaved)
+        ? Math.max(0, heartbeatTime - lastEcsSaved)
+        : null;
+    const mainCharacter = this._getMainCharacterStatusHeartbeatSnapshot();
+
+    console.warn("[ImportantDiagnostics][MainSceneStatusHeartbeat]", {
+      isPaused: this._isPaused,
+      isRunningReentrySimulation: this._isRunningReentrySimulation,
+      statusSystemsEnabled: this._statusSystemsEnabled,
+      delta,
+      currentTime,
+      lastEcsSaved: lastEcsSaved ?? null,
+      lastEcsSavedAgeMs,
+      mainCharacter,
+    });
+  }
+
+  private _getMainCharacterStatusHeartbeatSnapshot(): {
+    eid: number;
+    objectId: number;
+    stamina: number;
+    evolutionGauge: number;
+    statuses: number[];
+    state: number;
+    stateName: string;
+  } | null {
+    let eid = -1;
+
+    try {
+      eid = this._findMainCharacterEntity();
+    } catch {
+      return null;
+    }
+
+    if (
+      eid < 0 ||
+      !hasComponent(this, ObjectComp, eid) ||
+      !hasComponent(this, CharacterStatusComp, eid)
+    ) {
+      return null;
+    }
+
+    const state = ObjectComp.state[eid] as CharacterState;
+
+    return {
+      eid,
+      objectId: ObjectComp.id[eid],
+      stamina: CharacterStatusComp.stamina[eid],
+      evolutionGauge: CharacterStatusComp.evolutionGage[eid],
+      statuses: Array.from(CharacterStatusComp.statuses[eid]).filter(
+        (status) => status !== ECS_NULL_VALUE,
+      ),
+      state,
+      stateName: CharacterState[state] ?? `Unknown(${state})`,
+    };
   }
 
   private _requireInitialGameData(
@@ -4162,6 +4272,96 @@ export class MainSceneWorld implements IWorld, Scene {
     );
   }
 
+  private _isNativeWorldDataUpdateSuccessful(
+    result: MainSceneNativeWorldDataUpdateForReentryResult | null | undefined,
+  ): boolean {
+    const status = result?.status;
+    return (
+      status === "native_authoritative_completion_completed" ||
+      status === "native_world_data_update_completed" ||
+      status === "completed" ||
+      status === "ok"
+    );
+  }
+
+  private async _processNativeWorldDataUpdateForReentry(
+    source: Extract<MainSceneReentrySimulationSource, "init" | "app_resume">,
+    preReentrySnapshot: MainSceneEntryStatusSnapshot | null,
+    options: {
+      clearFoodInteractionSuspendFlag: () => void;
+    },
+  ): Promise<void> {
+    if (!this._onNativeWorldDataUpdateForReentry) {
+      throw new Error("missing_native_world_data_update_for_reentry");
+    }
+
+    this._isRunningReentrySimulation = true;
+
+    try {
+      const updateResult = await this._onNativeWorldDataUpdateForReentry(source);
+
+      if (!this._isNativeWorldDataUpdateSuccessful(updateResult)) {
+        throw new Error(
+          typeof updateResult?.error === "string"
+            ? updateResult.error
+            : `native_world_data_update_failed:${updateResult?.status ?? "unknown"}`,
+        );
+      }
+
+      const reloadedData =
+        await StorageManager.getData<MainSceneWorldData>(WORLD_DATA_STORAGE_KEY);
+      const validatedData = reloadedData
+        ? this._validateAndMigrateData(reloadedData)
+        : null;
+
+      if (!this._hasPlayableSavedData(validatedData)) {
+        throw new Error("native_world_data_update_missing_reloaded_world_data");
+      }
+
+      this.applyPersistedWorldDataForReentry(validatedData);
+      options.clearFoodInteractionSuspendFlag();
+      if (this._persistentData?.world_metadata.app_state) {
+        delete this._persistentData.world_metadata.app_state
+          .suspend_food_interaction_until_reentry;
+      }
+      applyReentryHappyStatusForFullStaminaCharacters(this);
+      this._applyEntryStatusSuppression(source, preReentrySnapshot);
+
+      if (this._initDiagnostics.isInitTimingActive) {
+        await this._initDiagnostics.measurePhase("reentry_persist_state", async () => {
+          await this._saveCurrentState();
+        });
+      } else {
+        await this._saveCurrentState();
+      }
+
+      console.log("[MainSceneWorld] Native world data update completed for reentry", {
+        source,
+        status: updateResult.status,
+        worldDataChanged: updateResult.worldDataChanged ?? null,
+        hatched: updateResult.hatched ?? null,
+        previousCharacterState: updateResult.previousCharacterState ?? null,
+        nextCharacterState: updateResult.nextCharacterState ?? null,
+        selectedCharacterKey: updateResult.selectedCharacterKey ?? null,
+      });
+    } finally {
+      this._finishReentryRuntimeState();
+    }
+  }
+
+  public applyPersistedWorldDataForReentry(data: MainSceneWorldData): void {
+    const objectEntities = liveObjectQuery(this);
+
+    for (const eid of objectEntities) {
+      removeEntity(this, eid);
+    }
+
+    runCatchingFlushRemovedEntities(this);
+    this._persistentData = data;
+    this._loadEcsEntitiesFromStorage();
+    this._updateAutoTimeOfDayIfNeeded(true);
+  }
+
   /**
    * 재진입 시뮬레이션 처리
    * 앱을 다시 켤 때 경과된 시간을 계산하고 해당 시간만큼 시뮬레이션 실행
@@ -4252,6 +4452,26 @@ export class MainSceneWorld implements IWorld, Scene {
         )} elapsed time`,
       );
 
+      if (source === "init" || source === "app_resume") {
+        try {
+          await this._processNativeWorldDataUpdateForReentry(
+            source,
+            preReentrySnapshot,
+            {
+              clearFoodInteractionSuspendFlag,
+            },
+          );
+        } catch (error) {
+          result = "failed";
+          capturedError = error;
+          console.error(
+            "[MainSceneWorld] Native reentry world data update failed:",
+            error,
+          );
+        }
+        return;
+      }
+
       // 일회성 ReentrySimulator 인스턴스 생성
       const reentrySimulator = new ReentrySimulator();
 
@@ -4313,8 +4533,7 @@ export class MainSceneWorld implements IWorld, Scene {
         console.error("[MainSceneWorld] Reentry simulation failed:", error);
       } finally {
         clearFoodInteractionSuspendFlag();
-        this._isRunningReentrySimulation = false;
-        this._simulationTime = null;
+        this._finishReentryRuntimeState();
       }
     } catch (error) {
       result = "failed";
@@ -4328,6 +4547,11 @@ export class MainSceneWorld implements IWorld, Scene {
         error: capturedError,
       });
     }
+  }
+
+  private _finishReentryRuntimeState(): void {
+    this._isRunningReentrySimulation = false;
+    this._simulationTime = null;
   }
 
   private _hasEggCharacterForReentrySimulation(): boolean {
@@ -4380,36 +4604,14 @@ export class MainSceneWorld implements IWorld, Scene {
           (status) => status > 0,
         )
       : [];
-    const hasSick =
-      ObjectComp.state[characterEid] === CharacterState.SICK ||
-      statuses.includes(CharacterStatus.SICK);
     const isSleeping =
       ObjectComp.state[characterEid] === CharacterState.SLEEPING;
 
     return {
       eid: characterEid,
       signature: `${ObjectComp.state[characterEid]}|${statuses.join(",")}`,
-      hasSick,
       isSleeping,
     };
-  }
-
-  private _clearMainCharacterSickState(eid: number): void {
-    for (let i = 0; i < CharacterStatusComp.statuses[eid].length; i += 1) {
-      if (CharacterStatusComp.statuses[eid][i] === CharacterStatus.SICK) {
-        CharacterStatusComp.statuses[eid][i] = 0;
-      }
-    }
-
-    if (hasComponent(this, DiseaseSystemComp, eid)) {
-      DiseaseSystemComp.sickStartTime[eid] = 0;
-    }
-
-    if (ObjectComp.state[eid] === CharacterState.SICK) {
-      restoreCharacterFreeRoamingState(this, eid, {
-        now: this.currentTime,
-      });
-    }
   }
 
   private _clearMainCharacterSleepState(eid: number): void {
@@ -4461,28 +4663,18 @@ export class MainSceneWorld implements IWorld, Scene {
     }
 
     const previousSuppression = this._entryStatusSuppression;
-    const suppressSick =
-      previousSuppression?.suppressSick === true ||
-      (!preReentrySnapshot.hasSick && postReentrySnapshot.hasSick);
     const suppressSleep =
       previousSuppression?.suppressSleep === true ||
       (!preReentrySnapshot.isSleeping && postReentrySnapshot.isSleeping);
 
-    if (!suppressSick && !suppressSleep) {
+    if (!suppressSleep) {
       return;
     }
 
-    if (suppressSick) {
-      this._clearMainCharacterSickState(postReentrySnapshot.eid);
-    }
-
-    if (suppressSleep) {
-      this._clearMainCharacterSleepState(postReentrySnapshot.eid);
-    }
+    this._clearMainCharacterSleepState(postReentrySnapshot.eid);
 
     const suppressedSnapshot = this._captureMainCharacterEntryStatusSnapshot();
     this._entryStatusSuppression = {
-      suppressSick,
       suppressSleep,
       baselineSignature:
         suppressedSnapshot?.signature ?? postReentrySnapshot.signature,

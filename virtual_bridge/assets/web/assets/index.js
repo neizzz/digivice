@@ -2,7 +2,7 @@ var __defProp = Object.defineProperty;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 import { a as requireReactDom, r as reactExports, j as jsxRuntimeExports, T as TopLeftBuildLogoText, R as ReactDOM } from "./index2.js";
-import { z as DEFAULT_LOCALE, F as resolveLocaleFromLanguageTags, G as ControlButtonType, H as hasNativeStorageController, I as FlutterStorage, W as WebLocalStorage, J as translate, K as countDisplayCharacters, L as measureNameLabelWidth, N as fitsNameLabelWidth, O as TRANSLATIONS, Q as NAME_LABEL_FONT_FAMILIES, V as NAME_LABEL_FONT_WEIGHT, X as NAME_LABEL_STROKE_COLOR, Y as NAME_LABEL_FILL_COLOR, Z as NAME_LABEL_STROKE_WIDTH, _ as SUPPORTED_LOCALES, $ as LOCALE_METADATA, a0 as CharacterState, a1 as CharacterKeyECS, a2 as GAME_CONSTANTS, a3 as SceneKey, a4 as TimeOfDay, a5 as hasLegacyMonsterBookState, a6 as migrateLegacyMonsterBookIfNeeded, a7 as getNativeSunTimes, a8 as MissingInitialGameDataError, a9 as Game } from "./evolutionAdmin.js";
+import { z as DEFAULT_LOCALE, F as resolveLocaleFromLanguageTags, G as ControlButtonType, H as hasNativeStorageController, I as FlutterStorage, W as WebLocalStorage, J as translate, K as countDisplayCharacters, L as measureNameLabelWidth, N as fitsNameLabelWidth, O as TRANSLATIONS, Q as NAME_LABEL_FONT_FAMILIES, V as NAME_LABEL_FONT_WEIGHT, X as NAME_LABEL_STROKE_COLOR, Y as NAME_LABEL_FILL_COLOR, Z as NAME_LABEL_STROKE_WIDTH, _ as SUPPORTED_LOCALES, $ as LOCALE_METADATA, a0 as GAME_CONSTANTS, a1 as CharacterState, a2 as CharacterKeyECS, a3 as SceneKey, a4 as TimeOfDay, a5 as hasLegacyMonsterBookState, a6 as migrateLegacyMonsterBookIfNeeded, a7 as getNativeSunTimes, a8 as MissingInitialGameDataError, a9 as Game } from "./evolutionAdmin.js";
 var reactDomExports = requireReactDom();
 class SliderController {
   /**
@@ -2300,6 +2300,15 @@ const STAMINA_HIGH_COLOR = "#49A95D";
 const EVOLUTION_FILL_COLOR = "#59B8FF";
 const MONSTER_INFO_TITLE_KEY = "monsterInfo.title";
 const DOM_NAME_LABEL_STROKE_WIDTH = Math.max(1, NAME_LABEL_STROKE_WIDTH / 2);
+const GENE_SYMBOL_SPRITE_URL = "/assets/game/sprites/gene-symbol.png";
+const GENE_SYMBOL_SIZE = 16;
+const GENE_SYMBOL_SHEET_WIDTH = 48;
+const GENE_SYMBOL_SHEET_HEIGHT = 16;
+const GENE_SYMBOL_X_BY_LINE = {
+  "green-slime": 0,
+  "soil-slime": 16,
+  "skull-slime": 32
+};
 function colorNumberToCssHex(color) {
   return `#${color.toString(16).padStart(6, "0")}`;
 }
@@ -2360,6 +2369,14 @@ function formatEggHatchRemainingTime(remainingMs) {
   }
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
+function formatGeneOutcomeProbability(probability, locale) {
+  const safeProbability = clampUnitInterval(probability);
+  const maximumFractionDigits = safeProbability > 0 && safeProbability < 0.1 ? 2 : 1;
+  return new Intl.NumberFormat(locale, {
+    style: "percent",
+    maximumFractionDigits
+  }).format(safeProbability);
+}
 const StatusBar = ({ label, currentValue, maxValue, fillColor }) => {
   const percent = clampUnitInterval(
     maxValue > 0 ? currentValue / maxValue : 0
@@ -2378,7 +2395,7 @@ const StatusBar = ({ label, currentValue, maxValue, fillColor }) => {
         children: /* @__PURE__ */ jsxRuntimeExports.jsx(
           "div",
           {
-            className: "h-full border-r-2 border-[#222]/25 transition-[width] duration-150 ease-linear",
+            className: "h-full border-r-2 border-[#222]/25",
             style: {
               width: `${percent * 100}%`,
               backgroundColor: fillColor
@@ -2393,6 +2410,47 @@ const ValueRow = ({ label, value }) => /* @__PURE__ */ jsxRuntimeExports.jsxs("d
   /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-[1.2rem] leading-[1.2] text-[#222]", children: label }),
   /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-[1.3rem] leading-none font-bold text-component-positive", children: value })
 ] });
+const GeneSymbolIcon = ({ geneLine }) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+  "span",
+  {
+    "aria-label": geneLine,
+    className: "inline-block shrink-0 [image-rendering:pixelated]",
+    role: "img",
+    style: {
+      width: GENE_SYMBOL_SIZE,
+      height: GENE_SYMBOL_SIZE,
+      backgroundImage: `url(${GENE_SYMBOL_SPRITE_URL})`,
+      backgroundPosition: `-${GENE_SYMBOL_X_BY_LINE[geneLine]}px 0`,
+      backgroundRepeat: "no-repeat",
+      backgroundSize: `${GENE_SYMBOL_SHEET_WIDTH}px ${GENE_SYMBOL_SHEET_HEIGHT}px`
+    }
+  }
+);
+const GeneOutcomeList = ({ label, locale, outcomes }) => {
+  if (outcomes.length === 0) {
+    return null;
+  }
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-2 text-left", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-[1.2rem] leading-[1.2] text-[#222]", children: label }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex flex-col gap-2", children: outcomes.map((outcome) => /* @__PURE__ */ jsxRuntimeExports.jsxs(
+      "div",
+      {
+        className: "flex items-center justify-between gap-4 text-[1.15rem] leading-none",
+        children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2 font-bold text-[#222]", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(GeneSymbolIcon, { geneLine: outcome.geneLine }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { children: [
+              "Lv.",
+              outcome.level
+            ] })
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "font-bold text-component-positive", children: formatGeneOutcomeProbability(outcome.probability, locale) })
+        ]
+      },
+      `${outcome.kind}:${outcome.geneLine}:${outcome.level}`
+    )) })
+  ] });
+};
 const NameTitleText = ({ text, fillColor, strokeColor }) => {
   const nameTitleTextStyle = {
     fontFamily: NAME_LABEL_FONT_FAMILIES.map(
@@ -2463,32 +2521,57 @@ const MonsterInfoLayer = ({
       content: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-5 px-5 text-left", children: [
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-end justify-between gap-3", children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-[1.2rem] leading-[1.2] text-[#222]", children: t("monsterInfo.level") }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-[1.3rem] leading-none font-bold text-component-positive", children: levelText })
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-end gap-2 text-[1.3rem] leading-none font-bold text-component-positive", children: [
+            levelText,
+            snapshot.geneLine ? /* @__PURE__ */ jsxRuntimeExports.jsx(GeneSymbolIcon, { geneLine: snapshot.geneLine }) : null
+          ] })
         ] }),
-        snapshot.isEgg ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-          ValueRow,
-          {
-            label: t("monsterInfo.hatchRemaining"),
-            value: formatEggHatchRemainingTime(snapshot.eggHatchRemainingMs)
-          }
-        ) : /* @__PURE__ */ jsxRuntimeExports.jsx(
-          StatusBar,
-          {
-            label: t("monsterInfo.stamina"),
-            currentValue: snapshot.stamina,
-            maxValue: snapshot.maxStamina,
-            fillColor: getStaminaFillColor(snapshot)
-          }
-        ),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          StatusBar,
-          {
-            label: t("monsterInfo.evolution"),
-            currentValue: snapshot.evolutionGauge,
-            maxValue: snapshot.maxEvolutionGauge,
-            fillColor: EVOLUTION_FILL_COLOR
-          }
-        )
+        snapshot.isEgg ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            ValueRow,
+            {
+              label: t("monsterInfo.hatchRemaining"),
+              value: formatEggHatchRemainingTime(
+                snapshot.eggHatchRemainingMs
+              )
+            }
+          ),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            GeneOutcomeList,
+            {
+              label: t("monsterInfo.hatch"),
+              locale,
+              outcomes: snapshot.geneOutcomes
+            }
+          )
+        ] }) : /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            StatusBar,
+            {
+              label: t("monsterInfo.stamina"),
+              currentValue: snapshot.stamina,
+              maxValue: snapshot.maxStamina,
+              fillColor: getStaminaFillColor(snapshot)
+            }
+          ),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            StatusBar,
+            {
+              label: t("monsterInfo.evolution"),
+              currentValue: snapshot.evolutionGauge,
+              maxValue: snapshot.maxEvolutionGauge,
+              fillColor: EVOLUTION_FILL_COLOR
+            }
+          ),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            GeneOutcomeList,
+            {
+              label: t("monsterInfo.evolution"),
+              locale,
+              outcomes: snapshot.geneOutcomes
+            }
+          )
+        ] })
       ] }),
       onConfirm: onClose,
       onBack: onBack ?? onClose,
@@ -2859,6 +2942,7 @@ const useAlert = () => {
     hideAlert
   };
 };
+const EGG_HATCH_CLOCK_DRIFT_TOLERANCE_MS = 1e3;
 const ECS_NULL_VALUE = 0;
 const CHARACTER_OBJECT_TYPE$1 = 1;
 const FOOD_OBJECT_TYPE = 3;
@@ -2971,6 +3055,12 @@ function resolveEggHatchSchedule(params) {
   const normalizedDurationMs = toFiniteNumber(params.hatchDurationMs);
   const safeDurationMs = normalizedDurationMs !== null && normalizedDurationMs > 0 ? normalizedDurationMs : null;
   if (safeDurationMs !== null && safeHatchTime !== null) {
+    if (safeHatchTime - params.now > safeDurationMs + EGG_HATCH_CLOCK_DRIFT_TOLERANCE_MS) {
+      return {
+        hatchTime: params.now + safeDurationMs,
+        hatchDurationMs: safeDurationMs
+      };
+    }
     return {
       hatchTime: safeHatchTime,
       hatchDurationMs: safeDurationMs
@@ -4054,6 +4144,15 @@ function waitForAnimationFrame() {
     window.requestAnimationFrame(() => resolve());
   });
 }
+function areMainCharacterGeneOutcomesEqual(left, right) {
+  if (left.length !== right.length) {
+    return false;
+  }
+  return left.every((leftOutcome, index) => {
+    const rightOutcome = right[index];
+    return rightOutcome !== void 0 && leftOutcome.kind === rightOutcome.kind && leftOutcome.geneLine === rightOutcome.geneLine && leftOutcome.level === rightOutcome.level && leftOutcome.probability === rightOutcome.probability;
+  });
+}
 function areMainCharacterInfoSnapshotsEqual(left, right) {
   if (left === right) {
     return true;
@@ -4061,7 +4160,7 @@ function areMainCharacterInfoSnapshotsEqual(left, right) {
   if (!left || !right) {
     return false;
   }
-  return left.monsterName === right.monsterName && left.isEgg === right.isEgg && left.eggHatchRemainingMs === right.eggHatchRemainingMs && left.evolutionPhase === right.evolutionPhase && left.stamina === right.stamina && left.maxStamina === right.maxStamina && left.unhappyThreshold === right.unhappyThreshold && left.boostedThreshold === right.boostedThreshold && left.evolutionGauge === right.evolutionGauge && left.maxEvolutionGauge === right.maxEvolutionGauge;
+  return left.monsterName === right.monsterName && left.isEgg === right.isEgg && left.geneLine === right.geneLine && areMainCharacterGeneOutcomesEqual(left.geneOutcomes, right.geneOutcomes) && left.eggHatchRemainingMs === right.eggHatchRemainingMs && left.evolutionPhase === right.evolutionPhase && left.stamina === right.stamina && left.maxStamina === right.maxStamina && left.unhappyThreshold === right.unhappyThreshold && left.boostedThreshold === right.boostedThreshold && left.evolutionGauge === right.evolutionGauge && left.maxEvolutionGauge === right.maxEvolutionGauge;
 }
 async function waitForLayoutStabilization() {
   await waitForAnimationFrame();
@@ -4349,7 +4448,6 @@ const GameContainer = () => {
   const isResumeReentrySimulationRunningRef = reactExports.useRef(false);
   const homeWidgetLaunchModeRef = reactExports.useRef("default");
   const nativeBackgroundWidgetSyncTriggeredRef = reactExports.useRef(false);
-  const syncHomeWidgetForNativeBackgroundRef = reactExports.useRef(null);
   const completeWidgetRefreshAfterInitReentryRef = reactExports.useRef(null);
   const fullscreenAdLayoutReleaseTimeoutRef = reactExports.useRef(null);
   const fullscreenAdLayoutReleaseRafRef = reactExports.useRef(null);
@@ -5181,7 +5279,7 @@ const GameContainer = () => {
   );
   const handleMainSceneReentrySimulationStateChange = reactExports.useCallback(
     (params) => {
-      var _a, _b;
+      var _a;
       if (params.source !== "app_resume" && params.source !== "init") {
         return;
       }
@@ -5202,15 +5300,36 @@ const GameContainer = () => {
         void ((_a = completeWidgetRefreshAfterInitReentryRef.current) == null ? void 0 : _a.call(completeWidgetRefreshAfterInitReentryRef, params.result));
         return;
       }
-      if (params.result === "completed") {
-        void ((_b = syncHomeWidgetForNativeBackgroundRef.current) == null ? void 0 : _b.call(
-          syncHomeWidgetForNativeBackgroundRef,
-          params.source === "init" ? "main_scene_reentry_finished_init" : "main_scene_reentry_finished"
-        ));
-      }
     },
     [hideResumeGuardAfterLayout, showResumeGuard]
   );
+  const handleNativeWorldDataUpdateForReentry = reactExports.useCallback(async (source) => {
+    if (typeof window === "undefined") {
+      throw new Error("native_world_data_update_unavailable");
+    }
+    const controller = window.homeWidgetController ?? window.homeWidgetRefreshController;
+    if (typeof (controller == null ? void 0 : controller.completeNativeWorldDataUpdate) !== "function") {
+      throw new Error("native_world_data_update_unavailable");
+    }
+    const result = await controller.completeNativeWorldDataUpdate({
+      source
+    });
+    logImportantDiagnostics(
+      "log",
+      "[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+      {
+        action: "native_world_data_update_for_reentry",
+        source,
+        status: (result == null ? void 0 : result.status) ?? null,
+        worldDataChanged: (result == null ? void 0 : result.worldDataChanged) ?? null,
+        hatched: (result == null ? void 0 : result.hatched) ?? null,
+        previousCharacterState: (result == null ? void 0 : result.previousCharacterState) ?? null,
+        nextCharacterState: (result == null ? void 0 : result.nextCharacterState) ?? null,
+        selectedCharacterKey: (result == null ? void 0 : result.selectedCharacterKey) ?? null
+      }
+    );
+    return result;
+  }, []);
   const loadHomeWidgetLaunchContext = reactExports.useCallback(async () => {
     if (typeof window === "undefined") {
       return;
@@ -5755,17 +5874,14 @@ const GameContainer = () => {
     },
     [gameInstance]
   );
-  syncHomeWidgetForNativeBackgroundRef.current = syncHomeWidgetForNativeBackground;
   const completeWidgetRefreshAfterReentry = reactExports.useCallback(
     async (result) => {
-      var _a, _b, _c, _d;
       if (typeof window === "undefined") {
         return;
       }
       const controller = window.homeWidgetController ?? window.homeWidgetRefreshController;
       const reason = "main_scene_reentry_finished_init_widget_refresh";
       let completionResult = result ?? "failed";
-      let syncOutcome = null;
       logImportantDiagnostics(
         "log",
         "[ImportantDiagnostics][HomeWidgetBackgroundSync]",
@@ -5779,46 +5895,8 @@ const GameContainer = () => {
         }
       );
       try {
-        if (result === "completed") {
-          logImportantDiagnostics(
-            "log",
-            "[ImportantDiagnostics][HomeWidgetBackgroundSync]",
-            {
-              action: "widget_refresh_sync_dispatched",
-              reason
-            }
-          );
-          syncOutcome = await syncHomeWidgetForNativeBackground(reason);
-          if (syncOutcome.status === "completed") {
-            logImportantDiagnostics(
-              "log",
-              "[ImportantDiagnostics][HomeWidgetBackgroundSync]",
-              {
-                action: "widget_refresh_sync_completed",
-                reason,
-                selectedSource: syncOutcome.selectedSource,
-                storedLastEcsSaved: syncOutcome.storedLastEcsSaved,
-                inMemoryLastEcsSaved: syncOutcome.inMemoryLastEcsSaved,
-                syncStatus: typeof ((_a = syncOutcome.syncResult) == null ? void 0 : _a.status) === "string" ? syncOutcome.syncResult.status : null,
-                currentPublishStatus: typeof ((_b = syncOutcome.syncResult) == null ? void 0 : _b.currentPublishStatus) === "string" ? syncOutcome.syncResult.currentPublishStatus : null,
-                authoritativePublishStatus: typeof ((_c = syncOutcome.syncResult) == null ? void 0 : _c.authoritativePublishStatus) === "string" ? syncOutcome.syncResult.authoritativePublishStatus : null
-              }
-            );
-          } else {
-            completionResult = "failed";
-            logImportantDiagnostics(
-              "warn",
-              "[ImportantDiagnostics][HomeWidgetBackgroundSync]",
-              {
-                action: "widget_refresh_failed",
-                reason,
-                failureStage: "sync",
-                reentryResult: result,
-                syncOutcome
-              }
-            );
-          }
-        } else {
+        if (result !== "completed") {
+          completionResult = "failed";
           logImportantDiagnostics(
             "warn",
             "[ImportantDiagnostics][HomeWidgetBackgroundSync]",
@@ -5838,8 +5916,7 @@ const GameContainer = () => {
               source: "main_scene_reentry_finished_widget_refresh",
               launchMode: homeWidgetLaunchModeRef.current,
               reentryResult: result ?? null,
-              selectedSource: (syncOutcome == null ? void 0 : syncOutcome.selectedSource) ?? null,
-              syncStatus: typeof ((_d = syncOutcome == null ? void 0 : syncOutcome.syncResult) == null ? void 0 : _d.status) === "string" ? syncOutcome.syncResult.status : null
+              nativeUpdateSource: "main_scene_reentry"
             });
             logImportantDiagnostics(
               "log",
@@ -5849,7 +5926,7 @@ const GameContainer = () => {
                 reason,
                 completionResult,
                 reentryResult: result ?? null,
-                selectedSource: (syncOutcome == null ? void 0 : syncOutcome.selectedSource) ?? null
+                nativeUpdateSource: "main_scene_reentry"
               }
             );
           } else {
@@ -5884,7 +5961,7 @@ const GameContainer = () => {
         }
       }
     },
-    [gameInstance, syncHomeWidgetForNativeBackground]
+    [gameInstance]
   );
   completeWidgetRefreshAfterInitReentryRef.current = completeWidgetRefreshAfterReentry;
   const handleSendDiagnostics = reactExports.useCallback(async () => {
@@ -6392,6 +6469,7 @@ const GameContainer = () => {
       },
       onSceneTransitionStateChange: handleSceneTransitionStateChange,
       onMainSceneReentrySimulationStateChange: handleMainSceneReentrySimulationStateChange,
+      onNativeWorldDataUpdateForReentry: handleNativeWorldDataUpdateForReentry,
       loadingTraceContext: entryFlowDiagnostics.createGameLoadingTraceContext(attemptId),
       changeControlButtons: (controlButtonParams) => {
         if (!controlButtonParams) {
@@ -6496,6 +6574,7 @@ const GameContainer = () => {
     locale,
     getFlappyBirdBestScore,
     handleMainSceneReentrySimulationStateChange,
+    handleNativeWorldDataUpdateForReentry,
     handleSceneTransitionStateChange,
     openMonsterInfo,
     openSettingMenu,

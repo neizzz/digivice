@@ -198,6 +198,125 @@ class HomeWidgetPeriodicRefreshWorkerTest {
         )
     }
 
+
+    @Test
+    fun `runner completes stale non egg authoritative snapshot natively without fallback`() {
+        val nowMs = 30 * 60 * 1000L
+        val events = mutableListOf<String>()
+        val authoritativeSnapshot = HomeWidgetDebugPresets.resolveSnapshot(
+            index = 1,
+            nowMs = nowMs,
+        ).copy(
+            snapshotKind = "authoritativeAppState",
+            snapshotComputedAtMs = nowMs -
+                (HomeWidgetConstants.PERIODIC_REFRESH_INTERVAL_MINUTES * 60 * 1000L),
+            updatedAtMs = nowMs -
+                (HomeWidgetConstants.PERIODIC_REFRESH_INTERVAL_MINUTES * 60 * 1000L),
+        )
+        val progressedSnapshot = authoritativeSnapshot.copy(
+            snapshotKind = "widgetProgressed",
+            snapshotComputedAtMs = nowMs,
+            updatedAtMs = nowMs,
+        )
+
+        val updated = HomeWidgetPeriodicRefreshRunner.run(
+            hasAnyWidgets = { true },
+            onNoWidgets = {
+                events += "cancel"
+            },
+            progressSnapshot = {
+                events += "progress"
+                progressedSnapshot
+            },
+            loadAuthoritativeSnapshot = { authoritativeSnapshot },
+            completeNativeAuthoritativeRefresh = { completionNowMs ->
+                events += "nativeComplete:$completionNowMs"
+                HomeWidgetNativeAuthoritativeRefreshResult(
+                    status = "native_authoritative_completion_completed",
+                    hasSnapshot = true,
+                    hatched = false,
+                )
+            },
+            requestAuthoritativeRefreshFallback = {
+                events += "fallbackRefresh"
+                HomeWidgetAuthoritativeRefreshRequestResult.REQUESTED
+            },
+            notifySnapshotUpdated = { reason ->
+                events += "notify:$reason"
+            },
+            recordPeriodicRefreshStatus = { status, _ ->
+                events += "status:$status"
+            },
+            nowMsProvider = { nowMs },
+        )
+
+        assertTrue(updated)
+        assertEquals(
+            listOf(
+                "progress",
+                "status:native_authoritative_completion_started",
+                "nativeComplete:1800000",
+                "status:native_authoritative_completion_completed",
+                "notify:${HomeWidgetConstants.PERIODIC_REFRESH_REASON}",
+            ),
+            events,
+        )
+    }
+
+    @Test
+    fun `runner keeps fresh non egg authoritative snapshot on progress only path`() {
+        val nowMs = 30 * 60 * 1000L
+        val events = mutableListOf<String>()
+        val authoritativeSnapshot = HomeWidgetDebugPresets.resolveSnapshot(
+            index = 1,
+            nowMs = nowMs,
+        ).copy(snapshotKind = "authoritativeAppState")
+        val progressedSnapshot = authoritativeSnapshot.copy(
+            snapshotKind = "widgetProgressed",
+            snapshotComputedAtMs = nowMs,
+            updatedAtMs = nowMs,
+        )
+
+        val updated = HomeWidgetPeriodicRefreshRunner.run(
+            hasAnyWidgets = { true },
+            onNoWidgets = {
+                events += "cancel"
+            },
+            progressSnapshot = {
+                events += "progress"
+                progressedSnapshot
+            },
+            loadAuthoritativeSnapshot = { authoritativeSnapshot },
+            completeNativeAuthoritativeRefresh = {
+                events += "nativeComplete"
+                HomeWidgetNativeAuthoritativeRefreshResult(
+                    status = "native_authoritative_completion_completed",
+                )
+            },
+            requestAuthoritativeRefreshFallback = {
+                events += "fallbackRefresh"
+                HomeWidgetAuthoritativeRefreshRequestResult.REQUESTED
+            },
+            notifySnapshotUpdated = { reason ->
+                events += "notify:$reason"
+            },
+            recordPeriodicRefreshStatus = { status, _ ->
+                events += "status:$status"
+            },
+            nowMsProvider = { nowMs },
+        )
+
+        assertTrue(updated)
+        assertEquals(
+            listOf(
+                "progress",
+                "status:periodic_progress_only",
+                "notify:${HomeWidgetConstants.PERIODIC_REFRESH_REASON}",
+            ),
+            events,
+        )
+    }
+
     @Test
     fun `authoritative refresh request is guarded while in flight and throttled after completion`() {
         val prefs = FakeSharedPreferences()
@@ -292,6 +411,149 @@ class HomeWidgetPeriodicRefreshWorkerTest {
             widgetPrefs.getString(HomeWidgetConstants.REFRESH_SMOKE_RESULT_KEY, null)
                 ?.startsWith("native_authoritative_completion_completed") == true,
         )
+    }
+
+
+    @Test
+    fun `native authoritative refresh progresses due day nap into sleeping snapshot`() {
+        val nowMs = 20 * 60 * 1000L
+        val widgetPrefs = FakeSharedPreferences()
+        val flutterPrefs = FakeSharedPreferences()
+        var persistedSnapshot: HomeWidgetSnapshot? = null
+
+        flutterPrefs.edit()
+            .putString(
+                HomeWidgetConstants.FLUTTER_WORLD_DATA_KEY,
+                buildHomeWidgetCharacterWorldData(
+                    lastEcsSaved = 0L,
+                    stamina = 6.0,
+                    fatigue = 100.0,
+                    nextDiseaseCheckTime = nowMs + 60_000L,
+                    nextNapCheckTime = 1L,
+                ),
+            )
+            .apply()
+
+        val result = HomeWidgetNativeAuthoritativeRefresh.complete(
+            widgetPrefs = widgetPrefs,
+            flutterPrefs = flutterPrefs,
+            nowMs = nowMs,
+            persistSnapshot = { snapshot ->
+                persistedSnapshot = snapshot
+            },
+            randomProvider = { event ->
+                if (event.reason == "day_nap") 0.0 else 1.0
+            },
+        )
+
+        assertEquals("native_authoritative_completion_completed", result.status)
+        assertTrue(result.succeeded)
+        assertEquals(false, result.hatched)
+        assertEquals("sleeping", persistedSnapshot?.characterState)
+        assertEquals("sleep", persistedSnapshot?.displayState)
+        assertEquals(listOf("sleeping"), persistedSnapshot?.visibleStatusIcons)
+        assertTrue(
+            widgetPrefs.getString(HomeWidgetConstants.REFRESH_SMOKE_RESULT_KEY, null)
+                ?.contains("characterState=sleeping") == true,
+        )
+    }
+
+    @Test
+    fun `native authoritative refresh applies due disease check to sick snapshot`() {
+        val nowMs = 20_000L
+        val widgetPrefs = FakeSharedPreferences()
+        val flutterPrefs = FakeSharedPreferences()
+        var persistedSnapshot: HomeWidgetSnapshot? = null
+
+        flutterPrefs.edit()
+            .putString(
+                HomeWidgetConstants.FLUTTER_WORLD_DATA_KEY,
+                buildHomeWidgetCharacterWorldData(
+                    lastEcsSaved = 0L,
+                    stamina = 1.0,
+                    fatigue = 90.0,
+                    nextDiseaseCheckTime = 1L,
+                    nextNapCheckTime = nowMs + 60_000L,
+                ),
+            )
+            .apply()
+
+        val result = HomeWidgetNativeAuthoritativeRefresh.complete(
+            widgetPrefs = widgetPrefs,
+            flutterPrefs = flutterPrefs,
+            nowMs = nowMs,
+            persistSnapshot = { snapshot ->
+                persistedSnapshot = snapshot
+            },
+            randomProvider = { event ->
+                if (event.reason == "disease") 0.0 else 1.0
+            },
+        )
+
+        val updatedWorldData = flutterPrefs.getString(
+            HomeWidgetConstants.FLUTTER_WORLD_DATA_KEY,
+            null,
+        )
+
+        assertEquals("native_authoritative_completion_completed", result.status)
+        assertTrue(result.succeeded)
+        assertEquals("sick", persistedSnapshot?.characterState)
+        assertEquals("sick", persistedSnapshot?.displayState)
+        assertEquals(listOf("sick"), persistedSnapshot?.visibleStatusIcons)
+        assertTrue(updatedWorldData?.contains(""""state":4""") == true)
+        assertTrue(updatedWorldData?.contains(""""statuses":[3]""") == true)
+        assertTrue(
+            widgetPrefs.getString(HomeWidgetConstants.REFRESH_SMOKE_RESULT_KEY, null)
+                ?.contains("characterState=sick") == true,
+        )
+    }
+
+    @Test
+    fun `native authoritative refresh keeps sleeping sick status without natural recovery`() {
+        val nowMs = 40 * 60 * 1000L
+        val widgetPrefs = FakeSharedPreferences()
+        val flutterPrefs = FakeSharedPreferences()
+        var persistedSnapshot: HomeWidgetSnapshot? = null
+
+        flutterPrefs.edit()
+            .putString(
+                HomeWidgetConstants.FLUTTER_WORLD_DATA_KEY,
+                buildHomeWidgetCharacterWorldData(
+                    state = 3,
+                    lastEcsSaved = 0L,
+                    stamina = 6.0,
+                    fatigue = 28.0,
+                    nextDiseaseCheckTime = nowMs + 60_000L,
+                    nextNapCheckTime = nowMs + 60_000L,
+                    sleepMode = 2,
+                    statuses = "[3]",
+                    sickStartTime = 1L,
+                ),
+            )
+            .apply()
+
+        val result = HomeWidgetNativeAuthoritativeRefresh.complete(
+            widgetPrefs = widgetPrefs,
+            flutterPrefs = flutterPrefs,
+            nowMs = nowMs,
+            persistSnapshot = { snapshot ->
+                persistedSnapshot = snapshot
+            },
+        )
+
+        val updatedWorldData = flutterPrefs.getString(
+            HomeWidgetConstants.FLUTTER_WORLD_DATA_KEY,
+            null,
+        )
+
+        assertEquals("native_authoritative_completion_completed", result.status)
+        assertTrue(result.succeeded)
+        assertEquals("sleeping", persistedSnapshot?.characterState)
+        assertEquals("sleep", persistedSnapshot?.displayState)
+        assertEquals(listOf("sick", "sleeping"), persistedSnapshot?.visibleStatusIcons)
+        assertTrue(updatedWorldData?.contains(""""state":3""") == true)
+        assertTrue(updatedWorldData?.contains(""""statuses":[3]""") == true)
+        assertTrue(updatedWorldData?.contains(""""sickStartTime":1""") == true)
     }
 
     @Test

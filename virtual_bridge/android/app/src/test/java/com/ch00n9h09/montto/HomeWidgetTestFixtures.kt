@@ -159,3 +159,76 @@ internal fun buildHomeWidgetEggWorldData(
         }
     """.trimIndent()
 }
+
+
+internal fun buildHomeWidgetCharacterWorldData(
+    state: Int = 1,
+    lastEcsSaved: Long = 1_000L,
+    stamina: Double = 5.0,
+    fatigue: Double = 35.0,
+    nextDiseaseCheckTime: Long = 60_000L,
+    nextNapCheckTime: Long = 60_000L,
+    nextSleepTime: Long = 0L,
+    nextWakeTime: Long = 0L,
+    sleepMode: Int = 0,
+    statuses: String = "[]",
+    sickStartTime: Long = 0L,
+): String {
+    return """
+        {
+          "world_metadata": {
+            "name": "MainScene",
+            "monster_name": "Test",
+            "last_ecs_saved": $lastEcsSaved,
+            "version": "1.0.0",
+            "app_state": {
+              "last_active_time": $lastEcsSaved,
+              "use_local_time": false,
+              "reset_bootstrap_marker_id": "reset-current"
+            }
+          },
+          "entities": [
+            {
+              "components": {
+                "object": {
+                  "id": 10,
+                  "type": 1,
+                  "state": $state
+                },
+                "characterStatus": {
+                  "characterKey": 1,
+                  "stamina": $stamina,
+                  "evolutionPhase": 1,
+                  "statuses": $statuses
+                },
+                "diseaseSystem": {
+                  "nextCheckTime": $nextDiseaseCheckTime,
+                  "sickStartTime": $sickStartTime
+                },
+                "sleepSystem": {
+                  "fatigue": $fatigue,
+                  "nextSleepTime": $nextSleepTime,
+                  "nextWakeTime": $nextWakeTime,
+                  "nextNapCheckTime": $nextNapCheckTime,
+                  "nextNightWakeCheckTime": 0,
+                  "sleepMode": $sleepMode,
+                  "pendingSleepReason": 0,
+                  "pendingWakeReason": 0,
+                  "sleepSessionStartedAt": 0
+                },
+                "eggHatch": {
+                  "hatchTime": 0,
+                  "hatchDurationMs": 0,
+                  "isReadyToHatch": false,
+                  "syringeCount": 0,
+                  "pendingCharacterKey": 0
+                },
+                "render": {
+                  "textureKey": 1
+                }
+              }
+            }
+          ]
+        }
+    """.trimIndent()
+}

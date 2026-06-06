@@ -4,6 +4,7 @@ export type {
 	MainCharacterInfoSnapshot,
 	MainSceneSfxKind,
 	MainSceneReentrySimulationStateChangeCallback,
+	NativeWorldDataUpdateForReentryCallback,
 } from "./Game";
 export { SceneKey } from "./SceneKey";
 export { MissingInitialGameDataError } from "./scenes/MainScene/world";

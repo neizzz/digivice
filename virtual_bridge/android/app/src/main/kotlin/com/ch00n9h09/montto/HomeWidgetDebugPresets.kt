@@ -288,19 +288,16 @@ object HomeWidgetSnapshotSelector {
             return debugSnapshot
         }
 
-        val liveAuthoritativeSnapshot = worldDataFallback()
-        val authoritativeCandidate = liveAuthoritativeSnapshot ?: authoritativeSnapshot
-
         if (currentSnapshot == null) {
-            return authoritativeCandidate
+            return authoritativeSnapshot ?: worldDataFallback()
         }
 
-        if (authoritativeCandidate == null) {
+        if (authoritativeSnapshot == null) {
             return currentSnapshot
         }
 
-        return if (shouldPreferAuthoritativeSnapshot(currentSnapshot, authoritativeCandidate)) {
-            authoritativeCandidate
+        return if (shouldPreferAuthoritativeSnapshot(currentSnapshot, authoritativeSnapshot)) {
+            authoritativeSnapshot
         } else {
             currentSnapshot
         }

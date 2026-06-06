@@ -70,11 +70,29 @@ object HomeWidgetSnapshotFactory {
         if (authoritativeSnapshot?.characterState != null &&
             authoritativeSnapshot.characterState != "egg"
         ) {
-            return false
+            return isAuthoritativeSnapshotStale(authoritativeSnapshot, nowMs)
         }
 
         return isEggMaturedPastHatchTime(currentSnapshot, nowMs) ||
             isEggMaturedPastHatchTime(authoritativeSnapshot, nowMs)
+    }
+
+    internal fun isAuthoritativeSnapshotStale(
+        snapshot: HomeWidgetSnapshot,
+        nowMs: Long,
+    ): Boolean {
+        if (snapshot.characterState == "egg") {
+            return false
+        }
+
+        val completedAtMs = snapshot.snapshotComputedAtMs
+            .takeIf { it > 0L }
+            ?: snapshot.updatedAtMs.takeIf { it > 0L }
+            ?: return true
+        val staleAfterMs = HomeWidgetConstants.PERIODIC_REFRESH_INTERVAL_MINUTES *
+            60 * 1000L
+
+        return nowMs - completedAtMs >= staleAfterMs
     }
 
     internal fun isEggMaturedPastHatchTime(

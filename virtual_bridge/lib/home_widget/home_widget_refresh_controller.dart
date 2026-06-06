@@ -91,6 +91,20 @@ class HomeWidgetRefreshController {
             return typeof raw === "string" ? JSON.parse(raw) : raw;
           });
         },
+        completeNativeWorldDataUpdate: (payload = {}) => {
+          return __createPromise((id) => {
+            __native_home_widget.postMessage(JSON.stringify({
+              id,
+              action: "completeNativeWorldDataUpdate",
+              payload
+            }));
+          }).then((raw) => {
+            if (!raw) {
+              return { status: "unknown" };
+            }
+            return typeof raw === "string" ? JSON.parse(raw) : raw;
+          });
+        },
         getRefreshDiagnostics: () => {
           return __createPromise((id) => {
             __native_home_widget.postMessage(JSON.stringify({
@@ -195,6 +209,26 @@ class HomeWidgetRefreshController {
           }
           log?.call(
             '[HomeWidgetRefreshController] completeRefresh result=${payload['result']} source=${payload['source']}',
+          );
+          return;
+        case 'completeNativeWorldDataUpdate':
+          final Map<Object?, Object?>? nativeUpdateResult =
+              await _platformChannel.invokeMethod<Map<Object?, Object?>>(
+            'completeNativeWorldDataUpdate',
+            payload,
+          );
+          if (id != null) {
+            await resolvePromise(
+              id: id,
+              data: jsonEncode(_normalizePlatformResult(nativeUpdateResult)),
+            );
+          }
+          log?.call(
+            '[HomeWidgetRefreshController] completeNativeWorldDataUpdate '
+            'source=${payload['source']} '
+            'status=${nativeUpdateResult?['status']} '
+            'worldDataChanged=${nativeUpdateResult?['worldDataChanged']} '
+            'hatched=${nativeUpdateResult?['hatched']}',
           );
           return;
         case 'getRefreshDiagnostics':
