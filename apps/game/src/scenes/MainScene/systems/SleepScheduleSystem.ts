@@ -90,7 +90,6 @@ export function sleepScheduleSystem(params: {
     updateFatigue(eid, delta);
     reconcileExternalSleepExit(eid, currentTime, currentTimeOfDay);
     handleScheduledWake(world, eid, currentTime);
-    handleNightWakeChecks(world, eid, currentTime, currentTimeOfDay);
     handleUrgentWakeForFood(world, eid, currentTime, currentTimeOfDay);
     handleScheduledSleep(
       world,
@@ -150,9 +149,7 @@ function bootstrapSleepRuntime(
         SleepSystemComp.sleepSessionStartedAt[eid] = currentTime;
       }
 
-      if (currentTimeOfDay === TimeOfDay.Night) {
-        ensureNightWakeCheckTime(eid, currentTime);
-      } else if (
+      if (
         currentTimeOfDay === TimeOfDay.Sunrise ||
         currentTimeOfDay === TimeOfDay.Day
       ) {
@@ -205,7 +202,6 @@ function handleTimeOfDayTransition(
       case TimeOfDay.Night:
         if (ObjectComp.state[eid] === CharacterState.SLEEPING) {
           SleepSystemComp.sleepMode[eid] = SleepMode.NIGHT_SLEEP;
-          ensureNightWakeCheckTime(eid, currentTime);
         } else if (!suppressSleep) {
           scheduleNightSleep(world, eid, currentTime);
         }
@@ -311,60 +307,6 @@ function handleScheduledWake(
   }
 
   wakeCharacter(world, eid, currentTime);
-}
-
-function handleNightWakeChecks(
-  world: MainSceneWorld,
-  eid: number,
-  currentTime: number,
-  currentTimeOfDay: TimeOfDay,
-): void {
-  if (
-    ObjectComp.state[eid] !== CharacterState.SLEEPING ||
-    SleepSystemComp.sleepMode[eid] !== SleepMode.NIGHT_SLEEP ||
-    currentTimeOfDay !== TimeOfDay.Night
-  ) {
-    if (currentTimeOfDay !== TimeOfDay.Night) {
-      SleepSystemComp.nextNightWakeCheckTime[eid] = 0;
-    }
-    return;
-  }
-
-  ensureNightWakeCheckTime(eid, currentTime);
-
-  while (currentTime >= SleepSystemComp.nextNightWakeCheckTime[eid]) {
-    SleepSystemComp.nextNightWakeCheckTime[eid] +=
-      GAME_CONSTANTS.NIGHT_WAKE_CHECK_INTERVAL;
-
-    const fatigue = SleepSystemComp.fatigue[eid];
-    const baseChance = GAME_CONSTANTS.NIGHT_WAKE_CHANCE;
-    const appliedChance = baseChance;
-    const roll = Math.random();
-    const shouldWake = roll < appliedChance;
-
-    logSleepCheck(world, "Night wake check", {
-      eid,
-      timeOfDay: currentTimeOfDay,
-      sleepMode: SleepSystemComp.sleepMode[eid],
-      fatigue: roundForLog(fatigue),
-      fatigueMax: GAME_CONSTANTS.FATIGUE_MAX,
-      checkIntervalMs: GAME_CONSTANTS.NIGHT_WAKE_CHECK_INTERVAL,
-      baseChance,
-      baseChancePercent: toPercent(baseChance),
-      appliedChance,
-      appliedChancePercent: toPercent(appliedChance),
-      roll,
-      rollPercent: toPercent(roll),
-      result: shouldWake ? "wake" : "keep_sleeping",
-    });
-
-    if (shouldWake) {
-      SleepSystemComp.pendingWakeReason[eid] = SleepReason.NIGHT_INTERRUPT;
-      wakeCharacter(world, eid, currentTime);
-      scheduleResleep(eid, currentTime);
-      break;
-    }
-  }
 }
 
 function handleUrgentWakeForFood(
@@ -517,7 +459,6 @@ function handleNapWake(
 
   if (currentTimeOfDay === TimeOfDay.Night) {
     SleepSystemComp.sleepMode[eid] = SleepMode.NIGHT_SLEEP;
-    ensureNightWakeCheckTime(eid, currentTime);
     return;
   }
 
@@ -674,10 +615,7 @@ function enterSleep(
     reservedWakeTime > 0 ? Math.max(currentTime, reservedWakeTime) : 0;
   SleepSystemComp.pendingWakeReason[eid] =
     reservedWakeTime > 0 ? reservedWakeReason : SleepReason.NONE;
-  SleepSystemComp.nextNightWakeCheckTime[eid] =
-    mode === SleepMode.NIGHT_SLEEP
-      ? currentTime + GAME_CONSTANTS.NIGHT_WAKE_CHECK_INTERVAL
-      : 0;
+  SleepSystemComp.nextNightWakeCheckTime[eid] = 0;
 }
 
 export function wakeCharacter(
@@ -762,15 +700,6 @@ function clearDeferredResleepIntentIfStale(eid: number): void {
 
   SleepSystemComp.sleepMode[eid] = SleepMode.AWAKE;
   SleepSystemComp.pendingSleepReason[eid] = SleepReason.NONE;
-}
-
-function ensureNightWakeCheckTime(eid: number, currentTime: number): void {
-  if (SleepSystemComp.nextNightWakeCheckTime[eid] > 0) {
-    return;
-  }
-
-  SleepSystemComp.nextNightWakeCheckTime[eid] =
-    currentTime + GAME_CONSTANTS.NIGHT_WAKE_CHECK_INTERVAL;
 }
 
 function canEnterSleep(world: MainSceneWorld, eid: number): boolean {
