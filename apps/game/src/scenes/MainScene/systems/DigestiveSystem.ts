@@ -29,6 +29,7 @@ const SMALL_POOP_SCALE_RANGE = {
   min: 2.0,
   max: 2.4,
 } as const;
+const REPEATED_POOP_DELAY_MULTIPLIER = 0.5;
 const debugLog = (..._args: unknown[]): void => {};
 
 type Point = {
@@ -157,8 +158,10 @@ function scheduleNextPoop(
   digestiveComp: typeof DigestiveSystemComp,
   characterEid: number,
   currentTime: number,
+  delayMultiplier = 1,
 ): void {
-  const poopTime = currentTime + GAME_CONSTANTS.POOP_DELAY;
+  const poopTime =
+    currentTime + GAME_CONSTANTS.POOP_DELAY * delayMultiplier;
   digestiveComp.nextPoopTime[characterEid] = poopTime;
 
   debugLog(
@@ -224,7 +227,19 @@ function processPoop(
   const remainingLoad = Math.max(0, previousLoad - capacity);
 
   digestiveComp.currentLoad[characterEid] = remainingLoad;
-  syncDigestiveTimers(digestiveComp, characterEid, currentTime);
+  digestiveComp.nextPoopTime[characterEid] = 0;
+
+  if (remainingLoad > capacity) {
+    digestiveComp.nextSmallPoopTime[characterEid] = 0;
+    scheduleNextPoop(
+      digestiveComp,
+      characterEid,
+      currentTime,
+      REPEATED_POOP_DELAY_MULTIPLIER,
+    );
+  } else {
+    syncDigestiveTimers(digestiveComp, characterEid, currentTime);
+  }
 
   debugLog(
     `[DigestiveSystem] Digestive load reduced for character ${characterEid}: ${previousLoad} -> ${remainingLoad}`,

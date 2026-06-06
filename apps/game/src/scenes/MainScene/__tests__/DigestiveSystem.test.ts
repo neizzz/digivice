@@ -203,6 +203,65 @@ test("일반 똥 배출 후 남은 load가 용량 이하이면 그 시점부터 
   );
 });
 
+test("일반 똥 배출 후에도 용량을 초과하면 다음 일반 똥 타이머는 50% 지연으로 다시 잡는다", () => {
+  const world = createTestWorld({ now: 7_500 });
+  const characterEid = withMockedDateNow(7_500, () =>
+    createTestCharacter(world, {
+      stamina: 5,
+      x: 220,
+      y: 120,
+    }),
+  );
+  const poopTime = 7_500 + GAME_CONSTANTS.POOP_DELAY;
+  const repeatedPoopTime = poopTime + GAME_CONSTANTS.POOP_DELAY * 0.5;
+
+  DigestiveSystemComp.currentLoad[characterEid] = 11;
+  DigestiveSystemComp.nextPoopTime[characterEid] = poopTime;
+  DigestiveSystemComp.nextSmallPoopTime[characterEid] = 0;
+
+  digestiveSystem({
+    world: world as any,
+    currentTime: poopTime,
+  });
+
+  assert.equal(
+    objectQuery(world).filter((eid) => ObjectComp.type[eid] === ObjectType.POOB)
+      .length,
+    1,
+  );
+  assert.equal(DigestiveSystemComp.currentLoad[characterEid], 6);
+  assert.equal(DigestiveSystemComp.nextPoopTime[characterEid], repeatedPoopTime);
+  assert.equal(DigestiveSystemComp.nextSmallPoopTime[characterEid], 0);
+
+  digestiveSystem({
+    world: world as any,
+    currentTime: poopTime + 1,
+  });
+
+  assert.equal(
+    objectQuery(world).filter((eid) => ObjectComp.type[eid] === ObjectType.POOB)
+      .length,
+    1,
+  );
+
+  digestiveSystem({
+    world: world as any,
+    currentTime: repeatedPoopTime,
+  });
+
+  assert.equal(
+    objectQuery(world).filter((eid) => ObjectComp.type[eid] === ObjectType.POOB)
+      .length,
+    2,
+  );
+  assert.equal(DigestiveSystemComp.currentLoad[characterEid], 1);
+  assert.equal(DigestiveSystemComp.nextPoopTime[characterEid], 0);
+  assert.equal(
+    DigestiveSystemComp.nextSmallPoopTime[characterEid],
+    repeatedPoopTime + GAME_CONSTANTS.DIGESTIVE_SMALL_POOP_DELAY,
+  );
+});
+
 test("기본 poop 위치에 food가 있으면 재시도 후보 위치를 선택한다", () => {
   const world = createTestWorld({ now: 8_000 });
   const characterEid = withMockedDateNow(8_000, () =>
