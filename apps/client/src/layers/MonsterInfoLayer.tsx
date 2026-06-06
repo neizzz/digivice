@@ -26,8 +26,8 @@ const GENE_SYMBOL_X_BY_LINE: Record<
   number
 > = {
   "green-slime": 0,
-  "soil-slime": 16,
-  "skull-slime": 32,
+  "skull-slime": 16,
+  "soil-slime": 32,
 };
 
 function colorNumberToCssHex(color: number): string {
