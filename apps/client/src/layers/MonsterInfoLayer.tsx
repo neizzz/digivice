@@ -18,17 +18,16 @@ const EVOLUTION_FILL_COLOR = "#59B8FF";
 const MONSTER_INFO_TITLE_KEY = "monsterInfo.title";
 const DOM_NAME_LABEL_STROKE_WIDTH = Math.max(1, NAME_LABEL_STROKE_WIDTH / 2);
 const GENE_SYMBOL_SPRITE_URL = "/assets/game/sprites/gene-symbol.png";
-const GENE_SYMBOL_SIZE = 16;
-const GENE_SYMBOL_SHEET_WIDTH = 48;
-const GENE_SYMBOL_SHEET_HEIGHT = 16;
-const GENE_SYMBOL_X_BY_LINE: Record<
+const GENE_SYMBOL_BACKGROUND_POSITION_BY_LINE: Record<
   NonNullable<MainCharacterInfoSnapshot["geneLine"]>,
-  number
+  string
 > = {
-  "green-slime": 0,
-  "soil-slime": 16,
-  "skull-slime": 32,
+  "green-slime": "0% 0",
+  "skull-slime": "50% 0",
+  "soil-slime": "100% 0",
 };
+
+type GeneOutcome = MainCharacterInfoSnapshot["geneOutcomes"][number];
 
 function colorNumberToCssHex(color: number): string {
   return `#${color.toString(16).padStart(6, "0")}`;
@@ -182,18 +181,18 @@ const GeneSymbolIcon: React.FC<{
     className="inline-block shrink-0 [image-rendering:pixelated]"
     role="img"
     style={{
-      width: GENE_SYMBOL_SIZE,
-      height: GENE_SYMBOL_SIZE,
+      width: "1em",
+      height: "1em",
       backgroundImage: `url(${GENE_SYMBOL_SPRITE_URL})`,
-      backgroundPosition: `-${GENE_SYMBOL_X_BY_LINE[geneLine]}px 0`,
+      backgroundPosition: GENE_SYMBOL_BACKGROUND_POSITION_BY_LINE[geneLine],
       backgroundRepeat: "no-repeat",
-      backgroundSize: `${GENE_SYMBOL_SHEET_WIDTH}px ${GENE_SYMBOL_SHEET_HEIGHT}px`,
+      backgroundSize: "300% 100%",
     }}
   />
 );
 
 const GeneOutcomeList: React.FC<{
-  label: string;
+  label?: string;
   locale: string;
   outcomes: MainCharacterInfoSnapshot["geneOutcomes"];
 }> = ({ label, locale, outcomes }) => {
@@ -201,24 +200,65 @@ const GeneOutcomeList: React.FC<{
     return null;
   }
 
+  const standardOutcomes = outcomes.filter(
+    (outcome) => outcome.kind !== "mutation",
+  );
+  const mutationOutcomes = outcomes.filter(
+    (outcome) => outcome.kind === "mutation",
+  );
+  const mutationLevel = mutationOutcomes[0]?.level;
+  const mutationProbability = mutationOutcomes.reduce(
+    (total, outcome) => total + outcome.probability,
+    0,
+  );
+  const mutationKey = mutationOutcomes
+    .map((outcome) => `${outcome.geneLine}:${outcome.level}`)
+    .sort()
+    .join("|");
+
+  const renderOutcomeRow = (outcome: GeneOutcome) => (
+    <div
+      className="flex items-center justify-between gap-4 text-[1.2rem] leading-none"
+      key={`${outcome.kind}:${outcome.geneLine}:${outcome.level}`}
+    >
+      <div className="flex items-end gap-[0.05em] font-bold text-[#222]">
+        <GeneSymbolIcon geneLine={outcome.geneLine} />
+        <span className="text-[0.8em]">Lv.{outcome.level}</span>
+      </div>
+      <div className="font-bold text-component-positive">
+        {formatGeneOutcomeProbability(outcome.probability, locale)}
+      </div>
+    </div>
+  );
+
   return (
     <div className="flex flex-col gap-2 text-left">
-      <div className="text-[1.2rem] leading-[1.2] text-[#222]">{label}</div>
+      {label ? (
+        <div className="text-[1.2rem] leading-[1.2] text-[#222]">{label}</div>
+      ) : null}
       <div className="flex flex-col gap-2">
-        {outcomes.map((outcome) => (
+        {standardOutcomes.map(renderOutcomeRow)}
+        {mutationOutcomes.length > 0 && mutationLevel !== undefined ? (
           <div
-            className="flex items-center justify-between gap-4 text-[1.15rem] leading-none"
-            key={`${outcome.kind}:${outcome.geneLine}:${outcome.level}`}
+            className="flex items-center justify-between gap-4 text-[1.2rem] leading-none"
+            key={`mutation:${mutationKey}`}
           >
-            <div className="flex items-center gap-2 font-bold text-[#222]">
-              <GeneSymbolIcon geneLine={outcome.geneLine} />
-              <span>Lv.{outcome.level}</span>
+            <div className="flex items-end gap-[0.05em] font-bold text-[#222]">
+              <div className="flex items-center -space-x-[0.5em]">
+                {mutationOutcomes.map((outcome) => (
+                  <GeneSymbolIcon
+                    geneLine={outcome.geneLine}
+                    key={`${outcome.geneLine}:${outcome.level}`}
+                  />
+                ))}
+              </div>
+              <span className="text-[0.8em]">Lv.{mutationLevel}</span>
             </div>
             <div className="font-bold text-component-positive">
-              {formatGeneOutcomeProbability(outcome.probability, locale)}
+              {formatGeneOutcomeProbability(mutationProbability, locale)}
             </div>
           </div>
-        ))}
+        ) : null}
       </div>
     </div>
   );
@@ -317,11 +357,11 @@ const MonsterInfoLayer: React.FC<MonsterInfoLayerProps> = ({
               <div className="text-[1.2rem] leading-[1.2] text-[#222]">
                 {t("monsterInfo.level")}
               </div>
-              <div className="flex items-center justify-end gap-2 text-[1.3rem] leading-none font-bold text-component-positive">
-                {levelText}
+              <div className="flex items-center justify-end gap-1 text-[1.2rem] leading-none font-bold text-component-positive">
                 {snapshot.geneLine ? (
                   <GeneSymbolIcon geneLine={snapshot.geneLine} />
                 ) : null}
+                {levelText}
               </div>
             </div>
             {snapshot.isEgg ? (
@@ -346,17 +386,18 @@ const MonsterInfoLayer: React.FC<MonsterInfoLayerProps> = ({
                   maxValue={snapshot.maxStamina}
                   fillColor={getStaminaFillColor(snapshot)}
                 />
-                <StatusBar
-                  label={t("monsterInfo.evolution")}
-                  currentValue={snapshot.evolutionGauge}
-                  maxValue={snapshot.maxEvolutionGauge}
-                  fillColor={EVOLUTION_FILL_COLOR}
-                />
-                <GeneOutcomeList
-                  label={t("monsterInfo.evolution")}
-                  locale={locale}
-                  outcomes={snapshot.geneOutcomes}
-                />
+                <div className="flex flex-col gap-2">
+                  <StatusBar
+                    label={t("monsterInfo.evolution")}
+                    currentValue={snapshot.evolutionGauge}
+                    maxValue={snapshot.maxEvolutionGauge}
+                    fillColor={EVOLUTION_FILL_COLOR}
+                  />
+                  <GeneOutcomeList
+                    locale={locale}
+                    outcomes={snapshot.geneOutcomes}
+                  />
+                </div>
               </>
             )}
           </div>
