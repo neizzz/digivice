@@ -4664,6 +4664,7 @@ export class MainSceneWorld implements IWorld, Scene {
     }
 
     SleepSystemComp.sleepMode[eid] = SleepMode.AWAKE;
+    SleepSystemComp.interruptedSleepMode[eid] = SleepMode.AWAKE;
     SleepSystemComp.nextSleepTime[eid] = 0;
     SleepSystemComp.nextWakeTime[eid] = 0;
     SleepSystemComp.nextNightWakeCheckTime[eid] = 0;

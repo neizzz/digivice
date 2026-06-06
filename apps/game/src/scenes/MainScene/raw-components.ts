@@ -115,6 +115,7 @@ export const SleepSystemComp = defineComponent({
   nextNapCheckTime: Types.f64,
   nextNightWakeCheckTime: Types.f64,
   sleepMode: Types.ui8,
+  interruptedSleepMode: Types.ui8,
   pendingSleepReason: Types.ui8,
   pendingWakeReason: Types.ui8,
   sleepSessionStartedAt: Types.f64,

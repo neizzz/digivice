@@ -90,7 +90,7 @@ export function sleepScheduleSystem(params: {
     updateFatigue(eid, delta);
     reconcileExternalSleepExit(eid, currentTime, currentTimeOfDay);
     handleScheduledWake(world, eid, currentTime);
-    handleUrgentWakeForFood(world, eid, currentTime, currentTimeOfDay);
+    handleUrgentWakeForFood(world, eid, currentTime);
     handleScheduledSleep(
       world,
       eid,
@@ -313,7 +313,6 @@ function handleUrgentWakeForFood(
   world: MainSceneWorld,
   eid: number,
   currentTime: number,
-  currentTimeOfDay: TimeOfDay,
 ): void {
   if (ObjectComp.state[eid] !== CharacterState.SLEEPING) {
     return;
@@ -323,7 +322,10 @@ function handleUrgentWakeForFood(
     return;
   }
 
-  if (CharacterStatusComp.stamina[eid] > GAME_CONSTANTS.URGENT_STAMINA_THRESHOLD) {
+  if (
+    CharacterStatusComp.stamina[eid] >=
+    GAME_CONSTANTS.UNHAPPY_STAMINA_THRESHOLD
+  ) {
     return;
   }
 
@@ -331,11 +333,7 @@ function handleUrgentWakeForFood(
     return;
   }
 
-  wakeCharacter(world, eid, currentTime, {
-    preserveDeferredNightResleep:
-      currentTimeOfDay === TimeOfDay.Night &&
-      SleepSystemComp.sleepMode[eid] === SleepMode.NIGHT_SLEEP,
-  });
+  wakeCharacterForFood(world, eid, currentTime);
 }
 
 function handleScheduledSleep(
@@ -582,6 +580,7 @@ function scheduleWakeFromSunrise(eid: number, currentTime: number): void {
 
 export function scheduleResleep(eid: number, currentTime: number): void {
   SleepSystemComp.sleepMode[eid] = SleepMode.INTERRUPTED_AWAKE;
+  SleepSystemComp.interruptedSleepMode[eid] = SleepMode.NIGHT_SLEEP;
   SleepSystemComp.nextSleepTime[eid] =
     currentTime +
     randomBetween(
@@ -608,6 +607,7 @@ function enterSleep(
   ObjectComp.state[eid] = CharacterState.SLEEPING;
   SpeedComp.value[eid] = 0;
   SleepSystemComp.sleepMode[eid] = mode;
+  SleepSystemComp.interruptedSleepMode[eid] = SleepMode.AWAKE;
   SleepSystemComp.sleepSessionStartedAt[eid] = currentTime;
   SleepSystemComp.nextSleepTime[eid] = 0;
   SleepSystemComp.pendingSleepReason[eid] = SleepReason.NONE;
@@ -634,6 +634,7 @@ export function wakeCharacter(
   SleepSystemComp.sleepMode[eid] = preserveDeferredNightResleep
     ? SleepMode.INTERRUPTED_AWAKE
     : SleepMode.AWAKE;
+  SleepSystemComp.interruptedSleepMode[eid] = SleepMode.AWAKE;
   SleepSystemComp.nextSleepTime[eid] = 0;
   SleepSystemComp.nextWakeTime[eid] = 0;
   SleepSystemComp.nextNightWakeCheckTime[eid] = 0;
@@ -648,6 +649,75 @@ export function wakeCharacter(
   if (!isSick) {
     restoreRandomMovementIfNeeded(world, eid, currentTime);
   }
+}
+
+function wakeCharacterForFood(
+  world: MainSceneWorld,
+  eid: number,
+  currentTime: number,
+): void {
+  const interruptedSleepMode = SleepSystemComp.sleepMode[eid];
+  const canResumeInterruptedSleep =
+    interruptedSleepMode === SleepMode.NIGHT_SLEEP ||
+    interruptedSleepMode === SleepMode.DAY_NAP;
+  const reservedWakeTime =
+    interruptedSleepMode === SleepMode.NIGHT_SLEEP
+      ? SleepSystemComp.nextWakeTime[eid]
+      : 0;
+  const reservedWakeReason =
+    interruptedSleepMode === SleepMode.NIGHT_SLEEP
+      ? SleepSystemComp.pendingWakeReason[eid]
+      : SleepReason.NONE;
+
+  wakeCharacter(world, eid, currentTime, {
+    preserveDeferredNightResleep: canResumeInterruptedSleep,
+  });
+
+  if (!canResumeInterruptedSleep) {
+    return;
+  }
+
+  SleepSystemComp.interruptedSleepMode[eid] = interruptedSleepMode;
+  SleepSystemComp.nextWakeTime[eid] = reservedWakeTime;
+  SleepSystemComp.pendingWakeReason[eid] = reservedWakeReason;
+}
+
+export function resumeSleepInterruptedForFood(
+  world: MainSceneWorld,
+  eid: number,
+  currentTime: number,
+): boolean {
+  if (
+    SleepSystemComp.sleepMode[eid] !== SleepMode.INTERRUPTED_AWAKE ||
+    SleepSystemComp.pendingSleepReason[eid] !== SleepReason.RESLEEP ||
+    SleepSystemComp.nextSleepTime[eid] > 0
+  ) {
+    return false;
+  }
+
+  const interruptedSleepMode = SleepSystemComp.interruptedSleepMode[eid];
+  if (interruptedSleepMode === SleepMode.DAY_NAP) {
+    SleepSystemComp.sleepMode[eid] = SleepMode.AWAKE;
+    SleepSystemComp.interruptedSleepMode[eid] = SleepMode.AWAKE;
+    SleepSystemComp.pendingSleepReason[eid] = SleepReason.NONE;
+    SleepSystemComp.nextNapCheckTime[eid] =
+      currentTime + GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL;
+    return false;
+  }
+
+  const sleepModeToResume =
+    interruptedSleepMode === SleepMode.NIGHT_SLEEP
+      ? interruptedSleepMode
+      : world.timeOfDay === TimeOfDay.Night
+        ? SleepMode.NIGHT_SLEEP
+        : null;
+
+  if (sleepModeToResume === null) {
+    return false;
+  }
+
+  enterSleep(world, eid, currentTime, sleepModeToResume);
+  return true;
 }
 
 function hasEdibleLandedFood(world: MainSceneWorld): boolean {
@@ -684,6 +754,7 @@ function clearPendingNightSleep(eid: number): void {
   ) {
     SleepSystemComp.nextSleepTime[eid] = 0;
     SleepSystemComp.pendingSleepReason[eid] = SleepReason.NONE;
+    SleepSystemComp.interruptedSleepMode[eid] = SleepMode.AWAKE;
     SleepSystemComp.nextWakeTime[eid] = 0;
     SleepSystemComp.pendingWakeReason[eid] = SleepReason.NONE;
   }
@@ -699,6 +770,7 @@ function clearDeferredResleepIntentIfStale(eid: number): void {
   }
 
   SleepSystemComp.sleepMode[eid] = SleepMode.AWAKE;
+  SleepSystemComp.interruptedSleepMode[eid] = SleepMode.AWAKE;
   SleepSystemComp.pendingSleepReason[eid] = SleepReason.NONE;
 }
 

@@ -268,6 +268,9 @@ export function convertECSEntityToSavedEntity(
       nextNapCheckTime: SleepSystemComp.nextNapCheckTime[eid],
       nextNightWakeCheckTime: SleepSystemComp.nextNightWakeCheckTime[eid],
       sleepMode: SleepSystemComp.sleepMode[eid] as SleepMode,
+      interruptedSleepMode: SleepSystemComp.interruptedSleepMode[
+        eid
+      ] as SleepMode,
       pendingSleepReason: SleepSystemComp.pendingSleepReason[
         eid
       ] as SleepReason,
@@ -542,6 +545,8 @@ export function applySavedEntityToECS(
     SleepSystemComp.nextNightWakeCheckTime[eid] =
       components.sleepSystem.nextNightWakeCheckTime;
     SleepSystemComp.sleepMode[eid] = components.sleepSystem.sleepMode;
+    SleepSystemComp.interruptedSleepMode[eid] =
+      components.sleepSystem.interruptedSleepMode ?? SleepMode.AWAKE;
     SleepSystemComp.pendingSleepReason[eid] =
       components.sleepSystem.pendingSleepReason;
     SleepSystemComp.pendingWakeReason[eid] =

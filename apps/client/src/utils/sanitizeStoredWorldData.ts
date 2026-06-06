@@ -83,6 +83,7 @@ type StoredSleepSystemComponent = {
   nextNapCheckTime?: number;
   nextNightWakeCheckTime?: number;
   sleepMode?: number;
+  interruptedSleepMode?: number;
   pendingSleepReason?: number;
   pendingWakeReason?: number;
   sleepSessionStartedAt?: number;
@@ -769,6 +770,8 @@ function sanitizeCharacterEntity(
       sleepMode:
         toFiniteNumber(components.sleepSystem?.sleepMode) ??
         (state === CHARACTER_STATE.SLEEPING ? 1 : 0),
+      interruptedSleepMode:
+        toFiniteNumber(components.sleepSystem?.interruptedSleepMode) ?? 0,
       pendingSleepReason:
         toFiniteNumber(components.sleepSystem?.pendingSleepReason) ?? 0,
       pendingWakeReason:

@@ -16,7 +16,6 @@ import {
   SpeedComp,
   RandomMovementComp,
   FreshnessComp,
-  SleepSystemComp,
 } from "../raw-components";
 import { GAME_CONSTANTS } from "../config";
 import {
@@ -25,8 +24,6 @@ import {
   FoodState,
   DestinationType,
   CharacterStatus,
-  SleepMode,
-  SleepReason,
   TextureKey,
 } from "../types";
 import { MainSceneWorld } from "../world";
@@ -38,8 +35,7 @@ import { moveTowardsTarget } from "../utils/movementUtils";
 import { getCharacterWorldBounds } from "./CharacterDisplayBounds";
 import { getSpriteStore } from "./RenderSystem";
 import { restoreCharacterFreeRoamingState } from "../entityDataHelpers";
-import { TimeOfDay } from "../timeOfDay";
-import { scheduleResleep } from "./SleepScheduleSystem";
+import { resumeSleepInterruptedForFood } from "./SleepScheduleSystem";
 import {
   getFoodEatingEntityRef,
   getTargetedFoodEntityRef,
@@ -317,11 +313,6 @@ function completeEating(
   );
   CharacterStatusComp.stamina[characterEid] = newStamina;
 
-  const shouldResumeNightSleepAfterEating =
-    SleepSystemComp.sleepMode[characterEid] === SleepMode.INTERRUPTED_AWAKE &&
-    SleepSystemComp.pendingSleepReason[characterEid] === SleepReason.RESLEEP &&
-    SleepSystemComp.nextSleepTime[characterEid] <= 0;
-
   // 음식 신선도와 무관하게 식사 1회당 고정 소화 부하를 추가한다.
   addDigestiveLoadAmount(
     world,
@@ -341,37 +332,36 @@ function completeEating(
     addCharacterStatus(characterEid, CharacterStatus.HAPPY, world);
   }
 
-  if (shouldResumeNightSleepAfterEating) {
-    if (world.timeOfDay === TimeOfDay.Night) {
-      scheduleResleep(characterEid, currentTime);
-    } else {
-      SleepSystemComp.sleepMode[characterEid] = SleepMode.AWAKE;
-      SleepSystemComp.pendingSleepReason[characterEid] = SleepReason.NONE;
+  const didResumeSleepAfterEating = resumeSleepInterruptedForFood(
+    world,
+    characterEid,
+    currentTime,
+  );
+
+  if (!didResumeSleepAfterEating) {
+    // 캐릭터 상태를 IDLE로 변경
+    ObjectComp.state[characterEid] = CharacterState.IDLE;
+
+    // SpeedComp를 0으로 설정 (idle 상태로 시작)
+    if (hasComponent(world, SpeedComp, characterEid)) {
+      SpeedComp.value[characterEid] = 0; // idle 상태로 시작
     }
-  }
 
-  // 캐릭터 상태를 IDLE로 변경
-  ObjectComp.state[characterEid] = CharacterState.IDLE;
-
-  // SpeedComp를 0으로 설정 (idle 상태로 시작)
-  if (hasComponent(world, SpeedComp, characterEid)) {
-    SpeedComp.value[characterEid] = 0; // idle 상태로 시작
-  }
-
-  // RandomMovementComp 다시 추가 (랜덤 이동 재개)
-  if (!hasComponent(world, RandomMovementComp, characterEid)) {
-    addComponent(world, RandomMovementComp, characterEid);
-    // 기본값으로 설정 (time 관련 속성은 characterStats에서 제거됨)
-    RandomMovementComp.minIdleTime[characterEid] = 1000;
-    RandomMovementComp.maxIdleTime[characterEid] = 3000;
-    RandomMovementComp.minMoveTime[characterEid] = 2000;
-    RandomMovementComp.maxMoveTime[characterEid] = 4000;
-    // 음식을 먹은 후 2-3초 정도 idle 상태를 유지하도록 설정
-    RandomMovementComp.nextChange[characterEid] =
-      world.currentTime + 2000 + Math.random() * 1000;
-    debugLog(
-      `[FoodEatingSystem] Added RandomMovementComp back to character ${characterEid} with idle delay`,
-    );
+    // RandomMovementComp 다시 추가 (랜덤 이동 재개)
+    if (!hasComponent(world, RandomMovementComp, characterEid)) {
+      addComponent(world, RandomMovementComp, characterEid);
+      // 기본값으로 설정 (time 관련 속성은 characterStats에서 제거됨)
+      RandomMovementComp.minIdleTime[characterEid] = 1000;
+      RandomMovementComp.maxIdleTime[characterEid] = 3000;
+      RandomMovementComp.minMoveTime[characterEid] = 2000;
+      RandomMovementComp.maxMoveTime[characterEid] = 4000;
+      // 음식을 먹은 후 2-3초 정도 idle 상태를 유지하도록 설정
+      RandomMovementComp.nextChange[characterEid] =
+        world.currentTime + 2000 + Math.random() * 1000;
+      debugLog(
+        `[FoodEatingSystem] Added RandomMovementComp back to character ${characterEid} with idle delay`,
+      );
+    }
   }
 
   // 음식의 FoodMaskComp 제거

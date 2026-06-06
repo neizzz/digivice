@@ -401,6 +401,7 @@ export type SleepSystemComponent = {
   nextNapCheckTime: number;
   nextNightWakeCheckTime: number;
   sleepMode: SleepMode;
+  interruptedSleepMode: SleepMode;
   pendingSleepReason: SleepReason;
   pendingWakeReason: SleepReason;
   sleepSessionStartedAt: number;

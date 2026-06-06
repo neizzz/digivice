@@ -201,6 +201,7 @@ export function createCharacterEntity(
     ObjectComp.state[eid] === CharacterState.SLEEPING
       ? SleepMode.NIGHT_SLEEP
       : SleepMode.AWAKE;
+  SleepSystemComp.interruptedSleepMode[eid] = SleepMode.AWAKE;
   SleepSystemComp.pendingSleepReason[eid] = SleepReason.NONE;
   SleepSystemComp.pendingWakeReason[eid] = SleepReason.NONE;
   SleepSystemComp.sleepSessionStartedAt[eid] =
