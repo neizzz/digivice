@@ -115,16 +115,24 @@ internal fun buildHomeWidgetEggWorldData(
     hatchTimeMs: Long,
     resetMarkerId: String,
     pendingCharacterKey: Int,
+    lastEcsSaved: Long = 1000L,
+    syringeCount: Int = 0,
+    positionX: Double = 100.0,
+    positionY: Double = 100.0,
+    extraEntitiesJson: String = "",
 ): String {
+    val extraEntities = extraEntitiesJson.takeIf { it.isNotBlank() }
+        ?.let { ",$it" }
+        ?: ""
     return """
         {
           "world_metadata": {
             "name": "MainScene",
             "monster_name": "Test",
-            "last_ecs_saved": 1000,
+            "last_ecs_saved": $lastEcsSaved,
             "version": "1.0.0",
             "app_state": {
-              "last_active_time": 1000,
+              "last_active_time": $lastEcsSaved,
               "use_local_time": true,
               "reset_bootstrap_marker_id": "$resetMarkerId"
             }
@@ -143,11 +151,21 @@ internal fun buildHomeWidgetEggWorldData(
                   "evolutionPhase": 0,
                   "statuses": []
                 },
+                "position": {
+                  "x": $positionX,
+                  "y": $positionY
+                },
+                "angle": {
+                  "value": 0
+                },
+                "speed": {
+                  "value": 0
+                },
                 "eggHatch": {
                   "hatchTime": $hatchTimeMs,
                   "hatchDurationMs": 30000,
                   "isReadyToHatch": true,
-                  "syringeCount": 0,
+                  "syringeCount": $syringeCount,
                   "pendingCharacterKey": $pendingCharacterKey
                 },
                 "render": {
@@ -155,7 +173,44 @@ internal fun buildHomeWidgetEggWorldData(
                 }
               }
             }
+            $extraEntities
           ]
+        }
+    """.trimIndent()
+}
+
+internal fun buildHomeWidgetFoodEntityJson(
+    id: Int = 20,
+    state: Int = 2,
+    freshness: Int = 2,
+    createdTime: Long = 1000L,
+    staleTime: Long = 10 * 60 * 1000L,
+): String {
+    return """
+        {
+          "components": {
+            "object": {
+              "id": $id,
+              "type": 3,
+              "state": $state
+            },
+            "position": {
+              "x": 200,
+              "y": 100
+            },
+            "freshness": {
+              "freshness": $freshness
+            },
+            "freshnessTimer": {
+              "createdTime": $createdTime,
+              "staleTime": $staleTime,
+              "isBeingEaten": false
+            },
+            "render": {
+              "textureKey": 545,
+              "scale": 3
+            }
+          }
         }
     """.trimIndent()
 }

@@ -1,7 +1,9 @@
 package com.ch00n9h09.montto
 
+import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -400,11 +402,22 @@ class HomeWidgetPeriodicRefreshWorkerTest {
         assertTrue(result.succeeded)
         assertEquals(true, result.hatched)
         assertEquals(22, result.selectedCharacterKey)
+        assertEquals(true, result.hatchSelectionDiagnostics?.usedPendingCharacterKey)
+        assertEquals(22, result.hatchSelectionDiagnostics?.selectedCharacterKey)
+        assertEquals(null, result.hatchSelectionDiagnostics?.rollPercent)
         assertEquals("idle", persistedSnapshot?.characterState)
         assertEquals(22, persistedSnapshot?.characterKey)
         assertTrue(updatedWorldData?.contains(""""state":1""") == true)
         assertTrue(updatedWorldData?.contains(""""characterKey":22""") == true)
         assertTrue(updatedWorldData?.contains(""""hatchTime":0""") == true)
+        val updatedComponents = JSONObject(updatedWorldData!!)
+            .getJSONArray("entities")
+            .getJSONObject(0)
+            .getJSONObject("components")
+        assertEquals(0, updatedComponents.getJSONObject("render").getInt("textureKey"))
+        assertEquals(22, updatedComponents.getJSONObject("animationRender").getInt("spritesheetKey"))
+        assertEquals(2000, updatedComponents.getJSONObject("randomMovement").getInt("minIdleTime"))
+        assertEquals(0.0, updatedComponents.getJSONObject("speed").getDouble("value"), 0.0)
         assertEquals(false, widgetPrefs.getBoolean(HomeWidgetConstants.REFRESH_IN_FLIGHT_KEY, true))
         assertEquals(nowMs, widgetPrefs.getLong(HomeWidgetConstants.REFRESH_COMPLETED_AT_MS_KEY, 0L))
         assertTrue(
@@ -413,6 +426,134 @@ class HomeWidgetPeriodicRefreshWorkerTest {
         )
     }
 
+
+    @Test
+    fun `native authoritative refresh includes stale food progressed during app off in hatch selection diagnostics`() {
+        val nowMs = 11 * 60 * 1000L
+        val widgetPrefs = FakeSharedPreferences()
+        val flutterPrefs = FakeSharedPreferences()
+
+        flutterPrefs.edit()
+            .putString(
+                HomeWidgetConstants.FLUTTER_WORLD_DATA_KEY,
+                buildHomeWidgetEggWorldData(
+                    hatchTimeMs = nowMs - 1L,
+                    resetMarkerId = "reset-current",
+                    pendingCharacterKey = 0,
+                    lastEcsSaved = 1000L,
+                    extraEntitiesJson = buildHomeWidgetFoodEntityJson(
+                        freshness = 2,
+                        createdTime = 1000L,
+                        staleTime = 10 * 60 * 1000L,
+                    ),
+                ),
+            )
+            .apply()
+
+        val result = HomeWidgetNativeAuthoritativeRefresh.complete(
+            widgetPrefs = widgetPrefs,
+            flutterPrefs = flutterPrefs,
+            nowMs = nowMs,
+            persistSnapshot = {},
+        )
+        val updatedEntities = JSONObject(
+            flutterPrefs.getString(HomeWidgetConstants.FLUTTER_WORLD_DATA_KEY, null)!!,
+        ).getJSONArray("entities")
+        val updatedFoodComponents = updatedEntities.getJSONObject(1).getJSONObject("components")
+
+        assertTrue(result.succeeded)
+        assertEquals(true, result.hatched)
+        assertEquals(false, result.hatchSelectionDiagnostics?.usedPendingCharacterKey)
+        assertEquals(1, result.hatchSelectionDiagnostics?.staleFoodCountAtHatch)
+        assertEquals(63, result.hatchSelectionDiagnostics?.greenProbability)
+        assertEquals(22, result.hatchSelectionDiagnostics?.soilProbability)
+        assertEquals(15, result.hatchSelectionDiagnostics?.skullProbability)
+        assertEquals(3, updatedFoodComponents.getJSONObject("freshness").getInt("freshness"))
+        assertEquals(2, updatedFoodComponents.getJSONObject("object").getInt("state"))
+    }
+
+    @Test
+    fun `native authoritative refresh projects post hatch runtime movement after elapsed time`() {
+        val nowMs = 40_000L
+        val widgetPrefs = FakeSharedPreferences()
+        val flutterPrefs = FakeSharedPreferences()
+        val initialX = 100.0
+        val initialY = 120.0
+
+        flutterPrefs.edit()
+            .putString(
+                HomeWidgetConstants.FLUTTER_WORLD_DATA_KEY,
+                buildHomeWidgetEggWorldData(
+                    hatchTimeMs = nowMs - 20_000L,
+                    resetMarkerId = "reset-current",
+                    pendingCharacterKey = 22,
+                    positionX = initialX,
+                    positionY = initialY,
+                ),
+            )
+            .apply()
+
+        val result = HomeWidgetNativeAuthoritativeRefresh.complete(
+            widgetPrefs = widgetPrefs,
+            flutterPrefs = flutterPrefs,
+            nowMs = nowMs,
+            persistSnapshot = {},
+        )
+        val updatedComponents = JSONObject(
+            flutterPrefs.getString(HomeWidgetConstants.FLUTTER_WORLD_DATA_KEY, null)!!,
+        ).getJSONArray("entities")
+            .getJSONObject(0)
+            .getJSONObject("components")
+        val updatedPosition = updatedComponents.getJSONObject("position")
+        val updatedRandomMovement = updatedComponents.getJSONObject("randomMovement")
+
+        assertTrue(result.succeeded)
+        assertEquals(true, result.hatched)
+        assertEquals(22, updatedComponents.getJSONObject("animationRender").getInt("spritesheetKey"))
+        assertEquals(0, updatedComponents.getJSONObject("render").getInt("textureKey"))
+        assertTrue(updatedComponents.getJSONObject("object").getInt("state") in listOf(1, 2))
+        assertNotEquals(initialX, updatedPosition.getDouble("x"), 0.000001)
+        assertNotEquals(initialY, updatedPosition.getDouble("y"), 0.000001)
+        assertEquals(2000, updatedRandomMovement.getInt("minIdleTime"))
+        assertEquals(8000, updatedRandomMovement.getInt("maxIdleTime"))
+        assertTrue(updatedRandomMovement.getLong("nextChange") > nowMs)
+        assertTrue(updatedComponents.has("angle"))
+        assertTrue(updatedComponents.has("speed"))
+    }
+
+    @Test
+    fun `native authoritative refresh exposes hatch selection diagnostics in result map`() {
+        val nowMs = 20_000L
+        val widgetPrefs = FakeSharedPreferences()
+        val flutterPrefs = FakeSharedPreferences()
+
+        flutterPrefs.edit()
+            .putString(
+                HomeWidgetConstants.FLUTTER_WORLD_DATA_KEY,
+                buildHomeWidgetEggWorldData(
+                    hatchTimeMs = nowMs - 1L,
+                    resetMarkerId = "reset-current",
+                    pendingCharacterKey = 22,
+                ),
+            )
+            .apply()
+
+        val result = HomeWidgetNativeAuthoritativeRefresh.complete(
+            widgetPrefs = widgetPrefs,
+            flutterPrefs = flutterPrefs,
+            nowMs = nowMs,
+            persistSnapshot = {},
+        ).toMap(includeWorldData = false)
+        val diagnostics = result["hatchSelectionDiagnostics"] as Map<*, *>
+        val probabilities = diagnostics["probabilities"] as Map<*, *>
+
+        assertEquals(true, result["hasUpdatedRawWorldData"])
+        assertEquals(22, diagnostics["selectedCharacterKey"])
+        assertEquals(true, diagnostics["usedPendingCharacterKey"])
+        assertEquals(65, probabilities["green"])
+        assertEquals(20, probabilities["soil"])
+        assertEquals(15, probabilities["skull"])
+    }
 
     @Test
     fun `native authoritative refresh progresses due day nap into sleeping snapshot`() {

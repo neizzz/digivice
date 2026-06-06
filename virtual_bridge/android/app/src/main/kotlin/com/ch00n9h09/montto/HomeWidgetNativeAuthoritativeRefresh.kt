@@ -11,6 +11,7 @@ internal data class HomeWidgetNativeAuthoritativeRefreshResult(
     val worldDataChanged: Boolean = false,
     val hatched: Boolean = false,
     val selectedCharacterKey: Int? = null,
+    val hatchSelectionDiagnostics: HomeWidgetNativeHatchSelectionDiagnostics? = null,
     val previousCharacterState: Int? = null,
     val nextCharacterState: Int? = null,
     val error: String? = null,
@@ -27,6 +28,7 @@ internal data class HomeWidgetNativeAuthoritativeRefreshResult(
             "worldDataChanged" to worldDataChanged,
             "hatched" to hatched,
             "selectedCharacterKey" to selectedCharacterKey,
+            "hatchSelectionDiagnostics" to hatchSelectionDiagnostics?.toMap(),
             "previousCharacterState" to previousCharacterState,
             "nextCharacterState" to nextCharacterState,
             "error" to error,
@@ -205,6 +207,7 @@ private object HomeWidgetNativeRefreshSnapshotStore {
             worldDataChanged = refreshedWorldData.changed,
             hatched = refreshedWorldData.hatched,
             selectedCharacterKey = refreshedWorldData.selectedCharacterKey,
+            hatchSelectionDiagnostics = refreshedWorldData.hatchSelectionDiagnostics,
             previousCharacterState = refreshedWorldData.previousCharacterState,
             nextCharacterState = refreshedWorldData.nextCharacterState,
         )
@@ -237,6 +240,23 @@ private object HomeWidgetNativeRefreshSnapshotStore {
             append(snapshot.characterKey)
             append(",hatched=")
             append(refreshedWorldData.hatched)
+            refreshedWorldData.hatchSelectionDiagnostics?.let { diagnostics ->
+                append(",hatchSelection=")
+                append("staleFoodCountAtHatch:")
+                append(diagnostics.staleFoodCountAtHatch)
+                append(";syringeCount:")
+                append(diagnostics.syringeCount)
+                append(";rollPercent:")
+                append(diagnostics.rollPercent)
+                append(";probabilities:")
+                append(diagnostics.greenProbability)
+                append("/")
+                append(diagnostics.soilProbability)
+                append("/")
+                append(diagnostics.skullProbability)
+                append(";selectedCharacterKey:")
+                append(diagnostics.selectedCharacterKey)
+            }
             append(")")
         }
     }

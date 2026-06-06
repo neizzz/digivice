@@ -2,19 +2,26 @@ package com.ch00n9h09.montto
 
 import org.json.JSONArray
 import org.json.JSONObject
+import kotlin.math.PI
+import kotlin.math.cos
 import kotlin.math.min
+import kotlin.math.sin
 
 private const val NATIVE_CHARACTER_OBJECT_TYPE = 1
 private const val NATIVE_FOOD_OBJECT_TYPE = 3
 private const val NATIVE_POOB_OBJECT_TYPE = 4
 private const val NATIVE_CHARACTER_STATE_EGG = 0
 private const val NATIVE_CHARACTER_STATE_IDLE = 1
+private const val NATIVE_CHARACTER_STATE_MOVING = 2
 private const val NATIVE_CHARACTER_STATE_SLEEPING = 3
 private const val NATIVE_CHARACTER_STATE_SICK = 4
 private const val NATIVE_CHARACTER_STATE_EATING = 5
 private const val NATIVE_CHARACTER_STATE_DEAD = 6
 private const val NATIVE_CHARACTER_STATUS_SICK = 3
 private const val NATIVE_CHARACTER_STATUS_SLOT_COUNT = 4
+private const val NATIVE_TEXTURE_KEY_NULL = 0
+private const val NATIVE_ANIMATION_KEY_IDLE = 1
+private const val NATIVE_ANIMATION_KEY_WALKING = 2
 private const val NATIVE_FOOD_STATE_BEING_THROWING = 1
 private const val NATIVE_FOOD_STATE_LANDED = 2
 private const val NATIVE_FOOD_FRESHNESS_FRESH = 1
@@ -27,7 +34,18 @@ private const val NATIVE_SOIL_SLIME_A1_CHARACTER_KEY = 22
 private const val NATIVE_MAX_EGG_HATCH_SELECTION_BONUS_COUNT = 10
 private const val NATIVE_EGG_HATCH_BASE_GREEN_PERCENT = 65
 private const val NATIVE_EGG_HATCH_BASE_SOIL_PERCENT = 20
+private const val NATIVE_EGG_HATCH_BASE_SKULL_PERCENT = 15
 private const val NATIVE_EGG_HATCH_BONUS_PER_COUNT_PERCENT = 2
+private const val NATIVE_HATCH_RANDOM_MOVEMENT_MIN_IDLE_MS = 2000
+private const val NATIVE_HATCH_RANDOM_MOVEMENT_MAX_IDLE_MS = 8000
+private const val NATIVE_HATCH_RANDOM_MOVEMENT_MIN_MOVE_MS = 1000
+private const val NATIVE_HATCH_RANDOM_MOVEMENT_MAX_MOVE_MS = 8000
+private const val NATIVE_HATCH_ROAMING_OFFSET_THRESHOLD_MS = 5000L
+private const val NATIVE_HATCH_ROAMING_MOVE_SPEED = 0.03
+private const val NATIVE_HATCH_ROAMING_MAX_OFFSET_PX = 48.0
+private const val NATIVE_HATCH_ROAMING_CYCLE_MS = 8000L
+private const val NATIVE_HATCH_ROAMING_MOVE_WINDOW_START_MS = 2000L
+private const val NATIVE_HATCH_ROAMING_MOVE_WINDOW_END_MS = 6000L
 private const val NATIVE_MAX_STAMINA = 10.0
 private const val NATIVE_LOW_STAMINA_THRESHOLD = 3.0
 private const val NATIVE_VERY_LOW_STAMINA_THRESHOLD = 1.5
@@ -77,7 +95,42 @@ internal data class RefreshedHomeWidgetWorldData(
     val previousCharacterState: Int?,
     val nextCharacterState: Int?,
     val selectedCharacterKey: Int?,
+    val hatchSelectionDiagnostics: HomeWidgetNativeHatchSelectionDiagnostics? = null,
 )
+
+internal data class HomeWidgetNativeHatchSelectionDiagnostics(
+    val staleFoodCountAtHatch: Int,
+    val syringeCount: Int,
+    val normalizedStaleFoodCountAtHatch: Int,
+    val normalizedSyringeCount: Int,
+    val random: Double?,
+    val normalizedRandom: Double?,
+    val rollPercent: Double?,
+    val greenProbability: Int,
+    val soilProbability: Int,
+    val skullProbability: Int,
+    val selectedCharacterKey: Int,
+    val usedPendingCharacterKey: Boolean,
+) {
+    fun toMap(): Map<String, Any?> {
+        return mapOf(
+            "staleFoodCountAtHatch" to staleFoodCountAtHatch,
+            "syringeCount" to syringeCount,
+            "normalizedStaleFoodCountAtHatch" to normalizedStaleFoodCountAtHatch,
+            "normalizedSyringeCount" to normalizedSyringeCount,
+            "random" to random,
+            "normalizedRandom" to normalizedRandom,
+            "rollPercent" to rollPercent,
+            "probabilities" to mapOf(
+                "green" to greenProbability,
+                "soil" to soilProbability,
+                "skull" to skullProbability,
+            ),
+            "selectedCharacterKey" to selectedCharacterKey,
+            "usedPendingCharacterKey" to usedPendingCharacterKey,
+        )
+    }
+}
 
 internal data class HomeWidgetNativeLifecycleRandomEvent(
     val objectId: Int,
@@ -112,6 +165,7 @@ internal object HomeWidgetNativeRefreshWorldData {
         var changed = previousLastEcsSaved != nowMs
         var hatched = false
         var selectedCharacterKey: Int? = null
+        var hatchSelectionDiagnostics: HomeWidgetNativeHatchSelectionDiagnostics? = null
         var previousCharacterState: Int? = null
         var nextCharacterState: Int? = null
 
@@ -123,12 +177,21 @@ internal object HomeWidgetNativeRefreshWorldData {
             if (previousCharacterState == NATIVE_CHARACTER_STATE_EGG) {
                 val hatchTimeMs = source.eggHatch.optLongOrNull("hatchTime")
                 if (hatchTimeMs != null && hatchTimeMs > 0L && nowMs >= hatchTimeMs) {
-                    selectedCharacterKey = resolveStartingCharacterKeyForHatch(
+                    changed = progressFoodFreshness(entities, nowMs) || changed
+                    val hatchSelection = resolveStartingCharacterKeyForHatch(
                         worldData = worldData,
                         source = source,
                     )
-                    completeEggHatch(source, selectedCharacterKey)
-                    nextCharacterState = NATIVE_CHARACTER_STATE_IDLE
+                    selectedCharacterKey = hatchSelection.selectedCharacterKey
+                    hatchSelectionDiagnostics = hatchSelection.diagnostics
+                    completeEggHatch(
+                        source = source,
+                        selectedCharacterKey = hatchSelection.selectedCharacterKey,
+                        hatchTimeMs = hatchTimeMs,
+                        nowMs = nowMs,
+                        monsterName = worldMetadata.optString("monster_name"),
+                    )
+                    nextCharacterState = source.objectComponent.optIntOrNull("state")
                     hatched = true
                     changed = true
                 }
@@ -152,12 +215,16 @@ internal object HomeWidgetNativeRefreshWorldData {
             previousCharacterState = previousCharacterState,
             nextCharacterState = nextCharacterState,
             selectedCharacterKey = selectedCharacterKey,
+            hatchSelectionDiagnostics = hatchSelectionDiagnostics,
         )
     }
 
     private fun completeEggHatch(
         source: CharacterEntitySource,
         selectedCharacterKey: Int,
+        hatchTimeMs: Long,
+        nowMs: Long,
+        monsterName: String,
     ) {
         source.objectComponent.put("state", NATIVE_CHARACTER_STATE_IDLE)
         source.characterStatus.put("characterKey", selectedCharacterKey)
@@ -167,6 +234,93 @@ internal object HomeWidgetNativeRefreshWorldData {
         source.eggHatch.put("isReadyToHatch", false)
         source.eggHatch.put("syringeCount", 0)
         source.eggHatch.put("pendingCharacterKey", NATIVE_CHARACTER_KEY_NULL)
+        ensureObject(source.components, "render")
+            .put("storeIndex", NATIVE_TEXTURE_KEY_NULL)
+            .put("textureKey", NATIVE_TEXTURE_KEY_NULL)
+        ensureObject(source.components, "animationRender")
+            .put("storeIndex", NATIVE_TEXTURE_KEY_NULL)
+            .put("spritesheetKey", selectedCharacterKey)
+            .put("animationKey", NATIVE_ANIMATION_KEY_IDLE)
+            .put("isPlaying", true)
+            .put("loop", true)
+            .put("speed", 0.04)
+        normalizePostHatchRuntimeComponents(
+            source = source,
+            hatchTimeMs = hatchTimeMs,
+            nowMs = nowMs,
+            monsterName = monsterName,
+        )
+    }
+
+    private fun normalizePostHatchRuntimeComponents(
+        source: CharacterEntitySource,
+        hatchTimeMs: Long,
+        nowMs: Long,
+        monsterName: String,
+    ) {
+        val position = ensureObject(source.components, "position")
+        val angle = ensureObject(source.components, "angle")
+        val speed = ensureObject(source.components, "speed")
+        val randomMovement = ensureObject(source.components, "randomMovement")
+        randomMovement.put("minIdleTime", NATIVE_HATCH_RANDOM_MOVEMENT_MIN_IDLE_MS)
+        randomMovement.put("maxIdleTime", NATIVE_HATCH_RANDOM_MOVEMENT_MAX_IDLE_MS)
+        randomMovement.put("minMoveTime", NATIVE_HATCH_RANDOM_MOVEMENT_MIN_MOVE_MS)
+        randomMovement.put("maxMoveTime", NATIVE_HATCH_RANDOM_MOVEMENT_MAX_MOVE_MS)
+
+        val elapsedAfterHatchMs = (nowMs - hatchTimeMs).coerceAtLeast(0L)
+        val objectId = source.objectComponent.optIntOrNull("id") ?: 0
+        val roamAngle = resolveDeterministicRoamingAngle(
+            objectId = objectId,
+            hatchTimeMs = hatchTimeMs,
+            monsterName = monsterName,
+        )
+
+        angle.put("value", roamAngle)
+        if (elapsedAfterHatchMs >= NATIVE_HATCH_ROAMING_OFFSET_THRESHOLD_MS) {
+            val distance = min(
+                NATIVE_HATCH_ROAMING_MAX_OFFSET_PX,
+                (elapsedAfterHatchMs - NATIVE_HATCH_ROAMING_OFFSET_THRESHOLD_MS) *
+                    NATIVE_HATCH_ROAMING_MOVE_SPEED,
+            )
+            val currentX = position.optDoubleOrNull("x") ?: 0.0
+            val currentY = position.optDoubleOrNull("y") ?: 0.0
+            position.put("x", currentX + cos(roamAngle) * distance)
+            position.put("y", currentY + sin(roamAngle) * distance)
+
+            val cyclePosition = elapsedAfterHatchMs % NATIVE_HATCH_ROAMING_CYCLE_MS
+            if (
+                cyclePosition >= NATIVE_HATCH_ROAMING_MOVE_WINDOW_START_MS &&
+                cyclePosition < NATIVE_HATCH_ROAMING_MOVE_WINDOW_END_MS
+            ) {
+                source.objectComponent.put("state", NATIVE_CHARACTER_STATE_MOVING)
+                speed.put("value", NATIVE_HATCH_ROAMING_MOVE_SPEED)
+                ensureObject(source.components, "animationRender")
+                    .put("animationKey", NATIVE_ANIMATION_KEY_WALKING)
+                randomMovement.put(
+                    "nextChange",
+                    nowMs + (NATIVE_HATCH_ROAMING_MOVE_WINDOW_END_MS - cyclePosition),
+                )
+            } else {
+                source.objectComponent.put("state", NATIVE_CHARACTER_STATE_IDLE)
+                speed.put("value", 0)
+                ensureObject(source.components, "animationRender")
+                    .put("animationKey", NATIVE_ANIMATION_KEY_IDLE)
+                val nextMoveDelayMs = if (cyclePosition < NATIVE_HATCH_ROAMING_MOVE_WINDOW_START_MS) {
+                    NATIVE_HATCH_ROAMING_MOVE_WINDOW_START_MS - cyclePosition
+                } else {
+                    NATIVE_HATCH_ROAMING_CYCLE_MS - cyclePosition +
+                        NATIVE_HATCH_ROAMING_MOVE_WINDOW_START_MS
+                }
+                randomMovement.put("nextChange", nowMs + nextMoveDelayMs)
+            }
+        } else {
+            source.objectComponent.put("state", NATIVE_CHARACTER_STATE_IDLE)
+            speed.put("value", 0)
+            randomMovement.put(
+                "nextChange",
+                nowMs + NATIVE_HATCH_ROAMING_OFFSET_THRESHOLD_MS - elapsedAfterHatchMs,
+            )
+        }
     }
 
     private fun progressPostHatchLifecycle(
@@ -692,15 +846,37 @@ internal object HomeWidgetNativeRefreshWorldData {
     private fun resolveStartingCharacterKeyForHatch(
         worldData: JSONObject,
         source: CharacterEntitySource,
-    ): Int {
-        normalizePendingEggHatchCharacterKey(
-            source.eggHatch.optIntOrNull("pendingCharacterKey"),
-        )?.let { return it }
-
+    ): NativeEggHatchSelection {
         val staleFoodCountAtHatch = countStaleFoodAtHatch(worldData.optJSONArray("entities"))
         val syringeCount = normalizeEggHatchBonusCount(
             source.eggHatch.optIntOrNull("syringeCount") ?: 0,
         )
+        val probabilities = calculateEggHatchProbabilities(
+            staleFoodCountAtHatch = staleFoodCountAtHatch,
+            syringeCount = syringeCount,
+        )
+        normalizePendingEggHatchCharacterKey(
+            source.eggHatch.optIntOrNull("pendingCharacterKey"),
+        )?.let { pendingCharacterKey ->
+            return NativeEggHatchSelection(
+                selectedCharacterKey = pendingCharacterKey,
+                diagnostics = HomeWidgetNativeHatchSelectionDiagnostics(
+                    staleFoodCountAtHatch = staleFoodCountAtHatch,
+                    syringeCount = syringeCount,
+                    normalizedStaleFoodCountAtHatch = probabilities.normalizedStaleFoodCount,
+                    normalizedSyringeCount = probabilities.normalizedSyringeCount,
+                    random = null,
+                    normalizedRandom = null,
+                    rollPercent = null,
+                    greenProbability = probabilities.green,
+                    soilProbability = probabilities.soil,
+                    skullProbability = probabilities.skull,
+                    selectedCharacterKey = pendingCharacterKey,
+                    usedPendingCharacterKey = true,
+                ),
+            )
+        }
+
         val random = resolveDeterministicHatchRandom(
             objectId = source.objectComponent.optIntOrNull("id") ?: 0,
             hatchTimeMs = source.eggHatch.optLongOrNull("hatchTime") ?: 0L,
@@ -708,11 +884,29 @@ internal object HomeWidgetNativeRefreshWorldData {
             staleFoodCountAtHatch = staleFoodCountAtHatch,
             syringeCount = syringeCount,
         )
+        val normalizedRandom = normalizeEggHatchSelectionRandom(random)
+        val rollPercent = normalizedRandom * 100
+        val selectedCharacterKey = selectEggHatchStartingCharacterKey(
+            probabilities = probabilities,
+            rollPercent = rollPercent,
+        )
 
-        return selectEggHatchStartingCharacterKey(
-            staleFoodCountAtHatch = staleFoodCountAtHatch,
-            syringeCount = syringeCount,
-            random = random,
+        return NativeEggHatchSelection(
+            selectedCharacterKey = selectedCharacterKey,
+            diagnostics = HomeWidgetNativeHatchSelectionDiagnostics(
+                staleFoodCountAtHatch = staleFoodCountAtHatch,
+                syringeCount = syringeCount,
+                normalizedStaleFoodCountAtHatch = probabilities.normalizedStaleFoodCount,
+                normalizedSyringeCount = probabilities.normalizedSyringeCount,
+                random = random,
+                normalizedRandom = normalizedRandom,
+                rollPercent = rollPercent,
+                greenProbability = probabilities.green,
+                soilProbability = probabilities.soil,
+                skullProbability = probabilities.skull,
+                selectedCharacterKey = selectedCharacterKey,
+                usedPendingCharacterKey = false,
+            ),
         )
     }
 
@@ -791,6 +985,23 @@ internal object HomeWidgetNativeRefreshWorldData {
         return min(NATIVE_MAX_EGG_HATCH_SELECTION_BONUS_COUNT, value)
     }
 
+    private fun calculateEggHatchProbabilities(
+        staleFoodCountAtHatch: Int,
+        syringeCount: Int,
+    ): NativeEggHatchProbabilities {
+        val normalizedStaleFoodCount = normalizeEggHatchBonusCount(staleFoodCountAtHatch)
+        val normalizedSyringeCount = normalizeEggHatchBonusCount(syringeCount)
+        val soilBonus = normalizedStaleFoodCount * NATIVE_EGG_HATCH_BONUS_PER_COUNT_PERCENT
+        val skullBonus = normalizedSyringeCount * NATIVE_EGG_HATCH_BONUS_PER_COUNT_PERCENT
+        return NativeEggHatchProbabilities(
+            normalizedStaleFoodCount = normalizedStaleFoodCount,
+            normalizedSyringeCount = normalizedSyringeCount,
+            green = NATIVE_EGG_HATCH_BASE_GREEN_PERCENT - soilBonus - skullBonus,
+            soil = NATIVE_EGG_HATCH_BASE_SOIL_PERCENT + soilBonus,
+            skull = NATIVE_EGG_HATCH_BASE_SKULL_PERCENT + skullBonus,
+        )
+    }
+
     private fun resolveDeterministicHatchRandom(
         objectId: Int,
         hatchTimeMs: Long,
@@ -825,23 +1036,23 @@ internal object HomeWidgetNativeRefreshWorldData {
     }
 
     private fun selectEggHatchStartingCharacterKey(
-        staleFoodCountAtHatch: Int,
-        syringeCount: Int,
-        random: Double,
+        probabilities: NativeEggHatchProbabilities,
+        rollPercent: Double,
     ): Int {
-        val normalizedStaleFoodCount = normalizeEggHatchBonusCount(staleFoodCountAtHatch)
-        val normalizedSyringeCount = normalizeEggHatchBonusCount(syringeCount)
-        val soilBonus = normalizedStaleFoodCount * NATIVE_EGG_HATCH_BONUS_PER_COUNT_PERCENT
-        val skullBonus = normalizedSyringeCount * NATIVE_EGG_HATCH_BONUS_PER_COUNT_PERCENT
-        val greenPercent = NATIVE_EGG_HATCH_BASE_GREEN_PERCENT - soilBonus - skullBonus
-        val soilPercent = NATIVE_EGG_HATCH_BASE_SOIL_PERCENT + soilBonus
-        val rollPercent = normalizeEggHatchSelectionRandom(random) * 100
-
         return when {
-            rollPercent < greenPercent -> NATIVE_GREEN_SLIME_A1_CHARACTER_KEY
-            rollPercent < greenPercent + soilPercent -> NATIVE_SOIL_SLIME_A1_CHARACTER_KEY
+            rollPercent < probabilities.green -> NATIVE_GREEN_SLIME_A1_CHARACTER_KEY
+            rollPercent < probabilities.green + probabilities.soil -> NATIVE_SOIL_SLIME_A1_CHARACTER_KEY
             else -> NATIVE_SKULL_SLIME_A1_CHARACTER_KEY
         }
+    }
+
+    private fun resolveDeterministicRoamingAngle(
+        objectId: Int,
+        hatchTimeMs: Long,
+        monsterName: String,
+    ): Double {
+        val random = hashToUnit("$objectId|$hatchTimeMs|$monsterName|post_hatch_roam")
+        return normalizeRandom(random) * PI * 2
     }
 
     private fun normalizeEggHatchSelectionRandom(value: Double): Double {
@@ -911,5 +1122,18 @@ internal object HomeWidgetNativeRefreshWorldData {
         val eggHatch: JSONObject,
         val diseaseSystem: JSONObject,
         val sleepSystem: JSONObject,
+    )
+
+    private data class NativeEggHatchSelection(
+        val selectedCharacterKey: Int,
+        val diagnostics: HomeWidgetNativeHatchSelectionDiagnostics,
+    )
+
+    private data class NativeEggHatchProbabilities(
+        val normalizedStaleFoodCount: Int,
+        val normalizedSyringeCount: Int,
+        val green: Int,
+        val soil: Int,
+        val skull: Int,
     )
 }
