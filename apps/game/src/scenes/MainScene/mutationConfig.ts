@@ -8,12 +8,12 @@ import { CharacterKeyECS } from "./types";
 
 export const MUTATION_BASE_RATE = 0.01;
 export const MUTATION_STACK_CAP = 10;
-export const MUTATION_DIRTY_EXPOSURE_STACK_INTERVAL_MS = 4 * 60 * 60 * 1000;
+export const MUTATION_DIRTY_EXPOSURE_STACK_INTERVAL_MS = 2 * 60 * 60 * 1000;
 export const MUTATION_DETOX_INTERVAL_BY_CLASS_CODE = {
-  A: 2 * 60 * 60 * 1000,
-  B: 4 * 60 * 60 * 1000,
-  C: 4 * 60 * 60 * 1000,
-  D: 4 * 60 * 60 * 1000,
+  A: 1 * 60 * 60 * 1000,
+  B: 2 * 60 * 60 * 1000,
+  C: 2 * 60 * 60 * 1000,
+  D: 2 * 60 * 60 * 1000,
 } as const;
 
 const MUTATION_BONUS_RATE_BY_GENE_LINE = {
