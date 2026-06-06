@@ -13,6 +13,9 @@ const { sanitizeStoredWorldData } = require("../../../client/src/utils/sanitizeS
           characterStatus?: {
             statuses?: number[];
           };
+          render?: {
+            textureKey?: number;
+          };
         };
       }>;
     } | null;
@@ -80,6 +83,7 @@ import {
   CharacterKeyECS,
   CharacterState,
   CharacterStatus,
+  TextureKey,
 } from "../scenes/MainScene/types";
 import {
   createTestCharacter,
@@ -222,6 +226,15 @@ function getSanitizedCharacterStatuses(
     result.sanitizedData.entities?.[0]?.components?.characterStatus?.statuses;
   assert.ok(statuses);
   return statuses;
+}
+
+function getSanitizedRenderTextureKey(
+  result: SanitizeStoredWorldDataResult,
+): number | undefined {
+  assert.equal(result.action, "playable");
+  assert.ok(result.sanitizedData);
+
+  return result.sanitizedData.entities?.[0]?.components?.render?.textureKey;
 }
 
 test("DEV 신규 egg 생성 경로는 4~6초 hatch schedule만 만든다", () => {
@@ -411,4 +424,15 @@ test("sanitizeStoredWorldData는 status 슬롯이 꽉 차면 sick status를 덧�
   );
 
   assert.deepEqual(getSanitizedCharacterStatuses(result), statuses);
+});
+
+test("sanitizeStoredWorldData는 non-egg 캐릭터에 남은 egg static texture를 제거한다", () => {
+  const result = sanitizeStoredWorldData(
+    buildStoredCharacterWorldData({
+      state: CharacterState.SICK,
+      statuses: [0, 0, 0, 0],
+    }),
+  );
+
+  assert.equal(getSanitizedRenderTextureKey(result), TextureKey.NULL);
 });

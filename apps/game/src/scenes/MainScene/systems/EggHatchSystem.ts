@@ -6,6 +6,7 @@ import {
   RandomMovementComp,
   AnimationRenderComp,
   CharacterStatusComp,
+  RenderComp,
 } from "../raw-components";
 import { MainSceneWorld } from "../world";
 import {
@@ -14,6 +15,7 @@ import {
   AnimationKey,
   Freshness,
   ObjectType,
+  TextureKey,
 } from "../types";
 import {
   ensureCharacterSpritesheetLoaded,
@@ -98,6 +100,11 @@ function completeHatch(
   EggHatchComp.isReadyToHatch[eid] = 0;
   EggHatchComp.syringeCount[eid] = 0;
   EggHatchComp.pendingCharacterKey[eid] = CharacterKeyECS.NULL;
+
+  if (hasComponent(world, RenderComp, eid)) {
+    RenderComp.textureKey[eid] = TextureKey.NULL;
+    RenderComp.storeIndex[eid] = ECS_NULL_VALUE;
+  }
 
   // RandomMovementComp 추가 (이제 움직일 수 있음)
   if (!hasComponent(world, RandomMovementComp, eid)) {

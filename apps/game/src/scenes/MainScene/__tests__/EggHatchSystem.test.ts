@@ -7,9 +7,13 @@ import {
   FreshnessComp,
   FreshnessTimerComp,
   ObjectComp,
+  RenderComp,
 } from "../raw-components";
 import { GAME_CONSTANTS } from "../config";
-import { applySavedEntityToECS, convertECSEntityToSavedEntity } from "../entityDataHelpers";
+import {
+  applySavedEntityToECS,
+  convertECSEntityToSavedEntity,
+} from "../entityDataHelpers";
 import { eggHatchSystem } from "../systems/EggHatchSystem";
 import { freshnessSystem } from "../systems/FreshnessSystem";
 import {
@@ -18,6 +22,7 @@ import {
   FoodState,
   Freshness,
   ObjectType,
+  TextureKey,
 } from "../types";
 import {
   createTestCharacter,
@@ -95,6 +100,7 @@ test("EggHatchSystem은 부화 시점의 STALE 음식 수로 soil 선택 구간�
     CharacterKeyECS.SoilSlimeA1,
   );
   assert.equal(CharacterStatusComp.evolutionPhase[eggEid], 1);
+  assert.equal(RenderComp.textureKey[eggEid], TextureKey.NULL);
 });
 
 test("EggHatchSystem은 egg syringeCount로 skull 선택 구간을 늘린다", () => {
@@ -251,5 +257,43 @@ test("EggHatchSystem은 asset 지연과 저장/복원 이후에도 최초 pendin
     CharacterKeyECS.SoilSlimeA1,
   );
   assert.equal(CharacterStatusComp.evolutionPhase[restoredEid], 1);
-  assert.equal(EggHatchComp.pendingCharacterKey[restoredEid], CharacterKeyECS.NULL);
+  assert.equal(
+    EggHatchComp.pendingCharacterKey[restoredEid],
+    CharacterKeyECS.NULL,
+  );
+});
+
+test("저장본 복원은 non-egg 캐릭터에 남은 egg static texture를 제거한다", () => {
+  const world = createTestWorld({ now: 10_000 });
+  const eid = addEntity(world);
+
+  applySavedEntityToECS(world, eid, {
+    components: {
+      object: {
+        id: 1001,
+        type: ObjectType.CHARACTER,
+        state: CharacterState.SICK,
+      },
+      characterStatus: {
+        characterKey: CharacterKeyECS.GreenSlimeA1,
+        stamina: 5,
+        evolutionGage: 0,
+        evolutionPhase: 1,
+        statuses: [0, 0, 0, 0],
+      },
+      position: {
+        x: 40,
+        y: 40,
+      },
+      render: {
+        storeIndex: 0,
+        textureKey: TextureKey.EGG1,
+        scale: 3,
+        zIndex: 0,
+      },
+    },
+  });
+
+  assert.equal(ObjectComp.state[eid], CharacterState.SICK);
+  assert.equal(RenderComp.textureKey[eid], TextureKey.NULL);
 });

@@ -2,6 +2,8 @@ import { GAME_CONSTANTS } from "@/scenes/MainScene/config";
 import {
   CharacterKeyECS,
   CharacterState,
+  TextureKey,
+  isEggTextureKey,
 } from "@/scenes/MainScene/types";
 
 const EGG_HATCH_CLOCK_DRIFT_TOLERANCE_MS = 1000;
@@ -501,6 +503,25 @@ function needsRandomMovement(state: number): boolean {
   return state === CHARACTER_STATE.IDLE || state === CHARACTER_STATE.MOVING;
 }
 
+function sanitizeCharacterRenderTextureKey(
+  state: number,
+  textureKey: number | null,
+): number {
+  const fallbackTextureKey =
+    state === CHARACTER_STATE.EGG ? DEFAULTS.TEXTURE_KEY_EGG0 : ECS_NULL_VALUE;
+  const resolvedTextureKey = textureKey ?? fallbackTextureKey;
+
+  if (
+    state !== CHARACTER_STATE.EGG &&
+    state !== CHARACTER_STATE.DEAD &&
+    isEggTextureKey(resolvedTextureKey)
+  ) {
+    return TextureKey.NULL;
+  }
+
+  return resolvedTextureKey;
+}
+
 function sanitizeWorldMetadata(
   metadata: StoredWorldData["world_metadata"],
   now: number,
@@ -700,11 +721,10 @@ function sanitizeCharacterEntity(
     },
     render: {
       storeIndex: ECS_NULL_VALUE,
-      textureKey:
-        toFiniteNumber(components.render?.textureKey) ??
-        (state === CHARACTER_STATE.EGG
-          ? DEFAULTS.TEXTURE_KEY_EGG0
-          : ECS_NULL_VALUE),
+      textureKey: sanitizeCharacterRenderTextureKey(
+        state,
+        toFiniteNumber(components.render?.textureKey),
+      ),
       scale: toFiniteNumber(components.render?.scale) ?? 3,
       zIndex: toFiniteNumber(components.render?.zIndex) ?? ECS_NULL_VALUE,
     },

@@ -41,6 +41,8 @@ import {
   SleepMode,
   SleepReason,
   SpritesheetKey,
+  TextureKey,
+  isEggTextureKey,
 } from "./types";
 import {
   createEggHatchSchedule,
@@ -104,6 +106,17 @@ function resolveEggHatchComponentForState(params: {
     hatchTime: resolved.hatchTime,
     hatchDurationMs: resolved.hatchDurationMs,
   };
+}
+
+function shouldClearStaticEggTextureForState(
+  state: number | undefined,
+  textureKey: number,
+): boolean {
+  return (
+    state !== CharacterState.EGG &&
+    state !== CharacterState.DEAD &&
+    isEggTextureKey(textureKey)
+  );
 }
 
 /**
@@ -347,8 +360,16 @@ export function applySavedEntityToECS(
     if (!hasComponent(world, RenderComp, eid)) {
       addComponent(world, RenderComp, eid);
     }
+    const state = hasComponent(world, ObjectComp, eid)
+      ? ObjectComp.state[eid]
+      : components.object?.state;
     RenderComp.storeIndex[eid] = components.render.storeIndex;
-    RenderComp.textureKey[eid] = components.render.textureKey;
+    RenderComp.textureKey[eid] = shouldClearStaticEggTextureForState(
+      state,
+      components.render.textureKey,
+    )
+      ? TextureKey.NULL
+      : components.render.textureKey;
     RenderComp.scale[eid] = components.render.scale;
     RenderComp.zIndex[eid] = components.render.zIndex;
   }
@@ -678,6 +699,15 @@ export function repairCharacterEntityRuntimeComponents(
     state !== CharacterState.EGG && state !== CharacterState.DEAD;
   const needsRandomMovement =
     state === CharacterState.IDLE || state === CharacterState.MOVING;
+
+  if (
+    hasComponent(world, RenderComp, eid) &&
+    shouldClearStaticEggTextureForState(state, RenderComp.textureKey[eid])
+  ) {
+    RenderComp.textureKey[eid] = TextureKey.NULL;
+    RenderComp.storeIndex[eid] = ECS_NULL_VALUE;
+    repaired.push("RenderComp.textureKey");
+  }
 
   if (!hasComponent(world, SpeedComp, eid)) {
     addComponent(world, SpeedComp, eid);
