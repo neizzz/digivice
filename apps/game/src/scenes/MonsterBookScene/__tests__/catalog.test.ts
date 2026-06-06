@@ -226,7 +226,7 @@ test("몬스터북 next/previous는 global page index 기준으로 순환 이동
   );
 });
 
-test("몬스터북 미도달 카드는 희귀도만 공개한다", () => {
+test("몬스터북 미도달 카드는 희귀도와 gene line을 공개한다", () => {
   const cardInfo = createMonsterBookCardInfo({
     characterKey: CharacterKeyECS.SkullSlimeA1,
     monsterBookState: createEmptyMonsterBookState(),
@@ -235,10 +235,11 @@ test("몬스터북 미도달 카드는 희귀도만 공개한다", () => {
   assert.equal(cardInfo.isReached, false);
   assert.equal(cardInfo.rarity, 2);
   assert.equal(cardInfo.reachProbability, 0.15);
+  assert.equal(cardInfo.geneLine, "skull-slime");
   assert.equal(cardInfo.details, null);
 });
 
-test("몬스터북 미도달 몬스터는 모두 상세 정보를 숨긴다", () => {
+test("몬스터북 미도달 몬스터는 gene line만 공개하고 상세 정보는 숨긴다", () => {
   const monsterBookState = createEmptyMonsterBookState();
 
   for (const characterKey of MONSTER_CHARACTER_KEYS) {
@@ -248,6 +249,10 @@ test("몬스터북 미도달 몬스터는 모두 상세 정보를 숨긴다", ()
     });
 
     assert.equal(cardInfo.isReached, false);
+    assert.equal(
+      cardInfo.geneLine,
+      MONSTER_EVOLUTION_CATALOG[characterKey].geneLine,
+    );
     assert.equal(cardInfo.details, null);
   }
 });
@@ -274,6 +279,10 @@ test("몬스터북 도달 몬스터는 모두 상세 정보를 공개한다", ()
 
     assert.equal(cardInfo.isReached, true);
     assert.notEqual(cardInfo.details, null);
+    assert.equal(
+      cardInfo.geneLine,
+      MONSTER_EVOLUTION_CATALOG[characterKey].geneLine,
+    );
   }
 });
 
@@ -296,6 +305,7 @@ test("몬스터북 도달 카드는 catalog 기반 상세 정보를 공개한다
   assert.equal(cardInfo.isReached, true);
   assert.equal(cardInfo.rarity, 1);
   assert.equal(cardInfo.reachProbability, 0.65);
+  assert.equal(cardInfo.geneLine, "green-slime");
   assert.deepEqual(cardInfo.details, {
     displayName: "Green Slime A1",
     code: "green-slime_A1",

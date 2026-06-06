@@ -27,6 +27,7 @@ export type MonsterBookCardInfo = {
   isReached: boolean;
   rarity: EvolutionRarity;
   reachProbability: number;
+  geneLine: MonsterGeneLine;
   details: MonsterBookVisibleDetails | null;
 };
 
@@ -158,6 +159,7 @@ export function createMonsterBookCardInfo(params: {
     isReached,
     rarity,
     reachProbability,
+    geneLine: spec.geneLine,
     details: isReached
       ? {
           displayName: spec.displayName,

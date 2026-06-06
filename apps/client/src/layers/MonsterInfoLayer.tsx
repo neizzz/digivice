@@ -17,6 +17,18 @@ const STAMINA_HIGH_COLOR = "#49A95D";
 const EVOLUTION_FILL_COLOR = "#59B8FF";
 const MONSTER_INFO_TITLE_KEY = "monsterInfo.title";
 const DOM_NAME_LABEL_STROKE_WIDTH = Math.max(1, NAME_LABEL_STROKE_WIDTH / 2);
+const GENE_SYMBOL_SPRITE_URL = "/assets/game/sprites/gene-symbol.png";
+const GENE_SYMBOL_SIZE = 16;
+const GENE_SYMBOL_SHEET_WIDTH = 48;
+const GENE_SYMBOL_SHEET_HEIGHT = 16;
+const GENE_SYMBOL_X_BY_LINE: Record<
+  NonNullable<MainCharacterInfoSnapshot["geneLine"]>,
+  number
+> = {
+  "green-slime": 0,
+  "soil-slime": 16,
+  "skull-slime": 32,
+};
 
 function colorNumberToCssHex(color: number): string {
   return `#${color.toString(16).padStart(6, "0")}`;
@@ -103,6 +115,20 @@ function formatEggHatchRemainingTime(remainingMs: number | null): string {
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
+function formatGeneOutcomeProbability(
+  probability: number,
+  locale: string,
+): string {
+  const safeProbability = clampUnitInterval(probability);
+  const maximumFractionDigits =
+    safeProbability > 0 && safeProbability < 0.1 ? 2 : 1;
+
+  return new Intl.NumberFormat(locale, {
+    style: "percent",
+    maximumFractionDigits,
+  }).format(safeProbability);
+}
+
 const StatusBar: React.FC<{
   label: string;
   currentValue: number;
@@ -125,7 +151,7 @@ const StatusBar: React.FC<{
         className="h-5 overflow-hidden border-2 border-[#222] bg-[#6f6f6f] shadow-[inset_0_0_0_1px_rgba(0,0,0,0.2)]"
       >
         <div
-          className="h-full border-r-2 border-[#222]/25 transition-[width] duration-150 ease-linear"
+          className="h-full border-r-2 border-[#222]/25"
           style={{
             width: `${percent * 100}%`,
             backgroundColor: fillColor,
@@ -147,6 +173,56 @@ const ValueRow: React.FC<{
     </div>
   </div>
 );
+
+const GeneSymbolIcon: React.FC<{
+  geneLine: NonNullable<MainCharacterInfoSnapshot["geneLine"]>;
+}> = ({ geneLine }) => (
+  <span
+    aria-label={geneLine}
+    className="inline-block shrink-0 [image-rendering:pixelated]"
+    role="img"
+    style={{
+      width: GENE_SYMBOL_SIZE,
+      height: GENE_SYMBOL_SIZE,
+      backgroundImage: `url(${GENE_SYMBOL_SPRITE_URL})`,
+      backgroundPosition: `-${GENE_SYMBOL_X_BY_LINE[geneLine]}px 0`,
+      backgroundRepeat: "no-repeat",
+      backgroundSize: `${GENE_SYMBOL_SHEET_WIDTH}px ${GENE_SYMBOL_SHEET_HEIGHT}px`,
+    }}
+  />
+);
+
+const GeneOutcomeList: React.FC<{
+  label: string;
+  locale: string;
+  outcomes: MainCharacterInfoSnapshot["geneOutcomes"];
+}> = ({ label, locale, outcomes }) => {
+  if (outcomes.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="flex flex-col gap-2 text-left">
+      <div className="text-[1.2rem] leading-[1.2] text-[#222]">{label}</div>
+      <div className="flex flex-col gap-2">
+        {outcomes.map((outcome) => (
+          <div
+            className="flex items-center justify-between gap-4 text-[1.15rem] leading-none"
+            key={`${outcome.kind}:${outcome.geneLine}:${outcome.level}`}
+          >
+            <div className="flex items-center gap-2 font-bold text-[#222]">
+              <GeneSymbolIcon geneLine={outcome.geneLine} />
+              <span>Lv.{outcome.level}</span>
+            </div>
+            <div className="font-bold text-component-positive">
+              {formatGeneOutcomeProbability(outcome.probability, locale)}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 const NameTitleText: React.FC<{
   text: string;
@@ -241,29 +317,48 @@ const MonsterInfoLayer: React.FC<MonsterInfoLayerProps> = ({
               <div className="text-[1.2rem] leading-[1.2] text-[#222]">
                 {t("monsterInfo.level")}
               </div>
-              <div className="text-[1.3rem] leading-none font-bold text-component-positive">
+              <div className="flex items-center justify-end gap-2 text-[1.3rem] leading-none font-bold text-component-positive">
                 {levelText}
+                {snapshot.geneLine ? (
+                  <GeneSymbolIcon geneLine={snapshot.geneLine} />
+                ) : null}
               </div>
             </div>
             {snapshot.isEgg ? (
-              <ValueRow
-                label={t("monsterInfo.hatchRemaining")}
-                value={formatEggHatchRemainingTime(snapshot.eggHatchRemainingMs)}
-              />
+              <>
+                <ValueRow
+                  label={t("monsterInfo.hatchRemaining")}
+                  value={formatEggHatchRemainingTime(
+                    snapshot.eggHatchRemainingMs,
+                  )}
+                />
+                <GeneOutcomeList
+                  label={t("monsterInfo.hatch")}
+                  locale={locale}
+                  outcomes={snapshot.geneOutcomes}
+                />
+              </>
             ) : (
-              <StatusBar
-                label={t("monsterInfo.stamina")}
-                currentValue={snapshot.stamina}
-                maxValue={snapshot.maxStamina}
-                fillColor={getStaminaFillColor(snapshot)}
-              />
+              <>
+                <StatusBar
+                  label={t("monsterInfo.stamina")}
+                  currentValue={snapshot.stamina}
+                  maxValue={snapshot.maxStamina}
+                  fillColor={getStaminaFillColor(snapshot)}
+                />
+                <StatusBar
+                  label={t("monsterInfo.evolution")}
+                  currentValue={snapshot.evolutionGauge}
+                  maxValue={snapshot.maxEvolutionGauge}
+                  fillColor={EVOLUTION_FILL_COLOR}
+                />
+                <GeneOutcomeList
+                  label={t("monsterInfo.evolution")}
+                  locale={locale}
+                  outcomes={snapshot.geneOutcomes}
+                />
+              </>
             )}
-            <StatusBar
-              label={t("monsterInfo.evolution")}
-              currentValue={snapshot.evolutionGauge}
-              maxValue={snapshot.maxEvolutionGauge}
-              fillColor={EVOLUTION_FILL_COLOR}
-            />
           </div>
         }
         onConfirm={onClose}
