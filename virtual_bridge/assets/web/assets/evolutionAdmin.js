@@ -7,9 +7,7 @@ const FLUTTER_STORAGE_TIMEOUT_MS = {
   removeData: 2e3
 };
 function _debugStorage(...args) {
-  {
-    return;
-  }
+  console.debug(...args);
 }
 function _serialize(obj) {
   return JSON.stringify(obj);
@@ -111,8 +109,10 @@ class WebLocalStorage {
   //   localStorage.setItem(key, value);
   // }, 1000);
   async getData(key) {
+    _debugStorage("[WebLocalStorage] getData:start", { key });
     const value = localStorage.getItem(key);
     if (value === null) {
+      _debugStorage("[WebLocalStorage] getData:miss", { key });
       return await Promise.resolve(null);
     }
     _debugStorage("[WebLocalStorage] getData:raw", {
@@ -144,10 +144,13 @@ class WebLocalStorage {
       preview: _previewValue(value)
     });
     localStorage.setItem(key, value);
+    _debugStorage("[WebLocalStorage] setData:success", { key });
     return Promise.resolve();
   }
   removeData(key) {
+    _debugStorage("[WebLocalStorage] removeData:start", { key });
     localStorage.removeItem(key);
+    _debugStorage("[WebLocalStorage] removeData:success", { key });
     return Promise.resolve();
   }
 }
@@ -159,6 +162,7 @@ class FlutterStorage {
     return window.storageController;
   }
   async getData(key) {
+    _debugStorage("[FlutterStorage] getData:start", { key });
     const value = await _withFlutterStorageTimeout({
       operation: "getData",
       key,
@@ -171,6 +175,7 @@ class FlutterStorage {
       preview: _previewValue(value)
     });
     if (_isMissingSerializedValue(value)) {
+      _debugStorage("[FlutterStorage] getData:miss", { key });
       return null;
     }
     try {
@@ -207,13 +212,16 @@ class FlutterStorage {
       payloadLength: serializedValue.length,
       promiseFactory: () => this._getStorageController().setData(key, serializedValue)
     });
+    _debugStorage("[FlutterStorage] setData:success", { key });
   }
   async removeData(key) {
+    _debugStorage("[FlutterStorage] removeData:start", { key });
     await _withFlutterStorageTimeout({
       operation: "removeData",
       key,
       promiseFactory: () => this._getStorageController().removeData(key)
     });
+    _debugStorage("[FlutterStorage] removeData:success", { key });
   }
 }
 const SUPPORTED_LOCALES = [
@@ -28972,18 +28980,18 @@ const PRODUCTION_EVOLUTION_TARGET_DURATION_BY_CLASS_MS = {
   [CharacterClass.C]: 60 * HOUR_MS$1,
   [CharacterClass.D]: 80 * HOUR_MS$1
 };
-const PRODUCTION_EVOLUTION_TARGET_DURATION_VARIANCE_BY_CLASS_MS = {
+({
   [CharacterClass.A]: 2 * HOUR_MS$1,
   [CharacterClass.B]: 4 * HOUR_MS$1,
   [CharacterClass.C]: 6 * HOUR_MS$1,
   [CharacterClass.D]: 8 * HOUR_MS$1
-};
-({
+});
+const DEV_GAUGE_GAIN_BY_CLASS = {
   [CharacterClass.A]: 1 * EVOLUTION_GAUGE_GAIN_MULTIPLIER,
   [CharacterClass.B]: 1 * EVOLUTION_GAUGE_GAIN_MULTIPLIER,
   [CharacterClass.C]: 1 * EVOLUTION_GAUGE_GAIN_MULTIPLIER,
   [CharacterClass.D]: 1 * EVOLUTION_GAUGE_GAIN_MULTIPLIER
-});
+};
 function getGaugeGainForDurationMs(params) {
   const { maxGauge, checkIntervalMs, durationMs } = params;
   if (durationMs <= 0) {
@@ -29016,30 +29024,23 @@ function getAverageGaugeGainByClass(params) {
     })
   };
 }
-function getStableSeededUnitValue(seed) {
-  let hash = 2166136261;
-  for (let i2 = 0; i2 < seed.length; i2++) {
-    hash ^= seed.charCodeAt(i2);
-    hash = Math.imul(hash, 16777619);
-  }
-  return (hash >>> 0) / 4294967296;
-}
-const PRODUCTION_EVOLUTION_GAUGE_CONFIG = {
+({
+  gaugeGainByClass: getAverageGaugeGainByClass({
+    maxGauge: DEFAULT_MAX_GAUGE,
+    checkIntervalMs: 1e4,
+    targetDurationByClassMs: PRODUCTION_EVOLUTION_TARGET_DURATION_BY_CLASS_MS
+  })
+});
+const DEV_EVOLUTION_GAUGE_CONFIG = {
   maxGauge: DEFAULT_MAX_GAUGE,
   staminaThreshold: 3,
   boostedStaminaThreshold: 7,
   boostedGaugeGainMultiplier: 1.2,
   checkIntervalMs: 1e4,
   sleepingGaugeTimeProgressMultiplier: 1 / 3,
-  gaugeGainByClass: getAverageGaugeGainByClass({
-    maxGauge: DEFAULT_MAX_GAUGE,
-    checkIntervalMs: 1e4,
-    targetDurationByClassMs: PRODUCTION_EVOLUTION_TARGET_DURATION_BY_CLASS_MS
-  }),
-  targetDurationByClassMs: PRODUCTION_EVOLUTION_TARGET_DURATION_BY_CLASS_MS,
-  targetDurationVarianceByClassMs: PRODUCTION_EVOLUTION_TARGET_DURATION_VARIANCE_BY_CLASS_MS
+  gaugeGainByClass: DEV_GAUGE_GAIN_BY_CLASS
 };
-const EVOLUTION_GAUGE_CONFIG = PRODUCTION_EVOLUTION_GAUGE_CONFIG;
+const EVOLUTION_GAUGE_CONFIG = DEV_EVOLUTION_GAUGE_CONFIG;
 function createDisplayName(geneLine, classCode, variant) {
   const baseName = geneLine.split("-").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
   return `${baseName} ${classCode}${variant}`;
@@ -29437,34 +29438,21 @@ function getEvolutionRarity(characterKey) {
   }
   return MONSTER_EVOLUTION_RARITIES[spec.code] ?? null;
 }
-function getCharacterDisplayName(characterKey) {
-  var _a;
-  return ((_a = getEvolutionSpec(characterKey)) == null ? void 0 : _a.displayName) ?? "Unknown Character";
-}
 function getCharacterSpritesheetName(characterKey) {
   var _a;
   return ((_a = getEvolutionSpec(characterKey)) == null ? void 0 : _a.spritesheetName) ?? null;
 }
-function getProductionEvolutionTargetDurationMsForEntity(params) {
-  const { characterKey, objectId } = params;
+function getEvolutionGaugeIncreaseAmount(characterKey) {
   const spec = getEvolutionSpec(characterKey);
   if (!spec) {
     return 0;
   }
-  const targetDurationMs = PRODUCTION_EVOLUTION_GAUGE_CONFIG.targetDurationByClassMs[spec.class];
-  const varianceMs = PRODUCTION_EVOLUTION_GAUGE_CONFIG.targetDurationVarianceByClassMs[spec.class];
-  const seedValue = getStableSeededUnitValue(
-    `${Math.trunc(objectId)}:${spec.classCode}:${spec.phase}`
-  );
-  const jitterRatio = seedValue * 2 - 1;
-  return targetDurationMs + varianceMs * jitterRatio;
+  return EVOLUTION_GAUGE_CONFIG.gaugeGainByClass[spec.class] ?? 0;
 }
 function getEvolutionGaugeIncreaseAmountForEntity(params) {
-  return getGaugeGainForDurationMs({
-    maxGauge: PRODUCTION_EVOLUTION_GAUGE_CONFIG.maxGauge,
-    checkIntervalMs: PRODUCTION_EVOLUTION_GAUGE_CONFIG.checkIntervalMs,
-    durationMs: getProductionEvolutionTargetDurationMsForEntity(params)
-  });
+  {
+    return getEvolutionGaugeIncreaseAmount(params.characterKey);
+  }
 }
 function canEvolveFromConfig(characterKey) {
   const spec = getEvolutionSpec(characterKey);
@@ -29590,7 +29578,38 @@ const PRODUCTION_GAME_CONSTANTS = {
   SLEEPING_STAMINA_DECAY_MULTIPLIER: 0.2,
   SLEEPING_DISEASE_RATE_MULTIPLIER: 0.1
 };
-({
+const DEV_BALANCE_COEFFICIENTS = {
+  // DEV에서는 production 기준 시간을 나눠서 빠르게 재현한다.
+  timeDivisors: {
+    EGG_HATCH_MIN_TIME: 300,
+    EGG_HATCH_MODE_TIME: 360,
+    EGG_HATCH_MAX_TIME: 400,
+    POOP_DELAY: 1,
+    DIGESTIVE_SMALL_POOP_DELAY: 480,
+    DISEASE_CHECK_INTERVAL: 1,
+    FRESH_TO_NORMAL_TIME: 18,
+    NORMAL_TO_STALE_TIME: 60,
+    DEATH_DELAY: 360,
+    DEATH_DELAY_CLASS_A: 360,
+    DEATH_DELAY_CLASS_B: 360,
+    DEATH_DELAY_CLASS_C: 360,
+    DEATH_DELAY_CLASS_D: 360,
+    STAMINA_DECREASE_INTERVAL: 24,
+    NATURAL_SICK_RECOVERY_MIN_DURATION: 60,
+    NIGHT_SLEEP_MIN_DELAY: 60,
+    NIGHT_SLEEP_MAX_DELAY: 60,
+    TARGET_NIGHT_SLEEP_DURATION: 60,
+    TARGET_NIGHT_SLEEP_JITTER: 60,
+    SUNRISE_WAKE_MIN_DELAY: 60,
+    SUNRISE_WAKE_MAX_DELAY: 60,
+    SUNRISE_WAKE_OFFSET_MIN: 60,
+    SUNRISE_WAKE_OFFSET_MAX: 60,
+    NIGHT_RESLEEP_MIN_DELAY: 60,
+    NIGHT_RESLEEP_MAX_DELAY: 60,
+    DAY_NAP_CHECK_INTERVAL: 60,
+    DAY_NAP_MIN_DURATION: 60,
+    DAY_NAP_MAX_DURATION: 60
+  },
   // DEV에서는 production 기준 확률을 곱해서 빠르게 상태를 관찰한다.
   probabilityMultipliers: {
     BASE_DISEASE_RATE: 0.02 / PRODUCTION_GAME_CONSTANTS.BASE_DISEASE_RATE,
@@ -29606,24 +29625,29 @@ const PRODUCTION_GAME_CONSTANTS = {
     FATIGUE_SLEEP_RECOVERY_PER_HOUR: 2400 / PRODUCTION_GAME_CONSTANTS.FATIGUE_SLEEP_RECOVERY_PER_HOUR,
     FATIGUE_SLEEP_RECOVERY_PER_HOUR_WHEN_SICK: 800 / PRODUCTION_GAME_CONSTANTS.FATIGUE_SLEEP_RECOVERY_PER_HOUR_WHEN_SICK
   }
-});
+};
 function deriveTimeConstant(key) {
   const baseValue = PRODUCTION_GAME_CONSTANTS[key];
-  {
+  const divisor = DEV_BALANCE_COEFFICIENTS.timeDivisors[key];
+  if (divisor <= 0) {
     return baseValue;
   }
+  const derivedValue = Math.round(baseValue / divisor);
+  if (derivedValue === 0) {
+    return 0;
+  }
+  return derivedValue > 0 ? Math.max(1, derivedValue) : Math.min(-1, derivedValue);
 }
 function deriveProbabilityConstant(key) {
   const baseValue = PRODUCTION_GAME_CONSTANTS[key];
-  {
-    return baseValue;
-  }
+  return Math.min(
+    1,
+    baseValue * DEV_BALANCE_COEFFICIENTS.probabilityMultipliers[key]
+  );
 }
 function deriveRateConstant(key) {
   const baseValue = PRODUCTION_GAME_CONSTANTS[key];
-  {
-    return baseValue;
-  }
+  return baseValue * DEV_BALANCE_COEFFICIENTS.rateMultipliers[key];
 }
 const GAME_CONSTANTS = {
   ...PRODUCTION_GAME_CONSTANTS,
@@ -30644,7 +30668,7 @@ function repairLoadedFoodInteractionState(world, now = Date.now()) {
     repairedFoods
   };
 }
-const characterQuery$9 = defineQuery([CharacterStatusComp, RandomMovementComp]);
+const characterQuery$a = defineQuery([CharacterStatusComp, RandomMovementComp]);
 const allCharacterQuery = defineQuery([CharacterStatusComp, ObjectComp]);
 function hasDirectedMovement(world, eid) {
   return hasComponent(world, DestinationComp, eid) && DestinationComp.type[eid] === DestinationType.TARGETED && getTargetedFoodEntityRef(world, eid) !== null;
@@ -30653,7 +30677,7 @@ function randomMovementSystem(params) {
   const { world } = params;
   const currentTime = world.currentTime;
   const shouldLog = !world.isSimulationMode && world.isRandomMovementDebugEnabled();
-  const chars = characterQuery$9(world);
+  const chars = characterQuery$a(world);
   const allChars = allCharacterQuery(world);
   for (let i2 = 0; i2 < allChars.length; i2++) {
     const eid = allChars[i2];
@@ -31225,10 +31249,11 @@ function logFoodMaskInitializationSummary(summary) {
 function getTextureFromKey(textureKey) {
   const textureInfo = TEXTURE_MAP[textureKey];
   if (!textureInfo) {
-    console.warn(
-      `[RenderSystem] Texture key ${textureKey} not found in TEXTURE_MAP`
-    );
-    return void 0;
+    {
+      throw new Error(
+        `[RenderSystem] Texture key ${textureKey} not found in TEXTURE_MAP`
+      );
+    }
   }
   try {
     if (!textureInfo.spritesheetAlias) {
@@ -31319,8 +31344,13 @@ function updateMaskTexture(maskSprite, progress) {
     maskSprite.texture = texture;
   }
 }
+let hasValidatedTextures = false;
 function renderSystem(params) {
   const { world } = params;
+  if (!hasValidatedTextures) {
+    validateTextureMap();
+    hasValidatedTextures = true;
+  }
   const entities = renderableQuery(world);
   const exitedEntities = exitedRenderableQuery(world);
   const stage = world.stage;
@@ -31493,8 +31523,34 @@ function isTextureKeyLoaded(textureKey) {
     textureInfo.textureName
   );
 }
+function getAvailableTextureKeys() {
+  return Object.keys(TEXTURE_MAP).map(Number).sort((a2, b2) => a2 - b2);
+}
 function getTextureInfo(textureKey) {
   return TEXTURE_MAP[textureKey] || null;
+}
+function validateTextureMap() {
+  console.groupCollapsed("[RenderSystem] Texture Map Validation:");
+  const availableKeys = getAvailableTextureKeys();
+  let validCount = 0;
+  let invalidCount = 0;
+  for (const textureKey of availableKeys) {
+    const isLoaded = isTextureKeyLoaded(textureKey);
+    const textureInfo = getTextureInfo(textureKey);
+    if (isLoaded) {
+      validCount++;
+      console.log(
+        `✓ Key ${textureKey}: ${textureInfo == null ? void 0 : textureInfo.spritesheetAlias}/${textureInfo == null ? void 0 : textureInfo.textureName}`
+      );
+    } else {
+      invalidCount++;
+      console.warn(
+        `✗ Key ${textureKey}: ${textureInfo == null ? void 0 : textureInfo.spritesheetAlias}/${textureInfo == null ? void 0 : textureInfo.textureName} - NOT LOADED`
+      );
+    }
+  }
+  console.log(`Summary: ${validCount} valid, ${invalidCount} invalid textures`);
+  console.groupEnd();
 }
 const SPRITESHEET_KEY_TO_NAME = {
   [SpritesheetKey.NULL]: "null",
@@ -32672,7 +32728,7 @@ const EGG_CRACK_PIXEL_SIZE = 1;
 const overlayStore$1 = /* @__PURE__ */ new Map();
 const eggCrackQuery = defineQuery([ObjectComp, RenderComp, EggHatchComp]);
 const eggCrackExitQuery = exitQuery(eggCrackQuery);
-function getOrCreateOverlay(eid, stage) {
+function getOrCreateOverlay$1(eid, stage) {
   const existing = overlayStore$1.get(eid);
   if (existing) {
     return existing;
@@ -32923,7 +32979,7 @@ function eggCrackRenderSystem(params) {
       removeOverlay$1(eid);
       continue;
     }
-    const overlay = getOrCreateOverlay(eid, world.stage);
+    const overlay = getOrCreateOverlay$1(eid, world.stage);
     syncOverlayTransform(overlay, baseSprite);
     syncOverlayMask(overlay.mask, baseSprite);
     drawEggCracks(overlay.crack, bounds, crackStage);
@@ -33002,13 +33058,13 @@ function toCanvasFontFamilyList(fontFamilies) {
     (fontFamily) => fontFamily.includes(" ") ? `"${fontFamily}"` : fontFamily
   ).join(", ");
 }
-const characterQuery$8 = defineQuery([
+const characterQuery$9 = defineQuery([
   ObjectComp,
   PositionComp,
   RenderComp,
   CharacterStatusComp
 ]);
-const characterExitQuery = exitQuery(characterQuery$8);
+const characterExitQuery$1 = exitQuery(characterQuery$9);
 const labelStore = /* @__PURE__ */ new Map();
 const NAME_LABEL_STYLE = new TextStyle({
   fontFamily: [...NAME_LABEL_FONT_FAMILIES],
@@ -33048,12 +33104,12 @@ const MINI_STAMINA_BAR_URGENT_OVERLAY_CYCLE_MS = 1200;
 function characterNameLabelSystem(params) {
   var _a;
   const { world } = params;
-  const exitedEntities = characterExitQuery(world);
+  const exitedEntities = characterExitQuery$1(world);
   for (let i2 = 0; i2 < exitedEntities.length; i2++) {
     removeCharacterNameLabel(exitedEntities[i2]);
   }
   const rawName = (_a = world.getInMemoryData().world_metadata.monster_name) == null ? void 0 : _a.trim();
-  const entities = characterQuery$8(world);
+  const entities = characterQuery$9(world);
   for (let i2 = 0; i2 < entities.length; i2++) {
     const eid = entities[i2];
     if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
@@ -33443,18 +33499,76 @@ function getMiniStaminaBarUrgentOverlayAlpha(currentTime) {
   const triangleWave = phase < 0.5 ? phase * 2 : (1 - phase) * 2;
   return MINI_STAMINA_BAR_URGENT_OVERLAY_MIN_ALPHA + (MINI_STAMINA_BAR_URGENT_OVERLAY_MAX_ALPHA - MINI_STAMINA_BAR_URGENT_OVERLAY_MIN_ALPHA) * triangleWave;
 }
-defineQuery([ObjectComp, PositionComp, RenderComp]);
+const characterQuery$8 = defineQuery([ObjectComp, PositionComp, RenderComp]);
+const characterExitQuery = exitQuery(characterQuery$8);
 const overlayStore = /* @__PURE__ */ new Map();
+const LAYOUT_STROKE_COLOR = 58879;
+const LAYOUT_FILL_COLOR = 58879;
+const LAYOUT_FILL_ALPHA = 0.12;
+const LAYOUT_STROKE_WIDTH = 1;
+const LAYOUT_Z_INDEX_OFFSET = 1;
 function characterLayoutDebugSystem(params) {
-  {
+  const { world, stage } = params;
+  if (!stage || false) {
     cleanupCharacterLayoutDebug();
     return params;
   }
+  const exitedEntities = characterExitQuery(world);
+  for (let i2 = 0; i2 < exitedEntities.length; i2++) {
+    removeOverlay(exitedEntities[i2]);
+  }
+  const entities = characterQuery$8(world);
+  const activeCharacterEids = /* @__PURE__ */ new Set();
+  for (let i2 = 0; i2 < entities.length; i2++) {
+    const eid = entities[i2];
+    if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
+      removeOverlay(eid);
+      continue;
+    }
+    const displayObject = getCharacterDisplayObject(eid);
+    if (!displayObject) {
+      removeOverlay(eid);
+      continue;
+    }
+    const bounds = getCharacterWorldBounds(eid);
+    if (bounds.width <= 0 || bounds.height <= 0) {
+      removeOverlay(eid);
+      continue;
+    }
+    const overlay = getOrCreateOverlay(eid, stage);
+    activeCharacterEids.add(eid);
+    overlay.clear();
+    overlay.rect(bounds.leftX, bounds.topY, bounds.width, bounds.height).fill({ color: LAYOUT_FILL_COLOR, alpha: LAYOUT_FILL_ALPHA }).stroke({ color: LAYOUT_STROKE_COLOR, width: LAYOUT_STROKE_WIDTH });
+    const y2 = PositionComp.y[eid];
+    const configuredZIndex = RenderComp.zIndex[eid];
+    const effectiveZIndex = configuredZIndex === 0 ? y2 : configuredZIndex;
+    overlay.zIndex = effectiveZIndex + LAYOUT_Z_INDEX_OFFSET;
+    overlay.visible = true;
+  }
+  const trackedEids = Array.from(overlayStore.keys());
+  for (let i2 = 0; i2 < trackedEids.length; i2++) {
+    const eid = trackedEids[i2];
+    if (!activeCharacterEids.has(eid)) {
+      removeOverlay(eid);
+    }
+  }
+  return params;
 }
 function cleanupCharacterLayoutDebug(_stage) {
   overlayStore.forEach((_, eid) => {
     removeOverlay(eid);
   });
+}
+function getOrCreateOverlay(eid, stage) {
+  const existingOverlay = overlayStore.get(eid);
+  if (existingOverlay) {
+    return existingOverlay;
+  }
+  const overlay = new Graphics();
+  overlay.eventMode = "none";
+  stage.addChild(overlay);
+  overlayStore.set(eid, overlay);
+  return overlay;
 }
 function removeOverlay(eid) {
   const overlay = overlayStore.get(eid);
@@ -34148,9 +34262,6 @@ function canEvolve(eid) {
   const currentCharacterKey = CharacterStatusComp.characterKey[eid];
   const evolutionGauge = CharacterStatusComp.evolutionGage[eid];
   return canEvolveFromConfig(currentCharacterKey) && hasReachedEvolutionGaugeMax(evolutionGauge);
-}
-function getCharacterNameByKey(characterKey) {
-  return getCharacterDisplayName(characterKey);
 }
 function getMaxEvolutionGauge() {
   return EVOLUTION_GAUGE_CONFIG.maxGauge;
@@ -35853,9 +35964,12 @@ function restoreRandomMovementIfNeeded(world, eid, currentTime) {
   RandomMovementComp.nextChange[eid] = currentTime + 1e3;
 }
 function logSleepCheck(world, event, payload) {
-  {
+  if (!shouldLogSleepChecks(world)) {
     return;
   }
+}
+function shouldLogSleepChecks(world) {
+  return !world.isSimulationMode;
 }
 const characterQuery$4 = defineQuery([
   ObjectComp,
@@ -40539,288 +40653,6 @@ async function requestNativeLocationPermission() {
     return false;
   }
 }
-class ReentrySimulator {
-  constructor() {
-    this._currentSimulationTime = 0;
-    this._beforeStates = [];
-    this._afterStates = [];
-    this._evolutionEvents = [];
-    this._currentTick = 0;
-    this._baseTickSize = 0;
-  }
-  /**
-   * 재진입 시뮬레이션 실행
-   * @param lastActiveTime 마지막 활성 시간
-   * @param simulatorFunction 시뮬레이션할 시스템 파이프라인 함수
-   * @param context 시뮬레이션에 필요한 컨텍스트 (world 등)
-   */
-  async simulate(lastActiveTime, simulatorFunction, context2, currentTime = Date.now()) {
-    const elapsedTime = currentTime - lastActiveTime;
-    console.groupCollapsed(
-      `[ReentrySimulator] 🔄 Processing ${elapsedTime}ms of elapsed time...`
-    );
-    try {
-      this._beforeStates = this._collectCharacterStates(context2);
-      const tickSize = this._getSimulationTickSize(elapsedTime);
-      this._baseTickSize = tickSize;
-      const totalTicks = Math.floor(elapsedTime / tickSize);
-      const remainingTime = elapsedTime % tickSize;
-      const totalSteps = totalTicks + (remainingTime > 0 ? 1 : 0);
-      console.log(`Simulating ${totalSteps} tick(s) with base ${tickSize}ms`);
-      console.log(`Base tick size: ${this._formatTime(tickSize)}`);
-      if (remainingTime > 0) {
-        console.log(`Remaining partial tick: ${remainingTime}ms`);
-      }
-      const progressLogInterval = totalSteps > 5e3 ? 1e3 : 100;
-      for (let tick = 0; tick < totalSteps; tick++) {
-        this._currentTick = tick + 1;
-        const isPartialTick = tick === totalTicks && remainingTime > 0;
-        const simulationDelta = isPartialTick ? remainingTime : tickSize;
-        const elapsedUntilTick = tick < totalTicks ? (tick + 1) * tickSize : totalTicks * tickSize + remainingTime;
-        const simulationTime = lastActiveTime + elapsedUntilTick;
-        this._currentSimulationTime = simulationTime;
-        const beforeTickStates = this._collectCharacterStates(context2);
-        simulatorFunction({
-          world: context2,
-          delta: simulationDelta
-        });
-        this._checkForEvolutions(context2, beforeTickStates, simulationTime);
-        if (tick % progressLogInterval === 0 || tick === totalSteps - 1) {
-          const progress = ((tick + 1) / totalSteps * 100).toFixed(1);
-          console.log(
-            `Simulation progress: ${progress}% (tick ${tick + 1}/${totalSteps})`
-          );
-        }
-      }
-      this._afterStates = this._collectCharacterStates(context2);
-      this._logSimulationSummary(elapsedTime, totalSteps);
-      console.log(
-        `Simulation completed! Processed ${totalSteps} tick(s) in ${elapsedTime}ms`
-      );
-    } catch (error) {
-      console.error("Simulation failed:", error);
-    } finally {
-      console.groupEnd();
-    }
-  }
-  /**
-   * 경과 시간에 따른 시뮬레이션 틱 크기 결정
-   */
-  _getSimulationTickSize(elapsedTime) {
-    const TEN_SECONDS = 10 * 1e3;
-    const FIVE_MINUTES = 5 * 60 * 1e3;
-    const ONE_HOUR = 60 * 60 * 1e3;
-    if (elapsedTime < TEN_SECONDS) {
-      return 100;
-    } else if (elapsedTime < FIVE_MINUTES) {
-      return 1e3;
-    } else if (elapsedTime < ONE_HOUR) {
-      return 10 * 1e3;
-    } else {
-      return 60 * 1e3;
-    }
-  }
-  /**
-   * 현재 시뮬레이션 시간 반환
-   */
-  getCurrentSimulationTime() {
-    return this._currentSimulationTime;
-  }
-  /**
-   * 월드에서 캐릭터 상태들을 수집
-   */
-  _collectCharacterStates(context2) {
-    const characterQuery2 = defineQuery([
-      ObjectComp,
-      CharacterStatusComp,
-      PositionComp
-    ]);
-    const entities = characterQuery2(context2);
-    const states = [];
-    for (const eid of entities) {
-      if (ObjectComp.type[eid] === ObjectType.CHARACTER) {
-        const statusArray = CharacterStatusComp.statuses[eid];
-        const activeStatuses = [];
-        for (let i2 = 0; i2 < statusArray.length; i2++) {
-          const status = statusArray[i2];
-          if (status !== 0) {
-            activeStatuses.push(
-              CharacterStatus[status] || `Unknown(${status})`
-            );
-          }
-        }
-        const characterKey = CharacterStatusComp.characterKey[eid];
-        states.push({
-          eid,
-          characterId: ObjectComp.id[eid],
-          stamina: CharacterStatusComp.stamina[eid],
-          evolutionGage: CharacterStatusComp.evolutionGage[eid],
-          evolutionPhase: CharacterStatusComp.evolutionPhase[eid],
-          characterKey,
-          characterName: getCharacterNameByKey(characterKey),
-          statuses: activeStatuses,
-          state: CharacterState[ObjectComp.state[eid]] || `Unknown(${ObjectComp.state[eid]})`,
-          position: {
-            x: Math.round(PositionComp.x[eid]),
-            y: Math.round(PositionComp.y[eid])
-          }
-        });
-      }
-    }
-    return states;
-  }
-  /**
-   * 진화 이벤트 추적
-   */
-  _checkForEvolutions(context2, beforeStates, simulationTime) {
-    const afterStates = this._collectCharacterStates(context2);
-    for (let i2 = 0; i2 < beforeStates.length; i2++) {
-      const before = beforeStates[i2];
-      const after = afterStates.find((s2) => s2.eid === before.eid);
-      if (!after) continue;
-      if (before.evolutionPhase !== after.evolutionPhase) {
-        const evolutionEvent = {
-          eid: before.eid,
-          characterId: before.characterId,
-          tickNumber: this._currentTick,
-          simulationTime,
-          beforePhase: before.evolutionPhase,
-          beforeCharacterKey: before.characterKey,
-          beforeCharacterName: before.characterName,
-          afterPhase: after.evolutionPhase,
-          afterCharacterKey: after.characterKey,
-          afterCharacterName: after.characterName
-        };
-        this._evolutionEvents.push(evolutionEvent);
-        console.log(
-          `🎉 [Tick ${this._currentTick}] Evolution detected! Character ${before.characterId}: ${before.characterName} → ${after.characterName}`
-        );
-      }
-    }
-  }
-  /**
-   * 시뮬레이션 전후 상태 변화를 요약하여 로깅
-   */
-  _logSimulationSummary(elapsedTime, totalTicks) {
-    console.groupCollapsed(
-      `📊 Simulation Summary (${this._formatTime(elapsedTime)} elapsed)`
-    );
-    if (this._beforeStates.length === 0) {
-      console.log("No characters found to simulate");
-      console.groupEnd();
-      return;
-    }
-    console.log(
-      `Simulated ${totalTicks} ticks over ${this._formatTime(elapsedTime)}`
-    );
-    console.log(`Base tick size: ${this._formatTime(this._baseTickSize)}`);
-    console.log(`Found ${this._beforeStates.length} character(s)`);
-    if (this._evolutionEvents.length > 0) {
-      console.groupCollapsed(
-        `🎉 Evolution Events (${this._evolutionEvents.length})`
-      );
-      for (const evolution of this._evolutionEvents) {
-        const tickTime = this._formatTime(
-          (evolution.tickNumber - 1) * this._baseTickSize
-        );
-        const absoluteTime = new Date(evolution.simulationTime).toLocaleString(
-          "ko-KR"
-        );
-        console.log(
-          `[Tick ${evolution.tickNumber}] (${tickTime} in) ${absoluteTime} - Character ${evolution.characterId}: ${evolution.beforeCharacterName} (Phase ${evolution.beforePhase}) → ${evolution.afterCharacterName} (Phase ${evolution.afterPhase})`
-        );
-      }
-      console.groupEnd();
-    }
-    console.groupCollapsed(`📊 Character State Changes`);
-    for (let i2 = 0; i2 < this._beforeStates.length; i2++) {
-      const before = this._beforeStates[i2];
-      const after = this._afterStates[i2];
-      if (!after) continue;
-      console.groupCollapsed(
-        `🐾 Character ${before.characterId} (EID: ${before.eid})`
-      );
-      const characterChanged = before.characterName !== after.characterName;
-      console.log(
-        `Character: ${before.characterName} → ${after.characterName}${characterChanged ? " 🎉" : ""}`
-      );
-      console.log(
-        `State: ${before.state} → ${after.state}${before.state !== after.state ? " ✨" : ""}`
-      );
-      console.log(
-        `Stamina: ${before.stamina} → ${after.stamina}${this._getChangeIcon(
-          before.stamina,
-          after.stamina
-        )}`
-      );
-      const phaseChanged = before.evolutionPhase !== after.evolutionPhase;
-      console.log(
-        `Evolution: ${before.evolutionGage.toFixed(
-          1
-        )} → ${after.evolutionGage.toFixed(1)}${this._getChangeIcon(
-          before.evolutionGage,
-          after.evolutionGage
-        )} (Phase ${before.evolutionPhase} → ${after.evolutionPhase}${phaseChanged ? " 🎉" : ""})`
-      );
-      const positionChanged = before.position.x !== after.position.x || before.position.y !== after.position.y;
-      console.log(
-        `Position: (${before.position.x}, ${before.position.y}) → (${after.position.x}, ${after.position.y})${positionChanged ? " 🚶" : ""}`
-      );
-      const beforeStatusSet = new Set(before.statuses);
-      const afterStatusSet = new Set(after.statuses);
-      const addedStatuses = after.statuses.filter(
-        (s2) => !beforeStatusSet.has(s2)
-      );
-      const removedStatuses = before.statuses.filter(
-        (s2) => !afterStatusSet.has(s2)
-      );
-      if (addedStatuses.length > 0 || removedStatuses.length > 0) {
-        console.log(`Status Changes:`);
-        if (addedStatuses.length > 0) {
-          console.log(`  + Added: ${addedStatuses.join(", ")} ⚡`);
-        }
-        if (removedStatuses.length > 0) {
-          console.log(`  - Removed: ${removedStatuses.join(", ")} ✅`);
-        }
-      } else {
-        console.log(
-          `Status: ${after.statuses.length > 0 ? after.statuses.join(", ") : "Normal"} (no changes)`
-        );
-      }
-      console.groupEnd();
-    }
-    console.groupEnd();
-    console.groupEnd();
-  }
-  /**
-   * 수치 변화에 따른 아이콘 반환
-   */
-  _getChangeIcon(before, after) {
-    if (after > before) return " ⬆️";
-    if (after < before) return " ⬇️";
-    return "";
-  }
-  /**
-   * 시간을 읽기 쉬운 형태로 포맷팅
-   */
-  _formatTime(milliseconds) {
-    if (milliseconds < 1e3) {
-      return `${milliseconds}ms`;
-    }
-    const seconds = Math.floor(milliseconds / 1e3);
-    if (seconds < 60) {
-      return `${seconds}s`;
-    }
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    if (minutes < 60) {
-      return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`;
-    }
-    const hours = Math.floor(minutes / 60);
-    const remainingMinutes = minutes % 60;
-    return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
-  }
-}
 const MONSTER_BOOK_STORAGE_KEY = "MonsterBookData";
 function getLegacyMonsterBookRaw(savedWorldData) {
   if (!savedWorldData || typeof savedWorldData !== "object") {
@@ -41355,11 +41187,6 @@ const MAIN_SCENE_AD_FEED_IDLE_RETRY_MS = 1e3;
 const MAIN_SCENE_STATUS_HEARTBEAT_INTERVAL_MS = 60 * 1e3;
 const HOUR_MS = 60 * 60 * 1e3;
 const DAY_MS = 24 * HOUR_MS;
-const EGG_HATCH_STARTING_SPRITESHEET_KEYS = [
-  SpritesheetKey.GreenSlimeA1,
-  SpritesheetKey.SkullSlimeA1,
-  SpritesheetKey.SoilSlimeA1
-];
 const COMMON_SPRITESHEET_ASSETS = [
   {
     jsonPath: "/assets/game/sprites/bird.json",
@@ -42025,10 +41852,7 @@ ${this.t("main.cleanObjectsPrompt")}`,
             retryMs: MAIN_SCENE_AD_FEED_IDLE_RETRY_MS
           }
         );
-        this._scheduleFeedAdFallback(
-          foodEid,
-          MAIN_SCENE_AD_FEED_IDLE_RETRY_MS
-        );
+        this._scheduleFeedAdFallback(foodEid, MAIN_SCENE_AD_FEED_IDLE_RETRY_MS);
         return;
       }
       this._schedulePendingMainSceneAdForMenu(
@@ -42073,9 +41897,12 @@ ${this.t("main.cleanObjectsPrompt")}`,
     console.groupCollapsed("[MainSceneWorld] 🎨 Loading game assets...");
     try {
       const [spritesheetResults] = await Promise.all([
-        this._initDiagnostics.measurePhase("load_common_spritesheets", async () => {
-          return loadSpritesheets(COMMON_SPRITESHEET_ASSETS);
-        }),
+        this._initDiagnostics.measurePhase(
+          "load_common_spritesheets",
+          async () => {
+            return loadSpritesheets(COMMON_SPRITESHEET_ASSETS);
+          }
+        ),
         this._initDiagnostics.measurePhase("load_image_assets", async () => {
           await this._loadImageAssets();
         }),
@@ -42097,9 +41924,12 @@ ${this.t("main.cleanObjectsPrompt")}`,
           await precomputeLoadedCharacterOpaqueBounds();
         }
       );
-      await this._initDiagnostics.measurePhase("precompute_egg_texture_opaque_bounds", async () => {
-        await precomputeLoadedTextureOpaqueBounds(EGG_TEXTURE_KEYS);
-      });
+      await this._initDiagnostics.measurePhase(
+        "precompute_egg_texture_opaque_bounds",
+        async () => {
+          await precomputeLoadedTextureOpaqueBounds(EGG_TEXTURE_KEYS);
+        }
+      );
       console.log("All game assets loaded successfully");
     } catch (error) {
       console.error("Failed to load game assets:", error);
@@ -42209,9 +42039,12 @@ ${this.t("main.cleanObjectsPrompt")}`,
       createWorld(this, MAIN_SCENE_WORLD_ENTITY_CAPACITY);
       enableManualEntityRecycling(this);
       console.log("Loading saved data from storage...");
-      const loadedData = await this._initDiagnostics.measurePhase("storage_load", async () => {
-        return this.getData();
-      });
+      const loadedData = await this._initDiagnostics.measurePhase(
+        "storage_load",
+        async () => {
+          return this.getData();
+        }
+      );
       const monsterBookStorageState = await this._initDiagnostics.measurePhase(
         "monster_book_storage_load",
         async () => {
@@ -42260,15 +42093,21 @@ ${this.t("main.cleanObjectsPrompt")}`,
           this._persistentData = this._initializeData(initialGameData);
         } else {
           this._persistentData = validatedData;
-          await this._initDiagnostics.measurePhase("load_saved_entities", async () => {
-            this._loadEcsEntitiesFromStorage();
-          });
+          await this._initDiagnostics.measurePhase(
+            "load_saved_entities",
+            async () => {
+              this._loadEcsEntitiesFromStorage();
+            }
+          );
         }
       }
       this._applyPersistedMonsterBookState(monsterBookStorageState.state);
-      await this._initDiagnostics.measurePhase("load_common_game_assets", async () => {
-        await this._loadGameAssets();
-      });
+      await this._initDiagnostics.measurePhase(
+        "load_common_game_assets",
+        async () => {
+          await this._loadGameAssets();
+        }
+      );
       const characterSpritesheetKeys = Array.from(
         new Set(
           this._persistentData.entities.filter((entity) => {
@@ -42293,7 +42132,9 @@ ${this.t("main.cleanObjectsPrompt")}`,
                 alias: spritesheetName
                 // pixelArt: true,
               });
-              await ensureCharacterOpaqueBoundsComputed(characterSpritesheetKey);
+              await ensureCharacterOpaqueBoundsComputed(
+                characterSpritesheetKey
+              );
             })
           );
         },
@@ -42318,12 +42159,15 @@ ${this.t("main.cleanObjectsPrompt")}`,
             if (!appliedCachedSunTimes) {
               this._applyCurrentSkyState();
             }
-            this._initDiagnostics.logPhase("initial_sun_times_refresh_requested", {
-              status: "dispatch",
-              promptForPermission: true,
-              hasCachedSunTimes: !!this._sunTimes,
-              appliedCachedSunTimes
-            });
+            this._initDiagnostics.logPhase(
+              "initial_sun_times_refresh_requested",
+              {
+                status: "dispatch",
+                promptForPermission: true,
+                hasCachedSunTimes: !!this._sunTimes,
+                appliedCachedSunTimes
+              }
+            );
             void this._initializeSunTimes();
             return;
           }
@@ -42380,9 +42224,7 @@ ${this.t("main.cleanObjectsPrompt")}`,
           onInformationSelect: () => {
             console.log("[MainSceneWorld] Information selected");
             if (!this._showMonsterInfo) {
-              console.warn(
-                "[MainSceneWorld] Monster info callback is not set"
-              );
+              console.warn("[MainSceneWorld] Monster info callback is not set");
               return;
             }
             this._showMonsterInfo();
@@ -42405,14 +42247,33 @@ ${this.t("main.cleanObjectsPrompt")}`,
           );
           this._addDebugGaugeEventListener();
         }
-        if (false) ;
+        if (this._debugParentElement) {
+          this._debugGameConstantsUI = new HTMLDebugGameConstantsUI(
+            this._debugParentElement
+          );
+          this._debugStatusUI = new HTMLDebugStatusUI(
+            this,
+            this._debugParentElement
+          );
+          this._debugToggleButton = new HTMLDebugToggleButton(() => {
+            var _a, _b;
+            (_a = this._debugStatusUI) == null ? void 0 : _a.toggle();
+            return ((_b = this._debugStatusUI) == null ? void 0 : _b.isDebugVisible()) ?? false;
+          }, this._debugParentElement);
+        }
       }
-      await this._initDiagnostics.measurePhase("setup_visibility_handler", async () => {
-        this._setupVisibilityChangeHandler();
-      });
-      await this._initDiagnostics.measurePhase("reentry_simulation", async () => {
-        await this._processReentrySimulation("init");
-      });
+      await this._initDiagnostics.measurePhase(
+        "setup_visibility_handler",
+        async () => {
+          this._setupVisibilityChangeHandler();
+        }
+      );
+      await this._initDiagnostics.measurePhase(
+        "reentry_simulation",
+        async () => {
+          await this._processReentrySimulation("init");
+        }
+      );
       this._initDiagnostics.completeInit();
       console.log("World initialization completed");
     } catch (error) {
@@ -43670,7 +43531,9 @@ ${this.t("main.cleanObjectsPrompt")}`,
     if (!this._gameMenu) {
       return;
     }
-    this._gameMenu.setFeedPreviewTextureName(this._nextFeedMenuFood.textureName);
+    this._gameMenu.setFeedPreviewTextureName(
+      this._nextFeedMenuFood.textureName
+    );
   }
   _consumeNextFeedMenuFood() {
     const selectedFeedMenuFood = this._nextFeedMenuFood;
@@ -44057,44 +43920,6 @@ ${this.t("main.cleanObjectsPrompt")}`,
       this._updateControlButtonsForMenuState(false);
     }
   }
-  /**
-   * 시뮬레이션 전용 시스템 파이프라인 생성
-   * 렌더링 관련 시스템들을 제외한 로직 시스템들만 포함
-   * @param getCurrentTime 현재 시뮬레이션 시간을 반환하는 함수
-   */
-  _createSimulationPipeline(getCurrentTime, options = {}) {
-    return pipe(
-      // 시간 기반 시스템들 (상태 관리 시스템 토글 적용)
-      (params) => this._statusSystemsEnabled ? freshnessSystem({ ...params, currentTime: getCurrentTime() }) : params,
-      (params) => this._statusSystemsEnabled ? digestiveSystem({ ...params, currentTime: getCurrentTime() }) : params,
-      (params) => this._statusSystemsEnabled ? sleepScheduleSystem({
-        ...params,
-        currentTime: getCurrentTime()
-      }) : params,
-      (params) => this._statusSystemsEnabled ? diseaseSystem({ ...params, currentTime: getCurrentTime() }) : params,
-      (params) => eggHatchSystem({ ...params, currentTime: getCurrentTime() }),
-      (params) => this._statusSystemsEnabled ? mutationRiskSystem({ ...params, currentTime: getCurrentTime() }) : params,
-      (params) => this._statusSystemsEnabled ? characterManagerSystem(params) : params,
-      (params) => this._statusSystemsEnabled ? characterStatusSystem({ ...params, currentTime: getCurrentTime() }) : params,
-      // 범용 effect 애니메이션 시스템 (시뮬레이션에서는 상태만 업데이트, stage는 null)
-      (params) => effectAnimationSystem({
-        ...params,
-        currentTime: getCurrentTime(),
-        stage: null
-        // 시뮬레이션에서는 렌더링 스킵
-      }),
-      // 렌더링 관련 시스템들은 시뮬레이션에서 제외
-      // - cleaningSystem (스킵)
-      // 이동 및 게임플레이 시스템들
-      randomMovementSystem,
-      commonMovementSystem,
-      // 착지 상태를 먼저 반영해 같은 프레임에 음식 탐색이 가능하도록 한다.
-      throwAnimationSystem,
-      (params) => options.skipFoodInteraction ? params : foodEatingSystem({ ...params, currentTime: getCurrentTime() }),
-      // 애니메이션 상태 시스템들 (시뮬레이션에서도 실행)
-      animationStateSystem
-    );
-  }
   _isNativeWorldDataUpdateSuccessful(result) {
     const status = result == null ? void 0 : result.status;
     return status === "native_authoritative_completion_completed" || status === "native_world_data_update_completed" || status === "completed" || status === "ok";
@@ -44112,7 +43937,9 @@ ${this.t("main.cleanObjectsPrompt")}`,
           typeof (updateResult == null ? void 0 : updateResult.error) === "string" ? updateResult.error : `native_world_data_update_failed:${(updateResult == null ? void 0 : updateResult.status) ?? "unknown"}`
         );
       }
-      const reloadedData = await StorageManager.getData(WORLD_DATA_STORAGE_KEY);
+      const reloadedData = await StorageManager.getData(
+        WORLD_DATA_STORAGE_KEY
+      );
       const validatedData = reloadedData ? this._validateAndMigrateData(reloadedData) : null;
       if (!this._hasPlayableSavedData(validatedData)) {
         throw new Error("native_world_data_update_missing_reloaded_world_data");
@@ -44125,21 +43952,27 @@ ${this.t("main.cleanObjectsPrompt")}`,
       applyReentryHappyStatusForFullStaminaCharacters(this);
       this._applyEntryStatusSuppression(source, preReentrySnapshot);
       if (this._initDiagnostics.isInitTimingActive) {
-        await this._initDiagnostics.measurePhase("reentry_persist_state", async () => {
-          await this._saveCurrentState();
-        });
+        await this._initDiagnostics.measurePhase(
+          "reentry_persist_state",
+          async () => {
+            await this._saveCurrentState();
+          }
+        );
       } else {
         await this._saveCurrentState();
       }
-      console.log("[MainSceneWorld] Native world data update completed for reentry", {
-        source,
-        status: updateResult.status,
-        worldDataChanged: updateResult.worldDataChanged ?? null,
-        hatched: updateResult.hatched ?? null,
-        previousCharacterState: updateResult.previousCharacterState ?? null,
-        nextCharacterState: updateResult.nextCharacterState ?? null,
-        selectedCharacterKey: updateResult.selectedCharacterKey ?? null
-      });
+      console.log(
+        "[MainSceneWorld] Native world data update completed for reentry",
+        {
+          source,
+          status: updateResult.status,
+          worldDataChanged: updateResult.worldDataChanged ?? null,
+          hatched: updateResult.hatched ?? null,
+          previousCharacterState: updateResult.previousCharacterState ?? null,
+          nextCharacterState: updateResult.nextCharacterState ?? null,
+          selectedCharacterKey: updateResult.selectedCharacterKey ?? null
+        }
+      );
     } finally {
       this._finishReentryRuntimeState();
     }
@@ -44155,8 +43988,9 @@ ${this.t("main.cleanObjectsPrompt")}`,
     this._updateAutoTimeOfDayIfNeeded(true);
   }
   /**
-   * 재진입 시뮬레이션 처리
-   * 앱을 다시 켤 때 경과된 시간을 계산하고 해당 시간만큼 시뮬레이션 실행
+   * 재진입 처리.
+   * 앱 init/resume은 native bridge가 Flutter 저장본을 갱신한 뒤 다시 로드하고,
+   * manual reentry는 JS game simulation 없이 현재 상태 저장만 수행한다.
    */
   async _processReentrySimulation(source = "manual") {
     var _a, _b, _c;
@@ -44169,9 +44003,7 @@ ${this.t("main.cleanObjectsPrompt")}`,
     });
     try {
       if (!((_b = this._persistentData) == null ? void 0 : _b.world_metadata.app_state)) {
-        console.log(
-          "[MainSceneWorld] No app state found, skipping reentry simulation"
-        );
+        console.log("[MainSceneWorld] No app state found, skipping reentry");
         result = "skipped";
         return;
       }
@@ -44182,50 +44014,13 @@ ${this.t("main.cleanObjectsPrompt")}`,
           delete appState.suspend_food_interaction_until_reentry;
         }
       };
-      const lastActiveTime = appState.last_active_time;
-      const lastActiveAnchor = isTrustedTimeSnapshot(
-        appState.last_active_time_anchor
-      ) ? appState.last_active_time_anchor : null;
-      await this._trustedClock.refresh({ forceRefresh: false });
-      if (!lastActiveTime || lastActiveTime <= 0) {
-        console.log(
-          "[MainSceneWorld] Reentry simulation skipped because last active time is missing"
-        );
-        result = "skipped";
-        clearFoodInteractionSuspendFlag();
-        if (this._initDiagnostics.isInitTimingActive) {
-          await this._initDiagnostics.measurePhase("reentry_persist_state", async () => {
-            await this._saveCurrentState();
-          });
-        } else {
-          await this._saveCurrentState();
-        }
-        return;
-      }
-      const currentTime = this.currentTime;
-      const elapsedResult = lastActiveAnchor ? this._trustedClock.elapsedSince(lastActiveAnchor) : null;
-      const elapsedTime = elapsedResult ? elapsedResult.elapsedMs : Math.max(0, currentTime - lastActiveTime);
-      if (elapsedResult && !elapsedResult.trusted) {
-        console.warn("[MainSceneWorld] Reentry elapsed time is not trusted", {
-          reason: elapsedResult.reason,
-          elapsedMs: elapsedResult.elapsedMs
-        });
-      }
-      if (elapsedTime <= 0) {
-        console.log(
-          "[MainSceneWorld] Reentry simulation skipped because elapsed time is not positive"
-        );
-        result = "skipped";
-        clearFoodInteractionSuspendFlag();
-        await this._saveCurrentState();
-        return;
-      }
-      console.log(
-        `[MainSceneWorld] Starting reentry simulation for ${this._formatPauseDuration(
-          elapsedTime
-        )} elapsed time`
-      );
       if (source === "init" || source === "app_resume") {
+        console.log(
+          "[MainSceneWorld] Starting native reentry world data update",
+          {
+            source
+          }
+        );
         try {
           await this._processNativeWorldDataUpdateForReentry(
             source,
@@ -44244,59 +44039,21 @@ ${this.t("main.cleanObjectsPrompt")}`,
         }
         return;
       }
-      const reentrySimulator = new ReentrySimulator();
-      if (this._hasEggCharacterForReentrySimulation()) {
-        await Promise.all(
-          EGG_HATCH_STARTING_SPRITESHEET_KEYS.map(
-            async (characterSpritesheetKey) => {
-              const spritesheetName = SPRITESHEET_KEY_TO_NAME[characterSpritesheetKey];
-              await loadSpritesheet({
-                jsonPath: `/assets/game/sprites/monsters/${spritesheetName}.json`,
-                alias: spritesheetName
-              });
-              await ensureCharacterOpaqueBoundsComputed(characterSpritesheetKey);
-            }
-          )
-        );
-      }
-      const simulationPipeline = this._createSimulationPipeline(
-        () => reentrySimulator.getCurrentSimulationTime(),
-        {
-          skipFoodInteraction: shouldSuspendFoodInteraction
-        }
+      console.log(
+        "[MainSceneWorld] Reentry JS simulation disabled; persisting current state only",
+        { source }
       );
-      try {
-        this._isRunningReentrySimulation = true;
-        this._simulationTime = lastActiveTime;
-        await reentrySimulator.simulate(
-          lastActiveTime,
-          (params) => {
-            this._simulationTime = reentrySimulator.getCurrentSimulationTime();
-            this._updateAutoTimeOfDayIfNeeded();
-            return simulationPipeline(params);
-          },
-          this,
-          currentTime
-        );
-        this._simulationTime = currentTime;
-        clearFoodInteractionSuspendFlag();
-        applyReentryHappyStatusForFullStaminaCharacters(this);
-        this._applyEntryStatusSuppression(source, preReentrySnapshot);
-        if (this._initDiagnostics.isInitTimingActive) {
-          await this._initDiagnostics.measurePhase("reentry_persist_state", async () => {
+      result = "skipped";
+      clearFoodInteractionSuspendFlag();
+      if (this._initDiagnostics.isInitTimingActive) {
+        await this._initDiagnostics.measurePhase(
+          "reentry_persist_state",
+          async () => {
             await this._saveCurrentState();
-          });
-        } else {
-          await this._saveCurrentState();
-        }
-        console.log("[MainSceneWorld] Reentry simulation completed successfully");
-      } catch (error) {
-        result = "failed";
-        capturedError = error;
-        console.error("[MainSceneWorld] Reentry simulation failed:", error);
-      } finally {
-        clearFoodInteractionSuspendFlag();
-        this._finishReentryRuntimeState();
+          }
+        );
+      } else {
+        await this._saveCurrentState();
       }
     } catch (error) {
       result = "failed";
@@ -44315,23 +44072,16 @@ ${this.t("main.cleanObjectsPrompt")}`,
     this._isRunningReentrySimulation = false;
     this._simulationTime = null;
   }
-  _hasEggCharacterForReentrySimulation() {
-    var _a, _b;
-    return ((_b = (_a = this._persistentData) == null ? void 0 : _a.entities) == null ? void 0 : _b.some((entity) => {
-      var _a2, _b2;
-      return ((_a2 = entity.components.object) == null ? void 0 : _a2.type) === ObjectType.CHARACTER && ((_b2 = entity.components.object) == null ? void 0 : _b2.state) === CharacterState.EGG;
-    })) ?? false;
-  }
   /**
    * 현재 시뮬레이션 모드인지 확인
-   * 재진입 시뮬레이션이 실행 중이 아닌 상태에서는 항상 false
+   * 테스트용/명시적 synthetic time이 없으면 항상 false
    */
   get isSimulationMode() {
     return this._simulationTime !== null;
   }
   /**
    * 현재 시뮬레이션 시간 또는 실시간 반환
-   * 재진입 시뮬레이션이 실행 중이 아닌 상태에서는 항상 실시간
+   * synthetic time이 없으면 항상 실시간
    */
   get currentTime() {
     return this._simulationTime ?? this._trustedClock.now();
@@ -44502,7 +44252,7 @@ ${this.t("main.cleanObjectsPrompt")}`,
       )}`
     );
     console.log(
-      `[MainSceneWorld] Running reentry simulation for pause duration of ${this._formatPauseDuration(
+      `[MainSceneWorld] Running native reentry world data update after pause duration of ${this._formatPauseDuration(
         pauseDuration
       )}...`
     );
@@ -44618,9 +44368,9 @@ ${this.t("main.cleanObjectsPrompt")}`,
       this._persistentData.world_metadata.app_state.last_active_time = activeTime;
       this._persistentData.world_metadata.app_state.last_active_time_anchor = this._trustedClock.captureAnchor();
       console.log(
-        `[MainSceneWorld] Saved last active time: ${new Date(activeTime).toLocaleString(
-          "ko-KR"
-        )}`
+        `[MainSceneWorld] Saved last active time: ${new Date(
+          activeTime
+        ).toLocaleString("ko-KR")}`
       );
     }
   }
@@ -52466,7 +52216,9 @@ class FlappyBirdGameScene extends Container {
         this.restartGame();
       }
     }
-    if (event.code === "KeyD" && false) ;
+    if (event.code === "KeyD" && true) {
+      this.physicsManager.toggleDebugMode(this.game.app);
+    }
   }
   /**
    * 게임을 시작합니다.
@@ -53253,6 +53005,21 @@ const CLASS_ACCENT_COLORS = {
   C: 2984511,
   D: 12463984
 };
+function createDevUnlockedMonsterBookState() {
+  const reachedAt = Date.now();
+  const reached = {};
+  for (const characterKey of MONSTER_CHARACTER_KEYS) {
+    reached[characterKey] = [
+      {
+        name: "DEV",
+        reached_at: reachedAt,
+        object_id: characterKey,
+        source: "backfill"
+      }
+    ];
+  }
+  return normalizeMonsterBookState({ reached });
+}
 class MonsterBookScene extends Container {
   constructor(game) {
     super();
@@ -53377,9 +53144,7 @@ class MonsterBookScene extends Container {
     this.unlockAllCardsForDevMode();
   }
   unlockAllCardsForDevMode() {
-    {
-      return;
-    }
+    this.monsterBookState = createDevUnlockedMonsterBookState();
   }
   async preloadBookBackground() {
     try {
@@ -54997,7 +54762,7 @@ function simulateEvolutionAdminRolls(params) {
   });
 }
 export {
-  LOCALE_METADATA as $,
+  NAME_LABEL_STROKE_WIDTH as $,
   AbstractRenderer as A,
   BufferUsage as B,
   Container as C,
@@ -55012,77 +54777,79 @@ export {
   measureNameLabelWidth as L,
   Matrix as M,
   fitsNameLabelWidth as N,
-  TRANSLATIONS as O,
+  TIME_OF_DAY_OPTIONS as O,
   Point as P,
-  NAME_LABEL_FONT_FAMILIES as Q,
+  getTimeOfDayLabel as Q,
   RendererType as R,
   STENCIL_MODES as S,
   Ticker as T,
   UPDATE_PRIORITY as U,
-  NAME_LABEL_FONT_WEIGHT as V,
+  TRANSLATIONS as V,
   WebLocalStorage as W,
-  NAME_LABEL_STROKE_COLOR as X,
-  NAME_LABEL_FILL_COLOR as Y,
-  NAME_LABEL_STROKE_WIDTH as Z,
-  SUPPORTED_LOCALES as _,
+  NAME_LABEL_FONT_FAMILIES as X,
+  NAME_LABEL_FONT_WEIGHT as Y,
+  NAME_LABEL_STROKE_COLOR as Z,
+  NAME_LABEL_FILL_COLOR as _,
   applyEvolutionAdminExport as a,
-  CharacterState as a0,
-  CharacterKeyECS as a1,
-  isEggTextureKey as a2,
-  TextureKey as a3,
-  GAME_CONSTANTS as a4,
-  SceneKey as a5,
-  TimeOfDay as a6,
-  hasLegacyMonsterBookState as a7,
-  migrateLegacyMonsterBookIfNeeded as a8,
-  getNativeSunTimes as a9,
-  RendererInitHook as aA,
-  Geometry as aB,
-  checkMaxIfStatementsInShader as aC,
-  compileHighShaderGlProgram as aD,
-  colorBitGl as aE,
-  generateTextureBatchBitGl as aF,
-  roundPixelsBitGl as aG,
-  getBatchSamplersUniformGroup as aH,
-  TextStyle as aI,
-  BatchableGraphics as aJ,
-  getAdjustedBlendModeBlend as aK,
-  ViewableBuffer as aL,
-  TextureStyle as aM,
-  BitmapFontManager as aN,
-  CanvasTextMetrics as aO,
-  getBitmapTextLayout as aP,
-  Cache as aQ,
-  Graphics as aR,
-  updateQuadBounds as aS,
-  CanvasTextGenerator as aT,
-  GraphicsContextSystem as aU,
-  MissingInitialGameDataError as aa,
-  Game as ab,
-  GpuProgram as ac,
-  GlProgram as ad,
-  TextureMatrix as ae,
-  DefaultBatcher as af,
-  BigPool as ag,
-  getGlobalBounds as ah,
-  Bounds as ai,
-  TexturePool as aj,
-  FilterEffect as ak,
-  Sprite as al,
-  getAttributeInfoFromFormat as am,
-  unsafeEvalSupported as an,
-  uid as ao,
-  Rectangle as ap,
-  SystemRunner as aq,
-  multiplyColors as ar,
-  UPDATE_VISIBLE as as,
-  UPDATE_COLOR as at,
-  UPDATE_BLEND as au,
-  Color as av,
-  getLocalBounds as aw,
-  VERSION as ax,
-  deprecation as ay,
-  v8_0_0 as az,
+  SUPPORTED_LOCALES as a0,
+  LOCALE_METADATA as a1,
+  CharacterState as a2,
+  CharacterKeyECS as a3,
+  isEggTextureKey as a4,
+  TextureKey as a5,
+  GAME_CONSTANTS as a6,
+  SceneKey as a7,
+  TimeOfDay as a8,
+  hasLegacyMonsterBookState as a9,
+  deprecation as aA,
+  v8_0_0 as aB,
+  RendererInitHook as aC,
+  Geometry as aD,
+  checkMaxIfStatementsInShader as aE,
+  compileHighShaderGlProgram as aF,
+  colorBitGl as aG,
+  generateTextureBatchBitGl as aH,
+  roundPixelsBitGl as aI,
+  getBatchSamplersUniformGroup as aJ,
+  TextStyle as aK,
+  BatchableGraphics as aL,
+  getAdjustedBlendModeBlend as aM,
+  ViewableBuffer as aN,
+  TextureStyle as aO,
+  BitmapFontManager as aP,
+  CanvasTextMetrics as aQ,
+  getBitmapTextLayout as aR,
+  Cache as aS,
+  Graphics as aT,
+  updateQuadBounds as aU,
+  CanvasTextGenerator as aV,
+  GraphicsContextSystem as aW,
+  migrateLegacyMonsterBookIfNeeded as aa,
+  getNativeSunTimes as ab,
+  MissingInitialGameDataError as ac,
+  Game as ad,
+  GpuProgram as ae,
+  GlProgram as af,
+  TextureMatrix as ag,
+  DefaultBatcher as ah,
+  BigPool as ai,
+  getGlobalBounds as aj,
+  Bounds as ak,
+  TexturePool as al,
+  FilterEffect as am,
+  Sprite as an,
+  getAttributeInfoFromFormat as ao,
+  unsafeEvalSupported as ap,
+  uid as aq,
+  Rectangle as ar,
+  SystemRunner as as,
+  multiplyColors as at,
+  UPDATE_VISIBLE as au,
+  UPDATE_COLOR as av,
+  UPDATE_BLEND as aw,
+  Color as ax,
+  getLocalBounds as ay,
+  VERSION as az,
   buildEvolutionAdminExport as b,
   EventEmitter as c,
   getTextureBatchBindGroup as d,

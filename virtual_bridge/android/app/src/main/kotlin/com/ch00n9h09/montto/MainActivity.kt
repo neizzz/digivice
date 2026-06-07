@@ -194,11 +194,7 @@ open class MainActivity : FlutterActivity() {
                 }
 
                 "completeNativeWorldDataUpdate" -> {
-                    val nativeUpdateResult = HomeWidgetNativeAuthoritativeRefresh.complete(
-                        context = this,
-                        allowEggSnapshot = true,
-                    )
-                    result.success(nativeUpdateResult.toMap())
+                    completeNativeWorldDataUpdate(result)
                 }
 
                 "getRefreshDiagnostics" -> {
@@ -235,6 +231,24 @@ open class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            WorldDataConstants.CHANNEL,
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "completeNativeWorldDataUpdate" -> completeNativeWorldDataUpdate(result)
+                else -> result.notImplemented()
+            }
+        }
+    }
+
+    private fun completeNativeWorldDataUpdate(result: MethodChannel.Result) {
+        val nativeUpdateResult = HomeWidgetNativeAuthoritativeRefresh.complete(
+            context = this,
+            allowEggSnapshot = true,
+        )
+        result.success(nativeUpdateResult.toMap())
     }
 
     private fun installOnBackPressedDispatcherDiagnostics() {

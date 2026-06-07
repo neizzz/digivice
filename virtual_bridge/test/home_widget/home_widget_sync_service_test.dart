@@ -11,11 +11,13 @@ Map<String, dynamic> _buildWorldData({
   List<int> statuses = const <int>[],
   Map<String, dynamic>? appState,
   int? textureKey,
+  int? lastEcsSaved,
   Map<String, dynamic>? eggHatch,
 }) {
   return <String, dynamic>{
     'world_metadata': <String, dynamic>{
       'monster_name': 'MonTTo',
+      if (lastEcsSaved != null) 'last_ecs_saved': lastEcsSaved,
       'app_state': <String, dynamic>{
         'use_local_time': false,
         'last_active_time': 123456,
@@ -210,6 +212,84 @@ void main() {
     });
   });
 
+  group('HomeWidgetSyncService.selectWorldDataForSync', () {
+    test('저장본만 있으면 Flutter 저장본을 선택한다', () {
+      final String stored = jsonEncode(
+        _buildWorldData(state: 1, stamina: 6, lastEcsSaved: 100),
+      );
+
+      final HomeWidgetSyncWorldDataSelection selection =
+          HomeWidgetSyncService.selectWorldDataForSync(
+        storedRawWorldData: stored,
+        inMemoryRawWorldData: null,
+      );
+
+      expect(selection.source, HomeWidgetSyncWorldDataSource.stored);
+      expect(selection.sourceName, 'stored');
+      expect(selection.selectedRawWorldData, stored);
+      expect(selection.storedLastEcsSaved, 100);
+      expect(selection.inMemoryLastEcsSaved, isNull);
+    });
+
+    test('in-memory만 있으면 in-memory를 선택한다', () {
+      final String inMemory = jsonEncode(
+        _buildWorldData(state: 1, stamina: 6, lastEcsSaved: 200),
+      );
+
+      final HomeWidgetSyncWorldDataSelection selection =
+          HomeWidgetSyncService.selectWorldDataForSync(
+        storedRawWorldData: null,
+        inMemoryRawWorldData: inMemory,
+      );
+
+      expect(selection.source, HomeWidgetSyncWorldDataSource.inMemory);
+      expect(selection.sourceName, 'in_memory');
+      expect(selection.selectedRawWorldData, inMemory);
+      expect(selection.storedLastEcsSaved, isNull);
+      expect(selection.inMemoryLastEcsSaved, 200);
+    });
+
+    test('in-memory가 더 최신이면 in-memory를 선택한다', () {
+      final String stored = jsonEncode(
+        _buildWorldData(state: 1, stamina: 6, lastEcsSaved: 300),
+      );
+      final String inMemory = jsonEncode(
+        _buildWorldData(state: 3, stamina: 8, lastEcsSaved: 350),
+      );
+
+      final HomeWidgetSyncWorldDataSelection selection =
+          HomeWidgetSyncService.selectWorldDataForSync(
+        storedRawWorldData: stored,
+        inMemoryRawWorldData: inMemory,
+      );
+
+      expect(selection.source, HomeWidgetSyncWorldDataSource.inMemory);
+      expect(selection.selectedRawWorldData, inMemory);
+      expect(selection.storedLastEcsSaved, 300);
+      expect(selection.inMemoryLastEcsSaved, 350);
+    });
+
+    test('저장본 hatch 완료는 stale in-memory egg보다 우선한다', () {
+      final String stored = jsonEncode(
+        _buildWorldData(state: 1, stamina: 6, lastEcsSaved: 400),
+      );
+      final String inMemory = jsonEncode(
+        _buildWorldData(state: 0, stamina: 10, lastEcsSaved: 450),
+      );
+
+      final HomeWidgetSyncWorldDataSelection selection =
+          HomeWidgetSyncService.selectWorldDataForSync(
+        storedRawWorldData: stored,
+        inMemoryRawWorldData: inMemory,
+      );
+
+      expect(selection.source, HomeWidgetSyncWorldDataSource.stored);
+      expect(selection.selectedRawWorldData, stored);
+      expect(selection.storedLastEcsSaved, 400);
+      expect(selection.inMemoryLastEcsSaved, 450);
+    });
+  });
+
   group('HomeWidgetSyncService.progressSnapshot', () {
     test('refresh는 widget_progressed snapshot으로 deterministic progression 한다',
         () {
@@ -272,6 +352,29 @@ void main() {
 
       expect(mode, widgetRefreshLaunchMode);
       expect(methodCalls.single.method, 'getLaunchContext');
+    });
+
+    test('syncFromStorageOrWorldDataJson은 Flutter 저장본 기준 선택 결과를 반환한다',
+        () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        worldDataStorageKey: jsonEncode(
+          _buildWorldData(state: 1, stamina: 6, lastEcsSaved: 500),
+        ),
+      });
+
+      final Map<String, Object?> result =
+          await HomeWidgetSyncService.syncFromStorageOrWorldDataJson(
+        inMemoryRawWorldData: jsonEncode(
+          _buildWorldData(state: 0, stamina: 10, lastEcsSaved: 550),
+        ),
+        reason: 'widget_refresh_storage_selection_test',
+      );
+
+      expect(result['status'], 'synced');
+      expect(result['selectedSource'], 'stored');
+      expect(result['storedLastEcsSaved'], 500);
+      expect(result['inMemoryLastEcsSaved'], 550);
+      expect(result['characterState'], 'idle');
     });
 
     test('syncFromWorldDataJson은 두 native publish 완료 후 결과를 반환한다', () async {

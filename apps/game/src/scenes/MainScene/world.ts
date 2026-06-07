@@ -1,59 +1,55 @@
+import { DEFAULT_LOCALE, type LocaleCode, translate } from "@shared/i18n";
 import {
-  DEFAULT_LOCALE,
-  type LocaleCode,
-  translate,
-} from "@shared/i18n";
-import {
-  addEntity,
-  createWorld,
-  enableManualEntityRecycling,
-  flushRemovedEntities,
-  IWorld,
-  pipe,
-  defineQuery,
-  hasComponent,
-  addComponent,
-  removeEntity,
+	addEntity,
+	createWorld,
+	enableManualEntityRecycling,
+	flushRemovedEntities,
+	IWorld,
+	pipe,
+	defineQuery,
+	hasComponent,
+	addComponent,
+	removeEntity,
 } from "bitecs";
 import * as PIXI from "pixi.js";
 import "@pixi/gif"; // GIF 지원 추가
 import { SHOW_DEBUG_GAUGE_EVENT } from "../../debugEvents";
 import {
-  AngleComponent,
-  Boundary,
-  CharacterState,
-  CharacterStatus,
-  CharacterKeyECS,
-  CharacterStatusComponent,
-  DestinationComponent,
-  FreshnessComponent,
-  ObjectComponent,
-  ObjectType,
-  PositionComponent,
-  RandomMovementComponent,
-  RenderComponent,
-  AnimationRenderComponent,
-  StatusIconRenderComponent,
-  SpeedComponent,
-  AnimationKey,
-  SpritesheetKey,
-  ThrowAnimationComponent,
-  DestinationType,
-  DigestiveSystemComponent,
-  DiseaseSystemComponent,
-  SleepSystemComponent,
-  SleepMode,
-  SleepReason,
-  VitalityComponent,
-  TemporaryStatusComponent,
-  EggHatchComponent,
-  MutationRiskComponent,
-  DirtyExposureComponent,
-  FreshnessTimerComponent,
-  CleanableComponent,
-  BroomRenderComponent,
-  EGG_TEXTURE_KEYS,
-  Freshness,
+	AngleComponent,
+	Boundary,
+	CharacterState,
+	CharacterStatus,
+	CharacterKeyECS,
+	CharacterStatusComponent,
+	DestinationComponent,
+	FreshnessComponent,
+	ObjectComponent,
+	ObjectType,
+	PositionComponent,
+	RandomMovementComponent,
+	RenderComponent,
+	AnimationRenderComponent,
+	StatusIconRenderComponent,
+	SpeedComponent,
+	AnimationKey,
+	SpritesheetKey,
+	ThrowAnimationComponent,
+	DestinationType,
+	DigestiveSystemComponent,
+	DiseaseSystemComponent,
+	SleepSystemComponent,
+	SleepMode,
+	SleepReason,
+	VitalityComponent,
+	TemporaryStatusComponent,
+	EggHatchComponent,
+	MutationRiskComponent,
+	DirtyExposureComponent,
+	FreshnessTimerComponent,
+	CleanableComponent,
+	BroomRenderComponent,
+	EGG_TEXTURE_KEYS,
+	Freshness,
 } from "./types";
 import { randomMovementSystem } from "./systems/RandomMovementSystem";
 import { commonMovementSystem } from "./systems/CommonMovementSystem";
@@ -61,39 +57,39 @@ import { animationRenderSystem } from "./systems/AnimationRenderSystem";
 import { animationStateSystem } from "./systems/AnimationStateSystem";
 import { statusIconRenderSystem } from "./systems/StatusIconRenderSystem";
 import {
-  cleanupEggCrackRenderState,
-  eggCrackRenderSystem,
+	cleanupEggCrackRenderState,
+	eggCrackRenderSystem,
 } from "./systems/EggCrackRenderSystem";
 import { renderSystem } from "./systems/RenderSystem";
 import {
-  characterNameLabelSystem,
-  cleanupCharacterNameLabels,
+	characterNameLabelSystem,
+	cleanupCharacterNameLabels,
 } from "./systems/CharacterNameLabelSystem";
 import {
-  characterLayoutDebugSystem,
-  cleanupCharacterLayoutDebug,
+	characterLayoutDebugSystem,
+	cleanupCharacterLayoutDebug,
 } from "./systems/CharacterLayoutDebugSystem";
 import {
-  ensureCharacterOpaqueBoundsComputed,
-  precomputeLoadedCharacterOpaqueBounds,
-  precomputeLoadedTextureOpaqueBounds,
+	ensureCharacterOpaqueBoundsComputed,
+	precomputeLoadedCharacterOpaqueBounds,
+	precomputeLoadedTextureOpaqueBounds,
 } from "./systems/CharacterOpaqueBounds";
 import { dataSyncSystem } from "./systems/DataSyncSystem";
 import { throwAnimationSystem } from "./systems/ThrowAnimationSystem";
 import {
-  completeActiveEatingForCharacter,
-  foodEatingSystem,
+	completeActiveEatingForCharacter,
+	foodEatingSystem,
 } from "./systems/FoodEatingSystem";
 import { sparkleEffectSystem } from "./systems/SparkleEffectSystem";
 import {
-  cleaningSystem,
-  clearCleaningTargets,
-  prepareCleaningModeTargets,
+	cleaningSystem,
+	clearCleaningTargets,
+	prepareCleaningModeTargets,
 } from "./systems/CleaningSystem";
 import { cleanableRenderSystem } from "./systems/CleanableRenderSystem";
 import {
-  effectAnimationSystem,
-  startRecoveryAnimation,
+	effectAnimationSystem,
+	startRecoveryAnimation,
 } from "./systems/EffectAnimationSystem";
 import { HTMLDebugStatusUI } from "./ui/HTMLDebugStatusUI";
 import { HTMLDebugToggleButton } from "./ui/HTMLDebugToggleButton";
@@ -102,58 +98,58 @@ import { HTMLDebugGaugeUI } from "./ui/HTMLDebugGaugeUI";
 import { StorageManager } from "../../managers/StorageManager";
 import { Background } from "../../entities/Background";
 import {
-  applySavedEntityToECS,
-  clearCharacterDestinationAndStop,
-  convertECSEntityToSavedEntity,
-  repairCharacterEntityRuntimeComponents,
-  repairLoadedFoodInteractionState,
-  restoreCharacterFreeRoamingState,
+	applySavedEntityToECS,
+	clearCharacterDestinationAndStop,
+	convertECSEntityToSavedEntity,
+	repairCharacterEntityRuntimeComponents,
+	repairLoadedFoodInteractionState,
+	restoreCharacterFreeRoamingState,
 } from "./entityDataHelpers";
 import {
-  createCharacterEntity,
-  createThrowingFoodEntity,
-  getRandomFeedMenuFoodOption,
-  type FeedMenuFoodOption,
+	createCharacterEntity,
+	createThrowingFoodEntity,
+	getRandomFeedMenuFoodOption,
+	type FeedMenuFoodOption,
 } from "./entityFactory";
 import {
-  ObjectComp,
-  CharacterStatusComp,
-  PositionComp,
-  DestinationComp,
-  CleanableComp,
-  DiseaseSystemComp,
-  EffectAnimationComp,
-  EggHatchComp,
-  FreshnessComp,
-  MutationRiskComp,
-  SleepSystemComp,
+	ObjectComp,
+	CharacterStatusComp,
+	PositionComp,
+	DestinationComp,
+	CleanableComp,
+	DiseaseSystemComp,
+	EffectAnimationComp,
+	EggHatchComp,
+	FreshnessComp,
+	MutationRiskComp,
+	SleepSystemComp,
 } from "./raw-components";
 import { generatePersistentNumericId } from "@/utils/generate";
 import {
-  loadSpritesheets,
-  LoadSpritesheetOptions,
-  loadSpritesheet,
+	loadSpritesheets,
+	LoadSpritesheetOptions,
+	loadSpritesheet,
 } from "../../utils/asset";
 import type {
-  EvolutionGaugeState,
-  MainCharacterGeneOutcome,
-  MainCharacterInfoSnapshot,
-  ShowAlertCallback,
-  ShowMonsterInfoCallback,
-  TriggerBiteVibrationCallback,
-  TriggerTransientVibrationCallback,
-  TriggerMainSceneSfxCallback,
-  MainSceneSfxKind,
-  StartRecoveryVibrationCallback,
-  StopRecoveryVibrationCallback,
+	EvolutionGaugeState,
+	MainCharacterGeneOutcome,
+	MainCharacterInfoSnapshot,
+	ShowAlertCallback,
+	ShowMonsterInfoCallback,
+	TriggerBiteVibrationCallback,
+	TriggerTransientVibrationCallback,
+	TriggerMainSceneSfxCallback,
+	MainSceneSfxKind,
+	StartRecoveryVibrationCallback,
+	StopRecoveryVibrationCallback,
 } from "../../Game";
 import { SPRITESHEET_KEY_TO_NAME } from "./systems/AnimationRenderSystem";
 import { Scene } from "../../interfaces/Scene";
 import {
-  ControlButtonParams,
-  ControlButtonType,
-  NavigationAction,
-  NavigationActionPayload,
+	ControlButtonParams,
+	ControlButtonType,
+	NavigationAction,
+	NavigationActionPayload,
 } from "../../ui/types";
 import { GameMenu } from "../../ui/GameMenu";
 import { freshnessSystem } from "./systems/FreshnessSystem";
@@ -161,468 +157,464 @@ import { digestiveSystem } from "./systems/DigestiveSystem";
 import { diseaseSystem } from "./systems/DiseaseSystem";
 import { eggHatchSystem } from "./systems/EggHatchSystem";
 import {
-  mutationRiskSystem,
-  recordUnnecessaryMutationInjection,
+	mutationRiskSystem,
+	recordUnnecessaryMutationInjection,
 } from "./systems/MutationRiskSystem";
 import {
-  sleepScheduleSystem,
-  wakeCharacter,
+	sleepScheduleSystem,
+	wakeCharacter,
 } from "./systems/SleepScheduleSystem";
 import {
-  applyHappyStatusForFullStaminaCharacterIfEligible,
-  applyReentryHappyStatusForFullStaminaCharacters,
-  characterManagerSystem,
-  validateAndFixStatusIcons,
+	applyHappyStatusForFullStaminaCharacterIfEligible,
+	applyReentryHappyStatusForFullStaminaCharacters,
+	characterManagerSystem,
+	validateAndFixStatusIcons,
 } from "./systems/CharacterManageSystem";
 import { characterStatusSystem } from "./systems/CharacterStatusSystem";
 import { GAME_CONSTANTS, getRemainingEggHatchTime } from "./config";
 import {
-  EVOLUTION_GAUGE_CONFIG,
-  canEvolveFromConfig,
-  getCharacterSpritesheetName,
-  getEvolutionSpec,
-  type MonsterGeneLine,
+	EVOLUTION_GAUGE_CONFIG,
+	canEvolveFromConfig,
+	getCharacterSpritesheetName,
+	getEvolutionSpec,
+	type MonsterGeneLine,
 } from "./evolutionConfig";
 import { calculateEggHatchGeneProbabilities } from "./eggHatchGeneSelection";
 import {
-  calculateMutationRate,
-  getSameClassCrossGeneMutationTargets,
+	calculateMutationRate,
+	getSameClassCrossGeneMutationTargets,
 } from "./mutationConfig";
 import {
-  getManualSkyVisualState,
-  getProjectedUpcomingSunTimes as projectUpcomingSunTimes,
-  getTimeOfDayLabel,
-  hasSunTimesDateRolledOver,
-  projectSunTimesForDate,
-  resolveAutoTimeOfDayState,
-  type AutoTimeOfDayState,
-  type ProjectedUpcomingSunTimes,
-  type SunLocationSource,
-  type SunTimesPayload,
-  TimeOfDay,
-  TimeOfDayMode,
+	getManualSkyVisualState,
+	getProjectedUpcomingSunTimes as projectUpcomingSunTimes,
+	getTimeOfDayLabel,
+	hasSunTimesDateRolledOver,
+	projectSunTimesForDate,
+	resolveAutoTimeOfDayState,
+	type AutoTimeOfDayState,
+	type ProjectedUpcomingSunTimes,
+	type SunLocationSource,
+	type SunTimesPayload,
+	TimeOfDay,
+	TimeOfDayMode,
 } from "./timeOfDay";
 import {
-  cleanupSleepEffects,
-  sleepEffectSystem,
+	cleanupSleepEffects,
+	sleepEffectSystem,
 } from "./systems/SleepEffectSystem";
 import { getNativeSunTimes, requestNativeLocationPermission } from "./sunTimes";
-import { ReentrySimulator } from "./ReentrySimulator";
 import {
-  createEmptyMonsterBookState,
-  ensureMonsterBookState,
-  type MonsterBookState,
+	createEmptyMonsterBookState,
+	ensureMonsterBookState,
+	type MonsterBookState,
 } from "./monsterBook";
 import {
-  migrateLegacyMonsterBookIfNeeded,
-  saveMonsterBookState,
+	migrateLegacyMonsterBookIfNeeded,
+	saveMonsterBookState,
 } from "./monsterBookStorage";
 import { CharacterKey } from "../../types/Character";
 import {
-  MainSceneInitDiagnostics,
-  type MainSceneLoadingTraceContext,
+	MainSceneInitDiagnostics,
+	type MainSceneLoadingTraceContext,
 } from "./diagnostics/mainSceneInitDiagnostics";
 import {
-  trustedClock as defaultTrustedClock,
-  isTrustedTimeSnapshot,
-  type TrustedClock,
-  type TrustedTimeSnapshot,
+	trustedClock as defaultTrustedClock,
+	isTrustedTimeSnapshot,
+	type TrustedClock,
+	type TrustedTimeSnapshot,
 } from "../../utils/TrustedClock";
 import { cloneDeep } from "../../utils/common";
 
 const liveCharacterEntitiesQuery = defineQuery([
-  ObjectComp,
-  CharacterStatusComp,
+	ObjectComp,
+	CharacterStatusComp,
 ]);
 const hatchOutcomeFoodQuery = defineQuery([ObjectComp, FreshnessComp]);
 const FOOD_LANDING_VIBRATION_DURATION_MS = 16;
 const FOOD_LANDING_VIBRATION_STRENGTH = 36;
 const CHARACTER_KEY_VALUES = new Set<string>(Object.values(CharacterKey));
 const HATCH_OUTCOME_GENE_LINES: MonsterGeneLine[] = [
-  "green-slime",
-  "soil-slime",
-  "skull-slime",
+	"green-slime",
+	"soil-slime",
+	"skull-slime",
 ];
 
 function isCharacterKeyValue(value: string): value is CharacterKey {
-  return CHARACTER_KEY_VALUES.has(value);
+	return CHARACTER_KEY_VALUES.has(value);
 }
 
 function createHatchGeneOutcomesForProbabilities(
-  probabilities: Record<"green" | "soil" | "skull", number>,
+	probabilities: Record<"green" | "soil" | "skull", number>,
 ): MainCharacterGeneOutcome[] {
-  const probabilityByGeneLine: Record<MonsterGeneLine, number> = {
-    "green-slime": probabilities.green / 100,
-    "soil-slime": probabilities.soil / 100,
-    "skull-slime": probabilities.skull / 100,
-  };
+	const probabilityByGeneLine: Record<MonsterGeneLine, number> = {
+		"green-slime": probabilities.green / 100,
+		"soil-slime": probabilities.soil / 100,
+		"skull-slime": probabilities.skull / 100,
+	};
 
-  return HATCH_OUTCOME_GENE_LINES.map((geneLine) => ({
-    kind: "hatch",
-    geneLine,
-    level: 1,
-    probability: probabilityByGeneLine[geneLine],
-  }));
+	return HATCH_OUTCOME_GENE_LINES.map((geneLine) => ({
+		kind: "hatch",
+		geneLine,
+		level: 1,
+		probability: probabilityByGeneLine[geneLine],
+	}));
 }
 
 function createFixedHatchGeneOutcomes(
-  fixedGeneLine: MonsterGeneLine,
+	fixedGeneLine: MonsterGeneLine,
 ): MainCharacterGeneOutcome[] {
-  return HATCH_OUTCOME_GENE_LINES.map((geneLine) => ({
-    kind: "hatch",
-    geneLine,
-    level: 1,
-    probability: geneLine === fixedGeneLine ? 1 : 0,
-  }));
+	return HATCH_OUTCOME_GENE_LINES.map((geneLine) => ({
+		kind: "hatch",
+		geneLine,
+		level: 1,
+		probability: geneLine === fixedGeneLine ? 1 : 0,
+	}));
 }
 
 function countCurrentStaleFoodForHatch(world: MainSceneWorld): number {
-  const entities = hatchOutcomeFoodQuery(world);
-  let count = 0;
+	const entities = hatchOutcomeFoodQuery(world);
+	let count = 0;
 
-  for (let i = 0; i < entities.length; i++) {
-    const eid = entities[i];
-    if (
-      ObjectComp.type[eid] === ObjectType.FOOD &&
-      FreshnessComp.freshness[eid] === Freshness.STALE
-    ) {
-      count += 1;
-    }
-  }
+	for (let i = 0; i < entities.length; i++) {
+		const eid = entities[i];
+		if (
+			ObjectComp.type[eid] === ObjectType.FOOD &&
+			FreshnessComp.freshness[eid] === Freshness.STALE
+		) {
+			count += 1;
+		}
+	}
 
-  return count;
+	return count;
 }
 
 function getHatchGeneOutcomes(
-  world: MainSceneWorld,
-  characterEid: number,
+	world: MainSceneWorld,
+	characterEid: number,
 ): MainCharacterGeneOutcome[] {
-  if (!hasComponent(world, EggHatchComp, characterEid)) {
-    return createHatchGeneOutcomesForProbabilities(
-      calculateEggHatchGeneProbabilities({
-        staleFoodCountAtHatch: countCurrentStaleFoodForHatch(world),
-        syringeCount: 0,
-      }),
-    );
-  }
+	if (!hasComponent(world, EggHatchComp, characterEid)) {
+		return createHatchGeneOutcomesForProbabilities(
+			calculateEggHatchGeneProbabilities({
+				staleFoodCountAtHatch: countCurrentStaleFoodForHatch(world),
+				syringeCount: 0,
+			}),
+		);
+	}
 
-  const pendingSpec = getEvolutionSpec(
-    EggHatchComp.pendingCharacterKey[characterEid],
-  );
+	const pendingSpec = getEvolutionSpec(
+		EggHatchComp.pendingCharacterKey[characterEid],
+	);
 
-  if (pendingSpec?.phase === 1) {
-    return createFixedHatchGeneOutcomes(pendingSpec.geneLine);
-  }
+	if (pendingSpec?.phase === 1) {
+		return createFixedHatchGeneOutcomes(pendingSpec.geneLine);
+	}
 
-  return createHatchGeneOutcomesForProbabilities(
-    calculateEggHatchGeneProbabilities({
-      staleFoodCountAtHatch: countCurrentStaleFoodForHatch(world),
-      syringeCount: EggHatchComp.syringeCount[characterEid],
-    }),
-  );
+	return createHatchGeneOutcomesForProbabilities(
+		calculateEggHatchGeneProbabilities({
+			staleFoodCountAtHatch: countCurrentStaleFoodForHatch(world),
+			syringeCount: EggHatchComp.syringeCount[characterEid],
+		}),
+	);
 }
 
 function getGeneLineSortIndex(geneLine: MonsterGeneLine): number {
-  const index = HATCH_OUTCOME_GENE_LINES.indexOf(geneLine);
+	const index = HATCH_OUTCOME_GENE_LINES.indexOf(geneLine);
 
-  return index >= 0 ? index : HATCH_OUTCOME_GENE_LINES.length;
+	return index >= 0 ? index : HATCH_OUTCOME_GENE_LINES.length;
 }
 
 function addGeneOutcomeProbability(
-  map: Map<string, MainCharacterGeneOutcome>,
-  outcome: MainCharacterGeneOutcome,
+	map: Map<string, MainCharacterGeneOutcome>,
+	outcome: MainCharacterGeneOutcome,
 ): void {
-  const key = `${outcome.kind}:${outcome.geneLine}:${outcome.level}`;
-  const existing = map.get(key);
+	const key = `${outcome.kind}:${outcome.geneLine}:${outcome.level}`;
+	const existing = map.get(key);
 
-  if (existing) {
-    existing.probability += outcome.probability;
-    return;
-  }
+	if (existing) {
+		existing.probability += outcome.probability;
+		return;
+	}
 
-  map.set(key, { ...outcome });
+	map.set(key, { ...outcome });
 }
 
 function getEvolutionGeneOutcomes(
-  world: MainSceneWorld,
-  characterEid: number,
+	world: MainSceneWorld,
+	characterEid: number,
 ): MainCharacterGeneOutcome[] {
-  const characterKey = CharacterStatusComp.characterKey[characterEid];
-  const spec = getEvolutionSpec(characterKey);
+	const characterKey = CharacterStatusComp.characterKey[characterEid];
+	const spec = getEvolutionSpec(characterKey);
 
-  if (!spec || spec.evolutionCandidates.length === 0) {
-    return [];
-  }
+	if (!spec || spec.evolutionCandidates.length === 0) {
+		return [];
+	}
 
-  const totalEvolutionWeight = spec.evolutionCandidates.reduce(
-    (sum, candidate) => sum + Math.max(0, candidate.weight),
-    0,
-  );
+	const totalEvolutionWeight = spec.evolutionCandidates.reduce(
+		(sum, candidate) => sum + Math.max(0, candidate.weight),
+		0,
+	);
 
-  if (totalEvolutionWeight <= 0) {
-    return [];
-  }
+	if (totalEvolutionWeight <= 0) {
+		return [];
+	}
 
-  const mutationTargets = getSameClassCrossGeneMutationTargets(characterKey);
-  const hasMutationRisk = hasComponent(world, MutationRiskComp, characterEid);
-  const mutationRate =
-    mutationTargets.length > 0
-      ? calculateMutationRate({
-          characterKey,
-          unnecessaryInjectionStacks: hasMutationRisk
-            ? MutationRiskComp.unnecessaryInjectionStacks[characterEid]
-            : 0,
-          dirtyExposureStacks: hasMutationRisk
-            ? MutationRiskComp.dirtyExposureStacks[characterEid]
-            : 0,
-        })
-      : 0;
-  const normalEvolutionRate = Math.max(0, 1 - mutationRate);
-  const normalOutcomeMap = new Map<string, MainCharacterGeneOutcome>();
+	const mutationTargets = getSameClassCrossGeneMutationTargets(characterKey);
+	const hasMutationRisk = hasComponent(world, MutationRiskComp, characterEid);
+	const mutationRate =
+		mutationTargets.length > 0
+			? calculateMutationRate({
+					characterKey,
+					unnecessaryInjectionStacks: hasMutationRisk
+						? MutationRiskComp.unnecessaryInjectionStacks[characterEid]
+						: 0,
+					dirtyExposureStacks: hasMutationRisk
+						? MutationRiskComp.dirtyExposureStacks[characterEid]
+						: 0,
+				})
+			: 0;
+	const normalEvolutionRate = Math.max(0, 1 - mutationRate);
+	const normalOutcomeMap = new Map<string, MainCharacterGeneOutcome>();
 
-  for (const candidate of spec.evolutionCandidates) {
-    if (candidate.weight <= 0) {
-      continue;
-    }
+	for (const candidate of spec.evolutionCandidates) {
+		if (candidate.weight <= 0) {
+			continue;
+		}
 
-    const targetSpec = getEvolutionSpec(candidate.to);
-    if (!targetSpec) {
-      continue;
-    }
+		const targetSpec = getEvolutionSpec(candidate.to);
+		if (!targetSpec) {
+			continue;
+		}
 
-    addGeneOutcomeProbability(normalOutcomeMap, {
-      kind: "evolution",
-      geneLine: targetSpec.geneLine,
-      level: targetSpec.phase,
-      probability:
-        normalEvolutionRate * (candidate.weight / totalEvolutionWeight),
-    });
-  }
+		addGeneOutcomeProbability(normalOutcomeMap, {
+			kind: "evolution",
+			geneLine: targetSpec.geneLine,
+			level: targetSpec.phase,
+			probability:
+				normalEvolutionRate * (candidate.weight / totalEvolutionWeight),
+		});
+	}
 
-  const mutationOutcomeMap = new Map<string, MainCharacterGeneOutcome>();
-  if (mutationRate > 0 && mutationTargets.length > 0) {
-    const probabilityPerTarget = mutationRate / mutationTargets.length;
+	const mutationOutcomeMap = new Map<string, MainCharacterGeneOutcome>();
+	if (mutationRate > 0 && mutationTargets.length > 0) {
+		const probabilityPerTarget = mutationRate / mutationTargets.length;
 
-    for (const targetKey of mutationTargets) {
-      const targetSpec = getEvolutionSpec(targetKey);
-      if (!targetSpec || targetSpec.geneLine === spec.geneLine) {
-        continue;
-      }
+		for (const targetKey of mutationTargets) {
+			const targetSpec = getEvolutionSpec(targetKey);
+			if (!targetSpec || targetSpec.geneLine === spec.geneLine) {
+				continue;
+			}
 
-      addGeneOutcomeProbability(mutationOutcomeMap, {
-        kind: "mutation",
-        geneLine: targetSpec.geneLine,
-        level: spec.phase,
-        probability: probabilityPerTarget,
-      });
-    }
-  }
+			addGeneOutcomeProbability(mutationOutcomeMap, {
+				kind: "mutation",
+				geneLine: targetSpec.geneLine,
+				level: spec.phase,
+				probability: probabilityPerTarget,
+			});
+		}
+	}
 
-  const normalRows = Array.from(normalOutcomeMap.values()).sort((a, b) => {
-    if (a.geneLine === spec.geneLine && b.geneLine !== spec.geneLine) {
-      return -1;
-    }
-    if (a.geneLine !== spec.geneLine && b.geneLine === spec.geneLine) {
-      return 1;
-    }
+	const normalRows = Array.from(normalOutcomeMap.values()).sort((a, b) => {
+		if (a.geneLine === spec.geneLine && b.geneLine !== spec.geneLine) {
+			return -1;
+		}
+		if (a.geneLine !== spec.geneLine && b.geneLine === spec.geneLine) {
+			return 1;
+		}
 
-    return (
-      a.level - b.level ||
-      getGeneLineSortIndex(a.geneLine) - getGeneLineSortIndex(b.geneLine)
-    );
-  });
-  const mutationRows = Array.from(mutationOutcomeMap.values()).sort(
-    (a, b) =>
-      getGeneLineSortIndex(a.geneLine) - getGeneLineSortIndex(b.geneLine) ||
-      a.level - b.level,
-  );
+		return (
+			a.level - b.level ||
+			getGeneLineSortIndex(a.geneLine) - getGeneLineSortIndex(b.geneLine)
+		);
+	});
+	const mutationRows = Array.from(mutationOutcomeMap.values()).sort(
+		(a, b) =>
+			getGeneLineSortIndex(a.geneLine) - getGeneLineSortIndex(b.geneLine) ||
+			a.level - b.level,
+	);
 
-  return [...normalRows, ...mutationRows];
+	return [...normalRows, ...mutationRows];
 }
 
 function runCatchingFlushRemovedEntities(world: IWorld): void {
-  try {
-    flushRemovedEntities(world);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (!message.includes("enableManualEntityRecycling")) {
-      throw error;
-    }
-  }
+	try {
+		flushRemovedEntities(world);
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		if (!message.includes("enableManualEntityRecycling")) {
+			throw error;
+		}
+	}
 }
 
 export type EntityComponents = {
-  characterStatus?: CharacterStatusComponent;
-  position?: PositionComponent;
-  angle?: AngleComponent;
-  object?: ObjectComponent;
-  render?: RenderComponent;
-  animationRender?: AnimationRenderComponent;
-  statusIconRender?: StatusIconRenderComponent;
-  speed?: SpeedComponent;
-  freshness?: FreshnessComponent;
-  destination?: DestinationComponent;
-  randomMovement?: RandomMovementComponent;
-  throwAnimation?: ThrowAnimationComponent;
-  digestiveSystem?: DigestiveSystemComponent;
-  diseaseSystem?: DiseaseSystemComponent;
-  sleepSystem?: SleepSystemComponent;
-  vitality?: VitalityComponent;
-  temporaryStatus?: TemporaryStatusComponent;
-  eggHatch?: EggHatchComponent;
-  mutationRisk?: MutationRiskComponent;
-  dirtyExposure?: DirtyExposureComponent;
-  freshnessTimer?: FreshnessTimerComponent;
-  cleanable?: CleanableComponent;
-  broomRender?: BroomRenderComponent;
+	characterStatus?: CharacterStatusComponent;
+	position?: PositionComponent;
+	angle?: AngleComponent;
+	object?: ObjectComponent;
+	render?: RenderComponent;
+	animationRender?: AnimationRenderComponent;
+	statusIconRender?: StatusIconRenderComponent;
+	speed?: SpeedComponent;
+	freshness?: FreshnessComponent;
+	destination?: DestinationComponent;
+	randomMovement?: RandomMovementComponent;
+	throwAnimation?: ThrowAnimationComponent;
+	digestiveSystem?: DigestiveSystemComponent;
+	diseaseSystem?: DiseaseSystemComponent;
+	sleepSystem?: SleepSystemComponent;
+	vitality?: VitalityComponent;
+	temporaryStatus?: TemporaryStatusComponent;
+	eggHatch?: EggHatchComponent;
+	mutationRisk?: MutationRiskComponent;
+	dirtyExposure?: DirtyExposureComponent;
+	freshnessTimer?: FreshnessTimerComponent;
+	cleanable?: CleanableComponent;
+	broomRender?: BroomRenderComponent;
 };
 
 export type SavedEntity = {
-  components: EntityComponents;
+	components: EntityComponents;
 };
 
 export type MainSceneAdMenu = "feed" | "clean" | "hospital";
 
 export type MainSceneAdPendingReservation = {
-  menu: MainSceneAdMenu;
-  queued_at: number;
-  cooldown_ms: number;
-  threshold: number;
-  deep_night: boolean;
-  online_retry?: boolean;
+	menu: MainSceneAdMenu;
+	queued_at: number;
+	cooldown_ms: number;
+	threshold: number;
+	deep_night: boolean;
+	online_retry?: boolean;
 };
 
 export type MainSceneAdState = {
-  menu_use_count: number;
-  pending?: MainSceneAdPendingReservation;
+	menu_use_count: number;
+	pending?: MainSceneAdPendingReservation;
 };
 
 export type FlappyBirdMiniGameScoreState = {
-  best_score: number;
+	best_score: number;
 };
 
 export type MiniGameScoresState = {
-  flappy_bird?: FlappyBirdMiniGameScoreState;
+	flappy_bird?: FlappyBirdMiniGameScoreState;
 };
 
 export type WorldMetadata = {
-  name: string;
-  monster_name?: string;
-  last_ecs_saved: number;
-  version: string;
-  // 앱 상태 관리
-  app_state?: {
-    last_active_time: number;
-    last_active_time_anchor?: TrustedTimeSnapshot;
-    is_first_load: boolean;
-    use_local_time: boolean;
-    cached_sun_times?: SunTimesPayload;
-    main_scene_ad?: MainSceneAdState;
-    mini_game_scores?: MiniGameScoresState;
-    monster_book?: MonsterBookState;
-    suspend_food_interaction_until_reentry?: boolean;
-    reset_bootstrap_marker_id?: string;
-  };
-  // // 캐릭터별 위치 추적 (캐릭터 ID를 키로 사용)
-  // character_positions?: Record<
-  //   number,
-  //   {
-  //     last_known_x: number;
-  //     last_known_y: number;
-  //     last_update_time: number;
-  //   }
-  // >;
-  // // 캐릭터별 질병 추적
-  // character_disease_tracking?: Record<
-  //   number,
-  //   {
-  //     total_checks: number;
-  //     last_disease_time: number;
-  //     disease_count: number;
-  //   }
-  // >;
-  // // 캐릭터별 똥 추적
-  // character_poop_tracking?: Record<
-  //   number,
-  //   {
-  //     last_poop_time: number;
-  //     poop_count: number;
-  //     scheduled_poop_time: number;
-  //   }
-  // >;
+	name: string;
+	monster_name?: string;
+	last_ecs_saved: number;
+	version: string;
+	// 앱 상태 관리
+	app_state?: {
+		last_active_time: number;
+		last_active_time_anchor?: TrustedTimeSnapshot;
+		is_first_load: boolean;
+		use_local_time: boolean;
+		cached_sun_times?: SunTimesPayload;
+		main_scene_ad?: MainSceneAdState;
+		mini_game_scores?: MiniGameScoresState;
+		monster_book?: MonsterBookState;
+		suspend_food_interaction_until_reentry?: boolean;
+		reset_bootstrap_marker_id?: string;
+	};
+	// // 캐릭터별 위치 추적 (캐릭터 ID를 키로 사용)
+	// character_positions?: Record<
+	//   number,
+	//   {
+	//     last_known_x: number;
+	//     last_known_y: number;
+	//     last_update_time: number;
+	//   }
+	// >;
+	// // 캐릭터별 질병 추적
+	// character_disease_tracking?: Record<
+	//   number,
+	//   {
+	//     total_checks: number;
+	//     last_disease_time: number;
+	//     disease_count: number;
+	//   }
+	// >;
+	// // 캐릭터별 똥 추적
+	// character_poop_tracking?: Record<
+	//   number,
+	//   {
+	//     last_poop_time: number;
+	//     poop_count: number;
+	//     scheduled_poop_time: number;
+	//   }
+	// >;
 };
 
 export type MainSceneWorldData = {
-  world_metadata: WorldMetadata;
-  entities: SavedEntity[];
+	world_metadata: WorldMetadata;
+	entities: SavedEntity[];
 };
 
 export type InitialGameData = {
-  name: string;
-  useLocalTime: boolean;
-  cachedSunTimes?: SunTimesPayload | null;
-  resetBootstrapMarkerId?: string;
+	name: string;
+	useLocalTime: boolean;
+	cachedSunTimes?: SunTimesPayload | null;
+	resetBootstrapMarkerId?: string;
 };
 
-export type MainSceneReentrySimulationSource =
-  | "init"
-  | "app_resume"
-  | "manual";
+export type MainSceneReentrySimulationSource = "init" | "app_resume" | "manual";
 
 export type MainSceneReentrySimulationStateChange = {
-  source: MainSceneReentrySimulationSource;
-  phase: "started" | "finished";
-  result?: "completed" | "skipped" | "failed";
-  error?: unknown;
+	source: MainSceneReentrySimulationSource;
+	phase: "started" | "finished";
+	result?: "completed" | "skipped" | "failed";
+	error?: unknown;
 };
 
 export type MainSceneReentrySimulationStateChangeCallback = (
-  params: MainSceneReentrySimulationStateChange,
+	params: MainSceneReentrySimulationStateChange,
 ) => void;
 
 export type MainSceneNativeWorldDataUpdateForReentryResult = {
-  status?: string;
-  updatedRawWorldData?: string | null;
-  worldDataChanged?: boolean;
-  hatched?: boolean;
-  evolutionDiagnostics?: Record<string, unknown> | null;
-  evolutionGageBefore?: number | null;
-  evolutionGageAfter?: number | null;
-  evolutionGageIncreased?: boolean | null;
-  evolutionBlockReason?: string | null;
-  previousCharacterState?: number | null;
-  nextCharacterState?: number | null;
-  selectedCharacterKey?: number | null;
-  error?: unknown;
-  [key: string]: unknown;
+	status?: string;
+	updatedRawWorldData?: string | null;
+	worldDataChanged?: boolean;
+	hatched?: boolean;
+	evolutionDiagnostics?: Record<string, unknown> | null;
+	evolutionGageBefore?: number | null;
+	evolutionGageAfter?: number | null;
+	evolutionGageIncreased?: boolean | null;
+	evolutionBlockReason?: string | null;
+	previousCharacterState?: number | null;
+	nextCharacterState?: number | null;
+	selectedCharacterKey?: number | null;
+	error?: unknown;
+	[key: string]: unknown;
 };
 
 export type MainSceneNativeWorldDataUpdateForReentryCallback = (
-  source: Extract<MainSceneReentrySimulationSource, "init" | "app_resume">,
+	source: Extract<MainSceneReentrySimulationSource, "init" | "app_resume">,
 ) =>
-  | MainSceneNativeWorldDataUpdateForReentryResult
-  | Promise<MainSceneNativeWorldDataUpdateForReentryResult>;
+	| MainSceneNativeWorldDataUpdateForReentryResult
+	| Promise<MainSceneNativeWorldDataUpdateForReentryResult>;
 
 export class MissingInitialGameDataError extends Error {
-  constructor() {
-    super(
-      "Initial setup data is required before MainSceneWorld can be initialized.",
-    );
-    this.name = "MissingInitialGameDataError";
-  }
+	constructor() {
+		super(
+			"Initial setup data is required before MainSceneWorld can be initialized.",
+		);
+		this.name = "MissingInitialGameDataError";
+	}
 }
 
 type MainSceneAppState = NonNullable<WorldMetadata["app_state"]>;
 
 type MainSceneEntryStatusSnapshot = {
-  eid: number;
-  signature: string;
-  isSleeping: boolean;
+	eid: number;
+	signature: string;
+	isSleeping: boolean;
 };
 
 type MainSceneEntryStatusSuppressionState = {
-  suppressSleep: boolean;
-  baselineSignature: string;
+	suppressSleep: boolean;
+	baselineSignature: string;
 };
 
 export const WORLD_DATA_STORAGE_KEY = "MainSceneWorldData";
@@ -635,88 +627,82 @@ const MAIN_SCENE_AD_FEED_IDLE_RETRY_MS = 1000;
 const MAIN_SCENE_STATUS_HEARTBEAT_INTERVAL_MS = 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
-const EGG_HATCH_STARTING_SPRITESHEET_KEYS: readonly SpritesheetKey[] = [
-  SpritesheetKey.GreenSlimeA1,
-  SpritesheetKey.SkullSlimeA1,
-  SpritesheetKey.SoilSlimeA1,
-];
-
 const COMMON_SPRITESHEET_ASSETS: LoadSpritesheetOptions[] = [
-  {
-    jsonPath: "/assets/game/sprites/bird.json",
-    alias: "bird",
-    // pixelArt: true,
-  },
-  {
-    jsonPath: "/assets/game/sprites/eggs.json",
-    alias: "eggs",
-    // pixelArt: true,
-  },
-  {
-    jsonPath: "/assets/game/sprites/foods.json",
-    alias: "foods",
-    // pixelArt: true,
-  },
-  {
-    jsonPath: "/assets/game/sprites/common16x16.json",
-    alias: "common16x16",
-    // pixelArt: true,
-  },
-  {
-    jsonPath: "/assets/game/sprites/common32x32.json",
-    alias: "common32x32",
-    // pixelArt: true,
-  },
-  {
-    jsonPath: "/assets/game/sprites/vite-food-mask.json",
-    alias: "vite-food-mask",
-    // pixelArt: true,
-  },
-  // {
-  //   jsonPath: "/assets/game/sprites/monsters/test-green-slime_A1.json",
-  //   alias: "test-green-slime_A1",
-  //   // pixelArt: true,
-  // },
-  // {
-  //   jsonPath: "/assets/game/sprites/monsters/test-green-slime_B1.json",
-  //   alias: "test-green-slime_B1",
-  //   // pixelArt: true,
-  // },
-  // {
-  //   jsonPath: "/assets/game/sprites/monsters/test-green-slime_C1.json",
-  //   alias: "test-green-slime_C1",
-  //   // pixelArt: true,
-  // },
-  // {
-  //   jsonPath: "/assets/game/sprites/monsters/test-green-slime_D1.json",
-  //   alias: "test-green-slime_D1",
-  //   // pixelArt: true,
-  // },
+	{
+		jsonPath: "/assets/game/sprites/bird.json",
+		alias: "bird",
+		// pixelArt: true,
+	},
+	{
+		jsonPath: "/assets/game/sprites/eggs.json",
+		alias: "eggs",
+		// pixelArt: true,
+	},
+	{
+		jsonPath: "/assets/game/sprites/foods.json",
+		alias: "foods",
+		// pixelArt: true,
+	},
+	{
+		jsonPath: "/assets/game/sprites/common16x16.json",
+		alias: "common16x16",
+		// pixelArt: true,
+	},
+	{
+		jsonPath: "/assets/game/sprites/common32x32.json",
+		alias: "common32x32",
+		// pixelArt: true,
+	},
+	{
+		jsonPath: "/assets/game/sprites/vite-food-mask.json",
+		alias: "vite-food-mask",
+		// pixelArt: true,
+	},
+	// {
+	//   jsonPath: "/assets/game/sprites/monsters/test-green-slime_A1.json",
+	//   alias: "test-green-slime_A1",
+	//   // pixelArt: true,
+	// },
+	// {
+	//   jsonPath: "/assets/game/sprites/monsters/test-green-slime_B1.json",
+	//   alias: "test-green-slime_B1",
+	//   // pixelArt: true,
+	// },
+	// {
+	//   jsonPath: "/assets/game/sprites/monsters/test-green-slime_C1.json",
+	//   alias: "test-green-slime_C1",
+	//   // pixelArt: true,
+	// },
+	// {
+	//   jsonPath: "/assets/game/sprites/monsters/test-green-slime_D1.json",
+	//   alias: "test-green-slime_D1",
+	//   // pixelArt: true,
+	// },
 ];
 const IMAGE_ASSETS = {
-  grass: "/assets/game/tiles/grass-tile.png",
-  grassSunrise: "/assets/game/tiles/grass-tile-sunrise.png",
-  grassSunset: "/assets/game/tiles/grass-tile-sunset.png",
-  grassEvening: "/assets/game/tiles/grass-tile-evening.png",
+	grass: "/assets/game/tiles/grass-tile.png",
+	grassSunrise: "/assets/game/tiles/grass-tile-sunrise.png",
+	grassSunset: "/assets/game/tiles/grass-tile-sunset.png",
+	grassEvening: "/assets/game/tiles/grass-tile-evening.png",
 };
 
 type MainSceneImageAssetKey = keyof typeof IMAGE_ASSETS;
 
 const TIME_OF_DAY_TO_GRASS_ASSET: Record<TimeOfDay, MainSceneImageAssetKey> = {
-  [TimeOfDay.Day]: "grass",
-  [TimeOfDay.Sunrise]: "grassSunrise",
-  [TimeOfDay.Sunset]: "grassSunset",
-  [TimeOfDay.Night]: "grassEvening",
+	[TimeOfDay.Day]: "grass",
+	[TimeOfDay.Sunrise]: "grassSunrise",
+	[TimeOfDay.Sunset]: "grassSunset",
+	[TimeOfDay.Night]: "grassEvening",
 };
 
 // GIF 에셋들은 @pixi/gif로 처리
 const GIF_ASSETS = {
-  recovery: "/assets/game/gifs/recovery.gif",
-  // 추가 GIF들을 필요에 따라 여기에 추가
-  // effect1: "/assets/game/gifs/effect1.gif",
-  // effect2: "/assets/game/gifs/effect2.gif",
-  // sparkle: "/assets/game/gifs/sparkle.gif",
-  // healing: "/assets/game/gifs/healing.gif",
+	recovery: "/assets/game/gifs/recovery.gif",
+	// 추가 GIF들을 필요에 따라 여기에 추가
+	// effect1: "/assets/game/gifs/effect1.gif",
+	// effect2: "/assets/game/gifs/effect2.gif",
+	// sparkle: "/assets/game/gifs/sparkle.gif",
+	// healing: "/assets/game/gifs/healing.gif",
 };
 
 const liveObjectQuery = defineQuery([ObjectComp]);
@@ -728,4342 +714,4205 @@ const MAIN_SCENE_WORLD_ENTITY_CAPACITY = 256;
  * c) PIXI v8 Assets API를 활용한 에셋 관리
  */
 export class MainSceneWorld implements IWorld, Scene {
-  public readonly WORLD_DATA_SCHEMA_VERSION = "1.0.0";
-  private static readonly SCENE_DARKNESS_OVERLAY_Z_INDEX = 1_000_000;
-  private _stage: PIXI.Container;
-  private _positionBoundary: Boundary;
-  private _positionBoundaryInsets: {
-    left: number;
-    right: number;
-    top: number;
-    bottom: number;
-  };
-  private _background?: Background;
-  private _sceneDarknessOverlay?: PIXI.Graphics;
-  private _persistentData?: MainSceneWorldData;
-  private _debugStatusUI?: HTMLDebugStatusUI;
-  private _debugToggleButton?: HTMLDebugToggleButton;
-  private _debugGameConstantsUI?: HTMLDebugGameConstantsUI;
-  private _debugGaugeUI?: HTMLDebugGaugeUI;
-  private _isDebugGaugeEventListenerRegistered = false;
-  private _gameMenu?: GameMenu;
-  private _parentElement?: HTMLElement;
-  private _debugParentElement?: HTMLElement;
-  private _navigationActionIndex = 0;
-  private _changeControlButtons?: (
-    controlButtonParamsSet: [
-      ControlButtonParams,
-      ControlButtonParams,
-      ControlButtonParams,
-    ],
-  ) => void;
-  private _triggerBiteVibration?: TriggerBiteVibrationCallback;
-  private _triggerTransientVibration?: TriggerTransientVibrationCallback;
-  private _triggerMainSceneSfx?: TriggerMainSceneSfxCallback;
-  private _startRecoveryVibration?: StartRecoveryVibrationCallback;
-  private _stopRecoveryVibration?: StopRecoveryVibrationCallback;
-  private _isCleaningMode = false; // 청소 모드 상태
-  private _previousCleaningMode = false; // 이전 청소 모드 상태 (진입 감지용)
-  private _focusedTargetEid = -1; // 현재 포커스된 청소 대상 엔티티 ID
-  private _broomProgress = 0; // 빗자루 움직인 거리 (0.0 ~ 1.0)
-  private _currentSliderValue = 0.5; // 현재 슬라이더 값 (0.0 ~ 1.0)
-  private _cleaningSliderSessionKey = 0;
-  private _pendingCleaningSliderDelta = 0; // 입력 이벤트 동안 누적된 실제 슬라이더 이동량
-  private _isPaused = false; // 앱이 일시정지 상태인지 여부
-  private _pauseStartTime = 0; // 일시정지 시작 시간
-  private _isRunningReentrySimulation = false;
-  private _simulationTime: number | null = null;
-  private _visibilityChangeHandler?: () => void; // Page Visibility API 이벤트 핸들러
-  private _statusSystemsEnabled = true; // 상태 관리 시스템들 활성화 여부
-  private _sleepDebugEffectEnabled = true;
-  private _randomMovementDebugEnabled = false;
-  private readonly _handleShowDebugGauge = (): void => {
-    this._debugGaugeUI?.toggle();
-  };
-  private _pendingRecoveryCureEids = new Set<number>();
-  private _isPersistenceDisabled = false;
-  private _createInitialGameData?: () => Promise<InitialGameData>;
-  private _pendingStorageWrite: Promise<void> = Promise.resolve();
-  private _startMiniGame?: () => unknown | Promise<unknown>;
-  private _startMonsterBook?: () => unknown | Promise<unknown>;
-  private _showMonsterInfo?: ShowMonsterInfoCallback;
-  private _showAlert?: ShowAlertCallback;
-  private _locale: LocaleCode = DEFAULT_LOCALE;
-  private _debugMode = false;
-  private _shouldDeferPersistence?: () => boolean;
-  private _onReentrySimulationStateChange?: MainSceneReentrySimulationStateChangeCallback;
-  private _onNativeWorldDataUpdateForReentry?: MainSceneNativeWorldDataUpdateForReentryCallback;
-  private _hasDeferredPersistence = false;
-  private _entryStatusSuppression: MainSceneEntryStatusSuppressionState | null =
-    null;
-  private _timeOfDay: TimeOfDay = TimeOfDay.Day;
-  private _timeOfDayMode: TimeOfDayMode = TimeOfDayMode.Manual;
-  private _sunTimes: SunTimesPayload | null = null;
-  private _autoTimeOfDayState: AutoTimeOfDayState | null = null;
-  private _autoTimeOfDayMinuteKey: number | null = null;
-  private _sunTimesRefreshPromise: Promise<void> | null = null;
-  private _hasLocationPermission = false;
-  private _sunLocationSource: SunLocationSource | null = null;
-  private _lastStatusHeartbeatLogTime: number | null = null;
-  private _pendingFeedAdFoodEid: number | null = null;
-  private _nextFeedMenuFood: FeedMenuFoodOption = getRandomFeedMenuFoodOption();
-  private _feedAdFallbackTimerId: number | null = null;
-  private _mainSceneAdTimerIds = new Set<number>();
-  private _initDiagnostics: MainSceneInitDiagnostics;
-  private readonly _trustedClock: TrustedClock;
-
-  // 실시간 모드용 시스템 파이프라인 (렌더링 포함)
-  private _pipedSystems = pipe(
-    // 시간 기반 시스템들 (상태 관리 시스템 토글 적용)
-    (params: any) =>
-      this._statusSystemsEnabled
-        ? freshnessSystem({ ...params, currentTime: this.currentTime })
-        : params,
-    (params: any) =>
-      this._statusSystemsEnabled
-        ? digestiveSystem({ ...params, currentTime: this.currentTime })
-        : params,
-    (params: any) =>
-      this._statusSystemsEnabled
-        ? sleepScheduleSystem({
-            ...params,
-            currentTime: this.currentTime,
-            entryStatusSuppression: this._entryStatusSuppression ?? undefined,
-          })
-        : params,
-    (params: any) =>
-      this._statusSystemsEnabled
-        ? diseaseSystem({
-            ...params,
-            currentTime: this.currentTime,
-          })
-        : params,
-    (params: any) =>
-      eggHatchSystem({ ...params, currentTime: this.currentTime }),
-    (params: any) =>
-      this._statusSystemsEnabled
-        ? mutationRiskSystem({ ...params, currentTime: this.currentTime })
-        : params,
-    (params: any) =>
-      this._statusSystemsEnabled ? characterManagerSystem(params) : params,
-    // 캐릭터 상태 시스템 (임시 상태 만료, 긴급 상태, 사망 처리)
-    (params: any) =>
-      this._statusSystemsEnabled
-        ? characterStatusSystem({ ...params, currentTime: this.currentTime })
-        : params,
-    // 배달 시스템
-    // pillDeliverySystem,
-    // 이펙트 시스템
-    (params: any) =>
-      sparkleEffectSystem({ ...params, currentTime: this.currentTime }),
-    // 범용 effect 애니메이션 시스템 (실시간 모드에서만 실행)
-    (params: any) =>
-      effectAnimationSystem({
-        ...params,
-        currentTime: this.currentTime,
-        stage: this._stage,
-      }),
-    // 청소 시스템 (실시간 모드에서만 실행)
-    (params: any) => cleaningSystem({ ...params, stage: this._stage }),
-    // 이동 및 게임플레이 시스템들
-    randomMovementSystem,
-    commonMovementSystem,
-    // 착지한 프레임에 바로 음식 탐색이 가능해야 하므로 착지 상태를 먼저 반영한다.
-    throwAnimationSystem,
-    (params: any) =>
-      foodEatingSystem({ ...params, currentTime: this.currentTime }),
-    // 애니메이션 상태 시스템들
-    animationStateSystem,
-    // 모든 렌더링 시스템들을 하나로 통합 (실시간 모드에서만 실행)
-    (params: any) => this._renderAllSystems(params),
-    dataSyncSystem,
-  );
-
-  get stage(): PIXI.Container {
-    return this._stage;
-  }
-  get positionBoundary(): Boundary {
-    return this._positionBoundary;
-  }
-  get characterPositionBoundary(): Boundary {
-    return {
-      x: this._positionBoundary.x - this._positionBoundaryInsets.left,
-      y: this._positionBoundary.y - this._positionBoundaryInsets.top,
-      width:
-        this._positionBoundary.width +
-        this._positionBoundaryInsets.left +
-        this._positionBoundaryInsets.right,
-      height: this._positionBoundary.height + this._positionBoundaryInsets.top,
-    };
-  }
-  get sliderValue(): number {
-    return this._currentSliderValue;
-  }
-  get isCleaningMode(): boolean {
-    return this._isCleaningMode;
-  }
-
-  get isEnteringCleaningMode(): boolean {
-    return this._isCleaningMode && !this._previousCleaningMode;
-  }
-
-  get focusedTargetEid(): number {
-    return this._focusedTargetEid;
-  }
-  get broomProgress(): number {
-    return this._broomProgress;
-  }
-  get isPaused(): boolean {
-    return this._isPaused;
-  }
-  get timeOfDay(): TimeOfDay {
-    return this._timeOfDay;
-  }
-  get timeOfDayMode(): TimeOfDayMode {
-    return this._timeOfDayMode;
-  }
-
-  public getProjectedUpcomingSunTimes(
-    referenceTime: number = this.currentTime,
-  ): {
-    sunriseAt: number;
-    sunsetAt: number;
-    nextSunriseAt: number;
-    nextSunsetAt: number;
-  } | null {
-    if (this._timeOfDayMode !== TimeOfDayMode.Auto || !this._sunTimes) {
-      return null;
-    }
-
-    const projectedSunTimes: ProjectedUpcomingSunTimes =
-      projectUpcomingSunTimes(new Date(referenceTime), this._sunTimes);
-
-    return {
-      sunriseAt: projectedSunTimes.sunriseAt.getTime(),
-      sunsetAt: projectedSunTimes.sunsetAt.getTime(),
-      nextSunriseAt: projectedSunTimes.nextSunriseAt.getTime(),
-      nextSunsetAt: projectedSunTimes.nextSunsetAt.getTime(),
-    };
-  }
-
-  constructor(params: {
-    stage: PIXI.Container;
-    positionBoundary: Boundary;
-    positionBoundaryInsets?: {
-      left: number;
-      right: number;
-      top: number;
-      bottom: number;
-    };
-    parentElement?: HTMLElement;
-    debugParentElement?: HTMLElement;
-    debugMode?: boolean;
-    startMiniGame?: () => unknown | Promise<unknown>;
-    startMonsterBook?: () => unknown | Promise<unknown>;
-    showMonsterInfo?: ShowMonsterInfoCallback;
-    showAlert?: ShowAlertCallback;
-    locale?: LocaleCode;
-    createInitialGameData?: () => Promise<InitialGameData>;
-    changeControlButtons?: (
-      controlButtonParamsSet: [
-        ControlButtonParams,
-        ControlButtonParams,
-        ControlButtonParams,
-      ],
-    ) => void;
-    triggerBiteVibration?: TriggerBiteVibrationCallback;
-    triggerTransientVibration?: TriggerTransientVibrationCallback;
-    triggerMainSceneSfx?: TriggerMainSceneSfxCallback;
-    startRecoveryVibration?: StartRecoveryVibrationCallback;
-    stopRecoveryVibration?: StopRecoveryVibrationCallback;
-    shouldDeferPersistence?: () => boolean;
-    loadingTraceContext?: MainSceneLoadingTraceContext | null;
-    trustedClock?: TrustedClock;
-    onReentrySimulationStateChange?: MainSceneReentrySimulationStateChangeCallback;
-    onNativeWorldDataUpdateForReentry?: MainSceneNativeWorldDataUpdateForReentryCallback;
-  }) {
-    this._stage = params.stage;
-    this._positionBoundary = params.positionBoundary;
-    this._positionBoundaryInsets = params.positionBoundaryInsets ?? {
-      left: params.positionBoundary.x,
-      right: params.positionBoundary.x,
-      top: params.positionBoundary.y,
-      bottom: params.positionBoundary.y,
-    };
-    this._parentElement = params.parentElement;
-    this._debugParentElement =
-      params.debugParentElement ?? params.parentElement;
-    this._debugMode = params.debugMode ?? false;
-    this._startMiniGame = params.startMiniGame;
-    this._startMonsterBook = params.startMonsterBook;
-    this._showMonsterInfo = params.showMonsterInfo;
-    this._showAlert = params.showAlert;
-    this._locale = params.locale ?? DEFAULT_LOCALE;
-    this._shouldDeferPersistence = params.shouldDeferPersistence;
-    this._onReentrySimulationStateChange =
-      params.onReentrySimulationStateChange;
-    this._onNativeWorldDataUpdateForReentry =
-      params.onNativeWorldDataUpdateForReentry;
-    this._createInitialGameData = params.createInitialGameData;
-    this._changeControlButtons = params.changeControlButtons;
-    this._triggerBiteVibration = params.triggerBiteVibration;
-    this._triggerTransientVibration = params.triggerTransientVibration;
-    this._triggerMainSceneSfx = params.triggerMainSceneSfx;
-    this._startRecoveryVibration = params.startRecoveryVibration;
-    this._stopRecoveryVibration = params.stopRecoveryVibration;
-    this._initDiagnostics = new MainSceneInitDiagnostics(
-      params.loadingTraceContext ?? null,
-    );
-    this._trustedClock = params.trustedClock ?? defaultTrustedClock;
-
-    // MainScene용 초기 컨트롤 버튼 설정 (메뉴에 포커스가 없는 상태)
-    this._updateControlButtonsForMenuState(false);
-  }
-
-  public onLocaleChange(locale: LocaleCode): void {
-    this._locale = locale;
-  }
-
-  private t(key: Parameters<typeof translate>[1], params?: Parameters<typeof translate>[2]): string {
-    return translate(this._locale, key, params);
-  }
-
-  public getActiveObjectCountByType(objectType?: ObjectType): number {
-    const objectEntities = liveObjectQuery(this);
-
-    if (objectType === undefined) {
-      return objectEntities.length;
-    }
-
-    let count = 0;
-    for (let i = 0; i < objectEntities.length; i++) {
-      const eid = objectEntities[i];
-      if (ObjectComp.type[eid] === objectType) {
-        count += 1;
-      }
-    }
-
-    return count;
-  }
-
-  public canSpawnFood(): boolean {
-    return (
-      this.getActiveObjectCountByType() < GAME_CONSTANTS.MAX_ACTIVE_OBJECT_COUNT &&
-      this.getActiveObjectCountByType(ObjectType.FOOD) <
-        GAME_CONSTANTS.MAX_ACTIVE_FOOD_COUNT
-    );
-  }
-
-  public canSpawnPoop(): boolean {
-    return (
-      this.getActiveObjectCountByType() < GAME_CONSTANTS.MAX_ACTIVE_OBJECT_COUNT
-    );
-  }
-
-  public showObjectLimitAlert(): void {
-    this._showAlert?.(
-      `${this.t("main.objectLimitReached")}\n${this.t("main.cleanObjectsPrompt")}`,
-      this.t("common.notice"),
-    );
-  }
-
-  public removeObjectEntity(eid: number): void {
-    removeEntity(this, eid);
-
-    try {
-      flushRemovedEntities(this);
-    } catch (error) {
-      if (
-        error instanceof Error &&
-        error.message.includes("cannot flush removed entities")
-      ) {
-        return;
-      }
-
-      throw error;
-    }
-  }
-
-  public triggerBiteVibration(): void {
-    this._triggerBiteVibration?.();
-  }
-
-  public triggerFoodLandingVibration(): void {
-    if (this.isSimulationMode) {
-      return;
-    }
-
-    this._triggerTransientVibration?.({
-      durationMs: FOOD_LANDING_VIBRATION_DURATION_MS,
-      strength: FOOD_LANDING_VIBRATION_STRENGTH,
-    });
-  }
-
-  public triggerMainSceneSfx(kind: MainSceneSfxKind): void {
-    if (this.isSimulationMode) {
-      return;
-    }
-
-    this._triggerMainSceneSfx?.(kind);
-  }
-
-  public startRecoveryVibration(): void {
-    this._startRecoveryVibration?.();
-  }
-
-  public stopRecoveryVibration(): void {
-    this._stopRecoveryVibration?.();
-  }
-
-  public consumePendingFirstSpriteTimingLog(
-    eid: number,
-    spriteType: "static" | "animated",
-  ): Record<string, unknown> | null {
-    return this._initDiagnostics.consumePendingFirstSpriteTimingLog(
-      eid,
-      spriteType,
-    );
-  }
-
-  private _ensureAppState(): MainSceneAppState | null {
-    if (!this._persistentData) {
-      return null;
-    }
-
-    const currentAppState = this._persistentData.world_metadata.app_state;
-    if (currentAppState) {
-      return currentAppState;
-    }
-
-    const appState: MainSceneAppState = {
-      last_active_time: this.currentTime,
-      last_active_time_anchor: this._trustedClock.captureAnchor(),
-      is_first_load: false,
-      use_local_time: true,
-      mini_game_scores: {
-        flappy_bird: {
-          best_score: 0,
-        },
-      },
-      monster_book: createEmptyMonsterBookState(),
-    };
-
-    this._persistentData.world_metadata.app_state = appState;
-    return appState;
-  }
-
-  private _applyPersistedMonsterBookState(state: MonsterBookState): void {
-    if (!this._persistentData) {
-      return;
-    }
-
-    const appState = this._ensureAppState();
-    if (!appState) {
-      return;
-    }
-
-    appState.monster_book = state;
-  }
-
-  private _createStoragePersistableData(
-    data: MainSceneWorldData,
-  ): MainSceneWorldData {
-    const appState = data.world_metadata.app_state;
-
-    return {
-      ...data,
-      world_metadata: {
-        ...data.world_metadata,
-        app_state: appState
-          ? {
-              ...appState,
-              monster_book: undefined,
-            }
-          : appState,
-      },
-    };
-  }
-
-  private _getMainSceneAdState(): MainSceneAdState | null {
-    const appState = this._ensureAppState();
-    if (!appState) {
-      return null;
-    }
-
-    if (!this._isValidMainSceneAdState(appState.main_scene_ad)) {
-      appState.main_scene_ad = {
-        menu_use_count: 0,
-      };
-    }
-
-    return appState.main_scene_ad;
-  }
-
-  private _isValidMainSceneAdState(
-    value: MainSceneAdState | undefined,
-  ): value is MainSceneAdState {
-    if (
-      !value ||
-      typeof value.menu_use_count !== "number" ||
-      !Number.isFinite(value.menu_use_count) ||
-      value.menu_use_count < 0
-    ) {
-      return false;
-    }
-
-    if (
-      value.pending &&
-      !this._isValidMainSceneAdPendingReservation(value.pending)
-    ) {
-      value.pending = undefined;
-    }
-
-    value.menu_use_count = Math.floor(value.menu_use_count);
-    return true;
-  }
-
-  private _isValidMainSceneAdPendingReservation(
-    value: MainSceneAdPendingReservation | undefined,
-  ): value is MainSceneAdPendingReservation {
-    return (
-      !!value &&
-      this._isMainSceneAdMenu(value.menu) &&
-      typeof value.queued_at === "number" &&
-      Number.isFinite(value.queued_at) &&
-      value.queued_at > 0 &&
-      typeof value.cooldown_ms === "number" &&
-      Number.isFinite(value.cooldown_ms) &&
-      value.cooldown_ms > 0 &&
-      typeof value.threshold === "number" &&
-      Number.isFinite(value.threshold) &&
-      value.threshold > 0 &&
-      typeof value.deep_night === "boolean" &&
-      (value.online_retry === undefined ||
-        typeof value.online_retry === "boolean")
-    );
-  }
-
-  private _isMainSceneAdMenu(value: unknown): value is MainSceneAdMenu {
-    return (
-      value === "feed" ||
-      value === "clean" ||
-      value === "hospital"
-    );
-  }
-
-  private _recordMainSceneMenuUse(
-    menu: MainSceneAdMenu,
-  ): MainSceneAdPendingReservation | null {
-    const adState = this._getMainSceneAdState();
-    if (!adState) {
-      return null;
-    }
-
-    adState.menu_use_count =
-      Math.max(0, Math.floor(adState.menu_use_count)) + 1;
-
-    let createdReservation: MainSceneAdPendingReservation | null = null;
-    const config = this._getMainSceneAdConfig();
-    if (adState.pending) {
-      const isOnlineRetry = adState.pending.online_retry === true;
-      adState.pending = {
-        ...adState.pending,
-        menu,
-        queued_at: this.currentTime,
-        cooldown_ms: config.cooldownMs,
-        threshold: isOnlineRetry ? 1 : config.threshold,
-        deep_night: config.deepNight,
-        online_retry: isOnlineRetry ? true : undefined,
-      };
-      createdReservation = adState.pending;
-      console.log("[MainSceneWorld] MainScene pending ad retargeted", {
-        menu,
-        menuUseCount: adState.menu_use_count,
-        onlineRetry: isOnlineRetry,
-        ...config,
-      });
-    } else if (!adState.pending) {
-      if (this._hasPendingOnlineAdRetry()) {
-        createdReservation = {
-          menu,
-          queued_at: this.currentTime,
-          cooldown_ms: config.cooldownMs,
-          threshold: 1,
-          deep_night: config.deepNight,
-          online_retry: true,
-        };
-        adState.pending = createdReservation;
-
-        console.log("[MainSceneWorld] MainScene online ad retry reserved", {
-          menu,
-          menuUseCount: adState.menu_use_count,
-          ...config,
-        });
-      } else if (adState.menu_use_count >= config.threshold) {
-        createdReservation = {
-          menu,
-          queued_at: this.currentTime,
-          cooldown_ms: config.cooldownMs,
-          threshold: config.threshold,
-          deep_night: config.deepNight,
-        };
-        adState.pending = createdReservation;
-
-        console.log("[MainSceneWorld] MainScene menu ad reserved", {
-          menu,
-          menuUseCount: adState.menu_use_count,
-          ...config,
-        });
-      }
-    }
-
-    this._persistMainSceneAdState();
-    return createdReservation;
-  }
-
-  private _hasPendingOnlineAdRetry(): boolean {
-    if (typeof window === "undefined") {
-      return false;
-    }
-
-    try {
-      return window.digiviceAdBridge?.hasPendingOnlineAdRetry?.() === true;
-    } catch (error) {
-      console.warn("[MainSceneWorld] Failed to check online ad retry state", {
-        error,
-      });
-      return false;
-    }
-  }
-
-  private _getMainSceneAdConfig(): {
-    threshold: number;
-    cooldownMs: number;
-    deepNight: boolean;
-  } {
-    return {
-      threshold: MAIN_SCENE_AD_THRESHOLD,
-      cooldownMs: MAIN_SCENE_AD_NORMAL_COOLDOWN_MS,
-      deepNight: false,
-    };
-  }
-
-  private _isMainSceneAdDeepNight(
-    referenceTime: number = this.currentTime,
-  ): boolean {
-    if (this._timeOfDayMode !== TimeOfDayMode.Auto || !this._sunTimes) {
-      return false;
-    }
-
-    try {
-      const now = new Date(referenceTime);
-      const previousDay = projectSunTimesForDate(
-        new Date(referenceTime - DAY_MS),
-        this._sunTimes,
-      );
-      const currentDay = projectSunTimesForDate(now, this._sunTimes);
-      const nextDay = projectSunTimesForDate(
-        new Date(referenceTime + DAY_MS),
-        this._sunTimes,
-      );
-
-      const intervals = [
-        {
-          start: previousDay.sunsetAt.getTime() + 4 * HOUR_MS,
-          end: currentDay.sunriseAt.getTime() - HOUR_MS,
-        },
-        {
-          start: currentDay.sunsetAt.getTime() + 4 * HOUR_MS,
-          end: nextDay.sunriseAt.getTime() - HOUR_MS,
-        },
-      ];
-
-      return intervals.some(({ start, end }) => {
-        return (
-          Number.isFinite(start) &&
-          Number.isFinite(end) &&
-          end > start &&
-          referenceTime >= start &&
-          referenceTime < end
-        );
-      });
-    } catch (error) {
-      console.warn("[MainSceneWorld] Failed to resolve deep-night ad window", {
-        error,
-      });
-      return false;
-    }
-  }
-
-  private _persistMainSceneAdState(): void {
-    if (!this._persistentData || this._isPersistenceDisabled) {
-      return;
-    }
-
-    void this.setData(this._persistentData);
-  }
-
-  private _schedulePendingMainSceneAdForMenu(
-    menu: MainSceneAdMenu,
-    delayMs: number = MAIN_SCENE_AD_POST_ACTION_DELAY_MS,
-  ): void {
-    const pending = this._getMainSceneAdState()?.pending;
-    if (!pending || pending.menu !== menu) {
-      return;
-    }
-
-    this._setMainSceneAdTimer(() => {
-      void this._requestPendingMainSceneAd(menu);
-    }, delayMs);
-  }
-
-  private async _requestPendingMainSceneAd(
-    expectedMenu?: MainSceneAdMenu,
-  ): Promise<void> {
-    const adState = this._getMainSceneAdState();
-    const pending = adState?.pending;
-
-    if (!adState || !pending) {
-      return;
-    }
-
-    if (expectedMenu && pending.menu !== expectedMenu) {
-      return;
-    }
-
-    if (!this._canRequestMainSceneAdNow()) {
-      console.log("[MainSceneWorld] MainScene menu ad request deferred", {
-        menu: pending.menu,
-      });
-      return;
-    }
-
-    const requestMainSceneMenuAd =
-      typeof window !== "undefined"
-        ? window.digiviceAdBridge?.requestMainSceneMenuAd
-        : undefined;
-
-    if (!requestMainSceneMenuAd) {
-      console.log("[MainSceneWorld] MainScene ad bridge is not available");
-      return;
-    }
-
-    try {
-      const didShow = await requestMainSceneMenuAd({
-        menu: pending.menu,
-        cooldownMs: pending.cooldown_ms,
-        threshold: pending.threshold,
-        queuedAt: pending.queued_at,
-        deepNight: pending.deep_night,
-        menuUseCount: adState.menu_use_count,
-        onlineRetry: pending.online_retry === true,
-      });
-
-      if (didShow) {
-        adState.menu_use_count = 0;
-        adState.pending = undefined;
-        this._pendingFeedAdFoodEid = null;
-        this._clearFeedAdFallbackTimer();
-        console.log("[MainSceneWorld] MainScene menu ad shown; state reset");
-      } else {
-        console.log("[MainSceneWorld] MainScene menu ad was not shown", {
-          menu: pending.menu,
-        });
-      }
-    } catch (error) {
-      console.warn("[MainSceneWorld] MainScene menu ad request failed", {
-        menu: pending.menu,
-        error,
-      });
-    } finally {
-      this._persistMainSceneAdState();
-    }
-  }
-
-  private _canRequestMainSceneAdNow(): boolean {
-    if (
-      this._isPaused ||
-      this._isRunningReentrySimulation ||
-      this.isSimulationMode
-    ) {
-      return false;
-    }
-
-    if (typeof document !== "undefined" && document.hidden) {
-      return false;
-    }
-
-    return true;
-  }
-
-  private _setMainSceneAdTimer(callback: () => void, delayMs: number): number {
-    if (typeof window === "undefined") {
-      callback();
-      return 0;
-    }
-
-    let timerId = 0;
-    timerId = window.setTimeout(
-      () => {
-        this._mainSceneAdTimerIds.delete(timerId);
-        callback();
-      },
-      Math.max(0, delayMs),
-    );
-    this._mainSceneAdTimerIds.add(timerId);
-    return timerId;
-  }
-
-  private _clearMainSceneAdTimers(): void {
-    if (typeof window === "undefined") {
-      this._mainSceneAdTimerIds.clear();
-      this._feedAdFallbackTimerId = null;
-      return;
-    }
-
-    this._mainSceneAdTimerIds.forEach((timerId) => {
-      window.clearTimeout(timerId);
-    });
-    this._mainSceneAdTimerIds.clear();
-    this._feedAdFallbackTimerId = null;
-  }
-
-  private _clearFeedAdFallbackTimer(): void {
-    if (this._feedAdFallbackTimerId === null || typeof window === "undefined") {
-      this._feedAdFallbackTimerId = null;
-      return;
-    }
-
-    window.clearTimeout(this._feedAdFallbackTimerId);
-    this._mainSceneAdTimerIds.delete(this._feedAdFallbackTimerId);
-    this._feedAdFallbackTimerId = null;
-  }
-
-  private _trackPendingFeedAdFood(foodEid: number): void {
-    const pending = this._getMainSceneAdState()?.pending;
-    if (!pending || pending.menu !== "feed") {
-      return;
-    }
-
-    this._pendingFeedAdFoodEid = foodEid;
-    this._clearFeedAdFallbackTimer();
-  }
-
-  private _isMainCharacterIdleForFeedAd(): boolean {
-    const mainCharacterEid = this._findMainCharacterEntity();
-
-    if (mainCharacterEid === -1) {
-      console.log(
-        "[MainSceneWorld] Skipped feed ad fallback because no main character was found",
-      );
-      return false;
-    }
-
-    return ObjectComp.state[mainCharacterEid] === CharacterState.IDLE;
-  }
-
-  private _scheduleFeedAdFallback(foodEid: number, delayMs: number): void {
-    this._clearFeedAdFallbackTimer();
-    this._feedAdFallbackTimerId = this._setMainSceneAdTimer(() => {
-      this._feedAdFallbackTimerId = null;
-
-      if (this.isSimulationMode || this._pendingFeedAdFoodEid !== foodEid) {
-        return;
-      }
-
-      const pending = this._getMainSceneAdState()?.pending;
-      if (!pending || pending.menu !== "feed") {
-        return;
-      }
-
-      if (!this._isMainCharacterIdleForFeedAd()) {
-        console.log(
-          "[MainSceneWorld] Deferred feed ad fallback because main character is not idle",
-          {
-            foodEid,
-            retryMs: MAIN_SCENE_AD_FEED_IDLE_RETRY_MS,
-          },
-        );
-        this._scheduleFeedAdFallback(
-          foodEid,
-          MAIN_SCENE_AD_FEED_IDLE_RETRY_MS,
-        );
-        return;
-      }
-
-      this._schedulePendingMainSceneAdForMenu(
-        "feed",
-        MAIN_SCENE_AD_POST_ACTION_DELAY_MS,
-      );
-    }, delayMs);
-  }
-
-  public handleThrownFoodLanded(foodEid: number): void {
-    if (this.isSimulationMode || this._pendingFeedAdFoodEid !== foodEid) {
-      return;
-    }
-
-    this._scheduleFeedAdFallback(
-      foodEid,
-      MAIN_SCENE_AD_FEED_FALLBACK_AFTER_LAND_MS,
-    );
-  }
-
-  public handleFoodConsumedForAd(foodEid: number): void {
-    if (this.isSimulationMode || this._pendingFeedAdFoodEid !== foodEid) {
-      return;
-    }
-
-    this._pendingFeedAdFoodEid = null;
-    this._clearFeedAdFallbackTimer();
-    this._schedulePendingMainSceneAdForMenu(
-      "feed",
-      MAIN_SCENE_AD_POST_ACTION_DELAY_MS,
-    );
-  }
-
-  public handleHospitalRecoveryAnimationComplete(_characterEid: number): void {
-    if (this.isSimulationMode) {
-      return;
-    }
-
-    this._schedulePendingMainSceneAdForMenu(
-      "hospital",
-      MAIN_SCENE_AD_POST_ACTION_DELAY_MS,
-    );
-  }
-
-  /**
-   * 에셋 로딩 - 스프라이트시트와 일반 이미지, GIF를 병렬로 로드
-   */
-  private async _loadGameAssets(): Promise<void> {
-    console.groupCollapsed("[MainSceneWorld] 🎨 Loading game assets...");
-
-    try {
-      // 스프라이트시트, 일반 이미지, GIF를 병렬로 로드
-      const [spritesheetResults] = await Promise.all([
-        this._initDiagnostics.measurePhase("load_common_spritesheets", async () => {
-          return loadSpritesheets(COMMON_SPRITESHEET_ASSETS);
-        }),
-        this._initDiagnostics.measurePhase("load_image_assets", async () => {
-          await this._loadImageAssets();
-        }),
-        this._initDiagnostics.measurePhase("load_gif_assets", async () => {
-          await this._loadGifAssets();
-        }),
-      ]);
-
-      // 로드 결과 로깅
-      console.log(
-        `Successfully loaded ${spritesheetResults.length} spritesheets`,
-      );
-      spritesheetResults.forEach((result) => {
-        console.log(
-          `- Spritesheet '${result.alias}': ${result.animations.length} animations, ${result.textures.length} textures`,
-        );
-      });
-
-      await this._initDiagnostics.measurePhase(
-        "precompute_loaded_character_opaque_bounds",
-        async () => {
-          await precomputeLoadedCharacterOpaqueBounds();
-        },
-      );
-      await this._initDiagnostics.measurePhase("precompute_egg_texture_opaque_bounds", async () => {
-        await precomputeLoadedTextureOpaqueBounds(EGG_TEXTURE_KEYS);
-      });
-
-      console.log("All game assets loaded successfully");
-    } catch (error) {
-      console.error("Failed to load game assets:", error);
-      throw error;
-    } finally {
-      console.groupEnd();
-    }
-  }
-
-  /**
-   * GIF 에셋들을 @pixi/gif를 사용해서 애니메이션으로 로드
-   */
-  private async _loadGifAssets(): Promise<void> {
-    console.log(
-      `[MainSceneWorld] Loading ${
-        Object.keys(GIF_ASSETS).length
-      } GIF assets with @pixi/gif...`,
-    );
-    console.log(`[MainSceneWorld] GIF assets to load:`, GIF_ASSETS);
-
-    const gifLoadPromises = Object.entries(GIF_ASSETS).map(
-      async ([key, path]) => {
-        try {
-          console.log(
-            `[MainSceneWorld] Loading GIF asset: ${key} from ${path}`,
-          );
-
-          // @pixi/gif를 사용한 GIF 로딩
-          const animatedGif = await PIXI.Assets.load({
-            alias: key,
-            src: path,
-            data: {
-              scaleMode: "nearest",
-            },
-          });
-
-          console.log(
-            `[MainSceneWorld] Successfully loaded animated GIF: ${key}`,
-            animatedGif,
-          );
-        } catch (error) {
-          console.error(
-            `[MainSceneWorld] Failed to load GIF asset ${key} from ${path}:`,
-            error,
-          );
-        }
-      },
-    );
-
-    await Promise.all(gifLoadPromises);
-
-    // 로딩 완료 후 캐시 상태 확인
-    console.log(
-      `[MainSceneWorld] GIF assets loading completed. Checking cache...`,
-    );
-    Object.keys(GIF_ASSETS).forEach((key) => {
-      const asset = PIXI.Assets.get(key);
-      console.log(
-        `[MainSceneWorld] GIF Asset '${key}' in cache:`,
-        asset ? "YES (animated GIF)" : "NO",
-      );
-      if (asset) {
-        console.log(
-          `[MainSceneWorld] GIF Asset '${key}' type:`,
-          asset.constructor.name,
-        );
-      }
-    });
-  }
-  private async _loadImageAssets(): Promise<void> {
-    console.log(
-      `[MainSceneWorld] Loading ${
-        Object.keys(IMAGE_ASSETS).length
-      } image assets...`,
-    );
-    console.log(`[MainSceneWorld] Image assets to load:`, IMAGE_ASSETS);
-
-    const imageLoadPromises = Object.entries(IMAGE_ASSETS).map(
-      async ([key, path]) => {
-        try {
-          console.log(
-            `[MainSceneWorld] Loading image asset: ${key} from ${path}`,
-          );
-
-          await PIXI.Assets.load({
-            alias: key,
-            src: path,
-          });
-
-          // 로드 후 캐시에서 확인
-          const loadedAsset = PIXI.Assets.get(key);
-          if (loadedAsset instanceof PIXI.Texture) {
-            loadedAsset.source.scaleMode = "nearest";
-          }
-          console.log(
-            `[MainSceneWorld] Successfully loaded image asset: ${key}`,
-            loadedAsset ? "Found in cache" : "NOT found in cache",
-          );
-        } catch (error) {
-          console.error(
-            `[MainSceneWorld] Failed to load image asset ${key} from ${path}:`,
-            error,
-          );
-        }
-      },
-    );
-
-    await Promise.all(imageLoadPromises);
-
-    // 로딩 완료 후 캐시 상태 확인
-    console.log(
-      `[MainSceneWorld] Image assets loading completed. Checking cache...`,
-    );
-    Object.keys(IMAGE_ASSETS).forEach((key) => {
-      const asset = PIXI.Assets.get(key);
-      console.log(
-        `[MainSceneWorld] Asset '${key}' in cache:`,
-        asset ? "YES" : "NO",
-      );
-    });
-  }
-
-  async init(): Promise<void> {
-    console.groupCollapsed("[MainSceneWorld] 🚀 Initializing world...");
-
-    try {
-      this._initDiagnostics.beginInit();
-
-      createWorld(this, MAIN_SCENE_WORLD_ENTITY_CAPACITY);
-      enableManualEntityRecycling(this);
-
-      // 스토리지에서 데이터 로드 시도
-      console.log("Loading saved data from storage...");
-      const loadedData = await this._initDiagnostics.measurePhase("storage_load", async () => {
-        return this.getData();
-      });
-      const monsterBookStorageState = await this._initDiagnostics.measurePhase(
-        "monster_book_storage_load",
-        async () => {
-          return await migrateLegacyMonsterBookIfNeeded(
-            StorageManager,
-            loadedData,
-          );
-        },
-      );
-
-      if (!this._hasPlayableSavedData(loadedData)) {
-        const initialGameData = await this._initDiagnostics.measurePhase(
-          "create_initial_game_data",
-          async () => {
-            return this._requireInitialGameData(
-              await this._createInitialGameData?.(),
-            );
-          },
-          {
-            reason: "missing_saved_data",
-          },
-        );
-        console.warn(
-          "No playable saved data found, initializing with default entities...",
-        );
-        this._persistentData = this._initializeData(initialGameData);
-      } else {
-        console.log(`Found saved data, validating and loading...`);
-
-        const validatedData = this._validateAndMigrateData(loadedData);
-
-        if (!this._hasPlayableSavedData(validatedData)) {
-          const initialGameData = await this._initDiagnostics.measurePhase(
-            "create_initial_game_data",
-            async () => {
-              return this._requireInitialGameData(
-                await this._createInitialGameData?.(),
-              );
-            },
-            {
-              reason: "invalid_saved_data",
-            },
-          );
-          console.warn(
-            "Saved data is missing required setup info or recoverable character entities, reinitializing with default entities...",
-          );
-          this._persistentData = this._initializeData(initialGameData);
-        } else {
-          this._persistentData = validatedData;
-          await this._initDiagnostics.measurePhase("load_saved_entities", async () => {
-            this._loadEcsEntitiesFromStorage();
-          });
-        }
-      }
-      this._applyPersistedMonsterBookState(monsterBookStorageState.state);
-
-      // PIXI v8 Assets API로 게임 에셋 로드
-      await this._initDiagnostics.measurePhase("load_common_game_assets", async () => {
-        await this._loadGameAssets();
-      });
-
-      const characterSpritesheetKeys = Array.from(
-        new Set(
-          this._persistentData.entities
-            .filter((entity) => {
-              return entity.components.object?.type === ObjectType.CHARACTER;
-            })
-            .map((entity) => {
-              return (
-                entity.components.animationRender?.spritesheetKey ??
-                entity.components.characterStatus?.characterKey
-              );
-            })
-            .filter((key): key is SpritesheetKey => {
-              return (
-                typeof key === "number" &&
-                Number.isFinite(key) &&
-                !!SPRITESHEET_KEY_TO_NAME[key as SpritesheetKey]
-              );
-            }),
-        ),
-      );
-
-      await this._initDiagnostics.measurePhase(
-        "load_character_spritesheets",
-        async () => {
-          await Promise.all(
-            characterSpritesheetKeys.map(async (characterSpritesheetKey) => {
-              const spritesheetName =
-                SPRITESHEET_KEY_TO_NAME[characterSpritesheetKey];
-              await loadSpritesheet({
-                jsonPath: `/assets/game/sprites/monsters/${spritesheetName}.json`,
-                alias: spritesheetName,
-                // pixelArt: true,
-              });
-              await ensureCharacterOpaqueBoundsComputed(characterSpritesheetKey);
-            }),
-          );
-        },
-        {
-          characterSpritesheetKeyCount: characterSpritesheetKeys.length,
-        },
-      );
-
-      // 배경 설정
-      this._background = new Background(
-        this._getGrassTextureForTimeOfDay(this._timeOfDay),
-      );
-      this._stage.addChild(this._background);
-      this._sceneDarknessOverlay = this._createSceneDarknessOverlay();
-      this._stage.addChild(this._sceneDarknessOverlay);
-
-      const { width, height } = this._getSceneSize();
-      this._background.resize(width, height);
-      this._resizeSceneDarknessOverlay(width, height);
-      await this._initDiagnostics.measurePhase(
-        "apply_cached_sun_times_and_schedule_refresh",
-        async () => {
-          if (this._isLocalTimeEnabled()) {
-            const appliedCachedSunTimes = this._applyCachedAutoTimeOfDay();
-            if (!appliedCachedSunTimes) {
-              this._applyCurrentSkyState();
-            }
-            this._initDiagnostics.logPhase("initial_sun_times_refresh_requested", {
-              status: "dispatch",
-              promptForPermission: true,
-              hasCachedSunTimes: !!this._sunTimes,
-              appliedCachedSunTimes,
-            });
-            void this._initializeSunTimes();
-            return;
-          }
-
-          this._setRandomManualTimeOfDay();
-        },
-      );
-
-      // zIndex 정렬을 위해 sortableChildren 활성화
-      this._stage.sortableChildren = true;
-
-      // UI 초기화
-      if (this._parentElement) {
-        // 게임 메뉴 초기화
-        this._gameMenu = new GameMenu(this._parentElement, {
-          onMiniGameSelect: () => {
-            console.log("[MainSceneWorld] Mini game selected");
-            this._logMiniGameEntryAttempt("selected");
-            if (this._shouldBlockMiniGameEntry()) {
-              this._logMiniGameEntryAttempt("blocked");
-              return;
-            }
-
-            if (!this._startMiniGame) {
-              console.warn(
-                "[MainSceneWorld] Mini game start callback is not set",
-              );
-              this._logMiniGameEntryAttempt("missing_callback");
-              return;
-            }
-
-            this._prepareMainCharacterForMiniGameEntry();
-            this._logMiniGameEntryAttempt("start_requested");
-            void this._startMiniGame();
-          },
-          onFeedSelect: () => {
-            console.log("[MainSceneWorld] Feed selected");
-            const foodEid = this._throwFood();
-            if (foodEid !== null) {
-              this._recordMainSceneMenuUse("feed");
-              this._trackPendingFeedAdFood(foodEid);
-            }
-          },
-          onDrugSelect: () => {
-            console.log("[MainSceneWorld] Drug selected");
-            if (this._handleHospitalSelection()) {
-              this._recordMainSceneMenuUse("hospital");
-            }
-          },
-          onCleanSelect: () => {
-            console.log("[MainSceneWorld] Clean selected");
-            if (this._enterCleaningMode()) {
-              this._recordMainSceneMenuUse("clean");
-            }
-          },
-          onHospitalSelect: () => {
-            console.log("[MainSceneWorld] Hospital selected");
-            if (this._handleHospitalSelection()) {
-              this._recordMainSceneMenuUse("hospital");
-            }
-          },
-          onInformationSelect: () => {
-            console.log("[MainSceneWorld] Information selected");
-            if (!this._showMonsterInfo) {
-              console.warn(
-                "[MainSceneWorld] Monster info callback is not set",
-              );
-              return;
-            }
-
-            this._showMonsterInfo();
-          },
-          onCancel: () => {
-            console.log("[MainSceneWorld] Menu cancelled");
-          },
-          onFocusChange: (focusedIndex: number | null) => {
-            // 메뉴에 포커스가 있는지 여부에 따라 컨트롤 버튼 업데이트
-            this._updateControlButtonsForMenuState(focusedIndex !== null);
-          },
-        });
-        this._syncFeedMenuPreview();
-
-        // 디버그 Gauge UI는 dev 또는 native debug build에서 노출 가능
-        if (
-          (import.meta.env.DEV ||
-            import.meta.env.NATIVE_FEATURE_DEBUG_MODE === "true") &&
-          this._debugParentElement
-        ) {
-          this._debugGaugeUI = new HTMLDebugGaugeUI(
-            this,
-            this._debugParentElement,
-            {
-              initiallyVisible: false,
-            },
-          );
-          this._addDebugGaugeEventListener();
-        }
-
-        // 상세 디버그 UI (개발 환경에서만)
-        if (import.meta.env.DEV && this._debugParentElement) {
-          this._debugGameConstantsUI = new HTMLDebugGameConstantsUI(
-            this._debugParentElement,
-          );
-          this._debugStatusUI = new HTMLDebugStatusUI(
-            this,
-            this._debugParentElement,
-          );
-          this._debugToggleButton = new HTMLDebugToggleButton(() => {
-            this._debugStatusUI?.toggle();
-            return this._debugStatusUI?.isDebugVisible() ?? false;
-          }, this._debugParentElement);
-        }
-      }
-
-      // Page Visibility API 이벤트 리스너 등록
-      await this._initDiagnostics.measurePhase("setup_visibility_handler", async () => {
-        this._setupVisibilityChangeHandler();
-      });
-
-      // 재진입 시뮬레이션 처리
-      await this._initDiagnostics.measurePhase("reentry_simulation", async () => {
-        await this._processReentrySimulation("init");
-      });
-
-      this._initDiagnostics.completeInit();
-      console.log("World initialization completed");
-    } catch (error) {
-      this._initDiagnostics.failInit(error);
-      throw error;
-    } finally {
-      console.groupEnd();
-    }
-  }
-
-  private _shouldBlockMiniGameEntry(): boolean {
-    const characterEid = this._findMainCharacterEntity();
-    if (characterEid === -1) {
-      return false;
-    }
-
-    if (ObjectComp.state[characterEid] !== CharacterState.EGG) {
-      return false;
-    }
-
-    this._showAlert?.(this.t("main.eggUnavailable"), this.t("common.notice"));
-    return true;
-  }
-
-  private _logMiniGameEntryAttempt(
-    phase: "selected" | "blocked" | "missing_callback" | "start_requested",
-  ): void {
-    const characterEid = this._findMainCharacterEntity();
-    const staminaSnapshot = this.getMainCharacterStaminaSnapshot();
-    const characterState =
-      characterEid === -1 ? null : CharacterState[ObjectComp.state[characterEid]];
-
-    console.log("[ImportantDiagnostics][MiniGameEntry]", {
-      phase,
-      hasCharacter: characterEid !== -1,
-      characterEid: characterEid === -1 ? null : characterEid,
-      characterState,
-      characterKey:
-        characterEid === -1
-          ? null
-          : CharacterKeyECS[CharacterStatusComp.characterKey[characterEid]] ??
-            null,
-      stamina: staminaSnapshot?.stamina ?? null,
-      maxStamina: staminaSnapshot?.maxStamina ?? null,
-      unhappyThreshold: staminaSnapshot?.unhappyThreshold ?? null,
-      boostedThreshold: staminaSnapshot?.boostedThreshold ?? null,
-      isPersistenceDisabled: this._isPersistenceDisabled,
-      debugMode: this._debugMode,
-      currentTime: this.currentTime,
-    });
-  }
-
-  private _prepareMainCharacterForMiniGameEntry(): void {
-    const characterEid = this._findMainCharacterEntity();
-    if (characterEid === -1) {
-      return;
-    }
-
-    const appState = this._ensureAppState();
-    if (appState) {
-      appState.suspend_food_interaction_until_reentry = true;
-    }
-
-    const completedActiveEating = completeActiveEatingForCharacter(
-      this,
-      characterEid,
-      this.currentTime,
-    );
-
-    if (
-      !completedActiveEating &&
-      hasComponent(this, DestinationComp, characterEid) &&
-      DestinationComp.type[characterEid] === DestinationType.TARGETED
-    ) {
-      restoreCharacterFreeRoamingState(this, characterEid, {
-        now: this.currentTime,
-        idleDelayMs: 1000,
-      });
-    }
-
-    if (
-      !hasComponent(this, SleepSystemComp, characterEid) ||
-      ObjectComp.state[characterEid] !== CharacterState.SLEEPING
-    ) {
-      return;
-    }
-
-    wakeCharacter(this, characterEid, this.currentTime);
-    SleepSystemComp.fatigue[characterEid] = Math.min(
-      GAME_CONSTANTS.FATIGUE_MAX,
-      SleepSystemComp.fatigue[characterEid] +
-        GAME_CONSTANTS.MINI_GAME_SLEEP_INTERRUPT_FATIGUE,
-    );
-    CharacterStatusComp.stamina[characterEid] = Math.max(
-      0,
-      CharacterStatusComp.stamina[characterEid] -
-        GAME_CONSTANTS.MINI_GAME_SLEEP_INTERRUPT_STAMINA,
-    );
-  }
-
-  private _addDebugGaugeEventListener(): void {
-    if (
-      this._isDebugGaugeEventListenerRegistered ||
-      typeof window === "undefined"
-    ) {
-      return;
-    }
-
-    window.addEventListener(SHOW_DEBUG_GAUGE_EVENT, this._handleShowDebugGauge);
-    this._isDebugGaugeEventListenerRegistered = true;
-  }
-
-  private _removeDebugGaugeEventListener(): void {
-    if (
-      !this._isDebugGaugeEventListenerRegistered ||
-      typeof window === "undefined"
-    ) {
-      return;
-    }
-
-    window.removeEventListener(
-      SHOW_DEBUG_GAUGE_EVENT,
-      this._handleShowDebugGauge,
-    );
-    this._isDebugGaugeEventListenerRegistered = false;
-  }
-
-  /**
-   * 기본 캐릭터(알) 생성
-   */
-  private _createDefaultCharacterEntity(): SavedEntity {
-    const eid = createCharacterEntity(this, {
-      position: {
-        x: this._positionBoundary.x + this._positionBoundary.width / 2,
-        y: this._positionBoundary.y + this._positionBoundary.height / 2,
-      },
-      angle: { value: 0 },
-      object: {
-        id: generatePersistentNumericId(),
-        type: ObjectType.CHARACTER,
-        state: CharacterState.EGG,
-      },
-      characterStatus: {
-        characterKey: ECS_NULL_VALUE,
-        stamina: 5, // 초기 스테미나 최대값으로 설정
-        evolutionGage: 0, // 초기 진화 게이지 0으로 설정
-        evolutionPhase: 1,
-        statuses: new Array(ECS_CHARACTER_STATUS_LENGTH).fill(ECS_NULL_VALUE),
-      },
-      render: {
-        storeIndex: ECS_NULL_VALUE,
-        scale: 3,
-        textureKey: ECS_NULL_VALUE,
-        zIndex: ECS_NULL_VALUE,
-      },
-      animationRender: {
-        storeIndex: ECS_NULL_VALUE,
-        spritesheetKey: SpritesheetKey.GreenSlimeA1,
-        animationKey: AnimationKey.IDLE,
-        isPlaying: true,
-        loop: true,
-        speed: 0.04,
-      },
-      speed: { value: ECS_NULL_VALUE },
-    });
-
-    this._requestLocationPermissionOnCharacterCreation();
-
-    return convertECSEntityToSavedEntity(this, eid);
-  }
-
-  /**
-   * 스토리지에서 엔티티들을 로드하여 ECS 월드에 복원
-   */
-  private _loadEcsEntitiesFromStorage(): void {
-    console.groupCollapsed("📦 Loading entities from storage...");
-
-    try {
-      if (!this._persistentData?.entities) {
-        console.warn("No entities data found in storage");
-        return;
-      }
-
-      let loadedEntitiesCount = 0;
-      let errorCount = 0;
-
-      // 이미 로딩된 Object ID들을 추적
-      const loadedObjectIds = new Set<number>();
-
-      this._persistentData.entities.forEach((savedEntity, index) => {
-        try {
-          const objectId = savedEntity.components.object?.id;
-
-          // Object ID가 없으면 에러
-          if (!objectId) {
-            throw new Error(
-              `Entity ${
-                index + 1
-              } has no Object ID - critical data corruption detected`,
-            );
-          }
-
-          // 중복 Object ID가 있으면 에러
-          if (loadedObjectIds.has(objectId)) {
-            throw new Error(
-              `Duplicate Object ID ${objectId} detected at entity ${
-                index + 1
-              } - critical data corruption detected`,
-            );
-          }
-
-          loadedObjectIds.add(objectId);
-
-          const eid = addEntity(this);
-          applySavedEntityToECS(this, eid, savedEntity);
-          const repairedComponents = repairCharacterEntityRuntimeComponents(
-            this,
-            eid,
-            this.currentTime,
-          );
-
-          if (repairedComponents.length > 0) {
-            console.warn(
-              `[MainSceneWorld] Repaired entity ${index + 1} (ID=${objectId}) missing runtime components: ${repairedComponents.join(", ")}`,
-            );
-          }
-
-          loadedEntitiesCount++;
-
-          console.log(
-            `Loaded entity ${index + 1}: ID=${objectId}, Type=${
-              savedEntity.components.object?.type
-            }`,
-          );
-        } catch (error) {
-          errorCount++;
-          console.error(`Failed to load entity ${index + 1}:`, error);
-          console.error("  Problematic entity data:", savedEntity);
-
-          // 에러를 다시 던져서 게임 초기화 실패로 처리
-          throw error;
-        }
-      });
-
-      const { repairedCharacters, repairedFoods } =
-        repairLoadedFoodInteractionState(this, this.currentTime);
-
-      if (repairedCharacters.length > 0 || repairedFoods.length > 0) {
-        console.warn(
-          `[MainSceneWorld] Repaired orphaned loaded food interaction state: ${repairedCharacters.length} characters, ${repairedFoods.length} foods`,
-        );
-      }
-
-      console.log(
-        `Loaded ${loadedEntitiesCount} entities successfully, ${errorCount} failed`,
-      );
-
-      // 로딩 실패한 엔티티들이 있고 성공한 엔티티가 하나도 없다면 기본 캐릭터 생성
-      if (loadedEntitiesCount === 0 && errorCount > 0) {
-        console.warn(
-          "All entities failed to load, creating default character...",
-        );
-        this._createDefaultCharacterEntity();
-      }
-
-      // 로드된 엔티티의 상태 아이콘 검증 및 수정
-      validateAndFixStatusIcons(this);
-
-      this._logLoadedEcsEntities(); // 로드된 엔티티 상태 요약 로그
-    } finally {
-      console.groupEnd();
-    }
-  }
-
-  /**
-   * 로드된 엔티티들의 상태를 로깅하는 디버그 메소드
-   */
-  private _logLoadedEcsEntities(): void {
-    if (!this._persistentData?.entities) return;
-
-    console.groupCollapsed("📊 Loaded Entities Summary:");
-
-    const entityStats = {
-      total: this._persistentData.entities.length,
-      byType: {} as Record<string, number>,
-      byState: {} as Record<string, number>,
-    };
-
-    this._persistentData.entities.forEach((entity) => {
-      if (entity.components.object) {
-        const type = ObjectType[entity.components.object.type] || "UNKNOWN";
-        entityStats.byType[type] = (entityStats.byType[type] || 0) + 1;
-
-        if (entity.components.object.type === ObjectType.CHARACTER) {
-          const state =
-            CharacterState[entity.components.object.state] || "UNKNOWN";
-          entityStats.byState[state] = (entityStats.byState[state] || 0) + 1;
-        }
-      }
-    });
-
-    console.log(`Total entities: ${entityStats.total}`);
-    console.log("By type:", entityStats.byType);
-    if (Object.keys(entityStats.byState).length > 0) {
-      console.log("Character states:", entityStats.byState);
-    }
-
-    console.groupEnd();
-  }
-
-  /**
-   * Scene 종료 시 호출 (scene 변경 전 정리 작업)
-   *
-   * 사용법:
-   * // Scene Manager에서 scene 변경 시
-   * if (currentScene.onSceneExit) {
-   *   currentScene.onSceneExit();
-   * }
-   */
-  public async onSceneExit(): Promise<void> {
-    console.log(
-      "[MainSceneWorld] 🚪 Scene exit - saving state and cleaning up...",
-    );
-
-    // 현재 상태 저장
-    if (!this._isPersistenceDisabled) {
-      try {
-        await this._saveCurrentState();
-      } catch (error) {
-        console.error(
-          "[ImportantDiagnostics][MainSceneExitPersistence] save_failed",
-          {
-            error:
-              error instanceof Error
-                ? {
-                    name: error.name,
-                    message: error.message,
-                  }
-                : {
-                    message: String(error),
-                  },
-          },
-        );
-      }
-    }
-
-    // 이벤트 핸들러 정리
-    this._cleanupVisibilityChangeHandler();
-    this._clearMainSceneAdTimers();
-
-    // 수면 효과 정리
-    if (this._stage) {
-      cleanupSleepEffects(this._stage);
-      cleanupEggCrackRenderState();
-      cleanupCharacterNameLabels();
-      cleanupCharacterLayoutDebug(this._stage);
-    }
-    this._pendingRecoveryCureEids.clear();
-    this.stopRecoveryVibration();
-
-    // 일시정지 상태로 설정 (다른 scene으로 전환되므로)
-    this._isPaused = true;
-
-    console.log("[MainSceneWorld] Scene exit cleanup completed");
-  }
-
-  /**
-   * Scene 재진입 시 호출 (다른 scene에서 돌아올 때)
-   *
-   * 사용법:
-   * // Scene Manager에서 MainScene으로 돌아올 때
-   * if (mainScene.onSceneReenter) {
-   *   await mainScene.onSceneReenter();
-   * }
-   */
-  public async onSceneReenter(): Promise<void> {
-    console.log(
-      "[MainSceneWorld] 🔄 Scene reenter - restoring state and handlers...",
-    );
-
-    try {
-      // 이벤트 핸들러 재등록
-      this._setupVisibilityChangeHandler();
-
-      // 재진입 시뮬레이션 실행 (다른 scene에 있던 시간 계산)
-      await this._processReentrySimulation();
-
-      // 일시정지 해제
-      this._isPaused = false;
-      this._pauseStartTime = 0;
-      await this._flushDeferredPersistenceIfNeeded();
-
-      console.log("[MainSceneWorld] Scene reenter completed");
-    } catch (error) {
-      console.error("[MainSceneWorld] Failed to reenter scene:", error);
-      // 에러가 발생해도 기본 상태는 복원
-      this._isPaused = false;
-      this._setupVisibilityChangeHandler();
-    }
-  }
-
-  public async disablePersistenceAndClearData(): Promise<void> {
-    this._isPersistenceDisabled = true;
-    this._persistentData = undefined;
-    this._isPaused = true;
-    this._cleanupVisibilityChangeHandler();
-
-    await this.clearData();
-  }
-
-  destroy(): void {
-    console.groupCollapsed("[MainSceneWorld] 🧹 Destroying world...");
-
-    try {
-      this._cleanupVisibilityChangeHandler();
-      this._clearMainSceneAdTimers();
-
-      // Scene 종료 처리 (아직 호출되지 않았다면)
-      if (!this._isPaused && !this._isPersistenceDisabled) {
-        void this.onSceneExit();
-      }
-
-      // 게임 메뉴 정리
-      if (this._gameMenu) {
-        this._gameMenu.destroy();
-        this._gameMenu = undefined;
-      }
-
-      this._removeDebugGaugeEventListener();
-
-      // 디버그 게이지 UI 정리
-      if (this._debugGaugeUI) {
-        this._debugGaugeUI.destroy();
-        this._debugGaugeUI = undefined;
-      }
-
-      // 디버그 UI 정리
-      if (this._debugStatusUI) {
-        this._debugStatusUI.destroy();
-        this._debugStatusUI = undefined;
-      }
-      if (this._debugToggleButton) {
-        this._debugToggleButton.destroy();
-        this._debugToggleButton = undefined;
-      }
-      if (this._debugGameConstantsUI) {
-        this._debugGameConstantsUI.destroy();
-        this._debugGameConstantsUI = undefined;
-      }
-
-      if (this._sceneDarknessOverlay) {
-        this._stage.removeChild(this._sceneDarknessOverlay);
-        this._sceneDarknessOverlay.destroy();
-        this._sceneDarknessOverlay = undefined;
-      }
-
-      cleanupSleepEffects(this._stage);
-      cleanupEggCrackRenderState();
-      cleanupCharacterNameLabels();
-      cleanupCharacterLayoutDebug(this._stage);
-      this._pendingRecoveryCureEids.clear();
-
-      this._background && this._stage.removeChild(this._background);
-      // this._assetsLoaded = false;
-
-      // PIXI v8에서는 필요시 특정 에셋만 언로드 가능
-      // PIXI.Assets.unload(Object.keys(GAME_ASSETS));
-
-      console.log("World destroyed successfully");
-      // TODO: 모든 엔티티 제거
-    } finally {
-      console.groupEnd();
-    }
-  }
-  update(delta: number): void {
-    // 앱이 일시정지 상태일 때는 시스템 업데이트 건너뛰기
-    if (this._isPaused || this._isRunningReentrySimulation) {
-      this._logStatusHeartbeatIfNeeded(delta);
-      return;
-    }
-
-    this._updateAutoTimeOfDayIfNeeded();
-    this._background?.animate(this.currentTime);
-
-    // 시스템 파이프라인 실행
-    this._pipedSystems({
-      world: this,
-      delta,
-    });
-    this._releaseEntryStatusSuppressionIfNeeded();
-    this._logStatusHeartbeatIfNeeded(delta);
-
-    // UI 업데이트
-    if (this._debugGaugeUI) {
-      this._debugGaugeUI.update();
-    }
-
-    // 디버그 UI 업데이트
-    if (this._debugStatusUI) {
-      this._debugStatusUI.update();
-
-      // 디버그 토글 버튼 상태 동기화
-      if (this._debugToggleButton) {
-        this._debugToggleButton.updateState(
-          this._debugStatusUI.isDebugVisible(),
-        );
-      }
-    }
-
-    // 이전 상태 업데이트 (진입 감지용)
-    this._previousCleaningMode = this._isCleaningMode;
-  }
-
-  private _logStatusHeartbeatIfNeeded(delta: number): void {
-    const currentTime = this.currentTime;
-    const heartbeatTime = Number.isFinite(currentTime)
-      ? currentTime
-      : Date.now();
-    const lastLogTime = this._lastStatusHeartbeatLogTime;
-
-    if (
-      lastLogTime !== null &&
-      heartbeatTime - lastLogTime < MAIN_SCENE_STATUS_HEARTBEAT_INTERVAL_MS
-    ) {
-      return;
-    }
-
-    this._lastStatusHeartbeatLogTime = heartbeatTime;
-
-    const worldMetadata = this._persistentData?.world_metadata;
-    const lastEcsSaved = worldMetadata?.last_ecs_saved;
-    const lastEcsSavedAgeMs =
-      typeof lastEcsSaved === "number" && Number.isFinite(lastEcsSaved)
-        ? Math.max(0, heartbeatTime - lastEcsSaved)
-        : null;
-    const mainCharacter = this._getMainCharacterStatusHeartbeatSnapshot();
-
-    console.warn("[ImportantDiagnostics][MainSceneStatusHeartbeat]", {
-      isPaused: this._isPaused,
-      isRunningReentrySimulation: this._isRunningReentrySimulation,
-      statusSystemsEnabled: this._statusSystemsEnabled,
-      delta,
-      currentTime,
-      lastEcsSaved: lastEcsSaved ?? null,
-      lastEcsSavedAgeMs,
-      mainCharacter,
-    });
-  }
-
-  private _getMainCharacterStatusHeartbeatSnapshot(): {
-    eid: number;
-    objectId: number;
-    stamina: number;
-    evolutionGauge: number;
-    statuses: number[];
-    state: number;
-    stateName: string;
-  } | null {
-    let eid = -1;
-
-    try {
-      eid = this._findMainCharacterEntity();
-    } catch {
-      return null;
-    }
-
-    if (
-      eid < 0 ||
-      !hasComponent(this, ObjectComp, eid) ||
-      !hasComponent(this, CharacterStatusComp, eid)
-    ) {
-      return null;
-    }
-
-    const state = ObjectComp.state[eid] as CharacterState;
-
-    return {
-      eid,
-      objectId: ObjectComp.id[eid],
-      stamina: CharacterStatusComp.stamina[eid],
-      evolutionGauge: CharacterStatusComp.evolutionGage[eid],
-      statuses: Array.from(CharacterStatusComp.statuses[eid]).filter(
-        (status) => status !== ECS_NULL_VALUE,
-      ),
-      state,
-      stateName: CharacterState[state] ?? `Unknown(${state})`,
-    };
-  }
-
-  private _requireInitialGameData(
-    initialGameData?: InitialGameData,
-  ): InitialGameData {
-    if (!initialGameData) {
-      throw new MissingInitialGameDataError();
-    }
-
-    const normalizedName = initialGameData?.name?.trim();
-
-    if (!normalizedName) {
-      throw new MissingInitialGameDataError();
-    }
-
-    return {
-      name: normalizedName,
-      useLocalTime: initialGameData.useLocalTime ?? DEFAULT_USE_LOCAL_TIME,
-      cachedSunTimes: initialGameData.cachedSunTimes ?? null,
-      resetBootstrapMarkerId: initialGameData.resetBootstrapMarkerId,
-    };
-  }
-
-  private _initializeData(
-    initialGameData: InitialGameData,
-  ): MainSceneWorldData {
-    const useLocalTime = initialGameData.useLocalTime;
-    const cachedSunTimes = useLocalTime
-      ? (initialGameData.cachedSunTimes ?? undefined)
-      : undefined;
-
-    return {
-      world_metadata: {
-        name: "MainScene",
-        monster_name: initialGameData.name,
-        last_ecs_saved: this.currentTime,
-        version: this.WORLD_DATA_SCHEMA_VERSION,
-        app_state: {
-          last_active_time: this.currentTime,
-          last_active_time_anchor: this._trustedClock.captureAnchor(),
-          is_first_load: false,
-          use_local_time: useLocalTime,
-          reset_bootstrap_marker_id: initialGameData.resetBootstrapMarkerId,
-          cached_sun_times: cachedSunTimes,
-          main_scene_ad: {
-            menu_use_count: 0,
-          },
-          mini_game_scores: {
-            flappy_bird: {
-              best_score: 0,
-            },
-          },
-          monster_book: createEmptyMonsterBookState(),
-        },
-      },
-      entities: [this._createDefaultCharacterEntity()],
-    };
-  }
-
-  getInMemoryData(): MainSceneWorldData {
-    return this._persistentData as MainSceneWorldData;
-  }
-
-  public buildHomeWidgetSyncWorldData(): MainSceneWorldData | null {
-    if (!this._persistentData) {
-      console.warn("[ImportantDiagnostics][HomeWidgetSyncWorldData]", {
-        phase: "build_skipped_missing_persistent_data",
-      });
-      return null;
-    }
-
-    try {
-      const syncWorldData = cloneDeep(this._persistentData);
-      const currentTime = this.currentTime;
-      const currentAnchor = this._trustedClock.captureAnchor();
-      const worldMetadata = syncWorldData.world_metadata ?? {
-        name: "MainScene",
-        last_ecs_saved: currentTime,
-        version: this.WORLD_DATA_SCHEMA_VERSION,
-      };
-
-      syncWorldData.world_metadata = worldMetadata;
-      worldMetadata.last_ecs_saved = currentTime;
-      worldMetadata.version =
-        worldMetadata.version || this.WORLD_DATA_SCHEMA_VERSION;
-
-      const appState = worldMetadata.app_state ?? {
-        last_active_time: currentTime,
-        last_active_time_anchor: currentAnchor,
-        is_first_load: false,
-        use_local_time: true,
-        main_scene_ad: {
-          menu_use_count: 0,
-        },
-        mini_game_scores: {
-          flappy_bird: {
-            best_score: 0,
-          },
-        },
-        monster_book: createEmptyMonsterBookState(),
-      };
-
-      worldMetadata.app_state = appState;
-      appState.last_active_time = currentTime;
-      appState.last_active_time_anchor = currentAnchor;
-      appState.use_local_time = true;
-
-      const objectEntities = liveObjectQuery(this);
-      syncWorldData.entities = objectEntities.map((eid) =>
-        convertECSEntityToSavedEntity(this, eid),
-      );
-      const characterEid = this._findMainCharacterEntity();
-
-      if (characterEid >= 0) {
-        console.warn("[ImportantDiagnostics][HomeWidgetSyncWorldData]", {
-          phase: "build_completed",
-          currentTime,
-          worldLastEcsSaved: worldMetadata.last_ecs_saved,
-          appLastActiveTime: appState.last_active_time,
-          appMonsterName: worldMetadata.monster_name ?? null,
-          eid: characterEid,
-          objectId: ObjectComp.id[characterEid],
-          state: ObjectComp.state[characterEid],
-          characterKey: CharacterStatusComp.characterKey[characterEid],
-          hatchTime: EggHatchComp.hatchTime[characterEid],
-          hatchDurationMs: EggHatchComp.hatchDurationMs[characterEid],
-          isReadyToHatch: EggHatchComp.isReadyToHatch[characterEid] === 1,
-          isSimulationMode: this.isSimulationMode,
-          isRunningReentrySimulation: this._isRunningReentrySimulation,
-        });
-      }
-
-      return syncWorldData;
-    } catch (error) {
-      console.warn(
-        "[MainSceneWorld] Failed to build home widget sync world data",
-        error,
-      );
-      return null;
-    }
-  }
-
-  async getData(): Promise<MainSceneWorldData | null> {
-    console.groupCollapsed("💾 Loading saved data from storage...");
-
-    try {
-      const data = (await StorageManager.getData(
-        WORLD_DATA_STORAGE_KEY,
-      )) as MainSceneWorldData;
-
-      if (!data) {
-        console.log("No saved data found in storage");
-        return null;
-      }
-
-      console.log("Successfully loaded data from storage");
-      return data;
-    } catch (error) {
-      console.error("Failed to load data from storage:", error);
-
-      // 스토리지에서 데이터를 읽는 데 실패한 경우, 빈 데이터로 덮어쓰기
-      // try {
-      //   await StorageManager.setData(WORLD_DATA_STORAGE_KEY, null);
-      //   console.log("[MainSceneWorld] Cleared corrupted storage data");
-      // } catch (clearError) {
-      //   console.error(
-      //     "[MainSceneWorld] Failed to clear corrupted data:",
-      //     clearError
-      //   );
-      // }
-
-      return null;
-    } finally {
-      console.groupEnd();
-    }
-  }
-
-  private _enqueueStorageWrite(operation: () => Promise<void>): Promise<void> {
-    const nextWrite = this._pendingStorageWrite
-      .catch(() => undefined)
-      .then(() => operation());
-
-    this._pendingStorageWrite = nextWrite.catch(() => undefined);
-    return nextWrite;
-  }
-
-  async setData(data: MainSceneWorldData): Promise<void> {
-    this._persistentData = data;
-
-    if (this._isPersistenceDisabled) {
-      console.debug("[MainSceneWorld] setData:skip_persistence_disabled", {
-        key: WORLD_DATA_STORAGE_KEY,
-        monsterName: data.world_metadata?.monster_name,
-        entityCount: data.entities?.length ?? 0,
-        savedAt: data.world_metadata?.last_ecs_saved,
-      });
-      return;
-    }
-
-    if (this._shouldDeferPersistence?.()) {
-      this._hasDeferredPersistence = true;
-      console.debug("[MainSceneWorld] setData:deferred", {
-        key: WORLD_DATA_STORAGE_KEY,
-        monsterName: data.world_metadata?.monster_name,
-        entityCount: data.entities?.length ?? 0,
-      });
-      return;
-    }
-
-    this._hasDeferredPersistence = false;
-
-    await this._enqueueStorageWrite(async () => {
-      try {
-        const monsterBookState =
-          data.world_metadata.app_state?.monster_book ?? null;
-        const persistableData = this._createStoragePersistableData(data);
-        console.debug("[MainSceneWorld] setData:start", {
-          key: WORLD_DATA_STORAGE_KEY,
-          monsterName: data.world_metadata?.monster_name,
-          entityCount: data.entities?.length ?? 0,
-          savedAt: data.world_metadata?.last_ecs_saved,
-        });
-        await saveMonsterBookState(StorageManager, monsterBookState);
-        await StorageManager.setData(WORLD_DATA_STORAGE_KEY, persistableData);
-        console.debug("[MainSceneWorld] setData:success", {
-          key: WORLD_DATA_STORAGE_KEY,
-          monsterName: data.world_metadata?.monster_name,
-          entityCount: data.entities?.length ?? 0,
-        });
-      } catch (error) {
-        console.error("[MainSceneWorld] Failed to save data:", error);
-        throw error;
-      }
-    });
-  }
-
-  private async _flushDeferredPersistenceIfNeeded(): Promise<void> {
-    if (
-      !this._hasDeferredPersistence ||
-      !this._persistentData ||
-      this._isPersistenceDisabled ||
-      this._shouldDeferPersistence?.()
-    ) {
-      return;
-    }
-
-    const deferredData = this._persistentData;
-    this._hasDeferredPersistence = false;
-    await this.setData(deferredData);
-  }
-
-  async clearData(): Promise<void> {
-    this._persistentData = undefined;
-
-    await this._enqueueStorageWrite(async () => {
-      try {
-        console.warn("[MainSceneWorld] clearData:start", {
-          key: WORLD_DATA_STORAGE_KEY,
-        });
-        await StorageManager.removeData(WORLD_DATA_STORAGE_KEY);
-        console.warn("[MainSceneWorld] clearData:success", {
-          key: WORLD_DATA_STORAGE_KEY,
-        });
-      } catch (error) {
-        console.error("[MainSceneWorld] Failed to clear data:", error);
-        throw error;
-      }
-    });
-  }
-
-  private _sanitizeSavedEntities(entities: SavedEntity[]): SavedEntity[] {
-    const sanitizedEntities: SavedEntity[] = [];
-    const seenObjectIds = new Set<number>();
-
-    entities.forEach((entity, index) => {
-      if (!entity?.components) {
-        console.warn(
-          `[MainSceneWorld] Dropping corrupted entity ${index}: missing components`,
-        );
-        return;
-      }
-
-      const objectComponent = entity.components.object;
-
-      if (!objectComponent) {
-        console.warn(
-          `[MainSceneWorld] Dropping corrupted entity ${index}: missing object component`,
-        );
-        return;
-      }
-
-      const objectId = objectComponent.id;
-
-      if (
-        typeof objectId !== "number" ||
-        !Number.isFinite(objectId) ||
-        objectId <= 0
-      ) {
-        console.warn(
-          `[MainSceneWorld] Dropping corrupted entity ${index}: invalid Object ID ${objectId}`,
-        );
-        return;
-      }
-
-      if (seenObjectIds.has(objectId)) {
-        console.warn(
-          `[MainSceneWorld] Dropping duplicated entity ${index}: Object ID ${objectId}`,
-        );
-        return;
-      }
-
-      seenObjectIds.add(objectId);
-      sanitizedEntities.push(entity);
-    });
-
-    return sanitizedEntities;
-  }
-
-  private _hasPlayableSavedData(
-    data: MainSceneWorldData | null | undefined,
-  ): data is MainSceneWorldData {
-    if (!data) {
-      return false;
-    }
-
-    const monsterName = data.world_metadata?.monster_name?.trim();
-
-    if (!monsterName) {
-      return false;
-    }
-
-    return (
-      data.entities?.some((entity) => {
-        return entity.components.object?.type === ObjectType.CHARACTER;
-      }) ?? false
-    );
-  }
-
-  /**
-   * 저장된 데이터의 유효성을 검증하고 필요시 마이그레이션 수행
-   */
-  private _validateAndMigrateData(
-    data: MainSceneWorldData,
-  ): MainSceneWorldData {
-    console.groupCollapsed("🔍 Validating saved data...");
-
-    try {
-      // 기본 구조 검증
-      if (!data.world_metadata) {
-        console.warn("Missing world_metadata, creating default");
-        data.world_metadata = {
-          name: "MainScene",
-          last_ecs_saved: this.currentTime,
-          version: this.WORLD_DATA_SCHEMA_VERSION,
-          app_state: {
-            last_active_time: this.currentTime,
-            last_active_time_anchor: this._trustedClock.captureAnchor(),
-            is_first_load: false,
-            use_local_time: true,
-            main_scene_ad: {
-              menu_use_count: 0,
-            },
-            mini_game_scores: {
-              flappy_bird: {
-                best_score: 0,
-              },
-            },
-            monster_book: createEmptyMonsterBookState(),
-          },
-        };
-      }
-
-      if (!data.world_metadata.app_state) {
-        data.world_metadata.app_state = {
-          last_active_time: this.currentTime,
-          last_active_time_anchor: this._trustedClock.captureAnchor(),
-          is_first_load: false,
-          use_local_time: true,
-          main_scene_ad: {
-            menu_use_count: 0,
-          },
-          mini_game_scores: {
-            flappy_bird: {
-              best_score: 0,
-            },
-          },
-          monster_book: createEmptyMonsterBookState(),
-        };
-      } else if (data.world_metadata.app_state.use_local_time !== true) {
-        data.world_metadata.app_state.use_local_time = true;
-      }
-
-      if (!data.world_metadata.app_state.main_scene_ad) {
-        data.world_metadata.app_state.main_scene_ad = {
-          menu_use_count: 0,
-        };
-      }
-
-      if (!data.world_metadata.app_state.mini_game_scores) {
-        data.world_metadata.app_state.mini_game_scores = {
-          flappy_bird: {
-            best_score: 0,
-          },
-        };
-      } else if (!data.world_metadata.app_state.mini_game_scores.flappy_bird) {
-        data.world_metadata.app_state.mini_game_scores.flappy_bird = {
-          best_score: 0,
-        };
-      }
-
-      ensureMonsterBookState(data);
-
-      if (!data.entities) {
-        console.warn("Missing entities array, creating empty array");
-        data.entities = [];
-      }
-
-      // 버전 호환성 검증
-      if (data.world_metadata.version !== this.WORLD_DATA_SCHEMA_VERSION) {
-        console.log(
-          `World data version mismatch (saved: ${data.world_metadata.version}, current: ${this.WORLD_DATA_SCHEMA_VERSION}), attempting migration...`,
-        );
-        data = this._migrateData(data);
-      }
-
-      const originalEntityCount = data.entities.length;
-      data.entities = this._sanitizeSavedEntities(data.entities);
-
-      if (data.entities.length !== originalEntityCount) {
-        console.warn(
-          `[MainSceneWorld] Recovered saved data by dropping ${
-            originalEntityCount - data.entities.length
-          } corrupted entities`,
-        );
-      }
-
-      console.log(
-        `Data validation completed, ${data.entities.length} valid entities found`,
-      );
-      return data;
-    } finally {
-      console.groupEnd();
-    }
-  }
-
-  /**
-   * 이전 버전 데이터를 현재 버전으로 마이그레이션
-   */
-  private _migrateData(data: MainSceneWorldData): MainSceneWorldData {
-    console.groupCollapsed("🔄 Migrating data...");
-
-    try {
-      console.log(
-        `Migrating data from version ${data.world_metadata.version} to ${this.WORLD_DATA_SCHEMA_VERSION}`,
-      );
-
-      // TODO: 버전별 마이그레이션 로직
-      // 예: 1.0.0 이전 버전에서 특정 필드가 추가되었다면 여기서 처리
-
-      // 마이그레이션 완료 후 버전 업데이트
-      data.world_metadata.version = this.WORLD_DATA_SCHEMA_VERSION;
-      data.world_metadata.last_ecs_saved = this.currentTime;
-
-      console.log("Data migration completed");
-      return data;
-    } finally {
-      console.groupEnd();
-    }
-  }
-
-  /**
-   * 화면 크기 변경 시 호출되는 메서드
-   */
-  resize(width: number, height: number): void {
-    // 위치 경계 업데이트
-    this._positionBoundary = {
-      x: this._positionBoundaryInsets.left,
-      y: this._positionBoundaryInsets.top,
-      width:
-        width -
-        this._positionBoundaryInsets.left -
-        this._positionBoundaryInsets.right,
-      height:
-        height -
-        this._positionBoundaryInsets.top -
-        this._positionBoundaryInsets.bottom,
-    };
-
-    // 배경 크기 조정
-    if (this._background) {
-      this._background.resize(width, height);
-      this._applyCurrentSkyState();
-    }
-
-    this._resizeSceneDarknessOverlay(width, height);
-  }
-
-  public getTimeOfDay(): TimeOfDay {
-    return this._timeOfDay;
-  }
-
-  public setTimeOfDay(timeOfDay: TimeOfDay): void {
-    if (
-      this._timeOfDayMode === TimeOfDayMode.Manual &&
-      this._timeOfDay === timeOfDay
-    ) {
-      return;
-    }
-
-    this._timeOfDayMode = TimeOfDayMode.Manual;
-    this._setUseLocalTimeEnabled(false);
-    this._autoTimeOfDayState = null;
-    this._autoTimeOfDayMinuteKey = null;
-    this._timeOfDay = timeOfDay;
-    this._applyCurrentSkyState();
-
-    console.log(
-      `[MainSceneWorld] Time of day changed to ${getTimeOfDayLabel(timeOfDay, this._locale)} (manual)`,
-    );
-  }
-
-  public enableAutoTimeOfDay(): void {
-    this._setUseLocalTimeEnabled(true);
-
-    if (!this._sunTimes) {
-      void this._initializeSunTimes();
-      return;
-    }
-
-    this._timeOfDayMode = TimeOfDayMode.Auto;
-    this._autoTimeOfDayMinuteKey = null;
-    this._updateAutoTimeOfDayIfNeeded(true);
-  }
-
-  public getTimeOfDayMode(): TimeOfDayMode {
-    return this._timeOfDayMode;
-  }
-
-  public getTimeOfDayDebugState(): {
-    mode: TimeOfDayMode;
-    label: string;
-    progress: number | null;
-    hasLocationPermission: boolean;
-    locationSource: SunLocationSource | null;
-    sunriseAt: string | null;
-    sunsetAt: string | null;
-  } {
-    return {
-      mode: this._timeOfDayMode,
-      label: getTimeOfDayLabel(this._timeOfDay, this._locale),
-      progress: this._autoTimeOfDayState?.progress ?? null,
-      hasLocationPermission: this._hasLocationPermission,
-      locationSource: this._sunLocationSource,
-      sunriseAt: this._sunTimes?.sunriseAt ?? null,
-      sunsetAt: this._sunTimes?.sunsetAt ?? null,
-    };
-  }
-
-  private async _initializeSunTimes(): Promise<void> {
-    console.log("[MainSceneWorld] Initial sun times refresh requested", {
-      promptForPermission: true,
-      hasCachedSunTimes: !!this._sunTimes,
-    });
-    await this._refreshSunTimes(true);
-  }
-
-  private async _refreshSunTimes(promptForPermission: boolean): Promise<void> {
-    if (this._sunTimesRefreshPromise) {
-      await this._sunTimesRefreshPromise;
-      return;
-    }
-
-    this._sunTimesRefreshPromise = (async () => {
-      console.log("[MainSceneWorld] Refreshing sun times", {
-        promptForPermission,
-        currentDate: this._sunTimes?.date ?? null,
-        locationSource: this._sunLocationSource,
-        hasLocationPermission: this._hasLocationPermission,
-      });
-
-      const sunTimes = await getNativeSunTimes(
-        promptForPermission,
-        this._initDiagnostics.createSunTimesTraceContext({
-          source: "main_scene_world",
-          phase: "refresh_sun_times",
-        }),
-      );
-      if (!sunTimes) {
-        console.warn(
-          "[MainSceneWorld] Native sun times are unavailable, staying in manual mode",
-        );
-        return;
-      }
-
-      this._sunTimes = sunTimes;
-      this._hasLocationPermission = sunTimes.hasLocationPermission;
-      this._sunLocationSource = sunTimes.locationSource;
-      this._setCachedSunTimes(sunTimes);
-
-      if (!this._isLocalTimeEnabled()) {
-        console.log(
-          "[MainSceneWorld] Sun times loaded but local time is disabled, staying in manual mode",
-        );
-        return;
-      }
-
-      if (this._timeOfDayMode === TimeOfDayMode.Manual) {
-        this._timeOfDayMode = TimeOfDayMode.Auto;
-      }
-
-      this._autoTimeOfDayMinuteKey = null;
-      this._updateAutoTimeOfDayIfNeeded(true);
-
-      console.log("[MainSceneWorld] Sun times updated", {
-        promptForPermission,
-        date: sunTimes.date,
-        locationSource: sunTimes.locationSource,
-        hasLocationPermission: sunTimes.hasLocationPermission,
-        sunriseAt: sunTimes.sunriseAt,
-        sunsetAt: sunTimes.sunsetAt,
-      });
-    })();
-
-    try {
-      await this._sunTimesRefreshPromise;
-    } finally {
-      this._sunTimesRefreshPromise = null;
-    }
-  }
-
-  private _updateAutoTimeOfDayIfNeeded(force = false): void {
-    if (this._timeOfDayMode !== TimeOfDayMode.Auto || !this._sunTimes) {
-      return;
-    }
-
-    const now = new Date(this.currentTime);
-
-    if (
-      !this.isSimulationMode &&
-      hasSunTimesDateRolledOver(now, this._sunTimes)
-    ) {
-      console.log("[MainSceneWorld] Sun times date rolled over; refreshing", {
-        previousDate: this._sunTimes.date,
-        currentDate: now.toISOString().slice(0, 10),
-        locationSource: this._sunLocationSource,
-        hasLocationPermission: this._hasLocationPermission,
-      });
-      void this._refreshSunTimes(false);
-      return;
-    }
-
-    const currentMinuteKey = Math.floor(this.currentTime / 60000);
-    if (!force && this._autoTimeOfDayMinuteKey === currentMinuteKey) {
-      return;
-    }
-
-    this._autoTimeOfDayMinuteKey = currentMinuteKey;
-    const nextState = resolveAutoTimeOfDayState(now, this._sunTimes);
-    const hasChanged =
-      !this._autoTimeOfDayState ||
-      this._autoTimeOfDayState.timeOfDay !== nextState.timeOfDay ||
-      this._autoTimeOfDayState.progress !== nextState.progress;
-
-    this._autoTimeOfDayState = nextState;
-    this._timeOfDay = nextState.timeOfDay;
-
-    if (hasChanged) {
-      this._applyCurrentSkyState();
-    }
-  }
-
-  private _applyCurrentSkyState(): void {
-    if (!this._background) {
-      return;
-    }
-
-    const state =
-      this._timeOfDayMode === TimeOfDayMode.Auto && this._autoTimeOfDayState
-        ? this._autoTimeOfDayState
-        : getManualSkyVisualState(this._timeOfDay);
-
-    this._background.setTexture(
-      this._getGrassTextureForTimeOfDay(state.timeOfDay),
-    );
-    this._background.applySkyState(state);
-    this._applySceneDarknessOverlay(state);
-  }
-
-  private _getGrassTextureForTimeOfDay(timeOfDay: TimeOfDay): PIXI.Texture {
-    const assetKey = TIME_OF_DAY_TO_GRASS_ASSET[timeOfDay] ?? "grass";
-    const texture = PIXI.Assets.get(assetKey);
-
-    if (texture instanceof PIXI.Texture) {
-      return texture;
-    }
-
-    const fallbackTexture = PIXI.Assets.get("grass");
-
-    if (fallbackTexture instanceof PIXI.Texture) {
-      return fallbackTexture;
-    }
-
-    return PIXI.Texture.WHITE;
-  }
-
-  private _createSceneDarknessOverlay(): PIXI.Graphics {
-    const overlay = new PIXI.Graphics();
-    overlay.zIndex = MainSceneWorld.SCENE_DARKNESS_OVERLAY_Z_INDEX;
-    overlay.eventMode = "none";
-    overlay.visible = false;
-    return overlay;
-  }
-
-  private _resizeSceneDarknessOverlay(width: number, height: number): void {
-    if (!this._sceneDarknessOverlay) {
-      return;
-    }
-
-    this._sceneDarknessOverlay.clear();
-    this._sceneDarknessOverlay.beginFill(0x07101f, 1);
-    this._sceneDarknessOverlay.drawRect(0, 0, width, height);
-    this._sceneDarknessOverlay.endFill();
-  }
-
-  private _applySceneDarknessOverlay(state: {
-    timeOfDay: TimeOfDay;
-    progress: number;
-  }): void {
-    if (!this._sceneDarknessOverlay) {
-      return;
-    }
-
-    const alpha = this._getSceneDarknessAlpha(state);
-    this._sceneDarknessOverlay.alpha = alpha;
-    this._sceneDarknessOverlay.visible = alpha > 0.001;
-  }
-
-  private _getSceneDarknessAlpha(state: {
-    timeOfDay: TimeOfDay;
-    progress: number;
-  }): number {
-    const progress = Math.max(0, Math.min(1, state.progress));
-
-    switch (state.timeOfDay) {
-      case TimeOfDay.Sunrise:
-        return this._lerpDarknessAlpha(0.26, 0.02, progress);
-      case TimeOfDay.Sunset:
-        return this._lerpDarknessAlpha(0.02, 0.22, progress);
-      case TimeOfDay.Night:
-        return 0.28;
-      case TimeOfDay.Day:
-      default:
-        return 0;
-    }
-  }
-
-  private _getSceneSize(): { width: number; height: number } {
-    return {
-      width:
-        this._positionBoundary.width +
-        this._positionBoundaryInsets.left +
-        this._positionBoundaryInsets.right,
-      height:
-        this._positionBoundary.height +
-        this._positionBoundaryInsets.top +
-        this._positionBoundaryInsets.bottom,
-    };
-  }
-
-  private _lerpDarknessAlpha(
-    from: number,
-    to: number,
-    progress: number,
-  ): number {
-    return from + (to - from) * progress;
-  }
-
-  private _setRandomManualTimeOfDay(): void {
-    this._timeOfDayMode = TimeOfDayMode.Manual;
-    this._autoTimeOfDayState = null;
-    this._autoTimeOfDayMinuteKey = null;
-    this._timeOfDay = Math.random() < 0.5 ? TimeOfDay.Day : TimeOfDay.Night;
-    this._applyCurrentSkyState();
-
-    console.log(
-      `[MainSceneWorld] Local time disabled, randomly selected ${getTimeOfDayLabel(
-        this._timeOfDay,
-        this._locale,
-      )}`,
-    );
-  }
-
-  private _isLocalTimeEnabled(): boolean {
-    return (
-      this._persistentData?.world_metadata.app_state?.use_local_time ?? true
-    );
-  }
-
-  private _applyCachedAutoTimeOfDay(): boolean {
-    const cachedSunTimes = this._getCachedSunTimes();
-    if (!cachedSunTimes) {
-      return false;
-    }
-
-    this._sunTimes = cachedSunTimes;
-    this._hasLocationPermission = cachedSunTimes.hasLocationPermission;
-    this._sunLocationSource = cachedSunTimes.locationSource;
-    this._timeOfDayMode = TimeOfDayMode.Auto;
-    this._autoTimeOfDayMinuteKey = null;
-    this._autoTimeOfDayState = resolveAutoTimeOfDayState(
-      new Date(this.currentTime),
-      cachedSunTimes,
-    );
-    this._timeOfDay = this._autoTimeOfDayState.timeOfDay;
-    this._applyCurrentSkyState();
-    console.log("[MainSceneWorld] Applied cached sun times", {
-      date: cachedSunTimes.date,
-      locationSource: cachedSunTimes.locationSource,
-      hasLocationPermission: cachedSunTimes.hasLocationPermission,
-      sunriseAt: cachedSunTimes.sunriseAt,
-      sunsetAt: cachedSunTimes.sunsetAt,
-    });
-    return true;
-  }
-
-  private _getCachedSunTimes(): SunTimesPayload | null {
-    const cachedSunTimes =
-      this._persistentData?.world_metadata.app_state?.cached_sun_times;
-
-    return this._isValidSunTimesPayload(cachedSunTimes) ? cachedSunTimes : null;
-  }
-
-  private _setCachedSunTimes(sunTimes: SunTimesPayload): void {
-    if (!this._persistentData) {
-      return;
-    }
-
-    if (!this._persistentData.world_metadata.app_state) {
-      this._persistentData.world_metadata.app_state = {
-        last_active_time: 0,
-        is_first_load: false,
-        use_local_time: this._isLocalTimeEnabled(),
-        main_scene_ad: {
-          menu_use_count: 0,
-        },
-        mini_game_scores: {
-          flappy_bird: {
-            best_score: 0,
-          },
-        },
-        monster_book: createEmptyMonsterBookState(),
-      };
-    }
-
-    this._persistentData.world_metadata.app_state.cached_sun_times = sunTimes;
-  }
-
-  private _isValidSunTimesPayload(value: unknown): value is SunTimesPayload {
-    if (!value || typeof value !== "object") {
-      return false;
-    }
-
-    const candidate = value as Partial<SunTimesPayload>;
-    return (
-      typeof candidate.sunriseAt === "string" &&
-      typeof candidate.sunsetAt === "string" &&
-      typeof candidate.date === "string" &&
-      typeof candidate.timezone === "string" &&
-      typeof candidate.timezoneOffsetMinutes === "number" &&
-      typeof candidate.fetchedAt === "string" &&
-      (candidate.locationSource === "device" ||
-        candidate.locationSource === "fallback") &&
-      typeof candidate.hasLocationPermission === "boolean"
-    );
-  }
-
-  private _setUseLocalTimeEnabled(enabled: boolean): void {
-    if (!this._persistentData) {
-      return;
-    }
-
-    if (!this._persistentData.world_metadata.app_state) {
-      this._persistentData.world_metadata.app_state = {
-        last_active_time: 0,
-        is_first_load: false,
-        use_local_time: enabled,
-        main_scene_ad: {
-          menu_use_count: 0,
-        },
-        mini_game_scores: {
-          flappy_bird: {
-            best_score: 0,
-          },
-        },
-        monster_book: createEmptyMonsterBookState(),
-      };
-      return;
-    }
-
-    this._persistentData.world_metadata.app_state.use_local_time = enabled;
-  }
-
-  private _requestLocationPermissionOnCharacterCreation(): void {
-    if (!this._sunTimes || this._hasLocationPermission) {
-      return;
-    }
-
-    console.log(
-      "[MainSceneWorld] Requesting location permission after character creation",
-      {
-        date: this._sunTimes.date,
-        locationSource: this._sunLocationSource,
-        hasLocationPermission: this._hasLocationPermission,
-        sunriseAt: this._sunTimes.sunriseAt,
-        sunsetAt: this._sunTimes.sunsetAt,
-      },
-    );
-
-    void (async () => {
-      const granted = await requestNativeLocationPermission();
-      console.log(
-        "[MainSceneWorld] Character creation location permission result",
-        {
-          granted,
-          willRefreshSunTimes: granted,
-          date: this._sunTimes?.date ?? null,
-          locationSource: this._sunLocationSource,
-          hasLocationPermission: this._hasLocationPermission,
-        },
-      );
-
-      if (!granted) {
-        return;
-      }
-
-      await this._refreshSunTimes(false);
-    })();
-  }
-
-  /**
-   * Scene 인터페이스 구현: 컨트롤 버튼 클릭 처리
-   */
-  public handleControlButtonClick(buttonType: ControlButtonType): void {
-    console.log(`[MainSceneWorld] Control button clicked: ${buttonType}`);
-
-    // 청소 모드에서의 버튼 처리
-    if (this._isCleaningMode) {
-      if (buttonType === ControlButtonType.Cancel) {
-        this._exitCleaningMode({ restoreFocusedTargetProgress: true });
-        return;
-      }
-      if (buttonType === ControlButtonType.Clean) {
-        // Clean 버튼은 슬라이더로 처리됨
-        return;
-      }
-    }
-
-    if (buttonType === ControlButtonType.Book) {
-      if (!this._startMonsterBook) {
-        console.warn("[MainSceneWorld] Monster book start callback is not set");
-        return;
-      }
-
-      void this._startMonsterBook();
-      return;
-    }
-
-    // Settings 버튼 클릭 시 메뉴 활성화 (첫 번째 메뉴 항목에 포커스)
-    if (buttonType === ControlButtonType.Settings && this._gameMenu) {
-      const navigationAction: NavigationActionPayload = {
-        type: NavigationAction.SETTING,
-        index: ++this._navigationActionIndex,
-      };
-      this._gameMenu.processNavigationAction(navigationAction);
-      return;
-    }
-
-    const navigationAction = this._createNavigationActionFromButton(buttonType);
-    if (navigationAction && this._gameMenu) {
-      this._gameMenu.processNavigationAction(navigationAction);
-    }
-  }
-
-  /**
-   * Scene 인터페이스 구현: 슬라이더 값 변경 처리
-   */
-  public handleSliderValueChange(value: number): void {
-    const nextSliderValue = Math.max(0, Math.min(1, value));
-    const previousSliderValue = this._currentSliderValue;
-
-    // 슬라이더 값 저장
-    this._currentSliderValue = nextSliderValue;
-
-    // 청소 모드에서는 슬라이더 값을 청소 시스템에 전달
-    if (this._isCleaningMode) {
-      this._pendingCleaningSliderDelta += Math.abs(
-        nextSliderValue - previousSliderValue,
-      );
-    }
-  }
-
-  /**
-   * Scene 인터페이스 구현: 슬라이더 종료 처리
-   */
-  public handleSliderEnd(): void {
-    // 청소 모드에서 슬라이더가 종료되었을 때 청소 완료 상태 확인
-    if (this._isCleaningMode) {
-      this._checkAndExitCleaningModeIfComplete();
-    }
-  }
-
-  /**
-   * 컨트롤 버튼을 네비게이션 액션으로 변환
-   */
-  private _createNavigationActionFromButton(
-    buttonType: ControlButtonType,
-  ): NavigationActionPayload | null {
-    switch (buttonType) {
-      case ControlButtonType.Next:
-        return {
-          type: NavigationAction.NEXT,
-          index: ++this._navigationActionIndex,
-        };
-      case ControlButtonType.Confirm:
-        return {
-          type: NavigationAction.SELECT,
-          index: ++this._navigationActionIndex,
-        };
-      case ControlButtonType.Cancel:
-        return {
-          type: NavigationAction.CANCEL,
-          index: ++this._navigationActionIndex,
-        };
-      default:
-        return null;
-    }
-  }
-
-  /**
-   * 메뉴 포커스 상태에 따라 컨트롤 버튼을 업데이트
-   */
-  private _updateControlButtonsForMenuState(menuHasFocus: boolean): void {
-    if (!this._changeControlButtons) return;
-
-    if (menuHasFocus) {
-      // 메뉴에 포커스가 있을 때: Next, Confirm, Cancel
-      this._changeControlButtons([
-        { type: ControlButtonType.Cancel },
-        { type: ControlButtonType.Confirm },
-        { type: ControlButtonType.Next },
-      ]);
-    } else {
-      // 메뉴에 포커스가 없을 때: Book, Settings, Next
-      this._changeControlButtons([
-        { type: ControlButtonType.Book },
-        { type: ControlButtonType.Settings },
-        { type: ControlButtonType.Next },
-      ]);
-    }
-  }
-
-  /**
-   * 음식을 던지는 메서드
-   */
-  private _syncFeedMenuPreview(): void {
-    if (!this._gameMenu) {
-      return;
-    }
-
-    this._gameMenu.setFeedPreviewTextureName(this._nextFeedMenuFood.textureName);
-  }
-
-  private _consumeNextFeedMenuFood(): FeedMenuFoodOption {
-    const selectedFeedMenuFood = this._nextFeedMenuFood;
-    this._nextFeedMenuFood = getRandomFeedMenuFoodOption();
-    this._syncFeedMenuPreview();
-
-    return selectedFeedMenuFood;
-  }
-
-  private _throwFood(): number | null {
-    if (!this.canSpawnFood()) {
-      this.showObjectLimitAlert();
-      return null;
-    }
-
-    const boundary = this._positionBoundary;
-
-    // 초기 위치 - 왼쪽 또는 오른쪽 구석에서 시작
-    const isFromLeft = Math.random() < 0.5; // 50% 확률로 왼쪽/오른쪽 선택
-    const initialPosition = {
-      x: isFromLeft ? boundary.x - 100 : boundary.x + boundary.width + 100, // 화면 밖 구석
-      y: boundary.y + boundary.height + 100, // 화면 완전 아래쪽
-    };
-
-    // 최종 위치 - 여유분을 두고 설정 (위아래 40px, 좌우 20px 여유)
-    const finalPosition = {
-      x: boundary.x + 20 + Math.random() * (boundary.width - 40), // 좌우 20px 여유
-      y: boundary.y + 40 + Math.random() * (boundary.height - 80), // 위아래 40px 여유
-    };
-    const nextFeedMenuFood = this._consumeNextFeedMenuFood();
-
-    // 음식 엔티티 생성 (다음 미리보기와 동일한 음식 사용)
-    const foodEid = createThrowingFoodEntity(this, {
-      initialPosition,
-      finalPosition,
-      textureKey: nextFeedMenuFood.textureKey,
-    });
-    this.triggerMainSceneSfx("food-throw");
-
-    console.log(
-      `[MainSceneWorld] Food thrown from ${
-        isFromLeft ? "left" : "right"
-      } corner (${initialPosition.x}, ${initialPosition.y}) to (${
-        finalPosition.x
-      }, ${finalPosition.y})`,
-    );
-    console.log(
-      `[MainSceneWorld] Position boundary: x=${boundary.x}, y=${boundary.y}, w=${boundary.width}, h=${boundary.height}`,
-    );
-
-    return foodEid;
-  }
-
-  /**
-   * 앱 상태 관리자의 현재 상태 반환 (디버그용)
-   */
-  public getAppState() {
-    return {
-      isActive:
-        typeof document !== "undefined" ? !document.hidden : !this._isPaused,
-      isPaused: this._isPaused,
-      isSimulationMode: this.isSimulationMode,
-      currentTime: this.currentTime,
-    };
-  }
-
-  public getMainSceneAdDebugState(): {
-    menuUseCount: number;
-    threshold: number;
-    cooldownMs: number;
-    deepNight: boolean;
-    pending: {
-      menu: MainSceneAdMenu;
-      queuedAt: number;
-      cooldownMs: number;
-      threshold: number;
-      deepNight: boolean;
-      onlineRetry: boolean;
-    } | null;
-  } {
-    const adState = this._getMainSceneAdState();
-    const currentConfig = this._getMainSceneAdConfig();
-    const pending = adState?.pending;
-
-    return {
-      menuUseCount: adState?.menu_use_count ?? 0,
-      threshold: pending?.threshold ?? currentConfig.threshold,
-      cooldownMs: pending?.cooldown_ms ?? currentConfig.cooldownMs,
-      deepNight: pending?.deep_night ?? currentConfig.deepNight,
-      pending: pending
-        ? {
-            menu: pending.menu,
-            queuedAt: pending.queued_at,
-            cooldownMs: pending.cooldown_ms,
-            threshold: pending.threshold,
-            deepNight: pending.deep_night,
-            onlineRetry: pending.online_retry === true,
-          }
-        : null,
-    };
-  }
-
-  /**
-   * 병원 메뉴 선택 처리 - sick 상태일 때만 회복 주사기 연출 시작
-   */
-  private _handleHospitalSelection(): boolean {
-    const characterEid = this._findMainCharacterEntity();
-
-    if (characterEid === -1) {
-      console.warn(
-        "[MainSceneWorld] No character entity found for hospital recovery",
-      );
-      return false;
-    }
-
-    if (
-      hasComponent(this, EffectAnimationComp, characterEid) &&
-      EffectAnimationComp.isActive[characterEid]
-    ) {
-      console.log(
-        `[MainSceneWorld] Recovery animation already active for character ${characterEid}`,
-      );
-      return false;
-    }
-
-    if (
-      ObjectComp.state[characterEid] === CharacterState.EGG &&
-      hasComponent(this, EggHatchComp, characterEid)
-    ) {
-      EggHatchComp.syringeCount[characterEid] = Math.min(
-        10,
-        EggHatchComp.syringeCount[characterEid] + 1,
-      );
-    }
-
-    const isSick = this._isCharacterSick(characterEid);
-    const isUnnecessaryMutationInjection =
-      !isSick &&
-      ObjectComp.state[characterEid] !== CharacterState.EGG &&
-      ObjectComp.state[characterEid] !== CharacterState.DEAD;
-
-    if (isSick) {
-      this._pendingRecoveryCureEids.add(characterEid);
-    } else if (isUnnecessaryMutationInjection) {
-      recordUnnecessaryMutationInjection(this, characterEid, this.currentTime);
-    } else {
-      console.log(
-        `[MainSceneWorld] Character ${characterEid} is not sick, starting hospital animation only`,
-      );
-    }
-
-    startRecoveryAnimation(this, characterEid, this._stage, this.currentTime);
-
-    console.log(
-      `[MainSceneWorld] Started hospital recovery animation for character ${characterEid} (pendingCure=${isSick})`,
-    );
-    return true;
-  }
-
-  private _handleDrugSelection(): void {
-    if (this._handleHospitalSelection()) {
-      this._recordMainSceneMenuUse("hospital");
-    }
-  }
-
-  private _isCharacterSick(characterEid: number): boolean {
-    if (ObjectComp.state[characterEid] === CharacterState.SICK) {
-      return true;
-    }
-
-    const statuses = CharacterStatusComp.statuses[characterEid];
-
-    if (!statuses) {
-      return false;
-    }
-
-    for (let i = 0; i < statuses.length; i++) {
-      if (statuses[i] === CharacterStatus.SICK) {
-        return true;
-      }
-    }
-
-    return false;
-  }
-
-  public applyPendingRecoverySyringeImpact(characterEid: number): void {
-    if (!this._pendingRecoveryCureEids.has(characterEid)) {
-      return;
-    }
-
-    this._pendingRecoveryCureEids.delete(characterEid);
-    const shouldPreserveSleep =
-      ObjectComp.state[characterEid] === CharacterState.SLEEPING;
-
-    const statuses = CharacterStatusComp.statuses[characterEid];
-    let removed = false;
-    if (statuses) {
-      for (let i = 0; i < statuses.length; i++) {
-        if (statuses[i] === CharacterStatus.SICK) {
-          statuses[i] = ECS_NULL_VALUE;
-          removed = true;
-          break;
-        }
-      }
-    }
-
-    if (hasComponent(this, DiseaseSystemComp, characterEid)) {
-      DiseaseSystemComp.sickStartTime[characterEid] = 0;
-    }
-
-    if (shouldPreserveSleep) {
-      clearCharacterDestinationAndStop(this, characterEid);
-    } else {
-      restoreCharacterFreeRoamingState(this, characterEid, {
-        now: this.currentTime,
-      });
-    }
-
-    if (removed) {
-      applyHappyStatusForFullStaminaCharacterIfEligible(this, characterEid);
-    }
-
-    console.log(
-      `[MainSceneWorld] Applied hospital recovery impact for character ${characterEid} (removedStatus=${removed}, preservedSleep=${shouldPreserveSleep})`,
-    );
-  }
-
-  /**
-   * 메인 캐릭터 엔티티 찾기
-   */
-  private _findMainCharacterEntity(): number {
-    const characterEntities = liveCharacterEntitiesQuery(this);
-
-    for (let i = 0; i < characterEntities.length; i++) {
-      const eid = characterEntities[i];
-
-      if (ObjectComp.type[eid] === ObjectType.CHARACTER) {
-        return eid;
-      }
-    }
-
-    return -1; // 캐릭터를 찾지 못함
-  }
-
-  public getFlappyBirdCharacterKey(): CharacterKey | null {
-    const characterEid = this._findMainCharacterEntity();
-    if (characterEid === -1) {
-      return null;
-    }
-
-    if (ObjectComp.state[characterEid] === CharacterState.EGG) {
-      return null;
-    }
-
-    const spritesheetName = getCharacterSpritesheetName(
-      CharacterStatusComp.characterKey[characterEid],
-    );
-
-    if (!spritesheetName || !isCharacterKeyValue(spritesheetName)) {
-      return null;
-    }
-
-    return spritesheetName;
-  }
-
-  public getFlappyBirdCharacterState(): CharacterState | null {
-    const characterEid = this._findMainCharacterEntity();
-    if (characterEid === -1) {
-      return null;
-    }
-
-    return ObjectComp.state[characterEid] ?? null;
-  }
-
-  public getMainCharacterStaminaSnapshot(): {
-    stamina: number;
-    maxStamina: number;
-    unhappyThreshold: number;
-    boostedThreshold: number;
-  } | null {
-    const characterEid = this._findMainCharacterEntity();
-    if (characterEid === -1) {
-      return null;
-    }
-
-    return {
-      stamina: CharacterStatusComp.stamina[characterEid],
-      maxStamina: GAME_CONSTANTS.MAX_STAMINA,
-      unhappyThreshold: GAME_CONSTANTS.UNHAPPY_STAMINA_THRESHOLD,
-      boostedThreshold: GAME_CONSTANTS.BOOSTED_STAMINA_THRESHOLD,
-    };
-  }
-
-  private _getEvolutionGaugeState(
-    characterEid: number,
-    isEgg: boolean,
-    characterKey: number,
-  ): EvolutionGaugeState {
-    const characterState = ObjectComp.state[characterEid] as CharacterState;
-
-    if (
-      isEgg ||
-      characterState === CharacterState.DEAD ||
-      !canEvolveFromConfig(characterKey)
-    ) {
-      return "unavailable";
-    }
-
-    if (
-      characterState === CharacterState.SICK ||
-      CharacterStatusComp.statuses[characterEid].includes(CharacterStatus.SICK)
-    ) {
-      return "paused_sick";
-    }
-
-    if (
-      CharacterStatusComp.stamina[characterEid] <
-      EVOLUTION_GAUGE_CONFIG.staminaThreshold
-    ) {
-      return "paused_low_stamina";
-    }
-
-    return "charging";
-  }
-
-  public getMainCharacterInfoSnapshot(): MainCharacterInfoSnapshot | null {
-    const characterEid = this._findMainCharacterEntity();
-    if (characterEid === -1) {
-      return null;
-    }
-
-    const isEgg = ObjectComp.state[characterEid] === CharacterState.EGG;
-    const characterKey = CharacterStatusComp.characterKey[characterEid];
-    const evolutionGaugeState = this._getEvolutionGaugeState(
-      characterEid,
-      isEgg,
-      characterKey,
-    );
-    const eggHatchRemainingMs =
-      isEgg && hasComponent(this, EggHatchComp, characterEid)
-        ? getRemainingEggHatchTime({
-            currentTime: this.currentTime,
-            hatchTime: EggHatchComp.hatchTime[characterEid],
-            hatchDurationMs: EggHatchComp.hatchDurationMs[characterEid],
-          })
-        : null;
-
-    return {
-      monsterName: this._persistentData?.world_metadata.monster_name?.trim() ?? "",
-      isEgg,
-      geneLine: isEgg ? null : getEvolutionSpec(characterKey)?.geneLine ?? null,
-      geneOutcomes: isEgg
-        ? getHatchGeneOutcomes(this, characterEid)
-        : getEvolutionGeneOutcomes(this, characterEid),
-      eggHatchRemainingMs,
-      evolutionPhase: CharacterStatusComp.evolutionPhase[characterEid],
-      stamina: CharacterStatusComp.stamina[characterEid],
-      maxStamina: GAME_CONSTANTS.MAX_STAMINA,
-      unhappyThreshold: GAME_CONSTANTS.UNHAPPY_STAMINA_THRESHOLD,
-      boostedThreshold: GAME_CONSTANTS.BOOSTED_STAMINA_THRESHOLD,
-      evolutionGauge: CharacterStatusComp.evolutionGage[characterEid],
-      maxEvolutionGauge: EVOLUTION_GAUGE_CONFIG.maxGauge,
-      evolutionGaugeState,
-    };
-  }
-
-  /**
-   * 청소 모드 상태를 업데이트하는 메서드들
-   */
-  public setFocusedTargetEid(eid: number): void {
-    if (this._focusedTargetEid === eid) {
-      return;
-    }
-
-    this._focusedTargetEid = eid;
-
-    if (this._isCleaningMode) {
-      this._updateControlButtonsForCleaningMode(true);
-    }
-  }
-
-  public setBroomProgress(progress: number): void {
-    this._broomProgress = Math.max(0, Math.min(1, progress));
-  }
-
-  public consumePendingCleaningSliderDelta(): number {
-    const pendingDelta = this._pendingCleaningSliderDelta;
-    this._pendingCleaningSliderDelta = 0;
-    return pendingDelta;
-  }
-
-  /**
-   * 청소 모드 진입 (외부에서 호출 가능)
-   */
-  enterCleaningMode(): void {
-    this._enterCleaningMode();
-  }
-
-  /**
-   * 청소 모드 종료 (외부에서 호출 가능)
-   */
-  exitCleaningMode(): void {
-    this._exitCleaningMode();
-  }
-
-  /**
-   * 청소 모드 진입
-   */
-  private _enterCleaningMode(): boolean {
-    console.log("[MainSceneWorld] Entering cleaning mode");
-
-    // 이미 청소 모드라면 무시
-    if (this._isCleaningMode) {
-      return false;
-    }
-
-    const initialCleaningSliderValue = 0.5;
-
-    this._isCleaningMode = true;
-    this._cleaningSliderSessionKey += 1;
-    this._focusedTargetEid = prepareCleaningModeTargets(this);
-    this._currentSliderValue = initialCleaningSliderValue;
-    this._broomProgress = initialCleaningSliderValue;
-    this._pendingCleaningSliderDelta = 0;
-
-    // 컨트롤 버튼을 청소 모드 세트로 변경
-    this._updateControlButtonsForCleaningMode(true);
-    return true;
-  }
-
-  /**
-   * 청소 완료 상태를 확인하고 모든 작업이 완료되면 청소 모드 종료
-   */
-  private _checkAndExitCleaningModeIfComplete(): void {
-    // 청소 시스템에서 사용하는 것과 동일한 쿼리 생성
-    const cleanableEntitiesQuery = defineQuery([
-      ObjectComp,
-      PositionComp,
-      CleanableComp,
-    ]);
-
-    const cleanableEntities = cleanableEntitiesQuery(this);
-    let hasIncompleteEntities = false;
-
-    for (const eid of cleanableEntities) {
-      if (CleanableComp.cleaningProgress[eid] < 1.0) {
-        hasIncompleteEntities = true;
-        break;
-      }
-    }
-
-    // 모든 청소 가능한 엔티티가 완료되었으면 청소 모드 종료
-    if (!hasIncompleteEntities) {
-      console.log(
-        "[MainSceneWorld] All cleaning completed, exiting cleaning mode",
-      );
-      this._exitCleaningMode({ completed: true });
-    }
-  }
-
-  /**
-   * 청소 모드 종료
-   */
-  private _exitCleaningMode(
-    options: {
-      restoreFocusedTargetProgress?: boolean;
-      completed?: boolean;
-    } = {},
-  ): void {
-    console.log("[MainSceneWorld] Exiting cleaning mode");
-
-    if (!this._isCleaningMode) {
-      return;
-    }
-
-    if (
-      options.restoreFocusedTargetProgress &&
-      this._focusedTargetEid !== -1 &&
-      hasComponent(this, CleanableComp, this._focusedTargetEid)
-    ) {
-      CleanableComp.cleaningProgress[this._focusedTargetEid] = 0;
-    }
-
-    this._isCleaningMode = false;
-    this._focusedTargetEid = -1;
-    this._broomProgress = this._currentSliderValue;
-    this._pendingCleaningSliderDelta = 0;
-    clearCleaningTargets(this);
-
-    // 현재 메뉴의 포커스 상태에 따라 컨트롤 버튼 복원
-    const menuHasFocus = this._gameMenu?.hasFocus() ?? false;
-    this._updateControlButtonsForMenuState(menuHasFocus);
-
-    if (options.completed) {
-      this._schedulePendingMainSceneAdForMenu(
-        "clean",
-        MAIN_SCENE_AD_POST_ACTION_DELAY_MS,
-      );
-    }
-  }
-
-  /**
-   * 청소 모드 상태에 따라 컨트롤 버튼 업데이트
-   */
-  private _updateControlButtonsForCleaningMode(isCleaningMode: boolean): void {
-    if (!this._changeControlButtons) return;
-
-    if (isCleaningMode) {
-      const hasCleaningTarget = this._focusedTargetEid !== -1;
-
-      // 청소 모드: Cancel, Clean, Clean
-      this._changeControlButtons([
-        { type: ControlButtonType.Cancel },
-        {
-          type: ControlButtonType.Clean,
-          initialSliderValue: this._currentSliderValue,
-          sliderSessionKey: this._cleaningSliderSessionKey,
-          hasCleaningTarget,
-        },
-        {
-          type: ControlButtonType.Clean,
-          initialSliderValue: this._currentSliderValue,
-          sliderSessionKey: this._cleaningSliderSessionKey,
-          hasCleaningTarget,
-        },
-      ]);
-    } else {
-      // 기본 모드로 복원 (메뉴 포커스 상태에 따라)
-      this._updateControlButtonsForMenuState(false);
-    }
-  }
-
-  /**
-   * 시뮬레이션 전용 시스템 파이프라인 생성
-   * 렌더링 관련 시스템들을 제외한 로직 시스템들만 포함
-   * @param getCurrentTime 현재 시뮬레이션 시간을 반환하는 함수
-   */
-  private _createSimulationPipeline(
-    getCurrentTime: () => number,
-    options: { skipFoodInteraction?: boolean } = {},
-  ) {
-    return pipe(
-      // 시간 기반 시스템들 (상태 관리 시스템 토글 적용)
-      (params: any) =>
-        this._statusSystemsEnabled
-          ? freshnessSystem({ ...params, currentTime: getCurrentTime() })
-          : params,
-      (params: any) =>
-        this._statusSystemsEnabled
-          ? digestiveSystem({ ...params, currentTime: getCurrentTime() })
-          : params,
-      (params: any) =>
-        this._statusSystemsEnabled
-          ? sleepScheduleSystem({
-              ...params,
-              currentTime: getCurrentTime(),
-            })
-          : params,
-      (params: any) =>
-        this._statusSystemsEnabled
-          ? diseaseSystem({ ...params, currentTime: getCurrentTime() })
-          : params,
-      (params: any) =>
-        eggHatchSystem({ ...params, currentTime: getCurrentTime() }),
-      (params: any) =>
-        this._statusSystemsEnabled
-          ? mutationRiskSystem({ ...params, currentTime: getCurrentTime() })
-          : params,
-      (params: any) =>
-        this._statusSystemsEnabled ? characterManagerSystem(params) : params,
-      (params: any) =>
-        this._statusSystemsEnabled
-          ? characterStatusSystem({ ...params, currentTime: getCurrentTime() })
-          : params,
-      // 범용 effect 애니메이션 시스템 (시뮬레이션에서는 상태만 업데이트, stage는 null)
-      (params: any) =>
-        effectAnimationSystem({
-          ...params,
-          currentTime: getCurrentTime(),
-          stage: null, // 시뮬레이션에서는 렌더링 스킵
-        }),
-      // 렌더링 관련 시스템들은 시뮬레이션에서 제외
-      // - cleaningSystem (스킵)
-      // 이동 및 게임플레이 시스템들
-      randomMovementSystem,
-      commonMovementSystem,
-      // 착지 상태를 먼저 반영해 같은 프레임에 음식 탐색이 가능하도록 한다.
-      throwAnimationSystem,
-      (params: any) =>
-        options.skipFoodInteraction
-          ? params
-          : foodEatingSystem({ ...params, currentTime: getCurrentTime() }),
-      // 애니메이션 상태 시스템들 (시뮬레이션에서도 실행)
-      animationStateSystem,
-    );
-  }
-
-  private _isNativeWorldDataUpdateSuccessful(
-    result: MainSceneNativeWorldDataUpdateForReentryResult | null | undefined,
-  ): boolean {
-    const status = result?.status;
-    return (
-      status === "native_authoritative_completion_completed" ||
-      status === "native_world_data_update_completed" ||
-      status === "completed" ||
-      status === "ok"
-    );
-  }
-
-  private async _processNativeWorldDataUpdateForReentry(
-    source: Extract<MainSceneReentrySimulationSource, "init" | "app_resume">,
-    preReentrySnapshot: MainSceneEntryStatusSnapshot | null,
-    options: {
-      clearFoodInteractionSuspendFlag: () => void;
-    },
-  ): Promise<void> {
-    if (!this._onNativeWorldDataUpdateForReentry) {
-      throw new Error("missing_native_world_data_update_for_reentry");
-    }
-
-    this._isRunningReentrySimulation = true;
-
-    try {
-      const updateResult = await this._onNativeWorldDataUpdateForReentry(source);
-
-      if (!this._isNativeWorldDataUpdateSuccessful(updateResult)) {
-        throw new Error(
-          typeof updateResult?.error === "string"
-            ? updateResult.error
-            : `native_world_data_update_failed:${updateResult?.status ?? "unknown"}`,
-        );
-      }
-
-      const reloadedData =
-        await StorageManager.getData<MainSceneWorldData>(WORLD_DATA_STORAGE_KEY);
-      const validatedData = reloadedData
-        ? this._validateAndMigrateData(reloadedData)
-        : null;
-
-      if (!this._hasPlayableSavedData(validatedData)) {
-        throw new Error("native_world_data_update_missing_reloaded_world_data");
-      }
-
-      this.applyPersistedWorldDataForReentry(validatedData);
-      options.clearFoodInteractionSuspendFlag();
-      if (this._persistentData?.world_metadata.app_state) {
-        delete this._persistentData.world_metadata.app_state
-          .suspend_food_interaction_until_reentry;
-      }
-      applyReentryHappyStatusForFullStaminaCharacters(this);
-      this._applyEntryStatusSuppression(source, preReentrySnapshot);
-
-      if (this._initDiagnostics.isInitTimingActive) {
-        await this._initDiagnostics.measurePhase("reentry_persist_state", async () => {
-          await this._saveCurrentState();
-        });
-      } else {
-        await this._saveCurrentState();
-      }
-
-      console.log("[MainSceneWorld] Native world data update completed for reentry", {
-        source,
-        status: updateResult.status,
-        worldDataChanged: updateResult.worldDataChanged ?? null,
-        hatched: updateResult.hatched ?? null,
-        previousCharacterState: updateResult.previousCharacterState ?? null,
-        nextCharacterState: updateResult.nextCharacterState ?? null,
-        selectedCharacterKey: updateResult.selectedCharacterKey ?? null,
-      });
-    } finally {
-      this._finishReentryRuntimeState();
-    }
-  }
-
-  public applyPersistedWorldDataForReentry(data: MainSceneWorldData): void {
-    const objectEntities = liveObjectQuery(this);
-
-    for (const eid of objectEntities) {
-      removeEntity(this, eid);
-    }
-
-    runCatchingFlushRemovedEntities(this);
-    this._persistentData = data;
-    this._loadEcsEntitiesFromStorage();
-    this._updateAutoTimeOfDayIfNeeded(true);
-  }
-
-  /**
-   * 재진입 시뮬레이션 처리
-   * 앱을 다시 켤 때 경과된 시간을 계산하고 해당 시간만큼 시뮬레이션 실행
-   */
-  private async _processReentrySimulation(
-    source: MainSceneReentrySimulationSource = "manual",
-  ): Promise<void> {
-    let result: MainSceneReentrySimulationStateChange["result"] = "completed";
-    let capturedError: unknown;
-    const preReentrySnapshot = this._captureMainCharacterEntryStatusSnapshot();
-
-    this._onReentrySimulationStateChange?.({
-      source,
-      phase: "started",
-    });
-
-    try {
-      if (!this._persistentData?.world_metadata.app_state) {
-        // 첫 실행이거나 앱 상태가 없으면 그냥 리턴
-        console.log(
-          "[MainSceneWorld] No app state found, skipping reentry simulation",
-        );
-        result = "skipped";
-        return;
-      }
-
-      const appState = this._persistentData.world_metadata.app_state;
-      const shouldSuspendFoodInteraction =
-        appState.suspend_food_interaction_until_reentry === true;
-      const clearFoodInteractionSuspendFlag = (): void => {
-        if (shouldSuspendFoodInteraction) {
-          delete appState.suspend_food_interaction_until_reentry;
-        }
-      };
-      const lastActiveTime = appState.last_active_time;
-      const lastActiveAnchor = isTrustedTimeSnapshot(
-        appState.last_active_time_anchor,
-      )
-        ? appState.last_active_time_anchor
-        : null;
-
-      await this._trustedClock.refresh({ forceRefresh: false });
-
-      if (!lastActiveTime || lastActiveTime <= 0) {
-        console.log(
-          "[MainSceneWorld] Reentry simulation skipped because last active time is missing",
-        );
-        result = "skipped";
-        clearFoodInteractionSuspendFlag();
-        if (this._initDiagnostics.isInitTimingActive) {
-          await this._initDiagnostics.measurePhase("reentry_persist_state", async () => {
-            await this._saveCurrentState();
-          });
-        } else {
-          await this._saveCurrentState();
-        }
-        return;
-      }
-
-      const currentTime = this.currentTime;
-      const elapsedResult = lastActiveAnchor
-        ? this._trustedClock.elapsedSince(lastActiveAnchor)
-        : null;
-      const elapsedTime = elapsedResult
-        ? elapsedResult.elapsedMs
-        : Math.max(0, currentTime - lastActiveTime);
-
-      if (elapsedResult && !elapsedResult.trusted) {
-        console.warn("[MainSceneWorld] Reentry elapsed time is not trusted", {
-          reason: elapsedResult.reason,
-          elapsedMs: elapsedResult.elapsedMs,
-        });
-      }
-
-      if (elapsedTime <= 0) {
-        console.log(
-          "[MainSceneWorld] Reentry simulation skipped because elapsed time is not positive",
-        );
-        result = "skipped";
-        clearFoodInteractionSuspendFlag();
-        await this._saveCurrentState();
-        return;
-      }
-
-      console.log(
-        `[MainSceneWorld] Starting reentry simulation for ${this._formatPauseDuration(
-          elapsedTime,
-        )} elapsed time`,
-      );
-
-      if (source === "init" || source === "app_resume") {
-        try {
-          await this._processNativeWorldDataUpdateForReentry(
-            source,
-            preReentrySnapshot,
-            {
-              clearFoodInteractionSuspendFlag,
-            },
-          );
-        } catch (error) {
-          result = "failed";
-          capturedError = error;
-          console.error(
-            "[MainSceneWorld] Native reentry world data update failed:",
-            error,
-          );
-        }
-        return;
-      }
-
-      // 일회성 ReentrySimulator 인스턴스 생성
-      const reentrySimulator = new ReentrySimulator();
-
-      if (this._hasEggCharacterForReentrySimulation()) {
-        await Promise.all(
-          EGG_HATCH_STARTING_SPRITESHEET_KEYS.map(
-            async (characterSpritesheetKey) => {
-              const spritesheetName =
-                SPRITESHEET_KEY_TO_NAME[characterSpritesheetKey];
-              await loadSpritesheet({
-                jsonPath: `/assets/game/sprites/monsters/${spritesheetName}.json`,
-                alias: spritesheetName,
-              });
-              await ensureCharacterOpaqueBoundsComputed(characterSpritesheetKey);
-            },
-          ),
-        );
-      }
-
-      // 시뮬레이션 전용 파이프라인을 생성하여 시뮬레이션 실행
-      const simulationPipeline = this._createSimulationPipeline(
-        () => reentrySimulator.getCurrentSimulationTime(),
-        {
-          skipFoodInteraction: shouldSuspendFoodInteraction,
-        },
-      );
-
-      try {
-        this._isRunningReentrySimulation = true;
-        this._simulationTime = lastActiveTime;
-
-        await reentrySimulator.simulate(
-          lastActiveTime,
-          (params: any) => {
-            this._simulationTime = reentrySimulator.getCurrentSimulationTime();
-            this._updateAutoTimeOfDayIfNeeded();
-            return simulationPipeline(params);
-          },
-          this,
-          currentTime,
-        );
-
-        this._simulationTime = currentTime;
-        clearFoodInteractionSuspendFlag();
-        applyReentryHappyStatusForFullStaminaCharacters(this);
-        this._applyEntryStatusSuppression(source, preReentrySnapshot);
-        if (this._initDiagnostics.isInitTimingActive) {
-          await this._initDiagnostics.measurePhase("reentry_persist_state", async () => {
-            await this._saveCurrentState();
-          });
-        } else {
-          await this._saveCurrentState();
-        }
-
-        console.log("[MainSceneWorld] Reentry simulation completed successfully");
-      } catch (error) {
-        result = "failed";
-        capturedError = error;
-        console.error("[MainSceneWorld] Reentry simulation failed:", error);
-      } finally {
-        clearFoodInteractionSuspendFlag();
-        this._finishReentryRuntimeState();
-      }
-    } catch (error) {
-      result = "failed";
-      capturedError = error;
-      throw error;
-    } finally {
-      this._onReentrySimulationStateChange?.({
-        source,
-        phase: "finished",
-        result,
-        error: capturedError,
-      });
-    }
-  }
-
-  private _finishReentryRuntimeState(): void {
-    this._isRunningReentrySimulation = false;
-    this._simulationTime = null;
-  }
-
-  private _hasEggCharacterForReentrySimulation(): boolean {
-    return this._persistentData?.entities?.some((entity) => {
-      return (
-        entity.components.object?.type === ObjectType.CHARACTER &&
-        entity.components.object?.state === CharacterState.EGG
-      );
-    }) ?? false;
-  }
-
-  /**
-   * 현재 시뮬레이션 모드인지 확인
-   * 재진입 시뮬레이션이 실행 중이 아닌 상태에서는 항상 false
-   */
-  public get isSimulationMode(): boolean {
-    return this._simulationTime !== null;
-  }
-
-  /**
-   * 현재 시뮬레이션 시간 또는 실시간 반환
-   * 재진입 시뮬레이션이 실행 중이 아닌 상태에서는 항상 실시간
-   */
-  public get currentTime(): number {
-    return this._simulationTime ?? this._trustedClock.now();
-  }
-
-  private _shouldPreserveWidgetEntryStatuses(
-    source: MainSceneReentrySimulationSource,
-  ): boolean {
-    return source === "init" || source === "app_resume";
-  }
-
-  private _captureMainCharacterEntryStatusSnapshot():
-    | MainSceneEntryStatusSnapshot
-    | null {
-    let characterEid = -1;
-    try {
-      characterEid = this._findMainCharacterEntity();
-    } catch {
-      return null;
-    }
-
-    if (characterEid < 0 || !hasComponent(this, ObjectComp, characterEid)) {
-      return null;
-    }
-
-    const statuses = hasComponent(this, CharacterStatusComp, characterEid)
-      ? Array.from(CharacterStatusComp.statuses[characterEid]).filter(
-          (status) => status > 0,
-        )
-      : [];
-    const isSleeping =
-      ObjectComp.state[characterEid] === CharacterState.SLEEPING;
-
-    return {
-      eid: characterEid,
-      signature: `${ObjectComp.state[characterEid]}|${statuses.join(",")}`,
-      isSleeping,
-    };
-  }
-
-  private _clearMainCharacterSleepState(eid: number): void {
-    if (!hasComponent(this, SleepSystemComp, eid)) {
-      return;
-    }
-
-    if (ObjectComp.state[eid] === CharacterState.SLEEPING) {
-      wakeCharacter(this, eid, this.currentTime);
-    }
-
-    SleepSystemComp.sleepMode[eid] = SleepMode.AWAKE;
-    SleepSystemComp.interruptedSleepMode[eid] = SleepMode.AWAKE;
-    SleepSystemComp.nextSleepTime[eid] = 0;
-    SleepSystemComp.nextWakeTime[eid] = 0;
-    SleepSystemComp.nextNightWakeCheckTime[eid] = 0;
-    SleepSystemComp.pendingSleepReason[eid] = SleepReason.NONE;
-    SleepSystemComp.pendingWakeReason[eid] = SleepReason.NONE;
-    SleepSystemComp.sleepSessionStartedAt[eid] = 0;
-    SleepSystemComp.nextNapCheckTime[eid] = Math.max(
-      SleepSystemComp.nextNapCheckTime[eid],
-      this.currentTime + GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL,
-    );
-
-    if (
-      ObjectComp.state[eid] !== CharacterState.SICK &&
-      !Array.from(CharacterStatusComp.statuses[eid]).includes(
-        CharacterStatus.SICK,
-      )
-    ) {
-      restoreCharacterFreeRoamingState(this, eid, {
-        now: this.currentTime,
-      });
-    }
-  }
-
-  private _applyEntryStatusSuppression(
-    source: MainSceneReentrySimulationSource,
-    preReentrySnapshot: MainSceneEntryStatusSnapshot | null,
-  ): void {
-    if (!this._shouldPreserveWidgetEntryStatuses(source)) {
-      this._entryStatusSuppression = null;
-      return;
-    }
-
-    const postReentrySnapshot = this._captureMainCharacterEntryStatusSnapshot();
-    if (!preReentrySnapshot || !postReentrySnapshot) {
-      this._entryStatusSuppression = null;
-      return;
-    }
-
-    const previousSuppression = this._entryStatusSuppression;
-    const suppressSleep =
-      previousSuppression?.suppressSleep === true ||
-      (!preReentrySnapshot.isSleeping && postReentrySnapshot.isSleeping);
-
-    if (!suppressSleep) {
-      return;
-    }
-
-    this._clearMainCharacterSleepState(postReentrySnapshot.eid);
-
-    const suppressedSnapshot = this._captureMainCharacterEntryStatusSnapshot();
-    this._entryStatusSuppression = {
-      suppressSleep,
-      baselineSignature:
-        suppressedSnapshot?.signature ?? postReentrySnapshot.signature,
-    };
-  }
-
-  private _releaseEntryStatusSuppressionIfNeeded(): void {
-    if (!this._entryStatusSuppression) {
-      return;
-    }
-
-    const snapshot = this._captureMainCharacterEntryStatusSnapshot();
-    if (!snapshot) {
-      this._entryStatusSuppression = null;
-      return;
-    }
-
-    if (snapshot.signature === this._entryStatusSuppression.baselineSignature) {
-      return;
-    }
-
-    this._entryStatusSuppression = null;
-  }
-
-  /**
-   * 모든 렌더링 시스템들을 한 번에 실행하는 통합 메서드
-   */
-  private _renderAllSystems(params: any): typeof params {
-    // 1. 애니메이션 렌더링 (캐릭터 애니메이션)
-    animationRenderSystem(params);
-
-    // 2. 정적 스프라이트 렌더링
-    renderSystem(params);
-
-    // 3. 상태 아이콘 렌더링
-    statusIconRenderSystem(params);
-
-    // 4. 알 금 오버레이 렌더링
-    eggCrackRenderSystem({ ...params, currentTime: this.currentTime });
-
-    // 5. 캐릭터 이름표 렌더링
-    characterNameLabelSystem(params);
-
-    // 6. dev 빌드 전용 캐릭터 레이아웃 디버그 렌더링
-    characterLayoutDebugSystem({ ...params, stage: this._stage });
-
-    // 7. 청소 대상 렌더링
-    cleanableRenderSystem({ ...params, stage: this._stage });
-
-    // 8. 수면 효과 렌더링
-    sleepEffectSystem({ ...params, stage: this._stage });
-
-    return params;
-  }
-
-  /**
-   * Page Visibility API 이벤트 핸들러 설정
-   */
-  private _setupVisibilityChangeHandler(): void {
-    // Page Visibility API 지원 여부 확인
-    if (typeof document === "undefined" || !("visibilityState" in document)) {
-      console.warn("[MainSceneWorld] Page Visibility API not supported");
-      return;
-    }
-
-    this._visibilityChangeHandler = () => {
-      if (document.hidden) {
-        // 앱이 백그라운드로 갔을 때 (홈으로 나가거나 다른 앱으로 전환)
-        void this._handleAppPause();
-      } else {
-        // 앱이 포그라운드로 돌아왔을 때
-        void this._handleAppResume();
-      }
-    };
-
-    // 이벤트 리스너 등록
-    document.addEventListener(
-      "visibilitychange",
-      this._visibilityChangeHandler,
-    );
-
-    console.log("[MainSceneWorld] Page Visibility API handler registered");
-  }
-
-  /**
-   * Page Visibility API 이벤트 핸들러 정리
-   */
-  private _cleanupVisibilityChangeHandler(): void {
-    if (this._visibilityChangeHandler && typeof document !== "undefined") {
-      document.removeEventListener(
-        "visibilitychange",
-        this._visibilityChangeHandler,
-      );
-      this._visibilityChangeHandler = undefined;
-      console.log("[MainSceneWorld] Page Visibility API handler cleaned up");
-    }
-  }
-
-  /**
-   * 앱 일시정지 처리 (백그라운드로 갔을 때)
-   */
-  private async _handleAppPause(): Promise<void> {
-    if (this._isPaused) {
-      console.warn(
-        "[MainSceneWorld] App pause event received but app is already paused",
-      );
-      return; // 이미 일시정지 상태
-    }
-
-    console.log("[MainSceneWorld] 📱 App paused (went to background)");
-
-    this._isPaused = true;
-    this._pauseStartTime = this.currentTime;
-
-    // 현재 게임 상태 저장 (ECS 엔티티 상태 포함)
-    await this._saveCurrentState();
-
-    // 추가적인 일시정지 처리가 필요하다면 여기에 구현
-    // 예: 오디오 일시정지, 애니메이션 중단 등
-  }
-
-  /**
-   * 앱 재개 처리 (포그라운드로 돌아왔을 때)
-   */
-  private async _handleAppResume(): Promise<void> {
-    if (!this._isPaused) {
-      console.warn(
-        "[MainSceneWorld] App resume event received but app is not paused",
-      );
-      return; // 이미 활성 상태
-    }
-
-    const pauseDuration = this.currentTime - this._pauseStartTime;
-    console.log(
-      `[MainSceneWorld] 📱 App resumed (returned to foreground) after ${this._formatPauseDuration(
-        pauseDuration,
-      )}`,
-    );
-
-    // 재진입 시뮬레이션 무조건 실행
-    console.log(
-      `[MainSceneWorld] Running reentry simulation for pause duration of ${this._formatPauseDuration(
-        pauseDuration,
-      )}...`,
-    );
-
-    // 재진입 시뮬레이션 실행
-    await this._processReentrySimulation("app_resume");
-
-    this._isPaused = false;
-    this._pauseStartTime = 0;
-    this._updateAutoTimeOfDayIfNeeded(true);
-
-    // 추가적인 재개 처리가 필요하다면 여기에 구현
-    // 예: 오디오 재개, 애니메이션 재시작 등
-  }
-
-  /**
-   * 일시정지 시간을 읽기 쉬운 형태로 포맷팅
-   */
-  private _formatPauseDuration(milliseconds: number): string {
-    if (milliseconds < 1000) {
-      return `${milliseconds}ms`;
-    }
-
-    const seconds = Math.floor(milliseconds / 1000);
-    if (seconds < 60) {
-      return `${seconds}s`;
-    }
-
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    if (minutes < 60) {
-      return remainingSeconds > 0
-        ? `${minutes}m ${remainingSeconds}s`
-        : `${minutes}m`;
-    }
-
-    const hours = Math.floor(minutes / 60);
-    const remainingMinutes = minutes % 60;
-    return remainingMinutes > 0
-      ? `${hours}h ${remainingMinutes}m`
-      : `${hours}h`;
-  }
-
-  /**
-   * 현재 게임 상태를 저장 (scene 변경 시 호출)
-   */
-  private async _saveCurrentState(): Promise<void> {
-    try {
-      if (this._isPersistenceDisabled) {
-        return;
-      }
-
-      // ECS 엔티티들의 현재 상태를 persistent data에 동기화
-      this._syncEcsToPersisentData();
-
-      // 마지막 활성 시간 저장
-      this._saveLastActiveTime();
-
-      if (this._persistentData) {
-        await this.setData(this._persistentData);
-      }
-
-      console.log("[MainSceneWorld] Current game state saved successfully");
-    } catch (error) {
-      console.error("[MainSceneWorld] Failed to save current state:", error);
-    }
-  }
-
-  /**
-   * ECS 엔티티들의 현재 상태를 persistent data에 동기화
-   */
-  private _syncEcsToPersisentData(): void {
-    if (!this._persistentData) {
-      console.warn("[MainSceneWorld] No persistent data to sync to");
-      return;
-    }
-
-    // 현재 ECS 월드의 모든 엔티티를 순회하여 persistent data 업데이트
-    const updatedEntities: SavedEntity[] = [];
-
-    const objectEntitiesQuery = defineQuery([ObjectComp]);
-    const objectEntityIds = objectEntitiesQuery(this);
-    const seenObjectIds = new Set<number>();
-
-    for (const eid of objectEntityIds) {
-      try {
-        const savedEntity = convertECSEntityToSavedEntity(this, eid);
-        const objectId = savedEntity.components.object?.id;
-
-        if (
-          typeof objectId !== "number" ||
-          !Number.isFinite(objectId) ||
-          objectId <= 0
-        ) {
-          console.warn(
-            `[MainSceneWorld] Skipping entity ${eid} during sync: invalid Object ID ${objectId}`,
-          );
-          continue;
-        }
-
-        if (seenObjectIds.has(objectId)) {
-          console.warn(
-            `[MainSceneWorld] Skipping entity ${eid} during sync: duplicate Object ID ${objectId}`,
-          );
-          continue;
-        }
-
-        seenObjectIds.add(objectId);
-        updatedEntities.push(savedEntity);
-      } catch (error) {
-        console.warn(
-          `[MainSceneWorld] Failed to convert entity ${eid} to saved entity:`,
-          error,
-        );
-      }
-    }
-
-    // persistent data 업데이트
-    this._persistentData.entities = updatedEntities;
-    this._persistentData.world_metadata.last_ecs_saved = this.currentTime;
-
-    console.log(
-      `[MainSceneWorld] Synced ${updatedEntities.length} entities to persistent data`,
-    );
-  }
-
-  /**
-   * 마지막 활성 시간 저장
-   */
-  private _saveLastActiveTime(): void {
-    if (this._persistentData) {
-      if (!this._persistentData.world_metadata.app_state) {
-        this._persistentData.world_metadata.app_state = {
-          last_active_time: 0,
-          is_first_load: false,
-          use_local_time: this._isLocalTimeEnabled(),
-          main_scene_ad: {
-            menu_use_count: 0,
-          },
-          mini_game_scores: {
-            flappy_bird: {
-              best_score: 0,
-            },
-          },
-          monster_book: createEmptyMonsterBookState(),
-        };
-      }
-
-      const activeTime = this.currentTime;
-      this._persistentData.world_metadata.app_state.last_active_time =
-        activeTime;
-      this._persistentData.world_metadata.app_state.last_active_time_anchor =
-        this._trustedClock.captureAnchor();
-
-      console.log(
-        `[MainSceneWorld] Saved last active time: ${new Date(activeTime).toLocaleString(
-          "ko-KR",
-        )}`,
-      );
-    }
-  }
-
-  /**
-   * 상태 관리 시스템들 토글 (디버그용)
-   * @returns 토글 후 활성화 상태
-   */
-  public toggleStatusSystems(): boolean {
-    this._statusSystemsEnabled = !this._statusSystemsEnabled;
-    console.log(
-      `[MainSceneWorld] Status systems ${
-        this._statusSystemsEnabled ? "enabled" : "disabled"
-      }`,
-    );
-    return this._statusSystemsEnabled;
-  }
-
-  public toggleSleepDebugEffect(): boolean {
-    this._sleepDebugEffectEnabled = !this._sleepDebugEffectEnabled;
-
-    if (!this._sleepDebugEffectEnabled) {
-      cleanupSleepEffects(this._stage);
-    }
-
-    console.log(
-      `[MainSceneWorld] Sleep debug effect ${
-        this._sleepDebugEffectEnabled ? "enabled" : "disabled"
-      }`,
-    );
-
-    return this._sleepDebugEffectEnabled;
-  }
-
-  public isSleepDebugEffectEnabled(): boolean {
-    return this._sleepDebugEffectEnabled;
-  }
-
-  public setRandomMovementDebugEnabled(enabled: boolean): void {
-    this._randomMovementDebugEnabled = enabled;
-  }
-
-  public isRandomMovementDebugEnabled(): boolean {
-    return this._randomMovementDebugEnabled;
-  }
+	public readonly WORLD_DATA_SCHEMA_VERSION = "1.0.0";
+	private static readonly SCENE_DARKNESS_OVERLAY_Z_INDEX = 1_000_000;
+	private _stage: PIXI.Container;
+	private _positionBoundary: Boundary;
+	private _positionBoundaryInsets: {
+		left: number;
+		right: number;
+		top: number;
+		bottom: number;
+	};
+	private _background?: Background;
+	private _sceneDarknessOverlay?: PIXI.Graphics;
+	private _persistentData?: MainSceneWorldData;
+	private _debugStatusUI?: HTMLDebugStatusUI;
+	private _debugToggleButton?: HTMLDebugToggleButton;
+	private _debugGameConstantsUI?: HTMLDebugGameConstantsUI;
+	private _debugGaugeUI?: HTMLDebugGaugeUI;
+	private _isDebugGaugeEventListenerRegistered = false;
+	private _gameMenu?: GameMenu;
+	private _parentElement?: HTMLElement;
+	private _debugParentElement?: HTMLElement;
+	private _navigationActionIndex = 0;
+	private _changeControlButtons?: (
+		controlButtonParamsSet: [
+			ControlButtonParams,
+			ControlButtonParams,
+			ControlButtonParams,
+		],
+	) => void;
+	private _triggerBiteVibration?: TriggerBiteVibrationCallback;
+	private _triggerTransientVibration?: TriggerTransientVibrationCallback;
+	private _triggerMainSceneSfx?: TriggerMainSceneSfxCallback;
+	private _startRecoveryVibration?: StartRecoveryVibrationCallback;
+	private _stopRecoveryVibration?: StopRecoveryVibrationCallback;
+	private _isCleaningMode = false; // 청소 모드 상태
+	private _previousCleaningMode = false; // 이전 청소 모드 상태 (진입 감지용)
+	private _focusedTargetEid = -1; // 현재 포커스된 청소 대상 엔티티 ID
+	private _broomProgress = 0; // 빗자루 움직인 거리 (0.0 ~ 1.0)
+	private _currentSliderValue = 0.5; // 현재 슬라이더 값 (0.0 ~ 1.0)
+	private _cleaningSliderSessionKey = 0;
+	private _pendingCleaningSliderDelta = 0; // 입력 이벤트 동안 누적된 실제 슬라이더 이동량
+	private _isPaused = false; // 앱이 일시정지 상태인지 여부
+	private _pauseStartTime = 0; // 일시정지 시작 시간
+	private _isRunningReentrySimulation = false;
+	private _simulationTime: number | null = null;
+	private _visibilityChangeHandler?: () => void; // Page Visibility API 이벤트 핸들러
+	private _statusSystemsEnabled = true; // 상태 관리 시스템들 활성화 여부
+	private _sleepDebugEffectEnabled = true;
+	private _randomMovementDebugEnabled = false;
+	private readonly _handleShowDebugGauge = (): void => {
+		this._debugGaugeUI?.toggle();
+	};
+	private _pendingRecoveryCureEids = new Set<number>();
+	private _isPersistenceDisabled = false;
+	private _createInitialGameData?: () => Promise<InitialGameData>;
+	private _pendingStorageWrite: Promise<void> = Promise.resolve();
+	private _startMiniGame?: () => unknown | Promise<unknown>;
+	private _startMonsterBook?: () => unknown | Promise<unknown>;
+	private _showMonsterInfo?: ShowMonsterInfoCallback;
+	private _showAlert?: ShowAlertCallback;
+	private _locale: LocaleCode = DEFAULT_LOCALE;
+	private _debugMode = false;
+	private _shouldDeferPersistence?: () => boolean;
+	private _onReentrySimulationStateChange?: MainSceneReentrySimulationStateChangeCallback;
+	private _onNativeWorldDataUpdateForReentry?: MainSceneNativeWorldDataUpdateForReentryCallback;
+	private _hasDeferredPersistence = false;
+	private _entryStatusSuppression: MainSceneEntryStatusSuppressionState | null =
+		null;
+	private _timeOfDay: TimeOfDay = TimeOfDay.Day;
+	private _timeOfDayMode: TimeOfDayMode = TimeOfDayMode.Manual;
+	private _sunTimes: SunTimesPayload | null = null;
+	private _autoTimeOfDayState: AutoTimeOfDayState | null = null;
+	private _autoTimeOfDayMinuteKey: number | null = null;
+	private _sunTimesRefreshPromise: Promise<void> | null = null;
+	private _hasLocationPermission = false;
+	private _sunLocationSource: SunLocationSource | null = null;
+	private _lastStatusHeartbeatLogTime: number | null = null;
+	private _pendingFeedAdFoodEid: number | null = null;
+	private _nextFeedMenuFood: FeedMenuFoodOption = getRandomFeedMenuFoodOption();
+	private _feedAdFallbackTimerId: number | null = null;
+	private _mainSceneAdTimerIds = new Set<number>();
+	private _initDiagnostics: MainSceneInitDiagnostics;
+	private readonly _trustedClock: TrustedClock;
+
+	// 실시간 모드용 시스템 파이프라인 (렌더링 포함)
+	private _pipedSystems = pipe(
+		// 시간 기반 시스템들 (상태 관리 시스템 토글 적용)
+		(params: any) =>
+			this._statusSystemsEnabled
+				? freshnessSystem({ ...params, currentTime: this.currentTime })
+				: params,
+		(params: any) =>
+			this._statusSystemsEnabled
+				? digestiveSystem({ ...params, currentTime: this.currentTime })
+				: params,
+		(params: any) =>
+			this._statusSystemsEnabled
+				? sleepScheduleSystem({
+						...params,
+						currentTime: this.currentTime,
+						entryStatusSuppression: this._entryStatusSuppression ?? undefined,
+					})
+				: params,
+		(params: any) =>
+			this._statusSystemsEnabled
+				? diseaseSystem({
+						...params,
+						currentTime: this.currentTime,
+					})
+				: params,
+		(params: any) =>
+			eggHatchSystem({ ...params, currentTime: this.currentTime }),
+		(params: any) =>
+			this._statusSystemsEnabled
+				? mutationRiskSystem({ ...params, currentTime: this.currentTime })
+				: params,
+		(params: any) =>
+			this._statusSystemsEnabled ? characterManagerSystem(params) : params,
+		// 캐릭터 상태 시스템 (임시 상태 만료, 긴급 상태, 사망 처리)
+		(params: any) =>
+			this._statusSystemsEnabled
+				? characterStatusSystem({ ...params, currentTime: this.currentTime })
+				: params,
+		// 배달 시스템
+		// pillDeliverySystem,
+		// 이펙트 시스템
+		(params: any) =>
+			sparkleEffectSystem({ ...params, currentTime: this.currentTime }),
+		// 범용 effect 애니메이션 시스템 (실시간 모드에서만 실행)
+		(params: any) =>
+			effectAnimationSystem({
+				...params,
+				currentTime: this.currentTime,
+				stage: this._stage,
+			}),
+		// 청소 시스템 (실시간 모드에서만 실행)
+		(params: any) => cleaningSystem({ ...params, stage: this._stage }),
+		// 이동 및 게임플레이 시스템들
+		randomMovementSystem,
+		commonMovementSystem,
+		// 착지한 프레임에 바로 음식 탐색이 가능해야 하므로 착지 상태를 먼저 반영한다.
+		throwAnimationSystem,
+		(params: any) =>
+			foodEatingSystem({ ...params, currentTime: this.currentTime }),
+		// 애니메이션 상태 시스템들
+		animationStateSystem,
+		// 모든 렌더링 시스템들을 하나로 통합 (실시간 모드에서만 실행)
+		(params: any) => this._renderAllSystems(params),
+		dataSyncSystem,
+	);
+
+	get stage(): PIXI.Container {
+		return this._stage;
+	}
+	get positionBoundary(): Boundary {
+		return this._positionBoundary;
+	}
+	get characterPositionBoundary(): Boundary {
+		return {
+			x: this._positionBoundary.x - this._positionBoundaryInsets.left,
+			y: this._positionBoundary.y - this._positionBoundaryInsets.top,
+			width:
+				this._positionBoundary.width +
+				this._positionBoundaryInsets.left +
+				this._positionBoundaryInsets.right,
+			height: this._positionBoundary.height + this._positionBoundaryInsets.top,
+		};
+	}
+	get sliderValue(): number {
+		return this._currentSliderValue;
+	}
+	get isCleaningMode(): boolean {
+		return this._isCleaningMode;
+	}
+
+	get isEnteringCleaningMode(): boolean {
+		return this._isCleaningMode && !this._previousCleaningMode;
+	}
+
+	get focusedTargetEid(): number {
+		return this._focusedTargetEid;
+	}
+	get broomProgress(): number {
+		return this._broomProgress;
+	}
+	get isPaused(): boolean {
+		return this._isPaused;
+	}
+	get timeOfDay(): TimeOfDay {
+		return this._timeOfDay;
+	}
+	get timeOfDayMode(): TimeOfDayMode {
+		return this._timeOfDayMode;
+	}
+
+	public getProjectedUpcomingSunTimes(
+		referenceTime: number = this.currentTime,
+	): {
+		sunriseAt: number;
+		sunsetAt: number;
+		nextSunriseAt: number;
+		nextSunsetAt: number;
+	} | null {
+		if (this._timeOfDayMode !== TimeOfDayMode.Auto || !this._sunTimes) {
+			return null;
+		}
+
+		const projectedSunTimes: ProjectedUpcomingSunTimes =
+			projectUpcomingSunTimes(new Date(referenceTime), this._sunTimes);
+
+		return {
+			sunriseAt: projectedSunTimes.sunriseAt.getTime(),
+			sunsetAt: projectedSunTimes.sunsetAt.getTime(),
+			nextSunriseAt: projectedSunTimes.nextSunriseAt.getTime(),
+			nextSunsetAt: projectedSunTimes.nextSunsetAt.getTime(),
+		};
+	}
+
+	constructor(params: {
+		stage: PIXI.Container;
+		positionBoundary: Boundary;
+		positionBoundaryInsets?: {
+			left: number;
+			right: number;
+			top: number;
+			bottom: number;
+		};
+		parentElement?: HTMLElement;
+		debugParentElement?: HTMLElement;
+		debugMode?: boolean;
+		startMiniGame?: () => unknown | Promise<unknown>;
+		startMonsterBook?: () => unknown | Promise<unknown>;
+		showMonsterInfo?: ShowMonsterInfoCallback;
+		showAlert?: ShowAlertCallback;
+		locale?: LocaleCode;
+		createInitialGameData?: () => Promise<InitialGameData>;
+		changeControlButtons?: (
+			controlButtonParamsSet: [
+				ControlButtonParams,
+				ControlButtonParams,
+				ControlButtonParams,
+			],
+		) => void;
+		triggerBiteVibration?: TriggerBiteVibrationCallback;
+		triggerTransientVibration?: TriggerTransientVibrationCallback;
+		triggerMainSceneSfx?: TriggerMainSceneSfxCallback;
+		startRecoveryVibration?: StartRecoveryVibrationCallback;
+		stopRecoveryVibration?: StopRecoveryVibrationCallback;
+		shouldDeferPersistence?: () => boolean;
+		loadingTraceContext?: MainSceneLoadingTraceContext | null;
+		trustedClock?: TrustedClock;
+		onReentrySimulationStateChange?: MainSceneReentrySimulationStateChangeCallback;
+		onNativeWorldDataUpdateForReentry?: MainSceneNativeWorldDataUpdateForReentryCallback;
+	}) {
+		this._stage = params.stage;
+		this._positionBoundary = params.positionBoundary;
+		this._positionBoundaryInsets = params.positionBoundaryInsets ?? {
+			left: params.positionBoundary.x,
+			right: params.positionBoundary.x,
+			top: params.positionBoundary.y,
+			bottom: params.positionBoundary.y,
+		};
+		this._parentElement = params.parentElement;
+		this._debugParentElement =
+			params.debugParentElement ?? params.parentElement;
+		this._debugMode = params.debugMode ?? false;
+		this._startMiniGame = params.startMiniGame;
+		this._startMonsterBook = params.startMonsterBook;
+		this._showMonsterInfo = params.showMonsterInfo;
+		this._showAlert = params.showAlert;
+		this._locale = params.locale ?? DEFAULT_LOCALE;
+		this._shouldDeferPersistence = params.shouldDeferPersistence;
+		this._onReentrySimulationStateChange =
+			params.onReentrySimulationStateChange;
+		this._onNativeWorldDataUpdateForReentry =
+			params.onNativeWorldDataUpdateForReentry;
+		this._createInitialGameData = params.createInitialGameData;
+		this._changeControlButtons = params.changeControlButtons;
+		this._triggerBiteVibration = params.triggerBiteVibration;
+		this._triggerTransientVibration = params.triggerTransientVibration;
+		this._triggerMainSceneSfx = params.triggerMainSceneSfx;
+		this._startRecoveryVibration = params.startRecoveryVibration;
+		this._stopRecoveryVibration = params.stopRecoveryVibration;
+		this._initDiagnostics = new MainSceneInitDiagnostics(
+			params.loadingTraceContext ?? null,
+		);
+		this._trustedClock = params.trustedClock ?? defaultTrustedClock;
+
+		// MainScene용 초기 컨트롤 버튼 설정 (메뉴에 포커스가 없는 상태)
+		this._updateControlButtonsForMenuState(false);
+	}
+
+	public onLocaleChange(locale: LocaleCode): void {
+		this._locale = locale;
+	}
+
+	private t(
+		key: Parameters<typeof translate>[1],
+		params?: Parameters<typeof translate>[2],
+	): string {
+		return translate(this._locale, key, params);
+	}
+
+	public getActiveObjectCountByType(objectType?: ObjectType): number {
+		const objectEntities = liveObjectQuery(this);
+
+		if (objectType === undefined) {
+			return objectEntities.length;
+		}
+
+		let count = 0;
+		for (let i = 0; i < objectEntities.length; i++) {
+			const eid = objectEntities[i];
+			if (ObjectComp.type[eid] === objectType) {
+				count += 1;
+			}
+		}
+
+		return count;
+	}
+
+	public canSpawnFood(): boolean {
+		return (
+			this.getActiveObjectCountByType() <
+				GAME_CONSTANTS.MAX_ACTIVE_OBJECT_COUNT &&
+			this.getActiveObjectCountByType(ObjectType.FOOD) <
+				GAME_CONSTANTS.MAX_ACTIVE_FOOD_COUNT
+		);
+	}
+
+	public canSpawnPoop(): boolean {
+		return (
+			this.getActiveObjectCountByType() < GAME_CONSTANTS.MAX_ACTIVE_OBJECT_COUNT
+		);
+	}
+
+	public showObjectLimitAlert(): void {
+		this._showAlert?.(
+			`${this.t("main.objectLimitReached")}\n${this.t("main.cleanObjectsPrompt")}`,
+			this.t("common.notice"),
+		);
+	}
+
+	public removeObjectEntity(eid: number): void {
+		removeEntity(this, eid);
+
+		try {
+			flushRemovedEntities(this);
+		} catch (error) {
+			if (
+				error instanceof Error &&
+				error.message.includes("cannot flush removed entities")
+			) {
+				return;
+			}
+
+			throw error;
+		}
+	}
+
+	public triggerBiteVibration(): void {
+		this._triggerBiteVibration?.();
+	}
+
+	public triggerFoodLandingVibration(): void {
+		if (this.isSimulationMode) {
+			return;
+		}
+
+		this._triggerTransientVibration?.({
+			durationMs: FOOD_LANDING_VIBRATION_DURATION_MS,
+			strength: FOOD_LANDING_VIBRATION_STRENGTH,
+		});
+	}
+
+	public triggerMainSceneSfx(kind: MainSceneSfxKind): void {
+		if (this.isSimulationMode) {
+			return;
+		}
+
+		this._triggerMainSceneSfx?.(kind);
+	}
+
+	public startRecoveryVibration(): void {
+		this._startRecoveryVibration?.();
+	}
+
+	public stopRecoveryVibration(): void {
+		this._stopRecoveryVibration?.();
+	}
+
+	public consumePendingFirstSpriteTimingLog(
+		eid: number,
+		spriteType: "static" | "animated",
+	): Record<string, unknown> | null {
+		return this._initDiagnostics.consumePendingFirstSpriteTimingLog(
+			eid,
+			spriteType,
+		);
+	}
+
+	private _ensureAppState(): MainSceneAppState | null {
+		if (!this._persistentData) {
+			return null;
+		}
+
+		const currentAppState = this._persistentData.world_metadata.app_state;
+		if (currentAppState) {
+			return currentAppState;
+		}
+
+		const appState: MainSceneAppState = {
+			last_active_time: this.currentTime,
+			last_active_time_anchor: this._trustedClock.captureAnchor(),
+			is_first_load: false,
+			use_local_time: true,
+			mini_game_scores: {
+				flappy_bird: {
+					best_score: 0,
+				},
+			},
+			monster_book: createEmptyMonsterBookState(),
+		};
+
+		this._persistentData.world_metadata.app_state = appState;
+		return appState;
+	}
+
+	private _applyPersistedMonsterBookState(state: MonsterBookState): void {
+		if (!this._persistentData) {
+			return;
+		}
+
+		const appState = this._ensureAppState();
+		if (!appState) {
+			return;
+		}
+
+		appState.monster_book = state;
+	}
+
+	private _createStoragePersistableData(
+		data: MainSceneWorldData,
+	): MainSceneWorldData {
+		const appState = data.world_metadata.app_state;
+
+		return {
+			...data,
+			world_metadata: {
+				...data.world_metadata,
+				app_state: appState
+					? {
+							...appState,
+							monster_book: undefined,
+						}
+					: appState,
+			},
+		};
+	}
+
+	private _getMainSceneAdState(): MainSceneAdState | null {
+		const appState = this._ensureAppState();
+		if (!appState) {
+			return null;
+		}
+
+		if (!this._isValidMainSceneAdState(appState.main_scene_ad)) {
+			appState.main_scene_ad = {
+				menu_use_count: 0,
+			};
+		}
+
+		return appState.main_scene_ad;
+	}
+
+	private _isValidMainSceneAdState(
+		value: MainSceneAdState | undefined,
+	): value is MainSceneAdState {
+		if (
+			!value ||
+			typeof value.menu_use_count !== "number" ||
+			!Number.isFinite(value.menu_use_count) ||
+			value.menu_use_count < 0
+		) {
+			return false;
+		}
+
+		if (
+			value.pending &&
+			!this._isValidMainSceneAdPendingReservation(value.pending)
+		) {
+			value.pending = undefined;
+		}
+
+		value.menu_use_count = Math.floor(value.menu_use_count);
+		return true;
+	}
+
+	private _isValidMainSceneAdPendingReservation(
+		value: MainSceneAdPendingReservation | undefined,
+	): value is MainSceneAdPendingReservation {
+		return (
+			!!value &&
+			this._isMainSceneAdMenu(value.menu) &&
+			typeof value.queued_at === "number" &&
+			Number.isFinite(value.queued_at) &&
+			value.queued_at > 0 &&
+			typeof value.cooldown_ms === "number" &&
+			Number.isFinite(value.cooldown_ms) &&
+			value.cooldown_ms > 0 &&
+			typeof value.threshold === "number" &&
+			Number.isFinite(value.threshold) &&
+			value.threshold > 0 &&
+			typeof value.deep_night === "boolean" &&
+			(value.online_retry === undefined ||
+				typeof value.online_retry === "boolean")
+		);
+	}
+
+	private _isMainSceneAdMenu(value: unknown): value is MainSceneAdMenu {
+		return value === "feed" || value === "clean" || value === "hospital";
+	}
+
+	private _recordMainSceneMenuUse(
+		menu: MainSceneAdMenu,
+	): MainSceneAdPendingReservation | null {
+		const adState = this._getMainSceneAdState();
+		if (!adState) {
+			return null;
+		}
+
+		adState.menu_use_count =
+			Math.max(0, Math.floor(adState.menu_use_count)) + 1;
+
+		let createdReservation: MainSceneAdPendingReservation | null = null;
+		const config = this._getMainSceneAdConfig();
+		if (adState.pending) {
+			const isOnlineRetry = adState.pending.online_retry === true;
+			adState.pending = {
+				...adState.pending,
+				menu,
+				queued_at: this.currentTime,
+				cooldown_ms: config.cooldownMs,
+				threshold: isOnlineRetry ? 1 : config.threshold,
+				deep_night: config.deepNight,
+				online_retry: isOnlineRetry ? true : undefined,
+			};
+			createdReservation = adState.pending;
+			console.log("[MainSceneWorld] MainScene pending ad retargeted", {
+				menu,
+				menuUseCount: adState.menu_use_count,
+				onlineRetry: isOnlineRetry,
+				...config,
+			});
+		} else if (!adState.pending) {
+			if (this._hasPendingOnlineAdRetry()) {
+				createdReservation = {
+					menu,
+					queued_at: this.currentTime,
+					cooldown_ms: config.cooldownMs,
+					threshold: 1,
+					deep_night: config.deepNight,
+					online_retry: true,
+				};
+				adState.pending = createdReservation;
+
+				console.log("[MainSceneWorld] MainScene online ad retry reserved", {
+					menu,
+					menuUseCount: adState.menu_use_count,
+					...config,
+				});
+			} else if (adState.menu_use_count >= config.threshold) {
+				createdReservation = {
+					menu,
+					queued_at: this.currentTime,
+					cooldown_ms: config.cooldownMs,
+					threshold: config.threshold,
+					deep_night: config.deepNight,
+				};
+				adState.pending = createdReservation;
+
+				console.log("[MainSceneWorld] MainScene menu ad reserved", {
+					menu,
+					menuUseCount: adState.menu_use_count,
+					...config,
+				});
+			}
+		}
+
+		this._persistMainSceneAdState();
+		return createdReservation;
+	}
+
+	private _hasPendingOnlineAdRetry(): boolean {
+		if (typeof window === "undefined") {
+			return false;
+		}
+
+		try {
+			return window.digiviceAdBridge?.hasPendingOnlineAdRetry?.() === true;
+		} catch (error) {
+			console.warn("[MainSceneWorld] Failed to check online ad retry state", {
+				error,
+			});
+			return false;
+		}
+	}
+
+	private _getMainSceneAdConfig(): {
+		threshold: number;
+		cooldownMs: number;
+		deepNight: boolean;
+	} {
+		return {
+			threshold: MAIN_SCENE_AD_THRESHOLD,
+			cooldownMs: MAIN_SCENE_AD_NORMAL_COOLDOWN_MS,
+			deepNight: false,
+		};
+	}
+
+	private _isMainSceneAdDeepNight(
+		referenceTime: number = this.currentTime,
+	): boolean {
+		if (this._timeOfDayMode !== TimeOfDayMode.Auto || !this._sunTimes) {
+			return false;
+		}
+
+		try {
+			const now = new Date(referenceTime);
+			const previousDay = projectSunTimesForDate(
+				new Date(referenceTime - DAY_MS),
+				this._sunTimes,
+			);
+			const currentDay = projectSunTimesForDate(now, this._sunTimes);
+			const nextDay = projectSunTimesForDate(
+				new Date(referenceTime + DAY_MS),
+				this._sunTimes,
+			);
+
+			const intervals = [
+				{
+					start: previousDay.sunsetAt.getTime() + 4 * HOUR_MS,
+					end: currentDay.sunriseAt.getTime() - HOUR_MS,
+				},
+				{
+					start: currentDay.sunsetAt.getTime() + 4 * HOUR_MS,
+					end: nextDay.sunriseAt.getTime() - HOUR_MS,
+				},
+			];
+
+			return intervals.some(({ start, end }) => {
+				return (
+					Number.isFinite(start) &&
+					Number.isFinite(end) &&
+					end > start &&
+					referenceTime >= start &&
+					referenceTime < end
+				);
+			});
+		} catch (error) {
+			console.warn("[MainSceneWorld] Failed to resolve deep-night ad window", {
+				error,
+			});
+			return false;
+		}
+	}
+
+	private _persistMainSceneAdState(): void {
+		if (!this._persistentData || this._isPersistenceDisabled) {
+			return;
+		}
+
+		void this.setData(this._persistentData);
+	}
+
+	private _schedulePendingMainSceneAdForMenu(
+		menu: MainSceneAdMenu,
+		delayMs: number = MAIN_SCENE_AD_POST_ACTION_DELAY_MS,
+	): void {
+		const pending = this._getMainSceneAdState()?.pending;
+		if (!pending || pending.menu !== menu) {
+			return;
+		}
+
+		this._setMainSceneAdTimer(() => {
+			void this._requestPendingMainSceneAd(menu);
+		}, delayMs);
+	}
+
+	private async _requestPendingMainSceneAd(
+		expectedMenu?: MainSceneAdMenu,
+	): Promise<void> {
+		const adState = this._getMainSceneAdState();
+		const pending = adState?.pending;
+
+		if (!adState || !pending) {
+			return;
+		}
+
+		if (expectedMenu && pending.menu !== expectedMenu) {
+			return;
+		}
+
+		if (!this._canRequestMainSceneAdNow()) {
+			console.log("[MainSceneWorld] MainScene menu ad request deferred", {
+				menu: pending.menu,
+			});
+			return;
+		}
+
+		const requestMainSceneMenuAd =
+			typeof window !== "undefined"
+				? window.digiviceAdBridge?.requestMainSceneMenuAd
+				: undefined;
+
+		if (!requestMainSceneMenuAd) {
+			console.log("[MainSceneWorld] MainScene ad bridge is not available");
+			return;
+		}
+
+		try {
+			const didShow = await requestMainSceneMenuAd({
+				menu: pending.menu,
+				cooldownMs: pending.cooldown_ms,
+				threshold: pending.threshold,
+				queuedAt: pending.queued_at,
+				deepNight: pending.deep_night,
+				menuUseCount: adState.menu_use_count,
+				onlineRetry: pending.online_retry === true,
+			});
+
+			if (didShow) {
+				adState.menu_use_count = 0;
+				adState.pending = undefined;
+				this._pendingFeedAdFoodEid = null;
+				this._clearFeedAdFallbackTimer();
+				console.log("[MainSceneWorld] MainScene menu ad shown; state reset");
+			} else {
+				console.log("[MainSceneWorld] MainScene menu ad was not shown", {
+					menu: pending.menu,
+				});
+			}
+		} catch (error) {
+			console.warn("[MainSceneWorld] MainScene menu ad request failed", {
+				menu: pending.menu,
+				error,
+			});
+		} finally {
+			this._persistMainSceneAdState();
+		}
+	}
+
+	private _canRequestMainSceneAdNow(): boolean {
+		if (
+			this._isPaused ||
+			this._isRunningReentrySimulation ||
+			this.isSimulationMode
+		) {
+			return false;
+		}
+
+		if (typeof document !== "undefined" && document.hidden) {
+			return false;
+		}
+
+		return true;
+	}
+
+	private _setMainSceneAdTimer(callback: () => void, delayMs: number): number {
+		if (typeof window === "undefined") {
+			callback();
+			return 0;
+		}
+
+		let timerId = 0;
+		timerId = window.setTimeout(
+			() => {
+				this._mainSceneAdTimerIds.delete(timerId);
+				callback();
+			},
+			Math.max(0, delayMs),
+		);
+		this._mainSceneAdTimerIds.add(timerId);
+		return timerId;
+	}
+
+	private _clearMainSceneAdTimers(): void {
+		if (typeof window === "undefined") {
+			this._mainSceneAdTimerIds.clear();
+			this._feedAdFallbackTimerId = null;
+			return;
+		}
+
+		this._mainSceneAdTimerIds.forEach((timerId) => {
+			window.clearTimeout(timerId);
+		});
+		this._mainSceneAdTimerIds.clear();
+		this._feedAdFallbackTimerId = null;
+	}
+
+	private _clearFeedAdFallbackTimer(): void {
+		if (this._feedAdFallbackTimerId === null || typeof window === "undefined") {
+			this._feedAdFallbackTimerId = null;
+			return;
+		}
+
+		window.clearTimeout(this._feedAdFallbackTimerId);
+		this._mainSceneAdTimerIds.delete(this._feedAdFallbackTimerId);
+		this._feedAdFallbackTimerId = null;
+	}
+
+	private _trackPendingFeedAdFood(foodEid: number): void {
+		const pending = this._getMainSceneAdState()?.pending;
+		if (!pending || pending.menu !== "feed") {
+			return;
+		}
+
+		this._pendingFeedAdFoodEid = foodEid;
+		this._clearFeedAdFallbackTimer();
+	}
+
+	private _isMainCharacterIdleForFeedAd(): boolean {
+		const mainCharacterEid = this._findMainCharacterEntity();
+
+		if (mainCharacterEid === -1) {
+			console.log(
+				"[MainSceneWorld] Skipped feed ad fallback because no main character was found",
+			);
+			return false;
+		}
+
+		return ObjectComp.state[mainCharacterEid] === CharacterState.IDLE;
+	}
+
+	private _scheduleFeedAdFallback(foodEid: number, delayMs: number): void {
+		this._clearFeedAdFallbackTimer();
+		this._feedAdFallbackTimerId = this._setMainSceneAdTimer(() => {
+			this._feedAdFallbackTimerId = null;
+
+			if (this.isSimulationMode || this._pendingFeedAdFoodEid !== foodEid) {
+				return;
+			}
+
+			const pending = this._getMainSceneAdState()?.pending;
+			if (!pending || pending.menu !== "feed") {
+				return;
+			}
+
+			if (!this._isMainCharacterIdleForFeedAd()) {
+				console.log(
+					"[MainSceneWorld] Deferred feed ad fallback because main character is not idle",
+					{
+						foodEid,
+						retryMs: MAIN_SCENE_AD_FEED_IDLE_RETRY_MS,
+					},
+				);
+				this._scheduleFeedAdFallback(foodEid, MAIN_SCENE_AD_FEED_IDLE_RETRY_MS);
+				return;
+			}
+
+			this._schedulePendingMainSceneAdForMenu(
+				"feed",
+				MAIN_SCENE_AD_POST_ACTION_DELAY_MS,
+			);
+		}, delayMs);
+	}
+
+	public handleThrownFoodLanded(foodEid: number): void {
+		if (this.isSimulationMode || this._pendingFeedAdFoodEid !== foodEid) {
+			return;
+		}
+
+		this._scheduleFeedAdFallback(
+			foodEid,
+			MAIN_SCENE_AD_FEED_FALLBACK_AFTER_LAND_MS,
+		);
+	}
+
+	public handleFoodConsumedForAd(foodEid: number): void {
+		if (this.isSimulationMode || this._pendingFeedAdFoodEid !== foodEid) {
+			return;
+		}
+
+		this._pendingFeedAdFoodEid = null;
+		this._clearFeedAdFallbackTimer();
+		this._schedulePendingMainSceneAdForMenu(
+			"feed",
+			MAIN_SCENE_AD_POST_ACTION_DELAY_MS,
+		);
+	}
+
+	public handleHospitalRecoveryAnimationComplete(_characterEid: number): void {
+		if (this.isSimulationMode) {
+			return;
+		}
+
+		this._schedulePendingMainSceneAdForMenu(
+			"hospital",
+			MAIN_SCENE_AD_POST_ACTION_DELAY_MS,
+		);
+	}
+
+	/**
+	 * 에셋 로딩 - 스프라이트시트와 일반 이미지, GIF를 병렬로 로드
+	 */
+	private async _loadGameAssets(): Promise<void> {
+		console.groupCollapsed("[MainSceneWorld] 🎨 Loading game assets...");
+
+		try {
+			// 스프라이트시트, 일반 이미지, GIF를 병렬로 로드
+			const [spritesheetResults] = await Promise.all([
+				this._initDiagnostics.measurePhase(
+					"load_common_spritesheets",
+					async () => {
+						return loadSpritesheets(COMMON_SPRITESHEET_ASSETS);
+					},
+				),
+				this._initDiagnostics.measurePhase("load_image_assets", async () => {
+					await this._loadImageAssets();
+				}),
+				this._initDiagnostics.measurePhase("load_gif_assets", async () => {
+					await this._loadGifAssets();
+				}),
+			]);
+
+			// 로드 결과 로깅
+			console.log(
+				`Successfully loaded ${spritesheetResults.length} spritesheets`,
+			);
+			spritesheetResults.forEach((result) => {
+				console.log(
+					`- Spritesheet '${result.alias}': ${result.animations.length} animations, ${result.textures.length} textures`,
+				);
+			});
+
+			await this._initDiagnostics.measurePhase(
+				"precompute_loaded_character_opaque_bounds",
+				async () => {
+					await precomputeLoadedCharacterOpaqueBounds();
+				},
+			);
+			await this._initDiagnostics.measurePhase(
+				"precompute_egg_texture_opaque_bounds",
+				async () => {
+					await precomputeLoadedTextureOpaqueBounds(EGG_TEXTURE_KEYS);
+				},
+			);
+
+			console.log("All game assets loaded successfully");
+		} catch (error) {
+			console.error("Failed to load game assets:", error);
+			throw error;
+		} finally {
+			console.groupEnd();
+		}
+	}
+
+	/**
+	 * GIF 에셋들을 @pixi/gif를 사용해서 애니메이션으로 로드
+	 */
+	private async _loadGifAssets(): Promise<void> {
+		console.log(
+			`[MainSceneWorld] Loading ${
+				Object.keys(GIF_ASSETS).length
+			} GIF assets with @pixi/gif...`,
+		);
+		console.log(`[MainSceneWorld] GIF assets to load:`, GIF_ASSETS);
+
+		const gifLoadPromises = Object.entries(GIF_ASSETS).map(
+			async ([key, path]) => {
+				try {
+					console.log(
+						`[MainSceneWorld] Loading GIF asset: ${key} from ${path}`,
+					);
+
+					// @pixi/gif를 사용한 GIF 로딩
+					const animatedGif = await PIXI.Assets.load({
+						alias: key,
+						src: path,
+						data: {
+							scaleMode: "nearest",
+						},
+					});
+
+					console.log(
+						`[MainSceneWorld] Successfully loaded animated GIF: ${key}`,
+						animatedGif,
+					);
+				} catch (error) {
+					console.error(
+						`[MainSceneWorld] Failed to load GIF asset ${key} from ${path}:`,
+						error,
+					);
+				}
+			},
+		);
+
+		await Promise.all(gifLoadPromises);
+
+		// 로딩 완료 후 캐시 상태 확인
+		console.log(
+			`[MainSceneWorld] GIF assets loading completed. Checking cache...`,
+		);
+		Object.keys(GIF_ASSETS).forEach((key) => {
+			const asset = PIXI.Assets.get(key);
+			console.log(
+				`[MainSceneWorld] GIF Asset '${key}' in cache:`,
+				asset ? "YES (animated GIF)" : "NO",
+			);
+			if (asset) {
+				console.log(
+					`[MainSceneWorld] GIF Asset '${key}' type:`,
+					asset.constructor.name,
+				);
+			}
+		});
+	}
+	private async _loadImageAssets(): Promise<void> {
+		console.log(
+			`[MainSceneWorld] Loading ${
+				Object.keys(IMAGE_ASSETS).length
+			} image assets...`,
+		);
+		console.log(`[MainSceneWorld] Image assets to load:`, IMAGE_ASSETS);
+
+		const imageLoadPromises = Object.entries(IMAGE_ASSETS).map(
+			async ([key, path]) => {
+				try {
+					console.log(
+						`[MainSceneWorld] Loading image asset: ${key} from ${path}`,
+					);
+
+					await PIXI.Assets.load({
+						alias: key,
+						src: path,
+					});
+
+					// 로드 후 캐시에서 확인
+					const loadedAsset = PIXI.Assets.get(key);
+					if (loadedAsset instanceof PIXI.Texture) {
+						loadedAsset.source.scaleMode = "nearest";
+					}
+					console.log(
+						`[MainSceneWorld] Successfully loaded image asset: ${key}`,
+						loadedAsset ? "Found in cache" : "NOT found in cache",
+					);
+				} catch (error) {
+					console.error(
+						`[MainSceneWorld] Failed to load image asset ${key} from ${path}:`,
+						error,
+					);
+				}
+			},
+		);
+
+		await Promise.all(imageLoadPromises);
+
+		// 로딩 완료 후 캐시 상태 확인
+		console.log(
+			`[MainSceneWorld] Image assets loading completed. Checking cache...`,
+		);
+		Object.keys(IMAGE_ASSETS).forEach((key) => {
+			const asset = PIXI.Assets.get(key);
+			console.log(
+				`[MainSceneWorld] Asset '${key}' in cache:`,
+				asset ? "YES" : "NO",
+			);
+		});
+	}
+
+	async init(): Promise<void> {
+		console.groupCollapsed("[MainSceneWorld] 🚀 Initializing world...");
+
+		try {
+			this._initDiagnostics.beginInit();
+
+			createWorld(this, MAIN_SCENE_WORLD_ENTITY_CAPACITY);
+			enableManualEntityRecycling(this);
+
+			// 스토리지에서 데이터 로드 시도
+			console.log("Loading saved data from storage...");
+			const loadedData = await this._initDiagnostics.measurePhase(
+				"storage_load",
+				async () => {
+					return this.getData();
+				},
+			);
+			const monsterBookStorageState = await this._initDiagnostics.measurePhase(
+				"monster_book_storage_load",
+				async () => {
+					return await migrateLegacyMonsterBookIfNeeded(
+						StorageManager,
+						loadedData,
+					);
+				},
+			);
+
+			if (!this._hasPlayableSavedData(loadedData)) {
+				const initialGameData = await this._initDiagnostics.measurePhase(
+					"create_initial_game_data",
+					async () => {
+						return this._requireInitialGameData(
+							await this._createInitialGameData?.(),
+						);
+					},
+					{
+						reason: "missing_saved_data",
+					},
+				);
+				console.warn(
+					"No playable saved data found, initializing with default entities...",
+				);
+				this._persistentData = this._initializeData(initialGameData);
+			} else {
+				console.log(`Found saved data, validating and loading...`);
+
+				const validatedData = this._validateAndMigrateData(loadedData);
+
+				if (!this._hasPlayableSavedData(validatedData)) {
+					const initialGameData = await this._initDiagnostics.measurePhase(
+						"create_initial_game_data",
+						async () => {
+							return this._requireInitialGameData(
+								await this._createInitialGameData?.(),
+							);
+						},
+						{
+							reason: "invalid_saved_data",
+						},
+					);
+					console.warn(
+						"Saved data is missing required setup info or recoverable character entities, reinitializing with default entities...",
+					);
+					this._persistentData = this._initializeData(initialGameData);
+				} else {
+					this._persistentData = validatedData;
+					await this._initDiagnostics.measurePhase(
+						"load_saved_entities",
+						async () => {
+							this._loadEcsEntitiesFromStorage();
+						},
+					);
+				}
+			}
+			this._applyPersistedMonsterBookState(monsterBookStorageState.state);
+
+			// PIXI v8 Assets API로 게임 에셋 로드
+			await this._initDiagnostics.measurePhase(
+				"load_common_game_assets",
+				async () => {
+					await this._loadGameAssets();
+				},
+			);
+
+			const characterSpritesheetKeys = Array.from(
+				new Set(
+					this._persistentData.entities
+						.filter((entity) => {
+							return entity.components.object?.type === ObjectType.CHARACTER;
+						})
+						.map((entity) => {
+							return (
+								entity.components.animationRender?.spritesheetKey ??
+								entity.components.characterStatus?.characterKey
+							);
+						})
+						.filter((key): key is SpritesheetKey => {
+							return (
+								typeof key === "number" &&
+								Number.isFinite(key) &&
+								!!SPRITESHEET_KEY_TO_NAME[key as SpritesheetKey]
+							);
+						}),
+				),
+			);
+
+			await this._initDiagnostics.measurePhase(
+				"load_character_spritesheets",
+				async () => {
+					await Promise.all(
+						characterSpritesheetKeys.map(async (characterSpritesheetKey) => {
+							const spritesheetName =
+								SPRITESHEET_KEY_TO_NAME[characterSpritesheetKey];
+							await loadSpritesheet({
+								jsonPath: `/assets/game/sprites/monsters/${spritesheetName}.json`,
+								alias: spritesheetName,
+								// pixelArt: true,
+							});
+							await ensureCharacterOpaqueBoundsComputed(
+								characterSpritesheetKey,
+							);
+						}),
+					);
+				},
+				{
+					characterSpritesheetKeyCount: characterSpritesheetKeys.length,
+				},
+			);
+
+			// 배경 설정
+			this._background = new Background(
+				this._getGrassTextureForTimeOfDay(this._timeOfDay),
+			);
+			this._stage.addChild(this._background);
+			this._sceneDarknessOverlay = this._createSceneDarknessOverlay();
+			this._stage.addChild(this._sceneDarknessOverlay);
+
+			const { width, height } = this._getSceneSize();
+			this._background.resize(width, height);
+			this._resizeSceneDarknessOverlay(width, height);
+			await this._initDiagnostics.measurePhase(
+				"apply_cached_sun_times_and_schedule_refresh",
+				async () => {
+					if (this._isLocalTimeEnabled()) {
+						const appliedCachedSunTimes = this._applyCachedAutoTimeOfDay();
+						if (!appliedCachedSunTimes) {
+							this._applyCurrentSkyState();
+						}
+						this._initDiagnostics.logPhase(
+							"initial_sun_times_refresh_requested",
+							{
+								status: "dispatch",
+								promptForPermission: true,
+								hasCachedSunTimes: !!this._sunTimes,
+								appliedCachedSunTimes,
+							},
+						);
+						void this._initializeSunTimes();
+						return;
+					}
+
+					this._setRandomManualTimeOfDay();
+				},
+			);
+
+			// zIndex 정렬을 위해 sortableChildren 활성화
+			this._stage.sortableChildren = true;
+
+			// UI 초기화
+			if (this._parentElement) {
+				// 게임 메뉴 초기화
+				this._gameMenu = new GameMenu(this._parentElement, {
+					onMiniGameSelect: () => {
+						console.log("[MainSceneWorld] Mini game selected");
+						this._logMiniGameEntryAttempt("selected");
+						if (this._shouldBlockMiniGameEntry()) {
+							this._logMiniGameEntryAttempt("blocked");
+							return;
+						}
+
+						if (!this._startMiniGame) {
+							console.warn(
+								"[MainSceneWorld] Mini game start callback is not set",
+							);
+							this._logMiniGameEntryAttempt("missing_callback");
+							return;
+						}
+
+						this._prepareMainCharacterForMiniGameEntry();
+						this._logMiniGameEntryAttempt("start_requested");
+						void this._startMiniGame();
+					},
+					onFeedSelect: () => {
+						console.log("[MainSceneWorld] Feed selected");
+						const foodEid = this._throwFood();
+						if (foodEid !== null) {
+							this._recordMainSceneMenuUse("feed");
+							this._trackPendingFeedAdFood(foodEid);
+						}
+					},
+					onDrugSelect: () => {
+						console.log("[MainSceneWorld] Drug selected");
+						if (this._handleHospitalSelection()) {
+							this._recordMainSceneMenuUse("hospital");
+						}
+					},
+					onCleanSelect: () => {
+						console.log("[MainSceneWorld] Clean selected");
+						if (this._enterCleaningMode()) {
+							this._recordMainSceneMenuUse("clean");
+						}
+					},
+					onHospitalSelect: () => {
+						console.log("[MainSceneWorld] Hospital selected");
+						if (this._handleHospitalSelection()) {
+							this._recordMainSceneMenuUse("hospital");
+						}
+					},
+					onInformationSelect: () => {
+						console.log("[MainSceneWorld] Information selected");
+						if (!this._showMonsterInfo) {
+							console.warn("[MainSceneWorld] Monster info callback is not set");
+							return;
+						}
+
+						this._showMonsterInfo();
+					},
+					onCancel: () => {
+						console.log("[MainSceneWorld] Menu cancelled");
+					},
+					onFocusChange: (focusedIndex: number | null) => {
+						// 메뉴에 포커스가 있는지 여부에 따라 컨트롤 버튼 업데이트
+						this._updateControlButtonsForMenuState(focusedIndex !== null);
+					},
+				});
+				this._syncFeedMenuPreview();
+
+				// 디버그 Gauge UI는 dev 또는 native debug build에서 노출 가능
+				if (
+					(import.meta.env.DEV ||
+						import.meta.env.NATIVE_FEATURE_DEBUG_MODE === "true") &&
+					this._debugParentElement
+				) {
+					this._debugGaugeUI = new HTMLDebugGaugeUI(
+						this,
+						this._debugParentElement,
+						{
+							initiallyVisible: false,
+						},
+					);
+					this._addDebugGaugeEventListener();
+				}
+
+				// 상세 디버그 UI (개발 환경에서만)
+				if (import.meta.env.DEV && this._debugParentElement) {
+					this._debugGameConstantsUI = new HTMLDebugGameConstantsUI(
+						this._debugParentElement,
+					);
+					this._debugStatusUI = new HTMLDebugStatusUI(
+						this,
+						this._debugParentElement,
+					);
+					this._debugToggleButton = new HTMLDebugToggleButton(() => {
+						this._debugStatusUI?.toggle();
+						return this._debugStatusUI?.isDebugVisible() ?? false;
+					}, this._debugParentElement);
+				}
+			}
+
+			// Page Visibility API 이벤트 리스너 등록
+			await this._initDiagnostics.measurePhase(
+				"setup_visibility_handler",
+				async () => {
+					this._setupVisibilityChangeHandler();
+				},
+			);
+
+			// native reentry world data update 처리
+			await this._initDiagnostics.measurePhase(
+				"reentry_simulation",
+				async () => {
+					await this._processReentrySimulation("init");
+				},
+			);
+
+			this._initDiagnostics.completeInit();
+			console.log("World initialization completed");
+		} catch (error) {
+			this._initDiagnostics.failInit(error);
+			throw error;
+		} finally {
+			console.groupEnd();
+		}
+	}
+
+	private _shouldBlockMiniGameEntry(): boolean {
+		const characterEid = this._findMainCharacterEntity();
+		if (characterEid === -1) {
+			return false;
+		}
+
+		if (ObjectComp.state[characterEid] !== CharacterState.EGG) {
+			return false;
+		}
+
+		this._showAlert?.(this.t("main.eggUnavailable"), this.t("common.notice"));
+		return true;
+	}
+
+	private _logMiniGameEntryAttempt(
+		phase: "selected" | "blocked" | "missing_callback" | "start_requested",
+	): void {
+		const characterEid = this._findMainCharacterEntity();
+		const staminaSnapshot = this.getMainCharacterStaminaSnapshot();
+		const characterState =
+			characterEid === -1
+				? null
+				: CharacterState[ObjectComp.state[characterEid]];
+
+		console.log("[ImportantDiagnostics][MiniGameEntry]", {
+			phase,
+			hasCharacter: characterEid !== -1,
+			characterEid: characterEid === -1 ? null : characterEid,
+			characterState,
+			characterKey:
+				characterEid === -1
+					? null
+					: (CharacterKeyECS[CharacterStatusComp.characterKey[characterEid]] ??
+						null),
+			stamina: staminaSnapshot?.stamina ?? null,
+			maxStamina: staminaSnapshot?.maxStamina ?? null,
+			unhappyThreshold: staminaSnapshot?.unhappyThreshold ?? null,
+			boostedThreshold: staminaSnapshot?.boostedThreshold ?? null,
+			isPersistenceDisabled: this._isPersistenceDisabled,
+			debugMode: this._debugMode,
+			currentTime: this.currentTime,
+		});
+	}
+
+	private _prepareMainCharacterForMiniGameEntry(): void {
+		const characterEid = this._findMainCharacterEntity();
+		if (characterEid === -1) {
+			return;
+		}
+
+		const appState = this._ensureAppState();
+		if (appState) {
+			appState.suspend_food_interaction_until_reentry = true;
+		}
+
+		const completedActiveEating = completeActiveEatingForCharacter(
+			this,
+			characterEid,
+			this.currentTime,
+		);
+
+		if (
+			!completedActiveEating &&
+			hasComponent(this, DestinationComp, characterEid) &&
+			DestinationComp.type[characterEid] === DestinationType.TARGETED
+		) {
+			restoreCharacterFreeRoamingState(this, characterEid, {
+				now: this.currentTime,
+				idleDelayMs: 1000,
+			});
+		}
+
+		if (
+			!hasComponent(this, SleepSystemComp, characterEid) ||
+			ObjectComp.state[characterEid] !== CharacterState.SLEEPING
+		) {
+			return;
+		}
+
+		wakeCharacter(this, characterEid, this.currentTime);
+		SleepSystemComp.fatigue[characterEid] = Math.min(
+			GAME_CONSTANTS.FATIGUE_MAX,
+			SleepSystemComp.fatigue[characterEid] +
+				GAME_CONSTANTS.MINI_GAME_SLEEP_INTERRUPT_FATIGUE,
+		);
+		CharacterStatusComp.stamina[characterEid] = Math.max(
+			0,
+			CharacterStatusComp.stamina[characterEid] -
+				GAME_CONSTANTS.MINI_GAME_SLEEP_INTERRUPT_STAMINA,
+		);
+	}
+
+	private _addDebugGaugeEventListener(): void {
+		if (
+			this._isDebugGaugeEventListenerRegistered ||
+			typeof window === "undefined"
+		) {
+			return;
+		}
+
+		window.addEventListener(SHOW_DEBUG_GAUGE_EVENT, this._handleShowDebugGauge);
+		this._isDebugGaugeEventListenerRegistered = true;
+	}
+
+	private _removeDebugGaugeEventListener(): void {
+		if (
+			!this._isDebugGaugeEventListenerRegistered ||
+			typeof window === "undefined"
+		) {
+			return;
+		}
+
+		window.removeEventListener(
+			SHOW_DEBUG_GAUGE_EVENT,
+			this._handleShowDebugGauge,
+		);
+		this._isDebugGaugeEventListenerRegistered = false;
+	}
+
+	/**
+	 * 기본 캐릭터(알) 생성
+	 */
+	private _createDefaultCharacterEntity(): SavedEntity {
+		const eid = createCharacterEntity(this, {
+			position: {
+				x: this._positionBoundary.x + this._positionBoundary.width / 2,
+				y: this._positionBoundary.y + this._positionBoundary.height / 2,
+			},
+			angle: { value: 0 },
+			object: {
+				id: generatePersistentNumericId(),
+				type: ObjectType.CHARACTER,
+				state: CharacterState.EGG,
+			},
+			characterStatus: {
+				characterKey: ECS_NULL_VALUE,
+				stamina: 5, // 초기 스테미나 최대값으로 설정
+				evolutionGage: 0, // 초기 진화 게이지 0으로 설정
+				evolutionPhase: 1,
+				statuses: new Array(ECS_CHARACTER_STATUS_LENGTH).fill(ECS_NULL_VALUE),
+			},
+			render: {
+				storeIndex: ECS_NULL_VALUE,
+				scale: 3,
+				textureKey: ECS_NULL_VALUE,
+				zIndex: ECS_NULL_VALUE,
+			},
+			animationRender: {
+				storeIndex: ECS_NULL_VALUE,
+				spritesheetKey: SpritesheetKey.GreenSlimeA1,
+				animationKey: AnimationKey.IDLE,
+				isPlaying: true,
+				loop: true,
+				speed: 0.04,
+			},
+			speed: { value: ECS_NULL_VALUE },
+		});
+
+		this._requestLocationPermissionOnCharacterCreation();
+
+		return convertECSEntityToSavedEntity(this, eid);
+	}
+
+	/**
+	 * 스토리지에서 엔티티들을 로드하여 ECS 월드에 복원
+	 */
+	private _loadEcsEntitiesFromStorage(): void {
+		console.groupCollapsed("📦 Loading entities from storage...");
+
+		try {
+			if (!this._persistentData?.entities) {
+				console.warn("No entities data found in storage");
+				return;
+			}
+
+			let loadedEntitiesCount = 0;
+			let errorCount = 0;
+
+			// 이미 로딩된 Object ID들을 추적
+			const loadedObjectIds = new Set<number>();
+
+			this._persistentData.entities.forEach((savedEntity, index) => {
+				try {
+					const objectId = savedEntity.components.object?.id;
+
+					// Object ID가 없으면 에러
+					if (!objectId) {
+						throw new Error(
+							`Entity ${
+								index + 1
+							} has no Object ID - critical data corruption detected`,
+						);
+					}
+
+					// 중복 Object ID가 있으면 에러
+					if (loadedObjectIds.has(objectId)) {
+						throw new Error(
+							`Duplicate Object ID ${objectId} detected at entity ${
+								index + 1
+							} - critical data corruption detected`,
+						);
+					}
+
+					loadedObjectIds.add(objectId);
+
+					const eid = addEntity(this);
+					applySavedEntityToECS(this, eid, savedEntity);
+					const repairedComponents = repairCharacterEntityRuntimeComponents(
+						this,
+						eid,
+						this.currentTime,
+					);
+
+					if (repairedComponents.length > 0) {
+						console.warn(
+							`[MainSceneWorld] Repaired entity ${index + 1} (ID=${objectId}) missing runtime components: ${repairedComponents.join(", ")}`,
+						);
+					}
+
+					loadedEntitiesCount++;
+
+					console.log(
+						`Loaded entity ${index + 1}: ID=${objectId}, Type=${
+							savedEntity.components.object?.type
+						}`,
+					);
+				} catch (error) {
+					errorCount++;
+					console.error(`Failed to load entity ${index + 1}:`, error);
+					console.error("  Problematic entity data:", savedEntity);
+
+					// 에러를 다시 던져서 게임 초기화 실패로 처리
+					throw error;
+				}
+			});
+
+			const { repairedCharacters, repairedFoods } =
+				repairLoadedFoodInteractionState(this, this.currentTime);
+
+			if (repairedCharacters.length > 0 || repairedFoods.length > 0) {
+				console.warn(
+					`[MainSceneWorld] Repaired orphaned loaded food interaction state: ${repairedCharacters.length} characters, ${repairedFoods.length} foods`,
+				);
+			}
+
+			console.log(
+				`Loaded ${loadedEntitiesCount} entities successfully, ${errorCount} failed`,
+			);
+
+			// 로딩 실패한 엔티티들이 있고 성공한 엔티티가 하나도 없다면 기본 캐릭터 생성
+			if (loadedEntitiesCount === 0 && errorCount > 0) {
+				console.warn(
+					"All entities failed to load, creating default character...",
+				);
+				this._createDefaultCharacterEntity();
+			}
+
+			// 로드된 엔티티의 상태 아이콘 검증 및 수정
+			validateAndFixStatusIcons(this);
+
+			this._logLoadedEcsEntities(); // 로드된 엔티티 상태 요약 로그
+		} finally {
+			console.groupEnd();
+		}
+	}
+
+	/**
+	 * 로드된 엔티티들의 상태를 로깅하는 디버그 메소드
+	 */
+	private _logLoadedEcsEntities(): void {
+		if (!this._persistentData?.entities) return;
+
+		console.groupCollapsed("📊 Loaded Entities Summary:");
+
+		const entityStats = {
+			total: this._persistentData.entities.length,
+			byType: {} as Record<string, number>,
+			byState: {} as Record<string, number>,
+		};
+
+		this._persistentData.entities.forEach((entity) => {
+			if (entity.components.object) {
+				const type = ObjectType[entity.components.object.type] || "UNKNOWN";
+				entityStats.byType[type] = (entityStats.byType[type] || 0) + 1;
+
+				if (entity.components.object.type === ObjectType.CHARACTER) {
+					const state =
+						CharacterState[entity.components.object.state] || "UNKNOWN";
+					entityStats.byState[state] = (entityStats.byState[state] || 0) + 1;
+				}
+			}
+		});
+
+		console.log(`Total entities: ${entityStats.total}`);
+		console.log("By type:", entityStats.byType);
+		if (Object.keys(entityStats.byState).length > 0) {
+			console.log("Character states:", entityStats.byState);
+		}
+
+		console.groupEnd();
+	}
+
+	/**
+	 * Scene 종료 시 호출 (scene 변경 전 정리 작업)
+	 *
+	 * 사용법:
+	 * // Scene Manager에서 scene 변경 시
+	 * if (currentScene.onSceneExit) {
+	 *   currentScene.onSceneExit();
+	 * }
+	 */
+	public async onSceneExit(): Promise<void> {
+		console.log(
+			"[MainSceneWorld] 🚪 Scene exit - saving state and cleaning up...",
+		);
+
+		// 현재 상태 저장
+		if (!this._isPersistenceDisabled) {
+			try {
+				await this._saveCurrentState();
+			} catch (error) {
+				console.error(
+					"[ImportantDiagnostics][MainSceneExitPersistence] save_failed",
+					{
+						error:
+							error instanceof Error
+								? {
+										name: error.name,
+										message: error.message,
+									}
+								: {
+										message: String(error),
+									},
+					},
+				);
+			}
+		}
+
+		// 이벤트 핸들러 정리
+		this._cleanupVisibilityChangeHandler();
+		this._clearMainSceneAdTimers();
+
+		// 수면 효과 정리
+		if (this._stage) {
+			cleanupSleepEffects(this._stage);
+			cleanupEggCrackRenderState();
+			cleanupCharacterNameLabels();
+			cleanupCharacterLayoutDebug(this._stage);
+		}
+		this._pendingRecoveryCureEids.clear();
+		this.stopRecoveryVibration();
+
+		// 일시정지 상태로 설정 (다른 scene으로 전환되므로)
+		this._isPaused = true;
+
+		console.log("[MainSceneWorld] Scene exit cleanup completed");
+	}
+
+	/**
+	 * Scene 재진입 시 호출 (다른 scene에서 돌아올 때)
+	 *
+	 * 사용법:
+	 * // Scene Manager에서 MainScene으로 돌아올 때
+	 * if (mainScene.onSceneReenter) {
+	 *   await mainScene.onSceneReenter();
+	 * }
+	 */
+	public async onSceneReenter(): Promise<void> {
+		console.log(
+			"[MainSceneWorld] 🔄 Scene reenter - restoring state and handlers...",
+		);
+
+		try {
+			// 이벤트 핸들러 재등록
+			this._setupVisibilityChangeHandler();
+
+			// manual reentry는 JS simulation 없이 현재 상태만 저장
+			await this._processReentrySimulation();
+
+			// 일시정지 해제
+			this._isPaused = false;
+			this._pauseStartTime = 0;
+			await this._flushDeferredPersistenceIfNeeded();
+
+			console.log("[MainSceneWorld] Scene reenter completed");
+		} catch (error) {
+			console.error("[MainSceneWorld] Failed to reenter scene:", error);
+			// 에러가 발생해도 기본 상태는 복원
+			this._isPaused = false;
+			this._setupVisibilityChangeHandler();
+		}
+	}
+
+	public async disablePersistenceAndClearData(): Promise<void> {
+		this._isPersistenceDisabled = true;
+		this._persistentData = undefined;
+		this._isPaused = true;
+		this._cleanupVisibilityChangeHandler();
+
+		await this.clearData();
+	}
+
+	destroy(): void {
+		console.groupCollapsed("[MainSceneWorld] 🧹 Destroying world...");
+
+		try {
+			this._cleanupVisibilityChangeHandler();
+			this._clearMainSceneAdTimers();
+
+			// Scene 종료 처리 (아직 호출되지 않았다면)
+			if (!this._isPaused && !this._isPersistenceDisabled) {
+				void this.onSceneExit();
+			}
+
+			// 게임 메뉴 정리
+			if (this._gameMenu) {
+				this._gameMenu.destroy();
+				this._gameMenu = undefined;
+			}
+
+			this._removeDebugGaugeEventListener();
+
+			// 디버그 게이지 UI 정리
+			if (this._debugGaugeUI) {
+				this._debugGaugeUI.destroy();
+				this._debugGaugeUI = undefined;
+			}
+
+			// 디버그 UI 정리
+			if (this._debugStatusUI) {
+				this._debugStatusUI.destroy();
+				this._debugStatusUI = undefined;
+			}
+			if (this._debugToggleButton) {
+				this._debugToggleButton.destroy();
+				this._debugToggleButton = undefined;
+			}
+			if (this._debugGameConstantsUI) {
+				this._debugGameConstantsUI.destroy();
+				this._debugGameConstantsUI = undefined;
+			}
+
+			if (this._sceneDarknessOverlay) {
+				this._stage.removeChild(this._sceneDarknessOverlay);
+				this._sceneDarknessOverlay.destroy();
+				this._sceneDarknessOverlay = undefined;
+			}
+
+			cleanupSleepEffects(this._stage);
+			cleanupEggCrackRenderState();
+			cleanupCharacterNameLabels();
+			cleanupCharacterLayoutDebug(this._stage);
+			this._pendingRecoveryCureEids.clear();
+
+			this._background && this._stage.removeChild(this._background);
+			// this._assetsLoaded = false;
+
+			// PIXI v8에서는 필요시 특정 에셋만 언로드 가능
+			// PIXI.Assets.unload(Object.keys(GAME_ASSETS));
+
+			console.log("World destroyed successfully");
+			// TODO: 모든 엔티티 제거
+		} finally {
+			console.groupEnd();
+		}
+	}
+	update(delta: number): void {
+		// 앱이 일시정지 상태일 때는 시스템 업데이트 건너뛰기
+		if (this._isPaused || this._isRunningReentrySimulation) {
+			this._logStatusHeartbeatIfNeeded(delta);
+			return;
+		}
+
+		this._updateAutoTimeOfDayIfNeeded();
+		this._background?.animate(this.currentTime);
+
+		// 시스템 파이프라인 실행
+		this._pipedSystems({
+			world: this,
+			delta,
+		});
+		this._releaseEntryStatusSuppressionIfNeeded();
+		this._logStatusHeartbeatIfNeeded(delta);
+
+		// UI 업데이트
+		if (this._debugGaugeUI) {
+			this._debugGaugeUI.update();
+		}
+
+		// 디버그 UI 업데이트
+		if (this._debugStatusUI) {
+			this._debugStatusUI.update();
+
+			// 디버그 토글 버튼 상태 동기화
+			if (this._debugToggleButton) {
+				this._debugToggleButton.updateState(
+					this._debugStatusUI.isDebugVisible(),
+				);
+			}
+		}
+
+		// 이전 상태 업데이트 (진입 감지용)
+		this._previousCleaningMode = this._isCleaningMode;
+	}
+
+	private _logStatusHeartbeatIfNeeded(delta: number): void {
+		const currentTime = this.currentTime;
+		const heartbeatTime = Number.isFinite(currentTime)
+			? currentTime
+			: Date.now();
+		const lastLogTime = this._lastStatusHeartbeatLogTime;
+
+		if (
+			lastLogTime !== null &&
+			heartbeatTime - lastLogTime < MAIN_SCENE_STATUS_HEARTBEAT_INTERVAL_MS
+		) {
+			return;
+		}
+
+		this._lastStatusHeartbeatLogTime = heartbeatTime;
+
+		const worldMetadata = this._persistentData?.world_metadata;
+		const lastEcsSaved = worldMetadata?.last_ecs_saved;
+		const lastEcsSavedAgeMs =
+			typeof lastEcsSaved === "number" && Number.isFinite(lastEcsSaved)
+				? Math.max(0, heartbeatTime - lastEcsSaved)
+				: null;
+		const mainCharacter = this._getMainCharacterStatusHeartbeatSnapshot();
+
+		console.warn("[ImportantDiagnostics][MainSceneStatusHeartbeat]", {
+			isPaused: this._isPaused,
+			isRunningReentrySimulation: this._isRunningReentrySimulation,
+			statusSystemsEnabled: this._statusSystemsEnabled,
+			delta,
+			currentTime,
+			lastEcsSaved: lastEcsSaved ?? null,
+			lastEcsSavedAgeMs,
+			mainCharacter,
+		});
+	}
+
+	private _getMainCharacterStatusHeartbeatSnapshot(): {
+		eid: number;
+		objectId: number;
+		stamina: number;
+		evolutionGauge: number;
+		statuses: number[];
+		state: number;
+		stateName: string;
+	} | null {
+		let eid = -1;
+
+		try {
+			eid = this._findMainCharacterEntity();
+		} catch {
+			return null;
+		}
+
+		if (
+			eid < 0 ||
+			!hasComponent(this, ObjectComp, eid) ||
+			!hasComponent(this, CharacterStatusComp, eid)
+		) {
+			return null;
+		}
+
+		const state = ObjectComp.state[eid] as CharacterState;
+
+		return {
+			eid,
+			objectId: ObjectComp.id[eid],
+			stamina: CharacterStatusComp.stamina[eid],
+			evolutionGauge: CharacterStatusComp.evolutionGage[eid],
+			statuses: Array.from(CharacterStatusComp.statuses[eid]).filter(
+				(status) => status !== ECS_NULL_VALUE,
+			),
+			state,
+			stateName: CharacterState[state] ?? `Unknown(${state})`,
+		};
+	}
+
+	private _requireInitialGameData(
+		initialGameData?: InitialGameData,
+	): InitialGameData {
+		if (!initialGameData) {
+			throw new MissingInitialGameDataError();
+		}
+
+		const normalizedName = initialGameData?.name?.trim();
+
+		if (!normalizedName) {
+			throw new MissingInitialGameDataError();
+		}
+
+		return {
+			name: normalizedName,
+			useLocalTime: initialGameData.useLocalTime ?? DEFAULT_USE_LOCAL_TIME,
+			cachedSunTimes: initialGameData.cachedSunTimes ?? null,
+			resetBootstrapMarkerId: initialGameData.resetBootstrapMarkerId,
+		};
+	}
+
+	private _initializeData(
+		initialGameData: InitialGameData,
+	): MainSceneWorldData {
+		const useLocalTime = initialGameData.useLocalTime;
+		const cachedSunTimes = useLocalTime
+			? (initialGameData.cachedSunTimes ?? undefined)
+			: undefined;
+
+		return {
+			world_metadata: {
+				name: "MainScene",
+				monster_name: initialGameData.name,
+				last_ecs_saved: this.currentTime,
+				version: this.WORLD_DATA_SCHEMA_VERSION,
+				app_state: {
+					last_active_time: this.currentTime,
+					last_active_time_anchor: this._trustedClock.captureAnchor(),
+					is_first_load: false,
+					use_local_time: useLocalTime,
+					reset_bootstrap_marker_id: initialGameData.resetBootstrapMarkerId,
+					cached_sun_times: cachedSunTimes,
+					main_scene_ad: {
+						menu_use_count: 0,
+					},
+					mini_game_scores: {
+						flappy_bird: {
+							best_score: 0,
+						},
+					},
+					monster_book: createEmptyMonsterBookState(),
+				},
+			},
+			entities: [this._createDefaultCharacterEntity()],
+		};
+	}
+
+	getInMemoryData(): MainSceneWorldData {
+		return this._persistentData as MainSceneWorldData;
+	}
+
+	public buildHomeWidgetSyncWorldData(): MainSceneWorldData | null {
+		if (!this._persistentData) {
+			console.warn("[ImportantDiagnostics][HomeWidgetSyncWorldData]", {
+				phase: "build_skipped_missing_persistent_data",
+			});
+			return null;
+		}
+
+		try {
+			const syncWorldData = cloneDeep(this._persistentData);
+			const currentTime = this.currentTime;
+			const currentAnchor = this._trustedClock.captureAnchor();
+			const worldMetadata = syncWorldData.world_metadata ?? {
+				name: "MainScene",
+				last_ecs_saved: currentTime,
+				version: this.WORLD_DATA_SCHEMA_VERSION,
+			};
+
+			syncWorldData.world_metadata = worldMetadata;
+			worldMetadata.last_ecs_saved = currentTime;
+			worldMetadata.version =
+				worldMetadata.version || this.WORLD_DATA_SCHEMA_VERSION;
+
+			const appState = worldMetadata.app_state ?? {
+				last_active_time: currentTime,
+				last_active_time_anchor: currentAnchor,
+				is_first_load: false,
+				use_local_time: true,
+				main_scene_ad: {
+					menu_use_count: 0,
+				},
+				mini_game_scores: {
+					flappy_bird: {
+						best_score: 0,
+					},
+				},
+				monster_book: createEmptyMonsterBookState(),
+			};
+
+			worldMetadata.app_state = appState;
+			appState.last_active_time = currentTime;
+			appState.last_active_time_anchor = currentAnchor;
+			appState.use_local_time = true;
+
+			const objectEntities = liveObjectQuery(this);
+			syncWorldData.entities = objectEntities.map((eid) =>
+				convertECSEntityToSavedEntity(this, eid),
+			);
+			const characterEid = this._findMainCharacterEntity();
+
+			if (characterEid >= 0) {
+				console.warn("[ImportantDiagnostics][HomeWidgetSyncWorldData]", {
+					phase: "build_completed",
+					currentTime,
+					worldLastEcsSaved: worldMetadata.last_ecs_saved,
+					appLastActiveTime: appState.last_active_time,
+					appMonsterName: worldMetadata.monster_name ?? null,
+					eid: characterEid,
+					objectId: ObjectComp.id[characterEid],
+					state: ObjectComp.state[characterEid],
+					characterKey: CharacterStatusComp.characterKey[characterEid],
+					hatchTime: EggHatchComp.hatchTime[characterEid],
+					hatchDurationMs: EggHatchComp.hatchDurationMs[characterEid],
+					isReadyToHatch: EggHatchComp.isReadyToHatch[characterEid] === 1,
+					isSimulationMode: this.isSimulationMode,
+					isRunningReentrySimulation: this._isRunningReentrySimulation,
+				});
+			}
+
+			return syncWorldData;
+		} catch (error) {
+			console.warn(
+				"[MainSceneWorld] Failed to build home widget sync world data",
+				error,
+			);
+			return null;
+		}
+	}
+
+	async getData(): Promise<MainSceneWorldData | null> {
+		console.groupCollapsed("💾 Loading saved data from storage...");
+
+		try {
+			const data = (await StorageManager.getData(
+				WORLD_DATA_STORAGE_KEY,
+			)) as MainSceneWorldData;
+
+			if (!data) {
+				console.log("No saved data found in storage");
+				return null;
+			}
+
+			console.log("Successfully loaded data from storage");
+			return data;
+		} catch (error) {
+			console.error("Failed to load data from storage:", error);
+
+			// 스토리지에서 데이터를 읽는 데 실패한 경우, 빈 데이터로 덮어쓰기
+			// try {
+			//   await StorageManager.setData(WORLD_DATA_STORAGE_KEY, null);
+			//   console.log("[MainSceneWorld] Cleared corrupted storage data");
+			// } catch (clearError) {
+			//   console.error(
+			//     "[MainSceneWorld] Failed to clear corrupted data:",
+			//     clearError
+			//   );
+			// }
+
+			return null;
+		} finally {
+			console.groupEnd();
+		}
+	}
+
+	private _enqueueStorageWrite(operation: () => Promise<void>): Promise<void> {
+		const nextWrite = this._pendingStorageWrite
+			.catch(() => undefined)
+			.then(() => operation());
+
+		this._pendingStorageWrite = nextWrite.catch(() => undefined);
+		return nextWrite;
+	}
+
+	async setData(data: MainSceneWorldData): Promise<void> {
+		this._persistentData = data;
+
+		if (this._isPersistenceDisabled) {
+			console.debug("[MainSceneWorld] setData:skip_persistence_disabled", {
+				key: WORLD_DATA_STORAGE_KEY,
+				monsterName: data.world_metadata?.monster_name,
+				entityCount: data.entities?.length ?? 0,
+				savedAt: data.world_metadata?.last_ecs_saved,
+			});
+			return;
+		}
+
+		if (this._shouldDeferPersistence?.()) {
+			this._hasDeferredPersistence = true;
+			console.debug("[MainSceneWorld] setData:deferred", {
+				key: WORLD_DATA_STORAGE_KEY,
+				monsterName: data.world_metadata?.monster_name,
+				entityCount: data.entities?.length ?? 0,
+			});
+			return;
+		}
+
+		this._hasDeferredPersistence = false;
+
+		await this._enqueueStorageWrite(async () => {
+			try {
+				const monsterBookState =
+					data.world_metadata.app_state?.monster_book ?? null;
+				const persistableData = this._createStoragePersistableData(data);
+				console.debug("[MainSceneWorld] setData:start", {
+					key: WORLD_DATA_STORAGE_KEY,
+					monsterName: data.world_metadata?.monster_name,
+					entityCount: data.entities?.length ?? 0,
+					savedAt: data.world_metadata?.last_ecs_saved,
+				});
+				await saveMonsterBookState(StorageManager, monsterBookState);
+				await StorageManager.setData(WORLD_DATA_STORAGE_KEY, persistableData);
+				console.debug("[MainSceneWorld] setData:success", {
+					key: WORLD_DATA_STORAGE_KEY,
+					monsterName: data.world_metadata?.monster_name,
+					entityCount: data.entities?.length ?? 0,
+				});
+			} catch (error) {
+				console.error("[MainSceneWorld] Failed to save data:", error);
+				throw error;
+			}
+		});
+	}
+
+	private async _flushDeferredPersistenceIfNeeded(): Promise<void> {
+		if (
+			!this._hasDeferredPersistence ||
+			!this._persistentData ||
+			this._isPersistenceDisabled ||
+			this._shouldDeferPersistence?.()
+		) {
+			return;
+		}
+
+		const deferredData = this._persistentData;
+		this._hasDeferredPersistence = false;
+		await this.setData(deferredData);
+	}
+
+	async clearData(): Promise<void> {
+		this._persistentData = undefined;
+
+		await this._enqueueStorageWrite(async () => {
+			try {
+				console.warn("[MainSceneWorld] clearData:start", {
+					key: WORLD_DATA_STORAGE_KEY,
+				});
+				await StorageManager.removeData(WORLD_DATA_STORAGE_KEY);
+				console.warn("[MainSceneWorld] clearData:success", {
+					key: WORLD_DATA_STORAGE_KEY,
+				});
+			} catch (error) {
+				console.error("[MainSceneWorld] Failed to clear data:", error);
+				throw error;
+			}
+		});
+	}
+
+	private _sanitizeSavedEntities(entities: SavedEntity[]): SavedEntity[] {
+		const sanitizedEntities: SavedEntity[] = [];
+		const seenObjectIds = new Set<number>();
+
+		entities.forEach((entity, index) => {
+			if (!entity?.components) {
+				console.warn(
+					`[MainSceneWorld] Dropping corrupted entity ${index}: missing components`,
+				);
+				return;
+			}
+
+			const objectComponent = entity.components.object;
+
+			if (!objectComponent) {
+				console.warn(
+					`[MainSceneWorld] Dropping corrupted entity ${index}: missing object component`,
+				);
+				return;
+			}
+
+			const objectId = objectComponent.id;
+
+			if (
+				typeof objectId !== "number" ||
+				!Number.isFinite(objectId) ||
+				objectId <= 0
+			) {
+				console.warn(
+					`[MainSceneWorld] Dropping corrupted entity ${index}: invalid Object ID ${objectId}`,
+				);
+				return;
+			}
+
+			if (seenObjectIds.has(objectId)) {
+				console.warn(
+					`[MainSceneWorld] Dropping duplicated entity ${index}: Object ID ${objectId}`,
+				);
+				return;
+			}
+
+			seenObjectIds.add(objectId);
+			sanitizedEntities.push(entity);
+		});
+
+		return sanitizedEntities;
+	}
+
+	private _hasPlayableSavedData(
+		data: MainSceneWorldData | null | undefined,
+	): data is MainSceneWorldData {
+		if (!data) {
+			return false;
+		}
+
+		const monsterName = data.world_metadata?.monster_name?.trim();
+
+		if (!monsterName) {
+			return false;
+		}
+
+		return (
+			data.entities?.some((entity) => {
+				return entity.components.object?.type === ObjectType.CHARACTER;
+			}) ?? false
+		);
+	}
+
+	/**
+	 * 저장된 데이터의 유효성을 검증하고 필요시 마이그레이션 수행
+	 */
+	private _validateAndMigrateData(
+		data: MainSceneWorldData,
+	): MainSceneWorldData {
+		console.groupCollapsed("🔍 Validating saved data...");
+
+		try {
+			// 기본 구조 검증
+			if (!data.world_metadata) {
+				console.warn("Missing world_metadata, creating default");
+				data.world_metadata = {
+					name: "MainScene",
+					last_ecs_saved: this.currentTime,
+					version: this.WORLD_DATA_SCHEMA_VERSION,
+					app_state: {
+						last_active_time: this.currentTime,
+						last_active_time_anchor: this._trustedClock.captureAnchor(),
+						is_first_load: false,
+						use_local_time: true,
+						main_scene_ad: {
+							menu_use_count: 0,
+						},
+						mini_game_scores: {
+							flappy_bird: {
+								best_score: 0,
+							},
+						},
+						monster_book: createEmptyMonsterBookState(),
+					},
+				};
+			}
+
+			if (!data.world_metadata.app_state) {
+				data.world_metadata.app_state = {
+					last_active_time: this.currentTime,
+					last_active_time_anchor: this._trustedClock.captureAnchor(),
+					is_first_load: false,
+					use_local_time: true,
+					main_scene_ad: {
+						menu_use_count: 0,
+					},
+					mini_game_scores: {
+						flappy_bird: {
+							best_score: 0,
+						},
+					},
+					monster_book: createEmptyMonsterBookState(),
+				};
+			} else if (data.world_metadata.app_state.use_local_time !== true) {
+				data.world_metadata.app_state.use_local_time = true;
+			}
+
+			if (!data.world_metadata.app_state.main_scene_ad) {
+				data.world_metadata.app_state.main_scene_ad = {
+					menu_use_count: 0,
+				};
+			}
+
+			if (!data.world_metadata.app_state.mini_game_scores) {
+				data.world_metadata.app_state.mini_game_scores = {
+					flappy_bird: {
+						best_score: 0,
+					},
+				};
+			} else if (!data.world_metadata.app_state.mini_game_scores.flappy_bird) {
+				data.world_metadata.app_state.mini_game_scores.flappy_bird = {
+					best_score: 0,
+				};
+			}
+
+			ensureMonsterBookState(data);
+
+			if (!data.entities) {
+				console.warn("Missing entities array, creating empty array");
+				data.entities = [];
+			}
+
+			// 버전 호환성 검증
+			if (data.world_metadata.version !== this.WORLD_DATA_SCHEMA_VERSION) {
+				console.log(
+					`World data version mismatch (saved: ${data.world_metadata.version}, current: ${this.WORLD_DATA_SCHEMA_VERSION}), attempting migration...`,
+				);
+				data = this._migrateData(data);
+			}
+
+			const originalEntityCount = data.entities.length;
+			data.entities = this._sanitizeSavedEntities(data.entities);
+
+			if (data.entities.length !== originalEntityCount) {
+				console.warn(
+					`[MainSceneWorld] Recovered saved data by dropping ${
+						originalEntityCount - data.entities.length
+					} corrupted entities`,
+				);
+			}
+
+			console.log(
+				`Data validation completed, ${data.entities.length} valid entities found`,
+			);
+			return data;
+		} finally {
+			console.groupEnd();
+		}
+	}
+
+	/**
+	 * 이전 버전 데이터를 현재 버전으로 마이그레이션
+	 */
+	private _migrateData(data: MainSceneWorldData): MainSceneWorldData {
+		console.groupCollapsed("🔄 Migrating data...");
+
+		try {
+			console.log(
+				`Migrating data from version ${data.world_metadata.version} to ${this.WORLD_DATA_SCHEMA_VERSION}`,
+			);
+
+			// TODO: 버전별 마이그레이션 로직
+			// 예: 1.0.0 이전 버전에서 특정 필드가 추가되었다면 여기서 처리
+
+			// 마이그레이션 완료 후 버전 업데이트
+			data.world_metadata.version = this.WORLD_DATA_SCHEMA_VERSION;
+			data.world_metadata.last_ecs_saved = this.currentTime;
+
+			console.log("Data migration completed");
+			return data;
+		} finally {
+			console.groupEnd();
+		}
+	}
+
+	/**
+	 * 화면 크기 변경 시 호출되는 메서드
+	 */
+	resize(width: number, height: number): void {
+		// 위치 경계 업데이트
+		this._positionBoundary = {
+			x: this._positionBoundaryInsets.left,
+			y: this._positionBoundaryInsets.top,
+			width:
+				width -
+				this._positionBoundaryInsets.left -
+				this._positionBoundaryInsets.right,
+			height:
+				height -
+				this._positionBoundaryInsets.top -
+				this._positionBoundaryInsets.bottom,
+		};
+
+		// 배경 크기 조정
+		if (this._background) {
+			this._background.resize(width, height);
+			this._applyCurrentSkyState();
+		}
+
+		this._resizeSceneDarknessOverlay(width, height);
+	}
+
+	public getTimeOfDay(): TimeOfDay {
+		return this._timeOfDay;
+	}
+
+	public setTimeOfDay(timeOfDay: TimeOfDay): void {
+		if (
+			this._timeOfDayMode === TimeOfDayMode.Manual &&
+			this._timeOfDay === timeOfDay
+		) {
+			return;
+		}
+
+		this._timeOfDayMode = TimeOfDayMode.Manual;
+		this._setUseLocalTimeEnabled(false);
+		this._autoTimeOfDayState = null;
+		this._autoTimeOfDayMinuteKey = null;
+		this._timeOfDay = timeOfDay;
+		this._applyCurrentSkyState();
+
+		console.log(
+			`[MainSceneWorld] Time of day changed to ${getTimeOfDayLabel(timeOfDay, this._locale)} (manual)`,
+		);
+	}
+
+	public enableAutoTimeOfDay(): void {
+		this._setUseLocalTimeEnabled(true);
+
+		if (!this._sunTimes) {
+			void this._initializeSunTimes();
+			return;
+		}
+
+		this._timeOfDayMode = TimeOfDayMode.Auto;
+		this._autoTimeOfDayMinuteKey = null;
+		this._updateAutoTimeOfDayIfNeeded(true);
+	}
+
+	public getTimeOfDayMode(): TimeOfDayMode {
+		return this._timeOfDayMode;
+	}
+
+	public getTimeOfDayDebugState(): {
+		mode: TimeOfDayMode;
+		label: string;
+		progress: number | null;
+		hasLocationPermission: boolean;
+		locationSource: SunLocationSource | null;
+		sunriseAt: string | null;
+		sunsetAt: string | null;
+	} {
+		return {
+			mode: this._timeOfDayMode,
+			label: getTimeOfDayLabel(this._timeOfDay, this._locale),
+			progress: this._autoTimeOfDayState?.progress ?? null,
+			hasLocationPermission: this._hasLocationPermission,
+			locationSource: this._sunLocationSource,
+			sunriseAt: this._sunTimes?.sunriseAt ?? null,
+			sunsetAt: this._sunTimes?.sunsetAt ?? null,
+		};
+	}
+
+	private async _initializeSunTimes(): Promise<void> {
+		console.log("[MainSceneWorld] Initial sun times refresh requested", {
+			promptForPermission: true,
+			hasCachedSunTimes: !!this._sunTimes,
+		});
+		await this._refreshSunTimes(true);
+	}
+
+	private async _refreshSunTimes(promptForPermission: boolean): Promise<void> {
+		if (this._sunTimesRefreshPromise) {
+			await this._sunTimesRefreshPromise;
+			return;
+		}
+
+		this._sunTimesRefreshPromise = (async () => {
+			console.log("[MainSceneWorld] Refreshing sun times", {
+				promptForPermission,
+				currentDate: this._sunTimes?.date ?? null,
+				locationSource: this._sunLocationSource,
+				hasLocationPermission: this._hasLocationPermission,
+			});
+
+			const sunTimes = await getNativeSunTimes(
+				promptForPermission,
+				this._initDiagnostics.createSunTimesTraceContext({
+					source: "main_scene_world",
+					phase: "refresh_sun_times",
+				}),
+			);
+			if (!sunTimes) {
+				console.warn(
+					"[MainSceneWorld] Native sun times are unavailable, staying in manual mode",
+				);
+				return;
+			}
+
+			this._sunTimes = sunTimes;
+			this._hasLocationPermission = sunTimes.hasLocationPermission;
+			this._sunLocationSource = sunTimes.locationSource;
+			this._setCachedSunTimes(sunTimes);
+
+			if (!this._isLocalTimeEnabled()) {
+				console.log(
+					"[MainSceneWorld] Sun times loaded but local time is disabled, staying in manual mode",
+				);
+				return;
+			}
+
+			if (this._timeOfDayMode === TimeOfDayMode.Manual) {
+				this._timeOfDayMode = TimeOfDayMode.Auto;
+			}
+
+			this._autoTimeOfDayMinuteKey = null;
+			this._updateAutoTimeOfDayIfNeeded(true);
+
+			console.log("[MainSceneWorld] Sun times updated", {
+				promptForPermission,
+				date: sunTimes.date,
+				locationSource: sunTimes.locationSource,
+				hasLocationPermission: sunTimes.hasLocationPermission,
+				sunriseAt: sunTimes.sunriseAt,
+				sunsetAt: sunTimes.sunsetAt,
+			});
+		})();
+
+		try {
+			await this._sunTimesRefreshPromise;
+		} finally {
+			this._sunTimesRefreshPromise = null;
+		}
+	}
+
+	private _updateAutoTimeOfDayIfNeeded(force = false): void {
+		if (this._timeOfDayMode !== TimeOfDayMode.Auto || !this._sunTimes) {
+			return;
+		}
+
+		const now = new Date(this.currentTime);
+
+		if (
+			!this.isSimulationMode &&
+			hasSunTimesDateRolledOver(now, this._sunTimes)
+		) {
+			console.log("[MainSceneWorld] Sun times date rolled over; refreshing", {
+				previousDate: this._sunTimes.date,
+				currentDate: now.toISOString().slice(0, 10),
+				locationSource: this._sunLocationSource,
+				hasLocationPermission: this._hasLocationPermission,
+			});
+			void this._refreshSunTimes(false);
+			return;
+		}
+
+		const currentMinuteKey = Math.floor(this.currentTime / 60000);
+		if (!force && this._autoTimeOfDayMinuteKey === currentMinuteKey) {
+			return;
+		}
+
+		this._autoTimeOfDayMinuteKey = currentMinuteKey;
+		const nextState = resolveAutoTimeOfDayState(now, this._sunTimes);
+		const hasChanged =
+			!this._autoTimeOfDayState ||
+			this._autoTimeOfDayState.timeOfDay !== nextState.timeOfDay ||
+			this._autoTimeOfDayState.progress !== nextState.progress;
+
+		this._autoTimeOfDayState = nextState;
+		this._timeOfDay = nextState.timeOfDay;
+
+		if (hasChanged) {
+			this._applyCurrentSkyState();
+		}
+	}
+
+	private _applyCurrentSkyState(): void {
+		if (!this._background) {
+			return;
+		}
+
+		const state =
+			this._timeOfDayMode === TimeOfDayMode.Auto && this._autoTimeOfDayState
+				? this._autoTimeOfDayState
+				: getManualSkyVisualState(this._timeOfDay);
+
+		this._background.setTexture(
+			this._getGrassTextureForTimeOfDay(state.timeOfDay),
+		);
+		this._background.applySkyState(state);
+		this._applySceneDarknessOverlay(state);
+	}
+
+	private _getGrassTextureForTimeOfDay(timeOfDay: TimeOfDay): PIXI.Texture {
+		const assetKey = TIME_OF_DAY_TO_GRASS_ASSET[timeOfDay] ?? "grass";
+		const texture = PIXI.Assets.get(assetKey);
+
+		if (texture instanceof PIXI.Texture) {
+			return texture;
+		}
+
+		const fallbackTexture = PIXI.Assets.get("grass");
+
+		if (fallbackTexture instanceof PIXI.Texture) {
+			return fallbackTexture;
+		}
+
+		return PIXI.Texture.WHITE;
+	}
+
+	private _createSceneDarknessOverlay(): PIXI.Graphics {
+		const overlay = new PIXI.Graphics();
+		overlay.zIndex = MainSceneWorld.SCENE_DARKNESS_OVERLAY_Z_INDEX;
+		overlay.eventMode = "none";
+		overlay.visible = false;
+		return overlay;
+	}
+
+	private _resizeSceneDarknessOverlay(width: number, height: number): void {
+		if (!this._sceneDarknessOverlay) {
+			return;
+		}
+
+		this._sceneDarknessOverlay.clear();
+		this._sceneDarknessOverlay.beginFill(0x07101f, 1);
+		this._sceneDarknessOverlay.drawRect(0, 0, width, height);
+		this._sceneDarknessOverlay.endFill();
+	}
+
+	private _applySceneDarknessOverlay(state: {
+		timeOfDay: TimeOfDay;
+		progress: number;
+	}): void {
+		if (!this._sceneDarknessOverlay) {
+			return;
+		}
+
+		const alpha = this._getSceneDarknessAlpha(state);
+		this._sceneDarknessOverlay.alpha = alpha;
+		this._sceneDarknessOverlay.visible = alpha > 0.001;
+	}
+
+	private _getSceneDarknessAlpha(state: {
+		timeOfDay: TimeOfDay;
+		progress: number;
+	}): number {
+		const progress = Math.max(0, Math.min(1, state.progress));
+
+		switch (state.timeOfDay) {
+			case TimeOfDay.Sunrise:
+				return this._lerpDarknessAlpha(0.26, 0.02, progress);
+			case TimeOfDay.Sunset:
+				return this._lerpDarknessAlpha(0.02, 0.22, progress);
+			case TimeOfDay.Night:
+				return 0.28;
+			case TimeOfDay.Day:
+			default:
+				return 0;
+		}
+	}
+
+	private _getSceneSize(): { width: number; height: number } {
+		return {
+			width:
+				this._positionBoundary.width +
+				this._positionBoundaryInsets.left +
+				this._positionBoundaryInsets.right,
+			height:
+				this._positionBoundary.height +
+				this._positionBoundaryInsets.top +
+				this._positionBoundaryInsets.bottom,
+		};
+	}
+
+	private _lerpDarknessAlpha(
+		from: number,
+		to: number,
+		progress: number,
+	): number {
+		return from + (to - from) * progress;
+	}
+
+	private _setRandomManualTimeOfDay(): void {
+		this._timeOfDayMode = TimeOfDayMode.Manual;
+		this._autoTimeOfDayState = null;
+		this._autoTimeOfDayMinuteKey = null;
+		this._timeOfDay = Math.random() < 0.5 ? TimeOfDay.Day : TimeOfDay.Night;
+		this._applyCurrentSkyState();
+
+		console.log(
+			`[MainSceneWorld] Local time disabled, randomly selected ${getTimeOfDayLabel(
+				this._timeOfDay,
+				this._locale,
+			)}`,
+		);
+	}
+
+	private _isLocalTimeEnabled(): boolean {
+		return (
+			this._persistentData?.world_metadata.app_state?.use_local_time ?? true
+		);
+	}
+
+	private _applyCachedAutoTimeOfDay(): boolean {
+		const cachedSunTimes = this._getCachedSunTimes();
+		if (!cachedSunTimes) {
+			return false;
+		}
+
+		this._sunTimes = cachedSunTimes;
+		this._hasLocationPermission = cachedSunTimes.hasLocationPermission;
+		this._sunLocationSource = cachedSunTimes.locationSource;
+		this._timeOfDayMode = TimeOfDayMode.Auto;
+		this._autoTimeOfDayMinuteKey = null;
+		this._autoTimeOfDayState = resolveAutoTimeOfDayState(
+			new Date(this.currentTime),
+			cachedSunTimes,
+		);
+		this._timeOfDay = this._autoTimeOfDayState.timeOfDay;
+		this._applyCurrentSkyState();
+		console.log("[MainSceneWorld] Applied cached sun times", {
+			date: cachedSunTimes.date,
+			locationSource: cachedSunTimes.locationSource,
+			hasLocationPermission: cachedSunTimes.hasLocationPermission,
+			sunriseAt: cachedSunTimes.sunriseAt,
+			sunsetAt: cachedSunTimes.sunsetAt,
+		});
+		return true;
+	}
+
+	private _getCachedSunTimes(): SunTimesPayload | null {
+		const cachedSunTimes =
+			this._persistentData?.world_metadata.app_state?.cached_sun_times;
+
+		return this._isValidSunTimesPayload(cachedSunTimes) ? cachedSunTimes : null;
+	}
+
+	private _setCachedSunTimes(sunTimes: SunTimesPayload): void {
+		if (!this._persistentData) {
+			return;
+		}
+
+		if (!this._persistentData.world_metadata.app_state) {
+			this._persistentData.world_metadata.app_state = {
+				last_active_time: 0,
+				is_first_load: false,
+				use_local_time: this._isLocalTimeEnabled(),
+				main_scene_ad: {
+					menu_use_count: 0,
+				},
+				mini_game_scores: {
+					flappy_bird: {
+						best_score: 0,
+					},
+				},
+				monster_book: createEmptyMonsterBookState(),
+			};
+		}
+
+		this._persistentData.world_metadata.app_state.cached_sun_times = sunTimes;
+	}
+
+	private _isValidSunTimesPayload(value: unknown): value is SunTimesPayload {
+		if (!value || typeof value !== "object") {
+			return false;
+		}
+
+		const candidate = value as Partial<SunTimesPayload>;
+		return (
+			typeof candidate.sunriseAt === "string" &&
+			typeof candidate.sunsetAt === "string" &&
+			typeof candidate.date === "string" &&
+			typeof candidate.timezone === "string" &&
+			typeof candidate.timezoneOffsetMinutes === "number" &&
+			typeof candidate.fetchedAt === "string" &&
+			(candidate.locationSource === "device" ||
+				candidate.locationSource === "fallback") &&
+			typeof candidate.hasLocationPermission === "boolean"
+		);
+	}
+
+	private _setUseLocalTimeEnabled(enabled: boolean): void {
+		if (!this._persistentData) {
+			return;
+		}
+
+		if (!this._persistentData.world_metadata.app_state) {
+			this._persistentData.world_metadata.app_state = {
+				last_active_time: 0,
+				is_first_load: false,
+				use_local_time: enabled,
+				main_scene_ad: {
+					menu_use_count: 0,
+				},
+				mini_game_scores: {
+					flappy_bird: {
+						best_score: 0,
+					},
+				},
+				monster_book: createEmptyMonsterBookState(),
+			};
+			return;
+		}
+
+		this._persistentData.world_metadata.app_state.use_local_time = enabled;
+	}
+
+	private _requestLocationPermissionOnCharacterCreation(): void {
+		if (!this._sunTimes || this._hasLocationPermission) {
+			return;
+		}
+
+		console.log(
+			"[MainSceneWorld] Requesting location permission after character creation",
+			{
+				date: this._sunTimes.date,
+				locationSource: this._sunLocationSource,
+				hasLocationPermission: this._hasLocationPermission,
+				sunriseAt: this._sunTimes.sunriseAt,
+				sunsetAt: this._sunTimes.sunsetAt,
+			},
+		);
+
+		void (async () => {
+			const granted = await requestNativeLocationPermission();
+			console.log(
+				"[MainSceneWorld] Character creation location permission result",
+				{
+					granted,
+					willRefreshSunTimes: granted,
+					date: this._sunTimes?.date ?? null,
+					locationSource: this._sunLocationSource,
+					hasLocationPermission: this._hasLocationPermission,
+				},
+			);
+
+			if (!granted) {
+				return;
+			}
+
+			await this._refreshSunTimes(false);
+		})();
+	}
+
+	/**
+	 * Scene 인터페이스 구현: 컨트롤 버튼 클릭 처리
+	 */
+	public handleControlButtonClick(buttonType: ControlButtonType): void {
+		console.log(`[MainSceneWorld] Control button clicked: ${buttonType}`);
+
+		// 청소 모드에서의 버튼 처리
+		if (this._isCleaningMode) {
+			if (buttonType === ControlButtonType.Cancel) {
+				this._exitCleaningMode({ restoreFocusedTargetProgress: true });
+				return;
+			}
+			if (buttonType === ControlButtonType.Clean) {
+				// Clean 버튼은 슬라이더로 처리됨
+				return;
+			}
+		}
+
+		if (buttonType === ControlButtonType.Book) {
+			if (!this._startMonsterBook) {
+				console.warn("[MainSceneWorld] Monster book start callback is not set");
+				return;
+			}
+
+			void this._startMonsterBook();
+			return;
+		}
+
+		// Settings 버튼 클릭 시 메뉴 활성화 (첫 번째 메뉴 항목에 포커스)
+		if (buttonType === ControlButtonType.Settings && this._gameMenu) {
+			const navigationAction: NavigationActionPayload = {
+				type: NavigationAction.SETTING,
+				index: ++this._navigationActionIndex,
+			};
+			this._gameMenu.processNavigationAction(navigationAction);
+			return;
+		}
+
+		const navigationAction = this._createNavigationActionFromButton(buttonType);
+		if (navigationAction && this._gameMenu) {
+			this._gameMenu.processNavigationAction(navigationAction);
+		}
+	}
+
+	/**
+	 * Scene 인터페이스 구현: 슬라이더 값 변경 처리
+	 */
+	public handleSliderValueChange(value: number): void {
+		const nextSliderValue = Math.max(0, Math.min(1, value));
+		const previousSliderValue = this._currentSliderValue;
+
+		// 슬라이더 값 저장
+		this._currentSliderValue = nextSliderValue;
+
+		// 청소 모드에서는 슬라이더 값을 청소 시스템에 전달
+		if (this._isCleaningMode) {
+			this._pendingCleaningSliderDelta += Math.abs(
+				nextSliderValue - previousSliderValue,
+			);
+		}
+	}
+
+	/**
+	 * Scene 인터페이스 구현: 슬라이더 종료 처리
+	 */
+	public handleSliderEnd(): void {
+		// 청소 모드에서 슬라이더가 종료되었을 때 청소 완료 상태 확인
+		if (this._isCleaningMode) {
+			this._checkAndExitCleaningModeIfComplete();
+		}
+	}
+
+	/**
+	 * 컨트롤 버튼을 네비게이션 액션으로 변환
+	 */
+	private _createNavigationActionFromButton(
+		buttonType: ControlButtonType,
+	): NavigationActionPayload | null {
+		switch (buttonType) {
+			case ControlButtonType.Next:
+				return {
+					type: NavigationAction.NEXT,
+					index: ++this._navigationActionIndex,
+				};
+			case ControlButtonType.Confirm:
+				return {
+					type: NavigationAction.SELECT,
+					index: ++this._navigationActionIndex,
+				};
+			case ControlButtonType.Cancel:
+				return {
+					type: NavigationAction.CANCEL,
+					index: ++this._navigationActionIndex,
+				};
+			default:
+				return null;
+		}
+	}
+
+	/**
+	 * 메뉴 포커스 상태에 따라 컨트롤 버튼을 업데이트
+	 */
+	private _updateControlButtonsForMenuState(menuHasFocus: boolean): void {
+		if (!this._changeControlButtons) return;
+
+		if (menuHasFocus) {
+			// 메뉴에 포커스가 있을 때: Next, Confirm, Cancel
+			this._changeControlButtons([
+				{ type: ControlButtonType.Cancel },
+				{ type: ControlButtonType.Confirm },
+				{ type: ControlButtonType.Next },
+			]);
+		} else {
+			// 메뉴에 포커스가 없을 때: Book, Settings, Next
+			this._changeControlButtons([
+				{ type: ControlButtonType.Book },
+				{ type: ControlButtonType.Settings },
+				{ type: ControlButtonType.Next },
+			]);
+		}
+	}
+
+	/**
+	 * 음식을 던지는 메서드
+	 */
+	private _syncFeedMenuPreview(): void {
+		if (!this._gameMenu) {
+			return;
+		}
+
+		this._gameMenu.setFeedPreviewTextureName(
+			this._nextFeedMenuFood.textureName,
+		);
+	}
+
+	private _consumeNextFeedMenuFood(): FeedMenuFoodOption {
+		const selectedFeedMenuFood = this._nextFeedMenuFood;
+		this._nextFeedMenuFood = getRandomFeedMenuFoodOption();
+		this._syncFeedMenuPreview();
+
+		return selectedFeedMenuFood;
+	}
+
+	private _throwFood(): number | null {
+		if (!this.canSpawnFood()) {
+			this.showObjectLimitAlert();
+			return null;
+		}
+
+		const boundary = this._positionBoundary;
+
+		// 초기 위치 - 왼쪽 또는 오른쪽 구석에서 시작
+		const isFromLeft = Math.random() < 0.5; // 50% 확률로 왼쪽/오른쪽 선택
+		const initialPosition = {
+			x: isFromLeft ? boundary.x - 100 : boundary.x + boundary.width + 100, // 화면 밖 구석
+			y: boundary.y + boundary.height + 100, // 화면 완전 아래쪽
+		};
+
+		// 최종 위치 - 여유분을 두고 설정 (위아래 40px, 좌우 20px 여유)
+		const finalPosition = {
+			x: boundary.x + 20 + Math.random() * (boundary.width - 40), // 좌우 20px 여유
+			y: boundary.y + 40 + Math.random() * (boundary.height - 80), // 위아래 40px 여유
+		};
+		const nextFeedMenuFood = this._consumeNextFeedMenuFood();
+
+		// 음식 엔티티 생성 (다음 미리보기와 동일한 음식 사용)
+		const foodEid = createThrowingFoodEntity(this, {
+			initialPosition,
+			finalPosition,
+			textureKey: nextFeedMenuFood.textureKey,
+		});
+		this.triggerMainSceneSfx("food-throw");
+
+		console.log(
+			`[MainSceneWorld] Food thrown from ${
+				isFromLeft ? "left" : "right"
+			} corner (${initialPosition.x}, ${initialPosition.y}) to (${
+				finalPosition.x
+			}, ${finalPosition.y})`,
+		);
+		console.log(
+			`[MainSceneWorld] Position boundary: x=${boundary.x}, y=${boundary.y}, w=${boundary.width}, h=${boundary.height}`,
+		);
+
+		return foodEid;
+	}
+
+	/**
+	 * 앱 상태 관리자의 현재 상태 반환 (디버그용)
+	 */
+	public getAppState() {
+		return {
+			isActive:
+				typeof document !== "undefined" ? !document.hidden : !this._isPaused,
+			isPaused: this._isPaused,
+			isSimulationMode: this.isSimulationMode,
+			currentTime: this.currentTime,
+		};
+	}
+
+	public getMainSceneAdDebugState(): {
+		menuUseCount: number;
+		threshold: number;
+		cooldownMs: number;
+		deepNight: boolean;
+		pending: {
+			menu: MainSceneAdMenu;
+			queuedAt: number;
+			cooldownMs: number;
+			threshold: number;
+			deepNight: boolean;
+			onlineRetry: boolean;
+		} | null;
+	} {
+		const adState = this._getMainSceneAdState();
+		const currentConfig = this._getMainSceneAdConfig();
+		const pending = adState?.pending;
+
+		return {
+			menuUseCount: adState?.menu_use_count ?? 0,
+			threshold: pending?.threshold ?? currentConfig.threshold,
+			cooldownMs: pending?.cooldown_ms ?? currentConfig.cooldownMs,
+			deepNight: pending?.deep_night ?? currentConfig.deepNight,
+			pending: pending
+				? {
+						menu: pending.menu,
+						queuedAt: pending.queued_at,
+						cooldownMs: pending.cooldown_ms,
+						threshold: pending.threshold,
+						deepNight: pending.deep_night,
+						onlineRetry: pending.online_retry === true,
+					}
+				: null,
+		};
+	}
+
+	/**
+	 * 병원 메뉴 선택 처리 - sick 상태일 때만 회복 주사기 연출 시작
+	 */
+	private _handleHospitalSelection(): boolean {
+		const characterEid = this._findMainCharacterEntity();
+
+		if (characterEid === -1) {
+			console.warn(
+				"[MainSceneWorld] No character entity found for hospital recovery",
+			);
+			return false;
+		}
+
+		if (
+			hasComponent(this, EffectAnimationComp, characterEid) &&
+			EffectAnimationComp.isActive[characterEid]
+		) {
+			console.log(
+				`[MainSceneWorld] Recovery animation already active for character ${characterEid}`,
+			);
+			return false;
+		}
+
+		if (
+			ObjectComp.state[characterEid] === CharacterState.EGG &&
+			hasComponent(this, EggHatchComp, characterEid)
+		) {
+			EggHatchComp.syringeCount[characterEid] = Math.min(
+				10,
+				EggHatchComp.syringeCount[characterEid] + 1,
+			);
+		}
+
+		const isSick = this._isCharacterSick(characterEid);
+		const isUnnecessaryMutationInjection =
+			!isSick &&
+			ObjectComp.state[characterEid] !== CharacterState.EGG &&
+			ObjectComp.state[characterEid] !== CharacterState.DEAD;
+
+		if (isSick) {
+			this._pendingRecoveryCureEids.add(characterEid);
+		} else if (isUnnecessaryMutationInjection) {
+			recordUnnecessaryMutationInjection(this, characterEid, this.currentTime);
+		} else {
+			console.log(
+				`[MainSceneWorld] Character ${characterEid} is not sick, starting hospital animation only`,
+			);
+		}
+
+		startRecoveryAnimation(this, characterEid, this._stage, this.currentTime);
+
+		console.log(
+			`[MainSceneWorld] Started hospital recovery animation for character ${characterEid} (pendingCure=${isSick})`,
+		);
+		return true;
+	}
+
+	private _handleDrugSelection(): void {
+		if (this._handleHospitalSelection()) {
+			this._recordMainSceneMenuUse("hospital");
+		}
+	}
+
+	private _isCharacterSick(characterEid: number): boolean {
+		if (ObjectComp.state[characterEid] === CharacterState.SICK) {
+			return true;
+		}
+
+		const statuses = CharacterStatusComp.statuses[characterEid];
+
+		if (!statuses) {
+			return false;
+		}
+
+		for (let i = 0; i < statuses.length; i++) {
+			if (statuses[i] === CharacterStatus.SICK) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	public applyPendingRecoverySyringeImpact(characterEid: number): void {
+		if (!this._pendingRecoveryCureEids.has(characterEid)) {
+			return;
+		}
+
+		this._pendingRecoveryCureEids.delete(characterEid);
+		const shouldPreserveSleep =
+			ObjectComp.state[characterEid] === CharacterState.SLEEPING;
+
+		const statuses = CharacterStatusComp.statuses[characterEid];
+		let removed = false;
+		if (statuses) {
+			for (let i = 0; i < statuses.length; i++) {
+				if (statuses[i] === CharacterStatus.SICK) {
+					statuses[i] = ECS_NULL_VALUE;
+					removed = true;
+					break;
+				}
+			}
+		}
+
+		if (hasComponent(this, DiseaseSystemComp, characterEid)) {
+			DiseaseSystemComp.sickStartTime[characterEid] = 0;
+		}
+
+		if (shouldPreserveSleep) {
+			clearCharacterDestinationAndStop(this, characterEid);
+		} else {
+			restoreCharacterFreeRoamingState(this, characterEid, {
+				now: this.currentTime,
+			});
+		}
+
+		if (removed) {
+			applyHappyStatusForFullStaminaCharacterIfEligible(this, characterEid);
+		}
+
+		console.log(
+			`[MainSceneWorld] Applied hospital recovery impact for character ${characterEid} (removedStatus=${removed}, preservedSleep=${shouldPreserveSleep})`,
+		);
+	}
+
+	/**
+	 * 메인 캐릭터 엔티티 찾기
+	 */
+	private _findMainCharacterEntity(): number {
+		const characterEntities = liveCharacterEntitiesQuery(this);
+
+		for (let i = 0; i < characterEntities.length; i++) {
+			const eid = characterEntities[i];
+
+			if (ObjectComp.type[eid] === ObjectType.CHARACTER) {
+				return eid;
+			}
+		}
+
+		return -1; // 캐릭터를 찾지 못함
+	}
+
+	public getFlappyBirdCharacterKey(): CharacterKey | null {
+		const characterEid = this._findMainCharacterEntity();
+		if (characterEid === -1) {
+			return null;
+		}
+
+		if (ObjectComp.state[characterEid] === CharacterState.EGG) {
+			return null;
+		}
+
+		const spritesheetName = getCharacterSpritesheetName(
+			CharacterStatusComp.characterKey[characterEid],
+		);
+
+		if (!spritesheetName || !isCharacterKeyValue(spritesheetName)) {
+			return null;
+		}
+
+		return spritesheetName;
+	}
+
+	public getFlappyBirdCharacterState(): CharacterState | null {
+		const characterEid = this._findMainCharacterEntity();
+		if (characterEid === -1) {
+			return null;
+		}
+
+		return ObjectComp.state[characterEid] ?? null;
+	}
+
+	public getMainCharacterStaminaSnapshot(): {
+		stamina: number;
+		maxStamina: number;
+		unhappyThreshold: number;
+		boostedThreshold: number;
+	} | null {
+		const characterEid = this._findMainCharacterEntity();
+		if (characterEid === -1) {
+			return null;
+		}
+
+		return {
+			stamina: CharacterStatusComp.stamina[characterEid],
+			maxStamina: GAME_CONSTANTS.MAX_STAMINA,
+			unhappyThreshold: GAME_CONSTANTS.UNHAPPY_STAMINA_THRESHOLD,
+			boostedThreshold: GAME_CONSTANTS.BOOSTED_STAMINA_THRESHOLD,
+		};
+	}
+
+	private _getEvolutionGaugeState(
+		characterEid: number,
+		isEgg: boolean,
+		characterKey: number,
+	): EvolutionGaugeState {
+		const characterState = ObjectComp.state[characterEid] as CharacterState;
+
+		if (
+			isEgg ||
+			characterState === CharacterState.DEAD ||
+			!canEvolveFromConfig(characterKey)
+		) {
+			return "unavailable";
+		}
+
+		if (
+			characterState === CharacterState.SICK ||
+			CharacterStatusComp.statuses[characterEid].includes(CharacterStatus.SICK)
+		) {
+			return "paused_sick";
+		}
+
+		if (
+			CharacterStatusComp.stamina[characterEid] <
+			EVOLUTION_GAUGE_CONFIG.staminaThreshold
+		) {
+			return "paused_low_stamina";
+		}
+
+		return "charging";
+	}
+
+	public getMainCharacterInfoSnapshot(): MainCharacterInfoSnapshot | null {
+		const characterEid = this._findMainCharacterEntity();
+		if (characterEid === -1) {
+			return null;
+		}
+
+		const isEgg = ObjectComp.state[characterEid] === CharacterState.EGG;
+		const characterKey = CharacterStatusComp.characterKey[characterEid];
+		const evolutionGaugeState = this._getEvolutionGaugeState(
+			characterEid,
+			isEgg,
+			characterKey,
+		);
+		const eggHatchRemainingMs =
+			isEgg && hasComponent(this, EggHatchComp, characterEid)
+				? getRemainingEggHatchTime({
+						currentTime: this.currentTime,
+						hatchTime: EggHatchComp.hatchTime[characterEid],
+						hatchDurationMs: EggHatchComp.hatchDurationMs[characterEid],
+					})
+				: null;
+
+		return {
+			monsterName:
+				this._persistentData?.world_metadata.monster_name?.trim() ?? "",
+			isEgg,
+			geneLine: isEgg
+				? null
+				: (getEvolutionSpec(characterKey)?.geneLine ?? null),
+			geneOutcomes: isEgg
+				? getHatchGeneOutcomes(this, characterEid)
+				: getEvolutionGeneOutcomes(this, characterEid),
+			eggHatchRemainingMs,
+			evolutionPhase: CharacterStatusComp.evolutionPhase[characterEid],
+			stamina: CharacterStatusComp.stamina[characterEid],
+			maxStamina: GAME_CONSTANTS.MAX_STAMINA,
+			unhappyThreshold: GAME_CONSTANTS.UNHAPPY_STAMINA_THRESHOLD,
+			boostedThreshold: GAME_CONSTANTS.BOOSTED_STAMINA_THRESHOLD,
+			evolutionGauge: CharacterStatusComp.evolutionGage[characterEid],
+			maxEvolutionGauge: EVOLUTION_GAUGE_CONFIG.maxGauge,
+			evolutionGaugeState,
+		};
+	}
+
+	/**
+	 * 청소 모드 상태를 업데이트하는 메서드들
+	 */
+	public setFocusedTargetEid(eid: number): void {
+		if (this._focusedTargetEid === eid) {
+			return;
+		}
+
+		this._focusedTargetEid = eid;
+
+		if (this._isCleaningMode) {
+			this._updateControlButtonsForCleaningMode(true);
+		}
+	}
+
+	public setBroomProgress(progress: number): void {
+		this._broomProgress = Math.max(0, Math.min(1, progress));
+	}
+
+	public consumePendingCleaningSliderDelta(): number {
+		const pendingDelta = this._pendingCleaningSliderDelta;
+		this._pendingCleaningSliderDelta = 0;
+		return pendingDelta;
+	}
+
+	/**
+	 * 청소 모드 진입 (외부에서 호출 가능)
+	 */
+	enterCleaningMode(): void {
+		this._enterCleaningMode();
+	}
+
+	/**
+	 * 청소 모드 종료 (외부에서 호출 가능)
+	 */
+	exitCleaningMode(): void {
+		this._exitCleaningMode();
+	}
+
+	/**
+	 * 청소 모드 진입
+	 */
+	private _enterCleaningMode(): boolean {
+		console.log("[MainSceneWorld] Entering cleaning mode");
+
+		// 이미 청소 모드라면 무시
+		if (this._isCleaningMode) {
+			return false;
+		}
+
+		const initialCleaningSliderValue = 0.5;
+
+		this._isCleaningMode = true;
+		this._cleaningSliderSessionKey += 1;
+		this._focusedTargetEid = prepareCleaningModeTargets(this);
+		this._currentSliderValue = initialCleaningSliderValue;
+		this._broomProgress = initialCleaningSliderValue;
+		this._pendingCleaningSliderDelta = 0;
+
+		// 컨트롤 버튼을 청소 모드 세트로 변경
+		this._updateControlButtonsForCleaningMode(true);
+		return true;
+	}
+
+	/**
+	 * 청소 완료 상태를 확인하고 모든 작업이 완료되면 청소 모드 종료
+	 */
+	private _checkAndExitCleaningModeIfComplete(): void {
+		// 청소 시스템에서 사용하는 것과 동일한 쿼리 생성
+		const cleanableEntitiesQuery = defineQuery([
+			ObjectComp,
+			PositionComp,
+			CleanableComp,
+		]);
+
+		const cleanableEntities = cleanableEntitiesQuery(this);
+		let hasIncompleteEntities = false;
+
+		for (const eid of cleanableEntities) {
+			if (CleanableComp.cleaningProgress[eid] < 1.0) {
+				hasIncompleteEntities = true;
+				break;
+			}
+		}
+
+		// 모든 청소 가능한 엔티티가 완료되었으면 청소 모드 종료
+		if (!hasIncompleteEntities) {
+			console.log(
+				"[MainSceneWorld] All cleaning completed, exiting cleaning mode",
+			);
+			this._exitCleaningMode({ completed: true });
+		}
+	}
+
+	/**
+	 * 청소 모드 종료
+	 */
+	private _exitCleaningMode(
+		options: {
+			restoreFocusedTargetProgress?: boolean;
+			completed?: boolean;
+		} = {},
+	): void {
+		console.log("[MainSceneWorld] Exiting cleaning mode");
+
+		if (!this._isCleaningMode) {
+			return;
+		}
+
+		if (
+			options.restoreFocusedTargetProgress &&
+			this._focusedTargetEid !== -1 &&
+			hasComponent(this, CleanableComp, this._focusedTargetEid)
+		) {
+			CleanableComp.cleaningProgress[this._focusedTargetEid] = 0;
+		}
+
+		this._isCleaningMode = false;
+		this._focusedTargetEid = -1;
+		this._broomProgress = this._currentSliderValue;
+		this._pendingCleaningSliderDelta = 0;
+		clearCleaningTargets(this);
+
+		// 현재 메뉴의 포커스 상태에 따라 컨트롤 버튼 복원
+		const menuHasFocus = this._gameMenu?.hasFocus() ?? false;
+		this._updateControlButtonsForMenuState(menuHasFocus);
+
+		if (options.completed) {
+			this._schedulePendingMainSceneAdForMenu(
+				"clean",
+				MAIN_SCENE_AD_POST_ACTION_DELAY_MS,
+			);
+		}
+	}
+
+	/**
+	 * 청소 모드 상태에 따라 컨트롤 버튼 업데이트
+	 */
+	private _updateControlButtonsForCleaningMode(isCleaningMode: boolean): void {
+		if (!this._changeControlButtons) return;
+
+		if (isCleaningMode) {
+			const hasCleaningTarget = this._focusedTargetEid !== -1;
+
+			// 청소 모드: Cancel, Clean, Clean
+			this._changeControlButtons([
+				{ type: ControlButtonType.Cancel },
+				{
+					type: ControlButtonType.Clean,
+					initialSliderValue: this._currentSliderValue,
+					sliderSessionKey: this._cleaningSliderSessionKey,
+					hasCleaningTarget,
+				},
+				{
+					type: ControlButtonType.Clean,
+					initialSliderValue: this._currentSliderValue,
+					sliderSessionKey: this._cleaningSliderSessionKey,
+					hasCleaningTarget,
+				},
+			]);
+		} else {
+			// 기본 모드로 복원 (메뉴 포커스 상태에 따라)
+			this._updateControlButtonsForMenuState(false);
+		}
+	}
+
+	private _isNativeWorldDataUpdateSuccessful(
+		result: MainSceneNativeWorldDataUpdateForReentryResult | null | undefined,
+	): boolean {
+		const status = result?.status;
+		return (
+			status === "native_authoritative_completion_completed" ||
+			status === "native_world_data_update_completed" ||
+			status === "completed" ||
+			status === "ok"
+		);
+	}
+
+	private async _processNativeWorldDataUpdateForReentry(
+		source: Extract<MainSceneReentrySimulationSource, "init" | "app_resume">,
+		preReentrySnapshot: MainSceneEntryStatusSnapshot | null,
+		options: {
+			clearFoodInteractionSuspendFlag: () => void;
+		},
+	): Promise<void> {
+		if (!this._onNativeWorldDataUpdateForReentry) {
+			throw new Error("missing_native_world_data_update_for_reentry");
+		}
+
+		this._isRunningReentrySimulation = true;
+
+		try {
+			const updateResult =
+				await this._onNativeWorldDataUpdateForReentry(source);
+
+			if (!this._isNativeWorldDataUpdateSuccessful(updateResult)) {
+				throw new Error(
+					typeof updateResult?.error === "string"
+						? updateResult.error
+						: `native_world_data_update_failed:${updateResult?.status ?? "unknown"}`,
+				);
+			}
+
+			const reloadedData = await StorageManager.getData<MainSceneWorldData>(
+				WORLD_DATA_STORAGE_KEY,
+			);
+			const validatedData = reloadedData
+				? this._validateAndMigrateData(reloadedData)
+				: null;
+
+			if (!this._hasPlayableSavedData(validatedData)) {
+				throw new Error("native_world_data_update_missing_reloaded_world_data");
+			}
+
+			this.applyPersistedWorldDataForReentry(validatedData);
+			options.clearFoodInteractionSuspendFlag();
+			if (this._persistentData?.world_metadata.app_state) {
+				delete this._persistentData.world_metadata.app_state
+					.suspend_food_interaction_until_reentry;
+			}
+			applyReentryHappyStatusForFullStaminaCharacters(this);
+			this._applyEntryStatusSuppression(source, preReentrySnapshot);
+
+			if (this._initDiagnostics.isInitTimingActive) {
+				await this._initDiagnostics.measurePhase(
+					"reentry_persist_state",
+					async () => {
+						await this._saveCurrentState();
+					},
+				);
+			} else {
+				await this._saveCurrentState();
+			}
+
+			console.log(
+				"[MainSceneWorld] Native world data update completed for reentry",
+				{
+					source,
+					status: updateResult.status,
+					worldDataChanged: updateResult.worldDataChanged ?? null,
+					hatched: updateResult.hatched ?? null,
+					previousCharacterState: updateResult.previousCharacterState ?? null,
+					nextCharacterState: updateResult.nextCharacterState ?? null,
+					selectedCharacterKey: updateResult.selectedCharacterKey ?? null,
+				},
+			);
+		} finally {
+			this._finishReentryRuntimeState();
+		}
+	}
+
+	public applyPersistedWorldDataForReentry(data: MainSceneWorldData): void {
+		const objectEntities = liveObjectQuery(this);
+
+		for (const eid of objectEntities) {
+			removeEntity(this, eid);
+		}
+
+		runCatchingFlushRemovedEntities(this);
+		this._persistentData = data;
+		this._loadEcsEntitiesFromStorage();
+		this._updateAutoTimeOfDayIfNeeded(true);
+	}
+
+	/**
+	 * 재진입 처리.
+	 * 앱 init/resume은 native bridge가 Flutter 저장본을 갱신한 뒤 다시 로드하고,
+	 * manual reentry는 JS game simulation 없이 현재 상태 저장만 수행한다.
+	 */
+	private async _processReentrySimulation(
+		source: MainSceneReentrySimulationSource = "manual",
+	): Promise<void> {
+		let result: MainSceneReentrySimulationStateChange["result"] = "completed";
+		let capturedError: unknown;
+		const preReentrySnapshot = this._captureMainCharacterEntryStatusSnapshot();
+
+		this._onReentrySimulationStateChange?.({
+			source,
+			phase: "started",
+		});
+
+		try {
+			if (!this._persistentData?.world_metadata.app_state) {
+				console.log("[MainSceneWorld] No app state found, skipping reentry");
+				result = "skipped";
+				return;
+			}
+
+			const appState = this._persistentData.world_metadata.app_state;
+			const shouldSuspendFoodInteraction =
+				appState.suspend_food_interaction_until_reentry === true;
+			const clearFoodInteractionSuspendFlag = (): void => {
+				if (shouldSuspendFoodInteraction) {
+					delete appState.suspend_food_interaction_until_reentry;
+				}
+			};
+
+			if (source === "init" || source === "app_resume") {
+				console.log(
+					"[MainSceneWorld] Starting native reentry world data update",
+					{
+						source,
+					},
+				);
+
+				try {
+					await this._processNativeWorldDataUpdateForReentry(
+						source,
+						preReentrySnapshot,
+						{
+							clearFoodInteractionSuspendFlag,
+						},
+					);
+				} catch (error) {
+					result = "failed";
+					capturedError = error;
+					console.error(
+						"[MainSceneWorld] Native reentry world data update failed:",
+						error,
+					);
+				}
+				return;
+			}
+
+			console.log(
+				"[MainSceneWorld] Reentry JS simulation disabled; persisting current state only",
+				{ source },
+			);
+			result = "skipped";
+			clearFoodInteractionSuspendFlag();
+			if (this._initDiagnostics.isInitTimingActive) {
+				await this._initDiagnostics.measurePhase(
+					"reentry_persist_state",
+					async () => {
+						await this._saveCurrentState();
+					},
+				);
+			} else {
+				await this._saveCurrentState();
+			}
+		} catch (error) {
+			result = "failed";
+			capturedError = error;
+			throw error;
+		} finally {
+			this._onReentrySimulationStateChange?.({
+				source,
+				phase: "finished",
+				result,
+				error: capturedError,
+			});
+		}
+	}
+
+	private _finishReentryRuntimeState(): void {
+		this._isRunningReentrySimulation = false;
+		this._simulationTime = null;
+	}
+
+	/**
+	 * 현재 시뮬레이션 모드인지 확인
+	 * 테스트용/명시적 synthetic time이 없으면 항상 false
+	 */
+	public get isSimulationMode(): boolean {
+		return this._simulationTime !== null;
+	}
+
+	/**
+	 * 현재 시뮬레이션 시간 또는 실시간 반환
+	 * synthetic time이 없으면 항상 실시간
+	 */
+	public get currentTime(): number {
+		return this._simulationTime ?? this._trustedClock.now();
+	}
+
+	private _shouldPreserveWidgetEntryStatuses(
+		source: MainSceneReentrySimulationSource,
+	): boolean {
+		return source === "init" || source === "app_resume";
+	}
+
+	private _captureMainCharacterEntryStatusSnapshot(): MainSceneEntryStatusSnapshot | null {
+		let characterEid = -1;
+		try {
+			characterEid = this._findMainCharacterEntity();
+		} catch {
+			return null;
+		}
+
+		if (characterEid < 0 || !hasComponent(this, ObjectComp, characterEid)) {
+			return null;
+		}
+
+		const statuses = hasComponent(this, CharacterStatusComp, characterEid)
+			? Array.from(CharacterStatusComp.statuses[characterEid]).filter(
+					(status) => status > 0,
+				)
+			: [];
+		const isSleeping =
+			ObjectComp.state[characterEid] === CharacterState.SLEEPING;
+
+		return {
+			eid: characterEid,
+			signature: `${ObjectComp.state[characterEid]}|${statuses.join(",")}`,
+			isSleeping,
+		};
+	}
+
+	private _clearMainCharacterSleepState(eid: number): void {
+		if (!hasComponent(this, SleepSystemComp, eid)) {
+			return;
+		}
+
+		if (ObjectComp.state[eid] === CharacterState.SLEEPING) {
+			wakeCharacter(this, eid, this.currentTime);
+		}
+
+		SleepSystemComp.sleepMode[eid] = SleepMode.AWAKE;
+		SleepSystemComp.interruptedSleepMode[eid] = SleepMode.AWAKE;
+		SleepSystemComp.nextSleepTime[eid] = 0;
+		SleepSystemComp.nextWakeTime[eid] = 0;
+		SleepSystemComp.nextNightWakeCheckTime[eid] = 0;
+		SleepSystemComp.pendingSleepReason[eid] = SleepReason.NONE;
+		SleepSystemComp.pendingWakeReason[eid] = SleepReason.NONE;
+		SleepSystemComp.sleepSessionStartedAt[eid] = 0;
+		SleepSystemComp.nextNapCheckTime[eid] = Math.max(
+			SleepSystemComp.nextNapCheckTime[eid],
+			this.currentTime + GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL,
+		);
+
+		if (
+			ObjectComp.state[eid] !== CharacterState.SICK &&
+			!Array.from(CharacterStatusComp.statuses[eid]).includes(
+				CharacterStatus.SICK,
+			)
+		) {
+			restoreCharacterFreeRoamingState(this, eid, {
+				now: this.currentTime,
+			});
+		}
+	}
+
+	private _applyEntryStatusSuppression(
+		source: MainSceneReentrySimulationSource,
+		preReentrySnapshot: MainSceneEntryStatusSnapshot | null,
+	): void {
+		if (!this._shouldPreserveWidgetEntryStatuses(source)) {
+			this._entryStatusSuppression = null;
+			return;
+		}
+
+		const postReentrySnapshot = this._captureMainCharacterEntryStatusSnapshot();
+		if (!preReentrySnapshot || !postReentrySnapshot) {
+			this._entryStatusSuppression = null;
+			return;
+		}
+
+		const previousSuppression = this._entryStatusSuppression;
+		const suppressSleep =
+			previousSuppression?.suppressSleep === true ||
+			(!preReentrySnapshot.isSleeping && postReentrySnapshot.isSleeping);
+
+		if (!suppressSleep) {
+			return;
+		}
+
+		this._clearMainCharacterSleepState(postReentrySnapshot.eid);
+
+		const suppressedSnapshot = this._captureMainCharacterEntryStatusSnapshot();
+		this._entryStatusSuppression = {
+			suppressSleep,
+			baselineSignature:
+				suppressedSnapshot?.signature ?? postReentrySnapshot.signature,
+		};
+	}
+
+	private _releaseEntryStatusSuppressionIfNeeded(): void {
+		if (!this._entryStatusSuppression) {
+			return;
+		}
+
+		const snapshot = this._captureMainCharacterEntryStatusSnapshot();
+		if (!snapshot) {
+			this._entryStatusSuppression = null;
+			return;
+		}
+
+		if (snapshot.signature === this._entryStatusSuppression.baselineSignature) {
+			return;
+		}
+
+		this._entryStatusSuppression = null;
+	}
+
+	/**
+	 * 모든 렌더링 시스템들을 한 번에 실행하는 통합 메서드
+	 */
+	private _renderAllSystems(params: any): typeof params {
+		// 1. 애니메이션 렌더링 (캐릭터 애니메이션)
+		animationRenderSystem(params);
+
+		// 2. 정적 스프라이트 렌더링
+		renderSystem(params);
+
+		// 3. 상태 아이콘 렌더링
+		statusIconRenderSystem(params);
+
+		// 4. 알 금 오버레이 렌더링
+		eggCrackRenderSystem({ ...params, currentTime: this.currentTime });
+
+		// 5. 캐릭터 이름표 렌더링
+		characterNameLabelSystem(params);
+
+		// 6. dev 빌드 전용 캐릭터 레이아웃 디버그 렌더링
+		characterLayoutDebugSystem({ ...params, stage: this._stage });
+
+		// 7. 청소 대상 렌더링
+		cleanableRenderSystem({ ...params, stage: this._stage });
+
+		// 8. 수면 효과 렌더링
+		sleepEffectSystem({ ...params, stage: this._stage });
+
+		return params;
+	}
+
+	/**
+	 * Page Visibility API 이벤트 핸들러 설정
+	 */
+	private _setupVisibilityChangeHandler(): void {
+		// Page Visibility API 지원 여부 확인
+		if (typeof document === "undefined" || !("visibilityState" in document)) {
+			console.warn("[MainSceneWorld] Page Visibility API not supported");
+			return;
+		}
+
+		this._visibilityChangeHandler = () => {
+			if (document.hidden) {
+				// 앱이 백그라운드로 갔을 때 (홈으로 나가거나 다른 앱으로 전환)
+				void this._handleAppPause();
+			} else {
+				// 앱이 포그라운드로 돌아왔을 때
+				void this._handleAppResume();
+			}
+		};
+
+		// 이벤트 리스너 등록
+		document.addEventListener(
+			"visibilitychange",
+			this._visibilityChangeHandler,
+		);
+
+		console.log("[MainSceneWorld] Page Visibility API handler registered");
+	}
+
+	/**
+	 * Page Visibility API 이벤트 핸들러 정리
+	 */
+	private _cleanupVisibilityChangeHandler(): void {
+		if (this._visibilityChangeHandler && typeof document !== "undefined") {
+			document.removeEventListener(
+				"visibilitychange",
+				this._visibilityChangeHandler,
+			);
+			this._visibilityChangeHandler = undefined;
+			console.log("[MainSceneWorld] Page Visibility API handler cleaned up");
+		}
+	}
+
+	/**
+	 * 앱 일시정지 처리 (백그라운드로 갔을 때)
+	 */
+	private async _handleAppPause(): Promise<void> {
+		if (this._isPaused) {
+			console.warn(
+				"[MainSceneWorld] App pause event received but app is already paused",
+			);
+			return; // 이미 일시정지 상태
+		}
+
+		console.log("[MainSceneWorld] 📱 App paused (went to background)");
+
+		this._isPaused = true;
+		this._pauseStartTime = this.currentTime;
+
+		// 현재 게임 상태 저장 (ECS 엔티티 상태 포함)
+		await this._saveCurrentState();
+
+		// 추가적인 일시정지 처리가 필요하다면 여기에 구현
+		// 예: 오디오 일시정지, 애니메이션 중단 등
+	}
+
+	/**
+	 * 앱 재개 처리 (포그라운드로 돌아왔을 때)
+	 */
+	private async _handleAppResume(): Promise<void> {
+		if (!this._isPaused) {
+			console.warn(
+				"[MainSceneWorld] App resume event received but app is not paused",
+			);
+			return; // 이미 활성 상태
+		}
+
+		const pauseDuration = this.currentTime - this._pauseStartTime;
+		console.log(
+			`[MainSceneWorld] 📱 App resumed (returned to foreground) after ${this._formatPauseDuration(
+				pauseDuration,
+			)}`,
+		);
+
+		// native reentry world data update 실행
+		console.log(
+			`[MainSceneWorld] Running native reentry world data update after pause duration of ${this._formatPauseDuration(
+				pauseDuration,
+			)}...`,
+		);
+
+		// native reentry world data update 실행
+		await this._processReentrySimulation("app_resume");
+
+		this._isPaused = false;
+		this._pauseStartTime = 0;
+		this._updateAutoTimeOfDayIfNeeded(true);
+
+		// 추가적인 재개 처리가 필요하다면 여기에 구현
+		// 예: 오디오 재개, 애니메이션 재시작 등
+	}
+
+	/**
+	 * 일시정지 시간을 읽기 쉬운 형태로 포맷팅
+	 */
+	private _formatPauseDuration(milliseconds: number): string {
+		if (milliseconds < 1000) {
+			return `${milliseconds}ms`;
+		}
+
+		const seconds = Math.floor(milliseconds / 1000);
+		if (seconds < 60) {
+			return `${seconds}s`;
+		}
+
+		const minutes = Math.floor(seconds / 60);
+		const remainingSeconds = seconds % 60;
+		if (minutes < 60) {
+			return remainingSeconds > 0
+				? `${minutes}m ${remainingSeconds}s`
+				: `${minutes}m`;
+		}
+
+		const hours = Math.floor(minutes / 60);
+		const remainingMinutes = minutes % 60;
+		return remainingMinutes > 0
+			? `${hours}h ${remainingMinutes}m`
+			: `${hours}h`;
+	}
+
+	/**
+	 * 현재 게임 상태를 저장 (scene 변경 시 호출)
+	 */
+	private async _saveCurrentState(): Promise<void> {
+		try {
+			if (this._isPersistenceDisabled) {
+				return;
+			}
+
+			// ECS 엔티티들의 현재 상태를 persistent data에 동기화
+			this._syncEcsToPersisentData();
+
+			// 마지막 활성 시간 저장
+			this._saveLastActiveTime();
+
+			if (this._persistentData) {
+				await this.setData(this._persistentData);
+			}
+
+			console.log("[MainSceneWorld] Current game state saved successfully");
+		} catch (error) {
+			console.error("[MainSceneWorld] Failed to save current state:", error);
+		}
+	}
+
+	/**
+	 * ECS 엔티티들의 현재 상태를 persistent data에 동기화
+	 */
+	private _syncEcsToPersisentData(): void {
+		if (!this._persistentData) {
+			console.warn("[MainSceneWorld] No persistent data to sync to");
+			return;
+		}
+
+		// 현재 ECS 월드의 모든 엔티티를 순회하여 persistent data 업데이트
+		const updatedEntities: SavedEntity[] = [];
+
+		const objectEntitiesQuery = defineQuery([ObjectComp]);
+		const objectEntityIds = objectEntitiesQuery(this);
+		const seenObjectIds = new Set<number>();
+
+		for (const eid of objectEntityIds) {
+			try {
+				const savedEntity = convertECSEntityToSavedEntity(this, eid);
+				const objectId = savedEntity.components.object?.id;
+
+				if (
+					typeof objectId !== "number" ||
+					!Number.isFinite(objectId) ||
+					objectId <= 0
+				) {
+					console.warn(
+						`[MainSceneWorld] Skipping entity ${eid} during sync: invalid Object ID ${objectId}`,
+					);
+					continue;
+				}
+
+				if (seenObjectIds.has(objectId)) {
+					console.warn(
+						`[MainSceneWorld] Skipping entity ${eid} during sync: duplicate Object ID ${objectId}`,
+					);
+					continue;
+				}
+
+				seenObjectIds.add(objectId);
+				updatedEntities.push(savedEntity);
+			} catch (error) {
+				console.warn(
+					`[MainSceneWorld] Failed to convert entity ${eid} to saved entity:`,
+					error,
+				);
+			}
+		}
+
+		// persistent data 업데이트
+		this._persistentData.entities = updatedEntities;
+		this._persistentData.world_metadata.last_ecs_saved = this.currentTime;
+
+		console.log(
+			`[MainSceneWorld] Synced ${updatedEntities.length} entities to persistent data`,
+		);
+	}
+
+	/**
+	 * 마지막 활성 시간 저장
+	 */
+	private _saveLastActiveTime(): void {
+		if (this._persistentData) {
+			if (!this._persistentData.world_metadata.app_state) {
+				this._persistentData.world_metadata.app_state = {
+					last_active_time: 0,
+					is_first_load: false,
+					use_local_time: this._isLocalTimeEnabled(),
+					main_scene_ad: {
+						menu_use_count: 0,
+					},
+					mini_game_scores: {
+						flappy_bird: {
+							best_score: 0,
+						},
+					},
+					monster_book: createEmptyMonsterBookState(),
+				};
+			}
+
+			const activeTime = this.currentTime;
+			this._persistentData.world_metadata.app_state.last_active_time =
+				activeTime;
+			this._persistentData.world_metadata.app_state.last_active_time_anchor =
+				this._trustedClock.captureAnchor();
+
+			console.log(
+				`[MainSceneWorld] Saved last active time: ${new Date(
+					activeTime,
+				).toLocaleString("ko-KR")}`,
+			);
+		}
+	}
+
+	/**
+	 * 상태 관리 시스템들 토글 (디버그용)
+	 * @returns 토글 후 활성화 상태
+	 */
+	public toggleStatusSystems(): boolean {
+		this._statusSystemsEnabled = !this._statusSystemsEnabled;
+		console.log(
+			`[MainSceneWorld] Status systems ${
+				this._statusSystemsEnabled ? "enabled" : "disabled"
+			}`,
+		);
+		return this._statusSystemsEnabled;
+	}
+
+	public toggleSleepDebugEffect(): boolean {
+		this._sleepDebugEffectEnabled = !this._sleepDebugEffectEnabled;
+
+		if (!this._sleepDebugEffectEnabled) {
+			cleanupSleepEffects(this._stage);
+		}
+
+		console.log(
+			`[MainSceneWorld] Sleep debug effect ${
+				this._sleepDebugEffectEnabled ? "enabled" : "disabled"
+			}`,
+		);
+
+		return this._sleepDebugEffectEnabled;
+	}
+
+	public isSleepDebugEffectEnabled(): boolean {
+		return this._sleepDebugEffectEnabled;
+	}
+
+	public setRandomMovementDebugEnabled(enabled: boolean): void {
+		this._randomMovementDebugEnabled = enabled;
+	}
+
+	public isRandomMovementDebugEnabled(): boolean {
+		return this._randomMovementDebugEnabled;
+	}
 }

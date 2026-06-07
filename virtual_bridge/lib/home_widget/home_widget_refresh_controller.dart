@@ -77,6 +77,20 @@ class HomeWidgetRefreshController {
             return typeof raw === "string" ? JSON.parse(raw) : raw;
           });
         },
+        syncFromStorageOrWorldDataJson: (payload = {}) => {
+          return __createPromise((id) => {
+            __native_home_widget.postMessage(JSON.stringify({
+              id,
+              action: "syncFromStorageOrWorldDataJson",
+              payload
+            }));
+          }).then((raw) => {
+            if (!raw) {
+              return { status: "unknown" };
+            }
+            return typeof raw === "string" ? JSON.parse(raw) : raw;
+          });
+        },
         completeRefresh: (payload = {}) => {
           return __createPromise((id) => {
             __native_home_widget.postMessage(JSON.stringify({
@@ -87,20 +101,6 @@ class HomeWidgetRefreshController {
           }).then((raw) => {
             if (!raw) {
               return { status: "ok" };
-            }
-            return typeof raw === "string" ? JSON.parse(raw) : raw;
-          });
-        },
-        completeNativeWorldDataUpdate: (payload = {}) => {
-          return __createPromise((id) => {
-            __native_home_widget.postMessage(JSON.stringify({
-              id,
-              action: "completeNativeWorldDataUpdate",
-              payload
-            }));
-          }).then((raw) => {
-            if (!raw) {
-              return { status: "unknown" };
             }
             return typeof raw === "string" ? JSON.parse(raw) : raw;
           });
@@ -211,30 +211,6 @@ class HomeWidgetRefreshController {
             '[HomeWidgetRefreshController] completeRefresh result=${payload['result']} source=${payload['source']}',
           );
           return;
-        case 'completeNativeWorldDataUpdate':
-          final Map<Object?, Object?>? nativeUpdateResult =
-              await _platformChannel.invokeMethod<Map<Object?, Object?>>(
-            'completeNativeWorldDataUpdate',
-            payload,
-          );
-          if (id != null) {
-            await resolvePromise(
-              id: id,
-              data: jsonEncode(_normalizePlatformResult(nativeUpdateResult)),
-            );
-          }
-          log?.call(
-            '[HomeWidgetRefreshController] completeNativeWorldDataUpdate '
-            'source=${payload['source']} '
-            'status=${nativeUpdateResult?['status']} '
-            'worldDataChanged=${nativeUpdateResult?['worldDataChanged']} '
-            'hatched=${nativeUpdateResult?['hatched']} '
-            'evolutionGageBefore=${nativeUpdateResult?['evolutionGageBefore']} '
-            'evolutionGageAfter=${nativeUpdateResult?['evolutionGageAfter']} '
-            'evolutionGageIncreased=${nativeUpdateResult?['evolutionGageIncreased']} '
-            'evolutionBlockReason=${nativeUpdateResult?['evolutionBlockReason']}',
-          );
-          return;
         case 'getRefreshDiagnostics':
           final Map<Object?, Object?>? diagnosticsResult =
               await _platformChannel.invokeMethod<Map<Object?, Object?>>(
@@ -252,6 +228,25 @@ class HomeWidgetRefreshController {
             'requestedAtMs=${diagnosticsResult?['requestedAtMs']} '
             'completedAtMs=${diagnosticsResult?['completedAtMs']} '
             'inFlight=${diagnosticsResult?['inFlight']}',
+          );
+          return;
+        case 'syncFromStorageOrWorldDataJson':
+          final Map<String, Object?> syncResult =
+              await HomeWidgetSyncService.syncFromStorageOrWorldDataJson(
+            inMemoryRawWorldData: payload['inMemoryRawWorldData'] as String?,
+            reason: payload['reason'] as String? ?? 'manual',
+            log: log,
+          );
+          if (id != null) {
+            await resolvePromise(id: id, data: jsonEncode(syncResult));
+          }
+          log?.call(
+            '[HomeWidgetRefreshController] syncFromStorageOrWorldDataJson '
+            'reason=${payload['reason']} '
+            'status=${syncResult['status']} '
+            'selectedSource=${syncResult['selectedSource']} '
+            'storedLastEcsSaved=${syncResult['storedLastEcsSaved']} '
+            'inMemoryLastEcsSaved=${syncResult['inMemoryLastEcsSaved']}',
           );
           return;
         case 'syncFromWorldDataJson':
@@ -282,7 +277,7 @@ class HomeWidgetRefreshController {
       }
     } catch (error) {
       if (requestId != null) {
-        await resolvePromise(id: requestId!, error: error.toString());
+        await resolvePromise(id: requestId, error: error.toString());
       }
       log?.call('[HomeWidgetRefreshController] action failed: $error');
     }

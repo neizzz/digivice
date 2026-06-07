@@ -378,6 +378,31 @@ class HomeWidgetSnapshot {
   }
 }
 
+enum HomeWidgetSyncWorldDataSource {
+  stored,
+  inMemory,
+}
+
+class HomeWidgetSyncWorldDataSelection {
+  final String? selectedRawWorldData;
+  final HomeWidgetSyncWorldDataSource? source;
+  final int? storedLastEcsSaved;
+  final int? inMemoryLastEcsSaved;
+
+  const HomeWidgetSyncWorldDataSelection({
+    required this.selectedRawWorldData,
+    required this.source,
+    required this.storedLastEcsSaved,
+    required this.inMemoryLastEcsSaved,
+  });
+
+  String? get sourceName => switch (source) {
+        HomeWidgetSyncWorldDataSource.stored => 'stored',
+        HomeWidgetSyncWorldDataSource.inMemory => 'in_memory',
+        null => null,
+      };
+}
+
 class HomeWidgetSyncService {
   static const MethodChannel _platformChannel = MethodChannel(
     'digivice/home_widget',
@@ -405,6 +430,96 @@ class HomeWidgetSyncService {
       rawWorldData: prefs.getString(worldDataStorageKey),
       reason: reason,
       log: log,
+    );
+  }
+
+  static Future<Map<String, Object?>> syncFromStorageOrWorldDataJson({
+    String? inMemoryRawWorldData,
+    String reason = 'manual',
+    void Function(String message)? log,
+  }) async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final HomeWidgetSyncWorldDataSelection selection = selectWorldDataForSync(
+      storedRawWorldData: prefs.getString(worldDataStorageKey),
+      inMemoryRawWorldData: inMemoryRawWorldData,
+    );
+
+    log?.call(
+      '[HomeWidgetSyncService] selected world data source=${selection.sourceName} '
+      'reason=$reason '
+      'storedLastEcsSaved=${selection.storedLastEcsSaved} '
+      'inMemoryLastEcsSaved=${selection.inMemoryLastEcsSaved}',
+    );
+
+    final Map<String, Object?> result = await syncFromWorldDataJson(
+      rawWorldData: selection.selectedRawWorldData,
+      reason: reason,
+      log: log,
+    );
+
+    return <String, Object?>{
+      ...result,
+      'selectedSource': selection.sourceName,
+      'storedLastEcsSaved': selection.storedLastEcsSaved,
+      'inMemoryLastEcsSaved': selection.inMemoryLastEcsSaved,
+    };
+  }
+
+  static HomeWidgetSyncWorldDataSelection selectWorldDataForSync({
+    required String? storedRawWorldData,
+    required String? inMemoryRawWorldData,
+  }) {
+    final _WorldDataSummary storedSummary = _summarizeWorldData(
+      storedRawWorldData,
+    );
+    final _WorldDataSummary inMemorySummary = _summarizeWorldData(
+      inMemoryRawWorldData,
+    );
+
+    if (!storedSummary.hasWorldData && !inMemorySummary.hasWorldData) {
+      return HomeWidgetSyncWorldDataSelection(
+        selectedRawWorldData: null,
+        source: null,
+        storedLastEcsSaved: storedSummary.lastEcsSaved,
+        inMemoryLastEcsSaved: inMemorySummary.lastEcsSaved,
+      );
+    }
+
+    if (!storedSummary.hasWorldData) {
+      return HomeWidgetSyncWorldDataSelection(
+        selectedRawWorldData: inMemoryRawWorldData,
+        source: HomeWidgetSyncWorldDataSource.inMemory,
+        storedLastEcsSaved: storedSummary.lastEcsSaved,
+        inMemoryLastEcsSaved: inMemorySummary.lastEcsSaved,
+      );
+    }
+
+    if (!inMemorySummary.hasWorldData) {
+      return HomeWidgetSyncWorldDataSelection(
+        selectedRawWorldData: storedRawWorldData,
+        source: HomeWidgetSyncWorldDataSource.stored,
+        storedLastEcsSaved: storedSummary.lastEcsSaved,
+        inMemoryLastEcsSaved: inMemorySummary.lastEcsSaved,
+      );
+    }
+
+    final bool shouldPreferStoredCompletedHatch =
+        storedSummary.mainCharacterState != null &&
+            storedSummary.mainCharacterState != _characterStateEgg &&
+            inMemorySummary.mainCharacterState == _characterStateEgg;
+    final bool shouldUseInMemory = !shouldPreferStoredCompletedHatch &&
+        inMemorySummary.lastEcsSaved != null &&
+        (storedSummary.lastEcsSaved == null ||
+            inMemorySummary.lastEcsSaved! > storedSummary.lastEcsSaved!);
+
+    return HomeWidgetSyncWorldDataSelection(
+      selectedRawWorldData:
+          shouldUseInMemory ? inMemoryRawWorldData : storedRawWorldData,
+      source: shouldUseInMemory
+          ? HomeWidgetSyncWorldDataSource.inMemory
+          : HomeWidgetSyncWorldDataSource.stored,
+      storedLastEcsSaved: storedSummary.lastEcsSaved,
+      inMemoryLastEcsSaved: inMemorySummary.lastEcsSaved,
     );
   }
 
@@ -782,6 +897,44 @@ class HomeWidgetSyncService {
       'eggHatchTimeMs': _readInt(result['eggHatchTimeMs']),
       'snapshotKind': result['snapshotKind']?.toString(),
     };
+  }
+
+  static _WorldDataSummary _summarizeWorldData(String? rawWorldData) {
+    if (rawWorldData == null || rawWorldData.isEmpty) {
+      return const _WorldDataSummary(
+        hasWorldData: false,
+        lastEcsSaved: null,
+        mainCharacterState: null,
+      );
+    }
+
+    try {
+      final Object decoded = jsonDecode(rawWorldData);
+      if (decoded is! Map<String, dynamic>) {
+        return const _WorldDataSummary(
+          hasWorldData: false,
+          lastEcsSaved: null,
+          mainCharacterState: null,
+        );
+      }
+
+      final Map<String, dynamic> worldMetadata =
+          _readMap(decoded['world_metadata']);
+      final List<dynamic> entities = _readList(decoded['entities']);
+      final _CharacterSnapshotSource? source = _findMainCharacter(entities);
+
+      return _WorldDataSummary(
+        hasWorldData: true,
+        lastEcsSaved: _readInt(worldMetadata['last_ecs_saved']),
+        mainCharacterState: source?.state,
+      );
+    } catch (_) {
+      return const _WorldDataSummary(
+        hasWorldData: false,
+        lastEcsSaved: null,
+        mainCharacterState: null,
+      );
+    }
   }
 
   static Map<String, dynamic> _readMap(Object? value) {
@@ -1286,6 +1439,18 @@ class HomeWidgetSyncService {
     }
     return 1;
   }
+}
+
+class _WorldDataSummary {
+  final bool hasWorldData;
+  final int? lastEcsSaved;
+  final int? mainCharacterState;
+
+  const _WorldDataSummary({
+    required this.hasWorldData,
+    required this.lastEcsSaved,
+    required this.mainCharacterState,
+  });
 }
 
 class _CharacterSnapshotSource {
