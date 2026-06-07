@@ -43,6 +43,19 @@ pnpm --filter @digivice/client snapshot:store -- --locales ko,en,ja --shots main
 pnpm --filter @digivice/client snapshot:store:current -- --url http://127.0.0.1:5173 --locales ko,en,ja
 ```
 
+## Full-locale store pack
+
+Use this preset when the user asks for a broad Play Store submission set across all supported languages:
+
+```bash
+pnpm --filter @digivice/client snapshot:store -- --locales en,ko,ja,zh-TW,zh-HK,hi,th,vi,pt-BR --shots main-scene-day,main-scene-night,monster-info,monster-book,setup
+```
+
+- The five-shot diversity pack is `main-scene-day`, `main-scene-night`, `monster-info`, `monster-book`, and `setup`. Capture runtime shots before `setup` to avoid static snapshot state interfering with runtime readiness.
+- If the full pack flakes in Chrome/CDP, build once, run `vite preview`, then use `snapshot:store:current` one `locale` x one `shot` at a time into the same `--out` folder.
+- If a user asks for a character name, update only the runtime fixtures by default. Leave the setup input empty unless the user explicitly asks to prefill it.
+- Run a one-locale subset first when changing fixtures, then capture the full locale set.
+
 ## Output contract
 
 - viewport preset: `android-19_5-9`

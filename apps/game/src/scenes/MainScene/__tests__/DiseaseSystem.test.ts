@@ -402,7 +402,7 @@ test("egg 상태에 남아 있던 sick 흔적은 즉시 정리된다", () => {
   );
 });
 
-test("질병 확률은 낮은 스테미나와 높은 피로도 구간 보정을 함께 반영한다", () => {
+test("질병 확률은 낮은 스테미나 보정만 반영하고 높은 피로도는 보정하지 않는다", () => {
   const world = createTestWorld({ now: 60_000 });
   const eid = withMockedDateNow(60_000, () =>
     createTestCharacter(world, {
@@ -411,24 +411,20 @@ test("질병 확률은 낮은 스테미나와 높은 피로도 구간 보정을 
     }),
   );
 
-  SleepSystemComp.fatigue[eid] =
-    GAME_CONSTANTS.FATIGUE_DISEASE_THRESHOLD_EXHAUSTED;
+  SleepSystemComp.fatigue[eid] = GAME_CONSTANTS.FATIGUE_MAX;
 
   const { rate, breakdown } = calculateDiseaseRate(world as any, eid);
   const expectedRate =
     GAME_CONSTANTS.BASE_DISEASE_RATE +
-    GAME_CONSTANTS.VERY_LOW_STAMINA_DISEASE_BONUS +
-    GAME_CONSTANTS.FATIGUE_DISEASE_BONUS_EXHAUSTED;
+    GAME_CONSTANTS.VERY_LOW_STAMINA_DISEASE_BONUS;
 
   assert.equal(breakdown.stamina, 1.5);
+  assert.equal(breakdown.fatigue, GAME_CONSTANTS.FATIGUE_MAX);
   assert.equal(
     breakdown.lowStaminaBonus,
     GAME_CONSTANTS.VERY_LOW_STAMINA_DISEASE_BONUS,
   );
-  assert.equal(
-    breakdown.fatigueBonus,
-    GAME_CONSTANTS.FATIGUE_DISEASE_BONUS_EXHAUSTED,
-  );
+  assert.equal(breakdown.fatigueBonus, 0);
   assert.equal(
     breakdown.staminaFatigueMultiplier,
     GAME_CONSTANTS.CRITICAL_STAMINA_FATIGUE_AWAKE_GAIN_MULTIPLIER,

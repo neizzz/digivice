@@ -266,7 +266,7 @@ class HomeWidgetPeriodicRefreshWorkerTest {
     }
 
     @Test
-    fun `runner keeps fresh non egg authoritative snapshot on progress only path`() {
+    fun `runner completes fresh non egg authoritative snapshot natively`() {
         val nowMs = 30 * 60 * 1000L
         val events = mutableListOf<String>()
         val authoritativeSnapshot = HomeWidgetDebugPresets.resolveSnapshot(
@@ -312,7 +312,9 @@ class HomeWidgetPeriodicRefreshWorkerTest {
         assertEquals(
             listOf(
                 "progress",
-                "status:periodic_progress_only",
+                "status:native_authoritative_completion_started",
+                "nativeComplete",
+                "status:native_authoritative_completion_completed",
                 "notify:${HomeWidgetConstants.PERIODIC_REFRESH_REASON}",
             ),
             events,
@@ -553,6 +555,7 @@ class HomeWidgetPeriodicRefreshWorkerTest {
         assertEquals(65, probabilities["green"])
         assertEquals(20, probabilities["soil"])
         assertEquals(15, probabilities["skull"])
+        assertEquals("egg", result["evolutionBlockReason"])
     }
 
     @Test
@@ -647,6 +650,200 @@ class HomeWidgetPeriodicRefreshWorkerTest {
             widgetPrefs.getString(HomeWidgetConstants.REFRESH_SMOKE_RESULT_KEY, null)
                 ?.contains("characterState=sick") == true,
         )
+    }
+
+    @Test
+    fun `native authoritative refresh does not add fatigue bonus to disease rate`() {
+        val nowMs = 20_000L
+        val widgetPrefs = FakeSharedPreferences()
+        val flutterPrefs = FakeSharedPreferences()
+        var persistedSnapshot: HomeWidgetSnapshot? = null
+
+        flutterPrefs.edit()
+            .putString(
+                HomeWidgetConstants.FLUTTER_WORLD_DATA_KEY,
+                buildHomeWidgetCharacterWorldData(
+                    lastEcsSaved = 0L,
+                    stamina = 6.0,
+                    fatigue = 100.0,
+                    nextDiseaseCheckTime = 1L,
+                    nextNapCheckTime = nowMs + 60_000L,
+                ),
+            )
+            .apply()
+
+        val result = HomeWidgetNativeAuthoritativeRefresh.complete(
+            widgetPrefs = widgetPrefs,
+            flutterPrefs = flutterPrefs,
+            nowMs = nowMs,
+            persistSnapshot = { snapshot ->
+                persistedSnapshot = snapshot
+            },
+            randomProvider = { event ->
+                if (event.reason == "disease") 0.0003 else 1.0
+            },
+        )
+
+        val updatedWorldData = flutterPrefs.getString(
+            HomeWidgetConstants.FLUTTER_WORLD_DATA_KEY,
+            null,
+        )
+
+        assertTrue(result.succeeded)
+        assertEquals("idle", persistedSnapshot?.characterState)
+        assertEquals(emptyList<String>(), persistedSnapshot?.visibleStatusIcons)
+        assertTrue(updatedWorldData?.contains(""""state":1""") == true)
+        assertFalse(updatedWorldData?.contains(""""statuses":[3]""") == true)
+    }
+
+    @Test
+    fun `native authoritative refresh progresses evolution gauge while eligible`() {
+        val nowMs = 60 * 60 * 1000L
+        val widgetPrefs = FakeSharedPreferences()
+        val flutterPrefs = FakeSharedPreferences()
+
+        flutterPrefs.edit()
+            .putString(
+                HomeWidgetConstants.FLUTTER_WORLD_DATA_KEY,
+                buildHomeWidgetCharacterWorldData(
+                    lastEcsSaved = 0L,
+                    stamina = 8.0,
+                    evolutionGage = 0.0,
+                    nextDiseaseCheckTime = nowMs + 60_000L,
+                    nextNapCheckTime = nowMs + 60_000L,
+                ),
+            )
+            .apply()
+
+        val result = HomeWidgetNativeAuthoritativeRefresh.complete(
+            widgetPrefs = widgetPrefs,
+            flutterPrefs = flutterPrefs,
+            nowMs = nowMs,
+            persistSnapshot = {},
+            randomProvider = { 1.0 },
+        )
+
+        val characterStatus = JSONObject(result.updatedRawWorldData!!)
+            .getJSONArray("entities")
+            .getJSONObject(0)
+            .getJSONObject("components")
+            .getJSONObject("characterStatus")
+
+        assertTrue(result.succeeded)
+        assertTrue(characterStatus.getDouble("evolutionGage") > 0.0)
+        assertEquals(0.0, result.evolutionDiagnostics?.evolutionGageBefore ?: -1.0, 0.0)
+        assertTrue(result.evolutionDiagnostics?.evolutionGageIncreased == true)
+        assertEquals("none", result.evolutionDiagnostics?.blockReason)
+        assertEquals(1, characterStatus.getInt("characterKey"))
+        assertEquals(1, characterStatus.getInt("evolutionPhase"))
+        assertTrue(
+            widgetPrefs.getString(HomeWidgetConstants.REFRESH_SMOKE_RESULT_KEY, null)
+                ?.contains("evolutionGage=0.0->") == true,
+        )
+    }
+
+    @Test
+    fun `native authoritative refresh evolves immediately when evolution gauge reaches max`() {
+        val nowMs = 10_000L
+        val widgetPrefs = FakeSharedPreferences()
+        val flutterPrefs = FakeSharedPreferences()
+        var persistedSnapshot: HomeWidgetSnapshot? = null
+
+        flutterPrefs.edit()
+            .putString(
+                HomeWidgetConstants.FLUTTER_WORLD_DATA_KEY,
+                buildHomeWidgetCharacterWorldData(
+                    lastEcsSaved = 0L,
+                    stamina = 8.0,
+                    evolutionGage = 99.999,
+                    nextDiseaseCheckTime = nowMs + 60_000L,
+                    nextNapCheckTime = nowMs + 60_000L,
+                ),
+            )
+            .apply()
+
+        val result = HomeWidgetNativeAuthoritativeRefresh.complete(
+            widgetPrefs = widgetPrefs,
+            flutterPrefs = flutterPrefs,
+            nowMs = nowMs,
+            persistSnapshot = { snapshot ->
+                persistedSnapshot = snapshot
+            },
+            randomProvider = { event ->
+                when (event.reason) {
+                    "evolution_mutation" -> 1.0
+                    "evolution" -> 0.0
+                    else -> 1.0
+                }
+            },
+        )
+
+        val components = JSONObject(result.updatedRawWorldData!!)
+            .getJSONArray("entities")
+            .getJSONObject(0)
+            .getJSONObject("components")
+        val characterStatus = components.getJSONObject("characterStatus")
+        val animationRender = components.getJSONObject("animationRender")
+        val render = components.getJSONObject("render")
+
+        assertTrue(result.succeeded)
+        assertEquals(2, persistedSnapshot?.characterKey)
+        assertEquals(2, characterStatus.getInt("characterKey"))
+        assertEquals(2, characterStatus.getInt("evolutionPhase"))
+        assertEquals(0.0, characterStatus.getDouble("evolutionGage"), 0.0)
+        assertEquals(2, animationRender.getInt("spritesheetKey"))
+        assertEquals(1, animationRender.getInt("animationKey"))
+        assertEquals(0, render.getInt("textureKey"))
+        assertEquals(0, render.getInt("storeIndex"))
+    }
+
+    @Test
+    fun `native authoritative refresh pauses evolution gauge while sick or low stamina`() {
+        val nowMs = 60 * 60 * 1000L
+
+        fun runPausedCase(stamina: Double, statuses: String): HomeWidgetNativeAuthoritativeRefreshResult {
+            val widgetPrefs = FakeSharedPreferences()
+            val flutterPrefs = FakeSharedPreferences()
+            flutterPrefs.edit()
+                .putString(
+                    HomeWidgetConstants.FLUTTER_WORLD_DATA_KEY,
+                    buildHomeWidgetCharacterWorldData(
+                        lastEcsSaved = 0L,
+                        stamina = stamina,
+                        evolutionGage = 10.0,
+                        statuses = statuses,
+                        nextDiseaseCheckTime = nowMs + 60_000L,
+                        nextNapCheckTime = nowMs + 60_000L,
+                    ),
+                )
+                .apply()
+
+            val result = HomeWidgetNativeAuthoritativeRefresh.complete(
+                widgetPrefs = widgetPrefs,
+                flutterPrefs = flutterPrefs,
+                nowMs = nowMs,
+                persistSnapshot = {},
+                randomProvider = { 1.0 },
+            )
+
+            assertTrue(result.succeeded)
+            val evolutionGage = JSONObject(result.updatedRawWorldData!!)
+                .getJSONArray("entities")
+                .getJSONObject(0)
+                .getJSONObject("components")
+                .getJSONObject("characterStatus")
+                .getDouble("evolutionGage")
+            assertEquals(10.0, evolutionGage, 0.0)
+            return result
+        }
+
+        val sickResult = runPausedCase(stamina = 8.0, statuses = "[3]")
+        val lowStaminaResult = runPausedCase(stamina = 2.5, statuses = "[]")
+
+        assertEquals("sick", sickResult.evolutionDiagnostics?.blockReason)
+        assertEquals(false, sickResult.evolutionDiagnostics?.evolutionGageIncreased)
+        assertEquals("low_stamina", lowStaminaResult.evolutionDiagnostics?.blockReason)
+        assertEquals(false, lowStaminaResult.evolutionDiagnostics?.evolutionGageIncreased)
     }
 
     @Test

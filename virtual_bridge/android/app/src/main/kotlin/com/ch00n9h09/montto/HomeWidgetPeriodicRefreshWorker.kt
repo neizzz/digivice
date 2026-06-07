@@ -34,13 +34,13 @@ internal object HomeWidgetPeriodicRefreshRunner {
             return false
         }
         val authoritativeSnapshot = loadAuthoritativeSnapshot()
-        val periodicStatus = if (
+        val shouldCompleteNativeRefresh =
             HomeWidgetSnapshotFactory.requiresAuthoritativeRefresh(
                 currentSnapshot = progressedSnapshot,
                 authoritativeSnapshot = authoritativeSnapshot,
                 nowMs = nowMs,
-            )
-        ) {
+            ) || shouldCompleteStoredWorldLifecycle(authoritativeSnapshot)
+        val periodicStatus = if (shouldCompleteNativeRefresh) {
             recordPeriodicRefreshStatus(
                 HomeWidgetNativeAuthoritativeRefreshStatus.STARTED.value,
                 nowMs,
@@ -60,6 +60,13 @@ internal object HomeWidgetPeriodicRefreshRunner {
             HomeWidgetConstants.PERIODIC_REFRESH_REASON,
         )
         return progressedSnapshot.snapshotKind.isNotBlank()
+    }
+
+    private fun shouldCompleteStoredWorldLifecycle(
+        authoritativeSnapshot: HomeWidgetSnapshot?,
+    ): Boolean {
+        val characterState = authoritativeSnapshot?.characterState ?: return false
+        return characterState != "egg"
     }
 }
 

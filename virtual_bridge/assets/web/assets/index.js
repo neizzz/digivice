@@ -2,7 +2,7 @@ var __defProp = Object.defineProperty;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 import { a as requireReactDom, r as reactExports, j as jsxRuntimeExports, T as TopLeftBuildLogoText, R as ReactDOM } from "./index2.js";
-import { z as DEFAULT_LOCALE, F as resolveLocaleFromLanguageTags, G as ControlButtonType, H as hasNativeStorageController, I as FlutterStorage, W as WebLocalStorage, J as translate, K as countDisplayCharacters, L as measureNameLabelWidth, N as fitsNameLabelWidth, O as TRANSLATIONS, Q as NAME_LABEL_FONT_FAMILIES, V as NAME_LABEL_FONT_WEIGHT, X as NAME_LABEL_STROKE_COLOR, Y as NAME_LABEL_FILL_COLOR, Z as NAME_LABEL_STROKE_WIDTH, _ as SUPPORTED_LOCALES, $ as LOCALE_METADATA, a0 as GAME_CONSTANTS, a1 as CharacterState, a2 as CharacterKeyECS, a3 as SceneKey, a4 as TimeOfDay, a5 as hasLegacyMonsterBookState, a6 as migrateLegacyMonsterBookIfNeeded, a7 as getNativeSunTimes, a8 as MissingInitialGameDataError, a9 as Game } from "./evolutionAdmin.js";
+import { z as DEFAULT_LOCALE, F as resolveLocaleFromLanguageTags, G as ControlButtonType, H as hasNativeStorageController, I as FlutterStorage, W as WebLocalStorage, J as translate, K as countDisplayCharacters, L as measureNameLabelWidth, N as fitsNameLabelWidth, O as TRANSLATIONS, Q as NAME_LABEL_FONT_FAMILIES, V as NAME_LABEL_FONT_WEIGHT, X as NAME_LABEL_STROKE_COLOR, Y as NAME_LABEL_FILL_COLOR, Z as NAME_LABEL_STROKE_WIDTH, _ as SUPPORTED_LOCALES, $ as LOCALE_METADATA, a0 as CharacterState, a1 as CharacterKeyECS, a2 as isEggTextureKey, a3 as TextureKey, a4 as GAME_CONSTANTS, a5 as SceneKey, a6 as TimeOfDay, a7 as hasLegacyMonsterBookState, a8 as migrateLegacyMonsterBookIfNeeded, a9 as getNativeSunTimes, aa as MissingInitialGameDataError, ab as Game } from "./evolutionAdmin.js";
 var reactDomExports = requireReactDom();
 class SliderController {
   /**
@@ -2301,13 +2301,10 @@ const EVOLUTION_FILL_COLOR = "#59B8FF";
 const MONSTER_INFO_TITLE_KEY = "monsterInfo.title";
 const DOM_NAME_LABEL_STROKE_WIDTH = Math.max(1, NAME_LABEL_STROKE_WIDTH / 2);
 const GENE_SYMBOL_SPRITE_URL = "/assets/game/sprites/gene-symbol.png";
-const GENE_SYMBOL_SIZE = 16;
-const GENE_SYMBOL_SHEET_WIDTH = 48;
-const GENE_SYMBOL_SHEET_HEIGHT = 16;
-const GENE_SYMBOL_X_BY_LINE = {
-  "green-slime": 0,
-  "soil-slime": 16,
-  "skull-slime": 32
+const GENE_SYMBOL_BACKGROUND_POSITION_BY_LINE = {
+  "green-slime": "0% 0",
+  "skull-slime": "50% 0",
+  "soil-slime": "100% 0"
 };
 function colorNumberToCssHex(color) {
   return `#${color.toString(16).padStart(6, "0")}`;
@@ -2377,13 +2374,26 @@ function formatGeneOutcomeProbability(probability, locale) {
     maximumFractionDigits
   }).format(safeProbability);
 }
-const StatusBar = ({ label, currentValue, maxValue, fillColor }) => {
+function getEvolutionGaugeDescriptionKey(snapshot) {
+  switch (snapshot.evolutionGaugeState) {
+    case "paused_sick":
+      return "monsterInfo.evolutionPausedSick";
+    case "paused_low_stamina":
+      return "monsterInfo.evolutionPausedLowStamina";
+    case "charging":
+    case "unavailable":
+      return null;
+  }
+  return null;
+}
+const StatusBar = ({ label, currentValue, maxValue, fillColor, description }) => {
   const percent = clampUnitInterval(
     maxValue > 0 ? currentValue / maxValue : 0
   );
+  const percentLabel = `${Math.round(percent * 100)}%`;
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-2 text-left", children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-[1.2rem] leading-[1.2] text-[#222]", children: label }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(
+    /* @__PURE__ */ jsxRuntimeExports.jsxs(
       "div",
       {
         role: "meter",
@@ -2391,19 +2401,24 @@ const StatusBar = ({ label, currentValue, maxValue, fillColor }) => {
         "aria-valuemin": 0,
         "aria-valuemax": maxValue,
         "aria-valuenow": Math.max(0, currentValue),
-        className: "h-5 overflow-hidden border-2 border-[#222] bg-[#6f6f6f] shadow-[inset_0_0_0_1px_rgba(0,0,0,0.2)]",
-        children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "div",
-          {
-            className: "h-full border-r-2 border-[#222]/25",
-            style: {
-              width: `${percent * 100}%`,
-              backgroundColor: fillColor
+        "aria-valuetext": percentLabel,
+        className: "relative h-5 overflow-hidden border-2 border-[#222] bg-[#6f6f6f] shadow-[inset_0_0_0_1px_rgba(0,0,0,0.2)]",
+        children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "div",
+            {
+              className: "h-full border-r-2 border-[#222]/25",
+              style: {
+                width: `${percent * 100}%`,
+                backgroundColor: fillColor
+              }
             }
-          }
-        )
+          ),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "pointer-events-none absolute inset-0 flex items-center justify-center text-[0.9rem] leading-none font-bold text-white [text-shadow:0_1px_0_rgba(0,0,0,0.6)]", children: percentLabel })
+        ]
       }
-    )
+    ),
+    description ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-[1rem] leading-[1.2] font-bold text-[#9A4F00]", children: description }) : null
   ] });
 };
 const ValueRow = ({ label, value }) => /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-end justify-between gap-3", children: [
@@ -2417,38 +2432,77 @@ const GeneSymbolIcon = ({ geneLine }) => /* @__PURE__ */ jsxRuntimeExports.jsx(
     className: "inline-block shrink-0 [image-rendering:pixelated]",
     role: "img",
     style: {
-      width: GENE_SYMBOL_SIZE,
-      height: GENE_SYMBOL_SIZE,
+      width: "1em",
+      height: "1em",
       backgroundImage: `url(${GENE_SYMBOL_SPRITE_URL})`,
-      backgroundPosition: `-${GENE_SYMBOL_X_BY_LINE[geneLine]}px 0`,
+      backgroundPosition: GENE_SYMBOL_BACKGROUND_POSITION_BY_LINE[geneLine],
       backgroundRepeat: "no-repeat",
-      backgroundSize: `${GENE_SYMBOL_SHEET_WIDTH}px ${GENE_SYMBOL_SHEET_HEIGHT}px`
+      backgroundSize: "300% 100%"
     }
   }
 );
 const GeneOutcomeList = ({ label, locale, outcomes }) => {
+  var _a;
   if (outcomes.length === 0) {
     return null;
   }
+  const standardOutcomes = outcomes.filter(
+    (outcome) => outcome.kind !== "mutation"
+  );
+  const mutationOutcomes = outcomes.filter(
+    (outcome) => outcome.kind === "mutation"
+  );
+  const mutationLevel = (_a = mutationOutcomes[0]) == null ? void 0 : _a.level;
+  const mutationProbability = mutationOutcomes.reduce(
+    (total, outcome) => total + outcome.probability,
+    0
+  );
+  const mutationKey = mutationOutcomes.map((outcome) => `${outcome.geneLine}:${outcome.level}`).sort().join("|");
+  const renderOutcomeRow = (outcome) => /* @__PURE__ */ jsxRuntimeExports.jsxs(
+    "div",
+    {
+      className: "flex items-center justify-between gap-4 text-[1.2rem] leading-none",
+      children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-end gap-[0.05em] font-bold text-[#222]", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(GeneSymbolIcon, { geneLine: outcome.geneLine }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "text-[0.8em]", children: [
+            "Lv.",
+            outcome.level
+          ] })
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "font-bold text-component-positive", children: formatGeneOutcomeProbability(outcome.probability, locale) })
+      ]
+    },
+    `${outcome.kind}:${outcome.geneLine}:${outcome.level}`
+  );
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-2 text-left", children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-[1.2rem] leading-[1.2] text-[#222]", children: label }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex flex-col gap-2", children: outcomes.map((outcome) => /* @__PURE__ */ jsxRuntimeExports.jsxs(
-      "div",
-      {
-        className: "flex items-center justify-between gap-4 text-[1.15rem] leading-none",
-        children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2 font-bold text-[#222]", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx(GeneSymbolIcon, { geneLine: outcome.geneLine }),
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { children: [
-              "Lv.",
-              outcome.level
-            ] })
-          ] }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "font-bold text-component-positive", children: formatGeneOutcomeProbability(outcome.probability, locale) })
-        ]
-      },
-      `${outcome.kind}:${outcome.geneLine}:${outcome.level}`
-    )) })
+    label ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-[1.2rem] leading-[1.2] text-[#222]", children: label }) : null,
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-2", children: [
+      standardOutcomes.map(renderOutcomeRow),
+      mutationOutcomes.length > 0 && mutationLevel !== void 0 ? /* @__PURE__ */ jsxRuntimeExports.jsxs(
+        "div",
+        {
+          className: "flex items-center justify-between gap-4 text-[1.2rem] leading-none",
+          children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-end gap-[0.05em] font-bold text-[#222]", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex items-center -space-x-[0.5em]", children: mutationOutcomes.map((outcome) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+                GeneSymbolIcon,
+                {
+                  geneLine: outcome.geneLine
+                },
+                `${outcome.geneLine}:${outcome.level}`
+              )) }),
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "text-[0.8em]", children: [
+                "Lv.",
+                mutationLevel
+              ] })
+            ] }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "font-bold text-component-positive", children: formatGeneOutcomeProbability(mutationProbability, locale) })
+          ]
+        },
+        `mutation:${mutationKey}`
+      ) : null
+    ] })
   ] });
 };
 const NameTitleText = ({ text, fillColor, strokeColor }) => {
@@ -2502,6 +2556,8 @@ const MonsterInfoLayer = ({
   const titleTemplate = splitMonsterInfoTitleTemplate(locale);
   const nameLabelFillColor = colorNumberToCssHex(NAME_LABEL_FILL_COLOR);
   const nameLabelStrokeColor = colorNumberToCssHex(NAME_LABEL_STROKE_COLOR);
+  const evolutionGaugeDescriptionKey = getEvolutionGaugeDescriptionKey(snapshot);
+  const evolutionGaugeDescription = evolutionGaugeDescriptionKey ? t(evolutionGaugeDescriptionKey) : null;
   return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 z-[60] flex items-center justify-center bg-black/50", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
     PopupLayer,
     {
@@ -2521,9 +2577,9 @@ const MonsterInfoLayer = ({
       content: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-5 px-5 text-left", children: [
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-end justify-between gap-3", children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-[1.2rem] leading-[1.2] text-[#222]", children: t("monsterInfo.level") }),
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-end gap-2 text-[1.3rem] leading-none font-bold text-component-positive", children: [
-            levelText,
-            snapshot.geneLine ? /* @__PURE__ */ jsxRuntimeExports.jsx(GeneSymbolIcon, { geneLine: snapshot.geneLine }) : null
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-end gap-1 text-[1.2rem] leading-none font-bold text-component-positive", children: [
+            snapshot.geneLine ? /* @__PURE__ */ jsxRuntimeExports.jsx(GeneSymbolIcon, { geneLine: snapshot.geneLine }) : null,
+            levelText
           ] })
         ] }),
         snapshot.isEgg ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
@@ -2554,23 +2610,26 @@ const MonsterInfoLayer = ({
               fillColor: getStaminaFillColor(snapshot)
             }
           ),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
-            StatusBar,
-            {
-              label: t("monsterInfo.evolution"),
-              currentValue: snapshot.evolutionGauge,
-              maxValue: snapshot.maxEvolutionGauge,
-              fillColor: EVOLUTION_FILL_COLOR
-            }
-          ),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
-            GeneOutcomeList,
-            {
-              label: t("monsterInfo.evolution"),
-              locale,
-              outcomes: snapshot.geneOutcomes
-            }
-          )
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-2", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              StatusBar,
+              {
+                label: t("monsterInfo.evolution"),
+                currentValue: snapshot.evolutionGauge,
+                maxValue: snapshot.maxEvolutionGauge,
+                fillColor: EVOLUTION_FILL_COLOR,
+                description: evolutionGaugeDescription
+              }
+            ),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              GeneOutcomeList,
+              {
+                label: t("monsterInfo.nextEvolution"),
+                locale,
+                outcomes: snapshot.geneOutcomes
+              }
+            )
+          ] })
         ] })
       ] }),
       onConfirm: onClose,
@@ -2905,7 +2964,7 @@ const SettingMenuLayer = ({
                         },
                         "aria-label": `${t("settings.resetConfirmCodeLabel")} ${index + 1}`,
                         "aria-invalid": isDigitMismatch,
-                        className: `h-11 w-9 border-2 px-0 text-center text-[1.2rem] font-bold focus:outline-none focus:ring-2 ${isDigitCorrect ? "border-component-positive bg-[#f0fff4] text-component-positive placeholder:text-component-positive/60 focus:ring-component-positive" : isDigitMismatch ? "border-component-negative bg-[#fff0f2] text-component-negative placeholder:text-component-negative/50 focus:ring-[#d95763]" : "border-[#222] bg-white text-[#222] placeholder:text-gray-400 focus:ring-[#d95763]"}`
+                        className: `h-11 w-9 border-2 px-0 text-center text-[1.2rem] font-bold focus:outline-none focus:ring-2 ${isDigitCorrect ? "border-component-positive bg-[#f0fff4] text-component-positive placeholder:text-component-positive/60 caret-component-positive/30 focus:ring-component-positive" : isDigitMismatch ? "border-component-negative bg-[#fff0f2] text-component-negative placeholder:text-component-negative/50 caret-component-negative/30 focus:ring-[#d95763]" : "border-[#222] bg-white text-[#222] placeholder:text-gray-400 caret-[#222]/30 focus:ring-[#d95763]"}`
                       },
                       index
                     );
@@ -2953,7 +3012,11 @@ const CHARACTER_STATE = {
   IDLE: 1,
   MOVING: 2,
   SLEEPING: 3,
+  SICK: 4,
   DEAD: 6
+};
+const CHARACTER_STATUS = {
+  SICK: 3
 };
 const DEFAULTS = {
   VERSION: "1.0.0",
@@ -3110,21 +3173,45 @@ function sanitizePendingEggHatchCharacterKey(value) {
       return CharacterKeyECS.NULL;
   }
 }
-function sanitizeStatuses(statuses) {
+function syncSickStatusFromState(state, statuses) {
+  if (state !== CHARACTER_STATE.SICK || statuses.includes(CHARACTER_STATUS.SICK)) {
+    return statuses;
+  }
+  const emptySlotIndex = statuses.findIndex(
+    (status) => status === ECS_NULL_VALUE
+  );
+  if (emptySlotIndex >= 0) {
+    statuses[emptySlotIndex] = CHARACTER_STATUS.SICK;
+    return statuses;
+  }
+  return statuses;
+}
+function sanitizeStatuses(statuses, state) {
   if (!Array.isArray(statuses)) {
-    return new Array(DEFAULTS.STATUS_SLOT_COUNT).fill(ECS_NULL_VALUE);
+    return syncSickStatusFromState(
+      state,
+      new Array(DEFAULTS.STATUS_SLOT_COUNT).fill(ECS_NULL_VALUE)
+    );
   }
   const sanitized = statuses.map((status) => toFiniteNumber(status) ?? ECS_NULL_VALUE).slice(0, DEFAULTS.STATUS_SLOT_COUNT);
   while (sanitized.length < DEFAULTS.STATUS_SLOT_COUNT) {
     sanitized.push(ECS_NULL_VALUE);
   }
-  return sanitized;
+  return syncSickStatusFromState(state, sanitized);
 }
 function needsAnimationRender(state) {
   return state !== CHARACTER_STATE.EGG && state !== CHARACTER_STATE.DEAD;
 }
 function needsRandomMovement(state) {
   return state === CHARACTER_STATE.IDLE || state === CHARACTER_STATE.MOVING;
+}
+function sanitizeCharacterRenderTextureKey(state, textureKey) {
+  const fallbackTextureKey = state === CHARACTER_STATE.EGG ? DEFAULTS.TEXTURE_KEY_EGG0 : ECS_NULL_VALUE;
+  const resolvedTextureKey = textureKey ?? fallbackTextureKey;
+  if (state !== CHARACTER_STATE.EGG && state !== CHARACTER_STATE.DEAD && isEggTextureKey(resolvedTextureKey)) {
+    return TextureKey.NULL;
+  }
+  return resolvedTextureKey;
 }
 function sanitizeWorldMetadata(metadata, now) {
   var _a, _b, _c, _d, _e, _f;
@@ -3212,7 +3299,7 @@ function sanitizeCachedSunTimes(sunTimes) {
   };
 }
 function sanitizeCharacterEntity(components, now) {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B, _C, _D, _E, _F, _G, _H, _I, _J, _K, _L, _M, _N, _O, _P, _Q, _R, _S, _T, _U, _V, _W, _X, _Y, _Z, __;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B, _C, _D, _E, _F, _G, _H, _I, _J, _K, _L, _M, _N, _O, _P, _Q, _R, _S, _T, _U, _V, _W, _X, _Y, _Z, __, _$;
   const objectId = toFiniteNumber((_a = components.object) == null ? void 0 : _a.id);
   if (!objectId || objectId <= 0) {
     return null;
@@ -3236,7 +3323,7 @@ function sanitizeCharacterEntity(components, now) {
       stamina: toFiniteNumber((_f = components.characterStatus) == null ? void 0 : _f.stamina) ?? 5,
       evolutionGage: toFiniteNumber((_g = components.characterStatus) == null ? void 0 : _g.evolutionGage) ?? 0,
       evolutionPhase: toFiniteNumber((_h = components.characterStatus) == null ? void 0 : _h.evolutionPhase) ?? 1,
-      statuses: sanitizeStatuses((_i = components.characterStatus) == null ? void 0 : _i.statuses)
+      statuses: sanitizeStatuses((_i = components.characterStatus) == null ? void 0 : _i.statuses, state)
     },
     position: {
       x: toFiniteNumber((_j = components.position) == null ? void 0 : _j.x) ?? 0,
@@ -3250,7 +3337,10 @@ function sanitizeCharacterEntity(components, now) {
     },
     render: {
       storeIndex: ECS_NULL_VALUE,
-      textureKey: toFiniteNumber((_n = components.render) == null ? void 0 : _n.textureKey) ?? (state === CHARACTER_STATE.EGG ? DEFAULTS.TEXTURE_KEY_EGG0 : ECS_NULL_VALUE),
+      textureKey: sanitizeCharacterRenderTextureKey(
+        state,
+        toFiniteNumber((_n = components.render) == null ? void 0 : _n.textureKey)
+      ),
       scale: toFiniteNumber((_o = components.render) == null ? void 0 : _o.scale) ?? 3,
       zIndex: toFiniteNumber((_p = components.render) == null ? void 0 : _p.zIndex) ?? ECS_NULL_VALUE
     },
@@ -3275,37 +3365,38 @@ function sanitizeCharacterEntity(components, now) {
       nextNapCheckTime: toFiniteNumber((_B = components.sleepSystem) == null ? void 0 : _B.nextNapCheckTime) ?? now + DEFAULTS.DAY_NAP_CHECK_INTERVAL,
       nextNightWakeCheckTime: toFiniteNumber((_C = components.sleepSystem) == null ? void 0 : _C.nextNightWakeCheckTime) ?? 0,
       sleepMode: toFiniteNumber((_D = components.sleepSystem) == null ? void 0 : _D.sleepMode) ?? (state === CHARACTER_STATE.SLEEPING ? 1 : 0),
-      pendingSleepReason: toFiniteNumber((_E = components.sleepSystem) == null ? void 0 : _E.pendingSleepReason) ?? 0,
-      pendingWakeReason: toFiniteNumber((_F = components.sleepSystem) == null ? void 0 : _F.pendingWakeReason) ?? 0,
-      sleepSessionStartedAt: toFiniteNumber((_G = components.sleepSystem) == null ? void 0 : _G.sleepSessionStartedAt) ?? 0
+      interruptedSleepMode: toFiniteNumber((_E = components.sleepSystem) == null ? void 0 : _E.interruptedSleepMode) ?? 0,
+      pendingSleepReason: toFiniteNumber((_F = components.sleepSystem) == null ? void 0 : _F.pendingSleepReason) ?? 0,
+      pendingWakeReason: toFiniteNumber((_G = components.sleepSystem) == null ? void 0 : _G.pendingWakeReason) ?? 0,
+      sleepSessionStartedAt: toFiniteNumber((_H = components.sleepSystem) == null ? void 0 : _H.sleepSessionStartedAt) ?? 0
     },
     vitality: {
-      urgentStartTime: toFiniteNumber((_H = components.vitality) == null ? void 0 : _H.urgentStartTime) ?? 0,
-      deathTime: toFiniteNumber((_I = components.vitality) == null ? void 0 : _I.deathTime) ?? 0,
+      urgentStartTime: toFiniteNumber((_I = components.vitality) == null ? void 0 : _I.urgentStartTime) ?? 0,
+      deathTime: toFiniteNumber((_J = components.vitality) == null ? void 0 : _J.deathTime) ?? 0,
       isDead: toBoolean(
-        (_J = components.vitality) == null ? void 0 : _J.isDead,
+        (_K = components.vitality) == null ? void 0 : _K.isDead,
         state === CHARACTER_STATE.DEAD
       )
     },
     temporaryStatus: {
-      statusType: toFiniteNumber((_K = components.temporaryStatus) == null ? void 0 : _K.statusType) ?? ECS_NULL_VALUE,
-      startTime: toFiniteNumber((_L = components.temporaryStatus) == null ? void 0 : _L.startTime) ?? 0,
-      lastHappyStatusTime: toFiniteNumber((_M = components.temporaryStatus) == null ? void 0 : _M.lastHappyStatusTime) ?? 0
+      statusType: toFiniteNumber((_L = components.temporaryStatus) == null ? void 0 : _L.statusType) ?? ECS_NULL_VALUE,
+      startTime: toFiniteNumber((_M = components.temporaryStatus) == null ? void 0 : _M.startTime) ?? 0,
+      lastHappyStatusTime: toFiniteNumber((_N = components.temporaryStatus) == null ? void 0 : _N.lastHappyStatusTime) ?? 0
     },
     eggHatch: {
       hatchTime: resolvedEggHatchSchedule.hatchTime,
       hatchDurationMs: resolvedEggHatchSchedule.hatchDurationMs,
-      isReadyToHatch: toBoolean((_N = components.eggHatch) == null ? void 0 : _N.isReadyToHatch, false),
+      isReadyToHatch: toBoolean((_O = components.eggHatch) == null ? void 0 : _O.isReadyToHatch, false),
       syringeCount: Math.min(
         10,
-        toNonNegativeInteger((_O = components.eggHatch) == null ? void 0 : _O.syringeCount, 0)
+        toNonNegativeInteger((_P = components.eggHatch) == null ? void 0 : _P.syringeCount, 0)
       ),
       pendingCharacterKey: state === CharacterState.EGG ? sanitizePendingEggHatchCharacterKey(
-        (_P = components.eggHatch) == null ? void 0 : _P.pendingCharacterKey
+        (_Q = components.eggHatch) == null ? void 0 : _Q.pendingCharacterKey
       ) : CharacterKeyECS.NULL
     }
   };
-  const statusIconSlots = (_Q = sanitized.statusIconRender) == null ? void 0 : _Q.storeIndexes;
+  const statusIconSlots = (_R = sanitized.statusIconRender) == null ? void 0 : _R.storeIndexes;
   if (statusIconSlots && statusIconSlots.length < DEFAULTS.STATUS_SLOT_COUNT) {
     while (statusIconSlots.length < DEFAULTS.STATUS_SLOT_COUNT) {
       statusIconSlots.push(ECS_NULL_VALUE);
@@ -3314,30 +3405,30 @@ function sanitizeCharacterEntity(components, now) {
   if (needsAnimationRender(state)) {
     sanitized.animationRender = {
       storeIndex: ECS_NULL_VALUE,
-      spritesheetKey: toFiniteNumber((_R = components.animationRender) == null ? void 0 : _R.spritesheetKey) ?? characterKey ?? DEFAULTS.SPRITESHEET_KEY,
-      animationKey: toFiniteNumber((_S = components.animationRender) == null ? void 0 : _S.animationKey) ?? DEFAULTS.ANIMATION_KEY_IDLE,
-      isPlaying: toBoolean((_T = components.animationRender) == null ? void 0 : _T.isPlaying, true),
-      loop: toBoolean((_U = components.animationRender) == null ? void 0 : _U.loop, true),
-      speed: toFiniteNumber((_V = components.animationRender) == null ? void 0 : _V.speed) ?? 0.04
+      spritesheetKey: toFiniteNumber((_S = components.animationRender) == null ? void 0 : _S.spritesheetKey) ?? characterKey ?? DEFAULTS.SPRITESHEET_KEY,
+      animationKey: toFiniteNumber((_T = components.animationRender) == null ? void 0 : _T.animationKey) ?? DEFAULTS.ANIMATION_KEY_IDLE,
+      isPlaying: toBoolean((_U = components.animationRender) == null ? void 0 : _U.isPlaying, true),
+      loop: toBoolean((_V = components.animationRender) == null ? void 0 : _V.loop, true),
+      speed: toFiniteNumber((_W = components.animationRender) == null ? void 0 : _W.speed) ?? 0.04
     };
   }
   if (needsRandomMovement(state)) {
-    const minIdle = toFiniteNumber((_W = components.randomMovement) == null ? void 0 : _W.minIdleTime) ?? DEFAULTS.RANDOM_MOVEMENT.minIdleTime;
+    const minIdle = toFiniteNumber((_X = components.randomMovement) == null ? void 0 : _X.minIdleTime) ?? DEFAULTS.RANDOM_MOVEMENT.minIdleTime;
     const maxIdle = Math.max(
       minIdle,
-      toFiniteNumber((_X = components.randomMovement) == null ? void 0 : _X.maxIdleTime) ?? DEFAULTS.RANDOM_MOVEMENT.maxIdleTime
+      toFiniteNumber((_Y = components.randomMovement) == null ? void 0 : _Y.maxIdleTime) ?? DEFAULTS.RANDOM_MOVEMENT.maxIdleTime
     );
-    const minMove = toFiniteNumber((_Y = components.randomMovement) == null ? void 0 : _Y.minMoveTime) ?? DEFAULTS.RANDOM_MOVEMENT.minMoveTime;
+    const minMove = toFiniteNumber((_Z = components.randomMovement) == null ? void 0 : _Z.minMoveTime) ?? DEFAULTS.RANDOM_MOVEMENT.minMoveTime;
     const maxMove = Math.max(
       minMove,
-      toFiniteNumber((_Z = components.randomMovement) == null ? void 0 : _Z.maxMoveTime) ?? DEFAULTS.RANDOM_MOVEMENT.maxMoveTime
+      toFiniteNumber((__ = components.randomMovement) == null ? void 0 : __.maxMoveTime) ?? DEFAULTS.RANDOM_MOVEMENT.maxMoveTime
     );
     sanitized.randomMovement = {
       minIdleTime: minIdle,
       maxIdleTime: maxIdle,
       minMoveTime: minMove,
       maxMoveTime: maxMove,
-      nextChange: toFiniteNumber((__ = components.randomMovement) == null ? void 0 : __.nextChange) ?? now + 1e3
+      nextChange: toFiniteNumber((_$ = components.randomMovement) == null ? void 0 : _$.nextChange) ?? now + 1e3
     };
   }
   return sanitized;
@@ -4040,6 +4131,28 @@ const CONFIGURED_INITIAL_SCENE_KEY = getConfiguredInitialSceneKey();
 function isMissingInitialGameDataError(error) {
   return error instanceof MissingInitialGameDataError || error instanceof Error && error.name === MissingInitialGameDataError.name;
 }
+function isNativeWorldDataUpdateCompleted(result) {
+  return (result == null ? void 0 : result.status) === "native_authoritative_completion_completed";
+}
+function summarizeNativeWorldDataUpdate(record) {
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
+  if (!record) {
+    return null;
+  }
+  return {
+    source: record.source,
+    status: ((_a = record.result) == null ? void 0 : _a.status) ?? null,
+    worldDataChanged: ((_b = record.result) == null ? void 0 : _b.worldDataChanged) ?? null,
+    hatched: ((_c = record.result) == null ? void 0 : _c.hatched) ?? null,
+    evolutionGageBefore: ((_d = record.result) == null ? void 0 : _d.evolutionGageBefore) ?? null,
+    evolutionGageAfter: ((_e = record.result) == null ? void 0 : _e.evolutionGageAfter) ?? null,
+    evolutionGageIncreased: ((_f = record.result) == null ? void 0 : _f.evolutionGageIncreased) ?? null,
+    evolutionBlockReason: ((_g = record.result) == null ? void 0 : _g.evolutionBlockReason) ?? null,
+    previousCharacterState: ((_h = record.result) == null ? void 0 : _h.previousCharacterState) ?? null,
+    nextCharacterState: ((_i = record.result) == null ? void 0 : _i.nextCharacterState) ?? null,
+    selectedCharacterKey: ((_j = record.result) == null ? void 0 : _j.selectedCharacterKey) ?? null
+  };
+}
 const BACK_NAVIGATION_ALERT_ENTRY = "layer:alert";
 const BACK_NAVIGATION_LOADING_FAILURE_ENTRY = "layer:loading-failure";
 const BACK_NAVIGATION_DIAGNOSTICS_ENTRY = "layer:diagnostics-draft";
@@ -4160,7 +4273,7 @@ function areMainCharacterInfoSnapshotsEqual(left, right) {
   if (!left || !right) {
     return false;
   }
-  return left.monsterName === right.monsterName && left.isEgg === right.isEgg && left.geneLine === right.geneLine && areMainCharacterGeneOutcomesEqual(left.geneOutcomes, right.geneOutcomes) && left.eggHatchRemainingMs === right.eggHatchRemainingMs && left.evolutionPhase === right.evolutionPhase && left.stamina === right.stamina && left.maxStamina === right.maxStamina && left.unhappyThreshold === right.unhappyThreshold && left.boostedThreshold === right.boostedThreshold && left.evolutionGauge === right.evolutionGauge && left.maxEvolutionGauge === right.maxEvolutionGauge;
+  return left.monsterName === right.monsterName && left.isEgg === right.isEgg && left.geneLine === right.geneLine && areMainCharacterGeneOutcomesEqual(left.geneOutcomes, right.geneOutcomes) && left.eggHatchRemainingMs === right.eggHatchRemainingMs && left.evolutionPhase === right.evolutionPhase && left.stamina === right.stamina && left.maxStamina === right.maxStamina && left.unhappyThreshold === right.unhappyThreshold && left.boostedThreshold === right.boostedThreshold && left.evolutionGauge === right.evolutionGauge && left.maxEvolutionGauge === right.maxEvolutionGauge && left.evolutionGaugeState === right.evolutionGaugeState;
 }
 async function waitForLayoutStabilization() {
   await waitForAnimationFrame();
@@ -4447,6 +4560,7 @@ const GameContainer = () => {
   const isResumeGuardVisibleRef = reactExports.useRef(false);
   const isResumeReentrySimulationRunningRef = reactExports.useRef(false);
   const homeWidgetLaunchModeRef = reactExports.useRef("default");
+  const lastNativeWorldDataUpdateForReentryRef = reactExports.useRef(null);
   const nativeBackgroundWidgetSyncTriggeredRef = reactExports.useRef(false);
   const completeWidgetRefreshAfterInitReentryRef = reactExports.useRef(null);
   const fullscreenAdLayoutReleaseTimeoutRef = reactExports.useRef(null);
@@ -5284,6 +5398,9 @@ const GameContainer = () => {
         return;
       }
       if (params.phase === "started") {
+        if (homeWidgetLaunchModeRef.current === "widget_refresh") {
+          lastNativeWorldDataUpdateForReentryRef.current = null;
+        }
         if (params.source === "app_resume") {
           isResumeReentrySimulationRunningRef.current = true;
           showResumeGuard("main_scene_reentry");
@@ -5314,6 +5431,10 @@ const GameContainer = () => {
     const result = await controller.completeNativeWorldDataUpdate({
       source
     });
+    lastNativeWorldDataUpdateForReentryRef.current = {
+      source,
+      result
+    };
     logImportantDiagnostics(
       "log",
       "[ImportantDiagnostics][HomeWidgetBackgroundSync]",
@@ -5323,6 +5444,10 @@ const GameContainer = () => {
         status: (result == null ? void 0 : result.status) ?? null,
         worldDataChanged: (result == null ? void 0 : result.worldDataChanged) ?? null,
         hatched: (result == null ? void 0 : result.hatched) ?? null,
+        evolutionGageBefore: (result == null ? void 0 : result.evolutionGageBefore) ?? null,
+        evolutionGageAfter: (result == null ? void 0 : result.evolutionGageAfter) ?? null,
+        evolutionGageIncreased: (result == null ? void 0 : result.evolutionGageIncreased) ?? null,
+        evolutionBlockReason: (result == null ? void 0 : result.evolutionBlockReason) ?? null,
         previousCharacterState: (result == null ? void 0 : result.previousCharacterState) ?? null,
         nextCharacterState: (result == null ? void 0 : result.nextCharacterState) ?? null,
         selectedCharacterKey: (result == null ? void 0 : result.selectedCharacterKey) ?? null
@@ -5895,7 +6020,62 @@ const GameContainer = () => {
         }
       );
       try {
-        if (result !== "completed") {
+        if (result === "skipped" && !lastNativeWorldDataUpdateForReentryRef.current) {
+          if (typeof (controller == null ? void 0 : controller.completeNativeWorldDataUpdate) === "function") {
+            try {
+              const fallbackResult = await controller.completeNativeWorldDataUpdate({
+                source: "init"
+              });
+              lastNativeWorldDataUpdateForReentryRef.current = {
+                source: "init",
+                result: fallbackResult
+              };
+              completionResult = isNativeWorldDataUpdateCompleted(
+                fallbackResult
+              ) ? "completed" : "failed";
+              logImportantDiagnostics(
+                "log",
+                "[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+                {
+                  action: "native_world_data_update_for_reentry_fallback",
+                  reason,
+                  reentryResult: result ?? null,
+                  nativeUpdate: summarizeNativeWorldDataUpdate(
+                    lastNativeWorldDataUpdateForReentryRef.current
+                  )
+                }
+              );
+            } catch (error) {
+              completionResult = "failed";
+              logImportantDiagnostics(
+                "warn",
+                "[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+                {
+                  action: "widget_refresh_failed",
+                  reason,
+                  failureStage: "native_world_data_update_fallback",
+                  reentryResult: result ?? null,
+                  error: error instanceof Error ? {
+                    name: error.name,
+                    message: error.message
+                  } : String(error)
+                }
+              );
+            }
+          } else {
+            completionResult = "failed";
+            logImportantDiagnostics(
+              "warn",
+              "[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+              {
+                action: "widget_refresh_failed",
+                reason,
+                failureStage: "native_world_data_update_fallback_missing_controller",
+                reentryResult: result ?? null
+              }
+            );
+          }
+        } else if (result !== "completed") {
           completionResult = "failed";
           logImportantDiagnostics(
             "warn",
@@ -5904,11 +6084,17 @@ const GameContainer = () => {
               action: "widget_refresh_failed",
               reason,
               failureStage: "reentry",
-              reentryResult: result ?? null
+              reentryResult: result ?? null,
+              nativeUpdate: summarizeNativeWorldDataUpdate(
+                lastNativeWorldDataUpdateForReentryRef.current
+              )
             }
           );
         }
       } finally {
+        const nativeUpdate = summarizeNativeWorldDataUpdate(
+          lastNativeWorldDataUpdateForReentryRef.current
+        );
         try {
           if (typeof (controller == null ? void 0 : controller.completeRefresh) === "function") {
             await controller.completeRefresh({
@@ -5916,7 +6102,13 @@ const GameContainer = () => {
               source: "main_scene_reentry_finished_widget_refresh",
               launchMode: homeWidgetLaunchModeRef.current,
               reentryResult: result ?? null,
-              nativeUpdateSource: "main_scene_reentry"
+              nativeUpdateSource: (nativeUpdate == null ? void 0 : nativeUpdate.source) ?? "main_scene_reentry",
+              nativeUpdateStatus: (nativeUpdate == null ? void 0 : nativeUpdate.status) ?? null,
+              nativeWorldDataChanged: (nativeUpdate == null ? void 0 : nativeUpdate.worldDataChanged) ?? null,
+              evolutionGageBefore: (nativeUpdate == null ? void 0 : nativeUpdate.evolutionGageBefore) ?? null,
+              evolutionGageAfter: (nativeUpdate == null ? void 0 : nativeUpdate.evolutionGageAfter) ?? null,
+              evolutionGageIncreased: (nativeUpdate == null ? void 0 : nativeUpdate.evolutionGageIncreased) ?? null,
+              evolutionBlockReason: (nativeUpdate == null ? void 0 : nativeUpdate.evolutionBlockReason) ?? null
             });
             logImportantDiagnostics(
               "log",
@@ -5926,7 +6118,7 @@ const GameContainer = () => {
                 reason,
                 completionResult,
                 reentryResult: result ?? null,
-                nativeUpdateSource: "main_scene_reentry"
+                nativeUpdate
               }
             );
           } else {
@@ -5937,7 +6129,8 @@ const GameContainer = () => {
                 action: "widget_refresh_failed",
                 reason,
                 failureStage: "complete_refresh_missing_controller",
-                reentryResult: result ?? null
+                reentryResult: result ?? null,
+                nativeUpdate
               }
             );
           }
@@ -5950,6 +6143,7 @@ const GameContainer = () => {
               reason,
               failureStage: "complete_refresh",
               reentryResult: result ?? null,
+              nativeUpdate,
               error: error instanceof Error ? {
                 name: error.name,
                 message: error.message
@@ -5958,6 +6152,7 @@ const GameContainer = () => {
           );
         } finally {
           homeWidgetLaunchModeRef.current = "default";
+          lastNativeWorldDataUpdateForReentryRef.current = null;
         }
       }
     },

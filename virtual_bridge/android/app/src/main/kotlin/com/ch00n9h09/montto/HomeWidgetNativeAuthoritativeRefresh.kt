@@ -12,6 +12,7 @@ internal data class HomeWidgetNativeAuthoritativeRefreshResult(
     val hatched: Boolean = false,
     val selectedCharacterKey: Int? = null,
     val hatchSelectionDiagnostics: HomeWidgetNativeHatchSelectionDiagnostics? = null,
+    val evolutionDiagnostics: HomeWidgetNativeEvolutionDiagnostics? = null,
     val previousCharacterState: Int? = null,
     val nextCharacterState: Int? = null,
     val error: String? = null,
@@ -29,6 +30,11 @@ internal data class HomeWidgetNativeAuthoritativeRefreshResult(
             "hatched" to hatched,
             "selectedCharacterKey" to selectedCharacterKey,
             "hatchSelectionDiagnostics" to hatchSelectionDiagnostics?.toMap(),
+            "evolutionDiagnostics" to evolutionDiagnostics?.toMap(),
+            "evolutionGageBefore" to evolutionDiagnostics?.evolutionGageBefore,
+            "evolutionGageAfter" to evolutionDiagnostics?.evolutionGageAfter,
+            "evolutionGageIncreased" to evolutionDiagnostics?.evolutionGageIncreased,
+            "evolutionBlockReason" to evolutionDiagnostics?.blockReason,
             "previousCharacterState" to previousCharacterState,
             "nextCharacterState" to nextCharacterState,
             "error" to error,
@@ -208,6 +214,7 @@ private object HomeWidgetNativeRefreshSnapshotStore {
             hatched = refreshedWorldData.hatched,
             selectedCharacterKey = refreshedWorldData.selectedCharacterKey,
             hatchSelectionDiagnostics = refreshedWorldData.hatchSelectionDiagnostics,
+            evolutionDiagnostics = refreshedWorldData.evolutionDiagnostics,
             previousCharacterState = refreshedWorldData.previousCharacterState,
             nextCharacterState = refreshedWorldData.nextCharacterState,
         )
@@ -256,6 +263,16 @@ private object HomeWidgetNativeRefreshSnapshotStore {
                 append(diagnostics.skullProbability)
                 append(";selectedCharacterKey:")
                 append(diagnostics.selectedCharacterKey)
+            }
+            refreshedWorldData.evolutionDiagnostics?.let { diagnostics ->
+                append(",evolutionGage=")
+                append(diagnostics.evolutionGageBefore)
+                append("->")
+                append(diagnostics.evolutionGageAfter)
+                append(";increased:")
+                append(diagnostics.evolutionGageIncreased)
+                append(";blockReason:")
+                append(diagnostics.blockReason)
             }
             append(")")
         }

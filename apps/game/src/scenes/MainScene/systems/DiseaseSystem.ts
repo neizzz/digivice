@@ -25,7 +25,6 @@ import {
 } from "../types";
 import {
   GAME_CONSTANTS,
-  getFatigueDiseaseBonus,
   getLowStaminaDiseaseBonus,
   getStaminaFatigueAwakeGainMultiplier,
 } from "../config";
@@ -48,7 +47,8 @@ const previousStates: Map<number, { isSick: boolean; isSleeping: boolean }> =
 /**
  * 질병 시스템
  * - 일정 시간마다 질병 확률 체크
- * - 낮은 스테미나와 높은 피로도가 질병 확률을 단계적으로 높임
+ * - 낮은 스테미나가 질병 확률을 단계적으로 높임
+ * - 피로도는 수면/낮잠 로직에만 쓰고 질병 확률에는 더하지 않음
  * - 똥이나 상한음식은 추가 질병 확률 보정으로 누적됨
  * - sick 상태 관리
  */
@@ -286,12 +286,6 @@ export function calculateDiseaseRate(
   if (lowStaminaBonus > 0) {
     diseaseRate += lowStaminaBonus;
     breakdown.lowStaminaBonus = lowStaminaBonus;
-  }
-
-  const fatigueBonus = getFatigueDiseaseBonus(fatigue);
-  if (fatigueBonus > 0) {
-    diseaseRate += fatigueBonus;
-    breakdown.fatigueBonus = fatigueBonus;
   }
 
   // 똥 개수 계산

@@ -119,6 +119,34 @@ function isMissingInitialGameDataError(
   );
 }
 
+function isNativeWorldDataUpdateCompleted(
+  result: HomeWidgetNativeWorldDataUpdateResult | null | undefined,
+): boolean {
+  return result?.status === "native_authoritative_completion_completed";
+}
+
+function summarizeNativeWorldDataUpdate(
+  record: HomeWidgetNativeWorldDataUpdateRecord | null,
+): Record<string, unknown> | null {
+  if (!record) {
+    return null;
+  }
+
+  return {
+    source: record.source,
+    status: record.result?.status ?? null,
+    worldDataChanged: record.result?.worldDataChanged ?? null,
+    hatched: record.result?.hatched ?? null,
+    evolutionGageBefore: record.result?.evolutionGageBefore ?? null,
+    evolutionGageAfter: record.result?.evolutionGageAfter ?? null,
+    evolutionGageIncreased: record.result?.evolutionGageIncreased ?? null,
+    evolutionBlockReason: record.result?.evolutionBlockReason ?? null,
+    previousCharacterState: record.result?.previousCharacterState ?? null,
+    nextCharacterState: record.result?.nextCharacterState ?? null,
+    selectedCharacterKey: record.result?.selectedCharacterKey ?? null,
+  };
+}
+
 type UnsupportedViewportReason = "landscape" | "square" | null;
 
 type UnsupportedViewportCheckOptions = {
@@ -242,6 +270,17 @@ type HomeWidgetBackgroundSyncResult = {
   inMemoryLastEcsSaved: number | null;
   syncResult?: Record<string, unknown> | null;
   error?: string;
+};
+
+type HomeWidgetNativeWorldDataUpdateResult = Awaited<
+  ReturnType<
+    NonNullable<HomeWidgetControllerBridge["completeNativeWorldDataUpdate"]>
+  >
+>;
+
+type HomeWidgetNativeWorldDataUpdateRecord = {
+  source: "init" | "app_resume";
+  result: HomeWidgetNativeWorldDataUpdateResult;
 };
 
 type FullscreenAdEventDetail = {
@@ -862,6 +901,8 @@ const GameContainer: React.FC = () => {
   const isResumeGuardVisibleRef = useRef(false);
   const isResumeReentrySimulationRunningRef = useRef(false);
   const homeWidgetLaunchModeRef = useRef<HomeWidgetLaunchMode>("default");
+  const lastNativeWorldDataUpdateForReentryRef =
+    useRef<HomeWidgetNativeWorldDataUpdateRecord | null>(null);
   const nativeBackgroundWidgetSyncTriggeredRef = useRef(false);
   const completeWidgetRefreshAfterInitReentryRef = useRef<
     ((
@@ -1945,6 +1986,9 @@ const GameContainer: React.FC = () => {
         }
 
         if (params.phase === "started") {
+          if (homeWidgetLaunchModeRef.current === "widget_refresh") {
+            lastNativeWorldDataUpdateForReentryRef.current = null;
+          }
           if (params.source === "app_resume") {
             isResumeReentrySimulationRunningRef.current = true;
             showResumeGuard("main_scene_reentry");
@@ -1986,6 +2030,10 @@ const GameContainer: React.FC = () => {
       const result = await controller.completeNativeWorldDataUpdate({
         source,
       });
+      lastNativeWorldDataUpdateForReentryRef.current = {
+        source,
+        result,
+      };
 
       logImportantDiagnostics(
         "log",
@@ -1996,6 +2044,10 @@ const GameContainer: React.FC = () => {
           status: result?.status ?? null,
           worldDataChanged: result?.worldDataChanged ?? null,
           hatched: result?.hatched ?? null,
+          evolutionGageBefore: result?.evolutionGageBefore ?? null,
+          evolutionGageAfter: result?.evolutionGageAfter ?? null,
+          evolutionGageIncreased: result?.evolutionGageIncreased ?? null,
+          evolutionBlockReason: result?.evolutionBlockReason ?? null,
           previousCharacterState: result?.previousCharacterState ?? null,
           nextCharacterState: result?.nextCharacterState ?? null,
           selectedCharacterKey: result?.selectedCharacterKey ?? null,
@@ -2699,7 +2751,71 @@ const GameContainer: React.FC = () => {
       );
 
       try {
-        if (result !== "completed") {
+        if (
+          result === "skipped" &&
+          !lastNativeWorldDataUpdateForReentryRef.current
+        ) {
+          if (typeof controller?.completeNativeWorldDataUpdate === "function") {
+            try {
+              const fallbackResult =
+                await controller.completeNativeWorldDataUpdate({
+                  source: "init",
+                });
+              lastNativeWorldDataUpdateForReentryRef.current = {
+                source: "init",
+                result: fallbackResult,
+              };
+              completionResult = isNativeWorldDataUpdateCompleted(
+                fallbackResult,
+              )
+                ? "completed"
+                : "failed";
+              logImportantDiagnostics(
+                "log",
+                "[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+                {
+                  action: "native_world_data_update_for_reentry_fallback",
+                  reason,
+                  reentryResult: result ?? null,
+                  nativeUpdate: summarizeNativeWorldDataUpdate(
+                    lastNativeWorldDataUpdateForReentryRef.current,
+                  ),
+                },
+              );
+            } catch (error) {
+              completionResult = "failed";
+              logImportantDiagnostics(
+                "warn",
+                "[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+                {
+                  action: "widget_refresh_failed",
+                  reason,
+                  failureStage: "native_world_data_update_fallback",
+                  reentryResult: result ?? null,
+                  error:
+                    error instanceof Error
+                      ? {
+                          name: error.name,
+                          message: error.message,
+                        }
+                      : String(error),
+                },
+              );
+            }
+          } else {
+            completionResult = "failed";
+            logImportantDiagnostics(
+              "warn",
+              "[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+              {
+                action: "widget_refresh_failed",
+                reason,
+                failureStage: "native_world_data_update_fallback_missing_controller",
+                reentryResult: result ?? null,
+              },
+            );
+          }
+        } else if (result !== "completed") {
           completionResult = "failed";
           logImportantDiagnostics(
             "warn",
@@ -2709,10 +2825,16 @@ const GameContainer: React.FC = () => {
               reason,
               failureStage: "reentry",
               reentryResult: result ?? null,
+              nativeUpdate: summarizeNativeWorldDataUpdate(
+                lastNativeWorldDataUpdateForReentryRef.current,
+              ),
             },
           );
         }
       } finally {
+        const nativeUpdate = summarizeNativeWorldDataUpdate(
+          lastNativeWorldDataUpdateForReentryRef.current,
+        );
         try {
           if (typeof controller?.completeRefresh === "function") {
             await controller.completeRefresh({
@@ -2720,7 +2842,13 @@ const GameContainer: React.FC = () => {
               source: "main_scene_reentry_finished_widget_refresh",
               launchMode: homeWidgetLaunchModeRef.current,
               reentryResult: result ?? null,
-              nativeUpdateSource: "main_scene_reentry",
+              nativeUpdateSource: nativeUpdate?.source ?? "main_scene_reentry",
+              nativeUpdateStatus: nativeUpdate?.status ?? null,
+              nativeWorldDataChanged: nativeUpdate?.worldDataChanged ?? null,
+              evolutionGageBefore: nativeUpdate?.evolutionGageBefore ?? null,
+              evolutionGageAfter: nativeUpdate?.evolutionGageAfter ?? null,
+              evolutionGageIncreased: nativeUpdate?.evolutionGageIncreased ?? null,
+              evolutionBlockReason: nativeUpdate?.evolutionBlockReason ?? null,
             });
             logImportantDiagnostics(
               "log",
@@ -2730,7 +2858,7 @@ const GameContainer: React.FC = () => {
                 reason,
                 completionResult,
                 reentryResult: result ?? null,
-                nativeUpdateSource: "main_scene_reentry",
+                nativeUpdate,
               },
             );
           } else {
@@ -2742,6 +2870,7 @@ const GameContainer: React.FC = () => {
                 reason,
                 failureStage: "complete_refresh_missing_controller",
                 reentryResult: result ?? null,
+                nativeUpdate,
               },
             );
           }
@@ -2754,6 +2883,7 @@ const GameContainer: React.FC = () => {
               reason,
               failureStage: "complete_refresh",
               reentryResult: result ?? null,
+              nativeUpdate,
               error:
                 error instanceof Error
                   ? {
@@ -2765,6 +2895,7 @@ const GameContainer: React.FC = () => {
           );
         } finally {
           homeWidgetLaunchModeRef.current = "default";
+          lastNativeWorldDataUpdateForReentryRef.current = null;
         }
       }
     },

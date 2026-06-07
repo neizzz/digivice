@@ -346,6 +346,9 @@ const en = {
   "monsterInfo.hatch": "Hatch",
   "monsterInfo.hatchRemaining": "Time to hatch",
   "monsterInfo.evolution": "Evolution",
+  "monsterInfo.nextEvolution": "Next Evolution",
+  "monsterInfo.evolutionPausedSick": "Evolution paused while sick.",
+  "monsterInfo.evolutionPausedLowStamina": "Evolution paused: health is too low.",
   "monsterInfo.levelEgg": "Egg",
   "monsterInfo.levelPhase": "Lv.{phase}"
 };
@@ -444,6 +447,9 @@ const ko = {
   "monsterInfo.hatch": "부화",
   "monsterInfo.hatchRemaining": "남은 부화 시간",
   "monsterInfo.evolution": "진화",
+  "monsterInfo.nextEvolution": "다음 진화",
+  "monsterInfo.evolutionPausedSick": "아픈 상태라 진화가 멈췄어요.",
+  "monsterInfo.evolutionPausedLowStamina": "체력이 낮아 진화가 멈췄어요.",
   "monsterInfo.levelEgg": "알",
   "monsterInfo.levelPhase": "Lv.{phase}"
 };
@@ -542,6 +548,9 @@ const ja = {
   "monsterInfo.hatch": "ふ化",
   "monsterInfo.hatchRemaining": "ふ化まで残り時間",
   "monsterInfo.evolution": "進化",
+  "monsterInfo.nextEvolution": "次の進化",
+  "monsterInfo.evolutionPausedSick": "病気のため進化が止まっています。",
+  "monsterInfo.evolutionPausedLowStamina": "体力が低いため進化が止まっています。",
   "monsterInfo.levelEgg": "タマゴ",
   "monsterInfo.levelPhase": "Lv.{phase}"
 };
@@ -640,6 +649,9 @@ const zhTW = {
   "monsterInfo.hatch": "孵化",
   "monsterInfo.hatchRemaining": "剩餘孵化時間",
   "monsterInfo.evolution": "進化",
+  "monsterInfo.nextEvolution": "下一次進化",
+  "monsterInfo.evolutionPausedSick": "生病中，進化已暫停。",
+  "monsterInfo.evolutionPausedLowStamina": "體力過低，進化已暫停。",
   "monsterInfo.levelEgg": "蛋",
   "monsterInfo.levelPhase": "Lv.{phase}"
 };
@@ -662,6 +674,9 @@ const zhHK = {
   "monsterInfo.hatch": "孵化",
   "monsterInfo.hatchRemaining": "剩餘孵化時間",
   "monsterInfo.evolution": "進化",
+  "monsterInfo.nextEvolution": "下一次進化",
+  "monsterInfo.evolutionPausedSick": "生病中，進化已暫停。",
+  "monsterInfo.evolutionPausedLowStamina": "體力過低，進化已暫停。",
   "monsterInfo.levelEgg": "蛋",
   "monsterInfo.levelPhase": "Lv.{phase}"
 };
@@ -760,6 +775,9 @@ const hi = {
   "monsterInfo.hatch": "हैच",
   "monsterInfo.hatchRemaining": "फूटने में बचा समय",
   "monsterInfo.evolution": "विकास",
+  "monsterInfo.nextEvolution": "अगला विकास",
+  "monsterInfo.evolutionPausedSick": "बीमार होने पर विकास रुका है।",
+  "monsterInfo.evolutionPausedLowStamina": "ताकत कम है, इसलिए विकास रुका है।",
   "monsterInfo.levelEgg": "अंडा",
   "monsterInfo.levelPhase": "Lv.{phase}"
 };
@@ -858,6 +876,9 @@ const th = {
   "monsterInfo.hatch": "ฟัก",
   "monsterInfo.hatchRemaining": "เวลาที่เหลือก่อนฟัก",
   "monsterInfo.evolution": "วิวัฒนาการ",
+  "monsterInfo.nextEvolution": "วิวัฒนาการถัดไป",
+  "monsterInfo.evolutionPausedSick": "ป่วยอยู่ วิวัฒนาการจึงหยุดไว้",
+  "monsterInfo.evolutionPausedLowStamina": "พละกำลังต่ำ วิวัฒนาการจึงหยุดไว้",
   "monsterInfo.levelEgg": "ไข่",
   "monsterInfo.levelPhase": "Lv.{phase}"
 };
@@ -956,6 +977,9 @@ const vi = {
   "monsterInfo.hatch": "Nở",
   "monsterInfo.hatchRemaining": "Thời gian còn lại để nở",
   "monsterInfo.evolution": "Tiến hóa",
+  "monsterInfo.nextEvolution": "Tiến hóa tiếp theo",
+  "monsterInfo.evolutionPausedSick": "Đang bị bệnh nên tiến hóa tạm dừng.",
+  "monsterInfo.evolutionPausedLowStamina": "Thể lực quá thấp nên tiến hóa tạm dừng.",
   "monsterInfo.levelEgg": "Trứng",
   "monsterInfo.levelPhase": "Lv.{phase}"
 };
@@ -1054,6 +1078,9 @@ const ptBR = {
   "monsterInfo.hatch": "Chocar",
   "monsterInfo.hatchRemaining": "Tempo restante para chocar",
   "monsterInfo.evolution": "Evolução",
+  "monsterInfo.nextEvolution": "Próxima Evolução",
+  "monsterInfo.evolutionPausedSick": "A evolução pausa enquanto está doente.",
+  "monsterInfo.evolutionPausedLowStamina": "A evolução pausa com saúde baixa.",
   "monsterInfo.levelEgg": "Ovo",
   "monsterInfo.levelPhase": "Lv.{phase}"
 };
@@ -28690,6 +28717,7 @@ const SleepSystemComp = defineComponent({
   nextNapCheckTime: Types.f64,
   nextNightWakeCheckTime: Types.f64,
   sleepMode: Types.ui8,
+  interruptedSleepMode: Types.ui8,
   pendingSleepReason: Types.ui8,
   pendingWakeReason: Types.ui8,
   sleepSessionStartedAt: Types.f64
@@ -29467,32 +29495,17 @@ function resolveEvolutionPhase(params) {
 const SECOND_IN_MILLISECONDS = 1e3;
 const MINUTE_IN_MILLISECONDS$1 = 60 * SECOND_IN_MILLISECONDS;
 const HOUR_IN_MILLISECONDS$1 = 60 * MINUTE_IN_MILLISECONDS$1;
-function calculatePerCheckChanceFromNightlyProbability(nightlyProbability, checksPerNight) {
-  return 1 - (1 - nightlyProbability) ** (1 / checksPerNight);
-}
-const PRODUCTION_NIGHT_WAKE_REFERENCE = {
-  representativeNightDuration: 8 * HOUR_IN_MILLISECONDS$1,
-  checkInterval: 30 * MINUTE_IN_MILLISECONDS$1,
-  nightlyWakeProbability: 0.5
-};
-const PRODUCTION_NIGHT_WAKE_CHECKS_PER_REPRESENTATIVE_NIGHT = PRODUCTION_NIGHT_WAKE_REFERENCE.representativeNightDuration / PRODUCTION_NIGHT_WAKE_REFERENCE.checkInterval;
-const PRODUCTION_NIGHT_WAKE_PER_CHECK_CHANCE = calculatePerCheckChanceFromNightlyProbability(
-  PRODUCTION_NIGHT_WAKE_REFERENCE.nightlyWakeProbability,
-  PRODUCTION_NIGHT_WAKE_CHECKS_PER_REPRESENTATIVE_NIGHT
-);
+const PRODUCTION_TARGET_NIGHT_SLEEP_DURATION = 8 * HOUR_IN_MILLISECONDS$1;
 const PRODUCTION_BALANCE_REFERENCE = {
-  NIGHT_WAKE_REPRESENTATIVE_NIGHT_DURATION: PRODUCTION_NIGHT_WAKE_REFERENCE.representativeNightDuration,
-  NIGHT_WAKE_CHECK_INTERVAL: PRODUCTION_NIGHT_WAKE_REFERENCE.checkInterval,
-  NIGHT_WAKE_PRODUCTION_PER_CHECK_CHANCE: PRODUCTION_NIGHT_WAKE_PER_CHECK_CHANCE
+  TARGET_NIGHT_SLEEP_DURATION: PRODUCTION_TARGET_NIGHT_SLEEP_DURATION
 };
 const BOOSTED_STAMINA_THRESHOLD = EVOLUTION_GAUGE_CONFIG.boostedStaminaThreshold;
 const UNHAPPY_STAMINA_THRESHOLD = EVOLUTION_GAUGE_CONFIG.staminaThreshold;
 const PRODUCTION_GAME_CONSTANTS = {
   // 알 부화 관련
-  EGG_HATCH_TIME: 30 * MINUTE_IN_MILLISECONDS$1,
-  EGG_HATCH_MIN_TIME: 20 * MINUTE_IN_MILLISECONDS$1,
-  EGG_HATCH_MODE_TIME: 30 * MINUTE_IN_MILLISECONDS$1,
-  EGG_HATCH_MAX_TIME: 40 * MINUTE_IN_MILLISECONDS$1,
+  EGG_HATCH_MIN_TIME: 5 * MINUTE_IN_MILLISECONDS$1,
+  EGG_HATCH_MODE_TIME: 10 * MINUTE_IN_MILLISECONDS$1,
+  EGG_HATCH_MAX_TIME: 15 * MINUTE_IN_MILLISECONDS$1,
   // 소화기관 관련
   DIGESTIVE_CAPACITY: 5,
   DIGESTIVE_MULTIPLIER: 0.5,
@@ -29514,12 +29527,6 @@ const PRODUCTION_GAME_CONSTANTS = {
   VERY_LOW_STAMINA_DISEASE_THRESHOLD: 1.5,
   LOW_STAMINA_DISEASE_BONUS: 93e-6,
   VERY_LOW_STAMINA_DISEASE_BONUS: 186e-6,
-  FATIGUE_DISEASE_THRESHOLD_TIRED: 55,
-  FATIGUE_DISEASE_THRESHOLD_VERY_TIRED: 70,
-  FATIGUE_DISEASE_THRESHOLD_EXHAUSTED: 85,
-  FATIGUE_DISEASE_BONUS_TIRED: 93e-6,
-  FATIGUE_DISEASE_BONUS_VERY_TIRED: 186e-6,
-  FATIGUE_DISEASE_BONUS_EXHAUSTED: 279e-6,
   POOP_DISEASE_RATE: 93e-6,
   STALE_FOOD_DISEASE_RATE: 93e-6,
   // 음식 신선도 관련
@@ -29551,7 +29558,7 @@ const PRODUCTION_GAME_CONSTANTS = {
   // 수면 관련
   NIGHT_SLEEP_MIN_DELAY: 10 * MINUTE_IN_MILLISECONDS$1,
   NIGHT_SLEEP_MAX_DELAY: 60 * MINUTE_IN_MILLISECONDS$1,
-  TARGET_NIGHT_SLEEP_DURATION: PRODUCTION_BALANCE_REFERENCE.NIGHT_WAKE_REPRESENTATIVE_NIGHT_DURATION,
+  TARGET_NIGHT_SLEEP_DURATION: PRODUCTION_BALANCE_REFERENCE.TARGET_NIGHT_SLEEP_DURATION,
   TARGET_NIGHT_SLEEP_JITTER: 30 * MINUTE_IN_MILLISECONDS$1,
   // 기상은 sunrise 구간 시작(sunrise -20m) 이후 10~60분 = 실제 sunrise 기준 -10m ~ +40m 근처.
   SUNRISE_WAKE_MIN_DELAY: 10 * MINUTE_IN_MILLISECONDS$1,
@@ -29562,8 +29569,6 @@ const PRODUCTION_GAME_CONSTANTS = {
   NIGHT_RESLEEP_MAX_DELAY: 15 * MINUTE_IN_MILLISECONDS$1,
   DAY_NAP_CHANCE: 0.07,
   DAY_NAP_CHECK_INTERVAL: 20 * MINUTE_IN_MILLISECONDS$1,
-  NIGHT_WAKE_CHANCE: PRODUCTION_BALANCE_REFERENCE.NIGHT_WAKE_PRODUCTION_PER_CHECK_CHANCE,
-  NIGHT_WAKE_CHECK_INTERVAL: PRODUCTION_BALANCE_REFERENCE.NIGHT_WAKE_CHECK_INTERVAL,
   DAY_NAP_MIN_DURATION: 10 * MINUTE_IN_MILLISECONDS$1,
   DAY_NAP_MAX_DURATION: 30 * MINUTE_IN_MILLISECONDS$1,
   FATIGUE_MAX: 100,
@@ -29591,13 +29596,9 @@ const PRODUCTION_GAME_CONSTANTS = {
     BASE_DISEASE_RATE: 0.02 / PRODUCTION_GAME_CONSTANTS.BASE_DISEASE_RATE,
     LOW_STAMINA_DISEASE_BONUS: 0.01 / PRODUCTION_GAME_CONSTANTS.LOW_STAMINA_DISEASE_BONUS,
     VERY_LOW_STAMINA_DISEASE_BONUS: 0.01 / PRODUCTION_GAME_CONSTANTS.LOW_STAMINA_DISEASE_BONUS,
-    FATIGUE_DISEASE_BONUS_TIRED: 0.01 / PRODUCTION_GAME_CONSTANTS.LOW_STAMINA_DISEASE_BONUS,
-    FATIGUE_DISEASE_BONUS_VERY_TIRED: 0.01 / PRODUCTION_GAME_CONSTANTS.LOW_STAMINA_DISEASE_BONUS,
-    FATIGUE_DISEASE_BONUS_EXHAUSTED: 0.01 / PRODUCTION_GAME_CONSTANTS.LOW_STAMINA_DISEASE_BONUS,
     POOP_DISEASE_RATE: 0.01 / PRODUCTION_GAME_CONSTANTS.POOP_DISEASE_RATE,
     STALE_FOOD_DISEASE_RATE: 0.01 / PRODUCTION_GAME_CONSTANTS.STALE_FOOD_DISEASE_RATE,
-    DAY_NAP_CHANCE: 0.6 / PRODUCTION_GAME_CONSTANTS.DAY_NAP_CHANCE,
-    NIGHT_WAKE_CHANCE: 0.3 / PRODUCTION_GAME_CONSTANTS.NIGHT_WAKE_CHANCE
+    DAY_NAP_CHANCE: 0.6 / PRODUCTION_GAME_CONSTANTS.DAY_NAP_CHANCE
   },
   // DEV에서는 fatigue 관련 rate를 키워서 nap/sleep 회귀를 빠르게 본다.
   rateMultipliers: {
@@ -29626,7 +29627,6 @@ function deriveRateConstant(key) {
 }
 const GAME_CONSTANTS = {
   ...PRODUCTION_GAME_CONSTANTS,
-  EGG_HATCH_TIME: deriveTimeConstant("EGG_HATCH_TIME"),
   EGG_HATCH_MIN_TIME: deriveTimeConstant("EGG_HATCH_MIN_TIME"),
   EGG_HATCH_MODE_TIME: deriveTimeConstant("EGG_HATCH_MODE_TIME"),
   EGG_HATCH_MAX_TIME: deriveTimeConstant("EGG_HATCH_MAX_TIME"),
@@ -29657,7 +29657,6 @@ const GAME_CONSTANTS = {
   NIGHT_RESLEEP_MIN_DELAY: deriveTimeConstant("NIGHT_RESLEEP_MIN_DELAY"),
   NIGHT_RESLEEP_MAX_DELAY: deriveTimeConstant("NIGHT_RESLEEP_MAX_DELAY"),
   DAY_NAP_CHECK_INTERVAL: deriveTimeConstant("DAY_NAP_CHECK_INTERVAL"),
-  NIGHT_WAKE_CHECK_INTERVAL: deriveTimeConstant("NIGHT_WAKE_CHECK_INTERVAL"),
   DAY_NAP_MIN_DURATION: deriveTimeConstant("DAY_NAP_MIN_DURATION"),
   DAY_NAP_MAX_DURATION: deriveTimeConstant("DAY_NAP_MAX_DURATION"),
   BASE_DISEASE_RATE: deriveProbabilityConstant("BASE_DISEASE_RATE"),
@@ -29667,19 +29666,9 @@ const GAME_CONSTANTS = {
   VERY_LOW_STAMINA_DISEASE_BONUS: deriveProbabilityConstant(
     "VERY_LOW_STAMINA_DISEASE_BONUS"
   ),
-  FATIGUE_DISEASE_BONUS_TIRED: deriveProbabilityConstant(
-    "FATIGUE_DISEASE_BONUS_TIRED"
-  ),
-  FATIGUE_DISEASE_BONUS_VERY_TIRED: deriveProbabilityConstant(
-    "FATIGUE_DISEASE_BONUS_VERY_TIRED"
-  ),
-  FATIGUE_DISEASE_BONUS_EXHAUSTED: deriveProbabilityConstant(
-    "FATIGUE_DISEASE_BONUS_EXHAUSTED"
-  ),
   POOP_DISEASE_RATE: deriveProbabilityConstant("POOP_DISEASE_RATE"),
   STALE_FOOD_DISEASE_RATE: deriveProbabilityConstant("STALE_FOOD_DISEASE_RATE"),
   DAY_NAP_CHANCE: deriveProbabilityConstant("DAY_NAP_CHANCE"),
-  NIGHT_WAKE_CHANCE: deriveProbabilityConstant("NIGHT_WAKE_CHANCE"),
   FATIGUE_AWAKE_GAIN_PER_HOUR: deriveRateConstant(
     "FATIGUE_AWAKE_GAIN_PER_HOUR"
   ),
@@ -29714,18 +29703,6 @@ function getLowStaminaDiseaseBonus(stamina) {
   }
   if (stamina <= GAME_CONSTANTS.LOW_STAMINA_DISEASE_THRESHOLD) {
     return GAME_CONSTANTS.LOW_STAMINA_DISEASE_BONUS;
-  }
-  return 0;
-}
-function getFatigueDiseaseBonus(fatigue) {
-  if (fatigue >= GAME_CONSTANTS.FATIGUE_DISEASE_THRESHOLD_EXHAUSTED) {
-    return GAME_CONSTANTS.FATIGUE_DISEASE_BONUS_EXHAUSTED;
-  }
-  if (fatigue >= GAME_CONSTANTS.FATIGUE_DISEASE_THRESHOLD_VERY_TIRED) {
-    return GAME_CONSTANTS.FATIGUE_DISEASE_BONUS_VERY_TIRED;
-  }
-  if (fatigue >= GAME_CONSTANTS.FATIGUE_DISEASE_THRESHOLD_TIRED) {
-    return GAME_CONSTANTS.FATIGUE_DISEASE_BONUS_TIRED;
   }
   return 0;
 }
@@ -29792,9 +29769,7 @@ function getNormalLikeDistributedDelayMs(config, randomValue = Math.random()) {
   const probability = lowerCdf + clampedRandom * (upperCdf - lowerCdf);
   const zScore = approximateInverseNormalCdf(probability);
   const boundedZ = Math.max(lowerZ, Math.min(upperZ, zScore));
-  return Math.round(
-    Math.max(min, Math.min(max, mean + boundedZ * sigma))
-  );
+  return Math.round(Math.max(min, Math.min(max, mean + boundedZ * sigma)));
 }
 function getEggHatchDelayMs(randomValue = Math.random()) {
   return getNormalLikeDistributedDelayMs(
@@ -30011,6 +29986,9 @@ function resolveEggHatchComponentForState(params) {
     hatchDurationMs: resolved.hatchDurationMs
   };
 }
+function shouldClearStaticEggTextureForState(state, textureKey) {
+  return state !== CharacterState.EGG && state !== CharacterState.DEAD && isEggTextureKey(textureKey);
+}
 function convertECSEntityToSavedEntity(world, eid) {
   const components = {};
   if (hasComponent(world, ObjectComp, eid)) {
@@ -30156,6 +30134,7 @@ function convertECSEntityToSavedEntity(world, eid) {
       nextNapCheckTime: SleepSystemComp.nextNapCheckTime[eid],
       nextNightWakeCheckTime: SleepSystemComp.nextNightWakeCheckTime[eid],
       sleepMode: SleepSystemComp.sleepMode[eid],
+      interruptedSleepMode: SleepSystemComp.interruptedSleepMode[eid],
       pendingSleepReason: SleepSystemComp.pendingSleepReason[eid],
       pendingWakeReason: SleepSystemComp.pendingWakeReason[eid],
       sleepSessionStartedAt: SleepSystemComp.sleepSessionStartedAt[eid]
@@ -30193,7 +30172,7 @@ function convertECSEntityToSavedEntity(world, eid) {
   return { components };
 }
 function applySavedEntityToECS(world, eid, savedEntity) {
-  var _a;
+  var _a, _b;
   const { components } = savedEntity;
   const currentTime = resolveWorldCurrentTime(world);
   if (components.object) {
@@ -30233,8 +30212,12 @@ function applySavedEntityToECS(world, eid, savedEntity) {
     if (!hasComponent(world, RenderComp, eid)) {
       addComponent(world, RenderComp, eid);
     }
+    const state = hasComponent(world, ObjectComp, eid) ? ObjectComp.state[eid] : (_a = components.object) == null ? void 0 : _a.state;
     RenderComp.storeIndex[eid] = components.render.storeIndex;
-    RenderComp.textureKey[eid] = components.render.textureKey;
+    RenderComp.textureKey[eid] = shouldClearStaticEggTextureForState(
+      state,
+      components.render.textureKey
+    ) ? TextureKey.NULL : components.render.textureKey;
     RenderComp.scale[eid] = components.render.scale;
     RenderComp.zIndex[eid] = components.render.zIndex;
   }
@@ -30289,7 +30272,7 @@ function applySavedEntityToECS(world, eid, savedEntity) {
     RandomMovementComp.maxIdleTime[eid] = components.randomMovement.maxIdleTime;
     RandomMovementComp.minMoveTime[eid] = components.randomMovement.minMoveTime;
     RandomMovementComp.maxMoveTime[eid] = components.randomMovement.maxMoveTime;
-    if ((_a = components.randomMovement) == null ? void 0 : _a.nextChange) {
+    if ((_b = components.randomMovement) == null ? void 0 : _b.nextChange) {
       const diffFromNow = components.randomMovement.nextChange - currentTime;
       RandomMovementComp.nextChange[eid] = diffFromNow < 3e3 ? components.randomMovement.nextChange : 0;
     } else {
@@ -30371,6 +30354,7 @@ function applySavedEntityToECS(world, eid, savedEntity) {
     SleepSystemComp.nextNapCheckTime[eid] = components.sleepSystem.nextNapCheckTime;
     SleepSystemComp.nextNightWakeCheckTime[eid] = components.sleepSystem.nextNightWakeCheckTime;
     SleepSystemComp.sleepMode[eid] = components.sleepSystem.sleepMode;
+    SleepSystemComp.interruptedSleepMode[eid] = components.sleepSystem.interruptedSleepMode ?? SleepMode.AWAKE;
     SleepSystemComp.pendingSleepReason[eid] = components.sleepSystem.pendingSleepReason;
     SleepSystemComp.pendingWakeReason[eid] = components.sleepSystem.pendingWakeReason;
     SleepSystemComp.sleepSessionStartedAt[eid] = components.sleepSystem.sleepSessionStartedAt;
@@ -30470,6 +30454,11 @@ function repairCharacterEntityRuntimeComponents(world, eid, now = Date.now()) {
   const state = ObjectComp.state[eid];
   const needsAnimation = state !== CharacterState.EGG && state !== CharacterState.DEAD;
   const needsRandomMovement = state === CharacterState.IDLE || state === CharacterState.MOVING;
+  if (hasComponent(world, RenderComp, eid) && shouldClearStaticEggTextureForState(state, RenderComp.textureKey[eid])) {
+    RenderComp.textureKey[eid] = TextureKey.NULL;
+    RenderComp.storeIndex[eid] = 0;
+    repaired.push("RenderComp.textureKey");
+  }
   if (!hasComponent(world, SpeedComp, eid)) {
     addComponent(world, SpeedComp, eid);
     SpeedComp.value[eid] = 0;
@@ -32561,6 +32550,25 @@ function getOverlayIconTextureName(eid, latestTemporary) {
   }
   return STATUS_TO_TEXTURE_NAME[latestTemporary] ?? null;
 }
+function collectEffectiveStatuses(eid) {
+  const statuses = CharacterStatusComp.statuses[eid];
+  const allStatuses = [];
+  let hasSickStatus = false;
+  for (let j2 = 0; j2 < statuses.length; j2++) {
+    const status = statuses[j2];
+    if (status === 0) {
+      continue;
+    }
+    if (status === CharacterStatus.SICK) {
+      hasSickStatus = true;
+    }
+    allStatuses.push(status);
+  }
+  if (ObjectComp.state[eid] === CharacterState.SICK && !hasSickStatus) {
+    allStatuses.push(CharacterStatus.SICK);
+  }
+  return allStatuses;
+}
 const statusIconQuery = defineQuery([
   PositionComp,
   CharacterStatusComp,
@@ -32588,13 +32596,7 @@ function statusIconRenderSystem(params) {
     }
     const { effectiveZIndex } = getRenderedCharacterAttributes(eid);
     const iconZIndex = effectiveZIndex + STATUS_ICON_Z_INDEX_OFFSET;
-    const allStatuses = [];
-    for (let j2 = 0; j2 < 4; j2++) {
-      const status = CharacterStatusComp.statuses[eid][j2];
-      if (status !== 0) {
-        allStatuses.push(status);
-      }
-    }
+    const allStatuses = collectEffectiveStatuses(eid);
     const { persistent, latestTemporary } = organizeStatuses(allStatuses);
     const overlayTextureName = getOverlayIconTextureName(eid, latestTemporary);
     const iconCount = persistent.length + (overlayTextureName ? 1 : 0);
@@ -33573,12 +33575,12 @@ function throwAnimationSystem(params) {
 }
 const MUTATION_BASE_RATE = 0.01;
 const MUTATION_STACK_CAP = 10;
-const MUTATION_DIRTY_EXPOSURE_STACK_INTERVAL_MS = 4 * 60 * 60 * 1e3;
+const MUTATION_DIRTY_EXPOSURE_STACK_INTERVAL_MS = 2 * 60 * 60 * 1e3;
 const MUTATION_DETOX_INTERVAL_BY_CLASS_CODE = {
-  A: 2 * 60 * 60 * 1e3,
-  B: 4 * 60 * 60 * 1e3,
-  C: 4 * 60 * 60 * 1e3,
-  D: 4 * 60 * 60 * 1e3
+  A: 1 * 60 * 60 * 1e3,
+  B: 2 * 60 * 60 * 1e3,
+  C: 2 * 60 * 60 * 1e3,
+  D: 2 * 60 * 60 * 1e3
 };
 const MUTATION_BONUS_RATE_BY_GENE_LINE = {
   "green-slime": 5e-3,
@@ -34410,8 +34412,8 @@ function getRemainingStaminaDecreaseTime(eid) {
 }
 function getRemainingEvolutionGaugeTime(eid) {
   const currentStamina = CharacterStatusComp.stamina[eid];
-  const isSick = hasCharacterStatus$2(eid, CharacterStatus.SICK);
   const currentState = ObjectComp.state[eid];
+  const isSick = currentState === CharacterState.SICK || hasCharacterStatus$2(eid, CharacterStatus.SICK);
   if (currentState === CharacterState.EGG || currentStamina < EVOLUTION_GAUGE_CONFIG.staminaThreshold || isSick) {
     return null;
   }
@@ -34434,7 +34436,7 @@ function _updateStaminaAndEvolutionGauge(world, eid, delta) {
   }
   updateStaminaTimer(eid, delta);
   const currentStamina = CharacterStatusComp.stamina[eid];
-  const isSick = hasCharacterStatus$2(eid, CharacterStatus.SICK);
+  const isSick = ObjectComp.state[eid] === CharacterState.SICK || hasCharacterStatus$2(eid, CharacterStatus.SICK);
   if (currentStamina >= EVOLUTION_GAUGE_CONFIG.staminaThreshold && !isSick) {
     const currentEvolutionTimer = evolutionGaugeTimers.get(eid) || 0;
     const evolutionDelta = ObjectComp.state[eid] === CharacterState.SLEEPING ? delta * EVOLUTION_GAUGE_CONFIG.sleepingGaugeTimeProgressMultiplier : delta;
@@ -34762,6 +34764,7 @@ function createCharacterEntity(world, components) {
   SleepSystemComp.nextNapCheckTime[eid] = now + GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL;
   SleepSystemComp.nextNightWakeCheckTime[eid] = 0;
   SleepSystemComp.sleepMode[eid] = ObjectComp.state[eid] === CharacterState.SLEEPING ? SleepMode.NIGHT_SLEEP : SleepMode.AWAKE;
+  SleepSystemComp.interruptedSleepMode[eid] = SleepMode.AWAKE;
   SleepSystemComp.pendingSleepReason[eid] = SleepReason.NONE;
   SleepSystemComp.pendingWakeReason[eid] = SleepReason.NONE;
   SleepSystemComp.sleepSessionStartedAt[eid] = ObjectComp.state[eid] === CharacterState.SLEEPING ? now : 0;
@@ -34870,6 +34873,7 @@ const SMALL_POOP_SCALE_RANGE = {
   min: 2,
   max: 2.4
 };
+const REPEATED_POOP_DELAY_MULTIPLIER = 0.5;
 const debugLog$2 = (..._args) => {
 };
 function digestiveSystem(params) {
@@ -34927,8 +34931,8 @@ function calculateNextDigestiveLoad(params) {
   const overflowAppliedLoad = loadAmount - regularAppliedLoad;
   return currentLoad + regularAppliedLoad + overflowAppliedLoad * 2;
 }
-function scheduleNextPoop(digestiveComp, characterEid, currentTime) {
-  const poopTime = currentTime + GAME_CONSTANTS.POOP_DELAY;
+function scheduleNextPoop(digestiveComp, characterEid, currentTime, delayMultiplier = 1) {
+  const poopTime = currentTime + GAME_CONSTANTS.POOP_DELAY * delayMultiplier;
   digestiveComp.nextPoopTime[characterEid] = poopTime;
 }
 function scheduleNextSmallPoop(digestiveComp, characterEid, currentTime) {
@@ -34963,7 +34967,18 @@ function processPoop(digestiveComp, characterEid, currentTime) {
   const previousLoad = digestiveComp.currentLoad[characterEid];
   const remainingLoad = Math.max(0, previousLoad - capacity);
   digestiveComp.currentLoad[characterEid] = remainingLoad;
-  syncDigestiveTimers(digestiveComp, characterEid, currentTime);
+  digestiveComp.nextPoopTime[characterEid] = 0;
+  if (remainingLoad > capacity) {
+    digestiveComp.nextSmallPoopTime[characterEid] = 0;
+    scheduleNextPoop(
+      digestiveComp,
+      characterEid,
+      currentTime,
+      REPEATED_POOP_DELAY_MULTIPLIER
+    );
+  } else {
+    syncDigestiveTimers(digestiveComp, characterEid, currentTime);
+  }
 }
 function processSmallPoop(digestiveComp, characterEid) {
   digestiveComp.currentLoad[characterEid];
@@ -35398,8 +35413,7 @@ function sleepScheduleSystem(params) {
     updateFatigue(eid, delta);
     reconcileExternalSleepExit(eid, currentTime, currentTimeOfDay);
     handleScheduledWake(world, eid, currentTime);
-    handleNightWakeChecks(world, eid, currentTime, currentTimeOfDay);
-    handleUrgentWakeForFood(world, eid, currentTime, currentTimeOfDay);
+    handleUrgentWakeForFood(world, eid, currentTime);
     handleScheduledSleep(
       world,
       eid,
@@ -35437,9 +35451,7 @@ function bootstrapSleepRuntime(world, entities, currentTime, currentTimeOfDay, s
       if (SleepSystemComp.sleepSessionStartedAt[eid] <= 0) {
         SleepSystemComp.sleepSessionStartedAt[eid] = currentTime;
       }
-      if (currentTimeOfDay === TimeOfDay.Night) {
-        ensureNightWakeCheckTime(eid, currentTime);
-      } else if (currentTimeOfDay === TimeOfDay.Sunrise || currentTimeOfDay === TimeOfDay.Day) {
+      if (currentTimeOfDay === TimeOfDay.Sunrise || currentTimeOfDay === TimeOfDay.Day) {
         scheduleWakeFromSunrise(eid, currentTime);
       }
       continue;
@@ -35469,7 +35481,6 @@ function handleTimeOfDayTransition(world, entities, currentTime, previousTimeOfD
       case TimeOfDay.Night:
         if (ObjectComp.state[eid] === CharacterState.SLEEPING) {
           SleepSystemComp.sleepMode[eid] = SleepMode.NIGHT_SLEEP;
-          ensureNightWakeCheckTime(eid, currentTime);
         } else if (!suppressSleep) {
           scheduleNightSleep(world, eid, currentTime);
         }
@@ -35535,50 +35546,20 @@ function handleScheduledWake(world, eid, currentTime) {
   }
   wakeCharacter(world, eid, currentTime);
 }
-function handleNightWakeChecks(world, eid, currentTime, currentTimeOfDay) {
-  if (ObjectComp.state[eid] !== CharacterState.SLEEPING || SleepSystemComp.sleepMode[eid] !== SleepMode.NIGHT_SLEEP || currentTimeOfDay !== TimeOfDay.Night) {
-    if (currentTimeOfDay !== TimeOfDay.Night) {
-      SleepSystemComp.nextNightWakeCheckTime[eid] = 0;
-    }
-    return;
-  }
-  ensureNightWakeCheckTime(eid, currentTime);
-  while (currentTime >= SleepSystemComp.nextNightWakeCheckTime[eid]) {
-    SleepSystemComp.nextNightWakeCheckTime[eid] += GAME_CONSTANTS.NIGHT_WAKE_CHECK_INTERVAL;
-    SleepSystemComp.fatigue[eid];
-    const baseChance = GAME_CONSTANTS.NIGHT_WAKE_CHANCE;
-    const appliedChance = baseChance;
-    const roll = Math.random();
-    const shouldWake = roll < appliedChance;
-    logSleepCheck(world, "Night wake check", {
-      sleepMode: SleepSystemComp.sleepMode[eid],
-      fatigueMax: GAME_CONSTANTS.FATIGUE_MAX,
-      checkIntervalMs: GAME_CONSTANTS.NIGHT_WAKE_CHECK_INTERVAL
-    });
-    if (shouldWake) {
-      SleepSystemComp.pendingWakeReason[eid] = SleepReason.NIGHT_INTERRUPT;
-      wakeCharacter(world, eid, currentTime);
-      scheduleResleep(eid, currentTime);
-      break;
-    }
-  }
-}
-function handleUrgentWakeForFood(world, eid, currentTime, currentTimeOfDay) {
+function handleUrgentWakeForFood(world, eid, currentTime) {
   if (ObjectComp.state[eid] !== CharacterState.SLEEPING) {
     return;
   }
   if (hasStatus(eid, CharacterStatus.SICK)) {
     return;
   }
-  if (CharacterStatusComp.stamina[eid] > GAME_CONSTANTS.URGENT_STAMINA_THRESHOLD) {
+  if (CharacterStatusComp.stamina[eid] >= GAME_CONSTANTS.UNHAPPY_STAMINA_THRESHOLD) {
     return;
   }
   if (!hasEdibleLandedFood(world)) {
     return;
   }
-  wakeCharacter(world, eid, currentTime, {
-    preserveDeferredNightResleep: currentTimeOfDay === TimeOfDay.Night && SleepSystemComp.sleepMode[eid] === SleepMode.NIGHT_SLEEP
-  });
+  wakeCharacterForFood(world, eid, currentTime);
 }
 function handleScheduledSleep(world, eid, currentTime, currentTimeOfDay, suppressSleep) {
   if (suppressSleep) {
@@ -35642,7 +35623,6 @@ function handleNapWake(world, eid, currentTime, currentTimeOfDay) {
   }
   if (currentTimeOfDay === TimeOfDay.Night) {
     SleepSystemComp.sleepMode[eid] = SleepMode.NIGHT_SLEEP;
-    ensureNightWakeCheckTime(eid, currentTime);
     return;
   }
   const elapsed = currentTime - SleepSystemComp.sleepSessionStartedAt[eid];
@@ -35728,6 +35708,7 @@ function scheduleWakeFromSunrise(eid, currentTime) {
 }
 function scheduleResleep(eid, currentTime) {
   SleepSystemComp.sleepMode[eid] = SleepMode.INTERRUPTED_AWAKE;
+  SleepSystemComp.interruptedSleepMode[eid] = SleepMode.NIGHT_SLEEP;
   SleepSystemComp.nextSleepTime[eid] = currentTime + randomBetween(
     GAME_CONSTANTS.NIGHT_RESLEEP_MIN_DELAY,
     GAME_CONSTANTS.NIGHT_RESLEEP_MAX_DELAY
@@ -35741,12 +35722,13 @@ function enterSleep(world, eid, currentTime, mode) {
   ObjectComp.state[eid] = CharacterState.SLEEPING;
   SpeedComp.value[eid] = 0;
   SleepSystemComp.sleepMode[eid] = mode;
+  SleepSystemComp.interruptedSleepMode[eid] = SleepMode.AWAKE;
   SleepSystemComp.sleepSessionStartedAt[eid] = currentTime;
   SleepSystemComp.nextSleepTime[eid] = 0;
   SleepSystemComp.pendingSleepReason[eid] = SleepReason.NONE;
   SleepSystemComp.nextWakeTime[eid] = reservedWakeTime > 0 ? Math.max(currentTime, reservedWakeTime) : 0;
   SleepSystemComp.pendingWakeReason[eid] = reservedWakeTime > 0 ? reservedWakeReason : SleepReason.NONE;
-  SleepSystemComp.nextNightWakeCheckTime[eid] = mode === SleepMode.NIGHT_SLEEP ? currentTime + GAME_CONSTANTS.NIGHT_WAKE_CHECK_INTERVAL : 0;
+  SleepSystemComp.nextNightWakeCheckTime[eid] = 0;
 }
 function wakeCharacter(world, eid, currentTime, options = {}) {
   const isSick = hasStatus(eid, CharacterStatus.SICK);
@@ -35754,6 +35736,7 @@ function wakeCharacter(world, eid, currentTime, options = {}) {
   ObjectComp.state[eid] = isSick ? CharacterState.SICK : CharacterState.IDLE;
   SpeedComp.value[eid] = 0;
   SleepSystemComp.sleepMode[eid] = preserveDeferredNightResleep ? SleepMode.INTERRUPTED_AWAKE : SleepMode.AWAKE;
+  SleepSystemComp.interruptedSleepMode[eid] = SleepMode.AWAKE;
   SleepSystemComp.nextSleepTime[eid] = 0;
   SleepSystemComp.nextWakeTime[eid] = 0;
   SleepSystemComp.nextNightWakeCheckTime[eid] = 0;
@@ -35764,6 +35747,40 @@ function wakeCharacter(world, eid, currentTime, options = {}) {
   if (!isSick) {
     restoreRandomMovementIfNeeded(world, eid, currentTime);
   }
+}
+function wakeCharacterForFood(world, eid, currentTime) {
+  const interruptedSleepMode = SleepSystemComp.sleepMode[eid];
+  const canResumeInterruptedSleep = interruptedSleepMode === SleepMode.NIGHT_SLEEP || interruptedSleepMode === SleepMode.DAY_NAP;
+  const reservedWakeTime = interruptedSleepMode === SleepMode.NIGHT_SLEEP ? SleepSystemComp.nextWakeTime[eid] : 0;
+  const reservedWakeReason = interruptedSleepMode === SleepMode.NIGHT_SLEEP ? SleepSystemComp.pendingWakeReason[eid] : SleepReason.NONE;
+  wakeCharacter(world, eid, currentTime, {
+    preserveDeferredNightResleep: canResumeInterruptedSleep
+  });
+  if (!canResumeInterruptedSleep) {
+    return;
+  }
+  SleepSystemComp.interruptedSleepMode[eid] = interruptedSleepMode;
+  SleepSystemComp.nextWakeTime[eid] = reservedWakeTime;
+  SleepSystemComp.pendingWakeReason[eid] = reservedWakeReason;
+}
+function resumeSleepInterruptedForFood(world, eid, currentTime) {
+  if (SleepSystemComp.sleepMode[eid] !== SleepMode.INTERRUPTED_AWAKE || SleepSystemComp.pendingSleepReason[eid] !== SleepReason.RESLEEP || SleepSystemComp.nextSleepTime[eid] > 0) {
+    return false;
+  }
+  const interruptedSleepMode = SleepSystemComp.interruptedSleepMode[eid];
+  if (interruptedSleepMode === SleepMode.DAY_NAP) {
+    SleepSystemComp.sleepMode[eid] = SleepMode.AWAKE;
+    SleepSystemComp.interruptedSleepMode[eid] = SleepMode.AWAKE;
+    SleepSystemComp.pendingSleepReason[eid] = SleepReason.NONE;
+    SleepSystemComp.nextNapCheckTime[eid] = currentTime + GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL;
+    return false;
+  }
+  const sleepModeToResume = interruptedSleepMode === SleepMode.NIGHT_SLEEP ? interruptedSleepMode : world.timeOfDay === TimeOfDay.Night ? SleepMode.NIGHT_SLEEP : null;
+  if (sleepModeToResume === null) {
+    return false;
+  }
+  enterSleep(world, eid, currentTime, sleepModeToResume);
+  return true;
 }
 function hasEdibleLandedFood(world) {
   const entities = objectQuery$1(world);
@@ -35786,6 +35803,7 @@ function clearPendingNightSleep(eid) {
   if (SleepSystemComp.pendingSleepReason[eid] === SleepReason.NIGHT || SleepSystemComp.pendingSleepReason[eid] === SleepReason.RESLEEP) {
     SleepSystemComp.nextSleepTime[eid] = 0;
     SleepSystemComp.pendingSleepReason[eid] = SleepReason.NONE;
+    SleepSystemComp.interruptedSleepMode[eid] = SleepMode.AWAKE;
     SleepSystemComp.nextWakeTime[eid] = 0;
     SleepSystemComp.pendingWakeReason[eid] = SleepReason.NONE;
   }
@@ -35795,13 +35813,8 @@ function clearDeferredResleepIntentIfStale(eid) {
     return;
   }
   SleepSystemComp.sleepMode[eid] = SleepMode.AWAKE;
+  SleepSystemComp.interruptedSleepMode[eid] = SleepMode.AWAKE;
   SleepSystemComp.pendingSleepReason[eid] = SleepReason.NONE;
-}
-function ensureNightWakeCheckTime(eid, currentTime) {
-  if (SleepSystemComp.nextNightWakeCheckTime[eid] > 0) {
-    return;
-  }
-  SleepSystemComp.nextNightWakeCheckTime[eid] = currentTime + GAME_CONSTANTS.NIGHT_WAKE_CHECK_INTERVAL;
 }
 function canEnterSleep(world, eid) {
   const state = ObjectComp.state[eid];
@@ -36002,7 +36015,6 @@ function completeEating(world, characterEid, foodEid, currentTime) {
     GAME_CONSTANTS.MAX_STAMINA
   );
   CharacterStatusComp.stamina[characterEid] = newStamina;
-  const shouldResumeNightSleepAfterEating = SleepSystemComp.sleepMode[characterEid] === SleepMode.INTERRUPTED_AWAKE && SleepSystemComp.pendingSleepReason[characterEid] === SleepReason.RESLEEP && SleepSystemComp.nextSleepTime[characterEid] <= 0;
   addDigestiveLoadAmount(
     world,
     characterEid,
@@ -36012,25 +36024,24 @@ function completeEating(world, characterEid, foodEid, currentTime) {
   if (currentStamina < GAME_CONSTANTS.MAX_STAMINA && newStamina >= GAME_CONSTANTS.MAX_STAMINA) {
     addCharacterStatus$2(characterEid, CharacterStatus.HAPPY, world);
   }
-  if (shouldResumeNightSleepAfterEating) {
-    if (world.timeOfDay === TimeOfDay.Night) {
-      scheduleResleep(characterEid, currentTime);
-    } else {
-      SleepSystemComp.sleepMode[characterEid] = SleepMode.AWAKE;
-      SleepSystemComp.pendingSleepReason[characterEid] = SleepReason.NONE;
+  const didResumeSleepAfterEating = resumeSleepInterruptedForFood(
+    world,
+    characterEid,
+    currentTime
+  );
+  if (!didResumeSleepAfterEating) {
+    ObjectComp.state[characterEid] = CharacterState.IDLE;
+    if (hasComponent(world, SpeedComp, characterEid)) {
+      SpeedComp.value[characterEid] = 0;
     }
-  }
-  ObjectComp.state[characterEid] = CharacterState.IDLE;
-  if (hasComponent(world, SpeedComp, characterEid)) {
-    SpeedComp.value[characterEid] = 0;
-  }
-  if (!hasComponent(world, RandomMovementComp, characterEid)) {
-    addComponent(world, RandomMovementComp, characterEid);
-    RandomMovementComp.minIdleTime[characterEid] = 1e3;
-    RandomMovementComp.maxIdleTime[characterEid] = 3e3;
-    RandomMovementComp.minMoveTime[characterEid] = 2e3;
-    RandomMovementComp.maxMoveTime[characterEid] = 4e3;
-    RandomMovementComp.nextChange[characterEid] = world.currentTime + 2e3 + Math.random() * 1e3;
+    if (!hasComponent(world, RandomMovementComp, characterEid)) {
+      addComponent(world, RandomMovementComp, characterEid);
+      RandomMovementComp.minIdleTime[characterEid] = 1e3;
+      RandomMovementComp.maxIdleTime[characterEid] = 3e3;
+      RandomMovementComp.minMoveTime[characterEid] = 2e3;
+      RandomMovementComp.maxMoveTime[characterEid] = 4e3;
+      RandomMovementComp.nextChange[characterEid] = world.currentTime + 2e3 + Math.random() * 1e3;
+    }
   }
   if (hasComponent(world, FoodMaskComp, foodEid)) {
     removeComponent(world, FoodMaskComp, foodEid);
@@ -38356,11 +38367,6 @@ function calculateDiseaseRate(world, eid) {
     diseaseRate += lowStaminaBonus;
     breakdown.lowStaminaBonus = lowStaminaBonus;
   }
-  const fatigueBonus = getFatigueDiseaseBonus(fatigue);
-  if (fatigueBonus > 0) {
-    diseaseRate += fatigueBonus;
-    breakdown.fatigueBonus = fatigueBonus;
-  }
   const poopCount = countObjectsInWorld(world, ObjectType.POOB);
   breakdown.poopCount = poopCount;
   if (poopCount > 0) {
@@ -40076,6 +40082,10 @@ function completeHatch(eid, world, currentTime, characterKey) {
   EggHatchComp.isReadyToHatch[eid] = 0;
   EggHatchComp.syringeCount[eid] = 0;
   EggHatchComp.pendingCharacterKey[eid] = CharacterKeyECS.NULL;
+  if (hasComponent(world, RenderComp, eid)) {
+    RenderComp.textureKey[eid] = TextureKey.NULL;
+    RenderComp.storeIndex[eid] = 0;
+  }
   if (!hasComponent(world, RandomMovementComp, eid)) {
     addComponent(world, RandomMovementComp, eid);
     RandomMovementComp.minIdleTime[eid] = 2e3;
@@ -43874,6 +43884,19 @@ ${this.t("main.cleanObjectsPrompt")}`,
       boostedThreshold: GAME_CONSTANTS.BOOSTED_STAMINA_THRESHOLD
     };
   }
+  _getEvolutionGaugeState(characterEid, isEgg, characterKey) {
+    const characterState = ObjectComp.state[characterEid];
+    if (isEgg || characterState === CharacterState.DEAD || !canEvolveFromConfig(characterKey)) {
+      return "unavailable";
+    }
+    if (characterState === CharacterState.SICK || CharacterStatusComp.statuses[characterEid].includes(CharacterStatus.SICK)) {
+      return "paused_sick";
+    }
+    if (CharacterStatusComp.stamina[characterEid] < EVOLUTION_GAUGE_CONFIG.staminaThreshold) {
+      return "paused_low_stamina";
+    }
+    return "charging";
+  }
   getMainCharacterInfoSnapshot() {
     var _a, _b, _c;
     const characterEid = this._findMainCharacterEntity();
@@ -43882,6 +43905,11 @@ ${this.t("main.cleanObjectsPrompt")}`,
     }
     const isEgg = ObjectComp.state[characterEid] === CharacterState.EGG;
     const characterKey = CharacterStatusComp.characterKey[characterEid];
+    const evolutionGaugeState = this._getEvolutionGaugeState(
+      characterEid,
+      isEgg,
+      characterKey
+    );
     const eggHatchRemainingMs = isEgg && hasComponent(this, EggHatchComp, characterEid) ? getRemainingEggHatchTime({
       currentTime: this.currentTime,
       hatchTime: EggHatchComp.hatchTime[characterEid],
@@ -43899,7 +43927,8 @@ ${this.t("main.cleanObjectsPrompt")}`,
       unhappyThreshold: GAME_CONSTANTS.UNHAPPY_STAMINA_THRESHOLD,
       boostedThreshold: GAME_CONSTANTS.BOOSTED_STAMINA_THRESHOLD,
       evolutionGauge: CharacterStatusComp.evolutionGage[characterEid],
-      maxEvolutionGauge: EVOLUTION_GAUGE_CONFIG.maxGauge
+      maxEvolutionGauge: EVOLUTION_GAUGE_CONFIG.maxGauge,
+      evolutionGaugeState
     };
   }
   /**
@@ -44338,6 +44367,7 @@ ${this.t("main.cleanObjectsPrompt")}`,
       wakeCharacter(this, eid, this.currentTime);
     }
     SleepSystemComp.sleepMode[eid] = SleepMode.AWAKE;
+    SleepSystemComp.interruptedSleepMode[eid] = SleepMode.AWAKE;
     SleepSystemComp.nextSleepTime[eid] = 0;
     SleepSystemComp.nextWakeTime[eid] = 0;
     SleepSystemComp.nextNightWakeCheckTime[eid] = 0;
@@ -53313,6 +53343,7 @@ class MonsterBookScene extends Container {
     if (!data) {
       this.monsterBookState = await loadMonsterBookState(StorageManager);
       this.currentMonsterKeys = /* @__PURE__ */ new Set();
+      this.unlockAllCardsForDevMode();
       return;
     }
     await migrateLegacyMonsterBookIfNeeded(StorageManager, data);
@@ -53342,6 +53373,12 @@ class MonsterBookScene extends Container {
     this.monsterBookState = normalizeMonsterBookState(state);
     if (didBackfill) {
       await saveMonsterBookState(StorageManager, this.monsterBookState);
+    }
+    this.unlockAllCardsForDevMode();
+  }
+  unlockAllCardsForDevMode() {
+    {
+      return;
     }
   }
   async preloadBookBackground() {
@@ -54989,61 +55026,63 @@ export {
   NAME_LABEL_STROKE_WIDTH as Z,
   SUPPORTED_LOCALES as _,
   applyEvolutionAdminExport as a,
-  GAME_CONSTANTS as a0,
-  CharacterState as a1,
-  CharacterKeyECS as a2,
-  SceneKey as a3,
-  TimeOfDay as a4,
-  hasLegacyMonsterBookState as a5,
-  migrateLegacyMonsterBookIfNeeded as a6,
-  getNativeSunTimes as a7,
-  MissingInitialGameDataError as a8,
-  Game as a9,
-  checkMaxIfStatementsInShader as aA,
-  compileHighShaderGlProgram as aB,
-  colorBitGl as aC,
-  generateTextureBatchBitGl as aD,
-  roundPixelsBitGl as aE,
-  getBatchSamplersUniformGroup as aF,
-  TextStyle as aG,
-  BatchableGraphics as aH,
-  getAdjustedBlendModeBlend as aI,
-  ViewableBuffer as aJ,
-  TextureStyle as aK,
-  BitmapFontManager as aL,
-  CanvasTextMetrics as aM,
-  getBitmapTextLayout as aN,
-  Cache as aO,
-  Graphics as aP,
-  updateQuadBounds as aQ,
-  CanvasTextGenerator as aR,
-  GraphicsContextSystem as aS,
-  GpuProgram as aa,
-  GlProgram as ab,
-  TextureMatrix as ac,
-  DefaultBatcher as ad,
-  BigPool as ae,
-  getGlobalBounds as af,
-  Bounds as ag,
-  TexturePool as ah,
-  FilterEffect as ai,
-  Sprite as aj,
-  getAttributeInfoFromFormat as ak,
-  unsafeEvalSupported as al,
-  uid as am,
-  Rectangle as an,
-  SystemRunner as ao,
-  multiplyColors as ap,
-  UPDATE_VISIBLE as aq,
-  UPDATE_COLOR as ar,
-  UPDATE_BLEND as as,
-  Color as at,
-  getLocalBounds as au,
-  VERSION as av,
-  deprecation as aw,
-  v8_0_0 as ax,
-  RendererInitHook as ay,
-  Geometry as az,
+  CharacterState as a0,
+  CharacterKeyECS as a1,
+  isEggTextureKey as a2,
+  TextureKey as a3,
+  GAME_CONSTANTS as a4,
+  SceneKey as a5,
+  TimeOfDay as a6,
+  hasLegacyMonsterBookState as a7,
+  migrateLegacyMonsterBookIfNeeded as a8,
+  getNativeSunTimes as a9,
+  RendererInitHook as aA,
+  Geometry as aB,
+  checkMaxIfStatementsInShader as aC,
+  compileHighShaderGlProgram as aD,
+  colorBitGl as aE,
+  generateTextureBatchBitGl as aF,
+  roundPixelsBitGl as aG,
+  getBatchSamplersUniformGroup as aH,
+  TextStyle as aI,
+  BatchableGraphics as aJ,
+  getAdjustedBlendModeBlend as aK,
+  ViewableBuffer as aL,
+  TextureStyle as aM,
+  BitmapFontManager as aN,
+  CanvasTextMetrics as aO,
+  getBitmapTextLayout as aP,
+  Cache as aQ,
+  Graphics as aR,
+  updateQuadBounds as aS,
+  CanvasTextGenerator as aT,
+  GraphicsContextSystem as aU,
+  MissingInitialGameDataError as aa,
+  Game as ab,
+  GpuProgram as ac,
+  GlProgram as ad,
+  TextureMatrix as ae,
+  DefaultBatcher as af,
+  BigPool as ag,
+  getGlobalBounds as ah,
+  Bounds as ai,
+  TexturePool as aj,
+  FilterEffect as ak,
+  Sprite as al,
+  getAttributeInfoFromFormat as am,
+  unsafeEvalSupported as an,
+  uid as ao,
+  Rectangle as ap,
+  SystemRunner as aq,
+  multiplyColors as ar,
+  UPDATE_VISIBLE as as,
+  UPDATE_COLOR as at,
+  UPDATE_BLEND as au,
+  Color as av,
+  getLocalBounds as aw,
+  VERSION as ax,
+  deprecation as ay,
+  v8_0_0 as az,
   buildEvolutionAdminExport as b,
   EventEmitter as c,
   getTextureBatchBindGroup as d,

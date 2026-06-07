@@ -25,6 +25,7 @@
       --tw-skew-x: skewX(0);
       --tw-skew-y: skewY(0);
       --tw-space-y-reverse: 0;
+      --tw-space-x-reverse: 0;
       --tw-border-style: solid;
       --tw-leading: initial;
       --tw-font-weight: initial;
@@ -668,6 +669,10 @@
     gap: calc(var(--spacing) * 5);
   }
 
+  .gap-\[0\.05em\] {
+    gap: .05em;
+  }
+
   .gap-\[15px\] {
     gap: 15px;
   }
@@ -682,6 +687,12 @@
     --tw-space-y-reverse: 0;
     margin-block-start: calc(calc(var(--spacing) * 4) * var(--tw-space-y-reverse));
     margin-block-end: calc(calc(var(--spacing) * 4) * calc(1 - var(--tw-space-y-reverse)));
+  }
+
+  :where(.-space-x-\[0\.5em\] > :not(:last-child)) {
+    --tw-space-x-reverse: 0;
+    margin-inline-start: calc(calc(.5em * -1) * var(--tw-space-x-reverse));
+    margin-inline-end: calc(calc(.5em * -1) * calc(1 - var(--tw-space-x-reverse)));
   }
 
   .self-center {
@@ -926,6 +937,14 @@
     font-size: .7em;
   }
 
+  .text-\[0\.8em\] {
+    font-size: .8em;
+  }
+
+  .text-\[0\.9rem\] {
+    font-size: .9rem;
+  }
+
   .text-\[0\.85rem\] {
     font-size: .85rem;
   }
@@ -956,10 +975,6 @@
 
   .text-\[1\.8rem\] {
     font-size: 1.8rem;
-  }
-
-  .text-\[1\.15rem\] {
-    font-size: 1.15rem;
   }
 
   .text-\[1rem\] {
@@ -1018,6 +1033,10 @@
     word-break: break-all;
   }
 
+  .text-\[\#9A4F00\] {
+    color: #9a4f00;
+  }
+
   .text-\[\#222\] {
     color: #222;
   }
@@ -1052,6 +1071,18 @@
 
   .uppercase {
     text-transform: uppercase;
+  }
+
+  .caret-\[\#222\]\/30 {
+    caret-color: oklab(25.1965% -7.45058e-9 0 / .3);
+  }
+
+  .caret-component-negative\/30 {
+    caret-color: oklab(62.8073% .155561 .0493762 / .3);
+  }
+
+  .caret-component-positive\/30 {
+    caret-color: oklab(65.1074% -.0284544 .0504299 / .3);
   }
 
   .opacity-0 {
@@ -1123,6 +1154,10 @@
 
   .\[image-rendering\:pixelated\] {
     image-rendering: pixelated;
+  }
+
+  .\[text-shadow\:0_1px_0_rgba\(0\,0\,0\,0\.6\)\] {
+    text-shadow: 0 1px #0009;
   }
 
   .placeholder\:text-component-negative\/50::placeholder {
@@ -1262,6 +1297,12 @@ h1 {
 }
 
 @property --tw-space-y-reverse {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0;
+}
+
+@property --tw-space-x-reverse {
   syntax: "*";
   inherits: false;
   initial-value: 0;

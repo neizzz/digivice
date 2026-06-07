@@ -46,6 +46,11 @@ declare global {
       updatedRawWorldData?: string | null;
       worldDataChanged?: boolean;
       hatched?: boolean;
+      evolutionDiagnostics?: Record<string, unknown> | null;
+      evolutionGageBefore?: number | null;
+      evolutionGageAfter?: number | null;
+      evolutionGageIncreased?: boolean | null;
+      evolutionBlockReason?: string | null;
       previousCharacterState?: number | null;
       nextCharacterState?: number | null;
       selectedCharacterKey?: number | null;

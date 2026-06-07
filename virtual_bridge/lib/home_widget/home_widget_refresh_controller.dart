@@ -228,7 +228,11 @@ class HomeWidgetRefreshController {
             'source=${payload['source']} '
             'status=${nativeUpdateResult?['status']} '
             'worldDataChanged=${nativeUpdateResult?['worldDataChanged']} '
-            'hatched=${nativeUpdateResult?['hatched']}',
+            'hatched=${nativeUpdateResult?['hatched']} '
+            'evolutionGageBefore=${nativeUpdateResult?['evolutionGageBefore']} '
+            'evolutionGageAfter=${nativeUpdateResult?['evolutionGageAfter']} '
+            'evolutionGageIncreased=${nativeUpdateResult?['evolutionGageIncreased']} '
+            'evolutionBlockReason=${nativeUpdateResult?['evolutionBlockReason']}',
           );
           return;
         case 'getRefreshDiagnostics':

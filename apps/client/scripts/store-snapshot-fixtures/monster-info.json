@@ -6,7 +6,7 @@
     "MainSceneWorldData": {
       "world_metadata": {
         "name": "MainScene",
-        "monster_name": "Montto",
+        "monster_name": "MonTTo",
         "last_ecs_saved": 1769900400000,
         "version": "1.0.0",
         "app_state": {

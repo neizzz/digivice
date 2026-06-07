@@ -219,6 +219,9 @@ internal fun buildHomeWidgetFoodEntityJson(
 internal fun buildHomeWidgetCharacterWorldData(
     state: Int = 1,
     lastEcsSaved: Long = 1_000L,
+    characterKey: Int = 1,
+    evolutionPhase: Int = 1,
+    evolutionGage: Double = 0.0,
     stamina: Double = 5.0,
     fatigue: Double = 35.0,
     nextDiseaseCheckTime: Long = 60_000L,
@@ -228,7 +231,13 @@ internal fun buildHomeWidgetCharacterWorldData(
     sleepMode: Int = 0,
     statuses: String = "[]",
     sickStartTime: Long = 0L,
+    mutationRiskJson: String? = null,
+    extraEntitiesJson: String = "",
 ): String {
+    val mutationRisk = mutationRiskJson?.let { ""","mutationRisk":$it""" } ?: ""
+    val extraEntities = extraEntitiesJson.takeIf { it.isNotBlank() }
+        ?.let { ",$it" }
+        ?: ""
     return """
         {
           "world_metadata": {
@@ -251,9 +260,10 @@ internal fun buildHomeWidgetCharacterWorldData(
                   "state": $state
                 },
                 "characterStatus": {
-                  "characterKey": 1,
+                  "characterKey": $characterKey,
                   "stamina": $stamina,
-                  "evolutionPhase": 1,
+                  "evolutionPhase": $evolutionPhase,
+                  "evolutionGage": $evolutionGage,
                   "statuses": $statuses
                 },
                 "diseaseSystem": {
@@ -281,8 +291,10 @@ internal fun buildHomeWidgetCharacterWorldData(
                 "render": {
                   "textureKey": 1
                 }
+                $mutationRisk
               }
             }
+            $extraEntities
           ]
         }
     """.trimIndent()
