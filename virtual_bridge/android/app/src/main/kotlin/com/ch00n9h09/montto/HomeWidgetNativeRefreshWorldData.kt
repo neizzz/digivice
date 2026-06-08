@@ -1168,7 +1168,7 @@ internal object HomeWidgetNativeRefreshWorldData {
             currentTime = nowMs,
             detoxIntervalMs = detoxIntervalMs,
         )
-        val nextDirtyStacks = previousDirtyStacks.coerceAtLeast(0)
+        val nextDirtyStacks = 0
         val nextLastDirtyDetoxTime = previousLastDirtyDetoxTime ?: nowMs
 
         mutationRisk.put(
@@ -1246,15 +1246,11 @@ internal object HomeWidgetNativeRefreshWorldData {
         val unnecessaryInjectionStacks = normalizeNativeMutationStackCount(
             mutationRisk?.optIntOrNull("unnecessaryInjectionStacks") ?: 0,
         )
-        val storedDirtyExposureStacks = mutationRisk
-            ?.optIntOrNull("dirtyExposureStacks")
-            ?.coerceAtLeast(0)
-            ?: 0
         val activeDirtyExposureStacks = countActiveDirtyExposureStacks(entities, nowMs)
 
         return NativeMutationRiskStacks(
             unnecessaryInjectionStacks = unnecessaryInjectionStacks,
-            dirtyExposureStacks = storedDirtyExposureStacks + activeDirtyExposureStacks,
+            dirtyExposureStacks = activeDirtyExposureStacks,
         )
     }
 

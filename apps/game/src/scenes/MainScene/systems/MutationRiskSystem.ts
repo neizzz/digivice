@@ -26,7 +26,6 @@ import type { MainSceneWorld } from "../world";
 
 const characterQuery = defineQuery([ObjectComp, CharacterStatusComp]);
 const objectQuery = defineQuery([ObjectComp]);
-const MAX_STORED_DIRTY_STACKS = 65_535;
 
 export function mutationRiskSystem(params: {
   world: MainSceneWorld;
@@ -72,10 +71,7 @@ export function getMutationRiskStacks(
     )
       ? MutationRiskComp.unnecessaryInjectionStacks[characterEid]
       : 0,
-    dirtyExposureStacks:
-      (hasComponent(world, MutationRiskComp, characterEid)
-        ? MutationRiskComp.dirtyExposureStacks[characterEid]
-        : 0) + activeDirtyExposureStacks,
+    dirtyExposureStacks: activeDirtyExposureStacks,
   };
 }
 
@@ -89,11 +85,6 @@ export function finalizeDirtyExposureForEntity(
   }
 
   updateDirtyExposureEntity(dirtyEid, currentTime);
-  transferDirtyStacksToCharacters(
-    world,
-    DirtyExposureComp.stackCount[dirtyEid],
-    currentTime,
-  );
   removeComponent(world, DirtyExposureComp, dirtyEid);
 }
 
@@ -188,10 +179,12 @@ function detoxCharacterMutationStacks(
       ObjectComp.state[eid] === CharacterState.DEAD
     ) {
       ensureMutationRiskComp(world, eid, currentTime);
+      MutationRiskComp.dirtyExposureStacks[eid] = 0;
       continue;
     }
 
     ensureMutationRiskComp(world, eid, currentTime);
+    MutationRiskComp.dirtyExposureStacks[eid] = 0;
     detoxInjectionStacks(eid, currentTime);
   }
 }
@@ -257,32 +250,6 @@ function ensureMutationRiskComp(
   MutationRiskComp.dirtyExposureStacks[eid] = 0;
   MutationRiskComp.lastInjectionDetoxTime[eid] = currentTime;
   MutationRiskComp.lastDirtyDetoxTime[eid] = currentTime;
-}
-
-function transferDirtyStacksToCharacters(
-  world: MainSceneWorld,
-  stackCount: number,
-  currentTime: number,
-): void {
-  const transferredStackCount = Number.isFinite(stackCount)
-    ? Math.max(1, Math.floor(stackCount))
-    : 1;
-
-  const characters = characterQuery(world);
-
-  for (let i = 0; i < characters.length; i++) {
-    const eid = characters[i];
-    if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
-      continue;
-    }
-
-    ensureMutationRiskComp(world, eid, currentTime);
-    MutationRiskComp.dirtyExposureStacks[eid] = Math.min(
-      MAX_STORED_DIRTY_STACKS,
-      MutationRiskComp.dirtyExposureStacks[eid] + transferredStackCount,
-    );
-    MutationRiskComp.lastDirtyDetoxTime[eid] = currentTime;
-  }
 }
 
 function countActiveDirtyExposureStacks(world: MainSceneWorld): number {
