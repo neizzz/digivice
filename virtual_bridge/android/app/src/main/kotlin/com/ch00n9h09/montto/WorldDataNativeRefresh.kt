@@ -8,107 +8,18 @@ import kotlin.math.floor
 import kotlin.math.min
 import kotlin.math.sin
 
-private const val NATIVE_CHARACTER_OBJECT_TYPE = 1
-private const val NATIVE_FOOD_OBJECT_TYPE = 3
-private const val NATIVE_POOB_OBJECT_TYPE = 4
-private const val NATIVE_CHARACTER_STATE_EGG = 0
-private const val NATIVE_CHARACTER_STATE_IDLE = 1
-private const val NATIVE_CHARACTER_STATE_MOVING = 2
-private const val NATIVE_CHARACTER_STATE_SLEEPING = 3
-private const val NATIVE_CHARACTER_STATE_SICK = 4
-private const val NATIVE_CHARACTER_STATE_EATING = 5
-private const val NATIVE_CHARACTER_STATE_DEAD = 6
-private const val NATIVE_CHARACTER_STATUS_SICK = 3
-private const val NATIVE_CHARACTER_STATUS_SLOT_COUNT = 4
-private const val NATIVE_TEXTURE_KEY_NULL = 0
-private const val NATIVE_ANIMATION_KEY_IDLE = 1
-private const val NATIVE_ANIMATION_KEY_WALKING = 2
-private const val NATIVE_FOOD_STATE_BEING_THROWING = 1
-private const val NATIVE_FOOD_STATE_LANDED = 2
-private const val NATIVE_FOOD_FRESHNESS_FRESH = 1
-private const val NATIVE_FOOD_FRESHNESS_NORMAL = 2
-private const val NATIVE_FOOD_FRESHNESS_STALE = 3
-private const val NATIVE_CHARACTER_KEY_NULL = 0
-private const val NATIVE_GREEN_SLIME_A1_CHARACTER_KEY = 1
-private const val NATIVE_SKULL_SLIME_A1_CHARACTER_KEY = 14
-private const val NATIVE_SOIL_SLIME_A1_CHARACTER_KEY = 22
-private const val NATIVE_MAX_EGG_HATCH_SELECTION_BONUS_COUNT = 10
-private const val NATIVE_EGG_HATCH_BASE_GREEN_PERCENT = 65
-private const val NATIVE_EGG_HATCH_BASE_SOIL_PERCENT = 20
-private const val NATIVE_EGG_HATCH_BASE_SKULL_PERCENT = 15
-private const val NATIVE_EGG_HATCH_BONUS_PER_COUNT_PERCENT = 2
-private const val NATIVE_HATCH_RANDOM_MOVEMENT_MIN_IDLE_MS = 2000
-private const val NATIVE_HATCH_RANDOM_MOVEMENT_MAX_IDLE_MS = 8000
-private const val NATIVE_HATCH_RANDOM_MOVEMENT_MIN_MOVE_MS = 1000
-private const val NATIVE_HATCH_RANDOM_MOVEMENT_MAX_MOVE_MS = 8000
-private const val NATIVE_HATCH_ROAMING_OFFSET_THRESHOLD_MS = 5000L
-private const val NATIVE_HATCH_ROAMING_MOVE_SPEED = 0.03
-private const val NATIVE_HATCH_ROAMING_MAX_OFFSET_PX = 48.0
-private const val NATIVE_HATCH_ROAMING_CYCLE_MS = 8000L
-private const val NATIVE_HATCH_ROAMING_MOVE_WINDOW_START_MS = 2000L
-private const val NATIVE_HATCH_ROAMING_MOVE_WINDOW_END_MS = 6000L
-private const val NATIVE_MAX_STAMINA = 10.0
-private const val NATIVE_LOW_STAMINA_THRESHOLD = 3.0
-private const val NATIVE_VERY_LOW_STAMINA_THRESHOLD = 1.5
-private const val NATIVE_BOOSTED_STAMINA_THRESHOLD = 7.0
-private const val NATIVE_STAMINA_DECREASE_INTERVAL_MS = 12 * 60 * 1000.0
-private const val NATIVE_STAMINA_DECREASE_AMOUNT = 0.25
-private const val NATIVE_HIGH_STAMINA_DECAY_MULTIPLIER = 1.3
-private const val NATIVE_LOW_STAMINA_DECAY_MULTIPLIER = 0.7
-private const val NATIVE_SLEEPING_STAMINA_DECAY_MULTIPLIER = 0.2
-private const val NATIVE_HOUR_MS = 60 * 60 * 1000.0
-private const val NATIVE_FATIGUE_MAX = 100.0
-private const val NATIVE_FATIGUE_DEFAULT = 35.0
-private const val NATIVE_FATIGUE_AWAKE_GAIN_PER_HOUR = 9.0
-private const val NATIVE_FATIGUE_SLEEP_RECOVERY_PER_HOUR = 12.0
-private const val NATIVE_FATIGUE_SLEEP_RECOVERY_PER_HOUR_WHEN_SICK = 6.0
-private const val NATIVE_LOW_STAMINA_FATIGUE_AWAKE_GAIN_MULTIPLIER = 1.25
-private const val NATIVE_CRITICAL_STAMINA_FATIGUE_AWAKE_GAIN_MULTIPLIER = 1.5
-private const val NATIVE_DAY_NAP_CHANCE = 0.07
-private const val NATIVE_DAY_NAP_CHECK_INTERVAL_MS = 20 * 60 * 1000L
-private const val NATIVE_DAY_NAP_MIN_DURATION_MS = 10 * 60 * 1000L
-private const val NATIVE_DAY_NAP_MAX_DURATION_MS = 30 * 60 * 1000L
-private const val NATIVE_FATIGUE_DAY_NAP_MIN_THRESHOLD = 55.0
-private const val NATIVE_FATIGUE_DAY_NAP_WAKE_THRESHOLD = 28.0
-private const val NATIVE_SLEEP_MODE_AWAKE = 0
-private const val NATIVE_SLEEP_MODE_DAY_NAP = 1
-private const val NATIVE_SLEEP_MODE_NIGHT_SLEEP = 2
-private const val NATIVE_SLEEP_REASON_NONE = 0
-private const val NATIVE_SLEEP_REASON_NAP = 2
-private const val NATIVE_DISEASE_CHECK_INTERVAL_MS = 10 * 1000L
-private const val NATIVE_SLEEPING_DISEASE_RATE_MULTIPLIER = 0.1
-private const val NATIVE_BASE_DISEASE_RATE = 0.0001862601875783909
-private const val NATIVE_LOW_STAMINA_DISEASE_BONUS = 0.000093
-private const val NATIVE_VERY_LOW_STAMINA_DISEASE_BONUS = 0.000186
-private const val NATIVE_POOP_DISEASE_RATE = 0.000093
-private const val NATIVE_STALE_FOOD_DISEASE_RATE = 0.000093
-private const val NATIVE_NORMAL_TO_STALE_TIME_MS = 10 * 60 * 1000L
-private const val NATIVE_EVOLUTION_MAX_GAUGE = 100.0
-private const val NATIVE_EVOLUTION_CHECK_INTERVAL_MS = 10_000L
-private const val NATIVE_EVOLUTION_GAUGE_GAIN_MULTIPLIER = 1.1
-private const val NATIVE_SLEEPING_EVOLUTION_TIME_MULTIPLIER = 1.0 / 3.0
-private const val NATIVE_BOOSTED_EVOLUTION_GAUGE_GAIN_MULTIPLIER = 1.2
-private const val NATIVE_MUTATION_BASE_RATE = 0.01
-private const val NATIVE_MUTATION_STACK_CAP = 10
-private const val NATIVE_MUTATION_DIRTY_EXPOSURE_STACK_INTERVAL_MS = 2 * 60 * 60 * 1000L
-private const val NATIVE_MUTATION_DETOX_INTERVAL_CLASS_A_MS = 1 * 60 * 60 * 1000L
-private const val NATIVE_MUTATION_DETOX_INTERVAL_DEFAULT_MS = 2 * 60 * 60 * 1000L
-private const val NATIVE_EVOLUTION_CANDIDATE_KIND_BASE = "base"
-private const val NATIVE_EVOLUTION_CANDIDATE_KIND_SAME_LINE = "same_line_variant_mutation"
-private const val NATIVE_EVOLUTION_CANDIDATE_KIND_CROSS_LINE =
-    "same_class_cross_line_mutation"
-internal data class RefreshedHomeWidgetWorldData(
+internal data class WorldDataNativeRefreshResult(
     val rawWorldData: String,
     val changed: Boolean,
     val hatched: Boolean,
     val previousCharacterState: Int?,
     val nextCharacterState: Int?,
     val selectedCharacterKey: Int?,
-    val hatchSelectionDiagnostics: HomeWidgetNativeHatchSelectionDiagnostics? = null,
-    val evolutionDiagnostics: HomeWidgetNativeEvolutionDiagnostics? = null,
+    val hatchSelectionDiagnostics: WorldDataNativeRefreshHatchSelectionDiagnostics? = null,
+    val evolutionDiagnostics: WorldDataNativeRefreshEvolutionDiagnostics? = null,
 )
 
-internal data class HomeWidgetNativeEvolutionDiagnostics(
+internal data class WorldDataNativeRefreshEvolutionDiagnostics(
     val evolutionGageBefore: Double?,
     val evolutionGageAfter: Double?,
     val evolutionGageIncreased: Boolean,
@@ -124,17 +35,17 @@ internal data class HomeWidgetNativeEvolutionDiagnostics(
     }
 }
 
-private data class HomeWidgetNativePostHatchLifecycleResult(
+private data class WorldDataNativeRefreshPostHatchLifecycleResult(
     val changed: Boolean,
-    val evolutionDiagnostics: HomeWidgetNativeEvolutionDiagnostics?,
+    val evolutionDiagnostics: WorldDataNativeRefreshEvolutionDiagnostics?,
 )
 
-private data class HomeWidgetNativeEvolutionProgressResult(
+private data class WorldDataNativeRefreshEvolutionProgressResult(
     val changed: Boolean,
-    val diagnostics: HomeWidgetNativeEvolutionDiagnostics,
+    val diagnostics: WorldDataNativeRefreshEvolutionDiagnostics,
 )
 
-internal data class HomeWidgetNativeHatchSelectionDiagnostics(
+internal data class WorldDataNativeRefreshHatchSelectionDiagnostics(
     val staleFoodCountAtHatch: Int,
     val syringeCount: Int,
     val normalizedStaleFoodCountAtHatch: Int,
@@ -168,25 +79,25 @@ internal data class HomeWidgetNativeHatchSelectionDiagnostics(
     }
 }
 
-internal data class HomeWidgetNativeLifecycleRandomEvent(
+internal data class WorldDataNativeRefreshLifecycleRandomEvent(
     val objectId: Int,
     val checkTimeMs: Long,
     val reason: String,
 )
 
-internal typealias HomeWidgetNativeLifecycleRandomProvider = (
-    HomeWidgetNativeLifecycleRandomEvent,
+internal typealias WorldDataNativeRefreshLifecycleRandomProvider = (
+    WorldDataNativeRefreshLifecycleRandomEvent,
 ) -> Double
 
-internal object HomeWidgetNativeRefreshWorldData {
+internal object WorldDataNativeRefresh {
     private val nativeEvolutionSpecs = createNativeEvolutionSpecs()
     private val nativeMonsterCharacterKeys = nativeEvolutionSpecs.keys.sorted()
 
     fun refresh(
         rawWorldData: String,
         nowMs: Long,
-        randomProvider: HomeWidgetNativeLifecycleRandomProvider = ::resolveDeterministicLifecycleRandom,
-    ): RefreshedHomeWidgetWorldData {
+        randomProvider: WorldDataNativeRefreshLifecycleRandomProvider = ::resolveDeterministicLifecycleRandom,
+    ): WorldDataNativeRefreshResult {
         val worldData = JSONObject(rawWorldData)
         val worldMetadata = ensureObject(worldData, "world_metadata")
         val appState = ensureObject(worldMetadata, "app_state")
@@ -204,10 +115,10 @@ internal object HomeWidgetNativeRefreshWorldData {
         var changed = previousLastEcsSaved != nowMs
         var hatched = false
         var selectedCharacterKey: Int? = null
-        var hatchSelectionDiagnostics: HomeWidgetNativeHatchSelectionDiagnostics? = null
+        var hatchSelectionDiagnostics: WorldDataNativeRefreshHatchSelectionDiagnostics? = null
         var previousCharacterState: Int? = null
         var nextCharacterState: Int? = null
-        var evolutionDiagnostics: HomeWidgetNativeEvolutionDiagnostics? = null
+        var evolutionDiagnostics: WorldDataNativeRefreshEvolutionDiagnostics? = null
 
         if (source != null) {
             previousCharacterState = source.objectComponent.optIntOrNull("state")
@@ -259,7 +170,7 @@ internal object HomeWidgetNativeRefreshWorldData {
             }
         }
 
-        return RefreshedHomeWidgetWorldData(
+        return WorldDataNativeRefreshResult(
             rawWorldData = worldData.toString(),
             changed = changed,
             hatched = hatched,
@@ -381,8 +292,8 @@ internal object HomeWidgetNativeRefreshWorldData {
         appState: JSONObject,
         nowMs: Long,
         elapsedMs: Long,
-        randomProvider: HomeWidgetNativeLifecycleRandomProvider,
-    ): HomeWidgetNativePostHatchLifecycleResult {
+        randomProvider: WorldDataNativeRefreshLifecycleRandomProvider,
+    ): WorldDataNativeRefreshPostHatchLifecycleResult {
         var changed = false
         val previousState = source.objectComponent.optIntOrNull("state")
         val previousStamina = source.characterStatus.optDoubleOrNull("stamina")
@@ -423,7 +334,7 @@ internal object HomeWidgetNativeRefreshWorldData {
         )
         changed = evolutionResult.changed || changed
 
-        return HomeWidgetNativePostHatchLifecycleResult(
+        return WorldDataNativeRefreshPostHatchLifecycleResult(
             changed = changed,
             evolutionDiagnostics = evolutionResult.diagnostics,
         )
@@ -445,8 +356,8 @@ internal object HomeWidgetNativeRefreshWorldData {
         entities: JSONArray,
         nowMs: Long,
         elapsedMs: Long,
-        randomProvider: HomeWidgetNativeLifecycleRandomProvider,
-    ): HomeWidgetNativeEvolutionProgressResult {
+        randomProvider: WorldDataNativeRefreshLifecycleRandomProvider,
+    ): WorldDataNativeRefreshEvolutionProgressResult {
         val state = source.objectComponent.optIntOrNull("state")
         if (elapsedMs <= 0L) {
             return evolutionProgressResult(
@@ -566,7 +477,7 @@ internal object HomeWidgetNativeRefreshWorldData {
             }
         }
 
-        return HomeWidgetNativeEvolutionProgressResult(
+        return WorldDataNativeRefreshEvolutionProgressResult(
             changed = true,
             diagnostics = buildEvolutionDiagnostics(
                 source = source,
@@ -581,8 +492,8 @@ internal object HomeWidgetNativeRefreshWorldData {
         source: CharacterEntitySource,
         changed: Boolean,
         blockReason: String,
-    ): HomeWidgetNativeEvolutionProgressResult {
-        return HomeWidgetNativeEvolutionProgressResult(
+    ): WorldDataNativeRefreshEvolutionProgressResult {
+        return WorldDataNativeRefreshEvolutionProgressResult(
             changed = changed,
             diagnostics = buildEvolutionDiagnostics(
                 source = source,
@@ -596,8 +507,8 @@ internal object HomeWidgetNativeRefreshWorldData {
         blockReason: String,
         evolutionGageBefore: Double? = source.characterStatus.optDoubleOrNull("evolutionGage"),
         evolutionGageIncreased: Boolean = false,
-    ): HomeWidgetNativeEvolutionDiagnostics {
-        return HomeWidgetNativeEvolutionDiagnostics(
+    ): WorldDataNativeRefreshEvolutionDiagnostics {
+        return WorldDataNativeRefreshEvolutionDiagnostics(
             evolutionGageBefore = evolutionGageBefore,
             evolutionGageAfter = source.characterStatus.optDoubleOrNull("evolutionGage"),
             evolutionGageIncreased = evolutionGageIncreased,
@@ -642,7 +553,7 @@ internal object HomeWidgetNativeRefreshWorldData {
         entities: JSONArray,
         currentSpec: NativeEvolutionSpec,
         nowMs: Long,
-        randomProvider: HomeWidgetNativeLifecycleRandomProvider,
+        randomProvider: WorldDataNativeRefreshLifecycleRandomProvider,
     ): NativeEvolutionCandidate? {
         val objectId = source.objectComponent.optIntOrNull("id") ?: 0
         val mutationStacks = getNativeMutationRiskStacks(source, entities, nowMs)
@@ -652,7 +563,7 @@ internal object HomeWidgetNativeRefreshWorldData {
             dirtyExposureStacks = mutationStacks.dirtyExposureStacks,
             mutationRoll = normalizeRandom(
                 randomProvider(
-                    HomeWidgetNativeLifecycleRandomEvent(
+                    WorldDataNativeRefreshLifecycleRandomEvent(
                         objectId = objectId,
                         checkTimeMs = nowMs,
                         reason = "evolution_mutation",
@@ -661,7 +572,7 @@ internal object HomeWidgetNativeRefreshWorldData {
             ),
             targetRoll = normalizeRandom(
                 randomProvider(
-                    HomeWidgetNativeLifecycleRandomEvent(
+                    WorldDataNativeRefreshLifecycleRandomEvent(
                         objectId = objectId,
                         checkTimeMs = nowMs,
                         reason = "evolution_mutation_target",
@@ -677,7 +588,7 @@ internal object HomeWidgetNativeRefreshWorldData {
             candidates = currentSpec.candidates,
             random = normalizeRandom(
                 randomProvider(
-                    HomeWidgetNativeLifecycleRandomEvent(
+                    WorldDataNativeRefreshLifecycleRandomEvent(
                         objectId = objectId,
                         checkTimeMs = nowMs,
                         reason = "evolution",
@@ -852,7 +763,7 @@ internal object HomeWidgetNativeRefreshWorldData {
         appState: JSONObject,
         nowMs: Long,
         elapsedMs: Long,
-        randomProvider: HomeWidgetNativeLifecycleRandomProvider,
+        randomProvider: WorldDataNativeRefreshLifecycleRandomProvider,
     ): Boolean {
         val state = source.objectComponent.optIntOrNull("state")
         if (state == NATIVE_CHARACTER_STATE_EGG || state == NATIVE_CHARACTER_STATE_DEAD) {
@@ -948,7 +859,7 @@ internal object HomeWidgetNativeRefreshWorldData {
         source: CharacterEntitySource,
         appState: JSONObject,
         nowMs: Long,
-        randomProvider: HomeWidgetNativeLifecycleRandomProvider,
+        randomProvider: WorldDataNativeRefreshLifecycleRandomProvider,
     ): Boolean {
         if (resolveNativeTimeOfDay(nowMs, appState) != "day" ||
             source.objectComponent.optIntOrNull("state") == NATIVE_CHARACTER_STATE_SLEEPING ||
@@ -975,7 +886,7 @@ internal object HomeWidgetNativeRefreshWorldData {
             val napChance = min(1.0, NATIVE_DAY_NAP_CHANCE * (0.5 + fatigueRatio))
             val roll = normalizeRandom(
                 randomProvider(
-                    HomeWidgetNativeLifecycleRandomEvent(
+                    WorldDataNativeRefreshLifecycleRandomEvent(
                         objectId = source.objectComponent.optInt("id", 0),
                         checkTimeMs = checkTime,
                         reason = "day_nap",
@@ -1068,7 +979,7 @@ internal object HomeWidgetNativeRefreshWorldData {
         source: CharacterEntitySource,
         entities: JSONArray,
         nowMs: Long,
-        randomProvider: HomeWidgetNativeLifecycleRandomProvider,
+        randomProvider: WorldDataNativeRefreshLifecycleRandomProvider,
     ): Boolean {
         val state = source.objectComponent.optIntOrNull("state")
         if (state == NATIVE_CHARACTER_STATE_DEAD) {
@@ -1110,7 +1021,7 @@ internal object HomeWidgetNativeRefreshWorldData {
                 val diseaseRate = calculateDiseaseRate(source, entities)
                 val roll = normalizeRandom(
                     randomProvider(
-                        HomeWidgetNativeLifecycleRandomEvent(
+                        WorldDataNativeRefreshLifecycleRandomEvent(
                             objectId = source.objectComponent.optInt("id", 0),
                             checkTimeMs = checkTime,
                             reason = "disease",
@@ -1434,7 +1345,7 @@ internal object HomeWidgetNativeRefreshWorldData {
         )?.let { pendingCharacterKey ->
             return NativeEggHatchSelection(
                 selectedCharacterKey = pendingCharacterKey,
-                diagnostics = HomeWidgetNativeHatchSelectionDiagnostics(
+                diagnostics = WorldDataNativeRefreshHatchSelectionDiagnostics(
                     staleFoodCountAtHatch = staleFoodCountAtHatch,
                     syringeCount = syringeCount,
                     normalizedStaleFoodCountAtHatch = probabilities.normalizedStaleFoodCount,
@@ -1467,7 +1378,7 @@ internal object HomeWidgetNativeRefreshWorldData {
 
         return NativeEggHatchSelection(
             selectedCharacterKey = selectedCharacterKey,
-            diagnostics = HomeWidgetNativeHatchSelectionDiagnostics(
+            diagnostics = WorldDataNativeRefreshHatchSelectionDiagnostics(
                 staleFoodCountAtHatch = staleFoodCountAtHatch,
                 syringeCount = syringeCount,
                 normalizedStaleFoodCountAtHatch = probabilities.normalizedStaleFoodCount,
@@ -1588,7 +1499,7 @@ internal object HomeWidgetNativeRefreshWorldData {
     }
 
     private fun resolveDeterministicLifecycleRandom(
-        event: HomeWidgetNativeLifecycleRandomEvent,
+        event: WorldDataNativeRefreshLifecycleRandomEvent,
     ): Double {
         return normalizeRandom(hashToUnit("${event.objectId}|${event.checkTimeMs}|${event.reason}"))
     }
@@ -1983,7 +1894,7 @@ internal object HomeWidgetNativeRefreshWorldData {
 
     private data class NativeEggHatchSelection(
         val selectedCharacterKey: Int,
-        val diagnostics: HomeWidgetNativeHatchSelectionDiagnostics,
+        val diagnostics: WorldDataNativeRefreshHatchSelectionDiagnostics,
     )
 
     private data class NativeEggHatchProbabilities(

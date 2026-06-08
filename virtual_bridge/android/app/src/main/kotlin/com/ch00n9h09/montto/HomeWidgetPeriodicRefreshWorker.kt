@@ -10,7 +10,7 @@ internal object HomeWidgetPeriodicRefreshRunner {
         onNoWidgets: () -> Unit,
         progressSnapshot: (nowMs: Long) -> HomeWidgetSnapshot?,
         loadAuthoritativeSnapshot: () -> HomeWidgetSnapshot?,
-        completeNativeAuthoritativeRefresh: (nowMs: Long) -> HomeWidgetNativeAuthoritativeRefreshResult,
+        completeNativeAuthoritativeRefresh: (nowMs: Long) -> WorldDataNativeAuthoritativeRefreshResult,
         requestAuthoritativeRefreshFallback: () -> HomeWidgetAuthoritativeRefreshRequestResult,
         notifySnapshotUpdated: (reason: String) -> Unit,
         recordPeriodicRefreshStatus: (status: String, nowMs: Long) -> Unit,
@@ -35,14 +35,14 @@ internal object HomeWidgetPeriodicRefreshRunner {
         }
         val authoritativeSnapshot = loadAuthoritativeSnapshot()
         val shouldCompleteNativeRefresh =
-            HomeWidgetSnapshotFactory.requiresAuthoritativeRefresh(
+            WorldDataSnapshotFactory.requiresAuthoritativeRefresh(
                 currentSnapshot = progressedSnapshot,
                 authoritativeSnapshot = authoritativeSnapshot,
                 nowMs = nowMs,
             ) || shouldCompleteStoredWorldLifecycle(authoritativeSnapshot)
         val periodicStatus = if (shouldCompleteNativeRefresh) {
             recordPeriodicRefreshStatus(
-                HomeWidgetNativeAuthoritativeRefreshStatus.STARTED.value,
+                WorldDataNativeAuthoritativeRefreshStatus.STARTED.value,
                 nowMs,
             )
             val nativeCompletionResult = completeNativeAuthoritativeRefresh(nowMs)
@@ -83,13 +83,13 @@ internal class HomeWidgetPeriodicRefreshWorker(
                 HomeWidgetPeriodicRefreshScheduler.cancelIfNoWidgets(applicationContext)
             },
             progressSnapshot = { nowMs ->
-                HomeWidgetSnapshotFactory.progressSnapshot(applicationContext, nowMs)
+                WorldDataSnapshotFactory.progressSnapshot(applicationContext, nowMs)
             },
             loadAuthoritativeSnapshot = {
                 HomeWidgetSnapshot.loadAuthoritative(applicationContext)
             },
             completeNativeAuthoritativeRefresh = { nowMs ->
-                HomeWidgetNativeAuthoritativeRefresh.complete(
+                WorldDataNativeAuthoritativeRefresh.complete(
                     context = applicationContext,
                     nowMs = nowMs,
                 )

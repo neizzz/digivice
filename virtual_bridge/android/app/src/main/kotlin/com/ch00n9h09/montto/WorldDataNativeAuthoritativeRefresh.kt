@@ -4,21 +4,21 @@ import android.content.Context
 import android.content.SharedPreferences
 import org.json.JSONObject
 
-internal data class HomeWidgetNativeAuthoritativeRefreshResult(
+internal data class WorldDataNativeAuthoritativeRefreshResult(
     val status: String,
     val updatedRawWorldData: String? = null,
     val hasSnapshot: Boolean = false,
     val worldDataChanged: Boolean = false,
     val hatched: Boolean = false,
     val selectedCharacterKey: Int? = null,
-    val hatchSelectionDiagnostics: HomeWidgetNativeHatchSelectionDiagnostics? = null,
-    val evolutionDiagnostics: HomeWidgetNativeEvolutionDiagnostics? = null,
+    val hatchSelectionDiagnostics: WorldDataNativeRefreshHatchSelectionDiagnostics? = null,
+    val evolutionDiagnostics: WorldDataNativeRefreshEvolutionDiagnostics? = null,
     val previousCharacterState: Int? = null,
     val nextCharacterState: Int? = null,
     val error: String? = null,
 ) {
     val succeeded: Boolean
-        get() = status == HomeWidgetNativeAuthoritativeRefreshStatus.COMPLETED.value
+        get() = status == WorldDataNativeAuthoritativeRefreshStatus.COMPLETED.value
 
     fun toMap(includeWorldData: Boolean = true): Map<String, Any?> {
         return mapOf(
@@ -42,12 +42,12 @@ internal data class HomeWidgetNativeAuthoritativeRefreshResult(
     }
 }
 
-internal object HomeWidgetNativeAuthoritativeRefresh {
+internal object WorldDataNativeAuthoritativeRefresh {
     fun complete(
         context: Context,
         nowMs: Long = System.currentTimeMillis(),
         allowEggSnapshot: Boolean = false,
-    ): HomeWidgetNativeAuthoritativeRefreshResult {
+    ): WorldDataNativeAuthoritativeRefreshResult {
         val widgetPrefs = context.getSharedPreferences(
             HomeWidgetConstants.STORAGE_NAME,
             Context.MODE_PRIVATE,
@@ -62,8 +62,8 @@ internal object HomeWidgetNativeAuthoritativeRefresh {
             flutterPrefs = flutterPrefs,
             nowMs = nowMs,
             persistSnapshot = { snapshot ->
-                HomeWidgetSnapshotFactory.persistCurrentSnapshot(context, snapshot)
-                HomeWidgetSnapshotFactory.persistAuthoritativeSnapshot(context, snapshot)
+                WorldDataSnapshotFactory.persistCurrentSnapshot(context, snapshot)
+                WorldDataSnapshotFactory.persistAuthoritativeSnapshot(context, snapshot)
             },
             allowEggSnapshot = allowEggSnapshot,
         )
@@ -75,34 +75,34 @@ internal object HomeWidgetNativeAuthoritativeRefresh {
         nowMs: Long,
         persistSnapshot: (HomeWidgetSnapshot?) -> Unit,
         clearSnapshots: () -> Unit = {
-            HomeWidgetNativeRefreshSnapshotStore.clear(widgetPrefs, flutterPrefs)
+            WorldDataNativeRefreshSnapshotStore.clear(widgetPrefs, flutterPrefs)
         },
-        randomProvider: HomeWidgetNativeLifecycleRandomProvider? = null,
+        randomProvider: WorldDataNativeRefreshLifecycleRandomProvider? = null,
         allowEggSnapshot: Boolean = false,
-    ): HomeWidgetNativeAuthoritativeRefreshResult {
+    ): WorldDataNativeAuthoritativeRefreshResult {
         val rawWorldData = flutterPrefs.getString(HomeWidgetConstants.FLUTTER_WORLD_DATA_KEY, null)
             ?: return failed("missing_world_data")
 
         return runCatching {
-            HomeWidgetNativeRefreshResetGuard.clearStaleRestoreCandidate(
+            WorldDataNativeRefreshResetGuard.clearStaleRestoreCandidate(
                 flutterPrefs = flutterPrefs,
                 rawWorldData = rawWorldData,
                 clearSnapshots = clearSnapshots,
             )
             val refreshedWorldData = if (randomProvider == null) {
-                HomeWidgetNativeRefreshWorldData.refresh(
+                WorldDataNativeRefresh.refresh(
                     rawWorldData = rawWorldData,
                     nowMs = nowMs,
                 )
             } else {
-                HomeWidgetNativeRefreshWorldData.refresh(
+                WorldDataNativeRefresh.refresh(
                     rawWorldData = rawWorldData,
                     nowMs = nowMs,
                     randomProvider = randomProvider,
                 )
             }
 
-            HomeWidgetNativeRefreshSnapshotStore.publishCompletion(
+            WorldDataNativeRefreshSnapshotStore.publishCompletion(
                 widgetPrefs = widgetPrefs,
                 flutterPrefs = flutterPrefs,
                 refreshedWorldData = refreshedWorldData,
@@ -115,15 +115,15 @@ internal object HomeWidgetNativeAuthoritativeRefresh {
         }
     }
 
-    private fun failed(error: String): HomeWidgetNativeAuthoritativeRefreshResult {
-        return HomeWidgetNativeAuthoritativeRefreshResult(
-            status = HomeWidgetNativeAuthoritativeRefreshStatus.FAILED.value,
+    private fun failed(error: String): WorldDataNativeAuthoritativeRefreshResult {
+        return WorldDataNativeAuthoritativeRefreshResult(
+            status = WorldDataNativeAuthoritativeRefreshStatus.FAILED.value,
             error = error,
         )
     }
 }
 
-private object HomeWidgetNativeRefreshResetGuard {
+private object WorldDataNativeRefreshResetGuard {
     fun clearStaleRestoreCandidate(
         flutterPrefs: SharedPreferences,
         rawWorldData: String,
@@ -175,16 +175,16 @@ private object HomeWidgetNativeRefreshResetGuard {
     }
 }
 
-private object HomeWidgetNativeRefreshSnapshotStore {
+private object WorldDataNativeRefreshSnapshotStore {
     fun publishCompletion(
         widgetPrefs: SharedPreferences,
         flutterPrefs: SharedPreferences,
-        refreshedWorldData: RefreshedHomeWidgetWorldData,
+        refreshedWorldData: WorldDataNativeRefreshResult,
         nowMs: Long,
         persistSnapshot: (HomeWidgetSnapshot?) -> Unit,
         allowEggSnapshot: Boolean = false,
-    ): HomeWidgetNativeAuthoritativeRefreshResult {
-        val snapshot = HomeWidgetSnapshotFactory.buildFromWorldDataJson(
+    ): WorldDataNativeAuthoritativeRefreshResult {
+        val snapshot = WorldDataSnapshotFactory.buildFromWorldDataJson(
             refreshedWorldData.rawWorldData,
             nowMs = nowMs,
         ) ?: throw IllegalStateException("snapshot_unavailable")
@@ -206,8 +206,8 @@ private object HomeWidgetNativeRefreshSnapshotStore {
             completedAtMs = nowMs,
         )
 
-        return HomeWidgetNativeAuthoritativeRefreshResult(
-            status = HomeWidgetNativeAuthoritativeRefreshStatus.COMPLETED.value,
+        return WorldDataNativeAuthoritativeRefreshResult(
+            status = WorldDataNativeAuthoritativeRefreshStatus.COMPLETED.value,
             updatedRawWorldData = refreshedWorldData.rawWorldData,
             hasSnapshot = true,
             worldDataChanged = refreshedWorldData.changed,
@@ -237,10 +237,10 @@ private object HomeWidgetNativeRefreshSnapshotStore {
 
     private fun buildCompletionSummary(
         snapshot: HomeWidgetSnapshot,
-        refreshedWorldData: RefreshedHomeWidgetWorldData,
+        refreshedWorldData: WorldDataNativeRefreshResult,
     ): String {
         return buildString {
-            append(HomeWidgetNativeAuthoritativeRefreshStatus.COMPLETED.value)
+            append(WorldDataNativeAuthoritativeRefreshStatus.COMPLETED.value)
             append("(characterState=")
             append(snapshot.characterState)
             append(",characterKey=")

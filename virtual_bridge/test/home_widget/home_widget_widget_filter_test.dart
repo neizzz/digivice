@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:digivice_virtual_bridge/home_widget/home_widget_sync_service.dart';
+import 'package:digivice_virtual_bridge/home_widget/world_data_sync_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Map<String, dynamic> _buildWorldData({
@@ -29,21 +29,21 @@ Map<String, dynamic> _buildWorldData({
 }
 
 void main() {
-  group('HomeWidgetSyncService widget-only status filtering', () {
+  group('WorldDataSyncService widget-only status filtering', () {
     test('discover 같은 temporary overlay는 위젯 아이콘에 포함하지 않는다', () {
-      final snapshot = HomeWidgetSyncService.buildSnapshotFromWorldDataJson(
+      final snapshot = WorldDataSyncService.buildSnapshotFromWorldDataJson(
         jsonEncode(
             _buildWorldData(state: 1, stamina: 6, statuses: <int>[4, 5])),
         now: DateTime(2026, 5, 19, 12),
       );
 
       expect(snapshot, isNotNull);
-      expect(snapshot!.displayState, HomeWidgetDisplayState.idle);
+      expect(snapshot!.displayState, WorldDataDisplayState.idle);
       expect(snapshot.visibleStatusIcons, isEmpty);
     });
 
     test('dead 상태면 상태 아이콘을 모두 숨긴다', () {
-      final snapshot = HomeWidgetSyncService.buildSnapshotFromWorldDataJson(
+      final snapshot = WorldDataSyncService.buildSnapshotFromWorldDataJson(
         jsonEncode(
           _buildWorldData(state: 6, stamina: 0, statuses: <int>[3, 4, 5]),
         ),
@@ -51,7 +51,7 @@ void main() {
       );
 
       expect(snapshot, isNotNull);
-      expect(snapshot!.characterState, HomeWidgetCharacterState.dead);
+      expect(snapshot!.characterState, WorldDataCharacterState.dead);
       expect(snapshot.visibleStatusIcons, isEmpty);
     });
   });

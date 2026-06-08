@@ -48,7 +48,7 @@ class HomeWidgetSnapshotTest {
             eggCrackStage = 3,
         )
 
-        assertTrue(HomeWidgetSnapshotFactory.isEggMaturedPastHatchTime(snapshot, nowMs))
+        assertTrue(WorldDataSnapshotFactory.isEggMaturedPastHatchTime(snapshot, nowMs))
     }
 
     @Test
@@ -60,7 +60,7 @@ class HomeWidgetSnapshotTest {
             eggCrackStage = 1,
         )
 
-        assertFalse(HomeWidgetSnapshotFactory.isEggMaturedPastHatchTime(snapshot, nowMs))
+        assertFalse(WorldDataSnapshotFactory.isEggMaturedPastHatchTime(snapshot, nowMs))
     }
 
 
@@ -76,9 +76,9 @@ class HomeWidgetSnapshotTest {
                 (HomeWidgetConstants.PERIODIC_REFRESH_INTERVAL_MINUTES * 60 * 1000L),
         )
 
-        assertTrue(HomeWidgetSnapshotFactory.isAuthoritativeSnapshotStale(snapshot, nowMs))
+        assertTrue(WorldDataSnapshotFactory.isAuthoritativeSnapshotStale(snapshot, nowMs))
         assertTrue(
-            HomeWidgetSnapshotFactory.requiresAuthoritativeRefresh(
+            WorldDataSnapshotFactory.requiresAuthoritativeRefresh(
                 currentSnapshot = snapshot.copy(snapshotKind = "widgetProgressed"),
                 authoritativeSnapshot = snapshot,
                 nowMs = nowMs,
@@ -95,9 +95,9 @@ class HomeWidgetSnapshotTest {
             updatedAtMs = nowMs,
         )
 
-        assertFalse(HomeWidgetSnapshotFactory.isAuthoritativeSnapshotStale(snapshot, nowMs))
+        assertFalse(WorldDataSnapshotFactory.isAuthoritativeSnapshotStale(snapshot, nowMs))
         assertFalse(
-            HomeWidgetSnapshotFactory.requiresAuthoritativeRefresh(
+            WorldDataSnapshotFactory.requiresAuthoritativeRefresh(
                 currentSnapshot = snapshot.copy(snapshotKind = "widgetProgressed"),
                 authoritativeSnapshot = snapshot,
                 nowMs = nowMs,
@@ -120,7 +120,7 @@ class HomeWidgetSnapshotTest {
         )
 
         assertFalse(
-            HomeWidgetSnapshotFactory.requiresAuthoritativeRefresh(
+            WorldDataSnapshotFactory.requiresAuthoritativeRefresh(
                 currentSnapshot = currentSnapshot,
                 authoritativeSnapshot = authoritativeSnapshot,
                 nowMs = nowMs,

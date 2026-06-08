@@ -244,7 +244,7 @@ open class MainActivity : FlutterActivity() {
     }
 
     private fun completeNativeWorldDataUpdate(result: MethodChannel.Result) {
-        val nativeUpdateResult = HomeWidgetNativeAuthoritativeRefresh.complete(
+        val nativeUpdateResult = WorldDataNativeAuthoritativeRefresh.complete(
             context = this,
             allowEggSnapshot = true,
         )
@@ -586,7 +586,7 @@ open class MainActivity : FlutterActivity() {
             currentSnapshot = HomeWidgetSnapshot.load(this),
             authoritativeSnapshot = HomeWidgetSnapshot.loadAuthoritative(this),
             worldDataFallback = {
-                HomeWidgetSnapshotFactory.refreshFromWorldData(this)
+                WorldDataSnapshotFactory.refreshFromWorldData(this)
             },
         )
         val preview = provider.buildRemoteViews(

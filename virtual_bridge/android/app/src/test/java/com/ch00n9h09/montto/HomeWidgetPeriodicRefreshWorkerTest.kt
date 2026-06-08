@@ -24,7 +24,7 @@ class HomeWidgetPeriodicRefreshWorkerTest {
             loadAuthoritativeSnapshot = { null },
             completeNativeAuthoritativeRefresh = {
                 events += "nativeComplete"
-                HomeWidgetNativeAuthoritativeRefreshResult(
+                WorldDataNativeAuthoritativeRefreshResult(
                     status = "native_authoritative_completion_completed",
                 )
             },
@@ -61,7 +61,7 @@ class HomeWidgetPeriodicRefreshWorkerTest {
             loadAuthoritativeSnapshot = { null },
             completeNativeAuthoritativeRefresh = {
                 events += "nativeComplete"
-                HomeWidgetNativeAuthoritativeRefreshResult(
+                WorldDataNativeAuthoritativeRefreshResult(
                     status = "native_authoritative_completion_completed",
                 )
             },
@@ -112,7 +112,7 @@ class HomeWidgetPeriodicRefreshWorkerTest {
             loadAuthoritativeSnapshot = { maturedEgg },
             completeNativeAuthoritativeRefresh = { completionNowMs ->
                 events += "nativeComplete:$completionNowMs"
-                HomeWidgetNativeAuthoritativeRefreshResult(
+                WorldDataNativeAuthoritativeRefreshResult(
                     status = "native_authoritative_completion_completed",
                     hasSnapshot = true,
                     hatched = true,
@@ -167,7 +167,7 @@ class HomeWidgetPeriodicRefreshWorkerTest {
             loadAuthoritativeSnapshot = { maturedEgg },
             completeNativeAuthoritativeRefresh = {
                 events += "nativeComplete"
-                HomeWidgetNativeAuthoritativeRefreshResult(
+                WorldDataNativeAuthoritativeRefreshResult(
                     status = "native_authoritative_completion_failed",
                     error = "boom",
                 )
@@ -233,7 +233,7 @@ class HomeWidgetPeriodicRefreshWorkerTest {
             loadAuthoritativeSnapshot = { authoritativeSnapshot },
             completeNativeAuthoritativeRefresh = { completionNowMs ->
                 events += "nativeComplete:$completionNowMs"
-                HomeWidgetNativeAuthoritativeRefreshResult(
+                WorldDataNativeAuthoritativeRefreshResult(
                     status = "native_authoritative_completion_completed",
                     hasSnapshot = true,
                     hatched = false,
@@ -291,7 +291,7 @@ class HomeWidgetPeriodicRefreshWorkerTest {
             loadAuthoritativeSnapshot = { authoritativeSnapshot },
             completeNativeAuthoritativeRefresh = {
                 events += "nativeComplete"
-                HomeWidgetNativeAuthoritativeRefreshResult(
+                WorldDataNativeAuthoritativeRefreshResult(
                     status = "native_authoritative_completion_completed",
                 )
             },
@@ -386,7 +386,7 @@ class HomeWidgetPeriodicRefreshWorkerTest {
             )
             .apply()
 
-        val result = HomeWidgetNativeAuthoritativeRefresh.complete(
+        val result = WorldDataNativeAuthoritativeRefresh.complete(
             widgetPrefs = widgetPrefs,
             flutterPrefs = flutterPrefs,
             nowMs = nowMs,
@@ -452,7 +452,7 @@ class HomeWidgetPeriodicRefreshWorkerTest {
             )
             .apply()
 
-        val result = HomeWidgetNativeAuthoritativeRefresh.complete(
+        val result = WorldDataNativeAuthoritativeRefresh.complete(
             widgetPrefs = widgetPrefs,
             flutterPrefs = flutterPrefs,
             nowMs = nowMs,
@@ -495,7 +495,7 @@ class HomeWidgetPeriodicRefreshWorkerTest {
             )
             .apply()
 
-        val result = HomeWidgetNativeAuthoritativeRefresh.complete(
+        val result = WorldDataNativeAuthoritativeRefresh.complete(
             widgetPrefs = widgetPrefs,
             flutterPrefs = flutterPrefs,
             nowMs = nowMs,
@@ -540,7 +540,7 @@ class HomeWidgetPeriodicRefreshWorkerTest {
             )
             .apply()
 
-        val result = HomeWidgetNativeAuthoritativeRefresh.complete(
+        val result = WorldDataNativeAuthoritativeRefresh.complete(
             widgetPrefs = widgetPrefs,
             flutterPrefs = flutterPrefs,
             nowMs = nowMs,
@@ -578,7 +578,7 @@ class HomeWidgetPeriodicRefreshWorkerTest {
             )
             .apply()
 
-        val result = HomeWidgetNativeAuthoritativeRefresh.complete(
+        val result = WorldDataNativeAuthoritativeRefresh.complete(
             widgetPrefs = widgetPrefs,
             flutterPrefs = flutterPrefs,
             nowMs = nowMs,
@@ -603,6 +603,91 @@ class HomeWidgetPeriodicRefreshWorkerTest {
     }
 
     @Test
+    fun `native authoritative refresh preserves night sleep mode until future wake time`() {
+        val nowMs = 40 * 60 * 1000L
+        val widgetPrefs = FakeSharedPreferences()
+        val flutterPrefs = FakeSharedPreferences()
+        var persistedSnapshot: HomeWidgetSnapshot? = null
+
+        flutterPrefs.edit()
+            .putString(
+                HomeWidgetConstants.FLUTTER_WORLD_DATA_KEY,
+                buildHomeWidgetCharacterWorldData(
+                    state = 3,
+                    lastEcsSaved = 0L,
+                    stamina = 6.0,
+                    fatigue = 20.0,
+                    nextDiseaseCheckTime = nowMs + 60_000L,
+                    nextNapCheckTime = nowMs + 60_000L,
+                    nextWakeTime = nowMs + 60_000L,
+                    sleepMode = 1,
+                    sleepSessionStartedAt = 0L,
+                ),
+            )
+            .apply()
+
+        val result = WorldDataNativeAuthoritativeRefresh.complete(
+            widgetPrefs = widgetPrefs,
+            flutterPrefs = flutterPrefs,
+            nowMs = nowMs,
+            persistSnapshot = { snapshot ->
+                persistedSnapshot = snapshot
+            },
+        )
+
+        val updatedSleepSystem = extractMainSleepSystem(
+            flutterPrefs.getString(HomeWidgetConstants.FLUTTER_WORLD_DATA_KEY, null),
+        )
+
+        assertTrue(result.succeeded)
+        assertEquals("sleeping", persistedSnapshot?.characterState)
+        assertEquals("sleep", persistedSnapshot?.displayState)
+        assertEquals(listOf("sleeping"), persistedSnapshot?.visibleStatusIcons)
+        assertEquals(3, result.nextCharacterState)
+        assertEquals(1, updatedSleepSystem.getInt("sleepMode"))
+        assertEquals(nowMs + 60_000L, updatedSleepSystem.getLong("nextWakeTime"))
+    }
+
+    @Test
+    fun `native authoritative refresh maps pending nap reason to day nap sleep mode`() {
+        val nowMs = 20 * 60 * 1000L
+        val widgetPrefs = FakeSharedPreferences()
+        val flutterPrefs = FakeSharedPreferences()
+
+        flutterPrefs.edit()
+            .putString(
+                HomeWidgetConstants.FLUTTER_WORLD_DATA_KEY,
+                buildHomeWidgetCharacterWorldData(
+                    lastEcsSaved = 0L,
+                    stamina = 6.0,
+                    fatigue = 100.0,
+                    nextDiseaseCheckTime = nowMs + 60_000L,
+                    nextNapCheckTime = nowMs + 60_000L,
+                    nextSleepTime = 1L,
+                    pendingSleepReason = 3,
+                ),
+            )
+            .apply()
+
+        val result = WorldDataNativeAuthoritativeRefresh.complete(
+            widgetPrefs = widgetPrefs,
+            flutterPrefs = flutterPrefs,
+            nowMs = nowMs,
+            persistSnapshot = {},
+        )
+
+        val updatedSleepSystem = extractMainSleepSystem(
+            flutterPrefs.getString(HomeWidgetConstants.FLUTTER_WORLD_DATA_KEY, null),
+        )
+
+        assertTrue(result.succeeded)
+        assertEquals(3, result.nextCharacterState)
+        assertEquals(2, updatedSleepSystem.getInt("sleepMode"))
+        assertEquals(0, updatedSleepSystem.getInt("pendingSleepReason"))
+        assertEquals(nowMs, updatedSleepSystem.getLong("sleepSessionStartedAt"))
+    }
+
+    @Test
     fun `native authoritative refresh applies due disease check to sick snapshot`() {
         val nowMs = 20_000L
         val widgetPrefs = FakeSharedPreferences()
@@ -622,7 +707,7 @@ class HomeWidgetPeriodicRefreshWorkerTest {
             )
             .apply()
 
-        val result = HomeWidgetNativeAuthoritativeRefresh.complete(
+        val result = WorldDataNativeAuthoritativeRefresh.complete(
             widgetPrefs = widgetPrefs,
             flutterPrefs = flutterPrefs,
             nowMs = nowMs,
@@ -672,7 +757,7 @@ class HomeWidgetPeriodicRefreshWorkerTest {
             )
             .apply()
 
-        val result = HomeWidgetNativeAuthoritativeRefresh.complete(
+        val result = WorldDataNativeAuthoritativeRefresh.complete(
             widgetPrefs = widgetPrefs,
             flutterPrefs = flutterPrefs,
             nowMs = nowMs,
@@ -715,7 +800,7 @@ class HomeWidgetPeriodicRefreshWorkerTest {
             )
             .apply()
 
-        val result = HomeWidgetNativeAuthoritativeRefresh.complete(
+        val result = WorldDataNativeAuthoritativeRefresh.complete(
             widgetPrefs = widgetPrefs,
             flutterPrefs = flutterPrefs,
             nowMs = nowMs,
@@ -762,7 +847,7 @@ class HomeWidgetPeriodicRefreshWorkerTest {
             )
             .apply()
 
-        val result = HomeWidgetNativeAuthoritativeRefresh.complete(
+        val result = WorldDataNativeAuthoritativeRefresh.complete(
             widgetPrefs = widgetPrefs,
             flutterPrefs = flutterPrefs,
             nowMs = nowMs,
@@ -825,7 +910,7 @@ class HomeWidgetPeriodicRefreshWorkerTest {
             )
             .apply()
 
-        val result = HomeWidgetNativeAuthoritativeRefresh.complete(
+        val result = WorldDataNativeAuthoritativeRefresh.complete(
             widgetPrefs = widgetPrefs,
             flutterPrefs = flutterPrefs,
             nowMs = nowMs,
@@ -873,7 +958,7 @@ class HomeWidgetPeriodicRefreshWorkerTest {
             )
             .apply()
 
-        val result = HomeWidgetNativeAuthoritativeRefresh.complete(
+        val result = WorldDataNativeAuthoritativeRefresh.complete(
             widgetPrefs = widgetPrefs,
             flutterPrefs = flutterPrefs,
             nowMs = nowMs,
@@ -921,7 +1006,7 @@ class HomeWidgetPeriodicRefreshWorkerTest {
             )
             .apply()
 
-        val result = HomeWidgetNativeAuthoritativeRefresh.complete(
+        val result = WorldDataNativeAuthoritativeRefresh.complete(
             widgetPrefs = widgetPrefs,
             flutterPrefs = flutterPrefs,
             nowMs = nowMs,
@@ -987,7 +1072,7 @@ class HomeWidgetPeriodicRefreshWorkerTest {
             )
             .apply()
 
-        val result = HomeWidgetNativeAuthoritativeRefresh.complete(
+        val result = WorldDataNativeAuthoritativeRefresh.complete(
             widgetPrefs = widgetPrefs,
             flutterPrefs = flutterPrefs,
             nowMs = nowMs,
@@ -1039,7 +1124,7 @@ class HomeWidgetPeriodicRefreshWorkerTest {
             )
             .apply()
 
-        val result = HomeWidgetNativeAuthoritativeRefresh.complete(
+        val result = WorldDataNativeAuthoritativeRefresh.complete(
             widgetPrefs = widgetPrefs,
             flutterPrefs = flutterPrefs,
             nowMs = nowMs,
@@ -1070,7 +1155,7 @@ class HomeWidgetPeriodicRefreshWorkerTest {
     fun `native authoritative refresh pauses evolution gauge while sick or low stamina`() {
         val nowMs = 60 * 60 * 1000L
 
-        fun runPausedCase(stamina: Double, statuses: String): HomeWidgetNativeAuthoritativeRefreshResult {
+        fun runPausedCase(stamina: Double, statuses: String): WorldDataNativeAuthoritativeRefreshResult {
             val widgetPrefs = FakeSharedPreferences()
             val flutterPrefs = FakeSharedPreferences()
             flutterPrefs.edit()
@@ -1087,7 +1172,7 @@ class HomeWidgetPeriodicRefreshWorkerTest {
                 )
                 .apply()
 
-            val result = HomeWidgetNativeAuthoritativeRefresh.complete(
+            val result = WorldDataNativeAuthoritativeRefresh.complete(
                 widgetPrefs = widgetPrefs,
                 flutterPrefs = flutterPrefs,
                 nowMs = nowMs,
@@ -1137,7 +1222,7 @@ class HomeWidgetPeriodicRefreshWorkerTest {
             )
             .apply()
 
-        val result = HomeWidgetNativeAuthoritativeRefresh.complete(
+        val result = WorldDataNativeAuthoritativeRefresh.complete(
             widgetPrefs = widgetPrefs,
             flutterPrefs = flutterPrefs,
             nowMs = nowMs,
@@ -1180,7 +1265,7 @@ class HomeWidgetPeriodicRefreshWorkerTest {
             )
             .apply()
 
-        val result = HomeWidgetNativeAuthoritativeRefresh.complete(
+        val result = WorldDataNativeAuthoritativeRefresh.complete(
             widgetPrefs = widgetPrefs,
             flutterPrefs = flutterPrefs,
             nowMs = nowMs,
@@ -1219,14 +1304,14 @@ class HomeWidgetPeriodicRefreshWorkerTest {
                     fatigue = 28.0,
                     nextDiseaseCheckTime = nowMs + 60_000L,
                     nextNapCheckTime = nowMs + 60_000L,
-                    sleepMode = 2,
+                    sleepMode = 1,
                     statuses = "[3]",
                     sickStartTime = 1L,
                 ),
             )
             .apply()
 
-        val result = HomeWidgetNativeAuthoritativeRefresh.complete(
+        val result = WorldDataNativeAuthoritativeRefresh.complete(
             widgetPrefs = widgetPrefs,
             flutterPrefs = flutterPrefs,
             nowMs = nowMs,
@@ -1248,6 +1333,44 @@ class HomeWidgetPeriodicRefreshWorkerTest {
         assertTrue(updatedWorldData?.contains(""""state":3""") == true)
         assertTrue(updatedWorldData?.contains(""""statuses":[3]""") == true)
         assertTrue(updatedWorldData?.contains(""""sickStartTime":1""") == true)
+    }
+
+    @Test
+    fun `native authoritative refresh preserves saved sleeping snapshot state`() {
+        val nowMs = 20_000L
+        val widgetPrefs = FakeSharedPreferences()
+        val flutterPrefs = FakeSharedPreferences()
+        var persistedSnapshot: HomeWidgetSnapshot? = null
+
+        flutterPrefs.edit()
+            .putString(
+                HomeWidgetConstants.FLUTTER_WORLD_DATA_KEY,
+                buildHomeWidgetCharacterWorldData(
+                    state = 3,
+                    lastEcsSaved = 0L,
+                    stamina = 6.0,
+                    fatigue = 20.0,
+                    nextDiseaseCheckTime = nowMs + 60_000L,
+                    nextNapCheckTime = nowMs + 60_000L,
+                    nextWakeTime = nowMs + 60_000L,
+                    sleepMode = 1,
+                ),
+            )
+            .apply()
+
+        val result = WorldDataNativeAuthoritativeRefresh.complete(
+            widgetPrefs = widgetPrefs,
+            flutterPrefs = flutterPrefs,
+            nowMs = nowMs,
+            persistSnapshot = { snapshot ->
+                persistedSnapshot = snapshot
+            },
+        )
+
+        assertTrue(result.succeeded)
+        assertEquals("sleeping", persistedSnapshot?.characterState)
+        assertEquals("sleep", persistedSnapshot?.displayState)
+        assertEquals(listOf("sleeping"), persistedSnapshot?.visibleStatusIcons)
     }
 
     @Test
@@ -1278,7 +1401,7 @@ class HomeWidgetPeriodicRefreshWorkerTest {
             .putString(HomeWidgetConstants.FLUTTER_AUTHORITATIVE_SNAPSHOT_KEY, """{"stale":true}""")
             .apply()
 
-        val result = HomeWidgetNativeAuthoritativeRefresh.complete(
+        val result = WorldDataNativeAuthoritativeRefresh.complete(
             widgetPrefs = widgetPrefs,
             flutterPrefs = flutterPrefs,
             nowMs = nowMs,
@@ -1350,4 +1473,11 @@ class HomeWidgetPeriodicRefreshWorkerTest {
         )
     }
 
+    private fun extractMainSleepSystem(rawWorldData: String?): JSONObject {
+        val components = JSONObject(requireNotNull(rawWorldData))
+            .getJSONArray("entities")
+            .getJSONObject(0)
+            .getJSONObject("components")
+        return components.getJSONObject("sleepSystem")
+    }
 }

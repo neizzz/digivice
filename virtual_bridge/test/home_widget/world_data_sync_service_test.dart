@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:digivice_virtual_bridge/home_widget/home_widget_sync_service.dart';
+import 'package:digivice_virtual_bridge/home_widget/world_data_sync_service.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -92,9 +92,9 @@ void main() {
         .setMockMethodCallHandler(channel, null);
   });
 
-  group('HomeWidgetSyncService.buildSnapshotFromWorldDataJson', () {
+  group('WorldDataSyncService.buildSnapshotFromWorldDataJson', () {
     test('앱 저장 상태를 authoritative snapshot으로 그대로 반영한다', () {
-      final snapshot = HomeWidgetSyncService.buildSnapshotFromWorldDataJson(
+      final snapshot = WorldDataSyncService.buildSnapshotFromWorldDataJson(
         jsonEncode(_buildWorldData(state: 2, stamina: 5.5)),
         now: DateTime(2026, 5, 19, 12),
       );
@@ -103,12 +103,12 @@ void main() {
       expect(snapshot!.schemaVersion, 2);
       expect(
         snapshot.snapshotKind,
-        HomeWidgetSnapshotKind.authoritativeAppState,
+        WorldDataSnapshotKind.authoritativeAppState,
       );
-      expect(snapshot.characterState, HomeWidgetCharacterState.moving);
-      expect(snapshot.displayState, HomeWidgetDisplayState.idle);
+      expect(snapshot.characterState, WorldDataCharacterState.moving);
+      expect(snapshot.displayState, WorldDataDisplayState.idle);
       expect(snapshot.stamina, 5.5);
-      expect(snapshot.staminaLevel, HomeWidgetStaminaLevel.orange);
+      expect(snapshot.staminaLevel, WorldDataStaminaLevel.orange);
       expect(snapshot.baseLastActiveTimeMs, 123456);
       expect(snapshot.projectedElapsedMs, 0);
       expect(snapshot.projectionVersion, 1);
@@ -118,7 +118,7 @@ void main() {
 
     test('위젯 상태 아이콘은 sick/sleeping만 표시하고 temporary overlay는 제외한다', () {
       final sleepingSnapshot =
-          HomeWidgetSyncService.buildSnapshotFromWorldDataJson(
+          WorldDataSyncService.buildSnapshotFromWorldDataJson(
         jsonEncode(
           _buildWorldData(
             state: 3,
@@ -128,56 +128,56 @@ void main() {
         ),
         now: DateTime(2026, 5, 19, 12),
       );
-      final sickSnapshot = HomeWidgetSyncService.buildSnapshotFromWorldDataJson(
+      final sickSnapshot = WorldDataSyncService.buildSnapshotFromWorldDataJson(
         jsonEncode(_buildWorldData(state: 1, stamina: 2, statuses: <int>[3])),
         now: DateTime(2026, 5, 19, 12),
       );
       final discoverSnapshot =
-          HomeWidgetSyncService.buildSnapshotFromWorldDataJson(
+          WorldDataSyncService.buildSnapshotFromWorldDataJson(
         jsonEncode(
             _buildWorldData(state: 1, stamina: 6, statuses: <int>[4, 5])),
         now: DateTime(2026, 5, 19, 12),
       );
 
       expect(sleepingSnapshot, isNotNull);
-      expect(sleepingSnapshot!.displayState, HomeWidgetDisplayState.sleep);
+      expect(sleepingSnapshot!.displayState, WorldDataDisplayState.sleep);
       expect(
         sleepingSnapshot.visibleStatusIcons,
-        <HomeWidgetStatusIcon>[
-          HomeWidgetStatusIcon.sick,
-          HomeWidgetStatusIcon.sleeping,
+        <WorldDataStatusIcon>[
+          WorldDataStatusIcon.sick,
+          WorldDataStatusIcon.sleeping,
         ],
       );
       expect(sleepingSnapshot.hasUrgentStatus, isTrue);
-      expect(sleepingSnapshot.staminaLevel, HomeWidgetStaminaLevel.green);
+      expect(sleepingSnapshot.staminaLevel, WorldDataStaminaLevel.green);
 
       expect(sickSnapshot, isNotNull);
-      expect(sickSnapshot!.displayState, HomeWidgetDisplayState.sick);
+      expect(sickSnapshot!.displayState, WorldDataDisplayState.sick);
       expect(
         sickSnapshot.visibleStatusIcons,
-        <HomeWidgetStatusIcon>[HomeWidgetStatusIcon.sick],
+        <WorldDataStatusIcon>[WorldDataStatusIcon.sick],
       );
       expect(sickSnapshot.hasUrgentStatus, isFalse);
-      expect(sickSnapshot.staminaLevel, HomeWidgetStaminaLevel.red);
+      expect(sickSnapshot.staminaLevel, WorldDataStaminaLevel.red);
 
       expect(discoverSnapshot, isNotNull);
-      expect(discoverSnapshot!.displayState, HomeWidgetDisplayState.idle);
+      expect(discoverSnapshot!.displayState, WorldDataDisplayState.idle);
       expect(discoverSnapshot.visibleStatusIcons, isEmpty);
     });
 
     test('알 상태면 현재 egg texture key를 snapshot에 보존한다', () {
-      final snapshot = HomeWidgetSyncService.buildSnapshotFromWorldDataJson(
+      final snapshot = WorldDataSyncService.buildSnapshotFromWorldDataJson(
         jsonEncode(_buildWorldData(state: 0, stamina: 10, textureKey: 517)),
         now: DateTime(2026, 5, 19, 12),
       );
 
       expect(snapshot, isNotNull);
-      expect(snapshot!.characterState, HomeWidgetCharacterState.egg);
+      expect(snapshot!.characterState, WorldDataCharacterState.egg);
       expect(snapshot.eggTextureKey, 517);
     });
 
     test('dead 상태면 상태 아이콘을 모두 숨긴다', () {
-      final snapshot = HomeWidgetSyncService.buildSnapshotFromWorldDataJson(
+      final snapshot = WorldDataSyncService.buildSnapshotFromWorldDataJson(
         jsonEncode(
           _buildWorldData(state: 6, stamina: 0, statuses: <int>[3, 4, 5]),
         ),
@@ -185,13 +185,13 @@ void main() {
       );
 
       expect(snapshot, isNotNull);
-      expect(snapshot!.characterState, HomeWidgetCharacterState.dead);
+      expect(snapshot!.characterState, WorldDataCharacterState.dead);
       expect(snapshot.visibleStatusIcons, isEmpty);
     });
 
     test('알 상태면 부화 진행도에 따라 crack stage를 계산한다', () {
       final now = DateTime(2026, 5, 19, 12, 0, 0);
-      final snapshot = HomeWidgetSyncService.buildSnapshotFromWorldDataJson(
+      final snapshot = WorldDataSyncService.buildSnapshotFromWorldDataJson(
         jsonEncode(
           _buildWorldData(
             state: 0,
@@ -212,19 +212,19 @@ void main() {
     });
   });
 
-  group('HomeWidgetSyncService.selectWorldDataForSync', () {
+  group('WorldDataSyncService.selectWorldDataForSync', () {
     test('저장본만 있으면 Flutter 저장본을 선택한다', () {
       final String stored = jsonEncode(
         _buildWorldData(state: 1, stamina: 6, lastEcsSaved: 100),
       );
 
-      final HomeWidgetSyncWorldDataSelection selection =
-          HomeWidgetSyncService.selectWorldDataForSync(
+      final WorldDataSyncSelection selection =
+          WorldDataSyncService.selectWorldDataForSync(
         storedRawWorldData: stored,
         inMemoryRawWorldData: null,
       );
 
-      expect(selection.source, HomeWidgetSyncWorldDataSource.stored);
+      expect(selection.source, WorldDataSyncSource.stored);
       expect(selection.sourceName, 'stored');
       expect(selection.selectedRawWorldData, stored);
       expect(selection.storedLastEcsSaved, 100);
@@ -236,13 +236,13 @@ void main() {
         _buildWorldData(state: 1, stamina: 6, lastEcsSaved: 200),
       );
 
-      final HomeWidgetSyncWorldDataSelection selection =
-          HomeWidgetSyncService.selectWorldDataForSync(
+      final WorldDataSyncSelection selection =
+          WorldDataSyncService.selectWorldDataForSync(
         storedRawWorldData: null,
         inMemoryRawWorldData: inMemory,
       );
 
-      expect(selection.source, HomeWidgetSyncWorldDataSource.inMemory);
+      expect(selection.source, WorldDataSyncSource.inMemory);
       expect(selection.sourceName, 'in_memory');
       expect(selection.selectedRawWorldData, inMemory);
       expect(selection.storedLastEcsSaved, isNull);
@@ -257,13 +257,13 @@ void main() {
         _buildWorldData(state: 3, stamina: 8, lastEcsSaved: 350),
       );
 
-      final HomeWidgetSyncWorldDataSelection selection =
-          HomeWidgetSyncService.selectWorldDataForSync(
+      final WorldDataSyncSelection selection =
+          WorldDataSyncService.selectWorldDataForSync(
         storedRawWorldData: stored,
         inMemoryRawWorldData: inMemory,
       );
 
-      expect(selection.source, HomeWidgetSyncWorldDataSource.inMemory);
+      expect(selection.source, WorldDataSyncSource.inMemory);
       expect(selection.selectedRawWorldData, inMemory);
       expect(selection.storedLastEcsSaved, 300);
       expect(selection.inMemoryLastEcsSaved, 350);
@@ -277,78 +277,78 @@ void main() {
         _buildWorldData(state: 0, stamina: 10, lastEcsSaved: 450),
       );
 
-      final HomeWidgetSyncWorldDataSelection selection =
-          HomeWidgetSyncService.selectWorldDataForSync(
+      final WorldDataSyncSelection selection =
+          WorldDataSyncService.selectWorldDataForSync(
         storedRawWorldData: stored,
         inMemoryRawWorldData: inMemory,
       );
 
-      expect(selection.source, HomeWidgetSyncWorldDataSource.stored);
+      expect(selection.source, WorldDataSyncSource.stored);
       expect(selection.selectedRawWorldData, stored);
       expect(selection.storedLastEcsSaved, 400);
       expect(selection.inMemoryLastEcsSaved, 450);
     });
   });
 
-  group('HomeWidgetSyncService.progressSnapshot', () {
+  group('WorldDataSyncService.progressSnapshot', () {
     test('refresh는 widget_progressed snapshot으로 deterministic progression 한다',
         () {
       final authoritativeSnapshot =
-          HomeWidgetSyncService.buildSnapshotFromWorldDataJson(
+          WorldDataSyncService.buildSnapshotFromWorldDataJson(
         jsonEncode(_buildWorldData(state: 1, stamina: 8)),
         now: DateTime(2026, 5, 19, 12, 0, 0),
       )!;
 
-      final firstProgressed = HomeWidgetSyncService.progressSnapshot(
+      final firstProgressed = WorldDataSyncService.progressSnapshot(
         authoritativeSnapshot,
         now: DateTime(2026, 5, 19, 12, 12, 0),
       );
-      final secondProgressed = HomeWidgetSyncService.progressSnapshot(
+      final secondProgressed = WorldDataSyncService.progressSnapshot(
         firstProgressed!,
         now: DateTime(2026, 5, 19, 12, 24, 0),
       );
 
       expect(
         firstProgressed.snapshotKind,
-        HomeWidgetSnapshotKind.widgetProgressed,
+        WorldDataSnapshotKind.widgetProgressed,
       );
       expect(firstProgressed.projectedElapsedMs, 12 * 60 * 1000);
       expect(firstProgressed.stamina, closeTo(7.75, 0.0001));
-      expect(firstProgressed.staminaLevel, HomeWidgetStaminaLevel.green);
+      expect(firstProgressed.staminaLevel, WorldDataStaminaLevel.green);
       expect(firstProgressed.hasUrgentStatus, isFalse);
 
       expect(secondProgressed, isNotNull);
       expect(secondProgressed!.projectedElapsedMs, 24 * 60 * 1000);
       expect(secondProgressed.stamina, closeTo(7.5, 0.0001));
-      expect(secondProgressed.staminaLevel, HomeWidgetStaminaLevel.green);
+      expect(secondProgressed.staminaLevel, WorldDataStaminaLevel.green);
       expect(secondProgressed.hasUrgentStatus, isFalse);
     });
 
     test('sleeping 상태는 더 느리게 stamina가 감소한다', () {
       final sleepingSnapshot =
-          HomeWidgetSyncService.buildSnapshotFromWorldDataJson(
+          WorldDataSyncService.buildSnapshotFromWorldDataJson(
         jsonEncode(_buildWorldData(state: 3, stamina: 8)),
         now: DateTime(2026, 5, 19, 12, 0, 0),
       )!;
 
-      final progressed = HomeWidgetSyncService.progressSnapshot(
+      final progressed = WorldDataSyncService.progressSnapshot(
         sleepingSnapshot,
         now: DateTime(2026, 5, 19, 13, 0, 0),
       );
 
       expect(progressed, isNotNull);
-      expect(progressed!.displayState, HomeWidgetDisplayState.sleep);
+      expect(progressed!.displayState, WorldDataDisplayState.sleep);
       expect(progressed.stamina, closeTo(7.75, 0.0001));
       expect(
         progressed.visibleStatusIcons,
-        contains(HomeWidgetStatusIcon.sleeping),
+        contains(WorldDataStatusIcon.sleeping),
       );
     });
   });
 
-  group('HomeWidgetSyncService bridge completion', () {
+  group('WorldDataSyncService bridge completion', () {
     test('launch mode를 native bridge에서 읽는다', () async {
-      final String mode = await HomeWidgetSyncService.getLaunchMode();
+      final String mode = await WorldDataSyncService.getLaunchMode();
 
       expect(mode, widgetRefreshLaunchMode);
       expect(methodCalls.single.method, 'getLaunchContext');
@@ -363,7 +363,7 @@ void main() {
       });
 
       final Map<String, Object?> result =
-          await HomeWidgetSyncService.syncFromStorageOrWorldDataJson(
+          await WorldDataSyncService.syncFromStorageOrWorldDataJson(
         inMemoryRawWorldData: jsonEncode(
           _buildWorldData(state: 0, stamina: 10, lastEcsSaved: 550),
         ),
@@ -379,7 +379,7 @@ void main() {
 
     test('syncFromWorldDataJson은 두 native publish 완료 후 결과를 반환한다', () async {
       final Map<String, Object?> result =
-          await HomeWidgetSyncService.syncFromWorldDataJson(
+          await WorldDataSyncService.syncFromWorldDataJson(
         rawWorldData: jsonEncode(_buildWorldData(state: 1, stamina: 6)),
         reason: 'widget_refresh_test',
       );
@@ -406,7 +406,7 @@ void main() {
 
     test('world data가 없으면 cleared 결과와 함께 native snapshot 둘 다 비운다', () async {
       final Map<String, Object?> result =
-          await HomeWidgetSyncService.syncFromWorldDataJson(
+          await WorldDataSyncService.syncFromWorldDataJson(
         rawWorldData: null,
         reason: 'widget_refresh_empty',
       );

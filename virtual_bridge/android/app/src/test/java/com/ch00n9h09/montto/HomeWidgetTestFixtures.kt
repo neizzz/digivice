@@ -229,6 +229,8 @@ internal fun buildHomeWidgetCharacterWorldData(
     nextSleepTime: Long = 0L,
     nextWakeTime: Long = 0L,
     sleepMode: Int = 0,
+    pendingSleepReason: Int = 0,
+    sleepSessionStartedAt: Long = 0L,
     statuses: String = "[]",
     sickStartTime: Long = 0L,
     mutationRiskJson: String? = null,
@@ -277,9 +279,9 @@ internal fun buildHomeWidgetCharacterWorldData(
                   "nextNapCheckTime": $nextNapCheckTime,
                   "nextNightWakeCheckTime": 0,
                   "sleepMode": $sleepMode,
-                  "pendingSleepReason": 0,
+                  "pendingSleepReason": $pendingSleepReason,
                   "pendingWakeReason": 0,
-                  "sleepSessionStartedAt": 0
+                  "sleepSessionStartedAt": $sleepSessionStartedAt
                 },
                 "eggHatch": {
                   "hatchTime": 0,

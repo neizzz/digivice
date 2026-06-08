@@ -53,6 +53,7 @@ import {
 	WORLD_DATA_STORAGE_KEY,
 } from "../world";
 import { GAME_CONSTANTS } from "../config";
+import { EVOLUTION_GAUGE_CONFIG } from "../evolutionConfig";
 import { foodEatingSystem } from "../systems/FoodEatingSystem";
 import { resetCharacterManageSystemStateForTests } from "../systems/CharacterManageSystem";
 import { TimeOfDay } from "../timeOfDay";
@@ -1755,7 +1756,7 @@ test("init/app_resume reentry는 native updatedRawWorldData의 sleeping+sick 상
 	const persistedCharacter =
 		(world.getInMemoryData().entities[0]?.components ?? null);
 	const syncCharacter =
-		(world.buildHomeWidgetSyncWorldData()?.entities[0]?.components ?? null);
+		(world.buildWorldDataSyncPayload()?.entities[0]?.components ?? null);
 	const worldWrite = writes
 		.filter((write) => write.key === WORLD_DATA_STORAGE_KEY)
 		.at(-1)?.data as MainSceneWorldData | undefined;
@@ -1894,7 +1895,7 @@ test("init/app_resume reentry는 native payload 없이 새로 생긴 sleep을 �
 		CharacterState.IDLE,
 	);
 	assert.equal(
-		world.buildHomeWidgetSyncWorldData()?.entities[0]?.components.object?.state,
+		world.buildWorldDataSyncPayload()?.entities[0]?.components.object?.state,
 		CharacterState.IDLE,
 	);
 	assert.equal(savedCharacter?.object?.state, CharacterState.IDLE);
@@ -2206,6 +2207,57 @@ test("앱 실행 중 update는 상태 시스템과 dataSyncSystem까지 도달�
 	);
 });
 
+test("앱 실행 중 eligible 캐릭터는 진화 게이지를 올리고 snapshot과 저장본을 같은 값으로 갱신한다", () => {
+	const { world, eid, nowRef } = setupRunningStatusWorld({
+		now: 15_000,
+		stamina: EVOLUTION_GAUGE_CONFIG.boostedStaminaThreshold,
+	});
+	const initialEvolutionGauge = CharacterStatusComp.evolutionGage[eid];
+
+	nowRef.value += EVOLUTION_GAUGE_CONFIG.checkIntervalMs;
+	withMockedRandom(1, () => {
+		withMockedDateNow(nowRef.value, () => {
+			world.update(EVOLUTION_GAUGE_CONFIG.checkIntervalMs);
+		});
+	});
+
+	const nextEvolutionGauge = CharacterStatusComp.evolutionGage[eid];
+	const snapshot = world.getMainCharacterInfoSnapshot();
+	const storedCharacterStatus =
+		world.getInMemoryData().entities[0]?.components.characterStatus;
+
+	assert.ok(nextEvolutionGauge > initialEvolutionGauge);
+	assert.equal(snapshot?.evolutionGauge, nextEvolutionGauge);
+	assert.equal(snapshot?.evolutionGaugeState, "charging");
+	assert.equal(storedCharacterStatus?.evolutionGage, nextEvolutionGauge);
+});
+
+test("low stamina 상태에서는 진화 게이지가 멈추고 snapshot은 paused_low_stamina를 노출한다", () => {
+	const { world, eid, nowRef } = setupRunningStatusWorld({
+		now: 18_000,
+		stamina: EVOLUTION_GAUGE_CONFIG.staminaThreshold - 0.5,
+	});
+	const initialEvolutionGauge = CharacterStatusComp.evolutionGage[eid];
+
+	nowRef.value += EVOLUTION_GAUGE_CONFIG.checkIntervalMs;
+	withMockedRandom(1, () => {
+		withMockedDateNow(nowRef.value, () => {
+			world.update(EVOLUTION_GAUGE_CONFIG.checkIntervalMs);
+		});
+	});
+
+	assert.equal(CharacterStatusComp.evolutionGage[eid], initialEvolutionGauge);
+	assert.equal(
+		world.getMainCharacterInfoSnapshot()?.evolutionGaugeState,
+		"paused_low_stamina",
+	);
+	assert.equal(
+		world.getInMemoryData().entities[0]?.components.characterStatus
+			?.evolutionGage,
+		initialEvolutionGauge,
+	);
+});
+
 test("sick 상태에서는 진화 게이지가 멈추지만 스테미나와 저장본은 계속 갱신된다", () => {
 	const { world, eid, nowRef } = setupRunningStatusWorld({
 		now: 20_000,
@@ -2222,6 +2274,10 @@ test("sick 상태에서는 진화 게이지가 멈추지만 스테미나와 저�
 	});
 
 	assert.equal(CharacterStatusComp.evolutionGage[eid], initialEvolutionGauge);
+	assert.equal(
+		world.getMainCharacterInfoSnapshot()?.evolutionGaugeState,
+		"paused_sick",
+	);
 	assert.equal(
 		CharacterStatusComp.stamina[eid],
 		5 - GAME_CONSTANTS.STAMINA_DECREASE_AMOUNT,

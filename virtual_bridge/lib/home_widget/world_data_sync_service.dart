@@ -4,51 +4,16 @@ import 'dart:math' as math;
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-const String worldDataStorageKey = 'MainSceneWorldData';
-const String homeWidgetSnapshotStorageKey = 'HomeWidgetSnapshotV1';
-const String homeWidgetAuthoritativeSnapshotStorageKey =
-    'HomeWidgetAuthoritativeSnapshotV1';
-const String nativeHomeWidgetSnapshotKey = 'home_widget_snapshot_v1';
-const String nativeHomeWidgetAuthoritativeSnapshotKey =
-    'home_widget_authoritative_snapshot_v1';
-const String nativeHomeWidgetStorageName = 'digivice_home_widget';
-const String widgetRefreshLaunchMode = 'widget_refresh';
+import 'world_data_config.dart' as config;
 
-const int _characterObjectType = 1;
-const int _characterStateEgg = 0;
-const int _characterStateIdle = 1;
-const int _characterStateMoving = 2;
-const int _characterStateSleeping = 3;
-const int _characterStateSick = 4;
-const int _characterStateEating = 5;
-const int _characterStateDead = 6;
+export 'world_data_config.dart';
 
-const int _characterStatusUrgent = 2;
-const int _characterStatusSick = 3;
-const int _characterStatusHappy = 4;
-const int _characterStatusDiscover = 5;
-const int _eggTextureKeyStart = 500;
-const int _eggTextureKeyEnd = 529;
-const int _defaultEggHatchDurationMs = 30 * 60 * 1000;
-
-const double _maxStamina = 10;
-const double _lowStaminaThreshold = 3;
-const double _boostedStaminaThreshold = 7;
-const int _animationFrameCount = 4;
-
-const int _staminaDecreaseIntervalMs = 12 * 60 * 1000;
-const double _staminaDecreaseAmount = 0.25;
-const double _highStaminaDecayMultiplier = 1.3;
-const double _lowStaminaDecayMultiplier = 0.7;
-const double _sleepingStaminaDecayMultiplier = 0.2;
-const int _projectionVersion = 1;
-
-enum HomeWidgetSnapshotKind {
+enum WorldDataSnapshotKind {
   authoritativeAppState,
   widgetProgressed,
 }
 
-enum HomeWidgetCharacterState {
+enum WorldDataCharacterState {
   egg,
   idle,
   moving,
@@ -58,26 +23,26 @@ enum HomeWidgetCharacterState {
   dead,
 }
 
-enum HomeWidgetTimeOfDay {
+enum WorldDataTimeOfDay {
   day,
   sunrise,
   sunset,
   night,
 }
 
-enum HomeWidgetDisplayState {
+enum WorldDataDisplayState {
   idle,
   sleep,
   sick,
 }
 
-enum HomeWidgetStaminaLevel {
+enum WorldDataStaminaLevel {
   red,
   orange,
   green,
 }
 
-enum HomeWidgetStatusIcon {
+enum WorldDataStatusIcon {
   sick,
   happy,
   discover,
@@ -96,22 +61,22 @@ class _ResolvedEggHatchTiming {
   });
 }
 
-class HomeWidgetSnapshot {
+class WorldDataSnapshot {
   final int schemaVersion;
-  final HomeWidgetSnapshotKind snapshotKind;
+  final WorldDataSnapshotKind snapshotKind;
   final String? monsterName;
   final int? characterKey;
   final int? eggTextureKey;
   final int? eggHatchTimeMs;
   final int? eggHatchDurationMs;
   final int eggCrackStage;
-  final HomeWidgetCharacterState characterState;
-  final HomeWidgetDisplayState displayState;
-  final HomeWidgetTimeOfDay timeOfDay;
+  final WorldDataCharacterState characterState;
+  final WorldDataDisplayState displayState;
+  final WorldDataTimeOfDay timeOfDay;
   final double stamina;
   final double maxStamina;
   final double staminaPercent;
-  final HomeWidgetStaminaLevel staminaLevel;
+  final WorldDataStaminaLevel staminaLevel;
   final bool useLocalTime;
   final int animationFrameIndex;
   final int updatedAtMs;
@@ -122,9 +87,9 @@ class HomeWidgetSnapshot {
   final int projectionVersion;
   final double staminaTimerMs;
   final bool hasUrgentStatus;
-  final List<HomeWidgetStatusIcon> visibleStatusIcons;
+  final List<WorldDataStatusIcon> visibleStatusIcons;
 
-  const HomeWidgetSnapshot({
+  const WorldDataSnapshot({
     required this.schemaVersion,
     required this.snapshotKind,
     required this.monsterName,
@@ -153,21 +118,21 @@ class HomeWidgetSnapshot {
     required this.visibleStatusIcons,
   });
 
-  HomeWidgetSnapshot copyWith({
-    HomeWidgetSnapshotKind? snapshotKind,
+  WorldDataSnapshot copyWith({
+    WorldDataSnapshotKind? snapshotKind,
     String? monsterName,
     int? characterKey,
     Object? eggTextureKey = _sentinel,
     Object? eggHatchTimeMs = _sentinel,
     Object? eggHatchDurationMs = _sentinel,
     int? eggCrackStage,
-    HomeWidgetCharacterState? characterState,
-    HomeWidgetDisplayState? displayState,
-    HomeWidgetTimeOfDay? timeOfDay,
+    WorldDataCharacterState? characterState,
+    WorldDataDisplayState? displayState,
+    WorldDataTimeOfDay? timeOfDay,
     double? stamina,
     double? maxStamina,
     double? staminaPercent,
-    HomeWidgetStaminaLevel? staminaLevel,
+    WorldDataStaminaLevel? staminaLevel,
     bool? useLocalTime,
     int? animationFrameIndex,
     int? updatedAtMs,
@@ -178,9 +143,9 @@ class HomeWidgetSnapshot {
     int? projectionVersion,
     double? staminaTimerMs,
     bool? hasUrgentStatus,
-    List<HomeWidgetStatusIcon>? visibleStatusIcons,
+    List<WorldDataStatusIcon>? visibleStatusIcons,
   }) {
-    return HomeWidgetSnapshot(
+    return WorldDataSnapshot(
       schemaVersion: schemaVersion,
       snapshotKind: snapshotKind ?? this.snapshotKind,
       monsterName: monsterName ?? this.monsterName,
@@ -217,7 +182,7 @@ class HomeWidgetSnapshot {
       staminaTimerMs: staminaTimerMs ?? this.staminaTimerMs,
       hasUrgentStatus: hasUrgentStatus ?? this.hasUrgentStatus,
       visibleStatusIcons: visibleStatusIcons ??
-          List<HomeWidgetStatusIcon>.from(this.visibleStatusIcons),
+          List<WorldDataStatusIcon>.from(this.visibleStatusIcons),
     );
   }
 
@@ -250,12 +215,12 @@ class HomeWidgetSnapshot {
       'staminaTimerMs': staminaTimerMs,
       'hasUrgentStatus': hasUrgentStatus,
       'visibleStatusIcons': visibleStatusIcons
-          .map((HomeWidgetStatusIcon icon) => icon.name)
+          .map((WorldDataStatusIcon icon) => icon.name)
           .toList(growable: false),
     };
   }
 
-  static HomeWidgetSnapshot? fromJsonString(String? raw) {
+  static WorldDataSnapshot? fromJsonString(String? raw) {
     if (raw == null || raw.isEmpty) {
       return null;
     }
@@ -272,30 +237,30 @@ class HomeWidgetSnapshot {
     }
   }
 
-  static HomeWidgetSnapshot? _snapshotFromMap(Map<String, dynamic> json) {
-    final double stamina = HomeWidgetSyncService._clampDouble(
-      HomeWidgetSyncService._readDouble(json['stamina']) ?? 0,
+  static WorldDataSnapshot? _snapshotFromMap(Map<String, dynamic> json) {
+    final double stamina = WorldDataSyncService._clampDouble(
+      WorldDataSyncService._readDouble(json['stamina']) ?? 0,
       0,
-      _maxStamina,
+      config.maxStamina,
     );
     final int updatedAtMs =
-        HomeWidgetSyncService._readInt(json['updatedAtMs']) ??
-            HomeWidgetSyncService._readInt(json['snapshotComputedAtMs']) ??
+        WorldDataSyncService._readInt(json['updatedAtMs']) ??
+            WorldDataSyncService._readInt(json['snapshotComputedAtMs']) ??
             0;
-    final HomeWidgetSnapshotKind snapshotKind =
-        HomeWidgetSyncService._resolveSnapshotKind(
+    final WorldDataSnapshotKind snapshotKind =
+        WorldDataSyncService._resolveSnapshotKind(
       json['snapshotKind'] as String?,
     );
-    final HomeWidgetCharacterState characterState =
-        HomeWidgetSyncService._resolveCharacterStateName(
+    final WorldDataCharacterState characterState =
+        WorldDataSyncService._resolveCharacterStateName(
       json['characterState'] as String?,
     );
     final int? eggHatchTimeMs =
-        HomeWidgetSyncService._readInt(json['eggHatchTimeMs']);
+        WorldDataSyncService._readInt(json['eggHatchTimeMs']);
     final int? eggHatchDurationMs =
-        HomeWidgetSyncService._readInt(json['eggHatchDurationMs']);
+        WorldDataSyncService._readInt(json['eggHatchDurationMs']);
     final _ResolvedEggHatchTiming? eggHatchTiming =
-        HomeWidgetSyncService._resolveEggHatchTiming(
+        WorldDataSyncService._resolveEggHatchTiming(
       nowMs: updatedAtMs,
       characterState: characterState,
       hatchTimeMs: eggHatchTimeMs,
@@ -304,73 +269,74 @@ class HomeWidgetSnapshot {
     final bool hasUrgentStatus = json['hasUrgentStatus'] is bool
         ? json['hasUrgentStatus'] as bool
         : false;
-    final List<HomeWidgetStatusIcon> visibleStatusIcons =
-        HomeWidgetSyncService._resolveVisibleStatusIconsFromNames(
+    final List<WorldDataStatusIcon> visibleStatusIcons =
+        WorldDataSyncService._resolveVisibleStatusIconsFromNames(
       json['visibleStatusIcons'],
       characterState: characterState,
     );
-    final HomeWidgetDisplayState displayState =
-        HomeWidgetSyncService._resolveDisplayStateName(
+    final WorldDataDisplayState displayState =
+        WorldDataSyncService._resolveDisplayStateName(
       (json['displayState'] ?? json['primaryStatus']) as String?,
       fallbackState: characterState,
       visibleStatusIcons: visibleStatusIcons,
     );
 
-    return HomeWidgetSnapshot(
-      schemaVersion: HomeWidgetSyncService._readInt(json['schemaVersion']) ?? 1,
+    return WorldDataSnapshot(
+      schemaVersion: WorldDataSyncService._readInt(json['schemaVersion']) ?? 1,
       snapshotKind: snapshotKind,
       monsterName: json['monsterName'] as String?,
-      characterKey: HomeWidgetSyncService._readInt(json['characterKey']),
-      eggTextureKey: HomeWidgetSyncService._readInt(json['eggTextureKey']),
+      characterKey: WorldDataSyncService._readInt(json['characterKey']),
+      eggTextureKey: WorldDataSyncService._readInt(json['eggTextureKey']),
       eggHatchTimeMs: eggHatchTiming?.hatchTimeMs,
       eggHatchDurationMs: eggHatchTiming?.hatchDurationMs,
-      eggCrackStage: HomeWidgetSyncService._readInt(json['eggCrackStage']) ??
-          HomeWidgetSyncService._resolveEggCrackStage(
+      eggCrackStage: WorldDataSyncService._readInt(json['eggCrackStage']) ??
+          WorldDataSyncService._resolveEggCrackStage(
             characterState: characterState,
             timing: eggHatchTiming,
           ),
       characterState: characterState,
       displayState: displayState,
-      timeOfDay: HomeWidgetSyncService._resolveTimeOfDayName(
+      timeOfDay: WorldDataSyncService._resolveTimeOfDayName(
           json['timeOfDay'] as String?),
       stamina: stamina,
-      maxStamina: HomeWidgetSyncService._clampDouble(
-        HomeWidgetSyncService._readDouble(json['maxStamina']) ?? _maxStamina,
+      maxStamina: WorldDataSyncService._clampDouble(
+        WorldDataSyncService._readDouble(json['maxStamina']) ??
+            config.maxStamina,
         1,
-        _maxStamina,
+        config.maxStamina,
       ),
-      staminaPercent: HomeWidgetSyncService._clampDouble(
-        HomeWidgetSyncService._readDouble(json['staminaPercent']) ??
-            (stamina / _maxStamina),
+      staminaPercent: WorldDataSyncService._clampDouble(
+        WorldDataSyncService._readDouble(json['staminaPercent']) ??
+            (stamina / config.maxStamina),
         0,
         1,
       ),
-      staminaLevel: HomeWidgetSyncService._resolveStaminaLevelName(
+      staminaLevel: WorldDataSyncService._resolveStaminaLevelName(
         json['staminaLevel'] as String?,
         stamina,
       ),
       useLocalTime:
           json['useLocalTime'] is bool ? json['useLocalTime'] as bool : true,
       animationFrameIndex:
-          (HomeWidgetSyncService._readInt(json['animationFrameIndex']) ?? 0) %
-              _animationFrameCount,
+          (WorldDataSyncService._readInt(json['animationFrameIndex']) ?? 0) %
+              config.animationFrameCount,
       updatedAtMs: updatedAtMs,
       snapshotComputedAtMs:
-          HomeWidgetSyncService._readInt(json['snapshotComputedAtMs']) ??
+          WorldDataSyncService._readInt(json['snapshotComputedAtMs']) ??
               updatedAtMs,
-      lastActiveTimeMs:
-          HomeWidgetSyncService._readInt(json['lastActiveTimeMs']),
+      lastActiveTimeMs: WorldDataSyncService._readInt(json['lastActiveTimeMs']),
       baseLastActiveTimeMs:
-          HomeWidgetSyncService._readInt(json['baseLastActiveTimeMs']) ??
-              HomeWidgetSyncService._readInt(json['lastActiveTimeMs']),
+          WorldDataSyncService._readInt(json['baseLastActiveTimeMs']) ??
+              WorldDataSyncService._readInt(json['lastActiveTimeMs']),
       projectedElapsedMs:
-          HomeWidgetSyncService._readInt(json['projectedElapsedMs']) ?? 0,
+          WorldDataSyncService._readInt(json['projectedElapsedMs']) ?? 0,
       projectionVersion:
-          HomeWidgetSyncService._readInt(json['projectionVersion']) ?? 1,
-      staminaTimerMs: HomeWidgetSyncService._clampDouble(
-        HomeWidgetSyncService._readDouble(json['staminaTimerMs']) ?? 0,
+          WorldDataSyncService._readInt(json['projectionVersion']) ??
+              config.projectionVersion,
+      staminaTimerMs: WorldDataSyncService._clampDouble(
+        WorldDataSyncService._readDouble(json['staminaTimerMs']) ?? 0,
         0,
-        _staminaDecreaseIntervalMs.toDouble(),
+        config.staminaDecreaseIntervalMs.toDouble(),
       ),
       hasUrgentStatus: hasUrgentStatus,
       visibleStatusIcons: visibleStatusIcons,
@@ -378,18 +344,18 @@ class HomeWidgetSnapshot {
   }
 }
 
-enum HomeWidgetSyncWorldDataSource {
+enum WorldDataSyncSource {
   stored,
   inMemory,
 }
 
-class HomeWidgetSyncWorldDataSelection {
+class WorldDataSyncSelection {
   final String? selectedRawWorldData;
-  final HomeWidgetSyncWorldDataSource? source;
+  final WorldDataSyncSource? source;
   final int? storedLastEcsSaved;
   final int? inMemoryLastEcsSaved;
 
-  const HomeWidgetSyncWorldDataSelection({
+  const WorldDataSyncSelection({
     required this.selectedRawWorldData,
     required this.source,
     required this.storedLastEcsSaved,
@@ -397,13 +363,13 @@ class HomeWidgetSyncWorldDataSelection {
   });
 
   String? get sourceName => switch (source) {
-        HomeWidgetSyncWorldDataSource.stored => 'stored',
-        HomeWidgetSyncWorldDataSource.inMemory => 'in_memory',
+        WorldDataSyncSource.stored => 'stored',
+        WorldDataSyncSource.inMemory => 'in_memory',
         null => null,
       };
 }
 
-class HomeWidgetSyncService {
+class WorldDataSyncService {
   static const MethodChannel _platformChannel = MethodChannel(
     'digivice/home_widget',
   );
@@ -427,7 +393,7 @@ class HomeWidgetSyncService {
   }) async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     return syncFromWorldDataJson(
-      rawWorldData: prefs.getString(worldDataStorageKey),
+      rawWorldData: prefs.getString(config.worldDataStorageKey),
       reason: reason,
       log: log,
     );
@@ -439,13 +405,13 @@ class HomeWidgetSyncService {
     void Function(String message)? log,
   }) async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
-    final HomeWidgetSyncWorldDataSelection selection = selectWorldDataForSync(
-      storedRawWorldData: prefs.getString(worldDataStorageKey),
+    final WorldDataSyncSelection selection = selectWorldDataForSync(
+      storedRawWorldData: prefs.getString(config.worldDataStorageKey),
       inMemoryRawWorldData: inMemoryRawWorldData,
     );
 
     log?.call(
-      '[HomeWidgetSyncService] selected world data source=${selection.sourceName} '
+      '[WorldDataSyncService] selected world data source=${selection.sourceName} '
       'reason=$reason '
       'storedLastEcsSaved=${selection.storedLastEcsSaved} '
       'inMemoryLastEcsSaved=${selection.inMemoryLastEcsSaved}',
@@ -465,7 +431,7 @@ class HomeWidgetSyncService {
     };
   }
 
-  static HomeWidgetSyncWorldDataSelection selectWorldDataForSync({
+  static WorldDataSyncSelection selectWorldDataForSync({
     required String? storedRawWorldData,
     required String? inMemoryRawWorldData,
   }) {
@@ -477,7 +443,7 @@ class HomeWidgetSyncService {
     );
 
     if (!storedSummary.hasWorldData && !inMemorySummary.hasWorldData) {
-      return HomeWidgetSyncWorldDataSelection(
+      return WorldDataSyncSelection(
         selectedRawWorldData: null,
         source: null,
         storedLastEcsSaved: storedSummary.lastEcsSaved,
@@ -486,18 +452,18 @@ class HomeWidgetSyncService {
     }
 
     if (!storedSummary.hasWorldData) {
-      return HomeWidgetSyncWorldDataSelection(
+      return WorldDataSyncSelection(
         selectedRawWorldData: inMemoryRawWorldData,
-        source: HomeWidgetSyncWorldDataSource.inMemory,
+        source: WorldDataSyncSource.inMemory,
         storedLastEcsSaved: storedSummary.lastEcsSaved,
         inMemoryLastEcsSaved: inMemorySummary.lastEcsSaved,
       );
     }
 
     if (!inMemorySummary.hasWorldData) {
-      return HomeWidgetSyncWorldDataSelection(
+      return WorldDataSyncSelection(
         selectedRawWorldData: storedRawWorldData,
-        source: HomeWidgetSyncWorldDataSource.stored,
+        source: WorldDataSyncSource.stored,
         storedLastEcsSaved: storedSummary.lastEcsSaved,
         inMemoryLastEcsSaved: inMemorySummary.lastEcsSaved,
       );
@@ -505,19 +471,19 @@ class HomeWidgetSyncService {
 
     final bool shouldPreferStoredCompletedHatch =
         storedSummary.mainCharacterState != null &&
-            storedSummary.mainCharacterState != _characterStateEgg &&
-            inMemorySummary.mainCharacterState == _characterStateEgg;
+            storedSummary.mainCharacterState != config.characterStateEgg &&
+            inMemorySummary.mainCharacterState == config.characterStateEgg;
     final bool shouldUseInMemory = !shouldPreferStoredCompletedHatch &&
         inMemorySummary.lastEcsSaved != null &&
         (storedSummary.lastEcsSaved == null ||
             inMemorySummary.lastEcsSaved! > storedSummary.lastEcsSaved!);
 
-    return HomeWidgetSyncWorldDataSelection(
+    return WorldDataSyncSelection(
       selectedRawWorldData:
           shouldUseInMemory ? inMemoryRawWorldData : storedRawWorldData,
       source: shouldUseInMemory
-          ? HomeWidgetSyncWorldDataSource.inMemory
-          : HomeWidgetSyncWorldDataSource.stored,
+          ? WorldDataSyncSource.inMemory
+          : WorldDataSyncSource.stored,
       storedLastEcsSaved: storedSummary.lastEcsSaved,
       inMemoryLastEcsSaved: inMemorySummary.lastEcsSaved,
     );
@@ -530,15 +496,15 @@ class HomeWidgetSyncService {
   }) async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     final DateTime now = DateTime.now();
-    final HomeWidgetSnapshot? snapshot = buildSnapshotFromWorldDataJson(
+    final WorldDataSnapshot? snapshot = buildSnapshotFromWorldDataJson(
       rawWorldData,
       now: now,
       log: log,
     );
 
     if (snapshot == null) {
-      await prefs.remove(homeWidgetSnapshotStorageKey);
-      await prefs.remove(homeWidgetAuthoritativeSnapshotStorageKey);
+      await prefs.remove(config.worldDataSnapshotStorageKey);
+      await prefs.remove(config.worldDataAuthoritativeSnapshotStorageKey);
       final Map<String, Object?> currentPublishResult = await _publishSnapshot(
         snapshotJson: null,
         reason: reason,
@@ -551,7 +517,7 @@ class HomeWidgetSyncService {
         log: log,
       );
       log?.call(
-        '[HomeWidgetSyncService] cleared snapshot reason=$reason hasWorldData=${rawWorldData != null && rawWorldData.isNotEmpty}',
+        '[WorldDataSyncService] cleared snapshot reason=$reason hasWorldData=${rawWorldData != null && rawWorldData.isNotEmpty}',
       );
       return <String, Object?>{
         'status': 'cleared',
@@ -567,7 +533,7 @@ class HomeWidgetSyncService {
 
     final String snapshotJson = jsonEncode(snapshot.toJson());
     log?.call(
-      '[HomeWidgetSyncService] built snapshot reason=$reason '
+      '[WorldDataSyncService] built snapshot reason=$reason '
       'characterState=${snapshot.characterState.name} '
       'characterKey=${snapshot.characterKey} '
       'snapshotKind=${snapshot.snapshotKind.name} '
@@ -575,9 +541,9 @@ class HomeWidgetSyncService {
       'eggHatchDurationMs=${snapshot.eggHatchDurationMs} '
       'lastActiveTimeMs=${snapshot.lastActiveTimeMs}',
     );
-    await prefs.setString(homeWidgetSnapshotStorageKey, snapshotJson);
+    await prefs.setString(config.worldDataSnapshotStorageKey, snapshotJson);
     await prefs.setString(
-      homeWidgetAuthoritativeSnapshotStorageKey,
+      config.worldDataAuthoritativeSnapshotStorageKey,
       snapshotJson,
     );
     final Map<String, Object?> currentPublishResult = await _publishSnapshot(
@@ -592,7 +558,7 @@ class HomeWidgetSyncService {
       log: log,
     );
     log?.call(
-      '[HomeWidgetSyncService] synced authoritative snapshot reason=$reason '
+      '[WorldDataSyncService] synced authoritative snapshot reason=$reason '
       'characterState=${snapshot.characterState.name} '
       'timeOfDay=${snapshot.timeOfDay.name} '
       'staminaPercent=${snapshot.staminaPercent.toStringAsFixed(3)} '
@@ -613,7 +579,7 @@ class HomeWidgetSyncService {
     };
   }
 
-  static HomeWidgetSnapshot? buildSnapshotFromWorldDataJson(
+  static WorldDataSnapshot? buildSnapshotFromWorldDataJson(
     String? rawWorldData, {
     required DateTime now,
     void Function(String message)? log,
@@ -643,15 +609,15 @@ class HomeWidgetSyncService {
       final bool useLocalTime = appState['use_local_time'] is bool
           ? appState['use_local_time'] as bool
           : true;
-      final HomeWidgetCharacterState characterState =
+      final WorldDataCharacterState characterState =
           _resolveCharacterState(source.state);
-      final List<HomeWidgetStatusIcon> visibleStatusIcons =
+      final List<WorldDataStatusIcon> visibleStatusIcons =
           _resolveVisibleStatusIcons(
         characterState: characterState,
         rawStatuses: source.statuses,
       );
       final bool hasUrgentStatus = _hasUrgentStatus(source.statuses);
-      final HomeWidgetDisplayState displayState = _resolveDisplayState(
+      final WorldDataDisplayState displayState = _resolveDisplayState(
         characterState: characterState,
         visibleStatusIcons: visibleStatusIcons,
       );
@@ -662,18 +628,19 @@ class HomeWidgetSyncService {
         hatchDurationMs: _readInt(source.eggHatchDurationMs),
       );
 
-      final double stamina = _clampDouble(source.stamina ?? 0, 0, _maxStamina);
+      final double stamina =
+          _clampDouble(source.stamina ?? 0, 0, config.maxStamina);
       final int updatedAtMs = now.millisecondsSinceEpoch;
       final int? lastActiveTimeMs = _readInt(appState['last_active_time']);
-      final HomeWidgetTimeOfDay timeOfDay = _resolveTimeOfDay(
+      final WorldDataTimeOfDay timeOfDay = _resolveTimeOfDay(
         now: now,
         useLocalTime: useLocalTime,
         appState: appState,
       );
 
-      return HomeWidgetSnapshot(
+      return WorldDataSnapshot(
         schemaVersion: 2,
-        snapshotKind: HomeWidgetSnapshotKind.authoritativeAppState,
+        snapshotKind: WorldDataSnapshotKind.authoritativeAppState,
         monsterName: worldMetadata['monster_name'] as String?,
         characterKey: source.characterKey,
         eggTextureKey: _resolveEggTextureKey(
@@ -690,31 +657,31 @@ class HomeWidgetSyncService {
         displayState: displayState,
         timeOfDay: timeOfDay,
         stamina: stamina,
-        maxStamina: _maxStamina,
-        staminaPercent: stamina / _maxStamina,
+        maxStamina: config.maxStamina,
+        staminaPercent: stamina / config.maxStamina,
         staminaLevel: _resolveStaminaLevel(stamina),
         useLocalTime: useLocalTime,
         animationFrameIndex:
             (updatedAtMs ~/ 1000 + (source.characterKey ?? 0)) %
-                _animationFrameCount,
+                config.animationFrameCount,
         updatedAtMs: updatedAtMs,
         snapshotComputedAtMs: updatedAtMs,
         lastActiveTimeMs: lastActiveTimeMs,
         baseLastActiveTimeMs: lastActiveTimeMs,
         projectedElapsedMs: 0,
-        projectionVersion: _projectionVersion,
+        projectionVersion: config.projectionVersion,
         staminaTimerMs: 0,
         hasUrgentStatus: hasUrgentStatus,
         visibleStatusIcons: visibleStatusIcons,
       );
     } catch (error) {
-      log?.call('[HomeWidgetSyncService] failed to build snapshot: $error');
+      log?.call('[WorldDataSyncService] failed to build snapshot: $error');
       return null;
     }
   }
 
-  static HomeWidgetSnapshot? progressSnapshot(
-    HomeWidgetSnapshot snapshot, {
+  static WorldDataSnapshot? progressSnapshot(
+    WorldDataSnapshot snapshot, {
     required DateTime now,
   }) {
     final int elapsedMs =
@@ -749,7 +716,7 @@ class HomeWidgetSyncService {
       staminaTimerMs = progressed.staminaTimerMs;
     }
 
-    final HomeWidgetTimeOfDay timeOfDay = _resolveTimeOfDay(
+    final WorldDataTimeOfDay timeOfDay = _resolveTimeOfDay(
       now: now,
       useLocalTime: snapshot.useLocalTime,
       appState: const <String, dynamic>{},
@@ -762,18 +729,18 @@ class HomeWidgetSyncService {
     );
 
     return snapshot.copyWith(
-      snapshotKind: HomeWidgetSnapshotKind.widgetProgressed,
+      snapshotKind: WorldDataSnapshotKind.widgetProgressed,
       stamina: stamina,
       staminaPercent: stamina / snapshot.maxStamina,
       staminaLevel: _resolveStaminaLevel(stamina),
       timeOfDay: timeOfDay,
       animationFrameIndex:
           (now.millisecondsSinceEpoch ~/ 1000 + (snapshot.characterKey ?? 0)) %
-              _animationFrameCount,
+              config.animationFrameCount,
       updatedAtMs: now.millisecondsSinceEpoch,
       snapshotComputedAtMs: now.millisecondsSinceEpoch,
       projectedElapsedMs: snapshot.projectedElapsedMs + safeElapsedMs,
-      projectionVersion: _projectionVersion,
+      projectionVersion: config.projectionVersion,
       staminaTimerMs: staminaTimerMs,
       hasUrgentStatus: snapshot.hasUrgentStatus,
       eggHatchTimeMs: eggHatchTiming?.hatchTimeMs,
@@ -795,24 +762,24 @@ class HomeWidgetSyncService {
           .invokeMethod<Map<Object?, Object?>>(
               'publishSnapshot', <String, dynamic>{
         'snapshotJson': snapshotJson,
-        'storageName': nativeHomeWidgetStorageName,
-        'snapshotKey': nativeHomeWidgetSnapshotKey,
+        'storageName': config.nativeWorldDataStorageName,
+        'snapshotKey': config.nativeWorldDataSnapshotKey,
         'reason': reason,
       });
       log?.call(
-        '[HomeWidgetSyncService] native publish result=${_describeNativePublishResult(result)}',
+        '[WorldDataSyncService] native publish result=${_describeNativePublishResult(result)}',
       );
       return _normalizePublishResult(
         result,
         fallbackReason: reason,
-        fallbackSnapshotKey: nativeHomeWidgetSnapshotKey,
+        fallbackSnapshotKey: config.nativeWorldDataSnapshotKey,
       );
     } catch (error) {
-      log?.call('[HomeWidgetSyncService] native publish failed: $error');
+      log?.call('[WorldDataSyncService] native publish failed: $error');
       return <String, Object?>{
         'status': 'error',
         'reason': reason,
-        'snapshotKey': nativeHomeWidgetSnapshotKey,
+        'snapshotKey': config.nativeWorldDataSnapshotKey,
         'hasSnapshot': snapshotJson != null,
         'error': error.toString(),
       };
@@ -831,26 +798,26 @@ class HomeWidgetSyncService {
           .invokeMethod<Map<Object?, Object?>>(
               'publishSnapshot', <String, dynamic>{
         'snapshotJson': snapshotJson,
-        'storageName': nativeHomeWidgetStorageName,
-        'snapshotKey': nativeHomeWidgetAuthoritativeSnapshotKey,
+        'storageName': config.nativeWorldDataStorageName,
+        'snapshotKey': config.nativeWorldDataAuthoritativeSnapshotKey,
         'reason': authoritativeReason,
       });
       log?.call(
-        '[HomeWidgetSyncService] native authoritative publish result=${_describeNativePublishResult(result)}',
+        '[WorldDataSyncService] native authoritative publish result=${_describeNativePublishResult(result)}',
       );
       return _normalizePublishResult(
         result,
         fallbackReason: authoritativeReason,
-        fallbackSnapshotKey: nativeHomeWidgetAuthoritativeSnapshotKey,
+        fallbackSnapshotKey: config.nativeWorldDataAuthoritativeSnapshotKey,
       );
     } catch (error) {
       log?.call(
-        '[HomeWidgetSyncService] native authoritative publish failed: $error',
+        '[WorldDataSyncService] native authoritative publish failed: $error',
       );
       return <String, Object?>{
         'status': 'error',
         'reason': authoritativeReason,
-        'snapshotKey': nativeHomeWidgetAuthoritativeSnapshotKey,
+        'snapshotKey': config.nativeWorldDataAuthoritativeSnapshotKey,
         'hasSnapshot': snapshotJson != null,
         'error': error.toString(),
       };
@@ -982,7 +949,7 @@ class HomeWidgetSyncService {
       }
       final Map<String, dynamic> components = _readMap(entity['components']);
       final Map<String, dynamic> object = _readMap(components['object']);
-      if (_readInt(object['type']) != _characterObjectType) {
+      if (_readInt(object['type']) != config.characterObjectType) {
         continue;
       }
 
@@ -1006,62 +973,62 @@ class HomeWidgetSyncService {
     return null;
   }
 
-  static HomeWidgetCharacterState _resolveCharacterState(int? rawState) {
+  static WorldDataCharacterState _resolveCharacterState(int? rawState) {
     switch (rawState) {
-      case _characterStateEgg:
-        return HomeWidgetCharacterState.egg;
-      case _characterStateMoving:
-        return HomeWidgetCharacterState.moving;
-      case _characterStateSleeping:
-        return HomeWidgetCharacterState.sleeping;
-      case _characterStateSick:
-        return HomeWidgetCharacterState.sick;
-      case _characterStateEating:
-        return HomeWidgetCharacterState.eating;
-      case _characterStateDead:
-        return HomeWidgetCharacterState.dead;
-      case _characterStateIdle:
+      case config.characterStateEgg:
+        return WorldDataCharacterState.egg;
+      case config.characterStateMoving:
+        return WorldDataCharacterState.moving;
+      case config.characterStateSleeping:
+        return WorldDataCharacterState.sleeping;
+      case config.characterStateSick:
+        return WorldDataCharacterState.sick;
+      case config.characterStateEating:
+        return WorldDataCharacterState.eating;
+      case config.characterStateDead:
+        return WorldDataCharacterState.dead;
+      case config.characterStateIdle:
       default:
-        return HomeWidgetCharacterState.idle;
+        return WorldDataCharacterState.idle;
     }
   }
 
-  static HomeWidgetCharacterState _resolveCharacterStateName(String? rawName) {
-    return HomeWidgetCharacterState.values.firstWhere(
-      (HomeWidgetCharacterState value) => value.name == rawName,
-      orElse: () => HomeWidgetCharacterState.idle,
+  static WorldDataCharacterState _resolveCharacterStateName(String? rawName) {
+    return WorldDataCharacterState.values.firstWhere(
+      (WorldDataCharacterState value) => value.name == rawName,
+      orElse: () => WorldDataCharacterState.idle,
     );
   }
 
-  static HomeWidgetSnapshotKind _resolveSnapshotKind(String? rawName) {
-    return HomeWidgetSnapshotKind.values.firstWhere(
-      (HomeWidgetSnapshotKind value) => value.name == rawName,
-      orElse: () => HomeWidgetSnapshotKind.authoritativeAppState,
+  static WorldDataSnapshotKind _resolveSnapshotKind(String? rawName) {
+    return WorldDataSnapshotKind.values.firstWhere(
+      (WorldDataSnapshotKind value) => value.name == rawName,
+      orElse: () => WorldDataSnapshotKind.authoritativeAppState,
     );
   }
 
-  static HomeWidgetDisplayState _resolveDisplayState({
-    required HomeWidgetCharacterState characterState,
-    required List<HomeWidgetStatusIcon> visibleStatusIcons,
+  static WorldDataDisplayState _resolveDisplayState({
+    required WorldDataCharacterState characterState,
+    required List<WorldDataStatusIcon> visibleStatusIcons,
   }) {
-    if (characterState == HomeWidgetCharacterState.sleeping ||
-        visibleStatusIcons.contains(HomeWidgetStatusIcon.sleeping)) {
-      return HomeWidgetDisplayState.sleep;
+    if (characterState == WorldDataCharacterState.sleeping ||
+        visibleStatusIcons.contains(WorldDataStatusIcon.sleeping)) {
+      return WorldDataDisplayState.sleep;
     }
-    if (characterState == HomeWidgetCharacterState.sick ||
-        visibleStatusIcons.contains(HomeWidgetStatusIcon.sick)) {
-      return HomeWidgetDisplayState.sick;
+    if (characterState == WorldDataCharacterState.sick ||
+        visibleStatusIcons.contains(WorldDataStatusIcon.sick)) {
+      return WorldDataDisplayState.sick;
     }
-    return HomeWidgetDisplayState.idle;
+    return WorldDataDisplayState.idle;
   }
 
-  static HomeWidgetDisplayState _resolveDisplayStateName(
+  static WorldDataDisplayState _resolveDisplayStateName(
     String? rawName, {
-    required HomeWidgetCharacterState fallbackState,
-    required List<HomeWidgetStatusIcon> visibleStatusIcons,
+    required WorldDataCharacterState fallbackState,
+    required List<WorldDataStatusIcon> visibleStatusIcons,
   }) {
-    return HomeWidgetDisplayState.values.firstWhere(
-      (HomeWidgetDisplayState value) => value.name == rawName,
+    return WorldDataDisplayState.values.firstWhere(
+      (WorldDataDisplayState value) => value.name == rawName,
       orElse: () => _resolveDisplayState(
         characterState: fallbackState,
         visibleStatusIcons: visibleStatusIcons,
@@ -1069,12 +1036,12 @@ class HomeWidgetSyncService {
     );
   }
 
-  static List<HomeWidgetStatusIcon> _resolveVisibleStatusIcons({
-    required HomeWidgetCharacterState characterState,
+  static List<WorldDataStatusIcon> _resolveVisibleStatusIcons({
+    required WorldDataCharacterState characterState,
     required List<dynamic> rawStatuses,
   }) {
-    if (characterState == HomeWidgetCharacterState.dead) {
-      return const <HomeWidgetStatusIcon>[];
+    if (characterState == WorldDataCharacterState.dead) {
+      return const <WorldDataStatusIcon>[];
     }
 
     final List<int> statuses = rawStatuses
@@ -1083,50 +1050,50 @@ class HomeWidgetSyncService {
         .where((int value) => value > 0)
         .toList(growable: false);
 
-    final List<HomeWidgetStatusIcon> visibleIcons = <HomeWidgetStatusIcon>[];
+    final List<WorldDataStatusIcon> visibleIcons = <WorldDataStatusIcon>[];
 
     for (final int status in statuses) {
       switch (status) {
-        case _characterStatusUrgent:
+        case config.characterStatusUrgent:
           break;
-        case _characterStatusSick:
-          if (!visibleIcons.contains(HomeWidgetStatusIcon.sick)) {
-            visibleIcons.add(HomeWidgetStatusIcon.sick);
+        case config.characterStatusSick:
+          if (!visibleIcons.contains(WorldDataStatusIcon.sick)) {
+            visibleIcons.add(WorldDataStatusIcon.sick);
           }
           break;
-        case _characterStatusHappy:
-        case _characterStatusDiscover:
+        case config.characterStatusHappy:
+        case config.characterStatusDiscover:
           break;
       }
     }
 
-    if (characterState == HomeWidgetCharacterState.sick &&
-        !visibleIcons.contains(HomeWidgetStatusIcon.sick)) {
-      visibleIcons.add(HomeWidgetStatusIcon.sick);
+    if (characterState == WorldDataCharacterState.sick &&
+        !visibleIcons.contains(WorldDataStatusIcon.sick)) {
+      visibleIcons.add(WorldDataStatusIcon.sick);
     }
 
-    if (characterState == HomeWidgetCharacterState.sleeping) {
-      visibleIcons.add(HomeWidgetStatusIcon.sleeping);
+    if (characterState == WorldDataCharacterState.sleeping) {
+      visibleIcons.add(WorldDataStatusIcon.sleeping);
     }
 
     return visibleIcons;
   }
 
-  static List<HomeWidgetStatusIcon> _resolveVisibleStatusIconsFromNames(
+  static List<WorldDataStatusIcon> _resolveVisibleStatusIconsFromNames(
     Object? rawValue, {
-    required HomeWidgetCharacterState characterState,
+    required WorldDataCharacterState characterState,
   }) {
-    if (characterState == HomeWidgetCharacterState.dead) {
-      return const <HomeWidgetStatusIcon>[];
+    if (characterState == WorldDataCharacterState.dead) {
+      return const <WorldDataStatusIcon>[];
     }
 
     final List<dynamic> values =
         rawValue is List<dynamic> ? rawValue : const <dynamic>[];
 
-    final List<HomeWidgetStatusIcon> visibleIcons = <HomeWidgetStatusIcon>[];
+    final List<WorldDataStatusIcon> visibleIcons = <WorldDataStatusIcon>[];
 
     for (final String name in values.whereType<String>()) {
-      final HomeWidgetStatusIcon? icon = _resolveWidgetStatusIconName(name);
+      final WorldDataStatusIcon? icon = _resolveWidgetStatusIconName(name);
       if (icon != null && !visibleIcons.contains(icon)) {
         visibleIcons.add(icon);
       }
@@ -1135,12 +1102,12 @@ class HomeWidgetSyncService {
     return visibleIcons;
   }
 
-  static HomeWidgetStatusIcon? _resolveWidgetStatusIconName(String name) {
+  static WorldDataStatusIcon? _resolveWidgetStatusIconName(String name) {
     switch (name) {
       case 'sick':
-        return HomeWidgetStatusIcon.sick;
+        return WorldDataStatusIcon.sick;
       case 'sleeping':
-        return HomeWidgetStatusIcon.sleeping;
+        return WorldDataStatusIcon.sleeping;
       default:
         return null;
     }
@@ -1150,41 +1117,41 @@ class HomeWidgetSyncService {
     return rawStatuses
         .map(_readInt)
         .whereType<int>()
-        .contains(_characterStatusUrgent);
+        .contains(config.characterStatusUrgent);
   }
 
-  static HomeWidgetStaminaLevel _resolveStaminaLevel(double stamina) {
-    if (stamina <= _lowStaminaThreshold) {
-      return HomeWidgetStaminaLevel.red;
+  static WorldDataStaminaLevel _resolveStaminaLevel(double stamina) {
+    if (stamina <= config.lowStaminaThreshold) {
+      return WorldDataStaminaLevel.red;
     }
-    if (stamina >= _boostedStaminaThreshold) {
-      return HomeWidgetStaminaLevel.green;
+    if (stamina >= config.boostedStaminaThreshold) {
+      return WorldDataStaminaLevel.green;
     }
-    return HomeWidgetStaminaLevel.orange;
+    return WorldDataStaminaLevel.orange;
   }
 
   static int? _resolveEggTextureKey({
-    required HomeWidgetCharacterState characterState,
+    required WorldDataCharacterState characterState,
     required int? rawTextureKey,
   }) {
-    if (characterState != HomeWidgetCharacterState.egg) {
+    if (characterState != WorldDataCharacterState.egg) {
       return null;
     }
     if (rawTextureKey == null ||
-        rawTextureKey < _eggTextureKeyStart ||
-        rawTextureKey > _eggTextureKeyEnd) {
-      return _eggTextureKeyStart;
+        rawTextureKey < config.eggTextureKeyStart ||
+        rawTextureKey > config.eggTextureKeyEnd) {
+      return config.eggTextureKeyStart;
     }
     return rawTextureKey;
   }
 
   static _ResolvedEggHatchTiming? _resolveEggHatchTiming({
     required int nowMs,
-    required HomeWidgetCharacterState characterState,
+    required WorldDataCharacterState characterState,
     required int? hatchTimeMs,
     required int? hatchDurationMs,
   }) {
-    if (characterState != HomeWidgetCharacterState.egg) {
+    if (characterState != WorldDataCharacterState.egg) {
       return null;
     }
 
@@ -1206,7 +1173,7 @@ class HomeWidgetSyncService {
       resolvedDurationMs = normalizedDurationMs;
       resolvedHatchTimeMs = nowMs + normalizedDurationMs;
     } else {
-      resolvedDurationMs = _defaultEggHatchDurationMs;
+      resolvedDurationMs = config.defaultEggHatchDurationMs;
       resolvedHatchTimeMs = nowMs + resolvedDurationMs;
     }
 
@@ -1229,10 +1196,10 @@ class HomeWidgetSyncService {
   }
 
   static int _resolveEggCrackStage({
-    required HomeWidgetCharacterState characterState,
+    required WorldDataCharacterState characterState,
     required _ResolvedEggHatchTiming? timing,
   }) {
-    if (characterState != HomeWidgetCharacterState.egg || timing == null) {
+    if (characterState != WorldDataCharacterState.egg || timing == null) {
       return 0;
     }
 
@@ -1248,23 +1215,23 @@ class HomeWidgetSyncService {
     return 0;
   }
 
-  static HomeWidgetStaminaLevel _resolveStaminaLevelName(
+  static WorldDataStaminaLevel _resolveStaminaLevelName(
     String? rawName,
     double stamina,
   ) {
-    return HomeWidgetStaminaLevel.values.firstWhere(
-      (HomeWidgetStaminaLevel value) => value.name == rawName,
+    return WorldDataStaminaLevel.values.firstWhere(
+      (WorldDataStaminaLevel value) => value.name == rawName,
       orElse: () => _resolveStaminaLevel(stamina),
     );
   }
 
-  static HomeWidgetTimeOfDay _resolveTimeOfDay({
+  static WorldDataTimeOfDay _resolveTimeOfDay({
     required DateTime now,
     required bool useLocalTime,
     required Map<String, dynamic> appState,
   }) {
     if (!useLocalTime) {
-      return HomeWidgetTimeOfDay.day;
+      return WorldDataTimeOfDay.day;
     }
 
     final Map<String, dynamic> cachedSunTimes =
@@ -1285,8 +1252,8 @@ class HomeWidgetSyncService {
         !sunriseAt.isBefore(sunsetAt)) {
       final int hour = now.hour;
       return hour >= 19 || hour < 6
-          ? HomeWidgetTimeOfDay.night
-          : HomeWidgetTimeOfDay.day;
+          ? WorldDataTimeOfDay.night
+          : WorldDataTimeOfDay.day;
     }
 
     final DateTime sunriseStart =
@@ -1296,21 +1263,21 @@ class HomeWidgetSyncService {
     final DateTime sunsetEnd = sunsetAt.add(const Duration(minutes: 60));
 
     if (!now.isBefore(sunriseStart) && !now.isAfter(sunriseEnd)) {
-      return HomeWidgetTimeOfDay.sunrise;
+      return WorldDataTimeOfDay.sunrise;
     }
     if (!now.isBefore(sunsetStart) && !now.isAfter(sunsetEnd)) {
-      return HomeWidgetTimeOfDay.sunset;
+      return WorldDataTimeOfDay.sunset;
     }
     if (now.isAfter(sunriseEnd) && now.isBefore(sunsetStart)) {
-      return HomeWidgetTimeOfDay.day;
+      return WorldDataTimeOfDay.day;
     }
-    return HomeWidgetTimeOfDay.night;
+    return WorldDataTimeOfDay.night;
   }
 
-  static HomeWidgetTimeOfDay _resolveTimeOfDayName(String? rawName) {
-    return HomeWidgetTimeOfDay.values.firstWhere(
-      (HomeWidgetTimeOfDay value) => value.name == rawName,
-      orElse: () => HomeWidgetTimeOfDay.day,
+  static WorldDataTimeOfDay _resolveTimeOfDayName(String? rawName) {
+    return WorldDataTimeOfDay.values.firstWhere(
+      (WorldDataTimeOfDay value) => value.name == rawName,
+      orElse: () => WorldDataTimeOfDay.day,
     );
   }
 
@@ -1365,12 +1332,12 @@ class HomeWidgetSyncService {
   static _StaminaProgressResult _progressStamina({
     required double stamina,
     required double staminaTimerMs,
-    required HomeWidgetCharacterState characterState,
+    required WorldDataCharacterState characterState,
     required double deltaMs,
   }) {
     if (deltaMs <= 0 ||
-        characterState == HomeWidgetCharacterState.egg ||
-        characterState == HomeWidgetCharacterState.dead) {
+        characterState == WorldDataCharacterState.egg ||
+        characterState == WorldDataCharacterState.dead) {
       return _StaminaProgressResult(
         stamina: stamina,
         staminaTimerMs: staminaTimerMs,
@@ -1389,9 +1356,9 @@ class HomeWidgetSyncService {
       }
 
       final double remainingEffectiveTime =
-          (_staminaDecreaseIntervalMs - nextTimerMs).clamp(
+          (config.staminaDecreaseIntervalMs - nextTimerMs).clamp(
         0,
-        _staminaDecreaseIntervalMs.toDouble(),
+        config.staminaDecreaseIntervalMs.toDouble(),
       );
       final double timeUntilDecrease = remainingEffectiveTime / multiplier;
 
@@ -1407,9 +1374,9 @@ class HomeWidgetSyncService {
         double.infinity,
       );
       nextStamina = _clampDouble(
-        nextStamina - _staminaDecreaseAmount,
+        nextStamina - config.staminaDecreaseAmount,
         0,
-        _maxStamina,
+        config.maxStamina,
       );
     }
 
@@ -1421,21 +1388,21 @@ class HomeWidgetSyncService {
 
   static double _resolveCurrentStaminaTimerMultiplier(
     double stamina,
-    HomeWidgetCharacterState characterState,
+    WorldDataCharacterState characterState,
   ) {
     final double sleepMultiplier =
-        characterState == HomeWidgetCharacterState.sleeping
-            ? _sleepingStaminaDecayMultiplier
+        characterState == WorldDataCharacterState.sleeping
+            ? config.sleepingStaminaDecayMultiplier
             : 1;
     return sleepMultiplier * _resolveStaminaDecayRateMultiplier(stamina);
   }
 
   static double _resolveStaminaDecayRateMultiplier(double stamina) {
-    if (stamina >= _boostedStaminaThreshold) {
-      return _highStaminaDecayMultiplier;
+    if (stamina >= config.boostedStaminaThreshold) {
+      return config.highStaminaDecayMultiplier;
     }
-    if (stamina < _lowStaminaThreshold) {
-      return _lowStaminaDecayMultiplier;
+    if (stamina < config.lowStaminaThreshold) {
+      return config.lowStaminaDecayMultiplier;
     }
     return 1;
   }

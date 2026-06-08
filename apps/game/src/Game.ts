@@ -1339,12 +1339,12 @@ export class Game {
     };
   }
 
-  public getHomeWidgetSyncWorldData(): MainSceneWorldData | null {
+  public getWorldDataSyncPayload(): MainSceneWorldData | null {
     if (!(this.currentScene instanceof MainSceneWorld)) {
       return null;
     }
 
-    return this.currentScene.buildHomeWidgetSyncWorldData();
+    return this.currentScene.buildWorldDataSyncPayload();
   }
 
   /**

@@ -7,35 +7,7 @@ import java.util.Calendar
 import java.util.TimeZone
 import kotlin.math.roundToInt
 
-object HomeWidgetSnapshotFactory {
-    private const val CHARACTER_OBJECT_TYPE = 1
-    private const val EGG_TEXTURE_KEY_START = 500
-    private const val EGG_TEXTURE_KEY_END = 529
-    private const val DEFAULT_EGG_HATCH_DURATION_MS = 30 * 60 * 1000L
-    private const val CHARACTER_STATE_EGG = 0
-    private const val CHARACTER_STATE_IDLE = 1
-    private const val CHARACTER_STATE_MOVING = 2
-    private const val CHARACTER_STATE_SLEEPING = 3
-    private const val CHARACTER_STATE_SICK = 4
-    private const val CHARACTER_STATE_EATING = 5
-    private const val CHARACTER_STATE_DEAD = 6
-
-    private const val CHARACTER_STATUS_URGENT = 2
-    private const val CHARACTER_STATUS_SICK = 3
-    private const val CHARACTER_STATUS_HAPPY = 4
-    private const val CHARACTER_STATUS_DISCOVER = 5
-
-    private const val MAX_STAMINA = 10.0
-    private const val LOW_STAMINA_THRESHOLD = 3.0
-    private const val BOOSTED_STAMINA_THRESHOLD = 7.0
-    private const val ANIMATION_FRAME_COUNT = 4
-
-    private const val STAMINA_DECREASE_INTERVAL_MS = 12 * 60 * 1000.0
-    private const val STAMINA_DECREASE_AMOUNT = 0.25
-    private const val HIGH_STAMINA_DECAY_MULTIPLIER = 1.3
-    private const val LOW_STAMINA_DECAY_MULTIPLIER = 0.7
-    private const val SLEEPING_STAMINA_DECAY_MULTIPLIER = 0.2
-    private const val PROJECTION_VERSION = 1
+object WorldDataSnapshotFactory {
 
     private data class ResolvedEggHatchTiming(
         val hatchTimeMs: Long,
@@ -171,9 +143,9 @@ object HomeWidgetSnapshotFactory {
             val source = findMainCharacter(entities) ?: return@runCatching null
             val characterState = resolveCharacterState(source.state)
             val visibleStatusIcons = resolveVisibleStatusIcons(characterState, source.statuses)
-            val hasUrgentStatus = source.statuses.contains(CHARACTER_STATUS_URGENT)
+            val hasUrgentStatus = source.statuses.contains(WorldDataSnapshotConfig.CHARACTER_STATUS_URGENT)
             val displayState = resolveDisplayState(characterState, visibleStatusIcons)
-            val stamina = (source.stamina ?: 0.0).coerceIn(0.0, MAX_STAMINA)
+            val stamina = (source.stamina ?: 0.0).coerceIn(0.0, WorldDataSnapshotConfig.MAX_STAMINA)
             val updatedAtMs = nowMs
             val eggHatchTiming = resolveEggHatchTiming(
                 nowMs = nowMs,
@@ -208,18 +180,18 @@ object HomeWidgetSnapshotFactory {
                     appState = appState,
                 ),
                 stamina = stamina,
-                maxStamina = MAX_STAMINA,
-                staminaPercent = (stamina / MAX_STAMINA).coerceIn(0.0, 1.0),
+                maxStamina = WorldDataSnapshotConfig.MAX_STAMINA,
+                staminaPercent = (stamina / WorldDataSnapshotConfig.MAX_STAMINA).coerceIn(0.0, 1.0),
                 staminaLevel = resolveStaminaLevel(stamina),
                 useLocalTime = appState.optBoolean("use_local_time", true),
                 animationFrameIndex = (((updatedAtMs / 1000L) + (source.characterKey ?: 0)) %
-                    ANIMATION_FRAME_COUNT).toInt(),
+                    WorldDataSnapshotConfig.ANIMATION_FRAME_COUNT).toInt(),
                 updatedAtMs = updatedAtMs,
                 snapshotComputedAtMs = updatedAtMs,
                 lastActiveTimeMs = lastActiveTimeMs,
                 baseLastActiveTimeMs = lastActiveTimeMs,
                 projectedElapsedMs = 0L,
-                projectionVersion = PROJECTION_VERSION,
+                projectionVersion = WorldDataSnapshotConfig.PROJECTION_VERSION,
                 staminaTimerMs = 0.0,
                 hasUrgentStatus = hasUrgentStatus,
                 visibleStatusIcons = visibleStatusIcons,
@@ -273,11 +245,11 @@ object HomeWidgetSnapshotFactory {
                 "day"
             },
             animationFrameIndex = (((nowMs / 1000L) + (snapshot.characterKey ?: 0)) %
-                ANIMATION_FRAME_COUNT).toInt(),
+                WorldDataSnapshotConfig.ANIMATION_FRAME_COUNT).toInt(),
             updatedAtMs = nowMs,
             snapshotComputedAtMs = nowMs,
             projectedElapsedMs = snapshot.projectedElapsedMs + elapsedMs,
-            projectionVersion = PROJECTION_VERSION,
+            projectionVersion = WorldDataSnapshotConfig.PROJECTION_VERSION,
             staminaTimerMs = staminaTimerMs,
             hasUrgentStatus = snapshot.hasUrgentStatus,
             eggHatchTimeMs = eggHatchTiming?.hatchTimeMs,
@@ -294,7 +266,7 @@ object HomeWidgetSnapshotFactory {
             val entity = entities.optJSONObject(index) ?: continue
             val components = entity.optJSONObject("components") ?: continue
             val objectComponent = components.optJSONObject("object") ?: continue
-            if (objectComponent.optInt("type", -1) != CHARACTER_OBJECT_TYPE) {
+            if (objectComponent.optInt("type", -1) != WorldDataSnapshotConfig.CHARACTER_OBJECT_TYPE) {
                 continue
             }
 
@@ -333,13 +305,13 @@ object HomeWidgetSnapshotFactory {
 
     private fun resolveCharacterState(rawState: Int): String {
         return when (rawState) {
-            CHARACTER_STATE_EGG -> "egg"
-            CHARACTER_STATE_MOVING -> "moving"
-            CHARACTER_STATE_SLEEPING -> "sleeping"
-            CHARACTER_STATE_SICK -> "sick"
-            CHARACTER_STATE_EATING -> "eating"
-            CHARACTER_STATE_DEAD -> "dead"
-            CHARACTER_STATE_IDLE -> "idle"
+            WorldDataSnapshotConfig.CHARACTER_STATE_EGG -> "egg"
+            WorldDataSnapshotConfig.CHARACTER_STATE_MOVING -> "moving"
+            WorldDataSnapshotConfig.CHARACTER_STATE_SLEEPING -> "sleeping"
+            WorldDataSnapshotConfig.CHARACTER_STATE_SICK -> "sick"
+            WorldDataSnapshotConfig.CHARACTER_STATE_EATING -> "eating"
+            WorldDataSnapshotConfig.CHARACTER_STATE_DEAD -> "dead"
+            WorldDataSnapshotConfig.CHARACTER_STATE_IDLE -> "idle"
             else -> "idle"
         }
     }
@@ -353,12 +325,12 @@ object HomeWidgetSnapshotFactory {
 
         statuses.forEach { status ->
             when (status) {
-                CHARACTER_STATUS_URGENT -> Unit
-                CHARACTER_STATUS_SICK -> if (!visibleIcons.contains("sick")) {
+                WorldDataSnapshotConfig.CHARACTER_STATUS_URGENT -> Unit
+                WorldDataSnapshotConfig.CHARACTER_STATUS_SICK -> if (!visibleIcons.contains("sick")) {
                     visibleIcons.add("sick")
                 }
-                CHARACTER_STATUS_HAPPY,
-                CHARACTER_STATUS_DISCOVER,
+                WorldDataSnapshotConfig.CHARACTER_STATUS_HAPPY,
+                WorldDataSnapshotConfig.CHARACTER_STATUS_DISCOVER,
                 -> Unit
             }
         }
@@ -384,8 +356,8 @@ object HomeWidgetSnapshotFactory {
 
     private fun resolveStaminaLevel(stamina: Double): String {
         return when {
-            stamina <= LOW_STAMINA_THRESHOLD -> "red"
-            stamina >= BOOSTED_STAMINA_THRESHOLD -> "green"
+            stamina <= WorldDataSnapshotConfig.LOW_STAMINA_THRESHOLD -> "red"
+            stamina >= WorldDataSnapshotConfig.BOOSTED_STAMINA_THRESHOLD -> "green"
             else -> "orange"
         }
     }
@@ -397,8 +369,8 @@ object HomeWidgetSnapshotFactory {
         if (characterState != "egg") {
             return null
         }
-        if (rawTextureKey == null || rawTextureKey !in EGG_TEXTURE_KEY_START..EGG_TEXTURE_KEY_END) {
-            return EGG_TEXTURE_KEY_START
+        if (rawTextureKey == null || rawTextureKey !in WorldDataSnapshotConfig.EGG_TEXTURE_KEY_START..WorldDataSnapshotConfig.EGG_TEXTURE_KEY_END) {
+            return WorldDataSnapshotConfig.EGG_TEXTURE_KEY_START
         }
         return rawTextureKey
     }
@@ -433,7 +405,7 @@ object HomeWidgetSnapshotFactory {
                 resolvedHatchTimeMs = nowMs + normalizedDurationMs
             }
             else -> {
-                resolvedDurationMs = DEFAULT_EGG_HATCH_DURATION_MS
+                resolvedDurationMs = WorldDataSnapshotConfig.DEFAULT_EGG_HATCH_DURATION_MS
                 resolvedHatchTimeMs = nowMs + resolvedDurationMs
             }
         }
@@ -578,8 +550,8 @@ object HomeWidgetSnapshotFactory {
                 break
             }
 
-            val remainingEffectiveTime = (STAMINA_DECREASE_INTERVAL_MS - nextTimerMs)
-                .coerceIn(0.0, STAMINA_DECREASE_INTERVAL_MS)
+            val remainingEffectiveTime = (WorldDataSnapshotConfig.STAMINA_DECREASE_INTERVAL_MS - nextTimerMs)
+                .coerceIn(0.0, WorldDataSnapshotConfig.STAMINA_DECREASE_INTERVAL_MS)
             val timeUntilDecrease = remainingEffectiveTime / multiplier
 
             if (remainingDeltaMs + 0.0001 < timeUntilDecrease) {
@@ -590,7 +562,7 @@ object HomeWidgetSnapshotFactory {
 
             nextTimerMs = 0.0
             remainingDeltaMs = (remainingDeltaMs - timeUntilDecrease).coerceAtLeast(0.0)
-            nextStamina = (nextStamina - STAMINA_DECREASE_AMOUNT).coerceIn(0.0, MAX_STAMINA)
+            nextStamina = (nextStamina - WorldDataSnapshotConfig.STAMINA_DECREASE_AMOUNT).coerceIn(0.0, WorldDataSnapshotConfig.MAX_STAMINA)
         }
 
         return StaminaProgressResult(
@@ -601,7 +573,7 @@ object HomeWidgetSnapshotFactory {
 
     private fun resolveCurrentStaminaTimerMultiplier(stamina: Double, characterState: String): Double {
         val sleepMultiplier = if (characterState == "sleeping") {
-            SLEEPING_STAMINA_DECAY_MULTIPLIER
+            WorldDataSnapshotConfig.SLEEPING_STAMINA_DECAY_MULTIPLIER
         } else {
             1.0
         }
@@ -610,8 +582,8 @@ object HomeWidgetSnapshotFactory {
 
     private fun resolveStaminaDecayRateMultiplier(stamina: Double): Double {
         return when {
-            stamina >= BOOSTED_STAMINA_THRESHOLD -> HIGH_STAMINA_DECAY_MULTIPLIER
-            stamina < LOW_STAMINA_THRESHOLD -> LOW_STAMINA_DECAY_MULTIPLIER
+            stamina >= WorldDataSnapshotConfig.BOOSTED_STAMINA_THRESHOLD -> WorldDataSnapshotConfig.HIGH_STAMINA_DECAY_MULTIPLIER
+            stamina < WorldDataSnapshotConfig.LOW_STAMINA_THRESHOLD -> WorldDataSnapshotConfig.LOW_STAMINA_DECAY_MULTIPLIER
             else -> 1.0
         }
     }

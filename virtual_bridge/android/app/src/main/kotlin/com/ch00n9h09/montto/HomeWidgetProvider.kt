@@ -306,7 +306,7 @@ abstract class BaseHomeWidgetProvider : AppWidgetProvider() {
         HomeWidgetBroadcastActionHandler.handle(
             action = intent.action,
             onRefresh = {
-                HomeWidgetSnapshotFactory.progressSnapshot(context)
+                WorldDataSnapshotFactory.progressSnapshot(context)
             },
             onAdvancePreset = { step ->
                 HomeWidgetDebugPresetStore.advancePreset(context, step = step)
@@ -342,7 +342,7 @@ abstract class BaseHomeWidgetProvider : AppWidgetProvider() {
             currentSnapshot = HomeWidgetSnapshot.load(context),
             authoritativeSnapshot = HomeWidgetSnapshot.loadAuthoritative(context),
             worldDataFallback = {
-                HomeWidgetSnapshotFactory.refreshFromWorldData(context)
+                WorldDataSnapshotFactory.refreshFromWorldData(context)
             },
         )
         val views = buildRemoteViews(

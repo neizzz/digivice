@@ -2724,25 +2724,25 @@ export class MainSceneWorld implements IWorld, Scene {
 		return this._persistentData as MainSceneWorldData;
 	}
 
-	public buildHomeWidgetSyncWorldData(): MainSceneWorldData | null {
+	public buildWorldDataSyncPayload(): MainSceneWorldData | null {
 		if (!this._persistentData) {
-			console.warn("[ImportantDiagnostics][HomeWidgetSyncWorldData]", {
+			console.warn("[ImportantDiagnostics][WorldDataSyncPayload]", {
 				phase: "build_skipped_missing_persistent_data",
 			});
 			return null;
 		}
 
 		try {
-			const syncWorldData = cloneDeep(this._persistentData);
+			const syncPayload = cloneDeep(this._persistentData);
 			const currentTime = this.currentTime;
 			const currentAnchor = this._trustedClock.captureAnchor();
-			const worldMetadata = syncWorldData.world_metadata ?? {
+			const worldMetadata = syncPayload.world_metadata ?? {
 				name: "MainScene",
 				last_ecs_saved: currentTime,
 				version: this.WORLD_DATA_SCHEMA_VERSION,
 			};
 
-			syncWorldData.world_metadata = worldMetadata;
+			syncPayload.world_metadata = worldMetadata;
 			worldMetadata.version =
 				worldMetadata.version || this.WORLD_DATA_SCHEMA_VERSION;
 
@@ -2767,7 +2767,7 @@ export class MainSceneWorld implements IWorld, Scene {
 				currentTime,
 				previousLastEcsSaved: worldMetadata.last_ecs_saved,
 				previousLastActiveTime: appState.last_active_time,
-				source: "home_widget_sync_world_data",
+				source: "world_data_sync_payload",
 			});
 			worldMetadata.last_ecs_saved = persistenceTime;
 			appState.last_active_time = persistenceTime;
@@ -2775,13 +2775,13 @@ export class MainSceneWorld implements IWorld, Scene {
 			appState.use_local_time = true;
 
 			const objectEntities = liveObjectQuery(this);
-			syncWorldData.entities = objectEntities.map((eid) =>
+			syncPayload.entities = objectEntities.map((eid) =>
 				convertECSEntityToSavedEntity(this, eid),
 			);
 			const characterEid = this._findMainCharacterEntity();
 
 			if (characterEid >= 0) {
-				console.warn("[ImportantDiagnostics][HomeWidgetSyncWorldData]", {
+				console.warn("[ImportantDiagnostics][WorldDataSyncPayload]", {
 					phase: "build_completed",
 					currentTime,
 					worldLastEcsSaved: worldMetadata.last_ecs_saved,
@@ -2799,10 +2799,10 @@ export class MainSceneWorld implements IWorld, Scene {
 				});
 			}
 
-			return syncWorldData;
+			return syncPayload;
 		} catch (error) {
 			console.warn(
-				"[MainSceneWorld] Failed to build home widget sync world data",
+				"[MainSceneWorld] Failed to build world data sync payload",
 				error,
 			);
 			return null;

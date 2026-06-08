@@ -257,7 +257,7 @@ type FlappyBirdSettingsMenuState = {
 
 type HomeWidgetLaunchMode = "default" | "widget_refresh";
 
-type HomeWidgetBackgroundSyncResult = {
+type WorldDataBackgroundSyncResult = {
 	status:
 		| "completed"
 		| "failed"
@@ -275,7 +275,7 @@ function readNullableNumber(value: unknown): number | null {
 	return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
-function readHomeWidgetSyncSource(
+function readWorldDataSyncSource(
 	value: unknown,
 ): "stored" | "in_memory" | null {
 	return value === "stored" || value === "in_memory" ? value : null;
@@ -2036,7 +2036,7 @@ const GameContainer: React.FC = () => {
 
 			logImportantDiagnostics(
 				"log",
-				"[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+				"[ImportantDiagnostics][WorldDataSyncPayload]",
 				{
 					action: "native_world_data_update_for_reentry",
 					source,
@@ -2077,7 +2077,7 @@ const GameContainer: React.FC = () => {
 			homeWidgetLaunchModeRef.current = mode;
 			logImportantDiagnostics(
 				"log",
-				"[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+				"[ImportantDiagnostics][WorldDataSyncPayload]",
 				{
 					action: "launch_context_loaded",
 					launchMode: mode,
@@ -2087,7 +2087,7 @@ const GameContainer: React.FC = () => {
 			homeWidgetLaunchModeRef.current = "default";
 			logImportantDiagnostics(
 				"warn",
-				"[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+				"[ImportantDiagnostics][WorldDataSyncPayload]",
 				{
 					action: "launch_context_failed",
 					error:
@@ -2592,7 +2592,7 @@ const GameContainer: React.FC = () => {
 	);
 
 	const syncHomeWidgetForNativeBackground = useCallback(
-		async (reason: string): Promise<HomeWidgetBackgroundSyncResult> => {
+		async (reason: string): Promise<WorldDataBackgroundSyncResult> => {
 			if (typeof window === "undefined") {
 				return {
 					status: "failed",
@@ -2611,7 +2611,7 @@ const GameContainer: React.FC = () => {
 			if (typeof controller?.syncFromWorldDataJson !== "function") {
 				logImportantDiagnostics(
 					"log",
-					"[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+					"[ImportantDiagnostics][WorldDataSyncPayload]",
 					{
 						reason,
 						action: "skipped_missing_controller",
@@ -2630,7 +2630,7 @@ const GameContainer: React.FC = () => {
 
 			try {
 				const inMemoryWorldData =
-					gameInstance?.getHomeWidgetSyncWorldData() ?? null;
+					gameInstance?.getWorldDataSyncPayload() ?? null;
 				const inMemoryRawWorldData = inMemoryWorldData
 					? JSON.stringify(inMemoryWorldData)
 					: null;
@@ -2642,7 +2642,7 @@ const GameContainer: React.FC = () => {
 				if (!syncFromFlutterSourceOfTruth && !inMemoryRawWorldData) {
 					logImportantDiagnostics(
 						"log",
-						"[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+						"[ImportantDiagnostics][WorldDataSyncPayload]",
 						{
 							reason,
 							action: "skipped_no_world_data",
@@ -2672,7 +2672,7 @@ const GameContainer: React.FC = () => {
 
 				logImportantDiagnostics(
 					"log",
-					"[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+					"[ImportantDiagnostics][WorldDataSyncPayload]",
 					{
 						reason,
 						action: "dispatched",
@@ -2686,7 +2686,7 @@ const GameContainer: React.FC = () => {
 				);
 
 				const syncResult = await syncPromise;
-				const selectedSource = readHomeWidgetSyncSource(
+				const selectedSource = readWorldDataSyncSource(
 					syncResult.selectedSource,
 				);
 				const storedLastEcsSaved = readNullableNumber(
@@ -2698,7 +2698,7 @@ const GameContainer: React.FC = () => {
 
 				logImportantDiagnostics(
 					"log",
-					"[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+					"[ImportantDiagnostics][WorldDataSyncPayload]",
 					{
 						reason,
 						action: "completed",
@@ -2737,7 +2737,7 @@ const GameContainer: React.FC = () => {
 			} catch (error) {
 				logImportantDiagnostics(
 					"warn",
-					"[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+					"[ImportantDiagnostics][WorldDataSyncPayload]",
 					{
 						reason,
 						action: "failed",
@@ -2782,7 +2782,7 @@ const GameContainer: React.FC = () => {
 
 			logImportantDiagnostics(
 				"log",
-				"[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+				"[ImportantDiagnostics][WorldDataSyncPayload]",
 				{
 					action: "widget_refresh_started",
 					reason,
@@ -2818,7 +2818,7 @@ const GameContainer: React.FC = () => {
 								: "failed";
 							logImportantDiagnostics(
 								"log",
-								"[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+								"[ImportantDiagnostics][WorldDataSyncPayload]",
 								{
 									action: "native_world_data_update_for_reentry_fallback",
 									reason,
@@ -2832,7 +2832,7 @@ const GameContainer: React.FC = () => {
 							completionResult = "failed";
 							logImportantDiagnostics(
 								"warn",
-								"[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+								"[ImportantDiagnostics][WorldDataSyncPayload]",
 								{
 									action: "widget_refresh_failed",
 									reason,
@@ -2852,7 +2852,7 @@ const GameContainer: React.FC = () => {
 						completionResult = "failed";
 						logImportantDiagnostics(
 							"warn",
-							"[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+							"[ImportantDiagnostics][WorldDataSyncPayload]",
 							{
 								action: "widget_refresh_failed",
 								reason,
@@ -2866,7 +2866,7 @@ const GameContainer: React.FC = () => {
 					completionResult = "failed";
 					logImportantDiagnostics(
 						"warn",
-						"[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+						"[ImportantDiagnostics][WorldDataSyncPayload]",
 						{
 							action: "widget_refresh_failed",
 							reason,
@@ -2900,7 +2900,7 @@ const GameContainer: React.FC = () => {
 						});
 						logImportantDiagnostics(
 							"log",
-							"[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+							"[ImportantDiagnostics][WorldDataSyncPayload]",
 							{
 								action: "widget_refresh_completed",
 								reason,
@@ -2912,7 +2912,7 @@ const GameContainer: React.FC = () => {
 					} else {
 						logImportantDiagnostics(
 							"warn",
-							"[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+							"[ImportantDiagnostics][WorldDataSyncPayload]",
 							{
 								action: "widget_refresh_failed",
 								reason,
@@ -2925,7 +2925,7 @@ const GameContainer: React.FC = () => {
 				} catch (error) {
 					logImportantDiagnostics(
 						"warn",
-						"[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+						"[ImportantDiagnostics][WorldDataSyncPayload]",
 						{
 							action: "widget_refresh_failed",
 							reason,
@@ -3858,7 +3858,7 @@ const GameContainer: React.FC = () => {
 				homeWidgetLaunchModeRef.current = "widget_refresh";
 				logImportantDiagnostics(
 					"log",
-					"[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+					"[ImportantDiagnostics][WorldDataSyncPayload]",
 					{
 						action: "launch_context_lifecycle",
 						launchMode,
@@ -3874,7 +3874,7 @@ const GameContainer: React.FC = () => {
 				if (nativeBackgroundWidgetSyncTriggeredRef.current) {
 					logImportantDiagnostics(
 						"log",
-						"[ImportantDiagnostics][HomeWidgetBackgroundSync]",
+						"[ImportantDiagnostics][WorldDataSyncPayload]",
 						{
 							reason,
 							action: "skipped_duplicate_burst",

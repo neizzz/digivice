@@ -50,7 +50,7 @@ function createMainSceneWorldForTest(now: number): MainSceneWorld {
   return world;
 }
 
-test("buildHomeWidgetSyncWorldData는 저장본 대신 현재 ECS egg 상태를 export한다", () => {
+test("buildWorldDataSyncPayload는 저장본 대신 현재 ECS egg 상태를 export한다", () => {
   const now = 9_000;
   const world = createMainSceneWorldForTest(now);
   const characterEid = createTestCharacter(
@@ -126,7 +126,7 @@ test("buildHomeWidgetSyncWorldData는 저장본 대신 현재 ECS egg 상태를 
     }
   )._persistentData = persistedData;
 
-  const snapshot = world.buildHomeWidgetSyncWorldData();
+  const snapshot = world.buildWorldDataSyncPayload();
 
   assert.ok(snapshot);
   assert.notEqual(snapshot, persistedData);
@@ -171,7 +171,7 @@ test("buildHomeWidgetSyncWorldData는 저장본 대신 현재 ECS egg 상태를 
   assert.equal(persistedData.entities[0]?.components.object?.state, CharacterState.IDLE);
 });
 
-test("buildHomeWidgetSyncWorldData는 stale clock으로 저장 timestamp를 되돌리지 않는다", () => {
+test("buildWorldDataSyncPayload는 stale clock으로 저장 timestamp를 되돌리지 않는다", () => {
   const staleNow = 4_000;
   const nativeSavedAt = 60 * 60 * 1000;
   const world = createMainSceneWorldForTest(staleNow);
@@ -201,7 +201,7 @@ test("buildHomeWidgetSyncWorldData는 stale clock으로 저장 timestamp를 되�
     entities: [],
   };
 
-  const snapshot = world.buildHomeWidgetSyncWorldData();
+  const snapshot = world.buildWorldDataSyncPayload();
 
   assert.ok(snapshot);
   assert.equal(snapshot.world_metadata.last_ecs_saved, nativeSavedAt);
@@ -215,7 +215,7 @@ test("buildHomeWidgetSyncWorldData는 stale clock으로 저장 timestamp를 되�
   );
 });
 
-test("buildHomeWidgetSyncWorldData는 persistence write를 발생시키지 않는다", () => {
+test("buildWorldDataSyncPayload는 persistence write를 발생시키지 않는다", () => {
   const now = 4_000;
   const world = createMainSceneWorldForTest(now);
   const worldInternals = world as unknown as {
@@ -254,7 +254,7 @@ test("buildHomeWidgetSyncWorldData는 persistence write를 발생시키지 않�
     setDataCalled += 1;
   };
 
-  const snapshot = world.buildHomeWidgetSyncWorldData();
+  const snapshot = world.buildWorldDataSyncPayload();
 
   assert.ok(snapshot);
   assert.equal(enqueueCalled, 0);

@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
-import 'home_widget_sync_service.dart';
+import 'world_data_sync_service.dart';
 
 class HomeWidgetRefreshController {
   static const MethodChannel _platformChannel = MethodChannel(
@@ -232,7 +232,7 @@ class HomeWidgetRefreshController {
           return;
         case 'syncFromStorageOrWorldDataJson':
           final Map<String, Object?> syncResult =
-              await HomeWidgetSyncService.syncFromStorageOrWorldDataJson(
+              await WorldDataSyncService.syncFromStorageOrWorldDataJson(
             inMemoryRawWorldData: payload['inMemoryRawWorldData'] as String?,
             reason: payload['reason'] as String? ?? 'manual',
             log: log,
@@ -251,7 +251,7 @@ class HomeWidgetRefreshController {
           return;
         case 'syncFromWorldDataJson':
           final Map<String, Object?> syncResult =
-              await HomeWidgetSyncService.syncFromWorldDataJson(
+              await WorldDataSyncService.syncFromWorldDataJson(
             rawWorldData: payload['rawWorldData'] as String?,
             reason: payload['reason'] as String? ?? 'manual',
             log: log,
