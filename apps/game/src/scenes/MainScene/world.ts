@@ -3885,6 +3885,7 @@ export class MainSceneWorld implements IWorld, Scene {
 			this._pendingRecoveryCureEids.add(characterEid);
 		} else if (isUnnecessaryMutationInjection) {
 			recordUnnecessaryMutationInjection(this, characterEid, this.currentTime);
+			void this._saveCurrentState();
 		} else {
 			console.log(
 				`[MainSceneWorld] Character ${characterEid} is not sick, starting hospital animation only`,

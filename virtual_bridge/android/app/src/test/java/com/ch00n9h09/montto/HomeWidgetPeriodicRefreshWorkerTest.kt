@@ -799,6 +799,54 @@ class HomeWidgetPeriodicRefreshWorkerTest {
 
     @Test
     fun `native authoritative refresh detoxes injection stacks and clears legacy dirty stacks`() {
+        val nowMs = 4 * 60 * 60 * 1000L
+        val widgetPrefs = FakeSharedPreferences()
+        val flutterPrefs = FakeSharedPreferences()
+
+        flutterPrefs.edit()
+            .putString(
+                HomeWidgetConstants.FLUTTER_WORLD_DATA_KEY,
+                buildHomeWidgetCharacterWorldData(
+                    lastEcsSaved = nowMs - 10_000L,
+                    characterKey = 1,
+                    stamina = 8.0,
+                    evolutionGage = 0.0,
+                    nextDiseaseCheckTime = nowMs + 60_000L,
+                    nextNapCheckTime = nowMs + 60_000L,
+                    mutationRiskJson = """
+                        {
+                          "unnecessaryInjectionStacks": 5,
+                          "dirtyExposureStacks": 4,
+                          "lastInjectionDetoxTime": ${nowMs - 3 * 60 * 60 * 1000L},
+                          "lastDirtyDetoxTime": 0
+                        }
+                    """.trimIndent(),
+                ),
+            )
+            .apply()
+
+        val result = HomeWidgetNativeAuthoritativeRefresh.complete(
+            widgetPrefs = widgetPrefs,
+            flutterPrefs = flutterPrefs,
+            nowMs = nowMs,
+            persistSnapshot = {},
+            randomProvider = { 1.0 },
+        )
+        val mutationRisk = JSONObject(result.updatedRawWorldData!!)
+            .getJSONArray("entities")
+            .getJSONObject(0)
+            .getJSONObject("components")
+            .getJSONObject("mutationRisk")
+
+        assertTrue(result.succeeded)
+        assertEquals(2, mutationRisk.getInt("unnecessaryInjectionStacks"))
+        assertEquals(0, mutationRisk.getInt("dirtyExposureStacks"))
+        assertEquals(nowMs, mutationRisk.getLong("lastInjectionDetoxTime"))
+        assertEquals(0, mutationRisk.getLong("lastDirtyDetoxTime"))
+    }
+
+    @Test
+    fun `native authoritative refresh preserves legacy injection stacks without detox baseline`() {
         val nowMs = 3 * 60 * 60 * 1000L
         val widgetPrefs = FakeSharedPreferences()
         val flutterPrefs = FakeSharedPreferences()
@@ -839,7 +887,7 @@ class HomeWidgetPeriodicRefreshWorkerTest {
             .getJSONObject("mutationRisk")
 
         assertTrue(result.succeeded)
-        assertEquals(2, mutationRisk.getInt("unnecessaryInjectionStacks"))
+        assertEquals(5, mutationRisk.getInt("unnecessaryInjectionStacks"))
         assertEquals(0, mutationRisk.getInt("dirtyExposureStacks"))
         assertEquals(nowMs, mutationRisk.getLong("lastInjectionDetoxTime"))
         assertEquals(0, mutationRisk.getLong("lastDirtyDetoxTime"))
@@ -965,7 +1013,7 @@ class HomeWidgetPeriodicRefreshWorkerTest {
 
     @Test
     fun `native authoritative refresh resolves evolution candidate after mutation risk detox`() {
-        val nowMs = 10 * 60 * 60 * 1000L
+        val nowMs = 11 * 60 * 60 * 1000L
         val widgetPrefs = FakeSharedPreferences()
         val flutterPrefs = FakeSharedPreferences()
 
@@ -983,7 +1031,7 @@ class HomeWidgetPeriodicRefreshWorkerTest {
                         {
                           "unnecessaryInjectionStacks": 10,
                           "dirtyExposureStacks": 0,
-                          "lastInjectionDetoxTime": 0,
+                          "lastInjectionDetoxTime": ${nowMs - 10 * 60 * 60 * 1000L},
                           "lastDirtyDetoxTime": 0
                         }
                     """.trimIndent(),

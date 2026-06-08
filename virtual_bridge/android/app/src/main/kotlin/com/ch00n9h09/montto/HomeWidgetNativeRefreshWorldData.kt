@@ -1195,11 +1195,18 @@ internal object HomeWidgetNativeRefreshWorldData {
         detoxIntervalMs: Long,
     ): NativeMutationRiskDetoxResult {
         val normalizedStacks = normalizeNativeMutationStackCount(currentStacks)
-        val normalizedLastDetoxTime = lastDetoxTime ?: currentTime
 
         if (normalizedStacks <= 0 || detoxIntervalMs <= 0L) {
             return NativeMutationRiskDetoxResult(
                 stacks = 0,
+                lastDetoxTime = currentTime,
+            )
+        }
+
+        val normalizedLastDetoxTime = lastDetoxTime ?: currentTime
+        if (normalizedLastDetoxTime <= 0L) {
+            return NativeMutationRiskDetoxResult(
+                stacks = normalizedStacks,
                 lastDetoxTime = currentTime,
             )
         }

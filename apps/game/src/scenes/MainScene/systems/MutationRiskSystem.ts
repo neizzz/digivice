@@ -212,12 +212,12 @@ function getDetoxedStackCount(params: {
   const { currentStacks, currentTime, detoxIntervalMs } = params;
   let { lastDetoxTime } = params;
 
-  if (!Number.isFinite(lastDetoxTime)) {
-    lastDetoxTime = currentTime;
-  }
-
   if (currentStacks <= 0 || detoxIntervalMs <= 0) {
     return { stacks: 0, lastDetoxTime: currentTime };
+  }
+
+  if (!Number.isFinite(lastDetoxTime) || lastDetoxTime <= 0) {
+    return { stacks: currentStacks, lastDetoxTime: currentTime };
   }
 
   const elapsedMs = Math.max(0, currentTime - lastDetoxTime);
