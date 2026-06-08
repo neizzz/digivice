@@ -29,5 +29,5 @@ dist-ssr
 apps/game/.test-dist/
 apps/game/.test-one/
 
-virtual_bridge/assets/web/assets/
+virtual_bridge/assets/web/assets/*
 tmp/*
