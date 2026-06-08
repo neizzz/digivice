@@ -91,6 +91,8 @@ private const val NATIVE_BOOSTED_EVOLUTION_GAUGE_GAIN_MULTIPLIER = 1.2
 private const val NATIVE_MUTATION_BASE_RATE = 0.01
 private const val NATIVE_MUTATION_STACK_CAP = 10
 private const val NATIVE_MUTATION_DIRTY_EXPOSURE_STACK_INTERVAL_MS = 2 * 60 * 60 * 1000L
+private const val NATIVE_MUTATION_DETOX_INTERVAL_CLASS_A_MS = 1 * 60 * 60 * 1000L
+private const val NATIVE_MUTATION_DETOX_INTERVAL_DEFAULT_MS = 2 * 60 * 60 * 1000L
 private const val NATIVE_EVOLUTION_CANDIDATE_KIND_BASE = "base"
 private const val NATIVE_EVOLUTION_CANDIDATE_KIND_SAME_LINE = "same_line_variant_mutation"
 private const val NATIVE_EVOLUTION_CANDIDATE_KIND_CROSS_LINE =
@@ -411,6 +413,7 @@ internal object HomeWidgetNativeRefreshWorldData {
             nowMs = nowMs,
             randomProvider = randomProvider,
         ) || changed
+        changed = progressMutationRiskDetox(source, nowMs) || changed
         val evolutionResult = progressEvolutionLifecycle(
             source = source,
             entities = entities,
@@ -1145,6 +1148,95 @@ internal object HomeWidgetNativeRefreshWorldData {
         return diseaseRate.coerceIn(0.0, 1.0)
     }
 
+    private fun progressMutationRiskDetox(
+        source: CharacterEntitySource,
+        nowMs: Long,
+    ): Boolean {
+        val mutationRisk = ensureObject(source.components, "mutationRisk")
+        val detoxIntervalMs = getNativeMutationDetoxIntervalMs(
+            source.characterStatus.optIntOrNull("characterKey"),
+        )
+        val previousInjectionStacks =
+            mutationRisk.optIntOrNull("unnecessaryInjectionStacks") ?: 0
+        val previousDirtyStacks = mutationRisk.optIntOrNull("dirtyExposureStacks") ?: 0
+        val previousLastInjectionDetoxTime =
+            mutationRisk.optLongOrNull("lastInjectionDetoxTime")
+        val previousLastDirtyDetoxTime = mutationRisk.optLongOrNull("lastDirtyDetoxTime")
+        val nextInjectionStacks = getDetoxedNativeMutationStackCount(
+            currentStacks = previousInjectionStacks,
+            lastDetoxTime = previousLastInjectionDetoxTime,
+            currentTime = nowMs,
+            detoxIntervalMs = detoxIntervalMs,
+        )
+        val nextDirtyStacks = previousDirtyStacks.coerceAtLeast(0)
+        val nextLastDirtyDetoxTime = previousLastDirtyDetoxTime ?: nowMs
+
+        mutationRisk.put(
+            "unnecessaryInjectionStacks",
+            nextInjectionStacks.stacks,
+        )
+        mutationRisk.put("dirtyExposureStacks", nextDirtyStacks)
+        mutationRisk.put(
+            "lastInjectionDetoxTime",
+            nextInjectionStacks.lastDetoxTime,
+        )
+        mutationRisk.put("lastDirtyDetoxTime", nextLastDirtyDetoxTime)
+
+        return previousInjectionStacks != nextInjectionStacks.stacks ||
+            previousDirtyStacks != nextDirtyStacks ||
+            previousLastInjectionDetoxTime != nextInjectionStacks.lastDetoxTime ||
+            previousLastDirtyDetoxTime != nextLastDirtyDetoxTime
+    }
+
+    private fun getDetoxedNativeMutationStackCount(
+        currentStacks: Int,
+        lastDetoxTime: Long?,
+        currentTime: Long,
+        detoxIntervalMs: Long,
+    ): NativeMutationRiskDetoxResult {
+        val normalizedStacks = normalizeNativeMutationStackCount(currentStacks)
+        val normalizedLastDetoxTime = lastDetoxTime ?: currentTime
+
+        if (normalizedStacks <= 0 || detoxIntervalMs <= 0L) {
+            return NativeMutationRiskDetoxResult(
+                stacks = 0,
+                lastDetoxTime = currentTime,
+            )
+        }
+
+        val elapsedMs = (currentTime - normalizedLastDetoxTime).coerceAtLeast(0L)
+        val detoxCount = floor(
+            elapsedMs.toDouble() / detoxIntervalMs.toDouble(),
+        ).toInt()
+
+        if (detoxCount <= 0) {
+            return NativeMutationRiskDetoxResult(
+                stacks = normalizedStacks,
+                lastDetoxTime = normalizedLastDetoxTime,
+            )
+        }
+
+        val stacks = (normalizedStacks - detoxCount).coerceAtLeast(0)
+
+        return NativeMutationRiskDetoxResult(
+            stacks = stacks,
+            lastDetoxTime = if (stacks == 0) {
+                currentTime
+            } else {
+                normalizedLastDetoxTime + detoxCount * detoxIntervalMs
+            },
+        )
+    }
+
+    private fun getNativeMutationDetoxIntervalMs(characterKey: Int?): Long {
+        val classCode = nativeEvolutionSpecs[characterKey]?.classCode
+        return when (classCode) {
+            "A" -> NATIVE_MUTATION_DETOX_INTERVAL_CLASS_A_MS
+            "B", "C", "D" -> NATIVE_MUTATION_DETOX_INTERVAL_DEFAULT_MS
+            else -> NATIVE_MUTATION_DETOX_INTERVAL_DEFAULT_MS
+        }
+    }
+
     private fun getNativeMutationRiskStacks(
         source: CharacterEntitySource,
         entities: JSONArray,
@@ -1174,9 +1266,14 @@ internal object HomeWidgetNativeRefreshWorldData {
             if (!isActiveDirtyExposureSource(components)) {
                 continue
             }
-            val dirtyExposure = components.optJSONObject("dirtyExposure") ?: continue
+            val dirtyExposure = components.optJSONObject("dirtyExposure")
+            if (dirtyExposure == null) {
+                stackCount += 1
+                continue
+            }
             val currentStacks = dirtyExposure.optIntOrNull("stackCount") ?: 0
-            val accumulatedExposureMs = dirtyExposure.optLongOrNull("accumulatedExposureMs") ?: 0L
+            val accumulatedExposureMs =
+                dirtyExposure.optLongOrNull("accumulatedExposureMs") ?: 0L
             val lastUpdatedTime = dirtyExposure.optLongOrNull("lastUpdatedTime") ?: nowMs
             val elapsedMs = (nowMs - lastUpdatedTime).coerceAtLeast(0L)
             val totalExposureMs = accumulatedExposureMs + elapsedMs
@@ -1184,8 +1281,10 @@ internal object HomeWidgetNativeRefreshWorldData {
                 totalExposureMs.toDouble() /
                     NATIVE_MUTATION_DIRTY_EXPOSURE_STACK_INTERVAL_MS.toDouble(),
             ).toInt()
+            val exposureStacks =
+                normalizeNativeMutationStackCount(currentStacks + gainedStacks)
 
-            stackCount += normalizeNativeMutationStackCount(currentStacks + gainedStacks)
+            stackCount += exposureStacks.coerceAtLeast(1)
         }
 
         return stackCount
@@ -1849,6 +1948,11 @@ internal object HomeWidgetNativeRefreshWorldData {
     private data class NativeMutationRiskStacks(
         val unnecessaryInjectionStacks: Int,
         val dirtyExposureStacks: Int,
+    )
+
+    private data class NativeMutationRiskDetoxResult(
+        val stacks: Int,
+        val lastDetoxTime: Long,
     )
 
     private data class NativeEvolutionSpec(

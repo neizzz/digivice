@@ -157,6 +157,7 @@ import { digestiveSystem } from "./systems/DigestiveSystem";
 import { diseaseSystem } from "./systems/DiseaseSystem";
 import { eggHatchSystem } from "./systems/EggHatchSystem";
 import {
+	getMutationRiskStacks,
 	mutationRiskSystem,
 	recordUnnecessaryMutationInjection,
 } from "./systems/MutationRiskSystem";
@@ -359,17 +360,14 @@ function getEvolutionGeneOutcomes(
 	}
 
 	const mutationTargets = getSameClassCrossGeneMutationTargets(characterKey);
-	const hasMutationRisk = hasComponent(world, MutationRiskComp, characterEid);
+	const mutationStacks = getMutationRiskStacks(world, characterEid);
 	const mutationRate =
 		mutationTargets.length > 0
 			? calculateMutationRate({
 					characterKey,
-					unnecessaryInjectionStacks: hasMutationRisk
-						? MutationRiskComp.unnecessaryInjectionStacks[characterEid]
-						: 0,
-					dirtyExposureStacks: hasMutationRisk
-						? MutationRiskComp.dirtyExposureStacks[characterEid]
-						: 0,
+					unnecessaryInjectionStacks:
+						mutationStacks.unnecessaryInjectionStacks,
+					dirtyExposureStacks: mutationStacks.dirtyExposureStacks,
 				})
 			: 0;
 	const normalEvolutionRate = Math.max(0, 1 - mutationRate);

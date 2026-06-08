@@ -26,7 +26,6 @@ import type { MainSceneWorld } from "../world";
 
 const characterQuery = defineQuery([ObjectComp, CharacterStatusComp]);
 const objectQuery = defineQuery([ObjectComp]);
-const dirtyExposureQuery = defineQuery([DirtyExposureComp]);
 const MAX_STORED_DIRTY_STACKS = 65_535;
 
 export function mutationRiskSystem(params: {
@@ -194,7 +193,6 @@ function detoxCharacterMutationStacks(
 
     ensureMutationRiskComp(world, eid, currentTime);
     detoxInjectionStacks(eid, currentTime);
-    detoxDirtyStacks(eid, currentTime);
   }
 }
 
@@ -210,20 +208,6 @@ function detoxInjectionStacks(eid: number, currentTime: number): void {
 
   MutationRiskComp.unnecessaryInjectionStacks[eid] = nextStacks.stacks;
   MutationRiskComp.lastInjectionDetoxTime[eid] = nextStacks.lastDetoxTime;
-}
-
-function detoxDirtyStacks(eid: number, currentTime: number): void {
-  const nextStacks = getDetoxedStackCount({
-    currentStacks: MutationRiskComp.dirtyExposureStacks[eid],
-    lastDetoxTime: MutationRiskComp.lastDirtyDetoxTime[eid],
-    currentTime,
-    detoxIntervalMs: getMutationDetoxIntervalMs(
-      CharacterStatusComp.characterKey[eid],
-    ),
-  });
-
-  MutationRiskComp.dirtyExposureStacks[eid] = nextStacks.stacks;
-  MutationRiskComp.lastDirtyDetoxTime[eid] = nextStacks.lastDetoxTime;
 }
 
 function getDetoxedStackCount(params: {
@@ -280,9 +264,9 @@ function transferDirtyStacksToCharacters(
   stackCount: number,
   currentTime: number,
 ): void {
-  if (stackCount <= 0) {
-    return;
-  }
+  const transferredStackCount = Number.isFinite(stackCount)
+    ? Math.max(1, Math.floor(stackCount))
+    : 1;
 
   const characters = characterQuery(world);
 
@@ -295,18 +279,26 @@ function transferDirtyStacksToCharacters(
     ensureMutationRiskComp(world, eid, currentTime);
     MutationRiskComp.dirtyExposureStacks[eid] = Math.min(
       MAX_STORED_DIRTY_STACKS,
-      MutationRiskComp.dirtyExposureStacks[eid] + stackCount,
+      MutationRiskComp.dirtyExposureStacks[eid] + transferredStackCount,
     );
     MutationRiskComp.lastDirtyDetoxTime[eid] = currentTime;
   }
 }
 
 function countActiveDirtyExposureStacks(world: MainSceneWorld): number {
-  const dirtyEntities = dirtyExposureQuery(world);
+  const dirtyEntities = objectQuery(world);
   let stackCount = 0;
 
   for (let i = 0; i < dirtyEntities.length; i++) {
-    stackCount += DirtyExposureComp.stackCount[dirtyEntities[i]];
+    const eid = dirtyEntities[i];
+
+    if (!isDirtyExposureSource(world, eid)) {
+      continue;
+    }
+
+    stackCount += hasComponent(world, DirtyExposureComp, eid)
+      ? Math.max(1, DirtyExposureComp.stackCount[eid])
+      : 1;
   }
 
   return stackCount;

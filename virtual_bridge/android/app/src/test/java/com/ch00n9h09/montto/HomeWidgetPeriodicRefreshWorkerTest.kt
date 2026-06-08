@@ -798,6 +798,174 @@ class HomeWidgetPeriodicRefreshWorkerTest {
     }
 
     @Test
+    fun `native authoritative refresh detoxes injection stacks but keeps dirty stacks`() {
+        val nowMs = 3 * 60 * 60 * 1000L
+        val widgetPrefs = FakeSharedPreferences()
+        val flutterPrefs = FakeSharedPreferences()
+
+        flutterPrefs.edit()
+            .putString(
+                HomeWidgetConstants.FLUTTER_WORLD_DATA_KEY,
+                buildHomeWidgetCharacterWorldData(
+                    lastEcsSaved = nowMs - 10_000L,
+                    characterKey = 1,
+                    stamina = 8.0,
+                    evolutionGage = 0.0,
+                    nextDiseaseCheckTime = nowMs + 60_000L,
+                    nextNapCheckTime = nowMs + 60_000L,
+                    mutationRiskJson = """
+                        {
+                          "unnecessaryInjectionStacks": 5,
+                          "dirtyExposureStacks": 4,
+                          "lastInjectionDetoxTime": 0,
+                          "lastDirtyDetoxTime": 0
+                        }
+                    """.trimIndent(),
+                ),
+            )
+            .apply()
+
+        val result = HomeWidgetNativeAuthoritativeRefresh.complete(
+            widgetPrefs = widgetPrefs,
+            flutterPrefs = flutterPrefs,
+            nowMs = nowMs,
+            persistSnapshot = {},
+            randomProvider = { 1.0 },
+        )
+        val mutationRisk = JSONObject(result.updatedRawWorldData!!)
+            .getJSONArray("entities")
+            .getJSONObject(0)
+            .getJSONObject("components")
+            .getJSONObject("mutationRisk")
+
+        assertTrue(result.succeeded)
+        assertEquals(2, mutationRisk.getInt("unnecessaryInjectionStacks"))
+        assertEquals(4, mutationRisk.getInt("dirtyExposureStacks"))
+        assertEquals(nowMs, mutationRisk.getLong("lastInjectionDetoxTime"))
+        assertEquals(0, mutationRisk.getLong("lastDirtyDetoxTime"))
+    }
+
+    @Test
+    fun `native authoritative refresh includes active cleanable dirty sources in mutation risk`() {
+        val nowMs = 60 * 60 * 1000L
+        val widgetPrefs = FakeSharedPreferences()
+        val flutterPrefs = FakeSharedPreferences()
+
+        flutterPrefs.edit()
+            .putString(
+                HomeWidgetConstants.FLUTTER_WORLD_DATA_KEY,
+                buildHomeWidgetCharacterWorldData(
+                    lastEcsSaved = nowMs - 10_000L,
+                    characterKey = 1,
+                    stamina = 8.0,
+                    evolutionGage = 99.999,
+                    nextDiseaseCheckTime = nowMs + 60_000L,
+                    nextNapCheckTime = nowMs + 60_000L,
+                    extraEntitiesJson = """
+                        ${buildHomeWidgetFoodEntityJson(
+                            freshness = 3,
+                            createdTime = nowMs,
+                            staleTime = 10 * 60 * 1000L,
+                        )},
+                        {
+                          "components": {
+                            "object": {
+                              "id": 21,
+                              "type": 4,
+                              "state": 0
+                            },
+                            "dirtyExposure": {
+                              "stackCount": 0,
+                              "accumulatedExposureMs": 0,
+                              "lastUpdatedTime": $nowMs
+                            }
+                          }
+                        }
+                    """.trimIndent(),
+                ),
+            )
+            .apply()
+
+        val result = HomeWidgetNativeAuthoritativeRefresh.complete(
+            widgetPrefs = widgetPrefs,
+            flutterPrefs = flutterPrefs,
+            nowMs = nowMs,
+            persistSnapshot = {},
+            randomProvider = { event ->
+                when (event.reason) {
+                    "evolution_mutation" -> 0.019
+                    "evolution_mutation_target" -> 0.0
+                    "evolution" -> 0.0
+                    else -> 1.0
+                }
+            },
+        )
+        val characterStatus = JSONObject(result.updatedRawWorldData!!)
+            .getJSONArray("entities")
+            .getJSONObject(0)
+            .getJSONObject("components")
+            .getJSONObject("characterStatus")
+
+        assertTrue(result.succeeded)
+        assertEquals(14, characterStatus.getInt("characterKey"))
+    }
+
+    @Test
+    fun `native authoritative refresh resolves evolution candidate after mutation risk detox`() {
+        val nowMs = 10 * 60 * 60 * 1000L
+        val widgetPrefs = FakeSharedPreferences()
+        val flutterPrefs = FakeSharedPreferences()
+
+        flutterPrefs.edit()
+            .putString(
+                HomeWidgetConstants.FLUTTER_WORLD_DATA_KEY,
+                buildHomeWidgetCharacterWorldData(
+                    lastEcsSaved = nowMs - 10_000L,
+                    characterKey = 1,
+                    stamina = 8.0,
+                    evolutionGage = 99.999,
+                    nextDiseaseCheckTime = nowMs + 60_000L,
+                    nextNapCheckTime = nowMs + 60_000L,
+                    mutationRiskJson = """
+                        {
+                          "unnecessaryInjectionStacks": 10,
+                          "dirtyExposureStacks": 0,
+                          "lastInjectionDetoxTime": 0,
+                          "lastDirtyDetoxTime": 0
+                        }
+                    """.trimIndent(),
+                ),
+            )
+            .apply()
+
+        val result = HomeWidgetNativeAuthoritativeRefresh.complete(
+            widgetPrefs = widgetPrefs,
+            flutterPrefs = flutterPrefs,
+            nowMs = nowMs,
+            persistSnapshot = {},
+            randomProvider = { event ->
+                when (event.reason) {
+                    "evolution_mutation" -> 0.05
+                    "evolution_mutation_target" -> 0.0
+                    "evolution" -> 0.0
+                    else -> 1.0
+                }
+            },
+        )
+        val components = JSONObject(result.updatedRawWorldData!!)
+            .getJSONArray("entities")
+            .getJSONObject(0)
+            .getJSONObject("components")
+        val characterStatus = components.getJSONObject("characterStatus")
+        val mutationRisk = components.getJSONObject("mutationRisk")
+
+        assertTrue(result.succeeded)
+        assertEquals(2, characterStatus.getInt("characterKey"))
+        assertEquals(0, mutationRisk.getInt("unnecessaryInjectionStacks"))
+        assertEquals(nowMs, mutationRisk.getLong("lastInjectionDetoxTime"))
+    }
+
+    @Test
     fun `native authoritative refresh pauses evolution gauge while sick or low stamina`() {
         val nowMs = 60 * 60 * 1000L
 
