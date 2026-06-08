@@ -707,6 +707,10 @@ const GIF_ASSETS = {
 const liveObjectQuery = defineQuery([ObjectComp]);
 const MAIN_SCENE_WORLD_ENTITY_CAPACITY = 256;
 
+function isFiniteTimestamp(value: unknown): value is number {
+	return typeof value === "number" && Number.isFinite(value);
+}
+
 /**
  * a) ecs구조에서 다루기 힘든 browser event핸들링
  * b) 전역 데이터 저장
@@ -2739,7 +2743,6 @@ export class MainSceneWorld implements IWorld, Scene {
 			};
 
 			syncWorldData.world_metadata = worldMetadata;
-			worldMetadata.last_ecs_saved = currentTime;
 			worldMetadata.version =
 				worldMetadata.version || this.WORLD_DATA_SCHEMA_VERSION;
 
@@ -2760,7 +2763,14 @@ export class MainSceneWorld implements IWorld, Scene {
 			};
 
 			worldMetadata.app_state = appState;
-			appState.last_active_time = currentTime;
+			const persistenceTime = this._resolveNonRegressingPersistenceTime({
+				currentTime,
+				previousLastEcsSaved: worldMetadata.last_ecs_saved,
+				previousLastActiveTime: appState.last_active_time,
+				source: "home_widget_sync_world_data",
+			});
+			worldMetadata.last_ecs_saved = persistenceTime;
+			appState.last_active_time = persistenceTime;
 			appState.last_active_time_anchor = currentAnchor;
 			appState.use_local_time = true;
 
@@ -4291,6 +4301,7 @@ export class MainSceneWorld implements IWorld, Scene {
 		this._isRunningReentrySimulation = true;
 
 		try {
+			await this._refreshTrustedClockForReentry(source);
 			const updateResult =
 				await this._onNativeWorldDataUpdateForReentry(source);
 
@@ -4775,6 +4786,7 @@ export class MainSceneWorld implements IWorld, Scene {
 			return; // 이미 활성 상태
 		}
 
+		await this._refreshTrustedClockForReentry("app_resume");
 		const pauseDuration = this.currentTime - this._pauseStartTime;
 		console.log(
 			`[MainSceneWorld] 📱 App resumed (returned to foreground) after ${this._formatPauseDuration(
@@ -4904,7 +4916,15 @@ export class MainSceneWorld implements IWorld, Scene {
 
 		// persistent data 업데이트
 		this._persistentData.entities = updatedEntities;
-		this._persistentData.world_metadata.last_ecs_saved = this.currentTime;
+		const appState = this._persistentData.world_metadata.app_state;
+		this._persistentData.world_metadata.last_ecs_saved =
+			this._resolveNonRegressingPersistenceTime({
+				currentTime: this.currentTime,
+				previousLastEcsSaved:
+					this._persistentData.world_metadata.last_ecs_saved,
+				previousLastActiveTime: appState?.last_active_time,
+				source: "sync_ecs_to_persistent_data",
+			});
 
 		console.log(
 			`[MainSceneWorld] Synced ${updatedEntities.length} entities to persistent data`,
@@ -4933,7 +4953,14 @@ export class MainSceneWorld implements IWorld, Scene {
 				};
 			}
 
-			const activeTime = this.currentTime;
+			const activeTime = this._resolveNonRegressingPersistenceTime({
+				currentTime: this.currentTime,
+				previousLastEcsSaved:
+					this._persistentData.world_metadata.last_ecs_saved,
+				previousLastActiveTime:
+					this._persistentData.world_metadata.app_state.last_active_time,
+				source: "save_last_active_time",
+			});
 			this._persistentData.world_metadata.app_state.last_active_time =
 				activeTime;
 			this._persistentData.world_metadata.app_state.last_active_time_anchor =
@@ -4945,6 +4972,57 @@ export class MainSceneWorld implements IWorld, Scene {
 				).toLocaleString("ko-KR")}`,
 			);
 		}
+	}
+
+	private async _refreshTrustedClockForReentry(
+		source: Extract<MainSceneReentrySimulationSource, "init" | "app_resume">,
+	): Promise<void> {
+		try {
+			await this._trustedClock.refresh({ forceRefresh: false });
+		} catch (error) {
+			console.warn("[ImportantDiagnostics][ReentryTrustedClock]", {
+				source,
+				phase: "refresh_failed",
+				error: error instanceof Error ? error.message : String(error),
+			});
+		}
+	}
+
+	private _resolveNonRegressingPersistenceTime(params: {
+		currentTime: number;
+		previousLastEcsSaved?: unknown;
+		previousLastActiveTime?: unknown;
+		source: string;
+	}): number {
+		const { currentTime, source } = params;
+		if (this._simulationTime !== null || !isFiniteTimestamp(currentTime)) {
+			return currentTime;
+		}
+
+		const previousTimes = [
+			params.previousLastEcsSaved,
+			params.previousLastActiveTime,
+		].filter(isFiniteTimestamp);
+		const preservedTime =
+			previousTimes.length > 0 ? Math.max(...previousTimes) : null;
+
+		if (preservedTime === null || currentTime >= preservedTime) {
+			return currentTime;
+		}
+
+		console.warn("[ImportantDiagnostics][TimestampRegressionGuard]", {
+			source,
+			currentTime,
+			previousLastEcsSaved: isFiniteTimestamp(params.previousLastEcsSaved)
+				? params.previousLastEcsSaved
+				: null,
+			previousLastActiveTime: isFiniteTimestamp(params.previousLastActiveTime)
+				? params.previousLastActiveTime
+				: null,
+			preservedTime,
+		});
+
+		return preservedTime;
 	}
 
 	/**

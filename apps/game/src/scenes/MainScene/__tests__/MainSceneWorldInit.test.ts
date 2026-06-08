@@ -1544,6 +1544,120 @@ test("init/app_resume reentry는 native payload world data가 있으면 stale st
 	assert.equal(writes.length, 2);
 });
 
+test("init/app_resume reentry 저장은 stale trusted clock으로 native timestamp를 되돌리지 않는다", async () => {
+	const originalGetData = StorageManager.getData.bind(StorageManager);
+	const originalSetData = StorageManager.setData.bind(StorageManager);
+	const lastActiveTime = 1_000;
+	const staleClockTime = 2_500;
+	const nativeSavedAt = 60 * 60 * 1000;
+	const staleSnapshot = {
+		trustedUtcMs: staleClockTime,
+		osUptimeMs: 12_500,
+		source: "ntp" as const,
+		uncertaintyMs: 10,
+		capturedWallMs: staleClockTime,
+	};
+	let refreshCalls = 0;
+	const trustedClock = {
+		refresh: async () => {
+			refreshCalls += 1;
+			return staleSnapshot;
+		},
+		now: () => staleClockTime,
+		elapsedSince: () => ({
+			elapsedMs: staleClockTime - lastActiveTime,
+			trusted: true,
+			currentSnapshot: staleSnapshot,
+		}),
+		captureAnchor: () => staleSnapshot,
+	};
+	const nativeUpdatedData = buildReentryCharacterWorldData({
+		state: CharacterState.IDLE,
+		currentTime: nativeSavedAt,
+		lastActiveTime: nativeSavedAt,
+		stamina: 6,
+	});
+	const writes: Array<{ key: string; data: MainSceneWorldData }> = [];
+	let storageReadCount = 0;
+	const world = createMainSceneWorld({
+		trustedClock,
+		onNativeWorldDataUpdateForReentry: async (source) => {
+			assert.equal(source, "app_resume");
+			return {
+				status: "native_authoritative_completion_completed",
+				updatedRawWorldData: JSON.stringify(nativeUpdatedData),
+				worldDataChanged: true,
+			};
+		},
+	});
+
+	createWorld(world as any, 32);
+	const staleEid = createTestCharacter(world as any, {
+		state: CharacterState.IDLE,
+		stamina: 7,
+		x: 100,
+		y: 100,
+	});
+	ObjectComp.id[staleEid] = 101;
+	world._persistentData = buildReentryCharacterWorldData({
+		state: CharacterState.IDLE,
+		currentTime: lastActiveTime,
+		lastActiveTime,
+	});
+
+	(
+		StorageManager as {
+			getData: typeof StorageManager.getData;
+			setData: typeof StorageManager.setData;
+		}
+	).getData = async () => {
+		storageReadCount += 1;
+		return null;
+	};
+	(
+		StorageManager as {
+			setData: typeof StorageManager.setData;
+		}
+	).setData = async (key, data) => {
+		writes.push({ key, data: data as MainSceneWorldData });
+	};
+
+	try {
+		await world._processReentrySimulation("app_resume");
+	} finally {
+		(
+			StorageManager as {
+				getData: typeof StorageManager.getData;
+				setData: typeof StorageManager.setData;
+			}
+		).getData = originalGetData;
+		(
+			StorageManager as {
+				setData: typeof StorageManager.setData;
+			}
+		).setData = originalSetData;
+	}
+
+	const savedData = writes.at(-1)?.data;
+
+	assert.ok(savedData);
+	assert.ok(refreshCalls >= 1);
+	assert.equal(storageReadCount, 0);
+	assert.equal(savedData.world_metadata.last_ecs_saved, nativeSavedAt);
+	assert.equal(
+		savedData.world_metadata.app_state?.last_active_time,
+		nativeSavedAt,
+	);
+	assert.equal(
+		world.getInMemoryData().world_metadata.last_ecs_saved,
+		nativeSavedAt,
+	);
+	assert.equal(
+		world.getInMemoryData().world_metadata.app_state?.last_active_time,
+		nativeSavedAt,
+	);
+});
+
 test("init/app_resume reentry는 native updatedRawWorldData의 sleeping+sick 상태를 보존한다", async () => {
 	const originalGetData = StorageManager.getData.bind(StorageManager);
 	const originalSetData = StorageManager.setData.bind(StorageManager);
