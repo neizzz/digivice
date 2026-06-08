@@ -48,10 +48,10 @@ pnpm --filter @digivice/client snapshot:store:current -- --url http://127.0.0.1:
 Use this preset when the user asks for a broad Play Store submission set across all supported languages:
 
 ```bash
-pnpm --filter @digivice/client snapshot:store -- --locales en,ko,ja,zh-TW,zh-HK,hi,th,vi,pt-BR --shots main-scene-day,main-scene-night,monster-info,monster-book,setup
+pnpm --filter @digivice/client snapshot:store -- --locales en,ko,ja,zh-TW,zh-HK,hi,th,vi,pt-BR --shots main-scene-eating,main-scene-night,monster-info,monster-book,setup
 ```
 
-- The five-shot diversity pack is `main-scene-day`, `main-scene-night`, `monster-info`, `monster-book`, and `setup`. Capture runtime shots before `setup` to avoid static snapshot state interfering with runtime readiness.
+- The five-shot diversity pack is `main-scene-eating`, `main-scene-night`, `monster-info`, `monster-book`, and `setup`. Capture runtime shots before `setup` to avoid static snapshot state interfering with runtime readiness.
 - If the full pack flakes in Chrome/CDP, build once, run `vite preview`, then use `snapshot:store:current` one `locale` x one `shot` at a time into the same `--out` folder.
 - If a user asks for a character name, update only the runtime fixtures by default. Leave the setup input empty unless the user explicitly asks to prefill it.
 - Run a one-locale subset first when changing fixtures, then capture the full locale set.
@@ -78,6 +78,7 @@ Use shot-specific JSON with this intent:
 - `scene`: runtime target scene (`main`, `flappy_bird_game`, `monster_book`)
 - `timeOfDay`: `day` or `night` when a main-scene shot must be forced
 - `overlay`: use `monster-info` when the popup must auto-open
+- For Play Store captures, use production builds; dev/debug builds can show character render bounds.
 
 Prefer editing the smallest fixture that owns the visual state.
 Do not move this logic into broad app runtime if a fixture can express it.
@@ -85,7 +86,7 @@ Do not move this logic into broad app runtime if a fixture can express it.
 ## Shot ownership
 
 - `setup`, `settings-menu`, `settings-reset`: `SnapshotScreen` path
-- `main-scene-day`, `main-scene-night`, `monster-info`: seeded main scene + runtime snapshot hook
+- `main-scene-day`, `main-scene-night`, `main-scene-eating`, `monster-info`: seeded main scene + runtime snapshot hook
 - `flappy-bird`: seeded main scene, then real scene transition to Flappy Bird
 - `monster-book`: seeded storage, then real scene transition to Monster Book
 

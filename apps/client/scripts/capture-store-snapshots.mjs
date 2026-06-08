@@ -70,6 +70,12 @@ const SHOT_CONFIG = {
     settleMs: 900,
     readyTimeoutMs: 20000,
   },
+  "main-scene-eating": {
+    kind: "runtime",
+    fixtureFile: "main-scene-eating.json",
+    settleMs: 1200,
+    readyTimeoutMs: 20000,
+  },
   "main-scene-night": {
     kind: "runtime",
     fixtureFile: "main-scene-night.json",
@@ -250,11 +256,12 @@ async function waitForHttp(url, timeoutMs = 30000) {
 }
 
 async function startViteServer(options) {
-  await runCommand("pnpm", ["run", "build:development"], {
+  await runCommand("pnpm", ["run", "build:production"], {
     cwd: clientRoot,
     env: {
       ...process.env,
-      APP_LOGO_TEXT: "STORE",
+      APP_LOGO_TEXT: "",
+      NATIVE_FEATURE_DEBUG_MODE: "false",
     },
   });
 

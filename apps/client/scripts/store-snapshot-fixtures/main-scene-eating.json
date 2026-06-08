@@ -1,0 +1,224 @@
+{
+  "scene": "main",
+  "timeOfDay": "day",
+  "storage": {
+    "MainSceneWorldData": {
+      "world_metadata": {
+        "name": "MainScene",
+        "monster_name": "MonTTo",
+        "last_ecs_saved": 1769900400000,
+        "version": "1.0.0",
+        "app_state": {
+          "last_active_time": 1769900400000,
+          "last_active_time_anchor": {
+            "trustedUtcMs": 1769900400000,
+            "osUptimeMs": 120000,
+            "source": "web-dev-fallback",
+            "uncertaintyMs": 0,
+            "capturedWallMs": 1769900400000
+          },
+          "is_first_load": false,
+          "use_local_time": false,
+          "main_scene_ad": {
+            "menu_use_count": 0
+          },
+          "mini_game_scores": {
+            "flappy_bird": {
+              "best_score": 12
+            }
+          },
+          "monster_book": {
+            "reached": {}
+          }
+        }
+      },
+      "entities": [
+        {
+          "components": {
+            "object": {
+              "id": 1001,
+              "type": 1,
+              "state": 5
+            },
+            "characterStatus": {
+              "characterKey": 2,
+              "stamina": 6.4,
+              "evolutionGage": 72,
+              "evolutionPhase": 2,
+              "statuses": [
+                0,
+                0,
+                0,
+                0
+              ]
+            },
+            "position": {
+              "x": 140,
+              "y": 164
+            },
+            "angle": {
+              "value": 0
+            },
+            "render": {
+              "textureKey": 0,
+              "scale": 3,
+              "zIndex": 0
+            },
+            "animationRender": {
+              "storeIndex": 0,
+              "spritesheetKey": 2,
+              "animationKey": 4,
+              "isPlaying": true,
+              "loop": true,
+              "speed": 0.08
+            },
+            "speed": {
+              "value": 0
+            },
+            "foodEating": {
+              "targetFood": 1,
+              "progress": 0.35,
+              "duration": 3000,
+              "elapsedTime": 1050,
+              "isActive": true
+            }
+          }
+        },
+        {
+          "components": {
+            "object": {
+              "id": 2001,
+              "type": 3,
+              "state": 3
+            },
+            "position": {
+              "x": 176,
+              "y": 164
+            },
+            "render": {
+              "textureKey": 408,
+              "scale": 1.55,
+              "zIndex": 0
+            },
+            "freshness": {
+              "freshness": 2
+            },
+            "freshnessTimer": {
+              "createdTime": 4102444800000,
+              "normalTime": 600000,
+              "staleTime": 1200000,
+              "isBeingEaten": true
+            },
+            "foodMask": {
+              "maskStoreIndex": 0,
+              "progress": 0.35,
+              "isInitialized": false
+            }
+          }
+        },
+        {
+          "components": {
+            "object": {
+              "id": 2002,
+              "type": 3,
+              "state": 2
+            },
+            "position": {
+              "x": 96,
+              "y": 212
+            },
+            "render": {
+              "textureKey": 400,
+              "scale": 1.4,
+              "zIndex": 0
+            },
+            "freshness": {
+              "freshness": 2
+            },
+            "freshnessTimer": {
+              "createdTime": 4102444800000,
+              "normalTime": 600000,
+              "staleTime": 1200000,
+              "isBeingEaten": false
+            }
+          }
+        },
+        {
+          "components": {
+            "object": {
+              "id": 2003,
+              "type": 3,
+              "state": 2
+            },
+            "position": {
+              "x": 224,
+              "y": 224
+            },
+            "render": {
+              "textureKey": 409,
+              "scale": 1.45,
+              "zIndex": 0
+            },
+            "freshness": {
+              "freshness": 2
+            },
+            "freshnessTimer": {
+              "createdTime": 4102444800000,
+              "normalTime": 600000,
+              "staleTime": 1200000,
+              "isBeingEaten": false
+            }
+          }
+        },
+        {
+          "components": {
+            "object": {
+              "id": 2004,
+              "type": 3,
+              "state": 2
+            },
+            "position": {
+              "x": 252,
+              "y": 218
+            },
+            "render": {
+              "textureKey": 401,
+              "scale": 1.35,
+              "zIndex": 0
+            },
+            "freshness": {
+              "freshness": 3
+            },
+            "freshnessTimer": {
+              "createdTime": 1769899400000,
+              "normalTime": 0,
+              "staleTime": 600000,
+              "isBeingEaten": false
+            }
+          }
+        },
+        {
+          "components": {
+            "object": {
+              "id": 3001,
+              "type": 4,
+              "state": 1
+            },
+            "position": {
+              "x": 296,
+              "y": 154
+            },
+            "render": {
+              "textureKey": 200,
+              "scale": 1.55,
+              "zIndex": 0
+            }
+          }
+        }
+      ]
+    },
+    "MonsterBookData": {
+      "reached": {}
+    }
+  }
+}
