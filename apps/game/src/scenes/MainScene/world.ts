@@ -608,6 +608,7 @@ type MainSceneAppState = NonNullable<WorldMetadata["app_state"]>;
 
 type MainSceneEntryStatusSnapshot = {
 	eid: number;
+	state: number;
 	signature: string;
 	isSleeping: boolean;
 };
@@ -4303,16 +4304,53 @@ export class MainSceneWorld implements IWorld, Scene {
 				);
 			}
 
-			const reloadedData = await StorageManager.getData<MainSceneWorldData>(
-				WORLD_DATA_STORAGE_KEY,
-			);
-			const validatedData = reloadedData
-				? this._validateAndMigrateData(reloadedData)
-				: null;
+			let usedNativeUpdatedRawWorldData = false;
+			let validatedData: MainSceneWorldData | null = null;
+
+			if (typeof updateResult.updatedRawWorldData === "string") {
+				const rawWorldData = updateResult.updatedRawWorldData.trim();
+				if (rawWorldData) {
+					try {
+						const parsedData = JSON.parse(rawWorldData) as MainSceneWorldData;
+						const nativeValidatedData =
+							this._validateAndMigrateData(parsedData);
+						if (this._hasPlayableSavedData(nativeValidatedData)) {
+							validatedData = nativeValidatedData;
+							usedNativeUpdatedRawWorldData = true;
+						} else {
+							console.warn(
+								"[MainSceneWorld] Native updated raw world data is not playable; falling back to storage reload",
+								{ source, status: updateResult.status },
+							);
+						}
+					} catch (error) {
+						console.warn(
+							"[MainSceneWorld] Failed to parse native updated raw world data; falling back to storage reload",
+							{ source, status: updateResult.status, error },
+						);
+					}
+				}
+			}
+
+			if (!validatedData) {
+				const reloadedData = await StorageManager.getData<MainSceneWorldData>(
+					WORLD_DATA_STORAGE_KEY,
+				);
+				validatedData = reloadedData
+					? this._validateAndMigrateData(reloadedData)
+					: null;
+			}
 
 			if (!this._hasPlayableSavedData(validatedData)) {
 				throw new Error("native_world_data_update_missing_reloaded_world_data");
 			}
+
+			const nativeUpdatedRawCharacterState = usedNativeUpdatedRawWorldData
+				? this._getSavedMainCharacterState(validatedData)
+				: null;
+			const shouldPreserveNativeSleep =
+				updateResult.nextCharacterState === CharacterState.SLEEPING ||
+				nativeUpdatedRawCharacterState === CharacterState.SLEEPING;
 
 			this.applyPersistedWorldDataForReentry(validatedData);
 			options.clearFoodInteractionSuspendFlag();
@@ -4321,7 +4359,15 @@ export class MainSceneWorld implements IWorld, Scene {
 					.suspend_food_interaction_until_reentry;
 			}
 			applyReentryHappyStatusForFullStaminaCharacters(this);
-			this._applyEntryStatusSuppression(source, preReentrySnapshot);
+			const sleepSuppressionApplied = this._applyEntryStatusSuppression(
+				source,
+				preReentrySnapshot,
+				{
+					preserveNativeSleep: shouldPreserveNativeSleep,
+				},
+			);
+			const postAppliedSnapshot =
+				this._captureMainCharacterEntryStatusSnapshot();
 
 			if (this._initDiagnostics.isInitTimingActive) {
 				await this._initDiagnostics.measurePhase(
@@ -4344,6 +4390,12 @@ export class MainSceneWorld implements IWorld, Scene {
 					previousCharacterState: updateResult.previousCharacterState ?? null,
 					nextCharacterState: updateResult.nextCharacterState ?? null,
 					selectedCharacterKey: updateResult.selectedCharacterKey ?? null,
+					usedNativeUpdatedRawWorldData,
+					preAppState: preReentrySnapshot?.state ?? null,
+					nativeNextState: updateResult.nextCharacterState ?? null,
+					nativeUpdatedRawCharacterState,
+					postAppliedState: postAppliedSnapshot?.state ?? null,
+					sleepSuppressionApplied,
 				},
 			);
 		} finally {
@@ -4503,9 +4555,23 @@ export class MainSceneWorld implements IWorld, Scene {
 
 		return {
 			eid: characterEid,
+			state: ObjectComp.state[characterEid],
 			signature: `${ObjectComp.state[characterEid]}|${statuses.join(",")}`,
 			isSleeping,
 		};
+	}
+
+	private _getSavedMainCharacterState(
+		data: MainSceneWorldData | null | undefined,
+	): number | null {
+		for (const entity of data?.entities ?? []) {
+			const object = entity.components.object;
+			if (object?.type === ObjectType.CHARACTER) {
+				return object.state;
+			}
+		}
+
+		return null;
 	}
 
 	private _clearMainCharacterSleepState(eid: number): void {
@@ -4545,16 +4611,24 @@ export class MainSceneWorld implements IWorld, Scene {
 	private _applyEntryStatusSuppression(
 		source: MainSceneReentrySimulationSource,
 		preReentrySnapshot: MainSceneEntryStatusSnapshot | null,
-	): void {
+		options: {
+			preserveNativeSleep?: boolean;
+		} = {},
+	): boolean {
 		if (!this._shouldPreserveWidgetEntryStatuses(source)) {
 			this._entryStatusSuppression = null;
-			return;
+			return false;
 		}
 
 		const postReentrySnapshot = this._captureMainCharacterEntryStatusSnapshot();
 		if (!preReentrySnapshot || !postReentrySnapshot) {
 			this._entryStatusSuppression = null;
-			return;
+			return false;
+		}
+
+		if (options.preserveNativeSleep === true && postReentrySnapshot.isSleeping) {
+			this._entryStatusSuppression = null;
+			return false;
 		}
 
 		const previousSuppression = this._entryStatusSuppression;
@@ -4563,7 +4637,7 @@ export class MainSceneWorld implements IWorld, Scene {
 			(!preReentrySnapshot.isSleeping && postReentrySnapshot.isSleeping);
 
 		if (!suppressSleep) {
-			return;
+			return false;
 		}
 
 		this._clearMainCharacterSleepState(postReentrySnapshot.eid);
@@ -4574,6 +4648,7 @@ export class MainSceneWorld implements IWorld, Scene {
 			baselineSignature:
 				suppressedSnapshot?.signature ?? postReentrySnapshot.signature,
 		};
+		return true;
 	}
 
 	private _releaseEntryStatusSuppressionIfNeeded(): void {

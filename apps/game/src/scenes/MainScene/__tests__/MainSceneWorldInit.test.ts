@@ -40,6 +40,7 @@ import {
 	Freshness,
 	ObjectType,
 	SleepMode,
+	SleepReason,
 	TextureKey,
 } from "../types";
 import { ControlButtonType, type ControlButtonParams } from "../../../ui/types";
@@ -149,6 +150,94 @@ function createObjectEntity(
 
 function hasCharacterStatus(eid: number, status: number): boolean {
 	return Array.from(CharacterStatusComp.statuses[eid]).includes(status);
+}
+
+function buildReentryCharacterWorldData(options: {
+	state: CharacterState;
+	currentTime: number;
+	lastActiveTime?: number;
+	statuses?: CharacterStatus[];
+	stamina?: number;
+	sleepMode?: SleepMode;
+	sickStartTime?: number;
+}): MainSceneWorldData {
+	const {
+		state,
+		currentTime,
+		lastActiveTime = currentTime,
+		statuses = [],
+		stamina = 7,
+		sleepMode = state === CharacterState.SLEEPING
+			? SleepMode.NIGHT_SLEEP
+			: SleepMode.AWAKE,
+		sickStartTime = statuses.includes(CharacterStatus.SICK) ? 1 : 0,
+	} = options;
+
+	return {
+		world_metadata: {
+			name: "MainScene",
+			monster_name: "Test",
+			last_ecs_saved: currentTime,
+			version: "1.0.0",
+			app_state: {
+				last_active_time: lastActiveTime,
+				is_first_load: false,
+				use_local_time: true,
+				suspend_food_interaction_until_reentry: true,
+			},
+		},
+		entities: [
+			{
+				components: {
+					object: {
+						id: 202,
+						type: ObjectType.CHARACTER,
+						state,
+					},
+					characterStatus: {
+						characterKey: CharacterKeyECS.GreenSlimeA1,
+						stamina,
+						evolutionGage: 12,
+						evolutionPhase: 1,
+						statuses: [
+							...statuses,
+							...Array(Math.max(0, 4 - statuses.length)).fill(
+								ECS_NULL_VALUE,
+							),
+						] as CharacterStatus[],
+					},
+					position: {
+						x: 160,
+						y: 140,
+					},
+					render: {
+						storeIndex: ECS_NULL_VALUE,
+						textureKey: TextureKey.NULL,
+						scale: 3,
+						zIndex: ECS_NULL_VALUE,
+					},
+					diseaseSystem: {
+						nextCheckTime: currentTime + GAME_CONSTANTS.DISEASE_CHECK_INTERVAL,
+						sickStartTime,
+					},
+					sleepSystem: {
+						fatigue: 20,
+						nextSleepTime: 0,
+						nextWakeTime:
+							state === CharacterState.SLEEPING ? currentTime + 60_000 : 0,
+						nextNapCheckTime: currentTime + GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL,
+						nextNightWakeCheckTime: 0,
+						sleepMode,
+						interruptedSleepMode: SleepMode.AWAKE,
+						pendingSleepReason: SleepReason.NONE,
+						pendingWakeReason: SleepReason.NONE,
+						sleepSessionStartedAt:
+							state === CharacterState.SLEEPING ? currentTime : 0,
+					},
+				},
+			},
+		],
+	};
 }
 
 test("초기 세팅 데이터가 없으면 setup 없이 기본 월드를 만들지 않는다", () => {
@@ -1265,6 +1354,436 @@ test("reentry 상태 콜백은 native update 실패 후에도 완료를 알린�
 			hasError: true,
 		},
 	]);
+});
+
+test("init/app_resume reentry는 native payload world data가 있으면 stale storage보다 우선 적용한다", async () => {
+	const originalGetData = StorageManager.getData.bind(StorageManager);
+	const originalSetData = StorageManager.setData.bind(StorageManager);
+	const lastActiveTime = 1_000;
+	const currentTime = 2_500;
+	const currentSnapshot = {
+		trustedUtcMs: currentTime,
+		osUptimeMs: 12_500,
+		source: "ntp" as const,
+		uncertaintyMs: 10,
+		capturedWallMs: currentTime,
+	};
+	const trustedClock = {
+		refresh: async () => currentSnapshot,
+		now: () => currentTime,
+		elapsedSince: () => ({
+			elapsedMs: currentTime - lastActiveTime,
+			trusted: true,
+			currentSnapshot,
+		}),
+		captureAnchor: () => currentSnapshot,
+	};
+	const nativeUpdatedData: MainSceneWorldData = {
+		world_metadata: {
+			name: "MainScene",
+			monster_name: "Test",
+			last_ecs_saved: currentTime,
+			version: "1.0.0",
+			app_state: {
+				last_active_time: currentTime,
+				is_first_load: false,
+				use_local_time: true,
+				suspend_food_interaction_until_reentry: true,
+			},
+		},
+		entities: [
+			{
+				components: {
+					object: {
+						id: 202,
+						type: ObjectType.CHARACTER,
+						state: CharacterState.IDLE,
+					},
+					characterStatus: {
+						characterKey: CharacterKeyECS.GreenSlimeA1,
+						stamina: 7,
+						evolutionGage: 12,
+						evolutionPhase: 1,
+						statuses: [
+							ECS_NULL_VALUE,
+							ECS_NULL_VALUE,
+							ECS_NULL_VALUE,
+							ECS_NULL_VALUE,
+						],
+					},
+					position: {
+						x: 160,
+						y: 140,
+					},
+					render: {
+						storeIndex: ECS_NULL_VALUE,
+						textureKey: TextureKey.NULL,
+						scale: 3,
+						zIndex: ECS_NULL_VALUE,
+					},
+				},
+			},
+		],
+	};
+	const staleStoredData: MainSceneWorldData = {
+		...nativeUpdatedData,
+		world_metadata: {
+			...nativeUpdatedData.world_metadata,
+			last_ecs_saved: lastActiveTime,
+			app_state: {
+				...nativeUpdatedData.world_metadata.app_state,
+				last_active_time: lastActiveTime,
+			},
+		},
+		entities: [
+			{
+				components: {
+					...nativeUpdatedData.entities[0]?.components,
+					object: {
+						id: 101,
+						type: ObjectType.CHARACTER,
+						state: CharacterState.EGG,
+					},
+					characterStatus: {
+						characterKey: CharacterKeyECS.GreenSlimeA1,
+						stamina: 1,
+						evolutionGage: 0,
+						evolutionPhase: 1,
+						statuses: [],
+					},
+					position: {
+						x: 40,
+						y: 40,
+					},
+				},
+			},
+		],
+	};
+	const writes: unknown[] = [];
+	let storageReadCount = 0;
+	let nativeUpdateCalls = 0;
+	const world = createMainSceneWorld({
+		trustedClock,
+		onNativeWorldDataUpdateForReentry: async (source) => {
+			nativeUpdateCalls += 1;
+			assert.equal(source, "app_resume");
+			return {
+				status: "native_authoritative_completion_completed",
+				updatedRawWorldData: JSON.stringify(nativeUpdatedData),
+				worldDataChanged: true,
+			};
+		},
+	});
+
+	createWorld(world as any, 32);
+	const staleEid = createTestCharacter(world as any, {
+		state: CharacterState.EGG,
+		stamina: 1,
+		x: 40,
+		y: 40,
+	});
+	ObjectComp.id[staleEid] = 101;
+	world._persistentData = {
+		world_metadata: {
+			name: "MainScene",
+			monster_name: "Test",
+			last_ecs_saved: lastActiveTime,
+			version: "1.0.0",
+			app_state: {
+				last_active_time: lastActiveTime,
+				is_first_load: false,
+				use_local_time: true,
+				suspend_food_interaction_until_reentry: true,
+			},
+		},
+		entities: [],
+	};
+
+	(
+		StorageManager as {
+			getData: typeof StorageManager.getData;
+			setData: typeof StorageManager.setData;
+		}
+	).getData = async (key) => {
+		storageReadCount += 1;
+		return key === WORLD_DATA_STORAGE_KEY ? (staleStoredData as never) : null;
+	};
+	(
+		StorageManager as {
+			setData: typeof StorageManager.setData;
+		}
+	).setData = async (_key, data) => {
+		writes.push(data);
+	};
+
+	try {
+		await world._processReentrySimulation("app_resume");
+	} finally {
+		(
+			StorageManager as {
+				getData: typeof StorageManager.getData;
+				setData: typeof StorageManager.setData;
+			}
+		).getData = originalGetData;
+		(
+			StorageManager as {
+				setData: typeof StorageManager.setData;
+			}
+		).setData = originalSetData;
+	}
+
+	const characterEid = world._findMainCharacterEntity();
+
+	assert.equal(nativeUpdateCalls, 1);
+	assert.equal(storageReadCount, 0);
+	assert.equal(ObjectComp.id[characterEid], 202);
+	assert.equal(ObjectComp.state[characterEid], CharacterState.IDLE);
+	assert.equal(CharacterStatusComp.stamina[characterEid], 7);
+	assert.equal(PositionComp.x[characterEid], 160);
+	assert.equal(PositionComp.y[characterEid], 140);
+	assert.equal(writes.length, 2);
+});
+
+test("init/app_resume reentry는 native updatedRawWorldData의 sleeping+sick 상태를 보존한다", async () => {
+	const originalGetData = StorageManager.getData.bind(StorageManager);
+	const originalSetData = StorageManager.setData.bind(StorageManager);
+	const lastActiveTime = 1_000;
+	const currentTime = 2_500;
+	const currentSnapshot = {
+		trustedUtcMs: currentTime,
+		osUptimeMs: 12_500,
+		source: "ntp" as const,
+		uncertaintyMs: 10,
+		capturedWallMs: currentTime,
+	};
+	const trustedClock = {
+		refresh: async () => currentSnapshot,
+		now: () => currentTime,
+		elapsedSince: () => ({
+			elapsedMs: currentTime - lastActiveTime,
+			trusted: true,
+			currentSnapshot,
+		}),
+		captureAnchor: () => currentSnapshot,
+	};
+	const nativeUpdatedData = buildReentryCharacterWorldData({
+		state: CharacterState.SLEEPING,
+		currentTime,
+		statuses: [CharacterStatus.SICK],
+		sleepMode: SleepMode.NIGHT_SLEEP,
+		sickStartTime: 1,
+	});
+	const writes: Array<{ key: string; data: unknown }> = [];
+	let storageReadCount = 0;
+	const world = createMainSceneWorld({
+		trustedClock,
+		onNativeWorldDataUpdateForReentry: async (source) => {
+			assert.equal(source, "app_resume");
+			return {
+				status: "native_authoritative_completion_completed",
+				updatedRawWorldData: JSON.stringify(nativeUpdatedData),
+				worldDataChanged: true,
+			};
+		},
+	});
+
+	createWorld(world as any, 32);
+	const preReentryEid = createTestCharacter(world as any, {
+		state: CharacterState.SICK,
+		stamina: 7,
+		x: 100,
+		y: 100,
+	});
+	ObjectComp.id[preReentryEid] = 101;
+	CharacterStatusComp.statuses[preReentryEid][0] = CharacterStatus.SICK;
+	DiseaseSystemComp.sickStartTime[preReentryEid] = 1;
+	world._persistentData = buildReentryCharacterWorldData({
+		state: CharacterState.SICK,
+		currentTime: lastActiveTime,
+		statuses: [CharacterStatus.SICK],
+		sickStartTime: 1,
+	});
+
+	(
+		StorageManager as {
+			getData: typeof StorageManager.getData;
+			setData: typeof StorageManager.setData;
+		}
+	).getData = async () => {
+		storageReadCount += 1;
+		return null;
+	};
+	(
+		StorageManager as {
+			setData: typeof StorageManager.setData;
+		}
+	).setData = async (key, data) => {
+		writes.push({ key, data });
+	};
+
+	try {
+		await world._processReentrySimulation("app_resume");
+	} finally {
+		(
+			StorageManager as {
+				getData: typeof StorageManager.getData;
+				setData: typeof StorageManager.setData;
+			}
+		).getData = originalGetData;
+		(
+			StorageManager as {
+				setData: typeof StorageManager.setData;
+			}
+		).setData = originalSetData;
+	}
+
+	const characterEid = world._findMainCharacterEntity();
+	const persistedCharacter =
+		(world.getInMemoryData().entities[0]?.components ?? null);
+	const syncCharacter =
+		(world.buildHomeWidgetSyncWorldData()?.entities[0]?.components ?? null);
+	const worldWrite = writes
+		.filter((write) => write.key === WORLD_DATA_STORAGE_KEY)
+		.at(-1)?.data as MainSceneWorldData | undefined;
+	const savedCharacter = worldWrite?.entities[0]?.components;
+
+	assert.equal(storageReadCount, 0);
+	assert.equal(ObjectComp.state[characterEid], CharacterState.SLEEPING);
+	assert.equal(hasCharacterStatus(characterEid, CharacterStatus.SICK), true);
+	assert.equal(DiseaseSystemComp.sickStartTime[characterEid], 1);
+	assert.equal(SleepSystemComp.sleepMode[characterEid], SleepMode.NIGHT_SLEEP);
+	assert.equal(
+		persistedCharacter?.object?.state,
+		CharacterState.SLEEPING,
+	);
+	assert.deepEqual(persistedCharacter?.characterStatus?.statuses, [
+		CharacterStatus.SICK,
+		ECS_NULL_VALUE,
+		ECS_NULL_VALUE,
+		ECS_NULL_VALUE,
+	]);
+	assert.equal(syncCharacter?.object?.state, CharacterState.SLEEPING);
+	assert.deepEqual(syncCharacter?.characterStatus?.statuses, [
+		CharacterStatus.SICK,
+		ECS_NULL_VALUE,
+		ECS_NULL_VALUE,
+		ECS_NULL_VALUE,
+	]);
+	assert.equal(savedCharacter?.object?.state, CharacterState.SLEEPING);
+	assert.deepEqual(savedCharacter?.characterStatus?.statuses, [
+		CharacterStatus.SICK,
+		ECS_NULL_VALUE,
+		ECS_NULL_VALUE,
+		ECS_NULL_VALUE,
+	]);
+});
+
+test("init/app_resume reentry는 native payload 없이 새로 생긴 sleep을 기존처럼 suppression한다", async () => {
+	const originalGetData = StorageManager.getData.bind(StorageManager);
+	const originalSetData = StorageManager.setData.bind(StorageManager);
+	const lastActiveTime = 1_000;
+	const currentTime = 2_500;
+	const currentSnapshot = {
+		trustedUtcMs: currentTime,
+		osUptimeMs: 12_500,
+		source: "ntp" as const,
+		uncertaintyMs: 10,
+		capturedWallMs: currentTime,
+	};
+	const trustedClock = {
+		refresh: async () => currentSnapshot,
+		now: () => currentTime,
+		elapsedSince: () => ({
+			elapsedMs: currentTime - lastActiveTime,
+			trusted: true,
+			currentSnapshot,
+		}),
+		captureAnchor: () => currentSnapshot,
+	};
+	const reloadedSleepingData = buildReentryCharacterWorldData({
+		state: CharacterState.SLEEPING,
+		currentTime,
+		sleepMode: SleepMode.DAY_NAP,
+	});
+	const writes: Array<{ key: string; data: unknown }> = [];
+	let storageReadCount = 0;
+	const world = createMainSceneWorld({
+		trustedClock,
+		onNativeWorldDataUpdateForReentry: async (source) => {
+			assert.equal(source, "app_resume");
+			return {
+				status: "native_authoritative_completion_completed",
+				worldDataChanged: true,
+			};
+		},
+	});
+
+	createWorld(world as any, 32);
+	const preReentryEid = createTestCharacter(world as any, {
+		state: CharacterState.IDLE,
+		stamina: 7,
+		x: 100,
+		y: 100,
+	});
+	ObjectComp.id[preReentryEid] = 101;
+	world._persistentData = buildReentryCharacterWorldData({
+		state: CharacterState.IDLE,
+		currentTime: lastActiveTime,
+	});
+
+	(
+		StorageManager as {
+			getData: typeof StorageManager.getData;
+			setData: typeof StorageManager.setData;
+		}
+	).getData = async (key) => {
+		storageReadCount += 1;
+		return key === WORLD_DATA_STORAGE_KEY
+			? (reloadedSleepingData as never)
+			: null;
+	};
+	(
+		StorageManager as {
+			setData: typeof StorageManager.setData;
+		}
+	).setData = async (key, data) => {
+		writes.push({ key, data });
+	};
+
+	try {
+		await world._processReentrySimulation("app_resume");
+	} finally {
+		(
+			StorageManager as {
+				getData: typeof StorageManager.getData;
+				setData: typeof StorageManager.setData;
+			}
+		).getData = originalGetData;
+		(
+			StorageManager as {
+				setData: typeof StorageManager.setData;
+			}
+		).setData = originalSetData;
+	}
+
+	const characterEid = world._findMainCharacterEntity();
+	const worldWrite = writes
+		.filter((write) => write.key === WORLD_DATA_STORAGE_KEY)
+		.at(-1)?.data as MainSceneWorldData | undefined;
+	const savedCharacter = worldWrite?.entities[0]?.components;
+
+	assert.equal(storageReadCount, 1);
+	assert.equal(ObjectComp.state[characterEid], CharacterState.IDLE);
+	assert.equal(SleepSystemComp.sleepMode[characterEid], SleepMode.AWAKE);
+	assert.equal(
+		world.getInMemoryData().entities[0]?.components.object?.state,
+		CharacterState.IDLE,
+	);
+	assert.equal(
+		world.buildHomeWidgetSyncWorldData()?.entities[0]?.components.object?.state,
+		CharacterState.IDLE,
+	);
+	assert.equal(savedCharacter?.object?.state, CharacterState.IDLE);
 });
 
 test("init/app_resume reentry는 native update 후 저장본을 다시 읽어 ECS에 반영하고 web simulator를 실행하지 않는다", async () => {
