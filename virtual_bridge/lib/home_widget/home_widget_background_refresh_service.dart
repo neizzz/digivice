@@ -43,6 +43,7 @@ class HomeWidgetBackgroundRefreshService {
       rawWorldData: rawWorldData,
       nowMs: nowMs ?? DateTime.now().millisecondsSinceEpoch,
       source: source,
+      rawMonsterBookData: prefs.getString(config.monsterBookStorageKey),
       randomProvider: randomProvider,
     );
     await WorldDataUpdateService.persistAdvanceResult(

@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import '../home_widget/world_data_config.dart' as config;
 import '../home_widget/world_data_sync_service.dart';
 import 'world_data_evolution_specs.dart';
+import 'world_data_monster_book_service.dart';
 
 const int worldDataLifecycleMinTickMs = 1000;
 const int worldDataLifecycleMaxTickMs = 60 * 1000;
@@ -44,6 +45,14 @@ const int worldDataLifecycleSleepModeNightSleep = 1;
 const int worldDataLifecycleSleepModeDayNap = 2;
 const int worldDataLifecycleSleepReasonNone = 0;
 const int worldDataLifecycleSleepReasonNap = 3;
+const int worldDataLifecycleEggHatchMaxBonusCount = 10;
+const int worldDataLifecycleEggHatchBaseGreenPercent = 65;
+const int worldDataLifecycleEggHatchBaseSoilPercent = 20;
+const int worldDataLifecycleEggHatchBaseSkullPercent = 15;
+const int worldDataLifecycleEggHatchBonusPerCountPercent = 2;
+const int worldDataLifecycleGreenSlimeA1CharacterKey = 1;
+const int worldDataLifecycleSkullSlimeA1CharacterKey = 14;
+const int worldDataLifecycleSoilSlimeA1CharacterKey = 22;
 const String worldDataLifecycleDefaultCompletedStatus =
     'flutter_world_data_update_completed';
 
@@ -145,6 +154,11 @@ class WorldDataLifecycleAdvanceResult {
   final int? previousCharacterState;
   final int? nextCharacterState;
   final WorldDataLifecycleEvolutionDiagnostics evolutionDiagnostics;
+  final bool hatched;
+  final int? selectedCharacterKey;
+  final Map<String, Object?>? hatchSelectionDiagnostics;
+  final bool monsterBookChanged;
+  final String monsterBookWriteOwner;
 
   const WorldDataLifecycleAdvanceResult({
     required this.status,
@@ -168,6 +182,11 @@ class WorldDataLifecycleAdvanceResult {
     required this.previousCharacterState,
     required this.nextCharacterState,
     required this.evolutionDiagnostics,
+    required this.hatched,
+    required this.selectedCharacterKey,
+    required this.hatchSelectionDiagnostics,
+    required this.monsterBookChanged,
+    this.monsterBookWriteOwner = worldDataMonsterBookWriteOwner,
   });
 
   String? get snapshotJson => authoritativeSnapshot == null
@@ -182,8 +201,11 @@ class WorldDataLifecycleAdvanceResult {
       'hasUpdatedRawWorldData': updatedRawWorldData.isNotEmpty,
       'hasSnapshot': authoritativeSnapshot != null,
       'worldDataChanged': worldDataChanged,
-      'hatched': false,
-      'selectedCharacterKey': null,
+      'hatched': hatched,
+      'selectedCharacterKey': selectedCharacterKey,
+      'hatchSelectionDiagnostics': hatchSelectionDiagnostics,
+      'monsterBookChanged': monsterBookChanged,
+      'monsterBookWriteOwner': monsterBookWriteOwner,
       'previousCharacterState': previousCharacterState,
       'nextCharacterState': nextCharacterState,
       'elapsedMs': elapsedMs,
@@ -224,6 +246,7 @@ class WorldDataLifecycleService {
     required String rawWorldData,
     required int nowMs,
     required String source,
+    String? rawMonsterBookData,
     WorldDataLifecycleRandomProvider randomProvider =
         deterministicRandomProvider,
   }) {
@@ -239,6 +262,14 @@ class WorldDataLifecycleService {
     );
     final Map<String, dynamic> appState =
         _ensureMap(worldMetadata, 'app_state');
+    final String monsterName = _readString(worldMetadata['monster_name']) ?? '';
+    appState['monster_book'] = WorldDataMonsterBookService.mergeStates(
+      appState['monster_book'],
+      WorldDataMonsterBookService.decodeState(rawMonsterBookData),
+    );
+    final String previousMonsterBookJson = jsonEncode(
+      WorldDataMonsterBookService.normalizeState(appState['monster_book']),
+    );
     final List<dynamic> entities = _ensureList(worldData, 'entities');
     final _MutableCharacterSource? character = _findMainCharacter(entities);
     final int previousLastEcsSaved =
@@ -259,14 +290,31 @@ class WorldDataLifecycleService {
         _buildEvolutionDiagnostics(character, blockReason: 'no_character');
     final List<int> tickDurationsMs = _buildTickDurations(elapsedMs);
     int cursorMs = previousLastEcsSaved;
+    bool hatched = false;
+    int? selectedCharacterKey;
+    Map<String, Object?>? hatchSelectionDiagnostics;
 
     if (character != null) {
       changed = _syncSickStatusFromState(character) || changed;
+      final _HatchProgressResult hatchResult = _progressHatchIfReady(
+        character: character,
+        entities: entities,
+        appState: appState,
+        monsterName: monsterName,
+        nowMs: nowMs,
+        randomProvider: randomProvider,
+      );
+      changed = hatchResult.changed || changed;
+      hatched = hatchResult.hatched;
+      selectedCharacterKey = hatchResult.selectedCharacterKey;
+      hatchSelectionDiagnostics = hatchResult.selectionDiagnostics;
+
       for (final int tickDurationMs in tickDurationsMs) {
         final _TickProgressResult tickResult = _progressTick(
           character: character,
           entities: entities,
           appState: appState,
+          monsterName: monsterName,
           tickStartMs: cursorMs,
           tickDurationMs: tickDurationMs,
           evolutionAlreadyApplied: evolutionDiagnostics.evolved,
@@ -300,6 +348,11 @@ class WorldDataLifecycleService {
     worldMetadata['last_ecs_saved'] = nowMs;
     appState['last_active_time'] = nowMs;
     appState.remove('last_active_time_anchor');
+    appState['monster_book'] = WorldDataMonsterBookService.normalizeState(
+      appState['monster_book'],
+    );
+    final bool monsterBookChanged =
+        previousMonsterBookJson != jsonEncode(appState['monster_book']);
 
     final String updatedRawWorldData = jsonEncode(worldData);
     final WorldDataSnapshot? snapshot =
@@ -330,6 +383,10 @@ class WorldDataLifecycleService {
       previousCharacterState: previousCharacterState,
       nextCharacterState: character?.state,
       evolutionDiagnostics: evolutionDiagnostics,
+      hatched: hatched,
+      selectedCharacterKey: selectedCharacterKey,
+      hatchSelectionDiagnostics: hatchSelectionDiagnostics,
+      monsterBookChanged: monsterBookChanged,
     );
   }
 
@@ -370,6 +427,7 @@ class WorldDataLifecycleService {
     required _MutableCharacterSource character,
     required List<dynamic> entities,
     required Map<String, dynamic> appState,
+    required String monsterName,
     required int tickStartMs,
     required int tickDurationMs,
     required bool evolutionAlreadyApplied,
@@ -402,12 +460,16 @@ class WorldDataLifecycleService {
         _progressEvolution(
       character: character,
       entities: entities,
+      appState: appState,
+      monsterName: monsterName,
       nowMs: tickStartMs + tickDurationMs,
       elapsedMs: tickDurationMs,
       evolutionAlreadyApplied: evolutionAlreadyApplied,
       randomProvider: randomProvider,
     );
-    changed = evolutionDiagnostics.evolutionGageIncreased || changed;
+    changed = evolutionDiagnostics.evolutionGageIncreased ||
+        evolutionDiagnostics.evolved ||
+        changed;
 
     final _ProbabilityProgressResult dayNapResult = _progressDayNapAtTickEnd(
       character: character,
@@ -437,6 +499,150 @@ class WorldDataLifecycleService {
       lastDayNapAggregatedProbability: dayNapResult.aggregatedProbability,
       evolutionDiagnostics: evolutionDiagnostics,
     );
+  }
+
+  static _HatchProgressResult _progressHatchIfReady({
+    required _MutableCharacterSource character,
+    required List<dynamic> entities,
+    required Map<String, dynamic> appState,
+    required String monsterName,
+    required int nowMs,
+    required WorldDataLifecycleRandomProvider randomProvider,
+  }) {
+    if (character.state != config.characterStateEgg) {
+      return const _HatchProgressResult();
+    }
+
+    final int? hatchTimeMs = _readInt(character.eggHatch['hatchTime']);
+    if (hatchTimeMs == null || hatchTimeMs <= 0 || nowMs < hatchTimeMs) {
+      return const _HatchProgressResult();
+    }
+
+    final _EggHatchSelection selection = _resolveEggHatchSelection(
+      character: character,
+      entities: entities,
+      hatchTimeMs: hatchTimeMs,
+      randomProvider: randomProvider,
+    );
+    _applyHatch(
+      character: character,
+      selectedCharacterKey: selection.selectedCharacterKey,
+    );
+    final Map<String, dynamic> monsterBook =
+        WorldDataMonsterBookService.ensureState(appState);
+    WorldDataMonsterBookService.recordReach(
+      monsterBook: monsterBook,
+      characterKey: selection.selectedCharacterKey,
+      name: monsterName,
+      reachedAt: nowMs,
+      objectId: character.objectId ?? 0,
+      source: 'hatch',
+      onlyIfMissing: false,
+    );
+
+    return _HatchProgressResult(
+      changed: true,
+      hatched: true,
+      selectedCharacterKey: selection.selectedCharacterKey,
+      selectionDiagnostics: selection.toJson(),
+    );
+  }
+
+  static _EggHatchSelection _resolveEggHatchSelection({
+    required _MutableCharacterSource character,
+    required List<dynamic> entities,
+    required int hatchTimeMs,
+    required WorldDataLifecycleRandomProvider randomProvider,
+  }) {
+    final int staleFoodCountAtHatch = _countStaleFood(entities);
+    final int syringeCount = _normalizeEggHatchBonusCount(
+        _readInt(character.eggHatch['syringeCount']) ?? 0);
+    final _EggHatchProbabilities probabilities =
+        _calculateEggHatchProbabilities(
+      staleFoodCountAtHatch: staleFoodCountAtHatch,
+      syringeCount: syringeCount,
+    );
+    final int? pendingCharacterKey = _normalizePendingEggHatchCharacterKey(
+      _readInt(character.eggHatch['pendingCharacterKey']),
+    );
+
+    if (pendingCharacterKey != null) {
+      return _EggHatchSelection(
+        staleFoodCountAtHatch: staleFoodCountAtHatch,
+        syringeCount: syringeCount,
+        normalizedStaleFoodCountAtHatch:
+            probabilities.normalizedStaleFoodCountAtHatch,
+        normalizedSyringeCount: probabilities.normalizedSyringeCount,
+        random: null,
+        normalizedRandom: null,
+        rollPercent: null,
+        greenProbability: probabilities.green,
+        soilProbability: probabilities.soil,
+        skullProbability: probabilities.skull,
+        selectedCharacterKey: pendingCharacterKey,
+        usedPendingCharacterKey: true,
+      );
+    }
+
+    final double random = _normalizeRandom(
+      randomProvider(
+        WorldDataLifecycleRandomEvent(
+          objectId: character.objectId ?? 0,
+          checkTimeMs: hatchTimeMs,
+          reason: 'hatch',
+        ),
+      ),
+    );
+    final double rollPercent = random * 100;
+    final int selectedCharacterKey = rollPercent < probabilities.green
+        ? worldDataLifecycleGreenSlimeA1CharacterKey
+        : rollPercent < probabilities.green + probabilities.soil
+            ? worldDataLifecycleSoilSlimeA1CharacterKey
+            : worldDataLifecycleSkullSlimeA1CharacterKey;
+
+    return _EggHatchSelection(
+      staleFoodCountAtHatch: staleFoodCountAtHatch,
+      syringeCount: syringeCount,
+      normalizedStaleFoodCountAtHatch:
+          probabilities.normalizedStaleFoodCountAtHatch,
+      normalizedSyringeCount: probabilities.normalizedSyringeCount,
+      random: random,
+      normalizedRandom: random,
+      rollPercent: rollPercent,
+      greenProbability: probabilities.green,
+      soilProbability: probabilities.soil,
+      skullProbability: probabilities.skull,
+      selectedCharacterKey: selectedCharacterKey,
+      usedPendingCharacterKey: false,
+    );
+  }
+
+  static void _applyHatch({
+    required _MutableCharacterSource character,
+    required int selectedCharacterKey,
+  }) {
+    character.object['state'] = config.characterStateIdle;
+    character.characterStatus['characterKey'] = selectedCharacterKey;
+    character.characterStatus['evolutionPhase'] = 1;
+    character.eggHatch['hatchTime'] = 0;
+    character.eggHatch['hatchDurationMs'] = 0;
+    character.eggHatch['isReadyToHatch'] = false;
+    character.eggHatch['syringeCount'] = 0;
+    character.eggHatch['pendingCharacterKey'] = 0;
+
+    final Map<String, dynamic> render =
+        _ensureMap(character.components, 'render');
+    render['storeIndex'] = worldDataLifecycleTextureKeyNull;
+    render['textureKey'] = worldDataLifecycleTextureKeyNull;
+
+    final Map<String, dynamic> animationRender =
+        _ensureMap(character.components, 'animationRender');
+    animationRender['storeIndex'] = worldDataLifecycleTextureKeyNull;
+    animationRender['spritesheetKey'] = selectedCharacterKey;
+    animationRender['animationKey'] = worldDataLifecycleAnimationKeyIdle;
+    animationRender['isPlaying'] = true;
+    animationRender['loop'] = true;
+    animationRender['speed'] = 0.04;
   }
 
   static _SleepProgressResult _progressSleepBeforeRandomChecks({
@@ -546,6 +752,8 @@ class WorldDataLifecycleService {
   static WorldDataLifecycleEvolutionDiagnostics _progressEvolution({
     required _MutableCharacterSource character,
     required List<dynamic> entities,
+    required Map<String, dynamic> appState,
+    required String monsterName,
     required int nowMs,
     required int elapsedMs,
     required bool evolutionAlreadyApplied,
@@ -644,10 +852,30 @@ class WorldDataLifecycleService {
       final int previousCharacterKey = character.characterKey ?? 0;
       final int previousEvolutionPhase =
           _readInt(character.characterStatus['evolutionPhase']) ?? spec.phase;
+      final Map<String, dynamic> monsterBook =
+          WorldDataMonsterBookService.ensureState(appState);
+      WorldDataMonsterBookService.recordReach(
+        monsterBook: monsterBook,
+        characterKey: previousCharacterKey,
+        name: monsterName,
+        reachedAt: nowMs,
+        objectId: character.objectId ?? 0,
+        source: 'backfill',
+        onlyIfMissing: true,
+      );
       _applyEvolution(
         character: character,
         currentSpec: spec,
         candidate: candidate,
+      );
+      WorldDataMonsterBookService.recordReach(
+        monsterBook: monsterBook,
+        characterKey: candidate.to,
+        name: monsterName,
+        reachedAt: nowMs,
+        objectId: character.objectId ?? 0,
+        source: 'evolution',
+        onlyIfMissing: false,
       );
       return WorldDataLifecycleEvolutionDiagnostics(
         evolutionGageBefore: currentGauge,
@@ -1395,6 +1623,7 @@ class WorldDataLifecycleService {
       }
       final Map<String, dynamic> characterStatus =
           _ensureMap(components, 'characterStatus');
+      final Map<String, dynamic> eggHatch = _ensureMap(components, 'eggHatch');
       final Map<String, dynamic> diseaseSystem =
           _ensureMap(components, 'diseaseSystem');
       final Map<String, dynamic> sleepSystem =
@@ -1403,6 +1632,7 @@ class WorldDataLifecycleService {
         components: components,
         object: object,
         characterStatus: characterStatus,
+        eggHatch: eggHatch,
         diseaseSystem: diseaseSystem,
         sleepSystem: sleepSystem,
       );
@@ -1461,6 +1691,53 @@ class WorldDataLifecycleService {
     return null;
   }
 
+  static String? _readString(Object? value) {
+    if (value is! String) {
+      return null;
+    }
+    final String trimmed = value.trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
+
+  static int _normalizeEggHatchBonusCount(int value) {
+    if (value <= 0) {
+      return 0;
+    }
+    return math.min(worldDataLifecycleEggHatchMaxBonusCount, value);
+  }
+
+  static _EggHatchProbabilities _calculateEggHatchProbabilities({
+    required int staleFoodCountAtHatch,
+    required int syringeCount,
+  }) {
+    final int normalizedStaleFoodCountAtHatch =
+        _normalizeEggHatchBonusCount(staleFoodCountAtHatch);
+    final int normalizedSyringeCount =
+        _normalizeEggHatchBonusCount(syringeCount);
+    final int soilBonus = normalizedStaleFoodCountAtHatch *
+        worldDataLifecycleEggHatchBonusPerCountPercent;
+    final int skullBonus =
+        normalizedSyringeCount * worldDataLifecycleEggHatchBonusPerCountPercent;
+    return _EggHatchProbabilities(
+      normalizedStaleFoodCountAtHatch: normalizedStaleFoodCountAtHatch,
+      normalizedSyringeCount: normalizedSyringeCount,
+      green:
+          worldDataLifecycleEggHatchBaseGreenPercent - soilBonus - skullBonus,
+      soil: worldDataLifecycleEggHatchBaseSoilPercent + soilBonus,
+      skull: worldDataLifecycleEggHatchBaseSkullPercent + skullBonus,
+    );
+  }
+
+  static int? _normalizePendingEggHatchCharacterKey(int? value) {
+    return switch (value) {
+      worldDataLifecycleGreenSlimeA1CharacterKey ||
+      worldDataLifecycleSkullSlimeA1CharacterKey ||
+      worldDataLifecycleSoilSlimeA1CharacterKey =>
+        value,
+      _ => null,
+    };
+  }
+
   static void _addStatus(List<int> statuses, int status) {
     if (!statuses.contains(status)) {
       statuses.add(status);
@@ -1502,6 +1779,7 @@ class _MutableCharacterSource {
   final Map<String, dynamic> object;
   final Map<String, dynamic> components;
   final Map<String, dynamic> characterStatus;
+  final Map<String, dynamic> eggHatch;
   final Map<String, dynamic> diseaseSystem;
   final Map<String, dynamic> sleepSystem;
 
@@ -1509,6 +1787,7 @@ class _MutableCharacterSource {
     required this.components,
     required this.object,
     required this.characterStatus,
+    required this.eggHatch,
     required this.diseaseSystem,
     required this.sleepSystem,
   });
@@ -1567,6 +1846,81 @@ class _TickProgressResult {
     required this.lastDayNapAggregatedProbability,
     required this.evolutionDiagnostics,
   });
+}
+
+class _HatchProgressResult {
+  final bool changed;
+  final bool hatched;
+  final int? selectedCharacterKey;
+  final Map<String, Object?>? selectionDiagnostics;
+
+  const _HatchProgressResult({
+    this.changed = false,
+    this.hatched = false,
+    this.selectedCharacterKey,
+    this.selectionDiagnostics,
+  });
+}
+
+class _EggHatchProbabilities {
+  final int normalizedStaleFoodCountAtHatch;
+  final int normalizedSyringeCount;
+  final int green;
+  final int soil;
+  final int skull;
+
+  const _EggHatchProbabilities({
+    required this.normalizedStaleFoodCountAtHatch,
+    required this.normalizedSyringeCount,
+    required this.green,
+    required this.soil,
+    required this.skull,
+  });
+}
+
+class _EggHatchSelection {
+  final int staleFoodCountAtHatch;
+  final int syringeCount;
+  final int normalizedStaleFoodCountAtHatch;
+  final int normalizedSyringeCount;
+  final double? random;
+  final double? normalizedRandom;
+  final double? rollPercent;
+  final int greenProbability;
+  final int soilProbability;
+  final int skullProbability;
+  final int selectedCharacterKey;
+  final bool usedPendingCharacterKey;
+
+  const _EggHatchSelection({
+    required this.staleFoodCountAtHatch,
+    required this.syringeCount,
+    required this.normalizedStaleFoodCountAtHatch,
+    required this.normalizedSyringeCount,
+    required this.random,
+    required this.normalizedRandom,
+    required this.rollPercent,
+    required this.greenProbability,
+    required this.soilProbability,
+    required this.skullProbability,
+    required this.selectedCharacterKey,
+    required this.usedPendingCharacterKey,
+  });
+
+  Map<String, Object?> toJson() => <String, Object?>{
+        'staleFoodCountAtHatch': staleFoodCountAtHatch,
+        'syringeCount': syringeCount,
+        'normalizedStaleFoodCountAtHatch': normalizedStaleFoodCountAtHatch,
+        'normalizedSyringeCount': normalizedSyringeCount,
+        'random': random,
+        'normalizedRandom': normalizedRandom,
+        'rollPercent': rollPercent,
+        'greenProbability': greenProbability,
+        'soilProbability': soilProbability,
+        'skullProbability': skullProbability,
+        'selectedCharacterKey': selectedCharacterKey,
+        'usedPendingCharacterKey': usedPendingCharacterKey,
+      };
 }
 
 class _StaminaProgressResult {

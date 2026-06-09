@@ -2,6 +2,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../home_widget/world_data_config.dart' as config;
 import 'world_data_lifecycle_service.dart';
+import 'world_data_monster_book_service.dart';
 
 const String worldDataUpdateChannelName = 'digivice/world_data';
 
@@ -37,6 +38,7 @@ class WorldDataUpdateService {
       rawWorldData: rawWorldData,
       nowMs: resolvedNowMs,
       source: updateSource,
+      rawMonsterBookData: prefs.getString(config.monsterBookStorageKey),
       randomProvider: randomProvider,
     );
 
@@ -59,6 +61,8 @@ class WorldDataUpdateService {
       'evolved=${advanced.evolutionDiagnostics.evolved} '
       'previousCharacterKey=${advanced.evolutionDiagnostics.previousCharacterKey} '
       'nextCharacterKey=${advanced.evolutionDiagnostics.nextCharacterKey} '
+      'monsterBookWriteOwner=${advanced.monsterBookWriteOwner} '
+      'monsterBookChanged=${advanced.monsterBookChanged} '
       'evolutionBlockReason=${advanced.evolutionDiagnostics.blockReason}',
     );
 
@@ -72,6 +76,10 @@ class WorldDataUpdateService {
     await prefs.setString(
       config.worldDataStorageKey,
       result.updatedRawWorldData,
+    );
+    await prefs.setString(
+      config.monsterBookStorageKey,
+      WorldDataMonsterBookService.extractStateJson(result.updatedRawWorldData),
     );
 
     final String? snapshotJson = result.snapshotJson;

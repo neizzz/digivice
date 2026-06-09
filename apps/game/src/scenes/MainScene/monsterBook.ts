@@ -1,326 +1,306 @@
 import type { MainSceneWorldData, SavedEntity } from "./world";
 import { type CharacterKeyECS, CharacterState, ObjectType } from "./types";
 import {
-  MONSTER_CHARACTER_KEYS,
-  type MonsterCharacterKey,
-  isMonsterCharacterKey,
+	MONSTER_CHARACTER_KEYS,
+	type MonsterCharacterKey,
+	isMonsterCharacterKey,
 } from "./evolutionConfig";
 
 export type MonsterBookReachSource = "hatch" | "evolution" | "backfill";
 
 export type MonsterBookReachRecord = {
-  name: string;
-  reached_at: number;
-  object_id: number;
-  source: MonsterBookReachSource;
+	name: string;
+	reached_at: number;
+	object_id: number;
+	source: MonsterBookReachSource;
 };
 
 export type MonsterBookState = {
-  reached: Partial<Record<MonsterCharacterKey, MonsterBookReachRecord[]>>;
+	reached: Partial<Record<MonsterCharacterKey, MonsterBookReachRecord[]>>;
 };
 
 export type NormalizeMonsterBookStateResult = {
-  state: MonsterBookState;
-  didRepair: boolean;
+	state: MonsterBookState;
+	didRepair: boolean;
 };
 
 export type MonsterBookRecordableWorld = {
-  getInMemoryData: () => MainSceneWorldData;
-  setData: (data: MainSceneWorldData) => Promise<void>;
+	getInMemoryData: () => MainSceneWorldData;
+	setData: (data: MainSceneWorldData) => Promise<void>;
 };
 
 export const MONSTER_BOOK_MAX_RECORDS_PER_CHARACTER = 50;
 
 export function createEmptyMonsterBookState(): MonsterBookState {
-  return {
-    reached: {},
-  };
+	return {
+		reached: {},
+	};
 }
 
 export function normalizeMonsterBookState(
-  state: MonsterBookState | null | undefined,
+	state: MonsterBookState | null | undefined,
 ): MonsterBookState {
-  return normalizeMonsterBookStateWithMeta(state).state;
+	return normalizeMonsterBookStateWithMeta(state).state;
 }
 
 export function normalizeMonsterBookStateWithMeta(
-  state: MonsterBookState | null | undefined,
+	state: MonsterBookState | null | undefined,
 ): NormalizeMonsterBookStateResult {
-  const normalized = createEmptyMonsterBookState();
-  const rawReached = state?.reached;
-  let didRepair = false;
+	const normalized = createEmptyMonsterBookState();
+	const rawReached = state?.reached;
+	let didRepair = false;
 
-  if (!rawReached || typeof rawReached !== "object") {
-    return { state: normalized, didRepair };
-  }
+	if (!rawReached || typeof rawReached !== "object") {
+		return { state: normalized, didRepair };
+	}
 
-  for (const characterKey of MONSTER_CHARACTER_KEYS) {
-    const records = rawReached[characterKey];
-    if (!Array.isArray(records)) {
-      if (typeof records !== "undefined") {
-        didRepair = true;
-      }
-      continue;
-    }
+	for (const characterKey of MONSTER_CHARACTER_KEYS) {
+		const records = rawReached[characterKey];
+		if (!Array.isArray(records)) {
+			if (typeof records !== "undefined") {
+				didRepair = true;
+			}
+			continue;
+		}
 
-    const normalizedRecords = normalizeReachRecords(records);
-    if (normalizedRecords.length > 0) {
-      normalized.reached[characterKey] = normalizedRecords;
-    }
+		const normalizedRecords = normalizeReachRecords(records);
+		if (normalizedRecords.length > 0) {
+			normalized.reached[characterKey] = normalizedRecords;
+		}
 
-    if (!areReachRecordArraysEqual(records, normalizedRecords)) {
-      didRepair = true;
-    }
-  }
+		if (!areReachRecordArraysEqual(records, normalizedRecords)) {
+			didRepair = true;
+		}
+	}
 
-  return { state: normalized, didRepair };
+	return { state: normalized, didRepair };
 }
 
 export function hasReachedMonster(
-  state: MonsterBookState | null | undefined,
-  characterKey: CharacterKeyECS | number,
+	state: MonsterBookState | null | undefined,
+	characterKey: CharacterKeyECS | number,
 ): characterKey is MonsterCharacterKey {
-  if (!isMonsterCharacterKey(characterKey)) {
-    return false;
-  }
+	if (!isMonsterCharacterKey(characterKey)) {
+		return false;
+	}
 
-  const normalized = normalizeMonsterBookState(state);
-  return (normalized.reached[characterKey]?.length ?? 0) > 0;
+	const normalized = normalizeMonsterBookState(state);
+	return (normalized.reached[characterKey]?.length ?? 0) > 0;
 }
 
 export function getMonsterBookRecords(
-  state: MonsterBookState | null | undefined,
-  characterKey: CharacterKeyECS | number,
+	state: MonsterBookState | null | undefined,
+	characterKey: CharacterKeyECS | number,
 ): MonsterBookReachRecord[] {
-  if (!isMonsterCharacterKey(characterKey)) {
-    return [];
-  }
+	if (!isMonsterCharacterKey(characterKey)) {
+		return [];
+	}
 
-  return normalizeMonsterBookState(state).reached[characterKey] ?? [];
+	return normalizeMonsterBookState(state).reached[characterKey] ?? [];
 }
 
 export function ensureMonsterBookState(
-  data: MainSceneWorldData,
+	data: MainSceneWorldData,
 ): MonsterBookState {
-  if (!data.world_metadata.app_state) {
-    data.world_metadata.app_state = {
-      last_active_time: Date.now(),
-      is_first_load: false,
-      use_local_time: true,
-    };
-  }
+	if (!data.world_metadata.app_state) {
+		data.world_metadata.app_state = {
+			last_active_time: Date.now(),
+			is_first_load: false,
+			use_local_time: true,
+		};
+	}
 
-  const appState = data.world_metadata.app_state;
-  appState.monster_book = normalizeMonsterBookState(appState.monster_book);
-  return appState.monster_book;
+	const appState = data.world_metadata.app_state;
+	appState.monster_book = normalizeMonsterBookState(appState.monster_book);
+	return appState.monster_book;
 }
 
 export function recordMonsterBookReach(params: {
-  world: Partial<MonsterBookRecordableWorld>;
-  characterKey: CharacterKeyECS | number;
-  source: MonsterBookReachSource;
-  reachedAt: number;
-  objectId?: number;
-  name?: string | null;
+	world: Partial<MonsterBookRecordableWorld>;
+	characterKey: CharacterKeyECS | number;
+	source: MonsterBookReachSource;
+	reachedAt: number;
+	objectId?: number;
+	name?: string | null;
 }): boolean {
-  const { world, characterKey, source, reachedAt } = params;
-  if (!isMonsterCharacterKey(characterKey)) {
-    return false;
-  }
+	if (!isMonsterCharacterKey(params.characterKey)) {
+		return false;
+	}
 
-  if (
-    typeof world.getInMemoryData !== "function" ||
-    typeof world.setData !== "function"
-  ) {
-    return false;
-  }
-
-  const data = world.getInMemoryData();
-  if (!data) {
-    return false;
-  }
-
-  const monsterName =
-    params.name?.trim() || data.world_metadata.monster_name?.trim();
-  if (!monsterName) {
-    return false;
-  }
-
-  const record: MonsterBookReachRecord = {
-    name: monsterName,
-    reached_at: Number.isFinite(reachedAt) ? reachedAt : Date.now(),
-    object_id: normalizeObjectId(params.objectId),
-    source,
-  };
-  const monsterBook = ensureMonsterBookState(data);
-  const records = monsterBook.reached[characterKey] ?? [];
-  monsterBook.reached[characterKey] = normalizeReachRecords([record, ...records]);
-
-  void world.setData(data);
-  return true;
+	console.warn(
+		"[MonsterBook] Ignored JS MonsterBook reach write; Flutter lifecycle owns MonsterBookData.",
+		{
+			characterKey: params.characterKey,
+			source: params.source,
+			monsterBookWriteOwner: "flutter_lifecycle",
+		},
+	);
+	return true;
 }
 
 export type CurrentMonsterBookCandidate = {
-  characterKey: MonsterCharacterKey;
-  objectId: number;
+	characterKey: MonsterCharacterKey;
+	objectId: number;
 };
 
 export type MonsterBookCurrentBackfillResult = {
-  state: MonsterBookState;
-  didBackfill: boolean;
+	state: MonsterBookState;
+	didBackfill: boolean;
 };
 
 export function getSavedCurrentMonsterBookCandidates(
-  data: MainSceneWorldData,
+	data: MainSceneWorldData,
 ): CurrentMonsterBookCandidate[] {
-  const currentMonstersByKey = new Map<
-    MonsterCharacterKey,
-    CurrentMonsterBookCandidate
-  >();
+	const currentMonstersByKey = new Map<
+		MonsterCharacterKey,
+		CurrentMonsterBookCandidate
+	>();
 
-  for (const entity of data.entities ?? []) {
-    const characterKey = getSavedMonsterCharacterKey(entity);
-    if (characterKey === null || !isMonsterCharacterKey(characterKey)) {
-      continue;
-    }
+	for (const entity of data.entities ?? []) {
+		const characterKey = getSavedMonsterCharacterKey(entity);
+		if (characterKey === null || !isMonsterCharacterKey(characterKey)) {
+			continue;
+		}
 
-    if (!currentMonstersByKey.has(characterKey)) {
-      currentMonstersByKey.set(characterKey, {
-        characterKey,
-        objectId: normalizeObjectId(entity.components.object?.id),
-      });
-    }
-  }
+		if (!currentMonstersByKey.has(characterKey)) {
+			currentMonstersByKey.set(characterKey, {
+				characterKey,
+				objectId: normalizeObjectId(entity.components.object?.id),
+			});
+		}
+	}
 
-  return [...currentMonstersByKey.values()];
+	return [...currentMonstersByKey.values()];
 }
 
 export function backfillCurrentMonsterIfHidden(
-  data: MainSceneWorldData,
-  currentMonsters: Iterable<CurrentMonsterBookCandidate>,
-  reachedAt: number,
+	data: MainSceneWorldData,
+	currentMonsters: Iterable<CurrentMonsterBookCandidate>,
+	reachedAt: number,
 ): MonsterBookCurrentBackfillResult {
-  const monsterBook = ensureMonsterBookState(data);
-  const monsterName = data.world_metadata.monster_name?.trim();
-  if (!monsterName) {
-    return { state: monsterBook, didBackfill: false };
-  }
+	const monsterBook = ensureMonsterBookState(data);
+	const monsterName = data.world_metadata.monster_name?.trim();
+	if (!monsterName) {
+		return { state: monsterBook, didBackfill: false };
+	}
 
-  const normalizedReachedAt = Number.isFinite(reachedAt)
-    ? reachedAt
-    : Date.now();
-  let didBackfill = false;
+	const normalizedReachedAt = Number.isFinite(reachedAt)
+		? reachedAt
+		: Date.now();
+	let didBackfill = false;
 
-  for (const currentMonster of currentMonsters) {
-    const { characterKey } = currentMonster;
-    if (!isMonsterCharacterKey(characterKey)) {
-      continue;
-    }
+	for (const currentMonster of currentMonsters) {
+		const { characterKey } = currentMonster;
+		if (!isMonsterCharacterKey(characterKey)) {
+			continue;
+		}
 
-    if ((monsterBook.reached[characterKey]?.length ?? 0) > 0) {
-      continue;
-    }
+		if ((monsterBook.reached[characterKey]?.length ?? 0) > 0) {
+			continue;
+		}
 
-    monsterBook.reached[characterKey] = [
-      {
-        name: monsterName,
-        reached_at: normalizedReachedAt,
-        object_id: normalizeObjectId(currentMonster.objectId),
-        source: "backfill",
-      },
-    ];
-    didBackfill = true;
-  }
+		monsterBook.reached[characterKey] = [
+			{
+				name: monsterName,
+				reached_at: normalizedReachedAt,
+				object_id: normalizeObjectId(currentMonster.objectId),
+				source: "backfill",
+			},
+		];
+		didBackfill = true;
+	}
 
-  return { state: monsterBook, didBackfill };
+	return { state: monsterBook, didBackfill };
 }
 
 function getSavedMonsterCharacterKey(
-  entity: SavedEntity,
+	entity: SavedEntity,
 ): CharacterKeyECS | number | null {
-  const object = entity.components.object;
-  const characterStatus = entity.components.characterStatus;
+	const object = entity.components.object;
+	const characterStatus = entity.components.characterStatus;
 
-  if (
-    object?.type !== ObjectType.CHARACTER ||
-    object.state === CharacterState.EGG ||
-    object.state === CharacterState.DEAD ||
-    !characterStatus
-  ) {
-    return null;
-  }
+	if (
+		object?.type !== ObjectType.CHARACTER ||
+		object.state === CharacterState.EGG ||
+		object.state === CharacterState.DEAD ||
+		!characterStatus
+	) {
+		return null;
+	}
 
-  return characterStatus.characterKey;
+	return characterStatus.characterKey;
 }
 
 function isValidReachRecord(record: unknown): record is MonsterBookReachRecord {
-  if (!record || typeof record !== "object") {
-    return false;
-  }
+	if (!record || typeof record !== "object") {
+		return false;
+	}
 
-  const candidate = record as Partial<MonsterBookReachRecord>;
-  return (
-    typeof candidate.name === "string" &&
-    candidate.name.trim().length > 0 &&
-    typeof candidate.reached_at === "number" &&
-    Number.isFinite(candidate.reached_at)
-  );
+	const candidate = record as Partial<MonsterBookReachRecord>;
+	return (
+		typeof candidate.name === "string" &&
+		candidate.name.trim().length > 0 &&
+		typeof candidate.reached_at === "number" &&
+		Number.isFinite(candidate.reached_at)
+	);
 }
 
 function normalizeObjectId(objectId: unknown): number {
-  return typeof objectId === "number" && Number.isFinite(objectId)
-    ? objectId
-    : 0;
+	return typeof objectId === "number" && Number.isFinite(objectId)
+		? objectId
+		: 0;
 }
 
-function normalizeReachRecords(records: readonly unknown[]): MonsterBookReachRecord[] {
-  const sortedRecords = records
-    .filter(isValidReachRecord)
-    .sort((a, b) => b.reached_at - a.reached_at);
-  const seenObjectIds = new Set<number>();
-  const dedupedRecords: MonsterBookReachRecord[] = [];
+function normalizeReachRecords(
+	records: readonly unknown[],
+): MonsterBookReachRecord[] {
+	const sortedRecords = records
+		.filter(isValidReachRecord)
+		.sort((a, b) => b.reached_at - a.reached_at);
+	const seenObjectIds = new Set<number>();
+	const dedupedRecords: MonsterBookReachRecord[] = [];
 
-  for (const record of sortedRecords) {
-    if (record.object_id > 0) {
-      if (seenObjectIds.has(record.object_id)) {
-        continue;
-      }
-      seenObjectIds.add(record.object_id);
-    }
+	for (const record of sortedRecords) {
+		if (record.object_id > 0) {
+			if (seenObjectIds.has(record.object_id)) {
+				continue;
+			}
+			seenObjectIds.add(record.object_id);
+		}
 
-    dedupedRecords.push(record);
-    if (dedupedRecords.length >= MONSTER_BOOK_MAX_RECORDS_PER_CHARACTER) {
-      break;
-    }
-  }
+		dedupedRecords.push(record);
+		if (dedupedRecords.length >= MONSTER_BOOK_MAX_RECORDS_PER_CHARACTER) {
+			break;
+		}
+	}
 
-  return dedupedRecords;
+	return dedupedRecords;
 }
 
 function areReachRecordArraysEqual(
-  input: readonly unknown[],
-  normalized: readonly MonsterBookReachRecord[],
+	input: readonly unknown[],
+	normalized: readonly MonsterBookReachRecord[],
 ): boolean {
-  if (input.length !== normalized.length) {
-    return false;
-  }
+	if (input.length !== normalized.length) {
+		return false;
+	}
 
-  for (let i = 0; i < input.length; i++) {
-    const left = input[i];
-    const right = normalized[i];
-    if (!isValidReachRecord(left)) {
-      return false;
-    }
+	for (let i = 0; i < input.length; i++) {
+		const left = input[i];
+		const right = normalized[i];
+		if (!isValidReachRecord(left)) {
+			return false;
+		}
 
-    if (
-      left.name !== right.name ||
-      left.reached_at !== right.reached_at ||
-      left.object_id !== right.object_id ||
-      left.source !== right.source
-    ) {
-      return false;
-    }
-  }
+		if (
+			left.name !== right.name ||
+			left.reached_at !== right.reached_at ||
+			left.object_id !== right.object_id ||
+			left.source !== right.source
+		) {
+			return false;
+		}
+	}
 
-  return true;
+	return true;
 }

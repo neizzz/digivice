@@ -47,7 +47,9 @@ void main() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
   });
 
-  test('completeNativeWorldDataUpdate는 Dart lifecycle 서비스를 직접 호출한다', () async {
+  test(
+      'completeNativeWorldDataUpdate는 Dart lifecycle 서비스를 직접 호출하고 MonsterBookData를 저장한다',
+      () async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.setString(config.worldDataStorageKey, _buildWorldData());
 
@@ -67,6 +69,41 @@ void main() {
     expect(prefs.getString(config.worldDataStorageKey), isNotNull);
     expect(prefs.getString(config.worldDataAuthoritativeSnapshotStorageKey),
         isNotNull);
+    expect(prefs.getString(config.monsterBookStorageKey), isNotNull);
+    expect(result['monsterBookWriteOwner'], 'flutter_lifecycle');
+  });
+
+  test('completeNativeWorldDataUpdate는 기존 MonsterBookData를 병합해 보존한다', () async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      config.monsterBookStorageKey,
+      jsonEncode(<String, dynamic>{
+        'reached': <String, dynamic>{
+          '1': <Map<String, dynamic>>[
+            <String, dynamic>{
+              'name': '기존',
+              'reached_at': 100,
+              'object_id': 1,
+              'source': 'hatch',
+            },
+          ],
+        },
+      }),
+    );
+    await prefs.setString(config.worldDataStorageKey, _buildWorldData());
+
+    await WorldDataUpdateService.completeNativeWorldDataUpdate(
+      source: 'app_resume',
+      nowMs: 60 * 1000,
+      randomProvider: (_) => 1,
+    );
+
+    final String? rawMonsterBook =
+        prefs.getString(config.monsterBookStorageKey);
+    expect(rawMonsterBook, isNotNull);
+    final Map<String, dynamic> monsterBook =
+        jsonDecode(rawMonsterBook!) as Map<String, dynamic>;
+    expect((monsterBook['reached'] as Map<String, dynamic>)['1'], hasLength(1));
   });
 
   test('world data가 없으면 실패 상태를 반환한다', () async {

@@ -18,6 +18,8 @@ String _buildWorldData({
   double fatigue = 35,
   int nextNapCheckTime = 20 * 60 * 1000,
   Map<String, dynamic>? mutationRisk,
+  Map<String, dynamic>? eggHatch,
+  Map<String, dynamic>? monsterBook,
   List<Map<String, dynamic>> extraEntities = const <Map<String, dynamic>>[],
 }) {
   return jsonEncode(<String, dynamic>{
@@ -30,6 +32,7 @@ String _buildWorldData({
           'trustedUtcMs': lastEcsSaved
         },
         'use_local_time': false,
+        if (monsterBook != null) 'monster_book': monsterBook,
       },
     },
     'entities': <Map<String, dynamic>>[
@@ -41,6 +44,14 @@ String _buildWorldData({
             'state': state,
           },
           'render': <String, dynamic>{'textureKey': 1},
+          'eggHatch': <String, dynamic>{
+            'hatchTime': 0,
+            'hatchDurationMs': 0,
+            'isReadyToHatch': false,
+            'syringeCount': 0,
+            'pendingCharacterKey': 0,
+            ...?eggHatch,
+          },
           'animationRender': <String, dynamic>{
             'spritesheetKey': characterKey,
           },
@@ -95,6 +106,18 @@ Map<String, dynamic> _sleepSystem(Map<String, dynamic> worldData) =>
     (((worldData['entities'] as List<dynamic>).single
             as Map<String, dynamic>)['components']
         as Map<String, dynamic>)['sleepSystem'] as Map<String, dynamic>;
+
+Map<String, dynamic> _monsterBook(Map<String, dynamic> worldData) =>
+    ((worldData['world_metadata'] as Map<String, dynamic>)['app_state']
+        as Map<String, dynamic>)['monster_book'] as Map<String, dynamic>;
+
+List<dynamic> _monsterBookRecords(
+  Map<String, dynamic> worldData,
+  int characterKey,
+) =>
+    ((_monsterBook(worldData)['reached']
+        as Map<String, dynamic>?)?['$characterKey'] as List<dynamic>?) ??
+    const <dynamic>[];
 
 void main() {
   test('background lifecycle은 1초 미만/100ms tick을 쓰지 않는다', () {
@@ -446,6 +469,112 @@ void main() {
     expect(
         _sleepSystem(updated)['sleepMode'], worldDataLifecycleSleepModeDayNap);
     expect(result.toMap()['dayNapOccurred'], isTrue);
+  });
+
+  test('부화 완료 시 Dart lifecycle이 MonsterBook hatch 기록을 저장한다', () {
+    final WorldDataLifecycleAdvanceResult result =
+        WorldDataLifecycleService.advanceWorldData(
+      rawWorldData: _buildWorldData(
+        state: config.characterStateEgg,
+        characterKey: 0,
+        eggHatch: <String, dynamic>{
+          'hatchTime': 1000,
+          'hatchDurationMs': 1000,
+          'pendingCharacterKey': 22,
+        },
+      ),
+      nowMs: 2000,
+      source: 'app_resume',
+      randomProvider: (_) => 1,
+    );
+
+    final Map<String, dynamic> updated = _decode(result.updatedRawWorldData);
+    final List<dynamic> records = _monsterBookRecords(updated, 22);
+
+    expect(result.hatched, isTrue);
+    expect(result.selectedCharacterKey, 22);
+    expect(result.monsterBookWriteOwner, 'flutter_lifecycle');
+    expect(result.monsterBookChanged, isTrue);
+    expect(_object(updated)['state'], config.characterStateIdle);
+    expect(_characterStatus(updated)['characterKey'], 22);
+    expect(records, hasLength(1));
+    expect((records.single as Map<String, dynamic>)['source'], 'hatch');
+  });
+
+  test('진화 완료 시 이전 캐릭터를 보정하고 다음 캐릭터를 evolution으로 기록한다', () {
+    final WorldDataLifecycleAdvanceResult result =
+        WorldDataLifecycleService.advanceWorldData(
+      rawWorldData: _buildWorldData(
+        characterKey: 2,
+        evolutionPhase: 2,
+        evolutionGage: 99.99,
+        nextDiseaseCheckTime: 60 * 60 * 1000,
+      ),
+      nowMs: 60 * 1000,
+      source: 'periodic_work',
+      randomProvider: (WorldDataLifecycleRandomEvent event) {
+        if (event.reason == 'evolution_mutation') {
+          return 1;
+        }
+        if (event.reason == 'evolution') {
+          return 0;
+        }
+        return 1;
+      },
+    );
+
+    final Map<String, dynamic> updated = _decode(result.updatedRawWorldData);
+    final List<dynamic> previousRecords = _monsterBookRecords(updated, 2);
+    final List<dynamic> nextRecords = _monsterBookRecords(updated, 3);
+
+    expect(result.evolutionDiagnostics.evolved, isTrue);
+    expect(previousRecords, hasLength(1));
+    expect(
+        (previousRecords.single as Map<String, dynamic>)['source'], 'backfill');
+    expect(nextRecords, hasLength(1));
+    expect((nextRecords.single as Map<String, dynamic>)['source'], 'evolution');
+  });
+
+  test('기존 MonsterBookData는 Dart lifecycle 저장 시 보존/병합된다', () {
+    final String dedicatedMonsterBook = jsonEncode(<String, dynamic>{
+      'reached': <String, dynamic>{
+        '1': <Map<String, dynamic>>[
+          <String, dynamic>{
+            'name': '기존',
+            'reached_at': 100,
+            'object_id': 1,
+            'source': 'hatch',
+          },
+        ],
+      },
+    });
+
+    final WorldDataLifecycleAdvanceResult result =
+        WorldDataLifecycleService.advanceWorldData(
+      rawWorldData: _buildWorldData(
+        characterKey: 2,
+        evolutionPhase: 2,
+        evolutionGage: 99.99,
+        nextDiseaseCheckTime: 60 * 60 * 1000,
+      ),
+      rawMonsterBookData: dedicatedMonsterBook,
+      nowMs: 60 * 1000,
+      source: 'app_resume',
+      randomProvider: (WorldDataLifecycleRandomEvent event) {
+        if (event.reason == 'evolution_mutation') {
+          return 1;
+        }
+        if (event.reason == 'evolution') {
+          return 0;
+        }
+        return 1;
+      },
+    );
+
+    final Map<String, dynamic> updated = _decode(result.updatedRawWorldData);
+    expect(_monsterBookRecords(updated, 1), hasLength(1));
+    expect(_monsterBookRecords(updated, 2), hasLength(1));
+    expect(_monsterBookRecords(updated, 3), hasLength(1));
   });
 
   test('last_ecs_saved, last_active_time, authoritative snapshot이 갱신된다', () {

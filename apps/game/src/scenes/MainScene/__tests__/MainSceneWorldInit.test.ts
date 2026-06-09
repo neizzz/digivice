@@ -202,9 +202,7 @@ function buildReentryCharacterWorldData(options: {
 						evolutionPhase: 1,
 						statuses: [
 							...statuses,
-							...Array(Math.max(0, 4 - statuses.length)).fill(
-								ECS_NULL_VALUE,
-							),
+							...Array(Math.max(0, 4 - statuses.length)).fill(ECS_NULL_VALUE),
 						] as CharacterStatus[],
 					},
 					position: {
@@ -226,7 +224,8 @@ function buildReentryCharacterWorldData(options: {
 						nextSleepTime: 0,
 						nextWakeTime:
 							state === CharacterState.SLEEPING ? currentTime + 60_000 : 0,
-						nextNapCheckTime: currentTime + GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL,
+						nextNapCheckTime:
+							currentTime + GAME_CONSTANTS.DAY_NAP_CHECK_INTERVAL,
 						nextNightWakeCheckTime: 0,
 						sleepMode,
 						interruptedSleepMode: SleepMode.AWAKE,
@@ -1542,7 +1541,7 @@ test("init/app_resume reentry는 native payload world data가 있으면 stale st
 	assert.equal(CharacterStatusComp.stamina[characterEid], 7);
 	assert.equal(PositionComp.x[characterEid], 160);
 	assert.equal(PositionComp.y[characterEid], 140);
-	assert.equal(writes.length, 2);
+	assert.equal(writes.length, 1);
 });
 
 test("init/app_resume reentry 저장은 stale trusted clock으로 native timestamp를 되돌리지 않는다", async () => {
@@ -1754,9 +1753,9 @@ test("init/app_resume reentry는 native updatedRawWorldData의 sleeping+sick 상
 
 	const characterEid = world._findMainCharacterEntity();
 	const persistedCharacter =
-		(world.getInMemoryData().entities[0]?.components ?? null);
+		world.getInMemoryData().entities[0]?.components ?? null;
 	const syncCharacter =
-		(world.buildWorldDataSyncPayload()?.entities[0]?.components ?? null);
+		world.buildWorldDataSyncPayload()?.entities[0]?.components ?? null;
 	const worldWrite = writes
 		.filter((write) => write.key === WORLD_DATA_STORAGE_KEY)
 		.at(-1)?.data as MainSceneWorldData | undefined;
@@ -1767,10 +1766,7 @@ test("init/app_resume reentry는 native updatedRawWorldData의 sleeping+sick 상
 	assert.equal(hasCharacterStatus(characterEid, CharacterStatus.SICK), true);
 	assert.equal(DiseaseSystemComp.sickStartTime[characterEid], 1);
 	assert.equal(SleepSystemComp.sleepMode[characterEid], SleepMode.NIGHT_SLEEP);
-	assert.equal(
-		persistedCharacter?.object?.state,
-		CharacterState.SLEEPING,
-	);
+	assert.equal(persistedCharacter?.object?.state, CharacterState.SLEEPING);
 	assert.deepEqual(persistedCharacter?.characterStatus?.statuses, [
 		CharacterStatus.SICK,
 		ECS_NULL_VALUE,
@@ -2070,7 +2066,7 @@ test("init/app_resume reentry는 native update 후 저장본을 다시 읽어 EC
 		).world_metadata.app_state.suspend_food_interaction_until_reentry,
 		undefined,
 	);
-	assert.equal(writes.length, 2);
+	assert.equal(writes.length, 1);
 
 	world._isPersistenceDisabled = true;
 	resetCharacterManageSystemStateForTests();

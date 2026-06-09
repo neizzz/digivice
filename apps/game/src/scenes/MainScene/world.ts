@@ -209,10 +209,7 @@ import {
 	ensureMonsterBookState,
 	type MonsterBookState,
 } from "./monsterBook";
-import {
-	migrateLegacyMonsterBookIfNeeded,
-	saveMonsterBookState,
-} from "./monsterBookStorage";
+import { migrateLegacyMonsterBookIfNeeded } from "./monsterBookStorage";
 import { CharacterKey } from "../../types/Character";
 import {
 	MainSceneInitDiagnostics,
@@ -365,8 +362,7 @@ function getEvolutionGeneOutcomes(
 		mutationTargets.length > 0
 			? calculateMutationRate({
 					characterKey,
-					unnecessaryInjectionStacks:
-						mutationStacks.unnecessaryInjectionStacks,
+					unnecessaryInjectionStacks: mutationStacks.unnecessaryInjectionStacks,
 					dirtyExposureStacks: mutationStacks.dirtyExposureStacks,
 				})
 			: 0;
@@ -2880,21 +2876,20 @@ export class MainSceneWorld implements IWorld, Scene {
 
 		await this._enqueueStorageWrite(async () => {
 			try {
-				const monsterBookState =
-					data.world_metadata.app_state?.monster_book ?? null;
 				const persistableData = this._createStoragePersistableData(data);
 				console.debug("[MainSceneWorld] setData:start", {
 					key: WORLD_DATA_STORAGE_KEY,
 					monsterName: data.world_metadata?.monster_name,
 					entityCount: data.entities?.length ?? 0,
 					savedAt: data.world_metadata?.last_ecs_saved,
+					monsterBookWriteOwner: "flutter_lifecycle",
 				});
-				await saveMonsterBookState(StorageManager, monsterBookState);
 				await StorageManager.setData(WORLD_DATA_STORAGE_KEY, persistableData);
 				console.debug("[MainSceneWorld] setData:success", {
 					key: WORLD_DATA_STORAGE_KEY,
 					monsterName: data.world_metadata?.monster_name,
 					entityCount: data.entities?.length ?? 0,
+					monsterBookWriteOwner: "flutter_lifecycle",
 				});
 			} catch (error) {
 				console.error("[MainSceneWorld] Failed to save data:", error);
@@ -4636,7 +4631,10 @@ export class MainSceneWorld implements IWorld, Scene {
 			return false;
 		}
 
-		if (options.preserveNativeSleep === true && postReentrySnapshot.isSleeping) {
+		if (
+			options.preserveNativeSleep === true &&
+			postReentrySnapshot.isSleeping
+		) {
 			this._entryStatusSuppression = null;
 			return false;
 		}

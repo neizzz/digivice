@@ -1,4 +1,5 @@
 const String worldDataStorageKey = 'MainSceneWorldData';
+const String monsterBookStorageKey = 'MonsterBookData';
 const String worldDataSnapshotStorageKey = 'HomeWidgetSnapshotV1';
 const String worldDataAuthoritativeSnapshotStorageKey =
     'HomeWidgetAuthoritativeSnapshotV1';
