@@ -149,9 +149,7 @@ function calculateNextDigestiveLoad(params: {
   const regularAppliedLoad = Math.min(loadAmount, remainingCapacity);
   const overflowAppliedLoad = loadAmount - regularAppliedLoad;
 
-  return (
-    currentLoad + regularAppliedLoad + overflowAppliedLoad * 2
-  );
+  return currentLoad + regularAppliedLoad + overflowAppliedLoad * 2;
 }
 
 function scheduleNextPoop(
@@ -160,8 +158,7 @@ function scheduleNextPoop(
   currentTime: number,
   delayMultiplier = 1,
 ): void {
-  const poopTime =
-    currentTime + GAME_CONSTANTS.POOP_DELAY * delayMultiplier;
+  const poopTime = currentTime + GAME_CONSTANTS.POOP_DELAY * delayMultiplier;
   digestiveComp.nextPoopTime[characterEid] = poopTime;
 
   debugLog(
@@ -342,7 +339,12 @@ export function createPoop(
   }
   debugLog(`[DigestiveSystem] Character angle: ${angle}`);
 
-  const spawnPosition = selectPoopSpawnPosition(world, characterX, characterY, angle);
+  const spawnPosition = selectPoopSpawnPosition(
+    world,
+    characterX,
+    characterY,
+    angle,
+  );
   debugLog(
     `[DigestiveSystem] Final poop position: (${spawnPosition.x}, ${spawnPosition.y})`,
   );
@@ -396,7 +398,11 @@ function selectPoopSpawnPosition(
   let bestReentryCandidate: Point | null = null;
   let bestReentryCandidateSpacing = Number.NEGATIVE_INFINITY;
 
-  for (let attempt = 0; attempt < GAME_CONSTANTS.POOP_SPAWN_RETRY_COUNT; attempt++) {
+  for (
+    let attempt = 0;
+    attempt < GAME_CONSTANTS.POOP_SPAWN_RETRY_COUNT;
+    attempt++
+  ) {
     const angleOffset =
       (Math.random() * 2 - 1) * GAME_CONSTANTS.POOP_SPAWN_ANGLE_JITTER_RAD;
     const distanceOffset =
@@ -464,7 +470,10 @@ function getClampedPoopSpawnPosition(
   };
 }
 
-function hasRequiredPoopSpacing(world: MainSceneWorld, position: Point): boolean {
+function hasRequiredPoopSpacing(
+  world: MainSceneWorld,
+  position: Point,
+): boolean {
   return (
     getNearestPoopSpacingDistance(world, position) >=
     GAME_CONSTANTS.POOP_SPAWN_MIN_OBJECT_SPACING

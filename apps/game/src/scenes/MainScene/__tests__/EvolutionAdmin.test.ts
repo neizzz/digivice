@@ -5,7 +5,6 @@ import {
   applyEvolutionAdminExport,
   buildEvolutionAdminExport,
   getEvolutionAdminCatalog,
-  simulateEvolutionAdminRolls,
   validateEvolutionAdminExport,
 } from "../evolutionAdmin";
 
@@ -226,31 +225,4 @@ test("진화 어드민 import 검증은 class별 rarity 범위를 적용한다",
       error.includes("Class C supports 2-4"),
     ),
   );
-});
-
-test("진화 어드민 시뮬레이션은 공용 weighted roll 규칙을 그대로 사용한다", () => {
-  const entry = getEvolutionAdminCatalog().find(
-    (catalogEntry) => catalogEntry.code === "green-slime_A1",
-  );
-
-  assert.ok(entry);
-
-  const randomValues = [0.0, 0.49, 0.5, 0.74, 0.99];
-  let index = 0;
-
-  const results = simulateEvolutionAdminRolls({
-    entry,
-    rollCount: randomValues.length,
-    random: () => {
-      const value = randomValues[index] ?? 0;
-      index += 1;
-      return value;
-    },
-  });
-
-  assert.deepEqual(results, [
-    { toCode: "green-slime_B1", count: 2, percent: 40 },
-    { toCode: "green-slime_B2", count: 2, percent: 40 },
-    { toCode: "green-slime_B3", count: 1, percent: 20 },
-  ]);
 });

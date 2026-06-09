@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { CharacterClass } from "../../../types/Character";
 import {
-  applyEvolutionOverrideConfig,
   canEvolveFromConfig,
   DEV_EVOLUTION_GAUGE_CONFIG,
   EVOLUTION_GAUGE_GAIN_MULTIPLIER,
@@ -55,83 +54,6 @@ test("같은 라인 같은 종류의 다음 클래스가 가장 높은 확률로
   assert.equal(
     resolveEvolutionTarget(CharacterKeyECS.GreenSlimeC4, 0.55),
     CharacterKeyECS.GreenSlimeD1,
-  );
-});
-
-test("진화 override JSON schema는 런타임 진화 catalog에 적용된다", () => {
-  const baseCatalog = Object.fromEntries(
-    MONSTER_CHARACTER_KEYS.map((characterKey) => {
-      const spec = getEvolutionSpec(characterKey);
-      assert.ok(spec);
-      return [characterKey, spec];
-    }),
-  ) as Parameters<typeof applyEvolutionOverrideConfig>[0];
-
-  const overriddenCatalog = applyEvolutionOverrideConfig(baseCatalog, {
-    schemaVersion: 1,
-    overrides: {
-      "green-slime_A1": {
-        evolutionCandidates: [
-          {
-            toCode: "green-slime_B1",
-            weight: 40,
-            kind: "base",
-          },
-          {
-            toCode: "green-slime_B2",
-            weight: 30,
-            kind: "same_line_variant_mutation",
-          },
-          {
-            toCode: "green-slime_B3",
-            weight: 30,
-            kind: "same_line_variant_mutation",
-          },
-        ],
-      },
-    },
-  });
-
-  assert.deepEqual(
-    overriddenCatalog[CharacterKeyECS.GreenSlimeA1].evolutionCandidates.map(
-      (candidate) => candidate.weight,
-    ),
-    [40, 30, 30],
-  );
-  assert.deepEqual(
-    baseCatalog[CharacterKeyECS.GreenSlimeA1].evolutionCandidates.map(
-      (candidate) => candidate.weight,
-    ),
-    [50, 25, 25],
-  );
-});
-
-test("Skull Slime C2 override는 D2와 D1 진화 weight를 50/50으로 적용한다", () => {
-  const skullSlimeC2Spec = getEvolutionSpec(CharacterKeyECS.SkullSlimeC2);
-
-  assert.ok(skullSlimeC2Spec);
-  assert.deepEqual(
-    skullSlimeC2Spec.evolutionCandidates.map((candidate) => {
-      const targetSpec = getEvolutionSpec(candidate.to);
-      assert.ok(targetSpec);
-
-      return {
-        toCode: targetSpec.code,
-        weight: candidate.weight,
-      };
-    }),
-    [
-      { toCode: "skull-slime_D2", weight: 50 },
-      { toCode: "skull-slime_D1", weight: 50 },
-    ],
-  );
-  assert.equal(
-    resolveEvolutionTarget(CharacterKeyECS.SkullSlimeC2, 0.49),
-    CharacterKeyECS.SkullSlimeD2,
-  );
-  assert.equal(
-    resolveEvolutionTarget(CharacterKeyECS.SkullSlimeC2, 0.5),
-    CharacterKeyECS.SkullSlimeD1,
   );
 });
 

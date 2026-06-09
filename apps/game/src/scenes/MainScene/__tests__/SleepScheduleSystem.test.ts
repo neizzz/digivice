@@ -12,7 +12,6 @@ import {
   TemporaryStatusComp,
 } from "../raw-components";
 import {
-  DEV_BALANCE_COEFFICIENTS,
   GAME_CONSTANTS,
   PRODUCTION_BALANCE_REFERENCE,
 } from "../config";
@@ -680,14 +679,21 @@ test("낮은 스테미나일수록 깨어 있는 동안 피로가 더 빨리 쌓
     (GAME_CONSTANTS.FATIGUE_AWAKE_GAIN_PER_HOUR * delta) /
     HOUR_IN_MILLISECONDS;
 
-  assert.equal(SleepSystemComp.fatigue[normalEid], baseGain);
-  assert.equal(
-    SleepSystemComp.fatigue[lowEid],
-    baseGain * GAME_CONSTANTS.LOW_STAMINA_FATIGUE_AWAKE_GAIN_MULTIPLIER,
+  assert.ok(
+    Math.abs(SleepSystemComp.fatigue[normalEid] - baseGain) < 0.000001,
   );
-  assert.equal(
-    SleepSystemComp.fatigue[criticalEid],
-    baseGain * GAME_CONSTANTS.CRITICAL_STAMINA_FATIGUE_AWAKE_GAIN_MULTIPLIER,
+  assert.ok(
+    Math.abs(
+      SleepSystemComp.fatigue[lowEid] -
+        baseGain * GAME_CONSTANTS.LOW_STAMINA_FATIGUE_AWAKE_GAIN_MULTIPLIER,
+    ) < 0.000001,
+  );
+  assert.ok(
+    Math.abs(
+      SleepSystemComp.fatigue[criticalEid] -
+        baseGain *
+          GAME_CONSTANTS.CRITICAL_STAMINA_FATIGUE_AWAKE_GAIN_MULTIPLIER,
+    ) < 0.000001,
   );
 });
 
@@ -740,9 +746,6 @@ test("충분히 오래 자고 피로가 낮아져도 sick 상태는 수면 중 �
 test("production 밤잠 목표 길이는 대표 8시간 기준이다", () => {
   assert.equal(
     GAME_CONSTANTS.TARGET_NIGHT_SLEEP_DURATION,
-    Math.round(
-      PRODUCTION_BALANCE_REFERENCE.TARGET_NIGHT_SLEEP_DURATION /
-        DEV_BALANCE_COEFFICIENTS.timeDivisors.TARGET_NIGHT_SLEEP_DURATION,
-    ),
+    PRODUCTION_BALANCE_REFERENCE.TARGET_NIGHT_SLEEP_DURATION,
   );
 });

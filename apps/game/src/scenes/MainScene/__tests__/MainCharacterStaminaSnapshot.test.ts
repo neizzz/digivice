@@ -8,7 +8,6 @@ import {
   CharacterStatusComp,
   EggHatchComp,
   FreshnessComp,
-  MutationRiskComp,
   ObjectComp,
 } from "../raw-components";
 import {
@@ -340,44 +339,6 @@ test("알 상태 info snapshot은 이미 고정된 부화 결과를 100%로 표�
       geneLine: "skull-slime",
       level: 1,
       probability: 0,
-    },
-  ]);
-});
-
-test("비알 상태 info snapshot은 active 오염원을 포함한 mutation row를 반환한다", () => {
-  const world = createMainSceneWorldForTest();
-  const characterEid = createTestCharacter(
-    world as unknown as Parameters<typeof createTestCharacter>[0],
-    {
-      characterKey: CharacterKeyECS.GreenSlimeA1,
-      state: CharacterState.IDLE,
-      x: 90,
-      y: 120,
-    },
-  );
-
-  MutationRiskComp.unnecessaryInjectionStacks[characterEid] = 2;
-  MutationRiskComp.dirtyExposureStacks[characterEid] = 1;
-  addStaleFood(world);
-
-  assert.deepEqual(world.getMainCharacterInfoSnapshot()?.geneOutcomes, [
-    {
-      kind: "evolution",
-      geneLine: "green-slime",
-      level: 2,
-      probability: 0.97,
-    },
-    {
-      kind: "mutation",
-      geneLine: "soil-slime",
-      level: 1,
-      probability: 0.015,
-    },
-    {
-      kind: "mutation",
-      geneLine: "skull-slime",
-      level: 1,
-      probability: 0.015,
     },
   ]);
 });

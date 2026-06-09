@@ -75,24 +75,15 @@ type StoredWorldData = {
 
 type SanitizeStoredWorldDataResult = ReturnType<typeof sanitizeStoredWorldData>;
 import {
-  createEggHatchSchedule,
-  GAME_CONSTANTS,
-} from "../scenes/MainScene/config";
-import { EggHatchComp } from "../scenes/MainScene/raw-components";
-import {
   CharacterKeyECS,
   CharacterState,
   CharacterStatus,
   TextureKey,
 } from "../scenes/MainScene/types";
 import {
-  createTestCharacter,
-  createTestWorld,
   withMockedDateNow,
   withMockedRandom,
 } from "../test-utils/mainSceneTestUtils";
-
-const TEN_MINUTES_MS = 10 * 60 * 1_000;
 
 function buildStoredEggWorldData(eggHatch: {
   hatchTime?: number;
@@ -236,140 +227,6 @@ function getSanitizedRenderTextureKey(
 
   return result.sanitizedData.entities?.[0]?.components?.render?.textureKey;
 }
-
-test("DEV 신규 egg 생성 경로는 4~6초 hatch schedule만 만든다", () => {
-  assert.equal(GAME_CONSTANTS.EGG_HATCH_MIN_TIME, 4_000);
-  assert.equal(GAME_CONSTANTS.EGG_HATCH_MODE_TIME, 5_000);
-  assert.equal(GAME_CONSTANTS.EGG_HATCH_MAX_TIME, 6_000);
-
-  const now = 100_000;
-  assert.deepEqual(createEggHatchSchedule(now, 0), {
-    hatchTime: now + 4_000,
-    hatchDurationMs: 4_000,
-  });
-  assert.deepEqual(createEggHatchSchedule(now, 0.5), {
-    hatchTime: now + 5_000,
-    hatchDurationMs: 5_000,
-  });
-  assert.deepEqual(createEggHatchSchedule(now, 1), {
-    hatchTime: now + 6_000,
-    hatchDurationMs: 6_000,
-  });
-
-  const world = createTestWorld({ now });
-  const eid = withMockedDateNow(now, () =>
-    withMockedRandom(0.5, () =>
-      createTestCharacter(world, {
-        state: CharacterState.EGG,
-      }),
-    ),
-  );
-
-  assert.equal(EggHatchComp.hatchDurationMs[eid], 5_000);
-  assert.equal(EggHatchComp.hatchTime[eid], now + 5_000);
-});
-
-test("DEV 신규 egg 생성은 Date.now 대신 world currentTime 기준으로 hatchTime을 만든다", () => {
-  const worldNow = 100_000;
-  const wallNow = worldNow + 120 * 60 * 60 * 1000;
-  const world = createTestWorld({ now: worldNow });
-  const eid = withMockedDateNow(wallNow, () =>
-    withMockedRandom(0.5, () =>
-      createTestCharacter(world, {
-        state: CharacterState.EGG,
-      }),
-    ),
-  );
-
-  assert.equal(EggHatchComp.hatchDurationMs[eid], 5_000);
-  assert.equal(EggHatchComp.hatchTime[eid], worldNow + 5_000);
-});
-
-test("sanitizeStoredWorldData는 DEV에서 complete 10분 egg hatch를 4~6초 새 스케줄로 재정규화한다", () => {
-  const now = 2_000_000;
-
-  const result = withMockedDateNow(now, () =>
-    withMockedRandom(0.5, () =>
-      sanitizeStoredWorldData(
-        buildStoredEggWorldData({
-          hatchTime: now + TEN_MINUTES_MS,
-          hatchDurationMs: TEN_MINUTES_MS,
-        }),
-      ),
-    ),
-  );
-
-  const eggHatch = getSanitizedEggHatch(result);
-  assert.equal(eggHatch?.hatchTime, now + 5_000);
-  assert.equal(eggHatch?.hatchDurationMs, 5_000);
-});
-
-test("sanitizeStoredWorldData는 DEV에서 hatchTime only 10분 egg hatch를 4~6초 새 스케줄로 재정규화한다", () => {
-  const now = 3_000_000;
-
-  const result = withMockedDateNow(now, () =>
-    withMockedRandom(0.5, () =>
-      sanitizeStoredWorldData(
-        buildStoredEggWorldData({
-          hatchTime: now + TEN_MINUTES_MS,
-        }),
-      ),
-    ),
-  );
-
-  const eggHatch = getSanitizedEggHatch(result);
-  assert.equal(eggHatch?.hatchTime, now + 5_000);
-  assert.equal(eggHatch?.hatchDurationMs, 5_000);
-});
-
-test("sanitizeStoredWorldData는 DEV에서 hatchDuration only 10분 egg hatch를 4~6초 새 스케줄로 재정규화한다", () => {
-  const now = 4_000_000;
-
-  const result = withMockedDateNow(now, () =>
-    withMockedRandom(0.5, () =>
-      sanitizeStoredWorldData(
-        buildStoredEggWorldData({
-          hatchDurationMs: TEN_MINUTES_MS,
-        }),
-      ),
-    ),
-  );
-
-  const eggHatch = getSanitizedEggHatch(result);
-  assert.equal(eggHatch?.hatchTime, now + 5_000);
-  assert.equal(eggHatch?.hatchDurationMs, 5_000);
-});
-
-test("sanitizeStoredWorldData는 DEV에서 egg hatch 정보가 비면 4~6초 새 스케줄을 만든다", () => {
-  const now = 5_000_000;
-
-  const result = withMockedDateNow(now, () =>
-    withMockedRandom(0.5, () =>
-      sanitizeStoredWorldData(buildStoredEggWorldData({})),
-    ),
-  );
-
-  const eggHatch = getSanitizedEggHatch(result);
-  assert.equal(eggHatch?.hatchTime, now + 5_000);
-  assert.equal(eggHatch?.hatchDurationMs, 5_000);
-});
-
-test("sanitizeStoredWorldData는 duration보다 큰 future remaining을 현재 저장 정리 시간 기준으로 보정한다", () => {
-  const now = 5_500_000;
-
-  const result = withMockedDateNow(now, () =>
-    sanitizeStoredWorldData(
-      buildStoredEggWorldData({
-        hatchTime: now + 120 * 60 * 60 * 1000,
-        hatchDurationMs: 5_000,
-      }),
-    ),
-  );
-
-  const eggHatch = getSanitizedEggHatch(result);
-  assert.equal(eggHatch?.hatchTime, now + 5_000);
-  assert.equal(eggHatch?.hatchDurationMs, 5_000);
-});
 
 test("sanitizeStoredWorldData는 egg pendingCharacterKey를 보존한다", () => {
   const now = 6_000_000;

@@ -520,7 +520,7 @@ function setupReentryUntrustedClockWorld(
 		},
 	});
 
-	createWorld(world as any, 16);
+	createWorld(world as any, 100_000);
 	const eid = addEntity(world as any);
 	addComponent(world as any, ObjectComp, eid);
 	addComponent(world as any, CharacterStatusComp, eid);
@@ -2119,7 +2119,7 @@ test("init/app_resume reentry는 native callback이 없으면 failed로 끝나�
 			events.push(nextEvent);
 		},
 	});
-	createWorld(world as any, 16);
+	createWorld(world as any, 100_000);
 	createTestCharacter(world as any, {
 		state: CharacterState.IDLE,
 		stamina: 5,

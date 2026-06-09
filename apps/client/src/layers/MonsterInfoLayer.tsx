@@ -117,13 +117,20 @@ function formatEggHatchRemainingTime(remainingMs: number | null): string {
 function formatGeneOutcomeProbability(
   probability: number,
   locale: string,
+  fractionDigits?: number,
 ): string {
   const safeProbability = clampUnitInterval(probability);
+  const fixedFractionDigits =
+    typeof fractionDigits === "number" && Number.isFinite(fractionDigits)
+      ? Math.max(0, fractionDigits)
+      : null;
   const maximumFractionDigits =
-    safeProbability > 0 && safeProbability < 0.1 ? 2 : 1;
+    fixedFractionDigits ??
+    (safeProbability > 0 && safeProbability < 0.1 ? 2 : 1);
 
   return new Intl.NumberFormat(locale, {
     style: "percent",
+    minimumFractionDigits: fixedFractionDigits ?? 0,
     maximumFractionDigits,
   }).format(safeProbability);
 }
@@ -157,7 +164,7 @@ const StatusBar: React.FC<{
   const percent = clampUnitInterval(
     maxValue > 0 ? currentValue / maxValue : 0,
   );
-  const percentLabel = `${Math.round(percent * 100)}%`;
+  const percentLabel = `${(percent * 100).toFixed(1)}%`;
 
   return (
     <div className="flex flex-col gap-2 text-left">
@@ -225,7 +232,8 @@ const GeneOutcomeList: React.FC<{
   label?: string;
   locale: string;
   outcomes: MainCharacterInfoSnapshot["geneOutcomes"];
-}> = ({ label, locale, outcomes }) => {
+  probabilityFractionDigits?: number;
+}> = ({ label, locale, outcomes, probabilityFractionDigits }) => {
   if (outcomes.length === 0) {
     return null;
   }
@@ -256,7 +264,11 @@ const GeneOutcomeList: React.FC<{
         <span className="text-[0.8em]">Lv.{outcome.level}</span>
       </div>
       <div className="font-bold text-component-positive">
-        {formatGeneOutcomeProbability(outcome.probability, locale)}
+        {formatGeneOutcomeProbability(
+          outcome.probability,
+          locale,
+          probabilityFractionDigits,
+        )}
       </div>
     </div>
   );
@@ -285,7 +297,11 @@ const GeneOutcomeList: React.FC<{
               <span className="text-[0.8em]">Lv.{mutationLevel}</span>
             </div>
             <div className="font-bold text-component-positive">
-              {formatGeneOutcomeProbability(mutationProbability, locale)}
+              {formatGeneOutcomeProbability(
+                mutationProbability,
+                locale,
+                probabilityFractionDigits,
+              )}
             </div>
           </div>
         ) : null}
@@ -433,6 +449,7 @@ const MonsterInfoLayer: React.FC<MonsterInfoLayerProps> = ({
                     label={t("monsterInfo.nextEvolution")}
                     locale={locale}
                     outcomes={snapshot.geneOutcomes}
+                    probabilityFractionDigits={1}
                   />
                 </div>
               </>

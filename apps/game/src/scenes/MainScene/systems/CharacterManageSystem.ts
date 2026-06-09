@@ -18,6 +18,7 @@ import { evolveCharacter, canEvolve, getMaxEvolutionGauge } from "./EvolutionSys
 import { GAME_CONSTANTS, getStaminaDecayRateMultiplier } from "../config";
 import {
   EVOLUTION_GAUGE_CONFIG,
+  canEvolveFromConfig,
   getEvolutionGaugeIncreaseAmountForEntity,
 } from "../evolutionConfig";
 
@@ -444,14 +445,17 @@ export function getRemainingStaminaDecreaseTime(eid: number): number {
 export function getRemainingEvolutionGaugeTime(eid: number): number | null {
   const currentStamina = CharacterStatusComp.stamina[eid];
   const currentState = ObjectComp.state[eid] as CharacterState;
+  const currentCharacterKey = CharacterStatusComp.characterKey[eid];
   const isSick =
     currentState === CharacterState.SICK ||
     hasCharacterStatus(eid, CharacterStatus.SICK);
 
   if (
     currentState === CharacterState.EGG ||
+    currentState === CharacterState.DEAD ||
     currentStamina < EVOLUTION_GAUGE_CONFIG.staminaThreshold ||
-    isSick
+    isSick ||
+    !canEvolveFromConfig(currentCharacterKey)
   ) {
     return null;
   }
@@ -501,17 +505,21 @@ function _updateStaminaAndEvolutionGauge(
 
   // 진화 게이지 타이머 업데이트 (스테미나가 설정 임계치 이상이고 SICK 상태가 아닐 때만)
   const currentStamina = CharacterStatusComp.stamina[eid];
+  const currentState = ObjectComp.state[eid] as CharacterState;
+  const currentCharacterKey = CharacterStatusComp.characterKey[eid];
   const isSick =
-    ObjectComp.state[eid] === CharacterState.SICK ||
+    currentState === CharacterState.SICK ||
     hasCharacterStatus(eid, CharacterStatus.SICK);
 
   if (
+    currentState !== CharacterState.DEAD &&
     currentStamina >= EVOLUTION_GAUGE_CONFIG.staminaThreshold &&
-    !isSick
+    !isSick &&
+    canEvolveFromConfig(currentCharacterKey)
   ) {
     const currentEvolutionTimer = evolutionGaugeTimers.get(eid) || 0;
     const evolutionDelta =
-      ObjectComp.state[eid] === CharacterState.SLEEPING
+      currentState === CharacterState.SLEEPING
         ? delta * EVOLUTION_GAUGE_CONFIG.sleepingGaugeTimeProgressMultiplier
         : delta;
     const totalEvolutionTime = currentEvolutionTimer + evolutionDelta;
