@@ -14,7 +14,7 @@ class HomeWidgetBackgroundRefreshService {
   const HomeWidgetBackgroundRefreshService._();
 
   static Future<Map<String, Object?>> runPeriodicRefresh({
-    String source = config.periodicRefreshReason,
+    String source = config.widgetPeriodicRefreshSource,
     int? nowMs,
     void Function(String message)? log,
     WorldDataLifecycleRandomProvider randomProvider =
@@ -92,6 +92,9 @@ class HomeWidgetBackgroundRefreshService {
       'status=${advanced.status} '
       'elapsedMs=${advanced.elapsedMs} '
       'tickCount=${advanced.tickCount} '
+      'hatched=${advanced.hatched} '
+      'selectedCharacterKey=${advanced.selectedCharacterKey} '
+      'hatchSelectionDiagnostics=${advanced.hatchSelectionDiagnostics} '
       'hasSnapshot=${snapshotJson != null} '
       'updated2x1=$updatedTwoByOne '
       'updated1x1=$updatedOneByOne',

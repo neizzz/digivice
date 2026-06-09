@@ -9,6 +9,7 @@ const String nativeWorldDataAuthoritativeSnapshotKey =
 const String nativeWorldDataStorageName = 'digivice_home_widget';
 const String widgetRefreshLaunchMode = 'widget_refresh';
 const String periodicRefreshReason = 'periodic_work';
+const String widgetPeriodicRefreshSource = 'widget_periodic_refresh';
 const String periodicRefreshStatusKey = 'home_widget_periodic_refresh_status';
 const String periodicRefreshStatusAtMsKey =
     'home_widget_periodic_refresh_status_at_ms';

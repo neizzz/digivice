@@ -53,6 +53,9 @@ const int worldDataLifecycleSkullSlimeA1CharacterKey = 14;
 const int worldDataLifecycleSoilSlimeA1CharacterKey = 22;
 const String worldDataLifecycleDefaultCompletedStatus =
     'flutter_world_data_update_completed';
+const String worldDataLifecycleForegroundHatchSource = 'foreground_hatch';
+const String worldDataLifecycleWidgetPeriodicRefreshSource =
+    'widget_periodic_refresh';
 
 class WorldDataLifecycleRandomEvent {
   final int objectId;

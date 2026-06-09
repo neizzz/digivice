@@ -1,299 +1,187 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { addComponent, addEntity } from "bitecs";
+import { addEntity } from "bitecs";
 import {
-  CharacterStatusComp,
-  EggHatchComp,
-  FreshnessComp,
-  FreshnessTimerComp,
-  ObjectComp,
-  RenderComp,
+	AnimationRenderComp,
+	CharacterStatusComp,
+	EggHatchComp,
+	ObjectComp,
+	RenderComp,
 } from "../raw-components";
-import { GAME_CONSTANTS } from "../config";
-import {
-  applySavedEntityToECS,
-  convertECSEntityToSavedEntity,
-} from "../entityDataHelpers";
+import { applySavedEntityToECS } from "../entityDataHelpers";
 import { eggHatchSystem } from "../systems/EggHatchSystem";
-import { freshnessSystem } from "../systems/FreshnessSystem";
 import {
-  CharacterKeyECS,
-  CharacterState,
-  FoodState,
-  Freshness,
-  ObjectType,
-  TextureKey,
+	AnimationKey,
+	CharacterKeyECS,
+	CharacterState,
+	ObjectType,
+	TextureKey,
 } from "../types";
 import {
-  createTestCharacter,
-  createTestWorld,
-  mockLoadedSpritesheetAliases,
-  withMockedDateNow,
-  withMockedRandom,
+	createTestCharacter,
+	createTestWorld,
+	withMockedDateNow,
 } from "../../../test-utils/mainSceneTestUtils";
 
-function addFood(world: ReturnType<typeof createTestWorld>, freshness: Freshness): number {
-  const eid = addEntity(world);
+test("EggHatchSystem은 부화 시 Flutter authoritative update를 요청하고 반환 상태를 적용한다", () => {
+	const currentTime = 5_000;
+	const world = createTestWorld({ now: currentTime });
+	const eggEid = withMockedDateNow(currentTime, () =>
+		createTestCharacter(world, {
+			state: CharacterState.EGG,
+		}),
+	);
+	EggHatchComp.hatchTime[eggEid] = currentTime;
 
-  addComponent(world, ObjectComp, eid);
-  ObjectComp.id[eid] = 100_000 + eid;
-  ObjectComp.type[eid] = ObjectType.FOOD;
-  ObjectComp.state[eid] = FoodState.LANDED;
+	const originalRandom = Math.random;
+	const originalWarn = console.warn;
+	let updateCallCount = 0;
+	let selectionLogCount = 0;
 
-  addComponent(world, FreshnessComp, eid);
-  FreshnessComp.freshness[eid] = freshness;
+	Math.random = () => {
+		throw new Error("JS hatch selection must not call Math.random");
+	};
+	console.warn = (...args: unknown[]) => {
+		if (args[0] === "[ImportantDiagnostics][EggHatchSelection]") {
+			selectionLogCount += 1;
+		}
+		originalWarn(...args);
+	};
+	world.completeForegroundHatchWithFlutterAuthority = (eid, updateTime) => {
+		updateCallCount += 1;
+		assert.equal(eid, eggEid);
+		assert.equal(updateTime, currentTime);
+		ObjectComp.state[eid] = CharacterState.IDLE;
+		CharacterStatusComp.characterKey[eid] = CharacterKeyECS.SoilSlimeA1;
+		CharacterStatusComp.evolutionPhase[eid] = 1;
+		EggHatchComp.hatchTime[eid] = 0;
+		EggHatchComp.hatchDurationMs[eid] = 0;
+		EggHatchComp.isReadyToHatch[eid] = 0;
+		EggHatchComp.syringeCount[eid] = 0;
+		EggHatchComp.pendingCharacterKey[eid] = CharacterKeyECS.NULL;
+		RenderComp.textureKey[eid] = TextureKey.NULL;
+		AnimationRenderComp.spritesheetKey[eid] = CharacterKeyECS.SoilSlimeA1;
+		AnimationRenderComp.animationKey[eid] = AnimationKey.IDLE;
+		return true;
+	};
 
-  return eid;
-}
+	try {
+		eggHatchSystem({
+			world: world as any,
+			currentTime,
+		});
+	} finally {
+		Math.random = originalRandom;
+		console.warn = originalWarn;
+	}
 
-function addFoodWithTimer(
-  world: ReturnType<typeof createTestWorld>,
-  params: {
-    freshness: Freshness;
-    createdTime: number;
-    normalTime?: number;
-    staleTime?: number;
-  },
-): number {
-  const eid = addFood(world, params.freshness);
-
-  addComponent(world, FreshnessTimerComp, eid);
-  FreshnessTimerComp.createdTime[eid] = params.createdTime;
-  FreshnessTimerComp.normalTime[eid] =
-    params.normalTime ?? GAME_CONSTANTS.FRESH_TO_NORMAL_TIME;
-  FreshnessTimerComp.staleTime[eid] =
-    params.staleTime ?? GAME_CONSTANTS.NORMAL_TO_STALE_TIME;
-  FreshnessTimerComp.isBeingEaten[eid] = 0;
-
-  return eid;
-}
-
-test("EggHatchSystem은 부화 시점의 STALE 음식 수로 soil 선택 구간을 늘린다", () => {
-  const world = createTestWorld({ now: 0, isSimulationMode: true });
-  const eggEid = withMockedDateNow(0, () =>
-    createTestCharacter(world, {
-      state: CharacterState.EGG,
-    }),
-  );
-  EggHatchComp.hatchTime[eggEid] = 0;
-
-  for (let i = 0; i < 10; i++) {
-    addFood(world, Freshness.STALE);
-  }
-  addFood(world, Freshness.NORMAL);
-
-  const restoreSpritesheet = mockLoadedSpritesheetAliases(["soil-slime_A1"]);
-  try {
-    withMockedRandom(0.46, () => {
-      eggHatchSystem({
-        world: world as any,
-        currentTime: 0,
-      });
-    });
-  } finally {
-    restoreSpritesheet();
-  }
-
-  assert.equal(ObjectComp.state[eggEid], CharacterState.IDLE);
-  assert.equal(
-    CharacterStatusComp.characterKey[eggEid],
-    CharacterKeyECS.SoilSlimeA1,
-  );
-  assert.equal(CharacterStatusComp.evolutionPhase[eggEid], 1);
-  assert.equal(RenderComp.textureKey[eggEid], TextureKey.NULL);
+	assert.equal(updateCallCount, 1);
+	assert.equal(selectionLogCount, 0);
+	assert.equal(ObjectComp.state[eggEid], CharacterState.IDLE);
+	assert.equal(
+		CharacterStatusComp.characterKey[eggEid],
+		CharacterKeyECS.SoilSlimeA1,
+	);
+	assert.equal(CharacterStatusComp.evolutionPhase[eggEid], 1);
+	assert.equal(RenderComp.textureKey[eggEid], TextureKey.NULL);
 });
 
-test("EggHatchSystem은 egg syringeCount로 skull 선택 구간을 늘린다", () => {
-  const world = createTestWorld({ now: 0, isSimulationMode: true });
-  const eggEid = withMockedDateNow(0, () =>
-    createTestCharacter(world, {
-      state: CharacterState.EGG,
-    }),
-  );
-  EggHatchComp.hatchTime[eggEid] = 0;
-  EggHatchComp.syringeCount[eggEid] = 10;
+test("EggHatchSystem은 Flutter update 실패 시 임의 부화 결과를 만들지 않고 egg ready 상태를 유지한다", () => {
+	const currentTime = 5_000;
+	const world = createTestWorld({ now: currentTime });
+	const eggEid = withMockedDateNow(currentTime, () =>
+		createTestCharacter(world, {
+			state: CharacterState.EGG,
+		}),
+	);
+	EggHatchComp.hatchTime[eggEid] = currentTime;
 
-  const restoreSpritesheet = mockLoadedSpritesheetAliases(["skull-slime_A1"]);
-  try {
-    withMockedRandom(0.7, () => {
-      eggHatchSystem({
-        world: world as any,
-        currentTime: 0,
-      });
-    });
-  } finally {
-    restoreSpritesheet();
-  }
+	const originalRandom = Math.random;
+	const originalWarn = console.warn;
+	let selectionLogCount = 0;
 
-  assert.equal(ObjectComp.state[eggEid], CharacterState.IDLE);
-  assert.equal(
-    CharacterStatusComp.characterKey[eggEid],
-    CharacterKeyECS.SkullSlimeA1,
-  );
-  assert.equal(CharacterStatusComp.evolutionPhase[eggEid], 1);
+	Math.random = () => {
+		throw new Error("JS hatch selection must not call Math.random");
+	};
+	console.warn = (...args: unknown[]) => {
+		if (args[0] === "[ImportantDiagnostics][EggHatchSelection]") {
+			selectionLogCount += 1;
+		}
+		originalWarn(...args);
+	};
+	world.completeForegroundHatchWithFlutterAuthority = () => false;
+
+	try {
+		eggHatchSystem({
+			world: world as any,
+			currentTime,
+		});
+	} finally {
+		Math.random = originalRandom;
+		console.warn = originalWarn;
+	}
+
+	assert.equal(selectionLogCount, 0);
+	assert.equal(ObjectComp.state[eggEid], CharacterState.EGG);
+	assert.equal(EggHatchComp.isReadyToHatch[eggEid], 1);
+	assert.equal(EggHatchComp.pendingCharacterKey[eggEid], CharacterKeyECS.NULL);
+	assert.equal(
+		CharacterStatusComp.characterKey[eggEid],
+		CharacterKeyECS.GreenSlimeA1,
+	);
 });
 
-test("EggHatchSystem은 부화 시점에 생성 후 10분이 지난 음식만 stale 개수에 포함한다", () => {
-  const currentTime = GAME_CONSTANTS.NORMAL_TO_STALE_TIME;
-  const world = createTestWorld({ now: currentTime, isSimulationMode: true });
-  const eggEid = withMockedDateNow(currentTime, () =>
-    createTestCharacter(world, {
-      state: CharacterState.EGG,
-    }),
-  );
-  EggHatchComp.hatchTime[eggEid] = currentTime;
+test("EggHatchSystem은 Flutter authority가 없으면 egg ready 상태만 표시한다", () => {
+	const currentTime = 5_000;
+	const world = createTestWorld({ now: currentTime });
+	const eggEid = withMockedDateNow(currentTime, () =>
+		createTestCharacter(world, {
+			state: CharacterState.EGG,
+		}),
+	);
+	EggHatchComp.hatchTime[eggEid] = currentTime;
 
-  for (let i = 0; i < 9; i++) {
-    addFoodWithTimer(world, {
-      freshness: Freshness.NORMAL,
-      createdTime: 0,
-    });
-  }
+	eggHatchSystem({
+		world: world as any,
+		currentTime,
+	});
 
-  const recentFoodEid = addFoodWithTimer(world, {
-    freshness: Freshness.NORMAL,
-    createdTime: 1,
-  });
-
-  freshnessSystem({
-    world: world as any,
-    currentTime,
-  });
-
-  assert.equal(FreshnessComp.freshness[recentFoodEid], Freshness.NORMAL);
-
-  const restoreSpritesheet = mockLoadedSpritesheetAliases(["green-slime_A1"]);
-  try {
-    withMockedRandom(0.46, () => {
-      eggHatchSystem({
-        world: world as any,
-        currentTime,
-      });
-    });
-  } finally {
-    restoreSpritesheet();
-  }
-
-  assert.equal(ObjectComp.state[eggEid], CharacterState.IDLE);
-  assert.equal(
-    CharacterStatusComp.characterKey[eggEid],
-    CharacterKeyECS.GreenSlimeA1,
-  );
-  assert.equal(CharacterStatusComp.evolutionPhase[eggEid], 1);
-});
-
-test("EggHatchSystem은 asset 지연과 저장/복원 이후에도 최초 pending 부화 결과를 재사용한다", () => {
-  const currentTime = 5_000;
-  const world = createTestWorld({ now: currentTime, isSimulationMode: true });
-  const eggEid = withMockedDateNow(currentTime, () =>
-    createTestCharacter(world, {
-      state: CharacterState.EGG,
-    }),
-  );
-  EggHatchComp.hatchTime[eggEid] = currentTime;
-
-  for (let i = 0; i < 10; i++) {
-    addFood(world, Freshness.STALE);
-  }
-
-  const originalWarn = console.warn;
-  let selectionLogCount = 0;
-  console.warn = (...args: unknown[]) => {
-    if (args[0] === "[ImportantDiagnostics][EggHatchSelection]") {
-      selectionLogCount += 1;
-    }
-    originalWarn(...args);
-  };
-
-  try {
-    withMockedRandom(0.46, () => {
-      eggHatchSystem({
-        world: world as any,
-        currentTime,
-      });
-    });
-  } finally {
-    console.warn = originalWarn;
-  }
-
-  assert.equal(ObjectComp.state[eggEid], CharacterState.EGG);
-  assert.equal(EggHatchComp.isReadyToHatch[eggEid], 1);
-  assert.equal(
-    EggHatchComp.pendingCharacterKey[eggEid],
-    CharacterKeyECS.SoilSlimeA1,
-  );
-  assert.equal(selectionLogCount, 1);
-
-  const savedEntity = convertECSEntityToSavedEntity(world, eggEid);
-  assert.equal(
-    savedEntity.components.eggHatch?.pendingCharacterKey,
-    CharacterKeyECS.SoilSlimeA1,
-  );
-
-  const restoredWorld = createTestWorld({
-    now: currentTime,
-    isSimulationMode: true,
-  });
-  const restoredEid = addEntity(restoredWorld);
-  withMockedDateNow(currentTime, () => {
-    applySavedEntityToECS(restoredWorld, restoredEid, savedEntity);
-  });
-
-  const restoreSpritesheet = mockLoadedSpritesheetAliases(["soil-slime_A1"]);
-  try {
-    withMockedRandom(0.99, () => {
-      eggHatchSystem({
-        world: restoredWorld as any,
-        currentTime,
-      });
-    });
-  } finally {
-    restoreSpritesheet();
-  }
-
-  assert.equal(ObjectComp.state[restoredEid], CharacterState.IDLE);
-  assert.equal(
-    CharacterStatusComp.characterKey[restoredEid],
-    CharacterKeyECS.SoilSlimeA1,
-  );
-  assert.equal(CharacterStatusComp.evolutionPhase[restoredEid], 1);
-  assert.equal(
-    EggHatchComp.pendingCharacterKey[restoredEid],
-    CharacterKeyECS.NULL,
-  );
+	assert.equal(ObjectComp.state[eggEid], CharacterState.EGG);
+	assert.equal(EggHatchComp.isReadyToHatch[eggEid], 1);
+	assert.equal(EggHatchComp.pendingCharacterKey[eggEid], CharacterKeyECS.NULL);
 });
 
 test("저장본 복원은 non-egg 캐릭터에 남은 egg static texture를 제거한다", () => {
-  const world = createTestWorld({ now: 10_000 });
-  const eid = addEntity(world);
+	const world = createTestWorld({ now: 10_000 });
+	const eid = addEntity(world);
 
-  applySavedEntityToECS(world, eid, {
-    components: {
-      object: {
-        id: 1001,
-        type: ObjectType.CHARACTER,
-        state: CharacterState.SICK,
-      },
-      characterStatus: {
-        characterKey: CharacterKeyECS.GreenSlimeA1,
-        stamina: 5,
-        evolutionGage: 0,
-        evolutionPhase: 1,
-        statuses: [0, 0, 0, 0],
-      },
-      position: {
-        x: 40,
-        y: 40,
-      },
-      render: {
-        storeIndex: 0,
-        textureKey: TextureKey.EGG1,
-        scale: 3,
-        zIndex: 0,
-      },
-    },
-  });
+	applySavedEntityToECS(world, eid, {
+		components: {
+			object: {
+				id: 1001,
+				type: ObjectType.CHARACTER,
+				state: CharacterState.SICK,
+			},
+			characterStatus: {
+				characterKey: CharacterKeyECS.GreenSlimeA1,
+				stamina: 5,
+				evolutionGage: 0,
+				evolutionPhase: 1,
+				statuses: [0, 0, 0, 0],
+			},
+			position: {
+				x: 40,
+				y: 40,
+			},
+			render: {
+				storeIndex: 0,
+				textureKey: TextureKey.EGG1,
+				scale: 3,
+				zIndex: 0,
+			},
+		},
+	});
 
-  assert.equal(ObjectComp.state[eid], CharacterState.SICK);
-  assert.equal(RenderComp.textureKey[eid], TextureKey.NULL);
+	assert.equal(ObjectComp.state[eid], CharacterState.SICK);
+	assert.equal(RenderComp.textureKey[eid], TextureKey.NULL);
 });

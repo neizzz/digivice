@@ -10,7 +10,6 @@ internal object HomeWidgetPeriodicRefreshRunner {
         onNoWidgets: () -> Unit,
         progressSnapshot: (nowMs: Long) -> HomeWidgetSnapshot?,
         loadAuthoritativeSnapshot: () -> HomeWidgetSnapshot?,
-        completeNativeAuthoritativeRefresh: (nowMs: Long) -> WorldDataNativeAuthoritativeRefreshResult,
         requestAuthoritativeRefreshFallback: () -> HomeWidgetAuthoritativeRefreshRequestResult,
         notifySnapshotUpdated: (reason: String) -> Unit,
         recordPeriodicRefreshStatus: (status: String, nowMs: Long) -> Unit,
@@ -34,25 +33,19 @@ internal object HomeWidgetPeriodicRefreshRunner {
             return false
         }
         val authoritativeSnapshot = loadAuthoritativeSnapshot()
-        val shouldCompleteNativeRefresh = isMaturedEggSnapshot(
+        val shouldRequestFlutterRefresh = isMaturedEggSnapshot(
             progressedSnapshot,
             nowMs,
         ) || isMaturedEggSnapshot(
             authoritativeSnapshot,
             nowMs,
         )
-        val periodicStatus = if (shouldCompleteNativeRefresh) {
+        val periodicStatus = if (shouldRequestFlutterRefresh) {
             recordPeriodicRefreshStatus(
-                WorldDataNativeAuthoritativeRefreshStatus.STARTED.value,
+                HomeWidgetPeriodicRefreshStatus.FLUTTER_AUTHORITY_ONLY.value,
                 nowMs,
             )
-            val nativeCompletionResult = completeNativeAuthoritativeRefresh(nowMs)
-            if (nativeCompletionResult.succeeded) {
-                nativeCompletionResult.status
-            } else {
-                recordPeriodicRefreshStatus(nativeCompletionResult.status, nowMs)
-                requestAuthoritativeRefreshFallback().status
-            }
+            requestAuthoritativeRefreshFallback().status
         } else {
             HomeWidgetPeriodicRefreshStatus.PROGRESS_ONLY.value
         }
@@ -89,12 +82,6 @@ internal class HomeWidgetPeriodicRefreshWorker(
             },
             loadAuthoritativeSnapshot = {
                 HomeWidgetSnapshot.loadAuthoritative(applicationContext)
-            },
-            completeNativeAuthoritativeRefresh = { nowMs ->
-                WorldDataNativeAuthoritativeRefresh.complete(
-                    context = applicationContext,
-                    nowMs = nowMs,
-                )
             },
             requestAuthoritativeRefreshFallback = {
                 HomeWidgetAuthoritativeRefreshRequester.request(applicationContext)

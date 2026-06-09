@@ -2075,6 +2075,7 @@ const GameContainer: React.FC = () => {
 					previousCharacterState: result?.previousCharacterState ?? null,
 					nextCharacterState: result?.nextCharacterState ?? null,
 					selectedCharacterKey: result?.selectedCharacterKey ?? null,
+					hatchSelectionDiagnostics: result?.hatchSelectionDiagnostics ?? null,
 				},
 			);
 

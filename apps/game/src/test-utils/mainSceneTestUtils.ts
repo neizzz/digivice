@@ -45,6 +45,10 @@ export type TestWorld = IWorld & {
   canSpawnPoop: () => boolean;
   showObjectLimitAlert: () => void;
   removeObjectEntity: (eid: number) => void;
+  completeForegroundHatchWithFlutterAuthority?: (
+    eid: number,
+    currentTime: number,
+  ) => boolean | Promise<boolean>;
   currentTime: number;
   timeOfDay: TimeOfDay;
   timeOfDayMode: TimeOfDayMode;

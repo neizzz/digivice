@@ -76,6 +76,7 @@ void main() {
     );
 
     expect(result['status'], worldDataLifecycleDefaultCompletedStatus);
+    expect(result['source'], worldDataLifecycleWidgetPeriodicRefreshSource);
     expect(prefs.getString(config.worldDataSnapshotStorageKey), isNotNull);
     expect(
       prefs.getString(config.worldDataAuthoritativeSnapshotStorageKey),

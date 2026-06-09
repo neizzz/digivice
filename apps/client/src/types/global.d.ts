@@ -45,13 +45,14 @@ declare global {
 		previousCharacterState?: number | null;
 		nextCharacterState?: number | null;
 		selectedCharacterKey?: number | null;
+		hatchSelectionDiagnostics?: Record<string, unknown> | null;
 		error?: unknown;
 		[key: string]: unknown;
 	};
 
 	type WorldDataUpdateControllerBridge = {
 		completeNativeWorldDataUpdate: (payload: {
-			source?: "init" | "app_resume";
+			source?: "init" | "app_resume" | "foreground_hatch";
 		}) => Promise<NativeWorldDataUpdateResult>;
 	};
 

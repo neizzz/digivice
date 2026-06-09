@@ -554,6 +554,9 @@ export type InitialGameData = {
 };
 
 export type MainSceneReentrySimulationSource = "init" | "app_resume" | "manual";
+export type MainSceneNativeWorldDataUpdateSource =
+	| Extract<MainSceneReentrySimulationSource, "init" | "app_resume">
+	| "foreground_hatch";
 
 export type MainSceneReentrySimulationStateChange = {
 	source: MainSceneReentrySimulationSource;
@@ -579,12 +582,13 @@ export type MainSceneNativeWorldDataUpdateForReentryResult = {
 	previousCharacterState?: number | null;
 	nextCharacterState?: number | null;
 	selectedCharacterKey?: number | null;
+	hatchSelectionDiagnostics?: Record<string, unknown> | null;
 	error?: unknown;
 	[key: string]: unknown;
 };
 
 export type MainSceneNativeWorldDataUpdateForReentryCallback = (
-	source: Extract<MainSceneReentrySimulationSource, "init" | "app_resume">,
+	source: MainSceneNativeWorldDataUpdateSource,
 ) =>
 	| MainSceneNativeWorldDataUpdateForReentryResult
 	| Promise<MainSceneNativeWorldDataUpdateForReentryResult>;
@@ -4277,6 +4281,7 @@ export class MainSceneWorld implements IWorld, Scene {
 		const status = result?.status;
 		return (
 			status === "native_authoritative_completion_completed" ||
+			status === "flutter_world_data_update_completed" ||
 			status === "native_world_data_update_completed" ||
 			status === "completed" ||
 			status === "ok"
@@ -4405,6 +4410,119 @@ export class MainSceneWorld implements IWorld, Scene {
 			);
 		} finally {
 			this._finishReentryRuntimeState();
+		}
+	}
+
+	public async completeForegroundHatchWithFlutterAuthority(
+		eid: number,
+		currentTime: number,
+	): Promise<boolean> {
+		if (!this._onNativeWorldDataUpdateForReentry) {
+			console.warn("[ImportantDiagnostics][EggHatchExecution]", {
+				phase: "foreground_hatch_skipped_missing_flutter_authority",
+				eid,
+				objectId: ObjectComp.id[eid],
+				currentTime,
+			});
+			return false;
+		}
+
+		try {
+			await this._saveCurrentState();
+
+			const updateResult =
+				await this._onNativeWorldDataUpdateForReentry("foreground_hatch");
+
+			if (!this._isNativeWorldDataUpdateSuccessful(updateResult)) {
+				console.warn("[ImportantDiagnostics][EggHatchExecution]", {
+					phase: "foreground_hatch_flutter_update_failed",
+					eid,
+					objectId: ObjectComp.id[eid],
+					currentTime,
+					status: updateResult?.status ?? null,
+					error: updateResult?.error ?? null,
+				});
+				return false;
+			}
+
+			let validatedData: MainSceneWorldData | null = null;
+			let usedFlutterUpdatedRawWorldData = false;
+
+			if (typeof updateResult.updatedRawWorldData === "string") {
+				const rawWorldData = updateResult.updatedRawWorldData.trim();
+				if (rawWorldData) {
+					try {
+						const parsedData = JSON.parse(rawWorldData) as MainSceneWorldData;
+						const nativeValidatedData =
+							this._validateAndMigrateData(parsedData);
+						if (this._hasPlayableSavedData(nativeValidatedData)) {
+							validatedData = nativeValidatedData;
+							usedFlutterUpdatedRawWorldData = true;
+						}
+					} catch (error) {
+						console.warn(
+							"[MainSceneWorld] Failed to parse foreground hatch updated raw world data",
+							{ status: updateResult.status, error },
+						);
+					}
+				}
+			}
+
+			if (!validatedData) {
+				const reloadedData = await StorageManager.getData<MainSceneWorldData>(
+					WORLD_DATA_STORAGE_KEY,
+				);
+				validatedData = reloadedData
+					? this._validateAndMigrateData(reloadedData)
+					: null;
+			}
+
+			if (!this._hasPlayableSavedData(validatedData)) {
+				console.warn("[ImportantDiagnostics][EggHatchExecution]", {
+					phase: "foreground_hatch_missing_flutter_world_data",
+					eid,
+					objectId: ObjectComp.id[eid],
+					currentTime,
+					status: updateResult.status ?? null,
+				});
+				return false;
+			}
+
+			this.applyPersistedWorldDataForReentry(validatedData);
+			const postAppliedSnapshot =
+				this._captureMainCharacterEntryStatusSnapshot();
+			const hatched =
+				updateResult.hatched === true ||
+				postAppliedSnapshot?.state !== CharacterState.EGG;
+
+			console.warn("[ImportantDiagnostics][EggHatchExecution]", {
+				phase: "foreground_hatch_flutter_update_applied",
+				eid,
+				objectId: ObjectComp.id[eid],
+				currentTime,
+				status: updateResult.status ?? null,
+				hatched: updateResult.hatched ?? null,
+				selectedCharacterKey: updateResult.selectedCharacterKey ?? null,
+				hatchSelectionDiagnostics:
+					updateResult.hatchSelectionDiagnostics ?? null,
+				usedFlutterUpdatedRawWorldData,
+				postAppliedState: postAppliedSnapshot?.state ?? null,
+			});
+
+			return hatched;
+		} catch (error) {
+			console.error(
+				"[MainSceneWorld] Foreground hatch Flutter authoritative update failed:",
+				error,
+			);
+			console.warn("[ImportantDiagnostics][EggHatchExecution]", {
+				phase: "foreground_hatch_flutter_update_error",
+				eid,
+				objectId: ObjectComp.id[eid],
+				currentTime,
+				error: error instanceof Error ? error.message : String(error),
+			});
+			return false;
 		}
 	}
 

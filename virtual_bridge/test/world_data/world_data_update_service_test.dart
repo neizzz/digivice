@@ -7,7 +7,13 @@ import 'package:digivice_virtual_bridge/world_data/world_data_update_service.dar
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-String _buildWorldData({int lastEcsSaved = 0}) => jsonEncode(<String, dynamic>{
+String _buildWorldData({
+  int lastEcsSaved = 0,
+  int state = config.characterStateIdle,
+  int characterKey = 1,
+  Map<String, dynamic>? eggHatch,
+}) =>
+    jsonEncode(<String, dynamic>{
       'world_metadata': <String, dynamic>{
         'monster_name': 'MonTTo',
         'last_ecs_saved': lastEcsSaved,
@@ -22,14 +28,26 @@ String _buildWorldData({int lastEcsSaved = 0}) => jsonEncode(<String, dynamic>{
             'object': <String, dynamic>{
               'id': 101,
               'type': config.characterObjectType,
-              'state': config.characterStateIdle,
+              'state': state,
             },
-            'render': <String, dynamic>{'textureKey': 1},
+            'render': <String, dynamic>{
+              'textureKey': state == config.characterStateEgg
+                  ? config.eggTextureKeyStart
+                  : 1,
+            },
             'characterStatus': <String, dynamic>{
-              'characterKey': 1,
+              'characterKey': characterKey,
               'stamina': 10,
               'evolutionGage': 1.5,
               'statuses': <int>[],
+            },
+            'eggHatch': <String, dynamic>{
+              'hatchTime': 0,
+              'hatchDurationMs': 0,
+              'isReadyToHatch': false,
+              'syringeCount': 0,
+              'pendingCharacterKey': 0,
+              ...?eggHatch,
             },
             'diseaseSystem': <String, dynamic>{
               'nextCheckTime': 10 * 1000,
@@ -104,6 +122,41 @@ void main() {
     final Map<String, dynamic> monsterBook =
         jsonDecode(rawMonsterBook!) as Map<String, dynamic>;
     expect((monsterBook['reached'] as Map<String, dynamic>)['1'], hasLength(1));
+  });
+
+  test('foreground_hatch source는 Dart lifecycle 부화 진단과 저장본을 반환한다', () async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      config.worldDataStorageKey,
+      _buildWorldData(
+        state: config.characterStateEgg,
+        characterKey: 0,
+        eggHatch: <String, dynamic>{
+          'hatchTime': 1000,
+          'hatchDurationMs': 1000,
+          'isReadyToHatch': true,
+          'pendingCharacterKey': 22,
+        },
+      ),
+    );
+
+    final Map<String, Object?> result =
+        await WorldDataUpdateService.completeNativeWorldDataUpdate(
+      source: worldDataLifecycleForegroundHatchSource,
+      nowMs: 2000,
+      randomProvider: (_) => 1,
+    );
+    final Map<String, Object?> diagnostics =
+        result['hatchSelectionDiagnostics'] as Map<String, Object?>;
+
+    expect(result['status'], worldDataLifecycleDefaultCompletedStatus);
+    expect(result['source'], worldDataLifecycleForegroundHatchSource);
+    expect(result['hatched'], isTrue);
+    expect(result['selectedCharacterKey'], 22);
+    expect(diagnostics['selectedCharacterKey'], 22);
+    expect(diagnostics['usedPendingCharacterKey'], isTrue);
+    expect(result['updatedRawWorldData'], isA<String>());
+    expect(prefs.getString(config.worldDataStorageKey), contains('"state":1'));
   });
 
   test('world data가 없으면 실패 상태를 반환한다', () async {

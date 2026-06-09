@@ -22,12 +22,6 @@ class HomeWidgetPeriodicRefreshWorkerTest {
                 null
             },
             loadAuthoritativeSnapshot = { null },
-            completeNativeAuthoritativeRefresh = {
-                events += "nativeComplete"
-                WorldDataNativeAuthoritativeRefreshResult(
-                    status = "native_authoritative_completion_completed",
-                )
-            },
             requestAuthoritativeRefreshFallback = {
                 events += "fallbackRefresh"
                 HomeWidgetAuthoritativeRefreshRequestResult.REQUESTED
@@ -59,12 +53,6 @@ class HomeWidgetPeriodicRefreshWorkerTest {
                 HomeWidgetDebugPresets.resolveSnapshot(index = 1, nowMs = 10_000L)
             },
             loadAuthoritativeSnapshot = { null },
-            completeNativeAuthoritativeRefresh = {
-                events += "nativeComplete"
-                WorldDataNativeAuthoritativeRefreshResult(
-                    status = "native_authoritative_completion_completed",
-                )
-            },
             requestAuthoritativeRefreshFallback = {
                 events += "fallbackRefresh"
                 HomeWidgetAuthoritativeRefreshRequestResult.REQUESTED
@@ -106,13 +94,6 @@ class HomeWidgetPeriodicRefreshWorkerTest {
                 events += "loadAuthoritative"
                 null
             },
-            completeNativeAuthoritativeRefresh = {
-                events += "nativeComplete"
-                WorldDataNativeAuthoritativeRefreshResult(
-                    status = "native_authoritative_completion_failed",
-                    error = "boom",
-                )
-            },
             requestAuthoritativeRefreshFallback = {
                 events += "fallbackRefresh"
                 HomeWidgetAuthoritativeRefreshRequestResult.REQUESTED
@@ -137,7 +118,7 @@ class HomeWidgetPeriodicRefreshWorkerTest {
     }
 
     @Test
-    fun `runner completes matured egg natively without requesting fallback refresh`() {
+    fun `runner requests Flutter refresh for matured egg without native completion`() {
         val nowMs = 20_000L
         val events = mutableListOf<String>()
         val maturedEgg = HomeWidgetDebugPresets.resolveSnapshot(index = 0, nowMs = nowMs).copy(
@@ -157,14 +138,6 @@ class HomeWidgetPeriodicRefreshWorkerTest {
                 maturedEgg
             },
             loadAuthoritativeSnapshot = { maturedEgg },
-            completeNativeAuthoritativeRefresh = { completionNowMs ->
-                events += "nativeComplete:$completionNowMs"
-                WorldDataNativeAuthoritativeRefreshResult(
-                    status = "native_authoritative_completion_completed",
-                    hasSnapshot = true,
-                    hatched = true,
-                )
-            },
             requestAuthoritativeRefreshFallback = {
                 events += "fallbackRefresh"
                 HomeWidgetAuthoritativeRefreshRequestResult.REQUESTED
@@ -182,9 +155,9 @@ class HomeWidgetPeriodicRefreshWorkerTest {
         assertEquals(
             listOf(
                 "progress",
-                "status:native_authoritative_completion_started",
-                "nativeComplete:20000",
-                "status:native_authoritative_completion_completed",
+                "status:flutter_authority_only",
+                "fallbackRefresh",
+                "status:fallback_refresh_requested",
                 "notify:${HomeWidgetConstants.PERIODIC_REFRESH_REASON}",
             ),
             events,
@@ -192,7 +165,7 @@ class HomeWidgetPeriodicRefreshWorkerTest {
     }
 
     @Test
-    fun `runner requests fallback refresh only after native completion failure`() {
+    fun `runner records Flutter refresh request failure for matured egg`() {
         val nowMs = 20_000L
         val events = mutableListOf<String>()
         val maturedEgg = HomeWidgetDebugPresets.resolveSnapshot(index = 0, nowMs = nowMs).copy(
@@ -212,16 +185,9 @@ class HomeWidgetPeriodicRefreshWorkerTest {
                 maturedEgg
             },
             loadAuthoritativeSnapshot = { maturedEgg },
-            completeNativeAuthoritativeRefresh = {
-                events += "nativeComplete"
-                WorldDataNativeAuthoritativeRefreshResult(
-                    status = "native_authoritative_completion_failed",
-                    error = "boom",
-                )
-            },
             requestAuthoritativeRefreshFallback = {
                 events += "fallbackRefresh"
-                HomeWidgetAuthoritativeRefreshRequestResult.REQUESTED
+                HomeWidgetAuthoritativeRefreshRequestResult.FAILED
             },
             notifySnapshotUpdated = { reason ->
                 events += "notify:$reason"
@@ -236,11 +202,9 @@ class HomeWidgetPeriodicRefreshWorkerTest {
         assertEquals(
             listOf(
                 "progress",
-                "status:native_authoritative_completion_started",
-                "nativeComplete",
-                "status:native_authoritative_completion_failed",
+                "status:flutter_authority_only",
                 "fallbackRefresh",
-                "status:fallback_refresh_requested",
+                "status:fallback_refresh_failed",
                 "notify:${HomeWidgetConstants.PERIODIC_REFRESH_REASON}",
             ),
             events,
@@ -277,12 +241,6 @@ class HomeWidgetPeriodicRefreshWorkerTest {
                 progressedSnapshot
             },
             loadAuthoritativeSnapshot = { authoritativeSnapshot },
-            completeNativeAuthoritativeRefresh = {
-                events += "nativeComplete"
-                WorldDataNativeAuthoritativeRefreshResult(
-                    status = "native_authoritative_completion_completed",
-                )
-            },
             requestAuthoritativeRefreshFallback = {
                 events += "fallbackRefresh"
                 HomeWidgetAuthoritativeRefreshRequestResult.REQUESTED

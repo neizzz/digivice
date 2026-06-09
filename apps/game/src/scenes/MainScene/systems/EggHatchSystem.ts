@@ -1,42 +1,29 @@
-import { defineQuery, hasComponent, addComponent } from "bitecs";
+import { defineQuery } from "bitecs";
 import {
 	ObjectComp,
 	EggHatchComp,
-	FreshnessComp,
-	RandomMovementComp,
-	AnimationRenderComp,
 	CharacterStatusComp,
-	RenderComp,
 } from "../raw-components";
 import { MainSceneWorld } from "../world";
-import {
-	CharacterKeyECS,
-	CharacterState,
-	AnimationKey,
-	Freshness,
-	ObjectType,
-	TextureKey,
-} from "../types";
-import {
-	ensureCharacterSpritesheetLoaded,
-	getCharacterSpritesheetOptions,
-	isSpritesheetLoaded,
-} from "../../../utils/asset";
-import { ensureCharacterOpaqueBoundsComputed } from "./CharacterOpaqueBounds";
-import { resolveEggHatchStartingGeneSelection } from "../eggHatchGeneSelection";
+import { CharacterState } from "../types";
 
 const eggQuery = defineQuery([ObjectComp, EggHatchComp]);
-const staleFoodQuery = defineQuery([ObjectComp, FreshnessComp]);
 const pendingRealtimeHatchAttemptsByWorld = new WeakMap<
 	MainSceneWorld,
 	Set<number>
 >();
 
+type FlutterAuthorityHatchWorld = MainSceneWorld & {
+	completeForegroundHatchWithFlutterAuthority?: (
+		eid: number,
+		currentTime: number,
+	) => boolean | Promise<boolean>;
+};
+
 /**
  * 알 부화 시스템
- * - EGG 상태의 캐릭터가 일정 시간 후 부화하여 IDLE 상태로 변경
- * - 부화 시 RandomMovementComp과 AnimationRenderComp를 추가
- * - 필요한 스프라이트시트를 동적으로 로드
+ * - EGG 상태의 캐릭터가 부화 시점에 도달하면 Flutter/Dart lifecycle update를 요청
+ * - JS는 부화 결과를 선택하지 않고, Flutter가 저장/반환한 world data만 적용
  */
 export function eggHatchSystem(params: {
 	world: MainSceneWorld;
@@ -71,249 +58,100 @@ export function eggHatchSystem(params: {
 			});
 		}
 
-		if (world.isSimulationMode) {
-			hatchCharacterForSimulation(eid, world, currentTime);
-		} else {
-			// 실시간 모드에서는 필요한 에셋을 보장 로드한 뒤 부화 처리
-			void hatchCharacter(eid, world, currentTime);
-		}
+		requestFlutterAuthoritativeHatch(eid, world, currentTime);
 	}
 
 	return params;
 }
 
-function completeHatch(
-	eid: number,
-	world: MainSceneWorld,
-	currentTime: number,
-	characterKey: CharacterKeyECS,
-): void {
-	const previousCharacterKey = CharacterStatusComp.characterKey[eid];
-	CharacterStatusComp.characterKey[eid] = characterKey;
-	CharacterStatusComp.evolutionPhase[eid] = 1;
-
-	// 캐릭터 상태를 IDLE로 변경
-	ObjectComp.state[eid] = CharacterState.IDLE;
-	EggHatchComp.hatchTime[eid] = 0;
-	EggHatchComp.hatchDurationMs[eid] = 0;
-	EggHatchComp.isReadyToHatch[eid] = 0;
-	EggHatchComp.syringeCount[eid] = 0;
-	EggHatchComp.pendingCharacterKey[eid] = CharacterKeyECS.NULL;
-
-	if (hasComponent(world, RenderComp, eid)) {
-		RenderComp.textureKey[eid] = TextureKey.NULL;
-		RenderComp.storeIndex[eid] = ECS_NULL_VALUE;
-	}
-
-	// RandomMovementComp 추가 (이제 움직일 수 있음)
-	if (!hasComponent(world, RandomMovementComp, eid)) {
-		addComponent(world, RandomMovementComp, eid);
-		RandomMovementComp.minIdleTime[eid] = 2000;
-		RandomMovementComp.maxIdleTime[eid] = 8000;
-		RandomMovementComp.minMoveTime[eid] = 1000;
-		RandomMovementComp.maxMoveTime[eid] = 8000;
-		// 부화 후 잠시 후 첫 이동 시작
-		RandomMovementComp.nextChange[eid] =
-			currentTime + 2000 + Math.random() * 3000;
-	}
-
-	// AnimationRenderComp 추가 (이제 애니메이션 표시 가능)
-	if (!hasComponent(world, AnimationRenderComp, eid)) {
-		addComponent(world, AnimationRenderComp, eid);
-		AnimationRenderComp.storeIndex[eid] = ECS_NULL_VALUE;
-		AnimationRenderComp.spritesheetKey[eid] = characterKey;
-		AnimationRenderComp.animationKey[eid] = AnimationKey.IDLE;
-		AnimationRenderComp.isPlaying[eid] = 1;
-		AnimationRenderComp.loop[eid] = 1;
-		AnimationRenderComp.speed[eid] = 0.04;
-
-		console.log(
-			`[EggHatchSystem] Added AnimationRenderComp with characterKey: ${characterKey}`,
-		);
-	}
-
-	console.log(
-		`[EggHatchSystem] Character ${eid} has hatched! State changed to IDLE with characterKey: ${characterKey}`,
-	);
-	console.warn("[ImportantDiagnostics][EggHatchExecution]", {
-		phase: "complete_hatch",
-		...buildEggHatchDiagnosticsContext(eid, world, currentTime),
-		previousCharacterKey,
-		appliedCharacterKey: characterKey,
-	});
-}
-
-function countStaleFoodAtHatch(world: MainSceneWorld): number {
-	const entities = staleFoodQuery(world);
-	let count = 0;
-
-	for (let i = 0; i < entities.length; i++) {
-		const eid = entities[i];
-		if (
-			ObjectComp.type[eid] === ObjectType.FOOD &&
-			FreshnessComp.freshness[eid] === Freshness.STALE
-		) {
-			count += 1;
-		}
-	}
-
-	return count;
-}
-
-function selectStartingCharacterForHatch(
-	eid: number,
-	world: MainSceneWorld,
-): {
-	staleFoodCountAtHatch: number;
-	syringeCount: number;
-	random: number;
-	characterKey: CharacterKeyECS;
-} {
-	const staleFoodCountAtHatch = countStaleFoodAtHatch(world);
-	const syringeCount = EggHatchComp.syringeCount[eid];
-	const random = Math.random();
-	const selection = resolveEggHatchStartingGeneSelection({
-		staleFoodCountAtHatch,
-		syringeCount,
-		random,
-	});
-
-	console.warn("[ImportantDiagnostics][EggHatchSelection]", {
-		eid,
-		objectId: ObjectComp.id[eid],
-		currentTime: world.currentTime,
-		hatchTime: EggHatchComp.hatchTime[eid],
-		hatchDurationMs: EggHatchComp.hatchDurationMs[eid],
-		isReadyToHatch: EggHatchComp.isReadyToHatch[eid] === 1,
-		currentCharacterKey: CharacterStatusComp.characterKey[eid],
-		isSimulationMode: world.isSimulationMode,
-		state: ObjectComp.state[eid],
-		staleFoodCountAtHatch,
-		syringeCount,
-		random,
-		normalizedStaleFoodCountAtHatch: selection.normalizedStaleFoodCountAtHatch,
-		normalizedSyringeCount: selection.normalizedSyringeCount,
-		normalizedRandom: selection.normalizedRandom,
-		rollPercent: selection.rollPercent,
-		probabilities: selection.probabilities,
-		selectedCharacterKey: selection.selectedCharacterKey,
-	});
-
-	return {
-		staleFoodCountAtHatch,
-		syringeCount,
-		random,
-		characterKey: selection.selectedCharacterKey,
-	};
-}
-
-function getPendingStartingCharacterKey(eid: number): CharacterKeyECS | null {
-	const pendingCharacterKey = EggHatchComp.pendingCharacterKey[eid];
-	switch (pendingCharacterKey) {
-		case CharacterKeyECS.GreenSlimeA1:
-		case CharacterKeyECS.SoilSlimeA1:
-		case CharacterKeyECS.SkullSlimeA1:
-			return pendingCharacterKey;
-		default:
-			return null;
-	}
-}
-
-function getOrCreatePendingStartingCharacterForHatch(
-	eid: number,
-	world: MainSceneWorld,
-): CharacterKeyECS {
-	const pendingCharacterKey = getPendingStartingCharacterKey(eid);
-	if (pendingCharacterKey !== null) {
-		return pendingCharacterKey;
-	}
-
-	const { characterKey } = selectStartingCharacterForHatch(eid, world);
-	EggHatchComp.pendingCharacterKey[eid] = characterKey;
-	return characterKey;
-}
-
-function hatchCharacterForSimulation(
-	eid: number,
-	world: MainSceneWorld,
-	currentTime: number,
-): void {
-	console.warn("[ImportantDiagnostics][EggHatchExecution]", {
-		phase: "simulation_start",
-		...buildEggHatchDiagnosticsContext(eid, world, currentTime),
-	});
-	const characterKey = getOrCreatePendingStartingCharacterForHatch(eid, world);
-	const spritesheetOptions = getCharacterSpritesheetOptions(characterKey);
-	const spritesheetAlias =
-		spritesheetOptions?.alias || spritesheetOptions?.jsonPath;
-
-	if (!spritesheetAlias || !isSpritesheetLoaded(spritesheetAlias)) {
-		console.warn(
-			`[EggHatchSystem] Simulation hatch skipped for character ${eid} because spritesheet is not preloaded. Keeping EGG state.`,
-		);
-		console.warn("[ImportantDiagnostics][EggHatchExecution]", {
-			phase: "simulation_skipped_unloaded_spritesheet",
-			...buildEggHatchDiagnosticsContext(eid, world, currentTime),
-			selectedCharacterKey: characterKey,
-			spritesheetAlias: spritesheetAlias ?? null,
-		});
-		return;
-	}
-
-	void ensureCharacterOpaqueBoundsComputed(characterKey);
-	completeHatch(eid, world, currentTime, characterKey);
-}
-
 /**
  * 캐릭터 부화 처리 (비동기)
+ * - foreground hatch도 Flutter/Dart lifecycle의 결과만 적용한다.
+ * - 실패 시 JS는 임의 캐릭터를 선택하지 않고 EGG ready 상태를 유지한다.
  */
-async function hatchCharacter(
+function requestFlutterAuthoritativeHatch(
 	eid: number,
 	world: MainSceneWorld,
 	currentTime: number,
-): Promise<void> {
+): void {
 	const pendingAttempts = getPendingRealtimeHatchAttempts(world);
 	if (pendingAttempts.has(eid)) {
 		return;
 	}
 	pendingAttempts.add(eid);
 
-	try {
+	const hatchWorld = world as FlutterAuthorityHatchWorld;
+	if (
+		typeof hatchWorld.completeForegroundHatchWithFlutterAuthority !== "function"
+	) {
+		console.warn(
+			"[EggHatchSystem] Flutter authoritative hatch update is unavailable. Keeping EGG state.",
+		);
 		console.warn("[ImportantDiagnostics][EggHatchExecution]", {
-			phase: "realtime_start",
+			phase: "flutter_authority_unavailable",
 			...buildEggHatchDiagnosticsContext(eid, world, currentTime),
 		});
-		const characterKey = getOrCreatePendingStartingCharacterForHatch(
-			eid,
-			world,
-		);
+		pendingAttempts.delete(eid);
+		return;
+	}
 
-		const isLoaded = await ensureCharacterSpritesheetLoaded({
-			characterKey,
-			reason: "hatch",
-			eid,
-			maxRetries: 2,
-		});
-		if (!isLoaded) {
-			console.warn(
-				`[EggHatchSystem] Hatch delayed for character ${eid}. Keeping EGG state because spritesheet could not be loaded.`,
-			);
+	console.warn("[ImportantDiagnostics][EggHatchExecution]", {
+		phase: "flutter_authority_start",
+		...buildEggHatchDiagnosticsContext(eid, world, currentTime),
+	});
+
+	const complete = (succeeded: boolean): void => {
+		if (succeeded) {
 			console.warn("[ImportantDiagnostics][EggHatchExecution]", {
-				phase: "realtime_delayed_unloaded_spritesheet",
-				...buildEggHatchDiagnosticsContext(eid, world, currentTime),
-				selectedCharacterKey: characterKey,
+				phase: "flutter_authority_applied",
+				eid,
+				objectId: ObjectComp.id[eid],
+				currentTime,
 			});
+		} else {
+			console.warn("[ImportantDiagnostics][EggHatchExecution]", {
+				phase: "flutter_authority_kept_egg",
+				...buildEggHatchDiagnosticsContext(eid, world, currentTime),
+			});
+		}
+	};
+
+	try {
+		const result = hatchWorld.completeForegroundHatchWithFlutterAuthority(
+			eid,
+			currentTime,
+		);
+		if (typeof result === "boolean") {
+			complete(result);
+			pendingAttempts.delete(eid);
 			return;
 		}
-
-		await ensureCharacterOpaqueBoundsComputed(characterKey);
-		completeHatch(eid, world, currentTime, characterKey);
+		void result
+			.then(complete)
+			.catch((error) => {
+				console.error(
+					`[EggHatchSystem] Flutter authoritative hatch update failed for character ${eid}:`,
+					error,
+				);
+				console.warn("[ImportantDiagnostics][EggHatchExecution]", {
+					phase: "flutter_authority_failed",
+					...buildEggHatchDiagnosticsContext(eid, world, currentTime),
+					error: error instanceof Error ? error.message : String(error),
+				});
+			})
+			.finally(() => {
+				pendingAttempts.delete(eid);
+			});
 	} catch (error) {
 		console.error(
-			`[EggHatchSystem] Error during hatching process for character ${eid}:`,
+			`[EggHatchSystem] Flutter authoritative hatch update failed for character ${eid}:`,
 			error,
 		);
-	} finally {
+		console.warn("[ImportantDiagnostics][EggHatchExecution]", {
+			phase: "flutter_authority_failed",
+			...buildEggHatchDiagnosticsContext(eid, world, currentTime),
+			error: error instanceof Error ? error.message : String(error),
+		});
 		pendingAttempts.delete(eid);
 	}
 }
