@@ -82,9 +82,8 @@ const FLAPPY_BIRD_GAME_OVER_AD_THRESHOLD = 15;
 const FLAPPY_BIRD_GAME_OVER_AD_DELAY_MS = 500;
 const FLAPPY_BIRD_GAME_OVER_AD_COOLDOWN_MS = 1;
 const biteVibrationAdapter = new VibrationAdapter();
-const RECOVERY_VIBRATION_INTERVAL_MS = 180;
-const RECOVERY_VIBRATION_DURATION_MS = 14;
-const RECOVERY_VIBRATION_STRENGTH = 28;
+const RECOVERY_INSERT_VIBRATION_DURATION_MS = 50;
+const RECOVERY_INSERT_VIBRATION_STRENGTH = 160;
 const LOADING_TIMEOUT_MS = 30_000;
 const isNativeFeatureDebugMode =
 	import.meta.env.NATIVE_FEATURE_DEBUG_MODE === "true";
@@ -912,7 +911,6 @@ const GameContainer: React.FC = () => {
 	const loadingTimeoutIdRef = useRef<number | null>(null);
 	const loadingTimeoutContextRef = useRef<LoadingTimeoutContext | null>(null);
 	const flappyBirdGameOverAdTimeoutRef = useRef<number | null>(null);
-	const recoveryVibrationIntervalRef = useRef<number | null>(null);
 	const nativeKeyboardInsetRef = useRef(0);
 	const unsupportedViewportOverlayShowTimeoutRef = useRef<number | null>(null);
 	const lastValidationResultRef = useRef<SanitizeStoredWorldDataResult | null>(
@@ -2219,12 +2217,7 @@ const GameContainer: React.FC = () => {
 		}, 260);
 	}, [clearFullscreenAdLayoutRelease, updateGameContainerSize]);
 
-	const stopRecoveryVibration = useCallback(() => {
-		if (recoveryVibrationIntervalRef.current !== null) {
-			window.clearInterval(recoveryVibrationIntervalRef.current);
-			recoveryVibrationIntervalRef.current = null;
-		}
-	}, []);
+	const stopRecoveryVibration = useCallback(() => undefined, []);
 
 	const triggerTransientVibration = useCallback(
 		(params: { durationMs: number; strength: number }) => {
@@ -2430,21 +2423,10 @@ const GameContainer: React.FC = () => {
 	}, [flappyBirdSettingsMenuState]);
 
 	const startRecoveryVibration = useCallback(() => {
-		if (recoveryVibrationIntervalRef.current !== null) {
-			return;
-		}
-
 		void biteVibrationAdapter.vibrate(
-			RECOVERY_VIBRATION_DURATION_MS,
-			RECOVERY_VIBRATION_STRENGTH,
+			RECOVERY_INSERT_VIBRATION_DURATION_MS,
+			RECOVERY_INSERT_VIBRATION_STRENGTH,
 		);
-
-		recoveryVibrationIntervalRef.current = window.setInterval(() => {
-			void biteVibrationAdapter.vibrate(
-				RECOVERY_VIBRATION_DURATION_MS,
-				RECOVERY_VIBRATION_STRENGTH,
-			);
-		}, RECOVERY_VIBRATION_INTERVAL_MS);
 	}, []);
 
 	useEffect(() => {
