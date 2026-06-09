@@ -24,6 +24,8 @@ dependencies:
   vibration: ^3.1.8
   geolocator: ^14.0.2
   in_app_update: ^4.2.5
+  home_widget: ^0.9.2
+  workmanager: ^0.9.0+3
   # flutter_custom_hce:
   #   path: ../../flutter_custom_hce
 

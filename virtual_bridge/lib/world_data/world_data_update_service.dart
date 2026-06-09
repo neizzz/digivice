@@ -1,40 +1,91 @@
-import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../home_widget/world_data_config.dart' as config;
+import 'world_data_lifecycle_service.dart';
 
 const String worldDataUpdateChannelName = 'digivice/world_data';
 
 class WorldDataUpdateService {
-  static const MethodChannel _platformChannel = MethodChannel(
-    worldDataUpdateChannelName,
-  );
-
   static Future<Map<String, Object?>> completeNativeWorldDataUpdate({
     String? source,
     void Function(String message)? log,
+    int? nowMs,
+    WorldDataLifecycleRandomProvider randomProvider =
+        WorldDataLifecycleService.deterministicRandomProvider,
   }) async {
-    final Map<String, dynamic> payload = <String, dynamic>{
-      if (source != null) 'source': source,
-    };
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final String? rawWorldData = prefs.getString(config.worldDataStorageKey);
+    final String updateSource = source ?? 'manual';
 
-    final Map<Object?, Object?>? result =
-        await _platformChannel.invokeMethod<Map<Object?, Object?>>(
-      'completeNativeWorldDataUpdate',
-      payload,
+    if (rawWorldData == null || rawWorldData.isEmpty) {
+      log?.call(
+        '[WorldDataUpdateService] flutter authoritative update skipped '
+        'source=$updateSource reason=missing_world_data',
+      );
+      return <String, Object?>{
+        'status': 'flutter_world_data_update_failed',
+        'source': updateSource,
+        'error': 'missing_world_data',
+        'hasUpdatedRawWorldData': false,
+        'hasSnapshot': false,
+      };
+    }
+
+    final int resolvedNowMs = nowMs ?? DateTime.now().millisecondsSinceEpoch;
+    final WorldDataLifecycleAdvanceResult advanced =
+        WorldDataLifecycleService.advanceWorldData(
+      rawWorldData: rawWorldData,
+      nowMs: resolvedNowMs,
+      source: updateSource,
+      randomProvider: randomProvider,
     );
-    final Map<String, Object?> normalized = normalizePlatformResult(result);
+
+    await persistAdvanceResult(
+      prefs: prefs,
+      result: advanced,
+    );
 
     log?.call(
-      '[WorldDataUpdateService] completeNativeWorldDataUpdate '
-      'source=$source '
-      'status=${normalized['status']} '
-      'worldDataChanged=${normalized['worldDataChanged']} '
-      'hatched=${normalized['hatched']} '
-      'evolutionGageBefore=${normalized['evolutionGageBefore']} '
-      'evolutionGageAfter=${normalized['evolutionGageAfter']} '
-      'evolutionGageIncreased=${normalized['evolutionGageIncreased']} '
-      'evolutionBlockReason=${normalized['evolutionBlockReason']}',
+      '[WorldDataUpdateService] flutter authoritative update completed '
+      'source=$updateSource '
+      'status=${advanced.status} '
+      'elapsedMs=${advanced.elapsedMs} '
+      'tickCount=${advanced.tickCount} '
+      'worldDataChanged=${advanced.worldDataChanged} '
+      'diseaseOccurred=${advanced.diseaseOccurred} '
+      'evolutionGageBefore=${advanced.evolutionDiagnostics.evolutionGageBefore} '
+      'evolutionGageAfter=${advanced.evolutionDiagnostics.evolutionGageAfter} '
+      'evolutionGageIncreased=${advanced.evolutionDiagnostics.evolutionGageIncreased} '
+      'evolved=${advanced.evolutionDiagnostics.evolved} '
+      'previousCharacterKey=${advanced.evolutionDiagnostics.previousCharacterKey} '
+      'nextCharacterKey=${advanced.evolutionDiagnostics.nextCharacterKey} '
+      'evolutionBlockReason=${advanced.evolutionDiagnostics.blockReason}',
     );
 
-    return normalized;
+    return advanced.toMap();
+  }
+
+  static Future<void> persistAdvanceResult({
+    required SharedPreferences prefs,
+    required WorldDataLifecycleAdvanceResult result,
+  }) async {
+    await prefs.setString(
+      config.worldDataStorageKey,
+      result.updatedRawWorldData,
+    );
+
+    final String? snapshotJson = result.snapshotJson;
+    if (snapshotJson == null) {
+      await prefs.remove(config.worldDataSnapshotStorageKey);
+      await prefs.remove(config.worldDataAuthoritativeSnapshotStorageKey);
+      return;
+    }
+
+    await prefs.setString(config.worldDataSnapshotStorageKey, snapshotJson);
+    await prefs.setString(
+      config.worldDataAuthoritativeSnapshotStorageKey,
+      snapshotJson,
+    );
   }
 
   static Map<String, Object?> normalizePlatformResult(

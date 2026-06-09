@@ -156,7 +156,13 @@ data class HomeWidgetSnapshot(
                 HomeWidgetConstants.STORAGE_NAME,
                 Context.MODE_PRIVATE,
             )
-            return fromJson(prefs.getString(HomeWidgetConstants.SNAPSHOT_KEY, null))
+            fromJson(prefs.getString(HomeWidgetConstants.SNAPSHOT_KEY, null))?.let { return it }
+
+            val flutterPrefs = context.getSharedPreferences(
+                HomeWidgetConstants.FLUTTER_STORAGE_NAME,
+                Context.MODE_PRIVATE,
+            )
+            return fromJson(flutterPrefs.getString(HomeWidgetConstants.FLUTTER_SNAPSHOT_KEY, null))
         }
 
         fun loadAuthoritative(context: Context): HomeWidgetSnapshot? {
@@ -164,8 +170,16 @@ data class HomeWidgetSnapshot(
                 HomeWidgetConstants.STORAGE_NAME,
                 Context.MODE_PRIVATE,
             )
-            return fromJson(
+            fromJson(
                 prefs.getString(HomeWidgetConstants.AUTHORITATIVE_SNAPSHOT_KEY, null),
+            )?.let { return it }
+
+            val flutterPrefs = context.getSharedPreferences(
+                HomeWidgetConstants.FLUTTER_STORAGE_NAME,
+                Context.MODE_PRIVATE,
+            )
+            return fromJson(
+                flutterPrefs.getString(HomeWidgetConstants.FLUTTER_AUTHORITATIVE_SNAPSHOT_KEY, null),
             )
         }
 

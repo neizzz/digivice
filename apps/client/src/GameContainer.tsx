@@ -121,7 +121,10 @@ function isMissingInitialGameDataError(
 function isNativeWorldDataUpdateCompleted(
 	result: HomeWidgetNativeWorldDataUpdateResult | null | undefined,
 ): boolean {
-	return result?.status === "native_authoritative_completion_completed";
+	return (
+		result?.status === "native_authoritative_completion_completed" ||
+		result?.status === "flutter_world_data_update_completed"
+	);
 }
 
 function summarizeNativeWorldDataUpdate(
@@ -139,6 +142,17 @@ function summarizeNativeWorldDataUpdate(
 		evolutionGageBefore: record.result?.evolutionGageBefore ?? null,
 		evolutionGageAfter: record.result?.evolutionGageAfter ?? null,
 		evolutionGageIncreased: record.result?.evolutionGageIncreased ?? null,
+		evolved: record.result?.evolved ?? null,
+		previousCharacterKey: record.result?.previousCharacterKey ?? null,
+		nextCharacterKey: record.result?.nextCharacterKey ?? null,
+		previousEvolutionPhase: record.result?.previousEvolutionPhase ?? null,
+		nextEvolutionPhase: record.result?.nextEvolutionPhase ?? null,
+		candidateKind: record.result?.candidateKind ?? null,
+		mutationApplied: record.result?.mutationApplied ?? null,
+		mutationRate: record.result?.mutationRate ?? null,
+		mutationRoll: record.result?.mutationRoll ?? null,
+		mutationTargetRoll: record.result?.mutationTargetRoll ?? null,
+		evolutionRoll: record.result?.evolutionRoll ?? null,
 		evolutionBlockReason: record.result?.evolutionBlockReason ?? null,
 		previousCharacterState: record.result?.previousCharacterState ?? null,
 		nextCharacterState: record.result?.nextCharacterState ?? null,
@@ -2046,6 +2060,17 @@ const GameContainer: React.FC = () => {
 					evolutionGageBefore: result?.evolutionGageBefore ?? null,
 					evolutionGageAfter: result?.evolutionGageAfter ?? null,
 					evolutionGageIncreased: result?.evolutionGageIncreased ?? null,
+					evolved: result?.evolved ?? null,
+					previousCharacterKey: result?.previousCharacterKey ?? null,
+					nextCharacterKey: result?.nextCharacterKey ?? null,
+					previousEvolutionPhase: result?.previousEvolutionPhase ?? null,
+					nextEvolutionPhase: result?.nextEvolutionPhase ?? null,
+					candidateKind: result?.candidateKind ?? null,
+					mutationApplied: result?.mutationApplied ?? null,
+					mutationRate: result?.mutationRate ?? null,
+					mutationRoll: result?.mutationRoll ?? null,
+					mutationTargetRoll: result?.mutationTargetRoll ?? null,
+					evolutionRoll: result?.evolutionRoll ?? null,
 					evolutionBlockReason: result?.evolutionBlockReason ?? null,
 					previousCharacterState: result?.previousCharacterState ?? null,
 					nextCharacterState: result?.nextCharacterState ?? null,

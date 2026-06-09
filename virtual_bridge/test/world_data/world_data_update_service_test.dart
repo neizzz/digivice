@@ -1,52 +1,82 @@
+import 'dart:convert';
+
+import 'package:digivice_virtual_bridge/home_widget/world_data_config.dart'
+    as config;
+import 'package:digivice_virtual_bridge/world_data/world_data_lifecycle_service.dart';
 import 'package:digivice_virtual_bridge/world_data/world_data_update_service.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+String _buildWorldData({int lastEcsSaved = 0}) => jsonEncode(<String, dynamic>{
+      'world_metadata': <String, dynamic>{
+        'monster_name': 'MonTTo',
+        'last_ecs_saved': lastEcsSaved,
+        'app_state': <String, dynamic>{
+          'last_active_time': lastEcsSaved,
+          'use_local_time': false,
+        },
+      },
+      'entities': <Map<String, dynamic>>[
+        <String, dynamic>{
+          'components': <String, dynamic>{
+            'object': <String, dynamic>{
+              'id': 101,
+              'type': config.characterObjectType,
+              'state': config.characterStateIdle,
+            },
+            'render': <String, dynamic>{'textureKey': 1},
+            'characterStatus': <String, dynamic>{
+              'characterKey': 1,
+              'stamina': 10,
+              'evolutionGage': 1.5,
+              'statuses': <int>[],
+            },
+            'diseaseSystem': <String, dynamic>{
+              'nextCheckTime': 10 * 1000,
+              'sickStartTime': 0,
+            },
+          },
+        },
+      ],
+    });
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  const MethodChannel channel = MethodChannel(worldDataUpdateChannelName);
-  late List<MethodCall> methodCalls;
-
   setUp(() {
-    methodCalls = <MethodCall>[];
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(channel, (MethodCall call) async {
-      methodCalls.add(call);
-      return <Object?, Object?>{
-        'status': 'native_world_data_update_completed',
-        'worldDataChanged': true,
-        'hatched': false,
-        'evolutionGageBefore': 1.5,
-        'evolutionGageAfter': 2.0,
-      };
-    });
+    SharedPreferences.setMockInitialValues(<String, Object>{});
   });
 
-  tearDown(() {
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(channel, null);
-  });
+  test('completeNativeWorldDataUpdate는 Dart lifecycle 서비스를 직접 호출한다', () async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setString(config.worldDataStorageKey, _buildWorldData());
 
-  test(
-      'completeNativeWorldDataUpdate는 widget controller 없이 world data channel을 호출한다',
-      () async {
     final Map<String, Object?> result =
         await WorldDataUpdateService.completeNativeWorldDataUpdate(
       source: 'app_resume',
+      nowMs: 60 * 1000,
+      randomProvider: (_) => 1,
     );
 
-    expect(result['status'], 'native_world_data_update_completed');
+    expect(result['status'], worldDataLifecycleDefaultCompletedStatus);
+    expect(result['source'], 'app_resume');
     expect(result['worldDataChanged'], isTrue);
     expect(result['hatched'], isFalse);
     expect(result['evolutionGageBefore'], 1.5);
-    expect(result['evolutionGageAfter'], 2.0);
+    expect(result['evolutionGageAfter'], greaterThan(1.5));
+    expect(prefs.getString(config.worldDataStorageKey), isNotNull);
+    expect(prefs.getString(config.worldDataAuthoritativeSnapshotStorageKey),
+        isNotNull);
+  });
 
-    expect(methodCalls, hasLength(1));
-    expect(methodCalls.single.method, 'completeNativeWorldDataUpdate');
-    expect(
-      methodCalls.single.arguments,
-      <String, Object?>{'source': 'app_resume'},
+  test('world data가 없으면 실패 상태를 반환한다', () async {
+    final Map<String, Object?> result =
+        await WorldDataUpdateService.completeNativeWorldDataUpdate(
+      source: 'app_resume',
+      nowMs: 60 * 1000,
     );
+
+    expect(result['status'], 'flutter_world_data_update_failed');
+    expect(result['error'], 'missing_world_data');
   });
 }

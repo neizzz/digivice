@@ -244,11 +244,15 @@ open class MainActivity : FlutterActivity() {
     }
 
     private fun completeNativeWorldDataUpdate(result: MethodChannel.Result) {
-        val nativeUpdateResult = WorldDataNativeAuthoritativeRefresh.complete(
-            context = this,
-            allowEggSnapshot = true,
+        result.success(
+            mapOf(
+                "status" to "flutter_authority_only",
+                "hasUpdatedRawWorldData" to false,
+                "hasSnapshot" to false,
+                "worldDataChanged" to false,
+                "error" to "native_world_data_update_disabled",
+            ),
         )
-        result.success(nativeUpdateResult.toMap())
     }
 
     private fun installOnBackPressedDispatcherDiagnostics() {
@@ -586,7 +590,7 @@ open class MainActivity : FlutterActivity() {
             currentSnapshot = HomeWidgetSnapshot.load(this),
             authoritativeSnapshot = HomeWidgetSnapshot.loadAuthoritative(this),
             worldDataFallback = {
-                WorldDataSnapshotFactory.refreshFromWorldData(this)
+                null
             },
         )
         val preview = provider.buildRemoteViews(

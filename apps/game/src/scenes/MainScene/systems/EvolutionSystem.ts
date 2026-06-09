@@ -36,6 +36,13 @@ const pendingEvolutionRequestsByWorld = new WeakMap<
   Map<number, PendingEvolutionRequest>
 >();
 
+function isRunningInNativeApp(): boolean {
+  return (
+    typeof navigator !== "undefined" &&
+    navigator.userAgent.includes("DigiviceApp")
+  );
+}
+
 /**
  * 진화 처리 함수
  * - 현재 캐릭터 키 기준으로 진화 후보를 결정
@@ -51,6 +58,13 @@ export function evolveCharacter(world: MainSceneWorld, eid: number): void {
   if (!canEvolveFromConfig(currentCharacterKey)) {
     console.log(
       `[EvolutionSystem] Character ${eid} is already at max evolution stage: key=${currentCharacterKey}`,
+    );
+    return;
+  }
+
+  if (isRunningInNativeApp()) {
+    console.log(
+      `[EvolutionSystem] Skipped persisted JS evolution in native app; Dart lifecycle is authoritative: eid=${eid}, key=${currentCharacterKey}, gauge=${CharacterStatusComp.evolutionGage[eid]}`,
     );
     return;
   }

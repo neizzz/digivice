@@ -26,47 +26,14 @@ internal object HomeWidgetPeriodicRefreshRunner {
         }
 
         val nowMs = nowMsProvider()
-        val progressedSnapshot = progressSnapshot(nowMs) ?: run {
-            recordPeriodicRefreshStatus(
-                HomeWidgetPeriodicRefreshStatus.PROGRESS_UNAVAILABLE.value,
-                nowMs,
-            )
-            return false
-        }
-        val authoritativeSnapshot = loadAuthoritativeSnapshot()
-        val shouldCompleteNativeRefresh =
-            WorldDataSnapshotFactory.requiresAuthoritativeRefresh(
-                currentSnapshot = progressedSnapshot,
-                authoritativeSnapshot = authoritativeSnapshot,
-                nowMs = nowMs,
-            ) || shouldCompleteStoredWorldLifecycle(authoritativeSnapshot)
-        val periodicStatus = if (shouldCompleteNativeRefresh) {
-            recordPeriodicRefreshStatus(
-                WorldDataNativeAuthoritativeRefreshStatus.STARTED.value,
-                nowMs,
-            )
-            val nativeCompletionResult = completeNativeAuthoritativeRefresh(nowMs)
-            if (nativeCompletionResult.succeeded) {
-                nativeCompletionResult.status
-            } else {
-                recordPeriodicRefreshStatus(nativeCompletionResult.status, nowMs)
-                requestAuthoritativeRefreshFallback().status
-            }
-        } else {
-            HomeWidgetPeriodicRefreshStatus.PROGRESS_ONLY.value
-        }
-        recordPeriodicRefreshStatus(periodicStatus, nowMs)
+        recordPeriodicRefreshStatus(
+            HomeWidgetPeriodicRefreshStatus.FLUTTER_AUTHORITY_ONLY.value,
+            nowMs,
+        )
         notifySnapshotUpdated(
             HomeWidgetConstants.PERIODIC_REFRESH_REASON,
         )
-        return progressedSnapshot.snapshotKind.isNotBlank()
-    }
-
-    private fun shouldCompleteStoredWorldLifecycle(
-        authoritativeSnapshot: HomeWidgetSnapshot?,
-    ): Boolean {
-        val characterState = authoritativeSnapshot?.characterState ?: return false
-        return characterState != "egg"
+        return loadAuthoritativeSnapshot() != null
     }
 }
 

@@ -30,6 +30,17 @@ declare global {
 		evolutionGageBefore?: number | null;
 		evolutionGageAfter?: number | null;
 		evolutionGageIncreased?: boolean | null;
+		evolved?: boolean | null;
+		previousCharacterKey?: number | null;
+		nextCharacterKey?: number | null;
+		previousEvolutionPhase?: number | null;
+		nextEvolutionPhase?: number | null;
+		candidateKind?: string | null;
+		mutationApplied?: boolean | null;
+		mutationRate?: number | null;
+		mutationRoll?: number | null;
+		mutationTargetRoll?: number | null;
+		evolutionRoll?: number | null;
 		evolutionBlockReason?: string | null;
 		previousCharacterState?: number | null;
 		nextCharacterState?: number | null;

@@ -306,7 +306,7 @@ abstract class BaseHomeWidgetProvider : AppWidgetProvider() {
         HomeWidgetBroadcastActionHandler.handle(
             action = intent.action,
             onRefresh = {
-                WorldDataSnapshotFactory.progressSnapshot(context)
+                // Flutter writes authoritative snapshots; native refresh only repaints.
             },
             onAdvancePreset = { step ->
                 HomeWidgetDebugPresetStore.advancePreset(context, step = step)
@@ -342,7 +342,7 @@ abstract class BaseHomeWidgetProvider : AppWidgetProvider() {
             currentSnapshot = HomeWidgetSnapshot.load(context),
             authoritativeSnapshot = HomeWidgetSnapshot.loadAuthoritative(context),
             worldDataFallback = {
-                WorldDataSnapshotFactory.refreshFromWorldData(context)
+                null
             },
         )
         val views = buildRemoteViews(

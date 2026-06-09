@@ -46,19 +46,26 @@ class HomeWidgetPeriodicRefreshWorkerTest {
     }
 
     @Test
-    fun `runner progresses snapshot and notifies when widgets are present`() {
+    fun `runner only repaints Flutter authored snapshot when widgets are present`() {
         val events = mutableListOf<String>()
+        val authoritativeSnapshot = HomeWidgetDebugPresets.resolveSnapshot(
+            index = 1,
+            nowMs = 10_000L,
+        ).copy(snapshotKind = "authoritativeAppState")
 
         val updated = HomeWidgetPeriodicRefreshRunner.run(
             hasAnyWidgets = { true },
             onNoWidgets = {
                 events += "cancel"
             },
-            progressSnapshot = { nowMs ->
-                events += "progress:$nowMs"
-                HomeWidgetDebugPresets.resolveSnapshot(index = 1, nowMs = 10_000L)
+            progressSnapshot = {
+                events += "progress"
+                null
             },
-            loadAuthoritativeSnapshot = { null },
+            loadAuthoritativeSnapshot = {
+                events += "loadAuthoritative"
+                authoritativeSnapshot
+            },
             completeNativeAuthoritativeRefresh = {
                 events += "nativeComplete"
                 WorldDataNativeAuthoritativeRefreshResult(
@@ -81,24 +88,17 @@ class HomeWidgetPeriodicRefreshWorkerTest {
         assertTrue(updated)
         assertEquals(
             listOf(
-                "progress:10000",
-                "status:periodic_progress_only@10000",
+                "status:flutter_authority_only@10000",
                 "notify:${HomeWidgetConstants.PERIODIC_REFRESH_REASON}",
+                "loadAuthoritative",
             ),
             events,
         )
     }
 
     @Test
-    fun `runner completes matured egg natively without requesting fallback refresh`() {
-        val nowMs = 20_000L
+    fun `runner does not call native lifecycle or fallback when Flutter snapshot is missing`() {
         val events = mutableListOf<String>()
-        val maturedEgg = HomeWidgetDebugPresets.resolveSnapshot(index = 0, nowMs = nowMs).copy(
-            snapshotKind = "widgetProgressed",
-            eggHatchTimeMs = nowMs - 1L,
-            eggHatchDurationMs = 30_000L,
-            eggCrackStage = 3,
-        )
 
         val updated = HomeWidgetPeriodicRefreshRunner.run(
             hasAnyWidgets = { true },
@@ -107,64 +107,12 @@ class HomeWidgetPeriodicRefreshWorkerTest {
             },
             progressSnapshot = {
                 events += "progress"
-                maturedEgg
+                null
             },
-            loadAuthoritativeSnapshot = { maturedEgg },
-            completeNativeAuthoritativeRefresh = { completionNowMs ->
-                events += "nativeComplete:$completionNowMs"
-                WorldDataNativeAuthoritativeRefreshResult(
-                    status = "native_authoritative_completion_completed",
-                    hasSnapshot = true,
-                    hatched = true,
-                )
+            loadAuthoritativeSnapshot = {
+                events += "loadAuthoritative"
+                null
             },
-            requestAuthoritativeRefreshFallback = {
-                events += "fallbackRefresh"
-                HomeWidgetAuthoritativeRefreshRequestResult.REQUESTED
-            },
-            notifySnapshotUpdated = { reason ->
-                events += "notify:$reason"
-            },
-            recordPeriodicRefreshStatus = { status, _ ->
-                events += "status:$status"
-            },
-            nowMsProvider = { nowMs },
-        )
-
-        assertTrue(updated)
-        assertEquals(
-            listOf(
-                "progress",
-                "status:native_authoritative_completion_started",
-                "nativeComplete:20000",
-                "status:native_authoritative_completion_completed",
-                "notify:${HomeWidgetConstants.PERIODIC_REFRESH_REASON}",
-            ),
-            events,
-        )
-    }
-
-    @Test
-    fun `runner requests fallback refresh only after native completion failure`() {
-        val nowMs = 20_000L
-        val events = mutableListOf<String>()
-        val maturedEgg = HomeWidgetDebugPresets.resolveSnapshot(index = 0, nowMs = nowMs).copy(
-            snapshotKind = "widgetProgressed",
-            eggHatchTimeMs = nowMs - 1L,
-            eggHatchDurationMs = 30_000L,
-            eggCrackStage = 3,
-        )
-
-        val updated = HomeWidgetPeriodicRefreshRunner.run(
-            hasAnyWidgets = { true },
-            onNoWidgets = {
-                events += "cancel"
-            },
-            progressSnapshot = {
-                events += "progress"
-                maturedEgg
-            },
-            loadAuthoritativeSnapshot = { maturedEgg },
             completeNativeAuthoritativeRefresh = {
                 events += "nativeComplete"
                 WorldDataNativeAuthoritativeRefreshResult(
@@ -179,143 +127,18 @@ class HomeWidgetPeriodicRefreshWorkerTest {
             notifySnapshotUpdated = { reason ->
                 events += "notify:$reason"
             },
-            recordPeriodicRefreshStatus = { status, _ ->
-                events += "status:$status"
+            recordPeriodicRefreshStatus = { status, nowMs ->
+                events += "status:$status@$nowMs"
             },
-            nowMsProvider = { nowMs },
+            nowMsProvider = { 20_000L },
         )
 
-        assertTrue(updated)
+        assertFalse(updated)
         assertEquals(
             listOf(
-                "progress",
-                "status:native_authoritative_completion_started",
-                "nativeComplete",
-                "status:native_authoritative_completion_failed",
-                "fallbackRefresh",
-                "status:fallback_refresh_requested",
+                "status:flutter_authority_only@20000",
                 "notify:${HomeWidgetConstants.PERIODIC_REFRESH_REASON}",
-            ),
-            events,
-        )
-    }
-
-
-    @Test
-    fun `runner completes stale non egg authoritative snapshot natively without fallback`() {
-        val nowMs = 30 * 60 * 1000L
-        val events = mutableListOf<String>()
-        val authoritativeSnapshot = HomeWidgetDebugPresets.resolveSnapshot(
-            index = 1,
-            nowMs = nowMs,
-        ).copy(
-            snapshotKind = "authoritativeAppState",
-            snapshotComputedAtMs = nowMs -
-                (HomeWidgetConstants.PERIODIC_REFRESH_INTERVAL_MINUTES * 60 * 1000L),
-            updatedAtMs = nowMs -
-                (HomeWidgetConstants.PERIODIC_REFRESH_INTERVAL_MINUTES * 60 * 1000L),
-        )
-        val progressedSnapshot = authoritativeSnapshot.copy(
-            snapshotKind = "widgetProgressed",
-            snapshotComputedAtMs = nowMs,
-            updatedAtMs = nowMs,
-        )
-
-        val updated = HomeWidgetPeriodicRefreshRunner.run(
-            hasAnyWidgets = { true },
-            onNoWidgets = {
-                events += "cancel"
-            },
-            progressSnapshot = {
-                events += "progress"
-                progressedSnapshot
-            },
-            loadAuthoritativeSnapshot = { authoritativeSnapshot },
-            completeNativeAuthoritativeRefresh = { completionNowMs ->
-                events += "nativeComplete:$completionNowMs"
-                WorldDataNativeAuthoritativeRefreshResult(
-                    status = "native_authoritative_completion_completed",
-                    hasSnapshot = true,
-                    hatched = false,
-                )
-            },
-            requestAuthoritativeRefreshFallback = {
-                events += "fallbackRefresh"
-                HomeWidgetAuthoritativeRefreshRequestResult.REQUESTED
-            },
-            notifySnapshotUpdated = { reason ->
-                events += "notify:$reason"
-            },
-            recordPeriodicRefreshStatus = { status, _ ->
-                events += "status:$status"
-            },
-            nowMsProvider = { nowMs },
-        )
-
-        assertTrue(updated)
-        assertEquals(
-            listOf(
-                "progress",
-                "status:native_authoritative_completion_started",
-                "nativeComplete:1800000",
-                "status:native_authoritative_completion_completed",
-                "notify:${HomeWidgetConstants.PERIODIC_REFRESH_REASON}",
-            ),
-            events,
-        )
-    }
-
-    @Test
-    fun `runner completes fresh non egg authoritative snapshot natively`() {
-        val nowMs = 30 * 60 * 1000L
-        val events = mutableListOf<String>()
-        val authoritativeSnapshot = HomeWidgetDebugPresets.resolveSnapshot(
-            index = 1,
-            nowMs = nowMs,
-        ).copy(snapshotKind = "authoritativeAppState")
-        val progressedSnapshot = authoritativeSnapshot.copy(
-            snapshotKind = "widgetProgressed",
-            snapshotComputedAtMs = nowMs,
-            updatedAtMs = nowMs,
-        )
-
-        val updated = HomeWidgetPeriodicRefreshRunner.run(
-            hasAnyWidgets = { true },
-            onNoWidgets = {
-                events += "cancel"
-            },
-            progressSnapshot = {
-                events += "progress"
-                progressedSnapshot
-            },
-            loadAuthoritativeSnapshot = { authoritativeSnapshot },
-            completeNativeAuthoritativeRefresh = {
-                events += "nativeComplete"
-                WorldDataNativeAuthoritativeRefreshResult(
-                    status = "native_authoritative_completion_completed",
-                )
-            },
-            requestAuthoritativeRefreshFallback = {
-                events += "fallbackRefresh"
-                HomeWidgetAuthoritativeRefreshRequestResult.REQUESTED
-            },
-            notifySnapshotUpdated = { reason ->
-                events += "notify:$reason"
-            },
-            recordPeriodicRefreshStatus = { status, _ ->
-                events += "status:$status"
-            },
-            nowMsProvider = { nowMs },
-        )
-
-        assertTrue(updated)
-        assertEquals(
-            listOf(
-                "progress",
-                "status:native_authoritative_completion_started",
-                "nativeComplete",
-                "status:native_authoritative_completion_completed",
-                "notify:${HomeWidgetConstants.PERIODIC_REFRESH_REASON}",
+                "loadAuthoritative",
             ),
             events,
         )

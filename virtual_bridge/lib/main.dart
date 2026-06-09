@@ -10,7 +10,9 @@ import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:workmanager/workmanager.dart';
 import 'bridge_configurator.dart';
+import 'home_widget/home_widget_background_refresh_service.dart';
 import 'update/update_blocking_overlay.dart';
 import 'update/update_coordinator.dart';
 
@@ -23,6 +25,8 @@ String mapToString(Map<String, dynamic> map) {
 void main() async {
   // Flutter 바인딩 초기화
   WidgetsFlutterBinding.ensureInitialized();
+
+  await _initializeHomeWidgetWorkmanager();
 
   if (Platform.isAndroid) {
     await AndroidWebViewController.enableDebugging(!kReleaseMode);
@@ -37,6 +41,29 @@ void main() async {
       color: const Color(0xFF000000),
       builder: (context, _) => const WebView(),
     ),
+  );
+}
+
+@pragma('vm:entry-point')
+void homeWidgetCallbackDispatcher() {
+  Workmanager()
+      .executeTask((String taskName, Map<String, dynamic>? inputData) async {
+    WidgetsFlutterBinding.ensureInitialized();
+    if (taskName != homeWidgetPeriodicRefreshTaskName) {
+      return true;
+    }
+    await HomeWidgetBackgroundRefreshService.runPeriodicRefresh();
+    return true;
+  });
+}
+
+Future<void> _initializeHomeWidgetWorkmanager() async {
+  await Workmanager().initialize(homeWidgetCallbackDispatcher);
+  await Workmanager().registerPeriodicTask(
+    homeWidgetPeriodicRefreshUniqueName,
+    homeWidgetPeriodicRefreshTaskName,
+    frequency: homeWidgetPeriodicRefreshFrequency,
+    existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
   );
 }
 
