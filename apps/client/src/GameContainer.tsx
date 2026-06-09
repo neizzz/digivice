@@ -300,7 +300,7 @@ type HomeWidgetNativeWorldDataUpdateResult = Awaited<
 >;
 
 type HomeWidgetNativeWorldDataUpdateRecord = {
-	source: "init" | "app_resume";
+	source: Parameters<NativeWorldDataUpdateForReentryCallback>[0];
 	result: HomeWidgetNativeWorldDataUpdateResult;
 };
 
