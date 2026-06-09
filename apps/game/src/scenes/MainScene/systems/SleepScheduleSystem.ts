@@ -8,10 +8,7 @@ import {
   SleepSystemComp,
   SpeedComp,
 } from "../raw-components";
-import {
-  GAME_CONSTANTS,
-  getStaminaFatigueAwakeGainMultiplier,
-} from "../config";
+import { GAME_CONSTANTS } from "../config";
 import {
   CharacterState,
   CharacterStatus,
@@ -239,11 +236,8 @@ function updateFatigue(eid: number, delta: number): void {
   const currentFatigue = SleepSystemComp.fatigue[eid];
   const isSleeping = ObjectComp.state[eid] === CharacterState.SLEEPING;
   const isSick = hasStatus(eid, CharacterStatus.SICK);
-  const staminaFatigueMultiplier =
-    getStaminaFatigueAwakeGainMultiplier(CharacterStatusComp.stamina[eid]);
   const awakeGainPerMillisecond =
-    (GAME_CONSTANTS.FATIGUE_AWAKE_GAIN_PER_HOUR * staminaFatigueMultiplier) /
-    HOUR_IN_MILLISECONDS;
+    GAME_CONSTANTS.FATIGUE_AWAKE_GAIN_PER_HOUR / HOUR_IN_MILLISECONDS;
   const sleepRecoveryPerMillisecond =
     (isSick
       ? GAME_CONSTANTS.FATIGUE_SLEEP_RECOVERY_PER_HOUR_WHEN_SICK

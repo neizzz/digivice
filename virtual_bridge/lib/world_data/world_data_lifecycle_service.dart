@@ -29,17 +29,15 @@ const int worldDataLifecycleTextureKeyNull = 0;
 const int worldDataLifecycleAnimationKeyIdle = 1;
 const double worldDataLifecycleFatigueMax = 100;
 const double worldDataLifecycleFatigueDefault = 35;
-const double worldDataLifecycleFatigueAwakeGainPerHour = 9;
+const double worldDataLifecycleFatigueAwakeGainPerHour = 9.5;
 const double worldDataLifecycleFatigueSleepRecoveryPerHour = 12;
 const double worldDataLifecycleFatigueSleepRecoveryPerHourWhenSick = 6;
-const double worldDataLifecycleLowStaminaFatigueAwakeGainMultiplier = 1.25;
-const double worldDataLifecycleCriticalStaminaFatigueAwakeGainMultiplier = 1.5;
 const double worldDataLifecycleDayNapChance = 0.07;
 const int worldDataLifecycleDayNapCheckIntervalMs = 20 * 60 * 1000;
-const int worldDataLifecycleDayNapMinDurationMs = 10 * 60 * 1000;
-const int worldDataLifecycleDayNapMaxDurationMs = 30 * 60 * 1000;
+const int worldDataLifecycleDayNapMinDurationMs = 30 * 60 * 1000;
+const int worldDataLifecycleDayNapMaxDurationMs = 90 * 60 * 1000;
 const double worldDataLifecycleFatigueDayNapMinThreshold = 55;
-const double worldDataLifecycleFatigueDayNapWakeThreshold = 28;
+const double worldDataLifecycleFatigueDayNapWakeThreshold = 48;
 const int worldDataLifecycleSleepModeAwake = 0;
 const int worldDataLifecycleSleepModeNightSleep = 1;
 const int worldDataLifecycleSleepModeDayNap = 2;
@@ -661,7 +659,6 @@ class WorldDataLifecycleService {
     final double previousFatigue = character.fatigue;
     final double nextFatigue = _progressFatigue(
       fatigue: previousFatigue,
-      stamina: character.stamina ?? config.maxStamina,
       isSleeping: state == config.characterStateSleeping,
       isSick: character.statuses.contains(config.characterStatusSick),
       elapsedMs: tickDurationMs,
@@ -1088,7 +1085,6 @@ class WorldDataLifecycleService {
 
   static double _progressFatigue({
     required double fatigue,
-    required double stamina,
     required bool isSleeping,
     required bool isSick,
     required int elapsedMs,
@@ -1102,20 +1098,9 @@ class WorldDataLifecycleService {
                     (60 * 60 * 1000))
         : fatigue +
             elapsedMs *
-                worldDataLifecycleFatigueAwakeGainPerHour *
-                _resolveStaminaFatigueAwakeGainMultiplier(stamina) /
+                worldDataLifecycleFatigueAwakeGainPerHour /
                 (60 * 60 * 1000);
     return nextFatigue.clamp(0, worldDataLifecycleFatigueMax).toDouble();
-  }
-
-  static double _resolveStaminaFatigueAwakeGainMultiplier(double stamina) {
-    if (stamina <= worldDataLifecycleVeryLowStaminaThreshold) {
-      return worldDataLifecycleCriticalStaminaFatigueAwakeGainMultiplier;
-    }
-    if (stamina <= config.lowStaminaThreshold) {
-      return worldDataLifecycleLowStaminaFatigueAwakeGainMultiplier;
-    }
-    return 1;
   }
 
   static bool _handleScheduledWake(

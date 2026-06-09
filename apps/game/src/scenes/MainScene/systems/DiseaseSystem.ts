@@ -26,7 +26,6 @@ import {
 import {
   GAME_CONSTANTS,
   getLowStaminaDiseaseBonus,
-  getStaminaFatigueAwakeGainMultiplier,
 } from "../config";
 import {
   clearActiveEatingState,
@@ -279,7 +278,7 @@ export function calculateDiseaseRate(
     fatigue,
     poopCount: 0,
     staleFoodCount: 0,
-    staminaFatigueMultiplier: getStaminaFatigueAwakeGainMultiplier(stamina),
+    staminaFatigueMultiplier: 1,
   };
 
   const lowStaminaBonus = getLowStaminaDiseaseBonus(stamina);

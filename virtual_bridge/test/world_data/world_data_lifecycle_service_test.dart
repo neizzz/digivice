@@ -17,6 +17,8 @@ String _buildWorldData({
   int nextDiseaseCheckTime = 10 * 1000,
   double fatigue = 35,
   int nextNapCheckTime = 20 * 60 * 1000,
+  int sleepMode = 0,
+  int sleepSessionStartedAt = 0,
   Map<String, dynamic>? mutationRisk,
   Map<String, dynamic>? eggHatch,
   Map<String, dynamic>? monsterBook,
@@ -73,10 +75,10 @@ String _buildWorldData({
             'nextWakeTime': 0,
             'nextNapCheckTime': nextNapCheckTime,
             'nextNightWakeCheckTime': 0,
-            'sleepMode': 0,
+            'sleepMode': sleepMode,
             'pendingSleepReason': 0,
             'pendingWakeReason': 0,
-            'sleepSessionStartedAt': 0,
+            'sleepSessionStartedAt': sleepSessionStartedAt,
           },
         },
       },
@@ -469,6 +471,94 @@ void main() {
     expect(
         _sleepSystem(updated)['sleepMode'], worldDataLifecycleSleepModeDayNap);
     expect(result.toMap()['dayNapOccurred'], isTrue);
+  });
+
+  test('offline fatigue 증가는 stamina와 무관하게 동일하다', () {
+    WorldDataLifecycleAdvanceResult advanceWithStamina(double stamina) =>
+        WorldDataLifecycleService.advanceWorldData(
+          rawWorldData: _buildWorldData(
+            stamina: stamina,
+            nextDiseaseCheckTime: 2 * 60 * 60 * 1000,
+            nextNapCheckTime: 2 * 60 * 60 * 1000,
+          ),
+          nowMs: 60 * 60 * 1000,
+          source: 'periodic_work',
+          randomProvider: (_) => 1,
+        );
+
+    final Map<String, dynamic> normal =
+        _decode(advanceWithStamina(5).updatedRawWorldData);
+    final Map<String, dynamic> critical =
+        _decode(advanceWithStamina(1.5).updatedRawWorldData);
+
+    expect(_sleepSystem(normal)['fatigue'], closeTo(44.5, 1e-12));
+    expect(_sleepSystem(critical)['fatigue'], closeTo(44.5, 1e-12));
+  });
+
+  test('offline day nap은 최소 30분 뒤 fatigue 48 이하이면 깬다', () {
+    WorldDataLifecycleAdvanceResult advanceAt(int nowMs) =>
+        WorldDataLifecycleService.advanceWorldData(
+          rawWorldData: _buildWorldData(
+            lastEcsSaved: 1000,
+            state: config.characterStateSleeping,
+            fatigue: worldDataLifecycleFatigueDayNapWakeThreshold,
+            nextDiseaseCheckTime: 2 * 60 * 60 * 1000,
+            nextNapCheckTime: 2 * 60 * 60 * 1000,
+            sleepMode: worldDataLifecycleSleepModeDayNap,
+            sleepSessionStartedAt: 1000,
+          ),
+          nowMs: nowMs,
+          source: 'periodic_work',
+          randomProvider: (_) => 1,
+        );
+
+    final Map<String, dynamic> beforeMin = _decode(
+        advanceAt(1000 + worldDataLifecycleDayNapMinDurationMs - 1000)
+            .updatedRawWorldData);
+    final Map<String, dynamic> atMin = _decode(
+        advanceAt(1000 + worldDataLifecycleDayNapMinDurationMs)
+            .updatedRawWorldData);
+
+    expect(_object(beforeMin)['state'], config.characterStateSleeping);
+    expect(
+      _sleepSystem(beforeMin)['sleepMode'],
+      worldDataLifecycleSleepModeDayNap,
+    );
+    expect(_object(atMin)['state'], config.characterStateIdle);
+    expect(_sleepSystem(atMin)['sleepMode'], worldDataLifecycleSleepModeAwake);
+  });
+
+  test('offline day nap은 fatigue가 높으면 최대 90분 뒤 깬다', () {
+    WorldDataLifecycleAdvanceResult advanceAt(int nowMs) =>
+        WorldDataLifecycleService.advanceWorldData(
+          rawWorldData: _buildWorldData(
+            lastEcsSaved: 1000,
+            state: config.characterStateSleeping,
+            fatigue: worldDataLifecycleFatigueMax,
+            nextDiseaseCheckTime: 2 * 60 * 60 * 1000,
+            nextNapCheckTime: 2 * 60 * 60 * 1000,
+            sleepMode: worldDataLifecycleSleepModeDayNap,
+            sleepSessionStartedAt: 1000,
+          ),
+          nowMs: nowMs,
+          source: 'periodic_work',
+          randomProvider: (_) => 1,
+        );
+
+    final Map<String, dynamic> beforeMax = _decode(
+        advanceAt(1000 + worldDataLifecycleDayNapMaxDurationMs - 1000)
+            .updatedRawWorldData);
+    final Map<String, dynamic> atMax = _decode(
+        advanceAt(1000 + worldDataLifecycleDayNapMaxDurationMs)
+            .updatedRawWorldData);
+
+    expect(_object(beforeMax)['state'], config.characterStateSleeping);
+    expect(
+      _sleepSystem(beforeMax)['sleepMode'],
+      worldDataLifecycleSleepModeDayNap,
+    );
+    expect(_object(atMax)['state'], config.characterStateIdle);
+    expect(_sleepSystem(atMax)['sleepMode'], worldDataLifecycleSleepModeAwake);
   });
 
   test('부화 완료 시 Dart lifecycle이 MonsterBook hatch 기록을 저장한다', () {

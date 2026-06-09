@@ -776,7 +776,6 @@ internal object WorldDataNativeRefresh {
             ?: NATIVE_FATIGUE_DEFAULT
         val nextFatigue = progressFatigue(
             fatigue = previousFatigue,
-            stamina = source.characterStatus.optDoubleOrNull("stamina") ?: NATIVE_MAX_STAMINA,
             isSleeping = state == NATIVE_CHARACTER_STATE_SLEEPING,
             isSick = hasStatus(source.statuses, NATIVE_CHARACTER_STATUS_SICK),
             elapsedMs = elapsedMs,
@@ -796,7 +795,6 @@ internal object WorldDataNativeRefresh {
 
     private fun progressFatigue(
         fatigue: Double,
-        stamina: Double,
         isSleeping: Boolean,
         isSick: Boolean,
         elapsedMs: Long,
@@ -809,22 +807,10 @@ internal object WorldDataNativeRefresh {
             }) / NATIVE_HOUR_MS
             fatigue - elapsedMs * recoveryPerMs
         } else {
-            val gainPerMs = NATIVE_FATIGUE_AWAKE_GAIN_PER_HOUR *
-                resolveStaminaFatigueAwakeGainMultiplier(stamina) /
-                NATIVE_HOUR_MS
+            val gainPerMs = NATIVE_FATIGUE_AWAKE_GAIN_PER_HOUR / NATIVE_HOUR_MS
             fatigue + elapsedMs * gainPerMs
         }
         return nextFatigue.coerceIn(0.0, NATIVE_FATIGUE_MAX)
-    }
-
-    private fun resolveStaminaFatigueAwakeGainMultiplier(stamina: Double): Double {
-        return when {
-            stamina <= NATIVE_VERY_LOW_STAMINA_THRESHOLD ->
-                NATIVE_CRITICAL_STAMINA_FATIGUE_AWAKE_GAIN_MULTIPLIER
-            stamina <= NATIVE_LOW_STAMINA_THRESHOLD ->
-                NATIVE_LOW_STAMINA_FATIGUE_AWAKE_GAIN_MULTIPLIER
-            else -> 1.0
-        }
     }
 
     private fun handleScheduledWake(source: CharacterEntitySource, nowMs: Long): Boolean {

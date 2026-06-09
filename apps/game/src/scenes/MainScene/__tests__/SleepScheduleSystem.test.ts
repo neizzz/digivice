@@ -633,7 +633,7 @@ test("수면 중 sickness가 남아 있으면 피로 회복이 느리다", () =>
   );
 });
 
-test("낮은 스테미나일수록 깨어 있는 동안 피로가 더 빨리 쌓인다", () => {
+test("깨어 있는 동안 피로도는 스테미나와 무관하게 동일하게 쌓인다", () => {
   const world = createTestWorld({
     now: 0,
     timeOfDay: TimeOfDay.Day,
@@ -683,18 +683,89 @@ test("낮은 스테미나일수록 깨어 있는 동안 피로가 더 빨리 쌓
     Math.abs(SleepSystemComp.fatigue[normalEid] - baseGain) < 0.000001,
   );
   assert.ok(
-    Math.abs(
-      SleepSystemComp.fatigue[lowEid] -
-        baseGain * GAME_CONSTANTS.LOW_STAMINA_FATIGUE_AWAKE_GAIN_MULTIPLIER,
-    ) < 0.000001,
+    Math.abs(SleepSystemComp.fatigue[lowEid] - baseGain) < 0.000001,
   );
   assert.ok(
-    Math.abs(
-      SleepSystemComp.fatigue[criticalEid] -
-        baseGain *
-          GAME_CONSTANTS.CRITICAL_STAMINA_FATIGUE_AWAKE_GAIN_MULTIPLIER,
-    ) < 0.000001,
+    Math.abs(SleepSystemComp.fatigue[criticalEid] - baseGain) < 0.000001,
   );
+});
+
+test("낮잠은 최소 30분 뒤 fatigue가 48 이하이면 깬다", () => {
+  const world = createTestWorld({
+    now: 0,
+    timeOfDay: TimeOfDay.Day,
+  });
+
+  const eid = withMockedDateNow(0, () =>
+    createTestCharacter(world, {
+      state: CharacterState.SLEEPING,
+      stamina: 5,
+      x: 100,
+      y: 100,
+    }),
+  );
+
+  SleepSystemComp.sleepMode[eid] = SleepMode.DAY_NAP;
+  SleepSystemComp.sleepSessionStartedAt[eid] = 1;
+  SleepSystemComp.fatigue[eid] =
+    GAME_CONSTANTS.FATIGUE_DAY_NAP_WAKE_THRESHOLD;
+
+  sleepScheduleSystem({
+    world: world as any,
+    delta: 0,
+    currentTime: 1 + GAME_CONSTANTS.DAY_NAP_MIN_DURATION - 1,
+  });
+
+  assert.equal(ObjectComp.state[eid], CharacterState.SLEEPING);
+  assert.equal(SleepSystemComp.sleepMode[eid], SleepMode.DAY_NAP);
+
+  sleepScheduleSystem({
+    world: world as any,
+    delta: 0,
+    currentTime: 1 + GAME_CONSTANTS.DAY_NAP_MIN_DURATION,
+  });
+
+  assert.equal(ObjectComp.state[eid], CharacterState.IDLE);
+  assert.equal(SleepSystemComp.sleepMode[eid], SleepMode.AWAKE);
+});
+
+test("낮잠 fatigue가 높으면 최대 90분까지 잔 뒤 깬다", () => {
+  const world = createTestWorld({
+    now: 0,
+    timeOfDay: TimeOfDay.Day,
+  });
+
+  const eid = withMockedDateNow(0, () =>
+    createTestCharacter(world, {
+      state: CharacterState.SLEEPING,
+      stamina: 5,
+      x: 100,
+      y: 100,
+    }),
+  );
+
+  SleepSystemComp.sleepMode[eid] = SleepMode.DAY_NAP;
+  SleepSystemComp.sleepSessionStartedAt[eid] = 1;
+  SleepSystemComp.fatigue[eid] =
+    GAME_CONSTANTS.FATIGUE_DAY_NAP_WAKE_THRESHOLD + 1;
+
+  sleepScheduleSystem({
+    world: world as any,
+    delta: 0,
+    currentTime: 1 + GAME_CONSTANTS.DAY_NAP_MAX_DURATION - 1,
+  });
+
+  assert.equal(ObjectComp.state[eid], CharacterState.SLEEPING);
+  assert.equal(SleepSystemComp.sleepMode[eid], SleepMode.DAY_NAP);
+
+  sleepScheduleSystem({
+    world: world as any,
+    delta: 0,
+    currentTime: 1 + GAME_CONSTANTS.DAY_NAP_MAX_DURATION,
+  });
+
+  assert.equal(ObjectComp.state[eid], CharacterState.IDLE);
+  assert.equal(SleepSystemComp.sleepMode[eid], SleepMode.AWAKE);
 });
 
 test("충분히 오래 자고 피로가 낮아져도 sick 상태는 수면 중 자연 회복되지 않는다", () => {
