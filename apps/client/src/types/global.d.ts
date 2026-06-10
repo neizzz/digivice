@@ -45,6 +45,10 @@ declare global {
 		previousCharacterState?: number | null;
 		nextCharacterState?: number | null;
 		selectedCharacterKey?: number | null;
+		diseaseOccurred?: boolean | null;
+		diseaseCheckCount?: number | null;
+		lastDiseasePerCheckProbability?: number | null;
+		lastDiseaseAggregatedProbability?: number | null;
 		hatchSelectionDiagnostics?: Record<string, unknown> | null;
 		error?: unknown;
 		[key: string]: unknown;

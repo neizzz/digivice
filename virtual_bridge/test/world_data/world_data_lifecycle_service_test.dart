@@ -111,6 +111,7 @@ Map<String, dynamic> _buildFoodEntity({
   Map<String, dynamic>? foodMask,
   int? freshness,
   int? legacyFoodFreshness,
+  Map<String, dynamic>? freshnessTimer,
 }) {
   return <String, dynamic>{
     'components': <String, dynamic>{
@@ -126,6 +127,7 @@ Map<String, dynamic> _buildFoodEntity({
         'freshness': <String, dynamic>{
           'freshness': freshness,
         },
+      if (freshnessTimer != null) 'freshnessTimer': freshnessTimer,
       if (legacyFoodFreshness != null)
         'food': <String, dynamic>{
           'freshness': legacyFoodFreshness,
@@ -488,6 +490,53 @@ void main() {
     expect(result.diseaseOccurred, isTrue);
   });
 
+  test('질병 확률은 저장된 freshness가 normal이어도 timer 기준 stale food를 반영한다', () {
+    final List<WorldDataLifecycleRandomEvent> diseaseEvents =
+        <WorldDataLifecycleRandomEvent>[];
+    final WorldDataLifecycleAdvanceResult result =
+        WorldDataLifecycleService.advanceWorldData(
+      rawWorldData: _buildWorldData(
+        nextDiseaseCheckTime: 10 * 60 * 1000,
+        extraEntities: <Map<String, dynamic>>[
+          _buildFoodEntity(
+            freshness: worldDataLifecycleFoodFreshnessNormal,
+            freshnessTimer: <String, dynamic>{
+              'createdTime': 0,
+              'normalTime': 3 * 60 * 1000,
+              'staleTime': 10 * 60 * 1000,
+              'isBeingEaten': false,
+            },
+          ),
+        ],
+      ),
+      nowMs: 10 * 60 * 1000,
+      source: 'periodic_work',
+      randomProvider: (WorldDataLifecycleRandomEvent event) {
+        if (event.reason == 'disease') {
+          diseaseEvents.add(event);
+        }
+        return 1;
+      },
+    );
+
+    final Map<String, dynamic> updated = _decode(result.updatedRawWorldData);
+    final Map<String, dynamic> foodComponents = _entityComponentsAt(updated, 1);
+    final Map<String, dynamic> freshness =
+        foodComponents['freshness'] as Map<String, dynamic>;
+
+    expect(diseaseEvents, hasLength(1));
+    expect(
+      diseaseEvents.single.perCheckProbability,
+      closeTo(
+        worldDataLifecycleBaseDiseaseRate +
+            worldDataLifecycleStaleFoodDiseaseRate,
+        1e-12,
+      ),
+    );
+    expect(freshness['freshness'], worldDataLifecycleFoodFreshnessStale);
+    expect(result.diseaseOccurred, isFalse);
+  });
+
   test('day nap 확률도 check count 기반 집계 경로를 사용한다', () {
     final List<WorldDataLifecycleRandomEvent> events =
         <WorldDataLifecycleRandomEvent>[];
@@ -649,6 +698,48 @@ void main() {
     expect(diagnostics['soilProbability'], 22);
     expect(diagnostics['skullProbability'], 15);
     expect(diagnostics['rollPercent'], 64.0);
+  });
+
+  test('부화 진단은 저장된 freshness가 normal이어도 hatch 시각의 timer 기준 stale food를 반영한다',
+      () {
+    final WorldDataLifecycleAdvanceResult result =
+        WorldDataLifecycleService.advanceWorldData(
+      rawWorldData: _buildWorldData(
+        state: config.characterStateEgg,
+        characterKey: 0,
+        eggHatch: <String, dynamic>{
+          'hatchTime': 10 * 60 * 1000,
+          'hatchDurationMs': 10 * 60 * 1000,
+          'pendingCharacterKey': 0,
+        },
+        extraEntities: <Map<String, dynamic>>[
+          _buildFoodEntity(
+            freshness: worldDataLifecycleFoodFreshnessNormal,
+            freshnessTimer: <String, dynamic>{
+              'createdTime': 0,
+              'normalTime': 3 * 60 * 1000,
+              'staleTime': 10 * 60 * 1000,
+              'isBeingEaten': false,
+            },
+          ),
+        ],
+      ),
+      nowMs: 10 * 60 * 1000,
+      source: 'app_resume',
+      randomProvider: (_) => 1,
+    );
+    final Map<String, Object?> diagnostics = result.hatchSelectionDiagnostics!;
+    final Map<String, dynamic> updated = _decode(result.updatedRawWorldData);
+    final Map<String, dynamic> foodComponents = _entityComponentsAt(updated, 1);
+    final Map<String, dynamic> freshness =
+        foodComponents['freshness'] as Map<String, dynamic>;
+
+    expect(result.hatched, isTrue);
+    expect(diagnostics['staleFoodCountAtHatch'], 1);
+    expect(diagnostics['greenProbability'], 63);
+    expect(diagnostics['soilProbability'], 22);
+    expect(diagnostics['skullProbability'], 15);
+    expect(freshness['freshness'], worldDataLifecycleFoodFreshnessStale);
   });
 
   test('부화 진단은 legacy food freshness도 fallback으로 반영한다', () {

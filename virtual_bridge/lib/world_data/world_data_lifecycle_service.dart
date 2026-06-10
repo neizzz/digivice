@@ -17,11 +17,14 @@ const double worldDataLifecycleStaleFoodDiseaseRate = 0.000093;
 const double worldDataLifecycleSleepingDiseaseRateMultiplier = 0.1;
 const int worldDataLifecyclePoopObjectType = 4;
 const int worldDataLifecycleFoodObjectType = 3;
+const int worldDataLifecycleFoodFreshnessFresh = 1;
+const int worldDataLifecycleFoodFreshnessNormal = 2;
 const int worldDataLifecycleFoodFreshnessStale = 3;
 const int worldDataLifecycleFoodStateBeingThrowing = 1;
 const int worldDataLifecycleFoodStateLanded = 2;
 const int worldDataLifecycleFoodStateBeingIntaken = 3;
 const int worldDataLifecycleFoodStateTargeted = 4;
+const int worldDataLifecycleFoodNormalToStaleMs = 10 * 60 * 1000;
 const int worldDataLifecycleDestinationTypeNull = 0;
 const int worldDataLifecycleDestinationTypeTargeted = 3;
 const int worldDataLifecycleFoodEatingDurationMs = 3200;
@@ -465,6 +468,9 @@ class WorldDataLifecycleService {
     required WorldDataLifecycleRandomProvider randomProvider,
   }) {
     bool changed = false;
+    final int tickEndMs = tickStartMs + tickDurationMs;
+
+    changed = _progressFoodFreshness(entities, tickEndMs) || changed;
 
     final double previousStamina = character.stamina ?? config.maxStamina;
     final _StaminaProgressResult staminaResult = _progressStamina(
@@ -482,7 +488,7 @@ class WorldDataLifecycleService {
     final _SleepProgressResult sleepResult = _progressSleepBeforeRandomChecks(
       character: character,
       appState: appState,
-      tickEndMs: tickStartMs + tickDurationMs,
+      tickEndMs: tickEndMs,
       tickDurationMs: tickDurationMs,
     );
     changed = sleepResult.changed || changed;
@@ -493,7 +499,7 @@ class WorldDataLifecycleService {
       entities: entities,
       appState: appState,
       monsterName: monsterName,
-      nowMs: tickStartMs + tickDurationMs,
+      nowMs: tickEndMs,
       elapsedMs: tickDurationMs,
       evolutionAlreadyApplied: evolutionAlreadyApplied,
       randomProvider: randomProvider,
@@ -505,7 +511,7 @@ class WorldDataLifecycleService {
     final _ProbabilityProgressResult dayNapResult = _progressDayNapAtTickEnd(
       character: character,
       appState: appState,
-      tickEndMs: tickStartMs + tickDurationMs,
+      tickEndMs: tickEndMs,
       randomProvider: randomProvider,
     );
     changed = dayNapResult.changed || changed;
@@ -513,7 +519,7 @@ class WorldDataLifecycleService {
     final _ProbabilityProgressResult diseaseResult = _progressDiseaseAtTickEnd(
       character: character,
       entities: entities,
-      tickEndMs: tickStartMs + tickDurationMs,
+      tickEndMs: tickEndMs,
       randomProvider: randomProvider,
     );
     changed = diseaseResult.changed || changed;
@@ -549,6 +555,7 @@ class WorldDataLifecycleService {
       return const _HatchProgressResult();
     }
 
+    _progressFoodFreshness(entities, hatchTimeMs);
     final _EggHatchSelection selection = _resolveEggHatchSelection(
       character: character,
       entities: entities,
@@ -1034,10 +1041,105 @@ class WorldDataLifecycleService {
   }
 
   static bool _isFoodStale(Map<String, dynamic> components) {
+    return _resolveFoodFreshness(components) ==
+        worldDataLifecycleFoodFreshnessStale;
+  }
+
+  static bool _progressFoodFreshness(List<dynamic> entities, int nowMs) {
+    bool changed = false;
+    for (final dynamic entity in entities) {
+      if (entity is! Map<String, dynamic>) {
+        continue;
+      }
+
+      final Map<String, dynamic> components = _readMap(entity['components']);
+      final Map<String, dynamic> object = _readMap(components['object']);
+      if (_readInt(object['type']) != worldDataLifecycleFoodObjectType) {
+        continue;
+      }
+
+      int? currentFreshness = _resolveFoodFreshness(components);
+      if (currentFreshness == worldDataLifecycleFoodFreshnessFresh) {
+        changed = _writeFoodFreshness(
+              components,
+              worldDataLifecycleFoodFreshnessNormal,
+            ) ||
+            changed;
+        currentFreshness = worldDataLifecycleFoodFreshnessNormal;
+      }
+
+      final Map<String, dynamic> freshnessTimer =
+          _readMap(components['freshnessTimer']);
+      if (_readBool(freshnessTimer['isBeingEaten']) == true) {
+        continue;
+      }
+
+      final int? currentState = _readInt(object['state']);
+      if (currentFreshness == worldDataLifecycleFoodFreshnessStale) {
+        if (currentState != worldDataLifecycleFoodStateBeingThrowing &&
+            currentState != worldDataLifecycleFoodStateLanded) {
+          object['state'] = worldDataLifecycleFoodStateLanded;
+          changed = true;
+        }
+        continue;
+      }
+
+      final int? createdTime = _readInt(freshnessTimer['createdTime']);
+      if (createdTime == null) {
+        continue;
+      }
+      final int staleTime = math.max(
+        0,
+        _readInt(freshnessTimer['staleTime']) ??
+            worldDataLifecycleFoodNormalToStaleMs,
+      );
+      if (nowMs - createdTime < staleTime) {
+        continue;
+      }
+
+      changed = _writeFoodFreshness(
+            components,
+            worldDataLifecycleFoodFreshnessStale,
+          ) ||
+          changed;
+      object['state'] = worldDataLifecycleFoodStateLanded;
+      changed = true;
+    }
+    return changed;
+  }
+
+  static int? _resolveFoodFreshness(Map<String, dynamic> components) {
     final Map<String, dynamic> freshness = _readMap(components['freshness']);
     final Map<String, dynamic> food = _readMap(components['food']);
-    return (_readInt(freshness['freshness']) ?? _readInt(food['freshness'])) ==
-        worldDataLifecycleFoodFreshnessStale;
+    return _readInt(freshness['freshness']) ?? _readInt(food['freshness']);
+  }
+
+  static bool _writeFoodFreshness(
+    Map<String, dynamic> components,
+    int freshnessValue,
+  ) {
+    final Map<String, dynamic> freshness = _readMap(components['freshness']);
+    if (freshness.isNotEmpty) {
+      if (_readInt(freshness['freshness']) == freshnessValue) {
+        return false;
+      }
+      freshness['freshness'] = freshnessValue;
+      return true;
+    }
+
+    final Map<String, dynamic> food = _readMap(components['food']);
+    if (food.isNotEmpty) {
+      if (_readInt(food['freshness']) == freshnessValue) {
+        return false;
+      }
+      food['freshness'] = freshnessValue;
+      return true;
+    }
+
+    components['freshness'] = <String, dynamic>{
+      'freshness': freshnessValue,
+    };
+    return true;
   }
 
   static double _getStaminaBonusForFoodTexture(int? textureKey) {
@@ -1719,11 +1821,7 @@ class WorldDataLifecycleService {
       return false;
     }
 
-    final Map<String, dynamic> freshness = _readMap(components['freshness']);
-    final Map<String, dynamic> food = _readMap(components['food']);
-    final int? resolvedFreshness =
-        _readInt(freshness['freshness']) ?? _readInt(food['freshness']);
-    return resolvedFreshness == worldDataLifecycleFoodFreshnessStale;
+    return _isFoodStale(components);
   }
 
   static int _normalizeMutationStackCount(int value) {
@@ -2008,11 +2106,11 @@ class WorldDataLifecycleService {
       if (_readInt(object['type']) != worldDataLifecycleFoodObjectType) {
         continue;
       }
-      final Map<String, dynamic> freshness = _readMap(components['freshness']);
-      final Map<String, dynamic> food = _readMap(components['food']);
-      final int? resolvedFreshness =
-          _readInt(freshness['freshness']) ?? _readInt(food['freshness']);
-      if (resolvedFreshness == worldDataLifecycleFoodFreshnessStale) {
+      if (_readInt(object['state']) ==
+          worldDataLifecycleFoodStateBeingThrowing) {
+        continue;
+      }
+      if (_isFoodStale(components)) {
         count += 1;
       }
     }

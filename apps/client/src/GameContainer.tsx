@@ -156,6 +156,13 @@ function summarizeNativeWorldDataUpdate(
 		previousCharacterState: record.result?.previousCharacterState ?? null,
 		nextCharacterState: record.result?.nextCharacterState ?? null,
 		selectedCharacterKey: record.result?.selectedCharacterKey ?? null,
+		diseaseOccurred: record.result?.diseaseOccurred ?? null,
+		diseaseCheckCount: record.result?.diseaseCheckCount ?? null,
+		lastDiseasePerCheckProbability:
+			record.result?.lastDiseasePerCheckProbability ?? null,
+		lastDiseaseAggregatedProbability:
+			record.result?.lastDiseaseAggregatedProbability ?? null,
+		hatchSelectionDiagnostics: record.result?.hatchSelectionDiagnostics ?? null,
 	};
 }
 
