@@ -1,13 +1,5 @@
 package com.ch00n9h09.montto
 
-internal enum class WorldDataNativeAuthoritativeRefreshStatus(
-    val value: String,
-) {
-    STARTED("native_authoritative_completion_started"),
-    COMPLETED("native_authoritative_completion_completed"),
-    FAILED("native_authoritative_completion_failed"),
-}
-
 internal enum class HomeWidgetPeriodicRefreshStatus(
     val value: String,
 ) {

@@ -1304,9 +1304,9 @@ class WorldDataLifecycleService {
 
     final Map<String, dynamic> freshness = _readMap(components['freshness']);
     final Map<String, dynamic> food = _readMap(components['food']);
-    return _readInt(freshness['freshness']) ==
-            worldDataLifecycleFoodFreshnessStale ||
-        _readInt(food['freshness']) == worldDataLifecycleFoodFreshnessStale;
+    final int? resolvedFreshness =
+        _readInt(freshness['freshness']) ?? _readInt(food['freshness']);
+    return resolvedFreshness == worldDataLifecycleFoodFreshnessStale;
   }
 
   static int _normalizeMutationStackCount(int value) {
@@ -1591,8 +1591,11 @@ class WorldDataLifecycleService {
       if (_readInt(object['type']) != worldDataLifecycleFoodObjectType) {
         continue;
       }
+      final Map<String, dynamic> freshness = _readMap(components['freshness']);
       final Map<String, dynamic> food = _readMap(components['food']);
-      if (_readInt(food['freshness']) == worldDataLifecycleFoodFreshnessStale) {
+      final int? resolvedFreshness =
+          _readInt(freshness['freshness']) ?? _readInt(food['freshness']);
+      if (resolvedFreshness == worldDataLifecycleFoodFreshnessStale) {
         count += 1;
       }
     }

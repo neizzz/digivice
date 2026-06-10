@@ -16,6 +16,8 @@ internal object HomeWidgetBootstrapStateCleaner {
             remove(HomeWidgetConstants.REFRESH_COMPLETED_AT_MS_KEY)
             remove(HomeWidgetConstants.REFRESH_IN_FLIGHT_KEY)
             remove(HomeWidgetConstants.REFRESH_SMOKE_RESULT_KEY)
+            remove(HomeWidgetConstants.PERIODIC_REFRESH_STATUS_KEY)
+            remove(HomeWidgetConstants.PERIODIC_REFRESH_STATUS_AT_MS_KEY)
 
             if (clearSnapshots) {
                 remove(HomeWidgetConstants.SNAPSHOT_KEY)

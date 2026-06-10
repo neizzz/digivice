@@ -73,7 +73,15 @@ class HomeWidgetSnapshotPublisherTest {
     @Test
     fun `publish removes snapshot when json is null and notifies update`() {
         val prefs = FakeSharedPreferences().apply {
-            edit().putString("home_widget_snapshot_v1", """{"foo":"bar"}""").apply()
+            edit()
+                .putString("home_widget_snapshot_v1", """{"foo":"bar"}""")
+                .putLong(HomeWidgetConstants.REFRESH_REQUESTED_AT_MS_KEY, 100L)
+                .putLong(HomeWidgetConstants.REFRESH_COMPLETED_AT_MS_KEY, 200L)
+                .putBoolean(HomeWidgetConstants.REFRESH_IN_FLIGHT_KEY, true)
+                .putString(HomeWidgetConstants.REFRESH_SMOKE_RESULT_KEY, "stale")
+                .putString(HomeWidgetConstants.PERIODIC_REFRESH_STATUS_KEY, "stale_status")
+                .putLong(HomeWidgetConstants.PERIODIC_REFRESH_STATUS_AT_MS_KEY, 300L)
+                .apply()
         }
         val notifiedReasons = mutableListOf<String>()
 
@@ -92,6 +100,12 @@ class HomeWidgetSnapshotPublisherTest {
         assertEquals("native_paused", result["reason"])
         assertNull(result["characterState"])
         assertFalse(prefs.contains("home_widget_snapshot_v1"))
+        assertFalse(prefs.contains(HomeWidgetConstants.REFRESH_REQUESTED_AT_MS_KEY))
+        assertFalse(prefs.contains(HomeWidgetConstants.REFRESH_COMPLETED_AT_MS_KEY))
+        assertFalse(prefs.contains(HomeWidgetConstants.REFRESH_IN_FLIGHT_KEY))
+        assertFalse(prefs.contains(HomeWidgetConstants.REFRESH_SMOKE_RESULT_KEY))
+        assertFalse(prefs.contains(HomeWidgetConstants.PERIODIC_REFRESH_STATUS_KEY))
+        assertFalse(prefs.contains(HomeWidgetConstants.PERIODIC_REFRESH_STATUS_AT_MS_KEY))
         assertNull(prefs.getString("home_widget_snapshot_v1", null))
         assertEquals(listOf("native_paused"), notifiedReasons)
     }

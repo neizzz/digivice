@@ -87,6 +87,30 @@ String _buildWorldData({
   });
 }
 
+Map<String, dynamic> _buildFoodEntity({
+  int id = 201,
+  int? freshness,
+  int? legacyFoodFreshness,
+}) {
+  return <String, dynamic>{
+    'components': <String, dynamic>{
+      'object': <String, dynamic>{
+        'id': id,
+        'type': worldDataLifecycleFoodObjectType,
+        'state': 2,
+      },
+      if (freshness != null)
+        'freshness': <String, dynamic>{
+          'freshness': freshness,
+        },
+      if (legacyFoodFreshness != null)
+        'food': <String, dynamic>{
+          'freshness': legacyFoodFreshness,
+        },
+    },
+  };
+}
+
 Map<String, dynamic> _decode(String raw) =>
     jsonDecode(raw) as Map<String, dynamic>;
 
@@ -559,6 +583,100 @@ void main() {
     );
     expect(_object(atMax)['state'], config.characterStateIdle);
     expect(_sleepSystem(atMax)['sleepMode'], worldDataLifecycleSleepModeAwake);
+  });
+
+  test('부화 진단은 freshness component의 stale food를 확률에 반영한다', () {
+    final WorldDataLifecycleAdvanceResult result =
+        WorldDataLifecycleService.advanceWorldData(
+      rawWorldData: _buildWorldData(
+        state: config.characterStateEgg,
+        characterKey: 0,
+        eggHatch: <String, dynamic>{
+          'hatchTime': 1000,
+          'hatchDurationMs': 1000,
+          'pendingCharacterKey': 0,
+        },
+        extraEntities: <Map<String, dynamic>>[
+          _buildFoodEntity(
+            freshness: worldDataLifecycleFoodFreshnessStale,
+          ),
+        ],
+      ),
+      nowMs: 2000,
+      source: 'app_resume',
+      randomProvider: (_) => 0.64,
+    );
+    final Map<String, Object?> diagnostics = result.hatchSelectionDiagnostics!;
+
+    expect(result.hatched, isTrue);
+    expect(
+        result.selectedCharacterKey, worldDataLifecycleSoilSlimeA1CharacterKey);
+    expect(diagnostics['staleFoodCountAtHatch'], 1);
+    expect(diagnostics['greenProbability'], 63);
+    expect(diagnostics['soilProbability'], 22);
+    expect(diagnostics['skullProbability'], 15);
+    expect(diagnostics['rollPercent'], 64.0);
+  });
+
+  test('부화 진단은 legacy food freshness도 fallback으로 반영한다', () {
+    final WorldDataLifecycleAdvanceResult result =
+        WorldDataLifecycleService.advanceWorldData(
+      rawWorldData: _buildWorldData(
+        state: config.characterStateEgg,
+        characterKey: 0,
+        eggHatch: <String, dynamic>{
+          'hatchTime': 1000,
+          'hatchDurationMs': 1000,
+          'pendingCharacterKey': 0,
+        },
+        extraEntities: <Map<String, dynamic>>[
+          _buildFoodEntity(
+            legacyFoodFreshness: worldDataLifecycleFoodFreshnessStale,
+          ),
+        ],
+      ),
+      nowMs: 2000,
+      source: 'app_resume',
+      randomProvider: (_) => 1,
+    );
+    final Map<String, Object?> diagnostics = result.hatchSelectionDiagnostics!;
+
+    expect(result.hatched, isTrue);
+    expect(diagnostics['staleFoodCountAtHatch'], 1);
+    expect(diagnostics['greenProbability'], 63);
+    expect(diagnostics['soilProbability'], 22);
+    expect(diagnostics['skullProbability'], 15);
+  });
+
+  test('부화 진단은 freshness component가 있으면 legacy food freshness를 무시한다', () {
+    final WorldDataLifecycleAdvanceResult result =
+        WorldDataLifecycleService.advanceWorldData(
+      rawWorldData: _buildWorldData(
+        state: config.characterStateEgg,
+        characterKey: 0,
+        eggHatch: <String, dynamic>{
+          'hatchTime': 1000,
+          'hatchDurationMs': 1000,
+          'pendingCharacterKey': 0,
+        },
+        extraEntities: <Map<String, dynamic>>[
+          _buildFoodEntity(
+            freshness: 1,
+            legacyFoodFreshness: worldDataLifecycleFoodFreshnessStale,
+          ),
+        ],
+      ),
+      nowMs: 2000,
+      source: 'app_resume',
+      randomProvider: (_) => 1,
+    );
+    final Map<String, Object?> diagnostics = result.hatchSelectionDiagnostics!;
+
+    expect(result.hatched, isTrue);
+    expect(diagnostics['staleFoodCountAtHatch'], 0);
+    expect(diagnostics['greenProbability'], 65);
+    expect(diagnostics['soilProbability'], 20);
+    expect(diagnostics['skullProbability'], 15);
   });
 
   test('부화 완료 시 Dart lifecycle이 MonsterBook hatch 기록을 저장한다', () {
