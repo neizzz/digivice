@@ -829,8 +829,50 @@ void main() {
     expect(result.monsterBookChanged, isTrue);
     expect(_object(updated)['state'], config.characterStateIdle);
     expect(_characterStatus(updated)['characterKey'], 22);
+    expect(_characterStatus(updated)['evolutionPhase'], 1);
+    expect(
+      (_components(updated)['render'] as Map<String, dynamic>)['textureKey'],
+      worldDataLifecycleTextureKeyNull,
+    );
+    expect(
+      (_components(updated)['animationRender']
+          as Map<String, dynamic>)['spritesheetKey'],
+      22,
+    );
+    expect(
+      (_components(updated)['animationRender']
+          as Map<String, dynamic>)['animationKey'],
+      worldDataLifecycleAnimationKeyIdle,
+    );
     expect(records, hasLength(1));
     expect((records.single as Map<String, dynamic>)['source'], 'hatch');
+  });
+
+  test('부화 전 시간 경과는 egg 상태를 유지하고 authoritative snapshot crack만 진행한다', () {
+    final WorldDataLifecycleAdvanceResult result =
+        WorldDataLifecycleService.advanceWorldData(
+      rawWorldData: _buildWorldData(
+        state: config.characterStateEgg,
+        characterKey: 0,
+        eggHatch: <String, dynamic>{
+          'hatchTime': 30 * 60 * 1000,
+          'hatchDurationMs': 40 * 60 * 1000,
+          'pendingCharacterKey': 22,
+        },
+      ),
+      nowMs: 20 * 60 * 1000,
+      source: 'periodic_work',
+      randomProvider: (_) => 1,
+    );
+    final Map<String, dynamic> updated = _decode(result.updatedRawWorldData);
+
+    expect(result.hatched, isFalse);
+    expect(_object(updated)['state'], config.characterStateEgg);
+    expect(_characterStatus(updated)['characterKey'], 0);
+    expect(result.evolutionDiagnostics.blockReason, 'egg');
+    expect(result.authoritativeSnapshot, isNotNull);
+    expect(result.authoritativeSnapshot!.characterState.name, 'egg');
+    expect(result.authoritativeSnapshot!.eggCrackStage, 3);
   });
 
   test('진화 완료 시 이전 캐릭터를 보정하고 다음 캐릭터를 evolution으로 기록한다', () {
@@ -907,6 +949,102 @@ void main() {
     expect(_monsterBookRecords(updated, 1), hasLength(1));
     expect(_monsterBookRecords(updated, 2), hasLength(1));
     expect(_monsterBookRecords(updated, 3), hasLength(1));
+  });
+
+  test('1분, 30분, 60분 시간 경과에 따라 진화 게이지 diagnostics와 저장본이 증가한다', () {
+    WorldDataLifecycleAdvanceResult advanceFor(int nowMs) =>
+        WorldDataLifecycleService.advanceWorldData(
+          rawWorldData: _buildWorldData(
+            characterKey: 14,
+            evolutionPhase: 1,
+            evolutionGage: 0,
+            stamina: 6,
+            nextDiseaseCheckTime: 2 * 60 * 60 * 1000,
+            nextNapCheckTime: 2 * 60 * 60 * 1000,
+          ),
+          nowMs: nowMs,
+          source: 'periodic_work',
+          randomProvider: (_) => 1,
+        );
+
+    final List<WorldDataLifecycleAdvanceResult> results =
+        <WorldDataLifecycleAdvanceResult>[
+      advanceFor(60 * 1000),
+      advanceFor(30 * 60 * 1000),
+      advanceFor(60 * 60 * 1000),
+    ];
+    final List<double> gauges = results.map((result) {
+      final Map<String, dynamic> updated = _decode(result.updatedRawWorldData);
+      final double stored =
+          (_characterStatus(updated)['evolutionGage'] as num).toDouble();
+      expect(
+        stored,
+        result.evolutionDiagnostics.evolutionGageAfter,
+      );
+      expect(result.evolutionDiagnostics.evolutionGageBefore, lessThan(stored));
+      expect(result.evolutionDiagnostics.evolutionGageIncreased, isTrue);
+      expect(result.evolutionDiagnostics.blockReason, 'none');
+      return stored;
+    }).toList();
+
+    expect(results[0].tickCount, 1);
+    expect(results[1].tickCount, 30);
+    expect(results[2].tickCount, 60);
+    expect(gauges[0], greaterThan(0));
+    expect(gauges[1], greaterThan(gauges[0]));
+    expect(gauges[2], greaterThan(gauges[1]));
+  });
+
+  test('idle, sleeping, sick 상태별 stamina 시간 경과와 min boundary를 저장한다', () {
+    WorldDataLifecycleAdvanceResult advance({
+      required int state,
+      required double stamina,
+      List<int> statuses = const <int>[],
+      int nowMs = 60 * 60 * 1000,
+    }) =>
+        WorldDataLifecycleService.advanceWorldData(
+          rawWorldData: _buildWorldData(
+            state: state,
+            stamina: stamina,
+            statuses: statuses,
+            nextDiseaseCheckTime: 2 * 60 * 60 * 1000,
+            nextNapCheckTime: 2 * 60 * 60 * 1000,
+          ),
+          nowMs: nowMs,
+          source: 'periodic_work',
+          randomProvider: (_) => 1,
+        );
+
+    final Map<String, dynamic> idle = _decode(
+        advance(state: config.characterStateIdle, stamina: 10)
+            .updatedRawWorldData);
+    final Map<String, dynamic> sleeping = _decode(
+        advance(state: config.characterStateSleeping, stamina: 10)
+            .updatedRawWorldData);
+    final Map<String, dynamic> sick = _decode(advance(
+      state: config.characterStateSick,
+      stamina: 10,
+      statuses: const <int>[config.characterStatusSick],
+    ).updatedRawWorldData);
+    final Map<String, dynamic> depleted = _decode(
+        advance(state: config.characterStateIdle, stamina: 0.1)
+            .updatedRawWorldData);
+
+    final double idleStamina =
+        (_characterStatus(idle)['stamina'] as num).toDouble();
+    final double sleepingStamina =
+        (_characterStatus(sleeping)['stamina'] as num).toDouble();
+    final double sickStamina =
+        (_characterStatus(sick)['stamina'] as num).toDouble();
+
+    expect(idleStamina, closeTo(8.5, 1e-12));
+    expect(sleepingStamina, closeTo(9.75, 1e-12));
+    expect(sickStamina, closeTo(idleStamina, 1e-12));
+    expect(sleepingStamina, greaterThan(idleStamina));
+    expect(_object(sick)['state'], config.characterStateSick);
+    expect(_characterStatus(sick)['statuses'],
+        contains(config.characterStatusSick));
+    expect(_characterStatus(depleted)['stamina'], 0);
   });
 
   test('eating 중 장시간 이탈하면 Dart lifecycle이 음식 제거와 회복을 완료한다', () {

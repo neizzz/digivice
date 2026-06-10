@@ -199,7 +199,7 @@ object WorldDataSnapshotFactory {
         }.getOrNull()
     }
 
-    private fun progressSnapshot(snapshot: HomeWidgetSnapshot, nowMs: Long): HomeWidgetSnapshot? {
+    internal fun progressSnapshot(snapshot: HomeWidgetSnapshot, nowMs: Long): HomeWidgetSnapshot? {
         val elapsedMs = (nowMs - snapshot.snapshotComputedAtMs).coerceAtLeast(0L)
         val tickSizeMs = resolveSimulationTickSizeMs(elapsedMs)
         val totalTicks = if (tickSizeMs > 0L) elapsedMs / tickSizeMs else 0L

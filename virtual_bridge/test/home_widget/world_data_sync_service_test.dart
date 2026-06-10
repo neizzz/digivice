@@ -322,6 +322,12 @@ void main() {
       expect(secondProgressed.stamina, closeTo(7.5, 0.0001));
       expect(secondProgressed.staminaLevel, WorldDataStaminaLevel.green);
       expect(secondProgressed.hasUrgentStatus, isFalse);
+      expect(
+        secondProgressed.animationFrameIndex,
+        (DateTime(2026, 5, 19, 12, 24, 0).millisecondsSinceEpoch ~/ 1000 +
+                (secondProgressed.characterKey ?? 0)) %
+            4,
+      );
     });
 
     test('sleeping 상태는 더 느리게 stamina가 감소한다', () {
@@ -343,6 +349,77 @@ void main() {
         progressed.visibleStatusIcons,
         contains(WorldDataStatusIcon.sleeping),
       );
+    });
+
+    test('egg snapshot은 부화 완료를 직접 만들지 않고 crack stage만 projection한다', () {
+      final now = DateTime(2026, 5, 19, 12, 0, 0);
+      final authoritativeSnapshot =
+          WorldDataSyncService.buildSnapshotFromWorldDataJson(
+        jsonEncode(
+          _buildWorldData(
+            state: 0,
+            stamina: 10,
+            textureKey: 517,
+            eggHatch: <String, dynamic>{
+              'hatchTime':
+                  now.add(const Duration(minutes: 40)).millisecondsSinceEpoch,
+              'hatchDurationMs': 40 * 60 * 1000,
+            },
+          ),
+        ),
+        now: now,
+      )!;
+
+      final beforeHatch = WorldDataSyncService.progressSnapshot(
+        authoritativeSnapshot,
+        now: now.add(const Duration(minutes: 20)),
+      );
+      final afterHatchTime = WorldDataSyncService.progressSnapshot(
+        beforeHatch!,
+        now: now.add(const Duration(minutes: 41)),
+      );
+
+      expect(authoritativeSnapshot.eggCrackStage, 0);
+      expect(beforeHatch.characterState, WorldDataCharacterState.egg);
+      expect(beforeHatch.eggCrackStage, 2);
+      expect(beforeHatch.projectedElapsedMs, 20 * 60 * 1000);
+      expect(afterHatchTime, isNotNull);
+      expect(afterHatchTime!.characterState, WorldDataCharacterState.egg);
+      expect(
+          afterHatchTime.snapshotKind, WorldDataSnapshotKind.widgetProgressed);
+      expect(afterHatchTime.eggCrackStage, 3);
+      expect(afterHatchTime.projectedElapsedMs, 41 * 60 * 1000);
+    });
+
+    test('authoritative refresh 후 projection 기준은 새 snapshot에서 다시 시작한다', () {
+      final firstAuthoritative =
+          WorldDataSyncService.buildSnapshotFromWorldDataJson(
+        jsonEncode(_buildWorldData(state: 1, stamina: 8)),
+        now: DateTime(2026, 5, 19, 12, 0, 0),
+      )!;
+      final progressed = WorldDataSyncService.progressSnapshot(
+        firstAuthoritative,
+        now: DateTime(2026, 5, 19, 12, 12, 0),
+      )!;
+      final refreshedAuthoritative =
+          WorldDataSyncService.buildSnapshotFromWorldDataJson(
+        jsonEncode(_buildWorldData(state: 1, stamina: 8.5)),
+        now: DateTime(2026, 5, 19, 12, 12, 0),
+      )!;
+      final progressedAfterRefresh = WorldDataSyncService.progressSnapshot(
+        refreshedAuthoritative,
+        now: DateTime(2026, 5, 19, 12, 24, 0),
+      )!;
+
+      expect(progressed.snapshotKind, WorldDataSnapshotKind.widgetProgressed);
+      expect(progressed.projectedElapsedMs, 12 * 60 * 1000);
+      expect(
+        refreshedAuthoritative.snapshotKind,
+        WorldDataSnapshotKind.authoritativeAppState,
+      );
+      expect(refreshedAuthoritative.projectedElapsedMs, 0);
+      expect(progressedAfterRefresh.projectedElapsedMs, 12 * 60 * 1000);
+      expect(progressedAfterRefresh.stamina, closeTo(8.25, 0.0001));
     });
   });
 

@@ -9,7 +9,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 String _buildWorldData({
   int lastEcsSaved = 0,
+  int state = config.characterStateIdle,
+  int characterKey = 1,
   double evolutionGage = 0,
+  Map<String, dynamic>? eggHatch,
 }) =>
     jsonEncode(<String, dynamic>{
       'world_metadata': <String, dynamic>{
@@ -26,11 +29,23 @@ String _buildWorldData({
             'object': <String, dynamic>{
               'id': 101,
               'type': config.characterObjectType,
-              'state': config.characterStateIdle,
+              'state': state,
             },
-            'render': <String, dynamic>{'textureKey': 1},
+            'render': <String, dynamic>{
+              'textureKey': state == config.characterStateEgg
+                  ? config.eggTextureKeyStart
+                  : 1,
+            },
+            'eggHatch': <String, dynamic>{
+              'hatchTime': 0,
+              'hatchDurationMs': 0,
+              'isReadyToHatch': false,
+              'syringeCount': 0,
+              'pendingCharacterKey': 0,
+              ...?eggHatch,
+            },
             'characterStatus': <String, dynamic>{
-              'characterKey': 1,
+              'characterKey': characterKey,
               'stamina': 10,
               'evolutionGage': evolutionGage,
               'evolutionPhase': 1,
@@ -144,5 +159,55 @@ void main() {
         jsonDecode(snapshotJson!) as Map<String, dynamic>;
     expect(snapshot['characterKey'], 2);
     expect(snapshot['snapshotKind'], 'authoritativeAppState');
+  });
+
+  test('periodic callback은 부화 완료 lifecycle 결과를 authoritative snapshot으로 저장한다',
+      () async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      config.worldDataStorageKey,
+      _buildWorldData(
+        state: config.characterStateEgg,
+        characterKey: 0,
+        eggHatch: <String, dynamic>{
+          'hatchTime': 1000,
+          'hatchDurationMs': 1000,
+          'isReadyToHatch': true,
+          'pendingCharacterKey': 22,
+        },
+      ),
+    );
+    final List<String> savedSnapshotJson = <String>[];
+
+    final Map<String, Object?> result =
+        await HomeWidgetBackgroundRefreshService.runPeriodicRefresh(
+      nowMs: 2000,
+      randomProvider: (_) => 1,
+      saveWidgetData: (_, String value) async {
+        savedSnapshotJson.add(value);
+        return true;
+      },
+      updateWidget:
+          ({String? androidName, String? qualifiedAndroidName}) async => true,
+    );
+
+    expect(result['hatched'], isTrue);
+    expect(result['selectedCharacterKey'], 22);
+    final String? snapshotJson =
+        prefs.getString(config.worldDataAuthoritativeSnapshotStorageKey);
+    expect(snapshotJson, isNotNull);
+    final Map<String, dynamic> snapshot =
+        jsonDecode(snapshotJson!) as Map<String, dynamic>;
+    expect(snapshot['snapshotKind'], 'authoritativeAppState');
+    expect(snapshot['characterState'], 'idle');
+    expect(snapshot['characterKey'], 22);
+    expect(snapshot['eggCrackStage'], 0);
+    expect(savedSnapshotJson, isNotEmpty);
+    expect(
+      savedSnapshotJson
+          .map((String value) => jsonDecode(value) as Map<String, dynamic>)
+          .map((Map<String, dynamic> value) => value['characterKey']),
+      everyElement(22),
+    );
   });
 }

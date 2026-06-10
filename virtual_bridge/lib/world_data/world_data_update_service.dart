@@ -1,10 +1,17 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../home_widget/world_data_config.dart' as config;
+import '../home_widget/world_data_sync_service.dart';
 import 'world_data_lifecycle_service.dart';
 import 'world_data_monster_book_service.dart';
 
 const String worldDataUpdateChannelName = 'digivice/world_data';
+
+typedef WorldDataSnapshotSyncPublisher = Future<Map<String, Object?>> Function({
+  required String? rawWorldData,
+  String reason,
+  void Function(String message)? log,
+});
 
 class WorldDataUpdateService {
   static Future<Map<String, Object?>> completeNativeWorldDataUpdate({
@@ -13,6 +20,8 @@ class WorldDataUpdateService {
     int? nowMs,
     WorldDataLifecycleRandomProvider randomProvider =
         WorldDataLifecycleService.deterministicRandomProvider,
+    WorldDataSnapshotSyncPublisher syncSnapshotPublisher =
+        WorldDataSyncService.syncFromWorldDataJson,
   }) async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     final String? rawWorldData = prefs.getString(config.worldDataStorageKey);
@@ -47,6 +56,27 @@ class WorldDataUpdateService {
       result: advanced,
     );
 
+    Map<String, Object?> homeWidgetSyncResult;
+    try {
+      homeWidgetSyncResult = await syncSnapshotPublisher(
+        rawWorldData: advanced.updatedRawWorldData,
+        reason: '${updateSource}_world_data_update',
+        log: log,
+      );
+    } catch (error) {
+      homeWidgetSyncResult = <String, Object?>{
+        'status': 'failed',
+        'reason': '${updateSource}_world_data_update',
+        'hasWorldData': advanced.updatedRawWorldData.isNotEmpty,
+        'hasSnapshot': false,
+        'error': error.toString(),
+      };
+      log?.call(
+        '[WorldDataUpdateService] widget snapshot sync failed '
+        'source=$updateSource error=$error',
+      );
+    }
+
     log?.call(
       '[WorldDataUpdateService] flutter authoritative update completed '
       'source=$updateSource '
@@ -66,10 +96,25 @@ class WorldDataUpdateService {
       'nextCharacterKey=${advanced.evolutionDiagnostics.nextCharacterKey} '
       'monsterBookWriteOwner=${advanced.monsterBookWriteOwner} '
       'monsterBookChanged=${advanced.monsterBookChanged} '
-      'evolutionBlockReason=${advanced.evolutionDiagnostics.blockReason}',
+      'evolutionBlockReason=${advanced.evolutionDiagnostics.blockReason} '
+      'homeWidgetSyncStatus=${homeWidgetSyncResult['status']} '
+      'homeWidgetCurrentPublishStatus=${homeWidgetSyncResult['currentPublishStatus']} '
+      'homeWidgetAuthoritativePublishStatus=${homeWidgetSyncResult['authoritativePublishStatus']} '
+      'homeWidgetSyncedCharacterState=${homeWidgetSyncResult['characterState']} '
+      'homeWidgetSyncedCharacterKey=${homeWidgetSyncResult['characterKey']}',
     );
 
-    return advanced.toMap();
+    return <String, Object?>{
+      ...advanced.toMap(),
+      'homeWidgetSyncStatus': homeWidgetSyncResult['status'],
+      'homeWidgetCurrentPublishStatus':
+          homeWidgetSyncResult['currentPublishStatus'],
+      'homeWidgetAuthoritativePublishStatus':
+          homeWidgetSyncResult['authoritativePublishStatus'],
+      'homeWidgetSyncedCharacterState': homeWidgetSyncResult['characterState'],
+      'homeWidgetSyncedCharacterKey': homeWidgetSyncResult['characterKey'],
+      'homeWidgetSyncResult': homeWidgetSyncResult,
+    };
   }
 
   static Future<void> persistAdvanceResult({

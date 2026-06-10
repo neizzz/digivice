@@ -63,7 +63,86 @@ class HomeWidgetSnapshotTest {
         assertFalse(WorldDataSnapshotFactory.isEggMaturedPastHatchTime(snapshot, nowMs))
     }
 
+    @Test
+    fun `native projection accumulates stamina elapsed and animation frame without authoritative mutation`() {
+        val nowMs = 1_000_000L
+        val authoritativeSnapshot =
+            HomeWidgetDebugPresets.resolveSnapshot(index = 1, nowMs = nowMs).copy(
+                snapshotKind = "authoritativeAppState",
+                characterKey = 1,
+                stamina = 8.0,
+                staminaPercent = 0.8,
+                staminaLevel = "green",
+                updatedAtMs = nowMs,
+                snapshotComputedAtMs = nowMs,
+                projectedElapsedMs = 0L,
+                staminaTimerMs = 0.0,
+            )
 
+        val progressed = WorldDataSnapshotFactory.progressSnapshot(
+            authoritativeSnapshot,
+            nowMs + 24 * 60 * 1000L,
+        )
+
+        checkNotNull(progressed)
+        assertEquals("widgetProgressed", progressed.snapshotKind)
+        assertEquals(24 * 60 * 1000L, progressed.projectedElapsedMs)
+        assertEquals(7.5, progressed.stamina, 0.0001)
+        assertEquals("green", progressed.staminaLevel)
+        assertEquals(
+            ((progressed.updatedAtMs / 1000L) + 1L).mod(4L).toInt(),
+            progressed.animationFrameIndex,
+        )
+        assertEquals("authoritativeAppState", authoritativeSnapshot.snapshotKind)
+        assertEquals(0L, authoritativeSnapshot.projectedElapsedMs)
+        assertEquals(8.0, authoritativeSnapshot.stamina, 0.0001)
+    }
+
+    @Test
+    fun `native egg projection advances crack stage but keeps Flutter hatch authority`() {
+        val nowMs = 1_000_000L
+        val authoritativeEgg =
+            HomeWidgetDebugPresets.resolveSnapshot(index = 0, nowMs = nowMs).copy(
+                snapshotKind = "authoritativeAppState",
+                characterState = "egg",
+                eggTextureKey = 517,
+                eggHatchTimeMs = nowMs + 40 * 60 * 1000L,
+                eggHatchDurationMs = 40 * 60 * 1000L,
+                eggCrackStage = 0,
+                updatedAtMs = nowMs,
+                snapshotComputedAtMs = nowMs,
+                projectedElapsedMs = 0L,
+            )
+
+        val beforeHatch = WorldDataSnapshotFactory.progressSnapshot(
+            authoritativeEgg,
+            nowMs + 20 * 60 * 1000L,
+        )
+        checkNotNull(beforeHatch)
+        val afterHatchTime = WorldDataSnapshotFactory.progressSnapshot(
+            beforeHatch,
+            nowMs + 41 * 60 * 1000L,
+        )
+
+        assertEquals("egg", beforeHatch.characterState)
+        assertEquals(2, beforeHatch.eggCrackStage)
+        assertFalse(
+            WorldDataSnapshotFactory.isEggMaturedPastHatchTime(
+                beforeHatch,
+                nowMs + 20 * 60 * 1000L,
+            ),
+        )
+        checkNotNull(afterHatchTime)
+        assertEquals("egg", afterHatchTime.characterState)
+        assertEquals(3, afterHatchTime.eggCrackStage)
+        assertEquals(41 * 60 * 1000L, afterHatchTime.projectedElapsedMs)
+        assertTrue(
+            WorldDataSnapshotFactory.isEggMaturedPastHatchTime(
+                afterHatchTime,
+                nowMs + 41 * 60 * 1000L,
+            ),
+        )
+    }
 
     @Test
     fun `stale non egg authoritative snapshot requests native refresh`() {

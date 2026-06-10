@@ -126,6 +126,8 @@ void main() {
 
   test('foreground_hatch source는 Dart lifecycle 부화 진단과 저장본을 반환한다', () async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
+    var syncCallCount = 0;
+    String? syncedRawWorldData;
     await prefs.setString(
       config.worldDataStorageKey,
       _buildWorldData(
@@ -145,6 +147,36 @@ void main() {
       source: worldDataLifecycleForegroundHatchSource,
       nowMs: 2000,
       randomProvider: (_) => 1,
+      syncSnapshotPublisher: ({
+        required String? rawWorldData,
+        String reason = 'manual',
+        void Function(String message)? log,
+      }) async {
+        syncCallCount += 1;
+        syncedRawWorldData = rawWorldData;
+
+        final Map<String, dynamic> decoded =
+            jsonDecode(rawWorldData!) as Map<String, dynamic>;
+        final Map<String, dynamic> components =
+            ((decoded['entities'] as List<dynamic>).single
+                as Map<String, dynamic>)['components'] as Map<String, dynamic>;
+        final Map<String, dynamic> object =
+            components['object'] as Map<String, dynamic>;
+        final Map<String, dynamic> characterStatus =
+            components['characterStatus'] as Map<String, dynamic>;
+
+        return <String, Object?>{
+          'status': 'synced',
+          'reason': reason,
+          'hasWorldData': true,
+          'hasSnapshot': true,
+          'characterState': 'idle',
+          'characterKey': characterStatus['characterKey'],
+          'currentPublishStatus': 'ok',
+          'authoritativePublishStatus': 'ok',
+          'verifiedRawState': object['state'],
+        };
+      },
     );
     final Map<String, Object?> diagnostics =
         result['hatchSelectionDiagnostics'] as Map<String, Object?>;
@@ -157,16 +189,34 @@ void main() {
     expect(diagnostics['usedPendingCharacterKey'], isTrue);
     expect(result['updatedRawWorldData'], isA<String>());
     expect(prefs.getString(config.worldDataStorageKey), contains('"state":1'));
+    expect(syncCallCount, 1);
+    expect(syncedRawWorldData, result['updatedRawWorldData']);
+    expect(syncedRawWorldData, contains('"state":1'));
+    expect(result['homeWidgetSyncStatus'], 'synced');
+    expect(result['homeWidgetCurrentPublishStatus'], 'ok');
+    expect(result['homeWidgetAuthoritativePublishStatus'], 'ok');
+    expect(result['homeWidgetSyncedCharacterState'], 'idle');
+    expect(result['homeWidgetSyncedCharacterKey'], 22);
   });
 
   test('world data가 없으면 실패 상태를 반환한다', () async {
+    var syncCallCount = 0;
     final Map<String, Object?> result =
         await WorldDataUpdateService.completeNativeWorldDataUpdate(
       source: 'app_resume',
       nowMs: 60 * 1000,
+      syncSnapshotPublisher: ({
+        required String? rawWorldData,
+        String reason = 'manual',
+        void Function(String message)? log,
+      }) async {
+        syncCallCount += 1;
+        return <String, Object?>{'status': 'unexpected'};
+      },
     );
 
     expect(result['status'], 'flutter_world_data_update_failed');
     expect(result['error'], 'missing_world_data');
+    expect(syncCallCount, 0);
   });
 }
