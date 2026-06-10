@@ -379,6 +379,20 @@ export type ThrowAnimationComponent = {
   maxHeight: number; // 포물선 최대 높이
 };
 
+export type FoodEatingComponent = {
+  targetFood: number;
+  progress: number;
+  duration: number;
+  elapsedTime: number;
+  isActive: boolean;
+};
+
+export type FoodMaskComponent = {
+  maskStoreIndex: number;
+  progress: number;
+  isInitialized: boolean;
+};
+
 /**
  * 새로운 ECS 컴포넌트 타입들
  */

@@ -34,6 +34,8 @@ import {
 	AnimationKey,
 	SpritesheetKey,
 	ThrowAnimationComponent,
+	FoodEatingComponent,
+	FoodMaskComponent,
 	DestinationType,
 	DigestiveSystemComponent,
 	DiseaseSystemComponent,
@@ -453,6 +455,8 @@ export type EntityComponents = {
 	destination?: DestinationComponent;
 	randomMovement?: RandomMovementComponent;
 	throwAnimation?: ThrowAnimationComponent;
+	foodEating?: FoodEatingComponent;
+	foodMask?: FoodMaskComponent;
 	digestiveSystem?: DigestiveSystemComponent;
 	diseaseSystem?: DiseaseSystemComponent;
 	sleepSystem?: SleepSystemComponent;

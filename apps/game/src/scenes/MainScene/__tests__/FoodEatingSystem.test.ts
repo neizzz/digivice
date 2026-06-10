@@ -6,6 +6,7 @@ import {
   CharacterStatusComp,
   DestinationComp,
   FoodEatingComp,
+  FoodMaskComp,
   FreshnessComp,
   ObjectComp,
   PositionComp,
@@ -16,7 +17,11 @@ import {
 } from "../raw-components";
 import { GAME_CONSTANTS } from "../config";
 import { getCharacterStats } from "../characterStats";
-import { repairLoadedFoodInteractionState } from "../entityDataHelpers";
+import {
+  applySavedEntityToECS,
+  convertECSEntityToSavedEntity,
+  repairLoadedFoodInteractionState,
+} from "../entityDataHelpers";
 import {
   foodEatingSystem,
   getStaminaBonusForFoodTexture,
@@ -500,7 +505,7 @@ test("먹기 시작 시 이동 방향이 음식 반대쪽이어도 음식 방향
   assert.notEqual(arrived.approachAngle, arrived.eatingAngle);
 });
 
-test("로드 시 고아 eating 상태를 idle 자유 이동 상태로 복구한다", () => {
+test("로드 시 legacy eating 상태는 BEING_INTAKEN food를 추론해 이어간다", () => {
   const world = createTestWorld({ now: 27_000 });
   const characterEid = withMockedDateNow(27_000, () =>
     createTestCharacter(world, {
@@ -529,11 +534,12 @@ test("로드 시 고아 eating 상태를 idle 자유 이동 상태로 복구한�
     repairLoadedFoodInteractionState(world, world.currentTime);
 
   assert.deepEqual(repairedCharacters, [characterEid]);
-  assert.deepEqual(repairedFoods, [foodEid]);
-  assert.equal(ObjectComp.state[characterEid], CharacterState.IDLE);
-  assert.equal(hasComponent(world, RandomMovementComp, characterEid), true);
-  assert.equal(SpeedComp.value[characterEid], 0);
-  assert.equal(ObjectComp.state[foodEid], FoodState.LANDED);
+  assert.deepEqual(repairedFoods, []);
+  assert.equal(ObjectComp.state[characterEid], CharacterState.EATING);
+  assert.equal(hasComponent(world, RandomMovementComp, characterEid), false);
+  assert.ok(hasComponent(world, FoodEatingComp, characterEid));
+  assert.equal(FoodEatingComp.targetFood[characterEid], foodEid);
+  assert.equal(ObjectComp.state[foodEid], FoodState.BEING_INTAKEN);
 });
 
 test("캐릭터 크기별 식사 접근 위치는 음식 경계와 약 30px 겹친다", () => {
@@ -595,6 +601,66 @@ test("음식 종류별 회복량 helper는 같은 texture에 대해 1~4 범위�
   assert.ok(new Set(bonuses).size > 1);
   assert.ok((counts.get(2) ?? 0) > (counts.get(1) ?? 0));
   assert.ok((counts.get(3) ?? 0) > (counts.get(4) ?? 0));
+});
+
+test("FoodEatingComp와 FoodMaskComp는 저장-로드 시 round-trip된다", () => {
+  const world = createTestWorld({ now: 30_000 });
+  const characterEid = withMockedDateNow(30_000, () =>
+    createTestCharacter(world, {
+      state: CharacterState.EATING,
+      stamina: 2,
+      x: 100,
+      y: 100,
+    }),
+  );
+  const foodEid = createLandedFood(world, {
+    x: 112,
+    y: 112,
+    freshness: Freshness.NORMAL,
+  });
+
+  ObjectComp.state[foodEid] = FoodState.BEING_INTAKEN;
+  addComponent(world, FoodEatingComp, characterEid);
+  FoodEatingComp.targetFood[characterEid] = foodEid;
+  FoodEatingComp.progress[characterEid] = 0.5;
+  FoodEatingComp.duration[characterEid] = 3200;
+  FoodEatingComp.elapsedTime[characterEid] = 1600;
+  FoodEatingComp.isActive[characterEid] = 1;
+  addComponent(world, FoodMaskComp, foodEid);
+  FoodMaskComp.maskStoreIndex[foodEid] = ECS_NULL_VALUE;
+  FoodMaskComp.progress[foodEid] = 0.5;
+  FoodMaskComp.isInitialized[foodEid] = 1;
+
+  const savedCharacter = convertECSEntityToSavedEntity(world, characterEid);
+  const savedFood = convertECSEntityToSavedEntity(world, foodEid);
+
+  assert.deepEqual(savedCharacter.components.foodEating, {
+    targetFood: foodEid,
+    progress: 0.5,
+    duration: 3200,
+    elapsedTime: 1600,
+    isActive: true,
+  });
+  assert.deepEqual(savedFood.components.foodMask, {
+    maskStoreIndex: ECS_NULL_VALUE,
+    progress: 0.5,
+    isInitialized: true,
+  });
+
+  const restoredWorld = createTestWorld({ now: 31_000 });
+  const restoredCharacterEid = addEntity(restoredWorld);
+  const restoredFoodEid = addEntity(restoredWorld);
+  applySavedEntityToECS(restoredWorld, restoredCharacterEid, savedCharacter);
+  applySavedEntityToECS(restoredWorld, restoredFoodEid, savedFood);
+
+  assert.ok(hasComponent(restoredWorld, FoodEatingComp, restoredCharacterEid));
+  assert.ok(hasComponent(restoredWorld, FoodMaskComp, restoredFoodEid));
+  assert.equal(FoodEatingComp.targetFood[restoredCharacterEid], foodEid);
+  assert.equal(FoodEatingComp.progress[restoredCharacterEid], 0.5);
+  assert.equal(FoodEatingComp.elapsedTime[restoredCharacterEid], 1600);
+  assert.equal(FoodEatingComp.isActive[restoredCharacterEid], 1);
+  assert.equal(FoodMaskComp.progress[restoredFoodEid], 0.5);
+  assert.equal(FoodMaskComp.isInitialized[restoredFoodEid], 1);
 });
 
 test("음식 때문에 수면에서 깬 뒤 식사를 마치면 즉시 다시 잠든다", () => {

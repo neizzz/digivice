@@ -28,6 +28,7 @@ import {
   DirtyExposureComp,
   FreshnessTimerComp,
   FoodEatingComp,
+  FoodMaskComp,
 } from "./raw-components";
 import type { SavedEntity, EntityComponents } from "./world";
 import {
@@ -224,6 +225,22 @@ export function convertECSEntityToSavedEntity(
       elapsedTime: ThrowAnimationComp.elapsedTime[eid],
       isActive: ThrowAnimationComp.isActive[eid] === 1,
       maxHeight: 0, // 이제 시스템에서 관리하므로 기본값
+    };
+  }
+  if (hasComponent(world, FoodEatingComp, eid)) {
+    components.foodEating = {
+      targetFood: FoodEatingComp.targetFood[eid],
+      progress: FoodEatingComp.progress[eid],
+      duration: FoodEatingComp.duration[eid],
+      elapsedTime: FoodEatingComp.elapsedTime[eid],
+      isActive: FoodEatingComp.isActive[eid] === 1,
+    };
+  }
+  if (hasComponent(world, FoodMaskComp, eid)) {
+    components.foodMask = {
+      maskStoreIndex: FoodMaskComp.maskStoreIndex[eid],
+      progress: FoodMaskComp.progress[eid],
+      isInitialized: FoodMaskComp.isInitialized[eid] === 1,
     };
   }
   if (hasComponent(world, EggHatchComp, eid)) {
@@ -461,6 +478,26 @@ export function applySavedEntityToECS(
     ThrowAnimationComp.isActive[eid] = components.throwAnimation.isActive
       ? 1
       : 0;
+  }
+
+  if (components.foodEating) {
+    if (!hasComponent(world, FoodEatingComp, eid)) {
+      addComponent(world, FoodEatingComp, eid);
+    }
+    FoodEatingComp.targetFood[eid] = components.foodEating.targetFood;
+    FoodEatingComp.progress[eid] = components.foodEating.progress;
+    FoodEatingComp.duration[eid] = components.foodEating.duration;
+    FoodEatingComp.elapsedTime[eid] = components.foodEating.elapsedTime;
+    FoodEatingComp.isActive[eid] = components.foodEating.isActive ? 1 : 0;
+  }
+
+  if (components.foodMask) {
+    if (!hasComponent(world, FoodMaskComp, eid)) {
+      addComponent(world, FoodMaskComp, eid);
+    }
+    FoodMaskComp.maskStoreIndex[eid] = components.foodMask.maskStoreIndex;
+    FoodMaskComp.progress[eid] = components.foodMask.progress;
+    FoodMaskComp.isInitialized[eid] = components.foodMask.isInitialized ? 1 : 0;
   }
 
   if (components.eggHatch) {
@@ -902,6 +939,50 @@ export function repairLoadedFoodInteractionState(
     const objectType = ObjectComp.type[eid];
 
     if (objectType === ObjectType.CHARACTER) {
+      if (
+        ObjectComp.state[eid] === CharacterState.EATING &&
+        !hasComponent(world, FoodEatingComp, eid)
+      ) {
+        const fallbackFoodEid = objectEntities.find((candidateEid) => {
+          return (
+            ObjectComp.type[candidateEid] === ObjectType.FOOD &&
+            ObjectComp.state[candidateEid] === FoodState.BEING_INTAKEN &&
+            !eatingFoodIds.has(candidateEid)
+          );
+        });
+
+        if (fallbackFoodEid !== undefined) {
+          const progress = hasComponent(world, FoodMaskComp, fallbackFoodEid)
+            ? FoodMaskComp.progress[fallbackFoodEid]
+            : 0;
+          const duration = 3200;
+
+          addComponent(world, FoodEatingComp, eid);
+          FoodEatingComp.targetFood[eid] = fallbackFoodEid;
+          FoodEatingComp.progress[eid] = Math.min(1, Math.max(0, progress));
+          FoodEatingComp.duration[eid] = duration;
+          FoodEatingComp.elapsedTime[eid] =
+            FoodEatingComp.progress[eid] * duration;
+          FoodEatingComp.isActive[eid] = 1;
+
+          if (!hasComponent(world, FoodMaskComp, fallbackFoodEid)) {
+            addComponent(world, FoodMaskComp, fallbackFoodEid);
+            FoodMaskComp.maskStoreIndex[fallbackFoodEid] = ECS_NULL_VALUE;
+            FoodMaskComp.progress[fallbackFoodEid] =
+              FoodEatingComp.progress[eid];
+            FoodMaskComp.isInitialized[fallbackFoodEid] = 0;
+          }
+
+          if (hasComponent(world, FreshnessTimerComp, fallbackFoodEid)) {
+            FreshnessTimerComp.isBeingEaten[fallbackFoodEid] = 1;
+          }
+
+          eatingFoodIds.add(fallbackFoodEid);
+          repairedCharacters.push(eid);
+          continue;
+        }
+      }
+
       const hasOrphanedEatingState =
         ObjectComp.state[eid] === CharacterState.EATING &&
         !hasComponent(world, FoodEatingComp, eid);

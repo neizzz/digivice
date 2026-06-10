@@ -10,6 +10,7 @@ import {
   DestinationComp,
   DiseaseSystemComp,
   FoodEatingComp,
+  FoodMaskComp,
   FreshnessComp,
   ObjectComp,
   PositionComp,
@@ -17,7 +18,11 @@ import {
   SleepSystemComp,
 } from "../raw-components";
 import { GAME_CONSTANTS } from "../config";
-import { repairLoadedFoodInteractionState } from "../entityDataHelpers";
+import {
+  applySavedEntityToECS,
+  convertECSEntityToSavedEntity,
+  repairLoadedFoodInteractionState,
+} from "../entityDataHelpers";
 import {
   foodEatingSystem,
   releaseTargetedFoodForCharacter,
@@ -132,4 +137,60 @@ test("food entity ref는 eid 0이어도 target/release/disease/eating/repair 경
   repaired = repairLoadedFoodInteractionState(world, now);
   assert.deepEqual(repaired.repairedFoods, []);
   assert.equal(ObjectComp.state[foodEid], FoodState.BEING_INTAKEN);
+});
+
+test("food를 먹는 중인 상태는 저장 후 복원해도 유지된다", () => {
+  const now = 20_000;
+  const world = createTestWorld({ now });
+  const foodEid = addEntity(world);
+  addComponent(world, ObjectComp, foodEid);
+  addComponent(world, PositionComp, foodEid);
+  addComponent(world, RenderComp, foodEid);
+  addComponent(world, FreshnessComp, foodEid);
+  ObjectComp.id[foodEid] = 10_000 + foodEid;
+  ObjectComp.type[foodEid] = ObjectType.FOOD;
+  ObjectComp.state[foodEid] = FoodState.LANDED;
+  PositionComp.x[foodEid] = 160;
+  PositionComp.y[foodEid] = 120;
+  RenderComp.storeIndex[foodEid] = ECS_NULL_VALUE;
+  RenderComp.textureKey[foodEid] = TextureKey.FOOD1;
+  RenderComp.scale[foodEid] = 1.4;
+  RenderComp.zIndex[foodEid] = ECS_NULL_VALUE;
+  FreshnessComp.freshness[foodEid] = Freshness.NORMAL;
+  const characterEid = withMockedDateNow(now, () =>
+    createTestCharacter(world, {
+      state: CharacterState.EATING,
+      stamina: 2,
+      x: 140,
+      y: 120,
+    }),
+  );
+
+  ObjectComp.state[foodEid] = FoodState.BEING_INTAKEN;
+  addComponent(world, FoodEatingComp, characterEid);
+  FoodEatingComp.targetFood[characterEid] = foodEid;
+  FoodEatingComp.progress[characterEid] = 0.25;
+  FoodEatingComp.duration[characterEid] = 3200;
+  FoodEatingComp.elapsedTime[characterEid] = 800;
+  FoodEatingComp.isActive[characterEid] = 1;
+  addComponent(world, FoodMaskComp, foodEid);
+  FoodMaskComp.maskStoreIndex[foodEid] = ECS_NULL_VALUE;
+  FoodMaskComp.progress[foodEid] = 0.25;
+  FoodMaskComp.isInitialized[foodEid] = 1;
+
+  const savedFood = convertECSEntityToSavedEntity(world, foodEid);
+  const savedCharacter = convertECSEntityToSavedEntity(world, characterEid);
+  const restoredWorld = createTestWorld({ now: now + 1000 });
+  const restoredFoodEid = addEntity(restoredWorld);
+  const restoredCharacterEid = addEntity(restoredWorld);
+
+  applySavedEntityToECS(restoredWorld, restoredFoodEid, savedFood);
+  applySavedEntityToECS(restoredWorld, restoredCharacterEid, savedCharacter);
+
+  assert.equal(ObjectComp.state[restoredCharacterEid], CharacterState.EATING);
+  assert.equal(ObjectComp.state[restoredFoodEid], FoodState.BEING_INTAKEN);
+  assert.ok(hasComponent(restoredWorld, FoodEatingComp, restoredCharacterEid));
+  assert.equal(FoodEatingComp.targetFood[restoredCharacterEid], foodEid);
+  assert.equal(FoodEatingComp.elapsedTime[restoredCharacterEid], 800);
+  assert.ok(hasComponent(restoredWorld, FoodMaskComp, restoredFoodEid));
 });

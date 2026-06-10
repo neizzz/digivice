@@ -21,6 +21,11 @@ String _buildWorldData({
   int sleepSessionStartedAt = 0,
   Map<String, dynamic>? mutationRisk,
   Map<String, dynamic>? eggHatch,
+  Map<String, dynamic>? position,
+  Map<String, dynamic>? speed,
+  Map<String, dynamic>? destination,
+  Map<String, dynamic>? foodEating,
+  Map<String, dynamic>? digestiveSystem,
   Map<String, dynamic>? monsterBook,
   List<Map<String, dynamic>> extraEntities = const <Map<String, dynamic>>[],
 }) {
@@ -46,6 +51,10 @@ String _buildWorldData({
             'state': state,
           },
           'render': <String, dynamic>{'textureKey': 1},
+          if (position != null) 'position': position,
+          if (speed != null) 'speed': speed,
+          if (destination != null) 'destination': destination,
+          if (foodEating != null) 'foodEating': foodEating,
           'eggHatch': <String, dynamic>{
             'hatchTime': 0,
             'hatchDurationMs': 0,
@@ -65,6 +74,13 @@ String _buildWorldData({
             'statuses': statuses,
           },
           if (mutationRisk != null) 'mutationRisk': mutationRisk,
+          'digestiveSystem': <String, dynamic>{
+            'capacity': 5.0,
+            'currentLoad': 0.0,
+            'nextPoopTime': 0,
+            'nextSmallPoopTime': 0,
+            ...?digestiveSystem,
+          },
           'diseaseSystem': <String, dynamic>{
             'nextCheckTime': nextDiseaseCheckTime,
             'sickStartTime': 0,
@@ -89,6 +105,10 @@ String _buildWorldData({
 
 Map<String, dynamic> _buildFoodEntity({
   int id = 201,
+  int state = 2,
+  int textureKey = 400,
+  Map<String, dynamic>? position,
+  Map<String, dynamic>? foodMask,
   int? freshness,
   int? legacyFoodFreshness,
 }) {
@@ -97,8 +117,11 @@ Map<String, dynamic> _buildFoodEntity({
       'object': <String, dynamic>{
         'id': id,
         'type': worldDataLifecycleFoodObjectType,
-        'state': 2,
+        'state': state,
       },
+      if (position != null) 'position': position,
+      'render': <String, dynamic>{'textureKey': textureKey},
+      if (foodMask != null) 'foodMask': foodMask,
       if (freshness != null)
         'freshness': <String, dynamic>{
           'freshness': freshness,
@@ -127,6 +150,16 @@ Map<String, dynamic> _object(Map<String, dynamic> worldData) =>
 Map<String, dynamic> _components(Map<String, dynamic> worldData) =>
     (((worldData['entities'] as List<dynamic>).first
         as Map<String, dynamic>)['components']) as Map<String, dynamic>;
+
+List<dynamic> _entities(Map<String, dynamic> worldData) =>
+    worldData['entities'] as List<dynamic>;
+
+Map<String, dynamic> _entityComponentsAt(
+  Map<String, dynamic> worldData,
+  int index,
+) =>
+    ((_entities(worldData)[index] as Map<String, dynamic>)['components'])
+        as Map<String, dynamic>;
 
 Map<String, dynamic> _sleepSystem(Map<String, dynamic> worldData) =>
     (((worldData['entities'] as List<dynamic>).single
@@ -783,6 +816,137 @@ void main() {
     expect(_monsterBookRecords(updated, 1), hasLength(1));
     expect(_monsterBookRecords(updated, 2), hasLength(1));
     expect(_monsterBookRecords(updated, 3), hasLength(1));
+  });
+
+  test('eating 중 장시간 이탈하면 Dart lifecycle이 음식 제거와 회복을 완료한다', () {
+    final WorldDataLifecycleAdvanceResult result =
+        WorldDataLifecycleService.advanceWorldData(
+      rawWorldData: _buildWorldData(
+        state: config.characterStateEating,
+        stamina: 2,
+        nextDiseaseCheckTime: 60 * 60 * 1000,
+        foodEating: <String, dynamic>{
+          'targetFood': 1,
+          'progress': 0.3125,
+          'duration': worldDataLifecycleFoodEatingDurationMs,
+          'elapsedTime': 1000,
+          'isActive': true,
+        },
+        extraEntities: <Map<String, dynamic>>[
+          _buildFoodEntity(
+            state: worldDataLifecycleFoodStateBeingIntaken,
+            textureKey: 405,
+            foodMask: <String, dynamic>{
+              'progress': 0.3125,
+              'isInitialized': true,
+            },
+          ),
+        ],
+      ),
+      nowMs: 3 * 1000,
+      source: 'app_resume',
+      randomProvider: (_) => 1,
+    );
+
+    final Map<String, dynamic> updated = _decode(result.updatedRawWorldData);
+    final Map<String, dynamic> components = _components(updated);
+
+    expect(_entities(updated), hasLength(1));
+    expect((components['object'] as Map<String, dynamic>)['state'],
+        config.characterStateIdle);
+    expect(
+        (components['characterStatus'] as Map<String, dynamic>)['stamina'], 6);
+    expect(
+        (components['digestiveSystem'] as Map<String, dynamic>)['currentLoad'],
+        1.5);
+    expect(components.containsKey('foodEating'), isFalse);
+  });
+
+  test('moving-to-food 중 충분히 이탈하면 이동과 섭취를 완료한다', () {
+    final WorldDataLifecycleAdvanceResult result =
+        WorldDataLifecycleService.advanceWorldData(
+      rawWorldData: _buildWorldData(
+        state: config.characterStateMoving,
+        stamina: 5,
+        nextDiseaseCheckTime: 60 * 60 * 1000,
+        position: <String, dynamic>{'x': 0, 'y': 0},
+        speed: <String, dynamic>{'value': 0.01},
+        destination: <String, dynamic>{
+          'type': worldDataLifecycleDestinationTypeTargeted,
+          'target': 1,
+          'x': 10,
+          'y': 0,
+        },
+        extraEntities: <Map<String, dynamic>>[
+          _buildFoodEntity(
+            state: worldDataLifecycleFoodStateTargeted,
+            textureKey: 400,
+            position: <String, dynamic>{'x': 12, 'y': 0},
+          ),
+        ],
+      ),
+      nowMs: 5 * 1000,
+      source: 'app_resume',
+      randomProvider: (_) => 1,
+    );
+
+    final Map<String, dynamic> updated = _decode(result.updatedRawWorldData);
+    final Map<String, dynamic> components = _components(updated);
+
+    expect(_entities(updated), hasLength(1));
+    expect((components['object'] as Map<String, dynamic>)['state'],
+        config.characterStateIdle);
+    expect(
+        (components['characterStatus'] as Map<String, dynamic>)['stamina'], 6);
+    expect((components['position'] as Map<String, dynamic>)['x'], 10);
+    expect(components.containsKey('destination'), isFalse);
+  });
+
+  test('완료까지 시간이 부족하면 eating pending 상태를 유지한다', () {
+    final WorldDataLifecycleAdvanceResult result =
+        WorldDataLifecycleService.advanceWorldData(
+      rawWorldData: _buildWorldData(
+        state: config.characterStateEating,
+        stamina: 2,
+        nextDiseaseCheckTime: 60 * 60 * 1000,
+        foodEating: <String, dynamic>{
+          'targetFood': 1,
+          'progress': 0.3125,
+          'duration': worldDataLifecycleFoodEatingDurationMs,
+          'elapsedTime': 1000,
+          'isActive': true,
+        },
+        extraEntities: <Map<String, dynamic>>[
+          _buildFoodEntity(
+            state: worldDataLifecycleFoodStateBeingIntaken,
+            foodMask: <String, dynamic>{
+              'progress': 0.3125,
+              'isInitialized': true,
+            },
+          ),
+        ],
+      ),
+      nowMs: 1000,
+      source: 'app_resume',
+      randomProvider: (_) => 1,
+    );
+
+    final Map<String, dynamic> updated = _decode(result.updatedRawWorldData);
+    final Map<String, dynamic> characterComponents = _components(updated);
+    final Map<String, dynamic> foodComponents = _entityComponentsAt(updated, 1);
+    final Map<String, dynamic> foodEating =
+        characterComponents['foodEating'] as Map<String, dynamic>;
+    final Map<String, dynamic> foodMask =
+        foodComponents['foodMask'] as Map<String, dynamic>;
+
+    expect(_entities(updated), hasLength(2));
+    expect((characterComponents['object'] as Map<String, dynamic>)['state'],
+        config.characterStateEating);
+    expect((foodComponents['object'] as Map<String, dynamic>)['state'],
+        worldDataLifecycleFoodStateBeingIntaken);
+    expect(foodEating['elapsedTime'], 2000);
+    expect(foodEating['progress'], closeTo(0.625, 1e-12));
+    expect(foodMask['progress'], closeTo(0.625, 1e-12));
   });
 
   test('last_ecs_saved, last_active_time, authoritative snapshot이 갱신된다', () {
