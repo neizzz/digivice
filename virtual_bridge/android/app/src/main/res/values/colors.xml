@@ -5,9 +5,9 @@
     <color name="home_widget_bg_sunrise">#F4B66A</color>
     <color name="home_widget_bg_sunset">#D98563</color>
     <color name="home_widget_bg_night">#2C3558</color>
-    <color name="home_widget_stamina_green">#72D95A</color>
-    <color name="home_widget_stamina_orange">#F6AA3B</color>
-    <color name="home_widget_stamina_red">#F26B6B</color>
+    <color name="home_widget_stamina_green">#49A95D</color>
+    <color name="home_widget_stamina_orange">#F2A33A</color>
+    <color name="home_widget_stamina_red">#E2554B</color>
     <color name="home_widget_accent_idle">#FFF6D2</color>
     <color name="home_widget_accent_sleep">#A9C8FF</color>
     <color name="home_widget_accent_sick">#FFB3B3</color>
