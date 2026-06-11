@@ -305,6 +305,16 @@ function getOverlayIconTextureName(
   return STATUS_TO_TEXTURE_NAME[latestTemporary] ?? null;
 }
 
+function getTemporaryStatusFromComponent(eid: number): CharacterStatus | null {
+  const status = TemporaryStatusComp.statusType[eid] as CharacterStatus;
+
+  if (!TEMPORARY_STATUSES.includes(status)) {
+    return null;
+  }
+
+  return status;
+}
+
 function collectEffectiveStatuses(eid: number): CharacterStatus[] {
   const statuses = CharacterStatusComp.statuses[eid];
   const allStatuses: CharacterStatus[] = [];
@@ -320,6 +330,14 @@ function collectEffectiveStatuses(eid: number): CharacterStatus[] {
       hasSickStatus = true;
     }
     allStatuses.push(status);
+  }
+
+  const temporaryStatus = getTemporaryStatusFromComponent(eid);
+  if (
+    temporaryStatus !== null &&
+    !allStatuses.includes(temporaryStatus)
+  ) {
+    allStatuses.push(temporaryStatus);
   }
 
   if (ObjectComp.state[eid] === CharacterState.SICK && !hasSickStatus) {
