@@ -38,6 +38,9 @@ cd "$(dirname "$0")/.."
 echo "🔁 Syncing Flutter app version..."
 node ./scripts/sync-app-version.mjs
 
+echo "🔁 Syncing world data constants..."
+dart virtual_bridge/tool/generate_world_data_constants.dart
+
 # apps/client 빌드
 echo "📦 Building apps/client..."
 cd apps/client

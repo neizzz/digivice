@@ -1,29 +1,29 @@
 {
-  "name": "digivice",
-  "version": "0.0.0",
-  "private": true,
-  "scripts": {
-    "sync:versions": "node ./scripts/sync-app-version.mjs",
-    "version:bump:patch": "node ./scripts/bump-app-version.mjs patch",
-    "version:bump:minor": "node ./scripts/bump-app-version.mjs minor",
-    "version:bump:major": "node ./scripts/bump-app-version.mjs major",
-    "version:bump:build": "node ./scripts/bump-app-version.mjs build",
-    "version:set": "node ./scripts/bump-app-version.mjs set-version",
-    "dev": "pnpm --filter @digivice/client dev",
-    "dev:minigame": "pnpm --filter @digivice/client dev:minigame",
-    "build": "pnpm --filter @digivice/client build",
-    "dev:monster-animations": "pnpm --filter @digivice/client dev:monster-animations",
-    "dev:evolution-admin": "pnpm --filter @digivice/client dev:evolution-admin"
-  },
-  "workspaces": [
-    "apps/*"
-  ],
-  "author": "",
-  "description": "",
-  "devDependencies": {
-    "@biomejs/biome": "^1.9.4"
-  },
-  "keywords": [],
-  "license": "ISC",
-  "packageManager": "pnpm@10.6.2"
+	"name": "digivice",
+	"version": "0.0.0",
+	"private": true,
+	"scripts": {
+		"sync:versions": "node ./scripts/sync-app-version.mjs",
+		"version:bump:patch": "node ./scripts/bump-app-version.mjs patch",
+		"version:bump:minor": "node ./scripts/bump-app-version.mjs minor",
+		"version:bump:major": "node ./scripts/bump-app-version.mjs major",
+		"version:bump:build": "node ./scripts/bump-app-version.mjs build",
+		"version:set": "node ./scripts/bump-app-version.mjs set-version",
+		"dev": "pnpm --filter @digivice/client dev",
+		"dev:minigame": "pnpm --filter @digivice/client dev:minigame",
+		"build": "pnpm run sync:world-data-constants && pnpm --filter @digivice/client build",
+		"dev:monster-animations": "pnpm --filter @digivice/client dev:monster-animations",
+		"dev:evolution-admin": "pnpm --filter @digivice/client dev:evolution-admin",
+		"sync:world-data-constants": "dart virtual_bridge/tool/generate_world_data_constants.dart",
+		"check:world-data-constants": "dart virtual_bridge/tool/generate_world_data_constants.dart --check"
+	},
+	"workspaces": ["apps/*"],
+	"author": "",
+	"description": "",
+	"devDependencies": {
+		"@biomejs/biome": "^1.9.4"
+	},
+	"keywords": [],
+	"license": "ISC",
+	"packageManager": "pnpm@10.6.2"
 }

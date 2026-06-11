@@ -1,85 +1,16 @@
+export 'world_data_constants.dart'
+    show
+        worldDataLifecycleDefaultCompletedStatus,
+        worldDataLifecycleForegroundHatchSource,
+        worldDataLifecycleWidgetPeriodicRefreshSource,
+        worldDataLifecycleSkullSlimeA1CharacterKey;
 import 'dart:convert';
 import 'dart:math' as math;
 
-import '../home_widget/world_data_config.dart' as config;
-import '../home_widget/world_data_sync_service.dart';
-import 'world_data_evolution_specs.dart';
+import 'world_data_config.dart' as config;
+import 'world_data_sync_service.dart';
+import 'world_data_constants.dart';
 import 'world_data_monster_book_service.dart';
-
-const int worldDataLifecycleMinTickMs = 1000;
-const int worldDataLifecycleMaxTickMs = 60 * 1000;
-const int worldDataLifecycleDiseaseCheckIntervalMs = 10 * 1000;
-const double worldDataLifecycleBaseDiseaseRate = 0.0001862601875783909;
-const double worldDataLifecycleLowStaminaDiseaseBonus = 0.000093;
-const double worldDataLifecycleVeryLowStaminaDiseaseBonus = 0.000186;
-const double worldDataLifecyclePoopDiseaseRate = 0.000093;
-const double worldDataLifecycleStaleFoodDiseaseRate = 0.000093;
-const double worldDataLifecycleSleepingDiseaseRateMultiplier = 0.1;
-const int worldDataLifecyclePoopObjectType = 4;
-const int worldDataLifecycleFoodObjectType = 3;
-const int worldDataLifecycleFoodFreshnessFresh = 1;
-const int worldDataLifecycleFoodFreshnessNormal = 2;
-const int worldDataLifecycleFoodFreshnessStale = 3;
-const int worldDataLifecycleFoodStateBeingThrowing = 1;
-const int worldDataLifecycleFoodStateLanded = 2;
-const int worldDataLifecycleFoodStateBeingIntaken = 3;
-const int worldDataLifecycleFoodStateTargeted = 4;
-const int worldDataLifecycleFoodNormalToStaleMs = 10 * 60 * 1000;
-const int worldDataLifecycleDestinationTypeNull = 0;
-const int worldDataLifecycleDestinationTypeTargeted = 3;
-const int worldDataLifecycleFoodEatingDurationMs = 3200;
-const int worldDataLifecycleFoodTextureKeyMin = 400;
-const int worldDataLifecycleFoodTextureKeyMax = 463;
-const double worldDataLifecycleDefaultFoodStaminaBonus = 2;
-const List<int> worldDataLifecycleFoodStaminaBonusDistribution = <int>[
-  1,
-  2,
-  2,
-  3,
-  3,
-  4
-];
-const double worldDataLifecycleDigestiveCapacity = 5.0;
-const double worldDataLifecycleDigestiveLoadPerMeal = 1.5;
-const int worldDataLifecyclePoopDelayMs = 20 * 60 * 1000;
-const int worldDataLifecycleSmallPoopDelayMs = 8 * 60 * 60 * 1000;
-const double worldDataLifecycleVeryLowStaminaThreshold = 1.5;
-const double worldDataLifecycleEvolutionMaxGauge = 100;
-const int worldDataLifecycleEvolutionCheckIntervalMs = 10 * 1000;
-const double worldDataLifecycleEvolutionGaugeGainMultiplier = 1.1;
-const double worldDataLifecycleSleepingEvolutionTimeMultiplier = 1 / 3;
-const double worldDataLifecycleBoostedEvolutionGaugeGainMultiplier = 1.2;
-const int worldDataLifecycleTextureKeyNull = 0;
-const int worldDataLifecycleAnimationKeyIdle = 1;
-const double worldDataLifecycleFatigueMax = 100;
-const double worldDataLifecycleFatigueDefault = 35;
-const double worldDataLifecycleFatigueAwakeGainPerHour = 9.5;
-const double worldDataLifecycleFatigueSleepRecoveryPerHour = 12;
-const double worldDataLifecycleFatigueSleepRecoveryPerHourWhenSick = 6;
-const double worldDataLifecycleDayNapChance = 0.07;
-const int worldDataLifecycleDayNapCheckIntervalMs = 20 * 60 * 1000;
-const int worldDataLifecycleDayNapMinDurationMs = 30 * 60 * 1000;
-const int worldDataLifecycleDayNapMaxDurationMs = 90 * 60 * 1000;
-const double worldDataLifecycleFatigueDayNapMinThreshold = 55;
-const double worldDataLifecycleFatigueDayNapWakeThreshold = 48;
-const int worldDataLifecycleSleepModeAwake = 0;
-const int worldDataLifecycleSleepModeNightSleep = 1;
-const int worldDataLifecycleSleepModeDayNap = 2;
-const int worldDataLifecycleSleepReasonNone = 0;
-const int worldDataLifecycleSleepReasonNap = 3;
-const int worldDataLifecycleEggHatchMaxBonusCount = 10;
-const int worldDataLifecycleEggHatchBaseGreenPercent = 65;
-const int worldDataLifecycleEggHatchBaseSoilPercent = 20;
-const int worldDataLifecycleEggHatchBaseSkullPercent = 15;
-const int worldDataLifecycleEggHatchBonusPerCountPercent = 2;
-const int worldDataLifecycleGreenSlimeA1CharacterKey = 1;
-const int worldDataLifecycleSkullSlimeA1CharacterKey = 14;
-const int worldDataLifecycleSoilSlimeA1CharacterKey = 22;
-const String worldDataLifecycleDefaultCompletedStatus =
-    'flutter_world_data_update_completed';
-const String worldDataLifecycleForegroundHatchSource = 'foreground_hatch';
-const String worldDataLifecycleWidgetPeriodicRefreshSource =
-    'widget_periodic_refresh';
 
 class WorldDataLifecycleRandomEvent {
   final int objectId;
@@ -233,6 +164,7 @@ class WorldDataLifecycleAdvanceResult {
       'monsterBookWriteOwner': monsterBookWriteOwner,
       'previousCharacterState': previousCharacterState,
       'nextCharacterState': nextCharacterState,
+      'nowMs': nowMs,
       'elapsedMs': elapsedMs,
       'tickCount': tickCount,
       'tickDurationsMs': tickDurationsMs,
@@ -1740,16 +1672,10 @@ class WorldDataLifecycleService {
   }
 
   static double _calculateDiseaseRate(
-    _MutableCharacterSource character,
+    _MutableCharacterSource _,
     List<dynamic> entities,
   ) {
-    final double stamina = character.stamina ?? config.maxStamina;
     double diseaseRate = worldDataLifecycleBaseDiseaseRate;
-    if (stamina <= worldDataLifecycleVeryLowStaminaThreshold) {
-      diseaseRate += worldDataLifecycleVeryLowStaminaDiseaseBonus;
-    } else if (stamina <= config.lowStaminaThreshold) {
-      diseaseRate += worldDataLifecycleLowStaminaDiseaseBonus;
-    }
     diseaseRate +=
         _countObjectsInWorld(entities, worldDataLifecyclePoopObjectType) *
             worldDataLifecyclePoopDiseaseRate;
@@ -2041,20 +1967,14 @@ class WorldDataLifecycleService {
     required int objectId,
     required int phase,
   }) {
-    final double targetDurationMs = switch (classCode) {
-      'A' => 20 * 60 * 60 * 1000,
-      'B' => 40 * 60 * 60 * 1000,
-      'C' => 60 * 60 * 60 * 1000,
-      'D' => 80 * 60 * 60 * 1000,
-      _ => 0,
-    };
-    final double varianceMs = switch (classCode) {
-      'A' => 2 * 60 * 60 * 1000,
-      'B' => 4 * 60 * 60 * 1000,
-      'C' => 6 * 60 * 60 * 1000,
-      'D' => 8 * 60 * 60 * 1000,
-      _ => 0,
-    };
+    final double targetDurationMs =
+        worldDataLifecycleEvolutionTargetDurationByClassMs[classCode]
+                ?.toDouble() ??
+            0;
+    final double varianceMs =
+        worldDataLifecycleEvolutionTargetDurationVarianceByClassMs[classCode]
+                ?.toDouble() ??
+            0;
     if (targetDurationMs <= 0) {
       return 0;
     }
@@ -2063,10 +1983,9 @@ class WorldDataLifecycleService {
     if (durationMs <= 0) {
       return 0;
     }
-    return ((worldDataLifecycleEvolutionMaxGauge *
-                worldDataLifecycleEvolutionCheckIntervalMs) /
-            durationMs) *
-        worldDataLifecycleEvolutionGaugeGainMultiplier;
+    return (worldDataLifecycleEvolutionMaxGauge *
+            worldDataLifecycleEvolutionCheckIntervalMs) /
+        durationMs;
   }
 
   static int _advanceCheckTime(int? current, int nowMs, int intervalMs) {

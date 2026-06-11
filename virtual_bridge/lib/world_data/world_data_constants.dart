@@ -298,9 +298,6 @@ const double worldDataLifecycleEvolutionMaxGauge = 100;
 /// 진화 게이지 증가 여부를 검사하는 주기입니다.
 const int worldDataLifecycleEvolutionCheckIntervalMs = 10 * 1000;
 
-/// 진화 게이지 증가량 전체에 적용하는 공통 배율입니다.
-const double worldDataLifecycleEvolutionGaugeGainMultiplier = 1.1;
-
 /// 수면 중 진화 게이지 시간 진행에 적용하는 배율입니다.
 const double worldDataLifecycleSleepingEvolutionTimeMultiplier = 1 / 3;
 
@@ -310,27 +307,27 @@ const double worldDataLifecycleBoostedEvolutionGaugeGainMultiplier = 1.3;
 /// 클래스별 목표 진화 시간입니다. 실제 gain은 max gauge와 이 시간을 기반으로 계산됩니다.
 const Map<String, int> worldDataLifecycleEvolutionTargetDurationByClassMs =
     <String, int>{
-  // 'A': 20 * hourMs,
-  // 'B': 40 * hourMs,
-  // 'C': 60 * hourMs,
-  // 'D': 80 * hourMs,
-  'A': 10 * minuteMs, // DEBUG
-  'B': 10 * minuteMs, // DEBUG
-  'C': 10 * minuteMs, // DEBUG
-  'D': 10 * minuteMs, // DEBUG
+  'A': 20 * hourMs,
+  'B': 40 * hourMs,
+  'C': 60 * hourMs,
+  'D': 60 * hourMs,
+  // 'A': 10 * minuteMs, // DEBUG
+  // 'B': 10 * minuteMs, // DEBUG
+  // 'C': 10 * minuteMs, // DEBUG
+  // 'D': 10 * minuteMs, // DEBUG
 };
 
 /// 클래스별 목표 진화 시간에 적용하는 랜덤 편차입니다.
 const Map<String, int>
     worldDataLifecycleEvolutionTargetDurationVarianceByClassMs = <String, int>{
-  // 'A': 2 * hourMs,
-  // 'B': 4 * hourMs,
-  // 'C': 6 * hourMs,
-  // 'D': 8 * hourMs,
-  'A': 0 * hourMs, // DEBUG
-  'B': 0 * hourMs, // DEBUG
-  'C': 0 * hourMs, // DEBUG
-  'D': 0 * hourMs, // DEBUG
+  'A': 2 * hourMs,
+  'B': 4 * hourMs,
+  'C': 6 * hourMs,
+  'D': 6 * hourMs,
+  // 'A': 0 * hourMs, // DEBUG
+  // 'B': 0 * hourMs, // DEBUG
+  // 'C': 0 * hourMs, // DEBUG
+  // 'D': 0 * hourMs, // DEBUG
 };
 
 /// texture/store index가 없음을 나타내는 null texture key입니다.

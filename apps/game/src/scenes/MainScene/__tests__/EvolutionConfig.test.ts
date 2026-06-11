@@ -4,7 +4,6 @@ import { CharacterClass } from "../../../types/Character";
 import {
   canEvolveFromConfig,
   DEV_EVOLUTION_GAUGE_CONFIG,
-  EVOLUTION_GAUGE_GAIN_MULTIPLIER,
   MONSTER_CHARACTER_KEYS,
   MONSTER_EVOLUTION_RARITIES,
   PRODUCTION_EVOLUTION_GAUGE_CONFIG,
@@ -21,7 +20,7 @@ import {
 } from "../evolutionConfig";
 import { CharacterKeyECS } from "../types";
 
-const HOUR_MS = 60 * 60 * 1000;
+const MINUTE_MS = 60 * 1000;
 
 test("모든 몬스터 진화 후보 weight는 유효한 정수 범위여야 한다", () => {
   for (const characterKey of MONSTER_CHARACTER_KEYS) {
@@ -205,18 +204,18 @@ test("production 진화 목표 시간은 클래스별 기대 범위 안에서 �
   const cases = [
     {
       characterKey: CharacterKeyECS.GreenSlimeA1,
-      expectedDurationMs: 20 * HOUR_MS,
-      varianceMs: 2 * HOUR_MS,
+      expectedDurationMs: 10 * MINUTE_MS,
+      varianceMs: 0,
     },
     {
       characterKey: CharacterKeyECS.GreenSlimeB1,
-      expectedDurationMs: 40 * HOUR_MS,
-      varianceMs: 4 * HOUR_MS,
+      expectedDurationMs: 10 * MINUTE_MS,
+      varianceMs: 0,
     },
     {
       characterKey: CharacterKeyECS.GreenSlimeC1,
-      expectedDurationMs: 60 * HOUR_MS,
-      varianceMs: 6 * HOUR_MS,
+      expectedDurationMs: 10 * MINUTE_MS,
+      varianceMs: 0,
     },
   ];
 
@@ -241,28 +240,28 @@ test("레벨별 예상 진화 시간 표시는 production 기준 시간/분산�
   assert.deepEqual(getEvolutionPhaseDurationEstimate(1), {
     phase: 1,
     classCode: "A",
-    expectedDurationMs: 20 * HOUR_MS,
-    varianceMs: 2 * HOUR_MS,
-    minDurationMs: 18 * HOUR_MS,
-    maxDurationMs: 22 * HOUR_MS,
+    expectedDurationMs: 10 * MINUTE_MS,
+    varianceMs: 0,
+    minDurationMs: 10 * MINUTE_MS,
+    maxDurationMs: 10 * MINUTE_MS,
     canEvolve: true,
   });
   assert.deepEqual(getEvolutionPhaseDurationEstimate(2), {
     phase: 2,
     classCode: "B",
-    expectedDurationMs: 40 * HOUR_MS,
-    varianceMs: 4 * HOUR_MS,
-    minDurationMs: 36 * HOUR_MS,
-    maxDurationMs: 44 * HOUR_MS,
+    expectedDurationMs: 10 * MINUTE_MS,
+    varianceMs: 0,
+    minDurationMs: 10 * MINUTE_MS,
+    maxDurationMs: 10 * MINUTE_MS,
     canEvolve: true,
   });
   assert.deepEqual(getEvolutionPhaseDurationEstimate(3), {
     phase: 3,
     classCode: "C",
-    expectedDurationMs: 60 * HOUR_MS,
-    varianceMs: 6 * HOUR_MS,
-    minDurationMs: 54 * HOUR_MS,
-    maxDurationMs: 66 * HOUR_MS,
+    expectedDurationMs: 10 * MINUTE_MS,
+    varianceMs: 0,
+    minDurationMs: 10 * MINUTE_MS,
+    maxDurationMs: 10 * MINUTE_MS,
     canEvolve: true,
   });
   assert.deepEqual(getEvolutionPhaseDurationEstimate(4), {
@@ -278,9 +277,9 @@ test("레벨별 예상 진화 시간 표시는 production 기준 시간/분산�
   assert.equal(getEvolutionPhaseDurationEstimate(99), null);
 });
 
-test("production/dev 기본 진화게이지 gain은 기존 대비 10% 증가한다", () => {
+test("production/dev 기본 진화게이지 gain은 target duration 기준으로 계산한다", () => {
   const productionExpectedClassAGain =
-    ((100 * 10_000) / (20 * HOUR_MS)) * EVOLUTION_GAUGE_GAIN_MULTIPLIER;
+    (100 * 10_000) / (10 * MINUTE_MS);
 
   assert.ok(
     Math.abs(
@@ -290,7 +289,7 @@ test("production/dev 기본 진화게이지 gain은 기존 대비 10% 증가한�
   );
   assert.equal(
     DEV_EVOLUTION_GAUGE_CONFIG.gaugeGainByClass[CharacterClass.A],
-    EVOLUTION_GAUGE_GAIN_MULTIPLIER,
+    productionExpectedClassAGain,
   );
 });
 

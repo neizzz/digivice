@@ -1,8 +1,9 @@
 import 'dart:convert';
 import 'dart:math' as math;
 
-import 'package:digivice_virtual_bridge/home_widget/world_data_config.dart'
+import 'package:digivice_virtual_bridge/world_data/world_data_config.dart'
     as config;
+import 'package:digivice_virtual_bridge/world_data/world_data_constants.dart';
 import 'package:digivice_virtual_bridge/world_data/world_data_lifecycle_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -197,18 +198,18 @@ void main() {
     );
   });
 
-  test('60분 중 40번째 tick 질병이면 이전 40분 진행분은 반영된다', () {
+  test('6분 중 4번째 tick 질병이면 이전 4분 진행분은 반영된다', () {
     var diseaseRoll = 1.0;
     var diseaseEventCount = 0;
     final WorldDataLifecycleAdvanceResult result =
         WorldDataLifecycleService.advanceWorldData(
       rawWorldData: _buildWorldData(stamina: 10, evolutionGage: 0),
-      nowMs: 60 * 60 * 1000,
+      nowMs: 6 * 60 * 1000,
       source: 'periodic_work',
       randomProvider: (WorldDataLifecycleRandomEvent event) {
         if (event.reason == 'disease') {
           diseaseEventCount += 1;
-          if (diseaseEventCount == 40) {
+          if (diseaseEventCount == 4) {
             diseaseRoll = 0;
           }
           return diseaseRoll;
@@ -220,11 +221,11 @@ void main() {
     final Map<String, dynamic> updated = _decode(result.updatedRawWorldData);
     final Map<String, dynamic> status = _characterStatus(updated);
 
-    expect(result.tickCount, 60);
+    expect(result.tickCount, 6);
     expect(result.diseaseOccurred, isTrue);
     expect(result.evolutionDiagnostics.evolutionGageAfter, greaterThan(0));
     expect(status['evolutionGage'], greaterThan(0));
-    expect(status['stamina'], lessThan(10));
+    expect(status['stamina'], 10);
     expect(status['statuses'], contains(config.characterStatusSick));
     expect(_object(updated)['state'], config.characterStateSick);
   });
@@ -488,6 +489,40 @@ void main() {
       },
     );
     expect(result.diseaseOccurred, isTrue);
+  });
+
+  test('질병 확률은 낮은 stamina에서도 base rate를 유지한다', () {
+    double diseaseProbabilityFor(double stamina) {
+      final List<WorldDataLifecycleRandomEvent> diseaseEvents =
+          <WorldDataLifecycleRandomEvent>[];
+
+      WorldDataLifecycleService.advanceWorldData(
+        rawWorldData: _buildWorldData(
+          stamina: stamina,
+          nextDiseaseCheckTime: 10 * 1000,
+        ),
+        nowMs: 10 * 1000,
+        source: 'periodic_work',
+        randomProvider: (WorldDataLifecycleRandomEvent event) {
+          if (event.reason == 'disease') {
+            diseaseEvents.add(event);
+          }
+          return 1;
+        },
+      );
+
+      expect(diseaseEvents, hasLength(1), reason: 'stamina=$stamina');
+      return diseaseEvents.single.perCheckProbability;
+    }
+
+    expect(
+      diseaseProbabilityFor(10),
+      closeTo(worldDataLifecycleBaseDiseaseRate, 1e-12),
+    );
+    expect(
+      diseaseProbabilityFor(1.5),
+      closeTo(worldDataLifecycleBaseDiseaseRate, 1e-12),
+    );
   });
 
   test('질병 확률은 저장된 freshness가 normal이어도 timer 기준 stale food를 반영한다', () {
@@ -951,7 +986,7 @@ void main() {
     expect(_monsterBookRecords(updated, 3), hasLength(1));
   });
 
-  test('1분, 30분, 60분 시간 경과에 따라 진화 게이지 diagnostics와 저장본이 증가한다', () {
+  test('1분, 3분, 5분 시간 경과에 따라 진화 게이지 diagnostics와 저장본이 증가한다', () {
     WorldDataLifecycleAdvanceResult advanceFor(int nowMs) =>
         WorldDataLifecycleService.advanceWorldData(
           rawWorldData: _buildWorldData(
@@ -970,8 +1005,8 @@ void main() {
     final List<WorldDataLifecycleAdvanceResult> results =
         <WorldDataLifecycleAdvanceResult>[
       advanceFor(60 * 1000),
-      advanceFor(30 * 60 * 1000),
-      advanceFor(60 * 60 * 1000),
+      advanceFor(3 * 60 * 1000),
+      advanceFor(5 * 60 * 1000),
     ];
     final List<double> gauges = results.map((result) {
       final Map<String, dynamic> updated = _decode(result.updatedRawWorldData);
@@ -988,8 +1023,8 @@ void main() {
     }).toList();
 
     expect(results[0].tickCount, 1);
-    expect(results[1].tickCount, 30);
-    expect(results[2].tickCount, 60);
+    expect(results[1].tickCount, 3);
+    expect(results[2].tickCount, 5);
     expect(gauges[0], greaterThan(0));
     expect(gauges[1], greaterThan(gauges[0]));
     expect(gauges[2], greaterThan(gauges[1]));
