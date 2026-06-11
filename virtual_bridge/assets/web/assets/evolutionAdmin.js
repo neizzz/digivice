@@ -6,8 +6,20 @@ const FLUTTER_STORAGE_TIMEOUT_MS = {
   setData: 2e3,
   removeData: 2e3
 };
+const JS_READ_ONLY_STORAGE_KEYS = /* @__PURE__ */ new Set(["MonsterBookData"]);
+function _isJsReadOnlyStorageKey(key) {
+  return JS_READ_ONLY_STORAGE_KEYS.has(key);
+}
+function _warnReadOnlyStorageWriteIgnored(storageKind, operation, key) {
+  console.warn(`[${storageKind}] ${operation} ignored for JS read-only key`, {
+    key,
+    monsterBookWriteOwner: key === "MonsterBookData" ? "flutter_lifecycle" : void 0
+  });
+}
 function _debugStorage(...args) {
-  console.debug(...args);
+  {
+    return;
+  }
 }
 function _serialize(obj) {
   return JSON.stringify(obj);
@@ -109,10 +121,8 @@ class WebLocalStorage {
   //   localStorage.setItem(key, value);
   // }, 1000);
   async getData(key) {
-    _debugStorage("[WebLocalStorage] getData:start", { key });
     const value = localStorage.getItem(key);
     if (value === null) {
-      _debugStorage("[WebLocalStorage] getData:miss", { key });
       return await Promise.resolve(null);
     }
     _debugStorage("[WebLocalStorage] getData:raw", {
@@ -137,6 +147,10 @@ class WebLocalStorage {
     }
   }
   setData(key, data) {
+    if (_isJsReadOnlyStorageKey(key)) {
+      _warnReadOnlyStorageWriteIgnored("WebLocalStorage", "setData", key);
+      return Promise.resolve();
+    }
     const value = _serialize(data);
     _debugStorage("[WebLocalStorage] setData:start", {
       key,
@@ -144,13 +158,14 @@ class WebLocalStorage {
       preview: _previewValue(value)
     });
     localStorage.setItem(key, value);
-    _debugStorage("[WebLocalStorage] setData:success", { key });
     return Promise.resolve();
   }
   removeData(key) {
-    _debugStorage("[WebLocalStorage] removeData:start", { key });
+    if (_isJsReadOnlyStorageKey(key)) {
+      _warnReadOnlyStorageWriteIgnored("WebLocalStorage", "removeData", key);
+      return Promise.resolve();
+    }
     localStorage.removeItem(key);
-    _debugStorage("[WebLocalStorage] removeData:success", { key });
     return Promise.resolve();
   }
 }
@@ -162,7 +177,6 @@ class FlutterStorage {
     return window.storageController;
   }
   async getData(key) {
-    _debugStorage("[FlutterStorage] getData:start", { key });
     const value = await _withFlutterStorageTimeout({
       operation: "getData",
       key,
@@ -175,7 +189,6 @@ class FlutterStorage {
       preview: _previewValue(value)
     });
     if (_isMissingSerializedValue(value)) {
-      _debugStorage("[FlutterStorage] getData:miss", { key });
       return null;
     }
     try {
@@ -200,6 +213,10 @@ class FlutterStorage {
     }
   }
   async setData(key, value) {
+    if (_isJsReadOnlyStorageKey(key)) {
+      _warnReadOnlyStorageWriteIgnored("FlutterStorage", "setData", key);
+      return;
+    }
     const serializedValue = _serialize(value);
     _debugStorage("[FlutterStorage] setData:start", {
       key,
@@ -212,16 +229,17 @@ class FlutterStorage {
       payloadLength: serializedValue.length,
       promiseFactory: () => this._getStorageController().setData(key, serializedValue)
     });
-    _debugStorage("[FlutterStorage] setData:success", { key });
   }
   async removeData(key) {
-    _debugStorage("[FlutterStorage] removeData:start", { key });
+    if (_isJsReadOnlyStorageKey(key)) {
+      _warnReadOnlyStorageWriteIgnored("FlutterStorage", "removeData", key);
+      return;
+    }
     await _withFlutterStorageTimeout({
       operation: "removeData",
       key,
       promiseFactory: () => this._getStorageController().removeData(key)
     });
-    _debugStorage("[FlutterStorage] removeData:success", { key });
   }
 }
 const SUPPORTED_LOCALES = [
@@ -28941,6 +28959,641 @@ Object.fromEntries(
     createCharacterMetadata(key, getCharacterClassFromKey(key))
   ])
 );
+const GAME_CONSTANTS = {
+  "EGG_HATCH_MIN_TIME": 3e5,
+  "EGG_HATCH_MODE_TIME": 3e5,
+  "EGG_HATCH_MAX_TIME": 3e5,
+  "DIGESTIVE_CAPACITY": 5,
+  "DIGESTIVE_MULTIPLIER": 0.5,
+  "DIGESTIVE_LOAD_PER_MEAL": 1.5,
+  "POOP_DELAY": 12e5,
+  "DIGESTIVE_SMALL_POOP_DELAY": 288e5,
+  "POOP_SPAWN_DISTANCE": 25,
+  "POOP_SPAWN_MIN_OBJECT_SPACING": 20,
+  "POOP_SPAWN_RETRY_COUNT": 6,
+  "POOP_SPAWN_DISTANCE_JITTER": 20,
+  "POOP_SPAWN_ANGLE_JITTER_RAD": 1.5707963267948966,
+  "MAX_ACTIVE_OBJECT_COUNT": 50,
+  "MAX_ACTIVE_FOOD_COUNT": 30,
+  "DISEASE_CHECK_INTERVAL": 1e4,
+  "BASE_DISEASE_RATE": 1862601875783909e-19,
+  "POOP_DISEASE_RATE": 93e-6,
+  "STALE_FOOD_DISEASE_RATE": 93e-6,
+  "FRESH_TO_NORMAL_TIME": 18e4,
+  "NORMAL_TO_STALE_TIME": 6e5,
+  "UNHAPPY_STAMINA_THRESHOLD": 3,
+  "HAPPY_EMOTION_COOLDOWN_MS": 6e5,
+  "URGENT_STAMINA_THRESHOLD": 0,
+  "URGENT_SPEED_MULTIPLIER": 0.8,
+  "DEATH_DELAY": 216e5,
+  "DEATH_DELAY_CLASS_A": 216e5,
+  "DEATH_DELAY_CLASS_B": 504e5,
+  "DEATH_DELAY_CLASS_C": 792e5,
+  "DEATH_DELAY_CLASS_D": 108e6,
+  "MAX_STAMINA": 10,
+  "BOOSTED_STAMINA_THRESHOLD": 7,
+  "STAMINA_DECREASE_INTERVAL": 72e4,
+  "STAMINA_DECREASE_AMOUNT": 0.25,
+  "HIGH_STAMINA_DECAY_MULTIPLIER": 1.3,
+  "LOW_STAMINA_DECAY_MULTIPLIER": 0.7,
+  "NIGHT_SLEEP_MIN_DELAY": 6e5,
+  "NIGHT_SLEEP_MAX_DELAY": 36e5,
+  "TARGET_NIGHT_SLEEP_DURATION": 288e5,
+  "TARGET_NIGHT_SLEEP_JITTER": 18e5,
+  "SUNRISE_WAKE_MIN_DELAY": 6e5,
+  "SUNRISE_WAKE_MAX_DELAY": 36e5,
+  "SUNRISE_WAKE_OFFSET_MIN": -6e5,
+  "SUNRISE_WAKE_OFFSET_MAX": 24e5,
+  "NIGHT_RESLEEP_MIN_DELAY": 3e5,
+  "NIGHT_RESLEEP_MAX_DELAY": 9e5,
+  "DAY_NAP_CHANCE": 0.07,
+  "DAY_NAP_CHECK_INTERVAL": 12e5,
+  "DAY_NAP_MIN_DURATION": 18e5,
+  "DAY_NAP_MAX_DURATION": 54e5,
+  "FATIGUE_MAX": 100,
+  "FATIGUE_DEFAULT": 35,
+  "FATIGUE_AWAKE_GAIN_PER_HOUR": 9.5,
+  "FATIGUE_SLEEP_RECOVERY_PER_HOUR": 12,
+  "FATIGUE_SLEEP_RECOVERY_PER_HOUR_WHEN_SICK": 6,
+  "FATIGUE_DAY_NAP_MIN_THRESHOLD": 55,
+  "FATIGUE_DAY_NAP_WAKE_THRESHOLD": 48,
+  "NATURAL_SICK_RECOVERY_FATIGUE_THRESHOLD": 28,
+  "NATURAL_SICK_RECOVERY_MIN_DURATION": 18e5,
+  "MINI_GAME_SLEEP_INTERRUPT_FATIGUE": 10,
+  "MINI_GAME_SLEEP_INTERRUPT_STAMINA": 1,
+  "SLEEPING_STAMINA_DECAY_MULTIPLIER": 0.2,
+  "SLEEPING_DISEASE_RATE_MULTIPLIER": 0.1
+};
+const EVOLUTION_GAUGE_GAIN_MULTIPLIER = 1.1;
+const PRODUCTION_EVOLUTION_GAUGE_CONFIG$1 = {
+  "maxGauge": 100,
+  "staminaThreshold": 3,
+  "boostedStaminaThreshold": 7,
+  "boostedGaugeGainMultiplier": 1.3,
+  "checkIntervalMs": 1e4,
+  "sleepingGaugeTimeProgressMultiplier": 0.3333333333333333,
+  "gaugeGainByClass": {
+    "character-class-a": 1.8333333333333335,
+    "character-class-b": 1.8333333333333335,
+    "character-class-c": 1.8333333333333335,
+    "character-class-d": 1.8333333333333335
+  },
+  "targetDurationByClassMs": {
+    "character-class-a": 6e5,
+    "character-class-b": 6e5,
+    "character-class-c": 6e5,
+    "character-class-d": 6e5
+  },
+  "targetDurationVarianceByClassMs": {
+    "character-class-a": 0,
+    "character-class-b": 0,
+    "character-class-c": 0,
+    "character-class-d": 0
+  }
+};
+const EVOLUTION_GAUGE_CONFIG$1 = PRODUCTION_EVOLUTION_GAUGE_CONFIG$1;
+const HATCH_GENE_CONFIG = {
+  "maxBonusCount": 10,
+  "baseGreenPercent": 65,
+  "baseSoilPercent": 20,
+  "baseSkullPercent": 15,
+  "bonusPerCountPercent": 2
+};
+const MONSTER_EVOLUTION_SPECS = {
+  "1": {
+    "key": 1,
+    "geneLine": "green-slime",
+    "classCode": "A",
+    "variant": 1,
+    "phase": 1,
+    "candidates": [
+      {
+        "to": 2,
+        "weight": 55,
+        "kind": "base"
+      },
+      {
+        "to": 5,
+        "weight": 25,
+        "kind": "same_line_variant_mutation"
+      },
+      {
+        "to": 6,
+        "weight": 20,
+        "kind": "same_line_variant_mutation"
+      }
+    ]
+  },
+  "2": {
+    "key": 2,
+    "geneLine": "green-slime",
+    "classCode": "B",
+    "variant": 1,
+    "phase": 2,
+    "candidates": [
+      {
+        "to": 3,
+        "weight": 50,
+        "kind": "base"
+      },
+      {
+        "to": 7,
+        "weight": 20,
+        "kind": "same_line_variant_mutation"
+      },
+      {
+        "to": 8,
+        "weight": 15,
+        "kind": "same_line_variant_mutation"
+      },
+      {
+        "to": 9,
+        "weight": 15,
+        "kind": "same_line_variant_mutation"
+      }
+    ]
+  },
+  "5": {
+    "key": 5,
+    "geneLine": "green-slime",
+    "classCode": "B",
+    "variant": 2,
+    "phase": 2,
+    "candidates": [
+      {
+        "to": 7,
+        "weight": 50,
+        "kind": "base"
+      },
+      {
+        "to": 3,
+        "weight": 20,
+        "kind": "same_line_variant_mutation"
+      },
+      {
+        "to": 8,
+        "weight": 15,
+        "kind": "same_line_variant_mutation"
+      },
+      {
+        "to": 9,
+        "weight": 15,
+        "kind": "same_line_variant_mutation"
+      }
+    ]
+  },
+  "6": {
+    "key": 6,
+    "geneLine": "green-slime",
+    "classCode": "B",
+    "variant": 3,
+    "phase": 2,
+    "candidates": [
+      {
+        "to": 8,
+        "weight": 50,
+        "kind": "base"
+      },
+      {
+        "to": 3,
+        "weight": 20,
+        "kind": "same_line_variant_mutation"
+      },
+      {
+        "to": 7,
+        "weight": 15,
+        "kind": "same_line_variant_mutation"
+      },
+      {
+        "to": 9,
+        "weight": 15,
+        "kind": "same_line_variant_mutation"
+      }
+    ]
+  },
+  "3": {
+    "key": 3,
+    "geneLine": "green-slime",
+    "classCode": "C",
+    "variant": 1,
+    "phase": 3,
+    "candidates": [
+      {
+        "to": 4,
+        "weight": 50,
+        "kind": "base"
+      },
+      {
+        "to": 10,
+        "weight": 20,
+        "kind": "same_line_variant_mutation"
+      },
+      {
+        "to": 11,
+        "weight": 15,
+        "kind": "same_line_variant_mutation"
+      },
+      {
+        "to": 12,
+        "weight": 15,
+        "kind": "same_line_variant_mutation"
+      }
+    ]
+  },
+  "7": {
+    "key": 7,
+    "geneLine": "green-slime",
+    "classCode": "C",
+    "variant": 2,
+    "phase": 3,
+    "candidates": [
+      {
+        "to": 10,
+        "weight": 50,
+        "kind": "base"
+      },
+      {
+        "to": 4,
+        "weight": 20,
+        "kind": "same_line_variant_mutation"
+      },
+      {
+        "to": 11,
+        "weight": 15,
+        "kind": "same_line_variant_mutation"
+      },
+      {
+        "to": 12,
+        "weight": 15,
+        "kind": "same_line_variant_mutation"
+      }
+    ]
+  },
+  "8": {
+    "key": 8,
+    "geneLine": "green-slime",
+    "classCode": "C",
+    "variant": 3,
+    "phase": 3,
+    "candidates": [
+      {
+        "to": 11,
+        "weight": 50,
+        "kind": "base"
+      },
+      {
+        "to": 4,
+        "weight": 20,
+        "kind": "same_line_variant_mutation"
+      },
+      {
+        "to": 10,
+        "weight": 15,
+        "kind": "same_line_variant_mutation"
+      },
+      {
+        "to": 12,
+        "weight": 15,
+        "kind": "same_line_variant_mutation"
+      }
+    ]
+  },
+  "9": {
+    "key": 9,
+    "geneLine": "green-slime",
+    "classCode": "C",
+    "variant": 4,
+    "phase": 3,
+    "candidates": [
+      {
+        "to": 12,
+        "weight": 50,
+        "kind": "base"
+      },
+      {
+        "to": 4,
+        "weight": 20,
+        "kind": "same_line_variant_mutation"
+      },
+      {
+        "to": 10,
+        "weight": 15,
+        "kind": "same_line_variant_mutation"
+      },
+      {
+        "to": 11,
+        "weight": 15,
+        "kind": "same_line_variant_mutation"
+      }
+    ]
+  },
+  "4": {
+    "key": 4,
+    "geneLine": "green-slime",
+    "classCode": "D",
+    "variant": 1,
+    "phase": 4,
+    "candidates": []
+  },
+  "10": {
+    "key": 10,
+    "geneLine": "green-slime",
+    "classCode": "D",
+    "variant": 2,
+    "phase": 4,
+    "candidates": []
+  },
+  "11": {
+    "key": 11,
+    "geneLine": "green-slime",
+    "classCode": "D",
+    "variant": 3,
+    "phase": 4,
+    "candidates": []
+  },
+  "12": {
+    "key": 12,
+    "geneLine": "green-slime",
+    "classCode": "D",
+    "variant": 4,
+    "phase": 4,
+    "candidates": []
+  },
+  "14": {
+    "key": 14,
+    "geneLine": "skull-slime",
+    "classCode": "A",
+    "variant": 1,
+    "phase": 1,
+    "candidates": [
+      {
+        "to": 16,
+        "weight": 70,
+        "kind": "base"
+      },
+      {
+        "to": 17,
+        "weight": 30,
+        "kind": "same_line_variant_mutation"
+      }
+    ]
+  },
+  "16": {
+    "key": 16,
+    "geneLine": "skull-slime",
+    "classCode": "B",
+    "variant": 1,
+    "phase": 2,
+    "candidates": [
+      {
+        "to": 18,
+        "weight": 70,
+        "kind": "base"
+      },
+      {
+        "to": 19,
+        "weight": 30,
+        "kind": "same_line_variant_mutation"
+      }
+    ]
+  },
+  "17": {
+    "key": 17,
+    "geneLine": "skull-slime",
+    "classCode": "B",
+    "variant": 2,
+    "phase": 2,
+    "candidates": [
+      {
+        "to": 19,
+        "weight": 70,
+        "kind": "base"
+      },
+      {
+        "to": 18,
+        "weight": 30,
+        "kind": "same_line_variant_mutation"
+      }
+    ]
+  },
+  "18": {
+    "key": 18,
+    "geneLine": "skull-slime",
+    "classCode": "C",
+    "variant": 1,
+    "phase": 3,
+    "candidates": [
+      {
+        "to": 20,
+        "weight": 70,
+        "kind": "base"
+      },
+      {
+        "to": 21,
+        "weight": 30,
+        "kind": "same_line_variant_mutation"
+      }
+    ]
+  },
+  "19": {
+    "key": 19,
+    "geneLine": "skull-slime",
+    "classCode": "C",
+    "variant": 2,
+    "phase": 3,
+    "candidates": [
+      {
+        "to": 21,
+        "weight": 60,
+        "kind": "base"
+      },
+      {
+        "to": 20,
+        "weight": 40,
+        "kind": "same_line_variant_mutation"
+      }
+    ]
+  },
+  "20": {
+    "key": 20,
+    "geneLine": "skull-slime",
+    "classCode": "D",
+    "variant": 1,
+    "phase": 4,
+    "candidates": []
+  },
+  "21": {
+    "key": 21,
+    "geneLine": "skull-slime",
+    "classCode": "D",
+    "variant": 2,
+    "phase": 4,
+    "candidates": []
+  },
+  "22": {
+    "key": 22,
+    "geneLine": "soil-slime",
+    "classCode": "A",
+    "variant": 1,
+    "phase": 1,
+    "candidates": [
+      {
+        "to": 24,
+        "weight": 70,
+        "kind": "base"
+      },
+      {
+        "to": 25,
+        "weight": 30,
+        "kind": "same_line_variant_mutation"
+      }
+    ]
+  },
+  "24": {
+    "key": 24,
+    "geneLine": "soil-slime",
+    "classCode": "B",
+    "variant": 1,
+    "phase": 2,
+    "candidates": [
+      {
+        "to": 26,
+        "weight": 55,
+        "kind": "base"
+      },
+      {
+        "to": 27,
+        "weight": 25,
+        "kind": "same_line_variant_mutation"
+      },
+      {
+        "to": 28,
+        "weight": 20,
+        "kind": "same_line_variant_mutation"
+      }
+    ]
+  },
+  "25": {
+    "key": 25,
+    "geneLine": "soil-slime",
+    "classCode": "B",
+    "variant": 2,
+    "phase": 2,
+    "candidates": [
+      {
+        "to": 27,
+        "weight": 55,
+        "kind": "base"
+      },
+      {
+        "to": 26,
+        "weight": 25,
+        "kind": "same_line_variant_mutation"
+      },
+      {
+        "to": 28,
+        "weight": 20,
+        "kind": "same_line_variant_mutation"
+      }
+    ]
+  },
+  "26": {
+    "key": 26,
+    "geneLine": "soil-slime",
+    "classCode": "C",
+    "variant": 1,
+    "phase": 3,
+    "candidates": [
+      {
+        "to": 29,
+        "weight": 55,
+        "kind": "base"
+      },
+      {
+        "to": 30,
+        "weight": 25,
+        "kind": "same_line_variant_mutation"
+      },
+      {
+        "to": 31,
+        "weight": 20,
+        "kind": "same_line_variant_mutation"
+      }
+    ]
+  },
+  "27": {
+    "key": 27,
+    "geneLine": "soil-slime",
+    "classCode": "C",
+    "variant": 2,
+    "phase": 3,
+    "candidates": [
+      {
+        "to": 30,
+        "weight": 55,
+        "kind": "base"
+      },
+      {
+        "to": 29,
+        "weight": 25,
+        "kind": "same_line_variant_mutation"
+      },
+      {
+        "to": 31,
+        "weight": 20,
+        "kind": "same_line_variant_mutation"
+      }
+    ]
+  },
+  "28": {
+    "key": 28,
+    "geneLine": "soil-slime",
+    "classCode": "C",
+    "variant": 3,
+    "phase": 3,
+    "candidates": [
+      {
+        "to": 31,
+        "weight": 55,
+        "kind": "base"
+      },
+      {
+        "to": 29,
+        "weight": 25,
+        "kind": "same_line_variant_mutation"
+      },
+      {
+        "to": 30,
+        "weight": 20,
+        "kind": "same_line_variant_mutation"
+      }
+    ]
+  },
+  "29": {
+    "key": 29,
+    "geneLine": "soil-slime",
+    "classCode": "D",
+    "variant": 1,
+    "phase": 4,
+    "candidates": []
+  },
+  "30": {
+    "key": 30,
+    "geneLine": "soil-slime",
+    "classCode": "D",
+    "variant": 2,
+    "phase": 4,
+    "candidates": []
+  },
+  "31": {
+    "key": 31,
+    "geneLine": "soil-slime",
+    "classCode": "D",
+    "variant": 3,
+    "phase": 4,
+    "candidates": []
+  }
+};
 const schemaVersion = 1;
 const overrides = { "skull-slime_C2": { "evolutionCandidates": [{ "toCode": "skull-slime_D2", "weight": 60, "kind": "base" }, { "toCode": "skull-slime_D1", "weight": 40, "kind": "same_line_variant_mutation" }] } };
 const rarities = { "green-slime_A1": { "reachProbability": 0.65, "rarity": 1 }, "soil-slime_A1": { "reachProbability": 0.2, "rarity": 2 }, "skull-slime_A1": { "reachProbability": 0.15, "rarity": 2 }, "green-slime_B1": { "reachProbability": 0.325, "rarity": 1 }, "green-slime_B2": { "reachProbability": 0.1625, "rarity": 2 }, "green-slime_B3": { "reachProbability": 0.1625, "rarity": 2 }, "soil-slime_B1": { "reachProbability": 0.14, "rarity": 2 }, "skull-slime_B1": { "reachProbability": 0.105, "rarity": 3 }, "soil-slime_B2": { "reachProbability": 0.06, "rarity": 3 }, "skull-slime_B2": { "reachProbability": 0.045, "rarity": 3 }, "green-slime_C1": { "reachProbability": 0.21125, "rarity": 2 }, "green-slime_C2": { "reachProbability": 0.17875, "rarity": 2 }, "green-slime_C3": { "reachProbability": 0.1625, "rarity": 2 }, "green-slime_C4": { "reachProbability": 0.0975, "rarity": 3 }, "skull-slime_C1": { "reachProbability": 0.087, "rarity": 3 }, "soil-slime_C1": { "reachProbability": 0.085, "rarity": 4 }, "soil-slime_C2": { "reachProbability": 0.065, "rarity": 4 }, "skull-slime_C2": { "reachProbability": 0.063, "rarity": 4 }, "soil-slime_C3": { "reachProbability": 0.05, "rarity": 4 }, "green-slime_D1": { "reachProbability": 0.1941875, "rarity": 2 }, "green-slime_D2": { "reachProbability": 0.1763125, "rarity": 2 }, "green-slime_D3": { "reachProbability": 0.157625, "rarity": 2 }, "green-slime_D4": { "reachProbability": 0.121875, "rarity": 3 }, "skull-slime_D1": { "reachProbability": 0.0924, "rarity": 3 }, "soil-slime_D1": { "reachProbability": 0.07125, "rarity": 4 }, "skull-slime_D2": { "reachProbability": 0.0576, "rarity": 5 }, "soil-slime_D2": { "reachProbability": 0.06625, "rarity": 4 }, "soil-slime_D3": { "reachProbability": 0.0625, "rarity": 4 } };
@@ -28970,80 +29623,6 @@ function resolveWeightedCandidate(candidates, randomValue = Math.random()) {
     }
   }
   return candidates[candidates.length - 1] ?? null;
-}
-const DEFAULT_MAX_GAUGE = 100;
-const HOUR_MS$1 = 60 * 60 * 1e3;
-const EVOLUTION_GAUGE_GAIN_MULTIPLIER = 1.1;
-const PRODUCTION_EVOLUTION_TARGET_DURATION_BY_CLASS_MS = {
-  [CharacterClass.A]: 20 * HOUR_MS$1,
-  [CharacterClass.B]: 40 * HOUR_MS$1,
-  [CharacterClass.C]: 60 * HOUR_MS$1,
-  [CharacterClass.D]: 80 * HOUR_MS$1
-};
-({
-  [CharacterClass.A]: 2 * HOUR_MS$1,
-  [CharacterClass.B]: 4 * HOUR_MS$1,
-  [CharacterClass.C]: 6 * HOUR_MS$1,
-  [CharacterClass.D]: 8 * HOUR_MS$1
-});
-const DEV_GAUGE_GAIN_BY_CLASS = {
-  [CharacterClass.A]: 1 * EVOLUTION_GAUGE_GAIN_MULTIPLIER,
-  [CharacterClass.B]: 1 * EVOLUTION_GAUGE_GAIN_MULTIPLIER,
-  [CharacterClass.C]: 1 * EVOLUTION_GAUGE_GAIN_MULTIPLIER,
-  [CharacterClass.D]: 1 * EVOLUTION_GAUGE_GAIN_MULTIPLIER
-};
-function getGaugeGainForDurationMs(params) {
-  const { maxGauge, checkIntervalMs, durationMs } = params;
-  if (durationMs <= 0) {
-    return 0;
-  }
-  return maxGauge * checkIntervalMs / durationMs * EVOLUTION_GAUGE_GAIN_MULTIPLIER;
-}
-function getAverageGaugeGainByClass(params) {
-  const { maxGauge, checkIntervalMs, targetDurationByClassMs } = params;
-  return {
-    [CharacterClass.A]: getGaugeGainForDurationMs({
-      maxGauge,
-      checkIntervalMs,
-      durationMs: targetDurationByClassMs[CharacterClass.A]
-    }),
-    [CharacterClass.B]: getGaugeGainForDurationMs({
-      maxGauge,
-      checkIntervalMs,
-      durationMs: targetDurationByClassMs[CharacterClass.B]
-    }),
-    [CharacterClass.C]: getGaugeGainForDurationMs({
-      maxGauge,
-      checkIntervalMs,
-      durationMs: targetDurationByClassMs[CharacterClass.C]
-    }),
-    [CharacterClass.D]: getGaugeGainForDurationMs({
-      maxGauge,
-      checkIntervalMs,
-      durationMs: targetDurationByClassMs[CharacterClass.D]
-    })
-  };
-}
-({
-  gaugeGainByClass: getAverageGaugeGainByClass({
-    maxGauge: DEFAULT_MAX_GAUGE,
-    checkIntervalMs: 1e4,
-    targetDurationByClassMs: PRODUCTION_EVOLUTION_TARGET_DURATION_BY_CLASS_MS
-  })
-});
-const DEV_EVOLUTION_GAUGE_CONFIG = {
-  maxGauge: DEFAULT_MAX_GAUGE,
-  staminaThreshold: 3,
-  boostedStaminaThreshold: 7,
-  boostedGaugeGainMultiplier: 1.2,
-  checkIntervalMs: 1e4,
-  sleepingGaugeTimeProgressMultiplier: 1 / 3,
-  gaugeGainByClass: DEV_GAUGE_GAIN_BY_CLASS
-};
-const EVOLUTION_GAUGE_CONFIG = DEV_EVOLUTION_GAUGE_CONFIG;
-function createDisplayName(geneLine, classCode, variant) {
-  const baseName = geneLine.split("-").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
-  return `${baseName} ${classCode}${variant}`;
 }
 const MONSTER_CLASS_BY_CODE = {
   A: CharacterClass.A,
@@ -29075,206 +29654,55 @@ const MIN_EVOLUTION_RARITY_BY_CLASS_CODE = {
   C: 2,
   D: 2
 };
-const DEFAULT_CANDIDATE_WEIGHTS = {
-  1: [100],
-  2: [70, 30],
-  3: [55, 25, 20],
-  4: [50, 20, 15, 15]
-};
-const MONSTER_LINE_DEFINITIONS = [
-  {
-    geneLine: "green-slime",
-    classes: {
-      A: [CharacterKeyECS.GreenSlimeA1],
-      B: [
-        CharacterKeyECS.GreenSlimeB1,
-        CharacterKeyECS.GreenSlimeB2,
-        CharacterKeyECS.GreenSlimeB3
-      ],
-      C: [
-        CharacterKeyECS.GreenSlimeC1,
-        CharacterKeyECS.GreenSlimeC2,
-        CharacterKeyECS.GreenSlimeC3,
-        CharacterKeyECS.GreenSlimeC4
-      ],
-      D: [
-        CharacterKeyECS.GreenSlimeD1,
-        CharacterKeyECS.GreenSlimeD2,
-        CharacterKeyECS.GreenSlimeD3,
-        CharacterKeyECS.GreenSlimeD4
-      ]
-    }
-  },
-  {
-    geneLine: "skull-slime",
-    classes: {
-      A: [CharacterKeyECS.SkullSlimeA1],
-      B: [CharacterKeyECS.SkullSlimeB1, CharacterKeyECS.SkullSlimeB2],
-      C: [CharacterKeyECS.SkullSlimeC1, CharacterKeyECS.SkullSlimeC2],
-      D: [CharacterKeyECS.SkullSlimeD1, CharacterKeyECS.SkullSlimeD2]
-    }
-  },
-  {
-    geneLine: "soil-slime",
-    classes: {
-      A: [CharacterKeyECS.SoilSlimeA1],
-      B: [CharacterKeyECS.SoilSlimeB1, CharacterKeyECS.SoilSlimeB2],
-      C: [
-        CharacterKeyECS.SoilSlimeC1,
-        CharacterKeyECS.SoilSlimeC2,
-        CharacterKeyECS.SoilSlimeC3
-      ],
-      D: [
-        CharacterKeyECS.SoilSlimeD1,
-        CharacterKeyECS.SoilSlimeD2,
-        CharacterKeyECS.SoilSlimeD3
-      ]
-    }
-  }
-];
-function getNextClassCode(classCode) {
-  switch (classCode) {
-    case "A":
-      return "B";
-    case "B":
-      return "C";
-    case "C":
-      return "D";
-    case "D":
-      return null;
-  }
+function toEvolutionGaugeConfig(value) {
+  return value;
 }
-function getDefaultCandidateWeights(candidateCount) {
-  const presetWeights = DEFAULT_CANDIDATE_WEIGHTS[candidateCount];
-  if (presetWeights) {
-    return presetWeights;
+const PRODUCTION_EVOLUTION_GAUGE_CONFIG = toEvolutionGaugeConfig(PRODUCTION_EVOLUTION_GAUGE_CONFIG$1);
+const EVOLUTION_GAUGE_CONFIG = toEvolutionGaugeConfig(EVOLUTION_GAUGE_CONFIG$1);
+PRODUCTION_EVOLUTION_GAUGE_CONFIG.targetDurationByClassMs;
+PRODUCTION_EVOLUTION_GAUGE_CONFIG.targetDurationVarianceByClassMs;
+function getStableSeededUnitValue(seed) {
+  let hash = 2166136261;
+  for (let i2 = 0; i2 < seed.length; i2++) {
+    hash ^= seed.charCodeAt(i2);
+    hash = Math.imul(hash, 16777619);
   }
-  return Array.from(
-    { length: candidateCount },
-    () => Math.max(1, Math.floor(100 / candidateCount))
-  );
+  return (hash >>> 0) / 4294967296;
 }
-function createMonsterVariantDefinition(params) {
+function createDisplayName(geneLine, classCode, variant) {
+  const baseName = geneLine.split("-").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
+  return `${baseName} ${classCode}${variant}`;
+}
+function createMonsterEvolutionSpec(generatedSpec) {
+  const code = `${generatedSpec.geneLine}_${generatedSpec.classCode}${generatedSpec.variant}`;
   return {
-    key: params.key,
-    geneLine: params.geneLine,
-    classCode: params.classCode,
-    class: MONSTER_CLASS_BY_CODE[params.classCode],
-    variant: params.variant,
-    phase: MONSTER_PHASE_BY_CLASS_CODE[params.classCode]
-  };
-}
-function getVariantDefinitionsByClass(lineDefinition) {
-  return {
-    A: lineDefinition.classes.A.map(
-      (key, index) => createMonsterVariantDefinition({
-        geneLine: lineDefinition.geneLine,
-        classCode: "A",
-        key,
-        variant: index + 1
-      })
-    ),
-    B: lineDefinition.classes.B.map(
-      (key, index) => createMonsterVariantDefinition({
-        geneLine: lineDefinition.geneLine,
-        classCode: "B",
-        key,
-        variant: index + 1
-      })
-    ),
-    C: lineDefinition.classes.C.map(
-      (key, index) => createMonsterVariantDefinition({
-        geneLine: lineDefinition.geneLine,
-        classCode: "C",
-        key,
-        variant: index + 1
-      })
-    ),
-    D: lineDefinition.classes.D.map(
-      (key, index) => createMonsterVariantDefinition({
-        geneLine: lineDefinition.geneLine,
-        classCode: "D",
-        key,
-        variant: index + 1
-      })
-    )
-  };
-}
-function getOrderedNextVariantDefinitions(params) {
-  const { sourceDefinition, nextDefinitions } = params;
-  const baseVariant = Math.min(
-    sourceDefinition.variant,
-    nextDefinitions.length
-  );
-  const baseDefinition = nextDefinitions.find(
-    (definition) => definition.variant === baseVariant
-  );
-  if (!baseDefinition) {
-    return nextDefinitions;
-  }
-  return [
-    baseDefinition,
-    ...nextDefinitions.filter((definition) => definition !== baseDefinition)
-  ];
-}
-function createEvolutionCandidates(params) {
-  const { sourceDefinition, definitionsByClass } = params;
-  const nextClassCode = getNextClassCode(sourceDefinition.classCode);
-  if (!nextClassCode) {
-    return [];
-  }
-  const nextDefinitions = getOrderedNextVariantDefinitions({
-    sourceDefinition,
-    nextDefinitions: definitionsByClass[nextClassCode]
-  });
-  const weights = getDefaultCandidateWeights(nextDefinitions.length);
-  return nextDefinitions.map((definition, index) => ({
-    to: definition.key,
-    weight: weights[index] ?? 1,
-    kind: index === 0 ? "base" : "same_line_variant_mutation"
-  }));
-}
-function createMonsterEvolutionSpec(params) {
-  const { definition, definitionsByClass } = params;
-  const code = `${definition.geneLine}_${definition.classCode}${definition.variant}`;
-  return {
-    key: definition.key,
+    key: generatedSpec.key,
     code,
-    geneLine: definition.geneLine,
-    classCode: definition.classCode,
-    class: definition.class,
-    variant: definition.variant,
-    phase: definition.phase,
+    geneLine: generatedSpec.geneLine,
+    classCode: generatedSpec.classCode,
+    class: MONSTER_CLASS_BY_CODE[generatedSpec.classCode],
+    variant: generatedSpec.variant,
+    phase: generatedSpec.phase,
     displayName: createDisplayName(
-      definition.geneLine,
-      definition.classCode,
-      definition.variant
+      generatedSpec.geneLine,
+      generatedSpec.classCode,
+      generatedSpec.variant
     ),
     spritesheetName: code,
-    evolutionCandidates: createEvolutionCandidates({
-      sourceDefinition: definition,
-      definitionsByClass
-    })
-  };
-}
-function createMonsterEvolutionCatalog() {
-  const entries = MONSTER_LINE_DEFINITIONS.flatMap((lineDefinition) => {
-    const definitionsByClass = getVariantDefinitionsByClass(lineDefinition);
-    const definitions = Object.values(definitionsByClass).flat();
-    return definitions.map((definition) => [
-      definition.key,
-      createMonsterEvolutionSpec({ definition, definitionsByClass })
-    ]);
-  });
-  return Object.fromEntries(entries);
-}
-function cloneEvolutionSpec(spec) {
-  return {
-    ...spec,
-    evolutionCandidates: spec.evolutionCandidates.map((candidate) => ({
-      ...candidate
+    evolutionCandidates: generatedSpec.candidates.map((candidate) => ({
+      to: candidate.to,
+      weight: candidate.weight,
+      kind: candidate.kind
     }))
   };
+}
+function createMonsterEvolutionCatalogFromGenerated() {
+  return Object.fromEntries(
+    Object.values(MONSTER_EVOLUTION_SPECS).map((generatedSpec) => [
+      generatedSpec.key,
+      createMonsterEvolutionSpec(generatedSpec)
+    ])
+  );
 }
 function assertEvolutionOverrideConfig(value) {
   if (!value || typeof value !== "object" || Array.isArray(value) || value.schemaVersion !== 1 || !value.overrides || typeof value.overrides !== "object" || Array.isArray(value.overrides)) {
@@ -29290,10 +29718,10 @@ function assertEvolutionOverrideConfig(value) {
   }
 }
 function validateEvolutionRarityConfig(params) {
-  const { baseCatalog, overrideConfig } = params;
+  const { catalog, overrideConfig } = params;
   const rarityConfig = overrideConfig.rarities ?? {};
   const specsByCode = new Map(
-    Object.values(baseCatalog).map((spec) => [spec.code, spec])
+    Object.values(catalog).map((spec) => [spec.code, spec])
   );
   const result = {};
   for (const [rawCode, rawEntry] of Object.entries(rarityConfig)) {
@@ -29328,81 +29756,6 @@ function validateEvolutionRarityConfig(params) {
   }
   return result;
 }
-function applyEvolutionOverrideConfig(baseCatalog, overrideConfig) {
-  const nextCatalog = Object.fromEntries(
-    Object.entries(baseCatalog).map(([key, spec]) => [
-      key,
-      cloneEvolutionSpec(spec)
-    ])
-  );
-  const specsByCode = new Map(
-    Object.values(nextCatalog).map((spec) => [spec.code, spec])
-  );
-  for (const [sourceCode, overrideEntry] of Object.entries(
-    overrideConfig.overrides
-  )) {
-    if (!overrideEntry || typeof overrideEntry !== "object" || Array.isArray(overrideEntry)) {
-      throw new Error(`[evolution] Invalid override entry for ${sourceCode}.`);
-    }
-    const sourceSpec = specsByCode.get(sourceCode);
-    if (!sourceSpec) {
-      throw new Error(
-        `[evolution] Unknown override source code: ${sourceCode}`
-      );
-    }
-    if (sourceSpec.evolutionCandidates.length === 0) {
-      throw new Error(
-        `[evolution] Terminal monster cannot be overridden: ${sourceCode}`
-      );
-    }
-    if (!Array.isArray(overrideEntry.evolutionCandidates) || overrideEntry.evolutionCandidates.length !== sourceSpec.evolutionCandidates.length) {
-      throw new Error(
-        `[evolution] Candidate count mismatch for ${sourceCode}. Expected ${sourceSpec.evolutionCandidates.length}.`
-      );
-    }
-    const overrideCandidatesByCode = /* @__PURE__ */ new Map();
-    for (const overrideCandidate of overrideEntry.evolutionCandidates) {
-      const baselineCandidate = sourceSpec.evolutionCandidates.find(
-        (candidate) => {
-          const targetSpec = nextCatalog[candidate.to];
-          return (targetSpec == null ? void 0 : targetSpec.code) === overrideCandidate.toCode;
-        }
-      );
-      if (!baselineCandidate) {
-        throw new Error(
-          `[evolution] Unknown override target for ${sourceCode}: ${overrideCandidate.toCode}`
-        );
-      }
-      if (!Number.isInteger(overrideCandidate.weight) || overrideCandidate.weight < 0 || overrideCandidate.weight > 100) {
-        throw new Error(
-          `[evolution] Invalid override weight for ${sourceCode} -> ${overrideCandidate.toCode}: ${overrideCandidate.weight}`
-        );
-      }
-      if (overrideCandidate.kind !== void 0 && overrideCandidate.kind !== baselineCandidate.kind) {
-        throw new Error(
-          `[evolution] Override kind mismatch for ${sourceCode} -> ${overrideCandidate.toCode}.`
-        );
-      }
-      if (overrideCandidatesByCode.has(overrideCandidate.toCode)) {
-        throw new Error(
-          `[evolution] Duplicate override target for ${sourceCode}: ${overrideCandidate.toCode}`
-        );
-      }
-      overrideCandidatesByCode.set(overrideCandidate.toCode, overrideCandidate);
-    }
-    sourceSpec.evolutionCandidates = sourceSpec.evolutionCandidates.map(
-      (candidate) => {
-        const targetSpec = nextCatalog[candidate.to];
-        const overrideCandidate = targetSpec ? overrideCandidatesByCode.get(targetSpec.code) : void 0;
-        return {
-          ...candidate,
-          weight: (overrideCandidate == null ? void 0 : overrideCandidate.weight) ?? candidate.weight
-        };
-      }
-    );
-  }
-  return nextCatalog;
-}
 function getMaxEvolutionRarityForClass(classCode) {
   return MAX_EVOLUTION_RARITY_BY_CLASS_CODE[classCode];
 }
@@ -29410,15 +29763,11 @@ function getMinEvolutionRarityForClass(classCode) {
   return MIN_EVOLUTION_RARITY_BY_CLASS_CODE[classCode];
 }
 assertEvolutionOverrideConfig(evolutionOverrideData);
-const BASE_MONSTER_EVOLUTION_CATALOG = createMonsterEvolutionCatalog();
+const MONSTER_EVOLUTION_CATALOG = createMonsterEvolutionCatalogFromGenerated();
 const MONSTER_EVOLUTION_RARITIES = validateEvolutionRarityConfig({
-  baseCatalog: BASE_MONSTER_EVOLUTION_CATALOG,
+  catalog: MONSTER_EVOLUTION_CATALOG,
   overrideConfig: evolutionOverrideData
 });
-const MONSTER_EVOLUTION_CATALOG = applyEvolutionOverrideConfig(
-  BASE_MONSTER_EVOLUTION_CATALOG,
-  evolutionOverrideData
-);
 const MONSTER_CHARACTER_KEYS = Object.keys(
   MONSTER_EVOLUTION_CATALOG
 ).map((value) => Number(value));
@@ -29442,17 +29791,26 @@ function getCharacterSpritesheetName(characterKey) {
   var _a;
   return ((_a = getEvolutionSpec(characterKey)) == null ? void 0 : _a.spritesheetName) ?? null;
 }
-function getEvolutionGaugeIncreaseAmount(characterKey) {
+function getProductionEvolutionTargetDurationMsForEntity(params) {
+  const { characterKey, objectId } = params;
   const spec = getEvolutionSpec(characterKey);
   if (!spec) {
     return 0;
   }
-  return EVOLUTION_GAUGE_CONFIG.gaugeGainByClass[spec.class] ?? 0;
+  const targetDurationMs = PRODUCTION_EVOLUTION_GAUGE_CONFIG.targetDurationByClassMs[spec.class];
+  const varianceMs = PRODUCTION_EVOLUTION_GAUGE_CONFIG.targetDurationVarianceByClassMs[spec.class];
+  const seedValue = getStableSeededUnitValue(
+    `${Math.trunc(objectId)}:${spec.classCode}:${spec.phase}`
+  );
+  const jitterRatio = seedValue * 2 - 1;
+  return targetDurationMs + varianceMs * jitterRatio;
 }
 function getEvolutionGaugeIncreaseAmountForEntity(params) {
-  {
-    return getEvolutionGaugeIncreaseAmount(params.characterKey);
+  const durationMs = getProductionEvolutionTargetDurationMsForEntity(params);
+  if (durationMs <= 0) {
+    return 0;
   }
+  return PRODUCTION_EVOLUTION_GAUGE_CONFIG.maxGauge * PRODUCTION_EVOLUTION_GAUGE_CONFIG.checkIntervalMs / durationMs * EVOLUTION_GAUGE_GAIN_MULTIPLIER;
 }
 function canEvolveFromConfig(characterKey) {
   const spec = getEvolutionSpec(characterKey);
@@ -29480,238 +29838,8 @@ function resolveEvolutionPhase(params) {
   }
   return targetSpec.phase;
 }
-const SECOND_IN_MILLISECONDS = 1e3;
-const MINUTE_IN_MILLISECONDS$1 = 60 * SECOND_IN_MILLISECONDS;
-const HOUR_IN_MILLISECONDS$1 = 60 * MINUTE_IN_MILLISECONDS$1;
-const PRODUCTION_TARGET_NIGHT_SLEEP_DURATION = 8 * HOUR_IN_MILLISECONDS$1;
-const PRODUCTION_BALANCE_REFERENCE = {
-  TARGET_NIGHT_SLEEP_DURATION: PRODUCTION_TARGET_NIGHT_SLEEP_DURATION
-};
-const BOOSTED_STAMINA_THRESHOLD = EVOLUTION_GAUGE_CONFIG.boostedStaminaThreshold;
-const UNHAPPY_STAMINA_THRESHOLD = EVOLUTION_GAUGE_CONFIG.staminaThreshold;
-const PRODUCTION_GAME_CONSTANTS = {
-  // 알 부화 관련
-  EGG_HATCH_MIN_TIME: 5 * MINUTE_IN_MILLISECONDS$1,
-  EGG_HATCH_MODE_TIME: 10 * MINUTE_IN_MILLISECONDS$1,
-  EGG_HATCH_MAX_TIME: 15 * MINUTE_IN_MILLISECONDS$1,
-  // 소화기관 관련
-  DIGESTIVE_CAPACITY: 5,
-  DIGESTIVE_MULTIPLIER: 0.5,
-  // debug/legacy용 stamina 비례 증가 배수
-  DIGESTIVE_LOAD_PER_MEAL: 2,
-  POOP_DELAY: 20 * MINUTE_IN_MILLISECONDS$1,
-  DIGESTIVE_SMALL_POOP_DELAY: 8 * HOUR_IN_MILLISECONDS$1,
-  POOP_SPAWN_DISTANCE: 25,
-  POOP_SPAWN_MIN_OBJECT_SPACING: 20,
-  POOP_SPAWN_RETRY_COUNT: 6,
-  POOP_SPAWN_DISTANCE_JITTER: 20,
-  POOP_SPAWN_ANGLE_JITTER_RAD: Math.PI / 2,
-  MAX_ACTIVE_OBJECT_COUNT: 50,
-  MAX_ACTIVE_FOOD_COUNT: 30,
-  // 질병 관련
-  DISEASE_CHECK_INTERVAL: 10 * SECOND_IN_MILLISECONDS,
-  BASE_DISEASE_RATE: 1862601875783909e-19,
-  LOW_STAMINA_DISEASE_THRESHOLD: 3,
-  VERY_LOW_STAMINA_DISEASE_THRESHOLD: 1.5,
-  LOW_STAMINA_DISEASE_BONUS: 93e-6,
-  VERY_LOW_STAMINA_DISEASE_BONUS: 186e-6,
-  POOP_DISEASE_RATE: 93e-6,
-  STALE_FOOD_DISEASE_RATE: 93e-6,
-  // 음식 신선도 관련
-  // runtime에서는 fresh 상태를 쓰지 않고 음식이 바로 NORMAL로 시작한다.
-  // stale 판정은 createdTime 기준 NORMAL_TO_STALE_TIME만 사용한다.
-  // FRESH_TO_NORMAL_TIME은 저장 포맷/legacy timer 호환용 보조값이며 stale 계산에는 더하지 않는다.
-  FRESH_TO_NORMAL_TIME: 3 * MINUTE_IN_MILLISECONDS$1,
-  NORMAL_TO_STALE_TIME: 10 * MINUTE_IN_MILLISECONDS$1,
-  // 캐릭터 상태 관련
-  UNHAPPY_STAMINA_THRESHOLD,
-  HAPPY_EMOTION_COOLDOWN_MS: 10 * MINUTE_IN_MILLISECONDS$1,
-  URGENT_STAMINA_THRESHOLD: 0,
-  URGENT_SPEED_MULTIPLIER: 0.8,
-  DEATH_DELAY: 6 * HOUR_IN_MILLISECONDS$1,
-  DEATH_DELAY_CLASS_A: 6 * HOUR_IN_MILLISECONDS$1,
-  DEATH_DELAY_CLASS_B: 14 * HOUR_IN_MILLISECONDS$1,
-  DEATH_DELAY_CLASS_C: 22 * HOUR_IN_MILLISECONDS$1,
-  DEATH_DELAY_CLASS_D: 30 * HOUR_IN_MILLISECONDS$1,
-  // 캐릭터 스테미나 관련
-  MAX_STAMINA: 10,
-  BOOSTED_STAMINA_THRESHOLD,
-  // 기대값: awake 기준 12분마다 0.25 감소 -> 시간당 1.25 감소 -> 10 -> 0 약 8시간.
-  STAMINA_DECREASE_INTERVAL: 12 * MINUTE_IN_MILLISECONDS$1,
-  STAMINA_DECREASE_AMOUNT: 0.25,
-  // stamina gauge 색상 구간별 감소 속도 보정.
-  // green(>= BOOSTED_STAMINA_THRESHOLD)은 30% 빠르게, red(< UNHAPPY_STAMINA_THRESHOLD)는 30% 느리게 감소한다.
-  HIGH_STAMINA_DECAY_MULTIPLIER: 1.3,
-  LOW_STAMINA_DECAY_MULTIPLIER: 0.7,
-  // 수면 관련
-  NIGHT_SLEEP_MIN_DELAY: 10 * MINUTE_IN_MILLISECONDS$1,
-  NIGHT_SLEEP_MAX_DELAY: 60 * MINUTE_IN_MILLISECONDS$1,
-  TARGET_NIGHT_SLEEP_DURATION: PRODUCTION_BALANCE_REFERENCE.TARGET_NIGHT_SLEEP_DURATION,
-  TARGET_NIGHT_SLEEP_JITTER: 30 * MINUTE_IN_MILLISECONDS$1,
-  // 기상은 sunrise 구간 시작(sunrise -20m) 이후 10~60분 = 실제 sunrise 기준 -10m ~ +40m 근처.
-  SUNRISE_WAKE_MIN_DELAY: 10 * MINUTE_IN_MILLISECONDS$1,
-  SUNRISE_WAKE_MAX_DELAY: 60 * MINUTE_IN_MILLISECONDS$1,
-  SUNRISE_WAKE_OFFSET_MIN: -10 * MINUTE_IN_MILLISECONDS$1,
-  SUNRISE_WAKE_OFFSET_MAX: 40 * MINUTE_IN_MILLISECONDS$1,
-  NIGHT_RESLEEP_MIN_DELAY: 5 * MINUTE_IN_MILLISECONDS$1,
-  NIGHT_RESLEEP_MAX_DELAY: 15 * MINUTE_IN_MILLISECONDS$1,
-  DAY_NAP_CHANCE: 0.07,
-  DAY_NAP_CHECK_INTERVAL: 20 * MINUTE_IN_MILLISECONDS$1,
-  DAY_NAP_MIN_DURATION: 10 * MINUTE_IN_MILLISECONDS$1,
-  DAY_NAP_MAX_DURATION: 30 * MINUTE_IN_MILLISECONDS$1,
-  FATIGUE_MAX: 100,
-  FATIGUE_DEFAULT: 35,
-  LOW_STAMINA_FATIGUE_THRESHOLD: 3,
-  CRITICAL_STAMINA_FATIGUE_THRESHOLD: 1.5,
-  LOW_STAMINA_FATIGUE_AWAKE_GAIN_MULTIPLIER: 1.25,
-  CRITICAL_STAMINA_FATIGUE_AWAKE_GAIN_MULTIPLIER: 1.5,
-  FATIGUE_AWAKE_GAIN_PER_HOUR: 9,
-  FATIGUE_SLEEP_RECOVERY_PER_HOUR: 12,
-  FATIGUE_SLEEP_RECOVERY_PER_HOUR_WHEN_SICK: 6,
-  FATIGUE_DAY_NAP_MIN_THRESHOLD: 55,
-  FATIGUE_DAY_NAP_WAKE_THRESHOLD: 28,
-  NATURAL_SICK_RECOVERY_FATIGUE_THRESHOLD: 28,
-  NATURAL_SICK_RECOVERY_MIN_DURATION: 30 * MINUTE_IN_MILLISECONDS$1,
-  MINI_GAME_SLEEP_INTERRUPT_FATIGUE: 10,
-  MINI_GAME_SLEEP_INTERRUPT_STAMINA: 1,
-  // sleeping 기준 실효 60분마다 0.25 감소 -> 시간당 0.25 감소 -> 10 -> 0 약 40시간.
-  SLEEPING_STAMINA_DECAY_MULTIPLIER: 0.2,
-  SLEEPING_DISEASE_RATE_MULTIPLIER: 0.1
-};
-const DEV_BALANCE_COEFFICIENTS = {
-  // DEV에서는 production 기준 시간을 나눠서 빠르게 재현한다.
-  timeDivisors: {
-    EGG_HATCH_MIN_TIME: 300,
-    EGG_HATCH_MODE_TIME: 360,
-    EGG_HATCH_MAX_TIME: 400,
-    POOP_DELAY: 1,
-    DIGESTIVE_SMALL_POOP_DELAY: 480,
-    DISEASE_CHECK_INTERVAL: 1,
-    FRESH_TO_NORMAL_TIME: 18,
-    NORMAL_TO_STALE_TIME: 60,
-    DEATH_DELAY: 360,
-    DEATH_DELAY_CLASS_A: 360,
-    DEATH_DELAY_CLASS_B: 360,
-    DEATH_DELAY_CLASS_C: 360,
-    DEATH_DELAY_CLASS_D: 360,
-    STAMINA_DECREASE_INTERVAL: 24,
-    NATURAL_SICK_RECOVERY_MIN_DURATION: 60,
-    NIGHT_SLEEP_MIN_DELAY: 60,
-    NIGHT_SLEEP_MAX_DELAY: 60,
-    TARGET_NIGHT_SLEEP_DURATION: 60,
-    TARGET_NIGHT_SLEEP_JITTER: 60,
-    SUNRISE_WAKE_MIN_DELAY: 60,
-    SUNRISE_WAKE_MAX_DELAY: 60,
-    SUNRISE_WAKE_OFFSET_MIN: 60,
-    SUNRISE_WAKE_OFFSET_MAX: 60,
-    NIGHT_RESLEEP_MIN_DELAY: 60,
-    NIGHT_RESLEEP_MAX_DELAY: 60,
-    DAY_NAP_CHECK_INTERVAL: 60,
-    DAY_NAP_MIN_DURATION: 60,
-    DAY_NAP_MAX_DURATION: 60
-  },
-  // DEV에서는 production 기준 확률을 곱해서 빠르게 상태를 관찰한다.
-  probabilityMultipliers: {
-    BASE_DISEASE_RATE: 0.02 / PRODUCTION_GAME_CONSTANTS.BASE_DISEASE_RATE,
-    LOW_STAMINA_DISEASE_BONUS: 0.01 / PRODUCTION_GAME_CONSTANTS.LOW_STAMINA_DISEASE_BONUS,
-    VERY_LOW_STAMINA_DISEASE_BONUS: 0.01 / PRODUCTION_GAME_CONSTANTS.LOW_STAMINA_DISEASE_BONUS,
-    POOP_DISEASE_RATE: 0.01 / PRODUCTION_GAME_CONSTANTS.POOP_DISEASE_RATE,
-    STALE_FOOD_DISEASE_RATE: 0.01 / PRODUCTION_GAME_CONSTANTS.STALE_FOOD_DISEASE_RATE,
-    DAY_NAP_CHANCE: 0.6 / PRODUCTION_GAME_CONSTANTS.DAY_NAP_CHANCE
-  },
-  // DEV에서는 fatigue 관련 rate를 키워서 nap/sleep 회귀를 빠르게 본다.
-  rateMultipliers: {
-    FATIGUE_AWAKE_GAIN_PER_HOUR: 1800 / PRODUCTION_GAME_CONSTANTS.FATIGUE_AWAKE_GAIN_PER_HOUR,
-    FATIGUE_SLEEP_RECOVERY_PER_HOUR: 2400 / PRODUCTION_GAME_CONSTANTS.FATIGUE_SLEEP_RECOVERY_PER_HOUR,
-    FATIGUE_SLEEP_RECOVERY_PER_HOUR_WHEN_SICK: 800 / PRODUCTION_GAME_CONSTANTS.FATIGUE_SLEEP_RECOVERY_PER_HOUR_WHEN_SICK
-  }
-};
-function deriveTimeConstant(key) {
-  const baseValue = PRODUCTION_GAME_CONSTANTS[key];
-  const divisor = DEV_BALANCE_COEFFICIENTS.timeDivisors[key];
-  if (divisor <= 0) {
-    return baseValue;
-  }
-  const derivedValue = Math.round(baseValue / divisor);
-  if (derivedValue === 0) {
-    return 0;
-  }
-  return derivedValue > 0 ? Math.max(1, derivedValue) : Math.min(-1, derivedValue);
-}
-function deriveProbabilityConstant(key) {
-  const baseValue = PRODUCTION_GAME_CONSTANTS[key];
-  return Math.min(
-    1,
-    baseValue * DEV_BALANCE_COEFFICIENTS.probabilityMultipliers[key]
-  );
-}
-function deriveRateConstant(key) {
-  const baseValue = PRODUCTION_GAME_CONSTANTS[key];
-  return baseValue * DEV_BALANCE_COEFFICIENTS.rateMultipliers[key];
-}
-const GAME_CONSTANTS = {
-  ...PRODUCTION_GAME_CONSTANTS,
-  EGG_HATCH_MIN_TIME: deriveTimeConstant("EGG_HATCH_MIN_TIME"),
-  EGG_HATCH_MODE_TIME: deriveTimeConstant("EGG_HATCH_MODE_TIME"),
-  EGG_HATCH_MAX_TIME: deriveTimeConstant("EGG_HATCH_MAX_TIME"),
-  POOP_DELAY: deriveTimeConstant("POOP_DELAY"),
-  DIGESTIVE_SMALL_POOP_DELAY: deriveTimeConstant("DIGESTIVE_SMALL_POOP_DELAY"),
-  DISEASE_CHECK_INTERVAL: deriveTimeConstant("DISEASE_CHECK_INTERVAL"),
-  FRESH_TO_NORMAL_TIME: deriveTimeConstant("FRESH_TO_NORMAL_TIME"),
-  NORMAL_TO_STALE_TIME: deriveTimeConstant("NORMAL_TO_STALE_TIME"),
-  DEATH_DELAY: deriveTimeConstant("DEATH_DELAY"),
-  DEATH_DELAY_CLASS_A: deriveTimeConstant("DEATH_DELAY_CLASS_A"),
-  DEATH_DELAY_CLASS_B: deriveTimeConstant("DEATH_DELAY_CLASS_B"),
-  DEATH_DELAY_CLASS_C: deriveTimeConstant("DEATH_DELAY_CLASS_C"),
-  DEATH_DELAY_CLASS_D: deriveTimeConstant("DEATH_DELAY_CLASS_D"),
-  STAMINA_DECREASE_INTERVAL: deriveTimeConstant("STAMINA_DECREASE_INTERVAL"),
-  NATURAL_SICK_RECOVERY_MIN_DURATION: deriveTimeConstant(
-    "NATURAL_SICK_RECOVERY_MIN_DURATION"
-  ),
-  NIGHT_SLEEP_MIN_DELAY: deriveTimeConstant("NIGHT_SLEEP_MIN_DELAY"),
-  NIGHT_SLEEP_MAX_DELAY: deriveTimeConstant("NIGHT_SLEEP_MAX_DELAY"),
-  TARGET_NIGHT_SLEEP_DURATION: deriveTimeConstant(
-    "TARGET_NIGHT_SLEEP_DURATION"
-  ),
-  TARGET_NIGHT_SLEEP_JITTER: deriveTimeConstant("TARGET_NIGHT_SLEEP_JITTER"),
-  SUNRISE_WAKE_MIN_DELAY: deriveTimeConstant("SUNRISE_WAKE_MIN_DELAY"),
-  SUNRISE_WAKE_MAX_DELAY: deriveTimeConstant("SUNRISE_WAKE_MAX_DELAY"),
-  SUNRISE_WAKE_OFFSET_MIN: deriveTimeConstant("SUNRISE_WAKE_OFFSET_MIN"),
-  SUNRISE_WAKE_OFFSET_MAX: deriveTimeConstant("SUNRISE_WAKE_OFFSET_MAX"),
-  NIGHT_RESLEEP_MIN_DELAY: deriveTimeConstant("NIGHT_RESLEEP_MIN_DELAY"),
-  NIGHT_RESLEEP_MAX_DELAY: deriveTimeConstant("NIGHT_RESLEEP_MAX_DELAY"),
-  DAY_NAP_CHECK_INTERVAL: deriveTimeConstant("DAY_NAP_CHECK_INTERVAL"),
-  DAY_NAP_MIN_DURATION: deriveTimeConstant("DAY_NAP_MIN_DURATION"),
-  DAY_NAP_MAX_DURATION: deriveTimeConstant("DAY_NAP_MAX_DURATION"),
-  BASE_DISEASE_RATE: deriveProbabilityConstant("BASE_DISEASE_RATE"),
-  LOW_STAMINA_DISEASE_BONUS: deriveProbabilityConstant(
-    "LOW_STAMINA_DISEASE_BONUS"
-  ),
-  VERY_LOW_STAMINA_DISEASE_BONUS: deriveProbabilityConstant(
-    "VERY_LOW_STAMINA_DISEASE_BONUS"
-  ),
-  POOP_DISEASE_RATE: deriveProbabilityConstant("POOP_DISEASE_RATE"),
-  STALE_FOOD_DISEASE_RATE: deriveProbabilityConstant("STALE_FOOD_DISEASE_RATE"),
-  DAY_NAP_CHANCE: deriveProbabilityConstant("DAY_NAP_CHANCE"),
-  FATIGUE_AWAKE_GAIN_PER_HOUR: deriveRateConstant(
-    "FATIGUE_AWAKE_GAIN_PER_HOUR"
-  ),
-  FATIGUE_SLEEP_RECOVERY_PER_HOUR: deriveRateConstant(
-    "FATIGUE_SLEEP_RECOVERY_PER_HOUR"
-  ),
-  FATIGUE_SLEEP_RECOVERY_PER_HOUR_WHEN_SICK: deriveRateConstant(
-    "FATIGUE_SLEEP_RECOVERY_PER_HOUR_WHEN_SICK"
-  )
-};
-function getStaminaFatigueAwakeGainMultiplier(stamina) {
-  if (stamina <= GAME_CONSTANTS.CRITICAL_STAMINA_FATIGUE_THRESHOLD) {
-    return GAME_CONSTANTS.CRITICAL_STAMINA_FATIGUE_AWAKE_GAIN_MULTIPLIER;
-  }
-  if (stamina <= GAME_CONSTANTS.LOW_STAMINA_FATIGUE_THRESHOLD) {
-    return GAME_CONSTANTS.LOW_STAMINA_FATIGUE_AWAKE_GAIN_MULTIPLIER;
-  }
-  return 1;
-}
+GAME_CONSTANTS.BOOSTED_STAMINA_THRESHOLD;
+GAME_CONSTANTS.UNHAPPY_STAMINA_THRESHOLD;
 function getStaminaDecayRateMultiplier(stamina) {
   if (stamina >= GAME_CONSTANTS.BOOSTED_STAMINA_THRESHOLD) {
     return GAME_CONSTANTS.HIGH_STAMINA_DECAY_MULTIPLIER;
@@ -29720,15 +29848,6 @@ function getStaminaDecayRateMultiplier(stamina) {
     return GAME_CONSTANTS.LOW_STAMINA_DECAY_MULTIPLIER;
   }
   return 1;
-}
-function getLowStaminaDiseaseBonus(stamina) {
-  if (stamina <= GAME_CONSTANTS.VERY_LOW_STAMINA_DISEASE_THRESHOLD) {
-    return GAME_CONSTANTS.VERY_LOW_STAMINA_DISEASE_BONUS;
-  }
-  if (stamina <= GAME_CONSTANTS.LOW_STAMINA_DISEASE_THRESHOLD) {
-    return GAME_CONSTANTS.LOW_STAMINA_DISEASE_BONUS;
-  }
-  return 0;
 }
 function approximateInverseNormalCdf(probability) {
   const a2 = [
@@ -30117,6 +30236,22 @@ function convertECSEntityToSavedEntity(world, eid) {
       // 이제 시스템에서 관리하므로 기본값
     };
   }
+  if (hasComponent(world, FoodEatingComp, eid)) {
+    components.foodEating = {
+      targetFood: FoodEatingComp.targetFood[eid],
+      progress: FoodEatingComp.progress[eid],
+      duration: FoodEatingComp.duration[eid],
+      elapsedTime: FoodEatingComp.elapsedTime[eid],
+      isActive: FoodEatingComp.isActive[eid] === 1
+    };
+  }
+  if (hasComponent(world, FoodMaskComp, eid)) {
+    components.foodMask = {
+      maskStoreIndex: FoodMaskComp.maskStoreIndex[eid],
+      progress: FoodMaskComp.progress[eid],
+      isInitialized: FoodMaskComp.isInitialized[eid] === 1
+    };
+  }
   if (hasComponent(world, EggHatchComp, eid)) {
     components.eggHatch = {
       hatchTime: EggHatchComp.hatchTime[eid],
@@ -30313,6 +30448,24 @@ function applySavedEntityToECS(world, eid, savedEntity) {
     ThrowAnimationComp.finalY[eid] = components.throwAnimation.finalPosition.y;
     ThrowAnimationComp.elapsedTime[eid] = components.throwAnimation.elapsedTime;
     ThrowAnimationComp.isActive[eid] = components.throwAnimation.isActive ? 1 : 0;
+  }
+  if (components.foodEating) {
+    if (!hasComponent(world, FoodEatingComp, eid)) {
+      addComponent(world, FoodEatingComp, eid);
+    }
+    FoodEatingComp.targetFood[eid] = components.foodEating.targetFood;
+    FoodEatingComp.progress[eid] = components.foodEating.progress;
+    FoodEatingComp.duration[eid] = components.foodEating.duration;
+    FoodEatingComp.elapsedTime[eid] = components.foodEating.elapsedTime;
+    FoodEatingComp.isActive[eid] = components.foodEating.isActive ? 1 : 0;
+  }
+  if (components.foodMask) {
+    if (!hasComponent(world, FoodMaskComp, eid)) {
+      addComponent(world, FoodMaskComp, eid);
+    }
+    FoodMaskComp.maskStoreIndex[eid] = components.foodMask.maskStoreIndex;
+    FoodMaskComp.progress[eid] = components.foodMask.progress;
+    FoodMaskComp.isInitialized[eid] = components.foodMask.isInitialized ? 1 : 0;
   }
   if (components.eggHatch) {
     if (!hasComponent(world, EggHatchComp, eid)) {
@@ -30630,6 +30783,33 @@ function repairLoadedFoodInteractionState(world, now = Date.now()) {
     const eid = objectEntities[i2];
     const objectType = ObjectComp.type[eid];
     if (objectType === ObjectType.CHARACTER) {
+      if (ObjectComp.state[eid] === CharacterState.EATING && !hasComponent(world, FoodEatingComp, eid)) {
+        const fallbackFoodEid = objectEntities.find((candidateEid) => {
+          return ObjectComp.type[candidateEid] === ObjectType.FOOD && ObjectComp.state[candidateEid] === FoodState.BEING_INTAKEN && !eatingFoodIds.has(candidateEid);
+        });
+        if (fallbackFoodEid !== void 0) {
+          const progress = hasComponent(world, FoodMaskComp, fallbackFoodEid) ? FoodMaskComp.progress[fallbackFoodEid] : 0;
+          const duration = 3200;
+          addComponent(world, FoodEatingComp, eid);
+          FoodEatingComp.targetFood[eid] = fallbackFoodEid;
+          FoodEatingComp.progress[eid] = Math.min(1, Math.max(0, progress));
+          FoodEatingComp.duration[eid] = duration;
+          FoodEatingComp.elapsedTime[eid] = FoodEatingComp.progress[eid] * duration;
+          FoodEatingComp.isActive[eid] = 1;
+          if (!hasComponent(world, FoodMaskComp, fallbackFoodEid)) {
+            addComponent(world, FoodMaskComp, fallbackFoodEid);
+            FoodMaskComp.maskStoreIndex[fallbackFoodEid] = 0;
+            FoodMaskComp.progress[fallbackFoodEid] = FoodEatingComp.progress[eid];
+            FoodMaskComp.isInitialized[fallbackFoodEid] = 0;
+          }
+          if (hasComponent(world, FreshnessTimerComp, fallbackFoodEid)) {
+            FreshnessTimerComp.isBeingEaten[fallbackFoodEid] = 1;
+          }
+          eatingFoodIds.add(fallbackFoodEid);
+          repairedCharacters.push(eid);
+          continue;
+        }
+      }
       const hasOrphanedEatingState = ObjectComp.state[eid] === CharacterState.EATING && !hasComponent(world, FoodEatingComp, eid);
       if (!hasOrphanedEatingState) {
         continue;
@@ -30668,7 +30848,7 @@ function repairLoadedFoodInteractionState(world, now = Date.now()) {
     repairedFoods
   };
 }
-const characterQuery$a = defineQuery([CharacterStatusComp, RandomMovementComp]);
+const characterQuery$9 = defineQuery([CharacterStatusComp, RandomMovementComp]);
 const allCharacterQuery = defineQuery([CharacterStatusComp, ObjectComp]);
 function hasDirectedMovement(world, eid) {
   return hasComponent(world, DestinationComp, eid) && DestinationComp.type[eid] === DestinationType.TARGETED && getTargetedFoodEntityRef(world, eid) !== null;
@@ -30677,7 +30857,7 @@ function randomMovementSystem(params) {
   const { world } = params;
   const currentTime = world.currentTime;
   const shouldLog = !world.isSimulationMode && world.isRandomMovementDebugEnabled();
-  const chars = characterQuery$a(world);
+  const chars = characterQuery$9(world);
   const allChars = allCharacterQuery(world);
   for (let i2 = 0; i2 < allChars.length; i2++) {
     const eid = allChars[i2];
@@ -31249,11 +31429,10 @@ function logFoodMaskInitializationSummary(summary) {
 function getTextureFromKey(textureKey) {
   const textureInfo = TEXTURE_MAP[textureKey];
   if (!textureInfo) {
-    {
-      throw new Error(
-        `[RenderSystem] Texture key ${textureKey} not found in TEXTURE_MAP`
-      );
-    }
+    console.warn(
+      `[RenderSystem] Texture key ${textureKey} not found in TEXTURE_MAP`
+    );
+    return void 0;
   }
   try {
     if (!textureInfo.spritesheetAlias) {
@@ -31344,13 +31523,8 @@ function updateMaskTexture(maskSprite, progress) {
     maskSprite.texture = texture;
   }
 }
-let hasValidatedTextures = false;
 function renderSystem(params) {
   const { world } = params;
-  if (!hasValidatedTextures) {
-    validateTextureMap();
-    hasValidatedTextures = true;
-  }
   const entities = renderableQuery(world);
   const exitedEntities = exitedRenderableQuery(world);
   const stage = world.stage;
@@ -31523,34 +31697,8 @@ function isTextureKeyLoaded(textureKey) {
     textureInfo.textureName
   );
 }
-function getAvailableTextureKeys() {
-  return Object.keys(TEXTURE_MAP).map(Number).sort((a2, b2) => a2 - b2);
-}
 function getTextureInfo(textureKey) {
   return TEXTURE_MAP[textureKey] || null;
-}
-function validateTextureMap() {
-  console.groupCollapsed("[RenderSystem] Texture Map Validation:");
-  const availableKeys = getAvailableTextureKeys();
-  let validCount = 0;
-  let invalidCount = 0;
-  for (const textureKey of availableKeys) {
-    const isLoaded = isTextureKeyLoaded(textureKey);
-    const textureInfo = getTextureInfo(textureKey);
-    if (isLoaded) {
-      validCount++;
-      console.log(
-        `✓ Key ${textureKey}: ${textureInfo == null ? void 0 : textureInfo.spritesheetAlias}/${textureInfo == null ? void 0 : textureInfo.textureName}`
-      );
-    } else {
-      invalidCount++;
-      console.warn(
-        `✗ Key ${textureKey}: ${textureInfo == null ? void 0 : textureInfo.spritesheetAlias}/${textureInfo == null ? void 0 : textureInfo.textureName} - NOT LOADED`
-      );
-    }
-  }
-  console.log(`Summary: ${validCount} valid, ${invalidCount} invalid textures`);
-  console.groupEnd();
 }
 const SPRITESHEET_KEY_TO_NAME = {
   [SpritesheetKey.NULL]: "null",
@@ -32728,7 +32876,7 @@ const EGG_CRACK_PIXEL_SIZE = 1;
 const overlayStore$1 = /* @__PURE__ */ new Map();
 const eggCrackQuery = defineQuery([ObjectComp, RenderComp, EggHatchComp]);
 const eggCrackExitQuery = exitQuery(eggCrackQuery);
-function getOrCreateOverlay$1(eid, stage) {
+function getOrCreateOverlay(eid, stage) {
   const existing = overlayStore$1.get(eid);
   if (existing) {
     return existing;
@@ -32979,7 +33127,7 @@ function eggCrackRenderSystem(params) {
       removeOverlay$1(eid);
       continue;
     }
-    const overlay = getOrCreateOverlay$1(eid, world.stage);
+    const overlay = getOrCreateOverlay(eid, world.stage);
     syncOverlayTransform(overlay, baseSprite);
     syncOverlayMask(overlay.mask, baseSprite);
     drawEggCracks(overlay.crack, bounds, crackStage);
@@ -33058,13 +33206,13 @@ function toCanvasFontFamilyList(fontFamilies) {
     (fontFamily) => fontFamily.includes(" ") ? `"${fontFamily}"` : fontFamily
   ).join(", ");
 }
-const characterQuery$9 = defineQuery([
+const characterQuery$8 = defineQuery([
   ObjectComp,
   PositionComp,
   RenderComp,
   CharacterStatusComp
 ]);
-const characterExitQuery$1 = exitQuery(characterQuery$9);
+const characterExitQuery = exitQuery(characterQuery$8);
 const labelStore = /* @__PURE__ */ new Map();
 const NAME_LABEL_STYLE = new TextStyle({
   fontFamily: [...NAME_LABEL_FONT_FAMILIES],
@@ -33104,12 +33252,12 @@ const MINI_STAMINA_BAR_URGENT_OVERLAY_CYCLE_MS = 1200;
 function characterNameLabelSystem(params) {
   var _a;
   const { world } = params;
-  const exitedEntities = characterExitQuery$1(world);
+  const exitedEntities = characterExitQuery(world);
   for (let i2 = 0; i2 < exitedEntities.length; i2++) {
     removeCharacterNameLabel(exitedEntities[i2]);
   }
   const rawName = (_a = world.getInMemoryData().world_metadata.monster_name) == null ? void 0 : _a.trim();
-  const entities = characterQuery$9(world);
+  const entities = characterQuery$8(world);
   for (let i2 = 0; i2 < entities.length; i2++) {
     const eid = entities[i2];
     if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
@@ -33499,76 +33647,18 @@ function getMiniStaminaBarUrgentOverlayAlpha(currentTime) {
   const triangleWave = phase < 0.5 ? phase * 2 : (1 - phase) * 2;
   return MINI_STAMINA_BAR_URGENT_OVERLAY_MIN_ALPHA + (MINI_STAMINA_BAR_URGENT_OVERLAY_MAX_ALPHA - MINI_STAMINA_BAR_URGENT_OVERLAY_MIN_ALPHA) * triangleWave;
 }
-const characterQuery$8 = defineQuery([ObjectComp, PositionComp, RenderComp]);
-const characterExitQuery = exitQuery(characterQuery$8);
+defineQuery([ObjectComp, PositionComp, RenderComp]);
 const overlayStore = /* @__PURE__ */ new Map();
-const LAYOUT_STROKE_COLOR = 58879;
-const LAYOUT_FILL_COLOR = 58879;
-const LAYOUT_FILL_ALPHA = 0.12;
-const LAYOUT_STROKE_WIDTH = 1;
-const LAYOUT_Z_INDEX_OFFSET = 1;
 function characterLayoutDebugSystem(params) {
-  const { world, stage } = params;
-  if (!stage || false) {
+  {
     cleanupCharacterLayoutDebug();
     return params;
   }
-  const exitedEntities = characterExitQuery(world);
-  for (let i2 = 0; i2 < exitedEntities.length; i2++) {
-    removeOverlay(exitedEntities[i2]);
-  }
-  const entities = characterQuery$8(world);
-  const activeCharacterEids = /* @__PURE__ */ new Set();
-  for (let i2 = 0; i2 < entities.length; i2++) {
-    const eid = entities[i2];
-    if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
-      removeOverlay(eid);
-      continue;
-    }
-    const displayObject = getCharacterDisplayObject(eid);
-    if (!displayObject) {
-      removeOverlay(eid);
-      continue;
-    }
-    const bounds = getCharacterWorldBounds(eid);
-    if (bounds.width <= 0 || bounds.height <= 0) {
-      removeOverlay(eid);
-      continue;
-    }
-    const overlay = getOrCreateOverlay(eid, stage);
-    activeCharacterEids.add(eid);
-    overlay.clear();
-    overlay.rect(bounds.leftX, bounds.topY, bounds.width, bounds.height).fill({ color: LAYOUT_FILL_COLOR, alpha: LAYOUT_FILL_ALPHA }).stroke({ color: LAYOUT_STROKE_COLOR, width: LAYOUT_STROKE_WIDTH });
-    const y2 = PositionComp.y[eid];
-    const configuredZIndex = RenderComp.zIndex[eid];
-    const effectiveZIndex = configuredZIndex === 0 ? y2 : configuredZIndex;
-    overlay.zIndex = effectiveZIndex + LAYOUT_Z_INDEX_OFFSET;
-    overlay.visible = true;
-  }
-  const trackedEids = Array.from(overlayStore.keys());
-  for (let i2 = 0; i2 < trackedEids.length; i2++) {
-    const eid = trackedEids[i2];
-    if (!activeCharacterEids.has(eid)) {
-      removeOverlay(eid);
-    }
-  }
-  return params;
 }
 function cleanupCharacterLayoutDebug(_stage) {
   overlayStore.forEach((_, eid) => {
     removeOverlay(eid);
   });
-}
-function getOrCreateOverlay(eid, stage) {
-  const existingOverlay = overlayStore.get(eid);
-  if (existingOverlay) {
-    return existingOverlay;
-  }
-  const overlay = new Graphics();
-  overlay.eventMode = "none";
-  stage.addChild(overlay);
-  overlayStore.set(eid, overlay);
-  return overlay;
 }
 function removeOverlay(eid) {
   const overlay = overlayStore.get(eid);
@@ -33707,7 +33797,7 @@ function normalizeStackCount(value) {
   }
   return Math.min(MUTATION_STACK_CAP, Math.floor(value));
 }
-function normalizeRandom$1(value) {
+function normalizeRandom(value) {
   if (!Number.isFinite(value) || value <= 0) {
     return 0;
   }
@@ -33751,12 +33841,12 @@ function resolveSameClassCrossGeneMutationTarget(characterKey, randomValue = Mat
   if (candidates.length === 0) {
     return null;
   }
-  const index = Math.floor(normalizeRandom$1(randomValue) * candidates.length);
+  const index = Math.floor(normalizeRandom(randomValue) * candidates.length);
   return candidates[index] ?? candidates[candidates.length - 1] ?? null;
 }
 function resolveMutationEvolutionCandidate(params) {
   const mutationRate = calculateMutationRate(params);
-  if (normalizeRandom$1(params.mutationRoll ?? Math.random()) >= mutationRate) {
+  if (normalizeRandom(params.mutationRoll ?? Math.random()) >= mutationRate) {
     return null;
   }
   const target = resolveSameClassCrossGeneMutationTarget(
@@ -33774,8 +33864,6 @@ function resolveMutationEvolutionCandidate(params) {
 }
 const characterQuery$7 = defineQuery([ObjectComp, CharacterStatusComp]);
 const objectQuery$2 = defineQuery([ObjectComp]);
-const dirtyExposureQuery = defineQuery([DirtyExposureComp]);
-const MAX_STORED_DIRTY_STACKS = 65535;
 function mutationRiskSystem(params) {
   const { world, currentTime } = params;
   updateDirtyExposureSources(world, currentTime);
@@ -33799,7 +33887,7 @@ function getMutationRiskStacks(world, characterEid) {
       MutationRiskComp,
       characterEid
     ) ? MutationRiskComp.unnecessaryInjectionStacks[characterEid] : 0,
-    dirtyExposureStacks: (hasComponent(world, MutationRiskComp, characterEid) ? MutationRiskComp.dirtyExposureStacks[characterEid] : 0) + activeDirtyExposureStacks
+    dirtyExposureStacks: activeDirtyExposureStacks
   };
 }
 function finalizeDirtyExposureForEntity(world, dirtyEid, currentTime) {
@@ -33807,11 +33895,6 @@ function finalizeDirtyExposureForEntity(world, dirtyEid, currentTime) {
     return;
   }
   updateDirtyExposureEntity(dirtyEid, currentTime);
-  transferDirtyStacksToCharacters(
-    world,
-    DirtyExposureComp.stackCount[dirtyEid],
-    currentTime
-  );
   removeComponent(world, DirtyExposureComp, dirtyEid);
 }
 function updateDirtyExposureSources(world, currentTime) {
@@ -33873,11 +33956,12 @@ function detoxCharacterMutationStacks(world, currentTime) {
     }
     if (ObjectComp.state[eid] === CharacterState.EGG || ObjectComp.state[eid] === CharacterState.DEAD) {
       ensureMutationRiskComp(world, eid, currentTime);
+      MutationRiskComp.dirtyExposureStacks[eid] = 0;
       continue;
     }
     ensureMutationRiskComp(world, eid, currentTime);
+    MutationRiskComp.dirtyExposureStacks[eid] = 0;
     detoxInjectionStacks(eid, currentTime);
-    detoxDirtyStacks(eid, currentTime);
   }
 }
 function detoxInjectionStacks(eid, currentTime) {
@@ -33892,26 +33976,14 @@ function detoxInjectionStacks(eid, currentTime) {
   MutationRiskComp.unnecessaryInjectionStacks[eid] = nextStacks.stacks;
   MutationRiskComp.lastInjectionDetoxTime[eid] = nextStacks.lastDetoxTime;
 }
-function detoxDirtyStacks(eid, currentTime) {
-  const nextStacks = getDetoxedStackCount({
-    currentStacks: MutationRiskComp.dirtyExposureStacks[eid],
-    lastDetoxTime: MutationRiskComp.lastDirtyDetoxTime[eid],
-    currentTime,
-    detoxIntervalMs: getMutationDetoxIntervalMs(
-      CharacterStatusComp.characterKey[eid]
-    )
-  });
-  MutationRiskComp.dirtyExposureStacks[eid] = nextStacks.stacks;
-  MutationRiskComp.lastDirtyDetoxTime[eid] = nextStacks.lastDetoxTime;
-}
 function getDetoxedStackCount(params) {
   const { currentStacks, currentTime, detoxIntervalMs } = params;
   let { lastDetoxTime } = params;
-  if (!Number.isFinite(lastDetoxTime)) {
-    lastDetoxTime = currentTime;
-  }
   if (currentStacks <= 0 || detoxIntervalMs <= 0) {
     return { stacks: 0, lastDetoxTime: currentTime };
+  }
+  if (!Number.isFinite(lastDetoxTime) || lastDetoxTime <= 0) {
+    return { stacks: currentStacks, lastDetoxTime: currentTime };
   }
   const elapsedMs = Math.max(0, currentTime - lastDetoxTime);
   const detoxCount = Math.floor(elapsedMs / detoxIntervalMs);
@@ -33934,214 +34006,22 @@ function ensureMutationRiskComp(world, eid, currentTime) {
   MutationRiskComp.lastInjectionDetoxTime[eid] = currentTime;
   MutationRiskComp.lastDirtyDetoxTime[eid] = currentTime;
 }
-function transferDirtyStacksToCharacters(world, stackCount, currentTime) {
-  if (stackCount <= 0) {
-    return;
-  }
-  const characters = characterQuery$7(world);
-  for (let i2 = 0; i2 < characters.length; i2++) {
-    const eid = characters[i2];
-    if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
-      continue;
-    }
-    ensureMutationRiskComp(world, eid, currentTime);
-    MutationRiskComp.dirtyExposureStacks[eid] = Math.min(
-      MAX_STORED_DIRTY_STACKS,
-      MutationRiskComp.dirtyExposureStacks[eid] + stackCount
-    );
-    MutationRiskComp.lastDirtyDetoxTime[eid] = currentTime;
-  }
-}
 function countActiveDirtyExposureStacks(world) {
-  const dirtyEntities = dirtyExposureQuery(world);
+  const dirtyEntities = objectQuery$2(world);
   let stackCount = 0;
   for (let i2 = 0; i2 < dirtyEntities.length; i2++) {
-    stackCount += DirtyExposureComp.stackCount[dirtyEntities[i2]];
+    const eid = dirtyEntities[i2];
+    if (!isDirtyExposureSource(world, eid)) {
+      continue;
+    }
+    stackCount += hasComponent(world, DirtyExposureComp, eid) ? Math.max(1, DirtyExposureComp.stackCount[eid]) : 1;
   }
   return stackCount;
 }
-const MONSTER_BOOK_MAX_RECORDS_PER_CHARACTER = 50;
-function createEmptyMonsterBookState() {
-  return {
-    reached: {}
-  };
-}
-function normalizeMonsterBookState(state) {
-  return normalizeMonsterBookStateWithMeta(state).state;
-}
-function normalizeMonsterBookStateWithMeta(state) {
-  const normalized = createEmptyMonsterBookState();
-  const rawReached = state == null ? void 0 : state.reached;
-  let didRepair = false;
-  if (!rawReached || typeof rawReached !== "object") {
-    return { state: normalized, didRepair };
-  }
-  for (const characterKey of MONSTER_CHARACTER_KEYS) {
-    const records = rawReached[characterKey];
-    if (!Array.isArray(records)) {
-      if (typeof records !== "undefined") {
-        didRepair = true;
-      }
-      continue;
-    }
-    const normalizedRecords = normalizeReachRecords(records);
-    if (normalizedRecords.length > 0) {
-      normalized.reached[characterKey] = normalizedRecords;
-    }
-    if (!areReachRecordArraysEqual(records, normalizedRecords)) {
-      didRepair = true;
-    }
-  }
-  return { state: normalized, didRepair };
-}
-function hasReachedMonster(state, characterKey) {
-  var _a;
-  if (!isMonsterCharacterKey(characterKey)) {
-    return false;
-  }
-  const normalized = normalizeMonsterBookState(state);
-  return (((_a = normalized.reached[characterKey]) == null ? void 0 : _a.length) ?? 0) > 0;
-}
-function ensureMonsterBookState(data) {
-  if (!data.world_metadata.app_state) {
-    data.world_metadata.app_state = {
-      last_active_time: Date.now(),
-      is_first_load: false,
-      use_local_time: true
-    };
-  }
-  const appState = data.world_metadata.app_state;
-  appState.monster_book = normalizeMonsterBookState(appState.monster_book);
-  return appState.monster_book;
-}
-function recordMonsterBookReach(params) {
-  var _a, _b;
-  const { world, characterKey, source, reachedAt } = params;
-  if (!isMonsterCharacterKey(characterKey)) {
-    return false;
-  }
-  if (typeof world.getInMemoryData !== "function" || typeof world.setData !== "function") {
-    return false;
-  }
-  const data = world.getInMemoryData();
-  if (!data) {
-    return false;
-  }
-  const monsterName = ((_a = params.name) == null ? void 0 : _a.trim()) || ((_b = data.world_metadata.monster_name) == null ? void 0 : _b.trim());
-  if (!monsterName) {
-    return false;
-  }
-  const record = {
-    name: monsterName,
-    reached_at: Number.isFinite(reachedAt) ? reachedAt : Date.now(),
-    object_id: normalizeObjectId(params.objectId),
-    source
-  };
-  const monsterBook = ensureMonsterBookState(data);
-  const records = monsterBook.reached[characterKey] ?? [];
-  monsterBook.reached[characterKey] = normalizeReachRecords([record, ...records]);
-  void world.setData(data);
-  return true;
-}
-function getSavedCurrentMonsterBookCandidates(data) {
-  var _a;
-  const currentMonstersByKey = /* @__PURE__ */ new Map();
-  for (const entity of data.entities ?? []) {
-    const characterKey = getSavedMonsterCharacterKey(entity);
-    if (characterKey === null || !isMonsterCharacterKey(characterKey)) {
-      continue;
-    }
-    if (!currentMonstersByKey.has(characterKey)) {
-      currentMonstersByKey.set(characterKey, {
-        characterKey,
-        objectId: normalizeObjectId((_a = entity.components.object) == null ? void 0 : _a.id)
-      });
-    }
-  }
-  return [...currentMonstersByKey.values()];
-}
-function backfillCurrentMonsterIfHidden(data, currentMonsters, reachedAt) {
-  var _a, _b;
-  const monsterBook = ensureMonsterBookState(data);
-  const monsterName = (_a = data.world_metadata.monster_name) == null ? void 0 : _a.trim();
-  if (!monsterName) {
-    return { state: monsterBook, didBackfill: false };
-  }
-  const normalizedReachedAt = Number.isFinite(reachedAt) ? reachedAt : Date.now();
-  let didBackfill = false;
-  for (const currentMonster of currentMonsters) {
-    const { characterKey } = currentMonster;
-    if (!isMonsterCharacterKey(characterKey)) {
-      continue;
-    }
-    if ((((_b = monsterBook.reached[characterKey]) == null ? void 0 : _b.length) ?? 0) > 0) {
-      continue;
-    }
-    monsterBook.reached[characterKey] = [
-      {
-        name: monsterName,
-        reached_at: normalizedReachedAt,
-        object_id: normalizeObjectId(currentMonster.objectId),
-        source: "backfill"
-      }
-    ];
-    didBackfill = true;
-  }
-  return { state: monsterBook, didBackfill };
-}
-function getSavedMonsterCharacterKey(entity) {
-  const object = entity.components.object;
-  const characterStatus = entity.components.characterStatus;
-  if ((object == null ? void 0 : object.type) !== ObjectType.CHARACTER || object.state === CharacterState.EGG || object.state === CharacterState.DEAD || !characterStatus) {
-    return null;
-  }
-  return characterStatus.characterKey;
-}
-function isValidReachRecord(record) {
-  if (!record || typeof record !== "object") {
-    return false;
-  }
-  const candidate = record;
-  return typeof candidate.name === "string" && candidate.name.trim().length > 0 && typeof candidate.reached_at === "number" && Number.isFinite(candidate.reached_at);
-}
-function normalizeObjectId(objectId) {
-  return typeof objectId === "number" && Number.isFinite(objectId) ? objectId : 0;
-}
-function normalizeReachRecords(records) {
-  const sortedRecords = records.filter(isValidReachRecord).sort((a2, b2) => b2.reached_at - a2.reached_at);
-  const seenObjectIds = /* @__PURE__ */ new Set();
-  const dedupedRecords = [];
-  for (const record of sortedRecords) {
-    if (record.object_id > 0) {
-      if (seenObjectIds.has(record.object_id)) {
-        continue;
-      }
-      seenObjectIds.add(record.object_id);
-    }
-    dedupedRecords.push(record);
-    if (dedupedRecords.length >= MONSTER_BOOK_MAX_RECORDS_PER_CHARACTER) {
-      break;
-    }
-  }
-  return dedupedRecords;
-}
-function areReachRecordArraysEqual(input, normalized) {
-  if (input.length !== normalized.length) {
-    return false;
-  }
-  for (let i2 = 0; i2 < input.length; i2++) {
-    const left = input[i2];
-    const right = normalized[i2];
-    if (!isValidReachRecord(left)) {
-      return false;
-    }
-    if (left.name !== right.name || left.reached_at !== right.reached_at || left.object_id !== right.object_id || left.source !== right.source) {
-      return false;
-    }
-  }
-  return true;
-}
 const pendingEvolutionRequestsByWorld = /* @__PURE__ */ new WeakMap();
+function isRunningInNativeApp() {
+  return typeof navigator !== "undefined" && navigator.userAgent.includes("DigiviceApp");
+}
 function evolveCharacter(world, eid) {
   if (ObjectComp.type[eid] !== ObjectType.CHARACTER) return;
   if (ObjectComp.state[eid] === CharacterState.DEAD) return;
@@ -34150,6 +34030,12 @@ function evolveCharacter(world, eid) {
   if (!canEvolveFromConfig(currentCharacterKey)) {
     console.log(
       `[EvolutionSystem] Character ${eid} is already at max evolution stage: key=${currentCharacterKey}`
+    );
+    return;
+  }
+  if (isRunningInNativeApp()) {
+    console.log(
+      `[EvolutionSystem] Skipped persisted JS evolution in native app; Dart lifecycle is authoritative: eid=${eid}, key=${currentCharacterKey}, gauge=${CharacterStatusComp.evolutionGage[eid]}`
     );
     return;
   }
@@ -34234,13 +34120,6 @@ async function applyEvolutionWithLoadedAsset(params) {
   console.log(
     `[EvolutionSystem] Character ${eid} evolved: phase ${currentPhase} -> ${nextPhase}, key ${currentCharacterKey} -> ${nextCharacterKey}, kind=${candidateKind}`
   );
-  recordMonsterBookReach({
-    world,
-    characterKey: nextCharacterKey,
-    source: "evolution",
-    reachedAt: world.currentTime,
-    objectId: ObjectComp.id[eid]
-  });
   updateCharacterSprites(world, eid, nextCharacterKey);
 }
 function updateCharacterSprites(world, eid, newCharacterKey) {
@@ -34312,6 +34191,9 @@ const TEMPORARY_STATUSES = [CharacterStatus.HAPPY, CharacterStatus.DISCOVER];
 const debugLog$4 = (..._args) => {
 };
 function getElapsedIntervalProgress(totalElapsedTime, interval) {
+  if (interval <= 0) {
+    return { count: 0, remainder: 0 };
+  }
   const count2 = Math.floor((totalElapsedTime + TIMER_EPSILON_MS) / interval);
   const remainder = Math.max(0, totalElapsedTime - count2 * interval);
   return {
@@ -34524,8 +34406,9 @@ function getRemainingStaminaDecreaseTime(eid) {
 function getRemainingEvolutionGaugeTime(eid) {
   const currentStamina = CharacterStatusComp.stamina[eid];
   const currentState = ObjectComp.state[eid];
+  const currentCharacterKey = CharacterStatusComp.characterKey[eid];
   const isSick = currentState === CharacterState.SICK || hasCharacterStatus$2(eid, CharacterStatus.SICK);
-  if (currentState === CharacterState.EGG || currentStamina < EVOLUTION_GAUGE_CONFIG.staminaThreshold || isSick) {
+  if (currentState === CharacterState.EGG || currentState === CharacterState.DEAD || currentStamina < EVOLUTION_GAUGE_CONFIG.staminaThreshold || isSick || !canEvolveFromConfig(currentCharacterKey)) {
     return null;
   }
   const elapsed = evolutionGaugeTimers.get(eid) || 0;
@@ -34547,10 +34430,12 @@ function _updateStaminaAndEvolutionGauge(world, eid, delta) {
   }
   updateStaminaTimer(eid, delta);
   const currentStamina = CharacterStatusComp.stamina[eid];
-  const isSick = ObjectComp.state[eid] === CharacterState.SICK || hasCharacterStatus$2(eid, CharacterStatus.SICK);
-  if (currentStamina >= EVOLUTION_GAUGE_CONFIG.staminaThreshold && !isSick) {
+  const currentState = ObjectComp.state[eid];
+  const currentCharacterKey = CharacterStatusComp.characterKey[eid];
+  const isSick = currentState === CharacterState.SICK || hasCharacterStatus$2(eid, CharacterStatus.SICK);
+  if (currentState !== CharacterState.DEAD && currentStamina >= EVOLUTION_GAUGE_CONFIG.staminaThreshold && !isSick && canEvolveFromConfig(currentCharacterKey)) {
     const currentEvolutionTimer = evolutionGaugeTimers.get(eid) || 0;
-    const evolutionDelta = ObjectComp.state[eid] === CharacterState.SLEEPING ? delta * EVOLUTION_GAUGE_CONFIG.sleepingGaugeTimeProgressMultiplier : delta;
+    const evolutionDelta = currentState === CharacterState.SLEEPING ? delta * EVOLUTION_GAUGE_CONFIG.sleepingGaugeTimeProgressMultiplier : delta;
     const totalEvolutionTime = currentEvolutionTimer + evolutionDelta;
     const evolutionProgress = getElapsedIntervalProgress(
       totalEvolutionTime,
@@ -35134,7 +35019,12 @@ function createPoop(world, characterEid, options) {
   if (hasComponent(world, AngleComp, characterEid)) {
     angle = AngleComp.value[characterEid];
   }
-  const spawnPosition = selectPoopSpawnPosition(world, characterX, characterY, angle);
+  const spawnPosition = selectPoopSpawnPosition(
+    world,
+    characterX,
+    characterY,
+    angle
+  );
   debugLog$2(
     `[DigestiveSystem] Final poop position: (${spawnPosition.x}, ${spawnPosition.y})`
   );
@@ -35621,8 +35511,7 @@ function updateFatigue(eid, delta) {
   const currentFatigue = SleepSystemComp.fatigue[eid];
   const isSleeping = ObjectComp.state[eid] === CharacterState.SLEEPING;
   const isSick = hasStatus(eid, CharacterStatus.SICK);
-  const staminaFatigueMultiplier = getStaminaFatigueAwakeGainMultiplier(CharacterStatusComp.stamina[eid]);
-  const awakeGainPerMillisecond = GAME_CONSTANTS.FATIGUE_AWAKE_GAIN_PER_HOUR * staminaFatigueMultiplier / HOUR_IN_MILLISECONDS;
+  const awakeGainPerMillisecond = GAME_CONSTANTS.FATIGUE_AWAKE_GAIN_PER_HOUR / HOUR_IN_MILLISECONDS;
   const sleepRecoveryPerMillisecond = (isSick ? GAME_CONSTANTS.FATIGUE_SLEEP_RECOVERY_PER_HOUR_WHEN_SICK : GAME_CONSTANTS.FATIGUE_SLEEP_RECOVERY_PER_HOUR) / HOUR_IN_MILLISECONDS;
   const nextFatigue = isSleeping ? currentFatigue - delta * sleepRecoveryPerMillisecond : currentFatigue + delta * awakeGainPerMillisecond;
   SleepSystemComp.fatigue[eid] = clamp(
@@ -35964,12 +35853,9 @@ function restoreRandomMovementIfNeeded(world, eid, currentTime) {
   RandomMovementComp.nextChange[eid] = currentTime + 1e3;
 }
 function logSleepCheck(world, event, payload) {
-  if (!shouldLogSleepChecks(world)) {
+  {
     return;
   }
-}
-function shouldLogSleepChecks(world) {
-  return !world.isSimulationMode;
 }
 const characterQuery$4 = defineQuery([
   ObjectComp,
@@ -38466,7 +38352,6 @@ function calculateDiseaseRate(world, eid) {
   const fatigue = hasComponent(world, SleepSystemComp, eid) ? SleepSystemComp.fatigue[eid] : GAME_CONSTANTS.FATIGUE_DEFAULT;
   const breakdown = {
     base: GAME_CONSTANTS.BASE_DISEASE_RATE,
-    lowStaminaBonus: 0,
     fatigueBonus: 0,
     poopBonus: 0,
     staleFood: 0,
@@ -38474,13 +38359,8 @@ function calculateDiseaseRate(world, eid) {
     fatigue,
     poopCount: 0,
     staleFoodCount: 0,
-    staminaFatigueMultiplier: getStaminaFatigueAwakeGainMultiplier(stamina)
+    staminaFatigueMultiplier: 1
   };
-  const lowStaminaBonus = getLowStaminaDiseaseBonus(stamina);
-  if (lowStaminaBonus > 0) {
-    diseaseRate += lowStaminaBonus;
-    breakdown.lowStaminaBonus = lowStaminaBonus;
-  }
   const poopCount = countObjectsInWorld(world, ObjectType.POOB);
   breakdown.poopCount = poopCount;
   if (poopCount > 0) {
@@ -40094,67 +39974,7 @@ const _GameMenu = class _GameMenu {
 };
 _GameMenu.MENU_GAP_EXTRA_PX = 6;
 let GameMenu = _GameMenu;
-const BASE_GREEN_PERCENT = 65;
-const BASE_SOIL_PERCENT = 20;
-const BASE_SKULL_PERCENT = 15;
-const BONUS_PER_COUNT_PERCENT = 2;
-const BONUS_COUNT_CAP = 10;
-function normalizeBonusCount(value) {
-  if (!Number.isFinite(value) || value <= 0) {
-    return 0;
-  }
-  return Math.min(BONUS_COUNT_CAP, Math.floor(value));
-}
-function normalizeRandom(value) {
-  if (!Number.isFinite(value) || value <= 0) {
-    return 0;
-  }
-  if (value >= 1) {
-    return 1 - Number.EPSILON;
-  }
-  return value;
-}
-function calculateEggHatchGeneProbabilities(params) {
-  const staleFoodCount = normalizeBonusCount(params.staleFoodCountAtHatch);
-  const syringeCount = normalizeBonusCount(params.syringeCount);
-  const soilBonus = staleFoodCount * BONUS_PER_COUNT_PERCENT;
-  const skullBonus = syringeCount * BONUS_PER_COUNT_PERCENT;
-  return {
-    green: BASE_GREEN_PERCENT - soilBonus - skullBonus,
-    soil: BASE_SOIL_PERCENT + soilBonus,
-    skull: BASE_SKULL_PERCENT + skullBonus
-  };
-}
-function resolveEggHatchStartingGeneSelection(params) {
-  const normalizedStaleFoodCountAtHatch = normalizeBonusCount(
-    params.staleFoodCountAtHatch
-  );
-  const normalizedSyringeCount = normalizeBonusCount(params.syringeCount);
-  const normalizedRandom = normalizeRandom(params.random);
-  const probabilities = calculateEggHatchGeneProbabilities({
-    staleFoodCountAtHatch: normalizedStaleFoodCountAtHatch,
-    syringeCount: normalizedSyringeCount
-  });
-  const rollPercent = normalizedRandom * 100;
-  let selectedCharacterKey;
-  if (rollPercent < probabilities.green) {
-    selectedCharacterKey = CharacterKeyECS.GreenSlimeA1;
-  } else if (rollPercent < probabilities.green + probabilities.soil) {
-    selectedCharacterKey = CharacterKeyECS.SoilSlimeA1;
-  } else {
-    selectedCharacterKey = CharacterKeyECS.SkullSlimeA1;
-  }
-  return {
-    normalizedStaleFoodCountAtHatch,
-    normalizedSyringeCount,
-    normalizedRandom,
-    rollPercent,
-    probabilities,
-    selectedCharacterKey
-  };
-}
 const eggQuery = defineQuery([ObjectComp, EggHatchComp]);
-const staleFoodQuery = defineQuery([ObjectComp, FreshnessComp]);
 const pendingRealtimeHatchAttemptsByWorld = /* @__PURE__ */ new WeakMap();
 function eggHatchSystem(params) {
   const { world, currentTime } = params;
@@ -40178,192 +39998,80 @@ function eggHatchSystem(params) {
         ...logContext
       });
     }
-    if (world.isSimulationMode) {
-      hatchCharacterForSimulation(eid, world, currentTime);
-    } else {
-      void hatchCharacter(eid, world, currentTime);
-    }
+    requestFlutterAuthoritativeHatch(eid, world, currentTime);
   }
   return params;
 }
-function completeHatch(eid, world, currentTime, characterKey) {
-  const previousCharacterKey = CharacterStatusComp.characterKey[eid];
-  CharacterStatusComp.characterKey[eid] = characterKey;
-  CharacterStatusComp.evolutionPhase[eid] = 1;
-  ObjectComp.state[eid] = CharacterState.IDLE;
-  EggHatchComp.hatchTime[eid] = 0;
-  EggHatchComp.hatchDurationMs[eid] = 0;
-  EggHatchComp.isReadyToHatch[eid] = 0;
-  EggHatchComp.syringeCount[eid] = 0;
-  EggHatchComp.pendingCharacterKey[eid] = CharacterKeyECS.NULL;
-  if (hasComponent(world, RenderComp, eid)) {
-    RenderComp.textureKey[eid] = TextureKey.NULL;
-    RenderComp.storeIndex[eid] = 0;
-  }
-  if (!hasComponent(world, RandomMovementComp, eid)) {
-    addComponent(world, RandomMovementComp, eid);
-    RandomMovementComp.minIdleTime[eid] = 2e3;
-    RandomMovementComp.maxIdleTime[eid] = 8e3;
-    RandomMovementComp.minMoveTime[eid] = 1e3;
-    RandomMovementComp.maxMoveTime[eid] = 8e3;
-    RandomMovementComp.nextChange[eid] = currentTime + 2e3 + Math.random() * 3e3;
-  }
-  if (!hasComponent(world, AnimationRenderComp, eid)) {
-    addComponent(world, AnimationRenderComp, eid);
-    AnimationRenderComp.storeIndex[eid] = 0;
-    AnimationRenderComp.spritesheetKey[eid] = characterKey;
-    AnimationRenderComp.animationKey[eid] = AnimationKey.IDLE;
-    AnimationRenderComp.isPlaying[eid] = 1;
-    AnimationRenderComp.loop[eid] = 1;
-    AnimationRenderComp.speed[eid] = 0.04;
-    console.log(
-      `[EggHatchSystem] Added AnimationRenderComp with characterKey: ${characterKey}`
-    );
-  }
-  console.log(
-    `[EggHatchSystem] Character ${eid} has hatched! State changed to IDLE with characterKey: ${characterKey}`
-  );
-  console.warn("[ImportantDiagnostics][EggHatchExecution]", {
-    phase: "complete_hatch",
-    ...buildEggHatchDiagnosticsContext(eid, world, currentTime),
-    previousCharacterKey,
-    appliedCharacterKey: characterKey
-  });
-  recordMonsterBookReach({
-    world,
-    characterKey,
-    source: "hatch",
-    reachedAt: currentTime,
-    objectId: ObjectComp.id[eid]
-  });
-}
-function countStaleFoodAtHatch(world) {
-  const entities = staleFoodQuery(world);
-  let count2 = 0;
-  for (let i2 = 0; i2 < entities.length; i2++) {
-    const eid = entities[i2];
-    if (ObjectComp.type[eid] === ObjectType.FOOD && FreshnessComp.freshness[eid] === Freshness.STALE) {
-      count2 += 1;
-    }
-  }
-  return count2;
-}
-function selectStartingCharacterForHatch(eid, world) {
-  const staleFoodCountAtHatch = countStaleFoodAtHatch(world);
-  const syringeCount = EggHatchComp.syringeCount[eid];
-  const random = Math.random();
-  const selection = resolveEggHatchStartingGeneSelection({
-    staleFoodCountAtHatch,
-    syringeCount,
-    random
-  });
-  console.warn("[ImportantDiagnostics][EggHatchSelection]", {
-    eid,
-    objectId: ObjectComp.id[eid],
-    currentTime: world.currentTime,
-    hatchTime: EggHatchComp.hatchTime[eid],
-    hatchDurationMs: EggHatchComp.hatchDurationMs[eid],
-    isReadyToHatch: EggHatchComp.isReadyToHatch[eid] === 1,
-    currentCharacterKey: CharacterStatusComp.characterKey[eid],
-    isSimulationMode: world.isSimulationMode,
-    state: ObjectComp.state[eid],
-    staleFoodCountAtHatch,
-    syringeCount,
-    random,
-    normalizedStaleFoodCountAtHatch: selection.normalizedStaleFoodCountAtHatch,
-    normalizedSyringeCount: selection.normalizedSyringeCount,
-    normalizedRandom: selection.normalizedRandom,
-    rollPercent: selection.rollPercent,
-    probabilities: selection.probabilities,
-    selectedCharacterKey: selection.selectedCharacterKey
-  });
-  return {
-    staleFoodCountAtHatch,
-    syringeCount,
-    random,
-    characterKey: selection.selectedCharacterKey
-  };
-}
-function getPendingStartingCharacterKey(eid) {
-  const pendingCharacterKey = EggHatchComp.pendingCharacterKey[eid];
-  switch (pendingCharacterKey) {
-    case CharacterKeyECS.GreenSlimeA1:
-    case CharacterKeyECS.SoilSlimeA1:
-    case CharacterKeyECS.SkullSlimeA1:
-      return pendingCharacterKey;
-    default:
-      return null;
-  }
-}
-function getOrCreatePendingStartingCharacterForHatch(eid, world) {
-  const pendingCharacterKey = getPendingStartingCharacterKey(eid);
-  if (pendingCharacterKey !== null) {
-    return pendingCharacterKey;
-  }
-  const { characterKey } = selectStartingCharacterForHatch(eid, world);
-  EggHatchComp.pendingCharacterKey[eid] = characterKey;
-  return characterKey;
-}
-function hatchCharacterForSimulation(eid, world, currentTime) {
-  console.warn("[ImportantDiagnostics][EggHatchExecution]", {
-    phase: "simulation_start",
-    ...buildEggHatchDiagnosticsContext(eid, world, currentTime)
-  });
-  const characterKey = getOrCreatePendingStartingCharacterForHatch(eid, world);
-  const spritesheetOptions = getCharacterSpritesheetOptions(characterKey);
-  const spritesheetAlias = (spritesheetOptions == null ? void 0 : spritesheetOptions.alias) || (spritesheetOptions == null ? void 0 : spritesheetOptions.jsonPath);
-  if (!spritesheetAlias || !isSpritesheetLoaded(spritesheetAlias)) {
-    console.warn(
-      `[EggHatchSystem] Simulation hatch skipped for character ${eid} because spritesheet is not preloaded. Keeping EGG state.`
-    );
-    console.warn("[ImportantDiagnostics][EggHatchExecution]", {
-      phase: "simulation_skipped_unloaded_spritesheet",
-      ...buildEggHatchDiagnosticsContext(eid, world, currentTime),
-      selectedCharacterKey: characterKey,
-      spritesheetAlias: spritesheetAlias ?? null
-    });
-    return;
-  }
-  void ensureCharacterOpaqueBoundsComputed(characterKey);
-  completeHatch(eid, world, currentTime, characterKey);
-}
-async function hatchCharacter(eid, world, currentTime) {
+function requestFlutterAuthoritativeHatch(eid, world, currentTime) {
   const pendingAttempts = getPendingRealtimeHatchAttempts(world);
   if (pendingAttempts.has(eid)) {
     return;
   }
   pendingAttempts.add(eid);
-  try {
+  const hatchWorld = world;
+  if (typeof hatchWorld.completeForegroundHatchWithFlutterAuthority !== "function") {
+    console.warn(
+      "[EggHatchSystem] Flutter authoritative hatch update is unavailable. Keeping EGG state."
+    );
     console.warn("[ImportantDiagnostics][EggHatchExecution]", {
-      phase: "realtime_start",
+      phase: "flutter_authority_unavailable",
       ...buildEggHatchDiagnosticsContext(eid, world, currentTime)
     });
-    const characterKey = getOrCreatePendingStartingCharacterForHatch(eid, world);
-    const isLoaded = await ensureCharacterSpritesheetLoaded({
-      characterKey,
-      reason: "hatch",
-      eid,
-      maxRetries: 2
-    });
-    if (!isLoaded) {
-      console.warn(
-        `[EggHatchSystem] Hatch delayed for character ${eid}. Keeping EGG state because spritesheet could not be loaded.`
-      );
+    pendingAttempts.delete(eid);
+    return;
+  }
+  console.warn("[ImportantDiagnostics][EggHatchExecution]", {
+    phase: "flutter_authority_start",
+    ...buildEggHatchDiagnosticsContext(eid, world, currentTime)
+  });
+  const complete = (succeeded) => {
+    if (succeeded) {
       console.warn("[ImportantDiagnostics][EggHatchExecution]", {
-        phase: "realtime_delayed_unloaded_spritesheet",
-        ...buildEggHatchDiagnosticsContext(eid, world, currentTime),
-        selectedCharacterKey: characterKey
+        phase: "flutter_authority_applied",
+        eid,
+        objectId: ObjectComp.id[eid],
+        currentTime
       });
+    } else {
+      console.warn("[ImportantDiagnostics][EggHatchExecution]", {
+        phase: "flutter_authority_kept_egg",
+        ...buildEggHatchDiagnosticsContext(eid, world, currentTime)
+      });
+    }
+  };
+  try {
+    const result = hatchWorld.completeForegroundHatchWithFlutterAuthority(
+      eid,
+      currentTime
+    );
+    if (typeof result === "boolean") {
+      complete(result);
+      pendingAttempts.delete(eid);
       return;
     }
-    await ensureCharacterOpaqueBoundsComputed(characterKey);
-    completeHatch(eid, world, currentTime, characterKey);
+    void result.then(complete).catch((error) => {
+      console.error(
+        `[EggHatchSystem] Flutter authoritative hatch update failed for character ${eid}:`,
+        error
+      );
+      console.warn("[ImportantDiagnostics][EggHatchExecution]", {
+        phase: "flutter_authority_failed",
+        ...buildEggHatchDiagnosticsContext(eid, world, currentTime),
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }).finally(() => {
+      pendingAttempts.delete(eid);
+    });
   } catch (error) {
     console.error(
-      `[EggHatchSystem] Error during hatching process for character ${eid}:`,
+      `[EggHatchSystem] Flutter authoritative hatch update failed for character ${eid}:`,
       error
     );
-  } finally {
+    console.warn("[ImportantDiagnostics][EggHatchExecution]", {
+      phase: "flutter_authority_failed",
+      ...buildEggHatchDiagnosticsContext(eid, world, currentTime),
+      error: error instanceof Error ? error.message : String(error)
+    });
     pendingAttempts.delete(eid);
   }
 }
@@ -40607,6 +40315,28 @@ function restrictMovementForSickness(world, eid) {
     SpeedComp.value[eid] = 0;
   }
 }
+const BASE_GREEN_PERCENT = HATCH_GENE_CONFIG.baseGreenPercent;
+const BASE_SOIL_PERCENT = HATCH_GENE_CONFIG.baseSoilPercent;
+const BASE_SKULL_PERCENT = HATCH_GENE_CONFIG.baseSkullPercent;
+const BONUS_PER_COUNT_PERCENT = HATCH_GENE_CONFIG.bonusPerCountPercent;
+const BONUS_COUNT_CAP = HATCH_GENE_CONFIG.maxBonusCount;
+function normalizeBonusCount(value) {
+  if (!Number.isFinite(value) || value <= 0) {
+    return 0;
+  }
+  return Math.min(BONUS_COUNT_CAP, Math.floor(value));
+}
+function calculateEggHatchGeneProbabilities(params) {
+  const staleFoodCount = normalizeBonusCount(params.staleFoodCountAtHatch);
+  const syringeCount = normalizeBonusCount(params.syringeCount);
+  const soilBonus = staleFoodCount * BONUS_PER_COUNT_PERCENT;
+  const skullBonus = syringeCount * BONUS_PER_COUNT_PERCENT;
+  return {
+    green: BASE_GREEN_PERCENT - soilBonus - skullBonus,
+    soil: BASE_SOIL_PERCENT + soilBonus,
+    skull: BASE_SKULL_PERCENT + skullBonus
+  };
+}
 function sleepEffectSystem(params) {
   return params;
 }
@@ -40653,6 +40383,129 @@ async function requestNativeLocationPermission() {
     return false;
   }
 }
+const MONSTER_BOOK_MAX_RECORDS_PER_CHARACTER = 50;
+function createEmptyMonsterBookState() {
+  return {
+    reached: {}
+  };
+}
+function normalizeMonsterBookState(state) {
+  return normalizeMonsterBookStateWithMeta(state).state;
+}
+function normalizeMonsterBookStateWithMeta(state) {
+  const normalized = createEmptyMonsterBookState();
+  const rawReached = state == null ? void 0 : state.reached;
+  let didRepair = false;
+  if (!rawReached || typeof rawReached !== "object") {
+    return { state: normalized, didRepair };
+  }
+  for (const characterKey of MONSTER_CHARACTER_KEYS) {
+    const records = rawReached[characterKey];
+    if (!Array.isArray(records)) {
+      if (typeof records !== "undefined") {
+        didRepair = true;
+      }
+      continue;
+    }
+    const normalizedRecords = normalizeReachRecords(records);
+    if (normalizedRecords.length > 0) {
+      normalized.reached[characterKey] = normalizedRecords;
+    }
+    if (!areReachRecordArraysEqual(records, normalizedRecords)) {
+      didRepair = true;
+    }
+  }
+  return { state: normalized, didRepair };
+}
+function hasReachedMonster(state, characterKey) {
+  var _a;
+  if (!isMonsterCharacterKey(characterKey)) {
+    return false;
+  }
+  const normalized = normalizeMonsterBookState(state);
+  return (((_a = normalized.reached[characterKey]) == null ? void 0 : _a.length) ?? 0) > 0;
+}
+function ensureMonsterBookState(data) {
+  if (!data.world_metadata.app_state) {
+    data.world_metadata.app_state = {
+      last_active_time: Date.now(),
+      is_first_load: false,
+      use_local_time: true
+    };
+  }
+  const appState = data.world_metadata.app_state;
+  appState.monster_book = normalizeMonsterBookState(appState.monster_book);
+  return appState.monster_book;
+}
+function getSavedCurrentMonsterBookCandidates(data) {
+  var _a;
+  const currentMonstersByKey = /* @__PURE__ */ new Map();
+  for (const entity of data.entities ?? []) {
+    const characterKey = getSavedMonsterCharacterKey(entity);
+    if (characterKey === null || !isMonsterCharacterKey(characterKey)) {
+      continue;
+    }
+    if (!currentMonstersByKey.has(characterKey)) {
+      currentMonstersByKey.set(characterKey, {
+        characterKey,
+        objectId: normalizeObjectId((_a = entity.components.object) == null ? void 0 : _a.id)
+      });
+    }
+  }
+  return [...currentMonstersByKey.values()];
+}
+function getSavedMonsterCharacterKey(entity) {
+  const object = entity.components.object;
+  const characterStatus = entity.components.characterStatus;
+  if ((object == null ? void 0 : object.type) !== ObjectType.CHARACTER || object.state === CharacterState.EGG || object.state === CharacterState.DEAD || !characterStatus) {
+    return null;
+  }
+  return characterStatus.characterKey;
+}
+function isValidReachRecord(record) {
+  if (!record || typeof record !== "object") {
+    return false;
+  }
+  const candidate = record;
+  return typeof candidate.name === "string" && candidate.name.trim().length > 0 && typeof candidate.reached_at === "number" && Number.isFinite(candidate.reached_at);
+}
+function normalizeObjectId(objectId) {
+  return typeof objectId === "number" && Number.isFinite(objectId) ? objectId : 0;
+}
+function normalizeReachRecords(records) {
+  const sortedRecords = records.filter(isValidReachRecord).sort((a2, b2) => b2.reached_at - a2.reached_at);
+  const seenObjectIds = /* @__PURE__ */ new Set();
+  const dedupedRecords = [];
+  for (const record of sortedRecords) {
+    if (record.object_id > 0) {
+      if (seenObjectIds.has(record.object_id)) {
+        continue;
+      }
+      seenObjectIds.add(record.object_id);
+    }
+    dedupedRecords.push(record);
+    if (dedupedRecords.length >= MONSTER_BOOK_MAX_RECORDS_PER_CHARACTER) {
+      break;
+    }
+  }
+  return dedupedRecords;
+}
+function areReachRecordArraysEqual(input, normalized) {
+  if (input.length !== normalized.length) {
+    return false;
+  }
+  for (let i2 = 0; i2 < input.length; i2++) {
+    const left = input[i2];
+    const right = normalized[i2];
+    if (!isValidReachRecord(left)) {
+      return false;
+    }
+    if (left.name !== right.name || left.reached_at !== right.reached_at || left.object_id !== right.object_id || left.source !== right.source) {
+      return false;
+    }
+  }
+  return true;
+}
 const MONSTER_BOOK_STORAGE_KEY = "MonsterBookData";
 function getLegacyMonsterBookRaw(savedWorldData) {
   if (!savedWorldData || typeof savedWorldData !== "object") {
@@ -40676,7 +40529,10 @@ function getLegacyMonsterBookRaw(savedWorldData) {
     };
   }
   return {
-    hasLegacyState: Object.prototype.hasOwnProperty.call(appState, "monster_book"),
+    hasLegacyState: Object.prototype.hasOwnProperty.call(
+      appState,
+      "monster_book"
+    ),
     value: appState.monster_book
   };
 }
@@ -40688,7 +40544,9 @@ function getLegacyMonsterBookState(savedWorldData) {
   if (!hasLegacyState) {
     return null;
   }
-  return normalizeMonsterBookState(value);
+  return normalizeMonsterBookState(
+    value
+  );
 }
 async function readMonsterBookState(storage) {
   const rawState = await storage.getData(MONSTER_BOOK_STORAGE_KEY);
@@ -40696,8 +40554,14 @@ async function readMonsterBookState(storage) {
   const normalizedResult = normalizeMonsterBookStateWithMeta(
     rawState
   );
-  if (hasStoredState && normalizedResult.didRepair && typeof storage.setData === "function") {
-    await storage.setData(MONSTER_BOOK_STORAGE_KEY, normalizedResult.state);
+  if (hasStoredState && normalizedResult.didRepair) {
+    console.warn(
+      "[MonsterBookStorage] Repaired MonsterBookData in memory; JS storage writes are disabled because Flutter lifecycle owns this key.",
+      {
+        key: MONSTER_BOOK_STORAGE_KEY,
+        monsterBookWriteOwner: "flutter_lifecycle"
+      }
+    );
   }
   return {
     hasStoredState,
@@ -40708,11 +40572,6 @@ async function readMonsterBookState(storage) {
 async function loadMonsterBookState(storage) {
   const { state } = await readMonsterBookState(storage);
   return state;
-}
-async function saveMonsterBookState(storage, state) {
-  const normalizedState = normalizeMonsterBookState(state);
-  await storage.setData(MONSTER_BOOK_STORAGE_KEY, normalizedState);
-  return normalizedState;
 }
 async function migrateLegacyMonsterBookIfNeeded(storage, savedWorldData) {
   const persistedState = await readMonsterBookState(storage);
@@ -40731,12 +40590,11 @@ async function migrateLegacyMonsterBookIfNeeded(storage, savedWorldData) {
       didMigrate: false
     };
   }
-  const normalizedState = await saveMonsterBookState(storage, legacyMonsterBookState);
   return {
-    hasStoredState: true,
-    state: normalizedState,
+    hasStoredState: false,
+    state: legacyMonsterBookState,
     didRepair: false,
-    didMigrate: true
+    didMigrate: false
   };
 }
 function getTimingNow() {
@@ -41106,11 +40964,11 @@ function getEvolutionGeneOutcomes(world, characterEid) {
     return [];
   }
   const mutationTargets = getSameClassCrossGeneMutationTargets(characterKey);
-  const hasMutationRisk = hasComponent(world, MutationRiskComp, characterEid);
+  const mutationStacks = getMutationRiskStacks(world, characterEid);
   const mutationRate = mutationTargets.length > 0 ? calculateMutationRate({
     characterKey,
-    unnecessaryInjectionStacks: hasMutationRisk ? MutationRiskComp.unnecessaryInjectionStacks[characterEid] : 0,
-    dirtyExposureStacks: hasMutationRisk ? MutationRiskComp.dirtyExposureStacks[characterEid] : 0
+    unnecessaryInjectionStacks: mutationStacks.unnecessaryInjectionStacks,
+    dirtyExposureStacks: mutationStacks.dirtyExposureStacks
   }) : 0;
   const normalEvolutionRate = Math.max(0, 1 - mutationRate);
   const normalOutcomeMap = /* @__PURE__ */ new Map();
@@ -41261,6 +41119,9 @@ const GIF_ASSETS = {
 };
 const liveObjectQuery = defineQuery([ObjectComp]);
 const MAIN_SCENE_WORLD_ENTITY_CAPACITY = 256;
+function isFiniteTimestamp(value) {
+  return typeof value === "number" && Number.isFinite(value);
+}
 const _MainSceneWorld = class _MainSceneWorld {
   constructor(params) {
     this.WORLD_DATA_SCHEMA_VERSION = "1.0.0";
@@ -42247,20 +42108,7 @@ ${this.t("main.cleanObjectsPrompt")}`,
           );
           this._addDebugGaugeEventListener();
         }
-        if (this._debugParentElement) {
-          this._debugGameConstantsUI = new HTMLDebugGameConstantsUI(
-            this._debugParentElement
-          );
-          this._debugStatusUI = new HTMLDebugStatusUI(
-            this,
-            this._debugParentElement
-          );
-          this._debugToggleButton = new HTMLDebugToggleButton(() => {
-            var _a, _b;
-            (_a = this._debugStatusUI) == null ? void 0 : _a.toggle();
-            return ((_b = this._debugStatusUI) == null ? void 0 : _b.isDebugVisible()) ?? false;
-          }, this._debugParentElement);
-        }
+        if (false) ;
       }
       await this._initDiagnostics.measurePhase(
         "setup_visibility_handler",
@@ -42752,24 +42600,23 @@ ${this.t("main.cleanObjectsPrompt")}`,
   getInMemoryData() {
     return this._persistentData;
   }
-  buildHomeWidgetSyncWorldData() {
+  buildWorldDataSyncPayload() {
     if (!this._persistentData) {
-      console.warn("[ImportantDiagnostics][HomeWidgetSyncWorldData]", {
+      console.warn("[ImportantDiagnostics][WorldDataSyncPayload]", {
         phase: "build_skipped_missing_persistent_data"
       });
       return null;
     }
     try {
-      const syncWorldData = cloneDeep(this._persistentData);
+      const syncPayload = cloneDeep(this._persistentData);
       const currentTime = this.currentTime;
       const currentAnchor = this._trustedClock.captureAnchor();
-      const worldMetadata = syncWorldData.world_metadata ?? {
+      const worldMetadata = syncPayload.world_metadata ?? {
         name: "MainScene",
         last_ecs_saved: currentTime,
         version: this.WORLD_DATA_SCHEMA_VERSION
       };
-      syncWorldData.world_metadata = worldMetadata;
-      worldMetadata.last_ecs_saved = currentTime;
+      syncPayload.world_metadata = worldMetadata;
       worldMetadata.version = worldMetadata.version || this.WORLD_DATA_SCHEMA_VERSION;
       const appState = worldMetadata.app_state ?? {
         last_active_time: currentTime,
@@ -42787,16 +42634,23 @@ ${this.t("main.cleanObjectsPrompt")}`,
         monster_book: createEmptyMonsterBookState()
       };
       worldMetadata.app_state = appState;
-      appState.last_active_time = currentTime;
+      const persistenceTime = this._resolveNonRegressingPersistenceTime({
+        currentTime,
+        previousLastEcsSaved: worldMetadata.last_ecs_saved,
+        previousLastActiveTime: appState.last_active_time,
+        source: "world_data_sync_payload"
+      });
+      worldMetadata.last_ecs_saved = persistenceTime;
+      appState.last_active_time = persistenceTime;
       appState.last_active_time_anchor = currentAnchor;
       appState.use_local_time = true;
       const objectEntities = liveObjectQuery(this);
-      syncWorldData.entities = objectEntities.map(
+      syncPayload.entities = objectEntities.map(
         (eid) => convertECSEntityToSavedEntity(this, eid)
       );
       const characterEid = this._findMainCharacterEntity();
       if (characterEid >= 0) {
-        console.warn("[ImportantDiagnostics][HomeWidgetSyncWorldData]", {
+        console.warn("[ImportantDiagnostics][WorldDataSyncPayload]", {
           phase: "build_completed",
           currentTime,
           worldLastEcsSaved: worldMetadata.last_ecs_saved,
@@ -42813,10 +42667,10 @@ ${this.t("main.cleanObjectsPrompt")}`,
           isRunningReentrySimulation: this._isRunningReentrySimulation
         });
       }
-      return syncWorldData;
+      return syncPayload;
     } catch (error) {
       console.warn(
-        "[MainSceneWorld] Failed to build home widget sync world data",
+        "[MainSceneWorld] Failed to build world data sync payload",
         error
       );
       return null;
@@ -42869,22 +42723,22 @@ ${this.t("main.cleanObjectsPrompt")}`,
     }
     this._hasDeferredPersistence = false;
     await this._enqueueStorageWrite(async () => {
-      var _a2, _b2, _c2, _d2, _e2, _f2;
+      var _a2, _b2, _c2, _d2, _e2;
       try {
-        const monsterBookState = ((_a2 = data.world_metadata.app_state) == null ? void 0 : _a2.monster_book) ?? null;
         const persistableData = this._createStoragePersistableData(data);
         console.debug("[MainSceneWorld] setData:start", {
           key: WORLD_DATA_STORAGE_KEY,
-          monsterName: (_b2 = data.world_metadata) == null ? void 0 : _b2.monster_name,
-          entityCount: ((_c2 = data.entities) == null ? void 0 : _c2.length) ?? 0,
-          savedAt: (_d2 = data.world_metadata) == null ? void 0 : _d2.last_ecs_saved
+          monsterName: (_a2 = data.world_metadata) == null ? void 0 : _a2.monster_name,
+          entityCount: ((_b2 = data.entities) == null ? void 0 : _b2.length) ?? 0,
+          savedAt: (_c2 = data.world_metadata) == null ? void 0 : _c2.last_ecs_saved,
+          monsterBookWriteOwner: "flutter_lifecycle"
         });
-        await saveMonsterBookState(StorageManager, monsterBookState);
         await StorageManager.setData(WORLD_DATA_STORAGE_KEY, persistableData);
         console.debug("[MainSceneWorld] setData:success", {
           key: WORLD_DATA_STORAGE_KEY,
-          monsterName: (_e2 = data.world_metadata) == null ? void 0 : _e2.monster_name,
-          entityCount: ((_f2 = data.entities) == null ? void 0 : _f2.length) ?? 0
+          monsterName: (_d2 = data.world_metadata) == null ? void 0 : _d2.monster_name,
+          entityCount: ((_e2 = data.entities) == null ? void 0 : _e2.length) ?? 0,
+          monsterBookWriteOwner: "flutter_lifecycle"
         });
       } catch (error) {
         console.error("[MainSceneWorld] Failed to save data:", error);
@@ -43634,6 +43488,7 @@ ${this.t("main.cleanObjectsPrompt")}`,
       this._pendingRecoveryCureEids.add(characterEid);
     } else if (isUnnecessaryMutationInjection) {
       recordUnnecessaryMutationInjection(this, characterEid, this.currentTime);
+      void this._saveCurrentState();
     } else {
       console.log(
         `[MainSceneWorld] Character ${characterEid} is not sick, starting hospital animation only`
@@ -43922,7 +43777,7 @@ ${this.t("main.cleanObjectsPrompt")}`,
   }
   _isNativeWorldDataUpdateSuccessful(result) {
     const status = result == null ? void 0 : result.status;
-    return status === "native_authoritative_completion_completed" || status === "native_world_data_update_completed" || status === "completed" || status === "ok";
+    return status === "native_authoritative_completion_completed" || status === "flutter_world_data_update_completed" || status === "native_world_data_update_completed" || status === "completed" || status === "ok";
   }
   async _processNativeWorldDataUpdateForReentry(source, preReentrySnapshot, options) {
     var _a;
@@ -43931,26 +43786,63 @@ ${this.t("main.cleanObjectsPrompt")}`,
     }
     this._isRunningReentrySimulation = true;
     try {
+      await this._refreshTrustedClockForReentry(source);
       const updateResult = await this._onNativeWorldDataUpdateForReentry(source);
       if (!this._isNativeWorldDataUpdateSuccessful(updateResult)) {
         throw new Error(
           typeof (updateResult == null ? void 0 : updateResult.error) === "string" ? updateResult.error : `native_world_data_update_failed:${(updateResult == null ? void 0 : updateResult.status) ?? "unknown"}`
         );
       }
-      const reloadedData = await StorageManager.getData(
-        WORLD_DATA_STORAGE_KEY
-      );
-      const validatedData = reloadedData ? this._validateAndMigrateData(reloadedData) : null;
+      let usedNativeUpdatedRawWorldData = false;
+      let validatedData = null;
+      if (typeof updateResult.updatedRawWorldData === "string") {
+        const rawWorldData = updateResult.updatedRawWorldData.trim();
+        if (rawWorldData) {
+          try {
+            const parsedData = JSON.parse(rawWorldData);
+            const nativeValidatedData = this._validateAndMigrateData(parsedData);
+            if (this._hasPlayableSavedData(nativeValidatedData)) {
+              validatedData = nativeValidatedData;
+              usedNativeUpdatedRawWorldData = true;
+            } else {
+              console.warn(
+                "[MainSceneWorld] Native updated raw world data is not playable; falling back to storage reload",
+                { source, status: updateResult.status }
+              );
+            }
+          } catch (error) {
+            console.warn(
+              "[MainSceneWorld] Failed to parse native updated raw world data; falling back to storage reload",
+              { source, status: updateResult.status, error }
+            );
+          }
+        }
+      }
+      if (!validatedData) {
+        const reloadedData = await StorageManager.getData(
+          WORLD_DATA_STORAGE_KEY
+        );
+        validatedData = reloadedData ? this._validateAndMigrateData(reloadedData) : null;
+      }
       if (!this._hasPlayableSavedData(validatedData)) {
         throw new Error("native_world_data_update_missing_reloaded_world_data");
       }
+      const nativeUpdatedRawCharacterState = usedNativeUpdatedRawWorldData ? this._getSavedMainCharacterState(validatedData) : null;
+      const shouldPreserveNativeSleep = updateResult.nextCharacterState === CharacterState.SLEEPING || nativeUpdatedRawCharacterState === CharacterState.SLEEPING;
       this.applyPersistedWorldDataForReentry(validatedData);
       options.clearFoodInteractionSuspendFlag();
       if ((_a = this._persistentData) == null ? void 0 : _a.world_metadata.app_state) {
         delete this._persistentData.world_metadata.app_state.suspend_food_interaction_until_reentry;
       }
       applyReentryHappyStatusForFullStaminaCharacters(this);
-      this._applyEntryStatusSuppression(source, preReentrySnapshot);
+      const sleepSuppressionApplied = this._applyEntryStatusSuppression(
+        source,
+        preReentrySnapshot,
+        {
+          preserveNativeSleep: shouldPreserveNativeSleep
+        }
+      );
+      const postAppliedSnapshot = this._captureMainCharacterEntryStatusSnapshot();
       if (this._initDiagnostics.isInitTimingActive) {
         await this._initDiagnostics.measurePhase(
           "reentry_persist_state",
@@ -43970,11 +43862,108 @@ ${this.t("main.cleanObjectsPrompt")}`,
           hatched: updateResult.hatched ?? null,
           previousCharacterState: updateResult.previousCharacterState ?? null,
           nextCharacterState: updateResult.nextCharacterState ?? null,
-          selectedCharacterKey: updateResult.selectedCharacterKey ?? null
+          selectedCharacterKey: updateResult.selectedCharacterKey ?? null,
+          usedNativeUpdatedRawWorldData,
+          preAppState: (preReentrySnapshot == null ? void 0 : preReentrySnapshot.state) ?? null,
+          nativeNextState: updateResult.nextCharacterState ?? null,
+          nativeUpdatedRawCharacterState,
+          postAppliedState: (postAppliedSnapshot == null ? void 0 : postAppliedSnapshot.state) ?? null,
+          sleepSuppressionApplied
         }
       );
     } finally {
       this._finishReentryRuntimeState();
+    }
+  }
+  async completeForegroundHatchWithFlutterAuthority(eid, currentTime) {
+    if (!this._onNativeWorldDataUpdateForReentry) {
+      console.warn("[ImportantDiagnostics][EggHatchExecution]", {
+        phase: "foreground_hatch_skipped_missing_flutter_authority",
+        eid,
+        objectId: ObjectComp.id[eid],
+        currentTime
+      });
+      return false;
+    }
+    try {
+      await this._saveCurrentState();
+      const updateResult = await this._onNativeWorldDataUpdateForReentry("foreground_hatch");
+      if (!this._isNativeWorldDataUpdateSuccessful(updateResult)) {
+        console.warn("[ImportantDiagnostics][EggHatchExecution]", {
+          phase: "foreground_hatch_flutter_update_failed",
+          eid,
+          objectId: ObjectComp.id[eid],
+          currentTime,
+          status: (updateResult == null ? void 0 : updateResult.status) ?? null,
+          error: (updateResult == null ? void 0 : updateResult.error) ?? null
+        });
+        return false;
+      }
+      let validatedData = null;
+      let usedFlutterUpdatedRawWorldData = false;
+      if (typeof updateResult.updatedRawWorldData === "string") {
+        const rawWorldData = updateResult.updatedRawWorldData.trim();
+        if (rawWorldData) {
+          try {
+            const parsedData = JSON.parse(rawWorldData);
+            const nativeValidatedData = this._validateAndMigrateData(parsedData);
+            if (this._hasPlayableSavedData(nativeValidatedData)) {
+              validatedData = nativeValidatedData;
+              usedFlutterUpdatedRawWorldData = true;
+            }
+          } catch (error) {
+            console.warn(
+              "[MainSceneWorld] Failed to parse foreground hatch updated raw world data",
+              { status: updateResult.status, error }
+            );
+          }
+        }
+      }
+      if (!validatedData) {
+        const reloadedData = await StorageManager.getData(
+          WORLD_DATA_STORAGE_KEY
+        );
+        validatedData = reloadedData ? this._validateAndMigrateData(reloadedData) : null;
+      }
+      if (!this._hasPlayableSavedData(validatedData)) {
+        console.warn("[ImportantDiagnostics][EggHatchExecution]", {
+          phase: "foreground_hatch_missing_flutter_world_data",
+          eid,
+          objectId: ObjectComp.id[eid],
+          currentTime,
+          status: updateResult.status ?? null
+        });
+        return false;
+      }
+      this.applyPersistedWorldDataForReentry(validatedData);
+      const postAppliedSnapshot = this._captureMainCharacterEntryStatusSnapshot();
+      const hatched = updateResult.hatched === true || (postAppliedSnapshot == null ? void 0 : postAppliedSnapshot.state) !== CharacterState.EGG;
+      console.warn("[ImportantDiagnostics][EggHatchExecution]", {
+        phase: "foreground_hatch_flutter_update_applied",
+        eid,
+        objectId: ObjectComp.id[eid],
+        currentTime,
+        status: updateResult.status ?? null,
+        hatched: updateResult.hatched ?? null,
+        selectedCharacterKey: updateResult.selectedCharacterKey ?? null,
+        hatchSelectionDiagnostics: updateResult.hatchSelectionDiagnostics ?? null,
+        usedFlutterUpdatedRawWorldData,
+        postAppliedState: (postAppliedSnapshot == null ? void 0 : postAppliedSnapshot.state) ?? null
+      });
+      return hatched;
+    } catch (error) {
+      console.error(
+        "[MainSceneWorld] Foreground hatch Flutter authoritative update failed:",
+        error
+      );
+      console.warn("[ImportantDiagnostics][EggHatchExecution]", {
+        phase: "foreground_hatch_flutter_update_error",
+        eid,
+        objectId: ObjectComp.id[eid],
+        currentTime,
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return false;
     }
   }
   applyPersistedWorldDataForReentry(data) {
@@ -44105,9 +44094,19 @@ ${this.t("main.cleanObjectsPrompt")}`,
     const isSleeping = ObjectComp.state[characterEid] === CharacterState.SLEEPING;
     return {
       eid: characterEid,
+      state: ObjectComp.state[characterEid],
       signature: `${ObjectComp.state[characterEid]}|${statuses.join(",")}`,
       isSleeping
     };
+  }
+  _getSavedMainCharacterState(data) {
+    for (const entity of (data == null ? void 0 : data.entities) ?? []) {
+      const object = entity.components.object;
+      if ((object == null ? void 0 : object.type) === ObjectType.CHARACTER) {
+        return object.state;
+      }
+    }
+    return null;
   }
   _clearMainCharacterSleepState(eid) {
     if (!hasComponent(this, SleepSystemComp, eid)) {
@@ -44136,20 +44135,24 @@ ${this.t("main.cleanObjectsPrompt")}`,
       });
     }
   }
-  _applyEntryStatusSuppression(source, preReentrySnapshot) {
+  _applyEntryStatusSuppression(source, preReentrySnapshot, options = {}) {
     if (!this._shouldPreserveWidgetEntryStatuses(source)) {
       this._entryStatusSuppression = null;
-      return;
+      return false;
     }
     const postReentrySnapshot = this._captureMainCharacterEntryStatusSnapshot();
     if (!preReentrySnapshot || !postReentrySnapshot) {
       this._entryStatusSuppression = null;
-      return;
+      return false;
+    }
+    if (options.preserveNativeSleep === true && postReentrySnapshot.isSleeping) {
+      this._entryStatusSuppression = null;
+      return false;
     }
     const previousSuppression = this._entryStatusSuppression;
     const suppressSleep = (previousSuppression == null ? void 0 : previousSuppression.suppressSleep) === true || !preReentrySnapshot.isSleeping && postReentrySnapshot.isSleeping;
     if (!suppressSleep) {
-      return;
+      return false;
     }
     this._clearMainCharacterSleepState(postReentrySnapshot.eid);
     const suppressedSnapshot = this._captureMainCharacterEntryStatusSnapshot();
@@ -44157,6 +44160,7 @@ ${this.t("main.cleanObjectsPrompt")}`,
       suppressSleep,
       baselineSignature: (suppressedSnapshot == null ? void 0 : suppressedSnapshot.signature) ?? postReentrySnapshot.signature
     };
+    return true;
   }
   _releaseEntryStatusSuppressionIfNeeded() {
     if (!this._entryStatusSuppression) {
@@ -44245,6 +44249,7 @@ ${this.t("main.cleanObjectsPrompt")}`,
       );
       return;
     }
+    await this._refreshTrustedClockForReentry("app_resume");
     const pauseDuration = this.currentTime - this._pauseStartTime;
     console.log(
       `[MainSceneWorld] 📱 App resumed (returned to foreground) after ${this._formatPauseDuration(
@@ -44338,7 +44343,13 @@ ${this.t("main.cleanObjectsPrompt")}`,
       }
     }
     this._persistentData.entities = updatedEntities;
-    this._persistentData.world_metadata.last_ecs_saved = this.currentTime;
+    const appState = this._persistentData.world_metadata.app_state;
+    this._persistentData.world_metadata.last_ecs_saved = this._resolveNonRegressingPersistenceTime({
+      currentTime: this.currentTime,
+      previousLastEcsSaved: this._persistentData.world_metadata.last_ecs_saved,
+      previousLastActiveTime: appState == null ? void 0 : appState.last_active_time,
+      source: "sync_ecs_to_persistent_data"
+    });
     console.log(
       `[MainSceneWorld] Synced ${updatedEntities.length} entities to persistent data`
     );
@@ -44364,7 +44375,12 @@ ${this.t("main.cleanObjectsPrompt")}`,
           monster_book: createEmptyMonsterBookState()
         };
       }
-      const activeTime = this.currentTime;
+      const activeTime = this._resolveNonRegressingPersistenceTime({
+        currentTime: this.currentTime,
+        previousLastEcsSaved: this._persistentData.world_metadata.last_ecs_saved,
+        previousLastActiveTime: this._persistentData.world_metadata.app_state.last_active_time,
+        source: "save_last_active_time"
+      });
       this._persistentData.world_metadata.app_state.last_active_time = activeTime;
       this._persistentData.world_metadata.app_state.last_active_time_anchor = this._trustedClock.captureAnchor();
       console.log(
@@ -44373,6 +44389,39 @@ ${this.t("main.cleanObjectsPrompt")}`,
         ).toLocaleString("ko-KR")}`
       );
     }
+  }
+  async _refreshTrustedClockForReentry(source) {
+    try {
+      await this._trustedClock.refresh({ forceRefresh: false });
+    } catch (error) {
+      console.warn("[ImportantDiagnostics][ReentryTrustedClock]", {
+        source,
+        phase: "refresh_failed",
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+  _resolveNonRegressingPersistenceTime(params) {
+    const { currentTime, source } = params;
+    if (this._simulationTime !== null || !isFiniteTimestamp(currentTime)) {
+      return currentTime;
+    }
+    const previousTimes = [
+      params.previousLastEcsSaved,
+      params.previousLastActiveTime
+    ].filter(isFiniteTimestamp);
+    const preservedTime = previousTimes.length > 0 ? Math.max(...previousTimes) : null;
+    if (preservedTime === null || currentTime >= preservedTime) {
+      return currentTime;
+    }
+    console.warn("[ImportantDiagnostics][TimestampRegressionGuard]", {
+      source,
+      currentTime,
+      previousLastEcsSaved: isFiniteTimestamp(params.previousLastEcsSaved) ? params.previousLastEcsSaved : null,
+      previousLastActiveTime: isFiniteTimestamp(params.previousLastActiveTime) ? params.previousLastActiveTime : null,
+      preservedTime
+    });
+    return preservedTime;
   }
   /**
    * 상태 관리 시스템들 토글 (디버그용)
@@ -52216,9 +52265,7 @@ class FlappyBirdGameScene extends Container {
         this.restartGame();
       }
     }
-    if (event.code === "KeyD" && true) {
-      this.physicsManager.toggleDebugMode(this.game.app);
-    }
+    if (event.code === "KeyD" && false) ;
   }
   /**
    * 게임을 시작합니다.
@@ -53005,21 +53052,6 @@ const CLASS_ACCENT_COLORS = {
   C: 2984511,
   D: 12463984
 };
-function createDevUnlockedMonsterBookState() {
-  const reachedAt = Date.now();
-  const reached = {};
-  for (const characterKey of MONSTER_CHARACTER_KEYS) {
-    reached[characterKey] = [
-      {
-        name: "DEV",
-        reached_at: reachedAt,
-        object_id: characterKey,
-        source: "backfill"
-      }
-    ];
-  }
-  return normalizeMonsterBookState({ reached });
-}
 class MonsterBookScene extends Container {
   constructor(game) {
     super();
@@ -53119,32 +53151,15 @@ class MonsterBookScene extends Container {
       currentMonsters.map((currentMonster) => currentMonster.characterKey)
     );
     const persistedMonsterBookState = await loadMonsterBookState(StorageManager);
-    const currentAppState = data.world_metadata.app_state;
-    const { state, didBackfill } = backfillCurrentMonsterIfHidden(
-      {
-        ...data,
-        world_metadata: {
-          ...data.world_metadata,
-          app_state: {
-            last_active_time: (currentAppState == null ? void 0 : currentAppState.last_active_time) ?? Date.now(),
-            is_first_load: (currentAppState == null ? void 0 : currentAppState.is_first_load) ?? false,
-            use_local_time: (currentAppState == null ? void 0 : currentAppState.use_local_time) ?? true,
-            ...currentAppState,
-            monster_book: persistedMonsterBookState
-          }
-        }
-      },
-      currentMonsters,
-      Date.now()
+    this.monsterBookState = normalizeMonsterBookState(
+      persistedMonsterBookState
     );
-    this.monsterBookState = normalizeMonsterBookState(state);
-    if (didBackfill) {
-      await saveMonsterBookState(StorageManager, this.monsterBookState);
-    }
     this.unlockAllCardsForDevMode();
   }
   unlockAllCardsForDevMode() {
-    this.monsterBookState = createDevUnlockedMonsterBookState();
+    {
+      return;
+    }
   }
   async preloadBookBackground() {
     try {
@@ -53181,10 +53196,13 @@ class MonsterBookScene extends Container {
       );
       spritesheet.textureSource.scaleMode = "nearest";
     } catch (error) {
-      console.warn("[MonsterBookScene] Failed to load gene symbol spritesheet", {
-        url: GENE_SYMBOL_SPRITESHEET_URL,
-        error
-      });
+      console.warn(
+        "[MonsterBookScene] Failed to load gene symbol spritesheet",
+        {
+          url: GENE_SYMBOL_SPRITESHEET_URL,
+          error
+        }
+      );
     }
   }
   async preloadRetroFont() {
@@ -53325,7 +53343,10 @@ class MonsterBookScene extends Container {
         fontWeight: "700"
       });
       unknown.anchor.set(0.5);
-      unknown.position.set(params.x + params.width / 2, params.y + params.height / 2 + 3);
+      unknown.position.set(
+        params.x + params.width / 2,
+        params.y + params.height / 2 + 3
+      );
       container.addChild(unknown);
     }
     this.addGeneSymbol(container, cardInfo.geneLine, params);
@@ -54328,11 +54349,11 @@ class Game {
       mainSceneData: this.currentScene instanceof MainSceneWorld ? this.currentScene.getInMemoryData() : null
     };
   }
-  getHomeWidgetSyncWorldData() {
+  getWorldDataSyncPayload() {
     if (!(this.currentScene instanceof MainSceneWorld)) {
       return null;
     }
-    return this.currentScene.buildHomeWidgetSyncWorldData();
+    return this.currentScene.buildWorldDataSyncPayload();
   }
   /**
    * 사용 가능한 모든 씬 키 목록을 반환합니다
@@ -54762,7 +54783,7 @@ function simulateEvolutionAdminRolls(params) {
   });
 }
 export {
-  NAME_LABEL_STROKE_WIDTH as $,
+  LOCALE_METADATA as $,
   AbstractRenderer as A,
   BufferUsage as B,
   Container as C,
@@ -54777,79 +54798,77 @@ export {
   measureNameLabelWidth as L,
   Matrix as M,
   fitsNameLabelWidth as N,
-  TIME_OF_DAY_OPTIONS as O,
+  TRANSLATIONS as O,
   Point as P,
-  getTimeOfDayLabel as Q,
+  NAME_LABEL_FONT_FAMILIES as Q,
   RendererType as R,
   STENCIL_MODES as S,
   Ticker as T,
   UPDATE_PRIORITY as U,
-  TRANSLATIONS as V,
+  NAME_LABEL_FONT_WEIGHT as V,
   WebLocalStorage as W,
-  NAME_LABEL_FONT_FAMILIES as X,
-  NAME_LABEL_FONT_WEIGHT as Y,
-  NAME_LABEL_STROKE_COLOR as Z,
-  NAME_LABEL_FILL_COLOR as _,
+  NAME_LABEL_STROKE_COLOR as X,
+  NAME_LABEL_FILL_COLOR as Y,
+  NAME_LABEL_STROKE_WIDTH as Z,
+  SUPPORTED_LOCALES as _,
   applyEvolutionAdminExport as a,
-  SUPPORTED_LOCALES as a0,
-  LOCALE_METADATA as a1,
-  CharacterState as a2,
-  CharacterKeyECS as a3,
-  isEggTextureKey as a4,
-  TextureKey as a5,
-  GAME_CONSTANTS as a6,
-  SceneKey as a7,
-  TimeOfDay as a8,
-  hasLegacyMonsterBookState as a9,
-  deprecation as aA,
-  v8_0_0 as aB,
-  RendererInitHook as aC,
-  Geometry as aD,
-  checkMaxIfStatementsInShader as aE,
-  compileHighShaderGlProgram as aF,
-  colorBitGl as aG,
-  generateTextureBatchBitGl as aH,
-  roundPixelsBitGl as aI,
-  getBatchSamplersUniformGroup as aJ,
-  TextStyle as aK,
-  BatchableGraphics as aL,
-  getAdjustedBlendModeBlend as aM,
-  ViewableBuffer as aN,
-  TextureStyle as aO,
-  BitmapFontManager as aP,
-  CanvasTextMetrics as aQ,
-  getBitmapTextLayout as aR,
-  Cache as aS,
-  Graphics as aT,
-  updateQuadBounds as aU,
-  CanvasTextGenerator as aV,
-  GraphicsContextSystem as aW,
-  migrateLegacyMonsterBookIfNeeded as aa,
-  getNativeSunTimes as ab,
-  MissingInitialGameDataError as ac,
-  Game as ad,
-  GpuProgram as ae,
-  GlProgram as af,
-  TextureMatrix as ag,
-  DefaultBatcher as ah,
-  BigPool as ai,
-  getGlobalBounds as aj,
-  Bounds as ak,
-  TexturePool as al,
-  FilterEffect as am,
-  Sprite as an,
-  getAttributeInfoFromFormat as ao,
-  unsafeEvalSupported as ap,
-  uid as aq,
-  Rectangle as ar,
-  SystemRunner as as,
-  multiplyColors as at,
-  UPDATE_VISIBLE as au,
-  UPDATE_COLOR as av,
-  UPDATE_BLEND as aw,
-  Color as ax,
-  getLocalBounds as ay,
-  VERSION as az,
+  CharacterState as a0,
+  CharacterKeyECS as a1,
+  isEggTextureKey as a2,
+  TextureKey as a3,
+  GAME_CONSTANTS as a4,
+  SceneKey as a5,
+  TimeOfDay as a6,
+  hasLegacyMonsterBookState as a7,
+  migrateLegacyMonsterBookIfNeeded as a8,
+  getNativeSunTimes as a9,
+  RendererInitHook as aA,
+  Geometry as aB,
+  checkMaxIfStatementsInShader as aC,
+  compileHighShaderGlProgram as aD,
+  colorBitGl as aE,
+  generateTextureBatchBitGl as aF,
+  roundPixelsBitGl as aG,
+  getBatchSamplersUniformGroup as aH,
+  TextStyle as aI,
+  BatchableGraphics as aJ,
+  getAdjustedBlendModeBlend as aK,
+  ViewableBuffer as aL,
+  TextureStyle as aM,
+  BitmapFontManager as aN,
+  CanvasTextMetrics as aO,
+  getBitmapTextLayout as aP,
+  Cache as aQ,
+  Graphics as aR,
+  updateQuadBounds as aS,
+  CanvasTextGenerator as aT,
+  GraphicsContextSystem as aU,
+  MissingInitialGameDataError as aa,
+  Game as ab,
+  GpuProgram as ac,
+  GlProgram as ad,
+  TextureMatrix as ae,
+  DefaultBatcher as af,
+  BigPool as ag,
+  getGlobalBounds as ah,
+  Bounds as ai,
+  TexturePool as aj,
+  FilterEffect as ak,
+  Sprite as al,
+  getAttributeInfoFromFormat as am,
+  unsafeEvalSupported as an,
+  uid as ao,
+  Rectangle as ap,
+  SystemRunner as aq,
+  multiplyColors as ar,
+  UPDATE_VISIBLE as as,
+  UPDATE_COLOR as at,
+  UPDATE_BLEND as au,
+  Color as av,
+  getLocalBounds as aw,
+  VERSION as ax,
+  deprecation as ay,
+  v8_0_0 as az,
   buildEvolutionAdminExport as b,
   EventEmitter as c,
   getTextureBatchBindGroup as d,
