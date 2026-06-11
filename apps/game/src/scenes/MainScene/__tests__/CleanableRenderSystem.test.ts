@@ -37,6 +37,13 @@ type GraphicsCallCounts = {
   drawRect: number;
 };
 
+type CapturedGraphicsBounds = {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+};
+
 function createCleanableRenderWorld(): CleanableRenderTestWorld {
   const world = createTestWorld() as CleanableRenderTestWorld;
 
@@ -170,6 +177,54 @@ function withGraphicsCallCounts<T>(
   }
 }
 
+function withCapturedGraphicsBounds<T>(
+  fn: (boundsByGraphics: WeakMap<PIXI.Graphics, CapturedGraphicsBounds>) => T,
+): T {
+  const boundsByGraphics = new WeakMap<PIXI.Graphics, CapturedGraphicsBounds>();
+  const originalMoveTo = PIXI.Graphics.prototype.moveTo;
+  const originalLineTo = PIXI.Graphics.prototype.lineTo;
+  const originalClear = PIXI.Graphics.prototype.clear;
+
+  const capturePoint = (graphics: PIXI.Graphics, x: number, y: number) => {
+    const previous = boundsByGraphics.get(graphics);
+    boundsByGraphics.set(graphics, {
+      minX: previous ? Math.min(previous.minX, x) : x,
+      minY: previous ? Math.min(previous.minY, y) : y,
+      maxX: previous ? Math.max(previous.maxX, x) : x,
+      maxY: previous ? Math.max(previous.maxY, y) : y,
+    });
+  };
+
+  PIXI.Graphics.prototype.moveTo = function patchedMoveTo(
+    this: PIXI.Graphics,
+    x: number,
+    y: number,
+  ) {
+    capturePoint(this, x, y);
+    return originalMoveTo.call(this, x, y);
+  };
+  PIXI.Graphics.prototype.lineTo = function patchedLineTo(
+    this: PIXI.Graphics,
+    x: number,
+    y: number,
+  ) {
+    capturePoint(this, x, y);
+    return originalLineTo.call(this, x, y);
+  };
+  PIXI.Graphics.prototype.clear = function patchedClear(this: PIXI.Graphics) {
+    boundsByGraphics.delete(this);
+    return originalClear.call(this);
+  };
+
+  try {
+    return fn(boundsByGraphics);
+  } finally {
+    PIXI.Graphics.prototype.moveTo = originalMoveTo;
+    PIXI.Graphics.prototype.lineTo = originalLineTo;
+    PIXI.Graphics.prototype.clear = originalClear;
+  }
+}
+
 function withCleanableRenderHarness<T>(
   fn: (context: {
     world: CleanableRenderTestWorld;
@@ -196,6 +251,10 @@ function createCleanableEntity(
     x: number;
     y: number;
     zIndex?: number;
+    texture?: PIXI.Texture;
+    scale?: number;
+    renderedWidth?: number;
+    renderedHeight?: number;
   },
 ): {
   eid: number;
@@ -216,11 +275,18 @@ function createCleanableEntity(
   CleanableComp.cleaningProgress[eid] = 0;
   CleanableComp.isBeingCleaned[eid] = 0;
 
-  const sprite = new PIXI.Sprite(PIXI.Texture.WHITE);
+  const sprite = new PIXI.Sprite(options.texture ?? PIXI.Texture.WHITE);
   const bounds = new PIXI.Rectangle(options.x - 18, options.y - 18, 36, 36);
 
   sprite.anchor.set(0.5);
   sprite.position.set(options.x, options.y);
+  sprite.scale.set(options.scale ?? 1);
+  if (options.renderedWidth !== undefined) {
+    sprite.width = options.renderedWidth;
+  }
+  if (options.renderedHeight !== undefined) {
+    sprite.height = options.renderedHeight;
+  }
   sprite.zIndex = options.zIndex ?? options.y;
   sprite.getBounds = (() =>
     bounds as unknown as PIXI.Bounds) as typeof sprite.getBounds;
@@ -229,6 +295,32 @@ function createCleanableEntity(
   getSpriteStore().set(eid, sprite);
 
   return { eid, sprite };
+}
+
+function createTextureWithMetadata(width: number, height: number): PIXI.Texture {
+  return new PIXI.Texture({
+    source: PIXI.Texture.WHITE.source,
+    frame: new PIXI.Rectangle(0, 0, width, height),
+    orig: new PIXI.Rectangle(0, 0, width, height),
+  });
+}
+
+function getCapturedBorderSize(
+  boundsByGraphics: WeakMap<PIXI.Graphics, CapturedGraphicsBounds>,
+  border: PIXI.Graphics | undefined,
+): {
+  width: number;
+  height: number;
+} {
+  assert.ok(border);
+
+  const bounds = boundsByGraphics.get(border);
+  assert.ok(bounds);
+
+  return {
+    width: bounds.maxX - bounds.minX,
+    height: bounds.maxY - bounds.minY,
+  };
 }
 
 function runCleanableRenderSystem(world: CleanableRenderTestWorld): void {
@@ -275,6 +367,108 @@ test("포커스된 청소 타겟은 비포커스 테두리보다 앞에 오고 �
     assert.deepEqual(strokeStyles.get(otherBorder), {
       width: 3,
       color: 0xffffff,
+    });
+  });
+});
+
+test("같은 텍스처와 scale의 cleanable은 같은 점선 테두리 크기를 사용한다", () => {
+  withCapturedGraphicsBounds((boundsByGraphics) => {
+    withCleanableRenderHarness(({ world }) => {
+      const texture = createTextureWithMetadata(24, 18);
+      const first = createCleanableEntity(world, {
+        x: 80,
+        y: 120,
+        texture,
+        scale: 2,
+      });
+      const second = createCleanableEntity(world, {
+        x: 160,
+        y: 180,
+        texture,
+        scale: 2,
+      });
+
+      world._isCleaningMode = true;
+      runCleanableRenderSystem(world);
+
+      const firstSize = getCapturedBorderSize(
+        boundsByGraphics,
+        getDashedBorderStore().get(first.eid),
+      );
+      const secondSize = getCapturedBorderSize(
+        boundsByGraphics,
+        getDashedBorderStore().get(second.eid),
+      );
+
+      assert.deepEqual(firstSize, { width: 48, height: 36 });
+      assert.deepEqual(secondSize, firstSize);
+    });
+  });
+});
+
+test("texture metadata가 달라도 렌더된 sprite 크기가 같으면 같은 점선 테두리 크기를 사용한다", () => {
+  withCapturedGraphicsBounds((boundsByGraphics) => {
+    withCleanableRenderHarness(({ world }) => {
+      const first = createCleanableEntity(world, {
+        x: 80,
+        y: 120,
+        texture: createTextureWithMetadata(80, 24),
+        renderedWidth: 40,
+        renderedHeight: 40,
+      });
+      const second = createCleanableEntity(world, {
+        x: 160,
+        y: 180,
+        texture: createTextureWithMetadata(16, 96),
+        renderedWidth: 40,
+        renderedHeight: 40,
+      });
+
+      world._isCleaningMode = true;
+      runCleanableRenderSystem(world);
+
+      const firstSize = getCapturedBorderSize(
+        boundsByGraphics,
+        getDashedBorderStore().get(first.eid),
+      );
+      const secondSize = getCapturedBorderSize(
+        boundsByGraphics,
+        getDashedBorderStore().get(second.eid),
+      );
+
+      assert.deepEqual(firstSize, { width: 40, height: 40 });
+      assert.deepEqual(secondSize, firstSize);
+    });
+  });
+});
+
+test("cleanable sprite scale이 바뀌면 점선 테두리를 새 렌더 크기로 다시 그린다", () => {
+  withCapturedGraphicsBounds((boundsByGraphics) => {
+    withCleanableRenderHarness(({ world }) => {
+      const target = createCleanableEntity(world, {
+        x: 80,
+        y: 120,
+        texture: createTextureWithMetadata(20, 10),
+        scale: 1,
+      });
+
+      world._isCleaningMode = true;
+      runCleanableRenderSystem(world);
+
+      const border = getDashedBorderStore().get(target.eid);
+      assert.deepEqual(getCapturedBorderSize(boundsByGraphics, border), {
+        width: 20,
+        height: 10,
+      });
+
+      target.sprite.scale.set(3, 2);
+      runCleanableRenderSystem(world);
+
+      assert.equal(getDashedBorderStore().get(target.eid), border);
+      assert.deepEqual(getCapturedBorderSize(boundsByGraphics, border), {
+        width: 60,
+        height: 20,
+      });
     });
   });
 });

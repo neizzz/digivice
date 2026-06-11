@@ -63,17 +63,8 @@ type DashedBorderRenderState = {
   isFocused: boolean;
 };
 
-type RenderSizeState = {
-  width: number;
-  height: number;
-  textureId: number | string | null;
-  scaleX: number;
-  scaleY: number;
-};
-
 let cleaningDimOverlayRenderState: CleaningDimOverlayRenderState | null = null;
 const dashedBorderRenderStateByEid = new Map<number, DashedBorderRenderState>();
-const renderSizeStateByEid = new Map<number, RenderSizeState>();
 
 /**
  * 청소 대상 렌더링 시스템 파라미터
@@ -205,51 +196,46 @@ function getObjectRenderSize(
   const spriteStore = getSpriteStore();
   const sprite = spriteStore.get(storeIndex);
 
-  if (!sprite) {
+  if (!sprite || sprite.destroyed) {
     return { width: 32, height: 32 };
   }
 
-  const texture = sprite.texture as PIXI.Texture & {
-    uid?: number;
-    label?: string;
-    source?: { uid?: number };
-  };
-  const textureId = texture.uid ?? texture.source?.uid ?? texture.label ?? null;
+  const renderedWidth = Math.abs(sprite.width);
+  const renderedHeight = Math.abs(sprite.height);
+  if (isValidRenderDimension(renderedWidth, renderedHeight)) {
+    return { width: renderedWidth, height: renderedHeight };
+  }
+
+  const texture = sprite.texture as PIXI.Texture;
   const scaleX = Math.abs(sprite.scale.x);
   const scaleY = Math.abs(sprite.scale.y);
-  const cached = renderSizeStateByEid.get(eid);
-
-  if (
-    cached &&
-    cached.textureId === textureId &&
-    cached.scaleX === scaleX &&
-    cached.scaleY === scaleY
-  ) {
-    return {
-      width: cached.width,
-      height: cached.height,
-    };
-  }
-
   const textureFrame = texture.orig ?? texture.frame;
-  let width = Math.abs((textureFrame?.width ?? texture.width ?? 32) * scaleX);
-  let height = Math.abs((textureFrame?.height ?? texture.height ?? 32) * scaleY);
+  const textureWidth = Math.abs(
+    (textureFrame?.width ?? texture.width ?? 32) * scaleX,
+  );
+  const textureHeight = Math.abs(
+    (textureFrame?.height ?? texture.height ?? 32) * scaleY,
+  );
 
-  if (width <= 0 || height <= 0) {
-    const bounds = sprite.getBounds();
-    width = bounds.width || 32;
-    height = bounds.height || 32;
+  if (isValidRenderDimension(textureWidth, textureHeight)) {
+    return { width: textureWidth, height: textureHeight };
   }
 
-  renderSizeStateByEid.set(eid, {
-    width,
-    height,
-    textureId,
-    scaleX,
-    scaleY,
-  });
+  const bounds = sprite.getBounds();
+  if (isValidRenderDimension(bounds.width, bounds.height)) {
+    return { width: bounds.width, height: bounds.height };
+  }
 
-  return { width, height };
+  return { width: 32, height: 32 };
+}
+
+function isValidRenderDimension(width: number, height: number): boolean {
+  return (
+    Number.isFinite(width) &&
+    Number.isFinite(height) &&
+    width > 0 &&
+    height > 0
+  );
 }
 
 function isSameDashedBorderRenderState(
@@ -562,7 +548,6 @@ function removeDashedBorder(eid: number, stage: PIXI.Container) {
     dashedBorderStore.remove(eid);
   }
   dashedBorderRenderStateByEid.delete(eid);
-  renderSizeStateByEid.delete(eid);
 
   // 빗자루도 함께 제거
   removeBroom(eid, stage);
@@ -678,7 +663,6 @@ export function cleanupCleanableRenderSystem(stage: PIXI.Container): void {
   });
   dashedBorderStore.clear();
   dashedBorderRenderStateByEid.clear();
-  renderSizeStateByEid.clear();
 
   broomStore.forEach((broomSprite, _eid) => {
     stage.removeChild(broomSprite);
