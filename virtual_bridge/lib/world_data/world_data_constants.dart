@@ -95,12 +95,11 @@ const int minuteMs = 60 * secondMs;
 /// 밀리초 단위 1시간입니다.
 const int hourMs = 60 * minuteMs;
 
-// const int worldDataGameEggHatchModeTimeMs = 20 * minuteMs;
 /// 알 부화 시간 분포의 기준값입니다.
-const int worldDataGameEggHatchModeTimeMs = 5 * minuteMs; // DEBUG
-// const int worldDataGameEggHatchVarianceMs = 4.5 * minuteMs;
+const int worldDataGameEggHatchModeTimeMs = 20 * minuteMs;
+
 /// 부화 시간에 더하거나 뺄 수 있는 랜덤 편차입니다.
-const int worldDataGameEggHatchVarianceMs = 0 * minuteMs; // DEBUG
+const int worldDataGameEggHatchVarianceMs = 270 * secondMs;
 
 /// 부화 시간이 가질 수 있는 최소값입니다.
 const int worldDataGameEggHatchMinTimeMs =

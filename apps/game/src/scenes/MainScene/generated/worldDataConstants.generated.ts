@@ -8,9 +8,9 @@ export const PRODUCTION_BALANCE_REFERENCE = {
 } as const;
 
 export const GAME_CONSTANTS = {
-	"EGG_HATCH_MIN_TIME": 300000,
-	"EGG_HATCH_MODE_TIME": 300000,
-	"EGG_HATCH_MAX_TIME": 300000,
+	"EGG_HATCH_MIN_TIME": 930000,
+	"EGG_HATCH_MODE_TIME": 1200000,
+	"EGG_HATCH_MAX_TIME": 1470000,
 	"DIGESTIVE_CAPACITY": 5.0,
 	"DIGESTIVE_MULTIPLIER": 0.5,
 	"DIGESTIVE_LOAD_PER_MEAL": 1.5,
@@ -74,17 +74,17 @@ export const GAME_CONSTANTS = {
 } as const;
 
 export const PRODUCTION_EVOLUTION_TARGET_DURATION_BY_CLASS_MS = {
-	"character-class-a": 600000,
-	"character-class-b": 600000,
-	"character-class-c": 600000,
-	"character-class-d": 600000
+	"character-class-a": 72000000,
+	"character-class-b": 144000000,
+	"character-class-c": 216000000,
+	"character-class-d": 216000000
 } as const;
 
 export const PRODUCTION_EVOLUTION_TARGET_DURATION_VARIANCE_BY_CLASS_MS = {
-	"character-class-a": 0,
-	"character-class-b": 0,
-	"character-class-c": 0,
-	"character-class-d": 0
+	"character-class-a": 7200000,
+	"character-class-b": 14400000,
+	"character-class-c": 21600000,
+	"character-class-d": 21600000
 } as const;
 
 export const PRODUCTION_EVOLUTION_GAUGE_CONFIG = {
@@ -95,22 +95,22 @@ export const PRODUCTION_EVOLUTION_GAUGE_CONFIG = {
 	"checkIntervalMs": 10000,
 	"sleepingGaugeTimeProgressMultiplier": 0.3333333333333333,
 	"gaugeGainByClass": {
-		"character-class-a": 1.6666666666666667,
-		"character-class-b": 1.6666666666666667,
-		"character-class-c": 1.6666666666666667,
-		"character-class-d": 1.6666666666666667
+		"character-class-a": 0.013888888888888888,
+		"character-class-b": 0.006944444444444444,
+		"character-class-c": 0.004629629629629629,
+		"character-class-d": 0.004629629629629629
 	},
 	"targetDurationByClassMs": {
-		"character-class-a": 600000,
-		"character-class-b": 600000,
-		"character-class-c": 600000,
-		"character-class-d": 600000
+		"character-class-a": 72000000,
+		"character-class-b": 144000000,
+		"character-class-c": 216000000,
+		"character-class-d": 216000000
 	},
 	"targetDurationVarianceByClassMs": {
-		"character-class-a": 0,
-		"character-class-b": 0,
-		"character-class-c": 0,
-		"character-class-d": 0
+		"character-class-a": 7200000,
+		"character-class-b": 14400000,
+		"character-class-c": 21600000,
+		"character-class-d": 21600000
 	}
 } as const;
 
@@ -122,22 +122,22 @@ export const DEV_EVOLUTION_GAUGE_CONFIG = {
 	"checkIntervalMs": 10000,
 	"sleepingGaugeTimeProgressMultiplier": 0.3333333333333333,
 	"gaugeGainByClass": {
-		"character-class-a": 1.6666666666666667,
-		"character-class-b": 1.6666666666666667,
-		"character-class-c": 1.6666666666666667,
-		"character-class-d": 1.6666666666666667
+		"character-class-a": 0.013888888888888888,
+		"character-class-b": 0.006944444444444444,
+		"character-class-c": 0.004629629629629629,
+		"character-class-d": 0.004629629629629629
 	},
 	"targetDurationByClassMs": {
-		"character-class-a": 600000,
-		"character-class-b": 600000,
-		"character-class-c": 600000,
-		"character-class-d": 600000
+		"character-class-a": 72000000,
+		"character-class-b": 144000000,
+		"character-class-c": 216000000,
+		"character-class-d": 216000000
 	},
 	"targetDurationVarianceByClassMs": {
-		"character-class-a": 0,
-		"character-class-b": 0,
-		"character-class-c": 0,
-		"character-class-d": 0
+		"character-class-a": 7200000,
+		"character-class-b": 14400000,
+		"character-class-c": 21600000,
+		"character-class-d": 21600000
 	}
 } as const;
 

@@ -9,9 +9,9 @@ import {
 } from "../generated/worldDataConstants.generated";
 
 test("generated world-data constants expose Dart canonical gameplay values", () => {
-	assert.equal(GAME_CONSTANTS.EGG_HATCH_MIN_TIME, 5 * 60 * 1000);
-	assert.equal(GAME_CONSTANTS.EGG_HATCH_MODE_TIME, 5 * 60 * 1000);
-	assert.equal(GAME_CONSTANTS.EGG_HATCH_MAX_TIME, 5 * 60 * 1000);
+	assert.equal(GAME_CONSTANTS.EGG_HATCH_MIN_TIME, 15.5 * 60 * 1000);
+	assert.equal(GAME_CONSTANTS.EGG_HATCH_MODE_TIME, 20 * 60 * 1000);
+	assert.equal(GAME_CONSTANTS.EGG_HATCH_MAX_TIME, 24.5 * 60 * 1000);
 	assert.equal(GAME_CONSTANTS.MAX_STAMINA, 10);
 	assert.equal(GAME_CONSTANTS.UNHAPPY_STAMINA_THRESHOLD, 3);
 	assert.equal(GAME_CONSTANTS.BOOSTED_STAMINA_THRESHOLD, 7);
@@ -22,11 +22,11 @@ test("generated world-data constants expose Dart canonical gameplay values", () 
 	assert.equal(HATCH_GENE_CONFIG.bonusPerCountPercent, 2);
 	assert.equal(
 		PRODUCTION_EVOLUTION_GAUGE_CONFIG.targetDurationByClassMs[CharacterClass.A],
-		10 * 60 * 1000,
+		20 * 60 * 60 * 1000,
 	);
 	assert.equal(
 		PRODUCTION_EVOLUTION_GAUGE_CONFIG.gaugeGainByClass[CharacterClass.A],
-		(100 * 10 * 1000) / (10 * 60 * 1000),
+		(100 * 10 * 1000) / (20 * 60 * 60 * 1000),
 	);
 	assert.deepEqual(
 		DEV_EVOLUTION_GAUGE_CONFIG.gaugeGainByClass,
