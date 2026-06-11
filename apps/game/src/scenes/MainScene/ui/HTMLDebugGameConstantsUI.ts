@@ -11,6 +11,10 @@ function formatConstants(value: unknown, depth = 0): string {
   }
 
   if (typeof value !== "object") {
+    if (typeof value === "number") {
+      return Number.isFinite(value) ? value.toFixed(2) : String(value);
+    }
+
     return typeof value === "string" ? `"${value}"` : String(value);
   }
 

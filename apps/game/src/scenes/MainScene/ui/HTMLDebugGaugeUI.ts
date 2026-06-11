@@ -16,10 +16,12 @@ import {
   getRemainingStaminaDecreaseTime,
 } from "../systems/CharacterManageSystem";
 import { GAME_CONSTANTS, getRemainingEggHatchTime } from "../config";
+import { EVOLUTION_GAUGE_CONFIG } from "../evolutionConfig";
 import { TimeOfDay } from "../timeOfDay";
 
 const characterQuery = defineQuery([ObjectComp, CharacterStatusComp]);
 const AD_DEBUG_REFRESH_INTERVAL_MS = 1000;
+const DEBUG_NUMBER_FRACTION_DIGITS = 2;
 
 type HTMLDebugGaugeUIOptions = {
   initiallyVisible?: boolean;
@@ -342,7 +344,7 @@ export class HTMLDebugGaugeUI {
       const nextSmallPoopTime =
         DigestiveSystemComp.nextSmallPoopTime[this._currentCharacterEid] || 0;
 
-      digestiveText = `${currentLoad.toFixed(1)}/${capacity}`;
+      digestiveText = formatDebugRatio(currentLoad, capacity);
 
       const activePoopTime =
         nextPoopTime > 0 ? nextPoopTime : nextSmallPoopTime;
@@ -350,10 +352,8 @@ export class HTMLDebugGaugeUI {
 
       if (activePoopTime > 0) {
         const remainingTime = Math.max(0, activePoopTime - currentTime);
-        const seconds = Math.ceil(remainingTime / 1000);
-
         if (remainingTime > 0) {
-          digestiveText += ` (${poopLabel}${seconds}s)`;
+          digestiveText += ` (${poopLabel}${formatAdDuration(remainingTime)})`;
         } else {
           digestiveText += ` (${poopLabel}NOW!)`;
         }
@@ -425,7 +425,7 @@ export class HTMLDebugGaugeUI {
       sleepText = `${formatSleepMode(sleepMode)} | sleep:${formatRemainingSeconds(
         nextSleepRemaining,
       )} wake:${formatRemainingSeconds(nextWakeRemaining)}`;
-      fatigueText = `${fatigue.toFixed(1)}/${GAME_CONSTANTS.FATIGUE_MAX}`;
+      fatigueText = formatDebugRatio(fatigue, GAME_CONSTANTS.FATIGUE_MAX);
       sleepCheckText =
         `  nap: ${formatNapCheckStatus({
           currentTime,
@@ -445,27 +445,36 @@ export class HTMLDebugGaugeUI {
     }
 
     this._staminaText.textContent = isEgg
-      ? `${stamina}/10 (egg)`
-      : `${stamina}/10 (${Math.ceil(remainingStaminaTime / 1000)}s)`;
+      ? `${formatDebugRatio(stamina, GAME_CONSTANTS.MAX_STAMINA)} (egg)`
+      : `${formatDebugRatio(stamina, GAME_CONSTANTS.MAX_STAMINA)} (${formatRemainingSeconds(
+          remainingStaminaTime,
+        )})`;
     if (isEgg) {
-      this._evolutionText.textContent = `${evolutionGauge.toFixed(1)}/100.0 (egg)`;
+      this._evolutionText.textContent = `${formatDebugRatio(
+        evolutionGauge,
+        EVOLUTION_GAUGE_CONFIG.maxGauge,
+      )} (egg)`;
     } else if (remainingEvolutionTime === null) {
-      this._evolutionText.textContent = `${evolutionGauge.toFixed(1)}/100.0 (paused)`;
+      this._evolutionText.textContent = `${formatDebugRatio(
+        evolutionGauge,
+        EVOLUTION_GAUGE_CONFIG.maxGauge,
+      )} (paused)`;
     } else {
-      this._evolutionText.textContent = `${evolutionGauge.toFixed(1)}/100.0 (${Math.ceil(
-        remainingEvolutionTime / 1000,
-      )}s)`;
+      this._evolutionText.textContent = `${formatDebugRatio(
+        evolutionGauge,
+        EVOLUTION_GAUGE_CONFIG.maxGauge,
+      )} (${formatRemainingSeconds(remainingEvolutionTime)})`;
     }
     this._eggHatchText.textContent = formatEggHatchCountdown({
       isEgg,
       remainingTime: remainingEggHatchTime,
     });
     this._digestiveText.textContent = digestiveText;
-    this._diseaseRateText.textContent = `${(diseaseRate * 100).toFixed(
-      1,
-    )}% (${Math.ceil(remainingDiseaseTime / 1000)}s)`;
+    this._diseaseRateText.textContent = `${formatDebugNumber(
+      diseaseRate * 100,
+    )}% (${formatRemainingSeconds(remainingDiseaseTime)})`;
     this._deathTimeText.textContent =
-      deathTime > 0 ? `${Math.ceil(remainingDeathTime / 1000)}s` : "N/A";
+      deathTime > 0 ? formatRemainingSeconds(remainingDeathTime) : "N/A";
     this._sleepText.textContent = sleepText;
     this._fatigueText.textContent = fatigueText;
     this._sleepCheckText.textContent = sleepCheckText;
@@ -572,7 +581,10 @@ export class HTMLDebugGaugeUI {
       this._nativeAdDebugState.test.unit,
     )}`;
     this._mainSceneAdText.textContent =
-      `  count: ${mainSceneAdState.menuUseCount}/${mainSceneAdState.threshold}\n` +
+      `  count: ${formatDebugRatio(
+        mainSceneAdState.menuUseCount,
+        mainSceneAdState.threshold,
+      )}\n` +
       `  mode: ${mainSceneAdState.deepNight ? "deep-night" : "normal"}\n` +
       `  cd: ${formatAdDuration(mainSceneAdState.cooldownMs)}\n` +
       `  pending: ${
@@ -861,19 +873,27 @@ function formatAdUnitSuffix(unit?: string): string {
   return unit ? ` (${unit})` : "";
 }
 
+function formatDebugNumber(value: number): string {
+  return Number.isFinite(value)
+    ? value.toFixed(DEBUG_NUMBER_FRACTION_DIGITS)
+    : "NaN";
+}
+
+function formatDebugRatio(currentValue: number, maxValue: number): string {
+  return `${formatDebugNumber(currentValue)}/${formatDebugNumber(maxValue)}`;
+}
+
 function formatAdDuration(milliseconds: number): string {
-  if (milliseconds < 60_000) {
-    return `${Math.ceil(milliseconds / 1000)}s`;
+  const safeMilliseconds = Math.max(0, milliseconds);
+  if (safeMilliseconds < 60_000) {
+    return `${formatDebugNumber(safeMilliseconds / 1000)}s`;
   }
 
-  const minutes = Math.ceil(milliseconds / 60_000);
-  if (minutes < 60) {
-    return `${minutes}m`;
+  if (safeMilliseconds < 60 * 60_000) {
+    return `${formatDebugNumber(safeMilliseconds / 60_000)}m`;
   }
 
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
-  return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
+  return `${formatDebugNumber(safeMilliseconds / (60 * 60_000))}h`;
 }
 
 function formatAdQueuedAge(queuedAt: number, currentTime: number): string {
@@ -962,7 +982,7 @@ function formatRemainingSeconds(remainingTime: number): string {
     return "-";
   }
 
-  return `${Math.ceil(remainingTime / 1000)}s`;
+  return formatAdDuration(remainingTime);
 }
 
 function formatSleepCheckCountdown(
@@ -978,7 +998,7 @@ function formatSleepCheckCountdown(
     return "ready";
   }
 
-  return `${Math.ceil(remainingTime / 1000)}s`;
+  return formatAdDuration(remainingTime);
 }
 
 function formatNapCheckStatus(params: {

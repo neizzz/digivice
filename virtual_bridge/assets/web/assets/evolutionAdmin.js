@@ -28960,9 +28960,9 @@ Object.fromEntries(
   ])
 );
 const GAME_CONSTANTS = {
-  "EGG_HATCH_MIN_TIME": 3e5,
-  "EGG_HATCH_MODE_TIME": 3e5,
-  "EGG_HATCH_MAX_TIME": 3e5,
+  "EGG_HATCH_MIN_TIME": 93e4,
+  "EGG_HATCH_MODE_TIME": 12e5,
+  "EGG_HATCH_MAX_TIME": 147e4,
   "DIGESTIVE_CAPACITY": 5,
   "DIGESTIVE_MULTIPLIER": 0.5,
   "DIGESTIVE_LOAD_PER_MEAL": 1.5,
@@ -29024,7 +29024,6 @@ const GAME_CONSTANTS = {
   "SLEEPING_STAMINA_DECAY_MULTIPLIER": 0.2,
   "SLEEPING_DISEASE_RATE_MULTIPLIER": 0.1
 };
-const EVOLUTION_GAUGE_GAIN_MULTIPLIER = 1.1;
 const PRODUCTION_EVOLUTION_GAUGE_CONFIG$1 = {
   "maxGauge": 100,
   "staminaThreshold": 3,
@@ -29033,22 +29032,22 @@ const PRODUCTION_EVOLUTION_GAUGE_CONFIG$1 = {
   "checkIntervalMs": 1e4,
   "sleepingGaugeTimeProgressMultiplier": 0.3333333333333333,
   "gaugeGainByClass": {
-    "character-class-a": 1.8333333333333335,
-    "character-class-b": 1.8333333333333335,
-    "character-class-c": 1.8333333333333335,
-    "character-class-d": 1.8333333333333335
+    "character-class-a": 0.013888888888888888,
+    "character-class-b": 0.006944444444444444,
+    "character-class-c": 0.004629629629629629,
+    "character-class-d": 0.004629629629629629
   },
   "targetDurationByClassMs": {
-    "character-class-a": 6e5,
-    "character-class-b": 6e5,
-    "character-class-c": 6e5,
-    "character-class-d": 6e5
+    "character-class-a": 72e6,
+    "character-class-b": 144e6,
+    "character-class-c": 216e6,
+    "character-class-d": 216e6
   },
   "targetDurationVarianceByClassMs": {
-    "character-class-a": 0,
-    "character-class-b": 0,
-    "character-class-c": 0,
-    "character-class-d": 0
+    "character-class-a": 72e5,
+    "character-class-b": 144e5,
+    "character-class-c": 216e5,
+    "character-class-d": 216e5
   }
 };
 const EVOLUTION_GAUGE_CONFIG$1 = PRODUCTION_EVOLUTION_GAUGE_CONFIG$1;
@@ -29810,7 +29809,7 @@ function getEvolutionGaugeIncreaseAmountForEntity(params) {
   if (durationMs <= 0) {
     return 0;
   }
-  return PRODUCTION_EVOLUTION_GAUGE_CONFIG.maxGauge * PRODUCTION_EVOLUTION_GAUGE_CONFIG.checkIntervalMs / durationMs * EVOLUTION_GAUGE_GAIN_MULTIPLIER;
+  return PRODUCTION_EVOLUTION_GAUGE_CONFIG.maxGauge * PRODUCTION_EVOLUTION_GAUGE_CONFIG.checkIntervalMs / durationMs;
 }
 function canEvolveFromConfig(characterKey) {
   const spec = getEvolutionSpec(characterKey);
@@ -32754,6 +32753,13 @@ function getOverlayIconTextureName(eid, latestTemporary) {
   }
   return STATUS_TO_TEXTURE_NAME[latestTemporary] ?? null;
 }
+function getTemporaryStatusFromComponent(eid) {
+  const status = TemporaryStatusComp.statusType[eid];
+  if (!TEMPORARY_STATUSES$1.includes(status)) {
+    return null;
+  }
+  return status;
+}
 function collectEffectiveStatuses(eid) {
   const statuses = CharacterStatusComp.statuses[eid];
   const allStatuses = [];
@@ -32767,6 +32773,10 @@ function collectEffectiveStatuses(eid) {
       hasSickStatus = true;
     }
     allStatuses.push(status);
+  }
+  const temporaryStatus = getTemporaryStatusFromComponent(eid);
+  if (temporaryStatus !== null && !allStatuses.includes(temporaryStatus)) {
+    allStatuses.push(temporaryStatus);
   }
   if (ObjectComp.state[eid] === CharacterState.SICK && !hasSickStatus) {
     allStatuses.push(CharacterStatus.SICK);
@@ -37211,6 +37221,9 @@ function startRecoveryAnimation(world, eid, stage, currentTime) {
 const characterQuery$3 = defineQuery([ObjectComp, CharacterStatusComp]);
 const objectQuery = defineQuery([ObjectComp]);
 const DEBUG_POSITION_STEP_PX = 10;
+function formatDebugNumber$1(value) {
+  return Number.isFinite(value) ? value.toFixed(2) : "NaN";
+}
 function hasCharacterStatus$1(eid, status) {
   const currentStatuses = CharacterStatusComp.statuses[eid];
   if (!currentStatuses) {
@@ -37646,7 +37659,7 @@ class HTMLDebugStatusUI {
     const currentTimeOfDay = this._world.getTimeOfDay();
     this._timeOfDayElement.textContent = `${getTimeOfDayLabel(currentTimeOfDay)} (${debugState.mode === TimeOfDayMode.Auto ? "Auto" : "Manual"})`;
     const progressText = debugState.progress != null ? `
-Prog: ${Math.round(debugState.progress * 100)}%` : "";
+Prog: ${formatDebugNumber$1(debugState.progress * 100)}%` : "";
     const sunriseText = debugState.sunriseAt ? `
 Rise: ${new Date(debugState.sunriseAt).toLocaleTimeString("ko-KR", {
       hour: "2-digit",
@@ -37726,7 +37739,9 @@ Set: ${new Date(debugState.sunsetAt).toLocaleTimeString("ko-KR", {
     const newStamina = Math.max(0, Math.min(10, currentStamina + amount));
     CharacterStatusComp.stamina[this._currentCharacterEid] = newStamina;
     console.log(
-      `[HTMLDebugStatusUI] Stamina adjusted: ${currentStamina} -> ${newStamina}`
+      `[HTMLDebugStatusUI] Stamina adjusted: ${formatDebugNumber$1(
+        currentStamina
+      )} -> ${formatDebugNumber$1(newStamina)}`
     );
   }
   // 진화 게이지 조절 함수
@@ -37741,9 +37756,9 @@ Set: ${new Date(debugState.sunsetAt).toLocaleTimeString("ko-KR", {
     const newGauge = Math.max(0, Math.min(100, currentGauge + amount));
     CharacterStatusComp.evolutionGage[this._currentCharacterEid] = newGauge;
     console.log(
-      `[HTMLDebugStatusUI] Evolution gauge adjusted: ${currentGauge.toFixed(
-        1
-      )} -> ${newGauge.toFixed(1)}`
+      `[HTMLDebugStatusUI] Evolution gauge adjusted: ${formatDebugNumber$1(
+        currentGauge
+      )} -> ${formatDebugNumber$1(newGauge)}`
     );
   }
   // 똥 생성 함수
@@ -37773,7 +37788,9 @@ Set: ${new Date(debugState.sunsetAt).toLocaleTimeString("ko-KR", {
       currentTime
     );
     console.log(
-      `[HTMLDebugStatusUI] Digestive load adjusted by ${staminaEquivalent} stamina equivalent`
+      `[HTMLDebugStatusUI] Digestive load adjusted by ${formatDebugNumber$1(
+        staminaEquivalent
+      )} stamina equivalent`
     );
   }
   // Digestive load 초기화 함수
@@ -37870,7 +37887,11 @@ Set: ${new Date(debugState.sunsetAt).toLocaleTimeString("ko-KR", {
     PositionComp.x[this._currentCharacterEid] = nextX;
     PositionComp.y[this._currentCharacterEid] = nextY;
     console.log(
-      `[HTMLDebugStatusUI] Position adjusted: (${currentX}, ${currentY}) -> (${nextX}, ${nextY})`
+      `[HTMLDebugStatusUI] Position adjusted: (${formatDebugNumber$1(
+        currentX
+      )}, ${formatDebugNumber$1(currentY)}) -> (${formatDebugNumber$1(
+        nextX
+      )}, ${formatDebugNumber$1(nextY)})`
     );
   }
   // 상태 관리 시스템 토글 함수
@@ -38018,6 +38039,9 @@ function formatConstants(value, depth = 0) {
     return "null";
   }
   if (typeof value !== "object") {
+    if (typeof value === "number") {
+      return Number.isFinite(value) ? value.toFixed(2) : String(value);
+    }
     return typeof value === "string" ? `"${value}"` : String(value);
   }
   if (Array.isArray(value)) {
@@ -38445,6 +38469,7 @@ function removeCharacterStatus$1(eid, status) {
 }
 const characterQuery$1 = defineQuery([ObjectComp, CharacterStatusComp]);
 const AD_DEBUG_REFRESH_INTERVAL_MS = 1e3;
+const DEBUG_NUMBER_FRACTION_DIGITS = 2;
 const createDefaultNativeAdSlotDebugState = () => ({
   isReady: false,
   isLoading: false,
@@ -38672,14 +38697,13 @@ class HTMLDebugGaugeUI {
       const capacity = DigestiveSystemComp.capacity[this._currentCharacterEid];
       const nextPoopTime = DigestiveSystemComp.nextPoopTime[this._currentCharacterEid] || 0;
       const nextSmallPoopTime = DigestiveSystemComp.nextSmallPoopTime[this._currentCharacterEid] || 0;
-      digestiveText = `${currentLoad.toFixed(1)}/${capacity}`;
+      digestiveText = formatDebugRatio(currentLoad, capacity);
       const activePoopTime = nextPoopTime > 0 ? nextPoopTime : nextSmallPoopTime;
       const poopLabel = nextPoopTime > 0 ? "💩" : "·💩";
       if (activePoopTime > 0) {
         const remainingTime = Math.max(0, activePoopTime - currentTime);
-        const seconds = Math.ceil(remainingTime / 1e3);
         if (remainingTime > 0) {
-          digestiveText += ` (${poopLabel}${seconds}s)`;
+          digestiveText += ` (${poopLabel}${formatAdDuration(remainingTime)})`;
         } else {
           digestiveText += ` (${poopLabel}NOW!)`;
         }
@@ -38727,7 +38751,7 @@ class HTMLDebugGaugeUI {
       sleepText = `${formatSleepMode(sleepMode)} | sleep:${formatRemainingSeconds(
         nextSleepRemaining
       )} wake:${formatRemainingSeconds(nextWakeRemaining)}`;
-      fatigueText = `${fatigue.toFixed(1)}/${GAME_CONSTANTS.FATIGUE_MAX}`;
+      fatigueText = formatDebugRatio(fatigue, GAME_CONSTANTS.FATIGUE_MAX);
       sleepCheckText = `  nap: ${formatNapCheckStatus({
         currentTime,
         currentTimeOfDay,
@@ -38744,25 +38768,34 @@ class HTMLDebugGaugeUI {
   ps: ${formatSleepCheckReason(pendingSleepReason)}
   pw: ${formatSleepCheckReason(pendingWakeReason)}`;
     }
-    this._staminaText.textContent = isEgg ? `${stamina}/10 (egg)` : `${stamina}/10 (${Math.ceil(remainingStaminaTime / 1e3)}s)`;
+    this._staminaText.textContent = isEgg ? `${formatDebugRatio(stamina, GAME_CONSTANTS.MAX_STAMINA)} (egg)` : `${formatDebugRatio(stamina, GAME_CONSTANTS.MAX_STAMINA)} (${formatRemainingSeconds(
+      remainingStaminaTime
+    )})`;
     if (isEgg) {
-      this._evolutionText.textContent = `${evolutionGauge.toFixed(1)}/100.0 (egg)`;
+      this._evolutionText.textContent = `${formatDebugRatio(
+        evolutionGauge,
+        EVOLUTION_GAUGE_CONFIG.maxGauge
+      )} (egg)`;
     } else if (remainingEvolutionTime === null) {
-      this._evolutionText.textContent = `${evolutionGauge.toFixed(1)}/100.0 (paused)`;
+      this._evolutionText.textContent = `${formatDebugRatio(
+        evolutionGauge,
+        EVOLUTION_GAUGE_CONFIG.maxGauge
+      )} (paused)`;
     } else {
-      this._evolutionText.textContent = `${evolutionGauge.toFixed(1)}/100.0 (${Math.ceil(
-        remainingEvolutionTime / 1e3
-      )}s)`;
+      this._evolutionText.textContent = `${formatDebugRatio(
+        evolutionGauge,
+        EVOLUTION_GAUGE_CONFIG.maxGauge
+      )} (${formatRemainingSeconds(remainingEvolutionTime)})`;
     }
     this._eggHatchText.textContent = formatEggHatchCountdown({
       isEgg,
       remainingTime: remainingEggHatchTime
     });
     this._digestiveText.textContent = digestiveText;
-    this._diseaseRateText.textContent = `${(diseaseRate * 100).toFixed(
-      1
-    )}% (${Math.ceil(remainingDiseaseTime / 1e3)}s)`;
-    this._deathTimeText.textContent = deathTime > 0 ? `${Math.ceil(remainingDeathTime / 1e3)}s` : "N/A";
+    this._diseaseRateText.textContent = `${formatDebugNumber(
+      diseaseRate * 100
+    )}% (${formatRemainingSeconds(remainingDiseaseTime)})`;
+    this._deathTimeText.textContent = deathTime > 0 ? formatRemainingSeconds(remainingDeathTime) : "N/A";
     this._sleepText.textContent = sleepText;
     this._fatigueText.textContent = fatigueText;
     this._sleepCheckText.textContent = sleepCheckText;
@@ -38847,7 +38880,10 @@ class HTMLDebugGaugeUI {
     )} / test:${testAdStatus}${formatAdUnitSuffix(
       this._nativeAdDebugState.test.unit
     )}`;
-    this._mainSceneAdText.textContent = `  count: ${mainSceneAdState.menuUseCount}/${mainSceneAdState.threshold}
+    this._mainSceneAdText.textContent = `  count: ${formatDebugRatio(
+      mainSceneAdState.menuUseCount,
+      mainSceneAdState.threshold
+    )}
   mode: ${mainSceneAdState.deepNight ? "deep-night" : "normal"}
   cd: ${formatAdDuration(mainSceneAdState.cooldownMs)}
   pending: ${pending ? `${pending.menu} @ ${formatAdQueuedAge(
@@ -39050,17 +39086,21 @@ function formatNativeAdStatus(state) {
 function formatAdUnitSuffix(unit) {
   return unit ? ` (${unit})` : "";
 }
+function formatDebugNumber(value) {
+  return Number.isFinite(value) ? value.toFixed(DEBUG_NUMBER_FRACTION_DIGITS) : "NaN";
+}
+function formatDebugRatio(currentValue, maxValue) {
+  return `${formatDebugNumber(currentValue)}/${formatDebugNumber(maxValue)}`;
+}
 function formatAdDuration(milliseconds) {
-  if (milliseconds < 6e4) {
-    return `${Math.ceil(milliseconds / 1e3)}s`;
+  const safeMilliseconds = Math.max(0, milliseconds);
+  if (safeMilliseconds < 6e4) {
+    return `${formatDebugNumber(safeMilliseconds / 1e3)}s`;
   }
-  const minutes = Math.ceil(milliseconds / 6e4);
-  if (minutes < 60) {
-    return `${minutes}m`;
+  if (safeMilliseconds < 60 * 6e4) {
+    return `${formatDebugNumber(safeMilliseconds / 6e4)}m`;
   }
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
-  return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
+  return `${formatDebugNumber(safeMilliseconds / (60 * 6e4))}h`;
 }
 function formatAdQueuedAge(queuedAt, currentTime) {
   const elapsed = Math.max(0, currentTime - queuedAt);
@@ -39129,7 +39169,7 @@ function formatRemainingSeconds(remainingTime) {
   if (remainingTime <= 0) {
     return "-";
   }
-  return `${Math.ceil(remainingTime / 1e3)}s`;
+  return formatAdDuration(remainingTime);
 }
 function formatSleepCheckCountdown(scheduledTime, currentTime) {
   if (scheduledTime <= 0) {
@@ -39139,7 +39179,7 @@ function formatSleepCheckCountdown(scheduledTime, currentTime) {
   if (remainingTime <= 0) {
     return "ready";
   }
-  return `${Math.ceil(remainingTime / 1e3)}s`;
+  return formatAdDuration(remainingTime);
 }
 function formatNapCheckStatus(params) {
   const {

@@ -24,6 +24,10 @@ const characterQuery = defineQuery([ObjectComp, CharacterStatusComp]);
 const objectQuery = defineQuery([ObjectComp]); // ObjectComp만 가진 엔티티들도 찾기
 const DEBUG_POSITION_STEP_PX = 10;
 
+function formatDebugNumber(value: number): string {
+  return Number.isFinite(value) ? value.toFixed(2) : "NaN";
+}
+
 function hasCharacterStatus(eid: number, status: CharacterStatus): boolean {
   const currentStatuses = CharacterStatusComp.statuses[eid];
   if (!currentStatuses) {
@@ -561,7 +565,7 @@ export class HTMLDebugStatusUI {
 
     const progressText =
       debugState.progress != null
-        ? `\nProg: ${Math.round(debugState.progress * 100)}%`
+        ? `\nProg: ${formatDebugNumber(debugState.progress * 100)}%`
         : "";
     const sunriseText = debugState.sunriseAt
       ? `\nRise: ${new Date(debugState.sunriseAt).toLocaleTimeString("ko-KR", {
@@ -670,7 +674,9 @@ export class HTMLDebugStatusUI {
     const newStamina = Math.max(0, Math.min(10, currentStamina + amount));
     CharacterStatusComp.stamina[this._currentCharacterEid] = newStamina;
     console.log(
-      `[HTMLDebugStatusUI] Stamina adjusted: ${currentStamina} -> ${newStamina}`,
+      `[HTMLDebugStatusUI] Stamina adjusted: ${formatDebugNumber(
+        currentStamina,
+      )} -> ${formatDebugNumber(newStamina)}`,
     );
   }
 
@@ -688,9 +694,9 @@ export class HTMLDebugStatusUI {
     const newGauge = Math.max(0, Math.min(100, currentGauge + amount));
     CharacterStatusComp.evolutionGage[this._currentCharacterEid] = newGauge;
     console.log(
-      `[HTMLDebugStatusUI] Evolution gauge adjusted: ${currentGauge.toFixed(
-        1,
-      )} -> ${newGauge.toFixed(1)}`,
+      `[HTMLDebugStatusUI] Evolution gauge adjusted: ${formatDebugNumber(
+        currentGauge,
+      )} -> ${formatDebugNumber(newGauge)}`,
     );
   }
 
@@ -727,7 +733,9 @@ export class HTMLDebugStatusUI {
     );
 
     console.log(
-      `[HTMLDebugStatusUI] Digestive load adjusted by ${staminaEquivalent} stamina equivalent`,
+      `[HTMLDebugStatusUI] Digestive load adjusted by ${formatDebugNumber(
+        staminaEquivalent,
+      )} stamina equivalent`,
     );
   }
 
@@ -850,7 +858,11 @@ export class HTMLDebugStatusUI {
     PositionComp.y[this._currentCharacterEid] = nextY;
 
     console.log(
-      `[HTMLDebugStatusUI] Position adjusted: (${currentX}, ${currentY}) -> (${nextX}, ${nextY})`,
+      `[HTMLDebugStatusUI] Position adjusted: (${formatDebugNumber(
+        currentX,
+      )}, ${formatDebugNumber(currentY)}) -> (${formatDebugNumber(
+        nextX,
+      )}, ${formatDebugNumber(nextY)})`,
     );
   }
 
