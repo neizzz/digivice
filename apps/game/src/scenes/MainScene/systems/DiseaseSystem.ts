@@ -23,10 +23,7 @@ import {
   Freshness,
   FoodState,
 } from "../types";
-import {
-  GAME_CONSTANTS,
-  getLowStaminaDiseaseBonus,
-} from "../config";
+import { GAME_CONSTANTS } from "../config";
 import {
   clearActiveEatingState,
   releaseTargetedFoodForCharacter,
@@ -46,9 +43,8 @@ const previousStates: Map<number, { isSick: boolean; isSleeping: boolean }> =
 /**
  * 질병 시스템
  * - 일정 시간마다 질병 확률 체크
- * - 낮은 스테미나가 질병 확률을 단계적으로 높임
+ * - 똥이나 상한 음식만 질병 확률 보정으로 누적됨
  * - 피로도는 수면/낮잠 로직에만 쓰고 질병 확률에는 더하지 않음
- * - 똥이나 상한음식은 추가 질병 확률 보정으로 누적됨
  * - sick 상태 관리
  */
 export function diseaseSystem(params: {
@@ -252,7 +248,6 @@ export function calculateDiseaseRate(
   rate: number;
   breakdown: {
     base: number;
-    lowStaminaBonus: number;
     fatigueBonus: number;
     poopBonus: number;
     staleFood: number;
@@ -270,7 +265,6 @@ export function calculateDiseaseRate(
     : GAME_CONSTANTS.FATIGUE_DEFAULT;
   const breakdown = {
     base: GAME_CONSTANTS.BASE_DISEASE_RATE,
-    lowStaminaBonus: 0,
     fatigueBonus: 0,
     poopBonus: 0,
     staleFood: 0,
@@ -280,12 +274,6 @@ export function calculateDiseaseRate(
     staleFoodCount: 0,
     staminaFatigueMultiplier: 1,
   };
-
-  const lowStaminaBonus = getLowStaminaDiseaseBonus(stamina);
-  if (lowStaminaBonus > 0) {
-    diseaseRate += lowStaminaBonus;
-    breakdown.lowStaminaBonus = lowStaminaBonus;
-  }
 
   // 똥 개수 계산
   const poopCount = countObjectsInWorld(world, ObjectType.POOB);

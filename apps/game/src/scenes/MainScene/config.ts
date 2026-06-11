@@ -1,404 +1,292 @@
 import { CharacterClass } from "../../types/Character";
+import {
+	GAME_CONSTANTS,
+	PRODUCTION_BALANCE_REFERENCE,
+} from "./generated/worldDataConstants.generated";
 import { EVOLUTION_GAUGE_CONFIG, getEvolutionSpec } from "./evolutionConfig";
 import { CharacterKeyECS } from "./types";
 
+// World-data/gameplay balance constants are generated from the Dart canonical
+// source at virtual_bridge/lib/world_data/world_data_constants.dart.
+// Do not reintroduce local hard-coded production constants in this file.
 type DelayRangeConfig = {
-  min: number;
-  mode: number;
-  max: number;
+	min: number;
+	mode: number;
+	max: number;
 };
 
-const SECOND_IN_MILLISECONDS = 1_000;
-const MINUTE_IN_MILLISECONDS = 60 * SECOND_IN_MILLISECONDS;
-const HOUR_IN_MILLISECONDS = 60 * MINUTE_IN_MILLISECONDS;
-
-const PRODUCTION_TARGET_NIGHT_SLEEP_DURATION = 8 * HOUR_IN_MILLISECONDS;
-
-export const PRODUCTION_BALANCE_REFERENCE = {
-  TARGET_NIGHT_SLEEP_DURATION: PRODUCTION_TARGET_NIGHT_SLEEP_DURATION,
-} as const;
+export { GAME_CONSTANTS, PRODUCTION_BALANCE_REFERENCE };
 
 export const BOOSTED_STAMINA_THRESHOLD =
-  EVOLUTION_GAUGE_CONFIG.boostedStaminaThreshold;
+	GAME_CONSTANTS.BOOSTED_STAMINA_THRESHOLD;
 export const UNHAPPY_STAMINA_THRESHOLD =
-  EVOLUTION_GAUGE_CONFIG.staminaThreshold;
-
-const PRODUCTION_GAME_CONSTANTS = {
-  // 알 부화 관련
-  EGG_HATCH_MIN_TIME: 15 * MINUTE_IN_MILLISECONDS,
-  EGG_HATCH_MODE_TIME: 20 * MINUTE_IN_MILLISECONDS,
-  EGG_HATCH_MAX_TIME: 25 * MINUTE_IN_MILLISECONDS,
-
-  // 소화기관 관련
-  DIGESTIVE_CAPACITY: 5.0,
-  DIGESTIVE_MULTIPLIER: 0.5,
-  DIGESTIVE_LOAD_PER_MEAL: 1.5,
-  POOP_DELAY: 20 * MINUTE_IN_MILLISECONDS,
-  DIGESTIVE_SMALL_POOP_DELAY: 8 * HOUR_IN_MILLISECONDS,
-  POOP_SPAWN_DISTANCE: 25,
-  POOP_SPAWN_MIN_OBJECT_SPACING: 20,
-  POOP_SPAWN_RETRY_COUNT: 6,
-  POOP_SPAWN_DISTANCE_JITTER: 20,
-  POOP_SPAWN_ANGLE_JITTER_RAD: Math.PI / 2,
-  MAX_ACTIVE_OBJECT_COUNT: 50,
-  MAX_ACTIVE_FOOD_COUNT: 30,
-
-  // 질병 관련
-  DISEASE_CHECK_INTERVAL: 10 * SECOND_IN_MILLISECONDS,
-  BASE_DISEASE_RATE: 0.0001862601875783909,
-  LOW_STAMINA_DISEASE_THRESHOLD: 3,
-  VERY_LOW_STAMINA_DISEASE_THRESHOLD: 1.5,
-  LOW_STAMINA_DISEASE_BONUS: 0.000093,
-  VERY_LOW_STAMINA_DISEASE_BONUS: 0.000186,
-  POOP_DISEASE_RATE: 0.000093,
-  STALE_FOOD_DISEASE_RATE: 0.000093,
-
-  // 음식 신선도 관련
-  // runtime에서는 fresh 상태를 쓰지 않고 음식이 바로 NORMAL로 시작한다.
-  // stale 판정은 createdTime 기준 NORMAL_TO_STALE_TIME만 사용한다.
-  // FRESH_TO_NORMAL_TIME은 저장 포맷/legacy timer 호환용 보조값이며 stale 계산에는 더하지 않는다.
-  FRESH_TO_NORMAL_TIME: 3 * MINUTE_IN_MILLISECONDS,
-  NORMAL_TO_STALE_TIME: 10 * MINUTE_IN_MILLISECONDS,
-
-  // 캐릭터 상태 관련
-  UNHAPPY_STAMINA_THRESHOLD,
-  HAPPY_EMOTION_COOLDOWN_MS: 10 * MINUTE_IN_MILLISECONDS,
-  URGENT_STAMINA_THRESHOLD: 0,
-  URGENT_SPEED_MULTIPLIER: 0.8,
-  DEATH_DELAY: 6 * HOUR_IN_MILLISECONDS,
-  DEATH_DELAY_CLASS_A: 6 * HOUR_IN_MILLISECONDS,
-  DEATH_DELAY_CLASS_B: 14 * HOUR_IN_MILLISECONDS,
-  DEATH_DELAY_CLASS_C: 22 * HOUR_IN_MILLISECONDS,
-  DEATH_DELAY_CLASS_D: 30 * HOUR_IN_MILLISECONDS,
-
-  // 캐릭터 스테미나 관련
-  MAX_STAMINA: 10,
-  BOOSTED_STAMINA_THRESHOLD,
-  // 기대값: awake 기준 12분마다 0.25 감소 -> 시간당 1.25 감소 -> 10 -> 0 약 8시간.
-  STAMINA_DECREASE_INTERVAL: 12 * MINUTE_IN_MILLISECONDS,
-  STAMINA_DECREASE_AMOUNT: 0.25,
-  // stamina gauge 색상 구간별 감소 속도 보정.
-  // green(>= BOOSTED_STAMINA_THRESHOLD)은 30% 빠르게, red(< UNHAPPY_STAMINA_THRESHOLD)는 30% 느리게 감소한다.
-  HIGH_STAMINA_DECAY_MULTIPLIER: 1.3,
-  LOW_STAMINA_DECAY_MULTIPLIER: 0.7,
-
-  // 수면 관련
-  NIGHT_SLEEP_MIN_DELAY: 10 * MINUTE_IN_MILLISECONDS,
-  NIGHT_SLEEP_MAX_DELAY: 60 * MINUTE_IN_MILLISECONDS,
-  TARGET_NIGHT_SLEEP_DURATION:
-    PRODUCTION_BALANCE_REFERENCE.TARGET_NIGHT_SLEEP_DURATION,
-  TARGET_NIGHT_SLEEP_JITTER: 30 * MINUTE_IN_MILLISECONDS,
-  // 기상은 sunrise 구간 시작(sunrise -20m) 이후 10~60분 = 실제 sunrise 기준 -10m ~ +40m 근처.
-  SUNRISE_WAKE_MIN_DELAY: 10 * MINUTE_IN_MILLISECONDS,
-  SUNRISE_WAKE_MAX_DELAY: 60 * MINUTE_IN_MILLISECONDS,
-  SUNRISE_WAKE_OFFSET_MIN: -10 * MINUTE_IN_MILLISECONDS,
-  SUNRISE_WAKE_OFFSET_MAX: 40 * MINUTE_IN_MILLISECONDS,
-  NIGHT_RESLEEP_MIN_DELAY: 5 * MINUTE_IN_MILLISECONDS,
-  NIGHT_RESLEEP_MAX_DELAY: 15 * MINUTE_IN_MILLISECONDS,
-  DAY_NAP_CHANCE: 0.07,
-  DAY_NAP_CHECK_INTERVAL: 20 * MINUTE_IN_MILLISECONDS,
-  DAY_NAP_MIN_DURATION: 30 * MINUTE_IN_MILLISECONDS,
-  DAY_NAP_MAX_DURATION: 90 * MINUTE_IN_MILLISECONDS,
-  FATIGUE_MAX: 100,
-  FATIGUE_DEFAULT: 35,
-  FATIGUE_AWAKE_GAIN_PER_HOUR: 9.5,
-  FATIGUE_SLEEP_RECOVERY_PER_HOUR: 12,
-  FATIGUE_SLEEP_RECOVERY_PER_HOUR_WHEN_SICK: 6,
-  FATIGUE_DAY_NAP_MIN_THRESHOLD: 55,
-  FATIGUE_DAY_NAP_WAKE_THRESHOLD: 48,
-  NATURAL_SICK_RECOVERY_FATIGUE_THRESHOLD: 28,
-  NATURAL_SICK_RECOVERY_MIN_DURATION: 30 * MINUTE_IN_MILLISECONDS,
-  MINI_GAME_SLEEP_INTERRUPT_FATIGUE: 10,
-  MINI_GAME_SLEEP_INTERRUPT_STAMINA: 1,
-  // sleeping 기준 실효 60분마다 0.25 감소 -> 시간당 0.25 감소 -> 10 -> 0 약 40시간.
-  SLEEPING_STAMINA_DECAY_MULTIPLIER: 0.2,
-  SLEEPING_DISEASE_RATE_MULTIPLIER: 0.1,
-} as const;
-
-/**
- * 게임 설정 상수들
- */
-export const GAME_CONSTANTS = {
-  ...PRODUCTION_GAME_CONSTANTS,
-} as const;
+	GAME_CONSTANTS.UNHAPPY_STAMINA_THRESHOLD;
 
 export function getStaminaDecayRateMultiplier(stamina: number): number {
-  if (stamina >= GAME_CONSTANTS.BOOSTED_STAMINA_THRESHOLD) {
-    return GAME_CONSTANTS.HIGH_STAMINA_DECAY_MULTIPLIER;
-  }
+	if (stamina >= GAME_CONSTANTS.BOOSTED_STAMINA_THRESHOLD) {
+		return GAME_CONSTANTS.HIGH_STAMINA_DECAY_MULTIPLIER;
+	}
 
-  if (stamina < GAME_CONSTANTS.UNHAPPY_STAMINA_THRESHOLD) {
-    return GAME_CONSTANTS.LOW_STAMINA_DECAY_MULTIPLIER;
-  }
+	if (stamina < GAME_CONSTANTS.UNHAPPY_STAMINA_THRESHOLD) {
+		return GAME_CONSTANTS.LOW_STAMINA_DECAY_MULTIPLIER;
+	}
 
-  return 1;
-}
-
-export function getLowStaminaDiseaseBonus(stamina: number): number {
-  if (stamina <= GAME_CONSTANTS.VERY_LOW_STAMINA_DISEASE_THRESHOLD) {
-    return GAME_CONSTANTS.VERY_LOW_STAMINA_DISEASE_BONUS;
-  }
-
-  if (stamina <= GAME_CONSTANTS.LOW_STAMINA_DISEASE_THRESHOLD) {
-    return GAME_CONSTANTS.LOW_STAMINA_DISEASE_BONUS;
-  }
-
-  return 0;
+	return 1;
 }
 
 function approximateInverseNormalCdf(probability: number): number {
-  const a = [
-    -39.69683028665376, 220.9460984245205, -275.9285104469687, 138.357751867269,
-    -30.66479806614716, 2.506628277459239,
-  ] as const;
-  const b = [
-    -54.47609879822406, 161.5858368580409, -155.6989798598866,
-    66.80131188771972, -13.28068155288572,
-  ] as const;
-  const c = [
-    -0.007784894002430293, -0.3223964580411365, -2.400758277161838,
-    -2.549732539343734, 4.374664141464968, 2.938163982698783,
-  ] as const;
-  const d = [
-    0.007784695709041462, 0.3224671290700398, 2.445134137142996,
-    3.754408661907416,
-  ] as const;
-  const low = 0.02425;
-  const high = 1 - low;
+	const a = [
+		-39.69683028665376, 220.9460984245205, -275.9285104469687, 138.357751867269,
+		-30.66479806614716, 2.506628277459239,
+	] as const;
+	const b = [
+		-54.47609879822406, 161.5858368580409, -155.6989798598866,
+		66.80131188771972, -13.28068155288572,
+	] as const;
+	const c = [
+		-0.007784894002430293, -0.3223964580411365, -2.400758277161838,
+		-2.549732539343734, 4.374664141464968, 2.938163982698783,
+	] as const;
+	const d = [
+		0.007784695709041462, 0.3224671290700398, 2.445134137142996,
+		3.754408661907416,
+	] as const;
+	const low = 0.02425;
+	const high = 1 - low;
 
-  if (probability < low) {
-    const q = Math.sqrt(-2 * Math.log(probability));
-    return (
-      (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) /
-      ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1)
-    );
-  }
+	if (probability < low) {
+		const q = Math.sqrt(-2 * Math.log(probability));
+		return (
+			(((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) /
+			((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1)
+		);
+	}
 
-  if (probability <= high) {
-    const q = probability - 0.5;
-    const r = q * q;
-    return (
-      ((((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) *
-        q) /
-      (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1)
-    );
-  }
+	if (probability <= high) {
+		const q = probability - 0.5;
+		const r = q * q;
+		return (
+			((((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) *
+				q) /
+			(((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1)
+		);
+	}
 
-  const q = Math.sqrt(-2 * Math.log(1 - probability));
-  return -(
-    (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) /
-    ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1)
-  );
+	const q = Math.sqrt(-2 * Math.log(1 - probability));
+	return -(
+		(((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) /
+		((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1)
+	);
 }
 
 function getNormalLikeDistributedDelayMs(
-  config: DelayRangeConfig,
-  randomValue: number = Math.random(),
+	config: DelayRangeConfig,
+	randomValue: number = Math.random(),
 ): number {
-  const { min, mode, max } = config;
+	const { min, mode, max } = config;
 
-  if (max <= min) {
-    return min;
-  }
+	if (max <= min) {
+		return min;
+	}
 
-  const mean = Math.max(min, Math.min(max, mode));
-  const radius = Math.min(mean - min, max - mean);
-  if (radius <= 0) {
-    return mean;
-  }
+	const mean = Math.max(min, Math.min(max, mode));
+	const radius = Math.min(mean - min, max - mean);
+	if (radius <= 0) {
+		return mean;
+	}
 
-  // +/- 3 sigma가 min/max와 맞도록 자른 truncated normal
-  const sigma = radius / 3;
-  const lowerZ = -3;
-  const upperZ = 3;
-  const lowerCdf = 0.0013498980316301035;
-  const upperCdf = 0.9986501019683699;
-  const clampedRandom = Math.max(0, Math.min(1, randomValue));
-  const probability = lowerCdf + clampedRandom * (upperCdf - lowerCdf);
-  const zScore = approximateInverseNormalCdf(probability);
-  const boundedZ = Math.max(lowerZ, Math.min(upperZ, zScore));
+	// +/- 3 sigma가 min/max와 맞도록 자른 truncated normal
+	const sigma = radius / 3;
+	const lowerZ = -3;
+	const upperZ = 3;
+	const lowerCdf = 0.0013498980316301035;
+	const upperCdf = 0.9986501019683699;
+	const clampedRandom = Math.max(0, Math.min(1, randomValue));
+	const probability = lowerCdf + clampedRandom * (upperCdf - lowerCdf);
+	const zScore = approximateInverseNormalCdf(probability);
+	const boundedZ = Math.max(lowerZ, Math.min(upperZ, zScore));
 
-  return Math.round(Math.max(min, Math.min(max, mean + boundedZ * sigma)));
+	return Math.round(Math.max(min, Math.min(max, mean + boundedZ * sigma)));
 }
 
 export function getEggHatchDelayMs(
-  randomValue: number = Math.random(),
+	randomValue: number = Math.random(),
 ): number {
-  return getNormalLikeDistributedDelayMs(
-    {
-      min: GAME_CONSTANTS.EGG_HATCH_MIN_TIME,
-      mode: GAME_CONSTANTS.EGG_HATCH_MODE_TIME,
-      max: GAME_CONSTANTS.EGG_HATCH_MAX_TIME,
-    },
-    randomValue,
-  );
+	return getNormalLikeDistributedDelayMs(
+		{
+			min: GAME_CONSTANTS.EGG_HATCH_MIN_TIME,
+			mode: GAME_CONSTANTS.EGG_HATCH_MODE_TIME,
+			max: GAME_CONSTANTS.EGG_HATCH_MAX_TIME,
+		},
+		randomValue,
+	);
 }
 
 function clampProgress(value: number): number {
-  return Math.max(0, Math.min(1, value));
+	return Math.max(0, Math.min(1, value));
 }
 
 export function getDefaultEggHatchDurationMs(): number {
-  return GAME_CONSTANTS.EGG_HATCH_MODE_TIME;
+	return GAME_CONSTANTS.EGG_HATCH_MODE_TIME;
 }
 
 export function createEggHatchSchedule(
-  now: number = Date.now(),
-  randomValue: number = Math.random(),
+	now: number = Date.now(),
+	randomValue: number = Math.random(),
 ): {
-  hatchTime: number;
-  hatchDurationMs: number;
+	hatchTime: number;
+	hatchDurationMs: number;
 } {
-  const hatchDurationMs = getEggHatchDelayMs(randomValue);
+	const hatchDurationMs = getEggHatchDelayMs(randomValue);
 
-  return {
-    hatchTime: now + hatchDurationMs,
-    hatchDurationMs,
-  };
+	return {
+		hatchTime: now + hatchDurationMs,
+		hatchDurationMs,
+	};
 }
 
 export function createEggHatchTimestamp(
-  now: number = Date.now(),
-  randomValue: number = Math.random(),
+	now: number = Date.now(),
+	randomValue: number = Math.random(),
 ): number {
-  return createEggHatchSchedule(now, randomValue).hatchTime;
+	return createEggHatchSchedule(now, randomValue).hatchTime;
 }
 
 function normalizePositiveEggHatchValue(value?: number): number | null {
-  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
-    return null;
-  }
+	if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+		return null;
+	}
 
-  return value;
+	return value;
 }
 
 export type ResolvedEggHatchTiming = {
-  hatchTime: number;
-  hatchDurationMs: number;
-  hatchStartTime: number;
-  remainingTimeMs: number;
-  progress: number;
+	hatchTime: number;
+	hatchDurationMs: number;
+	hatchStartTime: number;
+	remainingTimeMs: number;
+	progress: number;
 };
 
 const EGG_HATCH_CLOCK_DRIFT_TOLERANCE_MS = 1000;
 
 export function resolveEggHatchTiming(params: {
-  currentTime: number;
-  hatchTime?: number;
-  hatchDurationMs?: number;
-  fallbackDurationMs?: number;
+	currentTime: number;
+	hatchTime?: number;
+	hatchDurationMs?: number;
+	fallbackDurationMs?: number;
 }): ResolvedEggHatchTiming {
-  const currentTime = Number.isFinite(params.currentTime)
-    ? params.currentTime
-    : Date.now();
-  const fallbackDurationMs = Math.max(
-    0,
-    params.fallbackDurationMs ?? getDefaultEggHatchDurationMs(),
-  );
-  const normalizedHatchTime = normalizePositiveEggHatchValue(params.hatchTime);
-  const normalizedDurationMs = normalizePositiveEggHatchValue(
-    params.hatchDurationMs,
-  );
+	const currentTime = Number.isFinite(params.currentTime)
+		? params.currentTime
+		: Date.now();
+	const fallbackDurationMs = Math.max(
+		0,
+		params.fallbackDurationMs ?? getDefaultEggHatchDurationMs(),
+	);
+	const normalizedHatchTime = normalizePositiveEggHatchValue(params.hatchTime);
+	const normalizedDurationMs = normalizePositiveEggHatchValue(
+		params.hatchDurationMs,
+	);
 
-  let hatchTime: number;
-  let hatchDurationMs: number;
+	let hatchTime: number;
+	let hatchDurationMs: number;
 
-  if (normalizedDurationMs !== null && normalizedHatchTime !== null) {
-    hatchTime = normalizedHatchTime;
-    hatchDurationMs = normalizedDurationMs;
-    if (
-      hatchTime - currentTime >
-      hatchDurationMs + EGG_HATCH_CLOCK_DRIFT_TOLERANCE_MS
-    ) {
-      hatchTime = currentTime + hatchDurationMs;
-    }
-  } else if (normalizedHatchTime !== null) {
-    hatchTime = normalizedHatchTime;
-    hatchDurationMs = Math.max(0, normalizedHatchTime - currentTime);
-  } else if (normalizedDurationMs !== null) {
-    hatchDurationMs = normalizedDurationMs;
-    hatchTime = currentTime + normalizedDurationMs;
-  } else {
-    hatchDurationMs = fallbackDurationMs;
-    hatchTime = currentTime + hatchDurationMs;
-  }
+	if (normalizedDurationMs !== null && normalizedHatchTime !== null) {
+		hatchTime = normalizedHatchTime;
+		hatchDurationMs = normalizedDurationMs;
+		if (
+			hatchTime - currentTime >
+			hatchDurationMs + EGG_HATCH_CLOCK_DRIFT_TOLERANCE_MS
+		) {
+			hatchTime = currentTime + hatchDurationMs;
+		}
+	} else if (normalizedHatchTime !== null) {
+		hatchTime = normalizedHatchTime;
+		hatchDurationMs = Math.max(0, normalizedHatchTime - currentTime);
+	} else if (normalizedDurationMs !== null) {
+		hatchDurationMs = normalizedDurationMs;
+		hatchTime = currentTime + normalizedDurationMs;
+	} else {
+		hatchDurationMs = fallbackDurationMs;
+		hatchTime = currentTime + hatchDurationMs;
+	}
 
-  const remainingTimeMs = Math.max(0, hatchTime - currentTime);
-  const hatchStartTime =
-    hatchDurationMs > 0 ? hatchTime - hatchDurationMs : hatchTime;
-  const progress =
-    hatchDurationMs <= 0
-      ? currentTime >= hatchTime
-        ? 1
-        : 0
-      : clampProgress((currentTime - hatchStartTime) / hatchDurationMs);
+	const remainingTimeMs = Math.max(0, hatchTime - currentTime);
+	const hatchStartTime =
+		hatchDurationMs > 0 ? hatchTime - hatchDurationMs : hatchTime;
+	const progress =
+		hatchDurationMs <= 0
+			? currentTime >= hatchTime
+				? 1
+				: 0
+			: clampProgress((currentTime - hatchStartTime) / hatchDurationMs);
 
-  return {
-    hatchTime,
-    hatchDurationMs,
-    hatchStartTime,
-    remainingTimeMs,
-    progress,
-  };
+	return {
+		hatchTime,
+		hatchDurationMs,
+		hatchStartTime,
+		remainingTimeMs,
+		progress,
+	};
 }
 
 export function getResolvedEggHatchDurationMs(params: {
-  currentTime: number;
-  hatchTime?: number;
-  hatchDurationMs?: number;
-  fallbackDurationMs?: number;
+	currentTime: number;
+	hatchTime?: number;
+	hatchDurationMs?: number;
+	fallbackDurationMs?: number;
 }): number {
-  return resolveEggHatchTiming(params).hatchDurationMs;
+	return resolveEggHatchTiming(params).hatchDurationMs;
 }
 
 export function getRemainingEggHatchTime(params: {
-  currentTime: number;
-  hatchTime?: number;
-  hatchDurationMs?: number;
-  fallbackDurationMs?: number;
+	currentTime: number;
+	hatchTime?: number;
+	hatchDurationMs?: number;
+	fallbackDurationMs?: number;
 }): number {
-  return resolveEggHatchTiming(params).remainingTimeMs;
+	return resolveEggHatchTiming(params).remainingTimeMs;
 }
 
 export function getEggHatchProgress(params: {
-  currentTime: number;
-  hatchTime: number;
-  hatchDurationMs?: number;
+	currentTime: number;
+	hatchTime: number;
+	hatchDurationMs?: number;
 }): number {
-  return resolveEggHatchTiming(params).progress;
+	return resolveEggHatchTiming(params).progress;
 }
 
 export function getEggCrackStage(progress: number): 0 | 1 | 2 | 3 {
-  if (progress >= 0.75) {
-    return 3;
-  }
+	if (progress >= 0.75) {
+		return 3;
+	}
 
-  if (progress >= 0.5) {
-    return 2;
-  }
+	if (progress >= 0.5) {
+		return 2;
+	}
 
-  if (progress >= 0.25) {
-    return 1;
-  }
+	if (progress >= 0.25) {
+		return 1;
+	}
 
-  return 0;
+	return 0;
 }
 
 export function getUrgentDeathDelayMsByCharacterKey(
-  characterKey: CharacterKeyECS | number,
+	characterKey: CharacterKeyECS | number,
 ): number {
-  const characterClass = getEvolutionSpec(characterKey)?.class;
+	const characterClass = getEvolutionSpec(characterKey)?.class;
 
-  switch (characterClass) {
-    case CharacterClass.A:
-      return GAME_CONSTANTS.DEATH_DELAY_CLASS_A;
-    case CharacterClass.B:
-      return GAME_CONSTANTS.DEATH_DELAY_CLASS_B;
-    case CharacterClass.C:
-      return GAME_CONSTANTS.DEATH_DELAY_CLASS_C;
-    case CharacterClass.D:
-      return GAME_CONSTANTS.DEATH_DELAY_CLASS_D;
-    default:
-      return GAME_CONSTANTS.DEATH_DELAY;
-  }
+	switch (characterClass) {
+		case CharacterClass.A:
+			return GAME_CONSTANTS.DEATH_DELAY_CLASS_A;
+		case CharacterClass.B:
+			return GAME_CONSTANTS.DEATH_DELAY_CLASS_B;
+		case CharacterClass.C:
+			return GAME_CONSTANTS.DEATH_DELAY_CLASS_C;
+		case CharacterClass.D:
+			return GAME_CONSTANTS.DEATH_DELAY_CLASS_D;
+		default:
+			return GAME_CONSTANTS.DEATH_DELAY;
+	}
 }
