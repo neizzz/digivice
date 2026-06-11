@@ -2,7 +2,7 @@ var __defProp = Object.defineProperty;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 import { a as requireReactDom, r as reactExports, j as jsxRuntimeExports, T as TopLeftBuildLogoText, R as ReactDOM } from "./index2.js";
-import { z as DEFAULT_LOCALE, F as resolveLocaleFromLanguageTags, G as ControlButtonType, H as hasNativeStorageController, I as FlutterStorage, W as WebLocalStorage, J as translate, K as countDisplayCharacters, L as measureNameLabelWidth, N as fitsNameLabelWidth, O as TRANSLATIONS, Q as NAME_LABEL_FONT_FAMILIES, V as NAME_LABEL_FONT_WEIGHT, X as NAME_LABEL_STROKE_COLOR, Y as NAME_LABEL_FILL_COLOR, Z as NAME_LABEL_STROKE_WIDTH, _ as SUPPORTED_LOCALES, $ as LOCALE_METADATA, a0 as CharacterState, a1 as CharacterKeyECS, a2 as isEggTextureKey, a3 as TextureKey, a4 as GAME_CONSTANTS, a5 as SceneKey, a6 as TimeOfDay, a7 as hasLegacyMonsterBookState, a8 as migrateLegacyMonsterBookIfNeeded, a9 as getNativeSunTimes, aa as MissingInitialGameDataError, ab as Game } from "./evolutionAdmin.js";
+import { z as DEFAULT_LOCALE, F as resolveLocaleFromLanguageTags, G as ControlButtonType, H as hasNativeStorageController, I as FlutterStorage, W as WebLocalStorage, J as translate, K as countDisplayCharacters, L as measureNameLabelWidth, N as fitsNameLabelWidth, O as TRANSLATIONS, Q as NAME_LABEL_FONT_FAMILIES, V as NAME_LABEL_FONT_WEIGHT, X as NAME_LABEL_STROKE_COLOR, Y as NAME_LABEL_FILL_COLOR, Z as NAME_LABEL_STROKE_WIDTH, _ as CharacterState, $ as CharacterKeyECS, a0 as isEggTextureKey, a1 as TextureKey, a2 as GAME_CONSTANTS, a3 as SceneKey, a4 as TimeOfDay, a5 as hasLegacyMonsterBookState, a6 as migrateLegacyMonsterBookIfNeeded, a7 as getNativeSunTimes, a8 as MissingInitialGameDataError, a9 as Game } from "./evolutionAdmin.js";
 var reactDomExports = requireReactDom();
 class SliderController {
   /**
@@ -2649,6 +2649,7 @@ const MonsterInfoLayer = ({
     }
   ) });
 };
+const isNativeFeatureDebugMode$2 = false;
 const RESET_CONFIRM_CODE_LENGTH = 6;
 const RESET_CONFIRM_CODE_INDEXES = Array.from(
   { length: RESET_CONFIRM_CODE_LENGTH },
@@ -2683,20 +2684,6 @@ const ActionButton = ({
       "data-snapshot-action": snapshotAction,
       className: `ml-auto flex min-w-20 shrink-0 items-center justify-center border-2 border-[#222] px-4 py-0.5 text-center font-bold text-white ${backgroundClass}`,
       children: text
-    }
-  );
-};
-const DevModeBadge = () => /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "border-2 border-[#222] bg-yellow-300 px-2 py-0.5 text-[0.85rem] uppercase leading-none text-[#222]", children: "Dev Mode" });
-const LanguageButton = ({ locale, active, onClick }) => {
-  const meta = LOCALE_METADATA[locale];
-  return /* @__PURE__ */ jsxRuntimeExports.jsx(
-    "button",
-    {
-      type: "button",
-      onClick,
-      className: `border-2 border-[#222] px-2 py-0.5 text-[1rem] font-bold ${active ? "bg-component-positive text-white" : "bg-white text-[#222]"}`,
-      "aria-pressed": active,
-      children: meta.nativeName
     }
   );
 };
@@ -2880,36 +2867,7 @@ const SettingMenuLayer = ({
               }
             ) })
           ] }),
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "border-t-2 border-[#222] pt-4", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mb-3 flex flex-wrap items-center gap-2 font-bold", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Language" }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx(DevModeBadge, {})
-            ] }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "grid grid-cols-2 gap-2", children: SUPPORTED_LOCALES.map((localeOption) => /* @__PURE__ */ jsxRuntimeExports.jsx(
-              LanguageButton,
-              {
-                locale: localeOption,
-                active: locale === localeOption,
-                onClick: () => onChangeLocale(localeOption)
-              },
-              localeOption
-            )) }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "mt-4 border-t-2 border-[#222] pt-4", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-wrap items-center justify-between gap-3", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "min-w-0 flex-1", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-wrap items-center gap-2 font-bold", children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Offline Ad" }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx(DevModeBadge, {})
-              ] }) }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx(
-                ActionButton,
-                {
-                  text: "Show",
-                  onClick: () => onShowOfflineAdFallback == null ? void 0 : onShowOfflineAdFallback(),
-                  disabled: !onShowOfflineAdFallback,
-                  variant: "warning"
-                }
-              )
-            ] }) })
-          ] })
+          isNativeFeatureDebugMode$2
         ] }),
         onConfirm: onClose,
         onBack: onBack ?? onClose,
@@ -4058,7 +4016,7 @@ const biteVibrationAdapter = new VibrationAdapter();
 const RECOVERY_INSERT_VIBRATION_DURATION_MS = 50;
 const RECOVERY_INSERT_VIBRATION_STRENGTH = 160;
 const LOADING_TIMEOUT_MS = 3e4;
-const isNativeFeatureDebugMode$1 = true;
+const isNativeFeatureDebugMode$1 = false;
 const isAndroidUserAgent = typeof navigator !== "undefined" && /DigiviceApp-Android|Android/i.test(navigator.userAgent);
 const KEYBOARD_VIEWPORT_HEIGHT_DELTA_THRESHOLD = 80;
 const UNSUPPORTED_VIEWPORT_OVERLAY_SHOW_DEBOUNCE_MS = 180;
@@ -4416,10 +4374,10 @@ function createFlappyBirdLogsBody() {
   ].join("\n");
 }
 function getClientReleaseLabel() {
-  return `${"1.2.0-debug"}+${20}`;
+  return `${"1.2.0"}+${20}`;
 }
 function getClientReleaseFileLabel() {
-  const sanitizedVersion = "1.2.0-debug".replace(/[^a-zA-Z0-9.-]+/g, "_");
+  const sanitizedVersion = "1.2.0".replace(/[^a-zA-Z0-9.-]+/g, "_");
   return `${sanitizedVersion}-build-${20}`;
 }
 function buildDiagnosticsTimestampSuffix(timestamp) {
@@ -5261,7 +5219,7 @@ const GameContainer = () => {
       scene: (gameInstance == null ? void 0 : gameInstance.getCurrentSceneKey()) !== void 0 ? String(gameInstance.getCurrentSceneKey()) : void 0,
       storageKind: getClientStorageKind(),
       appMode: "production",
-      appVersion: "1.2.0-debug",
+      appVersion: "1.2.0",
       buildNumber: 20,
       debugEnabled: isNativeFeatureDebugMode$1
     }));
@@ -5381,53 +5339,58 @@ const GameContainer = () => {
     },
     [hideResumeGuardAfterLayout, showResumeGuard]
   );
-  const handleNativeWorldDataUpdateForReentry = reactExports.useCallback(async (source) => {
-    if (typeof window === "undefined") {
-      throw new Error("native_world_data_update_unavailable");
-    }
-    const controller = window.worldDataUpdateController;
-    if (typeof (controller == null ? void 0 : controller.completeNativeWorldDataUpdate) !== "function") {
-      throw new Error("native_world_data_update_unavailable");
-    }
-    const result = await controller.completeNativeWorldDataUpdate({
-      source
-    });
-    lastNativeWorldDataUpdateForReentryRef.current = {
-      source,
-      result
-    };
-    logImportantDiagnostics(
-      "log",
-      "[ImportantDiagnostics][WorldDataSyncPayload]",
-      {
-        action: "native_world_data_update_for_reentry",
-        source,
-        status: (result == null ? void 0 : result.status) ?? null,
-        worldDataChanged: (result == null ? void 0 : result.worldDataChanged) ?? null,
-        hatched: (result == null ? void 0 : result.hatched) ?? null,
-        evolutionGageBefore: (result == null ? void 0 : result.evolutionGageBefore) ?? null,
-        evolutionGageAfter: (result == null ? void 0 : result.evolutionGageAfter) ?? null,
-        evolutionGageIncreased: (result == null ? void 0 : result.evolutionGageIncreased) ?? null,
-        evolved: (result == null ? void 0 : result.evolved) ?? null,
-        previousCharacterKey: (result == null ? void 0 : result.previousCharacterKey) ?? null,
-        nextCharacterKey: (result == null ? void 0 : result.nextCharacterKey) ?? null,
-        previousEvolutionPhase: (result == null ? void 0 : result.previousEvolutionPhase) ?? null,
-        nextEvolutionPhase: (result == null ? void 0 : result.nextEvolutionPhase) ?? null,
-        candidateKind: (result == null ? void 0 : result.candidateKind) ?? null,
-        mutationApplied: (result == null ? void 0 : result.mutationApplied) ?? null,
-        mutationRate: (result == null ? void 0 : result.mutationRate) ?? null,
-        mutationRoll: (result == null ? void 0 : result.mutationRoll) ?? null,
-        mutationTargetRoll: (result == null ? void 0 : result.mutationTargetRoll) ?? null,
-        evolutionRoll: (result == null ? void 0 : result.evolutionRoll) ?? null,
-        evolutionBlockReason: (result == null ? void 0 : result.evolutionBlockReason) ?? null,
-        previousCharacterState: (result == null ? void 0 : result.previousCharacterState) ?? null,
-        nextCharacterState: (result == null ? void 0 : result.nextCharacterState) ?? null,
-        selectedCharacterKey: (result == null ? void 0 : result.selectedCharacterKey) ?? null,
-        hatchSelectionDiagnostics: (result == null ? void 0 : result.hatchSelectionDiagnostics) ?? null
+  const handleNativeWorldDataUpdateForReentry = reactExports.useCallback(
+    async (source, options) => {
+      if (typeof window === "undefined") {
+        throw new Error("native_world_data_update_unavailable");
       }
-    );
-    return result;
-  }, []);
+      const controller = window.worldDataUpdateController;
+      if (typeof (controller == null ? void 0 : controller.completeNativeWorldDataUpdate) !== "function") {
+        throw new Error("native_world_data_update_unavailable");
+      }
+      const nowMs = typeof (options == null ? void 0 : options.nowMs) === "number" && Number.isFinite(options.nowMs) ? Math.floor(options.nowMs) : void 0;
+      const result = await controller.completeNativeWorldDataUpdate({
+        source,
+        ...nowMs !== void 0 ? { nowMs } : {}
+      });
+      lastNativeWorldDataUpdateForReentryRef.current = {
+        source,
+        result
+      };
+      logImportantDiagnostics(
+        "log",
+        "[ImportantDiagnostics][WorldDataSyncPayload]",
+        {
+          action: "native_world_data_update_for_reentry",
+          source,
+          status: (result == null ? void 0 : result.status) ?? null,
+          worldDataChanged: (result == null ? void 0 : result.worldDataChanged) ?? null,
+          hatched: (result == null ? void 0 : result.hatched) ?? null,
+          evolutionGageBefore: (result == null ? void 0 : result.evolutionGageBefore) ?? null,
+          evolutionGageAfter: (result == null ? void 0 : result.evolutionGageAfter) ?? null,
+          evolutionGageIncreased: (result == null ? void 0 : result.evolutionGageIncreased) ?? null,
+          evolved: (result == null ? void 0 : result.evolved) ?? null,
+          previousCharacterKey: (result == null ? void 0 : result.previousCharacterKey) ?? null,
+          nextCharacterKey: (result == null ? void 0 : result.nextCharacterKey) ?? null,
+          previousEvolutionPhase: (result == null ? void 0 : result.previousEvolutionPhase) ?? null,
+          nextEvolutionPhase: (result == null ? void 0 : result.nextEvolutionPhase) ?? null,
+          candidateKind: (result == null ? void 0 : result.candidateKind) ?? null,
+          mutationApplied: (result == null ? void 0 : result.mutationApplied) ?? null,
+          mutationRate: (result == null ? void 0 : result.mutationRate) ?? null,
+          mutationRoll: (result == null ? void 0 : result.mutationRoll) ?? null,
+          mutationTargetRoll: (result == null ? void 0 : result.mutationTargetRoll) ?? null,
+          evolutionRoll: (result == null ? void 0 : result.evolutionRoll) ?? null,
+          evolutionBlockReason: (result == null ? void 0 : result.evolutionBlockReason) ?? null,
+          previousCharacterState: (result == null ? void 0 : result.previousCharacterState) ?? null,
+          nextCharacterState: (result == null ? void 0 : result.nextCharacterState) ?? null,
+          selectedCharacterKey: (result == null ? void 0 : result.selectedCharacterKey) ?? null,
+          hatchSelectionDiagnostics: (result == null ? void 0 : result.hatchSelectionDiagnostics) ?? null
+        }
+      );
+      return result;
+    },
+    []
+  );
   const loadHomeWidgetLaunchContext = reactExports.useCallback(async () => {
     if (typeof window === "undefined") {
       return;
@@ -5771,7 +5734,7 @@ const GameContainer = () => {
         generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
         appInfo: {
           project: "MonTTo",
-          clientAppVersion: "1.2.0-debug",
+          clientAppVersion: "1.2.0",
           clientBuildNumber: 20,
           appMode: "production",
           debugEnabled: isNativeFeatureDebugMode$1,
@@ -8209,11 +8172,11 @@ const App = () => {
   ] });
 };
 const platformAdapter = new PlatformAdapter();
-const isNativeFeatureDebugMode = true;
+const isNativeFeatureDebugMode = false;
 installDiagnosticsConsoleCapture();
 setDiagnosticsContextProvider(() => ({
   appMode: "production",
-  appVersion: "1.2.0-debug",
+  appVersion: "1.2.0",
   buildNumber: 20,
   debugEnabled: isNativeFeatureDebugMode
 }));

@@ -254,29 +254,6 @@ const SUPPORTED_LOCALES = [
   "pt-BR"
 ];
 const DEFAULT_LOCALE = "en";
-const LOCALE_METADATA = {
-  en: { code: "en", nativeName: "English", englishName: "English" },
-  ko: { code: "ko", nativeName: "한국어", englishName: "Korean" },
-  ja: { code: "ja", nativeName: "日本語", englishName: "Japanese" },
-  "zh-TW": {
-    code: "zh-TW",
-    nativeName: "繁體中文（台灣）",
-    englishName: "Chinese (Taiwan)"
-  },
-  "zh-HK": {
-    code: "zh-HK",
-    nativeName: "繁體中文（香港）",
-    englishName: "Chinese (Hong Kong)"
-  },
-  hi: { code: "hi", nativeName: "हिन्दी", englishName: "Hindi" },
-  th: { code: "th", nativeName: "ไทย", englishName: "Thai" },
-  vi: { code: "vi", nativeName: "Tiếng Việt", englishName: "Vietnamese" },
-  "pt-BR": {
-    code: "pt-BR",
-    nativeName: "Português (Brasil)",
-    englishName: "Portuguese (Brazil)"
-  }
-};
 const en = {
   "common.on": "ON",
   "common.off": "OFF",
@@ -32763,10 +32740,14 @@ function getTemporaryStatusFromComponent(eid) {
 function collectEffectiveStatuses(eid) {
   const statuses = CharacterStatusComp.statuses[eid];
   const allStatuses = [];
+  const temporaryStatus = getTemporaryStatusFromComponent(eid);
   let hasSickStatus = false;
   for (let j2 = 0; j2 < statuses.length; j2++) {
     const status = statuses[j2];
     if (status === 0) {
+      continue;
+    }
+    if (temporaryStatus !== null && status === temporaryStatus) {
       continue;
     }
     if (status === CharacterStatus.SICK) {
@@ -32774,8 +32755,7 @@ function collectEffectiveStatuses(eid) {
     }
     allStatuses.push(status);
   }
-  const temporaryStatus = getTemporaryStatusFromComponent(eid);
-  if (temporaryStatus !== null && !allStatuses.includes(temporaryStatus)) {
+  if (temporaryStatus !== null) {
     allStatuses.push(temporaryStatus);
   }
   if (ObjectComp.state[eid] === CharacterState.SICK && !hasSickStatus) {
@@ -33686,7 +33666,7 @@ const allEntitiesQuery = defineQuery([ObjectComp]);
 function dataSyncSystem(params) {
   const { world: mainSceneWorld } = params;
   const worldData = mainSceneWorld.getInMemoryData();
-  const currentTime = mainSceneWorld.currentTime;
+  const currentTime = params.currentTime ?? mainSceneWorld.currentTime;
   if (currentTime - worldData.world_metadata.last_ecs_saved < THIS_CONFIG.SAVE_INTERVAL) {
     return params;
   }
@@ -34215,6 +34195,16 @@ let _cachedWorld = null;
 function isTemporaryStatus(status) {
   return TEMPORARY_STATUSES.includes(status);
 }
+function setTemporaryStatusMetadata(eid, status, currentTime, world) {
+  if (world && hasComponent(world, ObjectComp, eid) && !hasComponent(world, TemporaryStatusComp, eid)) {
+    addComponent(world, TemporaryStatusComp, eid);
+  }
+  TemporaryStatusComp.statusType[eid] = status;
+  TemporaryStatusComp.startTime[eid] = currentTime;
+  if (status === CharacterStatus.HAPPY) {
+    TemporaryStatusComp.lastHappyStatusTime[eid] = currentTime;
+  }
+}
 function characterManagerSystem(params) {
   const { world, delta } = params;
   _cachedWorld = world;
@@ -34281,14 +34271,12 @@ function syncStatusIconRenderComp(eid, currentStatuses) {
 function addCharacterStatus$2(eid, status, world = _cachedWorld) {
   const currentStatuses = CharacterStatusComp.statuses[eid];
   const currentTime = (world == null ? void 0 : world.currentTime) ?? Date.now();
+  const isTemporary = isTemporaryStatus(status);
   debugLog$4(
     `[addCharacterStatus] Current statuses for entity ${eid}:`,
     Array.from(currentStatuses)
   );
-  if (isTemporaryStatus(status) && ObjectComp.state[eid] === CharacterState.SLEEPING) {
-    return false;
-  }
-  if (currentStatuses.includes(status)) {
+  if (isTemporary && ObjectComp.state[eid] === CharacterState.SLEEPING) {
     return false;
   }
   if (status === CharacterStatus.HAPPY) {
@@ -34301,18 +34289,18 @@ function addCharacterStatus$2(eid, status, world = _cachedWorld) {
       return false;
     }
   }
+  if (currentStatuses.includes(status)) {
+    if (isTemporary) {
+      setTemporaryStatusMetadata(eid, status, currentTime, world);
+      return true;
+    }
+    return false;
+  }
   for (let i2 = 0; i2 < currentStatuses.length; i2++) {
     if (currentStatuses[i2] === 0) {
       currentStatuses[i2] = status;
-      if (isTemporaryStatus(status)) {
-        if (world && hasComponent(world, ObjectComp, eid) && !hasComponent(world, TemporaryStatusComp, eid)) {
-          addComponent(world, TemporaryStatusComp, eid);
-        }
-        TemporaryStatusComp.statusType[eid] = status;
-        TemporaryStatusComp.startTime[eid] = currentTime;
-        if (status === CharacterStatus.HAPPY) {
-          TemporaryStatusComp.lastHappyStatusTime[eid] = currentTime;
-        }
+      if (isTemporary) {
+        setTemporaryStatusMetadata(eid, status, currentTime, world);
       }
       debugLog$4(
         `[addCharacterStatus] Added status ${status} to entity ${eid} at slot ${i2}. New statuses:`,
@@ -34324,6 +34312,10 @@ function addCharacterStatus$2(eid, status, world = _cachedWorld) {
   console.warn(
     `[addCharacterStatus] No empty slot available for entity ${eid} to add status ${status}`
   );
+  if (isTemporary) {
+    setTemporaryStatusMetadata(eid, status, currentTime, world);
+    return true;
+  }
   return false;
 }
 function applyReentryHappyStatusForFullStaminaCharacters(world) {
@@ -36619,10 +36611,11 @@ const CLEANING_DIM_OVERLAY_PADDING_PX = 512;
 const CLEANING_DIM_OVERLAY_ALPHA = 0.45;
 const FOCUSED_CLEANABLE_BORDER_COLOR = 16743874;
 const NON_FOCUSED_CLEANABLE_BORDER_COLOR = 16777215;
+const FOCUSED_CLEANABLE_BORDER_WIDTH = 4;
+const NON_FOCUSED_CLEANABLE_BORDER_WIDTH = 3;
 let cleaningDimOverlay = null;
 let cleaningDimOverlayRenderState = null;
 const dashedBorderRenderStateByEid = /* @__PURE__ */ new Map();
-const renderSizeStateByEid = /* @__PURE__ */ new Map();
 function cleanableRenderSystem(params) {
   const { world, delta, stage } = params;
   const cleanableEntities = cleanableQuery(world);
@@ -36683,43 +36676,41 @@ function getBaselineSpriteZIndex(eid, world) {
   return shouldSnapCharacterToPixelGrid ? Math.round(y2) : y2;
 }
 function getObjectRenderSize(eid, world) {
-  var _a;
   if (!hasComponent(world, RenderComp, eid)) {
     return { width: 32, height: 32 };
   }
   const storeIndex = RenderComp.storeIndex[eid];
   const spriteStore2 = getSpriteStore();
   const sprite = spriteStore2.get(storeIndex);
-  if (!sprite) {
+  if (!sprite || sprite.destroyed) {
     return { width: 32, height: 32 };
   }
+  const renderedWidth = Math.abs(sprite.width);
+  const renderedHeight = Math.abs(sprite.height);
+  if (isValidRenderDimension(renderedWidth, renderedHeight)) {
+    return { width: renderedWidth, height: renderedHeight };
+  }
   const texture = sprite.texture;
-  const textureId = texture.uid ?? ((_a = texture.source) == null ? void 0 : _a.uid) ?? texture.label ?? null;
   const scaleX = Math.abs(sprite.scale.x);
   const scaleY = Math.abs(sprite.scale.y);
-  const cached = renderSizeStateByEid.get(eid);
-  if (cached && cached.textureId === textureId && cached.scaleX === scaleX && cached.scaleY === scaleY) {
-    return {
-      width: cached.width,
-      height: cached.height
-    };
-  }
   const textureFrame = texture.orig ?? texture.frame;
-  let width = Math.abs(((textureFrame == null ? void 0 : textureFrame.width) ?? texture.width ?? 32) * scaleX);
-  let height = Math.abs(((textureFrame == null ? void 0 : textureFrame.height) ?? texture.height ?? 32) * scaleY);
-  if (width <= 0 || height <= 0) {
-    const bounds = sprite.getBounds();
-    width = bounds.width || 32;
-    height = bounds.height || 32;
+  const textureWidth = Math.abs(
+    ((textureFrame == null ? void 0 : textureFrame.width) ?? texture.width ?? 32) * scaleX
+  );
+  const textureHeight = Math.abs(
+    ((textureFrame == null ? void 0 : textureFrame.height) ?? texture.height ?? 32) * scaleY
+  );
+  if (isValidRenderDimension(textureWidth, textureHeight)) {
+    return { width: textureWidth, height: textureHeight };
   }
-  renderSizeStateByEid.set(eid, {
-    width,
-    height,
-    textureId,
-    scaleX,
-    scaleY
-  });
-  return { width, height };
+  const bounds = sprite.getBounds();
+  if (isValidRenderDimension(bounds.width, bounds.height)) {
+    return { width: bounds.width, height: bounds.height };
+  }
+  return { width: 32, height: 32 };
+}
+function isValidRenderDimension(width, height) {
+  return Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0;
 }
 function isSameDashedBorderRenderState(previous, next) {
   return !!previous && previous.x === next.x && previous.y === next.y && previous.width === next.width && previous.height === next.height && previous.isFocused === next.isFocused;
@@ -36771,7 +36762,7 @@ function createOrUpdateDashedBorder(eid, stage, world) {
     graphics.visible = true;
   }
   const borderColor = isFocused ? FOCUSED_CLEANABLE_BORDER_COLOR : NON_FOCUSED_CLEANABLE_BORDER_COLOR;
-  const lineWidth = 4;
+  const lineWidth = isFocused ? FOCUSED_CLEANABLE_BORDER_WIDTH : NON_FOCUSED_CLEANABLE_BORDER_WIDTH;
   graphics.zIndex = isFocused ? FOCUSED_BORDER_Z_INDEX : NON_FOCUSED_BORDER_Z_INDEX;
   const borderX = x2 - objectWidth / 2;
   const borderY = y2 - objectHeight / 2;
@@ -36910,7 +36901,6 @@ function removeDashedBorder(eid, stage) {
     dashedBorderStore.remove(eid);
   }
   dashedBorderRenderStateByEid.delete(eid);
-  renderSizeStateByEid.delete(eid);
   removeBroom(eid, stage);
 }
 function createOrUpdateBroom(eid, stage, world, targetX, targetY, targetWidth) {
@@ -41077,11 +41067,13 @@ class MissingInitialGameDataError extends Error {
 }
 const WORLD_DATA_STORAGE_KEY = "MainSceneWorldData";
 const DEFAULT_USE_LOCAL_TIME = true;
+const DEFAULT_MAIN_SCENE_TIME_SCALE = 1;
 const MAIN_SCENE_AD_THRESHOLD = 20;
 const MAIN_SCENE_AD_NORMAL_COOLDOWN_MS = 2 * 60 * 1e3;
 const MAIN_SCENE_AD_POST_ACTION_DELAY_MS = 500;
 const MAIN_SCENE_AD_FEED_FALLBACK_AFTER_LAND_MS = 3e3;
 const MAIN_SCENE_AD_FEED_IDLE_RETRY_MS = 1e3;
+const MAIN_SCENE_REALTIME_DATA_SYNC_INTERVAL_MS = 1e3;
 const MAIN_SCENE_STATUS_HEARTBEAT_INTERVAL_MS = 60 * 1e3;
 const HOUR_MS = 60 * 60 * 1e3;
 const DAY_MS = 24 * HOUR_MS;
@@ -41162,6 +41154,11 @@ const MAIN_SCENE_WORLD_ENTITY_CAPACITY = 256;
 function isFiniteTimestamp(value) {
   return typeof value === "number" && Number.isFinite(value);
 }
+function resolveMainSceneTimeScale() {
+  {
+    return DEFAULT_MAIN_SCENE_TIME_SCALE;
+  }
+}
 const _MainSceneWorld = class _MainSceneWorld {
   constructor(params) {
     this.WORLD_DATA_SCHEMA_VERSION = "1.0.0";
@@ -41201,36 +41198,40 @@ const _MainSceneWorld = class _MainSceneWorld {
     this._hasLocationPermission = false;
     this._sunLocationSource = null;
     this._lastStatusHeartbeatLogTime = null;
+    this._lastRealtimeDataSyncAt = 0;
     this._pendingFeedAdFoodEid = null;
     this._nextFeedMenuFood = getRandomFeedMenuFoodOption();
     this._feedAdFallbackTimerId = null;
     this._mainSceneAdTimerIds = /* @__PURE__ */ new Set();
+    this._timeScale = resolveMainSceneTimeScale();
+    this._timeScaleAnchorTrustedMs = 0;
+    this._timeScaleAnchorScaledMs = 0;
     this._pipedSystems = pipe(
       // 시간 기반 시스템들 (상태 관리 시스템 토글 적용)
-      (params2) => this._statusSystemsEnabled ? freshnessSystem({ ...params2, currentTime: this.currentTime }) : params2,
-      (params2) => this._statusSystemsEnabled ? digestiveSystem({ ...params2, currentTime: this.currentTime }) : params2,
+      (params2) => this._statusSystemsEnabled ? freshnessSystem({ ...params2, currentTime: params2.currentTime }) : params2,
+      (params2) => this._statusSystemsEnabled ? digestiveSystem({ ...params2, currentTime: params2.currentTime }) : params2,
       (params2) => this._statusSystemsEnabled ? sleepScheduleSystem({
         ...params2,
-        currentTime: this.currentTime,
+        currentTime: params2.currentTime,
         entryStatusSuppression: this._entryStatusSuppression ?? void 0
       }) : params2,
       (params2) => this._statusSystemsEnabled ? diseaseSystem({
         ...params2,
-        currentTime: this.currentTime
+        currentTime: params2.currentTime
       }) : params2,
-      (params2) => eggHatchSystem({ ...params2, currentTime: this.currentTime }),
-      (params2) => this._statusSystemsEnabled ? mutationRiskSystem({ ...params2, currentTime: this.currentTime }) : params2,
+      (params2) => eggHatchSystem({ ...params2, currentTime: params2.currentTime }),
+      (params2) => this._statusSystemsEnabled ? mutationRiskSystem({ ...params2, currentTime: params2.currentTime }) : params2,
       (params2) => this._statusSystemsEnabled ? characterManagerSystem(params2) : params2,
       // 캐릭터 상태 시스템 (임시 상태 만료, 긴급 상태, 사망 처리)
-      (params2) => this._statusSystemsEnabled ? characterStatusSystem({ ...params2, currentTime: this.currentTime }) : params2,
+      (params2) => this._statusSystemsEnabled ? characterStatusSystem({ ...params2, currentTime: params2.currentTime }) : params2,
       // 배달 시스템
       // pillDeliverySystem,
       // 이펙트 시스템
-      (params2) => sparkleEffectSystem({ ...params2, currentTime: this.currentTime }),
+      (params2) => sparkleEffectSystem({ ...params2, currentTime: params2.currentTime }),
       // 범용 effect 애니메이션 시스템 (실시간 모드에서만 실행)
       (params2) => effectAnimationSystem({
         ...params2,
-        currentTime: this.currentTime,
+        currentTime: params2.currentTime,
         stage: this._stage
       }),
       // 청소 시스템 (실시간 모드에서만 실행)
@@ -41240,12 +41241,12 @@ const _MainSceneWorld = class _MainSceneWorld {
       commonMovementSystem,
       // 착지한 프레임에 바로 음식 탐색이 가능해야 하므로 착지 상태를 먼저 반영한다.
       throwAnimationSystem,
-      (params2) => foodEatingSystem({ ...params2, currentTime: this.currentTime }),
+      (params2) => foodEatingSystem({ ...params2, currentTime: params2.currentTime }),
       // 애니메이션 상태 시스템들
       animationStateSystem,
       // 모든 렌더링 시스템들을 하나로 통합 (실시간 모드에서만 실행)
       (params2) => this._renderAllSystems(params2),
-      dataSyncSystem
+      (params2) => this._shouldRunDataSyncSystem() ? dataSyncSystem(params2) : params2
     );
     this._stage = params.stage;
     this._positionBoundary = params.positionBoundary;
@@ -41277,6 +41278,14 @@ const _MainSceneWorld = class _MainSceneWorld {
       params.loadingTraceContext ?? null
     );
     this._trustedClock = params.trustedClock ?? trustedClock;
+    const currentTrustedTime = this._trustedClock.now();
+    this._timeScaleAnchorTrustedMs = currentTrustedTime;
+    this._timeScaleAnchorScaledMs = currentTrustedTime;
+    if (this._timeScale !== DEFAULT_MAIN_SCENE_TIME_SCALE) {
+      console.warn("[MainSceneWorld] Dev time scale enabled", {
+        timeScale: this._timeScale
+      });
+    }
     this._updateControlButtonsForMenuState(false);
   }
   get stage() {
@@ -41972,6 +41981,7 @@ ${this.t("main.cleanObjectsPrompt")}`,
           "No playable saved data found, initializing with default entities..."
         );
         this._persistentData = this._initializeData(initialGameData);
+        this._syncTimeScaleAnchorWithPersistentData();
       } else {
         console.log(`Found saved data, validating and loading...`);
         const validatedData = this._validateAndMigrateData(loadedData);
@@ -41992,8 +42002,10 @@ ${this.t("main.cleanObjectsPrompt")}`,
             "Saved data is missing required setup info or recoverable character entities, reinitializing with default entities..."
           );
           this._persistentData = this._initializeData(initialGameData);
+          this._syncTimeScaleAnchorWithPersistentData();
         } else {
           this._persistentData = validatedData;
+          this._syncTimeScaleAnchorWithPersistentData();
           await this._initDiagnostics.measurePhase(
             "load_saved_entities",
             async () => {
@@ -42138,16 +42150,7 @@ ${this.t("main.cleanObjectsPrompt")}`,
           }
         });
         this._syncFeedMenuPreview();
-        if (this._debugParentElement) {
-          this._debugGaugeUI = new HTMLDebugGaugeUI(
-            this,
-            this._debugParentElement,
-            {
-              initiallyVisible: false
-            }
-          );
-          this._addDebugGaugeEventListener();
-        }
+        if (false) ;
         if (false) ;
       }
       await this._initDiagnostics.measurePhase(
@@ -42519,18 +42522,21 @@ ${this.t("main.cleanObjectsPrompt")}`,
   }
   update(delta) {
     var _a;
+    const currentTime = this.currentTime;
+    const scaledDelta = this._scaleRealtimeDelta(delta);
     if (this._isPaused || this._isRunningReentrySimulation) {
-      this._logStatusHeartbeatIfNeeded(delta);
+      this._logStatusHeartbeatIfNeeded(scaledDelta, currentTime);
       return;
     }
-    this._updateAutoTimeOfDayIfNeeded();
-    (_a = this._background) == null ? void 0 : _a.animate(this.currentTime);
+    this._updateAutoTimeOfDayIfNeeded(false, currentTime);
+    (_a = this._background) == null ? void 0 : _a.animate(currentTime);
     this._pipedSystems({
       world: this,
-      delta
+      delta: scaledDelta,
+      currentTime
     });
     this._releaseEntryStatusSuppressionIfNeeded();
-    this._logStatusHeartbeatIfNeeded(delta);
+    this._logStatusHeartbeatIfNeeded(scaledDelta, currentTime);
     if (this._debugGaugeUI) {
       this._debugGaugeUI.update();
     }
@@ -42544,9 +42550,8 @@ ${this.t("main.cleanObjectsPrompt")}`,
     }
     this._previousCleaningMode = this._isCleaningMode;
   }
-  _logStatusHeartbeatIfNeeded(delta) {
+  _logStatusHeartbeatIfNeeded(delta, currentTime = this.currentTime) {
     var _a;
-    const currentTime = this.currentTime;
     const heartbeatTime = Number.isFinite(currentTime) ? currentTime : Date.now();
     const lastLogTime = this._lastStatusHeartbeatLogTime;
     if (lastLogTime !== null && heartbeatTime - lastLogTime < MAIN_SCENE_STATUS_HEARTBEAT_INTERVAL_MS) {
@@ -43089,11 +43094,11 @@ ${this.t("main.cleanObjectsPrompt")}`,
       this._sunTimesRefreshPromise = null;
     }
   }
-  _updateAutoTimeOfDayIfNeeded(force = false) {
+  _updateAutoTimeOfDayIfNeeded(force = false, currentTime = this.currentTime) {
     if (this._timeOfDayMode !== TimeOfDayMode.Auto || !this._sunTimes) {
       return;
     }
-    const now = new Date(this.currentTime);
+    const now = new Date(currentTime);
     if (!this.isSimulationMode && hasSunTimesDateRolledOver(now, this._sunTimes)) {
       console.log("[MainSceneWorld] Sun times date rolled over; refreshing", {
         previousDate: this._sunTimes.date,
@@ -43104,7 +43109,7 @@ ${this.t("main.cleanObjectsPrompt")}`,
       void this._refreshSunTimes(false);
       return;
     }
-    const currentMinuteKey = Math.floor(this.currentTime / 6e4);
+    const currentMinuteKey = Math.floor(currentTime / 6e4);
     if (!force && this._autoTimeOfDayMinuteKey === currentMinuteKey) {
       return;
     }
@@ -43927,7 +43932,10 @@ ${this.t("main.cleanObjectsPrompt")}`,
     }
     try {
       await this._saveCurrentState();
-      const updateResult = await this._onNativeWorldDataUpdateForReentry("foreground_hatch");
+      const updateResult = await this._onNativeWorldDataUpdateForReentry(
+        "foreground_hatch",
+        { nowMs: Math.floor(currentTime) }
+      );
       if (!this._isNativeWorldDataUpdateSuccessful(updateResult)) {
         console.warn("[ImportantDiagnostics][EggHatchExecution]", {
           phase: "foreground_hatch_flutter_update_failed",
@@ -44113,7 +44121,63 @@ ${this.t("main.cleanObjectsPrompt")}`,
    * synthetic time이 없으면 항상 실시간
    */
   get currentTime() {
-    return this._simulationTime ?? this._trustedClock.now();
+    if (this._simulationTime !== null) {
+      return this._simulationTime;
+    }
+    return this._getScaledTrustedTime();
+  }
+  _getScaledTrustedTime(trustedTime = this._trustedClock.now()) {
+    if (this._timeScale === DEFAULT_MAIN_SCENE_TIME_SCALE) {
+      return trustedTime;
+    }
+    const elapsedTrustedTime = Math.max(
+      0,
+      trustedTime - this._timeScaleAnchorTrustedMs
+    );
+    return this._timeScaleAnchorScaledMs + elapsedTrustedTime * this._timeScale;
+  }
+  _scaleRealtimeDelta(delta) {
+    if (this._timeScale === DEFAULT_MAIN_SCENE_TIME_SCALE || this._simulationTime !== null || !Number.isFinite(delta)) {
+      return delta;
+    }
+    return delta * this._timeScale;
+  }
+  _syncTimeScaleAnchorWithPersistentData() {
+    if (this._timeScale === DEFAULT_MAIN_SCENE_TIME_SCALE || !this._persistentData) {
+      return;
+    }
+    const rawTrustedTime = this._trustedClock.now();
+    const currentScaledTime = this._getScaledTrustedTime(rawTrustedTime);
+    const appState = this._persistentData.world_metadata.app_state;
+    const persistedTimes = [
+      this._persistentData.world_metadata.last_ecs_saved,
+      appState == null ? void 0 : appState.last_active_time
+    ].filter(isFiniteTimestamp);
+    if (persistedTimes.length === 0) {
+      return;
+    }
+    const latestPersistedTime = Math.max(...persistedTimes);
+    if (latestPersistedTime <= currentScaledTime) {
+      return;
+    }
+    this._timeScaleAnchorTrustedMs = rawTrustedTime;
+    this._timeScaleAnchorScaledMs = latestPersistedTime;
+    console.warn("[MainSceneWorld] Dev time scale anchor restored", {
+      timeScale: this._timeScale,
+      currentScaledTime,
+      latestPersistedTime
+    });
+  }
+  _shouldRunDataSyncSystem() {
+    if (this._timeScale === DEFAULT_MAIN_SCENE_TIME_SCALE || this._simulationTime !== null) {
+      return true;
+    }
+    const rawTrustedTime = this._trustedClock.now();
+    if (rawTrustedTime - this._lastRealtimeDataSyncAt < MAIN_SCENE_REALTIME_DATA_SYNC_INTERVAL_MS) {
+      return false;
+    }
+    this._lastRealtimeDataSyncAt = rawTrustedTime;
+    return true;
   }
   _shouldPreserveWidgetEntryStatuses(source) {
     return source === "init" || source === "app_resume";
@@ -44223,7 +44287,7 @@ ${this.t("main.cleanObjectsPrompt")}`,
     animationRenderSystem(params);
     renderSystem(params);
     statusIconRenderSystem(params);
-    eggCrackRenderSystem({ ...params, currentTime: this.currentTime });
+    eggCrackRenderSystem({ ...params, currentTime: params.currentTime });
     characterNameLabelSystem(params);
     characterLayoutDebugSystem({ ...params, stage: this._stage });
     cleanableRenderSystem({ ...params, stage: this._stage });
@@ -54823,7 +54887,7 @@ function simulateEvolutionAdminRolls(params) {
   });
 }
 export {
-  LOCALE_METADATA as $,
+  CharacterKeyECS as $,
   AbstractRenderer as A,
   BufferUsage as B,
   Container as C,
@@ -54850,65 +54914,63 @@ export {
   NAME_LABEL_STROKE_COLOR as X,
   NAME_LABEL_FILL_COLOR as Y,
   NAME_LABEL_STROKE_WIDTH as Z,
-  SUPPORTED_LOCALES as _,
+  CharacterState as _,
   applyEvolutionAdminExport as a,
-  CharacterState as a0,
-  CharacterKeyECS as a1,
-  isEggTextureKey as a2,
-  TextureKey as a3,
-  GAME_CONSTANTS as a4,
-  SceneKey as a5,
-  TimeOfDay as a6,
-  hasLegacyMonsterBookState as a7,
-  migrateLegacyMonsterBookIfNeeded as a8,
-  getNativeSunTimes as a9,
-  RendererInitHook as aA,
-  Geometry as aB,
-  checkMaxIfStatementsInShader as aC,
-  compileHighShaderGlProgram as aD,
-  colorBitGl as aE,
-  generateTextureBatchBitGl as aF,
-  roundPixelsBitGl as aG,
-  getBatchSamplersUniformGroup as aH,
-  TextStyle as aI,
-  BatchableGraphics as aJ,
-  getAdjustedBlendModeBlend as aK,
-  ViewableBuffer as aL,
-  TextureStyle as aM,
-  BitmapFontManager as aN,
-  CanvasTextMetrics as aO,
-  getBitmapTextLayout as aP,
-  Cache as aQ,
-  Graphics as aR,
-  updateQuadBounds as aS,
-  CanvasTextGenerator as aT,
-  GraphicsContextSystem as aU,
-  MissingInitialGameDataError as aa,
-  Game as ab,
-  GpuProgram as ac,
-  GlProgram as ad,
-  TextureMatrix as ae,
-  DefaultBatcher as af,
-  BigPool as ag,
-  getGlobalBounds as ah,
-  Bounds as ai,
-  TexturePool as aj,
-  FilterEffect as ak,
-  Sprite as al,
-  getAttributeInfoFromFormat as am,
-  unsafeEvalSupported as an,
-  uid as ao,
-  Rectangle as ap,
-  SystemRunner as aq,
-  multiplyColors as ar,
-  UPDATE_VISIBLE as as,
-  UPDATE_COLOR as at,
-  UPDATE_BLEND as au,
-  Color as av,
-  getLocalBounds as aw,
-  VERSION as ax,
-  deprecation as ay,
-  v8_0_0 as az,
+  isEggTextureKey as a0,
+  TextureKey as a1,
+  GAME_CONSTANTS as a2,
+  SceneKey as a3,
+  TimeOfDay as a4,
+  hasLegacyMonsterBookState as a5,
+  migrateLegacyMonsterBookIfNeeded as a6,
+  getNativeSunTimes as a7,
+  MissingInitialGameDataError as a8,
+  Game as a9,
+  checkMaxIfStatementsInShader as aA,
+  compileHighShaderGlProgram as aB,
+  colorBitGl as aC,
+  generateTextureBatchBitGl as aD,
+  roundPixelsBitGl as aE,
+  getBatchSamplersUniformGroup as aF,
+  TextStyle as aG,
+  BatchableGraphics as aH,
+  getAdjustedBlendModeBlend as aI,
+  ViewableBuffer as aJ,
+  TextureStyle as aK,
+  BitmapFontManager as aL,
+  CanvasTextMetrics as aM,
+  getBitmapTextLayout as aN,
+  Cache as aO,
+  Graphics as aP,
+  updateQuadBounds as aQ,
+  CanvasTextGenerator as aR,
+  GraphicsContextSystem as aS,
+  GpuProgram as aa,
+  GlProgram as ab,
+  TextureMatrix as ac,
+  DefaultBatcher as ad,
+  BigPool as ae,
+  getGlobalBounds as af,
+  Bounds as ag,
+  TexturePool as ah,
+  FilterEffect as ai,
+  Sprite as aj,
+  getAttributeInfoFromFormat as ak,
+  unsafeEvalSupported as al,
+  uid as am,
+  Rectangle as an,
+  SystemRunner as ao,
+  multiplyColors as ap,
+  UPDATE_VISIBLE as aq,
+  UPDATE_COLOR as ar,
+  UPDATE_BLEND as as,
+  Color as at,
+  getLocalBounds as au,
+  VERSION as av,
+  deprecation as aw,
+  v8_0_0 as ax,
+  RendererInitHook as ay,
+  Geometry as az,
   buildEvolutionAdminExport as b,
   EventEmitter as c,
   getTextureBatchBindGroup as d,
