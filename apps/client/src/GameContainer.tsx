@@ -2034,58 +2034,67 @@ const GameContainer: React.FC = () => {
 		);
 
 	const handleNativeWorldDataUpdateForReentry =
-		useCallback<NativeWorldDataUpdateForReentryCallback>(async (source) => {
-			if (typeof window === "undefined") {
-				throw new Error("native_world_data_update_unavailable");
-			}
+		useCallback<NativeWorldDataUpdateForReentryCallback>(
+			async (source, options) => {
+				if (typeof window === "undefined") {
+					throw new Error("native_world_data_update_unavailable");
+				}
 
-			const controller = window.worldDataUpdateController;
+				const controller = window.worldDataUpdateController;
 
-			if (typeof controller?.completeNativeWorldDataUpdate !== "function") {
-				throw new Error("native_world_data_update_unavailable");
-			}
+				if (typeof controller?.completeNativeWorldDataUpdate !== "function") {
+					throw new Error("native_world_data_update_unavailable");
+				}
 
-			const result = await controller.completeNativeWorldDataUpdate({
-				source,
-			});
-			lastNativeWorldDataUpdateForReentryRef.current = {
-				source,
-				result,
-			};
-
-			logImportantDiagnostics(
-				"log",
-				"[ImportantDiagnostics][WorldDataSyncPayload]",
-				{
-					action: "native_world_data_update_for_reentry",
+				const nowMs =
+					typeof options?.nowMs === "number" && Number.isFinite(options.nowMs)
+						? Math.floor(options.nowMs)
+						: undefined;
+				const result = await controller.completeNativeWorldDataUpdate({
 					source,
-					status: result?.status ?? null,
-					worldDataChanged: result?.worldDataChanged ?? null,
-					hatched: result?.hatched ?? null,
-					evolutionGageBefore: result?.evolutionGageBefore ?? null,
-					evolutionGageAfter: result?.evolutionGageAfter ?? null,
-					evolutionGageIncreased: result?.evolutionGageIncreased ?? null,
-					evolved: result?.evolved ?? null,
-					previousCharacterKey: result?.previousCharacterKey ?? null,
-					nextCharacterKey: result?.nextCharacterKey ?? null,
-					previousEvolutionPhase: result?.previousEvolutionPhase ?? null,
-					nextEvolutionPhase: result?.nextEvolutionPhase ?? null,
-					candidateKind: result?.candidateKind ?? null,
-					mutationApplied: result?.mutationApplied ?? null,
-					mutationRate: result?.mutationRate ?? null,
-					mutationRoll: result?.mutationRoll ?? null,
-					mutationTargetRoll: result?.mutationTargetRoll ?? null,
-					evolutionRoll: result?.evolutionRoll ?? null,
-					evolutionBlockReason: result?.evolutionBlockReason ?? null,
-					previousCharacterState: result?.previousCharacterState ?? null,
-					nextCharacterState: result?.nextCharacterState ?? null,
-					selectedCharacterKey: result?.selectedCharacterKey ?? null,
-					hatchSelectionDiagnostics: result?.hatchSelectionDiagnostics ?? null,
-				},
-			);
+					...(nowMs !== undefined ? { nowMs } : {}),
+				});
+				lastNativeWorldDataUpdateForReentryRef.current = {
+					source,
+					result,
+				};
 
-			return result;
-		}, []);
+				logImportantDiagnostics(
+					"log",
+					"[ImportantDiagnostics][WorldDataSyncPayload]",
+					{
+						action: "native_world_data_update_for_reentry",
+						source,
+						status: result?.status ?? null,
+						worldDataChanged: result?.worldDataChanged ?? null,
+						hatched: result?.hatched ?? null,
+						evolutionGageBefore: result?.evolutionGageBefore ?? null,
+						evolutionGageAfter: result?.evolutionGageAfter ?? null,
+						evolutionGageIncreased: result?.evolutionGageIncreased ?? null,
+						evolved: result?.evolved ?? null,
+						previousCharacterKey: result?.previousCharacterKey ?? null,
+						nextCharacterKey: result?.nextCharacterKey ?? null,
+						previousEvolutionPhase: result?.previousEvolutionPhase ?? null,
+						nextEvolutionPhase: result?.nextEvolutionPhase ?? null,
+						candidateKind: result?.candidateKind ?? null,
+						mutationApplied: result?.mutationApplied ?? null,
+						mutationRate: result?.mutationRate ?? null,
+						mutationRoll: result?.mutationRoll ?? null,
+						mutationTargetRoll: result?.mutationTargetRoll ?? null,
+						evolutionRoll: result?.evolutionRoll ?? null,
+						evolutionBlockReason: result?.evolutionBlockReason ?? null,
+						previousCharacterState: result?.previousCharacterState ?? null,
+						nextCharacterState: result?.nextCharacterState ?? null,
+						selectedCharacterKey: result?.selectedCharacterKey ?? null,
+						hatchSelectionDiagnostics:
+							result?.hatchSelectionDiagnostics ?? null,
+					},
+				);
+
+				return result;
+			},
+			[],
+		);
 
 	const loadHomeWidgetLaunchContext = useCallback(async () => {
 		if (typeof window === "undefined") {

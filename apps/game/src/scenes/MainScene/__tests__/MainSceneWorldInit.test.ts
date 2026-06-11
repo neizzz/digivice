@@ -1544,6 +1544,63 @@ test("init/app_resume reentry는 native payload world data가 있으면 stale st
 	assert.equal(writes.length, 1);
 });
 
+test("foreground hatch는 scaled nowMs를 Flutter authority에 전달하고 반환 저장본을 적용한다", async () => {
+	const currentTime = 12_345.67;
+	const forwardedNowMs = Math.floor(currentTime);
+	const flutterUpdatedData = buildReentryCharacterWorldData({
+		state: CharacterState.IDLE,
+		currentTime: forwardedNowMs,
+		stamina: 9,
+	});
+	let nativeUpdateCalls = 0;
+	const world = createMainSceneWorld({
+		onNativeWorldDataUpdateForReentry: async (source, options) => {
+			nativeUpdateCalls += 1;
+			assert.equal(source, "foreground_hatch");
+			assert.equal(options?.nowMs, forwardedNowMs);
+			return {
+				status: "flutter_world_data_update_completed",
+				updatedRawWorldData: JSON.stringify(flutterUpdatedData),
+				worldDataChanged: true,
+				hatched: true,
+				selectedCharacterKey: CharacterKeyECS.GreenSlimeA1,
+			};
+		},
+	});
+
+	createWorld(world as any, 32);
+	const eggEid = createTestCharacter(world as any, {
+		state: CharacterState.EGG,
+		stamina: 1,
+		x: 40,
+		y: 40,
+	});
+	ObjectComp.id[eggEid] = 202;
+	world._persistentData = buildReentryCharacterWorldData({
+		state: CharacterState.EGG,
+		currentTime: 1_000,
+		stamina: 1,
+	});
+	world._isPersistenceDisabled = true;
+
+	const hatched = await world.completeForegroundHatchWithFlutterAuthority(
+		eggEid,
+		currentTime,
+	);
+	const characterEid = world._findMainCharacterEntity();
+
+	assert.equal(hatched, true);
+	assert.equal(nativeUpdateCalls, 1);
+	assert.equal(ObjectComp.id[characterEid], 202);
+	assert.equal(ObjectComp.state[characterEid], CharacterState.IDLE);
+	assert.equal(CharacterStatusComp.stamina[characterEid], 9);
+	assert.equal(
+		(world._persistentData as MainSceneWorldData | undefined)?.world_metadata
+			.last_ecs_saved,
+		forwardedNowMs,
+	);
+});
+
 test("init/app_resume reentry 저장은 stale trusted clock으로 native timestamp를 되돌리지 않는다", async () => {
 	const originalGetData = StorageManager.getData.bind(StorageManager);
 	const originalSetData = StorageManager.setData.bind(StorageManager);

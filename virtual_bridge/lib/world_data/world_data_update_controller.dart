@@ -17,6 +17,14 @@ class WorldDataUpdateController {
     required this.resolvePromise,
   });
 
+  int? _readNowMs(Object? value) {
+    if (value is! num || !value.isFinite) {
+      return null;
+    }
+
+    return value.toInt();
+  }
+
   String getJavaScriptInterface() {
     return '''
       window.worldDataUpdateController = {
@@ -57,6 +65,7 @@ class WorldDataUpdateController {
           final Map<String, Object?> result =
               await WorldDataUpdateService.completeNativeWorldDataUpdate(
             source: payload['source'] as String?,
+            nowMs: _readNowMs(payload['nowMs']),
             log: log,
           );
           if (id != null) {

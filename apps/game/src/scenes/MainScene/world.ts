@@ -591,8 +591,13 @@ export type MainSceneNativeWorldDataUpdateForReentryResult = {
 	[key: string]: unknown;
 };
 
+export type MainSceneNativeWorldDataUpdateForReentryOptions = {
+	nowMs?: number;
+};
+
 export type MainSceneNativeWorldDataUpdateForReentryCallback = (
 	source: MainSceneNativeWorldDataUpdateSource,
+	options?: MainSceneNativeWorldDataUpdateForReentryOptions,
 ) =>
 	| MainSceneNativeWorldDataUpdateForReentryResult
 	| Promise<MainSceneNativeWorldDataUpdateForReentryResult>;
@@ -622,11 +627,14 @@ type MainSceneEntryStatusSuppressionState = {
 
 export const WORLD_DATA_STORAGE_KEY = "MainSceneWorldData";
 const DEFAULT_USE_LOCAL_TIME = true;
+const DEFAULT_MAIN_SCENE_TIME_SCALE = 1;
+const MAIN_SCENE_TIME_SCALE_ENV = import.meta.env.VITE_MAIN_SCENE_TIME_SCALE;
 const MAIN_SCENE_AD_THRESHOLD = 20;
 const MAIN_SCENE_AD_NORMAL_COOLDOWN_MS = 2 * 60 * 1000;
 const MAIN_SCENE_AD_POST_ACTION_DELAY_MS = 500;
 const MAIN_SCENE_AD_FEED_FALLBACK_AFTER_LAND_MS = 3000;
 const MAIN_SCENE_AD_FEED_IDLE_RETRY_MS = 1000;
+const MAIN_SCENE_REALTIME_DATA_SYNC_INTERVAL_MS = 1000;
 const MAIN_SCENE_STATUS_HEARTBEAT_INTERVAL_MS = 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -715,6 +723,19 @@ function isFiniteTimestamp(value: unknown): value is number {
 	return typeof value === "number" && Number.isFinite(value);
 }
 
+function resolveMainSceneTimeScale(): number {
+	if (!import.meta.env.DEV) {
+		return DEFAULT_MAIN_SCENE_TIME_SCALE;
+	}
+
+	const parsedScale = Number(MAIN_SCENE_TIME_SCALE_ENV);
+	if (!Number.isFinite(parsedScale) || parsedScale <= 0) {
+		return DEFAULT_MAIN_SCENE_TIME_SCALE;
+	}
+
+	return parsedScale;
+}
+
 /**
  * a) ecs구조에서 다루기 힘든 browser event핸들링
  * b) 전역 데이터 저장
@@ -798,29 +819,33 @@ export class MainSceneWorld implements IWorld, Scene {
 	private _hasLocationPermission = false;
 	private _sunLocationSource: SunLocationSource | null = null;
 	private _lastStatusHeartbeatLogTime: number | null = null;
+	private _lastRealtimeDataSyncAt = 0;
 	private _pendingFeedAdFoodEid: number | null = null;
 	private _nextFeedMenuFood: FeedMenuFoodOption = getRandomFeedMenuFoodOption();
 	private _feedAdFallbackTimerId: number | null = null;
 	private _mainSceneAdTimerIds = new Set<number>();
 	private _initDiagnostics: MainSceneInitDiagnostics;
 	private readonly _trustedClock: TrustedClock;
+	private readonly _timeScale = resolveMainSceneTimeScale();
+	private _timeScaleAnchorTrustedMs = 0;
+	private _timeScaleAnchorScaledMs = 0;
 
 	// 실시간 모드용 시스템 파이프라인 (렌더링 포함)
 	private _pipedSystems = pipe(
 		// 시간 기반 시스템들 (상태 관리 시스템 토글 적용)
 		(params: any) =>
 			this._statusSystemsEnabled
-				? freshnessSystem({ ...params, currentTime: this.currentTime })
+				? freshnessSystem({ ...params, currentTime: params.currentTime })
 				: params,
 		(params: any) =>
 			this._statusSystemsEnabled
-				? digestiveSystem({ ...params, currentTime: this.currentTime })
+				? digestiveSystem({ ...params, currentTime: params.currentTime })
 				: params,
 		(params: any) =>
 			this._statusSystemsEnabled
 				? sleepScheduleSystem({
 						...params,
-						currentTime: this.currentTime,
+						currentTime: params.currentTime,
 						entryStatusSuppression: this._entryStatusSuppression ?? undefined,
 					})
 				: params,
@@ -828,32 +853,32 @@ export class MainSceneWorld implements IWorld, Scene {
 			this._statusSystemsEnabled
 				? diseaseSystem({
 						...params,
-						currentTime: this.currentTime,
+						currentTime: params.currentTime,
 					})
 				: params,
 		(params: any) =>
-			eggHatchSystem({ ...params, currentTime: this.currentTime }),
+			eggHatchSystem({ ...params, currentTime: params.currentTime }),
 		(params: any) =>
 			this._statusSystemsEnabled
-				? mutationRiskSystem({ ...params, currentTime: this.currentTime })
+				? mutationRiskSystem({ ...params, currentTime: params.currentTime })
 				: params,
 		(params: any) =>
 			this._statusSystemsEnabled ? characterManagerSystem(params) : params,
 		// 캐릭터 상태 시스템 (임시 상태 만료, 긴급 상태, 사망 처리)
 		(params: any) =>
 			this._statusSystemsEnabled
-				? characterStatusSystem({ ...params, currentTime: this.currentTime })
+				? characterStatusSystem({ ...params, currentTime: params.currentTime })
 				: params,
 		// 배달 시스템
 		// pillDeliverySystem,
 		// 이펙트 시스템
 		(params: any) =>
-			sparkleEffectSystem({ ...params, currentTime: this.currentTime }),
+			sparkleEffectSystem({ ...params, currentTime: params.currentTime }),
 		// 범용 effect 애니메이션 시스템 (실시간 모드에서만 실행)
 		(params: any) =>
 			effectAnimationSystem({
 				...params,
-				currentTime: this.currentTime,
+				currentTime: params.currentTime,
 				stage: this._stage,
 			}),
 		// 청소 시스템 (실시간 모드에서만 실행)
@@ -864,12 +889,13 @@ export class MainSceneWorld implements IWorld, Scene {
 		// 착지한 프레임에 바로 음식 탐색이 가능해야 하므로 착지 상태를 먼저 반영한다.
 		throwAnimationSystem,
 		(params: any) =>
-			foodEatingSystem({ ...params, currentTime: this.currentTime }),
+			foodEatingSystem({ ...params, currentTime: params.currentTime }),
 		// 애니메이션 상태 시스템들
 		animationStateSystem,
 		// 모든 렌더링 시스템들을 하나로 통합 (실시간 모드에서만 실행)
 		(params: any) => this._renderAllSystems(params),
-		dataSyncSystem,
+		(params: any) =>
+			this._shouldRunDataSyncSystem() ? dataSyncSystem(params) : params,
 	);
 
 	get stage(): PIXI.Container {
@@ -1008,6 +1034,15 @@ export class MainSceneWorld implements IWorld, Scene {
 			params.loadingTraceContext ?? null,
 		);
 		this._trustedClock = params.trustedClock ?? defaultTrustedClock;
+		const currentTrustedTime = this._trustedClock.now();
+		this._timeScaleAnchorTrustedMs = currentTrustedTime;
+		this._timeScaleAnchorScaledMs = currentTrustedTime;
+
+		if (this._timeScale !== DEFAULT_MAIN_SCENE_TIME_SCALE) {
+			console.warn("[MainSceneWorld] Dev time scale enabled", {
+				timeScale: this._timeScale,
+			});
+		}
 
 		// MainScene용 초기 컨트롤 버튼 설정 (메뉴에 포커스가 없는 상태)
 		this._updateControlButtonsForMenuState(false);
@@ -1834,6 +1869,7 @@ export class MainSceneWorld implements IWorld, Scene {
 					"No playable saved data found, initializing with default entities...",
 				);
 				this._persistentData = this._initializeData(initialGameData);
+				this._syncTimeScaleAnchorWithPersistentData();
 			} else {
 				console.log(`Found saved data, validating and loading...`);
 
@@ -1855,8 +1891,10 @@ export class MainSceneWorld implements IWorld, Scene {
 						"Saved data is missing required setup info or recoverable character entities, reinitializing with default entities...",
 					);
 					this._persistentData = this._initializeData(initialGameData);
+					this._syncTimeScaleAnchorWithPersistentData();
 				} else {
 					this._persistentData = validatedData;
+					this._syncTimeScaleAnchorWithPersistentData();
 					await this._initDiagnostics.measurePhase(
 						"load_saved_entities",
 						async () => {
@@ -2553,22 +2591,26 @@ export class MainSceneWorld implements IWorld, Scene {
 		}
 	}
 	update(delta: number): void {
+		const currentTime = this.currentTime;
+		const scaledDelta = this._scaleRealtimeDelta(delta);
+
 		// 앱이 일시정지 상태일 때는 시스템 업데이트 건너뛰기
 		if (this._isPaused || this._isRunningReentrySimulation) {
-			this._logStatusHeartbeatIfNeeded(delta);
+			this._logStatusHeartbeatIfNeeded(scaledDelta, currentTime);
 			return;
 		}
 
-		this._updateAutoTimeOfDayIfNeeded();
-		this._background?.animate(this.currentTime);
+		this._updateAutoTimeOfDayIfNeeded(false, currentTime);
+		this._background?.animate(currentTime);
 
 		// 시스템 파이프라인 실행
 		this._pipedSystems({
 			world: this,
-			delta,
+			delta: scaledDelta,
+			currentTime,
 		});
 		this._releaseEntryStatusSuppressionIfNeeded();
-		this._logStatusHeartbeatIfNeeded(delta);
+		this._logStatusHeartbeatIfNeeded(scaledDelta, currentTime);
 
 		// UI 업데이트
 		if (this._debugGaugeUI) {
@@ -2591,8 +2633,10 @@ export class MainSceneWorld implements IWorld, Scene {
 		this._previousCleaningMode = this._isCleaningMode;
 	}
 
-	private _logStatusHeartbeatIfNeeded(delta: number): void {
-		const currentTime = this.currentTime;
+	private _logStatusHeartbeatIfNeeded(
+		delta: number,
+		currentTime = this.currentTime,
+	): void {
 		const heartbeatTime = Number.isFinite(currentTime)
 			? currentTime
 			: Date.now();
@@ -3300,12 +3344,15 @@ export class MainSceneWorld implements IWorld, Scene {
 		}
 	}
 
-	private _updateAutoTimeOfDayIfNeeded(force = false): void {
+	private _updateAutoTimeOfDayIfNeeded(
+		force = false,
+		currentTime = this.currentTime,
+	): void {
 		if (this._timeOfDayMode !== TimeOfDayMode.Auto || !this._sunTimes) {
 			return;
 		}
 
-		const now = new Date(this.currentTime);
+		const now = new Date(currentTime);
 
 		if (
 			!this.isSimulationMode &&
@@ -3321,7 +3368,7 @@ export class MainSceneWorld implements IWorld, Scene {
 			return;
 		}
 
-		const currentMinuteKey = Math.floor(this.currentTime / 60000);
+		const currentMinuteKey = Math.floor(currentTime / 60000);
 		if (!force && this._autoTimeOfDayMinuteKey === currentMinuteKey) {
 			return;
 		}
@@ -4434,8 +4481,10 @@ export class MainSceneWorld implements IWorld, Scene {
 		try {
 			await this._saveCurrentState();
 
-			const updateResult =
-				await this._onNativeWorldDataUpdateForReentry("foreground_hatch");
+			const updateResult = await this._onNativeWorldDataUpdateForReentry(
+				"foreground_hatch",
+				{ nowMs: Math.floor(currentTime) },
+			);
 
 			if (!this._isNativeWorldDataUpdateSuccessful(updateResult)) {
 				console.warn("[ImportantDiagnostics][EggHatchExecution]", {
@@ -4651,7 +4700,93 @@ export class MainSceneWorld implements IWorld, Scene {
 	 * synthetic time이 없으면 항상 실시간
 	 */
 	public get currentTime(): number {
-		return this._simulationTime ?? this._trustedClock.now();
+		if (this._simulationTime !== null) {
+			return this._simulationTime;
+		}
+
+		return this._getScaledTrustedTime();
+	}
+
+	private _getScaledTrustedTime(
+		trustedTime: number = this._trustedClock.now(),
+	): number {
+		if (this._timeScale === DEFAULT_MAIN_SCENE_TIME_SCALE) {
+			return trustedTime;
+		}
+
+		const elapsedTrustedTime = Math.max(
+			0,
+			trustedTime - this._timeScaleAnchorTrustedMs,
+		);
+
+		return this._timeScaleAnchorScaledMs + elapsedTrustedTime * this._timeScale;
+	}
+
+	private _scaleRealtimeDelta(delta: number): number {
+		if (
+			this._timeScale === DEFAULT_MAIN_SCENE_TIME_SCALE ||
+			this._simulationTime !== null ||
+			!Number.isFinite(delta)
+		) {
+			return delta;
+		}
+
+		return delta * this._timeScale;
+	}
+
+	private _syncTimeScaleAnchorWithPersistentData(): void {
+		if (
+			this._timeScale === DEFAULT_MAIN_SCENE_TIME_SCALE ||
+			!this._persistentData
+		) {
+			return;
+		}
+
+		const rawTrustedTime = this._trustedClock.now();
+		const currentScaledTime = this._getScaledTrustedTime(rawTrustedTime);
+		const appState = this._persistentData.world_metadata.app_state;
+		const persistedTimes = [
+			this._persistentData.world_metadata.last_ecs_saved,
+			appState?.last_active_time,
+		].filter(isFiniteTimestamp);
+
+		if (persistedTimes.length === 0) {
+			return;
+		}
+
+		const latestPersistedTime = Math.max(...persistedTimes);
+		if (latestPersistedTime <= currentScaledTime) {
+			return;
+		}
+
+		this._timeScaleAnchorTrustedMs = rawTrustedTime;
+		this._timeScaleAnchorScaledMs = latestPersistedTime;
+
+		console.warn("[MainSceneWorld] Dev time scale anchor restored", {
+			timeScale: this._timeScale,
+			currentScaledTime,
+			latestPersistedTime,
+		});
+	}
+
+	private _shouldRunDataSyncSystem(): boolean {
+		if (
+			this._timeScale === DEFAULT_MAIN_SCENE_TIME_SCALE ||
+			this._simulationTime !== null
+		) {
+			return true;
+		}
+
+		const rawTrustedTime = this._trustedClock.now();
+		if (
+			rawTrustedTime - this._lastRealtimeDataSyncAt <
+			MAIN_SCENE_REALTIME_DATA_SYNC_INTERVAL_MS
+		) {
+			return false;
+		}
+
+		this._lastRealtimeDataSyncAt = rawTrustedTime;
+		return true;
 	}
 
 	private _shouldPreserveWidgetEntryStatuses(
@@ -4813,7 +4948,7 @@ export class MainSceneWorld implements IWorld, Scene {
 		statusIconRenderSystem(params);
 
 		// 4. 알 금 오버레이 렌더링
-		eggCrackRenderSystem({ ...params, currentTime: this.currentTime });
+		eggCrackRenderSystem({ ...params, currentTime: params.currentTime });
 
 		// 5. 캐릭터 이름표 렌더링
 		characterNameLabelSystem(params);

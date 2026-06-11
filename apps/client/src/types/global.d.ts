@@ -57,6 +57,7 @@ declare global {
 	type WorldDataUpdateControllerBridge = {
 		completeNativeWorldDataUpdate: (payload: {
 			source?: "init" | "app_resume" | "foreground_hatch";
+			nowMs?: number;
 		}) => Promise<NativeWorldDataUpdateResult>;
 	};
 

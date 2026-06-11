@@ -16,10 +16,11 @@ const allEntitiesQuery = defineQuery([ObjectComp]);
 export function dataSyncSystem(params: {
   world: MainSceneWorld;
   delta: number;
+  currentTime?: number;
 }): typeof params {
   const { world: mainSceneWorld } = params;
   const worldData = mainSceneWorld.getInMemoryData();
-  const currentTime = mainSceneWorld.currentTime;
+  const currentTime = params.currentTime ?? mainSceneWorld.currentTime;
 
   if (
     currentTime - worldData.world_metadata.last_ecs_saved <

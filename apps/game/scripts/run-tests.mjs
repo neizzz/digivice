@@ -86,6 +86,7 @@ async function buildTests(esbuild, testFiles) {
     },
     define: {
       "import.meta.env.DEV": "true",
+      "import.meta.env.VITE_MAIN_SCENE_TIME_SCALE": '"1"',
       ECS_NULL_VALUE: "0",
       ECS_CHARACTER_STATUS_LENGTH: "4",
     },

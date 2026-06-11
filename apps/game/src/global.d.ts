@@ -65,6 +65,7 @@ declare global {
 	interface ImportMetaEnv {
 		readonly DEV: boolean;
 		readonly NATIVE_FEATURE_DEBUG_MODE?: string;
+		readonly VITE_MAIN_SCENE_TIME_SCALE?: string;
 	}
 	interface ImportMeta {
 		readonly env: ImportMetaEnv;
