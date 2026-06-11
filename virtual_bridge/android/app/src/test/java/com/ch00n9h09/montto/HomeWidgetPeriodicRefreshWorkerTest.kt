@@ -15,17 +15,9 @@ class HomeWidgetPeriodicRefreshWorkerTest {
             onNoWidgets = {
                 events += "cancel"
             },
-            progressSnapshot = {
-                events += "progress"
-                null
-            },
-            loadAuthoritativeSnapshot = { null },
-            requestAuthoritativeRefreshFallback = {
-                events += "fallbackRefresh"
+            requestAuthoritativeRefresh = { nowMs ->
+                events += "authoritativeRefresh:$nowMs"
                 HomeWidgetAuthoritativeRefreshRequestResult.REQUESTED
-            },
-            notifySnapshotUpdated = { reason ->
-                events += "notify:$reason"
             },
             recordPeriodicRefreshStatus = { status, _ ->
                 events += "status:$status"
@@ -38,7 +30,7 @@ class HomeWidgetPeriodicRefreshWorkerTest {
     }
 
     @Test
-    fun `runner progresses snapshot and notifies when widgets are present`() {
+    fun `runner requests Flutter refresh every periodic run when widgets are present`() {
         val events = mutableListOf<String>()
 
         val updated = HomeWidgetPeriodicRefreshRunner.run(
@@ -46,17 +38,9 @@ class HomeWidgetPeriodicRefreshWorkerTest {
             onNoWidgets = {
                 events += "cancel"
             },
-            progressSnapshot = { nowMs ->
-                events += "progress:$nowMs"
-                HomeWidgetDebugPresets.resolveSnapshot(index = 1, nowMs = 10_000L)
-            },
-            loadAuthoritativeSnapshot = { null },
-            requestAuthoritativeRefreshFallback = {
-                events += "fallbackRefresh"
+            requestAuthoritativeRefresh = { nowMs ->
+                events += "authoritativeRefresh:$nowMs"
                 HomeWidgetAuthoritativeRefreshRequestResult.REQUESTED
-            },
-            notifySnapshotUpdated = { reason ->
-                events += "notify:$reason"
             },
             recordPeriodicRefreshStatus = { status, nowMs ->
                 events += "status:$status@$nowMs"
@@ -67,16 +51,17 @@ class HomeWidgetPeriodicRefreshWorkerTest {
         assertTrue(updated)
         assertEquals(
             listOf(
-                "progress:10000",
-                "status:periodic_progress_only@10000",
-                "notify:${HomeWidgetConstants.PERIODIC_REFRESH_REASON}",
+                "status:flutter_refresh_pending@10000",
+                "authoritativeRefresh:10000",
+                "status:flutter_refresh_requested@10000",
             ),
             events,
         )
     }
 
     @Test
-    fun `runner skips update when snapshot progress is unavailable`() {
+    fun `runner records Flutter refresh request failure`() {
+        val nowMs = 20_000L
         val events = mutableListOf<String>()
 
         val updated = HomeWidgetPeriodicRefreshRunner.run(
@@ -84,180 +69,22 @@ class HomeWidgetPeriodicRefreshWorkerTest {
             onNoWidgets = {
                 events += "cancel"
             },
-            progressSnapshot = {
-                events += "progress"
-                null
+            requestAuthoritativeRefresh = { requestedAtMs ->
+                events += "authoritativeRefresh:$requestedAtMs"
+                HomeWidgetAuthoritativeRefreshRequestResult.FAILED
             },
-            loadAuthoritativeSnapshot = {
-                events += "loadAuthoritative"
-                null
+            recordPeriodicRefreshStatus = { status, _ ->
+                events += "status:$status"
             },
-            requestAuthoritativeRefreshFallback = {
-                events += "fallbackRefresh"
-                HomeWidgetAuthoritativeRefreshRequestResult.REQUESTED
-            },
-            notifySnapshotUpdated = { reason ->
-                events += "notify:$reason"
-            },
-            recordPeriodicRefreshStatus = { status, nowMs ->
-                events += "status:$status@$nowMs"
-            },
-            nowMsProvider = { 20_000L },
+            nowMsProvider = { nowMs },
         )
 
         assertFalse(updated)
         assertEquals(
             listOf(
-                "progress",
-                "status:progress_unavailable@20000",
-            ),
-            events,
-        )
-    }
-
-    @Test
-    fun `runner requests Flutter refresh for matured egg without native completion`() {
-        val nowMs = 20_000L
-        val events = mutableListOf<String>()
-        val maturedEgg = HomeWidgetDebugPresets.resolveSnapshot(index = 0, nowMs = nowMs).copy(
-            snapshotKind = "widgetProgressed",
-            eggHatchTimeMs = nowMs - 1L,
-            eggHatchDurationMs = 30_000L,
-            eggCrackStage = 3,
-        )
-
-        val updated = HomeWidgetPeriodicRefreshRunner.run(
-            hasAnyWidgets = { true },
-            onNoWidgets = {
-                events += "cancel"
-            },
-            progressSnapshot = {
-                events += "progress"
-                maturedEgg
-            },
-            loadAuthoritativeSnapshot = { maturedEgg },
-            requestAuthoritativeRefreshFallback = {
-                events += "fallbackRefresh"
-                HomeWidgetAuthoritativeRefreshRequestResult.REQUESTED
-            },
-            notifySnapshotUpdated = { reason ->
-                events += "notify:$reason"
-            },
-            recordPeriodicRefreshStatus = { status, _ ->
-                events += "status:$status"
-            },
-            nowMsProvider = { nowMs },
-        )
-
-        assertTrue(updated)
-        assertEquals(
-            listOf(
-                "progress",
-                "status:flutter_authority_only",
-                "fallbackRefresh",
-                "status:fallback_refresh_requested",
-                "notify:${HomeWidgetConstants.PERIODIC_REFRESH_REASON}",
-            ),
-            events,
-        )
-    }
-
-    @Test
-    fun `runner records Flutter refresh request failure for matured egg`() {
-        val nowMs = 20_000L
-        val events = mutableListOf<String>()
-        val maturedEgg = HomeWidgetDebugPresets.resolveSnapshot(index = 0, nowMs = nowMs).copy(
-            snapshotKind = "widgetProgressed",
-            eggHatchTimeMs = nowMs - 1L,
-            eggHatchDurationMs = 30_000L,
-            eggCrackStage = 3,
-        )
-
-        val updated = HomeWidgetPeriodicRefreshRunner.run(
-            hasAnyWidgets = { true },
-            onNoWidgets = {
-                events += "cancel"
-            },
-            progressSnapshot = {
-                events += "progress"
-                maturedEgg
-            },
-            loadAuthoritativeSnapshot = { maturedEgg },
-            requestAuthoritativeRefreshFallback = {
-                events += "fallbackRefresh"
-                HomeWidgetAuthoritativeRefreshRequestResult.FAILED
-            },
-            notifySnapshotUpdated = { reason ->
-                events += "notify:$reason"
-            },
-            recordPeriodicRefreshStatus = { status, _ ->
-                events += "status:$status"
-            },
-            nowMsProvider = { nowMs },
-        )
-
-        assertTrue(updated)
-        assertEquals(
-            listOf(
-                "progress",
-                "status:flutter_authority_only",
-                "fallbackRefresh",
-                "status:fallback_refresh_failed",
-                "notify:${HomeWidgetConstants.PERIODIC_REFRESH_REASON}",
-            ),
-            events,
-        )
-    }
-
-    @Test
-    fun `runner leaves non egg snapshot progress only`() {
-        val nowMs = 30 * 60 * 1000L
-        val events = mutableListOf<String>()
-        val authoritativeSnapshot = HomeWidgetDebugPresets.resolveSnapshot(
-            index = 1,
-            nowMs = nowMs,
-        ).copy(
-            snapshotKind = "authoritativeAppState",
-            snapshotComputedAtMs = nowMs -
-                (HomeWidgetConstants.PERIODIC_REFRESH_INTERVAL_MINUTES * 60 * 1000L),
-            updatedAtMs = nowMs -
-                (HomeWidgetConstants.PERIODIC_REFRESH_INTERVAL_MINUTES * 60 * 1000L),
-        )
-        val progressedSnapshot = authoritativeSnapshot.copy(
-            snapshotKind = "widgetProgressed",
-            snapshotComputedAtMs = nowMs,
-            updatedAtMs = nowMs,
-        )
-
-        val updated = HomeWidgetPeriodicRefreshRunner.run(
-            hasAnyWidgets = { true },
-            onNoWidgets = {
-                events += "cancel"
-            },
-            progressSnapshot = {
-                events += "progress"
-                progressedSnapshot
-            },
-            loadAuthoritativeSnapshot = { authoritativeSnapshot },
-            requestAuthoritativeRefreshFallback = {
-                events += "fallbackRefresh"
-                HomeWidgetAuthoritativeRefreshRequestResult.REQUESTED
-            },
-            notifySnapshotUpdated = { reason ->
-                events += "notify:$reason"
-            },
-            recordPeriodicRefreshStatus = { status, nowMs ->
-                events += "status:$status@$nowMs"
-            },
-            nowMsProvider = { nowMs },
-        )
-
-        assertTrue(updated)
-        assertEquals(
-            listOf(
-                "progress",
-                "status:periodic_progress_only@1800000",
-                "notify:${HomeWidgetConstants.PERIODIC_REFRESH_REASON}",
+                "status:flutter_refresh_pending",
+                "authoritativeRefresh:20000",
+                "status:flutter_refresh_failed",
             ),
             events,
         )
@@ -304,6 +131,61 @@ class HomeWidgetPeriodicRefreshWorkerTest {
     }
 
     @Test
+    fun `forced authoritative refresh bypasses stale in-flight throttle`() {
+        val prefs = FakeSharedPreferences().apply {
+            edit()
+                .putLong(HomeWidgetConstants.REFRESH_REQUESTED_AT_MS_KEY, 1_000L)
+                .putBoolean(HomeWidgetConstants.REFRESH_IN_FLIGHT_KEY, true)
+                .apply()
+        }
+        val events = mutableListOf<String>()
+
+        val result = HomeWidgetAuthoritativeRefreshRequester.request(
+            prefs = prefs,
+            nowMs = 2_000L,
+            force = true,
+            enqueueFlutterBackgroundRefresh = {
+                events += "backgroundRefresh"
+                true
+            },
+            launchRefreshActivity = {
+                events += "activityRefresh"
+                false
+            },
+        )
+
+        assertEquals(HomeWidgetAuthoritativeRefreshRequestResult.REQUESTED, result)
+        assertEquals(listOf("backgroundRefresh", "activityRefresh"), events)
+        assertEquals(2_000L, prefs.getLong(HomeWidgetConstants.REFRESH_REQUESTED_AT_MS_KEY, 0L))
+    }
+
+    @Test
+    fun `authoritative refresh request succeeds when Flutter background refresh is queued`() {
+        val prefs = FakeSharedPreferences()
+        val events = mutableListOf<String>()
+
+        val result = HomeWidgetAuthoritativeRefreshRequester.request(
+            prefs = prefs,
+            nowMs = 1_000L,
+            enqueueFlutterBackgroundRefresh = {
+                events += "backgroundRefresh"
+                true
+            },
+            launchRefreshActivity = {
+                events += "activityRefresh"
+                false
+            },
+        )
+
+        assertEquals(HomeWidgetAuthoritativeRefreshRequestResult.REQUESTED, result)
+        assertEquals(listOf("backgroundRefresh", "activityRefresh"), events)
+        assertTrue(prefs.getBoolean(HomeWidgetConstants.REFRESH_IN_FLIGHT_KEY, false))
+        assertEquals(1_000L, prefs.getLong(HomeWidgetConstants.REFRESH_REQUESTED_AT_MS_KEY, 0L))
+        assertTrue(prefs.getBoolean(HomeWidgetConstants.REFRESH_BACKGROUND_QUEUED_KEY, false))
+        assertFalse(prefs.getBoolean(HomeWidgetConstants.REFRESH_ACTIVITY_LAUNCHED_KEY, true))
+    }
+
+    @Test
     fun `readDiagnostics exposes periodic refresh and refresh handshake fields`() {
         val prefs = FakeSharedPreferences()
         prefs.edit()
@@ -331,6 +213,63 @@ class HomeWidgetPeriodicRefreshWorkerTest {
         assertEquals(
             "completeRefresh(result=completed,source=flutter)",
             diagnostics["smokeResult"],
+        )
+        assertEquals(false, diagnostics["backgroundRefreshQueued"])
+        assertEquals(false, diagnostics["refreshActivityLaunched"])
+    }
+
+    @Test
+    fun `readDiagnostics exposes native flutter selected snapshots and debug override`() {
+        val nativePrefs = FakeSharedPreferences()
+        val flutterPrefs = FakeSharedPreferences()
+        val nativeSnapshot = HomeWidgetDebugPresets.resolveSnapshot(index = 0, nowMs = 1_000L)
+            .copy(
+                snapshotKind = "authoritativeAppState",
+                characterState = "egg",
+                snapshotComputedAtMs = 1_000L,
+                updatedAtMs = 1_000L,
+            )
+        val flutterSnapshot = HomeWidgetDebugPresets.resolveSnapshot(index = 1, nowMs = 2_000L)
+            .copy(
+                snapshotKind = "authoritativeAppState",
+                characterState = "idle",
+                snapshotComputedAtMs = 2_000L,
+                updatedAtMs = 2_000L,
+            )
+        nativePrefs.edit()
+            .putString(HomeWidgetConstants.AUTHORITATIVE_SNAPSHOT_KEY, nativeSnapshot.toJsonString())
+            .putString(HomeWidgetConstants.SNAPSHOT_KEY, nativeSnapshot.toJsonString())
+            .putBoolean(HomeWidgetConstants.DEBUG_PRESET_OVERRIDE_ENABLED_KEY, true)
+            .putInt(HomeWidgetConstants.DEBUG_PRESET_INDEX_KEY, 3)
+            .apply()
+        flutterPrefs.edit()
+            .putString(
+                HomeWidgetConstants.FLUTTER_AUTHORITATIVE_SNAPSHOT_KEY,
+                flutterSnapshot.toJsonString(),
+            )
+            .putString(HomeWidgetConstants.FLUTTER_SNAPSHOT_KEY, flutterSnapshot.toJsonString())
+            .apply()
+
+        val diagnostics = HomeWidgetAuthoritativeRefreshRequester.readDiagnostics(
+            nativePrefs = nativePrefs,
+            flutterPrefs = flutterPrefs,
+            debugModeEnabled = true,
+        )
+
+        assertEquals(HOME_WIDGET_FLUTTER_SNAPSHOT_SOURCE, diagnostics["selectedAuthoritativeSource"])
+        assertEquals(true, diagnostics["debugOverrideEnabled"])
+        assertEquals(3, diagnostics["debugPresetIndex"])
+        assertEquals(
+            "egg",
+            (diagnostics["nativeAuthoritativeSnapshot"] as Map<*, *>)["characterState"],
+        )
+        assertEquals(
+            "idle",
+            (diagnostics["flutterAuthoritativeSnapshot"] as Map<*, *>)["characterState"],
+        )
+        assertEquals(
+            "idle",
+            (diagnostics["selectedAuthoritativeSnapshot"] as Map<*, *>)["characterState"],
         )
     }
 

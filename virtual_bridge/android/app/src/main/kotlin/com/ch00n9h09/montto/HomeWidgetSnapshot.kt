@@ -18,6 +18,16 @@ enum class HomeWidgetBackgroundVariant(
     RED("widget-bg_red"),
 }
 
+internal const val HOME_WIDGET_NATIVE_SNAPSHOT_SOURCE = "native"
+internal const val HOME_WIDGET_FLUTTER_SNAPSHOT_SOURCE = "flutter"
+
+internal data class HomeWidgetAuthoritativeSnapshotSelection(
+    val snapshot: HomeWidgetSnapshot?,
+    val source: String?,
+    val nativeSnapshot: HomeWidgetSnapshot?,
+    val flutterSnapshot: HomeWidgetSnapshot?,
+)
+
 data class HomeWidgetSnapshot(
     val schemaVersion: Int,
     val snapshotKind: String,
@@ -103,6 +113,12 @@ data class HomeWidgetSnapshot(
         return characterState != "egg" && characterState != "dead"
     }
 
+    internal fun authoritativeTimestampMs(): Long? {
+        return listOf(snapshotComputedAtMs, updatedAtMs)
+            .filter { it > 0L }
+            .maxOrNull()
+    }
+
     fun resolveUpdatedAtLabel(): String {
         val formatter = SimpleDateFormat("HH:mm", Locale.getDefault())
         return formatter.format(Date(updatedAtMs))
@@ -152,12 +168,19 @@ data class HomeWidgetSnapshot(
         }
 
         fun load(context: Context): HomeWidgetSnapshot? {
+            loadNativeCurrent(context)?.let { return it }
+            return loadFlutterCurrent(context)
+        }
+
+        internal fun loadNativeCurrent(context: Context): HomeWidgetSnapshot? {
             val prefs = context.getSharedPreferences(
                 HomeWidgetConstants.STORAGE_NAME,
                 Context.MODE_PRIVATE,
             )
-            fromJson(prefs.getString(HomeWidgetConstants.SNAPSHOT_KEY, null))?.let { return it }
+            return fromJson(prefs.getString(HomeWidgetConstants.SNAPSHOT_KEY, null))
+        }
 
+        internal fun loadFlutterCurrent(context: Context): HomeWidgetSnapshot? {
             val flutterPrefs = context.getSharedPreferences(
                 HomeWidgetConstants.FLUTTER_STORAGE_NAME,
                 Context.MODE_PRIVATE,
@@ -166,20 +189,70 @@ data class HomeWidgetSnapshot(
         }
 
         fun loadAuthoritative(context: Context): HomeWidgetSnapshot? {
+            return loadAuthoritativeSelection(context).snapshot
+        }
+
+        internal fun loadAuthoritativeSelection(context: Context): HomeWidgetAuthoritativeSnapshotSelection {
+            return selectAuthoritativeSnapshot(
+                nativeSnapshot = loadNativeAuthoritative(context),
+                flutterSnapshot = loadFlutterAuthoritative(context),
+            )
+        }
+
+        internal fun loadNativeAuthoritative(context: Context): HomeWidgetSnapshot? {
             val prefs = context.getSharedPreferences(
                 HomeWidgetConstants.STORAGE_NAME,
                 Context.MODE_PRIVATE,
             )
-            fromJson(
+            return fromJson(
                 prefs.getString(HomeWidgetConstants.AUTHORITATIVE_SNAPSHOT_KEY, null),
-            )?.let { return it }
+            )
+        }
 
+        internal fun loadFlutterAuthoritative(context: Context): HomeWidgetSnapshot? {
             val flutterPrefs = context.getSharedPreferences(
                 HomeWidgetConstants.FLUTTER_STORAGE_NAME,
                 Context.MODE_PRIVATE,
             )
             return fromJson(
                 flutterPrefs.getString(HomeWidgetConstants.FLUTTER_AUTHORITATIVE_SNAPSHOT_KEY, null),
+            )
+        }
+
+        internal fun selectAuthoritativeSnapshot(
+            nativeSnapshot: HomeWidgetSnapshot?,
+            flutterSnapshot: HomeWidgetSnapshot?,
+        ): HomeWidgetAuthoritativeSnapshotSelection {
+            val selectedSource = when {
+                nativeSnapshot == null && flutterSnapshot != null -> HOME_WIDGET_FLUTTER_SNAPSHOT_SOURCE
+                nativeSnapshot != null && flutterSnapshot == null -> HOME_WIDGET_NATIVE_SNAPSHOT_SOURCE
+                nativeSnapshot != null && flutterSnapshot != null -> {
+                    val nativeTimestamp = nativeSnapshot.authoritativeTimestampMs()
+                    val flutterTimestamp = flutterSnapshot.authoritativeTimestampMs()
+                    if (
+                        nativeTimestamp != null &&
+                        flutterTimestamp != null &&
+                        flutterTimestamp > nativeTimestamp
+                    ) {
+                        HOME_WIDGET_FLUTTER_SNAPSHOT_SOURCE
+                    } else {
+                        HOME_WIDGET_NATIVE_SNAPSHOT_SOURCE
+                    }
+                }
+
+                else -> null
+            }
+            val selectedSnapshot = when (selectedSource) {
+                HOME_WIDGET_FLUTTER_SNAPSHOT_SOURCE -> flutterSnapshot
+                HOME_WIDGET_NATIVE_SNAPSHOT_SOURCE -> nativeSnapshot
+                else -> null
+            }
+
+            return HomeWidgetAuthoritativeSnapshotSelection(
+                snapshot = selectedSnapshot,
+                source = selectedSource,
+                nativeSnapshot = nativeSnapshot,
+                flutterSnapshot = flutterSnapshot,
             )
         }
 
@@ -240,7 +313,7 @@ data class HomeWidgetSnapshot(
                     staminaLevel = json.optString(
                         "staminaLevel",
                         when {
-                            stamina <= 3.0 -> "red"
+                            stamina < 3.0 -> "red"
                             stamina >= 7.0 -> "green"
                             else -> "orange"
                         },

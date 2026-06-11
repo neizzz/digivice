@@ -12,37 +12,11 @@ class HomeWidgetSnapshotPublisherTest {
     fun `publish saves snapshot and notifies update`() {
         val prefs = FakeSharedPreferences()
         val notifiedReasons = mutableListOf<String>()
-        val snapshotJson = """
-            {
-              "schemaVersion":2,
-              "snapshotKind":"authoritativeAppState",
-              "monsterName":null,
-              "characterKey":1,
-              "eggTextureKey":null,
-              "eggHatchTimeMs":12345,
-              "eggHatchDurationMs":null,
-              "eggCrackStage":0,
-              "characterState":"egg",
-              "displayState":"idle",
-              "primaryStatus":"idle",
-              "timeOfDay":"day",
-              "stamina":0,
-              "maxStamina":10,
-              "staminaPercent":0,
-              "staminaLevel":"red",
-              "useLocalTime":true,
-              "animationFrameIndex":0,
-              "updatedAtMs":0,
-              "snapshotComputedAtMs":0,
-              "lastActiveTimeMs":null,
-              "baseLastActiveTimeMs":null,
-              "projectedElapsedMs":0,
-              "projectionVersion":1,
-              "staminaTimerMs":0,
-              "hasUrgentStatus":false,
-              "visibleStatusIcons":[]
-            }
-        """.trimIndent()
+        val snapshotJson = buildSnapshotJson(
+            characterState = "egg",
+            characterKey = 1,
+            eggHatchTimeMs = 12345L,
+        )
 
         val result = HomeWidgetSnapshotPublisher.publish(
             prefs = prefs,
@@ -68,6 +42,78 @@ class HomeWidgetSnapshotPublisherTest {
             ) == true,
         )
         assertEquals(listOf("native_hidden"), notifiedReasons)
+    }
+
+    @Test
+    fun `authoritative publish completes pending refresh metadata`() {
+        val prefs = FakeSharedPreferences().apply {
+            edit()
+                .putLong(HomeWidgetConstants.REFRESH_REQUESTED_AT_MS_KEY, 100L)
+                .putBoolean(HomeWidgetConstants.REFRESH_IN_FLIGHT_KEY, true)
+                .apply()
+        }
+
+        HomeWidgetSnapshotPublisher.publish(
+            prefs = prefs,
+            snapshotKey = HomeWidgetConstants.AUTHORITATIVE_SNAPSHOT_KEY,
+            snapshotJson = buildSnapshotJson(
+                characterState = "idle",
+                characterKey = 22,
+                eggHatchTimeMs = null,
+            ),
+            reason = "widget_periodic_refresh_world_data_update_authoritative",
+            notifySnapshotUpdated = {},
+            nowMsProvider = { 2_000L },
+        )
+
+        assertFalse(
+            prefs.getBoolean(HomeWidgetConstants.REFRESH_IN_FLIGHT_KEY, true),
+        )
+        assertEquals(
+            2_000L,
+            prefs.getLong(HomeWidgetConstants.REFRESH_COMPLETED_AT_MS_KEY, 0L),
+        )
+        val smokeResult = prefs.getString(
+            HomeWidgetConstants.REFRESH_SMOKE_RESULT_KEY,
+            null,
+        )
+        assertTrue(
+            smokeResult?.contains(
+                "reason=widget_periodic_refresh_world_data_update_authoritative",
+            ) == true,
+        )
+        assertTrue(smokeResult?.contains("state=idle") == true)
+        assertTrue(smokeResult?.contains("key=22") == true)
+        assertTrue(smokeResult?.contains("kind=authoritativeAppState") == true)
+    }
+
+    @Test
+    fun `current snapshot publish does not complete pending refresh metadata`() {
+        val prefs = FakeSharedPreferences().apply {
+            edit()
+                .putLong(HomeWidgetConstants.REFRESH_REQUESTED_AT_MS_KEY, 100L)
+                .putBoolean(HomeWidgetConstants.REFRESH_IN_FLIGHT_KEY, true)
+                .apply()
+        }
+
+        HomeWidgetSnapshotPublisher.publish(
+            prefs = prefs,
+            snapshotKey = HomeWidgetConstants.SNAPSHOT_KEY,
+            snapshotJson = buildSnapshotJson(
+                characterState = "idle",
+                characterKey = 22,
+                eggHatchTimeMs = null,
+            ),
+            reason = "widget_periodic_refresh_world_data_update",
+            notifySnapshotUpdated = {},
+            nowMsProvider = { 2_000L },
+        )
+
+        assertTrue(
+            prefs.getBoolean(HomeWidgetConstants.REFRESH_IN_FLIGHT_KEY, false),
+        )
+        assertFalse(prefs.contains(HomeWidgetConstants.REFRESH_COMPLETED_AT_MS_KEY))
+        assertFalse(prefs.contains(HomeWidgetConstants.REFRESH_SMOKE_RESULT_KEY))
     }
 
     @Test
@@ -128,6 +174,42 @@ class HomeWidgetSnapshotPublisherTest {
         assertEquals("publishSnapshot", notifiedReason)
         assertTrue(prefs.contains("home_widget_snapshot_v1"))
     }
+
+    private fun buildSnapshotJson(
+        characterState: String,
+        characterKey: Int,
+        eggHatchTimeMs: Long?,
+    ): String = """
+        {
+          "schemaVersion":2,
+          "snapshotKind":"authoritativeAppState",
+          "monsterName":null,
+          "characterKey":$characterKey,
+          "eggTextureKey":null,
+          "eggHatchTimeMs":$eggHatchTimeMs,
+          "eggHatchDurationMs":null,
+          "eggCrackStage":0,
+          "characterState":"$characterState",
+          "displayState":"idle",
+          "primaryStatus":"idle",
+          "timeOfDay":"day",
+          "stamina":0,
+          "maxStamina":10,
+          "staminaPercent":0,
+          "staminaLevel":"red",
+          "useLocalTime":true,
+          "animationFrameIndex":0,
+          "updatedAtMs":0,
+          "snapshotComputedAtMs":0,
+          "lastActiveTimeMs":null,
+          "baseLastActiveTimeMs":null,
+          "projectedElapsedMs":0,
+          "projectionVersion":1,
+          "staminaTimerMs":0,
+          "hasUrgentStatus":false,
+          "visibleStatusIcons":[]
+        }
+    """.trimIndent()
 
     private class FakeSharedPreferences : SharedPreferences {
         private val values = linkedMapOf<String, Any?>()

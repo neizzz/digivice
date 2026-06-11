@@ -285,6 +285,7 @@ abstract class BaseHomeWidgetProvider : AppWidgetProvider() {
         appWidgetIds: IntArray,
     ) {
         HomeWidgetPeriodicRefreshScheduler.scheduleIfNeeded(context)
+        requestAuthoritativeRefreshIfNeeded(context)
         appWidgetIds.forEach { appWidgetId ->
             updateAppWidget(context, appWidgetManager, appWidgetId)
         }
@@ -293,6 +294,7 @@ abstract class BaseHomeWidgetProvider : AppWidgetProvider() {
     override fun onEnabled(context: Context) {
         super.onEnabled(context)
         HomeWidgetPeriodicRefreshScheduler.scheduleIfNeeded(context)
+        requestAuthoritativeRefreshIfNeeded(context)
     }
 
     override fun onDisabled(context: Context) {
@@ -306,7 +308,7 @@ abstract class BaseHomeWidgetProvider : AppWidgetProvider() {
         HomeWidgetBroadcastActionHandler.handle(
             action = intent.action,
             onRefresh = {
-                // Flutter writes authoritative snapshots; native refresh only repaints.
+                requestAuthoritativeRefreshIfNeeded(context, force = true)
             },
             onAdvancePreset = { step ->
                 HomeWidgetDebugPresetStore.advancePreset(context, step = step)
@@ -324,10 +326,22 @@ abstract class BaseHomeWidgetProvider : AppWidgetProvider() {
         return ComponentName(context, javaClass)
     }
 
+    private fun requestAuthoritativeRefreshIfNeeded(
+        context: Context,
+        force: Boolean = false,
+    ) {
+        HomeWidgetAuthoritativeRefreshRequester.request(
+            context = context,
+            force = force,
+        )
+    }
+
     private fun updateAllWidgets(context: Context) {
         val manager = AppWidgetManager.getInstance(context)
         val ids = manager.getAppWidgetIds(providerComponent(context))
-        onUpdate(context, manager, ids)
+        ids.forEach { appWidgetId ->
+            updateAppWidget(context, manager, appWidgetId)
+        }
     }
 
     private fun updateAppWidget(

@@ -47,7 +47,7 @@ class HomeWidgetDebugPresetsTest {
             worldDataFallback = { null },
         )
 
-        assertEquals(currentSnapshot, selected)
+        assertNull(selected)
     }
 
     @Test
@@ -130,7 +130,7 @@ class HomeWidgetDebugPresetsTest {
         )
 
         assertEquals(HomeWidgetDebugPresets.resolveSnapshot(index = 1, nowMs = nowMs), selectedWithOverride)
-        assertEquals(currentSnapshot, selectedAfterDisable)
+        assertNull(selectedAfterDisable)
     }
 
     @Test
@@ -155,7 +155,7 @@ class HomeWidgetDebugPresetsTest {
     }
 
     @Test
-    fun `selector does not revive stale world data fallback when current snapshot exists`() {
+    fun `selector ignores non-authoritative current snapshot when authoritative fallback exists`() {
         val nowMs = 1_717_171_717L
         val currentSnapshot = HomeWidgetDebugPresets.resolveSnapshot(index = 1, nowMs = nowMs)!!
         val staleFallbackSnapshot = currentSnapshot.copy(
@@ -177,12 +177,12 @@ class HomeWidgetDebugPresetsTest {
             },
         )
 
-        assertEquals(currentSnapshot, selected)
-        assertFalse(fallbackCalled)
+        assertEquals(staleFallbackSnapshot, selected)
+        assertTrue(fallbackCalled)
     }
 
     @Test
-    fun `selector keeps progressed snapshot when authoritative state signature is same`() {
+    fun `selector prefers authoritative snapshot over progressed current snapshot`() {
         val nowMs = 1_717_171_717L
         val authoritativeSnapshot = HomeWidgetDebugPresets.resolveSnapshot(index = 1, nowMs = nowMs)!!
         val currentSnapshot = authoritativeSnapshot.copy(
@@ -202,7 +202,7 @@ class HomeWidgetDebugPresetsTest {
             worldDataFallback = { authoritativeSnapshot },
         )
 
-        assertEquals(currentSnapshot, selected)
+        assertEquals(authoritativeSnapshot, selected)
     }
 
     @Test
@@ -242,7 +242,7 @@ class HomeWidgetDebugPresetsTest {
     }
 
     @Test
-    fun `selector keeps progressed egg snapshot when hatch timing baseline is same`() {
+    fun `selector prefers authoritative egg snapshot over progressed current snapshot`() {
         val nowMs = 1_717_171_717L
         val authoritativeSnapshot = HomeWidgetDebugPresets.resolveSnapshot(index = 0, nowMs = nowMs)!!.copy(
             snapshotKind = "authoritativeAppState",
@@ -273,7 +273,7 @@ class HomeWidgetDebugPresetsTest {
             worldDataFallback = { authoritativeSnapshot },
         )
 
-        assertEquals(currentSnapshot, selected)
+        assertEquals(authoritativeSnapshot, selected)
     }
 
     @Test

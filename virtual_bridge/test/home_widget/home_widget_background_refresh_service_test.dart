@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:digivice_virtual_bridge/home_widget/home_widget_background_refresh_service.dart';
-import 'package:digivice_virtual_bridge/home_widget/world_data_config.dart'
+import 'package:digivice_virtual_bridge/world_data/world_data_config.dart'
     as config;
 import 'package:digivice_virtual_bridge/world_data/world_data_lifecycle_service.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -78,9 +78,11 @@ void main() {
         await HomeWidgetBackgroundRefreshService.runPeriodicRefresh(
       nowMs: 60 * 1000,
       randomProvider: (_) => 1,
-      saveWidgetData: (String key, String value) async {
+      saveWidgetData: (String key, Object value) async {
         savedKeys.add(key);
-        expect(value, isNotEmpty);
+        if (value is String) {
+          expect(value, isNotEmpty);
+        }
         return true;
       },
       updateWidget: (
@@ -177,14 +179,14 @@ void main() {
         },
       ),
     );
-    final List<String> savedSnapshotJson = <String>[];
+    final Map<String, Object> savedValues = <String, Object>{};
 
     final Map<String, Object?> result =
         await HomeWidgetBackgroundRefreshService.runPeriodicRefresh(
       nowMs: 2000,
       randomProvider: (_) => 1,
-      saveWidgetData: (_, String value) async {
-        savedSnapshotJson.add(value);
+      saveWidgetData: (String key, Object value) async {
+        savedValues[key] = value;
         return true;
       },
       updateWidget:
@@ -202,12 +204,91 @@ void main() {
     expect(snapshot['characterState'], 'idle');
     expect(snapshot['characterKey'], 22);
     expect(snapshot['eggCrackStage'], 0);
-    expect(savedSnapshotJson, isNotEmpty);
+
+    final List<String> savedSnapshotJson = <String>[
+      savedValues[config.worldDataSnapshotStorageKey] as String,
+      savedValues[config.worldDataAuthoritativeSnapshotStorageKey] as String,
+      savedValues[config.nativeWorldDataSnapshotKey] as String,
+      savedValues[config.nativeWorldDataAuthoritativeSnapshotKey] as String,
+    ];
     expect(
       savedSnapshotJson
           .map((String value) => jsonDecode(value) as Map<String, dynamic>)
           .map((Map<String, dynamic> value) => value['characterKey']),
       everyElement(22),
+    );
+    expect(savedValues[config.refreshInFlightKey], isFalse);
+    expect(savedValues[config.refreshCompletedAtMsKey], 2000);
+    expect(
+      savedValues[config.refreshSmokeResultKey],
+      allOf(<Matcher>[
+        contains('reason=widget_periodic_refresh_authoritative'),
+        contains('state=idle'),
+        contains('key=22'),
+        contains('kind=authoritativeAppState'),
+        contains('hatched=true'),
+        contains('selectedCharacterKey=22'),
+        contains('hatchUsedPendingCharacterKey=true'),
+        contains('hatchGreenProbability=65'),
+        contains('hatchSoilProbability=20'),
+        contains('hatchSkullProbability=15'),
+      ]),
+    );
+  });
+
+  test('periodic callback은 부화 roll과 확률을 refresh smoke result에 남긴다', () async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      config.worldDataStorageKey,
+      _buildWorldData(
+        state: config.characterStateEgg,
+        characterKey: 0,
+        eggHatch: <String, dynamic>{
+          'hatchTime': 1000,
+          'hatchDurationMs': 1000,
+          'isReadyToHatch': true,
+          'pendingCharacterKey': 0,
+        },
+      ),
+    );
+    final Map<String, Object> savedValues = <String, Object>{};
+
+    final Map<String, Object?> result =
+        await HomeWidgetBackgroundRefreshService.runPeriodicRefresh(
+      nowMs: 2000,
+      randomProvider: (WorldDataLifecycleRandomEvent event) {
+        if (event.reason == 'hatch') {
+          return 0.9;
+        }
+        return 1;
+      },
+      saveWidgetData: (String key, Object value) async {
+        savedValues[key] = value;
+        return true;
+      },
+      updateWidget:
+          ({String? androidName, String? qualifiedAndroidName}) async => true,
+    );
+
+    expect(result['hatched'], isTrue);
+    expect(result['selectedCharacterKey'],
+        worldDataLifecycleSkullSlimeA1CharacterKey);
+    expect(
+      savedValues[config.refreshSmokeResultKey],
+      allOf(<Matcher>[
+        contains('hatched=true'),
+        contains(
+            'selectedCharacterKey=$worldDataLifecycleSkullSlimeA1CharacterKey'),
+        contains('hatchUsedPendingCharacterKey=false'),
+        contains('hatchRandom=0.9'),
+        contains('hatchNormalizedRandom=0.9'),
+        contains('hatchRollPercent=90.0'),
+        contains('hatchGreenProbability=65'),
+        contains('hatchSoilProbability=20'),
+        contains('hatchSkullProbability=15'),
+        contains('hatchStaleFoodCountAtHatch=0'),
+        contains('hatchSyringeCount=0'),
+      ]),
     );
   });
 }

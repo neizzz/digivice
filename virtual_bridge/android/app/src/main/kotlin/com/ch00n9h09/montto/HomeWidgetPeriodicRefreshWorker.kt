@@ -8,10 +8,7 @@ internal object HomeWidgetPeriodicRefreshRunner {
     fun run(
         hasAnyWidgets: () -> Boolean,
         onNoWidgets: () -> Unit,
-        progressSnapshot: (nowMs: Long) -> HomeWidgetSnapshot?,
-        loadAuthoritativeSnapshot: () -> HomeWidgetSnapshot?,
-        requestAuthoritativeRefreshFallback: () -> HomeWidgetAuthoritativeRefreshRequestResult,
-        notifySnapshotUpdated: (reason: String) -> Unit,
+        requestAuthoritativeRefresh: (nowMs: Long) -> HomeWidgetAuthoritativeRefreshRequestResult,
         recordPeriodicRefreshStatus: (status: String, nowMs: Long) -> Unit,
         nowMsProvider: () -> Long = { System.currentTimeMillis() },
     ): Boolean {
@@ -25,43 +22,13 @@ internal object HomeWidgetPeriodicRefreshRunner {
         }
 
         val nowMs = nowMsProvider()
-        val progressedSnapshot = progressSnapshot(nowMs) ?: run {
-            recordPeriodicRefreshStatus(
-                HomeWidgetPeriodicRefreshStatus.PROGRESS_UNAVAILABLE.value,
-                nowMs,
-            )
-            return false
-        }
-        val authoritativeSnapshot = loadAuthoritativeSnapshot()
-        val shouldRequestFlutterRefresh = isMaturedEggSnapshot(
-            progressedSnapshot,
-            nowMs,
-        ) || isMaturedEggSnapshot(
-            authoritativeSnapshot,
+        recordPeriodicRefreshStatus(
+            HomeWidgetPeriodicRefreshStatus.FLUTTER_REFRESH_PENDING.value,
             nowMs,
         )
-        val periodicStatus = if (shouldRequestFlutterRefresh) {
-            recordPeriodicRefreshStatus(
-                HomeWidgetPeriodicRefreshStatus.FLUTTER_AUTHORITY_ONLY.value,
-                nowMs,
-            )
-            requestAuthoritativeRefreshFallback().status
-        } else {
-            HomeWidgetPeriodicRefreshStatus.PROGRESS_ONLY.value
-        }
-        recordPeriodicRefreshStatus(periodicStatus, nowMs)
-        notifySnapshotUpdated(
-            HomeWidgetConstants.PERIODIC_REFRESH_REASON,
-        )
-        return progressedSnapshot.snapshotKind.isNotBlank()
-    }
-
-    private fun isMaturedEggSnapshot(
-        snapshot: HomeWidgetSnapshot?,
-        nowMs: Long,
-    ): Boolean {
-        return snapshot?.characterState == "egg" &&
-            snapshot.eggHatchTimeMs?.let { it <= nowMs } == true
+        val refreshResult = requestAuthoritativeRefresh(nowMs)
+        recordPeriodicRefreshStatus(refreshResult.status, nowMs)
+        return refreshResult == HomeWidgetAuthoritativeRefreshRequestResult.REQUESTED
     }
 }
 
@@ -77,17 +44,12 @@ internal class HomeWidgetPeriodicRefreshWorker(
             onNoWidgets = {
                 HomeWidgetPeriodicRefreshScheduler.cancelIfNoWidgets(applicationContext)
             },
-            progressSnapshot = { nowMs ->
-                WorldDataSnapshotFactory.progressSnapshot(applicationContext, nowMs)
-            },
-            loadAuthoritativeSnapshot = {
-                HomeWidgetSnapshot.loadAuthoritative(applicationContext)
-            },
-            requestAuthoritativeRefreshFallback = {
-                HomeWidgetAuthoritativeRefreshRequester.request(applicationContext)
-            },
-            notifySnapshotUpdated = { reason ->
-                HomeWidgetProvider.notifySnapshotUpdated(applicationContext, reason)
+            requestAuthoritativeRefresh = { nowMs ->
+                HomeWidgetAuthoritativeRefreshRequester.request(
+                    context = applicationContext,
+                    nowMs = nowMs,
+                    force = true,
+                )
             },
             recordPeriodicRefreshStatus = { status, nowMs ->
                 applicationContext.getSharedPreferences(

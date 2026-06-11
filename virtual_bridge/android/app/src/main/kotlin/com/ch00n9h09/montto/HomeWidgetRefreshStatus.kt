@@ -4,7 +4,5 @@ internal enum class HomeWidgetPeriodicRefreshStatus(
     val value: String,
 ) {
     NO_WIDGETS("no_widgets"),
-    PROGRESS_UNAVAILABLE("progress_unavailable"),
-    PROGRESS_ONLY("periodic_progress_only"),
-    FLUTTER_AUTHORITY_ONLY("flutter_authority_only"),
+    FLUTTER_REFRESH_PENDING("flutter_refresh_pending"),
 }

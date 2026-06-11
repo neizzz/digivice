@@ -52,19 +52,30 @@ void homeWidgetCallbackDispatcher() {
     if (taskName != homeWidgetPeriodicRefreshTaskName) {
       return true;
     }
-    await HomeWidgetBackgroundRefreshService.runPeriodicRefresh();
-    return true;
+    try {
+      final Map<String, Object?> result =
+          await HomeWidgetBackgroundRefreshService.runPeriodicRefresh(
+        log: debugPrint,
+      );
+      debugPrint(
+        '[HomeWidgetBackgroundRefreshService] workmanager task completed '
+        'taskName=$taskName status=${result['status']} '
+        'hatched=${result['hatched']} '
+        'selectedCharacterKey=${result['selectedCharacterKey']}',
+      );
+      return true;
+    } catch (error, stackTrace) {
+      debugPrint(
+        '[HomeWidgetBackgroundRefreshService] workmanager task failed '
+        'taskName=$taskName error=$error stackTrace=$stackTrace',
+      );
+      return false;
+    }
   });
 }
 
 Future<void> _initializeHomeWidgetWorkmanager() async {
   await Workmanager().initialize(homeWidgetCallbackDispatcher);
-  await Workmanager().registerPeriodicTask(
-    homeWidgetPeriodicRefreshUniqueName,
-    homeWidgetPeriodicRefreshTaskName,
-    frequency: homeWidgetPeriodicRefreshFrequency,
-    existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
-  );
 }
 
 // overlay entry point (2025.02.05 기준, for only Android)

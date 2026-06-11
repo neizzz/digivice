@@ -288,44 +288,8 @@ object HomeWidgetSnapshotSelector {
             return debugSnapshot
         }
 
-        if (currentSnapshot == null) {
-            return authoritativeSnapshot ?: worldDataFallback()
-        }
-
-        if (authoritativeSnapshot == null) {
-            return currentSnapshot
-        }
-
-        return if (shouldPreferAuthoritativeSnapshot(currentSnapshot, authoritativeSnapshot)) {
-            authoritativeSnapshot
-        } else {
-            currentSnapshot
-        }
-    }
-
-    private fun shouldPreferAuthoritativeSnapshot(
-        currentSnapshot: HomeWidgetSnapshot,
-        authoritativeSnapshot: HomeWidgetSnapshot,
-    ): Boolean {
-        return currentSnapshot.baseLastActiveTimeMs != authoritativeSnapshot.baseLastActiveTimeMs ||
-            currentSnapshot.characterState != authoritativeSnapshot.characterState ||
-            currentSnapshot.characterKey != authoritativeSnapshot.characterKey ||
-            currentSnapshot.eggTextureKey != authoritativeSnapshot.eggTextureKey ||
-            shouldPreferAuthoritativeEggTiming(currentSnapshot, authoritativeSnapshot) ||
-            currentSnapshot.displayState != authoritativeSnapshot.displayState ||
-            currentSnapshot.hasUrgentStatus != authoritativeSnapshot.hasUrgentStatus ||
-            currentSnapshot.visibleStatusIcons != authoritativeSnapshot.visibleStatusIcons
-    }
-
-    private fun shouldPreferAuthoritativeEggTiming(
-        currentSnapshot: HomeWidgetSnapshot,
-        authoritativeSnapshot: HomeWidgetSnapshot,
-    ): Boolean {
-        if (currentSnapshot.characterState != "egg") {
-            return false
-        }
-
-        return currentSnapshot.eggHatchTimeMs != authoritativeSnapshot.eggHatchTimeMs ||
-            currentSnapshot.eggHatchDurationMs != authoritativeSnapshot.eggHatchDurationMs
+        return authoritativeSnapshot
+            ?: currentSnapshot?.takeIf { it.snapshotKind == "authoritativeAppState" }
+            ?: worldDataFallback()
     }
 }

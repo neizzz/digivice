@@ -2,6 +2,7 @@ package com.ch00n9h09.montto
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -40,6 +41,22 @@ class HomeWidgetSnapshotTest {
     }
 
     @Test
+    fun `legacy snapshot without stamina level treats threshold stamina as orange`() {
+        val snapshot = HomeWidgetSnapshot.fromJson(
+            """
+            {
+              "stamina": 3.0,
+              "maxStamina": 10.0,
+              "staminaPercent": 0.3,
+              "characterState": "idle"
+            }
+            """.trimIndent(),
+        )
+
+        assertEquals("orange", snapshot?.staminaLevel)
+    }
+
+    @Test
     fun `mature egg snapshot is detected for authoritative refresh`() {
         val nowMs = 10_000L
         val snapshot = HomeWidgetDebugPresets.resolveSnapshot(index = 0, nowMs = nowMs).copy(
@@ -64,87 +81,6 @@ class HomeWidgetSnapshotTest {
     }
 
     @Test
-    fun `native projection accumulates stamina elapsed and animation frame without authoritative mutation`() {
-        val nowMs = 1_000_000L
-        val authoritativeSnapshot =
-            HomeWidgetDebugPresets.resolveSnapshot(index = 1, nowMs = nowMs).copy(
-                snapshotKind = "authoritativeAppState",
-                characterKey = 1,
-                stamina = 8.0,
-                staminaPercent = 0.8,
-                staminaLevel = "green",
-                updatedAtMs = nowMs,
-                snapshotComputedAtMs = nowMs,
-                projectedElapsedMs = 0L,
-                staminaTimerMs = 0.0,
-            )
-
-        val progressed = WorldDataSnapshotFactory.progressSnapshot(
-            authoritativeSnapshot,
-            nowMs + 24 * 60 * 1000L,
-        )
-
-        checkNotNull(progressed)
-        assertEquals("widgetProgressed", progressed.snapshotKind)
-        assertEquals(24 * 60 * 1000L, progressed.projectedElapsedMs)
-        assertEquals(7.5, progressed.stamina, 0.0001)
-        assertEquals("green", progressed.staminaLevel)
-        assertEquals(
-            ((progressed.updatedAtMs / 1000L) + 1L).mod(4L).toInt(),
-            progressed.animationFrameIndex,
-        )
-        assertEquals("authoritativeAppState", authoritativeSnapshot.snapshotKind)
-        assertEquals(0L, authoritativeSnapshot.projectedElapsedMs)
-        assertEquals(8.0, authoritativeSnapshot.stamina, 0.0001)
-    }
-
-    @Test
-    fun `native egg projection advances crack stage but keeps Flutter hatch authority`() {
-        val nowMs = 1_000_000L
-        val authoritativeEgg =
-            HomeWidgetDebugPresets.resolveSnapshot(index = 0, nowMs = nowMs).copy(
-                snapshotKind = "authoritativeAppState",
-                characterState = "egg",
-                eggTextureKey = 517,
-                eggHatchTimeMs = nowMs + 40 * 60 * 1000L,
-                eggHatchDurationMs = 40 * 60 * 1000L,
-                eggCrackStage = 0,
-                updatedAtMs = nowMs,
-                snapshotComputedAtMs = nowMs,
-                projectedElapsedMs = 0L,
-            )
-
-        val beforeHatch = WorldDataSnapshotFactory.progressSnapshot(
-            authoritativeEgg,
-            nowMs + 20 * 60 * 1000L,
-        )
-        checkNotNull(beforeHatch)
-        val afterHatchTime = WorldDataSnapshotFactory.progressSnapshot(
-            beforeHatch,
-            nowMs + 41 * 60 * 1000L,
-        )
-
-        assertEquals("egg", beforeHatch.characterState)
-        assertEquals(2, beforeHatch.eggCrackStage)
-        assertFalse(
-            WorldDataSnapshotFactory.isEggMaturedPastHatchTime(
-                beforeHatch,
-                nowMs + 20 * 60 * 1000L,
-            ),
-        )
-        checkNotNull(afterHatchTime)
-        assertEquals("egg", afterHatchTime.characterState)
-        assertEquals(3, afterHatchTime.eggCrackStage)
-        assertEquals(41 * 60 * 1000L, afterHatchTime.projectedElapsedMs)
-        assertTrue(
-            WorldDataSnapshotFactory.isEggMaturedPastHatchTime(
-                afterHatchTime,
-                nowMs + 41 * 60 * 1000L,
-            ),
-        )
-    }
-
-    @Test
     fun `stale non egg authoritative snapshot requests native refresh`() {
         val nowMs = 20 * 60 * 1000L
         val snapshot = HomeWidgetDebugPresets.resolveSnapshot(index = 1, nowMs = nowMs).copy(
@@ -158,7 +94,6 @@ class HomeWidgetSnapshotTest {
         assertTrue(WorldDataSnapshotFactory.isAuthoritativeSnapshotStale(snapshot, nowMs))
         assertTrue(
             WorldDataSnapshotFactory.requiresAuthoritativeRefresh(
-                currentSnapshot = snapshot.copy(snapshotKind = "widgetProgressed"),
                 authoritativeSnapshot = snapshot,
                 nowMs = nowMs,
             ),
@@ -166,7 +101,7 @@ class HomeWidgetSnapshotTest {
     }
 
     @Test
-    fun `fresh non egg authoritative snapshot stays on progress only path`() {
+    fun `fresh non egg authoritative snapshot does not request refresh`() {
         val nowMs = 20 * 60 * 1000L
         val snapshot = HomeWidgetDebugPresets.resolveSnapshot(index = 1, nowMs = nowMs).copy(
             snapshotKind = "authoritativeAppState",
@@ -177,7 +112,6 @@ class HomeWidgetSnapshotTest {
         assertFalse(WorldDataSnapshotFactory.isAuthoritativeSnapshotStale(snapshot, nowMs))
         assertFalse(
             WorldDataSnapshotFactory.requiresAuthoritativeRefresh(
-                currentSnapshot = snapshot.copy(snapshotKind = "widgetProgressed"),
                 authoritativeSnapshot = snapshot,
                 nowMs = nowMs,
             ),
@@ -200,10 +134,95 @@ class HomeWidgetSnapshotTest {
 
         assertFalse(
             WorldDataSnapshotFactory.requiresAuthoritativeRefresh(
-                currentSnapshot = currentSnapshot,
                 authoritativeSnapshot = authoritativeSnapshot,
                 nowMs = nowMs,
             ),
         )
+    }
+
+    @Test
+    fun `newer Flutter authoritative non egg snapshot wins over stale native egg`() {
+        val nativeSnapshot = HomeWidgetDebugPresets.resolveSnapshot(index = 0, nowMs = 1_000L).copy(
+            snapshotKind = "authoritativeAppState",
+            characterState = "egg",
+            snapshotComputedAtMs = 1_000L,
+            updatedAtMs = 1_000L,
+        )
+        val flutterSnapshot = HomeWidgetDebugPresets.resolveSnapshot(index = 1, nowMs = 2_000L).copy(
+            snapshotKind = "authoritativeAppState",
+            characterState = "idle",
+            snapshotComputedAtMs = 2_000L,
+            updatedAtMs = 2_000L,
+        )
+
+        val selection = HomeWidgetSnapshot.selectAuthoritativeSnapshot(
+            nativeSnapshot = nativeSnapshot,
+            flutterSnapshot = flutterSnapshot,
+        )
+
+        assertEquals(HOME_WIDGET_FLUTTER_SNAPSHOT_SOURCE, selection.source)
+        assertEquals("idle", selection.snapshot?.characterState)
+        assertEquals(2_000L, selection.snapshot?.snapshotComputedAtMs)
+    }
+
+    @Test
+    fun `newer native authoritative snapshot wins over stale Flutter egg`() {
+        val nativeSnapshot = HomeWidgetDebugPresets.resolveSnapshot(index = 1, nowMs = 3_000L).copy(
+            snapshotKind = "authoritativeAppState",
+            characterState = "idle",
+            snapshotComputedAtMs = 3_000L,
+            updatedAtMs = 3_000L,
+        )
+        val flutterSnapshot = HomeWidgetDebugPresets.resolveSnapshot(index = 0, nowMs = 2_000L).copy(
+            snapshotKind = "authoritativeAppState",
+            characterState = "egg",
+            snapshotComputedAtMs = 2_000L,
+            updatedAtMs = 2_000L,
+        )
+
+        val selection = HomeWidgetSnapshot.selectAuthoritativeSnapshot(
+            nativeSnapshot = nativeSnapshot,
+            flutterSnapshot = flutterSnapshot,
+        )
+
+        assertEquals(HOME_WIDGET_NATIVE_SNAPSHOT_SOURCE, selection.source)
+        assertEquals("idle", selection.snapshot?.characterState)
+        assertEquals(3_000L, selection.snapshot?.snapshotComputedAtMs)
+    }
+
+    @Test
+    fun `equal or missing authoritative timestamps keep native first fallback`() {
+        val equalNativeSnapshot = HomeWidgetDebugPresets.resolveSnapshot(index = 1, nowMs = 4_000L)
+            .copy(snapshotComputedAtMs = 4_000L, updatedAtMs = 4_000L)
+        val equalFlutterSnapshot = HomeWidgetDebugPresets.resolveSnapshot(index = 2, nowMs = 4_000L)
+            .copy(snapshotComputedAtMs = 4_000L, updatedAtMs = 4_000L)
+        val missingNativeSnapshot = equalNativeSnapshot.copy(
+            snapshotComputedAtMs = 0L,
+            updatedAtMs = 0L,
+        )
+        val knownFlutterSnapshot = equalFlutterSnapshot.copy(
+            snapshotComputedAtMs = 5_000L,
+            updatedAtMs = 5_000L,
+        )
+
+        val equalSelection = HomeWidgetSnapshot.selectAuthoritativeSnapshot(
+            nativeSnapshot = equalNativeSnapshot,
+            flutterSnapshot = equalFlutterSnapshot,
+        )
+        val missingSelection = HomeWidgetSnapshot.selectAuthoritativeSnapshot(
+            nativeSnapshot = missingNativeSnapshot,
+            flutterSnapshot = knownFlutterSnapshot,
+        )
+        val emptySelection = HomeWidgetSnapshot.selectAuthoritativeSnapshot(
+            nativeSnapshot = null,
+            flutterSnapshot = null,
+        )
+
+        assertEquals(HOME_WIDGET_NATIVE_SNAPSHOT_SOURCE, equalSelection.source)
+        assertEquals(equalNativeSnapshot.characterKey, equalSelection.snapshot?.characterKey)
+        assertEquals(HOME_WIDGET_NATIVE_SNAPSHOT_SOURCE, missingSelection.source)
+        assertEquals(missingNativeSnapshot.characterKey, missingSelection.snapshot?.characterKey)
+        assertNull(emptySelection.source)
+        assertNull(emptySelection.snapshot)
     }
 }

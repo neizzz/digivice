@@ -6,6 +6,9 @@ object HomeWidgetConstants {
     const val SNAPSHOT_KEY = "home_widget_snapshot_v1"
     const val AUTHORITATIVE_SNAPSHOT_KEY = "home_widget_authoritative_snapshot_v1"
     const val PERIODIC_REFRESH_WORK_NAME = "home_widget_periodic_refresh"
+    const val FLUTTER_BACKGROUND_REFRESH_WORK_NAME =
+        "home_widget_flutter_background_refresh"
+    const val FLUTTER_BACKGROUND_REFRESH_TASK_NAME = "home_widget_periodic_refresh"
     const val PERIODIC_REFRESH_REASON = "periodic_work"
     const val PERIODIC_REFRESH_INTERVAL_MINUTES = 15L
     const val FLUTTER_STORAGE_NAME = "FlutterSharedPreferences"
@@ -23,6 +26,8 @@ object HomeWidgetConstants {
     const val REFRESH_REQUESTED_AT_MS_KEY = "home_widget_refresh_requested_at_ms"
     const val REFRESH_COMPLETED_AT_MS_KEY = "home_widget_refresh_completed_at_ms"
     const val REFRESH_IN_FLIGHT_KEY = "home_widget_refresh_in_flight"
+    const val REFRESH_BACKGROUND_QUEUED_KEY = "home_widget_refresh_background_queued"
+    const val REFRESH_ACTIVITY_LAUNCHED_KEY = "home_widget_refresh_activity_launched"
     const val PERIODIC_REFRESH_STATUS_KEY = "home_widget_periodic_refresh_status"
     const val PERIODIC_REFRESH_STATUS_AT_MS_KEY = "home_widget_periodic_refresh_status_at_ms"
     const val DEBUG_PRESET_OVERRIDE_ENABLED_KEY = "home_widget_debug_preset_override_enabled"

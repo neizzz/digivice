@@ -18,7 +18,14 @@ internal object HomeWidgetSnapshotPublisher {
         snapshotJson: String?,
         reason: String,
         notifySnapshotUpdated: (reason: String) -> Unit,
+        nowMsProvider: () -> Long = { System.currentTimeMillis() },
     ): Map<String, Any?> {
+        val resolvedReason = reason.ifBlank { "publishSnapshot" }
+        val characterState = extractStringField(snapshotJson, "characterState")
+        val characterKey = extractIntField(snapshotJson, "characterKey")
+        val eggHatchTimeMs = extractLongField(snapshotJson, "eggHatchTimeMs")
+        val snapshotKind = extractStringField(snapshotJson, "snapshotKind")
+
         prefs.edit().apply {
             if (snapshotJson.isNullOrEmpty()) {
                 remove(snapshotKey)
@@ -26,25 +33,57 @@ internal object HomeWidgetSnapshotPublisher {
                 remove(HomeWidgetConstants.REFRESH_COMPLETED_AT_MS_KEY)
                 remove(HomeWidgetConstants.REFRESH_IN_FLIGHT_KEY)
                 remove(HomeWidgetConstants.REFRESH_SMOKE_RESULT_KEY)
+                remove(HomeWidgetConstants.REFRESH_BACKGROUND_QUEUED_KEY)
+                remove(HomeWidgetConstants.REFRESH_ACTIVITY_LAUNCHED_KEY)
                 remove(HomeWidgetConstants.PERIODIC_REFRESH_STATUS_KEY)
                 remove(HomeWidgetConstants.PERIODIC_REFRESH_STATUS_AT_MS_KEY)
             } else {
                 putString(snapshotKey, snapshotJson)
+                if (snapshotKey == HomeWidgetConstants.AUTHORITATIVE_SNAPSHOT_KEY) {
+                    putBoolean(HomeWidgetConstants.REFRESH_IN_FLIGHT_KEY, false)
+                    putLong(
+                        HomeWidgetConstants.REFRESH_COMPLETED_AT_MS_KEY,
+                        nowMsProvider(),
+                    )
+                    putString(
+                        HomeWidgetConstants.REFRESH_SMOKE_RESULT_KEY,
+                        buildAuthoritativePublishSummary(
+                            reason = resolvedReason,
+                            characterState = characterState,
+                            characterKey = characterKey,
+                            snapshotKind = snapshotKind,
+                        ),
+                    )
+                }
             }
         }.apply()
 
-        notifySnapshotUpdated(reason.ifBlank { "publishSnapshot" })
+        notifySnapshotUpdated(resolvedReason)
 
         return linkedMapOf(
             "status" to "ok",
             "snapshotKey" to snapshotKey,
-            "reason" to reason.ifBlank { "publishSnapshot" },
+            "reason" to resolvedReason,
             "hasSnapshot" to snapshotJson.isNullOrEmpty().not(),
-            "characterState" to extractStringField(snapshotJson, "characterState"),
-            "characterKey" to extractIntField(snapshotJson, "characterKey"),
-            "eggHatchTimeMs" to extractLongField(snapshotJson, "eggHatchTimeMs"),
-            "snapshotKind" to extractStringField(snapshotJson, "snapshotKind"),
+            "characterState" to characterState,
+            "characterKey" to characterKey,
+            "eggHatchTimeMs" to eggHatchTimeMs,
+            "snapshotKind" to snapshotKind,
         )
+    }
+
+    private fun buildAuthoritativePublishSummary(
+        reason: String,
+        characterState: String?,
+        characterKey: Int?,
+        snapshotKind: String?,
+    ): String {
+        return "authoritative_snapshot_published(" +
+            "reason=$reason," +
+            "state=${characterState ?: "unknown"}," +
+            "key=${characterKey ?: "unknown"}," +
+            "kind=${snapshotKind ?: "unknown"}" +
+            ")"
     }
 
     private fun extractStringField(raw: String?, fieldName: String): String? {
