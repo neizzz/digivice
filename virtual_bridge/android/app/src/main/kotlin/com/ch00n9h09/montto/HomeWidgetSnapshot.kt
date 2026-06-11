@@ -78,12 +78,24 @@ data class HomeWidgetSnapshot(
             return HomeWidgetBackgroundVariant.BROWN
         }
 
-        return when (resolveEvolutionPhase(characterKey)) {
+        return when (resolveEvolutionPhase()) {
             2 -> HomeWidgetBackgroundVariant.BLUE
             3 -> HomeWidgetBackgroundVariant.GREEN
             4 -> HomeWidgetBackgroundVariant.RED
             else -> HomeWidgetBackgroundVariant.BROWN
         }
+    }
+
+    fun resolveEvolutionPhase(): Int {
+        return resolveEvolutionPhase(characterKey)
+    }
+
+    fun shouldUseClassBOrHigherWidgetScale(): Boolean {
+        if (characterState == "egg" || characterState == "dead") {
+            return false
+        }
+
+        return characterKey != null && resolveEvolutionPhase() >= 2
     }
 
     @DrawableRes

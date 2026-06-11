@@ -57,6 +57,29 @@ class HomeWidgetSnapshotTest {
     }
 
     @Test
+    fun `class B or higher widget scale helper follows phase and excludes egg dead unknown`() {
+        val classASnapshot = HomeWidgetDebugPresets.resolveSnapshot(index = 1, nowMs = 1_000L)
+        val classBSnapshot = HomeWidgetDebugPresets.resolveSnapshot(index = 2, nowMs = 1_000L)
+        val classCSnapshot = HomeWidgetDebugPresets.resolveSnapshot(index = 3, nowMs = 1_000L)
+        val classDSnapshot = HomeWidgetDebugPresets.resolveSnapshot(index = 7, nowMs = 1_000L)
+        val eggSnapshot = HomeWidgetDebugPresets.resolveSnapshot(index = 0, nowMs = 1_000L)
+        val deadSnapshot = HomeWidgetDebugPresets.resolveSnapshot(index = 6, nowMs = 1_000L)
+        val unknownSnapshot = classASnapshot.copy(characterKey = null)
+
+        assertEquals(1, classASnapshot.resolveEvolutionPhase())
+        assertEquals(2, classBSnapshot.resolveEvolutionPhase())
+        assertEquals(3, classCSnapshot.resolveEvolutionPhase())
+        assertEquals(4, classDSnapshot.resolveEvolutionPhase())
+        assertFalse(classASnapshot.shouldUseClassBOrHigherWidgetScale())
+        assertTrue(classBSnapshot.shouldUseClassBOrHigherWidgetScale())
+        assertTrue(classCSnapshot.shouldUseClassBOrHigherWidgetScale())
+        assertTrue(classDSnapshot.shouldUseClassBOrHigherWidgetScale())
+        assertFalse(eggSnapshot.shouldUseClassBOrHigherWidgetScale())
+        assertFalse(deadSnapshot.shouldUseClassBOrHigherWidgetScale())
+        assertFalse(unknownSnapshot.shouldUseClassBOrHigherWidgetScale())
+    }
+
+    @Test
     fun `mature egg snapshot is detected for authoritative refresh`() {
         val nowMs = 10_000L
         val snapshot = HomeWidgetDebugPresets.resolveSnapshot(index = 0, nowMs = nowMs).copy(

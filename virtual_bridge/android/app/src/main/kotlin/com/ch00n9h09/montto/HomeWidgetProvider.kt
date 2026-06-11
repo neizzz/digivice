@@ -27,6 +27,9 @@ data class WidgetDimensionDpOverride(
 internal object HomeWidgetLayoutSizing {
     private const val ONE_BY_ONE_CHARACTER_VISIBLE_WIDTH_NUMERATOR = 60
     private const val ONE_BY_ONE_CHARACTER_VISIBLE_WIDTH_DENOMINATOR = 100
+    private const val CLASS_B_OR_HIGHER_SCALE_NUMERATOR = 110
+    private const val CLASS_B_OR_HIGHER_SCALE_DENOMINATOR = 100
+    private const val TWO_BY_ONE_CHARACTER_TARGET_VISIBLE_WIDTH_DP = 72
 
     fun resolveWidgetDimensionDp(
         minDp: Int,
@@ -74,6 +77,34 @@ internal object HomeWidgetLayoutSizing {
             (safeWidgetWidthPx * ONE_BY_ONE_CHARACTER_VISIBLE_WIDTH_NUMERATOR) +
                 (ONE_BY_ONE_CHARACTER_VISIBLE_WIDTH_DENOMINATOR - 1)
         ) / ONE_BY_ONE_CHARACTER_VISIBLE_WIDTH_DENOMINATOR
+    }
+
+    fun resolveClassAdjustedCharacterTargetVisibleWidthPx(
+        baseTargetVisibleWidthPx: Int,
+        snapshot: HomeWidgetSnapshot?,
+    ): Int {
+        val safeBaseTargetVisibleWidthPx = baseTargetVisibleWidthPx.coerceAtLeast(1)
+        if (snapshot?.shouldUseClassBOrHigherWidgetScale() != true) {
+            return safeBaseTargetVisibleWidthPx
+        }
+
+        return (
+            (safeBaseTargetVisibleWidthPx * CLASS_B_OR_HIGHER_SCALE_NUMERATOR) +
+                (CLASS_B_OR_HIGHER_SCALE_DENOMINATOR - 1)
+        ) / CLASS_B_OR_HIGHER_SCALE_DENOMINATOR
+    }
+
+    fun resolveTwoByOneCharacterTargetVisibleWidthPx(
+        density: Float,
+        snapshot: HomeWidgetSnapshot?,
+    ): Int {
+        return resolveClassAdjustedCharacterTargetVisibleWidthPx(
+            baseTargetVisibleWidthPx = dpToPx(
+                dp = TWO_BY_ONE_CHARACTER_TARGET_VISIBLE_WIDTH_DP,
+                density = density,
+            ),
+            snapshot = snapshot,
+        )
     }
 }
 
@@ -670,6 +701,19 @@ abstract class BaseHomeWidgetProvider : AppWidgetProvider() {
 }
 
 class HomeWidgetProvider : BaseHomeWidgetProvider() {
+    override fun resolveCharacterTargetVisibleWidthPx(
+        context: Context,
+        appWidgetManager: AppWidgetManager?,
+        appWidgetId: Int?,
+        renderMode: WidgetRenderMode,
+        snapshot: HomeWidgetSnapshot?,
+    ): Int {
+        return HomeWidgetLayoutSizing.resolveTwoByOneCharacterTargetVisibleWidthPx(
+            density = context.resources.displayMetrics.density,
+            snapshot = snapshot,
+        )
+    }
+
     companion object {
         fun notifySnapshotUpdated(context: Context, reason: String) {
             context.sendBroadcast(
@@ -731,8 +775,13 @@ class HomeWidget1x1Provider : BaseHomeWidgetProvider() {
             ),
             resolvedWidgetWidthPx = resolvedWidgetWidthPx,
         )
-        return HomeWidgetLayoutSizing.resolveOneByOneCharacterTargetVisibleWidthPx(
-            referenceWidthPx,
+        val baseTargetVisibleWidthPx =
+            HomeWidgetLayoutSizing.resolveOneByOneCharacterTargetVisibleWidthPx(
+                referenceWidthPx,
+            )
+        return HomeWidgetLayoutSizing.resolveClassAdjustedCharacterTargetVisibleWidthPx(
+            baseTargetVisibleWidthPx = baseTargetVisibleWidthPx,
+            snapshot = snapshot,
         )
     }
 

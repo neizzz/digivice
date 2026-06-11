@@ -133,6 +133,80 @@ class HomeWidgetProviderTest {
     }
 
     @Test
+    fun `class adjusted target visible width keeps class A egg dead and placeholder size`() {
+        val classASnapshot = HomeWidgetDebugPresets.resolveSnapshot(index = 1, nowMs = 1_000L)
+        val eggSnapshot = HomeWidgetDebugPresets.resolveSnapshot(index = 0, nowMs = 1_000L)
+        val deadSnapshot = HomeWidgetDebugPresets.resolveSnapshot(index = 6, nowMs = 1_000L)
+
+        assertEquals(
+            54,
+            HomeWidgetLayoutSizing.resolveClassAdjustedCharacterTargetVisibleWidthPx(
+                baseTargetVisibleWidthPx = 54,
+                snapshot = classASnapshot,
+            ),
+        )
+        assertEquals(
+            54,
+            HomeWidgetLayoutSizing.resolveClassAdjustedCharacterTargetVisibleWidthPx(
+                baseTargetVisibleWidthPx = 54,
+                snapshot = eggSnapshot,
+            ),
+        )
+        assertEquals(
+            54,
+            HomeWidgetLayoutSizing.resolveClassAdjustedCharacterTargetVisibleWidthPx(
+                baseTargetVisibleWidthPx = 54,
+                snapshot = deadSnapshot,
+            ),
+        )
+        assertEquals(
+            54,
+            HomeWidgetLayoutSizing.resolveClassAdjustedCharacterTargetVisibleWidthPx(
+                baseTargetVisibleWidthPx = 54,
+                snapshot = null,
+            ),
+        )
+    }
+
+    @Test
+    fun `class adjusted target visible width scales class B C and D by ten percent`() {
+        val classBSnapshot = HomeWidgetDebugPresets.resolveSnapshot(index = 2, nowMs = 1_000L)
+        val classCSnapshot = HomeWidgetDebugPresets.resolveSnapshot(index = 3, nowMs = 1_000L)
+        val classDSnapshot = HomeWidgetDebugPresets.resolveSnapshot(index = 7, nowMs = 1_000L)
+
+        listOf(classBSnapshot, classCSnapshot, classDSnapshot).forEach { snapshot ->
+            assertEquals(
+                110,
+                HomeWidgetLayoutSizing.resolveClassAdjustedCharacterTargetVisibleWidthPx(
+                    baseTargetVisibleWidthPx = 100,
+                    snapshot = snapshot,
+                ),
+            )
+        }
+    }
+
+    @Test
+    fun `2x1 target visible width uses 72dp baseline and scales class B or higher`() {
+        val classASnapshot = HomeWidgetDebugPresets.resolveSnapshot(index = 1, nowMs = 1_000L)
+        val classBSnapshot = HomeWidgetDebugPresets.resolveSnapshot(index = 2, nowMs = 1_000L)
+
+        assertEquals(
+            72,
+            HomeWidgetLayoutSizing.resolveTwoByOneCharacterTargetVisibleWidthPx(
+                density = 1f,
+                snapshot = classASnapshot,
+            ),
+        )
+        assertEquals(
+            80,
+            HomeWidgetLayoutSizing.resolveTwoByOneCharacterTargetVisibleWidthPx(
+                density = 1f,
+                snapshot = classBSnapshot,
+            ),
+        )
+    }
+
+    @Test
     fun `2x1 picker preview path keeps existing fallback sizing`() {
         assertEquals(
             180,

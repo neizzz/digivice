@@ -25,7 +25,7 @@
             android:adjustViewBounds="true"
             android:contentDescription="@null"
             android:scaleType="fitCenter"
-            android:translationY="8dp"
+            android:translationY="12dp"
             android:src="@drawable/montto_home_widget_preview_character" />
 
         <LinearLayout
