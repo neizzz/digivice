@@ -38,9 +38,9 @@ Expand only when a shot cannot be explained from those files.
 ## Default commands
 
 ```bash
-pnpm --filter @digivice/client snapshot:store -- --locales ko,en,ja
-pnpm --filter @digivice/client snapshot:store -- --locales ko,en,ja --shots main-scene-day,monster-info,monster-book
-pnpm --filter @digivice/client snapshot:store:current -- --url http://127.0.0.1:5173 --locales ko,en,ja
+pnpm --filter @digivice/client snapshot:store
+pnpm --filter @digivice/client snapshot:store -- --locales en,ko,ja,zh-TW,zh-HK,hi,th,vi,pt-BR --shots main-scene-egg,main-scene-day,main-scene-tomb,monster-info,monster-book
+pnpm --filter @digivice/client snapshot:store:current -- --url http://127.0.0.1:5173 --locales en,ko,ja,zh-TW,zh-HK,hi,th,vi,pt-BR
 ```
 
 ## Full-locale store pack
@@ -48,13 +48,13 @@ pnpm --filter @digivice/client snapshot:store:current -- --url http://127.0.0.1:
 Use this preset when the user asks for a broad Play Store submission set across all supported languages:
 
 ```bash
-pnpm --filter @digivice/client snapshot:store -- --locales en,ko,ja,zh-TW,zh-HK,hi,th,vi,pt-BR --shots main-scene-eating,main-scene-night,monster-info,monster-book,setup
+pnpm --filter @digivice/client snapshot:store -- --locales en,ko,ja,zh-TW,zh-HK,hi,th,vi,pt-BR --shots main-scene-egg,main-scene-eating,main-scene-night,main-scene-tomb,monster-info,monster-book,setup
 ```
 
-- The five-shot diversity pack is `main-scene-eating`, `main-scene-night`, `monster-info`, `monster-book`, and `setup`. Capture runtime shots before `setup` to avoid static snapshot state interfering with runtime readiness.
+- The seven-shot diversity pack is `main-scene-egg`, `main-scene-eating`, `main-scene-night`, `main-scene-tomb`, `monster-info`, `monster-book`, and `setup`. Capture runtime shots before `setup` to avoid static snapshot state interfering with runtime readiness.
 - If the full pack flakes in Chrome/CDP, build once, run `vite preview`, then use `snapshot:store:current` one `locale` x one `shot` at a time into the same `--out` folder.
 - If a user asks for a character name, update only the runtime fixtures by default. Leave the setup input empty unless the user explicitly asks to prefill it.
-- Run a one-locale subset first when changing fixtures, then capture the full locale set.
+- Run a one-locale subset first when changing fixtures, then capture the full locale set. The default `snapshot:store` locale list should cover every supported locale, currently `en,ko,ja,zh-TW,zh-HK,hi,th,vi,pt-BR`.
 
 ## Output contract
 
@@ -62,9 +62,12 @@ pnpm --filter @digivice/client snapshot:store -- --locales en,ko,ja,zh-TW,zh-HK,
 - CSS viewport: `360x780`
 - device scale factor: `3`
 - expected PNG output: `1080x2340`
-- output root: `tmp/store-snapshots/<timestamp>/<locale>/<shot>.png`
+- output root: `tmp/store-snapshots/<timestamp>/`
+- localized output: `<locale>-<shot>.png` (example: `ko-setup.png`, `en-monster-info.png`)
+- non-localized output: `<shot>.png` captured once with the first requested locale (example: `main-scene-egg.png`)
 
-Every locale folder should contain the same shot names.
+Shots with visible localized text should be marked `localized: true` in `SHOT_CONFIG`. Text-free runtime shots should be marked `localized: false` to avoid duplicate locale captures.
+`monster-book` is treated as non-localized for store output; capture it once without a locale prefix.
 
 ## Fixture rules
 
@@ -86,7 +89,7 @@ Do not move this logic into broad app runtime if a fixture can express it.
 ## Shot ownership
 
 - `setup`, `settings-menu`, `settings-reset`: `SnapshotScreen` path
-- `main-scene-day`, `main-scene-night`, `main-scene-eating`, `monster-info`: seeded main scene + runtime snapshot hook
+- `main-scene-day`, `main-scene-night`, `main-scene-eating`, `main-scene-egg`, `main-scene-tomb`, `monster-info`: seeded main scene + runtime snapshot hook
 - `flappy-bird`: seeded main scene, then real scene transition to Flappy Bird
 - `monster-book`: seeded storage, then real scene transition to Monster Book
 
@@ -95,24 +98,27 @@ Do not move this logic into broad app runtime if a fixture can express it.
 1. Add the shot to `SHOT_CONFIG` in `capture-store-snapshots.mjs`
 2. Add a fixture JSON if runtime state is needed
 3. Reuse existing query-driven hook in `GameContainer.tsx` before adding new runtime-only code
-4. Add the shot name to the default shot list only after it is stable across locales
-5. Verify one-locale subset first, then the full locale set
+4. Set `localized: true` only when the shot contains visible localized text; otherwise keep it non-localized and capture it once
+5. Add the shot name to the default shot list only after it is stable across locales
+6. Verify one-locale subset first, then the full locale set
 
 ## Validation order
 
 1. Focused subset first
-   - `pnpm --filter @digivice/client snapshot:store -- --locales ko --shots main-scene-day,monster-info,monster-book`
-2. Build validation
+   - `pnpm --filter @digivice/client snapshot:store -- --locales ko,en --shots main-scene-egg,main-scene-tomb,setup`
+2. Full-locale store pack
+   - `pnpm --filter @digivice/client snapshot:store`
+3. Build validation
    - `pnpm --filter @digivice/client build:development`
-3. Existing i18n snapshot regression
+4. Existing i18n snapshot regression
    - `pnpm --filter @digivice/client snapshot:i18n -- --locales ko --screens setup,settings,settings-reset`
-4. Diff hygiene
+5. Diff hygiene
    - `git diff --check -- apps/client apps/game .codex/skills/digivice-store-screenshots`
 
 ## Default rules
 
 - Start with `semble search`.
-- Keep locale output names identical across locales.
+- Keep output flat under the chosen `--out` root: localized shots use `<locale>-<shot>.png`; non-localized shots use `<shot>.png`.
 - Prefer fixture edits over ad-hoc waits or DOM hacks.
 - `monster-info` and `monster-book` must stay on real runtime paths, not mock screens.
 - When a capture is flaky, first inspect bridge readiness in `GameContainer.tsx`, then adjust fixture or settle time.

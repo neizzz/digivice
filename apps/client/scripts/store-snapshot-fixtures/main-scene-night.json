@@ -1,67 +1,147 @@
 {
-  "scene": "main",
-  "timeOfDay": "night",
-  "storage": {
-    "MainSceneWorldData": {
-      "world_metadata": {
-        "name": "MainScene",
-        "monster_name": "MonTTo",
-        "last_ecs_saved": 1769900400000,
-        "version": "1.0.0",
-        "app_state": {
-          "last_active_time": 1769900400000,
-          "last_active_time_anchor": {
-            "trustedUtcMs": 1769900400000,
-            "osUptimeMs": 120000,
-            "source": "web-dev-fallback",
-            "uncertaintyMs": 0,
-            "capturedWallMs": 1769900400000
-          },
-          "is_first_load": false,
-          "use_local_time": false,
-          "main_scene_ad": {
-            "menu_use_count": 0
-          },
-          "mini_game_scores": {
-            "flappy_bird": {
-              "best_score": 12
-            }
-          },
-          "monster_book": {
-            "reached": {}
-          }
-        }
-      },
-      "entities": [
-        {
-          "components": {
-            "object": {
-              "id": 1001,
-              "type": 1,
-              "state": 1
-            },
-            "characterStatus": {
-              "characterKey": 2,
-              "stamina": 8.2,
-              "evolutionGage": 72,
-              "evolutionPhase": 2,
-              "statuses": [0, 0, 0, 0]
-            },
-            "position": {
-              "x": 160,
-              "y": 160
-            },
-            "render": {
-              "textureKey": 0,
-              "scale": 3,
-              "zIndex": 0
-            }
-          }
-        }
-      ]
-    },
-    "MonsterBookData": {
-      "reached": {}
-    }
-  }
+	"scene": "main",
+	"timeOfDay": "night",
+	"storage": {
+		"MainSceneWorldData": {
+			"world_metadata": {
+				"name": "MainScene",
+				"monster_name": "MonTTo",
+				"last_ecs_saved": 1769900400000,
+				"version": "1.0.0",
+				"app_state": {
+					"last_active_time": 1769900400000,
+					"last_active_time_anchor": {
+						"trustedUtcMs": 1769900400000,
+						"osUptimeMs": 120000,
+						"source": "web-dev-fallback",
+						"uncertaintyMs": 0,
+						"capturedWallMs": 1769900400000
+					},
+					"is_first_load": false,
+					"use_local_time": false,
+					"main_scene_ad": {
+						"menu_use_count": 0
+					},
+					"mini_game_scores": {
+						"flappy_bird": {
+							"best_score": 12
+						}
+					},
+					"monster_book": {
+						"reached": {}
+					}
+				}
+			},
+			"entities": [
+				{
+					"components": {
+						"object": {
+							"id": 1001,
+							"type": 1,
+							"state": 1
+						},
+						"characterStatus": {
+							"characterKey": 2,
+							"stamina": 8.2,
+							"evolutionGage": 72,
+							"evolutionPhase": 2,
+							"statuses": [
+								0,
+								0,
+								0,
+								0
+							]
+						},
+						"position": {
+							"x": 160,
+							"y": 160
+						},
+						"render": {
+							"textureKey": 0,
+							"scale": 3,
+							"zIndex": 0
+						}
+					}
+				},
+				{
+					"components": {
+						"object": {
+							"id": 3102,
+							"type": 4,
+							"state": 0
+						},
+						"position": {
+							"x": 98,
+							"y": 222
+						},
+						"angle": {
+							"value": 0
+						},
+						"render": {
+							"textureKey": 200,
+							"scale": 1.5,
+							"zIndex": 0
+						}
+					}
+				},
+				{
+					"components": {
+						"object": {
+							"id": 2103,
+							"type": 3,
+							"state": 2
+						},
+						"position": {
+							"x": 238,
+							"y": 218
+						},
+						"render": {
+							"textureKey": 408,
+							"scale": 1.44,
+							"zIndex": 0
+						},
+						"freshness": {
+							"freshness": 3
+						},
+						"freshnessTimer": {
+							"createdTime": 1769899400000,
+							"normalTime": 0,
+							"staleTime": 600000,
+							"isBeingEaten": false
+						}
+					}
+				},
+				{
+					"components": {
+						"object": {
+							"id": 2104,
+							"type": 3,
+							"state": 2
+						},
+						"position": {
+							"x": 282,
+							"y": 132
+						},
+						"render": {
+							"textureKey": 401,
+							"scale": 1.36,
+							"zIndex": 0
+						},
+						"freshness": {
+							"freshness": 3
+						},
+						"freshnessTimer": {
+							"createdTime": 1769899400000,
+							"normalTime": 0,
+							"staleTime": 600000,
+							"isBeingEaten": false
+						}
+					}
+				}
+			]
+		},
+		"MonsterBookData": {
+			"reached": {}
+		}
+	}
 }

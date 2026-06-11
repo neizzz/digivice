@@ -11,16 +11,28 @@ const clientRoot = path.resolve(__dirname, "..");
 const repoRoot = path.resolve(clientRoot, "..", "..");
 const fixturesRoot = path.join(__dirname, "store-snapshot-fixtures");
 
-const LOCALES = ["ko", "en", "ja"];
+const LOCALES = [
+  "en",
+  "ko",
+  "ja",
+  "zh-TW",
+  "zh-HK",
+  "hi",
+  "th",
+  "vi",
+  "pt-BR",
+];
 const DEFAULT_SHOTS = [
   "setup",
   "settings-menu",
   "settings-reset",
+  "main-scene-egg",
   "main-scene-day",
   "main-scene-night",
   "monster-info",
   "flappy-bird",
   "monster-book",
+  "main-scene-tomb",
 ];
 
 const VIEWPORTS = {
@@ -46,63 +58,112 @@ const SNAPSHOT_LANGUAGE_TAGS = {
 const SHOT_CONFIG = {
   setup: {
     kind: "static",
+    localized: true,
     snapshotLayer: "setup",
     waitExpression: `Boolean(document.querySelector('input[placeholder]'))`,
     settleMs: 300,
   },
   "settings-menu": {
     kind: "static",
+    localized: true,
     snapshotLayer: "settings",
     waitExpression: `document.querySelectorAll('#app-container button').length >= 4`,
     settleMs: 300,
   },
   "settings-reset": {
     kind: "static",
+    localized: true,
     snapshotLayer: "settings",
     snapshotPopup: "settings-reset",
     waitExpression:
       `Boolean(document.querySelector('[data-snapshot-popup="settings-reset"]')) && document.querySelectorAll('[data-snapshot-popup="settings-reset"] input').length === 6`,
     settleMs: 300,
   },
+  "main-scene-egg": {
+    kind: "runtime",
+    localized: false,
+    fixtureFile: "main-scene-egg.json",
+    settleMs: 900,
+    readyTimeoutMs: 20000,
+  },
   "main-scene-day": {
     kind: "runtime",
+    localized: false,
     fixtureFile: "main-scene-day.json",
     settleMs: 900,
     readyTimeoutMs: 20000,
   },
   "main-scene-eating": {
     kind: "runtime",
+    localized: false,
     fixtureFile: "main-scene-eating.json",
     settleMs: 1200,
     readyTimeoutMs: 20000,
   },
   "main-scene-night": {
     kind: "runtime",
+    localized: false,
     fixtureFile: "main-scene-night.json",
     settleMs: 900,
     readyTimeoutMs: 20000,
   },
   "monster-info": {
     kind: "runtime",
+    localized: true,
     fixtureFile: "monster-info.json",
     settleMs: 900,
     readyTimeoutMs: 20000,
   },
   "flappy-bird": {
     kind: "runtime",
+    localized: false,
     fixtureFile: "flappy-bird.json",
     settleMs: 1200,
     readyTimeoutMs: 30000,
   },
   "monster-book": {
     kind: "runtime",
+    localized: false,
     fixtureFile: "monster-book.json",
     settleMs: 1200,
     readyTimeoutMs: 45000,
   },
+  "main-scene-tomb": {
+    kind: "runtime",
+    localized: false,
+    fixtureFile: "main-scene-tomb.json",
+    settleMs: 900,
+    readyTimeoutMs: 20000,
+  },
 };
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function waitForProcessExit(child) {
+  if (child.exitCode !== null || child.signalCode !== null) {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve) => {
+    child.once("exit", resolve);
+  });
+}
+
+async function removeDirWithRetry(dir) {
+  const retryableCodes = new Set(["EBUSY", "ENOTEMPTY", "EPERM"]);
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      await rm(dir, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      if (!retryableCodes.has(error?.code) || attempt === 4) {
+        throw error;
+      }
+      await sleep(200 * (attempt + 1));
+    }
+  }
+}
 
 function parseArgs(argv) {
   const options = {
@@ -187,6 +248,10 @@ function parseArgs(argv) {
     );
   }
 
+  if (options.locales.length === 0) {
+    throw new Error("At least one locale is required.");
+  }
+
   if (!options.outDir) {
     const stamp = new Date().toISOString().replace(/[:.]/g, "-");
     options.outDir = path.join(repoRoot, "tmp", "store-snapshots", stamp);
@@ -212,6 +277,10 @@ Options:
   --shots <csv>           Shot list. Default: ${DEFAULT_SHOTS.join(",")}
   --viewport <name>       Viewport preset. Default: android-19_5-9
   --chrome <path>         Chrome executable path.
+
+Output:
+  Localized shots:     <locale>-<shot>.png (for every requested locale)
+  Non-localized shots: <shot>.png (captured once with the first requested locale)
 `);
 }
 
@@ -337,7 +406,8 @@ async function startChrome(options) {
     child,
     async cleanup() {
       child.kill("SIGTERM");
-      await rm(userDataDir, { recursive: true, force: true });
+      await Promise.race([waitForProcessExit(child), sleep(2000)]);
+      await removeDirWithRetry(userDataDir);
     },
   };
 }
@@ -439,6 +509,7 @@ async function preparePage(session, locale, viewportName, fixture) {
   await session.open();
   await session.send("Page.enable");
   await session.send("Runtime.enable");
+  await session.send("Page.bringToFront");
   await session.send("Emulation.setLocaleOverride", {
     locale: languageTags[0].replace(/-/g, "_"),
   });
@@ -486,6 +557,26 @@ async function preparePage(session, locale, viewportName, fixture) {
         window.addEventListener("unhandledrejection", (event) => {
           pushCaptureLog("error", ["unhandledrejection", event.reason]);
         });
+
+        try {
+          Object.defineProperty(document, "hidden", {
+            configurable: true,
+            get: () => false,
+          });
+          Object.defineProperty(document, "visibilityState", {
+            configurable: true,
+            get: () => "visible",
+          });
+          document.addEventListener(
+            "visibilitychange",
+            (event) => {
+              event.stopImmediatePropagation();
+            },
+            true,
+          );
+        } catch {
+          // Best-effort: keep store snapshot captures in a foreground-like state.
+        }
 
         const applySnapshotViewportHeight = () => {
           const snapshotHeight = "${viewport.height}px";
@@ -626,7 +717,12 @@ async function waitForShot(session, shot) {
   await sleep(shotConfig.settleMs);
 }
 
-async function captureShot({ locale, shot, options, localeDir }) {
+function getOutputFileName(locale, shot) {
+  const shotConfig = SHOT_CONFIG[shot];
+  return shotConfig.localized ? `${locale}-${shot}.png` : `${shot}.png`;
+}
+
+async function captureShot({ locale, shot, options }) {
   const fixture = await loadFixture(shot);
   const session = await createPage(options.cdpPort);
 
@@ -636,10 +732,17 @@ async function captureShot({ locale, shot, options, localeDir }) {
     await navigate(session, shotUrl.toString());
     await waitForShot(session, shot);
 
-    const filePath = path.join(localeDir, `${shot}.png`);
+    const filePath = path.join(options.outDir, getOutputFileName(locale, shot));
     await capture(session, filePath);
-    console.log(`[store-snapshot] ${locale}/${shot} -> ${path.relative(repoRoot, filePath)}`);
+    console.log(
+      `[store-snapshot] ${locale}/${shot} -> ${path.relative(repoRoot, filePath)}`,
+    );
   } finally {
+    try {
+      await session.send("Page.close");
+    } catch {
+      // Ignore close failures; the WebSocket is still closed below.
+    }
     session.close();
   }
 }
@@ -660,12 +763,15 @@ async function main() {
 
     chrome = await startChrome(options);
 
-    for (const locale of options.locales) {
-      const localeDir = path.join(options.outDir, locale);
-      await mkdir(localeDir, { recursive: true });
+    for (const shot of options.shots) {
+      const shotConfig = SHOT_CONFIG[shot];
 
-      for (const shot of options.shots) {
-        await captureShot({ locale, shot, options, localeDir });
+      if (shotConfig.localized) {
+        for (const locale of options.locales) {
+          await captureShot({ locale, shot, options });
+        }
+      } else {
+        await captureShot({ locale: options.locales[0], shot, options });
       }
     }
 

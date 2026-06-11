@@ -38,13 +38,13 @@
 						"object": {
 							"id": 1001,
 							"type": 1,
-							"state": 1
+							"state": 0
 						},
 						"characterStatus": {
-							"characterKey": 2,
-							"stamina": 8.2,
-							"evolutionGage": 72,
-							"evolutionPhase": 2,
+							"characterKey": 1,
+							"stamina": 10,
+							"evolutionGage": 0,
+							"evolutionPhase": 1,
 							"statuses": [
 								0,
 								0,
@@ -53,30 +53,37 @@
 							]
 						},
 						"position": {
-							"x": 160,
+							"x": 180,
 							"y": 160
 						},
 						"render": {
-							"textureKey": 0,
+							"textureKey": 512,
 							"scale": 3,
 							"zIndex": 0
+						},
+						"eggHatch": {
+							"hatchTime": 4102448400000,
+							"hatchDurationMs": 3600000,
+							"isReadyToHatch": false,
+							"syringeCount": 0,
+							"pendingCharacterKey": 0
 						}
 					}
 				},
 				{
 					"components": {
 						"object": {
-							"id": 2101,
+							"id": 2105,
 							"type": 3,
 							"state": 2
 						},
 						"position": {
-							"x": 88,
-							"y": 224
+							"x": 90,
+							"y": 220
 						},
 						"render": {
-							"textureKey": 400,
-							"scale": 1.38,
+							"textureKey": 401,
+							"scale": 1.34,
 							"zIndex": 0
 						},
 						"freshness": {
@@ -93,38 +100,17 @@
 				{
 					"components": {
 						"object": {
-							"id": 3101,
-							"type": 4,
-							"state": 0
-						},
-						"position": {
-							"x": 244,
-							"y": 214
-						},
-						"angle": {
-							"value": 0
-						},
-						"render": {
-							"textureKey": 200,
-							"scale": 1.58,
-							"zIndex": 0
-						}
-					}
-				},
-				{
-					"components": {
-						"object": {
-							"id": 2102,
+							"id": 2106,
 							"type": 3,
 							"state": 2
 						},
 						"position": {
 							"x": 286,
-							"y": 142
+							"y": 146
 						},
 						"render": {
-							"textureKey": 409,
-							"scale": 1.42,
+							"textureKey": 408,
+							"scale": 1.38,
 							"zIndex": 0
 						},
 						"freshness": {

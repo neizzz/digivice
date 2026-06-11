@@ -38,11 +38,11 @@
 						"object": {
 							"id": 1001,
 							"type": 1,
-							"state": 1
+							"state": 6
 						},
 						"characterStatus": {
 							"characterKey": 2,
-							"stamina": 8.2,
+							"stamina": 0,
 							"evolutionGage": 72,
 							"evolutionPhase": 2,
 							"statuses": [
@@ -57,8 +57,34 @@
 							"y": 160
 						},
 						"render": {
-							"textureKey": 0,
+							"textureKey": 301,
 							"scale": 3,
+							"zIndex": 0
+						},
+						"vitality": {
+							"urgentStartTime": 0,
+							"deathTime": 1769900400000,
+							"isDead": true
+						}
+					}
+				},
+				{
+					"components": {
+						"object": {
+							"id": 3104,
+							"type": 4,
+							"state": 0
+						},
+						"position": {
+							"x": 94,
+							"y": 220
+						},
+						"angle": {
+							"value": 0
+						},
+						"render": {
+							"textureKey": 200,
+							"scale": 1.6,
 							"zIndex": 0
 						}
 					}
@@ -66,17 +92,17 @@
 				{
 					"components": {
 						"object": {
-							"id": 2101,
+							"id": 2107,
 							"type": 3,
 							"state": 2
 						},
 						"position": {
-							"x": 88,
-							"y": 224
+							"x": 246,
+							"y": 214
 						},
 						"render": {
-							"textureKey": 400,
-							"scale": 1.38,
+							"textureKey": 406,
+							"scale": 1.45,
 							"zIndex": 0
 						},
 						"freshness": {
@@ -93,38 +119,17 @@
 				{
 					"components": {
 						"object": {
-							"id": 3101,
-							"type": 4,
-							"state": 0
-						},
-						"position": {
-							"x": 244,
-							"y": 214
-						},
-						"angle": {
-							"value": 0
-						},
-						"render": {
-							"textureKey": 200,
-							"scale": 1.58,
-							"zIndex": 0
-						}
-					}
-				},
-				{
-					"components": {
-						"object": {
-							"id": 2102,
+							"id": 2108,
 							"type": 3,
 							"state": 2
 						},
 						"position": {
 							"x": 286,
-							"y": 142
+							"y": 148
 						},
 						"render": {
 							"textureKey": 409,
-							"scale": 1.42,
+							"scale": 1.38,
 							"zIndex": 0
 						},
 						"freshness": {
