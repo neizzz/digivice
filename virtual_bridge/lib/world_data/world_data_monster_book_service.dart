@@ -1,9 +1,6 @@
 import 'dart:convert';
 
-import 'world_data_evolution_specs.dart';
-
-const int worldDataMonsterBookMaxRecordsPerCharacter = 50;
-const String worldDataMonsterBookWriteOwner = 'flutter_lifecycle';
+import 'world_data_constants.dart';
 
 class WorldDataMonsterBookService {
   const WorldDataMonsterBookService._();

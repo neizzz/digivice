@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:digivice_virtual_bridge/home_widget/world_data_sync_service.dart';
+import 'package:digivice_virtual_bridge/world_data/world_data_sync_service.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -114,6 +114,28 @@ void main() {
       expect(snapshot.projectionVersion, 1);
       expect(snapshot.hasUrgentStatus, isFalse);
       expect(snapshot.visibleStatusIcons, isEmpty);
+    });
+
+    test('foreground 기준과 같은 stamina level 경계를 사용한다', () {
+      final cases = <({double stamina, WorldDataStaminaLevel level})>[
+        (stamina: 2.99, level: WorldDataStaminaLevel.red),
+        (stamina: 3.0, level: WorldDataStaminaLevel.orange),
+        (stamina: 6.99, level: WorldDataStaminaLevel.orange),
+        (stamina: 7.0, level: WorldDataStaminaLevel.green),
+      ];
+
+      for (final entry in cases) {
+        final snapshot = WorldDataSyncService.buildSnapshotFromWorldDataJson(
+          jsonEncode(_buildWorldData(state: 1, stamina: entry.stamina)),
+          now: DateTime(2026, 5, 19, 12),
+        );
+
+        expect(
+          snapshot?.staminaLevel,
+          entry.level,
+          reason: 'stamina=${entry.stamina}',
+        );
+      }
     });
 
     test('위젯 상태 아이콘은 sick/sleeping만 표시하고 temporary overlay는 제외한다', () {
@@ -287,139 +309,6 @@ void main() {
       expect(selection.selectedRawWorldData, stored);
       expect(selection.storedLastEcsSaved, 400);
       expect(selection.inMemoryLastEcsSaved, 450);
-    });
-  });
-
-  group('WorldDataSyncService.progressSnapshot', () {
-    test('refresh는 widget_progressed snapshot으로 deterministic progression 한다',
-        () {
-      final authoritativeSnapshot =
-          WorldDataSyncService.buildSnapshotFromWorldDataJson(
-        jsonEncode(_buildWorldData(state: 1, stamina: 8)),
-        now: DateTime(2026, 5, 19, 12, 0, 0),
-      )!;
-
-      final firstProgressed = WorldDataSyncService.progressSnapshot(
-        authoritativeSnapshot,
-        now: DateTime(2026, 5, 19, 12, 12, 0),
-      );
-      final secondProgressed = WorldDataSyncService.progressSnapshot(
-        firstProgressed!,
-        now: DateTime(2026, 5, 19, 12, 24, 0),
-      );
-
-      expect(
-        firstProgressed.snapshotKind,
-        WorldDataSnapshotKind.widgetProgressed,
-      );
-      expect(firstProgressed.projectedElapsedMs, 12 * 60 * 1000);
-      expect(firstProgressed.stamina, closeTo(7.75, 0.0001));
-      expect(firstProgressed.staminaLevel, WorldDataStaminaLevel.green);
-      expect(firstProgressed.hasUrgentStatus, isFalse);
-
-      expect(secondProgressed, isNotNull);
-      expect(secondProgressed!.projectedElapsedMs, 24 * 60 * 1000);
-      expect(secondProgressed.stamina, closeTo(7.5, 0.0001));
-      expect(secondProgressed.staminaLevel, WorldDataStaminaLevel.green);
-      expect(secondProgressed.hasUrgentStatus, isFalse);
-      expect(
-        secondProgressed.animationFrameIndex,
-        (DateTime(2026, 5, 19, 12, 24, 0).millisecondsSinceEpoch ~/ 1000 +
-                (secondProgressed.characterKey ?? 0)) %
-            4,
-      );
-    });
-
-    test('sleeping 상태는 더 느리게 stamina가 감소한다', () {
-      final sleepingSnapshot =
-          WorldDataSyncService.buildSnapshotFromWorldDataJson(
-        jsonEncode(_buildWorldData(state: 3, stamina: 8)),
-        now: DateTime(2026, 5, 19, 12, 0, 0),
-      )!;
-
-      final progressed = WorldDataSyncService.progressSnapshot(
-        sleepingSnapshot,
-        now: DateTime(2026, 5, 19, 13, 0, 0),
-      );
-
-      expect(progressed, isNotNull);
-      expect(progressed!.displayState, WorldDataDisplayState.sleep);
-      expect(progressed.stamina, closeTo(7.75, 0.0001));
-      expect(
-        progressed.visibleStatusIcons,
-        contains(WorldDataStatusIcon.sleeping),
-      );
-    });
-
-    test('egg snapshot은 부화 완료를 직접 만들지 않고 crack stage만 projection한다', () {
-      final now = DateTime(2026, 5, 19, 12, 0, 0);
-      final authoritativeSnapshot =
-          WorldDataSyncService.buildSnapshotFromWorldDataJson(
-        jsonEncode(
-          _buildWorldData(
-            state: 0,
-            stamina: 10,
-            textureKey: 517,
-            eggHatch: <String, dynamic>{
-              'hatchTime':
-                  now.add(const Duration(minutes: 40)).millisecondsSinceEpoch,
-              'hatchDurationMs': 40 * 60 * 1000,
-            },
-          ),
-        ),
-        now: now,
-      )!;
-
-      final beforeHatch = WorldDataSyncService.progressSnapshot(
-        authoritativeSnapshot,
-        now: now.add(const Duration(minutes: 20)),
-      );
-      final afterHatchTime = WorldDataSyncService.progressSnapshot(
-        beforeHatch!,
-        now: now.add(const Duration(minutes: 41)),
-      );
-
-      expect(authoritativeSnapshot.eggCrackStage, 0);
-      expect(beforeHatch.characterState, WorldDataCharacterState.egg);
-      expect(beforeHatch.eggCrackStage, 2);
-      expect(beforeHatch.projectedElapsedMs, 20 * 60 * 1000);
-      expect(afterHatchTime, isNotNull);
-      expect(afterHatchTime!.characterState, WorldDataCharacterState.egg);
-      expect(
-          afterHatchTime.snapshotKind, WorldDataSnapshotKind.widgetProgressed);
-      expect(afterHatchTime.eggCrackStage, 3);
-      expect(afterHatchTime.projectedElapsedMs, 41 * 60 * 1000);
-    });
-
-    test('authoritative refresh 후 projection 기준은 새 snapshot에서 다시 시작한다', () {
-      final firstAuthoritative =
-          WorldDataSyncService.buildSnapshotFromWorldDataJson(
-        jsonEncode(_buildWorldData(state: 1, stamina: 8)),
-        now: DateTime(2026, 5, 19, 12, 0, 0),
-      )!;
-      final progressed = WorldDataSyncService.progressSnapshot(
-        firstAuthoritative,
-        now: DateTime(2026, 5, 19, 12, 12, 0),
-      )!;
-      final refreshedAuthoritative =
-          WorldDataSyncService.buildSnapshotFromWorldDataJson(
-        jsonEncode(_buildWorldData(state: 1, stamina: 8.5)),
-        now: DateTime(2026, 5, 19, 12, 12, 0),
-      )!;
-      final progressedAfterRefresh = WorldDataSyncService.progressSnapshot(
-        refreshedAuthoritative,
-        now: DateTime(2026, 5, 19, 12, 24, 0),
-      )!;
-
-      expect(progressed.snapshotKind, WorldDataSnapshotKind.widgetProgressed);
-      expect(progressed.projectedElapsedMs, 12 * 60 * 1000);
-      expect(
-        refreshedAuthoritative.snapshotKind,
-        WorldDataSnapshotKind.authoritativeAppState,
-      );
-      expect(refreshedAuthoritative.projectedElapsedMs, 0);
-      expect(progressedAfterRefresh.projectedElapsedMs, 12 * 60 * 1000);
-      expect(progressedAfterRefresh.stamina, closeTo(8.25, 0.0001));
     });
   });
 

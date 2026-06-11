@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:digivice_virtual_bridge/home_widget/world_data_sync_service.dart';
+import 'package:digivice_virtual_bridge/world_data/world_data_sync_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Map<String, dynamic> _buildWorldData({

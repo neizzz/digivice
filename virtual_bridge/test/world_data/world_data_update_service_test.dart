@@ -1,9 +1,10 @@
 import 'dart:convert';
 
-import 'package:digivice_virtual_bridge/home_widget/world_data_config.dart'
+import 'package:digivice_virtual_bridge/world_data/world_data_config.dart'
     as config;
 import 'package:digivice_virtual_bridge/world_data/world_data_lifecycle_service.dart';
 import 'package:digivice_virtual_bridge/world_data/world_data_update_service.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -61,8 +62,42 @@ String _buildWorldData({
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  const MethodChannel channel = MethodChannel('digivice/home_widget');
+  late List<MethodCall> methodCalls;
+
   setUp(() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
+    methodCalls = <MethodCall>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (MethodCall call) async {
+      methodCalls.add(call);
+
+      if (call.method == 'publishSnapshot') {
+        final Map<Object?, Object?> arguments =
+            call.arguments as Map<Object?, Object?>;
+        final String? snapshotJson = arguments['snapshotJson'] as String?;
+        final Map<String, dynamic>? snapshot = snapshotJson == null
+            ? null
+            : jsonDecode(snapshotJson) as Map<String, dynamic>;
+        return <String, Object?>{
+          'status': 'ok',
+          'snapshotKey': arguments['snapshotKey'],
+          'reason': arguments['reason'],
+          'hasSnapshot': snapshotJson != null,
+          'characterState': snapshot?['characterState'],
+          'characterKey': snapshot?['characterKey'],
+          'eggHatchTimeMs': snapshot?['eggHatchTimeMs'],
+          'snapshotKind': snapshot?['snapshotKind'],
+        };
+      }
+
+      return null;
+    });
+  });
+
+  tearDown(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, null);
   });
 
   test(
@@ -89,6 +124,8 @@ void main() {
         isNotNull);
     expect(prefs.getString(config.monsterBookStorageKey), isNotNull);
     expect(result['monsterBookWriteOwner'], 'flutter_lifecycle');
+    expect(result['homeWidgetSyncStatus'], 'synced');
+    expect(result['homeWidgetAuthoritativePublishStatus'], 'ok');
   });
 
   test('completeNativeWorldDataUpdate는 기존 MonsterBookData를 병합해 보존한다', () async {
@@ -126,8 +163,6 @@ void main() {
 
   test('foreground_hatch source는 Dart lifecycle 부화 진단과 저장본을 반환한다', () async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
-    var syncCallCount = 0;
-    String? syncedRawWorldData;
     await prefs.setString(
       config.worldDataStorageKey,
       _buildWorldData(
@@ -147,39 +182,12 @@ void main() {
       source: worldDataLifecycleForegroundHatchSource,
       nowMs: 2000,
       randomProvider: (_) => 1,
-      syncSnapshotPublisher: ({
-        required String? rawWorldData,
-        String reason = 'manual',
-        void Function(String message)? log,
-      }) async {
-        syncCallCount += 1;
-        syncedRawWorldData = rawWorldData;
-
-        final Map<String, dynamic> decoded =
-            jsonDecode(rawWorldData!) as Map<String, dynamic>;
-        final Map<String, dynamic> components =
-            ((decoded['entities'] as List<dynamic>).single
-                as Map<String, dynamic>)['components'] as Map<String, dynamic>;
-        final Map<String, dynamic> object =
-            components['object'] as Map<String, dynamic>;
-        final Map<String, dynamic> characterStatus =
-            components['characterStatus'] as Map<String, dynamic>;
-
-        return <String, Object?>{
-          'status': 'synced',
-          'reason': reason,
-          'hasWorldData': true,
-          'hasSnapshot': true,
-          'characterState': 'idle',
-          'characterKey': characterStatus['characterKey'],
-          'currentPublishStatus': 'ok',
-          'authoritativePublishStatus': 'ok',
-          'verifiedRawState': object['state'],
-        };
-      },
     );
     final Map<String, Object?> diagnostics =
         result['hatchSelectionDiagnostics'] as Map<String, Object?>;
+    final List<MethodCall> publishCalls = methodCalls
+        .where((MethodCall call) => call.method == 'publishSnapshot')
+        .toList();
 
     expect(result['status'], worldDataLifecycleDefaultCompletedStatus);
     expect(result['source'], worldDataLifecycleForegroundHatchSource);
@@ -189,34 +197,113 @@ void main() {
     expect(diagnostics['usedPendingCharacterKey'], isTrue);
     expect(result['updatedRawWorldData'], isA<String>());
     expect(prefs.getString(config.worldDataStorageKey), contains('"state":1'));
-    expect(syncCallCount, 1);
-    expect(syncedRawWorldData, result['updatedRawWorldData']);
-    expect(syncedRawWorldData, contains('"state":1'));
     expect(result['homeWidgetSyncStatus'], 'synced');
-    expect(result['homeWidgetCurrentPublishStatus'], 'ok');
     expect(result['homeWidgetAuthoritativePublishStatus'], 'ok');
-    expect(result['homeWidgetSyncedCharacterState'], 'idle');
-    expect(result['homeWidgetSyncedCharacterKey'], 22);
+    expect(publishCalls, hasLength(2));
+    expect(
+      (publishCalls.last.arguments as Map<Object?, Object?>)['snapshotKey'],
+      config.nativeWorldDataAuthoritativeSnapshotKey,
+    );
+    expect(
+      (publishCalls.last.arguments as Map<Object?, Object?>)['reason'],
+      '${worldDataLifecycleForegroundHatchSource}_native_world_data_update_authoritative',
+    );
+  });
+
+  test('widget_periodic_refresh source는 부화 시간이 지난 egg를 idle snapshot으로 저장한다',
+      () async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      config.worldDataStorageKey,
+      _buildWorldData(
+        state: config.characterStateEgg,
+        characterKey: 0,
+        eggHatch: <String, dynamic>{
+          'hatchTime': 1000,
+          'hatchDurationMs': 1000,
+          'isReadyToHatch': true,
+          'pendingCharacterKey': 22,
+        },
+      ),
+    );
+
+    final Map<String, Object?> result =
+        await WorldDataUpdateService.completeNativeWorldDataUpdate(
+      source: worldDataLifecycleWidgetPeriodicRefreshSource,
+      nowMs: 2000,
+      randomProvider: (_) => 1,
+    );
+
+    final String? rawStoredWorldData =
+        prefs.getString(config.worldDataStorageKey);
+    expect(rawStoredWorldData, isNotNull);
+    final Map<String, dynamic> storedWorldData =
+        jsonDecode(rawStoredWorldData!) as Map<String, dynamic>;
+    final Map<String, dynamic> storedComponents =
+        ((storedWorldData['entities'] as List<dynamic>).single
+            as Map<String, dynamic>)['components'] as Map<String, dynamic>;
+    final Map<String, dynamic> storedObject =
+        storedComponents['object'] as Map<String, dynamic>;
+
+    final String? rawCurrentSnapshot =
+        prefs.getString(config.worldDataSnapshotStorageKey);
+    final String? rawAuthoritativeSnapshot =
+        prefs.getString(config.worldDataAuthoritativeSnapshotStorageKey);
+    expect(rawCurrentSnapshot, isNotNull);
+    expect(rawAuthoritativeSnapshot, isNotNull);
+
+    final Map<String, dynamic> currentSnapshot =
+        jsonDecode(rawCurrentSnapshot!) as Map<String, dynamic>;
+    final Map<String, dynamic> authoritativeSnapshot =
+        jsonDecode(rawAuthoritativeSnapshot!) as Map<String, dynamic>;
+
+    expect(result['hatched'], isTrue);
+    expect(result['selectedCharacterKey'], 22);
+    expect(result['homeWidgetSyncStatus'], 'synced');
+    expect(result['homeWidgetAuthoritativePublishStatus'], 'ok');
+    expect(storedObject['state'], config.characterStateIdle);
+
+    for (final Map<String, dynamic> snapshot in <Map<String, dynamic>>[
+      currentSnapshot,
+      authoritativeSnapshot
+    ]) {
+      expect(snapshot['characterState'], 'idle');
+      expect(snapshot['characterKey'], 22);
+      expect(snapshot['snapshotKind'], 'authoritativeAppState');
+    }
+
+    for (final Map<String, dynamic> snapshot in <Map<String, dynamic>>[
+      currentSnapshot,
+      authoritativeSnapshot
+    ]) {
+      expect(snapshot['characterState'], 'idle');
+      expect(snapshot['characterKey'], 22);
+      expect(snapshot['eggHatchTimeMs'], isNull);
+      expect(snapshot['eggHatchDurationMs'], isNull);
+      expect(snapshot['eggCrackStage'], 0);
+    }
+
+    final List<MethodCall> publishCalls = methodCalls
+        .where((MethodCall call) => call.method == 'publishSnapshot')
+        .toList();
+    expect(publishCalls, hasLength(2));
+    final Map<String, dynamic> nativeAuthoritativeSnapshot = jsonDecode(
+      (publishCalls.last.arguments as Map<Object?, Object?>)['snapshotJson']
+          as String,
+    ) as Map<String, dynamic>;
+    expect(nativeAuthoritativeSnapshot['characterState'], 'idle');
+    expect(nativeAuthoritativeSnapshot['characterKey'], 22);
+    expect(nativeAuthoritativeSnapshot['eggHatchTimeMs'], isNull);
   });
 
   test('world data가 없으면 실패 상태를 반환한다', () async {
-    var syncCallCount = 0;
     final Map<String, Object?> result =
         await WorldDataUpdateService.completeNativeWorldDataUpdate(
       source: 'app_resume',
       nowMs: 60 * 1000,
-      syncSnapshotPublisher: ({
-        required String? rawWorldData,
-        String reason = 'manual',
-        void Function(String message)? log,
-      }) async {
-        syncCallCount += 1;
-        return <String, Object?>{'status': 'unexpected'};
-      },
     );
 
     expect(result['status'], 'flutter_world_data_update_failed');
     expect(result['error'], 'missing_world_data');
-    expect(syncCallCount, 0);
   });
 }

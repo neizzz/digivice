@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
-import 'world_data_sync_service.dart';
+import '../world_data/world_data_sync_service.dart';
 
 class HomeWidgetRefreshController {
   static const MethodChannel _platformChannel = MethodChannel(
