@@ -69,6 +69,31 @@ function isTemporaryStatus(status: CharacterStatus): boolean {
   return TEMPORARY_STATUSES.includes(status);
 }
 
+function setTemporaryStatusMetadata(
+  eid: number,
+  status: CharacterStatus,
+  currentTime: number,
+  world: MainSceneWorld | null,
+): void {
+  if (
+    world &&
+    hasComponent(world, ObjectComp, eid) &&
+    !hasComponent(world, TemporaryStatusComp, eid)
+  ) {
+    addComponent(world, TemporaryStatusComp, eid);
+  }
+
+  TemporaryStatusComp.statusType[eid] = status;
+  TemporaryStatusComp.startTime[eid] = currentTime;
+  if (status === CharacterStatus.HAPPY) {
+    TemporaryStatusComp.lastHappyStatusTime[eid] = currentTime;
+  }
+
+  debugLog(
+    `[addCharacterStatus] Set temporary status ${status} for entity ${eid}, expires at ${currentTime + 3000}`,
+  );
+}
+
 export function characterManagerSystem(params: {
   world: MainSceneWorld;
   delta: number;
@@ -198,25 +223,15 @@ export function addCharacterStatus(
 ): boolean {
   const currentStatuses = CharacterStatusComp.statuses[eid];
   const currentTime = world?.currentTime ?? Date.now();
+  const isTemporary = isTemporaryStatus(status);
   debugLog(
     `[addCharacterStatus] Current statuses for entity ${eid}:`,
     Array.from(currentStatuses),
   );
 
-  if (
-    isTemporaryStatus(status) &&
-    ObjectComp.state[eid] === CharacterState.SLEEPING
-  ) {
+  if (isTemporary && ObjectComp.state[eid] === CharacterState.SLEEPING) {
     debugLog(
       `[addCharacterStatus] Skipped temporary status ${status} for sleeping entity ${eid}`,
-    );
-    return false;
-  }
-
-  // 이미 해당 상태가 있는지 확인
-  if (currentStatuses.includes(status)) {
-    debugLog(
-      `[addCharacterStatus] Status ${status} already exists for entity ${eid}`,
     );
     return false;
   }
@@ -236,30 +251,28 @@ export function addCharacterStatus(
     }
   }
 
+  // 이미 해당 상태가 있는지 확인
+  if (currentStatuses.includes(status)) {
+    debugLog(
+      `[addCharacterStatus] Status ${status} already exists for entity ${eid}`,
+    );
+
+    if (isTemporary) {
+      setTemporaryStatusMetadata(eid, status, currentTime, world);
+      return true;
+    }
+
+    return false;
+  }
+
   // 첫 번째 빈 슬롯(ECS_NULL_VALUE)에 상태 추가
   for (let i = 0; i < currentStatuses.length; i++) {
     if (currentStatuses[i] === ECS_NULL_VALUE) {
       currentStatuses[i] = status;
 
       // 일시적 상태인 경우 TemporaryStatusComp 직접 설정
-      if (isTemporaryStatus(status)) {
-        if (
-          world &&
-          hasComponent(world, ObjectComp, eid) &&
-          !hasComponent(world, TemporaryStatusComp, eid)
-        ) {
-          addComponent(world, TemporaryStatusComp, eid);
-        }
-
-        TemporaryStatusComp.statusType[eid] = status;
-        TemporaryStatusComp.startTime[eid] = currentTime;
-        if (status === CharacterStatus.HAPPY) {
-          TemporaryStatusComp.lastHappyStatusTime[eid] = currentTime;
-        }
-
-        debugLog(
-          `[addCharacterStatus] Set temporary status ${status} for entity ${eid}, expires at ${currentTime + 3000}`,
-        );
+      if (isTemporary) {
+        setTemporaryStatusMetadata(eid, status, currentTime, world);
       }
 
       debugLog(
@@ -273,6 +286,12 @@ export function addCharacterStatus(
   console.warn(
     `[addCharacterStatus] No empty slot available for entity ${eid} to add status ${status}`,
   );
+
+  if (isTemporary) {
+    setTemporaryStatusMetadata(eid, status, currentTime, world);
+    return true;
+  }
+
   return false;
 }
 

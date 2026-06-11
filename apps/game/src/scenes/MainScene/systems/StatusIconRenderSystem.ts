@@ -318,11 +318,16 @@ function getTemporaryStatusFromComponent(eid: number): CharacterStatus | null {
 function collectEffectiveStatuses(eid: number): CharacterStatus[] {
   const statuses = CharacterStatusComp.statuses[eid];
   const allStatuses: CharacterStatus[] = [];
+  const temporaryStatus = getTemporaryStatusFromComponent(eid);
   let hasSickStatus = false;
 
   for (let j = 0; j < statuses.length; j++) {
     const status = statuses[j];
     if (status === ECS_NULL_VALUE) {
+      continue;
+    }
+
+    if (temporaryStatus !== null && status === temporaryStatus) {
       continue;
     }
 
@@ -332,11 +337,7 @@ function collectEffectiveStatuses(eid: number): CharacterStatus[] {
     allStatuses.push(status);
   }
 
-  const temporaryStatus = getTemporaryStatusFromComponent(eid);
-  if (
-    temporaryStatus !== null &&
-    !allStatuses.includes(temporaryStatus)
-  ) {
+  if (temporaryStatus !== null) {
     allStatuses.push(temporaryStatus);
   }
 

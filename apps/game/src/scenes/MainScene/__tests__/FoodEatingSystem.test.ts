@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { addComponent, addEntity, hasComponent, removeComponent } from "bitecs";
+import * as PIXI from "pixi.js";
 import {
   AngleComp,
   CharacterStatusComp,
@@ -14,6 +15,8 @@ import {
   RenderComp,
   SleepSystemComp,
   SpeedComp,
+  StatusIconRenderComp,
+  TemporaryStatusComp,
 } from "../raw-components";
 import { GAME_CONSTANTS } from "../config";
 import { getCharacterStats } from "../characterStats";
@@ -30,6 +33,7 @@ import { commonMovementSystem } from "../systems/CommonMovementSystem";
 import {
   CharacterKeyECS,
   CharacterState,
+  CharacterStatus,
   SleepMode,
   SleepReason,
   FoodState,
@@ -40,16 +44,23 @@ import {
 import {
   createTestCharacter,
   createTestWorld,
+  setWorldTime,
   withMockedDateNow,
 } from "../../../test-utils/mainSceneTestUtils";
 import { getCharacterWorldBounds } from "../systems/CharacterDisplayBounds";
 import { TimeOfDay } from "../timeOfDay";
+import {
+  cleanupStatusIconRenderStateForTests,
+  statusIconRenderSystem,
+} from "../systems/StatusIconRenderSystem";
 
 const EATING_POSE_FOOD_Y_OFFSET_PX = 1;
 const FOOD_CHARACTER_BOUNDARY_OVERLAP_PX = 30;
 const FALLBACK_SOURCE_SIZE = 16;
 const DEFAULT_LANDED_FOOD_SCALE = 1.4;
 const ZERO_DISTANCE_EPSILON = 0.001;
+const MOCK_HAPPY_STATUS_TEXTURE = PIXI.Texture.WHITE;
+const MOCK_DISCOVER_STATUS_TEXTURE = PIXI.Texture.EMPTY;
 
 function createLandedFood(
   world: ReturnType<typeof createTestWorld>,
@@ -237,6 +248,58 @@ function assertAngleClose(actual: number, expected: number): void {
   );
 }
 
+function withMockedStatusIconSprites<T>(fn: () => T): T {
+  const originalGet = PIXI.Assets.get.bind(PIXI.Assets);
+  const dummySpritesheet = {
+    textures: {
+      happy: MOCK_HAPPY_STATUS_TEXTURE,
+      discover: MOCK_DISCOVER_STATUS_TEXTURE,
+      sick: PIXI.Texture.WHITE,
+      sleeping: PIXI.Texture.WHITE,
+    },
+  } as unknown as PIXI.Spritesheet;
+
+  (PIXI.Assets as typeof PIXI.Assets & { get: typeof PIXI.Assets.get }).get = ((
+    key: string,
+  ) => {
+    if (key === "common16x16") {
+      return dummySpritesheet;
+    }
+
+    return originalGet(key);
+  }) as typeof PIXI.Assets.get;
+
+  try {
+    return fn();
+  } finally {
+    (PIXI.Assets as typeof PIXI.Assets & { get: typeof PIXI.Assets.get }).get =
+      originalGet;
+    cleanupStatusIconRenderStateForTests();
+  }
+}
+
+function renderStatusIcons(
+  world: ReturnType<typeof createTestWorld>,
+  characterEid: number,
+  expectedTexture: PIXI.Texture,
+): void {
+  const renderWorld = world as ReturnType<typeof createTestWorld> & {
+    stage: PIXI.Container;
+  };
+  renderWorld.stage = new PIXI.Container();
+
+  statusIconRenderSystem({
+    world: world as any,
+    delta: 16,
+  });
+
+  assert.equal(StatusIconRenderComp.visibleCount[characterEid], 1);
+  assert.equal(renderWorld.stage.children.length, 1);
+  const sprite = renderWorld.stage.children[0];
+  assert.ok(sprite instanceof PIXI.Sprite);
+  assert.equal(sprite.texture, expectedTexture);
+}
+
 function moveToDestinationAndStartEating(
   world: ReturnType<typeof createTestWorld>,
   characterEid: number,
@@ -277,6 +340,98 @@ function moveToDestinationAndStartEating(
     foodEid,
   };
 }
+
+test("배고픈 캐릭터가 근처 음식을 발견하면 discover 임시 상태가 렌더링된다", () => {
+  withMockedStatusIconSprites(() => {
+    const world = createTestWorld({ now: 60_000 });
+    const characterEid = withMockedDateNow(60_000, () =>
+      createTestCharacter(world, {
+        state: CharacterState.IDLE,
+        stamina: 3,
+        x: 100,
+        y: 130,
+      }),
+    );
+    createLandedFood(world, { x: 104, y: 115 });
+
+    CharacterStatusComp.statuses[characterEid][0] = CharacterStatus.DISCOVER;
+    TemporaryStatusComp.statusType[characterEid] = ECS_NULL_VALUE;
+    TemporaryStatusComp.startTime[characterEid] = 0;
+
+    foodEatingSystem({
+      world: world as any,
+      delta: 0,
+      currentTime: world.currentTime,
+    });
+
+    assert.ok(
+      Array.from(CharacterStatusComp.statuses[characterEid]).includes(
+        CharacterStatus.DISCOVER,
+      ),
+    );
+    assert.equal(
+      TemporaryStatusComp.statusType[characterEid],
+      CharacterStatus.DISCOVER,
+    );
+    assert.equal(TemporaryStatusComp.startTime[characterEid], 60_000);
+
+    renderStatusIcons(world, characterEid, MOCK_DISCOVER_STATUS_TEXTURE);
+  });
+});
+
+test("음식 섭취로 스태미나가 MAX가 되면 happy 임시 상태가 discover보다 우선 렌더링된다", () => {
+  withMockedStatusIconSprites(() => {
+    const world = createTestWorld({ now: 70_000 });
+    const characterEid = withMockedDateNow(70_000, () =>
+      createTestCharacter(world, {
+        state: CharacterState.IDLE,
+        stamina: GAME_CONSTANTS.MAX_STAMINA - 1,
+        x: 100,
+        y: 130,
+      }),
+    );
+    createLandedFood(world, {
+      x: 104,
+      y: 115,
+      textureKey: TextureKey.FOOD1,
+    });
+
+    CharacterStatusComp.statuses[characterEid][0] = CharacterStatus.HAPPY;
+    TemporaryStatusComp.statusType[characterEid] = ECS_NULL_VALUE;
+    TemporaryStatusComp.startTime[characterEid] = 0;
+    TemporaryStatusComp.lastHappyStatusTime[characterEid] = 0;
+
+    foodEatingSystem({
+      world: world as any,
+      delta: 0,
+      currentTime: world.currentTime,
+    });
+    moveToDestinationAndStartEating(world, characterEid);
+    setWorldTime(world, 73_200);
+    foodEatingSystem({
+      world: world as any,
+      delta: 3_200,
+      currentTime: world.currentTime,
+    });
+
+    assert.equal(
+      CharacterStatusComp.stamina[characterEid],
+      GAME_CONSTANTS.MAX_STAMINA,
+    );
+    assert.ok(
+      Array.from(CharacterStatusComp.statuses[characterEid]).includes(
+        CharacterStatus.HAPPY,
+      ),
+    );
+    assert.equal(
+      TemporaryStatusComp.statusType[characterEid],
+      CharacterStatus.HAPPY,
+    );
+    assert.equal(TemporaryStatusComp.startTime[characterEid], 73_200);
+
+    renderStatusIcons(world, characterEid, MOCK_HAPPY_STATUS_TEXTURE);
+  });
+});
 
 test("근처 음식도 가운데로 순간이동하지 않고 경계가 겹치는 접근 지점을 목표로 이동한다", () => {
   const world = createTestWorld({ now: 10_000 });
