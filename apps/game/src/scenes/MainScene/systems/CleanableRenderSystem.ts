@@ -43,6 +43,8 @@ const CLEANING_DIM_OVERLAY_PADDING_PX = 512;
 const CLEANING_DIM_OVERLAY_ALPHA = 0.45;
 const FOCUSED_CLEANABLE_BORDER_COLOR = 0xff7dc2;
 const NON_FOCUSED_CLEANABLE_BORDER_COLOR = 0xffffff;
+const FOCUSED_CLEANABLE_BORDER_WIDTH = 4;
+const NON_FOCUSED_CLEANABLE_BORDER_WIDTH = 3;
 
 let cleaningDimOverlay: PIXI.Graphics | null = null;
 
@@ -335,7 +337,9 @@ function createOrUpdateDashedBorder(
   const borderColor = isFocused
     ? FOCUSED_CLEANABLE_BORDER_COLOR
     : NON_FOCUSED_CLEANABLE_BORDER_COLOR;
-  const lineWidth = 4;
+  const lineWidth = isFocused
+    ? FOCUSED_CLEANABLE_BORDER_WIDTH
+    : NON_FOCUSED_CLEANABLE_BORDER_WIDTH;
 
   // zIndex 설정 (포커스된 대상이 더 앞에 나오도록)
   graphics.zIndex = isFocused
