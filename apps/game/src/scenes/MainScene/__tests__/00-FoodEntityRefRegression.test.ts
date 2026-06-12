@@ -169,6 +169,7 @@ test("food를 먹는 중인 상태는 저장 후 복원해도 유지된다", () 
   ObjectComp.state[foodEid] = FoodState.BEING_INTAKEN;
   addComponent(world, FoodEatingComp, characterEid);
   FoodEatingComp.targetFood[characterEid] = foodEid;
+  FoodEatingComp.targetFoodObjectId[characterEid] = ObjectComp.id[foodEid];
   FoodEatingComp.progress[characterEid] = 0.25;
   FoodEatingComp.duration[characterEid] = 3200;
   FoodEatingComp.elapsedTime[characterEid] = 800;
@@ -191,6 +192,165 @@ test("food를 먹는 중인 상태는 저장 후 복원해도 유지된다", () 
   assert.equal(ObjectComp.state[restoredFoodEid], FoodState.BEING_INTAKEN);
   assert.ok(hasComponent(restoredWorld, FoodEatingComp, restoredCharacterEid));
   assert.equal(FoodEatingComp.targetFood[restoredCharacterEid], foodEid);
+  assert.equal(
+    FoodEatingComp.targetFoodObjectId[restoredCharacterEid],
+    ObjectComp.id[restoredFoodEid],
+  );
   assert.equal(FoodEatingComp.elapsedTime[restoredCharacterEid], 800);
   assert.ok(hasComponent(restoredWorld, FoodMaskComp, restoredFoodEid));
+});
+
+test("foodEating stable object id가 있으면 잘못된 runtime targetFood를 실제 food eid로 재매핑한다", () => {
+  const now = 21_000;
+  const world = createTestWorld({ now });
+  const characterEid = withMockedDateNow(now, () =>
+    createTestCharacter(world, {
+      state: CharacterState.EATING,
+      stamina: 2,
+      x: 140,
+      y: 120,
+    }),
+  );
+  const foodAEid = addEntity(world);
+  const foodBEid = addEntity(world);
+
+  for (const [eid, objectId, state] of [
+    [foodAEid, 201, FoodState.BEING_INTAKEN],
+    [foodBEid, 202, FoodState.LANDED],
+  ] as const) {
+    addComponent(world, ObjectComp, eid);
+    addComponent(world, PositionComp, eid);
+    addComponent(world, RenderComp, eid);
+    addComponent(world, FreshnessComp, eid);
+    ObjectComp.id[eid] = objectId;
+    ObjectComp.type[eid] = ObjectType.FOOD;
+    ObjectComp.state[eid] = state;
+    PositionComp.x[eid] = 160;
+    PositionComp.y[eid] = 120;
+    RenderComp.storeIndex[eid] = ECS_NULL_VALUE;
+    RenderComp.textureKey[eid] = TextureKey.FOOD1;
+    RenderComp.scale[eid] = 1.4;
+    RenderComp.zIndex[eid] = ECS_NULL_VALUE;
+    FreshnessComp.freshness[eid] = Freshness.NORMAL;
+  }
+
+  addComponent(world, FoodEatingComp, characterEid);
+  FoodEatingComp.targetFood[characterEid] = foodBEid;
+  FoodEatingComp.targetFoodObjectId[characterEid] = ObjectComp.id[foodAEid];
+  FoodEatingComp.progress[characterEid] = 0.25;
+  FoodEatingComp.duration[characterEid] = 3200;
+  FoodEatingComp.elapsedTime[characterEid] = 800;
+  FoodEatingComp.isActive[characterEid] = 1;
+
+  const repaired = repairLoadedFoodInteractionState(world, now);
+
+  assert.deepEqual(repaired.repairedFoods, []);
+  assert.equal(FoodEatingComp.targetFood[characterEid], foodAEid);
+  assert.equal(
+    FoodEatingComp.targetFoodObjectId[characterEid],
+    ObjectComp.id[foodAEid],
+  );
+  assert.equal(ObjectComp.state[foodAEid], FoodState.BEING_INTAKEN);
+  assert.equal(ObjectComp.state[foodBEid], FoodState.LANDED);
+});
+
+test("legacy foodEating 저장본은 BEING_INTAKEN 상태 food를 raw target보다 우선한다", () => {
+  const now = 22_000;
+  const world = createTestWorld({ now });
+  const characterEid = withMockedDateNow(now, () =>
+    createTestCharacter(world, {
+      state: CharacterState.EATING,
+      stamina: 2,
+      x: 140,
+      y: 120,
+    }),
+  );
+  const foodAEid = addEntity(world);
+  const foodBEid = addEntity(world);
+  for (const [eid, objectId, x] of [
+    [foodAEid, 301, 160],
+    [foodBEid, 302, 170],
+  ] as const) {
+    addComponent(world, ObjectComp, eid);
+    addComponent(world, PositionComp, eid);
+    addComponent(world, RenderComp, eid);
+    addComponent(world, FreshnessComp, eid);
+    ObjectComp.id[eid] = objectId;
+    ObjectComp.type[eid] = ObjectType.FOOD;
+    ObjectComp.state[eid] = FoodState.LANDED;
+    PositionComp.x[eid] = x;
+    PositionComp.y[eid] = 120;
+    RenderComp.storeIndex[eid] = ECS_NULL_VALUE;
+    RenderComp.textureKey[eid] = TextureKey.FOOD1;
+    RenderComp.scale[eid] = 1.4;
+    RenderComp.zIndex[eid] = ECS_NULL_VALUE;
+    FreshnessComp.freshness[eid] = Freshness.NORMAL;
+  }
+  ObjectComp.state[foodAEid] = FoodState.BEING_INTAKEN;
+  ObjectComp.state[foodBEid] = FoodState.LANDED;
+
+  addComponent(world, FoodEatingComp, characterEid);
+  FoodEatingComp.targetFood[characterEid] = foodBEid;
+  FoodEatingComp.progress[characterEid] = 0.25;
+  FoodEatingComp.duration[characterEid] = 3200;
+  FoodEatingComp.elapsedTime[characterEid] = 800;
+  FoodEatingComp.isActive[characterEid] = 1;
+
+  repairLoadedFoodInteractionState(world, now);
+
+  assert.equal(FoodEatingComp.targetFood[characterEid], foodAEid);
+  assert.equal(ObjectComp.state[foodAEid], FoodState.BEING_INTAKEN);
+  assert.equal(ObjectComp.state[foodBEid], FoodState.LANDED);
+});
+
+test("legacy moving-to-food 저장본은 TARGETED 상태 food를 raw target보다 우선한다", () => {
+  const now = 23_000;
+  const world = createTestWorld({ now });
+  const characterEid = withMockedDateNow(now, () =>
+    createTestCharacter(world, {
+      state: CharacterState.MOVING,
+      stamina: 2,
+      x: 140,
+      y: 120,
+    }),
+  );
+  const foodAEid = addEntity(world);
+  const foodBEid = addEntity(world);
+  for (const [eid, objectId, x] of [
+    [foodAEid, 401, 160],
+    [foodBEid, 402, 170],
+  ] as const) {
+    addComponent(world, ObjectComp, eid);
+    addComponent(world, PositionComp, eid);
+    addComponent(world, RenderComp, eid);
+    addComponent(world, FreshnessComp, eid);
+    ObjectComp.id[eid] = objectId;
+    ObjectComp.type[eid] = ObjectType.FOOD;
+    ObjectComp.state[eid] = FoodState.LANDED;
+    PositionComp.x[eid] = x;
+    PositionComp.y[eid] = 120;
+    RenderComp.storeIndex[eid] = ECS_NULL_VALUE;
+    RenderComp.textureKey[eid] = TextureKey.FOOD1;
+    RenderComp.scale[eid] = 1.4;
+    RenderComp.zIndex[eid] = ECS_NULL_VALUE;
+    FreshnessComp.freshness[eid] = Freshness.NORMAL;
+  }
+  ObjectComp.state[foodAEid] = FoodState.TARGETED;
+  ObjectComp.state[foodBEid] = FoodState.LANDED;
+
+  addComponent(world, DestinationComp, characterEid);
+  DestinationComp.type[characterEid] = DestinationType.TARGETED;
+  DestinationComp.target[characterEid] = foodBEid;
+  DestinationComp.x[characterEid] = 160;
+  DestinationComp.y[characterEid] = 120;
+
+  repairLoadedFoodInteractionState(world, now);
+
+  assert.equal(DestinationComp.target[characterEid], foodAEid);
+  assert.equal(
+    DestinationComp.targetObjectId[characterEid],
+    ObjectComp.id[foodAEid],
+  );
+  assert.equal(ObjectComp.state[foodAEid], FoodState.TARGETED);
+  assert.equal(ObjectComp.state[foodBEid], FoodState.LANDED);
 });

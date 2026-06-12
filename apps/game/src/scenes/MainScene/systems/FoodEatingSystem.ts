@@ -553,6 +553,7 @@ function moveToFood(
 
   DestinationComp.type[characterEid] = DestinationType.TARGETED;
   DestinationComp.target[characterEid] = foodEid;
+  DestinationComp.targetObjectId[characterEid] = ObjectComp.id[foodEid];
   DestinationComp.x[characterEid] = targetX;
   DestinationComp.y[characterEid] = targetY;
   setCharacterApproachAngle(world, characterEid, { x: targetX, y: targetY });
@@ -775,6 +776,7 @@ function startEating(
   }
 
   FoodEatingComp.targetFood[characterEid] = foodEid;
+  FoodEatingComp.targetFoodObjectId[characterEid] = ObjectComp.id[foodEid];
   FoodEatingComp.progress[characterEid] = 0.0;
   FoodEatingComp.duration[characterEid] = FOOD_EATING_DURATION;
   FoodEatingComp.elapsedTime[characterEid] = 0.0;

@@ -337,6 +337,7 @@ export type FreshnessComponent = {
 export type DestinationComponent = {
   type: DestinationType;
   target: number; // 대상 엔티티 ID (TARGETED인 경우 사용)
+  targetObjectId?: number; // 대상 오브젝트의 persistent id
   x: number;
   y: number;
 };
@@ -381,6 +382,7 @@ export type ThrowAnimationComponent = {
 
 export type FoodEatingComponent = {
   targetFood: number;
+  targetFoodObjectId?: number;
   progress: number;
   duration: number;
   elapsedTime: number;

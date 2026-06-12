@@ -36,6 +36,7 @@ import {
   CharacterKeyECS as CharacterKey,
   CharacterState,
   CharacterStatus,
+  DestinationType,
   Freshness,
   FoodState,
   ObjectType,
@@ -51,8 +52,10 @@ import {
   resolveEggHatchTiming,
 } from "./config";
 import {
+  findFoodEntityRefByObjectId,
   getFoodEatingEntityRef,
   getTargetedFoodEntityRef,
+  isValidFoodEntityRef,
 } from "./foodEntityRef";
 import { resolveWorldCurrentTime } from "./worldTime";
 
@@ -120,6 +123,102 @@ function shouldClearStaticEggTextureForState(
   );
 }
 
+function isStableObjectId(value: number | undefined): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
+
+function findFoodEntityByState(
+  world: IWorld,
+  objectEntities: readonly number[],
+  state: FoodState,
+  excludedFoodIds = new Set<number>(),
+): number | null {
+  for (let i = 0; i < objectEntities.length; i++) {
+    const candidateEid = objectEntities[i];
+    if (
+      !excludedFoodIds.has(candidateEid) &&
+      ObjectComp.type[candidateEid] === ObjectType.FOOD &&
+      ObjectComp.state[candidateEid] === state &&
+      isValidFoodEntityRef(world, candidateEid)
+    ) {
+      return candidateEid;
+    }
+  }
+
+  return null;
+}
+
+function resolveEatingFoodForLoadedCharacter(
+  world: IWorld,
+  objectEntities: readonly number[],
+  characterEid: number,
+  excludedFoodIds = new Set<number>(),
+): number | null {
+  if (!hasComponent(world, FoodEatingComp, characterEid)) {
+    return null;
+  }
+
+  const foodByObjectId = findFoodEntityRefByObjectId(
+    world,
+    FoodEatingComp.targetFoodObjectId[characterEid],
+  );
+  if (foodByObjectId !== null && !excludedFoodIds.has(foodByObjectId)) {
+    return foodByObjectId;
+  }
+
+  const foodBeingIntaken = findFoodEntityByState(
+    world,
+    objectEntities,
+    FoodState.BEING_INTAKEN,
+    excludedFoodIds,
+  );
+  if (foodBeingIntaken !== null) {
+    return foodBeingIntaken;
+  }
+
+  const foodByRuntimeRef = getFoodEatingEntityRef(world, characterEid);
+  return foodByRuntimeRef !== null && !excludedFoodIds.has(foodByRuntimeRef)
+    ? foodByRuntimeRef
+    : null;
+}
+
+function resolveTargetedFoodForLoadedCharacter(
+  world: IWorld,
+  objectEntities: readonly number[],
+  characterEid: number,
+  excludedFoodIds = new Set<number>(),
+): number | null {
+  if (
+    !hasComponent(world, DestinationComp, characterEid) ||
+    DestinationComp.type[characterEid] !== DestinationType.TARGETED
+  ) {
+    return null;
+  }
+
+  const foodByObjectId = findFoodEntityRefByObjectId(
+    world,
+    DestinationComp.targetObjectId[characterEid],
+  );
+  if (foodByObjectId !== null && !excludedFoodIds.has(foodByObjectId)) {
+    return foodByObjectId;
+  }
+
+  const targetedFood = findFoodEntityByState(
+    world,
+    objectEntities,
+    FoodState.TARGETED,
+    excludedFoodIds,
+  );
+  if (targetedFood !== null) {
+    return targetedFood;
+  }
+
+  const foodByRuntimeRef = getTargetedFoodEntityRef(world, characterEid);
+  return foodByRuntimeRef !== null && !excludedFoodIds.has(foodByRuntimeRef)
+    ? foodByRuntimeRef
+    : null;
+}
+
 /**
  * ECS 엔티티를 SavedEntity로 변환
  */
@@ -169,9 +268,15 @@ export function convertECSEntityToSavedEntity(
     };
   }
   if (hasComponent(world, DestinationComp, eid)) {
+    const targetFoodEid = getTargetedFoodEntityRef(world, eid);
+    const targetObjectId =
+      targetFoodEid !== null
+        ? ObjectComp.id[targetFoodEid]
+        : DestinationComp.targetObjectId[eid];
     components.destination = {
       type: DestinationComp.type[eid],
       target: DestinationComp.target[eid],
+      ...(isStableObjectId(targetObjectId) ? { targetObjectId } : {}),
       x: DestinationComp.x[eid],
       y: DestinationComp.y[eid],
     };
@@ -228,8 +333,16 @@ export function convertECSEntityToSavedEntity(
     };
   }
   if (hasComponent(world, FoodEatingComp, eid)) {
+    const targetFoodEid = getFoodEatingEntityRef(world, eid);
+    const targetFoodObjectId =
+      targetFoodEid !== null
+        ? ObjectComp.id[targetFoodEid]
+        : FoodEatingComp.targetFoodObjectId[eid];
     components.foodEating = {
       targetFood: FoodEatingComp.targetFood[eid],
+      ...(isStableObjectId(targetFoodObjectId)
+        ? { targetFoodObjectId }
+        : {}),
       progress: FoodEatingComp.progress[eid],
       duration: FoodEatingComp.duration[eid],
       elapsedTime: FoodEatingComp.elapsedTime[eid],
@@ -441,6 +554,8 @@ export function applySavedEntityToECS(
     }
     DestinationComp.type[eid] = components.destination.type;
     DestinationComp.target[eid] = components.destination.target;
+    DestinationComp.targetObjectId[eid] =
+      components.destination.targetObjectId ?? 0;
     DestinationComp.x[eid] = components.destination.x;
     DestinationComp.y[eid] = components.destination.y;
   }
@@ -485,6 +600,8 @@ export function applySavedEntityToECS(
       addComponent(world, FoodEatingComp, eid);
     }
     FoodEatingComp.targetFood[eid] = components.foodEating.targetFood;
+    FoodEatingComp.targetFoodObjectId[eid] =
+      components.foodEating.targetFoodObjectId ?? 0;
     FoodEatingComp.progress[eid] = components.foodEating.progress;
     FoodEatingComp.duration[eid] = components.foodEating.duration;
     FoodEatingComp.elapsedTime[eid] = components.foodEating.elapsedTime;
@@ -915,8 +1032,15 @@ export function repairLoadedFoodInteractionState(
       continue;
     }
 
-    const targetedFoodEid = getTargetedFoodEntityRef(world, eid);
+    const targetedFoodEid = resolveTargetedFoodForLoadedCharacter(
+      world,
+      objectEntities,
+      eid,
+      targetedFoodIds,
+    );
     if (targetedFoodEid !== null) {
+      DestinationComp.target[eid] = targetedFoodEid;
+      DestinationComp.targetObjectId[eid] = ObjectComp.id[targetedFoodEid];
       targetedFoodIds.add(targetedFoodEid);
     }
 
@@ -924,8 +1048,15 @@ export function repairLoadedFoodInteractionState(
       hasComponent(world, FoodEatingComp, eid) &&
       FoodEatingComp.isActive[eid] === 1
     ) {
-      const eatingFoodEid = getFoodEatingEntityRef(world, eid);
+      const eatingFoodEid = resolveEatingFoodForLoadedCharacter(
+        world,
+        objectEntities,
+        eid,
+        eatingFoodIds,
+      );
       if (eatingFoodEid !== null) {
+        FoodEatingComp.targetFood[eid] = eatingFoodEid;
+        FoodEatingComp.targetFoodObjectId[eid] = ObjectComp.id[eatingFoodEid];
         eatingFoodIds.add(eatingFoodEid);
       }
     }
@@ -939,6 +1070,14 @@ export function repairLoadedFoodInteractionState(
     const objectType = ObjectComp.type[eid];
 
     if (objectType === ObjectType.CHARACTER) {
+      if (
+        ObjectComp.state[eid] === CharacterState.EATING &&
+        hasComponent(world, FoodEatingComp, eid) &&
+        getFoodEatingEntityRef(world, eid) === null
+      ) {
+        removeComponent(world, FoodEatingComp, eid);
+      }
+
       if (
         ObjectComp.state[eid] === CharacterState.EATING &&
         !hasComponent(world, FoodEatingComp, eid)
@@ -959,6 +1098,8 @@ export function repairLoadedFoodInteractionState(
 
           addComponent(world, FoodEatingComp, eid);
           FoodEatingComp.targetFood[eid] = fallbackFoodEid;
+          FoodEatingComp.targetFoodObjectId[eid] =
+            ObjectComp.id[fallbackFoodEid];
           FoodEatingComp.progress[eid] = Math.min(1, Math.max(0, progress));
           FoodEatingComp.duration[eid] = duration;
           FoodEatingComp.elapsedTime[eid] =

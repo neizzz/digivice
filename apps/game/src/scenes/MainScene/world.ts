@@ -4450,6 +4450,8 @@ export class MainSceneWorld implements IWorld, Scene {
 					hatched: updateResult.hatched ?? null,
 					previousCharacterState: updateResult.previousCharacterState ?? null,
 					nextCharacterState: updateResult.nextCharacterState ?? null,
+					foodInteractionDiagnostics:
+						updateResult.foodInteractionDiagnostics ?? null,
 					selectedCharacterKey: updateResult.selectedCharacterKey ?? null,
 					usedNativeUpdatedRawWorldData,
 					preAppState: preReentrySnapshot?.state ?? null,

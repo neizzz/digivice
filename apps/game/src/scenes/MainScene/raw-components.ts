@@ -25,6 +25,7 @@ export const FreshnessComp = defineComponent({
 export const DestinationComp = defineComponent({
   type: Types.ui8 /** ${@link enum DestinationType} */,
   target: Types.eid,
+  targetObjectId: Types.f64,
   x: Types.ui32,
   y: Types.ui32,
 });
@@ -75,6 +76,7 @@ export const ThrowAnimationComp = defineComponent({
  */
 export const FoodEatingComp = defineComponent({
   targetFood: Types.eid, // 먹을 음식의 엔티티 ID
+  targetFoodObjectId: Types.f64, // 먹을 음식의 persistent object.id
   progress: Types.f32, // 먹는 진행도 (0.0 ~ 1.0)
   duration: Types.f32, // 먹는데 걸리는 총 시간 (ms)
   elapsedTime: Types.f32, // 경과 시간 (ms)

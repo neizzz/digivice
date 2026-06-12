@@ -67,6 +67,7 @@ class WorldDataUpdateService {
       'hatched=${advanced.hatched} '
       'selectedCharacterKey=${advanced.selectedCharacterKey} '
       'hatchSelectionDiagnostics=${advanced.hatchSelectionDiagnostics} '
+      'foodInteractionDiagnostics=${advanced.foodInteractionDiagnostics} '
       'diseaseOccurred=${advanced.diseaseOccurred} '
       'evolutionGageBefore=${advanced.evolutionDiagnostics.evolutionGageBefore} '
       'evolutionGageAfter=${advanced.evolutionDiagnostics.evolutionGageAfter} '

@@ -777,6 +777,7 @@ test("FoodEatingComp와 FoodMaskComp는 저장-로드 시 round-trip된다", () 
   ObjectComp.state[foodEid] = FoodState.BEING_INTAKEN;
   addComponent(world, FoodEatingComp, characterEid);
   FoodEatingComp.targetFood[characterEid] = foodEid;
+  FoodEatingComp.targetFoodObjectId[characterEid] = ObjectComp.id[foodEid];
   FoodEatingComp.progress[characterEid] = 0.5;
   FoodEatingComp.duration[characterEid] = 3200;
   FoodEatingComp.elapsedTime[characterEid] = 1600;
@@ -791,6 +792,7 @@ test("FoodEatingComp와 FoodMaskComp는 저장-로드 시 round-trip된다", () 
 
   assert.deepEqual(savedCharacter.components.foodEating, {
     targetFood: foodEid,
+    targetFoodObjectId: ObjectComp.id[foodEid],
     progress: 0.5,
     duration: 3200,
     elapsedTime: 1600,

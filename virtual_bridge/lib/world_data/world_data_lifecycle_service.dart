@@ -12,6 +12,8 @@ import 'world_data_sync_service.dart';
 import 'world_data_constants.dart';
 import 'world_data_monster_book_service.dart';
 
+part 'world_data_food_interaction_service.dart';
+
 class WorldDataLifecycleRandomEvent {
   final int objectId;
   final int checkTimeMs;
@@ -113,6 +115,7 @@ class WorldDataLifecycleAdvanceResult {
   final bool hatched;
   final int? selectedCharacterKey;
   final Map<String, Object?>? hatchSelectionDiagnostics;
+  final Map<String, Object?> foodInteractionDiagnostics;
   final bool monsterBookChanged;
   final String monsterBookWriteOwner;
 
@@ -141,6 +144,7 @@ class WorldDataLifecycleAdvanceResult {
     required this.hatched,
     required this.selectedCharacterKey,
     required this.hatchSelectionDiagnostics,
+    required this.foodInteractionDiagnostics,
     required this.monsterBookChanged,
     this.monsterBookWriteOwner = worldDataMonsterBookWriteOwner,
   });
@@ -160,6 +164,7 @@ class WorldDataLifecycleAdvanceResult {
       'hatched': hatched,
       'selectedCharacterKey': selectedCharacterKey,
       'hatchSelectionDiagnostics': hatchSelectionDiagnostics,
+      'foodInteractionDiagnostics': foodInteractionDiagnostics,
       'monsterBookChanged': monsterBookChanged,
       'monsterBookWriteOwner': monsterBookWriteOwner,
       'previousCharacterState': previousCharacterState,
@@ -229,6 +234,11 @@ class WorldDataLifecycleService {
     );
     final List<dynamic> entities = _ensureList(worldData, 'entities');
     final _MutableCharacterSource? character = _findMainCharacter(entities);
+    final Map<String, Object?> initialFoodInteractionDiagnostics =
+        _WorldDataFoodInteractionService.buildDiagnostics(
+      character: character,
+      entities: entities,
+    );
     final int previousLastEcsSaved =
         _readInt(worldMetadata['last_ecs_saved']) ?? nowMs;
     final int elapsedMs = math.max(0, nowMs - previousLastEcsSaved);
@@ -267,7 +277,7 @@ class WorldDataLifecycleService {
       hatchSelectionDiagnostics = hatchResult.selectionDiagnostics;
 
       final _FoodInteractionProgressResult foodInteractionResult =
-          _progressPendingFoodInteraction(
+          _WorldDataFoodInteractionService.progressPendingFoodInteraction(
         character: character,
         entities: entities,
         elapsedMs: elapsedMs,
@@ -352,6 +362,13 @@ class WorldDataLifecycleService {
       hatched: hatched,
       selectedCharacterKey: selectedCharacterKey,
       hatchSelectionDiagnostics: hatchSelectionDiagnostics,
+      foodInteractionDiagnostics: <String, Object?>{
+        'before': initialFoodInteractionDiagnostics,
+        'after': _WorldDataFoodInteractionService.buildDiagnostics(
+          character: character,
+          entities: entities,
+        ),
+      },
       monsterBookChanged: monsterBookChanged,
     );
   }
@@ -402,7 +419,9 @@ class WorldDataLifecycleService {
     bool changed = false;
     final int tickEndMs = tickStartMs + tickDurationMs;
 
-    changed = _progressFoodFreshness(entities, tickEndMs) || changed;
+    changed = _WorldDataFoodInteractionService.progressFoodFreshness(
+            entities, tickEndMs) ||
+        changed;
 
     final double previousStamina = character.stamina ?? config.maxStamina;
     final _StaminaProgressResult staminaResult = _progressStamina(
@@ -487,7 +506,8 @@ class WorldDataLifecycleService {
       return const _HatchProgressResult();
     }
 
-    _progressFoodFreshness(entities, hatchTimeMs);
+    _WorldDataFoodInteractionService.progressFoodFreshness(
+        entities, hatchTimeMs);
     final _EggHatchSelection selection = _resolveEggHatchSelection(
       character: character,
       entities: entities,
@@ -524,7 +544,8 @@ class WorldDataLifecycleService {
     required int hatchTimeMs,
     required WorldDataLifecycleRandomProvider randomProvider,
   }) {
-    final int staleFoodCountAtHatch = _countStaleFood(entities);
+    final int staleFoodCountAtHatch =
+        _WorldDataFoodInteractionService.countStaleFood(entities);
     final int syringeCount = _normalizeEggHatchBonusCount(
         _readInt(character.eggHatch['syringeCount']) ?? 0);
     final _EggHatchProbabilities probabilities =
@@ -615,250 +636,6 @@ class WorldDataLifecycleService {
     animationRender['speed'] = 0.04;
   }
 
-  static _FoodInteractionProgressResult _progressPendingFoodInteraction({
-    required _MutableCharacterSource character,
-    required List<dynamic> entities,
-    required int elapsedMs,
-    required int previousLastEcsSaved,
-  }) {
-    if (elapsedMs <= 0 ||
-        character.state == config.characterStateEgg ||
-        character.state == config.characterStateDead) {
-      return const _FoodInteractionProgressResult();
-    }
-
-    final Map<String, dynamic> foodEating =
-        _readMap(character.components['foodEating']);
-    if (character.state == config.characterStateEating ||
-        _readBool(foodEating['isActive']) == true) {
-      final _FoodEntityRef? foodRef =
-          _resolveEatingFoodRef(entities: entities, foodEating: foodEating);
-      if (foodRef == null) {
-        return const _FoodInteractionProgressResult();
-      }
-      final double durationMs = _readDouble(foodEating['duration']) ??
-          worldDataLifecycleFoodEatingDurationMs.toDouble();
-      final double previousElapsedMs =
-          _readDouble(foodEating['elapsedTime']) ?? 0;
-      final double remainingEatingMs =
-          math.max(0, durationMs - previousElapsedMs);
-      if (elapsedMs >= remainingEatingMs.ceil()) {
-        _completeFoodInteraction(
-          character: character,
-          entities: entities,
-          foodRef: foodRef,
-          completionTimeMs: previousLastEcsSaved +
-              remainingEatingMs.ceil().clamp(0, elapsedMs),
-        );
-        return const _FoodInteractionProgressResult(changed: true);
-      }
-
-      final double nextElapsedMs = previousElapsedMs + elapsedMs;
-      _setFoodEatingProgress(
-        character: character,
-        foodRef: foodRef,
-        elapsedMs: nextElapsedMs,
-        durationMs: durationMs,
-      );
-      return const _FoodInteractionProgressResult(changed: true);
-    }
-
-    if (character.state != config.characterStateMoving) {
-      return const _FoodInteractionProgressResult();
-    }
-
-    final Map<String, dynamic> destination =
-        _readMap(character.components['destination']);
-    if (_readInt(destination['type']) !=
-        worldDataLifecycleDestinationTypeTargeted) {
-      return const _FoodInteractionProgressResult();
-    }
-
-    final _FoodEntityRef? foodRef =
-        _resolveFoodRefByTarget(entities, _readInt(destination['target']));
-    if (foodRef == null) {
-      return const _FoodInteractionProgressResult();
-    }
-
-    if (_isFoodStale(foodRef.components)) {
-      _cancelPendingFoodTarget(character: character, foodRef: foodRef);
-      return const _FoodInteractionProgressResult(changed: true);
-    }
-
-    final Map<String, dynamic> position =
-        _readMap(character.components['position']);
-    final double? startX = _readDouble(position['x']);
-    final double? startY = _readDouble(position['y']);
-    final double? targetX = _readDouble(destination['x']);
-    final double? targetY = _readDouble(destination['y']);
-    if (startX == null ||
-        startY == null ||
-        targetX == null ||
-        targetY == null) {
-      return const _FoodInteractionProgressResult();
-    }
-
-    final double distance = math.sqrt(
-      math.pow(targetX - startX, 2).toDouble() +
-          math.pow(targetY - startY, 2).toDouble(),
-    );
-    final double speed =
-        (_readDouble(_readMap(character.components['speed'])['value']) ??
-                _resolveCharacterMovementSpeed(character.characterKey))
-            .clamp(0, double.infinity)
-            .toDouble();
-    final int remainingMoveMs = speed <= 0 ? 0 : (distance / speed).ceil();
-    final int totalCompletionMs =
-        remainingMoveMs + worldDataLifecycleFoodEatingDurationMs;
-
-    if (elapsedMs >= totalCompletionMs) {
-      position['x'] = targetX;
-      position['y'] = targetY;
-      _completeFoodInteraction(
-        character: character,
-        entities: entities,
-        foodRef: foodRef,
-        completionTimeMs: previousLastEcsSaved + totalCompletionMs,
-      );
-      return const _FoodInteractionProgressResult(changed: true);
-    }
-
-    if (elapsedMs < remainingMoveMs) {
-      final double ratio =
-          remainingMoveMs <= 0 ? 1 : elapsedMs / remainingMoveMs;
-      position['x'] = startX + (targetX - startX) * ratio;
-      position['y'] = startY + (targetY - startY) * ratio;
-      return const _FoodInteractionProgressResult(changed: true);
-    }
-
-    position['x'] = targetX;
-    position['y'] = targetY;
-    final int eatingElapsedMs = elapsedMs - remainingMoveMs;
-    character.object['state'] = config.characterStateEating;
-    foodRef.object['state'] = worldDataLifecycleFoodStateBeingIntaken;
-    _setFoodEatingProgress(
-      character: character,
-      foodRef: foodRef,
-      elapsedMs: eatingElapsedMs.toDouble(),
-      durationMs: worldDataLifecycleFoodEatingDurationMs.toDouble(),
-    );
-    return const _FoodInteractionProgressResult(changed: true);
-  }
-
-  static void _completeFoodInteraction({
-    required _MutableCharacterSource character,
-    required List<dynamic> entities,
-    required _FoodEntityRef foodRef,
-    required int completionTimeMs,
-  }) {
-    final double currentStamina = character.stamina ?? config.maxStamina;
-    final double staminaBonus = _getStaminaBonusForFoodTexture(
-      _readInt(_readMap(foodRef.components['render'])['textureKey']),
-    );
-    final double nextStamina =
-        (currentStamina + staminaBonus).clamp(0, config.maxStamina).toDouble();
-    character.characterStatus['stamina'] = nextStamina;
-    if (currentStamina < config.maxStamina &&
-        nextStamina >= config.maxStamina) {
-      _addStatus(character.statuses, config.characterStatusHappy);
-    }
-
-    _addDigestiveLoad(character, completionTimeMs);
-    _clearMovementAndEatingComponents(character);
-    _resumeAfterEating(character, completionTimeMs);
-    entities.removeAt(foodRef.index);
-  }
-
-  static void _setFoodEatingProgress({
-    required _MutableCharacterSource character,
-    required _FoodEntityRef foodRef,
-    required double elapsedMs,
-    required double durationMs,
-  }) {
-    final double safeDurationMs = durationMs <= 0
-        ? worldDataLifecycleFoodEatingDurationMs.toDouble()
-        : durationMs;
-    final double safeElapsedMs = elapsedMs.clamp(0, safeDurationMs).toDouble();
-    final double progress =
-        (safeElapsedMs / safeDurationMs).clamp(0, 1).toDouble();
-    final Map<String, dynamic> foodEating =
-        _ensureMap(character.components, 'foodEating');
-    foodEating['targetFood'] = foodRef.index;
-    foodEating['progress'] = progress;
-    foodEating['duration'] = safeDurationMs;
-    foodEating['elapsedTime'] = safeElapsedMs;
-    foodEating['isActive'] = true;
-
-    final Map<String, dynamic> foodMask =
-        _ensureMap(foodRef.components, 'foodMask');
-    foodMask['maskStoreIndex'] = _readInt(foodMask['maskStoreIndex']) ??
-        worldDataLifecycleTextureKeyNull;
-    foodMask['progress'] = progress;
-    foodMask['isInitialized'] = _readBool(foodMask['isInitialized']) ?? false;
-
-    final Map<String, dynamic> freshnessTimer =
-        _readMap(foodRef.components['freshnessTimer']);
-    if (freshnessTimer.isNotEmpty) {
-      freshnessTimer['isBeingEaten'] = true;
-    }
-  }
-
-  static void _clearMovementAndEatingComponents(
-    _MutableCharacterSource character,
-  ) {
-    character.components.remove('foodEating');
-    character.components.remove('destination');
-    final Map<String, dynamic> speed = _readMap(character.components['speed']);
-    if (speed.isNotEmpty) {
-      speed['value'] = 0;
-    }
-  }
-
-  static void _resumeAfterEating(
-    _MutableCharacterSource character,
-    int completionTimeMs,
-  ) {
-    final int interruptedSleepMode =
-        _readInt(character.sleepSystem['interruptedSleepMode']) ??
-            worldDataLifecycleSleepModeAwake;
-    if (interruptedSleepMode == worldDataLifecycleSleepModeNightSleep) {
-      _enterSleep(
-        character,
-        completionTimeMs,
-        worldDataLifecycleSleepModeNightSleep,
-      );
-      character.sleepSystem['interruptedSleepMode'] =
-          worldDataLifecycleSleepModeAwake;
-      return;
-    }
-
-    character.object['state'] =
-        character.statuses.contains(config.characterStatusSick)
-            ? config.characterStateSick
-            : config.characterStateIdle;
-    character.sleepSystem['interruptedSleepMode'] =
-        worldDataLifecycleSleepModeAwake;
-  }
-
-  static void _cancelPendingFoodTarget({
-    required _MutableCharacterSource character,
-    required _FoodEntityRef foodRef,
-  }) {
-    character.object['state'] =
-        character.statuses.contains(config.characterStatusSick)
-            ? config.characterStateSick
-            : config.characterStateIdle;
-    final Map<String, dynamic> destination =
-        _ensureMap(character.components, 'destination');
-    destination['type'] = worldDataLifecycleDestinationTypeNull;
-    destination['target'] = worldDataLifecycleDestinationTypeNull;
-    final Map<String, dynamic> speed = _readMap(character.components['speed']);
-    if (speed.isNotEmpty) {
-      speed['value'] = 0;
-    }
-    foodRef.object['state'] = worldDataLifecycleFoodStateLanded;
-  }
-
   static void _addDigestiveLoad(
     _MutableCharacterSource character,
     int currentTimeMs,
@@ -917,173 +694,6 @@ class WorldDataLifecycleService {
       digestive['nextSmallPoopTime'] =
           currentTimeMs + worldDataLifecycleSmallPoopDelayMs;
     }
-  }
-
-  static _FoodEntityRef? _resolveEatingFoodRef({
-    required List<dynamic> entities,
-    required Map<String, dynamic> foodEating,
-  }) {
-    return _resolveFoodRefByTarget(
-            entities, _readInt(foodEating['targetFood'])) ??
-        _findFoodRefByState(entities, worldDataLifecycleFoodStateBeingIntaken);
-  }
-
-  static _FoodEntityRef? _resolveFoodRefByTarget(
-    List<dynamic> entities,
-    int? target,
-  ) {
-    if (target != null && target >= 0 && target < entities.length) {
-      final _FoodEntityRef? foodRef = _readFoodEntityRef(entities, target);
-      if (foodRef != null) {
-        return foodRef;
-      }
-    }
-    return null;
-  }
-
-  static _FoodEntityRef? _findFoodRefByState(
-    List<dynamic> entities,
-    int state,
-  ) {
-    for (int index = 0; index < entities.length; index += 1) {
-      final _FoodEntityRef? foodRef = _readFoodEntityRef(entities, index);
-      if (foodRef != null && _readInt(foodRef.object['state']) == state) {
-        return foodRef;
-      }
-    }
-    return null;
-  }
-
-  static _FoodEntityRef? _readFoodEntityRef(List<dynamic> entities, int index) {
-    final dynamic entity = entities[index];
-    if (entity is! Map<String, dynamic>) {
-      return null;
-    }
-    final Map<String, dynamic> components = _readMap(entity['components']);
-    final Map<String, dynamic> object = _readMap(components['object']);
-    if (_readInt(object['type']) != worldDataLifecycleFoodObjectType) {
-      return null;
-    }
-    return _FoodEntityRef(
-      index: index,
-      entity: entity,
-      components: components,
-      object: object,
-    );
-  }
-
-  static bool _isFoodStale(Map<String, dynamic> components) {
-    return _resolveFoodFreshness(components) ==
-        worldDataLifecycleFoodFreshnessStale;
-  }
-
-  static bool _progressFoodFreshness(List<dynamic> entities, int nowMs) {
-    bool changed = false;
-    for (final dynamic entity in entities) {
-      if (entity is! Map<String, dynamic>) {
-        continue;
-      }
-
-      final Map<String, dynamic> components = _readMap(entity['components']);
-      final Map<String, dynamic> object = _readMap(components['object']);
-      if (_readInt(object['type']) != worldDataLifecycleFoodObjectType) {
-        continue;
-      }
-
-      int? currentFreshness = _resolveFoodFreshness(components);
-      if (currentFreshness == worldDataLifecycleFoodFreshnessFresh) {
-        changed = _writeFoodFreshness(
-              components,
-              worldDataLifecycleFoodFreshnessNormal,
-            ) ||
-            changed;
-        currentFreshness = worldDataLifecycleFoodFreshnessNormal;
-      }
-
-      final Map<String, dynamic> freshnessTimer =
-          _readMap(components['freshnessTimer']);
-      if (_readBool(freshnessTimer['isBeingEaten']) == true) {
-        continue;
-      }
-
-      final int? currentState = _readInt(object['state']);
-      if (currentFreshness == worldDataLifecycleFoodFreshnessStale) {
-        if (currentState != worldDataLifecycleFoodStateBeingThrowing &&
-            currentState != worldDataLifecycleFoodStateLanded) {
-          object['state'] = worldDataLifecycleFoodStateLanded;
-          changed = true;
-        }
-        continue;
-      }
-
-      final int? createdTime = _readInt(freshnessTimer['createdTime']);
-      if (createdTime == null) {
-        continue;
-      }
-      final int staleTime = math.max(
-        0,
-        _readInt(freshnessTimer['staleTime']) ??
-            worldDataLifecycleFoodNormalToStaleMs,
-      );
-      if (nowMs - createdTime < staleTime) {
-        continue;
-      }
-
-      changed = _writeFoodFreshness(
-            components,
-            worldDataLifecycleFoodFreshnessStale,
-          ) ||
-          changed;
-      object['state'] = worldDataLifecycleFoodStateLanded;
-      changed = true;
-    }
-    return changed;
-  }
-
-  static int? _resolveFoodFreshness(Map<String, dynamic> components) {
-    final Map<String, dynamic> freshness = _readMap(components['freshness']);
-    final Map<String, dynamic> food = _readMap(components['food']);
-    return _readInt(freshness['freshness']) ?? _readInt(food['freshness']);
-  }
-
-  static bool _writeFoodFreshness(
-    Map<String, dynamic> components,
-    int freshnessValue,
-  ) {
-    final Map<String, dynamic> freshness = _readMap(components['freshness']);
-    if (freshness.isNotEmpty) {
-      if (_readInt(freshness['freshness']) == freshnessValue) {
-        return false;
-      }
-      freshness['freshness'] = freshnessValue;
-      return true;
-    }
-
-    final Map<String, dynamic> food = _readMap(components['food']);
-    if (food.isNotEmpty) {
-      if (_readInt(food['freshness']) == freshnessValue) {
-        return false;
-      }
-      food['freshness'] = freshnessValue;
-      return true;
-    }
-
-    components['freshness'] = <String, dynamic>{
-      'freshness': freshnessValue,
-    };
-    return true;
-  }
-
-  static double _getStaminaBonusForFoodTexture(int? textureKey) {
-    if (textureKey == null ||
-        textureKey < worldDataLifecycleFoodTextureKeyMin ||
-        textureKey > worldDataLifecycleFoodTextureKeyMax) {
-      return worldDataLifecycleDefaultFoodStaminaBonus;
-    }
-    final int foodIndex = textureKey - worldDataLifecycleFoodTextureKeyMin;
-    return worldDataLifecycleFoodStaminaBonusDistribution[
-            foodIndex % worldDataLifecycleFoodStaminaBonusDistribution.length]
-        .toDouble();
   }
 
   static double _resolveCharacterMovementSpeed(int? characterKey) {
@@ -1679,8 +1289,8 @@ class WorldDataLifecycleService {
     diseaseRate +=
         _countObjectsInWorld(entities, worldDataLifecyclePoopObjectType) *
             worldDataLifecyclePoopDiseaseRate;
-    diseaseRate +=
-        _countStaleFood(entities) * worldDataLifecycleStaleFoodDiseaseRate;
+    diseaseRate += _WorldDataFoodInteractionService.countStaleFood(entities) *
+        worldDataLifecycleStaleFoodDiseaseRate;
     return diseaseRate.clamp(0, 1).toDouble();
   }
 
@@ -1747,7 +1357,7 @@ class WorldDataLifecycleService {
       return false;
     }
 
-    return _isFoodStale(components);
+    return _WorldDataFoodInteractionService.isFoodStale(components);
   }
 
   static int _normalizeMutationStackCount(int value) {
@@ -2008,28 +1618,6 @@ class WorldDataLifecycleService {
       final Map<String, dynamic> components = _readMap(entity['components']);
       final Map<String, dynamic> object = _readMap(components['object']);
       if (_readInt(object['type']) == objectType) {
-        count += 1;
-      }
-    }
-    return count;
-  }
-
-  static int _countStaleFood(List<dynamic> entities) {
-    int count = 0;
-    for (final dynamic entity in entities) {
-      if (entity is! Map<String, dynamic>) {
-        continue;
-      }
-      final Map<String, dynamic> components = _readMap(entity['components']);
-      final Map<String, dynamic> object = _readMap(components['object']);
-      if (_readInt(object['type']) != worldDataLifecycleFoodObjectType) {
-        continue;
-      }
-      if (_readInt(object['state']) ==
-          worldDataLifecycleFoodStateBeingThrowing) {
-        continue;
-      }
-      if (_isFoodStale(components)) {
         count += 1;
       }
     }
