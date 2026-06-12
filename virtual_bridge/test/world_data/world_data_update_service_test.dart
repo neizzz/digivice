@@ -12,6 +12,8 @@ String _buildWorldData({
   int lastEcsSaved = 0,
   int state = config.characterStateIdle,
   int characterKey = 1,
+  List<int> statuses = const <int>[],
+  int sickStartTime = 0,
   Map<String, dynamic>? eggHatch,
 }) =>
     jsonEncode(<String, dynamic>{
@@ -40,7 +42,7 @@ String _buildWorldData({
               'characterKey': characterKey,
               'stamina': 10,
               'evolutionGage': 1.5,
-              'statuses': <int>[],
+              'statuses': statuses,
             },
             'eggHatch': <String, dynamic>{
               'hatchTime': 0,
@@ -52,7 +54,7 @@ String _buildWorldData({
             },
             'diseaseSystem': <String, dynamic>{
               'nextCheckTime': 10 * 1000,
-              'sickStartTime': 0,
+              'sickStartTime': sickStartTime,
             },
           },
         },
@@ -126,6 +128,16 @@ void main() {
     expect(result['monsterBookWriteOwner'], 'flutter_lifecycle');
     expect(result['homeWidgetSyncStatus'], 'synced');
     expect(result['homeWidgetAuthoritativePublishStatus'], 'ok');
+    expect(
+      (result['inputWorldDataDiagnostics']
+          as Map<String, Object?>)['hasSickStatus'],
+      isFalse,
+    );
+    expect(
+      (result['updatedWorldDataDiagnostics']
+          as Map<String, Object?>)['hasSickStatus'],
+      isFalse,
+    );
   });
 
   test('completeNativeWorldDataUpdate는 기존 MonsterBookData를 병합해 보존한다', () async {
@@ -159,6 +171,65 @@ void main() {
     final Map<String, dynamic> monsterBook =
         jsonDecode(rawMonsterBook!) as Map<String, dynamic>;
     expect((monsterBook['reached'] as Map<String, dynamic>)['1'], hasLength(1));
+  });
+
+  test('completeNativeWorldDataUpdate는 sick 상태와 snapshot 아이콘을 보존한다', () async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      config.worldDataStorageKey,
+      _buildWorldData(
+        state: config.characterStateMoving,
+        statuses: const <int>[config.characterStatusSick],
+        sickStartTime: 1234,
+      ),
+    );
+
+    final Map<String, Object?> result =
+        await WorldDataUpdateService.completeNativeWorldDataUpdate(
+      source: 'app_resume',
+      nowMs: 60 * 1000,
+      randomProvider: (_) => 1,
+    );
+
+    final Map<String, dynamic> updated = jsonDecode(
+      prefs.getString(config.worldDataStorageKey)!,
+    ) as Map<String, dynamic>;
+    final Map<String, dynamic> components =
+        ((updated['entities'] as List<dynamic>).single
+            as Map<String, dynamic>)['components'] as Map<String, dynamic>;
+    final Map<String, dynamic> snapshot = jsonDecode(
+      prefs.getString(config.worldDataAuthoritativeSnapshotStorageKey)!,
+    ) as Map<String, dynamic>;
+
+    final Map<String, Object?> inputDiagnostics =
+        result['inputWorldDataDiagnostics'] as Map<String, Object?>;
+    final Map<String, Object?> updatedDiagnostics =
+        result['updatedWorldDataDiagnostics'] as Map<String, Object?>;
+
+    expect(result['sickStatusDiagnostics'], isA<Map<String, Object?>>());
+    expect(inputDiagnostics['characterState'], config.characterStateMoving);
+    expect(inputDiagnostics['statuses'], contains(config.characterStatusSick));
+    expect(inputDiagnostics['hasSickStatus'], isTrue);
+    expect(inputDiagnostics['sickStartTime'], 1234);
+    expect(inputDiagnostics['worldDataLength'], greaterThan(0));
+    expect(inputDiagnostics['worldDataChecksum'], isA<String>());
+    expect(updatedDiagnostics['characterState'], config.characterStateSick);
+    expect(
+        updatedDiagnostics['statuses'], contains(config.characterStatusSick));
+    expect(updatedDiagnostics['hasSickStatus'], isTrue);
+    expect(updatedDiagnostics['sickStartTime'], 1234);
+    expect((components['object'] as Map<String, dynamic>)['state'],
+        config.characterStateSick);
+    expect(
+      (components['characterStatus'] as Map<String, dynamic>)['statuses'],
+      contains(config.characterStatusSick),
+    );
+    expect(
+      (components['diseaseSystem'] as Map<String, dynamic>)['sickStartTime'],
+      1234,
+    );
+    expect(snapshot['displayState'], 'sick');
+    expect(snapshot['visibleStatusIcons'], contains('sick'));
   });
 
   test('foreground_hatch source는 Dart lifecycle 부화 진단과 저장본을 반환한다', () async {

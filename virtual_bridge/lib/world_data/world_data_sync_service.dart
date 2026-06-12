@@ -372,6 +372,7 @@ class WorldDataSyncService {
   static const MethodChannel _platformChannel = MethodChannel(
     'digivice/home_widget',
   );
+  static const int _snapshotPublishHistoryLimit = 20;
 
   static Future<String> getLaunchMode() async {
     try {
@@ -564,6 +565,17 @@ class WorldDataSyncService {
         reason: reason,
         log: log,
       );
+      final List<Map<String, Object?>> snapshotPublishHistory =
+          await recordSnapshotPublishHistory(
+        prefs: prefs,
+        snapshotJson: null,
+        reason: reason,
+        publishResultsBySlot: <String, bool>{
+          'current': _isSuccessfulPublishResult(currentPublishResult),
+          'authoritative':
+              _isSuccessfulPublishResult(authoritativePublishResult),
+        },
+      );
       return <String, Object?>{
         'status': 'cleared',
         'reason': reason,
@@ -572,6 +584,7 @@ class WorldDataSyncService {
         'authoritativePublishStatus': authoritativePublishResult['status'],
         'currentPublishResult': currentPublishResult,
         'authoritativePublishResult': authoritativePublishResult,
+        'snapshotPublishHistory': snapshotPublishHistory,
       };
     }
 
@@ -593,6 +606,16 @@ class WorldDataSyncService {
       reason: reason,
       log: log,
     );
+    final List<Map<String, Object?>> snapshotPublishHistory =
+        await recordSnapshotPublishHistory(
+      prefs: prefs,
+      snapshotJson: snapshotJson,
+      reason: reason,
+      publishResultsBySlot: <String, bool>{
+        'current': _isSuccessfulPublishResult(currentPublishResult),
+        'authoritative': _isSuccessfulPublishResult(authoritativePublishResult),
+      },
+    );
     return <String, Object?>{
       'status': 'synced',
       'reason': reason,
@@ -604,7 +627,83 @@ class WorldDataSyncService {
       'authoritativePublishStatus': authoritativePublishResult['status'],
       'currentPublishResult': currentPublishResult,
       'authoritativePublishResult': authoritativePublishResult,
+      'snapshotPublishHistory': snapshotPublishHistory,
     };
+  }
+
+  static Future<List<Map<String, Object?>>> recordSnapshotPublishHistory({
+    required SharedPreferences prefs,
+    required String? snapshotJson,
+    required String reason,
+    required Map<String, bool> publishResultsBySlot,
+    int? publishedAtMs,
+    Future<bool?> Function(String key, Object value)? saver,
+  }) async {
+    final int resolvedPublishedAtMs =
+        publishedAtMs ?? DateTime.now().millisecondsSinceEpoch;
+    final WorldDataSnapshot? snapshot =
+        WorldDataSnapshot.fromJsonString(snapshotJson);
+    final List<Map<String, Object?>> existing = readSnapshotPublishHistoryJson(
+      prefs.getString(config.snapshotPublishHistoryStorageKey),
+    );
+    final List<Map<String, Object?>> additions = publishResultsBySlot.entries
+        .map(
+          (MapEntry<String, bool> entry) => _buildSnapshotPublishHistoryEntry(
+            snapshot: snapshot,
+            reason: reason,
+            snapshotSlot: entry.key,
+            success: entry.value,
+            publishedAtMs: resolvedPublishedAtMs,
+          ),
+        )
+        .toList(growable: false);
+    final List<Map<String, Object?>> updated = <Map<String, Object?>>[
+      ...existing,
+      ...additions
+    ];
+    final List<Map<String, Object?>> trimmed =
+        updated.length > _snapshotPublishHistoryLimit
+            ? updated.sublist(updated.length - _snapshotPublishHistoryLimit)
+            : updated;
+    final String encoded = jsonEncode(trimmed);
+
+    await prefs.setString(config.snapshotPublishHistoryStorageKey, encoded);
+    if (saver != null) {
+      try {
+        await saver(config.snapshotPublishHistoryStorageKey, encoded);
+      } catch (_) {
+        // Diagnostics history must not break snapshot publishing.
+      }
+    }
+
+    return trimmed;
+  }
+
+  static List<Map<String, Object?>> readSnapshotPublishHistoryJson(
+    String? rawHistory,
+  ) {
+    if (rawHistory == null || rawHistory.isEmpty) {
+      return const <Map<String, Object?>>[];
+    }
+    try {
+      final Object decoded = jsonDecode(rawHistory);
+      if (decoded is! List<dynamic>) {
+        return const <Map<String, Object?>>[];
+      }
+      return decoded
+          .whereType<Map>()
+          .map(
+            (Map<dynamic, dynamic> entry) => entry.map(
+              (dynamic key, dynamic value) => MapEntry(
+                key?.toString() ?? '',
+                value,
+              ),
+            ),
+          )
+          .toList(growable: false);
+    } catch (_) {
+      return const <Map<String, Object?>>[];
+    }
   }
 
   static WorldDataSnapshot? buildSnapshotFromWorldDataJson(
@@ -819,6 +918,39 @@ class WorldDataSyncService {
       'characterKey': _readInt(result['characterKey']),
       'eggHatchTimeMs': _readInt(result['eggHatchTimeMs']),
       'snapshotKind': result['snapshotKind']?.toString(),
+    };
+  }
+
+  static bool _isSuccessfulPublishResult(Map<String, Object?> result) {
+    return result['status'] == 'ok';
+  }
+
+  static Map<String, Object?> _buildSnapshotPublishHistoryEntry({
+    required WorldDataSnapshot? snapshot,
+    required String reason,
+    required String snapshotSlot,
+    required bool success,
+    required int publishedAtMs,
+  }) {
+    return <String, Object?>{
+      'publishedAtMs': publishedAtMs,
+      'reason': reason,
+      'snapshotSlot': snapshotSlot,
+      'snapshotKey': snapshotSlot,
+      'hasSnapshot': snapshot != null,
+      'success': success,
+      'characterState': snapshot?.characterState.name,
+      'displayState': snapshot?.displayState.name,
+      'visibleStatusIcons': snapshot?.visibleStatusIcons
+          .map((WorldDataStatusIcon icon) => icon.name)
+          .toList(growable: false),
+      'hasUrgentStatus': snapshot?.hasUrgentStatus,
+      'characterKey': snapshot?.characterKey,
+      'snapshotKind': snapshot?.snapshotKind.name,
+      'snapshotComputedAtMs': snapshot?.snapshotComputedAtMs,
+      'authoritativeTimestampMs': snapshot == null
+          ? null
+          : math.max(snapshot.snapshotComputedAtMs, snapshot.updatedAtMs),
     };
   }
 

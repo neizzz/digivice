@@ -54,5 +54,21 @@ void main() {
       expect(snapshot!.characterState, WorldDataCharacterState.dead);
       expect(snapshot.visibleStatusIcons, isEmpty);
     });
+
+    test('sick status는 위젯 snapshot에서 sick display와 아이콘으로 유지된다', () {
+      final snapshot = WorldDataSyncService.buildSnapshotFromWorldDataJson(
+        jsonEncode(
+          _buildWorldData(state: 2, stamina: 7, statuses: <int>[3]),
+        ),
+        now: DateTime(2026, 5, 19, 12),
+      );
+
+      expect(snapshot, isNotNull);
+      expect(snapshot!.characterState, WorldDataCharacterState.moving);
+      expect(snapshot.displayState, WorldDataDisplayState.sick);
+      expect(snapshot.visibleStatusIcons, <WorldDataStatusIcon>[
+        WorldDataStatusIcon.sick,
+      ]);
+    });
   });
 }

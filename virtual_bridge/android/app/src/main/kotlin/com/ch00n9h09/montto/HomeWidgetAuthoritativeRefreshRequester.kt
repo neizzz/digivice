@@ -8,6 +8,8 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import dev.fluttercommunity.workmanager.BackgroundWorker
+import org.json.JSONArray
+import org.json.JSONObject
 
 internal enum class HomeWidgetAuthoritativeRefreshRequestResult(
     val status: String,
@@ -263,9 +265,65 @@ internal object HomeWidgetAuthoritativeRefreshRequester {
                 source = selectedAuthoritativeSnapshot.source,
                 snapshot = selectedAuthoritativeSnapshot.snapshot,
             ),
+            "nativeSnapshotPublishHistory" to readSnapshotPublishHistory(
+                nativePrefs.getString(
+                    HomeWidgetConstants.SNAPSHOT_PUBLISH_HISTORY_KEY,
+                    null,
+                ),
+            ),
+            "flutterSnapshotPublishHistory" to readSnapshotPublishHistory(
+                flutterPrefs?.getString(
+                    HomeWidgetConstants.FLUTTER_PREFIX +
+                        HomeWidgetConstants.SNAPSHOT_PUBLISH_HISTORY_KEY,
+                    null,
+                ),
+            ),
             "debugOverrideEnabled" to debugOverrideEnabled,
             "debugPresetIndex" to HomeWidgetDebugPresetStore.loadPresetIndex(nativePrefs),
         )
+    }
+
+    private fun readSnapshotPublishHistory(rawHistory: String?): List<Map<String, Any?>> {
+        if (rawHistory.isNullOrBlank()) {
+            return emptyList()
+        }
+
+        return runCatching {
+            val array = JSONArray(rawHistory)
+            buildList {
+                for (index in 0 until array.length()) {
+                    val item = array.optJSONObject(index) ?: continue
+                    add(jsonObjectToMap(item))
+                }
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    private fun jsonObjectToMap(jsonObject: JSONObject): Map<String, Any?> {
+        return buildMap {
+            val keys = jsonObject.keys()
+            while (keys.hasNext()) {
+                val key = keys.next()
+                put(key, jsonValue(jsonObject.opt(key)))
+            }
+        }
+    }
+
+    private fun jsonArrayToList(jsonArray: JSONArray): List<Any?> {
+        return buildList {
+            for (index in 0 until jsonArray.length()) {
+                add(jsonValue(jsonArray.opt(index)))
+            }
+        }
+    }
+
+    private fun jsonValue(value: Any?): Any? {
+        return when (value) {
+            null, JSONObject.NULL -> null
+            is JSONObject -> jsonObjectToMap(value)
+            is JSONArray -> jsonArrayToList(value)
+            else -> value
+        }
     }
 
     private fun summarizeSnapshot(
@@ -285,6 +343,8 @@ internal object HomeWidgetAuthoritativeRefreshRequester {
             "eggTextureKey" to snapshot.eggTextureKey,
             "eggHatchTimeMs" to snapshot.eggHatchTimeMs,
             "eggCrackStage" to snapshot.eggCrackStage,
+            "hasUrgentStatus" to snapshot.hasUrgentStatus,
+            "visibleStatusIcons" to snapshot.visibleStatusIcons,
             "updatedAtMs" to snapshot.updatedAtMs,
             "snapshotComputedAtMs" to snapshot.snapshotComputedAtMs,
             "authoritativeTimestampMs" to snapshot.authoritativeTimestampMs(),

@@ -28625,6 +28625,7 @@ const FreshnessComp = defineComponent({
 const DestinationComp = defineComponent({
   type: Types.ui8,
   target: Types.eid,
+  targetObjectId: Types.f64,
   x: Types.ui32,
   y: Types.ui32
 });
@@ -28680,6 +28681,8 @@ const ThrowAnimationComp = defineComponent({
 const FoodEatingComp = defineComponent({
   targetFood: Types.eid,
   // 먹을 음식의 엔티티 ID
+  targetFoodObjectId: Types.f64,
+  // 먹을 음식의 persistent object.id
   progress: Types.f32,
   // 먹는 진행도 (0.0 ~ 1.0)
   duration: Types.f32,
@@ -30042,12 +30045,37 @@ function getCharacterMovementSpeedForEntity(eid) {
   const characterStats = getCharacterStats(characterKey);
   return applyUrgentSpeedMultiplier(characterStats.speed, eid);
 }
+const objectQuery$3 = defineQuery([ObjectComp]);
+function isValidObjectId(objectId) {
+  return Number.isFinite(objectId) && objectId > 0;
+}
 function isValidFoodEntityRef(world, eid) {
   return hasComponent(world, ObjectComp, eid) && ObjectComp.type[eid] === ObjectType.FOOD;
+}
+function findFoodEntityRefByObjectId(world, objectId) {
+  if (!isValidObjectId(objectId)) {
+    return null;
+  }
+  const objectEntities = objectQuery$3(world);
+  for (let i2 = 0; i2 < objectEntities.length; i2++) {
+    const eid = objectEntities[i2];
+    if (ObjectComp.type[eid] === ObjectType.FOOD && ObjectComp.id[eid] === objectId) {
+      return eid;
+    }
+  }
+  return null;
 }
 function getTargetedFoodEntityRef(world, characterEid) {
   if (!hasComponent(world, DestinationComp, characterEid) || DestinationComp.type[characterEid] !== DestinationType.TARGETED) {
     return null;
+  }
+  const targetObjectId = DestinationComp.targetObjectId[characterEid];
+  const targetFoodByObjectId = findFoodEntityRefByObjectId(
+    world,
+    targetObjectId
+  );
+  if (targetFoodByObjectId !== null) {
+    return targetFoodByObjectId;
   }
   const targetFoodEid = DestinationComp.target[characterEid];
   return isValidFoodEntityRef(world, targetFoodEid) ? targetFoodEid : null;
@@ -30055,6 +30083,14 @@ function getTargetedFoodEntityRef(world, characterEid) {
 function getFoodEatingEntityRef(world, characterEid) {
   if (!hasComponent(world, FoodEatingComp, characterEid)) {
     return null;
+  }
+  const targetFoodObjectId = FoodEatingComp.targetFoodObjectId[characterEid];
+  const targetFoodByObjectId = findFoodEntityRefByObjectId(
+    world,
+    targetFoodObjectId
+  );
+  if (targetFoodByObjectId !== null) {
+    return targetFoodByObjectId;
   }
   const targetFoodEid = FoodEatingComp.targetFood[characterEid];
   return isValidFoodEntityRef(world, targetFoodEid) ? targetFoodEid : null;
@@ -30108,6 +30144,64 @@ function resolveEggHatchComponentForState(params) {
 function shouldClearStaticEggTextureForState(state, textureKey) {
   return state !== CharacterState.EGG && state !== CharacterState.DEAD && isEggTextureKey(textureKey);
 }
+function isStableObjectId(value) {
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
+function findFoodEntityByState(world, objectEntities, state, excludedFoodIds = /* @__PURE__ */ new Set()) {
+  for (let i2 = 0; i2 < objectEntities.length; i2++) {
+    const candidateEid = objectEntities[i2];
+    if (!excludedFoodIds.has(candidateEid) && ObjectComp.type[candidateEid] === ObjectType.FOOD && ObjectComp.state[candidateEid] === state && isValidFoodEntityRef(world, candidateEid)) {
+      return candidateEid;
+    }
+  }
+  return null;
+}
+function resolveEatingFoodForLoadedCharacter(world, objectEntities, characterEid, excludedFoodIds = /* @__PURE__ */ new Set()) {
+  if (!hasComponent(world, FoodEatingComp, characterEid)) {
+    return null;
+  }
+  const foodByObjectId = findFoodEntityRefByObjectId(
+    world,
+    FoodEatingComp.targetFoodObjectId[characterEid]
+  );
+  if (foodByObjectId !== null && !excludedFoodIds.has(foodByObjectId)) {
+    return foodByObjectId;
+  }
+  const foodBeingIntaken = findFoodEntityByState(
+    world,
+    objectEntities,
+    FoodState.BEING_INTAKEN,
+    excludedFoodIds
+  );
+  if (foodBeingIntaken !== null) {
+    return foodBeingIntaken;
+  }
+  const foodByRuntimeRef = getFoodEatingEntityRef(world, characterEid);
+  return foodByRuntimeRef !== null && !excludedFoodIds.has(foodByRuntimeRef) ? foodByRuntimeRef : null;
+}
+function resolveTargetedFoodForLoadedCharacter(world, objectEntities, characterEid, excludedFoodIds = /* @__PURE__ */ new Set()) {
+  if (!hasComponent(world, DestinationComp, characterEid) || DestinationComp.type[characterEid] !== DestinationType.TARGETED) {
+    return null;
+  }
+  const foodByObjectId = findFoodEntityRefByObjectId(
+    world,
+    DestinationComp.targetObjectId[characterEid]
+  );
+  if (foodByObjectId !== null && !excludedFoodIds.has(foodByObjectId)) {
+    return foodByObjectId;
+  }
+  const targetedFood = findFoodEntityByState(
+    world,
+    objectEntities,
+    FoodState.TARGETED,
+    excludedFoodIds
+  );
+  if (targetedFood !== null) {
+    return targetedFood;
+  }
+  const foodByRuntimeRef = getTargetedFoodEntityRef(world, characterEid);
+  return foodByRuntimeRef !== null && !excludedFoodIds.has(foodByRuntimeRef) ? foodByRuntimeRef : null;
+}
 function convertECSEntityToSavedEntity(world, eid) {
   const components = {};
   if (hasComponent(world, ObjectComp, eid)) {
@@ -30150,9 +30244,12 @@ function convertECSEntityToSavedEntity(world, eid) {
     };
   }
   if (hasComponent(world, DestinationComp, eid)) {
+    const targetFoodEid = getTargetedFoodEntityRef(world, eid);
+    const targetObjectId = targetFoodEid !== null ? ObjectComp.id[targetFoodEid] : DestinationComp.targetObjectId[eid];
     components.destination = {
       type: DestinationComp.type[eid],
       target: DestinationComp.target[eid],
+      ...isStableObjectId(targetObjectId) ? { targetObjectId } : {},
       x: DestinationComp.x[eid],
       y: DestinationComp.y[eid]
     };
@@ -30213,8 +30310,11 @@ function convertECSEntityToSavedEntity(world, eid) {
     };
   }
   if (hasComponent(world, FoodEatingComp, eid)) {
+    const targetFoodEid = getFoodEatingEntityRef(world, eid);
+    const targetFoodObjectId = targetFoodEid !== null ? ObjectComp.id[targetFoodEid] : FoodEatingComp.targetFoodObjectId[eid];
     components.foodEating = {
       targetFood: FoodEatingComp.targetFood[eid],
+      ...isStableObjectId(targetFoodObjectId) ? { targetFoodObjectId } : {},
       progress: FoodEatingComp.progress[eid],
       duration: FoodEatingComp.duration[eid],
       elapsedTime: FoodEatingComp.elapsedTime[eid],
@@ -30396,6 +30496,7 @@ function applySavedEntityToECS(world, eid, savedEntity) {
     }
     DestinationComp.type[eid] = components.destination.type;
     DestinationComp.target[eid] = components.destination.target;
+    DestinationComp.targetObjectId[eid] = components.destination.targetObjectId ?? 0;
     DestinationComp.x[eid] = components.destination.x;
     DestinationComp.y[eid] = components.destination.y;
   }
@@ -30430,6 +30531,7 @@ function applySavedEntityToECS(world, eid, savedEntity) {
       addComponent(world, FoodEatingComp, eid);
     }
     FoodEatingComp.targetFood[eid] = components.foodEating.targetFood;
+    FoodEatingComp.targetFoodObjectId[eid] = components.foodEating.targetFoodObjectId ?? 0;
     FoodEatingComp.progress[eid] = components.foodEating.progress;
     FoodEatingComp.duration[eid] = components.foodEating.duration;
     FoodEatingComp.elapsedTime[eid] = components.foodEating.elapsedTime;
@@ -30742,13 +30844,27 @@ function repairLoadedFoodInteractionState(world, now = Date.now()) {
     if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
       continue;
     }
-    const targetedFoodEid = getTargetedFoodEntityRef(world, eid);
+    const targetedFoodEid = resolveTargetedFoodForLoadedCharacter(
+      world,
+      objectEntities,
+      eid,
+      targetedFoodIds
+    );
     if (targetedFoodEid !== null) {
+      DestinationComp.target[eid] = targetedFoodEid;
+      DestinationComp.targetObjectId[eid] = ObjectComp.id[targetedFoodEid];
       targetedFoodIds.add(targetedFoodEid);
     }
     if (hasComponent(world, FoodEatingComp, eid) && FoodEatingComp.isActive[eid] === 1) {
-      const eatingFoodEid = getFoodEatingEntityRef(world, eid);
+      const eatingFoodEid = resolveEatingFoodForLoadedCharacter(
+        world,
+        objectEntities,
+        eid,
+        eatingFoodIds
+      );
       if (eatingFoodEid !== null) {
+        FoodEatingComp.targetFood[eid] = eatingFoodEid;
+        FoodEatingComp.targetFoodObjectId[eid] = ObjectComp.id[eatingFoodEid];
         eatingFoodIds.add(eatingFoodEid);
       }
     }
@@ -30759,6 +30875,9 @@ function repairLoadedFoodInteractionState(world, now = Date.now()) {
     const eid = objectEntities[i2];
     const objectType = ObjectComp.type[eid];
     if (objectType === ObjectType.CHARACTER) {
+      if (ObjectComp.state[eid] === CharacterState.EATING && hasComponent(world, FoodEatingComp, eid) && getFoodEatingEntityRef(world, eid) === null) {
+        removeComponent(world, FoodEatingComp, eid);
+      }
       if (ObjectComp.state[eid] === CharacterState.EATING && !hasComponent(world, FoodEatingComp, eid)) {
         const fallbackFoodEid = objectEntities.find((candidateEid) => {
           return ObjectComp.type[candidateEid] === ObjectType.FOOD && ObjectComp.state[candidateEid] === FoodState.BEING_INTAKEN && !eatingFoodIds.has(candidateEid);
@@ -30768,6 +30887,7 @@ function repairLoadedFoodInteractionState(world, now = Date.now()) {
           const duration = 3200;
           addComponent(world, FoodEatingComp, eid);
           FoodEatingComp.targetFood[eid] = fallbackFoodEid;
+          FoodEatingComp.targetFoodObjectId[eid] = ObjectComp.id[fallbackFoodEid];
           FoodEatingComp.progress[eid] = Math.min(1, Math.max(0, progress));
           FoodEatingComp.duration[eid] = duration;
           FoodEatingComp.elapsedTime[eid] = FoodEatingComp.progress[eid] * duration;
@@ -36137,6 +36257,7 @@ function moveToFood(world, characterEid, foodEid) {
   }
   DestinationComp.type[characterEid] = DestinationType.TARGETED;
   DestinationComp.target[characterEid] = foodEid;
+  DestinationComp.targetObjectId[characterEid] = ObjectComp.id[foodEid];
   DestinationComp.x[characterEid] = targetX;
   DestinationComp.y[characterEid] = targetY;
   setCharacterApproachAngle(world, characterEid, { x: targetX, y: targetY });
@@ -36267,6 +36388,7 @@ function startEating(world, characterEid, foodEid) {
     addComponent(world, FoodEatingComp, characterEid);
   }
   FoodEatingComp.targetFood[characterEid] = foodEid;
+  FoodEatingComp.targetFoodObjectId[characterEid] = ObjectComp.id[foodEid];
   FoodEatingComp.progress[characterEid] = 0;
   FoodEatingComp.duration[characterEid] = FOOD_EATING_DURATION;
   FoodEatingComp.elapsedTime[characterEid] = 0;
@@ -43873,6 +43995,7 @@ ${this.t("main.cleanObjectsPrompt")}`,
         throw new Error("native_world_data_update_missing_reloaded_world_data");
       }
       const nativeUpdatedRawCharacterState = usedNativeUpdatedRawWorldData ? this._getSavedMainCharacterState(validatedData) : null;
+      const nativeUpdatedStatusDiagnostics = this._getSavedMainCharacterStatusDiagnostics(validatedData);
       const shouldPreserveNativeSleep = updateResult.nextCharacterState === CharacterState.SLEEPING || nativeUpdatedRawCharacterState === CharacterState.SLEEPING;
       this.applyPersistedWorldDataForReentry(validatedData);
       options.clearFoodInteractionSuspendFlag();
@@ -43907,12 +44030,24 @@ ${this.t("main.cleanObjectsPrompt")}`,
           hatched: updateResult.hatched ?? null,
           previousCharacterState: updateResult.previousCharacterState ?? null,
           nextCharacterState: updateResult.nextCharacterState ?? null,
+          foodInteractionDiagnostics: updateResult.foodInteractionDiagnostics ?? null,
+          inputWorldDataDiagnostics: updateResult.inputWorldDataDiagnostics ?? null,
+          updatedWorldDataDiagnostics: updateResult.updatedWorldDataDiagnostics ?? null,
           selectedCharacterKey: updateResult.selectedCharacterKey ?? null,
           usedNativeUpdatedRawWorldData,
           preAppState: (preReentrySnapshot == null ? void 0 : preReentrySnapshot.state) ?? null,
+          preAppStatuses: (preReentrySnapshot == null ? void 0 : preReentrySnapshot.statuses) ?? null,
+          preAppHasSickStatus: (preReentrySnapshot == null ? void 0 : preReentrySnapshot.hasSickStatus) ?? null,
+          preAppSickStartTime: (preReentrySnapshot == null ? void 0 : preReentrySnapshot.sickStartTime) ?? null,
           nativeNextState: updateResult.nextCharacterState ?? null,
           nativeUpdatedRawCharacterState,
+          nativeUpdatedRawStatuses: (nativeUpdatedStatusDiagnostics == null ? void 0 : nativeUpdatedStatusDiagnostics.statuses) ?? null,
+          nativeUpdatedRawHasSickStatus: (nativeUpdatedStatusDiagnostics == null ? void 0 : nativeUpdatedStatusDiagnostics.hasSickStatus) ?? null,
+          nativeUpdatedRawSickStartTime: (nativeUpdatedStatusDiagnostics == null ? void 0 : nativeUpdatedStatusDiagnostics.sickStartTime) ?? null,
           postAppliedState: (postAppliedSnapshot == null ? void 0 : postAppliedSnapshot.state) ?? null,
+          postAppliedStatuses: (postAppliedSnapshot == null ? void 0 : postAppliedSnapshot.statuses) ?? null,
+          postAppliedHasSickStatus: (postAppliedSnapshot == null ? void 0 : postAppliedSnapshot.hasSickStatus) ?? null,
+          postAppliedSickStartTime: (postAppliedSnapshot == null ? void 0 : postAppliedSnapshot.sickStartTime) ?? null,
           sleepSuppressionApplied
         }
       );
@@ -44196,9 +44331,13 @@ ${this.t("main.cleanObjectsPrompt")}`,
       (status) => status > 0
     ) : [];
     const isSleeping = ObjectComp.state[characterEid] === CharacterState.SLEEPING;
+    const sickStartTime = hasComponent(this, DiseaseSystemComp, characterEid) ? DiseaseSystemComp.sickStartTime[characterEid] : null;
     return {
       eid: characterEid,
       state: ObjectComp.state[characterEid],
+      statuses,
+      hasSickStatus: statuses.includes(CharacterStatus.SICK),
+      sickStartTime,
       signature: `${ObjectComp.state[characterEid]}|${statuses.join(",")}`,
       isSleeping
     };
@@ -44209,6 +44348,26 @@ ${this.t("main.cleanObjectsPrompt")}`,
       if ((object == null ? void 0 : object.type) === ObjectType.CHARACTER) {
         return object.state;
       }
+    }
+    return null;
+  }
+  _getSavedMainCharacterStatusDiagnostics(data) {
+    var _a, _b;
+    for (const entity of (data == null ? void 0 : data.entities) ?? []) {
+      const object = entity.components.object;
+      if ((object == null ? void 0 : object.type) !== ObjectType.CHARACTER) {
+        continue;
+      }
+      const statuses = Array.isArray((_a = entity.components.characterStatus) == null ? void 0 : _a.statuses) ? entity.components.characterStatus.statuses.filter(
+        (status) => typeof status === "number" && status > 0
+      ) : [];
+      const sickStartTime = (_b = entity.components.diseaseSystem) == null ? void 0 : _b.sickStartTime;
+      return {
+        state: object.state ?? null,
+        statuses,
+        hasSickStatus: statuses.includes(CharacterStatus.SICK),
+        sickStartTime: typeof sickStartTime === "number" && Number.isFinite(sickStartTime) ? sickStartTime : null
+      };
     }
     return null;
   }
@@ -54887,7 +55046,7 @@ function simulateEvolutionAdminRolls(params) {
   });
 }
 export {
-  CharacterKeyECS as $,
+  CharacterState as $,
   AbstractRenderer as A,
   BufferUsage as B,
   Container as C,
@@ -54914,11 +55073,11 @@ export {
   NAME_LABEL_STROKE_COLOR as X,
   NAME_LABEL_FILL_COLOR as Y,
   NAME_LABEL_STROKE_WIDTH as Z,
-  CharacterState as _,
+  GAME_CONSTANTS as _,
   applyEvolutionAdminExport as a,
-  isEggTextureKey as a0,
-  TextureKey as a1,
-  GAME_CONSTANTS as a2,
+  CharacterKeyECS as a0,
+  isEggTextureKey as a1,
+  TextureKey as a2,
   SceneKey as a3,
   TimeOfDay as a4,
   hasLegacyMonsterBookState as a5,

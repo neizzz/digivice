@@ -370,6 +370,49 @@ void main() {
       );
     });
 
+    test('publishSnapshotJson은 snapshot publish history를 최근 20개만 유지한다',
+        () async {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final String sickSnapshotJson = jsonEncode(
+        WorldDataSyncService.buildSnapshotFromWorldDataJson(
+          jsonEncode(_buildWorldData(
+            state: 2,
+            stamina: 7,
+            statuses: <int>[3],
+          )),
+          now: DateTime.fromMillisecondsSinceEpoch(12345),
+        )!
+            .toJson(),
+      );
+
+      for (int index = 0; index < 11; index += 1) {
+        await WorldDataSyncService.publishSnapshotJson(
+          snapshotJson: sickSnapshotJson,
+          reason: 'history_test_$index',
+        );
+      }
+
+      final List<dynamic> history = jsonDecode(
+        prefs.getString(snapshotPublishHistoryStorageKey)!,
+      ) as List<dynamic>;
+      final Map<String, dynamic> lastEntry =
+          history.last as Map<String, dynamic>;
+
+      expect(history, hasLength(20));
+      expect(
+          (history.first as Map<String, dynamic>)['reason'], 'history_test_1');
+      expect(lastEntry['reason'], 'history_test_10');
+      expect(lastEntry['snapshotSlot'], 'authoritative');
+      expect(lastEntry['characterState'], 'moving');
+      expect(lastEntry['displayState'], 'sick');
+      expect(lastEntry['visibleStatusIcons'], <dynamic>['sick']);
+      expect(lastEntry['hasUrgentStatus'], isFalse);
+      expect(lastEntry['snapshotKind'], 'authoritativeAppState');
+      expect(lastEntry['snapshotComputedAtMs'], 12345);
+      expect(lastEntry['authoritativeTimestampMs'], 12345);
+      expect(lastEntry['success'], isTrue);
+    });
+
     test('world data가 없으면 cleared 결과와 함께 native snapshot 둘 다 비운다', () async {
       final Map<String, Object?> result =
           await WorldDataSyncService.syncFromWorldDataJson(

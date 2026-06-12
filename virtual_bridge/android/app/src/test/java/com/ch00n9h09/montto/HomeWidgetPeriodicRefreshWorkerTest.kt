@@ -283,6 +283,8 @@ class HomeWidgetPeriodicRefreshWorkerTest {
             .copy(
                 snapshotKind = "authoritativeAppState",
                 characterState = "egg",
+                hasUrgentStatus = true,
+                visibleStatusIcons = listOf("sick"),
                 snapshotComputedAtMs = 1_000L,
                 updatedAtMs = 1_000L,
             )
@@ -305,6 +307,41 @@ class HomeWidgetPeriodicRefreshWorkerTest {
                 flutterSnapshot.toJsonString(),
             )
             .putString(HomeWidgetConstants.FLUTTER_SNAPSHOT_KEY, flutterSnapshot.toJsonString())
+            .putString(
+                HomeWidgetConstants.FLUTTER_PREFIX +
+                    HomeWidgetConstants.SNAPSHOT_PUBLISH_HISTORY_KEY,
+                """
+                [
+                  {
+                    "publishedAtMs": 2000,
+                    "reason": "flutter_periodic",
+                    "snapshotSlot": "authoritative",
+                    "characterState": "idle",
+                    "displayState": "idle",
+                    "visibleStatusIcons": [],
+                    "success": true
+                  }
+                ]
+                """.trimIndent(),
+            )
+            .apply()
+        nativePrefs.edit()
+            .putString(
+                HomeWidgetConstants.SNAPSHOT_PUBLISH_HISTORY_KEY,
+                """
+                [
+                  {
+                    "publishedAtMs": 1000,
+                    "reason": "native_periodic",
+                    "snapshotSlot": "authoritative",
+                    "characterState": "egg",
+                    "displayState": "sick",
+                    "visibleStatusIcons": ["sick"],
+                    "success": true
+                  }
+                ]
+                """.trimIndent(),
+            )
             .apply()
 
         val diagnostics = HomeWidgetAuthoritativeRefreshRequester.readDiagnostics(
@@ -321,12 +358,32 @@ class HomeWidgetPeriodicRefreshWorkerTest {
             (diagnostics["nativeAuthoritativeSnapshot"] as Map<*, *>)["characterState"],
         )
         assertEquals(
+            true,
+            (diagnostics["nativeAuthoritativeSnapshot"] as Map<*, *>)["hasUrgentStatus"],
+        )
+        assertEquals(
+            listOf("sick"),
+            (diagnostics["nativeAuthoritativeSnapshot"] as Map<*, *>)["visibleStatusIcons"],
+        )
+        assertEquals(
             "idle",
             (diagnostics["flutterAuthoritativeSnapshot"] as Map<*, *>)["characterState"],
         )
         assertEquals(
             "idle",
             (diagnostics["selectedAuthoritativeSnapshot"] as Map<*, *>)["characterState"],
+        )
+        assertEquals(
+            "native_periodic",
+            ((diagnostics["nativeSnapshotPublishHistory"] as List<*>).single() as Map<*, *>)["reason"],
+        )
+        assertEquals(
+            listOf("sick"),
+            ((diagnostics["nativeSnapshotPublishHistory"] as List<*>).single() as Map<*, *>)["visibleStatusIcons"],
+        )
+        assertEquals(
+            "flutter_periodic",
+            ((diagnostics["flutterSnapshotPublishHistory"] as List<*>).single() as Map<*, *>)["reason"],
         )
     }
 

@@ -39,6 +39,8 @@ const String worldDataAuthoritativeSnapshotStorageKey =
 const String nativeWorldDataSnapshotKey = 'home_widget_snapshot_v1';
 const String nativeWorldDataAuthoritativeSnapshotKey =
     'home_widget_authoritative_snapshot_v1';
+const String snapshotPublishHistoryStorageKey =
+    'home_widget_snapshot_publish_history_v1';
 const String nativeWorldDataStorageName = 'digivice_home_widget';
 const String widgetRefreshLaunchMode = 'widget_refresh';
 const String periodicRefreshReason = 'periodic_work';

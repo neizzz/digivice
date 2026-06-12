@@ -104,6 +104,14 @@ void main() {
         savedKeys, contains(config.worldDataAuthoritativeSnapshotStorageKey));
     expect(savedKeys, contains(config.nativeWorldDataSnapshotKey));
     expect(savedKeys, contains(config.nativeWorldDataAuthoritativeSnapshotKey));
+    expect(savedKeys, contains(config.snapshotPublishHistoryStorageKey));
+    final List<dynamic> publishHistory = jsonDecode(
+      prefs.getString(config.snapshotPublishHistoryStorageKey)!,
+    ) as List<dynamic>;
+    expect(publishHistory, hasLength(2));
+    expect((publishHistory.last as Map<String, dynamic>)['snapshotSlot'],
+        'authoritative');
+    expect((publishHistory.last as Map<String, dynamic>)['success'], isTrue);
     expect(updatedWidgets, isNot(contains('HomeWidgetProvider')));
     expect(updatedWidgets, contains('HomeWidget1x1Provider'));
     expect(result['updated2x1'], 'skipped_manifest_disabled');

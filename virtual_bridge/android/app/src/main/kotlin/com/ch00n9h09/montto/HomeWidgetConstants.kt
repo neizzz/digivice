@@ -5,6 +5,7 @@ object HomeWidgetConstants {
     const val STORAGE_NAME = "digivice_home_widget"
     const val SNAPSHOT_KEY = "home_widget_snapshot_v1"
     const val AUTHORITATIVE_SNAPSHOT_KEY = "home_widget_authoritative_snapshot_v1"
+    const val SNAPSHOT_PUBLISH_HISTORY_KEY = "home_widget_snapshot_publish_history_v1"
     const val PERIODIC_REFRESH_WORK_NAME = "home_widget_periodic_refresh"
     const val FLUTTER_BACKGROUND_REFRESH_WORK_NAME =
         "home_widget_flutter_background_refresh"

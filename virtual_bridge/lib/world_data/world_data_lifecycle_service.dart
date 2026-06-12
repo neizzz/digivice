@@ -111,6 +111,7 @@ class WorldDataLifecycleAdvanceResult {
   final bool worldDataChanged;
   final int? previousCharacterState;
   final int? nextCharacterState;
+  final Map<String, Object?> sickStatusDiagnostics;
   final WorldDataLifecycleEvolutionDiagnostics evolutionDiagnostics;
   final bool hatched;
   final int? selectedCharacterKey;
@@ -140,6 +141,7 @@ class WorldDataLifecycleAdvanceResult {
     required this.worldDataChanged,
     required this.previousCharacterState,
     required this.nextCharacterState,
+    required this.sickStatusDiagnostics,
     required this.evolutionDiagnostics,
     required this.hatched,
     required this.selectedCharacterKey,
@@ -169,6 +171,7 @@ class WorldDataLifecycleAdvanceResult {
       'monsterBookWriteOwner': monsterBookWriteOwner,
       'previousCharacterState': previousCharacterState,
       'nextCharacterState': nextCharacterState,
+      'sickStatusDiagnostics': sickStatusDiagnostics,
       'nowMs': nowMs,
       'elapsedMs': elapsedMs,
       'tickCount': tickCount,
@@ -243,6 +246,8 @@ class WorldDataLifecycleService {
         _readInt(worldMetadata['last_ecs_saved']) ?? nowMs;
     final int elapsedMs = math.max(0, nowMs - previousLastEcsSaved);
     final int? previousCharacterState = character?.state;
+    final Map<String, Object?> initialSickStatusDiagnostics =
+        _buildSickStatusDiagnostics(character);
 
     bool changed = previousLastEcsSaved != nowMs;
     bool diseaseOccurred = false;
@@ -262,7 +267,11 @@ class WorldDataLifecycleService {
     Map<String, Object?>? hatchSelectionDiagnostics;
 
     if (character != null) {
-      changed = _syncSickStatusFromState(character) || changed;
+      changed = _syncSickStatusFromPersistentIndicators(
+            character,
+            nowMs: nowMs,
+          ) ||
+          changed;
       final _HatchProgressResult hatchResult = _progressHatchIfReady(
         character: character,
         entities: entities,
@@ -358,6 +367,10 @@ class WorldDataLifecycleService {
       worldDataChanged: changed,
       previousCharacterState: previousCharacterState,
       nextCharacterState: character?.state,
+      sickStatusDiagnostics: <String, Object?>{
+        'before': initialSickStatusDiagnostics,
+        'after': _buildSickStatusDiagnostics(character),
+      },
       evolutionDiagnostics: evolutionDiagnostics,
       hatched: hatched,
       selectedCharacterKey: selectedCharacterKey,
@@ -1563,13 +1576,63 @@ class WorldDataLifecycleService {
     );
   }
 
-  static bool _syncSickStatusFromState(_MutableCharacterSource character) {
-    if (character.state != config.characterStateSick ||
-        character.statuses.contains(config.characterStatusSick)) {
+  static Map<String, Object?> _buildSickStatusDiagnostics(
+    _MutableCharacterSource? character,
+  ) {
+    if (character == null) {
+      return const <String, Object?>{
+        'hasCharacter': false,
+      };
+    }
+    final List<int> statuses = List<int>.from(character.statuses);
+    final int sickStartTime =
+        _readInt(character.diseaseSystem['sickStartTime']) ?? 0;
+    return <String, Object?>{
+      'hasCharacter': true,
+      'state': character.state,
+      'statuses': statuses,
+      'hasSickStatus': statuses.contains(config.characterStatusSick),
+      'sickStartTime': sickStartTime,
+    };
+  }
+
+  static bool _syncSickStatusFromPersistentIndicators(
+    _MutableCharacterSource character, {
+    required int nowMs,
+  }) {
+    final int? state = character.state;
+    if (state == config.characterStateEgg ||
+        state == config.characterStateDead) {
       return false;
     }
-    _addStatus(character.statuses, config.characterStatusSick);
-    return true;
+
+    final List<int> statuses = character.statuses;
+    final bool hasSickStatus = statuses.contains(config.characterStatusSick);
+    final int sickStartTime =
+        _readInt(character.diseaseSystem['sickStartTime']) ?? 0;
+    final bool shouldBeSick = state == config.characterStateSick ||
+        hasSickStatus ||
+        sickStartTime > 0;
+
+    if (!shouldBeSick) {
+      return false;
+    }
+
+    bool changed = false;
+    if (!hasSickStatus) {
+      _addStatus(statuses, config.characterStatusSick);
+      changed = true;
+    }
+    if (sickStartTime <= 0) {
+      character.diseaseSystem['sickStartTime'] = nowMs;
+      changed = true;
+    }
+    if (state != config.characterStateSick &&
+        state != config.characterStateSleeping) {
+      character.object['state'] = config.characterStateSick;
+      changed = true;
+    }
+    return changed;
   }
 
   static double _resolveEvolutionGaugeGain({

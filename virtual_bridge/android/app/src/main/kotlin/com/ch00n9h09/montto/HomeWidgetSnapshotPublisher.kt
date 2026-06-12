@@ -1,8 +1,12 @@
 package com.ch00n9h09.montto
 
 import android.content.SharedPreferences
+import org.json.JSONArray
+import org.json.JSONObject
 
 internal object HomeWidgetSnapshotPublisher {
+    private const val SNAPSHOT_PUBLISH_HISTORY_LIMIT = 20
+
     private val stringFieldPatterns = mapOf(
         "characterState" to Regex(""""characterState"\s*:\s*"([^"]*)""""),
         "snapshotKind" to Regex(""""snapshotKind"\s*:\s*"([^"]*)""""),
@@ -25,6 +29,16 @@ internal object HomeWidgetSnapshotPublisher {
         val characterKey = extractIntField(snapshotJson, "characterKey")
         val eggHatchTimeMs = extractLongField(snapshotJson, "eggHatchTimeMs")
         val snapshotKind = extractStringField(snapshotJson, "snapshotKind")
+        val snapshot = HomeWidgetSnapshot.fromJson(snapshotJson)
+        val publishedAtMs = nowMsProvider()
+        val historyJson = appendSnapshotPublishHistory(
+            rawHistory = prefs.getString(HomeWidgetConstants.SNAPSHOT_PUBLISH_HISTORY_KEY, null),
+            snapshot = snapshot,
+            snapshotKey = snapshotKey,
+            reason = resolvedReason,
+            publishedAtMs = publishedAtMs,
+            success = true,
+        )
 
         prefs.edit().apply {
             if (snapshotJson.isNullOrEmpty()) {
@@ -43,7 +57,7 @@ internal object HomeWidgetSnapshotPublisher {
                     putBoolean(HomeWidgetConstants.REFRESH_IN_FLIGHT_KEY, false)
                     putLong(
                         HomeWidgetConstants.REFRESH_COMPLETED_AT_MS_KEY,
-                        nowMsProvider(),
+                        publishedAtMs,
                     )
                     putString(
                         HomeWidgetConstants.REFRESH_SMOKE_RESULT_KEY,
@@ -56,6 +70,7 @@ internal object HomeWidgetSnapshotPublisher {
                     )
                 }
             }
+            putString(HomeWidgetConstants.SNAPSHOT_PUBLISH_HISTORY_KEY, historyJson)
         }.apply()
 
         notifySnapshotUpdated(resolvedReason)
@@ -70,6 +85,75 @@ internal object HomeWidgetSnapshotPublisher {
             "eggHatchTimeMs" to eggHatchTimeMs,
             "snapshotKind" to snapshotKind,
         )
+    }
+
+    private fun appendSnapshotPublishHistory(
+        rawHistory: String?,
+        snapshot: HomeWidgetSnapshot?,
+        snapshotKey: String,
+        reason: String,
+        publishedAtMs: Long,
+        success: Boolean,
+    ): String {
+        val existing = parseHistory(rawHistory).toMutableList()
+        existing += buildSnapshotPublishHistoryEntry(
+            snapshot = snapshot,
+            snapshotKey = snapshotKey,
+            reason = reason,
+            publishedAtMs = publishedAtMs,
+            success = success,
+        )
+        val trimmed = existing.takeLast(SNAPSHOT_PUBLISH_HISTORY_LIMIT)
+        return JSONArray(trimmed).toString()
+    }
+
+    private fun parseHistory(rawHistory: String?): List<JSONObject> {
+        if (rawHistory.isNullOrBlank()) {
+            return emptyList()
+        }
+        return runCatching {
+            val array = JSONArray(rawHistory)
+            buildList {
+                for (index in 0 until array.length()) {
+                    val item = array.optJSONObject(index) ?: continue
+                    add(item)
+                }
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    private fun buildSnapshotPublishHistoryEntry(
+        snapshot: HomeWidgetSnapshot?,
+        snapshotKey: String,
+        reason: String,
+        publishedAtMs: Long,
+        success: Boolean,
+    ): JSONObject {
+        val entry = JSONObject()
+            .put("publishedAtMs", publishedAtMs)
+            .put("reason", reason)
+            .put("snapshotSlot", resolveSnapshotSlot(snapshotKey))
+            .put("snapshotKey", snapshotKey)
+            .put("hasSnapshot", snapshot != null)
+            .put("success", success)
+            .put("characterState", snapshot?.characterState)
+            .put("displayState", snapshot?.displayState)
+            .put("visibleStatusIcons", JSONArray(snapshot?.visibleStatusIcons ?: emptyList<String>()))
+            .put("hasUrgentStatus", snapshot?.hasUrgentStatus)
+            .put("characterKey", snapshot?.characterKey)
+            .put("snapshotKind", snapshot?.snapshotKind)
+            .put("snapshotComputedAtMs", snapshot?.snapshotComputedAtMs)
+            .put("authoritativeTimestampMs", snapshot?.authoritativeTimestampMs())
+
+        return entry
+    }
+
+    private fun resolveSnapshotSlot(snapshotKey: String): String {
+        return when (snapshotKey) {
+            HomeWidgetConstants.AUTHORITATIVE_SNAPSHOT_KEY -> "authoritative"
+            HomeWidgetConstants.SNAPSHOT_KEY -> "current"
+            else -> snapshotKey
+        }
     }
 
     private fun buildAuthoritativePublishSummary(

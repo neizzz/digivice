@@ -1,6 +1,7 @@
 package com.ch00n9h09.montto
 
 import android.content.SharedPreferences
+import org.json.JSONArray
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -41,7 +42,60 @@ class HomeWidgetSnapshotPublisherTest {
                 "\"characterState\":\"egg\"",
             ) == true,
         )
+        val history = JSONArray(
+            prefs.getString(HomeWidgetConstants.SNAPSHOT_PUBLISH_HISTORY_KEY, null),
+        )
+        val latestHistory = history.getJSONObject(0)
+        assertEquals(1, history.length())
+        assertEquals("native_hidden", latestHistory.getString("reason"))
+        assertEquals("home_widget_snapshot_v1", latestHistory.getString("snapshotKey"))
+        assertEquals("current", latestHistory.getString("snapshotSlot"))
+        assertEquals("egg", latestHistory.getString("characterState"))
+        assertEquals("authoritativeAppState", latestHistory.getString("snapshotKind"))
+        assertEquals(true, latestHistory.getBoolean("success"))
         assertEquals(listOf("native_hidden"), notifiedReasons)
+    }
+
+    @Test
+    fun `publish history keeps only latest twenty entries with sick snapshot details`() {
+        val prefs = FakeSharedPreferences()
+
+        repeat(21) { index ->
+            HomeWidgetSnapshotPublisher.publish(
+                prefs = prefs,
+                snapshotKey = HomeWidgetConstants.AUTHORITATIVE_SNAPSHOT_KEY,
+                snapshotJson = buildSnapshotJson(
+                    characterState = "sick",
+                    characterKey = index,
+                    eggHatchTimeMs = null,
+                    displayState = "sick",
+                    hasUrgentStatus = true,
+                    visibleStatusIcons = listOf("sick"),
+                    snapshotComputedAtMs = index.toLong(),
+                ),
+                reason = "history_$index",
+                notifySnapshotUpdated = {},
+                nowMsProvider = { index.toLong() },
+            )
+        }
+
+        val history = JSONArray(
+            prefs.getString(HomeWidgetConstants.SNAPSHOT_PUBLISH_HISTORY_KEY, null),
+        )
+        val first = history.getJSONObject(0)
+        val last = history.getJSONObject(history.length() - 1)
+
+        assertEquals(20, history.length())
+        assertEquals("history_1", first.getString("reason"))
+        assertEquals("history_20", last.getString("reason"))
+        assertEquals("authoritative", last.getString("snapshotSlot"))
+        assertEquals("sick", last.getString("characterState"))
+        assertEquals("sick", last.getString("displayState"))
+        assertEquals("sick", last.getJSONArray("visibleStatusIcons").getString(0))
+        assertEquals(true, last.getBoolean("hasUrgentStatus"))
+        assertEquals(20, last.getInt("characterKey"))
+        assertEquals(20L, last.getLong("snapshotComputedAtMs"))
+        assertEquals(20L, last.getLong("authoritativeTimestampMs"))
     }
 
     @Test
@@ -179,6 +233,10 @@ class HomeWidgetSnapshotPublisherTest {
         characterState: String,
         characterKey: Int,
         eggHatchTimeMs: Long?,
+        displayState: String = "idle",
+        hasUrgentStatus: Boolean = false,
+        visibleStatusIcons: List<String> = emptyList(),
+        snapshotComputedAtMs: Long = 0L,
     ): String = """
         {
           "schemaVersion":2,
@@ -190,8 +248,8 @@ class HomeWidgetSnapshotPublisherTest {
           "eggHatchDurationMs":null,
           "eggCrackStage":0,
           "characterState":"$characterState",
-          "displayState":"idle",
-          "primaryStatus":"idle",
+          "displayState":"$displayState",
+          "primaryStatus":"$displayState",
           "timeOfDay":"day",
           "stamina":0,
           "maxStamina":10,
@@ -200,14 +258,14 @@ class HomeWidgetSnapshotPublisherTest {
           "useLocalTime":true,
           "animationFrameIndex":0,
           "updatedAtMs":0,
-          "snapshotComputedAtMs":0,
+          "snapshotComputedAtMs":$snapshotComputedAtMs,
           "lastActiveTimeMs":null,
           "baseLastActiveTimeMs":null,
           "projectedElapsedMs":0,
           "projectionVersion":1,
           "staminaTimerMs":0,
-          "hasUrgentStatus":false,
-          "visibleStatusIcons":[]
+          "hasUrgentStatus":$hasUrgentStatus,
+          "visibleStatusIcons":${JSONArray(visibleStatusIcons)}
         }
     """.trimIndent()
 

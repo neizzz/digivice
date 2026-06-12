@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../world_data/world_data_lifecycle_service.dart';
 import '../world_data/world_data_update_service.dart';
 import '../world_data/world_data_config.dart' as config;
+import '../world_data/world_data_sync_service.dart';
 
 const String homeWidgetPeriodicRefreshTaskName = 'home_widget_periodic_refresh';
 
@@ -119,6 +120,25 @@ class HomeWidgetBackgroundRefreshService {
         saver,
         snapshotJson: snapshotJson,
         log: log,
+      );
+      await WorldDataSyncService.recordSnapshotPublishHistory(
+        prefs: prefs,
+        snapshotJson: snapshotJson,
+        reason: '${source}_authoritative',
+        publishedAtMs: _readInt(fullUpdateResult['nowMs']) ??
+            nowMs ??
+            DateTime.now().millisecondsSinceEpoch,
+        publishResultsBySlot: <String, bool>{
+          'current':
+              (publishResults[config.worldDataSnapshotStorageKey] ?? false) &&
+                  (publishResults[config.nativeWorldDataSnapshotKey] ?? false),
+          'authoritative': (publishResults[
+                      config.worldDataAuthoritativeSnapshotStorageKey] ??
+                  false) &&
+              (publishResults[config.nativeWorldDataAuthoritativeSnapshotKey] ??
+                  false),
+        },
+        saver: saver,
       );
       final List<String> failedKeys = publishResults.entries
           .where((MapEntry<String, bool> entry) => !entry.value)
@@ -352,6 +372,8 @@ class HomeWidgetBackgroundRefreshService {
       return 'authoritative_snapshot_published('
           'reason=$reason,'
           'state=${snapshot['characterState'] ?? 'unknown'},'
+          'display=${snapshot['displayState'] ?? 'unknown'},'
+          'icons=${snapshot['visibleStatusIcons'] ?? 'unknown'},'
           'key=${snapshot['characterKey'] ?? 'unknown'},'
           'kind=${snapshot['snapshotKind'] ?? 'unknown'},'
           '$hatchSummary'

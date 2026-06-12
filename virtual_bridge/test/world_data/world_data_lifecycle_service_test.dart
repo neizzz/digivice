@@ -16,6 +16,7 @@ String _buildWorldData({
   double evolutionGage = 0,
   List<int> statuses = const <int>[],
   int nextDiseaseCheckTime = 10 * 1000,
+  int sickStartTime = 0,
   double fatigue = 35,
   int nextNapCheckTime = 20 * 60 * 1000,
   int sleepMode = 0,
@@ -84,7 +85,7 @@ String _buildWorldData({
           },
           'diseaseSystem': <String, dynamic>{
             'nextCheckTime': nextDiseaseCheckTime,
-            'sickStartTime': 0,
+            'sickStartTime': sickStartTime,
           },
           'sleepSystem': <String, dynamic>{
             'fatigue': fatigue,
@@ -247,6 +248,63 @@ void main() {
     expect(_characterStatus(updated)['evolutionGage'], 10);
     expect(result.evolutionDiagnostics.blockReason, 'sick');
     expect(result.evolutionDiagnostics.evolutionGageIncreased, isFalse);
+  });
+
+  test('sick status는 치료 없이 background lifecycle에서 제거되지 않는다', () {
+    final WorldDataLifecycleAdvanceResult result =
+        WorldDataLifecycleService.advanceWorldData(
+      rawWorldData: _buildWorldData(
+        lastEcsSaved: 0,
+        state: config.characterStateMoving,
+        statuses: const <int>[config.characterStatusSick],
+        sickStartTime: 1234,
+        stamina: 10,
+        evolutionGage: 10,
+      ),
+      nowMs: 60 * 60 * 1000,
+      source: 'app_resume',
+      randomProvider: (_) => 1,
+    );
+
+    final Map<String, dynamic> updated = _decode(result.updatedRawWorldData);
+    final Map<String, dynamic> status = _characterStatus(updated);
+    final Map<String, dynamic> diseaseSystem =
+        _components(updated)['diseaseSystem'] as Map<String, dynamic>;
+
+    expect(status['statuses'], contains(config.characterStatusSick));
+    expect(diseaseSystem['sickStartTime'], 1234);
+    expect(_object(updated)['state'], config.characterStateSick);
+    expect(result.evolutionDiagnostics.blockReason, 'sick');
+    expect(
+      ((result.sickStatusDiagnostics['after']
+          as Map<String, Object?>)['statuses'] as List<int>),
+      contains(config.characterStatusSick),
+    );
+  });
+
+  test('sickStartTime만 남은 저장본도 치료 전 sick 상태로 복원한다', () {
+    final WorldDataLifecycleAdvanceResult result =
+        WorldDataLifecycleService.advanceWorldData(
+      rawWorldData: _buildWorldData(
+        lastEcsSaved: 0,
+        state: config.characterStateMoving,
+        statuses: const <int>[],
+        sickStartTime: 1234,
+      ),
+      nowMs: 60 * 1000,
+      source: 'app_resume',
+      randomProvider: (_) => 1,
+    );
+
+    final Map<String, dynamic> updated = _decode(result.updatedRawWorldData);
+    expect(_characterStatus(updated)['statuses'],
+        contains(config.characterStatusSick));
+    expect(
+      (_components(updated)['diseaseSystem']
+          as Map<String, dynamic>)['sickStartTime'],
+      1234,
+    );
+    expect(_object(updated)['state'], config.characterStateSick);
   });
 
   test('오프라인 elapsed 중 진화 게이지가 100에 도달하면 Dart가 실제 진화를 적용한다', () {

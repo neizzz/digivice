@@ -2,7 +2,7 @@ var __defProp = Object.defineProperty;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 import { a as requireReactDom, r as reactExports, j as jsxRuntimeExports, T as TopLeftBuildLogoText, R as ReactDOM } from "./index2.js";
-import { z as DEFAULT_LOCALE, F as resolveLocaleFromLanguageTags, G as ControlButtonType, H as hasNativeStorageController, I as FlutterStorage, W as WebLocalStorage, J as translate, K as countDisplayCharacters, L as measureNameLabelWidth, N as fitsNameLabelWidth, O as TRANSLATIONS, Q as NAME_LABEL_FONT_FAMILIES, V as NAME_LABEL_FONT_WEIGHT, X as NAME_LABEL_STROKE_COLOR, Y as NAME_LABEL_FILL_COLOR, Z as NAME_LABEL_STROKE_WIDTH, _ as CharacterState, $ as CharacterKeyECS, a0 as isEggTextureKey, a1 as TextureKey, a2 as GAME_CONSTANTS, a3 as SceneKey, a4 as TimeOfDay, a5 as hasLegacyMonsterBookState, a6 as migrateLegacyMonsterBookIfNeeded, a7 as getNativeSunTimes, a8 as MissingInitialGameDataError, a9 as Game } from "./evolutionAdmin.js";
+import { z as DEFAULT_LOCALE, F as resolveLocaleFromLanguageTags, G as ControlButtonType, H as hasNativeStorageController, I as FlutterStorage, W as WebLocalStorage, J as translate, K as countDisplayCharacters, L as measureNameLabelWidth, N as fitsNameLabelWidth, O as TRANSLATIONS, Q as NAME_LABEL_FONT_FAMILIES, V as NAME_LABEL_FONT_WEIGHT, X as NAME_LABEL_STROKE_COLOR, Y as NAME_LABEL_FILL_COLOR, Z as NAME_LABEL_STROKE_WIDTH, _ as GAME_CONSTANTS, $ as CharacterState, a0 as CharacterKeyECS, a1 as isEggTextureKey, a2 as TextureKey, a3 as SceneKey, a4 as TimeOfDay, a5 as hasLegacyMonsterBookState, a6 as migrateLegacyMonsterBookIfNeeded, a7 as getNativeSunTimes, a8 as MissingInitialGameDataError, a9 as Game } from "./evolutionAdmin.js";
 var reactDomExports = requireReactDom();
 class SliderController {
   /**
@@ -4038,7 +4038,7 @@ function isNativeWorldDataUpdateCompleted(result) {
   return (result == null ? void 0 : result.status) === "native_authoritative_completion_completed" || (result == null ? void 0 : result.status) === "flutter_world_data_update_completed";
 }
 function summarizeNativeWorldDataUpdate(record) {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B;
   if (!record) {
     return null;
   }
@@ -4069,7 +4069,9 @@ function summarizeNativeWorldDataUpdate(record) {
     diseaseCheckCount: ((_w = record.result) == null ? void 0 : _w.diseaseCheckCount) ?? null,
     lastDiseasePerCheckProbability: ((_x = record.result) == null ? void 0 : _x.lastDiseasePerCheckProbability) ?? null,
     lastDiseaseAggregatedProbability: ((_y = record.result) == null ? void 0 : _y.lastDiseaseAggregatedProbability) ?? null,
-    hatchSelectionDiagnostics: ((_z = record.result) == null ? void 0 : _z.hatchSelectionDiagnostics) ?? null
+    hatchSelectionDiagnostics: ((_z = record.result) == null ? void 0 : _z.hatchSelectionDiagnostics) ?? null,
+    inputWorldDataDiagnostics: ((_A = record.result) == null ? void 0 : _A.inputWorldDataDiagnostics) ?? null,
+    updatedWorldDataDiagnostics: ((_B = record.result) == null ? void 0 : _B.updatedWorldDataDiagnostics) ?? null
   };
 }
 function readNullableNumber(value) {
@@ -4374,11 +4376,11 @@ function createFlappyBirdLogsBody() {
   ].join("\n");
 }
 function getClientReleaseLabel() {
-  return `${"1.2.0"}+${20}`;
+  return `${"1.2.1"}+${21}`;
 }
 function getClientReleaseFileLabel() {
-  const sanitizedVersion = "1.2.0".replace(/[^a-zA-Z0-9.-]+/g, "_");
-  return `${sanitizedVersion}-build-${20}`;
+  const sanitizedVersion = "1.2.1".replace(/[^a-zA-Z0-9.-]+/g, "_");
+  return `${sanitizedVersion}-build-${21}`;
 }
 function buildDiagnosticsTimestampSuffix(timestamp) {
   return timestamp.replace(/\.\d{3}Z$/, "Z").replace(/[:]/g, "-");
@@ -5219,8 +5221,8 @@ const GameContainer = () => {
       scene: (gameInstance == null ? void 0 : gameInstance.getCurrentSceneKey()) !== void 0 ? String(gameInstance.getCurrentSceneKey()) : void 0,
       storageKind: getClientStorageKind(),
       appMode: "production",
-      appVersion: "1.2.0",
-      buildNumber: 20,
+      appVersion: "1.2.1",
+      buildNumber: 21,
       debugEnabled: isNativeFeatureDebugMode$1
     }));
     return () => {
@@ -5734,8 +5736,8 @@ const GameContainer = () => {
         generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
         appInfo: {
           project: "MonTTo",
-          clientAppVersion: "1.2.0",
-          clientBuildNumber: 20,
+          clientAppVersion: "1.2.1",
+          clientBuildNumber: 21,
           appMode: "production",
           debugEnabled: isNativeFeatureDebugMode$1,
           storageKind: getClientStorageKind(),
@@ -8176,8 +8178,8 @@ const isNativeFeatureDebugMode = false;
 installDiagnosticsConsoleCapture();
 setDiagnosticsContextProvider(() => ({
   appMode: "production",
-  appVersion: "1.2.0",
-  buildNumber: 20,
+  appVersion: "1.2.1",
+  buildNumber: 21,
   debugEnabled: isNativeFeatureDebugMode
 }));
 document.addEventListener("DOMContentLoaded", () => {
