@@ -254,6 +254,25 @@ class HomeWidgetPeriodicRefreshWorkerTest {
         )
         assertEquals(false, diagnostics["backgroundRefreshQueued"])
         assertEquals(false, diagnostics["refreshActivityLaunched"])
+        assertEquals(false, diagnostics["hasAnyWidgets"])
+        assertEquals(0, diagnostics["homeWidget2x1Count"])
+        assertEquals(0, diagnostics["homeWidget1x1Count"])
+    }
+
+    @Test
+    fun `readDiagnostics exposes widget presence fields`() {
+        val diagnostics = HomeWidgetAuthoritativeRefreshRequester.readDiagnostics(
+            nativePrefs = FakeSharedPreferences(),
+            flutterPrefs = null,
+            widgetPresence = HomeWidgetPresence(
+                homeWidget2x1Count = 2,
+                homeWidget1x1Count = 1,
+            ),
+        )
+
+        assertEquals(true, diagnostics["hasAnyWidgets"])
+        assertEquals(2, diagnostics["homeWidget2x1Count"])
+        assertEquals(1, diagnostics["homeWidget1x1Count"])
     }
 
     @Test
@@ -331,5 +350,21 @@ class HomeWidgetPeriodicRefreshWorkerTest {
                 homeWidget1x1Ids = intArrayOf(),
             ),
         )
+    }
+
+    @Test
+    fun `widgetPresence exposes counts and diagnostics map`() {
+        val presence = HomeWidgetPeriodicRefreshScheduler.widgetPresence(
+            homeWidgetIds = intArrayOf(7, 8),
+            homeWidget1x1Ids = intArrayOf(101),
+        )
+        val diagnostics = presence.toDiagnosticsMap()
+
+        assertTrue(presence.hasAnyWidgets)
+        assertEquals(2, presence.homeWidget2x1Count)
+        assertEquals(1, presence.homeWidget1x1Count)
+        assertEquals(true, diagnostics["hasAnyWidgets"])
+        assertEquals(2, diagnostics["homeWidget2x1Count"])
+        assertEquals(1, diagnostics["homeWidget1x1Count"])
     }
 }

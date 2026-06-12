@@ -74,6 +74,7 @@ internal object HomeWidgetAuthoritativeRefreshRequester {
                 Context.MODE_PRIVATE,
             ),
             debugModeEnabled = HomeWidgetDebugPresetStore.isNativeDebugModeEnabled(),
+            widgetPresence = HomeWidgetPeriodicRefreshScheduler.widgetPresence(context),
         )
     }
 
@@ -180,6 +181,10 @@ internal object HomeWidgetAuthoritativeRefreshRequester {
         nativePrefs: SharedPreferences,
         flutterPrefs: SharedPreferences?,
         debugModeEnabled: Boolean = true,
+        widgetPresence: HomeWidgetPresence = HomeWidgetPresence(
+            homeWidget2x1Count = 0,
+            homeWidget1x1Count = 0,
+        ),
     ): Map<String, Any?> {
         val nativeAuthoritativeSnapshot = HomeWidgetSnapshot.fromJson(
             nativePrefs.getString(HomeWidgetConstants.AUTHORITATIVE_SNAPSHOT_KEY, null),
@@ -230,6 +235,9 @@ internal object HomeWidgetAuthoritativeRefreshRequester {
                 HomeWidgetConstants.REFRESH_ACTIVITY_LAUNCHED_KEY,
                 false,
             ),
+            "hasAnyWidgets" to widgetPresence.hasAnyWidgets,
+            "homeWidget2x1Count" to widgetPresence.homeWidget2x1Count,
+            "homeWidget1x1Count" to widgetPresence.homeWidget1x1Count,
             "nativeCurrentSnapshot" to summarizeSnapshot(
                 source = HOME_WIDGET_NATIVE_SNAPSHOT_SOURCE,
                 snapshot = HomeWidgetSnapshot.fromJson(

@@ -8,6 +8,20 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import java.util.concurrent.TimeUnit
 
+internal data class HomeWidgetPresence(
+    val homeWidget2x1Count: Int,
+    val homeWidget1x1Count: Int,
+) {
+    val hasAnyWidgets: Boolean
+        get() = homeWidget2x1Count > 0 || homeWidget1x1Count > 0
+
+    fun toDiagnosticsMap(): Map<String, Any> = mapOf(
+        "hasAnyWidgets" to hasAnyWidgets,
+        "homeWidget2x1Count" to homeWidget2x1Count,
+        "homeWidget1x1Count" to homeWidget1x1Count,
+    )
+}
+
 internal object HomeWidgetPeriodicRefreshScheduler {
     fun scheduleIfNeeded(context: Context) {
         if (!hasAnyWidgets(context)) {
@@ -37,8 +51,12 @@ internal object HomeWidgetPeriodicRefreshScheduler {
     }
 
     fun hasAnyWidgets(context: Context): Boolean {
+        return widgetPresence(context).hasAnyWidgets
+    }
+
+    fun widgetPresence(context: Context): HomeWidgetPresence {
         val appWidgetManager = AppWidgetManager.getInstance(context)
-        return hasAnyWidgets(
+        return widgetPresence(
             homeWidgetIds = appWidgetManager.getAppWidgetIds(
                 ComponentName(context, HomeWidgetProvider::class.java),
             ),
@@ -48,10 +66,23 @@ internal object HomeWidgetPeriodicRefreshScheduler {
         )
     }
 
+    internal fun widgetPresence(
+        homeWidgetIds: IntArray,
+        homeWidget1x1Ids: IntArray,
+    ): HomeWidgetPresence {
+        return HomeWidgetPresence(
+            homeWidget2x1Count = homeWidgetIds.size,
+            homeWidget1x1Count = homeWidget1x1Ids.size,
+        )
+    }
+
     internal fun hasAnyWidgets(
         homeWidgetIds: IntArray,
         homeWidget1x1Ids: IntArray,
     ): Boolean {
-        return homeWidgetIds.isNotEmpty() || homeWidget1x1Ids.isNotEmpty()
+        return widgetPresence(
+            homeWidgetIds = homeWidgetIds,
+            homeWidget1x1Ids = homeWidget1x1Ids,
+        ).hasAnyWidgets
     }
 }

@@ -1544,6 +1544,142 @@ test("init/app_resume reentry는 native payload world data가 있으면 stale st
 	assert.equal(writes.length, 1);
 });
 
+test("home widget 존재 reentry는 native updatedRawWorldData의 상태 필드만 우선 반영한다", async () => {
+	const originalGetData = StorageManager.getData.bind(StorageManager);
+	const originalSetData = StorageManager.setData.bind(StorageManager);
+	const lastActiveTime = 1_000;
+	const currentTime = 2_500;
+	const currentSnapshot = {
+		trustedUtcMs: currentTime,
+		osUptimeMs: 12_500,
+		source: "ntp" as const,
+		uncertaintyMs: 10,
+		capturedWallMs: currentTime,
+	};
+	const trustedClock = {
+		refresh: async () => currentSnapshot,
+		now: () => currentTime,
+		elapsedSince: () => ({
+			elapsedMs: currentTime - lastActiveTime,
+			trusted: true,
+			currentSnapshot,
+		}),
+		captureAnchor: () => currentSnapshot,
+	};
+	const nativeUpdatedData = buildReentryCharacterWorldData({
+		state: CharacterState.SLEEPING,
+		currentTime,
+		statuses: [CharacterStatus.SICK],
+		stamina: 1,
+		sleepMode: SleepMode.NIGHT_SLEEP,
+		sickStartTime: 123,
+	});
+	const nativeCharacter = nativeUpdatedData.entities[0]?.components;
+	if (nativeCharacter?.characterStatus) {
+		nativeCharacter.characterStatus.evolutionGage = 99;
+	}
+	const baseData = buildReentryCharacterWorldData({
+		state: CharacterState.IDLE,
+		currentTime: lastActiveTime,
+		stamina: 8,
+	});
+	const baseCharacter = baseData.entities[0]?.components;
+	if (baseCharacter?.characterStatus) {
+		baseCharacter.characterStatus.evolutionGage = 33;
+	}
+	if (baseCharacter?.position) {
+		baseCharacter.position.x = 40;
+		baseCharacter.position.y = 44;
+	}
+	const writes: Array<{ key: string; data: unknown }> = [];
+	let storageReadCount = 0;
+	const world = createMainSceneWorld({
+		trustedClock,
+		onNativeWorldDataUpdateForReentry: async (source) => {
+			assert.equal(source, "app_resume");
+			return {
+				status: "native_authoritative_completion_completed",
+				updatedRawWorldData: JSON.stringify(nativeUpdatedData),
+				worldDataChanged: true,
+				hasAnyWidgets: true,
+				homeWidget1x1Count: 1,
+				homeWidget2x1Count: 0,
+			};
+		},
+	});
+
+	createWorld(world as any, 32);
+	const baseEid = createTestCharacter(world as any, {
+		state: CharacterState.IDLE,
+		stamina: 8,
+		x: 40,
+		y: 44,
+	});
+	ObjectComp.id[baseEid] = 202;
+	world._persistentData = baseData;
+
+	(
+		StorageManager as {
+			getData: typeof StorageManager.getData;
+			setData: typeof StorageManager.setData;
+		}
+	).getData = async () => {
+		storageReadCount += 1;
+		return null;
+	};
+	(
+		StorageManager as {
+			setData: typeof StorageManager.setData;
+		}
+	).setData = async (key, data) => {
+		writes.push({ key, data });
+	};
+
+	try {
+		await world._processReentrySimulation("app_resume");
+	} finally {
+		(
+			StorageManager as {
+				getData: typeof StorageManager.getData;
+				setData: typeof StorageManager.setData;
+			}
+		).getData = originalGetData;
+		(
+			StorageManager as {
+				setData: typeof StorageManager.setData;
+			}
+		).setData = originalSetData;
+	}
+
+	const characterEid = world._findMainCharacterEntity();
+	const savedCharacter = (
+		writes
+			.filter((write) => write.key === WORLD_DATA_STORAGE_KEY)
+			.at(-1)?.data as MainSceneWorldData | undefined
+	)?.entities[0]?.components;
+
+	assert.equal(storageReadCount, 0);
+	assert.equal(ObjectComp.state[characterEid], CharacterState.SLEEPING);
+	assert.equal(hasCharacterStatus(characterEid, CharacterStatus.SICK), true);
+	assert.equal(DiseaseSystemComp.sickStartTime[characterEid], 123);
+	assert.equal(SleepSystemComp.sleepMode[characterEid], SleepMode.NIGHT_SLEEP);
+	assert.equal(CharacterStatusComp.stamina[characterEid], 8);
+	assert.equal(CharacterStatusComp.evolutionGage[characterEid], 33);
+	assert.equal(PositionComp.x[characterEid], 40);
+	assert.equal(PositionComp.y[characterEid], 44);
+	assert.equal(savedCharacter?.object?.state, CharacterState.SLEEPING);
+	assert.deepEqual(savedCharacter?.characterStatus?.statuses, [
+		CharacterStatus.SICK,
+		ECS_NULL_VALUE,
+		ECS_NULL_VALUE,
+		ECS_NULL_VALUE,
+	]);
+	assert.equal(savedCharacter?.characterStatus?.stamina, 8);
+	assert.equal(savedCharacter?.characterStatus?.evolutionGage, 33);
+	assert.equal(savedCharacter?.position?.x, 40);
+	assert.equal(savedCharacter?.position?.y, 44);
+});
+
 test("foreground hatch는 scaled nowMs를 Flutter authority에 전달하고 반환 저장본을 적용한다", async () => {
 	const currentTime = 12_345.67;
 	const forwardedNowMs = Math.floor(currentTime);

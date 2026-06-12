@@ -35,6 +35,17 @@ open class MainActivity : FlutterActivity() {
         private const val TRUSTED_TIME_CHANNEL = "digivice/trusted_time"
         private const val TARGET_REFRESH_RATE_HZ = 60f
         private const val TARGET_REFRESH_RATE_TOLERANCE_HZ = 1f
+
+        internal fun buildHomeWidgetLaunchContext(
+            mode: String,
+            presence: HomeWidgetPresence,
+        ): Map<String, Any> {
+            return linkedMapOf<String, Any>(
+                "mode" to mode,
+            ).apply {
+                putAll(presence.toDiagnosticsMap())
+            }
+        }
     }
 
     private var nativeBackCallback: OnBackInvokedCallback? = null
@@ -171,12 +182,13 @@ open class MainActivity : FlutterActivity() {
                     requestPinWidget(HomeWidgetProvider::class.java),
                 )
                 "getLaunchContext" -> result.success(
-                    mapOf(
-                        "mode" to if (isWidgetRefreshMode()) {
+                    buildHomeWidgetLaunchContext(
+                        mode = if (isWidgetRefreshMode()) {
                             "widget_refresh"
                         } else {
                             "default"
                         },
+                        presence = HomeWidgetPeriodicRefreshScheduler.widgetPresence(this),
                     ),
                 )
 

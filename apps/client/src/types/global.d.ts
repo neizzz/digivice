@@ -50,6 +50,11 @@ declare global {
 		lastDiseasePerCheckProbability?: number | null;
 		lastDiseaseAggregatedProbability?: number | null;
 		hatchSelectionDiagnostics?: Record<string, unknown> | null;
+		inputWorldDataDiagnostics?: Record<string, unknown> | null;
+		updatedWorldDataDiagnostics?: Record<string, unknown> | null;
+		hasAnyWidgets?: boolean | null;
+		homeWidget1x1Count?: number | null;
+		homeWidget2x1Count?: number | null;
 		error?: unknown;
 		[key: string]: unknown;
 	};
@@ -67,6 +72,9 @@ declare global {
 		requestPinWidget2x1: () => Promise<string>;
 		getLaunchContext?: () => Promise<{
 			mode?: string;
+			hasAnyWidgets?: boolean;
+			homeWidget1x1Count?: number;
+			homeWidget2x1Count?: number;
 		}>;
 		syncFromWorldDataJson: (payload: {
 			rawWorldData?: string | null;

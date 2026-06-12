@@ -587,6 +587,11 @@ export type MainSceneNativeWorldDataUpdateForReentryResult = {
 	nextCharacterState?: number | null;
 	selectedCharacterKey?: number | null;
 	hatchSelectionDiagnostics?: Record<string, unknown> | null;
+	inputWorldDataDiagnostics?: Record<string, unknown> | null;
+	updatedWorldDataDiagnostics?: Record<string, unknown> | null;
+	hasAnyWidgets?: boolean | null;
+	homeWidget1x1Count?: number | null;
+	homeWidget2x1Count?: number | null;
 	error?: unknown;
 	[key: string]: unknown;
 };
@@ -616,8 +621,26 @@ type MainSceneAppState = NonNullable<WorldMetadata["app_state"]>;
 type MainSceneEntryStatusSnapshot = {
 	eid: number;
 	state: number;
+	statuses: number[];
+	hasSickStatus: boolean;
+	sickStartTime: number | null;
 	signature: string;
 	isSleeping: boolean;
+};
+
+type MainSceneSavedStatusDiagnostics = {
+	state: number | null;
+	statuses: number[];
+	hasSickStatus: boolean;
+	sickStartTime: number | null;
+};
+
+type MainSceneWidgetStateMergeResult = {
+	data: MainSceneWorldData;
+	applied: boolean;
+	before: MainSceneSavedStatusDiagnostics | null;
+	after: MainSceneSavedStatusDiagnostics | null;
+	source: "widget_state_fields" | "full_native_world_data" | "storage_reload";
 };
 
 type MainSceneEntryStatusSuppressionState = {
@@ -4367,17 +4390,42 @@ export class MainSceneWorld implements IWorld, Scene {
 
 			let usedNativeUpdatedRawWorldData = false;
 			let validatedData: MainSceneWorldData | null = null;
+			let nativeValidatedData: MainSceneWorldData | null = null;
+			let widgetStateMergeResult: MainSceneWidgetStateMergeResult | null = null;
+			const stateMergePolicy =
+				updateResult.hasAnyWidgets === true
+					? "widget_state_fields"
+					: "full_native_world_data";
 
 			if (typeof updateResult.updatedRawWorldData === "string") {
 				const rawWorldData = updateResult.updatedRawWorldData.trim();
 				if (rawWorldData) {
 					try {
 						const parsedData = JSON.parse(rawWorldData) as MainSceneWorldData;
-						const nativeValidatedData =
-							this._validateAndMigrateData(parsedData);
+						nativeValidatedData = this._validateAndMigrateData(parsedData);
 						if (this._hasPlayableSavedData(nativeValidatedData)) {
-							validatedData = nativeValidatedData;
-							usedNativeUpdatedRawWorldData = true;
+							if (updateResult.hasAnyWidgets === true) {
+								const baseData = this._persistentData
+									? this._validateAndMigrateData(
+											this._cloneWorldData(this._persistentData),
+										)
+									: null;
+
+								if (this._hasPlayableSavedData(baseData)) {
+									widgetStateMergeResult =
+										this._mergeWidgetReentryStateFields(
+											baseData,
+											nativeValidatedData,
+										);
+									validatedData = widgetStateMergeResult.data;
+								} else {
+									validatedData = nativeValidatedData;
+									usedNativeUpdatedRawWorldData = true;
+								}
+							} else {
+								validatedData = nativeValidatedData;
+								usedNativeUpdatedRawWorldData = true;
+							}
 						} else {
 							console.warn(
 								"[MainSceneWorld] Native updated raw world data is not playable; falling back to storage reload",
@@ -4409,9 +4457,12 @@ export class MainSceneWorld implements IWorld, Scene {
 			const nativeUpdatedRawCharacterState = usedNativeUpdatedRawWorldData
 				? this._getSavedMainCharacterState(validatedData)
 				: null;
+			const nativeUpdatedStatusDiagnostics =
+				this._getSavedMainCharacterStatusDiagnostics(nativeValidatedData);
 			const shouldPreserveNativeSleep =
 				updateResult.nextCharacterState === CharacterState.SLEEPING ||
-				nativeUpdatedRawCharacterState === CharacterState.SLEEPING;
+				nativeUpdatedRawCharacterState === CharacterState.SLEEPING ||
+				widgetStateMergeResult?.after?.state === CharacterState.SLEEPING;
 
 			this.applyPersistedWorldDataForReentry(validatedData);
 			options.clearFoodInteractionSuspendFlag();
@@ -4452,12 +4503,42 @@ export class MainSceneWorld implements IWorld, Scene {
 					nextCharacterState: updateResult.nextCharacterState ?? null,
 					foodInteractionDiagnostics:
 						updateResult.foodInteractionDiagnostics ?? null,
+					inputWorldDataDiagnostics:
+						updateResult.inputWorldDataDiagnostics ?? null,
+					updatedWorldDataDiagnostics:
+						updateResult.updatedWorldDataDiagnostics ?? null,
+					hasAnyWidgets: updateResult.hasAnyWidgets ?? null,
+					homeWidget1x1Count: updateResult.homeWidget1x1Count ?? null,
+					homeWidget2x1Count: updateResult.homeWidget2x1Count ?? null,
+					stateMergePolicy,
+					stateMergeApplied: widgetStateMergeResult?.applied ?? false,
+					stateMergeSource:
+						widgetStateMergeResult?.source ??
+						(usedNativeUpdatedRawWorldData
+							? "full_native_world_data"
+							: "storage_reload"),
+					stateMergeBefore: widgetStateMergeResult?.before ?? null,
+					stateMergeAfter: widgetStateMergeResult?.after ?? null,
 					selectedCharacterKey: updateResult.selectedCharacterKey ?? null,
 					usedNativeUpdatedRawWorldData,
 					preAppState: preReentrySnapshot?.state ?? null,
+					preAppStatuses: preReentrySnapshot?.statuses ?? null,
+					preAppHasSickStatus: preReentrySnapshot?.hasSickStatus ?? null,
+					preAppSickStartTime: preReentrySnapshot?.sickStartTime ?? null,
 					nativeNextState: updateResult.nextCharacterState ?? null,
 					nativeUpdatedRawCharacterState,
+					nativeUpdatedRawStatuses:
+						nativeUpdatedStatusDiagnostics?.statuses ?? null,
+					nativeUpdatedRawHasSickStatus:
+						nativeUpdatedStatusDiagnostics?.hasSickStatus ?? null,
+					nativeUpdatedRawSickStartTime:
+						nativeUpdatedStatusDiagnostics?.sickStartTime ?? null,
 					postAppliedState: postAppliedSnapshot?.state ?? null,
+					postAppliedStatuses: postAppliedSnapshot?.statuses ?? null,
+					postAppliedHasSickStatus:
+						postAppliedSnapshot?.hasSickStatus ?? null,
+					postAppliedSickStartTime:
+						postAppliedSnapshot?.sickStartTime ?? null,
 					sleepSuppressionApplied,
 				},
 			);
@@ -4816,10 +4897,16 @@ export class MainSceneWorld implements IWorld, Scene {
 			: [];
 		const isSleeping =
 			ObjectComp.state[characterEid] === CharacterState.SLEEPING;
+		const sickStartTime = hasComponent(this, DiseaseSystemComp, characterEid)
+			? DiseaseSystemComp.sickStartTime[characterEid]
+			: null;
 
 		return {
 			eid: characterEid,
 			state: ObjectComp.state[characterEid],
+			statuses,
+			hasSickStatus: statuses.includes(CharacterStatus.SICK),
+			sickStartTime,
 			signature: `${ObjectComp.state[characterEid]}|${statuses.join(",")}`,
 			isSleeping,
 		};
@@ -4833,6 +4920,136 @@ export class MainSceneWorld implements IWorld, Scene {
 			if (object?.type === ObjectType.CHARACTER) {
 				return object.state;
 			}
+		}
+
+		return null;
+	}
+
+	private _cloneWorldData(data: MainSceneWorldData): MainSceneWorldData {
+		return JSON.parse(JSON.stringify(data)) as MainSceneWorldData;
+	}
+
+	private _findSavedMainCharacterEntity(
+		data: MainSceneWorldData | null | undefined,
+	): SavedEntity | null {
+		for (const entity of data?.entities ?? []) {
+			if (entity.components.object?.type === ObjectType.CHARACTER) {
+				return entity;
+			}
+		}
+
+		return null;
+	}
+
+	private _mergeWidgetReentryStateFields(
+		baseData: MainSceneWorldData,
+		nativeUpdatedData: MainSceneWorldData,
+	): MainSceneWidgetStateMergeResult {
+		const mergedData = this._cloneWorldData(baseData);
+		const before = this._getSavedMainCharacterStatusDiagnostics(mergedData);
+		const baseCharacter = this._findSavedMainCharacterEntity(mergedData);
+		const nativeCharacter =
+			this._findSavedMainCharacterEntity(nativeUpdatedData);
+
+		if (!baseCharacter || !nativeCharacter) {
+			return {
+				data: mergedData,
+				applied: false,
+				before,
+				after: this._getSavedMainCharacterStatusDiagnostics(mergedData),
+				source: "widget_state_fields",
+			};
+		}
+
+		const nativeObject = nativeCharacter.components.object;
+		if (
+			typeof nativeObject?.state === "number" &&
+			Number.isFinite(nativeObject.state)
+		) {
+			baseCharacter.components.object = {
+				...baseCharacter.components.object,
+				id: baseCharacter.components.object?.id ?? nativeObject.id,
+				type: baseCharacter.components.object?.type ?? nativeObject.type,
+				state: nativeObject.state,
+			};
+		}
+
+		const nativeStatuses = nativeCharacter.components.characterStatus?.statuses;
+		if (
+			baseCharacter.components.characterStatus &&
+			Array.isArray(nativeStatuses)
+		) {
+			baseCharacter.components.characterStatus = {
+				...baseCharacter.components.characterStatus,
+				statuses: nativeStatuses.filter(
+					(status): status is CharacterStatus =>
+						typeof status === "number" && Number.isFinite(status),
+				),
+			};
+		}
+
+		const nativeDiseaseSystem = nativeCharacter.components.diseaseSystem;
+		if (
+			nativeDiseaseSystem &&
+			typeof nativeDiseaseSystem.sickStartTime === "number" &&
+			Number.isFinite(nativeDiseaseSystem.sickStartTime)
+		) {
+			baseCharacter.components.diseaseSystem = {
+				...(baseCharacter.components.diseaseSystem ?? nativeDiseaseSystem),
+				sickStartTime: nativeDiseaseSystem.sickStartTime,
+			};
+		}
+
+		const nativeSleepSystem = nativeCharacter.components.sleepSystem;
+		if (nativeSleepSystem) {
+			baseCharacter.components.sleepSystem = {
+				...(baseCharacter.components.sleepSystem ?? nativeSleepSystem),
+				nextSleepTime: nativeSleepSystem.nextSleepTime,
+				nextWakeTime: nativeSleepSystem.nextWakeTime,
+				nextNightWakeCheckTime: nativeSleepSystem.nextNightWakeCheckTime,
+				sleepMode: nativeSleepSystem.sleepMode,
+				interruptedSleepMode: nativeSleepSystem.interruptedSleepMode,
+				pendingSleepReason: nativeSleepSystem.pendingSleepReason,
+				pendingWakeReason: nativeSleepSystem.pendingWakeReason,
+				sleepSessionStartedAt: nativeSleepSystem.sleepSessionStartedAt,
+			};
+		}
+
+		return {
+			data: mergedData,
+			applied: true,
+			before,
+			after: this._getSavedMainCharacterStatusDiagnostics(mergedData),
+			source: "widget_state_fields",
+		};
+	}
+
+	private _getSavedMainCharacterStatusDiagnostics(
+		data: MainSceneWorldData | null | undefined,
+	): MainSceneSavedStatusDiagnostics | null {
+		for (const entity of data?.entities ?? []) {
+			const object = entity.components.object;
+			if (object?.type !== ObjectType.CHARACTER) {
+				continue;
+			}
+
+			const statuses = Array.isArray(entity.components.characterStatus?.statuses)
+				? entity.components.characterStatus.statuses.filter(
+						(status): status is number =>
+							typeof status === "number" && status > 0,
+					)
+				: [];
+			const sickStartTime = entity.components.diseaseSystem?.sickStartTime;
+
+			return {
+				state: object.state ?? null,
+				statuses,
+				hasSickStatus: statuses.includes(CharacterStatus.SICK),
+				sickStartTime:
+					typeof sickStartTime === "number" && Number.isFinite(sickStartTime)
+						? sickStartTime
+						: null,
+			};
 		}
 
 		return null;

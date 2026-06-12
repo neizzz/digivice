@@ -192,7 +192,10 @@ class HomeWidgetRefreshController {
           }
           log?.call(
             '[HomeWidgetRefreshController] getLaunchContext '
-            'mode=${launchContext?['mode'] ?? 'default'}',
+            'mode=${launchContext?['mode'] ?? 'default'} '
+            'hasAnyWidgets=${launchContext?['hasAnyWidgets']} '
+            'homeWidget2x1Count=${launchContext?['homeWidget2x1Count']} '
+            'homeWidget1x1Count=${launchContext?['homeWidget1x1Count']}',
           );
           return;
         case 'completeRefresh':
@@ -225,6 +228,7 @@ class HomeWidgetRefreshController {
           log?.call(
             '[HomeWidgetRefreshController] getRefreshDiagnostics '
             'periodicStatus=${diagnosticsResult?['periodicRefreshStatus']} '
+            'hasAnyWidgets=${diagnosticsResult?['hasAnyWidgets']} '
             'requestedAtMs=${diagnosticsResult?['requestedAtMs']} '
             'completedAtMs=${diagnosticsResult?['completedAtMs']} '
             'inFlight=${diagnosticsResult?['inFlight']}',

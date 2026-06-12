@@ -163,6 +163,13 @@ function summarizeNativeWorldDataUpdate(
 		lastDiseaseAggregatedProbability:
 			record.result?.lastDiseaseAggregatedProbability ?? null,
 		hatchSelectionDiagnostics: record.result?.hatchSelectionDiagnostics ?? null,
+		inputWorldDataDiagnostics:
+			record.result?.inputWorldDataDiagnostics ?? null,
+		updatedWorldDataDiagnostics:
+			record.result?.updatedWorldDataDiagnostics ?? null,
+		hasAnyWidgets: record.result?.hasAnyWidgets ?? null,
+		homeWidget1x1Count: record.result?.homeWidget1x1Count ?? null,
+		homeWidget2x1Count: record.result?.homeWidget2x1Count ?? null,
 	};
 }
 
@@ -318,6 +325,9 @@ type NativeAppLifecycleEventDetail = {
 	state?: "resumed" | "inactive" | "hidden" | "paused" | "detached";
 	timestamp?: string;
 	launchMode?: string;
+	hasAnyWidgets?: boolean;
+	homeWidget1x1Count?: number;
+	homeWidget2x1Count?: number;
 };
 
 const BACK_NAVIGATION_ALERT_ENTRY = "layer:alert";
@@ -927,6 +937,15 @@ const GameContainer: React.FC = () => {
 	const isResumeGuardVisibleRef = useRef(false);
 	const isResumeReentrySimulationRunningRef = useRef(false);
 	const homeWidgetLaunchModeRef = useRef<HomeWidgetLaunchMode>("default");
+	const homeWidgetPresenceRef = useRef<{
+		hasAnyWidgets: boolean;
+		homeWidget1x1Count: number | null;
+		homeWidget2x1Count: number | null;
+	}>({
+		hasAnyWidgets: false,
+		homeWidget1x1Count: null,
+		homeWidget2x1Count: null,
+	});
 	const lastNativeWorldDataUpdateForReentryRef =
 		useRef<HomeWidgetNativeWorldDataUpdateRecord | null>(null);
 	const nativeBackgroundWidgetSyncTriggeredRef = useRef(false);
@@ -2054,9 +2073,17 @@ const GameContainer: React.FC = () => {
 					source,
 					...(nowMs !== undefined ? { nowMs } : {}),
 				});
+				const enrichedResult: HomeWidgetNativeWorldDataUpdateResult = {
+					...result,
+					hasAnyWidgets: homeWidgetPresenceRef.current.hasAnyWidgets,
+					homeWidget1x1Count:
+						homeWidgetPresenceRef.current.homeWidget1x1Count,
+					homeWidget2x1Count:
+						homeWidgetPresenceRef.current.homeWidget2x1Count,
+				};
 				lastNativeWorldDataUpdateForReentryRef.current = {
 					source,
-					result,
+					result: enrichedResult,
 				};
 
 				logImportantDiagnostics(
@@ -2065,33 +2092,39 @@ const GameContainer: React.FC = () => {
 					{
 						action: "native_world_data_update_for_reentry",
 						source,
-						status: result?.status ?? null,
-						worldDataChanged: result?.worldDataChanged ?? null,
-						hatched: result?.hatched ?? null,
-						evolutionGageBefore: result?.evolutionGageBefore ?? null,
-						evolutionGageAfter: result?.evolutionGageAfter ?? null,
-						evolutionGageIncreased: result?.evolutionGageIncreased ?? null,
-						evolved: result?.evolved ?? null,
-						previousCharacterKey: result?.previousCharacterKey ?? null,
-						nextCharacterKey: result?.nextCharacterKey ?? null,
-						previousEvolutionPhase: result?.previousEvolutionPhase ?? null,
-						nextEvolutionPhase: result?.nextEvolutionPhase ?? null,
-						candidateKind: result?.candidateKind ?? null,
-						mutationApplied: result?.mutationApplied ?? null,
-						mutationRate: result?.mutationRate ?? null,
-						mutationRoll: result?.mutationRoll ?? null,
-						mutationTargetRoll: result?.mutationTargetRoll ?? null,
-						evolutionRoll: result?.evolutionRoll ?? null,
-						evolutionBlockReason: result?.evolutionBlockReason ?? null,
-						previousCharacterState: result?.previousCharacterState ?? null,
-						nextCharacterState: result?.nextCharacterState ?? null,
-						selectedCharacterKey: result?.selectedCharacterKey ?? null,
+						status: enrichedResult?.status ?? null,
+						worldDataChanged: enrichedResult?.worldDataChanged ?? null,
+						hatched: enrichedResult?.hatched ?? null,
+						evolutionGageBefore: enrichedResult?.evolutionGageBefore ?? null,
+						evolutionGageAfter: enrichedResult?.evolutionGageAfter ?? null,
+						evolutionGageIncreased:
+							enrichedResult?.evolutionGageIncreased ?? null,
+						evolved: enrichedResult?.evolved ?? null,
+						previousCharacterKey: enrichedResult?.previousCharacterKey ?? null,
+						nextCharacterKey: enrichedResult?.nextCharacterKey ?? null,
+						previousEvolutionPhase:
+							enrichedResult?.previousEvolutionPhase ?? null,
+						nextEvolutionPhase: enrichedResult?.nextEvolutionPhase ?? null,
+						candidateKind: enrichedResult?.candidateKind ?? null,
+						mutationApplied: enrichedResult?.mutationApplied ?? null,
+						mutationRate: enrichedResult?.mutationRate ?? null,
+						mutationRoll: enrichedResult?.mutationRoll ?? null,
+						mutationTargetRoll: enrichedResult?.mutationTargetRoll ?? null,
+						evolutionRoll: enrichedResult?.evolutionRoll ?? null,
+						evolutionBlockReason: enrichedResult?.evolutionBlockReason ?? null,
+						previousCharacterState:
+							enrichedResult?.previousCharacterState ?? null,
+						nextCharacterState: enrichedResult?.nextCharacterState ?? null,
+						selectedCharacterKey: enrichedResult?.selectedCharacterKey ?? null,
 						hatchSelectionDiagnostics:
-							result?.hatchSelectionDiagnostics ?? null,
+							enrichedResult?.hatchSelectionDiagnostics ?? null,
+						hasAnyWidgets: enrichedResult.hasAnyWidgets ?? null,
+						homeWidget1x1Count: enrichedResult.homeWidget1x1Count ?? null,
+						homeWidget2x1Count: enrichedResult.homeWidget2x1Count ?? null,
 					},
 				);
 
-				return result;
+				return enrichedResult;
 			},
 			[],
 		);
@@ -2106,6 +2139,11 @@ const GameContainer: React.FC = () => {
 
 		if (typeof controller?.getLaunchContext !== "function") {
 			homeWidgetLaunchModeRef.current = "default";
+			homeWidgetPresenceRef.current = {
+				hasAnyWidgets: false,
+				homeWidget1x1Count: null,
+				homeWidget2x1Count: null,
+			};
 			return;
 		}
 
@@ -2113,18 +2151,38 @@ const GameContainer: React.FC = () => {
 			const context = await controller.getLaunchContext();
 			const mode: HomeWidgetLaunchMode =
 				context?.mode === "widget_refresh" ? "widget_refresh" : "default";
+			const hasAnyWidgets = context?.hasAnyWidgets === true;
+			const homeWidget1x1Count = readNullableNumber(
+				context?.homeWidget1x1Count,
+			);
+			const homeWidget2x1Count = readNullableNumber(
+				context?.homeWidget2x1Count,
+			);
 
 			homeWidgetLaunchModeRef.current = mode;
+			homeWidgetPresenceRef.current = {
+				hasAnyWidgets,
+				homeWidget1x1Count,
+				homeWidget2x1Count,
+			};
 			logImportantDiagnostics(
 				"log",
 				"[ImportantDiagnostics][WorldDataSyncPayload]",
 				{
 					action: "launch_context_loaded",
 					launchMode: mode,
+					hasAnyWidgets,
+					homeWidget1x1Count,
+					homeWidget2x1Count,
 				},
 			);
 		} catch (error) {
 			homeWidgetLaunchModeRef.current = "default";
+			homeWidgetPresenceRef.current = {
+				hasAnyWidgets: false,
+				homeWidget1x1Count: null,
+				homeWidget2x1Count: null,
+			};
 			logImportantDiagnostics(
 				"warn",
 				"[ImportantDiagnostics][WorldDataSyncPayload]",
@@ -2812,6 +2870,11 @@ const GameContainer: React.FC = () => {
 					reason,
 					reentryResult: result ?? null,
 					launchMode: homeWidgetLaunchModeRef.current,
+					hasAnyWidgets: homeWidgetPresenceRef.current.hasAnyWidgets,
+					homeWidget1x1Count:
+						homeWidgetPresenceRef.current.homeWidget1x1Count,
+					homeWidget2x1Count:
+						homeWidgetPresenceRef.current.homeWidget2x1Count,
 					hasGameInstance: !!gameInstance,
 					currentSceneKey: gameInstance?.getCurrentSceneKey() ?? null,
 				},
@@ -2831,12 +2894,21 @@ const GameContainer: React.FC = () => {
 								await worldDataUpdateController.completeNativeWorldDataUpdate({
 									source: "init",
 								});
+							const enrichedFallbackResult: HomeWidgetNativeWorldDataUpdateResult =
+								{
+									...fallbackResult,
+									hasAnyWidgets: homeWidgetPresenceRef.current.hasAnyWidgets,
+									homeWidget1x1Count:
+										homeWidgetPresenceRef.current.homeWidget1x1Count,
+									homeWidget2x1Count:
+										homeWidgetPresenceRef.current.homeWidget2x1Count,
+								};
 							lastNativeWorldDataUpdateForReentryRef.current = {
 								source: "init",
-								result: fallbackResult,
+								result: enrichedFallbackResult,
 							};
 							completionResult = isNativeWorldDataUpdateCompleted(
-								fallbackResult,
+								enrichedFallbackResult,
 							)
 								? "completed"
 								: "failed";
@@ -3877,6 +3949,21 @@ const GameContainer: React.FC = () => {
 			const state = detail?.state;
 			const launchMode =
 				detail?.launchMode === "widget_refresh" ? "widget_refresh" : "default";
+			if (
+				typeof detail?.hasAnyWidgets === "boolean" ||
+				typeof detail?.homeWidget1x1Count === "number" ||
+				typeof detail?.homeWidget2x1Count === "number"
+			) {
+				homeWidgetPresenceRef.current = {
+					hasAnyWidgets: detail.hasAnyWidgets === true,
+					homeWidget1x1Count: readNullableNumber(
+						detail.homeWidget1x1Count,
+					),
+					homeWidget2x1Count: readNullableNumber(
+						detail.homeWidget2x1Count,
+					),
+				};
+			}
 
 			if (launchMode === "widget_refresh") {
 				homeWidgetLaunchModeRef.current = "widget_refresh";
@@ -3887,6 +3974,11 @@ const GameContainer: React.FC = () => {
 						action: "launch_context_lifecycle",
 						launchMode,
 						state: state ?? null,
+						hasAnyWidgets: homeWidgetPresenceRef.current.hasAnyWidgets,
+						homeWidget1x1Count:
+							homeWidgetPresenceRef.current.homeWidget1x1Count,
+						homeWidget2x1Count:
+							homeWidgetPresenceRef.current.homeWidget2x1Count,
 					},
 				);
 			}
