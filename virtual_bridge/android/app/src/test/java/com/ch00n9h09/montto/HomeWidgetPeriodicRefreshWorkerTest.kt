@@ -26,7 +26,14 @@ class HomeWidgetPeriodicRefreshWorkerTest {
         )
 
         assertFalse(updated)
-        assertEquals(listOf("cancel", "status:no_widgets"), events)
+        assertEquals(
+            listOf(
+                "status:periodic_worker_started",
+                "cancel",
+                "status:no_widgets",
+            ),
+            events,
+        )
     }
 
     @Test
@@ -51,6 +58,7 @@ class HomeWidgetPeriodicRefreshWorkerTest {
         assertTrue(updated)
         assertEquals(
             listOf(
+                "status:periodic_worker_started@10000",
                 "status:flutter_refresh_pending@10000",
                 "authoritativeRefresh:10000",
                 "status:flutter_refresh_requested@10000",
@@ -82,9 +90,39 @@ class HomeWidgetPeriodicRefreshWorkerTest {
         assertFalse(updated)
         assertEquals(
             listOf(
+                "status:periodic_worker_started",
                 "status:flutter_refresh_pending",
                 "authoritativeRefresh:20000",
                 "status:flutter_refresh_failed",
+            ),
+            events,
+        )
+    }
+
+    @Test
+    fun `runner records periodic worker failure when refresh request throws`() {
+        val events = mutableListOf<String>()
+
+        val updated = HomeWidgetPeriodicRefreshRunner.run(
+            hasAnyWidgets = { true },
+            onNoWidgets = {
+                events += "cancel"
+            },
+            requestAuthoritativeRefresh = {
+                error("boom")
+            },
+            recordPeriodicRefreshStatus = { status, nowMs ->
+                events += "status:$status@$nowMs"
+            },
+            nowMsProvider = { 30_000L },
+        )
+
+        assertFalse(updated)
+        assertEquals(
+            listOf(
+                "status:periodic_worker_started@30000",
+                "status:flutter_refresh_pending@30000",
+                "status:periodic_worker_failed@30000",
             ),
             events,
         )

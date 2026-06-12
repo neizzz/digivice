@@ -236,6 +236,11 @@ void main() {
         contains('hatchSkullProbability=15'),
       ]),
     );
+    expect(
+      savedValues[config.periodicRefreshStatusKey],
+      worldDataLifecycleDefaultCompletedStatus,
+    );
+    expect(savedValues[config.periodicRefreshStatusAtMsKey], 2000);
   });
 
   test('periodic callback은 부화 roll과 확률을 refresh smoke result에 남긴다', () async {
@@ -290,6 +295,82 @@ void main() {
         contains('hatchSkullProbability=15'),
         contains('hatchStaleFoodCountAtHatch=0'),
         contains('hatchSyringeCount=0'),
+      ]),
+    );
+  });
+
+  test('periodic callback은 world data 누락 실패도 in-flight metadata를 닫는다',
+      () async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final Map<String, Object> savedValues = <String, Object>{};
+
+    final Map<String, Object?> result =
+        await HomeWidgetBackgroundRefreshService.runPeriodicRefresh(
+      nowMs: 2000,
+      saveWidgetData: (String key, Object value) async {
+        savedValues[key] = value;
+        return true;
+      },
+      updateWidget:
+          ({String? androidName, String? qualifiedAndroidName}) async => true,
+    );
+
+    expect(result['status'], 'flutter_periodic_missing_world_data');
+    expect(result['error'], 'missing_world_data');
+    expect(result['hasWorldData'], isFalse);
+    expect(result['hasSnapshot'], isFalse);
+    expect(prefs.getString(config.periodicRefreshStatusKey),
+        'flutter_periodic_missing_world_data');
+    expect(savedValues[config.periodicRefreshStatusKey],
+        'flutter_periodic_missing_world_data');
+    expect(savedValues[config.refreshInFlightKey], isFalse);
+    expect(savedValues[config.refreshCompletedAtMsKey], 2000);
+    expect(
+      savedValues[config.refreshSmokeResultKey],
+      allOf(<Matcher>[
+        contains('status=flutter_periodic_missing_world_data'),
+        contains('error=missing_world_data'),
+        contains('hasWorldData=false'),
+        contains('hasSnapshot=false'),
+      ]),
+    );
+  });
+
+  test('periodic callback은 native snapshot 저장 실패도 failure smoke로 기록한다',
+      () async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setString(config.worldDataStorageKey, _buildWorldData());
+    final Map<String, Object> savedValues = <String, Object>{};
+
+    final Map<String, Object?> result =
+        await HomeWidgetBackgroundRefreshService.runPeriodicRefresh(
+      nowMs: 2000,
+      randomProvider: (_) => 1,
+      saveWidgetData: (String key, Object value) async {
+        savedValues[key] = value;
+        return key != config.nativeWorldDataAuthoritativeSnapshotKey;
+      },
+      updateWidget:
+          ({String? androidName, String? qualifiedAndroidName}) async => true,
+    );
+
+    expect(result['status'], 'flutter_periodic_snapshot_publish_failed');
+    expect(result['error'],
+        'snapshot_publish_failed:${config.nativeWorldDataAuthoritativeSnapshotKey}');
+    expect(result['hasWorldData'], isTrue);
+    expect(result['hasSnapshot'], isTrue);
+    expect(savedValues[config.periodicRefreshStatusKey],
+        'flutter_periodic_snapshot_publish_failed');
+    expect(savedValues[config.refreshInFlightKey], isFalse);
+    expect(savedValues[config.refreshCompletedAtMsKey], 2000);
+    expect(
+      savedValues[config.refreshSmokeResultKey],
+      allOf(<Matcher>[
+        contains('status=flutter_periodic_snapshot_publish_failed'),
+        contains(
+            'error=snapshot_publish_failed:${config.nativeWorldDataAuthoritativeSnapshotKey}'),
+        contains('hasWorldData=true'),
+        contains('hasSnapshot=true'),
       ]),
     );
   });

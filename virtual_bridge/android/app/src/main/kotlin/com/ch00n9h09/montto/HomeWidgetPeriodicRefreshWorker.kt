@@ -12,11 +12,16 @@ internal object HomeWidgetPeriodicRefreshRunner {
         recordPeriodicRefreshStatus: (status: String, nowMs: Long) -> Unit,
         nowMsProvider: () -> Long = { System.currentTimeMillis() },
     ): Boolean {
+        val startedAtMs = nowMsProvider()
+        recordPeriodicRefreshStatus(
+            HomeWidgetPeriodicRefreshStatus.PERIODIC_WORK_STARTED.value,
+            startedAtMs,
+        )
         if (!hasAnyWidgets()) {
             onNoWidgets()
             recordPeriodicRefreshStatus(
                 HomeWidgetPeriodicRefreshStatus.NO_WIDGETS.value,
-                nowMsProvider(),
+                startedAtMs,
             )
             return false
         }
@@ -26,7 +31,15 @@ internal object HomeWidgetPeriodicRefreshRunner {
             HomeWidgetPeriodicRefreshStatus.FLUTTER_REFRESH_PENDING.value,
             nowMs,
         )
-        val refreshResult = requestAuthoritativeRefresh(nowMs)
+        val refreshResult = runCatching {
+            requestAuthoritativeRefresh(nowMs)
+        }.getOrElse {
+            recordPeriodicRefreshStatus(
+                HomeWidgetPeriodicRefreshStatus.PERIODIC_WORK_FAILED.value,
+                nowMs,
+            )
+            return false
+        }
         recordPeriodicRefreshStatus(refreshResult.status, nowMs)
         return refreshResult == HomeWidgetAuthoritativeRefreshRequestResult.REQUESTED
     }

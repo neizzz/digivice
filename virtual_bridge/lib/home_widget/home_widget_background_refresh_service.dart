@@ -23,24 +23,89 @@ class HomeWidgetBackgroundRefreshService {
     Future<bool?> Function(String key, Object value)? saveWidgetData,
   }) async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
-    final Map<String, Object?> fullUpdateResult =
-        await WorldDataUpdateService.completeNativeWorldDataUpdate(
-      source: source,
-      log: log,
-      nowMs: nowMs,
-      publishNativeSnapshot: false,
-      randomProvider: randomProvider,
+    final Future<bool?> Function(String key, Object value) saver =
+        saveWidgetData ?? _saveHomeWidgetData;
+    final int startedAtMs = nowMs ?? DateTime.now().millisecondsSinceEpoch;
+
+    await _recordStatus(
+      prefs,
+      saver: saver,
+      status: 'flutter_periodic_started',
+      nowMs: startedAtMs,
     );
+
+    late Map<String, Object?> fullUpdateResult;
+    try {
+      fullUpdateResult =
+          await WorldDataUpdateService.completeNativeWorldDataUpdate(
+        source: source,
+        log: log,
+        nowMs: nowMs,
+        publishNativeSnapshot: false,
+        randomProvider: randomProvider,
+      );
+    } catch (error, stackTrace) {
+      final int failedAtMs = nowMs ?? DateTime.now().millisecondsSinceEpoch;
+      final bool hasWorldData =
+          (prefs.getString(config.worldDataStorageKey) ?? '').isNotEmpty;
+      final bool hasSnapshot =
+          (prefs.getString(config.worldDataAuthoritativeSnapshotStorageKey) ??
+                  '')
+              .isNotEmpty;
+      await _recordStatus(
+        prefs,
+        saver: saver,
+        status: 'flutter_periodic_failed',
+        nowMs: failedAtMs,
+      );
+      await _recordRefreshFailureMetadata(
+        prefs,
+        saver,
+        nowMs: failedAtMs,
+        status: 'flutter_periodic_failed',
+        error: error.toString(),
+        hasWorldData: hasWorldData,
+        hasSnapshot: hasSnapshot,
+      );
+      log?.call(
+        '[HomeWidgetBackgroundRefreshService] periodic refresh failed '
+        'status=flutter_periodic_failed '
+        'error=$error '
+        'stackTrace=$stackTrace '
+        'hasWorldData=$hasWorldData '
+        'hasSnapshot=$hasSnapshot',
+      );
+      return <String, Object?>{
+        'status': 'flutter_periodic_failed',
+        'error': error.toString(),
+        'hasWorldData': hasWorldData,
+        'hasSnapshot': hasSnapshot,
+      };
+    }
 
     if (fullUpdateResult['status'] == 'flutter_world_data_update_failed' &&
         fullUpdateResult['error'] == 'missing_world_data') {
+      final int failedAtMs = _readInt(fullUpdateResult['nowMs']) ??
+          nowMs ??
+          DateTime.now().millisecondsSinceEpoch;
       await _recordStatus(
         prefs,
+        saver: saver,
         status: 'flutter_periodic_missing_world_data',
-        nowMs: nowMs ?? DateTime.now().millisecondsSinceEpoch,
+        nowMs: failedAtMs,
+      );
+      await _recordRefreshFailureMetadata(
+        prefs,
+        saver,
+        nowMs: failedAtMs,
+        status: 'flutter_periodic_missing_world_data',
+        error: 'missing_world_data',
+        hasWorldData: false,
+        hasSnapshot: false,
       );
       return <String, Object?>{
         'status': 'flutter_periodic_missing_world_data',
+        'error': 'missing_world_data',
         'hasWorldData': false,
         'hasSnapshot': false,
       };
@@ -49,18 +114,19 @@ class HomeWidgetBackgroundRefreshService {
     final String? snapshotJson =
         prefs.getString(config.worldDataAuthoritativeSnapshotStorageKey);
     if (snapshotJson != null) {
-      final Future<bool?> Function(String key, Object value) saver =
-          saveWidgetData ?? _saveHomeWidgetData;
-      await saver(config.worldDataSnapshotStorageKey, snapshotJson);
-      await saver(
-          config.worldDataAuthoritativeSnapshotStorageKey, snapshotJson);
-      await saver(config.nativeWorldDataSnapshotKey, snapshotJson);
-      final bool? authoritativeSaveResult = await saver(
-        config.nativeWorldDataAuthoritativeSnapshotKey,
-        snapshotJson,
+      final Map<String, bool> publishResults =
+          await _publishSnapshotToWidgetSurfaces(
+        saver,
+        snapshotJson: snapshotJson,
+        log: log,
       );
-      if (authoritativeSaveResult != false) {
+      final List<String> failedKeys = publishResults.entries
+          .where((MapEntry<String, bool> entry) => !entry.value)
+          .map((MapEntry<String, bool> entry) => entry.key)
+          .toList();
+      if (failedKeys.isEmpty) {
         await _recordRefreshCompletionMetadata(
+          prefs,
           saver,
           snapshotJson: snapshotJson,
           nowMs: _readInt(fullUpdateResult['nowMs']) ??
@@ -75,7 +141,45 @@ class HomeWidgetBackgroundRefreshService {
             fullUpdateResult['hatchSelectionDiagnostics'],
           ),
         );
+      } else {
+        final int failedAtMs = _readInt(fullUpdateResult['nowMs']) ??
+            nowMs ??
+            DateTime.now().millisecondsSinceEpoch;
+        await _recordRefreshFailureMetadata(
+          prefs,
+          saver,
+          nowMs: failedAtMs,
+          status: 'flutter_periodic_snapshot_publish_failed',
+          error: 'snapshot_publish_failed:${failedKeys.join(',')}',
+          hasWorldData: true,
+          hasSnapshot: true,
+        );
+        fullUpdateResult = <String, Object?>{
+          ...fullUpdateResult,
+          'status': 'flutter_periodic_snapshot_publish_failed',
+          'error': 'snapshot_publish_failed:${failedKeys.join(',')}',
+          'snapshotPublishStatus': 'failed',
+          'snapshotPublishFailureKeys': failedKeys,
+        };
       }
+    } else {
+      final int failedAtMs = _readInt(fullUpdateResult['nowMs']) ??
+          nowMs ??
+          DateTime.now().millisecondsSinceEpoch;
+      await _recordRefreshFailureMetadata(
+        prefs,
+        saver,
+        nowMs: failedAtMs,
+        status: 'flutter_periodic_missing_snapshot',
+        error: 'missing_authoritative_snapshot',
+        hasWorldData: true,
+        hasSnapshot: false,
+      );
+      fullUpdateResult = <String, Object?>{
+        ...fullUpdateResult,
+        'status': 'flutter_periodic_missing_snapshot',
+        'error': 'missing_authoritative_snapshot',
+      };
     }
 
     final Future<bool?> Function({
@@ -101,6 +205,7 @@ class HomeWidgetBackgroundRefreshService {
 
     await _recordStatus(
       prefs,
+      saver: saver,
       status: fullUpdateResult['status']?.toString() ??
           'flutter_world_data_update_unknown',
       nowMs: _readInt(fullUpdateResult['nowMs']) ??
@@ -142,6 +247,7 @@ class HomeWidgetBackgroundRefreshService {
   }
 
   static Future<void> _recordRefreshCompletionMetadata(
+    SharedPreferences prefs,
     Future<bool?> Function(String key, Object value) saver, {
     required String snapshotJson,
     required int nowMs,
@@ -150,18 +256,82 @@ class HomeWidgetBackgroundRefreshService {
     required int? selectedCharacterKey,
     required Map<String, Object?>? hatchSelectionDiagnostics,
   }) async {
-    await saver(config.refreshInFlightKey, false);
-    await saver(config.refreshCompletedAtMsKey, nowMs);
-    await saver(
-      config.refreshSmokeResultKey,
-      _buildRefreshSmokeResult(
-        snapshotJson: snapshotJson,
-        reason: reason,
-        hatched: hatched,
-        selectedCharacterKey: selectedCharacterKey,
-        hatchSelectionDiagnostics: hatchSelectionDiagnostics,
-      ),
+    final String smokeResult = _buildRefreshSmokeResult(
+      snapshotJson: snapshotJson,
+      reason: reason,
+      hatched: hatched,
+      selectedCharacterKey: selectedCharacterKey,
+      hatchSelectionDiagnostics: hatchSelectionDiagnostics,
     );
+    await prefs.setBool(config.refreshInFlightKey, false);
+    await prefs.setInt(config.refreshCompletedAtMsKey, nowMs);
+    await prefs.setString(config.refreshSmokeResultKey, smokeResult);
+    await _trySave(saver, config.refreshInFlightKey, false);
+    await _trySave(saver, config.refreshCompletedAtMsKey, nowMs);
+    await _trySave(
+      saver,
+      config.refreshSmokeResultKey,
+      smokeResult,
+    );
+  }
+
+  static Future<void> _recordRefreshFailureMetadata(
+    SharedPreferences prefs,
+    Future<bool?> Function(String key, Object value) saver, {
+    required int nowMs,
+    required String status,
+    required String error,
+    required bool hasWorldData,
+    required bool hasSnapshot,
+  }) async {
+    final String smokeResult = _buildRefreshFailureSmokeResult(
+      status: status,
+      error: error,
+      hasWorldData: hasWorldData,
+      hasSnapshot: hasSnapshot,
+    );
+    await prefs.setBool(config.refreshInFlightKey, false);
+    await prefs.setInt(config.refreshCompletedAtMsKey, nowMs);
+    await prefs.setString(config.refreshSmokeResultKey, smokeResult);
+    await _trySave(saver, config.refreshInFlightKey, false);
+    await _trySave(saver, config.refreshCompletedAtMsKey, nowMs);
+    await _trySave(saver, config.refreshSmokeResultKey, smokeResult);
+  }
+
+  static String _buildRefreshFailureSmokeResult({
+    required String status,
+    required String error,
+    required bool hasWorldData,
+    required bool hasSnapshot,
+  }) {
+    return 'authoritative_snapshot_publish_failed('
+        'status=$status,'
+        'error=$error,'
+        'hasWorldData=$hasWorldData,'
+        'hasSnapshot=$hasSnapshot'
+        ')';
+  }
+
+  static Future<Map<String, bool>> _publishSnapshotToWidgetSurfaces(
+    Future<bool?> Function(String key, Object value) saver, {
+    required String snapshotJson,
+    void Function(String message)? log,
+  }) async {
+    final Map<String, bool> results = <String, bool>{};
+    for (final String key in <String>[
+      config.worldDataSnapshotStorageKey,
+      config.worldDataAuthoritativeSnapshotStorageKey,
+      config.nativeWorldDataSnapshotKey,
+      config.nativeWorldDataAuthoritativeSnapshotKey,
+    ]) {
+      results[key] = await _trySave(
+        saver,
+        key,
+        snapshotJson,
+        log: log,
+      );
+    }
+    return results;
   }
 
   static String _buildRefreshSmokeResult({
@@ -221,11 +391,31 @@ class HomeWidgetBackgroundRefreshService {
 
   static Future<void> _recordStatus(
     SharedPreferences prefs, {
+    required Future<bool?> Function(String key, Object value) saver,
     required String status,
     required int nowMs,
   }) async {
     await prefs.setString(config.periodicRefreshStatusKey, status);
     await prefs.setInt(config.periodicRefreshStatusAtMsKey, nowMs);
+    await _trySave(saver, config.periodicRefreshStatusKey, status);
+    await _trySave(saver, config.periodicRefreshStatusAtMsKey, nowMs);
+  }
+
+  static Future<bool> _trySave(
+    Future<bool?> Function(String key, Object value) saver,
+    String key,
+    Object value, {
+    void Function(String message)? log,
+  }) async {
+    try {
+      return await saver(key, value) != false;
+    } catch (error, stackTrace) {
+      log?.call(
+        '[HomeWidgetBackgroundRefreshService] saveWidgetData failed '
+        'key=$key error=$error stackTrace=$stackTrace',
+      );
+      return false;
+    }
   }
 
   static int? _readInt(Object? value) {
