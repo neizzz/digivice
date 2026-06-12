@@ -88,10 +88,12 @@ class HomeWidgetBackgroundRefreshService {
               qualifiedAndroidName: qualifiedAndroidName,
             );
 
-    final bool? updatedTwoByOne = await updater(
-      androidName: 'HomeWidgetProvider',
-      qualifiedAndroidName: 'com.ch00n9h09.montto.HomeWidgetProvider',
-    );
+    // 2x1 receiver (`HomeWidgetProvider`) is intentionally commented out in
+    // `AndroidManifest.xml`, so the live product currently supports only the
+    // 1x1 widget. Keep the result field for compatibility, but do not target
+    // the disabled 2x1 receiver during background refresh. If 2x1 is
+    // re-enabled later, add the `HomeWidgetProvider` update call back here.
+    const String updatedTwoByOne = 'skipped_manifest_disabled';
     final bool? updatedOneByOne = await updater(
       androidName: 'HomeWidget1x1Provider',
       qualifiedAndroidName: 'com.ch00n9h09.montto.HomeWidget1x1Provider',

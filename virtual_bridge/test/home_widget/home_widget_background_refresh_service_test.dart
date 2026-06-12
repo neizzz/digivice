@@ -104,8 +104,10 @@ void main() {
         savedKeys, contains(config.worldDataAuthoritativeSnapshotStorageKey));
     expect(savedKeys, contains(config.nativeWorldDataSnapshotKey));
     expect(savedKeys, contains(config.nativeWorldDataAuthoritativeSnapshotKey));
-    expect(updatedWidgets, contains('HomeWidgetProvider'));
+    expect(updatedWidgets, isNot(contains('HomeWidgetProvider')));
     expect(updatedWidgets, contains('HomeWidget1x1Provider'));
+    expect(result['updated2x1'], 'skipped_manifest_disabled');
+    expect(result['updated1x1'], isTrue);
   });
 
   test('snapshot이 없어도 world data에서 authoritative snapshot을 생성한다', () async {
