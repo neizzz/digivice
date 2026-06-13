@@ -72,7 +72,7 @@ type TestableMainSceneWorld = MainSceneWorld & {
 	_processReentrySimulation: (
 		source?: MainSceneReentrySimulationSource,
 	) => Promise<void>;
-	applyPersistedWorldDataForReentry: (data: unknown) => void;
+	applyPersistedWorldDataForReentry: (data: unknown) => Promise<void>;
 	_saveCurrentState: () => Promise<void>;
 	_initializeData: (initialGameData: InitialGameData) => unknown;
 	_applyPersistedMonsterBookState: (state: unknown) => void;

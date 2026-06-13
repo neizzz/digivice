@@ -24,7 +24,12 @@ export interface SpritesheetLoadResult {
   textures: string[];
 }
 
-type CharacterSpritesheetLoadReason = "evolution" | "hatch" | "init";
+type CharacterSpritesheetLoadReason =
+  | "animation_cache_miss"
+  | "evolution"
+  | "hatch"
+  | "init"
+  | "reentry";
 
 const inFlightSpritesheetLoads = new Map<
   string,

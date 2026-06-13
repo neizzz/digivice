@@ -1,6 +1,6 @@
 import { defineQuery, exitQuery } from "bitecs";
 import { AnimationRenderComp } from "../raw-components";
-import { AnimationKey, SpritesheetKey } from "../types";
+import { AnimationKey, CharacterKeyECS, SpritesheetKey } from "../types";
 import {
   getCharacterSpritesheetName,
   MONSTER_CHARACTER_KEYS,
@@ -9,6 +9,7 @@ import { MainSceneWorld } from "../world";
 import * as PIXI from "pixi.js";
 import { renderCommonAttributes } from "./RenderSystem";
 import { ObjectStore } from "../utils/ObjectStore";
+import { ensureCharacterSpritesheetLoaded } from "../../../utils/asset";
 
 export const SPRITESHEET_KEY_TO_NAME: Record<SpritesheetKey, string> = {
   [SpritesheetKey.NULL]: "null",
@@ -39,6 +40,9 @@ const animatedSpriteStore = new ObjectStore<PIXI.AnimatedSprite>(
   "AnimatedSpriteStore"
 );
 const eatingFrameIndexTracker = new Map<number, number>();
+const cacheMissLoadPromises = new Map<string, Promise<boolean>>();
+const cacheMissLoadRetryAfterMs = new Map<string, number>();
+const CACHE_MISS_LOAD_RETRY_COOLDOWN_MS = 2000;
 const debugLog = (..._args: unknown[]): void => {};
 
 export function getAnimatedSpriteStore() {
@@ -179,13 +183,24 @@ function getSpritesheet(name: string): PIXI.Spritesheet | null {
 
 function getAnimationTextures(
   spritesheetName: string,
-  animationName: string
+  animationName: string,
+  context?: {
+    eid: number;
+    spritesheetKey: SpritesheetKey;
+  }
 ): PIXI.Texture[] | null {
   const spritesheet = getSpritesheet(spritesheetName);
   if (!spritesheet) {
     console.warn(
       `[AnimationSystem] Spritesheet not loaded: ${spritesheetName}`
     );
+    if (context) {
+      requestCacheMissSpritesheetLoad({
+        ...context,
+        animationName,
+        spritesheetName,
+      });
+    }
     return null;
   }
 
@@ -202,6 +217,97 @@ function getAnimationTextures(
 
 function getAnimatedSprite(eid: number): PIXI.AnimatedSprite | undefined {
   return animatedSpriteStore.get(eid);
+}
+
+function requestCacheMissSpritesheetLoad(params: {
+  eid: number;
+  spritesheetKey: SpritesheetKey;
+  spritesheetName: string;
+  animationName: string;
+}): void {
+  const { eid, spritesheetKey, spritesheetName, animationName } = params;
+
+  if (spritesheetKey === SpritesheetKey.NULL || spritesheetName === "null") {
+    return;
+  }
+
+  const characterKey = spritesheetKey as unknown as CharacterKeyECS;
+  const loadKey = `${characterKey}:${spritesheetName}`;
+  const now = Date.now();
+
+  if (cacheMissLoadPromises.has(loadKey)) {
+    return;
+  }
+
+  const retryAfterMs = cacheMissLoadRetryAfterMs.get(loadKey) ?? 0;
+  if (retryAfterMs > now) {
+    return;
+  }
+
+  console.warn("[ImportantDiagnostics][AnimationSpritesheetCacheMiss]", {
+    phase: "load_requested",
+    eid,
+    characterKey,
+    spritesheetKey,
+    spritesheetName,
+    animationName,
+  });
+
+  const loadPromise = ensureCharacterSpritesheetLoaded({
+    characterKey,
+    reason: "animation_cache_miss",
+    eid,
+    maxRetries: 2,
+  })
+    .then((loaded) => {
+      if (loaded) {
+        cacheMissLoadRetryAfterMs.delete(loadKey);
+        console.warn("[ImportantDiagnostics][AnimationSpritesheetCacheMiss]", {
+          phase: "load_completed",
+          eid,
+          characterKey,
+          spritesheetKey,
+          spritesheetName,
+          animationName,
+        });
+        return true;
+      }
+
+      cacheMissLoadRetryAfterMs.set(
+        loadKey,
+        Date.now() + CACHE_MISS_LOAD_RETRY_COOLDOWN_MS,
+      );
+      console.error("[ImportantDiagnostics][AnimationSpritesheetCacheMiss]", {
+        phase: "load_failed",
+        eid,
+        characterKey,
+        spritesheetKey,
+        spritesheetName,
+        animationName,
+      });
+      return false;
+    })
+    .catch((error) => {
+      cacheMissLoadRetryAfterMs.set(
+        loadKey,
+        Date.now() + CACHE_MISS_LOAD_RETRY_COOLDOWN_MS,
+      );
+      console.error("[ImportantDiagnostics][AnimationSpritesheetCacheMiss]", {
+        phase: "load_error",
+        eid,
+        characterKey,
+        spritesheetKey,
+        spritesheetName,
+        animationName,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return false;
+    })
+    .finally(() => {
+      cacheMissLoadPromises.delete(loadKey);
+    });
+
+  cacheMissLoadPromises.set(loadKey, loadPromise);
 }
 
 function createAnimatedSpriteForEntity(
@@ -226,7 +332,11 @@ function createAnimatedSpriteForEntity(
 
   const animationTextures = getAnimationTextures(
     spritesheetName,
-    animationName
+    animationName,
+    {
+      eid,
+      spritesheetKey,
+    }
   );
 
   if (!animationTextures || animationTextures.length === 0) {
@@ -244,6 +354,15 @@ function createAnimatedSpriteForEntity(
   if (AnimationRenderComp.isPlaying[eid] === 1) {
     animatedSprite.play();
   }
+
+  console.warn("[ImportantDiagnostics][AnimationSpriteAttached]", {
+    eid,
+    spritesheetKey,
+    spritesheetName,
+    animationKey,
+    animationName,
+    textureCount: animationTextures.length,
+  });
 
   return animatedSprite;
 }
@@ -264,7 +383,11 @@ function updateAnimatedSprite(sprite: PIXI.AnimatedSprite, eid: number): void {
   if (spritesheetName && currentAnimationName) {
     const newAnimationTextures = getAnimationTextures(
       spritesheetName,
-      currentAnimationName
+      currentAnimationName,
+      {
+        eid,
+        spritesheetKey,
+      }
     );
 
     // 애니메이션이 변경되었으면 텍스처 업데이트

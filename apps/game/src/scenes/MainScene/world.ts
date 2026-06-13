@@ -114,6 +114,7 @@ import {
 	type FeedMenuFoodOption,
 } from "./entityFactory";
 import {
+	AnimationRenderComp,
 	ObjectComp,
 	CharacterStatusComp,
 	PositionComp,
@@ -128,6 +129,7 @@ import {
 } from "./raw-components";
 import { generatePersistentNumericId } from "@/utils/generate";
 import {
+	ensureCharacterSpritesheetLoaded,
 	loadSpritesheets,
 	LoadSpritesheetOptions,
 	loadSpritesheet,
@@ -4464,7 +4466,7 @@ export class MainSceneWorld implements IWorld, Scene {
 				nativeUpdatedRawCharacterState === CharacterState.SLEEPING ||
 				widgetStateMergeResult?.after?.state === CharacterState.SLEEPING;
 
-			this.applyPersistedWorldDataForReentry(validatedData);
+			await this.applyPersistedWorldDataForReentry(validatedData);
 			options.clearFoodInteractionSuspendFlag();
 			if (this._persistentData?.world_metadata.app_state) {
 				delete this._persistentData.world_metadata.app_state
@@ -4624,7 +4626,7 @@ export class MainSceneWorld implements IWorld, Scene {
 				return false;
 			}
 
-			this.applyPersistedWorldDataForReentry(validatedData);
+			await this.applyPersistedWorldDataForReentry(validatedData);
 			const postAppliedSnapshot =
 				this._captureMainCharacterEntryStatusSnapshot();
 			const hatched =
@@ -4662,7 +4664,9 @@ export class MainSceneWorld implements IWorld, Scene {
 		}
 	}
 
-	public applyPersistedWorldDataForReentry(data: MainSceneWorldData): void {
+	public async applyPersistedWorldDataForReentry(
+		data: MainSceneWorldData,
+	): Promise<void> {
 		const objectEntities = liveObjectQuery(this);
 
 		for (const eid of objectEntities) {
@@ -4672,7 +4676,72 @@ export class MainSceneWorld implements IWorld, Scene {
 		runCatchingFlushRemovedEntities(this);
 		this._persistentData = data;
 		this._loadEcsEntitiesFromStorage();
+		await this._ensureReentryCharacterSpritesheetsLoaded();
 		this._updateAutoTimeOfDayIfNeeded(true);
+	}
+
+	private async _ensureReentryCharacterSpritesheetsLoaded(): Promise<void> {
+		const objectEntities = liveObjectQuery(this);
+		const characterSpritesheetEntries = new Map<
+			CharacterKeyECS,
+			{ eid: number; source: "animationRender" | "characterStatus" }
+		>();
+
+		for (const eid of objectEntities) {
+			if (ObjectComp.type[eid] !== ObjectType.CHARACTER) {
+				continue;
+			}
+
+			if (hasComponent(this, AnimationRenderComp, eid)) {
+				const spritesheetKey = AnimationRenderComp.spritesheetKey[
+					eid
+				] as SpritesheetKey;
+				if (spritesheetKey !== SpritesheetKey.NULL) {
+					characterSpritesheetEntries.set(
+						spritesheetKey as unknown as CharacterKeyECS,
+						{ eid, source: "animationRender" },
+					);
+					continue;
+				}
+			}
+
+			if (hasComponent(this, CharacterStatusComp, eid)) {
+				const characterKey = CharacterStatusComp.characterKey[
+					eid
+				] as CharacterKeyECS;
+				if (characterKey !== CharacterKeyECS.NULL) {
+					characterSpritesheetEntries.set(characterKey, {
+						eid,
+						source: "characterStatus",
+					});
+				}
+			}
+		}
+
+		await Promise.all(
+			Array.from(characterSpritesheetEntries.entries()).map(
+				async ([characterKey, { eid, source }]) => {
+					const loaded = await ensureCharacterSpritesheetLoaded({
+						characterKey,
+						reason: "reentry",
+						eid,
+						maxRetries: 2,
+					});
+
+					if (loaded) {
+						await ensureCharacterOpaqueBoundsComputed(characterKey);
+						return;
+					}
+
+					console.error("[ImportantDiagnostics][ReentrySpritesheetLoad]", {
+						phase: "load_failed",
+						eid,
+						characterKey,
+						source,
+					});
+				},
+			),
+		);
 	}
 
 	/**
