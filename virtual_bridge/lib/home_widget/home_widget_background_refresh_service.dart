@@ -34,6 +34,14 @@ class HomeWidgetBackgroundRefreshService {
       status: 'flutter_periodic_started',
       nowMs: startedAtMs,
     );
+    await _recordBackgroundExecutionMetadata(
+      prefs,
+      saver,
+      status: 'flutter_periodic_started',
+      startedAtMs: startedAtMs,
+      completedAtMs: null,
+      error: null,
+    );
 
     late Map<String, Object?> fullUpdateResult;
     try {
@@ -67,6 +75,14 @@ class HomeWidgetBackgroundRefreshService {
         error: error.toString(),
         hasWorldData: hasWorldData,
         hasSnapshot: hasSnapshot,
+      );
+      await _recordBackgroundExecutionMetadata(
+        prefs,
+        saver,
+        status: 'flutter_periodic_failed',
+        startedAtMs: null,
+        completedAtMs: failedAtMs,
+        error: error.toString(),
       );
       log?.call(
         '[HomeWidgetBackgroundRefreshService] periodic refresh failed '
@@ -103,6 +119,14 @@ class HomeWidgetBackgroundRefreshService {
         error: 'missing_world_data',
         hasWorldData: false,
         hasSnapshot: false,
+      );
+      await _recordBackgroundExecutionMetadata(
+        prefs,
+        saver,
+        status: 'flutter_periodic_missing_world_data',
+        startedAtMs: null,
+        completedAtMs: failedAtMs,
+        error: 'missing_world_data',
       );
       return <String, Object?>{
         'status': 'flutter_periodic_missing_world_data',
@@ -174,6 +198,14 @@ class HomeWidgetBackgroundRefreshService {
           hasWorldData: true,
           hasSnapshot: true,
         );
+        await _recordBackgroundExecutionMetadata(
+          prefs,
+          saver,
+          status: 'flutter_periodic_snapshot_publish_failed',
+          startedAtMs: null,
+          completedAtMs: failedAtMs,
+          error: 'snapshot_publish_failed:${failedKeys.join(',')}',
+        );
         fullUpdateResult = <String, Object?>{
           ...fullUpdateResult,
           'status': 'flutter_periodic_snapshot_publish_failed',
@@ -194,6 +226,14 @@ class HomeWidgetBackgroundRefreshService {
         error: 'missing_authoritative_snapshot',
         hasWorldData: true,
         hasSnapshot: false,
+      );
+      await _recordBackgroundExecutionMetadata(
+        prefs,
+        saver,
+        status: 'flutter_periodic_missing_snapshot',
+        startedAtMs: null,
+        completedAtMs: failedAtMs,
+        error: 'missing_authoritative_snapshot',
       );
       fullUpdateResult = <String, Object?>{
         ...fullUpdateResult,
@@ -218,19 +258,51 @@ class HomeWidgetBackgroundRefreshService {
     // the disabled 2x1 receiver during background refresh. If 2x1 is
     // re-enabled later, add the `HomeWidgetProvider` update call back here.
     const String updatedTwoByOne = 'skipped_manifest_disabled';
-    final bool? updatedOneByOne = await updater(
+    final bool updatedOneByOne = await _tryUpdateWidget(
+      updater,
       androidName: 'HomeWidget1x1Provider',
       qualifiedAndroidName: 'com.ch00n9h09.montto.HomeWidget1x1Provider',
+      log: log,
     );
+    if (!updatedOneByOne) {
+      final int failedAtMs = _readInt(fullUpdateResult['nowMs']) ??
+          nowMs ??
+          DateTime.now().millisecondsSinceEpoch;
+      await _recordRefreshFailureMetadata(
+        prefs,
+        saver,
+        nowMs: failedAtMs,
+        status: 'flutter_periodic_widget_update_failed',
+        error: 'update_widget_failed:HomeWidget1x1Provider',
+        hasWorldData: true,
+        hasSnapshot: snapshotJson != null,
+      );
+      fullUpdateResult = <String, Object?>{
+        ...fullUpdateResult,
+        'status': 'flutter_periodic_widget_update_failed',
+        'error': 'update_widget_failed:HomeWidget1x1Provider',
+      };
+    }
+
+    final int finishedAtMs = _readInt(fullUpdateResult['nowMs']) ??
+        nowMs ??
+        DateTime.now().millisecondsSinceEpoch;
+    final String finalStatus = fullUpdateResult['status']?.toString() ??
+        'flutter_world_data_update_unknown';
 
     await _recordStatus(
       prefs,
       saver: saver,
-      status: fullUpdateResult['status']?.toString() ??
-          'flutter_world_data_update_unknown',
-      nowMs: _readInt(fullUpdateResult['nowMs']) ??
-          nowMs ??
-          DateTime.now().millisecondsSinceEpoch,
+      status: finalStatus,
+      nowMs: finishedAtMs,
+    );
+    await _recordBackgroundExecutionMetadata(
+      prefs,
+      saver,
+      status: finalStatus,
+      startedAtMs: null,
+      completedAtMs: finishedAtMs,
+      error: fullUpdateResult['error']?.toString(),
     );
 
     log?.call(
@@ -264,6 +336,73 @@ class HomeWidgetBackgroundRefreshService {
       return HomeWidget.saveWidgetData<int>(key, value);
     }
     return HomeWidget.saveWidgetData<String>(key, value.toString());
+  }
+
+  static Future<bool> _tryUpdateWidget(
+    Future<bool?> Function({
+      String? androidName,
+      String? qualifiedAndroidName,
+    }) updater, {
+    required String androidName,
+    required String qualifiedAndroidName,
+    void Function(String message)? log,
+  }) async {
+    try {
+      return await updater(
+            androidName: androidName,
+            qualifiedAndroidName: qualifiedAndroidName,
+          ) !=
+          false;
+    } catch (error, stackTrace) {
+      log?.call(
+        '[HomeWidgetBackgroundRefreshService] updateWidget failed '
+        'androidName=$androidName '
+        'qualifiedAndroidName=$qualifiedAndroidName '
+        'error=$error '
+        'stackTrace=$stackTrace',
+      );
+      return false;
+    }
+  }
+
+  static Future<void> _recordBackgroundExecutionMetadata(
+    SharedPreferences prefs,
+    Future<bool?> Function(String key, Object value) saver, {
+    required String status,
+    required int? startedAtMs,
+    required int? completedAtMs,
+    required String? error,
+  }) async {
+    await prefs.setString(config.refreshBackgroundStatusKey, status);
+    await _trySave(saver, config.refreshBackgroundStatusKey, status);
+
+    if (startedAtMs != null) {
+      await prefs.setInt(config.refreshBackgroundStartedAtMsKey, startedAtMs);
+      await _trySave(
+          saver, config.refreshBackgroundStartedAtMsKey, startedAtMs);
+      await prefs.remove(config.refreshBackgroundCompletedAtMsKey);
+      await _trySave(saver, config.refreshBackgroundCompletedAtMsKey, 0);
+    }
+
+    if (completedAtMs != null) {
+      await prefs.setInt(
+        config.refreshBackgroundCompletedAtMsKey,
+        completedAtMs,
+      );
+      await _trySave(
+        saver,
+        config.refreshBackgroundCompletedAtMsKey,
+        completedAtMs,
+      );
+    }
+
+    if (error == null || error.isEmpty) {
+      await prefs.remove(config.refreshBackgroundErrorKey);
+      await _trySave(saver, config.refreshBackgroundErrorKey, '');
+    } else {
+      await prefs.setString(config.refreshBackgroundErrorKey, error);
+      await _trySave(saver, config.refreshBackgroundErrorKey, error);
+    }
   }
 
   static Future<void> _recordRefreshCompletionMetadata(

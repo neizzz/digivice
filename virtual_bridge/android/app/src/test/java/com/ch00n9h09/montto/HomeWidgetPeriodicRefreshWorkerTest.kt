@@ -220,7 +220,35 @@ class HomeWidgetPeriodicRefreshWorkerTest {
         assertTrue(prefs.getBoolean(HomeWidgetConstants.REFRESH_IN_FLIGHT_KEY, false))
         assertEquals(1_000L, prefs.getLong(HomeWidgetConstants.REFRESH_REQUESTED_AT_MS_KEY, 0L))
         assertTrue(prefs.getBoolean(HomeWidgetConstants.REFRESH_BACKGROUND_QUEUED_KEY, false))
+        assertEquals(
+            "queued",
+            prefs.getString(HomeWidgetConstants.REFRESH_BACKGROUND_ENQUEUE_STATUS_KEY, null),
+        )
         assertFalse(prefs.getBoolean(HomeWidgetConstants.REFRESH_ACTIVITY_LAUNCHED_KEY, true))
+    }
+
+    @Test
+    fun `authoritative refresh request records failed background enqueue status`() {
+        val prefs = FakeSharedPreferences()
+
+        val result = HomeWidgetAuthoritativeRefreshRequester.request(
+            prefs = prefs,
+            nowMs = 1_000L,
+            enqueueFlutterBackgroundRefresh = {
+                false
+            },
+            launchRefreshActivity = {
+                false
+            },
+        )
+
+        assertEquals(HomeWidgetAuthoritativeRefreshRequestResult.FAILED, result)
+        assertFalse(prefs.getBoolean(HomeWidgetConstants.REFRESH_IN_FLIGHT_KEY, true))
+        assertFalse(prefs.getBoolean(HomeWidgetConstants.REFRESH_BACKGROUND_QUEUED_KEY, true))
+        assertEquals(
+            "failed",
+            prefs.getString(HomeWidgetConstants.REFRESH_BACKGROUND_ENQUEUE_STATUS_KEY, null),
+        )
     }
 
     @Test
@@ -235,6 +263,14 @@ class HomeWidgetPeriodicRefreshWorkerTest {
             .putString(
                 HomeWidgetConstants.REFRESH_SMOKE_RESULT_KEY,
                 "completeRefresh(result=completed,source=flutter)",
+            )
+            .putBoolean(HomeWidgetConstants.REFRESH_BACKGROUND_QUEUED_KEY, true)
+            .putString(HomeWidgetConstants.REFRESH_BACKGROUND_ENQUEUE_STATUS_KEY, "queued")
+            .putLong(HomeWidgetConstants.REFRESH_BACKGROUND_STARTED_AT_MS_KEY, 950L)
+            .putLong(HomeWidgetConstants.REFRESH_BACKGROUND_COMPLETED_AT_MS_KEY, 1_050L)
+            .putString(
+                HomeWidgetConstants.REFRESH_BACKGROUND_STATUS_KEY,
+                "flutter_world_data_update_completed",
             )
             .apply()
 
@@ -252,7 +288,14 @@ class HomeWidgetPeriodicRefreshWorkerTest {
             "completeRefresh(result=completed,source=flutter)",
             diagnostics["smokeResult"],
         )
-        assertEquals(false, diagnostics["backgroundRefreshQueued"])
+        assertEquals(true, diagnostics["backgroundRefreshQueued"])
+        assertEquals("queued", diagnostics["backgroundRefreshEnqueueStatus"])
+        assertEquals(950L, diagnostics["backgroundRefreshStartedAtMs"])
+        assertEquals(1_050L, diagnostics["backgroundRefreshCompletedAtMs"])
+        assertEquals(
+            "flutter_world_data_update_completed",
+            diagnostics["backgroundRefreshStatus"],
+        )
         assertEquals(false, diagnostics["refreshActivityLaunched"])
         assertEquals(false, diagnostics["hasAnyWidgets"])
         assertEquals(0, diagnostics["homeWidget2x1Count"])

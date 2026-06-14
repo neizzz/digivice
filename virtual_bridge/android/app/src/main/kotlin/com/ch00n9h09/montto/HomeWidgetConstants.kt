@@ -28,6 +28,16 @@ object HomeWidgetConstants {
     const val REFRESH_COMPLETED_AT_MS_KEY = "home_widget_refresh_completed_at_ms"
     const val REFRESH_IN_FLIGHT_KEY = "home_widget_refresh_in_flight"
     const val REFRESH_BACKGROUND_QUEUED_KEY = "home_widget_refresh_background_queued"
+    const val REFRESH_BACKGROUND_ENQUEUE_STATUS_KEY =
+        "home_widget_refresh_background_enqueue_status"
+    const val REFRESH_BACKGROUND_ENQUEUE_ERROR_KEY =
+        "home_widget_refresh_background_enqueue_error"
+    const val REFRESH_BACKGROUND_STARTED_AT_MS_KEY =
+        "home_widget_refresh_background_started_at_ms"
+    const val REFRESH_BACKGROUND_COMPLETED_AT_MS_KEY =
+        "home_widget_refresh_background_completed_at_ms"
+    const val REFRESH_BACKGROUND_STATUS_KEY = "home_widget_refresh_background_status"
+    const val REFRESH_BACKGROUND_ERROR_KEY = "home_widget_refresh_background_error"
     const val REFRESH_ACTIVITY_LAUNCHED_KEY = "home_widget_refresh_activity_launched"
     const val PERIODIC_REFRESH_STATUS_KEY = "home_widget_periodic_refresh_status"
     const val PERIODIC_REFRESH_STATUS_AT_MS_KEY = "home_widget_periodic_refresh_status_at_ms"

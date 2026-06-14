@@ -51,3 +51,10 @@ const String periodicRefreshStatusAtMsKey =
 const String refreshSmokeResultKey = 'home_widget_refresh_smoke_last_result';
 const String refreshCompletedAtMsKey = 'home_widget_refresh_completed_at_ms';
 const String refreshInFlightKey = 'home_widget_refresh_in_flight';
+const String refreshBackgroundStartedAtMsKey =
+    'home_widget_refresh_background_started_at_ms';
+const String refreshBackgroundCompletedAtMsKey =
+    'home_widget_refresh_background_completed_at_ms';
+const String refreshBackgroundStatusKey =
+    'home_widget_refresh_background_status';
+const String refreshBackgroundErrorKey = 'home_widget_refresh_background_error';

@@ -112,12 +112,22 @@ internal object HomeWidgetAuthoritativeRefreshRequester {
             .apply()
 
         val backgroundRefreshQueued = enqueueFlutterBackgroundRefresh()
+        val backgroundRefreshEnqueueStatus = if (backgroundRefreshQueued) {
+            "queued"
+        } else {
+            "failed"
+        }
         val refreshActivityLaunched = launchRefreshActivity()
         prefs.edit()
             .putBoolean(
                 HomeWidgetConstants.REFRESH_BACKGROUND_QUEUED_KEY,
                 backgroundRefreshQueued,
             )
+            .putString(
+                HomeWidgetConstants.REFRESH_BACKGROUND_ENQUEUE_STATUS_KEY,
+                backgroundRefreshEnqueueStatus,
+            )
+            .remove(HomeWidgetConstants.REFRESH_BACKGROUND_ENQUEUE_ERROR_KEY)
             .putBoolean(
                 HomeWidgetConstants.REFRESH_ACTIVITY_LAUNCHED_KEY,
                 refreshActivityLaunched,
@@ -233,6 +243,50 @@ internal object HomeWidgetAuthoritativeRefreshRequester {
                 HomeWidgetConstants.REFRESH_BACKGROUND_QUEUED_KEY,
                 false,
             ),
+            "backgroundRefreshEnqueueStatus" to nativePrefs.getString(
+                HomeWidgetConstants.REFRESH_BACKGROUND_ENQUEUE_STATUS_KEY,
+                null,
+            ),
+            "backgroundRefreshEnqueueError" to nativePrefs.getString(
+                HomeWidgetConstants.REFRESH_BACKGROUND_ENQUEUE_ERROR_KEY,
+                null,
+            ).takeUnless { it.isNullOrBlank() },
+            "backgroundRefreshStartedAtMs" to nativePrefs.getLong(
+                HomeWidgetConstants.REFRESH_BACKGROUND_STARTED_AT_MS_KEY,
+                0L,
+            ).takeIf { it > 0L },
+            "backgroundRefreshCompletedAtMs" to nativePrefs.getLong(
+                HomeWidgetConstants.REFRESH_BACKGROUND_COMPLETED_AT_MS_KEY,
+                0L,
+            ).takeIf { it > 0L },
+            "backgroundRefreshStatus" to nativePrefs.getString(
+                HomeWidgetConstants.REFRESH_BACKGROUND_STATUS_KEY,
+                null,
+            ),
+            "backgroundRefreshError" to nativePrefs.getString(
+                HomeWidgetConstants.REFRESH_BACKGROUND_ERROR_KEY,
+                null,
+            ).takeUnless { it.isNullOrBlank() },
+            "flutterBackgroundRefreshStartedAtMs" to flutterPrefs?.getLong(
+                HomeWidgetConstants.FLUTTER_PREFIX +
+                    HomeWidgetConstants.REFRESH_BACKGROUND_STARTED_AT_MS_KEY,
+                0L,
+            )?.takeIf { it > 0L },
+            "flutterBackgroundRefreshCompletedAtMs" to flutterPrefs?.getLong(
+                HomeWidgetConstants.FLUTTER_PREFIX +
+                    HomeWidgetConstants.REFRESH_BACKGROUND_COMPLETED_AT_MS_KEY,
+                0L,
+            )?.takeIf { it > 0L },
+            "flutterBackgroundRefreshStatus" to flutterPrefs?.getString(
+                HomeWidgetConstants.FLUTTER_PREFIX +
+                    HomeWidgetConstants.REFRESH_BACKGROUND_STATUS_KEY,
+                null,
+            ),
+            "flutterBackgroundRefreshError" to flutterPrefs?.getString(
+                HomeWidgetConstants.FLUTTER_PREFIX +
+                    HomeWidgetConstants.REFRESH_BACKGROUND_ERROR_KEY,
+                null,
+            ).takeUnless { it.isNullOrBlank() },
             "refreshActivityLaunched" to nativePrefs.getBoolean(
                 HomeWidgetConstants.REFRESH_ACTIVITY_LAUNCHED_KEY,
                 false,

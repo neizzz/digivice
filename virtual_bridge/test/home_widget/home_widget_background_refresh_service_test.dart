@@ -105,6 +105,17 @@ void main() {
     expect(savedKeys, contains(config.nativeWorldDataSnapshotKey));
     expect(savedKeys, contains(config.nativeWorldDataAuthoritativeSnapshotKey));
     expect(savedKeys, contains(config.snapshotPublishHistoryStorageKey));
+    expect(savedKeys, contains(config.refreshBackgroundStartedAtMsKey));
+    expect(savedKeys, contains(config.refreshBackgroundCompletedAtMsKey));
+    expect(savedKeys, contains(config.refreshBackgroundStatusKey));
+    expect(savedKeys, contains(config.refreshBackgroundErrorKey));
+    expect(prefs.getInt(config.refreshBackgroundStartedAtMsKey), 60 * 1000);
+    expect(prefs.getInt(config.refreshBackgroundCompletedAtMsKey), 60 * 1000);
+    expect(
+      prefs.getString(config.refreshBackgroundStatusKey),
+      worldDataLifecycleDefaultCompletedStatus,
+    );
+    expect(prefs.getString(config.refreshBackgroundErrorKey), isNull);
     final List<dynamic> publishHistory = jsonDecode(
       prefs.getString(config.snapshotPublishHistoryStorageKey)!,
     ) as List<dynamic>;
@@ -229,6 +240,13 @@ void main() {
     );
     expect(savedValues[config.refreshInFlightKey], isFalse);
     expect(savedValues[config.refreshCompletedAtMsKey], 2000);
+    expect(savedValues[config.refreshBackgroundStartedAtMsKey], 2000);
+    expect(savedValues[config.refreshBackgroundCompletedAtMsKey], 2000);
+    expect(
+      savedValues[config.refreshBackgroundStatusKey],
+      worldDataLifecycleDefaultCompletedStatus,
+    );
+    expect(savedValues[config.refreshBackgroundErrorKey], '');
     expect(
       savedValues[config.refreshSmokeResultKey],
       allOf(<Matcher>[
@@ -333,6 +351,13 @@ void main() {
         'flutter_periodic_missing_world_data');
     expect(savedValues[config.refreshInFlightKey], isFalse);
     expect(savedValues[config.refreshCompletedAtMsKey], 2000);
+    expect(savedValues[config.refreshBackgroundStartedAtMsKey], 2000);
+    expect(savedValues[config.refreshBackgroundCompletedAtMsKey], 2000);
+    expect(
+      savedValues[config.refreshBackgroundStatusKey],
+      'flutter_periodic_missing_world_data',
+    );
+    expect(savedValues[config.refreshBackgroundErrorKey], 'missing_world_data');
     expect(
       savedValues[config.refreshSmokeResultKey],
       allOf(<Matcher>[
@@ -371,12 +396,66 @@ void main() {
         'flutter_periodic_snapshot_publish_failed');
     expect(savedValues[config.refreshInFlightKey], isFalse);
     expect(savedValues[config.refreshCompletedAtMsKey], 2000);
+    expect(savedValues[config.refreshBackgroundStartedAtMsKey], 2000);
+    expect(savedValues[config.refreshBackgroundCompletedAtMsKey], 2000);
+    expect(
+      savedValues[config.refreshBackgroundStatusKey],
+      'flutter_periodic_snapshot_publish_failed',
+    );
+    expect(
+      savedValues[config.refreshBackgroundErrorKey],
+      'snapshot_publish_failed:${config.nativeWorldDataAuthoritativeSnapshotKey}',
+    );
     expect(
       savedValues[config.refreshSmokeResultKey],
       allOf(<Matcher>[
         contains('status=flutter_periodic_snapshot_publish_failed'),
         contains(
             'error=snapshot_publish_failed:${config.nativeWorldDataAuthoritativeSnapshotKey}'),
+        contains('hasWorldData=true'),
+        contains('hasSnapshot=true'),
+      ]),
+    );
+  });
+
+  test('periodic callback은 widget update 실패도 metadata로 닫는다', () async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setString(config.worldDataStorageKey, _buildWorldData());
+    final Map<String, Object> savedValues = <String, Object>{};
+
+    final Map<String, Object?> result =
+        await HomeWidgetBackgroundRefreshService.runPeriodicRefresh(
+      nowMs: 2000,
+      randomProvider: (_) => 1,
+      saveWidgetData: (String key, Object value) async {
+        savedValues[key] = value;
+        return true;
+      },
+      updateWidget: (
+          {String? androidName, String? qualifiedAndroidName}) async {
+        throw StateError('launcher rejected update');
+      },
+    );
+
+    expect(result['status'], 'flutter_periodic_widget_update_failed');
+    expect(result['error'], 'update_widget_failed:HomeWidget1x1Provider');
+    expect(result['updated1x1'], isFalse);
+    expect(savedValues[config.refreshInFlightKey], isFalse);
+    expect(savedValues[config.refreshCompletedAtMsKey], 2000);
+    expect(savedValues[config.refreshBackgroundCompletedAtMsKey], 2000);
+    expect(
+      savedValues[config.refreshBackgroundStatusKey],
+      'flutter_periodic_widget_update_failed',
+    );
+    expect(
+      savedValues[config.refreshBackgroundErrorKey],
+      'update_widget_failed:HomeWidget1x1Provider',
+    );
+    expect(
+      savedValues[config.refreshSmokeResultKey],
+      allOf(<Matcher>[
+        contains('status=flutter_periodic_widget_update_failed'),
+        contains('error=update_widget_failed:HomeWidget1x1Provider'),
         contains('hasWorldData=true'),
         contains('hasSnapshot=true'),
       ]),
