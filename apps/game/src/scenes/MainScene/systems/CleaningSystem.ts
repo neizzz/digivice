@@ -11,6 +11,7 @@ import {
   PositionComp,
   CleanableComp,
   FreshnessComp,
+  RenderComp,
 } from "../raw-components";
 import { ObjectType, Freshness, FoodState } from "../types";
 import type { MainSceneWorld } from "../world";
@@ -166,9 +167,19 @@ function updateBroomMovement(
     // 청소 완료 확인
     if (newCleaningProgress >= 1.0) {
       // 청소 완료된 엔티티 제거
-      console.log(
-        `[CleaningSystem] Entity ${focusedTargetEid} cleaning completed, removing entity`,
-      );
+      console.log("[CleaningSystem] Cleaning completed, removing entity", {
+        eid: focusedTargetEid,
+        objectId: hasComponent(world, ObjectComp, focusedTargetEid)
+          ? ObjectComp.id[focusedTargetEid]
+          : ECS_NULL_VALUE,
+        type: hasComponent(world, ObjectComp, focusedTargetEid)
+          ? ObjectComp.type[focusedTargetEid]
+          : ECS_NULL_VALUE,
+        textureKey: hasComponent(world, RenderComp, focusedTargetEid)
+          ? RenderComp.textureKey[focusedTargetEid]
+          : ECS_NULL_VALUE,
+        focusedTargetEid: world.focusedTargetEid,
+      });
       finalizeDirtyExposureForEntity(
         world,
         focusedTargetEid,

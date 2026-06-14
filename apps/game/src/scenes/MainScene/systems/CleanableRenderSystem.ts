@@ -148,7 +148,7 @@ function updateEntitySpriteZIndex(
   }
 
   const spriteStore = getSpriteStore();
-  const sprite = spriteStore.get(RenderComp.storeIndex[eid]);
+  const sprite = spriteStore.get(eid);
 
   if (!sprite || sprite.destroyed) {
     return;
@@ -192,9 +192,8 @@ function getObjectRenderSize(
     return { width: 32, height: 32 };
   }
 
-  const storeIndex = RenderComp.storeIndex[eid];
   const spriteStore = getSpriteStore();
-  const sprite = spriteStore.get(storeIndex);
+  const sprite = spriteStore.get(eid);
 
   if (!sprite || sprite.destroyed) {
     return { width: 32, height: 32 };
@@ -625,9 +624,8 @@ function updateCleaningOpacity(
   const cleaningProgress = CleanableComp.cleaningProgress[eid];
 
   if (hasComponent(world, RenderComp, eid)) {
-    const storeIndex = RenderComp.storeIndex[eid];
     const spriteStore = getSpriteStore();
-    const sprite = spriteStore.get(storeIndex);
+    const sprite = spriteStore.get(eid);
 
     if (cleaningProgress > 0) {
       // console.log(
@@ -641,7 +639,7 @@ function updateCleaningOpacity(
         sprite.alpha = newAlpha;
       } else {
         console.warn(
-          `[CleanableRenderSystem] Sprite not found for entity ${eid} with storeIndex ${storeIndex}`,
+          `[CleanableRenderSystem] Sprite not found for entity ${eid}`,
         );
       }
     } else if (sprite && sprite.alpha < 1.0) {

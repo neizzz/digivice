@@ -4,6 +4,10 @@ import { addComponent, addEntity } from "bitecs";
 import * as PIXI from "pixi.js";
 import { CleanableComp, PositionComp, RenderComp } from "../raw-components";
 import {
+  applySavedEntityToECS,
+  convertECSEntityToSavedEntity,
+} from "../entityDataHelpers";
+import {
   cleanupCleanableRenderSystem,
   cleanableRenderSystem,
   getBroomStore,
@@ -11,7 +15,7 @@ import {
   getDashedBorderStore,
 } from "../systems/CleanableRenderSystem";
 import { getSpriteStore } from "../systems/RenderSystem";
-import type { MainSceneWorld } from "../world";
+import type { MainSceneWorld, SavedEntity } from "../world";
 import {
   createTestWorld,
   type TestWorld,
@@ -331,6 +335,13 @@ function runCleanableRenderSystem(world: CleanableRenderTestWorld): void {
   });
 }
 
+function assertAlphaApproximately(actual: number, expected: number): void {
+  assert.ok(
+    Math.abs(actual - expected) < 0.000001,
+    `expected alpha ${actual} to be approximately ${expected}`,
+  );
+}
+
 test("포커스된 청소 타겟은 비포커스 테두리보다 앞에 오고 자신의 테두리/빗자루는 더 위에 남는다", () => {
   withCleanableRenderHarness(({ world, strokeStyles }) => {
     const focused = createCleanableEntity(world, { x: 80, y: 120 });
@@ -439,6 +450,134 @@ test("texture metadata가 달라도 렌더된 sprite 크기가 같으면 같은 
       assert.deepEqual(firstSize, { width: 40, height: 40 });
       assert.deepEqual(secondSize, firstSize);
     });
+  });
+});
+
+test("stale RenderComp.storeIndex가 있어도 현재 eid의 sprite에만 청소 alpha를 적용한다", () => {
+  withCleanableRenderHarness(({ world }) => {
+    const target = createCleanableEntity(world, {
+      x: 80,
+      y: 120,
+      renderedWidth: 40,
+      renderedHeight: 40,
+    });
+    const other = createCleanableEntity(world, {
+      x: 160,
+      y: 180,
+      renderedWidth: 80,
+      renderedHeight: 80,
+    });
+
+    RenderComp.storeIndex[target.eid] = other.eid;
+    CleanableComp.cleaningProgress[target.eid] = 0.4;
+    world._isCleaningMode = true;
+    world._focusedTargetEid = target.eid;
+
+    runCleanableRenderSystem(world);
+
+    assertAlphaApproximately(target.sprite.alpha, 0.6);
+    assert.equal(other.sprite.alpha, 1);
+    assert.equal(target.sprite.zIndex, 1000103);
+    assert.equal(other.sprite.zIndex, 1000101);
+
+    CleanableComp.cleaningProgress[target.eid] = 0;
+    runCleanableRenderSystem(world);
+
+    assert.equal(target.sprite.alpha, 1);
+    assert.equal(other.sprite.alpha, 1);
+  });
+});
+
+test("stale RenderComp.storeIndex가 있어도 점선 테두리 크기는 현재 eid의 sprite를 기준으로 한다", () => {
+  withCapturedGraphicsBounds((boundsByGraphics) => {
+    withCleanableRenderHarness(({ world }) => {
+      const target = createCleanableEntity(world, {
+        x: 80,
+        y: 120,
+        renderedWidth: 32,
+        renderedHeight: 24,
+      });
+      const other = createCleanableEntity(world, {
+        x: 160,
+        y: 180,
+        renderedWidth: 96,
+        renderedHeight: 72,
+      });
+
+      RenderComp.storeIndex[target.eid] = other.eid;
+      world._isCleaningMode = true;
+      world._focusedTargetEid = target.eid;
+
+      runCleanableRenderSystem(world);
+
+      assert.deepEqual(
+        getCapturedBorderSize(
+          boundsByGraphics,
+          getDashedBorderStore().get(target.eid),
+        ),
+        { width: 32, height: 24 },
+      );
+    });
+  });
+});
+
+test("render.storeIndex는 저장과 로드 시 runtime-only 값으로 정규화된다", () => {
+  withCleanableRenderHarness(({ world }) => {
+    const target = createCleanableEntity(world, { x: 80, y: 120 });
+    RenderComp.storeIndex[target.eid] = 777;
+
+    const saved = convertECSEntityToSavedEntity(world, target.eid);
+    assert.equal(saved.components.render?.storeIndex, ECS_NULL_VALUE);
+
+    const restoredWorld = createCleanableRenderWorld();
+    const restoredEid = addEntity(restoredWorld);
+    const staleSaved: SavedEntity = {
+      components: {
+        ...saved.components,
+        render: {
+          ...saved.components.render!,
+          storeIndex: 777,
+        },
+      },
+    };
+    applySavedEntityToECS(restoredWorld, restoredEid, staleSaved);
+
+    assert.equal(RenderComp.storeIndex[restoredEid], ECS_NULL_VALUE);
+
+    addComponent(restoredWorld, CleanableComp, restoredEid);
+    CleanableComp.isHighlighted[restoredEid] = 1;
+    CleanableComp.cleaningProgress[restoredEid] = 0.4;
+    CleanableComp.isBeingCleaned[restoredEid] = 0;
+
+    const restoredSprite = new PIXI.Sprite(PIXI.Texture.WHITE);
+    restoredSprite.anchor.set(0.5);
+    restoredSprite.position.set(
+      PositionComp.x[restoredEid],
+      PositionComp.y[restoredEid],
+    );
+    const staleSprite = new PIXI.Sprite(PIXI.Texture.WHITE);
+    restoredWorld.stage.addChild(restoredSprite);
+    restoredWorld.stage.addChild(staleSprite);
+    getSpriteStore().set(restoredEid, restoredSprite);
+    getSpriteStore().set(777, staleSprite);
+
+    restoredWorld._isCleaningMode = true;
+    restoredWorld._focusedTargetEid = restoredEid;
+
+    try {
+      runCleanableRenderSystem(restoredWorld);
+
+      assertAlphaApproximately(restoredSprite.alpha, 0.6);
+      assert.equal(staleSprite.alpha, 1);
+    } finally {
+      cleanupCleanableRenderSystem(restoredWorld.stage);
+      restoredSprite.removeFromParent();
+      restoredSprite.destroy();
+      staleSprite.removeFromParent();
+      staleSprite.destroy();
+      getSpriteStore().remove(restoredEid);
+      getSpriteStore().remove(777);
+    }
   });
 });
 

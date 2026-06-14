@@ -292,7 +292,7 @@ export function convertECSEntityToSavedEntity(
   }
   if (hasComponent(world, RenderComp, eid)) {
     components.render = {
-      storeIndex: RenderComp.storeIndex[eid],
+      storeIndex: ECS_NULL_VALUE,
       textureKey: RenderComp.textureKey[eid],
       scale: RenderComp.scale[eid],
       zIndex: RenderComp.zIndex[eid],
@@ -496,7 +496,7 @@ export function applySavedEntityToECS(
     const state = hasComponent(world, ObjectComp, eid)
       ? ObjectComp.state[eid]
       : components.object?.state;
-    RenderComp.storeIndex[eid] = components.render.storeIndex;
+    RenderComp.storeIndex[eid] = ECS_NULL_VALUE;
     RenderComp.textureKey[eid] = shouldClearStaticEggTextureForState(
       state,
       components.render.textureKey,
