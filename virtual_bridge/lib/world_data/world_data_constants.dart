@@ -298,7 +298,7 @@ const double worldDataLifecycleEvolutionMaxGauge = 100;
 const int worldDataLifecycleEvolutionCheckIntervalMs = 10 * 1000;
 
 /// 수면 중 진화 게이지 시간 진행에 적용하는 배율입니다.
-const double worldDataLifecycleSleepingEvolutionTimeMultiplier = 1 / 3;
+const double worldDataLifecycleSleepingEvolutionTimeMultiplier = 1;
 
 /// 스태미나가 boosted 구간일 때 진화 게이지 증가량에 적용하는 배율입니다.
 const double worldDataLifecycleBoostedEvolutionGaugeGainMultiplier = 1.3;
@@ -319,10 +319,10 @@ const Map<String, int> worldDataLifecycleEvolutionTargetDurationByClassMs =
 /// 클래스별 목표 진화 시간에 적용하는 랜덤 편차입니다.
 const Map<String, int>
     worldDataLifecycleEvolutionTargetDurationVarianceByClassMs = <String, int>{
-  'A': 2 * hourMs,
-  'B': 4 * hourMs,
-  'C': 6 * hourMs,
-  'D': 6 * hourMs,
+  'A': 0 * hourMs,
+  'B': 0 * hourMs,
+  'C': 0 * hourMs,
+  'D': 0 * hourMs,
   // 'A': 0 * hourMs, // DEBUG
   // 'B': 0 * hourMs, // DEBUG
   // 'C': 0 * hourMs, // DEBUG

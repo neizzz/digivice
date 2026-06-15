@@ -81,10 +81,10 @@ export const PRODUCTION_EVOLUTION_TARGET_DURATION_BY_CLASS_MS = {
 } as const;
 
 export const PRODUCTION_EVOLUTION_TARGET_DURATION_VARIANCE_BY_CLASS_MS = {
-	"character-class-a": 7200000,
-	"character-class-b": 14400000,
-	"character-class-c": 21600000,
-	"character-class-d": 21600000
+	"character-class-a": 0,
+	"character-class-b": 0,
+	"character-class-c": 0,
+	"character-class-d": 0
 } as const;
 
 export const PRODUCTION_EVOLUTION_GAUGE_CONFIG = {
@@ -93,7 +93,7 @@ export const PRODUCTION_EVOLUTION_GAUGE_CONFIG = {
 	"boostedStaminaThreshold": 7.0,
 	"boostedGaugeGainMultiplier": 1.3,
 	"checkIntervalMs": 10000,
-	"sleepingGaugeTimeProgressMultiplier": 0.3333333333333333,
+	"sleepingGaugeTimeProgressMultiplier": 1.0,
 	"gaugeGainByClass": {
 		"character-class-a": 0.013888888888888888,
 		"character-class-b": 0.006944444444444444,
@@ -107,10 +107,10 @@ export const PRODUCTION_EVOLUTION_GAUGE_CONFIG = {
 		"character-class-d": 216000000
 	},
 	"targetDurationVarianceByClassMs": {
-		"character-class-a": 7200000,
-		"character-class-b": 14400000,
-		"character-class-c": 21600000,
-		"character-class-d": 21600000
+		"character-class-a": 0,
+		"character-class-b": 0,
+		"character-class-c": 0,
+		"character-class-d": 0
 	}
 } as const;
 
@@ -120,7 +120,7 @@ export const DEV_EVOLUTION_GAUGE_CONFIG = {
 	"boostedStaminaThreshold": 7.0,
 	"boostedGaugeGainMultiplier": 1.3,
 	"checkIntervalMs": 10000,
-	"sleepingGaugeTimeProgressMultiplier": 0.3333333333333333,
+	"sleepingGaugeTimeProgressMultiplier": 1.0,
 	"gaugeGainByClass": {
 		"character-class-a": 0.013888888888888888,
 		"character-class-b": 0.006944444444444444,
@@ -134,10 +134,10 @@ export const DEV_EVOLUTION_GAUGE_CONFIG = {
 		"character-class-d": 216000000
 	},
 	"targetDurationVarianceByClassMs": {
-		"character-class-a": 7200000,
-		"character-class-b": 14400000,
-		"character-class-c": 21600000,
-		"character-class-d": 21600000
+		"character-class-a": 0,
+		"character-class-b": 0,
+		"character-class-c": 0,
+		"character-class-d": 0
 	}
 } as const;
 

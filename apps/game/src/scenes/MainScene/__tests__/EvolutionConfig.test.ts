@@ -317,9 +317,9 @@ test("production/dev 기본 진화게이지 gain은 target duration 기준으로
   );
 });
 
-test("production 수면 중 진화 속도 배율은 1/3이다", () => {
+test("production 수면 중 진화 속도 배율은 깨어있을 때와 같다", () => {
   assert.equal(
     PRODUCTION_EVOLUTION_GAUGE_CONFIG.sleepingGaugeTimeProgressMultiplier,
-    1 / 3,
+    1,
   );
 });

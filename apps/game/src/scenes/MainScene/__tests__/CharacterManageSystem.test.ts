@@ -407,7 +407,7 @@ test("clearTemporaryStatuses는 happy/discover와 TemporaryStatusComp를 함께 
   assert.equal(TemporaryStatusComp.lastHappyStatusTime[eid], 9_000);
 });
 
-test("수면 중 진화 게이지는 깨어있을 때의 1/3 속도로 오른다", () => {
+test("수면 중 진화 게이지는 깨어있을 때와 같은 속도로 오른다", () => {
   const awakeWorld = createTestWorld({ now: 0 });
   const sleepingWorld = createTestWorld({ now: 0 });
 
@@ -442,24 +442,15 @@ test("수면 중 진화 게이지는 깨어있을 때의 1/3 속도로 오른다
   const awakeGaugeAfterOneInterval =
     CharacterStatusComp.evolutionGage[awakeEid];
   assert.ok(awakeGaugeAfterOneInterval > 0);
-  assert.equal(CharacterStatusComp.evolutionGage[sleepingEid], 0);
-  assert.ok(
-    Math.abs(
-      (getRemainingEvolutionGaugeTime(sleepingEid) ?? 0) -
-        EVOLUTION_GAUGE_CONFIG.checkIntervalMs * 2,
-    ) < 0.000001,
-  );
-
-  characterManagerSystem({
-    world: sleepingWorld as any,
-    delta: EVOLUTION_GAUGE_CONFIG.checkIntervalMs * 2,
-  });
-
   assert.ok(
     Math.abs(
       CharacterStatusComp.evolutionGage[sleepingEid] -
         awakeGaugeAfterOneInterval,
     ) < 0.000001,
+  );
+  assert.equal(
+    getRemainingEvolutionGaugeTime(sleepingEid),
+    EVOLUTION_GAUGE_CONFIG.checkIntervalMs,
   );
 });
 
