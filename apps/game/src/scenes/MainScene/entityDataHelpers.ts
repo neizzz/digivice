@@ -351,7 +351,7 @@ export function convertECSEntityToSavedEntity(
   }
   if (hasComponent(world, FoodMaskComp, eid)) {
     components.foodMask = {
-      maskStoreIndex: FoodMaskComp.maskStoreIndex[eid],
+      maskStoreIndex: ECS_NULL_VALUE,
       progress: FoodMaskComp.progress[eid],
       isInitialized: FoodMaskComp.isInitialized[eid] === 1,
     };
@@ -612,7 +612,7 @@ export function applySavedEntityToECS(
     if (!hasComponent(world, FoodMaskComp, eid)) {
       addComponent(world, FoodMaskComp, eid);
     }
-    FoodMaskComp.maskStoreIndex[eid] = components.foodMask.maskStoreIndex;
+    FoodMaskComp.maskStoreIndex[eid] = ECS_NULL_VALUE;
     FoodMaskComp.progress[eid] = components.foodMask.progress;
     FoodMaskComp.isInitialized[eid] = components.foodMask.isInitialized ? 1 : 0;
   }

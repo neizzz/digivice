@@ -1460,6 +1460,7 @@ void main() {
           _buildFoodEntity(
             state: worldDataLifecycleFoodStateBeingIntaken,
             foodMask: <String, dynamic>{
+              'maskStoreIndex': 777,
               'progress': 0.3125,
               'isInitialized': true,
             },
@@ -1486,6 +1487,7 @@ void main() {
         worldDataLifecycleFoodStateBeingIntaken);
     expect(foodEating['elapsedTime'], 2000);
     expect(foodEating['progress'], closeTo(0.625, 1e-12));
+    expect(foodMask['maskStoreIndex'], worldDataLifecycleTextureKeyNull);
     expect(foodMask['progress'], closeTo(0.625, 1e-12));
   });
 

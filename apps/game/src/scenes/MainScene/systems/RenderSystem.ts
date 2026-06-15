@@ -163,6 +163,16 @@ function getMaskSprite(eid: number): PIXI.Sprite | undefined {
 	return maskSpriteStore.get(eid);
 }
 
+function syncFoodMaskToFoodSprite(
+	maskSprite: PIXI.Sprite,
+	foodSprite: PIXI.Sprite,
+): void {
+	maskSprite.position.set(foodSprite.position.x, foodSprite.position.y);
+	maskSprite.anchor.copyFrom(foodSprite.anchor);
+	maskSprite.width = foodSprite.width;
+	maskSprite.height = foodSprite.height;
+}
+
 function logFoodMaskInitializationSummary(summary: FoodMaskInitSummary): void {
 	const { eid, progress, width, height, currentTime } = summary;
 	const roundedWidth = Number.isFinite(width) ? Math.round(width * 10) / 10 : 0;
@@ -276,11 +286,9 @@ function createMaskSpriteForFood(eid: number): PIXI.Sprite | undefined {
 	maskSprite.anchor.set(0.5);
 
 	// 마스크 스프라이트의 크기를 음식 스프라이트와 동일하게 설정
-	const foodStoreIndex = RenderComp.storeIndex[eid];
-	const foodSprite = getSprite(foodStoreIndex);
+	const foodSprite = getSprite(eid);
 	if (foodSprite) {
-		maskSprite.width = foodSprite.width;
-		maskSprite.height = foodSprite.height;
+		syncFoodMaskToFoodSprite(maskSprite, foodSprite);
 	}
 
 	return maskSprite;
@@ -486,10 +494,11 @@ function processFoodMasks(world: MainSceneWorld, stage: PIXI.Container): void {
 
 		// 마스크 위치 업데이트 (음식 스프라이트의 위치와 동기화)
 		if (maskSprite) {
-			maskSprite.position.set(foodSprite.position.x, foodSprite.position.y);
+			syncFoodMaskToFoodSprite(maskSprite, foodSprite);
 
 			// 진행도에 따라 마스크 텍스처 업데이트
 			updateMaskTexture(maskSprite, progress);
+			syncFoodMaskToFoodSprite(maskSprite, foodSprite);
 		}
 	}
 }

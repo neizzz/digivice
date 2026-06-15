@@ -783,7 +783,7 @@ test("FoodEatingComp와 FoodMaskComp는 저장-로드 시 round-trip된다", () 
   FoodEatingComp.elapsedTime[characterEid] = 1600;
   FoodEatingComp.isActive[characterEid] = 1;
   addComponent(world, FoodMaskComp, foodEid);
-  FoodMaskComp.maskStoreIndex[foodEid] = ECS_NULL_VALUE;
+  FoodMaskComp.maskStoreIndex[foodEid] = 777;
   FoodMaskComp.progress[foodEid] = 0.5;
   FoodMaskComp.isInitialized[foodEid] = 1;
 
@@ -807,8 +807,17 @@ test("FoodEatingComp와 FoodMaskComp는 저장-로드 시 round-trip된다", () 
   const restoredWorld = createTestWorld({ now: 31_000 });
   const restoredCharacterEid = addEntity(restoredWorld);
   const restoredFoodEid = addEntity(restoredWorld);
+  const staleSavedFood = {
+    components: {
+      ...savedFood.components,
+      foodMask: {
+        ...savedFood.components.foodMask!,
+        maskStoreIndex: 777,
+      },
+    },
+  };
   applySavedEntityToECS(restoredWorld, restoredCharacterEid, savedCharacter);
-  applySavedEntityToECS(restoredWorld, restoredFoodEid, savedFood);
+  applySavedEntityToECS(restoredWorld, restoredFoodEid, staleSavedFood);
 
   assert.ok(hasComponent(restoredWorld, FoodEatingComp, restoredCharacterEid));
   assert.ok(hasComponent(restoredWorld, FoodMaskComp, restoredFoodEid));
@@ -816,6 +825,7 @@ test("FoodEatingComp와 FoodMaskComp는 저장-로드 시 round-trip된다", () 
   assert.equal(FoodEatingComp.progress[restoredCharacterEid], 0.5);
   assert.equal(FoodEatingComp.elapsedTime[restoredCharacterEid], 1600);
   assert.equal(FoodEatingComp.isActive[restoredCharacterEid], 1);
+  assert.equal(FoodMaskComp.maskStoreIndex[restoredFoodEid], ECS_NULL_VALUE);
   assert.equal(FoodMaskComp.progress[restoredFoodEid], 0.5);
   assert.equal(FoodMaskComp.isInitialized[restoredFoodEid], 1);
 });

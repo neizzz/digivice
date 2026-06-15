@@ -332,9 +332,7 @@ class _WorldDataFoodInteractionService {
 
     final Map<String, dynamic> foodMask =
         WorldDataLifecycleService._ensureMap(foodRef.components, 'foodMask');
-    foodMask['maskStoreIndex'] =
-        WorldDataLifecycleService._readInt(foodMask['maskStoreIndex']) ??
-            worldDataLifecycleTextureKeyNull;
+    foodMask['maskStoreIndex'] = worldDataLifecycleTextureKeyNull;
     foodMask['progress'] = progress;
     foodMask['isInitialized'] =
         WorldDataLifecycleService._readBool(foodMask['isInitialized']) ?? false;
