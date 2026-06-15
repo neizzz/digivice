@@ -1347,6 +1347,14 @@ export class Game {
     return this.currentScene.buildWorldDataSyncPayload();
   }
 
+  public async flushWorldDataSyncPayload(): Promise<MainSceneWorldData | null> {
+    if (!(this.currentScene instanceof MainSceneWorld)) {
+      return null;
+    }
+
+    return this.currentScene.flushWorldDataSyncPayload();
+  }
+
   /**
    * 사용 가능한 모든 씬 키 목록을 반환합니다
    */

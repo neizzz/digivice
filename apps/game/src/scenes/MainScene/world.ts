@@ -2882,6 +2882,18 @@ export class MainSceneWorld implements IWorld, Scene {
 		}
 	}
 
+	public async flushWorldDataSyncPayload(): Promise<MainSceneWorldData | null> {
+		const syncPayload = this.buildWorldDataSyncPayload();
+
+		if (!syncPayload) {
+			return null;
+		}
+
+		await this.setData(syncPayload);
+
+		return syncPayload;
+	}
+
 	async getData(): Promise<MainSceneWorldData | null> {
 		console.groupCollapsed("💾 Loading saved data from storage...");
 
@@ -4024,6 +4036,10 @@ export class MainSceneWorld implements IWorld, Scene {
 
 		if (hasComponent(this, DiseaseSystemComp, characterEid)) {
 			DiseaseSystemComp.sickStartTime[characterEid] = 0;
+			DiseaseSystemComp.nextCheckTime[characterEid] = Math.max(
+				DiseaseSystemComp.nextCheckTime[characterEid],
+				this.currentTime + GAME_CONSTANTS.DISEASE_CHECK_INTERVAL,
+			);
 		}
 
 		if (shouldPreserveSleep) {

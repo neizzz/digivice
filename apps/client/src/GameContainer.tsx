@@ -2711,8 +2711,11 @@ const GameContainer: React.FC = () => {
 			}
 
 			try {
+				const flushedWorldData = gameInstance
+					? await gameInstance.flushWorldDataSyncPayload()
+					: null;
 				const inMemoryWorldData =
-					gameInstance?.getWorldDataSyncPayload() ?? null;
+					flushedWorldData ?? gameInstance?.getWorldDataSyncPayload() ?? null;
 				const inMemoryRawWorldData = inMemoryWorldData
 					? JSON.stringify(inMemoryWorldData)
 					: null;
@@ -2720,6 +2723,29 @@ const GameContainer: React.FC = () => {
 					typeof controller.syncFromStorageOrWorldDataJson === "function"
 						? controller.syncFromStorageOrWorldDataJson.bind(controller)
 						: null;
+
+				logImportantDiagnostics(
+					"log",
+					"[ImportantDiagnostics][WorldDataSyncPayload]",
+					{
+						reason,
+						action: "flush_completed",
+						hasGameInstance: !!gameInstance,
+						currentSceneKey,
+						hasFlushedWorldData: !!flushedWorldData,
+						hasInMemoryWorldData: !!inMemoryRawWorldData,
+						flushedLastEcsSaved:
+							typeof flushedWorldData?.world_metadata?.last_ecs_saved ===
+							"number"
+								? flushedWorldData.world_metadata.last_ecs_saved
+								: null,
+						inMemoryLastEcsSaved:
+							typeof inMemoryWorldData?.world_metadata?.last_ecs_saved ===
+							"number"
+								? inMemoryWorldData.world_metadata.last_ecs_saved
+								: null,
+					},
+				);
 
 				if (!syncFromFlutterSourceOfTruth && !inMemoryRawWorldData) {
 					logImportantDiagnostics(

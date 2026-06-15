@@ -2,12 +2,18 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createWorld } from "bitecs";
 import * as PIXI from "pixi.js";
-import { CharacterStatusComp, EggHatchComp, ObjectComp } from "../raw-components";
-import { CharacterKeyECS, CharacterState } from "../types";
+import {
+  CharacterStatusComp,
+  DiseaseSystemComp,
+  EggHatchComp,
+  ObjectComp,
+} from "../raw-components";
+import { CharacterKeyECS, CharacterState, CharacterStatus } from "../types";
 import {
   MainSceneWorld,
   type MainSceneWorldData,
 } from "../world";
+import { GAME_CONSTANTS } from "../config";
 import { createTestCharacter } from "../../../test-utils/mainSceneTestUtils";
 import { TrustedClock } from "../../../utils/TrustedClock";
 
@@ -259,4 +265,88 @@ test("buildWorldDataSyncPayload는 persistence write를 발생시키지 않는�
   assert.ok(snapshot);
   assert.equal(enqueueCalled, 0);
   assert.equal(setDataCalled, 0);
+});
+
+test("flushWorldDataSyncPayload는 최신 ECS snapshot 저장 완료 후 반환한다", async () => {
+  const now = 8_000;
+  const world = createMainSceneWorldForTest(now);
+  const worldInternals = world as unknown as {
+    _persistentData: MainSceneWorldData;
+    setData: (data: MainSceneWorldData) => Promise<void>;
+  };
+  const characterEid = createTestCharacter(
+    world as unknown as Parameters<typeof createTestCharacter>[0],
+    {
+      state: CharacterState.IDLE,
+      stamina: 7,
+    },
+  );
+
+  worldInternals._persistentData = {
+    world_metadata: {
+      name: "MainScene",
+      monster_name: "Test",
+      last_ecs_saved: 1_000,
+      version: "1.0.0",
+      app_state: {
+        last_active_time: 1_000,
+        is_first_load: false,
+        use_local_time: true,
+      },
+    },
+    entities: [],
+  };
+
+  let persistedData: MainSceneWorldData | null = null;
+  worldInternals.setData = async (data) => {
+    persistedData = data;
+    worldInternals._persistentData = data;
+  };
+
+  const snapshot = await world.flushWorldDataSyncPayload();
+
+  assert.ok(snapshot);
+  assert.equal(snapshot, persistedData);
+  assert.equal(snapshot.world_metadata.last_ecs_saved, now);
+  assert.equal(snapshot.world_metadata.app_state?.last_active_time, now);
+  assert.equal(snapshot.entities.length, 1);
+  assert.equal(
+    snapshot.entities[0]?.components.object?.id,
+    ObjectComp.id[characterEid],
+  );
+  assert.equal(
+    snapshot.entities[0]?.components.characterStatus?.stamina,
+    CharacterStatusComp.stamina[characterEid],
+  );
+});
+
+test("치료 impact는 다음 질병 체크를 치료 직후 interval 이후로 미룬다", () => {
+  const now = 12_000;
+  const world = createMainSceneWorldForTest(now);
+  const characterEid = createTestCharacter(
+    world as unknown as Parameters<typeof createTestCharacter>[0],
+    {
+      state: CharacterState.SICK,
+    },
+  );
+  const worldInternals = world as unknown as {
+    _pendingRecoveryCureEids: Set<number>;
+  };
+
+  CharacterStatusComp.statuses[characterEid][0] = CharacterStatus.SICK;
+  DiseaseSystemComp.sickStartTime[characterEid] = now - 1_000;
+  DiseaseSystemComp.nextCheckTime[characterEid] = now + 100;
+  worldInternals._pendingRecoveryCureEids.add(characterEid);
+
+  world.applyPendingRecoverySyringeImpact(characterEid);
+
+  assert.equal(
+    CharacterStatusComp.statuses[characterEid].includes(CharacterStatus.SICK),
+    false,
+  );
+  assert.equal(DiseaseSystemComp.sickStartTime[characterEid], 0);
+  assert.equal(
+    DiseaseSystemComp.nextCheckTime[characterEid],
+    now + GAME_CONSTANTS.DISEASE_CHECK_INTERVAL,
+  );
 });
