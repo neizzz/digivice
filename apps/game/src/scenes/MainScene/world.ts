@@ -5120,21 +5120,10 @@ export class MainSceneWorld implements IWorld, Scene {
 			}
 		}
 
-		for (const componentKey of [
-			"digestiveSystem",
-			"temporaryStatus",
-			"foodEating",
-			"destination",
-			"speed",
-		] as const) {
-			const nativeComponent = nativeCharacter.components[componentKey];
-			if (nativeComponent) {
-				baseCharacter.components[componentKey] =
-					this._cloneSavedComponent(nativeComponent);
-			} else {
-				delete baseCharacter.components[componentKey];
-			}
-		}
+		this._syncWidgetReentryNativeRuntimeComponents(
+			baseCharacter,
+			nativeCharacter,
+		);
 
 		const nativeDiseaseSystem = nativeCharacter.components.diseaseSystem;
 		if (
@@ -5142,13 +5131,14 @@ export class MainSceneWorld implements IWorld, Scene {
 			typeof nativeDiseaseSystem.sickStartTime === "number" &&
 			Number.isFinite(nativeDiseaseSystem.sickStartTime)
 		) {
+			const nextDiseaseCheckTime =
+				typeof nativeDiseaseSystem.nextCheckTime === "number" &&
+				Number.isFinite(nativeDiseaseSystem.nextCheckTime)
+					? nativeDiseaseSystem.nextCheckTime
+					: (baseCharacter.components.diseaseSystem?.nextCheckTime ?? 0);
 			baseCharacter.components.diseaseSystem = {
 				...(baseCharacter.components.diseaseSystem ?? nativeDiseaseSystem),
-				nextCheckTime:
-					typeof nativeDiseaseSystem.nextCheckTime === "number" &&
-					Number.isFinite(nativeDiseaseSystem.nextCheckTime)
-						? nativeDiseaseSystem.nextCheckTime
-						: baseCharacter.components.diseaseSystem?.nextCheckTime,
+				nextCheckTime: nextDiseaseCheckTime,
 				sickStartTime: nativeDiseaseSystem.sickStartTime,
 			};
 		}
@@ -5201,6 +5191,51 @@ export class MainSceneWorld implements IWorld, Scene {
 		mergedData.entities = [...mergedNonFoodEntities, ...nativeFoodEntities];
 	}
 
+	private _syncWidgetReentryNativeRuntimeComponents(
+		baseCharacter: SavedEntity,
+		nativeCharacter: SavedEntity,
+	): void {
+		const nativeDigestiveSystem = nativeCharacter.components.digestiveSystem;
+		if (nativeDigestiveSystem) {
+			baseCharacter.components.digestiveSystem =
+				this._cloneSavedComponent(nativeDigestiveSystem);
+		} else {
+			delete baseCharacter.components.digestiveSystem;
+		}
+
+		const nativeTemporaryStatus = nativeCharacter.components.temporaryStatus;
+		if (nativeTemporaryStatus) {
+			baseCharacter.components.temporaryStatus =
+				this._cloneSavedComponent(nativeTemporaryStatus);
+		} else {
+			delete baseCharacter.components.temporaryStatus;
+		}
+
+		const nativeFoodEating = nativeCharacter.components.foodEating;
+		if (nativeFoodEating) {
+			baseCharacter.components.foodEating =
+				this._cloneSavedComponent(nativeFoodEating);
+		} else {
+			delete baseCharacter.components.foodEating;
+		}
+
+		const nativeDestination = nativeCharacter.components.destination;
+		if (nativeDestination) {
+			baseCharacter.components.destination =
+				this._cloneSavedComponent(nativeDestination);
+		} else {
+			delete baseCharacter.components.destination;
+		}
+
+		const nativeSpeed = nativeCharacter.components.speed;
+		if (nativeSpeed) {
+			baseCharacter.components.speed =
+				this._cloneSavedComponent(nativeSpeed);
+		} else {
+			delete baseCharacter.components.speed;
+		}
+	}
+
 	private _resetSavedCharacterRenderForReentryCharacterKey(
 		baseCharacter: SavedEntity,
 		nativeCharacter: SavedEntity,
@@ -5220,7 +5255,7 @@ export class MainSceneWorld implements IWorld, Scene {
 			baseCharacter.components.animationRender = {
 				...(baseAnimationRender ?? nativeAnimationRender),
 				storeIndex: ECS_NULL_VALUE,
-				spritesheetKey: characterKey as CharacterKeyECS,
+				spritesheetKey: characterKey as SpritesheetKey,
 				animationKey:
 					nativeAnimationRender?.animationKey ??
 					baseAnimationRender?.animationKey ??
