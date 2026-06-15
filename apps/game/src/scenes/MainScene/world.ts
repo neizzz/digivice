@@ -632,9 +632,14 @@ type MainSceneEntryStatusSnapshot = {
 
 type MainSceneSavedStatusDiagnostics = {
 	state: number | null;
+	characterKey: number | null;
+	evolutionPhase: number | null;
+	stamina: number | null;
+	evolutionGage: number | null;
 	statuses: number[];
 	hasSickStatus: boolean;
 	sickStartTime: number | null;
+	foodCount: number;
 };
 
 type MainSceneWidgetStateMergeResult = {
@@ -5059,18 +5064,76 @@ export class MainSceneWorld implements IWorld, Scene {
 			};
 		}
 
-		const nativeStatuses = nativeCharacter.components.characterStatus?.statuses;
+		const nativeCharacterStatus = nativeCharacter.components.characterStatus;
+		const previousCharacterKey =
+			baseCharacter.components.characterStatus?.characterKey ?? null;
+		const nativeStatuses = nativeCharacterStatus?.statuses;
 		if (
 			baseCharacter.components.characterStatus &&
-			Array.isArray(nativeStatuses)
+			nativeCharacterStatus
 		) {
-			baseCharacter.components.characterStatus = {
+			const nextCharacterStatus: CharacterStatusComponent = {
 				...baseCharacter.components.characterStatus,
-				statuses: nativeStatuses.filter(
+			};
+			if (Array.isArray(nativeStatuses)) {
+				nextCharacterStatus.statuses = nativeStatuses.filter(
 					(status): status is CharacterStatus =>
 						typeof status === "number" && Number.isFinite(status),
-				),
-			};
+				);
+			}
+			if (
+				typeof nativeCharacterStatus.characterKey === "number" &&
+				Number.isFinite(nativeCharacterStatus.characterKey)
+			) {
+				nextCharacterStatus.characterKey = nativeCharacterStatus.characterKey;
+			}
+			if (
+				typeof nativeCharacterStatus.evolutionPhase === "number" &&
+				Number.isFinite(nativeCharacterStatus.evolutionPhase)
+			) {
+				nextCharacterStatus.evolutionPhase =
+					nativeCharacterStatus.evolutionPhase;
+			}
+			if (
+				typeof nativeCharacterStatus.stamina === "number" &&
+				Number.isFinite(nativeCharacterStatus.stamina)
+			) {
+				nextCharacterStatus.stamina = nativeCharacterStatus.stamina;
+			}
+			if (
+				typeof nativeCharacterStatus.evolutionGage === "number" &&
+				Number.isFinite(nativeCharacterStatus.evolutionGage)
+			) {
+				nextCharacterStatus.evolutionGage =
+					nativeCharacterStatus.evolutionGage;
+			}
+			baseCharacter.components.characterStatus = nextCharacterStatus;
+			if (
+				previousCharacterKey !== null &&
+				nextCharacterStatus.characterKey !== previousCharacterKey
+			) {
+				this._resetSavedCharacterRenderForReentryCharacterKey(
+					baseCharacter,
+					nativeCharacter,
+					nextCharacterStatus.characterKey,
+				);
+			}
+		}
+
+		for (const componentKey of [
+			"digestiveSystem",
+			"temporaryStatus",
+			"foodEating",
+			"destination",
+			"speed",
+		] as const) {
+			const nativeComponent = nativeCharacter.components[componentKey];
+			if (nativeComponent) {
+				baseCharacter.components[componentKey] =
+					this._cloneSavedComponent(nativeComponent);
+			} else {
+				delete baseCharacter.components[componentKey];
+			}
 		}
 
 		const nativeDiseaseSystem = nativeCharacter.components.diseaseSystem;
@@ -5081,6 +5144,11 @@ export class MainSceneWorld implements IWorld, Scene {
 		) {
 			baseCharacter.components.diseaseSystem = {
 				...(baseCharacter.components.diseaseSystem ?? nativeDiseaseSystem),
+				nextCheckTime:
+					typeof nativeDiseaseSystem.nextCheckTime === "number" &&
+					Number.isFinite(nativeDiseaseSystem.nextCheckTime)
+						? nativeDiseaseSystem.nextCheckTime
+						: baseCharacter.components.diseaseSystem?.nextCheckTime,
 				sickStartTime: nativeDiseaseSystem.sickStartTime,
 			};
 		}
@@ -5100,6 +5168,8 @@ export class MainSceneWorld implements IWorld, Scene {
 			};
 		}
 
+		this._syncWidgetReentryFoodEntities(mergedData, nativeUpdatedData);
+
 		return {
 			data: mergedData,
 			applied: true,
@@ -5107,6 +5177,63 @@ export class MainSceneWorld implements IWorld, Scene {
 			after: this._getSavedMainCharacterStatusDiagnostics(mergedData),
 			source: "widget_state_fields",
 		};
+	}
+
+	private _cloneSavedComponent<T>(component: T): T {
+		return JSON.parse(JSON.stringify(component)) as T;
+	}
+
+	private _isSavedFoodEntity(entity: SavedEntity): boolean {
+		return entity.components.object?.type === ObjectType.FOOD;
+	}
+
+	private _syncWidgetReentryFoodEntities(
+		mergedData: MainSceneWorldData,
+		nativeUpdatedData: MainSceneWorldData,
+	): void {
+		const nativeFoodEntities = (nativeUpdatedData.entities ?? [])
+			.filter((entity) => this._isSavedFoodEntity(entity))
+			.map((entity) => this._cloneSavedComponent(entity));
+		const mergedNonFoodEntities = (mergedData.entities ?? []).filter(
+			(entity) => !this._isSavedFoodEntity(entity),
+		);
+
+		mergedData.entities = [...mergedNonFoodEntities, ...nativeFoodEntities];
+	}
+
+	private _resetSavedCharacterRenderForReentryCharacterKey(
+		baseCharacter: SavedEntity,
+		nativeCharacter: SavedEntity,
+		characterKey: number,
+	): void {
+		if (baseCharacter.components.render) {
+			baseCharacter.components.render = {
+				...baseCharacter.components.render,
+				storeIndex: ECS_NULL_VALUE,
+				textureKey: ECS_NULL_VALUE,
+			};
+		}
+
+		const nativeAnimationRender = nativeCharacter.components.animationRender;
+		const baseAnimationRender = baseCharacter.components.animationRender;
+		if (nativeAnimationRender || baseAnimationRender) {
+			baseCharacter.components.animationRender = {
+				...(baseAnimationRender ?? nativeAnimationRender),
+				storeIndex: ECS_NULL_VALUE,
+				spritesheetKey: characterKey as CharacterKeyECS,
+				animationKey:
+					nativeAnimationRender?.animationKey ??
+					baseAnimationRender?.animationKey ??
+					AnimationKey.IDLE,
+				isPlaying:
+					nativeAnimationRender?.isPlaying ??
+					baseAnimationRender?.isPlaying ??
+					true,
+				loop: nativeAnimationRender?.loop ?? baseAnimationRender?.loop ?? true,
+				speed:
+					nativeAnimationRender?.speed ?? baseAnimationRender?.speed ?? 1,
+			};
+		}
 	}
 
 	private _getSavedMainCharacterStatusDiagnostics(
@@ -5125,19 +5252,49 @@ export class MainSceneWorld implements IWorld, Scene {
 					)
 				: [];
 			const sickStartTime = entity.components.diseaseSystem?.sickStartTime;
+			const characterStatus = entity.components.characterStatus;
 
 			return {
 				state: object.state ?? null,
+				characterKey:
+					typeof characterStatus?.characterKey === "number" &&
+					Number.isFinite(characterStatus.characterKey)
+						? characterStatus.characterKey
+						: null,
+				evolutionPhase:
+					typeof characterStatus?.evolutionPhase === "number" &&
+					Number.isFinite(characterStatus.evolutionPhase)
+						? characterStatus.evolutionPhase
+						: null,
+				stamina:
+					typeof characterStatus?.stamina === "number" &&
+					Number.isFinite(characterStatus.stamina)
+						? characterStatus.stamina
+						: null,
+				evolutionGage:
+					typeof characterStatus?.evolutionGage === "number" &&
+					Number.isFinite(characterStatus.evolutionGage)
+						? characterStatus.evolutionGage
+						: null,
 				statuses,
 				hasSickStatus: statuses.includes(CharacterStatus.SICK),
 				sickStartTime:
 					typeof sickStartTime === "number" && Number.isFinite(sickStartTime)
 						? sickStartTime
 						: null,
+				foodCount: this._countSavedFoodEntities(data),
 			};
 		}
 
 		return null;
+	}
+
+	private _countSavedFoodEntities(
+		data: MainSceneWorldData | null | undefined,
+	): number {
+		return (data?.entities ?? []).filter((entity) =>
+			this._isSavedFoodEntity(entity),
+		).length;
 	}
 
 	private _clearMainCharacterSleepState(eid: number): void {

@@ -135,6 +135,20 @@ function formatGeneOutcomeProbability(
   }).format(safeProbability);
 }
 
+function formatStatusBarPercentLabel(
+  percent: number,
+  roundingMode: "round1" | "floor2" = "round1",
+): string {
+  const safePercent = clampUnitInterval(percent);
+
+  if (roundingMode === "floor2") {
+    const flooredPercent = Math.floor(safePercent * 10_000) / 100;
+    return `${flooredPercent.toFixed(2)}%`;
+  }
+
+  return `${(safePercent * 100).toFixed(1)}%`;
+}
+
 function getEvolutionGaugeDescriptionKey(
   snapshot: MainCharacterInfoSnapshot,
 ):
@@ -160,11 +174,22 @@ const StatusBar: React.FC<{
   maxValue: number;
   fillColor: string;
   description?: string | null;
-}> = ({ label, currentValue, maxValue, fillColor, description }) => {
+  percentRoundingMode?: "round1" | "floor2";
+}> = ({
+  label,
+  currentValue,
+  maxValue,
+  fillColor,
+  description,
+  percentRoundingMode,
+}) => {
   const percent = clampUnitInterval(
     maxValue > 0 ? currentValue / maxValue : 0,
   );
-  const percentLabel = `${(percent * 100).toFixed(1)}%`;
+  const percentLabel = formatStatusBarPercentLabel(
+    percent,
+    percentRoundingMode,
+  );
 
   return (
     <div className="flex flex-col gap-2 text-left">
@@ -444,6 +469,7 @@ const MonsterInfoLayer: React.FC<MonsterInfoLayerProps> = ({
                     maxValue={snapshot.maxEvolutionGauge}
                     fillColor={EVOLUTION_FILL_COLOR}
                     description={evolutionGaugeDescription}
+                    percentRoundingMode="floor2"
                   />
                   <GeneOutcomeList
                     label={t("monsterInfo.nextEvolution")}

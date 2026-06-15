@@ -1002,6 +1002,43 @@ void main() {
     expect((nextRecords.single as Map<String, dynamic>)['source'], 'evolution');
   });
 
+  test('수면 중 이미 max 진화 게이지에 도달한 저장본도 진화한다', () {
+    final WorldDataLifecycleAdvanceResult result =
+        WorldDataLifecycleService.advanceWorldData(
+      rawWorldData: _buildWorldData(
+        state: config.characterStateSleeping,
+        characterKey: 2,
+        evolutionPhase: 2,
+        evolutionGage: worldDataLifecycleEvolutionMaxGauge,
+        sleepMode: worldDataLifecycleSleepModeNightSleep,
+        nextDiseaseCheckTime: 60 * 60 * 1000,
+      ),
+      nowMs: 1000,
+      source: 'periodic_work',
+      randomProvider: (WorldDataLifecycleRandomEvent event) {
+        if (event.reason == 'evolution_mutation') {
+          return 1;
+        }
+        if (event.reason == 'evolution') {
+          return 0;
+        }
+        return 1;
+      },
+    );
+
+    final Map<String, dynamic> updated = _decode(result.updatedRawWorldData);
+
+    expect(result.evolutionDiagnostics.evolved, isTrue);
+    expect(result.evolutionDiagnostics.evolutionGageIncreased, isFalse);
+    expect(result.evolutionDiagnostics.evolutionGageBefore,
+        worldDataLifecycleEvolutionMaxGauge);
+    expect(result.evolutionDiagnostics.evolutionGageAfter, 0);
+    expect(_object(updated)['state'], config.characterStateSleeping);
+    expect(_characterStatus(updated)['characterKey'], 3);
+    expect(_characterStatus(updated)['evolutionPhase'], 3);
+    expect(_characterStatus(updated)['evolutionGage'], 0);
+  });
+
   test('기존 MonsterBookData는 Dart lifecycle 저장 시 보존/병합된다', () {
     final String dedicatedMonsterBook = jsonEncode(<String, dynamic>{
       'reached': <String, dynamic>{

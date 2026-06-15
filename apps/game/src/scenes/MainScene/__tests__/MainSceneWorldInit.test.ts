@@ -1544,7 +1544,7 @@ test("init/app_resume reentry는 native payload world data가 있으면 stale st
 	assert.equal(writes.length, 1);
 });
 
-test("home widget 존재 reentry는 native updatedRawWorldData의 상태 필드만 우선 반영한다", async () => {
+test("home widget 존재 reentry는 Flutter progression 수치와 진화 결과를 반영한다", async () => {
 	const originalGetData = StorageManager.getData.bind(StorageManager);
 	const originalSetData = StorageManager.setData.bind(StorageManager);
 	const lastActiveTime = 1_000;
@@ -1576,12 +1576,36 @@ test("home widget 존재 reentry는 native updatedRawWorldData의 상태 필드�
 	});
 	const nativeCharacter = nativeUpdatedData.entities[0]?.components;
 	if (nativeCharacter?.characterStatus) {
-		nativeCharacter.characterStatus.evolutionGage = 99;
+		nativeCharacter.characterStatus.characterKey = CharacterKeyECS.GreenSlimeB1;
+		nativeCharacter.characterStatus.evolutionGage = 0;
+		nativeCharacter.characterStatus.evolutionPhase = 2;
 	}
 	const baseData = buildReentryCharacterWorldData({
 		state: CharacterState.IDLE,
 		currentTime: lastActiveTime,
 		stamina: 8,
+	});
+	baseData.entities.push({
+		components: {
+			object: {
+				id: 303,
+				type: ObjectType.FOOD,
+				state: FoodState.LANDED,
+			},
+			position: {
+				x: 220,
+				y: 180,
+			},
+			render: {
+				storeIndex: ECS_NULL_VALUE,
+				textureKey: TextureKey.FOOD1,
+				scale: 1.4,
+				zIndex: ECS_NULL_VALUE,
+			},
+			freshness: {
+				freshness: Freshness.NORMAL,
+			},
+		},
 	});
 	const baseCharacter = baseData.entities[0]?.components;
 	if (baseCharacter?.characterStatus) {
@@ -1663,21 +1687,41 @@ test("home widget 존재 reentry는 native updatedRawWorldData의 상태 필드�
 	assert.equal(hasCharacterStatus(characterEid, CharacterStatus.SICK), true);
 	assert.equal(DiseaseSystemComp.sickStartTime[characterEid], 123);
 	assert.equal(SleepSystemComp.sleepMode[characterEid], SleepMode.NIGHT_SLEEP);
-	assert.equal(CharacterStatusComp.stamina[characterEid], 8);
-	assert.equal(CharacterStatusComp.evolutionGage[characterEid], 33);
+	assert.equal(
+		CharacterStatusComp.characterKey[characterEid],
+		CharacterKeyECS.GreenSlimeB1,
+	);
+	assert.equal(CharacterStatusComp.evolutionPhase[characterEid], 2);
+	assert.equal(CharacterStatusComp.stamina[characterEid], 1);
+	assert.equal(CharacterStatusComp.evolutionGage[characterEid], 0);
 	assert.equal(PositionComp.x[characterEid], 40);
 	assert.equal(PositionComp.y[characterEid], 44);
 	assert.equal(savedCharacter?.object?.state, CharacterState.SLEEPING);
+	assert.equal(
+		savedCharacter?.characterStatus?.characterKey,
+		CharacterKeyECS.GreenSlimeB1,
+	);
+	assert.equal(savedCharacter?.characterStatus?.evolutionPhase, 2);
 	assert.deepEqual(savedCharacter?.characterStatus?.statuses, [
 		CharacterStatus.SICK,
 		ECS_NULL_VALUE,
 		ECS_NULL_VALUE,
 		ECS_NULL_VALUE,
 	]);
-	assert.equal(savedCharacter?.characterStatus?.stamina, 8);
-	assert.equal(savedCharacter?.characterStatus?.evolutionGage, 33);
+	assert.equal(savedCharacter?.characterStatus?.stamina, 1);
+	assert.equal(savedCharacter?.characterStatus?.evolutionGage, 0);
 	assert.equal(savedCharacter?.position?.x, 40);
 	assert.equal(savedCharacter?.position?.y, 44);
+	assert.equal(
+		(
+			writes
+				.filter((write) => write.key === WORLD_DATA_STORAGE_KEY)
+				.at(-1)?.data as MainSceneWorldData | undefined
+		)?.entities.filter(
+			(entity) => entity.components.object?.type === ObjectType.FOOD,
+		).length,
+		0,
+	);
 });
 
 test("foreground hatch는 scaled nowMs를 Flutter authority에 전달하고 반환 저장본을 적용한다", async () => {

@@ -839,12 +839,6 @@ class WorldDataLifecycleService {
         blockReason: 'already_evolved',
       );
     }
-    if (elapsedMs <= 0) {
-      return _buildEvolutionDiagnostics(
-        character,
-        blockReason: 'elapsed_below_interval',
-      );
-    }
     final int? state = character.state;
     if (state == config.characterStateEgg) {
       return _buildEvolutionDiagnostics(character, blockReason: 'egg');
@@ -868,6 +862,27 @@ class WorldDataLifecycleService {
       return _buildEvolutionDiagnostics(character, blockReason: 'terminal');
     }
 
+    final double currentGauge = character.evolutionGage ?? 0;
+    if (currentGauge >= worldDataLifecycleEvolutionMaxGauge) {
+      return _applyEvolutionAtMaxGauge(
+        character: character,
+        entities: entities,
+        appState: appState,
+        monsterName: monsterName,
+        nowMs: nowMs,
+        currentSpec: spec,
+        currentGauge: currentGauge,
+        evolutionGageIncreased: false,
+        randomProvider: randomProvider,
+      );
+    }
+    if (elapsedMs <= 0) {
+      return _buildEvolutionDiagnostics(
+        character,
+        blockReason: 'elapsed_below_interval',
+      );
+    }
+
     final double effectiveElapsedMs = elapsedMs *
         (state == config.characterStateSleeping
             ? worldDataLifecycleSleepingEvolutionTimeMultiplier
@@ -882,7 +897,6 @@ class WorldDataLifecycleService {
       );
     }
 
-    final double currentGauge = character.evolutionGage ?? 0;
     final double baseGain = _resolveEvolutionGaugeGain(
       classCode: spec.classCode,
       objectId: character.objectId ?? 0,
@@ -901,73 +915,16 @@ class WorldDataLifecycleService {
 
     character.characterStatus['evolutionGage'] = nextGauge;
     if (nextGauge >= worldDataLifecycleEvolutionMaxGauge) {
-      final _EvolutionSelection selection = _resolveEvolutionSelection(
+      return _applyEvolutionAtMaxGauge(
         character: character,
         entities: entities,
-        currentSpec: spec,
+        appState: appState,
+        monsterName: monsterName,
         nowMs: nowMs,
-        randomProvider: randomProvider,
-      );
-      final WorldDataEvolutionCandidate? candidate = selection.candidate;
-      if (candidate == null) {
-        return WorldDataLifecycleEvolutionDiagnostics(
-          evolutionGageBefore: currentGauge,
-          evolutionGageAfter: character.evolutionGage,
-          evolutionGageIncreased: true,
-          mutationApplied: false,
-          mutationRate: selection.mutationRate,
-          mutationRoll: selection.mutationRoll,
-          mutationTargetRoll: selection.mutationTargetRoll,
-          evolutionRoll: selection.evolutionRoll,
-          blockReason: 'no_candidate',
-        );
-      }
-
-      final int previousCharacterKey = character.characterKey ?? 0;
-      final int previousEvolutionPhase =
-          _readInt(character.characterStatus['evolutionPhase']) ?? spec.phase;
-      final Map<String, dynamic> monsterBook =
-          WorldDataMonsterBookService.ensureState(appState);
-      WorldDataMonsterBookService.recordReach(
-        monsterBook: monsterBook,
-        characterKey: previousCharacterKey,
-        name: monsterName,
-        reachedAt: nowMs,
-        objectId: character.objectId ?? 0,
-        source: 'backfill',
-        onlyIfMissing: true,
-      );
-      _applyEvolution(
-        character: character,
         currentSpec: spec,
-        candidate: candidate,
-      );
-      WorldDataMonsterBookService.recordReach(
-        monsterBook: monsterBook,
-        characterKey: candidate.to,
-        name: monsterName,
-        reachedAt: nowMs,
-        objectId: character.objectId ?? 0,
-        source: 'evolution',
-        onlyIfMissing: false,
-      );
-      return WorldDataLifecycleEvolutionDiagnostics(
-        evolutionGageBefore: currentGauge,
-        evolutionGageAfter: character.evolutionGage,
+        currentGauge: currentGauge,
         evolutionGageIncreased: true,
-        evolved: true,
-        previousCharacterKey: previousCharacterKey,
-        nextCharacterKey: candidate.to,
-        previousEvolutionPhase: previousEvolutionPhase,
-        nextEvolutionPhase:
-            _readInt(character.characterStatus['evolutionPhase']),
-        candidateKind: candidate.kind,
-        mutationApplied: candidate.kind == evolutionCandidateKindCrossLine,
-        mutationRate: selection.mutationRate,
-        mutationRoll: selection.mutationRoll,
-        mutationTargetRoll: selection.mutationTargetRoll,
-        evolutionRoll: selection.evolutionRoll,
-        blockReason: 'none',
+        randomProvider: randomProvider,
       );
     }
 
@@ -975,6 +932,87 @@ class WorldDataLifecycleService {
       evolutionGageBefore: currentGauge,
       evolutionGageAfter: nextGauge,
       evolutionGageIncreased: true,
+      blockReason: 'none',
+    );
+  }
+
+  static WorldDataLifecycleEvolutionDiagnostics _applyEvolutionAtMaxGauge({
+    required _MutableCharacterSource character,
+    required List<dynamic> entities,
+    required Map<String, dynamic> appState,
+    required String monsterName,
+    required int nowMs,
+    required WorldDataEvolutionSpec currentSpec,
+    required double currentGauge,
+    required bool evolutionGageIncreased,
+    required WorldDataLifecycleRandomProvider randomProvider,
+  }) {
+    final _EvolutionSelection selection = _resolveEvolutionSelection(
+      character: character,
+      entities: entities,
+      currentSpec: currentSpec,
+      nowMs: nowMs,
+      randomProvider: randomProvider,
+    );
+    final WorldDataEvolutionCandidate? candidate = selection.candidate;
+    if (candidate == null) {
+      return WorldDataLifecycleEvolutionDiagnostics(
+        evolutionGageBefore: currentGauge,
+        evolutionGageAfter: character.evolutionGage,
+        evolutionGageIncreased: evolutionGageIncreased,
+        mutationApplied: false,
+        mutationRate: selection.mutationRate,
+        mutationRoll: selection.mutationRoll,
+        mutationTargetRoll: selection.mutationTargetRoll,
+        evolutionRoll: selection.evolutionRoll,
+        blockReason: 'no_candidate',
+      );
+    }
+
+    final int previousCharacterKey = character.characterKey ?? 0;
+    final int previousEvolutionPhase =
+        _readInt(character.characterStatus['evolutionPhase']) ??
+            currentSpec.phase;
+    final Map<String, dynamic> monsterBook =
+        WorldDataMonsterBookService.ensureState(appState);
+    WorldDataMonsterBookService.recordReach(
+      monsterBook: monsterBook,
+      characterKey: previousCharacterKey,
+      name: monsterName,
+      reachedAt: nowMs,
+      objectId: character.objectId ?? 0,
+      source: 'backfill',
+      onlyIfMissing: true,
+    );
+    _applyEvolution(
+      character: character,
+      currentSpec: currentSpec,
+      candidate: candidate,
+    );
+    WorldDataMonsterBookService.recordReach(
+      monsterBook: monsterBook,
+      characterKey: candidate.to,
+      name: monsterName,
+      reachedAt: nowMs,
+      objectId: character.objectId ?? 0,
+      source: 'evolution',
+      onlyIfMissing: false,
+    );
+    return WorldDataLifecycleEvolutionDiagnostics(
+      evolutionGageBefore: currentGauge,
+      evolutionGageAfter: character.evolutionGage,
+      evolutionGageIncreased: evolutionGageIncreased,
+      evolved: true,
+      previousCharacterKey: previousCharacterKey,
+      nextCharacterKey: candidate.to,
+      previousEvolutionPhase: previousEvolutionPhase,
+      nextEvolutionPhase: _readInt(character.characterStatus['evolutionPhase']),
+      candidateKind: candidate.kind,
+      mutationApplied: candidate.kind == evolutionCandidateKindCrossLine,
+      mutationRate: selection.mutationRate,
+      mutationRoll: selection.mutationRoll,
+      mutationTargetRoll: selection.mutationTargetRoll,
+      evolutionRoll: selection.evolutionRoll,
       blockReason: 'none',
     );
   }
