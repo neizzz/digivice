@@ -846,11 +846,6 @@ class WorldDataLifecycleService {
     if (state == config.characterStateDead) {
       return _buildEvolutionDiagnostics(character, blockReason: 'dead');
     }
-    if (state == config.characterStateSick ||
-        character.statuses.contains(config.characterStatusSick)) {
-      return _buildEvolutionDiagnostics(character, blockReason: 'sick');
-    }
-
     final double stamina = character.stamina ?? config.maxStamina;
     if (stamina < config.lowStaminaThreshold) {
       return _buildEvolutionDiagnostics(character, blockReason: 'low_stamina');
@@ -875,6 +870,10 @@ class WorldDataLifecycleService {
         evolutionGageIncreased: false,
         randomProvider: randomProvider,
       );
+    }
+    if (state == config.characterStateSick ||
+        character.statuses.contains(config.characterStatusSick)) {
+      return _buildEvolutionDiagnostics(character, blockReason: 'sick');
     }
     if (elapsedMs <= 0) {
       return _buildEvolutionDiagnostics(

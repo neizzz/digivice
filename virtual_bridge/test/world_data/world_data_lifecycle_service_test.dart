@@ -250,6 +250,72 @@ void main() {
     expect(result.evolutionDiagnostics.evolutionGageIncreased, isFalse);
   });
 
+  test('sick이어도 진화 게이지가 이미 100이면 즉시 진화한다', () {
+    final WorldDataLifecycleAdvanceResult result =
+        WorldDataLifecycleService.advanceWorldData(
+      rawWorldData: _buildWorldData(
+        state: config.characterStateSick,
+        characterKey: 2,
+        evolutionPhase: 2,
+        statuses: const <int>[config.characterStatusSick],
+        stamina: 10,
+        evolutionGage: 100,
+        nextDiseaseCheckTime: 60 * 60 * 1000,
+      ),
+      nowMs: 60 * 1000,
+      source: 'app_resume',
+      randomProvider: (WorldDataLifecycleRandomEvent event) {
+        if (event.reason == 'evolution_mutation') {
+          return 1;
+        }
+        if (event.reason == 'evolution') {
+          return 0;
+        }
+        return 1;
+      },
+    );
+
+    final Map<String, dynamic> updated = _decode(result.updatedRawWorldData);
+    final Map<String, dynamic> status = _characterStatus(updated);
+
+    expect(result.evolutionDiagnostics.evolved, isTrue);
+    expect(result.evolutionDiagnostics.blockReason, 'none');
+    expect(result.evolutionDiagnostics.evolutionGageIncreased, isFalse);
+    expect(result.evolutionDiagnostics.previousCharacterKey, 2);
+    expect(result.evolutionDiagnostics.nextCharacterKey, 3);
+    expect(status['characterKey'], 3);
+    expect(status['evolutionPhase'], 3);
+    expect(status['evolutionGage'], 0.0);
+    expect(status['statuses'], contains(config.characterStatusSick));
+  });
+
+  test('sick이고 진화 게이지가 100이어도 stamina가 낮으면 진화가 block된다', () {
+    final WorldDataLifecycleAdvanceResult result =
+        WorldDataLifecycleService.advanceWorldData(
+      rawWorldData: _buildWorldData(
+        state: config.characterStateSick,
+        characterKey: 2,
+        evolutionPhase: 2,
+        statuses: const <int>[config.characterStatusSick],
+        stamina: 0,
+        evolutionGage: 100,
+        nextDiseaseCheckTime: 60 * 60 * 1000,
+      ),
+      nowMs: 60 * 1000,
+      source: 'app_resume',
+      randomProvider: (_) => 1,
+    );
+
+    final Map<String, dynamic> updated = _decode(result.updatedRawWorldData);
+    final Map<String, dynamic> status = _characterStatus(updated);
+
+    expect(result.evolutionDiagnostics.evolved, isFalse);
+    expect(result.evolutionDiagnostics.blockReason, 'low_stamina');
+    expect(result.evolutionDiagnostics.evolutionGageIncreased, isFalse);
+    expect(status['characterKey'], 2);
+    expect(status['evolutionGage'], 100);
+  });
+
   test('sick status는 치료 없이 background lifecycle에서 제거되지 않는다', () {
     final WorldDataLifecycleAdvanceResult result =
         WorldDataLifecycleService.advanceWorldData(
@@ -353,6 +419,38 @@ void main() {
     expect(result.authoritativeSnapshot!.characterKey, 3);
     expect(result.toMap()['evolved'], isTrue);
     expect(result.toMap()['nextCharacterKey'], 3);
+  });
+
+  test('sick이 아니고 진화 게이지가 이미 100이면 기존처럼 즉시 진화한다', () {
+    final WorldDataLifecycleAdvanceResult result =
+        WorldDataLifecycleService.advanceWorldData(
+      rawWorldData: _buildWorldData(
+        characterKey: 2,
+        evolutionPhase: 2,
+        evolutionGage: 100,
+        nextDiseaseCheckTime: 60 * 60 * 1000,
+      ),
+      nowMs: 60 * 1000,
+      source: 'periodic_work',
+      randomProvider: (WorldDataLifecycleRandomEvent event) {
+        if (event.reason == 'evolution_mutation') {
+          return 1;
+        }
+        if (event.reason == 'evolution') {
+          return 0;
+        }
+        return 1;
+      },
+    );
+
+    final Map<String, dynamic> updated = _decode(result.updatedRawWorldData);
+    final Map<String, dynamic> status = _characterStatus(updated);
+
+    expect(result.evolutionDiagnostics.evolved, isTrue);
+    expect(result.evolutionDiagnostics.blockReason, 'none');
+    expect(result.evolutionDiagnostics.evolutionGageIncreased, isFalse);
+    expect(status['characterKey'], 3);
+    expect(status['evolutionGage'], 0.0);
   });
 
   test('fake random으로 weighted base evolution 후보를 선택한다', () {
